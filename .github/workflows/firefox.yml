@@ -13,6 +13,9 @@ jobs:
       
       - name: Checkout
         uses: actions/checkout@v2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
         
       - name: Initialize Environment
         run: |
@@ -26,20 +29,13 @@ jobs:
       - name: Sync Source Code
         run: |
           hg clone https://hg.mozilla.org/mozilla-central/ firefox-source
-          
-      - name: Health Check
-        if: (!cancelled())
-        run: |
-          echo "Check space usage"
-          df -hT
-          echo "Check memory usage"
-          free -m
 
       - name: Push to Github
         run: |
           mv firefox-source/* $PWD/ && rm -rf firefox-source
           git config --local user.name "GitHub Actions"
           git config --local user.email "action@github.com"
+          git add .
           git commit -am "Update On $(date +%Y%m%d%H%M)"
       
       - name: Push changes
