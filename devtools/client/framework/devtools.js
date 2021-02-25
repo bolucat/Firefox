@@ -13,8 +13,8 @@ const {
 
 loader.lazyRequireGetter(
   this,
-  "TargetFactory",
-  "devtools/client/framework/target",
+  "TabTargetFactory",
+  "devtools/client/framework/tab-target-factory",
   true
 );
 loader.lazyRequireGetter(
@@ -541,6 +541,38 @@ DevTools.prototype = {
   },
 
   /**
+   * Show the toolbox for a given tab. If a toolbox already exists for this tab
+   * the existing toolbox will be raised. Otherwise a new toolbox is created.
+   *
+   * Relies on `showToolbox`, see its jsDoc for additional information and
+   * arguments description.
+   *
+   * Also used by 3rd party tools (eg wptrunner) and exposed by
+   * DevToolsShim.jsm.
+   *
+   * @param {XULTab} tab
+   *        The tab the toolbox will debug
+   * @param {Object} options
+   *        Various options that will be forwarded to `showToolbox`. See the
+   *        JSDoc on this method.
+   */
+  async showToolboxForTab(
+    tab,
+    { toolId, hostType, startTime, raise, reason, hostOptions } = {}
+  ) {
+    const target = await TabTargetFactory.forTab(tab);
+    return this.showToolbox(
+      target,
+      toolId,
+      hostType,
+      hostOptions,
+      startTime,
+      reason,
+      raise
+    );
+  },
+
+  /**
    * Log telemetry related to toolbox opening.
    * Two distinct probes are logged. One for cold startup, when we open the very first
    * toolbox. This one includes devtools framework loading. And a second one for all
@@ -663,15 +695,17 @@ DevTools.prototype = {
   },
 
   /**
-   * Wrapper on TargetFactory.forTab, constructs a Target for the provided tab.
-   *
-   * @param  {XULTab} tab
-   *         The tab to use in creating a new target.
-   *
-   * @return {Target} A target object
+   * Retrieve an existing toolbox for the provided tab if it was created before.
+   * Returns null otherwise.
    */
-  getTargetForTab: function(tab) {
-    return TargetFactory.forTab(tab);
+  async getToolboxForTab(tab) {
+    const target = await TabTargetFactory.forTab(tab);
+    return this._toolboxes.get(target);
+  },
+
+  async closeToolboxForTab(tab) {
+    const target = await TabTargetFactory.forTab(tab);
+    return this.closeToolbox(target);
   },
 
   /**
@@ -682,7 +716,7 @@ DevTools.prototype = {
    * cached instances managed by DevTools target factory.
    */
   createDescriptorForTab: function(tab) {
-    return TargetFactory.createDescriptorForTab(tab);
+    return TabTargetFactory.createDescriptorForTab(tab);
   },
 
   /**
@@ -719,16 +753,11 @@ DevTools.prototype = {
    *         markup view.
    */
   async inspectNode(tab, domReference, startTime) {
-    const target = await TargetFactory.forTab(tab);
-
-    const toolbox = await gDevTools.showToolbox(
-      target,
-      "inspector",
-      null,
-      null,
+    const toolbox = await gDevTools.showToolboxForTab(tab, {
+      toolId: "inspector",
       startTime,
-      "inspect_dom"
-    );
+      reason: "inspect_dom",
+    });
     const inspector = toolbox.getCurrentPanel();
 
     const nodeFront = await inspector.inspectorFront.getNodeActorFromContentDomReference(
@@ -767,15 +796,10 @@ DevTools.prototype = {
    *         selected in the accessibility inspector.
    */
   async inspectA11Y(tab, domReference, startTime) {
-    const target = await TargetFactory.forTab(tab);
-
-    const toolbox = await gDevTools.showToolbox(
-      target,
-      "accessibility",
-      null,
-      null,
-      startTime
-    );
+    const toolbox = await gDevTools.showToolboxForTab(tab, {
+      toolId: "accessibility",
+      startTime,
+    });
     const inspectorFront = await toolbox.target.getFront("inspector");
     const nodeFront = await inspectorFront.getNodeActorFromContentDomReference(
       domReference

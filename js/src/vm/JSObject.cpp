@@ -1969,8 +1969,8 @@ bool js::LookupProperty(JSContext* cx, HandleObject obj, js::HandleId id,
   if (LookupPropertyOp op = obj->getOpsLookupProperty()) {
     return op(cx, obj, id, objp, propp);
   }
-  return LookupPropertyInline<CanGC>(cx, obj.as<NativeObject>(), id, objp,
-                                     propp);
+  return NativeLookupPropertyInline<CanGC>(cx, obj.as<NativeObject>(), id, objp,
+                                           propp);
 }
 
 bool js::LookupName(JSContext* cx, HandlePropertyName name,
@@ -2006,8 +2006,8 @@ bool js::LookupNameNoGC(JSContext* cx, PropertyName* name, JSObject* envChain,
     if (env->getOpsLookupProperty()) {
       return false;
     }
-    if (!LookupPropertyInline<NoGC>(cx, &env->as<NativeObject>(),
-                                    NameToId(name), pobjp, propp)) {
+    if (!NativeLookupPropertyInline<NoGC>(cx, &env->as<NativeObject>(),
+                                          NameToId(name), pobjp, propp)) {
       return false;
     }
     if (propp->isFound()) {
@@ -2132,82 +2132,21 @@ bool js::HasOwnProperty(JSContext* cx, HandleObject obj, HandleId id,
 
 bool js::LookupPropertyPure(JSContext* cx, JSObject* obj, jsid id,
                             JSObject** objp, PropertyResult* propp) {
-  do {
-    if (!LookupOwnPropertyPure(cx, obj, id, propp)) {
-      return false;
-    }
-
-    if (propp->isFound()) {
-      *objp = obj;
-      return true;
-    }
-
-    if (propp->shouldIgnoreProtoChain()) {
-      *objp = nullptr;
-      return true;
-    }
-
-    obj = obj->staticPrototype();
-  } while (obj);
-
-  *objp = nullptr;
-  propp->setNotFound();
-  return true;
+  if (obj->getOpsLookupProperty()) {
+    return false;
+  }
+  return NativeLookupPropertyInline<NoGC, LookupResolveMode::CheckMayResolve>(
+      cx, &obj->as<NativeObject>(), id, objp, propp);
 }
 
 bool js::LookupOwnPropertyPure(JSContext* cx, JSObject* obj, jsid id,
                                PropertyResult* propp) {
-  JS::AutoCheckCannotGC nogc;
-
-  if (obj->is<NativeObject>()) {
-    // Search for a native dense element, typed array element, or property.
-
-    if (JSID_IS_INT(id)) {
-      uint32_t index = JSID_TO_INT(id);
-      if (obj->as<NativeObject>().containsDenseElement(index)) {
-        propp->setDenseElement(index);
-        return true;
-      }
-    }
-
-    if (obj->is<TypedArrayObject>()) {
-      mozilla::Maybe<uint64_t> index;
-      if (!ToTypedArrayIndex(cx, id, &index)) {
-        cx->recoverFromOutOfMemory();
-        return false;
-      }
-
-      if (index.isSome()) {
-        if (index.value() < obj->as<TypedArrayObject>().length().get()) {
-          propp->setTypedArrayElement(index.value());
-        } else {
-          propp->setTypedArrayOutOfRange();
-        }
-        return true;
-      }
-    }
-
-    if (Shape* shape = obj->as<NativeObject>().lookupPure(id)) {
-      propp->setNativeProperty(shape);
-      return true;
-    }
-
-    // Fail if there's a resolve hook, unless the mayResolve hook tells
-    // us the resolve hook won't define a property with this id.
-    if (ClassMayResolveId(cx->names(), obj->getClass(), id, obj)) {
-      return false;
-    }
-  } else if (obj->is<TypedObject>()) {
-    if (obj->as<TypedObject>().typeDescr().hasProperty(cx, id)) {
-      propp->setTypedObjectProperty();
-      return true;
-    }
-  } else {
+  if (obj->getOpsLookupProperty()) {
     return false;
   }
-
-  propp->setNotFound();
-  return true;
+  return NativeLookupOwnPropertyInline<NoGC,
+                                       LookupResolveMode::CheckMayResolve>(
+      cx, &obj->as<NativeObject>(), id, propp);
 }
 
 static inline bool NativeGetPureInline(NativeObject* pobj, jsid id,

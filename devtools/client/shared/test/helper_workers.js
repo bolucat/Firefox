@@ -4,6 +4,7 @@
 
 "use strict";
 
+/* import-globals-from ../../shared/test/shared-head.js */
 /* import-globals-from ../../debugger/test/mochitest/helpers.js */
 /* import-globals-from ../../debugger/test/mochitest/helpers/context.js */
 Services.scriptloader.loadSubScript(
@@ -169,8 +170,7 @@ function executeAndWaitForMessage(
 
 async function initWorkerDebugger(TAB_URL, WORKER_URL) {
   const tab = await addTab(TAB_URL);
-  const target = await TargetFactory.forTab(tab);
-  await target.attach();
+  const target = await createAndAttachTargetForTab(tab);
   const { client } = target;
 
   await createWorkerInTab(tab, WORKER_URL);

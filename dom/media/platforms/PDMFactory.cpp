@@ -450,6 +450,26 @@ void PDMFactory::CreateGpuPDMs() {
 #endif
 }
 
+#if defined(MOZ_FFMPEG)
+static DecoderDoctorDiagnostics::Flags GetFailureFlagBasedOnFFmpegStatus(
+    const FFmpegRuntimeLinker::LinkStatus& aStatus) {
+  switch (aStatus) {
+    case FFmpegRuntimeLinker::LinkStatus_INVALID_FFMPEG_CANDIDATE:
+    case FFmpegRuntimeLinker::LinkStatus_UNUSABLE_LIBAV57:
+    case FFmpegRuntimeLinker::LinkStatus_INVALID_LIBAV_CANDIDATE:
+    case FFmpegRuntimeLinker::LinkStatus_OBSOLETE_FFMPEG:
+    case FFmpegRuntimeLinker::LinkStatus_OBSOLETE_LIBAV:
+    case FFmpegRuntimeLinker::LinkStatus_INVALID_CANDIDATE:
+      return DecoderDoctorDiagnostics::Flags::LibAVCodecUnsupported;
+    default:
+      MOZ_DIAGNOSTIC_ASSERT(
+          aStatus == FFmpegRuntimeLinker::LinkStatus_NOT_FOUND,
+          "Only call this method when linker fails.");
+      return DecoderDoctorDiagnostics::Flags::FFmpegNotFound;
+  }
+}
+#endif
+
 void PDMFactory::CreateRddPDMs() {
 #ifdef XP_WIN
   if (StaticPrefs::media_wmf_enabled() &&
@@ -472,9 +492,8 @@ void PDMFactory::CreateRddPDMs() {
   if (StaticPrefs::media_ffmpeg_enabled() &&
       StaticPrefs::media_rdd_ffmpeg_enabled() &&
       !CreateAndStartupPDM<FFmpegRuntimeLinker>()) {
-    mFailureFlags += DecoderDoctorDiagnostics::Flags::FFmpegFailedToLoad;
-  } else {
-    mFailureFlags -= DecoderDoctorDiagnostics::Flags::FFmpegFailedToLoad;
+    mFailureFlags += GetFailureFlagBasedOnFFmpegStatus(
+        FFmpegRuntimeLinker::LinkStatusCode());
   }
 #endif
   CreateAndStartupPDM<AgnosticDecoderModule>();
@@ -515,7 +534,8 @@ void PDMFactory::CreateContentPDMs() {
 #ifdef MOZ_FFMPEG
   if (StaticPrefs::media_ffmpeg_enabled() &&
       !CreateAndStartupPDM<FFmpegRuntimeLinker>()) {
-    mFailureFlags += DecoderDoctorDiagnostics::Flags::FFmpegFailedToLoad;
+    mFailureFlags += GetFailureFlagBasedOnFFmpegStatus(
+        FFmpegRuntimeLinker::LinkStatusCode());
   }
 #endif
 #ifdef MOZ_WIDGET_ANDROID
@@ -560,7 +580,8 @@ void PDMFactory::CreateDefaultPDMs() {
 #ifdef MOZ_FFMPEG
   if (StaticPrefs::media_ffmpeg_enabled() &&
       !CreateAndStartupPDM<FFmpegRuntimeLinker>()) {
-    mFailureFlags += DecoderDoctorDiagnostics::Flags::FFmpegFailedToLoad;
+    mFailureFlags += GetFailureFlagBasedOnFFmpegStatus(
+        FFmpegRuntimeLinker::LinkStatusCode());
   }
 #endif
 #ifdef MOZ_WIDGET_ANDROID
@@ -726,6 +747,20 @@ bool PDMFactory::SupportsMimeType(const nsACString& aMimeType,
     return aSupported.contains(MediaCodecs::Wave);
   }
   return false;
+}
+
+/* static */
+bool PDMFactory::AllDecodersAreRemote() {
+  return StaticPrefs::media_rdd_process_enabled() &&
+         StaticPrefs::media_rdd_ffvpx_enabled() &&
+         StaticPrefs::media_rdd_opus_enabled() &&
+         StaticPrefs::media_rdd_theora_enabled() &&
+         StaticPrefs::media_rdd_vorbis_enabled() &&
+         StaticPrefs::media_rdd_vpx_enabled() &&
+#if defined(MOZ_WMF)
+         StaticPrefs::media_rdd_wmf_enabled() &&
+#endif
+         StaticPrefs::media_rdd_wav_enabled();
 }
 
 #undef PDM_INIT_LOG

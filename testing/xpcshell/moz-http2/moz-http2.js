@@ -243,6 +243,221 @@ function handleRequest(req, res) {
   // PushService tests.
   var pushPushServer1, pushPushServer2, pushPushServer3, pushPushServer4;
 
+  function createCNameContent() {
+    let rContent;
+    if (0 == cname_confirm) {
+      // ... this sends a CNAME back to pointing-elsewhere.example.com
+      rContent = Buffer.from(
+        "00000100000100010000000005636E616D65076578616D706C6503636F6D0000050001C00C0005000100000037002012706F696E74696E672D656C73657768657265076578616D706C6503636F6D00",
+        "hex"
+      );
+      cname_confirm++;
+    } else {
+      // ... this sends an A 99.88.77.66 entry back for pointing-elsewhere.example.com
+      rContent = Buffer.from(
+        "00000100000100010000000012706F696E74696E672D656C73657768657265076578616D706C6503636F6D0000010001C00C0001000100000037000463584D42",
+        "hex"
+      );
+    }
+    return rContent;
+  }
+
+  function createCNameARecord() {
+    // test23 asks for cname-a.example.com
+    // this responds with a CNAME to here.example.com *and* an A record
+    // for here.example.com
+    let rContent;
+
+    rContent = Buffer.from(
+      "0000" +
+      "0100" +
+      "0001" + // QDCOUNT
+      "0002" + // ANCOUNT
+      "00000000" + // NSCOUNT + ARCOUNT
+      "07636E616D652d61" + // cname-a
+      "076578616D706C6503636F6D00" + // .example.com
+      "00010001" + // question type (A) + question class (IN)
+      // answer record 1
+      "C00C" + // name pointer to cname-a.example.com
+      "0005" + // type (CNAME)
+      "0001" + // class
+      "00000037" + // TTL
+      "0012" + // RDLENGTH
+      "0468657265" + // here
+      "076578616D706C6503636F6D00" + // .example.com
+      // answer record 2, the A entry for the CNAME above
+      "0468657265" + // here
+      "076578616D706C6503636F6D00" + // .example.com
+      "0001" + // type (A)
+      "0001" + // class
+      "00000037" + // TTL
+      "0004" + // RDLENGTH
+        "09080706", // IPv4 address
+      "hex"
+    );
+
+    return rContent;
+  }
+
+  function responseType(packet, responseIP) {
+    if (
+      packet.questions.length > 0 &&
+      packet.questions[0].name == "confirm.example.com" &&
+      packet.questions[0].type == "NS"
+    ) {
+      return "NS";
+    }
+
+    return ip.isV4Format(responseIP) ? "A" : "AAAA";
+  }
+
+  function handleAuth() {
+    // There's a Set-Cookie: header in the response for "/dns" , which this
+    // request subsequently would include if the http channel wasn't
+    // anonymous. Thus, if there's a cookie in this request, we know Firefox
+    // mishaved. If there's not, we're fine.
+    if (req.headers.cookie) {
+      res.writeHead(403);
+      res.end("cookie for me, not for you");
+      return false;
+    }
+    if (req.headers.authorization != "user:password") {
+      res.writeHead(401);
+      res.end("bad boy!");
+      return false;
+    }
+
+    return true;
+  }
+
+  function createDNSAnswer(response, packet, responseIP) {
+    // This shuts down the connection so we can test if the client reconnects
+    if (
+      packet.questions.length > 0 &&
+      packet.questions[0].name == "closeme.com"
+    ) {
+      response.stream.connection.close("INTERNAL_ERROR", response.stream.id);
+      return null;
+    }
+
+    function responseData() {
+      if (
+        packet.questions.length > 0 &&
+        packet.questions[0].name == "confirm.example.com" &&
+        packet.questions[0].type == "NS"
+      ) {
+        return "ns.example.com";
+      }
+
+      return responseIP;
+    }
+
+    let answers = [];
+    if (
+      responseIP != "none" &&
+      responseType(packet, responseIP) == packet.questions[0].type
+    ) {
+      answers.push({
+        name: u.query.hostname ? u.query.hostname : packet.questions[0].name,
+        ttl: 55,
+        type: responseType(packet, responseIP),
+        flush: false,
+        data: responseData(),
+      });
+    }
+
+    // for use with test_dns_by_type_resolve.js
+    if (packet.questions[0].type == "TXT") {
+      answers.push({
+        name: packet.questions[0].name,
+        type: packet.questions[0].type,
+        ttl: 55,
+        class: "IN",
+        flush: false,
+        data: Buffer.from(
+          "62586B67646D39705932556761584D6762586B676347467A63336476636D513D",
+          "hex"
+        ),
+      });
+    }
+
+    if (u.query.cnameloop) {
+      answers.push({
+        name: "cname.example.com",
+        type: "CNAME",
+        ttl: 55,
+        class: "IN",
+        flush: false,
+        data: "pointing-elsewhere.example.com",
+      });
+    }
+
+    if (req.headers["accept-language"] || req.headers["user-agent"]) {
+      // If we get this header, don't send back any response. This should
+      // cause the tests to fail. This is easier then actually sending back
+      // the header value into test_trr.js
+      answers = [];
+    }
+
+    let buf = dnsPacket.encode({
+      type: "response",
+      id: packet.id,
+      flags: dnsPacket.RECURSION_DESIRED,
+      questions: packet.questions,
+      answers,
+    });
+
+    return buf;
+  }
+
+  function getDelayFromPacket(packet, type) {
+    let delay = 0;
+    if (packet.questions[0].type == "A") {
+      delay = parseInt(u.query.delayIPv4);
+    } else if (packet.questions[0].type == "AAAA") {
+      delay = parseInt(u.query.delayIPv6);
+    }
+
+    if (u.query.slowConfirm && type == "NS") {
+      delay += 1000;
+    }
+
+    return delay;
+  }
+
+  function writeDNSResponse(response, buf, delay, contentType) {
+    function writeResponse(resp, buffer) {
+      resp.setHeader("Set-Cookie", "trackyou=yes; path=/; max-age=100000;");
+      resp.setHeader("Content-Type", contentType);
+      if (req.headers["accept-encoding"].includes("gzip")) {
+        zlib.gzip(buffer, function(err, result) {
+          resp.setHeader("Content-Encoding", "gzip");
+          resp.setHeader("Content-Length", result.length);
+          resp.writeHead(200);
+          res.end(result);
+        });
+      } else {
+        resp.setHeader("Content-Length", buffer.length);
+        resp.writeHead(200);
+        resp.write(buffer);
+        resp.end("");
+      }
+    }
+
+    if (delay) {
+      setTimeout(
+        arg => {
+          writeResponse(arg[0], arg[1]);
+        },
+        delay,
+        [response, buf]
+      );
+      return;
+    }
+
+    writeResponse(response, buf);
+  }
+
   if (req.httpVersionMajor === 2) {
     res.setHeader("X-Connection-Http2", "yes");
     res.setHeader("X-Http2-StreamId", "" + req.stream.id);
@@ -567,21 +782,8 @@ function handleRequest(req, res) {
   // for use with test_trr.js
   else if (u.pathname === "/dns-cname") {
     // asking for cname.example.com
-    let rContent;
-    if (0 == cname_confirm) {
-      // ... this sends a CNAME back to pointing-elsewhere.example.com
-      rContent = Buffer.from(
-        "00000100000100010000000005636E616D65076578616D706C6503636F6D0000050001C00C0005000100000037002012706F696E74696E672D656C73657768657265076578616D706C6503636F6D00",
-        "hex"
-      );
-      cname_confirm++;
-    } else {
-      // ... this sends an A 99.88.77.66 entry back for pointing-elsewhere.example.com
-      rContent = Buffer.from(
-        "00000100000100010000000012706F696E74696E672D656C73657768657265076578616D706C6503636F6D0000010001C00C0001000100000037000463584D42",
-        "hex"
-      );
-    }
+    let rContent = createCNameContent();
+
     res.setHeader("Content-Type", "application/dns-message");
     res.setHeader("Content-Length", rContent.length);
     res.writeHead(200);
@@ -621,18 +823,7 @@ function handleRequest(req, res) {
     }
 
     if (u.query.auth) {
-      // There's a Set-Cookie: header in the response for "/dns" , which this
-      // request subsequently would include if the http channel wasn't
-      // anonymous. Thus, if there's a cookie in this request, we know Firefox
-      // mishaved. If there's not, we're fine.
-      if (req.headers.cookie) {
-        res.writeHead(403);
-        res.end("cookie for me, not for you");
-        return;
-      }
-      if (req.headers.authorization != "user:password") {
-        res.writeHead(401);
-        res.end("bad boy!");
+      if (!handleAuth()) {
         return;
       }
     }
@@ -678,133 +869,16 @@ function handleRequest(req, res) {
 
     function emitResponse(response, requestPayload) {
       let packet = dnsPacket.decode(requestPayload);
-
-      // This shuts down the connection so we can test if the client reconnects
-      if (
-        packet.questions.length > 0 &&
-        packet.questions[0].name == "closeme.com"
-      ) {
-        response.stream.connection.close("INTERNAL_ERROR", response.stream.id);
+      let answer = createDNSAnswer(response, packet, responseIP);
+      if (!answer) {
         return;
       }
-
-      function responseType() {
-        if (
-          packet.questions.length > 0 &&
-          packet.questions[0].name == "confirm.example.com" &&
-          packet.questions[0].type == "NS"
-        ) {
-          return "NS";
-        }
-
-        return ip.isV4Format(responseIP) ? "A" : "AAAA";
-      }
-
-      function responseData() {
-        if (
-          packet.questions.length > 0 &&
-          packet.questions[0].name == "confirm.example.com" &&
-          packet.questions[0].type == "NS"
-        ) {
-          return "ns.example.com";
-        }
-
-        return responseIP;
-      }
-
-      let answers = [];
-      if (responseIP != "none" && responseType() == packet.questions[0].type) {
-        answers.push({
-          name: u.query.hostname ? u.query.hostname : packet.questions[0].name,
-          ttl: 55,
-          type: responseType(),
-          flush: false,
-          data: responseData(),
-        });
-      }
-
-      // for use with test_dns_by_type_resolve.js
-      if (packet.questions[0].type == "TXT") {
-        answers.push({
-          name: packet.questions[0].name,
-          type: packet.questions[0].type,
-          ttl: 55,
-          class: "IN",
-          flush: false,
-          data: Buffer.from(
-            "62586B67646D39705932556761584D6762586B676347467A63336476636D513D",
-            "hex"
-          ),
-        });
-      }
-
-      if (u.query.cnameloop) {
-        answers.push({
-          name: "cname.example.com",
-          type: "CNAME",
-          ttl: 55,
-          class: "IN",
-          flush: false,
-          data: "pointing-elsewhere.example.com",
-        });
-      }
-
-      if (req.headers["accept-language"] || req.headers["user-agent"]) {
-        // If we get this header, don't send back any response. This should
-        // cause the tests to fail. This is easier then actually sending back
-        // the header value into test_trr.js
-        answers = [];
-      }
-
-      let buf = dnsPacket.encode({
-        type: "response",
-        id: packet.id,
-        flags: dnsPacket.RECURSION_DESIRED,
-        questions: packet.questions,
-        answers,
-      });
-
-      function writeResponse(resp, buffer) {
-        resp.setHeader("Set-Cookie", "trackyou=yes; path=/; max-age=100000;");
-        resp.setHeader("Content-Type", "application/dns-message");
-        if (req.headers["accept-encoding"].includes("gzip")) {
-          zlib.gzip(buffer, function(err, result) {
-            resp.setHeader("Content-Encoding", "gzip");
-            resp.setHeader("Content-Length", result.length);
-            resp.writeHead(200);
-            res.end(result);
-          });
-        } else {
-          resp.setHeader("Content-Length", buffer.length);
-          resp.writeHead(200);
-          resp.write(buffer);
-          resp.end("");
-        }
-      }
-
-      let delay = 0;
-      if (packet.questions[0].type == "A") {
-        delay = parseInt(u.query.delayIPv4);
-      } else if (packet.questions[0].type == "AAAA") {
-        delay = parseInt(u.query.delayIPv6);
-      }
-
-      if (u.query.slowConfirm && responseType() == "NS") {
-        delay += 1000;
-      }
-
-      if (delay) {
-        setTimeout(
-          arg => {
-            writeResponse(arg[0], arg[1]);
-          },
-          delay,
-          [response, buf]
-        );
-        return;
-      }
-
-      writeResponse(response, buf);
+      writeDNSResponse(
+        response,
+        answer,
+        getDelayFromPacket(packet, responseType(packet, responseIP)),
+        "application/dns-message"
+      );
     }
 
     if (u.query.dns) {
@@ -905,13 +979,40 @@ function handleRequest(req, res) {
     req.on("end", function finishedData() {
       let packet = dnsPacket.decode(payload);
       let answers = [];
-      let odohconfig = odoh.get_odoh_config();
+      let odohconfig;
+      if (u.query.invalid) {
+        if (u.query.invalid === "empty") {
+          odohconfig = Buffer.from("");
+        } else if (u.query.invalid === "version") {
+          odohconfig = Buffer.from(
+            "002cff030028002000010001002021c8c16355091b28d521cb196627297955c1b607a3dcf1f136534578460d077d",
+            "hex"
+          );
+        } else if (u.query.invalid === "configLength") {
+          odohconfig = Buffer.from(
+            "002cff040028002000010001002021c8c16355091b28d521cb196627297955c1b607a3dcf1f136534578460d07",
+            "hex"
+          );
+        } else if (u.query.invalid === "totalLength") {
+          odohconfig = Buffer.from(
+            "012cff030028002000010001002021c8c16355091b28d521cb196627297955c1b607a3dcf1f136534578460d077d",
+            "hex"
+          );
+        } else if (u.query.invalid === "kemId") {
+          odohconfig = Buffer.from(
+            "002cff040028002100010001002021c8c16355091b28d521cb196627297955c1b607a3dcf1f136534578460d077d",
+            "hex"
+          );
+        }
+      } else {
+        odohconfig = odoh.get_odoh_config();
+      }
       var b64encoded = Buffer.from(odohconfig).toString("base64");
       if (packet.questions[0].type == "HTTPS") {
         answers.push({
           name: packet.questions[0].name,
           type: packet.questions[0].type,
-          ttl: 55,
+          ttl: u.query.ttl ? u.query.ttl : 55,
           class: "IN",
           flush: false,
           data: {
@@ -945,55 +1046,33 @@ function handleRequest(req, res) {
       responseIP = "5.5.5.5";
     }
 
+    if (u.query.auth) {
+      if (!handleAuth()) {
+        return;
+      }
+    }
+
+    if (u.query.noResponse) {
+      return;
+    }
+
     let payload = Buffer.from("");
 
     function emitResponse(response, requestPayload) {
       let decryptedQuery = odoh.decrypt_query(requestPayload);
       let packet = dnsPacket.decode(Buffer.from(decryptedQuery.buffer));
-
-      function responseType() {
-        if (
-          packet.questions.length > 0 &&
-          packet.questions[0].name == "confirm.example.com" &&
-          packet.questions[0].type == "NS"
-        ) {
-          return "NS";
-        }
-
-        return ip.isV4Format(responseIP) ? "A" : "AAAA";
+      let answer = createDNSAnswer(response, packet, responseIP);
+      if (!answer) {
+        return;
       }
 
-      let answers = [];
-      if (responseIP != "none" && responseType() == packet.questions[0].type) {
-        answers.push({
-          name: u.query.hostname ? u.query.hostname : packet.questions[0].name,
-          ttl: 55,
-          type: responseType(),
-          flush: false,
-          data: responseIP,
-        });
-      }
-
-      let buf = dnsPacket.encode({
-        type: "response",
-        id: packet.id,
-        flags: dnsPacket.RECURSION_DESIRED,
-        questions: packet.questions,
-        answers,
-      });
-
-      let encryptedResponse = odoh.create_response(buf);
-
-      function writeResponse(resp, buffer) {
-        resp.setHeader("Set-Cookie", "trackyou=yes; path=/; max-age=100000;");
-        resp.setHeader("Content-Type", "application/oblivious-dns-message");
-        resp.setHeader("Content-Length", buffer.length);
-        resp.writeHead(200);
-        resp.write(buffer);
-        resp.end("");
-      }
-
-      writeResponse(response, encryptedResponse);
+      let encryptedResponse = odoh.create_response(answer);
+      writeDNSResponse(
+        response,
+        encryptedResponse,
+        getDelayFromPacket(packet, responseType(packet, responseIP)),
+        "application/oblivious-dns-message"
+      );
     }
 
     if (u.query.dns) {
@@ -1006,6 +1085,28 @@ function handleRequest(req, res) {
       payload = Buffer.concat([payload, chunk]);
     });
     req.on("end", function finishedData() {
+      if (u.query.httpError) {
+        res.writeHead(404);
+        res.end("Not Found");
+        return;
+      }
+
+      if (u.query.cname) {
+        odoh.decrypt_query(payload);
+        let rContent;
+        if (u.query.cname === "ARecord") {
+          rContent = createCNameARecord();
+        } else {
+          rContent = createCNameContent();
+        }
+        let encryptedResponse = odoh.create_response(rContent);
+        res.setHeader("Content-Type", "application/oblivious-dns-message");
+        res.setHeader("Content-Length", encryptedResponse.length);
+        res.writeHead(200);
+        res.write(encryptedResponse);
+        res.end("");
+        return;
+      }
       // parload is empty when we send redirect response.
       if (payload.length) {
         emitResponse(res, payload);
@@ -1109,38 +1210,7 @@ function handleRequest(req, res) {
     });
     return;
   } else if (u.pathname === "/dns-cname-a") {
-    // test23 asks for cname-a.example.com
-    // this responds with a CNAME to here.example.com *and* an A record
-    // for here.example.com
-    let rContent;
-
-    rContent = Buffer.from(
-      "0000" +
-      "0100" +
-      "0001" + // QDCOUNT
-      "0002" + // ANCOUNT
-      "00000000" + // NSCOUNT + ARCOUNT
-      "07636E616D652d61" + // cname-a
-      "076578616D706C6503636F6D00" + // .example.com
-      "00010001" + // question type (A) + question class (IN)
-      // answer record 1
-      "C00C" + // name pointer to cname-a.example.com
-      "0005" + // type (CNAME)
-      "0001" + // class
-      "00000037" + // TTL
-      "0012" + // RDLENGTH
-      "0468657265" + // here
-      "076578616D706C6503636F6D00" + // .example.com
-      // answer record 2, the A entry for the CNAME above
-      "0468657265" + // here
-      "076578616D706C6503636F6D00" + // .example.com
-      "0001" + // type (A)
-      "0001" + // class
-      "00000037" + // TTL
-      "0004" + // RDLENGTH
-        "09080706", // IPv4 address
-      "hex"
-    );
+    let rContent = createCNameARecord();
     res.setHeader("Content-Type", "application/dns-message");
     res.setHeader("Content-Length", rContent.length);
     res.writeHead(200);

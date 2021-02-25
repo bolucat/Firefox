@@ -13,8 +13,7 @@ const TAB2_URL = EXAMPLE_URL + TAB2_FILE;
 
 add_task(async () => {
   const tab = await addTab(TAB1_URL);
-  const target = await TargetFactory.forTab(tab);
-  await target.attach();
+  const target = await createAndAttachTargetForTab(tab);
 
   await testNavigate(target);
   await testDetach(target);

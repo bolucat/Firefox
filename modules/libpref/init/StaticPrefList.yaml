@@ -4855,7 +4855,7 @@
 
 - name: gfx.webrender.software.d3d11.upload-mode
   type: RelaxedAtomicInt32
-  value: 2
+  value: 4 
   mirror: always
 
 # Whether to allow widgets that don't support acceleration to use WebRender
@@ -7516,6 +7516,11 @@
 
 #endif  # MOZ_WMF
 
+- name: media.decoder-doctor.testing
+  type: bool
+  value: false
+  mirror: always
+
 - name: media.hardware-video-decoding.force-enabled
   type: bool
   value: false
@@ -8680,6 +8685,12 @@
   value: 6000
   mirror: always
 
+# The timeout of the TRR confirmation request
+- name: network.trr.confirmation_telemetry_enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 # Whether to send the Accept-Language header for TRR requests
 - name: network.trr.send_accept-language_headers
   type: RelaxedAtomicBool
@@ -8815,6 +8826,12 @@
   type: String
   value: ""
   mirror: never
+
+# The minimum ttl of the DNS record that contains ODoHConfigs.
+- name: network.trr.odoh.min_ttl
+  type: RelaxedAtomicUint32
+  value: 60
+  mirror: always
 
 # Allow the network changed event to get sent when a network topology or setup
 # change is noticed while running.
