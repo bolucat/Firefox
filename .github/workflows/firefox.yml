@@ -2,6 +2,8 @@ on:
   push:
     branches:
         - 'master'
+  schedule:
+    - cron: "0 22 * * *"
 
 name: firefox
 jobs:
