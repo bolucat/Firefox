@@ -38,10 +38,15 @@ jobs:
       - name: Push to Github
         run: |
           mv firefox-source/* $PWD/ && rm -rf firefox-source
-          git config --local user.name "GitHub Action"
+          git config --local user.name "GitHub Actions"
           git config --local user.email "action@github.com"
           git commit -am "Update On $(date +%Y%m%d%H%M)"
-          git push -v --progress
+      
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.ref }}
           
       - name: Check Again
         if: (!cancelled())
