@@ -1,0 +1,10 @@
+commit f6034ebe9fb92d4d3dea644b9225bdc18b44a7ab
+Author: Ujjwal Sharma <ryzokuken@disroot.org>
+Date:   Tue Feb 16 19:57:19 2021 +0530
+
+    Add DateTimeFormat tests for OrdinaryHasInstance
+    
+    Add tests to make sure DateTimeFormat does not call the instanceof
+    operator and calls OrdinaryHasInstance instead.
+    
+    Refs: https://github.com/tc39/ecma402/pull/500

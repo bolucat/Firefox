@@ -1,0 +1,28 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#description {
+  font-weight: bold;
+}
+
+#description-box, #chooser {
+  margin-bottom: 0.5em;
+}
+
+#rememberContainer {
+  margin-bottom: 1em;
+}
+
+#remember-text:not([visible]) {
+  visibility: hidden;
+}
+
+#remember-text {
+  margin-top: 0.5em;
+  margin-inline-start: 30px; /* checkbox width + its inline margin */
+}
+
+#rememberContainer {
+  margin-inline-start: 6px;
+}
