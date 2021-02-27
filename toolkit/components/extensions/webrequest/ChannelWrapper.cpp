@@ -100,7 +100,7 @@ static LinkedList<ChannelWrapper>& ChannelList() {
   static UniquePtr<ChannelListHolder> sChannelList;
   if (!sChannelList) {
     sChannelList.reset(new ChannelListHolder());
-    ClearOnShutdown(&sChannelList, ShutdownPhase::Shutdown);
+    ClearOnShutdown(&sChannelList, ShutdownPhase::XPCOMShutdown);
   }
   return *sChannelList;
 }
@@ -744,7 +744,7 @@ void ChannelWrapper::RegisterTraceableChannel(const WebExtensionPolicy& aAddon,
     return;
   }
 
-  mAddonEntries.Put(aAddon.Id(), aBrowserParent);
+  mAddonEntries.InsertOrUpdate(aAddon.Id(), aBrowserParent);
   if (!mChannelEntry) {
     mChannelEntry = WebRequestService::GetSingleton().RegisterChannel(this);
     CheckEventListeners();

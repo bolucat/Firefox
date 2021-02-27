@@ -383,7 +383,7 @@ struct MOZ_STACK_CLASS BidiParagraphData {
   void AppendFrame(nsIFrame* aFrame, FastLineIterator& aLineIter,
                    nsIContent* aContent = nullptr) {
     if (aContent) {
-      mContentToFrameIndex.Put(aContent, FrameCount());
+      mContentToFrameIndex.InsertOrUpdate(aContent, FrameCount());
     }
 
     // We don't actually need to advance aLineIter to aFrame, since all we use
@@ -414,9 +414,7 @@ struct MOZ_STACK_CLASS BidiParagraphData {
   }
 
   int32_t GetLastFrameForContent(nsIContent* aContent) {
-    int32_t index = 0;
-    mContentToFrameIndex.Get(aContent, &index);
-    return index;
+    return mContentToFrameIndex.Get(aContent);
   }
 
   int32_t FrameCount() { return mLogicalFrames.Length(); }

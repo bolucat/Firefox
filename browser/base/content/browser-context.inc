@@ -270,7 +270,10 @@
       <menuitem id="context-undo"
                 data-l10n-id="text-action-undo"
                 command="cmd_undo"/>
-      <menuseparator id="context-sep-undo"/>
+      <menuitem id="context-redo"
+                data-l10n-id="text-action-redo"
+                command="cmd_redo"/>
+      <menuseparator id="context-sep-redo"/>
       <menuitem id="context-cut"
                 data-l10n-id="text-action-cut"
                 command="cmd_cut"/>
@@ -291,9 +294,11 @@
                 data-l10n-id="main-context-menu-keyword"
                 oncommand="AddKeywordForSearchField();"/>
       <menuitem id="context-searchselect"
-                oncommand="BrowserSearch.loadSearchFromContext(this.searchTerms, this.usePrivate, this.principal, this.csp);"/>
+                oncommand="BrowserSearch.loadSearchFromContext(this.searchTerms, this.usePrivate, this.principal, this.csp, event);"
+                onclick="checkForMiddleClick(this, event);"/>
       <menuitem id="context-searchselect-private"
-                oncommand="BrowserSearch.loadSearchFromContext(this.searchTerms, true, this.principal, this.csp);"/>
+                oncommand="BrowserSearch.loadSearchFromContext(this.searchTerms, true, this.principal, this.csp, event);"
+                onclick="checkForMiddleClick(this, event);"/>
       <menuseparator id="context-sep-sendlinktodevice" class="sync-ui-item"
                      hidden="true"/>
       <menu id="context-sendlinktodevice"

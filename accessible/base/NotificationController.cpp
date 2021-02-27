@@ -532,7 +532,7 @@ void NotificationController::ProcessMutationEvents() {
     }
 
     LocalAccessible* parent = event->GetAccessible()->LocalParent();
-    showEvents.GetOrInsert(parent).AppendElement(event);
+    showEvents.LookupOrInsert(parent).AppendElement(event);
   }
 
   // We need to fire show events for the children of an accessible in the order
@@ -944,7 +944,7 @@ void NotificationController::EventMap::PutEvent(AccTreeMutationEvent* aEvent) {
   uint64_t addr = reinterpret_cast<uintptr_t>(aEvent->GetAccessible());
   MOZ_ASSERT((addr & 0x3) == 0, "accessible is not 4 byte aligned");
   addr |= type;
-  mTable.Put(addr, RefPtr{aEvent});
+  mTable.InsertOrUpdate(addr, RefPtr{aEvent});
 }
 
 AccTreeMutationEvent* NotificationController::EventMap::GetEvent(

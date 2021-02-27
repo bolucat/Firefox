@@ -170,9 +170,6 @@
             /// Making this type generic allows the compiler to figure out the
             /// animated value for us, instead of having to implement it
             /// manually for every type we care about.
-            % if separator == "Comma":
-            #[css(comma)]
-            % endif
             #[derive(
                 Clone,
                 Debug,
@@ -182,6 +179,9 @@
                 ToResolvedValue,
                 ToCss,
             )]
+            % if separator == "Comma":
+            #[css(comma)]
+            % endif
             pub struct OwnedList<T>(
                 % if not allow_empty:
                 #[css(iterable)]
@@ -198,9 +198,6 @@
             % else:
             pub use self::ComputedList as List;
 
-            % if separator == "Comma":
-            #[css(comma)]
-            % endif
             #[derive(
                 Clone,
                 Debug,
@@ -208,6 +205,9 @@
                 PartialEq,
                 ToCss,
             )]
+            % if separator == "Comma":
+            #[css(comma)]
+            % endif
             pub struct ComputedList(
                 % if not allow_empty:
                 #[css(iterable)]
@@ -324,10 +324,10 @@
         }
 
         /// The specified value of ${name}.
+        #[derive(Clone, Debug, MallocSizeOf, PartialEq, SpecifiedValueInfo, ToCss, ToShmem)]
         % if separator == "Comma":
         #[css(comma)]
         % endif
-        #[derive(Clone, Debug, MallocSizeOf, PartialEq, SpecifiedValueInfo, ToCss, ToShmem)]
         pub struct SpecifiedValue(
             % if not allow_empty:
             #[css(iterable)]
@@ -948,7 +948,8 @@
             input.parse_entirely(|input| parse_value(context, input)).map(|longhands| {
                 % for sub_property in shorthand.sub_properties:
                 % if sub_property.may_be_disabled_in(shorthand, engine):
-                if NonCustomPropertyId::from(LonghandId::${sub_property.camel_case}).allowed_in_ignoring_rule_type(context) {
+                if NonCustomPropertyId::from(LonghandId::${sub_property.camel_case})
+                    .allowed_in_ignoring_rule_type(context) {
                 % endif
                     declarations.push(PropertyDeclaration::${sub_property.camel_case}(
                         longhands.${sub_property.ident}
@@ -984,7 +985,10 @@
         context: &ParserContext,
         input: &mut Parser<'i, 't>,
     ) -> Result<Longhands, ParseError<'i>> {
-        let parse_one = |c: &ParserContext, input: &mut Parser<'i, 't>| -> Result<crate::properties::longhands::${to_rust_ident(first_property)}::SpecifiedValue, ParseError<'i>> {
+        let parse_one = |c: &ParserContext, input: &mut Parser<'i, 't>| -> Result<
+            crate::properties::longhands::${to_rust_ident(first_property)}::SpecifiedValue,
+            ParseError<'i>
+        > {
             ${parser_function}(c, input)
         };
 
@@ -1028,7 +1032,10 @@
             context: &ParserContext,
             input: &mut Parser<'i, 't>,
         ) -> Result<Longhands, ParseError<'i>> {
-            let rect = Rect::parse_with(context, input, |c, i| -> Result<crate::properties::longhands::${to_rust_ident(sub_property_pattern % "top")}::SpecifiedValue, ParseError<'i>> {
+            let rect = Rect::parse_with(context, input, |c, i| -> Result<
+                crate::properties::longhands::${to_rust_ident(sub_property_pattern % "top")}::SpecifiedValue,
+                ParseError<'i>
+            > {
             % if allow_quirks != "No":
                 ${parser_function}_quirky(c, i, specified::AllowQuirks::${allow_quirks})
             % else:

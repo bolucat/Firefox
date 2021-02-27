@@ -662,10 +662,11 @@ nsresult NativeFileWatcherIOTask::AddPathRunnableMethod(
   nsresult rv = AddDirectoryToWatchList(resourceDesc.get());
   if (NS_SUCCEEDED(rv)) {
     // Add the resource pointer to both indexes.
-    mWatchedResourcesByHandle.Put(
-        resHandle, mWatchedResourcesByPath
-                       .Put(wrappedParameters->mPath, std::move(resourceDesc))
-                       .get());
+    mWatchedResourcesByHandle.InsertOrUpdate(
+        resHandle,
+        mWatchedResourcesByPath
+            .InsertOrUpdate(wrappedParameters->mPath, std::move(resourceDesc))
+            .get());
 
     // Dispatch the success callback.
     nsresult rv = ReportSuccess(wrappedParameters->mSuccessCallbackHandle,
@@ -1097,10 +1098,7 @@ void NativeFileWatcherIOTask::AppendCallbacksToHashtables(
     const nsMainThreadPtrHandle<nsINativeFileWatcherErrorCallback>&
         aOnErrorHandle) {
   ChangeCallbackArray* const callbacksArray =
-      mChangeCallbacksTable
-          .GetOrInsertWith(aPath,
-                           [] { return MakeUnique<ChangeCallbackArray>(); })
-          .get();
+      mChangeCallbacksTable.GetOrInsertNew(aPath);
 
   // Now we do have an entry for that path. Check to see if the callback is
   // already there.
@@ -1114,10 +1112,7 @@ void NativeFileWatcherIOTask::AppendCallbacksToHashtables(
 
   // Same thing for the error callback.
   ErrorCallbackArray* const errorCallbacksArray =
-      mErrorCallbacksTable
-          .GetOrInsertWith(aPath,
-                           [] { return MakeUnique<ErrorCallbackArray>(); })
-          .get();
+      mErrorCallbacksTable.GetOrInsertNew(aPath);
 
   ErrorCallbackArray::index_type errorCallbackIndex =
       errorCallbacksArray->IndexOf(aOnErrorHandle);

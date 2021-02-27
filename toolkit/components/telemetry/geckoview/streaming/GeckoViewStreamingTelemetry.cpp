@@ -245,10 +245,10 @@ void HistogramAccumulate(const nsCString& aName, bool aIsCategorical,
   StaticMutexAutoLock lock(gMutex);
 
   if (aIsCategorical) {
-    nsTArray<uint32_t>& samples = gCategoricalBatch.GetOrInsert(aName);
+    nsTArray<uint32_t>& samples = gCategoricalBatch.LookupOrInsert(aName);
     samples.AppendElement(aValue);
   } else {
-    nsTArray<uint32_t>& samples = gBatch.GetOrInsert(aName);
+    nsTArray<uint32_t>& samples = gBatch.LookupOrInsert(aName);
     samples.AppendElement(aValue);
   }
 
@@ -258,7 +258,7 @@ void HistogramAccumulate(const nsCString& aName, bool aIsCategorical,
 void BoolScalarSet(const nsCString& aName, bool aValue) {
   StaticMutexAutoLock lock(gMutex);
 
-  gBoolScalars.Put(aName, aValue);
+  gBoolScalars.InsertOrUpdate(aName, aValue);
 
   BatchCheck(lock);
 }
@@ -266,7 +266,7 @@ void BoolScalarSet(const nsCString& aName, bool aValue) {
 void StringScalarSet(const nsCString& aName, const nsCString& aValue) {
   StaticMutexAutoLock lock(gMutex);
 
-  gStringScalars.Put(aName, aValue);
+  gStringScalars.InsertOrUpdate(aName, aValue);
 
   BatchCheck(lock);
 }
@@ -274,7 +274,7 @@ void StringScalarSet(const nsCString& aName, const nsCString& aValue) {
 void UintScalarSet(const nsCString& aName, uint32_t aValue) {
   StaticMutexAutoLock lock(gMutex);
 
-  gUintScalars.Put(aName, aValue);
+  gUintScalars.InsertOrUpdate(aName, aValue);
 
   BatchCheck(lock);
 }

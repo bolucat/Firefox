@@ -805,7 +805,7 @@ void nsHttpConnectionMgr::UpdateCoalescingForNewConn(
         ent->mCoalescingKeys[i].get()));
 
     mCoalescingHash
-        .GetOrInsertWith(
+        .LookupOrInsertWith(
             ent->mCoalescingKeys[i],
             [] {
               LOG(("UpdateCoalescingForNewConn() need new list element\n"));
@@ -3257,7 +3257,7 @@ ConnectionEntry* nsHttpConnectionMgr::GetOrCreateConnectionEntry(
   if (!specificEnt) {
     RefPtr<nsHttpConnectionInfo> clone(specificCI->Clone());
     specificEnt = new ConnectionEntry(clone);
-    mCT.Put(clone->HashKey(), RefPtr{specificEnt});
+    mCT.InsertOrUpdate(clone->HashKey(), RefPtr{specificEnt});
   }
   return specificEnt;
 }
@@ -3344,11 +3344,8 @@ void nsHttpConnectionMgr::RegisterOriginCoalescingKey(HttpConnectionBase* conn,
 
   nsCString newKey;
   BuildOriginFrameHashKey(newKey, ci, host, port);
-  mCoalescingHash
-      .GetOrInsertWith(newKey,
-                       [] { return MakeUnique<nsTArray<nsWeakPtr>>(1); })
-      ->AppendElement(
-          do_GetWeakReference(static_cast<nsISupportsWeakReference*>(conn)));
+  mCoalescingHash.GetOrInsertNew(newKey, 1)->AppendElement(
+      do_GetWeakReference(static_cast<nsISupportsWeakReference*>(conn)));
 
   LOG(
       ("nsHttpConnectionMgr::RegisterOriginCoalescingKey "

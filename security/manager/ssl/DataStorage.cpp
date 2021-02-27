@@ -111,12 +111,8 @@ already_AddRefed<DataStorage> DataStorage::GetFromRawFileName(
     sDataStorages = new DataStorages();
     ClearOnShutdown(&sDataStorages);
   }
-  RefPtr<DataStorage> storage;
-  if (!sDataStorages->Get(aFilename, getter_AddRefs(storage))) {
-    storage = new DataStorage(aFilename);
-    sDataStorages->Put(aFilename, RefPtr{storage});
-  }
-  return storage.forget();
+  return do_AddRef(sDataStorages->LookupOrInsertWith(
+      aFilename, [&] { return RefPtr{new DataStorage(aFilename)}; }));
 }
 
 // static
@@ -482,11 +478,8 @@ DataStorage::Reader::Run() {
       if (NS_SUCCEEDED(parseRV)) {
         // It could be the case that a newer entry was added before
         // we got around to reading the file. Don't overwrite new entries.
-        Entry newerEntry;
-        bool present = mDataStorage->mPersistentDataTable.Get(key, &newerEntry);
-        if (!present) {
-          mDataStorage->mPersistentDataTable.Put(key, entry);
-        }
+        mDataStorage->mPersistentDataTable.LookupOrInsert(key,
+                                                          std::move(entry));
       }
     } while (true);
 
@@ -799,7 +792,7 @@ nsresult DataStorage::PutInternal(const nsCString& aKey, Entry& aEntry,
                                   DataStorageType aType,
                                   const MutexAutoLock& aProofOfLock) {
   DataStorageTable& table = GetTableForType(aType, aProofOfLock);
-  table.Put(aKey, aEntry);
+  table.InsertOrUpdate(aKey, aEntry);
 
   if (aType == DataStorage_Persistent) {
     mPendingWrite = true;

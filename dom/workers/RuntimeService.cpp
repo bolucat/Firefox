@@ -1151,7 +1151,7 @@ bool RuntimeService::RegisterWorker(WorkerPrivate& aWorkerPrivate) {
 
     auto* const domainInfo =
         mDomainMap
-            .GetOrInsertWith(
+            .LookupOrInsertWith(
                 domain,
                 [&domain, parent] {
                   NS_ASSERTION(!parent, "Shouldn't have a parent here!");
@@ -1222,12 +1222,7 @@ bool RuntimeService::RegisterWorker(WorkerPrivate& aWorkerPrivate) {
     if (!isServiceWorker) {
       // Service workers are excluded since their lifetime is separate from
       // that of dom windows.
-      if (auto* const windowArray =
-              mWindowMap
-                  .GetOrInsertWith(
-                      window,
-                      [] { return MakeUnique<nsTArray<WorkerPrivate*>>(1); })
-                  .get();
+      if (auto* const windowArray = mWindowMap.GetOrInsertNew(window, 1);
           !windowArray->Contains(&aWorkerPrivate)) {
         windowArray->AppendElement(&aWorkerPrivate);
       } else {

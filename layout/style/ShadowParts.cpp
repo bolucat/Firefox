@@ -106,10 +106,9 @@ ShadowParts ShadowParts::Parse(const nsAString& aString) {
       continue;
     }
     nsAtom* second = mapping.second.get();
-    parts.mMappings
-        .GetOrInsertWith(mapping.first, [] { return MakeUnique<PartList>(); })
+    parts.mMappings.GetOrInsertNew(mapping.first)
         ->AppendElement(std::move(mapping.second));
-    parts.mReverseMappings.Put(second, std::move(mapping.first));
+    parts.mReverseMappings.InsertOrUpdate(second, std::move(mapping.first));
   }
 
   return parts;

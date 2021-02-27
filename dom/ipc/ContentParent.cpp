@@ -1223,7 +1223,7 @@ already_AddRefed<ContentParent> ContentParent::GetNewOrUsedJSPluginProcess(
     return nullptr;
   }
 
-  sJSPluginContentParents->Put(aPluginID, p);
+  sJSPluginContentParents->InsertOrUpdate(aPluginID, p);
 
   return p.forget();
 }
@@ -2839,7 +2839,7 @@ bool ContentParent::InitInternal(ProcessPriority aInitialPriority) {
   // can't init the process without it, and since we're going to be canceling
   // whatever load attempt that initiated this process creation anyway, just
   // bail out now if shutdown has already started.
-  if (PastShutdownPhase(ShutdownPhase::Shutdown)) {
+  if (PastShutdownPhase(ShutdownPhase::XPCOMShutdown)) {
     return false;
   }
 
@@ -5981,7 +5981,7 @@ mozilla::ipc::IPCResult ContentParent::RecvGetFilesRequest(
     return IPC_OK();
   }
 
-  mGetFilesPendingRequests.Put(aUUID, std::move(helper));
+  mGetFilesPendingRequests.InsertOrUpdate(aUUID, std::move(helper));
   return IPC_OK();
 }
 

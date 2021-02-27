@@ -42,7 +42,7 @@ class nsInterfaceHashtable
   /**
    * @copydoc nsBaseHashtable::Get
    */
-  already_AddRefed<Interface> Get(KeyType aKey) const;
+  [[nodiscard]] already_AddRefed<Interface> Get(KeyType aKey) const;
 
   /**
    * Gets a weak reference to the hashtable entry.
@@ -50,21 +50,22 @@ class nsInterfaceHashtable
    *               to false otherwise.
    * @return The entry, or nullptr if not found. Do not release this pointer!
    */
-  Interface* GetWeak(KeyType aKey, bool* aFound = nullptr) const;
+  [[nodiscard]] Interface* GetWeak(KeyType aKey, bool* aFound = nullptr) const;
 
   /**
    * Allows inserting a value into the hashtable, moving its owning reference
    * count into the hashtable, avoiding an AddRef.
    */
-  void Put(KeyType aKey, already_AddRefed<Interface>&& aData) {
-    if (!Put(aKey, std::move(aData), mozilla::fallible)) {
+  void InsertOrUpdate(KeyType aKey, already_AddRefed<Interface>&& aData) {
+    if (!InsertOrUpdate(aKey, std::move(aData), mozilla::fallible)) {
       NS_ABORT_OOM(this->mTable.EntrySize() * this->mTable.EntryCount());
     }
   }
 
-  [[nodiscard]] bool Put(KeyType aKey, already_AddRefed<Interface>&& aData,
-                         const mozilla::fallible_t&);
-  using base_type::Put;
+  [[nodiscard]] bool InsertOrUpdate(KeyType aKey,
+                                    already_AddRefed<Interface>&& aData,
+                                    const mozilla::fallible_t&);
+  using base_type::InsertOrUpdate;
 
   /**
    * Remove the entry associated with aKey (if any), optionally _moving_ its
@@ -154,7 +155,7 @@ Interface* nsInterfaceHashtable<KeyClass, Interface>::GetWeak(
 }
 
 template <class KeyClass, class Interface>
-bool nsInterfaceHashtable<KeyClass, Interface>::Put(
+bool nsInterfaceHashtable<KeyClass, Interface>::InsertOrUpdate(
     KeyType aKey, already_AddRefed<Interface>&& aValue,
     const mozilla::fallible_t&) {
   typename base_type::EntryType* ent = this->PutEntry(aKey);

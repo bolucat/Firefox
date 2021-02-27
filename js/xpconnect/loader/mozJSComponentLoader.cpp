@@ -427,7 +427,7 @@ const mozilla::Module* mozJSComponentLoader::LoadModule(FileLocation& aFile) {
 #endif
 
   // Cache this module for later
-  mModules.Put(spec, entry.get());
+  mModules.InsertOrUpdate(spec, entry.get());
 
   // The hash owns the ModuleEntry now, forget about it
   return entry.release();
@@ -1220,7 +1220,7 @@ nsresult mozJSComponentLoader::Import(JSContext* aCx,
       !mInProgressImports.Get(info.Key(), &mod)) {
     // We're trying to import a new JSM, but we're late in shutdown and this
     // will likely not succeed and might even crash, so fail here.
-    if (PastShutdownPhase(ShutdownPhase::ShutdownFinal)) {
+    if (PastShutdownPhase(ShutdownPhase::XPCOMShutdownFinal)) {
       return NS_ERROR_ILLEGAL_DURING_SHUTDOWN;
     }
 
@@ -1259,11 +1259,12 @@ nsresult mozJSComponentLoader::Import(JSContext* aCx,
       return NS_ERROR_UNEXPECTED;
     }
 
-    mLocations.Put(newEntry->resolvedURL, MakeUnique<nsCString>(info.Key()));
+    mLocations.InsertOrUpdate(newEntry->resolvedURL,
+                              MakeUnique<nsCString>(info.Key()));
 
     RootedValue exception(aCx);
     {
-      mInProgressImports.Put(info.Key(), newEntry.get());
+      mInProgressImports.InsertOrUpdate(info.Key(), newEntry.get());
       auto cleanup =
           MakeScopeExit([&]() { mInProgressImports.Remove(info.Key()); });
 
@@ -1313,7 +1314,7 @@ nsresult mozJSComponentLoader::Import(JSContext* aCx,
 
   // Cache this module for later
   if (newEntry) {
-    mImports.Put(info.Key(), std::move(newEntry));
+    mImports.InsertOrUpdate(info.Key(), std::move(newEntry));
   }
 
   return NS_OK;

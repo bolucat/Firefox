@@ -260,7 +260,7 @@ void SharedStyleSheetCache::DeferSheetLoad(const SheetLoadDataHashKey& aKey,
   MOZ_DIAGNOSTIC_ASSERT(!aData.mNext, "Should only defer loads once");
 
   aData.mMustNotify = true;
-  mPendingDatas.Put(aKey, RefPtr{&aData});
+  mPendingDatas.InsertOrUpdate(aKey, RefPtr{&aData});
 }
 
 void SharedStyleSheetCache::LoadStarted(const SheetLoadDataHashKey& aKey,
@@ -269,7 +269,7 @@ void SharedStyleSheetCache::LoadStarted(const SheetLoadDataHashKey& aKey,
   MOZ_ASSERT(!aData.mIsLoading, "Already loading? How?");
   MOZ_ASSERT(SheetLoadDataHashKey(aData).KeyEquals(aKey));
   aData.mIsLoading = true;
-  mLoadingDatas.Put(aKey, &aData);
+  mLoadingDatas.InsertOrUpdate(aKey, &aData);
 }
 
 void SharedStyleSheetCache::LoadCompleted(SharedStyleSheetCache* aCache,
@@ -478,7 +478,7 @@ void SharedStyleSheetCache::InsertIntoCompleteCacheIfNeeded(
       Servo_UseCounters_Merge(counters.get(), aData.mUseCounters.get());
     }
 
-    mCompleteSheets.Put(
+    mCompleteSheets.InsertOrUpdate(
         key, CompleteSheet{aData.mExpirationTime, std::move(counters),
                            std::move(sheet)});
   }
@@ -573,8 +573,8 @@ void SharedStyleSheetCache::CancelLoadsForLoader(css::Loader& aLoader) {
 
 void SharedStyleSheetCache::RegisterLoader(css::Loader& aLoader) {
   MOZ_ASSERT(aLoader.GetDocument());
-  mLoaderPrincipalRefCnt.GetOrInsert(aLoader.GetDocument()->NodePrincipal(),
-                                     0) += 1;
+  mLoaderPrincipalRefCnt.LookupOrInsert(aLoader.GetDocument()->NodePrincipal(),
+                                        0) += 1;
 }
 
 void SharedStyleSheetCache::UnregisterLoader(css::Loader& aLoader) {

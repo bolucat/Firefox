@@ -33,14 +33,14 @@ class nsRefPtrHashtable
   /**
    * @copydoc nsBaseHashtable::Get
    * @param aData This is an XPCOM getter, so aData is already_addrefed.
-   *   If the key doesn't exist, aData will be set to nullptr.
+   *   If the key doesn't exist, *aData will be set to nullptr.
    */
   bool Get(KeyType aKey, UserDataType* aData) const;
 
   /**
    * @copydoc nsBaseHashtable::Get
    */
-  already_AddRefed<PtrType> Get(KeyType aKey) const;
+  [[nodiscard]] already_AddRefed<PtrType> Get(KeyType aKey) const;
 
   /**
    * Gets a weak reference to the hashtable entry.
@@ -48,19 +48,19 @@ class nsRefPtrHashtable
    *               to false otherwise.
    * @return The entry, or nullptr if not found. Do not release this pointer!
    */
-  PtrType* GetWeak(KeyType aKey, bool* aFound = nullptr) const;
+  [[nodiscard]] PtrType* GetWeak(KeyType aKey, bool* aFound = nullptr) const;
 
-  // Hide base class' Put overloads intentionally, to make any necessary
-  // refcounting explicit when calling Put.
-
-  template <typename U,
-            typename = std::enable_if_t<std::is_base_of_v<PtrType, U>>>
-  void Put(KeyType aKey, RefPtr<U>&& aData);
+  // Hide base class' InsertOrUpdate overloads intentionally, to make any
+  // necessary refcounting explicit when calling InsertOrUpdate.
 
   template <typename U,
             typename = std::enable_if_t<std::is_base_of_v<PtrType, U>>>
-  [[nodiscard]] bool Put(KeyType aKey, RefPtr<U>&& aData,
-                         const mozilla::fallible_t&);
+  void InsertOrUpdate(KeyType aKey, RefPtr<U>&& aData);
+
+  template <typename U,
+            typename = std::enable_if_t<std::is_base_of_v<PtrType, U>>>
+  [[nodiscard]] bool InsertOrUpdate(KeyType aKey, RefPtr<U>&& aData,
+                                    const mozilla::fallible_t&);
 
   /**
    * Remove the entry associated with aKey (if any), optionally _moving_ its
@@ -151,17 +151,17 @@ PtrType* nsRefPtrHashtable<KeyClass, PtrType>::GetWeak(KeyType aKey,
 
 template <class KeyClass, class PtrType>
 template <typename U, typename>
-void nsRefPtrHashtable<KeyClass, PtrType>::Put(KeyType aKey,
-                                               RefPtr<U>&& aData) {
-  if (!Put(aKey, std::move(aData), mozilla::fallible)) {
+void nsRefPtrHashtable<KeyClass, PtrType>::InsertOrUpdate(KeyType aKey,
+                                                          RefPtr<U>&& aData) {
+  if (!InsertOrUpdate(aKey, std::move(aData), mozilla::fallible)) {
     NS_ABORT_OOM(this->mTable.EntrySize() * this->mTable.EntryCount());
   }
 }
 
 template <class KeyClass, class PtrType>
 template <typename U, typename>
-bool nsRefPtrHashtable<KeyClass, PtrType>::Put(KeyType aKey, RefPtr<U>&& aData,
-                                               const mozilla::fallible_t&) {
+bool nsRefPtrHashtable<KeyClass, PtrType>::InsertOrUpdate(
+    KeyType aKey, RefPtr<U>&& aData, const mozilla::fallible_t&) {
   typename base_type::EntryType* ent = this->PutEntry(aKey, mozilla::fallible);
 
   if (!ent) {

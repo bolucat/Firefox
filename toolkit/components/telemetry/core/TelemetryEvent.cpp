@@ -375,10 +375,7 @@ bool IsExpired(const EventKey& key) { return key.id == kExpiredEventId; }
 
 EventRecordArray* GetEventRecordsForProcess(const StaticMutexAutoLock& lock,
                                             ProcessID processType) {
-  return gEventRecords
-      .GetOrInsertWith(uint32_t(processType),
-                       [] { return MakeUnique<EventRecordArray>(); })
-      .get();
+  return gEventRecords.GetOrInsertNew(uint32_t(processType));
 }
 
 EventKey* GetEventKey(const StaticMutexAutoLock& lock,
@@ -535,8 +532,8 @@ void RegisterEvents(const StaticMutexAutoLock& lock, const nsACString& category,
     gDynamicEventInfo->AppendElement(eventInfos[i]);
     uint32_t eventId =
         eventExpired[i] ? kExpiredEventId : gDynamicEventInfo->Length() - 1;
-    gEventNameIDMap.Put(eventName,
-                        UniquePtr<EventKey>{new EventKey{eventId, true}});
+    gEventNameIDMap.InsertOrUpdate(
+        eventName, UniquePtr<EventKey>{new EventKey{eventId, true}});
   }
 
   // If it is a builtin, add the category name in order to enable it later.
@@ -705,8 +702,9 @@ void TelemetryEvent::InitializeGlobalState(bool aCanRecordBase,
       eventId = kExpiredEventId;
     }
 
-    gEventNameIDMap.Put(UniqueEventName(info),
-                        UniquePtr<EventKey>{new EventKey{eventId, false}});
+    gEventNameIDMap.InsertOrUpdate(
+        UniqueEventName(info),
+        UniquePtr<EventKey>{new EventKey{eventId, false}});
     gCategoryNames.PutEntry(info.common_info.category());
   }
 
@@ -1286,8 +1284,8 @@ nsresult TelemetryEvent::CreateSnapshots(uint32_t aDataset, bool aClear,
     if (aClear) {
       gEventRecords.Clear();
       for (auto& pair : leftovers) {
-        gEventRecords.Put(pair.first,
-                          MakeUnique<EventRecordArray>(std::move(pair.second)));
+        gEventRecords.InsertOrUpdate(
+            pair.first, MakeUnique<EventRecordArray>(std::move(pair.second)));
       }
       leftovers.Clear();
     }

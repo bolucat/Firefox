@@ -184,7 +184,7 @@ void ModifyWakeLock(const nsAString& aTopic, hal::WakeLockControl aLockAdjust,
         if (!entry) {
           entry.Insert(MakeUnique<ProcessLockTable>());
         } else {
-          entry.Data()->Get(aProcessID, &processCount);
+          Unused << entry.Data()->Get(aProcessID, &processCount);
           CountWakeLocks(entry.Data().get(), &totalCount);
         }
         return entry.Data().get();
@@ -208,7 +208,7 @@ void ModifyWakeLock(const nsAString& aTopic, hal::WakeLockControl aLockAdjust,
   totalCount.numHidden += aHiddenAdjust;
 
   if (processCount.numLocks) {
-    table->Put(aProcessID, processCount);
+    table->InsertOrUpdate(aProcessID, processCount);
   } else {
     table->Remove(aProcessID);
   }

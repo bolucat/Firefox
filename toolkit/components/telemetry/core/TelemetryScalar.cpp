@@ -1131,7 +1131,7 @@ ScalarResult KeyedScalar::GetScalarForKey(const StaticMutexAutoLock& locker,
     return ScalarResult::InvalidType;
   }
 
-  mScalarKeys.Put(utf8Key, UniquePtr<ScalarBase>(scalar));
+  mScalarKeys.InsertOrUpdate(utf8Key, UniquePtr<ScalarBase>(scalar));
 
   *aRet = scalar;
   return ScalarResult::Ok;
@@ -1514,10 +1514,7 @@ nsresult internal_GetScalarByEnum(const StaticMutexAutoLock& lock,
   // Get the process-specific storage or create one if it's not
   // available.
   ScalarStorageMapType* const scalarStorage =
-      processStorage
-          .GetOrInsertWith(storageId,
-                           [] { return MakeUnique<ScalarStorageMapType>(); })
-          .get();
+      processStorage.GetOrInsertNew(storageId);
 
   // Check if the scalar is already allocated in the parent or in the child
   // storage.
@@ -1548,7 +1545,7 @@ nsresult internal_GetScalarByEnum(const StaticMutexAutoLock& lock,
     return NS_ERROR_INVALID_ARG;
   }
 
-  scalarStorage->Put(aId.id, UniquePtr<ScalarBase>(scalar));
+  scalarStorage->InsertOrUpdate(aId.id, UniquePtr<ScalarBase>(scalar));
   *aRet = scalar;
   return NS_OK;
 }
@@ -1798,10 +1795,7 @@ nsresult internal_GetKeyedScalarByEnum(const StaticMutexAutoLock& lock,
   // Get the process-specific storage or create one if it's not
   // available.
   KeyedScalarStorageMapType* const scalarStorage =
-      processStorage
-          .GetOrInsertWith(
-              storageId, [] { return MakeUnique<KeyedScalarStorageMapType>(); })
-          .get();
+      processStorage.GetOrInsertNew(storageId);
 
   if (scalarStorage->Get(aId.id, &scalar)) {
     *aRet = scalar;
@@ -1823,7 +1817,7 @@ nsresult internal_GetKeyedScalarByEnum(const StaticMutexAutoLock& lock,
     return NS_ERROR_INVALID_ARG;
   }
 
-  scalarStorage->Put(aId.id, UniquePtr<KeyedScalar>(scalar));
+  scalarStorage->InsertOrUpdate(aId.id, UniquePtr<KeyedScalar>(scalar));
   *aRet = scalar;
   return NS_OK;
 }
@@ -2000,7 +1994,7 @@ nsresult internal_ScalarSnapshotter(const StaticMutexAutoLock& aLock,
   for (auto iter = aProcessStorage.Iter(); !iter.Done(); iter.Next()) {
     ScalarStorageMapType* scalarStorage = iter.UserData();
     ScalarTupleArray& processScalars =
-        aScalarsToReflect.GetOrInsert(iter.Key());
+        aScalarsToReflect.LookupOrInsert(iter.Key());
 
     // Are we in the "Dynamic" process?
     bool isDynamicProcess =
@@ -2060,7 +2054,7 @@ nsresult internal_KeyedScalarSnapshotter(
   for (auto iter = aProcessStorage.Iter(); !iter.Done(); iter.Next()) {
     KeyedScalarStorageMapType* scalarStorage = iter.UserData();
     KeyedScalarTupleArray& processScalars =
-        aScalarsToReflect.GetOrInsert(iter.Key());
+        aScalarsToReflect.LookupOrInsert(iter.Key());
 
     // Are we in the "Dynamic" process?
     bool isDynamicProcess =
@@ -4003,7 +3997,7 @@ nsresult TelemetryScalar::DeserializePersistedScalars(JSContext* aCx,
 
       // Add the scalar to the map.
       PersistedScalarArray& processScalars =
-          scalarsToUpdate.GetOrInsert(static_cast<uint32_t>(processID));
+          scalarsToUpdate.LookupOrInsert(static_cast<uint32_t>(processID));
       processScalars.AppendElement(std::make_pair(
           nsCString(NS_ConvertUTF16toUTF8(scalarName)), unpackedVal));
     }
@@ -4175,7 +4169,7 @@ nsresult TelemetryScalar::DeserializePersistedKeyedScalars(
 
         // Add the scalar to the map.
         PersistedKeyedScalarArray& processScalars =
-            scalarsToUpdate.GetOrInsert(static_cast<uint32_t>(processID));
+            scalarsToUpdate.LookupOrInsert(static_cast<uint32_t>(processID));
         processScalars.AppendElement(
             mozilla::MakeTuple(nsCString(NS_ConvertUTF16toUTF8(scalarName)),
                                nsString(keyName), unpackedVal));

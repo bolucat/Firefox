@@ -10551,11 +10551,7 @@ void ReflowCountMgr::Add(const char* aName, nsIFrame* aFrame) {
   NS_ASSERTION(aName != nullptr, "Name shouldn't be null!");
 
   if (mDumpFrameCounts) {
-    auto* const counter =
-        mCounts
-            .GetOrInsertWith(aName,
-                             [this] { return MakeUnique<ReflowCounter>(this); })
-            .get();
+    auto* const counter = mCounts.GetOrInsertNew(aName, this);
     counter->Add();
   }
 
@@ -10565,14 +10561,14 @@ void ReflowCountMgr::Add(const char* aName, nsIFrame* aFrame) {
     SprintfLiteral(key, "%p", (void*)aFrame);
     auto* const counter =
         mIndiFrameCounts
-            .GetOrInsertWith(key,
-                             [&aName, &aFrame, this]() {
-                               auto counter =
-                                   MakeUnique<IndiReflowCounter>(this);
-                               counter->mFrame = aFrame;
-                               counter->mName.AssignASCII(aName);
-                               return counter;
-                             })
+            .LookupOrInsertWith(key,
+                                [&aName, &aFrame, this]() {
+                                  auto counter =
+                                      MakeUnique<IndiReflowCounter>(this);
+                                  counter->mFrame = aFrame;
+                                  counter->mName.AssignASCII(aName);
+                                  return counter;
+                                })
             .get();
     // this eliminates extra counts from super classes
     if (counter && counter->mName.EqualsASCII(aName)) {

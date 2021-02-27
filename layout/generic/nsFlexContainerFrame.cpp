@@ -2024,30 +2024,37 @@ nscoord nsFlexContainerFrame::MeasureFlexItemContentBSize(
     bool aHasLineClampEllipsis, const ReflowInput& aParentReflowInput) {
   FLEX_LOG("Measuring flex item's content block-size");
 
-  // Set up a reflow input for measuring the flex item's auto-height:
+  // Set up a reflow input for measuring the flex item's content block-size:
   WritingMode wm = aFlexItem.Frame()->GetWritingMode();
   LogicalSize availSize = aParentReflowInput.ComputedSize(wm);
   availSize.BSize(wm) = NS_UNCONSTRAINEDSIZE;
-  ReflowInput childRIForMeasuringBSize(PresContext(), aParentReflowInput,
-                                       aFlexItem.Frame(), availSize, Nothing(),
-                                       ReflowInput::InitFlag::CallerWillInit);
-  childRIForMeasuringBSize.mFlags.mIsFlexContainerMeasuringBSize = true;
+
+  StyleSizeOverrides sizeOverrides;
+  if (aFlexItem.IsStretched()) {
+    sizeOverrides.mStyleISize.emplace(aFlexItem.StyleCrossSize());
+    // Suppress any AspectRatio that we might have to prevent ComputeSize() from
+    // transferring our inline-size override through the aspect-ratio to set the
+    // block-size, because that would prevent us from measuring the content
+    // block-size.
+    sizeOverrides.mAspectRatio.emplace(AspectRatio());
+    FLEX_LOGV(" Cross size override: %d", aFlexItem.CrossSize());
+  }
+  sizeOverrides.mStyleBSize.emplace(StyleSize::Auto());
+
+  ReflowInput childRIForMeasuringBSize(
+      PresContext(), aParentReflowInput, aFlexItem.Frame(), availSize,
+      Nothing(), ReflowInput::InitFlag::CallerWillInit, sizeOverrides);
   childRIForMeasuringBSize.mFlags.mInsideLineClamp = GetLineClampValue() != 0;
   childRIForMeasuringBSize.mFlags.mApplyLineClamp =
       childRIForMeasuringBSize.mFlags.mInsideLineClamp || aHasLineClampEllipsis;
   childRIForMeasuringBSize.Init(PresContext());
 
-  if (aFlexItem.IsStretched()) {
-    // TODO: This code should really use StyleSizeOverrides (rather than
-    // SetComputedISize) to impose the ISize here, in order to stretch table
-    // flex items correctly (to fix Bug 799725). However, when we make that
-    // change, we'll also need to prevent ComputeSize from transferring our
-    // ISize-override through the aspect-ratio to set the BSize, because that
-    // would prevent us from measuring the content BSize here.
-    childRIForMeasuringBSize.SetComputedISize(aFlexItem.CrossSize());
-    childRIForMeasuringBSize.SetIResize(true);
-    FLEX_LOGV(" Cross size override: %d", aFlexItem.CrossSize());
-  }
+  // When measuring flex item's content block-size, disregard the item's
+  // min-block-size and max-block-size by resetting both to to their
+  // unconstraining (extreme) values. The flexbox layout algorithm does still
+  // explicitly clamp both sizes when resolving the target main size.
+  childRIForMeasuringBSize.ComputedMinBSize() = 0;
+  childRIForMeasuringBSize.ComputedMaxBSize() = NS_UNCONSTRAINEDSIZE;
 
   if (aForceBResizeForMeasuringReflow) {
     childRIForMeasuringBSize.SetBResize(true);

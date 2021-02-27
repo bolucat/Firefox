@@ -239,15 +239,7 @@ void nsFrameMessageManager::AddMessageListener(const nsAString& aMessageName,
                                                MessageListener& aListener,
                                                bool aListenWhenClosed,
                                                ErrorResult& aError) {
-  auto* const listeners =
-      mListeners
-          .GetOrInsertWith(
-              aMessageName,
-              [] {
-                return MakeUnique<
-                    nsAutoTObserverArray<nsMessageListenerInfo, 1>>();
-              })
-          .get();
+  auto* const listeners = mListeners.GetOrInsertNew(aMessageName);
   uint32_t len = listeners->Length();
   for (uint32_t i = 0; i < len; ++i) {
     MessageListener* strongListener = listeners->ElementAt(i).mStrongListener;
@@ -314,15 +306,7 @@ void nsFrameMessageManager::AddWeakMessageListener(
   }
 #endif
 
-  auto* const listeners =
-      mListeners
-          .GetOrInsertWith(
-              aMessageName,
-              [] {
-                return MakeUnique<
-                    nsAutoTObserverArray<nsMessageListenerInfo, 1>>();
-              })
-          .get();
+  auto* const listeners = mListeners.GetOrInsertNew(aMessageName);
   uint32_t len = listeners->Length();
   for (uint32_t i = 0; i < len; ++i) {
     if (listeners->ElementAt(i).mWeakListener == weak) {
@@ -1021,10 +1005,9 @@ void MessageManagerReporter::CountReferents(
     }
 
     nsString key(it.Key());
-    uint32_t oldCount = 0;
-    aReferentCount->mMessageCounter.Get(key, &oldCount);
-    uint32_t currentCount = oldCount + listenerCount;
-    aReferentCount->mMessageCounter.Put(key, currentCount);
+    const uint32_t currentCount =
+        (aReferentCount->mMessageCounter.LookupOrInsert(key, 0) +=
+         listenerCount);
 
     // Keep track of messages that have a suspiciously large
     // number of referents (symptom of leak).
@@ -1084,9 +1067,8 @@ static void ReportReferentCount(
                          aManagerType));
 
   for (uint32_t i = 0; i < aReferentCount.mSuspectMessages.Length(); i++) {
-    uint32_t totalReferentCount = 0;
-    aReferentCount.mMessageCounter.Get(aReferentCount.mSuspectMessages[i],
-                                       &totalReferentCount);
+    const uint32_t totalReferentCount =
+        aReferentCount.mMessageCounter.Get(aReferentCount.mSuspectMessages[i]);
     NS_ConvertUTF16toUTF8 suspect(aReferentCount.mSuspectMessages[i]);
     REPORT(nsPrintfCString("message-manager-suspect/%s/referent(message=%s)",
                            aManagerType, suspect.get()),
@@ -1342,7 +1324,7 @@ void nsMessageManagerScriptExecutor::TryCacheLoadAndCompileScript(
     if (!isRunOnce) {
       // Root the object also for caching.
       auto* holder = new nsMessageManagerScriptHolder(cx, script);
-      sCachedScripts->Put(aURL, holder);
+      sCachedScripts->InsertOrUpdate(aURL, holder);
     }
   }
 }

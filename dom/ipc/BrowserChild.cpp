@@ -1554,7 +1554,7 @@ mozilla::ipc::IPCResult BrowserChild::RecvRealMouseMoveEvent(
     // Put new data to replace the old one in the hash table.
     CoalescedMouseData* newData =
         mCoalescedMouseData
-            .Put(aEvent.pointerId, MakeUnique<CoalescedMouseData>())
+            .InsertOrUpdate(aEvent.pointerId, MakeUnique<CoalescedMouseData>())
             .get();
     newData->Coalesce(aEvent, aGuid, aInputBlockId);
 
@@ -1674,6 +1674,19 @@ void BrowserChild::HandleRealMouseButtonEvent(const WidgetMouseEvent& aEvent,
 }
 
 mozilla::ipc::IPCResult BrowserChild::RecvNormalPriorityRealMouseButtonEvent(
+    const WidgetMouseEvent& aEvent, const ScrollableLayerGuid& aGuid,
+    const uint64_t& aInputBlockId) {
+  return RecvRealMouseButtonEvent(aEvent, aGuid, aInputBlockId);
+}
+
+mozilla::ipc::IPCResult BrowserChild::RecvRealMouseEnterExitWidgetEvent(
+    const WidgetMouseEvent& aEvent, const ScrollableLayerGuid& aGuid,
+    const uint64_t& aInputBlockId) {
+  return RecvRealMouseButtonEvent(aEvent, aGuid, aInputBlockId);
+}
+
+mozilla::ipc::IPCResult
+BrowserChild::RecvNormalPriorityRealMouseEnterExitWidgetEvent(
     const WidgetMouseEvent& aEvent, const ScrollableLayerGuid& aGuid,
     const uint64_t& aInputBlockId) {
   return RecvRealMouseButtonEvent(aEvent, aGuid, aInputBlockId);
@@ -2669,7 +2682,7 @@ void BrowserChild::InitRenderingState(
       sBrowserChildren = new BrowserChildMap;
     }
     MOZ_ASSERT(!sBrowserChildren->Get(uint64_t(aLayersId)));
-    sBrowserChildren->Put(uint64_t(aLayersId), this);
+    sBrowserChildren->InsertOrUpdate(uint64_t(aLayersId), this);
     mLayersId = aLayersId;
   }
 

@@ -634,7 +634,7 @@ void MediaTrackGraphImpl::OpenAudioInputImpl(CubebUtils::AudioDeviceID aID,
   // Only allow one device per MTG (hence, per document), but allow opening a
   // device multiple times
   nsTArray<RefPtr<AudioDataListener>>& listeners =
-      mInputDeviceUsers.GetOrInsert(aID);
+      mInputDeviceUsers.LookupOrInsert(aID);
   if (listeners.IsEmpty() && mInputDeviceUsers.Count() > 1) {
     // We don't support opening multiple input device in a graph for now.
     listeners.RemoveElement(aID);
@@ -3132,9 +3132,7 @@ MediaTrackGraph* MediaTrackGraph::GetInstanceIfExists(
       aSampleRate ? aSampleRate : CubebUtils::PreferredSampleRate();
   uint32_t hashkey = WindowToHash(aWindow, sampleRate, aOutputDeviceID);
 
-  MediaTrackGraphImpl* graph = nullptr;
-  gGraphs.Get(hashkey, &graph);
-  return graph;
+  return gGraphs.Get(hashkey);
 }
 
 MediaTrackGraph* MediaTrackGraph::GetInstance(
@@ -3175,7 +3173,7 @@ MediaTrackGraph* MediaTrackGraph::GetInstance(
                                     channelCount, aOutputDeviceID, mainThread);
 
     uint32_t hashkey = WindowToHash(aWindow, sampleRate, aOutputDeviceID);
-    gGraphs.Put(hashkey, graph);
+    gGraphs.InsertOrUpdate(hashkey, graph);
 
     LOG(LogLevel::Debug,
         ("Starting up MediaTrackGraph %p for window %p", graph, aWindow));

@@ -3948,7 +3948,7 @@ void Element::RegisterIntersectionObserver(DOMIntersectionObserver* aObserver) {
 
   if (!observers) {
     observers = new IntersectionObserverList();
-    observers->Put(aObserver, eUninitialized);
+    observers->InsertOrUpdate(aObserver, eUninitialized);
     SetProperty(nsGkAtoms::intersectionobserverlist, observers,
                 IntersectionObserverPropertyDtor, /* aTransfer = */ true);
     return;
@@ -3959,7 +3959,7 @@ void Element::RegisterIntersectionObserver(DOMIntersectionObserver* aObserver) {
   //         notification task being scheduled.
   //   -1:   Non-intersecting.
   //   >= 0: Intersecting, valid index of aObserver->mThresholds.
-  Unused << observers->GetOrInsert(aObserver, eUninitialized);
+  observers->LookupOrInsert(aObserver, eUninitialized);
 }
 
 void Element::UnregisterIntersectionObserver(

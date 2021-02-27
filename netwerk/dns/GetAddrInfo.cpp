@@ -423,7 +423,7 @@ NS_IMETHODIMP NativeDNSResolverOverride::AddIPOverride(
   }
 
   AutoWriteLock lock(mLock);
-  auto& overrides = mOverrides.GetOrInsert(aHost);
+  auto& overrides = mOverrides.LookupOrInsert(aHost);
   overrides.AppendElement(tempAddr);
 
   return NS_OK;
@@ -436,7 +436,7 @@ NS_IMETHODIMP NativeDNSResolverOverride::SetCnameOverride(
   }
 
   AutoWriteLock lock(mLock);
-  mCnames.Put(aHost, nsCString(aCNAME));
+  mCnames.InsertOrUpdate(aHost, nsCString(aCNAME));
 
   return NS_OK;
 }

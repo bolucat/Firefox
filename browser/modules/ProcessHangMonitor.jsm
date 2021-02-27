@@ -13,6 +13,40 @@ const { AppConstants } = ChromeUtils.import(
 const { Services } = ChromeUtils.import("resource://gre/modules/Services.jsm");
 
 /**
+ * Elides the middle of a string by replacing it with an elipsis if it is
+ * longer than `threshold` characters. Does its best to not break up grapheme
+ * clusters.
+ */
+function elideMiddleOfString(str, threshold) {
+  const searchDistance = 5;
+  const stubLength = threshold / 2 - searchDistance;
+  if (str.length <= threshold || stubLength < searchDistance) {
+    return str;
+  }
+
+  function searchElisionPoint(position) {
+    let unsplittableCharacter = c => /[\p{M}\uDC00-\uDFFF]/u.test(c);
+    for (let i = 0; i < searchDistance; i++) {
+      if (!unsplittableCharacter(str[position + i])) {
+        return position + i;
+      }
+
+      if (!unsplittableCharacter(str[position - i])) {
+        return position - i;
+      }
+    }
+    return position;
+  }
+
+  let elisionStart = searchElisionPoint(stubLength);
+  let elisionEnd = searchElisionPoint(str.length - stubLength);
+  if (elisionStart < elisionEnd) {
+    str = str.slice(0, elisionStart) + "\u2026" + str.slice(elisionEnd);
+  }
+  return str;
+}
+
+/**
  * This JSM is responsible for observing content process hang reports
  * and asking the user what to do about them. See nsIHangReport for
  * the platform interface.
@@ -512,63 +546,41 @@ var ProcessHangMonitor = {
    * Show the notification for a hang.
    */
   showNotification(win, report) {
-    let notification = win.gHighPriorityNotificationBox.getNotificationWithValue(
-      "process-hang"
-    );
-    if (notification) {
-      return;
-    }
-
     let bundle = win.gNavigatorBundle;
 
     let buttons = [
       {
-        label: bundle.getString("processHang.button_stop.label"),
+        label: bundle.getString("processHang.add-on.learn-more.text"),
+        link:
+          "https://support.mozilla.org/kb/warning-unresponsive-script#w_other-causes",
+      },
+      {
+        label: bundle.getString("processHang.button_stop.label2"),
         accessKey: bundle.getString("processHang.button_stop.accessKey"),
         callback() {
           ProcessHangMonitor.stopIt(win);
         },
       },
-      {
-        label: bundle.getString("processHang.button_wait.label"),
-        accessKey: bundle.getString("processHang.button_wait.accessKey"),
-        callback() {
-          ProcessHangMonitor.waitLonger(win);
-        },
-      },
     ];
 
-    let message = bundle.getString("processHang.label");
+    let message;
+    let doc = win.document;
+    let brandShortName = doc
+      .getElementById("bundle_brand")
+      .getString("brandShortName");
+    let notificationTag;
     if (report.addonId) {
+      notificationTag = report.addonId;
       let aps = Cc["@mozilla.org/addons/policy-service;1"].getService(
         Ci.nsIAddonPolicyService
       );
 
-      let doc = win.document;
-      let brandBundle = doc.getElementById("bundle_brand");
-
       let addonName = aps.getExtensionName(report.addonId);
 
-      let label = bundle.getFormattedString("processHang.add-on.label", [
+      message = bundle.getFormattedString("processHang.add-on.label", [
         addonName,
-        brandBundle.getString("brandShortName"),
+        brandShortName,
       ]);
-
-      let linkText = bundle.getString("processHang.add-on.learn-more.text");
-      let linkURL =
-        "https://support.mozilla.org/kb/warning-unresponsive-script#w_other-causes";
-
-      let link = doc.createXULElement("label", { is: "text-link" });
-      link.setAttribute("role", "link");
-      link.setAttribute(
-        "onclick",
-        `openTrustedLinkIn(${JSON.stringify(linkURL)}, "tab")`
-      );
-      link.setAttribute("value", linkText);
-
-      message = doc.createDocumentFragment();
-      message.appendChild(doc.createTextNode(label + " "));
-      message.appendChild(link);
 
       buttons.unshift({
         label: bundle.getString("processHang.button_stop_sandbox.label"),
@@ -579,6 +591,46 @@ var ProcessHangMonitor = {
           ProcessHangMonitor.stopGlobal(win);
         },
       });
+    } else {
+      let scriptBrowser = report.scriptBrowser;
+      if (scriptBrowser == win.gBrowser?.selectedBrowser) {
+        notificationTag = "selected-tab";
+        message = bundle.getFormattedString("processHang.selected_tab.label", [
+          brandShortName,
+        ]);
+      } else {
+        let tab = scriptBrowser?.ownerGlobal.gBrowser?.getTabForBrowser(
+          scriptBrowser
+        );
+        if (!tab) {
+          notificationTag = "nonspecific_tab";
+          message = bundle.getFormattedString(
+            "processHang.nonspecific_tab.label",
+            [brandShortName]
+          );
+        } else {
+          notificationTag = scriptBrowser.browserId.toString();
+          let title = tab.getAttribute("label");
+          title = elideMiddleOfString(title, 60);
+          message = bundle.getFormattedString(
+            "processHang.specific_tab.label",
+            [title, brandShortName]
+          );
+        }
+      }
+    }
+
+    let notification = win.gHighPriorityNotificationBox.getNotificationWithValue(
+      "process-hang"
+    );
+    if (notificationTag == notification?.getAttribute("notification-tag")) {
+      return;
+    }
+
+    if (notification) {
+      notification.label = message;
+      notification.setAttribute("notification-tag", notificationTag);
+      return;
     }
 
     if (AppConstants.MOZ_DEV_EDITION && report.hangType == report.SLOW_SCRIPT) {
@@ -591,13 +643,20 @@ var ProcessHangMonitor = {
       });
     }
 
-    win.gHighPriorityNotificationBox.appendNotification(
-      message,
-      "process-hang",
-      "chrome://browser/content/aboutRobots-icon.png",
-      win.gHighPriorityNotificationBox.PRIORITY_WARNING_HIGH,
-      buttons
-    );
+    win.gHighPriorityNotificationBox
+      .appendNotification(
+        message,
+        "process-hang",
+        "chrome://browser/content/aboutRobots-icon.png",
+        win.gHighPriorityNotificationBox.PRIORITY_WARNING_HIGH,
+        buttons,
+        event => {
+          if (event == "dismissed") {
+            ProcessHangMonitor.waitLonger(win);
+          }
+        }
+      )
+      .setAttribute("notification-tag", notificationTag);
   },
 
   /**

@@ -305,12 +305,15 @@ void TelemetryOrigin::InitializeGlobalState() {
     hashOffset += hashLength;
 
     // -1 to leave off the null terminators.
-    gOriginToIndexMap->Put(nsDependentCString(origin, originLength - 1), i);
-    gHashToIndexMap->Put(nsDependentCString(hash, hashLength - 1), i);
+    gOriginToIndexMap->InsertOrUpdate(
+        nsDependentCString(origin, originLength - 1), i);
+    gHashToIndexMap->InsertOrUpdate(nsDependentCString(hash, hashLength - 1),
+                                    i);
   }
 
   // Add the meta-origin for tracking recordings to untracked origins.
-  gOriginToIndexMap->Put(kUnknownOrigin, gOriginHashesList->Length());
+  gOriginToIndexMap->InsertOrUpdate(kUnknownOrigin,
+                                    gOriginHashesList->Length());
 
   gMetricToOriginBag = MakeUnique<IdToOriginBag>();
 
@@ -373,14 +376,14 @@ nsresult TelemetryOrigin::RecordOrigin(OriginMetricID aId,
       // Only record one unknown origin per metric per snapshot.
       // (otherwise we may get swamped and blow our data budget.)
       if (gMetricToOriginBag->Contains(aId) &&
-          gMetricToOriginBag->GetOrInsert(aId).Contains(kUnknownOrigin)) {
+          gMetricToOriginBag->LookupOrInsert(aId).Contains(kUnknownOrigin)) {
         return NS_OK;
       }
       origin = kUnknownOrigin;
     }
 
-    auto& originBag = gMetricToOriginBag->GetOrInsert(aId);
-    originBag.GetOrInsert(origin)++;
+    auto& originBag = gMetricToOriginBag->LookupOrInsert(aId);
+    originBag.LookupOrInsert(origin)++;
 
     prioDataCount = PrioDataCount(locker);
   }
@@ -425,10 +428,10 @@ nsresult TelemetryOrigin::GetOriginSnapshot(bool aClear, JSContext* aCx,
     } else {
       auto iter = gMetricToOriginBag->ConstIter();
       for (; !iter.Done(); iter.Next()) {
-        OriginBag& bag = copy.GetOrInsert(iter.Key());
+        OriginBag& bag = copy.LookupOrInsert(iter.Key());
         auto originIt = iter.Data().ConstIter();
         for (; !originIt.Done(); originIt.Next()) {
-          bag.Put(originIt.Key(), originIt.Data());
+          bag.InsertOrUpdate(originIt.Key(), originIt.Data());
         }
       }
     }

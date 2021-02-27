@@ -8,6 +8,7 @@
 #include <stdint.h>  // for intptr_t
 
 #include "mozilla/BasicEvents.h"
+#include "mozilla/D3DMessageUtils.h"  // for DxgiAdapterDesc
 #include "mozilla/Preferences.h"
 #include "mozilla/StaticPrefs_dom.h"
 #include "mozilla/Telemetry.h"
@@ -1875,14 +1876,14 @@ void PluginInstanceParent::NPP_URLNotify(const char* url, NPReason reason,
 bool PluginInstanceParent::RegisterNPObjectForActor(
     NPObject* aObject, PluginScriptableObjectParent* aActor) {
   NS_ASSERTION(aObject && aActor, "Null pointers!");
-  NS_ASSERTION(!mScriptableObjects.Get(aObject, nullptr), "Duplicate entry!");
-  mScriptableObjects.Put(aObject, aActor);
+  NS_ASSERTION(!mScriptableObjects.Contains(aObject), "Duplicate entry!");
+  mScriptableObjects.InsertOrUpdate(aObject, aActor);
   return true;
 }
 
 void PluginInstanceParent::UnregisterNPObject(NPObject* aObject) {
   NS_ASSERTION(aObject, "Null pointer!");
-  NS_ASSERTION(mScriptableObjects.Get(aObject, nullptr), "Unknown entry!");
+  NS_ASSERTION(mScriptableObjects.Contains(aObject), "Unknown entry!");
   mScriptableObjects.Remove(aObject);
 }
 
@@ -2082,8 +2083,8 @@ void PluginInstanceParent::SubclassPluginWindow(HWND aWnd) {
     mPluginWndProc = nullptr;
     // Note sPluginInstanceList wil delete 'this' if we do not remove
     // it on shutdown.
-    sPluginInstanceList->Put((void*)mPluginHWND,
-                             UniquePtr<PluginInstanceParent>(this));
+    sPluginInstanceList->InsertOrUpdate((void*)mPluginHWND,
+                                        UniquePtr<PluginInstanceParent>(this));
     return;
   }
 

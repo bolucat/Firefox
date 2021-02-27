@@ -1343,7 +1343,7 @@ void gfxFcPlatformFontList::AddPatternToFontList(
       FontVisibility visibility =
           aAppFonts ? FontVisibility::Base : GetVisibilityForFamily(keyName);
       aFontFamily = new gfxFontconfigFontFamily(aFamilyName, visibility);
-      mFontFamilies.Put(keyName, RefPtr{aFontFamily});
+      mFontFamilies.InsertOrUpdate(keyName, RefPtr{aFontFamily});
     }
     // Record if the family contains fonts from the app font set
     // (in which case we won't rely on fontconfig's charmap, due to
@@ -1376,11 +1376,11 @@ void gfxFcPlatformFontList::AddPatternToFontList(
   GetFaceNames(aFont, aFamilyName, psname, fullname);
   if (!psname.IsEmpty()) {
     ToLowerCase(psname);
-    mLocalNames.Put(psname, aFont);
+    mLocalNames.InsertOrUpdate(psname, aFont);
   }
   if (!fullname.IsEmpty()) {
     ToLowerCase(fullname);
-    mLocalNames.Put(fullname, aFont);
+    mLocalNames.InsertOrUpdate(fullname, aFont);
   }
 }
 
@@ -1593,7 +1593,7 @@ void gfxFcPlatformFontList::InitSharedFontListForPlatform() {
       // Add new family record if one doesn't already exist.
       faceListPtr =
           faces
-              .GetOrInsertWith(
+              .LookupOrInsertWith(
                   keyName,
                   [&] {
                     FontVisibility visibility =
@@ -1634,13 +1634,13 @@ void gfxFcPlatformFontList::InitSharedFontListForPlatform() {
     GetFaceNames(aPattern, aFamilyName, psname, fullname);
     if (!psname.IsEmpty()) {
       ToLowerCase(psname);
-      mLocalNameTable.Put(
+      mLocalNameTable.InsertOrUpdate(
           psname, fontlist::LocalFaceRec::InitData(keyName, descriptor));
     }
     if (!fullname.IsEmpty()) {
       ToLowerCase(fullname);
       if (fullname != psname) {
-        mLocalNameTable.Put(
+        mLocalNameTable.InsertOrUpdate(
             fullname, fontlist::LocalFaceRec::InitData(keyName, descriptor));
       }
     }
@@ -1656,18 +1656,19 @@ void gfxFcPlatformFontList::InitSharedFontListForPlatform() {
       ToLowerCase(keyName);
 
       faces
-          .GetOrInsertWith(keyName,
-                           [&] {
-                             FontVisibility visibility =
-                                 aAppFont ? FontVisibility::Base
-                                          : GetVisibilityForFamily(keyName);
-                             families.AppendElement(fontlist::Family::InitData(
-                                 keyName, otherFamilyName,
-                                 fontlist::Family::kNoIndex, visibility,
-                                 /*bundled*/ aAppFont, /*badUnderline*/ false));
+          .LookupOrInsertWith(
+              keyName,
+              [&] {
+                FontVisibility visibility =
+                    aAppFont ? FontVisibility::Base
+                             : GetVisibilityForFamily(keyName);
+                families.AppendElement(fontlist::Family::InitData(
+                    keyName, otherFamilyName, fontlist::Family::kNoIndex,
+                    visibility,
+                    /*bundled*/ aAppFont, /*badUnderline*/ false));
 
-                             return MakeUnique<FaceInitArray>();
-                           })
+                return MakeUnique<FaceInitArray>();
+              })
           ->AppendElement(fontlist::Face::InitData{descriptor, 0, false, weight,
                                                    stretch, style});
 
@@ -2008,7 +2009,7 @@ bool gfxFcPlatformFontList::FindAndAddFamilies(
   }
 
   // Cache the resulting list, so we don't have to do this again.
-  mFcSubstituteCache.Put(familyName, cachedFamilies);
+  mFcSubstituteCache.InsertOrUpdate(familyName, cachedFamilies);
 
   if (cachedFamilies.IsEmpty()) {
     return false;

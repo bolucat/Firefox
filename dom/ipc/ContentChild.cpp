@@ -575,7 +575,7 @@ ContentChild::ContentChild()
   // happens without requiring the observer service at this time.
   if (!sShutdownCanary) {
     sShutdownCanary = new ShutdownCanary();
-    ClearOnShutdown(&sShutdownCanary, ShutdownPhase::Shutdown);
+    ClearOnShutdown(&sShutdownCanary, ShutdownPhase::XPCOMShutdown);
   }
 }
 
@@ -3188,7 +3188,7 @@ void ContentChild::CreateGetFilesRequest(const nsAString& aDirectoryPath,
 
   Unused << SendGetFilesRequest(aUUID, nsString(aDirectoryPath),
                                 aRecursiveFlag);
-  mGetFilesPendingRequests.Put(aUUID, RefPtr{aChild});
+  mGetFilesPendingRequests.InsertOrUpdate(aUUID, RefPtr{aChild});
 }
 
 void ContentChild::DeleteGetFilesRequest(nsID& aUUID,
