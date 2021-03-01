@@ -93,7 +93,7 @@ void Shape::removeFromDictionary(NativeObject* obj) {
   if (parent) {
     parent->setDictionaryNextPtr(dictNext);
   }
-  *dictNext.prevPtr() = parent;
+  dictNext.setPrev(parent);
   clearDictionaryNextPtr();
 
   obj->shape()->clearCachedBigEnoughForShapeTable();
@@ -105,7 +105,7 @@ void Shape::insertIntoDictionaryBefore(DictionaryShapeLink next) {
   MOZ_ASSERT(inDictionary());
   MOZ_ASSERT(dictNext.isNone());
 
-  Shape* prev = *next.prevPtr();
+  Shape* prev = next.prev();
 
 #ifdef DEBUG
   if (prev) {
@@ -121,7 +121,7 @@ void Shape::insertIntoDictionaryBefore(DictionaryShapeLink next) {
   }
 
   setDictionaryNextPtr(next);
-  *dictNext.prevPtr() = this;
+  dictNext.setPrev(this);
 }
 
 bool Shape::makeOwnBaseShape(JSContext* cx) {
@@ -2083,21 +2083,12 @@ Shape* EmptyShape::getInitialShape(JSContext* cx, const JSClass* clasp,
                          objectFlags);
 }
 
-void NewObjectCache::invalidateEntriesForShape(JSContext* cx, HandleShape shape,
-                                               HandleObject proto) {
+void NewObjectCache::invalidateEntriesForShape(Shape* shape, JSObject* proto) {
   const JSClass* clasp = shape->getObjectClass();
 
   gc::AllocKind kind = gc::GetGCObjectKind(shape->numFixedSlots());
   if (CanChangeToBackgroundAllocKind(kind, clasp)) {
     kind = ForegroundToBackgroundAllocKind(kind);
-  }
-
-  RootedObjectGroup group(
-      cx, ObjectGroup::defaultNewGroup(cx, clasp, TaggedProto(proto)));
-  if (!group) {
-    purge();
-    cx->recoverFromOutOfMemory();
-    return;
   }
 
   EntryIndex entry;
@@ -2109,9 +2100,6 @@ void NewObjectCache::invalidateEntriesForShape(JSContext* cx, HandleShape shape,
     }
   }
   if (!proto->is<GlobalObject>() && lookupProto(clasp, proto, kind, &entry)) {
-    PodZero(&entries[entry]);
-  }
-  if (lookupGroup(group, kind, &entry)) {
     PodZero(&entries[entry]);
   }
 }
@@ -2156,7 +2144,7 @@ void EmptyShape::insertInitialShape(JSContext* cx, HandleShape shape,
    * thread, as it will not use the new object cache for allocations.
    */
   if (!cx->isHelperThreadContext()) {
-    cx->caches().newObjectCache.invalidateEntriesForShape(cx, shape, proto);
+    cx->caches().newObjectCache.invalidateEntriesForShape(shape, proto);
   }
 }
 

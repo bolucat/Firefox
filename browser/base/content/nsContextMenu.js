@@ -620,10 +620,12 @@ class nsContextMenu {
     var showInspectA11Y =
       showInspect &&
       Services.prefs.getBoolPref("devtools.accessibility.enabled", false) &&
-      this.inTabBrowser &&
       Services.prefs.getBoolPref("devtools.enabled", true) &&
-      Services.prefs.getBoolPref("devtools.accessibility.enabled", true) &&
-      !Services.prefs.getBoolPref("devtools.policy.disabled", false);
+      (Services.prefs.getBoolPref("devtools.everOpened", false) ||
+        // Note: this is a legacy usecase, we will remove it in bug 1695257,
+        // once existing users have had time to set devtools.everOpened
+        // through normal use, and we've passed an ESR cycle (91).
+        nsContextMenu.DevToolsShim.isDevToolsUser());
 
     this.showItem("context-viewsource", shouldShow);
     this.showItem("inspect-separator", showInspect);
@@ -1985,19 +1987,15 @@ class nsContextMenu {
   }
 
   printFrame() {
-    PrintUtils.startPrintWindow(
-      "context_print_frame",
-      this.actor.browsingContext,
-      { printFrameOnly: true }
-    );
+    PrintUtils.startPrintWindow(this.actor.browsingContext, {
+      printFrameOnly: true,
+    });
   }
 
   printSelection() {
-    PrintUtils.startPrintWindow(
-      "context_print_selection",
-      this.actor.browsingContext,
-      { printSelectionOnly: true }
-    );
+    PrintUtils.startPrintWindow(this.actor.browsingContext, {
+      printSelectionOnly: true,
+    });
   }
 
   switchPageDirection() {

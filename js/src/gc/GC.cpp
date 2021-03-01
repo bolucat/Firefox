@@ -964,6 +964,7 @@ GCRuntime::GCRuntime(JSRuntime* rt)
       heapState_(JS::HeapState::Idle),
       stats_(this),
       marker(rt),
+      barrierTracer(rt),
       heapSize(nullptr),
       helperThreadRatio(TuningDefaults::HelperThreadRatio),
       maxHelperThreads(TuningDefaults::MaxHelperThreads),
@@ -4336,8 +4337,8 @@ void GCRuntime::beginMarkPhase(AutoGCSession& session) {
   incMajorGcNumber();
 
   marker.start();
-  GCMarker* gcmarker = &marker;
-  gcmarker->clearMarkCount();
+  marker.clearMarkCount();
+  MOZ_ASSERT(marker.isDrained());
 
   for (GCZonesIter zone(this); !zone.done(); zone.next()) {
     // Incremental marking barriers are enabled at this point.
@@ -4347,7 +4348,7 @@ void GCRuntime::beginMarkPhase(AutoGCSession& session) {
   if (rt->isBeingDestroyed()) {
     checkNoRuntimeRoots(session);
   } else {
-    traceRuntimeForMajorGC(gcmarker, session);
+    traceRuntimeForMajorGC(&marker, session);
   }
 
   if (isIncremental) {
@@ -6813,6 +6814,7 @@ void GCRuntime::incrementalSlice(SliceBudget& budget,
 
   switch (incrementalState) {
     case State::NotActive:
+      MOZ_ASSERT(marker.isDrained());
       invocationKind = gckind.valueOr(GC_NORMAL);
       initialReason = reason;
       cleanUpEverything = ShouldCleanUpEverything(reason, invocationKind);

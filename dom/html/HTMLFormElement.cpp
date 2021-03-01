@@ -1453,7 +1453,7 @@ nsresult HTMLFormElement::RemoveElementFromTableInternal(
 
   // If it's not a content node then it must be a RadioNodeList.
   MOZ_ASSERT(nsCOMPtr<RadioNodeList>(do_QueryInterface(entry.Data())));
-  auto* list = static_cast<RadioNodeList*>(entry.Data().get());
+  auto* list = static_cast<RadioNodeList*>(entry->get());
 
   list->RemoveElement(aChild);
 
@@ -2177,16 +2177,15 @@ uint32_t HTMLFormElement::GetRequiredRadioCount(const nsAString& aName) const {
 void HTMLFormElement::RadioRequiredWillChange(const nsAString& aName,
                                               bool aRequiredAdded) {
   if (aRequiredAdded) {
-    mRequiredRadioButtonCounts.InsertOrUpdate(
-        aName, mRequiredRadioButtonCounts.Get(aName) + 1);
+    mRequiredRadioButtonCounts.LookupOrInsert(aName, 0) += 1;
   } else {
-    uint32_t requiredNb = mRequiredRadioButtonCounts.Get(aName);
-    NS_ASSERTION(requiredNb >= 1,
+    auto requiredNb = mRequiredRadioButtonCounts.Lookup(aName);
+    NS_ASSERTION(requiredNb && *requiredNb >= 1,
                  "At least one radio button has to be required!");
-    if (requiredNb == 1) {
-      mRequiredRadioButtonCounts.Remove(aName);
+    if (*requiredNb == 1) {
+      requiredNb.Remove();
     } else {
-      mRequiredRadioButtonCounts.InsertOrUpdate(aName, requiredNb - 1);
+      *requiredNb -= 1;
     }
   }
 }
@@ -2293,7 +2292,7 @@ nsresult HTMLFormElement::AddElementToTableInternal(
       } else {
         // There's already a list in the hash, add the child to the list.
         MOZ_ASSERT(nsCOMPtr<RadioNodeList>(do_QueryInterface(entry.Data())));
-        auto* list = static_cast<RadioNodeList*>(entry.Data().get());
+        auto* list = static_cast<RadioNodeList*>(entry->get());
 
         NS_ASSERTION(
             list->Length() > 1,

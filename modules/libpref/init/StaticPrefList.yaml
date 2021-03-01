@@ -4874,6 +4874,11 @@
   value: true
   mirror: once
 
+- name: gfx.webrender.software.opengl
+  type: bool
+  value: false
+  mirror: once
+
 - name: gfx.webrender.software.d3d11.upload-mode
   type: RelaxedAtomicInt32
   value: 4 
@@ -9874,12 +9879,6 @@
 - name: svg.new-getBBox.enabled
   type: bool
   value: false
-  mirror: always
-
-# Is support for letter-spacing and word-spacing in SVG text enabled?
-- name: svg.text-spacing.enabled
-  type: bool
-  value: true
   mirror: always
 
 #---------------------------------------------------------------------------
