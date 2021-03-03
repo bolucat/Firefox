@@ -105,20 +105,18 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(LocalAccessible)
 NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_DESTROY(LocalAccessible, LastRelease())
 
 LocalAccessible::LocalAccessible(nsIContent* aContent, DocAccessible* aDoc)
-    : mContent(aContent),
+    : Accessible(),
+      mContent(aContent),
       mDoc(aDoc),
       mParent(nullptr),
       mIndexInParent(-1),
-      mRoleMapEntryIndex(aria::NO_ROLE_MAP_ENTRY_INDEX),
       mStateFlags(0),
       mContextFlags(0),
-      mType(0),
-      mGenericTypes(0),
       mReorderEventTarget(false),
       mShowEventTarget(false),
       mHideEventTarget(false) {
   mBits.groupInfo = nullptr;
-  mInt.mIndexOfEmbeddedChild = -1;
+  mIndexOfEmbeddedChild = -1;
 }
 
 LocalAccessible::~LocalAccessible() {
@@ -474,8 +472,19 @@ LocalAccessible* LocalAccessible::FocusedChild() {
   return nullptr;
 }
 
-LocalAccessible* LocalAccessible::ChildAtPoint(int32_t aX, int32_t aY,
-                                               EWhichChildAtPoint aWhichChild) {
+Accessible* LocalAccessible::ChildAtPoint(int32_t aX, int32_t aY,
+                                          EWhichChildAtPoint aWhichChild) {
+  Accessible* child = LocalChildAtPoint(aX, aY, aWhichChild);
+  if (aWhichChild != EWhichChildAtPoint::DirectChild && child &&
+      child->IsOuterDoc()) {
+    child = child->ChildAtPoint(aX, aY, aWhichChild);
+  }
+
+  return child;
+}
+
+LocalAccessible* LocalAccessible::LocalChildAtPoint(
+    int32_t aX, int32_t aY, EWhichChildAtPoint aWhichChild) {
   // If we can't find the point in a child, we will return the fallback answer:
   // we return |this| if the point is within it, otherwise nullptr.
   LocalAccessible* fallbackAnswer = nullptr;
@@ -568,7 +577,9 @@ LocalAccessible* LocalAccessible::ChildAtPoint(int32_t aX, int32_t aY,
 
     // If we landed on a legitimate child of |this|, and we want the direct
     // child, return it here.
-    if (parent == this && aWhichChild == eDirectChild) return child;
+    if (parent == this && aWhichChild == EWhichChildAtPoint::DirectChild) {
+      return child;
+    }
 
     child = parent;
   }
@@ -585,8 +596,9 @@ LocalAccessible* LocalAccessible::ChildAtPoint(int32_t aX, int32_t aY,
     nsIntRect childRect = child->Bounds();
     if (childRect.Contains(aX, aY) &&
         (child->State() & states::INVISIBLE) == 0) {
-      if (aWhichChild == eDeepestChild) {
-        return child->ChildAtPoint(aX, aY, eDeepestChild);
+      if (aWhichChild == EWhichChildAtPoint::DeepestChild) {
+        return child->LocalChildAtPoint(aX, aY,
+                                        EWhichChildAtPoint::DeepestChild);
       }
 
       return child;
@@ -2133,7 +2145,7 @@ void LocalAccessible::BindToParent(LocalAccessible* aParent,
 void LocalAccessible::UnbindFromParent() {
   mParent = nullptr;
   mIndexInParent = -1;
-  mInt.mIndexOfEmbeddedChild = -1;
+  mIndexOfEmbeddedChild = -1;
   if (IsProxy()) MOZ_CRASH("this should never be called on proxy wrappers");
 
   delete mBits.groupInfo;
@@ -2285,7 +2297,7 @@ void LocalAccessible::RelocateChild(uint32_t aNewIndex,
 
   for (uint32_t idx = startIdx; idx <= endIdx; idx++) {
     mChildren[idx]->mIndexInParent = idx;
-    mChildren[idx]->mInt.mIndexOfEmbeddedChild = -1;
+    mChildren[idx]->mIndexOfEmbeddedChild = -1;
   }
 
   for (uint32_t idx = 0; idx < mChildren.Length(); idx++) {
@@ -2783,14 +2795,9 @@ void LocalAccessible::StaticAsserts() const {
   static_assert(
       eLastStateFlag <= (1 << kStateFlagsBits) - 1,
       "LocalAccessible::mStateFlags was oversized by eLastStateFlag!");
-  static_assert(eLastAccType <= (1 << kTypeBits) - 1,
-                "LocalAccessible::mType was oversized by eLastAccType!");
   static_assert(
       eLastContextFlag <= (1 << kContextFlagsBits) - 1,
       "LocalAccessible::mContextFlags was oversized by eLastContextFlag!");
-  static_assert(
-      eLastAccGenericType <= (1 << kGenericTypesBits) - 1,
-      "LocalAccessible::mGenericType was oversized by eLastAccGenericType!");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

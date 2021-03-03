@@ -21,6 +21,12 @@ appmenuitem-more-tools =
     .label = More Tools
 appmenuitem-exit =
     .label = Exit
+appmenu-menu-button-closed =
+    .tooltiptext = Open Application Menu
+    .label = { -brand-shorter-name }
+appmenu-menu-button-opened =
+    .tooltiptext = Close Application Menu
+    .label = { -brand-shorter-name }
 
 # Settings is now used to access the browser settings across all platforms,
 # instead of Options or Preferences.
@@ -54,6 +60,7 @@ appmenu-fxa-sync-and-save-data =
 appmenu-fxa-signed-in-label = Sign In
 appmenu-fxa-setup-sync =
     .label = Turn On Syncing…
+appmenu-fxa-show-more-tabs = Show More Tabs
 
 appmenuitem-save-page =
     .label = Save Page As…
@@ -141,8 +148,8 @@ appmenu-about =
 appmenu-get-help =
     .label = Get Help
     .accesskey = H
-appmenu-help-troubleshooting-info =
-    .label = Troubleshooting Information
+appmenu-help-more-troubleshooting-info =
+    .label = More Troubleshooting Information
     .accesskey = T
 appmenu-help-taskmanager =
     .label = Task Manager
@@ -152,15 +159,15 @@ appmenu-help-feedback-page =
     .label = Submit Feedback…
     .accesskey = S
 
-## appmenu-help-safe-mode-without-addons and appmenu-help-safe-mode-without-addons
+## appmenu-help-enter-troubleshoot-mode and appmenu-help-exit-troubleshoot-mode
 ## are mutually exclusive, so it's possible to use the same accesskey for both.
 
-appmenu-help-safe-mode-without-addons =
-    .label = Restart With Add-ons Disabled…
-    .accesskey = R
-appmenu-help-safe-mode-with-addons =
-    .label = Restart With Add-ons Enabled
-    .accesskey = R
+appmenu-help-enter-troubleshoot-mode =
+    .label = Troubleshoot Mode
+    .accesskey = M
+appmenu-help-exit-troubleshoot-mode =
+    .label = Turn Troubleshoot Mode Off
+    .accesskey = M
 
 ## appmenu-help-report-deceptive-site and appmenu-help-not-deceptive
 ## are mutually exclusive, so it's possible to use the same accesskey for both.

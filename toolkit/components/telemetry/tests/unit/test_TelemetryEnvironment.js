@@ -1084,7 +1084,7 @@ add_task(async function setup() {
   let system_addon = FileUtils.File(distroDir.path);
   system_addon.append("tel-system-xpi@tests.mozilla.org.xpi");
   system_addon.lastModifiedTime = SYSTEM_ADDON_INSTALL_DATE;
-  loadAddonManager(APP_ID, APP_NAME, APP_VERSION, PLATFORM_VERSION);
+  await loadAddonManager(APP_ID, APP_NAME, APP_VERSION, PLATFORM_VERSION);
 
   // The test runs in a fresh profile so starting the AddonManager causes
   // the addons database to be created (as does setting new theme).
@@ -2716,4 +2716,22 @@ add_task(async function test_environmentShutdown() {
   TelemetryEnvironment.unregisterChangeListener(
     "test_environmentShutdownChange"
   );
+});
+
+add_task(async function test_environmentDidntChange() {
+  // Clean the environment and check that it's reporting the correct info.
+  await TelemetryEnvironment.testCleanRestart().onInitialized();
+  let data = TelemetryEnvironment.currentEnvironment;
+  checkEnvironmentData(data);
+
+  const LISTENER_NAME = "test_environmentDidntChange";
+  TelemetryEnvironment.registerChangeListener(LISTENER_NAME, () => {
+    Assert.ok(false, "The environment didn't actually change.");
+  });
+
+  // Don't actually change the environment, but notify of a compositor abort.
+  const COMPOSITOR_ABORTED_TOPIC = "compositor:process-aborted";
+  Services.obs.notifyObservers(null, COMPOSITOR_ABORTED_TOPIC);
+
+  TelemetryEnvironment.unregisterChangeListener(LISTENER_NAME);
 });

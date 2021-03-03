@@ -36,7 +36,6 @@ job-defaults:
             - intl/icu/**
             - js/moz.configure
             - js/public/**
-            - js/rust/**
             - js/src/**
             - layout/tools/reftest/reftest/**
             - Makefile.in
@@ -68,6 +67,7 @@ job-defaults:
                     - linux64-gcc
                     - linux64-rust
                     - linux64-dump-syms
+                    - linux64-sysroot
 
 jobs-from:
     - linux.yml

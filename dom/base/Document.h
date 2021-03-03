@@ -2319,8 +2319,8 @@ class Document : public nsINode,
 
   /**
    * Check whether it is safe to cache the presentation of this document
-   * and all of its subdocuments. This method checks the following conditions
-   * recursively:
+   * and all of its subdocuments (depending on the 3rd param). This method
+   * checks the following conditions recursively:
    *  - Some document types, such as plugin documents, cannot be safely cached.
    *  - If there are any pending requests, we don't allow the presentation
    *    to be cached.  Ideally these requests would be suspended and resumed,
@@ -2338,7 +2338,8 @@ class Document : public nsINode,
    * combination is when we try to BFCache aNewRequest
    */
   virtual bool CanSavePresentation(nsIRequest* aNewRequest,
-                                   uint16_t& aBFCacheCombo);
+                                   uint16_t& aBFCacheCombo,
+                                   bool aIncludeSubdocuments);
 
   virtual nsresult Init();
 
@@ -3545,14 +3546,10 @@ class Document : public nsINode,
   void SetTooltipNode(nsINode* aNode) { /* do nothing */
   }
 
-  bool DontWarnAboutMutationEventsAndAllowSlowDOMMutations() {
-    return mDontWarnAboutMutationEventsAndAllowSlowDOMMutations;
+  bool DevToolsWatchingDOMMutations() const {
+    return mDevToolsWatchingDOMMutations;
   }
-  void SetDontWarnAboutMutationEventsAndAllowSlowDOMMutations(
-      bool aDontWarnAboutMutationEventsAndAllowSlowDOMMutations) {
-    mDontWarnAboutMutationEventsAndAllowSlowDOMMutations =
-        aDontWarnAboutMutationEventsAndAllowSlowDOMMutations;
-  }
+  void SetDevToolsWatchingDOMMutations(bool aValue);
 
   void MaybeWarnAboutZoom();
 
@@ -4322,13 +4319,6 @@ class Document : public nsINode,
 
   nsWeakPtr mDocumentLoadGroup;
 
-  bool mBlockAllMixedContent;
-  bool mBlockAllMixedContentPreloads;
-  bool mUpgradeInsecureRequests;
-  bool mUpgradeInsecurePreloads;
-
-  bool mDontWarnAboutMutationEventsAndAllowSlowDOMMutations;
-
   WeakPtr<nsDocShell> mDocumentContainer;
 
   NotNull<const Encoding*> mCharacterSet;
@@ -4425,6 +4415,12 @@ class Document : public nsINode,
   // Permission Delegate Handler, lazily-initialized in
   // GetPermissionDelegateHandler
   RefPtr<PermissionDelegateHandler> mPermissionDelegateHandler;
+
+  bool mBlockAllMixedContent : 1;
+  bool mBlockAllMixedContentPreloads : 1;
+  bool mUpgradeInsecureRequests : 1;
+  bool mUpgradeInsecurePreloads : 1;
+  bool mDevToolsWatchingDOMMutations : 1;
 
   // True if BIDI is enabled.
   bool mBidiEnabled : 1;

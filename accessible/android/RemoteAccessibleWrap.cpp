@@ -17,15 +17,15 @@ RemoteAccessibleWrap::RemoteAccessibleWrap(RemoteAccessible* aProxy)
   mType = eProxyType;
   mBits.proxy = aProxy;
 
-  if (aProxy->mHasValue) {
-    mStateFlags |= eHasNumericValue;
+  if (aProxy->HasNumericValue()) {
+    mGenericTypes |= eNumericValue;
   }
 
-  if (aProxy->mIsSelection) {
+  if (aProxy->IsSelect()) {
     mGenericTypes |= eSelect;
   }
 
-  if (aProxy->mIsHyperText) {
+  if (aProxy->IsHyperText()) {
     mGenericTypes |= eHyperText;
   }
 
@@ -59,7 +59,7 @@ already_AddRefed<nsIPersistentProperties> RemoteAccessibleWrap::Attributes() {
 }
 
 uint32_t RemoteAccessibleWrap::ChildCount() const {
-  return Proxy()->ChildrenCount();
+  return Proxy()->ChildCount();
 }
 
 LocalAccessible* RemoteAccessibleWrap::LocalChildAt(uint32_t aIndex) const {

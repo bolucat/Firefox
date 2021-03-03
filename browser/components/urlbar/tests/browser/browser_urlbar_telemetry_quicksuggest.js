@@ -11,6 +11,8 @@ XPCOMUtils.defineLazyModuleGetters(this, {
   CONTEXTUAL_SERVICES_PING_TYPES:
     "resource:///modules/PartnerLinkAttribution.jsm",
   PartnerLinkAttribution: "resource:///modules/PartnerLinkAttribution.jsm",
+  UrlbarProviderQuickSuggest:
+    "resource:///modules/UrlbarProviderQuickSuggest.jsm",
   UrlbarQuickSuggest: "resource:///modules/UrlbarQuickSuggest.jsm",
 });
 
@@ -42,7 +44,6 @@ const TELEMETRY_EVENT_CATEGORY = "contextservices.quicksuggest";
 
 const EXPERIMENT_PREF = "browser.urlbar.quicksuggest.enabled";
 const SUGGEST_PREF = "suggest.quicksuggest";
-const ONBOARDING_COUNT_PREF = "quicksuggest.onboardingCount";
 
 // Spy for the custom impression/click sender
 let spy;
@@ -59,7 +60,6 @@ add_task(async function init() {
   await SpecialPowers.pushPrefEnv({
     set: [
       [EXPERIMENT_PREF, true],
-      ["browser.urlbar.quicksuggest.helpURL", TEST_HELP_URL],
       ["browser.urlbar.suggest.searches", true],
     ],
   });
@@ -75,6 +75,8 @@ add_task(async function init() {
   await UrlbarQuickSuggest.init();
   await UrlbarQuickSuggest._processSuggestionsJSON(TEST_DATA);
 
+  UrlbarProviderQuickSuggest._helpUrl = TEST_HELP_URL;
+
   // Enable local telemetry recording for the duration of the test.
   let oldCanRecord = Services.telemetry.canRecordExtended;
   Services.telemetry.canRecordExtended = true;
@@ -86,6 +88,7 @@ add_task(async function init() {
     Services.search.setDefault(oldDefaultEngine);
     await Services.search.removeEngine(engine);
     Services.telemetry.canRecordExtended = oldCanRecord;
+    delete UrlbarProviderQuickSuggest._helpUrl;
   });
 });
 
@@ -195,7 +198,6 @@ add_task(async function click_mouse() {
 // Tests the help scalar by picking a Quick Suggest result help button with the
 // keyboard.
 add_task(async function help_keyboard() {
-  UrlbarPrefs.clear(ONBOARDING_COUNT_PREF);
   await BrowserTestUtils.withNewTab("about:blank", async () => {
     spy.resetHistory();
     await UrlbarTestUtils.promiseAutocompleteResultPopup({
@@ -206,7 +208,7 @@ add_task(async function help_keyboard() {
     let index = 1;
     let result = await assertIsQuickSuggest(index);
     let helpButton = result.element.row._elements.get("helpButton");
-    Assert.ok(helpButton, "The result has an onboarding help button");
+    Assert.ok(helpButton, "The result has a help button");
     let helpLoadPromise = BrowserTestUtils.browserLoaded(
       gBrowser.selectedBrowser
     );
@@ -227,7 +229,6 @@ add_task(async function help_keyboard() {
 // Tests the help scalar by picking a Quick Suggest result help button with the
 // mouse.
 add_task(async function help_mouse() {
-  UrlbarPrefs.clear(ONBOARDING_COUNT_PREF);
   await BrowserTestUtils.withNewTab("about:blank", async () => {
     spy.resetHistory();
     await UrlbarTestUtils.promiseAutocompleteResultPopup({
@@ -238,7 +239,7 @@ add_task(async function help_mouse() {
     let index = 1;
     let result = await assertIsQuickSuggest(index);
     let helpButton = result.element.row._elements.get("helpButton");
-    Assert.ok(helpButton, "The result has an onboarding help button");
+    Assert.ok(helpButton, "The result has a help button");
     let helpLoadPromise = BrowserTestUtils.browserLoaded(
       gBrowser.selectedBrowser
     );

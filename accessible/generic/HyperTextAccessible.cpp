@@ -2073,7 +2073,8 @@ void HyperTextAccessible::RangeByChild(LocalAccessible* aChild,
 
 void HyperTextAccessible::RangeAtPoint(int32_t aX, int32_t aY,
                                        a11y::TextRange& aRange) const {
-  LocalAccessible* child = mDoc->ChildAtPoint(aX, aY, eDeepestChild);
+  LocalAccessible* child =
+      mDoc->LocalChildAtPoint(aX, aY, EWhichChildAtPoint::DeepestChild);
   if (!child) return;
 
   LocalAccessible* parent = nullptr;
@@ -2433,17 +2434,4 @@ void HyperTextAccessible::GetSpellTextAttr(
   if (startOffset > *aStartOffset && startOffset < *aEndOffset) {
     *aStartOffset = startOffset;
   }
-}
-
-bool HyperTextAccessible::IsTextRole() {
-  const nsRoleMapEntry* roleMapEntry = ARIARoleMap();
-  if (roleMapEntry && (roleMapEntry->role == roles::GRAPHIC ||
-                       roleMapEntry->role == roles::IMAGE_MAP ||
-                       roleMapEntry->role == roles::SLIDER ||
-                       roleMapEntry->role == roles::PROGRESSBAR ||
-                       roleMapEntry->role == roles::SEPARATOR)) {
-    return false;
-  }
-
-  return true;
 }

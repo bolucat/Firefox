@@ -1663,6 +1663,8 @@ static bool EnsureEntryStubs(const Instance& instance, uint32_t funcIndex,
   // - or we don't take the lock here first. Background compilation won't
   // find a lazy stub for this function, thus won't generate it. So we'll do
   // it ourselves after taking the tier2 lock.
+  //
+  // Also see doc block for stubs in WasmJS.cpp.
 
   auto stubs = instance.code(tier).lazyStubs().lock();
   *interpEntry = stubs->lookupInterpEntry(fe.funcIndex());
@@ -1700,26 +1702,29 @@ static bool EnsureEntryStubs(const Instance& instance, uint32_t funcIndex,
   return true;
 }
 
-static bool GetInterpEntry(JSContext* cx, Instance& instance,
-                           uint32_t funcIndex, CallArgs args,
-                           void** interpEntry, const FuncType** funcType) {
+static bool GetInterpEntryAndEnsureStubs(JSContext* cx, Instance& instance,
+                                         uint32_t funcIndex, CallArgs args,
+                                         void** interpEntry,
+                                         const FuncType** funcType) {
   const FuncExport* funcExport;
   if (!EnsureEntryStubs(instance, funcIndex, &funcExport, interpEntry)) {
     return false;
   }
 
 #ifdef DEBUG
-  // EnsureEntryStubs() has ensured jit-entry stubs have been created and
-  // installed in funcIndex's JumpTable entry.
+  // EnsureEntryStubs() has ensured proper jit-entry stubs have been created and
+  // installed in funcIndex's JumpTable entry, so check against the presence of
+  // the provisional lazy stub.  See also
+  // WasmInstanceObject::getExportedFunction().
   if (!funcExport->hasEagerStubs() && funcExport->canHaveJitEntry()) {
     if (!EnsureBuiltinThunksInitialized()) {
       return false;
     }
     JSFunction& callee = args.callee().as<JSFunction>();
-    void* provisionalJitEntryStub = ProvisionalJitEntryStub();
-    MOZ_ASSERT(provisionalJitEntryStub);
+    void* provisionalLazyJitEntryStub = ProvisionalLazyJitEntryStub();
+    MOZ_ASSERT(provisionalLazyJitEntryStub);
     MOZ_ASSERT(callee.isWasmWithJitEntry());
-    MOZ_ASSERT(*callee.wasmJitEntry() != provisionalJitEntryStub);
+    MOZ_ASSERT(*callee.wasmJitEntry() != provisionalLazyJitEntryStub);
   }
 #endif
 
@@ -1868,7 +1873,8 @@ bool Instance::callExport(JSContext* cx, uint32_t funcIndex, CallArgs args) {
 
   void* interpEntry;
   const FuncType* funcType;
-  if (!GetInterpEntry(cx, *this, funcIndex, args, &interpEntry, &funcType)) {
+  if (!GetInterpEntryAndEnsureStubs(cx, *this, funcIndex, args, &interpEntry,
+                                    &funcType)) {
     return false;
   }
 
@@ -2123,7 +2129,7 @@ void Instance::destroyBreakpointSite(JSFreeOp* fop, uint32_t offset) {
 }
 
 void Instance::disassembleExport(JSContext* cx, uint32_t funcIndex, Tier tier,
-                                 PrintCallback callback) const {
+                                 PrintCallback printString) const {
   const MetadataTier& metadataTier = metadata(tier);
   const FuncExport& funcExport = metadataTier.lookupFuncExport(funcIndex);
   const CodeRange& range = metadataTier.codeRange(funcExport);
@@ -2134,7 +2140,7 @@ void Instance::disassembleExport(JSContext* cx, uint32_t funcIndex, Tier tier,
   MOZ_ASSERT(range.end() < segment.length());
 
   uint8_t* functionCode = segment.base() + range.begin();
-  jit::Disassemble(functionCode, range.end() - range.begin(), callback);
+  jit::Disassemble(functionCode, range.end() - range.begin(), printString);
 }
 
 void Instance::addSizeOfMisc(MallocSizeOf mallocSizeOf,

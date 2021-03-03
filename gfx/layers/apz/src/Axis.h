@@ -353,6 +353,7 @@ class AxisX : public Axis {
   ScreenPoint MakePoint(ScreenCoord aCoord) const override;
   const char* Name() const override;
   bool CanScrollTo(Side aSide) const;
+  SideBits ScrollableDirections() const;
 
  private:
   OverscrollBehavior GetOverscrollBehavior() const override;
@@ -372,11 +373,15 @@ class AxisY : public Axis {
   ScreenPoint MakePoint(ScreenCoord aCoord) const override;
   const char* Name() const override;
   bool CanScrollTo(Side aSide) const;
-  bool CanScrollDownwardsWithDynamicToolbar() const;
+  bool CanVerticalScrollWithDynamicToolbar() const;
+  SideBits ScrollableDirections() const;
+  SideBits ScrollableDirectionsWithDynamicToolbar(
+      const ScreenMargin& aFixedLayerMargins) const;
 
  private:
   OverscrollBehavior GetOverscrollBehavior() const override;
   ParentLayerCoord GetCompositionLengthWithoutDynamicToolbar() const;
+  bool HasDynamicToolbar() const;
 };
 
 }  // namespace layers

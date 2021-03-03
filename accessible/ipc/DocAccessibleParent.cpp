@@ -66,7 +66,7 @@ mozilla::ipc::IPCResult DocAccessibleParent::RecvShowEvent(
   }
 
   uint32_t newChildIdx = aData.Idx();
-  if (newChildIdx > parent->ChildrenCount()) {
+  if (newChildIdx > parent->ChildCount()) {
     NS_ERROR("invalid index to add child at");
 #ifdef DEBUG
     return IPC_FAIL(this, "invalid index");
@@ -132,11 +132,12 @@ uint32_t DocAccessibleParent::AddSubtree(
   }
 
   RemoteAccessible* newProxy = new RemoteAccessible(
-      newChild.ID(), aParent, this, newChild.Role(), newChild.Interfaces());
+      newChild.ID(), aParent, this, newChild.Role(), newChild.Type(),
+      newChild.GenericTypes(), newChild.RoleMapEntryIndex());
 
   aParent->AddChildAt(aIdxInParent, newProxy);
   mAccessibles.PutEntry(newChild.ID())->mProxy = newProxy;
-  ProxyCreated(newProxy, newChild.Interfaces());
+  ProxyCreated(newProxy);
 
 #if defined(XP_WIN)
   WrapperFor(newProxy)->SetID(newChild.MsaaID());
@@ -153,7 +154,7 @@ uint32_t DocAccessibleParent::AddSubtree(
       break;
     }
   }
-  DebugOnly<bool> isOuterDoc = newProxy->ChildrenCount() == 1;
+  DebugOnly<bool> isOuterDoc = newProxy->ChildCount() == 1;
 
   uint32_t accessibles = 1;
   uint32_t kids = newChild.ChildrenCount();
@@ -164,7 +165,7 @@ uint32_t DocAccessibleParent::AddSubtree(
     accessibles += consumed;
   }
 
-  MOZ_ASSERT((isOuterDoc && kids == 0) || newProxy->ChildrenCount() == kids);
+  MOZ_ASSERT((isOuterDoc && kids == 0) || newProxy->ChildCount() == kids);
 
   return accessibles;
 }
@@ -588,7 +589,7 @@ ipc::IPCResult DocAccessibleParent::AddChildDoc(DocAccessibleParent* aChildDoc,
 #endif
       mPendingChildDocs.AppendElement(PendingChildDoc(aChildDoc, aParentID));
       if (aCreating) {
-        ProxyCreated(aChildDoc, Interfaces::DOCUMENT | Interfaces::HYPERTEXT);
+        ProxyCreated(aChildDoc);
       }
       return IPC_OK();
     }
@@ -601,12 +602,12 @@ ipc::IPCResult DocAccessibleParent::AddChildDoc(DocAccessibleParent* aChildDoc,
   // OuterDocAccessibles are expected to only have a document as a child.
   // However for compatibility we tolerate replacing one document with another
   // here.
-  if (outerDoc->ChildrenCount() > 1 || (outerDoc->ChildrenCount() == 1 &&
-                                        !outerDoc->RemoteChildAt(0)->IsDoc())) {
+  if (outerDoc->ChildCount() > 1 ||
+      (outerDoc->ChildCount() == 1 && !outerDoc->RemoteChildAt(0)->IsDoc())) {
     return IPC_FAIL(this, "binding to proxy that can't be a outerDoc!");
   }
 
-  if (outerDoc->ChildrenCount() == 1) {
+  if (outerDoc->ChildCount() == 1) {
     MOZ_ASSERT(outerDoc->RemoteChildAt(0)->AsDoc());
     outerDoc->RemoteChildAt(0)->AsDoc()->Unbind();
   }
@@ -617,7 +618,7 @@ ipc::IPCResult DocAccessibleParent::AddChildDoc(DocAccessibleParent* aChildDoc,
   aChildDoc->mParentDoc = mActorID;
 
   if (aCreating) {
-    ProxyCreated(aChildDoc, Interfaces::DOCUMENT | Interfaces::HYPERTEXT);
+    ProxyCreated(aChildDoc);
   }
 
   if (aChildDoc->IsTopLevelInContentProcess()) {

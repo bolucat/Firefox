@@ -9,7 +9,7 @@
 #include "mozilla/Maybe.h"                  // mozilla::Maybe
 #include "mozilla/OperatorNewExtensions.h"  // mozilla::KnownNotNull
 #include "mozilla/Range.h"                  // mozilla::Range
-#include "mozilla/Span.h"                   // mozilla::{Span, Span}
+#include "mozilla/Span.h"                   // mozilla::Span
 #include "mozilla/Variant.h"                // mozilla::AsVariant
 
 #include <stddef.h>  // size_t
@@ -37,6 +37,7 @@
 #include "js/UniquePtr.h"             // js::UniquePtr
 #include "js/Utility.h"    // JS::UniqueTwoByteChars, StringBufferArena
 #include "vm/JSScript.h"   // JSScript
+#include "vm/Scope.h"      // GetScopeDataTrailingNames
 #include "vm/ScopeKind.h"  // ScopeKind
 #include "vm/SharedStencil.h"  // ImmutableScriptData, ScopeNote, TryNote, GCThingIndex
 
@@ -138,11 +139,11 @@ bool ConvertScopeStencil(JSContext* cx, const SmooshResult& result,
         }
 
         CopyBindingNames(cx, global.bindings, allAtoms,
-                         data->trailingNames.start());
+                         GetScopeDataTrailingNamesPointer(data));
 
         data->slotInfo.letStart = global.let_start;
         data->slotInfo.constStart = global.const_start;
-        data->slotInfo.length = numBindings;
+        data->length = numBindings;
 
         if (!ScopeStencil::createForGlobalScope(
                 cx, compilationState, ScopeKind::Global, data, &index)) {
@@ -162,12 +163,12 @@ bool ConvertScopeStencil(JSContext* cx, const SmooshResult& result,
         }
 
         CopyBindingNames(cx, var.bindings, allAtoms,
-                         data->trailingNames.start());
+                         GetScopeDataTrailingNamesPointer(data));
 
         // NOTE: data->slotInfo.nextFrameSlot is set in
         // ScopeStencil::createForVarScope.
 
-        data->slotInfo.length = numBindings;
+        data->length = numBindings;
 
         uint32_t firstFrameSlot = var.first_frame_slot;
         ScopeIndex enclosingIndex(var.enclosing);
@@ -190,13 +191,13 @@ bool ConvertScopeStencil(JSContext* cx, const SmooshResult& result,
         }
 
         CopyBindingNames(cx, lexical.bindings, allAtoms,
-                         data->trailingNames.start());
+                         GetScopeDataTrailingNamesPointer(data));
 
         // NOTE: data->slotInfo.nextFrameSlot is set in
         // ScopeStencil::createForLexicalScope.
 
         data->slotInfo.constStart = lexical.const_start;
-        data->slotInfo.length = numBindings;
+        data->length = numBindings;
 
         uint32_t firstFrameSlot = lexical.first_frame_slot;
         ScopeIndex enclosingIndex(lexical.enclosing);
@@ -218,7 +219,7 @@ bool ConvertScopeStencil(JSContext* cx, const SmooshResult& result,
         }
 
         CopyBindingNames(cx, function.bindings, allAtoms,
-                         data->trailingNames.start());
+                         GetScopeDataTrailingNamesPointer(data));
 
         // NOTE: data->slotInfo.nextFrameSlot is set in
         // ScopeStencil::createForFunctionScope.
@@ -229,7 +230,7 @@ bool ConvertScopeStencil(JSContext* cx, const SmooshResult& result,
         data->slotInfo.nonPositionalFormalStart =
             function.non_positional_formal_start;
         data->slotInfo.varStart = function.var_start;
-        data->slotInfo.length = numBindings;
+        data->length = numBindings;
 
         bool hasParameterExprs = function.has_parameter_exprs;
         bool needsEnvironment = function.non_positional_formal_start;

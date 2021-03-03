@@ -48,8 +48,6 @@ jobs:
         treeherder:
             platform: linux32-shippable/opt
         worker-type: b-linux
-        worker:
-            docker-image: {in-tree: debian8-i386-build}
         run:
             config:
                 - builds/releng_base_firefox.py
@@ -67,6 +65,7 @@ jobs:
                 - linux64-dump-syms
                 - linux64-nasm
                 - linux64-node
+                - linux32-sysroot
 
     linux64-shippable/opt:
         description: "Linux64 Instrumented"
@@ -94,6 +93,7 @@ jobs:
                 - linux64-nasm
                 - linux64-node
                 - linux64-lucetc
+                - linux64-sysroot
                 - wasi-sysroot
 
     macosx64-shippable/opt:

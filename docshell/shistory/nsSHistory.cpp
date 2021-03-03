@@ -12,6 +12,7 @@
 #include "nsCOMArray.h"
 #include "nsComponentManagerUtils.h"
 #include "nsDocShell.h"
+#include "nsFrameLoaderOwner.h"
 #include "nsHashKeys.h"
 #include "nsIContentViewer.h"
 #include "nsIDocShell.h"
@@ -31,12 +32,15 @@
 #include "prsystem.h"
 
 #include "mozilla/Attributes.h"
+#include "mozilla/dom/BrowsingContextGroup.h"
 #include "mozilla/dom/CanonicalBrowsingContext.h"
 #include "mozilla/dom/ContentParent.h"
+#include "mozilla/dom/Element.h"
 #include "mozilla/LinkedList.h"
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
+#include "mozilla/StaticPrefs_fission.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/dom/CanonicalBrowsingContext.h"
 #include "nsIWebNavigation.h"
@@ -51,12 +55,16 @@ using namespace mozilla::dom;
   "browser.sessionhistory.max_total_viewers"
 #define CONTENT_VIEWER_TIMEOUT_SECONDS \
   "browser.sessionhistory.contentViewerTimeout"
+// Observe fission.bfcacheInParent so that BFCache can be enabled/disabled when
+// the pref is changed.
+#define PREF_FISSION_BFCACHEINPARENT "fission.bfcacheInParent"
 
 // Default this to time out unused content viewers after 30 minutes
 #define CONTENT_VIEWER_TIMEOUT_SECONDS_DEFAULT (30 * 60)
 
-static const char* kObservedPrefs[] = {
-    PREF_SHISTORY_SIZE, PREF_SHISTORY_MAX_TOTAL_VIEWERS, nullptr};
+static const char* kObservedPrefs[] = {PREF_SHISTORY_SIZE,
+                                       PREF_SHISTORY_MAX_TOTAL_VIEWERS,
+                                       PREF_FISSION_BFCACHEINPARENT, nullptr};
 
 static int32_t gHistoryMaxSize = 50;
 // List of all SHistory objects, used for content viewer cache eviction
@@ -76,6 +84,7 @@ LazyLogModule gSHistoryLog("nsSHistory");
 #define LOG(format) MOZ_LOG(gSHistoryLog, mozilla::LogLevel::Debug, format)
 
 extern mozilla::LazyLogModule gPageCacheLog;
+extern mozilla::LazyLogModule gSHIPBFCacheLog;
 
 // This macro makes it easier to print a log message which includes a URI's
 // spec.  Example use:
@@ -232,6 +241,15 @@ void nsSHistory::EvictContentViewerForEntry(nsISHEntry* aEntry) {
     aEntry->SetContentViewer(nullptr);
     aEntry->SyncPresentationState();
     viewer->Destroy();
+  } else if (nsCOMPtr<SessionHistoryEntry> she = do_QueryInterface(aEntry)) {
+    if (RefPtr<nsFrameLoader> frameLoader = she->GetFrameLoader()) {
+      MOZ_LOG(gSHIPBFCacheLog, LogLevel::Debug,
+              ("nsSHistory::EvictContentViewerForEntry "
+               "destroying an nsFrameLoader."));
+      NotifyListenersContentViewerEvicted(1);
+      she->SetFrameLoader(nullptr);
+      frameLoader->Destroy();
+    }
   }
 
   // When dropping bfcache, we have to remove associated dynamic entries as
@@ -245,7 +263,6 @@ void nsSHistory::EvictContentViewerForEntry(nsISHEntry* aEntry) {
 nsSHistory::nsSHistory(BrowsingContext* aRootBC)
     : mRootBC(aRootBC),
       mHasOngoingUpdate(false),
-      mIsRemote(false),
       mIndex(-1),
       mRequestedIndex(-1),
       mRootDocShellID(aRootBC->GetHistoryID()) {
@@ -342,7 +359,7 @@ uint32_t nsSHistory::CalcMaxTotalViewers() {
 // static
 void nsSHistory::UpdatePrefs() {
   Preferences::GetInt(PREF_SHISTORY_SIZE, &gHistoryMaxSize);
-  if (mozilla::SessionHistoryInParent()) {
+  if (mozilla::SessionHistoryInParent() && !mozilla::BFCacheInParent()) {
     sHistoryMaxTotalViewers = 0;
     return;
   }
@@ -1128,6 +1145,9 @@ nsSHistory::NotifyOnHistoryReload(bool* aCanReload) {
 
 NS_IMETHODIMP
 nsSHistory::EvictOutOfRangeContentViewers(int32_t aIndex) {
+  MOZ_LOG(gSHIPBFCacheLog, LogLevel::Debug,
+          ("nsSHistory::EvictOutOfRangeContentViewers %i", aIndex));
+
   // Check our per SHistory object limit in the currently navigated SHistory
   EvictOutOfRangeWindowContentViewers(aIndex);
   // Check our total limit across all SHistory objects
@@ -1166,9 +1186,111 @@ nsSHistory::EvictAllContentViewers() {
 }
 
 /* static */
+void nsSHistory::LoadURIOrBFCache(LoadEntryResult& aLoadEntry) {
+  if (mozilla::BFCacheInParent() && aLoadEntry.mBrowsingContext->IsTop()) {
+    MOZ_ASSERT(XRE_IsParentProcess());
+    RefPtr<nsDocShellLoadState> loadState = aLoadEntry.mLoadState;
+    RefPtr<CanonicalBrowsingContext> canonicalBC =
+        aLoadEntry.mBrowsingContext->Canonical();
+    nsCOMPtr<SessionHistoryEntry> she = do_QueryInterface(loadState->SHEntry());
+    nsCOMPtr<SessionHistoryEntry> currentShe =
+        canonicalBC->GetActiveSessionHistoryEntry();
+    MOZ_ASSERT(she);
+    RefPtr<nsFrameLoader> frameLoader = she->GetFrameLoader();
+    if (canonicalBC->Group()->Toplevels().Length() == 1 && frameLoader &&
+        (!currentShe || she->SharedInfo() != currentShe->SharedInfo())) {
+      nsTArray<RefPtr<PContentParent::CanSavePresentationPromise>>
+          canSavePromises;
+      canonicalBC->Group()->EachParent([&](ContentParent* aParent) {
+        RefPtr<PContentParent::CanSavePresentationPromise> canSave =
+            aParent->SendCanSavePresentation(canonicalBC, Nothing());
+        canSavePromises.AppendElement(canSave);
+      });
+
+      // Check if the current page can enter bfcache.
+      PContentParent::CanSavePresentationPromise::All(
+          GetCurrentSerialEventTarget(), canSavePromises)
+          ->Then(
+              GetMainThreadSerialEventTarget(), __func__,
+              [canonicalBC, loadState, she](const nsTArray<bool> aCanSaves) {
+                bool canSave = !aCanSaves.Contains(false);
+                MOZ_LOG(gSHIPBFCacheLog, LogLevel::Debug,
+                        ("nsSHistory::LoadURIOrBFCache "
+                         "saving presentation=%i",
+                         canSave));
+
+                nsCOMPtr<nsFrameLoaderOwner> frameLoaderOwner =
+                    do_QueryInterface(canonicalBC->GetEmbedderElement());
+                if (frameLoaderOwner) {
+                  RefPtr<nsFrameLoader> fl = she->GetFrameLoader();
+                  if (fl) {
+                    she->SetFrameLoader(nullptr);
+                    RefPtr<BrowsingContext> loadingBC =
+                        fl->GetMaybePendingBrowsingContext();
+                    if (loadingBC) {
+                      RefPtr<nsFrameLoader> currentFrameLoader =
+                          frameLoaderOwner->GetFrameLoader();
+                      // The current page can be bfcached, store the
+                      // nsFrameLoader in the current SessionHistoryEntry.
+                      if (canSave &&
+                          canonicalBC->GetActiveSessionHistoryEntry()) {
+                        canonicalBC->GetActiveSessionHistoryEntry()
+                            ->SetFrameLoader(currentFrameLoader);
+                        Unused << canonicalBC->SetIsInBFCache(true);
+                      }
+
+                      // ReplacedBy will swap the entry back.
+                      canonicalBC->SetActiveSessionHistoryEntry(she);
+                      loadingBC->Canonical()->SetActiveSessionHistoryEntry(
+                          nullptr);
+                      RemotenessChangeOptions options;
+                      canonicalBC->ReplacedBy(loadingBC->Canonical(), options);
+                      frameLoaderOwner->ReplaceFrameLoader(fl);
+
+                      // The old page can't be stored in the bfcache,
+                      // destroy the nsFrameLoader.
+                      if (!canSave && currentFrameLoader) {
+                        currentFrameLoader->Destroy();
+                      }
+                      // The current active entry should not store
+                      // nsFrameLoader.
+                      loadingBC->Canonical()
+                          ->GetSessionHistory()
+                          ->UpdateIndex();
+                      loadingBC->Canonical()->HistoryCommitIndexAndLength();
+                      Unused << loadingBC->SetIsInBFCache(false);
+                      // ResetSHEntryHasUserInteractionCache(); ?
+                      // browser.navigation.requireUserInteraction is still
+                      // disabled everywhere.
+                      return;
+                    }
+                  }
+                }
+
+                // Fall back to do a normal load.
+                canonicalBC->LoadURI(loadState, false);
+              },
+              [canonicalBC, loadState](mozilla::ipc::ResponseRejectReason) {
+                MOZ_LOG(gSHIPBFCacheLog, LogLevel::Debug,
+                        ("nsSHistory::LoadURIOrBFCache "
+                         "error in trying to save presentation"));
+                canonicalBC->LoadURI(loadState, false);
+              });
+      return;
+    }
+    if (frameLoader) {
+      she->SetFrameLoader(nullptr);
+      frameLoader->Destroy();
+    }
+  }
+
+  aLoadEntry.mBrowsingContext->LoadURI(aLoadEntry.mLoadState, false);
+}
+
+/* static */
 void nsSHistory::LoadURIs(nsTArray<LoadEntryResult>& aLoadResults) {
   for (LoadEntryResult& loadEntry : aLoadResults) {
-    loadEntry.mBrowsingContext->LoadURI(loadEntry.mLoadState, false);
+    LoadURIOrBFCache(loadEntry);
   }
 }
 
@@ -1297,9 +1419,18 @@ void nsSHistory::EvictOutOfRangeWindowContentViewers(int32_t aIndex) {
   // evicted.  Collect a set of them so we don't accidentally evict one of them
   // if it appears outside this range.
   nsCOMArray<nsIContentViewer> safeViewers;
+  nsTArray<RefPtr<nsFrameLoader>> safeFrameLoaders;
   for (int32_t i = startSafeIndex; i <= endSafeIndex; i++) {
     nsCOMPtr<nsIContentViewer> viewer = mEntries[i]->GetContentViewer();
-    safeViewers.AppendObject(viewer);
+    if (viewer) {
+      safeViewers.AppendObject(viewer);
+    } else if (nsCOMPtr<SessionHistoryEntry> she =
+                   do_QueryInterface(mEntries[i])) {
+      nsFrameLoader* frameLoader = she->GetFrameLoader();
+      if (frameLoader) {
+        safeFrameLoaders.AppendElement(frameLoader);
+      }
+    }
   }
 
   // Walk the SHistory list and evict any content viewers that aren't safe.
@@ -1308,8 +1439,18 @@ void nsSHistory::EvictOutOfRangeWindowContentViewers(int32_t aIndex) {
   for (int32_t i = 0; i < Length(); i++) {
     nsCOMPtr<nsISHEntry> entry = mEntries[i];
     nsCOMPtr<nsIContentViewer> viewer = entry->GetContentViewer();
-    if (safeViewers.IndexOf(viewer) == -1) {
-      EvictContentViewerForEntry(entry);
+    if (viewer) {
+      if (safeViewers.IndexOf(viewer) == -1) {
+        EvictContentViewerForEntry(entry);
+      }
+    } else if (nsCOMPtr<SessionHistoryEntry> she =
+                   do_QueryInterface(mEntries[i])) {
+      nsFrameLoader* frameLoader = she->GetFrameLoader();
+      if (frameLoader) {
+        if (!safeFrameLoaders.Contains(frameLoader)) {
+          EvictContentViewerForEntry(entry);
+        }
+      }
     }
   }
 }
@@ -1324,7 +1465,12 @@ class EntryAndDistance {
         mViewer(aEntry->GetContentViewer()),
         mLastTouched(mEntry->GetLastTouched()),
         mDistance(aDist) {
-    NS_ASSERTION(mViewer, "Entry should have a content viewer");
+    nsCOMPtr<SessionHistoryEntry> she = do_QueryInterface(aEntry);
+    if (she) {
+      mFrameLoader = she->GetFrameLoader();
+    }
+    NS_ASSERTION(mViewer || (mozilla::BFCacheInParent() && mFrameLoader),
+                 "Entry should have a content viewer or frame loader.");
   }
 
   bool operator<(const EntryAndDistance& aOther) const {
@@ -1347,6 +1493,7 @@ class EntryAndDistance {
   RefPtr<nsSHistory> mSHistory;
   nsCOMPtr<nsISHEntry> mEntry;
   nsCOMPtr<nsIContentViewer> mViewer;
+  RefPtr<nsFrameLoader> mFrameLoader;
   uint32_t mLastTouched;
   int32_t mDistance;
 };
@@ -1362,12 +1509,6 @@ void nsSHistory::GloballyEvictContentViewers() {
   nsTArray<EntryAndDistance> entries;
 
   for (auto shist : gSHistoryList) {
-    // FIXME Bug 1546348: Make global eviction work for session history in the
-    //       parent and remove mIsRemote.
-    if (shist->mIsRemote) {
-      continue;
-    }
-
     // Maintain a list of the entries which have viewers and belong to
     // this particular shist object.  We'll add this list to the global list,
     // |entries|, eventually.
@@ -1392,12 +1533,14 @@ void nsSHistory::GloballyEvictContentViewers() {
       nsCOMPtr<nsISHEntry> entry = shist->mEntries[i];
       nsCOMPtr<nsIContentViewer> contentViewer = entry->GetContentViewer();
 
+      bool found = false;
+      bool hasContentViewerOrFrameLoader = false;
       if (contentViewer) {
+        hasContentViewerOrFrameLoader = true;
         // Because one content viewer might belong to multiple SHEntries, we
         // have to search through shEntries to see if we already know
         // about this content viewer.  If we find the viewer, update its
         // distance from the SHistory's index and continue.
-        bool found = false;
         for (uint32_t j = 0; j < shEntries.Length(); j++) {
           EntryAndDistance& container = shEntries[j];
           if (container.mViewer == contentViewer) {
@@ -1407,14 +1550,28 @@ void nsSHistory::GloballyEvictContentViewers() {
             break;
           }
         }
-
-        // If we didn't find a EntryAndDistance for this content viewer, make a
-        // new one.
-        if (!found) {
-          EntryAndDistance container(shist, entry,
-                                     DeprecatedAbs(i - shist->mIndex));
-          shEntries.AppendElement(container);
+      } else if (nsCOMPtr<SessionHistoryEntry> she = do_QueryInterface(entry)) {
+        if (RefPtr<nsFrameLoader> frameLoader = she->GetFrameLoader()) {
+          hasContentViewerOrFrameLoader = true;
+          // Similar search as above but using frameloader.
+          for (uint32_t j = 0; j < shEntries.Length(); j++) {
+            EntryAndDistance& container = shEntries[j];
+            if (container.mFrameLoader == frameLoader) {
+              container.mDistance = std::min(container.mDistance,
+                                             DeprecatedAbs(i - shist->mIndex));
+              found = true;
+              break;
+            }
+          }
         }
+      }
+
+      // If we didn't find a EntryAndDistance for this content viewer /
+      // frameloader, make a new one.
+      if (hasContentViewerOrFrameLoader && !found) {
+        EntryAndDistance container(shist, entry,
+                                   DeprecatedAbs(i - shist->mIndex));
+        shEntries.AppendElement(container);
       }
     }
 

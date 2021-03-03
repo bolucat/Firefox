@@ -22,15 +22,30 @@ XPCOMUtils.defineLazyGetter(this, "gNavigatorBundle", function() {
   );
 });
 
+XPCOMUtils.defineLazyPreferenceGetter(
+  this,
+  "DEBUG_LOG",
+  "media.decoder-doctor.testing",
+  false
+);
+
+function LOG_DD(message) {
+  if (DEBUG_LOG) {
+    dump("[DecoderDoctorParent] " + message + "\n");
+  }
+}
+
 class DecoderDoctorParent extends JSWindowActorParent {
-  getLabelForNotificationBox(type) {
+  getLabelForNotificationBox({ type, decoderDoctorReportId }) {
     if (type == "platform-decoder-not-found") {
-      if (AppConstants.platform == "win") {
+      if (decoderDoctorReportId == "MediaWMFNeeded") {
         return gNavigatorBundle.GetStringFromName(
           "decoder.noHWAcceleration.message"
         );
       }
-      if (AppConstants.platform == "linux") {
+      // Although this name seems generic, this is actually for not being able
+      // to find libavcodec on Linux.
+      if (decoderDoctorReportId == "MediaPlatformDecoderNotFound") {
         return gNavigatorBundle.GetStringFromName(
           "decoder.noCodecsLinux.message"
         );
@@ -55,10 +70,10 @@ class DecoderDoctorParent extends JSWindowActorParent {
     return "";
   }
 
-  getSumoForLearnHowButton(type) {
+  getSumoForLearnHowButton({ type, decoderDoctorReportId }) {
     if (
       type == "platform-decoder-not-found" &&
-      AppConstants.platform == "win"
+      decoderDoctorReportId == "MediaWMFNeeded"
     ) {
       return "fix-video-audio-problems-firefox-windows";
     }
@@ -134,7 +149,16 @@ class DecoderDoctorParent extends JSWindowActorParent {
     if (!/^\w+$/im.test(decoderDoctorReportId)) {
       return;
     }
-    let title = this.getLabelForNotificationBox(type);
+    LOG_DD(
+      `type=${type}, isSolved=${isSolved}, ` +
+        `decoderDoctorReportId=${decoderDoctorReportId}, formats=${formats}, ` +
+        `decodeIssue=${decodeIssue}, docURL=${docURL}, ` +
+        `resourceURL=${resourceURL}`
+    );
+    let title = this.getLabelForNotificationBox({
+      type,
+      decoderDoctorReportId,
+    });
     if (!title) {
       return;
     }
@@ -176,8 +200,9 @@ class DecoderDoctorParent extends JSWindowActorParent {
       }
 
       let buttons = [];
-      let sumo = this.getSumoForLearnHowButton(type);
+      let sumo = this.getSumoForLearnHowButton({ type, decoderDoctorReportId });
       if (sumo) {
+        LOG_DD(`sumo=${sumo}`);
         buttons.push({
           label: gNavigatorBundle.GetStringFromName("decoder.noCodecs.button"),
           supportPage: sumo,
@@ -194,6 +219,7 @@ class DecoderDoctorParent extends JSWindowActorParent {
       }
       let endpoint = this.getEndpointForReportIssueButton(type);
       if (endpoint) {
+        LOG_DD(`endpoint=${endpoint}`);
         buttons.push({
           label: gNavigatorBundle.GetStringFromName(
             "decoder.decodeError.button"

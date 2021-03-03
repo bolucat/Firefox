@@ -113,6 +113,7 @@
 #include "mozilla/StaticPrefs_browser.h"
 #include "mozilla/StaticPrefs_docshell.h"
 #include "mozilla/StaticPrefs_dom.h"
+#include "mozilla/StaticPrefs_fission.h"
 #include "mozilla/StaticPrefs_full_screen_api.h"
 #include "mozilla/StaticPrefs_layout.h"
 #include "mozilla/StaticPrefs_network.h"
@@ -429,6 +430,7 @@
 #define NS_MAX_DOCUMENT_WRITE_DEPTH 20
 
 mozilla::LazyLogModule gPageCacheLog("PageCache");
+mozilla::LazyLogModule gSHIPBFCacheLog("SHIPBFCache");
 mozilla::LazyLogModule gTimeoutDeferralLog("TimeoutDefer");
 mozilla::LazyLogModule gUseCountersLog("UseCounters");
 
@@ -1289,11 +1291,6 @@ void Document::Shutdown() {
 Document::Document(const char* aContentType)
     : nsINode(nullptr),
       DocumentOrShadowRoot(this),
-      mBlockAllMixedContent(false),
-      mBlockAllMixedContentPreloads(false),
-      mUpgradeInsecureRequests(false),
-      mUpgradeInsecurePreloads(false),
-      mDontWarnAboutMutationEventsAndAllowSlowDOMMutations(false),
       mCharacterSet(WINDOWS_1252_ENCODING),
       mCharacterSetSource(0),
       mParentDocument(nullptr),
@@ -1302,6 +1299,11 @@ Document::Document(const char* aContentType)
 #ifdef DEBUG
       mStyledLinksCleared(false),
 #endif
+      mBlockAllMixedContent(false),
+      mBlockAllMixedContentPreloads(false),
+      mUpgradeInsecureRequests(false),
+      mUpgradeInsecurePreloads(false),
+      mDevToolsWatchingDOMMutations(false),
       mBidiEnabled(false),
       mMayNeedFontPrefsUpdate(true),
       mMathMLEnabled(false),
@@ -3492,8 +3494,10 @@ void Document::ApplySettingsFromCSP(bool aSpeculative) {
       // Set up 'block-all-mixed-content' if not already inherited
       // from the parent context or set by any other CSP.
       if (!mBlockAllMixedContent) {
-        rv = mCSP->GetBlockAllMixedContent(&mBlockAllMixedContent);
+        bool block = false;
+        rv = mCSP->GetBlockAllMixedContent(&block);
         NS_ENSURE_SUCCESS_VOID(rv);
+        mBlockAllMixedContent = block;
       }
       if (!mBlockAllMixedContentPreloads) {
         mBlockAllMixedContentPreloads = mBlockAllMixedContent;
@@ -3502,8 +3506,10 @@ void Document::ApplySettingsFromCSP(bool aSpeculative) {
       // Set up 'upgrade-insecure-requests' if not already inherited
       // from the parent context or set by any other CSP.
       if (!mUpgradeInsecureRequests) {
-        rv = mCSP->GetUpgradeInsecureRequests(&mUpgradeInsecureRequests);
+        bool upgrade = false;
+        rv = mCSP->GetUpgradeInsecureRequests(&upgrade);
         NS_ENSURE_SUCCESS_VOID(rv);
+        mUpgradeInsecureRequests = upgrade;
       }
       if (!mUpgradeInsecurePreloads) {
         mUpgradeInsecurePreloads = mUpgradeInsecureRequests;
@@ -3520,12 +3526,16 @@ void Document::ApplySettingsFromCSP(bool aSpeculative) {
   // 2) apply settings from speculative csp
   if (mPreloadCSP) {
     if (!mBlockAllMixedContentPreloads) {
-      rv = mPreloadCSP->GetBlockAllMixedContent(&mBlockAllMixedContentPreloads);
+      bool block = false;
+      rv = mPreloadCSP->GetBlockAllMixedContent(&block);
       NS_ENSURE_SUCCESS_VOID(rv);
+      mBlockAllMixedContent = block;
     }
     if (!mUpgradeInsecurePreloads) {
-      rv = mPreloadCSP->GetUpgradeInsecureRequests(&mUpgradeInsecurePreloads);
+      bool upgrade = false;
+      rv = mPreloadCSP->GetUpgradeInsecureRequests(&upgrade);
       NS_ENSURE_SUCCESS_VOID(rv);
+      mUpgradeInsecurePreloads = upgrade;
     }
   }
 }
@@ -9557,8 +9567,7 @@ nsINode* Document::AdoptNode(nsINode& aAdoptedNode, ErrorResult& rv) {
   // Scope firing mutation events so that we don't carry any state that
   // might be stale
   {
-    nsINode* parent = adoptedNode->GetParentNode();
-    if (parent) {
+    if (nsINode* parent = adoptedNode->GetParentNode()) {
       nsContentUtils::MaybeFireNodeRemoved(adoptedNode, parent);
     }
   }
@@ -10634,7 +10643,8 @@ void Document::CollectDescendantDocuments(
 }
 
 bool Document::CanSavePresentation(nsIRequest* aNewRequest,
-                                   uint16_t& aBFCacheCombo) {
+                                   uint16_t& aBFCacheCombo,
+                                   bool aIncludeSubdocuments) {
   bool ret = true;
 
   if (!IsBFCachingAllowed()) {
@@ -10763,16 +10773,16 @@ bool Document::CanSavePresentation(nsIRequest* aNewRequest,
     ret = false;
   }
 
-  if (mSubDocuments) {
+  if (aIncludeSubdocuments && mSubDocuments) {
     for (auto iter = mSubDocuments->Iter(); !iter.Done(); iter.Next()) {
       auto entry = static_cast<SubDocMapEntry*>(iter.Get());
       Document* subdoc = entry->mSubDocument;
 
       uint16_t subDocBFCacheCombo = 0;
       // The aIgnoreRequest we were passed is only for us, so don't pass it on.
-      bool canCache =
-          subdoc ? subdoc->CanSavePresentation(nullptr, subDocBFCacheCombo)
-                 : false;
+      bool canCache = subdoc ? subdoc->CanSavePresentation(
+                                   nullptr, subDocBFCacheCombo, true)
+                             : false;
       if (!canCache) {
         MOZ_LOG(gPageCacheLog, mozilla::LogLevel::Verbose,
                 ("Save of %s blocked due to subdocument blocked", uri.get()));
@@ -10782,13 +10792,15 @@ bool Document::CanSavePresentation(nsIRequest* aNewRequest,
     }
   }
 
-  // BFCache is currently not compatible with remote subframes (bug 1609324)
-  if (RefPtr<BrowsingContext> browsingContext = GetBrowsingContext()) {
-    for (auto& child : browsingContext->Children()) {
-      if (!child->IsInProcess()) {
-        aBFCacheCombo |= BFCacheStatus::CONTAINS_REMOTE_SUBFRAMES;
-        ret = false;
-        break;
+  if (!mozilla::BFCacheInParent()) {
+    // BFCache is currently not compatible with remote subframes (bug 1609324)
+    if (RefPtr<BrowsingContext> browsingContext = GetBrowsingContext()) {
+      for (auto& child : browsingContext->Children()) {
+        if (!child->IsInProcess()) {
+          aBFCacheCombo |= BFCacheStatus::CONTAINS_REMOTE_SUBFRAMES;
+          ret = false;
+          break;
+        }
       }
     }
   }
@@ -10817,9 +10829,12 @@ bool Document::CanSavePresentation(nsIRequest* aNewRequest,
 void Document::Destroy() {
   // The ContentViewer wants to release the document now.  So, tell our content
   // to drop any references to the document so that it can be destroyed.
-  if (mIsGoingAway) return;
+  if (mIsGoingAway) {
+    return;
+  }
 
   ReportDocumentUseCounters();
+  SetDevToolsWatchingDOMMutations(false);
 
   mIsGoingAway = true;
 
@@ -11107,6 +11122,15 @@ void Document::DispatchPageTransition(EventTarget* aDispatchTarget,
 
 void Document::OnPageShow(bool aPersisted, EventTarget* aDispatchStartTarget,
                           bool aOnlySystemGroup) {
+  if (MOZ_LOG_TEST(gSHIPBFCacheLog, LogLevel::Debug)) {
+    nsCString uri;
+    if (GetDocumentURI()) {
+      uri = GetDocumentURI()->GetSpecOrDefault();
+    }
+    MOZ_LOG(gSHIPBFCacheLog, LogLevel::Debug,
+            ("Document::OnPageShow [%s] persisted=%i", uri.get(), aPersisted));
+  }
+
   const bool inFrameLoaderSwap = !!aDispatchStartTarget;
   MOZ_DIAGNOSTIC_ASSERT(
       inFrameLoaderSwap ==
@@ -11183,6 +11207,15 @@ static void ClearPendingFullscreenRequests(Document* aDoc);
 
 void Document::OnPageHide(bool aPersisted, EventTarget* aDispatchStartTarget,
                           bool aOnlySystemGroup) {
+  if (MOZ_LOG_TEST(gSHIPBFCacheLog, LogLevel::Debug)) {
+    nsCString uri;
+    if (GetDocumentURI()) {
+      uri = GetDocumentURI()->GetSpecOrDefault();
+    }
+    MOZ_LOG(gSHIPBFCacheLog, LogLevel::Debug,
+            ("Document::OnPageHide %s persisted=%i", uri.get(), aPersisted));
+  }
+
   const bool inFrameLoaderSwap = !!aDispatchStartTarget;
   MOZ_DIAGNOSTIC_ASSERT(
       inFrameLoaderSwap ==
@@ -13279,6 +13312,80 @@ already_AddRefed<nsINode> Document::GetTooltipNode() {
   return nullptr;
 }
 
+namespace {
+
+class DevToolsMutationObserver final : public nsStubMutationObserver {
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
+  NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED
+  NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
+
+  // We handle this in nsContentUtils::MaybeFireNodeRemoved, since devtools
+  // relies on the event firing _before_ the removal happens.
+  // NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
+
+  // NOTE(emilio, bug 1694627): DevTools doesn't seem to deal with character
+  // data changes right now (maybe intentionally?).
+  // NS_DECL_NSIMUTATIONOBSERVER_CHARACTERDATACHANGED
+
+  DevToolsMutationObserver() = default;
+
+ private:
+  void FireEvent(nsINode* aTarget, const nsAString& aType);
+
+  ~DevToolsMutationObserver() = default;
+};
+
+NS_IMPL_ISUPPORTS(DevToolsMutationObserver, nsIMutationObserver)
+
+void DevToolsMutationObserver::FireEvent(nsINode* aTarget,
+                                         const nsAString& aType) {
+  if (aTarget->ChromeOnlyAccess()) {
+    return;
+  }
+  (new AsyncEventDispatcher(aTarget, aType, CanBubble::eNo,
+                            ChromeOnlyDispatch::eYes, Composed::eYes))
+      ->RunDOMEventWhenSafe();
+}
+
+void DevToolsMutationObserver::AttributeChanged(Element* aElement,
+                                                int32_t aNamespaceID,
+                                                nsAtom* aAttribute,
+                                                int32_t aModType,
+                                                const nsAttrValue* aOldValue) {
+  FireEvent(aElement, u"devtoolsattrmodified"_ns);
+}
+
+void DevToolsMutationObserver::ContentAppended(nsIContent* aFirstNewContent) {
+  for (nsIContent* c = aFirstNewContent; c; c = c->GetNextSibling()) {
+    ContentInserted(c);
+  }
+}
+
+void DevToolsMutationObserver::ContentInserted(nsIContent* aChild) {
+  FireEvent(aChild, u"devtoolschildinserted"_ns);
+}
+
+static StaticRefPtr<DevToolsMutationObserver> sDevToolsMutationObserver;
+
+}  // namespace
+
+void Document::SetDevToolsWatchingDOMMutations(bool aValue) {
+  if (mDevToolsWatchingDOMMutations == aValue || mIsGoingAway) {
+    return;
+  }
+  mDevToolsWatchingDOMMutations = aValue;
+  if (aValue) {
+    if (MOZ_UNLIKELY(!sDevToolsMutationObserver)) {
+      sDevToolsMutationObserver = new DevToolsMutationObserver();
+      ClearOnShutdown(&sDevToolsMutationObserver);
+    }
+    AddMutationObserver(sDevToolsMutationObserver);
+  } else if (sDevToolsMutationObserver) {
+    RemoveMutationObserver(sDevToolsMutationObserver);
+  }
+}
+
 void Document::MaybeWarnAboutZoom() {
   if (mHasWarnedAboutZoom) {
     return;
@@ -14949,10 +15056,7 @@ void Document::InitUseCounters() {
   }
   mUseCountersInitialized = true;
 
-  if (Telemetry::HistogramUseCounterCount == 0) {
-    // No use counters defined.
-    return;
-  }
+  static_assert(Telemetry::HistogramUseCounterCount > 0);
 
   if (!ShouldIncludeInTelemetry(/* aAllowExtensionURIs = */ true)) {
     return;

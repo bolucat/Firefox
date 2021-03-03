@@ -777,7 +777,7 @@ RemoteAccessible* RemoteAccessible::FocusedChild() {
     // like a non-doc accessible and return its focused child, or null.
     // If the inner doc is OOP (fission), calling FocusedChild on the outer
     // doc would return null.
-    MOZ_ASSERT(ChildrenCount() == 1);
+    MOZ_ASSERT(ChildCount() == 1);
     RemoteAccessible* child = RemoteFirstChild();
     MOZ_ASSERT(child->IsDoc());
     return (child->State() & states::FOCUSED) ? child : nullptr;
@@ -808,18 +808,18 @@ RemoteAccessible* RemoteAccessible::FocusedChild() {
   return useDoc ? useDoc->GetAccessible(resultID) : nullptr;
 }
 
-RemoteAccessible* RemoteAccessible::ChildAtPoint(
+Accessible* RemoteAccessible::ChildAtPoint(
     int32_t aX, int32_t aY, LocalAccessible::EWhichChildAtPoint aWhichChild) {
   RemoteAccessible* target = this;
   do {
     if (target->mOuterDoc) {
-      MOZ_ASSERT(target->ChildrenCount() == 1);
+      MOZ_ASSERT(target->ChildCount() == 1);
       DocAccessibleParent* childDoc = target->RemoteChildAt(0)->AsDoc();
       MOZ_ASSERT(childDoc);
       if (childDoc->IsTopLevelInContentProcess()) {
         // This is an OOP iframe. Remote calls can only work within their
         // process, so they stop at OOP iframes.
-        if (aWhichChild == LocalAccessible::eDirectChild) {
+        if (aWhichChild == Accessible::EWhichChildAtPoint::DirectChild) {
           // Return the child document if it's within the bounds of the iframe.
           nsIntRect docRect = target->Bounds();
           if (docRect.Contains(aX, aY)) {
@@ -840,7 +840,7 @@ RemoteAccessible* RemoteAccessible::ChildAtPoint(
     auto useDoc = static_cast<DocAccessibleParent*>(resultDoc);
     target = resultDoc ? useDoc->GetAccessible(resultID) : nullptr;
   } while (target && target->mOuterDoc &&
-           aWhichChild == LocalAccessible::eDeepestChild);
+           aWhichChild == Accessible::EWhichChildAtPoint::DeepestChild);
   return target;
 }
 

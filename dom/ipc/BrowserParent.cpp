@@ -1235,8 +1235,7 @@ mozilla::ipc::IPCResult BrowserParent::RecvPDocAccessibleConstructor(
     RefPtr<IAccessible> proxy(aDocCOMProxy.Get());
     doc->SetCOMInterface(proxy);
 #  endif
-    a11y::ProxyCreated(
-        doc, a11y::Interfaces::DOCUMENT | a11y::Interfaces::HYPERTEXT);
+    a11y::ProxyCreated(doc);
 #  ifdef XP_WIN
     // This *must* be called after ProxyCreated because WrapperFor will fail
     // before that.
@@ -1875,6 +1874,21 @@ mozilla::ipc::IPCResult BrowserParent::RecvClearNativeTouchSequence(
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (widget) {
     widget->ClearNativeTouchSequence(responder.GetObserver());
+  }
+  return IPC_OK();
+}
+
+mozilla::ipc::IPCResult BrowserParent::RecvSynthesizeNativePenInput(
+    const uint32_t& aPointerId, const TouchPointerState& aPointerState,
+    const LayoutDeviceIntPoint& aPoint, const double& aPressure,
+    const uint32_t& aRotation, const int32_t& aTiltX, const int32_t& aTiltY,
+    const uint64_t& aObserverId) {
+  AutoSynthesizedEventResponder responder(this, aObserverId, "peninput");
+  nsCOMPtr<nsIWidget> widget = GetWidget();
+  if (widget) {
+    widget->SynthesizeNativePenInput(aPointerId, aPointerState, aPoint,
+                                     aPressure, aRotation, aTiltX, aTiltY,
+                                     responder.GetObserver());
   }
   return IPC_OK();
 }

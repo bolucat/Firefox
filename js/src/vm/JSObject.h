@@ -159,17 +159,19 @@ class JSObject
 
   enum GenerateShape { GENERATE_NONE, GENERATE_SHAPE };
 
-  static bool setFlags(JSContext* cx, JS::HandleObject obj,
-                       js::BaseShape::Flag flags,
-                       GenerateShape generateShape = GENERATE_NONE);
-  inline bool hasAllFlags(js::BaseShape::Flag flags) const;
+  static bool setFlag(JSContext* cx, JS::HandleObject obj, js::ObjectFlag flag,
+                      GenerateShape generateShape = GENERATE_NONE);
+
+  bool hasFlag(js::ObjectFlag flag) const {
+    return shape()->hasObjectFlag(flag);
+  }
 
   // An object is a delegate if it is (or was) another object's prototype.
   // Optimization heuristics will make use of this flag.
   // See: ReshapeForProtoMutation, ReshapeForShadowedProp
   inline bool isDelegate() const;
   static bool setDelegate(JSContext* cx, JS::HandleObject obj) {
-    return setFlags(cx, obj, js::BaseShape::DELEGATE, GENERATE_SHAPE);
+    return setFlag(cx, obj, js::ObjectFlag::Delegate, GENERATE_SHAPE);
   }
 
   inline bool isBoundFunction() const;
@@ -196,7 +198,7 @@ class JSObject
   // scope that captures var bindings.
   inline bool isQualifiedVarObj() const;
   static bool setQualifiedVarObj(JSContext* cx, JS::HandleObject obj) {
-    return setFlags(cx, obj, js::BaseShape::QUALIFIED_VAROBJ);
+    return setFlag(cx, obj, js::ObjectFlag::QualifiedVarObj);
   }
 
   // An "unqualified" varobj is the object on which "unqualified"
@@ -212,7 +214,7 @@ class JSObject
     MOZ_ASSERT(obj->hasStaticPrototype(),
                "uncacheability as a concept is only applicable to static "
                "(not dynamically-computed) prototypes");
-    return setFlags(cx, obj, js::BaseShape::UNCACHEABLE_PROTO, GENERATE_SHAPE);
+    return setFlag(cx, obj, js::ObjectFlag::UncacheableProto, GENERATE_SHAPE);
   }
 
   /*

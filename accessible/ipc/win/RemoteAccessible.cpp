@@ -770,8 +770,8 @@ void RemoteAccessible::TakeFocus() {
   acc->accSelect(SELFLAG_TAKEFOCUS, kChildIdSelf);
 }
 
-RemoteAccessible* RemoteAccessible::ChildAtPoint(
-    int32_t aX, int32_t aY, LocalAccessible::EWhichChildAtPoint aWhichChild) {
+Accessible* RemoteAccessible::ChildAtPoint(
+    int32_t aX, int32_t aY, Accessible::EWhichChildAtPoint aWhichChild) {
   RefPtr<IAccessible2_2> target = QueryInterface<IAccessible2_2>(this);
   if (!target) {
     return nullptr;
@@ -798,7 +798,7 @@ RemoteAccessible* RemoteAccessible::ChildAtPoint(
     }
     // We can't always use GetProxyFor because it can't cross document
     // boundaries.
-    if (proxy->ChildrenCount() == 1) {
+    if (proxy->ChildCount() == 1) {
       proxy = proxy->RemoteChildAt(0);
       if (proxy->IsDoc()) {
         // We're crossing into a child document.
@@ -807,7 +807,7 @@ RemoteAccessible* RemoteAccessible::ChildAtPoint(
     } else {
       proxy = GetProxyFor(doc, target);
     }
-    if (aWhichChild == LocalAccessible::eDirectChild) {
+    if (aWhichChild == Accessible::EWhichChildAtPoint::DirectChild) {
       break;
     }
   }

@@ -2377,6 +2377,12 @@ already_AddRefed<WorkerPrivate> WorkerPrivate::Constructor(
 
   MOZ_ASSERT(runtimeService);
 
+  // Don't create a worker with the shutting down RuntimeService.
+  if (runtimeService->IsShuttingDown()) {
+    aRv.Throw(NS_ERROR_UNEXPECTED);
+    return nullptr;
+  }
+
   nsILoadInfo::CrossOriginOpenerPolicy agentClusterCoop =
       nsILoadInfo::OPENER_POLICY_UNSAFE_NONE;
   nsID agentClusterId;
@@ -2925,6 +2931,9 @@ void WorkerPrivate::DoRunLoop(JSContext* aCx) {
 
       // If we're supposed to die then we should exit the loop.
       if (currentStatus == Killing) {
+        // We are about to destroy worker, report all use counters.
+        ReportUseCounters();
+
         // Flush uncaught rejections immediately, without
         // waiting for a next tick.
         PromiseDebugging::FlushUncaughtRejections();
@@ -3583,9 +3592,6 @@ void WorkerPrivate::ClearMainEventQueue(WorkerRanOrNot aRanOrNot) {
     MOZ_ASSERT(currentThread);
 
     NS_ProcessPendingEvents(currentThread);
-
-    // We are about to destroy worker, report all use counters.
-    ReportUseCounters();
   }
 
   if (globalScope) {

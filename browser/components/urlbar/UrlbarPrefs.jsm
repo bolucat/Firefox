@@ -168,19 +168,6 @@ const PREF_URLBAR_DEFAULTS = new Map([
   // Whether the QuickSuggest experiment is enabled.
   ["quicksuggest.enabled", false],
 
-  // The URL for clicks on QuickSuggest help buttons and learn-more links.
-  // TODO (bug 1693671): Replace this URL with the final URL of the blog post,
-  // and don't forget to update firefox.js.
-  ["quicksuggest.helpURL", "https://www.mozilla.org/"],
-
-  // The number of times the onboarding help button has been shown in
-  // QuickSuggest results.
-  ["quicksuggest.onboardingCount", 0],
-
-  // The max number of times the onboarding help button should be shown in
-  // QuickSuggest results.
-  ["quicksuggest.onboardingMaxCount", 5],
-
   // The index where we show QuickSuggest results, -1 means they
   // will be shown as the last result.
   ["quicksuggest.suggestedIndex", -1],
@@ -204,6 +191,9 @@ const PREF_URLBAR_DEFAULTS = new Map([
 
   // Remove redundant portions from URLs.
   ["trimURLs", true],
+
+  // If true, top sites may include sponsored ones.
+  ["sponsoredTopSites", false],
 
   // Results will include a built-in set of popular domains when this is true.
   ["usepreloadedtopurls.enabled", false],

@@ -97,7 +97,7 @@ const PanelUI = {
     XPCOMUtils.defineLazyPreferenceGetter(
       this,
       "protonAppMenuEnabled",
-      "browser.proton.appmenu.enabled",
+      "browser.proton.enabled",
       false
     );
 
@@ -665,8 +665,20 @@ const PanelUI = {
    * on the state of the panel.
    */
   _updatePanelButton() {
-    this.menuButton.open =
-      this.panel.state == "open" || this.panel.state == "showing";
+    let { state } = this.panel;
+    if (state == "open" || state == "showing") {
+      this.menuButton.open = true;
+      document.l10n.setAttributes(
+        this.menuButton,
+        "appmenu-menu-button-opened"
+      );
+    } else {
+      this.menuButton.open = false;
+      document.l10n.setAttributes(
+        this.menuButton,
+        "appmenu-menu-button-closed"
+      );
+    }
   },
 
   _onHelpViewShow(aEvent) {

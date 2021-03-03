@@ -9,6 +9,7 @@ include protocol PBrowser;
 include protocol PCompositorManager;
 include protocol PContentPermissionRequest;
 include protocol PCycleCollectWithLogs;
+include protocol PDocumentChannel;
 include protocol PExternalHelperApp;
 include protocol PHandlerService;
 include protocol PFileDescriptorSet;
@@ -945,6 +946,9 @@ child:
   async DispatchBeforeUnloadToSubtree(MaybeDiscardedBrowsingContext aStartingAt)
       returns (PermitUnloadResult result);
 
+  async CanSavePresentation(MaybeDiscardedBrowsingContext aTopLevelContext,
+      uint64_t? aDocumentChannelId) returns (bool success);
+
   // Update the cached list of codec supported in the given process.
   async UpdateMediaCodecsSupported(RemoteDecodeIn aLocation, MediaCodecsSupported aSupported);
 
@@ -1797,8 +1801,7 @@ both:
             returns (bool unused);
 
     async AdjustWindowFocus(MaybeDiscardedBrowsingContext aContext,
-                            bool aCheckPermission,
-                            bool aIsVisible);
+                            bool aIsVisible, uint64_t aActionId);
     async WindowClose(MaybeDiscardedBrowsingContext aContext,
                       bool aTrustedCaller);
     async WindowFocus(MaybeDiscardedBrowsingContext aContext,

@@ -33,24 +33,13 @@ jobs:
         symbol: I(deb8-raw)
         definition: debian-raw
         args:
-            BASE_IMAGE: debian:jessie-20200422
+            BASE_IMAGE: debian:jessie-20210208
             DIST: jessie
-            SNAPSHOT: '20200422T205110Z'
+            SNAPSHOT: '20210208T213147Z'
     debian8-packages:
         symbol: I(deb8-pkg)
         definition: debian-packages
         parent: debian8-raw
-    debian8-i386-raw:
-        symbol: I(deb8-32-raw)
-        definition: debian-raw
-        args:
-            BASE_IMAGE: i386/debian:jessie-20200422
-            DIST: jessie
-            SNAPSHOT: '20200422T205110Z'
-    debian8-i386-packages:
-        symbol: I(deb8-32-pkg)
-        definition: debian-packages
-        parent: debian8-i386-raw
     debian8-base:
         symbol: I(deb8-base)
         definition: debian-base
@@ -69,9 +58,6 @@ jobs:
         symbol: I(toolchain)
         parent: debian8-base
         definition: toolchain-build
-        packages:
-            - deb8-cmake
-            - deb8-ninja
     deb10-toolchain-build:
         symbol: I(deb10-toolchain)
         parent: debian10-base
@@ -86,27 +72,11 @@ jobs:
         symbol: I(deb8)
         parent: debian8-base
         definition: debian-build
-        packages:
-            - deb8-valgrind
-        args:
-            ARCH: amd64
-    debian8-i386-build:
-        symbol: I(deb8-32)
-        parent: debian8-base
-        definition: debian-build
-        packages:
-            - deb8-valgrind
-            - deb8-32-xz-utils
-        args:
-            ARCH: i386
-    debian8-mozjs-rust-build:
-        symbol: I(deb8jsrs)
-        parent: debian8-amd64-build
-        packages:
-            - deb8-cmake
     valgrind-build:
         symbol: I(vb)
         parent: debian8-amd64-build
+        packages:
+            - deb8-valgrind
     lint:
         symbol: I(lnt)
     # Neither the debian10-raw nor the debian10-packages images can have
@@ -115,9 +85,9 @@ jobs:
         symbol: I(deb10-raw)
         definition: debian-raw
         args:
-            BASE_IMAGE: debian:buster-20200422
+            BASE_IMAGE: debian:buster-20210208
             DIST: buster
-            SNAPSHOT: '20200422T205110Z'
+            SNAPSHOT: '20210208T213147Z'
     debian10-packages:
         symbol: I(deb10-pkg)
         definition: debian-packages
@@ -133,8 +103,6 @@ jobs:
         symbol: I(deb10)
         parent: debian10-base
         definition: debian-build
-        args:
-            ARCH: amd64
     debian10-test-iris:
         symbol: I(deb10-ti)
         parent: debian10-test
@@ -155,7 +123,7 @@ jobs:
         parent: debian10-base
     gdb-test:
         symbol: I(gdb)
-        parent: debian8-amd64-build
+        parent: debian10-amd64-build
         definition: gdb-test
     mingw32-build:
         symbol: I(mingw)

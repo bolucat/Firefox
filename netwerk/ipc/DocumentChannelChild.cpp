@@ -11,9 +11,11 @@
 #include "mozilla/net/HttpBaseChannel.h"
 #include "mozilla/net/NeckoChild.h"
 #include "mozilla/ScopeExit.h"
+#include "mozilla/StaticPrefs_fission.h"
 #include "nsHashPropertyBag.h"
 #include "nsIHttpChannelInternal.h"
 #include "nsIObjectLoadingContent.h"
+#include "nsIXULRuntime.h"
 #include "nsIWritablePropertyBag.h"
 
 using namespace mozilla::dom;
@@ -174,7 +176,14 @@ IPCResult DocumentChannelChild::RecvDisconnectChildListeners(
   // notify them of the failure. If this is a process switch, then we can just
   // ignore it silently, and trust that the switch will shut down our docshell
   // and cancel us when it's ready.
-  if (!aSwitchedProcess) {
+  // XXXBFCache This should be fixed in some better way.
+  bool disconnectChildListeners = !aSwitchedProcess;
+  if (!disconnectChildListeners && mozilla::BFCacheInParent()) {
+    nsDocShell* shell = GetDocShell();
+    disconnectChildListeners = shell && shell->GetBrowsingContext() &&
+                               shell->GetBrowsingContext()->IsTop();
+  }
+  if (disconnectChildListeners) {
     DisconnectChildListeners(aStatus, aLoadGroupStatus);
   }
   return IPC_OK();

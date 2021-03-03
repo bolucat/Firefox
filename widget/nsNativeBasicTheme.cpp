@@ -732,23 +732,27 @@ void nsNativeBasicTheme::PaintCheckboxControl(DrawTarget& aDrawTarget,
   }
 }
 
-// Returns the right scale for points in a 14x14 unit box centered at 0x0 to
-// fill aRect in the smaller dimension.
-static float ScaleToFillRect(const LayoutDeviceRect& aRect) {
-  static constexpr float kPathPointsScale = 14.0f;
-  return std::min(aRect.width, aRect.height) / kPathPointsScale;
+constexpr CSSCoord kCheckboxRadioContentBoxSize = 10.0f;
+constexpr CSSCoord kCheckboxRadioBorderBoxSize =
+    kCheckboxRadioContentBoxSize + kCheckboxRadioBorderWidth * 2.0f;
+
+// Returns the right scale for points in a aSize x aSize sized box, centered at
+// 0x0 to fill aRect in the smaller dimension.
+static float ScaleToFillRect(const LayoutDeviceRect& aRect, const float aSize) {
+  return std::min(aRect.width, aRect.height) / aSize;
 }
 
 void nsNativeBasicTheme::PaintCheckMark(DrawTarget& aDrawTarget,
                                         const LayoutDeviceRect& aRect,
                                         const EventStates& aState) {
-  // Points come from the coordinates on a 14X14 unit box centered at 0,0
+  // Points come from the coordinates on a 14X14 (kCheckboxRadioBorderBoxSize)
+  // unit box centered at 0,0
   const float checkPolygonX[] = {-4.5f, -1.5f, -0.5f, 5.0f, 4.75f,
                                  3.5f,  -0.5f, -1.5f, -3.5f};
   const float checkPolygonY[] = {0.5f,  4.0f, 4.0f,  -2.5f, -4.0f,
                                  -4.0f, 1.0f, 1.25f, -1.0f};
   const int32_t checkNumPoints = sizeof(checkPolygonX) / sizeof(float);
-  const float scale = ScaleToFillRect(aRect);
+  const float scale = ScaleToFillRect(aRect, kCheckboxRadioBorderBoxSize);
   auto center = aRect.Center().ToUnknownPoint();
 
   RefPtr<PathBuilder> builder = aDrawTarget.CreatePathBuilder();
@@ -768,7 +772,7 @@ void nsNativeBasicTheme::PaintIndeterminateMark(DrawTarget& aDrawTarget,
                                                 const LayoutDeviceRect& aRect,
                                                 const EventStates& aState) {
   const CSSCoord borderWidth = 2.0f;
-  const float scale = ScaleToFillRect(aRect);
+  const float scale = ScaleToFillRect(aRect, kCheckboxRadioBorderBoxSize);
 
   Rect rect = aRect.ToUnknownRect();
   rect.y += (rect.height / 2) - (borderWidth * scale / 2);
@@ -889,7 +893,7 @@ void nsNativeBasicTheme::PaintRadioCheckmark(PaintBackendData& aPaintData,
                                              const EventStates& aState,
                                              DPIRatio aDpiRatio) {
   const CSSCoord borderWidth = 2.0f;
-  const float scale = ScaleToFillRect(aRect);
+  const float scale = ScaleToFillRect(aRect, kCheckboxRadioBorderBoxSize);
   auto [backgroundColor, checkColor] = ComputeRadioCheckmarkColors(aState);
 
   LayoutDeviceRect rect(aRect);
@@ -955,9 +959,10 @@ void nsNativeBasicTheme::PaintArrow(DrawTarget& aDrawTarget,
                                     const LayoutDeviceRect& aRect,
                                     const float aArrowPolygonX[],
                                     const float aArrowPolygonY[],
+                                    const float aArrowPolygonSize,
                                     const int32_t aArrowNumPoints,
                                     const sRGBColor aFillColor) {
-  const float scale = ScaleToFillRect(aRect);
+  const float scale = ScaleToFillRect(aRect, aArrowPolygonSize);
 
   auto center = aRect.Center().ToUnknownPoint();
 
@@ -978,14 +983,16 @@ void nsNativeBasicTheme::PaintMenulistArrowButton(nsIFrame* aFrame,
                                                   DrawTarget& aDrawTarget,
                                                   const LayoutDeviceRect& aRect,
                                                   const EventStates& aState) {
-  const float arrowPolygonX[] = {-3.5f, -0.5f, 0.5f,  3.5f,  3.5f,
-                                 3.0f,  0.5f,  -0.5f, -3.0f, -3.5f};
-  const float arrowPolygonY[] = {-0.5f, 2.5f, 2.5f, -0.5f, -2.0f,
-                                 -2.0f, 1.0f, 1.0f, -2.0f, -2.0f};
-  const int32_t arrowNumPoints = ArrayLength(arrowPolygonX);
+  const float kPolygonX[] = {-4.0f, -0.5f, 0.5f, 4.0f,  4.0f,
+                             3.0f,  0.0f,  0.0f, -3.0f, -4.0f};
+  const float kPolygonY[] = {-1,    3.0f, 3.0f, -1.0f, -2.0f,
+                             -2.0f, 1.5f, 1.5f, -2.0f, -2.0f};
+
+  const float kPolygonSize = kMinimumDropdownArrowButtonWidth;
+
   sRGBColor arrowColor = ComputeMenulistArrowButtonColor(aState);
-  PaintArrow(aDrawTarget, aRect, arrowPolygonX, arrowPolygonY, arrowNumPoints,
-             arrowColor);
+  PaintArrow(aDrawTarget, aRect, kPolygonX, kPolygonY, kPolygonSize,
+             ArrayLength(kPolygonX), arrowColor);
 }
 
 void nsNativeBasicTheme::PaintSpinnerButton(nsIFrame* aFrame,
@@ -999,26 +1006,20 @@ void nsNativeBasicTheme::PaintSpinnerButton(nsIFrame* aFrame,
   aDrawTarget.FillRect(aRect.ToUnknownRect(),
                        ColorPattern(ToDeviceColor(backgroundColor)));
 
-  const float arrowPolygonX[] = {-5.25f, -0.75f, 0.75f,  5.25f, 5.25f,
-                                 4.5f,   0.75f,  -0.75f, -4.5f, -5.25f};
-  const float arrowPolygonY[] = {-1.875f, 2.625f, 2.625f, -1.875f, -4.125f,
-                                 -4.125f, 0.375f, 0.375f, -4.125f, -4.125f};
-  const int32_t arrowNumPoints = ArrayLength(arrowPolygonX);
-  const float scaleX = ScaleToFillRect(aRect);
-  const float scaleY =
-      aAppearance == StyleAppearance::SpinnerDownbutton ? scaleX : -scaleX;
+  const float kPolygonX[] = {-3.5f, -0.5f, 0.5f, 3.5f,  3.5f,
+                             2.5f,  0.0f,  0.0f, -2.5f, -3.5f};
+  float polygonY[] = {-1.5f, 1.5f, 1.5f, -1.5f, -2.5f,
+                      -2.5f, 0.0f, 0.0f, -2.5f, -2.5f};
 
-  RefPtr<PathBuilder> builder = aDrawTarget.CreatePathBuilder();
-  auto center = aRect.Center().ToUnknownPoint();
-  Point p =
-      center + Point(arrowPolygonX[0] * scaleX, arrowPolygonY[0] * scaleY);
-  builder->MoveTo(p);
-  for (int32_t i = 1; i < arrowNumPoints; i++) {
-    p = center + Point(arrowPolygonX[i] * scaleX, arrowPolygonY[i] * scaleY);
-    builder->LineTo(p);
+  const float kPolygonSize = kMinimumSpinnerButtonHeight;
+  if (aAppearance == StyleAppearance::SpinnerUpbutton) {
+    for (auto& coord : polygonY) {
+      coord = -coord;
+    }
   }
-  RefPtr<Path> path = builder->Finish();
-  aDrawTarget.Fill(path, ColorPattern(ToDeviceColor(borderColor)));
+
+  PaintArrow(aDrawTarget, aRect, kPolygonX, polygonY, kPolygonSize,
+             ArrayLength(kPolygonX), borderColor);
 }
 
 template <typename PaintBackendData>
@@ -1313,8 +1314,10 @@ void nsNativeBasicTheme::PaintScrollbarButton(
                        ColorPattern(ToDeviceColor(buttonColor)));
 
   // Start with Up arrow.
-  float arrowPolygonX[] = {-3.0f, 0.0f, 3.0f, 3.0f, 0.0f, -3.0f};
-  float arrowPolygonY[] = {0.4f, -3.1f, 0.4f, 2.7f, -0.8f, 2.7f};
+  float arrowPolygonX[] = {-4.0f, 0.0f, 4.0f, 4.0f, 0.0f, -4.0f};
+  float arrowPolygonY[] = {0.0f, -4.0f, 0.0f, 3.0f, -1.0f, 3.0f};
+
+  const float kPolygonSize = kMinimumScrollbarSize;
 
   const int32_t arrowNumPoints = ArrayLength(arrowPolygonX);
   switch (aAppearance) {
@@ -1342,8 +1345,8 @@ void nsNativeBasicTheme::PaintScrollbarButton(
     default:
       return;
   }
-  PaintArrow(aDrawTarget, aRect, arrowPolygonX, arrowPolygonY, arrowNumPoints,
-             arrowColor);
+  PaintArrow(aDrawTarget, aRect, arrowPolygonX, arrowPolygonY, kPolygonSize,
+             arrowNumPoints, arrowColor);
 
   // FIXME(heycam): We should probably derive the border color when custom
   // scrollbar colors are in use too.  But for now, just skip painting it,
@@ -1695,11 +1698,6 @@ bool nsNativeBasicTheme::GetWidgetPadding(nsDeviceContext* aContext,
   return false;
 }
 
-static int GetScrollbarButtonCount() {
-  int32_t buttons = LookAndFeel::GetInt(LookAndFeel::IntID::ScrollArrowStyle);
-  return CountPopulation32(static_cast<uint32_t>(buttons));
-}
-
 bool nsNativeBasicTheme::GetWidgetOverflow(nsDeviceContext* aContext,
                                            nsIFrame* aFrame,
                                            StyleAppearance aAppearance,
@@ -1756,7 +1754,7 @@ auto nsNativeBasicTheme::GetScrollbarSizes(nsPresContext* aPresContext,
 }
 
 nscoord nsNativeBasicTheme::GetCheckboxRadioPrefSize() {
-  return CSSPixel::ToAppUnits(10);
+  return CSSPixel::ToAppUnits(kCheckboxRadioContentBoxSize);
 }
 
 NS_IMETHODIMP
@@ -1799,36 +1797,14 @@ nsNativeBasicTheme::GetMinimumWidgetSize(nsPresContext* aPresContext,
       }
       [[fallthrough]];
     case StyleAppearance::ScrollbarthumbVertical:
-    case StyleAppearance::ScrollbarthumbHorizontal:
-    case StyleAppearance::ScrollbarVertical:
-    case StyleAppearance::ScrollbarHorizontal:
-    case StyleAppearance::ScrollbartrackHorizontal:
-    case StyleAppearance::ScrollbartrackVertical:
-    case StyleAppearance::Scrollcorner: {
+    case StyleAppearance::ScrollbarthumbHorizontal: {
       auto* style = nsLayoutUtils::StyleForScrollbar(aFrame);
       auto width = style->StyleUIReset()->mScrollbarWidth;
       auto sizes = GetScrollbarSizes(aPresContext, width, Overlay::No);
       MOZ_ASSERT(sizes.mHorizontal == sizes.mVertical);
+      // TODO: for short scrollbars it could be nice if the thumb could shrink
+      // under this size.
       aResult->SizeTo(sizes.mHorizontal, sizes.mHorizontal);
-      if (width != StyleScrollbarWidth::Thin) {
-        // If the scrollbar has any buttons, then we increase the minimum
-        // size so that they fit too.
-        //
-        // FIXME(heycam): We should probably ensure that the thumb disappears
-        // if a scrollbar is big enough to fit the buttons but not the thumb,
-        // which is what the Windows native theme does.  If we do that, then
-        // the minimum size here needs to be reduced accordingly.
-        switch (aAppearance) {
-          case StyleAppearance::ScrollbarHorizontal:
-            aResult->width *= GetScrollbarButtonCount() + 1;
-            break;
-          case StyleAppearance::ScrollbarVertical:
-            aResult->height *= GetScrollbarButtonCount() + 1;
-            break;
-          default:
-            break;
-        }
-      }
       break;
     }
     default:

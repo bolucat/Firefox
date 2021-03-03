@@ -711,10 +711,21 @@ function updateFxaToolbarMenu(enable, isInitialUpdate = false) {
     "identity.fxaccounts.enabled",
     false
   );
+
   const mainWindowEl = document.documentElement;
   const fxaPanelEl = PanelMultiView.getViewNode(document, "PanelUI-fxa");
 
-  mainWindowEl.setAttribute("fxastatus", "not_configured");
+  // To minimize the toolbar button flickering or appearing/disappearing during startup,
+  // we use this pref to anticipate the likely FxA status.
+  const statusGuess = !!Services.prefs.getStringPref(
+    "identity.fxaccounts.account.device.name",
+    ""
+  );
+  mainWindowEl.setAttribute(
+    "fxastatus",
+    statusGuess ? "signed_in" : "not_configured"
+  );
+
   fxaPanelEl.addEventListener("ViewShowing", gSync.updateSendToDeviceTitle);
 
   Services.telemetry.setEventRecordingEnabled("fxa_app_menu", true);
@@ -1935,7 +1946,11 @@ var gBrowserInit = {
 
     let safeMode = document.getElementById("helpSafeMode");
     if (Services.appinfo.inSafeMode) {
-      document.l10n.setAttributes(safeMode, "menu-help-safe-mode-with-addons");
+      document.l10n.setAttributes(safeMode, "menu-help-exit-troubleshoot-mode");
+      safeMode.setAttribute(
+        "appmenu-data-l10n-id",
+        "appmenu-help-exit-troubleshoot-mode"
+      );
     }
 
     // BiDi UI
@@ -4465,8 +4480,10 @@ function FillHistoryMenu(aParent) {
   const tooltipCurrent = gNavigatorBundle.getString("tabHistory.current");
   const tooltipForward = gNavigatorBundle.getString("tabHistory.goForward");
 
-  function updateSessionHistory(sessionHistory, initial) {
-    let count = sessionHistory.entries.length;
+  function updateSessionHistory(sessionHistory, initial, ssInParent) {
+    let count = ssInParent
+      ? sessionHistory.count
+      : sessionHistory.entries.length;
 
     if (!initial) {
       if (count <= 1) {
@@ -4498,7 +4515,9 @@ function FillHistoryMenu(aParent) {
     let existingIndex = 0;
 
     for (let j = end - 1; j >= start; j--) {
-      let entry = sessionHistory.entries[j];
+      let entry = ssInParent
+        ? sessionHistory.getEntryAtIndex(j)
+        : sessionHistory.entries[j];
       // Explicitly check for "false" to stay backwards-compatible with session histories
       // from before the hasUserInteraction was implemented.
       if (
@@ -4510,7 +4529,7 @@ function FillHistoryMenu(aParent) {
       ) {
         continue;
       }
-      let uri = entry.url;
+      let uri = ssInParent ? entry.URI.spec : entry.url;
 
       let item =
         existingIndex < children.length
@@ -4561,20 +4580,22 @@ function FillHistoryMenu(aParent) {
     }
   }
 
-  let sessionHistory = SessionStore.getSessionHistory(
-    gBrowser.selectedTab,
-    updateSessionHistory
-  );
-  if (!sessionHistory) {
-    return false;
+  let sessionHistory = gBrowser.selectedBrowser.browsingContext.sessionHistory;
+  if (sessionHistory) {
+    // Don't show the context menu if there is only one item.
+    if (sessionHistory.count <= 1) {
+      return false;
+    }
+
+    updateSessionHistory(sessionHistory, true, true);
+  } else {
+    sessionHistory = SessionStore.getSessionHistory(
+      gBrowser.selectedTab,
+      updateSessionHistory
+    );
+    updateSessionHistory(sessionHistory, true, false);
   }
 
-  // don't display the popup for a single item
-  if (sessionHistory.entries.length <= 1) {
-    return false;
-  }
-
-  updateSessionHistory(sessionHistory, true);
   return true;
 }
 

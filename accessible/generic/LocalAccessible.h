@@ -6,9 +6,9 @@
 #ifndef _LocalAccessible_H_
 #define _LocalAccessible_H_
 
+#include "mozilla/a11y/Accessible.h"
 #include "mozilla/a11y/AccTypes.h"
 #include "mozilla/a11y/RelationType.h"
-#include "mozilla/a11y/Role.h"
 #include "mozilla/a11y/States.h"
 
 #include "mozilla/UniquePtr.h"
@@ -130,7 +130,7 @@ typedef nsRefPtrHashtable<nsPtrHashKey<const void>, LocalAccessible>
     }                                                \
   }
 
-class LocalAccessible : public nsISupports {
+class LocalAccessible : public nsISupports, public Accessible {
  public:
   LocalAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
@@ -215,19 +215,7 @@ class LocalAccessible : public nsISupports {
   /**
    * Return enumerated accessible role (see constants in Role.h).
    */
-  mozilla::a11y::role Role() const;
-
-  /**
-   * Return true if ARIA role is specified on the element.
-   */
-  bool HasARIARole() const;
-  bool IsARIARole(nsAtom* aARIARole) const;
-  bool HasStrongARIARole() const;
-
-  /**
-   * Retrun ARIA role map if any.
-   */
-  const nsRoleMapEntry* ARIARoleMap() const;
+  virtual mozilla::a11y::role Role() const override;
 
   /**
    * Return accessible role specified by ARIA (see constants in
@@ -307,11 +295,6 @@ class LocalAccessible : public nsISupports {
   virtual mozilla::a11y::GroupPos GroupPosition();
 
   /**
-   * Used by ChildAtPoint() method to get direct or deepest child at point.
-   */
-  enum EWhichChildAtPoint { eDirectChild, eDeepestChild };
-
-  /**
    * Return direct or deepest child at the given point.
    *
    * @param  aX           [in] x coordinate relative screen
@@ -319,8 +302,14 @@ class LocalAccessible : public nsISupports {
    * @param  aWhichChild  [in] flag points if deepest or direct child
    *                        should be returned
    */
-  virtual LocalAccessible* ChildAtPoint(int32_t aX, int32_t aY,
-                                        EWhichChildAtPoint aWhichChild);
+  virtual LocalAccessible* LocalChildAtPoint(int32_t aX, int32_t aY,
+                                             EWhichChildAtPoint aWhichChild);
+
+  /**
+   * Similar to LocalChildAtPoint but crosses process boundaries.
+   */
+  virtual Accessible* ChildAtPoint(int32_t aX, int32_t aY,
+                                   EWhichChildAtPoint aWhichChild) override;
 
   /**
    * Return the focused child if any.
@@ -382,6 +371,22 @@ class LocalAccessible : public nsISupports {
    */
   virtual void RelocateChild(uint32_t aNewIndex, LocalAccessible* aChild);
 
+  // Accessible hierarchy method overrides
+
+  virtual Accessible* Parent() const override { return LocalParent(); }
+
+  virtual Accessible* ChildAt(uint32_t aIndex) const override {
+    return LocalChildAt(aIndex);
+  }
+
+  virtual Accessible* NextSibling() const override {
+    return LocalNextSibling();
+  }
+
+  virtual Accessible* PrevSibling() const override {
+    return LocalPrevSibling();
+  }
+
   //////////////////////////////////////////////////////////////////////////////
   // LocalAccessible tree traverse methods
 
@@ -398,7 +403,7 @@ class LocalAccessible : public nsISupports {
   /**
    * Return child accessible count.
    */
-  virtual uint32_t ChildCount() const;
+  virtual uint32_t ChildCount() const override;
 
   /**
    * Return index of the given child accessible.
@@ -410,12 +415,7 @@ class LocalAccessible : public nsISupports {
   /**
    * Return index in parent accessible.
    */
-  virtual int32_t IndexInParent() const;
-
-  /**
-   * Return true if accessible has children;
-   */
-  bool HasChildren() const { return !!LocalChildAt(0); }
+  virtual int32_t IndexInParent() const override;
 
   /**
    * Return first/last/next/previous sibling of the accessible.
@@ -551,131 +551,43 @@ class LocalAccessible : public nsISupports {
     return mContent->IsAnyOfHTMLElements(nsGkAtoms::abbr, nsGkAtoms::acronym);
   }
 
-  bool IsAlert() const { return HasGenericType(eAlert); }
-
-  bool IsApplication() const { return mType == eApplicationType; }
   ApplicationAccessible* AsApplication();
 
-  bool IsAutoComplete() const { return HasGenericType(eAutoComplete); }
-
-  bool IsAutoCompletePopup() const {
-    return HasGenericType(eAutoCompletePopup);
-  }
-
-  bool IsButton() const { return HasGenericType(eButton); }
-
-  bool IsCombobox() const { return HasGenericType(eCombobox); }
-
-  bool IsDoc() const { return HasGenericType(eDocument); }
   DocAccessible* AsDoc();
 
-  bool IsGenericHyperText() const { return mType == eHyperTextType; }
-  bool IsHyperText() const { return HasGenericType(eHyperText); }
   HyperTextAccessible* AsHyperText();
 
-  bool IsHTMLBr() const { return mType == eHTMLBRType; }
-  bool IsHTMLCaption() const { return mType == eHTMLCaptionType; }
-  bool IsHTMLCombobox() const { return mType == eHTMLComboboxType; }
-  bool IsHTMLFileInput() const { return mType == eHTMLFileInputType; }
-
-  bool IsHTMLListItem() const { return mType == eHTMLLiType; }
   HTMLLIAccessible* AsHTMLListItem();
 
-  bool IsHTMLLink() const { return mType == eHTMLLinkType; }
   HTMLLinkAccessible* AsHTMLLink();
 
-  bool IsHTMLOptGroup() const { return mType == eHTMLOptGroupType; }
-
-  bool IsHTMLTable() const { return mType == eHTMLTableType; }
-  bool IsHTMLTableRow() const { return mType == eHTMLTableRowType; }
-
-  bool IsImage() const { return mType == eImageType; }
   ImageAccessible* AsImage();
 
-  bool IsImageMap() const { return mType == eImageMapType; }
   HTMLImageMapAccessible* AsImageMap();
 
-  bool IsList() const { return HasGenericType(eList); }
-
-  bool IsListControl() const { return HasGenericType(eListControl); }
-
-  bool IsMenuButton() const { return HasGenericType(eMenuButton); }
-
-  bool IsMenuPopup() const { return mType == eMenuPopupType; }
-
-  bool IsProxy() const { return mType == eProxyType; }
   RemoteAccessible* Proxy() const {
     MOZ_ASSERT(IsProxy());
     return mBits.proxy;
   }
-  uint32_t ProxyInterfaces() const {
-    MOZ_ASSERT(IsProxy());
-    return mInt.mProxyInterfaces;
-  }
-  void SetProxyInterfaces(uint32_t aInterfaces) {
-    MOZ_ASSERT(IsProxy());
-    mInt.mProxyInterfaces = aInterfaces;
-  }
 
-  bool IsOuterDoc() const { return mType == eOuterDocType; }
   OuterDocAccessible* AsOuterDoc();
 
-  bool IsProgress() const { return mType == eProgressType; }
-
-  bool IsRoot() const { return mType == eRootType; }
   a11y::RootAccessible* AsRoot();
 
   bool IsSearchbox() const;
 
-  bool IsSelect() const { return HasGenericType(eSelect); }
-
-  bool IsTable() const { return HasGenericType(eTable); }
   virtual TableAccessible* AsTable() { return nullptr; }
 
-  /**
-   * Note: The eTable* types defined in the ARIA map are used in
-   * nsAccessibilityService::CreateAccessible to determine which ARIAGrid*
-   * classes to use for accessible object creation. However, an invalid table
-   * structure might cause these classes not to be used after all.
-   *
-   * To make sure we're really dealing with a table cell, only check the
-   * generic type defined by the class, not the type defined in the ARIA map.
-   */
-  bool IsTableCell() const { return mGenericTypes & eTableCell; }
   virtual TableCellAccessible* AsTableCell() { return nullptr; }
   const TableCellAccessible* AsTableCell() const {
     return const_cast<LocalAccessible*>(this)->AsTableCell();
   }
 
-  bool IsTableRow() const { return HasGenericType(eTableRow); }
-
-  bool IsTextField() const {
-    return mType == eHTMLTextFieldType || mType == eHTMLTextPasswordFieldType;
-  }
-
-  bool IsPassword() const { return mType == eHTMLTextPasswordFieldType; }
-
-  bool IsText() const { return mGenericTypes & eText; }
-
-  bool IsTextLeaf() const { return mType == eTextLeafType; }
   TextLeafAccessible* AsTextLeaf();
 
-  bool IsXULLabel() const { return mType == eXULLabelType; }
   XULLabelAccessible* AsXULLabel();
 
-  bool IsXULListItem() const { return mType == eXULListItemType; }
-
-  bool IsXULTabpanels() const { return mType == eXULTabpanelsType; }
-
-  bool IsXULTooltip() const { return mType == eXULTooltipType; }
-
-  bool IsXULTree() const { return mType == eXULTreeType; }
   XULTreeAccessible* AsXULTree();
-
-  /**
-   * Return true if the accessible belongs to the given accessible type.
-   */
-  bool HasGenericType(AccGenericType aType) const;
 
   //////////////////////////////////////////////////////////////////////////////
   // ActionAccessible
@@ -722,7 +634,7 @@ class LocalAccessible : public nsISupports {
   /**
    * Return true if the accessible is hyper link accessible.
    */
-  virtual bool IsLink() const;
+  virtual bool IsLink() const override;
 
   /**
    * Return the start offset of the link within the parent accessible.
@@ -906,7 +818,7 @@ class LocalAccessible : public nsISupports {
   /**
    * Return true if the accessible has a numeric value.
    */
-  bool HasNumericValue() const;
+  virtual bool HasNumericValue() const override;
 
   /**
    * Return true if the accessible state change is processed by handling proper
@@ -993,6 +905,8 @@ class LocalAccessible : public nsISupports {
    */
   void MaybeFireFocusableStateChange(bool aPreviouslyFocusable);
 
+  virtual bool IsRemote() const override { return false; }
+
  protected:
   virtual ~LocalAccessible();
 
@@ -1042,13 +956,12 @@ class LocalAccessible : public nsISupports {
     eIsNotInDocument = 1 << 1,  // accessible is not in document
     eSharedNode = 1 << 2,  // accessible shares DOM node from another accessible
     eNotNodeMapEntry = 1 << 3,   // accessible shouldn't be in document node map
-    eHasNumericValue = 1 << 4,   // accessible has a numeric value
-    eGroupInfoDirty = 1 << 5,    // accessible needs to update group info
-    eKidsMutating = 1 << 6,      // subtree is being mutated
-    eIgnoreDOMUIEvent = 1 << 7,  // don't process DOM UI events for a11y events
-    eRelocated = 1 << 8,         // accessible was moved in tree
-    eNoKidsFromDOM = 1 << 9,     // accessible doesn't allow children from DOM
-    eHasTextKids = 1 << 10,      // accessible have a text leaf in children
+    eGroupInfoDirty = 1 << 4,    // accessible needs to update group info
+    eKidsMutating = 1 << 5,      // subtree is being mutated
+    eIgnoreDOMUIEvent = 1 << 6,  // don't process DOM UI events for a11y events
+    eRelocated = 1 << 7,         // accessible was moved in tree
+    eNoKidsFromDOM = 1 << 8,     // accessible doesn't allow children from DOM
+    eHasTextKids = 1 << 9,       // accessible have a text leaf in children
 
     eLastStateFlag = eHasTextKids
   };
@@ -1168,22 +1081,12 @@ class LocalAccessible : public nsISupports {
 
   static const uint8_t kStateFlagsBits = 11;
   static const uint8_t kContextFlagsBits = 3;
-  static const uint8_t kTypeBits = 6;
-  static const uint8_t kGenericTypesBits = 16;
-
-  /**
-   * Non-NO_ROLE_MAP_ENTRY_INDEX indicates author-supplied role;
-   * possibly state & value as well
-   */
-  uint8_t mRoleMapEntryIndex;
 
   /**
    * Keep in sync with StateFlags, ContextFlags, and AccTypes.
    */
   mutable uint32_t mStateFlags : kStateFlagsBits;
   uint32_t mContextFlags : kContextFlagsBits;
-  uint32_t mType : kTypeBits;
-  uint32_t mGenericTypes : kGenericTypesBits;
   uint32_t mReorderEventTarget : 1;
   uint32_t mShowEventTarget : 1;
   uint32_t mHideEventTarget : 1;
@@ -1201,10 +1104,7 @@ class LocalAccessible : public nsISupports {
   friend class TreeMutation;
 
   UniquePtr<mozilla::a11y::EmbeddedObjCollector> mEmbeddedObjCollector;
-  union {
-    int32_t mIndexOfEmbeddedChild;
-    uint32_t mProxyInterfaces;
-  } mInt;
+  int32_t mIndexOfEmbeddedChild;
 
   friend class EmbeddedObjCollector;
 
@@ -1221,6 +1121,13 @@ class LocalAccessible : public nsISupports {
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(LocalAccessible, NS_ACCESSIBLE_IMPL_IID)
+
+////////////////////////////////////////////////////////////////////////////////
+// LocalAccessible downcasting method
+
+inline LocalAccessible* Accessible::AsLocal() {
+  return IsLocal() ? static_cast<LocalAccessible*>(this) : nullptr;
+}
 
 /**
  * Represent key binding associated with accessible (such as access key and

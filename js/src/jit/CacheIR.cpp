@@ -315,25 +315,26 @@ static ProxyStubType GetProxyStubType(JSContext* cx, HandleObject obj,
   return ProxyStubType::DOMUnshadowed;
 }
 
-static bool ValueToNameOrSymbolId(JSContext* cx, HandleValue idval,
+static bool ValueToNameOrSymbolId(JSContext* cx, HandleValue idVal,
                                   MutableHandleId id, bool* nameOrSymbol) {
   *nameOrSymbol = false;
 
-  if (!idval.isString() && !idval.isSymbol()) {
+  if (!idVal.isString() && !idVal.isSymbol() && !idVal.isUndefined() &&
+      !idVal.isNull()) {
     return true;
   }
 
-  if (!PrimitiveValueToId<CanGC>(cx, idval, id)) {
+  if (!PrimitiveValueToId<CanGC>(cx, idVal, id)) {
     return false;
   }
 
-  if (!JSID_IS_STRING(id) && !JSID_IS_SYMBOL(id)) {
+  if (!id.isAtom() && !id.isSymbol()) {
     id.set(JSID_VOID);
     return true;
   }
 
   uint32_t dummy;
-  if (JSID_IS_STRING(id) && JSID_TO_ATOM(id)->isIndex(&dummy)) {
+  if (id.isAtom() && id.toAtom()->isIndex(&dummy)) {
     id.set(JSID_VOID);
     return true;
   }
@@ -600,7 +601,7 @@ static void GuardGroupProto(CacheIRWriter& writer, JSObject* obj,
                             ObjOperandId objId) {
   // Uses the group to determine if the prototype is unchanged. This works
   // because groups have an immutable prototype. This can be used if the shape
-  // has the UNCACHEABLE_PROTO flag set.
+  // has the UncacheableProto flag set.
 
   ObjectGroup* group = obj->group();
   writer.guardGroupForProto(objId, group);
@@ -641,7 +642,7 @@ static void TestMatchingProxyReceiver(CacheIRWriter& writer, ProxyObject* obj,
 static void GeneratePrototypeGuardsForReceiver(CacheIRWriter& writer,
                                                JSObject* obj,
                                                ObjOperandId objId) {
-  // If receiver was marked UNCACHEABLE_PROTO, the previous shape guard
+  // If receiver was marked UncacheableProto, the previous shape guard
   // doesn't ensure the prototype is unchanged. In this case we must use the
   // group to check the prototype.
   if (obj->hasUncacheableProto()) {
@@ -668,7 +669,7 @@ static bool ProtoChainSupportsTeleporting(JSObject* obj, JSObject* holder) {
   }
 
   // The holder itself only gets reshaped by teleportation if it is not
-  // marked UNCACHEABLE_PROTO. See: ReshapeForProtoMutation.
+  // marked UncacheableProto. See: ReshapeForProtoMutation.
   return !holder->hasUncacheableProto();
 }
 
@@ -711,10 +712,10 @@ static void GeneratePrototypeGuards(CacheIRWriter& writer, JSObject* obj,
   // link we are mutating is itself a prototype, we regenerate shapes down
   // the chain. This means the same two shape checks as above are sufficient.
   //
-  // An additional wrinkle is the UNCACHEABLE_PROTO shape flag. This
+  // An additional wrinkle is the UncacheableProto shape flag. This
   // indicates that the shape no longer implies any specific prototype. As
   // well, the shape will not be updated by the teleporting optimization.
-  // If any shape from receiver to holder (inclusive) is UNCACHEABLE_PROTO,
+  // If any shape from receiver to holder (inclusive) is UncacheableProto,
   // we don't apply the optimization.
   //
   // See:
@@ -724,7 +725,7 @@ static void GeneratePrototypeGuards(CacheIRWriter& writer, JSObject* obj,
   MOZ_ASSERT(holder);
   MOZ_ASSERT(obj != holder);
 
-  // Only DELEGATE objects participate in teleporting so peel off the first
+  // Only Delegate objects participate in teleporting so peel off the first
   // object in the chain if needed and handle it directly.
   JSObject* pobj = obj;
   if (!obj->isDelegate()) {
@@ -1269,7 +1270,7 @@ AttachDecision GetPropIRGenerator::tryAttachCrossCompartmentWrapper(
     }
 
     if (!holder) {
-      // UNCACHEABLE_PROTO may result in guards against specific
+      // ObjectFlag::UncacheableProto may result in guards against specific
       // (cross-compartment) prototype objects, so don't try to attach IC if we
       // see the flag at all.
       if (UncacheableProtoOnChain(unwrapped)) {
@@ -2647,14 +2648,24 @@ void GetPropIRGenerator::trackAttached(const char* name) {
 #endif
 }
 
-void IRGenerator::emitIdGuard(ValOperandId valId, jsid id) {
-  if (JSID_IS_SYMBOL(id)) {
+void IRGenerator::emitIdGuard(ValOperandId valId, HandleValue idVal, jsid id) {
+  if (id.isSymbol()) {
+    MOZ_ASSERT(idVal.toSymbol() == id.toSymbol());
     SymbolOperandId symId = writer.guardToSymbol(valId);
-    writer.guardSpecificSymbol(symId, JSID_TO_SYMBOL(id));
+    writer.guardSpecificSymbol(symId, id.toSymbol());
   } else {
-    MOZ_ASSERT(JSID_IS_ATOM(id));
-    StringOperandId strId = writer.guardToString(valId);
-    writer.guardSpecificAtom(strId, JSID_TO_ATOM(id));
+    MOZ_ASSERT(id.isAtom());
+    if (idVal.isUndefined()) {
+      MOZ_ASSERT(id.isAtom(cx_->names().undefined));
+      writer.guardIsUndefined(valId);
+    } else if (idVal.isNull()) {
+      MOZ_ASSERT(id.isAtom(cx_->names().null));
+      writer.guardIsNull(valId);
+    } else {
+      MOZ_ASSERT(idVal.isString());
+      StringOperandId strId = writer.guardToString(valId);
+      writer.guardSpecificAtom(strId, id.toAtom());
+    }
   }
 }
 
@@ -2668,7 +2679,7 @@ void GetPropIRGenerator::maybeEmitIdGuard(jsid id) {
 
   MOZ_ASSERT(cacheKind_ == CacheKind::GetElem ||
              cacheKind_ == CacheKind::GetElemSuper);
-  emitIdGuard(getElemKeyValueId(), id);
+  emitIdGuard(getElemKeyValueId(), idVal_, id);
 }
 
 void SetPropIRGenerator::maybeEmitIdGuard(jsid id) {
@@ -2679,7 +2690,7 @@ void SetPropIRGenerator::maybeEmitIdGuard(jsid id) {
   }
 
   MOZ_ASSERT(cacheKind_ == CacheKind::SetElem);
-  emitIdGuard(setElemKeyValueId(), id);
+  emitIdGuard(setElemKeyValueId(), idVal_, id);
 }
 
 GetNameIRGenerator::GetNameIRGenerator(JSContext* cx, HandleScript script,
@@ -3249,7 +3260,7 @@ AttachDecision HasPropIRGenerator::tryAttachNative(JSObject* obj,
   }
 
   Maybe<ObjOperandId> tempId;
-  emitIdGuard(keyId, key);
+  emitIdGuard(keyId, idVal_, key);
   EmitReadSlotGuard(writer, obj, holder, objId, &tempId);
   writer.loadBooleanResult(true);
   writer.returnFromIC();
@@ -3284,7 +3295,7 @@ AttachDecision HasPropIRGenerator::tryAttachSlotDoesNotExist(
     JSObject* obj, ObjOperandId objId, jsid key, ValOperandId keyId) {
   bool hasOwn = (cacheKind_ == CacheKind::HasOwn);
 
-  emitIdGuard(keyId, key);
+  emitIdGuard(keyId, idVal_, key);
   if (hasOwn) {
     TestMatchingReceiver(writer, obj, objId);
   } else {
@@ -3451,7 +3462,7 @@ AttachDecision CheckPrivateFieldIRGenerator::tryAttachNative(JSObject* obj,
   }
 
   Maybe<ObjOperandId> tempId;
-  emitIdGuard(keyId, key);
+  emitIdGuard(keyId, idVal_, key);
   EmitReadSlotGuard(writer, obj, obj, objId, &tempId);
   writer.loadBooleanResult(hasOwn);
   writer.returnFromIC();
