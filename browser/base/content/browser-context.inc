@@ -236,11 +236,6 @@
         <menupopup id="context-sendpagetodevice-popup"
                    onpopupshowing="(() => { gSync.populateSendTabToDevicesMenu(event.target, gBrowser.currentURI.spec, gBrowser.contentTitle); })()"/>
       </menu>
-      <menuseparator id="context-sep-viewbgimage"/>
-      <menuitem id="context-viewbgimage"
-                data-l10n-id="main-context-menu-view-background-image"
-                oncommand="gContextMenu.viewBGImage(event);"
-                onclick="checkForMiddleClick(this, event);"/>
       <menu id="fill-login"
             label="&fillLoginMenu.label;"
             label-login="&fillLoginMenu.label;"
@@ -352,13 +347,6 @@
       <menuitem id="context-print-selection"
                 data-l10n-id="main-context-menu-print-selection"
                 oncommand="gContextMenu.printSelection();"/>
-      <menuitem id="context-viewpartialsource-selection"
-                data-l10n-id="main-context-menu-view-selection-source"
-                oncommand="gContextMenu.viewPartialSource();"/>
-      <menuseparator id="context-sep-viewsource"/>
-      <menuitem id="context-viewsource"
-                data-l10n-id="main-context-menu-view-page-source"
-                oncommand="BrowserViewSource(gContextMenu.browser);"/>
       <menuseparator id="spell-separator"/>
       <menuitem id="spell-check-enabled"
                 label="&spellCheckToggle.label;"
@@ -388,6 +376,12 @@
                 data-l10n-id="main-context-menu-bidi-switch-page"
                 oncommand="gContextMenu.switchPageDirection();"/>
       <menuseparator id="inspect-separator" hidden="true"/>
+      <menuitem id="context-viewpartialsource-selection"
+                data-l10n-id="main-context-menu-view-selection-source"
+                oncommand="gContextMenu.viewPartialSource();"/>
+      <menuitem id="context-viewsource"
+                data-l10n-id="main-context-menu-view-page-source"
+                oncommand="BrowserViewSource(gContextMenu.browser);"/>
       <menuitem id="context-inspect-a11y"
                 hidden="true"
                 data-l10n-id="main-context-menu-inspect-a11y-properties"

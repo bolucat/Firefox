@@ -158,6 +158,8 @@ exports.WatcherActor = protocol.ActorClassWithSpec(watcherSpec, {
             enableServerWatcher && hasBrowserElement,
           [Resources.TYPES.SOURCE]: hasBrowserElement,
           [Resources.TYPES.THREAD_STATE]: hasBrowserElement,
+          [Resources.TYPES.SERVER_SENT_EVENT]: hasBrowserElement,
+          [Resources.TYPES.WEBSOCKET]: hasBrowserElement,
         },
         // @backward-compat { version 85 } When removing this trait, consumers using
         // the TargetList to retrieve the Breakpoints front should still be careful to check
@@ -169,6 +171,11 @@ exports.WatcherActor = protocol.ActorClassWithSpec(watcherSpec, {
         // When removing this trait, consumers should still check that the Watcher is
         // available.
         "target-configuration": true,
+        // @backward-compat { version 88 } Watcher now supports setting the XHR via
+        // the BreakpointListActor.
+        // When removing this trait, consumers should still check that the Watcher is
+        // available.
+        "set-xhr-breakpoints": true,
       },
     };
   },

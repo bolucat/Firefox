@@ -34,7 +34,7 @@
 
 #include "frontend/BytecodeCompiler.h"
 #include "frontend/BytecodeEmitter.h"
-#include "frontend/CompilationStencil.h"  // frontend::BaseCompilationStencil
+#include "frontend/CompilationStencil.h"  // frontend::CompilationStencil
 #include "frontend/SharedContext.h"
 #include "frontend/SourceNotes.h"  // SrcNote, SrcNoteType, SrcNoteIterator
 #include "frontend/StencilXdr.h"  // frontend::StencilXdr::SharedData, CanCopyDataToDisk
@@ -2688,26 +2688,30 @@ void ScriptSource::addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf,
   info->numScripts++;
 }
 
-bool ScriptSource::xdrEncodeInitialStencil(
-    JSContext* cx, frontend::CompilationInput& input,
-    const frontend::CompilationStencil& stencil,
-    UniquePtr<XDRIncrementalStencilEncoder>& xdrEncoder) {
+bool ScriptSource::startIncrementalEncoding(
+    JSContext* cx, const JS::ReadOnlyCompileOptions& options,
+    UniquePtr<frontend::ExtensibleCompilationStencil>&& initial) {
   // Encoding failures are reported by the xdrFinalizeEncoder function.
   if (containsAsmJS()) {
     return true;
   }
 
-  xdrEncoder = js::MakeUnique<XDRIncrementalStencilEncoder>(cx);
-  if (!xdrEncoder) {
+  // Remove the reference to the source, to avoid the circular reference.
+  initial->source = nullptr;
+
+  xdrEncoder_ = js::MakeUnique<XDRIncrementalStencilEncoder>(cx);
+  if (!xdrEncoder_) {
     ReportOutOfMemory(cx);
     return false;
   }
 
   AutoIncrementalTimer timer(cx->realm()->timers.xdrEncodingTime);
-  auto failureCase = mozilla::MakeScopeExit([&] { xdrEncoder.reset(nullptr); });
+  auto failureCase =
+      mozilla::MakeScopeExit([&] { xdrEncoder_.reset(nullptr); });
 
-  XDRResult res = xdrEncoder->codeStencil(
-      input, const_cast<frontend::CompilationStencil&>(stencil));
+  XDRResult res = xdrEncoder_->setInitial(
+      options,
+      std::forward<UniquePtr<frontend::ExtensibleCompilationStencil>>(initial));
   if (res.isErr()) {
     // On encoding failure, let failureCase destroy encoder and return true
     // to avoid failing any currently executing script.
@@ -2718,44 +2722,14 @@ bool ScriptSource::xdrEncodeInitialStencil(
   return true;
 }
 
-bool ScriptSource::xdrEncodeStencils(
-    JSContext* cx, frontend::CompilationInput& input,
-    const frontend::CompilationStencil& stencil,
-    UniquePtr<XDRIncrementalStencilEncoder>& xdrEncoder) {
-  if (!xdrEncodeInitialStencil(cx, input, stencil, xdrEncoder)) {
-    return false;
-  }
-
-  if (stencil.delazificationSet) {
-    for (auto& delazification : stencil.delazificationSet->delazifications) {
-      if (!xdrEncodeFunctionStencilWith(cx, delazification, xdrEncoder)) {
-        return false;
-      }
-    }
-  }
-
-  return true;
-}
-
-void ScriptSource::setIncrementalEncoder(
-    XDRIncrementalStencilEncoder* xdrEncoder) {
-  xdrEncoder_.reset(xdrEncoder);
-}
-
-bool ScriptSource::xdrEncodeFunctionStencil(
-    JSContext* cx, const frontend::BaseCompilationStencil& stencil) {
+bool ScriptSource::addDelazificationToIncrementalEncoding(
+    JSContext* cx, const frontend::CompilationStencil& stencil) {
   MOZ_ASSERT(hasEncoder());
   AutoIncrementalTimer timer(cx->realm()->timers.xdrEncodingTime);
-  return xdrEncodeFunctionStencilWith(cx, stencil, xdrEncoder_);
-}
+  auto failureCase =
+      mozilla::MakeScopeExit([&] { xdrEncoder_.reset(nullptr); });
 
-bool ScriptSource::xdrEncodeFunctionStencilWith(
-    JSContext* cx, const frontend::BaseCompilationStencil& stencil,
-    UniquePtr<XDRIncrementalStencilEncoder>& xdrEncoder) {
-  auto failureCase = mozilla::MakeScopeExit([&] { xdrEncoder.reset(nullptr); });
-
-  XDRResult res = xdrEncoder->codeFunctionStencil(
-      const_cast<frontend::BaseCompilationStencil&>(stencil));
+  XDRResult res = xdrEncoder_->addDelazification(stencil);
   if (res.isErr()) {
     // On encoding failure, let failureCase destroy encoder and return true
     // to avoid failing any currently executing script.
@@ -2776,7 +2750,13 @@ bool ScriptSource::xdrFinalizeEncoder(JSContext* cx,
   auto cleanup = mozilla::MakeScopeExit([&] { xdrEncoder_.reset(nullptr); });
 
   XDRResult res = xdrEncoder_->linearize(buffer, this);
-  return res.isOk();
+  if (res.isErr()) {
+    if (JS::IsTranscodeFailureResult(res.unwrapErr())) {
+      JS_ReportErrorASCII(cx, "XDR encoding failure");
+    }
+    return false;
+  }
+  return true;
 }
 
 template <typename Unit>
@@ -3633,7 +3613,7 @@ PrivateScriptData* PrivateScriptData::new_(JSContext* cx, uint32_t ngcthings) {
 bool PrivateScriptData::InitFromStencil(
     JSContext* cx, js::HandleScript script,
     const js::frontend::CompilationInput& input,
-    const js::frontend::BaseCompilationStencil& stencil,
+    const js::frontend::CompilationStencil& stencil,
     js::frontend::CompilationGCOutput& gcOutput,
     const js::frontend::ScriptIndex scriptIndex) {
   js::frontend::ScriptStencil& scriptStencil = stencil.scriptData[scriptIndex];
@@ -3727,7 +3707,7 @@ bool JSScript::createPrivateScriptData(JSContext* cx, HandleScript script,
 /* static */
 bool JSScript::fullyInitFromStencil(
     JSContext* cx, const js::frontend::CompilationInput& input,
-    const js::frontend::BaseCompilationStencil& stencil,
+    const js::frontend::CompilationStencil& stencil,
     frontend::CompilationGCOutput& gcOutput, HandleScript script,
     const js::frontend::ScriptIndex scriptIndex) {
   MutableScriptFlags lazyMutableFlags;
@@ -3736,13 +3716,9 @@ bool JSScript::fullyInitFromStencil(
   // A holder for the lazy PrivateScriptData that we must keep around in case
   // this process fails and we must return the script to its original state.
   //
-  // This is initialized by BaseScript::swapData() which will run incremental
-  // pre-barriers for us. On successful conversion to non-lazy script, the old
-  // script data here will be released by the UniquePtr.
-  //
-  // TODO: This will trigger the ClearEdgesTraces on cleanup. We should
-  // investigate if this is still necessary if swapData() already ran
-  // pre-barriers for us.
+  // This is initialized by BaseScript::swapData() which will run pre-barriers
+  // for us. On successful conversion to non-lazy script, the old script data
+  // here will be released by the UniquePtr.
   Rooted<UniquePtr<PrivateScriptData>> lazyData(cx);
 
 #ifndef JS_CODEGEN_NONE
@@ -3781,9 +3757,8 @@ bool JSScript::fullyInitFromStencil(
   // Note: These flags should already be correct when the BaseScript was
   // allocated.
   MOZ_ASSERT_IF(stencil.isInitialStencil(),
-                script->immutableFlags() == stencil.asCompilationStencil()
-                                                .scriptExtra[scriptIndex]
-                                                .immutableFlags);
+                script->immutableFlags() ==
+                    stencil.scriptExtra[scriptIndex].immutableFlags);
 
   // Create and initialize PrivateScriptData
   if (!PrivateScriptData::InitFromStencil(cx, script, input, stencil, gcOutput,
@@ -3796,9 +3771,8 @@ bool JSScript::fullyInitFromStencil(
   // away.
   if (script->useMemberInitializers()) {
     if (stencil.isInitialStencil()) {
-      MemberInitializers initializers(stencil.asCompilationStencil()
-                                          .scriptExtra[scriptIndex]
-                                          .memberInitializers());
+      MemberInitializers initializers(
+          stencil.scriptExtra[scriptIndex].memberInitializers());
       script->setMemberInitializers(initializers);
     } else {
       script->setMemberInitializers(lazyData.get()->getMemberInitializers());

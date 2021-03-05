@@ -11,122 +11,111 @@ const { FxAccounts } = ChromeUtils.import(
 );
 
 const SEPARATE_ABOUT_WELCOME_PREF = "browser.aboutwelcome.enabled";
-const ABOUT_WELCOME_OVERRIDE_CONTENT_PREF =
-  "browser.aboutwelcome.overrideContent";
+const ABOUT_WELCOME_OVERRIDE_CONTENT_PREF = "browser.aboutwelcome.screens";
 const DID_SEE_ABOUT_WELCOME_PREF = "trailhead.firstrun.didSeeAboutWelcome";
 
-const TEST_MULTISTAGE_CONTENT = {
-  id: "multi-stage-welcome",
-  template: "multistage",
-  screens: [
-    {
-      id: "AW_STEP1",
-      order: 0,
-      content: {
-        zap: true,
-        title: "Step 1",
-        tiles: {
-          type: "theme",
-          action: {
-            theme: "<event>",
+const TEST_MULTISTAGE_CONTENT = [
+  {
+    id: "AW_STEP1",
+    order: 0,
+    content: {
+      zap: true,
+      title: "Step 1",
+      tiles: {
+        type: "theme",
+        action: {
+          theme: "<event>",
+        },
+        data: [
+          {
+            theme: "automatic",
+            label: "theme-1",
+            tooltip: "test-tooltip",
           },
-          data: [
-            {
-              theme: "automatic",
-              label: "theme-1",
-              tooltip: "test-tooltip",
-            },
-            {
-              theme: "dark",
-              label: "theme-2",
-            },
-          ],
-        },
-        primary_button: {
-          label: "Next",
-          action: {
-            navigate: true,
+          {
+            theme: "dark",
+            label: "theme-2",
           },
+        ],
+      },
+      primary_button: {
+        label: "Next",
+        action: {
+          navigate: true,
         },
-        secondary_button: {
-          label: "link",
-        },
-        secondary_button_top: {
-          label: "link top",
-          action: {
-            type: "SHOW_FIREFOX_ACCOUNTS",
-            data: { entrypoint: "test" },
-          },
-        },
-        help_text: {
-          text: { string_id: "onboarding-multistage-set-default-subtitle" },
-          position: "footer",
+      },
+      secondary_button: {
+        label: "link",
+      },
+      secondary_button_top: {
+        label: "link top",
+        action: {
+          type: "SHOW_FIREFOX_ACCOUNTS",
+          data: { entrypoint: "test" },
         },
       },
     },
-    {
-      id: "AW_STEP2",
-      order: 1,
-      content: {
-        zap: true,
-        title: "Step 2 longzaptest",
-        tiles: {
-          type: "topsites",
-          info: true,
-        },
-        primary_button: {
-          label: "Next",
-          action: {
-            navigate: true,
-          },
-        },
-        secondary_button: {
-          label: "link",
-        },
-        help_text: {
-          text: "Here's some helptext with an icon",
-          img: {
-            src:
-              "chrome://activity-stream/content/data/content/assets/cfr_fb_container.png",
-          },
-          position: "footer",
+  },
+  {
+    id: "AW_STEP2",
+    order: 1,
+    content: {
+      zap: true,
+      title: "Step 2 longzaptest",
+      tiles: {
+        type: "topsites",
+        info: true,
+      },
+      primary_button: {
+        label: "Next",
+        action: {
+          navigate: true,
         },
       },
-    },
-    {
-      id: "AW_STEP3",
-      order: 2,
-      content: {
-        title: "Step 3",
-        tiles: {
-          type: "image",
-          media_type: "test-img",
-          source: {
-            default:
-              "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiI+PHBhdGggZmlsbD0iIzQ1YTFmZiIgZmlsbC1vcGFjaXR5PSJjb250ZXh0LWZpbGwtb3BhY2l0eSIgZD0iTTE1Ljg0NSA2LjA2NEExLjEgMS4xIDAgMCAwIDE1IDUuMzMxTDEwLjkxMSA0LjYgOC45ODUuNzM1YTEuMSAxLjEgMCAwIDAtMS45NjkgMEw1LjA4OSA0LjZsLTQuMDgxLjcyOWExLjEgMS4xIDAgMCAwLS42MTUgMS44MzRMMy4zMiAxMC4zMWwtLjYwOSA0LjM2YTEuMSAxLjEgMCAwIDAgMS42IDEuMTI3TDggMTMuODczbDMuNjkgMS45MjdhMS4xIDEuMSAwIDAgMCAxLjYtMS4xMjdsLS42MS00LjM2MyAyLjkyNi0zLjE0NmExLjEgMS4xIDAgMCAwIC4yMzktMS4xeiIvPjwvc3ZnPg==",
-          },
-        },
-        primary_button: {
-          label: "Next",
-          action: {
-            navigate: true,
-          },
-        },
-        secondary_button: {
-          label: "Import",
-          action: {
-            type: "SHOW_MIGRATION_WIZARD",
-            data: { source: "chrome" },
-          },
-        },
-        help_text: {
-          text: "Here's some sample help text",
-          position: "default",
-        },
+      secondary_button: {
+        label: "link",
       },
     },
-  ],
-};
+  },
+  {
+    id: "AW_STEP3",
+    order: 2,
+    content: {
+      title: "Step 3",
+      tiles: {
+        type: "image",
+        media_type: "test-img",
+        source: {
+          default:
+            "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiI+PHBhdGggZmlsbD0iIzQ1YTFmZiIgZmlsbC1vcGFjaXR5PSJjb250ZXh0LWZpbGwtb3BhY2l0eSIgZD0iTTE1Ljg0NSA2LjA2NEExLjEgMS4xIDAgMCAwIDE1IDUuMzMxTDEwLjkxMSA0LjYgOC45ODUuNzM1YTEuMSAxLjEgMCAwIDAtMS45NjkgMEw1LjA4OSA0LjZsLTQuMDgxLjcyOWExLjEgMS4xIDAgMCAwLS42MTUgMS44MzRMMy4zMiAxMC4zMWwtLjYwOSA0LjM2YTEuMSAxLjEgMCAwIDAgMS42IDEuMTI3TDggMTMuODczbDMuNjkgMS45MjdhMS4xIDEuMSAwIDAgMCAxLjYtMS4xMjdsLS42MS00LjM2MyAyLjkyNi0zLjE0NmExLjEgMS4xIDAgMCAwIC4yMzktMS4xeiIvPjwvc3ZnPg==",
+        },
+      },
+      primary_button: {
+        label: "Next",
+        action: {
+          navigate: true,
+        },
+      },
+      secondary_button: {
+        label: "Import",
+        action: {
+          type: "SHOW_MIGRATION_WIZARD",
+          data: { source: "chrome" },
+        },
+      },
+      help_text: {
+        text: "Here's some sample help text",
+        position: "default",
+      },
+    },
+  },
+];
+
+async function getAboutWelcomeParent(browser) {
+  let windowGlobalParent = browser.browsingContext.currentWindowGlobal;
+  return windowGlobalParent.getActor("AboutWelcome");
+}
+
 const TEST_MULTISTAGE_JSON = JSON.stringify(TEST_MULTISTAGE_CONTENT);
 /**
  * Sets the aboutwelcome pref to enabled simplified welcome UI
@@ -135,7 +124,7 @@ async function setAboutWelcomePref(value) {
   return pushPrefs([SEPARATE_ABOUT_WELCOME_PREF, value]);
 }
 
-async function setAboutWelcomeMultiStage(value) {
+async function setAboutWelcomeMultiStage(value = "") {
   return pushPrefs([ABOUT_WELCOME_OVERRIDE_CONTENT_PREF, value]);
 }
 
@@ -232,23 +221,27 @@ add_task(async function setup() {
  */
 add_task(async function test_multistage_zeroOnboarding_experimentAPI() {
   await setAboutWelcomePref(true);
-  let updatePromise = ExperimentFakes.waitForExperimentUpdate(ExperimentAPI, {
-    slug: "mochitest-1-aboutwelcome",
-  });
-  ExperimentAPI._store.addExperiment({
-    slug: "mochitest-1-aboutwelcome",
-    branch: {
-      slug: "mochitest-1-aboutwelcome",
-      feature: {
-        enabled: false,
-        featureId: "aboutwelcome",
-        value: null,
-      },
-    },
-    active: true,
-  });
 
-  await updatePromise;
+  let {
+    enrollmentPromise,
+    doExperimentCleanup,
+  } = ExperimentFakes.enrollmentHelper(
+    ExperimentFakes.recipe("mochitest-1-aboutwelcome", {
+      branches: [
+        {
+          slug: "mochitest-1-aboutwelcome",
+          feature: {
+            enabled: false,
+            featureId: "aboutwelcome",
+            value: null,
+          },
+        },
+      ],
+      active: true,
+    })
+  );
+
+  await enrollmentPromise;
   ExperimentAPI._store._syncToChildren({ flush: true });
 
   let tab = await BrowserTestUtils.openNewForegroundTab(
@@ -256,6 +249,7 @@ add_task(async function test_multistage_zeroOnboarding_experimentAPI() {
     "about:welcome",
     true
   );
+
   registerCleanupFunction(() => {
     BrowserTestUtils.removeTab(tab);
   });
@@ -271,8 +265,7 @@ add_task(async function test_multistage_zeroOnboarding_experimentAPI() {
     ["div.onboardingContainer", "main.AW_STEP1"]
   );
 
-  ExperimentAPI._store._deleteForTests("mochitest-1-aboutwelcome");
-  Assert.equal(ExperimentAPI._store.getAll().length, 0, "Cleanup done");
+  await doExperimentCleanup();
 });
 
 /**
@@ -280,24 +273,30 @@ add_task(async function test_multistage_zeroOnboarding_experimentAPI() {
  */
 add_task(async function test_multistage_aboutwelcome_experimentAPI() {
   await setAboutWelcomePref(true);
-  await setAboutWelcomeMultiStage({});
-  let updatePromise = ExperimentFakes.waitForExperimentUpdate(ExperimentAPI, {
-    slug: "mochitest-aboutwelcome",
-  });
-  ExperimentAPI._store.addExperiment({
-    slug: "mochitest-aboutwelcome",
-    branch: {
-      slug: "mochitest-aboutwelcome",
-      feature: {
-        enabled: true,
-        featureId: "aboutwelcome",
-        value: TEST_MULTISTAGE_CONTENT,
-      },
-    },
-    active: true,
-  });
 
-  await updatePromise;
+  let {
+    enrollmentPromise,
+    doExperimentCleanup,
+  } = ExperimentFakes.enrollmentHelper(
+    ExperimentFakes.recipe("mochitest-aboutwelcome", {
+      branches: [
+        {
+          slug: "mochitest-aboutwelcome-branch",
+          feature: {
+            enabled: true,
+            featureId: "aboutwelcome",
+            value: {
+              id: "my-mochitest-experiment",
+              screens: TEST_MULTISTAGE_CONTENT,
+            },
+          },
+        },
+      ],
+      active: true,
+    })
+  );
+
+  await enrollmentPromise;
   ExperimentAPI._store._syncToChildren({ flush: true });
 
   let tab = await BrowserTestUtils.openNewForegroundTab(
@@ -305,11 +304,17 @@ add_task(async function test_multistage_aboutwelcome_experimentAPI() {
     "about:welcome",
     true
   );
-  registerCleanupFunction(() => {
-    BrowserTestUtils.removeTab(tab);
-  });
 
   const browser = tab.linkedBrowser;
+
+  let aboutWelcomeActor = await getAboutWelcomeParent(browser);
+  const sandbox = sinon.createSandbox();
+  // Stub AboutWelcomeParent Content Message Handler
+  sandbox.spy(aboutWelcomeActor, "onContentMessage");
+  registerCleanupFunction(() => {
+    BrowserTestUtils.removeTab(tab);
+    sandbox.restore();
+  });
 
   await test_screen_content(
     browser,
@@ -327,13 +332,22 @@ add_task(async function test_multistage_aboutwelcome_experimentAPI() {
       "label.theme",
       "input[type='radio']",
       "div.indicator.current",
-      "p.helptext.footer[data-l10n-id='onboarding-multistage-set-default-subtitle']",
     ],
     // Unexpected selectors:
     ["main.AW_STEP2", "main.AW_STEP3", "div.tiles-container.info"]
   );
 
   await onButtonClick(browser, "button.primary");
+
+  Assert.ok(
+    aboutWelcomeActor.onContentMessage.args.find(
+      args =>
+        args[1].event === "CLICK_BUTTON" &&
+        args[1].message_id === "MY-MOCHITEST-EXPERIMENT_AW_STEP1"
+    ),
+    "Telemetry should join id defined in feature value with screen"
+  );
+
   await test_screen_content(
     browser,
     "multistage step 2",
@@ -345,8 +359,6 @@ add_task(async function test_multistage_aboutwelcome_experimentAPI() {
       "h1.welcomeZap",
       "span.zap.long",
       "div.tiles-container.info",
-      "p.helptext",
-      "img.helptext-img",
     ],
     // Unexpected selectors:
     ["main.AW_STEP1", "main.AW_STEP3", "div.secondary-cta.top", "div.test-img"]
@@ -377,8 +389,7 @@ add_task(async function test_multistage_aboutwelcome_experimentAPI() {
     ["div.onboardingContainer"]
   );
 
-  ExperimentAPI._store._deleteForTests("mochitest-aboutwelcome");
-  Assert.equal(ExperimentAPI._store.getAll().length, 0, "Cleanup done");
+  await doExperimentCleanup();
 });
 
 /**
@@ -491,11 +502,6 @@ add_task(async function test_Multistage_About_Welcome_navigation() {
   );
 });
 
-async function getAboutWelcomeParent(browser) {
-  let windowGlobalParent = browser.browsingContext.currentWindowGlobal;
-  return windowGlobalParent.getActor("AboutWelcome");
-}
-
 /**
  * Test the multistage welcome UI primary button action
  */
@@ -564,7 +570,7 @@ add_task(async function test_AWMultistage_Primary_Action() {
     );
     Assert.equal(
       impressionCall.args[1].message_id,
-      `${TEST_MULTISTAGE_CONTENT.id}_SITES`.toUpperCase(),
+      "DEFAULT_ABOUTWELCOME_SITES",
       "SITES MessageId sent in impression event telemetry"
     );
   }
@@ -598,7 +604,7 @@ add_task(async function test_AWMultistage_Primary_Action() {
     );
     Assert.equal(
       performanceCall.args[1].message_id,
-      TEST_MULTISTAGE_CONTENT.id.toUpperCase(),
+      "DEFAULT_ABOUTWELCOME",
       "MessageId sent in performance event telemetry"
     );
   }
@@ -620,12 +626,14 @@ add_task(async function test_AWMultistage_Primary_Action() {
   );
   Assert.equal(
     clickCall.args[1].message_id,
-    `${TEST_MULTISTAGE_CONTENT.id}_${TEST_MULTISTAGE_CONTENT.screens[0].id}`.toUpperCase(),
+    `DEFAULT_ABOUTWELCOME_${TEST_MULTISTAGE_CONTENT[0].id}`.toUpperCase(),
     "MessageId sent in click event telemetry"
   );
 });
 
 add_task(async function test_AWMultistage_Secondary_Open_URL_Action() {
+  let { doExperimentCleanup } = ExperimentFakes.enrollmentHelper();
+  await doExperimentCleanup();
   let browser = await openAboutWelcome();
   let aboutWelcomeActor = await getAboutWelcomeParent(browser);
   const sandbox = sinon.createSandbox();
@@ -819,23 +827,17 @@ add_task(async function test_AWMultistage_Import() {
   );
 });
 
-// Test events from AboutWelcomeUtils
-async function test_set_message() {
+add_task(async function test_onContentMessage() {
   Services.prefs.setBoolPref(DID_SEE_ABOUT_WELCOME_PREF, false);
+  await setAboutWelcomePref(true);
+
   await openAboutWelcome();
   Assert.equal(
     Services.prefs.getBoolPref(DID_SEE_ABOUT_WELCOME_PREF, false),
     true,
     "Pref was set"
   );
-}
-
-add_task(async function test_onContentMessage() {
-  await setAboutWelcomePref(true);
-  await openAboutWelcome();
-
-  //case "SET_WELCOME_MESSAGE_SEEN"
-  await test_set_message();
+  Services.prefs.clearUserPref(DID_SEE_ABOUT_WELCOME_PREF);
 });
 
 // Test Fxaccounts MetricsFlowURI

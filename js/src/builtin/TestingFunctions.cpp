@@ -5190,10 +5190,8 @@ static bool EvalStencilXDR(JSContext* cx, uint32_t argc, Value* vp) {
 
   /* Instantiate the stencil. */
   Rooted<frontend::CompilationGCOutput> output(cx);
-  Rooted<frontend::CompilationGCOutput> outputForDelazification(cx);
   if (!frontend::CompilationStencil::instantiateStencils(
-          cx, input.get(), stencil, output.get(),
-          outputForDelazification.address())) {
+          cx, input.get(), stencil, output.get())) {
     return false;
   }
 
@@ -6076,7 +6074,7 @@ static bool AssertCorrectRealm(JSContext* cx, unsigned argc, Value* vp) {
 static bool GlobalLexicals(JSContext* cx, unsigned argc, Value* vp) {
   CallArgs args = CallArgsFromVp(argc, vp);
 
-  Rooted<LexicalEnvironmentObject*> globalLexical(
+  Rooted<GlobalLexicalEnvironmentObject*> globalLexical(
       cx, &cx->global()->lexicalEnvironment());
 
   RootedIdVector props(cx);

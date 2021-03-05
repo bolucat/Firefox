@@ -242,7 +242,7 @@ template <typename Unit>
           return false;
         }
 
-        if (!extensibleStencil->finish(cx, *stencil)) {
+        if (!stencil->steal(cx, std::move(*extensibleStencil))) {
           return false;
         }
 
@@ -303,7 +303,7 @@ template <typename Unit>
       return false;
     }
 
-    if (!compiler.stencil().finish(cx, *stencil)) {
+    if (!stencil->steal(cx, std::move(compiler.stencil()))) {
       return false;
     }
 
@@ -376,16 +376,15 @@ frontend::CompileGlobalScriptToExtensibleStencil(
                                                     scopeKind);
 }
 
-bool frontend::InstantiateStencils(
-    JSContext* cx, CompilationInput& input, const CompilationStencil& stencil,
-    CompilationGCOutput& gcOutput,
-    CompilationGCOutput* gcOutputForDelazification /* = nullptr */) {
+bool frontend::InstantiateStencils(JSContext* cx, CompilationInput& input,
+                                   const CompilationStencil& stencil,
+                                   CompilationGCOutput& gcOutput) {
   {
     AutoGeckoProfilerEntry pseudoFrame(cx, "stencil instantiate",
                                        JS::ProfilingCategoryPair::JS_Parsing);
 
-    if (!CompilationStencil::instantiateStencils(cx, input, stencil, gcOutput,
-                                                 gcOutputForDelazification)) {
+    if (!CompilationStencil::instantiateStencils(cx, input, stencil,
+                                                 gcOutput)) {
       return false;
     }
   }
@@ -404,15 +403,15 @@ bool frontend::InstantiateStencils(
 
   return true;
 }
-bool frontend::PrepareForInstantiate(
-    JSContext* cx, CompilationInput& input, const CompilationStencil& stencil,
-    CompilationGCOutput& gcOutput,
-    CompilationGCOutput* gcOutputForDelazification) {
+
+bool frontend::PrepareForInstantiate(JSContext* cx, CompilationInput& input,
+                                     const CompilationStencil& stencil,
+                                     CompilationGCOutput& gcOutput) {
   AutoGeckoProfilerEntry pseudoFrame(cx, "stencil instantiate",
                                      JS::ProfilingCategoryPair::JS_Parsing);
 
-  return CompilationStencil::prepareForInstantiate(cx, input, stencil, gcOutput,
-                                                   gcOutputForDelazification);
+  return CompilationStencil::prepareForInstantiate(cx, input, stencil,
+                                                   gcOutput);
 }
 
 template <typename Unit>
@@ -693,12 +692,7 @@ bool frontend::ScriptCompiler<Unit>::compile(JSContext* cx, SharedContext* sc) {
   // Emplace the topLevel stencil
   MOZ_ASSERT(compilationState_.scriptData.length() ==
              CompilationStencil::TopLevelIndex);
-  if (!compilationState_.scriptData.emplaceBack()) {
-    ReportOutOfMemory(cx);
-    return false;
-  }
-  if (!compilationState_.scriptExtra.emplaceBack()) {
-    ReportOutOfMemory(cx);
+  if (!compilationState_.appendScriptStencilAndData(cx)) {
     return false;
   }
 
@@ -747,12 +741,7 @@ bool frontend::ModuleCompiler<Unit>::compile(JSContext* cx) {
   // Emplace the topLevel stencil
   MOZ_ASSERT(compilationState_.scriptData.length() ==
              CompilationStencil::TopLevelIndex);
-  if (!compilationState_.scriptData.emplaceBack()) {
-    ReportOutOfMemory(cx);
-    return false;
-  }
-  if (!compilationState_.scriptExtra.emplaceBack()) {
-    ReportOutOfMemory(cx);
+  if (!compilationState_.appendScriptStencilAndData(cx)) {
     return false;
   }
 
@@ -914,7 +903,7 @@ template <typename Unit>
       return false;
     }
 
-    if (!compiler.stencil().finish(cx, *stencil)) {
+    if (!stencil->steal(cx, std::move(compiler.stencil()))) {
       return false;
     }
 
@@ -1089,22 +1078,25 @@ static bool CompileLazyFunctionImpl(JSContext* cx, CompilationInput& input,
       static_cast<uint32_t>(input.lazy->immutableFlags());
 
   Rooted<CompilationGCOutput> gcOutput(cx);
-  BorrowingCompilationStencil borrowingStencil(compilationState);
-  if (!CompilationStencil::instantiateStencils(cx, input, borrowingStencil,
-                                               gcOutput.get())) {
-    return false;
-  }
-
-  MOZ_ASSERT(lazyFlags == gcOutput.get().script->immutableFlags());
-  MOZ_ASSERT(gcOutput.get().script->outermostScope()->hasOnChain(
-                 ScopeKind::NonSyntactic) ==
-             gcOutput.get().script->immutableFlags().hasFlag(
-                 JSScript::ImmutableFlags::HasNonSyntacticScope));
-
-  if (input.source->hasEncoder()) {
-    MOZ_ASSERT(!js::UseOffThreadParseGlobal());
-    if (!input.source->xdrEncodeFunctionStencil(cx, borrowingStencil)) {
+  {
+    BorrowingCompilationStencil borrowingStencil(compilationState);
+    if (!CompilationStencil::instantiateStencils(cx, input, borrowingStencil,
+                                                 gcOutput.get())) {
       return false;
+    }
+
+    MOZ_ASSERT(lazyFlags == gcOutput.get().script->immutableFlags());
+    MOZ_ASSERT(gcOutput.get().script->outermostScope()->hasOnChain(
+                   ScopeKind::NonSyntactic) ==
+               gcOutput.get().script->immutableFlags().hasFlag(
+                   JSScript::ImmutableFlags::HasNonSyntacticScope));
+
+    if (input.source->hasEncoder()) {
+      MOZ_ASSERT(!js::UseOffThreadParseGlobal());
+      if (!input.source->addDelazificationToIncrementalEncoding(
+              cx, borrowingStencil)) {
+        return false;
+      }
     }
   }
 

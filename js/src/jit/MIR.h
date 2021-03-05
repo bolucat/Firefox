@@ -3149,6 +3149,33 @@ class MCreateInlinedArgumentsObject : public MVariadicInstruction,
   bool canRecoverOnBailout() const override { return true; }
 };
 
+class MGetInlinedArgument : public MVariadicInstruction,
+                            public UnboxedInt32Policy<0>::Data {
+  MGetInlinedArgument() : MVariadicInstruction(classOpcode) {
+    setResultType(MIRType::Value);
+  }
+
+  static const size_t NumNonArgumentOperands = 1;
+
+ public:
+  INSTRUCTION_HEADER(GetInlinedArgument)
+  static MGetInlinedArgument* New(TempAllocator& alloc, MDefinition* index,
+                                  MCreateInlinedArgumentsObject* args);
+  NAMED_OPERANDS((0, index))
+
+  MDefinition* getArg(uint32_t idx) const {
+    return getOperand(idx + NumNonArgumentOperands);
+  }
+  uint32_t numActuals() const { return numOperands() - NumNonArgumentOperands; }
+
+  bool congruentTo(const MDefinition* ins) const override {
+    return congruentIfOperandsEqual(ins);
+  }
+  AliasSet getAliasSet() const override { return AliasSet::None(); }
+
+  MDefinition* foldsTo(TempAllocator& alloc) override;
+};
+
 class MGetArgumentsObjectArg : public MUnaryInstruction,
                                public ObjectPolicy<0>::Data {
   size_t argno_;
@@ -9784,7 +9811,7 @@ class MFunctionEnvironment : public MUnaryInstruction,
   AliasSet getAliasSet() const override { return AliasSet::None(); }
 };
 
-// Allocate a new LexicalEnvironmentObject.
+// Allocate a new BlockLexicalEnvironmentObject.
 class MNewLexicalEnvironmentObject : public MUnaryInstruction,
                                      public SingleObjectPolicy::Data {
   CompilerGCPointer<LexicalScope*> scope_;
@@ -9804,7 +9831,7 @@ class MNewLexicalEnvironmentObject : public MUnaryInstruction,
   AliasSet getAliasSet() const override { return AliasSet::None(); }
 };
 
-// Allocate a new LexicalEnvironmentObject from existing one
+// Allocate a new BlockLexicalEnvironmentObject from an existing one.
 class MCopyLexicalEnvironmentObject : public MUnaryInstruction,
                                       public SingleObjectPolicy::Data {
   bool copySlots_;
@@ -10936,9 +10963,9 @@ class MPostWriteElementBarrier
 };
 
 class MNewNamedLambdaObject : public MNullaryInstruction {
-  CompilerGCPointer<LexicalEnvironmentObject*> templateObj_;
+  CompilerGCPointer<NamedLambdaObject*> templateObj_;
 
-  explicit MNewNamedLambdaObject(LexicalEnvironmentObject* templateObj)
+  explicit MNewNamedLambdaObject(NamedLambdaObject* templateObj)
       : MNullaryInstruction(classOpcode), templateObj_(templateObj) {
     setResultType(MIRType::Object);
   }
@@ -10947,7 +10974,7 @@ class MNewNamedLambdaObject : public MNullaryInstruction {
   INSTRUCTION_HEADER(NewNamedLambdaObject)
   TRIVIAL_NEW_WRAPPERS
 
-  LexicalEnvironmentObject* templateObj() { return templateObj_; }
+  NamedLambdaObject* templateObj() { return templateObj_; }
   AliasSet getAliasSet() const override { return AliasSet::None(); }
 };
 

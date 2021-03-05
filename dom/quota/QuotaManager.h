@@ -233,12 +233,14 @@ class QuotaManager final : public BackgroundThreadObject {
     OriginMetadata mOriginMetadata;
   };
 
+  // XXX Remove aPersistenceType argument once the persistence type is stored
+  // in the metadata file.
   Result<GetDirectoryResultWithOriginMetadata, nsresult>
-  GetDirectoryMetadataWithOriginMetadata2(nsIFile* aDirectory);
+  GetDirectoryMetadataWithOriginMetadata2(nsIFile* aDirectory,
+                                          PersistenceType aPersistenceType);
 
   Result<GetDirectoryResultWithOriginMetadata, nsresult>
-  GetDirectoryMetadataWithOriginMetadata2WithRestore(nsIFile* aDirectory,
-                                                     bool aPersistent);
+  GetDirectoryMetadataWithOriginMetadata2WithRestore(nsIFile* aDirectory);
 
   // This is the main entry point into the QuotaManager API.
   // Any storage API implementation (quota client) that participates in
@@ -375,7 +377,7 @@ class QuotaManager final : public BackgroundThreadObject {
 
   uint64_t GetGroupUsage(const nsACString& aGroup);
 
-  uint64_t GetOriginUsage(const OriginMetadata& aOriginMetadata);
+  uint64_t GetOriginUsage(const PrincipalMetadata& aPrincipalMetadata);
 
   void NotifyStoragePressure(uint64_t aUsage);
 
@@ -392,13 +394,13 @@ class QuotaManager final : public BackgroundThreadObject {
 
   static bool IsPrincipalInfoValid(const PrincipalInfo& aPrincipalInfo);
 
-  static OriginMetadata GetInfoFromValidatedPrincipalInfo(
+  static PrincipalMetadata GetInfoFromValidatedPrincipalInfo(
       const PrincipalInfo& aPrincipalInfo);
 
   static nsAutoCString GetOriginFromValidatedPrincipalInfo(
       const PrincipalInfo& aPrincipalInfo);
 
-  static Result<OriginMetadata, nsresult> GetInfoFromPrincipal(
+  static Result<PrincipalMetadata, nsresult> GetInfoFromPrincipal(
       nsIPrincipal* aPrincipal);
 
   static Result<nsAutoCString, nsresult> GetOriginFromPrincipal(
@@ -409,7 +411,7 @@ class QuotaManager final : public BackgroundThreadObject {
 
   static nsLiteralCString GetOriginForChrome();
 
-  static OriginMetadata GetInfoForChrome();
+  static PrincipalMetadata GetInfoForChrome();
 
   static bool IsOriginInternal(const nsACString& aOrigin);
 
@@ -443,7 +445,8 @@ class QuotaManager final : public BackgroundThreadObject {
                                   const OriginMetadata& aOriginMetadata);
 
   already_AddRefed<GroupInfo> LockedGetOrCreateGroupInfo(
-      PersistenceType aPersistenceType, const nsACString& aGroup);
+      PersistenceType aPersistenceType, const nsACString& aSuffix,
+      const nsACString& aGroup);
 
   already_AddRefed<OriginInfo> LockedGetOriginInfo(
       PersistenceType aPersistenceType, const OriginMetadata& aOriginMetadata);

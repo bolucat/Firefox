@@ -13,6 +13,7 @@
 #include "jit/MIR.h"
 #include "jit/MIRGenerator.h"
 #include "jit/MIRGraph.h"
+#include "jit/WarpBuilderShared.h"
 #include "vm/ArgumentsObject.h"
 
 #include "vm/JSObject-inl.h"
@@ -1292,15 +1293,8 @@ bool ArgumentsReplacer::escapes(MInstruction* ins) {
       // This is a replaceable consumer.
       case MDefinition::Opcode::ArgumentsObjectLength:
       case MDefinition::Opcode::GetArgumentsObjectArg:
-        break;
-
-      // This is a replaceable consumer that is not yet supported
-      // for |arguments| of inlined functions.
-      case MDefinition::Opcode::LoadArgumentsObjectArg:
       case MDefinition::Opcode::ApplyArgsObj:
-        if (!args_->isCreateArgumentsObject()) {
-          return true;
-        }
+      case MDefinition::Opcode::LoadArgumentsObjectArg:
         break;
 
       // This instruction is a no-op used to test that scalar replacement
@@ -1456,27 +1450,41 @@ void ArgumentsReplacer::visitLoadArgumentsObjectArg(
     return;
   }
 
-  // TODO: Support inlined arguments.
-  MOZ_ASSERT(!isInlinedArguments());
-
   MDefinition* index = ins->index();
 
-  // Insert bounds check.
-  auto* length = MArgumentsLength::New(alloc());
-  ins->block()->insertBefore(ins, length);
+  MInstruction* loadArg;
+  if (isInlinedArguments()) {
+    auto* actualArgs = args_->toCreateInlinedArgumentsObject();
 
-  MInstruction* check = MBoundsCheck::New(alloc(), index, length);
-  ins->block()->insertBefore(ins, check);
+    // TODO: optimize for constant indices.
 
-  // TODO: Set special bailout kind?
-  check->setBailoutKind(ins->bailoutKind());
+    // Insert bounds check.
+    auto* length =
+        MConstant::New(alloc(), Int32Value(actualArgs->numActuals()));
+    ins->block()->insertBefore(ins, length);
 
-  if (JitOptions.spectreIndexMasking) {
-    check = MSpectreMaskIndex::New(alloc(), check, length);
+    MInstruction* check = MBoundsCheck::New(alloc(), index, length);
+    check->setBailoutKind(ins->bailoutKind());
     ins->block()->insertBefore(ins, check);
-  }
 
-  auto* loadArg = MGetFrameArgument::New(alloc(), check);
+    loadArg = MGetInlinedArgument::New(alloc(), check, actualArgs);
+  } else {
+    // Insert bounds check.
+    auto* length = MArgumentsLength::New(alloc());
+    ins->block()->insertBefore(ins, length);
+
+    MInstruction* check = MBoundsCheck::New(alloc(), index, length);
+    ins->block()->insertBefore(ins, check);
+
+    check->setBailoutKind(ins->bailoutKind());
+
+    if (JitOptions.spectreIndexMasking) {
+      check = MSpectreMaskIndex::New(alloc(), check, length);
+      ins->block()->insertBefore(ins, check);
+    }
+
+    loadArg = MGetFrameArgument::New(alloc(), check);
+  }
   ins->block()->insertBefore(ins, loadArg);
   ins->replaceAllUsesWith(loadArg);
 
@@ -1511,26 +1519,52 @@ void ArgumentsReplacer::visitApplyArgsObj(MApplyArgsObj* ins) {
     return;
   }
 
-  // TODO: Support inlined arguments.
-  MOZ_ASSERT(!isInlinedArguments());
+  MInstruction* newIns;
+  if (isInlinedArguments()) {
+    auto* actualArgs = args_->toCreateInlinedArgumentsObject();
+    CallInfo callInfo(alloc(), /*constructing=*/false,
+                      ins->ignoresReturnValue());
 
-  auto* numArgs = MArgumentsLength::New(alloc());
-  ins->block()->insertBefore(ins, numArgs);
+    callInfo.initForApplyInlinedArgs(ins->getFunction(), ins->getThis(),
+                                     actualArgs->numActuals());
+    for (uint32_t i = 0; i < actualArgs->numActuals(); i++) {
+      callInfo.initArg(i, actualArgs->getArg(i));
+    }
 
-  // TODO: Should we rename MApplyArgs?
-  auto* apply = MApplyArgs::New(alloc(), ins->getSingleTarget(),
-                                ins->getFunction(), numArgs, ins->getThis());
-  if (!ins->maybeCrossRealm()) {
-    apply->setNotCrossRealm();
+    auto addUndefined = [this, &ins]() -> MConstant* {
+      MConstant* undef = MConstant::New(alloc(), UndefinedValue());
+      ins->block()->insertBefore(ins, undef);
+      return undef;
+    };
+
+    bool needsThisCheck = false;
+    bool isDOMCall = false;
+    auto* call = MakeCall(alloc(), addUndefined, callInfo, needsThisCheck,
+                          ins->getSingleTarget(), isDOMCall);
+    if (!ins->maybeCrossRealm()) {
+      call->setNotCrossRealm();
+    }
+    newIns = call;
+  } else {
+    auto* numArgs = MArgumentsLength::New(alloc());
+    ins->block()->insertBefore(ins, numArgs);
+
+    // TODO: Should we rename MApplyArgs?
+    auto* apply = MApplyArgs::New(alloc(), ins->getSingleTarget(),
+                                  ins->getFunction(), numArgs, ins->getThis());
+    if (!ins->maybeCrossRealm()) {
+      apply->setNotCrossRealm();
+    }
+    if (ins->ignoresReturnValue()) {
+      apply->setIgnoresReturnValue();
+    }
+    newIns = apply;
   }
-  if (ins->ignoresReturnValue()) {
-    apply->setIgnoresReturnValue();
-  }
 
-  ins->block()->insertBefore(ins, apply);
-  ins->replaceAllUsesWith(apply);
+  ins->block()->insertBefore(ins, newIns);
+  ins->replaceAllUsesWith(newIns);
 
-  apply->stealResumePoint(ins);
+  newIns->stealResumePoint(ins);
   ins->block()->discard(ins);
 }
 

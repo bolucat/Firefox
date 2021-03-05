@@ -6448,7 +6448,7 @@ static bool FindLineFor(nsIFrame* aChild, const nsFrameList& aFrameList,
 void nsBlockFrame::StealFrame(nsIFrame* aChild) {
   MOZ_ASSERT(aChild->GetParent() == this);
 
-  if (aChild->HasAnyStateBits(NS_FRAME_OUT_OF_FLOW) && aChild->IsFloating()) {
+  if (aChild->IsFloating()) {
     RemoveFloat(aChild);
     return;
   }
@@ -7207,8 +7207,7 @@ nsLineBox* nsBlockFrame::GetFirstLineContaining(nscoord y) {
 /* virtual */
 void nsBlockFrame::ChildIsDirty(nsIFrame* aChild) {
   // See if the child is absolutely positioned
-  if (aChild->HasAnyStateBits(NS_FRAME_OUT_OF_FLOW) &&
-      aChild->IsAbsolutelyPositioned()) {
+  if (aChild->IsAbsolutelyPositioned()) {
     // do nothing
   } else if (aChild == GetOutsideMarker()) {
     // The ::marker lives in the first line, unless the first line has

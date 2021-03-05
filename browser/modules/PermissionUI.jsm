@@ -97,6 +97,13 @@ XPCOMUtils.defineLazyGetter(this, "gBrowserBundle", function() {
   );
 });
 
+XPCOMUtils.defineLazyPreferenceGetter(
+  this,
+  "protonDoorhangersEnabled",
+  "browser.proton.doorhangers.enabled",
+  false
+);
+
 var PermissionUI = {};
 
 /**
@@ -589,6 +596,10 @@ var PermissionPromptPrototype = {
       options.hideClose = true;
     }
 
+    if (protonDoorhangersEnabled && !options.hasOwnProperty("opinionated")) {
+      options.opinionated = false;
+    }
+
     options.eventCallback = (topic, nextRemovalReason, isCancel) => {
       // When the docshell of the browser is aboout to be swapped to another one,
       // the "swapping" event is called. Returning true causes the notification
@@ -742,17 +753,17 @@ GeolocationPermissionPrompt.prototype = {
 
   get message() {
     if (this.principal.schemeIs("file")) {
-      return gBrowserBundle.GetStringFromName("geolocation.shareWithFile3");
+      return gBrowserBundle.GetStringFromName("geolocation.shareWithFile4");
     }
 
     if (this.request.maybeUnsafePermissionDelegate) {
       return gBrowserBundle.formatStringFromName(
-        "geolocation.shareWithSiteUnsafeDelegation",
+        "geolocation.shareWithSiteUnsafeDelegation2",
         ["<>", "{}"]
       );
     }
 
-    return gBrowserBundle.formatStringFromName("geolocation.shareWithSite3", [
+    return gBrowserBundle.formatStringFromName("geolocation.shareWithSite4", [
       "<>",
     ]);
   },
@@ -760,18 +771,16 @@ GeolocationPermissionPrompt.prototype = {
   get promptActions() {
     return [
       {
-        label: gBrowserBundle.GetStringFromName("geolocation.allowLocation"),
+        label: gBrowserBundle.GetStringFromName("geolocation.allow"),
         accessKey: gBrowserBundle.GetStringFromName(
-          "geolocation.allowLocation.accesskey"
+          "geolocation.allow.accesskey"
         ),
         action: SitePermissions.ALLOW,
       },
       {
-        label: gBrowserBundle.GetStringFromName(
-          "geolocation.dontAllowLocation"
-        ),
+        label: gBrowserBundle.GetStringFromName("geolocation.block"),
         accessKey: gBrowserBundle.GetStringFromName(
-          "geolocation.dontAllowLocation.accesskey"
+          "geolocation.block.accesskey"
         ),
         action: SitePermissions.BLOCK,
       },
@@ -1074,11 +1083,24 @@ PersistentStoragePermissionPrompt.prototype = {
     let learnMoreURL =
       Services.urlFormatter.formatURLPref("app.support.baseURL") +
       "storage-permissions";
-    return {
+    let options = {
       learnMoreURL,
       displayURI: false,
       name: this.getPrincipalName(),
+      checkbox: {
+        show:
+          !this.principal.schemeIs("file") &&
+          !PrivateBrowsingUtils.isWindowPrivate(this.browser.ownerGlobal),
+      },
     };
+
+    if (options.checkbox.show) {
+      options.checkbox.label = gBrowserBundle.GetStringFromName(
+        "persistentStorage.remember"
+      );
+    }
+
+    return options;
   },
 
   get notificationID() {
@@ -1091,7 +1113,7 @@ PersistentStoragePermissionPrompt.prototype = {
 
   get message() {
     return gBrowserBundle.formatStringFromName(
-      "persistentStorage.allowWithSite",
+      "persistentStorage.allowWithSite2",
       ["<>"]
     );
   },
@@ -1108,22 +1130,12 @@ PersistentStoragePermissionPrompt.prototype = {
       },
       {
         label: gBrowserBundle.GetStringFromName(
-          "persistentStorage.notNow.label"
+          "persistentStorage.block.label"
         ),
         accessKey: gBrowserBundle.GetStringFromName(
-          "persistentStorage.notNow.accesskey"
-        ),
-        action: Ci.nsIPermissionManager.DENY_ACTION,
-      },
-      {
-        label: gBrowserBundle.GetStringFromName(
-          "persistentStorage.neverAllow.label"
-        ),
-        accessKey: gBrowserBundle.GetStringFromName(
-          "persistentStorage.neverAllow.accesskey"
+          "persistentStorage.block.accesskey"
         ),
         action: SitePermissions.BLOCK,
-        scope: SitePermissions.SCOPE_PERSISTENT,
       },
     ];
   },
@@ -1199,24 +1211,18 @@ MIDIPermissionPrompt.prototype = {
     let message;
     if (this.principal.schemeIs("file")) {
       if (this.isSysexPerm) {
-        message = gBrowserBundle.formatStringFromName(
-          "midi.shareSysexWithFile.message"
-        );
+        message = gBrowserBundle.GetStringFromName("midi.shareSysexWithFile");
       } else {
-        message = gBrowserBundle.formatStringFromName(
-          "midi.shareWithFile.message"
-        );
+        message = gBrowserBundle.GetStringFromName("midi.shareWithFile");
       }
     } else if (this.isSysexPerm) {
-      message = gBrowserBundle.formatStringFromName(
-        "midi.shareSysexWithSite.message",
-        ["<>"]
-      );
+      message = gBrowserBundle.formatStringFromName("midi.shareSysexWithSite", [
+        "<>",
+      ]);
     } else {
-      message = gBrowserBundle.formatStringFromName(
-        "midi.shareWithSite.message",
-        ["<>"]
-      );
+      message = gBrowserBundle.formatStringFromName("midi.shareWithSite", [
+        "<>",
+      ]);
     }
     return message;
   },
@@ -1224,13 +1230,13 @@ MIDIPermissionPrompt.prototype = {
   get promptActions() {
     return [
       {
-        label: gBrowserBundle.GetStringFromName("midi.Allow.label"),
-        accessKey: gBrowserBundle.GetStringFromName("midi.Allow.accesskey"),
+        label: gBrowserBundle.GetStringFromName("midi.allow.label"),
+        accessKey: gBrowserBundle.GetStringFromName("midi.allow.accesskey"),
         action: Ci.nsIPermissionManager.ALLOW_ACTION,
       },
       {
-        label: gBrowserBundle.GetStringFromName("midi.DontAllow.label"),
-        accessKey: gBrowserBundle.GetStringFromName("midi.DontAllow.accesskey"),
+        label: gBrowserBundle.GetStringFromName("midi.block.label"),
+        accessKey: gBrowserBundle.GetStringFromName("midi.block.accesskey"),
         action: Ci.nsIPermissionManager.DENY_ACTION,
       },
     ];

@@ -161,6 +161,7 @@
 
 namespace mozilla {
 namespace dom {
+class AutoEntryScript;
 class Exception;
 }  // namespace dom
 }  // namespace mozilla
@@ -2259,10 +2260,8 @@ struct GlobalProperties {
   bool indexedDB : 1;
   bool isSecureContext : 1;
   bool rtcIdentityProvider : 1;
-#ifdef MOZ_GLEAN
   bool glean : 1;
   bool gleanPings : 1;
-#endif
 
  private:
   bool Define(JSContext* cx, JS::HandleObject obj);

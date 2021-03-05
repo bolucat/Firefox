@@ -6,7 +6,7 @@
    on extra theming and proton variables that would need to be
    injected into the sidebar. */
 
-@supports -moz-bool-pref("browser.proton.tabs.enabled") {
+@supports -moz-bool-pref("browser.proton.places-tooltip.enabled") {
 .places-tooltip {
   appearance: none;
   background: transparent;
@@ -33,6 +33,22 @@
 .places-tooltip-title {
   font-weight: 600;
   font-size: 1.1em;
+
+  /* Clip after 2 lines, this should ideally use a different method like -webkit-line-clamp or
+     overflow: hidden; to get ellipsis support but XUL tooltip sizing makes that difficult. */
+  max-height: 2.5em;
+  overflow-y: clip;
+}
+
+#places-tooltip-insecure-icon {
+  /* Using the same broken-lock icon as the main identity-block styles. */
+  list-style-image: url(chrome://global/skin/icons/connection-mixed-active-loaded.svg);
+  -moz-context-properties: fill;
+  fill: currentColor;
+  width: 1em;
+  height: 1em;
+  margin-inline-start: 0;
+  margin-inline-end: .2em;
 }
 
 .places-tooltip-uri {

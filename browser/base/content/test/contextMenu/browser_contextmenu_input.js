@@ -225,8 +225,6 @@ add_task(
           null,
           "---",
           null,
-          "context-viewbgimage",
-          false,
           "context-selectall",
           null,
           "---",

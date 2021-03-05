@@ -17,6 +17,10 @@ const MANIFEST = {
     description: "The about:welcome page",
     enabledFallbackPref: "browser.aboutwelcome.enabled",
     variables: {
+      screens: {
+        type: "json",
+        fallbackPref: "browser.aboutwelcome.screens",
+      },
       skipFocus: {
         type: "boolean",
         fallbackPref: "browser.aboutwelcome.skipFocus",
@@ -74,6 +78,7 @@ XPCOMUtils.defineLazyPreferenceGetter(
 );
 const EXPOSURE_EVENT_CATEGORY = "normandy";
 const EXPOSURE_EVENT_METHOD = "expose";
+const EXPOSURE_EVENT_OBJECT = "nimbus_experiment";
 
 function parseJSON(value) {
   if (value) {
@@ -122,7 +127,7 @@ const ExperimentAPI = {
       return {
         slug: experimentData.slug,
         active: experimentData.active,
-        branch: this.activateBranch({ featureId, sendExposureEvent }),
+        branch: this.activateBranch({ slug, featureId, sendExposureEvent }),
       };
     }
 
@@ -298,7 +303,7 @@ const ExperimentAPI = {
       Services.telemetry.recordEvent(
         EXPOSURE_EVENT_CATEGORY,
         EXPOSURE_EVENT_METHOD,
-        "feature_study",
+        EXPOSURE_EVENT_OBJECT,
         experimentSlug,
         {
           branchSlug,

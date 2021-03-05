@@ -32,9 +32,9 @@ class nsIWidget;
 
 // Once instantiated, this object lives until its DOM node or its parent window is destroyed.
 // Do not hold references to this, they can become invalid any time the DOM node can be destroyed.
-class nsMenuX : public nsMenuObjectX, public nsChangeObserver {
+class nsMenuX final : public nsMenuObjectX, public nsChangeObserver {
  public:
-  nsMenuX();
+  nsMenuX(nsMenuObjectX* aParent, nsMenuGroupOwnerX* aMenuGroupOwner, nsIContent* aContent);
   virtual ~nsMenuX();
 
   // If > 0, the OS is indexing all the app's menus (triggered by opening
@@ -51,15 +51,21 @@ class nsMenuX : public nsMenuObjectX, public nsChangeObserver {
 
   // nsMenuX
   nsresult Create(nsMenuObjectX* aParent, nsMenuGroupOwnerX* aMenuGroupOwner, nsIContent* aNode);
-  uint32_t GetItemCount();
+
+  // The returned object is an nsMenuX or an nsMenuItemX object
   nsMenuObjectX* GetItemAt(uint32_t aPos);
-  nsresult GetVisibleItemCount(uint32_t& aCount);
+  uint32_t GetItemCount();
+
+  // The returned object is an nsMenuX or an nsMenuItemX object
   nsMenuObjectX* GetVisibleItemAt(uint32_t aPos);
+  nsresult GetVisibleItemCount(uint32_t& aCount);
+
   nsEventStatus MenuOpened();
   void MenuClosed();
   void SetRebuild(bool aMenuEvent);
   NSMenuItem* NativeMenuItem();
   nsresult SetupIcon();
+  nsIContent* Content() { return mContent; }
 
   static bool IsXULHelpMenu(nsIContent* aMenuContent);
 
@@ -68,31 +74,35 @@ class nsMenuX : public nsMenuObjectX, public nsChangeObserver {
   nsresult RemoveAll();
   nsresult SetEnabled(bool aIsEnabled);
   nsresult GetEnabled(bool* aIsEnabled);
-  void GetMenuPopupContent(nsIContent** aResult);
+  already_AddRefed<nsIContent> GetMenuPopupContent();
   bool OnOpen();
   bool OnClose();
-  nsresult AddMenuItem(nsMenuItemX* aMenuItem);
-  nsMenuX* AddMenu(mozilla::UniquePtr<nsMenuX> aMenu);
-  void LoadMenuItem(nsIContent* inMenuItemContent);
-  void LoadSubMenu(nsIContent* inMenuContent);
-  GeckoNSMenu* CreateMenuWithGeckoString(nsString& menuTitle);
+  void AddMenuItem(mozilla::UniquePtr<nsMenuItemX>&& aMenuItem);
+  void AddMenu(mozilla::UniquePtr<nsMenuX>&& aMenu);
+  void LoadMenuItem(nsIContent* aMenuItemContent);
+  void LoadSubMenu(nsIContent* aMenuContent);
+  GeckoNSMenu* CreateMenuWithGeckoString(nsString& aMenuTitle);
 
+  nsCOMPtr<nsIContent> mContent;  // XUL <menu> or <menupopup>
+
+  // Contains nsMenuX and nsMenuItemX objects
   nsTArray<mozilla::UniquePtr<nsMenuObjectX>> mMenuObjectsArray;
+
   nsString mLabel;
-  uint32_t mVisibleItemsCount;         // cache
-  nsMenuObjectX* mParent;              // [weak]
-  nsMenuGroupOwnerX* mMenuGroupOwner;  // [weak]
-  // The icon object should never outlive its creating nsMenuX object.
-  RefPtr<nsMenuItemIconX> mIcon;  // [strong]
-  GeckoNSMenu* mNativeMenu;       // [strong]
-  MenuDelegate* mMenuDelegate;    // [strong]
+  uint32_t mVisibleItemsCount = 0;               // cache
+  nsMenuObjectX* mParent = nullptr;              // [weak]
+  nsMenuGroupOwnerX* mMenuGroupOwner = nullptr;  // [weak]
+  mozilla::UniquePtr<nsMenuItemIconX> mIcon;
+  GeckoNSMenu* mNativeMenu = nil;     // [strong]
+  MenuDelegate* mMenuDelegate = nil;  // [strong]
   // nsMenuX objects should always have a valid native menu item.
-  NSMenuItem* mNativeMenuItem;  // [strong]
-  bool mIsEnabled;
-  bool mDestroyHandlerCalled;
-  bool mNeedsRebuild;
-  bool mConstructed;
-  bool mVisible;
+  NSMenuItem* mNativeMenuItem = nil;  // [strong]
+  bool mIsEnabled = true;
+  bool mDidFirePopupHiding = false;
+  bool mDidFirePopupHidden = false;
+  bool mNeedsRebuild = true;
+  bool mConstructed = false;
+  bool mVisible = true;
 };
 
 #endif  // nsMenuX_h_

@@ -86,6 +86,7 @@
 #include "mozilla/UniquePtr.h"
 #include "mozilla/Unused.h"
 #include "mozilla/dom/AudioContext.h"
+#include "mozilla/dom/AutoEntryScript.h"
 #include "mozilla/dom/BarProps.h"
 #include "mozilla/dom/BindingDeclarations.h"
 #include "mozilla/dom/BindingUtils.h"
@@ -1309,10 +1310,8 @@ void nsGlobalWindowInner::FreeInnerObjects() {
   mSpeechSynthesis = nullptr;
 #endif
 
-#ifdef MOZ_GLEAN
   mGlean = nullptr;
   mGleanPings = nullptr;
-#endif
 
   mParentTarget = nullptr;
 
@@ -1404,10 +1403,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsGlobalWindowInner)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSpeechSynthesis)
 #endif
 
-#ifdef MOZ_GLEAN
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mGlean)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mGleanPings)
-#endif
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mOuterWindow)
 
@@ -1502,10 +1499,8 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGlobalWindowInner)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mSpeechSynthesis)
 #endif
 
-#ifdef MOZ_GLEAN
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mGlean)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mGleanPings)
-#endif
 
   if (tmp->mOuterWindow) {
     nsGlobalWindowOuter::Cast(tmp->mOuterWindow)->MaybeClearInnerWindow(tmp);
@@ -2826,7 +2821,6 @@ bool nsGlobalWindowInner::HasActiveSpeechSynthesis() {
 
 #endif
 
-#ifdef MOZ_GLEAN
 mozilla::glean::Glean* nsGlobalWindowInner::Glean() {
   if (!mGlean) {
     mGlean = new mozilla::glean::Glean();
@@ -2842,7 +2836,6 @@ mozilla::glean::GleanPings* nsGlobalWindowInner::GleanPings() {
 
   return mGleanPings;
 }
-#endif
 
 Nullable<WindowProxyHolder> nsGlobalWindowInner::GetParent(
     ErrorResult& aError) {

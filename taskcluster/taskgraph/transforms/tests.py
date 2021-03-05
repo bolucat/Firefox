@@ -34,7 +34,7 @@ from voluptuous import (
 
 import taskgraph
 from taskgraph.transforms.base import TransformSequence
-from taskgraph.util.attributes import match_run_on_projects, keymatch
+from taskgraph.util.attributes import keymatch
 from taskgraph.util.keyed_by import evaluate_keyed_by
 from taskgraph.util.templates import merge
 from taskgraph.util.treeherder import split_symbol, join_symbol
@@ -159,20 +159,12 @@ MACOSX_WORKER_TYPES = {
 }
 
 
-def runs_on_central(task):
-    return match_run_on_projects("mozilla-central", task["run-on-projects"])
-
-
 def gv_e10s_filter(task):
     return get_mobile_project(task) == "geckoview" and task["e10s"]
 
 
 def fission_filter(task):
-    return (
-        runs_on_central(task)
-        and task.get("e10s") in (True, "both")
-        and get_mobile_project(task) != "fennec"
-    )
+    return task.get("e10s") in (True, "both") and get_mobile_project(task) != "fennec"
 
 
 TEST_VARIANTS = {
@@ -417,7 +409,7 @@ test_description_schema = Schema(
         # tasks will ignore `run_on_projects` and non-Fission tasks will ignore
         # `fission-run-on-projects`.
         Optional("fission-run-on-projects"): optionally_keyed_by(
-            "test-platform", Any([text_type], "built-projects")
+            "test-name", "test-platform", Any([text_type], "built-projects")
         ),
         # the sheriffing tier for this task (default: set based on test platform)
         Optional("tier"): optionally_keyed_by("test-platform", Any(int, "default")),

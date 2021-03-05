@@ -220,17 +220,6 @@ button > hbox > label {
   list-style-image: url("chrome://browser/skin/preferences/experiments.svg");
 }
 
-/* header */
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.header[hidden=true] {
-  display: none;
-}
-
 /* All panes */
 
 .info-icon,
@@ -288,11 +277,9 @@ button > hbox > label {
 }
 
 .extension-controlled-disabled {
-  -moz-context-properties: fill, fill-opacity, stroke-opacity;
+  -moz-context-properties: fill;
   color: GrayText;
   fill: currentColor;
-  fill-opacity: 1;
-  stroke-opacity: 1;
 }
 
 .extension-controlled-disabled > .extension-controlled-button {
@@ -598,10 +585,10 @@ button > hbox > label {
 
 .close-icon {
   border: none;
-  background: none !important;
+  background-color: transparent; /* override common.css, but keep hover/active states */
   min-width: 0;
   min-height: auto;
-  padding-inline: 0;
+  padding: 0;
   margin-inline: 0 8px;
 }
 

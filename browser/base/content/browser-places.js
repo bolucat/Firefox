@@ -972,13 +972,13 @@ var BookmarksEventHandler = {
     let tooltipTitle = aEvent.target.querySelector(".places-tooltip-title");
     tooltipTitle.hidden = !title || title == url;
     if (!tooltipTitle.hidden) {
-      // Use `value` instead of `textContent` so cropping will apply
-      tooltipTitle.value = title;
+      tooltipTitle.textContent = title;
     }
 
     let tooltipUrl = aEvent.target.querySelector(".places-tooltip-uri");
     tooltipUrl.hidden = !url;
     if (!tooltipUrl.hidden) {
+      // Use `value` instead of `textContent` so cropping will apply
       tooltipUrl.value = url;
     }
 
@@ -1918,7 +1918,7 @@ var BookmarkingUI = {
     this.updateEmptyToolbarMessage();
     this.star.addEventListener("mouseover", this, { once: true });
 
-    if (gProtonTabs) {
+    if (gProtonPlacesTooltip) {
       let bhTooltip = document.getElementById("bhTooltip");
       bhTooltip.setAttribute("position", "after_start");
     }

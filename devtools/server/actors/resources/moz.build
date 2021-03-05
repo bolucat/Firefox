@@ -18,12 +18,14 @@ DevToolsModules(
     "network-events-stacktraces.js",
     "network-events.js",
     "platform-messages.js",
+    "server-sent-events.js",
     "sources.js",
     "storage-cache.js",
     "storage-local-storage.js",
     "storage-session-storage.js",
     "stylesheets.js",
     "thread-states.js",
+    "websockets.js",
 )
 
 with Files("*-messages.js"):

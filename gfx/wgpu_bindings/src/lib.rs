@@ -59,6 +59,12 @@ impl ByteBuf {
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
+enum ShaderModuleSource<'a> {
+    SpirV(Cow<'a, [u32]>),
+    Wgsl(Cow<'a, str>),
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
 struct ImplicitLayout<'a> {
     pipeline: id::PipelineLayoutId,
     bind_groups: Cow<'a, [id::BindGroupLayoutId]>,
@@ -78,7 +84,11 @@ enum DeviceAction<'a> {
         wgc::binding_model::PipelineLayoutDescriptor<'a>,
     ),
     CreateBindGroup(id::BindGroupId, wgc::binding_model::BindGroupDescriptor<'a>),
-    CreateShaderModule(id::ShaderModuleId, Cow<'a, [u32]>, Cow<'a, str>),
+    CreateShaderModule(
+        id::ShaderModuleId,
+        wgc::pipeline::ShaderModuleDescriptor<'a>,
+        ShaderModuleSource<'a>,
+    ),
     CreateComputePipeline(
         id::ComputePipelineId,
         wgc::pipeline::ComputePipelineDescriptor<'a>,
@@ -98,6 +108,19 @@ enum DeviceAction<'a> {
         id::CommandEncoderId,
         wgt::CommandEncoderDescriptor<wgc::Label<'a>>,
     ),
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+enum QueueWriteAction {
+    Buffer {
+        dst: id::BufferId,
+        offset: wgt::BufferAddress,
+    },
+    Texture {
+        dst: wgt::TextureCopyView<id::TextureId>,
+        layout: wgt::TextureDataLayout,
+        size: wgt::Extent3d,
+    },
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]

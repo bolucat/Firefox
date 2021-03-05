@@ -7,7 +7,7 @@
 %define fieldBorderColor hsla(240,5%,5%,.25)
 %define fieldHoverBorderColor hsla(240,5%,5%,.35)
 %define urlbarMarginInline 5px
-%define urlbarSearchButtonWidth calc(16px + 2 * @identityBoxPaddingInline@)
+%define urlbarSearchButtonWidth calc(16px + 2 * var(--identity-box-padding-inline))
 
 :root {
   /* 28x28 box - 16x16 image = 12x12 padding, 6 on each side */
@@ -17,12 +17,14 @@
 @supports not -moz-bool-pref("browser.proton.urlbar.enabled") {
 :root {
   --toolbar-field-focus-border-color: -moz-accent-color;
+  --urlbar-container-padding: 0;
 }
 } /*** END !proton ***/
 
 @supports -moz-bool-pref("browser.proton.urlbar.enabled") {
 :root {
   --toolbar-field-focus-border-color: var(--focus-outline-color);
+  --urlbar-container-padding: 2px;
 }
 /* Override this value in the default dark theme. This value should be moved
     to default-theme/manifest.json when the Proton prefs are removed. */
@@ -242,6 +244,7 @@
 #urlbar-input-container {
   /* Match urlbar-background's border. */
   border: 1px solid transparent;
+  padding: var(--urlbar-container-padding);
 }
 
 #urlbar-container[breakout] {
@@ -309,8 +312,8 @@
 @supports -moz-bool-pref("browser.proton.urlbar.enabled") {
 #urlbar[breakout][breakout-extend] > #urlbar-input-container {
   height: var(--urlbar-toolbar-height);
-  padding-block: calc((var(--urlbar-toolbar-height) - var(--urlbar-height)) / 2);
-  padding-inline: @urlbarMarginInline@;
+  padding-block: calc((var(--urlbar-toolbar-height) - var(--urlbar-height)) / 2 + var(--urlbar-container-padding));
+  padding-inline: calc(@urlbarMarginInline@ + var(--urlbar-container-padding));
 }
 } /*** END proton ***/
 
@@ -377,18 +380,22 @@
 /* Urlbar search mode indicator */
 #urlbar-search-mode-indicator {
   display: none;
-  -moz-outline-radius: 2px;
+  background-color: var(--urlbar-box-bg-overlay);
   margin-inline-end: 8px;
-  min-width: 16px; /* So the close button never causes motion */
   align-items: center;
+  border-radius: var(--toolbarbutton-border-radius);
+  padding-inline: 8px 3px;
+}
 
+@supports not -moz-bool-pref("browser.proton.urlbar.enabled") {
+#urlbar-search-mode-indicator {
+  -moz-outline-radius: 2px;
+  min-width: 16px; /* So the close button never causes motion */
   background-color: #d6ebff;
   outline: 1px solid #0060df; /* Blue 60 */
   color: #0060df; /* Blue 60 */
-}
-
-#urlbar[searchmode][breakout-extend] > #urlbar-input-container > #urlbar-search-mode-indicator {
-  display: inline-flex;
+  border-radius: 0;
+  padding-inline: 0;
 }
 
 /* Invert the colors in the search mode indicator in dark mode. */
@@ -396,6 +403,11 @@
   background-color: #0060df;
   outline-color: #d6ebff;
   color: #d6ebff;
+}
+} /*** END !proton ***/
+
+#urlbar[searchmode][breakout-extend] > #urlbar-input-container > #urlbar-search-mode-indicator {
+  display: inline-flex;
 }
 
 /* Use system colors for low/high contrast mode */
@@ -408,58 +420,68 @@
 }
 
 #urlbar-search-mode-indicator-title {
-  padding-inline: 5px;
+  padding-inline: 0 4px;
+  opacity: var(--identity-box-label-opacity);
 }
+@supports not -moz-bool-pref("browser.proton.urlbar.enabled") {
+#urlbar-search-mode-indicator-title {
+  padding-inline: 5px;
+  opacity: 1;
+}
+} /*** END !proton ***/
 
 #urlbar-search-mode-indicator-close {
-  display: none;
   background: url(chrome://global/skin/icons/close.svg) no-repeat center;
-  background-size: 100% 16px;
+  background-size: 14px 14px;
   width: 16px;
   height: 100%;
+  -moz-context-properties: fill, fill-opacity;
+  fill-opacity: 0.6;
+  stroke-opacity: var(--identity-box-label-opacity);
+  fill: var(--lwt-toolbar-field-focus-color);
+}
+
+@supports -moz-bool-pref("browser.proton.urlbar.enabled") {
+#urlbar-search-mode-indicator-close {
+  height: 16px;
+  border-radius: var(--toolbarbutton-border-radius);
+}
+#urlbar-search-mode-indicator-close:hover {
+  background-color: hsla(0,0%,70%,.2);
+}
+#urlbar-search-mode-indicator-close:hover:active {
+  background-color: hsla(0,0%,70%,.3);
+}
+} /*** END proton ***/
+
+@media (prefers-contrast) {
+  #urlbar-search-mode-indicator-close {
+    fill-opacity: 1.0;
+  }
+  @supports -moz-bool-pref("browser.proton.urlbar.enabled") {
+  #urlbar-search-mode-indicator-close {
+    fill: HighlightText;
+  }
+  } /*** END proton ***/
+}
+
+@supports not -moz-bool-pref("browser.proton.urlbar.enabled") {
+#urlbar-search-mode-indicator-close {
+  display: none;
   margin-inline-start: -16px;
-  -moz-context-properties: fill, fill-opacity, stroke-opacity;
-  fill-opacity: 0;
-  stroke-opacity: 0.6;
-  /* fill and background-color should match the urlbar focused color and
-     background. */
-  fill: FieldText;
+  /* background-color should match the urlbar background. */
   background-color: Field;
 }
 
 #urlbar-search-mode-indicator-close:-moz-lwtheme {
-  /* fill and background-color should match the urlbar focused color and
-     background. */
-  fill: var(--lwt-toolbar-field-focus-color);
+  /* Background-color should match the urlbar background. */
   background-color: var(--lwt-toolbar-field-focus);
-}
-
-@media (prefers-contrast) {
-  #urlbar-search-mode-indicator-close {
-    stroke-opacity: 1.0;
-  }
 }
 
 #urlbar-search-mode-indicator:hover > #urlbar-search-mode-indicator-close {
   display: block;
 }
-
-@supports -moz-bool-pref("browser.urlbar.experimental.searchModeIndicatorHover") {
-  #urlbar-search-mode-indicator-close:hover {
-    background-color: #ededf0; /* Grey 20 */
-  }
-  #urlbar-search-mode-indicator-close:hover:active {
-    background-color: #d7d7db; /* Grey 30 */
-  }
-
-  :root[lwt-toolbar-field-brighttext] #urlbar-search-mode-indicator-close:hover {
-    background-color: #737373; /* Grey 50 */
-  }
-
-  :root[lwt-toolbar-field-brighttext] #urlbar-search-mode-indicator-close:hover:active {
-    background-color: #b1b1b3; /* Grey 40 */
-  }
-}
+} /*** END !proton ***/
 
 /* Page action panel */
 .pageAction-panel-button > .toolbarbutton-icon {
@@ -613,12 +635,19 @@
 .urlbar-icon {
   width: 28px;
   height: 28px;
-  padding: var(--urlbar-icon-padding);
+  padding-inline: var(--urlbar-icon-padding);
   -moz-context-properties: fill, fill-opacity;
   fill: currentColor;
   fill-opacity: 0.6;
   color: inherit;
 }
+
+@supports -moz-bool-pref("browser.proton.urlbar.enabled") {
+.urlbar-icon,
+.urlbar-icon-wrapper {
+  border-radius: var(--toolbarbutton-border-radius);
+}
+} /*** END proton ***/
 
 .urlbar-page-action[disabled] {
   fill-opacity: 0.3;

@@ -2779,8 +2779,7 @@ void PresShell::FrameNeedsReflow(nsIFrame* aFrame,
       for (nsIFrame* a = subtreeRoot; a && !FRAME_IS_REFLOW_ROOT(a);
            a = a->GetParent()) {
         a->MarkIntrinsicISizesDirty();
-        if (a->HasAnyStateBits(NS_FRAME_OUT_OF_FLOW) &&
-            a->IsAbsolutelyPositioned()) {
+        if (a->IsAbsolutelyPositioned()) {
           // If we get here, 'a' is abspos, so its subtree's intrinsic sizing
           // has no effect on its ancestors' intrinsic sizing. So, don't loop
           // upwards any further.
@@ -4845,6 +4844,8 @@ UniquePtr<RangePaintInfo> PresShell::CreateRangePaintInfo(
   // appropriate nsDisplayAsyncZoom display items. This code handles the general
   // case with nested async zooms (even though that never actually happens),
   // because it fell out of the implementation for free.
+  //
+  // TODO: Do we need to do the same for ancestor transforms?
   for (nsPresContext* ctx = GetPresContext(); ctx;
        ctx = ctx->GetParentPresContext()) {
     PresShell* shell = ctx->PresShell();
@@ -4885,7 +4886,7 @@ UniquePtr<RangePaintInfo> PresShell::CreateRangePaintInfo(
   // determine the offset of the reference frame for the display list
   // to the root frame. This will allow the coordinates used when painting
   // to all be offset from the same point
-  info->mRootOffset = ancestorFrame->GetOffsetTo(rootFrame);
+  info->mRootOffset = ancestorFrame->GetBoundingClientRect().TopLeft();
   rangeRect.MoveBy(info->mRootOffset);
   aSurfaceRect.UnionRect(aSurfaceRect, rangeRect);
 

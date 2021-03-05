@@ -928,6 +928,8 @@ CreateStorageConnection(nsIFile& aDBFile, nsIFile& aFMDirectory,
     mozStorageTransaction transaction(
         connection.get(), false, mozIStorageConnection::TRANSACTION_IMMEDIATE);
 
+    IDB_TRY(transaction.Start());
+
     if (newDatabase) {
       IDB_TRY(CreateTables(*connection));
 
@@ -12344,6 +12346,8 @@ nsresult FileManager::InitDirectory(nsIFile& aDirectory, nsIFile& aDatabaseFile,
 
       mozStorageTransaction transaction(connection.get(), false);
 
+      IDB_TRY(transaction.Start())
+
       IDB_TRY(connection->ExecuteSimpleSQL(
           "CREATE VIRTUAL TABLE fs USING filesystem;"_ns));
 
@@ -13589,7 +13593,7 @@ nsresult Maintenance::DirectoryWork() {
                   const auto& metadata,
                   quotaManager
                       ->GetDirectoryMetadataWithOriginMetadata2WithRestore(
-                          originDir, persistent),
+                          originDir),
                   // Not much we can do here...
                   Ok{});
 
@@ -14092,6 +14096,8 @@ nsresult DatabaseMaintenance::DetermineMaintenanceAction(
   // sure everything gets rolled back when we leave.
   mozStorageTransaction transaction(&aConnection,
                                     /* aCommitOnComplete */ false);
+
+  IDB_TRY(transaction.Start())
 
   // Check to see when we last vacuumed this database.
   IDB_TRY_INSPECT(const auto& stmt,
@@ -15568,7 +15574,7 @@ FactoryOp::CheckPermission(ContentParent* aContentParent) {
     }
 
     if (State::Initial == mState) {
-      mOriginMetadata = QuotaManager::GetInfoForChrome();
+      mOriginMetadata = {QuotaManager::GetInfoForChrome(), persistenceType};
 
       MOZ_ASSERT(QuotaManager::IsOriginInternal(mOriginMetadata.mOrigin));
 
@@ -15583,12 +15589,12 @@ FactoryOp::CheckPermission(ContentParent* aContentParent) {
   IDB_TRY_INSPECT(const auto& principal,
                   PrincipalInfoToPrincipal(principalInfo));
 
-  IDB_TRY_UNWRAP(auto originMetadata,
+  IDB_TRY_UNWRAP(auto principalMetadata,
                  QuotaManager::GetInfoFromPrincipal(principal));
 
   IDB_TRY_INSPECT(
       const auto& permission,
-      ([persistenceType, &origin = originMetadata.mOrigin,
+      ([persistenceType, &origin = principalMetadata.mOrigin,
         &principal = *principal]()
            -> mozilla::Result<PermissionRequestBase::PermissionValue,
                               nsresult> {
@@ -15607,7 +15613,7 @@ FactoryOp::CheckPermission(ContentParent* aContentParent) {
 
   if (permission != PermissionRequestBase::kPermissionDenied &&
       State::Initial == mState) {
-    mOriginMetadata = std::move(originMetadata);
+    mOriginMetadata = {std::move(principalMetadata), persistenceType};
 
     mEnforcingQuota = persistenceType != PERSISTENCE_TYPE_PERSISTENT;
   }

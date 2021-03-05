@@ -5457,3 +5457,42 @@ MCreateInlinedArgumentsObject* MCreateInlinedArgumentsObject::New(
 
   return ins;
 }
+
+MGetInlinedArgument* MGetInlinedArgument::New(
+    TempAllocator& alloc, MDefinition* index,
+    MCreateInlinedArgumentsObject* args) {
+  MGetInlinedArgument* ins = new (alloc) MGetInlinedArgument();
+
+  uint32_t argc = args->numActuals();
+  MOZ_ASSERT(argc <= ArgumentsObject::MaxInlinedArgs);
+
+  if (!ins->init(alloc, argc + NumNonArgumentOperands)) {
+    return nullptr;
+  }
+
+  ins->initOperand(0, index);
+  for (uint32_t i = 0; i < argc; i++) {
+    ins->initOperand(i + NumNonArgumentOperands, args->getArg(i));
+  }
+
+  return ins;
+}
+
+MDefinition* MGetInlinedArgument::foldsTo(TempAllocator& alloc) {
+  MDefinition* indexDef = SkipUninterestingInstructions(index());
+  if (!indexDef->isConstant()) {
+    return this;
+  }
+
+  int32_t indexConst = indexDef->toConstant()->toInt32();
+  if (indexConst < 0 || uint32_t(indexConst) >= numActuals()) {
+    return this;
+  }
+
+  MDefinition* arg = getArg(indexConst);
+  if (arg->type() != MIRType::Value) {
+    arg = MBox::New(alloc, arg);
+  }
+
+  return arg;
+}

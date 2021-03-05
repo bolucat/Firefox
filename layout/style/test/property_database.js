@@ -5628,8 +5628,15 @@ var gCSSProperties = {
       "url(foo.png), url(bar.png) 7 2, wait",
       "url(foo.png) 3 2, url(bar.png) 7 9, pointer",
       "url(foo.png) calc(1 + 2) calc(3), pointer",
+      "image-set(url(foo.png)), auto",
     ],
-    invalid_values: ["url(foo.png)", "url(foo.png) 5 5"],
+    invalid_values: [
+      "url(foo.png)",
+      "url(foo.png) 5 5",
+      "image-set(linear-gradient(red, blue)), auto",
+      // Gradients are supported per spec, but we don't have support for it yet
+      "linear-gradient(red, blue), auto",
+    ],
   },
   direction: {
     domProp: "direction",
@@ -13529,6 +13536,24 @@ if (IsCSSPropertyPrefEnabled("layout.css.math-style.enabled")) {
     other_values: ["compact"],
     invalid_values: [],
   };
+}
+
+if (IsCSSPropertyPrefEnabled("layout.css.color-mix.enabled")) {
+  gCSSProperties.color.other_values.push(
+    "color-mix(in srgb, red, blue)",
+    "color-mix(in srgb, highlight, rgba(0, 0, 0, .5))",
+    "color-mix(in srgb, color-mix(in srgb, red 10%, blue), green)",
+    "color-mix(in srgb, blue, red 80%)",
+    "color-mix(in srgb, rgba(0, 200, 32, .5) 90%, red 50%)",
+    "color-mix(in srgb, currentColor, red)"
+  );
+
+  gCSSProperties.color.invalid_values.push(
+    "color-mix(red, blue)",
+    "color-mix(red blue)",
+    "color-mix(in srgb, red blue)",
+    "color-mix(in srgb, red 10% blue)"
+  );
 }
 
 // Copy aliased properties' fields from their alias targets. Keep this logic

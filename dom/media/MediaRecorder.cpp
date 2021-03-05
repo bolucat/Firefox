@@ -140,7 +140,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(MediaRecorder,
                                                   DOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mStream)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAudioNode)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mInvalidModificationDomException)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mOtherDomException)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSecurityDomException)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mUnknownDomException)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDocument)
@@ -150,7 +150,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(MediaRecorder,
                                                 DOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mStream)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mAudioNode)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mInvalidModificationDomException)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mOtherDomException)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mSecurityDomException)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mUnknownDomException)
   tmp->UnRegisterActivityObserver();
@@ -616,8 +616,8 @@ class MediaRecorder::Session : public PrincipalChangeObserver<MediaStreamTrack>,
         ("Session.NotifyTrackAdded %p Raising error due to track set change",
          this));
     // There's a chance we have a sensible JS stack here.
-    if (!mRecorder->mInvalidModificationDomException) {
-      mRecorder->mInvalidModificationDomException = DOMException::Create(
+    if (!mRecorder->mOtherDomException) {
+      mRecorder->mOtherDomException = DOMException::Create(
           NS_ERROR_DOM_INVALID_MODIFICATION_ERR,
           "An attempt was made to add a track to the recorded MediaStream "
           "during the recording"_ns);
@@ -634,8 +634,8 @@ class MediaRecorder::Session : public PrincipalChangeObserver<MediaStreamTrack>,
         ("Session.NotifyTrackRemoved %p Raising error due to track set change",
          this));
     // There's a chance we have a sensible JS stack here.
-    if (!mRecorder->mInvalidModificationDomException) {
-      mRecorder->mInvalidModificationDomException = DOMException::Create(
+    if (!mRecorder->mOtherDomException) {
+      mRecorder->mOtherDomException = DOMException::Create(
           NS_ERROR_DOM_INVALID_MODIFICATION_ERR,
           "An attempt was made to remove a track from the recorded MediaStream "
           "during the recording"_ns);
@@ -678,7 +678,13 @@ class MediaRecorder::Session : public PrincipalChangeObserver<MediaStreamTrack>,
                                         document,
                                         nsContentUtils::eDOM_PROPERTIES,
                                         "MediaRecorderMultiTracksNotSupported");
-        DoSessionEndTask(NS_ERROR_ABORT);
+        if (!mRecorder->mOtherDomException) {
+          mRecorder->mOtherDomException = DOMException::Create(
+              NS_ERROR_DOM_NOT_SUPPORTED_ERR,
+              "MediaRecorder does not support recording multiple tracks of the "
+              "same kind"_ns);
+        }
+        DoSessionEndTask(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
         return;
       }
 
@@ -936,21 +942,28 @@ class MediaRecorder::Session : public PrincipalChangeObserver<MediaStreamTrack>,
       mRunningState = Err(rv);
     }
 
-    (rv == NS_ERROR_ABORT || rv == NS_ERROR_DOM_SECURITY_ERR
-         ? mEncoder->Cancel()
-         : mEncoder->Stop())
-        ->Then(mEncoderThread, __func__,
-               [encoder = mEncoder](
-                   const GenericNonExclusivePromise::ResolveOrRejectValue&
-                       aValue) {
-                 MOZ_DIAGNOSTIC_ASSERT(aValue.IsResolve());
-                 return encoder->RequestData();
-               })
+    RefPtr<MediaEncoder::BlobPromise> blobPromise;
+    if (!mEncoder) {
+      blobPromise = MediaEncoder::BlobPromise::CreateAndReject(NS_OK, __func__);
+    } else {
+      blobPromise =
+          (rv == NS_ERROR_ABORT || rv == NS_ERROR_DOM_SECURITY_ERR
+               ? mEncoder->Cancel()
+               : mEncoder->Stop())
+              ->Then(mEncoderThread, __func__,
+                     [encoder = mEncoder](
+                         const GenericNonExclusivePromise::ResolveOrRejectValue&
+                             aValue) {
+                       MOZ_DIAGNOSTIC_ASSERT(aValue.IsResolve());
+                       return encoder->RequestData();
+                     });
+    }
+
+    blobPromise
         ->Then(
             mMainThread, __func__,
-            [this, self = RefPtr<Session>(this), encoder = mEncoder, rv,
-             needsStartEvent](
-                const MediaEncoder::BlobPromise::ResolveOrRejectValue& aRrv) {
+            [this, self = RefPtr<Session>(this), rv, needsStartEvent](
+                const MediaEncoder::BlobPromise::ResolveOrRejectValue& aRv) {
               if (mRecorder->mSessions.LastElement() == this) {
                 // Set state to inactive, but only if the recorder is not
                 // controlled by another session already.
@@ -968,7 +981,7 @@ class MediaRecorder::Session : public PrincipalChangeObserver<MediaStreamTrack>,
 
               // Fire a blob event named dataavailable
               RefPtr<BlobImpl> blobImpl;
-              if (rv == NS_ERROR_DOM_SECURITY_ERR || aRrv.IsReject()) {
+              if (rv == NS_ERROR_DOM_SECURITY_ERR || aRv.IsReject()) {
                 // In case of SecurityError, the blob data must be discarded.
                 // We create a new empty one and throw the blob with its data
                 // away.
@@ -976,7 +989,7 @@ class MediaRecorder::Session : public PrincipalChangeObserver<MediaStreamTrack>,
                 // memory blob instead.
                 blobImpl = new EmptyBlobImpl(mMimeType);
               } else {
-                blobImpl = aRrv.ResolveValue();
+                blobImpl = aRv.ResolveValue();
               }
               if (NS_FAILED(mRecorder->CreateAndDispatchBlobEvent(blobImpl))) {
                 // Failed to dispatch blob event. That's unexpected. It's
@@ -1748,11 +1761,14 @@ void MediaRecorder::NotifyError(nsresult aRv) {
       }
       init.mError = std::move(mSecurityDomException);
       break;
-    case NS_ERROR_DOM_INVALID_MODIFICATION_ERR:
-      MOZ_DIAGNOSTIC_ASSERT(mInvalidModificationDomException);
-      init.mError = std::move(mInvalidModificationDomException);
-      break;
     default:
+      if (mOtherDomException && aRv == mOtherDomException->GetResult()) {
+        LOG(LogLevel::Debug, ("MediaRecorder.NotifyError: "
+                              "mOtherDomException being fired for aRv: %X",
+                              uint32_t(aRv)));
+        init.mError = std::move(mOtherDomException);
+        break;
+      }
       if (!mUnknownDomException) {
         LOG(LogLevel::Debug, ("MediaRecorder.NotifyError: "
                               "mUnknownDomException was not initialized"));
@@ -1762,6 +1778,7 @@ void MediaRecorder::NotifyError(nsresult aRv) {
                             "mUnknownDomException being fired for aRv: %X",
                             uint32_t(aRv)));
       init.mError = std::move(mUnknownDomException);
+      break;
   }
 
   RefPtr<MediaRecorderErrorEvent> event =

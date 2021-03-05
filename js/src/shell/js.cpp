@@ -2333,25 +2333,6 @@ static bool Evaluate(JSContext* cx, unsigned argc, Value* vp) {
       }
     }
 
-    if (!JS_GetProperty(cx, opts, "global", &v)) {
-      return false;
-    }
-    if (!v.isUndefined()) {
-      if (v.isObject()) {
-        global = js::CheckedUnwrapDynamic(&v.toObject(), cx,
-                                          /* stopAtWindowProxy = */ false);
-        if (!global) {
-          return false;
-        }
-      }
-      if (!global || !(JS::GetClass(global)->flags & JSCLASS_IS_GLOBAL)) {
-        JS_ReportErrorNumberASCII(
-            cx, GetErrorMessage, nullptr, JSMSG_UNEXPECTED_TYPE,
-            "\"global\" passed to evaluate()", "not a global object");
-        return false;
-      }
-    }
-
     if (!JS_GetProperty(cx, opts, "catchTermination", &v)) {
       return false;
     }
@@ -2433,6 +2414,52 @@ static bool Evaluate(JSContext* cx, unsigned argc, Value* vp) {
         JS_ReportErrorASCII(
             cx, "saveIncrementalBytecode cannot be used with legacy XDR.");
         return false;
+      }
+    }
+
+    if (saveIncrementalBytecode && assertEqBytecode) {
+      JS_ReportErrorASCII(
+          cx, "saveIncrementalBytecode cannot be used with assertEqBytecode.");
+      return false;
+    }
+
+    // NOTE: Check custom "global" after handling all CompileOption-related
+    //       properties.
+    if (!JS_GetProperty(cx, opts, "global", &v)) {
+      return false;
+    }
+    if (!v.isUndefined()) {
+      if (v.isObject()) {
+        global = js::CheckedUnwrapDynamic(&v.toObject(), cx,
+                                          /* stopAtWindowProxy = */ false);
+        if (!global) {
+          return false;
+        }
+      }
+      if (!global || !(JS::GetClass(global)->flags & JSCLASS_IS_GLOBAL)) {
+        JS_ReportErrorNumberASCII(
+            cx, GetErrorMessage, nullptr, JSMSG_UNEXPECTED_TYPE,
+            "\"global\" passed to evaluate()", "not a global object");
+        return false;
+      }
+
+      // Validate the consistency between the passed CompileOptions and
+      // global's option.
+      {
+        JSAutoRealm ar(cx, global);
+        JS::CompileOptions globalOptions(cx);
+
+        // If the passed global discards source, delazification isn't allowed.
+        // The CompileOption should discard source as well.
+        if (globalOptions.discardSource && !options.discardSource) {
+          JS_ReportErrorASCII(cx, "discardSource option mismatch");
+          return false;
+        }
+        if (globalOptions.instrumentationKinds !=
+            options.instrumentationKinds) {
+          JS_ReportErrorASCII(cx, "instrumentationKinds mismatch");
+          return false;
+        }
       }
     }
   }
@@ -5464,12 +5491,7 @@ static bool DumpAST(JSContext* cx, const JS::ReadOnlyCompileOptions& options,
   // Emplace the top-level stencil.
   MOZ_ASSERT(compilationState.scriptData.length() ==
              CompilationStencil::TopLevelIndex);
-  if (!compilationState.scriptData.emplaceBack()) {
-    ReportOutOfMemory(cx);
-    return false;
-  }
-  if (!compilationState.scriptExtra.emplaceBack()) {
-    ReportOutOfMemory(cx);
+  if (!compilationState.appendScriptStencilAndData(cx)) {
     return false;
   }
 
@@ -6736,13 +6758,6 @@ static bool NewGlobal(JSContext* cx, unsigned argc, Value* vp) {
     }
     if (v.isBoolean() && v.toBoolean()) {
       creationOptions.setNewCompartmentAndZone();
-    }
-
-    if (!JS_GetProperty(cx, opts, "disableLazyParsing", &v)) {
-      return false;
-    }
-    if (v.isBoolean()) {
-      behaviors.setDisableLazyParsing(v.toBoolean());
     }
 
     if (!JS_GetProperty(cx, opts, "discardSource", &v)) {
@@ -9227,8 +9242,6 @@ static const JSFunctionSpecWithHelp shell_functions[] = {
 "         compartment and zone.\n"
 "      invisibleToDebugger: If true, the global will be invisible to the\n"
 "         debugger (default false)\n"
-"      disableLazyParsing: If true, don't create lazy scripts for functions\n"
-"         (default false).\n"
 "      discardSource: If true, discard source after compiling a script\n"
 "         (default false).\n"
 "      useWindowProxy: the global will be created with a WindowProxy attached. In this\n"

@@ -566,7 +566,8 @@ static bool IsFontSizeInflationContainer(nsIFrame* aFrame,
   bool isInline =
       (nsStyleDisplay::IsInlineFlow(aFrame->GetDisplay()) ||
        RubyUtils::IsRubyBox(frameType) ||
-       (aFrame->IsFloating() && frameType == LayoutFrameType::Letter) ||
+       (aStyleDisplay->IsFloatingStyle() &&
+        frameType == LayoutFrameType::Letter) ||
        // Given multiple frames for the same node, only the
        // outer one should be considered a container.
        // (Important, e.g., for nsSelectsAreaFrame.)
@@ -7402,6 +7403,12 @@ nsRect nsIFrame::GetNormalRect() const {
   return GetRect();
 }
 
+nsRect nsIFrame::GetBoundingClientRect() {
+  return nsLayoutUtils::GetAllInFlowRectsUnion(
+      this, nsLayoutUtils::GetContainingBlockForClientRect(this),
+      nsLayoutUtils::RECTS_ACCOUNT_FOR_TRANSFORMS);
+}
+
 nsPoint nsIFrame::GetPositionIgnoringScrolling() const {
   return GetParent() ? GetParent()->GetPositionOfChildIgnoringScrolling(this)
                      : GetPosition();
@@ -7625,8 +7632,7 @@ nsIFrame* nsIFrame::GetContainingBlock(
   // still be in-flow.  So we have to check to make sure that the frame
   // is really out-of-flow too.
   nsIFrame* f;
-  if (IsAbsolutelyPositioned(aStyleDisplay) &&
-      HasAnyStateBits(NS_FRAME_OUT_OF_FLOW)) {
+  if (IsAbsolutelyPositioned(aStyleDisplay)) {
     f = GetParent();  // the parent is always the containing block
   } else {
     f = GetNearestBlockContainer(GetParent());

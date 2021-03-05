@@ -824,7 +824,7 @@ bool LexicalScope::prepareForScopeCreation(
   MOZ_ASSERT_IF(isNamedLambda, firstFrameSlot == LOCALNO_LIMIT);
 
   AbstractBindingIter<AtomT> bi(*data, firstFrameSlot, isNamedLambda);
-  if (!PrepareScopeData<LexicalScope, AtomT, LexicalEnvironmentObject>(
+  if (!PrepareScopeData<LexicalScope, AtomT, BlockLexicalEnvironmentObject>(
           cx, bi, data, firstFrameSlot, envShape)) {
     return false;
   }
@@ -1993,6 +1993,10 @@ template <typename... Args>
     return false;
   }
   if (!compilationState.scopeNames.append(data)) {
+    compilationState.scopeData.popBack();
+    MOZ_ASSERT(compilationState.scopeData.length() ==
+               compilationState.scopeNames.length());
+
     js::ReportOutOfMemory(cx);
     return false;
   }
@@ -2309,7 +2313,7 @@ template Scope* ScopeStencil::createSpecificScope<FunctionScope, CallObject>(
     JSContext* cx, CompilationAtomCache& atomCache, HandleScope enclosingScope,
     BaseParserScopeData* baseData) const;
 template Scope*
-ScopeStencil::createSpecificScope<LexicalScope, LexicalEnvironmentObject>(
+ScopeStencil::createSpecificScope<LexicalScope, BlockLexicalEnvironmentObject>(
     JSContext* cx, CompilationAtomCache& atomCache, HandleScope enclosingScope,
     BaseParserScopeData* baseData) const;
 template Scope*
