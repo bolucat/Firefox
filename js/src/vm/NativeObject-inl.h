@@ -57,16 +57,19 @@ inline void NativeObject::removeLastProperty(JSContext* cx) {
 }
 
 inline bool NativeObject::canRemoveLastProperty() {
-  /*
-   * Check that the information about the object stored in the last
-   * property's base shape is consistent with that stored in the previous
-   * shape. If not consistent, then the last property cannot be removed as it
-   * will induce a change in the object itself, and the object must be
-   * converted to dictionary mode instead. See BaseShape comment in jsscope.h
-   */
+  // Check that the information about the object stored in the last property's
+  // Shape is consistent with that stored in the previous shape. If not
+  // consistent, then the last property cannot be removed as it will induce a
+  // change in the object itself, and the object must be converted to dictionary
+  // mode instead.
   MOZ_ASSERT(!inDictionaryMode());
   Shape* previous = lastProperty()->previous().get();
-  return previous->objectFlags() == lastProperty()->objectFlags();
+  if (previous->objectFlags() != lastProperty()->objectFlags() ||
+      previous->proto() != lastProperty()->proto()) {
+    return false;
+  }
+  MOZ_ASSERT(lastProperty()->base() == previous->base());
+  return true;
 }
 
 inline void NativeObject::initDenseElementHole(uint32_t index) {
@@ -447,10 +450,10 @@ inline bool NativeObject::isInWholeCellBuffer() const {
 
 /* static */ inline JS::Result<NativeObject*, JS::OOM> NativeObject::create(
     JSContext* cx, js::gc::AllocKind kind, js::gc::InitialHeap heap,
-    js::HandleShape shape, js::HandleObjectGroup group) {
-  debugCheckNewObject(group, shape, kind, heap);
+    js::HandleShape shape) {
+  debugCheckNewObject(shape, kind, heap);
 
-  const JSClass* clasp = group->clasp();
+  const JSClass* clasp = shape->getObjectClass();
   MOZ_ASSERT(clasp->isNativeObject());
   MOZ_ASSERT(!clasp->isJSFunction(), "should use JSFunction::create");
 
@@ -463,7 +466,6 @@ inline bool NativeObject::isInWholeCellBuffer() const {
   }
 
   NativeObject* nobj = static_cast<NativeObject*>(obj);
-  nobj->initGroup(group);
   nobj->initShape(shape);
   // NOTE: Dynamic slots are created internally by Allocate<JSObject>.
   if (!nDynamicSlots) {

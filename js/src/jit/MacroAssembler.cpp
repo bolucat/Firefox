@@ -825,9 +825,6 @@ void MacroAssembler::initGCThing(Register obj, Register temp,
                                  bool initContents) {
   // Fast initialization of an empty object returned by allocateObject().
 
-  storePtr(ImmGCPtr(templateObj.group()),
-           Address(obj, JSObject::offsetOfGroup()));
-
   storePtr(ImmGCPtr(templateObj.shape()),
            Address(obj, JSObject::offsetOfShape()));
 
@@ -1644,8 +1641,9 @@ void MacroAssembler::switchToRealm(const void* realm, Register scratch) {
 }
 
 void MacroAssembler::switchToObjectRealm(Register obj, Register scratch) {
-  loadPtr(Address(obj, JSObject::offsetOfGroup()), scratch);
-  loadPtr(Address(scratch, ObjectGroup::offsetOfRealm()), scratch);
+  loadPtr(Address(obj, JSObject::offsetOfShape()), scratch);
+  loadPtr(Address(scratch, Shape::offsetOfBaseShape()), scratch);
+  loadPtr(Address(scratch, BaseShape::offsetOfRealm()), scratch);
   switchToRealm(scratch);
 }
 
@@ -1685,8 +1683,9 @@ void MacroAssembler::setIsCrossRealmArrayConstructor(Register obj,
 
   // The object's realm must not be cx->realm.
   Label isFalse, done;
-  loadPtr(Address(obj, JSObject::offsetOfGroup()), output);
-  loadPtr(Address(output, ObjectGroup::offsetOfRealm()), output);
+  loadPtr(Address(obj, JSObject::offsetOfShape()), output);
+  loadPtr(Address(output, Shape::offsetOfBaseShape()), output);
+  loadPtr(Address(output, BaseShape::offsetOfRealm()), output);
   branchPtr(Assembler::Equal, AbsoluteAddress(ContextRealmPtr()), output,
             &isFalse);
 
@@ -3525,34 +3524,6 @@ void MacroAssembler::loadFunctionName(Register func, Register output,
   bind(&hasName);
 }
 
-void MacroAssembler::branchTestObjGroupNoSpectreMitigations(
-    Condition cond, Register obj, const Address& group, Register scratch,
-    Label* label) {
-  // Note: obj and scratch registers may alias.
-  MOZ_ASSERT(group.base != scratch);
-  MOZ_ASSERT(group.base != obj);
-
-  loadPtr(Address(obj, JSObject::offsetOfGroup()), scratch);
-  branchPtr(cond, group, scratch, label);
-}
-
-void MacroAssembler::branchTestObjGroup(Condition cond, Register obj,
-                                        const Address& group, Register scratch,
-                                        Register spectreRegToZero,
-                                        Label* label) {
-  // Note: obj and scratch registers may alias.
-  MOZ_ASSERT(group.base != scratch);
-  MOZ_ASSERT(group.base != obj);
-  MOZ_ASSERT(scratch != spectreRegToZero);
-
-  loadPtr(Address(obj, JSObject::offsetOfGroup()), scratch);
-  branchPtr(cond, group, scratch, label);
-
-  if (JitOptions.spectreObjectMitigationsMisc) {
-    spectreZeroRegister(cond, scratch, spectreRegToZero);
-  }
-}
-
 void MacroAssembler::branchTestObjTypeDescr(Condition cond, Register obj,
                                             Register descr, Register scratch,
                                             Register spectreRegToZero,
@@ -3595,8 +3566,9 @@ void MacroAssembler::branchTestObjCompartment(Condition cond, Register obj,
                                               const Address& compartment,
                                               Register scratch, Label* label) {
   MOZ_ASSERT(obj != scratch);
-  loadPtr(Address(obj, JSObject::offsetOfGroup()), scratch);
-  loadPtr(Address(scratch, ObjectGroup::offsetOfRealm()), scratch);
+  loadPtr(Address(obj, JSObject::offsetOfShape()), scratch);
+  loadPtr(Address(scratch, Shape::offsetOfBaseShape()), scratch);
+  loadPtr(Address(scratch, BaseShape::offsetOfRealm()), scratch);
   loadPtr(Address(scratch, Realm::offsetOfCompartment()), scratch);
   branchPtr(cond, compartment, scratch, label);
 }
@@ -3605,8 +3577,9 @@ void MacroAssembler::branchTestObjCompartment(
     Condition cond, Register obj, const JS::Compartment* compartment,
     Register scratch, Label* label) {
   MOZ_ASSERT(obj != scratch);
-  loadPtr(Address(obj, JSObject::offsetOfGroup()), scratch);
-  loadPtr(Address(scratch, ObjectGroup::offsetOfRealm()), scratch);
+  loadPtr(Address(obj, JSObject::offsetOfShape()), scratch);
+  loadPtr(Address(scratch, Shape::offsetOfBaseShape()), scratch);
+  loadPtr(Address(scratch, BaseShape::offsetOfRealm()), scratch);
   loadPtr(Address(scratch, Realm::offsetOfCompartment()), scratch);
   branchPtr(cond, scratch, ImmPtr(compartment), label);
 }
@@ -3621,12 +3594,11 @@ void MacroAssembler::branchIfNonNativeObj(Register obj, Register scratch,
 void MacroAssembler::branchIfObjectNotExtensible(Register obj, Register scratch,
                                                  Label* label) {
   loadPtr(Address(obj, JSObject::offsetOfShape()), scratch);
-  loadPtr(Address(scratch, Shape::offsetOfBaseShape()), scratch);
 
   // Spectre-style checks are not needed here because we do not interpret data
   // based on this check.
   static_assert(sizeof(ObjectFlags) == sizeof(uint16_t));
-  load16ZeroExtend(Address(scratch, BaseShape::offsetOfFlags()), scratch);
+  load16ZeroExtend(Address(scratch, Shape::offsetOfObjectFlags()), scratch);
   branchTest32(Assembler::NonZero, scratch,
                Imm32(uint32_t(ObjectFlag::NotExtensible)), label);
 }
@@ -3879,7 +3851,7 @@ void MacroAssembler::emitPreBarrierFastPath(JSRuntime* rt, MIRType type,
     unboxGCThingForGCBarrier(Address(PreBarrierReg, 0), temp1);
   } else {
     MOZ_ASSERT(type == MIRType::Object || type == MIRType::String ||
-               type == MIRType::Shape || type == MIRType::ObjectGroup);
+               type == MIRType::Shape);
     loadPtr(Address(PreBarrierReg, 0), temp1);
   }
 

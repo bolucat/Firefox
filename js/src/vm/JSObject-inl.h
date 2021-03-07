@@ -130,12 +130,6 @@ js::NativeObject::updateDictionaryListPointerAfterMinorGC(NativeObject* old) {
   }
 }
 
-inline void JSObject::setGroup(js::ObjectGroup* group) {
-  MOZ_RELEASE_ASSERT(group);
-  MOZ_ASSERT(maybeCCWRealm() == group->realm());
-  setGroupRaw(group);
-}
-
 /* * */
 
 inline bool JSObject::isQualifiedVarObj() const {
@@ -360,11 +354,6 @@ inline gc::InitialHeap GetInitialHeap(NewObjectKind newKind,
     return gc::TenuredHeap;
   }
   return gc::DefaultHeap;
-}
-
-inline gc::InitialHeap GetInitialHeap(NewObjectKind newKind,
-                                      ObjectGroup* group) {
-  return GetInitialHeap(newKind, group->clasp());
 }
 
 /*
