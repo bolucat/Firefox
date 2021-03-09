@@ -650,6 +650,10 @@ class Document : public nsINode,
   // inheriting the document/storage principal.
   nsIPrincipal* PartitionedPrincipal() final { return mPartitionedPrincipal; }
 
+  // Gets the appropriate principal to check the URI against a blocklist /
+  // allowlist.
+  nsIPrincipal* GetPrincipalForPrefBasedHacks() const;
+
   void ClearActiveStoragePrincipal() { mActiveStoragePrincipal = nullptr; }
 
   // EventTarget
@@ -3395,8 +3399,8 @@ class Document : public nsINode,
 
   Element* GetTopLayerTop();
   // Return the fullscreen element in the top layer
-  Element* GetUnretargetedFullScreenElement();
-  bool Fullscreen() { return !!GetFullscreenElement(); }
+  Element* GetUnretargetedFullScreenElement() const;
+  bool Fullscreen() const { return !!GetUnretargetedFullScreenElement(); }
   already_AddRefed<Promise> ExitFullscreen(ErrorResult&);
   void ExitPointerLock() { PointerLockManager::Unlock(this); }
   void GetFgColor(nsAString& aFgColor);

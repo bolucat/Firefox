@@ -1780,14 +1780,13 @@
   value: false
   mirror: always
 
-# When dom.event.wheel-deltaMode-lines.disabled is true, this is the lines to
-# pixels multiplier that gets used.
-#
-# The value here is taken from PIXELS_PER_LINE_SCALE from pdf.js.
-- name: dom.event.wheel-deltaMode-lines-to-pixel-scale
-  type: uint32_t
-  value: 30
-  mirror: always
+# A blocklist (list of domains) for the
+# dom.event.wheel-deltaMode-lines.disabled behavior, in case potential
+# unforeseen problems with it arrive.
+- name: dom.event.wheel-deltaMode-lines.always-enabled
+  type: String
+  value: ""
+  mirror: never
 
 #if defined(XP_MACOSX)
 # Whether to disable treating ctrl click as right click
@@ -10016,11 +10015,7 @@
 - name: toolkit.shutdown.fastShutdownStage
   type: int32_t
 #if !defined(DEBUG) && !defined(MOZ_ASAN) && !defined(MOZ_TSAN) && !defined(MOZ_CODE_COVERAGE) && !defined(MOZ_VALGRIND) && !defined(MOZ_PROFILE_GENERATE) && !defined(JS_STRUCTURED_SPEW)
-  #ifdef NIGHTLY_BUILD
-  value: 3
-  #else
   value: 1
-  #endif
 #else
   value: 0
 #endif

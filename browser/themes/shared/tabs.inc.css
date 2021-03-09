@@ -105,16 +105,8 @@
   padding-inline: var(--proton-tab-inline-padding) !important;
 }
 
-.tabbrowser-tab[first-visible-tab] {
-  padding-inline-start: 0 !important;
-}
-
 :root[sizemode=maximized] .tabbrowser-tab[first-visible-tab] {
   padding-inline-start: calc(2 * var(--proton-tab-inline-padding)) !important;
-}
-
-.tabbrowser-tab[last-visible-tab] {
-  padding-inline-end: 0 !important;
 }
 
 :root[sizemode=maximized] .tabbrowser-tab[last-visible-tab] {
@@ -475,7 +467,7 @@
 
 @supports -moz-bool-pref("browser.proton.tabs.enabled") {
 .tab-close-button {
-  margin-inline: 8px calc(var(--inline-tab-padding) / -2);
+  margin-inline-end: calc(var(--inline-tab-padding) / -2);
   width: 24px;
   height: 24px;
   padding: 5px;

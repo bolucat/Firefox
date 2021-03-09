@@ -400,8 +400,8 @@ struct Texture {
   uint32_t clear_val = 0;
   uint32_t* cleared_rows = nullptr;
 
-  void init_depth_runs(uint16_t z);
-  void fill_depth_runs(uint16_t z, const IntRect& scissor);
+  void init_depth_runs(uint32_t z);
+  void fill_depth_runs(uint32_t z, const IntRect& scissor);
 
   void enable_delayed_clear(uint32_t val) {
     delay_clear = height;
@@ -432,11 +432,14 @@ struct Texture {
   // Set an external backing buffer of this texture.
   void set_buffer(void* new_buf, size_t new_stride) {
     assert(!should_free());
-    // Ensure that the supplied stride is at least as big as the internally
-    // calculated aligned stride.
+    // Ensure that the supplied stride is at least as big as the row data and
+    // is aligned to the smaller of either the BPP or word-size. We need to at
+    // least be able to sample data from within a row and sample whole pixels
+    // of smaller formats without risking unaligned access.
     set_bpp();
     set_stride();
-    assert(new_stride >= buf_stride);
+    assert(new_stride >= size_t(bpp() * width) &&
+           new_stride % min(bpp(), sizeof(uint32_t)) == 0);
 
     buf = (char*)new_buf;
     buf_size = 0;
@@ -469,7 +472,7 @@ struct Texture {
         // just to be safe. All other texture types and use-cases should be
         // safe to omit padding.
         size_t padding =
-            internal_format == GL_DEPTH_COMPONENT16 || max(width, min_width) < 2
+            internal_format == GL_DEPTH_COMPONENT24 || max(width, min_width) < 2
                 ? sizeof(Float)
                 : 0;
         char* new_buf = (char*)realloc(buf, size + padding);
@@ -1559,7 +1562,7 @@ void PixelStorei(GLenum name, GLint param) {
 static GLenum remap_internal_format(GLenum format) {
   switch (format) {
     case GL_DEPTH_COMPONENT:
-      return GL_DEPTH_COMPONENT16;
+      return GL_DEPTH_COMPONENT24;
     case GL_RGBA:
       return GL_RGBA8;
     case GL_RED:
@@ -1851,10 +1854,11 @@ void RenderbufferStorage(GLenum target, GLenum internal_format, GLsizei width,
   }
   switch (internal_format) {
     case GL_DEPTH_COMPONENT:
+    case GL_DEPTH_COMPONENT16:
     case GL_DEPTH_COMPONENT24:
     case GL_DEPTH_COMPONENT32:
-      // Force depth format to 16 bits...
-      internal_format = GL_DEPTH_COMPONENT16;
+      // Force depth format to 24 bits...
+      internal_format = GL_DEPTH_COMPONENT24;
       break;
   }
   set_tex_storage(ctx->textures[r.texture], internal_format, width, height);
@@ -2237,7 +2241,7 @@ void InitDefaultFramebuffer(int x, int y, int width, int height, int stride,
   }
   // Ensure dimensions of the depth buffer match the color buffer.
   Texture& depthtex = ctx->textures[fb.depth_attachment];
-  set_tex_storage(depthtex, GL_DEPTH_COMPONENT16, width, height);
+  set_tex_storage(depthtex, GL_DEPTH_COMPONENT24, width, height);
   depthtex.offset = IntPoint(x, y);
 }
 
@@ -2289,19 +2293,16 @@ void ClearTexSubImage(GLuint texture, GLint level, GLint xoffset, GLint yoffset,
   }
   assert(zoffset == 0 && depth == 1);
   IntRect scissor = {xoffset, yoffset, xoffset + width, yoffset + height};
-  if (t.internal_format == GL_DEPTH_COMPONENT16) {
-    uint16_t value = 0xFFFF;
+  if (t.internal_format == GL_DEPTH_COMPONENT24) {
+    uint32_t value = 0xFFFFFF;
     switch (format) {
       case GL_DEPTH_COMPONENT:
         switch (type) {
           case GL_DOUBLE:
-            value = uint16_t(*(const GLdouble*)data * 0xFFFF);
+            value = uint32_t(*(const GLdouble*)data * 0xFFFFFF);
             break;
           case GL_FLOAT:
-            value = uint16_t(*(const GLfloat*)data * 0xFFFF);
-            break;
-          case GL_UNSIGNED_SHORT:
-            value = uint16_t(*(const GLushort*)data);
+            value = uint32_t(*(const GLfloat*)data * 0xFFFFFF);
             break;
           default:
             assert(false);
@@ -2626,7 +2627,7 @@ void DrawElementsInstanced(GLenum mode, GLsizei count, GLenum type,
          colortex.internal_format == GL_R8);
   Texture& depthtex = ctx->textures[ctx->depthtest ? fb.depth_attachment : 0];
   if (depthtex.buf) {
-    assert(depthtex.internal_format == GL_DEPTH_COMPONENT16);
+    assert(depthtex.internal_format == GL_DEPTH_COMPONENT24);
     assert(colortex.width == depthtex.width &&
            colortex.height == depthtex.height);
     assert(colortex.offset == depthtex.offset);

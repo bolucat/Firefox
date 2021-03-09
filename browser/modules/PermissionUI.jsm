@@ -596,8 +596,11 @@ var PermissionPromptPrototype = {
       options.hideClose = true;
     }
 
-    if (protonDoorhangersEnabled && !options.hasOwnProperty("opinionated")) {
-      options.opinionated = false;
+    if (
+      protonDoorhangersEnabled &&
+      !mainAction.hasOwnProperty("disableHighlight")
+    ) {
+      mainAction.disableHighlight = true;
     }
 
     options.eventCallback = (topic, nextRemovalReason, isCancel) => {
@@ -888,22 +891,22 @@ XRPermissionPrompt.prototype = {
 
   get message() {
     if (this.principal.schemeIs("file")) {
-      return gBrowserBundle.GetStringFromName("xr.shareWithFile3");
+      return gBrowserBundle.GetStringFromName("xr.shareWithFile4");
     }
 
-    return gBrowserBundle.formatStringFromName("xr.shareWithSite3", ["<>"]);
+    return gBrowserBundle.formatStringFromName("xr.shareWithSite4", ["<>"]);
   },
 
   get promptActions() {
     return [
       {
-        label: gBrowserBundle.GetStringFromName("xr.allow"),
-        accessKey: gBrowserBundle.GetStringFromName("xr.allow.accesskey"),
+        label: gBrowserBundle.GetStringFromName("xr.allow2"),
+        accessKey: gBrowserBundle.GetStringFromName("xr.allow2.accesskey"),
         action: SitePermissions.ALLOW,
       },
       {
-        label: gBrowserBundle.GetStringFromName("xr.dontAllow"),
-        accessKey: gBrowserBundle.GetStringFromName("xr.dontAllow.accesskey"),
+        label: gBrowserBundle.GetStringFromName("xr.block"),
+        accessKey: gBrowserBundle.GetStringFromName("xr.block.accesskey"),
         action: SitePermissions.BLOCK,
       },
     ];

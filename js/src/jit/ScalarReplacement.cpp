@@ -1210,10 +1210,12 @@ class ArgumentsReplacer : public MDefinitionVisitorDefaultNoop {
 
   void visitGuardToClass(MGuardToClass* ins);
   void visitGuardArgumentsObjectFlags(MGuardArgumentsObjectFlags* ins);
+  void visitUnbox(MUnbox* ins);
   void visitGetArgumentsObjectArg(MGetArgumentsObjectArg* ins);
   void visitLoadArgumentsObjectArg(MLoadArgumentsObjectArg* ins);
   void visitArgumentsObjectLength(MArgumentsObjectLength* ins);
   void visitApplyArgsObj(MApplyArgsObj* ins);
+  void visitLoadFixedSlot(MLoadFixedSlot* ins);
 
  public:
   ArgumentsReplacer(MIRGenerator* mir, MIRGraph& graph, MInstruction* args)
@@ -1221,13 +1223,13 @@ class ArgumentsReplacer : public MDefinitionVisitorDefaultNoop {
     MOZ_ASSERT(IsOptimizableArgumentsInstruction(args_));
   }
 
-  bool escapes(MInstruction* ins);
+  bool escapes(MInstruction* ins, bool guardedForMapped = false);
   bool run();
   void assertSuccess();
 };
 
 // Returns false if the arguments object does not escape.
-bool ArgumentsReplacer::escapes(MInstruction* ins) {
+bool ArgumentsReplacer::escapes(MInstruction* ins, bool guardedForMapped) {
   MOZ_ASSERT(ins->type() == MIRType::Object);
 
   JitSpewDef(JitSpew_Escape, "Check arguments object\n", ins);
@@ -1256,7 +1258,8 @@ bool ArgumentsReplacer::escapes(MInstruction* ins) {
           JitSpewDef(JitSpew_Escape, "has a non-matching class guard\n", guard);
           return true;
         }
-        if (escapes(guard)) {
+        bool isMapped = guard->getClass() == &MappedArgumentsObject::class_;
+        if (escapes(guard, isMapped)) {
           JitSpewDef(JitSpew_Escape, "is indirectly escaped by\n", def);
           return true;
         }
@@ -1264,11 +1267,35 @@ bool ArgumentsReplacer::escapes(MInstruction* ins) {
       }
 
       case MDefinition::Opcode::GuardArgumentsObjectFlags: {
+        if (escapes(def->toInstruction(), guardedForMapped)) {
+          JitSpewDef(JitSpew_Escape, "is indirectly escaped by\n", def);
+          return true;
+        }
+        break;
+      }
+
+      case MDefinition::Opcode::Unbox: {
+        if (def->type() != MIRType::Object) {
+          JitSpewDef(JitSpew_Escape, "has an invalid unbox\n", def);
+          return true;
+        }
         if (escapes(def->toInstruction())) {
           JitSpewDef(JitSpew_Escape, "is indirectly escaped by\n", def);
           return true;
         }
         break;
+      }
+
+      case MDefinition::Opcode::LoadFixedSlot: {
+        MLoadFixedSlot* load = def->toLoadFixedSlot();
+
+        // We can replace arguments.callee.
+        if (load->slot() == ArgumentsObject::CALLEE_SLOT) {
+          MOZ_ASSERT(guardedForMapped);
+          continue;
+        }
+        JitSpew(JitSpew_Escape, "is escaped by unsupported LoadFixedSlot\n");
+        return true;
       }
 
       // This is a replaceable consumer.
@@ -1383,6 +1410,20 @@ void ArgumentsReplacer::visitGuardArgumentsObjectFlags(
   ins->replaceAllUsesWith(args_);
 
   // Remove the guard.
+  ins->block()->discard(ins);
+}
+
+void ArgumentsReplacer::visitUnbox(MUnbox* ins) {
+  // Skip unrelated unboxes.
+  if (ins->getOperand(0) != args_) {
+    return;
+  }
+  MOZ_ASSERT(ins->type() == MIRType::Object);
+
+  // Replace the unbox with the args object.
+  ins->replaceAllUsesWith(args_);
+
+  // Remove the unbox.
   ins->block()->discard(ins);
 }
 
@@ -1546,6 +1587,28 @@ void ArgumentsReplacer::visitApplyArgsObj(MApplyArgsObj* ins) {
   ins->replaceAllUsesWith(newIns);
 
   newIns->stealResumePoint(ins);
+  ins->block()->discard(ins);
+}
+
+void ArgumentsReplacer::visitLoadFixedSlot(MLoadFixedSlot* ins) {
+  // Skip other arguments objects.
+  if (ins->object() != args_) {
+    return;
+  }
+
+  MOZ_ASSERT(ins->slot() == ArgumentsObject::CALLEE_SLOT);
+
+  MDefinition* replacement;
+  if (isInlinedArguments()) {
+    replacement = args_->toCreateInlinedArgumentsObject()->getCallee();
+  } else {
+    auto* callee = MCallee::New(alloc());
+    ins->block()->insertBefore(ins, callee);
+    replacement = callee;
+  }
+  ins->replaceAllUsesWith(replacement);
+
+  // Remove original instruction.
   ins->block()->discard(ins);
 }
 

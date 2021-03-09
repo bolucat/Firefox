@@ -1,0 +1,41 @@
+{
+  "manifest_version": 2,
+
+  "applications": {
+    "gecko": {
+      "id": "firefox-compact-proton-light@mozilla.org"
+    }
+  },
+
+  "name": "Proton Light",
+  "description": "A theme with a light color scheme.",
+  "author": "Mozilla",
+  "version": "1.1",
+
+  "icons": {"32": "icon.svg"},
+
+  "theme": {
+    "colors": {
+      "tab_background_text": "#15141a",
+      "icons": "rgb(24, 25, 26, 0.7)",
+      "frame": "#f0f0f4",
+      "popup": "#fff",
+      "popup_text": "#0c0c0d",
+      "popup_border": "#ccc",
+      "popup_highlight": "#e0e0e6",
+      "popup_highlight_text": "#15141a",
+      "tab_line": "#0a84ff",
+      "toolbar": "#f9f9fb",
+      "toolbar_top_separator": "transparent",
+      "toolbar_bottom_separator": "#ccc",
+      "toolbar_field": "#f0f0f4",
+      "toolbar_field_text": "rgb(24, 25, 26)",
+      "toolbar_field_border": "transparent",
+      "toolbar_field_focus": "#fff"
+    }
+  },
+
+  "theme_experiment": {
+    "stylesheet": "experiment.css"
+  }
+}

@@ -157,13 +157,12 @@ static_assert(JIT_ARGS_LENGTH_MAX <= ARGS_LENGTH_MAX,
  *     mapped arguments objects, see hasOverriddenCallee.
  */
 class ArgumentsObject : public NativeObject {
- protected:
+ public:
   static const uint32_t INITIAL_LENGTH_SLOT = 0;
   static const uint32_t DATA_SLOT = 1;
   static const uint32_t MAYBE_CALL_SLOT = 2;
   static const uint32_t CALLEE_SLOT = 3;
 
- public:
   static const uint32_t LENGTH_OVERRIDDEN_BIT = 0x1;
   static const uint32_t ITERATOR_OVERRIDDEN_BIT = 0x2;
   static const uint32_t ELEMENT_OVERRIDDEN_BIT = 0x4;
@@ -499,6 +498,10 @@ class MappedArgumentsObject : public ArgumentsObject {
     uint32_t v =
         getFixedSlot(INITIAL_LENGTH_SLOT).toInt32() | CALLEE_OVERRIDDEN_BIT;
     setFixedSlot(INITIAL_LENGTH_SLOT, Int32Value(v));
+  }
+
+  static size_t getCalleeSlotOffset() {
+    return getFixedSlotOffset(CALLEE_SLOT);
   }
 
  private:

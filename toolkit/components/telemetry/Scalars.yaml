@@ -4773,6 +4773,7 @@ browser.search:
       - 1614777
       - 1619954
       - 1656135
+      - 1694852
     description: >
       Records bytes that have been transferred for search requests, including
       top-level documents, sub-resources, iframes and search suggestions.
@@ -4781,7 +4782,7 @@ browser.search:
         <search-provider-name>-pb
         sggt-<search-engine-id>
         sggt-<search-engine-id>-pb
-    expires: "89"
+    expires: "96"
     keyed: true
     kind: uint
     notification_emails:
@@ -6730,7 +6731,7 @@ contextual.services.quicksuggest:
     bug_numbers:
       - 1693927
     description: >
-      A keyed uint recording how many times the user has viewed Firefox Suggests
+      A keyed uint recording how many times the user has viewed Firefox Suggest
       (a.k.a. Quick Suggest) results in the urlbar. The key is the 1-based index
       of each result.
     expires: never

@@ -3082,20 +3082,26 @@ JS_PUBLIC_API bool JSPropertySpec::getValue(JSContext* cx,
                                             MutableHandleValue vp) const {
   MOZ_ASSERT(!isAccessor());
 
-  if (u.value.type == JSVAL_TYPE_STRING) {
-    RootedAtom atom(cx, Atomize(cx, u.value.string, strlen(u.value.string)));
-    if (!atom) {
-      return false;
+  switch (u.value.type) {
+    case ValueWrapper::Type::String: {
+      RootedAtom atom(cx, Atomize(cx, u.value.string, strlen(u.value.string)));
+      if (!atom) {
+        return false;
+      }
+      vp.setString(atom);
+      return true;
     }
-    vp.setString(atom);
-  } else if (u.value.type == JSVAL_TYPE_DOUBLE) {
-    vp.setDouble(u.value.double_);
-  } else {
-    MOZ_ASSERT(u.value.type == JSVAL_TYPE_INT32);
-    vp.setInt32(u.value.int32);
+
+    case ValueWrapper::Type::Int32:
+      vp.setInt32(u.value.int32);
+      return true;
+
+    case ValueWrapper::Type::Double:
+      vp.setDouble(u.value.double_);
+      return true;
   }
 
-  return true;
+  MOZ_CRASH("Unexpected type");
 }
 
 bool PropertySpecNameToId(JSContext* cx, JSPropertySpec::Name name,
@@ -5720,7 +5726,7 @@ static JS::TranscodeResult DecodeStencil(JSContext* cx,
                                          frontend::CompilationInput& input,
                                          frontend::CompilationStencil& stencil,
                                          size_t cursorIndex) {
-  XDRStencilDecoder decoder(cx, &input.options, buffer, cursorIndex);
+  XDRStencilDecoder decoder(cx, buffer, cursorIndex);
 
   if (!input.initForGlobal(cx)) {
     return JS::TranscodeResult::Throw;

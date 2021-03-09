@@ -21,15 +21,19 @@ const {
   preferenceStudyFactory,
 } = NormandyTestUtils.factories;
 
-function withAboutStudies(testFunc) {
-  return async (...args) =>
-    BrowserTestUtils.withNewTab("about:studies", async browser =>
-      testFunc(...args, browser)
-    );
+function withAboutStudies() {
+  return function(testFunc) {
+    return async args =>
+      BrowserTestUtils.withNewTab("about:studies", async browser =>
+        testFunc({ ...args, browser })
+      );
+  };
 }
 
 // Test that the code renders at all
-decorate_task(withAboutStudies, async function testAboutStudiesWorks(browser) {
+decorate_task(withAboutStudies(), async function testAboutStudiesWorks({
+  browser,
+}) {
   const appFound = await SpecialPowers.spawn(
     browser,
     [],
@@ -43,8 +47,8 @@ decorate_task(
   withPrefEnv({
     set: [["app.normandy.shieldLearnMoreUrl", "http://test/%OS%/"]],
   }),
-  withAboutStudies,
-  async function testLearnMore(browser) {
+  withAboutStudies(),
+  async function testLearnMore({ browser }) {
     SpecialPowers.spawn(browser, [], async () => {
       const doc = content.document;
       await ContentTaskUtils.waitForCondition(() =>
@@ -65,7 +69,9 @@ decorate_task(
 );
 
 // Test that jumping to preferences worked as expected
-decorate_task(withAboutStudies, async function testUpdatePreferences(browser) {
+decorate_task(withAboutStudies(), async function testUpdatePreferences({
+  browser,
+}) {
   let loadPromise = BrowserTestUtils.firstBrowserLoaded(window);
 
   // We have to use gBrowser instead of browser in most spots since we're
@@ -140,12 +146,12 @@ decorate_task(
       expired: false,
     }),
   ]),
-  withAboutStudies,
-  async function testStudyListing(addonStudies, prefStudies, browser) {
+  withAboutStudies(),
+  async function testStudyListing({ addonStudies, prefExperiments, browser }) {
     await SpecialPowers.spawn(
       browser,
-      [{ addonStudies, prefStudies }],
-      async ({ addonStudies, prefStudies }) => {
+      [{ addonStudies, prefExperiments }],
+      async ({ addonStudies, prefExperiments }) => {
         const doc = content.document;
 
         function getStudyRow(docElem, slug) {
@@ -165,16 +171,16 @@ decorate_task(
         Assert.deepEqual(
           activeNames,
           [
-            prefStudies[2].slug,
+            prefExperiments[2].slug,
             addonStudies[0].slug,
-            prefStudies[0].slug,
+            prefExperiments[0].slug,
             addonStudies[2].slug,
           ],
           "Active studies are grouped by enabled status, and sorted by date"
         );
         Assert.deepEqual(
           inactiveNames,
-          [prefStudies[1].slug, addonStudies[1].slug],
+          [prefExperiments[1].slug, addonStudies[1].slug],
           "Inactive studies are grouped by enabled status, and sorted by date"
         );
 
@@ -213,8 +219,8 @@ decorate_task(
           "Inactive studies do not show a remove button"
         );
 
-        const activePrefStudy = getStudyRow(doc, prefStudies[0].slug);
-        const preferenceName = Object.keys(prefStudies[0].preferences)[0];
+        const activePrefStudy = getStudyRow(doc, prefExperiments[0].slug);
+        const preferenceName = Object.keys(prefExperiments[0].preferences)[0];
         ok(
           activePrefStudy
             .querySelector(".study-description")
@@ -231,7 +237,7 @@ decorate_task(
           "Active studies show a remove button"
         );
 
-        const inactivePrefStudy = getStudyRow(doc, prefStudies[1].slug);
+        const inactivePrefStudy = getStudyRow(doc, prefExperiments[1].slug);
         is(
           inactivePrefStudy.querySelector(".study-status").textContent,
           "Complete",
@@ -253,10 +259,10 @@ decorate_task(
 
         activePrefStudy.querySelector(".remove-button").click();
         await ContentTaskUtils.waitForCondition(() =>
-          getStudyRow(doc, prefStudies[0].slug).matches(".study.disabled")
+          getStudyRow(doc, prefExperiments[0].slug).matches(".study.disabled")
         );
         ok(
-          getStudyRow(doc, prefStudies[0].slug).matches(".study.disabled"),
+          getStudyRow(doc, prefExperiments[0].slug).matches(".study.disabled"),
           "Clicking the remove button updates the UI to show that the study has been disabled."
         );
       }
@@ -269,7 +275,7 @@ decorate_task(
     );
 
     const updatedPrefStudy = await PreferenceExperiments.get(
-      prefStudies[0].slug
+      prefExperiments[0].slug
     );
     ok(
       updatedPrefStudy.expired,
@@ -281,8 +287,8 @@ decorate_task(
 // Test that a message is shown when no studies have been run
 decorate_task(
   AddonStudies.withStudies([]),
-  withAboutStudies,
-  async function testStudyListingNoStudies(studies, browser) {
+  withAboutStudies(),
+  async function testStudyListingNoStudies({ browser }) {
     await SpecialPowers.spawn(browser, [], async () => {
       const doc = content.document;
       await ContentTaskUtils.waitForCondition(
@@ -301,7 +307,7 @@ decorate_task(
 
 // Test that the message shown when studies are disabled and studies exist
 decorate_task(
-  withAboutStudies,
+  withAboutStudies(),
   AddonStudies.withStudies([
     addonStudyFactory({
       userFacingName: "A Fake Add-on Study",
@@ -319,11 +325,7 @@ decorate_task(
       expired: true,
     }),
   ]),
-  async function testStudyListingDisabled(
-    browser,
-    addonStudies,
-    preferenceStudies
-  ) {
+  async function testStudyListingDisabled({ browser }) {
     try {
       RecipeRunner.disable();
 
@@ -355,10 +357,10 @@ decorate_task(
       ["app.shield.optoutstudies.enabled", false],
     ],
   }),
-  withAboutStudies,
+  withAboutStudies(),
   AddonStudies.withStudies([]),
   PreferenceExperiments.withMockExperiments([]),
-  async function testStudyListingStudiesOptOut(browser) {
+  async function testStudyListingStudiesOptOut({ browser }) {
     RecipeRunner.checkPrefs();
     ok(
       RecipeRunner.enabled,
@@ -401,8 +403,12 @@ decorate_task(
       expired: false,
     }),
   ]),
-  withAboutStudies,
-  async function testStudyListing([addonStudy], [prefStudy], browser) {
+  withAboutStudies(),
+  async function testStudyListing({
+    addonStudies: [addonStudy],
+    prefExperiments: [prefStudy],
+    browser,
+  }) {
     // The content page has already loaded. Disabling the studies here shouldn't
     // affect it, since it doesn't live-update.
     await AddonStudies.markAsEnded(addonStudy, "disabled-automatically-test");
@@ -497,8 +503,12 @@ decorate_task(
       expired: false,
     }),
   ]),
-  withAboutStudies,
-  async function testOtherTabsUpdated([addonStudy], [prefStudy], browser) {
+  withAboutStudies(),
+  async function testOtherTabsUpdated({
+    addonStudies: [addonStudy],
+    prefExperiments: [prefStudy],
+    browser,
+  }) {
     // Ensure that both our studies are active in the current tab.
     await SpecialPowers.spawn(
       browser,

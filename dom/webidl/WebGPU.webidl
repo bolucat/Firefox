@@ -364,7 +364,7 @@ interface GPUTextureUsage {
     const GPUTextureUsageFlags COPY_DST          = 0x02;
     const GPUTextureUsageFlags SAMPLED           = 0x04;
     const GPUTextureUsageFlags STORAGE           = 0x08;
-    const GPUTextureUsageFlags OUTPUT_ATTACHMENT = 0x10;
+    const GPUTextureUsageFlags RENDER_ATTACHMENT = 0x10;
 };
 
 dictionary GPUTextureDescriptor : GPUObjectDescriptorBase {
@@ -876,7 +876,7 @@ enum GPUStoreOp {
 };
 
 dictionary GPURenderPassColorAttachmentDescriptor {
-    required GPUTextureView attachment;
+    required GPUTextureView view;
     GPUTextureView resolveTarget;
 
     required (GPULoadOp or GPUColor) loadValue;
@@ -884,7 +884,7 @@ dictionary GPURenderPassColorAttachmentDescriptor {
 };
 
 dictionary GPURenderPassDepthStencilAttachmentDescriptor {
-    required GPUTextureView attachment;
+    required GPUTextureView view;
 
     required (GPULoadOp or float) depthLoadValue;
     required GPUStoreOp depthStoreOp;

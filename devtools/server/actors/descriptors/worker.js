@@ -10,6 +10,10 @@
  * See devtools/docs/backend/actor-hierarchy.md for more details.
  */
 
+// protocol.js uses objects as exceptions in order to define
+// error packets.
+/* eslint-disable no-throw-literal */
+
 const { Ci } = require("chrome");
 const ChromeUtils = require("ChromeUtils");
 const { DevToolsServer } = require("devtools/server/devtools-server");
@@ -107,18 +111,18 @@ const WorkerDescriptorActor = protocol.ActorClassWithSpec(
 
     detach() {
       if (!this._attached) {
-        return { error: "wrongState" };
+        throw { error: "wrongState" };
       }
 
-      this._detach();
-
-      return { type: "detached" };
+      this.destroy();
     },
 
     destroy() {
       if (this._attached) {
         this._detach();
       }
+
+      this.emit("descriptor-destroyed");
       protocol.Actor.prototype.destroy.call(this);
     },
 
@@ -170,11 +174,7 @@ const WorkerDescriptorActor = protocol.ActorClassWithSpec(
     },
 
     _onWorkerClose() {
-      if (this._attached) {
-        this._detach();
-      }
-
-      this.conn.sendActorEvent(this.actorID, "close");
+      this.destroy();
     },
 
     _onWorkerError(filename, lineno, message) {

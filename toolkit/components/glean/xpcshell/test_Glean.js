@@ -73,20 +73,13 @@ add_task(function test_setup() {
   // Mock SysInfo.
   SysInfo.overrides = {
     version: "1.2.3",
-    arc: "x64",
+    arch: "x64",
   };
   MockRegistrar.register("@mozilla.org/system-info;1", SysInfo);
 
   // We need to initialize it once, otherwise operations will be stuck in the pre-init queue.
   let FOG = Cc["@mozilla.org/toolkit/glean;1"].createInstance(Ci.nsIFOG);
   FOG.initializeFOG();
-});
-
-add_task(function test_osversion_is_set() {
-  Assert.equal(
-    "1.2.3",
-    Glean.fogValidation.osVersion.testGetValue("fog-validation")
-  );
 });
 
 add_task(function test_fog_counter_works() {

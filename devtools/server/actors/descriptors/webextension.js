@@ -59,11 +59,8 @@ const WebExtensionDescriptorActor = protocol.ActorClassWithSpec(
       this.addonId = addon.id;
       this._childFormPromise = null;
 
-      // Called when the debug browser element has been destroyed
-      this._extensionFrameDisconnect = this._extensionFrameDisconnect.bind(
-        this
-      );
       this._onChildExit = this._onChildExit.bind(this);
+      this.destroy = this.destroy.bind(this);
       AddonManager.addAddonListener(this);
     },
 
@@ -121,7 +118,7 @@ const WebExtensionDescriptorActor = protocol.ActorClassWithSpec(
       this._form = await connectToFrame(
         this.conn,
         this._browser,
-        this._extensionFrameDisconnect,
+        this.destroy,
         { addonId: this.addonId }
       );
 
@@ -192,7 +189,36 @@ const WebExtensionDescriptorActor = protocol.ActorClassWithSpec(
       );
     },
 
-    _extensionFrameDisconnect() {
+    /**
+     * Handle the child actor exit.
+     */
+    _onChildExit(msg) {
+      if (msg.json.actor !== this._childActorID) {
+        return;
+      }
+
+      this.destroy();
+    },
+
+    // AddonManagerListener callbacks.
+    onInstalled(addon) {
+      if (addon.id != this.addonId) {
+        return;
+      }
+
+      // Update the AddonManager's addon object on reload/update.
+      this.addon = addon;
+    },
+
+    onUninstalled(addon) {
+      if (addon != this.addon) {
+        return;
+      }
+
+      this.destroy();
+    },
+
+    destroy() {
       AddonManager.removeAddonListener(this);
 
       this.addon = null;
@@ -211,39 +237,9 @@ const WebExtensionDescriptorActor = protocol.ActorClassWithSpec(
 
       this._browser = null;
       this._childActorID = null;
-    },
 
-    /**
-     * Handle the child actor exit.
-     */
-    _onChildExit(msg) {
-      if (msg.json.actor !== this._childActorID) {
-        return;
-      }
+      this.emit("descriptor-destroyed");
 
-      this._extensionFrameDisconnect();
-    },
-
-    // AddonManagerListener callbacks.
-    onInstalled(addon) {
-      if (addon.id != this.addonId) {
-        return;
-      }
-
-      // Update the AddonManager's addon object on reload/update.
-      this.addon = addon;
-    },
-
-    onUninstalled(addon) {
-      if (addon != this.addon) {
-        return;
-      }
-
-      this._extensionFrameDisconnect();
-    },
-
-    destroy() {
-      this._extensionFrameDisconnect();
       protocol.Actor.prototype.destroy.call(this);
     },
   }

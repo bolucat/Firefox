@@ -17,7 +17,6 @@
 #include "jsfriendapi.h"
 #include "NamespaceImports.h"
 
-#include "frontend/ParserAtom.h"
 #include "js/CompileOptions.h"
 #include "js/Transcoding.h"
 #include "js/TypeDecls.h"
@@ -239,10 +238,6 @@ class XDRState : public XDRCoderBase {
 
   virtual bool hasAtomTable() const { return false; }
   virtual XDRAtomTable& atomTable() { MOZ_CRASH("does not have atomTable"); }
-  virtual frontend::ParserAtomSpanBuilder& frontendAtoms() {
-    MOZ_CRASH("does not have frontendAtoms");
-  }
-  virtual LifoAlloc& stencilAlloc() { MOZ_CRASH("does not have stencilAlloc"); }
   virtual void finishAtomTable() { MOZ_CRASH("does not have atomTable"); }
 
   template <typename T = mozilla::Ok>
@@ -553,95 +548,74 @@ class XDROffThreadDecoder : public XDRDecoder {
  *   b. ScriptSource
  *   d. Alignment padding
  * 2. Stencil
- *   a. ParseAtomTable
- *   b. CompilationStencil
+ *   a. CompilationStencil
  */
 
 /*
- * The stencil decoder accepts `options` and `range` as input, along
- * with a freshly initialized `parserAtoms` table.
+ * The stencil decoder accepts `range` as input.
  *
  * The decoded stencils are outputted to the default-initialized
- * `stencil` parameter of `codeStencil` method, and decoded atoms are
- * interned into the `parserAtoms` parameter of the ctor.
+ * `stencil` parameter of `codeStencil` method.
  *
  * The decoded stencils borrow the input `buffer`/`range`, and the consumer
  * has to keep the buffer alive while the decoded stencils are alive.
  */
 class XDRStencilDecoder : public XDRDecoderBase {
  public:
-  XDRStencilDecoder(JSContext* cx, const JS::ReadOnlyCompileOptions* options,
-                    JS::TranscodeBuffer& buffer, size_t cursor)
-      : XDRDecoderBase(cx, buffer, cursor), options_(options) {
+  XDRStencilDecoder(JSContext* cx, JS::TranscodeBuffer& buffer, size_t cursor)
+      : XDRDecoderBase(cx, buffer, cursor) {
     MOZ_ASSERT(JS::IsTranscodingBytecodeAligned(buffer.begin()));
     MOZ_ASSERT(JS::IsTranscodingBytecodeOffsetAligned(cursor));
-    MOZ_ASSERT(options_);
   }
 
-  XDRStencilDecoder(JSContext* cx, const JS::ReadOnlyCompileOptions* options,
-                    const JS::TranscodeRange& range)
-      : XDRDecoderBase(cx, range), options_(options) {
+  XDRStencilDecoder(JSContext* cx, const JS::TranscodeRange& range)
+      : XDRDecoderBase(cx, range) {
     MOZ_ASSERT(JS::IsTranscodingBytecodeAligned(range.begin().get()));
-    MOZ_ASSERT(options_);
   }
-
-  bool hasAtomTable() const override { return hasFinishedAtomTable_; }
-  frontend::ParserAtomSpanBuilder& frontendAtoms() override {
-    return *parserAtomBuilder_;
-  }
-  LifoAlloc& stencilAlloc() override { return *stencilAlloc_; }
-  void finishAtomTable() override { hasFinishedAtomTable_ = true; }
-
-  bool hasOptions() const override { return true; }
-  const JS::ReadOnlyCompileOptions& options() override { return *options_; }
 
   XDRResult codeStencil(frontend::CompilationInput& input,
                         frontend::CompilationStencil& stencil);
-
- private:
-  const JS::ReadOnlyCompileOptions* options_;
-  bool hasFinishedAtomTable_ = false;
-  frontend::ParserAtomSpanBuilder* parserAtomBuilder_ = nullptr;
-  LifoAlloc* stencilAlloc_ = nullptr;
 };
 
 class XDRStencilEncoder : public XDREncoder {
  public:
-  explicit XDRStencilEncoder(JSContext* cx, JS::TranscodeBuffer& buffer)
-      : XDREncoder(cx, buffer, 0) {
+  XDRStencilEncoder(JSContext* cx, JS::TranscodeBuffer& buffer)
+      : XDREncoder(cx, buffer, buffer.length()) {
     // NOTE: If buffer is empty, buffer.begin() doesn't point valid buffer.
     MOZ_ASSERT_IF(!buffer.empty(),
                   JS::IsTranscodingBytecodeAligned(buffer.begin()));
     MOZ_ASSERT(JS::IsTranscodingBytecodeOffsetAligned(buffer.length()));
   }
 
-  XDRResult codeStencil(frontend::CompilationInput& input,
-                        frontend::CompilationStencil& stencil);
+ private:
+  XDRResult codeStencil(const JS::ReadOnlyCompileOptions* options,
+                        const RefPtr<ScriptSource>& source,
+                        const frontend::CompilationStencil& stencil);
+
+ public:
+  XDRResult codeStencil(const frontend::CompilationInput& input,
+                        const frontend::CompilationStencil& stencil);
+
+  XDRResult codeStencil(const RefPtr<ScriptSource>& source,
+                        const frontend::CompilationStencil& stencil);
 };
 
-class XDRIncrementalStencilEncoder : public XDREncoder {
-  // The target buffer isn't available until linearize.
-  // Hold dummy buffer to initialize XDREncoder.
-  JS::TranscodeBuffer dummy_;
-
+class XDRIncrementalStencilEncoder {
   frontend::CompilationStencilMerger* merger_ = nullptr;
 
  public:
-  explicit XDRIncrementalStencilEncoder(JSContext* cx)
-      : XDREncoder(cx, dummy_, 0) {}
+  XDRIncrementalStencilEncoder() = default;
 
-  virtual ~XDRIncrementalStencilEncoder();
+  ~XDRIncrementalStencilEncoder();
 
-  XDRResult linearize(JS::TranscodeBuffer& buffer, js::ScriptSource* ss);
+  XDRResult linearize(JSContext* cx, JS::TranscodeBuffer& buffer,
+                      js::ScriptSource* ss);
 
   XDRResult setInitial(
-      const JS::ReadOnlyCompileOptions& options,
+      JSContext* cx, const JS::ReadOnlyCompileOptions& options,
       UniquePtr<frontend::ExtensibleCompilationStencil>&& initial);
   XDRResult addDelazification(
-      const frontend::CompilationStencil& delazification);
-
- private:
-  void switchToBuffer(XDRBuffer<XDR_ENCODE>* target) { buf = target; }
+      JSContext* cx, const frontend::CompilationStencil& delazification);
 };
 
 template <XDRMode mode>
@@ -652,21 +626,6 @@ XDRResult XDRAtom(XDRState<mode>* xdr, js::MutableHandleAtom atomp);
 
 template <XDRMode mode>
 XDRResult XDRAtomData(XDRState<mode>* xdr, js::MutableHandleAtom atomp);
-
-template <XDRMode mode>
-XDRResult XDRParserAtom(XDRState<mode>* xdr, frontend::ParserAtom** atomp);
-
-template <XDRMode mode>
-XDRResult XDRCompilationStencil(XDRState<mode>* xdr,
-                                frontend::CompilationStencil& stencil);
-
-template <XDRMode mode>
-XDRResult XDRCheckCompilationStencil(XDRState<mode>* xdr,
-                                     frontend::CompilationStencil& stencil);
-
-template <XDRMode mode>
-XDRResult XDRCheckCompilationStencil(
-    XDRState<mode>* xdr, frontend::ExtensibleCompilationStencil& stencil);
 
 } /* namespace js */
 

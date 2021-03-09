@@ -313,7 +313,7 @@ Element* DocumentOrShadowRoot::GetPointerLockElement() {
              : nullptr;
 }
 
-Element* DocumentOrShadowRoot::GetFullscreenElement() {
+Element* DocumentOrShadowRoot::GetFullscreenElement() const {
   if (!AsNode().IsInComposedDoc()) {
     return nullptr;
   }
@@ -808,7 +808,7 @@ void DocumentOrShadowRoot::Traverse(DocumentOrShadowRoot* tmp,
   });
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAdoptedStyleSheets);
 
-  for (auto iter = tmp->mIdentifierMap.ConstIter(); !iter.Done(); iter.Next()) {
+  for (auto iter = tmp->mIdentifierMap.Iter(); !iter.Done(); iter.Next()) {
     iter.Get()->Traverse(&cb);
   }
 

@@ -602,6 +602,14 @@ XPCOMUtils.defineLazyPreferenceGetter(
   false
 );
 
+/* Temporary pref while the Proton doorhangers work stablizes. */
+XPCOMUtils.defineLazyPreferenceGetter(
+  this,
+  "gProtonDoorhangers",
+  "browser.proton.doorhangers.enabled",
+  false
+);
+
 /* Import aboutWelcomeFeature from Nimbus Experiment API
    to access experiment values */
 XPCOMUtils.defineLazyGetter(this, "aboutWelcomeFeature", () => {
@@ -4175,7 +4183,15 @@ const BrowserSearch = {
    * has search engines.
    */
   updateOpenSearchBadge() {
-    BrowserPageActions.addSearchEngine.updateEngines();
+    // When removing browser.proton.urlbar.enabled change this to only check
+    // gProton.
+    if (gProton && gURLBar.addSearchEngineHelper) {
+      gURLBar.addSearchEngineHelper.setEnginesFromBrowser(
+        gBrowser.selectedBrowser
+      );
+    } else {
+      BrowserPageActions.addSearchEngine.updateEngines();
+    }
 
     var searchBar = this.searchBar;
     if (!searchBar) {
@@ -7538,6 +7554,7 @@ var IndexedDBPromptHelper = {
           Ci.nsIPermissionManager.ALLOW_ACTION
         );
       },
+      disableHighlight: gProtonDoorhangers,
     };
 
     var secondaryActions = [
@@ -7636,6 +7653,7 @@ var CanvasPermissionPromptHelper = {
           state && state.checkboxChecked
         );
       },
+      disableHighlight: gProtonDoorhangers,
     };
 
     let secondaryActions = [
@@ -7799,6 +7817,10 @@ var WebAuthnPromptHelper = {
         this._tid = 0;
       }
     };
+
+    if (gProtonDoorhangers) {
+      mainAction.disableHighlight = true;
+    }
 
     this._tid = tid;
     this._current = PopupNotifications.show(
