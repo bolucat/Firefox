@@ -24,9 +24,8 @@
 
 namespace js {
 
-/*
- * Get the GC kind to use for scripted 'new'.
- */
+// Get the GC kind to use for scripted 'new', empty object literals ({}), and
+// the |Object| constructor.
 static inline gc::AllocKind NewObjectGCKind() { return gc::AllocKind::OBJECT4; }
 
 }  // namespace js
@@ -233,10 +232,6 @@ inline bool JSObject::nonProxyIsExtensible() const {
 
 inline bool JSObject::isBoundFunction() const {
   return is<JSFunction>() && as<JSFunction>().isBoundFunction();
-}
-
-inline bool JSObject::isDelegate() const {
-  return hasFlag(js::ObjectFlag::Delegate);
 }
 
 inline bool JSObject::hasUncacheableProto() const {

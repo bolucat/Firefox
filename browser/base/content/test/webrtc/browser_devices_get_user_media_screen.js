@@ -131,7 +131,7 @@ var gTests = [
         "the preview area is visible"
       );
       ok(
-        !document.getElementById("webRTC-previewWarning").hidden,
+        !document.getElementById("webRTC-previewWarningBox").hidden,
         "the scary warning is visible"
       );
       ok(!notification.button.disabled, "Allow button is enabled");
@@ -331,7 +331,7 @@ var gTests = [
           "the preview area is visible"
         );
         ok(
-          !document.getElementById("webRTC-previewWarning").hidden,
+          !document.getElementById("webRTC-previewWarningBox").hidden,
           "the scary warning is visible"
         );
         // Select the 'Select Window' item again, the preview should be hidden.
@@ -366,7 +366,7 @@ var gTests = [
           "the preview area is visible"
         );
         ok(
-          document.getElementById("webRTC-previewWarning").hidden,
+          document.getElementById("webRTC-previewWarningBox").hidden,
           "the scary warning is hidden"
         );
       } else {
@@ -452,7 +452,7 @@ var gTests = [
         "the preview area is visible"
       );
       ok(
-        !document.getElementById("webRTC-previewWarning").hidden,
+        !document.getElementById("webRTC-previewWarningBox").hidden,
         "the scary warning is visible"
       );
 
@@ -843,12 +843,11 @@ var gTests = [
         ok(!notification.button.disabled, "Allow button is not disabled");
       } else {
         ok(notification.button.disabled, "Allow button is disabled");
+        ok(
+          !notification.hasAttribute("warninghidden"),
+          "warning message is shown"
+        );
       }
-
-      ok(
-        !notification.hasAttribute("warninghidden"),
-        "warning message is shown"
-      );
 
       menulist.getItemAtIndex(3).doCommand();
       ok(checkbox.checked, "checkbox still checked");
@@ -859,12 +858,11 @@ var gTests = [
         ok(!notification.button.disabled, "Allow button remains not disabled");
       } else {
         ok(notification.button.disabled, "Allow button remains disabled");
+        ok(
+          !notification.hasAttribute("warninghidden"),
+          "warning message is still shown"
+        );
       }
-
-      ok(
-        !notification.hasAttribute("warninghidden"),
-        "warning message is still shown"
-      );
 
       await disableObserverVerification();
 

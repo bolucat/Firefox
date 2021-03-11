@@ -552,6 +552,9 @@ const browsingContextTargetPrototype = {
     const response = {
       actor: this.actorID,
       browsingContextID: this.browsingContextID,
+      // True for targets created by JSWindowActors, see constructor JSDoc.
+      followWindowGlobalLifeCycle: this.followWindowGlobalLifeCycle,
+      isTopLevelTarget: this.isTopLevelTarget,
       traits: {
         // @backward-compat { version 64 } Exposes a new trait to help identify
         // BrowsingContextActor's inherited actors from the client side.
@@ -559,6 +562,14 @@ const browsingContextTargetPrototype = {
         // @backward-compat { version 87 } Print & color scheme simulations
         // should now be set using reconfigure.
         reconfigureSupportsSimulationFeatures: true,
+        // @backward-compat { version 88 } Browsing context targets can compute
+        // the isTopLevelTarget flag on the server. Note that not all targets
+        // support this, so we might keep this trait until all top level targets
+        // can provide this flag consistently from the server.
+        supportsTopLevelTargetFlag: true,
+        // @backward-compat { version 88 } Added in version 88, will not be
+        // available on targets from older servers.
+        supportsFollowWindowGlobalLifeCycleFlag: true,
       },
     };
 

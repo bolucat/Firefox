@@ -1769,7 +1769,7 @@
 # bug 1392460.
 - name: dom.event.wheel-deltaMode-lines.disabled
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Mostly for debugging. Whether we should do the same as
@@ -2295,7 +2295,7 @@
 
 # Timeout clamp in ms for timeouts we clamp.
 - name: dom.min_timeout_value
-  type: int32_t
+  type: RelaxedAtomicInt32
   value: 4
   mirror: always
 
@@ -3482,6 +3482,11 @@
 - name: dom.worker.console.dispatch_events_to_main_thread
   type: RelaxedAtomicBool
   value: true
+  mirror: always
+ 
+- name: dom.workers.testing.enabled
+  type: RelaxedAtomicBool
+  value: false
   mirror: always
 
 - name: dom.worklet.enabled
@@ -4885,7 +4890,11 @@
 
 - name: gfx.webrender.software.opengl
   type: bool
+#if defined(MOZ_WIDGET_ANDROID)
+  value: true
+#else
   value: false
+#endif
   mirror: once
 
 - name: gfx.webrender.software.d3d11.upload-mode
@@ -4897,7 +4906,7 @@
 # software backend
 - name: gfx.webrender.software.unaccelerated-widget.allow
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # Whether to force widgets that don't support acceleration to use WebRender
@@ -5202,7 +5211,11 @@
 # Whether we attempt to decode AVIF images or not.
 - name: image.avif.enabled
   type: RelaxedAtomicBool
+#if defined(MOZ_AV1)
   value: true
+#else
+  value: false
+#endif
   mirror: always
 
 # Whether we use dav1d (true) or libaom (false) to decode AVIF image
@@ -6457,6 +6470,13 @@
   type: bool
   value: false
   mirror: always
+
+# Is ruby-position: alternate enabled?
+- name: layout.css.ruby.position-alternate.enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+  rust: true
 
 - name: layout.css.scroll-behavior.damping-ratio
   type: AtomicFloat
@@ -10611,7 +10631,7 @@
 # platforms, but stick to the standard colors on those.
 - name: widget.non-native-theme.use-theme-accent
   type: bool
-#ifdef MOZ_WIDGET_GTK
+#if defined(MOZ_WIDGET_GTK) || defined(XP_MACOSX)
   value: true
 #else
   value: false

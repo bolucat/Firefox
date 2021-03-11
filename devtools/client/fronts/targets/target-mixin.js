@@ -47,7 +47,7 @@ function TargetMixin(parentClass) {
 
       // This flag will be set to true from:
       // - TabDescriptorFront getTarget(), for local tab targets
-      // - targetFromURL(), for local targets (about:debugging)
+      // - descriptorFromURL(), for local targets (about:debugging)
       // - initToolbox(), for some test-only targets
       this.shouldCloseClient = false;
 
@@ -115,7 +115,10 @@ function TargetMixin(parentClass) {
     }
 
     get isTopLevel() {
-      return this._isTopLevel;
+      if (!this.getTrait("supportsTopLevelTargetFlag")) {
+        return this._isTopLevel;
+      }
+      return this.targetForm.isTopLevelTarget;
     }
 
     setTargetType(type) {
@@ -123,7 +126,9 @@ function TargetMixin(parentClass) {
     }
 
     setIsTopLevel(isTopLevel) {
-      this._isTopLevel = isTopLevel;
+      if (!this.getTrait("supportsTopLevelTargetFlag")) {
+        this._isTopLevel = isTopLevel;
+      }
     }
 
     /**

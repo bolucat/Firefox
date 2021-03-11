@@ -299,14 +299,38 @@ OpKind wasm::Classify(OpBytes op) {
         case GcOp::Limit:
           // Reject Limit for GcPrefix encoding
           break;
-        case GcOp::StructNew:
-          WASM_GC_OP(OpKind::StructNew);
+        case GcOp::StructNewWithRtt:
+          WASM_GC_OP(OpKind::StructNewWithRtt);
+        case GcOp::StructNewDefaultWithRtt:
+          WASM_GC_OP(OpKind::StructNewDefaultWithRtt);
         case GcOp::StructGet:
+        case GcOp::StructGetS:
+        case GcOp::StructGetU:
           WASM_GC_OP(OpKind::StructGet);
         case GcOp::StructSet:
           WASM_GC_OP(OpKind::StructSet);
-        case GcOp::StructNarrow:
-          WASM_GC_OP(OpKind::StructNarrow);
+        case GcOp::ArrayNewWithRtt:
+          WASM_GC_OP(OpKind::ArrayNewWithRtt);
+        case GcOp::ArrayNewDefaultWithRtt:
+          WASM_GC_OP(OpKind::ArrayNewDefaultWithRtt);
+        case GcOp::ArrayGet:
+        case GcOp::ArrayGetS:
+        case GcOp::ArrayGetU:
+          WASM_GC_OP(OpKind::ArrayGet);
+        case GcOp::ArraySet:
+          WASM_GC_OP(OpKind::ArraySet);
+        case GcOp::ArrayLen:
+          WASM_GC_OP(OpKind::ArrayLen);
+        case GcOp::RttCanon:
+          WASM_GC_OP(OpKind::RttCanon);
+        case GcOp::RttSub:
+          WASM_GC_OP(OpKind::RttSub);
+        case GcOp::RefTest:
+          WASM_GC_OP(OpKind::RefTest);
+        case GcOp::RefCast:
+          WASM_GC_OP(OpKind::RefCast);
+        case GcOp::BrOnCast:
+          WASM_GC_OP(OpKind::BrOnCast);
       }
       break;
     }

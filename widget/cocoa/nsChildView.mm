@@ -1702,8 +1702,6 @@ static Maybe<VibrancyType> ThemeGeometryTypeToVibrancyType(
     case eThemeGeometryTypeVibrancyDark:
     case eThemeGeometryTypeVibrantTitlebarDark:
       return Some(VibrancyType::DARK);
-    case eThemeGeometryTypeSheet:
-      return Some(VibrancyType::SHEET);
     case eThemeGeometryTypeTooltip:
       return Some(VibrancyType::TOOLTIP);
     case eThemeGeometryTypeMenu:
@@ -1753,7 +1751,6 @@ static void MakeRegionsNonOverlapping(Region& aFirst, Regions&... aRest) {
 }
 
 void nsChildView::UpdateVibrancy(const nsTArray<ThemeGeometry>& aThemeGeometries) {
-  LayoutDeviceIntRegion sheetRegion = GatherVibrantRegion(aThemeGeometries, VibrancyType::SHEET);
   LayoutDeviceIntRegion vibrantLightRegion =
       GatherVibrantRegion(aThemeGeometries, VibrancyType::LIGHT);
   LayoutDeviceIntRegion vibrantDarkRegion =
@@ -1770,9 +1767,9 @@ void nsChildView::UpdateVibrancy(const nsTArray<ThemeGeometry>& aThemeGeometries
   LayoutDeviceIntRegion activeSourceListSelectionRegion =
       GatherVibrantRegion(aThemeGeometries, VibrancyType::ACTIVE_SOURCE_LIST_SELECTION);
 
-  MakeRegionsNonOverlapping(sheetRegion, vibrantLightRegion, vibrantDarkRegion, menuRegion,
-                            tooltipRegion, highlightedMenuItemRegion, sourceListRegion,
-                            sourceListSelectionRegion, activeSourceListSelectionRegion);
+  MakeRegionsNonOverlapping(vibrantLightRegion, vibrantDarkRegion, menuRegion, tooltipRegion,
+                            highlightedMenuItemRegion, sourceListRegion, sourceListSelectionRegion,
+                            activeSourceListSelectionRegion);
 
   auto& vm = EnsureVibrancyManager();
   bool changed = false;
@@ -1781,7 +1778,6 @@ void nsChildView::UpdateVibrancy(const nsTArray<ThemeGeometry>& aThemeGeometries
   changed |= vm.UpdateVibrantRegion(VibrancyType::MENU, menuRegion);
   changed |= vm.UpdateVibrantRegion(VibrancyType::TOOLTIP, tooltipRegion);
   changed |= vm.UpdateVibrantRegion(VibrancyType::HIGHLIGHTED_MENUITEM, highlightedMenuItemRegion);
-  changed |= vm.UpdateVibrantRegion(VibrancyType::SHEET, sheetRegion);
   changed |= vm.UpdateVibrantRegion(VibrancyType::SOURCE_LIST, sourceListRegion);
   changed |= vm.UpdateVibrantRegion(VibrancyType::SOURCE_LIST_SELECTION, sourceListSelectionRegion);
   changed |= vm.UpdateVibrantRegion(VibrancyType::ACTIVE_SOURCE_LIST_SELECTION,
@@ -2792,21 +2788,14 @@ NSEvent* gLastDragMouseDownEvent = nil;  // [strong]
     return false;
   }
 
-  bool usingElCapitanOrLaterSDK = true;
-#if !defined(MAC_OS_X_VERSION_10_11) || MAC_OS_X_VERSION_MAX_ALLOWED < MAC_OS_X_VERSION_10_11
-  usingElCapitanOrLaterSDK = false;
-#endif
+  if (aEvent.phase == NSEventPhaseBegan) {
+    [self beginGestureWithEvent:aEvent];
+    return true;
+  }
 
-  if (usingElCapitanOrLaterSDK) {
-    if (aEvent.phase == NSEventPhaseBegan) {
-      [self beginGestureWithEvent:aEvent];
-      return true;
-    }
-
-    if (aEvent.phase == NSEventPhaseEnded || aEvent.phase == NSEventPhaseCancelled) {
-      [self endGestureWithEvent:aEvent];
-      return true;
-    }
+  if (aEvent.phase == NSEventPhaseEnded || aEvent.phase == NSEventPhaseCancelled) {
+    [self endGestureWithEvent:aEvent];
+    return true;
   }
 
   return false;

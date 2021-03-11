@@ -19,13 +19,13 @@
 #include "mozilla/Result.h"
 #include "mozilla/dom/Nullable.h"
 #include "mozilla/dom/ipc/IdType.h"
+#include "mozilla/dom/quota/CommonMetadata.h"
 #include "mozilla/dom/quota/InitializationTypes.h"
-#include "mozilla/dom/quota/OriginMetadata.h"
 #include "mozilla/dom/quota/PersistenceType.h"
 #include "mozilla/dom/quota/QuotaCommon.h"
 #include "nsCOMPtr.h"
 #include "nsClassHashtable.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 #include "nsDebug.h"
 #include "nsHashKeys.h"
 #include "nsISupports.h"
@@ -225,22 +225,15 @@ class QuotaManager final : public BackgroundThreadObject {
   Result<nsCOMPtr<nsIFile>, nsresult> GetDirectoryForOrigin(
       PersistenceType aPersistenceType, const nsACString& aASCIIOrigin) const;
 
-  nsresult RestoreDirectoryMetadata2(nsIFile* aDirectory, bool aPersistent);
-
-  struct GetDirectoryResultWithOriginMetadata {
-    int64_t mTimestamp;
-    bool mPersisted;
-    OriginMetadata mOriginMetadata;
-  };
+  nsresult RestoreDirectoryMetadata2(nsIFile* aDirectory);
 
   // XXX Remove aPersistenceType argument once the persistence type is stored
   // in the metadata file.
-  Result<GetDirectoryResultWithOriginMetadata, nsresult>
-  GetDirectoryMetadataWithOriginMetadata2(nsIFile* aDirectory,
-                                          PersistenceType aPersistenceType);
+  Result<FullOriginMetadata, nsresult> LoadFullOriginMetadata(
+      nsIFile* aDirectory, PersistenceType aPersistenceType);
 
-  Result<GetDirectoryResultWithOriginMetadata, nsresult>
-  GetDirectoryMetadataWithOriginMetadata2WithRestore(nsIFile* aDirectory);
+  Result<FullOriginMetadata, nsresult> LoadFullOriginMetadataWithRestore(
+      nsIFile* aDirectory);
 
   // This is the main entry point into the QuotaManager API.
   // Any storage API implementation (quota client) that participates in
@@ -588,7 +581,7 @@ class QuotaManager final : public BackgroundThreadObject {
   // all modifications (including those on the owning thread) and all reads off
   // the owning thread must be protected by mQuotaMutex. In other words, only
   // reads on the owning thread don't have to be protected by mQuotaMutex.
-  nsDataHashtable<nsUint64HashKey, NotNull<DirectoryLockImpl*>>
+  nsTHashMap<nsUint64HashKey, NotNull<DirectoryLockImpl*>>
       mDirectoryLockIdTable;
 
   // Directory lock tables that are used to update origin access time.
@@ -602,7 +595,7 @@ class QuotaManager final : public BackgroundThreadObject {
   // A hash table that is used to cache origin parser results for given
   // sanitized origin strings. This hash table isn't protected by any mutex but
   // it is only ever touched on the IO thread.
-  nsDataHashtable<nsCStringHashKey, bool> mValidOrigins;
+  nsTHashMap<nsCStringHashKey, bool> mValidOrigins;
 
   struct OriginInitializationInfo {
     bool mPersistentOriginAttempted : 1;
@@ -612,7 +605,7 @@ class QuotaManager final : public BackgroundThreadObject {
   // A hash table that is currently used to track origin initialization
   // attempts. This hash table isn't protected by any mutex but it is only ever
   // touched on the IO thread.
-  nsDataHashtable<nsCStringHashKey, OriginInitializationInfo>
+  nsTHashMap<nsCStringHashKey, OriginInitializationInfo>
       mOriginInitializationInfos;
 
   // This array is populated at initialization time and then never modified, so

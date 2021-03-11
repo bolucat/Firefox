@@ -8,22 +8,14 @@ package org.mozilla.gecko;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
-import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.PipedInputStream;
-import java.io.PipedOutputStream;
-import java.net.MalformedURLException;
 import java.net.Proxy;
-import java.net.URLConnection;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.StringTokenizer;
 
-import org.mozilla.gecko.annotation.JNITarget;
 import org.mozilla.gecko.annotation.RobocopTarget;
 import org.mozilla.gecko.annotation.WrapForJNI;
 import org.mozilla.gecko.util.HardwareCodecCapabilityUtils;
@@ -31,13 +23,11 @@ import org.mozilla.gecko.util.HardwareUtils;
 import org.mozilla.gecko.util.InputDeviceUtils;
 import org.mozilla.gecko.util.IOUtils;
 import org.mozilla.gecko.util.ProxySelector;
-import org.mozilla.gecko.util.StrictModeContext;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.geckoview.BuildConfig;
 import org.mozilla.geckoview.R;
 
 import android.annotation.SuppressLint;
-import android.app.ActivityManager;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
@@ -84,7 +74,6 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.view.ContextThemeWrapper;
 import android.view.Display;
-import android.view.HapticFeedbackConstants;
 import android.view.InputDevice;
 import android.view.WindowManager;
 import android.webkit.MimeTypeMap;
@@ -162,10 +151,6 @@ public class GeckoAppShell {
 
     public static synchronized Class<? extends Service> getCrashHandlerService() {
         return sCrashHandlerService;
-    }
-
-    public static synchronized boolean isCrashHandlingEnabled() {
-        return sCrashHandler != null;
     }
 
     @WrapForJNI(exceptionMode = "ignore")
@@ -317,7 +302,7 @@ public class GeckoAppShell {
         }
 
         if (!enable) {
-            lm.removeUpdates(getLocationListener());
+            lm.removeUpdates(sAndroidListeners);
             return true;
         }
 
@@ -328,7 +313,7 @@ public class GeckoAppShell {
 
         final Location lastKnownLocation = getLastKnownLocation(lm);
         if (lastKnownLocation != null) {
-            getLocationListener().onLocationChanged(lastKnownLocation);
+            sAndroidListeners.onLocationChanged(lastKnownLocation);
         }
 
         final Criteria criteria = new Criteria();
@@ -351,7 +336,7 @@ public class GeckoAppShell {
         }
 
         final Looper l = Looper.getMainLooper();
-        lm.requestLocationUpdates(provider, 100, 0.5f, getLocationListener(), l);
+        lm.requestLocationUpdates(provider, 100, 0.5f, sAndroidListeners, l);
         return true;
     }
 
@@ -383,12 +368,8 @@ public class GeckoAppShell {
                                                        float altitudeAccuracy,
                                                        float heading, float speed, long time);
 
-    private static class DefaultListeners implements SensorEventListener,
-                                                     LocationListener,
-                                                     NotificationListener,
-                                                     ScreenOrientationDelegate,
-                                                     WakeLockDelegate,
-                                                     HapticFeedbackDelegate {
+    private static class AndroidListeners implements SensorEventListener,
+                                                     LocationListener {
         @Override
         public void onAccuracyChanged(final Sensor sensor, final int accuracy) {
         }
@@ -501,155 +482,83 @@ public class GeckoAppShell {
 
         @Override
         public void onStatusChanged(final String provider, final int status, final Bundle extras) {}
-
-        @Override // NotificationListener
-        public void showNotification(final String name, final String cookie, final String host,
-                                     final String title, final String text, final String imageUrl) {
-            // Default is to not show the notification, and immediate send close message.
-            GeckoAppShell.onNotificationClose(name, cookie);
-        }
-
-        @Override // NotificationListener
-        public void showPersistentNotification(final String name, final String cookie,
-                                               final String host, final String title,
-                                               final String text, final String imageUrl,
-                                               final String data) {
-            // Default is to not show the notification, and immediate send close message.
-            GeckoAppShell.onNotificationClose(name, cookie);
-        }
-
-        @Override // NotificationListener
-        public void closeNotification(final String name) {
-            // Do nothing.
-        }
-
-        @Override // ScreenOrientationDelegate
-        public boolean setRequestedOrientationForCurrentActivity(
-                final int requestedActivityInfoOrientation) {
-            // Do nothing, and report that the orientation was not set.
-            return false;
-        }
-
-        private SimpleArrayMap<String, PowerManager.WakeLock> mWakeLocks;
-
-        @Override // WakeLockDelegate
-        @SuppressLint("Wakelock") // We keep the wake lock independent from the function
-                                  // scope, so we need to suppress the linter warning.
-        public void setWakeLockState(final String lock, final int state) {
-            if (mWakeLocks == null) {
-                mWakeLocks = new SimpleArrayMap<>(WakeLockDelegate.LOCKS_COUNT);
-            }
-
-            PowerManager.WakeLock wl = mWakeLocks.get(lock);
-
-            // we should still hold the lock for background audio.
-            if (WakeLockDelegate.LOCK_AUDIO_PLAYING.equals(lock) &&
-                state == WakeLockDelegate.STATE_LOCKED_BACKGROUND) {
-                return;
-            }
-
-            if (state == WakeLockDelegate.STATE_LOCKED_FOREGROUND && wl == null) {
-                final PowerManager pm = (PowerManager)
-                        getApplicationContext().getSystemService(Context.POWER_SERVICE);
-
-                if (WakeLockDelegate.LOCK_CPU.equals(lock) ||
-                    WakeLockDelegate.LOCK_AUDIO_PLAYING.equals(lock)) {
-                    wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, lock);
-                } else if (WakeLockDelegate.LOCK_SCREEN.equals(lock) ||
-                           WakeLockDelegate.LOCK_VIDEO_PLAYING.equals(lock)) {
-                  // ON_AFTER_RELEASE is set, the user activity timer will be reset when the
-                  // WakeLock is released, causing the illumination to remain on a bit longer.
-                    wl = pm.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK |
-                                        PowerManager.ON_AFTER_RELEASE, lock);
-                } else {
-                    Log.w(LOGTAG, "Unsupported wake-lock: " + lock);
-                    return;
-                }
-
-                wl.acquire();
-                mWakeLocks.put(lock, wl);
-            } else if (state != WakeLockDelegate.STATE_LOCKED_FOREGROUND && wl != null) {
-                wl.release();
-                mWakeLocks.remove(lock);
-            }
-        }
-
-        @Override
-        public void performHapticFeedback(final int effect) {
-            final int[] pattern;
-            // Use default platform values.
-            if (effect == HapticFeedbackConstants.KEYBOARD_TAP) {
-                pattern = new int[] { 40 };
-            } else if (effect == HapticFeedbackConstants.LONG_PRESS) {
-                pattern = new int[] { 0, 1, 20, 21 };
-            } else if (effect == HapticFeedbackConstants.VIRTUAL_KEY) {
-                pattern = new int[] { 0, 10, 20, 30 };
-            } else {
-                return;
-            }
-            vibrateOnHapticFeedbackEnabled(pattern);
-        }
     }
 
-    private static final DefaultListeners DEFAULT_LISTENERS = new DefaultListeners();
-    private static SensorEventListener sSensorListener = DEFAULT_LISTENERS;
-    private static LocationListener sLocationListener = DEFAULT_LISTENERS;
-    private static NotificationListener sNotificationListener = DEFAULT_LISTENERS;
-    private static WakeLockDelegate sWakeLockDelegate = DEFAULT_LISTENERS;
-    private static HapticFeedbackDelegate sHapticFeedbackDelegate = DEFAULT_LISTENERS;
+    private static final AndroidListeners sAndroidListeners = new AndroidListeners();
+
+    private static SimpleArrayMap<String, PowerManager.WakeLock> sWakeLocks;
 
     /**
-     * A delegate for supporting the Screen Orientation API.
+     * Wake-lock for the CPU.
      */
-    private static ScreenOrientationDelegate sScreenOrientationDelegate = DEFAULT_LISTENERS;
+    final static String WAKE_LOCK_CPU = "cpu";
+    /**
+     * Wake-lock for the screen.
+     */
+    final static String WAKE_LOCK_SCREEN = "screen";
+    /**
+     * Wake-lock for the audio-playing, eqaul to LOCK_CPU.
+     */
+    final static String WAKE_LOCK_AUDIO_PLAYING = "audio-playing";
+    /**
+     * Wake-lock for the video-playing, eqaul to LOCK_SCREEN..
+     */
+    final static String WAKE_LOCK_VIDEO_PLAYING = "video-playing";
 
-    public static SensorEventListener getSensorListener() {
-        return sSensorListener;
-    }
+    final static int WAKE_LOCKS_COUNT = 2;
 
-    public static void setSensorListener(final SensorEventListener listener) {
-        sSensorListener = (listener != null) ? listener : DEFAULT_LISTENERS;
-    }
+    /**
+     * No one holds the wake-lock.
+     */
+    final static int WAKE_LOCK_STATE_UNLOCKED = 0;
+    /**
+     * The wake-lock is held by a foreground window.
+     */
+    final static int WAKE_LOCK_STATE_LOCKED_FOREGROUND = 1;
+    /**
+     * The wake-lock is held by a background window.
+     */
+    final static int WAKE_LOCK_STATE_LOCKED_BACKGROUND = 2;
 
-    public static LocationListener getLocationListener() {
-        return sLocationListener;
-    }
+    @SuppressLint("Wakelock") // We keep the wake lock independent from the function
+    // scope, so we need to suppress the linter warning.
+    private static void setWakeLockState(final String lock, final int state) {
+        if (sWakeLocks == null) {
+            sWakeLocks = new SimpleArrayMap<>(WAKE_LOCKS_COUNT);
+        }
 
-    public static void setLocationListener(final LocationListener listener) {
-        sLocationListener = (listener != null) ? listener : DEFAULT_LISTENERS;
-    }
+        PowerManager.WakeLock wl = sWakeLocks.get(lock);
 
-    public static NotificationListener getNotificationListener() {
-        return sNotificationListener;
-    }
+        // we should still hold the lock for background audio.
+        if (WAKE_LOCK_AUDIO_PLAYING.equals(lock) &&
+                state == WAKE_LOCK_STATE_LOCKED_BACKGROUND) {
+            return;
+        }
 
-    public static void setNotificationListener(final NotificationListener listener) {
-        sNotificationListener = (listener != null) ? listener : DEFAULT_LISTENERS;
-    }
+        if (state == WAKE_LOCK_STATE_LOCKED_FOREGROUND && wl == null) {
+            final PowerManager pm = (PowerManager)
+                    getApplicationContext().getSystemService(Context.POWER_SERVICE);
 
-    public static ScreenOrientationDelegate getScreenOrientationDelegate() {
-        return sScreenOrientationDelegate;
-    }
+            if (WAKE_LOCK_CPU.equals(lock) ||
+                    WAKE_LOCK_AUDIO_PLAYING.equals(lock)) {
+                wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, lock);
+            } else if (WAKE_LOCK_SCREEN.equals(lock) ||
+                    WAKE_LOCK_VIDEO_PLAYING.equals(lock)) {
+                // ON_AFTER_RELEASE is set, the user activity timer will be reset when the
+                // WakeLock is released, causing the illumination to remain on a bit longer.
+                wl = pm.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK |
+                        PowerManager.ON_AFTER_RELEASE, lock);
+            } else {
+                Log.w(LOGTAG, "Unsupported wake-lock: " + lock);
+                return;
+            }
 
-    public static void setScreenOrientationDelegate(
-            final @Nullable ScreenOrientationDelegate screenOrientationDelegate) {
-        sScreenOrientationDelegate = (screenOrientationDelegate != null) ? screenOrientationDelegate : DEFAULT_LISTENERS;
-    }
-
-    public static WakeLockDelegate getWakeLockDelegate() {
-        return sWakeLockDelegate;
-    }
-
-    public void setWakeLockDelegate(final WakeLockDelegate delegate) {
-        sWakeLockDelegate = (delegate != null) ? delegate : DEFAULT_LISTENERS;
-    }
-
-    public static HapticFeedbackDelegate getHapticFeedbackDelegate() {
-        return sHapticFeedbackDelegate;
-    }
-
-    public static void setHapticFeedbackDelegate(final HapticFeedbackDelegate delegate) {
-        sHapticFeedbackDelegate = (delegate != null) ? delegate : DEFAULT_LISTENERS;
+            wl.acquire();
+            sWakeLocks.put(lock, wl);
+        } else if (state != WAKE_LOCK_STATE_LOCKED_FOREGROUND && wl != null) {
+            wl.release();
+            sWakeLocks.remove(lock);
+        }
     }
 
     @SuppressWarnings("fallthrough")
@@ -665,7 +574,7 @@ public class GeckoAppShell {
                             Sensor.TYPE_GAME_ROTATION_VECTOR);
                 }
                 if (gGameRotationVectorSensor != null) {
-                    sm.registerListener(getSensorListener(),
+                    sm.registerListener(sAndroidListeners,
                                         gGameRotationVectorSensor,
                                         SensorManager.SENSOR_DELAY_FASTEST);
                 }
@@ -680,7 +589,7 @@ public class GeckoAppShell {
                         Sensor.TYPE_ROTATION_VECTOR);
                 }
                 if (gRotationVectorSensor != null) {
-                    sm.registerListener(getSensorListener(),
+                    sm.registerListener(sAndroidListeners,
                                         gRotationVectorSensor,
                                         SensorManager.SENSOR_DELAY_FASTEST);
                 }
@@ -695,7 +604,7 @@ public class GeckoAppShell {
                         Sensor.TYPE_ORIENTATION);
                 }
                 if (gOrientationSensor != null) {
-                    sm.registerListener(getSensorListener(),
+                    sm.registerListener(sAndroidListeners,
                                         gOrientationSensor,
                                         SensorManager.SENSOR_DELAY_FASTEST);
                 }
@@ -707,7 +616,7 @@ public class GeckoAppShell {
                         Sensor.TYPE_ACCELEROMETER);
                 }
                 if (gAccelerometerSensor != null) {
-                    sm.registerListener(getSensorListener(),
+                    sm.registerListener(sAndroidListeners,
                                         gAccelerometerSensor,
                                         SensorManager.SENSOR_DELAY_FASTEST);
                 }
@@ -718,7 +627,7 @@ public class GeckoAppShell {
                     gProximitySensor = sm.getDefaultSensor(Sensor.TYPE_PROXIMITY);
                 }
                 if (gProximitySensor != null) {
-                    sm.registerListener(getSensorListener(),
+                    sm.registerListener(sAndroidListeners,
                                         gProximitySensor,
                                         SensorManager.SENSOR_DELAY_NORMAL);
                 }
@@ -729,7 +638,7 @@ public class GeckoAppShell {
                     gLightSensor = sm.getDefaultSensor(Sensor.TYPE_LIGHT);
                 }
                 if (gLightSensor != null) {
-                    sm.registerListener(getSensorListener(),
+                    sm.registerListener(sAndroidListeners,
                                         gLightSensor,
                                         SensorManager.SENSOR_DELAY_NORMAL);
                 }
@@ -741,7 +650,7 @@ public class GeckoAppShell {
                         Sensor.TYPE_LINEAR_ACCELERATION);
                 }
                 if (gLinearAccelerometerSensor != null) {
-                    sm.registerListener(getSensorListener(),
+                    sm.registerListener(sAndroidListeners,
                                         gLinearAccelerometerSensor,
                                         SensorManager.SENSOR_DELAY_FASTEST);
                 }
@@ -752,7 +661,7 @@ public class GeckoAppShell {
                     gGyroscopeSensor = sm.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
                 }
                 if (gGyroscopeSensor != null) {
-                    sm.registerListener(getSensorListener(),
+                    sm.registerListener(sAndroidListeners,
                                         gGyroscopeSensor,
                                         SensorManager.SENSOR_DELAY_FASTEST);
                 }
@@ -773,51 +682,51 @@ public class GeckoAppShell {
         switch (aSensortype) {
             case GeckoHalDefines.SENSOR_GAME_ROTATION_VECTOR:
                 if (gGameRotationVectorSensor != null) {
-                    sm.unregisterListener(getSensorListener(), gGameRotationVectorSensor);
+                    sm.unregisterListener(sAndroidListeners, gGameRotationVectorSensor);
                     break;
                 }
                 // Fallthrough
 
             case GeckoHalDefines.SENSOR_ROTATION_VECTOR:
                 if (gRotationVectorSensor != null) {
-                    sm.unregisterListener(getSensorListener(), gRotationVectorSensor);
+                    sm.unregisterListener(sAndroidListeners, gRotationVectorSensor);
                     break;
                 }
                 // Fallthrough
 
             case GeckoHalDefines.SENSOR_ORIENTATION:
                 if (gOrientationSensor != null) {
-                    sm.unregisterListener(getSensorListener(), gOrientationSensor);
+                    sm.unregisterListener(sAndroidListeners, gOrientationSensor);
                 }
                 break;
 
             case GeckoHalDefines.SENSOR_ACCELERATION:
                 if (gAccelerometerSensor != null) {
-                    sm.unregisterListener(getSensorListener(), gAccelerometerSensor);
+                    sm.unregisterListener(sAndroidListeners, gAccelerometerSensor);
                 }
                 break;
 
             case GeckoHalDefines.SENSOR_PROXIMITY:
                 if (gProximitySensor != null) {
-                    sm.unregisterListener(getSensorListener(), gProximitySensor);
+                    sm.unregisterListener(sAndroidListeners, gProximitySensor);
                 }
                 break;
 
             case GeckoHalDefines.SENSOR_LIGHT:
                 if (gLightSensor != null) {
-                    sm.unregisterListener(getSensorListener(), gLightSensor);
+                    sm.unregisterListener(sAndroidListeners, gLightSensor);
                 }
                 break;
 
             case GeckoHalDefines.SENSOR_LINEAR_ACCELERATION:
                 if (gLinearAccelerometerSensor != null) {
-                    sm.unregisterListener(getSensorListener(), gLinearAccelerometerSensor);
+                    sm.unregisterListener(sAndroidListeners, gLinearAccelerometerSensor);
                 }
                 break;
 
             case GeckoHalDefines.SENSOR_GYROSCOPE:
                 if (gGyroscopeSensor != null) {
-                    sm.unregisterListener(getSensorListener(), gGyroscopeSensor);
+                    sm.unregisterListener(sAndroidListeners, gGyroscopeSensor);
                 }
                 break;
             default:
@@ -830,31 +739,6 @@ public class GeckoAppShell {
         // This is a vestige, to be removed as full-screen support for GeckoView is implemented.
     }
 
-    @JNITarget
-    static public int getPreferredIconSize() {
-        ActivityManager am = (ActivityManager)
-            getApplicationContext().getSystemService(Context.ACTIVITY_SERVICE);
-        return am.getLauncherLargeIconSize();
-    }
-
-    @WrapForJNI(calledFrom = "gecko")
-    private static String[] getHandlersForMimeType(final String aMimeType, final String aAction) {
-        final GeckoInterface geckoInterface = getGeckoInterface();
-        if (geckoInterface == null) {
-            return new String[] {};
-        }
-        return geckoInterface.getHandlersForMimeType(aMimeType, aAction);
-    }
-
-    @WrapForJNI(calledFrom = "gecko")
-    private static String[] getHandlersForURL(final String aURL, final String aAction) {
-        final GeckoInterface geckoInterface = getGeckoInterface();
-        if (geckoInterface == null) {
-            return new String[] {};
-        }
-        return geckoInterface.getHandlersForURL(aURL, aAction);
-    }
-
     @WrapForJNI(calledFrom = "gecko")
     private static boolean hasHWVP8Encoder() {
         return HardwareCodecCapabilityUtils.hasHWVP8(true /* aIsEncoder */);
@@ -863,21 +747,6 @@ public class GeckoAppShell {
     @WrapForJNI(calledFrom = "gecko")
     private static boolean hasHWVP8Decoder() {
         return HardwareCodecCapabilityUtils.hasHWVP8(false /* aIsEncoder */);
-    }
-
-    static List<ResolveInfo> queryIntentActivities(final Intent intent) {
-        final PackageManager pm = getApplicationContext().getPackageManager();
-
-        // Exclude any non-exported activities: we can't open them even if we want to!
-        // Bug 1031569 has some details.
-        final ArrayList<ResolveInfo> list = new ArrayList<>();
-        for (ResolveInfo ri: pm.queryIntentActivities(intent, 0)) {
-            if (ri.activityInfo.exported) {
-                list.add(ri);
-            }
-        }
-
-        return list;
     }
 
     @WrapForJNI(calledFrom = "gecko")
@@ -910,38 +779,8 @@ public class GeckoAppShell {
         return type + "/" + subType;
     }
 
-    @SuppressWarnings("try")
-    @WrapForJNI(calledFrom = "gecko")
-    private static boolean openUriExternal(final String targetURI,
-                                           final String mimeType,
-                                           final String packageName,
-                                           final String className,
-                                           final String action,
-                                           final String title) {
-        final GeckoInterface geckoInterface = getGeckoInterface();
-        if (geckoInterface == null) {
-            return false;
-        }
-        // Bug 1450449 - Downloaded files already are already in a public directory and aren't
-        // really owned exclusively by Firefox, so there's no real benefit to using
-        // content:// URIs here.
-        try (StrictModeContext unused = StrictModeContext.allowAllVmPolicies()) {
-            return geckoInterface.openUriExternal(targetURI, mimeType, packageName, className, action, title);
-        }
-    }
-
     @WrapForJNI(dispatchTo = "gecko")
     private static native void notifyAlertListener(String name, String topic, String cookie);
-
-    /**
-     * Called by the NotificationListener to notify Gecko that a notification has been
-     * shown.
-     */
-    public static void onNotificationShow(final String name, final String cookie) {
-        if (GeckoThread.isRunning()) {
-            notifyAlertListener(name, "alertshow", cookie);
-        }
-    }
 
     /**
      * Called by the NotificationListener to notify Gecko that a previously shown
@@ -961,24 +800,6 @@ public class GeckoAppShell {
         if (GeckoThread.isRunning()) {
             notifyAlertListener(name, "alertclickcallback", cookie);
         }
-    }
-
-    @WrapForJNI(calledFrom = "gecko")
-    private static void showNotification(final String name, final String cookie, final String title,
-                                         final String text, final String host,
-                                         final String imageUrl, final String persistentData) {
-        if (persistentData == null) {
-            getNotificationListener().showNotification(name, cookie, title, text, host, imageUrl);
-            return;
-        }
-
-        getNotificationListener().showPersistentNotification(
-                name, cookie, title, text, host, imageUrl, persistentData);
-    }
-
-    @WrapForJNI(calledFrom = "gecko")
-    private static void closeNotification(final String name) {
-        getNotificationListener().closeNotification(name);
     }
 
     public static synchronized void setDisplayDpiOverride(@Nullable final Integer dpi) {
@@ -1053,9 +874,13 @@ public class GeckoAppShell {
         // Don't perform haptic feedback if a vibration is currently playing,
         // because the haptic feedback will nuke the vibration.
         if (!sVibrationMaybePlaying || System.nanoTime() >= sVibrationEndTime) {
-            getHapticFeedbackDelegate().performHapticFeedback(
-                    aIsLongPress ? HapticFeedbackConstants.LONG_PRESS
-                                 : HapticFeedbackConstants.VIRTUAL_KEY);
+            final int[] pattern;
+            if (aIsLongPress) {
+                pattern = new int[] { 0, 1, 20, 21 };
+            } else {
+                pattern = new int[] { 0, 10, 20, 30 };
+            }
+            vibrateOnHapticFeedbackEnabled(pattern);
             sVibrationMaybePlaying = false;
             sVibrationEndTime = 0;
         }
@@ -1434,23 +1259,6 @@ public class GeckoAppShell {
         sApplicationContext = context;
     }
 
-    public interface GeckoInterface {
-        public boolean openUriExternal(String targetURI, String mimeType, String packageName, String className, String action, String title);
-
-        public String[] getHandlersForMimeType(String mimeType, String action);
-        public String[] getHandlersForURL(String url, String action);
-    };
-
-    private static GeckoInterface sGeckoInterface;
-
-    public static GeckoInterface getGeckoInterface() {
-        return sGeckoInterface;
-    }
-
-    public static void setGeckoInterface(final GeckoInterface aGeckoInterface) {
-        sGeckoInterface = aGeckoInterface;
-    }
-
     /* package */ static Camera sCamera;
 
     private static final int kPreferredFPS = 25;
@@ -1627,30 +1435,18 @@ public class GeckoAppShell {
     }
 
     @WrapForJNI(calledFrom = "gecko")
-    private static void lockScreenOrientation(final int aOrientation) {
-        // TODO: don't vector through GeckoAppShell.
-        GeckoScreenOrientation.getInstance().lock(aOrientation);
-    }
-
-    @WrapForJNI(calledFrom = "gecko")
-    private static void unlockScreenOrientation() {
-        // TODO: don't vector through GeckoAppShell.
-        GeckoScreenOrientation.getInstance().unlock();
-    }
-
-    @WrapForJNI(calledFrom = "gecko")
     private static void notifyWakeLockChanged(final String topic, final String state) {
         final int intState;
         if ("unlocked".equals(state)) {
-            intState = WakeLockDelegate.STATE_UNLOCKED;
+            intState = WAKE_LOCK_STATE_UNLOCKED;
         } else if ("locked-foreground".equals(state)) {
-            intState = WakeLockDelegate.STATE_LOCKED_FOREGROUND;
+            intState = WAKE_LOCK_STATE_LOCKED_FOREGROUND;
         } else if ("locked-background".equals(state)) {
-            intState = WakeLockDelegate.STATE_LOCKED_BACKGROUND;
+            intState = WAKE_LOCK_STATE_LOCKED_BACKGROUND;
         } else {
             throw new IllegalArgumentException();
         }
-        getWakeLockDelegate().setWakeLockState(topic, intState);
+        setWakeLockState(topic, intState);
     }
 
     @WrapForJNI(calledFrom = "gecko")
@@ -1685,106 +1481,6 @@ public class GeckoAppShell {
         }
 
         return "DIRECT";
-    }
-
-    @WrapForJNI
-    private static InputStream createInputStream(final URLConnection connection)
-            throws IOException {
-        return connection.getInputStream();
-    }
-
-    private static class BitmapConnection extends URLConnection {
-        private Bitmap mBitmap;
-
-        BitmapConnection(final Bitmap b) throws MalformedURLException, IOException {
-            super(null);
-            mBitmap = b;
-        }
-
-        @Override
-        public void connect() {}
-
-        @Override
-        public InputStream getInputStream() throws IOException {
-            return new BitmapInputStream();
-        }
-
-        @Override
-        public String getContentType() {
-            return "image/png";
-        }
-
-        private final class BitmapInputStream extends PipedInputStream {
-            private boolean mHaveConnected = false;
-
-            @Override
-            public synchronized int read(final byte[] buffer, final int byteOffset,
-                                         final int byteCount) throws IOException {
-                if (mHaveConnected) {
-                    return super.read(buffer, byteOffset, byteCount);
-                }
-
-                final PipedOutputStream output = new PipedOutputStream();
-                connect(output);
-
-                ThreadUtils.postToBackgroundThread(
-                    new Runnable() {
-                        @Override
-                        public void run() {
-                            try {
-                                mBitmap.compress(Bitmap.CompressFormat.PNG, 100, output);
-                            } finally {
-                                IOUtils.safeStreamClose(output);
-                            }
-                        }
-                    });
-                mHaveConnected = true;
-                return super.read(buffer, byteOffset, byteCount);
-            }
-        }
-    }
-
-    @WrapForJNI
-    private static URLConnection getConnection(final String url) {
-        try {
-            String spec;
-            if (url.startsWith("android://")) {
-                spec = url.substring(10);
-            } else {
-                spec = url.substring(8);
-            }
-
-            // Check if we are loading a package icon.
-            try {
-                if (spec.startsWith("icon/")) {
-                    String[] splits = spec.split("/");
-                    if (splits.length != 2) {
-                        return null;
-                    }
-                    final String pkg = splits[1];
-                    final PackageManager pm = getApplicationContext().getPackageManager();
-                    final Drawable d = pm.getApplicationIcon(pkg);
-                    final Bitmap bitmap = getBitmapFromDrawable(d);
-                    return new BitmapConnection(bitmap);
-                }
-            } catch (Exception ex) {
-                Log.e(LOGTAG, "error", ex);
-            }
-
-            // if the colon got stripped, put it back
-            int colon = spec.indexOf(':');
-            if (colon == -1 || colon > spec.indexOf('/')) {
-                spec = spec.replaceFirst("/", ":/");
-            }
-        } catch (Exception ex) {
-            return null;
-        }
-        return null;
-    }
-
-    @WrapForJNI
-    private static String connectionGetMimeType(final URLConnection connection) {
-        return connection.getContentType();
     }
 
     @WrapForJNI(calledFrom = "gecko")
@@ -1938,8 +1634,6 @@ public class GeckoAppShell {
         }
         return Integer.parseInt(prop);
     }
-
-    static private int sPreviousAudioMode = -2;
 
     @WrapForJNI(calledFrom = "any")
     public static void setCommunicationAudioModeOn(final boolean on) {

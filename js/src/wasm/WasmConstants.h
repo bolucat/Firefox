@@ -62,6 +62,9 @@ enum class TypeCode {
   F64 = 0x7c,   // SLEB128(-0x04)
   V128 = 0x7b,  // SLEB128(-0x05)
 
+  I8 = 0x7a,   // SLEB128(-0x06)
+  I16 = 0x79,  // SLEB128(-0x07)
+
   // A function pointer with any signature
   FuncRef = 0x70,  // SLEB128(-0x10)
 
@@ -77,11 +80,17 @@ enum class TypeCode {
   // Type constructor for non-nullable reference types.
   Ref = 0x6b,  // SLEB128(-0x15)
 
+  // Type constructor for rtt types.
+  Rtt = 0x69,  // SLEB128(-0x17)
+
   // Type constructor for function types
   Func = 0x60,  // SLEB128(-0x20)
 
-  // Type constructor for structure types - unofficial
+  // Type constructor for structure types - gc proposal
   Struct = 0x5f,  // SLEB128(-0x21)
+
+  // Type constructor for array types - gc proposal
+  Array = 0x5e,  // SLEB128(-0x22)
 
   // The 'empty' case of blocktype.
   BlockVoid = 0x40,  // SLEB128(-0x40)
@@ -93,7 +102,7 @@ enum class TypeCode {
 // UnpackTypeCodeTypeAbstracted().  If primitive typecodes are added below any
 // reference typecode then the logic in that function MUST change.
 
-static constexpr TypeCode LowestPrimitiveTypeCode = TypeCode::V128;
+static constexpr TypeCode LowestPrimitiveTypeCode = TypeCode::I16;
 
 // An arbitrary reference type used as the result of
 // UnpackTypeCodeTypeAbstracted() when a value type is a reference.
@@ -133,6 +142,8 @@ enum class Trap {
   IndirectCallBadSig,
   // Dereference null pointer in operation on (Ref T)
   NullPointerDereference,
+  // Failed to cast a (Ref T) in a ref.cast instruction
+  BadCast,
 
   // The internal stack space was exhausted. For compatibility, this throws
   // the same over-recursed error as JS.
@@ -431,10 +442,30 @@ inline bool IsPrefixByte(uint8_t b) { return b >= uint8_t(Op::FirstPrefix); }
 // Opcodes in the GC opcode space.
 enum class GcOp {
   // Structure operations
-  StructNew = 0x00,
+  StructNewWithRtt = 0x1,
+  StructNewDefaultWithRtt = 0x2,
   StructGet = 0x03,
+  StructGetS = 0x04,
+  StructGetU = 0x05,
   StructSet = 0x06,
-  StructNarrow = 0x07,
+
+  // Array operations
+  ArrayNewWithRtt = 0x11,
+  ArrayNewDefaultWithRtt = 0x12,
+  ArrayGet = 0x13,
+  ArrayGetS = 0x14,
+  ArrayGetU = 0x15,
+  ArraySet = 0x16,
+  ArrayLen = 0x17,
+
+  // Rtt operations
+  RttCanon = 0x30,
+  RttSub = 0x31,
+
+  // Ref operations
+  RefTest = 0x40,
+  RefCast = 0x41,
+  BrOnCast = 0x42,
 
   Limit
 };
@@ -945,6 +976,8 @@ enum class NameType { Module = 0, Function = 1, Local = 2 };
 
 enum class FieldFlags { Mutable = 0x01, AllowedMask = 0x01 };
 
+enum class FieldExtension { None, Signed, Unsigned };
+
 // The WebAssembly spec hard-codes the virtual page size to be 64KiB and
 // requires the size of linear memory to always be a multiple of 64KiB.
 
@@ -957,6 +990,12 @@ static const unsigned PageMask = ((1u << PageBits) - 1);
 // These limits are agreed upon with other engines for consistency.
 
 static const unsigned MaxTypes = 1000000;
+#ifdef JS_64BIT
+static const unsigned MaxTypeIndex = 1000000;
+#else
+static const unsigned MaxTypeIndex = 15000;
+#endif
+static const unsigned MaxRttDepth = 127;
 static const unsigned MaxFuncs = 1000000;
 static const unsigned MaxTables = 100000;
 static const unsigned MaxImports = 100000;

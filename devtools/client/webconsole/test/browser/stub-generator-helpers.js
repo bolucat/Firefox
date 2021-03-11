@@ -16,9 +16,10 @@ const STUBS_UPDATE_ENV = "WEBCONSOLE_STUBS_UPDATE";
 
 async function createResourceWatcherForTab(tab) {
   const {
-    TabTargetFactory,
-  } = require("devtools/client/framework/tab-target-factory");
-  const target = await TabTargetFactory.forTab(tab);
+    TabDescriptorFactory,
+  } = require("devtools/client/framework/tab-descriptor-factory");
+  const descriptor = await TabDescriptorFactory.createDescriptorForTab(tab);
+  const target = await descriptor.getTarget();
   const resourceWatcher = await createResourceWatcherForDescriptor(
     target.descriptorFront
   );
@@ -30,9 +31,9 @@ async function createResourceWatcherForDescriptor(descriptor) {
   const {
     ResourceWatcher,
   } = require("devtools/shared/resources/resource-watcher");
-  const { TargetList } = require("devtools/shared/resources/target-list");
 
-  const targetList = new TargetList(descriptor);
+  const commands = await descriptor.getCommands();
+  const targetList = commands.targetCommand;
   await targetList.startListening();
   return new ResourceWatcher(targetList);
 }

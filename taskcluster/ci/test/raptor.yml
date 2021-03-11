@@ -20,14 +20,11 @@ job-defaults:
     run-on-projects:
         by-app:
             firefox:
-                by-test-name:
-                    raptor-tp6-firefox: []
-                    default:
-                        by-test-platform:
-                            windows7-32.*/opt: []
-                            macosx.*64(?:-qr)?/opt: ["mozilla-central"]
-                            (linux|windows10|macos)(?!.*shippable).*: []
-                            default: ["trunk", "mozilla-beta"]
+                by-test-platform:
+                    windows7-32.*/opt: []
+                    macosx.*64(?:-qr)?/opt: ["mozilla-central"]
+                    (linux|windows10|macos)(?!.*shippable).*: []
+                    default: ["trunk", "mozilla-beta"]
             chrome: []
             chromium: []
             default:  # tests that dont have "apps: []"
@@ -114,95 +111,6 @@ job-defaults:
                         default:
                             - linux64-chromium
                 default: []
-
-raptor-tp6:
-    description: "Raptor (webextension) tp6"
-    apps: ["firefox", "chrome", "chromium"]
-    variants: []
-    pageload:
-        by-app:
-            firefox: "both"
-            chrome: "both"
-            chromium: "both"
-            default: "cold"
-    run-on-projects: []
-    limit-platforms: []
-    treeherder-symbol: Rap(tp6)
-    max-run-time: 4000
-    raptor-test: tp6
-    raptor-subtests:
-        - amazon
-        - apple
-        - bing
-        - ebay
-        - [facebook, fb]
-        - [facebook-redesign, fb-r]
-        - fandom
-        - [docs, gdoc]
-        - google
-        - [google-mail, gmail]
-        - [sheets, gsheets]
-        - [slides, gslides]
-        - imdb
-        - imgur
-        - instagram
-        - linkedin
-        - microsoft
-        - netflix
-        - office
-        - outlook
-        - paypal
-        - pinterest
-        - reddit
-        - tumblr
-        - twitch
-        - twitter
-        - wikipedia
-        - yahoo-mail
-        - yahoo-news
-        - yandex
-        - youtube
-    tier:
-        by-app:
-            firefox:
-                by-subtest:
-                    amazon: 1
-                    .*gmail.*: 1
-                    .*gslides.*: 1
-                    imgur: 1
-                    tumblr: 1
-                    twitch: 1
-                    twitter: 1
-                    default: 2
-            default: 2
-
-raptor-tp6-live:
-    description: "Raptor (webextension) tp6 on live-sites"
-    apps: ["firefox"]
-    variants: []
-    pageload: "both"
-    treeherder-symbol: Rap-live(tp6)
-    raptor-test: tp6
-    raptor-subtests:
-        - [cnn-ampstories, cnn-amp]
-    run-on-projects:
-        by-pageload:
-            warm:
-                by-test-platform:
-                    windows7-32.*/opt: []
-                    (linux|windows10|macos)(?!.*shippable).*: []
-                    default: ["mozilla-central"]
-            cold:
-                by-test-platform:
-                    windows7-32.*/opt: []
-                    macosx.*64(?:-qr)?/opt: ["mozilla-central"]
-                    (linux|windows10|macos)(?!.*shippable).*: []
-                    default: ["mozilla-central", "autoland"]
-    tier: 2
-    mozharness:
-        extra-options:
-            - --no-conditioned-profile
-            - --live-sites
 
 raptor-speedometer-firefox:
     description: "Raptor Speedometer on Firefox"
@@ -563,7 +471,6 @@ raptor-youtube-playback-av1-sfr-firefox:
     treeherder-symbol: Rap(ytp-av1-sfr)
     run-on-projects:
         by-test-platform:
-            windows10-64-ref-hw-2017/opt: ['mozilla-central']
             (linux|windows|macos)(?!.*shippable).*: []
             default: ['mozilla-central']
     limit-platforms:
@@ -585,7 +492,6 @@ raptor-youtube-playback-h264-sfr-firefox:
     run-on-projects:
         by-test-platform:
             windows7-32.*/opt: []
-            windows10-64-ref-hw-2017/opt: ['mozilla-central']
             (linux|windows10|macos)(?!.*shippable).*: []
             default: ['mozilla-central']
     max-run-time:
@@ -604,7 +510,6 @@ raptor-youtube-playback-hfr-firefox:
     run-on-projects:
         by-test-platform:
             windows7-32.*/opt: []
-            windows10-64-ref-hw-2017/opt: ['mozilla-central']
             (linux|windows10|macos)(?!.*shippable).*: []
             default: ['mozilla-central']
     max-run-time: 3600
@@ -621,7 +526,6 @@ raptor-youtube-playback-vp9-sfr-firefox:
     run-on-projects:
         by-test-platform:
             windows7-32.*/opt: []
-            windows10-64-ref-hw-2017/opt: ['mozilla-central']
             (linux|windows10|macos)(?!.*shippable).*: []
             default: ['mozilla-central']
     max-run-time:
@@ -642,7 +546,6 @@ raptor-youtube-playback-widevine-hfr-firefox:
     run-on-projects:
         by-test-platform:
             windows7-32.*/opt: []
-            windows10-64-ref-hw-2017/opt: ['mozilla-central']
             (linux|windows10|macos)(?!.*shippable).*: []
             default: ['mozilla-central']
     max-run-time:
@@ -661,7 +564,6 @@ raptor-youtube-playback-widevine-h264-sfr-firefox:
     run-on-projects:
         by-test-platform:
             windows7-32.*/opt: []
-            windows10-64-ref-hw-2017/opt: ['mozilla-central']
             (linux|windows10|macos)(?!.*shippable).*: []
             default: ['mozilla-central']
     max-run-time:
@@ -679,7 +581,6 @@ raptor-youtube-playback-widevine-vp9-sfr-firefox:
     treeherder-symbol: Rap(ytp-widevine-vp9-sfr)
     run-on-projects:
         by-test-platform:
-            windows10-64-ref-hw-2017/opt: ['mozilla-central']
             (linux|windows|macos)(?!.*shippable).*: []
             default: ['mozilla-central']
     max-run-time:

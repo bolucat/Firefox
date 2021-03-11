@@ -151,7 +151,7 @@
 #include "nsCOMPtr.h"
 #include "nsClassHashtable.h"
 #include "nsContentUtils.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 #include "nsDebug.h"
 #include "nsError.h"
 #include "nsEscape.h"
@@ -1230,8 +1230,7 @@ class DatabaseConnection::UpdateRefcountFunction final
   DatabaseConnection* const mConnection;
   FileManager& mFileManager;
   nsClassHashtable<nsUint64HashKey, FileInfoEntry> mFileInfoEntries;
-  nsDataHashtable<nsUint64HashKey, NotNull<FileInfoEntry*>>
-      mSavepointEntriesIndex;
+  nsTHashMap<nsUint64HashKey, NotNull<FileInfoEntry*>> mSavepointEntriesIndex;
 
   nsTArray<int64_t> mJournalsToCreateBeforeCommit;
   nsTArray<int64_t> mJournalsToRemoveAfterCommit;
@@ -1783,7 +1782,7 @@ class DatabaseOperationBase : public Runnable,
  protected:
   class AutoSetProgressHandler;
 
-  typedef nsDataHashtable<nsUint64HashKey, bool> UniqueIndexTable;
+  typedef nsTHashMap<nsUint64HashKey, bool> UniqueIndexTable;
 
   const nsCOMPtr<nsIEventTarget> mOwningEventTarget;
   const nsID mBackgroundChildLoggingId;
@@ -5095,12 +5094,12 @@ class DeleteFilesRunnable final : public Runnable,
 
 class Maintenance final : public Runnable, public OpenDirectoryListener {
   struct DirectoryInfo final {
-    InitializedOnce<const OriginMetadata> mOriginMetadata;
+    InitializedOnce<const FullOriginMetadata> mFullOriginMetadata;
     InitializedOnce<const nsTArray<nsString>> mDatabasePaths;
     const PersistenceType mPersistenceType;
 
     DirectoryInfo(PersistenceType aPersistenceType,
-                  OriginMetadata aOriginMetadata,
+                  FullOriginMetadata aFullOriginMetadata,
                   nsTArray<nsString>&& aDatabasePaths);
 
     DirectoryInfo(const DirectoryInfo& aOther) = delete;
@@ -5155,7 +5154,7 @@ class Maintenance final : public Runnable, public OpenDirectoryListener {
   PRTime mStartTime;
   RefPtr<DirectoryLock> mDirectoryLock;
   nsTArray<DirectoryInfo> mDirectoryInfos;
-  nsDataHashtable<nsStringHashKey, DatabaseMaintenance*> mDatabaseMaintenances;
+  nsTHashMap<nsStringHashKey, DatabaseMaintenance*> mDatabaseMaintenances;
   nsresult mResultCode;
   Atomic<bool> mAborted;
   State mState;
@@ -5254,15 +5253,15 @@ class Maintenance final : public Runnable, public OpenDirectoryListener {
   void DirectoryLockFailed() override;
 };
 
-Maintenance::DirectoryInfo::DirectoryInfo(PersistenceType aPersistenceType,
-                                          OriginMetadata aOriginMetadata,
-                                          nsTArray<nsString>&& aDatabasePaths)
-    : mOriginMetadata(std::move(aOriginMetadata)),
+Maintenance::DirectoryInfo::DirectoryInfo(
+    PersistenceType aPersistenceType, FullOriginMetadata aFullOriginMetadata,
+    nsTArray<nsString>&& aDatabasePaths)
+    : mFullOriginMetadata(std::move(aFullOriginMetadata)),
       mDatabasePaths(std::move(aDatabasePaths)),
       mPersistenceType(aPersistenceType) {
   MOZ_ASSERT(aPersistenceType != PERSISTENCE_TYPE_INVALID);
-  MOZ_ASSERT(!mOriginMetadata->mGroup.IsEmpty());
-  MOZ_ASSERT(!mOriginMetadata->mOrigin.IsEmpty());
+  MOZ_ASSERT(!mFullOriginMetadata->mGroup.IsEmpty());
+  MOZ_ASSERT(!mFullOriginMetadata->mOrigin.IsEmpty());
 #ifdef DEBUG
   MOZ_ASSERT(!mDatabasePaths->IsEmpty());
   for (const nsString& databasePath : *mDatabasePaths) {
@@ -5968,8 +5967,7 @@ typedef nsClassHashtable<nsCStringHashKey, DatabaseActorInfo>
 
 StaticAutoPtr<DatabaseActorHashtable> gLiveDatabaseHashtable;
 
-using PrivateBrowsingInfoHashtable =
-    nsDataHashtable<nsCStringHashKey, CipherKey>;
+using PrivateBrowsingInfoHashtable = nsTHashMap<nsCStringHashKey, CipherKey>;
 // XXX Maybe we can avoid a mutex here by moving all accesses to the background
 // thread.
 StaticAutoPtr<DataMutex<PrivateBrowsingInfoHashtable>>
@@ -5979,12 +5977,12 @@ StaticRefPtr<ConnectionPool> gConnectionPool;
 
 StaticRefPtr<FileHandleThreadPool> gFileHandleThreadPool;
 
-typedef nsDataHashtable<nsIDHashKey, DatabaseLoggingInfo*>
+typedef nsTHashMap<nsIDHashKey, DatabaseLoggingInfo*>
     DatabaseLoggingInfoHashtable;
 
 StaticAutoPtr<DatabaseLoggingInfoHashtable> gLoggingInfoHashtable;
 
-typedef nsDataHashtable<nsUint32HashKey, uint32_t> TelemetryIdHashtable;
+typedef nsTHashMap<nsUint32HashKey, uint32_t> TelemetryIdHashtable;
 
 StaticAutoPtr<TelemetryIdHashtable> gTelemetryIdHashtable;
 
@@ -13586,21 +13584,18 @@ nsresult Maintenance::DirectoryWork() {
 
             case nsIFileKind::ExistsAsDirectory: {
               // Get the necessary information about the origin
-              // (GetDirectoryMetadata2WithRestore also checks if it's a valid
+              // (LoadFullOriginMetadataWithRestore also checks if it's a valid
               // origin).
 
               IDB_TRY_INSPECT(
                   const auto& metadata,
-                  quotaManager
-                      ->GetDirectoryMetadataWithOriginMetadata2WithRestore(
-                          originDir),
+                  quotaManager->LoadFullOriginMetadataWithRestore(originDir),
                   // Not much we can do here...
                   Ok{});
 
               // Don't do any maintenance for private browsing databases, which
               // are only temporary.
-              if (OriginAttributes::IsPrivateBrowsing(
-                      metadata.mOriginMetadata.mOrigin)) {
+              if (OriginAttributes::IsPrivateBrowsing(metadata.mOrigin)) {
                 return Ok{};
               }
 
@@ -13613,9 +13608,7 @@ nsresult Maintenance::DirectoryWork() {
 
                 IDB_TRY_UNWRAP(
                     const DebugOnly<bool> created,
-                    quotaManager
-                        ->EnsurePersistentOriginIsInitialized(
-                            metadata.mOriginMetadata)
+                    quotaManager->EnsurePersistentOriginIsInitialized(metadata)
                         .map([](const auto& res) { return res.second; }),
                     // Not much we can do here...
                     Ok{});
@@ -13687,8 +13680,7 @@ nsresult Maintenance::DirectoryWork() {
                   }));
 
               if (!databasePaths.IsEmpty()) {
-                mDirectoryInfos.EmplaceBack(persistenceType,
-                                            metadata.mOriginMetadata,
+                mDirectoryInfos.EmplaceBack(persistenceType, metadata,
                                             std::move(databasePaths));
               }
 
@@ -13764,8 +13756,8 @@ nsresult Maintenance::BeginDatabaseMaintenance() {
       if (Helper::IsSafeToRunMaintenance(databasePath)) {
         if (!directoryLock) {
           directoryLock = mDirectoryLock->Specialize(
-              directoryInfo.mPersistenceType, *directoryInfo.mOriginMetadata,
-              Client::IDB);
+              directoryInfo.mPersistenceType,
+              *directoryInfo.mFullOriginMetadata, Client::IDB);
           MOZ_ASSERT(directoryLock);
         }
 
@@ -13774,7 +13766,7 @@ nsresult Maintenance::BeginDatabaseMaintenance() {
         // mode.
         const auto databaseMaintenance = MakeRefPtr<DatabaseMaintenance>(
             this, directoryLock, directoryInfo.mPersistenceType,
-            *directoryInfo.mOriginMetadata, databasePath, Nothing{});
+            *directoryInfo.mFullOriginMetadata, databasePath, Nothing{});
 
         if (!threadPool) {
           threadPool = mQuotaClient->GetOrCreateThreadPool();

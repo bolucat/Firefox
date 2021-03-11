@@ -334,6 +334,7 @@ class nsContextMenu {
     this.initPasswordManagerItems();
     this.initSyncItems();
     this.initViewSourceItems();
+    this.initScreenshotItem();
 
     this.showHideSeparators(aXulMenu);
     if (!aXulMenu.showHideSeparators) {
@@ -920,7 +921,7 @@ class nsContextMenu {
   }
 
   initPasswordManagerItems() {
-    let showFill = false;
+    let showUseSavedLogin = false;
     let showGenerate = false;
     let showManage = false;
     let enableGeneration = Services.logins.isLoggedIn;
@@ -930,7 +931,6 @@ class nsContextMenu {
       if (!this.isLoginForm()) {
         return;
       }
-      showFill = true;
       showManage = true;
 
       // Disable the fill option if the user hasn't unlocked with their master password
@@ -972,6 +972,8 @@ class nsContextMenu {
         Services.logins.getLoginSavingEnabled(formOrigin);
 
       if (disableFill) {
+        showUseSavedLogin = true;
+
         // No need to update the submenu if the fill item is disabled.
         return;
       }
@@ -983,22 +985,25 @@ class nsContextMenu {
         formOrigin
       );
 
-      this.showItem("fill-login-no-logins", !fragment);
-
       if (!fragment) {
         return;
       }
+
+      showUseSavedLogin = true;
       let popup = document.getElementById("fill-login-popup");
-      let insertBeforeElement = document.getElementById("fill-login-no-logins");
-      popup.insertBefore(fragment, insertBeforeElement);
+      popup.appendChild(fragment);
     } finally {
-      this.showItem("fill-login", showFill);
+      this.showItem("fill-login", showUseSavedLogin);
       this.showItem("fill-login-generated-password", showGenerate);
       this.showItem("manage-saved-logins", showManage);
       this.setItemAttr(
         "fill-login-generated-password",
         "disabled",
         !enableGeneration
+      );
+      this.showItem(
+        "passwordmgr-items-separator",
+        showUseSavedLogin || showGenerate || showManage
       );
     }
   }
@@ -1077,6 +1082,28 @@ class nsContextMenu {
     if (!count && lastVisibleSeparator) {
       lastVisibleSeparator.hidden = true;
     }
+  }
+
+  initScreenshotItem() {
+    // About pages other than about:reader are not currently supported by
+    // screenshots (see Bug 1620992)
+    let uri = this.contentData?.documentURIObject;
+    let shouldShow =
+      !screenshotsDisabled &&
+      (uri.scheme != "about" || uri.spec.startsWith("about:reader")) &&
+      this.inTabBrowser &&
+      !this.onTextInput &&
+      !this.onLink &&
+      !this.onPlainTextLink &&
+      !this.onImage &&
+      !this.onVideo &&
+      !this.onAudio &&
+      !this.onEditable &&
+      !this.onPassword &&
+      !this.inFrame;
+
+    this.showItem("context-sep-screenshots", shouldShow);
+    this.showItem("context-take-screenshot", shouldShow);
   }
 
   openPasswordManager() {
@@ -1238,6 +1265,10 @@ class nsContextMenu {
       referrerInfo: this.contentData.frameReferrerInfo,
       triggeringPrincipal: this.browser.contentPrincipal,
     });
+  }
+
+  takeScreenshot() {
+    Services.obs.notifyObservers(null, "contextmenu-screenshot");
   }
 
   // View Partial Source
@@ -2141,3 +2172,10 @@ XPCOMUtils.defineLazyModuleGetters(nsContextMenu, {
   LoginManagerContextMenu: "resource://gre/modules/LoginManagerContextMenu.jsm",
   DevToolsShim: "chrome://devtools-startup/content/DevToolsShim.jsm",
 });
+
+XPCOMUtils.defineLazyPreferenceGetter(
+  this,
+  "screenshotsDisabled",
+  "extensions.screenshots.disabled",
+  false
+);

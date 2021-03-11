@@ -320,8 +320,11 @@ class nsObjectLoadingContent : public nsImageLoadingContent,
    */
   void Destroy();
 
+  // Subclasses should call cycle collection methods from the respective
+  // traverse / unlink.
   static void Traverse(nsObjectLoadingContent* tmp,
                        nsCycleCollectionTraversalCallback& cb);
+  static void Unlink(nsObjectLoadingContent* tmp);
 
   void CreateStaticClone(nsObjectLoadingContent* aDest) const;
 
@@ -383,7 +386,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent,
    */
   void GetNestedParams(nsTArray<mozilla::dom::MozPluginParameter>& aParameters);
 
-  MOZ_MUST_USE nsresult BuildParametersArray();
+  [[nodiscard]] nsresult BuildParametersArray();
 
   /**
    * Loads fallback content with the specified FallbackType

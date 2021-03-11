@@ -665,9 +665,6 @@ GlobalObject* GlobalObject::createInternal(JSContext* cx,
   if (!JSObject::setQualifiedVarObj(cx, global)) {
     return nullptr;
   }
-  if (!JSObject::setDelegate(cx, global)) {
-    return nullptr;
-  }
 
   return global;
 }
@@ -889,7 +886,7 @@ static NativeObject* CreateBlankProto(JSContext* cx, const JSClass* clasp,
   MOZ_ASSERT(clasp != &JSFunction::class_);
 
   RootedObject blankProto(cx, NewTenuredObjectWithGivenProto(cx, clasp, proto));
-  if (!blankProto || !JSObject::setDelegate(cx, blankProto)) {
+  if (!blankProto) {
     return nullptr;
   }
 

@@ -965,8 +965,8 @@ bool Instance::initElems(uint32_t tableIndex, const ElemSegment& seg,
       reinterpret_cast<JSObject**>(location));
 }
 
-// The typeIndex is an index into the typeDescrs_ table in the instance.
-// That table holds TypeDescr objects.
+// The typeIndex is an index into the rttValues_ table in the instance.
+// That table holds RttValue objects.
 //
 // When we fail to allocate we return a nullptr; the wasm side must check this
 // and propagate it as an error.
@@ -974,51 +974,18 @@ bool Instance::initElems(uint32_t tableIndex, const ElemSegment& seg,
 /* static */ void* Instance::structNew(Instance* instance, void* structDescr) {
   MOZ_ASSERT(SASigStructNew.failureMode == FailureMode::FailOnNullPtr);
   JSContext* cx = TlsContext.get();
-  Rooted<TypeDescr*> typeDescr(cx, (TypeDescr*)structDescr);
-  MOZ_ASSERT(typeDescr);
-  return TypedObject::createZeroed(cx, typeDescr);
+  Rooted<RttValue*> rttValue(cx, (RttValue*)structDescr);
+  MOZ_ASSERT(rttValue);
+  return TypedObject::createStruct(cx, rttValue);
 }
 
-static const StructType* GetDescrStructType(JSContext* cx,
-                                            HandleTypeDescr typeDescr) {
-  const TypeDef& typeDef = typeDescr->getType(cx);
-  return typeDef.isStructType() ? &typeDef.structType() : nullptr;
-}
-
-/* static */ void* Instance::structNarrow(Instance* instance,
-                                          void* outputStructDescr,
-                                          void* maybeNullPtr) {
-  MOZ_ASSERT(SASigStructNarrow.failureMode == FailureMode::Infallible);
-
+/* static */ void* Instance::arrayNew(Instance* instance, uint32_t length,
+                                      void* arrayDescr) {
+  MOZ_ASSERT(SASigArrayNew.failureMode == FailureMode::FailOnNullPtr);
   JSContext* cx = TlsContext.get();
-
-  Rooted<TypedObject*> obj(cx);
-  Rooted<TypeDescr*> typeDescr(cx);
-
-  if (maybeNullPtr == nullptr) {
-    return maybeNullPtr;
-  }
-
-  void* nonnullPtr = maybeNullPtr;
-  obj = static_cast<TypedObject*>(nonnullPtr);
-  typeDescr = &obj->typeDescr();
-
-  const StructType* inputStructType = GetDescrStructType(cx, typeDescr);
-  if (inputStructType == nullptr) {
-    return nullptr;
-  }
-  Rooted<TypeDescr*> outputTypeDescr(cx, (TypeDescr*)outputStructDescr);
-  const StructType* outputStructType = GetDescrStructType(cx, outputTypeDescr);
-  MOZ_ASSERT(outputStructType);
-
-  // Now we know that the object was created by the instance, and we know its
-  // concrete type.  We need to check that its type is an extension of the
-  // type of outputTypeIndex.
-
-  if (!inputStructType->hasPrefix(*outputStructType)) {
-    return nullptr;
-  }
-  return nonnullPtr;
+  Rooted<RttValue*> rttValue(cx, (RttValue*)arrayDescr);
+  MOZ_ASSERT(rttValue);
+  return TypedObject::createArray(cx, rttValue, length);
 }
 
 #ifdef ENABLE_WASM_EXCEPTIONS
@@ -1080,6 +1047,35 @@ static const StructType* GetDescrStructType(JSContext* cx,
 }
 #endif
 
+/* static */ int32_t Instance::refTest(Instance* instance, void* refPtr,
+                                       void* rttPtr) {
+  MOZ_ASSERT(SASigRefTest.failureMode == FailureMode::Infallible);
+
+  if (!refPtr) {
+    return 0;
+  }
+
+  JSContext* cx = TlsContext.get();
+
+  ASSERT_ANYREF_IS_JSOBJECT;
+  RootedTypedObject ref(
+      cx, (TypedObject*)AnyRef::fromCompiledCode(refPtr).asJSObject());
+  RootedRttValue rtt(
+      cx, &AnyRef::fromCompiledCode(rttPtr).asJSObject()->as<RttValue>());
+  return int32_t(ref->isRuntimeSubtype(rtt));
+}
+
+/* static */ void* Instance::rttSub(Instance* instance, void* rttPtr) {
+  MOZ_ASSERT(SASigRttSub.failureMode == FailureMode::FailOnNullPtr);
+  JSContext* cx = TlsContext.get();
+
+  ASSERT_ANYREF_IS_JSOBJECT;
+  RootedRttValue parentRtt(
+      cx, &AnyRef::fromCompiledCode(rttPtr).asJSObject()->as<RttValue>());
+  RootedRttValue subRtt(cx, RttValue::createFromParent(cx, parentRtt));
+  return AnyRef::fromJSObject(subRtt.get()).forCompiledCode();
+}
+
 // Note, dst must point into nonmoveable storage that is not in the nursery,
 // this matters for the write barriers.  Furthermore, for pointer types the
 // current value of *dst must be null so that only a post-barrier is required.
@@ -1122,6 +1118,7 @@ void CopyValPostBarriered(uint8_t* dst, const Val& src) {
       memcpy(dst, &x, sizeof(x));
       break;
     }
+    case ValType::Rtt:
     case ValType::Ref: {
       // TODO/AnyRef-boxing: With boxed immediates and strings, the write
       // barrier is going to have to be more complicated.
@@ -1320,20 +1317,20 @@ bool Instance::init(JSContext* cx, const JSFunctionVector& funcImports,
       for (uint32_t typeIndex = 0; typeIndex < metadata().types.length();
            typeIndex++) {
         const TypeDefWithId& typeDef = metadata().types[typeIndex];
-        if (!typeDef.isStructType()) {
+        if (!typeDef.isStructType() && !typeDef.isArrayType()) {
           continue;
         }
 #ifndef ENABLE_WASM_GC
-        MOZ_CRASH("Should not have seen any struct types");
+        MOZ_CRASH("Should not have seen any gc types");
 #else
         uint32_t globalTypeIndex = baseIndex + typeIndex;
-        Rooted<TypeDescr*> typeDescr(
-            cx, TypeDescr::createFromHandle(cx, TypeHandle(globalTypeIndex)));
+        Rooted<RttValue*> rttValue(
+            cx, RttValue::createFromHandle(cx, TypeHandle(globalTypeIndex)));
 
-        if (!typeDescr) {
+        if (!rttValue) {
           return false;
         }
-        *((GCPtrObject*)addressOfTypeId(typeDef.id)) = typeDescr;
+        *((GCPtrObject*)addressOfTypeId(typeDef.id)) = rttValue;
         hasGcTypes_ = true;
 #endif
       }
@@ -1347,18 +1344,22 @@ bool Instance::init(JSContext* cx, const JSFunctionVector& funcImports,
     for (uint32_t typeIndex = 0; typeIndex < metadata().types.length();
          typeIndex++) {
       const TypeDefWithId& typeDef = metadata().types[typeIndex];
-      if (!typeDef.isFuncType()) {
-        continue;
-      } else if (typeDef.isFuncType()) {
-        const FuncType& funcType = typeDef.funcType();
-        const void* funcTypeId;
-        if (!lockedFuncTypeIdSet->allocateFuncTypeId(cx, funcType,
-                                                     &funcTypeId)) {
-          return false;
+      switch (typeDef.kind()) {
+        case TypeDefKind::Func: {
+          const FuncType& funcType = typeDef.funcType();
+          const void* funcTypeId;
+          if (!lockedFuncTypeIdSet->allocateFuncTypeId(cx, funcType,
+                                                       &funcTypeId)) {
+            return false;
+          }
+          *addressOfTypeId(typeDef.id) = funcTypeId;
+          break;
         }
-        *addressOfTypeId(typeDef.id) = funcTypeId;
-      } else {
-        MOZ_CRASH();
+        case TypeDefKind::Struct:
+        case TypeDefKind::Array:
+          continue;
+        default:
+          MOZ_CRASH();
       }
     }
   }
@@ -1487,11 +1488,11 @@ void Instance::tracePrivate(JSTracer* trc) {
 #ifdef ENABLE_WASM_GC
   if (hasGcTypes_) {
     for (const TypeDefWithId& typeDef : metadata().types) {
-      if (!typeDef.isStructType()) {
+      if (!typeDef.isStructType() && !typeDef.isArrayType()) {
         continue;
       }
       TraceNullableEdge(trc, ((GCPtrObject*)addressOfTypeId(typeDef.id)),
-                        "wasm typedescr");
+                        "wasm rtt value");
     }
   }
 #endif

@@ -785,6 +785,10 @@ with modules["DOM"]:
     # context.
     errors["NS_ERROR_DOM_BAD_CROSS_ORIGIN_URI"] = FAILURE(1037)
 
+    # The request failed because there are too many recursive iframes or
+    # objects being loaded.
+    errors["NS_ERROR_RECURSIVE_DOCUMENT_LOAD"] = FAILURE(1038)
+
     # May be used to indicate when e.g. setting a property value didn't
     # actually change the value, like for obj.foo = "bar"; obj.foo = "bar";
     # the second assignment throws NS_SUCCESS_DOM_NO_OPERATION.
@@ -828,6 +832,11 @@ with modules["EDITOR"]:
     # don't make this as a success code since it's not check with NS_FAILED()
     # and may keep handling the operation unexpectedly.
     errors["NS_ERROR_EDITOR_ACTION_CANCELED"] = FAILURE(3)
+
+    # An error code that indicates that there is no editable selection ranges.
+    # E.g., Selection has no range, caret is in non-editable element,
+    # non-collapsed range crosses editing host boundaries.
+    errors["NS_ERROR_EDITOR_NO_EDITABLE_RANGE"] = FAILURE(4)
 
     errors["NS_SUCCESS_EDITOR_ELEMENT_NOT_FOUND"] = SUCCESS(1)
     errors["NS_SUCCESS_EDITOR_FOUND_TARGET"] = SUCCESS(2)

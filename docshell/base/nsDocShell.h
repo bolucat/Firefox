@@ -953,7 +953,7 @@ class nsDocShell final : public nsDocLoader,
   bool IsFrame() { return mBrowsingContext->IsFrame(); }
   bool CanSetOriginAttributes();
   bool ShouldBlockLoadingForBackButton();
-  bool ShouldDiscardLayoutState(nsIHttpChannel* aChannel);
+  static bool ShouldDiscardLayoutState(nsIHttpChannel* aChannel);
   bool HasUnloadedParent();
   bool JustStartedNetworkLoad();
   bool NavigationBlockedByPrinting(bool aDisplayErrorDialog = true);
@@ -1229,7 +1229,6 @@ class nsDocShell final : public nsDocLoader,
   bool mCSSErrorReportingEnabled : 1;
   bool mAllowAuth : 1;
   bool mAllowKeywordFixup : 1;
-  bool mIsOffScreenBrowser : 1;
   bool mDisableMetaRefreshWhenInactive : 1;
   bool mIsAppTab : 1;
   bool mDeviceSizeIsPageSize : 1;

@@ -32,7 +32,7 @@
 #include "mozilla/Types.h"
 #include "mozilla/gfx/Point.h"
 #include "mozilla/jni/Utils.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 
 #include "Units.h"
 
@@ -92,9 +92,6 @@ class AndroidBridge final {
   static void DeconstructBridge();
 
   static AndroidBridge* Bridge() { return sBridge; }
-
-  void ContentDocumentChanged(mozIDOMWindowProxy* aDOMWindow);
-  bool IsContentDocumentDisplayed(mozIDOMWindowProxy* aDOMWindow);
 
   bool GetHandlersForURL(const nsAString& aURL,
                          nsIMutableArray* handlersArray = nullptr,
@@ -173,7 +170,7 @@ class AndroidBridge final {
                                   uint32_t aCount, uint32_t* aRead);
 
  protected:
-  static nsDataHashtable<nsStringHashKey, nsString> sStoragePaths;
+  static nsTHashMap<nsStringHashKey, nsString> sStoragePaths;
 
   static AndroidBridge* sBridge;
 

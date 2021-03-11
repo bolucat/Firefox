@@ -27,7 +27,7 @@ load 499844-1.html
 load 503709-1.xhtml
 load 513375-1.xhtml
 load 535632-1.xhtml
-load 574558-1.xhtml
+asserts(1) load 574558-1.xhtml # assertion in constructor of TextFragmentData (initialized for non-editable content)
 load 580151-1.xhtml
 load 582138-1.xhtml
 load 612565-1.html
@@ -82,7 +82,7 @@ load 1348851.html
 load 1350772.html
 load 1364133.html
 load 1366176.html
-asserts(4) load 1375131.html # assertion in WSRunScanner::GetEditableBlockParentOrTopmotEditableInlineContent()
+load 1375131.html
 load 1381541.html
 load 1383747.html
 load 1383755.html
@@ -96,7 +96,7 @@ load 1402526.html
 pref(dom.document.exec_command.nested_calls_allowed,true) asserts(1) load 1402904.html # assertion is that mutation event listener caused by execCommand calls another execCommand
 pref(dom.document.exec_command.nested_calls_allowed,true) asserts(1) load 1405747.html # assertion is that mutation event listener caused by execCommand calls another execCommand
 load 1405897.html
-asserts(4) load 1408170.html # 4: assertion in WSRunScanner::GetEditableBlockParentOrTopmotEditableInlineContent()
+asserts(1) load 1408170.html # assertion in WSRunScanner::GetEditableBlockParentOrTopmostEditableInlineContent()
 asserts(0-1) load 1414581.html
 load 1415231.html
 load 1423767.html
@@ -104,6 +104,8 @@ needs-focus load 1423776.html
 needs-focus load 1424450.html
 load 1425091.html
 load 1426709.html
+needs-focus load 1429523.html
+needs-focus load 1429523.xhtml
 load 1441619.html
 load 1443664.html
 skip-if(Android) needs-focus load 1444630.html
@@ -114,7 +116,7 @@ pref(dom.document.exec_command.nested_calls_allowed,true) asserts(2) load 147497
 asserts(1) load 1517028.html
 load 1525481.html
 load 1533913.html
-asserts(3) load 1534394.html # assertion in WSRunScanner::GetEditableBlockParentOrTopmotEditableInlineContent()
+asserts(2) load 1534394.html # assertion in WSRunScanner::GetEditableBlockParentOrTopmostEditableInlineContent()
 load 1547897.html
 load 1547898.html
 load 1556799.html
@@ -134,7 +136,9 @@ load 1644903.html
 load 1645983-1.html
 load 1645983-2.html
 load 1648564.html
+load 1655539.html
 load 1659717.html
 load 1663725.html # throws
 load 1655508.html
 pref(dom.document.exec_command.nested_calls_allowed,true) load 1666556.html
+asserts(1) load 1677566.html # assertion in constructor of TextFragmentData (initialized for non-editable content)

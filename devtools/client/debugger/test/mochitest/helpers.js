@@ -58,42 +58,6 @@ function waitForNextDispatch(store, actionType) {
 }
 
 /**
- * Wait for a specific action type to be dispatch.
- * If an async action, will wait for it to be done.
- *
- * @memberof mochitest/waits
- * @param {Object} dbg
- * @param {String} type
- * @param {Number} eventRepeat
- * @return {Promise}
- * @static
- */
-function waitForDispatch(dbg, actionType, eventRepeat = 1) {
-  let count = 0;
-  return new Promise(resolve => {
-    dbg.store.dispatch({
-      // Normally we would use `services.WAIT_UNTIL`, but use the
-      // internal name here so tests aren't forced to always pass it
-      // in
-      type: "@@service/waitUntil",
-      predicate: action => {
-        const isDone =
-          !action.status ||
-          action.status === "done" ||
-          action.status === "error";
-
-        if (action.type === actionType && isDone && ++count == eventRepeat) {
-          return true;
-        }
-      },
-      run: (dispatch, getState, action) => {
-        resolve(action);
-      },
-    });
-  });
-}
-
-/**
  * Waits for `predicate()` to be true. `state` is the redux app state.
  *
  * @memberof mochitest/waits
@@ -815,7 +779,7 @@ function deleteExpression(dbg, input) {
  * @static
  */
 async function reload(dbg, ...sources) {
-  const navigated = waitForDispatch(dbg, "NAVIGATE");
+  const navigated = waitForDispatch(dbg.store, "NAVIGATE");
   await dbg.client.reload();
   await navigated;
   return waitForSources(dbg, ...sources);
@@ -833,7 +797,7 @@ async function reload(dbg, ...sources) {
  */
 async function navigate(dbg, url, ...sources) {
   info(`Navigating to ${url}`);
-  const navigated = waitForDispatch(dbg, "NAVIGATE");
+  const navigated = waitForDispatch(dbg.store, "NAVIGATE");
   await dbg.client.navigate(url);
   await navigated;
   return waitForSources(dbg, ...sources);
@@ -865,7 +829,7 @@ async function addBreakpoint(dbg, source, line, column, options) {
   source = findSource(dbg, source);
   const sourceId = source.id;
   const bpCount = dbg.selectors.getBreakpointCount();
-  const onBreakpoint = waitForDispatch(dbg, "SET_BREAKPOINT");
+  const onBreakpoint = waitForDispatch(dbg.store, "SET_BREAKPOINT");
   await dbg.actions.addBreakpoint(
     getContext(dbg),
     { sourceId, line, column },
@@ -937,9 +901,7 @@ async function loadAndAddBreakpoint(dbg, filename, line, column) {
     const loc = breakpoints[id].location;
     ok(
       false,
-      `Breakpoint has correct line ${line}, column ${column}, but was line ${
-        loc.line
-      } column ${loc.column}`
+      `Breakpoint has correct line ${line}, column ${column}, but was line ${loc.line} column ${loc.column}`
     );
   }
 
@@ -959,7 +921,10 @@ async function invokeWithBreakpoint(
 
   const invokeFailed = await Promise.race([
     waitForPaused(dbg),
-    invokeResult.then(() => new Promise(() => {}), () => true),
+    invokeResult.then(
+      () => new Promise(() => {}),
+      () => true
+    ),
   ]);
 
   if (invokeFailed) {
@@ -1017,6 +982,17 @@ async function assertScopes(dbg, items) {
   }
 
   is(getScopeLabel(dbg, items.length + 1), "Window");
+}
+
+function findSourceNodeWithText(dbg, text) {
+  return [...findAllElements(dbg, "sourceNodes")].find(el => {
+    return el.textContent.includes(text);
+  });
+}
+
+function expandAllSourceNodes(dbg, treeNode) {
+  rightClickEl(dbg, treeNode);
+  selectContextMenuItem(dbg, "#node-menu-expand-all");
 }
 
 /**
@@ -1254,10 +1230,7 @@ async function getEditorLineEl(dbg, line) {
  * @param {Number} line Line where to check for a breakpoint in the editor
  * @static
  */
-async function assertNoBreakpoint(
-  dbg,
-  line
-) {
+async function assertNoBreakpoint(dbg, line) {
   const el = await getEditorLineEl(dbg, line);
 
   const exists = !!el.querySelector(".new-breakpoint");
@@ -1272,18 +1245,13 @@ async function assertNoBreakpoint(
  * @param {Number} line Line where to check for a breakpoint
  * @static
  */
-async function assertBreakpoint(
-  dbg,
-  line
-) {
+async function assertBreakpoint(dbg, line) {
   const el = await getEditorLineEl(dbg, line);
 
   const exists = !!el.querySelector(".new-breakpoint");
   ok(exists, `Breakpoint exists on line ${line}`);
 
-  const hasConditionClass = el.classList.contains(
-    "has-condition"
-  );
+  const hasConditionClass = el.classList.contains("has-condition");
 
   ok(
     !hasConditionClass,
@@ -1292,10 +1260,7 @@ async function assertBreakpoint(
 
   const hasLogClass = el.classList.contains("has-log");
 
-  ok(
-    !hasLogClass,
-    `Regular breakpoint doesn't have log on line ${line}`
-  );
+  ok(!hasLogClass, `Regular breakpoint doesn't have log on line ${line}`);
 }
 
 /*
@@ -1306,23 +1271,15 @@ async function assertBreakpoint(
  * @param {Number} line Line where to check for a breakpoint
  * @static
  */
-async function assertConditionBreakpoint(
-  dbg,
-  line
-) {
+async function assertConditionBreakpoint(dbg, line) {
   const el = await getEditorLineEl(dbg, line);
 
   const exists = !!el.querySelector(".new-breakpoint");
   ok(exists, `Breakpoint exists on line ${line}`);
 
-  const hasConditionClass = el.classList.contains(
-    "has-condition"
-  );
+  const hasConditionClass = el.classList.contains("has-condition");
 
-  ok(
-    hasConditionClass,
-    `Conditional breakpoint on line ${line}`
-  );
+  ok(hasConditionClass, `Conditional breakpoint on line ${line}`);
 
   const hasLogClass = el.classList.contains("has-log");
 
@@ -1340,18 +1297,13 @@ async function assertConditionBreakpoint(
  * @param {Number} line Line where to check for a breakpoint
  * @static
  */
-async function assertLogBreakpoint(
-  dbg,
-  line
-) {
+async function assertLogBreakpoint(dbg, line) {
   const el = await getEditorLineEl(dbg, line);
 
   const exists = !!el.querySelector(".new-breakpoint");
   ok(exists, `Breakpoint exists on line ${line}`);
 
-  const hasConditionClass = el.classList.contains(
-    "has-condition"
-  );
+  const hasConditionClass = el.classList.contains("has-condition");
 
   ok(
     !hasConditionClass,
@@ -1360,10 +1312,7 @@ async function assertLogBreakpoint(
 
   const hasLogClass = el.classList.contains("has-log");
 
-  ok(
-    hasLogClass,
-    `Log breakpoint on line ${line}`
-  );
+  ok(hasLogClass, `Log breakpoint on line ${line}`);
 }
 
 function assertBreakpointSnippet(dbg, index, snippet) {
@@ -1771,9 +1720,7 @@ async function clickAtPos(dbg, pos) {
 
   const { top, left } = tokenEl.getBoundingClientRect();
   info(
-    `Clicking on token ${tokenEl.innerText} in line ${
-      tokenEl.parentNode.innerText
-    }`
+    `Clicking on token ${tokenEl.innerText} in line ${tokenEl.parentNode.innerText}`
   );
   tokenEl.dispatchEvent(
     new MouseEvent("click", {
@@ -1980,7 +1927,7 @@ async function addExpression(dbg, input) {
   }
   findElementWithSelector(dbg, selectors.expressionInput).focus();
   type(dbg, input);
-  const evaluated = waitForDispatch(dbg, "EVALUATE_EXPRESSION");
+  const evaluated = waitForDispatch(dbg.store, "EVALUATE_EXPRESSION");
   pressKey(dbg, "Enter");
   await evaluated;
 }
@@ -1991,7 +1938,7 @@ async function editExpression(dbg, input) {
   // Position cursor reliably at the end of the text.
   pressKey(dbg, "End");
   type(dbg, input);
-  const evaluated = waitForDispatch(dbg, "EVALUATE_EXPRESSIONS");
+  const evaluated = waitForDispatch(dbg.store, "EVALUATE_EXPRESSIONS");
   pressKey(dbg, "Enter");
   await evaluated;
 }
@@ -2110,7 +2057,6 @@ function setInputValue(hud, value) {
   return onValueSet;
 }
 
-
 function assertMenuItemChecked(menuItem, isChecked) {
   is(
     !!menuItem.getAttribute("aria-checked"),
@@ -2120,7 +2066,10 @@ function assertMenuItemChecked(menuItem, isChecked) {
 }
 
 async function toggleDebbuggerSettingsMenuItem(dbg, { className, isChecked }) {
-  const menuButton = findElementWithSelector(dbg, ".debugger-settings-menu-button");
+  const menuButton = findElementWithSelector(
+    dbg,
+    ".debugger-settings-menu-button"
+  );
   const { parent } = dbg.panel.panelWin;
   const { document } = parent;
 
@@ -2144,7 +2093,7 @@ async function setLogPoint(dbg, index, value) {
     dbg,
     `${selectors.addLogItem},${selectors.editLogItem}`
   );
-  const onBreakpointSet = waitForDispatch(dbg, "SET_BREAKPOINT");
+  const onBreakpointSet = waitForDispatch(dbg.store, "SET_BREAKPOINT");
   await typeInPanel(dbg, value);
   await onBreakpointSet;
 }
@@ -2153,8 +2102,8 @@ async function setLogPoint(dbg, index, value) {
 // which doesn't contain mochitests resource://testing-common URL.
 // This isn't important to allow rejections in the context of the browser toolbox tests.
 const protocolHandler = Services.io
-    .getProtocolHandler("resource")
-    .QueryInterface(Ci.nsIResProtocolHandler);
+  .getProtocolHandler("resource")
+  .QueryInterface(Ci.nsIResProtocolHandler);
 if (protocolHandler.hasSubstitution("testing-common")) {
   const { PromiseTestUtils } = ChromeUtils.import(
     "resource://testing-common/PromiseTestUtils.jsm"
@@ -2164,7 +2113,9 @@ if (protocolHandler.hasSubstitution("testing-common")) {
   // a navigation or pause/resume end up as uncaught rejections. These never
   // indicate errors and are allowed in all debugger tests.
   PromiseTestUtils.allowMatchingRejectionsGlobally(/Page has navigated/);
-  PromiseTestUtils.allowMatchingRejectionsGlobally(/Current thread has changed/);
+  PromiseTestUtils.allowMatchingRejectionsGlobally(
+    /Current thread has changed/
+  );
   PromiseTestUtils.allowMatchingRejectionsGlobally(
     /Current thread has paused or resumed/
   );

@@ -25,6 +25,7 @@
 #include "mozilla/RangeUtils.h"
 #include "mozilla/StaticPrefs_editor.h"  // for StaticPrefs::editor_*
 #include "mozilla/TextComposition.h"
+#include "mozilla/TypeInState.h"  // for SpecifiedStyle
 #include "mozilla/UniquePtr.h"
 #include "mozilla/Unused.h"
 #include "mozilla/dom/AncestorIterator.h"
@@ -71,7 +72,8 @@ class nsISupports;
 namespace mozilla {
 
 using namespace dom;
-using ChildBlockBoundary = HTMLEditUtils::ChildBlockBoundary;
+using LeafNodeType = HTMLEditUtils::LeafNodeType;
+using LeafNodeTypes = HTMLEditUtils::LeafNodeTypes;
 using StyleDifference = HTMLEditUtils::StyleDifference;
 
 /********************************************************
@@ -1246,6 +1248,19 @@ EditActionResult HTMLEditor::InsertParagraphSeparatorAsSubAction() {
   if (NS_WARN_IF(!editingHost)) {
     return EditActionIgnored(NS_ERROR_FAILURE);
   }
+  // If the editing host parent element is editable, it means that the editing
+  // host must be a <body> element and the selection may be outside the body
+  // element.  If the selection is outside the editing host, we should not
+  // insert new paragraph nor <br> element.
+  // XXX Currently, we don't support editing outside <body> element, but Blink
+  //     does it.
+  if (editingHost->GetParentElement() &&
+      HTMLEditUtils::IsSimplyEditableNode(*editingHost->GetParentElement()) &&
+      (!atStartOfSelection.IsInContentNode() ||
+       !nsContentUtils::ContentIsFlattenedTreeDescendantOf(
+           atStartOfSelection.ContainerAsContent(), editingHost))) {
+    return EditActionHandled(NS_ERROR_EDITOR_NO_EDITABLE_RANGE);
+  }
 
   // Look for the nearest parent block.  However, don't return error even if
   // there is no block parent here because in such case, i.e., editing host
@@ -2195,7 +2210,8 @@ HTMLEditor::DeleteTextAndNormalizeSurroundingWhiteSpaces(
       // Try to put caret next to immediately after previous editable leaf.
       nsIContent* previousContent =
           HTMLEditUtils::GetPreviousLeafContentOrPreviousBlockElement(
-              newCaretPosition, *currentBlock, editingHost);
+              newCaretPosition, *currentBlock,
+              {LeafNodeType::LeafNodeOrNonEditableNode}, editingHost);
       if (previousContent && !HTMLEditUtils::IsBlockElement(*previousContent)) {
         newCaretPosition =
             previousContent->IsText() ||
@@ -2207,7 +2223,9 @@ HTMLEditor::DeleteTextAndNormalizeSurroundingWhiteSpaces(
       // a child block, look for next editable leaf instead.
       else if (nsIContent* nextContent =
                    HTMLEditUtils::GetNextLeafContentOrNextBlockElement(
-                       newCaretPosition, *currentBlock, editingHost)) {
+                       newCaretPosition, *currentBlock,
+                       {LeafNodeType::LeafNodeOrNonEditableNode},
+                       editingHost)) {
         newCaretPosition = nextContent->IsText() ||
                                    HTMLEditUtils::IsContainerNode(*nextContent)
                                ? EditorDOMPoint(nextContent, 0)
@@ -4593,8 +4611,9 @@ nsresult HTMLEditor::CreateStyleForInsertText(
     AutoTransactionsConserveSelection dontChangeMySelection(*this);
 
     while (item && pointToPutCaret.GetContainer() != documentRootElement) {
-      EditResult result = ClearStyleAt(
-          pointToPutCaret, MOZ_KnownLive(item->tag), MOZ_KnownLive(item->attr));
+      EditResult result =
+          ClearStyleAt(pointToPutCaret, MOZ_KnownLive(item->tag),
+                       MOZ_KnownLive(item->attr), item->specifiedStyle);
       if (result.Failed()) {
         NS_WARNING("HTMLEditor::ClearStyleAt() failed");
         return result.Rv();
@@ -5344,7 +5363,7 @@ nsresult HTMLEditor::MaybeExtendSelectionToHardLineEdgesForBlockEditAction() {
       // endpoint is just after the close of a block.
       nsIContent* child = HTMLEditUtils::GetLastLeafChild(
           *wsScannerAtEnd.StartReasonOtherBlockElementPtr(),
-          ChildBlockBoundary::TreatAsLeaf);
+          {LeafNodeType::LeafNodeOrChildBlock});
       if (child) {
         newEndPoint.SetAfter(child);
       }
@@ -5378,7 +5397,7 @@ nsresult HTMLEditor::MaybeExtendSelectionToHardLineEdgesForBlockEditAction() {
       // startpoint is just before the start of a block.
       nsINode* child = HTMLEditUtils::GetFirstLeafChild(
           *wsScannerAtStart.EndReasonOtherBlockElementPtr(),
-          ChildBlockBoundary::TreatAsLeaf);
+          {LeafNodeType::LeafNodeOrChildBlock});
       if (child) {
         newStartPoint.Set(child);
       }
@@ -6766,7 +6785,7 @@ nsresult HTMLEditor::SplitParagraph(
   // selection to beginning of right hand para;
   // look inside any containers that are up front.
   nsCOMPtr<nsIContent> child = HTMLEditUtils::GetFirstLeafChild(
-      aParentDivOrP, ChildBlockBoundary::TreatAsLeaf);
+      aParentDivOrP, {LeafNodeType::LeafNodeOrChildBlock});
   if (child && (child->IsText() || HTMLEditUtils::IsContainerNode(*child))) {
     nsresult rv = CollapseSelectionToStartOf(*child);
     if (NS_WARN_IF(rv == NS_ERROR_EDITOR_DESTROYED)) {

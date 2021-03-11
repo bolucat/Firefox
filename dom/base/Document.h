@@ -58,7 +58,7 @@
 #include "nsCompatibility.h"
 #include "nsContentListDeclarations.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 #include "nsDebug.h"
 #include "nsExpirationTracker.h"
 #include "nsGkAtoms.h"
@@ -1106,7 +1106,7 @@ class Document : public nsINode,
    * Return a promise which resolves to the content blocking events.
    */
   typedef MozPromise<uint32_t, bool, true> GetContentBlockingEventsPromise;
-  MOZ_MUST_USE RefPtr<GetContentBlockingEventsPromise>
+  [[nodiscard]] RefPtr<GetContentBlockingEventsPromise>
   GetContentBlockingEvents();
 
   /**
@@ -1623,7 +1623,7 @@ class Document : public nsINode,
   class SelectorCache final : public nsExpirationTracker<SelectorCacheKey, 4> {
    public:
     using SelectorList = UniquePtr<RawServoSelectorList>;
-    using Table = nsDataHashtable<nsCStringHashKey, SelectorList>;
+    using Table = nsTHashMap<nsCStringHashKey, SelectorList>;
 
     explicit SelectorCache(nsIEventTarget* aEventTarget);
     void NotifyExpired(SelectorCacheKey*) final;
@@ -3258,8 +3258,8 @@ class Document : public nsINode,
   static already_AddRefed<Document> Constructor(const GlobalObject& aGlobal,
                                                 ErrorResult& rv);
   DOMImplementation* GetImplementation(ErrorResult& rv);
-  MOZ_MUST_USE nsresult GetURL(nsString& retval) const;
-  MOZ_MUST_USE nsresult GetDocumentURI(nsString& retval) const;
+  [[nodiscard]] nsresult GetURL(nsString& retval) const;
+  [[nodiscard]] nsresult GetDocumentURI(nsString& retval) const;
   // Return the URI for the document.
   // The returned value may differ if the document is loaded via XHR, and
   // when accessed from chrome privileged script and
@@ -4220,7 +4220,7 @@ class Document : public nsINode,
   };
 
   // Mapping table from HTML command name to internal command.
-  typedef nsDataHashtable<nsStringCaseInsensitiveHashKey, InternalCommandData>
+  typedef nsTHashMap<nsStringCaseInsensitiveHashKey, InternalCommandData>
       InternalCommandDataHashtable;
   static InternalCommandDataHashtable* sInternalCommandDataHashtable;
 
@@ -4295,7 +4295,7 @@ class Document : public nsINode,
 
   typedef MozPromise<bool, bool, true>
       AutomaticStorageAccessPermissionGrantPromise;
-  MOZ_MUST_USE RefPtr<AutomaticStorageAccessPermissionGrantPromise>
+  [[nodiscard]] RefPtr<AutomaticStorageAccessPermissionGrantPromise>
   AutomaticStorageAccessPermissionCanBeGranted();
 
   static void AddToplevelLoadingDocument(Document* aDoc);
@@ -4839,7 +4839,7 @@ class Document : public nsINode,
   // A list of preconnects initiated by the preloader. This prevents
   // the same uri from being used more than once, and allows the dom
   // builder to not repeat the work of the preloader.
-  nsDataHashtable<nsURIHashKey, bool> mPreloadedPreconnects;
+  nsTHashMap<nsURIHashKey, bool> mPreloadedPreconnects;
 
   // Current depth of picture elements from parser
   uint32_t mPreloadPictureDepth;

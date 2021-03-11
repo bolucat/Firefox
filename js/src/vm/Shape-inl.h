@@ -131,6 +131,15 @@ inline void Shape::updateBaseShapeAfterMovingGC() {
   }
 }
 
+static inline void GetterSetterPreWriteBarrier(AccessorShape* shape) {
+  if (shape->hasGetterObject()) {
+    PreWriteBarrier(shape->getterObject());
+  }
+  if (shape->hasSetterObject()) {
+    PreWriteBarrier(shape->setterObject());
+  }
+}
+
 static inline void GetterSetterPostWriteBarrier(AccessorShape* shape) {
   // If the shape contains any nursery pointers then add it to a vector on the
   // zone that we fixup on minor GC. Prevent this vector growing too large
@@ -173,6 +182,12 @@ inline AccessorShape::AccessorShape(const StackShape& other, uint32_t nfixed)
       rawSetter(other.rawSetter) {
   MOZ_ASSERT(getAllocKind() == gc::AllocKind::ACCESSOR_SHAPE);
   GetterSetterPostWriteBarrier(this);
+}
+
+inline AccessorShape::AccessorShape(BaseShape* base, ObjectFlags objectFlags,
+                                    uint32_t nfixed)
+    : Shape(base, objectFlags, nfixed), rawGetter(nullptr), rawSetter(nullptr) {
+  MOZ_ASSERT(getAllocKind() == gc::AllocKind::ACCESSOR_SHAPE);
 }
 
 inline void Shape::initDictionaryShape(const StackShape& child, uint32_t nfixed,
@@ -254,17 +269,8 @@ template <class ObjectSubclass>
   }
   MOZ_ASSERT(!obj->empty());
 
-  // If the object is a standard prototype -- |RegExp.prototype|,
-  // |String.prototype|, |RangeError.prototype|, &c. -- GlobalObject.cpp's
-  // |CreateBlankProto| marked it as a delegate.  These are the only objects
-  // of this class that won't use the standard prototype, and there's no
-  // reason to pollute the initial shape cache with entries for them.
-  if (obj->isDelegate()) {
-    return true;
-  }
-
-  // Cache the initial shape for non-prototype objects, however, so that
-  // future instances will begin life with that shape.
+  // Cache the initial shape, so that future instances will begin life with that
+  // shape.
   EmptyShape::insertInitialShape(cx, shape);
   return true;
 }

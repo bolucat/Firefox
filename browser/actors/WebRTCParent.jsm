@@ -504,28 +504,28 @@ function prompt(aActor, aBrowser, aRequest) {
   if (aRequest.secondOrigin) {
     requestMessages = [
       // Individual request types first.
-      "getUserMedia.shareCameraUnsafeDelegation.message",
-      "getUserMedia.shareMicrophoneUnsafeDelegations.message",
-      "getUserMedia.shareScreenUnsafeDelegation.message",
-      "getUserMedia.shareAudioCaptureUnsafeDelegation.message",
+      "getUserMedia.shareCameraUnsafeDelegation2.message",
+      "getUserMedia.shareMicrophoneUnsafeDelegations2.message",
+      "getUserMedia.shareScreenUnsafeDelegation2.message",
+      "getUserMedia.shareAudioCaptureUnsafeDelegation2.message",
       // Combinations of the above request types last.
-      "getUserMedia.shareCameraAndMicrophoneUnsafeDelegation.message",
-      "getUserMedia.shareCameraAndAudioCaptureUnsafeDelegation.message",
-      "getUserMedia.shareScreenAndMicrophoneUnsafeDelegation.message",
-      "getUserMedia.shareScreenAndAudioCaptureUnsafeDelegation.message",
+      "getUserMedia.shareCameraAndMicrophoneUnsafeDelegation2.message",
+      "getUserMedia.shareCameraAndAudioCaptureUnsafeDelegation2.message",
+      "getUserMedia.shareScreenAndMicrophoneUnsafeDelegation2.message",
+      "getUserMedia.shareScreenAndAudioCaptureUnsafeDelegation2.message",
     ];
   } else {
     requestMessages = [
       // Individual request types first.
-      "getUserMedia.shareCamera2.message",
-      "getUserMedia.shareMicrophone2.message",
-      "getUserMedia.shareScreen3.message",
-      "getUserMedia.shareAudioCapture2.message",
+      "getUserMedia.shareCamera3.message",
+      "getUserMedia.shareMicrophone3.message",
+      "getUserMedia.shareScreen4.message",
+      "getUserMedia.shareAudioCapture3.message",
       // Combinations of the above request types last.
-      "getUserMedia.shareCameraAndMicrophone2.message",
-      "getUserMedia.shareCameraAndAudioCapture2.me ssage",
-      "getUserMedia.shareScreenAndMicrophone3.message",
-      "getUserMedia.shareScreenAndAudioCapture3.message",
+      "getUserMedia.shareCameraAndMicrophone3.message",
+      "getUserMedia.shareCameraAndAudioCapture3.message",
+      "getUserMedia.shareScreenAndMicrophone4.message",
+      "getUserMedia.shareScreenAndAudioCapture4.message",
     ];
   }
 
@@ -581,17 +581,17 @@ function prompt(aActor, aBrowser, aRequest) {
       });
     };
 
-    let [notNow, never] = convertAttributesToObjects(
+    let [block, alwaysBlock] = convertAttributesToObjects(
       localization.formatMessagesSync([
-        { id: "popup-screen-sharing-not-now" },
-        { id: "popup-screen-sharing-never" },
+        { id: "popup-screen-sharing-block" },
+        { id: "popup-screen-sharing-always-block" },
       ])
     );
 
     secondaryActions = [
       {
-        label: notNow.label,
-        accessKey: notNow.accesskey,
+        label: block.label,
+        accessKey: block.accesskey,
         callback(aState) {
           aActor.denyRequest(aRequest);
           SitePermissions.setForPrincipal(
@@ -604,8 +604,8 @@ function prompt(aActor, aBrowser, aRequest) {
         },
       },
       {
-        label: never.label,
-        accessKey: never.accesskey,
+        label: alwaysBlock.label,
+        accessKey: alwaysBlock.accesskey,
         callback(aState) {
           aActor.denyRequest(aRequest);
           SitePermissions.setForPrincipal(
@@ -621,8 +621,8 @@ function prompt(aActor, aBrowser, aRequest) {
   } else {
     secondaryActions = [
       {
-        label: stringBundle.getString("getUserMedia.dontAllow.label"),
-        accessKey: stringBundle.getString("getUserMedia.dontAllow.accesskey"),
+        label: stringBundle.getString("getUserMedia.block.label"),
+        accessKey: stringBundle.getString("getUserMedia.block.accesskey"),
         callback(aState) {
           aActor.denyRequest(aRequest);
           let scope = SitePermissions.SCOPE_TEMPORARY;
@@ -757,7 +757,7 @@ function prompt(aActor, aBrowser, aRequest) {
         menupopup.parentNode.selectedItem = null;
 
         let label = doc.getElementById("webRTC-selectWindow-label");
-        const gumStringId = "getUserMedia.selectWindowOrScreen";
+        const gumStringId = "getUserMedia.selectWindowOrScreen2";
         label.setAttribute(
           "value",
           stringBundle.getString(gumStringId + ".label")
@@ -864,10 +864,11 @@ function prompt(aActor, aBrowser, aRequest) {
 
           let scary = event.target.scary;
           let warning = doc.getElementById("webRTC-previewWarning");
-          warning.hidden = !scary;
+          let warningBox = doc.getElementById("webRTC-previewWarningBox");
+          warningBox.hidden = !scary;
           let chromeWin = doc.defaultView;
           if (scary) {
-            warning.hidden = false;
+            warningBox.hidden = false;
             let string;
             let bundle = chromeWin.gNavigatorBundle;
 
@@ -878,31 +879,27 @@ function prompt(aActor, aBrowser, aRequest) {
               "app.support.baseURL"
             );
 
-            let learnMore = chromeWin.document.createXULElement("label", {
-              is: "text-link",
-            });
-            learnMore.setAttribute("href", baseURL + "screenshare-safety");
-            learnMore.textContent = learnMoreText;
-
             if (type == "screen") {
-              string = bundle.getFormattedString(
-                "getUserMedia.shareScreenWarning.message",
-                ["<>"]
+              string = bundle.getString(
+                "getUserMedia.shareScreenWarning2.message"
               );
             } else {
               let brand = doc
                 .getElementById("bundle_brand")
                 .getString("brandShortName");
               string = bundle.getFormattedString(
-                "getUserMedia.shareFirefoxWarning.message",
-                [brand, "<>"]
+                "getUserMedia.shareFirefoxWarning2.message",
+                [brand]
               );
             }
 
-            let [pre, post] = string.split("<>");
-            warning.textContent = pre;
-            warning.appendChild(learnMore);
-            warning.appendChild(chromeWin.document.createTextNode(post));
+            warning.textContent = string;
+
+            let learnMore = doc.getElementById(
+              "webRTC-previewWarning-learnMore"
+            );
+            learnMore.setAttribute("href", baseURL + "screenshare-safety");
+            learnMore.textContent = learnMoreText;
 
             // On Catalina, we don't want to blow our chance to show the
             // OS-level helper prompt to enable screen recording if the user
@@ -1198,12 +1195,8 @@ function prompt(aActor, aBrowser, aRequest) {
   // screen, then the checkbox for the permission panel is what controls
   // notification silencing.
   if (notificationSilencingEnabled && sharingScreen) {
-    let [
-      silenceNotifications,
-      silenceNotificationsWarning,
-    ] = localization.formatMessagesSync([
-      { id: "popup-silence-notifications-checkbox" },
-      { id: "popup-silence-notifications-checkbox-warning" },
+    let [silenceNotifications] = localization.formatMessagesSync([
+      { id: "popup-mute-notifications-checkbox" },
     ]);
 
     options.checkbox = {
@@ -1211,7 +1204,6 @@ function prompt(aActor, aBrowser, aRequest) {
       checked: false,
       checkedState: {
         disableMainAction: false,
-        warningLabel: silenceNotificationsWarning.value,
       },
     };
   }

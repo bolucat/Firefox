@@ -10,7 +10,7 @@
 
     <popupnotification id="webRTC-shareDevices-notification" hidden="true">
       <popupnotificationcontent id="webRTC-selectCamera" orient="vertical">
-        <label data-l10n-id="popup-select-camera"
+        <label data-l10n-id="popup-select-camera-device"
                control="webRTC-selectCamera-menulist"/>
         <deck id="webRTC-selectCamera-deck">
           <menulist id="webRTC-selectCamera-menulist">
@@ -33,13 +33,13 @@
       <popupnotificationcontent id="webRTC-preview" hidden="true">
         <html:video id="webRTC-previewVideo" tabindex="-1"/>
         <vbox id="webRTC-previewWarningBox">
-          <spacer flex="1"/>
           <description id="webRTC-previewWarning"/>
+          <label id="webRTC-previewWarning-learnMore" is="text-link" class="popup-notification-learnmore-link"/>
         </vbox>
       </popupnotificationcontent>
 
       <popupnotificationcontent id="webRTC-selectMicrophone" orient="vertical">
-        <label data-l10n-id="popup-select-microphone"
+        <label data-l10n-id="popup-select-microphone-device"
                control="webRTC-selectMicrophone-menulist"/>
         <deck id="webRTC-selectMicrophone-deck">
           <menulist id="webRTC-selectMicrophone-menulist">
@@ -107,6 +107,13 @@
         <hbox>
           <label id="addon-install-blocked-info" class="popup-notification-learnmore-link" is="text-link"/>
         </hbox>
+      </popupnotificationcontent>
+    </popupnotification>
+
+    <popupnotification id="canvas-permissions-prompt-notification" hidden="true">
+      <popupnotificationcontent orient="vertical">
+        <description class="popup-notification-description"/>
+        <label id="canvas-permissions-prompt-warning"/>
       </popupnotificationcontent>
     </popupnotification>
 

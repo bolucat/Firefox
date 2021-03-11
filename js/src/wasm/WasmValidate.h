@@ -347,7 +347,7 @@ class Encoder {
       return writeFixedU8(uint8_t(TypeCode::NullableRef)) &&
              writeVarU32(type.refType().typeIndex());
     }
-    TypeCode tc = UnpackTypeCodeType(type.packed());
+    TypeCode tc = type.packed().typeCode();
     MOZ_ASSERT(size_t(tc) < size_t(TypeCode::Limit));
     return writeFixedU8(uint8_t(tc));
   }
@@ -612,6 +612,11 @@ class Decoder {
       case uint8_t(TypeCode::FuncRef):
       case uint8_t(TypeCode::ExternRef):
         return RefType::fromTypeCode(TypeCode(code), true);
+      case uint8_t(TypeCode::Rtt): {
+        uint32_t rttDepth = uncheckedReadVarU32();
+        int32_t typeIndex = uncheckedReadVarS32();
+        return ValType::fromRtt(typeIndex, rttDepth);
+      }
       case uint8_t(TypeCode::Ref):
       case uint8_t(TypeCode::NullableRef): {
         bool nullable = code == uint8_t(TypeCode::NullableRef);
@@ -631,26 +636,22 @@ class Decoder {
         return ValType::fromNonRefTypeCode(TypeCode(code));
     }
   }
-  [[nodiscard]] bool readValType(uint32_t numTypes, const FeatureArgs& features,
-                                 ValType* type) {
+
+  template <class T>
+  [[nodiscard]] bool readPackedType(uint32_t numTypes,
+                                    const FeatureArgs& features, T* type) {
     static_assert(uint8_t(TypeCode::Limit) <= UINT8_MAX, "fits");
     uint8_t code;
     if (!readFixedU8(&code)) {
       return fail("expected type code");
     }
     switch (code) {
-      case uint8_t(TypeCode::I32):
-      case uint8_t(TypeCode::F32):
-      case uint8_t(TypeCode::F64):
-      case uint8_t(TypeCode::I64):
-        *type = ValType::fromNonRefTypeCode(TypeCode(code));
-        return true;
 #ifdef ENABLE_WASM_SIMD
       case uint8_t(TypeCode::V128):
         if (!features.v128) {
           return fail("v128 not enabled");
         }
-        *type = ValType::fromNonRefTypeCode(TypeCode(code));
+        *type = T::fromNonRefTypeCode(TypeCode(code));
         return true;
 #endif
 #ifdef ENABLE_WASM_REFTYPES
@@ -678,20 +679,53 @@ class Decoder {
       }
 #endif
 #ifdef ENABLE_WASM_GC
-      case uint8_t(TypeCode::EqRef):
+      case uint8_t(TypeCode::Rtt): {
+        if (!features.gcTypes) {
+          return fail("gc types not enabled");
+        }
+
+        uint32_t rttDepth;
+        if (!readVarU32(&rttDepth) || uint32_t(rttDepth) >= MaxRttDepth) {
+          return fail("invalid rtt depth");
+        }
+
+        RefType heapType;
+        if (!readHeapType(numTypes, features, true, &heapType)) {
+          return false;
+        }
+
+        if (!heapType.isTypeIndex()) {
+          return fail("invalid heap type for rtt");
+        }
+
+        *type = T::fromRtt(heapType.typeIndex(), rttDepth);
+        return true;
+      }
+      case uint8_t(TypeCode::EqRef): {
         if (!features.gcTypes) {
           return fail("gc types not enabled");
         }
         *type = RefType::fromTypeCode(TypeCode(code), true);
         return true;
+      }
 #endif
-      default:
-        return fail("bad type");
+      default: {
+        if (!T::isValidTypeCode(TypeCode(code))) {
+          return fail("bad type");
+        }
+        *type = T::fromNonRefTypeCode(TypeCode(code));
+
+        if (!features.v128 && *type == T::V128) {
+          return fail("v128 not enabled");
+        }
+        return true;
+      }
     }
   }
-  [[nodiscard]] bool readValType(const TypeContext& types,
-                                 const FeatureArgs& features, ValType* type) {
-    if (!readValType(types.length(), features, type)) {
+  template <class T>
+  [[nodiscard]] bool readPackedType(const TypeContext& types,
+                                    const FeatureArgs& features, T* type) {
+    if (!readPackedType(types.length(), features, type)) {
       return false;
     }
     if (type->isTypeIndex() &&
@@ -700,6 +734,27 @@ class Decoder {
     }
     return true;
   }
+
+  [[nodiscard]] bool readValType(uint32_t numTypes, const FeatureArgs& features,
+                                 ValType* type) {
+    return readPackedType<ValType>(numTypes, features, type);
+  }
+  [[nodiscard]] bool readValType(const TypeContext& types,
+                                 const FeatureArgs& features, ValType* type) {
+    return readPackedType<ValType>(types, features, type);
+  }
+
+  [[nodiscard]] bool readFieldType(uint32_t numTypes,
+                                   const FeatureArgs& features,
+                                   FieldType* type) {
+    return readPackedType<FieldType>(numTypes, features, type);
+  }
+  [[nodiscard]] bool readFieldType(const TypeContext& types,
+                                   const FeatureArgs& features,
+                                   FieldType* type) {
+    return readPackedType<FieldType>(types, features, type);
+  }
+
   [[nodiscard]] bool readHeapType(uint32_t numTypes,
                                   const FeatureArgs& features, bool nullable,
                                   RefType* type) {
@@ -735,7 +790,8 @@ class Decoder {
 #ifdef ENABLE_WASM_FUNCTION_REFERENCES
     if (features.functionReferences) {
       int32_t x;
-      if (!readVarS32(&x) || x < 0 || uint32_t(x) >= numTypes) {
+      if (!readVarS32(&x) || x < 0 || uint32_t(x) >= numTypes ||
+          uint32_t(x) >= MaxTypeIndex) {
         return fail("invalid heap type index");
       }
       *type = RefType::fromTypeIndex(x, nullable);
@@ -785,7 +841,8 @@ class Decoder {
                                        RefType type) {
     MOZ_ASSERT(type.isTypeIndex());
 
-    if (features.gcTypes && types[type.typeIndex()].isStructType()) {
+    if (features.gcTypes && (types[type.typeIndex()].isStructType() ||
+                             types[type.typeIndex()].isArrayType())) {
       return true;
     }
     return fail("type index references an invalid type");
@@ -903,6 +960,12 @@ class Decoder {
     return u8 != UINT8_MAX ? Op(u8) : Op(uncheckedReadFixedU8() + UINT8_MAX);
   }
 };
+
+// Shared subtyping function across validation.
+
+[[nodiscard]] bool CheckIsSubtypeOf(Decoder& d, const ModuleEnvironment& env,
+                                    size_t opcodeOffset, ValType actual,
+                                    ValType expected, TypeCache* cache);
 
 // The local entries are part of function bodies and thus serialized by both
 // wasm and asm.js and decoded as part of both validation and compilation.

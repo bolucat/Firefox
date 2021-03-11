@@ -237,12 +237,7 @@
                    onpopupshowing="(() => { gSync.populateSendTabToDevicesMenu(event.target, gBrowser.currentURI.spec, gBrowser.contentTitle); })()"/>
       </menu>
       <menu id="fill-login" hidden="true">
-        <menupopup id="fill-login-popup">
-          <menuitem id="fill-login-no-logins"
-                    label="&noLoginSuggestions.label;"
-                    disabled="true"
-                    hidden="true"/>
-        </menupopup>
+        <menupopup id="fill-login-popup" />
       </menu>
      <menuitem id="fill-login-generated-password"
                data-l10n-id="main-context-menu-suggest-strong-password"
@@ -338,6 +333,10 @@
       <menuitem id="context-print-selection"
                 data-l10n-id="main-context-menu-print-selection"
                 oncommand="gContextMenu.printSelection();"/>
+      <menuseparator id="context-sep-screenshots"/>
+      <menuitem id="context-take-screenshot"
+                data-l10n-id="main-context-menu-take-screenshot"
+                oncommand="gContextMenu.takeScreenshot();"/>
       <menuseparator id="spell-separator"/>
       <menuitem id="spell-check-enabled"
                 label="&spellCheckToggle.label;"

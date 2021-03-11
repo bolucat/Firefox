@@ -567,21 +567,16 @@ class MochitestServer(object):
     def stop(self):
         try:
             with closing(urlopen(self.shutdownURL)) as c:
-                c.read()
-
-            # TODO: need ProcessHandler.poll()
-            # https://bugzilla.mozilla.org/show_bug.cgi?id=912285
-            #      rtncode = self._process.poll()
-            rtncode = self._process.proc.poll()
-            if rtncode is None:
-                # TODO: need ProcessHandler.terminate() and/or .send_signal()
-                # https://bugzilla.mozilla.org/show_bug.cgi?id=912285
-                # self._process.terminate()
-                self._process.proc.terminate()
+                self._log.info(six.ensure_text(c.read()))
         except Exception:
             self._log.info("Failed to stop web server on %s" % self.shutdownURL)
             traceback.print_exc()
-            self._process.kill()
+        finally:
+            if self._process is not None:
+                # Kill the server immediately to avoid logging intermittent
+                # shutdown crashes, sometimes observed on Windows 10.
+                self._process.kill()
+                self._log.info("Web server killed.")
 
 
 class WebSocketServer(object):
@@ -630,7 +625,8 @@ class WebSocketServer(object):
         self._log.info("runtests.py | Websocket server pid: %d" % pid)
 
     def stop(self):
-        self._process.kill()
+        if self._process is not None:
+            self._process.kill()
 
 
 class SSLTunnel:
@@ -2108,6 +2104,10 @@ toolbar#nav-bar {
             # Enable tracing output for detailed failures in case of
             # failing connection attempts, and hangs (bug 1397201)
             "marionette.log.level": "Trace",
+            # Disable async font fallback, because the unpredictable
+            # extra reflow it can trigger (potentially affecting a later
+            # test) results in spurious intermittent failures.
+            "gfx.font_rendering.fallback.async": False,
         }
 
         # Ideally we should set this in a manifest, but a11y tests do not run by manifest.

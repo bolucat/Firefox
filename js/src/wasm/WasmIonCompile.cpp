@@ -214,6 +214,7 @@ class FunctionCompiler {
         case ValType::F64:
           ins = MConstant::New(alloc(), DoubleValue(0.0), MIRType::Double);
           break;
+        case ValType::Rtt:
         case ValType::Ref:
           ins = MWasmNullConstant::New(alloc());
           break;
@@ -1511,6 +1512,7 @@ class FunctionCompiler {
             def = MWasmFloatRegisterResult::New(alloc(), MIRType::Double,
                                                 result.fpr());
             break;
+          case wasm::ValType::Rtt:
           case wasm::ValType::Ref:
             def = MWasmRegisterResult::New(alloc(), MIRType::RefOrNull,
                                            result.gpr());
@@ -4934,16 +4936,7 @@ static bool EmitBodyExprs(FunctionCompiler& f) {
         // Gc operations
 #ifdef ENABLE_WASM_GC
       case uint16_t(Op::GcPrefix): {
-        switch (op.b1) {
-          case uint32_t(GcOp::StructNew):
-          case uint32_t(GcOp::StructGet):
-          case uint32_t(GcOp::StructSet):
-          case uint32_t(GcOp::StructNarrow):
-            // Not yet supported
-            return f.iter().unrecognizedOpcode(&op);
-          default:
-            return f.iter().unrecognizedOpcode(&op);
-        }
+        return f.iter().unrecognizedOpcode(&op);
       }
 #endif
 

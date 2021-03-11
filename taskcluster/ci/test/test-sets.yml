@@ -79,8 +79,6 @@ talos-ref-hw:
     - talos-webgl
 
 raptor-firefox:
-    - raptor-tp6
-    - raptor-tp6-live
     - raptor-speedometer-firefox
     - raptor-stylebench-firefox
     - raptor-motionmark-htmlsuite-firefox
@@ -243,6 +241,7 @@ linux1804-qr-tests:
     - gtest
     # - jittest  # See comment in linux1804-ccov-tests set.
     - jsreftest
+    - marionette
     - mochitest-a11y
     - mochitest-chrome
     - mochitest-chrome-gpu
@@ -255,6 +254,7 @@ linux1804-qr-tests:
     - mochitest-webgl2-core
     - mochitest-webgl2-ext
     - reftest
+    - test-verify
     - xpcshell
 
 linux1804-ccov-tests:
@@ -275,6 +275,7 @@ linux-talos-flex:
 
 windows-qr-tests:
     - crashtest
+    - marionette
     - mochitest-chrome-gpu
     - mochitest-browser-chrome
     - mochitest-plain
@@ -283,6 +284,7 @@ windows-qr-tests:
     - mochitest-webgl1-core
     - mochitest-webgl2-core
     - reftest
+    - test-verify
 
 windows-reftest-gpu:
     - reftest-gpu

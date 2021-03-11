@@ -90,8 +90,6 @@ class Http3Session final : public nsAHttpTransaction, public nsAHttpConnection {
 
   nsresult ProcessOutputAndEvents(nsIUDPSocket* socket);
 
-  const nsCString& GetAlpnToken() { return mAlpnToken; }
-
   void ReportHttp3Connection();
 
   int64_t GetBytesWritten() { return mTotalBytesWritten; }
@@ -182,10 +180,9 @@ class Http3Session final : public nsAHttpTransaction, public nsAHttpConnection {
 
   nsCOMPtr<nsITimer> mTimer;
 
-  nsDataHashtable<nsCStringHashKey, bool> mJoinConnectionCache;
+  nsTHashMap<nsCStringHashKey, bool> mJoinConnectionCache;
 
   RefPtr<QuicSocketControl> mSocketControl;
-  nsCString mAlpnToken;
 
   uint64_t mTransactionCount = 0;
 

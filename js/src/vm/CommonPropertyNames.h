@@ -214,6 +214,7 @@
   MACRO_(Handle, Handle, "Handle")                                             \
   MACRO_(has, has, "has")                                                      \
   MACRO_(hashConstructor, hashConstructor, "#constructor")                     \
+  MACRO_(hasIndices, hasIndices, "hasIndices")                                 \
   MACRO_(hasOwn, hasOwn, "hasOwn")                                             \
   MACRO_(hasOwnProperty, hasOwnProperty, "hasOwnProperty")                     \
   MACRO_(highWaterMark, highWaterMark, "highWaterMark")                        \
@@ -228,6 +229,7 @@
   MACRO_(includes, includes, "includes")                                       \
   MACRO_(incumbentGlobal, incumbentGlobal, "incumbentGlobal")                  \
   MACRO_(index, index, "index")                                                \
+  MACRO_(indices, indices, "indices")                                          \
   MACRO_(infinity, infinity, "infinity")                                       \
   MACRO_(Infinity, Infinity, "Infinity")                                       \
   MACRO_(initial, initial, "initial")                                          \

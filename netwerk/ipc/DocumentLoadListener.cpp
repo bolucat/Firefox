@@ -67,6 +67,14 @@ mozilla::LazyLogModule gDocumentChannelLog("DocumentChannel");
 
 extern mozilla::LazyLogModule gSHIPBFCacheLog;
 
+// Bug 136580: Limit to the number of nested content frames that can have the
+//             same URL. This is to stop content that is recursively loading
+//             itself.  Note that "#foo" on the end of URL doesn't affect
+//             whether it's considered identical, but "?foo" or ";foo" are
+//             considered and compared.
+// Limit this to 2, like chromium does.
+static constexpr int kMaxSameURLContentFrames = 2;
+
 using namespace mozilla::dom;
 
 namespace mozilla {
@@ -450,6 +458,57 @@ WindowGlobalParent* DocumentLoadListener::GetParentWindowContext() const {
   return mParentWindowContext;
 }
 
+bool CheckRecursiveLoad(CanonicalBrowsingContext* aLoadingContext,
+                        nsDocShellLoadState* aLoadState,
+                        DocumentLoadListener* aDLL, bool aIsDocumentLoad,
+                        LoadInfo* aLoadInfo) {
+  // Bug 136580: Check for recursive frame loading excluding about:srcdoc URIs.
+  // srcdoc URIs require their contents to be specified inline, so it isn't
+  // possible for undesirable recursion to occur without the aid of a
+  // non-srcdoc URI,  which this method will block normally.
+  // Besides, URI is not enough to guarantee uniqueness of srcdoc documents.
+  nsAutoCString buffer;
+  if (aLoadState->URI()->SchemeIs("about")) {
+    nsresult rv = aLoadState->URI()->GetPathQueryRef(buffer);
+    if (NS_SUCCEEDED(rv) && buffer.EqualsLiteral("srcdoc")) {
+      // Duplicates allowed up to depth limits
+      return true;
+    }
+  }
+
+  RefPtr<WindowGlobalParent> parent;
+  if (!aIsDocumentLoad) {  // object load
+    parent = aLoadingContext->GetCurrentWindowGlobal();
+  } else {
+    parent = aLoadingContext->GetParentWindowContext();
+  }
+
+  int matchCount = 0;
+  CanonicalBrowsingContext* ancestorBC;
+  for (WindowGlobalParent* ancestorWGP = parent; ancestorWGP;
+       ancestorWGP = ancestorBC->GetParentWindowContext()) {
+    ancestorBC = ancestorWGP->BrowsingContext();
+    MOZ_ASSERT(ancestorBC);
+    if (nsCOMPtr<nsIURI> parentURI = ancestorWGP->GetDocumentURI()) {
+      bool equal;
+      nsresult rv = aLoadState->URI()->EqualsExceptRef(parentURI, &equal);
+      NS_ENSURE_SUCCESS(rv, false);
+
+      if (equal) {
+        matchCount++;
+        if (matchCount >= kMaxSameURLContentFrames) {
+          NS_WARNING(
+              "Too many nested content frames/objects have the same url "
+              "(recursion?) "
+              "so giving up");
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
 auto DocumentLoadListener::Open(nsDocShellLoadState* aLoadState,
                                 LoadInfo* aLoadInfo, nsLoadFlags aLoadFlags,
                                 uint32_t aCacheKey,
@@ -468,6 +527,16 @@ auto DocumentLoadListener::Open(nsDocShellLoadState* aLoadState,
   loadingContext->GetOriginAttributes(attrs);
 
   mLoadIdentifier = aLoadState->GetLoadIdentifier();
+
+  // Check for infinite recursive object or iframe loads
+  if (aLoadState->OriginalFrameSrc() || !mIsDocumentLoad) {
+    if (!CheckRecursiveLoad(loadingContext, aLoadState, this, mIsDocumentLoad,
+                            aLoadInfo)) {
+      *aRv = NS_ERROR_RECURSIVE_DOCUMENT_LOAD;
+      mParentChannelListener = nullptr;
+      return nullptr;
+    }
+  }
 
   if (!nsDocShell::CreateAndConfigureRealChannelForLoadState(
           loadingContext, aLoadState, aLoadInfo, mParentChannelListener,
@@ -1634,7 +1703,10 @@ bool DocumentLoadListener::MaybeTriggerProcessSwitch(
       (mLoadStateLoadType == LOAD_NORMAL ||
        mLoadStateLoadType == LOAD_HISTORY || mLoadStateLoadType == LOAD_LINK ||
        mLoadStateLoadType == LOAD_STOP_CONTENT ||
-       mLoadStateLoadType == LOAD_STOP_CONTENT_AND_REPLACE)) {
+       mLoadStateLoadType == LOAD_STOP_CONTENT_AND_REPLACE) &&
+      (!browsingContext->GetActiveSessionHistoryEntry() ||
+       browsingContext->GetActiveSessionHistoryEntry()
+           ->GetSaveLayoutStateFlag())) {
     options.mReplaceBrowsingContext = true;
     options.mTryUseBFCache = true;
   }
@@ -1754,15 +1826,6 @@ void DocumentLoadListener::TriggerProcessSwitch(
   // the listeners in the old process.
   mDoingProcessSwitch = true;
 
-  RefPtr<WindowGlobalParent> wgp = aContext->GetCurrentWindowGlobal();
-  if (wgp && wgp->IsProcessRoot()) {
-    if (RefPtr<BrowserParent> browserParent = wgp->GetBrowserParent()) {
-      // This load has already started, so we want to filter out any 'stop'
-      // progress events coming from the old process as a result of us
-      // disconnecting from it.
-      browserParent->SuspendProgressEvents();
-    }
-  }
   DisconnectListeners(NS_BINDING_ABORTED, NS_BINDING_ABORTED, true);
 
   LOG(("Process Switch: Calling ChangeRemoteness"));
@@ -2142,6 +2205,11 @@ DocumentLoadListener::OnStartRequest(nsIRequest* aRequest) {
       uint32_t httpsOnlyStatus = loadInfo->GetHttpsOnlyStatus();
       httpsOnlyStatus |= nsILoadInfo::HTTPS_ONLY_TOP_LEVEL_LOAD_IN_PROGRESS;
       loadInfo->SetHttpsOnlyStatus(httpsOnlyStatus);
+    }
+
+    if (mLoadingSessionHistoryInfo &&
+        nsDocShell::ShouldDiscardLayoutState(httpChannel)) {
+      mLoadingSessionHistoryInfo->mInfo.SetSaveLayoutStateFlag(false);
     }
   }
 

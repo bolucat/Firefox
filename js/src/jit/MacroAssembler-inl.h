@@ -421,7 +421,7 @@ void MacroAssembler::branchTestFunctionFlags(Register fun, uint32_t flags,
   static_assert(JSFunction::offsetOfFlags() == JSFunction::offsetOfNargs() + 2,
                 "The code in this function and the ones below must change");
 
-  int32_t bit = IMM32_16ADJ(flags);
+  int32_t bit = Imm32_16Adj(flags);
   Address address(fun, JSFunction::offsetOfNargs());
   branchTest32(cond, address, Imm32(bit), label);
 }
@@ -429,15 +429,22 @@ void MacroAssembler::branchTestFunctionFlags(Register fun, uint32_t flags,
 void MacroAssembler::branchIfNotFunctionIsNonBuiltinCtor(Register fun,
                                                          Register scratch,
                                                          Label* label) {
+  // 16-bit loads are slow and unaligned 32-bit loads may be too so
+  // perform an aligned 32-bit load and adjust the bitmask accordingly.
+
+  static_assert(JSFunction::offsetOfNargs() % sizeof(uint32_t) == 0);
+  static_assert(JSFunction::offsetOfFlags() == JSFunction::offsetOfNargs() + 2);
+
   // Guard the function has the BASESCRIPT and CONSTRUCTOR flags and does NOT
   // have the SELF_HOSTED flag.
   // This is equivalent to JSFunction::isNonBuiltinConstructor.
-  constexpr uint32_t mask = FunctionFlags::BASESCRIPT |
-                            FunctionFlags::SELF_HOSTED |
-                            FunctionFlags::CONSTRUCTOR;
-  constexpr uint32_t expected =
-      FunctionFlags::BASESCRIPT | FunctionFlags::CONSTRUCTOR;
-  load16ZeroExtend(Address(fun, JSFunction::offsetOfFlags()), scratch);
+  constexpr int32_t mask =
+      Imm32_16Adj(FunctionFlags::BASESCRIPT | FunctionFlags::SELF_HOSTED |
+                  FunctionFlags::CONSTRUCTOR);
+  constexpr int32_t expected =
+      Imm32_16Adj(FunctionFlags::BASESCRIPT | FunctionFlags::CONSTRUCTOR);
+
+  load32(Address(fun, JSFunction::offsetOfNargs()), scratch);
   and32(Imm32(mask), scratch);
   branch32(Assembler::NotEqual, scratch, Imm32(expected), label);
 }
@@ -511,11 +518,13 @@ void MacroAssembler::branchFunctionKind(Condition cond,
                                         Label* label) {
   // 16-bit loads are slow and unaligned 32-bit loads may be too so
   // perform an aligned 32-bit load and adjust the bitmask accordingly.
-  MOZ_ASSERT(JSFunction::offsetOfNargs() % sizeof(uint32_t) == 0);
-  MOZ_ASSERT(JSFunction::offsetOfFlags() == JSFunction::offsetOfNargs() + 2);
+
+  static_assert(JSFunction::offsetOfNargs() % sizeof(uint32_t) == 0);
+  static_assert(JSFunction::offsetOfFlags() == JSFunction::offsetOfNargs() + 2);
+
   Address address(fun, JSFunction::offsetOfNargs());
-  int32_t mask = IMM32_16ADJ(FunctionFlags::FUNCTION_KIND_MASK);
-  int32_t bit = IMM32_16ADJ(kind << FunctionFlags::FUNCTION_KIND_SHIFT);
+  int32_t mask = Imm32_16Adj(FunctionFlags::FUNCTION_KIND_MASK);
+  int32_t bit = Imm32_16Adj(kind << FunctionFlags::FUNCTION_KIND_SHIFT);
   load32(address, scratch);
   and32(Imm32(mask), scratch);
   branch32(cond, scratch, Imm32(bit), label);
@@ -572,6 +581,23 @@ void MacroAssembler::branchTestObjClassNoSpectreMitigations(
   loadPtr(Address(scratch, Shape::offsetOfBaseShape()), scratch);
   loadPtr(Address(scratch, BaseShape::offsetOfClasp()), scratch);
   branchPtr(cond, clasp, scratch, label);
+}
+
+void MacroAssembler::branchTestObjClass(Condition cond, Register obj,
+                                        Register clasp, Register scratch,
+                                        Register spectreRegToZero,
+                                        Label* label) {
+  MOZ_ASSERT(obj != scratch);
+  MOZ_ASSERT(scratch != spectreRegToZero);
+
+  loadPtr(Address(obj, JSObject::offsetOfShape()), scratch);
+  loadPtr(Address(scratch, Shape::offsetOfBaseShape()), scratch);
+  loadPtr(Address(scratch, BaseShape::offsetOfClasp()), scratch);
+  branchPtr(cond, clasp, scratch, label);
+
+  if (JitOptions.spectreObjectMitigationsMisc) {
+    spectreZeroRegister(cond, scratch, spectreRegToZero);
+  }
 }
 
 void MacroAssembler::branchTestObjShape(Condition cond, Register obj,
