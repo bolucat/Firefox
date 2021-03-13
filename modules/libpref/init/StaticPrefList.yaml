@@ -278,6 +278,11 @@
   value: true
   mirror: always
 
+- name: apz.mac.enable_double_tap_zoom_touchpad_gesture
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 - name: apz.allow_immediate_handoff
   type: RelaxedAtomicBool
   value: false
@@ -1700,6 +1705,12 @@
   value: @IS_NOT_ANDROID@
   mirror: always
 
+# Only intended for fuzzing purposes, this will break mozPrintCallback, etc.
+- name: dom.window_print.fuzzing.block_while_printing
+  type: bool
+  value: false
+  mirror: always
+
 - name: dom.element.transform-getters.enabled
   type: bool
   value: false
@@ -2785,6 +2796,13 @@
   value: true
   mirror: always
 
+# If true, tries to break upgrade downgrade cycles where https-only tries
+# to upgrad ethe connection, but the website tries to downgrade again.
+- name: dom.security.https_only_mode_break_upgrade_downgrade_endless_loop
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 # If true and HTTPS-only mode is enabled, requests
 # to local IP addresses are also upgraded
 - name: dom.security.https_only_mode.upgrade_local
@@ -2811,6 +2829,13 @@
 # for telemetry purposes and allows to reason about retention of
 # the pref dom.security.https_only_mode_pbm from above.
 - name: dom.security.https_only_mode_ever_enabled_pbm
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# If true checks for secure www connections when https fails
+# and gives the user suggestions on the error page
+- name: dom.security.https_only_mode_error_page_user_suggestions
   type: RelaxedAtomicBool
   value: false
   mirror: always
@@ -3483,7 +3508,7 @@
   type: RelaxedAtomicBool
   value: true
   mirror: always
- 
+
 - name: dom.workers.testing.enabled
   type: RelaxedAtomicBool
   value: false
@@ -5837,6 +5862,7 @@
   type: RelaxedAtomicBool
   value: false
   mirror: always
+  do_not_use_directly: true
 
 # Copy-on-write canvas.
 - name: layers.shared-buffer-provider.enabled
@@ -6172,7 +6198,7 @@
 # Is the image-set() function enabled?
 - name: layout.css.image-set.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
   rust: true
 
@@ -6667,8 +6693,8 @@
   value: -1
   mirror: always
 
-# The time in number of frames that we estimate for a refresh driver
-# to be quiescent.
+# If it has been this many frame periods since a refresh, assume that painting
+# is quiescent (will not happen again soon).
 - name: layout.idle_period.required_quiescent_frames
   type: uint32_t
   value: 2
@@ -10659,6 +10685,13 @@
   value: false
   mirror: always
 
+#ifdef XP_MACOSX
+- name: widget.macos.respect-system-appearance
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+#endif
+
 # Whether to allow gtk dark themes in content.
 - name: widget.content.allow-gtk-dark-theme
   type: bool
@@ -10716,11 +10749,7 @@
 # correctly when `security.sandbox.content.headless` is enabled.
 - name: widget.remote-look-and-feel
   type: bool
-#ifdef MOZ_WIDGET_GTK
   value: true
-#else
-  value: false
-#endif
   mirror: once
 
 #---------------------------------------------------------------------------

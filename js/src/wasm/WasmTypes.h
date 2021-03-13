@@ -527,7 +527,7 @@ class RefType {
       case RefType::TypeIndex:
         MOZ_CRASH("NYI");
     }
-    MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("switch is exhaustive");
+    MOZ_CRASH("switch is exhaustive");
   }
 
   bool operator==(const RefType& that) const { return ptc_ == that.ptc_; }
@@ -550,18 +550,26 @@ class FieldTypeTraits {
 
   static bool isValidTypeCode(TypeCode tc) {
     switch (tc) {
+#ifdef ENABLE_WASM_GC
       case TypeCode::I8:
       case TypeCode::I16:
+#endif
       case TypeCode::I32:
       case TypeCode::I64:
       case TypeCode::F32:
       case TypeCode::F64:
+#ifdef ENABLE_WASM_SIMD
       case TypeCode::V128:
+#endif
       case TypeCode::FuncRef:
       case TypeCode::ExternRef:
+#ifdef ENABLE_WASM_GC
       case TypeCode::EqRef:
       case TypeCode::Rtt:
+#endif
+#ifdef ENABLE_WASM_FUNCTION_REFERENCES
       case AbstractReferenceTypeIndexCode:
+#endif
         return true;
       default:
         return false;
@@ -587,12 +595,18 @@ class ValTypeTraits {
       case TypeCode::I64:
       case TypeCode::F32:
       case TypeCode::F64:
+#ifdef ENABLE_WASM_SIMD
       case TypeCode::V128:
+#endif
       case TypeCode::FuncRef:
       case TypeCode::ExternRef:
+#ifdef ENABLE_WASM_GC
       case TypeCode::EqRef:
       case TypeCode::Rtt:
+#endif
+#ifdef ENABLE_WASM_FUNCTION_REFERENCES
       case AbstractReferenceTypeIndexCode:
+#endif
         return true;
       default:
         return false;
@@ -970,7 +984,7 @@ static inline jit::MIRType ToMIRType(ValType vt) {
     case ValType::Ref:
       return jit::MIRType::RefOrNull;
   }
-  MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("bad type");
+  MOZ_CRASH("bad type");
 }
 
 static inline bool IsNumberType(ValType vt) { return !vt.isReference(); }

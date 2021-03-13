@@ -137,16 +137,17 @@ extern mozilla::LazyLogModule gSHIPBFCacheLog;
 // Calls a given method on all registered session history listeners.
 // Listeners may return 'false' to cancel an action so make sure that we
 // set the return value to 'false' if one of the listeners wants to cancel.
-#define NOTIFY_LISTENERS_CANCELABLE(method, retval, args) \
-  PR_BEGIN_MACRO {                                        \
-    bool canceled = false;                                \
-    retval = true;                                        \
-    ITERATE_LISTENERS(listener->method args;              \
-                      if (!retval) { canceled = true; }); \
-    if (canceled) {                                       \
-      retval = false;                                     \
-    }                                                     \
-  }                                                       \
+#define NOTIFY_LISTENERS_CANCELABLE(method, retval, args)                     \
+  PR_BEGIN_MACRO {                                                            \
+    bool canceled = false;                                                    \
+    (retval) = true;                                                          \
+    ITERATE_LISTENERS(if (NS_SUCCEEDED(listener->method args) && !(retval)) { \
+      canceled = true;                                                        \
+    });                                                                       \
+    if (canceled) {                                                           \
+      (retval) = false;                                                       \
+    }                                                                         \
+  }                                                                           \
   PR_END_MACRO
 
 class MOZ_STACK_CLASS SHistoryChangeNotifier {
@@ -157,8 +158,6 @@ class MOZ_STACK_CLASS SHistoryChangeNotifier {
     if (!aHistory->HasOngoingUpdate()) {
       aHistory->SetHasOngoingUpdate(true);
       mSHistory = aHistory;
-      mInitialIndex = aHistory->Index();
-      mInitialLength = aHistory->Length();
     }
   }
 
@@ -166,11 +165,6 @@ class MOZ_STACK_CLASS SHistoryChangeNotifier {
     if (mSHistory) {
       MOZ_ASSERT(mSHistory->HasOngoingUpdate());
       mSHistory->SetHasOngoingUpdate(false);
-      if (mSHistory->GetBrowsingContext()) {
-        mSHistory->GetBrowsingContext()->SessionHistoryChanged(
-            mSHistory->Index() - mInitialIndex,
-            mSHistory->Length() - mInitialLength);
-      }
 
       if (mozilla::SessionHistoryInParent() &&
           mSHistory->GetBrowsingContext()) {
@@ -182,8 +176,6 @@ class MOZ_STACK_CLASS SHistoryChangeNotifier {
   }
 
   RefPtr<nsSHistory> mSHistory;
-  int32_t mInitialIndex;
-  int32_t mInitialLength;
 };
 
 enum HistCmd { HIST_CMD_GOTOINDEX, HIST_CMD_RELOAD };

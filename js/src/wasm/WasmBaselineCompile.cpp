@@ -140,6 +140,7 @@
 #endif
 #include "js/ScalarType.h"  // js::Scalar::Type
 #include "util/Memory.h"
+#include "wasm/TypedObject.h"
 #include "wasm/WasmGC.h"
 #include "wasm/WasmGenerator.h"
 #include "wasm/WasmInstance.h"
@@ -14054,8 +14055,9 @@ bool BaseCompiler::emitRefTest() {
   uint32_t lineOrBytecode = readCallSiteLineOrBytecode();
 
   Nothing nothing;
+  uint32_t rttTypeIndex;
   uint32_t rttDepth;
-  if (!iter_.readRefTest(&nothing, &rttDepth, &nothing)) {
+  if (!iter_.readRefTest(&nothing, &rttTypeIndex, &rttDepth, &nothing)) {
     return false;
   }
 
@@ -14069,8 +14071,9 @@ bool BaseCompiler::emitRefCast() {
   uint32_t lineOrBytecode = readCallSiteLineOrBytecode();
 
   Nothing nothing;
+  uint32_t rttTypeIndex;
   uint32_t rttDepth;
-  if (!iter_.readRefCast(&nothing, &rttDepth, &nothing)) {
+  if (!iter_.readRefCast(&nothing, &rttTypeIndex, &rttDepth, &nothing)) {
     return false;
   }
 
@@ -14106,11 +14109,12 @@ bool BaseCompiler::emitBrOnCast() {
   uint32_t lineOrBytecode = readCallSiteLineOrBytecode();
   uint32_t relativeDepth;
   Nothing unused;
-  uint32_t rttDepth;
   NothingVector unused_values;
+  uint32_t rttTypeIndex;
+  uint32_t rttDepth;
   ResultType type;
-  if (!iter_.readBrOnCast(&relativeDepth, &unused, &rttDepth, &unused_values,
-                          &type)) {
+  if (!iter_.readBrOnCast(&relativeDepth, &unused, &rttTypeIndex, &rttDepth,
+                          &unused_values, &type)) {
     return false;
   }
 
@@ -16356,8 +16360,6 @@ bool BaseCompiler::emitBody() {
           case uint32_t(SimdOp::F64x2Splat):
             CHECK_NEXT(dispatchSplat(SplatF64x2, ValType::F64));
           case uint32_t(SimdOp::V128AnyTrue):
-          case uint32_t(SimdOp::I16x8AnyTrue):
-          case uint32_t(SimdOp::I32x4AnyTrue):
             CHECK_NEXT(dispatchVectorReduction(AnyTrue));
           case uint32_t(SimdOp::I8x16AllTrue):
             CHECK_NEXT(dispatchVectorReduction(AllTrueI8x16));

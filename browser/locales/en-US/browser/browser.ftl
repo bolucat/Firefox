@@ -364,6 +364,28 @@ browser-tab-audio-blocked = AUTOPLAY BLOCKED
 # This label should be written in all capital letters if your locale supports them.
 browser-tab-audio-pip = PICTURE-IN-PICTURE
 
+## These labels should be written in all capital letters if your locale supports them.
+## Variables:
+##  $count (number): number of affected tabs
+
+browser-tab-mute =
+    { $count ->
+        [1] MUTE TAB
+       *[other] MUTE { $count } TABS
+    }
+
+browser-tab-unmute =
+    { $count ->
+        [1] UNMUTE TAB
+       *[other] UNMUTE { $count } TABS
+    }
+
+browser-tab-unblock =
+    { $count ->
+        [1] PLAY TAB
+       *[other] PLAY { $count } TABS
+    }
+
 ## Bookmarks toolbar items
 
 browser-import-button2 =
@@ -377,9 +399,13 @@ bookmarks-toolbar-empty-message = For quick access, place your bookmarks here on
 popup-select-camera-device =
     .value = Camera:
     .accesskey = C
+popup-select-camera-icon =
+    .tooltiptext = Camera
 popup-select-microphone-device =
     .value = Microphone:
     .accesskey = M
+popup-select-microphone-icon =
+    .tooltiptext = Microphone
 popup-all-windows-shared = All visible windows on your screen will be shared.
 
 popup-screen-sharing-block =
@@ -625,3 +651,15 @@ eme-notifications-drm-content-playing-manage = Manage Settings
 eme-notifications-drm-content-playing-manage-accesskey = M
 eme-notifications-drm-content-playing-dismiss = Dismiss
 eme-notifications-drm-content-playing-dismiss-accesskey = D
+
+## Password save/update panel
+
+panel-save-update-username = Username
+panel-save-update-password = Password
+
+## Add-on removal warning
+
+# Variables:
+#  $name (String): The name of the addon that will be removed.
+addon-removal-title = Remove { $name }?
+addon-removal-abuse-report-checkbox = Report this extension to { -vendor-short-name }

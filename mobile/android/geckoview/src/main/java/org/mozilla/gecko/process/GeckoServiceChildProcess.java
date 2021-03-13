@@ -28,8 +28,11 @@ public class GeckoServiceChildProcess extends Service {
     private static final long LOW_MEMORY_ONGOING_RESET_TIME_MS = 10000;
 
     private static IProcessManager sProcessManager;
+    private static String sOwnerProcessId;
 
     private long mLastLowMemoryNotificationTime = 0;
+    // Makes sure we don't reuse this process
+    private static boolean sCreateCalled;
 
     @WrapForJNI(calledFrom = "gecko")
     private static void getEditableParent(final IGeckoEditableChild child,
@@ -45,13 +48,17 @@ public class GeckoServiceChildProcess extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        Log.i(LOGTAG, "onCreate");
+
+        if (sCreateCalled) {
+            // We don't support reusing processes, and this could get us in a really weird state,
+            // so let's throw here.
+            throw new RuntimeException("Cannot reuse process.");
+        }
+        sCreateCalled = true;
 
         GeckoAppShell.setApplicationContext(getApplicationContext());
-    }
-
-    @Override
-    public int onStartCommand(final Intent intent, final int flags, final int startId) {
-        return Service.START_NOT_STICKY;
+        GeckoThread.launch(); // Preload Gecko.
     }
 
     private final Binder mBinder = new IChildProcess.Stub() {
@@ -61,7 +68,8 @@ public class GeckoServiceChildProcess extends Service {
         }
 
         @Override
-        public boolean start(final IProcessManager procMan,
+        public int start(final IProcessManager procMan,
+                             final String mainProcessId,
                              final String[] args,
                              final Bundle extras,
                              final int flags,
@@ -72,11 +80,17 @@ public class GeckoServiceChildProcess extends Service {
                              final ParcelFileDescriptor crashReporterPfd,
                              final ParcelFileDescriptor crashAnnotationPfd) {
             synchronized (GeckoServiceChildProcess.class) {
+                if (sOwnerProcessId != null && !sOwnerProcessId.equals(mainProcessId)) {
+                    Log.w(LOGTAG, "This process belongs to a different GeckoRuntime owner: "
+                            + sOwnerProcessId + " process: " + mainProcessId);
+                    return IChildProcess.STARTED_BUSY;
+                }
                 if (sProcessManager != null) {
                     Log.e(LOGTAG, "Child process already started");
-                    return false;
+                    return IChildProcess.STARTED_FAIL;
                 }
                 sProcessManager = procMan;
+                sOwnerProcessId = mainProcessId;
             }
 
             final int prefsFd = prefsPfd != null ?
@@ -121,7 +135,7 @@ public class GeckoServiceChildProcess extends Service {
                     }
                 }
             });
-            return true;
+            return IChildProcess.STARTED_OK;
         }
 
         @Override
@@ -131,17 +145,16 @@ public class GeckoServiceChildProcess extends Service {
     };
 
     @Override
-    public IBinder onBind(final Intent intent) {
-        GeckoThread.launch(); // Preload Gecko.
-        return mBinder;
+    public void onDestroy() {
+        Log.i(LOGTAG, "Destroying GeckoServiceChildProcess");
+        System.exit(0);
     }
 
     @Override
-    public boolean onUnbind(final Intent intent) {
-        Log.i(LOGTAG, "Service has been unbound. Stopping.");
+    public IBinder onBind(final Intent intent) {
+        // Calling stopSelf ensures that whenever the client unbinds the process dies immediately.
         stopSelf();
-        Process.killProcess(Process.myPid());
-        return false;
+        return mBinder;
     }
 
     @Override

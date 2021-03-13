@@ -6,14 +6,19 @@
 %include addons/extension-controlled.inc.css
 
 %filter substitution
-%define lwtPopupBrighttextLinkColor #74c0ff
 %define themeTransition background-color 0.1s cubic-bezier(.17,.67,.83,.67)
 %define urlbarBreakoutExtend 2px
 
 :root {
+  --toolbar-bgcolor: var(--toolbar-non-lwt-bgcolor);
+  --toolbar-bgimage: var(--toolbar-non-lwt-bgimage);
+  --toolbar-color: var(--toolbar-non-lwt-textcolor);
   /* Note: Setting this to 0 (without px) breaks CSS calculations for OSX. */
   --space-above-tabbar: 0px;
   --tabs-navbar-shadow-size: 1px;
+
+  --panelui-subview-transition-duration: 150ms;
+
   --short-notification-background: #0250BB;
   --short-notification-gradient: #9059FF;
 
@@ -29,6 +34,11 @@
 
   --urlbar-min-height: 32px;
   --urlbar-icon-padding: 6px; /* (32px - 2px border - 2px padding - 16px icon) / 2 */
+
+  --lwt-additional-images: none;
+  --lwt-background-alignment: right top;
+  --lwt-background-tiling: no-repeat;
+  --lwt-popup-brighttext-url-color: #74c0ff;
 }
 
 @supports not -moz-bool-pref("browser.proton.enabled") {
@@ -61,6 +71,14 @@
 }
 } /*** END !proton ***/
 
+:root:-moz-lwtheme {
+  --toolbar-bgcolor: rgba(255,255,255,.4);
+  --toolbar-bgimage: none;
+  --toolbar-color: var(--lwt-text-color, inherit);
+
+  color: var(--lwt-text-color);
+}
+
 @supports -moz-bool-pref("browser.proton.enabled") {
 :root {
   --focus-outline-width: 2px;
@@ -80,6 +98,7 @@
 
 :root[lwt-toolbar-field-brighttext] {
   --urlbar-box-unfocused-bg-overlay: var(--urlbar-box-bg-overlay);
+  --lwt-popup-brighttext-url-color: #00ddff;
 }
 @media (prefers-contrast) {
   :root {
@@ -107,7 +126,7 @@
 /* Increase contrast of UI links on dark themes */
 
 :root[lwt-popup-brighttext] panel .text-link {
-  color: @lwtPopupBrighttextLinkColor@;
+  color: var(--lwt-popup-brighttext-url-color);
 }
 
 #PersonalToolbar:-moz-lwtheme .text-link,
@@ -131,9 +150,9 @@
 }
 
 @supports -moz-bool-pref("browser.proton.toolbar.enabled") {
-/*** Adds padding to beginning of toolbar while making that space click the first button ***/
-#nav-bar-customization-target > toolbarbutton:first-child,
-#nav-bar-customization-target > toolbaritem:first-child > toolbarbutton {
+/* Add space to beginning of toolbar and make that space click the first <toolbarbutton> */
+#nav-bar-customization-target > :is(toolbarbutton, toolbaritem):first-child,
+#nav-bar-customization-target > toolbarpaletteitem:first-child > :is(toolbarbutton, toolbaritem) {
   padding-inline-start: var(--toolbar-start-end-padding);
 }
 } /*** END proton ***/
@@ -306,7 +325,9 @@ menupopup::part(drop-indicator) {
 }
 
 .accessibility-indicator {
-  background-image: url("chrome://browser/skin/accessibility.svg");
+  -moz-context-properties: fill;
+  fill: #00C8D7;
+  background-image: url("chrome://browser/skin/indicator-accessibility.svg");
   -moz-user-focus: normal;
   /* Clear default button styling */
   appearance: none;
@@ -317,12 +338,12 @@ menupopup::part(drop-indicator) {
 }
 
 .accessibility-indicator:is(:hover, :active, :focus, :-moz-focusring) {
-  background-image: url("chrome://browser/skin/accessibility-active.svg");
+  fill: #008ea4;
   outline: 0;
 }
 
 .private-browsing-indicator {
-  background-image: url("chrome://browser/skin/private-browsing.svg");
+  background-image: url("chrome://browser/skin/indicator-private-browsing.svg");
 }
 
 :root:not([accessibilitymode]) .accessibility-indicator,
@@ -819,6 +840,42 @@ menupopup::part(drop-indicator) {
   margin-top: 6px;
   font-weight: 600;
 }
+
+.webRTC-selectDevice-selector-container {
+  display: flex;
+  align-items: center;
+}
+
+.webRTC-selectDevice-selector-container > menulist {
+  flex: 1;
+}
+
+@supports not -moz-bool-pref("browser.proton.doorhangers.enabled") {
+#webRTC-selectCamera-icon,
+#webRTC-selectMicrophone-icon {
+  display: none;
+}
+} /** END not Proton **/
+
+@supports -moz-bool-pref("browser.proton.doorhangers.enabled") {
+#webRTC-selectCamera-label,
+#webRTC-selectMicrophone-label {
+  display: none;
+}
+
+.webRTC-selectDevice-icon {
+  -moz-context-properties: fill;
+  fill: currentColor;
+}
+
+#webRTC-selectCamera-icon {
+  list-style-image: url("chrome://browser/skin/notification-icons/camera.svg");
+}
+
+#webRTC-selectMicrophone-icon {
+  list-style-image: url("chrome://browser/skin/notification-icons/microphone.svg");
+}
+} /** END Proton **/
 
 #tab-notification-deck {
   display: flex;

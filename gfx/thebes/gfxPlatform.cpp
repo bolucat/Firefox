@@ -1196,6 +1196,14 @@ bool gfxPlatform::IsHeadless() {
 bool gfxPlatform::UseWebRender() { return gfx::gfxVars::UseWebRender(); }
 
 /* static */
+bool gfxPlatform::DoesFissionForceWebRender() {
+  // Because WebRender doesn't currently support all of the tests that Fission
+  // runs in CI, we only require WebRender for users who both have Fission and
+  // are enrolled in the Fission experiment.
+  return FissionAutostart() && FissionExperimentEnrolled();
+}
+
+/* static */
 bool gfxPlatform::UseRemoteCanvas() {
   return XRE_IsContentProcess() && gfx::gfxVars::RemoteCanvasEnabled();
 }
@@ -2132,11 +2140,6 @@ void gfxPlatform::InitializeCMS() {
     if (mode >= 0 && mode < int32_t(CMSMode::AllCount)) {
       gCMSMode = CMSMode(mode);
     }
-
-    bool enableV4 = StaticPrefs::gfx_color_management_enablev4();
-    if (enableV4) {
-      qcms_enable_iccv4();
-    }
   }
 
   gCMSsRGBProfile = qcms_profile_sRGB();
@@ -2197,6 +2200,14 @@ void gfxPlatform::InitializeCMS() {
   gCMSBGRATransform = qcms_transform_create(gCMSsRGBProfile, QCMS_DATA_BGRA_8,
                                             gCMSOutputProfile, QCMS_DATA_BGRA_8,
                                             QCMS_INTENT_PERCEPTUAL);
+
+  // FIXME: We only enable iccv4 after we create the platform profile, to
+  // wallpaper over bug 1697787.
+  //
+  // This should happen ideally right after setting gCMSMode.
+  if (StaticPrefs::gfx_color_management_enablev4()) {
+    qcms_enable_iccv4();
+  }
 
   gCMSInitialized = true;
 }
@@ -3371,7 +3382,8 @@ bool gfxPlatform::FallbackFromAcceleration(FeatureStatus aStatus,
     return true;
   }
 
-  if (StaticPrefs::gfx_webrender_fallback_basic_AtStartup()) {
+  if (StaticPrefs::gfx_webrender_fallback_basic_AtStartup() &&
+      !DoesFissionForceWebRender()) {
     // Fallback from WebRender or Software WebRender to Basic.
     gfxCriticalNote << "Fallback (SW-)WR to Basic";
     if (gfxConfig::IsEnabled(Feature::WEBRENDER_SOFTWARE)) {

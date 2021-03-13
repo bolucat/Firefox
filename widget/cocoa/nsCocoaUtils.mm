@@ -154,99 +154,12 @@ NSPoint nsCocoaUtils::EventLocationForWindow(NSEvent* anEvent, NSWindow* aWindow
   NS_OBJC_END_TRY_BLOCK_RETURN(NSMakePoint(0.0, 0.0));
 }
 
-@interface NSEvent (ScrollPhase)
-// 10.5 and 10.6
-- (long long)_scrollPhase;
-// 10.7 and above
-- (NSEventPhase)phase;
-- (NSEventPhase)momentumPhase;
-@end
-
-NSEventPhase nsCocoaUtils::EventPhase(NSEvent* aEvent) {
-  if ([aEvent respondsToSelector:@selector(phase)]) {
-    return [aEvent phase];
-  }
-  return NSEventPhaseNone;
-}
-
-NSEventPhase nsCocoaUtils::EventMomentumPhase(NSEvent* aEvent) {
-  if ([aEvent respondsToSelector:@selector(momentumPhase)]) {
-    return [aEvent momentumPhase];
-  }
-  if ([aEvent respondsToSelector:@selector(_scrollPhase)]) {
-    switch ([aEvent _scrollPhase]) {
-      case 1:
-        return NSEventPhaseBegan;
-      case 2:
-        return NSEventPhaseChanged;
-      case 3:
-        return NSEventPhaseEnded;
-      default:
-        return NSEventPhaseNone;
-    }
-  }
-  return NSEventPhaseNone;
-}
-
 BOOL nsCocoaUtils::IsMomentumScrollEvent(NSEvent* aEvent) {
-  return [aEvent type] == NSEventTypeScrollWheel && EventMomentumPhase(aEvent) != NSEventPhaseNone;
-}
-
-@interface NSEvent (HasPreciseScrollingDeltas)
-// 10.7 and above
-- (BOOL)hasPreciseScrollingDeltas;
-// For 10.6 and below, see the comment in nsChildView.h about _eventRef
-- (EventRef)_eventRef;
-@end
-
-BOOL nsCocoaUtils::HasPreciseScrollingDeltas(NSEvent* aEvent) {
-  if ([aEvent respondsToSelector:@selector(hasPreciseScrollingDeltas)]) {
-    return [aEvent hasPreciseScrollingDeltas];
-  }
-
-  // For events that don't contain pixel scrolling information, the event
-  // kind of their underlaying carbon event is kEventMouseWheelMoved instead
-  // of kEventMouseScroll.
-  EventRef carbonEvent = [aEvent _eventRef];
-  return carbonEvent && ::GetEventKind(carbonEvent) == kEventMouseScroll;
-}
-
-@interface NSEvent (ScrollingDeltas)
-// 10.6 and below
-- (CGFloat)deviceDeltaX;
-- (CGFloat)deviceDeltaY;
-// 10.7 and above
-- (CGFloat)scrollingDeltaX;
-- (CGFloat)scrollingDeltaY;
-@end
-
-void nsCocoaUtils::GetScrollingDeltas(NSEvent* aEvent, CGFloat* aOutDeltaX, CGFloat* aOutDeltaY) {
-  if ([aEvent respondsToSelector:@selector(scrollingDeltaX)]) {
-    *aOutDeltaX = [aEvent scrollingDeltaX];
-    *aOutDeltaY = [aEvent scrollingDeltaY];
-    return;
-  }
-  if ([aEvent respondsToSelector:@selector(deviceDeltaX)] && HasPreciseScrollingDeltas(aEvent)) {
-    // Calling deviceDeltaX/Y on those events that do not contain pixel
-    // scrolling information triggers a Cocoa assertion and an
-    // Objective-C NSInternalInconsistencyException.
-    *aOutDeltaX = [aEvent deviceDeltaX];
-    *aOutDeltaY = [aEvent deviceDeltaY];
-    return;
-  }
-
-  // This is only hit pre-10.7 when we are called on a scroll event that does
-  // not contain pixel scrolling information.
-  CGFloat lineDeltaPixels = 12;
-  *aOutDeltaX = [aEvent deltaX] * lineDeltaPixels;
-  *aOutDeltaY = [aEvent deltaY] * lineDeltaPixels;
+  return [aEvent type] == NSEventTypeScrollWheel && [aEvent momentumPhase] != NSEventPhaseNone;
 }
 
 BOOL nsCocoaUtils::EventHasPhaseInformation(NSEvent* aEvent) {
-  if (![aEvent respondsToSelector:@selector(phase)]) {
-    return NO;
-  }
-  return EventPhase(aEvent) != NSEventPhaseNone || EventMomentumPhase(aEvent) != NSEventPhaseNone;
+  return [aEvent phase] != NSEventPhaseNone || [aEvent momentumPhase] != NSEventPhaseNone;
 }
 
 void nsCocoaUtils::HideOSChromeOnScreen(bool aShouldHide) {

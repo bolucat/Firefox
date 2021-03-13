@@ -57,11 +57,11 @@ static NSVisualEffectMaterial VisualEffectMaterialForVibrancyType(VibrancyType a
     case VibrancyType::SOURCE_LIST:
       return NSVisualEffectMaterialSidebar;
     case VibrancyType::SOURCE_LIST_SELECTION:
-      return (NSVisualEffectMaterial)NSVisualEffectMaterialSelection;
+      return NSVisualEffectMaterialSelection;
     case VibrancyType::HIGHLIGHTED_MENUITEM:
     case VibrancyType::ACTIVE_SOURCE_LIST_SELECTION:
       *aOutIsEmphasized = YES;
-      return (NSVisualEffectMaterial)NSVisualEffectMaterialSelection;
+      return NSVisualEffectMaterialSelection;
     default:
       return NSVisualEffectMaterialAppearanceBased;
   }
@@ -87,10 +87,7 @@ static BOOL HasVibrantForeground(VibrancyType aType) {
 
   BOOL isEmphasized = NO;
   self.material = VisualEffectMaterialForVibrancyType(mType, &isEmphasized);
-
-  if (isEmphasized && [self respondsToSelector:@selector(setEmphasized:)]) {
-    [self setEmphasized:YES];
-  }
+  self.emphasized = isEmphasized;
 
   return self;
 }

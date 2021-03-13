@@ -826,20 +826,21 @@ static void LoadStartupJSPrefs(XPCJSContext* xpccx) {
 
   JSContext* cx = xpccx->Context();
 
+  // Some prefs are unlisted in all.js / StaticPrefs (and thus are invisible in
+  // about:config). Make sure we use explicit defaults here.
+  bool useJitForTrustedPrincipals =
+      Preferences::GetBool(JS_OPTIONS_DOT_STR "jit_trustedprincipals", false);
+  bool disableWasmHugeMemory = Preferences::GetBool(
+      JS_OPTIONS_DOT_STR "wasm_disable_huge_memory", false);
+
   bool useBaselineInterp = Preferences::GetBool(JS_OPTIONS_DOT_STR "blinterp");
   bool useBaselineJit = Preferences::GetBool(JS_OPTIONS_DOT_STR "baselinejit");
   bool useIon = Preferences::GetBool(JS_OPTIONS_DOT_STR "ion");
-  bool useJitForTrustedPrincipals =
-      Preferences::GetBool(JS_OPTIONS_DOT_STR "jit_trustedprincipals");
   bool useNativeRegExp =
       Preferences::GetBool(JS_OPTIONS_DOT_STR "native_regexp");
 
   bool offthreadIonCompilation =
       Preferences::GetBool(JS_OPTIONS_DOT_STR "ion.offthread_compilation");
-  bool useBaselineEager = Preferences::GetBool(
-      JS_OPTIONS_DOT_STR "baselinejit.unsafe_eager_compilation");
-  bool useIonEager =
-      Preferences::GetBool(JS_OPTIONS_DOT_STR "ion.unsafe_eager_compilation");
 #ifdef DEBUG
   bool fullJitDebugChecks =
       Preferences::GetBool(JS_OPTIONS_DOT_STR "jit.full_debug_checks");
@@ -856,19 +857,14 @@ static void LoadStartupJSPrefs(XPCJSContext* xpccx) {
 
   bool spectreIndexMasking =
       Preferences::GetBool(JS_OPTIONS_DOT_STR "spectre.index_masking");
-  bool spectreObjectMitigationsBarriers = Preferences::GetBool(
-      JS_OPTIONS_DOT_STR "spectre.object_mitigations.barriers");
-  bool spectreObjectMitigationsMisc = Preferences::GetBool(
-      JS_OPTIONS_DOT_STR "spectre.object_mitigations.misc");
+  bool spectreObjectMitigations =
+      Preferences::GetBool(JS_OPTIONS_DOT_STR "spectre.object_mitigations");
   bool spectreStringMitigations =
       Preferences::GetBool(JS_OPTIONS_DOT_STR "spectre.string_mitigations");
   bool spectreValueMasking =
       Preferences::GetBool(JS_OPTIONS_DOT_STR "spectre.value_masking");
   bool spectreJitToCxxCalls =
       Preferences::GetBool(JS_OPTIONS_DOT_STR "spectre.jit_to_C++_calls");
-
-  bool disableWasmHugeMemory =
-      Preferences::GetBool(JS_OPTIONS_DOT_STR "wasm_disable_huge_memory");
 
   nsCOMPtr<nsIXULRuntime> xr = do_GetService("@mozilla.org/xre/runtime;1");
   if (xr) {
@@ -898,9 +894,9 @@ static void LoadStartupJSPrefs(XPCJSContext* xpccx) {
       cx, JSJITCOMPILER_BASELINE_INTERPRETER_WARMUP_TRIGGER,
       baselineInterpThreshold);
   JS_SetGlobalJitCompilerOption(cx, JSJITCOMPILER_BASELINE_WARMUP_TRIGGER,
-                                useBaselineEager ? 0 : baselineThreshold);
+                                baselineThreshold);
   JS_SetGlobalJitCompilerOption(cx, JSJITCOMPILER_ION_NORMAL_WARMUP_TRIGGER,
-                                useIonEager ? 0 : normalIonThreshold);
+                                normalIonThreshold);
   JS_SetGlobalJitCompilerOption(cx,
                                 JSJITCOMPILER_ION_FREQUENT_BAILOUT_THRESHOLD,
                                 ionFrequentBailoutThreshold);
@@ -912,12 +908,8 @@ static void LoadStartupJSPrefs(XPCJSContext* xpccx) {
 
   JS_SetGlobalJitCompilerOption(cx, JSJITCOMPILER_SPECTRE_INDEX_MASKING,
                                 spectreIndexMasking);
-  JS_SetGlobalJitCompilerOption(
-      cx, JSJITCOMPILER_SPECTRE_OBJECT_MITIGATIONS_BARRIERS,
-      spectreObjectMitigationsBarriers);
-  JS_SetGlobalJitCompilerOption(cx,
-                                JSJITCOMPILER_SPECTRE_OBJECT_MITIGATIONS_MISC,
-                                spectreObjectMitigationsMisc);
+  JS_SetGlobalJitCompilerOption(cx, JSJITCOMPILER_SPECTRE_OBJECT_MITIGATIONS,
+                                spectreObjectMitigations);
   JS_SetGlobalJitCompilerOption(cx, JSJITCOMPILER_SPECTRE_STRING_MITIGATIONS,
                                 spectreStringMitigations);
   JS_SetGlobalJitCompilerOption(cx, JSJITCOMPILER_SPECTRE_VALUE_MASKING,

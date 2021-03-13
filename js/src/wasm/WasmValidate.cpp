@@ -27,7 +27,6 @@
 #include "js/String.h"  // JS::MaxStringLength
 #include "vm/JSContext.h"
 #include "vm/Realm.h"
-#include "wasm/TypedObject.h"
 #include "wasm/WasmOpIter.h"
 
 using namespace js;
@@ -958,18 +957,24 @@ static bool DecodeFunctionBodyExprs(const ModuleEnvironment& env,
             CHECK(iter.readRttSub(&nothing));
           }
           case uint16_t(GcOp::RefTest): {
+            uint32_t unusedRttTypeIndex;
             uint32_t unusedRttDepth;
-            CHECK(iter.readRefTest(&nothing, &unusedRttDepth, &nothing));
+            CHECK(iter.readRefTest(&nothing, &unusedRttTypeIndex,
+                                   &unusedRttDepth, &nothing));
           }
           case uint16_t(GcOp::RefCast): {
+            uint32_t unusedRttTypeIndex;
             uint32_t unusedRttDepth;
-            CHECK(iter.readRefCast(&nothing, &unusedRttDepth, &nothing));
+            CHECK(iter.readRefCast(&nothing, &unusedRttTypeIndex,
+                                   &unusedRttDepth, &nothing));
           }
           case uint16_t(GcOp::BrOnCast): {
             uint32_t unusedRelativeDepth;
+            uint32_t unusedRttTypeIndex;
             uint32_t unusedRttDepth;
             CHECK(iter.readBrOnCast(&unusedRelativeDepth, &nothing,
-                                    &unusedRttDepth, &nothings, &unusedType));
+                                    &unusedRttTypeIndex, &unusedRttDepth,
+                                    &nothings, &unusedType));
           }
           default:
             return iter.unrecognizedOpcode(&op);
@@ -1013,9 +1018,7 @@ static bool DecodeFunctionBodyExprs(const ModuleEnvironment& env,
 
           case uint32_t(SimdOp::V128AnyTrue):
           case uint32_t(SimdOp::I8x16AllTrue):
-          case uint32_t(SimdOp::I16x8AnyTrue):
           case uint32_t(SimdOp::I16x8AllTrue):
-          case uint32_t(SimdOp::I32x4AnyTrue):
           case uint32_t(SimdOp::I32x4AllTrue):
           case uint32_t(SimdOp::I64x2AllTrue):
           case uint32_t(SimdOp::I8x16Bitmask):

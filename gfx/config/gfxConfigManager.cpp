@@ -68,6 +68,9 @@ void gfxConfigManager::Init() {
 #ifdef NIGHTLY_BUILD
   mIsNightly = true;
 #endif
+#ifdef EARLY_BETA_OR_EARLIER
+  mIsEarlyBetaOrEarlier = true;
+#endif
   mSafeMode = gfxPlatform::InSafeMode();
 
   mGfxInfo = components::GfxInfo::Service();
@@ -85,6 +88,7 @@ void gfxConfigManager::Init() {
   mFeatureHwCompositing = &gfxConfig::GetFeature(Feature::HW_COMPOSITING);
 #ifdef XP_WIN
   mFeatureD3D11HwAngle = &gfxConfig::GetFeature(Feature::D3D11_HW_ANGLE);
+  mFeatureD3D11Compositing = &gfxConfig::GetFeature(Feature::D3D11_COMPOSITING);
 #endif
   mFeatureGPUProcess = &gfxConfig::GetFeature(Feature::GPU_PROCESS);
 }
@@ -125,6 +129,8 @@ void gfxConfigManager::ConfigureWebRenderSoftware() {
   // (hardware). See bug 1656811.
   if (mWrSoftwareForceEnabled) {
     mFeatureWrSoftware->UserForceEnable("Force enabled by pref");
+  } else if (gfxPlatform::DoesFissionForceWebRender()) {
+    mFeatureWrSoftware->UserForceEnable("Force enabled by fission");
   } else if (mWrForceDisabled || mWrEnvForceDisabled) {
     // If the user set the pref to force-disable, let's do that. This
     // will override all the other enabling prefs
@@ -159,6 +165,19 @@ void gfxConfigManager::ConfigureWebRenderSoftware() {
       mFeatureWrSoftware->Disable(FeatureStatus::Blocked,
                                   "Not controlled by rollout", failureId);
       break;
+  }
+
+  if (!mIsEarlyBetaOrEarlier && mFeatureD3D11Compositing) {
+    if (!mFeatureGPUProcess->IsEnabled()) {
+      mFeatureWrSoftware->Disable(FeatureStatus::Unavailable,
+                                  "Requires GPU process on release",
+                                  "FEATURE_FAILURE_RELEASE_NO_GPU_PROCESS"_ns);
+    }
+    if (mFeatureD3D11Compositing->IsEnabled()) {
+      mFeatureWrSoftware->Disable(FeatureStatus::Unavailable,
+                                  "User has D3D11 support on release",
+                                  "FEATURE_FAILURE_RELEASE_D3D11_SUPPORTED"_ns);
+    }
   }
 }
 

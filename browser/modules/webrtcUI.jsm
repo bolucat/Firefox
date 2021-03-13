@@ -54,6 +54,11 @@ var webrtcUI = {
         "privacy.webrtc.legacyGlobalIndicator",
         true
       );
+      XPCOMUtils.defineLazyPreferenceGetter(
+        this,
+        "deviceGracePeriodTimeoutMs",
+        "privacy.webrtc.deviceGracePeriodTimeoutMs"
+      );
 
       Services.telemetry.setEventRecordingEnabled("webrtc.ui", true);
     }
@@ -514,7 +519,7 @@ var webrtcUI = {
    * select the browser.
    *
    * For camera and microphone streams, this will also revoke any associated
-   * persistent permissions from SitePermissions.
+   * permissions from SitePermissions.
    *
    * @param {Array<Object>} activeStreams - An array of streams obtained via webrtcUI.getActiveStreams.
    * @param {boolean} stopCameras - True to stop the camera streams (defaults to true)
@@ -533,8 +538,16 @@ var webrtcUI = {
       return;
     }
 
-    let mostRecentStream = activeStreams[activeStreams.length - 1];
-    let { browser: browserToSelect } = mostRecentStream;
+    let ids = [];
+    if (stopCameras) {
+      ids.push("camera");
+    }
+    if (stopMics) {
+      ids.push("microphone");
+    }
+    if (stopScreens || stopWindows) {
+      ids.push("screen");
+    }
 
     for (let stream of activeStreams) {
       let { browser } = stream;
@@ -551,99 +564,95 @@ var webrtcUI = {
         continue;
       }
 
-      let permissions = SitePermissions.getAllPermissionDetailsForBrowser(
-        browser
-      );
-
-      let webrtcState = tab._sharingState.webRTC;
-      let clearRequested = {
-        camera: stopCameras,
-        microphone: stopMics,
-        screen: stopScreens || stopWindows,
-      };
-
-      for (let id of ["camera", "microphone", "screen"]) {
-        if (webrtcState[id] && clearRequested[id]) {
-          let found = false;
-          for (let permission of permissions) {
-            if (permission.id != id) {
-              continue;
-            }
-            found = true;
-            permission.sharingState = webrtcState[id];
-            break;
-          }
-          if (!found) {
-            // If the permission item we were looking for doesn't exist,
-            // the user has temporarily allowed sharing and we need to add
-            // an item in the permissions array to reflect this.
-            permissions.push({
-              id,
-              state: SitePermissions.ALLOW,
-              scope: SitePermissions.SCOPE_REQUEST,
-              sharingState: webrtcState[id],
-            });
-          }
-        }
-      }
-
-      for (let permission of permissions) {
-        if (clearRequested[permission.id]) {
-          let windowId = tab._sharingState.webRTC.windowId;
-
-          if (permission.id == "screen") {
-            windowId = `screen:${webrtcState.windowId}`;
-          } else if (
-            permission.id == "camera" ||
-            permission.id == "microphone"
-          ) {
-            // If we set persistent permissions or the sharing has
-            // started due to existing persistent permissions, we need
-            // to handle removing these even for frames with different hostnames.
-            let origins = browser.getDevicePermissionOrigins("webrtc");
-            for (let origin of origins) {
-              // It's not possible to stop sharing one of camera/microphone
-              // without the other.
-              let principal;
-              for (let id of ["camera", "microphone"]) {
-                if (webrtcState[id]) {
-                  if (!principal) {
-                    principal = Services.scriptSecurityManager.createContentPrincipalFromOrigin(
-                      origin
-                    );
-                  }
-                  let perm = SitePermissions.getForPrincipal(principal, id);
-                  if (
-                    perm.state == SitePermissions.ALLOW &&
-                    perm.scope == SitePermissions.SCOPE_PERSISTENT
-                  ) {
-                    SitePermissions.removeFromPrincipal(principal, id);
-                  }
-                }
-              }
-            }
-          }
-
-          let bc = webrtcState.browsingContext;
-          bc.currentWindowGlobal
-            .getActor("WebRTC")
-            .sendAsyncMessage("webrtc:StopSharing", windowId);
-          webrtcUI.forgetActivePermissionsFromBrowser(browser);
-
-          SitePermissions.removeFromPrincipal(
-            browser.contentPrincipal,
-            permission.id,
-            browser
-          );
-        }
-      }
+      this.clearPermissionsAndStopSharing(ids, tab);
     }
+
+    // Switch to the newest stream's browser.
+    let mostRecentStream = activeStreams[activeStreams.length - 1];
+    let { browser: browserToSelect } = mostRecentStream;
 
     let window = browserToSelect.ownerGlobal;
     let gBrowser = browserToSelect.getTabBrowser();
     let tab = gBrowser.getTabForBrowser(browserToSelect);
     window.focus();
     gBrowser.selectedTab = tab;
+  },
+
+  /**
+   * Clears permissions and stops sharing (if active) for a list of device types
+   * and a specific tab.
+   * @param {("camera"|"microphone"|"screen")[]} types - Device types to stop
+   * and clear permissions for.
+   * @param tab - Tab of the devices to stop and clear permissions.
+   */
+  clearPermissionsAndStopSharing(types, tab) {
+    let invalidTypes = types.filter(
+      type => type != "camera" && type != "screen" && type != "microphone"
+    );
+    if (invalidTypes.length) {
+      throw new Error(`Invalid device types ${invalidTypes.join(",")}`);
+    }
+    let browser = tab.linkedBrowser;
+    let sharingState = tab._sharingState?.webRTC;
+
+    // If we clear a WebRTC permission we need to remove all permissions of
+    // the same type across device ids. We also need to stop active WebRTC
+    // devices related to the permission.
+    let perms = SitePermissions.getAllForBrowser(browser);
+
+    let sharingCameraAndMic =
+      sharingState?.camera &&
+      sharingState?.microphone &&
+      (types.includes("camera") || types.includes("microphone"));
+    perms
+      .filter(perm => {
+        let [permId] = perm.id.split(SitePermissions.PERM_KEY_DELIMITER);
+        // It's not possible to stop sharing one of camera/microphone
+        // without the other.
+        if (
+          sharingCameraAndMic &&
+          (permId == "camera" || permId == "microphone")
+        ) {
+          return true;
+        }
+        return types.includes(permId);
+      })
+      .forEach(perm => {
+        SitePermissions.removeFromPrincipal(
+          browser.contentPrincipal,
+          perm.id,
+          browser
+        );
+      });
+
+    if (!sharingState?.windowId) {
+      return;
+    }
+
+    // If the device of the permission we're clearing is currently active,
+    // tell the WebRTC implementation to stop sharing it.
+    let { windowId } = sharingState;
+
+    let windowIds = [];
+    if (types.includes("screen") && sharingState.screen) {
+      windowIds.push(`screen:${windowId}`);
+    }
+    if (
+      (types.includes("camera") && sharingState.camera) ||
+      (types.includes("microphone") && sharingState.microphone)
+    ) {
+      windowIds.push(windowId);
+    }
+
+    if (!windowIds.length) {
+      return;
+    }
+
+    let actor = sharingState.browsingContext.currentWindowGlobal.getActor(
+      "WebRTC"
+    );
+    windowIds.forEach(id => actor.sendAsyncMessage("webrtc:StopSharing", id));
+    webrtcUI.forgetActivePermissionsFromBrowser(browser);
   },
 
   updateIndicators(aTopBrowsingContext) {

@@ -4,10 +4,13 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 %endif
 
-%define fieldBorderColor hsla(240,5%,5%,.25)
 %define fieldHoverBorderColor hsla(240,5%,5%,.35)
 %define urlbarMarginInline 5px
 %define urlbarSearchButtonWidth calc(16px + 2 * var(--urlbar-icon-padding))
+
+:root {
+  --toolbar-field-border-color: hsla(240,5%,5%,.25);
+}
 
 @supports not -moz-bool-pref("browser.proton.urlbar.enabled") {
 :root {
@@ -22,13 +25,6 @@
   --toolbar-field-focus-border-color: var(--focus-outline-color);
   --urlbar-container-padding: 1px;
 }
-/* Override this value in the default dark theme. This value should be moved
-    to default-theme/manifest.json when the Proton prefs are removed. */
-:root[lwt-default-theme-in-dark-mode] {
-  --lwt-toolbar-field-border-color: transparent !important;
-}
-/* TODO: Bug 1692046: Add --lwt-toolbar-field-background-color override for
-  [lwt-default-theme-in-dark-mode]. */
 } /*** END proton ***/
 
 #urlbar-container,
@@ -39,7 +35,7 @@
 
 :root[uidensity=compact] #urlbar-container,
 :root[uidensity=compact] #search-container {
-  padding-block: 5px;
+  padding-block: 4px;
 }
 
 #urlbar,
@@ -60,7 +56,7 @@
 #searchbar {
   background-color: Field;
   background-clip: padding-box;
-  border: 1px solid @fieldBorderColor@;
+  border: 1px solid var(--toolbar-field-border-color);
   border-radius: var(--toolbarbutton-border-radius);
 }
 
@@ -130,6 +126,7 @@
 }
 
 #urlbar[focused="true"][open] > #urlbar-background {
+  border-color: var(--arrowpanel-border-color);
   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.13);
 }
 
@@ -159,7 +156,7 @@
 
 #urlbar:not([focused="true"]):-moz-lwtheme > #urlbar-background,
 #navigator-toolbox #searchbar:not(:focus-within):-moz-lwtheme {
-  border-color: var(--lwt-toolbar-field-border-color, @fieldBorderColor@);
+  border-color: var(--lwt-toolbar-field-border-color, var(--toolbar-field-border-color));
 }
 
 #urlbar:not([focused="true"]):-moz-lwtheme:hover > #urlbar-background,
@@ -626,12 +623,17 @@
   border-radius: var(--toolbarbutton-border-radius);
 }
 
+:root[uidensity=compact] .urlbar-icon {
+  margin-inline: 1px;
+}
+
 @supports not -moz-bool-pref("browser.proton.urlbar.enabled") {
 .urlbar-icon {
   width: calc(var(--urlbar-min-height) - 2px);
   /* The 0.5px solves a rounding problem where the
     icon hover may not touch the borders */
   height: calc(var(--urlbar-min-height) - 2px + 0.5px);
+  margin-inline: 0;
 }
 
 .urlbar-icon,
@@ -892,7 +894,7 @@
 /* Reader mode icon */
 
 #reader-mode-button {
-  list-style-image: url(chrome://browser/skin/readerMode.svg);
+  list-style-image: url(chrome://browser/skin/reader-mode.svg);
 }
 
 #reader-mode-button[readeractive] {

@@ -21,12 +21,13 @@
 #include "js/ScalarType.h"          // js::Scalar::Type
 #include "vm/JSFunction.h"
 #include "vm/Shape.h"
-#include "wasm/TypedObject.h"
+#include "wasm/WasmTypes.h"
 
 enum class JSOp : uint8_t;
 
 namespace js {
 
+class ProxyObject;
 enum class ReferenceType;
 enum class UnaryMathFunction : uint8_t;
 
@@ -923,7 +924,7 @@ class MOZ_RAII CacheIRWriter : public JS::CustomAutoRooter {
   }
 
   void callNativeFunction(ObjOperandId calleeId, Int32OperandId argc, JSOp op,
-                          HandleFunction calleeFunc, CallFlags flags) {
+                          JSFunction* calleeFunc, CallFlags flags) {
     // Some native functions can be implemented faster if we know that
     // the return value is ignored.
     bool ignoresReturnValue =
@@ -951,7 +952,7 @@ class MOZ_RAII CacheIRWriter : public JS::CustomAutoRooter {
   }
 
   void callDOMFunction(ObjOperandId calleeId, Int32OperandId argc,
-                       ObjOperandId thisObjId, HandleFunction calleeFunc,
+                       ObjOperandId thisObjId, JSFunction* calleeFunc,
                        CallFlags flags) {
 #ifdef JS_SIMULATOR
     void* rawPtr = JS_FUNC_TO_DATA_PTR(void*, calleeFunc->native());
@@ -1214,12 +1215,12 @@ class MOZ_RAII IRGenerator {
   IntPtrOperandId guardToIntPtrIndex(const Value& index, ValOperandId indexId,
                                      bool supportOOB);
 
-  ObjOperandId guardDOMProxyExpandoObjectAndShape(JSObject* obj,
+  ObjOperandId guardDOMProxyExpandoObjectAndShape(ProxyObject* obj,
                                                   ObjOperandId objId,
                                                   const Value& expandoVal,
-                                                  JSObject* expandoObj);
+                                                  NativeObject* expandoObj);
 
-  void emitIdGuard(ValOperandId valId, HandleValue idVal, jsid id);
+  void emitIdGuard(ValOperandId valId, const Value& idVal, jsid id);
 
   OperandId emitNumericGuard(ValOperandId valId, Scalar::Type type);
 
@@ -1270,13 +1271,15 @@ class MOZ_RAII GetPropIRGenerator : public IRGenerator {
                                                   ObjOperandId objId,
                                                   HandleId id);
 
-  AttachDecision tryAttachGenericProxy(HandleObject obj, ObjOperandId objId,
-                                       HandleId id, bool handleDOMProxies);
-  AttachDecision tryAttachDOMProxyExpando(HandleObject obj, ObjOperandId objId,
-                                          HandleId id, ValOperandId receiverId);
-  AttachDecision tryAttachDOMProxyShadowed(HandleObject obj, ObjOperandId objId,
-                                           HandleId id);
-  AttachDecision tryAttachDOMProxyUnshadowed(HandleObject obj,
+  AttachDecision tryAttachGenericProxy(Handle<ProxyObject*> obj,
+                                       ObjOperandId objId, HandleId id,
+                                       bool handleDOMProxies);
+  AttachDecision tryAttachDOMProxyExpando(Handle<ProxyObject*> obj,
+                                          ObjOperandId objId, HandleId id,
+                                          ValOperandId receiverId);
+  AttachDecision tryAttachDOMProxyShadowed(Handle<ProxyObject*> obj,
+                                           ObjOperandId objId, HandleId id);
+  AttachDecision tryAttachDOMProxyUnshadowed(Handle<ProxyObject*> obj,
                                              ObjOperandId objId, HandleId id,
                                              ValOperandId receiverId);
   AttachDecision tryAttachProxy(HandleObject obj, ObjOperandId objId,
@@ -1444,16 +1447,19 @@ class MOZ_RAII SetPropIRGenerator : public IRGenerator {
                                                    Int32OperandId indexId,
                                                    ValOperandId rhsId);
 
-  AttachDecision tryAttachGenericProxy(HandleObject obj, ObjOperandId objId,
-                                       HandleId id, ValOperandId rhsId,
+  AttachDecision tryAttachGenericProxy(Handle<ProxyObject*> obj,
+                                       ObjOperandId objId, HandleId id,
+                                       ValOperandId rhsId,
                                        bool handleDOMProxies);
-  AttachDecision tryAttachDOMProxyShadowed(HandleObject obj, ObjOperandId objId,
-                                           HandleId id, ValOperandId rhsId);
-  AttachDecision tryAttachDOMProxyUnshadowed(HandleObject obj,
+  AttachDecision tryAttachDOMProxyShadowed(Handle<ProxyObject*> obj,
+                                           ObjOperandId objId, HandleId id,
+                                           ValOperandId rhsId);
+  AttachDecision tryAttachDOMProxyUnshadowed(Handle<ProxyObject*> obj,
                                              ObjOperandId objId, HandleId id,
                                              ValOperandId rhsId);
-  AttachDecision tryAttachDOMProxyExpando(HandleObject obj, ObjOperandId objId,
-                                          HandleId id, ValOperandId rhsId);
+  AttachDecision tryAttachDOMProxyExpando(Handle<ProxyObject*> obj,
+                                          ObjOperandId objId, HandleId id,
+                                          ValOperandId rhsId);
   AttachDecision tryAttachProxy(HandleObject obj, ObjOperandId objId,
                                 HandleId id, ValOperandId rhsId);
   AttachDecision tryAttachProxyElement(HandleObject obj, ObjOperandId objId,
@@ -1493,11 +1499,12 @@ class MOZ_RAII HasPropIRGenerator : public IRGenerator {
   AttachDecision tryAttachNamedProp(HandleObject obj, ObjOperandId objId,
                                     HandleId key, ValOperandId keyId);
   AttachDecision tryAttachMegamorphic(ObjOperandId objId, ValOperandId keyId);
-  AttachDecision tryAttachNative(JSObject* obj, ObjOperandId objId, jsid key,
-                                 ValOperandId keyId, PropertyResult prop,
-                                 JSObject* holder);
-  AttachDecision tryAttachSlotDoesNotExist(JSObject* obj, ObjOperandId objId,
-                                           jsid key, ValOperandId keyId);
+  AttachDecision tryAttachNative(NativeObject* obj, ObjOperandId objId,
+                                 jsid key, ValOperandId keyId,
+                                 PropertyResult prop, NativeObject* holder);
+  AttachDecision tryAttachSlotDoesNotExist(NativeObject* obj,
+                                           ObjOperandId objId, jsid key,
+                                           ValOperandId keyId);
   AttachDecision tryAttachDoesNotExist(HandleObject obj, ObjOperandId objId,
                                        HandleId key, ValOperandId keyId);
   AttachDecision tryAttachProxyElement(HandleObject obj, ObjOperandId objId,
@@ -1604,8 +1611,8 @@ class MOZ_RAII CallIRGenerator : public IRGenerator {
   ScriptedThisResult getThisForScripted(HandleFunction calleeFunc,
                                         MutableHandleObject result);
 
-  void emitNativeCalleeGuard(HandleFunction callee);
-  void emitCalleeGuard(ObjOperandId calleeId, HandleFunction callee);
+  void emitNativeCalleeGuard(JSFunction* callee);
+  void emitCalleeGuard(ObjOperandId calleeId, JSFunction* callee);
 
   bool canAttachAtomicsReadWriteModify();
 

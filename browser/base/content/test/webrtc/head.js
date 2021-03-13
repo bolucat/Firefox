@@ -71,6 +71,8 @@ function whenDelayedStartupFinished(aWindow) {
 }
 
 function promiseIndicatorWindow() {
+  let startTime = performance.now();
+
   // We don't show the legacy indicator window on Mac.
   if (USING_LEGACY_INDICATOR && IS_MAC) {
     return Promise.resolve();
@@ -87,7 +89,13 @@ function promiseIndicatorWindow() {
           }
 
           Services.obs.removeObserver(obs, "domwindowopened");
-          executeSoon(() => resolve(win));
+          executeSoon(() => {
+            ChromeUtils.addProfilerMarker("promiseIndicatorWindow", {
+              startTime,
+              category: "Test",
+            });
+            resolve(win);
+          });
         },
         { once: true }
       );
@@ -356,6 +364,7 @@ function promiseMessage(
   aCount = 1,
   browser = gBrowser.selectedBrowser
 ) {
+  let startTime = performance.now();
   let promise = ContentTask.spawn(browser, [aMessage, aCount], async function([
     expectedMessage,
     expectedCount,
@@ -376,10 +385,18 @@ function promiseMessage(
   if (aAction) {
     aAction();
   }
-  return promise;
+  return promise.then(data => {
+    ChromeUtils.addProfilerMarker(
+      "promiseMessage",
+      { startTime, category: "Test" },
+      data
+    );
+    return data;
+  });
 }
 
 function promisePopupNotificationShown(aName, aAction, aWindow = window) {
+  let startTime = performance.now();
   return new Promise(resolve => {
     // In case the global webrtc indicator has stolen focus (bug 1421724)
     aWindow.focus();
@@ -397,7 +414,14 @@ function promisePopupNotificationShown(aName, aAction, aWindow = window) {
           "notification panel populated"
         );
 
-        executeSoon(resolve);
+        executeSoon(() => {
+          ChromeUtils.addProfilerMarker(
+            "promisePopupNotificationShown",
+            { startTime, category: "Test" },
+            aName
+          );
+          resolve();
+        });
       },
       { once: true }
     );
@@ -447,6 +471,8 @@ function activateSecondaryAction(aAction) {
 }
 
 async function getMediaCaptureState() {
+  let startTime = performance.now();
+
   function gatherBrowsingContexts(aBrowsingContext) {
     let list = [aBrowsingContext];
 
@@ -538,6 +564,10 @@ async function getMediaCaptureState() {
     result.screen = "Browser";
   }
 
+  ChromeUtils.addProfilerMarker("getMediaCaptureState", {
+    startTime,
+    category: "Test",
+  });
   return result;
 }
 
@@ -736,54 +766,49 @@ async function reloadAndAssertClosedStreams() {
 function checkDeviceSelectors(aAudio, aVideo, aScreen, aWindow = window) {
   let document = aWindow.document;
   let micSelector = document.getElementById("webRTC-selectMicrophone");
-  let micDeck = document.getElementById("webRTC-selectMicrophone-deck");
-  let micLabel = document.getElementById("webRTC-selectMicrophone-label");
   if (aAudio) {
     ok(!micSelector.hidden, "microphone selector visible");
     let micSelectorList = document.getElementById(
       "webRTC-selectMicrophone-menulist"
     );
-    // If there's only 1 device listed, the deck should show the label instead.
+    let micLabel = document.getElementById(
+      "webRTC-selectMicrophone-single-device-label"
+    );
+    // If there's only 1 device listed, then we should show the label instead of
+    // the menulist.
     if (micSelectorList.itemCount == 1) {
-      is(micDeck.selectedIndex, "1", "Should be showing the microphone label.");
+      ok(micSelectorList.hidden, "Selector list should be hidden.");
+      ok(!micLabel.hidden, "Selector label should not be hidden.");
       is(
         micLabel.value,
         micSelectorList.selectedItem.getAttribute("label"),
         "Label should be showing the lone device label."
       );
     } else {
-      is(
-        micDeck.selectedIndex,
-        "0",
-        "Should be showing the microphone menulist."
-      );
+      ok(!micSelectorList.hidden, "Selector list should not be hidden.");
+      ok(micLabel.hidden, "Selector label should be hidden.");
     }
   } else {
     ok(micSelector.hidden, "microphone selector hidden");
   }
 
   let cameraSelector = document.getElementById("webRTC-selectCamera");
-  let cameraDeck = document.getElementById("webRTC-selectCamera-deck");
-  let cameraLabel = document.getElementById("webRTC-selectCamera-label");
   if (aVideo) {
     ok(!cameraSelector.hidden, "camera selector visible");
     let cameraSelectorList = document.getElementById(
       "webRTC-selectCamera-menulist"
     );
-    // If there's only 1 device listed, the deck should show the label instead.
+    let cameraLabel = document.getElementById(
+      "webRTC-selectCamera-single-device-label"
+    );
+    // If there's only 1 device listed, then we should show the label instead of
+    // the menulist.
     if (cameraSelectorList.itemCount == 1) {
-      is(cameraDeck.selectedIndex, "1", "Should be showing the camera label.");
-      is(
-        cameraLabel.value,
-        cameraSelectorList.selectedItem.getAttribute("label"),
-        "Label should be showing the lone device label."
-      );
+      ok(cameraSelectorList.hidden, "Selector list should be hidden.");
+      ok(!cameraLabel.hidden, "Selector label should not be hidden.");
     } else {
-      is(
-        cameraDeck.selectedIndex,
-        "0",
-        "Should be showing the camera menulist."
-      );
+      ok(!cameraSelectorList.hidden, "Selector list should not be hidden.");
+      ok(cameraLabel.hidden, "Selector label should be hidden.");
     }
   } else {
     ok(cameraSelector.hidden, "camera selector hidden");
@@ -797,12 +822,20 @@ function checkDeviceSelectors(aAudio, aVideo, aScreen, aWindow = window) {
   }
 }
 
-// aExpected is for the current tab,
-// aExpectedGlobal is for all tabs.
+/**
+ * Tests the siteIdentity icons, the permission panel and the global indicator
+ * UI state.
+ * @param {Object} aExpected - Expected state for the current tab.
+ * @param {window} [aWin] - Top level chrome window to test state of.
+ * @param {Object} [aExpectedGlobal] - Expected state for all tabs.
+ * @param {Object} [aExpectedPerm] - Expected permission states keyed by device
+ * type.
+ */
 async function checkSharingUI(
   aExpected,
   aWin = window,
-  aExpectedGlobal = null
+  aExpectedGlobal = null,
+  aExpectedPerm = null
 ) {
   function isPaused(streamState) {
     if (typeof streamState == "string") {
@@ -857,29 +890,58 @@ async function checkSharingUI(
       return idToConvert;
     };
     let expected = aExpected[convertId(id)];
+
+    // Extract the expected permission for the device type.
+    // Defaults to temporary allow.
+    let { state, scope } = aExpectedPerm?.[convertId(id)] || {};
+    if (state == null) {
+      state = SitePermissions.ALLOW;
+    }
+    if (scope == null) {
+      scope = SitePermissions.SCOPE_TEMPORARY;
+    }
+
     is(
       !!aWin.gPermissionPanel._sharingState.webRTC[id],
       !!expected,
       "sharing state for " + id + " as expected"
     );
+    let item = permissions.querySelectorAll(
+      ".permission-popup-permission-item-" + id
+    );
+    let stateLabel = item?.[0]?.querySelector(
+      ".permission-popup-permission-state-label"
+    );
     let icon = permissions.querySelectorAll(
       ".permission-popup-permission-icon." + id + "-icon"
     );
     if (expected) {
+      is(item.length, 1, "should show " + id + " item in permission panel");
+      is(
+        stateLabel?.textContent,
+        SitePermissions.getCurrentStateLabel(state, id, scope),
+        "should show correct item label for " + id
+      );
       is(icon.length, 1, "should show " + id + " icon in permission panel");
       is(
         icon[0].classList.contains("in-use"),
         expected && !isPaused(expected),
         "icon should have the in-use class, unless paused"
       );
-    } else if (!icon.length) {
+    } else if (!icon.length && !item.length && !stateLabel) {
+      ok(true, "should not show " + id + " item in the permission panel");
       ok(true, "should not show " + id + " icon in the permission panel");
+      ok(
+        true,
+        "should not show " + id + " state label in the permission panel"
+      );
     } else {
       // This will happen if there are persistent permissions set.
       ok(
         !icon[0].classList.contains("in-use"),
         "if shown, the " + id + " icon should not have the in-use class"
       );
+      is(item.length, 1, "should not show more than 1 " + id + " item");
       is(icon.length, 1, "should not show more than 1 " + id + " icon");
     }
   }
@@ -1043,6 +1105,7 @@ async function runTests(tests, options = {}) {
   gObserveSubFrames = SpecialPowers.useRemoteSubframes ? options.subFrames : {};
 
   for (let testCase of tests) {
+    let startTime = performance.now();
     info(testCase.desc);
     if (
       !testCase.skipObserverVerification &&
@@ -1060,6 +1123,11 @@ async function runTests(tests, options = {}) {
     if (options.cleanup) {
       await options.cleanup();
     }
+    ChromeUtils.addProfilerMarker(
+      "browser-test",
+      { startTime, category: "Test" },
+      testCase.desc
+    );
   }
 
   // Some tests destroy the original tab and leave a new one in its place.

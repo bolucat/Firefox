@@ -75,6 +75,12 @@ function assertTelemetryMatches(events) {
 add_task(async function test_setup() {
   // Clear any previosuly collected telemetry event.
   Services.telemetry.clearEvents();
+  if (CustomizableUI.protonToolbarEnabled) {
+    CustomizableUI.addWidgetToArea("home-button", "nav-bar");
+    registerCleanupFunction(() =>
+      CustomizableUI.removeWidgetFromArea("home-button")
+    );
+  }
 });
 
 add_task(async function browseraction_popup_contextmenu() {
@@ -476,8 +482,10 @@ add_task(async function browseraction_contextmenu_remove_extension() {
       ".customize-context-removeExtension"
     );
     await closeChromeContextMenu(menuId, removeExtension, win);
-    is(promptService._confirmExArgs[1], `Remove ${name}`);
-    is(promptService._confirmExArgs[2], `Remove ${name} from ${brand}?`);
+    is(promptService._confirmExArgs[1], `Remove ${name}?`);
+    if (!Services.prefs.getBoolPref("prompts.windowPromptSubDialog", false)) {
+      is(promptService._confirmExArgs[2], `Remove ${name} from ${brand}?`);
+    }
     is(promptService._confirmExArgs[4], "Remove");
     return menu;
   }

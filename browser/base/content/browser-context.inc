@@ -109,31 +109,31 @@
       <menuitem id="context-media-unmute"
                 data-l10n-id="main-context-menu-media-unmute"
                 oncommand="gContextMenu.mediaCommand('unmute');"/>
-      <menu id="context-media-playbackrate" data-l10n-id="main-context-menu-media-play-speed">
+      <menu id="context-media-playbackrate" data-l10n-id="main-context-menu-media-play-speed-2">
         <menupopup>
           <menuitem id="context-media-playbackrate-050x"
-                    data-l10n-id="main-context-menu-media-play-speed-slow"
+                    data-l10n-id="main-context-menu-media-play-speed-slow-2"
                     type="radio"
                     name="playbackrate"
                     oncommand="gContextMenu.mediaCommand('playbackRate', 0.5);"/>
           <menuitem id="context-media-playbackrate-100x"
-                    data-l10n-id="main-context-menu-media-play-speed-normal"
+                    data-l10n-id="main-context-menu-media-play-speed-normal-2"
                     type="radio"
                     name="playbackrate"
                     checked="true"
                     oncommand="gContextMenu.mediaCommand('playbackRate', 1.0);"/>
           <menuitem id="context-media-playbackrate-125x"
-                    data-l10n-id="main-context-menu-media-play-speed-fast"
+                    data-l10n-id="main-context-menu-media-play-speed-fast-2"
                     type="radio"
                     name="playbackrate"
                     oncommand="gContextMenu.mediaCommand('playbackRate', 1.25);"/>
           <menuitem id="context-media-playbackrate-150x"
-                    data-l10n-id="main-context-menu-media-play-speed-faster"
+                    data-l10n-id="main-context-menu-media-play-speed-faster-2"
                     type="radio"
                     name="playbackrate"
                     oncommand="gContextMenu.mediaCommand('playbackRate', 1.5);"/>
           <menuitem id="context-media-playbackrate-200x"
-                    data-l10n-id="main-context-menu-media-play-speed-fastest"
+                    data-l10n-id="main-context-menu-media-play-speed-fastest-2"
                     type="radio"
                     name="playbackrate"
                     oncommand="gContextMenu.mediaCommand('playbackRate', 2.0);"/>
@@ -143,20 +143,25 @@
                 data-l10n-id="main-context-menu-media-loop"
                 type="checkbox"
                 oncommand="gContextMenu.mediaCommand('loop');"/>
-      <menuitem id="context-media-showcontrols"
-                data-l10n-id="main-context-menu-media-show-controls"
-                oncommand="gContextMenu.mediaCommand('showcontrols');"/>
-      <menuitem id="context-media-hidecontrols"
-                data-l10n-id="main-context-menu-media-hide-controls"
-                oncommand="gContextMenu.mediaCommand('hidecontrols');"/>
-      <menuitem id="context-video-fullscreen"
-                data-l10n-id="main-context-menu-media-video-fullscreen"
-                oncommand="gContextMenu.mediaCommand('fullscreen');"/>
       <menuitem id="context-leave-dom-fullscreen"
                 data-l10n-id="main-context-menu-media-video-leave-fullscreen"
                 oncommand="gContextMenu.leaveDOMFullScreen();"/>
+      <menuitem id="context-video-fullscreen"
+                data-l10n-id="main-context-menu-media-video-fullscreen"
+                oncommand="gContextMenu.mediaCommand('fullscreen');"/>
+      <menuitem id="context-media-hidecontrols"
+                data-l10n-id="main-context-menu-media-hide-controls"
+                oncommand="gContextMenu.mediaCommand('hidecontrols');"/>
+      <menuitem id="context-media-showcontrols"
+                data-l10n-id="main-context-menu-media-show-controls"
+                oncommand="gContextMenu.mediaCommand('showcontrols');"/>
+      <menuseparator id="context-media-sep-video-commands"/>
+      <menuitem id="context-viewvideo"
+                data-l10n-id="main-context-menu-video-view-new-tab"
+                oncommand="gContextMenu.viewMedia(event);"
+                onclick="checkForMiddleClick(this, event);"/>
       <menuitem id="context-video-pictureinpicture"
-                data-l10n-id="main-context-menu-media-pip"
+                data-l10n-id="main-context-menu-media-watch-pip"
                 type="checkbox"
                 oncommand="gContextMenu.mediaCommand('pictureinpicture');"/>
       <menuseparator id="context-media-sep-commands"/>
@@ -164,25 +169,21 @@
                 data-l10n-id="main-context-menu-image-reload"
                 oncommand="gContextMenu.reloadImage();"/>
       <menuitem id="context-viewimage"
-                data-l10n-id="main-context-menu-image-view"
-                oncommand="gContextMenu.viewMedia(event);"
-                onclick="checkForMiddleClick(this, event);"/>
-      <menuitem id="context-viewvideo"
-                data-l10n-id="main-context-menu-video-view"
+                data-l10n-id="main-context-menu-image-view-new-tab"
                 oncommand="gContextMenu.viewMedia(event);"
                 onclick="checkForMiddleClick(this, event);"/>
       <menuitem id="context-saveimage"
                 data-l10n-id="main-context-menu-image-save-as"
                 oncommand="gContextMenu.saveMedia();"/>
+      <menuitem id="context-video-saveimage"
+                data-l10n-id="main-context-menu-video-take-snapshot"
+                oncommand="gContextMenu.saveVideoFrameAsImage();"/>
       <menuitem id="context-savevideo"
                 data-l10n-id="main-context-menu-video-save-as"
                 oncommand="gContextMenu.saveMedia();"/>
       <menuitem id="context-saveaudio"
                 data-l10n-id="main-context-menu-audio-save-as"
                 oncommand="gContextMenu.saveMedia();"/>
-      <menuitem id="context-video-saveimage"
-                data-l10n-id="main-context-menu-video-image-save-as"
-                oncommand="gContextMenu.saveVideoFrameAsImage();"/>
 #ifdef CONTEXT_COPY_IMAGE_CONTENTS
       <menuitem id="context-copyimage-contents"
                 data-l10n-id="main-context-menu-image-copy"
@@ -270,6 +271,18 @@
       <menuitem id="context-selectall"
                 data-l10n-id="text-action-select-all"
                 command="cmd_selectAll"/>
+      <menuitem id="context-print-selection"
+                data-l10n-id="main-context-menu-print-selection"
+                oncommand="gContextMenu.printSelection();"/>
+      <menuseparator id="context-sep-sendlinktodevice" class="sync-ui-item"
+                hidden="true"/>
+      <menu id="context-sendlinktodevice"
+            class="sync-ui-item"
+            data-l10n-id="main-context-menu-link-send-to-device"
+            hidden="true">
+        <menupopup id="context-sendlinktodevice-popup"
+                   onpopupshowing="gSync.populateSendTabToDevicesMenu(event.target, gContextMenu.linkURL, gContextMenu.linkTextStr);"/>
+      </menu>
       <menuseparator id="context-sep-selectall"/>
       <menuitem id="context-keywordfield"
                 data-l10n-id="main-context-menu-keyword"
@@ -280,15 +293,7 @@
       <menuitem id="context-searchselect-private"
                 oncommand="BrowserSearch.loadSearchFromContext(this.searchTerms, true, this.principal, this.csp, event);"
                 onclick="checkForMiddleClick(this, event);"/>
-      <menuseparator id="context-sep-sendlinktodevice" class="sync-ui-item"
-                     hidden="true"/>
-      <menu id="context-sendlinktodevice"
-            class="sync-ui-item"
-            data-l10n-id="main-context-menu-link-send-to-device"
-            hidden="true">
-        <menupopup id="context-sendlinktodevice-popup"
-                   onpopupshowing="gSync.populateSendTabToDevicesMenu(event.target, gContextMenu.linkURL, gContextMenu.linkTextStr);"/>
-      </menu>
+
       <menuseparator id="frame-sep"/>
       <menu id="frame" data-l10n-id="main-context-menu-frame">
         <menupopup>
@@ -330,9 +335,6 @@
 #endif
         </menupopup>
       </menu>
-      <menuitem id="context-print-selection"
-                data-l10n-id="main-context-menu-print-selection"
-                oncommand="gContextMenu.printSelection();"/>
       <menuseparator id="context-sep-screenshots"/>
       <menuitem id="context-take-screenshot"
                 data-l10n-id="main-context-menu-take-screenshot"

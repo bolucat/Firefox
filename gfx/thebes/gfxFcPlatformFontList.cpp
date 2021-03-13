@@ -39,6 +39,7 @@
 #ifdef MOZ_WIDGET_GTK
 #  include <gdk/gdk.h>
 #  include "gfxPlatformGtk.h"
+#  include "mozilla/WidgetUtilsGtk.h"
 #endif
 
 #ifdef MOZ_X11
@@ -716,7 +717,7 @@ static void PreparePattern(FcPattern* aPattern, bool aIsPrinterFont) {
     int lcdfilter;
     if (FcPatternGet(aPattern, FC_LCD_FILTER, 0, &value) == FcResultNoMatch) {
       GdkDisplay* dpy = gdk_display_get_default();
-      if (GDK_IS_X11_DISPLAY(dpy) &&
+      if (mozilla::widget::GdkIsX11Display(dpy) &&
           GetXftInt(GDK_DISPLAY_XDISPLAY(dpy), "lcdfilter", &lcdfilter)) {
         FcPatternAddInteger(aPattern, FC_LCD_FILTER, lcdfilter);
       }
@@ -1496,8 +1497,8 @@ void gfxFcPlatformFontList::ReadSystemFontList(
   // (see https://bugs.freedesktop.org/show_bug.cgi?id=26718), so when using
   // an older version, we manually append it to the unparsed pattern.
   if (FcGetVersion() < 20900) {
-    for (auto iter = mFontFamilies.Iter(); !iter.Done(); iter.Next()) {
-      auto family = static_cast<gfxFontconfigFontFamily*>(iter.Data().get());
+    for (const auto& entry : mFontFamilies) {
+      auto* family = static_cast<gfxFontconfigFontFamily*>(entry.GetWeak());
       family->AddFacesToFontList([&](FcPattern* aPat, bool aAppFonts) {
         char* s = (char*)FcNameUnparse(aPat);
         nsDependentCString patternStr(s);
@@ -1512,8 +1513,8 @@ void gfxFcPlatformFontList::ReadSystemFontList(
       });
     }
   } else {
-    for (auto iter = mFontFamilies.Iter(); !iter.Done(); iter.Next()) {
-      auto family = static_cast<gfxFontconfigFontFamily*>(iter.Data().get());
+    for (const auto& entry : mFontFamilies) {
+      auto* family = static_cast<gfxFontconfigFontFamily*>(entry.GetWeak());
       family->AddFacesToFontList([&](FcPattern* aPat, bool aAppFonts) {
         char* s = (char*)FcNameUnparse(aPat);
         nsDependentCString patternStr(s);
