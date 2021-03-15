@@ -202,13 +202,12 @@ class nsTextControlFrame : public nsContainerFrame,
   void ReflowTextControlChild(nsIFrame* aFrame, nsPresContext* aPresContext,
                               const ReflowInput& aReflowInput,
                               nsReflowStatus& aStatus,
-                              ReflowOutput& aParentDesiredSize);
+                              ReflowOutput& aParentDesiredSize,
+                              nscoord& aButtonBoxISize);
 
   void ComputeBaseline(const ReflowInput&, ReflowOutput&);
 
- public:  // for methods who access nsTextControlFrame directly
-  void SetValueChanged(bool aValueChanged);
-
+ public:
   Element* GetRootNode() const { return mRootNode; }
 
   Element* GetPreviewNode() const { return mPreviewDiv; }

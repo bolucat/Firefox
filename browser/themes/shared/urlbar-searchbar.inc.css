@@ -570,10 +570,6 @@
 
 /* URL bar and page action buttons */
 
-#page-action-buttons {
-  -moz-box-align: center;
-}
-
 @supports -moz-bool-pref("browser.proton.urlbar.enabled") {
 #pageActionSeparator {
   /* Just remove this element once Proton is released */
@@ -630,9 +626,7 @@
 @supports not -moz-bool-pref("browser.proton.urlbar.enabled") {
 .urlbar-icon {
   width: calc(var(--urlbar-min-height) - 2px);
-  /* The 0.5px solves a rounding problem where the
-    icon hover may not touch the borders */
-  height: calc(var(--urlbar-min-height) - 2px + 0.5px);
+  height: calc(var(--urlbar-min-height) - 2px);
   margin-inline: 0;
 }
 
@@ -687,15 +681,6 @@
     }
     to {
       transform: translateX(-627px);
-    }
-  }
-
-  @keyframes bookmark-animation-rtl {
-    from {
-      transform: scaleX(-1) translateX(0);
-    }
-    to {
-      transform: scaleX(-1) translateX(-627px);
     }
   }
 
@@ -755,7 +740,7 @@
   }
 
   #star-button[starred][animate]:-moz-locale-dir(rtl) + #star-button-animatable-box > #star-button-animatable-image {
-    animation-name: bookmark-animation-rtl;
+    scale: -1 1;
   }
 }
 
@@ -1017,16 +1002,19 @@
   margin-inline: -26px 20px;
 }
 
+.searchbar-engine-one-off-add-engine:not([image]),
 moz-input-box > menupopup .context-menu-add-engine:not([image]) {
   list-style-image: url("chrome://browser/skin/search-engine-placeholder.png");
 }
 
 @media (min-resolution: 1.1dppx) {
+  .searchbar-engine-one-off-add-engine:not([image]),
   moz-input-box > menupopup .context-menu-add-engine:not([image]) {
     list-style-image: url("chrome://browser/skin/search-engine-placeholder@2x.png");
   }
 }
 
+.searchbar-engine-one-off-add-engine > .button-box::after,
 moz-input-box > menupopup .context-menu-add-engine > .menu-iconic-left::after {
   content: "";
   position: relative;
@@ -1034,8 +1022,22 @@ moz-input-box > menupopup .context-menu-add-engine > .menu-iconic-left::after {
   background: url(chrome://browser/skin/search-indicator-badge-add.svg) no-repeat center;
   height: 11px;
   width: 11px;
-  /* These differ from the search bar (-7x, -13px) because the contextual menu
+  margin-inline: -7px;
+  margin-top: -13px;
+}
+
+moz-input-box > menupopup .context-menu-add-engine > .menu-iconic-left::after {
+  /* These differ from the urlbar and searchbar because the context menu
      may not have enough vertical space */
-  margin-inline-start: -6px;
+  margin-inline: -6px;
   margin-top: -8px;
+}
+
+/* Fade a little the icon so that the + badge is more evident and the button
+   is less likely to be visually confused with a normal search shortcut */
+.searchbar-engine-one-off-add-engine[image]:not(:hover) > .button-box > .button-icon {
+  opacity: 0.7;
+}
+.searchbar-engine-one-off-add-engine[image]:hover > .button-box > .button-icon {
+  opacity: 1;
 }

@@ -13,11 +13,13 @@
 #include "nsIEditor.h"
 #include "nsCaret.h"
 #include "nsCSSPseudoElements.h"
+#include "nsDisplayList.h"
 #include "nsGenericHTMLElement.h"
 #include "nsTextFragment.h"
 #include "nsNameSpaceManager.h"
 
 #include "nsIContent.h"
+#include "nsIScrollableFrame.h"
 #include "nsPresContext.h"
 #include "nsGkAtoms.h"
 #include "nsLayoutUtils.h"
@@ -149,13 +151,7 @@ void nsTextControlFrame::DestroyFrom(nsIFrame* aDestructRoot,
 
   // If we're a subclass like nsNumberControlFrame, then it owns the root of the
   // anonymous subtree where mRootNode is.
-  if (mClass == kClassID) {
-    aPostDestroyData.AddAnonymousContent(mRootNode.forget());
-  } else {
-    MOZ_ASSERT(!mRootNode || !mRootNode->IsRootOfNativeAnonymousSubtree());
-    mRootNode = nullptr;
-  }
-
+  aPostDestroyData.AddAnonymousContent(mRootNode.forget());
   aPostDestroyData.AddAnonymousContent(mPlaceholderDiv.forget());
   aPostDestroyData.AddAnonymousContent(mPreviewDiv.forget());
 
@@ -412,12 +408,6 @@ nsresult nsTextControlFrame::CreateAnonymousContent(
   aElements.AppendElement(mRootNode);
   CreatePlaceholderIfNeeded();
   if (mPlaceholderDiv) {
-    if (!IsSingleLineTextControl()) {
-      // For textareas, UpdateValueDisplay doesn't initialize the visibility
-      // status of the placeholder because it returns early, so we have to
-      // do that manually here.
-      textControlElement->UpdateOverlayTextVisibility(true);
-    }
     aElements.AppendElement(mPlaceholderDiv);
   }
   CreatePreviewIfNeeded();
@@ -636,9 +626,10 @@ void nsTextControlFrame::Reflow(nsPresContext* aPresContext,
   aDesiredSize.SetOverflowAreasToDesiredBounds();
   // perform reflow on all kids
   nsIFrame* kid = mFrames.FirstChild();
+  nscoord buttonBoxISize = 0;
   while (kid) {
     ReflowTextControlChild(kid, aPresContext, aReflowInput, aStatus,
-                           aDesiredSize);
+                           aDesiredSize, buttonBoxISize);
     kid = kid->GetNextSibling();
   }
 
@@ -652,37 +643,74 @@ void nsTextControlFrame::Reflow(nsPresContext* aPresContext,
 void nsTextControlFrame::ReflowTextControlChild(
     nsIFrame* aKid, nsPresContext* aPresContext,
     const ReflowInput& aReflowInput, nsReflowStatus& aStatus,
-    ReflowOutput& aParentDesiredSize) {
+    ReflowOutput& aParentDesiredSize, nscoord& aButtonBoxISize) {
+  const WritingMode outerWM = aReflowInput.GetWritingMode();
   // compute available size and frame offsets for child
-  WritingMode wm = aKid->GetWritingMode();
+  const WritingMode wm = aKid->GetWritingMode();
   LogicalSize availSize = aReflowInput.ComputedSizeWithPadding(wm);
   availSize.BSize(wm) = NS_UNCONSTRAINEDSIZE;
 
+  const bool isButtonBox =
+      aKid->Style()->GetPseudoType() == PseudoStyleType::mozNumberSpinBox ||
+      aKid->Style()->GetPseudoType() == PseudoStyleType::mozSearchClearButton;
+
   ReflowInput kidReflowInput(aPresContext, aReflowInput, aKid, availSize,
                              Nothing(), ReflowInput::InitFlag::CallerWillInit);
+
   // Override padding with our computed padding in case we got it from theming
-  // or percentage.
-  kidReflowInput.Init(aPresContext, Nothing(), Nothing(),
-                      Some(aReflowInput.ComputedLogicalPadding(wm)));
+  // or percentage, if we're not the button box.
+  auto overridePadding =
+      isButtonBox ? Nothing() : Some(aReflowInput.ComputedLogicalPadding(wm));
+  kidReflowInput.Init(aPresContext, Nothing(), Nothing(), overridePadding);
 
-  // Set computed width and computed height for the child
-  kidReflowInput.SetComputedWidth(aReflowInput.ComputedWidth());
-  kidReflowInput.SetComputedHeight(aReflowInput.ComputedHeight());
+  LogicalPoint position(wm);
+  const auto& bp = aReflowInput.ComputedLogicalBorderPadding(outerWM);
 
-  // Offset the frame by the size of the parent's border
-  nscoord xOffset = aReflowInput.ComputedPhysicalBorderPadding().left -
-                    aReflowInput.ComputedPhysicalPadding().left;
-  nscoord yOffset = aReflowInput.ComputedPhysicalBorderPadding().top -
-                    aReflowInput.ComputedPhysicalPadding().top;
+  if (!isButtonBox) {
+    MOZ_ASSERT(wm == outerWM,
+               "Shouldn't have to care about orthogonal "
+               "writing-modes and such inside the control, "
+               "except for the number spin-box which forces "
+               "horizontal-tb");
+
+    // Offset the frame by the size of the parent's border
+    const auto& padding = aReflowInput.ComputedLogicalPadding(wm);
+    position.B(wm) = bp.BStart(wm) - padding.BStart(wm);
+    position.I(wm) = bp.IStart(wm) - padding.IStart(wm);
+
+    // Set computed width and computed height for the child (the button box is
+    // the only exception, which has an auto size).
+    kidReflowInput.SetComputedISize(
+        std::max(0, aReflowInput.ComputedISize() - aButtonBoxISize));
+    kidReflowInput.SetComputedBSize(aReflowInput.ComputedBSize());
+  }
 
   // reflow the child
   ReflowOutput desiredSize(aReflowInput);
-  ReflowChild(aKid, aPresContext, desiredSize, kidReflowInput, xOffset, yOffset,
-              ReflowChildFlags::Default, aStatus);
+  const nsSize containerSize =
+      aReflowInput.ComputedSizeWithBorderPadding(outerWM).GetPhysicalSize(
+          outerWM);
+  ReflowChild(aKid, aPresContext, desiredSize, kidReflowInput, wm, position,
+              containerSize, ReflowChildFlags::Default, aStatus);
+
+  if (isButtonBox) {
+    auto size = desiredSize.Size(outerWM);
+    // Center button in the block axis of our content box. We do this
+    // computation in terms of outerWM for simplicity.
+    position = LogicalPoint(outerWM);
+    position.B(outerWM) =
+        bp.BStart(outerWM) +
+        (aReflowInput.ComputedBSize() - size.BSize(outerWM)) / 2;
+    // Align to the inline-end of the content box.
+    position.I(outerWM) =
+        bp.IStart(outerWM) + aReflowInput.ComputedISize() - size.ISize(outerWM);
+    position = position.ConvertTo(wm, outerWM, containerSize);
+    aButtonBoxISize = size.ISize(outerWM);
+  }
 
   // place the child
-  FinishReflowChild(aKid, aPresContext, desiredSize, &kidReflowInput, xOffset,
-                    yOffset, ReflowChildFlags::Default);
+  FinishReflowChild(aKid, aPresContext, desiredSize, &kidReflowInput, wm,
+                    position, containerSize, ReflowChildFlags::Default);
 
   // consider the overflow
   aParentDesiredSize.mOverflowAreas.UnionWith(desiredSize.mOverflowAreas);
@@ -706,10 +734,6 @@ void nsTextControlFrame::SetFocus(bool aOn, bool aRepaint) {
 
   // If 'dom.placeholeder.show_on_focus' preference is 'false', focusing or
   // blurring the frame can have an impact on the placeholder visibility.
-  if (mPlaceholderDiv) {
-    textControlElement->UpdateOverlayTextVisibility(true);
-  }
-
   if (!aOn) {
     return;
   }
@@ -1127,21 +1151,6 @@ void nsTextControlFrame::SetInitialChildList(ChildListID aListID,
   }
 }
 
-void nsTextControlFrame::SetValueChanged(bool aValueChanged) {
-  auto* textControlElement = TextControlElement::FromNode(GetContent());
-  MOZ_ASSERT(textControlElement);
-
-  if (mPlaceholderDiv) {
-    AutoWeakFrame weakFrame(this);
-    textControlElement->UpdateOverlayTextVisibility(true);
-    if (!weakFrame.IsAlive()) {
-      return;
-    }
-  }
-
-  textControlElement->SetValueChanged(aValueChanged);
-}
-
 nsresult nsTextControlFrame::UpdateValueDisplay(bool aNotify,
                                                 bool aBeforeEditorInit,
                                                 const nsAString* aValue) {
@@ -1186,12 +1195,6 @@ nsresult nsTextControlFrame::UpdateValueDisplay(bool aNotify,
   // Update the display of the placeholder value and preview text if needed.
   // We don't need to do this if we're about to initialize the editor, since
   // EnsureEditorInitialized takes care of this.
-  if ((mPlaceholderDiv || mPreviewDiv) && !aBeforeEditorInit) {
-    AutoWeakFrame weakFrame(this);
-    textControlElement->UpdateOverlayTextVisibility(aNotify);
-    NS_ENSURE_STATE(weakFrame.IsAlive());
-  }
-
   if (aBeforeEditorInit && value.IsEmpty()) {
     if (nsIContent* node = mRootNode->GetFirstChild()) {
       mRootNode->RemoveChildNode(node, true);
@@ -1263,9 +1266,6 @@ void nsTextControlFrame::BuildDisplayList(nsDisplayListBuilder* aBuilder,
    */
   DO_GLOBAL_REFLOW_COUNT_DSP("nsTextControlFrame");
 
-  auto* control = TextControlElement::FromNode(GetContent());
-  MOZ_ASSERT(control);
-
   DisplayBorderBackgroundOutline(aBuilder, aLists);
 
   // Redirect all lists to the Content list so that nothing can escape, ie
@@ -1274,44 +1274,19 @@ void nsTextControlFrame::BuildDisplayList(nsDisplayListBuilder* aBuilder,
   nsDisplayList* content = aLists.Content();
   nsDisplayListSet set(content, content, content, content, content, content);
 
-  // Clip the placeholder and preview text to the root box, so that it doesn't,
-  // e.g., overlay with our <input type="number"> spin buttons.
-  //
-  // For other input types, this will be a noop since we size the root via
-  // ReflowTextControlChild, which sets the same available space for all
-  // children.
-  auto clipToRoot = [&](Maybe<DisplayListClipState::AutoSaveRestore>& aClip) {
-    if (mRootNode) {
-      if (auto* root = mRootNode->GetPrimaryFrame()) {
-        aClip.emplace(aBuilder);
-        nsRect rootBox(aBuilder->ToReferenceFrame(root), root->GetSize());
-        aClip->ClipContentDescendants(rootBox);
-      }
-    }
-  };
-
   // We build the ::placeholder first so that it renders below mRootNode which
   // draws the caret and we always want that on top (bug 1637476).
-  if (mPlaceholderDiv && control->GetPlaceholderVisibility() &&
-      mPlaceholderDiv->GetPrimaryFrame()) {
-    Maybe<DisplayListClipState::AutoSaveRestore> overlayTextClip;
-    clipToRoot(overlayTextClip);
+  //
+  // TODO(emilio): We should consider just changing the DOM order instead.
+  if (mPlaceholderDiv && mPlaceholderDiv->GetPrimaryFrame()) {
     auto* kid = mPlaceholderDiv->GetPrimaryFrame();
     MOZ_ASSERT(kid->GetParent() == this);
     BuildDisplayListForChild(aBuilder, kid, set);
   }
 
   for (auto* kid : mFrames) {
-    nsIContent* kidContent = kid->GetContent();
-    Maybe<DisplayListClipState::AutoSaveRestore> overlayTextClip;
-    if (kidContent == mPlaceholderDiv) {
-      continue;  // we handled mPlaceholderDiv explicitly above
-    }
-    if (kidContent == mPreviewDiv && !control->GetPreviewVisibility()) {
-      continue;
-    }
-    if (kidContent == mPreviewDiv) {
-      clipToRoot(overlayTextClip);
+    if (kid->GetContent() == mPlaceholderDiv) {
+      continue;  // Handled above already.
     }
     BuildDisplayListForChild(aBuilder, kid, set);
   }

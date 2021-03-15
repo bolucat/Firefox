@@ -390,7 +390,7 @@ function assertHighlightLocation(dbg, source, line) {
  * @static
  */
 function isPaused(dbg) {
-  return dbg.selectors.getIsPaused(dbg.selectors.getCurrentThread());
+  return dbg.selectors.getIsCurrentThreadPaused();
 }
 
 // Make sure the debugger is paused at a certain source ID and line.
@@ -758,10 +758,12 @@ async function stepOut(dbg) {
  * @return {Promise}
  * @static
  */
-function resume(dbg) {
+async function resume(dbg) {
   const pauseLine = getVisibleSelectedFrameLine(dbg);
   info(`Resuming from ${pauseLine}`);
-  return dbg.actions.resume(getThreadContext(dbg));
+  const onResumed = waitForActive(dbg);
+  await dbg.actions.resume(getThreadContext(dbg));
+  await onResumed;
 }
 
 function deleteExpression(dbg, input) {
@@ -1036,10 +1038,7 @@ async function togglePauseOnExceptions(
 }
 
 function waitForActive(dbg) {
-  const {
-    selectors: { getIsPaused, getCurrentThread },
-  } = dbg;
-  return waitForState(dbg, state => !getIsPaused(getCurrentThread()), "active");
+  return waitForState(dbg, state => !dbg.selectors.getIsCurrentThreadPaused());
 }
 
 // Helpers

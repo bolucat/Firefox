@@ -418,3 +418,39 @@ test(t => {
     }, fmt + ': plane size too small');
   });
 }, 'Test planar constructed RGB VideoFrames');
+
+test(t => {
+  let image = makeImageBitmap(32, 16);
+  let frame = new VideoFrame(image, {timestamp: 0});
+  assert_true(!!frame);
+
+  frame_copy = new VideoFrame(frame);
+  assert_equals(frame.format, frame_copy.format);
+  assert_equals(frame.timestamp, frame_copy.timestamp);
+  assert_equals(frame.codedWidth, frame_copy.codedWidth);
+  assert_equals(frame.codedHeight, frame_copy.codedHeight);
+  assert_equals(frame.displayWidth, frame_copy.displayWidth);
+  assert_equals(frame.displayHeight, frame_copy.displayHeight);
+  assert_equals(frame.duration, frame_copy.duration);
+  frame_copy.close();
+
+  frame_copy = new VideoFrame(frame, {duration: 1234});
+  assert_equals(frame.timestamp, frame_copy.timestamp);
+  assert_equals(frame_copy.duration, 1234);
+  frame_copy.close();
+
+  frame_copy = new VideoFrame(frame, {timestamp: 1234, duration: 456});
+  assert_equals(frame_copy.timestamp, 1234);
+  assert_equals(frame_copy.duration, 456);
+  frame_copy.close();
+
+  frame.close();
+}, 'Test VideoFrame constructed VideoFrame');
+
+test(t => {
+  let canvas = makeOffscreenCanvas(16, 16);
+  let frame = new VideoFrame(canvas);
+  assert_equals(frame.displayWidth, 16);
+  assert_equals(frame.displayHeight, 16);
+  frame.close();
+}, 'Test we can construct a VideoFrame from an offscreen canvas.');
