@@ -1,0 +1,56 @@
+on:
+  push:
+    paths:
+      - ".github/workflows/*"
+  schedule:
+    - cron: "0 7 * * *"
+
+name: firefox
+jobs:
+  sync:
+    runs-on: ubuntu-20.04
+    env:
+      TZ: Asia/Shanghai
+    steps:
+      
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+        
+      - name: Initialize Environment
+        run: |
+          rm -rf $PWD/*
+          sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          sudo -E apt-get -qq update
+          sudo apt-get install -y mercurial
+          sudo -E apt-get -qq autoremove --purge
+          sudo -E apt-get -qq clean
+
+      - name: Sync Source Code
+        run: |
+          hg clone https://hg.mozilla.org/mozilla-central/ firefox-source
+
+      - name: Commit Changes
+        run: |
+          mv firefox-source/* $PWD/ && rm -rf firefox-source
+          echo "Update On $(date +%Y%m%d%H%M)" >> .github/change.log
+          git config --local user.name "GitHub Actions"
+          git config --local user.email "action@github.com"
+          git add .
+          git commit -am "Update On $(date +%Y%m%d%H%M)"
+      
+      - name: Push Changes
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.ref }}
+          
+      - name: Healthy Check
+        if: (!cancelled())
+        run: |
+          echo "Check space usage"
+          df -hT
+          echo "Check memory usage"
+          free -m
