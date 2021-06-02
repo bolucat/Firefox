@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/Feature",
+  "definitions": {
+    "RemoteFeatureConfigurations": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Feature name for which the defaults are provided."
+        },
+        "configurations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "slug": {
+                "type": "string",
+                "description": "Configuration identifier that will be included in Telemetry."
+              },
+              "variables": {
+                "type": "object",
+                "description": "Key value pairs that should match the feature manifest definition.",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["enabled"]
+              },
+              "targeting": {
+                "type": "string",
+                "description": "Target the configuration only to specific clients."
+              },
+              "description": {
+                "type": "string",
+                "description": "Explanation for configuration and targeting"
+              }
+            },
+            "required": ["variables", "targeting", "slug"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["id", "configurations"],
+      "additionalProperties": false
+    }
+  }
+}

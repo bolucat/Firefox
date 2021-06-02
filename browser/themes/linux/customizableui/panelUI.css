@@ -1,0 +1,38 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+%include ../../shared/customizableui/panelUI.inc.css
+
+@media (-moz-proton) {
+#customizationui-widget-panel[viewId="PanelUI-profiler"][type="arrow"][side="top"],
+#customizationui-widget-panel[viewId="PanelUI-profiler"][type="arrow"][side="bottom"] {
+  margin-inline: -13px;
+}
+
+#customizationui-widget-panel[viewId="PanelUI-profiler"][type="arrow"][side="left"],
+#customizationui-widget-panel[viewId="PanelUI-profiler"][type="arrow"][side="right"] {
+  margin-block: -13px;
+}
+
+#notification-popup {
+  margin-block: -4px;
+}
+} /** END Proton **/
+
+#BMB_bookmarksPopup menupopup {
+  appearance: none;
+  background: var(--arrowpanel-background);
+  color: var(--arrowpanel-color);
+  border: 1px solid var(--arrowpanel-border-color);
+  margin-top: -6px;
+  padding-top: 1px;
+}
+
+menuitem.subviewbutton {
+  appearance: none !important;
+}
+
+.subviewradio > .radio-label-box {
+  appearance: none;
+}

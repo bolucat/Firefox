@@ -1,0 +1,5 @@
+commit eca69e2c95972a4c5780ef58fe1f1e53e871b9b1
+Author: Alexey Shvayka <shvaikalesh@gmail.com>
+Date:   Sun Apr 18 04:34:00 2021 +0300
+
+    Test internal methods of module namespace objects with indices
