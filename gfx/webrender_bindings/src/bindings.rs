@@ -716,7 +716,7 @@ pub extern "C" fn wr_renderer_get_screenshot_async(
     assert!(!screenshot_height.is_null());
 
     let (handle, size) = renderer.get_screenshot_async(
-        DeviceIntRect::new(
+        DeviceIntRect::from_origin_and_size(
             DeviceIntPoint::new(window_x, window_y),
             DeviceIntSize::new(window_width, window_height),
         ),
@@ -784,8 +784,8 @@ pub unsafe extern "C" fn wr_renderer_delete(renderer: *mut Renderer) {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn wr_renderer_accumulate_memory_report(renderer: &mut Renderer, report: &mut MemoryReport) {
-    *report += renderer.report_memory();
+pub unsafe extern "C" fn wr_renderer_accumulate_memory_report(renderer: &mut Renderer, report: &mut MemoryReport, swgl: *mut c_void) {
+    *report += renderer.report_memory(swgl);
 }
 
 // cbindgen doesn't support tuples, so we have a little struct instead, with
@@ -2103,7 +2103,7 @@ pub extern "C" fn wr_resource_updates_update_blob_image(
         descriptor.into(),
         Arc::new(bytes.flush_into_vec()),
         visible_rect,
-        &DirtyRect::Partial(dirty_rect),
+        &DirtyRect::Partial(dirty_rect.to_box2d()),
     );
 }
 

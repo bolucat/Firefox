@@ -33,6 +33,8 @@ const NOTIFY_TAB_RESTORED = "sessionstore-debug-tab-restored"; // WARNING: debug
 const NOTIFY_DOMWINDOWCLOSED_HANDLED =
   "sessionstore-debug-domwindowclosed-handled"; // WARNING: debug-only
 
+const NOTIFY_BROWSER_SHUTDOWN_FLUSH = "sessionstore-browser-shutdown-flush";
+
 // Maximum number of tabs to restore simultaneously. Previously controlled by
 // the browser.sessionstore.max_concurrent_tabs pref.
 const MAX_CONCURRENT_TAB_RESTORES = 3;
@@ -55,6 +57,7 @@ const OBSERVING = [
   "clear-origin-attributes-data",
   "browsing-context-did-set-embedder",
   "browsing-context-discarded",
+  "browser-shutdown-tabstate-updated",
 ];
 
 // XUL Window properties to (re)store
@@ -1005,6 +1008,12 @@ var SessionStoreInternal = {
           }
         }
         break;
+      case "browser-shutdown-tabstate-updated":
+        if (Services.appinfo.sessionHistoryInParent) {
+          // Non-SHIP code calls this when the frame script is unloaded.
+          this.onFinalTabStateUpdateComplete(aSubject);
+        }
+        break;
     }
   },
 
@@ -1231,6 +1240,70 @@ var SessionStoreInternal = {
     this._browserProgressListenerForRestore.set(browser.permanentKey, listener);
   },
 
+  onTabStateUpdate(browser, data) {
+    // Ignore messages from <browser> elements that have crashed
+    // and not yet been revived.
+    if (!this._crashedBrowsers.has(browser.permanentKey)) {
+      TabState.update(browser, data);
+      this.saveStateDelayed(browser.ownerGlobal);
+
+      // Handle any updates sent by the child after the tab was closed. This
+      // might be the final update as sent by the "unload" handler but also
+      // any async update message that was sent before the child unloaded.
+      let closedTab = this._closedTabs.get(browser.permanentKey);
+      if (closedTab) {
+        // Update the closed tab's state. This will be reflected in its
+        // window's list of closed tabs as that refers to the same object.
+        TabState.copyFromCache(browser, closedTab.tabData.state);
+      }
+    }
+  },
+
+  onFinalTabStateUpdateComplete(browser) {
+    let permanentKey = browser.permanentKey;
+
+    if (
+      this._closedTabs.has(permanentKey) &&
+      !this._crashedBrowsers.has(permanentKey)
+    ) {
+      let { closedTabs, tabData } = this._closedTabs.get(permanentKey);
+
+      // We expect no further updates.
+      this._closedTabs.delete(permanentKey);
+
+      // The tab state no longer needs this reference.
+      delete tabData.permanentKey;
+
+      // Determine whether the tab state is worth saving.
+      let shouldSave = this._shouldSaveTabState(tabData.state);
+      let index = closedTabs.indexOf(tabData);
+
+      if (shouldSave && index == -1) {
+        // If the tab state is worth saving and we didn't push it onto
+        // the list of closed tabs when it was closed (because we deemed
+        // the state not worth saving) then add it to the window's list
+        // of closed tabs now.
+        this.saveClosedTabData(closedTabs, tabData);
+      } else if (!shouldSave && index > -1) {
+        // Remove from the list of closed tabs. The update messages sent
+        // after the tab was closed changed enough state so that we no
+        // longer consider its data interesting enough to keep around.
+        this.removeClosedTabData(closedTabs, index);
+      }
+    }
+
+    // If this the final message we need to resolve all pending flush
+    // requests for the given browser as they might have been sent too
+    // late and will never respond. If they have been sent shortly after
+    // switching a browser's remoteness there isn't too much data to skip.
+    TabStateFlusher.resolveAll(browser);
+
+    this._browserSHistoryListener.get(permanentKey)?.uninstall();
+    this._browserSHistoryListenerForRestore.get(permanentKey)?.uninstall();
+
+    Services.obs.notifyObservers(browser, NOTIFY_BROWSER_SHUTDOWN_FLUSH);
+  },
+
   updateSessionStoreFromTablistener(aBrowser, aBrowsingContext, aData) {
     if (aBrowser.permanentKey == undefined) {
       return;
@@ -1277,10 +1350,7 @@ var SessionStoreInternal = {
       }
     }
 
-    delete aData.sHistoryNeeded; // Avoid saving this to disk.
-    TabState.update(aBrowser, aData);
-    let win = aBrowser.ownerGlobal;
-    this.saveStateDelayed(win);
+    this.onTabStateUpdate(aBrowser, aData);
   },
 
   /**
@@ -1332,75 +1402,17 @@ var SessionStoreInternal = {
           return;
         }
 
-        // Ignore messages from <browser> elements that have crashed
-        // and not yet been revived.
-        if (!this._crashedBrowsers.has(browser.permanentKey)) {
-          // Update the tab's cached state.
-          // Mark the window as dirty and trigger a delayed write.
-          TabState.update(browser, aMessage.data);
-          this.saveStateDelayed(win);
+        this.onTabStateUpdate(browser, data);
 
-          // Handle any updates sent by the child after the tab was closed. This
-          // might be the final update as sent by the "unload" handler but also
-          // any async update message that was sent before the child unloaded.
-          if (this._closedTabs.has(browser.permanentKey)) {
-            let { closedTabs, tabData } = this._closedTabs.get(
-              browser.permanentKey
-            );
-
-            // Update the closed tab's state. This will be reflected in its
-            // window's list of closed tabs as that refers to the same object.
-            TabState.copyFromCache(browser, tabData.state);
-
-            // Is this the tab's final message?
-            if (aMessage.data.isFinal) {
-              // We expect no further updates.
-              this._closedTabs.delete(browser.permanentKey);
-              // The tab state no longer needs this reference.
-              delete tabData.permanentKey;
-
-              // Determine whether the tab state is worth saving.
-              let shouldSave = this._shouldSaveTabState(tabData.state);
-              let index = closedTabs.indexOf(tabData);
-
-              if (shouldSave && index == -1) {
-                // If the tab state is worth saving and we didn't push it onto
-                // the list of closed tabs when it was closed (because we deemed
-                // the state not worth saving) then add it to the window's list
-                // of closed tabs now.
-                this.saveClosedTabData(closedTabs, tabData);
-              } else if (!shouldSave && index > -1) {
-                // Remove from the list of closed tabs. The update messages sent
-                // after the tab was closed changed enough state so that we no
-                // longer consider its data interesting enough to keep around.
-                this.removeClosedTabData(closedTabs, index);
-              }
-            }
-          }
-        }
-
-        if (aMessage.data.isFinal) {
-          // If this the final message we need to resolve all pending flush
-          // requests for the given browser as they might have been sent too
-          // late and will never respond. If they have been sent shortly after
-          // switching a browser's remoteness there isn't too much data to skip.
-          TabStateFlusher.resolveAll(browser);
-
-          for (let wm of [
-            this._browserSHistoryListener,
-            this._browserSHistoryListenerForRestore,
-          ]) {
-            let listener = wm.get(browser.permanentKey);
-            if (listener) {
-              listener.uninstall();
-            }
-          }
-        } else if (aMessage.data.flushID) {
+        if (data.isFinal) {
+          this.onFinalTabStateUpdateComplete(browser);
+        } else if (data.flushID) {
           // This is an update kicked off by an async flush request. Notify the
           // TabStateFlusher so that it can finish the request and notify its
           // consumer that's waiting for the flush to be done.
-          TabStateFlusher.resolve(browser, aMessage.data.flushID);
+          TabStateFlusher.resolve(browser, data.flushID);
         }
+
         break;
       case "SessionStore:restoreHistoryComplete":
         this._restoreHistoryComplete(browser, data);
@@ -1524,11 +1536,13 @@ var SessionStoreInternal = {
     });
 
     // Load the frame script after registering listeners.
-    mm.loadFrameScript(
-      "chrome://browser/content/content-sessionStore.js",
-      true,
-      true
-    );
+    if (!Services.appinfo.sessionHistoryInParent) {
+      mm.loadFrameScript(
+        "chrome://browser/content/content-sessionStore.js",
+        true,
+        true
+      );
+    }
 
     // and create its data object
     this._windows[aWindow.__SSi] = {

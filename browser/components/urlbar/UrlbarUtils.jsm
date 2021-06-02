@@ -61,6 +61,7 @@ var UrlbarUtils = {
     HEURISTIC_TEST: "heuristicTest",
     HEURISTIC_TOKEN_ALIAS_ENGINE: "heuristicTokenAliasEngine",
     HEURISTIC_UNIFIED_COMPLETE: "heuristicUnifiedComplete",
+    INPUT_HISTORY: "inputHistory",
     OMNIBOX: "extension",
     REMOTE_SUGGESTION: "remoteSuggestion",
     SUGGESTED_INDEX: "suggestedIndex",
@@ -204,6 +205,15 @@ var UrlbarUtils = {
     "touchbar",
     "typed",
   ]),
+
+  // The favicon service stores icons for URLs with the following protocols.
+  PROTOCOLS_WITH_ICONS: [
+    "chrome:",
+    "moz-extension:",
+    "about:",
+    "http:",
+    "https:",
+  ],
 
   // Search mode objects corresponding to the local shortcuts in the view, in
   // order they appear.  Pref names are relative to the `browser.urlbar` branch.
@@ -511,6 +521,14 @@ var UrlbarUtils = {
       );
       return UrlbarUtils.RESULT_GROUP.HEURISTIC_FALLBACK;
     }
+
+    switch (result.providerName) {
+      case "InputHistory":
+        return UrlbarUtils.RESULT_GROUP.INPUT_HISTORY;
+      default:
+        break;
+    }
+
     switch (result.type) {
       case UrlbarUtils.RESULT_TYPE.SEARCH:
         if (result.source == UrlbarUtils.RESULT_SOURCE.HISTORY) {
@@ -619,6 +637,26 @@ var UrlbarUtils = {
         return 3;
     }
     return 1;
+  },
+
+  /**
+   * Gets a default icon for a URL.
+   * @param {string} url
+   * @returns {string} A URI pointing to an icon for `url`.
+   */
+  getIconForUrl(url) {
+    if (typeof url == "string") {
+      return UrlbarUtils.PROTOCOLS_WITH_ICONS.some(p => url.startsWith(p))
+        ? "page-icon:" + url
+        : UrlbarUtils.ICON.DEFAULT;
+    }
+    if (
+      url instanceof URL &&
+      UrlbarUtils.PROTOCOLS_WITH_ICONS.includes(url.protocol)
+    ) {
+      return "page-icon:" + url.href;
+    }
+    return UrlbarUtils.ICON.DEFAULT;
   },
 
   /**

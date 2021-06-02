@@ -6960,14 +6960,15 @@ Element* Document::GetRootElementInternal() const {
   return nullptr;
 }
 
-nsresult Document::InsertChildBefore(nsIContent* aKid, nsIContent* aBeforeThis,
-                                     bool aNotify) {
+void Document::InsertChildBefore(nsIContent* aKid, nsIContent* aBeforeThis,
+                                 bool aNotify, ErrorResult& aRv) {
   if (aKid->IsElement() && GetRootElement()) {
     NS_WARNING("Inserting root element when we already have one");
-    return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
+    aRv.ThrowHierarchyRequestError("There is already a root element.");
+    return;
   }
 
-  return nsINode::InsertChildBefore(aKid, aBeforeThis, aNotify);
+  nsINode::InsertChildBefore(aKid, aBeforeThis, aNotify, aRv);
 }
 
 void Document::RemoveChildNode(nsIContent* aKid, bool aNotify) {
@@ -7943,8 +7944,9 @@ static void InsertAnonContentIntoCanvas(AnonymousContent& aAnonContent,
     return;
   }
 
-  nsresult rv = container->AppendChildTo(&aAnonContent.ContentNode(), true);
-  if (NS_FAILED(rv)) {
+  IgnoredErrorResult rv;
+  container->AppendChildTo(&aAnonContent.ContentNode(), true, rv);
+  if (rv.Failed()) {
     return;
   }
 
@@ -8735,9 +8737,14 @@ void Document::SetBody(nsGenericHTMLElement* newBody, ErrorResult& rv) {
   // The body element must be either a body tag or a frameset tag. And we must
   // have a root element to be able to add kids to it.
   if (!newBody ||
-      !newBody->IsAnyOfHTMLElements(nsGkAtoms::body, nsGkAtoms::frameset) ||
-      !root) {
-    rv.Throw(NS_ERROR_DOM_HIERARCHY_REQUEST_ERR);
+      !newBody->IsAnyOfHTMLElements(nsGkAtoms::body, nsGkAtoms::frameset)) {
+    rv.ThrowHierarchyRequestError(
+        "The new body must be either a body tag or frameset tag.");
+    return;
+  }
+
+  if (!root) {
+    rv.ThrowHierarchyRequestError("No root element.");
     return;
   }
 
@@ -8843,7 +8850,8 @@ void Document::SetTitle(const nsAString& aTitle, ErrorResult& aRv) {
       if (!title) {
         return;
       }
-      rootElement->InsertChildBefore(title, rootElement->GetFirstChild(), true);
+      rootElement->InsertChildBefore(title, rootElement->GetFirstChild(), true,
+                                     IgnoreErrors());
     }
   } else if (rootElement->IsHTMLElement()) {
     if (!title) {
@@ -8863,7 +8871,7 @@ void Document::SetTitle(const nsAString& aTitle, ErrorResult& aRv) {
         return;
       }
 
-      head->AppendChildTo(title, true);
+      head->AppendChildTo(title, true, IgnoreErrors());
     }
   } else {
     return;
@@ -9831,7 +9839,7 @@ nsINode* Document::AdoptNode(nsINode& aAdoptedNode, ErrorResult& rv) {
     }
     case DOCUMENT_FRAGMENT_NODE: {
       if (adoptedNode->IsShadowRoot()) {
-        rv.Throw(NS_ERROR_DOM_HIERARCHY_REQUEST_ERR);
+        rv.ThrowHierarchyRequestError("The adopted node is a shadow root.");
         return nullptr;
       }
       [[fallthrough]];
@@ -9856,7 +9864,9 @@ nsINode* Document::AdoptNode(nsINode& aAdoptedNode, ErrorResult& rv) {
       while (bc) {
         nsCOMPtr<nsINode> node = bc->GetEmbedderElement();
         if (node && node->IsInclusiveDescendantOf(adoptedNode)) {
-          rv.Throw(NS_ERROR_DOM_HIERARCHY_REQUEST_ERR);
+          rv.ThrowHierarchyRequestError(
+              "Trying to adopt a node into its own contentDocument or a "
+              "descendant contentDocument.");
           return nullptr;
         }
 

@@ -336,7 +336,18 @@ function makeResultBuckets({ showSearchSuggestionsFirst }) {
       },
       // general
       {
-        group: UrlbarUtils.RESULT_GROUP.GENERAL,
+        children: [
+          {
+            maxResultCount: 3,
+            group: UrlbarUtils.RESULT_GROUP.INPUT_HISTORY,
+          },
+          {
+            group: UrlbarUtils.RESULT_GROUP.GENERAL,
+          },
+          {
+            group: UrlbarUtils.RESULT_GROUP.INPUT_HISTORY,
+          },
+        ],
       },
     ],
   };
@@ -430,6 +441,22 @@ class Preferences {
    */
   makeResultBuckets(options) {
     return makeResultBuckets(options);
+  }
+
+  /**
+   * Sets the value of the resultBuckets pref to the current default buckets.
+   * This should be called from BrowserGlue._migrateUI when the default buckets
+   * are modified.
+   */
+  migrateResultBuckets() {
+    this.set(
+      "resultBuckets",
+      JSON.stringify(
+        makeResultBuckets({
+          showSearchSuggestionsFirst: this.get("showSearchSuggestionsFirst"),
+        })
+      )
+    );
   }
 
   /**

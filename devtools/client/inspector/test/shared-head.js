@@ -798,3 +798,40 @@ function getNumberOfMatchingElementsInContentPage(selector) {
     return content.document.querySelectorAll(innerSelector).length;
   });
 }
+
+/**
+ * Get the property of an element in the content page
+ *
+ * @param {string} selector: The selector to get the element we want the property of
+ * @param {string} propertyName: The name of the property we want the value of
+ * @returns {Promise} A promise that returns with the value of the property for the element
+ */
+function getContentPageElementProperty(selector, propertyName) {
+  return SpecialPowers.spawn(
+    gBrowser.selectedBrowser,
+    [selector, propertyName],
+    function(innerSelector, innerPropertyName) {
+      return content.document.querySelector(innerSelector)[innerPropertyName];
+    }
+  );
+}
+
+/**
+ * Set the property of an element in the content page
+ *
+ * @param {string} selector: The selector to get the element we want to set the property on
+ * @param {string} propertyName: The name of the property we want to set
+ * @param {string} propertyValue: The value that is going to be assigned to the property
+ * @returns {Promise}
+ */
+function setContentPageElementProperty(selector, propertyName, propertyValue) {
+  return SpecialPowers.spawn(
+    gBrowser.selectedBrowser,
+    [selector, propertyName, propertyValue],
+    function(innerSelector, innerPropertyName, innerPropertyValue) {
+      content.document.querySelector(innerSelector)[
+        innerPropertyName
+      ] = innerPropertyValue;
+    }
+  );
+}

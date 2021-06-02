@@ -302,6 +302,7 @@ enum BFCacheStatus {
   CONTAINS_REMOTE_SUBFRAMES = 1 << 11,   // Status 11
   NOT_ONLY_TOPLEVEL_IN_BCG = 1 << 12,    // Status 12
   ABOUT_PAGE = 1 << 13,                  // Status 13
+  RESTORING = 1 << 14,                   // Status 14
 };
 
 }  // namespace dom
@@ -732,8 +733,8 @@ class Document : public nsINode,
 
   // nsINode
   bool IsNodeOfType(uint32_t aFlags) const final;
-  nsresult InsertChildBefore(nsIContent* aKid, nsIContent* aBeforeThis,
-                             bool aNotify) override;
+  void InsertChildBefore(nsIContent* aKid, nsIContent* aBeforeThis,
+                         bool aNotify, ErrorResult& aRv) override;
   void RemoveChildNode(nsIContent* aKid, bool aNotify) final;
   nsresult Clone(dom::NodeInfo* aNodeInfo, nsINode** aResult) const override {
     return NS_ERROR_NOT_IMPLEMENTED;
