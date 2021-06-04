@@ -101,13 +101,6 @@ var testSpec = protocol.generateActorSpec({
       },
       response: {},
     },
-    waitForHighlighterEvent: {
-      request: {
-        event: Arg(0, "string"),
-        actorID: Arg(1, "string"),
-      },
-      response: {},
-    },
     waitForEventOnNode: {
       request: {
         eventName: Arg(0, "string"),
@@ -145,20 +138,6 @@ var testSpec = protocol.generateActorSpec({
         value: RetVal("boolean"),
       },
     },
-    loadAndWaitForCustomEvent: {
-      request: {
-        url: Arg(0, "string"),
-      },
-      response: {},
-    },
-    hasNode: {
-      request: {
-        selector: Arg(0, "string"),
-      },
-      response: {
-        value: RetVal("boolean"),
-      },
-    },
     getBoundingClientRect: {
       request: {
         selector: Arg(0, "string"),
@@ -187,7 +166,6 @@ var testSpec = protocol.generateActorSpec({
         value: RetVal("json"),
       },
     },
-    reflow: {},
     getNodeRect: {
       request: {
         selector: Arg(0, "string"),
@@ -394,18 +372,6 @@ var TestActor = protocol.ActorClassWithSpec(testSpec, {
   },
 
   /**
-   * Subscribe to a given highlighter event and respond when the event is received.
-   * @param {String} event The name of the highlighter event to listen to
-   * @param {String} actorID The highlighter actor ID
-   */
-  waitForHighlighterEvent: function(event, actorID) {
-    const highlighter = this.conn.getActor(actorID);
-    const { _highlighter: h } = highlighter;
-
-    return h.once(event);
-  },
-
-  /**
    * Wait for a specific event on a node matching the provided selector.
    * @param {String} eventName The name of the event to listen to
    * @param {String} selector Optional:  css selector of the node which should
@@ -483,34 +449,6 @@ var TestActor = protocol.ActorClassWithSpec(testSpec, {
     return InspectorUtils.hasPseudoClassLock(node, pseudo);
   },
 
-  loadAndWaitForCustomEvent: function(url) {
-    return new Promise(resolve => {
-      // Wait for DOMWindowCreated first, as listening on the current outerwindow
-      // doesn't allow receiving test-page-processing-done.
-      this.targetActor.chromeEventHandler.addEventListener(
-        "DOMWindowCreated",
-        () => {
-          this.content.addEventListener("test-page-processing-done", resolve, {
-            once: true,
-          });
-        },
-        { once: true }
-      );
-
-      this.content.location = url;
-    });
-  },
-
-  hasNode: function(selector) {
-    try {
-      // _querySelector throws if the node doesn't exists
-      this._querySelector(selector);
-      return true;
-    } catch (e) {
-      return false;
-    }
-  },
-
   /**
    * Get the bounding rect for a given DOM node once.
    * @param {String} selector selector identifier to select the DOM node
@@ -584,16 +522,6 @@ var TestActor = protocol.ActorClassWithSpec(testSpec, {
       );
 
       this.content[relative ? "scrollBy" : "scrollTo"](x, y);
-    });
-  },
-
-  /**
-   * Forces the reflow and waits for the next repaint.
-   */
-  reflow: function() {
-    return new Promise(resolve => {
-      this.content.document.documentElement.offsetWidth;
-      this.content.requestAnimationFrame(resolve);
     });
   },
 
@@ -1081,10 +1009,6 @@ class TestFront extends protocol.FrontClassWithSpec(testSpec) {
       p3: { x: +rGuide.x1 + 1, y: +bGuide.y1 + 1 },
       p4: { x: lGuide.x1, y: +bGuide.y1 + 1 },
     };
-  }
-
-  waitForHighlighterEvent(event) {
-    return super.waitForHighlighterEvent(event, this.highlighter.actorID);
   }
 
   /**

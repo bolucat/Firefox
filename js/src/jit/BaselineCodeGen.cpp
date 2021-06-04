@@ -2005,27 +2005,13 @@ bool BaselineCodeGen<Handler>::emit_Goto() {
 }
 
 template <typename Handler>
-bool BaselineCodeGen<Handler>::emitToBoolean() {
-  Label skipIC;
-  masm.branchTestBoolean(Assembler::Equal, R0, &skipIC);
-
-  // Call IC
-  if (!emitNextIC()) {
-    return false;
-  }
-
-  masm.bind(&skipIC);
-  return true;
-}
-
-template <typename Handler>
 bool BaselineCodeGen<Handler>::emitTest(bool branchIfTrue) {
   bool knownBoolean = frame.stackValueHasKnownType(-1, JSVAL_TYPE_BOOLEAN);
 
   // Keep top stack value in R0.
   frame.popRegsAndSync(1);
 
-  if (!knownBoolean && !emitToBoolean()) {
+  if (!knownBoolean && !emitNextIC()) {
     return false;
   }
 
@@ -2052,7 +2038,7 @@ bool BaselineCodeGen<Handler>::emitAndOr(bool branchIfTrue) {
   frame.syncStack(0);
 
   masm.loadValue(frame.addressOfStackValue(-1), R0);
-  if (!knownBoolean && !emitToBoolean()) {
+  if (!knownBoolean && !emitNextIC()) {
     return false;
   }
 
@@ -2095,7 +2081,7 @@ bool BaselineCodeGen<Handler>::emit_Not() {
   // Keep top stack value in R0.
   frame.popRegsAndSync(1);
 
-  if (!knownBoolean && !emitToBoolean()) {
+  if (!knownBoolean && !emitNextIC()) {
     return false;
   }
 
@@ -3556,6 +3542,32 @@ void BaselineInterpreterCodeGen::emitGetAliasedVar(ValueOperand dest) {
     masm.loadValue(BaseValueIndex(env, scratch, offset), dest);
   }
   masm.bind(&done);
+}
+
+template <typename Handler>
+bool BaselineCodeGen<Handler>::emitGetAliasedDebugVar(ValueOperand dest) {
+  frame.syncStack(0);
+  Register env = R0.scratchReg();
+  // Load the right environment object.
+  masm.loadPtr(frame.addressOfEnvironmentChain(), env);
+
+  prepareVMCall();
+  pushBytecodePCArg();
+  pushArg(env);
+
+  using Fn =
+      bool (*)(JSContext*, JSObject * env, jsbytecode*, MutableHandleValue);
+  return callVM<Fn, LoadAliasedDebugVar>();
+}
+
+template <typename Handler>
+bool BaselineCodeGen<Handler>::emit_GetAliasedDebugVar() {
+  if (!emitGetAliasedDebugVar(R0)) {
+    return false;
+  }
+
+  frame.push(R0);
+  return true;
 }
 
 template <typename Handler>
