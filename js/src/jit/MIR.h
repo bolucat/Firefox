@@ -1735,10 +1735,17 @@ class MTest : public MAryControlInstruction<1, 2>, public TestPolicy::Data {
   MTest(MDefinition* ins, MBasicBlock* falseBranch)
       : MTest(ins, nullptr, falseBranch) {}
 
+  TypeDataList observedTypes_;
+
  public:
   INSTRUCTION_HEADER(Test)
   TRIVIAL_NEW_WRAPPERS
   NAMED_OPERANDS((0, input))
+
+  const TypeDataList& observedTypes() const { return observedTypes_; }
+  void setObservedTypes(const TypeDataList& observed) {
+    observedTypes_ = observed;
+  }
 
   static const size_t TrueBranchIndex = 0;
 
@@ -6617,6 +6624,7 @@ class MGuardNumberToIntPtrIndex : public MUnaryInstruction,
 // Perform !-operation
 class MNot : public MUnaryInstruction, public TestPolicy::Data {
   bool operandIsNeverNaN_;
+  TypeDataList observedTypes_;
 
   explicit MNot(MDefinition* input)
       : MUnaryInstruction(classOpcode, input), operandIsNeverNaN_(false) {
@@ -6635,6 +6643,11 @@ class MNot : public MUnaryInstruction, public TestPolicy::Data {
 
   INSTRUCTION_HEADER(Not)
   TRIVIAL_NEW_WRAPPERS
+
+  void setObservedTypes(const TypeDataList& observed) {
+    observedTypes_ = observed;
+  }
+  const TypeDataList& observedTypes() const { return observedTypes_; }
 
   MDefinition* foldsTo(TempAllocator& alloc) override;
 

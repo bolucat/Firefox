@@ -137,7 +137,6 @@ const PREF_BLOCKLIST_ADDONITEM_URL = "extensions.blocklist.addonItemURL";
 const PREF_BLOCKLIST_ENABLED = "extensions.blocklist.enabled";
 const PREF_BLOCKLIST_LEVEL = "extensions.blocklist.level";
 const PREF_BLOCKLIST_USE_MLBF = "extensions.blocklist.useMLBF";
-const PREF_BLOCKLIST_USE_MLBF_STASHES = "extensions.blocklist.useMLBF.stashes";
 const PREF_EM_LOGGING_ENABLED = "extensions.logging.enabled";
 const DEFAULT_SEVERITY = 3;
 const DEFAULT_LEVEL = 2;
@@ -154,11 +153,8 @@ const PREF_BLOCKLIST_ADDONS_CHECKED_SECONDS =
   "services.blocklist.addons.checked";
 const PREF_BLOCKLIST_ADDONS_SIGNER = "services.blocklist.addons.signer";
 // Blocklist v3 - MLBF format.
-const PREF_BLOCKLIST_ADDONS3_COLLECTION =
-  "services.blocklist.addons-mlbf.collection";
 const PREF_BLOCKLIST_ADDONS3_CHECKED_SECONDS =
   "services.blocklist.addons-mlbf.checked";
-const PREF_BLOCKLIST_ADDONS3_SIGNER = "services.blocklist.addons-mlbf.signer";
 
 const BlocklistTelemetry = {
   init() {
@@ -939,14 +935,6 @@ this.ExtensionBlocklistRS = {
  *   "attachment_type": "bloomfilter-base",
  * }
  *
- * To update the blocklist, a replacement MLBF is published:
- *
- * {
- *   "generation_time": 1585692000000,
- *   "attachment": { ... RemoteSettings attachment ... }
- *   "attachment_type": "bloomfilter-full",
- * }
- *
  * The collection can also contain stashes:
  *
  * {
@@ -958,8 +946,6 @@ this.ExtensionBlocklistRS = {
  *
  * Stashes can be used to update the blocklist without forcing the whole MLBF
  * to be downloaded again. These stashes are applied on top of the base MLBF.
- * The use of stashes is currently optional, and toggled via the
- * extensions.blocklist.useMLBF.stashes preference (true = use stashes).
  *
  * Note: we assign to the global to allow tests to reach the object directly.
  */
@@ -1031,36 +1017,26 @@ this.ExtensionBlocklistMLBF = {
         .filter(r => r.attachment)
         // Newest attachments first.
         .sort((a, b) => b.generation_time - a.generation_time);
-      let mlbfRecord;
-      if (this.stashesEnabled) {
-        mlbfRecord = mlbfRecords.find(
-          r => r.attachment_type == "bloomfilter-base"
-        );
-        this._stashes = records
-          .filter(({ stash }) => {
-            return (
-              // Exclude non-stashes, e.g. MLBF attachments.
-              stash &&
-              // Sanity check for type.
-              Array.isArray(stash.blocked) &&
-              Array.isArray(stash.unblocked)
-            );
-          })
-          // Sort by stash time - newest first.
-          .sort((a, b) => b.stash_time - a.stash_time)
-          .map(({ stash, stash_time }) => ({
-            blocked: new Set(stash.blocked),
-            unblocked: new Set(stash.unblocked),
-            stash_time,
-          }));
-      } else {
-        mlbfRecord = mlbfRecords.find(
-          r =>
-            r.attachment_type == "bloomfilter-full" ||
-            r.attachment_type == "bloomfilter-base"
-        );
-        this._stashes = null;
-      }
+      const mlbfRecord = mlbfRecords.find(
+        r => r.attachment_type == "bloomfilter-base"
+      );
+      this._stashes = records
+        .filter(({ stash }) => {
+          return (
+            // Exclude non-stashes, e.g. MLBF attachments.
+            stash &&
+            // Sanity check for type.
+            Array.isArray(stash.blocked) &&
+            Array.isArray(stash.unblocked)
+          );
+        })
+        // Sort by stash time - newest first.
+        .sort((a, b) => b.stash_time - a.stash_time)
+        .map(({ stash, stash_time }) => ({
+          blocked: new Set(stash.blocked),
+          unblocked: new Set(stash.unblocked),
+          stash_time,
+        }));
 
       let mlbf = await this._fetchMLBF(mlbfRecord);
       // When a MLBF dump is packaged with the browser, mlbf will always be
@@ -1134,21 +1110,12 @@ this.ExtensionBlocklistMLBF = {
       return;
     }
     this._initialized = true;
-    this._client = RemoteSettings(
-      Services.prefs.getCharPref(PREF_BLOCKLIST_ADDONS3_COLLECTION),
-      {
-        bucketNamePref: PREF_BLOCKLIST_BUCKET,
-        lastCheckTimePref: PREF_BLOCKLIST_ADDONS3_CHECKED_SECONDS,
-        signerName: Services.prefs.getCharPref(PREF_BLOCKLIST_ADDONS3_SIGNER),
-      }
-    );
+    this._client = RemoteSettings("addons-bloomfilters", {
+      bucketName: "blocklists",
+      lastCheckTimePref: PREF_BLOCKLIST_ADDONS3_CHECKED_SECONDS,
+    });
     this._onUpdate = this._onUpdate.bind(this);
     this._client.on("sync", this._onUpdate);
-    this.stashesEnabled = Services.prefs.getBoolPref(
-      PREF_BLOCKLIST_USE_MLBF_STASHES,
-      false
-    );
-    Services.telemetry.scalarSet("blocklist.mlbf_stashes", this.stashesEnabled);
   },
 
   shutdown() {
@@ -1213,13 +1180,18 @@ this.ExtensionBlocklistMLBF = {
   },
 
   async getEntry(addon) {
-    if (!this._mlbfData) {
+    if (!this._stashes) {
       this.ensureInitialized();
       await this._updateMLBF(false);
+    } else if (this._updatePromise) {
+      // _stashes has been initialized, but the initialization of _mlbfData is
+      // still pending.
+      await this._updatePromise;
     }
 
     let blockKey = addon.id + ":" + addon.version;
 
+    // _stashes will be unset if !gBlocklistEnabled.
     if (this._stashes) {
       // Stashes are ordered by newest first.
       for (let stash of this._stashes) {
@@ -1248,7 +1220,7 @@ this.ExtensionBlocklistMLBF = {
       // - The RemoteSettings backend is unreachable, and this client was built
       //   without including a dump of the MLBF.
       //
-      // ... in other words, this shouldn't happen in practice.
+      // ... in other words, this is unlikely to happen in practice.
       return null;
     }
     let { cascadeFilter, generationTime } = this._mlbfData;
@@ -1449,27 +1421,12 @@ let Blocklist = {
           case PREF_BLOCKLIST_USE_MLBF:
             let oldImpl = this.ExtensionBlocklist;
             this._chooseExtensionBlocklistImplementationFromPref();
-            if (oldImpl._initialized) {
+            // The implementation may be unchanged when the pref is ignored.
+            if (oldImpl != this.ExtensionBlocklist && oldImpl._initialized) {
               oldImpl.shutdown();
               this.ExtensionBlocklist.undoShutdown();
               this.ExtensionBlocklist._onUpdate();
             } // else neither has been initialized yet. Wait for it to happen.
-            break;
-          case PREF_BLOCKLIST_USE_MLBF_STASHES:
-            ExtensionBlocklistMLBF.stashesEnabled = Services.prefs.getBoolPref(
-              PREF_BLOCKLIST_USE_MLBF_STASHES,
-              false
-            );
-            if (
-              ExtensionBlocklistMLBF._initialized &&
-              !ExtensionBlocklistMLBF._didShutdown
-            ) {
-              Services.telemetry.scalarSet(
-                "blocklist.mlbf_stashes",
-                ExtensionBlocklistMLBF.stashesEnabled
-              );
-              ExtensionBlocklistMLBF._onUpdate();
-            }
             break;
         }
         break;
@@ -1496,13 +1453,20 @@ let Blocklist = {
     BlocklistTelemetry.recordAddonBlockChangeTelemetry(addon, reason);
   },
 
+  // TODO bug 1649906, bug 1639050: Remove blocklist v2.
+  // Allow blocklist for Android and unit tests only.
+  allowDeprecatedBlocklistV2: AppConstants.platform === "android",
+
   _chooseExtensionBlocklistImplementationFromPref() {
-    if (Services.prefs.getBoolPref(PREF_BLOCKLIST_USE_MLBF, false)) {
-      this.ExtensionBlocklist = ExtensionBlocklistMLBF;
-      Services.telemetry.scalarSet("blocklist.mlbf_enabled", true);
-    } else {
+    if (
+      this.allowDeprecatedBlocklistV2 &&
+      !Services.prefs.getBoolPref(PREF_BLOCKLIST_USE_MLBF, false)
+    ) {
       this.ExtensionBlocklist = ExtensionBlocklistRS;
       Services.telemetry.scalarSet("blocklist.mlbf_enabled", false);
+    } else {
+      this.ExtensionBlocklist = ExtensionBlocklistMLBF;
+      Services.telemetry.scalarSet("blocklist.mlbf_enabled", true);
     }
   },
 

@@ -1383,6 +1383,10 @@ bool WarpBuilder::buildTestOp(BytecodeLocation loc) {
     return false;
   }
 
+  if (const auto* typesSnapshot = getOpSnapshot<WarpPolymorphicTypes>(loc)) {
+    test->setObservedTypes(typesSnapshot->list());
+  }
+
   setTerminatedBlock();
   return true;
 }
@@ -1407,8 +1411,13 @@ bool WarpBuilder::buildTestBackedge(BytecodeLocation loc) {
     return false;
   }
 
-  pred->end(MTest::New(alloc(), value, /* ifTrue = */ current,
-                       /* ifFalse = */ nullptr));
+  MTest* test = MTest::New(alloc(), value, /* ifTrue = */ current,
+                           /* ifFalse = */ nullptr);
+  pred->end(test);
+
+  if (const auto* typesSnapshot = getOpSnapshot<WarpPolymorphicTypes>(loc)) {
+    test->setObservedTypes(typesSnapshot->list());
+  }
 
   if (!addPendingEdge(PendingEdge::NewTestFalse(pred, op), successor)) {
     return false;
@@ -1530,6 +1539,11 @@ bool WarpBuilder::build_Not(BytecodeLocation loc) {
   MNot* ins = MNot::New(alloc(), value);
   current->add(ins);
   current->push(ins);
+
+  if (const auto* typesSnapshot = getOpSnapshot<WarpPolymorphicTypes>(loc)) {
+    ins->setObservedTypes(typesSnapshot->list());
+  }
+
   return true;
 }
 
