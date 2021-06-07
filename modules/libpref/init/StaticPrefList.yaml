@@ -2030,6 +2030,14 @@
   value: true
   mirror: always
 
+# In addition to the above IPC layer compresison, allow touchmove
+# events to be further coalesced in the child side after they
+# are sent.
+- name: dom.events.coalesce.touchmove
+  type: bool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+
 # Whether to expose test interfaces of various sorts
 - name: dom.expose_test_interfaces
   type: bool
@@ -3562,12 +3570,12 @@
   # mouse messages.
 -   name: dom.w3c_pointer_events.dispatch_by_pointer_messages
     type: bool
-    value: false
+    value: @IS_NIGHTLY_BUILD@
     mirror: always
 
 -   name: dom.w3c_pointer_events.scroll_by_pen.enabled
     type: bool
-    value: false
+    value: true
     mirror: always
 #endif
 
@@ -5751,6 +5759,12 @@
 #ifdef NIGHTLY_BUILD
   # Experimental support for Iterator Helpers in JavaScript.
 -   name: javascript.options.experimental.iterator_helpers
+    type: bool
+    value: false
+    mirror: always
+
+# Experimental support for class static blocks in JavaScript.
+-   name: javascript.options.experimental.class_static_blocks
     type: bool
     value: false
     mirror: always

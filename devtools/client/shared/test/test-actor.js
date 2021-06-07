@@ -146,10 +146,6 @@ var testSpec = protocol.generateActorSpec({
         value: RetVal("json"),
       },
     },
-    reload: {
-      request: {},
-      response: {},
-    },
     reloadFrame: {
       request: {
         selector: Arg(0, "string"),
@@ -178,14 +174,6 @@ var testSpec = protocol.generateActorSpec({
       request: {
         parentSelector: Arg(0, "string"),
         childNodeIndex: Arg(1, "number"),
-      },
-      response: {
-        value: RetVal("json"),
-      },
-    },
-    getNodeInfo: {
-      request: {
-        selector: Arg(0, "string"),
       },
       response: {
         value: RetVal("json"),
@@ -471,13 +459,6 @@ var TestActor = protocol.ActorClassWithSpec(testSpec, {
   },
 
   /**
-   * Reload the content window.
-   */
-  reload: function() {
-    this.content.location.reload();
-  },
-
-  /**
    * Reload an iframe and wait for its load event.
    * @param {String} selector The node selector
    */
@@ -534,43 +515,6 @@ var TestActor = protocol.ActorClassWithSpec(testSpec, {
     const parentNode = this._querySelector(parentSelector);
     const node = parentNode.childNodes[childNodeIndex];
     return getAdjustedQuads(this.content, node)[0].bounds;
-  },
-
-  /**
-   * Get information about a DOM element, identified by a selector.
-   * @param {String} selector The CSS selector to get the node (can be an array
-   * of selectors to get elements in an iframe).
-   * @return {Object} data Null if selector didn't match any node, otherwise:
-   * - {String} tagName.
-   * - {String} namespaceURI.
-   * - {Number} numChildren The number of children in the element.
-   * - {Array} attributes An array of {name, value, namespaceURI} objects.
-   * - {String} outerHTML.
-   * - {String} innerHTML.
-   * - {String} textContent.
-   */
-  getNodeInfo: function(selector) {
-    const node = this._querySelector(selector);
-    let info = null;
-
-    if (node) {
-      info = {
-        tagName: node.tagName,
-        namespaceURI: node.namespaceURI,
-        numChildren: node.children.length,
-        numNodes: node.childNodes.length,
-        attributes: [...node.attributes].map(
-          ({ name, value, namespaceURI }) => {
-            return { name, value, namespaceURI };
-          }
-        ),
-        outerHTML: node.outerHTML,
-        innerHTML: node.innerHTML,
-        textContent: node.textContent,
-      };
-    }
-
-    return info;
   },
 
   /**

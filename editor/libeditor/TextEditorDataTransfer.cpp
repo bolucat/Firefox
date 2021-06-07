@@ -9,21 +9,17 @@
 #include "mozilla/HTMLEditor.h"
 #include "mozilla/MouseEvents.h"
 #include "mozilla/SelectionState.h"
-#include "mozilla/TextControlElement.h"
 #include "mozilla/dom/DataTransfer.h"
+#include "mozilla/dom/Document.h"
 #include "mozilla/dom/DocumentInlines.h"
-#include "mozilla/dom/DragEvent.h"
 #include "mozilla/dom/Selection.h"
-#include "mozilla/dom/StaticRange.h"
 #include "nsAString.h"
 #include "nsCOMPtr.h"
 #include "nsContentUtils.h"
 #include "nsDebug.h"
 #include "nsError.h"
-#include "nsFocusManager.h"
 #include "nsIClipboard.h"
 #include "nsIContent.h"
-#include "mozilla/dom/Document.h"
 #include "nsIDragService.h"
 #include "nsIDragSession.h"
 #include "nsIPrincipal.h"
@@ -97,341 +93,65 @@ nsresult TextEditor::InsertTextFromTransferable(
   return rv;
 }
 
-nsresult TextEditor::OnDrop(DragEvent* aDropEvent) {
-  if (NS_WARN_IF(!aDropEvent)) {
-    return NS_ERROR_INVALID_ARG;
-  }
+nsresult TextEditor::InsertDroppedDataTransferAsAction(
+    AutoEditActionDataSetter& aEditActionData, DataTransfer& aDataTransfer,
+    const EditorDOMPoint& aDroppedAt, Document* aSrcDocument) {
+  MOZ_ASSERT(aEditActionData.GetEditAction() == EditAction::eDrop);
+  MOZ_ASSERT(GetEditAction() == EditAction::eDrop);
+  MOZ_ASSERT(aDroppedAt.IsSet());
+  MOZ_ASSERT(aDataTransfer.MozItemCount() > 0);
 
-  DebugOnly<nsresult> rvIgnored = CommitComposition();
-  NS_WARNING_ASSERTION(NS_SUCCEEDED(rvIgnored),
-                       "EditorBase::CommitComposition() failed, but ignored");
-
-  AutoEditActionDataSetter editActionData(*this, EditAction::eDrop);
-  // We need to initialize data or dataTransfer later.  Therefore, we cannot
-  // dispatch "beforeinput" event until then.
-  if (NS_WARN_IF(!editActionData.CanHandle())) {
-    return NS_ERROR_NOT_INITIALIZED;
-  }
-
-  RefPtr<DataTransfer> dataTransfer = aDropEvent->GetDataTransfer();
-  if (NS_WARN_IF(!dataTransfer)) {
-    return NS_ERROR_FAILURE;
-  }
-
-  nsCOMPtr<nsIDragSession> dragSession = nsContentUtils::GetDragSession();
-  if (NS_WARN_IF(!dragSession)) {
-    return NS_ERROR_FAILURE;
-  }
-
-  nsCOMPtr<nsINode> sourceNode = dataTransfer->GetMozSourceNode();
-
-  RefPtr<Document> srcdoc;
-  if (sourceNode) {
-    srcdoc = sourceNode->OwnerDoc();
-  }
-
-  if (nsContentUtils::CheckForSubFrameDrop(
-          dragSession, aDropEvent->WidgetEventPtr()->AsDragEvent())) {
-    // Don't allow drags from subframe documents with different origins than
-    // the drop destination.
-    if (srcdoc && !IsSafeToInsertData(srcdoc)) {
-      return NS_OK;
+  uint32_t numItems = aDataTransfer.MozItemCount();
+  AutoTArray<nsString, 5> textArray;
+  textArray.SetCapacity(numItems);
+  uint32_t textLength = 0;
+  for (uint32_t i = 0; i < numItems; ++i) {
+    nsCOMPtr<nsIVariant> data;
+    aDataTransfer.GetDataAtNoSecurityCheck(u"text/plain"_ns, i,
+                                           getter_AddRefs(data));
+    if (!data) {
+      continue;
     }
-  }
-
-  // Current doc is destination
-  RefPtr<Document> document = GetDocument();
-  if (NS_WARN_IF(!document)) {
-    return NS_ERROR_NOT_INITIALIZED;
-  }
-
-  const uint32_t numItems = dataTransfer->MozItemCount();
-  if (NS_WARN_IF(!numItems)) {
-    return NS_ERROR_FAILURE;  // Nothing to drop?
-  }
-
-  // We have to figure out whether to delete and relocate caret only once
-  // Parent and offset are under the mouse cursor.
-  int32_t dropOffset = -1;
-  nsCOMPtr<nsIContent> dropParentContent =
-      aDropEvent->GetRangeParentContentAndOffset(&dropOffset);
-  EditorDOMPoint droppedAt(dropParentContent, dropOffset);
-  if (NS_WARN_IF(!droppedAt.IsSet()) ||
-      NS_WARN_IF(!droppedAt.GetContainerAsContent())) {
-    return NS_ERROR_FAILURE;
-  }
-
-  // Check if dropping into a selected range.  If so and the source comes from
-  // same document, jump through some hoops to determine if mouse is over
-  // selection (bail) and whether user wants to copy selection or delete it.
-  if (sourceNode && sourceNode->IsEditable() && srcdoc == document) {
-    bool isPointInSelection = EditorUtils::IsPointInSelection(
-        SelectionRef(), *droppedAt.GetContainer(), droppedAt.Offset());
-    if (isPointInSelection) {
-      // If source document and destination document is same and dropping
-      // into one of selected ranges, we don't need to do nothing.
-      // XXX If the source comes from outside of this editor, this check
-      //     means that we don't allow to drop the item in the selected
-      //     range.  However, the selection is hidden until the <input> or
-      //     <textarea> gets focus, therefore, this looks odd.
-      return NS_OK;
+    // Use nsString to avoid copying its storage to textArray.
+    nsString insertText;
+    data->GetAsAString(insertText);
+    if (insertText.IsEmpty()) {
+      continue;
     }
+    textArray.AppendElement(insertText);
+    textLength += insertText.Length();
+  }
+  // Use nsString to avoid copying its storage to aEditActionData.
+  nsString data;
+  data.SetCapacity(textLength);
+  // Join the text array from end to start because we insert each items
+  // in the aDataTransfer at same point from start to end.  Although I
+  // don't know whether this is intentional behavior.
+  for (nsString& text : Reversed(textArray)) {
+    data.Append(text);
+  }
+  // Use native line breaks for compatibility with Chrome.
+  // XXX Although, somebody has already converted native line breaks to
+  //     XP line breaks.
+  aEditActionData.SetData(data);
+
+  nsresult rv = aEditActionData.MaybeDispatchBeforeInputEvent();
+  if (NS_FAILED(rv)) {
+    NS_WARNING_ASSERTION(rv == NS_ERROR_EDITOR_ACTION_CANCELED,
+                         "MaybeDispatchBeforeInputEvent() failed");
+    return rv;
   }
 
-  // Delete if user doesn't want to copy when user moves selected content
-  // to different place in same editor.
-  // XXX Do we need the check whether it's in same document or not?
-  RefPtr<TextEditor> editorToDeleteSelection;
-  if (sourceNode && sourceNode->IsEditable() && srcdoc == document) {
-    if ((dataTransfer->DropEffectInt() &
-         nsIDragService::DRAGDROP_ACTION_MOVE) &&
-        !(dataTransfer->DropEffectInt() &
-          nsIDragService::DRAGDROP_ACTION_COPY)) {
-      // If the source node is in native anonymous tree, it must be in
-      // <input> or <textarea> element.  If so, its TextEditor can remove it.
-      if (sourceNode->IsInNativeAnonymousSubtree()) {
-        if (RefPtr<TextControlElement> textControlElement =
-                TextControlElement::FromNodeOrNull(
-                    sourceNode->GetClosestNativeAnonymousSubtreeRootParent())) {
-          editorToDeleteSelection = textControlElement->GetTextEditor();
-        }
-      }
-      // Otherwise, must be the content is in HTMLEditor.
-      else if (AsHTMLEditor()) {
-        editorToDeleteSelection = this;
-      } else {
-        editorToDeleteSelection =
-            nsContentUtils::GetHTMLEditor(srcdoc->GetPresContext());
-      }
-    }
-    // If the found editor isn't modifiable, we should not try to delete
-    // selection.
-    if (editorToDeleteSelection && !editorToDeleteSelection->IsModifiable()) {
-      editorToDeleteSelection = nullptr;
-    }
-    // If the found editor has collapsed selection, we need to delete nothing
-    // in the editor.
-    if (editorToDeleteSelection) {
-      if (Selection* selection = editorToDeleteSelection->GetSelection()) {
-        if (selection->IsCollapsed()) {
-          editorToDeleteSelection = nullptr;
-        }
-      }
-    }
-  }
-
-  if (IsPlaintextEditor()) {
-    for (nsIContent* content = droppedAt.GetContainerAsContent(); content;
-         content = content->GetParent()) {
-      nsCOMPtr<nsIFormControl> formControl(do_QueryInterface(content));
-      if (formControl && !formControl->AllowDrop()) {
-        // Don't allow dropping into a form control that doesn't allow being
-        // dropped into.
-        return NS_OK;
-      }
-    }
-  }
-
-  // Combine any deletion and drop insertion into one transaction.
-  AutoPlaceholderBatch treatAsOneTransaction(*this,
-                                             ScrollSelectionIntoView::Yes);
-
-  // Don't dispatch "selectionchange" event until inserting all contents.
-  SelectionBatcher selectionBatcher(SelectionRef());
-
-  // Track dropped point with nsRange because we shouldn't insert the
-  // dropped content into different position even if some event listeners
-  // modify selection.  Note that Chrome's behavior is really odd.  So,
-  // we don't need to worry about web-compat about this.
-  IgnoredErrorResult ignoredError;
-  RefPtr<nsRange> rangeAtDropPoint =
-      nsRange::Create(droppedAt.ToRawRangeBoundary(),
-                      droppedAt.ToRawRangeBoundary(), ignoredError);
-  if (NS_WARN_IF(ignoredError.Failed()) ||
-      NS_WARN_IF(!rangeAtDropPoint->IsPositioned())) {
-    editActionData.Abort();
-    return NS_ERROR_FAILURE;
-  }
-
-  // Remove selected contents first here because we need to fire a pair of
-  // "beforeinput" and "input" for deletion and web apps can cancel only
-  // this deletion.  Note that callee may handle insertion asynchronously.
-  // Therefore, it is the best to remove selected content here.
-  if (editorToDeleteSelection) {
-    nsresult rv = editorToDeleteSelection->DeleteSelectionByDragAsAction(
-        mDispatchInputEvent);
-    if (NS_WARN_IF(Destroyed())) {
-      editActionData.Abort();
-      return NS_OK;
-    }
-    // Ignore the editor instance specific error if it's another editor.
-    if (this != editorToDeleteSelection &&
-        (rv == NS_ERROR_NOT_INITIALIZED || rv == NS_ERROR_EDITOR_DESTROYED)) {
-      rv = NS_OK;
-    }
-    // Don't cancel "insertFromDrop" even if "deleteByDrag" is canceled.
-    if (rv != NS_ERROR_EDITOR_ACTION_CANCELED && NS_FAILED(rv)) {
-      NS_WARNING("EditorBase::DeleteSelectionByDragAsAction() failed");
-      editActionData.Abort();
-      return EditorBase::ToGenericNSResult(rv);
-    }
-    if (NS_WARN_IF(!rangeAtDropPoint->IsPositioned()) ||
-        NS_WARN_IF(!rangeAtDropPoint->GetStartContainer()->IsContent())) {
-      editActionData.Abort();
-      return NS_ERROR_FAILURE;
-    }
-    droppedAt = rangeAtDropPoint->StartRef();
-    MOZ_ASSERT(droppedAt.IsSetAndValid());
-  }
-
-  // Before inserting dropping content, we need to move focus for compatibility
-  // with Chrome and firing "beforeinput" event on new editing host.
-  RefPtr<Element> focusedElement, newFocusedElement;
-  if (!AsHTMLEditor()) {
-    newFocusedElement = GetExposedRoot();
-    focusedElement = IsActiveInDOMWindow() ? newFocusedElement : nullptr;
-  } else if (!AsHTMLEditor()->IsInDesignMode()) {
-    focusedElement = AsHTMLEditor()->GetActiveEditingHost();
-    if (focusedElement &&
-        droppedAt.GetContainerAsContent()->IsInclusiveDescendantOf(
-            focusedElement)) {
-      newFocusedElement = focusedElement;
-    } else {
-      newFocusedElement = droppedAt.GetContainerAsContent()->GetEditingHost();
-    }
-  }
-  // Move selection right now.  Note that this does not move focus because
-  // `Selection` moves focus with selection change only when the API caller is
-  // JS.  And also this does not notify selection listeners (nor
-  // "selectionchange") since we created SelectionBatcher above.
-  ErrorResult error;
-  SelectionRef().SetStartAndEnd(droppedAt.ToRawRangeBoundary(),
-                                droppedAt.ToRawRangeBoundary(), error);
-  if (error.Failed()) {
-    NS_WARNING("Selection::SetStartAndEnd() failed");
-    editActionData.Abort();
-    return error.StealNSResult();
-  }
+  // Then, insert the text.  Note that we shouldn't need to walk the array
+  // anymore because nobody should listen to mutation events of anonymous
+  // text node in <input>/<textarea>.
+  nsContentUtils::PlatformToDOMLineBreaks(data);
+  rv = InsertTextAt(data, aDroppedAt, false);
   if (NS_WARN_IF(Destroyed())) {
-    editActionData.Abort();
-    return NS_OK;
+    return NS_ERROR_EDITOR_DESTROYED;
   }
-  // Then, move focus if necessary.  This must cause dispatching "blur" event
-  // and "focus" event.
-  if (newFocusedElement && focusedElement != newFocusedElement) {
-    RefPtr<nsFocusManager> fm = nsFocusManager::GetFocusManager();
-    DebugOnly<nsresult> rvIgnored = fm->SetFocus(newFocusedElement, 0);
-    NS_WARNING_ASSERTION(NS_SUCCEEDED(rvIgnored),
-                         "nsFocusManager::SetFocus() failed to set focus "
-                         "to the element, but ignored");
-    if (NS_WARN_IF(Destroyed())) {
-      editActionData.Abort();
-      return NS_OK;
-    }
-    // "blur" or "focus" event listener may have changed the value.
-    // Let's keep using the original point.
-    if (NS_WARN_IF(!rangeAtDropPoint->IsPositioned()) ||
-        NS_WARN_IF(!rangeAtDropPoint->GetStartContainer()->IsContent())) {
-      return NS_ERROR_FAILURE;
-    }
-    droppedAt = rangeAtDropPoint->StartRef();
-    MOZ_ASSERT(droppedAt.IsSetAndValid());
-
-    // If focus is changed to different element and we're handling drop in
-    // contenteditable, we cannot handle it without focus.  So, we should give
-    // it up.
-    if (AsHTMLEditor() && !AsHTMLEditor()->IsInDesignMode() &&
-        NS_WARN_IF(newFocusedElement !=
-                   AsHTMLEditor()->GetActiveEditingHost())) {
-      editActionData.Abort();
-      return NS_OK;
-    }
-  }
-
-  if (!AsHTMLEditor()) {
-    AutoTArray<nsString, 5> textArray;
-    textArray.SetCapacity(numItems);
-    uint32_t textLength = 0;
-    for (uint32_t i = 0; i < numItems; ++i) {
-      nsCOMPtr<nsIVariant> data;
-      dataTransfer->GetDataAtNoSecurityCheck(u"text/plain"_ns, i,
-                                             getter_AddRefs(data));
-      if (!data) {
-        continue;
-      }
-      // Use nsString to avoid copying its storage to textArray.
-      nsString insertText;
-      data->GetAsAString(insertText);
-      if (insertText.IsEmpty()) {
-        continue;
-      }
-      textArray.AppendElement(insertText);
-      textLength += insertText.Length();
-    }
-    // Use nsString to avoid copying its storage to editActionData.
-    nsString data;
-    data.SetCapacity(textLength);
-    // Join the text array from end to start because we insert each items
-    // in the dataTransfer at same point from start to end.  Although I
-    // don't know whether this is intentional behavior.
-    for (nsString& text : Reversed(textArray)) {
-      data.Append(text);
-    }
-    // Use native line breaks for compatibility with Chrome.
-    // XXX Although, somebody has already converted native line breaks to
-    //     XP line breaks.
-    editActionData.SetData(data);
-
-    nsresult rv = editActionData.MaybeDispatchBeforeInputEvent();
-    if (NS_FAILED(rv)) {
-      NS_WARNING_ASSERTION(rv == NS_ERROR_EDITOR_ACTION_CANCELED,
-                           "MaybeDispatchBeforeInputEvent() failed");
-      return EditorBase::ToGenericNSResult(rv);
-    }
-
-    // Then, insert the text.  Note that we shouldn't need to walk the array
-    // anymore because nobody should listen to mutation events of anonymous
-    // text node in <input>/<textarea>.
-    nsContentUtils::PlatformToDOMLineBreaks(data);
-    DebugOnly<nsresult> rvIgnored = InsertTextAt(data, droppedAt, false);
-    if (NS_WARN_IF(Destroyed())) {
-      return NS_OK;
-    }
-    NS_WARNING_ASSERTION(NS_SUCCEEDED(rvIgnored),
-                         "EditorBase::InsertTextAt() failed, but ignored");
-  } else {
-    editActionData.InitializeDataTransfer(dataTransfer);
-    RefPtr<StaticRange> targetRange = StaticRange::Create(
-        droppedAt.GetContainer(), droppedAt.Offset(), droppedAt.GetContainer(),
-        droppedAt.Offset(), IgnoreErrors());
-    NS_WARNING_ASSERTION(targetRange && targetRange->IsPositioned(),
-                         "Why did we fail to create collapsed static range at "
-                         "dropped position?");
-    if (targetRange && targetRange->IsPositioned()) {
-      editActionData.AppendTargetRange(*targetRange);
-    }
-    nsresult rv = editActionData.MaybeDispatchBeforeInputEvent();
-    if (NS_FAILED(rv)) {
-      NS_WARNING_ASSERTION(rv == NS_ERROR_EDITOR_ACTION_CANCELED,
-                           "MaybeDispatchBeforeInputEvent() failed");
-      return EditorBase::ToGenericNSResult(rv);
-    }
-    RefPtr<HTMLEditor> htmlEditor(AsHTMLEditor());
-    for (uint32_t i = 0; i < numItems; ++i) {
-      DebugOnly<nsresult> rvIgnored = htmlEditor->InsertFromDataTransfer(
-          dataTransfer, i, srcdoc, droppedAt, false);
-      if (NS_WARN_IF(Destroyed())) {
-        return NS_OK;
-      }
-      NS_WARNING_ASSERTION(
-          NS_SUCCEEDED(rvIgnored),
-          "HTMLEditor::InsertFromDataTransfer() failed, but ignored");
-    }
-  }
-
-  nsresult rv = ScrollSelectionFocusIntoView();
   NS_WARNING_ASSERTION(NS_SUCCEEDED(rv),
-                       "EditorBase::ScrollSelectionFocusIntoView() failed");
+                       "EditorBase::InsertTextAt() failed, but ignored");
   return rv;
 }
 

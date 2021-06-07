@@ -970,6 +970,11 @@ class HTMLEditor final : public TextEditor,
   [[nodiscard]] MOZ_CAN_RUN_SCRIPT EditActionResult HandleInsertText(
       EditSubAction aEditSubAction, const nsAString& aInsertionString) final;
 
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult InsertDroppedDataTransferAsAction(
+      AutoEditActionDataSetter& aEditActionData,
+      dom::DataTransfer& aDataTransfer, const EditorDOMPoint& aDroppedAt,
+      dom::Document* aSrcDocument) final;
+
   /**
    * GetInlineStyles() retrieves the style of aNode and modifies each item of
    * aStyleCacheArray.  This might cause flushing layout at retrieving computed
