@@ -2877,7 +2877,7 @@ bool CacheIRCompiler::emitInt32RightShiftResult(Int32OperandId lhsId,
 
 bool CacheIRCompiler::emitInt32URightShiftResult(Int32OperandId lhsId,
                                                  Int32OperandId rhsId,
-                                                 bool allowDouble) {
+                                                 bool forceDouble) {
   JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
   AutoOutputRegister output(*this);
 
@@ -2892,7 +2892,7 @@ bool CacheIRCompiler::emitInt32URightShiftResult(Int32OperandId lhsId,
 
   masm.mov(lhs, scratch);
   masm.flexibleRshift32(rhs, scratch);
-  if (allowDouble) {
+  if (forceDouble) {
     ScratchDoubleScope fpscratch(masm);
     masm.convertUInt32ToDouble(scratch, fpscratch);
     masm.boxDouble(fpscratch, output.valueReg(), fpscratch);
@@ -5253,7 +5253,7 @@ static void EmitAllocateBigInt(MacroAssembler& masm, Register result,
 
 bool CacheIRCompiler::emitLoadTypedArrayElementResult(
     ObjOperandId objId, IntPtrOperandId indexId, Scalar::Type elementType,
-    bool handleOOB, bool allowDoubleForUint32) {
+    bool handleOOB, bool forceDoubleForUint32) {
   JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
   AutoOutputRegister output(*this);
   Register obj = allocator.useRegister(masm, objId);
@@ -5320,8 +5320,11 @@ bool CacheIRCompiler::emitLoadTypedArrayElementResult(
 
     masm.tagValue(JSVAL_TYPE_BIGINT, *bigInt, output.valueReg());
   } else {
-    masm.loadFromTypedArray(elementType, source, output.valueReg(),
-                            allowDoubleForUint32, scratch1, failure->label());
+    MacroAssembler::Uint32Mode uint32Mode =
+        forceDoubleForUint32 ? MacroAssembler::Uint32Mode::ForceDouble
+                             : MacroAssembler::Uint32Mode::FailOnDouble;
+    masm.loadFromTypedArray(elementType, source, output.valueReg(), uint32Mode,
+                            scratch1, failure->label());
   }
 
   if (handleOOB) {
@@ -5356,7 +5359,7 @@ static void EmitDataViewBoundsCheck(MacroAssembler& masm, size_t byteSize,
 bool CacheIRCompiler::emitLoadDataViewValueResult(
     ObjOperandId objId, IntPtrOperandId offsetId,
     BooleanOperandId littleEndianId, Scalar::Type elementType,
-    bool allowDoubleForUint32) {
+    bool forceDoubleForUint32) {
   JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
 
   AutoOutputRegister output(*this);
@@ -5453,10 +5456,14 @@ bool CacheIRCompiler::emitLoadDataViewValueResult(
     case Scalar::Int32:
       masm.tagValue(JSVAL_TYPE_INT32, outputScratch, output.valueReg());
       break;
-    case Scalar::Uint32:
-      masm.boxUint32(outputScratch, output.valueReg(), allowDoubleForUint32,
+    case Scalar::Uint32: {
+      MacroAssembler::Uint32Mode uint32Mode =
+          forceDoubleForUint32 ? MacroAssembler::Uint32Mode::ForceDouble
+                               : MacroAssembler::Uint32Mode::FailOnDouble;
+      masm.boxUint32(outputScratch, output.valueReg(), uint32Mode,
                      failure->label());
       break;
+    }
     case Scalar::Float32: {
       FloatRegister scratchFloat32 = floatScratch0.get().asSingle();
       masm.moveGPRToFloat32(outputScratch, scratchFloat32);
@@ -7981,20 +7988,11 @@ bool CacheIRCompiler::emitAtomicsLoadResult(ObjOperandId objId,
   auto sync = Synchronization::Load();
 
   masm.memoryBarrierBefore(sync);
-  if (elementType != Scalar::Uint32) {
-    bool allowDouble = false;
-    Register tempUint32 = Register::Invalid();
-    Label* failUint32 = nullptr;
 
-    masm.loadFromTypedArray(elementType, source, output->valueReg(),
-                            allowDouble, tempUint32, failUint32);
-  } else {
-    Label* failUint32 = nullptr;
-
-    masm.loadFromTypedArray(elementType, source, AnyRegister(floatReg), scratch,
-                            failUint32);
-    masm.boxDouble(floatReg, output->valueReg(), floatReg);
-  }
+  Label* failUint32 = nullptr;
+  MacroAssembler::Uint32Mode mode = MacroAssembler::Uint32Mode::ForceDouble;
+  masm.loadFromTypedArray(elementType, source, output->valueReg(), mode,
+                          scratch, failUint32);
   masm.memoryBarrierAfter(sync);
 
   return true;

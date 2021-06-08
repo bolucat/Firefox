@@ -36,13 +36,13 @@ class MsaaAccessible : public ia2Accessible,
   static const uint32_t kNoID = 0;
   void SetID(uint32_t aID);
 
-  static int32_t GetChildIDFor(LocalAccessible* aAccessible);
+  static int32_t GetChildIDFor(Accessible* aAccessible);
   static uint32_t GetContentProcessIdFor(dom::ContentParentId aIPCContentId);
   static void ReleaseContentProcessIdFor(dom::ContentParentId aIPCContentId);
   static void AssignChildIDTo(NotNull<sdnAccessible*> aSdnAcc);
   static void ReleaseChildID(NotNull<sdnAccessible*> aSdnAcc);
-  static HWND GetHWNDFor(LocalAccessible* aAccessible);
-  static void FireWinEvent(LocalAccessible* aTarget, uint32_t aEventType);
+  static HWND GetHWNDFor(Accessible* aAccessible);
+  static void FireWinEvent(Accessible* aTarget, uint32_t aEventType);
 
   /**
    * Find an accessible by the given child ID in cached documents.
@@ -66,7 +66,7 @@ class MsaaAccessible : public ia2Accessible,
 
   void MsaaShutdown();
 
-  static IDispatch* NativeAccessible(LocalAccessible* aAccessible);
+  static IDispatch* NativeAccessible(Accessible* aAccessible);
 
   static MsaaAccessible* GetFrom(Accessible* aAcc);
 

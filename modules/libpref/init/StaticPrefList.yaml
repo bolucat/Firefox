@@ -1206,12 +1206,6 @@
   mirror: always
   rust: true
 
-- name: browser.proton.doorhangers.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
 - name: browser.proton.places-tooltip.enabled
   type: RelaxedAtomicBool
   value: false
@@ -5195,7 +5189,7 @@
 # software backend
 - name: gfx.webrender.software.unaccelerated-widget.allow
   type: RelaxedAtomicBool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 # Whether to force widgets to don't support acceleration to use WebRender
@@ -6821,6 +6815,13 @@
   type: bool
   value: false
   mirror: always
+
+# Is support for fit-content() enabled?
+- name: layout.css.fit-content-function.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+  rust: true
 
 # Is support for the font-display @font-face descriptor enabled?
 - name: layout.css.font-display.enabled
@@ -11390,22 +11391,6 @@
   value: false
   mirror: always
 
-# Whether system colors follow the document theme rather than the system on
-# chrome documents.
-- name: widget.system-colors-follow-theme
-  type: RelaxedAtomicBool
-#ifdef XP_MACOSX
-  value: true
-#else
-  # TODO(emilio): In order to enable this on GTK we need to teach
-  # nsNativeThemeGTK to draw non-system-themed widgets, which seems a bit hard,
-  # or alternatively do this only for documents which use the non-native theme.
-  #
-  # We also need to enable widget.gtk.alt-theme.dark.
-  value: false
-#endif
-  mirror: always
-
 - name: widget.window-transforms.disabled
   type: RelaxedAtomicBool
   value: false
@@ -11422,7 +11407,7 @@
   value: true
   mirror: always
 
-- name: widget.macos.respect-system-appearance
+- name: widget.macos.support-dark-appearance
   type: RelaxedAtomicBool
   value: false
   mirror: always
@@ -11437,9 +11422,8 @@
 # Whether we try to extract dark theme GTK colors.
 #
 # This has a startup performance cost (see bug 1709295), so until we need them
-# (that is, until we implement the color-scheme CSS property / meta tag / etc,
-# or we start following the firefox theme color scheme in our UI with
-# widget.system-colors-follow-theme) we keep this code pref'd off.
+# (that is, until we implement the color-scheme CSS property / meta tag / etc)
+# we keep this code pref'd off.
 - name: widget.gtk.alt-theme.dark
   type: bool
   value: false
