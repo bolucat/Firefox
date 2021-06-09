@@ -401,13 +401,6 @@ class TextEditor : public EditorBase, public nsITimerCallback, public nsINamed {
   SetTextWithoutTransaction(const nsAString& aValue);
 
   /**
-   * EnsurePaddingBRElementInMultilineEditor() creates a padding `<br>` element
-   * at end of multiline text editor.
-   */
-  [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult
-  EnsurePaddingBRElementInMultilineEditor();
-
-  /**
    * EnsureCaretNotAtEndOfTextNode() collapses selection at the padding `<br>`
    * element (i.e., container becomes the anonymous `<div>` element) if
    * `Selection` is at end of the text node.
@@ -446,13 +439,6 @@ class TextEditor : public EditorBase, public nsITimerCallback, public nsINamed {
 
  protected:  // Shouldn't be used by friend classes
   virtual ~TextEditor();
-
-  /**
-   * InitEditorContentAndSelection() may insert a padding `<br>` element for
-   * if it's required in the anonymous `<div>` element and collapse selection
-   * at the end if there is no selection ranges.
-   */
-  [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult InitEditorContentAndSelection();
 
   /**
    * CanEchoPasswordNow() returns true if currently we can echo password.

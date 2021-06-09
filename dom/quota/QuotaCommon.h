@@ -7,10 +7,7 @@
 #ifndef mozilla_dom_quota_quotacommon_h__
 #define mozilla_dom_quota_quotacommon_h__
 
-// This must be included at the very beginning since it also contains
-// QM_ERROR_STACKS_ENABLED definition which is used below.
-// XXX Create a special file for this, like QuotaConfig.h
-#include "mozilla/dom/QMResult.h"
+#include "mozilla/dom/quota/Config.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -28,10 +25,10 @@
 #include "mozilla/Result.h"
 #include "mozilla/ResultExtensions.h"
 #include "mozilla/ThreadLocal.h"
-#if (defined(EARLY_BETA_OR_EARLIER) || defined(DEBUG)) && \
-    defined(QM_ERROR_STACKS_ENABLED)
+#if defined(QM_LOG_ERROR_ENABLED) && defined(QM_ERROR_STACKS_ENABLED)
 #  include "mozilla/Variant.h"
 #endif
+#include "mozilla/dom/QMResult.h"
 #include "mozilla/ipc/ProtocolUtils.h"
 #include "nsCOMPtr.h"
 #include "nsDebug.h"
@@ -1323,7 +1320,7 @@ enum class Severity {
   Verbose,
 };
 
-#if defined(EARLY_BETA_OR_EARLIER) || defined(DEBUG)
+#ifdef QM_LOG_ERROR_ENABLED
 #  ifdef QM_ERROR_STACKS_ENABLED
 using ResultType = Variant<QMResult, nsresult, Nothing>;
 
@@ -1344,15 +1341,11 @@ Result<bool, nsresult> WarnIfFileIsUnknown(nsIFile& aFile,
                                            int32_t aSourceFileLine);
 #endif
 
-#if defined(EARLY_BETA_OR_EARLIER) || defined(DEBUG)
-#  define QM_ENABLE_SCOPED_LOG_EXTRA_INFO
-#endif
-
 struct MOZ_STACK_CLASS ScopedLogExtraInfo {
   static constexpr const char kTagQuery[] = "query";
   static constexpr const char kTagContext[] = "context";
 
-#ifdef QM_ENABLE_SCOPED_LOG_EXTRA_INFO
+#ifdef QM_SCOPED_LOG_EXTRA_INFO_ENABLED
  private:
   static auto FindSlot(const char* aTag);
 
@@ -1411,11 +1404,12 @@ struct MOZ_STACK_CLASS ScopedLogExtraInfo {
 //
 // This functions are not intended to be called
 // directly, they should only be called from the QM_* macros.
-#if defined(EARLY_BETA_OR_EARLIER) || defined(DEBUG)
+#ifdef QM_LOG_ERROR_ENABLED
 template <typename T>
-MOZ_COLD void HandleError(const char* aExpr, const T& aRv,
-                          const char* aSourceFilePath, int32_t aSourceFileLine,
-                          const Severity aSeverity) {
+MOZ_COLD MOZ_NEVER_INLINE void HandleError(const char* aExpr, const T& aRv,
+                                           const char* aSourceFilePath,
+                                           int32_t aSourceFileLine,
+                                           const Severity aSeverity) {
 #  ifdef QM_ERROR_STACKS_ENABLED
   if constexpr (std::is_same_v<T, QMResult> || std::is_same_v<T, nsresult>) {
     mozilla::dom::quota::LogError(nsDependentCString(aExpr), ResultType(aRv),

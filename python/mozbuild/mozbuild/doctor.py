@@ -5,12 +5,15 @@
 from __future__ import absolute_import, print_function
 
 import enum
+import locale
 import os
+import socket
 import subprocess
 import sys
 
 import attr
 import psutil
+import requests
 
 from distutils.version import LooseVersion
 
@@ -80,15 +83,106 @@ def check(func):
 
 
 @check
+def dns(**kwargs):
+    """Check DNS is queryable."""
+    try:
+        socket.getaddrinfo("mozilla.org", 80)
+        return DoctorCheck(
+            name="dns",
+            status=CheckStatus.OK,
+            display_text=["DNS query for mozilla.org completed successfully."],
+        )
+
+    except socket.gaierror:
+        return DoctorCheck(
+            name="dns",
+            status=CheckStatus.FATAL,
+            display_text=["Could not query DNS for mozilla.org."],
+        )
+
+
+@check
+def internet(**kwargs):
+    """Check the internet is reachable via HTTPS."""
+    try:
+        resp = requests.get("https://mozilla.org")
+        resp.raise_for_status()
+
+        return DoctorCheck(
+            name="internet",
+            status=CheckStatus.OK,
+            display_text=["Internet is reachable."],
+        )
+
+    except Exception:
+        return DoctorCheck(
+            name="internet",
+            status=CheckStatus.FATAL,
+            display_text=["Could not reach a known website via HTTPS."],
+        )
+
+
+@check
+def ssh(**kwargs):
+    """Check the status of `ssh hg.mozilla.org` for common errors."""
+    try:
+        # We expect this command to return exit code 1 even when we hit
+        # the successful code path, since we don't specify a `pash` command.
+        proc = subprocess.run(
+            ["ssh", "hg.mozilla.org"],
+            encoding="utf-8",
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+        )
+
+        # Command output from a successful `pash` run.
+        if "has privileges to access Mercurial over" in proc.stdout:
+            return DoctorCheck(
+                name="ssh",
+                status=CheckStatus.OK,
+                display_text=["SSH is properly configured for access to hg."],
+            )
+
+        if "Permission denied" in proc.stdout:
+            # Parse thproc.stdout for username, which looks like:
+            # `<username>@hg.mozilla.org: Permission denied (reason)`
+            login_string = proc.stdout.split()[0]
+            username, _host = login_string.split("@hg.mozilla.org")
+
+            # `<username>` should be an email.
+            if "@" not in username:
+                return DoctorCheck(
+                    name="ssh",
+                    status=CheckStatus.FATAL,
+                    display_text=[
+                        "SSH username `{}` is not an email address.".format(username),
+                        "hg.mozilla.org logins should be in the form `user@domain.com`.",
+                    ],
+                )
+
+            return DoctorCheck(
+                name="ssh",
+                status=CheckStatus.WARNING,
+                display_text=[
+                    "SSH username `{}` does not have permission to push to "
+                    "hg.mozilla.org.".format(username)
+                ],
+            )
+    except subprocess.CalledProcessError:
+        return DoctorCheck(
+            name="ssh",
+            status=CheckStatus.WARNING,
+            display_text=["Could not run `ssh hg.mozilla.org`."],
+        )
+
+
+@check
 def cpu(**kwargs):
     """Check the host machine has the recommended processing power to develop Firefox."""
     cpu_count = psutil.cpu_count()
     if cpu_count < PROCESSORS_THRESHOLD:
         status = CheckStatus.WARNING
-        desc = "%d logical processors detected, <%d" % (
-            cpu_count,
-            PROCESSORS_THRESHOLD,
-        )
+        desc = "%d logical processors detected, <%d" % (cpu_count, PROCESSORS_THRESHOLD)
     else:
         status = CheckStatus.OK
         desc = "%d logical processors detected, >=%d" % (
@@ -96,11 +190,7 @@ def cpu(**kwargs):
             PROCESSORS_THRESHOLD,
         )
 
-    return DoctorCheck(
-        name="cpu",
-        display_text=[desc],
-        status=status,
-    )
+    return DoctorCheck(name="cpu", display_text=[desc], status=status)
 
 
 @check
@@ -116,11 +206,7 @@ def memory(**kwargs):
         status = CheckStatus.OK
         desc = "%.1fGB of physical memory, >%.1fGB" % (memory_GB, MEMORY_THRESHOLD)
 
-    return DoctorCheck(
-        name="memory",
-        status=status,
-        display_text=[desc],
-    )
+    return DoctorCheck(name="memory", status=status, display_text=[desc])
 
 
 @check
@@ -153,23 +239,13 @@ def storage_freespace(topsrcdir, topobjdir, **kwargs):
                 status = CheckStatus.WARNING
                 desc.append(
                     "mountpoint = %s\n%dGB of %dGB free, <%dGB"
-                    % (
-                        mount,
-                        freespace_GB,
-                        size_GB,
-                        FREESPACE_THRESHOLD,
-                    )
+                    % (mount, freespace_GB, size_GB, FREESPACE_THRESHOLD)
                 )
             else:
                 status = CheckStatus.OK
                 desc.append(
                     "mountpoint = %s\n%dGB of %dGB free, >=%dGB"
-                    % (
-                        mount,
-                        freespace_GB,
-                        size_GB,
-                        FREESPACE_THRESHOLD,
-                    )
+                    % (mount, freespace_GB, size_GB, FREESPACE_THRESHOLD)
                 )
 
         except OSError:
@@ -177,11 +253,7 @@ def storage_freespace(topsrcdir, topobjdir, **kwargs):
             desc.append("path invalid")
 
         checks.append(
-            DoctorCheck(
-                name="%s mount check" % mount,
-                status=status,
-                display_text=desc,
-            )
+            DoctorCheck(name="%s mount check" % mount, status=status, display_text=desc)
         )
 
     return checks
@@ -214,14 +286,12 @@ def fs_lastaccess(topsrcdir, topobjdir, **kwargs):
             disablelastaccess = int(fsutil_output.partition("=")[2][1])
         except subprocess.CalledProcessError:
             return DoctorCheck(
-                status=CheckStatus.WARNING,
-                desc=["unable to check lastaccess behavior"],
+                status=CheckStatus.WARNING, desc=["unable to check lastaccess behavior"]
             )
 
         if disablelastaccess == 1:
             return DoctorCheck(
-                status=CheckStatus.OK,
-                display_text=["lastaccess disabled systemwide"],
+                status=CheckStatus.OK, display_text=["lastaccess disabled systemwide"]
             )
         elif disablelastaccess == 0:
             return DoctorCheck(
@@ -284,9 +354,7 @@ def check_mount_lastaccess(mount):
         desc = "%s has %s mount option" % (mount, option)
 
     return DoctorCheck(
-        name="%s mount lastaccess" % mount,
-        status=status,
-        display_text=[desc],
+        name="%s mount lastaccess" % mount, status=status, display_text=[desc]
     )
 
 
@@ -334,11 +402,40 @@ def mozillabuild(**kwargs):
         status = CheckStatus.FATAL
         desc = "MozillaBuild version not found"
 
-    return DoctorCheck(
-        name="mozillabuild",
-        status=status,
-        display_text=[desc],
-    )
+    return DoctorCheck(name="mozillabuild", status=status, display_text=[desc])
+
+
+@check
+def bad_locale_utf8(**kwargs):
+    """Check to detect the invalid locale `UTF-8` on pre-3.8 Python."""
+    if sys.version_info >= (3, 8):
+        return DoctorCheck(
+            name="utf8 locale",
+            status=CheckStatus.SKIPPED,
+            display_text=["Python version has fixed utf-8 locale bug."],
+        )
+
+    try:
+        # This line will attempt to get and parse the locale.
+        locale.getdefaultlocale()
+
+        return DoctorCheck(
+            name="utf8 locale",
+            status=CheckStatus.OK,
+            display_text=["Python's locale is set to a valid value."],
+        )
+    except ValueError:
+        return DoctorCheck(
+            name="utf8 locale",
+            status=CheckStatus.FATAL,
+            display_text=[
+                "Your Python is using an invalid value for its locale.",
+                "Either update Python to version 3.8+, or set the following variables in ",
+                "your environment:",
+                "  export LC_ALL=en_US.UTF-8",
+                "  export LANG=en_US.UTF-8",
+            ],
+        )
 
 
 def run_doctor(fix=False, verbose=False, **kwargs):

@@ -2254,6 +2254,13 @@ class EditorBase : public nsIEditor,
     return mIsHTMLEditorClass ? EditorType::HTML : EditorType::Text;
   }
 
+  /**
+   * InitEditorContentAndSelection() may insert a padding `<br>` element for
+   * if it's required in the anonymous `<div>` element or `<body>` element and
+   * collapse selection at the end if there is no selection ranges.
+   */
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult InitEditorContentAndSelection();
+
   int32_t WrapWidth() const { return mWrapColumn; }
 
   /**
@@ -2322,6 +2329,13 @@ class EditorBase : public nsIEditor,
   already_AddRefed<nsIDocumentEncoder> GetAndInitDocEncoder(
       const nsAString& aFormatType, uint32_t aDocumentEncoderFlags,
       const nsACString& aCharset) const;
+
+  /**
+   * EnsurePaddingBRElementInMultilineEditor() creates a padding `<br>` element
+   * at end of multiline text editor.
+   */
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult
+  EnsurePaddingBRElementInMultilineEditor();
 
   /**
    * SelectAllInternal() should be used instead of SelectAll() in editor

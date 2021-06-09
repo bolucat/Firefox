@@ -241,7 +241,7 @@ template Result<SingleStepSuccessType<SingleStepResult::ReturnNullIfNoResult>,
 CreateAndExecuteSingleStepStatement<SingleStepResult::ReturnNullIfNoResult>(
     mozIStorageConnection& aConnection, const nsACString& aStatementString);
 
-#ifdef QM_ENABLE_SCOPED_LOG_EXTRA_INFO
+#ifdef QM_SCOPED_LOG_EXTRA_INFO_ENABLED
 MOZ_THREAD_LOCAL(const nsACString*) ScopedLogExtraInfo::sQueryValue;
 MOZ_THREAD_LOCAL(const nsACString*) ScopedLogExtraInfo::sContextValue;
 
@@ -403,7 +403,7 @@ nsDependentCSubstring MakeSourceFileRelativePath(
 
 }  // namespace detail
 
-#if defined(EARLY_BETA_OR_EARLIER) || defined(DEBUG)
+#ifdef QM_LOG_ERROR_ENABLED
 #  ifdef QM_ERROR_STACKS_ENABLED
 void LogError(const nsACString& aExpr, const ResultType& aResult,
               const nsACString& aSourceFilePath, const int32_t aSourceFileLine,
@@ -421,6 +421,31 @@ void LogError(const nsACString& aExpr, const Maybe<nsresult> aMaybeRv,
   if (aSeverity == Severity::Verbose) {
     return;
   }
+
+  nsAutoCString context;
+
+#  ifdef QM_SCOPED_LOG_EXTRA_INFO_ENABLED
+  const auto& extraInfoMap = ScopedLogExtraInfo::GetExtraInfoMap();
+
+  if (const auto contextIt = extraInfoMap.find(ScopedLogExtraInfo::kTagContext);
+      contextIt != extraInfoMap.cend()) {
+    context = *contextIt->second;
+  }
+#  endif
+
+  const auto severityString = [&aSeverity]() -> nsLiteralCString {
+    switch (aSeverity) {
+      case Severity::Error:
+        return "ERROR"_ns;
+      case Severity::Warning:
+        return "WARNING"_ns;
+      case Severity::Note:
+        return "NOTE"_ns;
+      case Severity::Verbose:
+        return "VERBOSE"_ns;
+    }
+    MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("Bad severity value!");
+  }();
 
   Maybe<nsresult> maybeRv;
 
@@ -491,32 +516,17 @@ void LogError(const nsACString& aExpr, const Maybe<nsresult> aMaybeRv,
   }
 #  endif
 
-  const auto sourceFileRelativePath =
-      detail::MakeSourceFileRelativePath(aSourceFilePath);
-
-  const auto severityString = [&aSeverity]() -> nsLiteralCString {
-    switch (aSeverity) {
-      case Severity::Error:
-        return "ERROR"_ns;
-      case Severity::Warning:
-        return "WARNING"_ns;
-      case Severity::Note:
-        return "NOTE"_ns;
-      case Severity::Verbose:
-        return "VERBOSE"_ns;
-    }
-    MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("Bad severity value!");
-  }();
-
-#  ifdef QM_ENABLE_SCOPED_LOG_EXTRA_INFO
-  const auto& extraInfos = ScopedLogExtraInfo::GetExtraInfoMap();
-  for (const auto& item : extraInfos) {
+#  ifdef QM_SCOPED_LOG_EXTRA_INFO_ENABLED
+  for (const auto& item : extraInfoMap) {
     extraInfosString.Append(", "_ns + nsDependentCString(item.first) + " "_ns +
                             *item.second);
   }
 #  endif
 
-#  ifdef DEBUG
+  const auto sourceFileRelativePath =
+      detail::MakeSourceFileRelativePath(aSourceFilePath);
+
+#  ifdef QM_LOG_ERROR_TO_CONSOLE_ENABLED
   NS_DebugBreak(
       NS_DEBUG_WARNING,
       nsAutoCString("QM_TRY failure ("_ns + severityString + ")"_ns).get(),
@@ -527,34 +537,42 @@ void LogError(const nsACString& aExpr, const Maybe<nsresult> aMaybeRv,
       nsPromiseFlatCString(sourceFileRelativePath).get(), aSourceFileLine);
 #  endif
 
-  nsCOMPtr<nsIConsoleService> console =
-      do_GetService(NS_CONSOLESERVICE_CONTRACTID);
-  if (console) {
-    NS_ConvertUTF8toUTF16 message("QM_TRY failure ("_ns + severityString +
-                                  ")"_ns + ": '"_ns + aExpr + extraInfosString +
-                                  "', file "_ns + sourceFileRelativePath +
-                                  ":"_ns + IntToCString(aSourceFileLine));
+#  ifdef QM_LOG_ERROR_TO_BROWSER_CONSOLE_ENABLED
+  // XXX We might want to allow reporting to the browsing console even when
+  // there's no context in future once we are sure that it can't spam the
+  // browser console or when we have special about:quotamanager for the
+  // reporting (instead of the browsing console).
+  // Another option is to keep the current check and rely on MOZ_LOG reporting
+  // in future once that's available.
+  if (!context.IsEmpty()) {
+    nsCOMPtr<nsIConsoleService> console =
+        do_GetService(NS_CONSOLESERVICE_CONTRACTID);
+    if (console) {
+      NS_ConvertUTF8toUTF16 message(
+          "QM_TRY failure ("_ns + severityString + ")"_ns + ": '"_ns + aExpr +
+          extraInfosString + "', file "_ns + sourceFileRelativePath + ":"_ns +
+          IntToCString(aSourceFileLine));
 
-    // The concatenation above results in a message like:
-    // QM_TRY failure (ERROR): 'MaybeRemoveLocalStorageArchiveTmpFile() failed
-    // with resultCode 0x80004005, resultName NS_ERROR_FAILURE, frameId 1,
-    // stackId 1, processId 53978, context Initialization::Storage', file
-    // dom/quota/ActorsParent.cpp:6029
+      // The concatenation above results in a message like:
+      // QM_TRY failure (ERROR): 'MaybeRemoveLocalStorageArchiveTmpFile() failed
+      // with resultCode 0x80004005, resultName NS_ERROR_FAILURE, frameId 1,
+      // stackId 1, processId 53978, context Initialization::Storage', file
+      // dom/quota/ActorsParent.cpp:6029
 
-    console->LogStringMessage(message.get());
+      console->LogStringMessage(message.get());
+    }
   }
+#  endif
 
-#  ifdef QM_ENABLE_SCOPED_LOG_EXTRA_INFO
-  if (const auto contextIt = extraInfos.find(ScopedLogExtraInfo::kTagContext);
-      contextIt != extraInfos.cend()) {
+#  ifdef QM_LOG_ERROR_TO_TELEMETRY_ENABLED
+  if (!context.IsEmpty()) {
     // For now, we don't include aExpr in the telemetry event. It might help to
     // match locations across versions, but they might be large.
     auto extra = Some([&] {
       auto res = CopyableTArray<EventExtraEntry>{};
       res.SetCapacity(9);
 
-      res.AppendElement(EventExtraEntry{
-          "context"_ns, nsPromiseFlatCString{*contextIt->second}});
+      res.AppendElement(EventExtraEntry{"context"_ns, nsCString{context}});
 
 #    ifdef QM_ERROR_STACKS_ENABLED
       if (!frameIdString.IsEmpty()) {
