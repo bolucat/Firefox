@@ -3068,6 +3068,7 @@ exports.CSS_PROPERTIES = {
       "rx",
       "ry",
       "r",
+      "d",
       "table-layout",
       "text-overflow",
       "text-decoration-line",
@@ -5785,6 +5786,21 @@ exports.CSS_PROPERTIES = {
     "values": [
       "inherit",
       "initial",
+      "revert",
+      "unset"
+    ]
+  },
+  "d": {
+    "isInherited": false,
+    "subproperties": [
+      "d"
+    ],
+    "supports": [],
+    "values": [
+      "inherit",
+      "initial",
+      "none",
+      "path",
       "revert",
       "unset"
     ]
@@ -10994,6 +11010,10 @@ exports.PREFERENCES = [
   [
     "backdrop-filter",
     "layout.css.backdrop-filter.enabled"
+  ],
+  [
+    "d",
+    "layout.css.d-property.enabled"
   ],
   [
     "font-variation-settings",
