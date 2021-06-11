@@ -13,10 +13,6 @@ const {
   getAdjustedQuads,
   getWindowDimensions,
 } = require("devtools/shared/layout/utils");
-const {
-  isAgentStylesheet,
-  getCSSStyleRules,
-} = require("devtools/shared/inspector/css-logic");
 const InspectorUtils = require("InspectorUtils");
 
 // Set up a dummy environment so that EventUtils works. We need to be careful to
@@ -126,12 +122,6 @@ var testSpec = protocol.generateActorSpec({
         value: RetVal("json"),
       },
     },
-    scrollIntoView: {
-      request: {
-        args: Arg(0, "string"),
-      },
-      response: {},
-    },
     hasPseudoClassLock: {
       request: {
         selector: Arg(0, "string"),
@@ -148,12 +138,6 @@ var testSpec = protocol.generateActorSpec({
       response: {
         value: RetVal("json"),
       },
-    },
-    reloadFrame: {
-      request: {
-        selector: Arg(0, "string"),
-      },
-      response: {},
     },
     scrollWindow: {
       request: {
@@ -177,14 +161,6 @@ var testSpec = protocol.generateActorSpec({
       request: {
         parentSelector: Arg(0, "string"),
         childNodeIndex: Arg(1, "number"),
-      },
-      response: {
-        value: RetVal("json"),
-      },
-    },
-    getStyleSheetsInfoForNode: {
-      request: {
-        selector: Arg(0, "string"),
       },
       response: {
         value: RetVal("json"),
@@ -413,15 +389,6 @@ var TestActor = protocol.ActorClassWithSpec(testSpec, {
   },
 
   /**
-   * Scroll an element into view.
-   * @param {String} selector The selector for the node to scroll into view.
-   */
-  scrollIntoView: function(selector) {
-    const node = this._querySelector(selector);
-    node.scrollIntoView();
-  },
-
-  /**
    * Check that an element currently has a pseudo-class lock.
    * @param {String} selector The node selector to get the pseudo-class from
    * @param {String} pseudo The pseudoclass to check for
@@ -451,24 +418,6 @@ var TestActor = protocol.ActorClassWithSpec(testSpec, {
       bottom: rect.bottom,
       left: rect.left,
     };
-  },
-
-  /**
-   * Reload an iframe and wait for its load event.
-   * @param {String} selector The node selector
-   */
-  reloadFrame: function(selector) {
-    return new Promise(resolve => {
-      const node = this._querySelector(selector);
-
-      const onLoad = function() {
-        node.removeEventListener("load", onLoad);
-        resolve();
-      };
-      node.addEventListener("load", onLoad);
-
-      node.contentWindow.location.reload();
-    });
   },
 
   /**
@@ -510,32 +459,6 @@ var TestActor = protocol.ActorClassWithSpec(testSpec, {
     const parentNode = this._querySelector(parentSelector);
     const node = parentNode.childNodes[childNodeIndex];
     return getAdjustedQuads(this.content, node)[0].bounds;
-  },
-
-  /**
-   * Get information about the stylesheets which have CSS rules that apply to a given DOM
-   * element, identified by a selector.
-   * @param {String} selector The CSS selector to get the node (can be an array
-   * of selectors to get elements in an iframe).
-   * @return {Array} A list of stylesheet objects, each having the following properties:
-   * - {String} href.
-   * - {Boolean} isContentSheet.
-   */
-  getStyleSheetsInfoForNode: function(selector) {
-    const node = this._querySelector(selector);
-    const domRules = getCSSStyleRules(node);
-
-    const sheets = [];
-
-    for (let i = 0, n = domRules.length; i < n; i++) {
-      const sheet = domRules[i].parentStyleSheet;
-      sheets.push({
-        href: sheet.href,
-        isContentSheet: !isAgentStylesheet(sheet),
-      });
-    }
-
-    return sheets;
   },
 
   /**

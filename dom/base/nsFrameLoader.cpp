@@ -1856,8 +1856,14 @@ void nsFrameLoader::StartDestroy(bool aForProcessSwitch) {
   }
   mDestroyCalled = true;
 
-  // request a tabStateFlush before tab is closed
-  RequestFinalTabStateFlush();
+  // Request a full tab state flush if the tab is closing.
+  //
+  // XXX If we find that we need to do Session Store cleanup for the frameloader
+  // that's going away, we should unconditionally do the flush here, but include
+  // the |aForProcessSwitch| flag in the completion notification.
+  if (!aForProcessSwitch) {
+    RequestFinalTabStateFlush();
+  }
 
   // After this point, we return an error when trying to send a message using
   // the message manager on the frame.
@@ -3261,15 +3267,15 @@ void nsFrameLoader::RequestEpochUpdate(uint32_t aEpoch) {
   }
 }
 
-void nsFrameLoader::RequestSHistoryUpdate(bool aImmediately) {
+void nsFrameLoader::RequestSHistoryUpdate() {
   if (mSessionStoreListener) {
-    mSessionStoreListener->UpdateSHistoryChanges(aImmediately);
+    mSessionStoreListener->UpdateSHistoryChanges();
     return;
   }
 
   // If remote browsing (e10s), handle this with the BrowserParent.
   if (auto* browserParent = GetBrowserParent()) {
-    Unused << browserParent->SendUpdateSHistory(aImmediately);
+    Unused << browserParent->SendUpdateSHistory();
   }
 }
 
