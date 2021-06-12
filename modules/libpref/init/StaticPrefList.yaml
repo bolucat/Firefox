@@ -1200,12 +1200,6 @@
   mirror: always
   rust: true
 
-- name: browser.proton.modals.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
 - name: browser.proton.places-tooltip.enabled
   type: RelaxedAtomicBool
   value: false
@@ -3955,6 +3949,16 @@
   value: false
   mirror: always
 
+# Whether to expose the MockExtensionAPI test interface in tests.
+# The interface MockExtensionAPI doesn't represent a real extension API,
+# it is only available in test and does include a series of cases useful
+# to test the API request handling without tying the unit test to a
+# specific WebExtensions API.
+- name: extensions.webidl-api.expose_mock_interface
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 #---------------------------------------------------------------------------
 # Prefs starting with "findbar."
 #---------------------------------------------------------------------------
@@ -4939,6 +4943,13 @@
   type: bool
   value: false
   mirror: once
+
+#ifdef MOZ_WIDGET_GTK
+- name: gfx.webrender.reject-software-driver
+  type: bool
+  value: true
+  mirror: once
+#endif
 
 - name: gfx.webrender.highlight-painted-layers
   type: RelaxedAtomicBool
@@ -10581,6 +10592,21 @@
   value: false
   mirror: always
 
+# Disable preloaded static key pins by default.
+- name: security.cert_pinning.enforcement_level
+  type: ReleaseAcquireAtomicUint32
+  value: 0
+  mirror: always
+  do_not_use_directly: true
+
+#---------------------------------------------------------------------------
+# Prefs starting with "signon."
+#---------------------------------------------------------------------------
+- name: signon.usernameOnlyForm.enabled
+  type: bool
+  value: true
+  mirror: always
+
 #---------------------------------------------------------------------------
 # Prefs starting with "slider."
 #---------------------------------------------------------------------------
@@ -11402,7 +11428,13 @@
 # Whether we should try to use WebRender to render widgets.
 - name: widget.non-native-theme.webrender
   type: bool
+#if defined(XP_MACOSX)
+  # Disabled on macOS release / beta because of a suspected AMD driver bug (see
+  # bug 1715452).
+  value: @IS_NIGHTLY_BUILD@
+#else
   value: true
+#endif
   mirror: always
 
 # Preference to disable dark scrollbar implementation.

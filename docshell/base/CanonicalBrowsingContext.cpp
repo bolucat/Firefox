@@ -502,37 +502,31 @@ CanonicalBrowsingContext::ReplaceLoadingSessionHistoryEntryForLoad(
   MOZ_ASSERT(aInfo);
   MOZ_ASSERT(aChannel);
 
-  UniquePtr<SessionHistoryInfo> newInfo = MakeUnique<SessionHistoryInfo>(
+  SessionHistoryInfo newInfo = SessionHistoryInfo(
       aChannel, aInfo->mInfo.LoadType(),
       aInfo->mInfo.GetPartitionedPrincipalToInherit(), aInfo->mInfo.GetCsp());
 
-  RefPtr<SessionHistoryEntry> newEntry = new SessionHistoryEntry(newInfo.get());
-  if (IsTop()) {
-    // Only top level pages care about Get/SetPersist.
-    nsCOMPtr<nsIURI> uri;
-    aChannel->GetURI(getter_AddRefs(uri));
-    newEntry->SetPersist(nsDocShell::ShouldAddToSessionHistory(uri, aChannel));
-  } else {
-    newEntry->SetIsSubFrame(aInfo->mInfo.IsSubFrame());
-  }
-  newEntry->SetDocshellID(GetHistoryID());
-  newEntry->SetIsDynamicallyAdded(CreatedDynamically());
-
-  // Replacing the old entry.
-  SessionHistoryEntry::SetByLoadId(aInfo->mLoadId, newEntry);
-
-  bool forInitialLoad = true;
   for (size_t i = 0; i < mLoadingEntries.Length(); ++i) {
     if (mLoadingEntries[i].mLoadId == aInfo->mLoadId) {
-      forInitialLoad = mLoadingEntries[i].mEntry->ForInitialLoad();
-      mLoadingEntries[i].mEntry = newEntry;
-      break;
+      RefPtr<SessionHistoryEntry> loadingEntry = mLoadingEntries[i].mEntry;
+      loadingEntry->SetInfo(&newInfo);
+
+      if (IsTop()) {
+        // Only top level pages care about Get/SetPersist.
+        nsCOMPtr<nsIURI> uri;
+        aChannel->GetURI(getter_AddRefs(uri));
+        loadingEntry->SetPersist(
+            nsDocShell::ShouldAddToSessionHistory(uri, aChannel));
+      } else {
+        loadingEntry->SetIsSubFrame(aInfo->mInfo.IsSubFrame());
+      }
+      loadingEntry->SetDocshellID(GetHistoryID());
+      loadingEntry->SetIsDynamicallyAdded(CreatedDynamically());
+      return MakeUnique<LoadingSessionHistoryInfo>(loadingEntry,
+                                                   aInfo->mLoadId);
     }
   }
-
-  newEntry->SetForInitialLoad(forInitialLoad);
-
-  return MakeUnique<LoadingSessionHistoryInfo>(newEntry, aInfo->mLoadId);
+  return nullptr;
 }
 
 #ifdef NS_PRINTING
@@ -740,12 +734,12 @@ void CanonicalBrowsingContext::SessionHistoryCommit(uint64_t aLoadId,
           }
         }
 
-        if (!loadFromSessionHistory && addEntry) {
+        if (loadFromSessionHistory) {
+          // XXX Synchronize browsing context tree and session history tree?
+          shistory->UpdateIndex();
+        } else if (addEntry) {
           shistory->AddEntry(mActiveEntry, aPersist);
         }
-        // XXX Synchronize browsing context tree and session history tree?
-        // UpdateIndexWithEntry updates the index and clears the requestedIndex.
-        shistory->UpdateIndexWithEntry(mActiveEntry);
       } else {
         // FIXME The old implementations adds it to the parent's mLSHE if there
         //       is one, need to figure out if that makes sense here (peterv
@@ -759,6 +753,9 @@ void CanonicalBrowsingContext::SessionHistoryCommit(uint64_t aLoadId,
                                                          this);
           }
           mActiveEntry = newActiveEntry;
+          // FIXME UpdateIndex() here may update index too early (but even the
+          //       old implementation seems to have similar issues).
+          shistory->UpdateIndex();
         } else if (addEntry) {
           if (mActiveEntry) {
             if (LOAD_TYPE_HAS_FLAGS(
@@ -788,10 +785,6 @@ void CanonicalBrowsingContext::SessionHistoryCommit(uint64_t aLoadId,
             }
           }
         }
-        // FIXME UpdateIndex() here may update index too early (but even the
-        //       old implementation seems to have similar issues).
-        // UpdateIndexWithEntry updates the index and clears the requestedIndex.
-        shistory->UpdateIndexWithEntry(mActiveEntry);
       }
 
       ResetSHEntryHasUserInteractionCache();
@@ -2335,7 +2328,8 @@ bool CanonicalBrowsingContext::AllowedInBFCache(
   uint16_t bfcacheCombo = 0;
   if (mRestoreState) {
     bfcacheCombo |= BFCacheStatus::RESTORING;
-    MOZ_LOG(gSHIPBFCacheLog, LogLevel::Debug, (" * during session restore"));
+    MOZ_LOG(gSHIPBFCacheLog, LogLevel::Debug,
+            (" * during session restore"));
   }
 
   if (Group()->Toplevels().Length() > 1) {

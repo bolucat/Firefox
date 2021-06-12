@@ -8,11 +8,7 @@
 // A helper actor for inspector and markupview tests.
 const { Ci, Cc } = require("chrome");
 const Services = require("Services");
-const {
-  getRect,
-  getAdjustedQuads,
-  getWindowDimensions,
-} = require("devtools/shared/layout/utils");
+const { getRect, getAdjustedQuads } = require("devtools/shared/layout/utils");
 const InspectorUtils = require("InspectorUtils");
 
 // Set up a dummy environment so that EventUtils works. We need to be careful to
@@ -107,13 +103,6 @@ var testSpec = protocol.generateActorSpec({
       },
       response: {},
     },
-    waitForEventOnNode: {
-      request: {
-        eventName: Arg(0, "string"),
-        selector: Arg(1, "nullable:string"),
-      },
-      response: {},
-    },
     getAllAdjustedQuads: {
       request: {
         selector: Arg(0, "string"),
@@ -139,16 +128,6 @@ var testSpec = protocol.generateActorSpec({
         value: RetVal("json"),
       },
     },
-    scrollWindow: {
-      request: {
-        x: Arg(0, "number"),
-        y: Arg(1, "number"),
-        relative: Arg(2, "nullable:boolean"),
-      },
-      response: {
-        value: RetVal("json"),
-      },
-    },
     getNodeRect: {
       request: {
         selector: Arg(0, "string"),
@@ -162,12 +141,6 @@ var testSpec = protocol.generateActorSpec({
         parentSelector: Arg(0, "string"),
         childNodeIndex: Arg(1, "number"),
       },
-      response: {
-        value: RetVal("json"),
-      },
-    },
-    getWindowDimensions: {
-      request: {},
       response: {
         value: RetVal("json"),
       },
@@ -354,25 +327,6 @@ var TestActor = protocol.ActorClassWithSpec(testSpec, {
   },
 
   /**
-   * Wait for a specific event on a node matching the provided selector.
-   * @param {String} eventName The name of the event to listen to
-   * @param {String} selector Optional:  css selector of the node which should
-   *        trigger the event. If ommitted, target will be the content window
-   */
-  waitForEventOnNode: function(eventName, selector) {
-    return new Promise(resolve => {
-      const node = selector ? this._querySelector(selector) : this.content;
-      node.addEventListener(
-        eventName,
-        function() {
-          resolve();
-        },
-        { once: true }
-      );
-    });
-  },
-
-  /**
    * Get all box-model regions' adjusted boxquads for the given element
    * @param {String} selector The node selector to target a given element
    * @return {Object} An object with each property being a box-model region, each
@@ -420,36 +374,6 @@ var TestActor = protocol.ActorClassWithSpec(testSpec, {
     };
   },
 
-  /**
-   * Scrolls the window to a particular set of coordinates in the document, or
-   * by the given amount if `relative` is set to `true`.
-   *
-   * @param {Number} x
-   * @param {Number} y
-   * @param {Boolean} relative
-   *
-   * @return {Object} An object with x / y properties, representing the number
-   * of pixels that the document has been scrolled horizontally and vertically.
-   */
-  scrollWindow: function(x, y, relative) {
-    if (isNaN(x) || isNaN(y)) {
-      return {};
-    }
-
-    return new Promise(resolve => {
-      this.content.addEventListener(
-        "scroll",
-        function(event) {
-          const data = { x: this.content.scrollX, y: this.content.scrollY };
-          resolve(data);
-        },
-        { once: true }
-      );
-
-      this.content[relative ? "scrollBy" : "scrollTo"](x, y);
-    });
-  },
-
   async getNodeRect(selector) {
     const node = this._querySelector(selector);
     return getRect(this.content, node, this.content);
@@ -459,16 +383,6 @@ var TestActor = protocol.ActorClassWithSpec(testSpec, {
     const parentNode = this._querySelector(parentSelector);
     const node = parentNode.childNodes[childNodeIndex];
     return getAdjustedQuads(this.content, node)[0].bounds;
-  },
-
-  /**
-   * Returns the window's dimensions for the `window` given.
-   *
-   * @return {Object} An object with `width` and `height` properties, representing the
-   * number of pixels for the document's size.
-   */
-  getWindowDimensions: function() {
-    return getWindowDimensions(this.content);
   },
 
   /**
