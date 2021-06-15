@@ -1382,7 +1382,7 @@ fuzzy-if(Android,0-5,0-1656) fuzzy-if(skiaContent,0-1,0-1200) == 512410.html 512
 == 512631-1.html 512631-1-ref.html
 fuzzy-if(Android,0-1,0-2) fuzzy-if(!nativeThemePref,0-1,0-4) == 513153-1a.html 513153-1-ref.html
 fuzzy-if(Android,0-1,0-2) fuzzy-if(!nativeThemePref,0-1,0-4) == 513153-1b.html 513153-1-ref.html
-fuzzy-if(winWidget&&nativeThemePref&&webrender,82-82,84-84) fuzzy-if(cocoaWidget&&nativeThemePref&&webrender,46-46,58-58) == 513153-2a.html 513153-2-ref.html
+fuzzy-if(winWidget&&nativeThemePref&&webrender,82-82,84-84) fuzzy-if(cocoaWidget&&nativeThemePref&&webrender,46-46,58-58) fuzzy-if(cocoaWidget&&!nativeThemePref&&webrender,0-112,0-108) == 513153-2a.html 513153-2-ref.html # !nativeThemePref and webrender only fuzzy when widget.non-native-theme.webrender=false, snapping difference
 fuzzy-if(cocoaWidget&&nativeThemePref&&webrender,46-46,116-116) == 513153-2b.html 513153-2-ref.html
 == chrome://reftest/content/bugs/513318-1.xhtml chrome://reftest/content/bugs/513318-1-ref.xhtml
 fails-if(Android&&(!asyncPan)) != chrome://reftest/content/bugs/513318-2.xhtml chrome://reftest/content/bugs/513318-2-ref.xhtml
@@ -1957,7 +1957,7 @@ fuzzy(0-8,0-1900) fails-if(webrender) == 1291528.html 1291528-ref.html
 # should be same.  |fuzzy()| here allows the difference in border, but not
 # background color.
 fuzzy(0-255,0-1000) skip-if(!cocoaWidget) == 1294102-1.html 1294102-1-ref.html
-fuzzy-if(skiaContent,0-15,0-50) fuzzy-if(gtkWidget,0-14,0-215) fuzzy-if(/^Windows\x20NT\x206\.1/.test(http.oscpu),0-14,0-215) random-if(useDrawSnapshot) == 1295466-1.xhtml 1295466-1-ref.xhtml #bug 1540635
+fuzzy-if(skiaContent,0-15,0-50) fuzzy-if(gtkWidget||winWidget,0-14,0-215) random-if(useDrawSnapshot) == 1295466-1.xhtml 1295466-1-ref.xhtml # bug 1540635
 fuzzy-if(Android,0-27,0-874) fuzzy-if(!Android,0-14,0-43) == 1313772.xhtml 1313772-ref.xhtml # Bug 1128229, Bug 1389319
 fuzzy(0-3,0-320000) fails-if(useDrawSnapshot) == 1315113-1.html 1315113-1-ref.html
 fuzzy(0-3,0-20000) == 1315113-2.html 1315113-2-ref.html
