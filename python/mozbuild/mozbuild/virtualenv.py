@@ -17,8 +17,6 @@ import sys
 IS_NATIVE_WIN = sys.platform == "win32" and os.sep == "\\"
 IS_CYGWIN = sys.platform == "cygwin"
 
-PY2 = sys.version_info[0] == 2
-PY3 = sys.version_info[0] == 3
 
 UPGRADE_WINDOWS = """
 Please upgrade to the latest MozillaBuild development environment. See
@@ -39,27 +37,21 @@ here = os.path.abspath(os.path.dirname(__file__))
 # We can't import six.ensure_binary() or six.ensure_text() because this module
 # has to run stand-alone.  Instead we'll implement an abbreviated version of the
 # checks it does.
-if PY3:
-    text_type = str
-    binary_type = bytes
-else:
-    text_type = unicode
-    binary_type = str
 
 
 def ensure_binary(s, encoding="utf-8"):
-    if isinstance(s, text_type):
+    if isinstance(s, str):
         return s.encode(encoding, errors="strict")
-    elif isinstance(s, binary_type):
+    elif isinstance(s, bytes):
         return s
     else:
         raise TypeError("not expecting type '%s'" % type(s))
 
 
 def ensure_text(s, encoding="utf-8"):
-    if isinstance(s, binary_type):
+    if isinstance(s, bytes):
         return s.decode(encoding, errors="strict")
-    elif isinstance(s, text_type):
+    elif isinstance(s, str):
         return s
     else:
         raise TypeError("not expecting type '%s'" % type(s))
@@ -245,10 +237,7 @@ class VirtualenvManager(VirtualenvHelper):
         )
 
         for line in proc.stdout:
-            if PY2:
-                self.log_handle.write(line)
-            else:
-                self.log_handle.write(line.decode("UTF-8"))
+            self.log_handle.write(line.decode("UTF-8"))
 
         return proc.wait()
 
@@ -287,12 +276,11 @@ class VirtualenvManager(VirtualenvHelper):
         return self.virtualenv_root
 
     def packages(self):
-        mode = "rU" if PY2 else "r"
-        with open(self.manifest_path, mode) as fh:
+        with open(self.manifest_path, "r") as fh:
             packages = [line.rstrip().split(":") for line in fh]
         return packages
 
-    def populate(self, ignore_sitecustomize=False):
+    def populate(self):
         """Populate the virtualenv.
 
         The manifest file consists of colon-delimited fields. The first field
@@ -310,12 +298,6 @@ class VirtualenvManager(VirtualenvHelper):
         packages.txt -- Denotes that the specified path is a child manifest. It
             will be read and processed as if its contents were concatenated
             into the manifest being read.
-
-        windows -- This denotes that the action should only be taken when run
-            on Windows.
-
-        !windows -- This denotes that the action should only be taken when run
-            on non-Windows systems.
 
         set-variable -- Set the given environment variable; e.g.
             `set-variable FOO=1`.
@@ -344,7 +326,7 @@ class VirtualenvManager(VirtualenvHelper):
                     src,
                     populate_local_paths=self.populate_local_paths,
                 )
-                submanager.populate(ignore_sitecustomize=True)
+                submanager.populate()
             elif package[0].endswith(".pth"):
                 assert len(package) == 2
 
@@ -361,11 +343,6 @@ class VirtualenvManager(VirtualenvHelper):
                     f.write("%s\n" % os.path.relpath(path, python_lib))
             elif package[0] == "thunderbird":
                 if is_thunderbird:
-                    handle_package(package[1:])
-            elif package[0] in ("windows", "!windows"):
-                for_win = not package[0].startswith("!")
-                is_win = sys.platform == "win32"
-                if is_win == for_win:
                     handle_package(package[1:])
             else:
                 raise Exception("Unknown action: %s" % package[0])
@@ -411,19 +388,6 @@ class VirtualenvManager(VirtualenvHelper):
                 handle_package(package)
 
         finally:
-            # This hack isn't necessary for Python 3, or for the
-            # out-of-objdir virtualenvs.
-            if PY2 and self.populate_local_paths and not ignore_sitecustomize:
-                with open(
-                    os.path.join(os.path.dirname(python_lib), "sitecustomize.py"),
-                    mode="w",
-                ) as sitecustomize:
-                    sitecustomize.write(
-                        "# Importing mach_bootstrap has the side effect of\n"
-                        "# installing an import hook\n"
-                        "import mach_bootstrap\n"
-                    )
-
             os.environ.pop("MACOSX_DEPLOYMENT_TARGET", None)
 
             if old_target is not None:
@@ -658,7 +622,7 @@ class VirtualenvManager(VirtualenvHelper):
             stderr=subprocess.STDOUT,
             cwd=self.topsrcdir,
             env=env,
-            universal_newlines=PY3,
+            universal_newlines=True,
         )
 
 
@@ -708,7 +672,7 @@ def ensure_subprocess_env(env, encoding="utf-8"):
         encoding (str): Encoding to use when converting to/from bytes/text
                         (default: utf-8).
     """
-    ensure = ensure_binary if PY2 else ensure_text
+    ensure = ensure_text
 
     try:
         return {
