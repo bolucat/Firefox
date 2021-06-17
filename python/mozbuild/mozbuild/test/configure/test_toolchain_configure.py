@@ -348,7 +348,7 @@ class BaseToolchainTest(BaseConfigureTest):
                 mozpath.abspath(p) for p in ("/bin", "/usr/bin")
             )
 
-        args = args + ["--enable-release"]
+        args = args + ["--enable-release", "--disable-bootstrap"]
 
         sandbox = self.get_sandbox(paths, {}, args, environ, logger=self.logger)
 

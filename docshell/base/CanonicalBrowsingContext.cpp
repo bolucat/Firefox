@@ -224,10 +224,15 @@ void CanonicalBrowsingContext::ReplacedBy(
   MOZ_ASSERT(!aNewContext->mWebProgress);
   MOZ_ASSERT(!aNewContext->mSessionHistory);
   MOZ_ASSERT(IsTop() && aNewContext->IsTop());
+
+  mIsReplaced = true;
+  aNewContext->mIsReplaced = false;
+
   if (mStatusFilter) {
     mStatusFilter->RemoveProgressListener(mDocShellProgressBridge);
     mStatusFilter = nullptr;
   }
+
   mWebProgress->ContextReplaced(aNewContext);
   aNewContext->mWebProgress = std::move(mWebProgress);
 
@@ -522,8 +527,7 @@ CanonicalBrowsingContext::ReplaceLoadingSessionHistoryEntryForLoad(
       }
       loadingEntry->SetDocshellID(GetHistoryID());
       loadingEntry->SetIsDynamicallyAdded(CreatedDynamically());
-      return MakeUnique<LoadingSessionHistoryInfo>(loadingEntry,
-                                                   aInfo->mLoadId);
+      return MakeUnique<LoadingSessionHistoryInfo>(loadingEntry, aInfo);
     }
   }
   return nullptr;
