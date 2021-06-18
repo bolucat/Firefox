@@ -248,6 +248,7 @@
 #include "vm/JSObject.h"
 #include "vm/JSScript.h"
 #include "vm/Printer.h"
+#include "vm/PropMap.h"
 #include "vm/ProxyObject.h"
 #include "vm/Realm.h"
 #include "vm/Shape.h"
@@ -266,6 +267,7 @@
 #include "vm/GeckoProfiler-inl.h"
 #include "vm/JSObject-inl.h"
 #include "vm/JSScript-inl.h"
+#include "vm/PropMap-inl.h"
 #include "vm/Stack-inl.h"
 #include "vm/StringType-inl.h"
 
@@ -400,7 +402,9 @@ static constexpr FinalizePhase BackgroundFinalizePhases[] = {
       AllocKind::EXTERNAL_STRING, AllocKind::FAT_INLINE_ATOM, AllocKind::ATOM,
       AllocKind::SYMBOL, AllocKind::BIGINT}},
     {gcstats::PhaseKind::SWEEP_SHAPE,
-     {AllocKind::SHAPE, AllocKind::BASE_SHAPE, AllocKind::GETTER_SETTER}}};
+     {AllocKind::SHAPE, AllocKind::BASE_SHAPE, AllocKind::GETTER_SETTER,
+      AllocKind::COMPACT_PROP_MAP, AllocKind::NORMAL_PROP_MAP,
+      AllocKind::DICT_PROP_MAP}}};
 
 void Arena::unmarkAll() {
   MarkBitmapWord* arenaBits = chunk()->markBits.arenaBits(this);
@@ -2456,6 +2460,7 @@ BaseShape* MovingTracer::onBaseShapeEdge(BaseShape* base) {
 GetterSetter* MovingTracer::onGetterSetterEdge(GetterSetter* gs) {
   return onEdge(gs);
 }
+PropMap* MovingTracer::onPropMapEdge(js::PropMap* map) { return onEdge(map); }
 Scope* MovingTracer::onScopeEdge(Scope* scope) { return onEdge(scope); }
 RegExpShared* MovingTracer::onRegExpSharedEdge(RegExpShared* shared) {
   return onEdge(shared);
@@ -2743,10 +2748,17 @@ void GCRuntime::updateCellPointers(Zone* zone, AllocKinds kinds) {
 // Since we want to minimize the number of phases, arrange kinds into three
 // arbitrary phases.
 
-static constexpr AllocKinds UpdatePhaseOne{
-    AllocKind::SCRIPT, AllocKind::BASE_SHAPE,   AllocKind::SHAPE,
-    AllocKind::STRING, AllocKind::JITCODE,      AllocKind::REGEXP_SHARED,
-    AllocKind::SCOPE,  AllocKind::GETTER_SETTER};
+static constexpr AllocKinds UpdatePhaseOne{AllocKind::SCRIPT,
+                                           AllocKind::BASE_SHAPE,
+                                           AllocKind::SHAPE,
+                                           AllocKind::STRING,
+                                           AllocKind::JITCODE,
+                                           AllocKind::REGEXP_SHARED,
+                                           AllocKind::SCOPE,
+                                           AllocKind::GETTER_SETTER,
+                                           AllocKind::COMPACT_PROP_MAP,
+                                           AllocKind::NORMAL_PROP_MAP,
+                                           AllocKind::DICT_PROP_MAP};
 
 // UpdatePhaseTwo is typed object descriptor objects.
 
@@ -3017,6 +3029,8 @@ ArenaLists::ArenaLists(Zone* zone)
       incrementalSweptArenaKind(zone, AllocKind::LIMIT),
       incrementalSweptArenas(zone),
       gcShapeArenasToUpdate(zone, nullptr),
+      gcCompactPropMapArenasToUpdate(zone, nullptr),
+      gcNormalPropMapArenasToUpdate(zone, nullptr),
       savedEmptyArenas(zone, nullptr) {
   for (auto i : AllAllocKinds()) {
     concurrentUse(i) = ConcurrentUse::None;
@@ -3153,6 +3167,8 @@ Arena* ArenaLists::takeSweptEmptyArenas() {
 
 void ArenaLists::queueForegroundThingsForSweep() {
   gcShapeArenasToUpdate = arenasToSweep(AllocKind::SHAPE);
+  gcCompactPropMapArenasToUpdate = arenasToSweep(AllocKind::COMPACT_PROP_MAP);
+  gcNormalPropMapArenasToUpdate = arenasToSweep(AllocKind::NORMAL_PROP_MAP);
 }
 
 void ArenaLists::checkGCStateNotInUse() {
@@ -3178,13 +3194,23 @@ void ArenaLists::checkSweepStateNotInUse() {
 #endif
 }
 
-void ArenaLists::checkNoArenasToUpdate() { MOZ_ASSERT(!gcShapeArenasToUpdate); }
+void ArenaLists::checkNoArenasToUpdate() {
+  MOZ_ASSERT(!gcShapeArenasToUpdate);
+  MOZ_ASSERT(!gcCompactPropMapArenasToUpdate);
+  MOZ_ASSERT(!gcNormalPropMapArenasToUpdate);
+}
 
 void ArenaLists::checkNoArenasToUpdateForKind(AllocKind kind) {
 #ifdef DEBUG
   switch (kind) {
     case AllocKind::SHAPE:
       MOZ_ASSERT(!gcShapeArenasToUpdate);
+      break;
+    case AllocKind::COMPACT_PROP_MAP:
+      MOZ_ASSERT(!gcCompactPropMapArenasToUpdate);
+      break;
+    case AllocKind::NORMAL_PROP_MAP:
+      MOZ_ASSERT(!gcNormalPropMapArenasToUpdate);
       break;
     default:
       break;
@@ -4289,6 +4315,20 @@ void GCRuntime::purgeShapeCachesForShrinkingGC() {
     for (auto shape = zone->cellIterUnsafe<Shape>(); !shape.done();
          shape.next()) {
       shape->maybePurgeCache(rt->defaultFreeOp());
+    }
+
+    // Note: CompactPropMaps never have a table.
+    for (auto map = zone->cellIterUnsafe<NormalPropMap>(); !map.done();
+         map.next()) {
+      if (map->asLinked()->hasTable()) {
+        map->asLinked()->purgeTable(rt->defaultFreeOp());
+      }
+    }
+    for (auto map = zone->cellIterUnsafe<DictionaryPropMap>(); !map.done();
+         map.next()) {
+      if (map->asLinked()->hasTable()) {
+        map->asLinked()->purgeTable(rt->defaultFreeOp());
+      }
     }
   }
 }
@@ -5959,9 +5999,10 @@ void GCRuntime::drainMarkStack() {
   MOZ_RELEASE_ASSERT(marker.markUntilBudgetExhausted(unlimited));
 }
 
-static void SweepThing(JSFreeOp* fop, Shape* shape) {
-  if (!shape->isMarkedAny()) {
-    shape->sweep(fop);
+template <typename T>
+static void SweepThing(JSFreeOp* fop, T* thing) {
+  if (!thing->isMarkedAny()) {
+    thing->sweep(fop);
   }
 }
 
@@ -6142,6 +6183,14 @@ IncrementalProgress GCRuntime::sweepShapeTree(JSFreeOp* fop,
   ArenaLists& al = sweepZone->arenas;
 
   if (!SweepArenaList<Shape>(fop, &al.gcShapeArenasToUpdate.ref(), budget)) {
+    return NotFinished;
+  }
+  if (!SweepArenaList<CompactPropMap>(
+          fop, &al.gcCompactPropMapArenasToUpdate.ref(), budget)) {
+    return NotFinished;
+  }
+  if (!SweepArenaList<NormalPropMap>(
+          fop, &al.gcNormalPropMapArenasToUpdate.ref(), budget)) {
     return NotFinished;
   }
 
@@ -7067,7 +7116,8 @@ void GCRuntime::incrementalSlice(SliceBudget& budget,
 
       incrementalState = State::Mark;
 
-      if (useZeal && hasZealMode(ZealMode::YieldBeforeMarking) && isIncremental) {
+      if (useZeal && hasZealMode(ZealMode::YieldBeforeMarking) &&
+          isIncremental) {
         break;
       }
 
@@ -8607,6 +8657,20 @@ void GCRuntime::checkHashTablesAfterMovingGC() {
       ShapeCachePtr p = shape->getCache(nogc);
       p.checkAfterMovingGC();
     }
+
+    // Note: CompactPropMaps never have a table.
+    for (auto map = zone->cellIterUnsafe<NormalPropMap>(); !map.done();
+         map.next()) {
+      if (PropMapTable* table = map->asLinked()->maybeTable(nogc)) {
+        table->checkAfterMovingGC();
+      }
+    }
+    for (auto map = zone->cellIterUnsafe<DictionaryPropMap>(); !map.done();
+         map.next()) {
+      if (PropMapTable* table = map->asLinked()->maybeTable(nogc)) {
+        table->checkAfterMovingGC();
+      }
+    }
   }
 
   for (CompartmentsIter c(this); !c.done(); c.next()) {
@@ -9280,6 +9344,9 @@ js::BaseShape* js::gc::ClearEdgesTracer::onBaseShapeEdge(js::BaseShape* base) {
 js::GetterSetter* js::gc::ClearEdgesTracer::onGetterSetterEdge(
     js::GetterSetter* gs) {
   return onEdge(gs);
+}
+js::PropMap* js::gc::ClearEdgesTracer::onPropMapEdge(js::PropMap* map) {
+  return onEdge(map);
 }
 js::jit::JitCode* js::gc::ClearEdgesTracer::onJitCodeEdge(
     js::jit::JitCode* code) {

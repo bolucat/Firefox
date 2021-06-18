@@ -11826,6 +11826,18 @@
     "releaseChannelCollection": "opt-out",
     "description": "True if the browser was unable to set Firefox as the default browser"
   },
+  "BROWSER_SET_DEFAULT_USER_CHOICE_RESULT": {
+    "record_in_processes": ["main"],
+    "products": ["firefox"],
+    "operating_systems": ["windows"],
+    "expires_in_version": "96",
+    "kind": "categorical",
+    "labels": ["Success", "ErrProgID", "ErrHash", "ErrLaunchExe", "ErrExeTimeout", "ErrExeProgID", "ErrExeHash", "ErrExeRejected", "ErrExeOther", "ErrOther"],
+    "releaseChannelCollection": "opt-out",
+    "bug_numbers": [1703578],
+    "alert_emails": ["application-update-telemetry-alerts@mozilla.com", "agashlin@mozilla.com"],
+    "description": "Result of each attempt to set the default browser with SetDefaultBrowserUserChoice()"
+  },
   "BROWSER_IS_ASSIST_DEFAULT": {
     "record_in_processes": ["main"],
     "products": ["firefox", "fennec"],
@@ -16729,5 +16741,17 @@
       "Fetch",
       "Unexpected"
     ]
+  },
+  "HTTPS_RR_WAITING_TIME": {
+    "record_in_processes": ["main", "socket"],
+    "products": ["firefox"],
+    "alert_emails": ["necko@mozilla.com", "kershaw@mozilla.com"],
+    "bug_numbers": [1714506],
+    "expires_in_version": "93",
+    "kind": "exponential",
+    "high": 5000,
+    "n_buckets": 100,
+    "keyed": true,
+    "description": "The time that a transaction is waiting for HTTPS RR"
   }
 }

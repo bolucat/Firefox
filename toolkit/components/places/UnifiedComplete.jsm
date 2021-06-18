@@ -525,10 +525,7 @@ function Search(
     // The heuristic token is the first filtered search token, but only when it's
     // actually the first thing in the search string.  If a prefix or restriction
     // character occurs first, then the heurstic token is null.  We use the
-    // heuristic token to help determine the heuristic result.  It may be a Places
-    // keyword, a search engine alias, or simply a URL or part of the search
-    // string the user has typed.  We won't know until we create the heuristic
-    // result.
+    // heuristic token to help determine the heuristic result.
     let firstToken = !!this._searchTokens.length && this._searchTokens[0].value;
     this._heuristicToken =
       firstToken && this._trimmedOriginalSearchString.startsWith(firstToken)
@@ -715,23 +712,9 @@ Search.prototype = {
     };
 
     // For any given search, we run many queries/heuristics:
-    // 1) by alias (as defined in SearchService)
-    // 2) inline completion from search engine resultDomains
-    // 3) submission for the current search engine
-    // 4) Places keywords
-    // 5) open pages not supported by history (this._switchToTabQuery)
-    // 6) query based on match behavior
-    //
-    // (4) only gets run if we get any filtered tokens, since if there are no
-    // tokens, there is nothing to match.
-    //
-    // (1) only runs if actions are enabled. When actions are
-    // enabled, the first result is always a special result (resulting from one
-    // of the queries between (1) and (4) inclusive). As such, the UI is
-    // expected to auto-select the first result when actions are enabled. If the
-    // first result is an inline completion result, that will also be the
-    // default result and therefore be autofilled (this also happens if actions
-    // are not enabled).
+    // 1) open pages not supported by history (this._switchToTabQuery)
+    // 2) query based on match behavior
+    // 3) Preloaded sites (currently disabled)
 
     // Check for Preloaded Sites Expiry before Autofill
     await this._checkPreloadedSitesExpiry();
@@ -750,6 +733,14 @@ Search.prototype = {
     this._addingHeuristicResult = true;
     await this._matchFirstHeuristicResult(conn);
     this._addingHeuristicResult = false;
+    if (!this.pending) {
+      return;
+    }
+
+    // Check if the first token is an action. If it is, we should set a flag
+    // so we don't include it in our searches.
+    this._firstTokenIsKeyword =
+      this._firstTokenIsKeyword || (await this._checkIfFirstTokenIsKeyword());
     if (!this.pending) {
       return;
     }
@@ -894,6 +885,32 @@ Search.prototype = {
     return true;
   },
 
+  async _checkIfFirstTokenIsKeyword() {
+    if (!this._enableActions || !this._heuristicToken) {
+      return false;
+    }
+
+    let aliasEngine = await UrlbarSearchUtils.engineForAlias(
+      this._heuristicToken,
+      this._originalSearchString
+    );
+
+    if (aliasEngine) {
+      return true;
+    }
+
+    let { entry } = await KeywordUtils.getBindableKeyword(
+      this._heuristicToken,
+      this._originalSearchString
+    );
+    if (entry) {
+      this._filterOnHost = entry.url.host;
+      return true;
+    }
+
+    return false;
+  },
+
   async _matchFirstHeuristicResult(conn) {
     if (this._searchMode) {
       // Use UrlbarProviderHeuristicFallback.
@@ -903,24 +920,7 @@ Search.prototype = {
     // We always try to make the first result a special "heuristic" result.  The
     // heuristics below determine what type of result it will be, if any.
 
-    if (this.pending && this._enableActions && this._heuristicToken) {
-      // It may be a search engine with an alias - which works like a keyword.
-      let matched = await this._matchSearchEngineAlias(this._heuristicToken);
-      if (matched) {
-        return true;
-      }
-    }
-
-    if (this.pending && this._heuristicToken) {
-      // It may be a Places keyword.
-      let matched = await this._matchPlacesKeyword(this._heuristicToken);
-      if (matched) {
-        return true;
-      }
-    }
-
     let shouldAutofill = this._shouldAutofill;
-
     if (this.pending && shouldAutofill) {
       let matched = this._matchPreloadedSiteForAutofill();
       if (matched) {
@@ -930,86 +930,6 @@ Search.prototype = {
 
     // Fall back to UrlbarProviderHeuristicFallback.
     return false;
-  },
-
-  async _matchPlacesKeyword(keyword) {
-    let entry = await PlacesUtils.keywords.fetch(keyword);
-    if (!entry) {
-      return false;
-    }
-
-    let searchString = UrlbarUtils.substringAfter(
-      this._originalSearchString,
-      keyword
-    ).trim();
-
-    let url = null;
-    let postData = null;
-    try {
-      [url, postData] = await KeywordUtils.parseUrlAndPostData(
-        entry.url.href,
-        entry.postData,
-        searchString
-      );
-    } catch (ex) {
-      // It's not possible to bind a param to this keyword.
-      return false;
-    }
-
-    let style = "keyword";
-    let value = url;
-    if (this._enableActions) {
-      style = "action " + style;
-      value = makeActionUrl("keyword", {
-        url,
-        keyword,
-        input: this._originalSearchString,
-        postData,
-      });
-    }
-
-    let match = {
-      value,
-      // Don't use the url with replaced strings, since the icon doesn't change
-      // but the string does, it may cause pointless icon flicker on typing.
-      icon: iconHelper(entry.url),
-      style,
-      frecency: Infinity,
-    };
-    // If there is a query string, the title will be "host: queryString".
-    if (this._searchTokens.length > 1) {
-      match.comment = entry.url.host;
-    }
-
-    this._firstTokenIsKeyword = true;
-    this._filterOnHost = entry.url.host;
-    this._addMatch(match);
-    return true;
-  },
-
-  async _matchSearchEngineAlias(alias) {
-    let engine = await UrlbarSearchUtils.engineForAlias(alias);
-    if (!engine) {
-      return false;
-    }
-
-    let query = UrlbarUtils.substringAfter(this._originalSearchString, alias);
-
-    // Match an alias only when it has a space after it.  If there's no trailing
-    // space, then continue to treat it as part of the search string.
-    if (!UrlbarTokenizer.REGEXP_SPACES_START.test(query)) {
-      return false;
-    }
-
-    this._searchEngineAliasMatch = {
-      engine,
-      alias,
-      query: query.trimStart(),
-    };
-    this._firstTokenIsKeyword = true;
-    this._filterOnHost = engine.getResultDomain();
-    this._addSearchEngineMatch(this._searchEngineAliasMatch);
-    return true;
   },
 
   /**
@@ -1437,12 +1357,15 @@ Search.prototype = {
       return;
     }
 
-    let childMaxResultCount = Math.min(
-      typeof resultBucket.maxResultCount == "number"
-        ? resultBucket.maxResultCount
-        : this._maxResults,
-      maxResultCount
-    );
+    let initialMaxResultCount;
+    if (typeof resultBucket.maxResultCount == "number") {
+      initialMaxResultCount = resultBucket.maxResultCount;
+    } else if (typeof resultBucket.availableSpan == "number") {
+      initialMaxResultCount = resultBucket.availableSpan;
+    } else {
+      initialMaxResultCount = this._maxResults;
+    }
+    let childMaxResultCount = Math.min(initialMaxResultCount, maxResultCount);
     for (let child of resultBucket.children) {
       this._makeBuckets(child, childMaxResultCount);
     }

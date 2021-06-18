@@ -101,11 +101,9 @@ static const JSFunctionSpec dateTimeFormat_methods[] = {
                       0, 0),
     JS_SELF_HOSTED_FN("formatToParts", "Intl_DateTimeFormat_formatToParts", 1,
                       0),
-#ifdef NIGHTLY_BUILD
     JS_SELF_HOSTED_FN("formatRange", "Intl_DateTimeFormat_formatRange", 2, 0),
     JS_SELF_HOSTED_FN("formatRangeToParts",
                       "Intl_DateTimeFormat_formatRangeToParts", 2, 0),
-#endif
     JS_FN(js_toSource_str, dateTimeFormat_toSource, 0, 0),
     JS_FS_END};
 
@@ -314,6 +312,7 @@ bool js::intl_availableCalendars(JSContext* cx, unsigned argc, Value* vp) {
       return false;
     }
     const char* calendar = keyword.unwrap().data();
+
     JSString* jscalendar = NewStringCopyZ<CanGC>(cx, calendar);
     if (!jscalendar) {
       return false;
@@ -398,7 +397,12 @@ bool js::intl_canonicalizeTimeZone(JSContext* cx, unsigned argc, Value* vp) {
     return false;
   }
 
-  args.rval().setString(canonicalTimeZone.toString());
+  JSString* str = canonicalTimeZone.toString();
+  if (!str) {
+    return false;
+  }
+
+  args.rval().setString(str);
   return true;
 }
 
@@ -413,7 +417,6 @@ bool js::intl_defaultTimeZone(JSContext* cx, unsigned argc, Value* vp) {
 
   FormatBuffer<char16_t, intl::INITIAL_CHAR_BUFFER_SIZE> timeZone(cx);
   auto result = mozilla::intl::Calendar::GetDefaultTimeZone(timeZone);
-
   if (result.isErr()) {
     intl::ReportInternalError(cx);
     return false;

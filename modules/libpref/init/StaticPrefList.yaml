@@ -7320,11 +7320,7 @@
 # <0 to disable extra ticks entirely.
 - name: layout.extra-tick.minimum-ms
   type: int32_t
-#if defined(NIGHTLY_BUILD)
   value: 4
-#else
-  value: -1
-#endif
   mirror: always
 
 # Enable/disable interruptible reflow, which allows reflows to stop
@@ -9756,6 +9752,12 @@
   value: false
   mirror: always
 
+# Whether to force a transaction to wait https rr.
+- name: network.dns.force_waiting_https_rr
+  type: RelaxedAtomicBool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+
 # The TTL for negative responses of TXT and HTTPS records.
 - name: network.dns.negative_ttl_for_type_record
   type: RelaxedAtomicUint32
@@ -11609,6 +11611,11 @@
 - name: widget.wayland.fractional_buffer_scale
   type: float
   value: 0.0f
+  mirror: once
+
+- name: widget.wayland.multi-buffer-software-backend.enabled
+  type: bool
+  value: false
   mirror: once
 
 # Use opaque region for MozContainer wl_surface
