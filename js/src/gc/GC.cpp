@@ -1258,7 +1258,8 @@ const char gc::ZealModeHelpText[] =
     "    22: (YieldBeforeSweepingNonObjects) Incremental GC in two slices that "
     "yields\n"
     "        before sweeping non-object GC things\n"
-    "    23: (YieldBeforeSweepingShapeTrees) Incremental GC in two slices that "
+    "    23: (YieldBeforeSweepingPropMapTrees) Incremental GC in two slices "
+    "that "
     "yields\n"
     "        before sweeping shape trees\n"
     "    24: (CheckWeakMapMarking) Check weak map marking invariants after "
@@ -1277,7 +1278,7 @@ static const mozilla::EnumSet<ZealMode> IncrementalSliceZealModes = {
     ZealMode::YieldBeforeSweepingCaches,
     ZealMode::YieldBeforeSweepingObjects,
     ZealMode::YieldBeforeSweepingNonObjects,
-    ZealMode::YieldBeforeSweepingShapeTrees};
+    ZealMode::YieldBeforeSweepingPropMapTrees};
 
 void GCRuntime::setZeal(uint8_t zeal, uint32_t frequency) {
   MOZ_ASSERT(zeal <= unsigned(ZealMode::Limit));
@@ -2532,7 +2533,8 @@ static bool CanUpdateKindInBackground(AllocKind kind) {
   // kinds for which this might not be safe:
   //  - we assume JSObjects that are foreground finalized are not safe to
   //    update in parallel
-  //  - updating a shape touches child shapes in fixupShapeTreeAfterMovingGC()
+  //  - updating a SharedPropMap touches child maps in
+  //    SharedPropMap::fixupAfterMovingGC
   return js::gc::IsBackgroundFinalized(kind) && !IsShapeAllocKind(kind) &&
          kind != AllocKind::BASE_SHAPE;
 }
@@ -2817,6 +2819,7 @@ void GCRuntime::updateZonePointersToRelocatedCells(Zone* zone) {
 
   zone->externalStringCache().purge();
   zone->functionToStringCache().purge();
+  zone->shapeZone().purgeShapeCaches(rt->defaultFreeOp());
   rt->caches().stringToAtomCache.purge();
 
   // Iterate through all cells that can contain relocatable pointers to update
@@ -3028,7 +3031,6 @@ ArenaLists::ArenaLists(Zone* zone)
       arenasToSweep_(),
       incrementalSweptArenaKind(zone, AllocKind::LIMIT),
       incrementalSweptArenas(zone),
-      gcShapeArenasToUpdate(zone, nullptr),
       gcCompactPropMapArenasToUpdate(zone, nullptr),
       gcNormalPropMapArenasToUpdate(zone, nullptr),
       savedEmptyArenas(zone, nullptr) {
@@ -3166,7 +3168,6 @@ Arena* ArenaLists::takeSweptEmptyArenas() {
 }
 
 void ArenaLists::queueForegroundThingsForSweep() {
-  gcShapeArenasToUpdate = arenasToSweep(AllocKind::SHAPE);
   gcCompactPropMapArenasToUpdate = arenasToSweep(AllocKind::COMPACT_PROP_MAP);
   gcNormalPropMapArenasToUpdate = arenasToSweep(AllocKind::NORMAL_PROP_MAP);
 }
@@ -3195,7 +3196,6 @@ void ArenaLists::checkSweepStateNotInUse() {
 }
 
 void ArenaLists::checkNoArenasToUpdate() {
-  MOZ_ASSERT(!gcShapeArenasToUpdate);
   MOZ_ASSERT(!gcCompactPropMapArenasToUpdate);
   MOZ_ASSERT(!gcNormalPropMapArenasToUpdate);
 }
@@ -3203,9 +3203,6 @@ void ArenaLists::checkNoArenasToUpdate() {
 void ArenaLists::checkNoArenasToUpdateForKind(AllocKind kind) {
 #ifdef DEBUG
   switch (kind) {
-    case AllocKind::SHAPE:
-      MOZ_ASSERT(!gcShapeArenasToUpdate);
-      break;
     case AllocKind::COMPACT_PROP_MAP:
       MOZ_ASSERT(!gcCompactPropMapArenasToUpdate);
       break;
@@ -4008,6 +4005,7 @@ void GCRuntime::purgeRuntime() {
     zone->purgeAtomCache();
     zone->externalStringCache().purge();
     zone->functionToStringCache().purge();
+    zone->shapeZone().purgeShapeCaches(rt->defaultFreeOp());
   }
 
   JSContext* cx = rt->mainContextFromOwnThread();
@@ -4306,15 +4304,11 @@ void GCRuntime::relazifyFunctionsForShrinkingGC() {
   }
 }
 
-void GCRuntime::purgeShapeCachesForShrinkingGC() {
-  gcstats::AutoPhase ap(stats(), gcstats::PhaseKind::PURGE_SHAPE_CACHES);
+void GCRuntime::purgePropMapTablesForShrinkingGC() {
+  gcstats::AutoPhase ap(stats(), gcstats::PhaseKind::PURGE_PROP_MAP_TABLES);
   for (GCZonesIter zone(this); !zone.done(); zone.next()) {
-    if (!canRelocateZone(zone) || zone->keepShapeCaches()) {
+    if (!canRelocateZone(zone) || zone->keepPropMapTables()) {
       continue;
-    }
-    for (auto shape = zone->cellIterUnsafe<Shape>(); !shape.done();
-         shape.next()) {
-      shape->maybePurgeCache(rt->defaultFreeOp());
     }
 
     // Note: CompactPropMaps never have a table.
@@ -4538,7 +4532,7 @@ void GCRuntime::endPreparePhase(JS::GCReason reason) {
      */
     if (gcOptions == JS::GCOptions::Shrink) {
       relazifyFunctionsForShrinkingGC();
-      purgeShapeCachesForShrinkingGC();
+      purgePropMapTablesForShrinkingGC();
       purgeSourceURLsForShrinkingGC();
     }
 
@@ -6174,17 +6168,14 @@ IncrementalProgress GCRuntime::finalizeAllocKind(JSFreeOp* fop,
   return Finished;
 }
 
-IncrementalProgress GCRuntime::sweepShapeTree(JSFreeOp* fop,
-                                              SliceBudget& budget) {
-  // Remove dead shapes from the shape tree, but don't finalize them yet.
+IncrementalProgress GCRuntime::sweepPropMapTree(JSFreeOp* fop,
+                                                SliceBudget& budget) {
+  // Remove dead SharedPropMaps from the tree, but don't finalize them yet.
 
-  gcstats::AutoPhase ap(stats(), gcstats::PhaseKind::SWEEP_SHAPE);
+  gcstats::AutoPhase ap(stats(), gcstats::PhaseKind::SWEEP_PROP_MAP);
 
   ArenaLists& al = sweepZone->arenas;
 
-  if (!SweepArenaList<Shape>(fop, &al.gcShapeArenasToUpdate.ref(), budget)) {
-    return NotFinished;
-  }
   if (!SweepArenaList<CompactPropMap>(
           fop, &al.gcCompactPropMapArenasToUpdate.ref(), budget)) {
     return NotFinished;
@@ -6492,8 +6483,8 @@ bool GCRuntime::initSweepActions() {
                        ForEachAllocKind(ForegroundNonObjectFinalizePhase.kinds,
                                         &sweepAllocKind.ref(),
                                         Call(&GCRuntime::finalizeAllocKind)),
-                       MaybeYield(ZealMode::YieldBeforeSweepingShapeTrees),
-                       Call(&GCRuntime::sweepShapeTree))),
+                       MaybeYield(ZealMode::YieldBeforeSweepingPropMapTrees),
+                       Call(&GCRuntime::sweepPropMapTree))),
           Call(&GCRuntime::endSweepingSweepGroup)));
 
   return sweepActions != nullptr;
@@ -8651,14 +8642,8 @@ void GCRuntime::checkHashTablesAfterMovingGC() {
     zone->checkAllCrossCompartmentWrappersAfterMovingGC();
     zone->checkScriptMapsAfterMovingGC();
 
-    JS::AutoCheckCannotGC nogc;
-    for (auto shape = zone->cellIterUnsafe<Shape>(); !shape.done();
-         shape.next()) {
-      ShapeCachePtr p = shape->getCache(nogc);
-      p.checkAfterMovingGC();
-    }
-
     // Note: CompactPropMaps never have a table.
+    JS::AutoCheckCannotGC nogc;
     for (auto map = zone->cellIterUnsafe<NormalPropMap>(); !map.done();
          map.next()) {
       if (PropMapTable* table = map->asLinked()->maybeTable(nogc)) {

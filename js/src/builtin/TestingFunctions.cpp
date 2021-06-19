@@ -40,6 +40,7 @@
 
 #ifdef JS_HAS_INTL_API
 #  include "builtin/intl/CommonFunctions.h"
+#  include "builtin/intl/SharedIntlData.h"
 #endif
 #include "builtin/ModuleObject.h"
 #include "builtin/Promise.h"
@@ -4621,21 +4622,25 @@ class ShapeSnapshot {
   GCVector<HeapPtr<Value>, 8> slots_;
 
   struct PropertySnapshot {
-    HeapPtr<Shape*> propShape;
+    HeapPtr<PropMap*> propMap;
+    uint32_t propMapIndex;
     HeapPtr<PropertyKey> key;
     PropertyInfo prop;
 
-    explicit PropertySnapshot(Shape* shape)
-        : propShape(shape),
-          key(propShape->propertyInfoWithKey().key()),
-          prop(propShape->propertyInfo()) {}
+    explicit PropertySnapshot(PropMap* map, uint32_t index)
+        : propMap(map),
+          propMapIndex(index),
+          key(map->getKey(index)),
+          prop(map->getPropertyInfo(index)) {}
+
     void trace(JSTracer* trc) {
-      TraceEdge(trc, &propShape, "propShape");
+      TraceEdge(trc, &propMap, "propMap");
       TraceEdge(trc, &key, "key");
     }
+
     bool operator==(const PropertySnapshot& other) const {
-      return propShape == other.propShape && key == other.key &&
-             prop == other.prop;
+      return propMap == other.propMap && propMapIndex == other.propMapIndex &&
+             key == other.key && prop == other.prop;
     }
     bool operator!=(const PropertySnapshot& other) const {
       return !operator==(other);
@@ -4726,12 +4731,23 @@ bool ShapeSnapshot::init(JSObject* obj) {
     }
 
     // Snapshot property information.
-    Shape* propShape = shape_;
-    while (!propShape->isEmptyShape()) {
-      if (!properties_.append(PropertySnapshot(propShape))) {
-        return false;
+    if (uint32_t len = nobj->shape()->propMapLength(); len > 0) {
+      PropMap* map = nobj->shape()->propMap();
+      while (true) {
+        for (uint32_t i = 0; i < len; i++) {
+          if (!map->hasKey(i)) {
+            continue;
+          }
+          if (!properties_.append(PropertySnapshot(map, i))) {
+            return false;
+          }
+        }
+        if (!map->hasPrevious()) {
+          break;
+        }
+        map = map->asLinked()->previous();
+        len = PropMap::Capacity;
       }
-      propShape = propShape->previous();
     }
   }
 
@@ -4750,26 +4766,28 @@ void ShapeSnapshot::checkSelf(JSContext* cx) const {
   // Assertions based on a single snapshot.
 
   // Non-dictionary shapes must not be mutated.
-  if (!shape_->inDictionary()) {
+  if (!shape_->isDictionary()) {
     MOZ_RELEASE_ASSERT(shape_->base() == baseShape_);
     MOZ_RELEASE_ASSERT(shape_->objectFlags() == objectFlags_);
   }
 
   for (const PropertySnapshot& propSnapshot : properties_) {
-    Shape* propShape = propSnapshot.propShape;
+    PropMap* propMap = propSnapshot.propMap;
+    uint32_t propMapIndex = propSnapshot.propMapIndex;
     PropertyInfo prop = propSnapshot.prop;
 
-    // Skip if the Shape no longer matches the snapshotted data. This can
+    // Skip if the map no longer matches the snapshotted data. This can
     // only happen for non-configurable dictionary properties.
-    if (PropertySnapshot(propShape) != propSnapshot) {
-      MOZ_RELEASE_ASSERT(propShape->inDictionary());
+    if (PropertySnapshot(propMap, propMapIndex) != propSnapshot) {
+      MOZ_RELEASE_ASSERT(propMap->isDictionary());
       MOZ_RELEASE_ASSERT(prop.configurable());
       continue;
     }
 
     // Ensure ObjectFlags depending on property information are set if needed.
     ObjectFlags expectedFlags = GetObjectFlagsForNewProperty(
-        shape_, propSnapshot.key, prop.flags(), cx);
+        shape_->getObjectClass(), shape_->objectFlags(), propSnapshot.key,
+        prop.flags(), cx);
     MOZ_RELEASE_ASSERT(expectedFlags == objectFlags_);
 
     // Accessors must have a PrivateGCThingValue(GetterSetter*) slot value.
@@ -7177,6 +7195,64 @@ static bool GetICUOptions(JSContext* cx, unsigned argc, Value* vp) {
   return true;
 }
 
+static bool GetAvailableLocalesOf(JSContext* cx, unsigned argc, Value* vp) {
+  CallArgs args = CallArgsFromVp(argc, vp);
+  RootedObject callee(cx, &args.callee());
+
+  if (!args.requireAtLeast(cx, "getAvailableLocalesOf", 1)) {
+    return false;
+  }
+
+  HandleValue arg = args[0];
+  if (!arg.isString()) {
+    ReportUsageErrorASCII(cx, callee, "First argument must be a string");
+    return false;
+  }
+
+  ArrayObject* result;
+#ifdef JS_HAS_INTL_API
+  using SupportedLocaleKind = js::intl::SharedIntlData::SupportedLocaleKind;
+
+  SupportedLocaleKind kind;
+  {
+    JSLinearString* typeStr = arg.toString()->ensureLinear(cx);
+    if (!typeStr) {
+      return false;
+    }
+
+    if (StringEqualsLiteral(typeStr, "Collator")) {
+      kind = SupportedLocaleKind::Collator;
+    } else if (StringEqualsLiteral(typeStr, "DateTimeFormat")) {
+      kind = SupportedLocaleKind::DateTimeFormat;
+    } else if (StringEqualsLiteral(typeStr, "DisplayNames")) {
+      kind = SupportedLocaleKind::DisplayNames;
+    } else if (StringEqualsLiteral(typeStr, "ListFormat")) {
+      kind = SupportedLocaleKind::ListFormat;
+    } else if (StringEqualsLiteral(typeStr, "NumberFormat")) {
+      kind = SupportedLocaleKind::NumberFormat;
+    } else if (StringEqualsLiteral(typeStr, "PluralRules")) {
+      kind = SupportedLocaleKind::PluralRules;
+    } else if (StringEqualsLiteral(typeStr, "RelativeTimeFormat")) {
+      kind = SupportedLocaleKind::RelativeTimeFormat;
+    } else {
+      ReportUsageErrorASCII(cx, callee, "Unsupported Intl constructor name");
+      return false;
+    }
+  }
+
+  intl::SharedIntlData& sharedIntlData = cx->runtime()->sharedIntlData.ref();
+  result = sharedIntlData.availableLocalesOf(cx, kind);
+#else
+  result = NewDenseEmptyArray(cx);
+#endif
+  if (!result) {
+    return false;
+  }
+
+  args.rval().setObject(*result);
+  return true;
+}
+
 static bool IsSmallFunction(JSContext* cx, unsigned argc, Value* vp) {
   CallArgs args = CallArgsFromVp(argc, vp);
   RootedObject callee(cx, &args.callee());
@@ -8221,7 +8297,6 @@ JS_FOR_WASM_FEATURES(WASM_FEATURE, WASM_FEATURE)
 "sequence of ECMAScript execution completes. This is used for testing\n"
 "WeakRefs.\n"),
 
-
   JS_FN_HELP("numberToDouble", NumberToDouble, 1, 0,
 "numberToDouble(number)",
 "  Return the input number as double-typed number."),
@@ -8235,6 +8310,10 @@ JS_FN_HELP("getICUOptions", GetICUOptions, 0, 0,
 "    tzdata: a string containing the tzdata version number, e.g. '2020a'\n"
 "    timezone: the ICU default time zone, e.g. 'America/Los_Angeles'\n"
 "    host-timezone: the host time zone, e.g. 'America/Los_Angeles'"),
+
+JS_FN_HELP("getAvailableLocalesOf", GetAvailableLocalesOf, 0, 0,
+"getAvailableLocalesOf(name)",
+"  Return an array of all available locales for the given Intl constuctor."),
 
 JS_FN_HELP("isSmallFunction", IsSmallFunction, 1, 0,
 "isSmallFunction(fun)",

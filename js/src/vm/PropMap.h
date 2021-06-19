@@ -213,8 +213,6 @@ class LinkedPropMap;
 class CompactPropMap;
 class NormalPropMap;
 
-class AutoKeepShapeCaches;
-
 // Template class for storing a PropMap* and a property index as tagged pointer.
 template <typename T>
 class MapAndIndex {
@@ -292,6 +290,18 @@ class SharedChildrenPtr {
     return reinterpret_cast<SharedChildrenSet*>(data_);
   }
 } JS_HAZ_GC_POINTER;
+
+// Ensures no property map tables are purged in the current zone.
+class MOZ_RAII AutoKeepPropMapTables {
+  JSContext* cx_;
+  bool prev_;
+
+ public:
+  void operator=(const AutoKeepPropMapTables&) = delete;
+  AutoKeepPropMapTables(const AutoKeepPropMapTables&) = delete;
+  explicit inline AutoKeepPropMapTables(JSContext* cx);
+  inline ~AutoKeepPropMapTables();
+};
 
 // Hash table to optimize property lookups on larger maps. This maps from
 // PropertyKey to PropMapAndIndex.
@@ -478,6 +488,12 @@ class PropMap : public gc::TenuredCellWithFlags {
 
   uint32_t approximateEntryCount() const;
 
+#ifdef DEBUG
+  void dump(js::GenericPrinter& out) const;
+  void dump() const;
+  void checkConsistency(NativeObject* obj) const;
+#endif
+
   void addSizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf,
                               size_t* children, size_t* tables) const;
 
@@ -498,7 +514,7 @@ class PropMap : public gc::TenuredCellWithFlags {
 
   static inline bool lookupForRemove(JSContext* cx, PropMap* map,
                                      uint32_t mapLength, PropertyKey key,
-                                     const AutoKeepShapeCaches& keep,
+                                     const AutoKeepPropMapTables& keep,
                                      PropMap** propMap, uint32_t* propIndex,
                                      PropMapTable** table,
                                      PropMapTable::Ptr* ptr);
@@ -770,7 +786,7 @@ class LinkedPropMap final : public PropMap {
     }
     return data_.table;
   }
-  PropMapTable* ensureTable(JSContext* cx, const AutoKeepShapeCaches& keep) {
+  PropMapTable* ensureTable(JSContext* cx, const AutoKeepPropMapTables& keep) {
     if (!data_.table && MOZ_UNLIKELY(!createTable(cx))) {
       return nullptr;
     }

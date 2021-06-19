@@ -21,6 +21,15 @@
 
 namespace js {
 
+inline AutoKeepPropMapTables::AutoKeepPropMapTables(JSContext* cx)
+    : cx_(cx), prev_(cx->zone()->keepPropMapTables()) {
+  cx->zone()->setKeepPropMapTables(true);
+}
+
+inline AutoKeepPropMapTables::~AutoKeepPropMapTables() {
+  cx_->zone()->setKeepPropMapTables(prev_);
+}
+
 // static
 MOZ_ALWAYS_INLINE PropMap* PropMap::lookupLinear(uint32_t mapLength,
                                                  PropertyKey key,
@@ -162,7 +171,7 @@ inline void SharedPropMap::getPrevious(MutableHandle<SharedPropMap*> map,
 // static
 inline bool PropMap::lookupForRemove(JSContext* cx, PropMap* map,
                                      uint32_t mapLength, PropertyKey key,
-                                     const AutoKeepShapeCaches& keep,
+                                     const AutoKeepPropMapTables& keep,
                                      PropMap** propMap, uint32_t* propIndex,
                                      PropMapTable** table,
                                      PropMapTable::Ptr* ptr) {
