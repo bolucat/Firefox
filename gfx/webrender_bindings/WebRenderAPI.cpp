@@ -1057,31 +1057,6 @@ wr::WrClipChainId DisplayListBuilder::DefineClipChain(
   return wr::WrClipChainId{clipchainId};
 }
 
-wr::WrClipId DisplayListBuilder::DefineClip(
-    const Maybe<wr::WrSpaceAndClip>& aParent, const wr::LayoutRect& aClipRect,
-    const nsTArray<wr::ComplexClipRegion>* aComplex) {
-  CancelGroup();
-
-  WrClipId clipId;
-  if (aParent) {
-    clipId = wr_dp_define_clip_with_parent_clip(
-        mWrState, aParent.ptr(), aClipRect,
-        aComplex ? aComplex->Elements() : nullptr,
-        aComplex ? aComplex->Length() : 0);
-  } else {
-    clipId = wr_dp_define_clip_with_parent_clip_chain(
-        mWrState, &mCurrentSpaceAndClipChain, aClipRect,
-        aComplex ? aComplex->Elements() : nullptr,
-        aComplex ? aComplex->Length() : 0);
-  }
-
-  WRDL_LOG("DefineClip id=%zu p=%s r=%s complex=%zu\n", mWrState, clipId.id,
-           aParent ? ToString(aParent->clip.id).c_str() : "(nil)",
-           ToString(aClipRect).c_str(), aComplex ? aComplex->Length() : 0);
-
-  return clipId;
-}
-
 wr::WrClipId DisplayListBuilder::DefineImageMaskClip(
     const wr::ImageMask& aMask, const nsTArray<wr::LayoutPoint>& aPoints,
     wr::FillRule aFillRule) {
@@ -1095,20 +1070,31 @@ wr::WrClipId DisplayListBuilder::DefineImageMaskClip(
 }
 
 wr::WrClipId DisplayListBuilder::DefineRoundedRectClip(
-    const wr::ComplexClipRegion& aComplex) {
+    Maybe<wr::WrSpatialId> aSpace, const wr::ComplexClipRegion& aComplex) {
   CancelGroup();
 
-  WrClipId clipId = wr_dp_define_rounded_rect_clip_with_parent_clip_chain(
-      mWrState, &mCurrentSpaceAndClipChain, aComplex);
+  WrClipId clipId;
+  if (aSpace) {
+    clipId = wr_dp_define_rounded_rect_clip(mWrState, *aSpace, aComplex);
+  } else {
+    clipId = wr_dp_define_rounded_rect_clip_with_parent_clip_chain(
+        mWrState, &mCurrentSpaceAndClipChain, aComplex);
+  }
 
   return clipId;
 }
 
-wr::WrClipId DisplayListBuilder::DefineRectClip(wr::LayoutRect aClipRect) {
+wr::WrClipId DisplayListBuilder::DefineRectClip(Maybe<wr::WrSpatialId> aSpace,
+                                                wr::LayoutRect aClipRect) {
   CancelGroup();
 
-  WrClipId clipId = wr_dp_define_rect_clip_with_parent_clip_chain(
-      mWrState, &mCurrentSpaceAndClipChain, aClipRect);
+  WrClipId clipId;
+  if (aSpace) {
+    clipId = wr_dp_define_rect_clip(mWrState, *aSpace, aClipRect);
+  } else {
+    clipId = wr_dp_define_rect_clip_with_parent_clip_chain(
+        mWrState, &mCurrentSpaceAndClipChain, aClipRect);
+  }
 
   return clipId;
 }
@@ -1268,7 +1254,7 @@ void DisplayListBuilder::PushBackdropFilter(
   WRDL_LOG("PushBackdropFilter b=%s c=%s\n", mWrState,
            ToString(aBounds).c_str(), ToString(clip).c_str());
 
-  auto clipId = DefineRoundedRectClip(aRegion);
+  auto clipId = DefineRoundedRectClip(Nothing(), aRegion);
   auto spaceAndClip = WrSpaceAndClip{mCurrentSpaceAndClipChain.space, clipId};
 
   wr_dp_push_backdrop_filter_with_parent_clip(
@@ -1505,7 +1491,7 @@ void DisplayListBuilder::SuspendClipLeafMerging() {
     mSuspendedClipChainLeaf = mClipChainLeaf;
     mSuspendedSpaceAndClipChain = Some(mCurrentSpaceAndClipChain);
 
-    auto clipId = DefineRectClip(*mClipChainLeaf);
+    auto clipId = DefineRectClip(Nothing(), *mClipChainLeaf);
     auto clipChainId = DefineClipChain({clipId}, true);
 
     mCurrentSpaceAndClipChain.clip_chain = clipChainId.id;

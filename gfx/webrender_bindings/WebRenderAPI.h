@@ -455,15 +455,13 @@ class DisplayListBuilder final {
   wr::WrClipChainId DefineClipChain(const nsTArray<wr::WrClipId>& aClips,
                                     bool aParentWithCurrentChain = false);
 
-  wr::WrClipId DefineClip(
-      const Maybe<wr::WrSpaceAndClip>& aParent, const wr::LayoutRect& aClipRect,
-      const nsTArray<wr::ComplexClipRegion>* aComplex = nullptr);
-
   wr::WrClipId DefineImageMaskClip(const wr::ImageMask& aMask,
                                    const nsTArray<wr::LayoutPoint>&,
                                    wr::FillRule);
-  wr::WrClipId DefineRoundedRectClip(const wr::ComplexClipRegion& aComplex);
-  wr::WrClipId DefineRectClip(wr::LayoutRect aClipRect);
+  wr::WrClipId DefineRoundedRectClip(Maybe<wr::WrSpatialId> aSpace,
+                                     const wr::ComplexClipRegion& aComplex);
+  wr::WrClipId DefineRectClip(Maybe<wr::WrSpatialId> aSpace,
+                              wr::LayoutRect aClipRect);
 
   wr::WrSpatialId DefineStickyFrame(const wr::LayoutRect& aContentRect,
                                     const float* aTopMargin,
