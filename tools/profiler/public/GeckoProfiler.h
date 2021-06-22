@@ -490,10 +490,9 @@ void profiler_add_network_marker(
     mozilla::TimeStamp aEnd, int64_t aCount,
     mozilla::net::CacheDisposition aCacheDisposition, uint64_t aInnerWindowID,
     const mozilla::net::TimingStruct* aTimings = nullptr,
-    nsIURI* aRedirectURI = nullptr,
     mozilla::UniquePtr<mozilla::ProfileChunkedBuffer> aSource = nullptr,
-    const mozilla::Maybe<nsDependentCString>& aContentType =
-        mozilla::Nothing());
+    const mozilla::Maybe<nsDependentCString>& aContentType = mozilla::Nothing(),
+    nsIURI* aRedirectURI = nullptr, uint32_t aRedirectFlags = 0);
 
 enum TracingKind {
   TRACING_EVENT,

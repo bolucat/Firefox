@@ -71,6 +71,7 @@
 #include "BaseProfiler.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsDirectoryServiceUtils.h"
+#include "nsIChannelEventSink.h"
 #include "nsIDocShell.h"
 #include "nsIHttpProtocolHandler.h"
 #include "nsIObserverService.h"
@@ -258,6 +259,9 @@ static uint32_t AvailableFeatures() {
   if (!JS::TraceLoggerSupported()) {
     ProfilerFeature::ClearJSTracer(features);
   }
+#if !defined(GP_OS_windows)
+  ProfilerFeature::ClearNoTimerResolutionChange(features);
+#endif
 
   return features;
 }
@@ -696,8 +700,8 @@ ProfileChunkedBuffer& profiler_get_core_buffer() {
 class SamplerThread;
 
 static SamplerThread* NewSamplerThread(PSLockRef aLock, uint32_t aGeneration,
-                                       double aInterval,
-                                       bool aStackWalkEnabled);
+                                       double aInterval, bool aStackWalkEnabled,
+                                       bool aNoTimerResolutionChange);
 
 struct LiveProfiledThreadData {
   RegisteredThread* mRegisteredThread;
@@ -810,9 +814,10 @@ class ActivePS {
         // The new sampler thread doesn't start sampling immediately because the
         // main loop within Run() is blocked until this function's caller
         // unlocks gPSMutex.
-        mSamplerThread(
-            NewSamplerThread(aLock, mGeneration, aInterval,
-                             ProfilerFeature::HasStackWalk(aFeatures))),
+        mSamplerThread(NewSamplerThread(
+            aLock, mGeneration, aInterval,
+            ProfilerFeature::HasStackWalk(aFeatures),
+            ProfilerFeature::HasNoTimerResolutionChange(aFeatures))),
         mInterposeObserver((ProfilerFeature::HasMainThreadIO(aFeatures) ||
                             ProfilerFeature::HasFileIO(aFeatures) ||
                             ProfilerFeature::HasFileIOAll(aFeatures))
@@ -3226,7 +3231,7 @@ static void PrintUsageThenExit(int aExitCode) {
 #undef PRINT_FEATURE
 
   printf(
-      "    -        \"default\" (All above D+S defaults)\n"
+      "    -          \"default\" (All above D+S defaults)\n"
       "\n"
       "  MOZ_PROFILER_STARTUP_FILTERS=<Filters>\n"
       "  If MOZ_PROFILER_STARTUP is set, specifies the thread filters, as a\n"
@@ -3405,7 +3410,8 @@ class SamplerThread {
  public:
   // Creates a sampler thread, but doesn't start it.
   SamplerThread(PSLockRef aLock, uint32_t aActivityGeneration,
-                double aIntervalMilliseconds, bool aStackWalkEnabled);
+                double aIntervalMilliseconds, bool aStackWalkEnabled,
+                bool aNoTimerResolutionChange);
   ~SamplerThread();
 
   // This runs on (is!) the sampler thread.
@@ -3489,6 +3495,10 @@ class SamplerThread {
   // stolen by the sampler thread at the end of its next run.
   UniquePtr<PostSamplingCallbackListItem> mPostSamplingCallbackList;
 
+#if defined(GP_OS_windows)
+  bool mNoTimerResolutionChange = true;
+#endif
+
   SamplerThread(const SamplerThread&) = delete;
   void operator=(const SamplerThread&) = delete;
 };
@@ -3508,9 +3518,10 @@ bool ActivePS::AppendPostSamplingCallback(PSLockRef aLock,
 // ActivePS's constructor, but SamplerThread is defined after ActivePS. It
 // could probably be removed by moving some code around.
 static SamplerThread* NewSamplerThread(PSLockRef aLock, uint32_t aGeneration,
-                                       double aInterval,
-                                       bool aStackWalkEnabled) {
-  return new SamplerThread(aLock, aGeneration, aInterval, aStackWalkEnabled);
+                                       double aInterval, bool aStackWalkEnabled,
+                                       bool aNoTimerResolutionChange) {
+  return new SamplerThread(aLock, aGeneration, aInterval, aStackWalkEnabled,
+                           aNoTimerResolutionChange);
 }
 
 // This function is the sampler thread.  This implementation is used for all
@@ -5808,9 +5819,10 @@ void profiler_add_network_marker(
     uint64_t aChannelId, NetworkLoadType aType, mozilla::TimeStamp aStart,
     mozilla::TimeStamp aEnd, int64_t aCount,
     mozilla::net::CacheDisposition aCacheDisposition, uint64_t aInnerWindowID,
-    const mozilla::net::TimingStruct* aTimings, nsIURI* aRedirectURI,
+    const mozilla::net::TimingStruct* aTimings,
     UniquePtr<ProfileChunkedBuffer> aSource,
-    const Maybe<nsDependentCString>& aContentType) {
+    const Maybe<nsDependentCString>& aContentType, nsIURI* aRedirectURI,
+    uint32_t aRedirectFlags) {
   if (!profiler_can_accept_markers()) {
     return;
   }
@@ -5844,7 +5856,7 @@ void profiler_add_network_marker(
         int32_t aPri, int64_t aCount, net::CacheDisposition aCacheDisposition,
         const net::TimingStruct& aTimings,
         const ProfilerString8View& aRedirectURI,
-        const ProfilerString8View& aContentType) {
+        const ProfilerString8View& aContentType, uint32_t aRedirectFlags) {
       // This payload still streams a startTime and endTime property because it
       // made the migration to MarkerTiming on the front-end easier.
       aWriter.TimeProperty("startTime", aStart);
@@ -5865,6 +5877,10 @@ void profiler_add_network_marker(
       }
       if (aRedirectURI.Length() != 0) {
         aWriter.StringProperty("RedirectURI", aRedirectURI);
+        aWriter.StringProperty("redirectType", getRedirectType(aRedirectFlags));
+        aWriter.BoolProperty(
+            "isHttpToHttpsRedirect",
+            aRedirectFlags & nsIChannelEventSink::REDIRECT_STS_UPGRADE);
       }
       aWriter.StringProperty("requestMethod", aRequestMethod);
 
@@ -5926,6 +5942,21 @@ void profiler_add_network_marker(
           return MakeStringSpan("");
       }
     }
+
+    static Span<const char> getRedirectType(uint32_t aRedirectFlags) {
+      MOZ_ASSERT(aRedirectFlags != 0, "aRedirectFlags should be non-zero");
+      if (aRedirectFlags & nsIChannelEventSink::REDIRECT_TEMPORARY) {
+        return MakeStringSpan("Temporary");
+      }
+      if (aRedirectFlags & nsIChannelEventSink::REDIRECT_PERMANENT) {
+        return MakeStringSpan("Permanent");
+      }
+      if (aRedirectFlags & nsIChannelEventSink::REDIRECT_INTERNAL) {
+        return MakeStringSpan("Internal");
+      }
+      MOZ_ASSERT(false, "Couldn't find a redirect type from aRedirectFlags");
+      return MakeStringSpan("");
+    }
   };
 
   profiler_add_marker(
@@ -5936,8 +5967,8 @@ void profiler_add_network_marker(
       NetworkMarker{}, aStart, aEnd, static_cast<int64_t>(aChannelId), spec,
       aRequestMethod, aType, aPriority, aCount, aCacheDisposition,
       aTimings ? *aTimings : scEmptyNetTimingStruct, redirect_spec,
-      aContentType ? ProfilerString8View(*aContentType)
-                   : ProfilerString8View());
+      aContentType ? ProfilerString8View(*aContentType) : ProfilerString8View(),
+      aRedirectFlags);
 }
 
 bool profiler_add_native_allocation_marker(int64_t aSize,

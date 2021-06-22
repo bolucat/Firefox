@@ -53,6 +53,13 @@ XPCOMUtils.defineLazyPreferenceGetter(
   false
 );
 
+XPCOMUtils.defineLazyPreferenceGetter(
+  this,
+  "SCREENSHOT_BROWSER_COMPONENT",
+  "screenshots.browser.component.enabled",
+  false
+);
+
 function setAttributes(aNode, aAttrs) {
   let doc = aNode.ownerDocument;
   for (let [name, value] of Object.entries(aAttrs)) {
@@ -439,7 +446,7 @@ const CustomizableWidgets = [
     id: "characterencoding-button",
     l10nId: "repair-text-encoding-button",
     onCommand(aEvent) {
-      aEvent.view.BrowserSetForcedCharacterSet("_autodetect_all");
+      aEvent.view.BrowserForceEncodingDetection();
     },
   },
   {
@@ -502,20 +509,24 @@ if (!screenshotsDisabled) {
     id: "screenshot-button",
     l10nId: "screenshot-toolbarbutton",
     onCommand(aEvent) {
-      Services.obs.notifyObservers(null, "menuitem-screenshot");
+      if (!SCREENSHOT_BROWSER_COMPONENT) {
+        Services.obs.notifyObservers(null, "menuitem-screenshot");
+      }
     },
     onCreated(aNode) {
-      this.screenshotNode = aNode;
-      this.screenshotNode.ownerGlobal.MozXULElement.insertFTLIfNeeded(
+      aNode.ownerGlobal.MozXULElement.insertFTLIfNeeded(
         "browser/screenshots.ftl"
       );
       Services.obs.addObserver(this, "toggle-screenshot-disable");
     },
     observe(subj, topic, data) {
+      let document = subj.document;
+      let button = document.getElementById("screenshot-button");
+
       if (data == "true") {
-        this.screenshotNode.setAttribute("disabled", "true");
+        button.setAttribute("disabled", "true");
       } else {
-        this.screenshotNode.removeAttribute("disabled");
+        button.removeAttribute("disabled");
       }
     },
   });
