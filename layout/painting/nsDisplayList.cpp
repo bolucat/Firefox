@@ -1594,7 +1594,7 @@ static bool IsStickyFrameActive(nsDisplayListBuilder* aBuilder,
     return false;
   }
 
-  return sf->IsScrollingActive(aBuilder);
+  return sf->IsScrollingActive();
 }
 
 nsDisplayListBuilder::AGRState nsDisplayListBuilder::IsAnimatedGeometryRoot(
@@ -1637,7 +1637,7 @@ nsDisplayListBuilder::AGRState nsDisplayListBuilder::IsAnimatedGeometryRoot(
   if (parentType == LayoutFrameType::Scroll ||
       parentType == LayoutFrameType::ListControl) {
     nsIScrollableFrame* sf = do_QueryFrame(parent);
-    if (sf->GetScrolledFrame() == aFrame && sf->IsScrollingActive(this)) {
+    if (sf->GetScrolledFrame() == aFrame && sf->IsScrollingActive()) {
       MOZ_ASSERT(!aFrame->IsTransformed());
       aIsAsync = sf->IsMaybeAsynchronouslyScrolled();
       return AGR_YES;
@@ -1648,11 +1648,7 @@ nsDisplayListBuilder::AGRState nsDisplayListBuilder::IsAnimatedGeometryRoot(
   // its own layer so that it can move without repainting.
   if (parentType == LayoutFrameType::Slider) {
     auto* sf = static_cast<nsSliderFrame*>(parent)->GetScrollFrame();
-    // The word "Maybe" in IsMaybeScrollingActive might be confusing but we do
-    // indeed need to always consider scroll thumbs as AGRs if
-    // IsMaybeScrollingActive is true because that is the same condition we use
-    // in ScrollFrameHelper::AppendScrollPartsTo to layerize scroll thumbs.
-    if (sf && sf->IsMaybeScrollingActive()) {
+    if (sf && sf->IsScrollingActive()) {
       return AGR_YES;
     }
   }
@@ -8292,13 +8288,14 @@ already_AddRefed<Layer> nsDisplayTransform::BuildLayer(
 }
 
 void nsDisplayTransform::Collect3DTransformLeaves(
-    nsTArray<nsDisplayTransform*>& aLeaves) {
+    nsDisplayListBuilder* aBuilder, nsTArray<nsDisplayTransform*>& aLeaves) {
   if (!IsParticipating3DContext() || IsLeafOf3DContext()) {
     aLeaves.AppendElement(this);
     return;
   }
 
-  for (nsDisplayItem* item : mChildren) {
+  FlattenedDisplayListIterator iter(aBuilder, &mChildren);
+  while (nsDisplayItem* item = iter.GetNextItem()) {
     if (item->GetType() == DisplayItemType::TYPE_PERSPECTIVE) {
       auto* perspective = static_cast<nsDisplayPerspective*>(item);
       if (!perspective->GetChildren()->GetTop()) {
@@ -8306,8 +8303,13 @@ void nsDisplayTransform::Collect3DTransformLeaves(
       }
       item = perspective->GetChildren()->GetTop();
     }
-    MOZ_RELEASE_ASSERT(item->GetType() == DisplayItemType::TYPE_TRANSFORM);
-    static_cast<nsDisplayTransform*>(item)->Collect3DTransformLeaves(aLeaves);
+    if (item->GetType() != DisplayItemType::TYPE_TRANSFORM) {
+      gfxCriticalError() << "Invalid child item within 3D transform of type: "
+                         << item->Name();
+      continue;
+    }
+    static_cast<nsDisplayTransform*>(item)->Collect3DTransformLeaves(aBuilder,
+                                                                     aLeaves);
   }
 }
 
@@ -8333,7 +8335,7 @@ void nsDisplayTransform::CollectSorted3DTransformLeaves(
   std::list<TransformPolygon> inputLayers;
 
   nsTArray<nsDisplayTransform*> leaves;
-  Collect3DTransformLeaves(leaves);
+  Collect3DTransformLeaves(aBuilder, leaves);
   for (nsDisplayTransform* item : leaves) {
     auto bounds = LayoutDeviceRect::FromAppUnits(
         item->mChildBounds, item->mFrame->PresContext()->AppUnitsPerDevPixel());

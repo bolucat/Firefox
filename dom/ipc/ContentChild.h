@@ -119,9 +119,9 @@ class ContentChild final : public PContentChild,
       nsDocShellLoadState* aLoadState, bool* aWindowIsNew,
       BrowsingContext** aReturn);
 
-  bool Init(MessageLoop* aIOLoop, base::ProcessId aParentPid,
-            const char* aParentBuildID, UniquePtr<IPC::Channel> aChannel,
-            uint64_t aChildID, bool aIsForBrowser);
+  bool Init(base::ProcessId aParentPid, const char* aParentBuildID,
+            mozilla::ipc::ScopedPort aPort, uint64_t aChildID,
+            bool aIsForBrowser);
 
   void InitXPCOM(XPCOMInitData&& aXPCOMInit,
                  const mozilla::dom::ipc::StructuredCloneData& aInitialData);
@@ -933,6 +933,8 @@ class ContentChild final : public PContentChild,
 
   // See `BrowsingContext::mEpochs` for an explanation of this field.
   uint64_t mBrowsingContextFieldEpoch = 0;
+
+  hal::ProcessPriority mProcessPriority = hal::PROCESS_PRIORITY_UNKNOWN;
 };
 
 inline nsISupports* ToSupports(mozilla::dom::ContentChild* aContentChild) {

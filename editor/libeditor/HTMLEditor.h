@@ -152,7 +152,6 @@ class HTMLEditor final : public EditorBase,
                                    uint32_t aFlags,
                                    const nsAString& aValue) final;
   MOZ_CAN_RUN_SCRIPT NS_IMETHOD BeginningOfDocument() final;
-  MOZ_CAN_RUN_SCRIPT NS_IMETHOD SetFlags(uint32_t aFlags) final;
 
   NS_IMETHOD GetDocumentCharacterSet(nsACString& aCharacterSet) final;
   MOZ_CAN_RUN_SCRIPT NS_IMETHOD
@@ -353,8 +352,8 @@ class HTMLEditor final : public EditorBase,
    * align attribute to align contents, returns false.
    */
   bool IsCSSEnabled() const {
-    // TODO: removal of mCSSAware and use only the presence of mCSSEditUtils
-    return mCSSAware && mCSSEditUtils && mCSSEditUtils->IsCSSPrefChecked();
+    return !IsMailEditor() && mCSSEditUtils &&
+           mCSSEditUtils->IsCSSPrefChecked();
   }
 
   /**
@@ -625,6 +624,13 @@ class HTMLEditor final : public EditorBase,
     Document* document = GetDocument();
     return document && document->HasFlag(NODE_IS_EDITABLE);
   }
+
+  /**
+   * Basically, this always returns true if we're for `contenteditable` or
+   * `designMode` editor in web apps.  However, e.g., Composer of SeaMonkey
+   * can make the editor not tabbable.
+   */
+  bool IsTabbable() const { return IsInteractionAllowed(); }
 
   /**
    * NotifyEditingHostMaybeChanged() is called when new element becomes
@@ -4312,7 +4318,6 @@ class HTMLEditor final : public EditorBase,
 
   bool mCRInParagraphCreatesParagraph;
 
-  bool mCSSAware;
   UniquePtr<CSSEditUtils> mCSSEditUtils;
 
   // resizing

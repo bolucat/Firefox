@@ -252,10 +252,6 @@
 #include "mozilla/dom/Worklet.h"
 #include "AccessCheck.h"
 
-#ifdef HAVE_SIDEBAR
-#  include "mozilla/dom/ExternalBinding.h"
-#endif
-
 #ifdef MOZ_WEBSPEECH
 #  include "mozilla/dom/SpeechSynthesis.h"
 #endif
@@ -640,7 +636,7 @@ bool nsOuterWindowProxy::getOwnPropertyDescriptor(
 
   // Step 3.
   if (isSameOrigin) {
-    if (StaticPrefs::dom_missing_prop_counters_enabled() && JSID_IS_ATOM(id)) {
+    if (StaticPrefs::dom_missing_prop_counters_enabled() && id.isAtom()) {
       Window_Binding::CountMaybeMissingProperty(proxy, id);
     }
 
@@ -955,7 +951,7 @@ bool nsOuterWindowProxy::get(JSContext* cx, JS::Handle<JSObject*> proxy,
     return true;
   }
 
-  if (StaticPrefs::dom_missing_prop_counters_enabled() && JSID_IS_ATOM(id)) {
+  if (StaticPrefs::dom_missing_prop_counters_enabled() && id.isAtom()) {
     Window_Binding::CountMaybeMissingProperty(proxy, id);
   }
 

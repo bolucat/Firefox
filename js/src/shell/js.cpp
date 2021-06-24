@@ -72,6 +72,7 @@
 #include "builtin/ModuleObject.h"
 #include "builtin/RegExp.h"
 #include "builtin/TestingFunctions.h"
+#include "builtin/TestingUtility.h"  // js::ParseCompileOptions
 #include "debugger/DebugAPI.h"
 #include "frontend/BytecodeCompilation.h"
 #include "frontend/BytecodeCompiler.h"
@@ -118,6 +119,7 @@
 #include "js/experimental/CTypes.h"        // JS::InitCTypesClass
 #include "js/experimental/Intl.h"  // JS::AddMoz{DateTimeFormat,DisplayNames}Constructor
 #include "js/experimental/JitInfo.h"  // JSJit{Getter,Setter,Method}CallArgs, JSJitGetterInfo, JSJit{Getter,Setter}Op, JSJitInfo
+#include "js/experimental/JSStencil.h"  // JS::Stencil, JS::CompileToStencilOffThread, JS::FinishOffThreadCompileToStencil
 #include "js/experimental/SourceHook.h"  // js::{Set,Forget,}SourceHook
 #include "js/experimental/TypedData.h"   // JS_NewUint8Array
 #include "js/friend/DumpFunctions.h"     // JS::FormatStackDump
@@ -173,6 +175,7 @@
 #include "vm/PromiseObject.h"  // js::PromiseObject
 #include "vm/Shape.h"
 #include "vm/SharedArrayObject.h"
+#include "vm/StencilObject.h"  // js::StencilObject
 #include "vm/Time.h"
 #include "vm/ToSource.h"  // js::ValueToSource
 #include "vm/TypedArrayObject.h"
@@ -2022,99 +2025,6 @@ static bool ParseDebugMetadata(JSContext* cx, HandleObject opts,
   return true;
 }
 
-// Populate |options| with the options given by |opts|'s properties. If we
-// need to convert a filename to a C string, let fileNameBytes own the
-// bytes.
-static bool ParseCompileOptions(JSContext* cx, CompileOptions& options,
-                                HandleObject opts, UniqueChars* fileNameBytes,
-                                MutableHandleValue privateValue,
-                                MutableHandleString elementAttributeName) {
-  RootedValue v(cx);
-  RootedString s(cx);
-
-  if (!ParseDebugMetadata(cx, opts, privateValue, elementAttributeName)) {
-    return false;
-  }
-
-  if (!JS_GetProperty(cx, opts, "isRunOnce", &v)) {
-    return false;
-  }
-  if (!v.isUndefined()) {
-    options.setIsRunOnce(ToBoolean(v));
-  }
-
-  if (!JS_GetProperty(cx, opts, "noScriptRval", &v)) {
-    return false;
-  }
-  if (!v.isUndefined()) {
-    options.setNoScriptRval(ToBoolean(v));
-  }
-
-  if (!JS_GetProperty(cx, opts, "fileName", &v)) {
-    return false;
-  }
-  if (v.isNull()) {
-    options.setFile(nullptr);
-  } else if (!v.isUndefined()) {
-    s = ToString(cx, v);
-    if (!s) {
-      return false;
-    }
-    if (fileNameBytes) {
-      *fileNameBytes = JS_EncodeStringToLatin1(cx, s);
-      if (!*fileNameBytes) {
-        return false;
-      }
-      options.setFile(fileNameBytes->get());
-    }
-  }
-
-  if (!JS_GetProperty(cx, opts, "skipFileNameValidation", &v)) {
-    return false;
-  }
-  if (!v.isUndefined()) {
-    options.setSkipFilenameValidation(ToBoolean(v));
-  }
-
-  if (!JS_GetProperty(cx, opts, "lineNumber", &v)) {
-    return false;
-  }
-  if (!v.isUndefined()) {
-    uint32_t u;
-    if (!ToUint32(cx, v, &u)) {
-      return false;
-    }
-    options.setLine(u);
-  }
-
-  if (!JS_GetProperty(cx, opts, "columnNumber", &v)) {
-    return false;
-  }
-  if (!v.isUndefined()) {
-    int32_t c;
-    if (!ToInt32(cx, v, &c)) {
-      return false;
-    }
-    options.setColumn(c);
-  }
-
-  if (!JS_GetProperty(cx, opts, "sourceIsLazy", &v)) {
-    return false;
-  }
-  if (v.isBoolean()) {
-    options.setSourceIsLazy(v.toBoolean());
-  }
-
-  if (!JS_GetProperty(cx, opts, "forceFullParse", &v)) {
-    return false;
-  }
-  if (v.isBoolean() && v.toBoolean()) {
-    options.setForceFullParse();
-  }
-
-  return true;
-}
-
 static void my_LargeAllocFailCallback() {
   JSContext* cx = TlsContext.get();
   if (!cx || cx->isHelperThreadContext()) {
@@ -2396,13 +2306,14 @@ static bool Evaluate(JSContext* cx, unsigned argc, Value* vp) {
 
   if (args.length() == 2) {
     RootedObject opts(cx, &args[1].toObject());
-    RootedValue v(cx);
-
-    if (!ParseCompileOptions(cx, options, opts, &fileNameBytes, &privateValue,
-                             &elementAttributeName)) {
+    if (!js::ParseCompileOptions(cx, options, opts, &fileNameBytes)) {
+      return false;
+    }
+    if (!ParseDebugMetadata(cx, opts, &privateValue, &elementAttributeName)) {
       return false;
     }
 
+    RootedValue v(cx);
     if (!JS_GetProperty(cx, opts, "displayURL", &v)) {
       return false;
     }
@@ -4726,7 +4637,7 @@ static JSObject* ShellSourceElementCallback(JSContext* cx,
 
   RootedValue elementValue(cx);
   if (!JS_GetProperty(cx, infoObject, "element", &elementValue)) {
-    // This shouldn't happen in the shell, as ParseCompileOptions always
+    // This shouldn't happen in the shell, as ParseDebugMetadata always
     // creates the infoObject with this property. In any case, this callback
     // must not leave an exception pending, so:
     MOZ_CRASH("error getting source element");
@@ -5517,8 +5428,10 @@ static bool Compile(JSContext* cx, unsigned argc, Value* vp) {
     }
 
     RootedObject opts(cx, &args[1].toObject());
-    if (!ParseCompileOptions(cx, options, opts, nullptr, &privateValue,
-                             &elementAttributeName)) {
+    if (!js::ParseCompileOptions(cx, options, opts, nullptr)) {
+      return false;
+    }
+    if (!ParseDebugMetadata(cx, opts, &privateValue, &elementAttributeName)) {
       return false;
     }
   }
@@ -5928,10 +5841,7 @@ static bool FrontendTest(JSContext* cx, unsigned argc, Value* vp,
                           typeName);
       return false;
     }
-    RootedValue dummyValue(cx);
-    RootedString dummyAttributeName(cx);
-    if (!ParseCompileOptions(cx, options, objOptions, nullptr, &dummyValue,
-                             &dummyAttributeName)) {
+    if (!js::ParseCompileOptions(cx, options, objOptions, nullptr)) {
       return false;
     }
 
@@ -6237,11 +6147,8 @@ static bool OffThreadCompileScript(JSContext* cx, unsigned argc, Value* vp) {
 
     // Offthread compilation requires that the debug metadata be set when the
     // script is collected from offthread, rather than when compiled.
-    RootedValue dummyPrivateValue(cx);
-    RootedString dummyElementAttributeName(cx);
     RootedObject opts(cx, &args[1].toObject());
-    if (!ParseCompileOptions(cx, options, opts, &fileNameBytes,
-                             &dummyPrivateValue, &dummyElementAttributeName)) {
+    if (!js::ParseCompileOptions(cx, options, opts, &fileNameBytes)) {
       return false;
     }
   }
@@ -6348,6 +6255,131 @@ static bool runOffThreadScript(JSContext* cx, unsigned argc, Value* vp) {
   }
 
   return JS_ExecuteScript(cx, script, args.rval());
+}
+
+static bool OffThreadCompileToStencil(JSContext* cx, unsigned argc, Value* vp) {
+  if (!CanUseExtraThreads()) {
+    JS_ReportErrorASCII(
+        cx, "Can't use offThreadCompileToStencil with --no-threads");
+    return false;
+  }
+
+  CallArgs args = CallArgsFromVp(argc, vp);
+
+  if (!args.requireAtLeast(cx, "offThreadCompileToStencil", 1)) {
+    return false;
+  }
+  if (!args[0].isString()) {
+    const char* typeName = InformalValueTypeName(args[0]);
+    JS_ReportErrorASCII(cx, "expected string to parse, got %s", typeName);
+    return false;
+  }
+
+  UniqueChars fileNameBytes;
+  CompileOptions options(cx);
+  options.setIntroductionType("js shell offThreadCompileToStencil")
+      .setFileAndLine("<string>", 1)
+      .setdeferDebugMetadata();
+
+  if (args.length() >= 2) {
+    if (args[1].isPrimitive()) {
+      JS_ReportErrorNumberASCII(cx, my_GetErrorMessage, nullptr,
+                                JSSMSG_INVALID_ARGS, "evaluate");
+      return false;
+    }
+
+    // Offthread compilation requires that the debug metadata be set when the
+    // script is collected from offthread, rather than when compiled.
+    RootedObject opts(cx, &args[1].toObject());
+    if (!js::ParseCompileOptions(cx, options, opts, &fileNameBytes)) {
+      return false;
+    }
+  }
+
+  // These option settings must override whatever the caller requested.
+  options.setIsRunOnce(true).setSourceIsLazy(false);
+
+  // We assume the caller wants caching if at all possible, ignoring
+  // heuristics that make sense for a real browser.
+  options.forceAsync = true;
+
+  JSString* scriptContents = args[0].toString();
+  AutoStableStringChars stableChars(cx);
+  if (!stableChars.initTwoByte(cx, scriptContents)) {
+    return false;
+  }
+
+  size_t length = scriptContents->length();
+  const char16_t* chars = stableChars.twoByteChars();
+
+  // Make sure we own the string's chars, so that they are not freed before
+  // the compilation is finished.
+  UniqueTwoByteChars ownedChars;
+  if (stableChars.maybeGiveOwnershipToCaller()) {
+    ownedChars.reset(const_cast<char16_t*>(chars));
+  } else {
+    ownedChars.reset(cx->pod_malloc<char16_t>(length));
+    if (!ownedChars) {
+      return false;
+    }
+
+    mozilla::PodCopy(ownedChars.get(), chars, length);
+  }
+
+  if (!JS::CanCompileOffThread(cx, options, length)) {
+    JS_ReportErrorASCII(cx, "cannot compile code on worker thread");
+    return false;
+  }
+
+  OffThreadJob* job =
+      NewOffThreadJob(cx, ScriptKind::ScriptStencil, options,
+                      OffThreadJob::Source(std::move(ownedChars)));
+  if (!job) {
+    return false;
+  }
+
+  JS::SourceText<char16_t> srcBuf;
+  if (!srcBuf.init(cx, job->sourceChars(), length,
+                   JS::SourceOwnership::Borrowed) ||
+      !JS::CompileToStencilOffThread(cx, options, srcBuf,
+                                     OffThreadCompileScriptCallback, job)) {
+    job->cancel();
+    DeleteOffThreadJob(cx, job);
+    return false;
+  }
+
+  args.rval().setInt32(job->id);
+  return true;
+}
+
+static bool FinishOffThreadCompileToStencil(JSContext* cx, unsigned argc,
+                                            Value* vp) {
+  CallArgs args = CallArgsFromVp(argc, vp);
+
+  OffThreadJob* job =
+      LookupOffThreadJobForArgs(cx, ScriptKind::ScriptStencil, args, 0);
+  if (!job) {
+    return false;
+  }
+
+  MOZ_ASSERT(!job->useOffThreadParseGlobal);
+
+  JS::OffThreadToken* token = job->waitUntilDone(cx);
+  MOZ_ASSERT(token);
+
+  RefPtr<JS::Stencil> stencil = JS::FinishOffThreadCompileToStencil(cx, token);
+  DeleteOffThreadJob(cx, job);
+  if (!stencil) {
+    return false;
+  }
+  RootedObject stencilObj(cx,
+                          js::StencilObject::create(cx, std::move(stencil)));
+  if (!stencilObj) {
+    return false;
+  }
+
+  args.rval().setObject(*stencilObj);
+  return true;
 }
 
 static bool OffThreadCompileModule(JSContext* cx, unsigned argc, Value* vp) {
@@ -6488,10 +6520,7 @@ static bool OffThreadDecodeScript(JSContext* cx, unsigned argc, Value* vp) {
     }
 
     RootedObject opts(cx, &args[1].toObject());
-    RootedValue dummyValue(cx);
-    RootedString dummyAttributeName(cx);
-    if (!ParseCompileOptions(cx, options, opts, &fileNameBytes, &dummyValue,
-                             &dummyAttributeName)) {
+    if (!js::ParseCompileOptions(cx, options, opts, &fileNameBytes)) {
       return false;
     }
   }
@@ -7384,7 +7413,8 @@ static bool GetSelfHostedValue(JSContext* cx, unsigned argc, Value* vp) {
     return false;
   }
   RootedPropertyName srcName(cx, srcAtom->asPropertyName());
-  return cx->runtime()->cloneSelfHostedValue(cx, srcName, args.rval());
+  return GlobalObject::getIntrinsicValue(cx, cx->global(), srcName,
+                                         args.rval());
 }
 
 class ShellSourceHook : public SourceHook {
@@ -9514,6 +9544,19 @@ static const JSFunctionSpecWithHelp shell_functions[] = {
 "  Wait for off-thread decoding to complete. The job ID can be ommitted if there\n"
 "  is only one job pending. If an error occurred, throw the appropriate\n"
 "  exception; otherwise, run the script and return its value."),
+
+    JS_FN_HELP("offThreadCompileToStencil", OffThreadCompileToStencil, 1, 0,
+"offThreadCompileToStencil(code)",
+"  Compile |code| on a helper thread, returning a job ID. To wait for the\n"
+"  compilation to finish and get the stencil object, call\n"
+"  |finishOffThreadCompileToStencil| passing the job ID."),
+
+    JS_FN_HELP("finishOffThreadCompileToStencil", FinishOffThreadCompileToStencil, 0, 0,
+"finishOffThreadCompileToStencil([jobID])",
+"  Wait for an off-thread compilation job to complete. The job ID can be\n"
+"  ommitted if there is only one job pending. If an error occurred,\n"
+"  throw the appropriate exception; otherwise, return the stencil object,"
+"  that can be passed to |evalStencil|."),
 
     JS_FN_HELP("timeout", Timeout, 1, 0,
 "timeout([seconds], [func])",

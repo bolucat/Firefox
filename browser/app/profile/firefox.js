@@ -1071,13 +1071,9 @@ pref("places.frecency.defaultVisitBonus", 0);
 pref("places.frecency.unvisitedBookmarkBonus", 140);
 pref("places.frecency.unvisitedTypedBonus", 200);
 
-#ifdef NIGHTLY_BUILD
-  // Clear data by base domain (including partitioned storage) when the user
-  // selects "Forget About This Site".
-  pref("places.forgetThisSite.clearByBaseDomain", true);
-#else
-  pref("places.forgetThisSite.clearByBaseDomain", false);
-#endif
+// Clear data by base domain (including partitioned storage) when the user
+// selects "Forget About This Site".
+pref("places.forgetThisSite.clearByBaseDomain", true);
 
 // Controls behavior of the "Add Exception" dialog launched from SSL error pages
 // 0 - don't pre-populate anything
@@ -2042,17 +2038,6 @@ pref("extensions.screenshots.disabled", false);
 
 // Preference that determines whether Screenshots is opened as a dedicated browser component
 pref("screenshots.browser.component.enabled", false);
-
-// DoH Rollout: whether to enable automatic performance-based TRR-selection.
-// This pref is controlled by a Normandy rollout so we don't overload providers.
-pref("doh-rollout.trr-selection.enabled", false);
-
-// DoH Rollout: whether to enable automatic steering to provider endpoints.
-// This pref is also controlled by a Normandy rollout.
-pref("doh-rollout.provider-steering.enabled", true);
-
-// DoH Rollout: provider details for automatic steering.
-pref("doh-rollout.provider-steering.provider-list", "[{ \"name\": \"comcast\", \"canonicalName\": \"doh-discovery.xfinity.com\", \"uri\": \"https://doh.xfinity.com/dns-query\" }]");
 
 // DoH Rollout: whether to clear the mode value at shutdown.
 pref("doh-rollout.clearModeOnShutdown", false);

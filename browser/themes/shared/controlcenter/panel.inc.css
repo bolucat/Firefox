@@ -811,7 +811,7 @@ description#identity-popup-content-verifier,
 
 #protections-popup-siteNotWorkingView-body > label,
 .protections-popup-tp-switch-label-box > label {
-  margin: 0;
+  margin-inline: 0;
 }
 
 
@@ -901,10 +901,6 @@ description#identity-popup-content-verifier,
 }
 
 /* Protection popup footer categories */
-
-#protections-popup-footer {
-  padding: var(--vertical-section-padding) 0;
-}
 
 #protections-popup-trackers-blocked-counter-box {
   margin-inline-end: var(--horizontal-padding);

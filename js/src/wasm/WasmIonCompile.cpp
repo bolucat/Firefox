@@ -95,7 +95,7 @@ class FunctionCompiler {
   };
 
   using ControlFlowPatchVector = Vector<ControlFlowPatch, 0, SystemAllocPolicy>;
-  using ControlFlowPatchsVector =
+  using ControlFlowPatchVectorVector =
       Vector<ControlFlowPatchVector, 0, SystemAllocPolicy>;
 
   const ModuleEnvironment& moduleEnv_;
@@ -114,7 +114,7 @@ class FunctionCompiler {
 
   uint32_t loopDepth_;
   uint32_t blockDepth_;
-  ControlFlowPatchsVector blockPatches_;
+  ControlFlowPatchVectorVector blockPatches_;
 
   // TLS pointer argument to the current function.
   MWasmParameter* tlsPointer_;
@@ -2492,9 +2492,6 @@ static bool EmitEnd(FunctionCompiler& f) {
     case LabelKind::CatchAll:
       MOZ_CRASH("NYI");
       break;
-    case LabelKind::Unwind:
-      MOZ_CRASH("NYI");
-      break;
 #endif
   }
 
@@ -2616,17 +2613,6 @@ static bool EmitDelegate(FunctionCompiler& f) {
     return false;
   }
   f.iter().popDelegate();
-
-  MOZ_CRASH("NYI");
-}
-
-static bool EmitUnwind(FunctionCompiler& f) {
-  ResultType resultType;
-  DefVector tryValues;
-
-  if (!f.iter().readUnwind(&resultType, &tryValues)) {
-    return false;
-  }
 
   MOZ_CRASH("NYI");
 }
@@ -4582,11 +4568,6 @@ static bool EmitBodyExprs(FunctionCompiler& f) {
           return false;
         }
         break;
-      case uint16_t(Op::Unwind):
-        if (!f.moduleEnv().exceptionsEnabled()) {
-          return f.iter().unrecognizedOpcode(&op);
-        }
-        CHECK(EmitUnwind(f));
       case uint16_t(Op::Throw):
         if (!f.moduleEnv().exceptionsEnabled()) {
           return f.iter().unrecognizedOpcode(&op);

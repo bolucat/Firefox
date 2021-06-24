@@ -549,7 +549,7 @@ static bool intrinsic_DefineDataProperty(JSContext* cx, unsigned argc,
 
   MOZ_ASSERT(bool(attributes & ATTR_ENUMERABLE) !=
                  bool(attributes & ATTR_NONENUMERABLE),
-             "_DefineDataProperty must receive either ATTR_ENUMERABLE xor "
+             "DefineDataProperty must receive either ATTR_ENUMERABLE xor "
              "ATTR_NONENUMERABLE");
   if (attributes & ATTR_ENUMERABLE) {
     attrs += JS::PropertyAttribute::Enumerable;
@@ -557,7 +557,7 @@ static bool intrinsic_DefineDataProperty(JSContext* cx, unsigned argc,
 
   MOZ_ASSERT(bool(attributes & ATTR_CONFIGURABLE) !=
                  bool(attributes & ATTR_NONCONFIGURABLE),
-             "_DefineDataProperty must receive either ATTR_CONFIGURABLE xor "
+             "DefineDataProperty must receive either ATTR_CONFIGURABLE xor "
              "ATTR_NONCONFIGURABLE");
   if (attributes & ATTR_CONFIGURABLE) {
     attrs += JS::PropertyAttribute::Configurable;
@@ -565,7 +565,7 @@ static bool intrinsic_DefineDataProperty(JSContext* cx, unsigned argc,
 
   MOZ_ASSERT(
       bool(attributes & ATTR_WRITABLE) != bool(attributes & ATTR_NONWRITABLE),
-      "_DefineDataProperty must receive either ATTR_WRITABLE xor "
+      "DefineDataProperty must receive either ATTR_WRITABLE xor "
       "ATTR_NONWRITABLE");
   if (attributes & ATTR_WRITABLE) {
     attrs += JS::PropertyAttribute::Writable;
@@ -1986,16 +1986,6 @@ static bool intrinsic_AddModuleNamespaceBinding(JSContext* cx, unsigned argc,
   return true;
 }
 
-static bool intrinsic_ModuleNamespaceExports(JSContext* cx, unsigned argc,
-                                             Value* vp) {
-  CallArgs args = CallArgsFromVp(argc, vp);
-  MOZ_ASSERT(args.length() == 1);
-  RootedModuleNamespaceObject namespace_(
-      cx, &args[0].toObject().as<ModuleNamespaceObject>());
-  args.rval().setObject(namespace_->exports());
-  return true;
-}
-
 static bool intrinsic_PromiseResolve(JSContext* cx, unsigned argc, Value* vp) {
   CallArgs args = CallArgsFromVp(argc, vp);
   MOZ_ASSERT(args.length() == 2);
@@ -2139,7 +2129,6 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("std_BigInt_valueOf", BigIntObject::valueOf, 0, 0),
 
     JS_FN("std_Date_now", date_now, 0, 0),
-    JS_FN("std_Date_valueOf", date_valueOf, 0, 0),
 
     JS_FN("std_Function_apply", fun_apply, 2, 0),
 
@@ -2193,7 +2182,7 @@ static const JSFunctionSpec intrinsic_functions[] = {
                     IntrinsicIsCallable),
     JS_INLINABLE_FN("IsConstructor", intrinsic_IsConstructor, 1, 0,
                     IntrinsicIsConstructor),
-    JS_FN("_ConstructFunction", intrinsic_ConstructFunction, 2, 0),
+    JS_FN("ConstructFunction", intrinsic_ConstructFunction, 2, 0),
     JS_FN("ThrowRangeError", intrinsic_ThrowRangeError, 4, 0),
     JS_FN("ThrowTypeError", intrinsic_ThrowTypeError, 4, 0),
     JS_FN("ThrowSyntaxError", intrinsic_ThrowSyntaxError, 4, 0),
@@ -2203,19 +2192,18 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("CreateModuleSyntaxError", intrinsic_CreateModuleSyntaxError, 4, 0),
     JS_FN("AssertionFailed", intrinsic_AssertionFailed, 1, 0),
     JS_FN("DumpMessage", intrinsic_DumpMessage, 1, 0),
-    JS_FN("_ConstructorForTypedArray", intrinsic_ConstructorForTypedArray, 1,
-          0),
+    JS_FN("ConstructorForTypedArray", intrinsic_ConstructorForTypedArray, 1, 0),
     JS_FN("DecompileArg", intrinsic_DecompileArg, 2, 0),
-    JS_INLINABLE_FN("_FinishBoundFunctionInit",
+    JS_INLINABLE_FN("FinishBoundFunctionInit",
                     intrinsic_FinishBoundFunctionInit, 3, 0,
                     IntrinsicFinishBoundFunctionInit),
-    JS_FN("_DefineDataProperty", intrinsic_DefineDataProperty, 4, 0),
-    JS_FN("_DefineProperty", intrinsic_DefineProperty, 6, 0),
+    JS_FN("DefineDataProperty", intrinsic_DefineDataProperty, 4, 0),
+    JS_FN("DefineProperty", intrinsic_DefineProperty, 6, 0),
     JS_FN("CopyDataPropertiesOrGetOwnKeys",
           intrinsic_CopyDataPropertiesOrGetOwnKeys, 3, 0),
     JS_INLINABLE_FN("SameValue", js::obj_is, 2, 0, ObjectIs),
 
-    JS_INLINABLE_FN("_IsConstructing", intrinsic_IsConstructing, 0, 0,
+    JS_INLINABLE_FN("IsConstructing", intrinsic_IsConstructing, 0, 0,
                     IntrinsicIsConstructing),
     JS_INLINABLE_FN("SubstringKernel", intrinsic_SubstringKernel, 3, 0,
                     IntrinsicSubstringKernel),
@@ -2271,17 +2259,16 @@ static const JSFunctionSpec intrinsic_functions[] = {
                     intrinsic_GuardToBuiltin<RegExpStringIteratorObject>, 1, 0,
                     IntrinsicGuardToRegExpStringIterator),
 
-    JS_FN("_CreateMapIterationResultPair",
+    JS_FN("CreateMapIterationResultPair",
           intrinsic_CreateMapIterationResultPair, 0, 0),
-    JS_INLINABLE_FN("_GetNextMapEntryForIterator",
+    JS_INLINABLE_FN("GetNextMapEntryForIterator",
                     intrinsic_GetNextMapEntryForIterator, 2, 0,
                     IntrinsicGetNextMapEntryForIterator),
     JS_FN("CallMapIteratorMethodIfWrapped",
           CallNonGenericSelfhostedMethod<Is<MapIteratorObject>>, 2, 0),
 
-    JS_FN("_CreateSetIterationResult", intrinsic_CreateSetIterationResult, 0,
-          0),
-    JS_INLINABLE_FN("_GetNextSetEntryForIterator",
+    JS_FN("CreateSetIterationResult", intrinsic_CreateSetIterationResult, 0, 0),
+    JS_INLINABLE_FN("GetNextSetEntryForIterator",
                     intrinsic_GetNextSetEntryForIterator, 2, 0,
                     IntrinsicGetNextSetEntryForIterator),
     JS_FN("CallSetIteratorMethodIfWrapped",
@@ -2521,7 +2508,7 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("ThrowArgTypeNotObject", intrinsic_ThrowArgTypeNotObject, 2, 0),
 
     // See builtin/RegExp.h for descriptions of the regexp_* functions.
-    JS_FN("regexp_construct_raw_flags", regexp_construct_raw_flags, 2, 0),
+    JS_FN("RegExpConstructRaw", regexp_construct_raw_flags, 2, 0),
 
     JS_FN("IsModule", intrinsic_IsInstanceOfBuiltin<ModuleObject>, 1, 0),
     JS_FN("CallModuleMethodIfWrapped",
@@ -2551,7 +2538,6 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("NewModuleNamespace", intrinsic_NewModuleNamespace, 2, 0),
     JS_FN("AddModuleNamespaceBinding", intrinsic_AddModuleNamespaceBinding, 4,
           0),
-    JS_FN("ModuleNamespaceExports", intrinsic_ModuleNamespaceExports, 1, 0),
 
     JS_FN("PromiseResolve", intrinsic_PromiseResolve, 2, 0),
 

@@ -236,9 +236,6 @@ var whitelist = [
       "chrome://browser/content/aboutlogins/components/import-details-row.js",
   },
 
-  // services/fxaccounts/RustFxAccount.js
-  { file: "resource://gre/modules/RustFxAccount.js" },
-
   // dom/media/mediacontrol/MediaControlService.cpp
   { file: "resource://gre/localization/en-US/dom/media.ftl" },
 
@@ -403,11 +400,8 @@ function parseManifest(manifestUri) {
         // The webcompat reporter's locale directory may not exist if
         // the addon is preffed-off, and since it's a hack until we
         // get bz1425104 landed, we'll just skip it for now.
-        // Same issue with fxmonitor, which is also pref'd off.
         if (chromeUri === "chrome://report-site-issue/locale/") {
           gChromeMap.set("chrome://report-site-issue/locale/", true);
-        } else if (chromeUri === "chrome://fxmonitor/locale/") {
-          gChromeMap.set("chrome://fxmonitor/locale/", true);
         } else {
           trackChromeUri(chromeUri);
         }

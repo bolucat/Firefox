@@ -1130,7 +1130,7 @@ static bool InitializePropertiesFromCompatibleNativeObject(
     JSContext* cx, HandleNativeObject dst, HandleNativeObject src) {
   cx->check(src, dst);
   MOZ_ASSERT(src->getClass() == dst->getClass());
-  MOZ_ASSERT(dst->lastProperty()->objectFlags().isEmpty());
+  MOZ_ASSERT(dst->shape()->objectFlags().isEmpty());
   MOZ_ASSERT(src->numFixedSlots() == dst->numFixedSlots());
   MOZ_ASSERT(!src->inDictionaryMode());
   MOZ_ASSERT(!dst->inDictionaryMode());
@@ -1153,7 +1153,7 @@ static bool InitializePropertiesFromCompatibleNativeObject(
   MOZ_ASSERT(!src->hasPrivate());
   RootedShape shape(cx);
   if (src->staticPrototype() == dst->staticPrototype()) {
-    shape = src->lastProperty();
+    shape = src->shape();
   } else {
     // We need to generate a new shape for dst that has dst's proto but all
     // the property information from src.  Note that we asserted above that
@@ -1484,6 +1484,9 @@ void JSObject::swap(JSContext* cx, HandleObject a, HandleObject b,
   bool bIsProxyWithInlineValues =
       b->is<ProxyObject>() && b->as<ProxyObject>().usingInlineValueArray();
 
+  bool aIsUsedAsPrototype = a->isUsedAsPrototype();
+  bool bIsUsedAsPrototype = b->isUsedAsPrototype();
+
   // Swap element associations.
   Zone* zone = a->zone();
   zone->swapCellMemory(a, b, MemoryUse::ObjectElements);
@@ -1589,6 +1592,18 @@ void JSObject::swap(JSContext* cx, HandleObject a, HandleObject b,
       if (!a->as<ProxyObject>().initExternalValueArrayAfterSwap(cx, bvals)) {
         oomUnsafe.crash("initExternalValueArray");
       }
+    }
+  }
+
+  // Preserve the IsUsedAsPrototype flag on the objects.
+  if (aIsUsedAsPrototype) {
+    if (!JSObject::setIsUsedAsPrototype(cx, a)) {
+      oomUnsafe.crash("setIsUsedAsPrototype");
+    }
+  }
+  if (bIsUsedAsPrototype) {
+    if (!JSObject::setIsUsedAsPrototype(cx, b)) {
+      oomUnsafe.crash("setIsUsedAsPrototype");
     }
   }
 
@@ -2299,8 +2314,7 @@ bool js::PreventExtensions(JSContext* cx, HandleObject obj,
   }
 
   // Finally, set the NotExtensible flag on the Shape and ObjectElements.
-  if (!JSObject::setFlag(cx, obj, ObjectFlag::NotExtensible,
-                         JSObject::GENERATE_SHAPE)) {
+  if (!JSObject::setFlag(cx, obj, ObjectFlag::NotExtensible)) {
     return false;
   }
   if (obj->is<NativeObject>()) {
@@ -3091,12 +3105,12 @@ static void DumpProperty(const NativeObject* obj, PropMap* map, uint32_t index,
                          js::GenericPrinter& out) {
   PropertyInfoWithKey prop = map->getPropertyInfoWithKey(index);
   jsid id = prop.key();
-  if (JSID_IS_ATOM(id)) {
+  if (id.isAtom()) {
     id.toAtom()->dumpCharsNoNewline(out);
-  } else if (JSID_IS_INT(id)) {
-    out.printf("%d", JSID_TO_INT(id));
-  } else if (JSID_IS_SYMBOL(id)) {
-    JSID_TO_SYMBOL(id)->dump(out);
+  } else if (id.isInt()) {
+    out.printf("%d", id.toInt());
+  } else if (id.isSymbol()) {
+    id.toSymbol()->dump(out);
   } else {
     out.printf("id %p", reinterpret_cast<void*>(JSID_BITS(id)));
   }

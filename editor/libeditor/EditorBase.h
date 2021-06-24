@@ -558,11 +558,17 @@ class EditorBase : public nsIEditor,
   }
 
   bool IsSingleLineEditor() const {
-    return (mFlags & nsIEditor::eEditorSingleLineMask) != 0;
+    const bool isSingleLineEditor =
+        (mFlags & nsIEditor::eEditorSingleLineMask) != 0;
+    MOZ_ASSERT_IF(isSingleLineEditor, IsTextEditor());
+    return isSingleLineEditor;
   }
 
   bool IsPasswordEditor() const {
-    return (mFlags & nsIEditor::eEditorPasswordMask) != 0;
+    const bool isPasswordEditor =
+        (mFlags & nsIEditor::eEditorPasswordMask) != 0;
+    MOZ_ASSERT_IF(isPasswordEditor, IsTextEditor());
+    return isPasswordEditor;
   }
 
   // FYI: Both IsRightToLeft() and IsLeftToRight() may return false if
@@ -578,10 +584,6 @@ class EditorBase : public nsIEditor,
     return (mFlags & nsIEditor::eEditorReadonlyMask) != 0;
   }
 
-  bool IsInputFiltered() const {
-    return (mFlags & nsIEditor::eEditorFilterInputMask) != 0;
-  }
-
   bool IsMailEditor() const {
     return (mFlags & nsIEditor::eEditorMailMask) != 0;
   }
@@ -590,26 +592,21 @@ class EditorBase : public nsIEditor,
     return (mFlags & nsIEditor::eEditorEnableWrapHackMask) != 0;
   }
 
-  bool IsFormWidget() const {
-    return (mFlags & nsIEditor::eEditorWidgetMask) != 0;
-  }
-
-  bool NoCSS() const { return (mFlags & nsIEditor::eEditorNoCSSMask) != 0; }
-
   bool IsInteractionAllowed() const {
-    return (mFlags & nsIEditor::eEditorAllowInteraction) != 0;
+    const bool isInteractionAllowed =
+        (mFlags & nsIEditor::eEditorAllowInteraction) != 0;
+    MOZ_ASSERT_IF(isInteractionAllowed, IsHTMLEditor());
+    return isInteractionAllowed;
   }
 
   bool ShouldSkipSpellCheck() const {
     return (mFlags & nsIEditor::eEditorSkipSpellCheck) != 0;
   }
 
-  bool IsTabbable() const {
-    return IsSingleLineEditor() || IsPasswordEditor() || IsFormWidget() ||
-           IsInteractionAllowed();
+  bool HasIndependentSelection() const {
+    MOZ_ASSERT_IF(mSelectionController, IsTextEditor());
+    return !!mSelectionController;
   }
-
-  bool HasIndependentSelection() const { return !!mSelectionController; }
 
   bool IsModifiable() const { return !IsReadonly(); }
 

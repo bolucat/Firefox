@@ -566,11 +566,6 @@ class NativeObject : public JSObject {
   }
 
  public:
-  Shape* lastProperty() const {
-    MOZ_ASSERT(shape());
-    return shape();
-  }
-
   PropertyInfoWithKey getLastProperty() const {
     return shape()->lastProperty();
   }
@@ -602,20 +597,20 @@ class NativeObject : public JSObject {
                                                           Shape* newShape,
                                                           uint32_t slot);
 
-  MOZ_ALWAYS_INLINE bool canReuseShapeForNewProperties(Shape* shape) const {
-    if (lastProperty()->numFixedSlots() != shape->numFixedSlots()) {
+  MOZ_ALWAYS_INLINE bool canReuseShapeForNewProperties(Shape* newShape) const {
+    if (shape()->numFixedSlots() != newShape->numFixedSlots()) {
       return false;
     }
-    if (lastProperty()->isDictionary() || shape->isDictionary()) {
+    if (shape()->isDictionary() || newShape->isDictionary()) {
       return false;
     }
-    if (lastProperty()->base() != shape->base()) {
+    if (shape()->base() != newShape->base()) {
       return false;
     }
-    MOZ_ASSERT(lastProperty()->getObjectClass() == shape->getObjectClass());
-    MOZ_ASSERT(lastProperty()->proto() == shape->proto());
-    MOZ_ASSERT(lastProperty()->realm() == shape->realm());
-    return lastProperty()->objectFlags() == shape->objectFlags();
+    MOZ_ASSERT(shape()->getObjectClass() == newShape->getObjectClass());
+    MOZ_ASSERT(shape()->proto() == newShape->proto());
+    MOZ_ASSERT(shape()->realm() == newShape->realm());
+    return shape()->objectFlags() == newShape->objectFlags();
   }
 
   // Newly-created TypedArrays that map a SharedArrayBuffer are
@@ -767,7 +762,6 @@ class NativeObject : public JSObject {
 
   [[nodiscard]] static bool reshapeForShadowedProp(JSContext* cx,
                                                    HandleNativeObject obj);
-  static bool clearFlag(JSContext* cx, HandleNativeObject obj, ObjectFlag flag);
 
   // The maximum number of slots in an object.
   // |MAX_SLOTS_COUNT * sizeof(JS::Value)| shouldn't overflow
@@ -798,7 +792,7 @@ class NativeObject : public JSObject {
   inline void* getPrivateMaybeForwarded() const;
 
   uint32_t numUsedFixedSlots() const {
-    uint32_t nslots = lastProperty()->slotSpan();
+    uint32_t nslots = shape()->slotSpan();
     return std::min(nslots, numFixedSlots());
   }
 
@@ -807,7 +801,7 @@ class NativeObject : public JSObject {
       return dictionaryModeSlotSpan();
     }
     MOZ_ASSERT(getSlotsHeader()->dictionarySlotSpan() == 0);
-    return lastProperty()->slotSpan();
+    return shape()->slotSpan();
   }
 
   uint32_t dictionaryModeSlotSpan() const {

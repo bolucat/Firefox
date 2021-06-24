@@ -4,6 +4,8 @@
 
 "use strict";
 
+const { Ci } = require("chrome");
+
 const { ActorClassWithSpec, Actor } = require("devtools/shared/protocol");
 const {
   targetConfigurationSpec,
@@ -185,6 +187,7 @@ const TargetConfigurationActor = ActorClassWithSpec(targetConfigurationSpec, {
       return;
     }
 
+    let shouldReload = false;
     for (const [key, value] of Object.entries(configuration)) {
       switch (key) {
         case "colorSchemeSimulation":
@@ -195,13 +198,12 @@ const TargetConfigurationActor = ActorClassWithSpec(targetConfigurationSpec, {
           break;
         case "javascriptEnabled":
           if (value !== undefined) {
-            const reload = value != this.isJavascriptEnabled();
-            this._setJavascriptEnabled(value);
             // This flag requires a reload in order to take full effect,
             // so reload if it has changed.
-            if (reload) {
-              this._browsingContext.reload(0);
+            if (value != this.isJavascriptEnabled()) {
+              shouldReload = true;
             }
+            this._setJavascriptEnabled(value);
           }
           break;
         case "overrideDPPX":
@@ -223,6 +225,10 @@ const TargetConfigurationActor = ActorClassWithSpec(targetConfigurationSpec, {
           this._setTouchEventsOverride(value);
           break;
       }
+    }
+
+    if (shouldReload) {
+      this._browsingContext.reload(Ci.nsIWebNavigation.LOAD_FLAGS_NONE);
     }
   },
 
@@ -315,6 +321,7 @@ const TargetConfigurationActor = ActorClassWithSpec(targetConfigurationSpec, {
   isJavascriptEnabled() {
     return this._browsingContext.allowJavascript;
   },
+
   _setJavascriptEnabled(allow) {
     if (this._initialJavascriptEnabled === undefined) {
       this._initialJavascriptEnabled = this._browsingContext.allowJavascript;

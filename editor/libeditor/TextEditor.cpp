@@ -75,7 +75,8 @@ TextEditor::TextEditor()
     : mMaxTextLength(-1),
       mUnmaskedStart(UINT32_MAX),
       mUnmaskedLength(0),
-      mIsMaskingPassword(true) {
+      mIsMaskingPassword(true),
+      mEchoingPasswordPrevented(false) {
   // printf("Size of TextEditor: %zu\n", sizeof(TextEditor));
   static_assert(
       sizeof(TextEditor) <= 512,

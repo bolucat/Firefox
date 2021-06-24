@@ -1144,9 +1144,9 @@ void nsLookAndFeel::WithAltThemeConfigured(const Callback& aFn) {
 
   if (mSystemTheme.mIsDark == GetThemeIsDark()) {
     // If the theme still didn't change enough, fall back to either Adwaita or
-    // Adwaita Dark.
+    // Adwaita-dark.
     g_object_set(settings, "gtk-theme-name",
-                 mSystemTheme.mIsDark ? "Adwaita" : "Adwaita Dark", nullptr);
+                 mSystemTheme.mIsDark ? "Adwaita" : "Adwaita-dark", nullptr);
     moz_gtk_refresh();
     fellBackToDefaultTheme = true;
   }
@@ -1215,14 +1215,13 @@ void nsLookAndFeel::EnsureInit() {
   }
 
   mInitialized = true;
-  if (mEverInitialized) {
+  if (mSystemThemeOverridden) {
     // Our current theme may be different from the system theme if we're
     // matching the firefox theme. Make sure to restore the original system
     // theme.
     RestoreSystemTheme();
+    mSystemThemeOverridden = false;
   }
-
-  mEverInitialized = true;
 
   // gtk does non threadsafe refcounting
   MOZ_ASSERT(NS_IsMainThread());
@@ -1322,7 +1321,7 @@ bool nsLookAndFeel::MatchFirefoxThemeIfNeeded() {
     }
   }();
 
-  const bool usingSystem = GetThemeIsDark() == mSystemTheme.mIsDark;
+  const bool usingSystem = !mSystemThemeOverridden;
 
   LOGLNF("MatchFirefoxThemeIfNeeded(matchesSystem=%d, usingSystem=%d)\n",
          matchesSystem, usingSystem);
@@ -1331,6 +1330,7 @@ bool nsLookAndFeel::MatchFirefoxThemeIfNeeded() {
     return false;
   }
 
+  mSystemThemeOverridden = !matchesSystem;
   if (matchesSystem) {
     RestoreSystemTheme();
   } else {
@@ -1628,6 +1628,25 @@ void nsLookAndFeel::PerThemeData::Init() {
       if (found) {
         mAccentColor = GDK_RGBA_TO_NS_RGBA(bg);
         mAccentColorForeground = GDK_RGBA_TO_NS_RGBA(fg);
+
+        // If the accent colors are semi-transparent and the theme provides a
+        // background color, blend with them to get the "final" color, see
+        // bug 1717077.
+        if (NS_GET_A(mAccentColor) != 255 &&
+            (gtk_style_context_lookup_color(style, "bg_color", &bg) ||
+             gtk_style_context_lookup_color(style, "theme_bg_color", &bg))) {
+          mAccentColor =
+              NS_ComposeColors(GDK_RGBA_TO_NS_RGBA(bg), mAccentColor);
+        }
+
+        // A semi-transparent foreground color would be kinda silly, but is done
+        // for symmetry.
+        if (NS_GET_A(mAccentColorForeground) != 255 &&
+            (gtk_style_context_lookup_color(style, "fg_color", &fg) ||
+             gtk_style_context_lookup_color(style, "theme_fg_color", &fg))) {
+          mAccentColorForeground =
+              NS_ComposeColors(GDK_RGBA_TO_NS_RGBA(fg), mAccentColorForeground);
+        }
       }
     }
 

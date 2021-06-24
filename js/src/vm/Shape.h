@@ -317,11 +317,11 @@ class Shape : public gc::CellWithTenuredGCPointer<gc::TenuredCell, BaseShape> {
   // Cache used to speed up common operations on shapes.
   ShapeCachePtr cache_;
 
-  // Return a shape that's similar to |shape| but has the passed objectFlags,
-  // proto, and nfixed values.
-  static Shape* replaceShape(JSContext* cx, ObjectFlags objectFlags,
-                             TaggedProto proto, uint32_t nfixed,
-                             HandleShape shape);
+  // Give the object a shape that's similar to its current shape, but with the
+  // passed objectFlags, proto, and nfixed values.
+  static bool replaceShape(JSContext* cx, HandleObject obj,
+                           ObjectFlags objectFlags, TaggedProto proto,
+                           uint32_t nfixed);
 
   void setObjectFlags(ObjectFlags flags) {
     MOZ_ASSERT(isDictionary());
@@ -390,9 +390,6 @@ class Shape : public gc::CellWithTenuredGCPointer<gc::TenuredCell, BaseShape> {
   }
 
   TaggedProto proto() const { return base()->proto(); }
-
-  static Shape* setObjectFlag(JSContext* cx, ObjectFlag flag, Shape* shape);
-  static Shape* setProto(JSContext* cx, TaggedProto proto, Shape* shape);
 
   ObjectFlags objectFlags() const { return objectFlags_; }
   bool hasObjectFlag(ObjectFlag flag) const {

@@ -147,8 +147,7 @@ bool ObjectElements::FreezeOrSeal(JSContext* cx, HandleNativeObject obj,
   }
 
   if (level == IntegrityLevel::Frozen) {
-    if (!JSObject::setFlag(cx, obj, ObjectFlag::FrozenElements,
-                           JSObject::GENERATE_SHAPE)) {
+    if (!JSObject::setFlag(cx, obj, ObjectFlag::FrozenElements)) {
       return false;
     }
   }
@@ -229,7 +228,7 @@ void js::NativeObject::initSlots(const Value* vector, uint32_t length) {
 
 bool js::NativeObject::slotInRange(uint32_t slot,
                                    SentinelAllowed sentinel) const {
-  MOZ_ASSERT(!gc::IsForwarded(lastProperty()));
+  MOZ_ASSERT(!gc::IsForwarded(shape()));
   uint32_t capacity = numFixedSlots() + numDynamicSlots();
   if (sentinel == SENTINEL_ALLOWED) {
     return slot <= capacity;
@@ -565,15 +564,6 @@ DenseElementResult NativeObject::maybeDensifySparseElements(
   }
 
   if (!NativeObject::densifySparseElements(cx, obj)) {
-    return DenseElementResult::Failure;
-  }
-
-  /*
-   * All indexed properties on the object are now dense, clear the indexed
-   * flag so that we will not start using sparse indexes again if we need
-   * to grow the object.
-   */
-  if (!NativeObject::clearFlag(cx, obj, ObjectFlag::Indexed)) {
     return DenseElementResult::Failure;
   }
 
@@ -1527,7 +1517,7 @@ bool js::NativeDefineProperty(JSContext* cx, HandleNativeObject obj,
     }
   } else if (obj->is<ArgumentsObject>()) {
     Rooted<ArgumentsObject*> argsobj(cx, &obj->as<ArgumentsObject>());
-    if (id == NameToId(cx->names().length)) {
+    if (id.isAtom(cx->names().length)) {
       // Either we are resolving the .length property on this object,
       // or redefining it. In the latter case only, we must reify the
       // property.
@@ -1536,15 +1526,14 @@ bool js::NativeDefineProperty(JSContext* cx, HandleNativeObject obj,
           return false;
         }
       }
-    } else if (JSID_IS_SYMBOL(id) &&
-               JSID_TO_SYMBOL(id) == cx->wellKnownSymbols().iterator) {
+    } else if (id.isWellKnownSymbol(JS::SymbolCode::iterator)) {
       // Do same thing as .length for [@@iterator].
       if (!desc_.resolving()) {
         if (!ArgumentsObject::reifyIterator(cx, argsobj)) {
           return false;
         }
       }
-    } else if (JSID_IS_INT(id)) {
+    } else if (id.isInt()) {
       if (!desc_.resolving()) {
         argsobj->markElementOverridden();
       }
@@ -1839,10 +1828,9 @@ static bool DefineNonexistentProperty(JSContext* cx, HandleNativeObject obj,
     // If this method is called with either |length| or |@@iterator|, the
     // property was previously deleted and hence should already be marked
     // as overridden.
-    MOZ_ASSERT_IF(id == NameToId(cx->names().length),
+    MOZ_ASSERT_IF(id.isAtom(cx->names().length),
                   obj->as<ArgumentsObject>().hasOverriddenLength());
-    MOZ_ASSERT_IF(JSID_IS_SYMBOL(id) &&
-                      JSID_TO_SYMBOL(id) == cx->wellKnownSymbols().iterator,
+    MOZ_ASSERT_IF(id.isWellKnownSymbol(JS::SymbolCode::iterator),
                   obj->as<ArgumentsObject>().hasOverriddenIterator());
 
     // We still need to mark any element properties as overridden.

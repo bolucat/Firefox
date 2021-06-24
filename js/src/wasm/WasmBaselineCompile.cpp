@@ -1200,6 +1200,7 @@ BaseLocalIter::BaseLocalIter(const ValTypeVector& locals,
       args_(args),
       argsIter_(args_),
       index_(0),
+      frameSize_(0),
       nextFrameSize_(debugEnabled ? DebugFrame::offsetOfFrame() : 0),
       frameOffset_(INT32_MAX),
       stackResultPointerOffset_(INT32_MAX),
@@ -2292,7 +2293,7 @@ class BaseStackFrame final : public BaseStackFrameAllocator {
     union {
       int32_t i32[4];
       uint8_t bytes[16];
-    } bits;
+    } bits{};
     static_assert(sizeof(bits) == 16);
     memcpy(bits.bytes, imm.bytes, 16);
     for (unsigned i = 0; i < 4; i++) {
@@ -3119,7 +3120,8 @@ class BaseCompiler final : public BaseCompilerInterface {
           bceSafeOnEntry(0),
           bceSafeOnExit(~BCESet(0)),
           deadOnArrival(false),
-          deadThenBranch(false) {}
+          deadThenBranch(false),
+          tryNoteIndex(0) {}
   };
 
   class NothingVector {
@@ -3294,7 +3296,7 @@ class BaseCompiler final : public BaseCompilerInterface {
   }
 
   [[nodiscard]] bool generateOutOfLineCode() {
-    for (auto ool : outOfLine_) {
+    for (auto* ool : outOfLine_) {
       ool->bind(&fr, &masm);
       ool->generate(&masm);
     }
@@ -8385,7 +8387,6 @@ class BaseCompiler final : public BaseCompilerInterface {
   [[nodiscard]] bool emitCatch();
   [[nodiscard]] bool emitCatchAll();
   [[nodiscard]] bool emitDelegate();
-  [[nodiscard]] bool emitUnwind();
   [[nodiscard]] bool emitThrow();
   [[nodiscard]] bool emitRethrow();
 #endif
@@ -8440,7 +8441,6 @@ class BaseCompiler final : public BaseCompilerInterface {
   [[nodiscard]] bool endIfThenElse(ResultType type);
 #ifdef ENABLE_WASM_EXCEPTIONS
   [[nodiscard]] bool endTryCatch(ResultType type);
-  [[nodiscard]] bool endTryUnwind(ResultType type);
 #endif
 
   void doReturn(ContinuationKind kind);
@@ -9756,7 +9756,7 @@ bool BaseCompiler::sniffConditionalControlCmp(Cond compareOp,
     return false;
   }
 
-  OpBytes op;
+  OpBytes op{};
   iter_.peekOp(&op);
   switch (op.b0) {
     case uint16_t(Op::BrIf):
@@ -9774,7 +9774,7 @@ bool BaseCompiler::sniffConditionalControlEqz(ValType operandType) {
   MOZ_ASSERT(latentOp_ == LatentOp::None,
              "Latent comparison state not properly reset");
 
-  OpBytes op;
+  OpBytes op{};
   iter_.peekOp(&op);
   switch (op.b0) {
     case uint16_t(Op::BrIf):
@@ -10264,17 +10264,24 @@ bool BaseCompiler::emitEnd() {
       }
       break;
 #ifdef ENABLE_WASM_EXCEPTIONS
-    case LabelKind::Try:
-      MOZ_CRASH("Try-catch block cannot end without catch.");
-      break;
-    case LabelKind::Catch:
-    case LabelKind::CatchAll:
-      if (!endTryCatch(type)) {
+    case LabelKind::Try: {
+      // The beginning of a `try` block introduces this try note, but
+      // we need to remove it in case we have no handlers in this block
+      // as it can never be the target of an exception.
+      WasmTryNoteVector& tryNotes = masm.tryNotes();
+      // This will shift the indices of any try notes in between the `try`
+      // instruction and this `end`. This is fine as long as try notes are
+      // only accessed through ControlItems, as the shifted try notes will
+      // correspond only to items that are popped by this point.
+      tryNotes.erase(&tryNotes[controlItem().tryNoteIndex]);
+      if (!endBlock(type)) {
         return false;
       }
       break;
-    case LabelKind::Unwind:
-      if (!endTryUnwind(type)) {
+    }
+    case LabelKind::Catch:
+    case LabelKind::CatchAll:
+      if (!endTryCatch(type)) {
         return false;
       }
       break;
@@ -10674,7 +10681,7 @@ bool BaseCompiler::emitCatch() {
 bool BaseCompiler::emitCatchAll() {
   LabelKind kind;
   ResultType paramType, resultType;
-  NothingVector unused_tryValues;
+  NothingVector unused_tryValues{};
 
   if (!iter_.readCatchAll(&kind, &paramType, &resultType, &unused_tryValues)) {
     return false;
@@ -10730,7 +10737,7 @@ bool BaseCompiler::emitBodyDelegateThrowPad() {
 bool BaseCompiler::emitDelegate() {
   uint32_t relativeDepth;
   ResultType resultType;
-  NothingVector unused_tryValues;
+  NothingVector unused_tryValues{};
 
   if (!iter_.readDelegate(&relativeDepth, &resultType, &unused_tryValues)) {
     return false;
@@ -10784,57 +10791,6 @@ bool BaseCompiler::emitDelegate() {
   bceSafe_ = tryDelegate.bceSafeOnExit;
 
   return pushBlockResults(resultType);
-}
-
-bool BaseCompiler::emitUnwind() {
-  ResultType resultType;
-  NothingVector unused_tryValues;
-
-  if (!iter_.readUnwind(&resultType, &unused_tryValues)) {
-    return false;
-  }
-
-  Control& tryUnwind = controlItem();
-
-  // End the try branch like the first catch block in a try-catch.
-  if (deadCode_) {
-    fr.resetStackHeight(tryUnwind.stackHeight, resultType);
-    popValueStackTo(tryUnwind.stackSize);
-  } else {
-    MOZ_ASSERT(stk_.length() == tryUnwind.stackSize + resultType.length());
-    popBlockResults(resultType, tryUnwind.stackHeight, ContinuationKind::Jump);
-    freeResultRegisters(resultType);
-    masm.jump(&tryUnwind.label);
-    MOZ_ASSERT(!tryUnwind.bceSafeOnExit);
-    MOZ_ASSERT(!tryUnwind.deadOnArrival);
-  }
-
-  deadCode_ = tryUnwind.deadOnArrival;
-
-  if (deadCode_) {
-    return true;
-  }
-
-  bceSafe_ = 0;
-
-  // Create an exception landing pad for the unwind instructions.
-  //
-  // We bind otherLabel so that `delegate` can jump here as well.
-  masm.bind(&tryUnwind.otherLabel);
-  fr.setStackHeight(tryUnwind.stackHeight);
-
-  // Push the exception reference so that the end of the `unwind` can throw.
-  RegRef exn = RegRef(WasmExceptionReg);
-  needRef(exn);
-  pushRef(exn);
-
-  WasmTryNoteVector& tryNotes = masm.tryNotes();
-  WasmTryNote& tryNote = tryNotes[tryUnwind.tryNoteIndex];
-  tryNote.end = masm.currentOffset();
-  tryNote.entryPoint = tryNote.end;
-  tryNote.framePushed = masm.framePushed();
-
-  return true;
 }
 
 bool BaseCompiler::endTryCatch(ResultType type) {
@@ -10941,45 +10897,6 @@ bool BaseCompiler::endTryCatch(ResultType type) {
   captureResultRegisters(type);
   deadCode_ = tryCatch.deadOnArrival;
   bceSafe_ = tryCatch.bceSafeOnExit;
-
-  return pushBlockResults(type);
-}
-
-bool BaseCompiler::endTryUnwind(ResultType type) {
-  uint32_t lineOrBytecode = readCallSiteLineOrBytecode();
-  Control& tryUnwind = controlItem();
-
-  if (deadCode_) {
-    fr.resetStackHeight(tryUnwind.stackHeight, type);
-    popValueStackTo(tryUnwind.stackSize);
-  } else {
-    // An unwind should have no results so only the exception reference will
-    // remain here on top of the original stack.
-    MOZ_ASSERT(stk_.length() == tryUnwind.stackSize + 1);
-
-    RegRef exn = popRef();
-
-    if (!throwFrom(exn, lineOrBytecode)) {
-      return false;
-    }
-    MOZ_ASSERT(stk_.length() == tryUnwind.stackSize);
-    MOZ_ASSERT(!tryUnwind.bceSafeOnExit);
-    MOZ_ASSERT(!tryUnwind.deadOnArrival);
-  }
-
-  deadCode_ = tryUnwind.deadOnArrival;
-
-  if (deadCode_) {
-    return true;
-  }
-
-  // The try branch may jump here.
-  if (tryUnwind.label.used()) {
-    masm.bind(&tryUnwind.label);
-  }
-
-  captureResultRegisters(type);
-  bceSafe_ = tryUnwind.bceSafeOnExit;
 
   return pushBlockResults(type);
 }
@@ -15673,7 +15590,7 @@ bool BaseCompiler::emitBody() {
     // results) will perform additional reservation.
     CHECK(stk_.reserve(stk_.length() + MaxPushesPerOpcode));
 
-    OpBytes op;
+    OpBytes op{};
     CHECK(iter_.readOp(&op));
 
     // When compilerEnv_.debugEnabled(), every operator has breakpoint site but
@@ -15746,11 +15663,6 @@ bool BaseCompiler::emitBody() {
         CHECK(emitDelegate());
         iter_.popDelegate();
         NEXT();
-      case uint16_t(Op::Unwind):
-        if (!moduleEnv_.exceptionsEnabled()) {
-          return iter_.unrecognizedOpcode(&op);
-        }
-        CHECK_NEXT(emitUnwind());
       case uint16_t(Op::Throw):
         if (!moduleEnv_.exceptionsEnabled()) {
           return iter_.unrecognizedOpcode(&op);
