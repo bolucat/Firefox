@@ -22,11 +22,22 @@ void FirstInitializationAttempts<Initialization, StringGenerator>::
                                      const nsresult aRv) {
   MOZ_ASSERT(FirstInitializationAttemptPending(aInitialization));
 
+  // NS_ERROR_ABORT signals a non-fatal, recoverable problem during
+  // initialization. We do not want these kind of failures to count against our
+  // overall failure telemetry. Thus we just ignore this kind of failure and
+  // keep mFirstInitializationAttempts unflagged to stay ready to record a real
+  // failure on the next attempt.
+  if (aRv == NS_ERROR_ABORT) {
+    return;
+  }
+
   mFirstInitializationAttempts |= aInitialization;
 
-  Telemetry::Accumulate(Telemetry::QM_FIRST_INITIALIZATION_ATTEMPT,
-                        StringGenerator::GetString(aInitialization),
-                        static_cast<uint32_t>(NS_SUCCEEDED(aRv)));
+  if constexpr (!std::is_same_v<StringGenerator, Nothing>) {
+    Telemetry::Accumulate(Telemetry::QM_FIRST_INITIALIZATION_ATTEMPT,
+                          StringGenerator::GetString(aInitialization),
+                          static_cast<uint32_t>(NS_SUCCEEDED(aRv)));
+  }
 }
 
 }  // namespace mozilla::dom::quota

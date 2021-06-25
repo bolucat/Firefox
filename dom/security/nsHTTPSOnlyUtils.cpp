@@ -236,14 +236,18 @@ bool nsHTTPSOnlyUtils::IsUpgradeDowngradeEndlessLoop(
       IsHttpsFirstModeEnabled(isPrivateWin) &&
       aOptions.contains(
           UpgradeDowngradeEndlessLoopOptions::EnforceForHTTPSFirstMode);
-  if (!enforceForHTTPSOnlyMode && !enforceForHTTPSFirstMode) {
+  bool enforceForHTTPSRR =
+      aOptions.contains(UpgradeDowngradeEndlessLoopOptions::EnforceForHTTPSRR);
+  if (!enforceForHTTPSOnlyMode && !enforceForHTTPSFirstMode &&
+      !enforceForHTTPSRR) {
     return false;
   }
 
   // 2. Check if the upgrade downgrade pref even wants us to try to break the
-  // cycle.
+  // cycle. In the case that HTTPS RR is presented, we ignore this pref.
   if (!mozilla::StaticPrefs::
-          dom_security_https_only_mode_break_upgrade_downgrade_endless_loop()) {
+          dom_security_https_only_mode_break_upgrade_downgrade_endless_loop() &&
+      !enforceForHTTPSRR) {
     return false;
   }
 
@@ -255,17 +259,12 @@ bool nsHTTPSOnlyUtils::IsUpgradeDowngradeEndlessLoop(
 
   // 4. If the load is exempt, then it's defintely not related to https-only
   uint32_t httpsOnlyStatus = aLoadInfo->GetHttpsOnlyStatus();
-  if (httpsOnlyStatus & nsILoadInfo::HTTPS_ONLY_EXEMPT) {
+  if ((httpsOnlyStatus & nsILoadInfo::HTTPS_ONLY_EXEMPT) &&
+      !enforceForHTTPSRR) {
     return false;
   }
 
-  // 5. If the load is triggered by a user gesture, then it's definitely
-  // not a loop we need to break.
-  if (aLoadInfo->GetHasValidUserGestureActivation()) {
-    return false;
-  }
-
-  // 6. If the URI to be loaded is not http, then it's defnitely no endless
+  // 5. If the URI to be loaded is not http, then it's defnitely no endless
   // loop caused by https-only.
   if (!aURI->SchemeIs("http")) {
     return false;
@@ -274,7 +273,7 @@ bool nsHTTPSOnlyUtils::IsUpgradeDowngradeEndlessLoop(
   nsAutoCString uriHost;
   aURI->GetAsciiHost(uriHost);
 
-  // 7. Check actual redirects. If the Principal that kicked off the
+  // 6. Check actual redirects. If the Principal that kicked off the
   // load/redirect is not https, then it's definitely not a redirect cause by
   // https-only. If the scheme of the principal however is https and the
   // asciiHost of the URI to be loaded and the asciiHost of the Principal are
@@ -294,7 +293,7 @@ bool nsHTTPSOnlyUtils::IsUpgradeDowngradeEndlessLoop(
     }
   }
 
-  // 8. Meta redirects and JS based redirects (win.location). If the security
+  // 7. Meta redirects and JS based redirects (win.location). If the security
   // context that triggered the load is not https, then it's defnitely no
   // endless loop caused by https-only. If the scheme is http however and the
   // asciiHost of the URI to be loaded matches the asciiHost of the Principal,
