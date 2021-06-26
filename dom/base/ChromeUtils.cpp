@@ -14,6 +14,7 @@
 
 #include "mozilla/Base64.h"
 #include "mozilla/CycleCollectedJSRuntime.h"
+#include "mozilla/EventStateManager.h"
 #include "mozilla/IntentionalCrash.h"
 #include "mozilla/PerformanceMetricsCollector.h"
 #include "mozilla/PerfStats.h"
@@ -32,6 +33,7 @@
 #include "mozilla/dom/Performance.h"
 #include "mozilla/dom/PopupBlocker.h"
 #include "mozilla/dom/Promise.h"
+#include "mozilla/dom/Record.h"
 #include "mozilla/dom/ReportingHeader.h"
 #include "mozilla/dom/UnionTypes.h"
 #include "mozilla/dom/WindowBinding.h"  // For IdleRequestCallback/Options
@@ -700,6 +702,19 @@ void ChromeUtils::CreateOriginAttributesFromOrigin(
   OriginAttributes attrs;
   nsAutoCString suffix;
   if (!attrs.PopulateFromOrigin(NS_ConvertUTF16toUTF8(aOrigin), suffix)) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return;
+  }
+  aAttrs = attrs;
+}
+
+/* static */
+void ChromeUtils::CreateOriginAttributesFromOriginSuffix(
+    dom::GlobalObject& aGlobal, const nsAString& aSuffix,
+    dom::OriginAttributesDictionary& aAttrs, ErrorResult& aRv) {
+  OriginAttributes attrs;
+  nsAutoCString suffix;
+  if (!attrs.PopulateFromSuffix(NS_ConvertUTF16toUTF8(aSuffix))) {
     aRv.Throw(NS_ERROR_FAILURE);
     return;
   }
@@ -1389,6 +1404,19 @@ void ChromeUtils::GetAllDOMProcesses(
   for (auto* cp : ContentParent::AllProcesses(ContentParent::eLive)) {
     aParents.AppendElement(cp);
   }
+}
+
+/* static */
+void ChromeUtils::ConsumeInteractionData(
+    GlobalObject& aGlobal, Record<nsString, InteractionData>& aInteractions,
+    ErrorResult& aRv) {
+  if (!XRE_IsParentProcess()) {
+    aRv.ThrowNotAllowedError(
+        "consumeInteractionData() may only be called in the parent "
+        "process");
+    return;
+  }
+  EventStateManager::ConsumeInteractionData(aInteractions);
 }
 
 }  // namespace mozilla::dom

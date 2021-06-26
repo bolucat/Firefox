@@ -311,7 +311,6 @@ using namespace mozilla::net;
 using namespace mozilla::widget;
 using mozilla::loader::PScriptCacheChild;
 
-#ifdef MOZ_GECKO_PROFILER
 namespace geckoprofiler::markers {
 struct ProcessPriorityChange {
   static constexpr Span<const char> MarkerTypeName() {
@@ -359,7 +358,6 @@ struct ProcessPriority {
   }
 };
 }  // namespace geckoprofiler::markers
-#endif  // MOZ_GECKO_PROFILER
 
 namespace mozilla {
 
@@ -624,7 +622,6 @@ ContentChild::ContentChild()
   // multiprocess mode!
   nsDebugImpl::SetMultiprocessMode("Child");
 
-#ifdef MOZ_GECKO_PROFILER
   // Our static analysis doesn't allow capturing ref-counted pointers in
   // lambdas, so we need to hide it in a uintptr_t. This is safe because this
   // lambda will be destroyed in ~ContentChild().
@@ -641,7 +638,6 @@ ContentChild::ContentChild()
                         aProfilingState);
       },
       self);
-#endif  // MOZ_GECKO_PROFILER
 
   // When ContentChild is created, the observer service does not even exist.
   // When ContentChild::RecvSetXPCOMProcessAttributes is called (the first
@@ -662,9 +658,7 @@ ContentChild::ContentChild()
 #endif
 
 ContentChild::~ContentChild() {
-#ifdef MOZ_GECKO_PROFILER
   profiler_remove_state_change_callback(reinterpret_cast<uintptr_t>(this));
-#endif  // MOZ_GECKO_PROFILER
 
 #ifndef NS_FREE_PERMANENT_DATA
   MOZ_CRASH("Content Child shouldn't be destroyed.");
@@ -2194,10 +2188,13 @@ void ContentChild::ActorDestroy(ActorDestroyReason why) {
 
   mIdleObservers.Clear();
 
-  nsCOMPtr<nsIConsoleService> svc(do_GetService(NS_CONSOLESERVICE_CONTRACTID));
-  if (svc) {
-    svc->UnregisterListener(mConsoleListener);
-    mConsoleListener->mChild = nullptr;
+  if (mConsoleListener) {
+    nsCOMPtr<nsIConsoleService> svc(
+        do_GetService(NS_CONSOLESERVICE_CONTRACTID));
+    if (svc) {
+      svc->UnregisterListener(mConsoleListener);
+      mConsoleListener->mChild = nullptr;
+    }
   }
   mIsAlive = false;
 
@@ -2596,17 +2593,21 @@ mozilla::ipc::IPCResult ContentChild::RecvAppInfo(
 
 mozilla::ipc::IPCResult ContentChild::RecvRemoteType(
     const nsCString& aRemoteType) {
+  if (aRemoteType == mRemoteType) {
+    // Allocation of preallocated processes that are still launching can
+    // cause this
+    return IPC_OK();
+  }
+
   if (!mRemoteType.IsVoid()) {
     // Preallocated processes are type PREALLOC_REMOTE_TYPE; they can become
     // anything except a File: process.
     MOZ_LOG(ContentParent::GetLog(), LogLevel::Debug,
             ("Changing remoteType of process %d from %s to %s", getpid(),
              mRemoteType.get(), aRemoteType.get()));
-    // prealloc->anything (but file) or web->web allowed
+    // prealloc->anything (but file) or web->web allowed, and no-change
     MOZ_RELEASE_ASSERT(aRemoteType != FILE_REMOTE_TYPE &&
-                       (mRemoteType == PREALLOC_REMOTE_TYPE ||
-                        (mRemoteType == DEFAULT_REMOTE_TYPE &&
-                         aRemoteType == DEFAULT_REMOTE_TYPE)));
+                       mRemoteType == PREALLOC_REMOTE_TYPE);
   } else {
     // Initial setting of remote type.  Either to 'prealloc' or the actual
     // final type (if we didn't use a preallocated process)
