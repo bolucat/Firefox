@@ -135,6 +135,24 @@ class HTMLEditor final : public EditorBase,
 
   HTMLEditor();
 
+  /**
+   * @param aDocument   The document whose content will be editable.
+   * @param aFlags      Some of nsIEditor::eEditor*Mask flags.
+   */
+  MOZ_CAN_RUN_SCRIPT nsresult Init(Document& aDocument, uint32_t aFlags);
+
+  /**
+   * PostCreate() should be called after Init, and is the time that the editor
+   * tells its documentStateObservers that the document has been created.
+   */
+  MOZ_CAN_RUN_SCRIPT nsresult PostCreate();
+
+  /**
+   * PreDestroy() is called before the editor goes away, and gives the editor a
+   * chance to tell its documentStateObservers that the document is going away.
+   */
+  MOZ_CAN_RUN_SCRIPT void PreDestroy();
+
   static HTMLEditor* GetFrom(nsIEditor* aEditor) {
     return aEditor ? aEditor->GetAsHTMLEditor() : nullptr;
   }
@@ -142,15 +160,9 @@ class HTMLEditor final : public EditorBase,
     return aEditor ? aEditor->GetAsHTMLEditor() : nullptr;
   }
 
-  MOZ_CAN_RUN_SCRIPT void PreDestroy(bool aDestroyingFrames) final;
-
   bool GetReturnInParagraphCreatesNewParagraph();
 
   // EditorBase overrides
-  MOZ_CAN_RUN_SCRIPT nsresult Init(Document& aDoc, Element* aRoot,
-                                   nsISelectionController* aSelCon,
-                                   uint32_t aFlags,
-                                   const nsAString& aValue) final;
   MOZ_CAN_RUN_SCRIPT NS_IMETHOD BeginningOfDocument() final;
 
   NS_IMETHOD GetDocumentCharacterSet(nsACString& aCharacterSet) final;
@@ -217,7 +229,7 @@ class HTMLEditor final : public EditorBase,
                 nsIPrincipal* aPrincipal = nullptr) final;
 
   /**
-   * PasteNoFormatting() pastes content in clipboard without any style
+   * PasteNoFormattingAsAction() pastes content in clipboard without any style
    * information.
    *
    * @param aSelectionType      nsIClipboard::kGlobalClipboard or
@@ -480,9 +492,33 @@ class HTMLEditor final : public EditorBase,
       nsAtom& aProperty, nsAtom* aAttribute, const nsAString& aValue,
       nsIPrincipal* aPrincipal = nullptr);
 
+  /**
+   * GetInlineProperty() gets aggregate properties of the current selection.
+   * All object in the current selection are scanned and their attributes are
+   * represented in a list of Property object.
+   * TODO: Make this return Result<Something> instead of bool out arguments.
+   *
+   * @param aHTMLProperty   the property to get on the selection
+   * @param aAttribute      the attribute of the property, if applicable.
+   *                        May be null.
+   *                        Example: aHTMLProperty=nsGkAtoms::font,
+   *                            aAttribute=nsGkAtoms::color
+   * @param aValue          if aAttribute is not null, the value of the
+   *                        attribute. May be null.
+   *                        Example: aHTMLProperty=nsGkAtoms::font,
+   *                            aAttribute=nsGkAtoms::color,
+   *                            aValue="0x00FFFF"
+   * @param aFirst          [OUT] true if the first text node in the
+   *                              selection has the property
+   * @param aAny            [OUT] true if any of the text nodes in the
+   *                              selection have the property
+   * @param aAll            [OUT] true if all of the text nodes in the
+   *                              selection have the property
+   */
   [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult GetInlineProperty(
       nsAtom* aHTMLProperty, nsAtom* aAttribute, const nsAString& aValue,
       bool* aFirst, bool* aAny, bool* aAll) const;
+
   [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult GetInlinePropertyWithAttrValue(
       nsAtom* aHTMLProperty, nsAtom* aAttribute, const nsAString& aValue,
       bool* aFirst, bool* aAny, bool* aAll, nsAString& outValue);
@@ -664,6 +700,12 @@ class HTMLEditor final : public EditorBase,
 
   MOZ_CAN_RUN_SCRIPT nsresult InsertHTMLAsAction(
       const nsAString& aInString, nsIPrincipal* aPrincipal = nullptr);
+
+  /**
+   * Refresh positions of resizers.  If you change size of target of resizers,
+   * you need to refresh position of resizers with calling this.
+   */
+  MOZ_CAN_RUN_SCRIPT nsresult RefreshResizers();
 
  protected:  // May be called by friends.
   /****************************************************************************
@@ -4083,7 +4125,7 @@ class HTMLEditor final : public EditorBase,
    * RefreshResizersInternal() moves resizers to proper position.  This does
    * nothing if there is no resizing target.
    */
-  MOZ_CAN_RUN_SCRIPT nsresult RefreshResizersInternal();
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult RefreshResizersInternal();
 
   ManualNACPtr CreateResizer(int16_t aLocation, nsIContent& aParentContent);
   [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult
@@ -4163,7 +4205,7 @@ class HTMLEditor final : public EditorBase,
    * or repositioned by script or something.  Then, you need to reset grabber
    * position with this.
    */
-  MOZ_CAN_RUN_SCRIPT nsresult RefreshGrabberInternal();
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult RefreshGrabberInternal();
 
   /**
    * hide the grabber if it shown.
@@ -4209,7 +4251,8 @@ class HTMLEditor final : public EditorBase,
    * proper position.  This returns error if the UI is hidden or replaced
    * during moving.
    */
-  MOZ_CAN_RUN_SCRIPT nsresult RefreshInlineTableEditingUIInternal();
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult
+  RefreshInlineTableEditingUIInternal();
 
   /**
    * ElementIsGoodContainerForTheStyle() returns true if aElement is a

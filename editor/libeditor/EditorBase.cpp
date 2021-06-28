@@ -100,7 +100,6 @@
 #include "nsIDocumentStateListener.h"  // for nsIDocumentStateListener
 #include "nsIDocShell.h"               // for nsIDocShell
 #include "nsIEditActionListener.h"     // for nsIEditActionListener
-#include "nsIEditorObserver.h"         // for nsIEditorObserver
 #include "nsIFrame.h"                  // for nsIFrame
 #include "nsIInlineSpellChecker.h"     // for nsIInlineSpellChecker, etc.
 #include "nsNameSpaceManager.h"        // for kNameSpaceID_None, etc.
@@ -213,7 +212,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(EditorBase)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mTextInputListener)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mTransactionManager)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mActionListeners)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mEditorObservers)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mDocStateListeners)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mEventTarget)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mPlaceholderTransaction)
@@ -237,7 +235,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(EditorBase)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTextInputListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTransactionManager)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mActionListeners)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mEditorObservers)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDocStateListeners)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mEventTarget)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mEventListener)
@@ -255,9 +252,9 @@ NS_INTERFACE_MAP_END
 NS_IMPL_CYCLE_COLLECTING_ADDREF(EditorBase)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(EditorBase)
 
-nsresult EditorBase::Init(Document& aDocument, Element* aRoot,
-                          nsISelectionController* aSelectionController,
-                          uint32_t aFlags, const nsAString& aValue) {
+nsresult EditorBase::InitInternal(Document& aDocument, Element* aRootElement,
+                                  nsISelectionController& aSelectionController,
+                                  uint32_t aFlags) {
   MOZ_ASSERT_IF(
       !mEditActionData ||
           !mEditActionData->HasEditorDestroyedDuringHandlingEditAction(),
@@ -268,24 +265,21 @@ nsresult EditorBase::Init(Document& aDocument, Element* aRoot,
   mFlags = aFlags;
 
   mDocument = &aDocument;
-  // HTML editors currently don't have their own selection controller,
-  // so they'll pass null as aSelCon, and we'll get the selection controller
-  // off of the presshell.
-  nsCOMPtr<nsISelectionController> selectionController;
-  if (aSelectionController) {
-    mSelectionController = aSelectionController;
-    selectionController = aSelectionController;
-  } else {
-    selectionController = GetPresShell();
+  // nsISelectionController should be stored only when we're a `TextEditor`.
+  // Otherwise, in `HTMLEditor`, it's `PresShell`, and grabbing it causes
+  // a circular reference and memory leak.
+  // XXX Should we move `mSelectionController to `TextEditor`?
+  MOZ_ASSERT_IF(!IsTextEditor(), &aSelectionController == GetPresShell());
+  if (IsTextEditor()) {
+    MOZ_ASSERT(&aSelectionController != GetPresShell());
+    mSelectionController = &aSelectionController;
   }
-  MOZ_ASSERT(selectionController,
-             "Selection controller should be available at this point");
 
   if (mEditActionData) {
     // During edit action, selection is cached. But this selection is invalid
     // now since selection controller is updated, so we have to update this
     // cache.
-    Selection* selection = selectionController->GetSelection(
+    Selection* selection = aSelectionController.GetSelection(
         nsISelectionController::SELECTION_NORMAL);
     NS_WARNING_ASSERTION(selection,
                          "SelectionController::GetSelection() failed");
@@ -295,8 +289,8 @@ nsresult EditorBase::Init(Document& aDocument, Element* aRoot,
   }
 
   // set up root element if we are passed one.
-  if (aRoot) {
-    mRootElement = aRoot;
+  if (aRootElement) {
+    mRootElement = aRootElement;
   }
 
   // If this is an editor for <input> or <textarea>, the text node which
@@ -309,13 +303,13 @@ nsresult EditorBase::Init(Document& aDocument, Element* aRoot,
   }
 
   // Show the caret.
-  DebugOnly<nsresult> rvIgnored = selectionController->SetCaretReadOnly(false);
+  DebugOnly<nsresult> rvIgnored = aSelectionController.SetCaretReadOnly(false);
   NS_WARNING_ASSERTION(
       NS_SUCCEEDED(rvIgnored),
       "nsISelectionController::SetCaretReadOnly(false) failed, but ignored");
   // Show all the selection reflected to user.
   rvIgnored =
-      selectionController->SetSelectionFlags(nsISelectionDisplay::DISPLAY_ALL);
+      aSelectionController.SetSelectionFlags(nsISelectionDisplay::DISPLAY_ALL);
   NS_WARNING_ASSERTION(NS_SUCCEEDED(rvIgnored),
                        "nsISelectionController::SetSelectionFlags("
                        "nsISelectionDisplay::DISPLAY_ALL) failed, but ignored");
@@ -397,11 +391,8 @@ nsresult EditorBase::InitEditorContentAndSelection() {
   return NS_OK;
 }
 
-nsresult EditorBase::PostCreate() {
-  AutoEditActionDataSetter editActionData(*this, EditAction::eNotEditing);
-  if (NS_WARN_IF(!editActionData.CanHandle())) {
-    return NS_ERROR_NOT_INITIALIZED;
-  }
+nsresult EditorBase::PostCreateInternal() {
+  MOZ_ASSERT(IsEditActionDataAvailable());
 
   // Synchronize some stuff for the flags.  SetFlags() will initialize
   // something by the flag difference.  This is first time of that, so, all
@@ -590,16 +581,8 @@ bool EditorBase::GetDesiredSpellCheckState() {
   return element->Spellcheck();
 }
 
-void EditorBase::PreDestroy(bool aDestroyingFrames) {
-  if (mDidPreDestroy) {
-    return;
-  }
-
-  if (IsPasswordEditor() && !AsTextEditor()->IsAllMasked()) {
-    // Mask all range for now because if layout accessed the range, that
-    // would cause showing password accidentary or crash.
-    AsTextEditor()->MaskAllCharacters();
-  }
+void EditorBase::PreDestroyInternal() {
+  MOZ_ASSERT(!mDidPreDestroy);
 
   mInitSucceeded = false;
 
@@ -618,7 +601,7 @@ void EditorBase::PreDestroy(bool aDestroyingFrames) {
   // destroyed.
   if (mInlineSpellChecker) {
     DebugOnly<nsresult> rvIgnored =
-        mInlineSpellChecker->Cleanup(aDestroyingFrames);
+        mInlineSpellChecker->Cleanup(IsTextEditor());
     NS_WARNING_ASSERTION(
         NS_SUCCEEDED(rvIgnored),
         "mozInlineSpellChecker::Cleanup() failed, but ignored");
@@ -636,7 +619,6 @@ void EditorBase::PreDestroy(bool aDestroyingFrames) {
   // If this editor is still hiding the caret, we need to restore it.
   HideCaret(false);
   mActionListeners.Clear();
-  mEditorObservers.Clear();
   mDocStateListeners.Clear();
   mInlineSpellChecker = nullptr;
   mTextServicesDocument = nullptr;
@@ -858,19 +840,6 @@ nsresult EditorBase::GetSelection(SelectionType aSelectionType,
                               ToRawSelectionType(aSelectionType)))
                     .take();
   return NS_WARN_IF(!*aSelection) ? NS_ERROR_FAILURE : NS_OK;
-}
-
-NS_IMETHODIMP EditorBase::DoTransaction(nsITransaction* aTransaction) {
-  AutoEditActionDataSetter editActionData(*this, EditAction::eUnknown);
-  if (NS_WARN_IF(!editActionData.CanHandle())) {
-    return NS_ERROR_FAILURE;
-  }
-  // This is a low level API.  So, the caller might require raw error code.
-  // Therefore, don't need to use EditorBase::ToGenericNSResult().
-  nsresult rv = DoTransactionInternal(aTransaction);
-  NS_WARNING_ASSERTION(NS_SUCCEEDED(rv),
-                       "EditorBase::DoTransactionInternal() failed");
-  return rv;
 }
 
 nsresult EditorBase::DoTransactionInternal(nsITransaction* aTransaction) {
@@ -2273,26 +2242,6 @@ nsresult EditorBase::DeleteNodeWithTransaction(nsIContent& aContent) {
   return rv;
 }
 
-NS_IMETHODIMP EditorBase::AddEditorObserver(nsIEditorObserver* aObserver) {
-  // we don't keep ownership of the observers.  They must
-  // remove themselves as observers before they are destroyed.
-
-  if (NS_WARN_IF(!aObserver)) {
-    return NS_ERROR_INVALID_ARG;
-  }
-
-  // Make sure the listener isn't already on the list
-  if (mEditorObservers.Contains(aObserver)) {
-    return NS_OK;
-  }
-
-  mEditorObservers.AppendElement(*aObserver);
-  NS_WARNING_ASSERTION(
-      mEditorObservers.Length() != 1,
-      "nsIEditorObserver installed, this editor becomes slower");
-  return NS_OK;
-}
-
 NS_IMETHODIMP EditorBase::NotifySelectionChanged(Document* aDocument,
                                                  Selection* aSelection,
                                                  int16_t aReason) {
@@ -2348,17 +2297,6 @@ void EditorBase::NotifyEditorObservers(
       if (mIMEContentObserver) {
         RefPtr<IMEContentObserver> observer = mIMEContentObserver;
         observer->OnEditActionHandled();
-      }
-
-      if (!mEditorObservers.IsEmpty()) {
-        // Copy the observers since EditAction()s can modify mEditorObservers.
-        AutoEditorObserverArray observers(mEditorObservers.Clone());
-        for (auto& observer : observers) {
-          DebugOnly<nsresult> rvIgnored = observer->EditAction();
-          NS_WARNING_ASSERTION(
-              NS_SUCCEEDED(rvIgnored),
-              "nsIEditorObserver::EditAction() failed, but ignored");
-        }
       }
 
       if (!mDispatchInputEvent || IsEditActionAborted() ||

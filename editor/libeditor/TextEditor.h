@@ -7,6 +7,9 @@
 #define mozilla_TextEditor_h
 
 #include "mozilla/EditorBase.h"
+#include "mozilla/TextControlState.h"
+#include "mozilla/UniquePtr.h"
+
 #include "nsCOMPtr.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsINamed.h"
@@ -53,6 +56,44 @@ class TextEditor final : public EditorBase,
 
   TextEditor();
 
+  /**
+   * Note that TextEditor::Init() shouldn't cause running script synchronously.
+   * So, `MOZ_CAN_RUN_SCRIPT_BOUNDARY` is safe here.
+   *
+   * @param aDocument   The document which aAnonymousDivElement belongs to.
+   * @param aAnonymousDivElement
+   *                    The root editable element for this editor.
+   * @param aSelectionController
+   *                    The selection controller for independent selections
+   *                    in the `<input>` or `<textarea>` element.
+   * @param aFlags      Some of nsIEditor::eEditor*Mask flags.
+   * @param aPasswordMaskData
+   *                    Set to an instance only when aFlags includes
+   *                    `nsIEditor::eEditorPasswordMask`.  Otherwise, must be
+   *                    `nullptr`.
+   */
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY nsresult
+  Init(Document& aDocument, Element& aAnonymousDivElement,
+       nsISelectionController& aSelectionController, uint32_t aFlags,
+       UniquePtr<PasswordMaskData>&& aPasswordMaskData);
+
+  /**
+   * PostCreate() should be called after Init, and is the time that the editor
+   * tells its documentStateObservers that the document has been created.
+   * Note that TextEditor::PostCreate() shouldn't cause running script
+   * synchronously. So, `MOZ_CAN_RUN_SCRIPT_BOUNDARY` is safe here.
+   */
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY nsresult PostCreate();
+
+  /**
+   * PreDestroy() is called before the editor goes away, and gives the editor a
+   * chance to tell its documentStateObservers that the document is going away.
+   * Note that TextEditor::PreDestroy() shouldn't cause running script
+   * synchronously. So, `MOZ_CAN_RUN_SCRIPT_BOUNDARY` is safe here.
+   */
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT_BOUNDARY UniquePtr<PasswordMaskData>
+  PreDestroy();
+
   static TextEditor* GetFrom(nsIEditor* aEditor) {
     return aEditor ? aEditor->GetAsTextEditor() : nullptr;
   }
@@ -79,11 +120,6 @@ class TextEditor final : public EditorBase,
   using EditorBase::CanPaste;
 
   // Overrides of EditorBase
-  MOZ_CAN_RUN_SCRIPT nsresult Init(Document& aDoc, Element* aRoot,
-                                   nsISelectionController* aSelCon,
-                                   uint32_t aFlags,
-                                   const nsAString& aInitialValue) final;
-
   bool IsEmpty() const final;
 
   bool CanPaste(int32_t aClipboardType) const final;
@@ -159,21 +195,21 @@ class TextEditor final : public EditorBase,
    * editor.  They return whether there is unmasked range or not and range
    * start and length.
    */
-  bool IsAllMasked() const {
+  MOZ_ALWAYS_INLINE bool IsAllMasked() const {
     MOZ_ASSERT(IsPasswordEditor());
-    return mUnmaskedStart == UINT32_MAX && mUnmaskedLength == 0;
+    return !mPasswordMaskData || mPasswordMaskData->IsAllMasked();
   }
-  uint32_t UnmaskedStart() const {
+  MOZ_ALWAYS_INLINE uint32_t UnmaskedStart() const {
     MOZ_ASSERT(IsPasswordEditor());
-    return mUnmaskedStart;
+    return mPasswordMaskData ? mPasswordMaskData->mUnmaskedStart : UINT32_MAX;
   }
-  uint32_t UnmaskedLength() const {
+  MOZ_ALWAYS_INLINE uint32_t UnmaskedLength() const {
     MOZ_ASSERT(IsPasswordEditor());
-    return mUnmaskedLength;
+    return mPasswordMaskData ? mPasswordMaskData->mUnmaskedLength : 0;
   }
-  uint32_t UnmaskedEnd() const {
+  MOZ_ALWAYS_INLINE uint32_t UnmaskedEnd() const {
     MOZ_ASSERT(IsPasswordEditor());
-    return mUnmaskedStart + mUnmaskedLength;
+    return mPasswordMaskData ? mPasswordMaskData->UnmaskedEnd() : UINT32_MAX;
   }
 
   /**
@@ -183,7 +219,7 @@ class TextEditor final : public EditorBase,
    */
   bool IsMaskingPassword() const {
     MOZ_ASSERT(IsPasswordEditor());
-    return mIsMaskingPassword;
+    return mPasswordMaskData && mPasswordMaskData->mIsMaskingPassword;
   }
 
   /**
@@ -196,9 +232,19 @@ class TextEditor final : public EditorBase,
    * If you want to prevent to echo password temporarily, use the following
    * methods.
    */
-  bool EchoingPasswordPrevented() const { return mEchoingPasswordPrevented; }
-  void PreventToEchoPassword() { mEchoingPasswordPrevented = true; }
-  void AllowToEchoPassword() { mEchoingPasswordPrevented = false; }
+  bool EchoingPasswordPrevented() const {
+    return mPasswordMaskData && mPasswordMaskData->mEchoingPasswordPrevented;
+  }
+  void PreventToEchoPassword() {
+    if (mPasswordMaskData) {
+      mPasswordMaskData->mEchoingPasswordPrevented = true;
+    }
+  }
+  void AllowToEchoPassword() {
+    if (mPasswordMaskData) {
+      mPasswordMaskData->mEchoingPasswordPrevented = false;
+    }
+  }
 
  protected:  // May be called by friends.
   /****************************************************************************
@@ -284,6 +330,9 @@ class TextEditor final : public EditorBase,
    * After this is called, TextEditor starts masking password automatically.
    */
   MOZ_CAN_RUN_SCRIPT_BOUNDARY nsresult MaskAllCharacters() {
+    if (!mPasswordMaskData) {
+      return NS_OK;  // Already we don't have masked range data.
+    }
     return SetUnmaskRangeInternal(UINT32_MAX, 0, 0, false, true);
   }
 
@@ -481,26 +530,14 @@ class TextEditor final : public EditorBase,
                                                      bool aNotify,
                                                      bool aForceStartMasking);
 
+  MOZ_ALWAYS_INLINE bool HasAutoMaskingTimer() const {
+    return mPasswordMaskData && mPasswordMaskData->mTimer;
+  }
+
  protected:
-  // Timer to mask unmasked characters automatically.  Used only when it's
-  // a password field.
-  nsCOMPtr<nsITimer> mMaskTimer;
+  UniquePtr<PasswordMaskData> mPasswordMaskData;
 
-  int32_t mMaxTextLength;
-
-  // Unmasked character range.  Used only when it's a password field.
-  // If mUnmaskedLength is 0, it means there is no unmasked characters.
-  uint32_t mUnmaskedStart;
-  uint32_t mUnmaskedLength;
-
-  // Set to true if all characters are masked or waiting notification from
-  // `mMaskTimer`.  Otherwise, i.e., part of or all of password is unmasked
-  // without setting `mMaskTimer`, set to false.
-  bool mIsMaskingPassword;
-
-  // Set to true if a manager of the instance wants to disable echoing password
-  // temporarily.
-  bool mEchoingPasswordPrevented;
+  int32_t mMaxTextLength = -1;
 
   friend class DeleteNodeTransaction;
   friend class EditorBase;

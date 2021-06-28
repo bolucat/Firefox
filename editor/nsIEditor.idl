@@ -14,7 +14,6 @@ interface nsIDocumentStateListener;
 interface nsIOutputStream;
 interface nsITransactionManager;
 interface nsITransaction;
-interface nsIEditorObserver;
 interface nsIEditActionListener;
 interface nsIInlineSpellChecker;
 interface nsITransferable;
@@ -194,17 +193,6 @@ interface nsIEditor  : nsISupports
   /** transactionManager Get the transaction manager the editor is using.
     */
   readonly attribute nsITransactionManager transactionManager;
-
-  /** doTransaction() fires a transaction.
-    * It is provided here so clients can create their own transactions.
-    * If a transaction manager is present, it is used.
-    * Otherwise, the transaction is just executed directly.
-    *
-    * @param aTxn the transaction to execute
-    */
-  [can_run_script]
-  void doTransaction(in nsITransaction txn);
-
 
   /** turn the undo system on or off
     * @param aEnable  if PR_TRUE, the undo system is turned on if available
@@ -469,9 +457,6 @@ interface nsIEditor  : nsISupports
    * nsIEditor holds strong references to the editor observers, action listeners
    * and document state listeners.
    */
-
-  /** add an EditorObserver to the editors list of observers. */
-  void addEditorObserver(in nsIEditorObserver observer);
 
   /** add an EditActionListener to the editors list of listeners. */
   void addEditActionListener(in nsIEditActionListener listener);
