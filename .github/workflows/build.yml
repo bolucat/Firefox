@@ -35,7 +35,6 @@ jobs:
       - name: Commit Changes
         run: |
           mv firefox-source/* $PWD/ && rm -rf firefox-source
-          echo "Update On $(date +%Y%m%d%H%M)" >> .github/change.log
           git config --local user.name "GitHub Actions"
           git config --local user.email "action@github.com"
           git add .
