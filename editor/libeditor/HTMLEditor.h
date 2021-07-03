@@ -160,6 +160,25 @@ class HTMLEditor final : public EditorBase,
     return aEditor ? aEditor->GetAsHTMLEditor() : nullptr;
   }
 
+  /**
+   * Adds or removes transaction listener to or from the transaction manager.
+   * Note that TransactionManager does not check if the listener is in the
+   * array.  So, caller of AddTransactionListener() needs to manage if it's
+   * already been registered to the transaction manager.
+   */
+  bool AddTransactionListener(nsITransactionListener& aListener) {
+    if (!mTransactionManager) {
+      return false;
+    }
+    return mTransactionManager->AddTransactionListener(aListener);
+  }
+  bool RemoveTransactionListener(nsITransactionListener& aListener) {
+    if (!mTransactionManager) {
+      return false;
+    }
+    return mTransactionManager->RemoveTransactionListener(aListener);
+  }
+
   bool GetReturnInParagraphCreatesNewParagraph();
 
   // EditorBase overrides
@@ -981,6 +1000,15 @@ class HTMLEditor final : public EditorBase,
    */
   [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult
   DoJoinNodes(nsIContent& aContentToKeep, nsIContent& aContentToJoin);
+
+  /**
+   * Routines for managing the preservation of selection across
+   * various editor actions.
+   */
+  bool ArePreservingSelection() const;
+  void PreserveSelectionAcrossActions();
+  MOZ_CAN_RUN_SCRIPT nsresult RestorePreservedSelection();
+  void StopPreservingSelection();
 
  protected:  // edit sub-action handler
   /**
@@ -2764,6 +2792,19 @@ class HTMLEditor final : public EditorBase,
   MOZ_CAN_RUN_SCRIPT nsresult SelectAllInternal() final;
 
   /**
+   * Creates a range with just the supplied node and appends that to the
+   * selection.
+   */
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult
+  AppendContentToSelectionAsRange(nsIContent& aContent);
+
+  /**
+   * When you are using AppendContentToSelectionAsRange(), call this first to
+   * start a new selection.
+   */
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult ClearSelection();
+
+  /**
    * SelectContentInternal() sets Selection to aContentToSelect to
    * aContentToSelect + 1 in parent of aContentToSelect.
    *
@@ -2953,7 +2994,7 @@ class HTMLEditor final : public EditorBase,
   };
 
   struct MOZ_STACK_CLASS CellData final {
-    RefPtr<Element> mElement;
+    MOZ_KNOWN_LIVE RefPtr<Element> mElement;
     // Current indexes which this is initialized with.
     CellIndexes mCurrent;
     // First column/row indexes of the cell.  When current position is spanned
@@ -4342,6 +4383,65 @@ class HTMLEditor final : public EditorBase,
   [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult
   IndentListChild(RefPtr<Element>* aCurList, const EditorDOMPoint& aCurPoint,
                   nsIContent& aContent);
+
+  /**
+   * Stack based helper class for saving/restoring selection.  Note that this
+   * assumes that the nodes involved are still around afterwords!
+   */
+  class AutoSelectionRestorer final {
+   public:
+    AutoSelectionRestorer() = delete;
+    explicit AutoSelectionRestorer(const AutoSelectionRestorer& aOther) =
+        delete;
+    AutoSelectionRestorer(AutoSelectionRestorer&& aOther) = delete;
+
+    /**
+     * Constructor responsible for remembering all state needed to restore
+     * aSelection.
+     * XXX This constructor and the destructor should be marked as
+     *     `MOZ_CAN_RUN_SCRIPT`, but it's impossible due to this may be used
+     *     with `Maybe`.
+     */
+    MOZ_CAN_RUN_SCRIPT_BOUNDARY explicit AutoSelectionRestorer(
+        HTMLEditor& aHTMLEditor);
+
+    /**
+     * Destructor restores mSelection to its former state
+     */
+    MOZ_CAN_RUN_SCRIPT_BOUNDARY ~AutoSelectionRestorer();
+
+    /**
+     * Abort() cancels to restore the selection.
+     */
+    void Abort();
+
+   protected:
+    // The lifetime must be guaranteed by the creator of this instance.
+    MOZ_KNOWN_LIVE HTMLEditor* mHTMLEditor = nullptr;
+  };
+
+  /**
+   * Stack based helper class for calling EditorBase::EndTransactionInternal().
+   * NOTE:  This does not suppress multiple input events.  In most cases,
+   *        only one "input" event should be fired for an edit action rather
+   *        than per edit sub-action.  In such case, you should use
+   *        EditorBase::AutoPlaceholderBatch instead.
+   */
+  class MOZ_RAII AutoTransactionBatch final {
+   public:
+    MOZ_CAN_RUN_SCRIPT explicit AutoTransactionBatch(HTMLEditor& aHTMLEditor)
+        : mHTMLEditor(aHTMLEditor) {
+      MOZ_KnownLive(mHTMLEditor).BeginTransactionInternal();
+    }
+
+    MOZ_CAN_RUN_SCRIPT ~AutoTransactionBatch() {
+      MOZ_KnownLive(mHTMLEditor).EndTransactionInternal();
+    }
+
+   protected:
+    // The lifetime must be guaranteed by the creator of this instance.
+    MOZ_KNOWN_LIVE HTMLEditor& mHTMLEditor;
+  };
 
   RefPtr<TypeInState> mTypeInState;
   RefPtr<ComposerCommandsUpdater> mComposerCommandsUpdater;

@@ -59,9 +59,7 @@ class nsRange;
 namespace mozilla {
 class AlignStateAtSelection;
 class AutoRangeArray;
-class AutoSelectionRestorer;
 class AutoTopLevelEditSubActionNotifier;
-class AutoTransactionBatch;
 class AutoTransactionsConserveSelection;
 class AutoUpdateViewBatch;
 class ChangeAttributeTransaction;
@@ -421,25 +419,6 @@ class EditorBase : public nsIEditor,
       return false;
     }
     return IsCopyToClipboardAllowedInternal();
-  }
-
-  /**
-   * Adds or removes transaction listener to or from the transaction manager.
-   * Note that TransactionManager does not check if the listener is in the
-   * array.  So, caller of AddTransactionListener() needs to manage if it's
-   * already been registered to the transaction manager.
-   */
-  bool AddTransactionListener(nsITransactionListener& aListener) {
-    if (!mTransactionManager) {
-      return false;
-    }
-    return mTransactionManager->AddTransactionListener(aListener);
-  }
-  bool RemoveTransactionListener(nsITransactionListener& aListener) {
-    if (!mTransactionManager) {
-      return false;
-    }
-    return mTransactionManager->RemoveTransactionListener(aListener);
   }
 
   /**
@@ -1405,7 +1384,7 @@ class EditorBase : public nsIEditor,
     // the DOM tree.  In such case, we need to handle edit action separately.
     AutoEditActionDataSetter* mParentData;
 
-    // Cached selection for AutoSelectionRestorer.
+    // Cached selection for HTMLEditor::AutoSelectionRestorer.
     SelectionState mSavedSelection;
 
     // Utility class object for maintaining preserved ranges.
@@ -1602,13 +1581,15 @@ class EditorBase : public nsIEditor,
 
   /**
    * SavedSelection() returns reference to saved selection which are
-   * stored by AutoSelectionRestorer.
+   * stored by HTMLEditor::AutoSelectionRestorer.
    */
   SelectionState& SavedSelectionRef() {
+    MOZ_ASSERT(IsHTMLEditor());
     MOZ_ASSERT(IsEditActionDataAvailable());
     return mEditActionData->SavedSelectionRef();
   }
   const SelectionState& SavedSelectionRef() const {
+    MOZ_ASSERT(IsHTMLEditor());
     MOZ_ASSERT(IsEditActionDataAvailable());
     return mEditActionData->SavedSelectionRef();
   }
@@ -2147,15 +2128,6 @@ class EditorBase : public nsIEditor,
   void OnEndHandlingEditSubAction() { EditSubActionDataRef().Clear(); }
 
   /**
-   * Routines for managing the preservation of selection across
-   * various editor actions.
-   */
-  bool ArePreservingSelection();
-  void PreserveSelectionAcrossActions();
-  nsresult RestorePreservedSelection();
-  void StopPreservingSelection();
-
-  /**
    * (Begin|End)PlaceholderTransaction() are called by AutoPlaceholderBatch.
    * This set of methods are similar to the (Begin|End)Transaction(), but do
    * not use the transaction managers batching feature.  Instead we use a
@@ -2174,9 +2146,10 @@ class EditorBase : public nsIEditor,
   MOZ_CAN_RUN_SCRIPT void EndUpdateViewBatch();
 
   /**
-   * Used by AutoTransactionBatch.  After calling BeginTransactionInternal(),
-   * all transactions will be treated as an atomic transaction.  I.e.,
-   * two or more transactions are undid once.
+   * Used by HTMLEditor::AutoTransactionBatch, nsIEditor::BeginTransaction
+   * and nsIEditor::EndTransation.  After calling BeginTransactionInternal(),
+   * all transactions will be treated as an atomic transaction.  I.e., two or
+   * more transactions are undid once.
    * XXX What's the difference with PlaceholderTransaction? Should we always
    *     use it instead?
    */
@@ -2406,19 +2379,6 @@ class EditorBase : public nsIEditor,
       nsIContent& aAncestorLimit) const;
 
   /**
-   * Creates a range with just the supplied node and appends that to the
-   * selection.
-   */
-  MOZ_CAN_RUN_SCRIPT_BOUNDARY nsresult
-  AppendNodeToSelectionAsRange(nsINode* aNode);
-
-  /**
-   * When you are using AppendNodeToSelectionAsRange(), call this first to
-   * start a new selection.
-   */
-  MOZ_CAN_RUN_SCRIPT_BOUNDARY nsresult ClearSelection();
-
-  /**
    * Initializes selection and caret for the editor.  If aEventTarget isn't
    * a host of the editor, i.e., the editor doesn't get focus, this does
    * nothing.
@@ -2634,28 +2594,6 @@ class EditorBase : public nsIEditor,
 
  protected:  // helper classes which may be used by friends
   /**
-   * Stack based helper class for calling EditorBase::EndTransactionInternal().
-   * NOTE:  This does not suppress multiple input events.  In most cases,
-   *        only one "input" event should be fired for an edit action rather
-   *        than per edit sub-action.  In such case, you should use
-   *        AutoPlaceholderBatch instead.
-   */
-  class MOZ_RAII AutoTransactionBatch final {
-   public:
-    MOZ_CAN_RUN_SCRIPT explicit AutoTransactionBatch(EditorBase& aEditorBase)
-        : mEditorBase(aEditorBase) {
-      MOZ_KnownLive(mEditorBase).BeginTransactionInternal();
-    }
-
-    MOZ_CAN_RUN_SCRIPT ~AutoTransactionBatch() {
-      MOZ_KnownLive(mEditorBase).EndTransactionInternal();
-    }
-
-   protected:
-    EditorBase& mEditorBase;
-  };
-
-  /**
    * Stack based helper class for batching a collection of transactions inside
    * a placeholder transaction.  Different from AutoTransactionBatch, this
    * notifies editor observers of before/end edit action handling, and
@@ -2685,32 +2623,6 @@ class EditorBase : public nsIEditor,
    protected:
     OwningNonNull<EditorBase> mEditorBase;
     ScrollSelectionIntoView mScrollSelectionIntoView;
-  };
-
-  /**
-   * Stack based helper class for saving/restoring selection.  Note that this
-   * assumes that the nodes involved are still around afterwords!
-   */
-  class MOZ_RAII AutoSelectionRestorer final {
-   public:
-    /**
-     * Constructor responsible for remembering all state needed to restore
-     * aSelection.
-     */
-    explicit AutoSelectionRestorer(EditorBase& aEditorBase);
-
-    /**
-     * Destructor restores mSelection to its former state
-     */
-    ~AutoSelectionRestorer();
-
-    /**
-     * Abort() cancels to restore the selection.
-     */
-    void Abort();
-
-   protected:
-    EditorBase* mEditorBase;
   };
 
   /**
