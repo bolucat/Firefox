@@ -219,15 +219,73 @@ jobs:
     deb10-mmdebstrap:
         # Only a more recent version of mmdebstrap than what is in buster has the
         # features we want.
-        description: "mmdebstrap 0.7.4 for Debian buster"
+        description: "mmdebstrap 0.7.5 for Debian buster"
         treeherder:
             symbol: Deb10(python-mmdebstrap)
         run:
             using: debian-package
             dist: buster
             dsc:
-                url: http://snapshot.debian.org/archive/debian/20210116T145421Z/pool/main/m/mmdebstrap/mmdebstrap_0.7.4-1.dsc
-                sha256: 202adf5b93a31d281d0444bab2df52330e650b94e74c66aeb59b1beeda0f9df2
+                url: http://snapshot.debian.org/archive/debian/20210507T203327Z/pool/main/m/mmdebstrap/mmdebstrap_0.7.5-2.2.dsc
+                sha256: 231ab505fac675acda098a5b328fee0b939be5d5881d7713b8ec759ee9833543
             pre-build-command: >-
               sed -i "s/debhelper-compat (= 13)/debhelper/" debian/control &&
               echo 12 > debian/compat
+
+    deb8-gcc-7:
+        description: "gcc 7 for Debian jessie"
+        treeherder:
+            symbol: Deb8(gcc-7)
+        worker:
+            max-run-time: 3600
+            env:
+                DEB_BUILD_OPTIONS: nocheck
+                WITH_BOOTSTRAP: 'off'
+                WITHOUT_LANG: ada brig cilkrts fortran d go objc obj-c++ asan lsan tsan ubsan jit nvptx
+        run:
+            using: debian-package
+            dist: jessie
+            dsc:
+                url: http://snapshot.debian.org/archive/debian/20180125T222959Z/pool/main/g/gcc-7/gcc-7_7.3.0-1.dsc
+                sha256: b4f37b2075a68e2c7ab65834bc944640f28cd05df5c87ddbee756e1173e09898
+            # autoconf2.64 and quilt necessary to run the `debian/rules control` command to
+            # generate an updated debian/control.
+            # `libstdcxx_abi = new` overrides the default that disables the new ABI on jessie
+            # `BINUTILSBDV=2.25-3~` and `ISL_BUILD_DEP=libisl-dev,` override wrong versions
+            # in build dependencies for jessie.
+            # `OFFLOAD_BUILD_DEP=` overrides the dependency on nvptx, which is not available
+            # in jessie.
+            # `NT=` overrides the use of `:native` which is not supported by dpkg on jessie.
+            pre-build-command: >-
+                apt install autoconf2.64 quilt &&
+                echo libstdcxx_abi = new >> debian/rules.defs &&
+                echo BINUTILSBDV=2.25-3~ >> debian/rules.conf &&
+                echo ISL_BUILD_DEP=libisl-dev, >> debian/rules.conf &&
+                echo OFFLOAD_BUILD_DEP= >> debian/rules.conf &&
+                debian/rules control NT=
+
+    deb8-32-gcc-7:
+        description: "gcc 7 for Debian jessie"
+        treeherder:
+            symbol: Deb8-32(gcc-7)
+        worker:
+            max-run-time: 3600
+            env:
+                DEB_BUILD_OPTIONS: nocheck
+                WITH_BOOTSTRAP: 'off'
+                WITHOUT_LANG: ada biarch brig cilkrts fortran d go objc obj-c++ asan lsan tsan ubsan jit nvptx
+        run:
+            using: debian-package
+            dist: jessie
+            dsc:
+                url: http://snapshot.debian.org/archive/debian/20180125T222959Z/pool/main/g/gcc-7/gcc-7_7.3.0-1.dsc
+                sha256: b4f37b2075a68e2c7ab65834bc944640f28cd05df5c87ddbee756e1173e09898
+            pre-build-command: >-
+                apt install autoconf2.64 quilt &&
+                echo libstdcxx_abi = new >> debian/rules.defs &&
+                echo GCC_MULTILIB_BUILD_DEP='$(DPKG_BUILD_DEP)' >> debian/rules.conf &&
+                echo BINUTILSBDV=2.25-3~ >> debian/rules.conf &&
+                echo ISL_BUILD_DEP=libisl-dev, >> debian/rules.conf &&
+                echo OFFLOAD_BUILD_DEP= >> debian/rules.conf &&
+                debian/rules control NT=
+            arch: i386

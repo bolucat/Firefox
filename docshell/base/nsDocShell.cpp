@@ -273,9 +273,6 @@ static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 // Number of documents currently loading
 static int32_t gNumberOfDocumentsLoading = 0;
 
-// Global count of docshells with the private attribute set
-static uint32_t gNumberOfPrivateDocShells = 0;
-
 static mozilla::LazyLogModule gCharsetMenuLog("CharsetMenu");
 
 #define LOGCHARSETMENU(args) \
@@ -304,33 +301,6 @@ static void FavorPerformanceHint(bool aPerfOverStarvation) {
         aPerfOverStarvation,
         Preferences::GetUint("docshell.event_starvation_delay_hint",
                              NS_EVENT_STARVATION_DELAY_HINT));
-  }
-}
-
-static void IncreasePrivateDocShellCount() {
-  gNumberOfPrivateDocShells++;
-  if (gNumberOfPrivateDocShells > 1 || !XRE_IsContentProcess()) {
-    return;
-  }
-
-  mozilla::dom::ContentChild* cc = mozilla::dom::ContentChild::GetSingleton();
-  cc->SendPrivateDocShellsExist(true);
-}
-
-static void DecreasePrivateDocShellCount() {
-  MOZ_ASSERT(gNumberOfPrivateDocShells > 0);
-  gNumberOfPrivateDocShells--;
-  if (!gNumberOfPrivateDocShells) {
-    if (XRE_IsContentProcess()) {
-      dom::ContentChild* cc = dom::ContentChild::GetSingleton();
-      cc->SendPrivateDocShellsExist(false);
-      return;
-    }
-
-    nsCOMPtr<nsIObserverService> obsvc = services::GetObserverService();
-    if (obsvc) {
-      obsvc->NotifyObservers(nullptr, "last-pb-context-exited", nullptr);
-    }
   }
 }
 
@@ -411,7 +381,6 @@ nsDocShell::nsDocShell(BrowsingContext* aBrowsingContext,
       mIsBeingDestroyed(false),
       mIsExecutingOnLoadHandler(false),
       mSavingOldViewer(false),
-      mAffectPrivateSessionLifetime(true),
       mInvisible(false),
       mHasLoadedNonBlankURI(false),
       mBlankTiming(false),
@@ -1717,14 +1686,6 @@ nsDocShell::GetUsePrivateBrowsing(bool* aUsePrivateBrowsing) {
 void nsDocShell::NotifyPrivateBrowsingChanged() {
   MOZ_ASSERT(!mIsBeingDestroyed);
 
-  if (mAffectPrivateSessionLifetime) {
-    if (UsePrivateBrowsing()) {
-      IncreasePrivateDocShellCount();
-    } else {
-      DecreasePrivateDocShellCount();
-    }
-  }
-
   nsTObserverArray<nsWeakPtr>::ForwardIterator iter(mPrivacyObservers);
   while (iter.HasMore()) {
     nsWeakPtr ref = iter.GetNext();
@@ -1775,35 +1736,6 @@ nsDocShell::GetUseRemoteSubframes(bool* aUseRemoteSubframes) {
 NS_IMETHODIMP
 nsDocShell::SetRemoteSubframes(bool aUseRemoteSubframes) {
   return mBrowsingContext->SetRemoteSubframes(aUseRemoteSubframes);
-}
-
-NS_IMETHODIMP
-nsDocShell::SetAffectPrivateSessionLifetime(bool aAffectLifetime) {
-  MOZ_ASSERT(!mIsBeingDestroyed);
-
-  bool change = aAffectLifetime != mAffectPrivateSessionLifetime;
-  if (change && UsePrivateBrowsing()) {
-    if (aAffectLifetime) {
-      IncreasePrivateDocShellCount();
-    } else {
-      DecreasePrivateDocShellCount();
-    }
-  }
-  mAffectPrivateSessionLifetime = aAffectLifetime;
-
-  for (auto* child : mChildList.ForwardRange()) {
-    nsCOMPtr<nsIDocShell> shell = do_QueryObject(child);
-    if (shell) {
-      shell->SetAffectPrivateSessionLifetime(aAffectLifetime);
-    }
-  }
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocShell::GetAffectPrivateSessionLifetime(bool* aAffectLifetime) {
-  *aAffectLifetime = mAffectPrivateSessionLifetime;
-  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -2601,8 +2533,6 @@ nsresult nsDocShell::SetDocLoaderParent(nsDocLoader* aParent) {
       value = false;
     }
     SetAllowDNSPrefetch(mAllowDNSPrefetch && value);
-    SetAffectPrivateSessionLifetime(
-        parentAsDocShell->GetAffectPrivateSessionLifetime());
 
     // We don't need to inherit metaViewportOverride, because the viewport
     // is only relevant for the outermost nsDocShell, not for any iframes
@@ -4527,10 +4457,6 @@ nsDocShell::Destroy() {
   // to break the cycle between us and the timers.
   CancelRefreshURITimers();
 
-  if (UsePrivateBrowsing() && mAffectPrivateSessionLifetime) {
-    DecreasePrivateDocShellCount();
-  }
-
   return NS_OK;
 }
 
@@ -4795,9 +4721,9 @@ nsDocShell::GetVisibility(bool* aVisibility) {
 }
 
 void nsDocShell::ActivenessMaybeChanged() {
-  bool isActive = mBrowsingContext->IsActive();
+  const bool isActive = mBrowsingContext->IsActive();
   if (RefPtr<PresShell> presShell = GetPresShell()) {
-    presShell->SetIsActive(isActive);
+    presShell->ActivenessMaybeChanged();
   }
 
   // Tell the window about it
@@ -8064,7 +7990,6 @@ nsresult nsDocShell::SetupNewViewer(nsIContentViewer* aNewViewer,
   }
 
   nscolor bgcolor = NS_RGBA(0, 0, 0, 0);
-  bool isActive = false;
   // Ensure that the content viewer is destroyed *after* the GC - bug 71515
   nsCOMPtr<nsIContentViewer> contentViewer = mContentViewer;
   if (contentViewer) {
@@ -8076,7 +8001,6 @@ nsresult nsDocShell::SetupNewViewer(nsIContentViewer* aNewViewer,
     // presentation shell, so we can use it for the next document.
     if (PresShell* presShell = contentViewer->GetPresShell()) {
       bgcolor = presShell->GetCanvasBackground();
-      isActive = presShell->IsActive();
     }
 
     contentViewer->Close(mSavingOldViewer ? mOSHE.get() : nullptr);
@@ -8121,9 +8045,7 @@ nsresult nsDocShell::SetupNewViewer(nsIContentViewer* aNewViewer,
   // pres shell. This improves page load continuity.
   if (RefPtr<PresShell> presShell = mContentViewer->GetPresShell()) {
     presShell->SetCanvasBackground(bgcolor);
-    if (isActive) {
-      presShell->SetIsActive(isActive);
-    }
+    presShell->ActivenessMaybeChanged();
   }
 
   // XXX: It looks like the LayoutState gets restored again in Embed()

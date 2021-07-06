@@ -289,7 +289,7 @@ class Bootstrapper(object):
                 applications = {
                     key: value
                     for key, value in applications.items()
-                    if "artifact_mode" not in value
+                    if "artifact_mode" not in value and "mobile_android" not in value
                 }
                 print(
                     'Note: M1 Macs don\'t support "Artifact Mode", so '
@@ -306,9 +306,9 @@ class Bootstrapper(object):
             choices += ["  {}".format(label) for label in labels[1:]]
             prompt = APPLICATION_CHOICE % "\n".join(choices)
             prompt_choice = self.instance.prompt_int(
-                prompt=prompt, low=1, high=len(APPLICATIONS)
+                prompt=prompt, low=1, high=len(applications)
             )
-            name, application = list(APPLICATIONS.items())[prompt_choice - 1]
+            name, application = list(applications.items())[prompt_choice - 1]
         elif self.choice in APPLICATIONS.keys():
             name, application = self.choice, APPLICATIONS[self.choice]
         elif self.choice in APPLICATIONS.values():

@@ -10,7 +10,11 @@ SNAPSHOT=20210208T213147Z
 case "$arch" in
 i386|amd64)
   dist=jessie
-  gcc_version=4.9
+  if [ -n "$PACKAGES_TASKS" ]; then
+    gcc_version=7
+  else
+    gcc_version=4.9
+  fi
   ;;
 arm64)
   dist=buster
@@ -40,18 +44,23 @@ packages="
   $*
 "
 
-# --skip=check/qemu works around https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=981709
 # --keyring=... works around https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=981710
 # For a sysroot, we don't need everything. Essentially only libraries and headers, as
 # well as pkgconfig files. We exclude debug info files and valgrind files that are not
 # useful to build.
-mmdebstrap \
+queue_base="$TASKCLUSTER_ROOT_URL/api/queue/v1"
+(
+  echo "deb http://snapshot.debian.org/archive/debian/$SNAPSHOT $dist main"
+  for task in $PACKAGES_TASKS; do
+    echo "deb [trusted=yes] $queue_base/task/$task/artifacts/public/build/ apt/"
+  done
+) | mmdebstrap \
   --architectures=$arch \
   --variant=extract \
   --include=$(echo $packages | tr ' ' ,) \
   $dist \
   sysroot \
-  http://snapshot.debian.org/archive/debian/$SNAPSHOT/ \
+  - \
   --dpkgopt=path-exclude="*" \
   --dpkgopt=path-include="/lib/*" \
   --dpkgopt=path-include="/lib32/*" \
@@ -62,7 +71,6 @@ mmdebstrap \
   --dpkgopt=path-exclude="/usr/lib/valgrind/*" \
   --dpkgopt=path-include="/usr/share/pkgconfig/*" \
   --keyring=/usr/share/keyrings/debian-archive-removed-keys.gpg \
-  --skip=check/qemu \
   -v
 
 # Adjust symbolic links to link into the sysroot instead of absolute

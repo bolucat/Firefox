@@ -315,15 +315,14 @@ BrowserChild::BrowserChild(ContentChild* aManager, const TabId& aTabId,
       mMaxTouchPoints(0),
       mLayersId{0},
       mEffectsInfo{EffectsInfo::FullyHidden()},
+      mOrientation(hal::eScreenOrientation_PortraitPrimary),
+      mDynamicToolbarMaxHeight(0),
+      mUniqueId(aTabId),
       mDidFakeShow(false),
       mTriedBrowserInit(false),
-      mOrientation(hal::eScreenOrientation_PortraitPrimary),
-      mVsyncChild(nullptr),
       mIgnoreKeyPressEvent(false),
       mHasValidInnerSize(false),
       mDestroyed(false),
-      mDynamicToolbarMaxHeight(0),
-      mUniqueId(aTabId),
       mIsTopLevel(aIsTopLevel),
       mHasSiblings(false),
       mIsTransparent(false),
@@ -332,6 +331,13 @@ BrowserChild::BrowserChild(ContentChild* aManager, const TabId& aTabId,
       mDidLoadURLInit(false),
       mSkipKeyPress(false),
       mDidSetEffectsInfo(false),
+      mShouldSendWebProgressEventsToParent(false),
+      mRenderLayers(true),
+      mIsPreservingLayers(false),
+      mPendingDocShellIsActive(false),
+      mPendingDocShellReceivedMessage(false),
+      mPendingRenderLayers(false),
+      mPendingRenderLayersReceivedMessage(false),
       mLayersObserverEpoch{1},
 #if defined(XP_WIN) && defined(ACCESSIBILITY)
       mNativeWindowHandle(0),
@@ -339,12 +345,6 @@ BrowserChild::BrowserChild(ContentChild* aManager, const TabId& aTabId,
 #if defined(ACCESSIBILITY)
       mTopLevelDocAccessibleChild(nullptr),
 #endif
-      mShouldSendWebProgressEventsToParent(false),
-      mRenderLayers(true),
-      mPendingDocShellIsActive(false),
-      mPendingDocShellReceivedMessage(false),
-      mPendingRenderLayers(false),
-      mPendingRenderLayersReceivedMessage(false),
       mPendingLayersObserverEpoch{0},
       mPendingDocShellBlockers(0),
       mCancelContentJSEpoch(0) {
@@ -494,10 +494,6 @@ nsresult BrowserChild::Init(mozIDOMWindowProxy* aParent,
                                           nsIWebProgress::NOTIFY_ALL);
     NS_ENSURE_SUCCESS(rv, rv);
   }
-
-  docShell->SetAffectPrivateSessionLifetime(
-      mBrowsingContext->UsePrivateBrowsing() ||
-      mChromeFlags & nsIWebBrowserChrome::CHROME_PRIVATE_LIFETIME);
 
 #ifdef DEBUG
   nsCOMPtr<nsILoadContext> loadContext = do_GetInterface(WebNavigation());
@@ -2964,24 +2960,7 @@ void BrowserChild::MakeVisible() {
     mPuppetWidget->Show(true);
   }
 
-  nsCOMPtr<nsIDocShell> docShell = do_GetInterface(WebNavigation());
-  if (!docShell) {
-    return;
-  }
-
-  // The browser / tab-switcher is responsible of fixing the browsingContext
-  // state up explicitly via SetDocShellIsActive, which propagates to children
-  // automatically.
-  //
-  // We need it not to be observable, as this used via RecvRenderLayers and co.,
-  // for stuff like async tab warming.
-  //
-  // We don't want to go through the docshell because we don't want to change
-  // the visibility state of the document, which has side effects like firing
-  // events to content, unblocking media playback, unthrottling timeouts...
-  if (RefPtr<PresShell> presShell = docShell->GetPresShell()) {
-    presShell->SetIsActive(true);
-  }
+  PresShellActivenessMaybeChanged();
 }
 
 void BrowserChild::MakeHidden() {
@@ -2994,24 +2973,43 @@ void BrowserChild::MakeHidden() {
   // setting up a layer manager. We should skip clearing cached layers
   // in that case, since doing so might accidentally put is into
   // BasicLayers mode.
-  if (mPuppetWidget && mPuppetWidget->HasLayerManager()) {
-    ClearCachedResources();
-  }
-
-  if (nsCOMPtr<nsIDocShell> docShell = do_GetInterface(WebNavigation())) {
-    // We don't use
-    // BrowserChildBase::GetPresShell() here because that would create a content
-    // viewer if one doesn't exist yet. Creating a content viewer can cause JS
-    // to run, which we want to avoid. nsIDocShell::GetPresShell returns null if
-    // no content viewer exists yet.
-    if (RefPtr<PresShell> presShell = docShell->GetPresShell()) {
-      presShell->SetIsActive(false);
-    }
-  }
-
   if (mPuppetWidget) {
+    if (mPuppetWidget->HasLayerManager()) {
+      ClearCachedResources();
+    }
     mPuppetWidget->Show(false);
   }
+
+  PresShellActivenessMaybeChanged();
+}
+
+IPCResult BrowserChild::RecvPreserveLayers(bool aPreserve) {
+  mIsPreservingLayers = true;
+
+  PresShellActivenessMaybeChanged();
+
+  return IPC_OK();
+}
+
+void BrowserChild::PresShellActivenessMaybeChanged() {
+  // We don't use BrowserChildBase::GetPresShell() here because that would
+  // create a content viewer if one doesn't exist yet. Creating a content
+  // viewer can cause JS to run, which we want to avoid.
+  // nsIDocShell::GetPresShell returns null if no content viewer exists yet.
+  //
+  // When this method is called we don't want to go through the browsing context
+  // because we don't want to change the visibility state of the document, which
+  // has side effects like firing events to content, unblocking media playback,
+  // unthrottling timeouts... PresShell activeness has a lot less side effects.
+  nsCOMPtr<nsIDocShell> docShell = do_GetInterface(WebNavigation());
+  if (!docShell) {
+    return;
+  }
+  RefPtr<PresShell> presShell = docShell->GetPresShell();
+  if (!presShell) {
+    return;
+  }
+  presShell->ActivenessMaybeChanged();
 }
 
 NS_IMETHODIMP
