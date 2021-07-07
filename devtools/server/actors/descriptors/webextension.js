@@ -12,7 +12,6 @@
  * See devtools/docs/backend/actor-hierarchy.md for more details.
  */
 
-const { Ci } = require("chrome");
 const protocol = require("devtools/shared/protocol");
 const {
   webExtensionDescriptorSpec,
@@ -84,7 +83,7 @@ const WebExtensionDescriptorActor = protocol.ActorClassWithSpec(
         name: this.addon.name,
         temporarilyInstalled: this.addon.temporarilyInstalled,
         traits: {
-          supportsReloadBrowsingContext: true,
+          supportsReloadDescriptor: true,
         },
         url: this.addon.sourceURI ? this.addon.sourceURI.spec : undefined,
         warnings: ExtensionParent.DebugUtils.getExtensionManifestWarnings(
@@ -144,16 +143,15 @@ const WebExtensionDescriptorActor = protocol.ActorClassWithSpec(
       return this._form;
     },
 
-    async reloadBrowsingContext({ bypassCache }) {
-      if (!this._browser || !this._browser.browsingContext) {
-        return;
-      }
-
-      this._browser.browsingContext.reload(
-        bypassCache
-          ? Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_CACHE
-          : Ci.nsIWebNavigation.LOAD_FLAGS_NONE
-      );
+    /**
+     * Note that reloadDescriptor is the common API name for descriptors
+     * which support to be reloaded, while WebExtensionDescriptorActor::reload
+     * is a legacy API which is for instance used from web-ext.
+     *
+     * bypassCache has no impact for addon reloads.
+     */
+    reloadDescriptor({ bypassCache }) {
+      return this.reload();
     },
 
     /** WebExtension Actor Methods **/
