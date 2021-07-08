@@ -13,10 +13,11 @@
 #include "mozilla/ScopeExit.h"              // mozilla::ScopeExit
 #include "mozilla/Sprintf.h"                // SprintfLiteral
 
-#include "ds/LifoAlloc.h"                  // LifoAlloc
-#include "frontend/AbstractScopePtr.h"     // ScopeIndex
-#include "frontend/BytecodeCompilation.h"  // CanLazilyParse
-#include "frontend/BytecodeSection.h"      // EmitScriptThingsVector
+#include "ds/LifoAlloc.h"               // LifoAlloc
+#include "frontend/AbstractScopePtr.h"  // ScopeIndex
+#include "frontend/BytecodeCompilation.h"  // CanLazilyParse, CompileGlobalScriptToStencil
+#include "frontend/BytecodeCompiler.h"    // ParseModuleToStencil
+#include "frontend/BytecodeSection.h"     // EmitScriptThingsVector
 #include "frontend/CompilationStencil.h"  // CompilationStencil, CompilationState, ExtensibleCompilationStencil, CompilationGCOutput, CompilationStencilMerger
 #include "frontend/NameAnalysisTypes.h"   // EnvironmentCoordinate
 #include "frontend/SharedContext.h"
@@ -1422,7 +1423,8 @@ bool CompilationStencil::instantiateStencilAfterPreparation(
   // !! Must be infallible from here forward !!
 
   // Phase 6: Update lazy scripts.
-  if (CanLazilyParse(input.options)) {
+  MOZ_ASSERT(stencil.canLazilyParse == CanLazilyParse(input.options));
+  if (stencil.canLazilyParse) {
     UpdateEmittedInnerFunctions(cx, input, stencil, gcOutput);
 
     if (isInitialParse) {
@@ -1500,7 +1502,8 @@ bool CompilationStencil::deserializeStencils(JSContext* cx,
 
 ExtensibleCompilationStencil::ExtensibleCompilationStencil(
     JSContext* cx, CompilationInput& input)
-    : alloc(CompilationStencil::LifoAllocChunkSize),
+    : canLazilyParse(CanLazilyParse(input.options)),
+      alloc(CompilationStencil::LifoAllocChunkSize),
       source(input.source),
       parserAtoms(cx->runtime(), alloc) {}
 
@@ -1518,10 +1521,13 @@ BorrowingCompilationStencil::BorrowingCompilationStencil(
     : CompilationStencil(extensibleStencil.source) {
   hasExternalDependency = true;
 
+  canLazilyParse = extensibleStencil.canLazilyParse;
   functionKey = extensibleStencil.functionKey;
 
   // Borrow the vector content as span.
   scriptData = extensibleStencil.scriptData;
+  scriptExtra = extensibleStencil.scriptExtra;
+
   gcThingData = extensibleStencil.gcThingData;
 
   scopeData = extensibleStencil.scopeData;
@@ -1531,18 +1537,16 @@ BorrowingCompilationStencil::BorrowingCompilationStencil(
   bigIntData = extensibleStencil.bigIntData;
   objLiteralData = extensibleStencil.objLiteralData;
 
-  scriptExtra = extensibleStencil.scriptExtra;
-
   // Borrow the parser atoms as span.
   parserAtomData = extensibleStencil.parserAtoms.entries_;
+
+  // Borrow container.
+  sharedData.setBorrow(&extensibleStencil.sharedData);
 
   // Share ref-counted data.
   source = extensibleStencil.source;
   asmJS = extensibleStencil.asmJS;
   moduleMetadata = extensibleStencil.moduleMetadata;
-
-  // Borrow container.
-  sharedData.setBorrow(&extensibleStencil.sharedData);
 }
 
 SharedDataContainer::~SharedDataContainer() {
@@ -1729,6 +1733,15 @@ bool SharedDataContainer::addExtraWithoutShare(
 
 #ifdef DEBUG
 void CompilationStencil::assertNoExternalDependency() const {
+  MOZ_ASSERT_IF(!scriptData.empty(), alloc.contains(scriptData.data()));
+  MOZ_ASSERT_IF(!scriptExtra.empty(), alloc.contains(scriptExtra.data()));
+
+  MOZ_ASSERT_IF(!scopeData.empty(), alloc.contains(scopeData.data()));
+  MOZ_ASSERT_IF(!scopeNames.empty(), alloc.contains(scopeNames.data()));
+  for (const auto* data : scopeNames) {
+    MOZ_ASSERT_IF(data, alloc.contains(data));
+  }
+
   MOZ_ASSERT_IF(!regExpData.empty(), alloc.contains(regExpData.data()));
 
   MOZ_ASSERT_IF(!bigIntData.empty(), alloc.contains(bigIntData.data()));
@@ -1741,21 +1754,12 @@ void CompilationStencil::assertNoExternalDependency() const {
     MOZ_ASSERT(data.isContainedIn(alloc));
   }
 
-  MOZ_ASSERT_IF(!scriptData.empty(), alloc.contains(scriptData.data()));
-  MOZ_ASSERT_IF(!scriptExtra.empty(), alloc.contains(scriptExtra.data()));
-
-  MOZ_ASSERT_IF(!scopeData.empty(), alloc.contains(scopeData.data()));
-  MOZ_ASSERT_IF(!scopeNames.empty(), alloc.contains(scopeNames.data()));
-  for (const auto* data : scopeNames) {
-    MOZ_ASSERT_IF(data, alloc.contains(data));
-  }
-
-  MOZ_ASSERT(!sharedData.isBorrow());
-
   MOZ_ASSERT_IF(!parserAtomData.empty(), alloc.contains(parserAtomData.data()));
   for (const auto* data : parserAtomData) {
     MOZ_ASSERT_IF(data, alloc.contains(data));
   }
+
+  MOZ_ASSERT(!sharedData.isBorrow());
 }
 
 void ExtensibleCompilationStencil::assertNoExternalDependency() const {
@@ -1771,11 +1775,11 @@ void ExtensibleCompilationStencil::assertNoExternalDependency() const {
     MOZ_ASSERT_IF(data, alloc.contains(data));
   }
 
-  MOZ_ASSERT(!sharedData.isBorrow());
-
   for (const auto* data : parserAtoms.entries()) {
     MOZ_ASSERT_IF(data, alloc.contains(data));
   }
+
+  MOZ_ASSERT(!sharedData.isBorrow());
 }
 #endif  // DEBUG
 
@@ -1803,10 +1807,31 @@ bool CompilationStencil::steal(JSContext* cx,
   other.assertNoExternalDependency();
 #endif
 
+  canLazilyParse = other.canLazilyParse;
+  functionKey = other.functionKey;
+
   MOZ_ASSERT(alloc.isEmpty());
   alloc.steal(&other.alloc);
 
-  functionKey = other.functionKey;
+  if (!CopyVectorToSpan(cx, alloc, scriptData, other.scriptData)) {
+    return false;
+  }
+
+  if (!CopyVectorToSpan(cx, alloc, scriptExtra, other.scriptExtra)) {
+    return false;
+  }
+
+  if (!CopyVectorToSpan(cx, alloc, gcThingData, other.gcThingData)) {
+    return false;
+  }
+
+  if (!CopyVectorToSpan(cx, alloc, scopeData, other.scopeData)) {
+    return false;
+  }
+
+  if (!CopyVectorToSpan(cx, alloc, scopeNames, other.scopeNames)) {
+    return false;
+  }
 
   if (!CopyVectorToSpan(cx, alloc, regExpData, other.regExpData)) {
     return false;
@@ -1820,36 +1845,16 @@ bool CompilationStencil::steal(JSContext* cx,
     return false;
   }
 
-  if (!CopyVectorToSpan(cx, alloc, scriptData, other.scriptData)) {
-    return false;
-  }
-
-  if (!CopyVectorToSpan(cx, alloc, scriptExtra, other.scriptExtra)) {
-    return false;
-  }
-
-  if (!CopyVectorToSpan(cx, alloc, scopeData, other.scopeData)) {
-    return false;
-  }
-
-  if (!CopyVectorToSpan(cx, alloc, scopeNames, other.scopeNames)) {
-    return false;
-  }
-
   if (!CopyVectorToSpan(cx, alloc, parserAtomData,
                         other.parserAtoms.entries())) {
     return false;
   }
 
-  if (!CopyVectorToSpan(cx, alloc, gcThingData, other.gcThingData)) {
-    return false;
-  }
-
-  asmJS = std::move(other.asmJS);
+  sharedData = std::move(other.sharedData);
 
   moduleMetadata = std::move(other.moduleMetadata);
 
-  sharedData = std::move(other.sharedData);
+  asmJS = std::move(other.asmJS);
 
 #ifdef DEBUG
   assertNoExternalDependency();
@@ -1895,6 +1900,9 @@ bool ExtensibleCompilationStencil::steal(JSContext* cx,
                                          CompilationStencil&& other) {
   MOZ_ASSERT(alloc.isEmpty());
 
+  canLazilyParse = other.canLazilyParse;
+  functionKey = other.functionKey;
+
   if (!other.hasExternalDependency) {
 #ifdef DEBUG
     other.assertNoExternalDependency();
@@ -1905,7 +1913,48 @@ bool ExtensibleCompilationStencil::steal(JSContext* cx,
     alloc.steal(&other.alloc);
   }
 
-  functionKey = other.functionKey;
+  if (!CopySpanToVector(cx, scriptData, other.scriptData)) {
+    return false;
+  }
+
+  if (!CopySpanToVector(cx, scriptExtra, other.scriptExtra)) {
+    return false;
+  }
+
+  if (!CopySpanToVector(cx, gcThingData, other.gcThingData)) {
+    return false;
+  }
+
+  if (other.hasExternalDependency) {
+    size_t scopeSize = other.scopeData.size();
+
+    if (!CopySpanToVector(cx, scopeData, other.scopeData)) {
+      return false;
+    }
+    if (!scopeNames.reserve(scopeSize)) {
+      js::ReportOutOfMemory(cx);
+      return false;
+    }
+    for (size_t i = 0; i < scopeSize; i++) {
+      if (other.scopeNames[i]) {
+        BaseParserScopeData* data = CopyScopeData(
+            cx, alloc, other.scopeData[i].kind(), other.scopeNames[i]);
+        if (!data) {
+          return false;
+        }
+        scopeNames.infallibleEmplaceBack(data);
+      } else {
+        scopeNames.infallibleEmplaceBack(nullptr);
+      }
+    }
+  } else {
+    if (!CopySpanToVector(cx, scopeData, other.scopeData)) {
+      return false;
+    }
+    if (!CopySpanToVector(cx, scopeNames, other.scopeNames)) {
+      return false;
+    }
+  }
 
   if (!CopySpanToVector(cx, regExpData, other.regExpData)) {
     return false;
@@ -1953,45 +2002,6 @@ bool ExtensibleCompilationStencil::steal(JSContext* cx,
     }
   }
 
-  if (!CopySpanToVector(cx, scriptData, other.scriptData)) {
-    return false;
-  }
-
-  if (!CopySpanToVector(cx, scriptExtra, other.scriptExtra)) {
-    return false;
-  }
-
-  if (other.hasExternalDependency) {
-    size_t scopeSize = other.scopeData.size();
-
-    if (!CopySpanToVector(cx, scopeData, other.scopeData)) {
-      return false;
-    }
-    if (!scopeNames.reserve(scopeSize)) {
-      js::ReportOutOfMemory(cx);
-      return false;
-    }
-    for (size_t i = 0; i < scopeSize; i++) {
-      if (other.scopeNames[i]) {
-        BaseParserScopeData* data = CopyScopeData(
-            cx, alloc, other.scopeData[i].kind(), other.scopeNames[i]);
-        if (!data) {
-          return false;
-        }
-        scopeNames.infallibleEmplaceBack(data);
-      } else {
-        scopeNames.infallibleEmplaceBack(nullptr);
-      }
-    }
-  } else {
-    if (!CopySpanToVector(cx, scopeData, other.scopeData)) {
-      return false;
-    }
-    if (!CopySpanToVector(cx, scopeNames, other.scopeNames)) {
-      return false;
-    }
-  }
-
   // Regardless of whether CompilationStencil has external dependency or not,
   // ParserAtoms should be interned, to populate internal HashMap.
   for (const auto* entry : other.parserAtomData) {
@@ -2011,15 +2021,11 @@ bool ExtensibleCompilationStencil::steal(JSContext* cx,
     }
   }
 
-  if (!CopySpanToVector(cx, gcThingData, other.gcThingData)) {
-    return false;
-  }
-
-  asmJS = std::move(other.asmJS);
+  sharedData = std::move(other.sharedData);
 
   moduleMetadata = std::move(other.moduleMetadata);
 
-  sharedData = std::move(other.sharedData);
+  asmJS = std::move(other.asmJS);
 
 #ifdef DEBUG
   assertNoExternalDependency();
@@ -2914,6 +2920,20 @@ void CompilationStencil::dumpFields(js::JSONPrinter& json) const {
   }
   json.endObject();
 
+  json.beginObjectProperty("scopeData");
+  MOZ_ASSERT(scopeData.size() == scopeNames.size());
+  for (size_t i = 0; i < scopeData.size(); i++) {
+    SprintfLiteral(index, "ScopeIndex(%zu)", i);
+    json.beginObjectProperty(index);
+    scopeData[i].dumpFields(json, scopeNames[i], this);
+    json.endObject();
+  }
+  json.endObject();
+
+  json.beginObjectProperty("sharedData");
+  sharedData.dumpFields(json);
+  json.endObject();
+
   json.beginObjectProperty("regExpData");
   for (size_t i = 0; i < regExpData.size(); i++) {
     SprintfLiteral(index, "RegExpIndex(%zu)", i);
@@ -2939,20 +2959,6 @@ void CompilationStencil::dumpFields(js::JSONPrinter& json) const {
     objLiteralData[i].dumpFields(json, this);
     json.endObject();
   }
-  json.endObject();
-
-  json.beginObjectProperty("scopeData");
-  MOZ_ASSERT(scopeData.size() == scopeNames.size());
-  for (size_t i = 0; i < scopeData.size(); i++) {
-    SprintfLiteral(index, "ScopeIndex(%zu)", i);
-    json.beginObjectProperty(index);
-    scopeData[i].dumpFields(json, scopeNames[i], this);
-    json.endObject();
-  }
-  json.endObject();
-
-  json.beginObjectProperty("sharedData");
-  sharedData.dumpFields(json);
   json.endObject();
 
   if (moduleMetadata) {
@@ -3631,6 +3637,12 @@ already_AddRefed<JS::Stencil> JS::CompileModuleScriptToStencil(
 JSScript* JS::InstantiateGlobalStencil(
     JSContext* cx, const JS::ReadOnlyCompileOptions& options,
     RefPtr<JS::Stencil> stencil) {
+  if (stencil->canLazilyParse != CanLazilyParse(options)) {
+    JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr,
+                              JSMSG_STENCIL_OPTIONS_MISMATCH);
+    return nullptr;
+  }
+
   Rooted<CompilationInput> input(cx, CompilationInput(options));
   Rooted<CompilationGCOutput> gcOutput(cx);
   if (!InstantiateStencils(cx, input.get(), *stencil, gcOutput.get())) {
@@ -3645,6 +3657,12 @@ JSObject* JS::InstantiateModuleStencil(
     RefPtr<JS::Stencil> stencil) {
   JS::CompileOptions options(cx, optionsInput);
   options.setModule();
+
+  if (stencil->canLazilyParse != CanLazilyParse(options)) {
+    JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr,
+                              JSMSG_STENCIL_OPTIONS_MISMATCH);
+    return nullptr;
+  }
 
   Rooted<CompilationInput> input(cx, CompilationInput(options));
   Rooted<CompilationGCOutput> gcOutput(cx);

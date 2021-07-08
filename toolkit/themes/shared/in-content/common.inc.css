@@ -57,7 +57,6 @@
   --in-content-table-border-dark-color: #d1d1d1;
   --in-content-table-header-background: #0a84ff;
   --in-content-table-header-color: #ffffff;
-  --in-content-dialog-header-background: #f1f1f1;
   --in-content-sidebar-width: 240px;
 
   --dialog-warning-text-color: var(--red-60);
@@ -148,7 +147,6 @@
     --in-content-table-border-dark-color: rgba(249,249,250,0.2);
     --in-content-table-header-background: rgb(5, 64, 150);
     --in-content-table-header-color: var(--in-content-page-color);
-    --in-content-dialog-header-background: rgba(249,249,250,0.05);
 
     --in-content-accent-color: var(--in-content-primary-button-background);
     --in-content-accent-color-active: var(--in-content-primary-button-background-hover);
@@ -230,7 +228,6 @@
     --in-content-table-background: -moz-Dialog;
     --in-content-table-header-background: -moz-Dialog;
     --in-content-table-header-color: -moz-DialogText;
-    --in-content-dialog-header-background: -moz-Dialog;
 
     --dialog-warning-text-color: -moz-FieldText;
 
@@ -403,14 +400,6 @@ xul|tab:-moz-focusring > .tab-middle > .tab-text {
   box-shadow: none;
   outline: 2px solid var(--in-content-focus-outline-color);
   outline-offset: 2px;
-}
-
-xul|richlistitem[selected] xul|*:is(menulist, button):focus-visible {
-  outline: 2px solid var(--in-content-item-selected-text);
-}
-
-xul|richlistitem[selected] xul|menulist:focus-visible {
-  outline-offset: -2px;
 }
 
 html|select:not([size], [multiple]) {
@@ -612,10 +601,6 @@ xul|menulist > xul|menupopup xul|menuseparator {
   padding: 0;
   border-top: 1px solid var(--in-content-box-border-color);
   border-bottom: none;
-}
-
-xul|richlistitem[selected] xul|*:is(menulist, button) {
-  color: inherit;
 }
 
 /* textboxes */
@@ -1084,11 +1069,17 @@ xul|treechildren::-moz-tree-row(selected) {
 }
 
 xul|richlistbox:not(#categories) > xul|richlistitem[selected] {
-  /* Ensure buttons inside richlistitems (containers, applications) look OK */
+  /* Ensure buttons/menulists inside richlistitems (containers, applications) look OK */
   --in-content-button-background: color-mix(in srgb, currentColor 15%, transparent);
   --in-content-button-background-hover: color-mix(in srgb, currentColor 30%, transparent);
   --in-content-button-background-active: color-mix(in srgb, currentColor 45%, transparent);
+  --in-content-button-text-color: var(--in-content-item-selected-text);
   --in-content-button-text-color-hover: var(--in-content-item-selected-text);
+  --in-content-focus-outline-color: var(--in-content-item-selected-text);
+}
+
+xul|richlistitem[selected] xul|menulist:focus-visible {
+  outline-offset: -2px;
 }
 
 /* Use a 2px border so that selected row highlight is still visible behind

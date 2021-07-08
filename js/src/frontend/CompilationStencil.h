@@ -506,14 +506,41 @@ struct CompilationStencil {
 
   static constexpr size_t LifoAllocChunkSize = 512;
 
+  // The lifetime of this CompilationStencil may be managed by stack allocation,
+  // UniquePtr<T>, or RefPtr<T>. If a RefPtr is used, this ref-count will track
+  // the lifetime, otherwise it is ignored.
+  //
+  // NOTE: Internal code and public APIs use a mix of these different allocation
+  //       modes.
+  //
+  // See: JS::StencilAddRef/Release
+  mutable mozilla::Atomic<uintptr_t> refCount{0};
+
   // Set to true if any pointer/span contains external data instead of
   // LifoAlloc or owned memory.
   bool hasExternalDependency = false;
+
+  // Value of CanLazilyParse(CompilationInput) on compilation.
+  // Used during instantiation.
+  bool canLazilyParse = false;
 
   // FunctionKey is an encoded position of a function within the source text
   // that is reproducible.
   using FunctionKey = uint32_t;
   static constexpr FunctionKey NullFunctionKey = 0;
+
+  // If this stencil is a delazification, this identifies location of the
+  // function in the source text.
+  FunctionKey functionKey = NullFunctionKey;
+
+  // This holds allocations that do not require destructors to be run but are
+  // live until the stencil is released.
+  LifoAlloc alloc;
+
+  // The source text holder for the script. This may be an empty placeholder if
+  // the code will fully parsed and options indicate the source will never be
+  // needed again.
+  RefPtr<ScriptSource> source;
 
   // Stencil for all function and non-function scripts. The TopLevelIndex is
   // reserved for the top-level script. This top-level may or may not be a
@@ -537,37 +564,14 @@ struct CompilationStencil {
   mozilla::Span<BigIntStencil> bigIntData;
   mozilla::Span<ObjLiteralStencil> objLiteralData;
 
-  // Variable sized container for bytecode and other immutable data. A valid
-  // stencil always contains at least an entry for `TopLevelIndex` script.
-  SharedDataContainer sharedData;
-
   // List of parser atoms for this compilation. This may contain nullptr entries
   // when round-tripping with XDR if the atom was generated in original parse
   // but not used by stencil.
   ParserAtomSpan parserAtomData;
 
-  // If this stencil is a delazification, this identifies location of the
-  // function in the source text.
-  FunctionKey functionKey = NullFunctionKey;
-
-  // The lifetime of this CompilationStencil may be managed by stack allocation,
-  // UniquePtr<T>, or RefPtr<T>. If a RefPtr is used, this ref-count will track
-  // the lifetime, otherwise it is ignored.
-  //
-  // NOTE: Internal code and public APIs use a mix of these different allocation
-  //       modes.
-  //
-  // See: JS::StencilAddRef/Release
-  mutable mozilla::Atomic<uintptr_t> refCount{0};
-
-  // This holds allocations that do not require destructors to be run but are
-  // live until the stencil is released.
-  LifoAlloc alloc;
-
-  // The source text holder for the script. This may be an empty placeholder if
-  // the code will fully parsed and options indicate the source will never be
-  // needed again.
-  RefPtr<ScriptSource> source;
+  // Variable sized container for bytecode and other immutable data. A valid
+  // stencil always contains at least an entry for `TopLevelIndex` script.
+  SharedDataContainer sharedData;
 
   // Module metadata if this is a module compile.
   RefPtr<StencilModuleMetadata> moduleMetadata;
@@ -652,7 +656,11 @@ struct CompilationStencil {
 //
 // See CompilationStencil for each field's description.
 struct ExtensibleCompilationStencil {
+  bool canLazilyParse = false;
+
   using FunctionKey = CompilationStencil::FunctionKey;
+
+  FunctionKey functionKey = CompilationStencil::NullFunctionKey;
 
   // Data pointed by other fields are allocated in this LifoAlloc,
   // and moved to `CompilationStencil.alloc`.
@@ -677,21 +685,21 @@ struct ExtensibleCompilationStencil {
   Vector<BigIntStencil, 0, js::SystemAllocPolicy> bigIntData;
   Vector<ObjLiteralStencil, 0, js::SystemAllocPolicy> objLiteralData;
 
+  // Table of parser atoms for this compilation.
+  ParserAtomsTable parserAtoms;
+
+  SharedDataContainer sharedData;
+
   RefPtr<StencilModuleMetadata> moduleMetadata;
 
   RefPtr<StencilAsmJSContainer> asmJS;
 
-  SharedDataContainer sharedData;
-
-  // Table of parser atoms for this compilation.
-  ParserAtomsTable parserAtoms;
-
-  FunctionKey functionKey = CompilationStencil::NullFunctionKey;
-
   ExtensibleCompilationStencil(JSContext* cx, CompilationInput& input);
 
   ExtensibleCompilationStencil(ExtensibleCompilationStencil&& other) noexcept
-      : alloc(CompilationStencil::LifoAllocChunkSize),
+      : canLazilyParse(other.canLazilyParse),
+        functionKey(other.functionKey),
+        alloc(CompilationStencil::LifoAllocChunkSize),
         source(std::move(other.source)),
         scriptData(std::move(other.scriptData)),
         scriptExtra(std::move(other.scriptExtra)),
@@ -701,11 +709,10 @@ struct ExtensibleCompilationStencil {
         regExpData(std::move(other.regExpData)),
         bigIntData(std::move(other.bigIntData)),
         objLiteralData(std::move(other.objLiteralData)),
-        moduleMetadata(std::move(other.moduleMetadata)),
-        asmJS(std::move(other.asmJS)),
-        sharedData(std::move(other.sharedData)),
         parserAtoms(std::move(other.parserAtoms)),
-        functionKey(other.functionKey) {
+        sharedData(std::move(other.sharedData)),
+        moduleMetadata(std::move(other.moduleMetadata)),
+        asmJS(std::move(other.asmJS)) {
     alloc.steal(&other.alloc);
     parserAtoms.fixupAlloc(alloc);
   }
@@ -714,6 +721,8 @@ struct ExtensibleCompilationStencil {
       ExtensibleCompilationStencil&& other) noexcept {
     MOZ_ASSERT(alloc.isEmpty());
 
+    canLazilyParse = other.canLazilyParse;
+    functionKey = other.functionKey;
     source = std::move(other.source);
     scriptData = std::move(other.scriptData);
     scriptExtra = std::move(other.scriptExtra);
@@ -723,11 +732,10 @@ struct ExtensibleCompilationStencil {
     regExpData = std::move(other.regExpData);
     bigIntData = std::move(other.bigIntData);
     objLiteralData = std::move(other.objLiteralData);
+    parserAtoms = std::move(other.parserAtoms);
+    sharedData = std::move(other.sharedData);
     moduleMetadata = std::move(other.moduleMetadata);
     asmJS = std::move(other.asmJS);
-    sharedData = std::move(other.sharedData);
-    parserAtoms = std::move(other.parserAtoms);
-    functionKey = other.functionKey;
 
     alloc.steal(&other.alloc);
     parserAtoms.fixupAlloc(alloc);
@@ -837,8 +845,9 @@ inline size_t CompilationStencil::sizeOfExcludingThis(
       moduleMetadata ? moduleMetadata->sizeOfIncludingThis(mallocSizeOf) : 0;
   size_t asmJSSize = asmJS ? asmJS->sizeOfIncludingThis(mallocSizeOf) : 0;
 
-  return alloc.sizeOfExcludingThis(mallocSizeOf) + moduleMetadataSize +
-         asmJSSize + sharedData.sizeOfExcludingThis(mallocSizeOf);
+  return alloc.sizeOfExcludingThis(mallocSizeOf) +
+         sharedData.sizeOfExcludingThis(mallocSizeOf) + moduleMetadataSize +
+         asmJSSize;
 }
 
 inline size_t ExtensibleCompilationStencil::sizeOfExcludingThis(
@@ -855,9 +864,10 @@ inline size_t ExtensibleCompilationStencil::sizeOfExcludingThis(
          scopeNames.sizeOfExcludingThis(mallocSizeOf) +
          regExpData.sizeOfExcludingThis(mallocSizeOf) +
          bigIntData.sizeOfExcludingThis(mallocSizeOf) +
-         objLiteralData.sizeOfExcludingThis(mallocSizeOf) + moduleMetadataSize +
-         asmJSSize + sharedData.sizeOfExcludingThis(mallocSizeOf) +
-         parserAtoms.sizeOfExcludingThis(mallocSizeOf);
+         objLiteralData.sizeOfExcludingThis(mallocSizeOf) +
+         parserAtoms.sizeOfExcludingThis(mallocSizeOf) +
+         sharedData.sizeOfExcludingThis(mallocSizeOf) + moduleMetadataSize +
+         asmJSSize;
 }
 
 // The output of GC allocation from stencil.
