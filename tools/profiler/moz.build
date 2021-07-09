@@ -11,11 +11,9 @@ if CONFIG["MOZ_GECKO_PROFILER"]:
         "gecko/nsIProfiler.idl",
     ]
     EXPORTS += [
-        "public/ChildProfilerController.h",
         "public/GeckoProfilerReporter.h",
         "public/ProfilerChild.h",
         "public/ProfilerCodeAddressService.h",
-        "public/ProfilerParent.h",
         "public/shared-libraries.h",
     ]
     UNIFIED_SOURCES += [
@@ -32,7 +30,6 @@ if CONFIG["MOZ_GECKO_PROFILER"]:
         "gecko/nsProfilerStartParams.cpp",
         "gecko/ProfilerChild.cpp",
         "gecko/ProfilerIOInterposeObserver.cpp",
-        "gecko/ProfilerParent.cpp",
     ]
     if CONFIG["MOZ_REPLACE_MALLOC"] and CONFIG["MOZ_PROFILER_MEMORY"]:
         SOURCES += [
@@ -132,6 +129,7 @@ if CONFIG["MOZ_GECKO_PROFILER"]:
 UNIFIED_SOURCES += [
     "core/MicroGeckoProfiler.cpp",
     "core/ProfilerBindings.cpp",
+    "gecko/ProfilerParent.cpp",
 ]
 
 IPDL_SOURCES += [
@@ -142,8 +140,10 @@ IPDL_SOURCES += [
 include("/ipc/chromium/chromium-config.mozbuild")
 
 EXPORTS += [
+    "public/ChildProfilerController.h",
     "public/GeckoProfiler.h",
     "public/ProfilerBindings.h",
+    "public/ProfilerParent.h",
 ]
 
 EXPORTS.mozilla += [
