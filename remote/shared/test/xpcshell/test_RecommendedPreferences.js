@@ -3,8 +3,6 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 const { Services } = ChromeUtils.import("resource://gre/modules/Services.jsm");
-const { Log } = ChromeUtils.import("chrome://remote/content/shared/Log.jsm");
-const logger = Log.get();
 
 const COMMON_PREF = "toolkit.startup.max_resumed_crashes";
 
@@ -49,6 +47,24 @@ add_task(async function test_RecommendedPreferences() {
   info("Attemps to restore again");
   RecommendedPreferences.restoreAllPreferences();
   checkPreferences({ cdp: false, common: false, marionette: false });
+});
+
+add_task(async function test_RecommendedPreferences_disabled() {
+  info("Disable RecommendedPreferences");
+  Services.prefs.setBoolPref("remote.prefs.recommended", false);
+
+  info("Check initial values for the test preferences");
+  checkPreferences({ cdp: false, common: false, marionette: false });
+
+  info("Recommended preferences will not be applied on load or per protocol");
+  const { RecommendedPreferences } = ChromeUtils.import(
+    "chrome://remote/content/shared/RecommendedPreferences.jsm"
+  );
+  RecommendedPreferences.applyPreferences(MARIONETTE_RECOMMENDED_PREFS);
+  checkPreferences({ cdp: false, common: false, marionette: false });
+
+  // Restore remote.prefs.recommended
+  Services.prefs.clearUserPref("remote.prefs.recommended");
 });
 
 function checkPreferences({ cdp, common, marionette }) {

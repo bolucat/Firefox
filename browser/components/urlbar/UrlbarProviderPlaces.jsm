@@ -7,6 +7,12 @@
 
 "use strict";
 
+/**
+ * This module exports a provider that providers results from the Places
+ * database, including history, bookmarks, and open tabs.
+ */
+var EXPORTED_SYMBOLS = ["UrlbarProviderPlaces"];
+
 // Constants
 
 // AutoComplete query type constants.
@@ -15,18 +21,6 @@ const QUERYTYPE_FILTERED = 0;
 
 // The default frecency value used when inserting matches with unknown frecency.
 const FRECENCY_DEFAULT = 1000;
-
-// Regex used to match userContextId.
-const REGEXP_USER_CONTEXT_ID = /(?:^| )user-context-id:(\d+)/;
-
-// Regex used to match maxResults.
-const REGEXP_MAX_RESULTS = /(?:^| )max-results:(\d+)/;
-
-// Regex used to match one or more whitespace.
-const REGEXP_SPACES = /\s+/;
-
-// Regex used to strip prefixes from URLs.  See stripAnyPrefix().
-const REGEXP_STRIP_PREFIX = /^[a-z]+:(?:\/){0,2}/i;
 
 // The result is notified on a delay, to avoid rebuilding the panel at every match.
 const NOTIFYRESULT_DELAY_MS = 16;
@@ -116,8 +110,10 @@ XPCOMUtils.defineLazyModuleGetters(this, {
   PromiseUtils: "resource://gre/modules/PromiseUtils.jsm",
   Sqlite: "resource://gre/modules/Sqlite.jsm",
   UrlbarPrefs: "resource:///modules/UrlbarPrefs.jsm",
+  UrlbarProvider: "resource:///modules/UrlbarUtils.jsm",
   UrlbarProviderOpenTabs: "resource:///modules/UrlbarProviderOpenTabs.jsm",
   UrlbarProvidersManager: "resource:///modules/UrlbarProvidersManager.jsm",
+  UrlbarResult: "resource:///modules/UrlbarResult.jsm",
   UrlbarSearchUtils: "resource:///modules/UrlbarSearchUtils.jsm",
   UrlbarTokenizer: "resource:///modules/UrlbarTokenizer.jsm",
   UrlbarUtils: "resource:///modules/UrlbarUtils.jsm",
@@ -127,26 +123,6 @@ function setTimeout(callback, ms) {
   let timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
   timer.initWithCallback(callback, ms, timer.TYPE_ONE_SHOT);
   return timer;
-}
-
-const kProtocolsWithIcons = [
-  "chrome:",
-  "moz-extension:",
-  "about:",
-  "http:",
-  "https:",
-  "ftp:",
-];
-function iconHelper(url) {
-  if (typeof url == "string") {
-    return kProtocolsWithIcons.some(p => url.startsWith(p))
-      ? "page-icon:" + url
-      : PlacesUtils.favicons.defaultFavicon.spec;
-  }
-  if (url && url instanceof URL && kProtocolsWithIcons.includes(url.protocol)) {
-    return "page-icon:" + url.href;
-  }
-  return PlacesUtils.favicons.defaultFavicon.spec;
 }
 
 // Maps restriction character types to textual behaviors.
@@ -174,80 +150,6 @@ XPCOMUtils.defineLazyGetter(this, "sourceToBehaviorMap", () => {
 // Helper functions
 
 /**
- * Strips the prefix from a URL and returns the prefix and the remainder of the
- * URL.  "Prefix" is defined to be the scheme and colon, plus, if present, two
- * slashes.  If the given string is not actually a URL, then an empty prefix and
- * the string itself is returned.
- *
- * @param  str
- *         The possible URL to strip.
- * @return If `str` is a URL, then [prefix, remainder].  Otherwise, ["", str].
- */
-function stripAnyPrefix(str) {
-  let match = REGEXP_STRIP_PREFIX.exec(str);
-  if (!match) {
-    return ["", str];
-  }
-  let prefix = match[0];
-  if (prefix.length < str.length && str[prefix.length] == " ") {
-    return ["", str];
-  }
-  return [prefix, str.substr(prefix.length)];
-}
-
-/**
- * Strips parts of a URL defined in `options`.
- *
- * @param {string} spec
- *        The text to modify.
- * @param {object} options
- * @param {boolean} options.stripHttp
- *        Whether to strip http.
- * @param {boolean} options.stripHttps
- *        Whether to strip https.
- * @param {boolean} options.stripWww
- *        Whether to strip `www.`.
- * @param {boolean} options.trimSlash
- *        Whether to trim the trailing slash.
- * @param {boolean} options.trimEmptyQuery
- *        Whether to trim a trailing `?`.
- * @param {boolean} options.trimEmptyHash
- *        Whether to trim a trailing `#`.
- * @returns {array} [modified, prefix, suffix]
- *          modified: {string} The modified spec.
- *          prefix: {string} The parts stripped from the prefix, if any.
- *          suffix: {string} The parts trimmed from the suffix, if any.
- */
-function stripPrefixAndTrim(spec, options = {}) {
-  let prefix = "";
-  let suffix = "";
-  if (options.stripHttp && spec.startsWith("http://")) {
-    spec = spec.slice(7);
-    prefix = "http://";
-  } else if (options.stripHttps && spec.startsWith("https://")) {
-    spec = spec.slice(8);
-    prefix = "https://";
-  }
-  if (options.stripWww && spec.startsWith("www.")) {
-    spec = spec.slice(4);
-    prefix += "www.";
-  }
-  if (options.trimEmptyHash && spec.endsWith("#")) {
-    spec = spec.slice(0, -1);
-    suffix = "#" + suffix;
-  }
-  if (options.trimEmptyQuery && spec.endsWith("?")) {
-    spec = spec.slice(0, -1);
-    suffix = "?" + suffix;
-  }
-  if (options.trimSlash && spec.endsWith("/")) {
-    spec = spec.slice(0, -1);
-    suffix = "/" + suffix;
-  }
-  return [spec, prefix, suffix];
-}
-
-/**
  * Returns the key to be used for a match in a map for the purposes of removing
  * duplicate entries - any 2 matches that should be considered the same should
  * return the same key.  The type of the returned key depends on the type of the
@@ -260,24 +162,10 @@ function stripPrefixAndTrim(spec, options = {}) {
  *          compare keys.
  */
 function makeKeyForMatch(match) {
-  // For autofill entries, we need to have a key based on the finalCompleteValue
-  // rather than the value field, because the latter may have been trimmed.
   let key, prefix;
-  if (match.style && match.style.includes("autofill")) {
-    [key, prefix] = stripPrefixAndTrim(match.finalCompleteValue, {
-      stripHttp: true,
-      stripHttps: true,
-      stripWww: true,
-      trimEmptyQuery: true,
-      trimSlash: true,
-    });
-
-    return [key, prefix, null];
-  }
-
   let action = PlacesUtils.parseActionUrl(match.value);
   if (!action) {
-    [key, prefix] = stripPrefixAndTrim(match.value, {
+    [key, prefix] = UrlbarUtils.stripPrefixAndTrim(match.value, {
       stripHttp: true,
       stripHttps: true,
       stripWww: true,
@@ -302,13 +190,16 @@ function makeKeyForMatch(match) {
       ];
       break;
     default:
-      [key, prefix] = stripPrefixAndTrim(action.params.url || match.value, {
-        stripHttp: true,
-        stripHttps: true,
-        stripWww: true,
-        trimEmptyQuery: true,
-        trimSlash: true,
-      });
+      [key, prefix] = UrlbarUtils.stripPrefixAndTrim(
+        action.params.url || match.value,
+        {
+          stripHttp: true,
+          stripHttps: true,
+          stripWww: true,
+          trimEmptyQuery: true,
+          trimSlash: true,
+        }
+      );
       break;
   }
 
@@ -318,11 +209,11 @@ function makeKeyForMatch(match) {
 /**
  * Makes a moz-action url for the given action and set of parameters.
  *
- * @param   type
+ * @param   {string} type
  *          The action type.
- * @param   params
+ * @param   {object} params
  *          A JS object of action params.
- * @returns A moz-action url as a string.
+ * @returns {string} A moz-action url as a string.
  */
 function makeActionUrl(type, params) {
   let encodedParams = {};
@@ -335,6 +226,175 @@ function makeActionUrl(type, params) {
     encodedParams[key] = encodeURIComponent(params[key]);
   }
   return `moz-action:${type},${JSON.stringify(encodedParams)}`;
+}
+
+/**
+ * Convert from a nsIAutocompleteResult to a list of results.
+ * Note that at every call we get the full set of results, included the
+ * previously returned ones, and new results may be inserted in the middle.
+ * This means we could sort these wrongly, the muxer should take care of it.
+ *
+ * @param {UrlbarQueryContext} context the query context.
+ * @param {object} acResult an nsIAutocompleteResult
+ * @param {set} urls a Set containing all the found urls, used to discard
+ *        already added results.
+ * @returns {array} converted results
+ */
+function convertLegacyAutocompleteResult(context, acResult, urls) {
+  let results = [];
+  for (let i = 0; i < acResult.matchCount; ++i) {
+    // First, let's check if we already added this result.
+    // nsIAutocompleteResult always contains all of the results, includes ones
+    // we may have added already. This means we'll end up adding things in the
+    // wrong order here, but that's a task for the UrlbarMuxer.
+    let url = acResult.getFinalCompleteValueAt(i);
+    if (urls.has(url)) {
+      continue;
+    }
+    urls.add(url);
+    let style = acResult.getStyleAt(i);
+    let result = makeUrlbarResult(context.tokens, {
+      url,
+      // getImageAt returns an empty string if there is no icon.  Use undefined
+      // instead so that tests can be simplified by not including `icon: ""` in
+      // all their payloads.
+      icon: acResult.getImageAt(i) || undefined,
+      style,
+      comment: acResult.getCommentAt(i),
+      firstToken: context.tokens[0],
+    });
+    // Should not happen, but better safe than sorry.
+    if (!result) {
+      continue;
+    }
+
+    results.push(result);
+  }
+  return results;
+}
+
+/**
+ * Creates a new UrlbarResult from the provided data.
+ * @param {array} tokens the search tokens.
+ * @param {object} info includes properties from the legacy result.
+ * @returns {object} an UrlbarResult
+ */
+function makeUrlbarResult(tokens, info) {
+  let action = PlacesUtils.parseActionUrl(info.url);
+  if (action) {
+    switch (action.type) {
+      case "searchengine": {
+        if (action.params.isSearchHistory) {
+          // Return a form history result.
+          return new UrlbarResult(
+            UrlbarUtils.RESULT_TYPE.SEARCH,
+            UrlbarUtils.RESULT_SOURCE.HISTORY,
+            ...UrlbarResult.payloadAndSimpleHighlights(tokens, {
+              engine: action.params.engineName,
+              suggestion: [
+                action.params.searchSuggestion,
+                UrlbarUtils.HIGHLIGHT.SUGGESTED,
+              ],
+              lowerCaseSuggestion: action.params.searchSuggestion.toLocaleLowerCase(),
+            })
+          );
+        }
+
+        return new UrlbarResult(
+          UrlbarUtils.RESULT_TYPE.SEARCH,
+          UrlbarUtils.RESULT_SOURCE.SEARCH,
+          ...UrlbarResult.payloadAndSimpleHighlights(tokens, {
+            engine: [action.params.engineName, UrlbarUtils.HIGHLIGHT.TYPED],
+            suggestion: [
+              action.params.searchSuggestion,
+              UrlbarUtils.HIGHLIGHT.SUGGESTED,
+            ],
+            lowerCaseSuggestion: action.params.searchSuggestion?.toLocaleLowerCase(),
+            keyword: action.params.alias,
+            query: [
+              action.params.searchQuery.trim(),
+              UrlbarUtils.HIGHLIGHT.NONE,
+            ],
+            icon: info.icon,
+          })
+        );
+      }
+      case "switchtab":
+        return new UrlbarResult(
+          UrlbarUtils.RESULT_TYPE.TAB_SWITCH,
+          UrlbarUtils.RESULT_SOURCE.TABS,
+          ...UrlbarResult.payloadAndSimpleHighlights(tokens, {
+            url: [action.params.url, UrlbarUtils.HIGHLIGHT.TYPED],
+            title: [info.comment, UrlbarUtils.HIGHLIGHT.TYPED],
+            icon: info.icon,
+          })
+        );
+      case "visiturl":
+        return new UrlbarResult(
+          UrlbarUtils.RESULT_TYPE.URL,
+          UrlbarUtils.RESULT_SOURCE.OTHER_LOCAL,
+          ...UrlbarResult.payloadAndSimpleHighlights(tokens, {
+            title: [info.comment, UrlbarUtils.HIGHLIGHT.TYPED],
+            url: [action.params.url, UrlbarUtils.HIGHLIGHT.TYPED],
+            icon: info.icon,
+          })
+        );
+      default:
+        Cu.reportError(`Unexpected action type: ${action.type}`);
+        return null;
+    }
+  }
+
+  // This is a normal url/title tuple.
+  let source;
+  let tags = [];
+  let comment = info.comment;
+
+  // The legacy autocomplete result may return "bookmark", "bookmark-tag" or
+  // "tag". In the last case it should not be considered a bookmark, but an
+  // history item with tags. We don't show tags for non bookmarked items though.
+  if (info.style.includes("bookmark")) {
+    source = UrlbarUtils.RESULT_SOURCE.BOOKMARKS;
+  } else {
+    source = UrlbarUtils.RESULT_SOURCE.HISTORY;
+  }
+
+  // If the style indicates that the result is tagged, then the tags are
+  // included in the title, and we must extract them.
+  if (info.style.includes("tag")) {
+    [comment, tags] = info.comment.split(UrlbarUtils.TITLE_TAGS_SEPARATOR);
+
+    // However, as mentioned above, we don't want to show tags for non-
+    // bookmarked items, so we include tags in the final result only if it's
+    // bookmarked, and we drop the tags otherwise.
+    if (source != UrlbarUtils.RESULT_SOURCE.BOOKMARKS) {
+      tags = "";
+    }
+
+    // Tags are separated by a comma and in a random order.
+    // We should also just include tags that match the searchString.
+    tags = tags
+      .split(",")
+      .map(t => t.trim())
+      .filter(tag => {
+        let lowerCaseTag = tag.toLocaleLowerCase();
+        return tokens.some(token =>
+          lowerCaseTag.includes(token.lowerCaseValue)
+        );
+      })
+      .sort();
+  }
+
+  return new UrlbarResult(
+    UrlbarUtils.RESULT_TYPE.URL,
+    source,
+    ...UrlbarResult.payloadAndSimpleHighlights(tokens, {
+      url: [info.url, UrlbarUtils.HIGHLIGHT.TYPED],
+      icon: info.icon,
+      title: [comment, UrlbarUtils.HIGHLIGHT.TYPED],
+      tags: [tags, UrlbarUtils.HIGHLIGHT.TYPED],
+    })
+  );
 }
 
 const MATCH_TYPE = {
@@ -350,38 +410,19 @@ const MATCH_TYPE = {
  * The first three parameters all originate from the similarly named parameters
  * of nsIAutoCompleteSearch.startSearch().
  *
- * @param searchString
- *        The search string.
- * @param searchParam
- *        A space-delimited string of search parameters.  The following
- *        parameters are supported:
- *        * enable-actions: Include "actions", such as switch-to-tab and search
- *          engine aliases, in the results.
- *        * private-window: The search is taking place in a private window,
- *          possibly in permanent private-browsing mode.  The search
- *          should exclude privacy-sensitive results as appropriate.
- *        * user-context-id: The userContextId of the selected tab.
- * @param autocompleteListener
- *        An nsIAutoCompleteObserver.
- * @param autocompleteSearch
- *        An nsIAutoCompleteSearch.
  * @param {UrlbarQueryContext} [queryContext]
  *        The query context, undefined for legacy consumers.
+ * @param {nsIAutoCompleteObserver} autocompleteListener
+ * @param {nsIAutoCompleteSearch} autocompleteSearch
  */
-function Search(
-  searchString,
-  searchParam,
-  autocompleteListener,
-  autocompleteSearch,
-  queryContext
-) {
+function Search(queryContext, autocompleteListener, autocompleteSearch) {
   // We want to store the original string for case sensitive searches.
-  this._originalSearchString = searchString;
-  this._trimmedOriginalSearchString = searchString.trim();
+  this._originalSearchString = queryContext.searchString;
+  this._trimmedOriginalSearchString = queryContext.trimmedSearchString;
   let unescapedSearchString = Services.textToSubURI.unEscapeURIForUI(
     this._trimmedOriginalSearchString
   );
-  let [prefix, suffix] = stripAnyPrefix(unescapedSearchString);
+  let [prefix, suffix] = UrlbarUtils.stripURLPrefix(unescapedSearchString);
   this._searchString = suffix;
   this._strippedPrefix = prefix.toLowerCase();
 
@@ -391,35 +432,17 @@ function Search(
     ? UrlbarPrefs.get("defaultBehavior")
     : this._emptySearchDefaultBehavior;
 
-  if (queryContext) {
-    this._enableActions = true;
-    this._inPrivateWindow = queryContext.isPrivate;
-    this._prohibitAutoFill = !queryContext.allowAutofill;
-    this._maxResults = queryContext.maxResults;
-    this._userContextId = queryContext.userContextId;
-    this._currentPage = queryContext.currentPage;
-    this._searchModeEngine = queryContext.searchMode?.engineName;
-    this._searchMode = queryContext.searchMode;
-    if (this._searchModeEngine) {
-      // Filter Places results on host.
-      let engine = Services.search.getEngineByName(this._searchModeEngine);
-      this._filterOnHost = engine.getResultDomain();
-    }
-  } else {
-    let params = new Set(searchParam.split(" "));
-    this._enableActions = params.has("enable-actions");
-    this._inPrivateWindow = params.has("private-window");
-    this._prohibitAutoFill = params.has("prohibit-autofill");
-    // Extract the max-results param.
-    let maxResults = searchParam.match(REGEXP_MAX_RESULTS);
-    this._maxResults = maxResults
-      ? parseInt(maxResults[1])
-      : UrlbarPrefs.get("maxRichResults");
-    // Extract the user-context-id param.
-    let userContextId = searchParam.match(REGEXP_USER_CONTEXT_ID);
-    this._userContextId = userContextId
-      ? parseInt(userContextId[1], 10)
-      : Ci.nsIScriptSecurityManager.DEFAULT_USER_CONTEXT_ID;
+  this._inPrivateWindow = queryContext.isPrivate;
+  this._prohibitAutoFill = !queryContext.allowAutofill;
+  this._maxResults = queryContext.maxResults;
+  this._userContextId = queryContext.userContextId;
+  this._currentPage = queryContext.currentPage;
+  this._searchModeEngine = queryContext.searchMode?.engineName;
+  this._searchMode = queryContext.searchMode;
+  if (this._searchModeEngine) {
+    // Filter Places results on host.
+    let engine = Services.search.getEngineByName(this._searchModeEngine);
+    this._filterOnHost = engine.getResultDomain();
   }
 
   this._userContextId = UrlbarProviderOpenTabs.getUserContextIdForOpenPagesTable(
@@ -503,7 +526,7 @@ function Search(
   let result = Cc["@mozilla.org/autocomplete/simple-result;1"].createInstance(
     Ci.nsIAutoCompleteSimpleResult
   );
-  result.setSearchString(searchString);
+  result.setSearchString(queryContext.searchString);
   // Will be set later, if needed.
   result.setDefaultIndex(-1);
   this._result = result;
@@ -523,7 +546,7 @@ Search.prototype = {
   /**
    * Enables the desired AutoComplete behavior.
    *
-   * @param type
+   * @param {string} type
    *        The behavior type to set.
    */
   setBehavior(type) {
@@ -534,9 +557,9 @@ Search.prototype = {
   /**
    * Determines if the specified AutoComplete behavior is set.
    *
-   * @param aType
+   * @param {string} type
    *        The behavior type to test for.
-   * @return true if the behavior is set, false otherwise.
+   * @returns {boolean} true if the behavior is set, false otherwise.
    */
   hasBehavior(type) {
     let behavior = Ci.mozIPlacesAutoComplete["BEHAVIOR_" + type.toUpperCase()];
@@ -547,9 +570,9 @@ Search.prototype = {
    * Given an array of tokens, this function determines which query should be
    * ran.  It also removes any special search tokens.
    *
-   * @param tokens
+   * @param {array} tokens
    *        An array of search tokens.
-   * @return A new, filtered array of tokens.
+   * @returns {array} A new, filtered array of tokens.
    */
   filterTokens(tokens) {
     let foundToken = false;
@@ -564,23 +587,19 @@ Search.prototype = {
       if (!behavior) {
         throw new Error(`Unknown token type ${token.type}`);
       }
-      // Don't remove the token if it didn't match, or if it's an action but
-      // actions are not enabled.
-      if (behavior != "openpage" || this._enableActions) {
-        // Don't use the suggest preferences if it is a token search and
-        // set the restrict bit to 1 (to intersect the search results).
-        if (!foundToken) {
-          foundToken = true;
-          // Do not take into account previous behavior (e.g.: history, bookmark)
-          this._behavior = 0;
-          this.setBehavior("restrict");
-        }
-        this.setBehavior(behavior);
-        // We return tags only for bookmarks, thus when tags are enforced, we
-        // must also set the bookmark behavior.
-        if (behavior == "tag") {
-          this.setBehavior("bookmark");
-        }
+      // Don't use the suggest preferences if it is a token search and
+      // set the restrict bit to 1 (to intersect the search results).
+      if (!foundToken) {
+        foundToken = true;
+        // Do not take into account previous behavior (e.g.: history, bookmark)
+        this._behavior = 0;
+        this.setBehavior("restrict");
+      }
+      this.setBehavior(behavior);
+      // We return tags only for bookmarks, thus when tags are enforced, we
+      // must also set the bookmark behavior.
+      if (behavior == "tag") {
+        this.setBehavior("bookmark");
       }
     }
     return filtered;
@@ -613,7 +632,7 @@ Search.prototype = {
 
   /**
    * Execute the search and populate results.
-   * @param conn
+   * @param {mozIStorageAsyncConnection} conn
    *        The Sqlite connection.
    */
   async execute(conn) {
@@ -689,7 +708,7 @@ Search.prototype = {
     let count = this._counts[MATCH_TYPE.GENERAL];
     if (count < this._maxResults) {
       this._matchBehavior = Ci.mozIPlacesAutoComplete.MATCH_ANYWHERE;
-      let queries = [this._searchQuery];
+      queries = [this._searchQuery];
       if (this.hasBehavior("openpage")) {
         queries.unshift(this._switchToTabQuery);
       }
@@ -703,7 +722,7 @@ Search.prototype = {
   },
 
   async _checkIfFirstTokenIsKeyword() {
-    if (!this._enableActions || !this._heuristicToken) {
+    if (!this._heuristicToken) {
       return false;
     }
 
@@ -737,7 +756,7 @@ Search.prototype = {
    *        The search query string.
    * @param {string} [alias]
    *        The search engine alias associated with the match, if any.
-   * @param {bool} [historical]
+   * @param {boolean} [historical]
    *        True if you're adding a suggestion match and the suggestion is from
    *        the user's local history (and not the search engine).
    */
@@ -803,6 +822,8 @@ Search.prototype = {
    * indicate the search is not a first-page web SERP (as opposed to a image or
    * other non-web SERP).
    *
+   * @param {object} match
+   * @returns {boolean} True if the match can be restyled, false otherwise.
    * @note We will mistakenly dedupe SERPs for engines that have the same
    *   hostname as another engine. One example is if the user installed a
    *   Google Image Search engine. That engine's search URLs might only be
@@ -919,7 +940,7 @@ Search.prototype = {
    * a Remote Tab wins over History, and a Switch to Tab wins over a Remote Tab.
    * We must check both id and url for duplication, because keywords may change
    * the url by replacing the %s placeholder.
-   * @param match
+   * @param {object} match
    * @returns {object} matchPosition
    * @returns {number} matchPosition.index
    *   The index the match should take in the results. Return -1 if the match
@@ -1073,7 +1094,6 @@ Search.prototype = {
         case UrlbarUtils.RESULT_GROUP.HEURISTIC_SEARCH_TIP:
         case UrlbarUtils.RESULT_GROUP.HEURISTIC_TEST:
         case UrlbarUtils.RESULT_GROUP.HEURISTIC_TOKEN_ALIAS_ENGINE:
-        case UrlbarUtils.RESULT_GROUP.HEURISTIC_UNIFIED_COMPLETE:
           type = MATCH_TYPE.HEURISTIC;
           break;
         case UrlbarUtils.RESULT_GROUP.OMNIBOX:
@@ -1117,33 +1137,6 @@ Search.prototype = {
     }
   },
 
-  _addAutofillMatch(
-    autofilledValue,
-    finalCompleteValue,
-    frecency = Infinity,
-    extraStyles = []
-  ) {
-    // The match's comment is only for display.  Set it to finalCompleteValue,
-    // the actual URL that will be visited when the user chooses the match, so
-    // that the user knows exactly where the match will take them.  To make it
-    // look a little nicer, remove "http://", and if the user typed a host
-    // without a trailing slash, remove any trailing slash, too.
-    let [comment] = stripPrefixAndTrim(finalCompleteValue, {
-      stripHttp: true,
-      trimEmptyQuery: true,
-      trimSlash: !this._searchString.includes("/"),
-    });
-
-    this._addMatch({
-      value: this._strippedPrefix + autofilledValue,
-      finalCompleteValue,
-      comment,
-      frecency,
-      style: ["autofill"].concat(extraStyles).join(" "),
-      icon: iconHelper(finalCompleteValue),
-    });
-  },
-
   _addFilteredQueryMatch(row) {
     let placeId = row.getResultByIndex(QUERYINDEX_PLACEID);
     let url = row.getResultByIndex(QUERYINDEX_URL);
@@ -1160,15 +1153,11 @@ Search.prototype = {
       placeId,
       value: url,
       comment: bookmarkTitle || historyTitle,
-      icon: iconHelper(url),
+      icon: UrlbarUtils.getIconForUrl(url),
       frecency: frecency || FRECENCY_DEFAULT,
     };
 
-    if (
-      this._enableActions &&
-      openPageCount > 0 &&
-      this.hasBehavior("openpage")
-    ) {
+    if (openPageCount > 0 && this.hasBehavior("openpage")) {
       if (this._currentPage == match.value) {
         // Don't suggest switching to the current tab.
         return;
@@ -1197,8 +1186,9 @@ Search.prototype = {
   },
 
   /**
-   * @return a string consisting of the search query to be used based on the
-   * previously set urlbar suggestion preferences.
+   * @returns {string}
+   * A string consisting of the search query to be used based on the previously
+   * set urlbar suggestion preferences.
    */
   get _suggestionPrefQuery() {
     let conditions = [];
@@ -1305,8 +1295,9 @@ Search.prototype = {
    * Obtains the search query to be used based on the previously set search
    * preferences (accessed by this.hasBehavior).
    *
-   * @return an array consisting of the correctly optimized query to search the
-   *         database with and an object containing the params to bound.
+   * @returns {array}
+   *   An array consisting of the correctly optimized query to search the
+   *   database with and an object containing the params to bound.
    */
   get _searchQuery() {
     let params = {
@@ -1331,8 +1322,9 @@ Search.prototype = {
   /**
    * Obtains the query to search for switch-to-tab entries.
    *
-   * @return an array consisting of the correctly optimized query to search the
-   *         database with and an object containing the params to bound.
+   * @returns {array}
+   *   An array consisting of the correctly optimized query to search the
+   *   database with and an object containing the params to bound.
    */
   get _switchToTabQuery() {
     return [
@@ -1348,48 +1340,6 @@ Search.prototype = {
         maxResults: this._maxResults,
       },
     ];
-  },
-
-  /**
-   * Whether we should try to autoFill.
-   */
-  get _shouldAutofill() {
-    // First of all, check for the autoFill pref.
-    if (!UrlbarPrefs.get("autoFill")) {
-      return false;
-    }
-
-    if (this._searchTokens.length != 1) {
-      return false;
-    }
-
-    // autoFill can only cope with history, bookmarks, and about: entries.
-    if (!this.hasBehavior("history") && !this.hasBehavior("bookmark")) {
-      return false;
-    }
-
-    // autoFill doesn't search titles or tags.
-    if (this.hasBehavior("title") || this.hasBehavior("tag")) {
-      return false;
-    }
-
-    // Don't try to autofill if the search term includes any whitespace.
-    // This may confuse completeDefaultIndex cause the AUTOCOMPLETE_MATCH
-    // tokenizer ends up trimming the search string and returning a value
-    // that doesn't match it, or is even shorter.
-    if (REGEXP_SPACES.test(this._originalSearchString)) {
-      return false;
-    }
-
-    if (!this._searchString.length) {
-      return false;
-    }
-
-    if (this._prohibitAutoFill) {
-      return false;
-    }
-
-    return true;
   },
 
   // The result is notified to the search listener on a timer, to chunk multiple
@@ -1440,24 +1390,34 @@ Search.prototype = {
   },
 };
 
-// UnifiedComplete class
-// component @mozilla.org/autocomplete/search;1?name=unifiedcomplete
-
-function UnifiedComplete() {}
-
-UnifiedComplete.prototype = {
-  // Database handling
+/**
+ * Class used to create the provider.
+ */
+class ProviderPlaces extends UrlbarProvider {
+  // Promise resolved when the database initialization has completed, or null
+  // if it has never been requested.
+  _promiseDatabase = null;
 
   /**
-   * Promise resolved when the database initialization has completed, or null
-   * if it has never been requested.
+   * Returns the name of this provider.
+   * @returns {string} the name of this provider.
    */
-  _promiseDatabase: null,
+  get name() {
+    return "Places";
+  }
+
+  /**
+   * Returns the type of this provider.
+   * @returns {integer} one of the types from UrlbarUtils.PROVIDER_TYPE.*
+   */
+  get type() {
+    return UrlbarUtils.PROVIDER_TYPE.PROFILE;
+  }
 
   /**
    * Gets a Sqlite database handle.
    *
-   * @return {Promise}
+   * @returns {Promise}
    * @resolves to the Sqlite database handle (according to Sqlite.jsm).
    * @rejects javascript exception.
    */
@@ -1467,7 +1427,7 @@ UnifiedComplete.prototype = {
         let conn = await PlacesUtils.promiseLargeCacheDBConnection();
 
         // We don't catch exceptions here as it is too late to block shutdown.
-        Sqlite.shutdown.addBlocker("Places UnifiedComplete.js closing", () => {
+        Sqlite.shutdown.addBlocker("UrlbarProviderPlaces closing", () => {
           // Break a possible cycle through the
           // previous result, the controller and
           // ourselves.
@@ -1481,80 +1441,57 @@ UnifiedComplete.prototype = {
       });
     }
     return this._promiseDatabase;
-  },
+  }
 
   /**
-   * This is a wrapper around startSearch, with a better interface towards
-   * Quantum Bar. Long term this provider should be migrated to new separate
-   * providers and this won't be necessary
-   * @param {UrlbarQueryContext} queryContext
-   *        The context for the current search.
-   * @param {Function} onAutocompleteResult
-   *        A callback to notify each result to.
+   * Whether this provider should be invoked for the given context.
+   * If this method returns false, the providers manager won't start a query
+   * with this provider, to save on resources.
+   * @param {UrlbarQueryContext} queryContext The query context object
+   * @returns {boolean} Whether this provider should be invoked for the search.
    */
-  startQuery(queryContext, onAutocompleteResult) {
-    let deferred = PromiseUtils.defer();
-    let listener = {
-      onSearchResult(_, result) {
-        let done =
-          [
-            Ci.nsIAutoCompleteResult.RESULT_IGNORED,
-            Ci.nsIAutoCompleteResult.RESULT_FAILURE,
-            Ci.nsIAutoCompleteResult.RESULT_NOMATCH,
-            Ci.nsIAutoCompleteResult.RESULT_SUCCESS,
-          ].includes(result.searchResult) || result.errorDescription;
-        onAutocompleteResult(result);
-        if (done) {
-          deferred.resolve();
-        }
-      },
-    };
-    this.startSearch(
-      queryContext.searchString,
-      "",
-      null,
-      listener,
-      queryContext
-    );
-    this._deferred = deferred;
-    return this._deferred.promise;
-  },
-
-  // nsIAutoCompleteSearch
-
-  startSearch(
-    searchString,
-    searchParam,
-    acPreviousResult,
-    listener,
-    queryContext
-  ) {
-    // Stop the search in case the controller has not taken care of it.
-    if (this._currentSearch) {
-      this.stopSearch();
+  isActive(queryContext) {
+    if (
+      !queryContext.trimmedSearchString &&
+      queryContext.searchMode?.engineName &&
+      UrlbarPrefs.get("update2.emptySearchBehavior") < 2
+    ) {
+      return false;
     }
+    return true;
+  }
 
-    let search = (this._currentSearch = new Search(
-      searchString,
-      searchParam,
-      listener,
-      this,
-      queryContext
-    ));
-    this.getDatabaseHandle()
-      .then(conn => search.execute(conn))
-      .catch(ex => {
-        dump(`Query failed: ${ex}\n`);
-        Cu.reportError(ex);
-      })
-      .then(() => {
-        if (search == this._currentSearch) {
-          this.finishSearch(true);
-        }
-      });
-  },
+  /**
+   * Starts querying.
+   * @param {object} queryContext The query context object
+   * @param {function} addCallback Callback invoked by the provider to add a new
+   *        result.
+   * @returns {Promise} resolved when the query stops.
+   */
+  startQuery(queryContext, addCallback) {
+    let instance = this.queryInstance;
+    let urls = new Set();
+    this._startLegacyQuery(queryContext, acResult => {
+      if (instance != this.queryInstance) {
+        return;
+      }
+      let results = convertLegacyAutocompleteResult(
+        queryContext,
+        acResult,
+        urls
+      );
+      for (let result of results) {
+        addCallback(this, result);
+      }
+    });
+    return this._deferred.promise;
+  }
 
-  stopSearch() {
+  /**
+   * Cancels a running query.
+   * @param {object} queryContext The query context object
+   */
+  cancelQuery(queryContext) {
     if (this._currentSearch) {
       this._currentSearch.stop();
     }
@@ -1564,14 +1501,14 @@ UnifiedComplete.prototype = {
     // Don't notify since we are canceling this search.  This also means we
     // won't fire onSearchComplete for this search.
     this.finishSearch();
-  },
+  }
 
   /**
    * Properly cleans up when searching is completed.
    *
-   * @param notify [optional]
+   * @param {boolean} [notify]
    *        Indicates if we should notify the AutoComplete listener about our
-   *        results or not.
+   *        results or not. Default false.
    */
   finishSearch(notify = false) {
     // Clear state now to avoid race conditions, see below.
@@ -1596,29 +1533,52 @@ UnifiedComplete.prototype = {
     // Thus, ensure that notifyResult is the last call in this method,
     // otherwise you might be touching the wrong search.
     search.notifyResult(false);
-  },
+  }
 
-  // nsIAutoCompleteSearchDescriptor
+  _startLegacyQuery(queryContext, callback) {
+    let deferred = PromiseUtils.defer();
+    let listener = {
+      onSearchResult(_, result) {
+        let done =
+          [
+            Ci.nsIAutoCompleteResult.RESULT_IGNORED,
+            Ci.nsIAutoCompleteResult.RESULT_FAILURE,
+            Ci.nsIAutoCompleteResult.RESULT_NOMATCH,
+            Ci.nsIAutoCompleteResult.RESULT_SUCCESS,
+          ].includes(result.searchResult) || result.errorDescription;
+        callback(result);
+        if (done) {
+          deferred.resolve();
+        }
+      },
+    };
+    this._startSearch(queryContext.searchString, listener, queryContext);
+    this._deferred = deferred;
+  }
 
-  get searchType() {
-    return Ci.nsIAutoCompleteSearchDescriptor.SEARCH_TYPE_IMMEDIATE;
-  },
+  _startSearch(searchString, listener, queryContext) {
+    // Stop the search in case the controller has not taken care of it.
+    if (this._currentSearch) {
+      this.cancelQuery();
+    }
 
-  get clearingAutoFillSearchesAgain() {
-    return true;
-  },
+    let search = (this._currentSearch = new Search(
+      queryContext,
+      listener,
+      this
+    ));
+    this.getDatabaseHandle()
+      .then(conn => search.execute(conn))
+      .catch(ex => {
+        dump(`Query failed: ${ex}\n`);
+        Cu.reportError(ex);
+      })
+      .then(() => {
+        if (search == this._currentSearch) {
+          this.finishSearch(true);
+        }
+      });
+  }
+}
 
-  // nsISupports
-
-  classID: Components.ID("f964a319-397a-4d21-8be6-5cdd1ee3e3ae"),
-
-  QueryInterface: ChromeUtils.generateQI([
-    "nsIAutoCompleteSearch",
-    "nsIAutoCompleteSearchDescriptor",
-    "mozIPlacesAutoComplete",
-    "nsIObserver",
-    "nsISupportsWeakReference",
-  ]),
-};
-
-var EXPORTED_SYMBOLS = ["UnifiedComplete"];
+var UrlbarProviderPlaces = new ProviderPlaces();

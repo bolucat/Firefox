@@ -64,7 +64,6 @@ var UrlbarUtils = {
     HEURISTIC_SEARCH_TIP: "heuristicSearchTip",
     HEURISTIC_TEST: "heuristicTest",
     HEURISTIC_TOKEN_ALIAS_ENGINE: "heuristicTokenAliasEngine",
-    HEURISTIC_UNIFIED_COMPLETE: "heuristicUnifiedComplete",
     INPUT_HISTORY: "inputHistory",
     OMNIBOX: "extension",
     PRELOADED: "preloaded",
@@ -183,12 +182,11 @@ var UrlbarUtils = {
     SUGGESTED: 2,
   },
 
-  // UnifiedComplete's autocomplete results store their titles and tags together
-  // in their comments.  This separator is used to separate them.  When we
-  // rewrite UnifiedComplete for quantumbar, we should stop using this old hack
-  // and store titles and tags separately.  It's important that this be a
-  // character that no title would ever have.  We use \x1F, the non-printable
-  // unit separator.
+  // UrlbarProviderPlaces's autocomplete results store their titles and tags
+  // together in their comments.  This separator is used to separate them.
+  // After bug 1717511, we should stop using this old hack and store titles and
+  // tags separately.  It's important that this be a character that no title
+  // would ever have.  We use \x1F, the non-printable unit separator.
   TITLE_TAGS_SEPARATOR: "\x1F",
 
   // Regex matching single word hosts with an optional port; no spaces, auth or
@@ -219,6 +217,7 @@ var UrlbarUtils = {
     "about:",
     "http:",
     "https:",
+    "ftp:",
   ],
 
   // Search mode objects corresponding to the local shortcuts in the view, in
@@ -514,8 +513,6 @@ var UrlbarUtils = {
           return UrlbarUtils.RESULT_GROUP.HEURISTIC_PRELOADED;
         case "TokenAliasEngines":
           return UrlbarUtils.RESULT_GROUP.HEURISTIC_TOKEN_ALIAS_ENGINE;
-        case "UnifiedComplete":
-          return UrlbarUtils.RESULT_GROUP.HEURISTIC_UNIFIED_COMPLETE;
         case "UrlbarProviderSearchTips":
           return UrlbarUtils.RESULT_GROUP.HEURISTIC_SEARCH_TIP;
         default:

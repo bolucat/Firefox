@@ -44,38 +44,44 @@ class CDP {
   /**
    * Creates a new instance of the CDP class.
    *
-   * @param {HttpServer} server
-   *     The HTTP server that handles new connection requests.
+   * @param {RemoteAgent} agent
+   *     Reference to the Remote Agent instance.
    */
-  constructor(server) {
-    this.server = server;
+  constructor(agent) {
+    this.agent = agent;
+    this.targetList = null;
+  }
 
-    this.server.registerPrefixHandler("/json/", new JSONHandler(this));
-
-    this.targetList = new TargetList();
-    this.targetList.on("target-created", (eventName, target) => {
-      this.server.registerPathHandler(target.path, target);
-    });
-    this.targetList.on("target-destroyed", (eventName, target) => {
-      this.server.registerPathHandler(target.path, null);
-    });
-
-    RecommendedPreferences.applyPreferences(RECOMMENDED_PREFS);
+  get address() {
+    const mainTarget = this.targetList.getMainProcessTarget();
+    return mainTarget.wsDebuggerURL;
   }
 
   /**
    * Starts the CDP support.
    */
   async start() {
+    RecommendedPreferences.applyPreferences(RECOMMENDED_PREFS);
+
+    this.agent.server.registerPrefixHandler("/json/", new JSONHandler(this));
+
+    this.targetList = new TargetList();
+    this.targetList.on("target-created", (eventName, target) => {
+      this.agent.server.registerPathHandler(target.path, target);
+    });
+    this.targetList.on("target-destroyed", (eventName, target) => {
+      this.agent.server.registerPathHandler(target.path, null);
+    });
+
     await this.targetList.watchForTargets();
 
     // Immediatly instantiate the main process target in order
     // to be accessible via HTTP endpoint on startup
-    const mainTarget = this.targetList.getMainProcessTarget();
+
     Services.obs.notifyObservers(
       null,
       "remote-listening",
-      `DevTools listening on ${mainTarget.wsDebuggerURL}`
+      `DevTools listening on ${this.address}`
     );
   }
 
@@ -84,6 +90,8 @@ class CDP {
    */
   stop() {
     this.targetList.destructor();
+    this.targetList = null;
+
     RecommendedPreferences.restorePreferences(RECOMMENDED_PREFS);
   }
 }

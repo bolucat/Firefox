@@ -48,7 +48,7 @@ const PREF_URLBAR_DEFAULTS = new Map([
 
   // Affects the frecency threshold of the autofill algorithm.  The threshold is
   // the mean of all origin frecencies plus one standard deviation multiplied by
-  // this value.  See UnifiedComplete.
+  // this value.  See UrlbarProviderPlaces.
   ["autoFill.stddevMultiplier", [0.0, "float"]],
 
   // Whether using `ctrl` when hitting return/enter in the URL bar
@@ -295,7 +295,6 @@ function makeResultBuckets({ showSearchSuggestionsFirst }) {
           { group: UrlbarUtils.RESULT_GROUP.HEURISTIC_OMNIBOX },
           { group: UrlbarUtils.RESULT_GROUP.HEURISTIC_ENGINE_ALIAS },
           { group: UrlbarUtils.RESULT_GROUP.HEURISTIC_BOOKMARK_KEYWORD },
-          { group: UrlbarUtils.RESULT_GROUP.HEURISTIC_UNIFIED_COMPLETE },
           { group: UrlbarUtils.RESULT_GROUP.HEURISTIC_AUTOFILL },
           { group: UrlbarUtils.RESULT_GROUP.HEURISTIC_PRELOADED },
           { group: UrlbarUtils.RESULT_GROUP.HEURISTIC_TOKEN_ALIAS_ENGINE },
