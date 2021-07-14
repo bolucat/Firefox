@@ -388,8 +388,8 @@ android-arm-gcp/debug:
         enable-full-crashsymbols: true
     treeherder:
         platform: android-4-0-armv7/debug
-        symbol: Bg
-        tier: 3
+        symbol: B-gcp
+        tier: 2
     worker-type: b-linux-gcp
     worker:
         env:
@@ -416,8 +416,8 @@ android-x86-gcp/opt:
         enable-full-crashsymbols: true
     treeherder:
         platform: android-4-2-x86/opt
-        symbol: Bg
-        tier: 3
+        symbol: B-gcp
+        tier: 2
     worker-type: b-linux-gcp
     worker:
         env:
@@ -443,8 +443,8 @@ android-arm-gcp/opt:
         enable-full-crashsymbols: true
     treeherder:
         platform: android-4-0-armv7/opt
-        symbol: Bg
-        tier: 3
+        symbol: B-gcp
+        tier: 2
     worker-type: b-linux-gcp
     worker:
         env:
@@ -470,8 +470,8 @@ android-aarch64-gcp/opt:
         enable-full-crashsymbols: true
     treeherder:
         platform: android-5-0-aarch64/opt
-        symbol: Bg
-        tier: 3
+        symbol: B-gcp
+        tier: 2
     worker-type: b-linux-gcp
     worker:
         env:
@@ -497,8 +497,8 @@ android-aarch64-gcp/debug:
         enable-full-crashsymbols: true
     treeherder:
         platform: android-5-0-aarch64/debug
-        symbol: Bg
-        tier: 3
+        symbol: B-gcp
+        tier: 2
     worker-type: b-linux-gcp
     worker:
         env:
@@ -524,8 +524,8 @@ android-x86_64-gcp/opt:
         enable-full-crashsymbols: true
     treeherder:
         platform: android-5-0-x86_64/opt
-        symbol: Bg
-        tier: 3
+        symbol: B-gcp
+        tier: 2
     worker-type: b-linux-gcp
     worker:
         env:
@@ -551,8 +551,8 @@ android-x86_64-gcp/debug:
         enable-full-crashsymbols: true
     treeherder:
         platform: android-5-0-x86_64/debug
-        symbol: Bg
-        tier: 3
+        symbol: B-gcp
+        tier: 2
     worker-type: b-linux-gcp
     worker:
         env:

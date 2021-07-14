@@ -498,7 +498,7 @@ linux/opt:
         secrets: true
         tooltool-downloads: public
         need-xvfb: true
-    run-on-projects: ['mozilla-beta', 'mozilla-release', 'mozilla-esr78']
+    run-on-projects: ['mozilla-beta', 'mozilla-release', 'mozilla-esr78', 'mozilla-esr91']
     use-sccache: true
     fetches:
         toolchain:
@@ -1624,8 +1624,8 @@ linux-gcp/debug:
         enable-full-crashsymbols: true
     treeherder:
         platform: linux32/debug
-        symbol: Bg
-        tier: 3
+        symbol: B-gcp
+        tier: 2
     worker-type: b-linux-gcp
     worker:
         max-run-time: 5400
@@ -1671,8 +1671,8 @@ linux-gcp/opt:
         enable-full-crashsymbols: true
     treeherder:
         platform: linux32/opt
-        symbol: Bg
-        tier: 3
+        symbol: B-gcp
+        tier: 2
     worker-type: b-linux-gcp
     worker:
         max-run-time: 7200
@@ -1714,8 +1714,8 @@ linux64-gcp/debug:
         enable-full-crashsymbols: true
     treeherder:
         platform: linux64/debug
-        symbol: Bg
-        tier: 3
+        symbol: B-gcp
+        tier: 2
     worker-type: b-linux-gcp
     worker:
         max-run-time: 5400
@@ -1760,8 +1760,8 @@ linux64-gcp/opt:
         enable-full-crashsymbols: true
     treeherder:
         platform: linux64/opt
-        symbol: Bg
-        tier: 3
+        symbol: B-gcp
+        tier: 2
     worker-type: b-linux-gcp
     worker:
         max-run-time: 7200

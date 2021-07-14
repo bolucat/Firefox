@@ -650,8 +650,8 @@ macosx64-gcp/debug:
         enable-full-crashsymbols: true
     treeherder:
         platform: osx-cross/debug
-        symbol: Bg
-        tier: 3
+        symbol: B-gcp
+        tier: 2
     worker-type: b-linux-gcp
     worker:
         max-run-time: 3600
@@ -682,8 +682,8 @@ macosx64-gcp/opt:
         enable-full-crashsymbols: true
     treeherder:
         platform: osx-cross/opt
-        symbol: Bg
-        tier: 3
+        symbol: B-gcp
+        tier: 2
     worker-type: b-linux-gcp
     worker:
         max-run-time: 7200
