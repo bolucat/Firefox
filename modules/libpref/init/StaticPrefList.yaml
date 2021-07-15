@@ -3135,6 +3135,16 @@
   value: false
   mirror: always
 
+# Whether ServiceWorkerManager should persist the service worker
+# registered by temporary installed extension (only meant to be used
+# for testing purpose, to make it easier to test some particular scenario
+# with a temporary installed addon, which doesn't need to be signed to be
+# installed on release channel builds).
+- name: dom.serviceWorkers.testing.persistTemporarilyInstalledAddons
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 - name: dom.workers.serialized-sab-access
   type: RelaxedAtomicBool
   value: false
@@ -5047,11 +5057,7 @@
 
 - name: gfx.webrender.compositor.max_update_rects
   type: uint32_t
-#if defined(XP_WIN) || defined(XP_MACOSX)
   value: 1
-#else
-  value: 0
-#endif
   mirror: once
 
 - name: gfx.webrender.compositor.surface-pool-size
@@ -11563,7 +11569,7 @@
 
 - name: widget.macos.support-dark-appearance
   type: RelaxedAtomicBool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 #endif
 

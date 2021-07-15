@@ -383,7 +383,7 @@ fuzzy-if(Android&&isDebugBuild,0-229,0-45) == 315920-7b.html 315920-7-ref.html #
 fuzzy-if(Android&&isDebugBuild,0-229,0-45) == 315920-7c.html 315920-7-ref.html # bug 1342240
 fuzzy-if(Android&&isDebugBuild,0-229,0-45) == 315920-8a.html 315920-8-ref.html # bug 1342240
 fuzzy-if(Android&&isDebugBuild,0-229,0-45) == 315920-8b.html 315920-8-ref.html # bug 1342240
-== 315920-9.html 315920-9-ref.html
+fuzzy-if(gtkWidget,0-1,0-41) == 315920-9.html 315920-9-ref.html # bug 1599346
 == 315920-10.html 315920-10-ref.html
 fuzzy-if(geckoview,0-1,0-2) == 315920-11.html 315920-11-ref.html
 fuzzy-if(Android&&isDebugBuild,0-229,0-45) == 315920-12a.html 315920-12-ref.html # bug 1342240
@@ -1955,7 +1955,7 @@ fuzzy(0-8,0-1900) fails-if(webrender) == 1291528.html 1291528-ref.html
 # background color.
 fuzzy(0-255,0-1000) skip-if(!cocoaWidget) == 1294102-1.html 1294102-1-ref.html
 fuzzy-if(skiaContent,0-15,0-50) fuzzy-if(gtkWidget||winWidget,0-14,0-215) random-if(useDrawSnapshot) == 1295466-1.xhtml 1295466-1-ref.xhtml # bug 1540635
-fuzzy-if(Android,0-27,0-874) fuzzy-if(!Android,0-14,0-43) == 1313772.xhtml 1313772-ref.xhtml # Bug 1128229, Bug 1389319
+fuzzy-if(Android,0-27,0-874) fuzzy-if(!Android,0-14,0-43) fuzzy-if(gtkWidget&&fission&&!isDebugBuild,0-14,0-1794) == 1313772.xhtml 1313772-ref.xhtml # Bug 1128229, Bug 1389319, Bug 1714895
 fuzzy(0-3,0-320000) fails-if(useDrawSnapshot) == 1315113-1.html 1315113-1-ref.html
 fuzzy(0-3,0-20000) == 1315113-2.html 1315113-2-ref.html
 == 1315632-1.html 1315632-1-ref.html
