@@ -2448,6 +2448,16 @@ BrowserGlue.prototype = {
         },
       },
 
+      {
+        task: () => {
+          // Init the url query stripping list.
+          let urlQueryStrippingListService = Cc[
+            "@mozilla.org/query-stripping-list-service;1"
+          ].getService(Ci.nsIURLQueryStrippingListService);
+          urlQueryStrippingListService.init();
+        },
+      },
+
       // Run TRR performance measurements for DoH.
       {
         task: () => {

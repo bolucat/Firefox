@@ -66,6 +66,11 @@ struct wl_surface* moz_container_wayland_surface_lock(MozContainer* container);
 void moz_container_wayland_surface_unlock(MozContainer* container,
                                           struct wl_surface** surface);
 
+struct wl_surface* moz_container_wayland_get_surface_locked(
+    MozContainer* container);
+void moz_container_wayland_lock(MozContainer* container);
+void moz_container_wayland_unlock(MozContainer* container);
+
 struct wl_egl_window* moz_container_wayland_get_egl_window(
     MozContainer* container, double scale);
 
@@ -83,5 +88,6 @@ gboolean moz_container_wayland_can_draw(MozContainer* container);
 double moz_container_wayland_get_scale(MozContainer* container);
 struct wp_viewport* moz_container_wayland_get_viewport(MozContainer* container);
 gboolean moz_container_wayland_get_and_reset_remapped(MozContainer* container);
+gboolean moz_container_wayland_is_inactive(MozContainer* container);
 
 #endif /* __MOZ_CONTAINER_WAYLAND_H__ */

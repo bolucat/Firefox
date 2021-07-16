@@ -336,6 +336,11 @@ pref("pdfjs.renderInteractiveForms", true);
 // Enable JavaScript support in the PDF viewer.
 pref("pdfjs.enableScripting", true);
 
+// Enable XFA form support in the PDF viewer.
+#ifdef EARLY_BETA_OR_EARLIER
+pref("pdfjs.enableXfa", true);
+#endif
+
 // Disable support for MathML
 pref("mathml.disabled",    false);
 
@@ -1861,9 +1866,6 @@ pref("network.http.tailing.delay-quantum-after-domcontentloaded", 100);
 pref("network.http.tailing.delay-max", 6000);
 // Total limit we delay tailed requests since a page load beginning.
 pref("network.http.tailing.total-max", 45000);
-
-// Enable or disable the whole fix from bug 1563538
-pref("network.http.spdy.bug1563538", true);
 
 pref("network.proxy.http",                  "");
 pref("network.proxy.http_port",             0);

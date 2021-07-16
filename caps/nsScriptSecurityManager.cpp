@@ -304,10 +304,24 @@ nsresult nsScriptSecurityManager::GetChannelResultPrincipal(
   }
 
   if (!aIgnoreSandboxing && loadInfo->GetLoadingSandboxed()) {
-    nsCOMPtr<nsIPrincipal> sandboxedLoadingPrincipal =
-        loadInfo->GetSandboxedLoadingPrincipal();
-    MOZ_ASSERT(sandboxedLoadingPrincipal);
-    sandboxedLoadingPrincipal.forget(aPrincipal);
+    // Determine the unsandboxed result principal to use as this null
+    // principal's precursor. Ignore errors here, as the precursor isn't
+    // required.
+    nsCOMPtr<nsIPrincipal> precursor;
+    GetChannelResultPrincipal(aChannel, getter_AddRefs(precursor),
+                              /*aIgnoreSandboxing*/ true);
+
+    // Construct a deterministic null principal URI from the precursor and the
+    // loadinfo's nullPrincipalID.
+    nsCOMPtr<nsIURI> nullPrincipalURI = NullPrincipal::CreateURI(
+        precursor, &loadInfo->GetSandboxedNullPrincipalID());
+
+    // Use the URI to construct the sandboxed result principal.
+    OriginAttributes attrs;
+    loadInfo->GetOriginAttributes(&attrs);
+    nsCOMPtr<nsIPrincipal> sandboxedPrincipal =
+        NullPrincipal::Create(attrs, nullPrincipalURI);
+    sandboxedPrincipal.forget(aPrincipal);
     return NS_OK;
   }
 
@@ -383,6 +397,24 @@ nsScriptSecurityManager::GetChannelURIPrincipal(nsIChannel* aChannel,
   // For subresource loading, the origin attributes of the loadInfo is from
   // its loadingPrincipal.
   OriginAttributes attrs = loadInfo->GetOriginAttributes();
+
+  // If the URI is supposed to inherit the security context of whoever loads it,
+  // we shouldn't make a content principal for it, so instead return a null
+  // principal.
+  bool inheritsPrincipal = false;
+  rv = NS_URIChainHasFlags(uri,
+                           nsIProtocolHandler::URI_INHERITS_SECURITY_CONTEXT,
+                           &inheritsPrincipal);
+  if (NS_FAILED(rv) || inheritsPrincipal) {
+    // Find a precursor principal to credit for the load. This won't impact
+    // security checks, but makes tracking the source of related loads easier.
+    nsCOMPtr<nsIPrincipal> precursorPrincipal =
+        loadInfo->FindPrincipalToInherit(aChannel);
+    nsCOMPtr<nsIURI> nullPrincipalURI =
+        NullPrincipal::CreateURI(precursorPrincipal);
+    *aPrincipal = NullPrincipal::Create(attrs, nullPrincipalURI).take();
+    return *aPrincipal ? NS_OK : NS_ERROR_FAILURE;
+  }
 
   nsCOMPtr<nsIPrincipal> prin =
       BasePrincipal::CreateContentPrincipal(uri, attrs);
