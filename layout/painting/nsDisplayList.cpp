@@ -139,7 +139,7 @@ static bool SpammyLayoutWarningsEnabled() {
 
 #ifdef MOZ_DIAGNOSTIC_ASSERT_ENABLED
 void AssertUniqueItem(nsDisplayItem* aItem) {
-  for (nsDisplayItemBase* i : aItem->Frame()->DisplayItems()) {
+  for (nsDisplayItem* i : aItem->Frame()->DisplayItems()) {
     if (i != aItem && !i->HasDeletedFrame() && i->Frame() == aItem->Frame() &&
         i->GetPerFrameKey() == aItem->GetPerFrameKey()) {
       if (i->IsPreProcessedItem()) {
@@ -2946,30 +2946,6 @@ void nsDisplayList::SortByContentOrder(nsIContent* aCommonAncestor) {
   Sort<nsDisplayItem*>(ContentComparator(aCommonAncestor));
 }
 
-bool nsDisplayItemBase::HasModifiedFrame() const {
-  return mItemFlags.contains(ItemBaseFlag::ModifiedFrame);
-}
-
-void nsDisplayItemBase::SetModifiedFrame(bool aModified) {
-  if (aModified) {
-    mItemFlags += ItemBaseFlag::ModifiedFrame;
-  } else {
-    mItemFlags -= ItemBaseFlag::ModifiedFrame;
-  }
-}
-
-void nsDisplayItemBase::SetDeletedFrame() {
-  mItemFlags += ItemBaseFlag::DeletedFrame;
-}
-
-bool nsDisplayItemBase::HasDeletedFrame() const {
-  bool retval = mItemFlags.contains(ItemBaseFlag::DeletedFrame) ||
-                (GetType() == DisplayItemType::TYPE_REMOTE &&
-                 !static_cast<const nsDisplayRemote*>(this)->GetFrameLoader());
-  MOZ_ASSERT(retval || mFrame);
-  return retval;
-}
-
 #if !defined(DEBUG) && !defined(MOZ_DIAGNOSTIC_ASSERT_ENABLED)
 static_assert(sizeof(nsDisplayItem) <= 176, "nsDisplayItem has grown");
 #endif
@@ -2979,10 +2955,12 @@ nsDisplayItem::nsDisplayItem(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
 
 nsDisplayItem::nsDisplayItem(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
                              const ActiveScrolledRoot* aActiveScrolledRoot)
-    : nsDisplayItemBase(aBuilder, aFrame),
-      mActiveScrolledRoot(aActiveScrolledRoot),
-      mAnimatedGeometryRoot(nullptr) {
+    : mFrame(aFrame), mActiveScrolledRoot(aActiveScrolledRoot) {
   MOZ_COUNT_CTOR(nsDisplayItem);
+  MOZ_ASSERT(mFrame);
+  if (aBuilder->IsRetainingDisplayList()) {
+    mFrame->AddDisplayItem(this);
+  }
 
   mReferenceFrame = aBuilder->FindReferenceFrameFor(aFrame, &mToReferenceFrame);
   // This can return the wrong result if the item override
@@ -3011,6 +2989,16 @@ nsDisplayItem::nsDisplayItem(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
   if (mFrame->Combines3DTransformWithAncestors()) {
     mItemFlags += ItemFlag::Combines3DTransformWithAncestors;
   }
+}
+
+void nsDisplayItem::SetDeletedFrame() { mItemFlags += ItemFlag::DeletedFrame; }
+
+bool nsDisplayItem::HasDeletedFrame() const {
+  bool retval = mItemFlags.contains(ItemFlag::DeletedFrame) ||
+                (GetType() == DisplayItemType::TYPE_REMOTE &&
+                 !static_cast<const nsDisplayRemote*>(this)->GetFrameLoader());
+  MOZ_ASSERT(retval || mFrame);
+  return retval;
 }
 
 /* static */
@@ -3970,13 +3958,19 @@ nsDisplayBackgroundImage::ShouldCreateOwnLayer(nsDisplayListBuilder* aBuilder,
 }
 
 static void CheckForBorderItem(nsDisplayItem* aItem, uint32_t& aFlags) {
-  nsDisplayItem* nextItem = aItem->GetAbove();
-  while (nextItem && nextItem->GetType() == DisplayItemType::TYPE_BACKGROUND) {
-    nextItem = nextItem->GetAbove();
-  }
-  if (nextItem && nextItem->Frame() == aItem->Frame() &&
-      nextItem->GetType() == DisplayItemType::TYPE_BORDER) {
-    aFlags |= nsCSSRendering::PAINTBG_WILL_PAINT_BORDER;
+  // TODO(miko): Iterating over the display list like this is suspicious.
+  for (nsDisplayList::Iterator it(aItem); it.HasNext(); ++it) {
+    nsDisplayItem* next = *it;
+
+    if (next->GetType() == DisplayItemType::TYPE_BACKGROUND) {
+      continue;
+    }
+
+    if (next->GetType() == DisplayItemType::TYPE_BORDER) {
+      aFlags |= nsCSSRendering::PAINTBG_WILL_PAINT_BORDER;
+    }
+
+    break;
   }
 }
 
@@ -5530,11 +5524,11 @@ nsDisplayWrapList::nsDisplayWrapList(
     return;
   }
 
-  nsDisplayItem* i = mListPtr->GetBottom();
-  if (i &&
-      (!i->GetAbove() || i->GetType() == DisplayItemType::TYPE_TRANSFORM) &&
-      i->Frame() == mFrame) {
-    MOZ_ASSERT(mReferenceFrame == i->ReferenceFrame());
+  nsDisplayItem* item = mListPtr->GetBottom();
+  if (item && item->Frame() == mFrame &&
+      (mListPtr->Count() == 1 ||
+       item->GetType() == DisplayItemType::TYPE_TRANSFORM)) {
+    MOZ_ASSERT(mReferenceFrame == item->ReferenceFrame());
   }
 #endif
 }

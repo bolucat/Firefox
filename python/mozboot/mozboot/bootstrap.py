@@ -227,6 +227,13 @@ class Bootstrapper(object):
         self.instance = cls(**args)
 
     def create_state_dir(self):
+        # Global build system and mach state is stored in a central directory. By
+        # default, this is ~/.mozbuild. However, it can be defined via an
+        # environment variable. We detect first run (by lack of this directory
+        # existing) and notify the user that it will be created. The logic for
+        # creation is much simpler for the "advanced" environment variable use
+        # case. For default behavior, we educate users and give them an opportunity
+        # to react.
         state_dir = get_state_dir()
 
         if not os.path.exists(state_dir):
@@ -263,7 +270,6 @@ class Bootstrapper(object):
             self.instance.ensure_clang_static_analysis_package(state_dir, checkout_root)
             self.instance.ensure_nasm_packages(state_dir, checkout_root)
             self.instance.ensure_sccache_packages(state_dir, checkout_root)
-            self.instance.ensure_lucetc_packages(state_dir, checkout_root)
             self.instance.ensure_wasi_sysroot_packages(state_dir, checkout_root)
 
     def check_code_submission(self, checkout_root):
@@ -325,10 +331,6 @@ class Bootstrapper(object):
         self.instance.artifact_mode = "artifact_mode" in application
 
         self.instance.warn_if_pythonpath_is_set()
-
-        # This doesn't affect any system state and we'd like to bail out as soon
-        # as possible if this check fails.
-        self.instance.ensure_python_modern()
 
         state_dir = self.create_state_dir()
         self.instance.state_dir = state_dir

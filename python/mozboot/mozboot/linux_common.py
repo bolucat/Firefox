@@ -37,16 +37,6 @@ class FixStacksInstall(object):
         )
 
 
-class LucetcInstall(object):
-    def __init__(self, **kwargs):
-        pass
-
-    def ensure_lucetc_packages(self, state_dir, checkout_root):
-        from mozboot import lucetc
-
-        self.install_toolchain_artifact(state_dir, checkout_root, lucetc.LINUX_LUCETC)
-
-
 class WasiSysrootInstall(object):
     def __init__(self, **kwargs):
         pass
@@ -165,7 +155,6 @@ class MobileAndroidBootstrapper(object):
 class LinuxBootstrapper(
     ClangStaticAnalysisInstall,
     FixStacksInstall,
-    LucetcInstall,
     MinidumpStackwalkInstall,
     MobileAndroidBootstrapper,
     NasmInstall,
@@ -174,12 +163,5 @@ class LinuxBootstrapper(
     StyloInstall,
     WasiSysrootInstall,
 ):
-
-    INSTALL_PYTHON_GUIDANCE = (
-        "See https://firefox-source-docs.mozilla.org/setup/linux_build.html"
-        "#installingpython for guidance on how to install Python on your "
-        "system."
-    )
-
     def __init__(self, **kwargs):
         pass
