@@ -49,6 +49,15 @@ class ParentProcessStorage {
     this.watcherActor = watcherActor;
     this.onAvailable = onAvailable;
 
+    // When doing a bfcache navigation with Fission disabled or with Fission + bfCacheInParent enabled,
+    // we're not getting a the window-global-created events.
+    // In such case, the watcher emits specific events that we can use instead.
+    this._offPageShow = watcherActor.on(
+      "bf-cache-navigation-pageshow",
+      ({ windowGlobal, isNewTargetCreated }) =>
+        this._onNewWindowGlobal(windowGlobal, isNewTargetCreated)
+    );
+
     const {
       browsingContext,
       innerWindowID: innerWindowId,
@@ -84,7 +93,7 @@ class ParentProcessStorage {
     // Remove observers
     Services.obs.removeObserver(this, "window-global-created");
     Services.obs.removeObserver(this, "window-global-destroyed");
-
+    this._offPageShow();
     this._cleanActor();
   }
 
@@ -97,7 +106,20 @@ class ParentProcessStorage {
 
     // Some storage types require to prelist their stores
     if (typeof this.actor.preListStores === "function") {
-      await this.actor.preListStores();
+      try {
+        await this.actor.preListStores();
+      } catch (e) {
+        // It can happen that the actor gets destroyed while preListStores is being
+        // executed.
+        if (this.actor) {
+          throw e;
+        }
+      }
+    }
+
+    // If the actor was destroyed, we don't need to go further.
+    if (!this.actor) {
+      return;
     }
 
     // We have to manage the actor manually, because ResourceCommand doesn't
@@ -143,51 +165,78 @@ class ParentProcessStorage {
    * Event handler for any docshell update. This lets us figure out whenever
    * any new window is added, or an existing window is removed.
    */
-  async observe(subject, topic) {
+  observe(subject, topic) {
+    if (topic === "window-global-created") {
+      this._onNewWindowGlobal(subject);
+    }
+  }
+
+  /**
+   * Handle WindowGlobal received via:
+   * - <window-global-created> (to cover regular navigations, with brand new documents)
+   * - <bf-cache-navigation-pageshow> (to cover history navications)
+   *
+   * @param {WindowGlobal} windowGlobal
+   * @param {Boolean} isBfCacheNavigationCreatingNewTarget
+   */
+  async _onNewWindowGlobal(windowGlobal, isBfCacheNavigationCreatingNewTarget) {
     // If the watcher is bound to one browser element (i.e. a tab), ignore
-    // updates related to other browser elements
+    // windowGlobals related to other browser elements
     if (
       this.watcherActor.browserId &&
-      subject.browsingContext.browserId != this.watcherActor.browserId
+      windowGlobal.browsingContext.browserId != this.watcherActor.browserId
     ) {
       return;
     }
     // ignore about:blank
-    if (subject.documentURI.displaySpec === "about:blank") {
+    if (windowGlobal.documentURI.displaySpec === "about:blank") {
       return;
     }
 
-    const isTargetSwitching = Services.prefs.getBoolPref(
-      "devtools.target-switching.server.enabled",
-      false
-    );
-    const isTopContext = subject.browsingContext.top == subject.browsingContext;
+    const isTopContext =
+      windowGlobal.browsingContext.top == windowGlobal.browsingContext;
+
+    if (!isTopContext) {
+      return;
+    }
+
+    // We only want to spawn a new StorageActor if a new target is being created, i.e.
+    // - target switching is enabled and we're notified about a new top-level window global,
+    //   via window-global-created
+    // - target switching is enabled OR bfCacheInParent is enabled, and a bfcache navigation
+    //   is performed (See handling of "pageshow" event in DevToolsFrameChild)
+    const isNewTargetBeingCreated =
+      isTargetSwitchingEnabled() || isBfCacheNavigationCreatingNewTarget;
+
+    if (!isNewTargetBeingCreated) {
+      return;
+    }
 
     // When server side target switching is enabled, we replace the StorageActor
     // with a new one.
     // On the frontend, the navigation will destroy the previous target, which
-    // will destroy the previous storage front, so we must notify about a new
-    // one.
-    if (isTopContext && isTargetSwitching) {
-      if (topic === "window-global-created") {
-        // When we are target switching we keep the storage watcher, so we need
-        // to send a new resource to the client.
-        // However, we must ensure that we do this when the new target is
-        // already available, so we check innerWindowId to do it.
-        await new Promise(resolve => {
-          const listener = targetActorForm => {
-            if (targetActorForm.innerWindowId != subject.innerWindowId) {
-              return;
-            }
-            this.watcherActor.off("target-available-form", listener);
-            resolve();
-          };
-          this.watcherActor.on("target-available-form", listener);
-        });
-        this._cleanActor();
-        this._spawnActor(subject.browsingContext.id, subject.innerWindowId);
-      }
-    }
+    // will destroy the previous storage front, so we must notify about a new one.
+
+    // When we are target switching we keep the storage watcher, so we need
+    // to send a new resource to the client.
+    // However, we must ensure that we do this when the new target is
+    // already available, so we check innerWindowId to do it.
+    await new Promise(resolve => {
+      const listener = targetActorForm => {
+        if (targetActorForm.innerWindowId != windowGlobal.innerWindowId) {
+          return;
+        }
+        this.watcherActor.off("target-available-form", listener);
+        resolve();
+      };
+      this.watcherActor.on("target-available-form", listener);
+    });
+
+    this._cleanActor();
+    this._spawnActor(
+      windowGlobal.browsingContext.id,
+      windowGlobal.innerWindowId
+    );
   }
 }
 
@@ -207,6 +256,43 @@ class StorageActorMock extends EventEmitter {
     this.observe = this.observe.bind(this);
     Services.obs.addObserver(this, "window-global-created");
     Services.obs.addObserver(this, "window-global-destroyed");
+
+    // When doing a bfcache navigation with Fission disabled or with Fission + bfCacheInParent enabled,
+    // we're not getting a the window-global-created/window-global-destroyed events.
+    // In such case, the watcher emits specific events that we can use as equivalent to
+    // window-global-created/window-global-destroyed.
+    // We only need to react to those events here if target switching is not enabled; when
+    // it is enabled, ParentProcessStorage will spawn a whole new actor which will allow
+    // the client to get the information it needs.
+    if (!isTargetSwitchingEnabled()) {
+      this._offPageShow = watcherActor.on(
+        "bf-cache-navigation-pageshow",
+        ({ windowGlobal, isNewTargetCreated }) => {
+          // if a new target is created in the content process as a result of the bfcache
+          // navigation, we don't need to emit window-ready as a new StorageActorMock will
+          // be created by ParentProcessStorage.
+          if (isNewTargetCreated) {
+            return;
+          }
+          const windowMock = { location: windowGlobal.documentURI };
+          this.emit("window-ready", windowMock);
+        }
+      );
+
+      this._offPageHide = watcherActor.on(
+        "bf-cache-navigation-pagehide",
+        ({ windowGlobal }) => {
+          const windowMock = { location: windowGlobal.documentURI };
+          // The listener of this events usually check that there are no other windows
+          // with the same host before notifying the client that it can remove it from
+          // the UI. The windows are retrieved from the `windows` getter, and in this case
+          // we still have a reference to the window we're navigating away from.
+          // We pass a `dontCheckHost` parameter alongside the window-destroyed event to
+          // always notify the client.
+          this.emit("window-destroyed", windowMock, { dontCheckHost: true });
+        }
+      );
+    }
   }
 
   destroy() {
@@ -216,6 +302,12 @@ class StorageActorMock extends EventEmitter {
     // Remove observers
     Services.obs.removeObserver(this, "window-global-created");
     Services.obs.removeObserver(this, "window-global-destroyed");
+    if (this._offPageShow) {
+      this._offPageShow();
+    }
+    if (this._offPageHide) {
+      this._offPageHide();
+    }
   }
 
   get windows() {
@@ -445,4 +537,11 @@ class StorageActorMock extends EventEmitter {
     }
     return null;
   }
+}
+
+function isTargetSwitchingEnabled() {
+  return Services.prefs.getBoolPref(
+    "devtools.target-switching.server.enabled",
+    false
+  );
 }

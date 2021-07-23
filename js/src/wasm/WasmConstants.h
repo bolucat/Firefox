@@ -42,7 +42,7 @@ enum class SectionId {
   Data = 11,
   DataCount = 12,
 #ifdef ENABLE_WASM_EXCEPTIONS
-  Event = 13,
+  Tag = 13,
 #endif
 };
 
@@ -176,7 +176,7 @@ enum class DefinitionKind {
   Memory = 0x02,
   Global = 0x03,
 #ifdef ENABLE_WASM_EXCEPTIONS
-  Event = 0x04,
+  Tag = 0x04,
 #endif
 };
 
@@ -218,7 +218,7 @@ enum class ElemSegmentPayload : uint32_t {
 };
 
 #ifdef ENABLE_WASM_EXCEPTIONS
-enum class EventKind {
+enum class TagKind {
   Exception = 0x0,
 };
 #endif
@@ -450,7 +450,8 @@ enum class Op {
   // GC (experimental)
   RefEq = 0xd5,
 
-  FirstPrefix = 0xfb,
+  FirstPrefix = 0xfa,
+  IntrinsicPrefix = 0xfa,
   GcPrefix = 0xfb,
   MiscPrefix = 0xfc,
   SimdPrefix = 0xfd,
@@ -937,6 +938,21 @@ enum class ThreadOp {
   Limit
 };
 
+enum class IntrinsicOp {
+  // ------------------------------------------------------------------------
+  // These operators are emitted internally when compiling intrinsic modules
+  // and are rejected by wasm validation.  They are prefixed by
+  // IntrinsicPrefix.
+
+  // i8vecmul(dest: i32, src1: i32, src2: i32, len: i32)
+  //  Performs pairwise multiplication of two i8 vectors of 'len' specified at
+  //  'src1' and 'src2'. Output is written to 'dest'. This is used as a
+  //  basic self-test for intrinsics.
+  I8VecMul = 0x0,
+
+  Limit
+};
+
 enum class MozOp {
   // ------------------------------------------------------------------------
   // These operators are emitted internally when compiling asm.js and are
@@ -1049,7 +1065,7 @@ static const unsigned MaxTypeIndex = 15000;
 static const unsigned MaxRttDepth = 100;
 #endif
 
-static const unsigned MaxEvents = 1000000;
+static const unsigned MaxTags = 1000000;
 
 // These limits pertain to our WebAssembly implementation only.
 

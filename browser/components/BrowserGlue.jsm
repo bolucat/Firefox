@@ -77,6 +77,7 @@ XPCOMUtils.defineLazyModuleGetters(this, {
   SafeBrowsing: "resource://gre/modules/SafeBrowsing.jsm",
   Sanitizer: "resource:///modules/Sanitizer.jsm",
   SaveToPocket: "chrome://pocket/content/SaveToPocket.jsm",
+  ScreenshotsUtils: "resource:///modules/ScreenshotsUtils.jsm",
   SearchSERPTelemetry: "resource:///modules/SearchSERPTelemetry.jsm",
   SessionStartup: "resource:///modules/sessionstore/SessionStartup.jsm",
   SessionStore: "resource:///modules/sessionstore/SessionStore.jsm",
@@ -1977,6 +1978,16 @@ BrowserGlue.prototype = {
   _monitorTranslationsPref() {
     const PREF = "extensions.translations.disabled";
     const ID = "firefox-translations@mozilla.org";
+    const oldID = "firefox-infobar-ui-bergamot-browser-extension@browser.mt";
+
+    // First, try to uninstall the old extension, if exists.
+    (async () => {
+      let addon = await AddonManager.getAddonByID(oldID);
+      if (addon) {
+        addon.uninstall().catch(Cu.reportError);
+      }
+    })();
+
     const _checkTranslationsPref = async () => {
       let addon = await AddonManager.getAddonByID(ID);
       let disabled = Services.prefs.getBoolPref(PREF, false);
@@ -2392,6 +2403,16 @@ BrowserGlue.prototype = {
       {
         task: () => {
           this._maybeShowDefaultBrowserPrompt();
+        },
+      },
+
+      {
+        task: () => {
+          if (
+            Services.prefs.getBoolPref("screenshots.browser.component.enabled")
+          ) {
+            ScreenshotsUtils.initialize();
+          }
         },
       },
 

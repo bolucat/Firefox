@@ -24,14 +24,14 @@ const AppConstants = ChromeUtils.import(
 ).AppConstants;
 
 /**
- * @typedef {import("../@types/perf").RecordingStateFromPreferences} RecordingStateFromPreferences
- * @typedef {import("../@types/perf").PopupBackgroundFeatures} PopupBackgroundFeatures
+ * @typedef {import("../@types/perf").RecordingSettings} RecordingSettings
  * @typedef {import("../@types/perf").SymbolTableAsTuple} SymbolTableAsTuple
  * @typedef {import("../@types/perf").Library} Library
  * @typedef {import("../@types/perf").PerformancePref} PerformancePref
  * @typedef {import("../@types/perf").ProfilerWebChannel} ProfilerWebChannel
  * @typedef {import("../@types/perf").MessageFromFrontend} MessageFromFrontend
  * @typedef {import("../@types/perf").PageContext} PageContext
+ * @typedef {import("../@types/perf").PrefPostfix} PrefPostfix
  * @typedef {import("../@types/perf").Presets} Presets
  * @typedef {import("../@types/perf").ProfilerViewMode} ProfilerViewMode
  */
@@ -75,8 +75,6 @@ const lazy = createLazyLoaders({
     ChromeUtils.import(
       "resource://devtools/client/performance-new/symbolication.jsm.js"
     ),
-  PreferenceManagement: () =>
-    require("devtools/client/performance-new/preference-management"),
   ProfilerMenuButton: () =>
     ChromeUtils.import(
       "resource://devtools/client/performance-new/popup/menu-button.jsm.js"
@@ -175,11 +173,10 @@ const presets = {
 const symbolCache = new Map();
 
 /**
- * @param {PageContext} pageContext
  * @param {string} debugName
  * @param {string} breakpadId
  */
-async function getSymbolsFromThisBrowser(pageContext, debugName, breakpadId) {
+async function getSymbolsFromThisBrowser(debugName, breakpadId) {
   if (symbolCache.size === 0) {
     // Prime the symbols cache.
     for (const lib of Services.profiler.sharedLibraries) {
@@ -200,7 +197,7 @@ async function getSymbolsFromThisBrowser(pageContext, debugName, breakpadId) {
   }
 
   const lib = cachedLib;
-  const objdirs = getObjdirPrefValue(pageContext);
+  const objdirs = getObjdirPrefValue("");
   const { getSymbolTableMultiModal } = lazy.PerfSymbolication();
   return getSymbolTableMultiModal(lib, objdirs);
 }
@@ -213,8 +210,8 @@ async function getSymbolsFromThisBrowser(pageContext, debugName, breakpadId) {
  * @return {ProfilerViewMode | undefined}
  */
 function getProfilerViewModeForCurrentPreset(pageContext) {
-  const postfix = getPrefPostfix(pageContext);
-  const presetName = Services.prefs.getCharPref(PRESET_PREF + postfix);
+  const prefPostfix = getPrefPostfix(pageContext);
+  const presetName = Services.prefs.getCharPref(PRESET_PREF + prefPostfix);
 
   if (presetName === "custom") {
     return undefined;
@@ -229,18 +226,19 @@ function getProfilerViewModeForCurrentPreset(pageContext) {
 }
 
 /**
- * This function is called directly by devtools/startup/DevToolsStartup.jsm when
- * using the shortcut keys to capture a profile.
+ * This function is called when the profile is captured with the shortcut
+ * keys, with the profiler toolbarbutton, or with the button inside the
+ * popup.
  * @param {PageContext} pageContext
  * @return {Promise<void>}
  */
 async function captureProfile(pageContext) {
   if (!Services.profiler.IsActive()) {
-    // The profiler is not active, ignore this shortcut.
+    // The profiler is not active, ignore.
     return;
   }
   if (Services.profiler.IsPaused()) {
-    // The profiler is already paused for capture, ignore this shortcut.
+    // The profiler is already paused for capture, ignore.
     return;
   }
 
@@ -258,30 +256,36 @@ async function captureProfile(pageContext) {
     );
 
   const profilerViewMode = getProfilerViewModeForCurrentPreset(pageContext);
-  const receiveProfile = lazy.BrowserModule().receiveProfile;
-  receiveProfile(profile, profilerViewMode, (debugName, breakpadId) => {
-    return getSymbolsFromThisBrowser(pageContext, debugName, breakpadId);
-  });
+  const { openProfilerAndDisplayProfile } = lazy.BrowserModule();
+  openProfilerAndDisplayProfile(
+    profile,
+    profilerViewMode,
+    /**
+     * @param {string} debugName
+     * @param {string} breakpadId
+     */
+    (debugName, breakpadId) => {
+      return getSymbolsFromThisBrowser(debugName, breakpadId);
+    }
+  );
 
   Services.profiler.StopProfiler();
 }
 
 /**
- * This function is only called by devtools/startup/DevToolsStartup.jsm when
- * starting the profiler using the shortcut keys, through toggleProfiler below.
+ * This function is called when the profiler is started with the shortcut
+ * keys, with the profiler toolbarbutton, or with the button inside the
+ * popup.
  * @param {PageContext} pageContext
  */
 function startProfiler(pageContext) {
-  const { translatePreferencesToState } = lazy.PreferenceManagement();
   const {
     entries,
     interval,
     features,
     threads,
     duration,
-  } = translatePreferencesToState(
-    getRecordingPreferences(pageContext, Services.profiler.GetFeatures())
-  );
+  } = getRecordingSettings(pageContext, Services.profiler.GetFeatures());
 
   // Get the active Browser ID from browser.
   const { getActiveBrowserID } = lazy.RecordingUtils();
@@ -358,7 +362,7 @@ function _getArrayOfStringsHostPref(prefName) {
  * their pref names.
  *
  * @param {PageContext} pageContext
- * @returns {string}
+ * @returns {PrefPostfix}
  */
 function getPrefPostfix(pageContext) {
   switch (pageContext) {
@@ -377,43 +381,89 @@ function getPrefPostfix(pageContext) {
 }
 
 /**
- * @param {PageContext} pageContext
+ * @param {PrefPostfix} prefPostfix
  * @returns {string[]}
  */
-function getObjdirPrefValue(pageContext) {
-  const postfix = getPrefPostfix(pageContext);
-  return _getArrayOfStringsHostPref(OBJDIRS_PREF + postfix);
+function getObjdirPrefValue(prefPostfix) {
+  return _getArrayOfStringsHostPref(OBJDIRS_PREF + prefPostfix);
 }
 
 /**
  * @param {PageContext} pageContext
  * @param {string[]} supportedFeatures
- * @returns {RecordingStateFromPreferences}
+ * @returns {RecordingSettings}
  */
-function getRecordingPreferences(pageContext, supportedFeatures) {
-  const postfix = getPrefPostfix(pageContext);
+function getRecordingSettings(pageContext, supportedFeatures) {
+  const prefPostfix = getPrefPostfix(pageContext);
+  const objdirs = getObjdirPrefValue(prefPostfix);
+  const presetName = Services.prefs.getCharPref(PRESET_PREF + prefPostfix);
 
-  // If you add a new preference here, please do not forget to update
-  // `revertRecordingPreferences` as well.
-  const objdirs = getObjdirPrefValue(pageContext);
-  const presetName = Services.prefs.getCharPref(PRESET_PREF + postfix);
-
-  // First try to get the values from a preset.
-  const recordingPrefs = getRecordingPrefsFromPreset(
-    presetName,
-    supportedFeatures,
-    objdirs
+  // First try to get the values from a preset. If the preset is "custom" or
+  // unrecognized, getRecordingSettingsFromPreset will return null and we will
+  // get the settings from individual prefs instead.
+  return (
+    getRecordingSettingsFromPreset(presetName, supportedFeatures, objdirs) ??
+    getRecordingSettingsFromPrefs(supportedFeatures, objdirs, prefPostfix)
   );
-  if (recordingPrefs) {
-    return recordingPrefs;
+}
+
+/**
+ * @param {string} presetName
+ * @param {string[]} supportedFeatures
+ * @param {string[]} objdirs
+ * @return {RecordingSettings | null}
+ */
+function getRecordingSettingsFromPreset(
+  presetName,
+  supportedFeatures,
+  objdirs
+) {
+  if (presetName === "custom") {
+    return null;
   }
 
-  // Next use the preferences to get the values.
-  const entries = Services.prefs.getIntPref(ENTRIES_PREF + postfix);
-  const interval = Services.prefs.getIntPref(INTERVAL_PREF + postfix);
-  const features = _getArrayOfStringsPref(FEATURES_PREF + postfix);
-  const threads = _getArrayOfStringsPref(THREADS_PREF + postfix);
-  const duration = Services.prefs.getIntPref(DURATION_PREF + postfix);
+  const preset = presets[presetName];
+  if (!preset) {
+    console.error(`Unknown profiler preset was encountered: "${presetName}"`);
+    return null;
+  }
+
+  return {
+    presetName,
+    entries: preset.entries,
+    interval: preset.interval,
+    // Validate the features before passing them to the profiler.
+    features: preset.features.filter(feature =>
+      supportedFeatures.includes(feature)
+    ),
+    threads: preset.threads,
+    objdirs,
+    duration: preset.duration,
+  };
+}
+
+/**
+ * @param {string[]} supportedFeatures
+ * @param {string[]} objdirs
+ * @param {PrefPostfix} prefPostfix
+ * @return {RecordingSettings}
+ */
+function getRecordingSettingsFromPrefs(
+  supportedFeatures,
+  objdirs,
+  prefPostfix
+) {
+  // If you add a new preference here, please do not forget to update
+  // `revertRecordingSettings` as well.
+
+  const entries = Services.prefs.getIntPref(ENTRIES_PREF + prefPostfix);
+  const intervalInMicroseconds = Services.prefs.getIntPref(
+    INTERVAL_PREF + prefPostfix
+  );
+  const interval = intervalInMicroseconds / 1000;
+  const features = _getArrayOfStringsPref(FEATURES_PREF + prefPostfix);
+  const threads = _getArrayOfStringsPref(THREADS_PREF + prefPostfix);
+  const duration = Services.prefs.getIntPref(DURATION_PREF + prefPostfix);
 
   return {
     presetName: "custom",
@@ -428,58 +478,29 @@ function getRecordingPreferences(pageContext, supportedFeatures) {
 }
 
 /**
- * @param {string} presetName
- * @param {string[]} supportedFeatures
- * @param {string[]} objdirs
- * @return {RecordingStateFromPreferences | null}
- */
-function getRecordingPrefsFromPreset(presetName, supportedFeatures, objdirs) {
-  if (presetName === "custom") {
-    return null;
-  }
-
-  const preset = presets[presetName];
-  if (!preset) {
-    console.error(`Unknown profiler preset was encountered: "${presetName}"`);
-    return null;
-  }
-
-  return {
-    presetName,
-    entries: preset.entries,
-    // The interval is stored in preferences as microseconds, but the preset
-    // defines it in terms of milliseconds. Make the conversion here.
-    interval: preset.interval * 1000,
-    // Validate the features before passing them to the profiler.
-    features: preset.features.filter(feature =>
-      supportedFeatures.includes(feature)
-    ),
-    threads: preset.threads,
-    objdirs,
-    duration: preset.duration,
-  };
-}
-
-/**
  * @param {PageContext} pageContext
- * @param {RecordingStateFromPreferences} prefs
+ * @param {RecordingSettings} prefs
  */
-function setRecordingPreferences(pageContext, prefs) {
-  const postfix = getPrefPostfix(pageContext);
-  Services.prefs.setCharPref(PRESET_PREF + postfix, prefs.presetName);
-  Services.prefs.setIntPref(ENTRIES_PREF + postfix, prefs.entries);
+function setRecordingSettings(pageContext, prefs) {
+  const prefPostfix = getPrefPostfix(pageContext);
+  Services.prefs.setCharPref(PRESET_PREF + prefPostfix, prefs.presetName);
+  Services.prefs.setIntPref(ENTRIES_PREF + prefPostfix, prefs.entries);
   // The interval pref stores the value in microseconds for extra precision.
-  Services.prefs.setIntPref(INTERVAL_PREF + postfix, prefs.interval);
+  const intervalInMicroseconds = prefs.interval * 1000;
+  Services.prefs.setIntPref(
+    INTERVAL_PREF + prefPostfix,
+    intervalInMicroseconds
+  );
   Services.prefs.setCharPref(
-    FEATURES_PREF + postfix,
+    FEATURES_PREF + prefPostfix,
     JSON.stringify(prefs.features)
   );
   Services.prefs.setCharPref(
-    THREADS_PREF + postfix,
+    THREADS_PREF + prefPostfix,
     JSON.stringify(prefs.threads)
   );
   Services.prefs.setCharPref(
-    OBJDIRS_PREF + postfix,
+    OBJDIRS_PREF + prefPostfix,
     JSON.stringify(prefs.objdirs)
   );
 }
@@ -490,15 +511,15 @@ const platform = AppConstants.platform;
  * Revert the recording prefs for both local and remote profiling.
  * @return {void}
  */
-function revertRecordingPreferences() {
-  for (const postfix of ["", ".remote"]) {
-    Services.prefs.clearUserPref(PRESET_PREF + postfix);
-    Services.prefs.clearUserPref(ENTRIES_PREF + postfix);
-    Services.prefs.clearUserPref(INTERVAL_PREF + postfix);
-    Services.prefs.clearUserPref(FEATURES_PREF + postfix);
-    Services.prefs.clearUserPref(THREADS_PREF + postfix);
-    Services.prefs.clearUserPref(OBJDIRS_PREF + postfix);
-    Services.prefs.clearUserPref(DURATION_PREF + postfix);
+function revertRecordingSettings() {
+  for (const prefPostfix of ["", ".remote"]) {
+    Services.prefs.clearUserPref(PRESET_PREF + prefPostfix);
+    Services.prefs.clearUserPref(ENTRIES_PREF + prefPostfix);
+    Services.prefs.clearUserPref(INTERVAL_PREF + prefPostfix);
+    Services.prefs.clearUserPref(FEATURES_PREF + prefPostfix);
+    Services.prefs.clearUserPref(THREADS_PREF + prefPostfix);
+    Services.prefs.clearUserPref(OBJDIRS_PREF + prefPostfix);
+    Services.prefs.clearUserPref(DURATION_PREF + prefPostfix);
   }
   Services.prefs.clearUserPref(POPUP_FEATURE_FLAG_PREF);
 }
@@ -512,23 +533,23 @@ function revertRecordingPreferences() {
  * @return {void}
  */
 function changePreset(pageContext, presetName, supportedFeatures) {
-  const postfix = getPrefPostfix(pageContext);
-  const objdirs = _getArrayOfStringsHostPref(OBJDIRS_PREF + postfix);
-  let recordingPrefs = getRecordingPrefsFromPreset(
+  const prefPostfix = getPrefPostfix(pageContext);
+  const objdirs = _getArrayOfStringsHostPref(OBJDIRS_PREF + prefPostfix);
+  let recordingSettings = getRecordingSettingsFromPreset(
     presetName,
     supportedFeatures,
     objdirs
   );
 
-  if (!recordingPrefs) {
-    // No recordingPrefs were found for that preset. Most likely this means this
+  if (!recordingSettings) {
+    // No recordingSettings were found for that preset. Most likely this means this
     // is a custom preset, or it's one that we dont recognize for some reason.
     // Get the preferences from the individual preference values.
-    Services.prefs.setCharPref(PRESET_PREF + postfix, presetName);
-    recordingPrefs = getRecordingPreferences(pageContext, supportedFeatures);
+    Services.prefs.setCharPref(PRESET_PREF + prefPostfix, presetName);
+    recordingSettings = getRecordingSettings(pageContext, supportedFeatures);
   }
 
-  setRecordingPreferences(pageContext, recordingPrefs);
+  setRecordingSettings(pageContext, recordingSettings);
 }
 
 /**
@@ -616,10 +637,9 @@ module.exports = {
   restartProfiler,
   toggleProfiler,
   platform,
-  getSymbolsFromThisBrowser,
-  getRecordingPreferences,
-  setRecordingPreferences,
-  revertRecordingPreferences,
+  getRecordingSettings,
+  setRecordingSettings,
+  revertRecordingSettings,
   changePreset,
   handleWebChannelMessage,
 };

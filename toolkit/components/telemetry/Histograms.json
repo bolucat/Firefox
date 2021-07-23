@@ -4957,6 +4957,18 @@
     "releaseChannelCollection": "opt-out",
     "description": "Number of tabs opened across all windows, collected at most every 5 minutes whenever the user interacts with the browser in the following ways: open tab/window, page load."
   },
+  "TAB_UNLOAD_TO_RELOAD": {
+    "record_in_processes": ["main"],
+    "products": ["firefox"],
+    "alert_emails": ["tkikuchi@mozilla.com"],
+    "bug_numbers": [1715858],
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": 100000,
+    "n_buckets": 50,
+    "releaseChannelCollection": "opt-out",
+    "description": "How long (sec) a tab had been unloaded until it was reloaded."
+  },
   "LAZYLOAD_IMAGE_TOTAL": {
     "record_in_processes": ["main", "content"],
     "products": ["firefox"],
@@ -7635,150 +7647,6 @@
     "alert_emails": ["barret@mozilla.com", "perf-telemetry-alerts@mozilla.com"],
     "releaseChannelCollection": "opt-out"
   },
-  "FX_NUMBER_OF_UNIQUE_SITE_ORIGINS_PER_LOADED_TABS_1": {
-    "record_in_processes": ["main"],
-    "products": ["firefox"],
-    "expires_in_version": "93",
-    "kind": "exponential",
-    "high": 5000,
-    "n_buckets": 50,
-    "description": "When a document is loaded, if the user has exactly one loaded tab, report the ratio of unique site origins loaded to number of loaded tabs (multiplied by 100) if it has been at least 5 minutes since the last collection",
-    "bug_numbers": [1655138],
-    "alert_emails": ["barret@mozilla.com", "perf-telemetry-alerts@mozilla.com"],
-    "releaseChannelCollection": "opt-out"
-  },
-  "FX_NUMBER_OF_UNIQUE_SITE_ORIGINS_PER_LOADED_TABS_2_4": {
-    "record_in_processes": ["main"],
-    "products": ["firefox"],
-    "expires_in_version": "93",
-    "kind": "exponential",
-    "high": 5000,
-    "n_buckets": 50,
-    "description": "When a document is loaded, if the user has a number of loaded tabs in the range 2 <= N <= 4, report the ratio of unique site origins loaded to number of loaded tabs (multiplied by 100) if it has been at least 5 minutes since the last collection",
-    "bug_numbers": [1655138],
-    "alert_emails": ["barret@mozilla.com", "perf-telemetry-alerts@mozilla.com"],
-    "releaseChannelCollection": "opt-out"
-  },
-  "FX_NUMBER_OF_UNIQUE_SITE_ORIGINS_PER_LOADED_TABS_5_9": {
-    "record_in_processes": ["main"],
-    "products": ["firefox"],
-    "expires_in_version": "93",
-    "kind": "exponential",
-    "high": 5000,
-    "n_buckets": 50,
-    "description": "When a document is loaded, if the user has a number of loaded tabs in the range 5 <= N <= 9, report the ratio of unique site origins loaded to number of loaded tabs (multiplied by 100) if it has been at least 5 minutes since the last collection",
-    "bug_numbers": [1655138],
-    "alert_emails": ["barret@mozilla.com", "perf-telemetry-alerts@mozilla.com"],
-    "releaseChannelCollection": "opt-out"
-  },
-  "FX_NUMBER_OF_UNIQUE_SITE_ORIGINS_PER_LOADED_TABS_10_14": {
-    "record_in_processes": ["main"],
-    "products": ["firefox"],
-    "expires_in_version": "93",
-    "kind": "exponential",
-    "high": 5000,
-    "n_buckets": 50,
-    "description": "When a document is loaded, if the user has a number of loaded tabs in the range 10 <= N <= 14, report the ratio of unique site origins loaded to number of loaded tabs (multiplied by 100) if it has been at least 5 minutes since the last collection",
-    "bug_numbers": [1655138],
-    "alert_emails": ["barret@mozilla.com", "perf-telemetry-alerts@mozilla.com"],
-    "releaseChannelCollection": "opt-out"
-  },
-  "FX_NUMBER_OF_UNIQUE_SITE_ORIGINS_PER_LOADED_TABS_15_19": {
-    "record_in_processes": ["main"],
-    "products": ["firefox"],
-    "expires_in_version": "93",
-    "kind": "exponential",
-    "high": 5000,
-    "n_buckets": 50,
-    "description": "When a document is loaded, if the user has a number of loaded tabs in the range 15 <= N <= 19, report the ratio of unique site origins loaded to number of loaded tabs (multiplied by 100) if it has been at least 5 minutes since the last collection",
-    "bug_numbers": [1655138],
-    "alert_emails": ["barret@mozilla.com", "perf-telemetry-alerts@mozilla.com"],
-    "releaseChannelCollection": "opt-out"
-  },
-  "FX_NUMBER_OF_UNIQUE_SITE_ORIGINS_PER_LOADED_TABS_20_24": {
-    "record_in_processes": ["main"],
-    "products": ["firefox"],
-    "expires_in_version": "93",
-    "kind": "exponential",
-    "high": 5000,
-    "n_buckets": 50,
-    "description": "When a document is loaded, if the user has a number of loaded tabs in the range 20 <= N <= 24, report the ratio of unique site origins loaded to number of loaded tabs (multiplied by 100) if it has been at least 5 minutes since the last collection",
-    "bug_numbers": [1655138],
-    "alert_emails": ["barret@mozilla.com", "perf-telemetry-alerts@mozilla.com"],
-    "releaseChannelCollection": "opt-out"
-  },
-  "FX_NUMBER_OF_UNIQUE_SITE_ORIGINS_PER_LOADED_TABS_25_29": {
-    "record_in_processes": ["main"],
-    "products": ["firefox"],
-    "expires_in_version": "93",
-    "kind": "exponential",
-    "high": 5000,
-    "n_buckets": 50,
-    "description": "When a document is loaded, if the user has a number of loaded tabs in the range 25 <= N <= 29, report the ratio of unique site origins loaded to number of loaded tabs (multiplied by 100) if it has been at least 5 minutes since the last collection",
-    "bug_numbers": [1655138],
-    "alert_emails": ["barret@mozilla.com", "perf-telemetry-alerts@mozilla.com"],
-    "releaseChannelCollection": "opt-out"
-  },
-  "FX_NUMBER_OF_UNIQUE_SITE_ORIGINS_PER_LOADED_TABS_30_34": {
-    "record_in_processes": ["main"],
-    "products": ["firefox"],
-    "expires_in_version": "93",
-    "kind": "exponential",
-    "high": 5000,
-    "n_buckets": 50,
-    "description": "When a document is loaded, if the user has a number of loaded tabs in the range 30 <= N <= 34, report the ratio of unique site origins loaded to number of loaded tabs (multiplied by 100) if it has been at least 5 minutes since the last collection",
-    "bug_numbers": [1655138],
-    "alert_emails": ["barret@mozilla.com", "perf-telemetry-alerts@mozilla.com"],
-    "releaseChannelCollection": "opt-out"
-  },
-  "FX_NUMBER_OF_UNIQUE_SITE_ORIGINS_PER_LOADED_TABS_35_39": {
-    "record_in_processes": ["main"],
-    "products": ["firefox"],
-    "expires_in_version": "93",
-    "kind": "exponential",
-    "high": 5000,
-    "n_buckets": 50,
-    "description": "When a document is loaded, if the user has a number of loaded tabs in the range 35 <= N <= 39, report the ratio of unique site origins loaded to number of loaded tabs (multiplied by 100) if it has been at least 5 minutes since the last collection",
-    "bug_numbers": [1655138],
-    "alert_emails": ["barret@mozilla.com", "perf-telemetry-alerts@mozilla.com"],
-    "releaseChannelCollection": "opt-out"
-  },
-  "FX_NUMBER_OF_UNIQUE_SITE_ORIGINS_PER_LOADED_TABS_40_44": {
-    "record_in_processes": ["main"],
-    "products": ["firefox"],
-    "expires_in_version": "93",
-    "kind": "exponential",
-    "high": 5000,
-    "n_buckets": 50,
-    "description": "When a document is loaded, if the user has a number of loaded tabs in the range 40 <= N <= 44, report the ratio of unique site origins loaded to number of loaded tabs (multiplied by 100) if it has been at least 5 minutes since the last collection",
-    "bug_numbers": [1655138],
-    "alert_emails": ["barret@mozilla.com", "perf-telemetry-alerts@mozilla.com"],
-    "releaseChannelCollection": "opt-out"
-  },
-  "FX_NUMBER_OF_UNIQUE_SITE_ORIGINS_PER_LOADED_TABS_45_49": {
-    "record_in_processes": ["main"],
-    "products": ["firefox"],
-    "expires_in_version": "93",
-    "kind": "exponential",
-    "high": 5000,
-    "n_buckets": 50,
-    "description": "When a document is loaded, if the user has a number of loaded tabs in the range 45 <= N <= 49, report the ratio of unique site origins loaded to number of loaded tabs (multiplied by 100) if it has been at least 5 minutes since the last collection",
-    "bug_numbers": [1655138],
-    "alert_emails": ["barret@mozilla.com", "perf-telemetry-alerts@mozilla.com"],
-    "releaseChannelCollection": "opt-out"
-  },
-  "FX_NUMBER_OF_UNIQUE_SITE_ORIGINS_PER_LOADED_TABS_50_PLUS": {
-    "record_in_processes": ["main"],
-    "products": ["firefox"],
-    "expires_in_version": "93",
-    "kind": "exponential",
-    "high": 5000,
-    "n_buckets": 50,
-    "description": "When a document is loaded, if the user has 50 or more loaded tabs, report the ratio of unique site origins loaded to number of loaded tabs (multiplied by 100) if it has been at least 5 minutes since the last collection",
-    "bug_numbers": [1655138],
-    "alert_emails": ["barret@mozilla.com", "perf-telemetry-alerts@mozilla.com"],
-    "releaseChannelCollection": "opt-out"
-  },
   "FX_TAB_SWITCH_REQUEST_TAB_WARMING_STATE": {
     "record_in_processes": ["main"],
     "products": ["firefox"],
@@ -8171,18 +8039,6 @@
     "kind": "boolean",
     "releaseChannelCollection": "opt-out",
     "description": "Whether the browser we migrated from was the browser with the most recent data. Keyed by that browser's identifier (e.g. 'ie', 'edge', 'safari', etc.)."
-  },
-  "FX_PICTURE_IN_PICTURE_WINDOW_OPEN_DURATION": {
-    "record_in_processes": ["main"],
-    "products": ["firefox"],
-    "alert_emails": ["mconley@mozilla.com", "rtestard@mozilla.com"],
-    "bug_numbers": [1560590, 1683100],
-    "expires_in_version": "93",
-    "kind": "exponential",
-    "high": 10000,
-    "n_buckets": 100,
-    "description": "The length of time (in seconds) that a Picture-in-Picture window was open.",
-    "releaseChannelCollection": "opt-out"
   },
   "FX_ABOUTHOME_CACHE_CONSTRUCTION": {
     "record_in_processes": ["content"],
@@ -10303,25 +10159,25 @@
     "record_in_processes": ["main"],
     "products": ["firefox"],
     "alert_emails": ["jwatt@jwatt.org", "emilio@mozilla.com"],
-    "expires_in_version": "92",
+    "expires_in_version": "98",
     "description": "Milliseconds taken from when a print is initiated (typically by the user) to when the platform code is sent the print settings to create the initial print preview document.",
     "kind": "exponential",
     "high": 10000,
     "n_buckets": 50,
     "releaseChannelCollection": "opt-out",
-    "bug_numbers": [1663733]
+    "bug_numbers": [1663733, 1714261]
   },
   "PRINT_INIT_TO_PREVIEW_DOC_SHOWN_MS" : {
     "record_in_processes": ["main"],
     "products": ["firefox"],
     "alert_emails": ["jwatt@jwatt.org", "emilio@mozilla.com"],
-    "expires_in_version": "92",
+    "expires_in_version": "98",
     "description": "Milliseconds taken from when a print is initiated (typically by the user) to when the initial print preview document is shown.",
     "kind": "exponential",
     "high": 10000,
     "n_buckets": 50,
     "releaseChannelCollection": "opt-out",
-    "bug_numbers": [1663733]
+    "bug_numbers": [1663733, 1714261]
   },
   "DEVTOOLS_COLD_TOOLBOX_OPEN_DELAY_MS": {
     "record_in_processes": ["main"],
@@ -16471,8 +16327,8 @@
     "record_in_processes": ["main"],
     "products": ["firefox"],
     "alert_emails": ["pbz@mozilla.com", "seceng-telemetry@mozilla.com"],
-    "bug_numbers": [1672344, 1683103, 1700832],
-    "expires_in_version": "93",
+    "bug_numbers": [1672344, 1683103, 1700832, 1720612],
+    "expires_in_version": "96",
     "kind": "categorical",
     "releaseChannelCollection": "opt-out",
     "description": "Counts how often the external protocol handler dialog is shown. Labelled by protocol scheme. Keyed by the kind of browsing context the navigation was triggered from: TOPLEVEL: Top browser, SUB_SAMEORIGIN: Same origin iframe, SUB_CROSSORIGIN: Cross origin iframe, SUB_SANDBOX_ALLOW: Sandboxed iframe with relevant allow flags, SUB_SANDBOX_NOALLOW: Sandboxed iframe without relevant allow flags",
@@ -16571,7 +16427,10 @@
       "weixin",
       "whatsapp",
       "xbls",
-      "xmpp"
+      "xmpp",
+      "gotoopener",
+      "msteams",
+      "ROBLOX"
     ]
   },
   "ECHCONFIG_SUCCESS_RATE": {

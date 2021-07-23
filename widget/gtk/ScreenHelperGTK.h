@@ -15,6 +15,8 @@
 #  include "X11UndefineNone.h"
 #endif
 
+class nsWindow;
+
 namespace mozilla {
 namespace widget {
 
@@ -22,12 +24,22 @@ class ScreenGetter {
  public:
   ScreenGetter() = default;
   virtual ~ScreenGetter(){};
+
+  virtual void Init(){};
+
+  virtual void RefreshScreens(){};
+  virtual RefPtr<nsIScreen> GetScreenForWindow(nsWindow* aWindow) {
+    return nullptr;
+  }
+  virtual void GetScreenRectForWindow(nsWindow* aWindow, GdkRectangle* aRect){};
 };
 
 class ScreenGetterGtk : public ScreenGetter {
  public:
   ScreenGetterGtk();
   ~ScreenGetterGtk();
+
+  void Init();
 
 #ifdef MOZ_X11
   Atom NetWorkareaAtom() { return mNetWorkareaAtom; }
@@ -43,15 +55,56 @@ class ScreenGetterGtk : public ScreenGetter {
 #endif
 };
 
+class ScreenGetterWayland;
+
+struct MonitorConfig {
+  int id = 0;
+  int x = 0;
+  int y = 0;
+  int width_mm = 0;
+  int height_mm = 0;
+  int width = 0;
+  int height = 0;
+  int scale = 0;
+
+ public:
+  explicit MonitorConfig(int aId) : id(aId){};
+};
+
+class ScreenGetterWayland : public ScreenGetter {
+ public:
+  ScreenGetterWayland() : mRegistry() {};
+  ~ScreenGetterWayland();
+
+  void Init();
+
+  MonitorConfig* AddMonitorConfig(int aId);
+  bool RemoveMonitorConfig(int aId);
+  already_AddRefed<Screen> MakeScreenWayland(gint aMonitorNum);
+
+  RefPtr<nsIScreen> GetScreenForWindow(nsWindow* aWindow);
+  void GetScreenRectForWindow(nsWindow* aWindow, GdkRectangle* aRect);
+
+  // For internal use from signal callback functions
+  void RefreshScreens();
+
+ private:
+  int GetMonitorForWindow(nsWindow* aWindow);
+
+ private:
+  void* mRegistry;
+  AutoTArray<MonitorConfig, 4> mMonitors;
+  AutoTArray<RefPtr<Screen>, 4> mScreenList;
+};
+
 class ScreenHelperGTK final : public ScreenManager::Helper {
  public:
   ScreenHelperGTK();
-  ~ScreenHelperGTK() = default;
+  ~ScreenHelperGTK();
 
   static gint GetGTKMonitorScaleFactor(gint aMonitorNum = 0);
-
- private:
-  UniquePtr<ScreenGetter> mGetter;
+  static RefPtr<nsIScreen> GetScreenForWindow(nsWindow* aWindow);
+  static void GetScreenRectForWindow(nsWindow* aWindow, GdkRectangle* aRect);
 };
 
 }  // namespace widget

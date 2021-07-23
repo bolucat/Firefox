@@ -30,6 +30,20 @@ binutils-2.31.1:
         strip-components: 1
         add-prefix: binutils-source/
 
+binutils-2.36.1:
+    description: binutils 2.36.1 source code
+    fetch:
+        type: static-url
+        url: ftp://ftp.gnu.org/gnu/binutils/binutils-2.36.1.tar.xz
+        sha256: e81d9edf373f193af428a0f256674aea62a9d74dfe93f65192d4eae030b0f3b0
+        size: 22772248
+        gpg-signature:
+            sig-url: "{url}.sig"
+            key-path: build/unix/build-binutils/3A24BC1E8FB409FA9F14371813FCEF89DD9E3C4F.key
+        artifact-name: binutils-source.tar.zst
+        strip-components: 1
+        add-prefix: binutils-source/
+
 gcc-6.5.0:
     description: GCC 6.5.0 source code
     fetch:
@@ -532,13 +546,13 @@ winchecksec:
         repo: https://github.com/trailofbits/winchecksec/
         revision: 93ffe67dbfc757bf6f440d80b8acf88e652ed60a
 
-codeql-2.0.3:
+codeql-2.5.7:
     description: CodeQL query tools
     fetch:
         type: static-url
-        url: https://github.com/github/codeql-cli-binaries/releases/download/v2.0.3/codeql.zip
-        sha256: 094ff1ffc7211e8222c148e375fdd53b58bd4c0fe20875d9d7abf2a5e6c341a5
-        size: 473738719
+        url: https://github.com/github/codeql-cli-binaries/releases/download/v2.5.7/codeql-linux64.zip
+        sha256: b60a5f2929ac69ffdca85b666c50eadde60ad3387bf6953a7bfcd80b59ee4cff
+        size: 261487494
         artifact-name: codeql.zip
 
 sonatype-nexus:

@@ -2215,6 +2215,7 @@ struct GlobalProperties {
   bool DefineInSandbox(JSContext* cx, JS::HandleObject obj);
 
   // Interface objects we can expose.
+  bool AbortController : 1;
   bool Blob : 1;
   bool ChromeUtils : 1;
   bool CSS : 1;
@@ -2243,6 +2244,7 @@ struct GlobalProperties {
   bool URL : 1;
   bool URLSearchParams : 1;
   bool XMLHttpRequest : 1;
+  bool WebSocket : 1;
   bool XMLSerializer : 1;
 
   // Ad-hoc property names we implement.

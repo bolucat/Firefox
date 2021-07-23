@@ -19,7 +19,7 @@ job-defaults:
             by-test-platform:
                 android-em-7.*:
                     - android/android_common.py
-                    - android/androidx86_7_0.py
+                    - android/android-x86_64.py
                 android-hw.*:
                     - android/android_common.py
                     - android/android_hw.py
@@ -51,9 +51,9 @@ gtest:
     instance-size: xlarge
     run-on-projects:
         by-test-platform:
-            windows.*-shippable/.*: []  # permafails on shippable
-            windows.*-nightly/.*: []  # permafails on nightly too
-            .*-devedition/.*: []  # don't run on devedition
+            windows.*-shippable-qr/.*: []  # permafails on shippable
+            windows.*-nightly-qr/.*: []  # permafails on nightly too
+            .*-devedition.*/.*: []  # don't run on devedition
             linux1804-32-qr/debug: ['mozilla-central']  # try and m-c
             linux1804-32-qr/opt: []  # try only, shippable on m-c
             linux1804-32-shippable-qr/opt: ['mozilla-central']  # try and m-c
@@ -75,8 +75,8 @@ jittest:
     treeherder-symbol: Jit
     run-on-projects:
         by-test-platform:
-            android-hw-.*-aarch64/debug: ['mozilla-central', 'release']
-            android-hw-.*-arm7/debug: ['mozilla-central', 'release']
+            android-hw-.*-aarch64-qr/debug: ['mozilla-central', 'release']
+            android-hw-.*-arm7-qr/debug: ['mozilla-central', 'release']
             default: built-projects
     chunks:
         by-test-platform:
@@ -114,7 +114,7 @@ jittest-all:
     treeherder-symbol: Jit
     run-on-projects:
         by-test-platform:
-            android-hw-.*-arm7(?:-shippable)?/.*: ['mozilla-central', 'release']
+            android-hw-.*-arm7(?:-shippable)?-qr/.*: ['mozilla-central', 'release']
             default: []
     chunks: 10
     max-run-time: 3600

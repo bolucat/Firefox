@@ -6674,38 +6674,24 @@ nsIWidget* nsContentUtils::WidgetForContent(const nsIContent* aContent) {
   return nullptr;
 }
 
-already_AddRefed<LayerManager> nsContentUtils::LayerManagerForContent(
+WindowRenderer* nsContentUtils::WindowRendererForContent(
     const nsIContent* aContent) {
   nsIWidget* widget = nsContentUtils::WidgetForContent(aContent);
   if (widget) {
-    RefPtr<LayerManager> manager = widget->GetLayerManager();
-    return manager.forget();
+    return widget->GetWindowRenderer();
   }
 
   return nullptr;
 }
 
-static already_AddRefed<LayerManager> LayerManagerForDocumentInternal(
-    const Document* aDoc, bool aRequirePersistent) {
+WindowRenderer* nsContentUtils::WindowRendererForDocument(
+    const Document* aDoc) {
   nsIWidget* widget = nsContentUtils::WidgetForDocument(aDoc);
   if (widget) {
-    RefPtr<LayerManager> manager = widget->GetLayerManager(
-        aRequirePersistent ? nsIWidget::LAYER_MANAGER_PERSISTENT
-                           : nsIWidget::LAYER_MANAGER_CURRENT);
-    return manager.forget();
+    return widget->GetWindowRenderer();
   }
 
   return nullptr;
-}
-
-already_AddRefed<LayerManager> nsContentUtils::LayerManagerForDocument(
-    const Document* aDoc) {
-  return LayerManagerForDocumentInternal(aDoc, false);
-}
-
-already_AddRefed<LayerManager>
-nsContentUtils::PersistentLayerManagerForDocument(Document* aDoc) {
-  return LayerManagerForDocumentInternal(aDoc, true);
 }
 
 bool nsContentUtils::AllowXULXBLForPrincipal(nsIPrincipal* aPrincipal) {

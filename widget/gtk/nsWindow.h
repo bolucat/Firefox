@@ -38,6 +38,7 @@
 #  include <gdk/gdkwayland.h>
 #  include "base/thread.h"
 #  include "WaylandVsyncSource.h"
+#  include "nsClipboardWayland.h"
 #endif
 
 #ifdef MOZ_LOGGING
@@ -72,15 +73,13 @@ extern mozilla::LazyLogModule gWidgetPopupLog;
 #endif /* MOZ_LOGGING */
 
 #ifdef MOZ_WAYLAND
-class nsWaylandDragContext;
-
 gboolean WindowDragMotionHandler(GtkWidget* aWidget,
                                  GdkDragContext* aDragContext,
-                                 nsWaylandDragContext* aWaylandDragContext,
-                                 gint aX, gint aY, guint aTime);
+                                 RefPtr<DataOffer> aDataOffer, gint aX, gint aY,
+                                 guint aTime);
 gboolean WindowDragDropHandler(GtkWidget* aWidget, GdkDragContext* aDragContext,
-                               nsWaylandDragContext* aWaylandDragContext,
-                               gint aX, gint aY, guint aTime);
+                               RefPtr<DataOffer> aDataOffer, gint aX, gint aY,
+                               guint aTime);
 void WindowDragLeaveHandler(GtkWidget* aWidget);
 #endif
 
@@ -450,6 +449,7 @@ class nsWindow final : public nsBaseWidget {
   bool mWindowScaleFactorChanged;
   int mWindowScaleFactor;
   bool mCompositedScreen;
+  bool mIsAccelerated;
 
  private:
   void UpdateAlpha(mozilla::gfx::SourceSurface* aSourceSurface,
@@ -598,10 +598,7 @@ class nsWindow final : public nsBaseWidget {
   void DispatchMissedButtonReleases(GdkEventCrossing* aGdkEvent);
 
   // nsBaseWidget
-  virtual LayerManager* GetLayerManager(
-      PLayerTransactionChild* aShadowManager = nullptr,
-      LayersBackend aBackendHint = mozilla::layers::LayersBackend::LAYERS_NONE,
-      LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT) override;
+  virtual WindowRenderer* GetWindowRenderer() override;
 
   void SetCompositorWidgetDelegate(CompositorWidgetDelegate* delegate) override;
 

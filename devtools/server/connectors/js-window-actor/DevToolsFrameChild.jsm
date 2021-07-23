@@ -188,7 +188,21 @@ class DevToolsFrameChild extends JSWindowActorChild {
           return;
         }
 
-        this._createTargetActor(watcherActorID, connectionPrefix, watchedData);
+        // If we decide to instantiate a new target and there was one before,
+        // first destroy the previous one.
+        // Otherwise its destroy sequence will be executed *after* the new one
+        // is being initialized and may easily revert changes made against platform API.
+        // (typically toggle platform boolean attributes back to default...)
+        if (existingTarget) {
+          existingTarget.destroy();
+        }
+
+        this._createTargetActor({
+          watcherActorID,
+          parentConnectionPrefix: connectionPrefix,
+          watchedData,
+          isDocumentCreation: true,
+        });
       }
     }
   }
@@ -196,17 +210,26 @@ class DevToolsFrameChild extends JSWindowActorChild {
   /**
    * Instantiate a new WindowGlobalTarget for the given connection.
    *
-   * @param String watcherActorID
+   * @param Object options
+   * @param String options.watcherActorID
    *        The ID of the WatcherActor who requested to observe and create these target actors.
-   * @param String parentConnectionPrefix
+   * @param String options.parentConnectionPrefix
    *        The prefix of the DevToolsServerConnection of the Watcher Actor.
    *        This is used to compute a unique ID for the target actor.
-   * @param Object watchedData
+   * @param Object options.watchedData
    *        All data managed by the Watcher Actor and WatcherRegistry.jsm, containing
    *        target types, resources types to be listened as well as breakpoints and any
    *        other data meant to be shared across processes and threads.
+   * @param Boolean options.isDocumentCreation
+   *        Set to true if the function is called from `instantiate`, i.e. when we're
+   *        handling a new document being created.
    */
-  _createTargetActor(watcherActorID, parentConnectionPrefix, watchedData) {
+  _createTargetActor({
+    watcherActorID,
+    parentConnectionPrefix,
+    watchedData,
+    isDocumentCreation,
+  }) {
     if (this._connections.get(watcherActorID)) {
       throw new Error(
         "DevToolsFrameChild _createTargetActor was called more than once" +
@@ -269,7 +292,7 @@ class DevToolsFrameChild extends JSWindowActorChild {
       if (!Array.isArray(entries) || entries.length == 0) {
         continue;
       }
-      targetActor.addWatcherDataEntry(type, entries);
+      targetActor.addWatcherDataEntry(type, entries, isDocumentCreation);
     }
   }
 
@@ -414,11 +437,11 @@ class DevToolsFrameChild extends JSWindowActorChild {
       case "DevToolsFrameParent:instantiate-already-available": {
         const { watcherActorID, connectionPrefix, watchedData } = message.data;
 
-        return this._createTargetActor(
+        return this._createTargetActor({
           watcherActorID,
-          connectionPrefix,
-          watchedData
-        );
+          parentConnectionPrefix: connectionPrefix,
+          watchedData,
+        });
       }
       case "DevToolsFrameParent:destroy": {
         const { watcherActorID } = message.data;
@@ -516,57 +539,73 @@ class DevToolsFrameChild extends JSWindowActorChild {
     // as a DOM event to be listened to and so is fired by JS Window Actor code platform code.
     if (type == "DOMWindowCreated") {
       this.instantiate();
-    } else if (shouldHandleBfCacheEvents && type == "pageshow" && persisted) {
-      // If persisted=true, this is a BFCache navigation.
-      // With Fission enabled, BFCache navigation will spawn a new DocShell
-      // in the same process:
-      // * the previous page won't be destroyed, its JSWindowActor will stay alive (didDestroy won't be called)
-      //   and a pagehide with persisted=true will be emitted on it.
-      // * the new page page won't emit any DOMWindowCreated, but instead a pageshow with persisted=true
-      //   will be emitted.
-      this.instantiate({ forceOverridingFirstTarget: true });
+      return;
     }
-    if (shouldHandleBfCacheEvents && type == "pagehide" && persisted) {
-      // We might navigate away for the first top level target,
-      // which isn't using JSWindowActor (it still uses messages manager and is created by the client, via TabDescriptor.getTarget).
-      // We have to unregister it from the TargetActorRegistry, otherwise,
-      // if we navigate back to it, the next DOMWindowCreated won't create a new target for it.
-      const { sharedData } = Services.cpmm;
-      const watchedDataByWatcherActor = sharedData.get(SHARED_DATA_KEY_NAME);
-      if (!watchedDataByWatcherActor) {
-        throw new Error(
-          "Request to instantiate the target(s) for the BrowsingContext, but `sharedData` is empty about watched targets"
-        );
+
+    if (type === "pageshow" && persisted) {
+      this.sendAsyncMessage("DevToolsFrameChild:bf-cache-navigation-pageshow", {
+        isNewTargetCreated: shouldHandleBfCacheEvents,
+      });
+
+      if (shouldHandleBfCacheEvents) {
+        // If persisted=true, this is a BFCache navigation.
+        // With Fission enabled, BFCache navigation will spawn a new DocShell
+        // in the same process:
+        // * the previous page won't be destroyed, its JSWindowActor will stay alive (didDestroy won't be called)
+        //   and a pagehide with persisted=true will be emitted on it.
+        // * the new page page won't emit any DOMWindowCreated, but instead a pageshow with persisted=true
+        //   will be emitted.
+        this.instantiate({ forceOverridingFirstTarget: true });
       }
 
-      const actors = [];
-      for (const [watcherActorID, watchedData] of watchedDataByWatcherActor) {
-        const { browserId } = watchedData;
-        const existingTarget = this._getTargetActorForWatcherActorID(
-          watcherActorID,
-          browserId
-        );
+      return;
+    }
 
-        if (!existingTarget) {
-          continue;
+    if (type === "pagehide" && persisted) {
+      this.sendAsyncMessage("DevToolsFrameChild:bf-cache-navigation-pagehide");
+
+      if (shouldHandleBfCacheEvents) {
+        // We might navigate away for the first top level target,
+        // which isn't using JSWindowActor (it still uses messages manager and is created by the client, via TabDescriptor.getTarget).
+        // We have to unregister it from the TargetActorRegistry, otherwise,
+        // if we navigate back to it, the next DOMWindowCreated won't create a new target for it.
+        const { sharedData } = Services.cpmm;
+        const watchedDataByWatcherActor = sharedData.get(SHARED_DATA_KEY_NAME);
+        if (!watchedDataByWatcherActor) {
+          throw new Error(
+            "Request to instantiate the target(s) for the BrowsingContext, but `sharedData` is empty about watched targets"
+          );
         }
-        if (existingTarget.window.document != target) {
-          throw new Error("Existing target actor is for a distinct document");
+
+        const actors = [];
+        for (const [watcherActorID, watchedData] of watchedDataByWatcherActor) {
+          const { browserId } = watchedData;
+          const existingTarget = this._getTargetActorForWatcherActorID(
+            watcherActorID,
+            browserId
+          );
+
+          if (!existingTarget) {
+            continue;
+          }
+          if (existingTarget.window.document != target) {
+            throw new Error("Existing target actor is for a distinct document");
+          }
+          actors.push({ watcherActorID, form: existingTarget.form() });
+          existingTarget.destroy();
         }
-        actors.push({ watcherActorID, form: existingTarget.form() });
-        existingTarget.destroy();
+        // The most important is to unregister the actor from TargetActorRegistry,
+        // so that it is no longer present in the list when new DOMWindowCreated fires.
+        // This will also help notify the client that the target has been destroyed.
+        // And if we navigate back to this target, the client will receive the same target actor ID,
+        // so that it is really important to destroy it correctly on both server and client.
+        this.sendAsyncMessage("DevToolsFrameChild:destroy", { actors });
+
+        // Completely clear this JSWindow Actor.
+        // Do this after having called _getTargetActorForWatcherActorID,
+        // as it would clear the registered target actors.
+        this.didDestroy();
       }
-      // The most important is to unregister the actor from TargetActorRegistry,
-      // so that it is no longer present in the list when new DOMWindowCreated fires.
-      // This will also help notify the client that the target has been destroyed.
-      // And if we navigate back to this target, the client will receive the same target actor ID,
-      // so that it is really important to destroy it correctly on both server and client.
-      this.sendAsyncMessage("DevToolsFrameChild:destroy", { actors });
-
-      // Completely clear this JSWindow Actor.
-      // Do this after having called _getTargetActorForWatcherActorID,
-      // as it would clear the registered target actors.
-      this.didDestroy();
     }
   }
 

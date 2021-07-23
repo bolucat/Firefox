@@ -760,9 +760,6 @@ class NativeObject : public JSObject {
   [[nodiscard]] static bool generateNewDictionaryShape(JSContext* cx,
                                                        HandleNativeObject obj);
 
-  [[nodiscard]] static bool reshapeForShadowedProp(JSContext* cx,
-                                                   HandleNativeObject obj);
-
   // The maximum number of slots in an object.
   // |MAX_SLOTS_COUNT * sizeof(JS::Value)| shouldn't overflow
   // int32_t (see slotsSizeMustNotOverflow).
@@ -1180,6 +1177,12 @@ class NativeObject : public JSObject {
     MOZ_ASSERT(slotIsFixed(slot));
     checkStoredValue(value);
     fixedSlots()[slot].init(this, HeapSlot::Slot, slot, value);
+  }
+
+  template <typename T>
+  T* maybePtrFromReservedSlot(uint32_t slot) const {
+    Value v = getReservedSlot(slot);
+    return v.isUndefined() ? nullptr : static_cast<T*>(v.toPrivate());
   }
 
   /*

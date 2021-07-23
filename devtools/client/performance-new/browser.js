@@ -13,7 +13,7 @@
  * @typedef {import("./@types/perf").GetSymbolTableCallback} GetSymbolTableCallback
  * @typedef {import("./@types/perf").PreferenceFront} PreferenceFront
  * @typedef {import("./@types/perf").PerformancePref} PerformancePref
- * @typedef {import("./@types/perf").RecordingStateFromPreferences} RecordingStateFromPreferences
+ * @typedef {import("./@types/perf").RecordingSettings} RecordingSettings
  * @typedef {import("./@types/perf").RestartBrowserWithEnvironmentVariable} RestartBrowserWithEnvironmentVariable
  * @typedef {import("./@types/perf").GetEnvironmentVariable} GetEnvironmentVariable
  * @typedef {import("./@types/perf").GetActiveBrowserID} GetActiveBrowserID
@@ -62,7 +62,7 @@ const UI_BASE_URL_PATH_DEFAULT = "/from-addon";
  * profiler.firefox.com to be analyzed. This function opens up profiler.firefox.com
  * into a new browser tab, and injects the profile via a frame script.
  *
- * @param {MinimallyTypedGeckoProfile} profile - The Gecko profile.
+ * @param {MinimallyTypedGeckoProfile | ArrayBuffer | {}} profile - The Gecko profile.
  * @param {ProfilerViewMode | undefined} profilerViewMode - View mode for the Firefox Profiler
  *   front-end timeline. While opening the url, we should append a query string
  *   if a view other than "full" needs to be displayed.
@@ -72,7 +72,11 @@ const UI_BASE_URL_PATH_DEFAULT = "/from-addon";
  *   function should obtain a symbol table for the requested binary and resolve the
  *   returned promise with it.
  */
-function receiveProfile(profile, profilerViewMode, getSymbolTableCallback) {
+function openProfilerAndDisplayProfile(
+  profile,
+  profilerViewMode,
+  getSymbolTableCallback
+) {
   const Services = lazy.Services();
   // Find the most recently used window, as the DevTools client could be in a variety
   // of hosts.
@@ -203,12 +207,12 @@ function createLibraryMap(profile) {
  * right arguments.
  *
  * @param {MinimallyTypedGeckoProfile} profile - The raw profie (not gzipped).
- * @param {() => string[]} getObjdirs - A function that returns an array of objdir paths
+ * @param {string[]} objdirs - An array of objdir paths
  *   on the host machine that should be searched for relevant build artifacts.
  * @param {PerfFront} perfFront
  * @return {GetSymbolTableCallback}
  */
-function createMultiModalGetSymbolTableFn(profile, getObjdirs, perfFront) {
+function createMultiModalGetSymbolTableFn(profile, objdirs, perfFront) {
   const libraryGetter = createLibraryMap(profile);
 
   return async function getSymbolTable(debugName, breakpadId) {
@@ -218,7 +222,6 @@ function createMultiModalGetSymbolTableFn(profile, getObjdirs, perfFront) {
         `Could not find the library for "${debugName}", "${breakpadId}".`
       );
     }
-    const objdirs = getObjdirs();
     const { getSymbolTableMultiModal } = lazy.PerfSymbolication();
     return getSymbolTableMultiModal(lib, objdirs, perfFront);
   };
@@ -278,7 +281,7 @@ function openFilePickerForObjdir(window, objdirs, changeObjdirs) {
 }
 
 module.exports = {
-  receiveProfile,
+  openProfilerAndDisplayProfile,
   createMultiModalGetSymbolTableFn,
   restartBrowserWithEnvironmentVariable,
   getEnvironmentVariable,

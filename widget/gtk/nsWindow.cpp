@@ -431,6 +431,7 @@ nsWindow::nsWindow()
       mWindowScaleFactorChanged(true),
       mWindowScaleFactor(1),
       mCompositedScreen(gdk_screen_is_composited(gdk_screen_get_default())),
+      mIsAccelerated(false),
       mShell(nullptr),
       mContainer(nullptr),
       mGdkWindow(nullptr),
@@ -971,7 +972,9 @@ void nsWindow::RegisterTouchWindow() {
 }
 
 void nsWindow::ConstrainPosition(bool aAllowSlop, int32_t* aX, int32_t* aY) {
-  if (!mIsTopLevel || !mShell) return;
+  if (!mIsTopLevel || !mShell || GdkIsWaylandDisplay()) {
+    return;
+  }
 
   double dpiScale = GetDefaultScale().scale;
 
@@ -1355,6 +1358,13 @@ void nsWindow::HideWaylandPopupWindow(bool aTemporaryHide,
   // Hide only visible popups or popups closed pernamently.
   if (visible) {
     HideWaylandWindow();
+  }
+
+  // Clear rendering transactions of closed window and disable rendering to it
+  // (see https://bugzilla.mozilla.org/show_bug.cgi?id=1717451#c27
+  // for details).
+  if (mPopupClosed) {
+    RevokeTransactionIdAllocator();
   }
 }
 
@@ -3372,11 +3382,15 @@ gboolean nsWindow::OnExposeEvent(cairo_t* cr) {
   LayoutDeviceIntRegion region = exposeRegion;
   region.ScaleRoundOut(scale, scale);
 
-  if (GetLayerManager()->AsKnowsCompositor() && mCompositorSession) {
+  WindowRenderer* renderer = GetWindowRenderer();
+  LayerManager* layerManager = renderer->AsLayerManager();
+  KnowsCompositor* knowsCompositor = renderer->AsKnowsCompositor();
+
+  if (knowsCompositor && layerManager && mCompositorSession) {
     // We need to paint to the screen even if nothing changed, since if we
     // don't have a compositing window manager, our pixels could be stale.
-    GetLayerManager()->SetNeedsComposite(true);
-    GetLayerManager()->SendInvalidRegion(region.ToUnknownRegion());
+    layerManager->SetNeedsComposite(true);
+    layerManager->SendInvalidRegion(region.ToUnknownRegion());
   }
 
   RefPtr<nsWindow> strongThis(this);
@@ -3396,10 +3410,9 @@ gboolean nsWindow::OnExposeEvent(cairo_t* cr) {
     if (!listener) return FALSE;
   }
 
-  if (GetLayerManager()->AsKnowsCompositor() &&
-      GetLayerManager()->NeedsComposite()) {
-    GetLayerManager()->ScheduleComposite();
-    GetLayerManager()->SetNeedsComposite(false);
+  if (knowsCompositor && layerManager && layerManager->NeedsComposite()) {
+    layerManager->ScheduleComposite();
+    layerManager->SetNeedsComposite(false);
   }
 
   // Our bounds may have changed after calling WillPaintWindow.  Clip
@@ -3450,8 +3463,8 @@ gboolean nsWindow::OnExposeEvent(cairo_t* cr) {
   }
 
   // If this widget uses OMTC...
-  if (GetLayerManager()->GetBackendType() == LayersBackend::LAYERS_CLIENT ||
-      GetLayerManager()->GetBackendType() == LayersBackend::LAYERS_WR) {
+  if (renderer->GetBackendType() == LayersBackend::LAYERS_CLIENT ||
+      renderer->GetBackendType() == LayersBackend::LAYERS_WR) {
     listener->PaintWindow(this, region);
 
     // Re-get the listener since the will paint notification might have
@@ -3516,7 +3529,7 @@ gboolean nsWindow::OnExposeEvent(cairo_t* cr) {
 
   bool painted = false;
   {
-    if (GetLayerManager()->GetBackendType() == LayersBackend::LAYERS_BASIC) {
+    if (renderer->GetBackendType() == LayersBackend::LAYERS_BASIC) {
       if (GetTransparencyMode() == eTransparencyTransparent &&
           layerBuffering == BufferMode::BUFFER_NONE && mHasAlphaVisual) {
         // If our draw target is unbuffered and we use an alpha channel,
@@ -3658,7 +3671,7 @@ gboolean nsWindow::OnConfigureEvent(GtkWidget* aWidget,
     // frame, and its contents might be incorrect. See bug 1280653 comment 7
     // and comment 10. Specifically we must ensure we recomposite the frame
     // as soon as possible to avoid the corrupted frame being displayed.
-    GetLayerManager()->FlushRendering();
+    GetWindowRenderer()->FlushRendering();
     return FALSE;
   }
 
@@ -5202,9 +5215,9 @@ nsresult nsWindow::Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
       }
 
       bool isGLVisualSet = false;
-      bool isAccelerated = ComputeShouldAccelerate();
+      mIsAccelerated = ComputeShouldAccelerate();
 #ifdef MOZ_X11
-      if (isAccelerated) {
+      if (mIsAccelerated) {
         isGLVisualSet = ConfigureX11GLVisual(popupNeedsAlphaVisual ||
                                              toplevelNeedsAlphaVisual);
       }
@@ -5361,7 +5374,7 @@ nsresult nsWindow::Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
       GtkWidget* container = moz_container_new();
       mContainer = MOZ_CONTAINER(container);
 #ifdef MOZ_WAYLAND
-      if (GdkIsWaylandDisplay() && isAccelerated) {
+      if (GdkIsWaylandDisplay() && mIsAccelerated) {
         mCompositorInitiallyPaused = true;
         RefPtr<nsWindow> self(this);
         moz_container_wayland_add_initial_draw_callback(
@@ -5429,7 +5442,7 @@ nsresult nsWindow::Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
       // the drawing window
       mGdkWindow = gtk_widget_get_window(eventWidget);
 
-      if (GdkIsX11Display() && gfx::gfxVars::UseEGL() && isAccelerated) {
+      if (GdkIsX11Display() && gfx::gfxVars::UseEGL() && mIsAccelerated) {
         mCompositorInitiallyPaused = true;
         mNeedsCompositorResume = true;
         MaybeResumeCompositor();
@@ -5885,37 +5898,41 @@ void nsWindow::MaybeResumeCompositor() {
 }
 
 void nsWindow::PauseCompositor() {
-  if (!mIsDestroyed) {
-    if (mContainer) {
-      // Because wl_egl_window is destroyed on moz_container_unmap(),
-      // the current compositor cannot use it anymore. To avoid crash,
-      // pause the compositor and destroy EGLSurface & resume the compositor
-      // and re-create EGLSurface on next expose event.
+  // Because wl_egl_window is destroyed on moz_container_unmap(),
+  // the current compositor cannot use it anymore. To avoid crash,
+  // pause the compositor and destroy EGLSurface & resume the compositor
+  // and re-create EGLSurface on next expose event.
 
-      // moz_container_wayland_has_egl_window() could not be used here, since
-      // there is a case that resume compositor is not completed yet.
+  // moz_container_wayland_has_egl_window() could not be used here, since
+  // there is a case that resume compositor is not completed yet.
 
-      CompositorBridgeChild* remoteRenderer = GetRemoteRenderer();
-      bool needsCompositorPause = !mNeedsCompositorResume && !!remoteRenderer &&
-                                  mCompositorWidgetDelegate;
-      if (needsCompositorPause) {
-        // XXX slow sync IPC
-        remoteRenderer->SendPause();
+  // TODO: The compositor backend currently relies on the pause event to work
+  // around a Gnome specific bug. Remove again once the fix is widely available.
+  // See bug 1721298
+  if ((!mIsAccelerated && !gfx::gfxVars::UseWebRenderCompositor()) ||
+      mIsDestroyed) {
+    return;
+  }
+
+  CompositorBridgeChild* remoteRenderer = GetRemoteRenderer();
+  bool needsCompositorPause =
+      !mNeedsCompositorResume && !!remoteRenderer && mCompositorWidgetDelegate;
+  if (needsCompositorPause) {
+    // XXX slow sync IPC
+    remoteRenderer->SendPause();
 #ifdef MOZ_WAYLAND
-        if (GdkIsWaylandDisplay()) {
-          // Re-request initial draw callback
-          RefPtr<nsWindow> self(this);
-          moz_container_wayland_add_initial_draw_callback(
-              mContainer, [self]() -> void {
-                self->mNeedsCompositorResume = true;
-                self->MaybeResumeCompositor();
-              });
-        }
-#endif
-      } else {
-        DestroyLayerManager();
-      }
+    if (GdkIsWaylandDisplay()) {
+      // Re-request initial draw callback
+      RefPtr<nsWindow> self(this);
+      moz_container_wayland_add_initial_draw_callback(
+          mContainer, [self]() -> void {
+            self->mNeedsCompositorResume = true;
+            self->MaybeResumeCompositor();
+          });
     }
+#endif
+  } else {
+    DestroyLayerManager();
   }
 }
 
@@ -6863,6 +6880,16 @@ void nsWindow::PerformFullscreenTransition(FullscreenTransitionStage aStage,
 }
 
 already_AddRefed<nsIScreen> nsWindow::GetWidgetScreen() {
+  LOG(("nsWindow::GetWidgetScreen() [%p]", this));
+  // Wayland can read screen directly
+  if (GdkIsWaylandDisplay()) {
+    RefPtr<nsIScreen> screen = ScreenHelperGTK::GetScreenForWindow(this);
+    if (screen) {
+      return screen.forget();
+    }
+  }
+
+  LOG(("  fallback to Gtk code"));
   nsCOMPtr<nsIScreenManager> screenManager;
   screenManager = do_GetService("@mozilla.org/gfx/screenmanager;1");
   if (!screenManager) {
@@ -7868,8 +7895,8 @@ void nsWindow::InitDragEvent(WidgetDragEvent& aEvent) {
 
 gboolean WindowDragMotionHandler(GtkWidget* aWidget,
                                  GdkDragContext* aDragContext,
-                                 nsWaylandDragContext* aWaylandDragContext,
-                                 gint aX, gint aY, guint aTime) {
+                                 RefPtr<DataOffer> aDataOffer, gint aX, gint aY,
+                                 guint aTime) {
   RefPtr<nsWindow> window = get_window_for_gtk_widget(aWidget);
   if (!window) {
     return FALSE;
@@ -7893,7 +7920,7 @@ gboolean WindowDragMotionHandler(GtkWidget* aWidget,
 
   RefPtr<nsDragService> dragService = nsDragService::GetInstance();
   return dragService->ScheduleMotionEvent(innerMostWindow, aDragContext,
-                                          aWaylandDragContext, point, aTime);
+                                          aDataOffer, point, aTime);
 }
 
 static gboolean drag_motion_event_cb(GtkWidget* aWidget,
@@ -7945,8 +7972,8 @@ static void drag_leave_event_cb(GtkWidget* aWidget,
 }
 
 gboolean WindowDragDropHandler(GtkWidget* aWidget, GdkDragContext* aDragContext,
-                               nsWaylandDragContext* aWaylandDragContext,
-                               gint aX, gint aY, guint aTime) {
+                               RefPtr<DataOffer> aDataOffer, gint aX, gint aY,
+                               guint aTime) {
   RefPtr<nsWindow> window = get_window_for_gtk_widget(aWidget);
   if (!window) return FALSE;
 
@@ -7968,7 +7995,7 @@ gboolean WindowDragDropHandler(GtkWidget* aWidget, GdkDragContext* aDragContext,
 
   RefPtr<nsDragService> dragService = nsDragService::GetInstance();
   return dragService->ScheduleDropEvent(innerMostWindow, aDragContext,
-                                        aWaylandDragContext, point, aTime);
+                                        aDataOffer, point, aTime);
 }
 
 static gboolean drag_drop_event_cb(GtkWidget* aWidget,
@@ -8252,9 +8279,7 @@ nsresult nsWindow::BeginResizeDrag(WidgetGUIEvent* aEvent, int32_t aHorizontal,
   return NS_OK;
 }
 
-nsIWidget::LayerManager* nsWindow::GetLayerManager(
-    PLayerTransactionChild* aShadowManager, LayersBackend aBackendHint,
-    LayerManagerPersistence aPersistence) {
+nsIWidget::WindowRenderer* nsWindow::GetWindowRenderer() {
   if (mIsDestroyed) {
     // Prevent external code from triggering the re-creation of the
     // LayerManager/Compositor during shutdown. Just return what we currently
@@ -8262,8 +8287,7 @@ nsIWidget::LayerManager* nsWindow::GetLayerManager(
     return mLayerManager;
   }
 
-  return nsBaseWidget::GetLayerManager(aShadowManager, aBackendHint,
-                                       aPersistence);
+  return nsBaseWidget::GetWindowRenderer();
 }
 
 void nsWindow::SetCompositorWidgetDelegate(CompositorWidgetDelegate* delegate) {
@@ -9137,37 +9161,20 @@ void nsWindow::UnlockNativePointer() {
 }
 
 nsresult nsWindow::GetScreenRect(LayoutDeviceIntRect* aRect) {
-  using GdkMonitor = struct _GdkMonitor;
-  static auto s_gdk_display_get_monitor_at_window =
-      (GdkMonitor * (*)(GdkDisplay*, GdkWindow*))
-          dlsym(RTLD_DEFAULT, "gdk_display_get_monitor_at_window");
-
-  static auto s_gdk_monitor_get_workarea =
-      (void (*)(GdkMonitor*, GdkRectangle*))dlsym(RTLD_DEFAULT,
-                                                  "gdk_monitor_get_workarea");
-
-  if (!s_gdk_display_get_monitor_at_window || !s_gdk_monitor_get_workarea) {
-    return NS_ERROR_NOT_IMPLEMENTED;
-  }
-
   GtkWindow* topmostParentWindow = GetCurrentTopmostWindow();
-  GdkWindow* gdkWindow = gtk_widget_get_window(GTK_WIDGET(topmostParentWindow));
-
-  GdkMonitor* monitor =
-      s_gdk_display_get_monitor_at_window(gdk_display_get_default(), gdkWindow);
-  if (monitor) {
-    GdkRectangle workArea;
-    s_gdk_monitor_get_workarea(monitor, &workArea);
-    // The monitor offset won't help us in Wayland, because we can't get the
-    // absolute position of our window.
-    aRect->x = aRect->y = 0;
-    aRect->width = workArea.width;
-    aRect->height = workArea.height;
-    LOG(("  workarea for [%p], monitor %p: x%d y%d w%d h%d\n", this, monitor,
-         workArea.x, workArea.y, workArea.width, workArea.height));
-    return NS_OK;
+  nsWindow* window = get_window_for_gtk_widget(GTK_WIDGET(topmostParentWindow));
+  if (!window) {
+    return NS_ERROR_FAILURE;
   }
-  return NS_ERROR_NOT_IMPLEMENTED;
+
+  GdkRectangle rect;
+  ScreenHelperGTK::GetScreenRectForWindow(window, &rect);
+
+  aRect->x = aRect->y = 0;
+  aRect->width = rect.width;
+  aRect->height = rect.height;
+
+  return NS_OK;
 }
 #endif
 

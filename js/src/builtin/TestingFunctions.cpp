@@ -125,6 +125,7 @@
 #include "wasm/WasmBaselineCompile.h"
 #include "wasm/WasmCraneliftCompile.h"
 #include "wasm/WasmInstance.h"
+#include "wasm/WasmIntrinsic.h"
 #include "wasm/WasmIonCompile.h"
 #include "wasm/WasmJS.h"
 #include "wasm/WasmModule.h"
@@ -1944,6 +1945,23 @@ static bool WasmHasTier2CompilationCompleted(JSContext* cx, unsigned argc,
 
 static bool WasmLoadedFromCache(JSContext* cx, unsigned argc, Value* vp) {
   return WasmReturnFlag(cx, argc, vp, Flag::Deserialized);
+}
+
+static bool WasmIntrinsicI8VecMul(JSContext* cx, unsigned argc, Value* vp) {
+  if (!wasm::HasSupport(cx)) {
+    JS_ReportErrorASCII(cx, "wasm support unavailable");
+    return false;
+  }
+
+  CallArgs args = CallArgsFromVp(argc, vp);
+
+  RootedWasmModuleObject module(cx);
+  if (!wasm::CompileIntrinsicModule(cx, wasm::IntrinsicOp::I8VecMul, &module)) {
+    ReportOutOfMemory(cx);
+    return false;
+  }
+  args.rval().set(ObjectValue(*module.get()));
+  return true;
 }
 
 static bool LargeArrayBufferEnabled(JSContext* cx, unsigned argc, Value* vp) {
@@ -5065,6 +5083,19 @@ static bool SharedAddress(JSContext* cx, unsigned argc, Value* vp) {
 }
 #endif
 
+static bool HasInvalidatedTeleporting(JSContext* cx, unsigned argc, Value* vp) {
+  CallArgs args = CallArgsFromVp(argc, vp);
+
+  if (args.length() != 1 || !args[0].isObject()) {
+    RootedObject callee(cx, &args.callee());
+    ReportUsageErrorASCII(cx, callee, "Expected single object argument");
+    return false;
+  }
+
+  args.rval().setBoolean(args[0].toObject().hasInvalidatedTeleporting());
+  return true;
+}
+
 static bool DumpBacktrace(JSContext* cx, unsigned argc, Value* vp) {
   CallArgs args = CallArgsFromVp(argc, vp);
   DumpBacktrace(cx);
@@ -7935,6 +7966,10 @@ JS_FOR_WASM_FEATURES(WASM_FEATURE, WASM_FEATURE)
 "  Returns a boolean indicating whether a given module was deserialized directly from a\n"
 "  cache (as opposed to compiled from bytecode)."),
 
+    JS_FN_HELP("wasmIntrinsicI8VecMul", WasmIntrinsicI8VecMul, 0, 0,
+"wasmIntrinsicI8VecMul()",
+"  Returns a module that implements an i8 vector pairwise multiplication intrinsic."),
+
     JS_FN_HELP("largeArrayBufferEnabled", LargeArrayBufferEnabled, 0, 0,
 "largeArrayBufferEnabled()",
 "  Returns true if array buffers larger than 2GB can be allocated."),
@@ -8122,6 +8157,10 @@ JS_FOR_WASM_FEATURES(WASM_FEATURE, WASM_FEATURE)
 "sharedAddress(obj)",
 "  Return the address of the shared storage of a SharedArrayBuffer."),
 #endif
+
+    JS_FN_HELP("hasInvalidatedTeleporting", HasInvalidatedTeleporting, 1, 0,
+"hasInvalidatedTeleporting(obj)",
+"  Return true if the shape teleporting optimization has been disabled for |obj|."),
 
     JS_FN_HELP("evalReturningScope", EvalReturningScope, 1, 0,
 "evalReturningScope(scriptStr, [global])",

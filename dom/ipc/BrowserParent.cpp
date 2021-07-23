@@ -1215,7 +1215,7 @@ mozilla::ipc::IPCResult BrowserParent::RecvPDocAccessibleConstructor(
 #  ifdef XP_WIN
     MOZ_ASSERT(aDocCOMProxy.IsNull());
     if (!StaticPrefs::accessibility_cache_enabled_AtStartup()) {
-      a11y::WrapperFor(doc)->GetMsaa()->SetID(aMsaaID);
+      a11y::MsaaAccessible::GetFrom(doc)->SetID(aMsaaID);
     }
     if (a11y::nsWinUtils::IsWindowEmulationStarted()) {
       doc->SetEmulatedWindowHandle(parentDoc->GetEmulatedWindowHandle());
@@ -1242,11 +1242,11 @@ mozilla::ipc::IPCResult BrowserParent::RecvPDocAccessibleConstructor(
     a11y::ProxyCreated(doc);
 #  ifdef XP_WIN
     if (!StaticPrefs::accessibility_cache_enabled_AtStartup()) {
-      // This *must* be called after ProxyCreated because WrapperFor will fail
-      // before that.
-      a11y::AccessibleWrap* wrapper = a11y::WrapperFor(doc);
-      MOZ_ASSERT(wrapper);
-      wrapper->GetMsaa()->SetID(aMsaaID);
+      // This *must* be called after ProxyCreated because
+      // MsaaAccessible::GetFrom will fail before that.
+      a11y::MsaaAccessible* msaa = a11y::MsaaAccessible::GetFrom(doc);
+      MOZ_ASSERT(msaa);
+      msaa->SetID(aMsaaID);
     }
 #  endif
     // It's possible the embedder accessible hasn't been set yet; e.g.
@@ -1279,7 +1279,7 @@ mozilla::ipc::IPCResult BrowserParent::RecvPDocAccessibleConstructor(
     if (StaticPrefs::accessibility_cache_enabled_AtStartup()) {
       doc->MaybeInitWindowEmulation();
     } else {
-      a11y::WrapperFor(doc)->GetMsaa()->SetID(aMsaaID);
+      a11y::MsaaAccessible::GetFrom(doc)->SetID(aMsaaID);
       MOZ_ASSERT(!aDocCOMProxy.IsNull());
 
       RefPtr<IAccessible> proxy(aDocCOMProxy.Get());
@@ -2948,13 +2948,11 @@ mozilla::ipc::IPCResult BrowserParent::RecvSessionStoreUpdate(
     data.mIsPrivate.Construct() = aPrivatedMode.value();
   }
 
-  nsCOMPtr<nsISessionStoreFunctions> funcs =
-      do_ImportModule("resource://gre/modules/SessionStoreFunctions.jsm");
-  if (!funcs) {
-    return IPC_OK();
-  }
-
+  nsCOMPtr<nsISessionStoreFunctions> funcs = do_ImportModule(
+      "resource://gre/modules/SessionStoreFunctions.jsm", fallible);
   nsCOMPtr<nsIXPConnectWrappedJS> wrapped = do_QueryInterface(funcs);
+  NS_ENSURE_TRUE(wrapped, IPC_OK());
+
   AutoJSAPI jsapi;
   if (!jsapi.Init(wrapped->GetJSObjectGlobal())) {
     return IPC_OK();
@@ -3847,7 +3845,7 @@ mozilla::ipc::IPCResult BrowserParent::RecvQueryVisitedState(
   }
 
   auto* gvHistory = static_cast<GeckoViewHistory*>(history.get());
-  gvHistory->QueryVisitedState(widget, std::move(aURIs));
+  gvHistory->QueryVisitedState(widget, mManager, std::move(aURIs));
   return IPC_OK();
 #else
   return IPC_FAIL(this, "QueryVisitedState is Android-only");

@@ -81,12 +81,16 @@ class Instance;
 class Table;
 
 // Exception tags are used to uniquely identify exceptions. They are stored
-// in a vector in Instances and used by both WebAssembly.Exception for import
-// and export, and by the representation of thrown exceptions.
+// in a vector in Instances and used by both WebAssembly.Tag for import
+// and export, and by WebAssembly.Exception for thrown exceptions.
 //
 // Since an exception tag is a (trivial) substructure of AtomicRefCounted, the
-// RefPtr SharedExceptionTag can have many instances/modules referencing a
-// single constant exception tag.
+// RefPtr SharedTag can have many instances/modules referencing a single
+// constant exception tag.
+//
+// It is possible that other proposals will start using tags as well, in which
+// case it may be worth generalizing this representation for other kinds of
+// tags.
 
 struct ExceptionTag : AtomicRefCounted<ExceptionTag> {
   ExceptionTag() = default;
@@ -97,7 +101,7 @@ using SharedExceptionTagVector =
 
 // WasmJSExceptionObject wraps a JS Value in order to provide a uniform
 // method of handling JS thrown exceptions. Exceptions originating in Wasm
-// are WebAssemby.RuntimeException objects, whereas exceptions from JS are
+// are WebAssemby.Exception objects, whereas exceptions from JS are
 // wrapped as WasmJSExceptionObject objects.
 class WasmJSExceptionObject : public NativeObject {
   static const unsigned VALUE_SLOT = 0;
@@ -330,6 +334,9 @@ class ResultType {
     }
   }
 
+  // Polyfill the Span API, which is polyfilling the std library
+  size_t size() const { return length(); }
+
   ValType operator[](size_t i) const {
     switch (kind()) {
       case SingleKind:
@@ -527,7 +534,7 @@ class Export {
   DefinitionKind kind() const { return pod.kind_; }
   uint32_t funcIndex() const;
 #ifdef ENABLE_WASM_EXCEPTIONS
-  uint32_t eventIndex() const;
+  uint32_t tagIndex() const;
 #endif
   uint32_t globalIndex() const;
   uint32_t tableIndex() const;
@@ -697,22 +704,22 @@ class GlobalDesc {
 
 using GlobalDescVector = Vector<GlobalDesc, 0, SystemAllocPolicy>;
 
-// An EventDesc describes a single event for non-local control flow, such as
-// for exceptions.
+// A TagDesc represents fresh per-instance tags that are used for the
+// exception handling proposal and potentially other future proposals.
 
 #ifdef ENABLE_WASM_EXCEPTIONS
-struct EventDesc {
-  EventKind kind;
+struct TagDesc {
+  TagKind kind;
   ValTypeVector type;
   bool isExport;
 
-  EventDesc(EventKind kind, ValTypeVector&& type, bool isExport = false)
+  TagDesc(TagKind kind, ValTypeVector&& type, bool isExport = false)
       : kind(kind), type(std::move(type)), isExport(isExport) {}
 
   ResultType resultType() const { return ResultType::Vector(type); }
 };
 
-using EventDescVector = Vector<EventDesc, 0, SystemAllocPolicy>;
+using TagDescVector = Vector<TagDesc, 0, SystemAllocPolicy>;
 #endif
 
 // When a ElemSegment is "passive" it is shared between a wasm::Module and its
@@ -1276,7 +1283,7 @@ struct Limits {
   Limits() = default;
   explicit Limits(uint64_t initial, const Maybe<uint64_t>& maximum = Nothing(),
                   Shareable shared = Shareable::False)
-      : initial(initial), maximum(maximum), shared(shared) {}
+      : indexType(IndexType::I32), initial(initial), maximum(maximum), shared(shared) {}
 };
 
 // MemoryDesc describes a memory.

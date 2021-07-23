@@ -45,9 +45,6 @@ linux1804-64/opt:
         - linux1804-tests
         - marionette-headless
         - mochitest-headless
-        - mochitest-webgpu
-        - web-platform-tests
-        - web-platform-tests-wdspec-headless
         - talos
         - linux-talos-flex
         - raptor-firefox
@@ -57,8 +54,6 @@ linux1804-64/debug:
     build-platform: linux64/debug
     test-sets:
         - linux1804-tests
-        - mochitest-webgpu
-        - web-platform-tests
 
 linux1804-64-shippable/opt:
     build-platform: linux64-shippable/opt
@@ -68,9 +63,6 @@ linux1804-64-shippable/opt:
         - linux1804-tests
         - marionette-headless
         - mochitest-headless
-        - mochitest-webgpu
-        - web-platform-tests
-        - web-platform-tests-wdspec-headless
         - talos
         - linux-talos-flex
         - raptor-chrome
@@ -82,15 +74,11 @@ linux1804-64-devedition/opt:
     test-sets:
         - desktop-screenshot-capture
         - linux1804-tests
-        - web-platform-tests
 
 linux1804-64-asan/opt:
     build-platform: linux64-asan/opt
     test-sets:
         - linux1804-tests
-        - mochitest-webgpu
-        - web-platform-tests
-        - web-platform-tests-wdspec-headless
 
 linux1804-64-tsan/opt:
     build-platform: linux64-tsan/opt
@@ -136,6 +124,7 @@ linux1804-64-asan-qr/opt:
     build-platform: linux64-asan/opt
     test-sets:
         - linux-qr-smoketests
+        - mochitest-webgpu
         - web-platform-tests
         - web-platform-tests-wdspec-headless
 
@@ -144,19 +133,20 @@ linux1804-64-ccov/opt:
     test-sets:
         - linux1804-tests
         - linux1804-ccov-tests
-        - web-platform-tests
         - ccov-code-coverage-tests
-        - mochitest-webgpu
 
 linux1804-64-ccov-qr/opt:
     build-platform: linux64-ccov/opt
     test-sets:
         - linux1804-ccov-qr-tests
+        - mochitest-webgpu
+        - web-platform-tests
 
 linux1804-64-devedition-qr/opt:
     build-platform: linux64-devedition/opt
     test-sets:
         - linux1804-devedition-qr-tests
+        - web-platform-tests
 
 linux1804-64-clang-trunk/opt:
     build-platform: linux64-plain-clang-trunk/opt
@@ -413,60 +403,48 @@ macosx1014-64-shippable-qr/opt:
 #
 # android-em test platforms execute on android emulators.
 
-android-em-7.0-x86_64/opt:
-    build-platform: android-x86_64/opt
-    test-sets:
-        - android-x86_64-tests
-        - web-platform-tests-backlog
-
-android-em-7.0-x86_64-shippable/opt:
-    build-platform: android-x86_64-shippable/opt
-    test-sets:
-        - android-x86_64-tests
-        - web-platform-tests-backlog
-
-android-em-7.0-x86_64/debug:
-    build-platform: android-x86_64/debug
-    test-sets:
-        - android-x86_64-tests
-
-android-em-7.0-x86_64/debug-isolated-process:
-    build-platform: android-x86_64/debug-isolated-process
-    test-sets:
-        - android-x86_64-tests
-
 android-em-7.0-x86_64-qr/opt:
     build-platform: android-x86_64/opt
     test-sets:
-        - android-x86_64-qr-tests
+        - android-x86_64-tests
+        - web-platform-tests-backlog
+
+android-em-7.0-x86_64-lite-qr/opt:
+    build-platform: android-x86_64-lite/opt
+    test-sets:
+        - android-x86_64-tests
+        - web-platform-tests-backlog
 
 android-em-7.0-x86_64-shippable-qr/opt:
     build-platform: android-x86_64-shippable/opt
     test-sets:
-        - android-x86_64-qr-tests
+        - android-x86_64-tests
+        - web-platform-tests-backlog
+
+android-em-7.0-x86_64-shippable-lite-qr/opt:
+    build-platform: android-x86_64-shippable-lite/opt
+    test-sets:
+        - android-x86_64-tests
+        - web-platform-tests-backlog
 
 android-em-7.0-x86_64-qr/debug:
     build-platform: android-x86_64/debug
     test-sets:
-        - android-x86_64-qr-tests
+        - android-x86_64-tests
+
+android-em-7.0-x86_64-lite-qr/debug:
+    build-platform: android-x86_64-lite/debug
+    test-sets:
+        - android-x86_64-tests
+
+android-em-7.0-x86_64-qr/debug-isolated-process:
+    build-platform: android-x86_64/debug-isolated-process
+    test-sets:
+        - android-x86_64-tests
 
 # android-hw test platforms execute on real devices attached to Autophone hosts.
 
 # android-hw-g5-7-0 Motorola Moto G5 Android 7.0
-
-android-hw-g5-7-0-arm7/opt:
-    build-platform: android-arm/opt
-    test-sets:
-        - android-hw-browsertime
-        - android-hw-arm7-raptor-cpu-memory
-        - android-hw-arm7-raptor-cpu-memory-power
-
-android-hw-g5-7-0-arm7-shippable/opt:
-    build-platform: android-arm-shippable/opt
-    test-sets:
-        - android-hw-browsertime
-        - android-hw-arm7-raptor-cpu-memory
-        - android-hw-arm7-raptor-cpu-memory-power
 
 android-hw-g5-7-0-arm7-qr/opt:
     build-platform: android-arm/opt
@@ -484,7 +462,7 @@ android-hw-g5-7-0-arm7-shippable-qr/opt:
 
 # android-hw-p2-8-0 Google Pixel 2 Android 8.0
 
-android-hw-p2-8-0-arm7/opt:
+android-hw-p2-8-0-arm7-qr/opt:
     build-platform: android-arm/opt
     test-sets:
         - android-hw-browsertime
@@ -492,7 +470,7 @@ android-hw-p2-8-0-arm7/opt:
         - android-hw-arm7-raptor-cpu-memory
         - android-hw-arm7-raptor-cpu-memory-power
 
-android-hw-p2-8-0-arm7-shippable/opt:
+android-hw-p2-8-0-arm7-shippable-qr/opt:
     build-platform: android-arm-shippable/opt
     test-sets:
         - android-hw-browsertime
@@ -500,7 +478,7 @@ android-hw-p2-8-0-arm7-shippable/opt:
         - android-hw-arm7-raptor-cpu-memory
         - android-hw-arm7-raptor-cpu-memory-power
 
-android-hw-p2-8-0-arm7/debug:
+android-hw-p2-8-0-arm7-qr/debug:
     build-platform: android-arm/debug
     test-sets:
         - android-hw-arm7-debug-unittests
@@ -508,59 +486,36 @@ android-hw-p2-8-0-arm7/debug:
 android-hw-p2-8-0-android-aarch64-qr/opt:
     build-platform: android-aarch64/opt
     test-sets:
-        - android-hw-aarch64-qr
+        - android-hw-aarch64
         - android-hw-browsertime
+        - android-hw-aarch64-opt-unittests
         - android-hw-aarch64-raptor-cpu-memory
         - android-hw-aarch64-raptor-cpu-memory-power
 
 android-hw-p2-8-0-android-aarch64-shippable-qr/opt:
     build-platform: android-aarch64-shippable/opt
     test-sets:
-        - android-hw-aarch64-qr
+        - android-hw-aarch64
         - android-hw-browsertime
         - android-hw-browsertime-profiling
+        - android-hw-aarch64-pgo-unittests
         - android-hw-aarch64-raptor-cpu-memory
         - android-hw-aarch64-raptor-cpu-memory-power
 
 android-hw-p2-8-0-android-aarch64-qr/debug:
     build-platform: android-aarch64/debug
     test-sets:
-        - android-hw-aarch64-qr
-
-android-hw-p2-8-0-android-aarch64/opt:
-    build-platform: android-aarch64/opt
-    test-sets:
-        - android-hw-browsertime
-        - android-hw-aarch64-opt-unittests
-        - android-hw-aarch64-raptor-cpu-memory
-        - android-hw-aarch64-raptor-cpu-memory-power
-
-android-hw-p2-8-0-android-aarch64-shippable/opt:
-    build-platform: android-aarch64-shippable/opt
-    test-sets:
-        - android-hw-browsertime
-        - android-hw-aarch64-pgo-unittests
-        - android-hw-aarch64-raptor-cpu-memory
-        - android-hw-aarch64-raptor-cpu-memory-power
-
-android-hw-p2-8-0-android-aarch64/debug:
-    build-platform: android-aarch64/debug
-    test-sets:
+        - android-hw-aarch64
         - android-hw-aarch64-debug-unittests
 
 # android-hw-s7-8-0 Samsung Galaxy S7 Android 8.0
 
-android-hw-s7-8-0-android-aarch64-shippable/opt:
-    build-platform: android-aarch64-shippable/opt
-    test-sets:
-        - android-hw-browsertime
-
-android-hw-s7-8-0-arm7-api-16/opt:
+android-hw-s7-8-0-arm7-api-16-qr/opt:
     build-platform: android-api-16/opt
     test-sets:
         - android-hw-browsertime
 
-android-hw-s7-8-0-arm7-api-16-shippable/opt:
+android-hw-s7-8-0-arm7-api-16-shippable-qr/opt:
     build-platform: android-api-16-shippable/opt
     test-sets:
         - android-hw-browsertime
@@ -572,10 +527,5 @@ android-hw-s7-8-0-android-aarch64-qr/opt:
 
 android-hw-s7-8-0-android-aarch64-shippable-qr/opt:
     build-platform: android-aarch64-shippable/opt
-    test-sets:
-        - android-hw-browsertime
-
-android-hw-s7-8-0-android-aarch64/opt:
-    build-platform: android-aarch64/opt
     test-sets:
         - android-hw-browsertime

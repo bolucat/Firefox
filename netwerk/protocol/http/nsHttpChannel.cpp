@@ -99,7 +99,6 @@
 #include "nsIHttpPushListener.h"
 #include "nsIX509Cert.h"
 #include "ScopedNSSTypes.h"
-#include "nsIDeprecationWarner.h"
 #include "nsIDNSRecord.h"
 #include "mozilla/dom/Document.h"
 #include "nsICompressConvStats.h"
@@ -2647,7 +2646,25 @@ nsresult nsHttpChannel::ProxyFailover() {
   nsCOMPtr<nsIProxyInfo> pi;
   rv = pps->GetFailoverForProxy(mConnectionInfo->ProxyInfo(), mURI, mStatus,
                                 getter_AddRefs(pi));
-  if (NS_FAILED(rv)) return rv;
+#ifdef MOZ_PROXY_DIRECT_FAILOVER
+  if (NS_FAILED(rv)) {
+    if (!StaticPrefs::network_proxy_failover_direct()) {
+      return rv;
+    }
+    // If this request used a failed proxy and there is no failover available,
+    // fallback to DIRECT connections for system principal requests.
+    if (mLoadInfo->GetLoadingPrincipal() &&
+        mLoadInfo->GetLoadingPrincipal()->IsSystemPrincipal()) {
+      rv = pps->NewProxyInfo("direct"_ns, ""_ns, 0, ""_ns, ""_ns, 0, UINT32_MAX,
+                             nullptr, getter_AddRefs(pi));
+    }
+#endif
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+#ifdef MOZ_PROXY_DIRECT_FAILOVER
+  }
+#endif
 
   // XXXbz so where does this codepath remove us from the loadgroup,
   // exactly?
@@ -6897,7 +6914,7 @@ nsresult nsHttpChannel::ContinueOnStartRequest2(nsresult result) {
   if (mConnectionInfo->ProxyInfo() &&
       (mStatus == NS_ERROR_PROXY_CONNECTION_REFUSED ||
        mStatus == NS_ERROR_UNKNOWN_PROXY_HOST ||
-       mStatus == NS_ERROR_NET_TIMEOUT)) {
+       mStatus == NS_ERROR_NET_TIMEOUT || mStatus == NS_ERROR_NET_RESET)) {
     PushRedirectAsyncFunc(&nsHttpChannel::ContinueOnStartRequest3);
     if (NS_SUCCEEDED(ProxyFailover())) {
       mProxyConnectResponseCode = 0;

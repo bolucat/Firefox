@@ -849,10 +849,13 @@ class OriginInfo final {
 
   void LockedPersist();
 
+  bool IsExtensionOrigin() { return mIsExtension; }
+
   nsTHashMap<nsStringHashKey, NotNull<QuotaObject*>> mQuotaObjects;
   ClientUsageArray mClientUsages;
   GroupInfo* mGroupInfo;
   const nsCString mOrigin;
+  bool mIsExtension;
   uint64_t mUsage;
   int64_t mAccessTime;
   bool mAccessed;
@@ -2396,7 +2399,8 @@ Result<bool, nsresult> EnsureDirectory(nsIFile& aDirectory) {
                  QM_OR_ELSE_LOG_VERBOSE_IF(
                      // Expression.
                      MOZ_TO_RESULT_INVOKE(aDirectory, Create,
-                                          nsIFile::DIRECTORY_TYPE, 0755)
+                                          nsIFile::DIRECTORY_TYPE, 0755,
+                                          /* aSkipAncestors = */ false)
                          .map([](Ok) { return false; }),
                      // Predicate.
                      IsSpecificError<NS_ERROR_FILE_ALREADY_EXISTS>,
@@ -3418,6 +3422,22 @@ uint64_t QuotaManager::CollectOriginsForEviction(
                    PERSISTENCE_TYPE_PERSISTENT);
 
         if (originInfo->LockedPersisted()) {
+          continue;
+        }
+
+        // Never evict PERSISTENCE_TYPE_DEFAULT data associated to a
+        // moz-extension origin, unlike websites (which may more likely using
+        // the local data as a cache but still able to retrieve the same data
+        // from the server side) extensions do not have the same data stored
+        // anywhere else and evicting the data would result into potential data
+        // loss for the users.
+        //
+        // Also, unlike a website the extensions are explicitly installed and
+        // uninstalled by the user and all data associated to the extension
+        // principal will be completely removed once the addon is uninstalled.
+        if (originInfo->mGroupInfo->mPersistenceType !=
+                PERSISTENCE_TYPE_TEMPORARY &&
+            originInfo->IsExtensionOrigin()) {
           continue;
         }
 
@@ -7144,6 +7164,14 @@ OriginInfo::OriginInfo(GroupInfo* aGroupInfo, const nsACString& aOrigin,
   MOZ_ASSERT(aClientUsages.Length() == Client::TypeMax());
   MOZ_ASSERT_IF(aPersisted,
                 aGroupInfo->mPersistenceType == PERSISTENCE_TYPE_DEFAULT);
+
+  // This constructor is called from the "QuotaManager IO" thread and so
+  // we can't check if the principal has a WebExtensionPolicy instance
+  // associated to it, and even besides that if the extension is currently
+  // disabled (and so no WebExtensionPolicy instance would actually exist)
+  // its stored data shouldn't be cleared until the extension is uninstalled
+  // and so here we resort to check the origin scheme instead.
+  mIsExtension = StringBeginsWith(mOrigin, "moz-extension://"_ns);
 
 #ifdef DEBUG
   QuotaManager* quotaManager = QuotaManager::Get();

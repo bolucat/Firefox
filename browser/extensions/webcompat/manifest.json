@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "Web Compatibility Interventions",
   "description": "Urgent post-release fixes for web compatibility.",
-  "version": "24.4.0",
+  "version": "24.9.0",
 
   "applications": {
     "gecko": {
@@ -90,9 +90,12 @@
   },
 
   "web_accessible_resources": [
+    "shims/adnexus-prebid.js",
     "shims/adsafeprotected-ima.js",
+    "shims/apstag.js",
     "shims/bmauth.js",
     "shims/chartbeat.js",
+    "shims/criteo.js",
     "shims/eluminate.js",
     "shims/empty-script.js",
     "shims/empty-shim.txt",
@@ -105,9 +108,11 @@
     "shims/google-publisher-tags.js",
     "shims/google-safeframe.html",
     "shims/live-test-shim.js",
+    "shims/moat.js",
     "shims/mochitest-shim-1.js",
     "shims/mochitest-shim-2.js",
     "shims/mochitest-shim-3.js",
+    "shims/optimizely.js",
     "shims/play.svg",
     "shims/rambler-authenticator.js",
     "shims/rich-relevance.js",

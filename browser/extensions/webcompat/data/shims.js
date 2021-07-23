@@ -98,6 +98,22 @@ const AVAILABLE_SHIMS = [
     ],
   },
   {
+    id: "AdNexus",
+    platform: "all",
+    name: "AdNexus",
+    bug: "1713696",
+    file: "empty-script.js",
+    matches: [
+      "*://acdn.adnxs.com/ast/ast.js",
+      {
+        patterns: ["*://*.adnxs.com/*/pb.js", "*://*.adnxs.com/*/prebid"],
+        target: "adnexus-prebid.js",
+        types: ["script"],
+      },
+    ],
+    onlyIfBlockedByETP: true,
+  },
+  {
     id: "AdSafeProtectedGoogleIMAAdapter",
     platform: "all",
     branches: ["nightly:android"],
@@ -115,6 +131,14 @@ const AVAILABLE_SHIMS = [
     file: "empty-script.js",
     matches: ["*://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"],
     onlyIfBlockedByETP: true,
+  },
+  {
+    id: "AmazonTAM",
+    platform: "all",
+    name: "Amazon Transparent Ad Marketplace",
+    bug: "1713698",
+    file: "apstag.js",
+    matches: ["*://c.amazon-adsystem.com/aax2/apstag.js"],
   },
   {
     id: "BmAuth",
@@ -135,6 +159,15 @@ const AVAILABLE_SHIMS = [
       "*://static.chartbeat.com/js/chartbeat.js",
       "*://static.chartbeat.com/js/chartbeat_video.js",
     ],
+    onlyIfBlockedByETP: true,
+  },
+  {
+    id: "Criteo",
+    platform: "all",
+    name: "Criteo",
+    bug: "1713720",
+    file: "criteo.js",
+    matches: ["*://static.criteo.net/js/ld/publishertag.js"],
     onlyIfBlockedByETP: true,
   },
   {
@@ -306,6 +339,29 @@ const AVAILABLE_SHIMS = [
     bug: "1713701",
     file: "iaspet.js",
     matches: ["*://cdn.adsafeprotected.com/iasPET.1.js"],
+  },
+  {
+    id: "Moat",
+    platform: "all",
+    name: "Moat",
+    bug: "1713704",
+    file: "moat.js",
+    matches: [
+      "*://*.moatads.com/*/moatad.js*",
+      "*://*.moatads.com/*/moatapi.js*",
+      "*://*.moatads.com/*/moatheader.js*",
+      "*://*.moatads.com/*/yi.js*",
+    ],
+    onlyIfBlockedByETP: true,
+  },
+  {
+    id: "Optimizely",
+    platform: "all",
+    name: "Optimizely",
+    bug: "1714431",
+    file: "optimizely.js",
+    matches: ["*://cdn.optimizely.com/js/*.js"],
+    onlyIfBlockedByETP: true,
   },
   {
     id: "Rambler",

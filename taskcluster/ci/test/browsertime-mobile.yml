@@ -10,7 +10,7 @@ job-defaults:
             refbrow: []
             default:
                 by-test-platform:
-                    android-hw-p2-.*aarch64-shippable(?!-qr).*: [mozilla-central]
+                    android-hw-p2-.*aarch64-shippable-qr.*: [mozilla-central]
                     default: []
     tier: 3
     test-manifest-loader: null  # don't load tests in the taskgraph
@@ -62,7 +62,7 @@ job-defaults:
     limit-platforms:
         by-app:
             chrome-m:
-                - .*shippable(?!-qr).*
+                - .*shippable-qr.*
             default: []
 
 browsertime-tp6m:
@@ -82,12 +82,12 @@ browsertime-tp6m:
         treeherder-symbol: Btime(tp6m)
     raptor-subtests:
         - amazon
-        - bbc
         - bing
         - [bing-search-restaurants, bing-s-r]
         - booking
         - cnn
         - [cnn-ampstories, cnn-amp]
+        - dailymail
         - [ebay-kleinanzeigen, ebay-k]
         - [ebay-kleinanzeigen-search, ebay-k-s]
         - [facebook-cristiano, fb-cris]
@@ -95,8 +95,8 @@ browsertime-tp6m:
         - [google-search-restaurants, gsearch-r]
         - instagram
         - imdb
-        - jianshu
         - reddit
+        - sina
         - [stackoverflow, stacko]
         - web-de
         - wikipedia
@@ -198,13 +198,13 @@ browsertime-tp6m-live:
         - allrecipes
         - amazon
         - [amazon-search, amazon-s]
-        - bbc
         - bing
         - [bing-search-restaurants, bing-s-r]
         - booking
         - booking-sf
         - cnn
         - [cnn-ampstories, cnn-amp]
+        - dailymail
         - discord
         - [ebay-kleinanzeigen, ebay-k]
         - [ebay-kleinanzeigen-search, ebay-k-s]
@@ -268,7 +268,6 @@ browsertime-tp6m-profiling:
             - --gecko-profile
     run-on-projects:
         by-test-platform:
-            android-hw-p2-.*aarch64-shippable/opt: []
             android-hw-p2-.*aarch64-shippable-qr/opt: [mozilla-central]
             default: []
 
@@ -284,13 +283,12 @@ browsertime-speedometer-mobile:
             refbrow: []
             geckoview:
                 by-test-platform:
-                    android-hw-p2-.*aarch64-shippable(?!-qr).*: [mozilla-central]
                     android-hw-g5.*shippable-qr.*: [trunk, mozilla-beta]
                     android-hw-p2.*aarch64-shippable-qr.*: [trunk, mozilla-beta]
                     default: []
             default:
                 by-test-platform:
-                    android-hw-p2-.*aarch64-shippable(?!-qr).*: [mozilla-central]
+                    android-hw-p2-.*aarch64-shippable-qr.*: [mozilla-central]
                     default: []
     treeherder-symbol: Btime(sp)
     mozharness:
@@ -307,13 +305,12 @@ browsertime-unity-webgl-mobile:
             refbrow: []
             geckoview:
                 by-test-platform:
-                    android-hw-p2-.*aarch64-shippable(?!-qr).*: [mozilla-central]
                     android-hw-g5.*shippable-qr.*: [trunk, mozilla-beta]
                     android-hw-p2.*aarch64-shippable-qr.*: [trunk, mozilla-beta]
                     default: []
             default:
                 by-test-platform:
-                    android-hw-p2-.*aarch64-shippable(?!-qr).*: [mozilla-central]
+                    android-hw-p2-.*aarch64-shippable-qr.*: [mozilla-central]
                     default: []
     max-run-time: 900
     mozharness:

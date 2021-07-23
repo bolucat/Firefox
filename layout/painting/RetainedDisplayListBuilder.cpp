@@ -45,8 +45,9 @@
  * matched items can be inserted into the merged list in any order.
  */
 
-using namespace mozilla;
 using mozilla::dom::Document;
+
+namespace mozilla {
 
 void RetainedDisplayListData::AddModifiedFrame(nsIFrame* aFrame) {
   MOZ_ASSERT(!aFrame->IsFrameModified());
@@ -1322,6 +1323,16 @@ bool RetainedDisplayListBuilder::ShouldBuildPartial(
       Metrics()->mPartialUpdateFailReason = PartialUpdateFailReason::FrameType;
       return false;
     }
+
+    // Detect root scroll frame and do a full rebuild for them too for the same
+    // reasons as above, but also because top layer items should to be marked
+    // modified if the root scroll frame is modified. Putting this check here
+    // means we don't need to check everytime a frame is marked modified though.
+    if (type == LayoutFrameType::Scroll && f->GetParent() &&
+        !f->GetParent()->GetParent()) {
+      Metrics()->mPartialUpdateFailReason = PartialUpdateFailReason::FrameType;
+      return false;
+    }
   }
 
   return true;
@@ -1479,3 +1490,5 @@ PartialUpdateResult RetainedDisplayListBuilder::AttemptPartialUpdate(
   mBuilder.LeavePresShell(mBuilder.RootReferenceFrame(), List());
   return result;
 }
+
+}  // namespace mozilla

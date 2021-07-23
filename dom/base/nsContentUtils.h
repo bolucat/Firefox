@@ -207,9 +207,7 @@ class DataSourceSurface;
 enum class SurfaceFormat : int8_t;
 }  // namespace gfx
 
-namespace layers {
-class LayerManager;
-}  // namespace layers
+class WindowRenderer;
 
 }  // namespace mozilla
 
@@ -2349,47 +2347,30 @@ class nsContentUtils {
   static nsIWidget* WidgetForContent(const nsIContent* aContent);
 
   /**
-   * Returns a layer manager to use for the given document. Basically we
+   * Returns a window renderer to use for the given document. Basically we
    * look up the document hierarchy for the first document which has
    * a presentation with an associated widget, and use that widget's
-   * layer manager.
+   * window renderer.
    *
-   * You should probably use LayerManagerForContent() instead of this, unless
+   * You should probably use WindowRendererForContent() instead of this, unless
    * you have a good reason to do otherwise.
    *
-   * @param aDoc the document for which to return a layer manager.
+   * @param aDoc the document for which to return a window renderer.
    * @param aAllowRetaining an outparam that states whether the returned
    * layer manager should be used for retained layers
    */
-  static already_AddRefed<mozilla::layers::LayerManager>
-  LayerManagerForDocument(const Document* aDoc);
+  static mozilla::WindowRenderer* WindowRendererForDocument(
+      const Document* aDoc);
 
   /**
-   * Returns a layer manager to use for the given content. Unlike
-   * LayerManagerForDocument(), this returns the correct layer manager for
+   * Returns a window renderer to use for the given content. Unlike
+   * WindowRendererForDocument(), this returns the correct window renderer for
    * content in popups.
    *
-   * You should probably use this instead of LayerManagerForDocument().
+   * You should probably use this instead of WindowRendererForDocument().
    */
-  static already_AddRefed<mozilla::layers::LayerManager> LayerManagerForContent(
+  static mozilla::WindowRenderer* WindowRendererForContent(
       const nsIContent* aContent);
-
-  /**
-   * Returns a layer manager to use for the given document. Basically we
-   * look up the document hierarchy for the first document which has
-   * a presentation with an associated widget, and use that widget's
-   * layer manager. In addition to the normal layer manager lookup this will
-   * specifically request a persistent layer manager. This means that the layer
-   * manager is expected to remain the layer manager for the document in the
-   * forseeable future. This function should be used carefully as it may change
-   * the document's layer manager.
-   *
-   * @param aDoc the document for which to return a layer manager.
-   * @param aAllowRetaining an outparam that states whether the returned
-   * layer manager should be used for retained layers
-   */
-  static already_AddRefed<mozilla::layers::LayerManager>
-  PersistentLayerManagerForDocument(Document* aDoc);
 
   /**
    * Determine whether a content node is focused or not,

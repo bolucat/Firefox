@@ -35,6 +35,7 @@
 #include "xpc_make_class.h"
 #include "XPCWrapper.h"
 #include "Crypto.h"
+#include "mozilla/dom/AbortControllerBinding.h"
 #include "mozilla/dom/AutoEntryScript.h"
 #include "mozilla/dom/BindingCallContext.h"
 #include "mozilla/dom/BindingUtils.h"
@@ -77,6 +78,7 @@
 #include "mozilla/dom/URLBinding.h"
 #include "mozilla/dom/URLSearchParamsBinding.h"
 #include "mozilla/dom/XMLHttpRequest.h"
+#include "mozilla/dom/WebSocketBinding.h"
 #include "mozilla/dom/XMLSerializerBinding.h"
 #include "mozilla/dom/FormDataBinding.h"
 #include "mozilla/dom/nsCSPContext.h"
@@ -843,7 +845,10 @@ bool xpc::GlobalProperties::Parse(JSContext* cx, JS::HandleObject obj) {
     if (!nameStr) {
       return false;
     }
-    if (JS_LinearStringEqualsLiteral(nameStr, "Blob")) {
+
+    if (JS_LinearStringEqualsLiteral(nameStr, "AbortController")) {
+      AbortController = true;
+    } else if (JS_LinearStringEqualsLiteral(nameStr, "Blob")) {
       Blob = true;
     } else if (JS_LinearStringEqualsLiteral(nameStr, "ChromeUtils")) {
       ChromeUtils = true;
@@ -899,6 +904,8 @@ bool xpc::GlobalProperties::Parse(JSContext* cx, JS::HandleObject obj) {
       URLSearchParams = true;
     } else if (JS_LinearStringEqualsLiteral(nameStr, "XMLHttpRequest")) {
       XMLHttpRequest = true;
+    } else if (JS_LinearStringEqualsLiteral(nameStr, "WebSocket")) {
+      WebSocket = true;
     } else if (JS_LinearStringEqualsLiteral(nameStr, "XMLSerializer")) {
       XMLSerializer = true;
     } else if (JS_LinearStringEqualsLiteral(nameStr, "atob")) {
@@ -944,6 +951,11 @@ bool xpc::GlobalProperties::Define(JSContext* cx, JS::HandleObject obj) {
   // This function holds common properties not exposed automatically but able
   // to be requested either in |Cu.importGlobalProperties| or
   // |wantGlobalProperties| of a sandbox.
+  if (AbortController &&
+      !dom::AbortController_Binding::GetConstructorObject(cx)) {
+    return false;
+  }
+
   if (Blob && !dom::Blob_Binding::GetConstructorObject(cx)) return false;
 
   if (ChromeUtils && !dom::ChromeUtils_Binding::GetConstructorObject(cx)) {
@@ -1040,6 +1052,9 @@ bool xpc::GlobalProperties::Define(JSContext* cx, JS::HandleObject obj) {
     return false;
 
   if (XMLHttpRequest && !dom::XMLHttpRequest_Binding::GetConstructorObject(cx))
+    return false;
+
+  if (WebSocket && !dom::WebSocket_Binding::GetConstructorObject(cx))
     return false;
 
   if (XMLSerializer && !dom::XMLSerializer_Binding::GetConstructorObject(cx))

@@ -3096,13 +3096,13 @@ class BaseCompiler final : public BaseCompilerInterface {
   // landing pads.
 
   struct CatchInfo {
-    uint32_t eventIndex;      // Index for the associated exception.
+    uint32_t tagIndex;        // Index for the associated exception.
     NonAssertingLabel label;  // The entry label for the handler.
 
     static const uint32_t CATCH_ALL_INDEX = UINT32_MAX;
-    static_assert(CATCH_ALL_INDEX > MaxEvents);
+    static_assert(CATCH_ALL_INDEX > MaxTags);
 
-    explicit CatchInfo(uint32_t eventIndex_) : eventIndex(eventIndex_) {}
+    explicit CatchInfo(uint32_t tagIndex_) : tagIndex(tagIndex_) {}
   };
 
   using CatchInfoVector = Vector<CatchInfo, 0, SystemAllocPolicy>;
@@ -8633,6 +8633,8 @@ class BaseCompiler final : public BaseCompilerInterface {
   [[nodiscard]] bool emitTableGrow();
   [[nodiscard]] bool emitTableSet();
   [[nodiscard]] bool emitTableSize();
+
+#ifdef ENABLE_WASM_GC
   [[nodiscard]] bool emitStructNewWithRtt();
   [[nodiscard]] bool emitStructNewDefaultWithRtt();
   [[nodiscard]] bool emitStructGet(FieldExtension extension);
@@ -8661,6 +8663,7 @@ class BaseCompiler final : public BaseCompilerInterface {
                                      const StructField& field, AnyReg value);
   [[nodiscard]] bool emitGcArraySet(RegRef object, RegPtr data, RegI32 index,
                                     const ArrayType& array, AnyReg value);
+#endif // ENABLE_WASM_GC
 
 #ifdef ENABLE_WASM_SIMD
   void emitVectorAndNot();
@@ -8676,6 +8679,8 @@ class BaseCompiler final : public BaseCompilerInterface {
   [[nodiscard]] bool emitVectorShiftRightI64x2();
 #  endif
 #endif
+
+  [[nodiscard]] bool emitIntrinsic(IntrinsicOp op);
 };
 
 // TODO: We want these to be inlined for sure; do we need an `inline` somewhere?
@@ -10555,11 +10560,11 @@ void BaseCompiler::emitCatchSetup(LabelKind kind, Control& tryCatch,
 
 bool BaseCompiler::emitCatch() {
   LabelKind kind;
-  uint32_t eventIndex;
+  uint32_t tagIndex;
   ResultType paramType, resultType;
   NothingVector unused_tryValues{};
 
-  if (!iter_.readCatch(&kind, &eventIndex, &paramType, &resultType,
+  if (!iter_.readCatch(&kind, &tagIndex, &paramType, &resultType,
                        &unused_tryValues)) {
     return false;
   }
@@ -10573,7 +10578,7 @@ bool BaseCompiler::emitCatch() {
   }
 
   // Construct info used for the exception landing pad.
-  CatchInfo catchInfo(eventIndex);
+  CatchInfo catchInfo(tagIndex);
   if (!tryCatch.catchInfos.emplaceBack(catchInfo)) {
     return false;
   }
@@ -10581,7 +10586,7 @@ bool BaseCompiler::emitCatch() {
   masm.bind(&tryCatch.catchInfos.back().label);
 
   // Extract the arguments in the exception package and push them.
-  const ResultType params = moduleEnv_.events[eventIndex].resultType();
+  const ResultType params = moduleEnv_.tags[tagIndex].resultType();
 
   uint32_t refCount = 0;
   for (uint32_t i = 0; i < params.length(); i++) {
@@ -10600,10 +10605,8 @@ bool BaseCompiler::emitCatch() {
   RegRef values = needRef();
   RegRef refs = needRef();
 
-  masm.unboxObject(Address(exn, WasmRuntimeExceptionObject::offsetOfValues()),
-                   values);
-  masm.unboxObject(Address(exn, WasmRuntimeExceptionObject::offsetOfRefs()),
-                   refs);
+  masm.unboxObject(Address(exn, WasmExceptionObject::offsetOfValues()), values);
+  masm.unboxObject(Address(exn, WasmExceptionObject::offsetOfRefs()), refs);
 
 #  ifdef DEBUG
   Label ok;
@@ -10891,10 +10894,9 @@ bool BaseCompiler::endTryCatch(ResultType type) {
 
   bool hasCatchAll = false;
   for (CatchInfo& info : tryCatch.catchInfos) {
-    if (info.eventIndex != CatchInfo::CATCH_ALL_INDEX) {
+    if (info.tagIndex != CatchInfo::CATCH_ALL_INDEX) {
       MOZ_ASSERT(!hasCatchAll);
-      masm.branch32(Assembler::Equal, index, Imm32(info.eventIndex),
-                    &info.label);
+      masm.branch32(Assembler::Equal, index, Imm32(info.tagIndex), &info.label);
     } else {
       masm.jump(&info.label);
       hasCatchAll = true;
@@ -10939,7 +10941,7 @@ bool BaseCompiler::emitThrow() {
     return true;
   }
 
-  const ResultType& params = moduleEnv_.events[exnIndex].resultType();
+  const ResultType& params = moduleEnv_.tags[exnIndex].resultType();
 
   // Measure space we need for all the args to put in the exception.
   uint32_t exnBytes = 0;
@@ -10962,7 +10964,7 @@ bool BaseCompiler::emitThrow() {
   const uint32_t dataOffset =
       NativeObject::getFixedSlotOffset(ArrayBufferObject::DATA_SLOT);
 
-  Address exnValuesAddress(exn, WasmRuntimeExceptionObject::offsetOfValues());
+  Address exnValuesAddress(exn, WasmExceptionObject::offsetOfValues());
   masm.unboxObject(exnValuesAddress, scratch);
   masm.loadPtr(Address(scratch, dataOffset), scratch);
 
@@ -13422,6 +13424,8 @@ bool BaseCompiler::emitTableInit() {
                                       });
 }
 
+#ifdef ENABLE_WASM_GC
+
 void BaseCompiler::emitGcCanon(uint32_t typeIndex) {
   const TypeIdDesc& typeId = moduleEnv_.typeIds[typeIndex];
   RegRef rp = needRef();
@@ -14244,6 +14248,8 @@ bool BaseCompiler::emitBrOnCast() {
 
   return true;
 }
+
+#endif // ENABLE_WASM_GC
 
 #ifdef ENABLE_WASM_SIMD
 
@@ -15491,6 +15497,26 @@ bool BaseCompiler::emitVectorShiftRightI64x2() {
 }
 #  endif
 #endif  // ENABLE_WASM_SIMD
+
+bool BaseCompiler::emitIntrinsic(IntrinsicOp op) {
+  uint32_t lineOrBytecode = readCallSiteLineOrBytecode();
+  const Intrinsic& intrinsic = Intrinsic::getFromOp(op);
+
+  NothingVector params;
+  if (!iter_.readIntrinsic(intrinsic, &params)) {
+    return false;
+  }
+
+  if (deadCode_) {
+    return true;
+  }
+
+  // The final parameter of an intrinsic is implicitly the heap base
+  pushHeapBase();
+
+  // Call the intrinsic
+  return emitInstanceCall(lineOrBytecode, intrinsic.signature);
+}
 
 bool BaseCompiler::emitBody() {
   MOZ_ASSERT(stackMapGenerator_.framePushedAtEntryToBody.isSome());
@@ -17150,6 +17176,15 @@ bool BaseCompiler::emitBody() {
       // asm.js and other private operations
       case uint16_t(Op::MozPrefix):
         return iter_.unrecognizedOpcode(&op);
+
+      // private intrinsic operations
+      case uint16_t(Op::IntrinsicPrefix): {
+        if (!moduleEnv_.intrinsicsEnabled() ||
+            op.b1 >= uint32_t(IntrinsicOp::Limit)) {
+          return iter_.unrecognizedOpcode(&op);
+        }
+        CHECK_NEXT(emitIntrinsic(IntrinsicOp(op.b1)));
+      }
 
       default:
         return iter_.unrecognizedOpcode(&op);

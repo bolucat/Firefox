@@ -1003,8 +1003,7 @@ bool Instance::initElems(uint32_t tableIndex, const ElemSegment& seg,
     return nullptr;
   }
 
-  return AnyRef::fromJSObject(
-             WasmRuntimeExceptionObject::create(cx, tag, buf, refs))
+  return AnyRef::fromJSObject(WasmExceptionObject::create(cx, tag, buf, refs))
       .forCompiledCode();
 }
 
@@ -1032,8 +1031,8 @@ bool Instance::initElems(uint32_t tableIndex, const ElemSegment& seg,
   MOZ_ASSERT(SASigGetLocalExceptionIndex.failureMode ==
              FailureMode::Infallible);
 
-  if (exn->is<WasmRuntimeExceptionObject>()) {
-    ExceptionTag& exnTag = exn->as<WasmRuntimeExceptionObject>().tag();
+  if (exn->is<WasmExceptionObject>()) {
+    ExceptionTag& exnTag = exn->as<WasmExceptionObject>().tag();
     for (size_t i = 0; i < instance->exceptionTags().length(); i++) {
       ExceptionTag& tag = *instance->exceptionTags()[i];
       if (&tag == &exnTag) {
@@ -1053,9 +1052,8 @@ bool Instance::initElems(uint32_t tableIndex, const ElemSegment& seg,
 
   JSContext* cx = TlsContext.get();
 
-  MOZ_ASSERT(exn->is<WasmRuntimeExceptionObject>());
-  RootedWasmRuntimeExceptionObject exnObj(
-      cx, &exn->as<WasmRuntimeExceptionObject>());
+  MOZ_ASSERT(exn->is<WasmExceptionObject>());
+  RootedWasmExceptionObject exnObj(cx, &exn->as<WasmExceptionObject>());
 
   // TODO/AnyRef-boxing: With boxed immediates and strings, this may need to
   // handle other kinds of values.
@@ -1104,6 +1102,41 @@ bool Instance::initElems(uint32_t tableIndex, const ElemSegment& seg,
 
   RootedRttValue subRtt(cx, RttValue::rttSub(cx, parentRtt, subCanonRtt));
   return AnyRef::fromJSObject(subRtt.get()).forCompiledCode();
+}
+
+/* static */ int32_t Instance::intrI8VecMul(Instance* instance, uint32_t dest,
+                                            uint32_t src1, uint32_t src2,
+                                            uint32_t len, uint8_t* memBase) {
+  MOZ_ASSERT(SASigIntrI8VecMul.failureMode == FailureMode::FailOnNegI32);
+
+  const WasmArrayRawBuffer* rawBuf = WasmArrayRawBuffer::fromDataPtr(memBase);
+  size_t memLen = rawBuf->byteLength();
+
+  // Bounds check and deal with arithmetic overflow.
+  uint64_t destLimit = uint64_t(dest) + uint64_t(len);
+  uint64_t src1Limit = uint64_t(src1) + uint64_t(len);
+  uint64_t src2Limit = uint64_t(src2) + uint64_t(len);
+  if (destLimit > memLen || src1Limit > memLen || src2Limit > memLen) {
+    JSContext* cx = TlsContext.get();
+    JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr,
+                              JSMSG_WASM_OUT_OF_BOUNDS);
+    return -1;
+  }
+
+  // Basic dot product
+  uint8_t* destPtr = &memBase[dest];
+  uint8_t* src1Ptr = &memBase[src1];
+  uint8_t* src2Ptr = &memBase[src2];
+  while (len > 0) {
+    *destPtr = (*src1Ptr) * (*src2Ptr);
+
+    destPtr++;
+    src1Ptr++;
+    src2Ptr++;
+    len--;
+  }
+
+  return 0;
 }
 
 // Note, dst must point into nonmoveable storage that is not in the nursery,
@@ -1198,8 +1231,8 @@ bool Instance::init(JSContext* cx, const JSFunctionVector& funcImports,
                     const ElemSegmentVector& elemSegments) {
   MOZ_ASSERT(!!maybeDebug_ == metadata().debugEnabled);
 #ifdef ENABLE_WASM_EXCEPTIONS
-  // Currently the only events are exceptions.
-  MOZ_ASSERT(exceptionTags_.length() == metadata().events.length());
+  // Currently the only tags are exception tags.
+  MOZ_ASSERT(exceptionTags_.length() == metadata().tags.length());
 #else
   MOZ_ASSERT(exceptionTags_.length() == 0);
 #endif

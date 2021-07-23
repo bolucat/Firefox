@@ -22,7 +22,7 @@ job-defaults:
             by-test-platform:
                 android-em-7.*:
                     - android/android_common.py
-                    - android/androidx86_7_0.py
+                    - android/android-x86_64.py
                 linux.*:
                     - unittests/linux_unittest.py
                     - remove_executables.py
@@ -49,7 +49,7 @@ xpcshell:
             default:
                 by-test-platform:
                     .*-tsan/opt: ['trunk']
-                    android-em-7.0-x86_64/debug-isolated-process: []
+                    android-em-7.0-x86_64-qr/debug-isolated-process: []
                     windows10-64-asan-qr/opt: []  # No XPCShell on ASAN yet
                     default: built-projects
     chunks:
@@ -76,7 +76,7 @@ xpcshell:
                 by-test-platform:
                     windows10-64-asan.*: 3
                     macosx1100.*: 2
-                    android-em-7.0-x86_64/debug-isolated-process: 3
+                    android-em-7.0-x86_64-qr/debug-isolated-process: 3
                     default: default
     fetches:
         toolchain:
@@ -101,6 +101,8 @@ xpcshell:
                     - win32-minidump-stackwalk
                     - win32-fix-stacks
                 android-em-7.*:
+                    - android-system-image-x86_64-linux
+                    - android-avd-x86_64-linux
                     - android-emulator-linux
                     - linux64-node
                     - linux64-minidump-stackwalk

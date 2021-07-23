@@ -3096,7 +3096,12 @@
   mirror: always
 
 # Whether or not selection events on text controls are enabled.
-- name: dom.select_events.textcontrols.enabled
+- name: dom.select_events.textcontrols.selectionchange.enabled
+  type: bool
+  value: true
+  mirror: always
+
+- name: dom.select_events.textcontrols.selectstart.enabled
   type: bool
   value: @IS_NIGHTLY_BUILD@
   mirror: always
@@ -3128,6 +3133,15 @@
 - name: dom.serviceWorkers.mitigations.bypass_on_fault
   type: bool
   value: true
+  mirror: always
+
+# Additional ServiceWorker navigation mitigation control to unregister the
+# ServiceWorker after multiple faults are encountered. The mitigation is
+# disabled when this is set to zero, otherwise this is the number of faults that
+# need to occur for a specific ServiceWorker before it will be unregistered.
+- name: dom.serviceWorkers.mitigations.navigation_fault_threshold
+  type: uint32_t
+  value: 3
   mirror: always
 
 - name: dom.serviceWorkers.testing.enabled
@@ -3660,6 +3674,12 @@
 - name: dom.webkitBlink.dirPicker.enabled
   type: RelaxedAtomicBool
   value: @IS_NOT_ANDROID@
+  mirror: always
+
+# Is the 'assign' API for slot element enabled?
+- name: dom.shadowdom.slot.assign.enabled
+  type: bool
+  value: true
   mirror: always
 
 # NOTE: This preference is used in unit tests. If it is removed or its default
@@ -4521,7 +4541,7 @@
 
 - name: gfx.color_management.enablev4
   type: RelaxedAtomicBool
-#if defined(XP_MACOSX) && defined(NIGHTLY_BUILD)
+#if defined(XP_MACOSX) || defined(NIGHTLY_BUILD)
   value: true
 #else
   value: false
@@ -6813,13 +6833,6 @@
   value: true
   mirror: always
 
-# Is path() supported in clip-path?
-- name: layout.css.clip-path-path.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
 # Is the image-set() function enabled?
 - name: layout.css.image-set.enabled
   type: RelaxedAtomicBool
@@ -7121,12 +7134,6 @@
 - name: layout.css.prefixes.box-sizing
   type: bool
   value: true
-  mirror: always
-
-# Is support for -moz-prefixed multi-column properties (including column-gap) enabled?
-- name: layout.css.prefixes.columns
-  type: bool
-  value: false
   mirror: always
 
 # Is support for -moz-prefixed font feature properties enabled?
@@ -9430,6 +9437,14 @@
   value: 4
   mirror: always
 
+# Whether to force failover to direct for system requests.
+#ifdef MOZ_PROXY_DIRECT_FAILOVER
+- name: network.proxy.failover_direct
+  type: bool
+  value: true
+  mirror: always
+#endif
+
 # Some requests during a page load are marked as "tail", mainly trackers, but not only.
 # This pref controls whether such requests are put to the tail, behind other requests
 # emerging during page loading process.
@@ -10423,6 +10438,12 @@
   value: false
   mirror: always
 
+#  Partition the websocket pending connection queue by OriginAttributes.
+- name: privacy.partition.network_state.ws_connection_queue
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 # The global switch to control the URL query sting stripping which strips query
 # parameters from loading URIs to prevent bounce (redirect) tracking.
 - name: privacy.query_stripping.enabled
@@ -10615,32 +10636,29 @@
     value: true
     mirror: always
 
-  # Whether CET Shadow Stacks Strict mode is enabled for the content processes.
--   name: security.sandbox.content.shadow-stacks-strict
+  # Whether CET User Shadow Stack compatible modules only is enabled for the
+  # relevant process type.
+-   name: security.sandbox.content.shadow-stack.enabled
     type: RelaxedAtomicBool
     value: false
     mirror: always
 
-  # Whether CET Shadow Stacks Strict mode is enabled for the RDD processes.
--   name: security.sandbox.rdd.shadow-stacks-strict
+-   name: security.sandbox.rdd.shadow-stack.enabled
     type: RelaxedAtomicBool
     value: false
     mirror: always
 
-  # Whether CET Shadow Stacks Strict mode is enabled for the socket processes.
--   name: security.sandbox.socket.shadow-stacks-strict
+-   name: security.sandbox.socket.shadow-stack.enabled
     type: RelaxedAtomicBool
     value: false
     mirror: always
 
-  # Whether CET Shadow Stacks Strict mode is enabled for the GPU processes.
--   name: security.sandbox.gpu.shadow-stacks-strict
+-   name: security.sandbox.gpu.shadow-stack.enabled
     type: RelaxedAtomicBool
     value: false
     mirror: always
 
-  # Whether CET Shadow Stacks Strict mode is enabled for the GMP processes.
--   name: security.sandbox.gmp.shadow-stacks-strict
+-   name: security.sandbox.gmp.shadow-stack.enabled
     type: RelaxedAtomicBool
     value: false
     mirror: always

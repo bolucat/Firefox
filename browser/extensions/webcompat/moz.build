@@ -79,9 +79,12 @@ FINAL_TARGET_FILES.features["webcompat@mozilla.org"]["injections"]["js"] += [
 ]
 
 FINAL_TARGET_FILES.features["webcompat@mozilla.org"]["shims"] += [
+    "shims/adnexus-prebid.js",
     "shims/adsafeprotected-ima.js",
+    "shims/apstag.js",
     "shims/bmauth.js",
     "shims/chartbeat.js",
+    "shims/criteo.js",
     "shims/eluminate.js",
     "shims/empty-script.js",
     "shims/empty-shim.txt",
@@ -95,9 +98,11 @@ FINAL_TARGET_FILES.features["webcompat@mozilla.org"]["shims"] += [
     "shims/google-safeframe.html",
     "shims/iaspet.js",
     "shims/live-test-shim.js",
+    "shims/moat.js",
     "shims/mochitest-shim-1.js",
     "shims/mochitest-shim-2.js",
     "shims/mochitest-shim-3.js",
+    "shims/optimizely.js",
     "shims/play.svg",
     "shims/rambler-authenticator.js",
     "shims/rich-relevance.js",

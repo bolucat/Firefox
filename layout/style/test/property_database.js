@@ -8569,13 +8569,19 @@ var gCSSProperties = {
     type: CSS_TYPE_LONGHAND,
     initial_values: ["none"],
     other_values: [
+      "path(evenodd, '')",
+      "path(nonzero, 'M 10 10 h 100 v 100 h-100 v-100 z')",
+      "path(evenodd, 'M 10 10 h 100 v 100 h-100 v-100 z')",
+      "path('M10,30A20,20 0,0,1 50,30A20,20 0,0,1 90,30Q90,60 50,90Q10,60 10,30z')",
       "url(#mypath)",
       "url('404.svg#mypath')",
       "url(#my-clip-path)",
     ]
       .concat(basicShapeSVGBoxValues)
       .concat(basicShapeOtherValues),
-    invalid_values: basicShapeInvalidValues,
+    invalid_values: ["path(nonzero)", "path(abs, 'M 10 10 L 10 10 z')"].concat(
+      basicShapeInvalidValues
+    ),
     unbalanced_values: basicShapeUnbalancedValues,
   },
   "clip-rule": {
@@ -13224,20 +13230,6 @@ if (IsCSSPropertyPrefEnabled("layout.css.motion-path.enabled")) {
   };
 }
 
-if (IsCSSPropertyPrefEnabled("layout.css.clip-path-path.enabled")) {
-  gCSSProperties["clip-path"].other_values.push(
-    "path(evenodd, '')",
-    "path(nonzero, 'M 10 10 h 100 v 100 h-100 v-100 z')",
-    "path(evenodd, 'M 10 10 h 100 v 100 h-100 v-100 z')",
-    "path('M10,30A20,20 0,0,1 50,30A20,20 0,0,1 90,30Q90,60 50,90Q10,60 10,30z')"
-  );
-
-  gCSSProperties["clip-path"].invalid_values.push(
-    "path(nonzero)",
-    "path(abs, 'M 10 10 L 10 10 z')"
-  );
-}
-
 if (IsCSSPropertyPrefEnabled("layout.css.d-property.enabled")) {
   gCSSProperties["d"] = {
     domProp: "d",
@@ -13300,92 +13292,6 @@ if (IsCSSPropertyPrefEnabled("layout.css.zoom-transform-hack.enabled")) {
     initial_values: ["normal", "1.0", "0", "0%", "100%"],
     other_values: ["10%", "2", "2.5"],
     invalid_values: ["0 0", "foo", "10px"],
-  };
-}
-
-if (IsCSSPropertyPrefEnabled("layout.css.prefixes.columns")) {
-  gCSSProperties["-moz-columns"] = {
-    domProp: "MozColumns",
-    inherited: false,
-    type: CSS_TYPE_TRUE_SHORTHAND,
-    alias_for: "columns",
-    subproperties: ["column-count", "column-width"],
-  };
-
-  gCSSProperties["-moz-column-count"] = {
-    domProp: "MozColumnCount",
-    inherited: false,
-    type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-    alias_for: "column-count",
-    subproperties: ["column-count"],
-  };
-
-  gCSSProperties["-moz-column-fill"] = {
-    domProp: "MozColumnFill",
-    inherited: false,
-    type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-    alias_for: "column-fill",
-    subproperties: ["column-fill"],
-  };
-
-  gCSSProperties["-moz-column-gap"] = {
-    domProp: "MozColumnGap",
-    inherited: false,
-    type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-    alias_for: "column-gap",
-    subproperties: ["column-gap"],
-  };
-
-  gCSSProperties["-moz-column-rule"] = {
-    domProp: "MozColumnRule",
-    inherited: false,
-    type: CSS_TYPE_TRUE_SHORTHAND,
-    alias_for: "column-rule",
-    subproperties: [
-      "column-rule-width",
-      "column-rule-style",
-      "column-rule-color",
-    ],
-  };
-
-  gCSSProperties["-moz-column-rule-width"] = {
-    domProp: "MozColumnRuleWidth",
-    inherited: false,
-    type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-    alias_for: "column-rule-width",
-    subproperties: ["column-rule-width"],
-  };
-
-  gCSSProperties["-moz-column-rule-style"] = {
-    domProp: "MozColumnRuleStyle",
-    inherited: false,
-    type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-    alias_for: "column-rule-style",
-    subproperties: ["column-rule-style"],
-  };
-
-  gCSSProperties["-moz-column-rule-color"] = {
-    domProp: "MozColumnRuleColor",
-    inherited: false,
-    type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-    alias_for: "column-rule-color",
-    subproperties: ["column-rule-color"],
-  };
-
-  gCSSProperties["-moz-column-span"] = {
-    domProp: "MozColumnSpan",
-    inherited: false,
-    type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-    alias_for: "column-span",
-    subproperties: ["column-span"],
-  };
-
-  gCSSProperties["-moz-column-width"] = {
-    domProp: "MozColumnWidth",
-    inherited: false,
-    type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-    alias_for: "column-width",
-    subproperties: ["column-width"],
   };
 }
 

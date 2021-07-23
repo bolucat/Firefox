@@ -36,12 +36,12 @@
 #include "nsTHashSet.h"
 
 class gfxContext;
-class nsDisplayList;
-class nsDisplayListBuilder;
 class nsIWidget;
 
 namespace mozilla {
 
+class nsDisplayList;
+class nsDisplayListBuilder;
 struct ActiveScrolledRoot;
 
 namespace layers {
@@ -72,6 +72,7 @@ class WebRenderLayerManager final : public LayerManager {
 
  public:
   KnowsCompositor* AsKnowsCompositor() override;
+  WebRenderLayerManager* AsWebRender() override { return this; }
   WebRenderLayerManager* AsWebRenderLayerManager() override { return this; }
   CompositorBridgeChild* GetCompositorBridgeChild() override;
 

@@ -1416,7 +1416,7 @@ pref("prompts.defaultModalType", 3);
 
 pref("browser.topsites.useRemoteSetting", true);
 // Fetch sponsored Top Sites from Mozilla Tiles Service (Contile)
-pref("browser.topsites.contile.enabled", false);
+pref("browser.topsites.contile.enabled", true);
 pref("browser.topsites.contile.endpoint", "https://contile.services.mozilla.com/v1/tiles");
 
 // The base URL for the Quick Suggest anonymizing proxy. To make a request to
@@ -1521,7 +1521,6 @@ pref("browser.newtabpage.activity-stream.logowordmark.alwaysVisible", true);
 pref("trailhead.firstrun.newtab.triplets", "");
 // Separate about welcome
 pref("browser.aboutwelcome.enabled", true);
-pref("browser.aboutwelcome.protonDesign", true);
 // Used to set multistage welcome UX
 pref("browser.aboutwelcome.screens", "");
 pref("browser.aboutwelcome.skipFocus", true);
@@ -2494,9 +2493,6 @@ pref("devtools.responsive.reloadConditions.userAgent", false);
 pref("devtools.responsive.reloadNotification.enabled", true);
 // Whether or not touch simulation is enabled.
 pref("devtools.responsive.touchSimulation.enabled", false);
-// Whether or not meta viewport is enabled, if and only if touchSimulation
-// is also enabled.
-pref("devtools.responsive.metaViewport.enabled", true);
 // The user agent of the viewport.
 pref("devtools.responsive.userAgent", "");
 

@@ -13003,8 +13003,7 @@ already_AddRefed<Document> Document::CreateStaticClone(
     RefPtr<StyleSheet> sheet = SheetAt(i);
     if (sheet) {
       if (sheet->IsApplicable()) {
-        RefPtr<StyleSheet> clonedSheet =
-            sheet->Clone(nullptr, nullptr, clonedDoc, nullptr);
+        RefPtr<StyleSheet> clonedSheet = sheet->Clone(nullptr, clonedDoc);
         NS_WARNING_ASSERTION(clonedSheet, "Cloning a stylesheet didn't work!");
         if (clonedSheet) {
           clonedDoc->AddStyleSheet(clonedSheet);
@@ -13018,8 +13017,7 @@ already_AddRefed<Document> Document::CreateStaticClone(
     auto& sheets = mAdditionalSheets[additionalSheetType(t)];
     for (StyleSheet* sheet : sheets) {
       if (sheet->IsApplicable()) {
-        RefPtr<StyleSheet> clonedSheet =
-            sheet->Clone(nullptr, nullptr, clonedDoc, nullptr);
+        RefPtr<StyleSheet> clonedSheet = sheet->Clone(nullptr, clonedDoc);
         NS_WARNING_ASSERTION(clonedSheet, "Cloning a stylesheet didn't work!");
         if (clonedSheet) {
           clonedDoc->AddAdditionalStyleSheet(additionalSheetType(t),
@@ -13601,29 +13599,6 @@ void Document::InitializeXULBroadcastManager() {
     return;
   }
   mXULBroadcastManager = new XULBroadcastManager(this);
-}
-
-// Returns the rangeOffset element from the XUL Popup Manager. This is for
-// chrome callers only.
-nsINode* Document::GetPopupRangeParent(ErrorResult& aRv) {
-  nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-  if (!pm) {
-    aRv.Throw(NS_ERROR_FAILURE);
-    return nullptr;
-  }
-
-  return pm->GetMouseLocationParent();
-}
-
-// Returns the rangeOffset element from the XUL Popup Manager.
-int32_t Document::GetPopupRangeOffset(ErrorResult& aRv) {
-  nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-  if (!pm) {
-    aRv.Throw(NS_ERROR_FAILURE);
-    return 0;
-  }
-
-  return pm->MouseLocationOffset();
 }
 
 namespace {
@@ -16882,8 +16857,8 @@ bool Document::AutomaticStorageAccessPermissionCanBeGranted(
     }
   }
 
-  nsCOMPtr<nsIBrowserUsage> bu =
-      do_ImportModule("resource:///modules/BrowserUsageTelemetry.jsm");
+  nsCOMPtr<nsIBrowserUsage> bu = do_ImportModule(
+      "resource:///modules/BrowserUsageTelemetry.jsm", fallible);
   if (NS_WARN_IF(!bu)) {
     return false;
   }

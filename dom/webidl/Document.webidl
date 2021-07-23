@@ -191,8 +191,6 @@ partial interface Document {
                 attribute EventHandler onbeforescriptexecute;
                 attribute EventHandler onafterscriptexecute;
 
-                attribute EventHandler onselectionchange;
-
   /**
    * True if this document is synthetic : stand alone image, video, audio file,
    * etc.
@@ -471,16 +469,6 @@ partial interface Document {
 
   [ChromeOnly]
   attribute boolean devToolsWatchingDOMMutations;
-
-  /**
-   * These attributes correspond to rangeParent and rangeOffset. They will help
-   * you find where in the DOM the popup is happening. Can be accessed only
-   * during a popup event. Accessing any other time will be an error.
-   */
-  [Throws, ChromeOnly]
-  readonly attribute Node? popupRangeParent;
-  [Throws, ChromeOnly]
-  readonly attribute long  popupRangeOffset;
 
   /**
    * Returns all the shadow roots connected to the document, in no particular
