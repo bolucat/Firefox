@@ -1422,11 +1422,6 @@ DownloadSource.prototype = {
       return null;
     }
 
-    // Simplify the representation if we don't have other details.
-    if (!this.isPrivate && !this.referrerInfo && !this._unknownProperties) {
-      return this.url;
-    }
-
     let serializable = { url: this.url };
     if (this.isPrivate) {
       serializable.isPrivate = true;
@@ -1453,6 +1448,12 @@ DownloadSource.prototype = {
     }
 
     serializeUnknownProperties(this, serializable);
+
+    // Simplify the representation if we don't have other details.
+    if (Object.keys(serializable).length === 1) {
+      // serializable's only key is "url", just return the URL as a string.
+      return this.url;
+    }
     return serializable;
   },
 };
@@ -2359,6 +2360,15 @@ DownloadCopySaver.prototype = {
         ) {
           channel.loadInfo.cookieJarSettings =
             download.source.cookieJarSettings;
+        }
+
+        if (download.source.userContextId) {
+          // Getters and setters only exist on originAttributes,
+          // so it has to be cloned, changed, and re-set
+          channel.loadInfo.originAttributes = {
+            ...channel.loadInfo.originAttributes,
+            userContextId: download.source.userContextId,
+          };
         }
 
         // This makes the channel be corretly throttled during page loads

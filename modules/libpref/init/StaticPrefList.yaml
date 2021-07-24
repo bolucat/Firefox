@@ -5024,7 +5024,7 @@
 # Also expose a pref to allow users to force-disable WR. This is exposed
 # on all channels because WR can be enabled on qualified hardware on all
 # channels.
-- name: gfx.webrender.force-disabled
+- name: gfx.webrender.force-legacy-layers
   type: bool
   value: false
   mirror: once
@@ -5121,21 +5121,13 @@
 # Whether or not to fallback from WebRender/WebRender Software to Basic.
 - name: gfx.webrender.fallback.basic
   type: bool
-#if defined(MOZ_WIDGET_ANDROID)
-  value: true
-#else
-  value: @IS_NOT_EARLY_BETA_OR_EARLIER@
-#endif
+  value: false
   mirror: once
 
 # Whether or not to fallback from WebRender to Software WebRender.
 - name: gfx.webrender.fallback.software
   type: bool
-#if defined(MOZ_WIDGET_ANDROID)
-  value: false
-#else
   value: true
-#endif
   mirror: once
 
 #ifdef XP_WIN
