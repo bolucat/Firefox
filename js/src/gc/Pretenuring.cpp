@@ -73,9 +73,10 @@ bool PretenuringNursery::canCreateAllocSite() {
          allocSitesCreated < MaxAllocSitesPerMinorGC;
 }
 
-size_t PretenuringNursery::doPretenuring(GCRuntime* gc, bool validPromotionRate,
-                                         double promotionRate,
-                                         bool reportInfo) {
+size_t PretenuringNursery::doPretenuring(GCRuntime* gc, JS::GCReason reason,
+                                         bool validPromotionRate,
+                                         double promotionRate, bool reportInfo,
+                                         size_t reportThreshold) {
   mozilla::Maybe<AutoGCSession> session;
 
   size_t sitesActive = 0;
@@ -99,7 +100,7 @@ size_t PretenuringNursery::doPretenuring(GCRuntime* gc, bool validPromotionRate,
   }
 
   if (reportInfo) {
-    AllocSite::printInfoHeader();
+    AllocSite::printInfoHeader(reason, promotionRate);
   }
 
   AllocSite* site = allocatedSites;
@@ -145,7 +146,7 @@ size_t PretenuringNursery::doPretenuring(GCRuntime* gc, bool validPromotionRate,
       }
     }
 
-    if (reportInfo) {
+    if (reportInfo && site->allocCount() >= reportThreshold) {
       site->printInfo(hasPromotionRate, promotionRate, wasInvalidated);
     }
 
@@ -159,7 +160,7 @@ size_t PretenuringNursery::doPretenuring(GCRuntime* gc, bool validPromotionRate,
   for (ZonesIter zone(gc, SkipAtoms); !zone.done(); zone.next()) {
     AllocSite* site = zone->optimizedAllocSite();
     if (site->hasNurseryAllocations()) {
-      if (reportInfo) {
+      if (reportInfo && site->allocCount() >= reportThreshold) {
         site->printInfo(false, 0.0, false);
       }
       site->resetNurseryAllocations();
@@ -345,8 +346,10 @@ bool PretenuringZone::shouldResetPretenuredAllocSites() {
 }
 
 /* static */
-void AllocSite::printInfoHeader() {
-  fprintf(stderr, "Pretenuring info after minor GC:\n");
+void AllocSite::printInfoHeader(JS::GCReason reason, double promotionRate) {
+  fprintf(stderr,
+          "Pretenuring info after %s minor GC with %4.1f%% promotion rate:\n",
+          ExplainGCReason(reason), promotionRate * 100.0);
 }
 
 /* static */
