@@ -274,9 +274,9 @@ class Bootstrapper(object):
             self.instance.ensure_sccache_packages(state_dir, checkout_root)
             self.instance.ensure_wasi_sysroot_packages(state_dir, checkout_root)
         # Like 'ensure_browser_packages' or 'ensure_mobile_android_packages'
-        # getattr(self.instance, "ensure_%s_packages" % application)(
-        #     state_dir, checkout_root
-        # )
+        getattr(self.instance, "ensure_%s_packages" % application)(
+            state_dir, checkout_root
+        )
 
     def check_code_submission(self, checkout_root):
         if self.instance.no_interactive or which("moz-phab"):
@@ -351,7 +351,9 @@ class Bootstrapper(object):
 
         if self.instance.no_system_changes:
             self.instance.ensure_mach_environment(checkout_root)
-            self.maybe_install_private_packages_or_exit(state_dir, checkout_root)
+            self.maybe_install_private_packages_or_exit(
+                state_dir, checkout_root, application
+            )
             self._output_mozconfig(application, mozconfig_builder)
             sys.exit(0)
 

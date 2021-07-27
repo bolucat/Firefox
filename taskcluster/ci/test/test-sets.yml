@@ -181,7 +181,6 @@ linux1804-tests:
     - mochitest-webgl2-core
     - mochitest-webgl2-ext
     - reftest
-    - telemetry-tests-client
     - test-verify
     - test-verify-gpu
     - test-verify-wpt
@@ -210,6 +209,7 @@ linux1804-qr-tests:
     - mochitest-webgl2-ext
     - reftest
     - reftest-snapshot
+    - telemetry-tests-client
     - test-verify
     - xpcshell
 
@@ -219,9 +219,11 @@ linux1804-ccov-qr-tests:
     - crashtest
     - mochitest-devtools-chrome
     - mochitest-media
+    - telemetry-tests-client
 
 linux1804-devedition-qr-tests:
     - reftest-snapshot
+    - telemetry-tests-client
 
 linux1804-ccov-tests:
     # jittest run on regular linux builds is redundant with SM(p), so we omit it
@@ -250,6 +252,7 @@ linux-qr-smoketests:
     - mochitest-webgl2-ext
     - reftest
     - reftest-snapshot
+    - telemetry-tests-client
     - test-verify
     - xpcshell
 
@@ -388,26 +391,26 @@ windows-talos:
 # macOS
 
 macosx1100-64-qr-failure-tests:
-    - xpcshell-failures
+    # - xpcshell-failures
     - mochitest-media-failures
-    - mochitest-browser-chrome-failures
+    # - mochitest-browser-chrome-failures
 
 macosx1100-64-jittests:
     - jittest
 
 macosx1100-64-qr-tests:
-    - crashtest
+    # - crashtest
     - jsreftest
-    - mochitest-browser-chrome
-    - mochitest-chrome-gpu
-    - mochitest-media
+    # - mochitest-browser-chrome
+    # - mochitest-chrome-gpu
+    # - mochitest-media
     - mochitest-webgpu
     - mochitest-webgl1-core
     - mochitest-webgl1-ext
     - mochitest-webgl2-core
     - mochitest-webgl2-ext
-    - reftest
-    - xpcshell
+    # - reftest
+    # - xpcshell
 
 macosx1015-64-qr-failure-tests:
     - mochitest-media-failures

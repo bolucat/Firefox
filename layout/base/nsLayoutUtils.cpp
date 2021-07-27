@@ -1071,6 +1071,15 @@ bool nsLayoutUtils::IsProperAncestorFrameCrossDoc(
 }
 
 // static
+bool nsLayoutUtils::IsProperAncestorFrameCrossDocInProcess(
+    const nsIFrame* aAncestorFrame, const nsIFrame* aFrame,
+    const nsIFrame* aCommonAncestor) {
+  if (aFrame == aAncestorFrame) return false;
+  return IsAncestorFrameCrossDocInProcess(aAncestorFrame, aFrame,
+                                          aCommonAncestor);
+}
+
+// static
 bool nsLayoutUtils::IsAncestorFrameCrossDoc(const nsIFrame* aAncestorFrame,
                                             const nsIFrame* aFrame,
                                             const nsIFrame* aCommonAncestor) {
@@ -3261,9 +3270,13 @@ nsresult nsLayoutUtils::PaintFrame(gfxContext* aRenderingContext,
 
   // If we are in a remote browser, then apply clipping from ancestor browsers
   if (BrowserChild* browserChild = BrowserChild::GetFrom(presShell)) {
-    Maybe<nsRect> unscaledVisibleRect = browserChild->GetVisibleRect();
+    if (!browserChild->IsTopLevel()) {
+      Maybe<nsRect> unscaledVisibleRect = browserChild->GetVisibleRect();
 
-    if (unscaledVisibleRect) {
+      if (!unscaledVisibleRect) {
+        unscaledVisibleRect = Some(nsRect());
+      }
+
       rootInkOverflow.IntersectRect(rootInkOverflow, *unscaledVisibleRect);
     }
   }
