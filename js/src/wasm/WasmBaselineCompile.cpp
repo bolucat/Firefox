@@ -146,6 +146,7 @@
 #include "js/ScalarType.h"  // js::Scalar::Type
 #include "util/Memory.h"
 #include "wasm/TypedObject.h"
+#include "wasm/WasmCodegenTypes.h"
 #include "wasm/WasmGC.h"
 #include "wasm/WasmGenerator.h"
 #include "wasm/WasmInstance.h"
@@ -160,6 +161,8 @@ using mozilla::DebugOnly;
 using mozilla::FloorLog2;
 using mozilla::IsPowerOfTwo;
 using mozilla::Maybe;
+using mozilla::Nothing;
+using mozilla::Some;
 
 namespace js {
 namespace wasm {
@@ -8663,7 +8666,7 @@ class BaseCompiler final : public BaseCompilerInterface {
                                      const StructField& field, AnyReg value);
   [[nodiscard]] bool emitGcArraySet(RegRef object, RegPtr data, RegI32 index,
                                     const ArrayType& array, AnyReg value);
-#endif // ENABLE_WASM_GC
+#endif  // ENABLE_WASM_GC
 
 #ifdef ENABLE_WASM_SIMD
   void emitVectorAndNot();
@@ -13523,7 +13526,7 @@ void BaseCompiler::emitGcGet(FieldType type, FieldExtension extension,
       pushF64(r);
       break;
     }
-#ifdef ENABLE_WASM_SIMD
+#  ifdef ENABLE_WASM_SIMD
     case FieldType::V128: {
       MOZ_ASSERT(extension == FieldExtension::None);
       RegV128 r = needV128();
@@ -13531,7 +13534,7 @@ void BaseCompiler::emitGcGet(FieldType type, FieldExtension extension,
       pushV128(r);
       break;
     }
-#endif
+#  endif
     case FieldType::Ref: {
       MOZ_ASSERT(extension == FieldExtension::None);
       RegRef r = needRef();
@@ -13572,12 +13575,12 @@ void BaseCompiler::emitGcSetScalar(const T& dst, FieldType type, AnyReg value) {
       masm.storeDouble(value.f64(), dst);
       break;
     }
-#ifdef ENABLE_WASM_SIMD
+#  ifdef ENABLE_WASM_SIMD
     case FieldType::V128: {
       masm.storeUnalignedSimd128(value.v128(), dst);
       break;
     }
-#endif
+#  endif
     default: {
       MOZ_CRASH("Unexpected field type");
     }
@@ -14249,7 +14252,7 @@ bool BaseCompiler::emitBrOnCast() {
   return true;
 }
 
-#endif // ENABLE_WASM_GC
+#endif  // ENABLE_WASM_GC
 
 #ifdef ENABLE_WASM_SIMD
 

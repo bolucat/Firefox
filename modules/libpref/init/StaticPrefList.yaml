@@ -2129,7 +2129,7 @@
 - name: dom.image-lazy-loading.root-margin.top
   type: float
 #if defined(EARLY_BETA_OR_EARLIER)
-  value: 1000
+  value: 800
 #else
   value: 300
 #endif
@@ -2143,7 +2143,7 @@
 - name: dom.image-lazy-loading.root-margin.bottom
   type: float
 #if defined(EARLY_BETA_OR_EARLIER)
-  value: 1000
+  value: 800
 #else
   value: 300
 #endif
@@ -2157,7 +2157,7 @@
 - name: dom.image-lazy-loading.root-margin.left
   type: float
 #if defined(EARLY_BETA_OR_EARLIER)
-  value: 1000
+  value: 800
 #else
   value: 300
 #endif
@@ -2171,7 +2171,7 @@
 - name: dom.image-lazy-loading.root-margin.right
   type: float
 #if defined(EARLY_BETA_OR_EARLIER)
-  value: 1000
+  value: 800
 #else
   value: 300
 #endif
@@ -6812,6 +6812,13 @@
   mirror: always
   rust: true
 
+# Whether the `color-scheme` css property and meta tags are enabled.
+- name: layout.css.color-scheme.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+  rust: true
+
 # The minimum contrast ratio between the accent color foreground and background
 # colors.
 #
@@ -10663,7 +10670,7 @@
 
 -   name: security.sandbox.socket.shadow-stack.enabled
     type: RelaxedAtomicBool
-    value: false
+    value: @IS_NIGHTLY_BUILD@
     mirror: always
 
 -   name: security.sandbox.gpu.shadow-stack.enabled
@@ -10746,7 +10753,7 @@
 #---------------------------------------------------------------------------
 - name: signon.usernameOnlyForm.enabled
   type: bool
-  value: true
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 #---------------------------------------------------------------------------
@@ -11579,8 +11586,8 @@
 # TODO(emilio): This should probably do the right thing in most other
 # platforms, but stick to the standard colors on those.
 - name: widget.non-native-theme.use-theme-accent
-  type: bool
-#if defined(MOZ_WIDGET_GTK) || defined(XP_MACOSX)
+  type: RelaxedAtomicBool
+#if defined(MOZ_WIDGET_GTK) || defined(XP_MACOSX) || defined(ANDROID)
   value: true
 #else
   value: false
@@ -11633,7 +11640,7 @@
 
 # Whether to allow gtk dark themes in content.
 - name: widget.content.allow-gtk-dark-theme
-  type: bool
+  type: RelaxedAtomicBool
   value: false
   mirror: always
 

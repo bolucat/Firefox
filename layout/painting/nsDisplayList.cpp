@@ -5084,17 +5084,13 @@ bool nsDisplayBorder::CreateWebRenderCommands(
     nsDisplayListBuilder* aDisplayListBuilder) {
   nsRect rect = nsRect(ToReferenceFrame(), mFrame->GetSize());
 
-  aBuilder.StartGroup(this);
   ImgDrawResult drawResult = nsCSSRendering::CreateWebRenderCommandsForBorder(
       this, mFrame, rect, aBuilder, aResources, aSc, aManager,
       aDisplayListBuilder);
 
   if (drawResult == ImgDrawResult::NOT_SUPPORTED) {
-    aBuilder.CancelGroup(true);
     return false;
   }
-
-  aBuilder.FinishGroup();
 
   nsDisplayBorderGeometry::UpdateDrawResult(this, drawResult);
   return true;
@@ -8093,14 +8089,14 @@ bool nsDisplayTransform::CreateWebRenderCommands(
       animationsId,
   };
 
-  Maybe<nsDisplayTransform*> deferredTransformItem;
+  nsDisplayTransform* deferredTransformItem = nullptr;
   if (!mFrame->ChildrenHavePerspective()) {
     // If it has perspective, we create a new scroll data via the
     // UpdateScrollData call because that scenario is more complex. Otherwise
     // we can just stash the transform on the StackingContextHelper and
     // apply it to any scroll data that are created inside this
     // nsDisplayTransform.
-    deferredTransformItem = Some(this);
+    deferredTransformItem = this;
   }
 
   // Determine if we're possibly animated (= would need an active layer in FLB).
@@ -8321,7 +8317,7 @@ void nsDisplayTransform::Paint(nsDisplayListBuilder* aBuilder, gfxContext* aCtx,
   }
 
   gfxContextMatrixAutoSaveRestore saveMatrix(aCtx);
-  Matrix4x4 trans = GetAccumulatedPreserved3DTransform(aBuilder);
+  Matrix4x4 trans = ShouldSkipTransform(aBuilder) ? Matrix4x4() : GetAccumulatedPreserved3DTransform(aBuilder);
   if (!IsFrameVisible(mFrame, trans)) {
     return;
   }

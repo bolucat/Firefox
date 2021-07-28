@@ -1071,26 +1071,10 @@ static const unsigned MaxTags = 1000000;
 
 static const unsigned MaxBrTableElems = 1000000;
 static const unsigned MaxCodeSectionBytes = MaxModuleBytes;
-static const unsigned MaxArgsForJitInlineCall = 8;
-static const unsigned MaxResultsForJitEntry = 1;
-static const unsigned MaxResultsForJitExit = 1;
-static const unsigned MaxResultsForJitInlineCall = MaxResultsForJitEntry;
-// The maximum number of results of a function call or block that may be
-// returned in registers.
-static const unsigned MaxRegisterResults = 1;
-// An asm.js heap can in principle be up to INT32_MAX bytes but requirements
-// on the format restrict it further to the largest pseudo-ARM-immediate.
-// See IsValidAsmJSHeapLength().
-static const uint64_t MaxAsmJSHeapLength = 0x7f000000;
 
 // A magic value of rtt depth to signify that it was not specified.
 
 static const uint32_t RttDepthNone = MaxRttDepth + 1;
-
-// A magic value of the FramePointer to indicate after a return to the entry
-// stub that an exception has been caught and that we should throw.
-
-static const unsigned FailFP = 0xbad;
 
 // Asserted by Decoder::readVarU32.
 
@@ -1111,11 +1095,6 @@ enum class CompileMode { Once, Tier1, Tier2 };
 // Typed enum for whether debugging is enabled.
 
 enum class DebugEnabled { False, True };
-
-// A wasm module can either use no memory, a unshared memory (ArrayBuffer) or
-// shared memory (SharedArrayBuffer).
-
-enum class MemoryUsage { None = false, Unshared = 1, Shared = 2 };
 
 }  // namespace wasm
 }  // namespace js
