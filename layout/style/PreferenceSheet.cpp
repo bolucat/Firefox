@@ -89,13 +89,18 @@ void PreferenceSheet::Prefs::Load(bool aIsChrome) {
   mUseAccessibilityTheme = UseAccessibilityTheme(aIsChrome);
 
   const bool useStandins = nsContentUtils::UseStandinsForNativeColors();
+  // Users should be able to choose to use system colors or preferred colors
+  // when HCM is disabled, and in both OS-level HCM and FF-level HCM.
+  // To make this possible, we don't consider UseDocumentColors and
+  // mUseAccessibilityTheme when computing the following bool.
   const bool usePrefColors = !useStandins && !aIsChrome &&
-                             !mUseAccessibilityTheme &&
                              !StaticPrefs::browser_display_use_system_colors();
   if (usePrefColors) {
     GetColor("browser.display.background_color", mColors.mDefaultBackground);
     GetColor("browser.display.foreground_color", mColors.mDefault);
     GetColor("browser.anchor_color", mColors.mLink);
+    GetColor("browser.active_color", mColors.mActiveLink);
+    GetColor("browser.visited_color", mColors.mVisitedLink);
   } else {
     using ColorID = LookAndFeel::ColorID;
     const auto standins = LookAndFeel::UseStandins(useStandins);
@@ -112,21 +117,29 @@ void PreferenceSheet::Prefs::Load(bool aIsChrome) {
         useStandins ? ColorID::Window : ColorID::WindowBackground, scheme,
         standins, mColors.mDefaultBackground);
     mColors.mLink = LookAndFeel::Color(ColorID::MozNativehyperlinktext, scheme,
-                                    standins, mColors.mLink);
-  }
+                                       standins, mColors.mLink);
 
-  if (mUseAccessibilityTheme && !useStandins) {
-    mColors.mActiveLink = mColors.mLink;
-    // Visited link color is produced by preserving the foreground's green
-    // and averaging the foreground and background for the red and blue.
-    // This is how IE and Edge do it too.
-    mColors.mVisitedLink = NS_RGB(
-        AVG2(NS_GET_R(mColors.mDefault), NS_GET_R(mColors.mDefaultBackground)),
-        NS_GET_G(mColors.mDefault),
-        AVG2(NS_GET_B(mColors.mDefault), NS_GET_B(mColors.mDefaultBackground)));
-  } else {
-    GetColor("browser.active_color", mColors.mActiveLink);
-    GetColor("browser.visited_color", mColors.mVisitedLink);
+    if (auto color = LookAndFeel::GetColor(
+            ColorID::MozNativevisitedhyperlinktext, scheme, standins)) {
+      // If the system provides a visited link color, we should use it.
+      mColors.mVisitedLink = *color;
+    } else if (mUseAccessibilityTheme) {
+      // The fallback visited link color on HCM (if the system doesn't provide
+      // one) is produced by preserving the foreground's green and averaging the
+      // foreground and background for the red and blue.  This is how IE and
+      // Edge do it too.
+      mColors.mVisitedLink = NS_RGB(AVG2(NS_GET_R(mColors.mDefault),
+                                         NS_GET_R(mColors.mDefaultBackground)),
+                                    NS_GET_G(mColors.mDefault),
+                                    AVG2(NS_GET_B(mColors.mDefault),
+                                         NS_GET_B(mColors.mDefaultBackground)));
+    } else {
+      // Otherwise we keep the default visited link color
+    }
+
+    if (mUseAccessibilityTheme) {
+      mColors.mActiveLink = mColors.mLink;
+    }
   }
 
   GetColor("browser.display.focus_text_color", mColors.mFocusText);

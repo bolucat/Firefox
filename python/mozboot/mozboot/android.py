@@ -206,13 +206,13 @@ def get_paths(os_name):
         "ANDROID_NDK_HOME",
         os.path.join(mozbuild_path, "android-ndk-{0}".format(NDK_VERSION)),
     )
-    avd_path = os.environ.get(
+    avd_home_path = os.environ.get(
         "ANDROID_AVD_HOME", os.path.join(mozbuild_path, "android-device", "avd")
     )
     emulator_path = os.environ.get(
         "ANDROID_EMULATOR_HOME", os.path.join(mozbuild_path, "android-device")
     )
-    return (mozbuild_path, sdk_path, ndk_path, avd_path, emulator_path)
+    return (mozbuild_path, sdk_path, ndk_path, avd_home_path, emulator_path)
 
 
 def sdkmanager_tool(sdk_path):
@@ -274,7 +274,7 @@ def ensure_android(
     # save them a lengthy download), or they may have already
     # completed the download. We unpack to
     # ~/.mozbuild/{android-sdk-$OS_NAME, android-ndk-$VER}.
-    mozbuild_path, sdk_path, ndk_path, avd_path, emulator_path = get_paths(os_name)
+    mozbuild_path, sdk_path, ndk_path, avd_home_path, emulator_path = get_paths(os_name)
 
     if os_name == "macosx":
         os_tag = "mac"
@@ -326,7 +326,7 @@ def ensure_android(
         avdmanager_tool=avdmanager_tool(sdk_path),
         adb_tool=adb_tool(sdk_path),
         emulator_tool=emulator_tool(sdk_path),
-        avd_path=avd_path,
+        avd_home_path=avd_home_path,
         sdk_path=sdk_path,
         emulator_path=emulator_path,
         no_interactive=no_interactive,
@@ -410,7 +410,7 @@ def ensure_android_avd(
     avdmanager_tool,
     adb_tool,
     emulator_tool,
-    avd_path,
+    avd_home_path,
     sdk_path,
     emulator_path,
     no_interactive=False,
@@ -424,7 +424,7 @@ def ensure_android_avd(
     if avd_manifest is None:
         return
 
-    ensure_dir(avd_path)
+    ensure_dir(avd_home_path)
     # The AVD needs this folder to boot, so make sure it exists here.
     ensure_dir(os.path.join(sdk_path, "platforms"))
 
@@ -448,7 +448,7 @@ def ensure_android_avd(
     # Flush outputs before running sdkmanager.
     sys.stdout.flush()
     env = os.environ.copy()
-    env["ANDROID_AVD_HOME"] = avd_path
+    env["ANDROID_AVD_HOME"] = avd_home_path
     proc = subprocess.Popen(args, stdin=subprocess.PIPE, env=env)
     proc.communicate("no\n".encode("UTF-8"))
 
@@ -458,7 +458,8 @@ def ensure_android_avd(
         e = subprocess.CalledProcessError(retcode, cmd)
         raise e
 
-    config_file_name = os.path.join(avd_path, avd_name + ".avd", "config.ini")
+    avd_path = os.path.join(avd_home_path, avd_name + ".avd")
+    config_file_name = os.path.join(avd_path, "config.ini")
 
     print("Writing config at %s" % config_file_name)
 
@@ -474,6 +475,17 @@ def ensure_android_avd(
         run_prewarm_avd(
             adb_tool, emulator_tool, env, avd_name, avd_manifest, no_interactive
         )
+    # When running in headless mode, the emulator does not run the cleanup
+    # step, and thus doesn't delete lock files. On some platforms, left-over
+    # lock files can cause the emulator to not start, so we remove them here.
+    for lock_file in ["hardware-qemu.ini.lock", "multiinstance.lock"]:
+        lock_file_path = os.path.join(avd_path, lock_file)
+        try:
+            os.remove(lock_file_path)
+            print("Removed lock file %s" % lock_file_path)
+        except OSError:
+            # The lock file is not there, nothing to do.
+            pass
 
 
 def run_prewarm_avd(
@@ -509,8 +521,9 @@ def run_prewarm_avd(
     if not booted:
         raise NotImplementedError("Could not prewarm emulator")
 
-    # We can kill the emulator now
-    proc.terminate()
+    # Wait until the emulator completely shuts down
+    subprocess.Popen([adb_tool, "emu", "kill"], env=env).wait()
+    proc.wait()
 
 
 def ensure_android_packages(
@@ -570,7 +583,7 @@ def ensure_android_packages(
 
 
 def generate_mozconfig(os_name, artifact_mode=False):
-    moz_state_dir, sdk_path, ndk_path, avd_path, emulator_path = get_paths(os_name)
+    moz_state_dir, sdk_path, ndk_path, avd_home_path, emulator_path = get_paths(os_name)
 
     extra_lines = []
     if extra_lines:
@@ -584,7 +597,7 @@ def generate_mozconfig(os_name, artifact_mode=False):
     kwargs = dict(
         sdk_path=sdk_path,
         ndk_path=ndk_path,
-        avd_path=avd_path,
+        avd_home_path=avd_home_path,
         moz_state_dir=moz_state_dir,
         extra_lines="\n".join(extra_lines),
     )

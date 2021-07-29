@@ -234,8 +234,11 @@ class RaptorGatherer(FrameworkGatherer):
                     continue
                 sub_title = key.replace("_", " ")
                 if key == "test_url":
+                    if "<" in description[key] or ">" in description[key]:
+                        description[key] = description[key].replace("<", "\<")
+                        description[key] = description[key].replace(">", "\>")
                     result += f"   * **{sub_title}**: `<{description[key]}>`__\n"
-                elif key in ["playback_pageset_manifest", "playback_recordings"]:
+                elif key in ["playback_pageset_manifest"]:
                     result += (
                         f"   * **{sub_title}**: "
                         f"{description[key].replace('{subtest}', description['name'])}\n"

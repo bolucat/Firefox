@@ -19,7 +19,7 @@ static_prefs = { path = "../../../../modules/libpref/init/static_prefs" }
 profiler_helper = { path = "../../../../tools/profiler/rust-helper", optional = true }
 mozurl = { path = "../../../../netwerk/base/mozurl" }
 webrender_bindings = { path = "../../../../gfx/webrender_bindings", optional = true }
-cubeb-coreaudio = { git = "https://github.com/mozilla/cubeb-coreaudio-rs", rev = "ad56ea14ac915f1e7ecbcf6ac38182443b0dd29e", optional = true }
+cubeb-coreaudio = { git = "https://github.com/mozilla/cubeb-coreaudio-rs", rev = "8ae48c16b637d6d9a841cf4d01de06c16b1318b0", optional = true }
 cubeb-pulse = { git = "https://github.com/mozilla/cubeb-pulse-rs", rev="c87b50aebfa088c1ad30c74819d4e9829f88b2e3", optional = true, features=["pulse-dlopen"] }
 cubeb-sys = { version = "0.9", optional = true, features=["gecko-in-tree"] }
 encoding_glue = { path = "../../../../intl/encoding_glue" }
@@ -74,9 +74,6 @@ qcms = { path = "../../../../gfx/qcms", features = ["c_bindings", "neon"], defau
 viaduct = { git = "https://github.com/mozilla/application-services", rev = "8a576fbe79199fa8664f64285524017f74ebcc5f"}
 webext_storage_bridge = { path = "../../../components/extensions/storage/webext_storage_bridge" }
 
-[build-dependencies]
-rustc_version = "0.2"
-
 [features]
 default = []
 quantum_render = ["webrender_bindings"]
@@ -86,7 +83,6 @@ cubeb_pulse_rust = ["cubeb-sys", "cubeb-pulse"]
 gecko_debug = ["geckoservo/gecko_debug", "nsstring/gecko_debug"]
 gecko_refcount_logging = ["geckoservo/gecko_refcount_logging", "xpcom/gecko_refcount_logging"]
 simd-accel = ["encoding_glue/simd-accel", "jsrust_shared/simd-accel"]
-moz_memory = []
 moz_places = ["bookmark_sync"]
 spidermonkey_rust = ["jsrust_shared/baldrdash"]
 cranelift_x86 = ["jsrust_shared/cranelift_x86"]

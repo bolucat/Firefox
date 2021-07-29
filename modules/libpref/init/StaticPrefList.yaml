@@ -11366,7 +11366,7 @@
 
 - name: webgl.enable-debug-renderer-info
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 - name: webgl.enable-draft-extensions
@@ -11490,7 +11490,7 @@
 
 - name: webgl.sanitize-unmasked-renderer
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 - name: webgl.allow-immediate-queries
