@@ -126,6 +126,7 @@ enum Operation {
     Version,
     Server {
         log_level: Option<Level>,
+        host: String,
         address: SocketAddr,
         settings: MarionetteSettings,
         deprecated_storage_arg: bool,
@@ -157,6 +158,12 @@ fn parse_args(app: &mut App) -> ProgramResult<Operation> {
         Ok(addr) => SocketAddr::new(addr, port),
         Err(e) => usage!("{}: {}:{}", e, host, port),
     };
+    if !address.ip().is_loopback() {
+        usage!(
+            "invalid --host: {}. Must be a local loopback interface",
+            host
+        )
+    }
 
     let android_storage = value_t!(matches, "android_storage", AndroidStorageInput)
         .unwrap_or(AndroidStorageInput::Auto);
@@ -198,6 +205,7 @@ fn parse_args(app: &mut App) -> ProgramResult<Operation> {
         };
         Operation::Server {
             log_level,
+            host: host.into(),
             address,
             settings,
             deprecated_storage_arg: matches.is_present("android_storage"),
@@ -214,6 +222,7 @@ fn inner_main(app: &mut App) -> ProgramResult<()> {
 
         Operation::Server {
             log_level,
+            host,
             address,
             settings,
             deprecated_storage_arg,
@@ -229,7 +238,7 @@ fn inner_main(app: &mut App) -> ProgramResult<()> {
             };
 
             let handler = MarionetteHandler::new(settings);
-            let listening = webdriver::server::start(address, handler, extension_routes())?;
+            let listening = webdriver::server::start(host, address, handler, extension_routes())?;
             info!("Listening on {}", listening.socket);
         }
     }

@@ -62,9 +62,11 @@ const reducers = require("devtools/client/performance-new/store/reducers");
 const actions = require("devtools/client/performance-new/store/actions");
 const {
   openProfilerAndDisplayProfile,
-  createMultiModalGetSymbolTableFn,
+  sharedLibrariesFromProfile,
 } = require("devtools/client/performance-new/browser");
-
+const { createLocalSymbolicationService } = ChromeUtils.import(
+  "resource://devtools/client/performance-new/symbolication.jsm.js"
+);
 const {
   setRecordingSettings,
   presets,
@@ -142,15 +144,16 @@ async function gInit(perfFront, pageContext, openAboutProfiling) {
    */
   const onProfileReceived = (profile, profilerViewMode) => {
     const objdirs = selectors.getObjdirs(store.getState());
-    const getSymbolTableCallback = createMultiModalGetSymbolTableFn(
-      profile,
+    const sharedLibraries = sharedLibrariesFromProfile(profile);
+    const symbolicationService = createLocalSymbolicationService(
+      sharedLibraries,
       objdirs,
       perfFront
     );
     openProfilerAndDisplayProfile(
       profile,
       profilerViewMode,
-      getSymbolTableCallback
+      symbolicationService
     );
   };
 

@@ -389,17 +389,8 @@ def pdf_printing(toolkit):
         return True
 
 
-@depends(pdf_printing)
-def pdf_surface_feature(pdf_printing):
-    if pdf_printing:
-        return "#define CAIRO_HAS_PDF_SURFACE 1"
-    else:
-        # CONFIGURE_SUBST_FILES need explicit empty values.
-        return ""
-
-
 set_config("MOZ_PDF_PRINTING", pdf_printing)
-set_config("PDF_SURFACE_FEATURE", pdf_surface_feature)
+set_define("MOZ_PDF_PRINTING", pdf_printing)
 
 
 # Event loop instrumentation
@@ -431,6 +422,7 @@ def fc_freetype(value, toolkit):
 
 
 add_old_configure_assignment("USE_FC_FREETYPE", fc_freetype)
+set_define("USE_FC_FREETYPE", fc_freetype)
 
 # Pango
 # ==============================================================
@@ -474,6 +466,7 @@ def freetype2_combined_info(fontconfig_info, freetype2_info):
 add_old_configure_assignment(
     "_HAVE_FREETYPE2", depends_if(freetype2_info)(lambda _: True)
 )
+set_define("MOZ_HAVE_FREETYPE2", depends_if(freetype2_info)(lambda _: True))
 
 # Apple platform decoder support
 # ==============================================================
@@ -937,53 +930,23 @@ set_config("MOZ_IPDL_TESTS", depends_if("--enable-ipdl-tests")(lambda _: True))
 
 # Graphics
 # ==============================================================
-option("--disable-skia", help="Disable use of Skia")
+@depends(target, milestone)
+def skia_pdf_default(target, milestone):
+    return milestone.is_nightly and target.os != "WINNT"
 
 
-@depends("--disable-skia")
-def skia(value):
-    if not value:
-        die("--disable-skia is not supported anymore")
-    else:
-        return True
+option("--enable-skia-pdf", default=skia_pdf_default, help="{Enable|Disable} Skia PDF")
 
+set_config("MOZ_ENABLE_SKIA_PDF", True, when="--enable-skia-pdf")
+set_define("MOZ_ENABLE_SKIA_PDF", True, when="--enable-skia-pdf")
 
-set_config("MOZ_ENABLE_SKIA", skia)
-set_define("MOZ_ENABLE_SKIA", skia)
-set_define("USE_SKIA", skia)
-
-option("--enable-skia-pdf", help="Enable Skia PDF")
-
-
-@depends("--enable-skia-pdf", skia, target, milestone)
-def skia_pdf(value, skia, target, milestone):
-    if value.origin == "default":
-        if not skia:
-            return None
-        if milestone.is_nightly and target.os != "WINNT":
-            return True
-    elif value and not skia:
-        die("Cannot enable Skia PDF without enabling Skia")
-    if skia and value:
-        return True
-
-
-set_config("MOZ_ENABLE_SKIA_PDF", skia_pdf)
-set_define("MOZ_ENABLE_SKIA_PDF", skia_pdf)
-
-
-@depends(skia)
-def skia_includes(skia):
-    includes = []
-    if skia:
-        includes += [
-            "/gfx/skia",
-            "/gfx/skia/skia",
-        ]
-    return includes
-
-
-set_config("SKIA_INCLUDES", skia_includes)
+set_config(
+    "SKIA_INCLUDES",
+    [
+        "/gfx/skia",
+        "/gfx/skia/skia",
+    ],
+)
 
 system_lib_option(
     "--with-system-webp", help="Use system libwebp (located with pkgconfig)"
@@ -997,7 +960,7 @@ set_config("MOZ_SYSTEM_WEBP", depends(when=system_webp)(lambda: True))
 
 # Build Freetype in the tree
 # ==============================================================
-@depends(target, skia_pdf)
+@depends(target, "--enable-skia-pdf")
 def tree_freetype(target, skia_pdf):
     if target.os == "Android" or (skia_pdf and target.os == "WINNT"):
         return True
@@ -2125,19 +2088,23 @@ with only_when(requires_wasm_sandboxing & compile_environment):
         help="Path to wasi sysroot for wasm sandboxing",
     )
 
-    @depends("--with-wasi-sysroot", toolchains_base_dir)
+    @depends("--with-wasi-sysroot", requires_wasm_sandboxing)
+    def bootstrap_wasi_sysroot(wasi_sysroot, requires_wasm_sandboxing):
+        return requires_wasm_sandboxing and not wasi_sysroot
+
+    @depends(
+        "--with-wasi-sysroot",
+        bootstrap_path("wasi-sysroot/share/wasi-sysroot", when=bootstrap_wasi_sysroot),
+    )
     @imports("os")
-    def wasi_sysroot(wasi_sysroot, toolchains_base_dir):
+    def wasi_sysroot(wasi_sysroot, bootstrapped_sysroot):
         if not wasi_sysroot:
-            sysroot = os.path.join(
-                toolchains_base_dir, "wasi-sysroot", "share", "wasi-sysroot"
-            )
-            if os.path.isdir(sysroot):
-                return sysroot
-            die(
-                "Cannot find a wasi sysroot. Install the sysroot at %s or set "
-                "--with-wasi-sysroot." % sysroot
-            )
+            if not bootstrapped_sysroot:
+                die(
+                    "Cannot find a wasi sysroot. Please give its location with "
+                    "--with-wasi-sysroot."
+                )
+            return bootstrapped_sysroot
 
         wasi_sysroot = wasi_sysroot[0]
         if not os.path.isdir(wasi_sysroot):

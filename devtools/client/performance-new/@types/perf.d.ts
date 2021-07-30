@@ -156,14 +156,18 @@ export interface Library {
  * reason to maintain a full type definition here.
  */
 export interface MinimallyTypedGeckoProfile {
-  libs: Array<{ debugName: string; breakpadId: string }>;
-  processes: Array<MinimallyTypedGeckoProfile>;
+  libs: Library[];
+  processes: MinimallyTypedGeckoProfile[];
 }
 
 export type GetSymbolTableCallback = (
   debugName: string,
   breakpadId: string
 ) => Promise<SymbolTableAsTuple>;
+
+export interface SymbolicationService {
+  getSymbolTable: GetSymbolTableCallback;
+}
 
 export type ReceiveProfile = (
   geckoProfile: MinimallyTypedGeckoProfile,
@@ -495,3 +499,48 @@ export interface FeatureDescription {
   // This will give a reason if the feature is disabled.
   disabledReason?: string;
 }
+
+// The key has the shape `${debugName}:${breakpadId}`.
+export type LibInfoMapKey = string;
+
+// This is a subset of the full Library struct.
+export type LibInfoMapValue = {
+  name: string;
+  path: string;
+  debugName: string;
+  debugPath: string;
+  breakpadId: string;
+  arch: string;
+}
+
+export type SymbolicationWorkerInitialMessage = {
+  // The debugName of the binary whose symbols should be obtained.
+  debugName: string;
+  // The breakpadId for the binary whose symbols should be obtained.
+  breakpadId: string;
+  // A map that allows looking up library info based on debugName + breakpadId.
+  // This is rather redundant at the moment, but it will make more sense once
+  // we can request symbols for multiple different libraries with one worker
+  // message.
+  libInfoMap: Map<LibInfoMapKey, LibInfoMapValue>;
+  // An array of objdir paths on the host machine that should be searched for
+  // relevant build artifacts.
+  objdirs: string[];
+  // The profiler-get-symbols wasm module.
+  module: WebAssembly.Module;
+};
+
+export type SymbolicationWorkerError = {
+  name: string;
+  message: string;
+  fileName?: string;
+  lineNumber?: number;
+};
+
+export type SymbolicationWorkerReplyData<R> =
+  | {
+      result: R;
+    }
+  | {
+      error: SymbolicationWorkerError;
+    };
