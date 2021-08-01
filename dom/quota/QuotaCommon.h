@@ -27,6 +27,8 @@
 #  include "mozilla/Variant.h"
 #endif
 #include "mozilla/dom/QMResult.h"
+#include "mozilla/dom/quota/FirstInitializationAttemptsImpl.h"
+#include "mozilla/dom/quota/ScopedLogExtraInfo.h"
 #include "mozilla/ipc/ProtocolUtils.h"
 #include "nsCOMPtr.h"
 #include "nsDebug.h"
@@ -983,6 +985,8 @@ namespace mozilla {
 
 class LogModule;
 
+struct CreateIfNonExistent {};
+
 struct NotOk {};
 
 // Allow MOZ_TRY/QM_TRY to handle `bool` values by wrapping them with OkIf.
@@ -1535,6 +1539,80 @@ auto CallWithDelayedRetriesIfAccessDenied(Func&& aFunc, uint32_t aMaxRetries,
 
     PR_Sleep(PR_MillisecondsToInterval(aDelayMs));
   }
+}
+
+namespace detail {
+
+template <bool flag = false>
+void UnsupportedReturnType() {
+  static_assert(flag, "Unsupported return type!");
+}
+
+}  // namespace detail
+
+template <typename Initialization, typename StringGenerator, typename Func>
+auto ExecuteInitialization(
+    FirstInitializationAttempts<Initialization, StringGenerator>&
+        aFirstInitializationAttempts,
+    const Initialization aInitialization, Func&& aFunc)
+    -> std::invoke_result_t<Func, const FirstInitializationAttempt<
+                                      Initialization, StringGenerator>&> {
+  using RetType = std::invoke_result_t<
+      Func, const FirstInitializationAttempt<Initialization, StringGenerator>&>;
+
+  auto firstInitializationAttempt =
+      aFirstInitializationAttempts.FirstInitializationAttempt(aInitialization);
+
+  auto res = std::forward<Func>(aFunc)(firstInitializationAttempt);
+
+  const auto rv = [&res]() -> nsresult {
+    if constexpr (std::is_same_v<RetType, nsresult>) {
+      return res;
+    } else if constexpr (mozilla::detail::IsResult<RetType>::value &&
+                         std::is_same_v<typename RetType::err_type, nsresult>) {
+      return res.isOk() ? NS_OK : res.inspectErr();
+    } else {
+      detail::UnsupportedReturnType();
+    }
+  }();
+
+  // NS_ERROR_ABORT signals a non-fatal, recoverable problem during
+  // initialization. We do not want these kind of failures to count against our
+  // overall first initialization attempt telemetry. Thus we just ignore this
+  // kind of failure and keep aFirstInitializationAttempts unflagged to stay
+  // ready to record a real success or failure on the next attempt.
+  if (rv == NS_ERROR_ABORT) {
+    return res;
+  }
+
+  if (!firstInitializationAttempt.Recorded()) {
+    firstInitializationAttempt.Record(rv);
+  }
+
+  return res;
+}
+
+template <typename Initialization, typename StringGenerator, typename Func>
+auto ExecuteInitialization(
+    FirstInitializationAttempts<Initialization, StringGenerator>&
+        aFirstInitializationAttempts,
+    const Initialization aInitialization, const nsACString& aContext,
+    Func&& aFunc)
+    -> std::invoke_result_t<Func, const FirstInitializationAttempt<
+                                      Initialization, StringGenerator>&> {
+  return ExecuteInitialization(
+      aFirstInitializationAttempts, aInitialization,
+      [&](const auto& firstInitializationAttempt) -> decltype(auto) {
+#ifdef QM_SCOPED_LOG_EXTRA_INFO_ENABLED
+        const auto maybeScopedLogExtraInfo =
+            firstInitializationAttempt.Recorded()
+                ? Nothing{}
+                : Some(ScopedLogExtraInfo{ScopedLogExtraInfo::kTagContext,
+                                          aContext});
+#endif
+
+        return std::forward<Func>(aFunc)(firstInitializationAttempt);
+      });
 }
 
 }  // namespace quota
