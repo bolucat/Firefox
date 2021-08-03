@@ -51,6 +51,8 @@ namespace jit {
   _(AtomicsOr64, js::jit::AtomicsOr64)                                         \
   _(AtomicsSub64, js::jit::AtomicsSub64)                                       \
   _(AtomicsXor64, js::jit::AtomicsXor64)                                       \
+  _(AtomizeString, js::AtomizeString)                                          \
+  _(AtomizeStringNoGC, js::jit::AtomizeStringNoGC)                             \
   _(BaselineCompileFromBaselineInterpreter,                                    \
     js::jit::BaselineCompileFromBaselineInterpreter)                           \
   _(BaselineDebugPrologue, js::jit::DebugPrologue)                             \
@@ -180,6 +182,8 @@ namespace jit {
   _(LambdaArrow, js::LambdaArrow)                                              \
   _(LeaveWith, js::jit::LeaveWith)                                             \
   _(LoadAliasedDebugVar, js::LoadAliasedDebugVar)                              \
+  _(MapObjectGet, js::jit::MapObjectGet)                                       \
+  _(MapObjectHas, js::jit::MapObjectHas)                                       \
   _(MutatePrototype, js::jit::MutatePrototype)                                 \
   _(NamedLambdaObjectCreateTemplateObject,                                     \
     js::NamedLambdaObject::createTemplateObject)                               \
@@ -231,6 +235,7 @@ namespace jit {
   _(SetFunctionName, js::SetFunctionName)                                      \
   _(SetIntrinsicOperation, js::SetIntrinsicOperation)                          \
   _(SetObjectElementWithReceiver, js::SetObjectElementWithReceiver)            \
+  _(SetObjectHas, js::jit::SetObjectHas)                                       \
   _(SetPropertySuper, js::SetPropertySuper)                                    \
   _(StartDynamicModuleImport, js::StartDynamicModuleImport)                    \
   _(StringBigIntGreaterThanOrEqual,                                            \
@@ -251,7 +256,6 @@ namespace jit {
   _(StringsEqual, js::jit::StringsEqual<js::jit::EqualityKind::Equal>)         \
   _(StringsNotEqual, js::jit::StringsEqual<js::jit::EqualityKind::NotEqual>)   \
   _(SubstringKernel, js::SubstringKernel)                                      \
-  _(ThrowBadDerivedReturn, js::jit::ThrowBadDerivedReturn)                     \
   _(ThrowBadDerivedReturnOrUninitializedThis,                                  \
     js::jit::ThrowBadDerivedReturnOrUninitializedThis)                         \
   _(ThrowCheckIsObject, js::ThrowCheckIsObject)                                \

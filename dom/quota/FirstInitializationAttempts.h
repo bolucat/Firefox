@@ -34,28 +34,22 @@ class FirstInitializationAttempts {
       return mOwner.FirstInitializationAttemptRecorded(mInitialization);
     }
 
-    bool Pending() const {
-      return mOwner.FirstInitializationAttemptPending(mInitialization);
-    }
-
     void Record(const nsresult aRv) const {
       mOwner.RecordFirstInitializationAttempt(mInitialization, aRv);
     }
   };
 
-  FirstInitializationAttemptImpl FirstInitializationAttempt(
-      const Initialization aInitialization) {
-    return FirstInitializationAttemptImpl(*this, aInitialization);
+  template <typename Func>
+  auto WithFirstInitializationAttempt(const Initialization aInitialization,
+                                      Func&& aFunc)
+      -> std::invoke_result_t<Func, FirstInitializationAttemptImpl&&> {
+    return std::forward<Func>(aFunc)(
+        FirstInitializationAttemptImpl(*this, aInitialization));
   }
 
   bool FirstInitializationAttemptRecorded(
       const Initialization aInitialization) const {
     return static_cast<bool>(mFirstInitializationAttempts & aInitialization);
-  }
-
-  bool FirstInitializationAttemptPending(
-      const Initialization aInitialization) const {
-    return !(mFirstInitializationAttempts & aInitialization);
   }
 
   void RecordFirstInitializationAttempt(const Initialization aInitialization,

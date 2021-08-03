@@ -8,6 +8,7 @@
 
 #include "mozilla/FloatingPoint.h"
 
+#include "builtin/MapObject.h"
 #include "builtin/String.h"
 #include "frontend/BytecodeCompiler.h"
 #include "gc/Cell.h"
@@ -135,6 +136,10 @@ struct TypeToDataType<JSString*> {
 };
 template <>
 struct TypeToDataType<JSLinearString*> {
+  static const DataType result = Type_Object;
+};
+template <>
+struct TypeToDataType<JSAtom*> {
   static const DataType result = Type_Object;
 };
 
@@ -1701,19 +1706,15 @@ bool ThrowRuntimeLexicalError(JSContext* cx, unsigned errorNumber) {
   return false;
 }
 
-bool ThrowBadDerivedReturn(JSContext* cx, HandleValue v) {
-  MOZ_ASSERT(!v.isObject() && !v.isUndefined());
-  ReportValueError(cx, JSMSG_BAD_DERIVED_RETURN, JSDVG_IGNORE_STACK, v,
-                   nullptr);
-  return false;
-}
-
 bool ThrowBadDerivedReturnOrUninitializedThis(JSContext* cx, HandleValue v) {
   MOZ_ASSERT(!v.isObject());
   if (v.isUndefined()) {
     return js::ThrowUninitializedThis(cx);
   }
-  return ThrowBadDerivedReturn(cx, v);
+
+  ReportValueError(cx, JSMSG_BAD_DERIVED_RETURN, JSDVG_IGNORE_STACK, v,
+                   nullptr);
+  return false;
 }
 
 bool BaselineGetFunctionThis(JSContext* cx, BaselineFrame* frame,
@@ -2808,6 +2809,28 @@ BigInt* AtomicsXor64(JSContext* cx, TypedArrayObject* typedArray, size_t index,
         return jit::AtomicOperations::fetchXorSeqCst(addr, val);
       },
       value);
+}
+
+JSAtom* AtomizeStringNoGC(JSContext* cx, JSString* str) {
+  // Called with GC values on the stack, so we better don't trigger GC.
+  JS::AutoCheckCannotGC nogc;
+
+  return AtomizeString(cx, str);
+}
+
+bool SetObjectHas(JSContext* cx, HandleObject obj, HandleValue key,
+                  bool* rval) {
+  return SetObject::has(cx, obj, key, rval);
+}
+
+bool MapObjectHas(JSContext* cx, HandleObject obj, HandleValue key,
+                  bool* rval) {
+  return MapObject::has(cx, obj, key, rval);
+}
+
+bool MapObjectGet(JSContext* cx, HandleObject obj, HandleValue key,
+                  MutableHandleValue rval) {
+  return MapObject::get(cx, obj, key, rval);
 }
 
 void AssumeUnreachable(const char* output) {
