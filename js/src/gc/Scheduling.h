@@ -431,9 +431,6 @@ static const auto MinLastDitchGCPeriod = 60;  // in seconds
 /* JSGC_MALLOC_THRESHOLD_BASE */
 static const size_t MallocThresholdBase = 38 * 1024 * 1024;
 
-/* JSGC_MALLOC_GROWTH_FACTOR */
-static const double MallocGrowthFactor = 1.5;
-
 /* JSGC_HELPER_THREAD_RATIO */
 static const double HelperThreadRatio = 0.5;
 
@@ -601,13 +598,6 @@ class GCSchedulingTunables {
   MainThreadOrGCTaskData<size_t> mallocThresholdBase_;
 
   /*
-   * JSGC_MALLOC_GROWTH_FACTOR
-   *
-   * Malloc memory growth factor.
-   */
-  MainThreadOrGCTaskData<double> mallocGrowthFactor_;
-
-  /*
    * JSGC_URGENT_THRESHOLD_BYTES
    *
    * The base value used to compute the GC trigger for malloc allocated memory.
@@ -667,7 +657,6 @@ class GCSchedulingTunables {
   }
 
   size_t mallocThresholdBase() const { return mallocThresholdBase_; }
-  double mallocGrowthFactor() const { return mallocGrowthFactor_; }
 
   size_t urgentThresholdBytes() const { return urgentThresholdBytes_; }
 
@@ -833,6 +822,10 @@ class HeapThreshold {
   bool hasSliceThreshold() const { return sliceBytes_ != SIZE_MAX; }
 
  protected:
+  static double computeZoneHeapGrowthFactorForHeapSize(
+      size_t lastBytes, const GCSchedulingTunables& tunables,
+      const GCSchedulingState& state);
+
   void setIncrementalLimitFromStartBytes(size_t retainedBytes,
                                          const GCSchedulingTunables& tunables);
 };
@@ -848,9 +841,6 @@ class GCHeapThreshold : public HeapThreshold {
                             const AutoLockGC& lock);
 
  private:
-  static double computeZoneHeapGrowthFactorForHeapSize(
-      size_t lastBytes, const GCSchedulingTunables& tunables,
-      const GCSchedulingState& state);
   static size_t computeZoneTriggerBytes(double growthFactor, size_t lastBytes,
                                         JS::GCOptions options,
                                         const GCSchedulingTunables& tunables,
@@ -864,6 +854,7 @@ class MallocHeapThreshold : public HeapThreshold {
  public:
   void updateStartThreshold(size_t lastBytes,
                             const GCSchedulingTunables& tunables,
+                            const GCSchedulingState& state,
                             const AutoLockGC& lock);
 
  private:

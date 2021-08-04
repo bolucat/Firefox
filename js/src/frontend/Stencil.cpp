@@ -647,6 +647,139 @@ void CompilationInput::trace(JSTracer* trc) {
   TraceNullableRoot(trc, &enclosingScope, "compilation-input-enclosing-scope");
 }
 
+bool CompilationSyntaxParseCache::init(JSContext* cx, LifoAlloc& alloc,
+                                       ParserAtomsTable& parseAtoms,
+                                       CompilationAtomCache& atomCache,
+                                       BaseScript* lazy) {
+  if (!copyScriptInfo(cx, alloc, parseAtoms, atomCache, lazy)) {
+    return false;
+  }
+  if (!copyClosedOverBindings(cx, alloc, parseAtoms, atomCache, lazy)) {
+    return false;
+  }
+#ifdef DEBUG
+  isInitialized = true;
+#endif
+  return true;
+}
+
+bool CompilationSyntaxParseCache::copyScriptInfo(
+    JSContext* cx, LifoAlloc& alloc, ParserAtomsTable& parseAtoms,
+    CompilationAtomCache& atomCache, BaseScript* lazy) {
+  using GCThingsSpan = mozilla::Span<TaggedScriptThingIndex>;
+  using ScriptDataSpan = mozilla::Span<ScriptStencil>;
+  using ScriptExtraSpan = mozilla::Span<ScriptStencilExtra>;
+  cachedGCThings_ = GCThingsSpan(nullptr);
+  cachedScriptData_ = ScriptDataSpan(nullptr);
+  cachedScriptExtra_ = ScriptExtraSpan(nullptr);
+
+  auto gcthings = lazy->gcthings();
+  size_t length = gcthings.Length();
+  if (length == 0) {
+    return true;
+  }
+
+  // Reduce the length to the first element which is not a function.
+  for (size_t i = 0; i < length; i++) {
+    gc::Cell* cell = gcthings[i].asCell();
+    if (!cell || !cell->is<JSObject>()) {
+      length = i;
+      break;
+    }
+    MOZ_ASSERT(cell->as<JSObject>()->is<JSFunction>());
+  }
+
+  TaggedScriptThingIndex* gcThingsData =
+      alloc.newArrayUninitialized<TaggedScriptThingIndex>(length);
+  ScriptStencil* scriptData =
+      alloc.newArrayUninitialized<ScriptStencil>(length);
+  ScriptStencilExtra* scriptExtra =
+      alloc.newArrayUninitialized<ScriptStencilExtra>(length);
+  if (!gcThingsData || !scriptData || !scriptExtra) {
+    ReportOutOfMemory(cx);
+    return false;
+  }
+
+  for (size_t i = 0; i < length; i++) {
+    gc::Cell* cell = gcthings[i].asCell();
+    RootedFunction fun(cx, &cell->as<JSObject>()->as<JSFunction>());
+    gcThingsData[i] = TaggedScriptThingIndex(ScriptIndex(i));
+    new (mozilla::KnownNotNull, &scriptData[i]) ScriptStencil();
+    ScriptStencil& data = scriptData[i];
+    new (mozilla::KnownNotNull, &scriptExtra[i]) ScriptStencilExtra();
+    ScriptStencilExtra& extra = scriptExtra[i];
+
+    if (fun->displayAtom()) {
+      TaggedParserAtomIndex displayAtom =
+          parseAtoms.internJSAtom(cx, atomCache, fun->displayAtom());
+      if (!displayAtom) {
+        return false;
+      }
+      data.functionAtom = displayAtom;
+    }
+    data.functionFlags = fun->flags();
+
+    BaseScript* lazy = fun->baseScript();
+    extra.immutableFlags = lazy->immutableFlags();
+    extra.extent = lazy->extent();
+
+    // Info derived from parent compilation should not be set yet for our inner
+    // lazy functions. Instead that info will be updated when we finish our
+    // compilation.
+    MOZ_ASSERT(lazy->hasEnclosingScript());
+  }
+
+  cachedGCThings_ = GCThingsSpan(gcThingsData, length);
+  cachedScriptData_ = ScriptDataSpan(scriptData, length);
+  cachedScriptExtra_ = ScriptExtraSpan(scriptExtra, length);
+  return true;
+}
+
+bool CompilationSyntaxParseCache::copyClosedOverBindings(
+    JSContext* cx, LifoAlloc& alloc, ParserAtomsTable& parseAtoms,
+    CompilationAtomCache& atomCache, BaseScript* lazy) {
+  using ClosedOverBindingsSpan = mozilla::Span<TaggedParserAtomIndex>;
+  closedOverBindings_ = ClosedOverBindingsSpan(nullptr);
+
+  // The gcthings() array contains the inner function list followed by the
+  // closed-over bindings data. Skip the inner function list, as it is already
+  // cached in cachedGCThings_. See also: BaseScript::CreateLazy.
+  size_t start = cachedGCThings_.Length();
+  auto gcthings = lazy->gcthings();
+  size_t length = gcthings.Length();
+  MOZ_ASSERT(start <= length);
+  if (length - start == 0) {
+    return true;
+  }
+
+  TaggedParserAtomIndex* closedOverBindings =
+      alloc.newArrayUninitialized<TaggedParserAtomIndex>(length - start);
+  if (!closedOverBindings) {
+    ReportOutOfMemory(cx);
+    return false;
+  }
+
+  for (size_t i = start; i < length; i++) {
+    gc::Cell* cell = gcthings[i].asCell();
+    if (!cell) {
+      closedOverBindings[i - start] = TaggedParserAtomIndex::null();
+      continue;
+    }
+
+    MOZ_ASSERT(cell->as<JSString>()->isAtom());
+    auto name = static_cast<JSAtom*>(cell);
+    auto parserAtom = parseAtoms.internJSAtom(cx, atomCache, name);
+    if (!parserAtom) {
+      return false;
+    }
+
+    closedOverBindings[i - start] = parserAtom;
+  }
+
+  closedOverBindings_ = ClosedOverBindingsSpan(closedOverBindings, length - start);
+  return true;
+}
+
 void CompilationAtomCache::trace(JSTracer* trc) { atoms_.trace(trc); }
 
 void CompilationGCOutput::trace(JSTracer* trc) {
@@ -1611,12 +1744,23 @@ bool CompilationStencil::delazifySelfHostedFunction(
     gcOutput.get().scopes.infallibleAppend(scope);
   }
 
-  // Phase 4, 5: Instantiate BaseScripts.
-  for (size_t i = range.start; i < range.limit; i++) {
+  // Phase 4: Instantiate (inner) BaseScripts.
+  ScriptIndex innerStart(range.start + 1);
+  for (size_t i = innerStart; i < range.limit; i++) {
     if (!JSScript::fromStencil(cx, atomCache, *this, gcOutput.get(),
                                ScriptIndex(i))) {
       return false;
     }
+  }
+
+  // Phase 5: Finish top-level handling
+  // NOTE: We do not have a `CompilationInput` handy here, so avoid using the
+  //       `InstantiateTopLevel` helper and directly create the JSScript. Our
+  //       caller also handles the `AllowRelazify` flag for us since self-hosted
+  //       delazification is a special case.
+  if (!JSScript::fromStencil(cx, atomCache, *this, gcOutput.get(),
+                             range.start)) {
+    return false;
   }
 
   // Phase 6: Update lazy scripts.

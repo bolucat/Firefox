@@ -1486,13 +1486,6 @@ already_AddRefed<RemoteBrowser> ContentParent::CreateBrowser(
     openerTabId = BrowserParent::GetTabIdFrom(docShell);
   }
 
-  bool isPreloadBrowser = false;
-  nsAutoString isPreloadBrowserStr;
-  if (aFrameElement->GetAttr(kNameSpaceID_None, nsGkAtoms::preloadedState,
-                             isPreloadBrowserStr)) {
-    isPreloadBrowser = isPreloadBrowserStr.EqualsLiteral("preloaded");
-  }
-
   RefPtr<ContentParent> constructorSender;
   MOZ_RELEASE_ASSERT(XRE_IsParentProcess(),
                      "Cannot allocate BrowserParent in content process");
@@ -1504,8 +1497,7 @@ already_AddRefed<RemoteBrowser> ContentParent::CreateBrowser(
           aContext.JSPluginId(), PROCESS_PRIORITY_FOREGROUND);
     } else {
       constructorSender = GetNewOrUsedBrowserProcess(
-          remoteType, aBrowsingContext->Group(), PROCESS_PRIORITY_FOREGROUND,
-          isPreloadBrowser);
+          remoteType, aBrowsingContext->Group(), PROCESS_PRIORITY_FOREGROUND);
     }
     if (!constructorSender) {
       return nullptr;
@@ -6559,6 +6551,20 @@ mozilla::ipc::IPCResult ContentParent::RecvNotifyPositionStateChanged(
   if (RefPtr<IMediaInfoUpdater> updater =
           aContext.get_canonical()->GetMediaController()) {
     updater->UpdatePositionState(aContext.ContextId(), aState);
+  }
+  return IPC_OK();
+}
+
+mozilla::ipc::IPCResult ContentParent::RecvAddOrRemovePageAwakeRequest(
+    const MaybeDiscarded<BrowsingContext>& aContext,
+    const bool& aShouldAddCount) {
+  if (aContext.IsNullOrDiscarded()) {
+    return IPC_OK();
+  }
+  if (aShouldAddCount) {
+    aContext.get_canonical()->AddPageAwakeRequest();
+  } else {
+    aContext.get_canonical()->RemovePageAwakeRequest();
   }
   return IPC_OK();
 }

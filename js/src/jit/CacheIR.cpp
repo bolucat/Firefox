@@ -5991,9 +5991,8 @@ AttachDecision CallIRGenerator::tryAttachObjectHasPrototype(
 }
 
 AttachDecision CallIRGenerator::tryAttachString(HandleFunction callee) {
-  // Need a single string argument.
-  // TODO(Warp): Support all or more conversions to strings.
-  if (argc_ != 1 || !args_[0].isString()) {
+  // Need a single argument that is or can be converted to a string.
+  if (argc_ != 1 || !(args_[0].isString() || args_[0].isNumber())) {
     return AttachDecision::NoAction;
   }
 
@@ -6003,9 +6002,9 @@ AttachDecision CallIRGenerator::tryAttachString(HandleFunction callee) {
   // Guard callee is the 'String' function.
   emitNativeCalleeGuard(callee);
 
-  // Guard that the argument is a string.
+  // Guard that the argument is a string or can be converted to one.
   ValOperandId argId = writer.loadArgumentFixedSlot(ArgumentKind::Arg0, argc_);
-  StringOperandId strId = writer.guardToString(argId);
+  StringOperandId strId = emitToStringGuard(argId, args_[0]);
 
   // Return the string.
   writer.loadStringResult(strId);
@@ -6017,9 +6016,8 @@ AttachDecision CallIRGenerator::tryAttachString(HandleFunction callee) {
 
 AttachDecision CallIRGenerator::tryAttachStringConstructor(
     HandleFunction callee) {
-  // Need a single string argument.
-  // TODO(Warp): Support all or more conversions to strings.
-  if (argc_ != 1 || !args_[0].isString()) {
+  // Need a single argument that is or can be converted to a string.
+  if (argc_ != 1 || !(args_[0].isString() || args_[0].isNumber())) {
     return AttachDecision::NoAction;
   }
 
@@ -6039,10 +6037,11 @@ AttachDecision CallIRGenerator::tryAttachStringConstructor(
 
   CallFlags flags(IsConstructPC(pc_), IsSpreadPC(pc_));
 
-  // Guard that the argument is a string.
+  // Guard on number and convert to string.
   ValOperandId argId =
       writer.loadArgumentFixedSlot(ArgumentKind::Arg0, argc_, flags);
-  StringOperandId strId = writer.guardToString(argId);
+  StringOperandId strId = emitToStringGuard(argId, args_[0]);
+
   writer.newStringObjectResult(templateObj, strId);
   writer.returnFromIC();
 
@@ -6935,8 +6934,8 @@ AttachDecision CallIRGenerator::tryAttachMathFunction(HandleFunction callee,
   return AttachDecision::Attach;
 }
 
-static StringOperandId EmitToStringGuard(CacheIRWriter& writer, ValOperandId id,
-                                         const Value& v) {
+StringOperandId IRGenerator::emitToStringGuard(ValOperandId id,
+                                               const Value& v) {
   if (v.isString()) {
     return writer.guardToString(id);
   }
@@ -6973,7 +6972,7 @@ AttachDecision CallIRGenerator::tryAttachNumberToString(HandleFunction callee) {
       writer.loadArgumentFixedSlot(ArgumentKind::This, argc_);
 
   // Guard on number and convert to string.
-  StringOperandId strId = EmitToStringGuard(writer, thisValId, thisval_);
+  StringOperandId strId = emitToStringGuard(thisValId, thisval_);
 
   // Return the string.
   writer.loadStringResult(strId);
@@ -11004,8 +11003,8 @@ AttachDecision BinaryArithIRGenerator::tryAttachStringNumberConcat() {
   ValOperandId lhsId(writer.setInputOperandId(0));
   ValOperandId rhsId(writer.setInputOperandId(1));
 
-  StringOperandId lhsStrId = EmitToStringGuard(writer, lhsId, lhs_);
-  StringOperandId rhsStrId = EmitToStringGuard(writer, rhsId, rhs_);
+  StringOperandId lhsStrId = emitToStringGuard(lhsId, lhs_);
+  StringOperandId rhsStrId = emitToStringGuard(rhsId, rhs_);
 
   writer.callStringConcatResult(lhsStrId, rhsStrId);
 

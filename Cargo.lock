@@ -30,24 +30,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "android_log-sys"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85965b6739a430150bdd138e2374a98af0c3ee0d030b3bb7fc3bddff58d0102e"
-
-[[package]]
-name = "android_logger"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9ed09b18365ed295d722d0b5ed59c01b79a826ff2d2a8f73d5ecca8e6fb2f66"
-dependencies = [
- "android_log-sys",
- "env_logger",
- "lazy_static",
- "log",
-]
-
-[[package]]
 name = "anyhow"
 version = "1.0.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -895,9 +877,9 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-deque"
-version = "0.7.3"
+version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f02af974daeee82218205558e51ec8768b48cf524bd01d550abe5573a608285"
+checksum = "c20ff29ded3204c5106278a81a38f4b482636ed4fa1e6cfbeef193291beb29ed"
 dependencies = [
  "crossbeam-epoch",
  "crossbeam-utils 0.7.2",
@@ -1107,16 +1089,6 @@ dependencies = [
  "darling_core",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "dashmap"
-version = "4.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e77a43b28d0668df09411cb0bc9a8c2adc40f9a048afe863e05fd43251e8e39c"
-dependencies = [
- "cfg-if 1.0.0",
- "num_cpus",
 ]
 
 [[package]]
@@ -1591,7 +1563,6 @@ dependencies = [
  "cstr",
  "fog",
  "glean",
- "glean-ffi",
  "log",
  "nserror",
  "nsstring",
@@ -2042,6 +2013,7 @@ dependencies = [
  "l10nregistry",
  "l10nregistry-ffi",
  "lmdb-rkv-sys",
+ "localization-ffi",
  "log",
  "mapped_hyph",
  "mdns_service",
@@ -2102,9 +2074,9 @@ dependencies = [
 
 [[package]]
 name = "glean"
-version = "40.0.0"
+version = "39.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4467acdfed9d396d5c8c1f47c658c6781476cfbb2e73a3c985e40204a9f4d350"
+checksum = "c8e24825d3123194a212e3daf8ddac150713cec4f1e126dc3c12ba207f0b5d77"
 dependencies = [
  "chrono",
  "crossbeam-channel 0.5.1",
@@ -2122,9 +2094,9 @@ dependencies = [
 
 [[package]]
 name = "glean-core"
-version = "40.0.0"
+version = "39.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a78e1fedc285fbf042f8f4f48281799c87f7715ad1ad9dabbfb57b09094cbaf5"
+checksum = "d1a31d189a28ffde9bfcc7ab26586ee2b81705f0b95bf7a090b67fab1f378782"
 dependencies = [
  "bincode",
  "chrono",
@@ -2138,25 +2110,6 @@ dependencies = [
  "time",
  "uuid",
  "zeitstempel",
-]
-
-[[package]]
-name = "glean-ffi"
-version = "40.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0da7ce4e6115c834a8da23c9978e007c047284eb136689d76538ecb0ef6ff69c"
-dependencies = [
- "android_logger",
- "env_logger",
- "ffi-support",
- "glean-core",
- "libc",
- "log",
- "once_cell",
- "oslog",
- "serde",
- "serde_json",
- "uuid",
 ]
 
 [[package]]
@@ -2695,7 +2648,7 @@ dependencies = [
 [[package]]
 name = "l10nregistry"
 version = "0.2.0"
-source = "git+https://github.com/mozilla/l10nregistry-rs?rev=55bf7f826d773303a67d8d7fdab099a04322d4fb#55bf7f826d773303a67d8d7fdab099a04322d4fb"
+source = "git+https://github.com/mozilla/l10nregistry-rs?rev=a69df9836b1ef536727195209013b9ad6b132618#a69df9836b1ef536727195209013b9ad6b132618"
 dependencies = [
  "async-trait",
  "fluent-bundle",
@@ -2855,6 +2808,27 @@ dependencies = [
  "cc",
  "libc",
  "pkg-config",
+]
+
+[[package]]
+name = "localization-ffi"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "cstr",
+ "fluent",
+ "fluent-fallback",
+ "fluent-ffi",
+ "futures 0.3.15",
+ "futures-channel",
+ "l10nregistry",
+ "l10nregistry-ffi",
+ "moz_task",
+ "nserror",
+ "nsstring",
+ "thin-vec",
+ "unic-langid",
+ "xpcom",
 ]
 
 [[package]]
@@ -3304,13 +3278,12 @@ dependencies = [
 [[package]]
 name = "mp4parse"
 version = "0.11.5"
-source = "git+https://github.com/mozilla/mp4parse-rust?rev=1bb484e96ae724309e3346968e8ffd4c25e61616#1bb484e96ae724309e3346968e8ffd4c25e61616"
+source = "git+https://github.com/mozilla/mp4parse-rust?rev=5326af6b54cec885cdb9e7be282a6db6e757b964#5326af6b54cec885cdb9e7be282a6db6e757b964"
 dependencies = [
  "bitreader",
  "byteorder",
  "env_logger",
  "fallible_collections",
- "hashbrown",
  "log",
  "num-traits",
  "static_assertions",
@@ -3323,7 +3296,7 @@ version = "0.1.0"
 [[package]]
 name = "mp4parse_capi"
 version = "0.11.5"
-source = "git+https://github.com/mozilla/mp4parse-rust?rev=1bb484e96ae724309e3346968e8ffd4c25e61616#1bb484e96ae724309e3346968e8ffd4c25e61616"
+source = "git+https://github.com/mozilla/mp4parse-rust?rev=5326af6b54cec885cdb9e7be282a6db6e757b964#5326af6b54cec885cdb9e7be282a6db6e757b964"
 dependencies = [
  "byteorder",
  "fallible_collections",
@@ -3643,19 +3616,9 @@ dependencies = [
  "mozilla-central-workspace-hack",
  "pkcs11",
  "rental",
+ "rsclientcerts",
  "sha2",
  "winapi",
-]
-
-[[package]]
-name = "oslog"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8343ce955f18e7e68c0207dd0ea776ec453035685395ababd2ea651c569728b3"
-dependencies = [
- "cc",
- "dashmap",
- "log",
 ]
 
 [[package]]
@@ -4357,6 +4320,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "284de9dae38774e2813aaabd7e947b4a6fe9b8c58c2309f754a487cdd50de1c2"
 dependencies = [
  "petgraph",
+]
+
+[[package]]
+name = "rsclientcerts"
+version = "0.1.0"
+dependencies = [
+ "byteorder",
+ "pkcs11",
 ]
 
 [[package]]
@@ -5395,9 +5366,9 @@ checksum = "879f6906492a7cd215bfa4cf595b600146ccfac0c79bcbd1f3000162af5e8b06"
 
 [[package]]
 name = "uluru"
-version = "0.4.0"
+version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d7b39d0c32eba57d52d334e4bdd150df6e755264eefaa1ae2e7cd125f35e1ca"
+checksum = "b6ee6f45294ecb6e220e76b8afddb50a8b69d433f31ad9eb2d16fb44029ef5db"
 dependencies = [
  "arrayvec",
 ]

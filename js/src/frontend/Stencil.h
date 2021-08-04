@@ -732,6 +732,11 @@ class TaggedScriptThingIndex {
   ScopeIndex toScope() const { return ScopeIndex(data_ & IndexMask); }
   ScriptIndex toFunction() const { return ScriptIndex(data_ & IndexMask); }
 
+  TaggedParserAtomIndex toAtomOrNull() const {
+    MOZ_ASSERT(isAtom() || isNull());
+    return TaggedParserAtomIndex::fromRaw(data_);
+  }
+
   uint32_t* rawDataRef() { return &data_; }
   uint32_t rawData() const { return data_; }
 
@@ -918,14 +923,7 @@ class ScriptStencilExtra {
 
   ScriptStencilExtra() = default;
 
-  bool isModule() const {
-    return immutableFlags.hasFlag(ImmutableScriptFlagsEnum::IsModule);
-  }
-
-  bool useMemberInitializers() const {
-    return immutableFlags.hasFlag(
-        ImmutableScriptFlagsEnum::UseMemberInitializers);
-  }
+  RO_IMMUTABLE_SCRIPT_FLAGS(immutableFlags)
 
   void setMemberInitializers(MemberInitializers member) {
     MOZ_ASSERT(useMemberInitializers());
