@@ -552,13 +552,9 @@ nsRect nsDisplayListBuilder::OutOfFlowDisplayData::ComputeVisibleRectForFrame(
 }
 
 nsDisplayListBuilder::Linkifier::Linkifier(nsDisplayListBuilder* aBuilder,
-                                           nsIFrame* aFrame) {
-  // Links don't nest, so if the builder already has a destination, no need to
-  // check for a link element here.
-  if (!aBuilder->mLinkSpec.IsEmpty()) {
-    return;
-  }
-
+                                           nsIFrame* aFrame,
+                                           nsDisplayList* aList)
+    : mList(aList) {
   // Find the element that we need to check for link-ness, bailing out if
   // we can't find one.
   Element* elem = Element::FromNodeOrNull(aFrame->GetContent());
@@ -566,14 +562,65 @@ nsDisplayListBuilder::Linkifier::Linkifier(nsDisplayListBuilder* aBuilder,
     return;
   }
 
-  // Check if we have actually found a link and it has a usable spec.
-  nsCOMPtr<nsIURI> linkURI;
-  if (!elem->IsLink(getter_AddRefs(linkURI))) {
+  // If the element has an id and/or name attribute, generate a destination
+  // for possible internal linking.
+  auto maybeGenerateDest = [&](const nsAtom* aAttr) {
+    nsAutoString attrValue;
+    elem->GetAttr(aAttr, attrValue);
+    if (!attrValue.IsEmpty()) {
+      NS_ConvertUTF16toUTF8 dest(attrValue);
+      // Ensure that we only emit a given destination once, although there may
+      // be multiple frames associated with a given element; we'll simply use
+      // the first of them as the target of any links to it.
+      // XXX(jfkthame) This prevents emitting duplicate destinations *on the
+      // same page*, but does not prevent duplicates on subsequent pages, as
+      // each new page is handled by a new temporary DisplayListBuilder. This
+      // seems to be harmless in practice, though a bit wasteful of space. To
+      // fix, we need to maintain the set of already-seen destinations globally
+      // for the print job, rather than attached to the (per-page) builder.
+      if (aBuilder->mDestinations.EnsureInserted(dest)) {
+        auto* destination = MakeDisplayItem<nsDisplayDestination>(
+            aBuilder, aFrame, dest.get(), aFrame->GetRect().TopLeft());
+        mList->AppendToTop(destination);
+      }
+    }
+  };
+  if (elem->HasID()) {
+    maybeGenerateDest(nsGkAtoms::id);
+  }
+  if (elem->HasName()) {
+    maybeGenerateDest(nsGkAtoms::name);
+  }
+
+  // Links don't nest, so if the builder already has a destination, no need to
+  // check for a link element here.
+  if (!aBuilder->mLinkSpec.IsEmpty()) {
     return;
   }
-  if (NS_FAILED(linkURI->GetSpec(aBuilder->mLinkSpec)) ||
-      aBuilder->mLinkSpec.IsEmpty()) {
+
+  // Check if we have actually found a link.
+  nsCOMPtr<nsIURI> uri;
+  if (!elem->IsLink(getter_AddRefs(uri))) {
     return;
+  }
+
+  // Is it a local (in-page) destination?
+  bool hasRef, eqExRef;
+  nsIURI* docURI;
+  if (NS_SUCCEEDED(uri->GetHasRef(&hasRef)) && hasRef &&
+      (docURI = aFrame->PresContext()->Document()->GetDocumentURI()) &&
+      NS_SUCCEEDED(uri->EqualsExceptRef(docURI, &eqExRef)) && eqExRef) {
+    if (NS_FAILED(uri->GetRef(aBuilder->mLinkSpec)) ||
+        aBuilder->mLinkSpec.IsEmpty()) {
+      return;
+    }
+    // Mark the link spec as being an internal destination
+    aBuilder->mLinkSpec.Insert('#', 0);
+  } else {
+    if (NS_FAILED(uri->GetSpec(aBuilder->mLinkSpec)) ||
+        aBuilder->mLinkSpec.IsEmpty()) {
+      return;
+    }
   }
 
   // Record that we need to reset the builder's state on destruction.
@@ -581,14 +628,14 @@ nsDisplayListBuilder::Linkifier::Linkifier(nsDisplayListBuilder* aBuilder,
 }
 
 void nsDisplayListBuilder::Linkifier::MaybeAppendLink(
-    nsDisplayListBuilder* aBuilder, nsIFrame* aFrame, nsDisplayList* aList) {
+    nsDisplayListBuilder* aBuilder, nsIFrame* aFrame) {
   // Note that we may generate a link here even if the constructor bailed out
   // without updating aBuilder->LinkSpec(), because it may have been set by
   // an ancestor that was associated with a link element.
   if (!aBuilder->mLinkSpec.IsEmpty()) {
     auto* link = MakeDisplayItem<nsDisplayLink>(
         aBuilder, aFrame, aBuilder->mLinkSpec.get(), aFrame->GetRect());
-    aList->AppendToTop(link);
+    mList->AppendToTop(link);
   }
 }
 
@@ -2284,7 +2331,7 @@ static void TriggerPendingAnimations(Document& aDoc,
   aDoc.EnumerateSubDocuments(recurse);
 }
 
-LayerManager* nsDisplayListBuilder::GetWidgetLayerManager(nsView** aView) {
+WindowRenderer* nsDisplayListBuilder::GetWidgetWindowRenderer(nsView** aView) {
   if (aView) {
     *aView = RootReferenceFrame()->GetView();
   }
@@ -2294,10 +2341,15 @@ LayerManager* nsDisplayListBuilder::GetWidgetLayerManager(nsView** aView) {
   }
   nsIWidget* window = RootReferenceFrame()->GetNearestWidget();
   if (window) {
-    WindowRenderer* renderer = window->GetWindowRenderer();
-    if (renderer) {
-      return renderer->AsLayerManager();
-    }
+    return window->GetWindowRenderer();
+  }
+  return nullptr;
+}
+
+LayerManager* nsDisplayListBuilder::GetWidgetLayerManager(nsView** aView) {
+  WindowRenderer* renderer = GetWidgetWindowRenderer();
+  if (renderer) {
+    return renderer->AsLayerManager();
   }
   return nullptr;
 }
@@ -2442,7 +2494,11 @@ void nsDisplayList::Paint(nsDisplayListBuilder* aBuilder, gfxContext* aCtx,
     DisplayItemClip currentClip = item->GetClip();
     if (currentClip.HasClip()) {
       aCtx->Save();
-      currentClip.ApplyTo(aCtx, aAppUnitsPerDevPixel);
+      if (currentClip.IsRectClippedByRoundedCorner(visible.GetBounds())) {
+        currentClip.ApplyTo(aCtx, aAppUnitsPerDevPixel);
+      } else {
+        currentClip.ApplyRectTo(aCtx, aAppUnitsPerDevPixel);
+      }
     }
     aCtx->NewPath();
 
@@ -2465,16 +2521,27 @@ already_AddRefed<LayerManager> nsDisplayList::PaintRoot(
   AUTO_PROFILER_LABEL("nsDisplayList::PaintRoot", GRAPHICS);
 
   RefPtr<LayerManager> layerManager;
+  WindowRenderer* renderer = nullptr;
   bool widgetTransaction = false;
   bool doBeginTransaction = true;
   nsView* view = nullptr;
   if (aFlags & PAINT_USE_WIDGET_LAYERS) {
-    layerManager = aBuilder->GetWidgetLayerManager(&view);
-    if (layerManager) {
-      layerManager->SetContainsSVG(false);
+    renderer = aBuilder->GetWidgetWindowRenderer(&view);
+    if (renderer) {
+      // The fallback renderer doesn't retain any content, so it's
+      // not meaningful to use it when drawing to an external context.
+      if (aCtx && renderer->AsFallback()) {
+        MOZ_ASSERT(!(aFlags & PAINT_EXISTING_TRANSACTION));
+        renderer = nullptr;
+      } else {
+        layerManager = renderer->AsLayerManager();
+        if (layerManager) {
+          layerManager->SetContainsSVG(false);
+        }
 
-      doBeginTransaction = !(aFlags & PAINT_EXISTING_TRANSACTION);
-      widgetTransaction = true;
+        doBeginTransaction = !(aFlags & PAINT_EXISTING_TRANSACTION);
+        widgetTransaction = true;
+      }
     }
   }
 
@@ -2483,7 +2550,7 @@ already_AddRefed<LayerManager> nsDisplayList::PaintRoot(
   PresShell* presShell = presContext->PresShell();
   Document* document = presShell->GetDocument();
 
-  if (!layerManager) {
+  if (!renderer) {
     if (!aCtx) {
       NS_WARNING("Nowhere to paint into");
       return nullptr;
@@ -2499,7 +2566,8 @@ already_AddRefed<LayerManager> nsDisplayList::PaintRoot(
     return nullptr;
   }
 
-  if (layerManager->GetBackendType() == LayersBackend::LAYERS_WR) {
+  if (renderer->GetBackendType() == LayersBackend::LAYERS_WR) {
+    MOZ_ASSERT(layerManager);
     if (doBeginTransaction) {
       if (aCtx) {
         if (!layerManager->BeginTransactionWithTarget(aCtx)) {
@@ -2571,57 +2639,63 @@ already_AddRefed<LayerManager> nsDisplayList::PaintRoot(
   UniquePtr<LayerProperties> props;
 
   bool computeInvalidRect =
-      (computeInvalidFunc || (!layerManager->IsCompositingCheap() &&
-                              layerManager->NeedsWidgetInvalidation())) &&
+      (computeInvalidFunc || (!renderer->IsCompositingCheap() &&
+                              renderer->NeedsWidgetInvalidation())) &&
       widgetTransaction;
 
-  if (computeInvalidRect) {
+  if (computeInvalidRect && layerManager) {
     props = LayerProperties::CloneFrom(layerManager->GetRoot());
   }
 
   if (doBeginTransaction) {
     if (aCtx) {
+      MOZ_ASSERT(layerManager);
       if (!layerManager->BeginTransactionWithTarget(aCtx)) {
         return nullptr;
       }
     } else {
-      if (!layerManager->BeginTransaction()) {
+      if (!renderer->BeginTransaction()) {
         return nullptr;
       }
     }
   }
 
-  bool temp =
-      aBuilder->SetIsCompositingCheap(layerManager->IsCompositingCheap());
+  bool temp = aBuilder->SetIsCompositingCheap(renderer->IsCompositingCheap());
   LayerManager::EndTransactionFlags flags = LayerManager::END_DEFAULT;
-  if (layerManager->NeedsWidgetInvalidation() &&
-      (aFlags & PAINT_NO_COMPOSITE)) {
+  if (renderer->NeedsWidgetInvalidation() && (aFlags & PAINT_NO_COMPOSITE)) {
     flags = LayerManager::END_NO_COMPOSITE;
   }
 
-  MaybeSetupTransactionIdAllocator(layerManager, presContext);
+  if (layerManager) {
+    MaybeSetupTransactionIdAllocator(layerManager, presContext);
+  }
 
   bool sent = false;
   if (aFlags & PAINT_IDENTICAL_DISPLAY_LIST) {
-    sent = layerManager->EndEmptyTransaction(flags);
+    sent = renderer->EndEmptyTransaction(flags);
   }
 
   if (!sent) {
-    const auto start = TimeStamp::Now();
+    if (renderer->AsFallback()) {
+      renderer->AsFallback()->EndTransactionWithList(
+          aBuilder, this, presContext->AppUnitsPerDevPixel(), flags);
+    } else {
+      const auto start = TimeStamp::Now();
 
-    FrameLayerBuilder* layerBuilder =
-        BuildLayers(aBuilder, layerManager, aFlags, widgetTransaction);
+      FrameLayerBuilder* layerBuilder =
+          BuildLayers(aBuilder, layerManager, aFlags, widgetTransaction);
 
-    Telemetry::AccumulateTimeDelta(Telemetry::PAINT_BUILD_LAYERS_TIME, start);
+      Telemetry::AccumulateTimeDelta(Telemetry::PAINT_BUILD_LAYERS_TIME, start);
 
-    if (!layerBuilder) {
-      layerManager->SetUserData(&gLayerManagerLayerBuilder, nullptr);
-      return nullptr;
+      if (!layerBuilder) {
+        layerManager->SetUserData(&gLayerManagerLayerBuilder, nullptr);
+        return nullptr;
+      }
+
+      layerManager->EndTransaction(FrameLayerBuilder::DrawPaintedLayer,
+                                   aBuilder, flags);
+      layerBuilder->DidEndTransaction();
     }
-
-    layerManager->EndTransaction(FrameLayerBuilder::DrawPaintedLayer, aBuilder,
-                                 flags);
-    layerBuilder->DidEndTransaction();
   }
 
   if (widgetTransaction ||
@@ -2634,7 +2708,7 @@ already_AddRefed<LayerManager> nsDisplayList::PaintRoot(
 
   aBuilder->SetIsCompositingCheap(temp);
 
-  if (document && widgetTransaction) {
+  if (document && widgetTransaction && layerManager) {
     TriggerPendingAnimations(*document, layerManager->GetAnimationReadyTime());
   }
 
@@ -2644,11 +2718,11 @@ already_AddRefed<LayerManager> nsDisplayList::PaintRoot(
                                    computeInvalidFunc)) {
       invalid = nsIntRect::MaxIntRect();
     }
-  } else if (widgetTransaction) {
+  } else if (widgetTransaction && layerManager) {
     LayerProperties::ClearInvalidations(layerManager->GetRoot());
   }
 
-  bool shouldInvalidate = layerManager->NeedsWidgetInvalidation();
+  bool shouldInvalidate = renderer->NeedsWidgetInvalidation();
 
   if (view) {
     if (props) {
@@ -2677,7 +2751,9 @@ already_AddRefed<LayerManager> nsDisplayList::PaintRoot(
     }
   }
 
-  layerManager->SetUserData(&gLayerManagerLayerBuilder, nullptr);
+  if (layerManager) {
+    layerManager->SetUserData(&gLayerManagerLayerBuilder, nullptr);
+  }
   return layerManager.forget();
 }
 
@@ -8323,7 +8399,9 @@ void nsDisplayTransform::Paint(nsDisplayListBuilder* aBuilder, gfxContext* aCtx,
   }
 
   gfxContextMatrixAutoSaveRestore saveMatrix(aCtx);
-  Matrix4x4 trans = ShouldSkipTransform(aBuilder) ? Matrix4x4() : GetAccumulatedPreserved3DTransform(aBuilder);
+  Matrix4x4 trans = ShouldSkipTransform(aBuilder)
+                        ? Matrix4x4()
+                        : GetAccumulatedPreserved3DTransform(aBuilder);
   if (!IsFrameVisible(mFrame, trans)) {
     return;
   }
@@ -10345,6 +10423,14 @@ void nsDisplayLink::Paint(nsDisplayListBuilder* aBuilder, gfxContext* aCtx) {
   auto appPerDev = mFrame->PresContext()->AppUnitsPerDevPixel();
   aCtx->GetDrawTarget()->Link(mLinkSpec.get(),
                               NSRectToRect(GetPaintRect(), appPerDev));
+}
+
+void nsDisplayDestination::Paint(nsDisplayListBuilder* aBuilder,
+                                 gfxContext* aCtx) {
+  auto appPerDev = mFrame->PresContext()->AppUnitsPerDevPixel();
+  aCtx->GetDrawTarget()->Destination(
+      mDestinationName.get(),
+      NSPointToPoint(GetPaintRect().TopLeft(), appPerDev));
 }
 
 void nsDisplayListCollection::SerializeWithCorrectZOrder(

@@ -79,7 +79,7 @@ class MessageHandler extends EventEmitter {
 
   destroy() {
     logger.trace(
-      `MessageHandler ${this.type} for session ${this.sessionId} is being destroyed`
+      `MessageHandler ${this.constructor.type} for session ${this.sessionId} is being destroyed`
     );
     this._moduleCache.destroy();
 
@@ -122,7 +122,7 @@ class MessageHandler extends EventEmitter {
 
     const mod = this._moduleCache.getModuleInstance(moduleName, destination);
     if (this._isCommandSupportedByModule(commandName, mod)) {
-      return mod[commandName](destination, params);
+      return mod[commandName](params, destination);
     }
 
     return this.forwardCommand(command);

@@ -337,7 +337,9 @@ pref("pdfjs.renderInteractiveForms", true);
 pref("pdfjs.enableScripting", true);
 
 // Enable XFA form support in the PDF viewer.
+#ifdef EARLY_BETA_OR_EARLIER
 pref("pdfjs.enableXfa", true);
+#endif
 
 // Disable support for MathML
 pref("mathml.disabled",    false);
@@ -878,7 +880,6 @@ pref("devtools.performance.recording.threads.remote", "[\"GeckoMain\",\"Composit
 // the host machine. This is used in order to look up symbol information from
 // build artifacts of local builds.
 pref("devtools.performance.recording.objdirs", "[]");
-pref("devtools.performance.recording.objdirs.remote", "[]");
 // The popup will display some introductory text the first time it is displayed.
 pref("devtools.performance.popup.intro-displayed", false);
 

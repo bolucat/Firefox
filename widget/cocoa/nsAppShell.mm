@@ -877,6 +877,10 @@ void nsAppShell::InitMemoryPressureObserver() {
   });
 
   dispatch_resume(mMemoryPressureSource);
+
+  // Initialize the memory watcher.
+  RefPtr<mozilla::nsAvailableMemoryWatcherBase> watcher(
+      nsAvailableMemoryWatcherBase::GetSingleton());
 }
 
 void nsAppShell::OnMemoryPressureChanged(dispatch_source_memorypressure_flags_t aPressureLevel) {
@@ -887,16 +891,16 @@ void nsAppShell::OnMemoryPressureChanged(dispatch_source_memorypressure_flags_t 
   MacMemoryPressureLevel geckoPressureLevel;
   switch (aPressureLevel) {
     case DISPATCH_MEMORYPRESSURE_NORMAL:
-      geckoPressureLevel = MacMemoryPressureLevel::Normal;
+      geckoPressureLevel = MacMemoryPressureLevel::Value::eNormal;
       break;
     case DISPATCH_MEMORYPRESSURE_WARN:
-      geckoPressureLevel = MacMemoryPressureLevel::Warning;
+      geckoPressureLevel = MacMemoryPressureLevel::Value::eWarning;
       break;
     case DISPATCH_MEMORYPRESSURE_CRITICAL:
-      geckoPressureLevel = MacMemoryPressureLevel::Critical;
+      geckoPressureLevel = MacMemoryPressureLevel::Value::eCritical;
       break;
     default:
-      geckoPressureLevel = MacMemoryPressureLevel::Unexpected;
+      geckoPressureLevel = MacMemoryPressureLevel::Value::eUnexpected;
   }
 
   RefPtr<mozilla::nsAvailableMemoryWatcherBase> watcher(
