@@ -45,6 +45,10 @@ nsresult BrowserBridgeParent::InitWithProcess(
       !browsingContext->GetBrowserParent(),
       "BrowsingContext must have had previous BrowserParent cleared");
 
+  MOZ_DIAGNOSTIC_ASSERT(
+      aParentBrowser->Manager() != aContentParent,
+      "Cannot create OOP iframe in the same process as its parent document");
+
   // Unfortunately, due to the current racy destruction of BrowsingContext
   // instances when Fission is enabled, while `browsingContext` may not be
   // discarded, an ancestor might be.
@@ -54,12 +58,8 @@ nsresult BrowserBridgeParent::InitWithProcess(
   //
   // FIXME: We should never have a non-discarded BrowsingContext with discarded
   // ancestors. (bug 1634759)
-  CanonicalBrowsingContext* ancestor = browsingContext->GetParent();
-  while (ancestor) {
-    if (NS_WARN_IF(ancestor->IsDiscarded())) {
-      return NS_ERROR_UNEXPECTED;
-    }
-    ancestor = ancestor->GetParent();
+  if (NS_WARN_IF(!browsingContext->AncestorsAreCurrent())) {
+    return NS_ERROR_UNEXPECTED;
   }
 
   // Ensure that our content process is subscribed to our newly created
@@ -95,6 +95,9 @@ nsresult BrowserBridgeParent::InitWithProcess(
     MOZ_ASSERT(false, "WindowGlobal Open Endpoint Failed");
     return NS_ERROR_FAILURE;
   }
+
+  MOZ_DIAGNOSTIC_ASSERT(!browsingContext->IsDiscarded(),
+                        "bc cannot have become discarded");
 
   // Tell the content process to set up its PBrowserChild.
   bool ok = aContentParent->SendConstructBrowser(

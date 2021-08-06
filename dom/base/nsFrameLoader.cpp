@@ -187,6 +187,7 @@ nsFrameLoader::nsFrameLoader(Element* aOwner, BrowsingContext* aBrowsingContext,
       mPendingSwitchID(0),
       mChildID(0),
       mRemoteType(NOT_REMOTE_TYPE),
+      mInitialized(false),
       mDepthTooGreat(false),
       mIsTopLevelContent(false),
       mDestroyCalled(false),
@@ -200,8 +201,7 @@ nsFrameLoader::nsFrameLoader(Element* aOwner, BrowsingContext* aBrowsingContext,
       mIsRemoteFrame(aIsRemoteFrame),
       mWillChangeProcess(false),
       mObservingOwnerContent(false),
-      mTabProcessCrashFired(false),
-      mNotifyingCrash(false) {
+      mTabProcessCrashFired(false) {
   nsCOMPtr<nsFrameLoaderOwner> owner = do_QueryInterface(aOwner);
   owner->AttachFrameLoader(this);
 }
@@ -2194,6 +2194,12 @@ nsresult nsFrameLoader::MaybeCreateDocShell() {
 
   MOZ_RELEASE_ASSERT(!doc->IsResourceDoc(), "We shouldn't even exist");
 
+  // If we've already tried to initialize and failed, don't try again.
+  if (mInitialized) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+  mInitialized = true;
+
   // Check if the document still has a window since it is possible for an
   // iframe to be inserted and cause the creation of the docshell in a
   // partially unloaded document (see Bug 1305237 comment 127).
@@ -2583,6 +2589,12 @@ bool nsFrameLoader::TryRemoteBrowserInternal() {
   if (mRemoteBrowser) {
     return true;
   }
+
+  // If we've already tried to initialize and failed, don't try again.
+  if (mInitialized) {
+    return false;
+  }
+  mInitialized = true;
 
   // Ensure the world hasn't changed that much as a result of that.
   if (!mOwnerContent || mOwnerContent->OwnerDoc() != doc ||
@@ -3476,17 +3488,14 @@ already_AddRefed<nsILoadContext> nsFrameLoader::LoadContext() {
 }
 
 BrowsingContext* nsFrameLoader::GetBrowsingContext() {
-  if (mNotifyingCrash) {
-    if (mPendingBrowsingContext && mPendingBrowsingContext->EverAttached()) {
-      return mPendingBrowsingContext;
+  if (!mInitialized) {
+    if (IsRemoteFrame()) {
+      Unused << EnsureRemoteBrowser();
+    } else if (mOwnerContent) {
+      Unused << MaybeCreateDocShell();
     }
-    return nullptr;
   }
-  if (IsRemoteFrame()) {
-    Unused << EnsureRemoteBrowser();
-  } else if (mOwnerContent) {
-    Unused << MaybeCreateDocShell();
-  }
+  MOZ_ASSERT(mInitialized);
   return GetExtantBrowsingContext();
 }
 
@@ -3498,15 +3507,13 @@ BrowsingContext* nsFrameLoader::GetExtantBrowsingContext() {
     return nullptr;
   }
 
-  BrowsingContext* browsingContext = nullptr;
-  if (mRemoteBrowser) {
-    browsingContext = mRemoteBrowser->GetBrowsingContext();
-  } else if (mDocShell) {
-    browsingContext = mDocShell->GetBrowsingContext();
+  if (!mInitialized || !mPendingBrowsingContext->EverAttached()) {
+    // Don't return the pending BrowsingContext until this nsFrameLoader has
+    // been initialized, and the BC was attached.
+    return nullptr;
   }
 
-  MOZ_ASSERT_IF(browsingContext, browsingContext == mPendingBrowsingContext);
-  return browsingContext;
+  return mPendingBrowsingContext;
 }
 
 void nsFrameLoader::InitializeBrowserAPI() {
@@ -3760,10 +3767,6 @@ void nsFrameLoader::MaybeNotifyCrashed(BrowsingContext* aBrowsingContext,
   if (!os) {
     return;
   }
-
-  mNotifyingCrash = true;
-  auto resetNotifyCrash =
-      mozilla::MakeScopeExit([&] { mNotifyingCrash = false; });
 
   os->NotifyObservers(ToSupports(this), "oop-frameloader-crashed", nullptr);
 
