@@ -349,6 +349,15 @@ static bool GetBuildConfiguration(JSContext* cx, unsigned argc, Value* vp) {
     return false;
   }
 
+#ifdef XP_MACOSX
+  value = BooleanValue(true);
+#else
+  value = BooleanValue(false);
+#endif
+  if (!JS_SetProperty(cx, info, "osx", value)) {
+    return false;
+}
+
 #ifdef JS_CODEGEN_ARM64
   value = BooleanValue(true);
 #else
@@ -1955,8 +1964,9 @@ static bool WasmIntrinsicI8VecMul(JSContext* cx, unsigned argc, Value* vp) {
 
   CallArgs args = CallArgsFromVp(argc, vp);
 
+  wasm::IntrinsicOp ops[] = {wasm::IntrinsicOp::I8VecMul};
   RootedWasmModuleObject module(cx);
-  if (!wasm::CompileIntrinsicModule(cx, wasm::IntrinsicOp::I8VecMul, &module)) {
+  if (!wasm::CompileIntrinsicModule(cx, ops, wasm::Shareable::False, &module)) {
     ReportOutOfMemory(cx);
     return false;
   }
