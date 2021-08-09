@@ -1142,11 +1142,11 @@ nsDOMWindowUtils::SendNativeTouchpadPinch(uint32_t aEventPhase, float aScale,
     return NS_ERROR_FAILURE;
   }
   NS_DispatchToMainThread(NativeInputRunnable::Create(
-      NewRunnableMethod<nsIWidget::TouchpadPinchPhase, float,
+      NewRunnableMethod<nsIWidget::TouchpadGesturePhase, float,
                         LayoutDeviceIntPoint, int32_t>(
           "nsIWidget::SynthesizeNativeTouchPadPinch", widget,
           &nsIWidget::SynthesizeNativeTouchPadPinch,
-          (nsIWidget::TouchpadPinchPhase)aEventPhase, aScale,
+          (nsIWidget::TouchpadGesturePhase)aEventPhase, aScale,
           LayoutDeviceIntPoint(aScreenX, aScreenY), aModifierFlags)));
   return NS_OK;
 }
@@ -1210,6 +1210,28 @@ nsDOMWindowUtils::SendNativeTouchpadDoubleTap(int32_t aScreenX,
           "nsIWidget::SynthesizeNativeTouchpadDoubleTap", widget,
           &nsIWidget::SynthesizeNativeTouchpadDoubleTap,
           LayoutDeviceIntPoint(aScreenX, aScreenY), aModifierFlags)));
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMWindowUtils::SendNativeTouchpadPan(uint32_t aEventPhase, int32_t aScreenX,
+                                        int32_t aScreenY, double aDeltaX,
+                                        double aDeltaY,
+                                        int32_t aModifierFlags) {
+  nsCOMPtr<nsIWidget> widget = GetWidget();
+  if (!widget) {
+    return NS_ERROR_FAILURE;
+  }
+
+  MOZ_ASSERT(aModifierFlags >= 0);
+  NS_DispatchToMainThread(NativeInputRunnable::Create(
+      NewRunnableMethod<nsIWidget::TouchpadGesturePhase, LayoutDeviceIntPoint,
+                        double, double, uint32_t>(
+          "nsIWidget::SynthesizeNativeTouchpadPan", widget,
+          &nsIWidget::SynthesizeNativeTouchpadPan,
+          (nsIWidget::TouchpadGesturePhase)aEventPhase,
+          LayoutDeviceIntPoint(aScreenX, aScreenY), aDeltaX, aDeltaY,
+          aModifierFlags)));
   return NS_OK;
 }
 
