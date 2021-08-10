@@ -25,7 +25,7 @@ class Document;
 }  // namespace dom
 }  // namespace mozilla
 
-typedef std::pair<nsCString, mozilla::Maybe<nsString>> FilenameTypeAndDetails;
+using FilenameTypeAndDetails = std::pair<nsCString, mozilla::Maybe<nsString>>;
 
 class nsContentSecurityUtils {
  public:
@@ -45,6 +45,12 @@ class nsContentSecurityUtils {
                               NS_ConvertUTF8toUTF16& aFileNameA,
                               uint64_t aWindowID, uint32_t aLineNumber,
                               uint32_t aColumnNumber);
+
+  // Helper function for various checks:
+  // This function detects profiles with userChrome.js or extension signatures
+  // disabled. We can't/won't enforce strong security for people with those
+  // hacks. The function will cache its result.
+  static void DetectJsHacks();
 
   // Helper function to query the HTTP Channel of a potential
   // multi-part channel. Mostly used for querying response headers

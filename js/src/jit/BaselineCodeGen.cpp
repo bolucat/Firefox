@@ -910,7 +910,10 @@ void BaselineCompilerCodeGen::loadGlobalLexicalEnvironment(Register dest) {
 template <>
 void BaselineInterpreterCodeGen::loadGlobalLexicalEnvironment(Register dest) {
   masm.loadPtr(AbsoluteAddress(cx->addressOfRealm()), dest);
-  masm.loadPtr(Address(dest, Realm::offsetOfActiveLexicalEnvironment()), dest);
+  masm.loadPtr(Address(dest, Realm::offsetOfActiveGlobal()), dest);
+  masm.loadPrivate(Address(dest, GlobalObject::offsetOfGlobalDataSlot()), dest);
+  masm.loadPtr(Address(dest, GlobalObjectData::offsetOfLexicalEnvironment()),
+               dest);
 }
 
 template <>
@@ -3240,6 +3243,22 @@ bool BaselineCodeGen<Handler>::emit_CheckPrivateField() {
     return false;
   }
 
+  frame.push(R0);
+  return true;
+}
+
+template <typename Handler>
+bool BaselineCodeGen<Handler>::emit_NewPrivateName() {
+  prepareVMCall();
+
+  pushScriptNameArg(R0.scratchReg(), R1.scratchReg());
+
+  using Fn = JS::Symbol* (*)(JSContext*, HandlePropertyName);
+  if (!callVM<Fn, NewPrivateName>()) {
+    return false;
+  }
+
+  masm.tagValue(JSVAL_TYPE_SYMBOL, ReturnReg, R0);
   frame.push(R0);
   return true;
 }

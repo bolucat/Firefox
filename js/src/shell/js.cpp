@@ -7940,8 +7940,8 @@ static bool GetSharedObject(JSContext* cx, unsigned argc, Value* vp) {
                                                JSProto_WebAssembly)) {
             return false;
           }
-          RootedObject proto(
-              cx, &cx->global()->getPrototype(JSProto_WasmMemory).toObject());
+          RootedObject proto(cx,
+                             &cx->global()->getPrototype(JSProto_WasmMemory));
           newObj = WasmMemoryObject::create(cx, maybesab, proto);
           MOZ_ASSERT_IF(newObj, newObj->as<WasmMemoryObject>().isShared());
           if (!newObj) {
@@ -9337,6 +9337,20 @@ static bool TransplantableObject(JSContext* cx, unsigned argc, Value* vp) {
   return true;
 }
 
+#ifdef DEBUG
+static bool DebugGetQueuedJobs(JSContext* cx, unsigned argc, Value* vp) {
+  CallArgs args = CallArgsFromVp(argc, vp);
+
+  JSObject* jobs = js::GetJobsInInternalJobQueue(cx);
+  if (!jobs) {
+    return false;
+  }
+
+  args.rval().setObject(*jobs);
+  return true;
+}
+#endif
+
 // clang-format off
 static const JSFunctionSpecWithHelp shell_functions[] = {
     JS_FN_HELP("options", Options, 0, 0,
@@ -10092,6 +10106,12 @@ TestAssertRecoveredOnBailout,
   JS_FN_HELP("cacheIRHealthReport", CacheIRHealthReport, 0, 0,
 "cacheIRHealthReport()",
 "  Show health rating of CacheIR stubs."),
+#endif
+
+#ifdef DEBUG
+  JS_FN_HELP("debugGetQueuedJobs", DebugGetQueuedJobs, 0, 0,
+"debugGetQueuedJobs()",
+"  Returns an array of queued jobs."),
 #endif
 
     JS_FS_HELP_END
@@ -12765,6 +12785,12 @@ int main(int argc, char** argv) {
   //   order.  For example: --wasm-compiler=optimizing --wasm-compiler=baseline.
 
 #if defined(JS_CODEGEN_X86) || defined(JS_CODEGEN_X64)
+  // The flags were computed by InitWithFailureDiagnostics().
+  MOZ_ASSERT(js::jit::CPUFlagsHaveBeenComputed());
+
+  // Reset the SSE flags; they are recomputed below.
+  js::jit::CPUInfo::ResetSSEFlagsForTesting();
+
   if (op.getBoolOption("no-sse3")) {
     js::jit::CPUInfo::SetSSE3Disabled();
     if (!sCompilerProcessFlags.append("--no-sse3")) {
@@ -12799,6 +12825,14 @@ int main(int argc, char** argv) {
     fprintf(stderr, "Error: AVX encodings are currently disabled\n");
     return EXIT_FAILURE;
   }
+
+  // Recompute flags.
+  js::jit::CPUInfo::GetSSEVersion();
+#endif
+
+#ifndef JS_CODEGEN_NONE
+  // At this point the flags must definitely be set.
+  MOZ_ASSERT(js::jit::CPUFlagsHaveBeenComputed());
 #endif
 
 #ifndef __wasi__

@@ -326,7 +326,7 @@ identity-enable-mixed-content-blocking =
     .label = Enable protection
     .accesskey = E
 identity-more-info-link-text =
-    .label = More Information
+    .label = More information
 
 ## Window controls
 
@@ -666,12 +666,6 @@ toolbar-settings-button =
       [macos] Open settings ({ $shortcut })
      *[other] Open settings
   }
-
-## More items
-
-more-menu-go-offline =
-  .label = Work Offline
-  .accesskey = k
 
 ## EME notification panel
 

@@ -17,22 +17,15 @@
 
 #include "vm/JSContext-inl.h"
 
-inline void JS::Realm::initGlobal(
-    js::GlobalObject& global, js::GlobalLexicalEnvironmentObject& lexicalEnv) {
+inline void JS::Realm::initGlobal(js::GlobalObject& global) {
   MOZ_ASSERT(global.realm() == this);
   MOZ_ASSERT(!global_);
   global_.set(&global);
-  lexicalEnv_.set(&lexicalEnv);
 }
 
 js::GlobalObject* JS::Realm::maybeGlobal() const {
   MOZ_ASSERT_IF(global_, global_->realm() == this);
   return global_;
-}
-
-js::GlobalLexicalEnvironmentObject* JS::Realm::unbarrieredLexicalEnvironment()
-    const {
-  return lexicalEnv_.unbarrieredGet();
 }
 
 inline bool JS::Realm::globalIsAboutToBeFinalized() {
@@ -71,6 +64,18 @@ js::AutoRealm::AutoRealm(JSContext* cx, JS::Realm* target)
 }
 
 js::AutoRealm::~AutoRealm() { cx_->leaveRealm(origin_); }
+
+js::AutoFunctionOrCurrentRealm::AutoFunctionOrCurrentRealm(JSContext* cx,
+                                                           HandleObject fun) {
+  JS::Realm* realm = JS::GetFunctionRealm(cx, fun);
+  if (!realm) {
+    cx->clearPendingException();
+    return;
+  }
+
+  // Enter the function's realm.
+  ar_.emplace(cx, realm);
+}
 
 js::AutoAllocInAtomsZone::AutoAllocInAtomsZone(JSContext* cx)
     : cx_(cx), origin_(cx->realm()) {
