@@ -4,9 +4,9 @@
 
 "use strict";
 
-const EXPORTED_SYMBOLS = ["TestModule"];
+const EXPORTED_SYMBOLS = ["event"];
 
-class TestModule {
+class Event {
   constructor(messageHandler) {
     this.messageHandler = messageHandler;
   }
@@ -17,19 +17,12 @@ class TestModule {
    * Commands
    */
 
-  testWindowGlobalModule() {
-    return "windowglobal-value";
-  }
-
-  testSetValue(params) {
-    this._testValue = params;
-  }
-
-  testGetValue() {
-    return this._testValue;
-  }
-
-  testForwardToWindowGlobal() {
-    return "forward-to-windowglobal-value";
+  testEmitWindowGlobalInRootEvent(params, destination) {
+    this.messageHandler.emitMessageHandlerEvent(
+      "event.testWindowGlobalInRootEvent",
+      { text: `windowglobal-in-root event for ${destination.id}` }
+    );
   }
 }
+
+const event = Event;

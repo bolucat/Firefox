@@ -9411,7 +9411,7 @@ Document* Document::Open(const Optional<nsAString>& /* unused */,
     return this;
   }
 
-  nsCOMPtr<nsIDocShell> shell(mDocumentContainer);
+  RefPtr<nsDocShell> shell(mDocumentContainer);
   if (shell) {
     bool inUnload;
     shell->GetIsInUnload(&inUnload);
@@ -9441,8 +9441,7 @@ Document* Document::Open(const Optional<nsAString>& /* unused */,
   // navigation.
   if (shell && IsCurrentActiveDocument() &&
       shell->GetIsAttemptingToNavigate()) {
-    nsCOMPtr<nsIWebNavigation> webnav(do_QueryInterface(shell));
-    webnav->Stop(nsIWebNavigation::STOP_NETWORK);
+    shell->Stop(nsIWebNavigation::STOP_NETWORK);
 
     // The Stop call may have cancelled the onload blocker request or
     // prevented it from getting added, so we need to make sure it gets added
@@ -9575,7 +9574,7 @@ Document* Document::Open(const Optional<nsAString>& /* unused */,
   mParserAborted = false;
   RefPtr<nsHtml5Parser> parser = nsHtml5Module::NewHtml5Parser();
   mParser = parser;
-  parser->Initialize(this, GetDocumentURI(), shell, nullptr);
+  parser->Initialize(this, GetDocumentURI(), ToSupports(shell), nullptr);
   nsresult rv = parser->StartExecutor();
   if (NS_WARN_IF(NS_FAILED(rv))) {
     aError.Throw(rv);
@@ -15968,18 +15967,17 @@ void Document::MaybeAllowStorageForOpenerAfterUserInteraction() {
     return;
   }
 
-  // We want to ensure the following check works for both fission mode
-  // and non-fission mode:
-  // "If the opener is not a 3rd party and if this window is not a 3rd
-  // party with respect to the opener, we should not continue."
+  // We want to ensure the following check works for both fission mode and
+  // non-fission mode:
+  // "If the opener is not a 3rd party and if this window is not a 3rd party
+  // with respect to the opener, we should not continue."
   //
   // In non-fission mode, the opener and the opened window are in the same
-  // process, we can use nsContentUtils::IsThirdPartyWindowOrChannel to
-  // do the check.
-  // In fission mode, if this window is not a 3rd party with respect to
-  // the opener, they must be in the same process, so we can still use
-  // IsThirdPartyWindowOrChannel(openerInner) to continue to check if
-  // the opener is a 3rd party.
+  // process, we can use AntiTrackingUtils::IsThirdPartyWindow to do the check.
+  // In fission mode, if this window is not a 3rd party with respect to the
+  // opener, they must be in the same process, so we can still use
+  // IsThirdPartyWindow(openerInner) to continue to check if the opener is a 3rd
+  // party.
   if (openerBC->IsInProcess()) {
     nsCOMPtr<nsPIDOMWindowOuter> outerOpener = openerBC->GetDOMWindow();
     if (NS_WARN_IF(!outerOpener)) {
@@ -16004,10 +16002,8 @@ void Document::MaybeAllowStorageForOpenerAfterUserInteraction() {
 
     // If the opener is not a 3rd party and if this window is not
     // a 3rd party with respect to the opener, we should not continue.
-    if (!nsContentUtils::IsThirdPartyWindowOrChannel(inner, nullptr,
-                                                     openerURI) &&
-        !nsContentUtils::IsThirdPartyWindowOrChannel(openerInner, nullptr,
-                                                     nullptr)) {
+    if (!AntiTrackingUtils::IsThirdPartyWindow(inner, openerURI) &&
+        !AntiTrackingUtils::IsThirdPartyWindow(openerInner, nullptr)) {
       return;
     }
   }
