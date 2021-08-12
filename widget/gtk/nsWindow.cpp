@@ -2082,7 +2082,6 @@ void nsWindow::NativeMoveResizeWaylandPopupCallback(
   }
 }
 
-#ifdef MOZ_WAYLAND
 static GdkGravity PopupAlignmentToGdkGravity(int8_t aAlignment) {
   switch (aAlignment) {
     case POPUPALIGNMENT_NONE:
@@ -2115,7 +2114,6 @@ static GdkGravity PopupAlignmentToGdkGravity(int8_t aAlignment) {
   }
   return GDK_GRAVITY_STATIC;
 }
-#endif
 
 void nsWindow::NativeMoveResizeWaylandPopup(GdkPoint* aPosition,
                                             GdkRectangle* aSize) {
@@ -5921,8 +5919,11 @@ void nsWindow::ResumeCompositorHiddenWindow() {
 // pause the compositor and destroy EGLSurface & resume the compositor
 // and re-create EGLSurface on next expose event.
 void nsWindow::PauseCompositorHiddenWindow() {
-  if (!mIsAccelerated || mIsDestroyed ||
-      mCompositorState == COMPOSITOR_PAUSED_INITIALLY) {
+  // TODO: The compositor backend currently relies on the pause event to work
+  // around a Gnome specific bug. Remove again once the fix is widely available.
+  // See bug 1721298
+  if ((!mIsAccelerated && !gfx::gfxVars::UseWebRenderCompositor()) ||
+      mIsDestroyed || mCompositorState == COMPOSITOR_PAUSED_INITIALLY) {
     return;
   }
 

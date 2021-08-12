@@ -9,7 +9,12 @@
 // happens when calling these functions. They don't do much inspection of
 // profiler internals.
 
+#include "mozilla/ProfilerThreadPlatformData.h"
+#include "mozilla/ProfilerThreadRegistration.h"
+#include "mozilla/ProfilerThreadRegistrationInfo.h"
+#include "mozilla/ProfilerThreadRegistry.h"
 #include "mozilla/ProfilerUtils.h"
+#include "mozilla/UniquePtrExtensions.h"
 
 #include "gtest/gtest.h"
 
@@ -34,7 +39,6 @@
 #  include "mozilla/ProfileBufferEntrySerializationGeckoExtensions.h"
 #  include "mozilla/ProfileJSONWriter.h"
 #  include "mozilla/ScopeExit.h"
-#  include "mozilla/UniquePtrExtensions.h"
 #  include "mozilla/net/HttpBaseChannel.h"
 #  include "nsIChannelEventSink.h"
 #  include "nsIThread.h"
@@ -94,6 +98,805 @@ TEST(GeckoProfiler, ProfilerUtils)
     EXPECT_EQ(baseprofiler::profiler_current_thread_id(), testThreadId);
     EXPECT_EQ(baseprofiler::profiler_main_thread_id(), mainThreadId);
     EXPECT_FALSE(baseprofiler::profiler_is_main_thread());
+  });
+  testThread.join();
+}
+
+TEST(GeckoProfiler, ThreadRegistrationInfo)
+{
+  profiler_init_main_thread_id();
+
+  TimeStamp ts = TimeStamp::Now();
+  {
+    profiler::ThreadRegistrationInfo trInfo{
+        "name", ProfilerThreadId::FromNumber(123), false, ts};
+    EXPECT_STREQ(trInfo.Name(), "name");
+    EXPECT_NE(trInfo.Name(), "name")
+        << "ThreadRegistrationInfo should keep its own copy of the name";
+    EXPECT_EQ(trInfo.RegisterTime(), ts);
+    EXPECT_EQ(trInfo.ThreadId(), ProfilerThreadId::FromNumber(123));
+    EXPECT_EQ(trInfo.IsMainThread(), false);
+  }
+
+  // Make sure the next timestamp will be different from `ts`.
+  while (TimeStamp::Now() == ts) {
+  }
+
+  {
+    profiler::ThreadRegistrationInfo trInfoHere{"Here"};
+    EXPECT_STREQ(trInfoHere.Name(), "Here");
+    EXPECT_NE(trInfoHere.Name(), "Here")
+        << "ThreadRegistrationInfo should keep its own copy of the name";
+    EXPECT_GT(trInfoHere.RegisterTime(), ts);
+    EXPECT_EQ(trInfoHere.ThreadId(), profiler_current_thread_id());
+    EXPECT_EQ(trInfoHere.ThreadId(), profiler_main_thread_id())
+        << "Gtests are assumed to run on the main thread";
+    EXPECT_EQ(trInfoHere.IsMainThread(), true)
+        << "Gtests are assumed to run on the main thread";
+  }
+
+  {
+    // Sub-thread test.
+    // These will receive sub-thread data (to test move at thread end).
+    TimeStamp tsThread;
+    ProfilerThreadId threadThreadId;
+    UniquePtr<profiler::ThreadRegistrationInfo> trInfoThreadPtr;
+
+    std::thread testThread([&]() {
+      profiler::ThreadRegistrationInfo trInfoThread{"Thread"};
+      EXPECT_STREQ(trInfoThread.Name(), "Thread");
+      EXPECT_NE(trInfoThread.Name(), "Thread")
+          << "ThreadRegistrationInfo should keep its own copy of the name";
+      EXPECT_GT(trInfoThread.RegisterTime(), ts);
+      EXPECT_EQ(trInfoThread.ThreadId(), profiler_current_thread_id());
+      EXPECT_NE(trInfoThread.ThreadId(), profiler_main_thread_id());
+      EXPECT_EQ(trInfoThread.IsMainThread(), false);
+
+      tsThread = trInfoThread.RegisterTime();
+      threadThreadId = trInfoThread.ThreadId();
+      trInfoThreadPtr =
+          MakeUnique<profiler::ThreadRegistrationInfo>(std::move(trInfoThread));
+    });
+    testThread.join();
+
+    ASSERT_NE(trInfoThreadPtr, nullptr);
+    EXPECT_STREQ(trInfoThreadPtr->Name(), "Thread");
+    EXPECT_EQ(trInfoThreadPtr->RegisterTime(), tsThread);
+    EXPECT_EQ(trInfoThreadPtr->ThreadId(), threadThreadId);
+    EXPECT_EQ(trInfoThreadPtr->IsMainThread(), false)
+        << "Gtests are assumed to run on the main thread";
+  }
+}
+
+static void EnsureThreadRegistrationTLSIsInitialized() {
+  char onStackChar;
+  profiler::ThreadRegistration tr{
+      "Temporary main thread registration to init TLS", &onStackChar};
+}
+
+static void TestConstUnlockedConstReader(
+    const profiler::ThreadRegistration::UnlockedConstReader& aData,
+    const TimeStamp& aBeforeRegistration, const TimeStamp& aAfterRegistration,
+    const void* aOnStackObject,
+    ProfilerThreadId aThreadId = profiler_current_thread_id()) {
+  EXPECT_STREQ(aData.Info().Name(), "Test thread");
+  EXPECT_GE(aData.Info().RegisterTime(), aBeforeRegistration);
+  EXPECT_LE(aData.Info().RegisterTime(), aAfterRegistration);
+  EXPECT_EQ(aData.Info().ThreadId(), aThreadId);
+  EXPECT_FALSE(aData.Info().IsMainThread());
+
+  // TODO in bug 1722261: Platform-specific tests, when implemented.
+  (void)aData.PlatformDataCRef();
+
+  EXPECT_GE(aData.StackTop(), aOnStackObject)
+      << "StackTop should be at &onStackChar, or higher on some "
+         "platforms";
+};
+
+static void TestConstUnlockedConstReaderAndAtomicRW(
+    const profiler::ThreadRegistration::UnlockedConstReaderAndAtomicRW& aData,
+    const TimeStamp& aBeforeRegistration, const TimeStamp& aAfterRegistration,
+    const void* aOnStackObject,
+    ProfilerThreadId aThreadId = profiler_current_thread_id()) {
+  TestConstUnlockedConstReader(aData, aBeforeRegistration, aAfterRegistration,
+                               aOnStackObject, aThreadId);
+
+  (void)aData.ProfilingStackCRef();
+
+  EXPECT_FALSE(aData.IsBeingProfiled());
+
+  EXPECT_FALSE(aData.IsSleeping());
+};
+
+static void TestUnlockedConstReaderAndAtomicRW(
+    profiler::ThreadRegistration::UnlockedConstReaderAndAtomicRW& aData,
+    const TimeStamp& aBeforeRegistration, const TimeStamp& aAfterRegistration,
+    const void* aOnStackObject,
+    ProfilerThreadId aThreadId = profiler_current_thread_id()) {
+  TestConstUnlockedConstReaderAndAtomicRW(aData, aBeforeRegistration,
+                                          aAfterRegistration, aOnStackObject,
+                                          aThreadId);
+
+  (void)aData.ProfilingStackRef();
+
+  EXPECT_FALSE(aData.IsSleeping());
+  aData.SetSleeping();
+  EXPECT_TRUE(aData.IsSleeping());
+  aData.SetAwake();
+  EXPECT_FALSE(aData.IsSleeping());
+
+  aData.ReinitializeOnResume();
+
+  EXPECT_FALSE(aData.CanDuplicateLastSampleDueToSleep());
+  EXPECT_FALSE(aData.CanDuplicateLastSampleDueToSleep());
+  aData.SetSleeping();
+  // After sleeping, the 2nd+ calls can duplicate.
+  EXPECT_FALSE(aData.CanDuplicateLastSampleDueToSleep());
+  EXPECT_TRUE(aData.CanDuplicateLastSampleDueToSleep());
+  EXPECT_TRUE(aData.CanDuplicateLastSampleDueToSleep());
+  aData.ReinitializeOnResume();
+  // After reinit (and sleeping), the 2nd+ calls can duplicate.
+  EXPECT_FALSE(aData.CanDuplicateLastSampleDueToSleep());
+  EXPECT_TRUE(aData.CanDuplicateLastSampleDueToSleep());
+  EXPECT_TRUE(aData.CanDuplicateLastSampleDueToSleep());
+  aData.SetAwake();
+  EXPECT_FALSE(aData.CanDuplicateLastSampleDueToSleep());
+  EXPECT_FALSE(aData.CanDuplicateLastSampleDueToSleep());
+};
+
+static void TestConstUnlockedRWForLockedProfiler(
+    const profiler::ThreadRegistration::UnlockedRWForLockedProfiler& aData,
+    const TimeStamp& aBeforeRegistration, const TimeStamp& aAfterRegistration,
+    const void* aOnStackObject,
+    ProfilerThreadId aThreadId = profiler_current_thread_id()) {
+  TestConstUnlockedConstReaderAndAtomicRW(aData, aBeforeRegistration,
+                                          aAfterRegistration, aOnStackObject,
+                                          aThreadId);
+
+  // We can't create a PSAutoLock here, so just verify that the call would
+  // compile and return the expected type.
+  static_assert(
+      std::is_same_v<
+          decltype(aData.IsBeingProfiled(std::declval<PSAutoLock>())), bool>);
+};
+
+static void TestConstUnlockedReaderAndAtomicRWOnThread(
+    const profiler::ThreadRegistration::UnlockedReaderAndAtomicRWOnThread&
+        aData,
+    const TimeStamp& aBeforeRegistration, const TimeStamp& aAfterRegistration,
+    const void* aOnStackObject,
+    ProfilerThreadId aThreadId = profiler_current_thread_id()) {
+  TestConstUnlockedRWForLockedProfiler(aData, aBeforeRegistration,
+                                       aAfterRegistration, aOnStackObject,
+                                       aThreadId);
+
+  EXPECT_EQ(aData.GetJSContext(), nullptr);
+};
+
+static void TestUnlockedRWForLockedProfiler(
+    profiler::ThreadRegistration::UnlockedRWForLockedProfiler& aData,
+    const TimeStamp& aBeforeRegistration, const TimeStamp& aAfterRegistration,
+    const void* aOnStackObject,
+    ProfilerThreadId aThreadId = profiler_current_thread_id()) {
+  TestConstUnlockedRWForLockedProfiler(aData, aBeforeRegistration,
+                                       aAfterRegistration, aOnStackObject,
+                                       aThreadId);
+  TestUnlockedConstReaderAndAtomicRW(aData, aBeforeRegistration,
+                                     aAfterRegistration, aOnStackObject,
+                                     aThreadId);
+
+  // No functions to test here.
+};
+
+static void TestUnlockedReaderAndAtomicRWOnThread(
+    profiler::ThreadRegistration::UnlockedReaderAndAtomicRWOnThread& aData,
+    const TimeStamp& aBeforeRegistration, const TimeStamp& aAfterRegistration,
+    const void* aOnStackObject,
+    ProfilerThreadId aThreadId = profiler_current_thread_id()) {
+  TestConstUnlockedReaderAndAtomicRWOnThread(aData, aBeforeRegistration,
+                                             aAfterRegistration, aOnStackObject,
+                                             aThreadId);
+  TestUnlockedRWForLockedProfiler(aData, aBeforeRegistration,
+                                  aAfterRegistration, aOnStackObject,
+                                  aThreadId);
+
+  // No functions to test here.
+};
+
+static void TestConstLockedRWFromAnyThread(
+    const profiler::ThreadRegistration::LockedRWFromAnyThread& aData,
+    const TimeStamp& aBeforeRegistration, const TimeStamp& aAfterRegistration,
+    const void* aOnStackObject,
+    ProfilerThreadId aThreadId = profiler_current_thread_id()) {
+  TestConstUnlockedReaderAndAtomicRWOnThread(aData, aBeforeRegistration,
+                                             aAfterRegistration, aOnStackObject,
+                                             aThreadId);
+
+  EXPECT_EQ(aData.GetEventTarget(), nullptr);
+};
+
+static void TestLockedRWFromAnyThread(
+    profiler::ThreadRegistration::LockedRWFromAnyThread& aData,
+    const TimeStamp& aBeforeRegistration, const TimeStamp& aAfterRegistration,
+    const void* aOnStackObject,
+    ProfilerThreadId aThreadId = profiler_current_thread_id()) {
+  TestConstLockedRWFromAnyThread(aData, aBeforeRegistration, aAfterRegistration,
+                                 aOnStackObject, aThreadId);
+  TestUnlockedReaderAndAtomicRWOnThread(aData, aBeforeRegistration,
+                                        aAfterRegistration, aOnStackObject,
+                                        aThreadId);
+
+  // We can't create a PSAutoLock here, so just verify that the call would
+  // compile and return the expected type.
+  static_assert(std::is_same_v<decltype(aData.SetIsBeingProfiled(
+                                   true, std::declval<PSAutoLock>())),
+                               void>);
+
+  aData.ResetMainThread(nullptr);
+
+  TimeDuration delay = TimeDuration::FromSeconds(1);
+  TimeDuration running = TimeDuration::FromSeconds(1);
+  aData.GetRunningEventDelay(TimeStamp::Now(), delay, running);
+  EXPECT_TRUE(delay.IsZero());
+  EXPECT_TRUE(running.IsZero());
+
+  aData.StartJSSampling(123u);
+  aData.StopJSSampling();
+};
+
+static void TestConstLockedRWOnThread(
+    const profiler::ThreadRegistration::LockedRWOnThread& aData,
+    const TimeStamp& aBeforeRegistration, const TimeStamp& aAfterRegistration,
+    const void* aOnStackObject,
+    ProfilerThreadId aThreadId = profiler_current_thread_id()) {
+  TestConstLockedRWFromAnyThread(aData, aBeforeRegistration, aAfterRegistration,
+                                 aOnStackObject, aThreadId);
+
+  // No functions to test here.
+};
+
+static void TestLockedRWOnThread(
+    profiler::ThreadRegistration::LockedRWOnThread& aData,
+    const TimeStamp& aBeforeRegistration, const TimeStamp& aAfterRegistration,
+    const void* aOnStackObject,
+    ProfilerThreadId aThreadId = profiler_current_thread_id()) {
+  TestConstLockedRWOnThread(aData, aBeforeRegistration, aAfterRegistration,
+                            aOnStackObject, aThreadId);
+  TestLockedRWFromAnyThread(aData, aBeforeRegistration, aAfterRegistration,
+                            aOnStackObject, aThreadId);
+
+  // We don't want to really call SetJSContext here, so just verify that
+  // the call would compile and return the expected type.
+  static_assert(
+      std::is_same_v<decltype(aData.SetJSContext(std::declval<JSContext*>())),
+                     void>);
+  aData.ClearJSContext();
+  aData.PollJSSampling();
+};
+
+TEST(GeckoProfiler, ThreadRegistration_DataAccess)
+{
+  using TR = profiler::ThreadRegistration;
+
+  profiler_init_main_thread_id();
+  ASSERT_TRUE(profiler_is_main_thread())
+  << "This test assumes it runs on the main thread";
+  EnsureThreadRegistrationTLSIsInitialized();
+
+  // Note that the main thread could already be registered, so we work in a new
+  // thread to test an actual registration that we control.
+
+  std::thread testThread([&]() {
+    ASSERT_FALSE(TR::IsRegistered())
+    << "A new std::thread should not start registered";
+    EXPECT_FALSE(TR::GetOnThreadPtr());
+    EXPECT_FALSE(TR::WithOnThreadRefOr([&](auto) { return true; }, false));
+
+    char onStackChar;
+
+    TimeStamp beforeRegistration = TimeStamp::Now();
+    TR tr{"Test thread", &onStackChar};
+    TimeStamp afterRegistration = TimeStamp::Now();
+
+    ASSERT_TRUE(TR::IsRegistered());
+
+    // Note: This test will mostly be about checking the correct access to
+    // thread data, depending on how it's obtained. Not all the functionality
+    // related to that data is tested (e.g., because it involves JS or other
+    // external dependencies that would be difficult to control here.)
+
+    auto TestOnThreadRef = [&](TR::OnThreadRef aOnThreadRef) {
+      // To test const-qualified member functions.
+      const TR::OnThreadRef& onThreadCRef = aOnThreadRef;
+
+      // const UnlockedConstReader (always const)
+
+      TestConstUnlockedConstReader(onThreadCRef.UnlockedConstReaderCRef(),
+                                   beforeRegistration, afterRegistration,
+                                   &onStackChar);
+      onThreadCRef.WithUnlockedConstReader(
+          [&](const TR::UnlockedConstReader& aData) {
+            TestConstUnlockedConstReader(aData, beforeRegistration,
+                                         afterRegistration, &onStackChar);
+          });
+
+      // const UnlockedConstReaderAndAtomicRW
+
+      TestConstUnlockedConstReaderAndAtomicRW(
+          onThreadCRef.UnlockedConstReaderAndAtomicRWCRef(), beforeRegistration,
+          afterRegistration, &onStackChar);
+      onThreadCRef.WithUnlockedConstReaderAndAtomicRW(
+          [&](const TR::UnlockedConstReaderAndAtomicRW& aData) {
+            TestConstUnlockedConstReaderAndAtomicRW(
+                aData, beforeRegistration, afterRegistration, &onStackChar);
+          });
+
+      // non-const UnlockedConstReaderAndAtomicRW
+
+      TestUnlockedConstReaderAndAtomicRW(
+          aOnThreadRef.UnlockedConstReaderAndAtomicRWRef(), beforeRegistration,
+          afterRegistration, &onStackChar);
+      aOnThreadRef.WithUnlockedConstReaderAndAtomicRW(
+          [&](TR::UnlockedConstReaderAndAtomicRW& aData) {
+            TestUnlockedConstReaderAndAtomicRW(aData, beforeRegistration,
+                                               afterRegistration, &onStackChar);
+          });
+
+      // const UnlockedRWForLockedProfiler
+
+      TestConstUnlockedRWForLockedProfiler(
+          onThreadCRef.UnlockedRWForLockedProfilerCRef(), beforeRegistration,
+          afterRegistration, &onStackChar);
+      onThreadCRef.WithUnlockedRWForLockedProfiler(
+          [&](const TR::UnlockedRWForLockedProfiler& aData) {
+            TestConstUnlockedRWForLockedProfiler(
+                aData, beforeRegistration, afterRegistration, &onStackChar);
+          });
+
+      // non-const UnlockedRWForLockedProfiler
+
+      TestUnlockedRWForLockedProfiler(
+          aOnThreadRef.UnlockedRWForLockedProfilerRef(), beforeRegistration,
+          afterRegistration, &onStackChar);
+      aOnThreadRef.WithUnlockedRWForLockedProfiler(
+          [&](TR::UnlockedRWForLockedProfiler& aData) {
+            TestUnlockedRWForLockedProfiler(aData, beforeRegistration,
+                                            afterRegistration, &onStackChar);
+          });
+
+      // const UnlockedReaderAndAtomicRWOnThread
+
+      TestConstUnlockedReaderAndAtomicRWOnThread(
+          onThreadCRef.UnlockedReaderAndAtomicRWOnThreadCRef(),
+          beforeRegistration, afterRegistration, &onStackChar);
+      onThreadCRef.WithUnlockedReaderAndAtomicRWOnThread(
+          [&](const TR::UnlockedReaderAndAtomicRWOnThread& aData) {
+            TestConstUnlockedReaderAndAtomicRWOnThread(
+                aData, beforeRegistration, afterRegistration, &onStackChar);
+          });
+
+      // non-const UnlockedReaderAndAtomicRWOnThread
+
+      TestUnlockedReaderAndAtomicRWOnThread(
+          aOnThreadRef.UnlockedReaderAndAtomicRWOnThreadRef(),
+          beforeRegistration, afterRegistration, &onStackChar);
+      aOnThreadRef.WithUnlockedReaderAndAtomicRWOnThread(
+          [&](TR::UnlockedReaderAndAtomicRWOnThread& aData) {
+            TestUnlockedReaderAndAtomicRWOnThread(
+                aData, beforeRegistration, afterRegistration, &onStackChar);
+          });
+
+      // LockedRWFromAnyThread
+      // Note: It cannot directly be accessed on the thread, this will be
+      // tested through LockedRWOnThread.
+
+      // const LockedRWOnThread
+
+      EXPECT_FALSE(TR::IsDataMutexLockedOnCurrentThread());
+      {
+        TR::OnThreadRef::ConstRWOnThreadWithLock constRWOnThreadWithLock =
+            onThreadCRef.ConstLockedRWOnThread();
+        EXPECT_TRUE(TR::IsDataMutexLockedOnCurrentThread());
+        TestConstLockedRWOnThread(constRWOnThreadWithLock.DataCRef(),
+                                  beforeRegistration, afterRegistration,
+                                  &onStackChar);
+      }
+      EXPECT_FALSE(TR::IsDataMutexLockedOnCurrentThread());
+      onThreadCRef.WithConstLockedRWOnThread(
+          [&](const TR::LockedRWOnThread& aData) {
+            EXPECT_TRUE(TR::IsDataMutexLockedOnCurrentThread());
+            TestConstLockedRWOnThread(aData, beforeRegistration,
+                                      afterRegistration, &onStackChar);
+          });
+      EXPECT_FALSE(TR::IsDataMutexLockedOnCurrentThread());
+
+      // non-const LockedRWOnThread
+
+      EXPECT_FALSE(TR::IsDataMutexLockedOnCurrentThread());
+      {
+        TR::OnThreadRef::RWOnThreadWithLock rwOnThreadWithLock =
+            aOnThreadRef.LockedRWOnThread();
+        EXPECT_TRUE(TR::IsDataMutexLockedOnCurrentThread());
+        TestConstLockedRWOnThread(rwOnThreadWithLock.DataCRef(),
+                                  beforeRegistration, afterRegistration,
+                                  &onStackChar);
+        TestLockedRWOnThread(rwOnThreadWithLock.DataRef(), beforeRegistration,
+                             afterRegistration, &onStackChar);
+      }
+      EXPECT_FALSE(TR::IsDataMutexLockedOnCurrentThread());
+      aOnThreadRef.WithLockedRWOnThread([&](TR::LockedRWOnThread& aData) {
+        EXPECT_TRUE(TR::IsDataMutexLockedOnCurrentThread());
+        TestLockedRWOnThread(aData, beforeRegistration, afterRegistration,
+                             &onStackChar);
+      });
+      EXPECT_FALSE(TR::IsDataMutexLockedOnCurrentThread());
+    };
+
+    TR::OnThreadPtr onThreadPtr = TR::GetOnThreadPtr();
+    ASSERT_TRUE(onThreadPtr);
+    TestOnThreadRef(*onThreadPtr);
+
+    TR::WithOnThreadRef(
+        [&](TR::OnThreadRef aOnThreadRef) { TestOnThreadRef(aOnThreadRef); });
+
+    EXPECT_TRUE(TR::WithOnThreadRefOr(
+        [&](TR::OnThreadRef aOnThreadRef) {
+          TestOnThreadRef(aOnThreadRef);
+          return true;
+        },
+        false));
+  });
+  testThread.join();
+}
+
+// Thread name if registered, nullptr otherwise.
+static const char* GetThreadName() {
+  return profiler::ThreadRegistration::WithOnThreadRefOr(
+      [](profiler::ThreadRegistration::OnThreadRef onThreadRef) {
+        return onThreadRef.WithUnlockedConstReader(
+            [](const profiler::ThreadRegistration::UnlockedConstReader& aData) {
+              return aData.Info().Name();
+            });
+      },
+      nullptr);
+}
+
+TEST(GeckoProfiler, ThreadRegistration_NestedRegistrations)
+{
+  using TR = profiler::ThreadRegistration;
+
+  profiler_init_main_thread_id();
+  ASSERT_TRUE(profiler_is_main_thread())
+  << "This test assumes it runs on the main thread";
+  EnsureThreadRegistrationTLSIsInitialized();
+
+  // Note that the main thread could already be registered, so we work in a new
+  // thread to test actual registrations that we control.
+
+  std::thread testThread([&]() {
+    ASSERT_FALSE(TR::IsRegistered())
+    << "A new std::thread should not start registered";
+
+    char onStackChar;
+
+    // Blocks {} are mostly for clarity, but some control on-stack registration
+    // lifetimes.
+
+    // On-stack registration.
+    {
+      TR rt{"Test thread #1", &onStackChar};
+      ASSERT_TRUE(TR::IsRegistered());
+      EXPECT_STREQ(GetThreadName(), "Test thread #1");
+    }
+    ASSERT_FALSE(TR::IsRegistered());
+
+    // Off-stack registration.
+    {
+      TR::RegisterThread("Test thread #2", &onStackChar);
+      ASSERT_TRUE(TR::IsRegistered());
+      EXPECT_STREQ(GetThreadName(), "Test thread #2");
+
+      TR::UnregisterThread();
+      ASSERT_FALSE(TR::IsRegistered());
+    }
+
+    // Extra un-registration should be ignored.
+    TR::UnregisterThread();
+    ASSERT_FALSE(TR::IsRegistered());
+
+    // Nested on-stack.
+    {
+      TR rt2{"Test thread #3", &onStackChar};
+      ASSERT_TRUE(TR::IsRegistered());
+      EXPECT_STREQ(GetThreadName(), "Test thread #3");
+
+      {
+        TR rt3{"Test thread #4", &onStackChar};
+        ASSERT_TRUE(TR::IsRegistered());
+        EXPECT_STREQ(GetThreadName(), "Test thread #3")
+            << "Nested registration shouldn't change the name";
+      }
+      ASSERT_TRUE(TR::IsRegistered())
+      << "Thread should still be registered after nested un-registration";
+      EXPECT_STREQ(GetThreadName(), "Test thread #3")
+          << "Thread should still be registered after nested un-registration";
+    }
+    ASSERT_FALSE(TR::IsRegistered());
+
+    // Nested off-stack.
+    {
+      TR::RegisterThread("Test thread #5", &onStackChar);
+      ASSERT_TRUE(TR::IsRegistered());
+      EXPECT_STREQ(GetThreadName(), "Test thread #5");
+
+      {
+        TR::RegisterThread("Test thread #6", &onStackChar);
+        ASSERT_TRUE(TR::IsRegistered());
+        EXPECT_STREQ(GetThreadName(), "Test thread #5")
+            << "Nested registration shouldn't change the name";
+
+        TR::UnregisterThread();
+        ASSERT_TRUE(TR::IsRegistered())
+        << "Thread should still be registered after nested un-registration";
+        EXPECT_STREQ(GetThreadName(), "Test thread #5")
+            << "Thread should still be registered after nested un-registration";
+      }
+
+      TR::UnregisterThread();
+      ASSERT_FALSE(TR::IsRegistered());
+    }
+
+    // Nested on- and off-stack.
+    {
+      TR rt2{"Test thread #7", &onStackChar};
+      ASSERT_TRUE(TR::IsRegistered());
+      EXPECT_STREQ(GetThreadName(), "Test thread #7");
+
+      {
+        TR::RegisterThread("Test thread #8", &onStackChar);
+        ASSERT_TRUE(TR::IsRegistered());
+        EXPECT_STREQ(GetThreadName(), "Test thread #7")
+            << "Nested registration shouldn't change the name";
+
+        TR::UnregisterThread();
+        ASSERT_TRUE(TR::IsRegistered())
+        << "Thread should still be registered after nested un-registration";
+        EXPECT_STREQ(GetThreadName(), "Test thread #7")
+            << "Thread should still be registered after nested un-registration";
+      }
+    }
+    ASSERT_FALSE(TR::IsRegistered());
+
+    // Nested off- and on-stack.
+    {
+      TR::RegisterThread("Test thread #9", &onStackChar);
+      ASSERT_TRUE(TR::IsRegistered());
+      EXPECT_STREQ(GetThreadName(), "Test thread #9");
+
+      {
+        TR rt3{"Test thread #10", &onStackChar};
+        ASSERT_TRUE(TR::IsRegistered());
+        EXPECT_STREQ(GetThreadName(), "Test thread #9")
+            << "Nested registration shouldn't change the name";
+      }
+      ASSERT_TRUE(TR::IsRegistered())
+      << "Thread should still be registered after nested un-registration";
+      EXPECT_STREQ(GetThreadName(), "Test thread #9")
+          << "Thread should still be registered after nested un-registration";
+
+      TR::UnregisterThread();
+      ASSERT_FALSE(TR::IsRegistered());
+    }
+
+    ASSERT_FALSE(TR::IsRegistered());
+  });
+  testThread.join();
+}
+
+TEST(GeckoProfiler, ThreadRegistry_DataAccess)
+{
+  using TR = profiler::ThreadRegistration;
+  using TRy = profiler::ThreadRegistry;
+
+  profiler_init_main_thread_id();
+  ASSERT_TRUE(profiler_is_main_thread())
+  << "This test assumes it runs on the main thread";
+  EnsureThreadRegistrationTLSIsInitialized();
+
+  // Note that the main thread could already be registered, so we work in a new
+  // thread to test an actual registration that we control.
+
+  std::thread testThread([&]() {
+    ASSERT_FALSE(TR::IsRegistered())
+    << "A new std::thread should not start registered";
+    EXPECT_FALSE(TR::GetOnThreadPtr());
+    EXPECT_FALSE(TR::WithOnThreadRefOr([&](auto) { return true; }, false));
+
+    char onStackChar;
+
+    TimeStamp beforeRegistration = TimeStamp::Now();
+    TR tr{"Test thread", &onStackChar};
+    TimeStamp afterRegistration = TimeStamp::Now();
+
+    ASSERT_TRUE(TR::IsRegistered());
+
+    // Note: This test will mostly be about checking the correct access to
+    // thread data, depending on how it's obtained. Not all the functionality
+    // related to that data is tested (e.g., because it involves JS or other
+    // external dependencies that would be difficult to control here.)
+
+    const ProfilerThreadId testThreadId = profiler_current_thread_id();
+
+    auto testThroughRegistry = [&]() {
+      auto TestOffThreadRef = [&](TRy::OffThreadRef aOffThreadRef) {
+        // To test const-qualified member functions.
+        const TRy::OffThreadRef& offThreadCRef = aOffThreadRef;
+
+        // const UnlockedConstReader (always const)
+
+        TestConstUnlockedConstReader(offThreadCRef.UnlockedConstReaderCRef(),
+                                     beforeRegistration, afterRegistration,
+                                     &onStackChar, testThreadId);
+        offThreadCRef.WithUnlockedConstReader(
+            [&](const TR::UnlockedConstReader& aData) {
+              TestConstUnlockedConstReader(aData, beforeRegistration,
+                                           afterRegistration, &onStackChar,
+                                           testThreadId);
+            });
+
+        // const UnlockedConstReaderAndAtomicRW
+
+        TestConstUnlockedConstReaderAndAtomicRW(
+            offThreadCRef.UnlockedConstReaderAndAtomicRWCRef(),
+            beforeRegistration, afterRegistration, &onStackChar, testThreadId);
+        offThreadCRef.WithUnlockedConstReaderAndAtomicRW(
+            [&](const TR::UnlockedConstReaderAndAtomicRW& aData) {
+              TestConstUnlockedConstReaderAndAtomicRW(
+                  aData, beforeRegistration, afterRegistration, &onStackChar,
+                  testThreadId);
+            });
+
+        // non-const UnlockedConstReaderAndAtomicRW
+
+        TestUnlockedConstReaderAndAtomicRW(
+            aOffThreadRef.UnlockedConstReaderAndAtomicRWRef(),
+            beforeRegistration, afterRegistration, &onStackChar, testThreadId);
+        aOffThreadRef.WithUnlockedConstReaderAndAtomicRW(
+            [&](TR::UnlockedConstReaderAndAtomicRW& aData) {
+              TestUnlockedConstReaderAndAtomicRW(aData, beforeRegistration,
+                                                 afterRegistration,
+                                                 &onStackChar, testThreadId);
+            });
+
+        // const UnlockedRWForLockedProfiler
+
+        TestConstUnlockedRWForLockedProfiler(
+            offThreadCRef.UnlockedRWForLockedProfilerCRef(), beforeRegistration,
+            afterRegistration, &onStackChar, testThreadId);
+        offThreadCRef.WithUnlockedRWForLockedProfiler(
+            [&](const TR::UnlockedRWForLockedProfiler& aData) {
+              TestConstUnlockedRWForLockedProfiler(aData, beforeRegistration,
+                                                   afterRegistration,
+                                                   &onStackChar, testThreadId);
+            });
+
+        // non-const UnlockedRWForLockedProfiler
+
+        TestUnlockedRWForLockedProfiler(
+            aOffThreadRef.UnlockedRWForLockedProfilerRef(), beforeRegistration,
+            afterRegistration, &onStackChar, testThreadId);
+        aOffThreadRef.WithUnlockedRWForLockedProfiler(
+            [&](TR::UnlockedRWForLockedProfiler& aData) {
+              TestUnlockedRWForLockedProfiler(aData, beforeRegistration,
+                                              afterRegistration, &onStackChar,
+                                              testThreadId);
+            });
+
+        // UnlockedReaderAndAtomicRWOnThread
+        // Note: It cannot directly be accessed off the thread, this will be
+        // tested through LockedRWFromAnyThread.
+
+        // const LockedRWFromAnyThread
+
+        EXPECT_FALSE(TR::IsDataMutexLockedOnCurrentThread());
+        {
+          TRy::OffThreadRef::ConstRWFromAnyThreadWithLock
+              constRWFromAnyThreadWithLock =
+                  offThreadCRef.ConstLockedRWFromAnyThread();
+          if (profiler_current_thread_id() == testThreadId) {
+            EXPECT_TRUE(TR::IsDataMutexLockedOnCurrentThread());
+          }
+          TestConstLockedRWFromAnyThread(
+              constRWFromAnyThreadWithLock.DataCRef(), beforeRegistration,
+              afterRegistration, &onStackChar, testThreadId);
+        }
+        EXPECT_FALSE(TR::IsDataMutexLockedOnCurrentThread());
+        offThreadCRef.WithConstLockedRWFromAnyThread(
+            [&](const TR::LockedRWFromAnyThread& aData) {
+              if (profiler_current_thread_id() == testThreadId) {
+                EXPECT_TRUE(TR::IsDataMutexLockedOnCurrentThread());
+              }
+              TestConstLockedRWFromAnyThread(aData, beforeRegistration,
+                                             afterRegistration, &onStackChar,
+                                             testThreadId);
+            });
+        EXPECT_FALSE(TR::IsDataMutexLockedOnCurrentThread());
+
+        // non-const LockedRWFromAnyThread
+
+        EXPECT_FALSE(TR::IsDataMutexLockedOnCurrentThread());
+        {
+          TRy::OffThreadRef::RWFromAnyThreadWithLock rwFromAnyThreadWithLock =
+              aOffThreadRef.LockedRWFromAnyThread();
+          if (profiler_current_thread_id() == testThreadId) {
+            EXPECT_TRUE(TR::IsDataMutexLockedOnCurrentThread());
+          }
+          TestLockedRWFromAnyThread(rwFromAnyThreadWithLock.DataRef(),
+                                    beforeRegistration, afterRegistration,
+                                    &onStackChar, testThreadId);
+        }
+        EXPECT_FALSE(TR::IsDataMutexLockedOnCurrentThread());
+        aOffThreadRef.WithLockedRWFromAnyThread(
+            [&](TR::LockedRWFromAnyThread& aData) {
+              if (profiler_current_thread_id() == testThreadId) {
+                EXPECT_TRUE(TR::IsDataMutexLockedOnCurrentThread());
+              }
+              TestLockedRWFromAnyThread(aData, beforeRegistration,
+                                        afterRegistration, &onStackChar,
+                                        testThreadId);
+            });
+        EXPECT_FALSE(TR::IsDataMutexLockedOnCurrentThread());
+
+        // LockedRWOnThread
+        // Note: It can never be accessed off the thread.
+      };
+
+      int ranTest = 0;
+      TRy::WithOffThreadRef(testThreadId, [&](TRy::OffThreadRef aOffThreadRef) {
+        TestOffThreadRef(aOffThreadRef);
+        ++ranTest;
+      });
+      EXPECT_EQ(ranTest, 1);
+
+      ranTest = 0;
+      EXPECT_FALSE(TRy::IsRegistryMutexLockedOnCurrentThread());
+      for (TRy::OffThreadRef offThreadRef : TRy::LockedRegistry{}) {
+        EXPECT_TRUE(TRy::IsRegistryMutexLockedOnCurrentThread());
+        if (offThreadRef.UnlockedConstReaderCRef().Info().ThreadId() ==
+            testThreadId) {
+          TestOffThreadRef(offThreadRef);
+          ++ranTest;
+        }
+      }
+      EXPECT_EQ(ranTest, 1);
+      EXPECT_FALSE(TRy::IsRegistryMutexLockedOnCurrentThread());
+
+      {
+        ranTest = 0;
+        EXPECT_FALSE(TRy::IsRegistryMutexLockedOnCurrentThread());
+        TRy::LockedRegistry lockedRegistry{};
+        EXPECT_TRUE(TRy::IsRegistryMutexLockedOnCurrentThread());
+        for (TRy::OffThreadRef offThreadRef : lockedRegistry) {
+          if (offThreadRef.UnlockedConstReaderCRef().Info().ThreadId() ==
+              testThreadId) {
+            TestOffThreadRef(offThreadRef);
+            ++ranTest;
+          }
+        }
+        EXPECT_EQ(ranTest, 1);
+      }
+      EXPECT_FALSE(TRy::IsRegistryMutexLockedOnCurrentThread());
+    };
+
+    // Test on the current thread.
+    testThroughRegistry();
+
+    // Test from another thread.
+    std::thread otherThread([&]() {
+      ASSERT_NE(profiler_current_thread_id(), testThreadId);
+      testThroughRegistry();
+    });
+    otherThread.join();
   });
   testThread.join();
 }
