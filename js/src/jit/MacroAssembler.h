@@ -30,17 +30,17 @@
 #else
 #  error "Unknown architecture!"
 #endif
+#include "jit/ABIArgGenerator.h"
 #include "jit/ABIFunctions.h"
 #include "jit/AtomicOp.h"
 #include "jit/AutoJitContextAlloc.h"
 #include "jit/IonTypes.h"
+#include "jit/MoveResolver.h"
 #include "jit/VMFunctions.h"
 #include "js/ScalarType.h"  // js::Scalar::Type
 #include "util/Memory.h"
 #include "vm/BytecodeUtil.h"
 #include "vm/FunctionFlags.h"
-#include "vm/JSObject.h"
-#include "vm/StringType.h"
 #include "wasm/WasmCodegenTypes.h"
 #include "wasm/WasmFrame.h"
 
@@ -3455,6 +3455,20 @@ class MacroAssembler : public MacroAssemblerSpecific {
   inline void nearestFloat64x2(FloatRegister src, FloatRegister dest)
       DEFINED_ON(x86_shared, arm64);
 
+  // Floating multiply-accumulate: srcDest [+-]= src1 * src2
+
+  inline void fmaFloat32x4(FloatRegister src1, FloatRegister src2,
+                           FloatRegister srcDest) DEFINED_ON(x86_shared, arm64);
+
+  inline void fmsFloat32x4(FloatRegister src1, FloatRegister src2,
+                           FloatRegister srcDest) DEFINED_ON(x86_shared, arm64);
+
+  inline void fmaFloat64x2(FloatRegister src1, FloatRegister src2,
+                           FloatRegister srcDest) DEFINED_ON(x86_shared, arm64);
+
+  inline void fmsFloat64x2(FloatRegister src1, FloatRegister src2,
+                           FloatRegister srcDest) DEFINED_ON(x86_shared, arm64);
+
  public:
   // ========================================================================
   // Truncate floating point.
@@ -4260,11 +4274,7 @@ class MacroAssembler : public MacroAssemblerSpecific {
  public:
   // Unsafe here means the caller is responsible for Spectre mitigations if
   // needed. Prefer branchTestObjClass or one of the other masm helpers!
-  void loadObjClassUnsafe(Register obj, Register dest) {
-    loadPtr(Address(obj, JSObject::offsetOfShape()), dest);
-    loadPtr(Address(dest, Shape::offsetOfBaseShape()), dest);
-    loadPtr(Address(dest, BaseShape::offsetOfClasp()), dest);
-  }
+  inline void loadObjClassUnsafe(Register obj, Register dest);
 
   template <typename EmitPreBarrier>
   inline void storeObjShape(Register shape, Register obj,
@@ -4273,15 +4283,9 @@ class MacroAssembler : public MacroAssemblerSpecific {
   inline void storeObjShape(Shape* shape, Register obj,
                             EmitPreBarrier emitPreBarrier);
 
-  void loadObjProto(Register obj, Register dest) {
-    loadPtr(Address(obj, JSObject::offsetOfShape()), dest);
-    loadPtr(Address(dest, Shape::offsetOfBaseShape()), dest);
-    loadPtr(Address(dest, BaseShape::offsetOfProto()), dest);
-  }
+  inline void loadObjProto(Register obj, Register dest);
 
-  void loadStringLength(Register str, Register dest) {
-    load32(Address(str, JSString::offsetOfLength()), dest);
-  }
+  inline void loadStringLength(Register str, Register dest);
 
   void loadStringChars(Register str, Register dest, CharEncoding encoding);
 
@@ -5311,94 +5315,8 @@ static inline size_t StackDecrementForCall(uint32_t alignment,
          ComputeByteAlignment(bytesAlreadyPushed + bytesToPush, alignment);
 }
 
-static inline MIRType ToMIRType(MIRType t) { return t; }
-
-static inline MIRType ToMIRType(ABIArgType argType) {
-  switch (argType) {
-    case ArgType_General:
-      return MIRType::Pointer;
-    case ArgType_Float64:
-      return MIRType::Double;
-    case ArgType_Float32:
-      return MIRType::Float32;
-    case ArgType_Int32:
-      return MIRType::Int32;
-    case ArgType_Int64:
-      return MIRType::Int64;
-    default:
-      break;
-  }
-  MOZ_CRASH("unexpected argType");
-}
-
 // Helper for generatePreBarrier.
 inline DynFn JitPreWriteBarrier(MIRType type);
-
-template <class VecT, class ABIArgGeneratorT>
-class ABIArgIterBase {
-  ABIArgGeneratorT gen_;
-  const VecT& types_;
-  unsigned i_;
-
-  void settle() {
-    if (!done()) gen_.next(ToMIRType(types_[i_]));
-  }
-
- public:
-  explicit ABIArgIterBase(const VecT& types) : types_(types), i_(0) {
-    settle();
-  }
-  void operator++(int) {
-    MOZ_ASSERT(!done());
-    i_++;
-    settle();
-  }
-  bool done() const { return i_ == types_.length(); }
-
-  ABIArg* operator->() {
-    MOZ_ASSERT(!done());
-    return &gen_.current();
-  }
-  ABIArg& operator*() {
-    MOZ_ASSERT(!done());
-    return gen_.current();
-  }
-
-  unsigned index() const {
-    MOZ_ASSERT(!done());
-    return i_;
-  }
-  MIRType mirType() const {
-    MOZ_ASSERT(!done());
-    return ToMIRType(types_[i_]);
-  }
-  uint32_t stackBytesConsumedSoFar() const {
-    return gen_.stackBytesConsumedSoFar();
-  }
-};
-
-// This is not an alias because we want to allow class template argument
-// deduction.
-template <class VecT>
-class ABIArgIter : public ABIArgIterBase<VecT, ABIArgGenerator> {
- public:
-  explicit ABIArgIter(const VecT& types)
-      : ABIArgIterBase<VecT, ABIArgGenerator>(types) {}
-};
-
-class WasmABIArgGenerator : public ABIArgGenerator {
- public:
-  WasmABIArgGenerator() {
-    increaseStackOffset(wasm::FrameWithTls::sizeWithoutFrame());
-  }
-};
-
-template <class VecT>
-class WasmABIArgIter : public ABIArgIterBase<VecT, WasmABIArgGenerator> {
- public:
-  explicit WasmABIArgIter(const VecT& types)
-      : ABIArgIterBase<VecT, WasmABIArgGenerator>(types) {}
-};
 }  // namespace jit
 
 namespace wasm {

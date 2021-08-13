@@ -3570,13 +3570,13 @@ void MacroAssembler::narrowInt16x8(FloatRegister rhs, FloatRegister lhsDest) {
 
 void MacroAssembler::narrowInt16x8(FloatRegister lhs, FloatRegister rhs,
                                    FloatRegister dest) {
+  ScratchSimd128Scope scratch(*this);
   if (rhs == dest) {
-    Sqxtn2(Simd16B(dest), Simd8H(rhs));
-    Sqxtn(Simd8B(dest), Simd8H(lhs));
-  } else {
-    Sqxtn(Simd8B(dest), Simd8H(lhs));
-    Sqxtn2(Simd16B(dest), Simd8H(rhs));
+    Mov(scratch, SimdReg(rhs));
+    rhs = scratch;
   }
+  Sqxtn(Simd8B(dest), Simd8H(lhs));
+  Sqxtn2(Simd16B(dest), Simd8H(rhs));
 }
 
 void MacroAssembler::unsignedNarrowInt16x8(FloatRegister rhs,
@@ -3592,13 +3592,13 @@ void MacroAssembler::unsignedNarrowInt16x8(FloatRegister rhs,
 
 void MacroAssembler::unsignedNarrowInt16x8(FloatRegister lhs, FloatRegister rhs,
                                            FloatRegister dest) {
+  ScratchSimd128Scope scratch(*this);
   if (rhs == dest) {
-    Sqxtun2(Simd16B(dest), Simd8H(rhs));
-    Sqxtun(Simd8B(dest), Simd8H(lhs));
-  } else {
-    Sqxtun(Simd8B(dest), Simd8H(lhs));
-    Sqxtun2(Simd16B(dest), Simd8H(rhs));
+    Mov(scratch, SimdReg(rhs));
+    rhs = scratch;
   }
+  Sqxtun(Simd8B(dest), Simd8H(lhs));
+  Sqxtun2(Simd16B(dest), Simd8H(rhs));
 }
 
 void MacroAssembler::narrowInt32x4(FloatRegister rhs, FloatRegister lhsDest) {
@@ -3613,13 +3613,13 @@ void MacroAssembler::narrowInt32x4(FloatRegister rhs, FloatRegister lhsDest) {
 
 void MacroAssembler::narrowInt32x4(FloatRegister lhs, FloatRegister rhs,
                                    FloatRegister dest) {
+  ScratchSimd128Scope scratch(*this);
   if (rhs == dest) {
-    Sqxtn2(Simd8H(dest), Simd4S(rhs));
-    Sqxtn(Simd4H(dest), Simd4S(lhs));
-  } else {
-    Sqxtn(Simd4H(dest), Simd4S(lhs));
-    Sqxtn2(Simd8H(dest), Simd4S(rhs));
+    Mov(scratch, SimdReg(rhs));
+    rhs = scratch;
   }
+  Sqxtn(Simd4H(dest), Simd4S(lhs));
+  Sqxtn2(Simd8H(dest), Simd4S(rhs));
 }
 
 void MacroAssembler::unsignedNarrowInt32x4(FloatRegister rhs,
@@ -3635,13 +3635,13 @@ void MacroAssembler::unsignedNarrowInt32x4(FloatRegister rhs,
 
 void MacroAssembler::unsignedNarrowInt32x4(FloatRegister lhs, FloatRegister rhs,
                                            FloatRegister dest) {
+  ScratchSimd128Scope scratch(*this);
   if (rhs == dest) {
-    Sqxtun2(Simd8H(dest), Simd4S(rhs));
-    Sqxtun(Simd4H(dest), Simd4S(lhs));
-  } else {
-    Sqxtun(Simd4H(dest), Simd4S(lhs));
-    Sqxtun2(Simd8H(dest), Simd4S(rhs));
+    Mov(scratch, SimdReg(rhs));
+    rhs = scratch;
   }
+  Sqxtun(Simd4H(dest), Simd4S(lhs));
+  Sqxtun2(Simd8H(dest), Simd4S(rhs));
 }
 
 // Integer to integer widening
@@ -3825,6 +3825,28 @@ void MacroAssembler::nearestFloat32x4(FloatRegister src, FloatRegister dest) {
 
 void MacroAssembler::nearestFloat64x2(FloatRegister src, FloatRegister dest) {
   Frintn(Simd2D(dest), Simd2D(src));
+}
+
+// Floating multiply-accumulate: srcDest [+-]= src1 * src2
+
+void MacroAssembler::fmaFloat32x4(FloatRegister src1, FloatRegister src2,
+                                  FloatRegister srcDest) {
+  Fmla(Simd4S(srcDest), Simd4S(src1), Simd4S(src2));
+}
+
+void MacroAssembler::fmsFloat32x4(FloatRegister src1, FloatRegister src2,
+                                  FloatRegister srcDest) {
+  Fmls(Simd4S(srcDest), Simd4S(src1), Simd4S(src2));
+}
+
+void MacroAssembler::fmaFloat64x2(FloatRegister src1, FloatRegister src2,
+                                  FloatRegister srcDest) {
+  Fmla(Simd2D(srcDest), Simd2D(src1), Simd2D(src2));
+}
+
+void MacroAssembler::fmsFloat64x2(FloatRegister src1, FloatRegister src2,
+                                  FloatRegister srcDest) {
+  Fmls(Simd2D(srcDest), Simd2D(src1), Simd2D(src2));
 }
 
 //}}} check_macroassembler_style

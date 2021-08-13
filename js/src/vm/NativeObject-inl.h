@@ -136,6 +136,7 @@ inline void NativeObject::initDenseElements(NativeObject* src,
 inline void NativeObject::initDenseElements(const Value* src, uint32_t count) {
   MOZ_ASSERT(getDenseInitializedLength() == 0);
   MOZ_ASSERT(count <= getDenseCapacity());
+  MOZ_ASSERT(src);
   MOZ_ASSERT(isExtensible());
 
   setDenseInitializedLength(count);
@@ -428,6 +429,7 @@ inline NativeObject* NativeObject::create(
   const JSClass* clasp = shape->getObjectClass();
   MOZ_ASSERT(clasp->isNativeObject());
   MOZ_ASSERT(!clasp->isJSFunction(), "should use JSFunction::create");
+  MOZ_ASSERT(clasp != &ArrayObject::class_, "should use ArrayObject::create");
 
   size_t nDynamicSlots =
       calculateDynamicSlots(shape->numFixedSlots(), shape->slotSpan(), clasp);

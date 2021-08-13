@@ -1745,7 +1745,7 @@
 # Block Insecure downloads from Secure Origins
 - name: dom.block_download_insecure
   type: bool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 # Block all downloads in iframes with the sandboxed attribute
@@ -5071,14 +5071,6 @@
   value: false
   mirror: always
 
-# Also expose a pref to allow users to force-disable WR. This is exposed
-# on all channels because WR can be enabled on qualified hardware on all
-# channels.
-- name: gfx.webrender.force-legacy-layers
-  type: bool
-  value: false
-  mirror: once
-
 #ifdef MOZ_WIDGET_GTK
 - name: gfx.webrender.reject-software-driver
   type: bool
@@ -5166,12 +5158,6 @@
 - name: gfx.webrender.enable-item-cache
   type: bool
   value: true
-  mirror: once
-
-# Whether or not to fallback from WebRender/WebRender Software to Basic.
-- name: gfx.webrender.fallback.basic
-  type: bool
-  value: false
   mirror: once
 
 # Whether or not to fallback from WebRender to Software WebRender.
@@ -6149,6 +6135,14 @@
   value: true
   mirror: always
   do_not_use_directly: true
+
+# Whether to use fdlibm for Math.sin, Math.cos, and Math.tan. When
+# privacy.resistFingerprinting is true, this pref is ignored and fdlibm is used
+# anyway.
+- name: javascript.options.use_fdlibm_for_sin_cos_tan
+  type: bool
+  value: false
+  mirror: always
 
 #---------------------------------------------------------------------------
 # Prefs starting with "layers."
@@ -7204,6 +7198,14 @@
   value: false
   mirror: always
   rust: true
+
+# An override for prefers-color-scheme for content documents.
+#
+# Dark (0), light (1), or system (2).
+- name: layout.css.prefers-color-scheme.content-override
+  type: RelaxedAtomicInt32
+  value: 2
+  mirror: always
 
 # Dictates whether or not the forced-colors media query is enabled.
 - name: layout.css.forced-colors.enabled
@@ -11856,6 +11858,12 @@
   type: RelaxedAtomicBool
   value: true
   mirror: always
+
+# Use async clipboard on Wayland
+- name: widget.wayland.async-clipboard.enabled
+  type: bool
+  value: false
+  mirror: once
 
 # Force fractional scaling using wp_viewporter. Valid values: 0.5 - 8
 - name: widget.wayland.fractional_buffer_scale

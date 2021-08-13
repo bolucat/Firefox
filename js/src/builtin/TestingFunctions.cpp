@@ -356,7 +356,7 @@ static bool GetBuildConfiguration(JSContext* cx, unsigned argc, Value* vp) {
 #endif
   if (!JS_SetProperty(cx, info, "osx", value)) {
     return false;
-}
+  }
 
 #ifdef JS_CODEGEN_ARM64
   value = BooleanValue(true);
@@ -875,17 +875,6 @@ static bool WasmThreadsEnabled(JSContext* cx, unsigned argc, Value* vp) {
   }
 JS_FOR_WASM_FEATURES(WASM_FEATURE, WASM_FEATURE);
 #undef WASM_FEATURE
-
-static bool WasmSimdExperimentalEnabled(JSContext* cx, unsigned argc,
-                                        Value* vp) {
-  CallArgs args = CallArgsFromVp(argc, vp);
-#ifdef ENABLE_WASM_SIMD_EXPERIMENTAL
-  args.rval().setBoolean(wasm::SimdAvailable(cx));
-#else
-  args.rval().setBoolean(false);
-#endif
-  return true;
-}
 
 static bool WasmSimdWormholeEnabled(JSContext* cx, unsigned argc, Value* vp) {
   CallArgs args = CallArgsFromVp(argc, vp);
@@ -7867,11 +7856,6 @@ JS_FOR_WASM_FEATURES(WASM_FEATURE, WASM_FEATURE)
 "wasmThreadsEnabled()",
 "  Returns a boolean indicating whether the WebAssembly threads proposal is\n"
 "  supported on the current device."),
-
-    JS_FN_HELP("wasmSimdExperimentalEnabled", WasmSimdExperimentalEnabled, 0, 0,
-"wasmSimdExperimentalEnabled()",
-"  Returns a boolean indicating whether WebAssembly SIMD experimental instructions\n"
-"  are supported by the compilers and runtime."),
 
     JS_FN_HELP("wasmSimdWormholeEnabled", WasmSimdWormholeEnabled, 0, 0,
 "wasmSimdWormholeEnabled()",

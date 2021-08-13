@@ -1705,13 +1705,6 @@ static void DOMGCSliceCallback(JSContext* aCx, JS::GCProgress aProgress,
 
       sScheduler.NoteGCEnd();
 
-      using mozilla::ipc::IdleSchedulerChild;
-      IdleSchedulerChild* child =
-          IdleSchedulerChild::GetMainThreadIdleScheduler();
-      if (child) {
-        child->DoneGC();
-      }
-
       // May need to kill the GC runner
       sScheduler.KillGCRunner();
 
@@ -1741,7 +1734,7 @@ static void DOMGCSliceCallback(JSContext* aCx, JS::GCProgress aProgress,
       sScheduler.NoteGCSliceEnd(aDesc.lastSliceEnd(aCx) -
                                 aDesc.lastSliceStart(aCx));
 
-      if (sShuttingDown || aDesc.isComplete_) {
+      if (sShuttingDown) {
         sScheduler.KillGCRunner();
       } else {
         // If incremental GC wasn't triggered by GCTimerFired, we may not have a

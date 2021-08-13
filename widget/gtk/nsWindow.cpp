@@ -2115,6 +2115,31 @@ static GdkGravity PopupAlignmentToGdkGravity(int8_t aAlignment) {
   return GDK_GRAVITY_STATIC;
 }
 
+static GdkGravity PopupGetHorizontallyFlippedAnchor(GdkGravity anchor) {
+  switch (anchor) {
+    case GDK_GRAVITY_STATIC:
+    case GDK_GRAVITY_NORTH_WEST:
+      return GDK_GRAVITY_NORTH_EAST;
+    case GDK_GRAVITY_NORTH:
+      return GDK_GRAVITY_NORTH;
+    case GDK_GRAVITY_NORTH_EAST:
+      return GDK_GRAVITY_NORTH_WEST;
+    case GDK_GRAVITY_WEST:
+      return GDK_GRAVITY_EAST;
+    case GDK_GRAVITY_CENTER:
+      return GDK_GRAVITY_CENTER;
+    case GDK_GRAVITY_EAST:
+      return GDK_GRAVITY_WEST;
+    case GDK_GRAVITY_SOUTH_WEST:
+      return GDK_GRAVITY_SOUTH_EAST;
+    case GDK_GRAVITY_SOUTH:
+      return GDK_GRAVITY_SOUTH;
+    case GDK_GRAVITY_SOUTH_EAST:
+      return GDK_GRAVITY_SOUTH_WEST;
+  }
+  return anchor;
+}
+
 void nsWindow::NativeMoveResizeWaylandPopup(GdkPoint* aPosition,
                                             GdkRectangle* aSize) {
   LOG_POPUP(("nsWindow::NativeMoveResizeWaylandPopup [%p] %d,%d -> %d x %d\n",
@@ -2241,19 +2266,18 @@ void nsWindow::WaylandPopupMove(bool aUseMoveToRect) {
   FlipType flipType = FlipType_Default;
   int8_t position = -1;
   if (mPopupContextMenu && !mPopupAnchored) {
-    if (GetTextDirection() == GTK_TEXT_DIR_RTL) {
-      rectAnchor = GDK_GRAVITY_SOUTH_WEST;
-      menuAnchor = GDK_GRAVITY_NORTH_EAST;
-
-    } else {
-      rectAnchor = GDK_GRAVITY_SOUTH_EAST;
-      menuAnchor = GDK_GRAVITY_NORTH_WEST;
-    }
+    rectAnchor = GDK_GRAVITY_SOUTH_EAST;
+    menuAnchor = GDK_GRAVITY_NORTH_WEST;
   } else {
     rectAnchor = PopupAlignmentToGdkGravity(popupFrame->GetPopupAnchor());
     menuAnchor = PopupAlignmentToGdkGravity(popupFrame->GetPopupAlignment());
     flipType = popupFrame->GetFlipType();
     position = popupFrame->GetAlignmentPosition();
+  }
+
+  if (popupFrame->IsDirectionRTL()) {
+    rectAnchor = PopupGetHorizontallyFlippedAnchor(rectAnchor);
+    menuAnchor = PopupGetHorizontallyFlippedAnchor(menuAnchor);
   }
 
   LOG_POPUP(("  parentRect gravity: %d anchor gravity: %d\n", rectAnchor,
@@ -2298,15 +2322,17 @@ void nsWindow::WaylandPopupMove(bool aUseMoveToRect) {
     // we don't want to slide menus to fit the screen rather resize them
     hints = GdkAnchorHints(hints | GDK_ANCHOR_SLIDE);
   }
-
   // Inspired by nsMenuPopupFrame::AdjustPositionForAnchorAlign
   nsPoint cursorOffset(0, 0);
-#ifdef MOZ_WAYLAND
   // Offset is already computed to the tooltips
   if (hasAnchorRect && mPopupType != ePopupTypeTooltip) {
     nsMargin margin(0, 0, 0, 0);
     popupFrame->StyleMargin()->GetMargin(margin);
-    switch (popupFrame->GetPopupAlignment()) {
+    int8_t popupAlign(popupFrame->GetPopupAlignment());
+    if (popupFrame->IsDirectionRTL()) {
+      popupAlign = -popupAlign;
+    }
+    switch (popupAlign) {
       case POPUPALIGNMENT_TOPRIGHT:
         cursorOffset.MoveBy(-margin.right, margin.top);
         break;
@@ -2322,7 +2348,6 @@ void nsWindow::WaylandPopupMove(bool aUseMoveToRect) {
         break;
     }
   }
-#endif
 
   if (!g_signal_handler_find(gdkWindow, G_SIGNAL_MATCH_FUNC, 0, 0, nullptr,
                              FuncToGpointer(NativeMoveResizeCallback), this)) {
@@ -3932,28 +3957,6 @@ void nsWindow::OnMotionNotifyEvent(GdkEventMotion* aEvent) {
     }
   }
 
-  // see if we can compress this event
-  // XXXldb Why skip every other motion event when we have multiple,
-  // but not more than that?
-  bool synthEvent = false;
-#ifdef MOZ_X11
-  XEvent xevent;
-
-  if (GdkIsX11Display()) {
-    while (XPending(GDK_WINDOW_XDISPLAY(aEvent->window))) {
-      XEvent peeked;
-      XPeekEvent(GDK_WINDOW_XDISPLAY(aEvent->window), &peeked);
-      if (peeked.xany.window != gdk_x11_window_get_xid(aEvent->window) ||
-          peeked.type != MotionNotify) {
-        break;
-      }
-
-      synthEvent = true;
-      XNextEvent(GDK_WINDOW_XDISPLAY(aEvent->window), &xevent);
-    }
-  }
-#endif /* MOZ_X11 */
-
   GdkWindowEdge edge;
   if (CheckResizerEdge(GetRefPoint(this, aEvent), edge)) {
     nsCursor cursor = eCursor_none;
@@ -3995,32 +3998,10 @@ void nsWindow::OnMotionNotifyEvent(GdkEventMotion* aEvent) {
   // We have to ignore that and use last valid value
   if (pressure) mLastMotionPressure = pressure;
   event.mPressure = mLastMotionPressure;
+  event.mRefPoint = GetRefPoint(this, aEvent);
+  event.AssignEventTime(GetWidgetEventTime(aEvent->time));
 
-  guint modifierState;
-  if (synthEvent) {
-#ifdef MOZ_X11
-    event.mRefPoint.x = nscoord(xevent.xmotion.x);
-    event.mRefPoint.y = nscoord(xevent.xmotion.y);
-
-    modifierState = xevent.xmotion.state;
-
-    event.AssignEventTime(GetWidgetEventTime(xevent.xmotion.time));
-#else
-    event.mRefPoint = GdkEventCoordsToDevicePixels(aEvent->x, aEvent->y);
-
-    modifierState = aEvent->state;
-
-    event.AssignEventTime(GetWidgetEventTime(aEvent->time));
-#endif /* MOZ_X11 */
-  } else {
-    event.mRefPoint = GetRefPoint(this, aEvent);
-
-    modifierState = aEvent->state;
-
-    event.AssignEventTime(GetWidgetEventTime(aEvent->time));
-  }
-
-  KeymapWrapper::InitInputEvent(event, modifierState);
+  KeymapWrapper::InitInputEvent(event, aEvent->state);
 
   DispatchInputEvent(&event);
 }
@@ -9355,16 +9336,6 @@ void nsWindow::ForceTitlebarRedraw(void) {
                                       nsChangeHint_RepaintFrame);
     }
   }
-}
-
-GtkTextDirection nsWindow::GetTextDirection() {
-  nsIFrame* frame = GetFrame();
-  if (!frame) {
-    return GTK_TEXT_DIR_LTR;
-  }
-
-  WritingMode wm = frame->GetWritingMode();
-  return wm.IsPhysicalLTR() ? GTK_TEXT_DIR_LTR : GTK_TEXT_DIR_RTL;
 }
 
 void nsWindow::LockAspectRatio(bool aShouldLock) {
