@@ -3353,21 +3353,8 @@ void CheckForBrokenChromeURL(nsILoadInfo* aLoadInfo, nsIURI* aURI) {
   }
 
 #ifdef ANDROID
-  // See bug 1721910
-  if (StringEndsWith(filePath, "/tooltip.css"_ns)) {
-    return;
-  }
   // See bug 1722078
   if (StringEndsWith(filePath, "/app-extension-fields.properties"_ns)) {
-    return;
-  }
-  // See bug 1722485
-  if (StringEndsWith(filePath, "/SessionStore.jsm"_ns)) {
-    return;
-  }
-
-  // See bug 1722082
-  if (StringEndsWith(filePath, "/AttributionCode.jsm"_ns)) {
     return;
   }
 #endif
@@ -3377,12 +3364,6 @@ void CheckForBrokenChromeURL(nsILoadInfo* aLoadInfo, nsIURI* aURI) {
 
   // DTD files from gre may not exist when requested by tests.
   if (StringBeginsWith(spec, "resource://gre/res/dtd/"_ns)) {
-    return;
-  }
-
-  // Bug 1723525
-  if (spec.EqualsLiteral("chrome://browser/content/preferences/dialogs/"
-                         "siteDataSettings.css")) {
     return;
   }
 

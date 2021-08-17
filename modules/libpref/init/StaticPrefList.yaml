@@ -5889,13 +5889,13 @@
     type: bool
     value: false
     mirror: always
+#endif  // NIGHTLY_BUILD
 
 # Experimental support for class static blocks in JavaScript.
 -   name: javascript.options.experimental.class_static_blocks
     type: bool
-    value: false
+    value: true
     mirror: always
-#endif  // NIGHTLY_BUILD
 
   # Support for Private Fields in JavaScript.
 - name: javascript.options.experimental.private_fields
@@ -6991,24 +6991,6 @@
   value: @IS_NIGHTLY_BUILD@
   mirror: always
   rust: true
-
-# Is support for DOMMatrix enabled?
-- name: layout.css.DOMMatrix.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
-# Is support for DOMQuad enabled?
-- name: layout.css.DOMQuad.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
-# Is support for DOMPoint enabled?
-- name: layout.css.DOMPoint.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
 
 # Is support for d property for SVG path element?
 - name: layout.css.d-property.enabled
@@ -9925,13 +9907,13 @@
 # available.
 - name: network.dns.upgrade_with_https_rr
   type: RelaxedAtomicBool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 # Whether to use HTTPS RR as AltSvc
 - name: network.dns.use_https_rr_as_altsvc
   type: RelaxedAtomicBool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 # Whether to check for NAT64 using the system resolver

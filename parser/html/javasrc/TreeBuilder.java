@@ -1241,6 +1241,13 @@ public abstract class TreeBuilder<T> implements TokenHandler,
         }
     }
 
+    /**
+     * @see nu.validator.htmlparser.common.TokenHandler#zeroOrReplacementCharacter()
+     */
+    public void zeroOrReplacementCharacter() throws SAXException {
+        zeroOriginatingReplacementCharacter();
+    }
+
     public final void eof() throws SAXException {
         flushCharacters();
         // Note: Can't attach error messages to EOF in C++ yet
@@ -1351,7 +1358,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                         break eofloop;
                     }
                     if (errorHandler != null) {
-                        errUnclosedElements(eltPos, "template");
+                        errListUnclosedStartTags(0);
                     }
                     while (currentPtr >= eltPos) {
                         pop();
@@ -3884,7 +3891,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
             errStrayEndTag("template");
             return;
         }
-        generateImpliedEndTags();
+        generateImpliedEndTagsThoroughly();
         if (errorHandler != null && !isCurrent("template")) {
             errUnclosedElements(eltPos, "template");
         }
@@ -4017,6 +4024,29 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                 case OPTGROUP:
                 case RB_OR_RTC:
                 case RT_OR_RP:
+                    pop();
+                    continue;
+                default:
+                    return;
+            }
+        }
+    }
+
+    private void generateImpliedEndTagsThoroughly() throws SAXException {
+        for (;;) {
+            switch (stack[currentPtr].getGroup()) {
+                case CAPTION:
+                case COLGROUP:
+                case DD_OR_DT:
+                case LI:
+                case OPTGROUP:
+                case OPTION:
+                case P:
+                case RB_OR_RTC:
+                case RT_OR_RP:
+                case TBODY_OR_THEAD_OR_TFOOT:
+                case TD_OR_TH:
+                case TR:
                     pop();
                     continue;
                 default:
