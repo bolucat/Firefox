@@ -138,7 +138,7 @@ class HTMLEditUtils final {
   static bool IsListItem(const nsINode* aNode);
   static bool IsTable(nsINode* aNode);
   static bool IsTableRow(nsINode* aNode);
-  static bool IsAnyTableElement(nsINode* aNode);
+  static bool IsAnyTableElement(const nsINode* aNode);
   static bool IsAnyTableElementButNotTable(nsINode* aNode);
   static bool IsTableCell(const nsINode* aNode);
   static bool IsTableCellOrCaption(nsINode& aNode);
@@ -1151,30 +1151,36 @@ class HTMLEditUtils final {
   }
 
   /**
-   * GetInclusiveAncestorBlockElementExceptHRElement() returns inclusive
-   * ancestor block element except `<hr>` element.
+   * GetAncestorElement() and GetInclusiveAncestorElement() return
+   * (inclusive) block ancestor element of aContent whose time matches
+   * aAncestorTypes.
    */
-  static Element* GetInclusiveAncestorBlockElementExceptHRElement(
-      const nsIContent& aContent, const nsINode* aAncestorLimiter = nullptr) {
-    Element* blockElement =
-        GetInclusiveAncestorBlockElement(aContent, aAncestorLimiter);
-    if (!blockElement || !blockElement->IsHTMLElement(nsGkAtoms::hr)) {
-      return blockElement;
-    }
-    if (!blockElement->GetParentElement()) {
-      return nullptr;
-    }
-    return GetInclusiveAncestorBlockElementExceptHRElement(
-        *blockElement->GetParentElement(), aAncestorLimiter);
-  }
+  enum class AncestorType {
+    ClosestBlockElement,
+    MostDistantInlineElementInBlock,
+    EditableElement,
+    IgnoreHRElement,  // Ignore ancestor <hr> element since invalid structure
+  };
+  using AncestorTypes = EnumSet<AncestorType>;
+  constexpr static AncestorTypes
+      ClosestEditableBlockElementOrInlineEditingHost = {
+          AncestorType::ClosestBlockElement,
+          AncestorType::MostDistantInlineElementInBlock,
+          AncestorType::EditableElement};
+  constexpr static AncestorTypes ClosestBlockElement = {
+      AncestorType::ClosestBlockElement};
+  constexpr static AncestorTypes ClosestEditableBlockElement = {
+      AncestorType::ClosestBlockElement, AncestorType::EditableElement};
+  constexpr static AncestorTypes ClosestEditableBlockElementExceptHRElement = {
+      AncestorType::ClosestBlockElement, AncestorType::IgnoreHRElement,
+      AncestorType::EditableElement};
+  static Element* GetAncestorElement(const nsIContent& aContent,
+                                     const AncestorTypes& aAncestorTypes,
+                                     const Element* aAncestorLimiter = nullptr);
+  static Element* GetInclusiveAncestorElement(
+      const nsIContent& aContent, const AncestorTypes& aAncestorTypes,
+      const Element* aAncestorLimiter = nullptr);
 
-  /**
-   * GetInclusiveAncestorEditableBlockElementOrInlineEditingHost() returns
-   * inclusive block ancestor element of aContent.  If aContent is in inline
-   * editing host, returns the editing host instead.
-   */
-  static Element* GetInclusiveAncestorEditableBlockElementOrInlineEditingHost(
-      const nsIContent& aContent);
   /**
    * GetClosestAncestorTableElement() returns the nearest inclusive ancestor
    * <table> element of aContent.
