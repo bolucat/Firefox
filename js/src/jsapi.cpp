@@ -45,21 +45,31 @@
 #include "js/CompileOptions.h"
 #include "js/ContextOptions.h"  // JS::ContextOptions{,Ref}
 #include "js/Conversions.h"
+#include "js/ErrorInterceptor.h"
 #include "js/friend/ErrorMessages.h"  // js::GetErrorMessage, JSMSG_*
 #include "js/friend/StackLimits.h"    // js::AutoCheckRecursionLimit
+#include "js/GlobalObject.h"
 #include "js/Initialization.h"
+#include "js/Interrupt.h"
 #include "js/JSON.h"
 #include "js/LocaleSensitive.h"
+#include "js/MemoryCallbacks.h"
 #include "js/MemoryFunctions.h"
 #include "js/OffThreadScriptCompilation.h"  // js::UseOffThreadParseGlobal
 #include "js/PropertySpec.h"
 #include "js/Proxy.h"
+#include "js/ScriptPrivate.h"
 #include "js/StableStringChars.h"
+#include "js/Stack.h"
+#include "js/StreamConsumer.h"
 #include "js/String.h"  // JS::MaxStringLength
 #include "js/Symbol.h"
+#include "js/TelemetryTimers.h"
 #include "js/Utility.h"
+#include "js/WaitCallbacks.h"
 #include "js/WasmModule.h"
 #include "js/Wrapper.h"
+#include "js/WrapperCallbacks.h"
 #include "proxy/DOMProxy.h"
 #include "util/StringBuffer.h"
 #include "util/Text.h"

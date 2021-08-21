@@ -7,13 +7,14 @@
 #ifndef vm_GlobalObject_h
 #define vm_GlobalObject_h
 
+#include "js/GlobalObject.h"
+
 #include "mozilla/Assertions.h"
 #include "mozilla/EnumeratedArray.h"
 
 #include <stdint.h>
 #include <type_traits>
 
-#include "jsapi.h"
 #include "jsexn.h"
 #include "jsfriendapi.h"
 #include "jspubtd.h"

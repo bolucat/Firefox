@@ -211,6 +211,7 @@
 #  include <unistd.h>
 #endif
 
+#include "jsapi.h"
 #include "jstypes.h"
 
 #include "builtin/FinalizationRegistryObject.h"
@@ -2143,6 +2144,12 @@ bool js::gc::IsCurrentlyAnimating(const TimeStamp& lastAnimationTime,
   static const auto oneSecond = TimeDuration::FromSeconds(1);
   return !lastAnimationTime.IsNull() &&
          currentTime < (lastAnimationTime + oneSecond);
+}
+
+static bool DiscardedCodeRecently(Zone* zone, const TimeStamp& currentTime) {
+  static const auto thirtySeconds = TimeDuration::FromSeconds(30);
+  return !zone->lastDiscardedCodeTime().IsNull() &&
+         currentTime < (zone->lastDiscardedCodeTime() + thirtySeconds);
 }
 
 bool GCRuntime::shouldCompact() {
@@ -4143,7 +4150,8 @@ bool GCRuntime::shouldPreserveJITCode(Realm* realm,
   if (realm->preserveJitCode()) {
     return true;
   }
-  if (IsCurrentlyAnimating(realm->lastAnimationTime, currentTime)) {
+  if (IsCurrentlyAnimating(realm->lastAnimationTime, currentTime) &&
+      DiscardedCodeRecently(realm->zone(), currentTime)) {
     return true;
   }
   if (reason == JS::GCReason::DEBUG_GC) {
