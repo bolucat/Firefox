@@ -82,7 +82,9 @@ class HTMLEditUtils final {
    * if aContent isn't editable.
    */
   static bool IsRemovableNode(const nsIContent& aContent) {
-    return aContent.GetParentNode() && aContent.GetParentNode()->IsEditable();
+    return aContent.GetParentNode() && aContent.GetParentNode()->IsEditable() &&
+           &aContent != aContent.OwnerDoc()->GetBody() &&
+           &aContent != aContent.OwnerDoc()->GetDocumentElement();
   }
 
   /**
@@ -91,7 +93,9 @@ class HTMLEditUtils final {
    */
   static bool IsRemovableFromParentNode(const nsIContent& aContent) {
     return aContent.IsEditable() && aContent.GetParentNode() &&
-           aContent.GetParentNode()->IsEditable();
+           aContent.GetParentNode()->IsEditable() &&
+           &aContent != aContent.OwnerDoc()->GetBody() &&
+           &aContent != aContent.OwnerDoc()->GetDocumentElement();
   }
 
   /**
@@ -132,7 +136,7 @@ class HTMLEditUtils final {
    * styles.
    */
   static bool IsRemovableInlineStyleElement(dom::Element& aElement);
-  static bool IsFormatNode(nsINode* aNode);
+  static bool IsFormatNode(const nsINode* aNode);
   static bool IsNodeThatCanOutdent(nsINode* aNode);
   static bool IsHeader(nsINode& aNode);
   static bool IsListItem(const nsINode* aNode);
@@ -242,11 +246,18 @@ class HTMLEditUtils final {
    * IsSplittableNode() returns true if aContent can split.
    */
   static bool IsSplittableNode(const nsIContent& aContent) {
+    if (!EditorUtils::IsEditableContent(aContent,
+                                        EditorUtils::EditorType::HTML) ||
+        !HTMLEditUtils::IsRemovableFromParentNode(aContent)) {
+      return false;
+    }
     if (aContent.IsElement()) {
       // XXX Perhaps, instead of using container, we should have "splittable"
       //     information in the DB.  E.g., `<template>`, `<script>` elements
       //     can have children, but shouldn't be split.
-      return HTMLEditUtils::IsContainerNode(aContent);
+      return HTMLEditUtils::IsContainerNode(aContent) &&
+             !aContent.IsAnyOfHTMLElements(nsGkAtoms::body, nsGkAtoms::head,
+                                           nsGkAtoms::html);
     }
     return aContent.IsText() && aContent.Length() > 0;
   }
@@ -1098,57 +1109,6 @@ class HTMLEditUtils final {
       nsIContent& aContent, const Element* aAncestorLimiter,
       InvisibleWhiteSpaces aInvisibleWhiteSpaces,
       TableBoundary aHowToTreatTableBoundary);
-
-  /**
-   * GetAncestorBlockElement() returns parent or nearest ancestor of aContent
-   * which is a block element.  If aAncestorLimiter is not nullptr,
-   * this stops looking for the result when it meets the limiter.
-   */
-  static Element* GetAncestorBlockElement(
-      const nsIContent& aContent, const nsINode* aAncestorLimiter = nullptr) {
-    MOZ_ASSERT(
-        !aAncestorLimiter || aContent.IsInclusiveDescendantOf(aAncestorLimiter),
-        "aContent isn't in aAncestorLimiter");
-
-    // The caller has already reached the limiter.
-    if (&aContent == aAncestorLimiter) {
-      return nullptr;
-    }
-
-    for (Element* element : aContent.AncestorsOfType<Element>()) {
-      if (HTMLEditUtils::IsBlockElement(*element)) {
-        return element;
-      }
-      // Now, we have reached the limiter, there is no block in its ancestors.
-      if (element == aAncestorLimiter) {
-        return nullptr;
-      }
-    }
-
-    return nullptr;
-  }
-
-  /**
-   * GetInclusiveAncestorBlockElement() returns aContent itself, or parent or
-   * nearest ancestor of aContent which is a block element.  If aAncestorLimiter
-   * is not nullptr, this stops looking for the result when it meets the
-   * limiter.
-   */
-  static Element* GetInclusiveAncestorBlockElement(
-      const nsIContent& aContent, const nsINode* aAncestorLimiter = nullptr) {
-    MOZ_ASSERT(
-        !aAncestorLimiter || aContent.IsInclusiveDescendantOf(aAncestorLimiter),
-        "aContent isn't in aAncestorLimiter");
-
-    if (!aContent.IsContent()) {
-      return nullptr;
-    }
-
-    if (HTMLEditUtils::IsBlockElement(aContent)) {
-      return const_cast<Element*>(aContent.AsElement());
-    }
-    return GetAncestorBlockElement(aContent, aAncestorLimiter);
-  }
 
   /**
    * GetAncestorElement() and GetInclusiveAncestorElement() return

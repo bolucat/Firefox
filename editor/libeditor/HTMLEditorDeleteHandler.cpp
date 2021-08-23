@@ -5029,6 +5029,7 @@ Element* HTMLEditor::AutoDeleteRangesHandler::AutoEmptyBlockAncestorDeleter::
     ScanEmptyBlockInclusiveAncestor(const HTMLEditor& aHTMLEditor,
                                     nsIContent& aStartContent) {
   MOZ_ASSERT(aHTMLEditor.IsEditActionDataAvailable());
+  MOZ_ASSERT(!mEmptyInclusiveAncestorBlockElement);
 
   // If we are inside an empty block, delete it.
   // Note: do NOT delete table elements this way.
@@ -5314,11 +5315,14 @@ bool HTMLEditor::AutoDeleteRangesHandler::ExtendRangeToIncludeInvisibleNodes(
     return false;
   }
 
-  // Find current selection common block parent
-  Element* commonAncestorBlock =
-      HTMLEditUtils::GetInclusiveAncestorBlockElement(
-          *aRange.GetClosestCommonInclusiveAncestor()->AsContent());
-  if (NS_WARN_IF(!commonAncestorBlock)) {
+  // Look for the common ancestor's block element.  It's fine that we get
+  // non-editable block element which is ancestor of inline editing host
+  // because the following code checks editing host too.
+  const Element* const maybeNonEditableBlockElement =
+      HTMLEditUtils::GetInclusiveAncestorElement(
+          *aRange.GetClosestCommonInclusiveAncestor()->AsContent(),
+          HTMLEditUtils::ClosestBlockElement);
+  if (NS_WARN_IF(!maybeNonEditableBlockElement)) {
     return false;
   }
 
@@ -5329,7 +5333,7 @@ bool HTMLEditor::AutoDeleteRangesHandler::ExtendRangeToIncludeInvisibleNodes(
   }
 
   // Find previous visible things before start of selection
-  if (atStart.GetContainer() != commonAncestorBlock &&
+  if (atStart.GetContainer() != maybeNonEditableBlockElement &&
       atStart.GetContainer() != editingHost) {
     for (;;) {
       WSScanResult backwardScanFromStartResult =
@@ -5344,7 +5348,8 @@ bool HTMLEditor::AutoDeleteRangesHandler::ExtendRangeToIncludeInvisibleNodes(
       // element boundaries, or if we hit the root.
       if (HTMLEditUtils::IsAnyTableElement(
               backwardScanFromStartResult.GetContent()) ||
-          backwardScanFromStartResult.GetContent() == commonAncestorBlock ||
+          backwardScanFromStartResult.GetContent() ==
+              maybeNonEditableBlockElement ||
           backwardScanFromStartResult.GetContent() == editingHost) {
         break;
       }
@@ -5362,7 +5367,7 @@ bool HTMLEditor::AutoDeleteRangesHandler::ExtendRangeToIncludeInvisibleNodes(
   // selected).
 
   // Find next visible things after end of selection
-  if (atEnd.GetContainer() != commonAncestorBlock &&
+  if (atEnd.GetContainer() != maybeNonEditableBlockElement &&
       atEnd.GetContainer() != editingHost) {
     EditorDOMPoint atFirstInvisibleBRElement;
     for (;;) {
@@ -5396,7 +5401,8 @@ bool HTMLEditor::AutoDeleteRangesHandler::ExtendRangeToIncludeInvisibleNodes(
         // element boundaries, or if we hit the root.
         if (HTMLEditUtils::IsAnyTableElement(
                 forwardScanFromEndResult.GetContent()) ||
-            forwardScanFromEndResult.GetContent() == commonAncestorBlock ||
+            forwardScanFromEndResult.GetContent() ==
+                maybeNonEditableBlockElement ||
             forwardScanFromEndResult.GetContent() == editingHost) {
           break;
         }
@@ -5415,11 +5421,13 @@ bool HTMLEditor::AutoDeleteRangesHandler::ExtendRangeToIncludeInvisibleNodes(
 
     if (atFirstInvisibleBRElement.IsInContentNode()) {
       // Find block node containing invisible `<br>` element.
-      if (RefPtr<Element> brElementParent =
-              HTMLEditUtils::GetInclusiveAncestorBlockElement(
-                  *atFirstInvisibleBRElement.ContainerAsContent())) {
+      if (const RefPtr<const Element> editableBlockContainingBRElement =
+              HTMLEditUtils::GetInclusiveAncestorElement(
+                  *atFirstInvisibleBRElement.ContainerAsContent(),
+                  HTMLEditUtils::ClosestEditableBlockElement)) {
         EditorRawDOMRange range(atStart, atEnd);
-        if (range.Contains(EditorRawDOMPoint(brElementParent))) {
+        if (range.Contains(
+                EditorRawDOMPoint(editableBlockContainingBRElement))) {
           nsresult rv = aRange.SetStartAndEnd(atStart.ToRawRangeBoundary(),
                                               atEnd.ToRawRangeBoundary());
           if (NS_FAILED(rv)) {
