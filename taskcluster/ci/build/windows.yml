@@ -169,6 +169,59 @@ win64/debug:
             - linux64-liblowercase
             - linux64-winchecksec
             - sysroot-x86_64-linux-gnu
+            - sysroot-wasm32-wasi
+        fetch:
+            - nsis-3.01-win
+            - upx-3.95-win
+
+win64-hybrid/plain:
+    description: "Win64 Hybrid Plain"
+    index:
+        product: firefox
+        job-name: win64-hybrid-plain
+    treeherder:
+        platform: windows2012-64/debug
+        symbol: Bp-hybrid
+        tier: 1
+    worker-type: b-linux
+    worker:
+        docker-image: {in-tree: debian11-amd64-build}
+        max-run-time: 7200
+        env:
+            PERFHERDER_EXTRA_OPTIONS: hybrid
+            TOOLTOOL_MANIFEST: "browser/config/tooltool-manifests/vs2017-15.8.manifest"
+    run:
+        options: [append-env-variables-from-configs]
+        actions: [get-secrets, build]
+        script: mozharness/scripts/fx_desktop_build.py
+        secrets: true
+        config:
+            - builds/releng_base_firefox.py
+            - builds/releng_base_linux_64_builds.py
+        mozconfig-variant: hybrid
+        extra-config:
+            mozconfig_platform: win64
+            env:
+                LD_PRELOAD: "/builds/worker/fetches/liblowercase/liblowercase.so"
+                LOWERCASE_DIRS: "/builds/worker/checkouts/gecko/vs2017_15.8.4"
+    use-sccache: true
+    run-on-projects: ['integration']
+    fetches:
+        toolchain:
+            - linux64-binutils
+            - linux64-clang-win-cross
+            - linux64-rust-cross
+            - linux64-rust-size
+            - linux64-nasm
+            - linux64-node
+            - linux64-cbindgen
+            - linux64-sccache
+            - linux64-dump_syms
+            - linux64-wine
+            - linux64-liblowercase
+            - linux64-winchecksec
+            - sysroot-x86_64-linux-gnu
+            - sysroot-wasm32-wasi
         fetch:
             - nsis-3.01-win
             - upx-3.95-win
@@ -223,6 +276,7 @@ win64-fuzzing/debug:
             - linux64-liblowercase
             - linux64-winchecksec
             - sysroot-x86_64-linux-gnu
+            - sysroot-wasm32-wasi
         fetch:
             - nsis-3.01-win
             - upx-3.95-win
@@ -266,6 +320,7 @@ win64-plain/debug:
             - win64-cbindgen
             - win64-winchecksec
             - win64-mozmake
+            - sysroot-wasm32-wasi
     optimization:
         skip-unless-expanded: null
 
@@ -323,6 +378,7 @@ win64/opt:
             - linux64-liblowercase
             - linux64-winchecksec
             - sysroot-x86_64-linux-gnu
+            - sysroot-wasm32-wasi
         fetch:
             - nsis-3.01-win
             - upx-3.95-win
@@ -364,6 +420,7 @@ win64-plain/opt:
             - win64-cbindgen
             - win64-winchecksec
             - win64-mozmake
+            - sysroot-wasm32-wasi
     optimization:
         skip-unless-expanded: null
 
@@ -488,6 +545,7 @@ win64-shippable/opt:
             - linux64-liblowercase
             - linux64-winchecksec
             - sysroot-x86_64-linux-gnu
+            - sysroot-wasm32-wasi
         fetch:
             - nsis-3.01-win
             - upx-3.95-win
@@ -590,6 +648,7 @@ win64-add-on-devel/opt:
             - linux64-liblowercase
             - linux64-winchecksec
             - sysroot-x86_64-linux-gnu
+            - sysroot-wasm32-wasi
         fetch:
             - nsis-3.01-win
             - upx-3.95-win
@@ -641,6 +700,7 @@ win64-noopt/debug:
             - linux64-liblowercase
             - linux64-winchecksec
             - sysroot-x86_64-linux-gnu
+            - sysroot-wasm32-wasi
         fetch:
             - nsis-3.01-win
             - upx-3.95-win
@@ -822,6 +882,7 @@ win64-rusttests/opt:
             - win64-node
             - win64-winchecksec
             - win64-mozmake
+            - sysroot-wasm32-wasi
     optimization:
         test-inclusive: [rusttests]
 
@@ -863,6 +924,7 @@ win64-rusttests/debug:
             - win64-node
             - win64-winchecksec
             - win64-mozmake
+            - sysroot-wasm32-wasi
     optimization:
         test-inclusive: [rusttests]
 
@@ -912,6 +974,7 @@ win64-ccov/opt:
             - win64-node
             - win64-winchecksec
             - win64-mozmake
+            - sysroot-wasm32-wasi
 
 win64-asan/debug:
     description: "Win64 Debug ASAN"
@@ -960,6 +1023,7 @@ win64-asan/debug:
             - linux64-liblowercase
             - linux64-winchecksec
             - sysroot-x86_64-linux-gnu
+            - sysroot-wasm32-wasi
             - win64-llvm-symbolizer
         fetch:
             - nsis-3.01-win
@@ -1015,6 +1079,7 @@ win64-asan/opt:
             - linux64-liblowercase
             - linux64-winchecksec
             - sysroot-x86_64-linux-gnu
+            - sysroot-wasm32-wasi
             - win64-llvm-symbolizer
         fetch:
             - nsis-3.01-win
@@ -1079,6 +1144,7 @@ win64-asan-reporter-shippable/opt:
             - linux64-liblowercase
             - linux64-winchecksec
             - sysroot-x86_64-linux-gnu
+            - sysroot-wasm32-wasi
             - win64-llvm-symbolizer
         fetch:
             - nsis-3.01-win
@@ -1130,6 +1196,7 @@ win64-asan-fuzzing/opt:
             - linux64-liblowercase
             - linux64-winchecksec
             - sysroot-x86_64-linux-gnu
+            - sysroot-wasm32-wasi
             - win64-llvm-symbolizer
         fetch:
             - nsis-3.01-win
@@ -1259,6 +1326,7 @@ win64-devedition/opt:
             - linux64-liblowercase
             - linux64-winchecksec
             - sysroot-x86_64-linux-gnu
+            - sysroot-wasm32-wasi
         fetch:
             - nsis-3.01-win
             - upx-3.95-win
@@ -1312,6 +1380,7 @@ win64-aarch64/debug:
             - linux64-liblowercase
             - linux64-winchecksec
             - sysroot-x86_64-linux-gnu
+            - sysroot-wasm32-wasi
         fetch:
             - nsis-3.01-win
             - upx-3.95-win
@@ -1373,6 +1442,7 @@ win64-aarch64/opt:
             - linux64-liblowercase
             - linux64-winchecksec
             - sysroot-x86_64-linux-gnu
+            - sysroot-wasm32-wasi
         fetch:
             - nsis-3.01-win
             - upx-3.95-win
@@ -1578,6 +1648,7 @@ win64-aarch64-shippable-no-eme/opt:
             - linux64-liblowercase
             - linux64-winchecksec
             - sysroot-x86_64-linux-gnu
+            - sysroot-wasm32-wasi
         fetch:
             - nsis-3.01-win
             - upx-3.95-win
@@ -1740,6 +1811,7 @@ win64-aarch64-devedition-no-eme/opt:
             - linux64-liblowercase
             - linux64-winchecksec
             - sysroot-x86_64-linux-gnu
+            - sysroot-wasm32-wasi
         fetch:
             - nsis-3.01-win
             - upx-3.95-win

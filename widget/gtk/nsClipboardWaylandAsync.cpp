@@ -18,6 +18,7 @@
 #include "nsStringStream.h"
 #include "mozilla/RefPtr.h"
 #include "mozilla/TimeStamp.h"
+#include "mozilla/ScopeExit.h"
 #include "nsWindow.h"
 
 #include <gtk/gtk.h>
@@ -84,13 +85,14 @@ void nsRetrievalContextWaylandAsync::TransferAsyncClipboardData(
   if (aDataType == CLIPBOARD_TARGETS || aDataType == CLIPBOARD_DATA) {
     dataLength = gtk_selection_data_get_length((GtkSelectionData*)aData);
   } else {
-    dataLength = strlen((const char*)aData);
+    dataLength = aData ? strlen((const char*)aData) : 0;
   }
 
   mClipboardDataReceived = true;
 
   // Negative size means no data or data error.
   if (dataLength <= 0) {
+    LOGCLIP(("    zero dataLength, quit.\n"));
     return;
   }
 
@@ -143,6 +145,10 @@ GdkAtom* nsRetrievalContextWaylandAsync::GetTargets(int32_t aWhichClipboard,
     return nullptr;
   }
 
+  // GetTargets() does not use ReleaseClipboardData() so we always need to
+  // unlock nsRetrievalContextWaylandAsync.
+  auto unlock = mozilla::MakeScopeExit([&] { mMutex.Unlock(); });
+
   MOZ_RELEASE_ASSERT(mClipboardData == nullptr && mClipboardDataLength == 0,
                      "Clipboard contains old data?");
 
@@ -168,7 +174,6 @@ GdkAtom* nsRetrievalContextWaylandAsync::GetTargets(int32_t aWhichClipboard,
   mClipboardData = nullptr;
   mClipboardDataLength = 0;
 
-  mMutex.Unlock();
   return targets;
 }
 

@@ -27,6 +27,7 @@
   MACRO_(anonymous, anonymous, "anonymous")                                    \
   MACRO_(Any, Any, "Any")                                                      \
   MACRO_(apply, apply, "apply")                                                \
+  MACRO_(approximatelySign, approximatelySign, "approximatelySign")            \
   MACRO_(arguments, arguments, "arguments")                                    \
   MACRO_(ArrayBufferSpecies, ArrayBufferSpecies, "$ArrayBufferSpecies")        \
   MACRO_(ArrayIterator, ArrayIterator, "Array Iterator")                       \
@@ -407,6 +408,9 @@
   MACRO_(resumeGenerator, resumeGenerator, "resumeGenerator")                  \
   MACRO_(return, return_, "return")                                            \
   MACRO_(revoke, revoke, "revoke")                                             \
+  MACRO_(roundingIncrement, roundingIncrement, "roundingIncrement")            \
+  MACRO_(roundingMode, roundingMode, "roundingMode")                           \
+  MACRO_(roundingPriority, roundingPriority, "roundingPriority")               \
   MACRO_(rtl, rtl, "rtl")                                                      \
   MACRO_(script, script, "script")                                             \
   MACRO_(scripts, scripts, "scripts")                                          \
@@ -457,6 +461,7 @@
   MACRO_(timestamp, timestamp, "timestamp")                                    \
   MACRO_(timeZone, timeZone, "timeZone")                                       \
   MACRO_(timeZoneName, timeZoneName, "timeZoneName")                           \
+  MACRO_(trailingZeroDisplay, trailingZeroDisplay, "trailingZeroDisplay")      \
   MACRO_(trimEnd, trimEnd, "trimEnd")                                          \
   MACRO_(trimLeft, trimLeft, "trimLeft")                                       \
   MACRO_(trimRight, trimRight, "trimRight")                                    \

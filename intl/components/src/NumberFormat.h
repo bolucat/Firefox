@@ -98,11 +98,24 @@ struct MOZ_STACK_CLASS NumberFormatOptions {
   bool mPercent = false;
 
   /**
+   * Set to true to strip trailing zeros after the decimal point for integer
+   * values.
+   *
+   * https://github.com/unicode-org/icu/blob/master/docs/userguide/format_parse/numbers/skeletons.md#trailing-zero-display
+   */
+  bool mStripTrailingZero = false;
+
+  /**
    * Enable or disable grouping.
    *
    * https://github.com/unicode-org/icu/blob/master/docs/userguide/format_parse/numbers/skeletons.md#grouping
    */
-  bool mUseGrouping = true;
+  enum class Grouping {
+    Auto,
+    Always,
+    Min2,
+    Never,
+  } mGrouping = Grouping::Auto;
 
   /**
    * Set the notation style.
@@ -127,20 +140,53 @@ struct MOZ_STACK_CLASS NumberFormatOptions {
     Never,
     Always,
     ExceptZero,
+    Negative,
     Accounting,
     AccountingAlways,
-    AccountingExceptZero
+    AccountingExceptZero,
+    AccountingNegative,
   } mSignDisplay = SignDisplay::Auto;
 
   /**
-   * Set the rounding mode to 'half-up'.
+   * Set the rounding increment, which must be a non-zero number.
+   *
+   * https://github.com/unicode-org/icu/blob/master/docs/userguide/format_parse/numbers/skeletons.md#precision
+   */
+  uint32_t mRoundingIncrement = 1;
+
+  /**
+   * Set the rounding mode.
    *
    * https://github.com/unicode-org/icu/blob/master/docs/userguide/format_parse/numbers/skeletons.md#rounding-mode
    */
-  bool mRoundingModeHalfUp = true;
+  enum class RoundingMode {
+    Ceil,
+    Floor,
+    Expand,
+    Trunc,
+    HalfCeil,
+    HalfFloor,
+    HalfExpand,
+    HalfTrunc,
+    HalfEven,
+    HalfOdd,
+  } mRoundingMode = RoundingMode::HalfExpand;
+
+  /**
+   * Set the rounding priority. |mFractionDigits| and |mSignificantDigits| must
+   * both be set if the rounding priority isn't equal to "auto".
+   *
+   * https://github.com/unicode-org/icu/blob/master/docs/userguide/format_parse/numbers/skeletons.md#fraction-precision
+   */
+  enum class RoundingPriority {
+    Auto,
+    MorePrecision,
+    LessPrecision,
+  } mRoundingPriority = RoundingPriority::Auto;
 };
 
-enum class NumberPartType {
+enum class NumberPartType : int16_t {
+  ApproximatelySign,
   Compact,
   Currency,
   Decimal,
@@ -159,10 +205,21 @@ enum class NumberPartType {
   Unit,
 };
 
+enum class NumberPartSource : int16_t { Shared, Start, End };
+
 // Because parts fully partition the formatted string, we only track the
 // index of the end of each part -- the beginning is implicitly the last
 // part's end.
-using NumberPart = std::pair<NumberPartType, size_t>;
+struct NumberPart {
+  NumberPartType type;
+  NumberPartSource source;
+  size_t endIndex;
+
+  bool operator==(const NumberPart& rhs) const {
+    return type == rhs.type && source == rhs.source && endIndex == rhs.endIndex;
+  }
+  bool operator!=(const NumberPart& rhs) const { return !(*this == rhs); }
+};
 
 using NumberPartVector = mozilla::Vector<NumberPart, 8>;
 
@@ -294,7 +351,7 @@ class NumberFormat final {
   }
 
   /**
-   * Formats a string encoded big integer to a utf-16 string. The string view
+   * Formats a string encoded decimal number to a utf-16 string. The string view
    * is valid until another number is formatted. Accessing the string view
    * after this event is undefined behavior.
    *
@@ -310,7 +367,7 @@ class NumberFormat final {
   }
 
   /**
-   * Formats a string encoded big integer to a utf-16 string, and fills the
+   * Formats a string encoded decimal number to a utf-16 string, and fills the
    * provided parts vector. The string view is valid until another number is
    * formatted. Accessing the string view after this event is undefined
    * behavior.
@@ -323,13 +380,20 @@ class NumberFormat final {
       return Err(FormatError::InternalError);
     }
 
+    // Non-finite numbers aren't currently supported here. If we ever need to
+    // support those, the |Maybe<double>| argument must be computed here.
+    MOZ_ASSERT(number != "Infinity");
+    MOZ_ASSERT(number != "+Infinity");
+    MOZ_ASSERT(number != "-Infinity");
+    MOZ_ASSERT(number != "NaN");
+
     bool isNegative = !number.empty() && number[0] == '-';
 
     return formatResultToParts(Nothing(), isNegative, parts);
   }
 
   /**
-   * Formats a string encoded big integer to the provider buffer
+   * Formats a string encoded decimal number to the provider buffer
    * (either utf-8 or utf-16).
    *
    * https://tc39.es/ecma402/#sec-formatnumberstring
@@ -372,10 +436,6 @@ class NumberFormat final {
   [[nodiscard]] bool formatInternal(double number) const;
   [[nodiscard]] bool formatInternal(int64_t number) const;
   [[nodiscard]] bool formatInternal(std::string_view number) const;
-
-  Maybe<NumberPartType> GetPartTypeForNumberField(UNumberFormatFields fieldName,
-                                                  Maybe<double> number,
-                                                  bool isNegative) const;
 
   Result<std::u16string_view, NumberFormat::FormatError> formatResult() const;
   Result<std::u16string_view, NumberFormat::FormatError> formatResultToParts(

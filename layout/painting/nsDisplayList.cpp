@@ -54,7 +54,6 @@
 #include "mozilla/MathAlgorithms.h"
 
 #include "imgIContainer.h"
-#include "BasicLayers.h"
 #include "nsBoxFrame.h"
 #include "nsImageFrame.h"
 #include "nsSubDocumentFrame.h"
@@ -101,7 +100,6 @@
 #include "nsTextFrame.h"
 #include "nsSliderFrame.h"
 #include "nsFocusManager.h"
-#include "ClientLayerManager.h"
 #include "TextDrawTarget.h"
 #include "mozilla/layers/AnimationHelper.h"
 #include "mozilla/layers/CompositorThread.h"

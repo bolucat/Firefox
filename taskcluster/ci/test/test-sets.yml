@@ -229,11 +229,8 @@ windows-tests:
     - firefox-ui-functional-local
     - firefox-ui-functional-remote
     # - jittest  # See comment in windows-ccov-tests set.
-    - jsreftest
     - marionette
-    - mochitest-a11y
     - mochitest-chrome
-    - mochitest-remote
     - telemetry-tests-client
     - test-verify
     - test-verify-gpu
@@ -252,12 +249,15 @@ windows10-2004-tests:
     - cppunit
     - crashtest
     - gtest
+    - jsreftest
+    - mochitest-a11y
     - mochitest-browser-chrome
     - mochitest-chrome-gpu
     - mochitest-devtools-chrome
     - mochitest-media
     - mochitest-plain
     - mochitest-plain-gpu
+    - mochitest-remote
     - mochitest-webgpu
     - mochitest-webgl1-ext
     - mochitest-webgl2-core
@@ -478,8 +478,10 @@ android-hw-aarch64-raptor-cpu-memory-power:
     - raptor-scn-cpu-memory-power-idle-bg-geckoview
     - raptor-scn-cpu-memory-power-idle-bg-refbrow
 
-android-hw-browsertime:
+android-hw-browsertime-power:
     - browsertime-power
+
+android-hw-browsertime:
     - browsertime-tp6m
     - browsertime-tp6m-essential
     - browsertime-tp6m-live

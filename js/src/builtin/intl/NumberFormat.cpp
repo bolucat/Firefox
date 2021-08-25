@@ -12,6 +12,9 @@
 #include "mozilla/Casting.h"
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/intl/NumberFormat.h"
+#include "mozilla/intl/NumberRangeFormat.h"
+#include "mozilla/Span.h"
+#include "mozilla/TextUtils.h"
 #include "mozilla/UniquePtr.h"
 
 #include <algorithm>
@@ -20,10 +23,12 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string>
+#include <string_view>
 #include <type_traits>
 
 #include "builtin/Array.h"
 #include "builtin/intl/CommonFunctions.h"
+#include "builtin/intl/DecimalNumber.h"
 #include "builtin/intl/LanguageTag.h"
 #include "builtin/intl/MeasureUnitGenerated.h"
 #include "builtin/intl/RelativeTimeFormat.h"
@@ -43,6 +48,7 @@
 #include "unicode/unumsys.h"
 #include "unicode/ures.h"
 #include "unicode/utypes.h"
+#include "util/Text.h"
 #include "vm/BigIntType.h"
 #include "vm/GlobalObject.h"
 #include "vm/JSContext.h"
@@ -100,18 +106,29 @@ static bool numberFormat_toSource(JSContext* cx, unsigned argc, Value* vp) {
 static const JSFunctionSpec numberFormat_static_methods[] = {
     JS_SELF_HOSTED_FN("supportedLocalesOf",
                       "Intl_NumberFormat_supportedLocalesOf", 1, 0),
-    JS_FS_END};
+    JS_FS_END,
+};
 
 static const JSFunctionSpec numberFormat_methods[] = {
     JS_SELF_HOSTED_FN("resolvedOptions", "Intl_NumberFormat_resolvedOptions", 0,
                       0),
     JS_SELF_HOSTED_FN("formatToParts", "Intl_NumberFormat_formatToParts", 1, 0),
-    JS_FN(js_toSource_str, numberFormat_toSource, 0, 0), JS_FS_END};
+#ifdef NIGHTLY_BUILD
+#  ifdef MOZ_INTL_HAS_NUMBER_RANGE_FORMAT
+    JS_SELF_HOSTED_FN("formatRange", "Intl_NumberFormat_formatRange", 2, 0),
+    JS_SELF_HOSTED_FN("formatRangeToParts",
+                      "Intl_NumberFormat_formatRangeToParts", 2, 0),
+#  endif
+#endif
+    JS_FN(js_toSource_str, numberFormat_toSource, 0, 0),
+    JS_FS_END,
+};
 
 static const JSPropertySpec numberFormat_properties[] = {
     JS_SELF_HOSTED_GET("format", "$Intl_NumberFormat_format_get", 0),
     JS_STRING_SYM_PS(toStringTag, "Intl.NumberFormat", JSPROP_READONLY),
-    JS_PS_END};
+    JS_PS_END,
+};
 
 static bool NumberFormat(JSContext* cx, unsigned argc, Value* vp);
 
@@ -177,12 +194,21 @@ void js::NumberFormatObject::finalize(JSFreeOp* fop, JSObject* obj) {
 
   auto* numberFormat = &obj->as<NumberFormatObject>();
   mozilla::intl::NumberFormat* nf = numberFormat->getNumberFormatter();
+  mozilla::intl::NumberRangeFormat* nrf =
+      numberFormat->getNumberRangeFormatter();
 
   if (nf) {
     intl::RemoveICUCellMemory(fop, obj, NumberFormatObject::EstimatedMemoryUse);
     // This was allocated using `new` in mozilla::intl::NumberFormat, so we
     // delete here.
     delete nf;
+  }
+
+  if (nrf) {
+    intl::RemoveICUCellMemory(fop, obj, EstimatedRangeFormatterMemoryUse);
+    // This was allocated using `new` in mozilla::intl::NumberRangeFormat, so we
+    // delete here.
+    delete nrf;
   }
 }
 
@@ -311,20 +337,8 @@ static constexpr size_t MaxUnitLength() {
   return length * 2 + std::char_traits<char>::length("-per-");
 }
 
-/**
- * Returns a new mozilla::intl::NumberFormat with the locale and number
- * formatting options of the given NumberFormat, or a nullptr if
- * initialization failed.
- */
-static mozilla::intl::NumberFormat* NewNumberFormat(
-    JSContext* cx, Handle<NumberFormatObject*> numberFormat) {
+static UniqueChars NumberFormatLocale(JSContext* cx, HandleObject internals) {
   RootedValue value(cx);
-
-  RootedObject internals(cx, intl::GetInternalsObject(cx, numberFormat));
-  if (!internals) {
-    return nullptr;
-  }
-
   if (!GetProperty(cx, internals, internals, cx->names().locale, &value)) {
     return nullptr;
   }
@@ -369,34 +383,39 @@ static mozilla::intl::NumberFormat* NewNumberFormat(
     return nullptr;
   }
 
-  UniqueChars locale = tag.toStringZ(cx);
-  if (!locale) {
-    return nullptr;
-  }
+  return tag.toStringZ(cx);
+}
 
-  mozilla::intl::NumberFormatOptions options;
+struct NumberFormatOptions : public mozilla::intl::NumberRangeFormatOptions {
+  static_assert(std::is_base_of_v<mozilla::intl::NumberFormatOptions,
+                                  mozilla::intl::NumberRangeFormatOptions>);
+
   char currencyChars[3] = {};
   char unitChars[MaxUnitLength()] = {};
+};
 
+static bool FillNumberFormatOptions(JSContext* cx, HandleObject internals,
+                                    NumberFormatOptions& options) {
+  RootedValue value(cx);
   if (!GetProperty(cx, internals, internals, cx->names().style, &value)) {
-    return nullptr;
+    return false;
   }
 
   bool accountingSign = false;
   {
     JSLinearString* style = value.toString()->ensureLinear(cx);
     if (!style) {
-      return nullptr;
+      return false;
     }
 
     if (StringEqualsLiteral(style, "currency")) {
       if (!GetProperty(cx, internals, internals, cx->names().currency,
                        &value)) {
-        return nullptr;
+        return false;
       }
       JSLinearString* currency = value.toString()->ensureLinear(cx);
       if (!currency) {
-        return nullptr;
+        return false;
       }
 
       MOZ_RELEASE_ASSERT(
@@ -404,15 +423,16 @@ static mozilla::intl::NumberFormat* NewNumberFormat(
           "IsWellFormedCurrencyCode permits only length-3 strings");
       MOZ_ASSERT(StringIsAscii(currency),
                  "IsWellFormedCurrencyCode permits only ASCII strings");
-      CopyChars(reinterpret_cast<Latin1Char*>(currencyChars), *currency);
+      CopyChars(reinterpret_cast<Latin1Char*>(options.currencyChars),
+                *currency);
 
       if (!GetProperty(cx, internals, internals, cx->names().currencyDisplay,
                        &value)) {
-        return nullptr;
+        return false;
       }
       JSLinearString* currencyDisplay = value.toString()->ensureLinear(cx);
       if (!currencyDisplay) {
-        return nullptr;
+        return false;
       }
 
       using CurrencyDisplay =
@@ -432,11 +452,11 @@ static mozilla::intl::NumberFormat* NewNumberFormat(
 
       if (!GetProperty(cx, internals, internals, cx->names().currencySign,
                        &value)) {
-        return nullptr;
+        return false;
       }
       JSLinearString* currencySign = value.toString()->ensureLinear(cx);
       if (!currencySign) {
-        return nullptr;
+        return false;
       }
 
       if (StringEqualsLiteral(currencySign, "accounting")) {
@@ -446,31 +466,31 @@ static mozilla::intl::NumberFormat* NewNumberFormat(
       }
 
       options.mCurrency = mozilla::Some(
-          std::make_pair(std::string_view(currencyChars, 3), display));
+          std::make_pair(std::string_view(options.currencyChars, 3), display));
     } else if (StringEqualsLiteral(style, "percent")) {
       options.mPercent = true;
     } else if (StringEqualsLiteral(style, "unit")) {
       if (!GetProperty(cx, internals, internals, cx->names().unit, &value)) {
-        return nullptr;
+        return false;
       }
       JSLinearString* unit = value.toString()->ensureLinear(cx);
       if (!unit) {
-        return nullptr;
+        return false;
       }
 
       size_t unit_str_length = unit->length();
 
       MOZ_ASSERT(StringIsAscii(unit));
       MOZ_RELEASE_ASSERT(unit_str_length <= MaxUnitLength());
-      CopyChars(reinterpret_cast<Latin1Char*>(unitChars), *unit);
+      CopyChars(reinterpret_cast<Latin1Char*>(options.unitChars), *unit);
 
       if (!GetProperty(cx, internals, internals, cx->names().unitDisplay,
                        &value)) {
-        return nullptr;
+        return false;
       }
       JSLinearString* unitDisplay = value.toString()->ensureLinear(cx);
       if (!unitDisplay) {
-        return nullptr;
+        return false;
       }
 
       using UnitDisplay = mozilla::intl::NumberFormatOptions::UnitDisplay;
@@ -486,7 +506,7 @@ static mozilla::intl::NumberFormat* NewNumberFormat(
       }
 
       options.mUnit = mozilla::Some(std::make_pair(
-          std::string_view(unitChars, unit_str_length), display));
+          std::string_view(options.unitChars, unit_str_length), display));
     } else {
       MOZ_ASSERT(StringEqualsLiteral(style, "decimal"));
     }
@@ -495,19 +515,19 @@ static mozilla::intl::NumberFormat* NewNumberFormat(
   bool hasMinimumSignificantDigits;
   if (!HasProperty(cx, internals, cx->names().minimumSignificantDigits,
                    &hasMinimumSignificantDigits)) {
-    return nullptr;
+    return false;
   }
 
   if (hasMinimumSignificantDigits) {
     if (!GetProperty(cx, internals, internals,
                      cx->names().minimumSignificantDigits, &value)) {
-      return nullptr;
+      return false;
     }
     uint32_t minimumSignificantDigits = AssertedCast<uint32_t>(value.toInt32());
 
     if (!GetProperty(cx, internals, internals,
                      cx->names().maximumSignificantDigits, &value)) {
-      return nullptr;
+      return false;
     }
     uint32_t maximumSignificantDigits = AssertedCast<uint32_t>(value.toInt32());
 
@@ -518,19 +538,19 @@ static mozilla::intl::NumberFormat* NewNumberFormat(
   bool hasMinimumFractionDigits;
   if (!HasProperty(cx, internals, cx->names().minimumFractionDigits,
                    &hasMinimumFractionDigits)) {
-    return nullptr;
+    return false;
   }
 
   if (hasMinimumFractionDigits) {
     if (!GetProperty(cx, internals, internals,
                      cx->names().minimumFractionDigits, &value)) {
-      return nullptr;
+      return false;
     }
     uint32_t minimumFractionDigits = AssertedCast<uint32_t>(value.toInt32());
 
     if (!GetProperty(cx, internals, internals,
                      cx->names().maximumFractionDigits, &value)) {
-      return nullptr;
+      return false;
     }
     uint32_t maximumFractionDigits = AssertedCast<uint32_t>(value.toInt32());
 
@@ -538,26 +558,91 @@ static mozilla::intl::NumberFormat* NewNumberFormat(
         std::make_pair(minimumFractionDigits, maximumFractionDigits));
   }
 
+  if (!GetProperty(cx, internals, internals, cx->names().roundingPriority,
+                   &value)) {
+    return false;
+  }
+
+  {
+    JSLinearString* roundingPriority = value.toString()->ensureLinear(cx);
+    if (!roundingPriority) {
+      return false;
+    }
+
+    using RoundingPriority =
+        mozilla::intl::NumberFormatOptions::RoundingPriority;
+
+    RoundingPriority priority;
+    if (StringEqualsLiteral(roundingPriority, "auto")) {
+      priority = RoundingPriority::Auto;
+    } else if (StringEqualsLiteral(roundingPriority, "morePrecision")) {
+      priority = RoundingPriority::MorePrecision;
+    } else {
+      MOZ_ASSERT(StringEqualsLiteral(roundingPriority, "lessPrecision"));
+      priority = RoundingPriority::LessPrecision;
+    }
+
+    options.mRoundingPriority = priority;
+  }
+
   if (!GetProperty(cx, internals, internals, cx->names().minimumIntegerDigits,
                    &value)) {
-    return nullptr;
+    return false;
   }
   options.mMinIntegerDigits =
       mozilla::Some(AssertedCast<uint32_t>(value.toInt32()));
 
   if (!GetProperty(cx, internals, internals, cx->names().useGrouping, &value)) {
-    return nullptr;
+    return false;
   }
-  options.mUseGrouping = value.toBoolean();
+
+  if (value.isString()) {
+    JSLinearString* useGrouping = value.toString()->ensureLinear(cx);
+    if (!useGrouping) {
+      return false;
+    }
+
+    using Grouping = mozilla::intl::NumberFormatOptions::Grouping;
+
+    Grouping grouping;
+    if (StringEqualsLiteral(useGrouping, "auto")) {
+      grouping = Grouping::Auto;
+    } else if (StringEqualsLiteral(useGrouping, "always")) {
+      grouping = Grouping::Always;
+    } else {
+      MOZ_ASSERT(StringEqualsLiteral(useGrouping, "min2"));
+      grouping = Grouping::Min2;
+    }
+
+    options.mGrouping = grouping;
+  } else {
+    MOZ_ASSERT(value.isBoolean());
+#ifdef NIGHTLY_BUILD
+    // The caller passes the string "always" instead of |true| when the
+    // NumberFormat V3 spec is being used.
+    MOZ_ASSERT(value.toBoolean() == false);
+#endif
+
+    using Grouping = mozilla::intl::NumberFormatOptions::Grouping;
+
+    Grouping grouping;
+    if (value.toBoolean()) {
+      grouping = Grouping::Auto;
+    } else {
+      grouping = Grouping::Never;
+    }
+
+    options.mGrouping = grouping;
+  }
 
   if (!GetProperty(cx, internals, internals, cx->names().notation, &value)) {
-    return nullptr;
+    return false;
   }
 
   {
     JSLinearString* notation = value.toString()->ensureLinear(cx);
     if (!notation) {
-      return nullptr;
+      return false;
     }
 
     using Notation = mozilla::intl::NumberFormatOptions::Notation;
@@ -574,12 +659,12 @@ static mozilla::intl::NumberFormat* NewNumberFormat(
 
       if (!GetProperty(cx, internals, internals, cx->names().compactDisplay,
                        &value)) {
-        return nullptr;
+        return false;
       }
 
       JSLinearString* compactDisplay = value.toString()->ensureLinear(cx);
       if (!compactDisplay) {
-        return nullptr;
+        return false;
       }
 
       if (StringEqualsLiteral(compactDisplay, "short")) {
@@ -594,13 +679,13 @@ static mozilla::intl::NumberFormat* NewNumberFormat(
   }
 
   if (!GetProperty(cx, internals, internals, cx->names().signDisplay, &value)) {
-    return nullptr;
+    return false;
   }
 
   {
     JSLinearString* signDisplay = value.toString()->ensureLinear(cx);
     if (!signDisplay) {
-      return nullptr;
+      return false;
     }
 
     using SignDisplay = mozilla::intl::NumberFormatOptions::SignDisplay;
@@ -620,23 +705,121 @@ static mozilla::intl::NumberFormat* NewNumberFormat(
       } else {
         display = SignDisplay::Always;
       }
-    } else {
-      MOZ_ASSERT(StringEqualsLiteral(signDisplay, "exceptZero"));
+    } else if (StringEqualsLiteral(signDisplay, "exceptZero")) {
       if (accountingSign) {
         display = SignDisplay::AccountingExceptZero;
       } else {
         display = SignDisplay::ExceptZero;
+      }
+    } else {
+      MOZ_ASSERT(StringEqualsLiteral(signDisplay, "negative"));
+      if (accountingSign) {
+        display = SignDisplay::AccountingNegative;
+      } else {
+        display = SignDisplay::Negative;
       }
     }
 
     options.mSignDisplay = display;
   }
 
-  options.mRoundingModeHalfUp = true;
+  if (!GetProperty(cx, internals, internals, cx->names().roundingIncrement,
+                   &value)) {
+    return false;
+  }
+  options.mRoundingIncrement = AssertedCast<uint32_t>(value.toInt32());
 
-  using NumberFormat = mozilla::intl::NumberFormat;
-  mozilla::Result<mozilla::UniquePtr<NumberFormat>, NumberFormat::FormatError>
-      result = NumberFormat::TryCreate(locale.get(), options);
+  if (!GetProperty(cx, internals, internals, cx->names().roundingMode,
+                   &value)) {
+    return false;
+  }
+
+  {
+    JSLinearString* roundingMode = value.toString()->ensureLinear(cx);
+    if (!roundingMode) {
+      return false;
+    }
+
+    using RoundingMode = mozilla::intl::NumberFormatOptions::RoundingMode;
+
+    RoundingMode rounding;
+    if (StringEqualsLiteral(roundingMode, "halfExpand")) {
+      // "halfExpand" is the default mode, so we handle it first.
+      rounding = RoundingMode::HalfExpand;
+    } else if (StringEqualsLiteral(roundingMode, "ceil")) {
+      rounding = RoundingMode::Ceil;
+    } else if (StringEqualsLiteral(roundingMode, "floor")) {
+      rounding = RoundingMode::Floor;
+    } else if (StringEqualsLiteral(roundingMode, "expand")) {
+      rounding = RoundingMode::Expand;
+    } else if (StringEqualsLiteral(roundingMode, "trunc")) {
+      rounding = RoundingMode::Trunc;
+    } else if (StringEqualsLiteral(roundingMode, "halfCeil")) {
+      rounding = RoundingMode::HalfCeil;
+    } else if (StringEqualsLiteral(roundingMode, "halfFloor")) {
+      rounding = RoundingMode::HalfFloor;
+    } else if (StringEqualsLiteral(roundingMode, "halfTrunc")) {
+      rounding = RoundingMode::HalfTrunc;
+    } else {
+      MOZ_ASSERT(StringEqualsLiteral(roundingMode, "halfEven"));
+      rounding = RoundingMode::HalfEven;
+    }
+
+    options.mRoundingMode = rounding;
+  }
+
+  if (!GetProperty(cx, internals, internals, cx->names().trailingZeroDisplay,
+                   &value)) {
+    return false;
+  }
+
+  {
+    JSLinearString* trailingZeroDisplay = value.toString()->ensureLinear(cx);
+    if (!trailingZeroDisplay) {
+      return false;
+    }
+
+    if (StringEqualsLiteral(trailingZeroDisplay, "auto")) {
+      options.mStripTrailingZero = false;
+    } else {
+      MOZ_ASSERT(StringEqualsLiteral(trailingZeroDisplay, "stripIfInteger"));
+      options.mStripTrailingZero = true;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Returns a new mozilla::intl::Number[Range]Format with the locale and number
+ * formatting options of the given NumberFormat, or a nullptr if
+ * initialization failed.
+ */
+template <class Formatter>
+static Formatter* NewNumberFormat(JSContext* cx,
+                                  Handle<NumberFormatObject*> numberFormat) {
+  RootedObject internals(cx, intl::GetInternalsObject(cx, numberFormat));
+  if (!internals) {
+    return nullptr;
+  }
+
+  UniqueChars locale = NumberFormatLocale(cx, internals);
+  if (!locale) {
+    return nullptr;
+  }
+
+  NumberFormatOptions options;
+  if (!FillNumberFormatOptions(cx, internals, options)) {
+    return nullptr;
+  }
+
+  options.mRangeCollapse = NumberFormatOptions::RangeCollapse::Auto;
+  options.mRangeIdentityFallback =
+      NumberFormatOptions::RangeIdentityFallback::Approximately;
+
+  mozilla::Result<mozilla::UniquePtr<Formatter>,
+                  typename Formatter::FormatError>
+      result = Formatter::TryCreate(locale.get(), options);
 
   if (result.isOk()) {
     return result.unwrap().release();
@@ -1157,6 +1340,8 @@ bool js::intl::FormattedRelativeTimeToParts(
 static FieldType GetFieldTypeForNumberPartType(
     mozilla::intl::NumberPartType type) {
   switch (type) {
+    case mozilla::intl::NumberPartType::ApproximatelySign:
+      return &JSAtomState::approximatelySign;
     case mozilla::intl::NumberPartType::Compact:
       return &JSAtomState::compact;
     case mozilla::intl::NumberPartType::Currency:
@@ -1196,8 +1381,25 @@ static FieldType GetFieldTypeForNumberPartType(
   return nullptr;
 }
 
+static FieldType GetFieldTypeForNumberPartSource(
+    mozilla::intl::NumberPartSource source) {
+  switch (source) {
+    case mozilla::intl::NumberPartSource::Shared:
+      return &JSAtomState::shared;
+    case mozilla::intl::NumberPartSource::Start:
+      return &JSAtomState::startRange;
+    case mozilla::intl::NumberPartSource::End:
+      return &JSAtomState::endRange;
+  }
+
+  MOZ_CRASH("unexpected number part source");
+}
+
+enum class DisplayNumberPartSource : bool { No, Yes };
+
 static bool FormattedNumberToParts(JSContext* cx, HandleString str,
                                    const mozilla::intl::NumberPartVector& parts,
+                                   DisplayNumberPartSource displaySource,
                                    MutableHandleValue result) {
   size_t lastEndIndex = 0;
 
@@ -1213,8 +1415,8 @@ static bool FormattedNumberToParts(JSContext* cx, HandleString str,
 
   size_t index = 0;
   for (const auto& part : parts) {
-    FieldType type = GetFieldTypeForNumberPartType(part.first);
-    size_t endIndex = part.second;
+    FieldType type = GetFieldTypeForNumberPartType(part.type);
+    size_t endIndex = part.endIndex;
 
     MOZ_ASSERT(lastEndIndex < endIndex);
 
@@ -1239,6 +1441,15 @@ static bool FormattedNumberToParts(JSContext* cx, HandleString str,
       return false;
     }
 
+    if (displaySource == DisplayNumberPartSource::Yes) {
+      FieldType source = GetFieldTypeForNumberPartSource(part.source);
+
+      propVal.setString(cx->names().*source);
+      if (!DefineDataProperty(cx, singlePart, cx->names().source, propVal)) {
+        return false;
+      }
+    }
+
     partsArray->initDenseElement(index++, ObjectValue(*singlePart));
 
     lastEndIndex = endIndex;
@@ -1252,20 +1463,216 @@ static bool FormattedNumberToParts(JSContext* cx, HandleString str,
   return true;
 }
 
+// Return true if the string starts with "0[bBoOxX]", possibly skipping over
+// leading whitespace.
+template <typename CharT>
+static bool IsNonDecimalNumber(mozilla::Range<const CharT> chars) {
+  const CharT* end = chars.begin().get() + chars.length();
+  const CharT* start = SkipSpace(chars.begin().get(), end);
+
+  if (end - start >= 2 && start[0] == '0') {
+    CharT ch = start[1];
+    return ch == 'b' || ch == 'B' || ch == 'o' || ch == 'O' || ch == 'x' ||
+           ch == 'X';
+  }
+  return false;
+}
+
+static bool IsNonDecimalNumber(JSLinearString* str) {
+  JS::AutoCheckCannotGC nogc;
+  return str->hasLatin1Chars() ? IsNonDecimalNumber(str->latin1Range(nogc))
+                               : IsNonDecimalNumber(str->twoByteRange(nogc));
+}
+
+static bool ToIntlMathematicalValue(JSContext* cx, MutableHandleValue value,
+                                    double* numberApproximation = nullptr) {
+  if (!ToPrimitive(cx, JSTYPE_NUMBER, value)) {
+    return false;
+  }
+
+  // Maximum exponent supported by ICU. Exponents larger than this value will
+  // cause ICU to report an error.
+  // See also "intl/icu/source/i18n/decContext.h".
+  constexpr int32_t maximumExponent = 999'999'999;
+
+  // When formatting a number range, ICU inserts the integer digits of the
+  // second number into the middle of the result string. This leads to calling
+  // memmove for each digit, which causes tremendous slowdowns. Therefore we
+  // additionally limit the maximum positive exponent.
+  //
+  // Filed at <https://unicode-org.atlassian.net/browse/ICU-21684>.
+  constexpr int32_t maximumPositiveExponent = 99'999;
+
+  // Compute the maximum BigInt digit length from the maximum positive exponent.
+  //
+  // BigInts are stored with base |2 ** BigInt::DigitBits|, so we have:
+  //
+  //   |maximumPositiveExponent| * Log_DigitBase(10)
+  // = |maximumPositiveExponent| * Log2(10) / Log2(2 ** BigInt::DigitBits)
+  // = |maximumPositiveExponent| * Log2(10) / BigInt::DigitBits
+  // = 332189.4875606413... / BigInt::DigitBits
+  constexpr size_t maximumBigIntLength = 332189.4875606413 / BigInt::DigitBits;
+
+  if (!value.isString()) {
+    if (!ToNumeric(cx, value)) {
+      return false;
+    }
+
+    if (value.isBigInt() &&
+        value.toBigInt()->digitLength() > maximumBigIntLength) {
+      JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr,
+                                JSMSG_EXPONENT_TOO_LARGE);
+      return false;
+    }
+
+    return true;
+  }
+
+  JSLinearString* str = value.toString()->ensureLinear(cx);
+  if (!str) {
+    return false;
+  }
+
+  // Call StringToNumber to validate the input can be parsed as a number.
+  double number;
+  if (!StringToNumber(cx, str, &number)) {
+    return false;
+  }
+  if (numberApproximation) {
+    *numberApproximation = number;
+  }
+
+  bool exponentTooLarge = false;
+  if (mozilla::IsNaN(number)) {
+    // Set to NaN if the input can't be parsed as a number.
+    value.setNaN();
+  } else if (IsNonDecimalNumber(str)) {
+    // ICU doesn't accept non-decimal numbers, so we have to convert the input
+    // into a base-10 string.
+
+    MOZ_ASSERT(!mozilla::IsNegative(number),
+               "non-decimal numbers can't be negative");
+
+    if (number < DOUBLE_INTEGRAL_PRECISION_LIMIT) {
+      // Fast-path if we can guarantee there was no loss of precision.
+      value.setDouble(number);
+    } else {
+      // For the slow-path convert the string into a BigInt.
+
+      // StringToBigInt can't fail (other than OOM) when StringToNumber already
+      // succeeded.
+      RootedString rooted(cx, str);
+      BigInt* bi;
+      JS_TRY_VAR_OR_RETURN_FALSE(cx, bi, StringToBigInt(cx, rooted));
+      MOZ_ASSERT(bi);
+
+      if (bi->digitLength() > maximumBigIntLength) {
+        exponentTooLarge = true;
+      } else {
+        value.setBigInt(bi);
+      }
+    }
+  } else {
+    JS::AutoCheckCannotGC nogc;
+    if (auto decimal = intl::DecimalNumber::from(str, nogc)) {
+      if (decimal->isZero()) {
+        // Normalize positive/negative zero.
+        MOZ_ASSERT(number == 0);
+
+        value.setDouble(number);
+      } else if (decimal->exponentTooLarge() ||
+                 std::abs(decimal->exponent()) >= maximumExponent ||
+                 decimal->exponent() > maximumPositiveExponent) {
+        exponentTooLarge = true;
+      }
+    } else {
+      // If we can't parse the string as a decimal, it must be ±Infinity.
+      MOZ_ASSERT(mozilla::IsInfinite(number));
+      MOZ_ASSERT(StringFindPattern(str, cx->names().Infinity, 0) >= 0);
+
+      value.setDouble(number);
+    }
+  }
+
+  if (exponentTooLarge) {
+    // Throw an error if the exponent is too large.
+    JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr,
+                              JSMSG_EXPONENT_TOO_LARGE);
+    return false;
+  }
+
+  return true;
+}
+
+// Return the number part of the input by removing leading and trailing
+// whitespace.
+template <typename CharT>
+static mozilla::Span<const CharT> NumberPart(const CharT* chars,
+                                             size_t length) {
+  const CharT* start = chars;
+  const CharT* end = chars + length;
+
+  start = SkipSpace(start, end);
+
+  // |SkipSpace| only supports forward iteration, so inline the backwards
+  // iteration here.
+  MOZ_ASSERT(start <= end);
+  while (end > start && unicode::IsSpace(end[-1])) {
+    end--;
+  }
+
+  // The number part is a non-empty, ASCII-only substring.
+  MOZ_ASSERT(start < end);
+  MOZ_ASSERT(mozilla::IsAscii(mozilla::Span(start, end)));
+
+  return {start, end};
+}
+
+static bool NumberPart(JSContext* cx, JSLinearString* str,
+                       const JS::AutoCheckCannotGC& nogc,
+                       JS::UniqueChars& latin1, std::string_view& result) {
+  if (str->hasLatin1Chars()) {
+    auto span = NumberPart(
+        reinterpret_cast<const char*>(str->latin1Chars(nogc)), str->length());
+
+    result = {span.data(), span.size()};
+    return true;
+  }
+
+  auto span = NumberPart(str->twoByteChars(nogc), str->length());
+
+  latin1.reset(JS::LossyTwoByteCharsToNewLatin1CharsZ(cx, span).c_str());
+  if (!latin1) {
+    return false;
+  }
+
+  result = {latin1.get(), span.size()};
+  return true;
+}
+
 bool js::intl_FormatNumber(JSContext* cx, unsigned argc, Value* vp) {
   CallArgs args = CallArgsFromVp(argc, vp);
   MOZ_ASSERT(args.length() == 3);
   MOZ_ASSERT(args[0].isObject());
+#ifndef NIGHTLY_BUILD
   MOZ_ASSERT(args[1].isNumeric());
+#endif
   MOZ_ASSERT(args[2].isBoolean());
 
   Rooted<NumberFormatObject*> numberFormat(
       cx, &args[0].toObject().as<NumberFormatObject>());
 
+  RootedValue value(cx, args[1]);
+#ifdef NIGHTLY_BUILD
+  if (!ToIntlMathematicalValue(cx, &value)) {
+    return false;
+  }
+#endif
+
   // Obtain a cached mozilla::intl::NumberFormat object.
   mozilla::intl::NumberFormat* nf = numberFormat->getNumberFormatter();
   if (!nf) {
-    nf = NewNumberFormat(cx, numberFormat);
+    nf = NewNumberFormat<mozilla::intl::NumberFormat>(cx, numberFormat);
     if (!nf) {
       return false;
     }
@@ -1282,15 +1689,15 @@ bool js::intl_FormatNumber(JSContext* cx, unsigned argc, Value* vp) {
   mozilla::Result<std::u16string_view, FormatError> result =
       mozilla::Err(FormatError::InternalError);
   mozilla::intl::NumberPartVector parts;
-  if (args[1].isNumber()) {
-    double num = args[1].toNumber();
+  if (value.isNumber()) {
+    double num = value.toNumber();
     if (formatToParts) {
       result = nf->formatToParts(num, parts);
     } else {
       result = nf->format(num);
     }
-  } else {
-    RootedBigInt bi(cx, args[1].toBigInt());
+  } else if (value.isBigInt()) {
+    RootedBigInt bi(cx, value.toBigInt());
 
     int64_t num;
     if (BigInt::isInt64(bi, &num)) {
@@ -1306,7 +1713,6 @@ bool js::intl_FormatNumber(JSContext* cx, unsigned argc, Value* vp) {
       }
       MOZ_RELEASE_ASSERT(str->hasLatin1Chars());
 
-      // Tell the analysis the |formatToParts| method can't GC.
       JS::AutoCheckCannotGC nogc;
 
       const char* chars = reinterpret_cast<const char*>(str->latin1Chars(nogc));
@@ -1316,6 +1722,27 @@ bool js::intl_FormatNumber(JSContext* cx, unsigned argc, Value* vp) {
       } else {
         result = nf->format(std::string_view(chars, str->length()));
       }
+    }
+  } else {
+    JSLinearString* str = value.toString()->ensureLinear(cx);
+    if (!str) {
+      return false;
+    }
+
+    JS::AutoCheckCannotGC nogc;
+
+    // Two-byte strings have to be copied into a separate |char| buffer.
+    JS::UniqueChars latin1;
+
+    std::string_view sv;
+    if (!NumberPart(cx, str, nogc, latin1, sv)) {
+      return false;
+    }
+
+    if (formatToParts) {
+      result = nf->formatToParts(sv, parts);
+    } else {
+      result = nf->format(sv);
     }
   }
 
@@ -1328,15 +1755,364 @@ bool js::intl_FormatNumber(JSContext* cx, unsigned argc, Value* vp) {
   RootedString str(cx, NewStringCopyN<CanGC>(
                            cx, result_string_view.data(),
                            AssertedCast<uint32_t>(result_string_view.size())));
-
   if (!str) {
     return false;
   }
 
   if (formatToParts) {
-    return FormattedNumberToParts(cx, str, parts, args.rval());
+    return FormattedNumberToParts(cx, str, parts, DisplayNumberPartSource::No,
+                                  args.rval());
   }
 
   args.rval().setString(str);
   return true;
+}
+
+#ifdef MOZ_INTL_HAS_NUMBER_RANGE_FORMAT
+static JSLinearString* ToLinearString(JSContext* cx, HandleValue val) {
+  // Special case to preserve negative zero.
+  if (val.isDouble() && mozilla::IsNegativeZero(val.toDouble())) {
+    constexpr std::string_view negativeZero = "-0";
+    return NewStringCopyN<CanGC>(cx, negativeZero.data(),
+                                 negativeZero.length());
+  }
+
+  JSString* str = ToString(cx, val);
+  return str ? str->ensureLinear(cx) : nullptr;
+};
+
+static bool ValidateNumberRange(JSContext* cx, MutableHandleValue start,
+                                double startApprox, MutableHandleValue end,
+                                double endApprox, bool formatToParts) {
+  static auto isSpecificDouble = [](const Value& val, auto fn) {
+    return val.isDouble() && fn(val.toDouble());
+  };
+
+  static auto isNaN = [](const Value& val) {
+    return isSpecificDouble(val, mozilla::IsNaN<double>);
+  };
+
+  static auto isPositiveInfinity = [](const Value& val) {
+    return isSpecificDouble(
+        val, [](double num) { return num > 0 && mozilla::IsInfinite(num); });
+  };
+
+  static auto isNegativeInfinity = [](const Value& val) {
+    return isSpecificDouble(
+        val, [](double num) { return num < 0 && mozilla::IsInfinite(num); });
+  };
+
+  static auto isNegativeZero = [](const Value& val) {
+    return isSpecificDouble(val, mozilla::IsNegativeZero<double>);
+  };
+
+  static auto isMathematicalValue = [](const Value& val) {
+    // |ToIntlMathematicalValue()| normalizes non-finite values and negative
+    // zero to Double values, so any string is guaranteed to be a mathematical
+    // value at this point.
+    if (!val.isDouble()) {
+      return true;
+    }
+    double num = val.toDouble();
+    return mozilla::IsFinite(num) && !mozilla::IsNegativeZero(num);
+  };
+
+  static auto isPositiveOrZero = [](const Value& val, double approx) {
+    MOZ_ASSERT(isMathematicalValue(val));
+
+    if (val.isNumber()) {
+      return val.toNumber() >= 0;
+    }
+    if (val.isBigInt()) {
+      return !val.toBigInt()->isNegative();
+    }
+    return approx >= 0;
+  };
+
+  auto throwRangeError = [&]() {
+    JS_ReportErrorNumberASCII(
+        cx, GetErrorMessage, nullptr, JSMSG_START_AFTER_END_NUMBER,
+        "NumberFormat", formatToParts ? "formatRangeToParts" : "formatRange");
+    return false;
+  };
+
+  // PartitionNumberRangePattern, step 1.
+  if (isNaN(start)) {
+    JS_ReportErrorNumberASCII(
+        cx, GetErrorMessage, nullptr, JSMSG_NAN_NUMBER_RANGE, "start",
+        formatToParts ? "formatRangeToParts" : "formatRange");
+    return false;
+  }
+  if (isNaN(end)) {
+    JS_ReportErrorNumberASCII(
+        cx, GetErrorMessage, nullptr, JSMSG_NAN_NUMBER_RANGE, "end",
+        formatToParts ? "formatRangeToParts" : "formatRange");
+    return false;
+  }
+
+  // Make sure |start| and |end| can be correctly classified.
+  MOZ_ASSERT(isMathematicalValue(start) || isNegativeZero(start) ||
+             isNegativeInfinity(start) || isPositiveInfinity(start));
+  MOZ_ASSERT(isMathematicalValue(end) || isNegativeZero(end) ||
+             isNegativeInfinity(end) || isPositiveInfinity(end));
+
+  // PartitionNumberRangePattern, step 2.
+  if (isMathematicalValue(start)) {
+    // PartitionNumberRangePattern, step 2.a.
+    if (isMathematicalValue(end)) {
+      if (!start.isString() && !end.isString()) {
+        MOZ_ASSERT(start.isNumeric() && end.isNumeric());
+
+        bool isLessThan;
+        if (!LessThan(cx, end, start, &isLessThan)) {
+          return false;
+        }
+        if (isLessThan) {
+          return throwRangeError();
+        }
+      } else {
+        // |startApprox| and |endApprox| are only initially computed for string
+        // numbers.
+        if (start.isNumber()) {
+          startApprox = start.toNumber();
+        } else if (start.isBigInt()) {
+          startApprox = BigInt::numberValue(start.toBigInt());
+        }
+        if (end.isNumber()) {
+          endApprox = end.toNumber();
+        } else if (end.isBigInt()) {
+          endApprox = BigInt::numberValue(end.toBigInt());
+        }
+
+        // If the approximation is smaller, the actual value is definitely
+        // smaller, too.
+        if (endApprox < startApprox) {
+          return throwRangeError();
+        }
+
+        // If both approximations are equal to each other, we have to perform
+        // more work.
+        if (endApprox == startApprox) {
+          RootedLinearString strStart(cx, ToLinearString(cx, start));
+          if (!strStart) {
+            return false;
+          }
+
+          RootedLinearString strEnd(cx, ToLinearString(cx, end));
+          if (!strEnd) {
+            return false;
+          }
+
+          bool endLessThanStart;
+          {
+            JS::AutoCheckCannotGC nogc;
+
+            auto decStart = intl::DecimalNumber::from(strStart, nogc);
+            MOZ_ASSERT(decStart);
+
+            auto decEnd = intl::DecimalNumber::from(strEnd, nogc);
+            MOZ_ASSERT(decEnd);
+
+            endLessThanStart = decEnd->compareTo(*decStart) < 0;
+          }
+          if (endLessThanStart) {
+            return throwRangeError();
+          }
+
+          // If either value is a string, we end up passing both values as
+          // strings to the formatter. So let's save the string representation
+          // here, because then we don't have to recompute them later on.
+          start.setString(strStart);
+          end.setString(strEnd);
+        }
+      }
+    }
+
+    // PartitionNumberRangePattern, step 2.b.
+    else if (isNegativeInfinity(end)) {
+      return throwRangeError();
+    }
+
+    // PartitionNumberRangePattern, step 2.c.
+    else if (isNegativeZero(end)) {
+      if (isPositiveOrZero(start, startApprox)) {
+        return throwRangeError();
+      }
+    }
+
+    // No range restrictions when the end is positive infinity.
+    else {
+      MOZ_ASSERT(isPositiveInfinity(end));
+    }
+  }
+
+  // PartitionNumberRangePattern, step 3.
+  else if (isPositiveInfinity(start)) {
+    // PartitionNumberRangePattern, steps 3.a-c.
+    if (!isPositiveInfinity(end)) {
+      return throwRangeError();
+    }
+  }
+
+  // PartitionNumberRangePattern, step 4.
+  else if (isNegativeZero(start)) {
+    // PartitionNumberRangePattern, step 4.a.
+    if (isMathematicalValue(end)) {
+      if (!isPositiveOrZero(end, endApprox)) {
+        return throwRangeError();
+      }
+    }
+
+    // PartitionNumberRangePattern, step 4.b.
+    else if (isNegativeInfinity(end)) {
+      return throwRangeError();
+    }
+
+    // No range restrictions when the end is negative zero or positive infinity.
+    else {
+      MOZ_ASSERT(isNegativeZero(end) || isPositiveInfinity(end));
+    }
+  }
+
+  // No range restrictions when the start is negative infinity.
+  else {
+    MOZ_ASSERT(isNegativeInfinity(start));
+  }
+
+  return true;
+}
+#endif
+
+bool js::intl_FormatNumberRange(JSContext* cx, unsigned argc, Value* vp) {
+#ifdef MOZ_INTL_HAS_NUMBER_RANGE_FORMAT
+  CallArgs args = CallArgsFromVp(argc, vp);
+  MOZ_ASSERT(args.length() == 4);
+  MOZ_ASSERT(args[0].isObject());
+  MOZ_ASSERT(!args[1].isUndefined());
+  MOZ_ASSERT(!args[2].isUndefined());
+  MOZ_ASSERT(args[3].isBoolean());
+
+  Rooted<NumberFormatObject*> numberFormat(
+      cx, &args[0].toObject().as<NumberFormatObject>());
+  bool formatToParts = args[3].toBoolean();
+
+  RootedValue start(cx, args[1]);
+  double startApprox = mozilla::UnspecifiedNaN<double>();
+  if (!ToIntlMathematicalValue(cx, &start, &startApprox)) {
+    return false;
+  }
+
+  RootedValue end(cx, args[2]);
+  double endApprox = mozilla::UnspecifiedNaN<double>();
+  if (!ToIntlMathematicalValue(cx, &end, &endApprox)) {
+    return false;
+  }
+
+  if (!ValidateNumberRange(cx, &start, startApprox, &end, endApprox,
+                           formatToParts)) {
+    return false;
+  }
+
+  // Obtain a cached mozilla::intl::NumberFormat object.
+  using NumberRangeFormat = mozilla::intl::NumberRangeFormat;
+  NumberRangeFormat* nf = numberFormat->getNumberRangeFormatter();
+  if (!nf) {
+    nf = NewNumberFormat<NumberRangeFormat>(cx, numberFormat);
+    if (!nf) {
+      return false;
+    }
+    numberFormat->setNumberRangeFormatter(nf);
+
+    intl::AddICUCellMemory(
+        numberFormat, NumberFormatObject::EstimatedRangeFormatterMemoryUse);
+  }
+
+  auto valueRepresentableAsDouble = [](const Value& val, double* num) {
+    if (val.isNumber()) {
+      *num = val.toNumber();
+      return true;
+    }
+    if (val.isBigInt()) {
+      int64_t i64;
+      if (BigInt::isInt64(val.toBigInt(), &i64) &&
+          i64 < int64_t(DOUBLE_INTEGRAL_PRECISION_LIMIT) &&
+          i64 > -int64_t(DOUBLE_INTEGRAL_PRECISION_LIMIT)) {
+        *num = double(i64);
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // Actually format the number range.
+  using FormatError = NumberRangeFormat::FormatError;
+
+  mozilla::Result<std::u16string_view, FormatError> result =
+      mozilla::Err(FormatError::InternalError);
+  mozilla::intl::NumberPartVector parts;
+
+  double numStart, numEnd;
+  if (valueRepresentableAsDouble(start, &numStart) &&
+      valueRepresentableAsDouble(end, &numEnd)) {
+    if (formatToParts) {
+      result = nf->formatToParts(numStart, numEnd, parts);
+    } else {
+      result = nf->format(numStart, numEnd);
+    }
+  } else {
+    RootedLinearString strStart(cx, ToLinearString(cx, start));
+    if (!strStart) {
+      return false;
+    }
+
+    RootedLinearString strEnd(cx, ToLinearString(cx, end));
+    if (!strEnd) {
+      return false;
+    }
+
+    JS::AutoCheckCannotGC nogc;
+
+    // Two-byte strings have to be copied into a separate |char| buffer.
+    JS::UniqueChars latin1Start;
+    JS::UniqueChars latin1End;
+
+    std::string_view svStart;
+    if (!NumberPart(cx, strStart, nogc, latin1Start, svStart)) {
+      return false;
+    }
+
+    std::string_view svEnd;
+    if (!NumberPart(cx, strEnd, nogc, latin1End, svEnd)) {
+      return false;
+    }
+
+    if (formatToParts) {
+      result = nf->formatToParts(svStart, svEnd, parts);
+    } else {
+      result = nf->format(svStart, svEnd);
+    }
+  }
+
+  if (result.isErr()) {
+    intl::ReportInternalError(cx);
+    return false;
+  }
+
+  std::u16string_view result_string_view = result.unwrap();
+  RootedString str(cx, NewStringCopyN<CanGC>(cx, result_string_view.data(),
+                                             result_string_view.size()));
+  if (!str) {
+    return false;
+  }
+
+  if (formatToParts) {
+    return FormattedNumberToParts(cx, str, parts, DisplayNumberPartSource::Yes,
+                                  args.rval());
+  }
+
+  args.rval().setString(str);
+  return true;
+#else
+  MOZ_CRASH("ICU draft API not enabled");
+#endif
 }

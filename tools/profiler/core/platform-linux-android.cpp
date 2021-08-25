@@ -438,11 +438,11 @@ SamplerThread::SamplerThread(PSLockRef aLock, uint32_t aActivityGeneration,
       mIntervalMicroseconds(
           std::max(1, int(floor(aIntervalMilliseconds * 1000 + 0.5)))) {
 #if defined(USE_LUL_STACKWALK)
-  lul::LUL* lul = CorePS::Lul(aLock);
+  lul::LUL* lul = CorePS::Lul();
   if (!lul && aStackWalkEnabled) {
-    CorePS::SetLul(aLock, MakeUnique<lul::LUL>(logging_sink_for_LUL));
+    CorePS::SetLul(MakeUnique<lul::LUL>(logging_sink_for_LUL));
     // Read all the unwind info currently available.
-    lul = CorePS::Lul(aLock);
+    lul = CorePS::Lul();
     read_procmaps(lul);
 
     // Switch into unwind mode. After this point, we can't add or remove any
@@ -569,14 +569,9 @@ static void PlatformInit(PSLockRef aLock) {}
 #endif
 
 #if defined(HAVE_NATIVE_UNWIND)
-// Context used by synchronous samples. It's safe to have a single one because
-// only one synchronous sample can be taken at a time (due to
-// profiler_get_backtrace()'s PSAutoLock).
-ucontext_t sSyncUContext;
-
 void Registers::SyncPopulate() {
-  if (!getcontext(&sSyncUContext)) {
-    PopulateRegsFromContext(*this, &sSyncUContext);
+  if (!getcontext(&mContextSyncStorage)) {
+    PopulateRegsFromContext(*this, &mContextSyncStorage);
   }
 }
 #endif

@@ -10,7 +10,6 @@
 #include <limits>
 
 #include "ActiveLayerTracker.h"
-#include "ClientLayerManager.h"
 #include "DisplayItemClip.h"
 #include "gfx2DGlue.h"
 #include "gfxContext.h"
@@ -3430,16 +3429,6 @@ nsresult nsLayoutUtils::PaintFrame(gfxContext* aRenderingContext,
 
     builder->SetIsBuilding(false);
     builder->IncrementPresShellPaintCount(presShell);
-  }
-
-  if (StaticPrefs::layers_acceleration_draw_fps()) {
-    RefPtr<LayerManager> lm = builder->GetWidgetLayerManager();
-    PaintTiming* pt = ClientLayerManager::MaybeGetPaintTiming(lm);
-
-    if (pt) {
-      pt->dlMs() = static_cast<float>(metrics->mPartialBuildDuration);
-      pt->dl2Ms() = static_cast<float>(metrics->mFullBuildDuration);
-    }
   }
 
   MOZ_ASSERT(updateState != PartialUpdateResult::Failed);
@@ -6984,7 +6973,7 @@ nsIFrame* nsLayoutUtils::GetReferenceFrame(nsIFrame* aFrame) {
     if (f->IsTransformed() || f->IsPreserve3DLeaf() || IsPopup(f)) {
       return f;
     }
-    nsIFrame* parent = GetCrossDocParentFrame(f);
+    nsIFrame* parent = GetCrossDocParentFrameInProcess(f);
     if (!parent) {
       return f;
     }
@@ -8423,9 +8412,7 @@ void nsLayoutUtils::DoLogTestDataForPaint(LayerManager* aManager,
                                           const std::string& aKey,
                                           const std::string& aValue) {
   MOZ_ASSERT(nsLayoutUtils::IsAPZTestLoggingEnabled(), "don't call me");
-  if (ClientLayerManager* mgr = aManager->AsClientLayerManager()) {
-    mgr->LogTestDataForCurrentPaint(aScrollId, aKey, aValue);
-  } else if (WebRenderLayerManager* wrlm =
+  if (WebRenderLayerManager* wrlm =
                  aManager->AsWebRenderLayerManager()) {
     wrlm->LogTestDataForCurrentPaint(aScrollId, aKey, aValue);
   }
@@ -8438,9 +8425,7 @@ void nsLayoutUtils::LogAdditionalTestData(nsDisplayListBuilder* aBuilder,
   if (!manager) {
     return;
   }
-  if (ClientLayerManager* clm = manager->AsClientLayerManager()) {
-    clm->LogAdditionalTestData(aKey, aValue);
-  } else if (WebRenderLayerManager* wrlm = manager->AsWebRenderLayerManager()) {
+  if (WebRenderLayerManager* wrlm = manager->AsWebRenderLayerManager()) {
     wrlm->LogAdditionalTestData(aKey, aValue);
   }
 }

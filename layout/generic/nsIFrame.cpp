@@ -410,7 +410,7 @@ bool nsIFrame::IsVisibleConsideringAncestors(uint32_t aFlags) const {
     if (parent) {
       frame = parent;
     } else {
-      parent = nsLayoutUtils::GetCrossDocParentFrame(frame);
+      parent = nsLayoutUtils::GetCrossDocParentFrameInProcess(frame);
       if (!parent) break;
 
       if ((aFlags & nsIFrame::VISIBILITY_CROSS_CHROME_CONTENT_BOUNDARY) == 0 &&
@@ -6909,7 +6909,7 @@ nsPoint nsIFrame::GetOffsetToCrossDoc(const nsIFrame* aOther,
     } else {
       nsPoint newOffset(0, 0);
       root = f;
-      f = nsLayoutUtils::GetCrossDocParentFrame(f, &newOffset);
+      f = nsLayoutUtils::GetCrossDocParentFrameInProcess(f, &newOffset);
       int32_t newAPD = f ? f->PresContext()->AppUnitsPerDevPixel() : 0;
       if (!f || newAPD != currAPD) {
         // Convert docOffset to the right APD and add it to offset.
