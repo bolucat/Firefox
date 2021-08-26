@@ -110,9 +110,6 @@ already_AddRefed<CompositableHost> CompositableHost::Create(
     const TextureInfo& aTextureInfo, bool aUseWebRender) {
   RefPtr<CompositableHost> result;
   switch (aTextureInfo.mCompositableType) {
-    case CompositableType::IMAGE_BRIDGE:
-      NS_ERROR("Cannot create an image bridge compositable this way");
-      break;
     case CompositableType::CONTENT_TILED:
       result = new TiledContentHost(aTextureInfo);
       break;
@@ -150,13 +147,6 @@ void CompositableHost::DumpTextureHost(std::stringstream& aStream,
     return;
   }
   aStream << gfxUtils::GetAsDataURI(dSurf).get();
-}
-
-HostLayerManager* CompositableHost::GetLayerManager() const {
-  if (!mLayer || !mLayer->Manager()) {
-    return nullptr;
-  }
-  return mLayer->Manager()->AsHostLayerManager();
 }
 
 TextureSourceProvider* CompositableHost::GetTextureSourceProvider() const {

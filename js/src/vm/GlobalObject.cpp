@@ -818,12 +818,11 @@ static NativeObject* CreateBlankProto(JSContext* cx, const JSClass* clasp,
                                       HandleObject proto) {
   MOZ_ASSERT(clasp != &JSFunction::class_);
 
-  RootedObject blankProto(cx, NewTenuredObjectWithGivenProto(cx, clasp, proto));
-  if (!blankProto) {
-    return nullptr;
+  if (clasp == &PlainObject::class_) {
+    return NewPlainObjectWithProto(cx, proto, TenuredObject);
   }
 
-  return &blankProto->as<NativeObject>();
+  return NewTenuredObjectWithGivenProto(cx, clasp, proto);
 }
 
 /* static */
@@ -903,7 +902,7 @@ JSObject* GlobalObject::getOrCreateRealmKeyObject(
     return key;
   }
 
-  PlainObject* key = NewBuiltinClassInstance<PlainObject>(cx);
+  PlainObject* key = NewPlainObject(cx);
   if (!key) {
     return nullptr;
   }
@@ -947,7 +946,7 @@ NativeObject* GlobalObject::getIntrinsicsHolder(JSContext* cx,
   }
 
   Rooted<NativeObject*> intrinsicsHolder(
-      cx, NewTenuredObjectWithGivenProto<PlainObject>(cx, nullptr));
+      cx, NewPlainObjectWithProto(cx, nullptr, TenuredObject));
   if (!intrinsicsHolder) {
     return nullptr;
   }
@@ -1192,6 +1191,10 @@ void GlobalObjectData::trace(JSTracer* trc) {
   TraceNullableEdge(trc, &eval, "global-eval");
 
   TraceNullableEdge(trc, &arrayShapeWithDefaultProto, "global-array-shape");
+
+  for (auto& shape : plainObjectShapesWithDefaultProto) {
+    TraceNullableEdge(trc, &shape, "global-plain-shape");
+  }
 
   if (regExpStatics) {
     regExpStatics->trace(trc);

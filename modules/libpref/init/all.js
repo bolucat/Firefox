@@ -214,7 +214,7 @@ pref("security.osreauthenticator.password_last_changed_lo", 0);
 pref("security.osreauthenticator.password_last_changed_hi", 0);
 
 pref("security.crash_tracking.js_load_1.prevCrashes", 0);
-pref("security.crash_tracking.js_load_1.maxCrashes", 1);
+pref("security.crash_tracking.js_load_1.maxCrashes", 0);
 
 pref("general.useragent.compatMode.firefox", false);
 
@@ -3712,7 +3712,6 @@ pref("network.tcp.keepalive.idle_time", 600); // seconds; 10 mins
 pref("network.psl.onUpdate_notify", false);
 
 #ifdef MOZ_WIDGET_GTK
-  pref("gfx.xrender.enabled",false);
   pref("widget.content.gtk-theme-override", "");
   pref("widget.disable-workspace-management", false);
   pref("widget.titlebar-x11-use-shape-mask", false);
@@ -4301,8 +4300,6 @@ pref("toolkit.aboutProcesses.showThreads", false);
 #else
   pref("toolkit.crashreporter.include_context_heap", true);
 #endif
-
-pref("layers.omtp.enabled", false);
 
 // Support for legacy customizations that rely on checking the
 // user profile directory for these stylesheets:

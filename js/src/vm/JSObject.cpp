@@ -165,7 +165,7 @@ bool js::FromPropertyDescriptorToObject(JSContext* cx,
                                         Handle<PropertyDescriptor> desc,
                                         MutableHandleValue vp) {
   // Step 2-3.
-  RootedObject obj(cx, NewBuiltinClassInstance<PlainObject>(cx));
+  RootedObject obj(cx, NewPlainObject(cx));
   if (!obj) {
     return false;
   }
@@ -732,7 +732,11 @@ static inline NativeObject* NewObject(JSContext* cx, Handle<TaggedProto> proto,
                                       const JSClass* clasp, gc::AllocKind kind,
                                       NewObjectKind newKind,
                                       ObjectFlags objectFlags = {}) {
+  // Some classes have specialized allocation functions and shouldn't end up
+  // here.
   MOZ_ASSERT(clasp != &ArrayObject::class_);
+  MOZ_ASSERT(clasp != &PlainObject::class_);
+
   MOZ_ASSERT_IF(clasp == &JSFunction::class_,
                 kind == gc::AllocKind::FUNCTION ||
                     kind == gc::AllocKind::FUNCTION_EXTENDED);
@@ -883,7 +887,7 @@ bool js::NewObjectScriptedCall(JSContext* cx, MutableHandleObject pobj) {
   gc::AllocKind allocKind = NewObjectGCKind();
   NewObjectKind newKind = GenericObject;
 
-  JSObject* obj = NewBuiltinClassInstance<PlainObject>(cx, allocKind, newKind);
+  JSObject* obj = NewPlainObjectWithAllocKind(cx, allocKind, newKind);
   if (!obj) {
     return false;
   }
@@ -899,7 +903,16 @@ JSObject* js::CreateThis(JSContext* cx, const JSClass* newclasp,
           cx, callee, JSCLASS_CACHED_PROTO_KEY(newclasp), &proto)) {
     return nullptr;
   }
+
   gc::AllocKind kind = NewObjectGCKind();
+
+  if (newclasp == &PlainObject::class_) {
+    if (proto) {
+      return NewPlainObjectWithProtoAndAllocKind(cx, proto, kind);
+    }
+    return NewPlainObjectWithAllocKind(cx, kind);
+  }
+
   return NewObjectWithClassProto(cx, newclasp, proto, kind);
 }
 
@@ -3798,6 +3811,7 @@ void JSObject::debugCheckNewObject(Shape* shape, js::gc::AllocKind allocKind,
                     CanNurseryAllocateFinalizedClass(clasp) ||
                     clasp->isProxyObject());
 
+  MOZ_ASSERT(!shape->isDictionary());
   MOZ_ASSERT(!shape->realm()->hasObjectPendingMetadata());
 
   // Non-native classes manage their own data and slots, so numFixedSlots is

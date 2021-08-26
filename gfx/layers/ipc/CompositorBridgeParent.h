@@ -78,7 +78,6 @@ class APZCTreeManagerParent;
 class APZSampler;
 class APZTestData;
 class APZUpdater;
-class AsyncCompositionManager;
 class AsyncImagePipelineManager;
 class Compositor;
 class CompositorAnimationStorage;
@@ -87,10 +86,8 @@ class CompositorManagerParent;
 class CompositorVsyncScheduler;
 class FrameUniformityData;
 class GeckoContentController;
-class HostLayerManager;
 class IAPZCTreeManager;
 class Layer;
-class LayerTransactionParent;
 class OMTASampler;
 class ContentCompositorBridgeParent;
 class CompositorThreadHolder;
@@ -122,25 +119,11 @@ class CompositorBridgeParentBase : public PCompositorBridgeParent,
  public:
   explicit CompositorBridgeParentBase(CompositorManagerParent* aManager);
 
-  virtual void ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
-                                   const TransactionInfo& aInfo,
-                                   bool aHitTestUpdate) = 0;
-
-  virtual AsyncCompositionManager* GetCompositionManager(
-      LayerTransactionParent* aLayerTree) {
-    return nullptr;
-  }
-
-  virtual void NotifyClearCachedResources(LayerTransactionParent* aLayerTree) {}
-
-  virtual void ScheduleComposite(LayerTransactionParent* aLayerTree) {}
   virtual bool SetTestSampleTime(const LayersId& aId, const TimeStamp& aTime) {
     return true;
   }
   virtual void LeaveTestMode(const LayersId& aId) {}
   enum class TransformsToSkip : uint8_t { NoneOfThem = 0, APZ = 1 };
-  virtual void ApplyAsyncProperties(LayerTransactionParent* aLayerTree,
-                                    TransformsToSkip aSkip) = 0;
   virtual void SetTestAsyncScrollOffset(
       const LayersId& aLayersId, const ScrollableLayerGuid::ViewID& aScrollId,
       const CSSPoint& aPoint) = 0;
@@ -155,10 +138,6 @@ class CompositorBridgeParentBase : public PCompositorBridgeParent,
   virtual void SetConfirmedTargetAPZC(
       const LayersId& aLayersId, const uint64_t& aInputBlockId,
       nsTArray<ScrollableLayerGuid>&& aTargets) = 0;
-  virtual void UpdatePaintTime(LayerTransactionParent* aLayerTree,
-                               const TimeDuration& aPaintTime) {}
-  virtual void RegisterPayloads(LayerTransactionParent* aLayerTree,
-                                const nsTArray<CompositionPayload>& aPayload) {}
 
   IShmemAllocator* AsShmemAllocator() override { return this; }
 
@@ -229,12 +208,6 @@ class CompositorBridgeParentBase : public PCompositorBridgeParent,
       const LayersId& layersId) = 0;
   virtual bool DeallocPAPZCTreeManagerParent(
       PAPZCTreeManagerParent* aActor) = 0;
-
-  virtual PLayerTransactionParent* AllocPLayerTransactionParent(
-      const nsTArray<LayersBackend>& layersBackendHints,
-      const LayersId& id) = 0;
-  virtual bool DeallocPLayerTransactionParent(
-      PLayerTransactionParent* aActor) = 0;
 
   virtual PTextureParent* AllocPTextureParent(
       const SurfaceDescriptor& aSharedData, const ReadLockDescriptor& aReadLock,
@@ -308,8 +281,7 @@ MOZ_MAKE_ENUM_CLASS_BITWISE_OPERATORS(
     CompositorBridgeParentBase::TransformsToSkip)
 
 class CompositorBridgeParent final : public CompositorBridgeParentBase,
-                                     public CompositorController,
-                                     public CompositorVsyncSchedulerOwner {
+                                     public CompositorController {
   friend class CompositorThreadHolder;
   friend class InProcessCompositorSession;
   friend class gfx::GPUProcessManager;
@@ -384,14 +356,8 @@ class CompositorBridgeParent final : public CompositorBridgeParentBase,
 
   void ActorDestroy(ActorDestroyReason why) override;
 
-  void ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
-                           const TransactionInfo& aInfo,
-                           bool aHitTestUpdate) override;
-  void ScheduleComposite(LayerTransactionParent* aLayerTree) override;
   bool SetTestSampleTime(const LayersId& aId, const TimeStamp& aTime) override;
   void LeaveTestMode(const LayersId& aId) override;
-  void ApplyAsyncProperties(LayerTransactionParent* aLayerTree,
-                            TransformsToSkip aSkip) override;
   CompositorAnimationStorage* GetAnimationStorage();
   using JankedAnimations =
       std::unordered_map<LayersId, nsTArray<uint64_t>, LayersId::HashFn>;
@@ -410,10 +376,6 @@ class CompositorBridgeParent final : public CompositorBridgeParentBase,
   void SetConfirmedTargetAPZC(
       const LayersId& aLayersId, const uint64_t& aInputBlockId,
       nsTArray<ScrollableLayerGuid>&& aTargets) override;
-  AsyncCompositionManager* GetCompositionManager(
-      LayerTransactionParent* aLayerTree) override {
-    return mCompositionManager;
-  }
   void SetFixedLayerMargins(ScreenIntCoord aTop, ScreenIntCoord aBottom);
 
   PTextureParent* AllocPTextureParent(
@@ -461,8 +423,6 @@ class CompositorBridgeParent final : public CompositorBridgeParentBase,
    */
   void ForceIsFirstPaint();
 
-  static void SetShadowProperties(Layer* aLayer);
-
   void NotifyChildCreated(LayersId aChild);
 
   void AsyncRender();
@@ -478,11 +438,6 @@ class CompositorBridgeParent final : public CompositorBridgeParentBase,
                                    uint32_t aPaintSequenceNumber,
                                    bool aIsRepeatTransaction,
                                    bool aHitTestUpdate);
-
-  void UpdatePaintTime(LayerTransactionParent* aLayerTree,
-                       const TimeDuration& aPaintTime) override;
-  void RegisterPayloads(LayerTransactionParent* aLayerTree,
-                        const nsTArray<CompositionPayload>& aPayload) override;
 
   /**
    * Check rotation info and schedule a rendering task if needed.
@@ -540,14 +495,12 @@ class CompositorBridgeParent final : public CompositorBridgeParentBase,
     RefPtr<GeckoContentController> mController;
     APZCTreeManagerParent* mApzcTreeManagerParent;
     RefPtr<CompositorBridgeParent> mParent;
-    HostLayerManager* mLayerManager;
     RefPtr<WebRenderBridgeParent> mWrBridge;
     // Pointer to the ContentCompositorBridgeParent. Used by APZCs to share
     // their FrameMetrics with the corresponding child process that holds
     // the PCompositorBridgeChild
     ContentCompositorBridgeParent* mContentCompositorBridgeParent;
     TargetConfig mTargetConfig;
-    LayerTransactionParent* mLayerTree;
 
     CompositorController* GetCompositorController() const;
     MetricsSharingController* CrossProcessSharingController() const;
@@ -616,7 +569,7 @@ class CompositorBridgeParent final : public CompositorBridgeParentBase,
 
   CompositorOptions GetOptions() const { return mOptions; }
 
-  TimeDuration GetVsyncInterval() const override {
+  TimeDuration GetVsyncInterval() const {
     // the variable is called "rate" but really it's an interval
     return mVsyncRate;
   }
@@ -707,15 +660,7 @@ class CompositorBridgeParent final : public CompositorBridgeParentBase,
 
   void DeferredDestroy();
 
-  PLayerTransactionParent* AllocPLayerTransactionParent(
-      const nsTArray<LayersBackend>& aBackendHints,
-      const LayersId& aId) override;
-  bool DeallocPLayerTransactionParent(
-      PLayerTransactionParent* aLayers) override;
-
   void SetEGLSurfaceRect(int x, int y, int width, int height);
-
-  void InitializeLayerManager(const nsTArray<LayersBackend>& aBackendHints);
 
  public:
   void PauseComposition();
@@ -727,12 +672,6 @@ class CompositorBridgeParent final : public CompositorBridgeParentBase,
  protected:
   void ForceComposition();
   void CancelCurrentCompositeTask();
-
-  // CompositorVsyncSchedulerOwner
-  bool IsPendingComposite() override;
-  void FinishPendingComposite() override;
-  void CompositeToTarget(VsyncId aId, gfx::DrawTarget* aTarget,
-                         const gfx::IntRect* aRect = nullptr) override;
 
   RefPtr<Compositor> NewCompositor(
       const nsTArray<LayersBackend>& aBackendHints);
@@ -779,9 +718,7 @@ class CompositorBridgeParent final : public CompositorBridgeParentBase,
   template <typename Lambda>
   static inline void ForEachWebRenderBridgeParent(const Lambda& aCallback);
 
-  RefPtr<HostLayerManager> mLayerManager;
   RefPtr<Compositor> mCompositor;
-  RefPtr<AsyncCompositionManager> mCompositionManager;
   RefPtr<AsyncImagePipelineManager> mAsyncImageManager;
   RefPtr<WebRenderBridgeParent> mWrBridge;
   RefPtr<webgpu::WebGPUParent> mWebGPUBridge;

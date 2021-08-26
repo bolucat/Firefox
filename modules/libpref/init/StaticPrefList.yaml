@@ -6370,15 +6370,6 @@
 #endif
   mirror: once
 
-- name: layers.enable-tiles-if-skia-pomtp
-  type: bool
-#if defined(XP_WIN)
-  value: true
-#else
-  value: false
-#endif
-  mirror: once
-
 - name: layers.flash-borders
   type: RelaxedAtomicBool
   value: false
@@ -6544,25 +6535,10 @@
   value: -1
   mirror: always
 
-- name: layers.omtp.capture-limit
-  type: uint32_t
-  value: 25 * 1024 * 1024
-  mirror: once
-
-- name: layers.omtp.dump-capture
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
 - name: layers.omtp.paint-workers
   type: int32_t
   value: -1
   mirror: once
-
-- name: layers.omtp.release-capture-on-main-thread
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
 
 - name: layers.orientation.sync.timeout
   type: RelaxedAtomicUint32
@@ -10232,6 +10208,14 @@
 - name: print.save_as_pdf.links.enabled
   type: RelaxedAtomicBool
   value: true
+  mirror: always
+
+# Whether we attempt to generate and use document-internal PDF destinations.
+# This currently sometimes results in an internal cairo error, see bug 1725743;
+# disabled by default until that is resolved.
+- name: print.save_as_pdf.internal_destinations.enabled
+  type: RelaxedAtomicBool
+  value: false
   mirror: always
 
 # The default DPI for printing.

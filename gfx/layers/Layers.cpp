@@ -38,15 +38,13 @@
 #include "mozilla/gfx/BaseRect.h"  // for operator<<, BaseRect (ptr only)
 #include "mozilla/gfx/BaseSize.h"  // for operator<<, BaseSize<>::(anonymous union)::(anonymous), BaseSize<>::(anony...
 #include "mozilla/gfx/Matrix.h"  // for Matrix4x4, Matrix, Matrix4x4Typed<>::(anonymous union)::(anonymous), Matri...
-#include "mozilla/gfx/MatrixFwd.h"                 // for Float
-#include "mozilla/gfx/Polygon.h"                   // for Polygon, PolygonTyped
-#include "mozilla/layers/BSPTree.h"                // for LayerPolygon, BSPTree
-#include "mozilla/layers/CompositableClient.h"     // for CompositableClient
-#include "mozilla/layers/Compositor.h"             // for Compositor
-#include "mozilla/layers/LayerManagerComposite.h"  // for HostLayer
+#include "mozilla/gfx/MatrixFwd.h"              // for Float
+#include "mozilla/gfx/Polygon.h"                // for Polygon, PolygonTyped
+#include "mozilla/layers/BSPTree.h"             // for LayerPolygon, BSPTree
+#include "mozilla/layers/CompositableClient.h"  // for CompositableClient
+#include "mozilla/layers/Compositor.h"          // for Compositor
 #include "mozilla/layers/LayersMessages.h"  // for SpecificLayerAttributes, CompositorAnimations (ptr only), ContainerLayerAt...
 #include "mozilla/layers/LayersTypes.h"  // for EventRegions, operator<<, CompositionPayload, CSSTransformMatrix, MOZ_LAYE...
-#include "mozilla/layers/ShadowLayers.h"  // for ShadowableLayer
 #include "nsBaseHashtable.h"  // for nsBaseHashtable<>::Iterator, nsBaseHashtable<>::LookupResult
 #include "nsISupportsUtils.h"              // for NS_ADDREF, NS_RELEASE
 #include "nsPrintfCString.h"               // for nsPrintfCString
@@ -179,16 +177,10 @@ bool Layer::CanUseOpaqueSurface() {
 // NB: eventually these methods will be defined unconditionally, and
 // can be moved into Layers.h
 const Maybe<ParentLayerIntRect>& Layer::GetLocalClipRect() {
-  if (HostLayer* shadow = AsHostLayer()) {
-    return shadow->GetShadowClipRect();
-  }
   return GetClipRect();
 }
 
 const LayerIntRegion& Layer::GetLocalVisibleRegion() {
-  if (HostLayer* shadow = AsHostLayer()) {
-    return shadow->GetShadowVisibleRegion();
-  }
   return GetVisibleRegion();
 }
 
@@ -369,12 +361,7 @@ const CSSTransformMatrix Layer::GetTransformTyped() const {
   return ViewAs<CSSTransformMatrix>(GetTransform());
 }
 
-Matrix4x4 Layer::GetLocalTransform() {
-  if (HostLayer* shadow = AsHostLayer()) {
-    return shadow->GetShadowTransform();
-  }
-  return GetTransform();
-}
+Matrix4x4 Layer::GetLocalTransform() { return GetTransform(); }
 
 const LayerToParentLayerMatrix4x4 Layer::GetLocalTransformTyped() {
   return ViewAs<LayerToParentLayerMatrix4x4>(GetLocalTransform());
@@ -421,7 +408,6 @@ void Layer::ApplyPendingUpdatesForThisTransaction() {
 
 float Layer::GetLocalOpacity() {
   float opacity = mSimpleAttrs.GetOpacity();
-  if (HostLayer* shadow = AsHostLayer()) opacity = shadow->GetShadowOpacity();
   return std::min(std::max(opacity, 0.0f), 1.0f);
 }
 
@@ -1118,8 +1104,6 @@ void RefLayer::FillSpecificAttributes(SpecificLayerAttributes& aAttrs) {
                               mRemoteDocumentSize);
 }
 
-static void PrintInfo(std::stringstream& aStream, HostLayer* aLayerComposite);
-
 #ifdef MOZ_DUMP_PAINTING
 template <typename T>
 void WriteSnapshotToDumpFile_internal(T* aObj, DataSourceSurface* aSurf) {
@@ -1155,54 +1139,18 @@ void Layer::Dump(std::stringstream& aStream, const char* aPrefix,
                  bool aDumpHtml, bool aSorted,
                  const Maybe<gfx::Polygon>& aGeometry) {
 #ifdef MOZ_DUMP_PAINTING
-  bool dumpCompositorTexture = gfxEnv::DumpCompositorTextures() &&
-                               AsHostLayer() &&
-                               AsHostLayer()->GetCompositableHost();
-  bool dumpClientTexture = gfxEnv::DumpPaint() && AsShadowableLayer() &&
-                           AsShadowableLayer()->GetCompositableClient();
   nsCString layerId(Name());
   layerId.Append('-');
   layerId.AppendInt((uint64_t)this);
 #endif
   if (aDumpHtml) {
     aStream << nsPrintfCString(R"(<li><a id="%p" )", this).get();
-#ifdef MOZ_DUMP_PAINTING
-    if (dumpCompositorTexture || dumpClientTexture) {
-      aStream << nsPrintfCString(R"lit(href="javascript:ViewImage('%s')")lit",
-                                 layerId.BeginReading())
-                     .get();
-    }
-#endif
     aStream << ">";
   }
   DumpSelf(aStream, aPrefix, aGeometry);
 
-#ifdef MOZ_DUMP_PAINTING
-  if (dumpCompositorTexture) {
-    AsHostLayer()->GetCompositableHost()->Dump(aStream, aPrefix, aDumpHtml);
-  } else if (dumpClientTexture) {
-    if (aDumpHtml) {
-      aStream << nsPrintfCString(R"(<script>array["%s"]=")",
-                                 layerId.BeginReading())
-                     .get();
-    }
-    AsShadowableLayer()->GetCompositableClient()->Dump(
-        aStream, aPrefix, aDumpHtml, TextureDumpMode::DoNotCompress);
-    if (aDumpHtml) {
-      aStream << R"(";</script>)";
-    }
-  }
-#endif
-
   if (aDumpHtml) {
     aStream << "</a>";
-#ifdef MOZ_DUMP_PAINTING
-    if (dumpClientTexture) {
-      aStream << nsPrintfCString("<br><img id=\"%s\">\n",
-                                 layerId.BeginReading())
-                     .get();
-    }
-#endif
   }
 
   if (Layer* mask = GetMaskLayer()) {
@@ -1354,8 +1302,6 @@ void Layer::PrintInfo(std::stringstream& aStream, const char* aPrefix) {
   aStream << aPrefix;
   aStream
       << nsPrintfCString("%s%s (0x%p)", mManager->Name(), Name(), this).get();
-
-  layers::PrintInfo(aStream, AsHostLayer());
 
   if (mClipRect) {
     aStream << " [clip=" << *mClipRect << "]";
@@ -1544,20 +1490,6 @@ void Layer::DumpPacket(layerscope::LayersPacket* aPacket, const void* aParent) {
   layer->set_type(LayersPacket::Layer::UnknownLayer);
   layer->set_ptr(reinterpret_cast<uint64_t>(this));
   layer->set_parentptr(reinterpret_cast<uint64_t>(aParent));
-  // Shadow
-  if (HostLayer* lc = AsHostLayer()) {
-    LayersPacket::Layer::Shadow* s = layer->mutable_shadow();
-    if (const Maybe<ParentLayerIntRect>& clipRect = lc->GetShadowClipRect()) {
-      DumpRect(s->mutable_clip(), *clipRect);
-    }
-    if (!lc->GetShadowBaseTransform().IsIdentity()) {
-      DumpTransform(s->mutable_transform(), lc->GetShadowBaseTransform());
-    }
-    if (!lc->GetShadowVisibleRegion().IsEmpty()) {
-      DumpRegion(s->mutable_vregion(),
-                 lc->GetShadowVisibleRegion().ToUnknownRegion());
-    }
-  }
   // Clip
   if (mClipRect) {
     DumpRect(layer->mutable_clip(), *mClipRect);
@@ -1643,13 +1575,6 @@ UniquePtr<LayerUserData> Layer::RemoveUserData(void* aKey) {
   UniquePtr<LayerUserData> d(static_cast<LayerUserData*>(
       mUserData.Remove(static_cast<gfx::UserDataKey*>(aKey))));
   return d;
-}
-
-void Layer::SetManager(LayerManager* aManager, HostLayer* aSelf) {
-  // No one should be calling this for weird reasons.
-  MOZ_ASSERT(aSelf);
-  MOZ_ASSERT(aSelf->GetLayer() == this);
-  mManager = aManager;
 }
 
 void PaintedLayer::PrintInfo(std::stringstream& aStream, const char* aPrefix) {
@@ -1965,25 +1890,6 @@ LayerManager::ClearPendingScrollInfoUpdate() {
       mPendingScrollUpdates.Keys().cend());
   mPendingScrollUpdates.Clear();
   return scrollIds;
-}
-
-void PrintInfo(std::stringstream& aStream, HostLayer* aLayerComposite) {
-  if (!aLayerComposite) {
-    return;
-  }
-  if (const Maybe<ParentLayerIntRect>& clipRect =
-          aLayerComposite->GetShadowClipRect()) {
-    aStream << " [shadow-clip=" << *clipRect << "]";
-  }
-  if (!aLayerComposite->GetShadowBaseTransform().IsIdentity()) {
-    aStream << " [shadow-transform="
-            << aLayerComposite->GetShadowBaseTransform() << "]";
-  }
-  if (!aLayerComposite->GetLayer()->Extend3DContext() &&
-      !aLayerComposite->GetShadowVisibleRegion().IsEmpty()) {
-    aStream << " [shadow-visible=" << aLayerComposite->GetShadowVisibleRegion()
-            << "]";
-  }
 }
 
 void SetAntialiasingFlags(Layer* aLayer, DrawTarget* aTarget) {

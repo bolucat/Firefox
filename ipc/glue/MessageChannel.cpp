@@ -2039,7 +2039,9 @@ void MessageChannel::DispatchAsyncMessage(ActorLifecycleProxy* aProxy,
   MOZ_RELEASE_ASSERT(!aMsg.is_interrupt() && !aMsg.is_sync());
 
   if (aMsg.routing_id() == MSG_ROUTING_NONE) {
-    MOZ_CRASH("unhandled special message!");
+    NS_WARNING("unhandled special message!");
+    MaybeHandleError(MsgNotKnown, aMsg, "DispatchAsyncMessage");
+    return;
   }
 
   Result rv;
@@ -2108,7 +2110,8 @@ bool MessageChannel::ShouldDeferInterruptMessage(const Message& aMsg,
   // MessageChannel.h. "Remote" stack depth means our side, and "local" means
   // the other side.
   if (aMsg.interrupt_remote_stack_depth_guess() ==
-      RemoteViewOfStackDepth(aStackDepth)) {
+          RemoteViewOfStackDepth(aStackDepth) ||
+      mInterruptStack.empty()) {
     return false;
   }
 
