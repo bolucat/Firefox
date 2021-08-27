@@ -702,10 +702,10 @@ class LocalAccessible : public nsISupports, public Accessible {
   //////////////////////////////////////////////////////////////////////////////
   // Value (numeric value interface)
 
-  virtual double MaxValue() const;
-  virtual double MinValue() const;
-  virtual double CurValue() const;
-  virtual double Step() const;
+  virtual double MaxValue() const override;
+  virtual double MinValue() const override;
+  virtual double CurValue() const override;
+  virtual double Step() const override;
   virtual bool SetCurValue(double aValue);
 
   //////////////////////////////////////////////////////////////////////////////
@@ -883,7 +883,7 @@ class LocalAccessible : public nsISupports, public Accessible {
 
   virtual bool IsRemote() const override { return false; }
 
-  already_AddRefed<AccAttributes> BundleFieldsForCache();
+  already_AddRefed<AccAttributes> BundleFieldsForCache(uint64_t aCacheDomain);
 
  protected:
   virtual ~LocalAccessible();
@@ -1067,6 +1067,11 @@ class LocalAccessible : public nsISupports, public Accessible {
    * Return group info.
    */
   AccGroupInfo* GetGroupInfo() const;
+
+  /**
+   * Push fields to cache.
+   */
+  void SendCacheUpdate(uint64_t aCacheDomain);
 
   // Data Members
   nsCOMPtr<nsIContent> mContent;

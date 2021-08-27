@@ -263,12 +263,10 @@ void TransactionBuilder::SetDisplayList(
     const gfx::DeviceColor& aBgColor, Epoch aEpoch,
     const wr::LayoutSize& aViewportSize, wr::WrPipelineId pipeline_id,
     wr::BuiltDisplayListDescriptor dl_descriptor,
-    wr::Vec<uint8_t>& dl_items_data, wr::Vec<uint8_t>& dl_cache_data,
-    wr::Vec<uint8_t>& dl_spatial_tree) {
+    wr::Vec<uint8_t>& dl_items_data, wr::Vec<uint8_t>& dl_cache_data) {
   wr_transaction_set_display_list(mTxn, aEpoch, ToColorF(aBgColor),
                                   aViewportSize, pipeline_id, dl_descriptor,
-                                  &dl_items_data.inner, &dl_cache_data.inner,
-                                  &dl_spatial_tree.inner);
+                                  &dl_items_data.inner, &dl_cache_data.inner);
 }
 
 void TransactionBuilder::ClearDisplayList(Epoch aEpoch,
@@ -998,9 +996,9 @@ void DisplayListBuilder::DumpSerializedDisplayList() {
 }
 
 void DisplayListBuilder::Finalize(BuiltDisplayList& aOutDisplayList) {
-  wr_api_finalize_builder(
-      mWrState, &aOutDisplayList.dl_desc, &aOutDisplayList.dl_items.inner,
-      &aOutDisplayList.dl_cache.inner, &aOutDisplayList.dl_spatial_tree.inner);
+  wr_api_finalize_builder(mWrState, &aOutDisplayList.dl_desc,
+                          &aOutDisplayList.dl_items.inner,
+                          &aOutDisplayList.dl_cache.inner);
 }
 
 void DisplayListBuilder::Finalize(layers::DisplayListData& aOutTransaction) {
@@ -1008,23 +1006,18 @@ void DisplayListBuilder::Finalize(layers::DisplayListData& aOutTransaction) {
     wr_dp_set_cache_size(mWrState, mDisplayItemCache->CurrentSize());
   }
 
-  wr::VecU8 dlItems, dlCache, dlSpatialTree;
+  wr::VecU8 dlItems, dlCache;
   wr_api_finalize_builder(mWrState, &aOutTransaction.mDLDesc, &dlItems.inner,
-                          &dlCache.inner, &dlSpatialTree.inner);
+                          &dlCache.inner);
   aOutTransaction.mDLItems.emplace(dlItems.inner.data, dlItems.inner.length,
                                    dlItems.inner.capacity);
   aOutTransaction.mDLCache.emplace(dlCache.inner.data, dlCache.inner.length,
                                    dlCache.inner.capacity);
-  aOutTransaction.mDLSpatialTree.emplace(dlSpatialTree.inner.data,
-                                         dlSpatialTree.inner.length,
-                                         dlSpatialTree.inner.capacity);
   aOutTransaction.mRemotePipelineIds = std::move(mRemotePipelineIds);
   dlItems.inner.capacity = 0;
   dlItems.inner.data = nullptr;
   dlCache.inner.capacity = 0;
   dlCache.inner.data = nullptr;
-  dlSpatialTree.inner.capacity = 0;
-  dlSpatialTree.inner.data = nullptr;
 }
 
 Maybe<wr::WrSpatialId> DisplayListBuilder::PushStackingContext(
@@ -1033,15 +1026,21 @@ Maybe<wr::WrSpatialId> DisplayListBuilder::PushStackingContext(
   MOZ_ASSERT(mClipChainLeaf.isNothing(),
              "Non-empty leaf from clip chain given, but not used with SC!");
 
+  wr::LayoutTransform matrix;
+  const gfx::Matrix4x4* transform = aParams.mTransformPtr;
+  if (transform) {
+    matrix = ToLayoutTransform(*transform);
+  }
+  const wr::LayoutTransform* maybeTransform = transform ? &matrix : nullptr;
   WRDL_LOG("PushStackingContext b=%s t=%s\n", mWrState,
            ToString(aBounds).c_str(),
            transform ? ToString(*transform).c_str() : "none");
 
   auto spatialId = wr_dp_push_stacking_context(
       mWrState, aBounds, mCurrentSpaceAndClipChain.space, &aParams,
-      aParams.mTransformPtr, aParams.mFilters.Elements(),
-      aParams.mFilters.Length(), aParams.mFilterDatas.Elements(),
-      aParams.mFilterDatas.Length(), aRasterSpace);
+      maybeTransform, aParams.mFilters.Elements(), aParams.mFilters.Length(),
+      aParams.mFilterDatas.Elements(), aParams.mFilterDatas.Length(),
+      aRasterSpace);
 
   return spatialId.id != 0 ? Some(spatialId) : Nothing();
 }
@@ -1114,11 +1113,11 @@ wr::WrSpatialId DisplayListBuilder::DefineStickyFrame(
     const float* aRightMargin, const float* aBottomMargin,
     const float* aLeftMargin, const StickyOffsetBounds& aVerticalBounds,
     const StickyOffsetBounds& aHorizontalBounds,
-    const wr::LayoutVector2D& aAppliedOffset, wr::SpatialTreeItemKey aKey) {
+    const wr::LayoutVector2D& aAppliedOffset) {
   auto spatialId = wr_dp_define_sticky_frame(
       mWrState, mCurrentSpaceAndClipChain.space, aContentRect, aTopMargin,
       aRightMargin, aBottomMargin, aLeftMargin, aVerticalBounds,
-      aHorizontalBounds, aAppliedOffset, aKey);
+      aHorizontalBounds, aAppliedOffset);
 
   WRDL_LOG("DefineSticky id=%zu c=%s t=%s r=%s b=%s l=%s v=%s h=%s a=%s\n",
            mWrState, spatialId.id, ToString(aContentRect).c_str(),
@@ -1150,8 +1149,7 @@ Maybe<wr::WrSpatialId> DisplayListBuilder::GetScrollIdForDefinedScrollLayer(
 wr::WrSpatialId DisplayListBuilder::DefineScrollLayer(
     const layers::ScrollableLayerGuid::ViewID& aViewId,
     const Maybe<wr::WrSpatialId>& aParent, const wr::LayoutRect& aContentRect,
-    const wr::LayoutRect& aClipRect, const wr::LayoutPoint& aScrollOffset,
-    wr::SpatialTreeItemKey aKey) {
+    const wr::LayoutRect& aClipRect, const wr::LayoutPoint& aScrollOffset) {
   auto it = mScrollIds.find(aViewId);
   if (it != mScrollIds.end()) {
     return it->second;
@@ -1162,7 +1160,7 @@ wr::WrSpatialId DisplayListBuilder::DefineScrollLayer(
 
   auto space = wr_dp_define_scroll_layer(
       mWrState, aViewId, aParent ? aParent.ptr() : &defaultParent, aContentRect,
-      aClipRect, aScrollOffset, aKey);
+      aClipRect, aScrollOffset);
 
   WRDL_LOG("DefineScrollLayer id=%" PRIu64 "/%zu p=%s co=%s cl=%s\n", mWrState,
            aViewId, space->id,

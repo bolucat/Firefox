@@ -1350,6 +1350,15 @@
   value: false
   mirror: always
 
+# Whether or not process selection for subframes will prefer re-using an
+# existing content process over creating a new one. Enabling this pref should
+# reduce the number of processes allocated for non-first-party domains if
+# dom.ipc.processCount.webIsolated > 1.
+- name: browser.tabs.remote.subframesPreferUsed
+  type: bool
+  value: true
+  mirror: always
+
 # When this pref is enabled, opaque response is only allowed to enter the
 # content process if it's a response for media (audio, image, video), CSS, or
 # JavaScript.
@@ -6535,11 +6544,6 @@
   value: -1
   mirror: always
 
-- name: layers.omtp.paint-workers
-  type: int32_t
-  value: -1
-  mirror: once
-
 - name: layers.orientation.sync.timeout
   type: RelaxedAtomicUint32
   value: (uint32_t)0
@@ -10516,6 +10520,18 @@
 # Whether the storage allowed check should be cached on the inner window.
 - name: privacy.antitracking.cacheStorageAllowedForWindow
   type: bool
+  value: true
+  mirror: always
+
+# Controls the anti-tracking webcompat features. This includes:
+# - All URL-Classifier and state partitioning skip lists (prefs and remote
+#   settings)
+# - Storage access heuristics (opener, redirect, etc.)
+# - StorageAccessAPI automatic grants (skips the prompt)
+# - Allowing specific tracking channels on user opt-in (e.g. facebook login
+#   shim).
+- name: privacy.antitracking.enableWebcompat
+  type: RelaxedAtomicBool
   value: true
   mirror: always
 

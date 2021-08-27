@@ -113,8 +113,7 @@ class TransactionBuilder final {
                       wr::WrPipelineId pipeline_id,
                       wr::BuiltDisplayListDescriptor dl_descriptor,
                       wr::Vec<uint8_t>& dl_items_data,
-                      wr::Vec<uint8_t>& dl_cache_data,
-                      wr::Vec<uint8_t>& dl_spatial_tree);
+                      wr::Vec<uint8_t>& dl_cache_data);
 
   void ClearDisplayList(Epoch aEpoch, wr::WrPipelineId aPipeline);
 
@@ -416,7 +415,7 @@ struct MOZ_STACK_CLASS StackingContextParams : public WrStackingContextParams {
   nsTArray<wr::WrFilterData> mFilterDatas;
   wr::LayoutRect mBounds = wr::ToLayoutRect(LayoutDeviceRect());
   const gfx::Matrix4x4* mBoundTransform = nullptr;
-  const wr::WrTransformInfo* mTransformPtr = nullptr;
+  const gfx::Matrix4x4* mTransformPtr = nullptr;
   nsDisplayTransform* mDeferredTransformItem = nullptr;
   // Whether the stacking context is possibly animated. This alters how
   // coordinates are transformed/snapped to invalidate less when transforms
@@ -468,20 +467,21 @@ class DisplayListBuilder final {
   wr::WrClipId DefineRectClip(Maybe<wr::WrSpatialId> aSpace,
                               wr::LayoutRect aClipRect);
 
-  wr::WrSpatialId DefineStickyFrame(
-      const wr::LayoutRect& aContentRect, const float* aTopMargin,
-      const float* aRightMargin, const float* aBottomMargin,
-      const float* aLeftMargin, const StickyOffsetBounds& aVerticalBounds,
-      const StickyOffsetBounds& aHorizontalBounds,
-      const wr::LayoutVector2D& aAppliedOffset, wr::SpatialTreeItemKey aKey);
+  wr::WrSpatialId DefineStickyFrame(const wr::LayoutRect& aContentRect,
+                                    const float* aTopMargin,
+                                    const float* aRightMargin,
+                                    const float* aBottomMargin,
+                                    const float* aLeftMargin,
+                                    const StickyOffsetBounds& aVerticalBounds,
+                                    const StickyOffsetBounds& aHorizontalBounds,
+                                    const wr::LayoutVector2D& aAppliedOffset);
 
   Maybe<wr::WrSpatialId> GetScrollIdForDefinedScrollLayer(
       layers::ScrollableLayerGuid::ViewID aViewId) const;
   wr::WrSpatialId DefineScrollLayer(
       const layers::ScrollableLayerGuid::ViewID& aViewId,
       const Maybe<wr::WrSpatialId>& aParent, const wr::LayoutRect& aContentRect,
-      const wr::LayoutRect& aClipRect, const wr::LayoutPoint& aScrollOffset,
-      wr::SpatialTreeItemKey aKey);
+      const wr::LayoutRect& aClipRect, const wr::LayoutPoint& aScrollOffset);
 
   void PushRect(const wr::LayoutRect& aBounds, const wr::LayoutRect& aClip,
                 bool aIsBackfaceVisible, const wr::ColorF& aColor);

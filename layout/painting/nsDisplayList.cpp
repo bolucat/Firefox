@@ -2975,34 +2975,6 @@ bool nsDisplayItem::ComputeVisibility(nsDisplayListBuilder* aBuilder,
          !IsInvisibleInRect(aVisibleRegion->GetBounds());
 }
 
-bool nsDisplayItem::RecomputeVisibility(nsDisplayListBuilder* aBuilder,
-                                        nsRegion* aVisibleRegion) {
-  if (ForceNotVisible() && !GetSameCoordinateSystemChildren()) {
-    // mForceNotVisible wants to ensure that this display item doesn't render
-    // anything itself. If this item has contents, then we obviously want to
-    // render those, so we don't need this check in that case.
-    NS_ASSERTION(GetBuildingRect().IsEmpty(),
-                 "invisible items without children should have empty vis rect");
-    SetPaintRect(nsRect());
-  } else {
-    bool snap;
-    nsRect bounds = GetBounds(aBuilder, &snap);
-
-    nsRegion itemVisible;
-    itemVisible.And(*aVisibleRegion, bounds);
-    SetPaintRect(itemVisible.GetBounds());
-  }
-
-  if (!ComputeVisibility(aBuilder, aVisibleRegion)) {
-    SetPaintRect(nsRect());
-    return false;
-  }
-
-  nsRegion opaque = TreatAsOpaque(this, aBuilder);
-  aBuilder->SubtractFromVisibleRegion(aVisibleRegion, opaque);
-  return true;
-}
-
 void nsDisplayItem::SetClipChain(const DisplayItemClipChain* aClipChain,
                                  bool aStore) {
   mClipChain = aClipChain;
@@ -4880,51 +4852,16 @@ nsRect nsDisplayBorder::GetBounds(nsDisplayListBuilder* aBuilder,
   return mBounds;
 }
 
-// Given a region, compute a conservative approximation to it as a list
-// of rectangles that aren't vertically adjacent (i.e., vertically
-// adjacent or overlapping rectangles are combined).
-// Right now this is only approximate, some vertically overlapping rectangles
-// aren't guaranteed to be combined.
-static void ComputeDisjointRectangles(const nsRegion& aRegion,
-                                      nsTArray<nsRect>* aRects) {
-  nscoord accumulationMargin = nsPresContext::CSSPixelsToAppUnits(25);
-  nsRect accumulated;
-
-  for (auto iter = aRegion.RectIter(); !iter.Done(); iter.Next()) {
-    const nsRect& r = iter.Get();
-    if (accumulated.IsEmpty()) {
-      accumulated = r;
-      continue;
-    }
-
-    if (accumulated.YMost() >= r.y - accumulationMargin) {
-      accumulated.UnionRect(accumulated, r);
-    } else {
-      aRects->AppendElement(accumulated);
-      accumulated = r;
-    }
-  }
-
-  // Finish the in-flight rectangle, if there is one.
-  if (!accumulated.IsEmpty()) {
-    aRects->AppendElement(accumulated);
-  }
-}
-
 void nsDisplayBoxShadowOuter::Paint(nsDisplayListBuilder* aBuilder,
                                     gfxContext* aCtx) {
   nsPoint offset = ToReferenceFrame();
   nsRect borderRect = mFrame->VisualBorderRectRelativeToSelf() + offset;
   nsPresContext* presContext = mFrame->PresContext();
-  AutoTArray<nsRect, 10> rects;
-  ComputeDisjointRectangles(mVisibleRegion, &rects);
 
   AUTO_PROFILER_LABEL("nsDisplayBoxShadowOuter::Paint", GRAPHICS);
 
-  for (uint32_t i = 0; i < rects.Length(); ++i) {
-    nsCSSRendering::PaintBoxShadowOuter(presContext, *aCtx, mFrame, borderRect,
-                                        rects[i], mOpacity);
-  }
+  nsCSSRendering::PaintBoxShadowOuter(presContext, *aCtx, mFrame, borderRect,
+                                      GetPaintRect(), mOpacity);
 }
 
 nsRect nsDisplayBoxShadowOuter::GetBounds(nsDisplayListBuilder* aBuilder,
@@ -4956,16 +4893,6 @@ bool nsDisplayBoxShadowOuter::IsInvisibleInRect(const nsRect& aRect) const {
   return RoundedRectContainsRect(frameRect, twipsRadii, aRect);
 }
 
-bool nsDisplayBoxShadowOuter::ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                                                nsRegion* aVisibleRegion) {
-  if (!nsPaintedDisplayItem::ComputeVisibility(aBuilder, aVisibleRegion)) {
-    return false;
-  }
-
-  mVisibleRegion.And(*aVisibleRegion, GetPaintRect());
-  return true;
-}
-
 bool nsDisplayBoxShadowOuter::CanBuildWebRenderDisplayItems() {
   auto shadows = mFrame->StyleEffects()->mBoxShadow.AsSpan();
   if (shadows.IsEmpty()) {
@@ -4993,10 +4920,8 @@ bool nsDisplayBoxShadowOuter::CreateWebRenderCommands(
   int32_t appUnitsPerDevPixel = mFrame->PresContext()->AppUnitsPerDevPixel();
   nsPoint offset = ToReferenceFrame();
   nsRect borderRect = mFrame->VisualBorderRectRelativeToSelf() + offset;
-  AutoTArray<nsRect, 10> rects;
   bool snap;
   nsRect bounds = GetBounds(aDisplayListBuilder, &snap);
-  ComputeDisjointRectangles(bounds, &rects);
 
   bool hasBorderRadius;
   bool nativeTheme =
@@ -5015,55 +4940,53 @@ bool nsDisplayBoxShadowOuter::CreateWebRenderCommands(
   }
 
   // Everything here is in app units, change to device units.
-  for (uint32_t i = 0; i < rects.Length(); ++i) {
-    LayoutDeviceRect clipRect =
-        LayoutDeviceRect::FromAppUnits(rects[i], appUnitsPerDevPixel);
-    auto shadows = mFrame->StyleEffects()->mBoxShadow.AsSpan();
-    MOZ_ASSERT(!shadows.IsEmpty());
+  LayoutDeviceRect clipRect =
+      LayoutDeviceRect::FromAppUnits(bounds, appUnitsPerDevPixel);
+  auto shadows = mFrame->StyleEffects()->mBoxShadow.AsSpan();
+  MOZ_ASSERT(!shadows.IsEmpty());
 
-    for (const auto& shadow : Reversed(shadows)) {
-      if (shadow.inset) {
-        continue;
-      }
-
-      float blurRadius =
-          float(shadow.base.blur.ToAppUnits()) / float(appUnitsPerDevPixel);
-      gfx::sRGBColor shadowColor =
-          nsCSSRendering::GetShadowColor(shadow.base, mFrame, mOpacity);
-
-      // We don't move the shadow rect here since WR does it for us
-      // Now translate everything to device pixels.
-      const nsRect& shadowRect = frameRect;
-      LayoutDevicePoint shadowOffset = LayoutDevicePoint::FromAppUnits(
-          nsPoint(shadow.base.horizontal.ToAppUnits(),
-                  shadow.base.vertical.ToAppUnits()),
-          appUnitsPerDevPixel);
-
-      LayoutDeviceRect deviceBox =
-          LayoutDeviceRect::FromAppUnits(shadowRect, appUnitsPerDevPixel);
-      wr::LayoutRect deviceBoxRect = wr::ToLayoutRect(deviceBox);
-      wr::LayoutRect deviceClipRect = wr::ToLayoutRect(clipRect);
-
-      LayoutDeviceSize zeroSize;
-      wr::BorderRadius borderRadius =
-          wr::ToBorderRadius(zeroSize, zeroSize, zeroSize, zeroSize);
-      if (hasBorderRadius) {
-        borderRadius = wr::ToBorderRadius(
-            LayoutDeviceSize::FromUnknownSize(borderRadii.TopLeft()),
-            LayoutDeviceSize::FromUnknownSize(borderRadii.TopRight()),
-            LayoutDeviceSize::FromUnknownSize(borderRadii.BottomLeft()),
-            LayoutDeviceSize::FromUnknownSize(borderRadii.BottomRight()));
-      }
-
-      float spreadRadius =
-          float(shadow.spread.ToAppUnits()) / float(appUnitsPerDevPixel);
-
-      aBuilder.PushBoxShadow(deviceBoxRect, deviceClipRect, !BackfaceIsHidden(),
-                             deviceBoxRect, wr::ToLayoutVector2D(shadowOffset),
-                             wr::ToColorF(ToDeviceColor(shadowColor)),
-                             blurRadius, spreadRadius, borderRadius,
-                             wr::BoxShadowClipMode::Outset);
+  for (const auto& shadow : Reversed(shadows)) {
+    if (shadow.inset) {
+      continue;
     }
+
+    float blurRadius =
+        float(shadow.base.blur.ToAppUnits()) / float(appUnitsPerDevPixel);
+    gfx::sRGBColor shadowColor =
+        nsCSSRendering::GetShadowColor(shadow.base, mFrame, mOpacity);
+
+    // We don't move the shadow rect here since WR does it for us
+    // Now translate everything to device pixels.
+    const nsRect& shadowRect = frameRect;
+    LayoutDevicePoint shadowOffset = LayoutDevicePoint::FromAppUnits(
+        nsPoint(shadow.base.horizontal.ToAppUnits(),
+                shadow.base.vertical.ToAppUnits()),
+        appUnitsPerDevPixel);
+
+    LayoutDeviceRect deviceBox =
+        LayoutDeviceRect::FromAppUnits(shadowRect, appUnitsPerDevPixel);
+    wr::LayoutRect deviceBoxRect = wr::ToLayoutRect(deviceBox);
+    wr::LayoutRect deviceClipRect = wr::ToLayoutRect(clipRect);
+
+    LayoutDeviceSize zeroSize;
+    wr::BorderRadius borderRadius =
+        wr::ToBorderRadius(zeroSize, zeroSize, zeroSize, zeroSize);
+    if (hasBorderRadius) {
+      borderRadius = wr::ToBorderRadius(
+          LayoutDeviceSize::FromUnknownSize(borderRadii.TopLeft()),
+          LayoutDeviceSize::FromUnknownSize(borderRadii.TopRight()),
+          LayoutDeviceSize::FromUnknownSize(borderRadii.BottomLeft()),
+          LayoutDeviceSize::FromUnknownSize(borderRadii.BottomRight()));
+    }
+
+    float spreadRadius =
+        float(shadow.spread.ToAppUnits()) / float(appUnitsPerDevPixel);
+
+    aBuilder.PushBoxShadow(deviceBoxRect, deviceClipRect, !BackfaceIsHidden(),
+                           deviceBoxRect, wr::ToLayoutVector2D(shadowOffset),
+                           wr::ToColorF(ToDeviceColor(shadowColor)),
+                           blurRadius, spreadRadius, borderRadius,
+                           wr::BoxShadowClipMode::Outset);
   }
 
   return true;
@@ -5099,21 +5022,10 @@ void nsDisplayBoxShadowInner::Paint(nsDisplayListBuilder* aBuilder,
   nsPoint offset = ToReferenceFrame();
   nsRect borderRect = nsRect(offset, mFrame->GetSize());
   nsPresContext* presContext = mFrame->PresContext();
-  AutoTArray<nsRect, 10> rects;
-  ComputeDisjointRectangles(mVisibleRegion, &rects);
 
   AUTO_PROFILER_LABEL("nsDisplayBoxShadowInner::Paint", GRAPHICS);
 
-  DrawTarget* drawTarget = aCtx->GetDrawTarget();
-  gfxContext* gfx = aCtx;
-  int32_t appUnitsPerDevPixel = mFrame->PresContext()->AppUnitsPerDevPixel();
-
-  for (uint32_t i = 0; i < rects.Length(); ++i) {
-    gfx->Save();
-    gfx->Clip(NSRectToSnappedRect(rects[i], appUnitsPerDevPixel, *drawTarget));
-    nsCSSRendering::PaintBoxShadowInner(presContext, *aCtx, mFrame, borderRect);
-    gfx->Restore();
-  }
+  nsCSSRendering::PaintBoxShadowInner(presContext, *aCtx, mFrame, borderRect);
 }
 
 bool nsDisplayBoxShadowInner::CanCreateWebRenderCommands(
@@ -5137,63 +5049,58 @@ bool nsDisplayBoxShadowInner::CanCreateWebRenderCommands(
 /* static */
 void nsDisplayBoxShadowInner::CreateInsetBoxShadowWebRenderCommands(
     wr::DisplayListBuilder& aBuilder, const StackingContextHelper& aSc,
-    nsRegion& aVisibleRegion, nsIFrame* aFrame, const nsRect& aBorderRect) {
+    nsRect& aVisibleRect, nsIFrame* aFrame, const nsRect& aBorderRect) {
   if (!nsCSSRendering::ShouldPaintBoxShadowInner(aFrame)) {
     return;
   }
 
   int32_t appUnitsPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();
 
-  AutoTArray<nsRect, 10> rects;
-  ComputeDisjointRectangles(aVisibleRegion, &rects);
-
   auto shadows = aFrame->StyleEffects()->mBoxShadow.AsSpan();
 
-  for (uint32_t i = 0; i < rects.Length(); ++i) {
-    LayoutDeviceRect clipRect =
-        LayoutDeviceRect::FromAppUnits(rects[i], appUnitsPerDevPixel);
+  LayoutDeviceRect clipRect =
+      LayoutDeviceRect::FromAppUnits(aVisibleRect, appUnitsPerDevPixel);
 
-    for (const auto& shadow : Reversed(shadows)) {
-      if (!shadow.inset) {
-        continue;
-      }
-
-      nsRect shadowRect =
-          nsCSSRendering::GetBoxShadowInnerPaddingRect(aFrame, aBorderRect);
-      RectCornerRadii innerRadii;
-      nsCSSRendering::GetShadowInnerRadii(aFrame, aBorderRect, innerRadii);
-
-      // Now translate everything to device pixels.
-      LayoutDeviceRect deviceBoxRect =
-          LayoutDeviceRect::FromAppUnits(shadowRect, appUnitsPerDevPixel);
-      wr::LayoutRect deviceClipRect = wr::ToLayoutRect(clipRect);
-      sRGBColor shadowColor =
-          nsCSSRendering::GetShadowColor(shadow.base, aFrame, 1.0);
-
-      LayoutDevicePoint shadowOffset = LayoutDevicePoint::FromAppUnits(
-          nsPoint(shadow.base.horizontal.ToAppUnits(),
-                  shadow.base.vertical.ToAppUnits()),
-          appUnitsPerDevPixel);
-
-      float blurRadius =
-          float(shadow.base.blur.ToAppUnits()) / float(appUnitsPerDevPixel);
-
-      wr::BorderRadius borderRadius = wr::ToBorderRadius(
-          LayoutDeviceSize::FromUnknownSize(innerRadii.TopLeft()),
-          LayoutDeviceSize::FromUnknownSize(innerRadii.TopRight()),
-          LayoutDeviceSize::FromUnknownSize(innerRadii.BottomLeft()),
-          LayoutDeviceSize::FromUnknownSize(innerRadii.BottomRight()));
-      // NOTE: Any spread radius > 0 will render nothing. WR Bug.
-      float spreadRadius =
-          float(shadow.spread.ToAppUnits()) / float(appUnitsPerDevPixel);
-
-      aBuilder.PushBoxShadow(
-          wr::ToLayoutRect(deviceBoxRect), deviceClipRect,
-          !aFrame->BackfaceIsHidden(), wr::ToLayoutRect(deviceBoxRect),
-          wr::ToLayoutVector2D(shadowOffset),
-          wr::ToColorF(ToDeviceColor(shadowColor)), blurRadius, spreadRadius,
-          borderRadius, wr::BoxShadowClipMode::Inset);
+  for (const auto& shadow : Reversed(shadows)) {
+    if (!shadow.inset) {
+      continue;
     }
+
+    nsRect shadowRect =
+        nsCSSRendering::GetBoxShadowInnerPaddingRect(aFrame, aBorderRect);
+    RectCornerRadii innerRadii;
+    nsCSSRendering::GetShadowInnerRadii(aFrame, aBorderRect, innerRadii);
+
+    // Now translate everything to device pixels.
+    LayoutDeviceRect deviceBoxRect =
+        LayoutDeviceRect::FromAppUnits(shadowRect, appUnitsPerDevPixel);
+    wr::LayoutRect deviceClipRect = wr::ToLayoutRect(clipRect);
+    sRGBColor shadowColor =
+        nsCSSRendering::GetShadowColor(shadow.base, aFrame, 1.0);
+
+    LayoutDevicePoint shadowOffset = LayoutDevicePoint::FromAppUnits(
+        nsPoint(shadow.base.horizontal.ToAppUnits(),
+                shadow.base.vertical.ToAppUnits()),
+        appUnitsPerDevPixel);
+
+    float blurRadius =
+        float(shadow.base.blur.ToAppUnits()) / float(appUnitsPerDevPixel);
+
+    wr::BorderRadius borderRadius = wr::ToBorderRadius(
+        LayoutDeviceSize::FromUnknownSize(innerRadii.TopLeft()),
+        LayoutDeviceSize::FromUnknownSize(innerRadii.TopRight()),
+        LayoutDeviceSize::FromUnknownSize(innerRadii.BottomLeft()),
+        LayoutDeviceSize::FromUnknownSize(innerRadii.BottomRight()));
+    // NOTE: Any spread radius > 0 will render nothing. WR Bug.
+    float spreadRadius =
+        float(shadow.spread.ToAppUnits()) / float(appUnitsPerDevPixel);
+
+    aBuilder.PushBoxShadow(
+        wr::ToLayoutRect(deviceBoxRect), deviceClipRect,
+        !aFrame->BackfaceIsHidden(), wr::ToLayoutRect(deviceBoxRect),
+        wr::ToLayoutVector2D(shadowOffset),
+        wr::ToColorF(ToDeviceColor(shadowColor)), blurRadius, spreadRadius,
+        borderRadius, wr::BoxShadowClipMode::Inset);
   }
 }
 
@@ -5207,22 +5114,12 @@ bool nsDisplayBoxShadowInner::CreateWebRenderCommands(
   }
 
   bool snap;
-  nsRegion visible = GetBounds(aDisplayListBuilder, &snap);
+  nsRect visible = GetBounds(aDisplayListBuilder, &snap);
   nsPoint offset = ToReferenceFrame();
   nsRect borderRect = nsRect(offset, mFrame->GetSize());
   nsDisplayBoxShadowInner::CreateInsetBoxShadowWebRenderCommands(
       aBuilder, aSc, visible, mFrame, borderRect);
 
-  return true;
-}
-
-bool nsDisplayBoxShadowInner::ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                                                nsRegion* aVisibleRegion) {
-  if (!nsPaintedDisplayItem::ComputeVisibility(aBuilder, aVisibleRegion)) {
-    return false;
-  }
-
-  mVisibleRegion.And(*aVisibleRegion, GetPaintRect());
   return true;
 }
 
@@ -6010,8 +5907,6 @@ bool nsDisplayOwnLayer::CreateWebRenderCommands(
 
     prop.emplace();
     prop->id = mWrAnimationId;
-    prop->key = wr::SpatialKey(uint64_t(mFrame), GetPerFrameKey(),
-                               wr::SpatialKeyKind::APZ);
     prop->effect_type = wr::WrAnimationType::Transform;
   }
 
@@ -6598,9 +6493,7 @@ bool nsDisplayStickyPosition::CreateWebRenderCommands(
     wr::WrSpatialId spatialId = aBuilder.DefineStickyFrame(
         wr::ToLayoutRect(bounds), topMargin.ptrOr(nullptr),
         rightMargin.ptrOr(nullptr), bottomMargin.ptrOr(nullptr),
-        leftMargin.ptrOr(nullptr), vBounds, hBounds, applied,
-        wr::SpatialKey(uint64_t(mFrame), GetPerFrameKey(),
-                       wr::SpatialKeyKind::Sticky));
+        leftMargin.ptrOr(nullptr), vBounds, hBounds, applied);
 
     saccHelper.emplace(aBuilder, spatialId);
     aManager->CommandBuilder().PushOverrideForASR(mContainerASR, spatialId);
@@ -7546,9 +7439,6 @@ bool nsDisplayTransform::CreateWebRenderCommands(
     }
   }
 
-  auto key = wr::SpatialKey(uint64_t(mFrame), GetPerFrameKey(),
-                            wr::SpatialKeyKind::Transform);
-
   // We don't send animations for transform separator display items.
   uint64_t animationsId =
       mIsTransformSeparator
@@ -7556,8 +7446,10 @@ bool nsDisplayTransform::CreateWebRenderCommands(
           : AddAnimationsForWebRender(
                 this, aManager, aDisplayListBuilder,
                 IsPartialPrerender() ? Some(position) : Nothing());
-  wr::WrAnimationProperty prop{wr::WrAnimationType::Transform, animationsId,
-                               key};
+  wr::WrAnimationProperty prop{
+      wr::WrAnimationType::Transform,
+      animationsId,
+  };
 
   nsDisplayTransform* deferredTransformItem = nullptr;
   if (!mFrame->ChildrenHavePerspective()) {
@@ -7576,16 +7468,7 @@ bool nsDisplayTransform::CreateWebRenderCommands(
   wr::StackingContextParams params;
   params.mBoundTransform = &newTransformMatrix;
   params.animation = animationsId ? &prop : nullptr;
-
-  wr::WrTransformInfo transform_info;
-  if (transformForSC) {
-    transform_info.transform = wr::ToLayoutTransform(newTransformMatrix);
-    transform_info.key = key;
-    params.mTransformPtr = &transform_info;
-  } else {
-    params.mTransformPtr = nullptr;
-  }
-
+  params.mTransformPtr = transformForSC;
   params.prim_flags = !BackfaceIsHidden()
                           ? wr::PrimitiveFlags::IS_BACKFACE_VISIBLE
                           : wr::PrimitiveFlags{0};
@@ -8325,13 +8208,7 @@ bool nsDisplayPerspective::CreateWebRenderCommands(
       mFrame->Extend3DContext() || perspectiveFrame->Extend3DContext();
 
   wr::StackingContextParams params;
-
-  wr::WrTransformInfo transform_info;
-  transform_info.transform = wr::ToLayoutTransform(perspectiveMatrix);
-  transform_info.key = wr::SpatialKey(uint64_t(mFrame), GetPerFrameKey(),
-                                      wr::SpatialKeyKind::Perspective);
-  params.mTransformPtr = &transform_info;
-
+  params.mTransformPtr = &perspectiveMatrix;
   params.reference_frame_kind = wr::WrReferenceFrameKind::Perspective;
   params.prim_flags = !BackfaceIsHidden()
                           ? wr::PrimitiveFlags::IS_BACKFACE_VISIBLE

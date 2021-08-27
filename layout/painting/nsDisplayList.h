@@ -2854,16 +2854,6 @@ class nsDisplayItem : public nsDisplayItemLink {
   nsDisplayItem* GetAbove() { return mAbove; }
 
   /**
-   * Like ComputeVisibility, but does the work that nsDisplayList
-   * does per-item:
-   * -- Intersects GetBounds with aVisibleRegion and puts the result
-   * in mVisibleRect
-   * -- Subtracts bounds from aVisibleRegion if the item is opaque
-   */
-  bool RecomputeVisibility(nsDisplayListBuilder* aBuilder,
-                           nsRegion* aVisibleRegion);
-
-  /**
    * Returns the result of aBuilder->ToReferenceFrame(GetUnderlyingFrame())
    */
   const nsPoint& ToReferenceFrame() const {
@@ -4865,12 +4855,10 @@ class nsDisplayBoxShadowOuter final : public nsPaintedDisplayItem {
   NS_DISPLAY_DECL_NAME("BoxShadowOuter", TYPE_BOX_SHADOW_OUTER)
 
   bool RestoreState() override {
-    if (!nsPaintedDisplayItem::RestoreState() && mOpacity == 1.0f &&
-        mVisibleRegion.IsEmpty()) {
+    if (!nsPaintedDisplayItem::RestoreState() && mOpacity == 1.0f) {
       return false;
     }
 
-    mVisibleRegion.SetEmpty();
     mOpacity = 1.0f;
     return true;
   }
@@ -4878,8 +4866,6 @@ class nsDisplayBoxShadowOuter final : public nsPaintedDisplayItem {
   void Paint(nsDisplayListBuilder* aBuilder, gfxContext* aCtx) override;
   nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) const override;
   bool IsInvisibleInRect(const nsRect& aRect) const override;
-  bool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                         nsRegion* aVisibleRegion) override;
   void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
                                  const nsDisplayItemGeometry* aGeometry,
                                  nsRegion* aInvalidRegion) const override;
@@ -4907,7 +4893,6 @@ class nsDisplayBoxShadowOuter final : public nsPaintedDisplayItem {
   nsRect GetBoundsInternal();
 
  private:
-  nsRegion mVisibleRegion;
   nsRect mBounds;
   float mOpacity;
 };
@@ -4926,18 +4911,7 @@ class nsDisplayBoxShadowInner : public nsPaintedDisplayItem {
 
   NS_DISPLAY_DECL_NAME("BoxShadowInner", TYPE_BOX_SHADOW_INNER)
 
-  bool RestoreState() override {
-    if (!nsPaintedDisplayItem::RestoreState() && mVisibleRegion.IsEmpty()) {
-      return false;
-    }
-
-    mVisibleRegion.SetEmpty();
-    return true;
-  }
-
   void Paint(nsDisplayListBuilder* aBuilder, gfxContext* aCtx) override;
-  bool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                         nsRegion* aVisibleRegion) override;
 
   nsDisplayItemGeometry* AllocateGeometry(
       nsDisplayListBuilder* aBuilder) override {
@@ -4962,15 +4936,13 @@ class nsDisplayBoxShadowInner : public nsPaintedDisplayItem {
                                          const nsPoint& aReferenceOffset);
   static void CreateInsetBoxShadowWebRenderCommands(
       wr::DisplayListBuilder& aBuilder, const StackingContextHelper& aSc,
-      nsRegion& aVisibleRegion, nsIFrame* aFrame, const nsRect& aBorderRect);
+      nsRect& aVisibleRect, nsIFrame* aFrame, const nsRect& aBorderRect);
   bool CreateWebRenderCommands(
       wr::DisplayListBuilder& aBuilder, wr::IpcResourceUpdateQueue& aResources,
       const StackingContextHelper& aSc,
       layers::RenderRootStateManager* aManager,
       nsDisplayListBuilder* aDisplayListBuilder) override;
 
- private:
-  nsRegion mVisibleRegion;
 };
 
 /**

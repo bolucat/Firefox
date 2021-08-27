@@ -816,7 +816,7 @@ JSFunction* GlobalObject::createConstructor(JSContext* cx, Native ctor,
 
 static NativeObject* CreateBlankProto(JSContext* cx, const JSClass* clasp,
                                       HandleObject proto) {
-  MOZ_ASSERT(clasp != &JSFunction::class_);
+  MOZ_ASSERT(!clasp->isJSFunction());
 
   if (clasp == &PlainObject::class_) {
     return NewPlainObjectWithProto(cx, proto, TenuredObject);
@@ -989,7 +989,7 @@ bool GlobalObject::getSelfHostedFunction(JSContext* cx,
       // function. In that case, we need to change the function's name,
       // which is ok because it can't have been exposed to content
       // before.
-      fun->initAtom(name);
+      fun->setAtom(name);
       return true;
     }
 
