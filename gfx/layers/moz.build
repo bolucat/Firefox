@@ -12,7 +12,6 @@ with Files("apz/**"):
 
 EXPORTS += [
     "composite/CompositableHost.h",
-    "composite/ImageHost.h",
     "CompositorTypes.h",
     "D3D9SurfaceImage.h",
     "FrameMetrics.h",
@@ -25,7 +24,6 @@ EXPORTS += [
     "Layers.h",
     "LayerScope.h",
     "LayersTypes.h",
-    "LayerTreeInvalidation.h",
     "LayerUserData.h",
     "opengl/OGLShaderConfig.h",
     "opengl/OGLShaderProgram.h",
@@ -116,9 +114,6 @@ EXPORTS.mozilla.layers += [
     "AtomicRefCountedWithFinalize.h",
     "AxisPhysicsModel.h",
     "AxisPhysicsMSDModel.h",
-    "basic/BasicCompositor.h",
-    "basic/MacIOSurfaceTextureHostBasic.h",
-    "basic/TextureHostBasic.h",
     "BSPTree.h",
     "BufferTexture.h",
     "BuildConstants.h",
@@ -134,13 +129,11 @@ EXPORTS.mozilla.layers += [
     "client/TextureClientRecycleAllocator.h",
     "client/TextureClientSharedSurface.h",
     "client/TextureRecorded.h",
-    "composite/ContentHost.h",
     "composite/Diagnostics.h",
     "composite/FPSCounter.h",
     "composite/FrameUniformityData.h",
     "composite/GPUVideoTextureHost.h",
     "composite/ImageComposite.h",
-    "composite/ImageHost.h",
     "composite/TextRenderer.h",
     "composite/TextureHost.h",
     "CompositionRecorder.h",
@@ -251,14 +244,12 @@ EXPORTS.mozilla.layers += [
 if CONFIG["MOZ_X11"]:
     EXPORTS.mozilla.layers += [
         "basic/TextureClientX11.h",
-        "basic/X11TextureSourceBasic.h",
         "composite/X11TextureHost.h",
         "ipc/ShadowLayerUtilsX11.h",
         "opengl/X11TextureSourceOGL.h",
     ]
     SOURCES += [
         "basic/TextureClientX11.cpp",
-        "basic/X11TextureSourceBasic.cpp",
         "composite/X11TextureHost.cpp",
         "ipc/ShadowLayerUtilsX11.cpp",
         "opengl/X11TextureSourceOGL.cpp",
@@ -366,8 +357,6 @@ UNIFIED_SOURCES += [
     "apz/util/TouchCounter.cpp",
     "AxisPhysicsModel.cpp",
     "AxisPhysicsMSDModel.cpp",
-    "basic/BasicLayersImpl.cpp",
-    "basic/TextureHostBasic.cpp",
     "BSPTree.cpp",
     "BufferTexture.cpp",
     "CanvasDrawEventRecorder.cpp",
@@ -381,13 +370,11 @@ UNIFIED_SOURCES += [
     "client/TextureClientSharedSurface.cpp",
     "client/TextureRecorded.cpp",
     "composite/CompositableHost.cpp",
-    "composite/ContentHost.cpp",
     "composite/Diagnostics.cpp",
     "composite/FPSCounter.cpp",
     "composite/FrameUniformityData.cpp",
     "composite/GPUVideoTextureHost.cpp",
     "composite/ImageComposite.cpp",
-    "composite/ImageHost.cpp",
     "composite/TextRenderer.cpp",
     "composite/TextureHost.cpp",
     "CompositionRecorder.cpp",
@@ -438,7 +425,6 @@ UNIFIED_SOURCES += [
     "LayerScope.cpp",
     "LayersHelpers.cpp",
     "LayersTypes.cpp",
-    "LayerTreeInvalidation.cpp",
     "MemoryPressureObserver.cpp",
     "opengl/CompositingRenderTargetOGL.cpp",
     "opengl/CompositorOGL.cpp",
@@ -483,7 +469,6 @@ UNIFIED_SOURCES += [
 ]
 
 SOURCES += [
-    "basic/BasicCompositor.cpp",
     "client/TextureClient.cpp",
     "ImageContainer.cpp",
     "PersistentBufferProvider.cpp",
@@ -497,7 +482,6 @@ DEFINES["MOZ_APP_VERSION"] = CONFIG["MOZ_APP_VERSION"]
 
 if CONFIG["MOZ_WIDGET_TOOLKIT"] == "cocoa":
     SOURCES += [
-        "basic/MacIOSurfaceTextureHostBasic.cpp",
         "opengl/MacIOSurfaceTextureClientOGL.cpp",
         "opengl/MacIOSurfaceTextureHostOGL.cpp",
     ]
