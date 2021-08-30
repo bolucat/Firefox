@@ -937,10 +937,11 @@ nsresult nsHtml5StreamParser::SniffStreamBytes(
     return SetupDecodingAndWriteSniffingBufferAndCurrentSegment(aFromSegment);
   }
 
-  MOZ_ASSERT(!(mBomState == BOM_SNIFFING_OVER && mChannelHadCharset &&
-               !mForceAutoDetection),
-             "How come we're running post-BOM sniffing with channel charset unless "
-             "we're also processing forced detection?");
+  MOZ_ASSERT(
+      !(mBomState == BOM_SNIFFING_OVER && mChannelHadCharset &&
+        !mForceAutoDetection),
+      "How come we're running post-BOM sniffing with channel charset unless "
+      "we're also processing forced detection?");
 
   if (!mMetaScanner &&
       (mMode == NORMAL || mMode == VIEW_SOURCE_HTML || mMode == LOAD_AS_DATA)) {

@@ -421,6 +421,9 @@ void AsyncImagePipelineManager::ApplyAsyncImageForPipeline(
       float(aPipeline->mCurrentTexture->GetSize().width),
       float(aPipeline->mCurrentTexture->GetSize().height)};
   computedTransform.rotation = ToWrRotation(aPipeline->mRotation);
+  // We don't have a frame / per-frame key here, but we can use the pipeline id and
+  // the key kind to create a unique stable key.
+  computedTransform.key = wr::SpatialKey(aPipelineId.mNamespace, aPipelineId.mHandle, wr::SpatialKeyKind::APZ);
   params.computed_transform = &computedTransform;
 
   Maybe<wr::WrSpatialId> referenceFrameId = builder.PushStackingContext(
@@ -465,7 +468,7 @@ void AsyncImagePipelineManager::ApplyAsyncImageForPipeline(
   aSceneBuilderTxn.SetDisplayList(gfx::DeviceColor(0.f, 0.f, 0.f, 0.f), aEpoch,
                                   wr::ToLayoutSize(aPipeline->mScBounds.Size()),
                                   aPipelineId, dl.dl_desc, dl.dl_items,
-                                  dl.dl_cache);
+                                  dl.dl_cache, dl.dl_spatial_tree);
 }
 
 void AsyncImagePipelineManager::ApplyAsyncImageForPipeline(
@@ -520,7 +523,7 @@ void AsyncImagePipelineManager::SetEmptyDisplayList(
   builder.Finalize(dl);
   txn.SetDisplayList(gfx::DeviceColor(0.f, 0.f, 0.f, 0.f), epoch,
                      wr::ToLayoutSize(pipeline->mScBounds.Size()), aPipelineId,
-                     dl.dl_desc, dl.dl_items, dl.dl_cache);
+                     dl.dl_desc, dl.dl_items, dl.dl_cache, dl.dl_spatial_tree);
 }
 
 void AsyncImagePipelineManager::HoldExternalImage(
