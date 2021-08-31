@@ -43,7 +43,6 @@
 #include "mozilla/dom/HTMLFormElement.h"
 #include "mozilla/dom/HTMLAnchorElement.h"
 #include "nsIContent.h"
-#include "nsIForm.h"
 #include "nsIFormControl.h"
 
 #include "nsDeckFrame.h"
@@ -2061,9 +2060,7 @@ Relation LocalAccessible::RelationByType(RelationType aType) const {
         nsCOMPtr<nsIFormControl> control(do_QueryInterface(mContent));
         if (control) {
           if (dom::HTMLFormElement* form = control->GetForm()) {
-            nsCOMPtr<nsIContent> formContent =
-                do_QueryInterface(form->GetDefaultSubmitElement());
-            return Relation(mDoc, formContent);
+            return Relation(mDoc, form->GetDefaultSubmitElement());
           }
         }
       } else {

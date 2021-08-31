@@ -12,20 +12,24 @@
 #include "mozilla/Result.h"
 #include "mozilla/ResultVariant.h"
 #include "mozilla/Vector.h"
+#include "mozilla/intl/ICUError.h"
 
 namespace mozilla::intl {
 
-enum class ICUError : uint8_t {
-  OutOfMemory,
-  InternalError,
-};
-
-/**
- * Error type when a method call can only result in an internal ICU error.
- */
-struct InternalError {};
+static inline const char* IcuLocale(const char* aLocale) {
+  const char* locale = aLocale;
+  if (!strncmp(locale, "und", 3)) {
+    locale = "";
+  }
+  return locale;
+}
 
 using ICUResult = Result<Ok, ICUError>;
+
+/**
+ * Convert a UErrorCode to ICUResult.
+ */
+ICUError ToICUError(UErrorCode status);
 
 /**
  * Convert a UErrorCode to ICUResult.

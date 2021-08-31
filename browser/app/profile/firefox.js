@@ -363,7 +363,7 @@ pref("browser.urlbar.suggest.openpage",             true);
 pref("browser.urlbar.suggest.searches",             true);
 pref("browser.urlbar.suggest.topsites",             true);
 pref("browser.urlbar.suggest.engines",              true);
-pref("browser.urlbar.suggest.quicksuggest",         true);
+pref("browser.urlbar.suggest.quicksuggest",         false);
 pref("browser.urlbar.suggest.calculator",           false);
 
 // Whether the QuickSuggest experiment is enabled.
@@ -373,12 +373,15 @@ pref("browser.urlbar.quicksuggest.enabled", false);
 pref("browser.urlbar.quicksuggest.shouldShowOnboardingDialog", true);
 
 // Show QuickSuggest onboarding dialog on the nth browser restarts.
-pref("browser.urlbar.quicksuggest.showOnboardingDialogAfterNRestarts", 2);
+pref("browser.urlbar.quicksuggest.showOnboardingDialogAfterNRestarts", 0);
 
 // The indexes of the sponsored and non-sponsored quick suggest results within
 // the general results group.
 pref("browser.urlbar.quicksuggest.sponsoredIndex", -1);
 pref("browser.urlbar.quicksuggest.nonSponsoredIndex", -1);
+
+// Whether Remote Settings is enabled as a quick suggest source.
+pref("browser.urlbar.quicksuggest.remoteSettings.enabled", true);
 
 // Whether unit conversion is enabled.
 #ifdef NIGHTLY_BUILD
@@ -448,6 +451,12 @@ pref("browser.urlbar.keepPanelOpenDuringImeComposition", false);
 
 // Whether Firefox Suggest group labels are shown in the urlbar view.
 pref("browser.urlbar.groupLabels.enabled", true);
+
+// Whether Merino is enabled as a quick suggest source in the urlbar.
+pref("browser.urlbar.merino.enabled", false);
+
+// The Merino endpoint URL, not including parameters.
+pref("browser.urlbar.merino.endpointURL", "https://merino.services.mozilla.com/api/v1/suggest");
 
 pref("browser.altClickSave", false);
 

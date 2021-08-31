@@ -15,6 +15,8 @@
 #include "mozilla/ResultVariant.h"
 #include "mozilla/Utf8.h"
 #include "mozilla/Vector.h"
+#include "mozilla/intl/ICUError.h"
+#include "mozilla/intl/NumberFormatFields.h"
 
 #include "unicode/ustring.h"
 #include "unicode/unum.h"
@@ -185,44 +187,6 @@ struct MOZ_STACK_CLASS NumberFormatOptions {
   } mRoundingPriority = RoundingPriority::Auto;
 };
 
-enum class NumberPartType : int16_t {
-  ApproximatelySign,
-  Compact,
-  Currency,
-  Decimal,
-  ExponentInteger,
-  ExponentMinusSign,
-  ExponentSeparator,
-  Fraction,
-  Group,
-  Infinity,
-  Integer,
-  Literal,
-  MinusSign,
-  Nan,
-  Percent,
-  PlusSign,
-  Unit,
-};
-
-enum class NumberPartSource : int16_t { Shared, Start, End };
-
-// Because parts fully partition the formatted string, we only track the
-// index of the end of each part -- the beginning is implicitly the last
-// part's end.
-struct NumberPart {
-  NumberPartType type;
-  NumberPartSource source;
-  size_t endIndex;
-
-  bool operator==(const NumberPart& rhs) const {
-    return type == rhs.type && source == rhs.source && endIndex == rhs.endIndex;
-  }
-  bool operator!=(const NumberPart& rhs) const { return !(*this == rhs); }
-};
-
-using NumberPartVector = mozilla::Vector<NumberPart, 8>;
-
 /**
  * According to http://userguide.icu-project.org/design, as long as we constrain
  * ourselves to const APIs ICU is const-correct.
@@ -236,18 +200,13 @@ using NumberPartVector = mozilla::Vector<NumberPart, 8>;
  */
 class NumberFormat final {
  public:
-  enum class FormatError {
-    InternalError,
-    OutOfMemory,
-  };
-
   /**
    * Initialize a new NumberFormat for the provided locale and using the
    * provided options.
    *
    * https://tc39.es/ecma402/#sec-initializenumberformat
    */
-  static Result<UniquePtr<NumberFormat>, NumberFormat::FormatError> TryCreate(
+  static Result<UniquePtr<NumberFormat>, ICUError> TryCreate(
       std::string_view aLocale, const NumberFormatOptions& aOptions);
 
   NumberFormat() = default;
@@ -262,10 +221,9 @@ class NumberFormat final {
    *
    * https://tc39.es/ecma402/#sec-formatnumberstring
    */
-  Result<std::u16string_view, NumberFormat::FormatError> format(
-      double number) const {
+  Result<std::u16string_view, ICUError> format(double number) const {
     if (!formatInternal(number)) {
-      return Err(FormatError::InternalError);
+      return Err(ICUError::InternalError);
     }
 
     return formatResult();
@@ -276,17 +234,24 @@ class NumberFormat final {
    * The string view is valid until another number is formatted. Accessing the
    * string view after this event is undefined behavior.
    *
+   * This is utf-16 only because the only current use case is in
+   * SpiderMonkey. Supporting utf-8 would require recalculating the offsets
+   * in NumberPartVector from fixed width to variable width, which might be
+   * tricky to get right and is work that won't be necessary if we switch to
+   * ICU4X (see Bug 1707035).
+   *
    * https://tc39.es/ecma402/#sec-partitionnumberpattern
    */
-  Result<std::u16string_view, NumberFormat::FormatError> formatToParts(
+  Result<std::u16string_view, ICUError> formatToParts(
       double number, NumberPartVector& parts) const {
     if (!formatInternal(number)) {
-      return Err(FormatError::InternalError);
+      return Err(ICUError::InternalError);
     }
 
     bool isNegative = !IsNaN(number) && IsNegative(number);
 
-    return formatResultToParts(Some(number), isNegative, parts);
+    return FormatResultToParts(mFormattedNumber, Some(number), isNegative,
+                               mFormatForUnit, parts);
   }
 
   /**
@@ -295,9 +260,9 @@ class NumberFormat final {
    * https://tc39.es/ecma402/#sec-formatnumberstring
    */
   template <typename B>
-  Result<Ok, NumberFormat::FormatError> format(double number, B& buffer) const {
+  Result<Ok, ICUError> format(double number, B& buffer) const {
     if (!formatInternal(number)) {
-      return Err(FormatError::InternalError);
+      return Err(ICUError::InternalError);
     }
 
     return formatResult<typename B::CharType, B>(buffer);
@@ -310,10 +275,9 @@ class NumberFormat final {
    *
    * https://tc39.es/ecma402/#sec-formatnumberstring
    */
-  Result<std::u16string_view, NumberFormat::FormatError> format(
-      int64_t number) const {
+  Result<std::u16string_view, ICUError> format(int64_t number) const {
     if (!formatInternal(number)) {
-      return Err(FormatError::InternalError);
+      return Err(ICUError::InternalError);
     }
 
     return formatResult();
@@ -324,15 +288,22 @@ class NumberFormat final {
    * The string view is valid until another number is formatted. Accessing the
    * string view after this event is undefined behavior.
    *
+   * This is utf-16 only because the only current use case is in
+   * SpiderMonkey. Supporting utf-8 would require recalculating the offsets
+   * in NumberPartVector from fixed width to variable width, which might be
+   * tricky to get right and is work that won't be necessary if we switch to
+   * ICU4X (see Bug 1707035).
+   *
    * https://tc39.es/ecma402/#sec-partitionnumberpattern
    */
-  Result<std::u16string_view, NumberFormat::FormatError> formatToParts(
+  Result<std::u16string_view, ICUError> formatToParts(
       int64_t number, NumberPartVector& parts) const {
     if (!formatInternal(number)) {
-      return Err(FormatError::InternalError);
+      return Err(ICUError::InternalError);
     }
 
-    return formatResultToParts(Nothing(), number < 0, parts);
+    return FormatResultToParts(mFormattedNumber, Nothing(), number < 0,
+                               mFormatForUnit, parts);
   }
 
   /**
@@ -341,10 +312,9 @@ class NumberFormat final {
    * https://tc39.es/ecma402/#sec-formatnumberstring
    */
   template <typename B>
-  Result<Ok, NumberFormat::FormatError> format(int64_t number,
-                                               B& buffer) const {
+  Result<Ok, ICUError> format(int64_t number, B& buffer) const {
     if (!formatInternal(number)) {
-      return Err(FormatError::InternalError);
+      return Err(ICUError::InternalError);
     }
 
     return formatResult<typename B::CharType, B>(buffer);
@@ -357,10 +327,9 @@ class NumberFormat final {
    *
    * https://tc39.es/ecma402/#sec-formatnumberstring
    */
-  Result<std::u16string_view, NumberFormat::FormatError> format(
-      std::string_view number) const {
+  Result<std::u16string_view, ICUError> format(std::string_view number) const {
     if (!formatInternal(number)) {
-      return Err(FormatError::InternalError);
+      return Err(ICUError::InternalError);
     }
 
     return formatResult();
@@ -372,12 +341,18 @@ class NumberFormat final {
    * formatted. Accessing the string view after this event is undefined
    * behavior.
    *
+   * This is utf-16 only because the only current use case is in
+   * SpiderMonkey. Supporting utf-8 would require recalculating the offsets
+   * in NumberPartVector from fixed width to variable width, which might be
+   * tricky to get right and is work that won't be necessary if we switch to
+   * ICU4X (see Bug 1707035).
+   *
    * https://tc39.es/ecma402/#sec-partitionnumberpattern
    */
-  Result<std::u16string_view, NumberFormat::FormatError> formatToParts(
+  Result<std::u16string_view, ICUError> formatToParts(
       std::string_view number, NumberPartVector& parts) const {
     if (!formatInternal(number)) {
-      return Err(FormatError::InternalError);
+      return Err(ICUError::InternalError);
     }
 
     // Non-finite numbers aren't currently supported here. If we ever need to
@@ -389,7 +364,8 @@ class NumberFormat final {
 
     bool isNegative = !number.empty() && number[0] == '-';
 
-    return formatResultToParts(Nothing(), isNegative, parts);
+    return FormatResultToParts(mFormattedNumber, Nothing(), isNegative,
+                               mFormatForUnit, parts);
   }
 
   /**
@@ -399,10 +375,9 @@ class NumberFormat final {
    * https://tc39.es/ecma402/#sec-formatnumberstring
    */
   template <typename B>
-  Result<Ok, NumberFormat::FormatError> format(std::string_view number,
-                                               B& buffer) const {
+  Result<Ok, ICUError> format(std::string_view number, B& buffer) const {
     if (!formatInternal(number)) {
-      return Err(FormatError::InternalError);
+      return Err(ICUError::InternalError);
     }
 
     return formatResult<typename B::CharType, B>(buffer);
@@ -421,53 +396,50 @@ class NumberFormat final {
    * functionality should be removed from NumberFormat and invoked
    * solely from PluralRules.
    */
-  Result<int32_t, NumberFormat::FormatError> selectFormatted(
-      double number, char16_t* keyword, int32_t keywordSize,
-      UPluralRules* pluralRules) const;
+  Result<int32_t, ICUError> selectFormatted(double number, char16_t* keyword,
+                                            int32_t keywordSize,
+                                            UPluralRules* pluralRules) const;
 
  private:
   UNumberFormatter* mNumberFormatter = nullptr;
   UFormattedNumber* mFormattedNumber = nullptr;
   bool mFormatForUnit = false;
 
-  Result<Ok, NumberFormat::FormatError> initialize(
-      std::string_view aLocale, const NumberFormatOptions& aOptions);
+  Result<Ok, ICUError> initialize(std::string_view aLocale,
+                                  const NumberFormatOptions& aOptions);
 
   [[nodiscard]] bool formatInternal(double number) const;
   [[nodiscard]] bool formatInternal(int64_t number) const;
   [[nodiscard]] bool formatInternal(std::string_view number) const;
 
-  Result<std::u16string_view, NumberFormat::FormatError> formatResult() const;
-  Result<std::u16string_view, NumberFormat::FormatError> formatResultToParts(
-      const Maybe<double> number, bool isNegative,
-      NumberPartVector& parts) const;
+  Result<std::u16string_view, ICUError> formatResult() const;
 
   template <typename C, typename B>
-  Result<Ok, NumberFormat::FormatError> formatResult(B& buffer) const {
+  Result<Ok, ICUError> formatResult(B& buffer) const {
     // We only support buffers with char or char16_t.
     static_assert(std::is_same<C, char>::value ||
                   std::is_same<C, char16_t>::value);
 
-    return formatResult().andThen([&buffer](std::u16string_view result)
-                                      -> Result<Ok, NumberFormat::FormatError> {
-      if constexpr (std::is_same<C, char>::value) {
-        if (!FillUTF8Buffer(Span(result.data(), result.size()), buffer)) {
-          return Err(FormatError::OutOfMemory);
-        }
-        return Ok();
-      } else {
-        // ICU provides APIs which accept a buffer, but they just copy from an
-        // internal buffer behind the scenes anyway.
-        if (!buffer.reserve(result.size())) {
-          return Err(FormatError::OutOfMemory);
-        }
-        PodCopy(static_cast<char16_t*>(buffer.data()), result.data(),
-                result.size());
-        buffer.written(result.size());
+    return formatResult().andThen(
+        [&buffer](std::u16string_view result) -> Result<Ok, ICUError> {
+          if constexpr (std::is_same<C, char>::value) {
+            if (!FillUTF8Buffer(Span(result.data(), result.size()), buffer)) {
+              return Err(ICUError::OutOfMemory);
+            }
+            return Ok();
+          } else {
+            // ICU provides APIs which accept a buffer, but they just copy from
+            // an internal buffer behind the scenes anyway.
+            if (!buffer.reserve(result.size())) {
+              return Err(ICUError::OutOfMemory);
+            }
+            PodCopy(static_cast<char16_t*>(buffer.data()), result.data(),
+                    result.size());
+            buffer.written(result.size());
 
-        return Ok();
-      }
-    });
+            return Ok();
+          }
+        });
   }
 };
 

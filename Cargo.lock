@@ -758,7 +758,7 @@ dependencies = [
 [[package]]
 name = "coreaudio-sys-utils"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/cubeb-coreaudio-rs?rev=8ae48c16b637d6d9a841cf4d01de06c16b1318b0#8ae48c16b637d6d9a841cf4d01de06c16b1318b0"
+source = "git+https://github.com/mozilla/cubeb-coreaudio-rs?rev=4ee3b283182926f9a8bb31d603219ff2db70d2fd#4ee3b283182926f9a8bb31d603219ff2db70d2fd"
 dependencies = [
  "core-foundation-sys",
  "coreaudio-sys",
@@ -1013,7 +1013,7 @@ dependencies = [
 [[package]]
 name = "cubeb-coreaudio"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/cubeb-coreaudio-rs?rev=8ae48c16b637d6d9a841cf4d01de06c16b1318b0#8ae48c16b637d6d9a841cf4d01de06c16b1318b0"
+source = "git+https://github.com/mozilla/cubeb-coreaudio-rs?rev=4ee3b283182926f9a8bb31d603219ff2db70d2fd#4ee3b283182926f9a8bb31d603219ff2db70d2fd"
 dependencies = [
  "atomic",
  "audio-mixer",
@@ -2572,7 +2572,7 @@ dependencies = [
 [[package]]
 name = "jsparagus"
 version = "0.1.0"
-source = "git+https://github.com/mozilla-spidermonkey/jsparagus?rev=eb250ba0bda3551927a447db0335a309e3f296d3#eb250ba0bda3551927a447db0335a309e3f296d3"
+source = "git+https://github.com/mozilla-spidermonkey/jsparagus?rev=2e56bb9bae5d8211137980a717ee991cc4a5eb98#2e56bb9bae5d8211137980a717ee991cc4a5eb98"
 dependencies = [
  "jsparagus-ast",
  "jsparagus-emitter",
@@ -2586,7 +2586,7 @@ dependencies = [
 [[package]]
 name = "jsparagus-ast"
 version = "0.1.0"
-source = "git+https://github.com/mozilla-spidermonkey/jsparagus?rev=eb250ba0bda3551927a447db0335a309e3f296d3#eb250ba0bda3551927a447db0335a309e3f296d3"
+source = "git+https://github.com/mozilla-spidermonkey/jsparagus?rev=2e56bb9bae5d8211137980a717ee991cc4a5eb98#2e56bb9bae5d8211137980a717ee991cc4a5eb98"
 dependencies = [
  "bumpalo",
  "indexmap",
@@ -2595,7 +2595,7 @@ dependencies = [
 [[package]]
 name = "jsparagus-emitter"
 version = "0.1.0"
-source = "git+https://github.com/mozilla-spidermonkey/jsparagus?rev=eb250ba0bda3551927a447db0335a309e3f296d3#eb250ba0bda3551927a447db0335a309e3f296d3"
+source = "git+https://github.com/mozilla-spidermonkey/jsparagus?rev=2e56bb9bae5d8211137980a717ee991cc4a5eb98#2e56bb9bae5d8211137980a717ee991cc4a5eb98"
 dependencies = [
  "bumpalo",
  "byteorder",
@@ -2608,7 +2608,7 @@ dependencies = [
 [[package]]
 name = "jsparagus-generated-parser"
 version = "0.1.0"
-source = "git+https://github.com/mozilla-spidermonkey/jsparagus?rev=eb250ba0bda3551927a447db0335a309e3f296d3#eb250ba0bda3551927a447db0335a309e3f296d3"
+source = "git+https://github.com/mozilla-spidermonkey/jsparagus?rev=2e56bb9bae5d8211137980a717ee991cc4a5eb98#2e56bb9bae5d8211137980a717ee991cc4a5eb98"
 dependencies = [
  "bumpalo",
  "jsparagus-ast",
@@ -2618,12 +2618,12 @@ dependencies = [
 [[package]]
 name = "jsparagus-json-log"
 version = "0.1.0"
-source = "git+https://github.com/mozilla-spidermonkey/jsparagus?rev=eb250ba0bda3551927a447db0335a309e3f296d3#eb250ba0bda3551927a447db0335a309e3f296d3"
+source = "git+https://github.com/mozilla-spidermonkey/jsparagus?rev=2e56bb9bae5d8211137980a717ee991cc4a5eb98#2e56bb9bae5d8211137980a717ee991cc4a5eb98"
 
 [[package]]
 name = "jsparagus-parser"
 version = "0.1.0"
-source = "git+https://github.com/mozilla-spidermonkey/jsparagus?rev=eb250ba0bda3551927a447db0335a309e3f296d3#eb250ba0bda3551927a447db0335a309e3f296d3"
+source = "git+https://github.com/mozilla-spidermonkey/jsparagus?rev=2e56bb9bae5d8211137980a717ee991cc4a5eb98#2e56bb9bae5d8211137980a717ee991cc4a5eb98"
 dependencies = [
  "arrayvec",
  "bumpalo",
@@ -2635,7 +2635,7 @@ dependencies = [
 [[package]]
 name = "jsparagus-scope"
 version = "0.1.0"
-source = "git+https://github.com/mozilla-spidermonkey/jsparagus?rev=eb250ba0bda3551927a447db0335a309e3f296d3#eb250ba0bda3551927a447db0335a309e3f296d3"
+source = "git+https://github.com/mozilla-spidermonkey/jsparagus?rev=2e56bb9bae5d8211137980a717ee991cc4a5eb98#2e56bb9bae5d8211137980a717ee991cc4a5eb98"
 dependencies = [
  "indexmap",
  "jsparagus-ast",
@@ -2645,7 +2645,7 @@ dependencies = [
 [[package]]
 name = "jsparagus-stencil"
 version = "0.1.0"
-source = "git+https://github.com/mozilla-spidermonkey/jsparagus?rev=eb250ba0bda3551927a447db0335a309e3f296d3#eb250ba0bda3551927a447db0335a309e3f296d3"
+source = "git+https://github.com/mozilla-spidermonkey/jsparagus?rev=2e56bb9bae5d8211137980a717ee991cc4a5eb98#2e56bb9bae5d8211137980a717ee991cc4a5eb98"
 dependencies = [
  "jsparagus-ast",
 ]
@@ -3327,8 +3327,8 @@ dependencies = [
 
 [[package]]
 name = "neqo-common"
-version = "0.4.30"
-source = "git+https://github.com/mozilla/neqo?tag=v0.4.30#77070a9df73680edc58e54f143b3252ab2ee59cd"
+version = "0.4.31"
+source = "git+https://github.com/mozilla/neqo?tag=v0.4.31#37bb62fa7b43ac624406090ba4f94f4cc082790b"
 dependencies = [
  "chrono",
  "env_logger",
@@ -3340,8 +3340,8 @@ dependencies = [
 
 [[package]]
 name = "neqo-crypto"
-version = "0.4.30"
-source = "git+https://github.com/mozilla/neqo?tag=v0.4.30#77070a9df73680edc58e54f143b3252ab2ee59cd"
+version = "0.4.31"
+source = "git+https://github.com/mozilla/neqo?tag=v0.4.31#37bb62fa7b43ac624406090ba4f94f4cc082790b"
 dependencies = [
  "bindgen",
  "log",
@@ -3353,8 +3353,8 @@ dependencies = [
 
 [[package]]
 name = "neqo-http3"
-version = "0.4.30"
-source = "git+https://github.com/mozilla/neqo?tag=v0.4.30#77070a9df73680edc58e54f143b3252ab2ee59cd"
+version = "0.4.31"
+source = "git+https://github.com/mozilla/neqo?tag=v0.4.31#37bb62fa7b43ac624406090ba4f94f4cc082790b"
 dependencies = [
  "log",
  "neqo-common",
@@ -3367,8 +3367,8 @@ dependencies = [
 
 [[package]]
 name = "neqo-qpack"
-version = "0.4.30"
-source = "git+https://github.com/mozilla/neqo?tag=v0.4.30#77070a9df73680edc58e54f143b3252ab2ee59cd"
+version = "0.4.31"
+source = "git+https://github.com/mozilla/neqo?tag=v0.4.31#37bb62fa7b43ac624406090ba4f94f4cc082790b"
 dependencies = [
  "lazy_static",
  "log",
@@ -3381,8 +3381,8 @@ dependencies = [
 
 [[package]]
 name = "neqo-transport"
-version = "0.4.30"
-source = "git+https://github.com/mozilla/neqo?tag=v0.4.30#77070a9df73680edc58e54f143b3252ab2ee59cd"
+version = "0.4.31"
+source = "git+https://github.com/mozilla/neqo?tag=v0.4.31#37bb62fa7b43ac624406090ba4f94f4cc082790b"
 dependencies = [
  "indexmap",
  "lazy_static",
