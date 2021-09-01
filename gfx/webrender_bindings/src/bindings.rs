@@ -1035,11 +1035,12 @@ impl AsyncPropertySampler for SamplerCallback {
             None => ptr::null_mut(),
         };
         let mut transaction = Transaction::new();
+        // Reset the pending properties first because omta_sample and apz_sample_transforms
+        // may be failed to reset them due to null samplers.
+        transaction.reset_dynamic_properties();
         unsafe {
-            // XXX: When we implement scroll-linked animations, we will probably
-            // need to call apz_sample_transforms prior to omta_sample.
+            apz_sample_transforms(self.window_id, generated_frame_id, &mut transaction);
             omta_sample(self.window_id, &mut transaction);
-            apz_sample_transforms(self.window_id, generated_frame_id, &mut transaction)
         };
         transaction.get_frame_ops()
     }
@@ -1911,7 +1912,7 @@ fn wr_animation_properties_into_vec<T>(
 }
 
 #[no_mangle]
-pub extern "C" fn wr_transaction_update_dynamic_properties(
+pub extern "C" fn wr_transaction_append_dynamic_properties(
     txn: &mut Transaction,
     opacity_array: *const WrOpacityProperty,
     opacity_count: usize,
@@ -1920,6 +1921,10 @@ pub extern "C" fn wr_transaction_update_dynamic_properties(
     color_array: *const WrColorProperty,
     color_count: usize,
 ) {
+    if opacity_count == 0 && transform_count == 0 && color_count == 0 {
+        return;
+    }
+
     let mut properties = DynamicProperties {
         transforms: Vec::with_capacity(transform_count),
         floats: Vec::with_capacity(opacity_count),
@@ -1932,7 +1937,7 @@ pub extern "C" fn wr_transaction_update_dynamic_properties(
 
     wr_animation_properties_into_vec(color_array, color_count, &mut properties.colors);
 
-    txn.update_dynamic_properties(properties);
+    txn.append_dynamic_properties(properties);
 }
 
 #[no_mangle]

@@ -1184,6 +1184,8 @@ void GlobalObjectData::trace(JSTracer* trc) {
   TraceNullableEdge(trc, &lexicalEnvironment, "global-lexical-env");
   TraceNullableEdge(trc, &windowProxy, "global-window-proxy");
   TraceNullableEdge(trc, &intrinsicsHolder, "global-intrinsics-holder");
+  TraceNullableEdge(trc, &computedIntrinsicsHolder,
+                    "global-computed-intrinsics-holder");
   TraceNullableEdge(trc, &forOfPICChain, "global-for-of-pic");
   TraceNullableEdge(trc, &sourceURLsHolder, "global-source-urls");
   TraceNullableEdge(trc, &realmKeyObject, "global-realm-key");
@@ -1195,6 +1197,11 @@ void GlobalObjectData::trace(JSTracer* trc) {
   for (auto& shape : plainObjectShapesWithDefaultProto) {
     TraceNullableEdge(trc, &shape, "global-plain-shape");
   }
+
+  TraceNullableEdge(trc, &functionShapeWithDefaultProto,
+                    "global-function-shape");
+  TraceNullableEdge(trc, &extendedFunctionShapeWithDefaultProto,
+                    "global-ext-function-shape");
 
   if (regExpStatics) {
     regExpStatics->trace(trc);

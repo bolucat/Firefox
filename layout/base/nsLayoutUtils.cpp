@@ -3105,12 +3105,12 @@ struct TemporaryDisplayListBuilder {
   RetainedDisplayListMetrics mMetrics;
 };
 
-nsresult nsLayoutUtils::PaintFrame(gfxContext* aRenderingContext,
-                                   nsIFrame* aFrame,
-                                   const nsRegion& aDirtyRegion,
-                                   nscolor aBackstop,
-                                   nsDisplayListBuilderMode aBuilderMode,
-                                   PaintFrameFlags aFlags) {
+void nsLayoutUtils::PaintFrame(gfxContext* aRenderingContext,
+                               nsIFrame* aFrame,
+                               const nsRegion& aDirtyRegion,
+                               nscolor aBackstop,
+                               nsDisplayListBuilderMode aBuilderMode,
+                               PaintFrameFlags aFlags) {
   AUTO_PROFILER_LABEL("nsLayoutUtils::PaintFrame", GRAPHICS);
 
 #ifdef MOZ_DUMP_PAINTING
@@ -3558,8 +3558,6 @@ nsresult nsLayoutUtils::PaintFrame(gfxContext* aRenderingContext,
     }
   }
 #endif
-
-  return NS_OK;
 }
 
 /**
@@ -4123,7 +4121,6 @@ already_AddRefed<nsFontMetrics> nsLayoutUtils::GetFontMetricsForComputedStyle(
   // pass along to CreateFontGroup
   params.userFontSet = aPresContext->GetUserFontSet();
   params.textPerf = aPresContext->GetTextPerfMetrics();
-  params.fontStats = aPresContext->GetFontMatchingStats();
   params.featureValueLookup = aPresContext->GetFontFeatureValuesLookup();
 
   // When aInflation is 1.0 and we don't require width variant, avoid
@@ -9670,7 +9667,6 @@ already_AddRefed<nsFontMetrics> nsLayoutUtils::GetMetricsFor(
   params.userFontSet =
       aUseUserFontSet ? aPresContext->GetUserFontSet() : nullptr;
   params.textPerf = aPresContext->GetTextPerfMetrics();
-  params.fontStats = aPresContext->GetFontMatchingStats();
   params.featureValueLookup = aPresContext->GetFontFeatureValuesLookup();
   return aPresContext->GetMetricsFor(font, params);
 }

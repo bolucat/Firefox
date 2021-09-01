@@ -43,14 +43,16 @@ class MOZ_STACK_CLASS WSScanResult final {
     LeadingWhiteSpaces,
     // The run is maybe collapsible white-spaces at end of a hard line.
     TrailingWhiteSpaces,
-    // Normal (perhaps, meaning visible) white-spaces.
-    NormalWhiteSpaces,
-    // Normal text, not white-spaces.
-    NormalText,
+    // Collapsible, but visible white-spaces.
+    CollapsibleWhiteSpaces,
+    // Visible characters except collapsible white-spaces.
+    NonCollapsibleCharacters,
     // Special content such as `<img>`, etc.
     SpecialContent,
     // <br> element.
     BRElement,
+    // A linefeed which is preformatted.
+    PreformattedLineBreak,
     // Other block's boundary (child block of current block, maybe).
     OtherBlockBoundary,
     // Current block's boundary.
@@ -75,18 +77,23 @@ class MOZ_STACK_CLASS WSScanResult final {
 
   MOZ_NEVER_INLINE_DEBUG void AssertIfInvalidData() const {
 #ifdef DEBUG
-    MOZ_ASSERT(
-        mReason == WSType::UnexpectedError || mReason == WSType::NormalText ||
-        mReason == WSType::NormalWhiteSpaces || mReason == WSType::BRElement ||
-        mReason == WSType::SpecialContent ||
-        mReason == WSType::CurrentBlockBoundary ||
-        mReason == WSType::OtherBlockBoundary);
+    MOZ_ASSERT(mReason == WSType::UnexpectedError ||
+               mReason == WSType::NonCollapsibleCharacters ||
+               mReason == WSType::CollapsibleWhiteSpaces ||
+               mReason == WSType::BRElement ||
+               mReason == WSType::PreformattedLineBreak ||
+               mReason == WSType::SpecialContent ||
+               mReason == WSType::CurrentBlockBoundary ||
+               mReason == WSType::OtherBlockBoundary);
     MOZ_ASSERT_IF(mReason == WSType::UnexpectedError, !mContent);
-    MOZ_ASSERT_IF(
-        mReason == WSType::NormalText || mReason == WSType::NormalWhiteSpaces,
-        mContent && mContent->IsText());
+    MOZ_ASSERT_IF(mReason == WSType::NonCollapsibleCharacters ||
+                      mReason == WSType::CollapsibleWhiteSpaces,
+                  mContent && mContent->IsText());
     MOZ_ASSERT_IF(mReason == WSType::BRElement,
                   mContent && mContent->IsHTMLElement(nsGkAtoms::br));
+    MOZ_ASSERT_IF(mReason == WSType::PreformattedLineBreak,
+                  mContent && mContent->IsText() &&
+                      EditorUtils::IsNewLinePreformatted(*mContent));
     MOZ_ASSERT_IF(
         mReason == WSType::SpecialContent,
         mContent && ((mContent->IsText() && !mContent->IsEditable()) ||
@@ -141,12 +148,12 @@ class MOZ_STACK_CLASS WSScanResult final {
   bool IsContentEditable() const { return mContent && mContent->IsEditable(); }
 
   /**
-   *  Offset() returns meaningful value only when InNormalWhiteSpacesOrText()
-   * returns true or the scanner reached to start or end of its scanning
-   * range and that is same as start or end container which are specified
-   * when the scanner is initialized.  If it's result of scanning backward,
-   * this offset means before the found point.  Otherwise, i.e., scanning
-   * forward, this offset means after the found point.
+   *  Offset() returns meaningful value only when
+   * InVisibleOrCollapsibleCharacters() returns true or the scanner
+   * reached to start or end of its scanning range and that is same as start or
+   * end container which are specified when the scanner is initialized.  If it's
+   * result of scanning backward, this offset means before the found point.
+   * Otherwise, i.e., scanning forward, this offset means after the found point.
    */
   MOZ_NEVER_INLINE_DEBUG uint32_t Offset() const {
     NS_ASSERTION(mOffset.isSome(), "Retrieved non-meaningful offset");
@@ -202,24 +209,26 @@ class MOZ_STACK_CLASS WSScanResult final {
   }
 
   /**
-   * The point is in normal white-spaces or text.
+   * The point is in visible characters or collapsible white-spaces.
    */
-  bool InNormalWhiteSpacesOrText() const {
-    return mReason == WSType::NormalWhiteSpaces ||
-           mReason == WSType::NormalText;
+  bool InVisibleOrCollapsibleCharacters() const {
+    return mReason == WSType::CollapsibleWhiteSpaces ||
+           mReason == WSType::NonCollapsibleCharacters;
   }
 
   /**
-   * The point is in normal white-spaces.
+   * The point is in collapsible white-spaces.
    */
-  bool InNormalWhiteSpaces() const {
-    return mReason == WSType::NormalWhiteSpaces;
+  bool InCollapsibleWhiteSpaces() const {
+    return mReason == WSType::CollapsibleWhiteSpaces;
   }
 
   /**
-   * The point is in normal text.
+   * The point is in visible non-collapsible characters.
    */
-  bool InNormalText() const { return mReason == WSType::NormalText; }
+  bool InNonCollapsibleCharacters() const {
+    return mReason == WSType::NonCollapsibleCharacters;
+  }
 
   /**
    * The scanner reached a <br> element.
@@ -232,6 +241,10 @@ class MOZ_STACK_CLASS WSScanResult final {
   bool ReachedInvisibleBRElement() const {
     return ReachedBRElement() &&
            HTMLEditUtils::IsInvisibleBRElement(*BRElementPtr());
+  }
+
+  bool ReachedPreformattedLineBreak() const {
+    return mReason == WSType::PreformattedLineBreak;
   }
 
   /**
@@ -273,7 +286,9 @@ class MOZ_STACK_CLASS WSScanResult final {
   /**
    * The scanner reached something non-text node.
    */
-  bool ReachedSomething() const { return !InNormalWhiteSpacesOrText(); }
+  bool ReachedSomethingNonTextContent() const {
+    return !InVisibleOrCollapsibleCharacters();
+  }
 
  private:
   nsCOMPtr<nsIContent> mContent;
@@ -482,8 +497,8 @@ class MOZ_STACK_CLASS WSRunScanner final {
     return TextFragmentDataAtStartRef().GetEndReasonContent();
   }
 
-  bool StartsFromNormalText() const {
-    return TextFragmentDataAtStartRef().StartsFromNormalText();
+  bool StartsFromNonCollapsibleCharacters() const {
+    return TextFragmentDataAtStartRef().StartsFromNonCollapsibleCharacters();
   }
   bool StartsFromSpecialContent() const {
     return TextFragmentDataAtStartRef().StartsFromSpecialContent();
@@ -497,6 +512,9 @@ class MOZ_STACK_CLASS WSRunScanner final {
   bool StartsFromInvisibleBRElement() const {
     return TextFragmentDataAtStartRef().StartsFromInvisibleBRElement();
   }
+  bool StartsFromPreformattedLineBreak() const {
+    return TextFragmentDataAtStartRef().StartsFromPreformattedLineBreak();
+  }
   bool StartsFromCurrentBlockBoundary() const {
     return TextFragmentDataAtStartRef().StartsFromCurrentBlockBoundary();
   }
@@ -509,8 +527,8 @@ class MOZ_STACK_CLASS WSRunScanner final {
   bool StartsFromHardLineBreak() const {
     return TextFragmentDataAtStartRef().StartsFromHardLineBreak();
   }
-  bool EndsByNormalText() const {
-    return TextFragmentDataAtStartRef().EndsByNormalText();
+  bool EndsByNonCollapsibleCharacters() const {
+    return TextFragmentDataAtStartRef().EndsByNonCollapsibleCharacters();
   }
   bool EndsBySpecialContent() const {
     return TextFragmentDataAtStartRef().EndsBySpecialContent();
@@ -523,6 +541,9 @@ class MOZ_STACK_CLASS WSRunScanner final {
   }
   bool EndsByInvisibleBRElement() const {
     return TextFragmentDataAtStartRef().EndsByInvisibleBRElement();
+  }
+  bool EndsByPreformattedLineBreak() const {
+    return TextFragmentDataAtStartRef().EndsByPreformattedLineBreak();
   }
   bool EndsByCurrentBlockBoundary() const {
     return TextFragmentDataAtStartRef().EndsByCurrentBlockBoundary();
@@ -572,8 +593,8 @@ class MOZ_STACK_CLASS WSRunScanner final {
      * Information why the white-spaces start from (i.e., this indicates the
      * previous content type of the fragment).
      */
-    bool StartsFromNormalText() const {
-      return mLeftWSType == WSType::NormalText;
+    bool StartsFromNonCollapsibleCharacters() const {
+      return mLeftWSType == WSType::NonCollapsibleCharacters;
     }
     bool StartsFromSpecialContent() const {
       return mLeftWSType == WSType::SpecialContent;
@@ -583,7 +604,9 @@ class MOZ_STACK_CLASS WSRunScanner final {
      * Information why the white-spaces end by (i.e., this indicates the
      * next content type of the fragment).
      */
-    bool EndsByNormalText() const { return mRightWSType == WSType::NormalText; }
+    bool EndsByNonCollapsibleCharacters() const {
+      return mRightWSType == WSType::NonCollapsibleCharacters;
+    }
     bool EndsByTrailingWhiteSpaces() const {
       return mRightWSType == WSType::TrailingWhiteSpaces;
     }
@@ -591,6 +614,9 @@ class MOZ_STACK_CLASS WSRunScanner final {
       return mRightWSType == WSType::SpecialContent;
     }
     bool EndsByBRElement() const { return mRightWSType == WSType::BRElement; }
+    bool EndsByPreformattedLineBreak() const {
+      return mRightWSType == WSType::PreformattedLineBreak;
+    }
     bool EndsByBlockBoundary() const {
       return mRightWSType == WSType::CurrentBlockBoundary ||
              mRightWSType == WSType::OtherBlockBoundary;
@@ -649,13 +675,7 @@ class MOZ_STACK_CLASS WSRunScanner final {
     void SetStartFromLeadingWhiteSpaces() {
       mLeftWSType = WSType::LeadingWhiteSpaces;
     }
-    void SetStartFromNormalWhiteSpaces() {
-      mLeftWSType = WSType::NormalWhiteSpaces;
-    }
     void SetEndBy(WSType aRightWSType) { mRightWSType = aRightWSType; }
-    void SetEndByNormalWiteSpaces() {
-      mRightWSType = WSType::NormalWhiteSpaces;
-    }
     void SetEndByTrailingWhiteSpaces() {
       mRightWSType = WSType::TrailingWhiteSpaces;
     }
@@ -779,31 +799,41 @@ class MOZ_STACK_CLASS WSRunScanner final {
           const Element& aEditableBlockParentOrTopmostEditableInlineElement,
           const Element* aEditingHost, NoBreakingSpaceData* aNBSPData);
 
-      enum class Preformatted : bool { Yes, No };
+      enum class WhiteSpacePreformatted : bool { Yes, No };
       BoundaryData()
           : mReason(WSType::NotInitialized),
-            mAcrossPreformattedCharacter(Preformatted::No) {}
+            mAcrossPreformattedWhiteSpaceOrNonCollapsibleCharacter(
+                WhiteSpacePreformatted::No) {}
       template <typename EditorDOMPointType>
       BoundaryData(const EditorDOMPointType& aPoint, nsIContent& aReasonContent,
-                   WSType aReason, Preformatted aDidCrossPreformattedCharacter)
+                   WSType aReason,
+                   WhiteSpacePreformatted
+                       aDidCrossPreformattedWhiteSpaceOrNonCollapsibleCharacter)
           : mReasonContent(&aReasonContent),
             mPoint(aPoint),
             mReason(aReason),
-            mAcrossPreformattedCharacter(aDidCrossPreformattedCharacter) {}
+            mAcrossPreformattedWhiteSpaceOrNonCollapsibleCharacter(
+                aDidCrossPreformattedWhiteSpaceOrNonCollapsibleCharacter) {}
       bool Initialized() const { return mReasonContent && mPoint.IsSet(); }
 
       nsIContent* GetReasonContent() const { return mReasonContent; }
       const EditorDOMPoint& PointRef() const { return mPoint; }
       WSType RawReason() const { return mReason; }
-      bool AcrossPreformattedCharacter() const {
-        return mAcrossPreformattedCharacter == Preformatted::Yes;
+      bool AcrossPreformattedWhiteSpaceOrNonCollapsibleCharacter() const {
+        return mAcrossPreformattedWhiteSpaceOrNonCollapsibleCharacter ==
+               WhiteSpacePreformatted::Yes;
       }
 
-      bool IsNormalText() const { return mReason == WSType::NormalText; }
+      bool IsNonCollapsibleCharacters() const {
+        return mReason == WSType::NonCollapsibleCharacters;
+      }
       bool IsSpecialContent() const {
         return mReason == WSType::SpecialContent;
       }
       bool IsBRElement() const { return mReason == WSType::BRElement; }
+      bool IsPreformattedLineBreak() const {
+        return mReason == WSType::PreformattedLineBreak;
+      }
       bool IsCurrentBlockBoundary() const {
         return mReason == WSType::CurrentBlockBoundary;
       }
@@ -817,7 +847,8 @@ class MOZ_STACK_CLASS WSRunScanner final {
       bool IsHardLineBreak() const {
         return mReason == WSType::CurrentBlockBoundary ||
                mReason == WSType::OtherBlockBoundary ||
-               mReason == WSType::BRElement;
+               mReason == WSType::BRElement ||
+               mReason == WSType::PreformattedLineBreak;
       }
       MOZ_NEVER_INLINE_DEBUG Element* OtherBlockElementPtr() const {
         MOZ_DIAGNOSTIC_ASSERT(mReasonContent->IsElement());
@@ -843,14 +874,16 @@ class MOZ_STACK_CLASS WSRunScanner final {
 
       nsCOMPtr<nsIContent> mReasonContent;
       EditorDOMPoint mPoint;
-      // Must be one of WSType::NotInitialized, WSType::NormalText,
-      // WSType::SpecialContent, WSType::BRElement, WSType::CurrentBlockBoundary
-      // or WSType::OtherBlockBoundary.
+      // Must be one of WSType::NotInitialized,
+      // WSType::NonCollapsibleCharacters, WSType::SpecialContent,
+      // WSType::BRElement, WSType::CurrentBlockBoundary or
+      // WSType::OtherBlockBoundary.
       WSType mReason;
-      // If the point crosses a preformatted character from scanning start
-      // point, set to "Yes".  So, this may NOT equal to the style at mPoint
-      // nor mReasonContent.
-      Preformatted mAcrossPreformattedCharacter;
+      // If the point crosses a preformatted white-space or a visible character
+      // from scanning start point, set to "Yes".  So, this may NOT equal to the
+      // style at mPoint nor mReasonContent.
+      WhiteSpacePreformatted
+          mAcrossPreformattedWhiteSpaceOrNonCollapsibleCharacter;
     };
 
     class MOZ_STACK_CLASS NoBreakingSpaceData final {
@@ -896,7 +929,9 @@ class MOZ_STACK_CLASS WSRunScanner final {
     }
     nsIContent* GetEndReasonContent() const { return mEnd.GetReasonContent(); }
 
-    bool StartsFromNormalText() const { return mStart.IsNormalText(); }
+    bool StartsFromNonCollapsibleCharacters() const {
+      return mStart.IsNonCollapsibleCharacters();
+    }
     bool StartsFromSpecialContent() const { return mStart.IsSpecialContent(); }
     bool StartsFromBRElement() const { return mStart.IsBRElement(); }
     bool StartsFromVisibleBRElement() const {
@@ -909,6 +944,9 @@ class MOZ_STACK_CLASS WSRunScanner final {
              HTMLEditUtils::IsInvisibleBRElement(*GetStartReasonContent(),
                                                  mEditingHost);
     }
+    bool StartsFromPreformattedLineBreak() const {
+      return mStart.IsPreformattedLineBreak();
+    }
     bool StartsFromCurrentBlockBoundary() const {
       return mStart.IsCurrentBlockBoundary();
     }
@@ -917,7 +955,9 @@ class MOZ_STACK_CLASS WSRunScanner final {
     }
     bool StartsFromBlockBoundary() const { return mStart.IsBlockBoundary(); }
     bool StartsFromHardLineBreak() const { return mStart.IsHardLineBreak(); }
-    bool EndsByNormalText() const { return mEnd.IsNormalText(); }
+    bool EndsByNonCollapsibleCharacters() const {
+      return mEnd.IsNonCollapsibleCharacters();
+    }
     bool EndsBySpecialContent() const { return mEnd.IsSpecialContent(); }
     bool EndsByBRElement() const { return mEnd.IsBRElement(); }
     bool EndsByVisibleBRElement() const {
@@ -927,6 +967,9 @@ class MOZ_STACK_CLASS WSRunScanner final {
     bool EndsByInvisibleBRElement() const {
       return EndsByBRElement() && HTMLEditUtils::IsInvisibleBRElement(
                                       *GetEndReasonContent(), mEditingHost);
+    }
+    bool EndsByPreformattedLineBreak() const {
+      return mEnd.IsPreformattedLineBreak();
     }
     bool EndsByCurrentBlockBoundary() const {
       return mEnd.IsCurrentBlockBoundary();
@@ -963,7 +1006,7 @@ class MOZ_STACK_CLASS WSRunScanner final {
       return mNBSPData.LastPointRef();
     }
 
-    bool IsPreformatted() const { return mIsPreformatted; }
+    bool IsWhiteSpaceCollapsible() const { return mIsWhiteSpaceCollapsible; }
 
     template <typename PT, typename CT>
     EditorDOMPointInText GetInclusiveNextEditableCharPoint(
@@ -1216,15 +1259,16 @@ class MOZ_STACK_CLASS WSRunScanner final {
 
    private:
     /**
-     * IsPreformattedOrSurrondedByVisibleContent() returns true if the text is
-     * preformatted or the text fragment is surrounded by visible content.
-     * When this returns true, all of the text is visible.
+     * IsWhiteSpaceNotCollapsibleOrSurrondedByVisibleContent() returns true if
+     * the text is preformatted or the text fragment is surrounded by visible
+     * content. When this returns true, all of the text is visible.
      */
-    bool IsPreformattedOrSurrondedByVisibleContent() const {
-      return mIsPreformatted ||
-             ((StartsFromNormalText() || StartsFromSpecialContent()) &&
-              (EndsByNormalText() || EndsBySpecialContent() ||
-               EndsByBRElement()));
+    bool IsWhiteSpaceNotCollapsibleOrSurrondedByVisibleContent() const {
+      return !mIsWhiteSpaceCollapsible ||
+             ((StartsFromNonCollapsibleCharacters() ||
+               StartsFromSpecialContent()) &&
+              (EndsByNonCollapsibleCharacters() || EndsBySpecialContent() ||
+               EndsByBRElement() || EndsByPreformattedLineBreak()));
     }
 
     EditorDOMPoint mScanStartPoint;
@@ -1235,11 +1279,11 @@ class MOZ_STACK_CLASS WSRunScanner final {
     mutable Maybe<EditorDOMRange> mLeadingWhiteSpaceRange;
     mutable Maybe<EditorDOMRange> mTrailingWhiteSpaceRange;
     mutable Maybe<VisibleWhiteSpacesData> mVisibleWhiteSpacesData;
-    // XXX Currently we set mIsPreformatted to `WSRunScanner::mPRE` value
+    // XXX Currently `WSRunScanner` refers `IsWhiteSpaceCollapsible()` result
     //     even if some text nodes between mStart and mEnd are different styled
     //     nodes.  This caused some bugs actually, but we now keep traditional
     //     behavior for now.
-    bool mIsPreformatted;
+    bool mIsWhiteSpaceCollapsible;
   };
 
   const TextFragmentData& TextFragmentDataAtStartRef() const {

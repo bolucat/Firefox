@@ -21,6 +21,7 @@
 #include "mozilla/MozPromise.h"
 #include "mozilla/Range.h"
 #include "mozilla/TimeStamp.h"
+#include "mozilla/VsyncDispatcher.h"
 #include "mozilla/webrender/webrender_ffi.h"
 #include "mozilla/webrender/WebRenderTypes.h"
 #include "nsString.h"
@@ -122,11 +123,6 @@ class TransactionBuilder final {
 
   void InvalidateRenderedFrame();
 
-  void UpdateDynamicProperties(
-      const nsTArray<wr::WrOpacityProperty>& aOpacityArray,
-      const nsTArray<wr::WrTransformProperty>& aTransformArray,
-      const nsTArray<wr::WrColorProperty>& aColorArray);
-
   void SetDocumentView(const LayoutDeviceIntRect& aDocRect);
 
   void UpdateScrollPosition(
@@ -218,7 +214,7 @@ class TransactionWrapper final {
  public:
   explicit TransactionWrapper(Transaction* aTxn);
 
-  void UpdateDynamicProperties(
+  void AppendDynamicProperties(
       const nsTArray<wr::WrOpacityProperty>& aOpacityArray,
       const nsTArray<wr::WrTransformProperty>& aTransformArray,
       const nsTArray<wr::WrColorProperty>& aColorArray);

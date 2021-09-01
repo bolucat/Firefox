@@ -1112,8 +1112,8 @@ EditActionResult HTMLEditor::HandleInsertText(
 
   // is our text going to be PREformatted?
   // We remember this so that we know how to handle tabs.
-  bool isPRE =
-      EditorUtils::IsContentPreformatted(*pointToInsert.ContainerAsContent());
+  const bool isWhiteSpaceCollapsible = !EditorUtils::IsWhiteSpacePreformatted(
+      *pointToInsert.ContainerAsContent());
 
   // turn off the edit listener: we know how to
   // build the "doc changed range" ourselves, and it's
@@ -1134,7 +1134,7 @@ EditActionResult HTMLEditor::HandleInsertText(
     // for efficiency, break out the pre case separately.  This is because
     // its a lot cheaper to search the input string for only newlines than
     // it is to search for both tabs and newlines.
-    if (isPRE || IsInPlaintextMode()) {
+    if (!isWhiteSpaceCollapsible || IsInPlaintextMode()) {
       while (pos != -1 &&
              pos < AssertedCast<int32_t>(aInsertionString.Length())) {
         int32_t oldPos = pos;
@@ -1915,7 +1915,7 @@ EditActionResult HTMLEditor::SplitMailCiteElements(
       return EditActionResult(NS_ERROR_FAILURE);
     }
     if (backwardScanFromPointToCreateNewBRElementResult
-            .InNormalWhiteSpacesOrText() ||
+            .InVisibleOrCollapsibleCharacters() ||
         backwardScanFromPointToCreateNewBRElementResult
             .ReachedSpecialContent()) {
       EditorRawDOMPoint pointAfterNewBRElement(
@@ -1930,7 +1930,7 @@ EditActionResult HTMLEditor::SplitMailCiteElements(
         return EditActionResult(NS_ERROR_FAILURE);
       }
       if (forwardScanFromPointAfterNewBRElementResult
-              .InNormalWhiteSpacesOrText() ||
+              .InVisibleOrCollapsibleCharacters() ||
           forwardScanFromPointAfterNewBRElementResult.ReachedSpecialContent() ||
           // In case we're at the very end.
           forwardScanFromPointAfterNewBRElementResult
@@ -2114,16 +2114,12 @@ void HTMLEditor::ExtendRangeToDeleteWithNormalizingWhiteSpaces(
       !precedingCharPoint.IsEndOfContainer() &&
       precedingCharPoint.ContainerAsText() ==
           aStartToDelete.ContainerAsText() &&
-      precedingCharPoint.IsCharASCIISpaceOrNBSP() &&
-      !EditorUtils::IsContentPreformatted(
-          *precedingCharPoint.ContainerAsText());
+      precedingCharPoint.IsCharCollapsibleASCIISpaceOrNBSP();
   const bool maybeNormalizeFollowingWhiteSpaces =
       followingCharPoint.IsSet() && !followingCharPoint.IsEndOfContainer() &&
       (followingCharPoint.ContainerAsText() == aEndToDelete.ContainerAsText() ||
        removingLastCharOfStartNode) &&
-      followingCharPoint.IsCharASCIISpaceOrNBSP() &&
-      !EditorUtils::IsContentPreformatted(
-          *followingCharPoint.ContainerAsText());
+      followingCharPoint.IsCharCollapsibleASCIISpaceOrNBSP();
 
   if (!maybeNormalizePrecedingWhiteSpaces &&
       !maybeNormalizeFollowingWhiteSpaces) {
@@ -5545,7 +5541,7 @@ nsresult HTMLEditor::MaybeExtendSelectionToHardLineEdgesForBlockEditAction() {
         "WSRunScanner::ScanPreviousVisibleNodeOrBlockBoundaryFrom() failed");
     return NS_ERROR_FAILURE;
   }
-  if (scanResultAtEnd.ReachedSomething()) {
+  if (scanResultAtEnd.ReachedSomethingNonTextContent()) {
     // eThisBlock and eOtherBlock conveniently distinguish cases
     // of going "down" into a block and "up" out of a block.
     if (wsScannerAtEnd.StartsFromOtherBlockElement()) {
@@ -5582,7 +5578,7 @@ nsresult HTMLEditor::MaybeExtendSelectionToHardLineEdgesForBlockEditAction() {
     NS_WARNING("WSRunScanner::ScanNextVisibleNodeOrBlockBoundaryFrom() failed");
     return NS_ERROR_FAILURE;
   }
-  if (scanResultAtStart.ReachedSomething()) {
+  if (scanResultAtStart.ReachedSomethingNonTextContent()) {
     // eThisBlock and eOtherBlock conveniently distinguish cases
     // of going "down" into a block and "up" out of a block.
     if (wsScannerAtStart.EndsByOtherBlockElement()) {
@@ -5807,7 +5803,7 @@ EditorDOMPoint HTMLEditor::GetCurrentHardLineEndPoint(
 
     // Check for newlines in pre-formatted text nodes.
     if (nextEditableContent->IsText() &&
-        EditorUtils::IsContentPreformatted(*nextEditableContent)) {
+        EditorUtils::IsWhiteSpacePreformatted(*nextEditableContent)) {
       nsAutoString textContent;
       nextEditableContent->GetAsText()->GetData(textContent);
       int32_t newlinePos = textContent.FindChar(nsCRT::LF);

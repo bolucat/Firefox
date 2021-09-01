@@ -627,14 +627,12 @@ pref("gfx.font_rendering.graphite.enabled", true);
   // comma separated list of backends to use in order of preference
   // e.g., pref("gfx.canvas.azure.backends", "direct2d,skia");
   pref("gfx.canvas.azure.backends", "direct2d1.1,skia");
-  pref("gfx.content.azure.backends", "direct2d1.1,skia");
 #elif defined(XP_MACOSX)
-  pref("gfx.content.azure.backends", "skia");
   pref("gfx.canvas.azure.backends", "skia");
 #else
   pref("gfx.canvas.azure.backends", "skia");
-  pref("gfx.content.azure.backends", "skia");
 #endif
+pref("gfx.content.azure.backends", "skia");
 
 #ifdef XP_WIN
   pref("gfx.webrender.flip-sequential", false);
@@ -4291,7 +4289,11 @@ pref("dom.clients.openwindow_favors_same_process", true);
 // If `true`, about:processes shows in-process subframes.
 pref("toolkit.aboutProcesses.showAllSubframes", false);
 // If `true`, about:processes shows thread information.
-pref("toolkit.aboutProcesses.showThreads", false);
+#ifdef NIGHTLY_BUILD
+  pref("toolkit.aboutProcesses.showThreads", true);
+#else
+  pref("toolkit.aboutProcesses.showThreads", false);
+#endif
 
 // When a crash happens, whether to include heap regions of the crash context
 // in the minidump. Enabled by default on nightly and aurora.

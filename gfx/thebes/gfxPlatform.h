@@ -39,7 +39,6 @@ class nsAtom;
 class nsIObserver;
 class SRGBOverrideObserver;
 class gfxTextPerfMetrics;
-struct FontMatchingStats;
 typedef struct FT_LibraryRec_* FT_Library;
 
 namespace mozilla {
@@ -398,8 +397,8 @@ class gfxPlatform : public mozilla::layers::MemoryPressureListener {
   gfxFontGroup* CreateFontGroup(
       const mozilla::StyleFontFamilyList& aFontFamilyList,
       const gfxFontStyle* aStyle, nsAtom* aLanguage, bool aExplicitLanguage,
-      gfxTextPerfMetrics* aTextPerf, FontMatchingStats* aFontMatchingStats,
-      gfxUserFontSet* aUserFontSet, gfxFloat aDevToCssSize) const;
+      gfxTextPerfMetrics* aTextPerf, gfxUserFontSet* aUserFontSet,
+      gfxFloat aDevToCssSize) const;
 
   /**
    * Look up a local platform font using the full font face name.
@@ -946,9 +945,6 @@ class gfxPlatform : public mozilla::layers::MemoryPressureListener {
   // max number of entries in word cache
   int32_t mWordCacheMaxEntries;
 
-  uint64_t mTotalPhysicalMemory;
-  uint64_t mTotalVirtualMemory;
-
   // Hardware vsync source. Only valid on parent process
   RefPtr<mozilla::gfx::VsyncSource> mVsyncSource;
 
@@ -1039,9 +1035,6 @@ class gfxPlatform : public mozilla::layers::MemoryPressureListener {
 
   int32_t mScreenDepth;
   mozilla::gfx::IntSize mScreenSize;
-
-  // Total number of screen pixels across all monitors.
-  int64_t mScreenPixels;
 
   // An instance of gfxSkipChars which is empty. It is used as the
   // basis for error-case iterators.

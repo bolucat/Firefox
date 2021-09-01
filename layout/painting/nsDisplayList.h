@@ -2757,26 +2757,6 @@ class nsDisplayItem : public nsDisplayItemLink {
   }
 
   /**
-   * On entry, aVisibleRegion contains the region (relative to ReferenceFrame())
-   * which may be visible. If the display item opaquely covers an area, it
-   * can remove that area from aVisibleRegion before returning.
-   * nsDisplayList::ComputeVisibility automatically subtracts the region
-   * returned by GetOpaqueRegion, and automatically removes items whose bounds
-   * do not intersect the visible area, so implementations of
-   * nsDisplayItem::ComputeVisibility do not need to do these things.
-   * nsDisplayList::ComputeVisibility will already have set mVisibleRect on
-   * this item to the intersection of *aVisibleRegion and this item's bounds.
-   * We rely on that, so this should only be called by
-   * nsDisplayList::ComputeVisibility or nsDisplayItem::RecomputeVisibility.
-   * This method needs to be idempotent.
-   *
-   * @return true if the item is visible, false if no part of the item
-   * is visible.
-   */
-  virtual bool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                                 nsRegion* aVisibleRegion);
-
-  /**
    * Returns true if this item needs to have its geometry updated, despite
    * returning empty invalidation region.
    */
@@ -3023,9 +3003,6 @@ class nsDisplayItem : public nsDisplayItemLink {
   // rect to decide which items to construct.
   nsRect mBuildingRect;
 
-  // nsDisplayList::ComputeVisibility sets this to the visible region
-  // of the item by intersecting the visible region with the bounds
-  // of the item. Paint implementations can use this to limit their drawing.
   // Guaranteed to be contained in GetBounds().
   nsRect mPaintRect;
 
@@ -3165,7 +3142,7 @@ class nsPaintedDisplayItem : public nsDisplayItem {
  *
  * Stepping upward through this list is very fast. Stepping downward is very
  * slow so we don't support it. The methods that need to step downward
- * (HitTest(), ComputeVisibility()) internally build a temporary array of all
+ * (HitTest()) internally build a temporary array of all
  * the items while they do the downward traversal, so overall they're still
  * linear time. We have optimized for efficient AppendToTop() of both
  * items and lists, with minimal codesize. AppendToBottom() is efficient too.
@@ -3246,7 +3223,7 @@ class nsDisplayList {
    * Create an empty list.
    */
   nsDisplayList()
-      : mLength(0), mIsOpaque(false), mForceTransparentSurface(false) {
+      : mLength(0), mForceTransparentSurface(false) {
     mTop = &mSentinel;
     mSentinel.mAbove = nullptr;
   }
@@ -3256,7 +3233,6 @@ class nsDisplayList {
   }
 
   nsDisplayList(nsDisplayList&& aOther) {
-    mIsOpaque = aOther.mIsOpaque;
     mForceTransparentSurface = aOther.mForceTransparentSurface;
 
     if (aOther.mSentinel.mAbove) {
@@ -3278,7 +3254,6 @@ class nsDisplayList {
         mTop = &mSentinel;
         mLength = 0;
       }
-      mIsOpaque = aOther.mIsOpaque;
       mForceTransparentSurface = aOther.mForceTransparentSurface;
     }
     return *this;
@@ -3459,47 +3434,6 @@ class nsDisplayList {
   }
 
   /**
-   * Compute visiblity for the items in the list.
-   * We put this logic here so it can be shared by top-level
-   * painting and also display items that maintain child lists.
-   * This is also a good place to put ComputeVisibility-related logic
-   * that must be applied to every display item. In particular, this
-   * sets mVisibleRect on each display item.
-   * This sets mIsOpaque if the entire visible area of this list has
-   * been removed from aVisibleRegion when we return.
-   * This does not remove any items from the list, so we can recompute
-   * visiblity with different regions later (see
-   * FrameLayerBuilder::DrawPaintedLayer).
-   * This method needs to be idempotent.
-   *
-   * @param aVisibleRegion the area that is visible, relative to the
-   * reference frame; on return, this contains the area visible under the list.
-   * I.e., opaque contents of this list are subtracted from aVisibleRegion.
-   * @param aListVisibleBounds must be equal to the bounds of the intersection
-   * of aVisibleRegion and GetBounds() for this list.
-   * @return true if any item in the list is visible.
-   */
-  bool ComputeVisibilityForSublist(nsDisplayListBuilder* aBuilder,
-                                   nsRegion* aVisibleRegion,
-                                   const nsRect& aListVisibleBounds);
-
-  /**
-   * As ComputeVisibilityForSublist, but computes visibility for a root
-   * list (a list that does not belong to an nsDisplayItem).
-   * This method needs to be idempotent.
-   *
-   * @param aVisibleRegion the area that is visible
-   */
-  bool ComputeVisibilityForRoot(nsDisplayListBuilder* aBuilder,
-                                nsRegion* aVisibleRegion);
-
-  /**
-   * Returns true if the visible region output from ComputeVisiblity was
-   * empty, i.e. everything visible in this list is opaque.
-   */
-  bool IsOpaque() const { return mIsOpaque; }
-
-  /**
    * Returns true if any display item requires the surface to be transparent.
    */
   bool NeedsTransparentSurface() const { return mForceTransparentSurface; }
@@ -3604,12 +3538,9 @@ class nsDisplayList {
    */
   nsRect GetBuildingRect() const;
 
-  void SetIsOpaque() { mIsOpaque = true; }
-
   void SetNeedsTransparentSurface() { mForceTransparentSurface = true; }
 
   void RestoreState() {
-    mIsOpaque = false;
     mForceTransparentSurface = false;
   }
 
@@ -3619,10 +3550,6 @@ class nsDisplayList {
 
   uint32_t mLength;
 
-  // This is set to true by FrameLayerBuilder if the final visible region
-  // is empty (i.e. everything that was visible is covered by some
-  // opaque content in this list).
-  bool mIsOpaque;
   // This is set to true by FrameLayerBuilder if any display item in this
   // list needs to force the surface containing this list to be transparent.
   bool mForceTransparentSurface;
@@ -3831,9 +3758,6 @@ class nsDisplayContainer final : public nsDisplayItem {
     mChildren.DeleteAll(aBuilder);
     nsDisplayItem::Destroy(aBuilder);
   }
-
-  bool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                         nsRegion* aVisibleRegion) override;
 
   bool CreateWebRenderCommands(
       wr::DisplayListBuilder& aBuilder, wr::IpcResourceUpdateQueue& aResources,
@@ -4392,8 +4316,6 @@ class nsDisplayBackgroundImage : public nsDisplayImageContainer {
       nsDisplayListBuilder* aDisplayListBuilder) override;
   void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
                HitTestState* aState, nsTArray<nsIFrame*>* aOutFrames) override;
-  bool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                         nsRegion* aVisibleRegion) override;
   nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
                            bool* aSnap) const override;
   Maybe<nscolor> IsUniform(nsDisplayListBuilder* aBuilder) const override;
@@ -5164,8 +5086,6 @@ class nsDisplayWrapList : public nsPaintedDisplayItem {
   nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
                            bool* aSnap) const override;
   Maybe<nscolor> IsUniform(nsDisplayListBuilder* aBuilder) const override;
-  bool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                         nsRegion* aVisibleRegion) override;
 
   /**
    * Checks if the given display item can be merged with this item.
@@ -5385,8 +5305,6 @@ class nsDisplayOpacity : public nsDisplayWrapList {
   nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
                            bool* aSnap) const override;
   void Paint(nsDisplayListBuilder* aBuilder, gfxContext* aCtx) override;
-  bool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                         nsRegion* aVisibleRegion) override;
 
   bool CanMerge(const nsDisplayItem* aItem) const override {
     // items for the same content element should be merged into a single
@@ -5509,8 +5427,6 @@ class nsDisplayBlendMode : public nsDisplayWrapList {
       layers::RenderRootStateManager* aManager,
       nsDisplayListBuilder* aDisplayListBuilder) override;
   void Paint(nsDisplayListBuilder* aBuilder, gfxContext* aCtx) override;
-  bool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                         nsRegion* aVisibleRegion) override;
 
   bool CanMerge(const nsDisplayItem* aItem) const override;
 
@@ -5807,8 +5723,6 @@ class nsDisplaySubDocument : public nsDisplayOwnLayer {
 
   virtual nsSubDocumentFrame* SubDocumentFrame() { return mSubDocFrame; }
 
-  bool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                         nsRegion* aVisibleRegion) override;
   bool ShouldFlattenAway(nsDisplayListBuilder* aBuilder) override {
     return mShouldFlatten;
   }
@@ -6079,8 +5993,6 @@ class nsDisplayZoom : public nsDisplaySubDocument {
   nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) const override;
   void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
                HitTestState* aState, nsTArray<nsIFrame*>* aOutFrames) override;
-  bool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                         nsRegion* aVisibleRegion) override;
   // Get the app units per dev pixel ratio of the child document.
   int32_t GetChildAppUnitsPerDevPixel() { return mAPD; }
   // Get the app units per dev pixel ratio of the parent document.
@@ -6226,8 +6138,6 @@ class nsDisplayMasksAndClipPaths : public nsDisplayEffectsBase {
   }
 
   void Paint(nsDisplayListBuilder* aBuilder, gfxContext* aCtx) override;
-  bool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                         nsRegion* aVisibleRegion) override;
 
   nsDisplayItemGeometry* AllocateGeometry(
       nsDisplayListBuilder* aBuilder) override {
@@ -6388,9 +6298,6 @@ class nsDisplayFilters : public nsDisplayEffectsBase {
     return mEffectsBounds + ToReferenceFrame();
   }
 
-  bool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                         nsRegion* aVisibleRegion) override;
-
   nsDisplayItemGeometry* AllocateGeometry(
       nsDisplayListBuilder* aBuilder) override {
     return new nsDisplayFiltersGeometry(this, aBuilder);
@@ -6521,8 +6428,6 @@ class nsDisplayTransform : public nsPaintedDisplayItem {
       nsDisplayListBuilder* aDisplayListBuilder) override;
   bool UpdateScrollData(layers::WebRenderScrollData* aData,
                         layers::WebRenderLayerScrollData* aLayerData) override;
-  bool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                         nsRegion* aVisibleRegion) override;
 
   nsDisplayItemGeometry* AllocateGeometry(
       nsDisplayListBuilder* aBuilder) override {
@@ -6847,9 +6752,6 @@ class nsDisplayPerspective : public nsPaintedDisplayItem {
     return GetChildren()->GetClippedBoundsWithRespectToASR(aBuilder,
                                                            mActiveScrolledRoot);
   }
-
-  bool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                         nsRegion* aVisibleRegion) override;
 
   void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
                                  const nsDisplayItemGeometry* aGeometry,
