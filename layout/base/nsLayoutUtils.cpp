@@ -34,6 +34,7 @@
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/DisplayPortUtils.h"
 #include "mozilla/GeckoBindings.h"
+#include "mozilla/glean/GleanMetrics.h"
 #include "mozilla/dom/AnonymousContent.h"
 #include "mozilla/dom/BrowserChild.h"
 #include "mozilla/dom/CanvasUtils.h"
@@ -3136,6 +3137,7 @@ void nsLayoutUtils::PaintFrame(gfxContext* aRenderingContext,
   PresShell* presShell = presContext->PresShell();
 
   TimeStamp startBuildDisplayList = TimeStamp::Now();
+  auto dlTimerId = mozilla::glean::paint::build_displaylist_time.Start();
 
   const bool buildCaret = !(aFlags & PaintFrameFlags::HideCaret);
 
@@ -3435,9 +3437,7 @@ void nsLayoutUtils::PaintFrame(gfxContext* aRenderingContext,
 
   const double geckoDLBuildTime =
       (TimeStamp::Now() - startBuildDisplayList).ToMilliseconds();
-
-  Telemetry::Accumulate(Telemetry::PAINT_BUILD_DISPLAYLIST_TIME,
-                        geckoDLBuildTime);
+  mozilla::glean::paint::build_displaylist_time.StopAndAccumulate(std::move(dlTimerId));
 
   bool consoleNeedsDisplayList =
       (gfxUtils::DumpDisplayList() || gfxEnv::DumpPaint()) &&
@@ -9291,7 +9291,7 @@ CSSPoint nsLayoutUtils::GetCumulativeApzCallbackTransform(nsIFrame* aFrame) {
 
     // Keep track of whether we've encountered the RCD-RSF's content element.
     nsPresContext* pc = frame->PresContext();
-    if (pc->IsRootContentDocument()) {
+    if (pc->IsRootContentDocumentCrossProcess()) {
       if (PresShell* shell = pc->GetPresShell()) {
         if (nsIFrame* rsf = shell->GetRootScrollFrame()) {
           if (frame->GetContent() == rsf->GetContent()) {
@@ -9308,7 +9308,7 @@ CSSPoint nsLayoutUtils::GetCumulativeApzCallbackTransform(nsIFrame* aFrame) {
     // which applies to fixed content as well.
     ViewportFrame* viewportFrame = do_QueryFrame(frame);
     if (viewportFrame) {
-      if (pc->IsRootContentDocument() && !seenRcdRsf) {
+      if (pc->IsRootContentDocumentCrossProcess() && !seenRcdRsf) {
         applyCallbackTransformForFrame(pc->PresShell()->GetRootScrollFrame());
       }
     }

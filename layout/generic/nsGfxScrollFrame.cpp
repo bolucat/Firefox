@@ -2987,7 +2987,8 @@ void ScrollFrameHelper::ScrollToImpl(nsPoint aPt, const nsRect& aRange,
 
   // If we are scrolling the RCD-RSF, and a visual scroll update is pending,
   // cancel it; otherwise, it will clobber this scroll.
-  if (IsRootScrollFrameOfDocument() && presContext->IsRootContentDocument()) {
+  if (IsRootScrollFrameOfDocument() &&
+      presContext->IsRootContentDocumentCrossProcess()) {
     PresShell* ps = presContext->GetPresShell();
     if (const auto& visualScrollUpdate = ps->GetPendingVisualScrollUpdate()) {
       if (visualScrollUpdate->mVisualScrollOffset != aPt) {
@@ -3394,14 +3395,14 @@ void ScrollFrameHelper::AppendScrollPartsTo(nsDisplayListBuilder* aBuilder,
     // this for the root scrollframe of the root content document, which is
     // zoomable, and where the scrollbar sizes are bounded by the widget.
     const nsRect visible =
-        mIsRoot && mOuter->PresContext()->IsRootContentDocument()
+        mIsRoot && mOuter->PresContext()->IsRootContentDocumentCrossProcess()
             ? scrollParts[i]->InkOverflowRectRelativeToParent()
             : aBuilder->GetVisibleRect();
     if (visible.IsEmpty()) {
       continue;
     }
     const nsRect dirty =
-        mIsRoot && mOuter->PresContext()->IsRootContentDocument()
+        mIsRoot && mOuter->PresContext()->IsRootContentDocumentCrossProcess()
             ? scrollParts[i]->InkOverflowRectRelativeToParent()
             : aBuilder->GetDirtyRect();
 
@@ -3853,8 +3854,7 @@ void ScrollFrameHelper::BuildDisplayList(nsDisplayListBuilder* aBuilder,
     // The composition size is essentially in visual coordinates.
     // If we are hit-testing in layout coordinates, transform the clip rect
     // to layout coordinates to match.
-    if (aBuilder->IsRelativeToLayoutViewport() &&
-        mOuter->PresContext()->IsRootContentDocument()) {
+    if (aBuilder->IsRelativeToLayoutViewport() && isRootContent) {
       clipRect = ViewportUtils::VisualToLayout(clipRect, mOuter->PresShell());
     }
   }
@@ -4260,7 +4260,7 @@ nsRect ScrollFrameHelper::RestrictToRootDisplayPort(
     // If rootFrame is the RCD-RSF then
     // CalculateCompositionSizeForFrame did not take the document's
     // resolution into account, so we must.
-    if (rootPresContext->IsRootContentDocument() &&
+    if (rootPresContext->IsRootContentDocumentCrossProcess() &&
         rootFrame == rootPresShell->GetRootScrollFrame()) {
       MOZ_LOG(
           sDisplayportLog, LogLevel::Verbose,

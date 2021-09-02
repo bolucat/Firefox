@@ -975,11 +975,6 @@ class nsGenericHTMLFormElement : public nsGenericHTMLElement,
   virtual void SetForm(mozilla::dom::HTMLFormElement* aForm) override;
   virtual void ClearForm(bool aRemoveFromForm, bool aUnbindOrDelete) override;
 
-  NS_IMETHOD SaveState() override { return NS_OK; }
-
-  virtual bool RestoreState(mozilla::PresState* aState) override {
-    return false;
-  }
   virtual bool AllowDrop() override { return true; }
 
   // nsIContent
@@ -991,6 +986,24 @@ class nsGenericHTMLFormElement : public nsGenericHTMLElement,
   void GetEventTargetParent(mozilla::EventChainPreVisitor& aVisitor) override;
   virtual nsresult PreHandleEvent(
       mozilla::EventChainVisitor& aVisitor) override;
+
+  /**
+   * Save to presentation state.  The form control will determine whether it
+   * has anything to save and if so, create an entry in the layout history for
+   * its pres context.
+   */
+  virtual void SaveState() {}
+
+  /**
+   * Restore from presentation state.  You pass in the presentation state for
+   * this form control (generated with GenerateStateKey() + "-C") and the form
+   * control will grab its state from there.
+   *
+   * @param aState the pres state to use to restore the control
+   * @return true if the form control was a checkbox and its
+   *         checked state was restored, false otherwise.
+   */
+  virtual bool RestoreState(mozilla::PresState* aState) { return false; }
 
   /**
    * This callback is called by a fieldest on all its elements whenever its

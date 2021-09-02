@@ -1117,6 +1117,7 @@ public class GeckoSession {
             getEventDispatcher().registerUiThreadListener(this,
                 "GeckoView:PinOnScreen",
                 "GeckoView:Prompt",
+                "GeckoView:Prompt:Dismiss",
                 null);
         }
 
@@ -1130,10 +1131,15 @@ public class GeckoSession {
             if ("GeckoView:PinOnScreen".equals(event)) {
                 GeckoSession.this.setShouldPinOnScreen(message.getBoolean("pinned"));
             } else if ("GeckoView:Prompt".equals(event)) {
-                handlePromptEvent(GeckoSession.this, message, callback);
+                mPromptController.handleEvent(
+                        GeckoSession.this, message, callback);
+            } else if ("GeckoView:Prompt:Dismiss".equals(event)) {
+                mPromptController.dismissPrompt(message.getString("id"));
             }
         }
     }
+
+    private final PromptController mPromptController;
 
     protected @Nullable Window mWindow;
     private GeckoSessionSettings mSettings;
@@ -1149,6 +1155,7 @@ public class GeckoSession {
         mListener.registerListeners();
 
         mWebExtensionController = new WebExtension.SessionController(this);
+        mPromptController = new PromptController();
 
         mAutofillSupport = new Autofill.Support(this);
         mAutofillSupport.registerListeners();
@@ -2589,291 +2596,6 @@ public class GeckoSession {
         return mSelectionActionDelegate.getDelegate();
     }
 
-    /* package */ static void handlePromptEvent(final GeckoSession session,
-                                                final GeckoBundle message,
-                                                final EventCallback callback) {
-        final PromptDelegate delegate = session.getPromptDelegate();
-        if (delegate == null) {
-            // Default behavior is same as calling dismiss() on callback.
-            callback.sendSuccess(null);
-            return;
-        }
-
-        final String type = message.getString("type");
-        final String mode = message.getString("mode");
-        final String title = message.getString("title");
-        final String msg = message.getString("msg");
-        GeckoResult<PromptDelegate.PromptResponse> res = null;
-
-        switch (type) {
-            case "alert": {
-                final PromptDelegate.AlertPrompt prompt =
-                    new PromptDelegate.AlertPrompt(title, msg);
-                res = delegate.onAlertPrompt(session, prompt);
-                break;
-            }
-            case "beforeUnload": {
-                final PromptDelegate.BeforeUnloadPrompt prompt =
-                    new PromptDelegate.BeforeUnloadPrompt();
-                res = delegate.onBeforeUnloadPrompt(session, prompt);
-                break;
-            }
-            case "repost": {
-                final PromptDelegate.RepostConfirmPrompt prompt =
-                    new PromptDelegate.RepostConfirmPrompt();
-                res = delegate.onRepostConfirmPrompt(session, prompt);
-                break;
-            }
-            case "button": {
-                final PromptDelegate.ButtonPrompt prompt =
-                    new PromptDelegate.ButtonPrompt(title, msg);
-                res = delegate.onButtonPrompt(session, prompt);
-                break;
-            }
-            case "text": {
-                final String defaultValue = message.getString("value");
-                final PromptDelegate.TextPrompt prompt =
-                    new PromptDelegate.TextPrompt(title, msg, defaultValue);
-                res = delegate.onTextPrompt(session, prompt);
-                break;
-            }
-            case "auth": {
-                final PromptDelegate.AuthPrompt.AuthOptions authOptions =
-                    new PromptDelegate.AuthPrompt.AuthOptions(message.getBundle("options"));
-                final PromptDelegate.AuthPrompt prompt =
-                    new PromptDelegate.AuthPrompt(title, msg, authOptions);
-                res = delegate.onAuthPrompt(session, prompt);
-                break;
-            }
-            case "choice": {
-                final int intMode;
-                if ("menu".equals(mode)) {
-                    intMode = PromptDelegate.ChoicePrompt.Type.MENU;
-                } else if ("single".equals(mode)) {
-                    intMode = PromptDelegate.ChoicePrompt.Type.SINGLE;
-                } else if ("multiple".equals(mode)) {
-                    intMode = PromptDelegate.ChoicePrompt.Type.MULTIPLE;
-                } else {
-                    callback.sendError("Invalid mode");
-                    return;
-                }
-
-                final GeckoBundle[] choiceBundles = message.getBundleArray("choices");
-                final PromptDelegate.ChoicePrompt.Choice[] choices;
-                if (choiceBundles == null || choiceBundles.length == 0) {
-                    choices = new PromptDelegate.ChoicePrompt.Choice[0];
-                } else {
-                    choices = new PromptDelegate.ChoicePrompt.Choice[choiceBundles.length];
-                    for (int i = 0; i < choiceBundles.length; i++) {
-                        choices[i] = new PromptDelegate.ChoicePrompt.Choice(choiceBundles[i]);
-                    }
-                }
-
-                final PromptDelegate.ChoicePrompt prompt =
-                    new PromptDelegate.ChoicePrompt(title, msg, intMode, choices);
-                res = delegate.onChoicePrompt(session, prompt);
-                break;
-            }
-            case "color": {
-                final String defaultValue = message.getString("value");
-                final PromptDelegate.ColorPrompt prompt =
-                    new PromptDelegate.ColorPrompt(title, defaultValue);
-                res = delegate.onColorPrompt(session, prompt);
-                break;
-            }
-            case "datetime": {
-                final int intMode;
-                if ("date".equals(mode)) {
-                    intMode = PromptDelegate.DateTimePrompt.Type.DATE;
-                } else if ("month".equals(mode)) {
-                    intMode = PromptDelegate.DateTimePrompt.Type.MONTH;
-                } else if ("week".equals(mode)) {
-                    intMode = PromptDelegate.DateTimePrompt.Type.WEEK;
-                } else if ("time".equals(mode)) {
-                    intMode = PromptDelegate.DateTimePrompt.Type.TIME;
-                } else if ("datetime-local".equals(mode)) {
-                    intMode = PromptDelegate.DateTimePrompt.Type.DATETIME_LOCAL;
-                } else {
-                    callback.sendError("Invalid mode");
-                    return;
-                }
-
-                final String defaultValue = message.getString("value");
-                final String minValue = message.getString("min");
-                final String maxValue = message.getString("max");
-                final PromptDelegate.DateTimePrompt prompt =
-                    new PromptDelegate.DateTimePrompt(title, intMode, defaultValue, minValue, maxValue);
-                res = delegate.onDateTimePrompt(session, prompt);
-                break;
-            }
-            case "file": {
-                final int intMode;
-                if ("single".equals(mode)) {
-                    intMode = PromptDelegate.FilePrompt.Type.SINGLE;
-                } else if ("multiple".equals(mode)) {
-                    intMode = PromptDelegate.FilePrompt.Type.MULTIPLE;
-                } else {
-                    callback.sendError("Invalid mode");
-                    return;
-                }
-
-                final String[] mimeTypes = message.getStringArray("mimeTypes");
-                final int capture = message.getInt("capture");
-                final PromptDelegate.FilePrompt prompt =
-                    new PromptDelegate.FilePrompt(title, intMode, capture, mimeTypes);
-                res = delegate.onFilePrompt(session, prompt);
-                break;
-            }
-            case "popup": {
-                final String targetUri = message.getString("targetUri");
-                final PromptDelegate.PopupPrompt prompt =
-                    new PromptDelegate.PopupPrompt(targetUri);
-                res = delegate.onPopupPrompt(session, prompt);
-                break;
-            }
-            case "share": {
-                final String text = message.getString("text");
-                final String uri = message.getString("uri");
-                final PromptDelegate.SharePrompt prompt =
-                    new PromptDelegate.SharePrompt(title, text, uri);
-                res = delegate.onSharePrompt(session, prompt);
-                break;
-            }
-            case "Autocomplete:Save:Login": {
-                final int hint = message.getInt("hint");
-                final GeckoBundle[] loginBundles =
-                    message.getBundleArray("logins");
-
-                if (loginBundles == null) {
-                    break;
-                }
-
-                final Autocomplete.LoginSaveOption[] options =
-                    new Autocomplete.LoginSaveOption[loginBundles.length];
-
-                for (int i = 0; i < options.length; ++i) {
-                    options[i] = new Autocomplete.LoginSaveOption(
-                            new Autocomplete.LoginEntry(loginBundles[i]),
-                            hint);
-                }
-
-                final PromptDelegate.AutocompleteRequest
-                    <Autocomplete.LoginSaveOption> request =
-                    new PromptDelegate.AutocompleteRequest<>(options);
-
-                res = delegate.onLoginSave(session, request);
-                break;
-            }
-            case "Autocomplete:Save:Address": {
-                final int hint = message.getInt("hint");
-                final GeckoBundle[] addressBundles =
-                        message.getBundleArray("addresses");
-
-                if (addressBundles == null) {
-                    break;
-                }
-
-                final Autocomplete.AddressSaveOption[] options =
-                        new Autocomplete.AddressSaveOption[addressBundles.length];
-
-                for (int i = 0; i < options.length; ++i) {
-                    options[i] = new Autocomplete.AddressSaveOption(
-                            new Autocomplete.Address(addressBundles[i]),
-                            hint);
-                }
-
-                final PromptDelegate.AutocompleteRequest
-                        <Autocomplete.AddressSaveOption> request =
-                        new PromptDelegate.AutocompleteRequest<>(options);
-
-                res = delegate.onAddressSave(session, request);
-                break;
-            }
-            case "Autocomplete:Select:Login": {
-                final GeckoBundle[] optionBundles =
-                    message.getBundleArray("options");
-
-                if (optionBundles == null) {
-                    break;
-                }
-
-                final Autocomplete.LoginSelectOption[] options =
-                    new Autocomplete.LoginSelectOption[optionBundles.length];
-
-                for (int i = 0; i < options.length; ++i) {
-                    options[i] = Autocomplete.LoginSelectOption.fromBundle(
-                        optionBundles[i]);
-                }
-
-                final PromptDelegate.AutocompleteRequest
-                    <Autocomplete.LoginSelectOption> request =
-                    new PromptDelegate.AutocompleteRequest<>(options);
-
-                res = delegate.onLoginSelect(session, request);
-                break;
-            }
-            case "Autocomplete:Select:CreditCard": {
-                final GeckoBundle[] optionBundles =
-                    message.getBundleArray("options");
-
-                if (optionBundles == null) {
-                    break;
-                }
-
-                final Autocomplete.CreditCardSelectOption[] options =
-                    new Autocomplete.CreditCardSelectOption[optionBundles.length];
-
-                for (int i = 0; i < options.length; ++i) {
-                    options[i] = Autocomplete.CreditCardSelectOption.fromBundle(
-                        optionBundles[i]);
-                }
-
-                final PromptDelegate.AutocompleteRequest
-                    <Autocomplete.CreditCardSelectOption> request =
-                    new PromptDelegate.AutocompleteRequest<>(options);
-
-                res = delegate.onCreditCardSelect(session, request);
-                break;
-            }
-            case "Autocomplete:Select:Address": {
-                final GeckoBundle[] optionBundles =
-                        message.getBundleArray("options");
-
-                if (optionBundles == null) {
-                    break;
-                }
-
-                final Autocomplete.AddressSelectOption[] options =
-                        new Autocomplete.AddressSelectOption[optionBundles.length];
-
-                for (int i = 0; i < options.length; ++i) {
-                    options[i] = Autocomplete.AddressSelectOption.fromBundle(
-                            optionBundles[i]);
-                }
-
-                final PromptDelegate.AutocompleteRequest
-                        <Autocomplete.AddressSelectOption> request =
-                        new PromptDelegate.AutocompleteRequest<>(options);
-
-                res = delegate.onAddressSelect(session, request);
-                break;
-            }
-            default: {
-                callback.sendError("Invalid type");
-                return;
-            }
-        }
-
-        if (res == null) {
-            // Adhere to default behavior if the delegate returns null.
-            callback.sendSuccess(null);
-        } else {
-            res.accept(value -> {
-                value.dispatch(callback);
-            }, exception -> callback.sendError("Failed to get prompt response."));
-        }
-    }
-
     @UiThread
     protected void setShouldPinOnScreen(final boolean pinned) {
         if (DEBUG) {
@@ -3915,21 +3637,57 @@ public class GeckoSession {
             }
         }
 
+        interface PromptInstanceDelegate {
+            /**
+             * Called when this prompt has been dismissed by the system.
+             *
+             * This can happen e.g. when the page navigates away and the content of the prompt
+             * is not relevant anymore.
+             *
+             * When this method is called, you should hide the prompt UI elements.
+             *
+             * @param prompt the prompt that should be dismissed.
+             */
+            @UiThread
+            default void onPromptDismiss(final @NonNull BasePrompt prompt) {}
+        }
+
         // Prompt classes.
         public class BasePrompt {
             private boolean mIsCompleted;
             private boolean mIsConfirmed;
             private GeckoBundle mResult;
+            private final WeakReference<Observer> mObserver;
+            private PromptInstanceDelegate mDelegate;
+
+            protected interface Observer {
+                @AnyThread
+                default void onPromptCompleted(@NonNull BasePrompt prompt) {}
+            }
+
+            private void complete() {
+                mIsCompleted = true;
+                final Observer observer = mObserver.get();
+                if (observer != null) {
+                    observer.onPromptCompleted(this);
+                }
+            }
 
             /**
              * The title of this prompt; may be null.
              */
             public final @Nullable String title;
+            /* package */ String id;
 
-            private BasePrompt(@Nullable final String title) {
+            private BasePrompt(
+                    @NonNull final String id,
+                    @Nullable final String title,
+                    final Observer observer) {
                 this.title = title;
+                this.id = id;
                 mIsConfirmed = false;
                 mIsCompleted = false;
+                mObserver = new WeakReference<>(observer);
             }
 
             @UiThread
@@ -3938,8 +3696,8 @@ public class GeckoSession {
                     throw new RuntimeException("Cannot confirm/dismiss a Prompt twice.");
                 }
 
-                mIsCompleted = true;
                 mIsConfirmed = true;
+                complete();
                 return new PromptResponse(this);
             }
 
@@ -3956,8 +3714,29 @@ public class GeckoSession {
                     throw new RuntimeException("Cannot confirm/dismiss a Prompt twice.");
                 }
 
-                mIsCompleted = true;
+                complete();
                 return new PromptResponse(this);
+            }
+
+            /**
+             * Set the delegate for this prompt.
+             *
+             * @param delegate the {@link PromptInstanceDelegate} instance.
+             */
+            @UiThread
+            public void setDelegate(final @Nullable PromptInstanceDelegate delegate) {
+                mDelegate = delegate;
+            }
+
+            /**
+             * Get the delegate for this prompt.
+             *
+             * @return the {@link PromptInstanceDelegate} instance.
+             */
+            @UiThread
+            @Nullable
+            public PromptInstanceDelegate getDelegate() {
+                return mDelegate;
             }
 
             /* package */ GeckoBundle ensureResult() {
@@ -3997,8 +3776,10 @@ public class GeckoSession {
          * See https://developer.mozilla.org/en-US/docs/Web/API/WindowEventHandlers/onbeforeunload
          */
         class BeforeUnloadPrompt extends BasePrompt {
-            protected BeforeUnloadPrompt() {
-                super(null);
+            protected BeforeUnloadPrompt(
+                    @NonNull final String id,
+                    @NonNull final Observer observer) {
+                super(id, null, observer);
             }
 
             /**
@@ -4021,8 +3802,10 @@ public class GeckoSession {
          * needs to resubmit POST data (e.g. due to page refresh).
          */
         class RepostConfirmPrompt extends BasePrompt {
-            protected RepostConfirmPrompt() {
-                super(null);
+            protected RepostConfirmPrompt(
+                    @NonNull final String id,
+                    @NonNull final Observer observer) {
+                super(id, null, observer);
             }
 
             /**
@@ -4051,9 +3834,11 @@ public class GeckoSession {
              */
             public final @Nullable String message;
 
-            protected AlertPrompt(@Nullable final String title,
-                                  @Nullable final String message) {
-                super(title);
+            protected AlertPrompt(@NonNull final String id,
+                                  @Nullable final String title,
+                                  @Nullable final String message,
+                                  @NonNull final Observer observer) {
+                super(id, title, observer);
                 this.message = message;
             }
         }
@@ -4086,9 +3871,11 @@ public class GeckoSession {
              */
             public final @Nullable String message;
 
-            protected ButtonPrompt(@Nullable final String title,
-                                   @Nullable final String message) {
-                super(title);
+            protected ButtonPrompt(@NonNull final String id,
+                                   @Nullable final String title,
+                                   @Nullable final String message,
+                                   @NonNull final Observer observer) {
+                super(id, title, observer);
                 this.message = message;
             }
 
@@ -4123,10 +3910,12 @@ public class GeckoSession {
              */
             public final @Nullable String defaultValue;
 
-            protected TextPrompt(@Nullable final String title,
+            protected TextPrompt(@NonNull final String id,
+                                 @Nullable final String title,
                                  @Nullable final String message,
-                                 @Nullable final String defaultValue) {
-                super(title);
+                                 @Nullable final String defaultValue,
+                                 @NonNull final Observer observer) {
+                super(id, title, observer);
                 this.message = message;
                 this.defaultValue = defaultValue;
             }
@@ -4265,10 +4054,12 @@ public class GeckoSession {
              */
             public final @NonNull AuthOptions authOptions;
 
-            protected AuthPrompt(@Nullable final String title,
+            protected AuthPrompt(@NonNull final String id,
+                                 @Nullable final String title,
                                  @Nullable final String message,
-                                 @NonNull final AuthOptions authOptions) {
-                super(title);
+                                 @NonNull final AuthOptions authOptions,
+                                 @NonNull final Observer observer) {
+                super(id, title, observer);
                 this.message = message;
                 this.authOptions = authOptions;
             }
@@ -4421,11 +4212,13 @@ public class GeckoSession {
              */
             public final @NonNull Choice[] choices;
 
-            protected ChoicePrompt(@Nullable final String title,
+            protected ChoicePrompt(@NonNull final String id,
+                                   @Nullable final String title,
                                    @Nullable final String message,
                                    @ChoiceType final int type,
-                                   @NonNull final Choice[] choices) {
-                super(title);
+                                   @NonNull final Choice[] choices,
+                                   @NonNull final Observer observer) {
+                super(id, title, observer);
                 this.message = message;
                 this.type = type;
                 this.choices = choices;
@@ -4513,9 +4306,11 @@ public class GeckoSession {
              */
             public final @Nullable String defaultValue;
 
-            protected ColorPrompt(@Nullable final String title,
-                                  @Nullable final String defaultValue) {
-                super(title);
+            protected ColorPrompt(@NonNull final String id,
+                                  @Nullable final String title,
+                                  @Nullable final String defaultValue,
+                                  @NonNull final Observer observer) {
+                super(id, title, observer);
                 this.defaultValue = defaultValue;
             }
 
@@ -4592,12 +4387,14 @@ public class GeckoSession {
              */
             public final @Nullable String maxValue;
 
-            protected DateTimePrompt(@Nullable final String title,
+            protected DateTimePrompt(@NonNull final String id,
+                                     @Nullable final String title,
                                      @DatetimeType final int type,
                                      @Nullable final String defaultValue,
                                      @Nullable final String minValue,
-                                     @Nullable final String maxValue) {
-                super(title);
+                                     @Nullable final String maxValue,
+                                     @NonNull final Observer observer) {
+                super(id, title, observer);
                 this.type = type;
                 this.defaultValue = defaultValue;
                 this.minValue = minValue;
@@ -4693,11 +4490,13 @@ public class GeckoSession {
              */
             public final @CaptureType int capture;
 
-            protected FilePrompt(@Nullable final String title,
+            protected FilePrompt(@NonNull final String id,
+                                 @Nullable final String title,
                                  @FileType final int type,
                                  @CaptureType final int capture,
-                                 @Nullable final String[] mimeTypes) {
-                super(title);
+                                 @Nullable final String[] mimeTypes,
+                                 @NonNull final Observer observer) {
+                super(id, title, observer);
                 this.type = type;
                 this.capture = capture;
                 this.mimeTypes = mimeTypes;
@@ -4790,8 +4589,11 @@ public class GeckoSession {
              */
             public final @Nullable String targetUri;
 
-            protected PopupPrompt(@Nullable final String targetUri) {
-                super(null);
+            protected PopupPrompt(
+                    @NonNull final String id,
+                    @Nullable final String targetUri,
+                    @NonNull final Observer observer) {
+                super(id, null, observer);
                 this.targetUri = targetUri;
             }
 
@@ -4854,10 +4656,12 @@ public class GeckoSession {
              */
             public final @Nullable String uri;
 
-            protected SharePrompt(@Nullable final String title,
+            protected SharePrompt(@NonNull final String id,
+                                  @Nullable final String title,
                                   @Nullable final String text,
-                                  @Nullable final String uri) {
-                super(title);
+                                  @Nullable final String uri,
+                                  @NonNull final Observer observer) {
+                super(id, title, observer);
                 this.text = text;
                 this.uri = uri;
             }
@@ -4902,8 +4706,10 @@ public class GeckoSession {
              */
             public final @NonNull T[] options;
 
-            protected AutocompleteRequest(final @NonNull T[] options) {
-                super(null);
+            protected AutocompleteRequest(final @NonNull String id,
+                                          final @NonNull T[] options,
+                                          final Observer observer) {
+                super(id, null, observer);
                 this.options = options;
             }
 
@@ -5270,7 +5076,6 @@ public class GeckoSession {
                         request) {
             return null;
         }
-
     }
 
     /**

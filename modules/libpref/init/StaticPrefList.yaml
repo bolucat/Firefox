@@ -5012,13 +5012,6 @@
   value: false
   mirror: once
 
-# Disable surface sharing due to issues with compatible FBConfigs on
-# NVIDIA drivers as described in bug 1193015.
-- name: gfx.use-glx-texture-from-pixmap
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
 - name: gfx.use-iosurface-textures
   type: bool
   value: false
@@ -5101,27 +5094,27 @@
   value: false
   mirror: always
 
-- name: gfx.webrender.blob.paint-flashing
+- name: gfx.webrender.debug.blob.paint-flashing
   type: RelaxedAtomicBool
   value: false
   mirror: always
 
-- name: gfx.webrender.enable-capture
+- name: gfx.webrender.debug.enable-capture
   type: bool
   value: false
   mirror: once
 
-- name: gfx.webrender.dl.dump-parent
+- name: gfx.webrender.debug.dl.dump-parent
   type: RelaxedAtomicBool
   value: false
   mirror: always
 
-- name: gfx.webrender.dl.dump-content
+- name: gfx.webrender.debug.dl.dump-content
   type: RelaxedAtomicBool
   value: false
   mirror: always
 
-- name: gfx.webrender.dl.dump-content-serialized
+- name: gfx.webrender.debug.dl.dump-content-serialized
   type: RelaxedAtomicBool
   value: false
   mirror: always
@@ -5133,7 +5126,7 @@
   mirror: once
 #endif
 
-- name: gfx.webrender.highlight-painted-layers
+- name: gfx.webrender.debug.highlight-painted-layers
   type: RelaxedAtomicBool
   value: false
   mirror: always
@@ -6564,12 +6557,6 @@
     value: false
     mirror: once
 #endif
-
-- name: layers.progressive-paint
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-  do_not_use_directly: true
 
 # Copy-on-write canvas.
 - name: layers.shared-buffer-provider.enabled
@@ -9310,6 +9297,15 @@
   value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
+
+# Set to ignore referrer policies which is less restricted than the default for
+# cross-site requests in the private browsing mode, including 'unsafe-url',
+# 'no-referrer-when-downgrade' and 'origin-when-cross-origin'.
+- name: network.http.referer.disallowCrossSiteRelaxingDefault.pbmode
+  type: bool
+  value: true
+  mirror: always
+
 # Set the Private Browsing Default Referrer Policy applied to third-party
 # trackers when the default cookie policy is set to reject third-party
 # trackers, to be used unless overriden by the site.
@@ -10596,7 +10592,7 @@
 
 - name: privacy.partition.bloburl_per_agent_cluster
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: false
   mirror: always
 
 - name: privacy.window.name.update.enabled
