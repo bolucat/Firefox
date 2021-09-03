@@ -2755,7 +2755,7 @@ bool nsPIDOMWindowInner::IsCurrentInnerWindow() const {
 
 bool nsPIDOMWindowInner::IsFullyActive() const {
   WindowContext* wc = GetWindowContext();
-  if (!wc || wc->IsDiscarded() || wc->IsCached()) {
+  if (!wc || wc->IsDiscarded() || !wc->IsCurrent()) {
     return false;
   }
   return GetBrowsingContext()->AncestorsAreCurrent();
@@ -7302,7 +7302,7 @@ void nsGlobalWindowInner::SetReplaceableWindowCoord(
    */
   nsGlobalWindowOuter* outer = GetOuterWindowInternal();
   if (!outer || !outer->CanMoveResizeWindows(aCallerType) ||
-      mBrowsingContext->IsFrame()) {
+      mBrowsingContext->IsSubframe()) {
     RedefineProperty(aCx, aPropName, aValue, aError);
     return;
   }

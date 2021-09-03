@@ -947,9 +947,9 @@ dependencies = [
 
 [[package]]
 name = "cssparser"
-version = "0.28.1"
+version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1db8599a9761b371751fbf13e076fa03c6e1a78f8c5288e6ab9467f10a2322c1"
+checksum = "2a3a85949f6cbf49a4e1ab98a98e0f9aabfe7d827a7f156da36c98a86dede2df"
 dependencies = [
  "cssparser-macros",
  "dtoa-short",
@@ -3327,8 +3327,8 @@ dependencies = [
 
 [[package]]
 name = "neqo-common"
-version = "0.4.31"
-source = "git+https://github.com/mozilla/neqo?tag=v0.4.31#37bb62fa7b43ac624406090ba4f94f4cc082790b"
+version = "0.4.32"
+source = "git+https://github.com/mozilla/neqo?tag=v0.4.32#dbb04a530a6cfff20fa7a4e43ba778c8a4cf3d54"
 dependencies = [
  "chrono",
  "env_logger",
@@ -3340,8 +3340,8 @@ dependencies = [
 
 [[package]]
 name = "neqo-crypto"
-version = "0.4.31"
-source = "git+https://github.com/mozilla/neqo?tag=v0.4.31#37bb62fa7b43ac624406090ba4f94f4cc082790b"
+version = "0.4.32"
+source = "git+https://github.com/mozilla/neqo?tag=v0.4.32#dbb04a530a6cfff20fa7a4e43ba778c8a4cf3d54"
 dependencies = [
  "bindgen",
  "log",
@@ -3353,8 +3353,8 @@ dependencies = [
 
 [[package]]
 name = "neqo-http3"
-version = "0.4.31"
-source = "git+https://github.com/mozilla/neqo?tag=v0.4.31#37bb62fa7b43ac624406090ba4f94f4cc082790b"
+version = "0.4.32"
+source = "git+https://github.com/mozilla/neqo?tag=v0.4.32#dbb04a530a6cfff20fa7a4e43ba778c8a4cf3d54"
 dependencies = [
  "log",
  "neqo-common",
@@ -3367,8 +3367,8 @@ dependencies = [
 
 [[package]]
 name = "neqo-qpack"
-version = "0.4.31"
-source = "git+https://github.com/mozilla/neqo?tag=v0.4.31#37bb62fa7b43ac624406090ba4f94f4cc082790b"
+version = "0.4.32"
+source = "git+https://github.com/mozilla/neqo?tag=v0.4.32#dbb04a530a6cfff20fa7a4e43ba778c8a4cf3d54"
 dependencies = [
  "lazy_static",
  "log",
@@ -3381,8 +3381,8 @@ dependencies = [
 
 [[package]]
 name = "neqo-transport"
-version = "0.4.31"
-source = "git+https://github.com/mozilla/neqo?tag=v0.4.31#37bb62fa7b43ac624406090ba4f94f4cc082790b"
+version = "0.4.32"
+source = "git+https://github.com/mozilla/neqo?tag=v0.4.32#dbb04a530a6cfff20fa7a4e43ba778c8a4cf3d54"
 dependencies = [
  "indexmap",
  "lazy_static",

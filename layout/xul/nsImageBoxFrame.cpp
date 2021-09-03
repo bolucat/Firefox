@@ -438,8 +438,7 @@ ImgDrawResult nsImageBoxFrame::CreateWebRenderCommands(
     return result;
   }
 
-  mozilla::wr::ImageRendering rendering = wr::ToImageRendering(
-      nsLayoutUtils::GetSamplingFilterForFrame(aItem->Frame()));
+  auto rendering = wr::ToImageRendering(aItem->Frame()->UsedImageRendering());
   wr::LayoutRect fill = wr::ToLayoutRect(fillRect);
 
   if (aFlags & imgIContainer::FLAG_RECORD_BLOB) {
@@ -582,16 +581,6 @@ void nsDisplayXULImage::ComputeInvalidationRegion(
 
   nsDisplayImageContainer::ComputeInvalidationRegion(aBuilder, aGeometry,
                                                      aInvalidRegion);
-}
-
-bool nsDisplayXULImage::CanOptimizeToImageLayer(
-    LayerManager* aManager, nsDisplayListBuilder* aBuilder) {
-  nsImageBoxFrame* imageFrame = static_cast<nsImageBoxFrame*>(mFrame);
-  if (!imageFrame->CanOptimizeToImageLayer()) {
-    return false;
-  }
-
-  return nsDisplayImageContainer::CanOptimizeToImageLayer(aManager, aBuilder);
 }
 
 already_AddRefed<imgIContainer> nsDisplayXULImage::GetImage() {

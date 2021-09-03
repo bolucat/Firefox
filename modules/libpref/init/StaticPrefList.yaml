@@ -1194,6 +1194,12 @@
   type: RelaxedAtomicUint32
   value: 3000
   mirror: always
+  
+# Maximum delay between scroll input events that will be considered a scrolling interaction (milliseconds).
+- name: browser.places.interactions.scrolling_timeout_ms
+  type: RelaxedAtomicUint32
+  value: 5000
+  mirror: always
 
 # Force usage of in-memory (rather than file on disk) media cache for video streaming when private browsing
 - name: browser.privatebrowsing.forceMediaMemoryCache
@@ -5716,7 +5722,7 @@
 # 2 = Strict: reject violations of "should" specification directives
 - name: image.avif.compliance_strictness
   type: RelaxedAtomicInt32
-  value: 0
+  value: 1
   mirror: always
 
 # Whether we apply container-level transforms like mirroring and rotation
@@ -6810,6 +6816,13 @@
 
 # Whether non-standard caption-side values are enabled
 - name: layout.css.caption-side-non-standard.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+  rust: true
+
+# Whether @layer is enabled
+- name: layout.css.cascade-layers.enabled
   type: RelaxedAtomicBool
   value: false
   mirror: always
@@ -9603,7 +9616,7 @@
 # Whether to cache SSL resumption tokens in necko.
 - name: network.ssl_tokens_cache_enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # Capacity of the above cache, in kilobytes.

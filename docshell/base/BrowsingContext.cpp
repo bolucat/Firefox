@@ -611,7 +611,7 @@ bool BrowsingContext::IsActive() const {
     if (explicit_ != ExplicitActiveStatus::None) {
       return explicit_ == ExplicitActiveStatus::Active;
     }
-    if (current->IsCached()) {
+    if (mParentWindow && !mParentWindow->IsCurrent()) {
       return false;
     }
   } while ((current = current->GetParent()));
@@ -936,12 +936,8 @@ void BrowsingContext::PrepareForProcessChange() {
   MOZ_ASSERT(!mWindowProxy);
 }
 
-bool BrowsingContext::IsCached() const {
-  return mParentWindow && mParentWindow->IsCached();
-}
-
 bool BrowsingContext::IsTargetable() const {
-  return !GetClosed() && !mIsDiscarded && !IsCached();
+  return !GetClosed() && AncestorsAreCurrent();
 }
 
 bool BrowsingContext::HasOpener() const {
@@ -956,7 +952,7 @@ bool BrowsingContext::AncestorsAreCurrent() const {
     }
 
     if (WindowContext* wc = bc->GetParentWindowContext()) {
-      if (wc->IsCached() || wc->IsDiscarded()) {
+      if (!wc->IsCurrent() || wc->IsDiscarded()) {
         return false;
       }
 
@@ -2098,7 +2094,7 @@ void BrowsingContext::Close(CallerType aCallerType, ErrorResult& aError) {
     return;
   }
 
-  if (IsFrame()) {
+  if (IsSubframe()) {
     // .close() on frames is a no-op.
     return;
   }
@@ -3490,7 +3486,7 @@ bool BrowsingContext::ShouldUpdateSessionHistory(uint32_t aLoadType) {
   // an iframe in shift-reload case.
   return nsDocShell::ShouldUpdateGlobalHistory(aLoadType) &&
          (!(aLoadType & nsIDocShell::LOAD_CMD_RELOAD) ||
-          (IsForceReloadType(aLoadType) && IsFrame()));
+          (IsForceReloadType(aLoadType) && IsSubframe()));
 }
 
 nsresult BrowsingContext::CheckLocationChangeRateLimit(CallerType aCallerType) {
