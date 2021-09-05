@@ -2262,10 +2262,11 @@ WindowRenderer* nsDisplayListBuilder::GetWidgetWindowRenderer(nsView** aView) {
   return nullptr;
 }
 
-LayerManager* nsDisplayListBuilder::GetWidgetLayerManager(nsView** aView) {
+WebRenderLayerManager* nsDisplayListBuilder::GetWidgetLayerManager(
+    nsView** aView) {
   WindowRenderer* renderer = GetWidgetWindowRenderer();
   if (renderer) {
-    return renderer->AsLayerManager();
+    return renderer->AsWebRender();
   }
   return nullptr;
 }
@@ -2332,7 +2333,7 @@ already_AddRefed<LayerManager> nsDisplayList::PaintRoot(
     Maybe<double> aDisplayListBuildTime) {
   AUTO_PROFILER_LABEL("nsDisplayList::PaintRoot", GRAPHICS);
 
-  RefPtr<LayerManager> layerManager;
+  RefPtr<WebRenderLayerManager> layerManager;
   WindowRenderer* renderer = nullptr;
   bool widgetTransaction = false;
   bool doBeginTransaction = true;
@@ -2346,11 +2347,7 @@ already_AddRefed<LayerManager> nsDisplayList::PaintRoot(
         MOZ_ASSERT(!(aFlags & PAINT_EXISTING_TRANSACTION));
         renderer = nullptr;
       } else {
-        layerManager = renderer->AsLayerManager();
-        if (layerManager) {
-          layerManager->SetContainsSVG(false);
-        }
-
+        layerManager = renderer->AsWebRender();
         doBeginTransaction = !(aFlags & PAINT_EXISTING_TRANSACTION);
         widgetTransaction = true;
       }
@@ -2382,19 +2379,18 @@ already_AddRefed<LayerManager> nsDisplayList::PaintRoot(
     MOZ_ASSERT(layerManager);
     if (doBeginTransaction) {
       if (aCtx) {
-        if (!layerManager->BeginTransactionWithTarget(aCtx)) {
+        if (!layerManager->BeginTransactionWithTarget(aCtx, nsCString())) {
           return nullptr;
         }
       } else {
-        if (!layerManager->BeginTransaction()) {
+        if (!layerManager->BeginTransaction(nsCString())) {
           return nullptr;
         }
       }
     }
 
-    bool prevIsCompositingCheap =
-        aBuilder->SetIsCompositingCheap(layerManager->IsCompositingCheap());
-    MaybeSetupTransactionIdAllocator(layerManager, presContext);
+    bool prevIsCompositingCheap = aBuilder->SetIsCompositingCheap(true);
+    layerManager->SetTransactionIdAllocator(presContext->RefreshDriver());
 
     bool sent = false;
     if (aFlags & PAINT_IDENTICAL_DISPLAY_LIST) {
@@ -2443,16 +2439,13 @@ already_AddRefed<LayerManager> nsDisplayList::PaintRoot(
     return layerManager.forget();
   }
 
+  FallbackRenderer* fallback = renderer->AsFallback();
+  MOZ_ASSERT(fallback);
+
   if (doBeginTransaction) {
-    if (aCtx) {
-      MOZ_ASSERT(layerManager);
-      if (!layerManager->BeginTransactionWithTarget(aCtx)) {
-        return nullptr;
-      }
-    } else {
-      if (!renderer->BeginTransaction()) {
-        return nullptr;
-      }
+    MOZ_ASSERT(!aCtx);
+    if (!fallback->BeginTransaction()) {
+      return nullptr;
     }
   }
 
@@ -2462,20 +2455,8 @@ already_AddRefed<LayerManager> nsDisplayList::PaintRoot(
     flags = LayerManager::END_NO_COMPOSITE;
   }
 
-  if (layerManager) {
-    MaybeSetupTransactionIdAllocator(layerManager, presContext);
-  }
-
-  bool sent = false;
-  if (aFlags & PAINT_IDENTICAL_DISPLAY_LIST) {
-    sent = renderer->EndEmptyTransaction(flags);
-  }
-
-  if (!sent) {
-    MOZ_ASSERT(renderer->AsFallback());
-    renderer->AsFallback()->EndTransactionWithList(
-        aBuilder, this, presContext->AppUnitsPerDevPixel(), flags);
-  }
+  fallback->EndTransactionWithList(aBuilder, this,
+                                   presContext->AppUnitsPerDevPixel(), flags);
 
   if (widgetTransaction ||
       // SVG-as-an-image docs don't paint as part of the retained layer tree,
@@ -2494,22 +2475,14 @@ already_AddRefed<LayerManager> nsDisplayList::PaintRoot(
   bool shouldInvalidate = renderer->NeedsWidgetInvalidation();
   if (view) {
     if (shouldInvalidate) {
-      if (!renderer->AsFallback()) {
-        view->GetViewManager()->InvalidateView(view);
-      } else {
-        // If we're the fallback renderer, then we don't need to invalidate
-        // as we've just drawn directly to the window and don't need to do
-        // anything else.
-        NS_ASSERTION(!(aFlags & PAINT_NO_COMPOSITE),
-                     "Must be compositing during fallback");
-      }
+      // If we're the fallback renderer, then we don't need to invalidate
+      // as we've just drawn directly to the window and don't need to do
+      // anything else.
+      NS_ASSERTION(!(aFlags & PAINT_NO_COMPOSITE),
+                   "Must be compositing during fallback");
     }
   }
-
-  if (layerManager) {
-    layerManager->SetUserData(&gLayerManagerLayerBuilder, nullptr);
-  }
-  return layerManager.forget();
+  return nullptr;
 }
 
 nsDisplayItem* nsDisplayList::RemoveBottom() {
@@ -3629,43 +3602,6 @@ nsRect nsDisplayBackgroundImage::GetDestRect() const { return mDestRect; }
 already_AddRefed<imgIContainer> nsDisplayBackgroundImage::GetImage() {
   nsCOMPtr<imgIContainer> image = mImage;
   return image.forget();
-}
-
-nsDisplayBackgroundImage::ImageLayerization
-nsDisplayBackgroundImage::ShouldCreateOwnLayer(nsDisplayListBuilder* aBuilder,
-                                               LayerManager* aManager) {
-  if (ForceActiveLayers()) {
-    return WHENEVER_POSSIBLE;
-  }
-
-  nsIFrame* backgroundStyleFrame =
-      nsCSSRendering::FindBackgroundStyleFrame(StyleFrame());
-  if (ActiveLayerTracker::IsBackgroundPositionAnimated(aBuilder,
-                                                       backgroundStyleFrame)) {
-    return WHENEVER_POSSIBLE;
-  }
-
-  if (StaticPrefs::layout_animated_image_layers_enabled() && mBackgroundStyle) {
-    const nsStyleImageLayers::Layer& layer =
-        mBackgroundStyle->StyleBackground()->mImage.mLayers[mLayer];
-    const auto* image = &layer.mImage;
-    if (auto* request = image->GetImageRequest()) {
-      nsCOMPtr<imgIContainer> image;
-      if (NS_SUCCEEDED(request->GetImage(getter_AddRefs(image))) && image) {
-        bool animated = false;
-        if (NS_SUCCEEDED(image->GetAnimated(&animated)) && animated) {
-          return WHENEVER_POSSIBLE;
-        }
-      }
-    }
-  }
-
-  if (nsLayoutUtils::GPUImageScalingEnabled() &&
-      aManager->IsCompositingCheap()) {
-    return ONLY_FOR_SCALING;
-  }
-
-  return NO_LAYER_NEEDED;
 }
 
 static void CheckForBorderItem(nsDisplayItem* aItem, uint32_t& aFlags) {
@@ -8904,9 +8840,7 @@ nsDisplaySVGWrapper::nsDisplaySVGWrapper(nsDisplayListBuilder* aBuilder,
 }
 
 bool nsDisplaySVGWrapper::ShouldFlattenAway(nsDisplayListBuilder* aBuilder) {
-  RefPtr<LayerManager> layerManager = aBuilder->GetWidgetLayerManager();
-  return !(layerManager &&
-           layerManager->GetBackendType() == LayersBackend::LAYERS_WR);
+  return !aBuilder->GetWidgetLayerManager();
 }
 
 bool nsDisplaySVGWrapper::CreateWebRenderCommands(
@@ -8931,9 +8865,7 @@ nsDisplayForeignObject::~nsDisplayForeignObject() {
 #endif
 
 bool nsDisplayForeignObject::ShouldFlattenAway(nsDisplayListBuilder* aBuilder) {
-  RefPtr<LayerManager> layerManager = aBuilder->GetWidgetLayerManager();
-  return !(layerManager &&
-           layerManager->GetBackendType() == LayersBackend::LAYERS_WR);
+  return !aBuilder->GetWidgetLayerManager();
 }
 
 bool nsDisplayForeignObject::CreateWebRenderCommands(
