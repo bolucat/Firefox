@@ -1049,19 +1049,6 @@ class nsDisplayListBuilder {
   const ActiveScrolledRoot* GetFilterASR() const { return mFilterASR; }
 
   /**
-   * Transfer off main thread animations to the layer.  May be called
-   * with aBuilder and aItem both null, but only if the caller has
-   * already checked that off main thread animations should be sent to
-   * the layer.  When they are both null, the animations are added to
-   * the layer as pending animations.
-   */
-  static void AddAnimationsAndTransitionsToLayer(layers::Layer* aLayer,
-                                                 nsDisplayListBuilder* aBuilder,
-                                                 nsDisplayItem* aItem,
-                                                 nsIFrame* aFrame,
-                                                 DisplayItemType aType);
-
-  /**
    * Merges the display items in |aMergedItems| and returns a new temporary
    * display item.
    * The display items in |aMergedItems| have to be mergeable with each other.
@@ -3460,9 +3447,8 @@ class nsDisplayList {
     PAINT_COMPRESSED = 0x10,
     PAINT_IDENTICAL_DISPLAY_LIST = 0x20
   };
-  already_AddRefed<layers::LayerManager> PaintRoot(
-      nsDisplayListBuilder* aBuilder, gfxContext* aCtx, uint32_t aFlags,
-      Maybe<double> aDisplayListBuildTime);
+  void PaintRoot(nsDisplayListBuilder* aBuilder, gfxContext* aCtx,
+                 uint32_t aFlags, Maybe<double> aDisplayListBuildTime);
 
   void Paint(nsDisplayListBuilder* aBuilder, gfxContext* aCtx,
              int32_t aAppUnitsPerDevPixel);
@@ -3789,18 +3775,6 @@ class nsDisplayContainer final : public nsDisplayItem {
  private:
   mutable RetainedDisplayList mChildren;
   nsRect mBounds;
-};
-
-class nsDisplayImageContainer : public nsPaintedDisplayItem {
- public:
-  nsDisplayImageContainer(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
-      : nsPaintedDisplayItem(aBuilder, aFrame) {}
-
-  virtual void UpdateDrawResult(image::ImgDrawResult aResult) = 0;
-  virtual already_AddRefed<imgIContainer> GetImage() = 0;
-  virtual nsRect GetDestRect() const = 0;
-
-  bool SupportsOptimizingToImage() const override { return true; }
 };
 
 /**
@@ -4230,7 +4204,7 @@ enum class AppendedBackgroundType : uint8_t {
  * A display item to paint one background-image for a frame. Each background
  * image layer gets its own nsDisplayBackgroundImage.
  */
-class nsDisplayBackgroundImage : public nsDisplayImageContainer {
+class nsDisplayBackgroundImage : public nsPaintedDisplayItem {
  public:
   struct InitData {
     nsDisplayListBuilder* builder;
@@ -4261,7 +4235,7 @@ class nsDisplayBackgroundImage : public nsDisplayImageContainer {
   ~nsDisplayBackgroundImage() override;
 
   bool RestoreState() override {
-    bool superChanged = nsDisplayImageContainer::RestoreState();
+    bool superChanged = nsPaintedDisplayItem::RestoreState();
     bool opacityChanged = (mOpacity != 1.0f);
     mOpacity = 1.0f;
     return (superChanged || opacityChanged);
@@ -4335,16 +4309,11 @@ class nsDisplayBackgroundImage : public nsDisplayImageContainer {
   void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
                                  const nsDisplayItemGeometry* aGeometry,
                                  nsRegion* aInvalidRegion) const override;
-  already_AddRefed<imgIContainer> GetImage() override;
-  nsRect GetDestRect() const override;
-
-  void UpdateDrawResult(image::ImgDrawResult aResult) override {
-    nsDisplayBackgroundGeometry::UpdateDrawResult(this, aResult);
-  }
-
   bool ShouldFixToViewport(nsDisplayListBuilder* aBuilder) const override {
     return mShouldFixToViewport;
   }
+
+  nsRect GetDestRect() const { return mDestRect; }
 
   nsIFrame* GetDependentFrame() override { return mDependentFrame; }
 
@@ -4362,7 +4331,7 @@ class nsDisplayBackgroundImage : public nsDisplayImageContainer {
     if (aFrame == mDependentFrame) {
       mDependentFrame = nullptr;
     }
-    nsDisplayImageContainer::RemoveFrame(aFrame);
+    nsPaintedDisplayItem::RemoveFrame(aFrame);
   }
 
   // Match https://w3c.github.io/paint-timing/#contentful-image
@@ -4374,7 +4343,7 @@ class nsDisplayBackgroundImage : public nsDisplayImageContainer {
   }
 
  protected:
-  bool CanBuildWebRenderDisplayItems(LayerManager* aManager,
+  bool CanBuildWebRenderDisplayItems(layers::WebRenderLayerManager* aManager,
                                      nsDisplayListBuilder* aBuilder);
   nsRect GetBoundsInternal(nsDisplayListBuilder* aBuilder,
                            nsIFrame* aFrameForBounds = nullptr);
@@ -5912,7 +5881,8 @@ class nsDisplayScrollInfoLayer : public nsDisplayWrapList {
 
   void WriteDebugInfo(std::stringstream& aStream) override;
   UniquePtr<layers::ScrollMetadata> ComputeScrollMetadata(
-      nsDisplayListBuilder* aBuilder, LayerManager* aLayerManager);
+      nsDisplayListBuilder* aBuilder,
+      layers::WebRenderLayerManager* aLayerManager);
   bool UpdateScrollData(layers::WebRenderScrollData* aData,
                         layers::WebRenderLayerScrollData* aLayerData) override;
   bool CreateWebRenderCommands(
