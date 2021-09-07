@@ -2046,19 +2046,6 @@ EventStates nsGenericHTMLFormElement::IntrinsicState() const {
   return state;
 }
 
-nsGenericHTMLFormElement::FocusTristate nsGenericHTMLFormElement::FocusState() {
-  // We can't be focused if we aren't in a (composed) document
-  Document* doc = GetComposedDoc();
-  if (!doc) return eUnfocusable;
-
-  // first see if we are disabled or not. If disabled then do nothing.
-  if (IsDisabled()) {
-    return eUnfocusable;
-  }
-
-  return IsInActiveTab(doc) ? eActiveWindow : eInactiveWindow;
-}
-
 Element* nsGenericHTMLFormElement::AddFormIdObserver() {
   nsAutoString formId;
   DocumentOrShadowRoot* docOrShadow = GetUncomposedDocOrConnectedShadowRoot();
@@ -2325,30 +2312,6 @@ bool nsGenericHTMLFormElement::IsLabelable() const {
   return (IsInputElement(type) && type != FormControlType::InputHidden) ||
          IsButtonElement(type) || type == FormControlType::Output ||
          type == FormControlType::Select || type == FormControlType::Textarea;
-}
-
-void nsGenericHTMLFormElement::GetFormAction(nsString& aValue) {
-  auto type = ControlType();
-  if (!IsInputElement(type) && !IsButtonElement(type)) {
-    return;
-  }
-
-  if (!GetAttr(kNameSpaceID_None, nsGkAtoms::formaction, aValue) ||
-      aValue.IsEmpty()) {
-    Document* document = OwnerDoc();
-    nsIURI* docURI = document->GetDocumentURI();
-    if (docURI) {
-      nsAutoCString spec;
-      nsresult rv = docURI->GetSpec(spec);
-      if (NS_FAILED(rv)) {
-        return;
-      }
-
-      CopyUTF8toUTF16(spec, aValue);
-    }
-  } else {
-    GetURIAttr(nsGkAtoms::formaction, nullptr, aValue);
-  }
 }
 
 //----------------------------------------------------------------------
@@ -2759,6 +2722,30 @@ void nsGenericHTMLFormElementWithState::NodeInfoChanged(Document* aOldDoc) {
   // document rather than the order it was inserted into the document.
   mControlNumber = -1;
   mStateKey.SetIsVoid(true);
+}
+
+void nsGenericHTMLFormElementWithState::GetFormAction(nsString& aValue) {
+  auto type = ControlType();
+  if (!IsInputElement(type) && !IsButtonElement(type)) {
+    return;
+  }
+
+  if (!GetAttr(kNameSpaceID_None, nsGkAtoms::formaction, aValue) ||
+      aValue.IsEmpty()) {
+    Document* document = OwnerDoc();
+    nsIURI* docURI = document->GetDocumentURI();
+    if (docURI) {
+      nsAutoCString spec;
+      nsresult rv = docURI->GetSpec(spec);
+      if (NS_FAILED(rv)) {
+        return;
+      }
+
+      CopyUTF8toUTF16(spec, aValue);
+    }
+  } else {
+    GetURIAttr(nsGkAtoms::formaction, nullptr, aValue);
+  }
 }
 
 bool nsGenericHTMLElement::IsEventAttributeNameInternal(nsAtom* aName) {

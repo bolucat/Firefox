@@ -2592,11 +2592,9 @@ void GCRuntime::sweepZoneAfterCompacting(MovingTracer* trc, Zone* zone) {
     r->traceWeakRegExps(trc);
     r->traceWeakSavedStacks(trc);
     r->traceWeakObjects(trc);
-    r->traceWeakSelfHostingScriptSource(trc);
     r->sweepDebugEnvironments();
     r->traceWeakEdgesInJitRealm(trc);
     r->traceWeakObjectRealm(trc);
-    r->traceWeakTemplateObjects(trc);
   }
 }
 
@@ -5516,9 +5514,7 @@ void GCRuntime::sweepMisc() {
   for (SweepGroupRealmsIter r(this); !r.done(); r.next()) {
     AutoSetThreadIsSweeping threadIsSweeping(r->zone());
     r->traceWeakObjects(&trc);
-    r->traceWeakTemplateObjects(&trc);
     r->traceWeakSavedStacks(&trc);
-    r->traceWeakSelfHostingScriptSource(&trc);
     r->traceWeakObjectRealm(&trc);
     r->traceWeakRegExps(&trc);
   }

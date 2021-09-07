@@ -764,7 +764,7 @@ nsresult HTMLEditor::EnsureCaretNotAfterInvisibleBRElement() {
       !previousBRElement->GetParent() ||
       !EditorUtils::IsEditableContent(*previousBRElement->GetParent(),
                                       EditorType::HTML) ||
-      !HTMLEditUtils::IsInvisibleBRElement(*previousBRElement, editingHost)) {
+      !HTMLEditUtils::IsInvisibleBRElement(*previousBRElement)) {
     return NS_OK;
   }
 
@@ -5687,8 +5687,7 @@ EditorDOMPoint HTMLEditor::GetCurrentHardLineStartPoint(
   for (nsIContent* previousEditableContent = HTMLEditUtils::GetPreviousContent(
            point, ignoreNonEditableNodeAndStopAtBlockBoundary, editingHost);
        previousEditableContent && previousEditableContent->GetParentNode() &&
-       !HTMLEditUtils::IsVisibleBRElement(*previousEditableContent,
-                                          editingHost) &&
+       !HTMLEditUtils::IsVisibleBRElement(*previousEditableContent) &&
        !HTMLEditUtils::IsBlockElement(*previousEditableContent);
        previousEditableContent = HTMLEditUtils::GetPreviousContent(
            point, ignoreNonEditableNodeAndStopAtBlockBoundary, editingHost)) {
@@ -5797,7 +5796,7 @@ EditorDOMPoint HTMLEditor::GetCurrentHardLineEndPoint(
     if (NS_WARN_IF(!point.IsSet())) {
       break;
     }
-    if (HTMLEditUtils::IsVisibleBRElement(*nextEditableContent, editingHost)) {
+    if (HTMLEditUtils::IsVisibleBRElement(*nextEditableContent)) {
       break;
     }
 
@@ -6233,8 +6232,7 @@ nsresult HTMLEditor::CollectEditTargetNodes(
       for (int32_t i = aOutArrayOfContents.Length() - 1; i >= 0; i--) {
         if (Text* text = aOutArrayOfContents[i]->GetAsText()) {
           // Don't select empty text except to empty block
-          if (!HTMLEditUtils::IsVisibleTextNode(*text,
-                                                GetActiveEditingHost())) {
+          if (!HTMLEditUtils::IsVisibleTextNode(*text)) {
             aOutArrayOfContents.RemoveElementAt(i);
           }
         }
@@ -6815,8 +6813,7 @@ EditActionResult HTMLEditor::HandleInsertParagraphInParagraph(
                           atStartOfSelection,
                           {WalkTreeOption::IgnoreNonEditableNode}, editingHost)
                     : nullptr;
-    if (!nearContent ||
-        !HTMLEditUtils::IsVisibleBRElement(*nearContent, editingHost) ||
+    if (!nearContent || !HTMLEditUtils::IsVisibleBRElement(*nearContent) ||
         EditorUtils::IsPaddingBRElementForEmptyLastLine(*nearContent)) {
       // is there a BR after it?
       nearContent = editingHost ? HTMLEditUtils::GetNextContent(
@@ -6824,8 +6821,7 @@ EditActionResult HTMLEditor::HandleInsertParagraphInParagraph(
                                       {WalkTreeOption::IgnoreNonEditableNode},
                                       editingHost)
                                 : nullptr;
-      if (!nearContent ||
-          !HTMLEditUtils::IsVisibleBRElement(*nearContent, editingHost) ||
+      if (!nearContent || !HTMLEditUtils::IsVisibleBRElement(*nearContent) ||
           EditorUtils::IsPaddingBRElementForEmptyLastLine(*nearContent)) {
         pointToInsertBR = atStartOfSelection;
         splitAfterNewBR = true;
@@ -8281,8 +8277,7 @@ nsresult HTMLEditor::AdjustCaretPositionAndEnsurePaddingBRElement(
         previousEditableContent->IsHTMLElement(nsGkAtoms::br)) {
       // If it's an invisible `<br>` element, we need to insert a padding
       // `<br>` element for making empty line have one-line height.
-      if (HTMLEditUtils::IsInvisibleBRElement(*previousEditableContent,
-                                              editingHost)) {
+      if (HTMLEditUtils::IsInvisibleBRElement(*previousEditableContent)) {
         CreateElementResult createPaddingBRResult =
             InsertPaddingBRElementForEmptyLastLineWithTransaction(point);
         if (createPaddingBRResult.Failed()) {

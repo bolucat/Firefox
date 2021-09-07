@@ -1209,6 +1209,17 @@ void GlobalObjectData::trace(JSTracer* trc) {
   if (regExpStatics) {
     regExpStatics->trace(trc);
   }
+
+  TraceNullableEdge(trc, &mappedArgumentsTemplate, "mapped-arguments-template");
+  TraceNullableEdge(trc, &unmappedArgumentsTemplate,
+                    "unmapped-arguments-template");
+
+  TraceNullableEdge(trc, &iterResultTemplate, "iter-result-template_");
+  TraceNullableEdge(trc, &iterResultWithoutPrototypeTemplate,
+                    "iter-result-without-prototype-template");
+
+  TraceNullableEdge(trc, &selfHostingScriptSource,
+                    "self-hosting-script-source");
 }
 
 void GlobalObjectData::addSizeOfIncludingThis(

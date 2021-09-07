@@ -2004,7 +2004,7 @@ impl CascadeData {
             selectors_for_cache_revalidation: SelectorMap::new_without_attribute_bucketing(),
             animations: Default::default(),
             layer_order: Default::default(),
-            next_layer_order: 0,
+            next_layer_order: 1, // 0 reserved for the root scope.
             extra_data: ExtraStyleData::default(),
             effective_media_query_results: EffectiveMediaQueryResults::new(),
             rules_source_order: 0,
@@ -2168,6 +2168,7 @@ impl CascadeData {
         guard: &SharedRwLockReadGuard,
         rebuild_kind: SheetRebuildKind,
         current_layer: &mut LayerName,
+        current_layer_order: u32,
         mut precomputed_pseudo_element_decls: Option<&mut PrecomputedPseudoElementDeclarations>,
     ) -> Result<(), FailedAllocationError>
     where
@@ -2200,6 +2201,7 @@ impl CascadeData {
                                         self.rules_source_order,
                                         CascadeLevel::UANormal,
                                         selector.specificity(),
+                                        current_layer_order,
                                     ));
                                 continue;
                             }
@@ -2215,6 +2217,7 @@ impl CascadeData {
                             hashes,
                             locked.clone(),
                             self.rules_source_order,
+                            current_layer_order,
                         );
 
                         if rebuild_kind.should_rebuild_invalidation() {
@@ -2351,13 +2354,35 @@ impl CascadeData {
                 continue;
             }
 
+
+            fn maybe_register_layer(data: &mut CascadeData, layer: &LayerName) -> u32 {
+                // TODO: Measure what's more common / expensive, if
+                // layer.clone() or the double hash lookup in the insert
+                // case.
+                if let Some(order) = data.layer_order.get(layer) {
+                    return *order;
+                }
+                let order = data.next_layer_order;
+                data.layer_order.insert(layer.clone(), order);
+                data.next_layer_order += 1;
+                order
+            }
+
             let mut layer_names_to_pop = 0;
+            let mut children_layer_order = current_layer_order;
             match *rule {
                 CssRule::Import(ref lock) => {
+                    let import_rule = lock.read_with(guard);
                     if rebuild_kind.should_rebuild_invalidation() {
-                        let import_rule = lock.read_with(guard);
                         self.effective_media_query_results
                             .saw_effective(import_rule);
+                    }
+                    if let Some(ref layer) = import_rule.layer {
+                        for name in layer.name.layer_names() {
+                            current_layer.0.push(name.clone());
+                            children_layer_order = maybe_register_layer(self, &current_layer);
+                            layer_names_to_pop += 1;
+                        }
                     }
 
                 },
@@ -2370,23 +2395,12 @@ impl CascadeData {
                 CssRule::Layer(ref lock) => {
                     use crate::stylesheets::layer_rule::LayerRuleKind;
 
-                    fn maybe_register_layer(data: &mut CascadeData, layer: &LayerName) {
-                        // TODO: Measure what's more common / expensive, if
-                        // layer.clone() or the double hash lookup in the insert
-                        // case.
-                        if data.layer_order.get(layer).is_some() {
-                            return;
-                        }
-                        data.layer_order.insert(layer.clone(), data.next_layer_order);
-                        data.next_layer_order += 1;
-                    }
-
                     let layer_rule = lock.read_with(guard);
                     match layer_rule.kind {
                         LayerRuleKind::Block { ref name, .. } => {
                             for name in name.layer_names() {
                                 current_layer.0.push(name.clone());
-                                maybe_register_layer(self, &current_layer);
+                                children_layer_order = maybe_register_layer(self, &current_layer);
                                 layer_names_to_pop += 1;
                             }
                         }
@@ -2414,6 +2428,7 @@ impl CascadeData {
                     guard,
                     rebuild_kind,
                     current_layer,
+                    children_layer_order,
                     precomputed_pseudo_element_decls.as_deref_mut(),
                 )?;
             }
@@ -2458,6 +2473,7 @@ impl CascadeData {
             guard,
             rebuild_kind,
             &mut current_layer,
+            /* current_layer_order = */ 0,
             precomputed_pseudo_element_decls.as_deref_mut(),
         )?;
 
@@ -2576,7 +2592,7 @@ impl CascadeData {
         }
         self.animations.clear();
         self.layer_order.clear();
-        self.next_layer_order = 0;
+        self.next_layer_order = 1;
         self.extra_data.clear();
         self.rules_source_order = 0;
         self.num_selectors = 0;
@@ -2665,6 +2681,9 @@ pub struct Rule {
     /// we could repurpose that storage here if we needed to.
     pub source_order: u32,
 
+    /// The current layer order of this style rule.
+    pub layer_order: u32,
+
     /// The actual style rule.
     #[cfg_attr(
         feature = "gecko",
@@ -2693,7 +2712,7 @@ impl Rule {
         level: CascadeLevel,
     ) -> ApplicableDeclarationBlock {
         let source = StyleSource::from_rule(self.style_rule.clone());
-        ApplicableDeclarationBlock::new(source, self.source_order, level, self.specificity())
+        ApplicableDeclarationBlock::new(source, self.source_order, level, self.specificity(), self.layer_order)
     }
 
     /// Creates a new Rule.
@@ -2702,12 +2721,14 @@ impl Rule {
         hashes: AncestorHashes,
         style_rule: Arc<Locked<StyleRule>>,
         source_order: u32,
+        layer_order: u32,
     ) -> Self {
         Rule {
-            selector: selector,
-            hashes: hashes,
-            style_rule: style_rule,
-            source_order: source_order,
+            selector,
+            hashes,
+            style_rule,
+            source_order,
+            layer_order,
         }
     }
 }
