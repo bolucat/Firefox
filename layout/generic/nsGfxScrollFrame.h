@@ -485,8 +485,7 @@ class ScrollFrameHelper : public nsIReflowCallback {
   bool WantAsyncScroll() const;
   Maybe<mozilla::layers::ScrollMetadata> ComputeScrollMetadata(
       WebRenderLayerManager* aLayerManager,
-      const nsIFrame* aContainerReferenceFrame,
-      const mozilla::DisplayItemClip* aClip) const;
+      const nsIFrame* aContainerReferenceFrame) const;
   // nsIScrollbarMediator
   void ScrollByPage(nsScrollbarFrame* aScrollbar, int32_t aDirection,
                     nsIScrollbarMediator::ScrollSnapMode aSnap =
@@ -683,10 +682,6 @@ class ScrollFrameHelper : public nsIReflowCallback {
   // removing the display port). If those descendant scrollframes have their
   // display ports removed or made minimal, then we expire our display port.
   bool mIsParentToActiveScrollFrames : 1;
-
-  // If true, add clipping in ScrollFrameHelper::ClipLayerToDisplayPort.
-  // XXX this flag needs some auditing and better documentation, bug 1646686.
-  bool mAddClipRectToLayer : 1;
 
   // True if this frame has been scrolled at least once
   bool mHasBeenScrolled : 1;
@@ -1085,10 +1080,9 @@ class nsHTMLScrollFrame : public nsContainerFrame,
   bool WantAsyncScroll() const final { return mHelper.WantAsyncScroll(); }
   mozilla::Maybe<mozilla::layers::ScrollMetadata> ComputeScrollMetadata(
       mozilla::layers::WebRenderLayerManager* aLayerManager,
-      const nsIFrame* aContainerReferenceFrame,
-      const mozilla::DisplayItemClip* aClip) const final {
+      const nsIFrame* aContainerReferenceFrame) const final {
     return mHelper.ComputeScrollMetadata(aLayerManager,
-                                         aContainerReferenceFrame, aClip);
+                                         aContainerReferenceFrame);
   }
   void MarkScrollbarsDirtyForReflow() const final {
     mHelper.MarkScrollbarsDirtyForReflow();
@@ -1563,10 +1557,9 @@ class nsXULScrollFrame final : public nsBoxFrame,
   bool WantAsyncScroll() const final { return mHelper.WantAsyncScroll(); }
   mozilla::Maybe<mozilla::layers::ScrollMetadata> ComputeScrollMetadata(
       mozilla::layers::WebRenderLayerManager* aLayerManager,
-      const nsIFrame* aContainerReferenceFrame,
-      const mozilla::DisplayItemClip* aClip) const final {
+      const nsIFrame* aContainerReferenceFrame) const final {
     return mHelper.ComputeScrollMetadata(aLayerManager,
-                                         aContainerReferenceFrame, aClip);
+                                         aContainerReferenceFrame);
   }
   void MarkScrollbarsDirtyForReflow() const final {
     mHelper.MarkScrollbarsDirtyForReflow();

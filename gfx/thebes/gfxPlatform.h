@@ -510,11 +510,6 @@ class gfxPlatform : public mozilla::layers::MemoryPressureListener {
 
   void UpdateCanUseHardwareVideoDecoding();
 
-  // Returns a prioritized list of all available compositor backends.
-  void GetCompositorBackends(
-      bool useAcceleration,
-      nsTArray<mozilla::layers::LayersBackend>& aBackends);
-
   /**
    * Is it possible to use buffer rotation.  Note that these
    * check the preference, but also allow for the override to
@@ -838,11 +833,6 @@ class gfxPlatform : public mozilla::layers::MemoryPressureListener {
   // Returns whether or not layers should be accelerated by default on this
   // platform.
   virtual bool AccelerateLayersByDefault();
-
-  // Returns a prioritized list of available compositor backends for
-  // acceleration.
-  virtual void GetAcceleratedCompositorBackends(
-      nsTArray<mozilla::layers::LayersBackend>& aBackends);
 
   // Returns preferences of canvas and content backends.
   virtual BackendPrefsData GetBackendPrefs() const;

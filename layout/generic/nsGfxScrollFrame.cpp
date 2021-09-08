@@ -2227,7 +2227,6 @@ ScrollFrameHelper::ScrollFrameHelper(nsContainerFrame* aOuter, bool aIsRoot)
       mHasBeenScrolledRecently(false),
       mWillBuildScrollableLayer(false),
       mIsParentToActiveScrollFrames(false),
-      mAddClipRectToLayer(false),
       mHasBeenScrolled(false),
       mIgnoreMomentumScroll(false),
       mTransformingByAPZ(false),
@@ -3699,10 +3698,6 @@ void ScrollFrameHelper::BuildDisplayList(nsDisplayListBuilder* aBuilder,
   MOZ_ASSERT(sf);
 
   if (ignoringThisScrollFrame) {
-    // Root scrollframes have FrameMetrics and clipping on their container
-    // layers, so don't apply clipping again.
-    mAddClipRectToLayer = false;
-
     // If we are a root scroll frame that has a display port we want to add
     // scrollbars, they will be children of the scrollable layer, but they get
     // adjusted by the APZC automatically.
@@ -3739,11 +3734,6 @@ void ScrollFrameHelper::BuildDisplayList(nsDisplayListBuilder* aBuilder,
     set.MoveTo(aLists);
     return;
   }
-
-  // Root scrollframes have FrameMetrics and clipping on their container
-  // layers, so don't apply clipping again.
-  mAddClipRectToLayer =
-      !(mIsRoot && mOuter->PresShell()->UsesMobileViewportSizing());
 
   // Whether we might want to build a scrollable layer for this scroll frame
   // at some point in the future. This controls whether we add the information
@@ -4499,15 +4489,9 @@ void ScrollFrameHelper::NotifyApzTransaction() {
 
 Maybe<ScrollMetadata> ScrollFrameHelper::ComputeScrollMetadata(
     WebRenderLayerManager* aLayerManager,
-    const nsIFrame* aContainerReferenceFrame,
-    const DisplayItemClip* aClip) const {
+    const nsIFrame* aContainerReferenceFrame) const {
   if (!mWillBuildScrollableLayer) {
     return Nothing();
-  }
-
-  Maybe<nsRect> parentLayerClip;
-  if (aClip && mAddClipRectToLayer) {
-    parentLayerClip = Some(aClip->GetClipRect());
   }
 
   bool isRootContent =
@@ -4517,8 +4501,7 @@ Maybe<ScrollMetadata> ScrollFrameHelper::ComputeScrollMetadata(
 
   return Some(nsLayoutUtils::ComputeScrollMetadata(
       mScrolledFrame, mOuter, mOuter->GetContent(), aContainerReferenceFrame,
-      aLayerManager, mScrollParentID, mScrollPort.Size(), parentLayerClip,
-      isRootContent));
+      aLayerManager, mScrollParentID, mScrollPort.Size(), isRootContent));
 }
 
 bool ScrollFrameHelper::IsRectNearlyVisible(const nsRect& aRect) const {

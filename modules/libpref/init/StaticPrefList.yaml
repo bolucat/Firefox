@@ -3790,6 +3790,12 @@
   value: @IS_NOT_ANDROID@
   mirror: always
 
+# Is the 'delegatesFocus' attribute for shadow dom
+- name: dom.shadowdom.delegatesFocus.enabled
+  type: bool
+  value: true
+  mirror: always
+
 # Is the 'assign' API for slot element enabled?
 - name: dom.shadowdom.slot.assign.enabled
   type: bool
@@ -6609,26 +6615,6 @@
   value: 512
   mirror: once
 
-- name: layers.tile-initial-pool-size
-  type: uint32_t
-  value: (uint32_t)50
-  mirror: once
-
-- name: layers.tile-pool-unused-size
-  type: uint32_t
-  value: (uint32_t)10
-  mirror: once
-
-- name: layers.tile-pool-shrink-timeout
-  type: uint32_t
-  value: (uint32_t)50
-  mirror: once
-
-- name: layers.tile-pool-clear-timeout
-  type: uint32_t
-  value: (uint32_t)5000
-  mirror: once
-
 # If this is set the tile size will only be treated as a suggestion.
 # On B2G we will round this to the stride of the underlying allocation.
 # On any platform we may later use the screen size and ignore
@@ -6667,11 +6653,6 @@
 - name: layers.uniformity-info
   type: bool
   value: false
-  mirror: once
-
-- name: layers.use-image-offscreen-surfaces
-  type: bool
-  value: true
   mirror: once
 
 - name: layers.recycle-allocator-rdd
@@ -11928,15 +11909,6 @@
   mirror: always
 #endif
 
-# Smooth rendering mode for Wayland basic compositor.
-# 0 - direct draw
-# 1 - basic caching
-# 2 - all caching
-- name: widget.wayland-smooth-rendering
-  type: RelaxedAtomicUint32
-  value: 1
-  mirror: always
-
 # Use DMABuf backend for WebGL.
 - name: widget.dmabuf-webgl.enabled
   type: RelaxedAtomicBool
@@ -11946,7 +11918,7 @@
 # Use async clipboard on Wayland
 - name: widget.wayland.async-clipboard.enabled
   type: bool
-  value: false
+  value: true
   mirror: once
 
 # Use async data getter on Wayland Clipboard
@@ -11959,11 +11931,6 @@
 - name: widget.wayland.fractional_buffer_scale
   type: float
   value: 0.0f
-  mirror: once
-
-- name: widget.wayland.multi-buffer-software-backend.enabled
-  type: bool
-  value: true
   mirror: once
 
 # Use opaque region for MozContainer wl_surface

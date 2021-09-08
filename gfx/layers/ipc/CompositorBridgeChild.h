@@ -76,8 +76,6 @@ class CompositorBridgeChild final : public PCompositorBridgeChild,
 
   static CompositorBridgeChild* Get();
 
-  static bool ChildProcessHasCompositorBridge();
-
   // Returns whether the compositor is in the GPU process (false if in the UI
   // process). This may only be called on the main thread.
   static bool CompositorIsInGPUProcess();
@@ -127,17 +125,12 @@ class CompositorBridgeChild final : public PCompositorBridgeChild,
   bool SendPause();
   bool SendResume();
   bool SendResumeAsync();
-  bool SendNotifyChildCreated(const LayersId& id, CompositorOptions* aOptions);
   bool SendAdoptChild(const LayersId& id);
-  bool SendMakeSnapshot(const SurfaceDescriptor& inSnapshot,
-                        const gfx::IntRect& dirtyRect);
   bool SendFlushRendering();
-  bool SendGetTileSize(int32_t* tileWidth, int32_t* tileHeight);
   bool SendStartFrameTimeRecording(const int32_t& bufferSize,
                                    uint32_t* startIndex);
   bool SendStopFrameTimeRecording(const uint32_t& startIndex,
                                   nsTArray<float>* intervals);
-  bool SendNotifyRegionInvalidated(const nsIntRegion& region);
   bool IsSameProcess() const override;
 
   bool IPCOpen() const override { return mCanSend; }
@@ -162,14 +155,7 @@ class CompositorBridgeChild final : public PCompositorBridgeChild,
 
   void CancelWaitForNotifyNotUsed(uint64_t aTextureId) override;
 
-  TextureClientPool* GetTexturePool(KnowsCompositor* aAllocator,
-                                    gfx::SurfaceFormat aFormat,
-                                    TextureFlags aFlags);
-  void ClearTexturePool();
-
   FixedSizeSmallShmemSectionAllocator* GetTileLockAllocator() override;
-
-  void HandleMemoryPressure();
 
   nsISerialEventTarget* GetThread() const override { return mThread; }
 
@@ -193,8 +179,6 @@ class CompositorBridgeChild final : public PCompositorBridgeChild,
   PAPZChild* AllocPAPZChild(const LayersId& aLayersId);
   bool DeallocPAPZChild(PAPZChild* aActor);
 
-  void WillEndTransaction();
-
   PWebRenderBridgeChild* AllocPWebRenderBridgeChild(
       const wr::PipelineId& aPipelineId, const LayoutDeviceIntSize&,
       const WindowKind&);
@@ -206,19 +190,6 @@ class CompositorBridgeChild final : public PCompositorBridgeChild,
   wr::MaybeExternalImageId GetNextExternalImageId() override;
 
   wr::PipelineId GetNextPipelineId();
-
-  // Must only be called from the main thread. Notifies the CompositorBridge
-  // that all work has been submitted to the paint thread or paint worker
-  // threads, and returns whether all paints are completed. If this returns
-  // true, then an AsyncEndLayerTransaction must be queued, otherwise once
-  // NotifyFinishedAsyncWorkerPaint returns true, an AsyncEndLayerTransaction
-  // must be executed.
-  bool NotifyBeginAsyncEndLayerTransaction(SyncObjectClient* aSyncObject);
-
-  // Must only be called from the paint thread. Notifies the CompositorBridge
-  // that the paint thread has finished all async paints and and may do the
-  // requested texture sync and resume sending messages.
-  void NotifyFinishedAsyncEndLayerTransaction();
 
  private:
   // Private destructor, to discourage deletion outside of Release():
@@ -297,15 +268,6 @@ class CompositorBridgeChild final : public PCompositorBridgeChild,
   // that was
   size_t mTotalAsyncPaints;
   TimeStamp mAsyncTransactionBegin;
-
-  // Contains the number of outstanding asynchronous paints tied to a
-  // PLayerTransaction on this bridge. This is R/W on both the main and paint
-  // threads, and must be accessed within the paint lock.
-  size_t mOutstandingAsyncPaints;
-
-  // Whether we are waiting for an async paint end transaction
-  bool mOutstandingAsyncEndTransaction;
-  RefPtr<SyncObjectClient> mOutstandingAsyncSyncObject;
 
   // True if this CompositorBridge is currently delaying its messages until the
   // paint thread completes. This is R/W on both the main and paint threads, and

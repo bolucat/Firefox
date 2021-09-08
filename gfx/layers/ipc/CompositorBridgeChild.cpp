@@ -89,8 +89,6 @@ CompositorBridgeChild::CompositorBridgeChild(CompositorManagerChild* aManager)
       mSectionAllocator(nullptr),
       mPaintLock("CompositorBridgeChild.mPaintLock"),
       mTotalAsyncPaints(0),
-      mOutstandingAsyncPaints(0),
-      mOutstandingAsyncEndTransaction(false),
       mIsDelayingForAsyncPaints(false),
       mSlowFlushCount(0),
       mTotalFlushCount(0) {
@@ -271,11 +269,6 @@ CompositorBridgeChild* CompositorBridgeChild::Get() {
   return sCompositorBridge;
 }
 
-// static
-bool CompositorBridgeChild::ChildProcessHasCompositorBridge() {
-  return sCompositorBridge != nullptr;
-}
-
 /* static */
 bool CompositorBridgeChild::CompositorIsInGPUProcess() {
   MOZ_ASSERT(NS_IsMainThread());
@@ -395,27 +388,11 @@ bool CompositorBridgeChild::SendResumeAsync() {
   return PCompositorBridgeChild::SendResumeAsync();
 }
 
-bool CompositorBridgeChild::SendNotifyChildCreated(
-    const LayersId& id, CompositorOptions* aOptions) {
-  if (!mCanSend) {
-    return false;
-  }
-  return PCompositorBridgeChild::SendNotifyChildCreated(id, aOptions);
-}
-
 bool CompositorBridgeChild::SendAdoptChild(const LayersId& id) {
   if (!mCanSend) {
     return false;
   }
   return PCompositorBridgeChild::SendAdoptChild(id);
-}
-
-bool CompositorBridgeChild::SendMakeSnapshot(
-    const SurfaceDescriptor& inSnapshot, const gfx::IntRect& dirtyRect) {
-  if (!mCanSend) {
-    return false;
-  }
-  return PCompositorBridgeChild::SendMakeSnapshot(inSnapshot, dirtyRect);
 }
 
 bool CompositorBridgeChild::SendFlushRendering() {
@@ -441,14 +418,6 @@ bool CompositorBridgeChild::SendStopFrameTimeRecording(
   }
   return PCompositorBridgeChild::SendStopFrameTimeRecording(startIndex,
                                                             intervals);
-}
-
-bool CompositorBridgeChild::SendNotifyRegionInvalidated(
-    const nsIntRegion& region) {
-  if (!mCanSend) {
-    return false;
-  }
-  return PCompositorBridgeChild::SendNotifyRegionInvalidated(region);
 }
 
 PTextureChild* CompositorBridgeChild::AllocPTextureChild(
@@ -569,41 +538,6 @@ void CompositorBridgeChild::NotifyNotUsed(uint64_t aTextureId,
 
 void CompositorBridgeChild::CancelWaitForNotifyNotUsed(uint64_t aTextureId) {
   mTexturesWaitingNotifyNotUsed.erase(aTextureId);
-}
-
-TextureClientPool* CompositorBridgeChild::GetTexturePool(
-    KnowsCompositor* aAllocator, SurfaceFormat aFormat, TextureFlags aFlags) {
-  for (size_t i = 0; i < mTexturePools.Length(); i++) {
-    if (mTexturePools[i]->GetBackend() ==
-            aAllocator->GetCompositorBackendType() &&
-        mTexturePools[i]->GetMaxTextureSize() ==
-            aAllocator->GetMaxTextureSize() &&
-        mTexturePools[i]->GetFormat() == aFormat &&
-        mTexturePools[i]->GetFlags() == aFlags) {
-      return mTexturePools[i];
-    }
-  }
-
-  mTexturePools.AppendElement(new TextureClientPool(
-      aAllocator, aFormat, gfx::gfxVars::TileSize(), aFlags,
-      StaticPrefs::layers_tile_pool_shrink_timeout_AtStartup(),
-      StaticPrefs::layers_tile_pool_clear_timeout_AtStartup(),
-      StaticPrefs::layers_tile_initial_pool_size_AtStartup(),
-      StaticPrefs::layers_tile_pool_unused_size_AtStartup(), this));
-
-  return mTexturePools.LastElement();
-}
-
-void CompositorBridgeChild::HandleMemoryPressure() {
-  for (size_t i = 0; i < mTexturePools.Length(); i++) {
-    mTexturePools[i]->Clear();
-  }
-}
-
-void CompositorBridgeChild::ClearTexturePool() {
-  for (size_t i = 0; i < mTexturePools.Length(); i++) {
-    mTexturePools[i]->Clear();
-  }
 }
 
 FixedSizeSmallShmemSectionAllocator*
@@ -745,8 +679,6 @@ bool CompositorBridgeChild::DeallocPAPZCTreeManagerChild(
 
 // -
 
-void CompositorBridgeChild::WillEndTransaction() { ResetShmemCounter(); }
-
 PWebRenderBridgeChild* CompositorBridgeChild::AllocPWebRenderBridgeChild(
     const wr::PipelineId& aPipelineId, const LayoutDeviceIntSize&,
     const WindowKind&) {
@@ -790,17 +722,6 @@ wr::MaybeExternalImageId CompositorBridgeChild::GetNextExternalImageId() {
 
 wr::PipelineId CompositorBridgeChild::GetNextPipelineId() {
   return wr::AsPipelineId(GetNextResourceId());
-}
-
-bool CompositorBridgeChild::NotifyBeginAsyncEndLayerTransaction(
-    SyncObjectClient* aSyncObject) {
-  MOZ_ASSERT(NS_IsMainThread());
-  MonitorAutoLock lock(mPaintLock);
-
-  MOZ_ASSERT(!mOutstandingAsyncEndTransaction);
-  mOutstandingAsyncEndTransaction = true;
-  mOutstandingAsyncSyncObject = aSyncObject;
-  return mOutstandingAsyncPaints == 0;
 }
 
 }  // namespace layers

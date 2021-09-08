@@ -36,6 +36,13 @@ const FeatureManifest = {
         description:
           "Whether Remote Settings is enabled as a quick suggest source",
       },
+      quickSuggestScenario: {
+        type: "string",
+        fallbackPref: "browser.urlbar.quicksuggest.scenario",
+        description:
+          "The Firefox Suggest scenario in which the user is enrolled",
+        enum: ["history", "offline", "online"],
+      },
       quickSuggestShouldShowOnboardingDialog: {
         type: "boolean",
         fallbackPref: "browser.urlbar.quicksuggest.shouldShowOnboardingDialog",
@@ -221,8 +228,8 @@ const FeatureManifest = {
       promoSectionStyle: {
         type: "string",
         description:
-          "Sets the position of the promo section. Possible values are: top, bottom. Default bottom.",
-        enum: ["top", "bottom"],
+          "Sets the position of the promo section. Possible values are: top, below-search, bottom. Default bottom.",
+        enum: ["top", "below-search", "bottom"],
       },
       promoTitle: {
         type: "string",
@@ -239,6 +246,10 @@ const FeatureManifest = {
         fallbackPref: "browser.privatebrowsing.promoLinkText",
         description: "The text of the link in the promo box.",
       },
+      promoHeader: {
+        type: "string",
+        description: "The title of the promo section.",
+      },
       promoLinkUrl: {
         type: "string",
         fallbackPref: "browser.privatebrowsing.promoLinkUrl",
@@ -247,8 +258,18 @@ const FeatureManifest = {
       promoLinkType: {
         type: "string",
         description:
-          "Type of promo link type. Possible values: link, button. Default is button.",
+          "Type of promo link type. Possible values: link, button. Default is link.",
         enum: ["link", "button"],
+      },
+      promoImageLarge: {
+        type: "string",
+        description:
+          "URL for image used on the left side of the promo box, larger, showcases some feature. Default off.",
+      },
+      promoImageSmall: {
+        type: "string",
+        description:
+          "URL for image used on the right side of the promo box, smaller, usually a logo. Default off.",
       },
     },
   },
