@@ -1627,7 +1627,7 @@ GCMarker::MarkQueueProgress GCMarker::processMarkQueue() {
   // mark stack, and processing just the top element with processMarkStackTop
   // without recursing into reachable objects.
   while (queuePos < markQueue.length()) {
-    Value val = markQueue[queuePos++].get().unbarrieredGet();
+    Value val = markQueue[queuePos++].get();
     if (val.isObject()) {
       JSObject* obj = &val.toObject();
       JS::Zone* zone = obj->zone();
@@ -2436,9 +2436,11 @@ void GCMarker::setMarkColorUnchecked(gc::MarkColor newColor) {
 }
 
 void GCMarker::setMainStackColor(gc::MarkColor newColor) {
+  MOZ_ASSERT(isMarkStackEmpty());
   if (newColor != mainStackColor) {
-    MOZ_ASSERT(isMarkStackEmpty());
     mainStackColor = newColor;
+
+    // Update currentStackPtr without changing the mark color.
     setMarkColorUnchecked(color);
   }
 }
@@ -4021,9 +4023,6 @@ JS_PUBLIC_API bool JS::UnmarkGrayGCThingRecursively(JS::GCCellPtr thing) {
     return false;
   }
 
-  gcstats::AutoPhase outerPhase(rt->gc.stats(), gcstats::PhaseKind::BARRIER);
-  gcstats::AutoPhase innerPhase(rt->gc.stats(),
-                                gcstats::PhaseKind::UNMARK_GRAY);
   return UnmarkGrayGCThingUnchecked(rt, thing);
 }
 

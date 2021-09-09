@@ -82,6 +82,7 @@ XPCOMUtils.defineLazyModuleGetters(this, {
   SearchSERPTelemetry: "resource:///modules/SearchSERPTelemetry.jsm",
   SessionStartup: "resource:///modules/sessionstore/SessionStartup.jsm",
   SessionStore: "resource:///modules/sessionstore/SessionStore.jsm",
+  ShortcutUtils: "resource://gre/modules/ShortcutUtils.jsm",
   TabCrashHandler: "resource:///modules/ContentCrashHandlers.jsm",
   TabUnloader: "resource:///modules/TabUnloader.jsm",
   TelemetryUtils: "resource://gre/modules/TelemetryUtils.jsm",
@@ -307,7 +308,9 @@ let JSWINDOWACTORS = {
       events: {
         DOMContentLoaded: {},
         pageshow: { mozSystemGroup: true },
-        pagehide: { mozSystemGroup: true },
+        // Don't try to create the actor if only the pagehide event fires.
+        // This can happen with the initial about:blank documents.
+        pagehide: { mozSystemGroup: true, createActor: false },
       },
     },
     messageManagerGroups: ["browsers"],
@@ -1942,44 +1945,57 @@ BrowserGlue.prototype = {
    * Application shutdown handler.
    */
   _onQuitApplicationGranted() {
-    // This pref must be set here because SessionStore will use its value
-    // on quit-application.
-    this._setPrefToSaveSession();
+    let tasks = [
+      // This pref must be set here because SessionStore will use its value
+      // on quit-application.
+      () => this._setPrefToSaveSession(),
 
-    // Call trackStartupCrashEnd here in case the delayed call on startup hasn't
-    // yet occurred (see trackStartupCrashEnd caller in browser.js).
-    try {
-      Services.startup.trackStartupCrashEnd();
-    } catch (e) {
-      Cu.reportError(
-        "Could not end startup crash tracking in quit-application-granted: " + e
-      );
-    }
+      // Call trackStartupCrashEnd here in case the delayed call on startup hasn't
+      // yet occurred (see trackStartupCrashEnd caller in browser.js).
+      () => Services.startup.trackStartupCrashEnd(),
 
-    if (this._bookmarksBackupIdleTime) {
-      this._userIdleService.removeIdleObserver(
-        this,
-        this._bookmarksBackupIdleTime
-      );
-      delete this._bookmarksBackupIdleTime;
-    }
+      () => {
+        if (this._bookmarksBackupIdleTime) {
+          this._userIdleService.removeIdleObserver(
+            this,
+            this._bookmarksBackupIdleTime
+          );
+          delete this._bookmarksBackupIdleTime;
+        }
+      },
 
-    for (let mod of Object.values(initializedModules)) {
-      if (mod.uninit) {
-        mod.uninit();
+      () => BrowserUsageTelemetry.uninit(),
+      () => SearchSERPTelemetry.uninit(),
+      () => Interactions.uninit(),
+      () => PageDataService.uninit(),
+      () => PageThumbs.uninit(),
+      () => NewTabUtils.uninit(),
+      () => Normandy.uninit(),
+      () => RFPHelper.uninit(),
+      () => ASRouterNewTabHook.destroy(),
+    ];
+
+    tasks.push(
+      ...Object.values(initializedModules)
+        .filter(m => m.uninit)
+        .map(m => () => m.uninit())
+    );
+
+    for (let task of tasks) {
+      try {
+        task();
+      } catch (ex) {
+        console.error(`Error during quit-application-granted: ${ex}`);
+        if (Cu.isInAutomation) {
+          // This usually happens after the test harness is done collecting
+          // test errors, thus we can't easily add a failure to it. The only
+          // noticeable solution we have is crashing.
+          Cc["@mozilla.org/xpcom/debug;1"]
+            .getService(Ci.nsIDebug2)
+            .abort(ex.filename, ex.lineNumber);
+        }
       }
     }
-
-    BrowserUsageTelemetry.uninit();
-    SearchSERPTelemetry.uninit();
-    Interactions.uninit();
-    PageDataService.uninit();
-    PageThumbs.uninit();
-    NewTabUtils.uninit();
-
-    Normandy.uninit();
-    RFPHelper.uninit();
-    ASRouterNewTabHook.destroy();
   },
 
   // Set up a listener to enable/disable the screenshots extension
@@ -2810,6 +2826,11 @@ BrowserGlue.prototype = {
       return;
     }
 
+    // browser.warnOnQuit is a hidden global boolean to override all quit prompts.
+    if (!Services.prefs.getBoolPref("browser.warnOnQuit")) {
+      return;
+    }
+
     var windowcount = 0;
     var pagecount = 0;
     let pinnedcount = 0;
@@ -2828,7 +2849,23 @@ BrowserGlue.prototype = {
       }
     }
 
-    if (pagecount < 2) {
+    // No windows open so no need for a warning.
+    if (!windowcount) {
+      return;
+    }
+
+    // browser.warnOnQuitShortcut is checked when quitting using the shortcut key.
+    // The warning will appear even when only one window/tab is open. For other
+    // methods of quitting, the warning only appears when there is more than one
+    // window or tab open.
+    if (this._quitSource == "shortcut") {
+      if (!Services.prefs.getBoolPref("browser.warnOnQuitShortcut")) {
+        return;
+      }
+    } else if (
+      pagecount < 2 ||
+      !Services.prefs.getBoolPref("browser.tabs.warnOnClose")
+    ) {
       return;
     }
 
@@ -2836,83 +2873,73 @@ BrowserGlue.prototype = {
       aQuitType = "quit";
     }
 
-    // browser.warnOnQuit is a hidden global boolean to override all quit prompts
-    if (!Services.prefs.getBoolPref("browser.warnOnQuit")) {
-      return;
-    }
-
-    // If we're going to automatically restore the session, only warn if the user asked for that.
-    let sessionWillBeRestored =
-      Services.prefs.getIntPref("browser.startup.page") == 3 ||
-      Services.prefs.getBoolPref("browser.sessionstore.resume_session_once");
-    // In the sessionWillBeRestored case, we only check the sessionstore-specific pref:
-    if (sessionWillBeRestored) {
-      if (
-        !Services.prefs.getBoolPref("browser.sessionstore.warnOnQuit", false)
-      ) {
-        return;
-      }
-      // Otherwise, we check browser.tabs.warnOnClose
-    } else if (!Services.prefs.getBoolPref("browser.tabs.warnOnClose")) {
-      return;
-    }
-
     let win = BrowserWindowTracker.getTopWindow();
 
     // Our prompt for quitting is most important, so replace others.
     win.gDialogBox.replaceDialogIfOpen();
 
-    let warningMessage;
+    let title, buttonLabel;
     // More than 1 window. Compose our own message.
     if (windowcount > 1) {
-      let tabSubstring = gTabbrowserBundle.GetStringFromName(
-        "tabs.closeWarningMultipleWindowsTabSnippet"
-      );
-      tabSubstring = PluralForm.get(pagecount, tabSubstring).replace(
-        /#1/,
-        pagecount
-      );
+      title = gTabbrowserBundle.GetStringFromName("tabs.closeWindowsTitle");
+      title = PluralForm.get(windowcount, title).replace(/#1/, windowcount);
 
-      let stringID = sessionWillBeRestored
-        ? "tabs.closeWarningMultipleWindowsSessionRestore3"
-        : "tabs.closeWarningMultipleWindows2";
-      let windowString = gTabbrowserBundle.GetStringFromName(stringID);
-      windowString = PluralForm.get(windowcount, windowString).replace(
-        /#1/,
-        windowcount
-      );
-      warningMessage = windowString.replace(/%(?:1\$)?S/i, tabSubstring);
+      buttonLabel =
+        AppConstants.platform == "win"
+          ? "tabs.closeWindowsButtonWin"
+          : "tabs.closeWindowsButton";
+      buttonLabel = gTabbrowserBundle.GetStringFromName(buttonLabel);
     } else {
-      let stringID = sessionWillBeRestored
-        ? "tabs.closeWarningMultipleTabsSessionRestore"
-        : "tabs.closeWarningMultipleTabs";
-      warningMessage = gTabbrowserBundle.GetStringFromName(stringID);
-      warningMessage = PluralForm.get(pagecount, warningMessage).replace(
-        "#1",
-        pagecount
+      title = gTabbrowserBundle.GetStringFromName("tabs.closeTabsTitle");
+      title = PluralForm.get(pagecount, title).replace("#1", pagecount);
+
+      if (this._quitSource == "shortcut") {
+        let productName = gBrandBundle.GetStringFromName("brandShorterName");
+        title = gTabbrowserBundle.formatStringFromName(
+          "tabs.closeTabsWithKeyTitle",
+          [productName]
+        );
+        buttonLabel = gTabbrowserBundle.formatStringFromName(
+          "tabs.closeTabsWithKeyButton",
+          [productName]
+        );
+      } else {
+        title = gTabbrowserBundle.GetStringFromName("tabs.closeTabsTitle");
+        title = PluralForm.get(pagecount, title).replace("#1", pagecount);
+        buttonLabel = gTabbrowserBundle.GetStringFromName(
+          "tabs.closeTabsButton"
+        );
+      }
+    }
+
+    // The checkbox label is different depending on whether the shortcut
+    // was used to quit or not.
+    let checkboxLabel;
+    if (this._quitSource == "shortcut") {
+      let quitKeyElement = win.document.getElementById("key_quitApplication");
+      let quitKey = ShortcutUtils.prettifyShortcut(quitKeyElement);
+
+      checkboxLabel = gTabbrowserBundle.formatStringFromName(
+        "tabs.closeTabsWithKeyConfirmCheckbox",
+        [quitKey]
+      );
+    } else {
+      checkboxLabel = gTabbrowserBundle.GetStringFromName(
+        "tabs.closeTabsConfirmCheckbox"
       );
     }
 
     let warnOnClose = { value: true };
-    let titleId =
-      AppConstants.platform == "win"
-        ? "tabs.closeTabsAndQuitTitleWin"
-        : "tabs.closeTabsAndQuitTitle";
     let flags =
       Services.prompt.BUTTON_TITLE_IS_STRING * Services.prompt.BUTTON_POS_0 +
       Services.prompt.BUTTON_TITLE_CANCEL * Services.prompt.BUTTON_POS_1;
-    // Only display the checkbox in the non-sessionrestore case.
-    let checkboxLabel = !sessionWillBeRestored
-      ? gTabbrowserBundle.GetStringFromName("tabs.closeWarningPrompt")
-      : null;
-
     // buttonPressed will be 0 for closing, 1 for cancel (don't close/quit)
     let buttonPressed = Services.prompt.confirmEx(
       win,
-      gTabbrowserBundle.GetStringFromName(titleId),
-      warningMessage,
+      title,
+      null,
       flags,
-      gTabbrowserBundle.GetStringFromName("tabs.closeButtonMultiple"),
+      buttonLabel,
       null,
       null,
       checkboxLabel,
@@ -2920,9 +2947,10 @@ BrowserGlue.prototype = {
     );
     Services.telemetry.setEventRecordingEnabled("close_tab_warning", true);
     let warnCheckbox = warnOnClose.value ? "checked" : "unchecked";
-    if (!checkboxLabel) {
-      warnCheckbox = "not-present";
-    }
+
+    let sessionWillBeRestored =
+      Services.prefs.getIntPref("browser.startup.page") == 3 ||
+      Services.prefs.getBoolPref("browser.sessionstore.resume_session_once");
     Services.telemetry.recordEvent(
       "close_tab_warning",
       "shown",
@@ -2938,13 +2966,18 @@ BrowserGlue.prototype = {
       }
     );
 
-    this._quitSource = "unknown";
-
     // If the user has unticked the box, and has confirmed closing, stop showing
     // the warning.
-    if (!sessionWillBeRestored && buttonPressed == 0 && !warnOnClose.value) {
-      Services.prefs.setBoolPref("browser.tabs.warnOnClose", false);
+    if (buttonPressed == 0 && !warnOnClose.value) {
+      if (this._quitSource == "shortcut") {
+        Services.prefs.setBoolPref("browser.warnOnQuitShortcut", false);
+      } else {
+        Services.prefs.setBoolPref("browser.tabs.warnOnClose", false);
+      }
     }
+
+    this._quitSource = "unknown";
+
     aCancelQuit.data = buttonPressed != 0;
   },
 

@@ -325,6 +325,13 @@ pref("browser.chrome.site_icons", true);
 // browser.warnOnQuit == false will override all other possible prompts when quitting or restarting
 pref("browser.warnOnQuit", true);
 
+// Whether to warn when quitting when using the shortcut key.
+#if defined(XP_WIN)
+  pref("browser.warnOnQuitShortcut", false);
+#else
+  pref("browser.warnOnQuitShortcut", true);
+#endif
+
 // TODO bug 1702563: Renable fullscreen autohide by default on macOS.
 #ifdef XP_MACOSX
   pref("browser.fullscreen.autohide", false);
@@ -1044,9 +1051,6 @@ pref("browser.sessionstore.cleanup.forget_closed_after", 1209600000);
 // Amount of failed SessionFile writes until we restart the worker.
 pref("browser.sessionstore.max_write_failures", 5);
 
-// Whether to warn the user when quitting, even though their tabs will be restored.
-pref("browser.sessionstore.warnOnQuit", false);
-
 // Don't quit the browser when Ctrl + Q is pressed.
 pref("browser.quitShortcut.disabled", false);
 
@@ -1330,7 +1334,6 @@ pref("services.sync.prefs.sync.browser.safebrowsing.malware.enabled", true);
 pref("services.sync.prefs.sync.browser.safebrowsing.phishing.enabled", true);
 pref("services.sync.prefs.sync.browser.search.update", true);
 pref("services.sync.prefs.sync.browser.search.widget.inNavBar", true);
-pref("services.sync.prefs.sync.browser.sessionstore.warnOnQuit", true);
 pref("services.sync.prefs.sync.browser.startup.homepage", true);
 pref("services.sync.prefs.sync.browser.startup.page", true);
 pref("services.sync.prefs.sync.browser.tabs.loadInBackground", true);
@@ -1444,12 +1447,6 @@ pref("prompts.windowPromptSubDialog", true);
 // Activates preloading of the new tab url.
 pref("browser.newtab.preload", true);
 
-// Preference to enable the entire new newtab experience at once.
-pref("browser.newtabpage.activity-stream.newNewtabExperience.enabled", true);
-
-// A preference which allows us to enable the fly out customization overlay
-// on the newtab page.
-pref("browser.newtabpage.activity-stream.customizationMenu.enabled", false);
 pref("browser.newtabpage.activity-stream.newNewtabExperience.colors", "#0090ED,#FF4F5F,#2AC3A2,#FF7139,#A172FF,#FFA437,#FF2A8A");
 
 // Activity Stream prefs that control to which page to redirect

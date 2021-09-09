@@ -40,12 +40,8 @@ $ds-width: 936px;
 
 .ds-header,
 .ds-layout .section-title span {
-  @include dark-theme-only {
-    color: $grey-30;
-  }
-
-  color: $grey-50;
-  font-size: 13px;
+  color: var(--newtab-section-header-text-color);
+  font-size: $section-title-font-size;
   font-weight: 600;
   line-height: 20px;
 

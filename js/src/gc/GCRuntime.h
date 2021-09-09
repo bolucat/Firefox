@@ -297,7 +297,6 @@ class GCRuntime {
 
   inline bool hasZealMode(ZealMode mode);
   inline void clearZealMode(ZealMode mode);
-  inline bool upcomingZealousGC();
   inline bool needZealousGC();
   inline bool hasIncrementalTwoSliceZealMode();
 
@@ -790,10 +789,11 @@ class GCRuntime {
   void groupZonesForSweeping(JS::GCReason reason);
   [[nodiscard]] bool findSweepGroupEdges();
   void getNextSweepGroup();
-  IncrementalProgress markGrayReferencesInCurrentGroup(JSFreeOp* fop,
-                                                       SliceBudget& budget);
+  IncrementalProgress markGrayRootsInCurrentGroup(JSFreeOp* fop,
+                                                  SliceBudget& budget);
+  IncrementalProgress markGray(JSFreeOp* fop, SliceBudget& budget);
   IncrementalProgress endMarkingSweepGroup(JSFreeOp* fop, SliceBudget& budget);
-  void markIncomingCrossCompartmentPointers(MarkColor color);
+  void markIncomingGrayCrossCompartmentPointers();
   IncrementalProgress beginSweepingSweepGroup(JSFreeOp* fop,
                                               SliceBudget& budget);
   IncrementalProgress markDuringSweeping(JSFreeOp* fop, SliceBudget& budget);
@@ -1089,7 +1089,6 @@ class GCRuntime {
   MainThreadData<mozilla::Maybe<AtomsTable::SweepIterator>> maybeAtomsToSweep;
   MainThreadOrGCTaskData<mozilla::Maybe<WeakCacheSweepIterator>>
       weakCachesToSweep;
-  MainThreadData<bool> hasMarkedGrayRoots;
   MainThreadData<bool> abortSweepAfterCurrentGroup;
   MainThreadOrGCTaskData<IncrementalProgress> sweepMarkResult;
 
@@ -1275,8 +1274,6 @@ inline void GCRuntime::clearZealMode(ZealMode mode) {
   MOZ_ASSERT(!hasZealMode(mode));
 }
 
-inline bool GCRuntime::upcomingZealousGC() { return nextScheduled == 1; }
-
 inline bool GCRuntime::needZealousGC() {
   if (nextScheduled > 0 && --nextScheduled == 0) {
     if (hasZealMode(ZealMode::Alloc) || hasZealMode(ZealMode::GenerationalGC) ||
@@ -1304,7 +1301,6 @@ inline bool GCRuntime::hasIncrementalTwoSliceZealMode() {
 #else
 inline bool GCRuntime::hasZealMode(ZealMode mode) { return false; }
 inline void GCRuntime::clearZealMode(ZealMode mode) {}
-inline bool GCRuntime::upcomingZealousGC() { return false; }
 inline bool GCRuntime::needZealousGC() { return false; }
 inline bool GCRuntime::hasIncrementalTwoSliceZealMode() { return false; }
 #endif

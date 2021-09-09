@@ -37,6 +37,7 @@ class gfxTextRun;
 class nsIURI;
 class nsAtom;
 class nsIObserver;
+class nsPresContext;
 class SRGBOverrideObserver;
 class gfxTextPerfMetrics;
 typedef struct FT_LibraryRec_* FT_Library;
@@ -395,6 +396,7 @@ class gfxPlatform : public mozilla::layers::MemoryPressureListener {
    * Create a gfxFontGroup based on the given family list and style.
    */
   gfxFontGroup* CreateFontGroup(
+      nsPresContext* aPresContext,
       const mozilla::StyleFontFamilyList& aFontFamilyList,
       const gfxFontStyle* aStyle, nsAtom* aLanguage, bool aExplicitLanguage,
       gfxTextPerfMetrics* aTextPerf, gfxUserFontSet* aUserFontSet,
@@ -406,7 +408,8 @@ class gfxPlatform : public mozilla::layers::MemoryPressureListener {
    * Ownership of the returned gfxFontEntry is passed to the caller,
    * who must either AddRef() or delete.
    */
-  gfxFontEntry* LookupLocalFont(const nsACString& aFontName,
+  gfxFontEntry* LookupLocalFont(nsPresContext* aPresContext,
+                                const nsACString& aFontName,
                                 WeightRange aWeightForEntry,
                                 StretchRange aStretchForEntry,
                                 SlantStyleRange aStyleForEntry);
@@ -509,14 +512,6 @@ class gfxPlatform : public mozilla::layers::MemoryPressureListener {
   static bool OffMainThreadCompositingEnabled();
 
   void UpdateCanUseHardwareVideoDecoding();
-
-  /**
-   * Is it possible to use buffer rotation.  Note that these
-   * check the preference, but also allow for the override to
-   * disable it using DisableBufferRotation.
-   */
-  static bool BufferRotationEnabled();
-  static void DisableBufferRotation();
 
   /**
    * Are we going to try color management?
@@ -650,11 +645,6 @@ class gfxPlatform : public mozilla::layers::MemoryPressureListener {
 
   int GetScreenDepth() const { return mScreenDepth; }
   mozilla::gfx::IntSize GetScreenSize() const { return mScreenSize; }
-
-  /**
-   * Return the layer debugging options to use browser-wide.
-   */
-  mozilla::layers::DiagnosticTypes GetLayerDiagnosticTypes();
 
   static void PurgeSkiaFontCache();
 

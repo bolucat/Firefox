@@ -4262,6 +4262,22 @@
   value: false
   mirror: always
 
+# The strategy used to control how sites are isolated into separate processes
+# when Fisison is enabled. This pref has no effect if Fission is disabled.
+# See the `WebContentIsolationStrategy` enum in `ProcessIsolation.cpp`.
+- name: fission.webContentIsolationStrategy
+  type: uint32_t
+  value: 1
+  mirror: always
+
+# Time in seconds before a site loaded with the Cross-Origin-Opener-Policy
+# header is no longer considered high-value and isolated in the "highValueCOOP"
+# configuration.
+- name: fission.highValue.coop.expiration
+  type: uint32_t
+  value: 2592000   # 30 days (in seconds)
+  mirror: always
+
 #---------------------------------------------------------------------------
 # Prefs starting with "font."
 #---------------------------------------------------------------------------
@@ -5186,6 +5202,11 @@
 - name: gfx.webrender.batching.lookback
   type: uint32_t
   value: 10
+  mirror: always
+
+- name: gfx.webrender.blob-tile-size
+  type: uint32_t
+  value: 256
   mirror: always
 
 - name: gfx.webrender.compositor
@@ -6290,11 +6311,6 @@
   value: false
   mirror: always
 
-- name: layers.bufferrotation.enabled
-  type: bool
-  value: true
-  mirror: once
-
 - name: layers.child-process-shutdown
   type: RelaxedAtomicBool
   value: true
@@ -6334,81 +6350,6 @@
 #endif
   mirror: always
 
-- name: layers.draw-bigimage-borders
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
-- name: layers.draw-borders
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
-- name: layers.draw-tile-borders
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
-- name: layers.draw-layer-info
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
-- name: layers.dump
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
-# If we're dumping layers, also dump the texture data
-- name: layers.dump-texture
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
-#ifdef MOZ_DUMP_PAINTING
--   name: layers.dump-decision
-    type: RelaxedAtomicBool
-    value: false
-    mirror: always
-#endif
-
-- name: layers.dump-client-layers
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
-- name: layers.dump-host-layers
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
-- name: layers.compositing-tiles.width
-  type: RelaxedAtomicInt32
-  value: 1024
-  mirror: always
-
-- name: layers.compositing-tiles.height
-  type: RelaxedAtomicInt32
-  value: 1024
-  mirror: always
-
-# 0 is "no change" for contrast, positive values increase it, negative values
-# decrease it until we hit mid gray at -1 contrast, after that it gets weird.
-- name: layers.effect.contrast
-  type: AtomicFloat
-  value: 0.0f
-  mirror: always
-
-- name: layers.effect.grayscale
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
-- name: layers.effect.invert
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
 - name: layers.enable-tiles
   type: bool
 #if defined(XP_MACOSX) || defined (XP_OPENBSD)
@@ -6417,11 +6358,6 @@
   value: false
 #endif
   mirror: once
-
-- name: layers.flash-borders
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
 
 # Force all possible layers to be always active layers.
 - name: layers.force-active
@@ -6540,22 +6476,10 @@
   value: false
   mirror: always
 
-- name: layers.low-precision-opacity
-  type: AtomicFloat
-  value: 1.0f
-  mirror: always
-
 - name: layers.low-precision-resolution
   type: AtomicFloat
   value: 0.25f
   mirror: always
-
-# Max number of layers per container. See Overwrite in mobile prefs.
-- name: layers.max-active
-  type: RelaxedAtomicInt32
-  value: -1
-  mirror: always
-
 
 # Whether to animate simple opacity and transforms on the compositor.
 - name: layers.offmainthreadcomposition.async-animations
@@ -6581,11 +6505,6 @@
 - name: layers.offmainthreadcomposition.frame-rate
   type: RelaxedAtomicInt32
   value: -1
-  mirror: always
-
-- name: layers.orientation.sync.timeout
-  type: RelaxedAtomicUint32
-  value: (uint32_t)0
   mirror: always
 
 #ifdef XP_WIN
@@ -6623,36 +6542,6 @@
 - name: layers.tiles.adjust
   type: bool
   value: true
-  mirror: once
-
-- name: layers.tiles.edge-padding
-  type: bool
-  value: @IS_ANDROID@
-  mirror: once
-
-- name: layers.tiles.fade-in.enabled
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
-- name: layers.tiles.fade-in.duration-ms
-  type: RelaxedAtomicUint32
-  value: 250
-  mirror: always
-
-- name: layers.tiles.retain-back-buffer
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
-- name: layers.transaction.warning-ms
-  type: RelaxedAtomicUint32
-  value: 200
-  mirror: always
-
-- name: layers.uniformity-info
-  type: bool
-  value: false
   mirror: once
 
 - name: layers.recycle-allocator-rdd
@@ -6765,12 +6654,6 @@
   value: false
   mirror: always
 
-# Whether we should layerize all animated images (if otherwise possible).
-- name: layout.animated-image-layers.enabled
-  type: bool
-  value: false
-  mirror: always
-
 # One of several prefs affecting the maximum area to pre-render when animating
 # a large element on the compositor.
 # This pref enables transform (and transform like properties) animations on a
@@ -6825,7 +6708,7 @@
 # Whether @layer is enabled
 - name: layout.css.cascade-layers.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
   rust: true
 
@@ -9358,6 +9241,12 @@
   value: false
   mirror: always
 
+# If set to true, disallow localhost connections when offline.
+- name: network.disable-localhost-when-offline
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 # Enables the predictive service.
 - name: network.predictor.enabled
   type: bool
@@ -9637,6 +9526,11 @@
   type: String
   value: "https://mozilla.cloudflare-dns.com/dns-query"
   mirror: never
+
+- name: network.trr.strict_native_fallback
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
 
 # Single TRR request timeout, in milliseconds
 - name: network.trr.request_timeout_ms
@@ -10915,7 +10809,7 @@
 # but only with scheme data and contentpolicytype subdocument
 - name: security.disallow_privileged_data_subdocuments_loads
   type: bool
-  value: false
+  value: true
   mirror: always
 
 # Disable preloaded static key pins by default.

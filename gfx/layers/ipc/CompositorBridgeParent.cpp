@@ -325,7 +325,8 @@ void CompositorBridgeParent::Initialize() {
     MOZ_ASSERT(!mApzcTreeManager);
     MOZ_ASSERT(!mApzSampler);
     MOZ_ASSERT(!mApzUpdater);
-    mApzcTreeManager = new APZCTreeManager(mRootLayerTreeID, true);
+    mApzcTreeManager = new APZCTreeManager(
+        mRootLayerTreeID, APZCTreeManager::HitTestKind::WebRender);
     mApzSampler = new APZSampler(mApzcTreeManager, true);
     mApzUpdater = new APZUpdater(mApzcTreeManager, true);
   }
@@ -1334,8 +1335,9 @@ void CompositorBridgeParent::InitializeStatics() {
   gfxVars::SetWebRenderDebugFlagsListener(&UpdateDebugFlags);
   gfxVars::SetUseWebRenderMultithreadingListener(
       &UpdateWebRenderMultithreading);
-  gfxVars::SetWebRenderBatchingLookbackListener(
-      &UpdateWebRenderBatchingParameters);
+  gfxVars::SetWebRenderBatchingLookbackListener(&UpdateWebRenderParameters);
+  gfxVars::SetWebRenderBlobTileSizeListener(&UpdateWebRenderParameters);
+
   gfxVars::SetWebRenderProfilerUIListener(&UpdateWebRenderProfilerUI);
 }
 
@@ -1398,12 +1400,12 @@ void CompositorBridgeParent::UpdateWebRenderMultithreading() {
 }
 
 /*static*/
-void CompositorBridgeParent::UpdateWebRenderBatchingParameters() {
+void CompositorBridgeParent::UpdateWebRenderParameters() {
   if (!CompositorThreadHolder::IsInCompositorThread()) {
     if (CompositorThread()) {
       CompositorThread()->Dispatch(NewRunnableFunction(
-          "CompositorBridgeParent::UpdateWebRenderBatchingParameters",
-          &CompositorBridgeParent::UpdateWebRenderBatchingParameters));
+          "CompositorBridgeParent::UpdateWebRenderParameters",
+          &CompositorBridgeParent::UpdateWebRenderParameters));
     }
 
     return;
@@ -1411,7 +1413,7 @@ void CompositorBridgeParent::UpdateWebRenderBatchingParameters() {
 
   MonitorAutoLock lock(*sIndirectLayerTreesLock);
   ForEachWebRenderBridgeParent([&](WebRenderBridgeParent* wrBridge) -> void {
-    wrBridge->UpdateBatchingParameters();
+    wrBridge->UpdateParameters();
   });
 }
 

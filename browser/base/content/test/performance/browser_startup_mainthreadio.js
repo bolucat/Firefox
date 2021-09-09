@@ -486,7 +486,7 @@ const startupPhases = {
       ignoreIfUnused: true,
       stat: 4,
       fsync: 3,
-      read: 44,
+      read: 47,
       write: 170,
     },
     {

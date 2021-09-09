@@ -668,6 +668,8 @@ class nsWindow final : public nsBaseWidget {
                                  bool aMustMatchParent);
   void WaylandPopupMarkAsClosed();
   void WaylandPopupRemoveClosedPopups();
+  void WaylandPopupSetDirectPosition(GdkPoint* aPosition, GdkRectangle* aSize);
+  bool WaylandPopupFitsParentWindow(GdkRectangle* aSize);
   nsWindow* WaylandPopupFindLast(nsWindow* aPopup);
   GtkWindow* GetCurrentTopmostWindow();
   nsCString GetWindowNodeName();
