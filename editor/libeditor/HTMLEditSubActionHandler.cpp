@@ -1308,6 +1308,136 @@ EditActionResult HTMLEditor::HandleInsertText(
   return EditActionHandled(rv);
 }
 
+nsresult HTMLEditor::InsertLineBreakAsSubAction() {
+  MOZ_ASSERT(IsEditActionDataAvailable());
+  MOZ_ASSERT(!IsSelectionRangeContainerNotContent());
+
+  if (NS_WARN_IF(!mInitSucceeded)) {
+    return NS_ERROR_NOT_INITIALIZED;
+  }
+
+  EditActionResult result = CanHandleHTMLEditSubAction();
+  if (result.Failed() || result.Canceled()) {
+    NS_WARNING_ASSERTION(result.Succeeded(),
+                         "HTMLEditor::CanHandleHTMLEditSubAction() failed");
+    return result.Rv();
+  }
+
+  // XXX This may be called by execCommand() with "insertLineBreak".
+  //     In such case, naming the transaction "TypingTxnName" is odd.
+  AutoPlaceholderBatch treatAsOneTransaction(*this, *nsGkAtoms::TypingTxnName,
+                                             ScrollSelectionIntoView::Yes);
+
+  // calling it text insertion to trigger moz br treatment by rules
+  // XXX Why do we use EditSubAction::eInsertText here?  Looks like
+  //     EditSubAction::eInsertLineBreak or EditSubAction::eInsertNode
+  //     is better.
+  IgnoredErrorResult ignoredError;
+  AutoEditSubActionNotifier startToHandleEditSubAction(
+      *this, EditSubAction::eInsertText, nsIEditor::eNext, ignoredError);
+  if (NS_WARN_IF(ignoredError.ErrorCodeIs(NS_ERROR_EDITOR_DESTROYED))) {
+    return ignoredError.StealNSResult();
+  }
+  NS_WARNING_ASSERTION(
+      !ignoredError.Failed(),
+      "HTMLEditor::OnStartToHandleTopLevelEditSubAction() failed, but ignored");
+
+  UndefineCaretBidiLevel();
+
+  // If the selection isn't collapsed, delete it.
+  if (!SelectionRef().IsCollapsed()) {
+    nsresult rv =
+        DeleteSelectionAsSubAction(nsIEditor::eNone, nsIEditor::eStrip);
+    if (NS_FAILED(rv)) {
+      NS_WARNING(
+          "EditorBase::DeleteSelectionAsSubAction(eNone, eStrip) failed");
+      return rv;
+    }
+  }
+
+  const nsRange* firstRange = SelectionRef().GetRangeAt(0);
+  if (NS_WARN_IF(!firstRange)) {
+    return NS_ERROR_FAILURE;
+  }
+
+  EditorDOMPoint atStartOfSelection(firstRange->StartRef());
+  if (NS_WARN_IF(!atStartOfSelection.IsSet())) {
+    return NS_ERROR_FAILURE;
+  }
+  MOZ_ASSERT(atStartOfSelection.IsSetAndValid());
+
+  RefPtr<Element> editingHost = GetActiveEditingHost();
+  if (NS_WARN_IF(!editingHost)) {
+    return NS_ERROR_FAILURE;
+  }
+
+  // For backward compatibility, we should not insert a linefeed if
+  // paragraph separator is set to "br" which is Gecko-specific mode.
+  if (GetDefaultParagraphSeparator() == ParagraphSeparator::br ||
+      !HTMLEditUtils::ShouldInsertLinefeedCharacter(atStartOfSelection,
+                                                    *editingHost)) {
+    // InsertBRElementWithTransaction() will set selection after the new <br>
+    // element.
+    Result<RefPtr<Element>, nsresult> resultOfInsertingBRElement =
+        InsertBRElementWithTransaction(atStartOfSelection, nsIEditor::eNext);
+    if (resultOfInsertingBRElement.isErr()) {
+      NS_WARNING("HTMLEditor::InsertBRElementWithTransaction() failed");
+      return resultOfInsertingBRElement.unwrapErr();
+    }
+    MOZ_ASSERT(resultOfInsertingBRElement.inspect());
+    return NS_OK;
+  }
+
+  nsresult rv = EnsureNoPaddingBRElementForEmptyEditor();
+  if (NS_WARN_IF(rv == NS_ERROR_EDITOR_DESTROYED)) {
+    return NS_ERROR_EDITOR_DESTROYED;
+  }
+  NS_WARNING_ASSERTION(NS_SUCCEEDED(rv),
+                       "EditorBase::EnsureNoPaddingBRElementForEmptyEditor() "
+                       "failed, but ignored");
+
+  if (NS_SUCCEEDED(rv) && SelectionRef().IsCollapsed()) {
+    nsresult rv = EnsureCaretNotAfterInvisibleBRElement();
+    if (NS_WARN_IF(rv == NS_ERROR_EDITOR_DESTROYED)) {
+      return NS_ERROR_EDITOR_DESTROYED;
+    }
+    NS_WARNING_ASSERTION(NS_SUCCEEDED(rv),
+                         "HTMLEditor::EnsureCaretNotAfterInvisibleBRElement() "
+                         "failed, but ignored");
+    if (NS_SUCCEEDED(rv)) {
+      nsresult rv = PrepareInlineStylesForCaret();
+      if (NS_WARN_IF(rv == NS_ERROR_EDITOR_DESTROYED)) {
+        return NS_ERROR_EDITOR_DESTROYED;
+      }
+      NS_WARNING_ASSERTION(
+          NS_SUCCEEDED(rv),
+          "HTMLEditor::PrepareInlineStylesForCaret() failed, but ignored");
+    }
+  }
+
+  firstRange = SelectionRef().GetRangeAt(0);
+  if (NS_WARN_IF(!firstRange)) {
+    return NS_ERROR_FAILURE;
+  }
+
+  atStartOfSelection = EditorDOMPoint(firstRange->StartRef());
+  if (NS_WARN_IF(!atStartOfSelection.IsSet())) {
+    return NS_ERROR_FAILURE;
+  }
+  MOZ_ASSERT(atStartOfSelection.IsSetAndValid());
+
+  // Do nothing if the node is read-only
+  if (!HTMLEditUtils::IsSimplyEditableNode(
+          *atStartOfSelection.GetContainer())) {
+    return NS_SUCCESS_DOM_NO_OPERATION;
+  }
+
+  rv = HandleInsertLinefeed(atStartOfSelection, *editingHost);
+  NS_WARNING_ASSERTION(NS_SUCCEEDED(rv),
+                       "HTMLEditor::HandleInsertLinefeed() failed");
+  return rv;
+}
+
 EditActionResult HTMLEditor::InsertParagraphSeparatorAsSubAction() {
   if (NS_WARN_IF(!mInitSucceeded)) {
     return EditActionIgnored(NS_ERROR_NOT_INITIALIZED);
@@ -1444,47 +1574,62 @@ EditActionResult HTMLEditor::InsertParagraphSeparatorAsSubAction() {
           : nullptr;
 
   ParagraphSeparator separator = GetDefaultParagraphSeparator();
-  bool insertBRElement;
+  bool insertLineBreak;
   // If there is no block parent in the editing host, i.e., the editing host
-  // itself is also a non-block element, we should insert a <br> element.
+  // itself is also a non-block element, we should insert a line break.
   if (!editableBlockElement) {
     // XXX Chromium checks if the CSS box of the editing host is a block.
-    insertBRElement = true;
+    insertLineBreak = true;
   }
   // If the editable block element is not splittable, e.g., it's an editing
   // host, and the default paragraph separator is <br> or the element cannot
   // contain a <p> element, we should insert a <br> element.
   else if (!HTMLEditUtils::IsSplittableNode(*editableBlockElement)) {
-    insertBRElement =
+    insertLineBreak =
         separator == ParagraphSeparator::br ||
-        !HTMLEditUtils::CanElementContainParagraph(*editableBlockElement);
+        !HTMLEditUtils::CanElementContainParagraph(*editingHost) ||
+        HTMLEditUtils::ShouldInsertLinefeedCharacter(atStartOfSelection,
+                                                     *editingHost);
   }
   // If the nearest block parent is a single-line container declared in
   // the execCommand spec and not the editing host, we should separate the
   // block even if the default paragraph separator is <br> element.
   else if (HTMLEditUtils::IsSingleLineContainer(*editableBlockElement)) {
-    insertBRElement = false;
+    insertLineBreak = false;
   }
   // Otherwise, unless there is no block ancestor which can contain <p>
-  // element, we shouldn't insert a <br> element here.
+  // element, we shouldn't insert a line break here.
   else {
-    insertBRElement = true;
+    insertLineBreak = true;
     for (const Element* editableBlockAncestor = editableBlockElement;
-         editableBlockAncestor && insertBRElement;
+         editableBlockAncestor && insertLineBreak;
          editableBlockAncestor = HTMLEditUtils::GetAncestorElement(
              *editableBlockAncestor,
              HTMLEditUtils::ClosestEditableBlockElement)) {
-      insertBRElement =
+      insertLineBreak =
           !HTMLEditUtils::CanElementContainParagraph(*editableBlockAncestor);
     }
   }
 
   // If we cannot insert a <p>/<div> element at the selection, we should insert
-  // a <br> element instead.
-  if (insertBRElement) {
-    nsresult rv = InsertBRElement(atStartOfSelection);
+  // a <br> element or a linefeed instead.
+  if (insertLineBreak) {
+    // For backward compatibility, we should not insert a linefeed if
+    // paragraph separator is set to "br" which is Gecko-specific mode.
+    if (separator != ParagraphSeparator::br &&
+        HTMLEditUtils::ShouldInsertLinefeedCharacter(atStartOfSelection,
+                                                     *editingHost)) {
+      nsresult rv = HandleInsertLinefeed(atStartOfSelection, *editingHost);
+      if (NS_FAILED(rv)) {
+        NS_WARNING("HTMLEditor::HandleInsertLinefeed() failed");
+        return EditActionIgnored(rv);
+      }
+      return EditActionHandled();
+    }
+
+    nsresult rv = HandleInsertBRElement(atStartOfSelection, *editingHost);
     if (NS_FAILED(rv)) {
-      NS_WARNING("HTMLEditor::InsertBRElement() failed");
+      NS_WARNING("HTMLEditor::HandleInsertBRElement() failed");
       return EditActionIgnored(rv);
     }
     return EditActionHandled();
@@ -1529,9 +1674,9 @@ EditActionResult HTMLEditor::InsertParagraphSeparatorAsSubAction() {
     }
     if (NS_WARN_IF(!HTMLEditUtils::IsSplittableNode(*editableBlockElement))) {
       // Didn't create a new block for some reason, fall back to <br>
-      nsresult rv = InsertBRElement(atStartOfSelection);
+      nsresult rv = HandleInsertBRElement(atStartOfSelection, *editingHost);
       if (NS_FAILED(rv)) {
-        NS_WARNING("HTMLEditor::InsertBRElement() failed");
+        NS_WARNING("HTMLEditor::HandleInsertBRElement() failed");
         return EditActionIgnored(rv);
       }
       return EditActionHandled();
@@ -1629,15 +1774,16 @@ EditActionResult HTMLEditor::InsertParagraphSeparatorAsSubAction() {
   }
 
   // If nobody handles this edit action, let's insert new <br> at the selection.
-  rv = InsertBRElement(atStartOfSelection);
+  rv = HandleInsertBRElement(atStartOfSelection, *editingHost);
   if (NS_FAILED(rv)) {
-    NS_WARNING("HTMLEditor::InsertBRElement() failed");
+    NS_WARNING("HTMLEditor::HandleInsertBRElement() failed");
     return EditActionIgnored(rv);
   }
   return EditActionHandled();
 }
 
-nsresult HTMLEditor::InsertBRElement(const EditorDOMPoint& aPointToBreak) {
+nsresult HTMLEditor::HandleInsertBRElement(const EditorDOMPoint& aPointToBreak,
+                                           Element& aEditingHost) {
   MOZ_ASSERT(IsEditActionDataAvailable());
 
   if (NS_WARN_IF(!aPointToBreak.IsSet())) {
@@ -1645,8 +1791,6 @@ nsresult HTMLEditor::InsertBRElement(const EditorDOMPoint& aPointToBreak) {
   }
 
   bool brElementIsAfterBlock = false, brElementIsBeforeBlock = false;
-
-  RefPtr<Element> editingHost = GetActiveEditingHost();
 
   // First, insert a <br> element.
   RefPtr<Element> brElement;
@@ -1661,7 +1805,7 @@ nsresult HTMLEditor::InsertBRElement(const EditorDOMPoint& aPointToBreak) {
     brElement = resultOfInsertingBRElement.unwrap().forget();
   } else {
     EditorDOMPoint pointToBreak(aPointToBreak);
-    WSRunScanner wsRunScanner(editingHost, pointToBreak);
+    WSRunScanner wsRunScanner(&aEditingHost, pointToBreak);
     WSScanResult backwardScanResult =
         wsRunScanner.ScanPreviousVisibleNodeOrBlockBoundaryFrom(pointToBreak);
     if (backwardScanResult.Failed()) {
@@ -1735,7 +1879,7 @@ nsresult HTMLEditor::InsertBRElement(const EditorDOMPoint& aPointToBreak) {
   NS_WARNING_ASSERTION(advanced,
                        "Failed to advance offset after the new <br> element");
   WSScanResult forwardScanFromAfterBRElementResult =
-      WSRunScanner::ScanNextVisibleNodeOrBlockBoundary(editingHost,
+      WSRunScanner::ScanNextVisibleNodeOrBlockBoundary(&aEditingHost,
                                                        afterBRElement);
   if (forwardScanFromAfterBRElementResult.Failed()) {
     NS_WARNING("WSRunScanner::ScanNextVisibleNodeOrBlockBoundary() failed");
@@ -1783,6 +1927,129 @@ nsresult HTMLEditor::InsertBRElement(const EditorDOMPoint& aPointToBreak) {
   NS_WARNING_ASSERTION(NS_SUCCEEDED(rv),
                        "HTMLEditor::CollapseSelectionTo() failed");
   return rv;
+}
+
+nsresult HTMLEditor::HandleInsertLinefeed(const EditorDOMPoint& aPointToBreak,
+                                          Element& aEditingHost) {
+  MOZ_ASSERT(IsEditActionDataAvailable());
+
+  if (NS_WARN_IF(!aPointToBreak.IsSet())) {
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  // TODO: The following code is duplicated from `HandleInsertText`.  They
+  //       should be merged when we fix bug 92921.
+
+  RefPtr<const nsRange> caretRange =
+      nsRange::Create(aPointToBreak.ToRawRangeBoundary(),
+                      aPointToBreak.ToRawRangeBoundary(), IgnoreErrors());
+  if (NS_WARN_IF(!caretRange)) {
+    return NS_ERROR_FAILURE;
+  }
+
+  nsresult rv = CreateStyleForInsertText(*caretRange);
+  if (NS_FAILED(rv)) {
+    NS_WARNING("HTMLEditor::CreateStyleForInsertText() failed");
+    return rv;
+  }
+
+  caretRange = SelectionRef().GetRangeAt(0);
+  if (NS_WARN_IF(!caretRange)) {
+    return NS_ERROR_EDITOR_UNEXPECTED_DOM_TREE;
+  }
+
+  EditorDOMPoint pointToInsert(caretRange->StartRef());
+  if (NS_WARN_IF(!pointToInsert.IsSet()) ||
+      NS_WARN_IF(!pointToInsert.IsInContentNode())) {
+    return NS_ERROR_EDITOR_UNEXPECTED_DOM_TREE;
+  }
+  MOZ_ASSERT(pointToInsert.IsSetAndValid());
+  MOZ_ASSERT_IF(
+      !pointToInsert.IsInTextNode(),
+      HTMLEditUtils::CanNodeContain(*pointToInsert.ContainerAsContent(),
+                                    *nsGkAtoms::textTagName));
+  RefPtr<Document> document = GetDocument();
+  MOZ_ASSERT(document);
+  if (NS_WARN_IF(!document)) {
+    return NS_ERROR_FAILURE;
+  }
+
+  AutoRestore<bool> disableListener(
+      EditSubActionDataRef().mAdjustChangedRangeFromListener);
+  EditSubActionDataRef().mAdjustChangedRangeFromListener = false;
+  AutoTransactionsConserveSelection dontChangeMySelection(*this);
+  EditorRawDOMPoint caretAfterInsert;
+  {
+    AutoTrackDOMPoint trackingInsertingPosition(RangeUpdaterRef(),
+                                                &pointToInsert);
+    nsresult rv = InsertTextWithTransaction(*document, u"\n"_ns, pointToInsert,
+                                            &caretAfterInsert);
+    if (NS_FAILED(rv)) {
+      NS_WARNING("HTMLEditor::InsertTextWithTransaction() failed");
+      return rv;
+    }
+  }
+
+  // Insert a padding <br> element at the end of the block element if there is
+  // no content between the inserted linefeed and the following block boundary
+  // to make sure that the last line is visible.
+  // XXX Blink/WebKit inserts another linefeed character in this case.  However,
+  //     for doing it, we need more work, e.g., updating serializer, deleting
+  //     unnecessary padding <br> element at modifying the last line.
+  if (caretAfterInsert.IsInContentNode() &&
+      caretAfterInsert.IsEndOfContainer()) {
+    WSRunScanner wsScannerAtCaret(&aEditingHost, caretAfterInsert);
+    if (wsScannerAtCaret.StartsFromPreformattedLineBreak() &&
+        wsScannerAtCaret.EndsByBlockBoundary() &&
+        HTMLEditUtils::CanNodeContain(*wsScannerAtCaret.GetEndReasonContent(),
+                                      *nsGkAtoms::br)) {
+      EditorDOMPoint newCaretPosition(caretAfterInsert);
+      {
+        AutoTrackDOMPoint trackingInsertedPosition(RangeUpdaterRef(),
+                                                   &pointToInsert);
+        AutoTrackDOMPoint trackingNewCaretPosition(RangeUpdaterRef(),
+                                                   &newCaretPosition);
+        Result<RefPtr<Element>, nsresult> resultOfInsertingBRElement =
+            InsertBRElementWithTransaction(newCaretPosition,
+                                           nsIEditor::ePrevious);
+        if (resultOfInsertingBRElement.isErr()) {
+          NS_WARNING("HTMLEditor::InsertBRElementWithTransaction() failed");
+          return resultOfInsertingBRElement.unwrapErr();
+        }
+        MOZ_ASSERT(resultOfInsertingBRElement.inspect());
+      }
+      caretAfterInsert = newCaretPosition;
+    }
+  }
+
+  IgnoredErrorResult ignoredError;
+  SelectionRef().SetInterlinePosition(false, ignoredError);
+  NS_WARNING_ASSERTION(!ignoredError.Failed(),
+                       "Failed to unset interline position, but ignored");
+
+  // manually update the doc changed range so that AfterEdit will clean up
+  // the correct portion of the document.
+  if (!caretAfterInsert.IsSet()) {
+    if (NS_FAILED(TopLevelEditSubActionDataRef().mChangedRange->CollapseTo(
+            pointToInsert))) {
+      NS_WARNING("nsRange::CollapseTo() failed");
+      return NS_ERROR_FAILURE;
+    }
+  }
+
+  if (NS_FAILED(TopLevelEditSubActionDataRef().mChangedRange->SetStartAndEnd(
+          pointToInsert.ToRawRangeBoundary(),
+          caretAfterInsert.ToRawRangeBoundary()))) {
+    NS_WARNING("nsRange::SetStartAndEnd() failed");
+    return NS_ERROR_FAILURE;
+  }
+
+  rv = CollapseSelectionTo(caretAfterInsert);
+  if (NS_FAILED(rv)) {
+    NS_WARNING("HTMLEditor::CollapseSelectionTo() failed");
+    return rv;
+  }
+  return NS_OK;
 }
 
 EditActionResult HTMLEditor::SplitMailCiteElements(
