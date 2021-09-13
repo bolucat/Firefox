@@ -280,13 +280,6 @@ bool RetainedDisplayListBuilder::PreProcessDisplayList(
       mBuilder.MarkFrameForDisplayIfVisible(f, mBuilder.RootReferenceFrame());
     }
 
-    // TODO: This is here because we sometimes reuse the previous display list
-    // completely. For optimization, we could only restore the state for reused
-    // display items.
-    if (item->RestoreState()) {
-      item->InvalidateItemCacheEntry();
-    }
-
     // If we're going to keep this linked list and not merge it, then mark the
     // item as used and put it back into the list.
     if (aKeepLinked) {
@@ -1085,12 +1078,8 @@ static bool ProcessFrameInternal(nsIFrame* aFrame,
       // wrapper item and convert into into coordinate relative to the current
       // frame.
       nsRect previousVisible = wrapperItem->GetBuildingRectForChildren();
-      if (wrapperItem->ReferenceFrameForChildren() ==
-          wrapperItem->ReferenceFrame()) {
+      if (wrapperItem->ReferenceFrameForChildren() != wrapperItem->Frame()) {
         previousVisible -= wrapperItem->ToReferenceFrame();
-      } else {
-        MOZ_ASSERT(wrapperItem->ReferenceFrameForChildren() ==
-                   wrapperItem->Frame());
       }
 
       if (!previousVisible.Contains(aOverflow)) {

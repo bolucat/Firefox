@@ -6742,6 +6742,12 @@
   mirror: always
   rust: true
 
+# Whether to use background-image to style autofill controls.
+- name: layout.css.autofill.background
+  type: bool
+  value: true
+  mirror: always
+
 # Whether the `:-moz-submit-invalid` pseudo-class is exposed to content.
 - name: layout.css.moz-submit-invalid.enabled
   type: RelaxedAtomicBool
@@ -11593,6 +11599,13 @@
 - name: widget.non-native-theme.enabled
   type: RelaxedAtomicBool
   value: true
+  mirror: always
+
+# Whether the non-native theme should always use system colors. Useful mostly
+# for testing forced colors mode.
+- name: widget.non-native-theme.always-use-system-colors
+  type: RelaxedAtomicBool
+  value: false
   mirror: always
 
 # The size in CSS pixels at full zoom of the minimum scrollbar width.
