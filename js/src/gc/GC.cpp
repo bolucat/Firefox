@@ -1144,7 +1144,6 @@ GCRuntime::GCRuntime(JSRuntime* rt)
       perZoneGCEnabled(TuningDefaults::PerZoneGCEnabled),
       numActiveZoneIters(0),
       cleanUpEverything(false),
-      grayBufferState(GCRuntime::GrayBufferState::Unused),
       grayBitsValid(false),
       majorGCTriggerReason(JS::GCReason::NO_REASON),
       fullGCForAtomsRequested_(false),
@@ -3717,17 +3716,6 @@ void GCRuntime::endPreparePhase(JS::GCReason reason) {
                                        gcstats::PhaseKind::UNMARK_WEAKMAPS,
                                        helperLock);
 
-    /*
-     * Buffer gray roots for incremental collections. This is linear in the
-     * number of roots which can be in the tens of thousands. Do this in
-     * parallel with the rest of this block.
-     */
-    Maybe<AutoRunParallelTask> bufferGrayRootsTask;
-    if (isIncremental) {
-      bufferGrayRootsTask.emplace(this, &GCRuntime::bufferGrayRoots,
-                                  gcstats::PhaseKind::BUFFER_GRAY_ROOTS,
-                                  helperLock);
-    }
     AutoUnlockHelperThreadState unlock(helperLock);
 
     // Discard JIT code. For incremental collections, the sweep phase will
@@ -3775,6 +3763,27 @@ void GCRuntime::endPreparePhase(JS::GCReason reason) {
 #endif
 }
 
+// Set compartments' maybeAlive flags if anything is marked while this class is
+// live. This is used while marking roots.
+class AutoUpdateLiveCompartments {
+  GCRuntime* gc;
+
+ public:
+  explicit AutoUpdateLiveCompartments(GCRuntime* gc) : gc(gc) {
+    for (GCCompartmentsIter c(gc->rt); !c.done(); c.next()) {
+      c->gcState.hasMarkedCells = false;
+    }
+  }
+
+  ~AutoUpdateLiveCompartments() {
+    for (GCCompartmentsIter c(gc->rt); !c.done(); c.next()) {
+      if (c->gcState.hasMarkedCells) {
+        c->gcState.maybeAlive = true;
+      }
+    }
+  }
+};
+
 void GCRuntime::beginMarkPhase(AutoGCSession& session) {
   /*
    * Mark phase.
@@ -3798,11 +3807,8 @@ void GCRuntime::beginMarkPhase(AutoGCSession& session) {
   if (rt->isBeingDestroyed()) {
     checkNoRuntimeRoots(session);
   } else {
+    AutoUpdateLiveCompartments updateLive(this);
     traceRuntimeForMajorGC(&marker, session);
-  }
-
-  if (isIncremental) {
-    findDeadCompartments();
   }
 
   updateMemoryCountersOnGCStart();
@@ -3810,8 +3816,7 @@ void GCRuntime::beginMarkPhase(AutoGCSession& session) {
 }
 
 void GCRuntime::findDeadCompartments() {
-  gcstats::AutoPhase ap1(stats(), gcstats::PhaseKind::MARK_ROOTS);
-  gcstats::AutoPhase ap2(stats(), gcstats::PhaseKind::MARK_COMPARTMENTS);
+  gcstats::AutoPhase ap1(stats(), gcstats::PhaseKind::FIND_DEAD_COMPARTMENTS);
 
   /*
    * This code ensures that if a compartment is "dead", then it will be
@@ -3822,7 +3827,8 @@ void GCRuntime::findDeadCompartments() {
    *   (2) the compartment's zone is not being collected (set in
    *       beginMarkPhase() above)
    *   (3) an object in the compartment was marked during root marking, either
-   *       as a black root or a gray root (set in RootMarking.cpp), or
+   *       as a black root or a gray root. This is arranged by
+   *       SetCompartmentHasMarkedCells and AutoUpdateLiveCompartments.
    *   (4) the compartment has incoming cross-compartment edges from another
    *       compartment that has maybeAlive set (set by this method).
    *
@@ -3961,16 +3967,12 @@ void GCRuntime::markGrayRoots(gcstats::PhaseKind phase) {
   MOZ_ASSERT(marker.markColor() == MarkColor::Gray);
 
   gcstats::AutoPhase ap(stats(), phase);
-  if (hasValidGrayRootsBuffer()) {
-    for (ZoneIterT zone(this); !zone.done(); zone.next()) {
-      markBufferedGrayRoots(zone);
-    }
-  } else {
-    MOZ_ASSERT(!isIncremental);
-    traceEmbeddingGrayRoots(&marker);
-    Compartment::traceIncomingCrossCompartmentEdgesForZoneGC(
-        &marker, Compartment::GrayEdges);
-  }
+
+  AutoUpdateLiveCompartments updateLive(this);
+
+  traceEmbeddingGrayRoots(&marker);
+  Compartment::traceIncomingCrossCompartmentEdgesForZoneGC(
+      &marker, Compartment::GrayEdges);
 }
 
 IncrementalProgress GCRuntime::markAllWeakReferences() {
@@ -4184,7 +4186,6 @@ void GCRuntime::getNextSweepGroup() {
       zone->changeGCState(Zone::MarkBlackOnly, Zone::NoGC);
       zone->arenas.unmarkPreMarkedFreeCells();
       zone->arenas.mergeNewArenasInMarkPhase();
-      zone->gcGrayRoots().Clear();
       zone->clearGCSliceThresholds();
     }
 
@@ -5741,6 +5742,10 @@ void GCRuntime::endSweepPhase(bool destroyingRuntime) {
     }
   }
 
+  if (isIncremental) {
+    findDeadCompartments();
+  }
+
 #ifdef JS_GC_ZEAL
   finishMarkingValidation();
 #endif
@@ -5762,8 +5767,6 @@ void GCRuntime::finishCollection() {
 
   MOZ_ASSERT(marker.isDrained());
   marker.stop();
-
-  clearBufferedGrayRoots();
 
   maybeStopPretenuring();
 
@@ -5971,7 +5974,6 @@ GCRuntime::IncrementalResult GCRuntime::resetIncrementalGC(
     case State::Mark: {
       // Cancel any ongoing marking.
       marker.reset();
-      clearBufferedGrayRoots();
 
       for (GCCompartmentsIter c(rt); !c.done(); c.next()) {
         ResetGrayList(c);
@@ -6182,16 +6184,7 @@ void GCRuntime::incrementalSlice(SliceBudget& budget,
       }
 
       endPreparePhase(reason);
-
       beginMarkPhase(session);
-
-      // If we needed delayed marking for gray roots, then collect until done.
-      if (isIncremental && !hasValidGrayRootsBuffer()) {
-        budget = SliceBudget::unlimited();
-        isIncremental = false;
-        stats().nonincremental(GCAbortReason::GrayRootBufferingFailed);
-      }
-
       incrementalState = State::Mark;
 
       if (useZeal && hasZealMode(ZealMode::YieldBeforeMarking) &&

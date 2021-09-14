@@ -4171,7 +4171,9 @@ void Document::LocalizationLinkAdded(Element* aLinkElement) {
 
     bool isSync = elem->HasAttr(nsGkAtoms::datal10nsync);
     mDocumentL10n = DocumentL10n::Create(this, isSync);
-    MOZ_ASSERT(mDocumentL10n);
+    if (NS_WARN_IF(!mDocumentL10n)) {
+      return;
+    }
   }
   mDocumentL10n->AddResourceId(NS_ConvertUTF16toUTF8(href));
 
@@ -6933,8 +6935,11 @@ bool Document::RemoveFromBFCacheSync() {
   }
 
   if (mozilla::SessionHistoryInParent() && XRE_IsContentProcess()) {
-    if (BrowsingContext* bc = GetBrowsingContext()) {
-      if (bc->IsInBFCache()) {
+    // Note, Document::GetBrowsingContext() returns null when the document is in
+    // the bfcache.
+    if (nsPIDOMWindowInner* innerWindow = GetInnerWindow()) {
+      BrowsingContext* bc = innerWindow->GetBrowsingContext();
+      if (bc && bc->IsInBFCache()) {
         ContentChild* cc = ContentChild::GetSingleton();
         // IPC is asynchronous but the caller is supposed to check the return
         // value. The reason for 'Sync' in the method name is that the old

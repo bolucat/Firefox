@@ -351,9 +351,7 @@ pref("pdfjs.annotationMode", 2);
 pref("pdfjs.enableScripting", true);
 
 // Enable XFA form support in the PDF viewer.
-#ifdef EARLY_BETA_OR_EARLIER
 pref("pdfjs.enableXfa", true);
-#endif
 
 // Disable support for MathML
 pref("mathml.disabled",    false);
@@ -2482,7 +2480,11 @@ pref("dom.ipc.processCount.privilegedabout", 1);
 pref("dom.ipc.processCount.privilegedmozilla", 1);
 
 // Maximum number of isolated content processes per-origin.
+#ifdef ANDROID
 pref("dom.ipc.processCount.webIsolated", 1);
+#else
+pref("dom.ipc.processCount.webIsolated", 4);
+#endif
 
 // Keep a single privileged about process alive for performance reasons.
 // e.g. we do not want to throw content processes out every time we navigate
