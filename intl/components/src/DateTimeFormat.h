@@ -12,7 +12,6 @@
 #include "mozilla/intl/DateTimePatternGenerator.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/Result.h"
-#include "mozilla/ResultVariant.h"
 #include "mozilla/Span.h"
 #include "mozilla/UniquePtr.h"
 #include "mozilla/Utf8.h"
@@ -435,8 +434,7 @@ class DateTimeFormat final {
    * Clones the Calendar from a DateTimeFormat, and sets its time with the
    * relative milliseconds since 1 January 1970, UTC.
    */
-  Result<UniquePtr<Calendar>, InternalError> CloneCalendar(
-      double aUnixEpoch) const;
+  Result<UniquePtr<Calendar>, ICUError> CloneCalendar(double aUnixEpoch) const;
 
   /**
    * Return the hour cycle used in the input pattern or Nothing if none was

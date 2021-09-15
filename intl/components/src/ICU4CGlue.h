@@ -10,7 +10,6 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/Result.h"
-#include "mozilla/ResultVariant.h"
 #include "mozilla/Utf8.h"
 #include "mozilla/Vector.h"
 #include "mozilla/intl/ICUError.h"
@@ -355,16 +354,6 @@ class Enumeration {
  private:
   UEnumeration* mUEnumeration = nullptr;
 };
-
-template <typename CharType>
-Result<const CharType*, InternalError> NullTerminatedMapper(
-    const CharType* string, int32_t length) {
-  // Return the raw value from this Iterator.
-  if (string == nullptr) {
-    return Err(InternalError{});
-  }
-  return string;
-}
 
 template <typename CharType>
 Result<Span<const CharType>, InternalError> SpanMapper(const CharType* string,

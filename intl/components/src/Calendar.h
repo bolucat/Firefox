@@ -11,7 +11,6 @@
 #include "mozilla/intl/ICUError.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/Result.h"
-#include "mozilla/ResultVariant.h"
 #include "mozilla/Span.h"
 #include "mozilla/UniquePtr.h"
 #include "mozilla/Utf8.h"
@@ -106,7 +105,7 @@ class Calendar final {
    * Return ICU legacy keywords, such as "gregorian", "islamic",
    * "islamic-civil", "hebrew", etc.
    */
-  static Result<SpanEnumeration<char>, InternalError>
+  static Result<SpanEnumeration<char>, ICUError>
   GetLegacyKeywordValuesForLocale(const char* aLocale);
 
  private:
@@ -123,7 +122,7 @@ class Calendar final {
   /**
    * Return BCP 47 Unicode locale extension type keywords.
    */
-  static Result<Bcp47IdentifierEnumeration, InternalError>
+  static Result<Bcp47IdentifierEnumeration, ICUError>
   GetBcp47KeywordValuesForLocale(const char* aLocale);
 
   ~Calendar();
