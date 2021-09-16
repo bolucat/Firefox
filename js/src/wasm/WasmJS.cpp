@@ -2904,7 +2904,6 @@ WasmTableObject* WasmTableObject::create(JSContext* cx, uint32_t initialLength,
 
   SharedTable table = Table::create(cx, td, obj);
   if (!table) {
-    ReportOutOfMemory(cx);
     return nullptr;
   }
 
@@ -3277,7 +3276,10 @@ bool WasmTableObject::fillRange(JSContext* cx, uint32_t index, uint32_t length,
   switch (tab.repr()) {
     case TableRepr::Func:
       MOZ_RELEASE_ASSERT(!tab.isAsmJS());
-      tab.fillFuncRef(index, length, FuncRef::fromJSFunction(fun), cx);
+      if (!tab.fillFuncRef(index, length, FuncRef::fromJSFunction(fun), cx)) {
+        ReportOutOfMemory(cx);
+        return false;
+      }
       break;
     case TableRepr::Ref:
       tab.fillAnyRef(index, length, any);
@@ -4243,8 +4245,6 @@ bool WasmFunctionConstruct(JSContext* cx, unsigned argc, Value* vp) {
     return false;
   }
   if (!ParseValTypeArguments(cx, parametersVal, params)) {
-    JS_ReportErrorNumberUTF8(cx, GetErrorMessage, nullptr,
-                             JSMSG_WASM_BAD_ARG_TYPE);
     return false;
   }
 
@@ -4254,8 +4254,6 @@ bool WasmFunctionConstruct(JSContext* cx, unsigned argc, Value* vp) {
     return false;
   }
   if (!ParseValTypeArguments(cx, resultsVal, results)) {
-    JS_ReportErrorNumberUTF8(cx, GetErrorMessage, nullptr,
-                             JSMSG_WASM_BAD_ARG_TYPE);
     return false;
   }
 

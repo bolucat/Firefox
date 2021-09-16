@@ -525,7 +525,7 @@ class GCRuntime {
   size_t computeTriggerBytes(double growthFactor, size_t lastBytes);
 
   inline void updateOnFreeArenaAlloc(const TenuredChunkInfo& info);
-  inline void updateOnArenaFree();
+  void updateOnArenaFree() { ++numArenasFreeCommitted; }
 
   ChunkPool& fullChunks(const AutoLockGC& lock) { return fullChunks_.ref(); }
   ChunkPool& availableChunks(const AutoLockGC& lock) {
@@ -620,6 +620,8 @@ class GCRuntime {
   bool registerWeakRef(HandleObject target, HandleObject weakRef);
   bool unregisterWeakRefWrapper(JSObject* wrapper);
   void traceKeptObjects(JSTracer* trc);
+
+  JS::GCReason lastStartReason() const { return initialReason; }
 
  private:
   enum IncrementalResult { ResetIncremental = 0, Ok };
@@ -774,6 +776,11 @@ class GCRuntime {
   void markIncomingGrayCrossCompartmentPointers();
   IncrementalProgress beginSweepingSweepGroup(JSFreeOp* fop,
                                               SliceBudget& budget);
+  void queueForForegroundSweep(Zone* zone, JSFreeOp* fop,
+                               const FinalizePhase& phase);
+  void queueForBackgroundSweep(Zone* zone, JSFreeOp* fop,
+                               const FinalizePhase& phase);
+
   IncrementalProgress markDuringSweeping(JSFreeOp* fop, SliceBudget& budget);
   void updateAtomsBitmap();
   void sweepCCWrappers();
@@ -793,6 +800,9 @@ class GCRuntime {
   IncrementalProgress sweepAtomsTable(JSFreeOp* fop, SliceBudget& budget);
   IncrementalProgress sweepWeakCaches(JSFreeOp* fop, SliceBudget& budget);
   IncrementalProgress finalizeAllocKind(JSFreeOp* fop, SliceBudget& budget);
+  bool foregroundFinalize(JSFreeOp* fop, Zone* zone, AllocKind thingKind,
+                          js::SliceBudget& sliceBudget,
+                          SortedArenaList& sweepList);
   IncrementalProgress sweepPropMapTree(JSFreeOp* fop, SliceBudget& budget);
   void endSweepPhase(bool lastGC);
   bool allCCVisibleZonesWereCollected();
@@ -805,6 +815,7 @@ class GCRuntime {
   void startBackgroundFree();
   void freeFromBackgroundThread(AutoLockHelperThreadState& lock);
   void sweepBackgroundThings(ZoneList& zones);
+  void backgroundFinalize(JSFreeOp* fop, Arena* listHead, Arena** empty);
   void assertBackgroundSweepingFinished();
 
   // Compacting GC. Implemented in Compacting.cpp.

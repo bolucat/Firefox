@@ -77,6 +77,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "arbitrary"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "237430fd6ed3740afe94eefcc278ae21e050285be882804e0d6e8695f0c94691"
+dependencies = [
+ "derive_arbitrary",
+]
+
+[[package]]
 name = "arrayref"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1156,6 +1165,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "derive_arbitrary"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f1281ee141df08871db9fe261ab5312179eac32d1e314134ceaa8dd7c042f5a"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "derive_common"
 version = "0.0.1"
 dependencies = [
@@ -1778,7 +1798,7 @@ dependencies = [
 
 [[package]]
 name = "geckodriver"
-version = "0.29.1"
+version = "0.30.0"
 dependencies = [
  "base64 0.12.3",
  "chrono",
@@ -2064,6 +2084,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "74a3f5c04450dfdadb4b08f6e5ee6f5110f674de1acbd6199bfec68392a8cbaf"
 dependencies = [
  "cc",
+]
+
+[[package]]
+name = "gluesmith"
+version = "0.1.0"
+dependencies = [
+ "arbitrary",
+ "libc",
+ "wasm-smith",
 ]
 
 [[package]]
@@ -2547,6 +2576,7 @@ dependencies = [
  "baldrdash",
  "encoding_c",
  "encoding_c_mem",
+ "gluesmith",
  "mozglue-static",
  "mozilla-central-workspace-hack",
  "smoosh",
@@ -3065,7 +3095,7 @@ dependencies = [
 
 [[package]]
 name = "mozdevice"
-version = "0.3.2"
+version = "0.4.0"
 dependencies = [
  "log",
  "once_cell",
@@ -3101,14 +3131,14 @@ dependencies = [
 
 [[package]]
 name = "mozprofile"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "tempfile",
 ]
 
 [[package]]
 name = "mozrunner"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "dirs",
  "log",
@@ -3130,7 +3160,7 @@ dependencies = [
 
 [[package]]
 name = "mozversion"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "regex",
  "rust-ini",
@@ -5410,6 +5440,27 @@ version = "0.2.100"
 source = "git+https://github.com/kvark/dummy-web#5731e569d865a1ebaf116f48dad781f355a99243"
 
 [[package]]
+name = "wasm-encoder"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2caacc74c68c74f0008c4055cdf509c43e623775eaf73323bb818dcf666ed9bd"
+dependencies = [
+ "leb128",
+]
+
+[[package]]
+name = "wasm-smith"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b05fb86fe9042112d9659e3f56736b8ad4122023e568e5c55184677c84f66c9"
+dependencies = [
+ "arbitrary",
+ "indexmap",
+ "leb128",
+ "wasm-encoder",
+]
+
+[[package]]
 name = "wasmparser"
 version = "0.78.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5440,7 +5491,7 @@ source = "git+https://github.com/kvark/dummy-web#5731e569d865a1ebaf116f48dad781f
 
 [[package]]
 name = "webdriver"
-version = "0.43.1"
+version = "0.44.0"
 dependencies = [
  "base64 0.12.3",
  "bytes 0.5.6",
