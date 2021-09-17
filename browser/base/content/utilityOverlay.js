@@ -1050,18 +1050,8 @@ async function openPreferences(paneID, extraArgs) {
     browser = win.gBrowser.selectedBrowser;
   }
 
-  if (newLoad) {
-    Services.obs.addObserver(function panesLoadedObs(prefWin, topic, data) {
-      if (!browser) {
-        browser = win.gBrowser.selectedBrowser;
-      }
-      if (prefWin != browser.contentWindow) {
-        return;
-      }
-      Services.obs.removeObserver(panesLoadedObs, "sync-pane-loaded");
-    }, "sync-pane-loaded");
-  } else if (paneID) {
-    if (browser.contentDocument.readyState != "complete") {
+  if (!newLoad && paneID) {
+    if (browser.contentDocument?.readyState != "complete") {
       await new Promise(resolve => {
         browser.addEventListener("load", resolve, {
           capture: true,
