@@ -3,14 +3,14 @@ on:
     paths:
       - ".github/workflows/*"
   schedule:
-    - cron: "0 21 * * *"
+    - cron: "0 */12 * * *"
 
 name: firefox
 jobs:
   sync:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     env:
-      TZ: Asia/Shanghai
+      TZ: Europe/Busingen
     steps:
       
       - name: Checkout
@@ -35,10 +35,10 @@ jobs:
       - name: Commit Changes
         run: |
           mv firefox-source/* $PWD/ && rm -rf firefox-source
-          git config --local user.name "GitHub Actions"
-          git config --local user.email "action@github.com"
+          git config --local user.name "github-action[bot]"
+          git config --local user.email "${{ secrets.EMAIL }}"
           git add .
-          git commit -am "Update On $(date +%Y%m%d%H%M)"
+          git commit -am "Update On $(date)"
       
       - name: Push Changes
         uses: ad-m/github-push-action@master
