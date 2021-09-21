@@ -9402,7 +9402,7 @@
 # Whether we can send OnDataAvailable to content process directly.
 - name: network.send_ODA_to_content_directly
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 # Perform all network access on the socket process.
@@ -9526,7 +9526,7 @@
 # Whether to cache SSL resumption tokens in necko.
 - name: network.ssl_tokens_cache_enabled
   type: RelaxedAtomicBool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 # Capacity of the above cache, in kilobytes.
@@ -9882,6 +9882,12 @@
 
 # Whether to enable echconfig.
 - name: network.dns.echconfig.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# Whether to enable echconfig for http3.
+- name: network.dns.http3_echconfig.enabled
   type: RelaxedAtomicBool
   value: false
   mirror: always
