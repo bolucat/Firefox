@@ -13,8 +13,10 @@ UNIFIED_SOURCES += [
     "TestLocaleCanonicalizer.cpp",
     "TestMeasureUnit.cpp",
     "TestNumberFormat.cpp",
+    "TestNumberingSystem.cpp",
     "TestPluralRules.cpp",
     "TestRelativeTimeFormat.cpp",
+    "TestTimeZone.cpp",
 ]
 
 FINAL_LIBRARY = "xul-gtest"

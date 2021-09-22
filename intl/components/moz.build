@@ -15,10 +15,12 @@ EXPORTS.mozilla.intl = [
     "src/LocaleCanonicalizer.h",
     "src/MeasureUnit.h",
     "src/NumberFormat.h",
+    "src/NumberingSystem.h",
     "src/NumberPart.h",
     "src/NumberRangeFormat.h",
     "src/PluralRules.h",
     "src/RelativeTimeFormat.h",
+    "src/TimeZone.h",
 ]
 
 UNIFIED_SOURCES += [
@@ -34,9 +36,11 @@ UNIFIED_SOURCES += [
     "src/NumberFormat.cpp",
     "src/NumberFormatFields.cpp",
     "src/NumberFormatterSkeleton.cpp",
+    "src/NumberingSystem.cpp",
     "src/NumberRangeFormat.cpp",
     "src/PluralRules.cpp",
     "src/RelativeTimeFormat.cpp",
+    "src/TimeZone.cpp",
 ]
 
 if not CONFIG["JS_STANDALONE"]:
