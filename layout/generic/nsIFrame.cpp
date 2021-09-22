@@ -2159,7 +2159,7 @@ void nsIFrame::UpdateVisibilitySynchronously() {
     }
     nsIFrame* parent = f->GetParent();
     if (!parent) {
-      parent = nsLayoutUtils::GetCrossDocParentFrame(f);
+      parent = nsLayoutUtils::GetCrossDocParentFrameInProcess(f);
       if (parent && parent->PresContext()->IsChrome()) {
         break;
       }
@@ -7209,13 +7209,7 @@ static void SchedulePaintInternal(
     return;
   }
 
-  pres->PresShell()->ScheduleViewManagerFlush(
-      aType == nsIFrame::PAINT_DELAYED_COMPRESS ? PaintType::DelayedCompress
-                                                : PaintType::Default);
-
-  if (aType == nsIFrame::PAINT_DELAYED_COMPRESS) {
-    return;
-  }
+  pres->PresShell()->ScheduleViewManagerFlush();
 
   if (aType == nsIFrame::PAINT_DEFAULT) {
     aDisplayRoot->AddStateBits(NS_FRAME_UPDATE_LAYER_TREE);

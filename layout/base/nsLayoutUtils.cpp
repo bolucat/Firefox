@@ -700,10 +700,6 @@ bool nsLayoutUtils::AllowZoomingForDocument(
           nsLayoutUtils::ShouldHandleMetaViewport(aDocument));
 }
 
-float nsLayoutUtils::GetCurrentAPZResolutionScale(PresShell* aPresShell) {
-  return aPresShell ? aPresShell->GetCumulativeResolution() : 1.0;
-}
-
 static bool HasVisibleAnonymousContents(Document* aDoc) {
   for (RefPtr<AnonymousContent>& ac : aDoc->GetAnonymousContents()) {
     // We check to see if the anonymous content node has a frame. If it doesn't,
@@ -3424,12 +3420,6 @@ void nsLayoutUtils::PaintFrame(gfxContext* aRenderingContext, nsIFrame* aFrame,
   }
   if (aFlags & PaintFrameFlags::ExistingTransaction) {
     flags |= nsDisplayList::PAINT_EXISTING_TRANSACTION;
-  }
-  if (aFlags & PaintFrameFlags::NoComposite) {
-    flags |= nsDisplayList::PAINT_NO_COMPOSITE;
-  }
-  if (aFlags & PaintFrameFlags::Compressed) {
-    flags |= nsDisplayList::PAINT_COMPRESSED;
   }
   if (updateState == PartialUpdateResult::NoChange && !aRenderingContext) {
     flags |= nsDisplayList::PAINT_IDENTICAL_DISPLAY_LIST;
