@@ -8195,8 +8195,8 @@ nsresult nsIFrame::GetNextPrevLineFromeBlockFrame(nsPresContext* aPresContext,
     lastFrame = firstFrame = line.mFirstFrameOnLine;
     for (int32_t lineFrameCount = line.mNumFramesOnLine; lineFrameCount > 1;
          lineFrameCount--) {
-      result = it->GetNextSiblingOnLine(lastFrame, searchingLine);
-      if (NS_FAILED(result) || !lastFrame) {
+      lastFrame = lastFrame->GetNextSibling();
+      if (!lastFrame) {
         NS_ERROR("GetLine promised more frames than could be found");
         return NS_ERROR_FAILURE;
       }
@@ -8225,8 +8225,7 @@ nsresult nsIFrame::GetNextPrevLineFromeBlockFrame(nsPresContext* aPresContext,
     if (resultFrame) {
       // check to see if this is ANOTHER blockframe inside the other one if so
       // then call into its lines
-      nsAutoLineIterator newIt = resultFrame->GetLineIterator();
-      if (newIt) {
+      if (resultFrame->CanProvideLineIterator()) {
         aPos->mResultFrame = resultFrame;
         return NS_OK;
       }
@@ -8725,16 +8724,19 @@ nsresult nsIFrame::PeekOffsetForWord(nsPeekOffsetStruct* aPos,
 }
 
 nsresult nsIFrame::PeekOffsetForLine(nsPeekOffsetStruct* aPos) {
-  nsAutoLineIterator iter;
   nsIFrame* blockFrame = this;
   nsresult result = NS_ERROR_FAILURE;
 
   while (NS_FAILED(result)) {
-    int32_t thisLine;
-    MOZ_TRY_VAR(thisLine,
-                blockFrame->GetLineNumber(aPos->mScrollViewStop, &blockFrame));
-    iter = blockFrame->GetLineIterator();
-    MOZ_ASSERT(iter, "GetLineNumber() succeeded but no block frame?");
+    nsIFrame* lineFrame;
+    blockFrame =
+        blockFrame->GetContainingBlockForLine(aPos->mScrollViewStop, lineFrame);
+    if (!blockFrame) {
+      return NS_ERROR_FAILURE;
+    }
+    nsAutoLineIterator iter = blockFrame->GetLineIterator();
+    int32_t thisLine = iter->FindLineContaining(lineFrame);
+    MOZ_ASSERT(thisLine >= 0, "Failed to find line!");
 
     int edgeCase = 0;  // no edge case. this should look at thisLine
 
@@ -8781,8 +8783,7 @@ nsresult nsIFrame::PeekOffsetForLine(nsPeekOffsetStruct* aPos) {
           // got the table frame now
           // ok time to drill down to find iterator
           while (frame) {
-            iter = frame->GetLineIterator();
-            if (iter) {
+            if (frame->CanProvideLineIterator()) {
               aPos->mResultFrame = frame;
               searchTableBool = true;
               result = NS_OK;
@@ -8794,12 +8795,13 @@ nsresult nsIFrame::PeekOffsetForLine(nsPeekOffsetStruct* aPos) {
         }
 
         if (!searchTableBool) {
-          iter = aPos->mResultFrame->GetLineIterator();
-          result = iter ? NS_OK : NS_ERROR_FAILURE;
+          result = aPos->mResultFrame->CanProvideLineIterator()
+                       ? NS_OK
+                       : NS_ERROR_FAILURE;
         }
 
         // we've struck another block element!
-        if (NS_SUCCEEDED(result) && iter) {
+        if (NS_SUCCEEDED(result)) {
           doneLooping = false;
           if (aPos->mDirection == eDirPrevious) {
             edgeCase = 1;  // far edge, search from end backwards
@@ -8827,11 +8829,17 @@ nsresult nsIFrame::PeekOffsetForLineEdge(nsPeekOffsetStruct* aPos) {
   nsIFrame* blockFrame = AdjustFrameForSelectionStyles(this);
   Element* editingHost = blockFrame->GetContent()->GetEditingHost();
 
-  int32_t thisLine;
-  MOZ_TRY_VAR(thisLine,
-              blockFrame->GetLineNumber(aPos->mScrollViewStop, &blockFrame));
+  nsIFrame* lineFrame;
+  blockFrame =
+      blockFrame->GetContainingBlockForLine(aPos->mScrollViewStop, lineFrame);
+  if (!blockFrame) {
+    return NS_ERROR_FAILURE;
+  }
   nsAutoLineIterator it = blockFrame->GetLineIterator();
-  MOZ_ASSERT(it, "GetLineNumber() succeeded but no block frame?");
+  int32_t thisLine = it->FindLineContaining(lineFrame);
+  if (thisLine < 0) {
+    return NS_ERROR_FAILURE;
+  }
 
   nsIFrame* baseFrame = nullptr;
   bool endOfLine = (eSelectEndLine == aPos->mAmount);
@@ -9064,31 +9072,6 @@ nsIFrame* nsIFrame::GetContainingBlockForLine(bool aLockScroll,
   return nullptr;
 }
 
-Result<int32_t, nsresult> nsIFrame::GetLineNumber(bool aLockScroll,
-                                                  nsIFrame** aContainingBlock) {
-  MOZ_ASSERT(aContainingBlock);
-
-  nsIFrame* frame = nullptr;
-  nsIFrame* parentFrame = GetContainingBlockForLine(aLockScroll, frame);
-  if (!parentFrame) {
-    return Err(NS_ERROR_FAILURE);
-  }
-  nsAutoLineIterator it = parentFrame->GetLineIterator();
-  if (!it) {
-    MOZ_ASSERT_UNREACHABLE(
-        "CanProvideLineIterator returned true but GetLineIterator returned "
-        "null?");
-    return Err(NS_ERROR_FAILURE);
-  }
-
-  *aContainingBlock = parentFrame;
-  int32_t line = it->FindLineContaining(frame);
-  if (line < 0) {
-    return Err(NS_ERROR_FAILURE);
-  }
-  return line;
-}
-
 Result<bool, nsresult> nsIFrame::IsVisuallyAtLineEdge(
     nsILineIterator* aLineIterator, int32_t aLine, nsDirection aDirection) {
   nsIFrame* firstFrame;
@@ -9128,7 +9111,7 @@ Result<bool, nsresult> nsIFrame::IsLogicallyAtLineEdge(
   nsIFrame* lastFrame = line.mFirstFrameOnLine;
   for (int32_t lineFrameCount = line.mNumFramesOnLine; lineFrameCount > 1;
        lineFrameCount--) {
-    MOZ_TRY(aLineIterator->GetNextSiblingOnLine(lastFrame, aLine));
+    lastFrame = lastFrame->GetNextSibling();
     if (!lastFrame) {
       NS_ERROR("should not be reached nsIFrame");
       return Err(NS_ERROR_FAILURE);
@@ -9157,13 +9140,18 @@ nsIFrame::SelectablePeekReport nsIFrame::GetFrameFromDirection(
   bool selectable = false;
   nsIFrame* traversedFrame = this;
   while (!selectable) {
-    nsIFrame* blockFrame;
-
-    int32_t thisLine;
-    MOZ_TRY_VAR(thisLine,
-                traversedFrame->GetLineNumber(aScrollViewStop, &blockFrame));
+    nsIFrame* lineFrame;
+    nsIFrame* blockFrame =
+        traversedFrame->GetContainingBlockForLine(aScrollViewStop, lineFrame);
+    if (!blockFrame) {
+      return result;
+    }
 
     nsAutoLineIterator it = blockFrame->GetLineIterator();
+    int32_t thisLine = it->FindLineContaining(lineFrame);
+    if (thisLine < 0) {
+      return result;
+    }
 
     bool atLineEdge;
     MOZ_TRY_VAR(

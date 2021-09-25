@@ -136,6 +136,11 @@ class Collator final {
                        const Maybe<Options&> aPrevOptions = Nothing());
 
   /**
+   * Return the case first option of this collator.
+   */
+  Result<CaseFirst, ICUError> GetCaseFirst() const;
+
+  /**
    * Map keywords to their BCP 47 equivalents.
    */
   static SpanResult<char> KeywordValueToBcp47Extension(const char* aKeyword,
@@ -179,6 +184,19 @@ class Collator final {
    * http://cldr.unicode.org/core-spec/#Key_Type_Definitions
    */
   static Result<Bcp47ExtEnumeration, ICUError> GetBcp47KeywordValues();
+
+  /**
+   * Returns an iterator over all supported collator locales.
+   *
+   * The returned strings are ICU locale identifiers and NOT BCP 47 language
+   * tags.
+   *
+   * Also see <https://unicode-org.github.io/icu/userguide/locale>.
+   */
+  static auto GetAvailableLocales() {
+    return AvailableLocalesEnumeration<ucol_countAvailable,
+                                       ucol_getAvailable>();
+  }
 
  private:
   /**

@@ -4,6 +4,7 @@
 #include "gtest/gtest.h"
 
 #include <string.h>
+#include <string_view>
 #include "mozilla/intl/Collator.h"
 #include "mozilla/Span.h"
 #include "TestBuffer.h"
@@ -291,6 +292,56 @@ TEST(IntlCollator, GetBcp47KeywordValues)
   ASSERT_TRUE(hasPhonebk);
 
   ASSERT_FALSE(hasPhonebook);  // Not valid BCP 47.
+}
+
+TEST(IntlCollator, GetAvailableLocales)
+{
+  using namespace std::literals;
+
+  int32_t english = 0;
+  int32_t german = 0;
+  int32_t chinese = 0;
+
+  // Since this list is dependent on ICU, and may change between upgrades, only
+  // test a subset of the available locales.
+  for (const char* locale : Collator::GetAvailableLocales()) {
+    if (locale == "en"sv) {
+      english++;
+    } else if (locale == "de"sv) {
+      german++;
+    } else if (locale == "zh"sv) {
+      chinese++;
+    }
+  }
+
+  // Each locale should be found exactly once.
+  ASSERT_EQ(english, 1);
+  ASSERT_EQ(german, 1);
+  ASSERT_EQ(chinese, 1);
+}
+
+TEST(IntlCollator, GetCaseFirst)
+{
+  auto result = Collator::TryCreate("en-US");
+  ASSERT_TRUE(result.isOk());
+  auto collator = result.unwrap();
+
+  auto caseFirst = collator->GetCaseFirst();
+  ASSERT_TRUE(caseFirst.isOk());
+  ASSERT_EQ(caseFirst.unwrap(), Collator::CaseFirst::False);
+
+  for (auto kf : {Collator::CaseFirst::Upper, Collator::CaseFirst::Lower,
+                  Collator::CaseFirst::False}) {
+    Collator::Options options{};
+    options.caseFirst = kf;
+
+    auto optResult = collator->SetOptions(options);
+    ASSERT_TRUE(optResult.isOk());
+
+    auto caseFirst = collator->GetCaseFirst();
+    ASSERT_TRUE(caseFirst.isOk());
+    ASSERT_EQ(caseFirst.unwrap(), kf);
+  }
 }
 
 }  // namespace mozilla::intl

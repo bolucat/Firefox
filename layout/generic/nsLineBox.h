@@ -1634,7 +1634,7 @@ nsLineList_const_reverse_iterator::operator=(
 
 class nsLineIterator final : public nsILineIterator {
  public:
-  nsLineIterator();
+  nsLineIterator(nsLineList& aLines, bool aRightToLeft);
   ~nsLineIterator();
 
   virtual void DisposeLineIterator() override;
@@ -1650,14 +1650,14 @@ class nsLineIterator final : public nsILineIterator {
                          nsIFrame** aFrameFound, bool* aPosIsBeforeFirstFrame,
                          bool* aPosIsAfterLastFrame) const override;
 
-  NS_IMETHOD GetNextSiblingOnLine(nsIFrame*& aFrame,
-                                  int32_t aLineNumber) const override;
   NS_IMETHOD CheckLineOrder(int32_t aLine, bool* aIsReordered,
                             nsIFrame** aFirstVisual,
                             nsIFrame** aLastVisual) override;
-  nsresult Init(nsLineList& aLines, bool aRightToLeft);
 
  private:
+  nsLineIterator() = delete;
+  nsLineIterator(const nsLineIterator& aOther) = delete;
+
   nsLineBox* PrevLine() {
     if (0 == mIndex) {
       return nullptr;
