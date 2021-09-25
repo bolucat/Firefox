@@ -72,12 +72,12 @@ jobs:
         run: |
           mkdir -p release
           pushd release || exit 1
-          wget -c https://download.mozilla.org/?product=firefox-nightly-latest-ssl&os=win64&lang=en-US -O Firefox-Nightly-amd64.exe
-          wget -c https://download.mozilla.org/?product=firefox-nightly-latest-ssl&os=win64-aarch64&lang=en-US -O Firefox-Nightly-arm64.exe
-          wget -c https://download.mozilla.org/?product=firefox-nightly-latest-ssl&os=win&lang=en-US -O Firefox-Nightly-i386.exe
-          wget -c https://download.mozilla.org/?product=firefox-nightly-latest-ssl&os=osx&lang=en-US -O Firefox-Nightly-amd64.dmg
-          wget -c https://download.mozilla.org/?product=firefox-nightly-latest-ssl&os=linux64&lang=en-US -O Firefox-Nightly-amd64.tar.bz2 
-          wget -c https://download.mozilla.org/?product=firefox-nightly-latest-ssl&os=linux&lang=en-US -O Firefox-Nightly-i386.tar.bz2
+          wget 'https://download.mozilla.org/?product=firefox-nightly-latest-ssl&os=win64&lang=en-US' -O Firefox-Nightly-amd64.exe
+          wget 'https://download.mozilla.org/?product=firefox-nightly-latest-ssl&os=win64-aarch64&lang=en-US' -O Firefox-Nightly-arm64.exe
+          wget 'https://download.mozilla.org/?product=firefox-nightly-latest-ssl&os=win&lang=en-US' -O Firefox-Nightly-i386.exe
+          wget 'https://download.mozilla.org/?product=firefox-nightly-latest-ssl&os=osx&lang=en-US' -O Firefox-Nightly-amd64.dmg
+          wget 'https://download.mozilla.org/?product=firefox-nightly-latest-ssl&os=linux64&lang=en-US' -O Firefox-Nightly-amd64.tar.bz2 
+          wget 'https://download.mozilla.org/?product=firefox-nightly-latest-ssl&os=linux&lang=en-US' -O Firefox-Nightly-i386.tar.bz2
           popd || exit 1
 
       - name: Release
