@@ -3,7 +3,7 @@ on:
     paths:
       - ".github/workflows/*"
   schedule:
-    - cron: "0 */12 * * *"
+    - cron: "0 18 */1 * *"
 
 name: firefox
 jobs:
@@ -53,3 +53,41 @@ jobs:
           df -hT
           echo "Check memory usage"
           free -m
+        
+  push:
+    runs-on: ubuntu-20.04
+    env:
+      TZ: Europe/Busingen
+    steps:
+      
+      - name: Checkout
+        uses: actions/checkout@v2
+        
+      - name: Set variables
+        run: |
+          echo "VERSION=$(date +%Y%m%d%H%M)" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Download Binaries
+        run: |
+          mkdir -p release
+          pushd release || exit 1
+          wget -c https://download.mozilla.org/?product=firefox-nightly-latest-ssl&os=win64&lang=en-US -O Firefox-Nightly-amd64.exe
+          wget -c https://download.mozilla.org/?product=firefox-nightly-latest-ssl&os=win64-aarch64&lang=en-US -O Firefox-Nightly-arm64.exe
+          wget -c https://download.mozilla.org/?product=firefox-nightly-latest-ssl&os=win&lang=en-US -O Firefox-Nightly-i386.exe
+          wget -c https://download.mozilla.org/?product=firefox-nightly-latest-ssl&os=osx&lang=en-US -O Firefox-Nightly-amd64.dmg
+          wget -c https://download.mozilla.org/?product=firefox-nightly-latest-ssl&os=linux64&lang=en-US -O Firefox-Nightly-amd64.tar.bz2 
+          wget -c https://download.mozilla.org/?product=firefox-nightly-latest-ssl&os=linux&lang=en-US -O Firefox-Nightly-i386.tar.bz2
+          popd || exit 1
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          name: ${{ env.VERSION }}
+          tag_name: ${{ env.VERSION }}
+          draft: false
+          prerelease: false
+          files: |
+            ./release/*
