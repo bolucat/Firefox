@@ -1344,7 +1344,7 @@ CodeOffset BaseCompiler::callIndirect(uint32_t funcTypeIndex,
 
   loadI32(indexVal, RegI32(WasmTableCallIndexReg));
 
-  CallSiteDesc desc(call.lineOrBytecode, CallSiteDesc::Dynamic);
+  CallSiteDesc desc(call.lineOrBytecode, CallSiteDesc::Indirect);
   CalleeDesc callee = CalleeDesc::wasmTable(table, funcTypeId);
   return masm.wasmCallIndirect(desc, callee, NeedsBoundsCheck(true));
 }
@@ -1353,7 +1353,7 @@ CodeOffset BaseCompiler::callIndirect(uint32_t funcTypeIndex,
 
 CodeOffset BaseCompiler::callImport(unsigned globalDataOffset,
                                     const FunctionCall& call) {
-  CallSiteDesc desc(call.lineOrBytecode, CallSiteDesc::Dynamic);
+  CallSiteDesc desc(call.lineOrBytecode, CallSiteDesc::Import);
   CalleeDesc callee = CalleeDesc::import(globalDataOffset);
   return masm.wasmCallImport(desc, callee);
 }
@@ -7389,6 +7389,23 @@ static void RelaxedFmsF64x2(MacroAssembler& masm, RegV128 rs1, RegV128 rs2,
                             RegV128 rsd) {
   masm.fmsFloat64x2(rs1, rs2, rsd);
 }
+
+static void RelaxedMinF32x4(MacroAssembler& masm, RegV128 rs, RegV128 rsd) {
+  masm.minFloat32x4Relaxed(rs, rsd);
+}
+
+static void RelaxedMaxF32x4(MacroAssembler& masm, RegV128 rs, RegV128 rsd) {
+  masm.maxFloat32x4Relaxed(rs, rsd);
+}
+
+static void RelaxedMinF64x2(MacroAssembler& masm, RegV128 rs, RegV128 rsd) {
+  masm.minFloat64x2Relaxed(rs, rsd);
+}
+
+static void RelaxedMaxF64x2(MacroAssembler& masm, RegV128 rs, RegV128 rsd) {
+  masm.maxFloat64x2Relaxed(rs, rsd);
+}
+
 #  endif
 
 void BaseCompiler::emitVectorAndNot() {
@@ -9008,6 +9025,26 @@ bool BaseCompiler::emitBody() {
             }
             CHECK_NEXT(dispatchTernary1(RelaxedFmsF64x2, ValType::V128));
             break;
+          case uint32_t(SimdOp::F32x4RelaxedMin):
+            if (!moduleEnv_.v128RelaxedEnabled()) {
+              return iter_.unrecognizedOpcode(&op);
+            }
+            CHECK_NEXT(dispatchVectorBinary(RelaxedMinF32x4));
+          case uint32_t(SimdOp::F32x4RelaxedMax):
+            if (!moduleEnv_.v128RelaxedEnabled()) {
+              return iter_.unrecognizedOpcode(&op);
+            }
+            CHECK_NEXT(dispatchVectorBinary(RelaxedMaxF32x4));
+          case uint32_t(SimdOp::F64x2RelaxedMin):
+            if (!moduleEnv_.v128RelaxedEnabled()) {
+              return iter_.unrecognizedOpcode(&op);
+            }
+            CHECK_NEXT(dispatchVectorBinary(RelaxedMinF64x2));
+          case uint32_t(SimdOp::F64x2RelaxedMax):
+            if (!moduleEnv_.v128RelaxedEnabled()) {
+              return iter_.unrecognizedOpcode(&op);
+            }
+            CHECK_NEXT(dispatchVectorBinary(RelaxedMaxF64x2));
 #  endif
           default:
             break;
