@@ -193,7 +193,9 @@ class VirtualenvManager(VirtualenvHelper):
         if existing_metadata != self._metadata:
             return False
 
-        if env_requirements.pth_requirements and self.populate_local_paths:
+        if (
+            env_requirements.pth_requirements or env_requirements.vendored_requirements
+        ) and self.populate_local_paths:
             try:
                 with open(
                     os.path.join(self._site_packages_dir(), PTH_FILENAME)
@@ -214,6 +216,7 @@ class VirtualenvManager(VirtualenvHelper):
                     os.path.abspath(os.path.join(self.topsrcdir, pth.path))
                 )
                 for pth in env_requirements.pth_requirements
+                + env_requirements.vendored_requirements
             ]
 
             if current_paths != required_paths:
@@ -230,18 +233,17 @@ class VirtualenvManager(VirtualenvHelper):
             installed_packages = {
                 package["name"]: package["version"] for package in installed_packages
             }
-            for requirement in env_requirements.pypi_requirements:
-                if (
-                    installed_packages.get(requirement.package_name, None)
-                    != requirement.version
+            for pkg in env_requirements.pypi_requirements:
+                if not pkg.requirement.specifier.contains(
+                    installed_packages.get(pkg.requirement.name, None)
                 ):
                     return False
 
-            for requirement in env_requirements.pypi_optional_requirements:
-                installed_version = installed_packages.get(
-                    requirement.package_name, None
-                )
-                if installed_version and installed_version != requirement.version:
+            for pkg in env_requirements.pypi_optional_requirements:
+                installed_version = installed_packages.get(pkg.requirement.name, None)
+                if installed_version and not pkg.requirement.specifier.contains(
+                    installed_packages.get(pkg.requirement.name, None)
+                ):
                     return False
 
         return True
@@ -309,15 +311,7 @@ class VirtualenvManager(VirtualenvHelper):
         return self.virtualenv_root
 
     def _requirements(self):
-        try:
-            # When `virtualenv.py` is invoked from an existing Mach process,
-            # import MachEnvRequirements in the expected way.
-            from mozbuild.requirements import MachEnvRequirements
-        except ImportError:
-            # When `virtualenv.py` is invoked standalone, import
-            # MachEnvRequirements from the adjacent "standalone"
-            # requirements module.
-            from requirements import MachEnvRequirements
+        from mach.requirements import MachEnvRequirements
 
         if not os.path.exists(self._manifest_path):
             raise Exception(
@@ -331,7 +325,10 @@ class VirtualenvManager(VirtualenvHelper):
             os.listdir(thunderbird_dir)
         )
         return MachEnvRequirements.from_requirements_definition(
-            self.topsrcdir, is_thunderbird, self._manifest_path
+            self.topsrcdir,
+            is_thunderbird,
+            self._virtualenv_name in ("mach", "build"),
+            self._manifest_path,
         )
 
     def populate(self):
@@ -363,7 +360,10 @@ class VirtualenvManager(VirtualenvHelper):
             if self.populate_local_paths:
                 python_lib = distutils.sysconfig.get_python_lib()
                 with open(os.path.join(python_lib, PTH_FILENAME), "a") as f:
-                    for pth_requirement in env_requirements.pth_requirements:
+                    for pth_requirement in (
+                        env_requirements.pth_requirements
+                        + env_requirements.vendored_requirements
+                    ):
                         path = os.path.join(self.topsrcdir, pth_requirement.path)
                         # This path is relative to the .pth file.  Using a
                         # relative path allows the srcdir/objdir combination
@@ -372,14 +372,14 @@ class VirtualenvManager(VirtualenvHelper):
                         f.write("{}\n".format(os.path.relpath(path, python_lib)))
 
             for pypi_requirement in env_requirements.pypi_requirements:
-                self.install_pip_package(pypi_requirement.full_specifier)
+                self.install_pip_package(str(pypi_requirement.requirement))
 
             for requirement in env_requirements.pypi_optional_requirements:
                 try:
-                    self.install_pip_package(requirement.full_specifier)
+                    self.install_pip_package(str(requirement.requirement))
                 except subprocess.CalledProcessError:
                     print(
-                        f"Could not install {requirement.package_name}, so "
+                        f"Could not install {requirement.requirement.name}, so "
                         f"{requirement.repercussion}. Continuing."
                     )
 
@@ -602,6 +602,12 @@ if __name__ == "__main__":
     else:
         populate = False
         opts = parser.parse_args(sys.argv[1:])
+
+    # We want to be able to import the "mach.requirements" module.
+    sys.path.append(os.path.join(opts.topsrcdir, "python", "mach"))
+    # Virtualenv logic needs access to the vendored "packaging" library.
+    sys.path.append(os.path.join(opts.topsrcdir, "third_party", "python", "pyparsing"))
+    sys.path.append(os.path.join(opts.topsrcdir, "third_party", "python", "packaging"))
 
     manager = VirtualenvManager(
         opts.topsrcdir,

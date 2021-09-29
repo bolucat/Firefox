@@ -3941,12 +3941,21 @@ CodeOffset MacroAssembler::wasmCallIndirect(const wasm::CallSiteDesc& desc,
     addPtr(index, scratch);
   }
 
-  loadPtr(Address(scratch, offsetof(wasm::FunctionTableElem, code)), scratch);
+  storePtr(WasmTlsReg,
+           Address(getStackPointer(), WasmCallerTLSOffsetBeforeCall));
+  loadPtr(Address(scratch, offsetof(wasm::FunctionTableElem, tls)), WasmTlsReg);
+  storePtr(WasmTlsReg,
+           Address(getStackPointer(), WasmCalleeTLSOffsetBeforeCall));
 
   Label nonNull;
-  branchTest32(Assembler::NonZero, scratch, scratch, &nonNull);
+  branchTest32(Assembler::NonZero, WasmTlsReg, WasmTlsReg, &nonNull);
   wasmTrap(wasm::Trap::IndirectCallToNull, trapOffset);
   bind(&nonNull);
+
+  loadWasmPinnedRegsFromTls();
+  switchToWasmTlsRealm(index, WasmTableCallScratchReg1);
+
+  loadPtr(Address(scratch, offsetof(wasm::FunctionTableElem, code)), scratch);
 
   return call(desc, scratch);
 }
@@ -5304,10 +5313,10 @@ template void AutoGenericRegisterScope<FloatRegister>::reacquire();
 }  // namespace jit
 
 namespace wasm {
-const TlsData* ExtractCallerTlsFromFrameWithTls(const Frame* fp) {
-  return *reinterpret_cast<TlsData* const*>(
-      reinterpret_cast<const uint8_t*>(fp) + sizeof(Frame) + ShadowStackSpace +
-      FrameWithTls::callerTLSOffset());
+TlsData* ExtractCallerTlsFromFrameWithTls(Frame* fp) {
+  return *reinterpret_cast<TlsData**>(reinterpret_cast<uint8_t*>(fp) +
+                                      sizeof(Frame) + ShadowStackSpace +
+                                      FrameWithTls::callerTLSOffset());
 }
 
 const TlsData* ExtractCalleeTlsFromFrameWithTls(const Frame* fp) {

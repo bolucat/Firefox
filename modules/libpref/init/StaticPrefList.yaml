@@ -2499,7 +2499,7 @@
 # Is support for HTMLElement.enterKeyHint enabled?
 - name: dom.forms.enterkeyhint
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Is support for HTMLElement.inputMode enabled?
@@ -10856,7 +10856,7 @@
 #---------------------------------------------------------------------------
 - name: signon.usernameOnlyForm.enabled
   type: bool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 #---------------------------------------------------------------------------
@@ -11657,6 +11657,8 @@
   type: uint32_t
 #if defined(MOZ_WIDGET_GTK)
   value: 12
+#elif defined(ANDROID)
+  value: 6
 #else
   value: 17
 #endif

@@ -674,6 +674,7 @@ class nsIFrame : public nsQueryFrame {
         mMayHaveOpacityAnimation(false),
         mAllDescendantsAreInvisible(false),
         mHasBSizeChange(false),
+        mHasPaddingChange(false),
         mInScrollAnchorChain(false),
         mHasColumnSpanSiblings(false),
         mDescendantMayDependOnItsStaticPosition(false),
@@ -3076,7 +3077,7 @@ class nsIFrame : public nsQueryFrame {
   // intrinsic-sizing keywords.
   bool HasIntrinsicKeywordForBSize() const {
     const auto& bSize = StylePosition()->BSize(GetWritingMode());
-    return bSize.IsMozFitContent() || bSize.IsMinContent() ||
+    return bSize.IsFitContent() || bSize.IsMinContent() ||
            bSize.IsMaxContent() || bSize.IsFitContentFunction();
   }
   /**
@@ -4778,7 +4779,7 @@ class nsIFrame : public nsQueryFrame {
     MinContent,
     MaxContent,
     MozAvailable,
-    MozFitContent,
+    FitContent,
     FitContentFunction,
   };
 
@@ -4791,8 +4792,8 @@ class nsIFrame : public nsQueryFrame {
         return mozilla::Some(ExtremumLength::MaxContent);
       case SizeOrMaxSize::Tag::MozAvailable:
         return mozilla::Some(ExtremumLength::MozAvailable);
-      case SizeOrMaxSize::Tag::MozFitContent:
-        return mozilla::Some(ExtremumLength::MozFitContent);
+      case SizeOrMaxSize::Tag::FitContent:
+        return mozilla::Some(ExtremumLength::FitContent);
       case SizeOrMaxSize::Tag::FitContentFunction:
         return mozilla::Some(ExtremumLength::FitContentFunction);
       default:
@@ -4972,6 +4973,11 @@ class nsIFrame : public nsQueryFrame {
   bool HasBSizeChange() const { return mHasBSizeChange; }
   void SetHasBSizeChange(const bool aHasBSizeChange) {
     mHasBSizeChange = aHasBSizeChange;
+  }
+
+  bool HasPaddingChange() const { return mHasPaddingChange; }
+  void SetHasPaddingChange(const bool aHasPaddingChange) {
+    mHasPaddingChange = aHasPaddingChange;
   }
 
   bool HasColumnSpanSiblings() const { return mHasColumnSpanSiblings; }
@@ -5226,6 +5232,19 @@ class nsIFrame : public nsQueryFrame {
   bool mAllDescendantsAreInvisible : 1;
 
   bool mHasBSizeChange : 1;
+
+  /**
+   * True if the frame seems to be in the process of being reflowed with a
+   * different amount of inline-axis padding as compared to its most recent
+   * reflow. This flag's purpose is to detect cases where the frame's
+   * inline-axis content-box-size has changed, without any style change or any
+   * change to the border-box size, so that we can mark/invalidate things
+   * appropriately in ReflowInput::InitResizeFlags().
+   *
+   * This flag is set in SizeComputationResult::InitOffsets() and cleared in
+   * nsIFrame::DidReflow().
+   */
+  bool mHasPaddingChange : 1;
 
   /**
    * True if we are or contain the scroll anchor for a scrollable frame.

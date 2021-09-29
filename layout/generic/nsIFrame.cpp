@@ -2338,7 +2338,7 @@ template <typename SizeOrMaxSize>
 static inline bool IsIntrinsicKeyword(const SizeOrMaxSize& aSize) {
   // All keywords other than auto/none/-moz-available depend on intrinsic sizes.
   return aSize.IsMaxContent() || aSize.IsMinContent() ||
-         aSize.IsMozFitContent() || aSize.IsFitContentFunction();
+         aSize.IsFitContent() || aSize.IsFitContentFunction();
 }
 
 bool nsIFrame::CanBeDynamicReflowRoot() const {
@@ -6608,7 +6608,7 @@ nsIFrame::ISizeComputationResult nsIFrame::ComputeISizeValue(
                           ? AspectRatioUsage::ToComputeISize
                           : AspectRatioUsage::None};
     case ExtremumLength::FitContentFunction:
-    case ExtremumLength::MozFitContent: {
+    case ExtremumLength::FitContent: {
       nscoord pref = NS_UNCONSTRAINEDSIZE;
       nscoord min = 0;
       if (intrinsicSizeFromAspectRatio) {
@@ -6672,9 +6672,10 @@ void nsIFrame::DidReflow(nsPresContext* aPresContext,
   RemoveStateBits(NS_FRAME_IN_REFLOW | NS_FRAME_FIRST_REFLOW |
                   NS_FRAME_IS_DIRTY | NS_FRAME_HAS_DIRTY_CHILDREN);
 
-  // Clear state that was used in ReflowInput::InitResizeFlags (see
+  // Clear bits that were used in ReflowInput::InitResizeFlags (see
   // comment there for why we can't clear it there).
   SetHasBSizeChange(false);
+  SetHasPaddingChange(false);
 
   // Notify the percent bsize observer if there is a percent bsize.
   // The observer may be able to initiate another reflow with a computed
