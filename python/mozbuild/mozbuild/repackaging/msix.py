@@ -12,6 +12,7 @@ r"""Repackage ZIP archives (or directories) into MSIX App Packages.
 
 from __future__ import absolute_import, print_function
 
+from collections import defaultdict
 import logging
 import os
 import sys
@@ -112,48 +113,96 @@ def find_sdk_tool(binary, log=None):
 
 
 def get_embedded_version(version, buildid):
-    r"""Turn a display version into "dotted quad" notation."""
+    r"""Turn a display version into "dotted quad" notation.
+
+    N.b.: some parts of the MSIX packaging ecosystem require the final part of
+    the dotted quad to be identically 0, so we enforce that here.
+    """
 
     # It's irritating to roll our own version parsing, but the tree doesn't seem
     # to contain exactly what we need at this time.
     version = version.rsplit("esr", 1)[0]
     alpha = "a" in version
 
+    tail = None
     if "a" in version:
         head, tail = version.rsplit("a", 1)
+        if tail != "1":
+            # Disallow anything beyond `X.Ya1`.
+            raise ValueError(
+                f"Alpha version not of the form X.0a1 is not supported: {version}"
+            )
         tail = buildid
     elif "b" in version:
         head, tail = version.rsplit("b", 1)
+        if len(head.split(".")) > 2:
+            raise ValueError(
+                f"Beta version not of the form X.YbZ is not supported: {version}"
+            )
     elif "rc" in version:
         head, tail = version.rsplit("rc", 1)
+        if len(head.split(".")) > 2:
+            raise ValueError(
+                f"Release candidate version not of the form X.YrcZ is not supported: {version}"
+            )
     else:
         head = version
-        tail = "0"
 
-    components = (head.split(".") + ["0", "0", "0"])[:4]
-    components[3] = tail
+    components = (head.split(".") + ["0", "0", "0"])[:3]
+    if tail:
+        components[2] = tail
 
     if alpha:
-        # Nightly builds are all `X.Ya1`, which isn't helpful.  Include build ID
+        # Nightly builds are all `X.0a1`, which isn't helpful.  Include build ID
         # to disambiguate.  But each part of the dotted quad is 16 bits, so we
         # have to squash.
-        year = buildid[0:4]
+        if components[1] != "0":
+            # Disallow anything beyond `X.0a1`.
+            raise ValueError(
+                f"Alpha version not of the form X.0a1 is not supported: {version}"
+            )
+
+        # Last two digits only to save space.  Nightly builds in 2066 and 2099
+        # will be impacted, but future us can deal with that.
+        year = buildid[2:4]
+        if year[0] == "0":
+            # Avoid leading zero, like `.0YMm`.
+            year = year[1:]
         month = buildid[4:6]
-        if month[0] == "0":
-            month = month[1]
         day = buildid[6:8]
+        if day[0] == "0":
+            # Avoid leading zero, like `.0DHh`.
+            day = day[1:]
         hour = buildid[8:10]
-        if hour[0] == "0":
-            hour = hour[1]
-        minute = buildid[10:12]
 
-        components[1] = year
-        components[2] = "".join((month, day))
-        components[3] = "".join((hour, minute))
+        components[1] = "".join((year, month))
+        components[2] = "".join((day, hour))
 
-    version = "{}.{}.{}.{}".format(*components)
+    version = "{}.{}.{}.0".format(*components)
 
     return version
+
+
+def get_appconstants_jsm_values(finder, *args):
+    r"""Extract values, such as the display version like `MOZ_APP_VERSION_DISPLAY:
+    "...";`, from the omnijar.  This allows to determine the beta number, like
+    `X.YbW`, where the regular beta version is only `X.Y`.  Takes a list of
+    names and returns an iterator of the unique such value found for each name.
+    Raises an exception if a name is not found or if multiple values are found.
+    """
+
+    lines = defaultdict(list)
+    for _, f in finder.find("**/modules/AppConstants.jsm"):
+        for line in f.open().read().decode("utf-8").splitlines():
+            for arg in args:
+                if arg in line:
+                    lines[arg].append(line)
+
+    for arg in args:
+        (value,) = lines[arg]  # We expect exactly one definition.
+        _, _, value = value.partition(":")
+        value = value.strip().strip('",;')
+        yield value
 
 
 def repackage_msix(
@@ -187,7 +236,6 @@ def repackage_msix(
     if not os.path.isdir(branding):
         raise Exception("branding dir {} does not exist".format(branding))
 
-        version = "1.2.3"  # XXX
     # TODO: maybe we can fish this from the package directly?  Maybe from a DLL,
     # maybe from application.ini?
     if arch is None or arch not in _MSIX_ARCH.keys():
@@ -207,17 +255,46 @@ def repackage_msix(
         finder,
         dict(section="App", value="CodeName", fallback="Name"),
         dict(section="App", value="Vendor"),
-        dict(section="App", value="Version"),
-        dict(section="App", value="BuildID"),
     )
     first = next(values)
     displayname = displayname or "Mozilla {}".format(first)
     second = next(values)
     vendor = vendor or second
+
+    # For `AppConstants.jsm` and `brand.properties`, which are in the omnijar in
+    # packaged builds.
+    unpack_finder = UnpackFinder(finder)
+
     if not version:
-        version = next(values)
+        values = get_appconstants_jsm_values(
+            unpack_finder, "MOZ_APP_VERSION_DISPLAY", "MOZ_BUILDID"
+        )
+        display_version = next(values)
         buildid = next(values)
-        version = get_embedded_version(version, buildid)
+        version = get_embedded_version(display_version, buildid)
+        log(
+            logging.INFO,
+            "msix",
+            {
+                "version": version,
+                "display_version": display_version,
+                "buildid": buildid,
+            },
+            "AppConstants.jsm display version is '{display_version}' and build ID is '{buildid}':"
+            + " embedded version will be '{version}'",
+        )
+
+    # TODO: Bug 1721922: localize this description via Fluent.
+    lines = []
+    for _, f in unpack_finder.find("**/chrome/en-US/locale/branding/brand.properties"):
+        lines.extend(
+            line
+            for line in f.open().read().decode("utf-8").splitlines()
+            if "brandFullName" in line
+        )
+    (brandFullName,) = lines  # We expect exactly one definition.
+    _, _, brandFullName = brandFullName.partition("=")
+    brandFullName = brandFullName.strip()
 
     # We don't have a build at repackage-time to gives us this value, and the
     # source of truth is a branding-specific `configure.sh` shell script that we
@@ -233,20 +310,6 @@ def repackage_msix(
     MOZ_IGECKOBACKCHANNEL_IID = MOZ_IGECKOBACKCHANNEL_IID.strip()
     if MOZ_IGECKOBACKCHANNEL_IID.startswith(('"', "'")):
         MOZ_IGECKOBACKCHANNEL_IID = MOZ_IGECKOBACKCHANNEL_IID[1:-1]
-
-    # TODO: Bug 1721922: localize this description via Fluent.
-    # For `brand.properties`, which is in the omnijar in packaged builds.
-    unpack_finder = UnpackFinder(finder)
-    lines = []
-    for _, f in unpack_finder.find("**/chrome/en-US/locale/branding/brand.properties"):
-        lines.extend(
-            line
-            for line in f.open().read().decode("utf-8").splitlines()
-            if "brandFullName" in line
-        )
-    (brandFullName,) = lines  # We expect exactly one definition.
-    _, _, brandFullName = brandFullName.partition("=")
-    brandFullName = brandFullName.strip()
 
     # The convention is $MOZBUILD_STATE_PATH/cache/$FEATURE.
     output_dir = mozpath.normsep(
@@ -397,7 +460,8 @@ def repackage_msix(
         "APPX_ARCH": _MSIX_ARCH[arch],
         "APPX_DISPLAYNAME": brandFullName,
         "APPX_DESCRIPTION": brandFullName,
-        # Like 'Mozilla.Firefox', 'Mozilla.Firefox.Beta', 'Mozilla.Firefox.Nightly'.
+        # Like 'Mozilla.MozillaFirefox', 'Mozilla.MozillaFirefoxBeta', or
+        # 'Mozilla.MozillaFirefoxNightly'.
         "APPX_IDENTITY": identity,
         # Like 'Firefox Package Root', 'Firefox Nightly Package Root', 'Firefox
         # Beta Package Root'.  See above.
@@ -431,6 +495,14 @@ def repackage_msix(
     )
     if log:
         log_copy_result(log, time.time() - start, output_dir, result)
+
+    if verbose:
+        # Dump AppxManifest.xml contents for ease of debugging.
+        log(logging.DEBUG, "msix", {}, "AppxManifest.xml")
+        log(logging.DEBUG, "msix", {}, ">>>")
+        for line in open(mozpath.join(output_dir, "AppxManifest.xml")).readlines():
+            log(logging.DEBUG, "msix", {}, line[:-1])  # Drop trailing line terminator.
+        log(logging.DEBUG, "msix", {}, "<<<")
 
     if not makeappx:
         makeappx = find_sdk_tool("makeappx.exe", log=log)

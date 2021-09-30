@@ -174,10 +174,22 @@ class VirtualenvManager(VirtualenvHelper):
             return False
 
         env_requirements = self._requirements()
-        deps = [__file__] + env_requirements.requirements_paths
 
-        # Modifications to our package dependency list or to this file mean the
-        # virtualenv should be rebuilt.
+        virtualenv_package = os.path.join(
+            self.topsrcdir,
+            "third_party",
+            "python",
+            "virtualenv",
+            "virtualenv",
+            "version.py",
+        )
+        deps = [__file__, virtualenv_package] + env_requirements.requirements_paths
+
+        # Modifications to any of the following files mean the virtualenv should be
+        # rebuilt:
+        # * This file
+        # * The `virtualenv` package
+        # * Any of our requirements manifest files
         activate_mtime = os.path.getmtime(self.activate_path)
         dep_mtime = max(os.path.getmtime(p) for p in deps)
         if dep_mtime > activate_mtime:
@@ -222,29 +234,10 @@ class VirtualenvManager(VirtualenvHelper):
             if current_paths != required_paths:
                 return False
 
-        if (
-            env_requirements.pypi_requirements
-            or env_requirements.pypi_optional_requirements
-        ):
-            pip_json = self._run_pip(
-                ["list", "--format", "json"], stdout=subprocess.PIPE
-            ).stdout
-            installed_packages = json.loads(pip_json)
-            installed_packages = {
-                package["name"]: package["version"] for package in installed_packages
-            }
-            for pkg in env_requirements.pypi_requirements:
-                if not pkg.requirement.specifier.contains(
-                    installed_packages.get(pkg.requirement.name, None)
-                ):
-                    return False
-
-            for pkg in env_requirements.pypi_optional_requirements:
-                installed_version = installed_packages.get(pkg.requirement.name, None)
-                if installed_version and not pkg.requirement.specifier.contains(
-                    installed_packages.get(pkg.requirement.name, None)
-                ):
-                    return False
+        pip = os.path.join(self.bin_path, "pip")
+        package_result = env_requirements.validate_environment_packages([pip])
+        if not package_result.has_all_packages:
+            return False
 
         return True
 

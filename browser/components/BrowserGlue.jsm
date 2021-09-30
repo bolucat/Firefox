@@ -35,6 +35,7 @@ XPCOMUtils.defineLazyModuleGetters(this, {
   BrowserUsageTelemetry: "resource:///modules/BrowserUsageTelemetry.jsm",
   BrowserUIUtils: "resource:///modules/BrowserUIUtils.jsm",
   BrowserWindowTracker: "resource:///modules/BrowserWindowTracker.jsm",
+  BuiltInThemes: "resource:///modules/BuiltInThemes.jsm",
   ContextualIdentityService:
     "resource://gre/modules/ContextualIdentityService.jsm",
   Corroborate: "resource://gre/modules/Corroborate.jsm",
@@ -1375,155 +1376,7 @@ BrowserGlue.prototype = {
 
     SessionStore.init();
 
-    AddonManager.maybeInstallBuiltinAddon(
-      "firefox-compact-light@mozilla.org",
-      "1.2",
-      "resource://builtin-themes/light/"
-    );
-    AddonManager.maybeInstallBuiltinAddon(
-      "firefox-compact-dark@mozilla.org",
-      "1.2",
-      "resource://builtin-themes/dark/"
-    );
-
-    AddonManager.maybeInstallBuiltinAddon(
-      "firefox-alpenglow@mozilla.org",
-      "1.4",
-      "resource://builtin-themes/alpenglow/"
-    );
-
-    if (
-      AppConstants.NIGHTLY_BUILD &&
-      Services.prefs.getBoolPref(
-        "browser.theme.temporary.monochromatic.enabled",
-        false
-      )
-    ) {
-      // List of monochromatic themes. The themes are represented by objects
-      // containing their id, current version, and path relative to
-      // resource://builtin-themes/monochromatic/.
-      const kMonochromaticThemeList = [
-        {
-          id: "firefox-lush-soft@mozilla.org",
-          version: "1.0",
-          path: "lush/soft/",
-        },
-        {
-          id: "firefox-lush-balanced@mozilla.org",
-          version: "1.0",
-          path: "lush/balanced/",
-        },
-        {
-          id: "firefox-lush-soft@mozilla.org",
-          version: "1.0",
-          path: "lush/soft/",
-        },
-        {
-          id: "firefox-lush-balanced@mozilla.org",
-          version: "1.0",
-          path: "lush/balanced/",
-        },
-        {
-          id: "firefox-lush-bold@mozilla.org",
-          version: "1.0",
-          path: "lush/bold/",
-        },
-        {
-          id: "firefox-abstract-soft@mozilla.org",
-          version: "1.0",
-          path: "abstract/soft/",
-        },
-        {
-          id: "firefox-abstract-balanced@mozilla.org",
-          version: "1.0",
-          path: "abstract/balanced/",
-        },
-        {
-          id: "firefox-abstract-bold@mozilla.org",
-          version: "1.0",
-          path: "abstract/bold/",
-        },
-        {
-          id: "firefox-elemental-soft@mozilla.org",
-          version: "1.0",
-          path: "elemental/soft/",
-        },
-        {
-          id: "firefox-elemental-balanced@mozilla.org",
-          version: "1.0",
-          path: "elemental/balanced/",
-        },
-        {
-          id: "firefox-elemental-bold@mozilla.org",
-          version: "1.0",
-          path: "elemental/bold/",
-        },
-        {
-          id: "firefox-cheers-soft@mozilla.org",
-          version: "1.0",
-          path: "cheers/soft/",
-        },
-        {
-          id: "firefox-cheers-balanced@mozilla.org",
-          version: "1.0",
-          path: "cheers/balanced/",
-        },
-        {
-          id: "firefox-cheers-bold@mozilla.org",
-          version: "1.0",
-          path: "cheers/bold/",
-        },
-        {
-          id: "firefox-graffiti-soft@mozilla.org",
-          version: "1.0",
-          path: "graffiti/soft/",
-        },
-        {
-          id: "firefox-graffiti-balanced@mozilla.org",
-          version: "1.0",
-          path: "graffiti/balanced/",
-        },
-        {
-          id: "firefox-graffiti-bold@mozilla.org",
-          version: "1.0",
-          path: "graffiti/bold/",
-        },
-        {
-          id: "firefox-foto-soft@mozilla.org",
-          version: "1.0",
-          path: "foto/soft/",
-        },
-        {
-          id: "firefox-foto-balanced@mozilla.org",
-          version: "1.0",
-          path: "foto/balanced/",
-        },
-        {
-          id: "firefox-foto-bold@mozilla.org",
-          version: "1.0",
-          path: "foto/bold/",
-        },
-      ];
-      for (let { id, version, path } of kMonochromaticThemeList) {
-        AddonManager.maybeInstallBuiltinAddon(
-          id,
-          version,
-          `resource://builtin-themes/monochromatic/${path}`
-        );
-
-        AsyncShutdown.profileChangeTeardown.addBlocker(
-          "Uninstall Monochromatic Theme",
-          async () => {
-            try {
-              let addon = await AddonManager.getAddonByID(id);
-              await addon.uninstall();
-            } catch (e) {
-              Cu.reportError(`Failed to uninstall ${id} on shutdown`);
-            }
-          }
-        );
-      }
-    }
+    BuiltInThemes.maybeInstallActiveBuiltInTheme();
 
     if (AppConstants.MOZ_NORMANDY) {
       Normandy.init();
@@ -2566,6 +2419,14 @@ BrowserGlue.prototype = {
         },
       },
 
+      // Install built-in themes. We already installed the active built-in
+      // theme, if any, before UI startup.
+      {
+        task: async () => {
+          await BuiltInThemes.ensureBuiltInThemes();
+        },
+      },
+
       {
         condition: AppConstants.platform == "win",
         task: () => {
@@ -3443,7 +3304,7 @@ BrowserGlue.prototype = {
   _migrateUI: function BG__migrateUI() {
     // Use an increasing number to keep track of the current migration state.
     // Completely unrelated to the current Firefox release number.
-    const UI_VERSION = 118;
+    const UI_VERSION = 119;
     const BROWSER_DOCURL = AppConstants.BROWSER_CHROME_URL;
 
     if (!Services.prefs.prefHasUserValue("browser.migration.version")) {
@@ -4071,13 +3932,41 @@ BrowserGlue.prototype = {
       UrlbarPrefs.migrateResultBuckets();
     }
 
-    if (currentUIVersion < 118 && AppConstants.NIGHTLY_BUILD) {
-      // Uninstall experimental monochromatic purple theme.
-      let addonPromise;
+    if (currentUIVersion < 119 && AppConstants.NIGHTLY_BUILD) {
+      // Uninstall outdated monochromatic themes for the following UI versions:
+      // 118: Uninstall prototype monochromatic purple theme.
+      // 119 (bug 1732957): Uninstall themes with old IDs.
+      const themeIdsToMigrate = [
+        "firefox-monochromatic-purple@mozilla.org",
+        "firefox-lush-soft@mozilla.org",
+        "firefox-lush-balanced@mozilla.org",
+        "firefox-lush-bold@mozilla.org",
+        "firefox-abstract-soft@mozilla.org",
+        "firefox-abstract-balanced@mozilla.org",
+        "firefox-abstract-bold@mozilla.org",
+        "firefox-elemental-soft@mozilla.org",
+        "firefox-elemental-balanced@mozilla.org",
+        "firefox-elemental-bold@mozilla.org",
+        "firefox-cheers-soft@mozilla.org",
+        "firefox-cheers-balanced@mozilla.org",
+        "firefox-cheers-bold@mozilla.org",
+        "firefox-graffiti-soft@mozilla.org",
+        "firefox-graffiti-balanced@mozilla.org",
+        "firefox-graffiti-bold@mozilla.org",
+        "firefox-foto-soft@mozilla.org",
+        "firefox-foto-balanced@mozilla.org",
+        "firefox-foto-bold@mozilla.org",
+      ];
       try {
-        addonPromise = AddonManager.getAddonByID(
-          "firefox-monochromatic-purple@mozilla.org"
-        );
+        for (let id of themeIdsToMigrate) {
+          AddonManager.getAddonByID(id).then(addon => {
+            if (!addon) {
+              // Either the addon wasn't installed, or the call to getAddonByID failed.
+              return;
+            }
+            addon.uninstall().catch(Cu.reportError);
+          }, Cu.reportError);
+        }
       } catch (error) {
         Cu.reportError(
           "Could not access the AddonManager to upgrade the profile. This is most " +
@@ -4085,13 +3974,6 @@ BrowserGlue.prototype = {
             "the AddonManager is not initialized."
         );
       }
-      Promise.resolve(addonPromise).then(addon => {
-        if (!addon) {
-          // Either the addon wasn't installed, or the call to getAddonByID failed.
-          return;
-        }
-        addon.uninstall().catch(Cu.reportError);
-      }, Cu.reportError);
     }
 
     // Update the migration version.
