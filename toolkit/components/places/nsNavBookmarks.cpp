@@ -19,6 +19,7 @@
 #include "mozilla/storage.h"
 #include "mozilla/dom/PlacesBookmarkAddition.h"
 #include "mozilla/dom/PlacesBookmarkRemoved.h"
+#include "mozilla/dom/PlacesBookmarkTitle.h"
 #include "mozilla/dom/PlacesObservers.h"
 #include "mozilla/dom/PlacesVisit.h"
 
@@ -1312,11 +1313,24 @@ nsNavBookmarks::SetItemTitle(int64_t aItemId, const nsACString& aTitle,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  NOTIFY_BOOKMARKS_OBSERVERS(
-      mCanNotify, mObservers, SKIP_TAGS(isChangingTagFolder),
-      OnItemChanged(bookmark.id, "title"_ns, false, title,
-                    bookmark.lastModified, bookmark.type, bookmark.parentId,
-                    bookmark.guid, bookmark.parentGuid, ""_ns, aSource));
+  if (mCanNotify) {
+    Sequence<OwningNonNull<PlacesEvent>> events;
+    RefPtr<PlacesBookmarkTitle> titleChanged = new PlacesBookmarkTitle();
+    titleChanged->mId = bookmark.id;
+    titleChanged->mItemType = bookmark.type;
+    titleChanged->mUrl.Assign(NS_ConvertUTF8toUTF16(bookmark.url));
+    titleChanged->mGuid = bookmark.guid;
+    titleChanged->mParentGuid = bookmark.parentGuid;
+    titleChanged->mTitle.Assign(NS_ConvertUTF8toUTF16(title));
+    titleChanged->mLastModified = bookmark.lastModified / 1000;
+    titleChanged->mSource = aSource;
+    titleChanged->mIsTagging =
+        bookmark.parentId == tagsRootId || bookmark.grandParentId == tagsRootId;
+    bool success = !!events.AppendElement(titleChanged.forget(), fallible);
+    MOZ_RELEASE_ASSERT(success);
+    PlacesObservers::NotifyListeners(events);
+  }
+
   return NS_OK;
 }
 

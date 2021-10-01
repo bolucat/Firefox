@@ -289,16 +289,6 @@
   value: true
   mirror: always
 
-- name: apz.nonwr.activate_all_scroll_frames
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
-- name: apz.nonwr.activate_all_scroll_frames_when_fission
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
 - name: apz.prefer_jank_minimal_displayports
   type: RelaxedAtomicBool
   value: true
@@ -6836,7 +6826,7 @@
 # Is support for CSS backdrop-filter enabled?
 - name: layout.css.backdrop-filter.enabled
   type: bool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: false
   mirror: always
 
 # Should stray control characters be rendered visibly?
@@ -9954,6 +9944,18 @@
 - name: network.http.http3.support_version1
   type: RelaxedAtomicBool
   value: true
+  mirror: always
+
+# Disable early data on an origin if SSL_ERROR_PROTOCOL_VERSION_ALERT is received
+- name: network.http.early_data_disable_on_error
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+# Disable early data if it fails for more than this number of origins
+- name: network.http.early_data_max_error
+  type: RelaxedAtomicUint32
+  value: 5
   mirror: always
 
 #---------------------------------------------------------------------------

@@ -2290,29 +2290,45 @@ impl CascadeData {
                     self.rules_source_order += 1;
                 },
                 CssRule::Keyframes(ref keyframes_rule) => {
+                    use hashglobe::hash_map::Entry;
+
                     let keyframes_rule = keyframes_rule.read_with(guard);
                     debug!("Found valid keyframes rule: {:?}", *keyframes_rule);
-
-                    // Don't let a prefixed keyframes animation override a non-prefixed one.
-                    let needs_insertion = keyframes_rule.vendor_prefix.is_none() ||
-                        self.animations
-                            .get(keyframes_rule.name.as_atom())
-                            .map_or(true, |rule| rule.vendor_prefix.is_some());
-                    if needs_insertion {
-                        let animation = KeyframesAnimation::from_keyframes(
-                            &keyframes_rule.keyframes,
-                            keyframes_rule.vendor_prefix.clone(),
-                            guard,
-                        );
-                        debug!("Found valid keyframe animation: {:?}", animation);
-                        self.animations
-                            .try_insert(keyframes_rule.name.as_atom().clone(), animation)?;
+                    match self.animations.try_entry(keyframes_rule.name.as_atom().clone())? {
+                        Entry::Vacant(e) => {
+                            e.insert(KeyframesAnimation::from_keyframes(
+                                &keyframes_rule.keyframes,
+                                keyframes_rule.vendor_prefix.clone(),
+                                current_layer_order,
+                                guard,
+                            ));
+                        },
+                        Entry::Occupied(mut e) => {
+                            // Don't let a prefixed keyframes animation override
+                            // a non-prefixed one on the same layer.
+                            let needs_insert =
+                                current_layer_order > e.get().layer_order ||
+                                (current_layer_order == e.get().layer_order &&
+                                 (keyframes_rule.vendor_prefix.is_none() || e.get().vendor_prefix.is_some()));
+                            if needs_insert {
+                                e.insert(KeyframesAnimation::from_keyframes(
+                                    &keyframes_rule.keyframes,
+                                    keyframes_rule.vendor_prefix.clone(),
+                                    current_layer_order,
+                                    guard,
+                                ));
+                            }
+                        },
                     }
                 },
                 #[cfg(feature = "gecko")]
                 CssRule::ScrollTimeline(..) => {
-                    // TODO: Bug 1676784: set the timeline into animation.
-                }
+                    // TODO: Bug 1676791: set the timeline into animation.
+                    // https://phabricator.services.mozilla.com/D126452
+                    //
+                    // Note: Bug 1733260: we may drop @scroll-timeline rule once this spec issue
+                    // https://github.com/w3c/csswg-drafts/issues/6674 gets landed.
+                },
                 #[cfg(feature = "gecko")]
                 CssRule::FontFace(ref rule) => {
                     self.extra_data.add_font_face(rule);

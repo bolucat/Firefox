@@ -96,7 +96,7 @@ class MediaMemoryTracker : public nsIMemoryReporter {
     return sUniqueInstance;
   }
 
-  typedef nsTArray<MediaDecoder*> DecodersArray;
+  using DecodersArray = nsTArray<MediaDecoder*>;
   static DecodersArray& Decoders() { return UniqueInstance()->mDecoders; }
 
   DecodersArray mDecoders;
@@ -373,7 +373,7 @@ void MediaDecoder::NotifyXPCOMShutdown() {
   // NotifyXPCOMShutdown will clear its reference to mDecoder. So we must ensure
   // that this MediaDecoder stays alive until completion.
   RefPtr<MediaDecoder> kungFuDeathGrip = this;
-  if (auto owner = GetOwner()) {
+  if (auto* owner = GetOwner()) {
     owner->NotifyXPCOMShutdown();
   } else if (!IsShutdown()) {
     Shutdown();
@@ -579,7 +579,9 @@ void MediaDecoder::Play() {
   if (IsEnded()) {
     Seek(0, SeekTarget::PrevSyncPoint);
     return;
-  } else if (mPlayState == PLAY_STATE_LOADING) {
+  }
+
+  if (mPlayState == PLAY_STATE_LOADING) {
     mNextState = PLAY_STATE_PLAYING;
     return;
   }
@@ -1091,12 +1093,12 @@ bool MediaDecoder::HasSuspendTaint() const {
 }
 
 void MediaDecoder::SetSecondaryVideoContainer(
-    RefPtr<VideoFrameContainer> aSecondaryVideoContainer) {
+    const RefPtr<VideoFrameContainer>& aSecondaryVideoContainer) {
   MOZ_ASSERT(NS_IsMainThread());
   if (mSecondaryVideoContainer.Ref() == aSecondaryVideoContainer) {
     return;
   }
-  mSecondaryVideoContainer = std::move(aSecondaryVideoContainer);
+  mSecondaryVideoContainer = aSecondaryVideoContainer;
   UpdateVideoDecodeMode();
 }
 
@@ -1119,15 +1121,16 @@ media::TimeIntervals MediaDecoder::GetSeekable() {
   // server supports range requests, etc.) or in cue-less WebMs
   if (mMediaSeekableOnlyInBufferedRanges) {
     return GetBuffered();
-  } else if (!IsMediaSeekable()) {
-    return media::TimeIntervals();
-  } else if (!IsTransportSeekable()) {
-    return GetBuffered();
-  } else {
-    return media::TimeIntervals(media::TimeInterval(
-        TimeUnit::Zero(), IsInfinite() ? TimeUnit::FromInfinity()
-                                       : TimeUnit::FromSeconds(GetDuration())));
   }
+  if (!IsMediaSeekable()) {
+    return media::TimeIntervals();
+  }
+  if (!IsTransportSeekable()) {
+    return GetBuffered();
+  }
+  return media::TimeIntervals(media::TimeInterval(
+      TimeUnit::Zero(), IsInfinite() ? TimeUnit::FromInfinity()
+                                     : TimeUnit::FromSeconds(GetDuration())));
 }
 
 void MediaDecoder::SetFragmentEndTime(double aTime) {
@@ -1309,7 +1312,8 @@ MediaMemoryTracker::CollectReports(nsIHandleReportCallback* aHandleReport,
       AbstractThread::MainThread(), __func__,
       [handleReport, data](size_t size) {
         handleReport->Callback(
-            ""_ns, "explicit/media/resources"_ns, KIND_HEAP, UNITS_BYTES, size,
+            ""_ns, "explicit/media/resources"_ns, KIND_HEAP, UNITS_BYTES,
+            static_cast<int64_t>(size),
             nsLiteralCString("Memory used by media resources including "
                              "streaming buffers, caches, etc."),
             data);
@@ -1328,8 +1332,8 @@ MediaMemoryTracker::CollectReports(nsIHandleReportCallback* aHandleReport,
   DecodersArray& decoders = Decoders();
   for (size_t i = 0; i < decoders.Length(); ++i) {
     MediaDecoder* decoder = decoders[i];
-    video += decoder->SizeOfVideoQueue();
-    audio += decoder->SizeOfAudioQueue();
+    video += static_cast<int64_t>(decoder->SizeOfVideoQueue());
+    audio += static_cast<int64_t>(decoder->SizeOfAudioQueue());
     decoder->AddSizeOfResources(resourceSizes);
   }
 

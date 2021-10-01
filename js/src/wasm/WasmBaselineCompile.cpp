@@ -7382,26 +7382,6 @@ static void ConvertF64x2ToUI32x4(MacroAssembler& masm, RegV128 rs, RegV128 rd,
   masm.unsignedTruncSatFloat64x2ToInt32x4(rs, rd, temp);
 }
 
-static void RelaxedConvertF32x4ToI32x4(MacroAssembler& masm, RegV128 rs,
-                                       RegV128 rd) {
-  masm.truncSatFloat32x4ToInt32x4Relaxed(rs, rd);
-}
-
-static void RelaxedConvertF32x4ToUI32x4(MacroAssembler& masm, RegV128 rs,
-                                        RegV128 rd) {
-  masm.unsignedTruncSatFloat32x4ToInt32x4Relaxed(rs, rd);
-}
-
-static void RelaxedConvertF64x2ToI32x4(MacroAssembler& masm, RegV128 rs,
-                                       RegV128 rd) {
-  masm.truncSatFloat64x2ToInt32x4Relaxed(rs, rd);
-}
-
-static void RelaxedConvertF64x2ToUI32x4(MacroAssembler& masm, RegV128 rs,
-                                        RegV128 rd) {
-  masm.unsignedTruncSatFloat64x2ToInt32x4Relaxed(rs, rd);
-}
-
 static void DemoteF64x2ToF32x4(MacroAssembler& masm, RegV128 rs, RegV128 rd) {
   masm.convertFloat64x2ToFloat32x4(rs, rd);
 }
@@ -7449,6 +7429,10 @@ static void RelaxedFmsF64x2(MacroAssembler& masm, RegV128 rs1, RegV128 rs2,
   masm.fmsFloat64x2(rs1, rs2, rsd);
 }
 
+static void RelaxedSwizzle(MacroAssembler& masm, RegV128 rs, RegV128 rsd) {
+  masm.swizzleInt8x16Relaxed(rs, rsd);
+}
+
 static void RelaxedMinF32x4(MacroAssembler& masm, RegV128 rs, RegV128 rsd) {
   masm.minFloat32x4Relaxed(rs, rsd);
 }
@@ -7465,6 +7449,25 @@ static void RelaxedMaxF64x2(MacroAssembler& masm, RegV128 rs, RegV128 rsd) {
   masm.maxFloat64x2Relaxed(rs, rsd);
 }
 
+static void RelaxedConvertF32x4ToI32x4(MacroAssembler& masm, RegV128 rs,
+                                       RegV128 rd) {
+  masm.truncSatFloat32x4ToInt32x4Relaxed(rs, rd);
+}
+
+static void RelaxedConvertF32x4ToUI32x4(MacroAssembler& masm, RegV128 rs,
+                                        RegV128 rd) {
+  masm.unsignedTruncSatFloat32x4ToInt32x4Relaxed(rs, rd);
+}
+
+static void RelaxedConvertF64x2ToI32x4(MacroAssembler& masm, RegV128 rs,
+                                       RegV128 rd) {
+  masm.truncSatFloat64x2ToInt32x4Relaxed(rs, rd);
+}
+
+static void RelaxedConvertF64x2ToUI32x4(MacroAssembler& masm, RegV128 rs,
+                                        RegV128 rd) {
+  masm.unsignedTruncSatFloat64x2ToInt32x4Relaxed(rs, rd);
+}
 #  endif
 
 void BaseCompiler::emitVectorAndNot() {
@@ -9124,6 +9127,11 @@ bool BaseCompiler::emitBody() {
               return iter_.unrecognizedOpcode(&op);
             }
             CHECK_NEXT(dispatchVectorUnary(RelaxedConvertF64x2ToUI32x4));
+          case uint32_t(SimdOp::V8x16RelaxedSwizzle):
+            if (!moduleEnv_.v128RelaxedEnabled()) {
+              return iter_.unrecognizedOpcode(&op);
+            }
+            CHECK_NEXT(dispatchVectorBinary(RelaxedSwizzle));
 #  endif
           default:
             break;

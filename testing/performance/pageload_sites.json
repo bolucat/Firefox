@@ -240,7 +240,8 @@
     {
       "login": false,
       "name": "microsoft",
-      "test_url": "https://www.microsoft.com/en-us/"
+      "test_url": "https://www.microsoft.com/en-us/",
+      "secondary_url": "https://support.microsoft.com/en-us"
     },
     {
       "login": true,
@@ -250,7 +251,8 @@
     {
       "login": false,
       "name": "nytimes",
-      "test_url": "https://www.nytimes.com/2020/02/19/opinion/surprise-medical-bill.html"
+      "test_url": "https://www.nytimes.com/2020/02/19/opinion/surprise-medical-bill.html",
+      "secondary_url": "https://www.nytimes.com/section/opinion/columnists"
     },
     {
       "login": true,
@@ -275,7 +277,8 @@
     {
       "login": false,
       "name": "reddit",
-      "test_url": "https://www.reddit.com/r/technology/comments/9sqwyh/we_posed_as_100_senators_to_run_ads_on_facebook/"
+      "test_url": "https://www.reddit.com/r/technology/comments/9sqwyh/we_posed_as_100_senators_to_run_ads_on_facebook/",
+      "secondary_url": "https://www.reddit.com/r/technology/"
     },
     {
       "login": true,

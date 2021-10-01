@@ -2248,10 +2248,13 @@ class BookmarkObserverRecorder {
               (SELECT h.url FROM moz_places h
                WHERE h.id = c.oldPlaceId) AS oldURL,
               p.id AS parentId, p.guid AS parentGuid,
-              c.keywordChanged
+              c.keywordChanged,
+              gp.guid AS grandParentGuid,
+              (SELECT h.url FROM moz_places h WHERE h.id = b.fk) AS url
        FROM itemsChanged c
        JOIN moz_bookmarks b ON b.id = c.itemId
        JOIN moz_bookmarks p ON p.id = b.parent
+       LEFT JOIN moz_bookmarks gp ON gp.id = p.parent
        ${this.orderBy("c.level", "b.parent", "b.position")}`,
       null,
       (row, cancel) => {
@@ -2270,6 +2273,7 @@ class BookmarkObserverRecorder {
           oldURLHref: row.getResultByName("oldURL"),
           parentId: row.getResultByName("parentId"),
           parentGuid: row.getResultByName("parentGuid"),
+          grandParentGuid: row.getResultByName("grandParentGuid"),
         };
         this.noteItemChanged(info);
         if (row.getResultByName("keywordChanged")) {
@@ -2343,19 +2347,21 @@ class BookmarkObserverRecorder {
 
   noteItemChanged(info) {
     if (info.oldTitle != info.newTitle) {
-      this.itemChangedArgs.push([
-        info.id,
-        "title",
-        /* isAnnotationProperty */ false,
-        info.newTitle,
-        info.lastModified,
-        info.type,
-        info.parentId,
-        info.guid,
-        info.parentGuid,
-        info.oldTitle,
-        PlacesUtils.bookmarks.SOURCES.SYNC,
-      ]);
+      this.placesEvents.push(
+        new PlacesBookmarkTitle({
+          id: info.id,
+          itemType: info.type,
+          url: info.urlHref,
+          guid: info.guid,
+          parentGuid: info.parentGuid,
+          title: info.newTitle,
+          lastModified: info.lastModified,
+          source: PlacesUtils.bookmarks.SOURCES.SYNC,
+          isTagging:
+            info.parentGuid === PlacesUtils.bookmarks.tagsGuid ||
+            info.grandParentGuid === PlacesUtils.bookmarks.tagsGuid,
+        })
+      );
     }
     if (info.oldURLHref != info.newURLHref) {
       this.itemChangedArgs.push([
