@@ -90,6 +90,7 @@ browsertime:
     - browsertime-youtube-playback
     - browsertime-custom
     - browsertime-first-install
+    - browsertime-responsiveness
 
 browsertime-profiling:
     - browsertime-tp6-profiling
@@ -239,13 +240,6 @@ windows10-2004-tests:
     - test-verify-wpt
     - xpcshell
 
-windows10-64-ccov-tests:
-    - jittest
-    - web-platform-tests
-    - web-platform-tests-reftest
-    - web-platform-tests-wdspec
-    - xpcshell
-
 windows10-64-2004-ccov-tests:
     - crashtest
     - reftest
@@ -259,8 +253,13 @@ windows10-64-2004-ccov-tests:
     - test-verify-gpu
     - cppunit
     - jsreftest
+    - web-platform-tests
     - web-platform-tests-crashtest
+    - web-platform-tests-reftest
     - web-platform-tests-print-reftest
+    - web-platform-tests-wdspec
+    # - jittest  # Bug 1733505
+    # - xpcshell  # Bug 1733505
 
 windows10-64-2004-failure-tests:
     - mochitest-browser-chrome-failures

@@ -188,7 +188,9 @@ const DEFAULT_WELCOME_CONTENT = {
           variations: [
             {
               id: "soft",
-              label: "Soft",
+              label: {
+                string_id: "mr2-onboarding-colorway-label-soft",
+              },
               tooltip: {
                 string_id: "mr2-onboarding-theme-tooltip",
               },
@@ -198,7 +200,9 @@ const DEFAULT_WELCOME_CONTENT = {
             },
             {
               id: "balanced",
-              label: "Balanced",
+              label: {
+                string_id: "mr2-onboarding-colorway-label-balanced",
+              },
               tooltip: {
                 string_id: "mr2-onboarding-theme-tooltip",
               },
@@ -208,7 +212,9 @@ const DEFAULT_WELCOME_CONTENT = {
             },
             {
               id: "bold",
-              label: "Bold",
+              label: {
+                string_id: "mr2-onboarding-colorway-label-bold",
+              },
               tooltip: {
                 string_id: "mr2-onboarding-theme-tooltip",
               },
@@ -306,6 +312,26 @@ const DEFAULT_WELCOME_CONTENT = {
           },
           action: {
             theme: "automatic",
+            navigate: true,
+          },
+        },
+      },
+    },
+    {
+      id: "AW_THANKS",
+      order: 4,
+      autoClose: true,
+      content: {
+        hasFancyTitle: true,
+        title: { string_id: "mr2-onboarding-thank-you-header" },
+        subtitle: {
+          string_id: "mr2-onboarding-thank-you-text",
+        },
+        primary_button: {
+          label: {
+            string_id: "mr2-onboarding-start-browsing-button-label",
+          },
+          action: {
             navigate: true,
           },
         },

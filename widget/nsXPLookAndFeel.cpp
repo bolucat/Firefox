@@ -278,8 +278,8 @@ static const char sColorPrefs[][41] = {
     "ui.-moz_menubarhovertext",
     "ui.-moz_eventreerow",
     "ui.-moz_oddtreerow",
-    "ui.-moz-gtk-buttonactivetext",
-    "ui.-moz-mac-buttonactivetext",
+    "ui.-moz-buttonactivetext",
+    "ui.-moz-buttonactiveface",
     "ui.-moz_mac_chrome_active",
     "ui.-moz_mac_chrome_inactive",
     "ui.-moz-mac-defaultbuttontext",
@@ -562,8 +562,9 @@ nscolor nsXPLookAndFeel::GetStandinForNativeColor(ColorID aID,
     COLOR(Selecteditem, 0x33, 0x99, 0xFF)
     COLOR(Selecteditemtext, 0xFF, 0xFF, 0xFF)
     COLOR(MozButtonhoverface, 0xF0, 0xF0, 0xF0)
-    COLOR(MozGtkButtonactivetext, 0x00, 0x00, 0x00)
     COLOR(MozButtonhovertext, 0x00, 0x00, 0x00)
+    COLOR(MozButtonactiveface, 0xF0, 0xF0, 0xF0)
+    COLOR(MozButtonactivetext, 0x00, 0x00, 0x00)
     COLOR(MozMenuhover, 0x33, 0x99, 0xFF)
     COLOR(MozMenuhovertext, 0x00, 0x00, 0x00)
     COLOR(MozMenubartext, 0x00, 0x00, 0x00)
@@ -603,6 +604,16 @@ nscolor nsXPLookAndFeel::GetStandinForNativeColor(ColorID aID,
 #undef COLOR
 
 // Taken from in-content/common.inc.css's dark theme.
+//
+// TODO(emilio): The XP_WIN defines are temporary, and are there because the
+// native windows theme doesn't support drawing dark form controls (see bug
+// 1733354 for example).
+//
+// Long term we should fix this by either adding support for that (though the
+// windows APIs we use don't seem to support it) or not use native win32 buttons
+// in the front end (like other browsers do), at least in dark mode.
+//
+// For now we just don't provide dark version of these colors there.
 Maybe<nscolor> nsXPLookAndFeel::GenericDarkColor(ColorID aID) {
   nscolor color = NS_RGB(0, 0, 0);
   switch (aID) {
@@ -612,36 +623,51 @@ Maybe<nscolor> nsXPLookAndFeel::GenericDarkColor(ColorID aID) {
     case ColorID::TextBackground:
       color = NS_RGB(28, 27, 34);
       break;
+#ifndef XP_WIN
     case ColorID::MozDialog:  // --in-content-box-background
       color = NS_RGB(35, 34, 43);
       break;
+#endif
     case ColorID::Windowtext:  // --in-content-page-color
     case ColorID::WindowForeground:
-    case ColorID::MozDialogtext:
     case ColorID::TextForeground:
+#ifndef XP_WIN
+    case ColorID::MozDialogtext:
     case ColorID::Fieldtext:
     case ColorID::Buttontext:  // --in-content-button-text-color (via
                                // --in-content-page-color)
+    case ColorID::MozButtonhovertext:
+    case ColorID::MozButtonactivetext:
+#endif
       color = NS_RGB(251, 251, 254);
       break;
     case ColorID::Graytext:  // --in-content-deemphasized-text
       color = NS_RGB(191, 191, 201);
       break;
+#ifndef XP_WIN
     case ColorID::Selecteditem:  // --in-content-primary-button-background /
                                  // --in-content-item-selected
-    case ColorID::Highlight:
-      // TODO(emilio): Perhaps for selection (highlight / highlighttext) we want
-      // something more subtle like Android / macOS do.
       color = NS_RGB(0, 221, 255);
       break;
     case ColorID::Field:
     case ColorID::Buttonface:        // --in-content-button-background
     case ColorID::Selecteditemtext:  // --in-content-primary-button-text-color /
                                      // --in-content-item-selected-text
-    case ColorID::Highlighttext:
       color = NS_RGB(43, 42, 51);
       break;
-
+    case ColorID::MozButtonhoverface:  // --in-content-button-background-hover
+      color = NS_RGB(82, 82, 94);
+      break;
+    case ColorID::MozButtonactiveface:  // --in-content-button-background-active
+      color = NS_RGB(91, 91, 102);
+      break;
+#endif
+    case ColorID::Highlight:
+      color = NS_RGBA(0, 221, 255, 153);
+      break;
+    case ColorID::Highlighttext:
+      color = NS_SAME_AS_FOREGROUND_COLOR;
+      break;
     default:
       return Nothing();
   }
@@ -977,7 +1003,8 @@ static bool ShouldUseStandinsForNativeColorForNonNativeTheme(
     case ColorID::Buttontext:
     case ColorID::MozButtonhoverface:
     case ColorID::MozButtonhovertext:
-    case ColorID::MozGtkButtonactivetext:
+    case ColorID::MozButtonactiveface:
+    case ColorID::MozButtonactivetext:
 
     case ColorID::MozCombobox:
     case ColorID::MozComboboxtext:
