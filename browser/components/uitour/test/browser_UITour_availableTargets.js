@@ -15,12 +15,14 @@ function getExpectedTargets() {
     "appMenu",
     "backForward",
     "help",
+    "history",
     "logins",
     "pageAction-bookmark",
     ...(hasPocket ? ["pocket"] : []),
     "privateWindow",
     ...(hasQuit ? ["quit"] : []),
     "readerMode-urlBar",
+    "restorePreviousSession",
     "urlbar",
   ];
 }
