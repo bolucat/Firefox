@@ -214,26 +214,6 @@ Matrix4x4 Layer::SnapTransform(const Matrix4x4& aTransform,
   return gfxUtils::SnapTransform(aTransform, aSnapRect, aResidualTransform);
 }
 
-static bool AncestorLayerMayChangeTransform(Layer* aLayer) {
-  for (Layer* l = aLayer; l; l = l->GetParent()) {
-    if (l->GetContentFlags() & Layer::CONTENT_MAY_CHANGE_TRANSFORM) {
-      return true;
-    }
-
-    if (l->GetParent() && l->GetParent()->AsRefLayer()) {
-      return false;
-    }
-  }
-  return false;
-}
-
-bool Layer::MayResample() {
-  Matrix transform2d;
-  return !GetEffectiveTransform().Is2D(&transform2d) ||
-         ThebesMatrix(transform2d).HasNonIntegerTranslation() ||
-         AncestorLayerMayChangeTransform(this);
-}
-
 RenderTargetIntRect Layer::CalculateScissorRect(
     const RenderTargetIntRect& aCurrentScissorRect) {
   ContainerLayer* container = GetParent();
@@ -1245,19 +1225,6 @@ void ContainerLayer::PrintInfo(std::stringstream& aStream,
   }
   aStream << nsPrintfCString(" [presShellResolution=%g]", mPresShellResolution)
                  .get();
-}
-
-void RefLayer::PrintInfo(std::stringstream& aStream, const char* aPrefix) {
-  ContainerLayer::PrintInfo(aStream, aPrefix);
-  if (mId.IsValid()) {
-    aStream << " [id=" << mId << "]";
-  }
-  if (mEventRegionsOverride & EventRegionsOverride::ForceDispatchToContent) {
-    aStream << " [force-dtc]";
-  }
-  if (mEventRegionsOverride & EventRegionsOverride::ForceEmptyHitRegion) {
-    aStream << " [force-ehr]";
-  }
 }
 
 //--------------------------------------------------
