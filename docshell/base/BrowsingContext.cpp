@@ -814,10 +814,16 @@ void BrowsingContext::Detach(bool aFromIPC) {
   MOZ_DIAGNOSTIC_ASSERT(mEverAttached);
   MOZ_DIAGNOSTIC_ASSERT(!mIsDiscarded);
 
+  if (XRE_IsParentProcess()) {
+    Canonical()->AddPendingDiscard();
+  }
   auto callListeners =
-      MakeScopeExit([listeners = std::move(mDiscardListeners), id = Id()] {
+      MakeScopeExit([&, listeners = std::move(mDiscardListeners), id = Id()] {
         for (const auto& listener : listeners) {
           listener(id);
+        }
+        if (XRE_IsParentProcess()) {
+          Canonical()->RemovePendingDiscard();
         }
       });
 
@@ -2161,6 +2167,7 @@ PopupBlocker::PopupControlState BrowsingContext::RevisePopupAbuseLevel(
     return PopupBlocker::openAllowed;
   }
 
+  RefPtr<Document> doc = GetExtantDocument();
   PopupBlocker::PopupControlState abuse = aControl;
   switch (abuse) {
     case PopupBlocker::openControlled:
@@ -2171,7 +2178,8 @@ PopupBlocker::PopupControlState BrowsingContext::RevisePopupAbuseLevel(
       }
       break;
     case PopupBlocker::openAbused:
-      if (IsPopupAllowed()) {
+      if (IsPopupAllowed() ||
+          (doc && doc->HasValidTransientUserGestureActivation())) {
         // Skip PopupBlocker::openBlocked
         abuse = PopupBlocker::openControlled;
       }
@@ -2194,7 +2202,7 @@ PopupBlocker::PopupControlState BrowsingContext::RevisePopupAbuseLevel(
 
   // If we're currently in-process, attempt to consume transient user gesture
   // activations.
-  if (RefPtr<Document> doc = GetExtantDocument()) {
+  if (doc) {
     // HACK: Some pages using bogus library + UA sniffing call window.open()
     // from a blank iframe, only on Firefox, see bug 1685056.
     //

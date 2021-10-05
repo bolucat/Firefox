@@ -434,21 +434,6 @@ add_task(async function test_apply_then_revert() {
 
   observer.check([
     {
-      name: "onItemChanged",
-      params: {
-        itemId: localItemIds.get("bookmarkEEEE"),
-        property: "guid",
-        isAnnoProperty: false,
-        newValue: "bookmarkEEEE",
-        type: PlacesUtils.bookmarks.TYPE_BOOKMARK,
-        parentId: PlacesUtils.bookmarksMenuFolderId,
-        guid: "bookmarkEEEE",
-        parentGuid: PlacesUtils.bookmarks.menuGuid,
-        oldValue: "bookmarkEEE1",
-        source: PlacesUtils.bookmarks.SOURCES.SYNC,
-      },
-    },
-    {
       name: "bookmark-removed",
       params: {
         itemId: localIdForD,
@@ -459,6 +444,18 @@ add_task(async function test_apply_then_revert() {
         guid: "bookmarkDDDD",
         parentGuid: PlacesUtils.bookmarks.menuGuid,
         source: PlacesUtils.bookmarks.SOURCES.SYNC,
+      },
+    },
+    {
+      name: "bookmark-guid-changed",
+      params: {
+        itemId: localItemIds.get("bookmarkEEEE"),
+        type: PlacesUtils.bookmarks.TYPE_BOOKMARK,
+        urlHref: "",
+        guid: "bookmarkEEEE",
+        parentGuid: PlacesUtils.bookmarks.menuGuid,
+        source: PlacesUtils.bookmarks.SOURCES.SYNC,
+        isTagging: false,
       },
     },
     {
@@ -545,18 +542,15 @@ add_task(async function test_apply_then_revert() {
       },
     },
     {
-      name: "onItemChanged",
+      name: "bookmark-url-changed",
       params: {
         itemId: localItemIds.get("bookmarkBBBB"),
-        property: "uri",
-        isAnnoProperty: false,
-        newValue: "http://example.com/b-remote",
         type: PlacesUtils.bookmarks.TYPE_BOOKMARK,
-        parentId: localItemIds.get("folderAAAAAA"),
+        urlHref: "http://example.com/b-remote",
         guid: "bookmarkBBBB",
         parentGuid: "folderAAAAAA",
-        oldValue: "http://example.com/b",
         source: PlacesUtils.bookmarks.SOURCES.SYNC,
+        isTagging: false,
       },
     },
   ]);

@@ -360,6 +360,19 @@ BookmarkObserver.prototype = {
           this.notifications.push({ name: "bookmark-moved", params });
           break;
         }
+        case "bookmark-guid-changed": {
+          const params = {
+            itemId: event.id,
+            type: event.itemType,
+            urlHref: event.url,
+            guid: event.guid,
+            parentGuid: event.parentGuid,
+            source: event.source,
+            isTagging: event.isTagging,
+          };
+          this.notifications.push({ name: "bookmark-guid-changed", params });
+          break;
+        }
         case "bookmark-title-changed": {
           const params = {
             itemId: event.id,
@@ -368,6 +381,19 @@ BookmarkObserver.prototype = {
             parentGuid: event.parentGuid,
           };
           this.notifications.push({ name: "bookmark-title-changed", params });
+          break;
+        }
+        case "bookmark-url-changed": {
+          const params = {
+            itemId: event.id,
+            type: event.itemType,
+            urlHref: event.url,
+            guid: event.guid,
+            parentGuid: event.parentGuid,
+            source: event.source,
+            isTagging: event.isTagging,
+          };
+          this.notifications.push({ name: "bookmark-url-changed", params });
           break;
         }
       }
@@ -413,7 +439,9 @@ BookmarkObserver.prototype = {
         "bookmark-added",
         "bookmark-removed",
         "bookmark-moved",
+        "bookmark-guid-changed",
         "bookmark-title-changed",
+        "bookmark-url-changed",
       ],
       this.handlePlacesEvents
     );
@@ -436,7 +464,9 @@ function expectBookmarkChangeNotifications(options) {
       "bookmark-added",
       "bookmark-removed",
       "bookmark-moved",
+      "bookmark-guid-changed",
       "bookmark-title-changed",
+      "bookmark-url-changed",
     ],
     observer.handlePlacesEvents
   );
