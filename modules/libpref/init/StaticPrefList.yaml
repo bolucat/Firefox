@@ -629,11 +629,6 @@
   value: true
   mirror: always
 
-- name: apz.peek_messages.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 # Fetch displayport updates early from the message queue.
 - name: apz.pinch_lock.mode
   type: RelaxedAtomicInt32
@@ -11677,7 +11672,7 @@
 
 # Whether the non-native theme should always use system colors. Useful mostly
 # for testing forced colors mode.
-- name: widget.non-native-theme.always-use-system-colors
+- name: widget.non-native-theme.always-high-contrast
   type: RelaxedAtomicBool
   value: false
   mirror: always
@@ -11923,7 +11918,23 @@
   type: bool
   value: false
   mirror: always
+
+- name: widget.windows.window_occlusion_tracking.enabled
+  type: bool
+  value: false
+  mirror: always
+
+- name: widget.windows.window_occlusion_tracking_display_state.enabled
+  type: bool
+  value: false
+  mirror: always
+
+- name: widget.windows.window_occlusion_tracking_session_lock.enabled
+  type: bool
+  value: false
+  mirror: always
 #endif
+
 
 #---------------------------------------------------------------------------
 # Prefs starting with "xul."

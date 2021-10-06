@@ -457,18 +457,8 @@ class LocalAccessible : public nsISupports, public Accessible {
            !aEl->IsAnyOfHTMLElements(nsGkAtoms::option, nsGkAtoms::optgroup);
   }
 
-  /**
-   * Returns text of accessible if accessible has text role otherwise empty
-   * string.
-   *
-   * @param aText         [in] returned text of the accessible
-   * @param aStartOffset  [in, optional] start offset inside of the accessible,
-   *                        if missed entire text is appended
-   * @param aLength       [in, optional] required length of text, if missed
-   *                        then text form start offset till the end is appended
-   */
   virtual void AppendTextTo(nsAString& aText, uint32_t aStartOffset = 0,
-                            uint32_t aLength = UINT32_MAX);
+                            uint32_t aLength = UINT32_MAX) override;
 
   /**
    * Return boundaries in screen coordinates in app units.
@@ -478,7 +468,7 @@ class LocalAccessible : public nsISupports, public Accessible {
   /**
    * Return boundaries in screen coordinates.
    */
-  virtual nsIntRect Bounds() const;
+  virtual nsIntRect Bounds() const override;
 
   /**
    * Return boundaries in screen coordinates in CSS pixels.
@@ -489,6 +479,11 @@ class LocalAccessible : public nsISupports, public Accessible {
    * Return boundaries rect relative the bounding frame.
    */
   virtual nsRect RelativeBounds(nsIFrame** aRelativeFrame) const;
+
+  /**
+   * Return boundaries rect relative to the frame of the parent accessible.
+   */
+  virtual nsRect ParentRelativeBounds();
 
   /**
    * Selects the accessible within its container if applicable.
@@ -1079,6 +1074,7 @@ class LocalAccessible : public nsISupports, public Accessible {
   LocalAccessible* mParent;
   nsTArray<LocalAccessible*> mChildren;
   int32_t mIndexInParent;
+  Maybe<nsRect> mBounds;
 
   static const uint8_t kStateFlagsBits = 11;
   static const uint8_t kContextFlagsBits = 3;

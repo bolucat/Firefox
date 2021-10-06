@@ -1265,6 +1265,9 @@ class Document : public nsINode,
   already_AddRefed<Promise> HasStorageAccess(ErrorResult& aRv);
   already_AddRefed<Promise> RequestStorageAccess(ErrorResult& aRv);
 
+  already_AddRefed<Promise> RequestStorageAccessForOrigin(
+      const nsAString& aThirdPartyOrigin, ErrorResult& aRv);
+
   bool UseRegularPrincipal() const;
 
   /**
@@ -2264,6 +2267,13 @@ class Document : public nsINode,
    * GetFailedCertSecurityInfo is a trusted cert error page or not.
    */
   static bool CallerIsTrustedAboutCertError(JSContext* aCx, JSObject* aObject);
+
+  /**
+   * This function checks if the privilege storage access api is available for
+   * the caller. We only allow privilege SSA to be called by system principal
+   * and webcompat extension.
+   */
+  static bool CallerCanAccessPrivilegeSSA(JSContext* aCx, JSObject* aObject);
 
   /**
    * Get the security info (i.e. certificate validity, errorCode, etc) for a

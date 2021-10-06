@@ -543,6 +543,14 @@ partial interface Document {
   Promise<void> requestStorageAccess();
 };
 
+// A privileged API to give chrome privileged code and the content script of the
+// webcompat extension the ability to request the storage access for a given
+// third party.
+partial interface Document {
+  [Func="Document::CallerCanAccessPrivilegeSSA", Throws]
+  Promise<void> requestStorageAccessForOrigin(DOMString thirdPartyOrigin);
+};
+
 enum DocumentAutoplayPolicy {
   "allowed",       // autoplay is currently allowed
   "allowed-muted", // muted video autoplay is currently allowed
