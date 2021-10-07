@@ -9,6 +9,7 @@
 
 #include "mozilla/a11y/Accessible.h"
 #include "mozilla/a11y/CacheConstants.h"
+#include "mozilla/a11y/HyperTextAccessibleBase.h"
 #include "mozilla/a11y/Role.h"
 #include "AccAttributes.h"
 #include "nsIAccessibleText.h"
@@ -26,7 +27,7 @@ class RemoteAccessible;
 enum class RelationType;
 
 template <class Derived>
-class RemoteAccessibleBase : public Accessible {
+class RemoteAccessibleBase : public Accessible, public HyperTextAccessibleBase {
  public:
   virtual ~RemoteAccessibleBase() { MOZ_ASSERT(!mWrapper); }
 
@@ -217,6 +218,15 @@ class RemoteAccessibleBase : public Accessible {
   uint32_t GetCachedTextLength();
   Maybe<const nsTArray<int32_t>&> GetCachedTextLines();
 
+  virtual HyperTextAccessibleBase* AsHyperTextBase() override {
+    return IsHyperText() ? static_cast<HyperTextAccessibleBase*>(this)
+                         : nullptr;
+  }
+
+  // HyperTextAccessibleBase
+  // XXX Implement this once it's cached.
+  virtual int32_t CaretOffset() const override { return -1; }
+
  protected:
   RemoteAccessibleBase(uint64_t aID, Derived* aParent,
                        DocAccessibleParent* aDoc, role aRole, AccType aType,
@@ -256,6 +266,8 @@ class RemoteAccessibleBase : public Accessible {
   uint64_t mID;
 
  protected:
+  virtual const Accessible* Acc() const override { return this; }
+
   RefPtr<AccAttributes> mCachedFields;
 
   // XXX DocAccessibleParent gets to change this to change the role of

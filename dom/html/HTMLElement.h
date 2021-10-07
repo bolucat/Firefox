@@ -26,11 +26,15 @@ class HTMLElement final : public nsGenericHTMLFormElement {
   // Element
   void SetCustomElementDefinition(
       CustomElementDefinition* aDefinition) override;
+  bool IsLabelable() const override { return IsFormAssociatedElement(); }
 
   // nsGenericHTMLElement
   // https://html.spec.whatwg.org/multipage/custom-elements.html#dom-attachinternals
   already_AddRefed<mozilla::dom::ElementInternals> AttachInternals(
       ErrorResult& aRv) override;
+
+  // nsGenericHTMLFormElement
+  bool IsFormAssociatedElement() const override;
 
   void UpdateFormOwner();
 
@@ -47,7 +51,6 @@ class HTMLElement final : public nsGenericHTMLFormElement {
   HTMLFieldSetElement* GetFieldSetInternal() const override;
   bool CanBeDisabled() const override;
   bool DoesReadOnlyApply() const override;
-  bool IsFormAssociatedElement() const override;
 
   ElementInternals* GetElementInternals() const;
 };

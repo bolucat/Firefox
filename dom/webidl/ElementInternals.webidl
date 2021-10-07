@@ -11,4 +11,11 @@
 interface ElementInternals {
   // Shadow root access
   readonly attribute ShadowRoot? shadowRoot;
+
+  // Form-associated custom elements
+  [Pref="dom.webcomponents.formAssociatedCustomElement.enabled", Throws]
+  readonly attribute HTMLFormElement? form;
+
+  [Pref="dom.webcomponents.formAssociatedCustomElement.enabled", Throws]
+  readonly attribute NodeList labels;
 };

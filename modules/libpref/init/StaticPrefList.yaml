@@ -629,6 +629,11 @@
   value: true
   mirror: always
 
+- name: apz.peek_messages.enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 # Fetch displayport updates early from the message queue.
 - name: apz.pinch_lock.mode
   type: RelaxedAtomicInt32
@@ -8525,6 +8530,11 @@
 #endif
   mirror: always
 
+- name: media.mp4.sniff_iso_brand
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 # Error/warning handling, Decoder Doctor.
 #
 # Set to true to force demux/decode warnings to be treated as errors.
@@ -11768,6 +11778,15 @@
   value: false
   mirror: always
 
+# Whether system colors honor the Firefox toolbar theme.
+#
+# On macOS this might want to be in sync with
+# widget.macos.support-dark-appearance.
+- name: widget.color-scheme.follow-firefox-theme
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 #ifdef XP_MACOSX
 - name: widget.macos.native-context-menus
   type: RelaxedAtomicBool
@@ -11789,13 +11808,6 @@
 - name: widget.content.allow-gtk-dark-theme
   type: RelaxedAtomicBool
   value: false
-  mirror: always
-
-# Whether widget follows the firefox theme in order to choose a light / dark
-# appearance.
-- name: widget.gtk.follow-firefox-theme
-  type: RelaxedAtomicBool
-  value: true
   mirror: always
 
 # Whether we try to extract dark theme GTK colors.

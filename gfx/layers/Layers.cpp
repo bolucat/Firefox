@@ -980,11 +980,9 @@ void ContainerLayer::ComputeEffectiveTransformsForChildren(
 // version of this code; if you make changes to ContainerLayer::DidRemoveChild
 // consider whether the matching changes need to be made to
 // ContainerLayer::RemoveAllChildren
-void ContainerLayer::DidRemoveChild(Layer* aLayer) {
-}
+void ContainerLayer::DidRemoveChild(Layer* aLayer) {}
 
-void ContainerLayer::DidInsertChild(Layer* aLayer) {
-}
+void ContainerLayer::DidInsertChild(Layer* aLayer) {}
 
 #ifdef MOZ_DUMP_PAINTING
 template <typename T>

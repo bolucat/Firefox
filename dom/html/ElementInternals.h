@@ -12,7 +12,12 @@
 #include "nsIFormControl.h"
 #include "nsWrapperCache.h"
 
+class nsINodeList;
+
 namespace mozilla {
+
+class ErrorResult;
+
 namespace dom {
 
 class HTMLElement;
@@ -32,7 +37,10 @@ class ElementInternals final : public nsIFormControl, public nsWrapperCache {
   virtual JSObject* WrapObject(JSContext* aCx,
                                JS::Handle<JSObject*> aGivenProto) override;
 
+  // WebIDL
   ShadowRoot* GetShadowRoot() const;
+  mozilla::dom::HTMLFormElement* GetForm(ErrorResult& aRv) const;
+  already_AddRefed<nsINodeList> GetLabels(ErrorResult& aRv) const;
 
   // nsIFormControl
   mozilla::dom::HTMLFieldSetElement* GetFieldSet() override {
