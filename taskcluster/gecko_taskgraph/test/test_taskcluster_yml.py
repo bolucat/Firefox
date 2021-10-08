@@ -2,16 +2,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-
-import jsone
 import pprint
 
+import jsone
 import slugid
 import unittest
-
 from mozunit import main
+from taskgraph.util.yaml import load_yaml
 
-from gecko_taskgraph.util.yaml import load_yaml
 from gecko_taskgraph.util.time import current_json_time
 from gecko_taskgraph import GECKO
 
@@ -35,7 +33,7 @@ class TestTaskclusterYml(unittest.TestCase):
                 "project": "mozilla-central",
                 "level": "3",
             },
-            "ownTaskId": slugid.nice().decode("ascii"),
+            "ownTaskId": slugid.nice(),
         }
         rendered = jsone.render(self.taskcluster_yml, context)
         pprint.pprint(rendered)
@@ -64,7 +62,7 @@ class TestTaskclusterYml(unittest.TestCase):
                 "quoted_args": "abc def",
             },
             "now": current_json_time(),
-            "ownTaskId": slugid.nice().decode("ascii"),
+            "ownTaskId": slugid.nice(),
         }
         rendered = jsone.render(self.taskcluster_yml, context)
         pprint.pprint(rendered)
@@ -90,7 +88,7 @@ class TestTaskclusterYml(unittest.TestCase):
                 "name": "test-action",
                 "title": "Test Action",
                 "description": "Just testing",
-                "taskGroupId": slugid.nice().decode("ascii"),
+                "taskGroupId": slugid.nice(),
                 "symbol": "t",
                 "repo_scope": "assume:repo:hg.mozilla.org/try:action:generic",
                 "cb_name": "test_action",
@@ -98,8 +96,8 @@ class TestTaskclusterYml(unittest.TestCase):
             "input": {},
             "parameters": {},
             "now": current_json_time(),
-            "taskId": slugid.nice().decode("ascii"),
-            "ownTaskId": slugid.nice().decode("ascii"),
+            "taskId": slugid.nice(),
+            "ownTaskId": slugid.nice(),
             "clientId": "testing/testing/testing",
         }
         rendered = jsone.render(self.taskcluster_yml, context)

@@ -854,46 +854,40 @@ var Bookmarks = Object.freeze({
 
           // Notify onItemChanged to listeners.
           let observers = PlacesUtils.bookmarks.getObservers();
+
           // For lastModified, we only care about the original input, since we
-          // should not notify implciit lastModified changes.
+          // should not notify implicit lastModified changes.
           if (
-            info.hasOwnProperty("lastModified") &&
-            updateInfo.hasOwnProperty("lastModified") &&
-            item.lastModified != updatedItem.lastModified
+            (info.hasOwnProperty("lastModified") &&
+              updateInfo.hasOwnProperty("lastModified") &&
+              item.lastModified != updatedItem.lastModified) ||
+            (info.hasOwnProperty("dateAdded") &&
+              updateInfo.hasOwnProperty("dateAdded") &&
+              item.dateAdded != updatedItem.dateAdded)
           ) {
-            notify(observers, "onItemChanged", [
-              updatedItem._id,
-              "lastModified",
-              false,
-              `${PlacesUtils.toPRTime(updatedItem.lastModified)}`,
-              PlacesUtils.toPRTime(updatedItem.lastModified),
-              updatedItem.type,
-              updatedItem._parentId,
-              updatedItem.guid,
-              updatedItem.parentGuid,
-              "",
-              updatedItem.source,
-            ]);
+            let isTagging = updatedItem.parentGuid == Bookmarks.tagsGuid;
+            if (!isTagging) {
+              if (!parent) {
+                parent = await fetchBookmark({ guid: updatedItem.parentGuid });
+              }
+              isTagging = parent.parentGuid === Bookmarks.tagsGuid;
+            }
+
+            notifications.push(
+              new PlacesBookmarkTime({
+                id: updatedItem._id,
+                itemType: updatedItem.type,
+                url: updatedItem.url?.href,
+                guid: updatedItem.guid,
+                parentGuid: updatedItem.parentGuid,
+                dateAdded: updatedItem.dateAdded,
+                lastModified: updatedItem.lastModified,
+                source: updatedItem.source,
+                isTagging,
+              })
+            );
           }
-          if (
-            info.hasOwnProperty("dateAdded") &&
-            updateInfo.hasOwnProperty("dateAdded") &&
-            item.dateAdded != updatedItem.dateAdded
-          ) {
-            notify(observers, "onItemChanged", [
-              updatedItem._id,
-              "dateAdded",
-              false,
-              `${PlacesUtils.toPRTime(updatedItem.dateAdded)}`,
-              PlacesUtils.toPRTime(updatedItem.lastModified),
-              updatedItem.type,
-              updatedItem._parentId,
-              updatedItem.guid,
-              updatedItem.parentGuid,
-              "",
-              updatedItem.source,
-            ]);
-          }
+
           if (updateInfo.hasOwnProperty("title")) {
             let isTagging = updatedItem.parentGuid == Bookmarks.tagsGuid;
             if (!isTagging) {

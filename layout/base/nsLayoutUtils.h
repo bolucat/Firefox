@@ -932,7 +932,8 @@ class nsLayoutUtils {
 
   /**
    * Gets the scale factors of the transform for aFrame relative to the root
-   * frame if this transform is 2D, or the identity scale factors otherwise.
+   * frame if this transform can be drawn 2D, or the identity scale factors
+   * otherwise.
    */
   static gfxSize GetTransformToAncestorScale(const nsIFrame* aFrame);
 
@@ -2793,13 +2794,6 @@ class nsLayoutUtils {
    */
   static nsMargin ScrollbarAreaToExcludeFromCompositionBoundsFor(
       const nsIFrame* aScrollFrame);
-
-  /**
-   * Looks in the layer subtree rooted at aLayer for a metrics with scroll id
-   * aScrollId. Returns true if such is found.
-   */
-  static bool ContainsMetricsWithId(const Layer* aLayer,
-                                    const ViewID& aScrollId);
 
   static bool ShouldUseNoScriptSheet(mozilla::dom::Document*);
   static bool ShouldUseNoFramesSheet(mozilla::dom::Document*);

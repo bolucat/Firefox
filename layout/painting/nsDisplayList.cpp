@@ -483,7 +483,7 @@ nsRect nsDisplayListBuilder::OutOfFlowDisplayData::ComputeVisibleRectForFrame(
         // space: it's relative to the scroll port (= layout viewport), but
         // covers the visual viewport with some margins around it, which is
         // exactly what we want.
-        if (DisplayPortUtils::GetHighResolutionDisplayPort(
+        if (DisplayPortUtils::GetDisplayPort(
                 rootScrollFrame->GetContent(), &displayport,
                 DisplayPortOptions().With(ContentGeometryType::Fixed))) {
           dirtyRectRelativeToDirtyFrame = displayport;
@@ -2074,21 +2074,6 @@ WebRenderLayerManager* nsDisplayListBuilder::GetWidgetLayerManager(
   return nullptr;
 }
 
-// Find the layer which should house the root scroll metadata for a given
-// layer tree. This is the async zoom container layer if there is one,
-// otherwise it's the root layer.
-Layer* GetLayerForRootMetadata(Layer* aRootLayer,
-                               ScrollableLayerGuid::ViewID aRootScrollId) {
-  Layer* asyncZoomContainer = DepthFirstSearch<ForwardIterator>(
-      aRootLayer, [aRootScrollId](Layer* aLayer) {
-        if (auto id = aLayer->GetAsyncZoomContainerId()) {
-          return *id == aRootScrollId;
-        }
-        return false;
-      });
-  return asyncZoomContainer ? asyncZoomContainer : aRootLayer;
-}
-
 void nsDisplayList::Paint(nsDisplayListBuilder* aBuilder, gfxContext* aCtx,
                           int32_t aAppUnitsPerDevPixel) {
   FlattenedDisplayListIterator iter(aBuilder, this);
@@ -2295,8 +2280,7 @@ void nsDisplayList::DeleteAll(nsDisplayListBuilder* aBuilder) {
 }
 
 static bool IsFrameReceivingPointerEvents(nsIFrame* aFrame) {
-  return StylePointerEvents::None !=
-         aFrame->StyleUI()->GetEffectivePointerEvents(aFrame);
+  return aFrame->Style()->PointerEvents() != StylePointerEvents::None;
 }
 
 // A list of frames, and their z depth. Used for sorting

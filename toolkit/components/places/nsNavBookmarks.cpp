@@ -19,6 +19,7 @@
 #include "mozilla/storage.h"
 #include "mozilla/dom/PlacesBookmarkAddition.h"
 #include "mozilla/dom/PlacesBookmarkRemoved.h"
+#include "mozilla/dom/PlacesBookmarkTime.h"
 #include "mozilla/dom/PlacesBookmarkTitle.h"
 #include "mozilla/dom/PlacesObservers.h"
 #include "mozilla/dom/PlacesVisit.h"
@@ -50,15 +51,6 @@ int64_t NS_NavBookmarksTotalSyncChanges() {
 PLACES_FACTORY_SINGLETON_IMPLEMENTATION(nsNavBookmarks, gBookmarksService)
 
 namespace {
-
-#define SKIP_TAGS(condition) ((condition) ? SkipTags : DontSkip)
-
-bool DontSkip(nsCOMPtr<nsINavBookmarkObserver> obs) { return false; }
-bool SkipTags(nsCOMPtr<nsINavBookmarkObserver> obs) {
-  bool skipTags = false;
-  (void)obs->GetSkipTags(&skipTags);
-  return skipTags;
-}
 
 // Returns the sync change counter increment for a change source constant.
 inline int64_t DetermineSyncChangeDelta(uint16_t aSource) {
@@ -466,7 +458,7 @@ nsNavBookmarks::InsertBookmark(int64_t aFolder, nsIURI* aURI, int32_t aIndex,
       MOZ_ASSERT(bookmarks[i].id != *aNewBookmarkId);
 
       NOTIFY_BOOKMARKS_OBSERVERS(
-          mCanNotify, mObservers, DontSkip,
+          mCanNotify, mObservers,
           OnItemChanged(bookmarks[i].id, "tags"_ns, false, ""_ns,
                         bookmarks[i].lastModified, TYPE_BOOKMARK,
                         bookmarks[i].parentId, bookmarks[i].guid,
@@ -589,7 +581,7 @@ nsNavBookmarks::RemoveItem(int64_t aItemId, uint16_t aSource) {
 
     for (uint32_t i = 0; i < bookmarks.Length(); ++i) {
       NOTIFY_BOOKMARKS_OBSERVERS(
-          mCanNotify, mObservers, DontSkip,
+          mCanNotify, mObservers,
           OnItemChanged(bookmarks[i].id, "tags"_ns, false, ""_ns,
                         bookmarks[i].lastModified, TYPE_BOOKMARK,
                         bookmarks[i].parentId, bookmarks[i].guid,
@@ -890,7 +882,7 @@ nsresult nsNavBookmarks::RemoveFolderChildren(int64_t aFolderId,
 
       for (uint32_t i = 0; i < bookmarks.Length(); ++i) {
         NOTIFY_BOOKMARKS_OBSERVERS(
-            mCanNotify, mObservers, DontSkip,
+            mCanNotify, mObservers,
             OnItemChanged(bookmarks[i].id, "tags"_ns, false, ""_ns,
                           bookmarks[i].lastModified, TYPE_BOOKMARK,
                           bookmarks[i].parentId, bookmarks[i].guid,
@@ -1109,13 +1101,25 @@ nsNavBookmarks::SetItemLastModified(int64_t aItemId, PRTime aLastModified,
   }
 
   // Note: mDBSetItemDateAdded also sets lastModified to aDateAdded.
-  NOTIFY_BOOKMARKS_OBSERVERS(
-      mCanNotify, mObservers,
-      SKIP_TAGS(isTagging || bookmark.parentId == tagsRootId),
-      OnItemChanged(bookmark.id, "lastModified"_ns, false,
-                    nsPrintfCString("%" PRId64, bookmark.lastModified),
-                    bookmark.lastModified, bookmark.type, bookmark.parentId,
-                    bookmark.guid, bookmark.parentGuid, ""_ns, aSource));
+
+  if (mCanNotify) {
+    Sequence<OwningNonNull<PlacesEvent>> events;
+    RefPtr<PlacesBookmarkTime> timeChanged = new PlacesBookmarkTime();
+    timeChanged->mId = bookmark.id;
+    timeChanged->mItemType = bookmark.type;
+    timeChanged->mUrl.Assign(NS_ConvertUTF8toUTF16(bookmark.url));
+    timeChanged->mGuid = bookmark.guid;
+    timeChanged->mParentGuid = bookmark.parentGuid;
+    timeChanged->mDateAdded = bookmark.dateAdded / 1000;
+    timeChanged->mLastModified = bookmark.lastModified / 1000;
+    timeChanged->mSource = aSource;
+    timeChanged->mIsTagging =
+        bookmark.parentId == tagsRootId || bookmark.grandParentId == tagsRootId;
+    bool success = !!events.AppendElement(timeChanged.forget(), fallible);
+    MOZ_RELEASE_ASSERT(success);
+    PlacesObservers::NotifyListeners(events);
+  }
+
   return NS_OK;
 }
 
@@ -1747,8 +1751,8 @@ void nsNavBookmarks::NotifyItemChanged(const ItemChangeData& aData) {
         aData.bookmark.id, lastModified));
   }
 
-  NOTIFY_OBSERVERS(
-      mCanNotify, mObservers, nsINavBookmarkObserver,
+  NOTIFY_BOOKMARKS_OBSERVERS(
+      mCanNotify, mObservers,
       OnItemChanged(aData.bookmark.id, aData.property, aData.isAnnotation,
                     aData.newValue, lastModified, aData.bookmark.type,
                     aData.bookmark.parentId, aData.bookmark.guid,

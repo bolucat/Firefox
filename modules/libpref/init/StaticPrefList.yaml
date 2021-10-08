@@ -1481,6 +1481,15 @@
 #endif
   mirror: always
 
+#ifdef XP_WIN
+  # allow to copy clipboard data to Clipboard History/Cloud
+  # (used on sensitive data in about:logins and Private Browsing)
+-   name: clipboard.copyPrivateDataToClipboardCloudOrHistory
+    type: bool
+    value: false
+    mirror: always
+#endif
+
 #---------------------------------------------------------------------------
 # Prefs starting with "consoleservice."
 #---------------------------------------------------------------------------
@@ -4250,10 +4259,19 @@
   mirror: always
   do_not_use_directly: true
 
-# Allow renaming of process names to the origin on nightly
+# Allow renaming of processes from Private Windows to the eTLD+1 on nightly
+# Setting this pref creates a privacy leak, but helps greatly with
+# debugging.
+- name: fission.processPrivateWindowSiteNames
+  type: bool
+  value: false
+  mirror: always
+
+# Allow renaming of process names to the eTLD+1 on all versions, NOT
+# including processes from Private Windows
 # Setting this pref creates a privacy leak, but helps greatly with
 # debugging
-- name: fission.processOriginNames
+- name: fission.processSiteNames
   type: bool
   value: false
   mirror: always
@@ -9733,6 +9751,12 @@
   value: ""
   mirror: never
 
+# Whether to add padding in the doh dns queries (rfc 7830)
+- name: network.trr.padding
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 # Whether to skip the NS check for the blocked host.
 # Note this is used for test only.
 - name: network.trr.skip-check-for-blocked-host
@@ -10001,6 +10025,11 @@
 # BasicLayers (other layer managers always update the entire widget area).
 - name: nglayout.debug.widget_update_flashing
   type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+- name: nglayout.debug.disable_xul_cache
+  type: bool
   value: false
   mirror: always
 
@@ -10322,6 +10351,25 @@
 
 # Send "do not track" HTTP header, disabled by default.
 - name: privacy.donottrackheader.enabled
+  type: bool
+  value: false
+  mirror: always
+
+# Potentially send "global privacy control" HTTP header and set navigator
+# property accordingly. Communicates user's desire to opt-out/in of
+# websites or services selling or sharing the user's information, false by
+# default.
+# true - Send the header with a value of 1 to indicate opting-out
+# false - Do not send header to indicate opting-in
+- name: privacy.globalprivacycontrol.enabled
+  type: bool
+  value: false
+  mirror: always
+
+# Controls whether or not GPC signals are sent. Meant to act as a third option
+# of 'undecided' by leaving the navigator property undefined and not attaching
+# the Sec-GPC HTTP header.
+- name: privacy.globalprivacycontrol.functionality.enabled
   type: bool
   value: false
   mirror: always

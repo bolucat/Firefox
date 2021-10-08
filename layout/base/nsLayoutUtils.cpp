@@ -2107,7 +2107,7 @@ gfxSize nsLayoutUtils::GetTransformToAncestorScale(const nsIFrame* aFrame) {
       RelativeTo{aFrame},
       RelativeTo{nsLayoutUtils::GetDisplayRootFrame(aFrame)});
   Matrix transform2D;
-  if (transform.Is2D(&transform2D)) {
+  if (transform.CanDraw2D(&transform2D)) {
     return ThebesMatrix(transform2D).ScaleFactors();
   }
   return gfxSize(1, 1);
@@ -8968,23 +8968,6 @@ Maybe<ScrollMetadata> nsLayoutUtils::GetRootMetadata(
   }
 
   return Nothing();
-}
-
-/* static */
-bool nsLayoutUtils::ContainsMetricsWithId(const Layer* aLayer,
-                                          const ViewID& aScrollId) {
-  for (uint32_t i = aLayer->GetScrollMetadataCount(); i > 0; i--) {
-    if (aLayer->GetFrameMetrics(i - 1).GetScrollId() == aScrollId) {
-      return true;
-    }
-  }
-  for (Layer* child = aLayer->GetFirstChild(); child;
-       child = child->GetNextSibling()) {
-    if (ContainsMetricsWithId(child, aScrollId)) {
-      return true;
-    }
-  }
-  return false;
 }
 
 /* static */

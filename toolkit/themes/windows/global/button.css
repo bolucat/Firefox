@@ -29,12 +29,6 @@ button:where(:hover:active) {
   background-color: -moz-ButtonActiveFace;
 }
 
-@media (-moz-toolbar-prefers-color-scheme: dark) {
-  button {
-    appearance: none;
-  }
-}
-
 .button-text {
   margin: 0;
   text-align: center;
@@ -65,6 +59,7 @@ button:focus-visible {
 
 button:where([disabled="true"]) {
   color: GrayText;
+  background-color: ButtonFace;
 }
 
 @media (-moz-windows-classic) {
