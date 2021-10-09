@@ -437,6 +437,18 @@ void MacroAssembler::rshift32Arithmetic(Imm32 shift, Register srcDest) {
 // ===============================================================
 // Condition functions
 
+void MacroAssembler::cmp8Set(Condition cond, Address lhs, Imm32 rhs,
+                             Register dest) {
+  cmp8(lhs, rhs);
+  emitSet(cond, dest);
+}
+
+void MacroAssembler::cmp16Set(Condition cond, Address lhs, Imm32 rhs,
+                              Register dest) {
+  cmp16(lhs, rhs);
+  emitSet(cond, dest);
+}
+
 template <typename T1, typename T2>
 void MacroAssembler::cmp32Set(Condition cond, T1 lhs, T2 rhs, Register dest) {
   cmp32(lhs, rhs);
@@ -445,6 +457,18 @@ void MacroAssembler::cmp32Set(Condition cond, T1 lhs, T2 rhs, Register dest) {
 
 // ===============================================================
 // Branch instructions
+
+void MacroAssembler::branch8(Condition cond, const Address& lhs, Imm32 rhs,
+                             Label* label) {
+  cmp8(lhs, rhs);
+  j(cond, label);
+}
+
+void MacroAssembler::branch16(Condition cond, const Address& lhs, Imm32 rhs,
+                              Label* label) {
+  cmp16(lhs, rhs);
+  j(cond, label);
+}
 
 template <class L>
 void MacroAssembler::branch32(Condition cond, Register lhs, Register rhs,
@@ -1307,6 +1331,12 @@ void MacroAssembler::blendInt16x8(const uint16_t lanes[8], FloatRegister lhs,
   MacroAssemblerX86Shared::blendInt16x8(lhs, rhs, dest, lanes);
 }
 
+void MacroAssembler::laneSelectSimd128(FloatRegister mask,
+                                       FloatRegister rhsDest,
+                                       FloatRegister lhs) {
+  MacroAssemblerX86Shared::laneSelectSimd128(lhs, rhsDest, mask, rhsDest);
+}
+
 void MacroAssembler::interleaveHighInt16x8(FloatRegister rhs,
                                            FloatRegister lhsDest) {
   vpunpckhwd(rhs, lhsDest, lhsDest);
@@ -1389,6 +1419,30 @@ void MacroAssembler::rightShiftSimd128(Imm32 count, FloatRegister src,
                                        FloatRegister dest) {
   moveSimd128(src, dest);
   vpsrldq(count, dest, dest);
+}
+
+// Reverse bytes in lanes.
+
+void MacroAssembler::reverseInt16x8(FloatRegister src, FloatRegister dest) {
+  // Byteswap is MOV + PSLLW + PSRLW + POR, a small win over PSHUFB.
+  ScratchSimd128Scope scratch(*this);
+  moveSimd128(src, dest);
+  moveSimd128(src, scratch);
+  vpsllw(Imm32(8), dest, dest);
+  vpsrlw(Imm32(8), scratch, scratch);
+  vpor(scratch, dest, dest);
+}
+
+void MacroAssembler::reverseInt32x4(FloatRegister src, FloatRegister dest) {
+  moveSimd128Int(src, dest);
+  int8_t lanes[] = {3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12};
+  vpshufbSimd128(SimdConstant::CreateX16((const int8_t*)lanes), dest);
+}
+
+void MacroAssembler::reverseInt64x2(FloatRegister src, FloatRegister dest) {
+  moveSimd128Int(src, dest);
+  int8_t lanes[] = {7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12, 11, 10, 9, 8};
+  vpshufbSimd128(SimdConstant::CreateX16((const int8_t*)lanes), dest);
 }
 
 // All lanes true
@@ -2852,14 +2906,21 @@ void MacroAssembler::unsignedWidenLowInt32x4(FloatRegister src,
 }
 
 void MacroAssembler::widenHighInt32x4(FloatRegister src, FloatRegister dest) {
-  vpshufd(ComputeShuffleMask(2, 3, 2, 3), src, dest);
+  if (src == dest) {
+    vmovhlps(dest, dest, dest);
+  } else {
+    vpshufd(ComputeShuffleMask(2, 3, 2, 3), src, dest);
+  }
   vpmovsxdq(Operand(dest), dest);
 }
 
 void MacroAssembler::unsignedWidenHighInt32x4(FloatRegister src,
                                               FloatRegister dest) {
-  vpshufd(ComputeShuffleMask(2, 3, 2, 3), src, dest);
-  vpmovzxdq(Operand(dest), dest);
+  moveSimd128(src, dest);
+
+  ScratchSimd128Scope scratch(*this);
+  vpxor(scratch, scratch, scratch);
+  vpunpckhdq(scratch, dest, dest);
 }
 
 // Floating multiply-accumulate: srcDest [+-]= src1 * src2

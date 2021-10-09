@@ -1352,15 +1352,31 @@ class MacroAssembler : public MacroAssemblerSpecific {
   // ===============================================================
   // Condition functions
 
+  inline void cmp8Set(Condition cond, Address lhs, Imm32 rhs,
+                      Register dest) PER_SHARED_ARCH;
+
+  inline void cmp16Set(Condition cond, Address lhs, Imm32 rhs,
+                       Register dest) PER_SHARED_ARCH;
+
   template <typename T1, typename T2>
   inline void cmp32Set(Condition cond, T1 lhs, T2 rhs, Register dest)
       DEFINED_ON(x86_shared, arm, arm64, mips32, mips64);
+
+  // Only the NotEqual and Equal conditions are allowed.
+  inline void cmp64Set(Condition cond, Address lhs, Imm64 rhs,
+                       Register dest) PER_ARCH;
 
   template <typename T1, typename T2>
   inline void cmpPtrSet(Condition cond, T1 lhs, T2 rhs, Register dest) PER_ARCH;
 
   // ===============================================================
   // Branch functions
+
+  inline void branch8(Condition cond, const Address& lhs, Imm32 rhs,
+                      Label* label) PER_SHARED_ARCH;
+
+  inline void branch16(Condition cond, const Address& lhs, Imm32 rhs,
+                       Label* label) PER_SHARED_ARCH;
 
   template <class L>
   inline void branch32(Condition cond, Register lhs, Register rhs,
@@ -2229,6 +2245,16 @@ class MacroAssembler : public MacroAssemblerSpecific {
                            FloatRegister rhs, FloatRegister dest)
       DEFINED_ON(x86_shared, arm64);
 
+  // Mask lane values must be ~0 or 0. The former selects from lhs and the
+  // latter from rhs.
+  // The implementation works effectively for I8x16, I16x8, I32x4, and I64x2.
+  inline void laneSelectSimd128(FloatRegister mask, FloatRegister rhsDest,
+                                FloatRegister lhs) DEFINED_ON(x86_shared);
+
+  inline void laneSelectSimd128(FloatRegister mask, FloatRegister lhs,
+                                FloatRegister rhs, FloatRegister dest)
+      DEFINED_ON(arm64);
+
   inline void interleaveHighInt8x16(FloatRegister rhs, FloatRegister lhsDest)
       DEFINED_ON(x86_shared);
 
@@ -2324,6 +2350,17 @@ class MacroAssembler : public MacroAssemblerSpecific {
 
   inline void rightShiftSimd128(Imm32 count, FloatRegister src,
                                 FloatRegister dest)
+      DEFINED_ON(x86_shared, arm64);
+
+  // Reverse bytes in lanes.
+
+  inline void reverseInt16x8(FloatRegister src, FloatRegister dest)
+      DEFINED_ON(x86_shared, arm64);
+
+  inline void reverseInt32x4(FloatRegister src, FloatRegister dest)
+      DEFINED_ON(x86_shared, arm64);
+
+  inline void reverseInt64x2(FloatRegister src, FloatRegister dest)
       DEFINED_ON(x86_shared, arm64);
 
   // Swizzle - permute with variable indices.  `rhs` holds the lanes parameter.

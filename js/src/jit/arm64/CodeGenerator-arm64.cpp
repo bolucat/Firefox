@@ -2994,6 +2994,16 @@ void CodeGenerator::visitWasmTernarySimd128(LWasmTernarySimd128* ins) {
       masm.fmsFloat64x2(ToFloatRegister(ins->v1()), ToFloatRegister(ins->v2()),
                         ToFloatRegister(ins->v0()));
       break;
+    case wasm::SimdOp::I8x16LaneSelect:
+    case wasm::SimdOp::I16x8LaneSelect:
+    case wasm::SimdOp::I32x4LaneSelect:
+    case wasm::SimdOp::I64x2LaneSelect: {
+      FloatRegister lhs = ToFloatRegister(ins->v0());
+      FloatRegister rhs = ToFloatRegister(ins->v1());
+      FloatRegister maskDest = ToFloatRegister(ins->v2());
+      masm.laneSelectSimd128(maskDest, lhs, rhs, maskDest);
+      break;
+    }
     default:
       MOZ_CRASH("NYI");
   }
@@ -3659,6 +3669,15 @@ void CodeGenerator::visitWasmPermuteSimd128(LWasmPermuteSimd128* ins) {
       masm.rightShiftSimd128(Imm32(count), src, dest);
       break;
     }
+    case SimdPermuteOp::REVERSE_16x8:
+      masm.reverseInt16x8(src, dest);
+      break;
+    case SimdPermuteOp::REVERSE_32x4:
+      masm.reverseInt32x4(src, dest);
+      break;
+    case SimdPermuteOp::REVERSE_64x2:
+      masm.reverseInt64x2(src, dest);
+      break;
     default: {
       MOZ_CRASH("Unsupported SIMD permutation operation");
     }

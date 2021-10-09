@@ -1948,8 +1948,9 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page cycles**: 25
    * **page timeout**: 60000
    * **playback**: mitmproxy
-   * **playback pageset manifest**: mitm5-linux-firefox-cnn.manifest
-   * **playback version**: 5.1.1
+   * **playback pageset manifest**: mitm6-linux-firefox-cnn.manifest
+   * **playback version**: 6.0.2
+   * **secondary url**: `<https://www.cnn.com/weather>`__
    * **test url**: `<https://www.cnn.com/2021/03/22/weather/climate-change-warm-waters-lake-michigan/index.html>`__
    * **type**: pageload
    * **unit**: ms
@@ -2761,8 +2762,9 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page cycles**: 25
    * **page timeout**: 60000
    * **playback**: mitmproxy
-   * **playback pageset manifest**: mitm5-linux-firefox-imdb.manifest
-   * **playback version**: 5.1.1
+   * **playback pageset manifest**: mitm6-linux-firefox-imdb.manifest
+   * **playback version**: 6.0.2
+   * **secondary url**: `<https://www.imdb.com/title/tt0084967/episodes/?ref_=tt_ov_epl>`__
    * **test url**: `<https://www.imdb.com/title/tt0084967/?ref_=nv_sr_2>`__
    * **type**: pageload
    * **unit**: ms
@@ -3004,9 +3006,10 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page cycles**: 25
    * **page timeout**: 60000
    * **playback**: mitmproxy
-   * **playback pageset manifest**: mitm5-linux-firefox-linkedin.manifest
-   * **playback version**: 5.1.1
-   * **test url**: `<https://www.linkedin.com/in/thommy-harris-hk-385723106/>`__
+   * **playback pageset manifest**: mitm6-linux-firefox-linkedin.manifest
+   * **playback version**: 6.0.2
+   * **secondary url**: `<https://www.linkedin.com/in/thommy-harris-hk-385723106/>`__
+   * **test url**: `<https://www.linkedin.com/feed/>`__
    * **type**: pageload
    * **unit**: ms
    * **use live sites**: false
@@ -6862,13 +6865,13 @@ Tests that perform a specific action (a scenario), i.e. idle application, idle a
 
    * **alert threshold**: 2.0
    * **apps**: fenix, geckoview, refbrow
-   * **background app**: true
+   * **browsertime args**: --browsertime.scenario_time=60000 --browsertime.background_app=false
    * **expected**: pass
    * **lower is better**: true
    * **measure**: fakeMeasure
    * **page cycles**: 1
    * **page timeout**: 1320000
-   * **scenario time**: 600000
+   * **scenario time**: 1200000
    * **test url**: `<about:blank>`__
    * **type**: scenario
    * **unit**: scenarioComplete

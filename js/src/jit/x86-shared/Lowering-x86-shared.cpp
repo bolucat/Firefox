@@ -842,6 +842,16 @@ void LIRGenerator::visitWasmTernarySimd128(MWasmTernarySimd128* ins) {
       defineReuseInput(lir, ins, LWasmTernarySimd128::V0);
       break;
     }
+    case wasm::SimdOp::I8x16LaneSelect:
+    case wasm::SimdOp::I16x8LaneSelect:
+    case wasm::SimdOp::I32x4LaneSelect:
+    case wasm::SimdOp::I64x2LaneSelect: {
+      auto* lir = new (alloc()) LWasmTernarySimd128(
+          ins->simdOp(), useRegister(ins->v0()), useRegisterAtStart(ins->v1()),
+          useFixed(ins->v2(), vmm0));
+      defineReuseInput(lir, ins, LWasmTernarySimd128::V1);
+      break;
+    }
     default:
       MOZ_CRASH("NYI");
   }
@@ -1247,6 +1257,9 @@ void LIRGenerator::visitWasmShuffleSimd128(MWasmShuffleSimd128* ins) {
         case SimdPermuteOp::ROTATE_RIGHT_8x16:
         case SimdPermuteOp::SHIFT_LEFT_8x16:
         case SimdPermuteOp::SHIFT_RIGHT_8x16:
+        case SimdPermuteOp::REVERSE_16x8:
+        case SimdPermuteOp::REVERSE_32x4:
+        case SimdPermuteOp::REVERSE_64x2:
           useAtStartAndReuse = true;
           break;
         default:
@@ -1400,7 +1413,10 @@ void LIRGenerator::visitWasmUnarySimd128(MWasmUnarySimd128* ins) {
     case wasm::SimdOp::I32x4RelaxedTruncUSatF32x4:
     case wasm::SimdOp::I32x4RelaxedTruncSatF64x2SZero:
     case wasm::SimdOp::I32x4RelaxedTruncSatF64x2UZero:
-      // Prefer src == dest to avoid an unconditional src->dest move.
+    case wasm::SimdOp::I64x2WidenHighSI32x4:
+    case wasm::SimdOp::I64x2WidenHighUI32x4:
+      // Prefer src == dest to avoid an unconditional src->dest move
+      // for better performance (e.g. non-PSHUFD use).
       useAtStart = true;
       reuseInput = true;
       break;
@@ -1422,9 +1438,7 @@ void LIRGenerator::visitWasmUnarySimd128(MWasmUnarySimd128* ins) {
     case wasm::SimdOp::I32x4WidenLowUI16x8:
     case wasm::SimdOp::I32x4WidenHighUI16x8:
     case wasm::SimdOp::I64x2WidenLowSI32x4:
-    case wasm::SimdOp::I64x2WidenHighSI32x4:
     case wasm::SimdOp::I64x2WidenLowUI32x4:
-    case wasm::SimdOp::I64x2WidenHighUI32x4:
     case wasm::SimdOp::F32x4ConvertSI32x4:
     case wasm::SimdOp::F32x4Ceil:
     case wasm::SimdOp::F32x4Floor:
