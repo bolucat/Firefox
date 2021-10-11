@@ -396,13 +396,21 @@ void GCRuntime::traceEmbeddingBlackRoots(JSTracer* trc) {
 }
 
 void GCRuntime::traceEmbeddingGrayRoots(JSTracer* trc) {
+  SliceBudget budget = SliceBudget::unlimited();
+  MOZ_ALWAYS_TRUE(traceEmbeddingGrayRoots(trc, budget) == Finished);
+}
+
+IncrementalProgress GCRuntime::traceEmbeddingGrayRoots(JSTracer* trc,
+                                                       SliceBudget& budget) {
   // The analysis doesn't like the function pointer below.
   JS::AutoSuppressGCAnalysis nogc;
 
   const auto& callback = grayRootTracer.ref();
-  if (JSTraceDataOp op = callback.op) {
-    (*op)(trc, callback.data);
+  if (!callback.op) {
+    return Finished;
   }
+
+  return callback.op(trc, budget, callback.data) ? Finished : NotFinished;
 }
 
 #ifdef DEBUG

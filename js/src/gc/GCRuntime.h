@@ -439,7 +439,7 @@ class GCRuntime {
 
   bool initSweepActions();
 
-  void setGrayRootsTracer(JSTraceDataOp traceOp, void* data);
+  void setGrayRootsTracer(JSGrayRootsTracer traceOp, void* data);
   [[nodiscard]] bool addBlackRootsTracer(JSTraceDataOp traceOp, void* data);
   void removeBlackRootsTracer(JSTraceDataOp traceOp, void* data);
   void clearBlackAndGrayRootTracers();
@@ -737,6 +737,8 @@ class GCRuntime {
   void traceRuntimeCommon(JSTracer* trc, TraceOrMarkRuntime traceOrMark);
   void traceEmbeddingBlackRoots(JSTracer* trc);
   void traceEmbeddingGrayRoots(JSTracer* trc);
+  IncrementalProgress traceEmbeddingGrayRoots(JSTracer* trc,
+                                              SliceBudget& budget);
   void markFinalizationRegistryRoots(JSTracer* trc);
   void checkNoRuntimeRoots(AutoGCSession& session);
   void maybeDoCycleCollection();
@@ -751,7 +753,8 @@ class GCRuntime {
   IncrementalProgress markWeakReferences(SliceBudget& budget);
   IncrementalProgress markWeakReferencesInCurrentGroup(SliceBudget& budget);
   template <class ZoneIterT>
-  void markGrayRoots(gcstats::PhaseKind phase);
+  IncrementalProgress markGrayRoots(SliceBudget& budget,
+                                    gcstats::PhaseKind phase);
   void markBufferedGrayRoots(JS::Zone* zone);
   IncrementalProgress markAllWeakReferences();
   void markAllGrayReferences(gcstats::PhaseKind phase);
@@ -763,6 +766,8 @@ class GCRuntime {
   [[nodiscard]] bool findSweepGroupEdges();
   void getNextSweepGroup();
   void resetGrayList(Compartment* comp);
+  IncrementalProgress beginMarkingSweepGroup(JSFreeOp* fop,
+                                             SliceBudget& budget);
   IncrementalProgress markGrayRootsInCurrentGroup(JSFreeOp* fop,
                                                   SliceBudget& budget);
   IncrementalProgress markGray(JSFreeOp* fop, SliceBudget& budget);
@@ -1185,7 +1190,7 @@ class GCRuntime {
    * collector.
    */
   MainThreadData<CallbackVector<JSTraceDataOp>> blackRootTracers;
-  MainThreadOrGCTaskData<Callback<JSTraceDataOp>> grayRootTracer;
+  MainThreadOrGCTaskData<Callback<JSGrayRootsTracer>> grayRootTracer;
 
   /* Always preserve JIT code during GCs, for testing. */
   MainThreadData<bool> alwaysPreserveCode;
