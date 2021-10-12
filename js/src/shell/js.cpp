@@ -14,6 +14,7 @@
 #include "mozilla/IntegerPrintfMacros.h"
 #include "mozilla/mozalloc.h"
 #include "mozilla/PodOperations.h"
+#include "mozilla/RefPtr.h"
 #include "mozilla/ScopeExit.h"
 #include "mozilla/Sprintf.h"
 #include "mozilla/TimeStamp.h"
@@ -2239,6 +2240,32 @@ static bool ConvertTranscodeResultToJSException(JSContext* cx,
   }
 }
 
+static bool StartIncrementalEncoding(JSContext* cx,
+                                     const JS::ReadOnlyCompileOptions& options,
+                                     JS::Stencil* stencil) {
+  Rooted<frontend::CompilationInput> input(cx,
+                                           frontend::CompilationInput(options));
+
+  auto initial =
+      js::MakeUnique<frontend::ExtensibleCompilationStencil>(cx, input.get());
+  if (!initial) {
+    ReportOutOfMemory(cx);
+    return false;
+  }
+
+  auto* source = stencil->source.get();
+
+  if (!initial->steal(cx, std::move(*stencil))) {
+    return false;
+  }
+
+  if (!source->startIncrementalEncoding(cx, options, std::move(initial))) {
+    return false;
+  }
+
+  return true;
+}
+
 static bool Evaluate(JSContext* cx, unsigned argc, Value* vp) {
   CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -2474,16 +2501,23 @@ static bool Evaluate(JSContext* cx, unsigned argc, Value* vp) {
 
     {
       if (loadBytecode) {
-        JS::TranscodeResult rv;
+        JS::TranscodeRange range(loadBuffer.begin(), loadBuffer.length());
+
+        RefPtr<JS::Stencil> stencil;
+
+        JS::TranscodeResult rv =
+            JS::DecodeStencil(cx, options, range, getter_AddRefs(stencil));
+        if (!ConvertTranscodeResultToJSException(cx, rv)) {
+          return false;
+        }
+
+        script = JS::InstantiateGlobalStencil(cx, options, stencil);
+        if (!script) {
+          return false;
+        }
+
         if (saveIncrementalBytecode) {
-          rv = JS::DecodeScriptAndStartIncrementalEncoding(cx, options,
-                                                           loadBuffer, &script);
-          if (!ConvertTranscodeResultToJSException(cx, rv)) {
-            return false;
-          }
-        } else {
-          rv = JS::DecodeScriptMaybeStencil(cx, options, loadBuffer, &script);
-          if (!ConvertTranscodeResultToJSException(cx, rv)) {
+          if (!StartIncrementalEncoding(cx, options, stencil)) {
             return false;
           }
         }

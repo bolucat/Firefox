@@ -40,14 +40,7 @@ assert(text.pop().length == 0);
 for (const line of text)
     gcFunctions[mangled(line)] = readable(line);
 
-var limitedFunctions = {};
-var text = snarf(limitedFunctionsFile).split("\n");
-assert(text.pop().length == 0);
-for (var line of text) {
-    const [_, limits, func] = line.match(/(.*?) (.*)/);
-    assert(limits !== undefined);
-    limitedFunctions[func] = limits | 0;
-}
+var limitedFunctions = JSON.parse(snarf(limitedFunctionsFile));
 text = null;
 
 var typeInfo = loadTypeInfo(typeInfoFile);
@@ -538,25 +531,23 @@ function edgeCanGC(edge)
             var func = mangled(variable.Name[0]);
             if ((func in gcFunctions) || ((func + internalMarker) in gcFunctions))
                 return `'${func}$${gcFunctions[func]}'`;
-            return null;
+            return false;
         }
 
         var varName = variable.Name[0];
-        return indirectCallCannotGC(functionName, varName) ? null : "'*" + varName + "'";
+        return indirectCallCannotGC(functionName, varName) ? false : "'*" + varName + "'";
     }
 
-    if (callee.Kind == "Fld") {
-        var field = callee.Field;
-        var csuName = field.FieldCSU.Type.Name;
-        var fullFieldName = csuName + "." + field.Name[0];
-        if (fieldCallCannotGC(csuName, fullFieldName))
-            return null;
+    assert(callee.Kind == "Fld");
+    const staticCSU = getFieldCallInstanceCSU(edge, callee.Field);
 
-        if (fullFieldName in gcFunctions)
-            return "'" + fullFieldName + "'";
+    if (fieldCallCannotGC(staticCSU, callee.Field.Name[0]))
+        return false;
 
-        return null;
-    }
+    const fieldkey = fieldKey(staticCSU, callee.Field);
+    if (fieldkey in gcFunctions)
+        return `'${fieldkey}'`;
+    return false;
 }
 
 // Search recursively through predecessors from the use of a variable's value,
@@ -701,7 +692,7 @@ function findGCBeforeValueUse(start_body, start_point, suppressed, variable)
 
             var src_gcInfo = gcInfo;
             var src_preGCLive = preGCLive;
-            if (!gcInfo && !(body.limits[source] & LIMIT_CANNOT_GC) && !suppressed) {
+            if (!gcInfo && !(body.limits[source] & LIMIT_CANNOT_GC) && !(suppressed & LIMIT_CANNOT_GC)) {
                 var gcName = edgeCanGC(edge, body);
                 if (gcName)
                     src_gcInfo = {name:gcName, body:body, ppoint:source};
@@ -839,7 +830,7 @@ function unsafeVariableAddressTaken(suppressed, variable)
             continue;
         for (var edge of body.PEdge) {
             if (edgeTakesVariableAddress(edge, variable, body)) {
-                if (edge.Kind == "Assign" || (!suppressed && edgeCanGC(edge)))
+                if (edge.Kind == "Assign" || (!(suppressed & LIMIT_CANNOT_GC) && edgeCanGC(edge)))
                     return {body:body, ppoint:edge.Index[0]};
             }
         }
@@ -983,11 +974,12 @@ function typeDesc(type)
     }
 }
 
-function processBodies(functionName)
+function processBodies(functionName, wholeBodyLimits)
 {
     if (!("DefineVariable" in functionBodies[0]))
-        return;
-    var suppressed = Boolean(limitedFunctions[mangled(functionName)] & LIMIT_CANNOT_GC);
+      return;
+    const funcInfo = limitedFunctions[mangled(functionName)] || {};
+    const suppressed = funcInfo.limits | wholeBodyLimits;
 
     // Look for the JS_EXPECT_HAZARDS annotation, and output a different
     // message in that case that won't be counted as a hazard.
@@ -1145,12 +1137,23 @@ function process(name, json) {
                 pbody.limits[id] = limits;
         }
     }
-    processBodies(functionName);
+
+    // Special case: std::swap of two refcounted values thinks it can drop the
+    // ref count to zero. Or rather, it just calls operator=() in a context
+    // where the refcount will never drop to zero. Limit all calls within the
+    // body with LIMIT_CANNOT_GC.
+    let wholeBodyLimits = 0;
+    if (functionName.includes("std::swap") || functionName.includes("mozilla::Swap")) {
+        wholeBodyLimits = LIMIT_CANNOT_GC;
+    }
+
+    processBodies(functionName, wholeBodyLimits);
 }
 
 if (theFunctionNameToFind) {
     var data = xdb.read_entry(theFunctionNameToFind);
     var json = data.readString();
+    debugger;
     process(theFunctionNameToFind, json);
     xdb.free_string(data);
     quit(0);

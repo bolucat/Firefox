@@ -399,7 +399,12 @@ def analyze(command_context, application, shell_objdir, work_dir, extra):
     default=None,
     help="objdir containing the optimized JS shell for running the analysis.",
 )
-def self_test(command_context, shell_objdir):
+@CommandArgument(
+    "extra",
+    nargs=argparse.REMAINDER,
+    help="Remaining non-optional arguments to pass to run-test.py",
+)
+def self_test(command_context, shell_objdir, extra):
     """Analyzed gathered data for rooting hazards"""
     shell = ensure_shell(command_context, shell_objdir)
     args = [
@@ -412,6 +417,7 @@ def self_test(command_context, shell_objdir):
         "--gccdir",
         gcc_dir(),
     ]
+    args.extend(extra)
 
     setup_env_for_tools(os.environ)
     setup_env_for_shell(os.environ, shell)

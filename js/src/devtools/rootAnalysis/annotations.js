@@ -111,6 +111,7 @@ var ignoreCallees = {
     "struct js::gc::Callback<void (*)(JSContext*, void*)>.op" : true,
     "mozilla::ThreadSharedFloatArrayBufferList::Storage.mFree" : true,
     "mozilla::SizeOfState.mMallocSizeOf": true,
+    "mozilla::gfx::SourceSurfaceRawData.mDeallocator": true,
 };
 
 function fieldCallCannotGC(csu, fullfield)
@@ -174,12 +175,6 @@ function ignoreEdgeAddressTaken(edge)
     }
 
     return false;
-}
-
-// Return whether csu.method is one that we claim can never GC.
-function isSuppressedVirtualMethod(csu, method)
-{
-    return csu == "nsISupports" && (method == "AddRef" || method == "Release");
 }
 
 // Ignore calls of these functions (so ignore any stack containing these)
@@ -446,8 +441,15 @@ function isLimitConstructor(typeInfo, edgeType, varName)
 // to get overridden with something that can GC.
 function isOverridableField(staticCSU, csu, field)
 {
+    // Special-case AddRef/Release for now. This isn't really true.
+    if (field == "AddRef" || field == "Release")
+        return false;
+
     if (csu != 'nsISupports')
         return false;
+
+    if (field.endsWith(" "))
+        return false; // gcc-synthesized virtual dtor
 
     // Now that binary XPCOM is dead, all these annotations should be replaced
     // with something based on bug 1347999.
@@ -468,6 +470,10 @@ function isOverridableField(staticCSU, csu, field)
     if (field == "DocAddSizeOfIncludingThis")
         return false;
     if (field == "ConstructUbiNode")
+        return false;
+    if (field == "isSystemOrAddonPrincipal")
+        return false;
+    if (field == "GetIsAddonOrExpandedAddonPrincipal")
         return false;
 
     // Fields on the [builtinclass] nsIPrincipal

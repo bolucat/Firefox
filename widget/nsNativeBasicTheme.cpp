@@ -398,12 +398,18 @@ std::pair<sRGBColor, sRGBColor> nsNativeBasicTheme::ComputeCheckboxColors(
     const Colors& aColors) {
   MOZ_ASSERT(aAppearance == StyleAppearance::Checkbox ||
              aAppearance == StyleAppearance::Radio);
+
   bool isDisabled = aState.HasState(NS_EVENT_STATE_DISABLED);
   bool isChecked = aState.HasState(NS_EVENT_STATE_CHECKED);
   bool isIndeterminate = aAppearance == StyleAppearance::Checkbox &&
                          aState.HasState(NS_EVENT_STATE_INDETERMINATE);
 
-  if (!isDisabled && (isChecked || isIndeterminate)) {
+  if (isChecked || isIndeterminate) {
+    if (isDisabled) {
+      auto color = ComputeBorderColor(aState, aColors, OutlineCoversBorder::No);
+      return std::make_pair(color, color);
+    }
+
     bool isActive =
         aState.HasAllStates(NS_EVENT_STATE_HOVER | NS_EVENT_STATE_ACTIVE);
     bool isHovered = aState.HasState(NS_EVENT_STATE_HOVER);

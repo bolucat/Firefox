@@ -96,6 +96,7 @@
 #include "nsGkAtoms.h"                 // for nsGkAtoms, nsGkAtoms::dir
 #include "nsIClipboard.h"              // for nsIClipboard
 #include "nsIContent.h"                // for nsIContent
+#include "nsIContentInlines.h"         // for nsINode::IsInDesignMode()
 #include "nsIDocumentEncoder.h"        // for nsIDocumentEncoder
 #include "nsIDocumentStateListener.h"  // for nsIDocumentStateListener
 #include "nsIDocShell.h"               // for nsIDocShell
@@ -458,9 +459,7 @@ nsresult EditorBase::PostCreateInternal() {
       NS_WARNING("EditorBase::GetPreferredIMEState() failed");
       return NS_OK;
     }
-    // May be null in design mode
-    nsCOMPtr<nsIContent> content = GetFocusedContentForIME();
-    IMEStateManager::UpdateIMEState(newState, content, *this);
+    IMEStateManager::UpdateIMEState(newState, focusedContent, *this);
   }
 
   // FYI: This call might cause destroying this editor.
@@ -706,7 +705,7 @@ NS_IMETHODIMP EditorBase::SetFlags(uint32_t aFlags) {
     if (NS_SUCCEEDED(rv)) {
       // NOTE: When the enabled state isn't going to be modified, this method
       // is going to do nothing.
-      nsCOMPtr<nsIContent> content = GetFocusedContentForIME();
+      nsCOMPtr<nsIContent> content = GetFocusedContent();
       IMEStateManager::UpdateIMEState(newState, content, *this);
     }
   }
@@ -4531,7 +4530,11 @@ nsresult EditorBase::HandleDropEvent(DragEvent* aDropEvent) {
   if (IsTextEditor()) {
     newFocusedElement = GetExposedRoot();
     focusedElement = IsActiveInDOMWindow() ? newFocusedElement : nullptr;
-  } else if (!AsHTMLEditor()->IsInDesignMode()) {
+  }
+  // TODO: We need to add automated tests when dropping something into an
+  //       editing host for contenteditable which is in a shadow DOM tree
+  //       and its host which is in design mode.
+  else if (!AsHTMLEditor()->IsInDesignMode()) {
     focusedElement = AsHTMLEditor()->GetActiveEditingHost();
     if (focusedElement &&
         droppedAt.GetContainerAsContent()->IsInclusiveDescendantOf(
@@ -5229,8 +5232,7 @@ nsresult EditorBase::InitializeSelection(nsINode& aFocusEventTargetNode) {
   // Also, make sure to always ignore it for designMode, since that effectively
   // overrides everything and we allow to edit stuff with
   // contenteditable="false" subtrees in such a document.
-  caret->SetIgnoreUserModify(
-      aFocusEventTargetNode.OwnerDoc()->HasFlag(NODE_IS_EDITABLE));
+  caret->SetIgnoreUserModify(aFocusEventTargetNode.IsInDesignMode());
 
   // Init selection
   rvIgnored =
@@ -5343,7 +5345,7 @@ void EditorBase::ReinitializeSelection(Element& aElement) {
   if (NS_WARN_IF(!presContext)) {
     return;
   }
-  nsCOMPtr<nsIContent> focusedContent = GetFocusedContentForIME();
+  nsCOMPtr<nsIContent> focusedContent = GetFocusedContent();
   IMEStateManager::OnFocusInEditor(presContext, focusedContent, *this);
 }
 
@@ -5519,10 +5521,6 @@ nsIContent* EditorBase::GetFocusedContent() const {
   MOZ_ASSERT((content == piTarget) == SameCOMIdentity(content, piTarget));
 
   return (content == piTarget) ? content : nullptr;
-}
-
-nsIContent* EditorBase::GetFocusedContentForIME() const {
-  return GetFocusedContent();
 }
 
 bool EditorBase::IsActiveInDOMWindow() const {
