@@ -75,7 +75,6 @@ int32_t CaretLineNumber();
 virtual int32_t CaretOffset() const override;
 void SetCaretOffset(int32_t aOffset);
 
-int32_t CharacterCount();
 int32_t SelectionCount();
 
 virtual void TextSubstring(int32_t aStartOffset, int32_t aEndOfset,
@@ -85,9 +84,9 @@ void GetTextAfterOffset(int32_t aOffset, AccessibleTextBoundary aBoundaryType,
                         nsString& aText, int32_t* aStartOffset,
                         int32_t* aEndOffset);
 
-void GetTextAtOffset(int32_t aOffset, AccessibleTextBoundary aBoundaryType,
-                     nsString& aText, int32_t* aStartOffset,
-                     int32_t* aEndOffset);
+virtual void TextAtOffset(int32_t aOffset, AccessibleTextBoundary aBoundaryType,
+                          int32_t* aStartOffset, int32_t* aEndOffset,
+                          nsAString& aText) override;
 
 void GetTextBeforeOffset(int32_t aOffset, AccessibleTextBoundary aBoundaryType,
                          nsString& aText, int32_t* aStartOffset,

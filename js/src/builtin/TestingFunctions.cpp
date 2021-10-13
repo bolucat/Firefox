@@ -10,7 +10,9 @@
 #include "mozilla/Casting.h"
 #include "mozilla/FloatingPoint.h"
 #ifdef JS_HAS_INTL_API
+#  include "mozilla/intl/ICU4CLibrary.h"
 #  include "mozilla/intl/Locale.h"
+#  include "mozilla/intl/String.h"
 #  include "mozilla/intl/TimeZone.h"
 #endif
 #include "mozilla/Maybe.h"
@@ -102,12 +104,6 @@
 #include "js/Vector.h"
 #include "js/Wrapper.h"
 #include "threading/CpuCount.h"
-#ifdef JS_HAS_INTL_API
-#  include "unicode/ucal.h"
-#  include "unicode/uchar.h"
-#  include "unicode/utypes.h"
-#  include "unicode/uversion.h"
-#endif
 #include "util/DifferentialTesting.h"
 #include "util/StringBuffer.h"
 #include "util/Text.h"
@@ -7323,12 +7319,12 @@ static bool GetICUOptions(JSContext* cx, unsigned argc, Value* vp) {
 #ifdef JS_HAS_INTL_API
   RootedString str(cx);
 
-  str = NewStringCopyZ<CanGC>(cx, U_ICU_VERSION);
+  str = NewStringCopy<CanGC>(cx, mozilla::intl::ICU4CLibrary::GetVersion());
   if (!str || !JS_DefineProperty(cx, info, "version", str, JSPROP_ENUMERATE)) {
     return false;
   }
 
-  str = NewStringCopyZ<CanGC>(cx, U_UNICODE_VERSION);
+  str = NewStringCopy<CanGC>(cx, mozilla::intl::String::GetUnicodeVersion());
   if (!str || !JS_DefineProperty(cx, info, "unicode", str, JSPROP_ENUMERATE)) {
     return false;
   }
@@ -7338,14 +7334,13 @@ static bool GetICUOptions(JSContext* cx, unsigned argc, Value* vp) {
     return false;
   }
 
-  UErrorCode status = U_ZERO_ERROR;
-  const char* tzdataVersion = ucal_getTZDataVersion(&status);
-  if (U_FAILURE(status)) {
-    intl::ReportInternalError(cx);
+  auto tzdataVersion = mozilla::intl::TimeZone::GetTZDataVersion();
+  if (tzdataVersion.isErr()) {
+    intl::ReportInternalError(cx, tzdataVersion.unwrapErr());
     return false;
   }
 
-  str = NewStringCopyZ<CanGC>(cx, tzdataVersion);
+  str = NewStringCopy<CanGC>(cx, tzdataVersion.unwrap());
   if (!str || !JS_DefineProperty(cx, info, "tzdata", str, JSPROP_ENUMERATE)) {
     return false;
   }

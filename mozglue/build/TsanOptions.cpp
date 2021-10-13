@@ -296,6 +296,11 @@ extern "C" const char* __tsan_default_suppressions() {
 
          "race:mozilla::gl::MesaMemoryLeakWorkaround\n"
 
+         // Bug 1733908
+         "race:js::wasm::Code::bestTier\n"
+         "race:js::wasm::Code::commitTier2\n"
+         "race:js::wasm::Code::setTier2\n"
+
       // End of suppressions.
       ;  // Please keep this semicolon.
 }

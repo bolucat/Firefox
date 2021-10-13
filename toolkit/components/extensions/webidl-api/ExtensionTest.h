@@ -10,6 +10,7 @@
 #include "js/TypeDecls.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/BindingDeclarations.h"
+#include "mozilla/dom/SerializedStackHolder.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsCOMPtr.h"
 #include "nsISupports.h"
@@ -57,6 +58,29 @@ class ExtensionTest final : public nsISupports,
   static bool IsAllowed(JSContext* aCx, JSObject* aGlobal);
 
   nsIGlobalObject* GetParentObject() const;
+
+  void CallWebExtMethodAssertEq(JSContext* aCx, const nsAString& aApiMethod,
+                                const dom::Sequence<JS::Value>& aArgs,
+                                ErrorResult& aRv);
+
+  MOZ_CAN_RUN_SCRIPT bool AssertMatchInternal(
+      JSContext* aCx, const JS::HandleValue aActualValue,
+      const JS::HandleValue aExpectedMatchValue, const nsAString& aMessagePre,
+      const dom::Optional<nsAString>& aMessage,
+      UniquePtr<dom::SerializedStackHolder> aSerializedCallerStack,
+      ErrorResult& aRv);
+
+  MOZ_CAN_RUN_SCRIPT void AssertThrows(JSContext* aCx, dom::Function& aFunction,
+                                       const JS::HandleValue aExpectedError,
+                                       const dom::Optional<nsAString>& aMessage,
+                                       ErrorResult& aRv);
+
+  void AssertRejects(
+      JSContext* aCx, dom::Promise& aPromise,
+      const JS::HandleValue aExpectedError,
+      const dom::Optional<nsAString>& aMessage,
+      const dom::Optional<OwningNonNull<dom::Function>>& aCallback,
+      JS::MutableHandle<JS::Value> aRetval, ErrorResult& aRv);
 
   ExtensionEventManager* OnMessage();
 

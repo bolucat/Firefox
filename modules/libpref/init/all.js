@@ -1448,7 +1448,7 @@ pref("network.http.http3.alt-svc-mapping-for-testing", "");
 // alt-svc allows separation of transport routing from
 // the origin host without using a proxy.
 pref("network.http.altsvc.enabled", true);
-pref("network.http.altsvc.oe", true);
+pref("network.http.altsvc.oe", false);
 
 // Turn on 0RTT data for TLS 1.3
 pref("security.tls.enable_0rtt_data", true);
@@ -4490,12 +4490,8 @@ pref("services.common.log.logger.tokenserverclient", "Debug");
 // Enable the JSON View tool (an inspector for application/json documents).
 pref("devtools.jsonview.enabled", true);
 
-// Default theme ("dark" or "light").
-#ifdef MOZ_DEV_EDITION
-  pref("devtools.theme", "dark", sticky);
-#else
-  pref("devtools.theme", "light", sticky);
-#endif
+// Default theme ("auto", "dark" or "light").
+pref("devtools.theme", "auto", sticky);
 
 // Completely disable DevTools entry points, as well as all DevTools command
 // line arguments This should be merged with devtools.enabled, see Bug 1440675.

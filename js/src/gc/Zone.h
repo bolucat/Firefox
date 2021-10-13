@@ -67,8 +67,8 @@ using FinalizationRecordVector = GCVector<HeapPtrObject, 1, ZoneAllocPolicy>;
 // `DuplicatesPossible` will allow this and map both wrappers to the same (now
 // tenured) source string.
 using StringWrapperMap =
-    NurseryAwareHashMap<JSString*, JSString*, DefaultHasher<JSString*>,
-                        ZoneAllocPolicy, DuplicatesPossible>;
+    NurseryAwareHashMap<JSString*, JSString*, ZoneAllocPolicy,
+                        DuplicatesPossible>;
 
 class MOZ_NON_TEMPORARY_CLASS ExternalStringCache {
   static const size_t NumEntries = 4;
@@ -271,11 +271,11 @@ class Zone : public js::ZoneAllocator, public js::gc::GraphNodeBase<JS::Zone> {
   // This is used by the GC to trace them all first when compacting, since the
   // TypedObject trace hook may access these objects.
   //
-  // There are no barriers here - the set contains only tenured objects so no
+  // (Although this uses HeapPtrObject, the set contains only tenured objects so no
   // post-barrier is required, and these are weak references so no pre-barrier
-  // is required.
+  // is required.)
   using RttValueObjectSet =
-      js::GCHashSet<JSObject*, js::MovableCellHasher<JSObject*>,
+      js::GCHashSet<js::HeapPtrObject, js::MovableCellHasher<js::HeapPtrObject>,
                     js::SystemAllocPolicy>;
 
   js::ZoneData<JS::WeakCache<RttValueObjectSet>> rttValueObjects_;

@@ -352,9 +352,6 @@ ExtensionPageChild = {
   // Map<innerWindowId, ExtensionPageContextChild>
   extensionContexts: new Map(),
 
-  // Map<workerClientInfoId, ExtensionWorkerContextChild>
-  extensionWorkerContexts: new Map(),
-
   apiManager,
 
   _init() {
@@ -427,7 +424,11 @@ ExtensionPageChild = {
 
     let mm = contentWindow.docShell.messageManager;
     let data = mm.sendSyncMessage("Extension:GetFrameData")[0];
-    let { viewType, tabId, devtoolsToolboxInfo } = data;
+    if (!data) {
+      let policy = WebExtensionPolicy.getByHostname(uri.host);
+      Cu.reportError(`FrameData missing for ${policy?.id} page ${uri.spec}`);
+    }
+    let { viewType, tabId, devtoolsToolboxInfo } = data ?? {};
 
     if (viewType) {
       ExtensionPageChild.expectViewLoad(mm, viewType);

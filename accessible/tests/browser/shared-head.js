@@ -14,7 +14,7 @@
             Cc, Cu, arrayFromChildren, forceGC, contentSpawnMutation,
             DEFAULT_IFRAME_ID, DEFAULT_IFRAME_DOC_BODY_ID, invokeContentTask,
             matchContentDoc, currentContentDoc, getContentDPR,
-            waitForImageMap, getContentBoundsForDOMElm */
+            waitForImageMap, getContentBoundsForDOMElm, untilCacheIs, untilCacheOk */
 
 const CURRENT_FILE_DIR = "/browser/accessible/tests/browser/";
 
@@ -413,23 +413,16 @@ function snippetToURL(doc, options = {}) {
     doc = wrapWithIFrame(doc, options);
   }
 
-  const fullDoc = `<html>
-    <head>
-      <meta charset="utf-8"/>
-      <title>Accessibility Test</title>
-    </head>
-    <body ${attrsToString(attrs)}>${doc}</body>
-  </html>`;
+  const encodedDoc = encodeURIComponent(
+    `<html>
+      <head>
+        <meta charset="utf-8"/>
+        <title>Accessibility Test</title>
+      </head>
+      <body ${attrsToString(attrs)}>${doc}</body>
+    </html>`
+  );
 
-  if (options.chrome) {
-    // Load with a chrome:// URL so this loads as a chrome document in the
-    // parent process.
-    const url = new URL(`${CURRENT_DIR}chrome-document-builder.html`);
-    url.searchParams.append("html", fullDoc);
-    return url.href;
-  }
-
-  const encodedDoc = encodeURIComponent(fullDoc);
   return `data:text/html;charset=utf-8,${encodedDoc}`;
 }
 
@@ -438,11 +431,17 @@ function accessibleTask(doc, task, options = {}) {
     gIsRemoteIframe = options.remoteIframe;
     gIsIframe = options.iframe || gIsRemoteIframe;
     let url;
-    if (options.chrome && doc.endsWith("html")) {
+    if (options.chrome) {
       // Load with a chrome:// URL so this loads as a chrome document in the
       // parent process.
-      url = `${CURRENT_DIR}${doc}`;
-    } else if (!options.chrome && doc.endsWith("html") && !gIsIframe) {
+      if (doc.endsWith("html")) {
+        url = `${CURRENT_DIR}${doc}`;
+      } else {
+        const urlObj = new URL(`${CURRENT_DIR}chrome-document-builder.html`);
+        urlObj.searchParams.append("html", doc);
+        url = urlObj.href;
+      }
+    } else if (doc.endsWith("html") && !gIsIframe) {
       url = `${CURRENT_CONTENT_DIR}${doc}`;
     } else {
       url = snippetToURL(doc, options);
@@ -784,4 +783,61 @@ async function getContentBoundsForDOMElm(browser, id) {
 
     return LayoutUtils.getBoundsForDOMElm(contentId, content.document);
   });
+}
+
+const CACHE_WAIT_TIMEOUT_MS = 5000;
+
+/**
+ * Wait for a predicate to be true after cache ticks.
+ * This function takes two callbacks, the condition is evaluated
+ * by calling the first callback with the arguments returned by the second.
+ * This allows us to asynchronously return the arguments as a result if the condition
+ * of the first callback is met, or if it times out. The returned arguments can then
+ * be used to record a pass or fail in the test.
+ */
+function untilCacheCondition(conditionFunc, argsFunc) {
+  return new Promise((resolve, reject) => {
+    let args = argsFunc();
+    if (conditionFunc(...args)) {
+      resolve(args);
+      return;
+    }
+
+    let cacheObserver = {
+      observe(subject) {
+        args = argsFunc();
+        if (conditionFunc(...args)) {
+          clearTimeout(this.timer);
+          Services.obs.removeObserver(this, "accessible-cache");
+          resolve(args);
+        }
+      },
+
+      timeout() {
+        Services.obs.removeObserver(this, "accessible-cache");
+        args = argsFunc();
+        resolve(args);
+      },
+    };
+
+    cacheObserver.timer = setTimeout(
+      cacheObserver.timeout.bind(cacheObserver),
+      CACHE_WAIT_TIMEOUT_MS
+    );
+    Services.obs.addObserver(cacheObserver, "accessible-cache");
+  });
+}
+
+function untilCacheOk(conditionFunc, message) {
+  return untilCacheCondition(
+    (v, _unusedMessage) => v,
+    () => [conditionFunc(), message]
+  ).then(([v, msg]) => ok(v, msg));
+}
+
+function untilCacheIs(retrievalFunc, expected, message) {
+  return untilCacheCondition(
+    (a, b, _unusedMessage) => Object.is(a, b),
+    () => [retrievalFunc(), expected, message]
+  ).then(([got, exp, msg]) => is(got, exp, msg));
 }

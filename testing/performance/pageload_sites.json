@@ -289,7 +289,8 @@
     {
       "login": true,
       "name": "tumblr",
-      "test_url": "https://www.tumblr.com/dashboard"
+      "test_url": "https://www.tumblr.com/dashboard",
+      "secondary_url": "https://www.tumblr.com/tagged/funny+cats?sort=top"
     },
     {
       "login": false,
@@ -309,7 +310,8 @@
     {
       "login": false,
       "name": "wikipedia",
-      "test_url": "https://en.wikipedia.org/wiki/Barack_Obama"
+      "test_url": "https://en.wikipedia.org/wiki/Barack_Obama",
+      "secondary_url": "https://en.wikipedia.org/wiki/Joe_Biden"
     },
     {
       "login": true,
@@ -319,7 +321,8 @@
     {
       "login": false,
       "name": "youtube",
-      "test_url": "https://www.youtube.com"
+      "test_url": "https://www.youtube.com",
+      "secondary_url": "https://www.youtube.com/watch?v=JrdEMERq8MA"
     },
     {
       "login": false,

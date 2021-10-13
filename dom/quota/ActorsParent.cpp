@@ -88,6 +88,7 @@
 #include "mozilla/dom/quota/PQuotaRequestParent.h"
 #include "mozilla/dom/quota/PQuotaUsageRequest.h"
 #include "mozilla/dom/quota/PQuotaUsageRequestParent.h"
+#include "mozilla/dom/quota/QuotaManagerImpl.h"
 #include "mozilla/dom/quota/ScopedLogExtraInfo.h"
 #include "mozilla/dom/simpledb/ActorsParent.h"
 #include "mozilla/fallible.h"
@@ -1182,7 +1183,6 @@ class NormalOriginOperationBase
   Nullable<Client::Type> mClientType;
   mozilla::Atomic<bool> mCanceled;
   const bool mExclusive;
-  bool mNeedsDirectoryLocking;
 
  public:
   void RunImmediately() {
@@ -1196,12 +1196,13 @@ class NormalOriginOperationBase
                             const OriginScope& aOriginScope, bool aExclusive)
       : mPersistenceType(aPersistenceType),
         mOriginScope(aOriginScope),
-        mExclusive(aExclusive),
-        mNeedsDirectoryLocking(true) {
+        mExclusive(aExclusive) {
     AssertIsOnOwningThread();
   }
 
   ~NormalOriginOperationBase() = default;
+
+  virtual RefPtr<DirectoryLock> CreateDirectoryLock();
 
  private:
   // Need to declare refcounting unconditionally, because
@@ -1395,6 +1396,8 @@ class GetOriginUsageOp final : public QuotaUsageRequestBase {
  private:
   ~GetOriginUsageOp() = default;
 
+  RefPtr<DirectoryLock> CreateDirectoryLock() override;
+
   virtual nsresult DoDirectoryWork(QuotaManager& aQuotaManager) override;
 
   void GetResponse(UsageRequestResponse& aResponse) override;
@@ -1433,6 +1436,8 @@ class StorageNameOp final : public QuotaRequestBase {
  private:
   ~StorageNameOp() = default;
 
+  RefPtr<DirectoryLock> CreateDirectoryLock() override;
+
   nsresult DoDirectoryWork(QuotaManager& aQuotaManager) override;
 
   void GetResponse(RequestResponse& aResponse) override;
@@ -1447,6 +1452,9 @@ class InitializedRequestBase : public QuotaRequestBase {
 
  protected:
   InitializedRequestBase();
+
+ private:
+  RefPtr<DirectoryLock> CreateDirectoryLock() override;
 };
 
 class StorageInitializedOp final : public InitializedRequestBase {
@@ -1540,9 +1548,9 @@ class GetFullOriginMetadataOp : public QuotaRequestBase {
  public:
   explicit GetFullOriginMetadataOp(const GetFullOriginMetadataParams& aParams);
 
-  void Init(Quota& aQuota) override;
-
  private:
+  RefPtr<DirectoryLock> CreateDirectoryLock() override;
+
   nsresult DoDirectoryWork(QuotaManager& aQuotaManager) override;
 
   void GetResponse(RequestResponse& aResponse) override;
@@ -1673,6 +1681,8 @@ class EstimateOp final : public QuotaRequestBase {
 
  private:
   ~EstimateOp() = default;
+
+  RefPtr<DirectoryLock> CreateDirectoryLock() override;
 
   virtual nsresult DoDirectoryWork(QuotaManager& aQuotaManager) override;
 
@@ -3734,12 +3744,27 @@ nsresult QuotaManager::Init() {
 }
 
 // static
+void QuotaManager::MaybeRecordQuotaClientShutdownStep(
+    const Client::Type aClientType, const nsACString& aStepDescription) {
+  // Callable on any thread.
+
+  auto* const quotaManager = QuotaManager::Get();
+  MOZ_DIAGNOSTIC_ASSERT(quotaManager);
+
+  if (quotaManager->ShutdownStarted()) {
+    quotaManager->RecordShutdownStep(Some(aClientType), aStepDescription);
+  }
+}
+
+// static
 void QuotaManager::SafeMaybeRecordQuotaClientShutdownStep(
     const Client::Type aClientType, const nsACString& aStepDescription) {
   // Callable on any thread.
 
-  if (auto* const quotaManager = QuotaManager::Get()) {
-    quotaManager->MaybeRecordShutdownStep(Some(aClientType), aStepDescription);
+  auto* const quotaManager = QuotaManager::Get();
+
+  if (quotaManager && quotaManager->ShutdownStarted()) {
+    quotaManager->RecordShutdownStep(Some(aClientType), aStepDescription);
   }
 }
 
@@ -3747,17 +3772,16 @@ void QuotaManager::MaybeRecordQuotaManagerShutdownStep(
     const nsACString& aStepDescription) {
   // Callable on any thread.
 
-  MaybeRecordShutdownStep(Nothing{}, aStepDescription);
+  if (ShutdownStarted()) {
+    RecordShutdownStep(Nothing{}, aStepDescription);
+  }
 }
 
-void QuotaManager::MaybeRecordShutdownStep(
-    const Maybe<Client::Type> aClientType, const nsACString& aStepDescription) {
-  if (!mShutdownStarted) {
-    // We are not shutting down yet, we intentionally ignore this here to avoid
-    // that every caller has to make a distinction for shutdown vs. non-shutdown
-    // situations.
-    return;
-  }
+bool QuotaManager::ShutdownStarted() const { return mShutdownStarted; }
+
+void QuotaManager::RecordShutdownStep(const Maybe<Client::Type> aClientType,
+                                      const nsACString& aStepDescription) {
+  MOZ_ASSERT(mShutdownStarted);
 
   const TimeDuration elapsedSinceShutdownStart =
       TimeStamp::NowLoRes() - *mShutdownStartedAt;
@@ -7831,6 +7855,15 @@ void FinalizeOriginEvictionOp::UnblockOpen() {
 
 NS_IMPL_ISUPPORTS_INHERITED0(NormalOriginOperationBase, Runnable)
 
+RefPtr<DirectoryLock> NormalOriginOperationBase::CreateDirectoryLock() {
+  AssertIsOnOwningThread();
+  MOZ_ASSERT(GetState() == State_DirectoryOpenPending);
+  MOZ_ASSERT(QuotaManager::Get());
+
+  return QuotaManager::Get()->CreateDirectoryLockInternal(
+      mPersistenceType, mOriginScope, mClientType, mExclusive);
+}
+
 void NormalOriginOperationBase::Open() {
   AssertIsOnOwningThread();
   MOZ_ASSERT(GetState() == State_CreatingQuotaManager);
@@ -7838,11 +7871,8 @@ void NormalOriginOperationBase::Open() {
 
   AdvanceState();
 
-  if (mNeedsDirectoryLocking) {
-    RefPtr<DirectoryLock> directoryLock =
-        QuotaManager::Get()->CreateDirectoryLockInternal(
-            mPersistenceType, mOriginScope, mClientType, mExclusive);
-
+  RefPtr<DirectoryLock> directoryLock = CreateDirectoryLock();
+  if (directoryLock) {
     directoryLock->Acquire(this);
   } else {
     QM_TRY(MOZ_TO_RESULT(DirectoryOpen()), QM_VOID,
@@ -7856,7 +7886,7 @@ void NormalOriginOperationBase::UnblockOpen() {
 
   SendResults();
 
-  if (mNeedsDirectoryLocking) {
+  if (mDirectoryLock) {
     mDirectoryLock = nullptr;
   }
 
@@ -8821,14 +8851,17 @@ GetOriginUsageOp::GetOriginUsageOp(const UsageRequestParams& aParams)
 
   mFromMemory = params.fromMemory();
 
-  // Overwrite NormalOriginOperationBase default values.
-  if (mFromMemory) {
-    mNeedsDirectoryLocking = false;
-  }
-
   // Overwrite OriginOperationBase default values.
   mNeedsQuotaManagerInit = true;
   mNeedsStorageInit = true;
+}
+
+RefPtr<DirectoryLock> GetOriginUsageOp::CreateDirectoryLock() {
+  if (mFromMemory) {
+    return nullptr;
+  }
+
+  return QuotaUsageRequestBase::CreateDirectoryLock();
 }
 
 nsresult GetOriginUsageOp::DoDirectoryWork(QuotaManager& aQuotaManager) {
@@ -8924,15 +8957,14 @@ void QuotaRequestBase::ActorDestroy(ActorDestroyReason aWhy) {
 StorageNameOp::StorageNameOp() : QuotaRequestBase(/* aExclusive */ false) {
   AssertIsOnOwningThread();
 
-  // Overwrite NormalOriginOperationBase default values.
-  mNeedsDirectoryLocking = false;
-
   // Overwrite OriginOperationBase default values.
   mNeedsQuotaManagerInit = true;
   mNeedsStorageInit = false;
 }
 
 void StorageNameOp::Init(Quota& aQuota) { AssertIsOnOwningThread(); }
+
+RefPtr<DirectoryLock> StorageNameOp::CreateDirectoryLock() { return nullptr; }
 
 nsresult StorageNameOp::DoDirectoryWork(QuotaManager& aQuotaManager) {
   AssertIsOnIOThread();
@@ -8958,15 +8990,16 @@ InitializedRequestBase::InitializedRequestBase()
     : QuotaRequestBase(/* aExclusive */ false), mInitialized(false) {
   AssertIsOnOwningThread();
 
-  // Overwrite NormalOriginOperationBase default values.
-  mNeedsDirectoryLocking = false;
-
   // Overwrite OriginOperationBase default values.
   mNeedsQuotaManagerInit = true;
   mNeedsStorageInit = false;
 }
 
 void InitializedRequestBase::Init(Quota& aQuota) { AssertIsOnOwningThread(); }
+
+RefPtr<DirectoryLock> InitializedRequestBase::CreateDirectoryLock() {
+  return nullptr;
+}
 
 nsresult StorageInitializedOp::DoDirectoryWork(QuotaManager& aQuotaManager) {
   AssertIsOnIOThread();
@@ -9171,12 +9204,8 @@ GetFullOriginMetadataOp::GetFullOriginMetadataOp(
   AssertIsOnOwningThread();
 }
 
-void GetFullOriginMetadataOp::Init(Quota& aQuota) {
-  AssertIsOnOwningThread();
-
-  QuotaRequestBase::Init(aQuota);
-
-  mNeedsDirectoryLocking = false;
+RefPtr<DirectoryLock> GetFullOriginMetadataOp::CreateDirectoryLock() {
+  return nullptr;
 }
 
 nsresult GetFullOriginMetadataOp::DoDirectoryWork(QuotaManager& aQuotaManager) {
@@ -9421,35 +9450,44 @@ void ClearRequestBase::DeleteFiles(QuotaManager& aQuotaManager,
   // ensure that the directory lock is upheld until we complete or give up
   // though.
   for (uint32_t index = 0; index < 10; index++) {
-    aQuotaManager.MaybeRecordQuotaManagerShutdownStep(
-        "ClearRequestBase: Retrying directory removal"_ns);
+    aQuotaManager.MaybeRecordQuotaManagerShutdownStepWith([index]() {
+      return nsPrintfCString(
+          "ClearRequestBase: Starting repeated directory removal #%d", index);
+    });
 
     for (auto&& file : std::exchange(directoriesForRemovalRetry,
                                      nsTArray<nsCOMPtr<nsIFile>>{})) {
-      if (NS_FAILED((file->Remove(true)))) {
-        directoriesForRemovalRetry.AppendElement(std::move(file));
-      }
+      QM_WARNONLY_TRY(
+          QM_TO_RESULT(file->Remove(true)),
+          ([&directoriesForRemovalRetry, &file](const auto&) {
+            directoriesForRemovalRetry.AppendElement(std::move(file));
+          }));
     }
+
+    aQuotaManager.MaybeRecordQuotaManagerShutdownStepWith([index]() {
+      return nsPrintfCString(
+          "ClearRequestBase: Completed repeated directory removal #%d", index);
+    });
 
     if (directoriesForRemovalRetry.IsEmpty()) {
       break;
     }
 
-    nsCString message;
-    message.AppendPrintf(
-        "Failed to remove one or more directories, retry number: %d",
-        index + 1);
-    aQuotaManager.MaybeRecordQuotaManagerShutdownStep(message);
+    aQuotaManager.MaybeRecordQuotaManagerShutdownStepWith([index]() {
+      return nsPrintfCString("ClearRequestBase: Before sleep #%d", index);
+    });
+
     PR_Sleep(PR_MillisecondsToInterval(200));
+
+    aQuotaManager.MaybeRecordQuotaManagerShutdownStepWith([index]() {
+      return nsPrintfCString("ClearRequestBase: After sleep #%d", index);
+    });
   }
 
-  if (!directoriesForRemovalRetry.IsEmpty()) {
-    aQuotaManager.MaybeRecordQuotaManagerShutdownStep(
-        "Failed to remove one or more directories, giving up!"_ns);
-  } else {
-    aQuotaManager.MaybeRecordQuotaManagerShutdownStep(
-        "ClearRequestBase: Completed deleting files"_ns);
-  }
+  QM_WARNONLY_TRY(OkIf(directoriesForRemovalRetry.IsEmpty()));
+
+  aQuotaManager.MaybeRecordQuotaManagerShutdownStep(
+      "ClearRequestBase: Completed deleting files"_ns);
 }
 
 nsresult ClearRequestBase::DoDirectoryWork(QuotaManager& aQuotaManager) {
@@ -9740,13 +9778,12 @@ EstimateOp::EstimateOp(const RequestParams& aParams)
                          aParams.get_EstimateParams().principalInfo())
                          .mGroup);
 
-  // Overwrite NormalOriginOperationBase default values.
-  mNeedsDirectoryLocking = false;
-
   // Overwrite OriginOperationBase default values.
   mNeedsQuotaManagerInit = true;
   mNeedsStorageInit = true;
 }
+
+RefPtr<DirectoryLock> EstimateOp::CreateDirectoryLock() { return nullptr; }
 
 nsresult EstimateOp::DoDirectoryWork(QuotaManager& aQuotaManager) {
   AssertIsOnIOThread();

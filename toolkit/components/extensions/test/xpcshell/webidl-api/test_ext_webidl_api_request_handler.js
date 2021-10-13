@@ -36,10 +36,53 @@ add_task(async function test_sw_api_request_handling_local_process_api() {
     files: {
       "page.html": "<!DOCTYPE html><body></body>",
       "sw.js": async function() {
-        browser.test.onMessage.addListener(msg => {
+        browser.test.onMessage.addListener(async msg => {
           browser.test.succeed("call to test.succeed");
           browser.test.assertTrue(true, "call to test.assertTrue");
           browser.test.assertFalse(false, "call to test.assertFalse");
+          // Smoke test assertEq (more complete coverage of the behavior expected
+          // by the test API will be introduced in test_ext_test.html as part of
+          // Bug 1723785).
+          const errorObject = new Error("fake_error_message");
+          browser.test.assertEq(
+            errorObject,
+            errorObject,
+            "call to test.assertEq"
+          );
+
+          // Smoke test for assertThrows/assertRejects.
+          const errorMatchingTestCases = [
+            ["expected error instance", errorObject],
+            ["expected error message string", "fake_error_message"],
+            ["expected regexp", /fake_error/],
+            ["matching function", error => errorObject === error],
+            ["matching Constructor", Error],
+          ];
+
+          browser.test.log("run assertThrows smoke tests");
+
+          const throwFn = () => {
+            throw errorObject;
+          };
+          for (const [msg, expected] of errorMatchingTestCases) {
+            browser.test.assertThrows(
+              throwFn,
+              expected,
+              `call to assertThrow with ${msg}`
+            );
+          }
+
+          browser.test.log("run assertRejects smoke tests");
+
+          const rejectedPromise = Promise.reject(errorObject);
+          for (const [msg, expected] of errorMatchingTestCases) {
+            await browser.test.assertRejects(
+              rejectedPromise,
+              expected,
+              `call to assertRejects with ${msg}`
+            );
+          }
+
           browser.test.notifyPass("test-completed");
         });
         browser.test.sendMessage("bgsw-ready");
