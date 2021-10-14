@@ -928,19 +928,19 @@ const VariationsCircle = props => {
     className: `text variation-button ${activeTheme !== null && activeTheme !== void 0 && activeTheme.includes(id) ? " selected" : ""}`
   }))))));
 }; // Return colorway as "default" for default theme variations Automatic, Light, Dark
+// and Alpenglow theme which is not supported in Colorway picker
 // For themes other then default, theme names exist in
 // format colorway-variationId inside LIGHT_WEIGHT_THEMES in AboutWelcomeParent
 
 function computeColorWay(themeName, systemVariations) {
-  return !themeName || systemVariations.find(variation => themeName === variation.id) ? "default" : themeName.split("-")[0];
+  return !themeName || themeName === "alpenglow" || systemVariations.find(variation => themeName === variation.id) ? "default" : themeName.split("-")[0];
 }
 function Colorways(props) {
   var _colorways$find;
 
   let {
     colorways,
-    defaultVariationId,
-    systemDefaultVariationId,
+    defaultVariationIndex,
     systemVariations,
     variations
   } = props.content.tiles; // This sets a default value
@@ -955,10 +955,28 @@ function Colorways(props) {
   const [transition, setTransition] = Object(react__WEBPACK_IMPORTED_MODULE_0__["useState"])("");
   Object(react__WEBPACK_IMPORTED_MODULE_0__["useEffect"])(() => {
     if (transition === "in") {
-      // Simulate a color click event now that we're ready to transition in.
+      // Figure out the variation to activate based on the active theme. Check
+      // if it's a system variant then colorway variant falling back to default.
+      let variationIndex = systemVariations.findIndex(({
+        id
+      }) => id === props.activeTheme);
+
+      if (variationIndex < 0) {
+        variationIndex = variations.findIndex(({
+          id
+        }) => props.activeTheme.includes(id));
+      }
+
+      if (variationIndex < 0) {
+        // This content config default assumes it's been selected correctly to
+        // index into both `systemVariations` or `variations` (also configured).
+        variationIndex = defaultVariationIndex;
+      } // Simulate a color click event now that we're ready to transition in.
+
+
       props.handleAction({
         currentTarget: {
-          value: colorwayId === "default" ? systemDefaultVariationId : `${colorwayId}-${defaultVariationId}`
+          value: colorwayId === "default" ? systemVariations[variationIndex].id : `${colorwayId}-${variations[variationIndex].id}`
         }
       }); // Trigger the transition from "in" to normal.
 

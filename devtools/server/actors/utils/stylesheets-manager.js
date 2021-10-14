@@ -884,26 +884,28 @@ class StyleSheetsManager extends EventEmitter {
 
 function hasStyleSheetWatcherSupportForTarget(targetActor) {
   // Check if the watcher actor supports stylesheet resources.
-  // This is a temporary solution until we have a reliable way of propagating watchedData
+  // This is a temporary solution until we have a reliable way of propagating sessionData
   // to all targets (so we'll be able to store this information via addDataEntry).
   // This will be done in Bug 1700092.
   const { sharedData } = Services.cpmm;
-  const watchedDataByWatcherActor = sharedData.get(SHARED_DATA_KEY_NAME);
-  if (!watchedDataByWatcherActor) {
+  const sessionDataByWatcherActor = sharedData.get(SHARED_DATA_KEY_NAME);
+  if (!sessionDataByWatcherActor) {
     return false;
   }
 
-  const watcherData = Array.from(watchedDataByWatcherActor.values()).find(
-    watchedData => {
-      const actors = TargetActorRegistry.getTargetActors(
-        targetActor.browserId,
-        watchedData.connectionPrefix
-      );
-      return actors.includes(targetActor);
-    }
-  );
+  const watcherSessionData = Array.from(
+    sessionDataByWatcherActor.values()
+  ).find(sessionData => {
+    const actors = TargetActorRegistry.getTargetActors(
+      targetActor.browserId,
+      sessionData.connectionPrefix
+    );
+    return actors.includes(targetActor);
+  });
 
-  return watcherData?.watcherTraits?.resources?.[TYPES.STYLESHEET] || false;
+  return (
+    watcherSessionData?.watcherTraits?.resources?.[TYPES.STYLESHEET] || false
+  );
 }
 
 module.exports = {

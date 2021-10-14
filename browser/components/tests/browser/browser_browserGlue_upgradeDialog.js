@@ -152,6 +152,8 @@ add_task(async function skip_screens() {
 });
 
 add_task(async function all_3_screens() {
+  let accessibleVariant = false;
+
   await showAndWaitForDialog(async win => {
     // Always "randomly" select the first colorway.
     win.Math.random = () => 0;
@@ -159,9 +161,14 @@ add_task(async function all_3_screens() {
     await BrowserTestUtils.waitForEvent(win, "ready");
     win.document.getElementById("primary").click();
     await BrowserTestUtils.waitForEvent(win, "variations");
-    win.document.querySelectorAll("[name=variation]")[1].click();
+
+    const variant = win.document.querySelectorAll("[name=variation]")[1];
+    variant.click();
+
     win.document.getElementById("secondary").click();
     await BrowserTestUtils.waitForEvent(win, "ready");
+
+    accessibleVariant = variant.hasAttribute("aria-label");
     win.close();
   });
 
@@ -172,11 +179,13 @@ add_task(async function all_3_screens() {
     ["content", "button", "upgrade-dialog-start-primary-button"],
     ["content", "show", "random-1"],
     ["content", "show", "upgrade-dialog-colorway-primary-button"],
-    ["content", "theme", "balanced"],
+    ["content", "theme", "variant-1"],
     ["content", "button", "upgrade-dialog-colorway-secondary-button"],
     ["content", "show", "upgrade-dialog-thankyou-primary-button"],
     ["content", "close", "external"]
   );
+
+  Assert.ok(accessibleVariant, "Variant radio button has a11y attribute");
 });
 
 add_task(async function quit_app() {

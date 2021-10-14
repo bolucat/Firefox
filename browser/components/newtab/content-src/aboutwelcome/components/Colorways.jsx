@@ -59,10 +59,12 @@ export const VariationsCircle = props => {
 };
 
 // Return colorway as "default" for default theme variations Automatic, Light, Dark
+// and Alpenglow theme which is not supported in Colorway picker
 // For themes other then default, theme names exist in
 // format colorway-variationId inside LIGHT_WEIGHT_THEMES in AboutWelcomeParent
 export function computeColorWay(themeName, systemVariations) {
   return !themeName ||
+    themeName === "alpenglow" ||
     systemVariations.find(variation => themeName === variation.id)
     ? "default"
     : themeName.split("-")[0];
@@ -71,8 +73,7 @@ export function computeColorWay(themeName, systemVariations) {
 export function Colorways(props) {
   let {
     colorways,
-    defaultVariationId,
-    systemDefaultVariationId,
+    defaultVariationIndex,
     systemVariations,
     variations,
   } = props.content.tiles;
@@ -90,13 +91,29 @@ export function Colorways(props) {
   const [transition, setTransition] = useState("");
   useEffect(() => {
     if (transition === "in") {
+      // Figure out the variation to activate based on the active theme. Check
+      // if it's a system variant then colorway variant falling back to default.
+      let variationIndex = systemVariations.findIndex(
+        ({ id }) => id === props.activeTheme
+      );
+      if (variationIndex < 0) {
+        variationIndex = variations.findIndex(({ id }) =>
+          props.activeTheme.includes(id)
+        );
+      }
+      if (variationIndex < 0) {
+        // This content config default assumes it's been selected correctly to
+        // index into both `systemVariations` or `variations` (also configured).
+        variationIndex = defaultVariationIndex;
+      }
+
       // Simulate a color click event now that we're ready to transition in.
       props.handleAction({
         currentTarget: {
           value:
             colorwayId === "default"
-              ? systemDefaultVariationId
-              : `${colorwayId}-${defaultVariationId}`,
+              ? systemVariations[variationIndex].id
+              : `${colorwayId}-${variations[variationIndex].id}`,
         },
       });
 

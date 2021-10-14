@@ -31,8 +31,7 @@ describe("Multistage AboutWelcome module", () => {
           action: {
             theme: "<event>",
           },
-          defaultVariationId: "soft",
-          systemDefaultVariationId: "automatic",
+          defaultVariationIndex: 0,
           systemVariations: [
             {
               id: "automatic",
@@ -47,6 +46,10 @@ describe("Multistage AboutWelcome module", () => {
             {
               id: "soft",
               label: "Soft",
+            },
+            {
+              id: "bold",
+              label: "Bold",
             },
           ],
           colorways: [
@@ -86,6 +89,33 @@ describe("Multistage AboutWelcome module", () => {
       assert.strictEqual(colorwaysOptionIcons.length, 2);
 
       // Default automatic theme is selected by default
+      assert.strictEqual(
+        colorwaysOptionIcons
+          .first()
+          .prop("className")
+          .includes("selected"),
+        true
+      );
+
+      assert.strictEqual(
+        colorwaysOptionIcons
+          .first()
+          .prop("className")
+          .includes("default"),
+        true
+      );
+    });
+
+    it("should use default when activeTheme is alpenglow", () => {
+      const wrapper = shallow(<Colorways {...COLORWAY_SCREEN_PROPS} />);
+      wrapper.setProps({ activeTheme: "alpenglow" });
+
+      const colorwaysOptionIcons = wrapper.find(
+        ".tiles-theme-section .theme .icon"
+      );
+      assert.strictEqual(colorwaysOptionIcons.length, 2);
+
+      // Default automatic theme is selected when unsupported in colorway alpenglow theme is active
       assert.strictEqual(
         colorwaysOptionIcons
           .first()
@@ -184,6 +214,72 @@ describe("Multistage AboutWelcome module", () => {
         wrapper.find(VariationsCircle).props().transition,
         "in"
       );
+      assert.calledWith(handleAction, {
+        currentTarget: { value: "abstract-soft" },
+      });
+    });
+
+    it("should select a variation based on active theme", () => {
+      sandbox.stub(React, "useEffect").callsFake((fn, vals) => {
+        if (vals[0] === "in") {
+          fn();
+        }
+      });
+
+      const handleAction = sandbox.stub();
+      const wrapper = shallow(
+        <Colorways
+          handleAction={handleAction}
+          {...COLORWAY_SCREEN_PROPS}
+          activeTheme="something-bold"
+        />
+      );
+
+      const option = wrapper
+        .find(".tiles-theme-section .theme input[name='theme']")
+        .last();
+      option.simulate("click", {
+        currentTarget: {
+          dataset: {
+            colorway: option.prop("data-colorway"),
+          },
+        },
+      });
+      clock.tick(500);
+
+      assert.calledWith(handleAction, {
+        currentTarget: { value: "abstract-bold" },
+      });
+    });
+
+    it("should use a default variation for unknown active theme", () => {
+      sandbox.stub(React, "useEffect").callsFake((fn, vals) => {
+        if (vals[0] === "in") {
+          fn();
+        }
+      });
+
+      const handleAction = sandbox.stub();
+      const wrapper = shallow(
+        <Colorways
+          handleAction={handleAction}
+          {...COLORWAY_SCREEN_PROPS}
+          activeTheme="unknown"
+        />
+      );
+
+      const option = wrapper
+        .find(".tiles-theme-section .theme input[name='theme']")
+        .last();
+      option.simulate("click", {
+        currentTarget: {
+          dataset: {
+            colorway: option.prop("data-colorway"),
+          },
+        },
+      });
+      clock.tick(500);
+
       assert.calledWith(handleAction, {
         currentTarget: { value: "abstract-soft" },
       });

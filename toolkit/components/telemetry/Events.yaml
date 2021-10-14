@@ -164,6 +164,21 @@ readermode:
       label: The type of button clicked.
     products:
       - "firefox"
+  pocket_cta:
+    objects: ["close_cta", "sign_up_click", "rec_click", "minimize_recs_click", "cta_seen"]
+    release_channel_collection: opt-out
+    record_in_processes: ["content"]
+    description: >
+      Reader Mode Pocket CTA events
+    bug_numbers: [1726395]
+    notification_emails:
+      - "kirill@getpocket.com"
+      - "sdowne@getpocket.com"
+    expiry_version: never
+    extra_keys:
+      url: URL associated with click.
+    products:
+      - "firefox"
 
 addonsManager:
   install:
@@ -1173,10 +1188,9 @@ messaging_experiments:
   reach:
     objects: [
       "cfr",
-      "whats_new_panel",
       "moments_page",
-      "snippets",
-      "cfr_fxa"
+      "infobar",
+      "spotlight"
     ]
     methods: ["reach"]
     release_channel_collection: opt-out
