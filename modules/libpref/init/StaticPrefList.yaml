@@ -629,11 +629,6 @@
   value: true
   mirror: always
 
-- name: apz.peek_messages.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 # Fetch displayport updates early from the message queue.
 - name: apz.pinch_lock.mode
   type: RelaxedAtomicInt32
@@ -6040,12 +6035,6 @@
   value: true
   mirror: always
 
-  # Experimental support for change-array-by-copy methods
-- name: javascript.options.experimental.enable_change_array_by_copy
-  type: bool
-  value: false
-  mirror: always
-
   # Experimental support for Top-level Await in JavaScript.
 -   name: javascript.options.experimental.top_level_await
     type: bool
@@ -6542,6 +6531,11 @@
   type: RelaxedAtomicUint32
   value: 15
   mirror: always
+
+- name: layers.iosurfaceimage.use-nv12
+  type: bool
+  value: false
+  mirror: once
 
 #---------------------------------------------------------------------------
 # Prefs starting with "layout."

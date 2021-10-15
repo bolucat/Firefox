@@ -456,7 +456,7 @@ void Zone::prepareForCompacting() {
 
 void GCRuntime::sweepZoneAfterCompacting(MovingTracer* trc, Zone* zone) {
   MOZ_ASSERT(zone->isCollecting());
-  sweepFinalizationRegistries(zone);
+  traceWeakFinalizationRegistryEdges(trc, zone);
   zone->weakRefMap().sweep(&storeBuffer());
 
   {
@@ -473,8 +473,8 @@ void GCRuntime::sweepZoneAfterCompacting(MovingTracer* trc, Zone* zone) {
   for (RealmsInZoneIter r(zone); !r.done(); r.next()) {
     r->traceWeakRegExps(trc);
     r->traceWeakSavedStacks(trc);
-    r->traceWeakObjects(trc);
-    r->sweepDebugEnvironments();
+    r->traceWeakGlobalEdge(trc);
+    r->traceWeakDebugEnvironmentEdges(trc);
     r->traceWeakEdgesInJitRealm(trc);
     r->traceWeakObjectRealm(trc);
   }
@@ -843,7 +843,6 @@ void GCRuntime::updateRuntimePointersToRelocatedCells(AutoGCSession& session) {
   }
 
   // Sweep everything to fix up weak pointers.
-  DebugAPI::sweepAll(rt->defaultFreeOp());
   jit::JitRuntime::TraceWeakJitcodeGlobalTable(rt, &trc);
   for (JS::detail::WeakCacheBase* cache : rt->weakCaches()) {
     cache->sweep(nullptr);
