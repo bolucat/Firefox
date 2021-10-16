@@ -1197,7 +1197,8 @@ void GCRuntime::updateAtomsBitmap() {
 
   // For convenience sweep these tables non-incrementally as part of bitmap
   // sweeping; they are likely to be much smaller than the main atoms table.
-  rt->symbolRegistry().sweep();
+  SweepingTracer trc(rt);
+  rt->symbolRegistry().traceWeak(&trc);
 }
 
 void GCRuntime::sweepCCWrappers() {
@@ -1255,6 +1256,19 @@ void GCRuntime::sweepUniqueIds() {
     AutoSetThreadIsSweeping threadIsSweeping(zone);
     zone->sweepUniqueIds();
   }
+}
+
+void JS::Zone::sweepUniqueIds() {
+  SweepingTracer trc(runtimeFromAnyThread());
+  uniqueIds().traceWeak(&trc);
+}
+
+/* static */
+bool UniqueIdGCPolicy::traceWeak(JSTracer* trc, Cell** keyp, uint64_t* valuep) {
+  // Since this is only ever used for sweeping, we can optimize it for that
+  // case. (Compacting GC updates this table manually when it moves a cell.)
+  MOZ_ASSERT(trc->kind() == JS::TracerKind::Sweeping);
+  return (*keyp)->isMarkedAny();
 }
 
 void GCRuntime::sweepWeakRefs() {

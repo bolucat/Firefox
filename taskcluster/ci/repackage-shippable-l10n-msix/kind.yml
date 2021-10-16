@@ -54,37 +54,34 @@ job-template:
             - linux64-msix-packaging
     msix:
         channel:
-            by-release-type:
-                nightly.*: nightly
-                beta.*:
-                    by-shipping-product:
-                        devedition: aurora
-                        default: beta
-                release.*: official
-                esr.*: official
-                default: nightly
+            by-shipping-product:
+                devedition: aurora
+                default:
+                    by-release-type:
+                        beta.*: beta
+                        release.*: official
+                        esr.*: official
+                        default: nightly
         identity-name:
-            by-package-format:
-                msix:
-                    by-release-type:
-                        nightly.*: MozillaFirefoxNightly
-                        beta.*:
-                            by-shipping-product:
-                                devedition: MozillaFirefoxDevedition
-                                default: MozillaFirefoxBeta
-                        release.*: MozillaFirefox
-                        esr.*: MozillaFirefox
-                        default: MozillaFirefoxNightly
-                msix-store:
-                    by-release-type:
-                        nightly.*: FirefoxNightly
-                        beta.*:
-                            by-shipping-product:
-                                devedition: FirefoxDevedition
-                                default: FirefoxBeta
-                        release.*: Firefox
-                        esr.*: Firefox
-                        default: FirefoxNightly
+            by-shipping-product:
+                devedition:
+                    by-package-format:
+                        msix: MozillaFirefoxDevedition
+                        msix-store: FirefoxDevedition
+                default:
+                    by-package-format:
+                        msix:
+                            by-release-type:
+                                beta.*: MozillaFirefoxBeta
+                                release.*: MozillaFirefox
+                                esr.*: MozillaFirefox
+                                default: MozillaFirefoxNightly
+                        msix-store:
+                            by-release-type:
+                                beta.*: FirefoxBeta
+                                release.*: Firefox
+                                esr.*: Firefox
+                                default: FirefoxNightly
         publisher:
             by-package-format:
                 msix:

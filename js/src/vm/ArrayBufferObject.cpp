@@ -1724,28 +1724,6 @@ void InnerViewTable::removeViews(ArrayBufferObject* buffer) {
   map.remove(p);
 }
 
-/* static */
-bool InnerViewTable::sweepEntry(JSObject** pkey, ViewVector& views) {
-  if (IsAboutToBeFinalizedUnbarriered(pkey)) {
-    return true;
-  }
-
-  MOZ_ASSERT(!views.empty());
-  size_t i = 0;
-  while (i < views.length()) {
-    if (IsAboutToBeFinalizedUnbarriered(&views[i])) {
-      // If the current element is garbage then remove it from the
-      // vector by moving the last one into its place.
-      views[i] = views.back();
-      views.popBack();
-    } else {
-      i++;
-    }
-  }
-
-  return views.empty();
-}
-
 void InnerViewTable::sweep() { map.sweep(); }
 
 void InnerViewTable::sweepAfterMinorGC() {
@@ -1755,12 +1733,8 @@ void InnerViewTable::sweepAfterMinorGC() {
     for (size_t i = 0; i < nurseryKeys.length(); i++) {
       JSObject* buffer = MaybeForwarded(nurseryKeys[i]);
       Map::Ptr p = map.lookup(buffer);
-      if (!p) {
-        continue;
-      }
-
-      if (sweepEntry(&p->mutableKey(), p->value())) {
-        map.remove(buffer);
+      if (p && Map::SweepPolicy::needsSweep(&p->mutableKey(), &p->value())) {
+        map.remove(p);
       }
     }
     nurseryKeys.clear();

@@ -248,19 +248,18 @@ def copy_in_useful_magic(config, jobs):
     for job in jobs:
         dep = job["primary-dependency"]
         job["build-platform"] = dep.attributes.get("build_platform")
+        job["shipping-product"] = dep.attributes.get("shipping_product")
         yield job
 
 
 @transforms.add
 def handle_keyed_by(config, jobs):
-    """Resolve fields that can be keyed by platform, etc."""
+    """Resolve fields that can be keyed by platform, etc, but not `msix.*` fields that can be keyed by
+    `package-format`.  Such fields are handled specially below.
+    """
     fields = [
         "mozharness.config",
         "package-formats",
-        "msix.channel",
-        "msix.identity-name",
-        "msix.publisher",
-        "msix.publisher-display-name",
     ]
     for job in jobs:
         job = copy.deepcopy(job)  # don't overwrite dict values here
@@ -273,7 +272,6 @@ def handle_keyed_by(config, jobs):
                     "release-type": config.params["release_type"],
                     "level": config.params["level"],
                 },
-                defer=["package-format"],
             )
         yield job
 
@@ -413,7 +411,7 @@ def make_job_description(config, jobs):
             # without breaking .format and without allowing unknown through.
             substs.update({name: f"{{{name}}}" for name in MOZHARNESS_EXPANSIONS})
 
-            # We need to resolve values keyed by "package-format" for each format, not
+            # We need to resolve `msix.*` values keyed by `package-format` for each format, not
             # just once, so we update a temporary copy just for extracting these values.
             temp_job = copy.deepcopy(job)
             for msix_key in (
@@ -428,6 +426,8 @@ def make_job_description(config, jobs):
                     item_name="?",
                     **{
                         "package-format": format,
+                        "release-type": config.params["release_type"],
+                        "level": config.params["level"],
                     },
                 )
 

@@ -203,7 +203,7 @@ class ServoStyleSet;
 enum class StyleOrigin : uint8_t;
 class SMILAnimationController;
 enum class StyleCursorKind : uint8_t;
-enum class StylePrefersColorScheme : uint8_t;
+enum class ColorScheme : uint8_t;
 enum class StyleRuleChangeKind : uint32_t;
 template <typename>
 class OwningNonNull;
@@ -1291,9 +1291,7 @@ class Document : public nsINode,
    */
   nsViewportInfo GetViewportInfo(const ScreenIntSize& aDisplaySize);
 
-  void AddMetaViewportElement(HTMLMetaElement* aElement,
-                              ViewportMetaData&& aData);
-  void RemoveMetaViewportElement(HTMLMetaElement* aElement);
+  void SetMetaViewportData(UniquePtr<ViewportMetaData> aData);
 
   // Returns a ViewportMetaData for this document.
   ViewportMetaData GetViewportMetaData() const;
@@ -4006,7 +4004,7 @@ class Document : public nsINode,
 
   // CSS prefers-color-scheme media feature for this document.
   enum class IgnoreRFP { No, Yes };
-  StylePrefersColorScheme PrefersColorScheme(IgnoreRFP = IgnoreRFP::No) const;
+  ColorScheme PreferredColorScheme(IgnoreRFP = IgnoreRFP::No) const;
 
   static bool HasRecentlyStartedForegroundLoads();
 
@@ -5175,9 +5173,9 @@ class Document : public nsINode,
   // 2)  We haven't had Destroy() called on us yet.
   nsCOMPtr<nsILayoutHistoryState> mLayoutHistoryState;
 
-  struct MetaViewportElementAndData;
-  // An array of <meta name="viewport"> elements and their data.
-  nsTArray<MetaViewportElementAndData> mMetaViewports;
+  // The parsed viewport metadata of the last modified <meta name=viewport>
+  // element.
+  UniquePtr<ViewportMetaData> mLastModifiedViewportMetaData;
 
   // These member variables cache information about the viewport so we don't
   // have to recalculate it each time.
