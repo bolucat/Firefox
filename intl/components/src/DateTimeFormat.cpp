@@ -269,9 +269,10 @@ Result<UniquePtr<DateTimeFormat>, ICUError> DateTimeFormat::TryCreateFromStyle(
   }
 
   UErrorCode status = U_ZERO_ERROR;
-  UDateFormat* dateFormat =
-      udat_open(timeStyle, dateStyle, aLocale.data(), tzID, tzIDLength,
-                /* pattern */ nullptr, /* pattern length */ -1, &status);
+  UDateFormat* dateFormat = udat_open(
+      timeStyle, dateStyle, IcuLocale(AssertNullTerminatedString(aLocale)),
+      tzID, tzIDLength,
+      /* pattern */ nullptr, /* pattern length */ -1, &status);
   if (U_FAILURE(status)) {
     return Err(ToICUError(status));
   }
@@ -552,9 +553,9 @@ DateTimeFormat::TryCreateFromPattern(
 
   // Create the date formatter.
   UDateFormat* dateFormat = udat_open(
-      UDAT_PATTERN, UDAT_PATTERN, static_cast<const char*>(aLocale.data()),
-      tzID, tzIDLength, aPattern.data(), static_cast<int32_t>(aPattern.size()),
-      &status);
+      UDAT_PATTERN, UDAT_PATTERN,
+      IcuLocale(AssertNullTerminatedString(aLocale)), tzID, tzIDLength,
+      aPattern.data(), static_cast<int32_t>(aPattern.size()), &status);
 
   if (U_FAILURE(status)) {
     return Err(ToICUError(status));

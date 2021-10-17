@@ -10,30 +10,51 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/Result.h"
+#include "mozilla/Span.h"
 #include "mozilla/Utf8.h"
 #include "mozilla/Vector.h"
 #include "mozilla/intl/ICUError.h"
 
+#include <cstring>
 #include <iterator>
 #include <stddef.h>
 #include <stdint.h>
+#include <string_view>
 
 namespace mozilla::intl {
 
 static inline const char* IcuLocale(const char* aLocale) {
+  // Return the empty string if the input is exactly equal to the string "und".
   const char* locale = aLocale;
-  if (!strncmp(locale, "und", 3)) {
-    locale = "";
+  if (!std::strcmp(locale, "und")) {
+    locale = "";  // ICU root locale
   }
   return locale;
 }
 
-using ICUResult = Result<Ok, ICUError>;
+static inline const char* AssertNullTerminatedString(Span<const char> aSpan) {
+  // Intentionally check one past the last character, because we expect that the
+  // NUL character isn't part of the string.
+  MOZ_ASSERT(*(aSpan.data() + aSpan.size()) == '\0');
 
-/**
- * Convert a UErrorCode to ICUResult.
- */
-ICUError ToICUError(UErrorCode status);
+  // Also ensure there aren't any other NUL characters within the string.
+  MOZ_ASSERT(std::strlen(aSpan.data()) == aSpan.size());
+
+  return aSpan.data();
+}
+
+static inline const char* AssertNullTerminatedString(std::string_view aView) {
+  // Intentionally check one past the last character, because we expect that the
+  // NUL character isn't part of the string.
+  MOZ_ASSERT(*(aView.data() + aView.size()) == '\0');
+
+  // Also ensure there aren't any other NUL characters within the string.
+  MOZ_ASSERT(std::strlen(aView.data()) == aView.size());
+
+  return aView.data();
+}
+
+using ICUResult = Result<Ok, ICUError>;
 
 /**
  * Convert a UErrorCode to ICUError. This will correctly apply the OutOfMemory

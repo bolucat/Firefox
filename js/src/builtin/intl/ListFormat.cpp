@@ -15,7 +15,6 @@
 #include "builtin/Array.h"
 #include "builtin/intl/CommonFunctions.h"
 #include "builtin/intl/FormatBuffer.h"
-#include "builtin/intl/ScopedICUObject.h"
 #include "gc/FreeOp.h"
 #include "js/Utility.h"
 #include "js/Vector.h"
@@ -32,11 +31,6 @@
 #include "vm/ObjectOperations-inl.h"
 
 using namespace js;
-
-using mozilla::CheckedInt;
-
-using js::intl::CallICU;
-using js::intl::IcuLocale;
 
 const JSClassOps ListFormatObject::classOps_ = {
     nullptr,                     // addProperty
@@ -206,7 +200,7 @@ static mozilla::intl::ListFormat* NewListFormat(
   }
 
   auto result = mozilla::intl::ListFormat::TryCreate(
-      mozilla::MakeStringSpan(IcuLocale(locale.get())), options);
+      mozilla::MakeStringSpan(locale.get()), options);
 
   if (result.isOk()) {
     return result.unwrap().release();

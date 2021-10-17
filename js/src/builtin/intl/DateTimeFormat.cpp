@@ -253,17 +253,17 @@ static bool DefaultCalendar(JSContext* cx, const UniqueChars& locale,
                             MutableHandleValue rval) {
   auto calendar = mozilla::intl::Calendar::TryCreate(locale.get());
   if (calendar.isErr()) {
-    intl::ReportInternalError(cx);
+    intl::ReportInternalError(cx, calendar.unwrapErr());
     return false;
   }
 
   auto type = calendar.unwrap()->GetBcp47Type();
   if (type.isErr()) {
-    intl::ReportInternalError(cx);
+    intl::ReportInternalError(cx, type.unwrapErr());
     return false;
   }
 
-  JSString* str = NewStringCopyZ<CanGC>(cx, type.unwrap());
+  JSString* str = NewStringCopy<CanGC>(cx, type.unwrap());
   if (!str) {
     return false;
   }
@@ -417,7 +417,7 @@ bool js::intl_defaultTimeZone(JSContext* cx, unsigned argc, Value* vp) {
   FormatBuffer<char16_t, intl::INITIAL_CHAR_BUFFER_SIZE> timeZone(cx);
   auto result = mozilla::intl::TimeZone::GetDefaultTimeZone(timeZone);
   if (result.isErr()) {
-    intl::ReportInternalError(cx);
+    intl::ReportInternalError(cx, result.unwrapErr());
     return false;
   }
 
@@ -436,13 +436,13 @@ bool js::intl_defaultTimeZoneOffset(JSContext* cx, unsigned argc, Value* vp) {
 
   auto timeZone = mozilla::intl::TimeZone::TryCreate();
   if (timeZone.isErr()) {
-    intl::ReportInternalError(cx);
+    intl::ReportInternalError(cx, timeZone.unwrapErr());
     return false;
   }
 
   auto offset = timeZone.unwrap()->GetRawOffsetMs();
   if (offset.isErr()) {
-    intl::ReportInternalError(cx);
+    intl::ReportInternalError(cx, offset.unwrapErr());
     return false;
   }
 
@@ -859,8 +859,8 @@ static mozilla::intl::DateTimeFormat* NewDateTimeFormat(
     }
 
     auto dfResult = mozilla::intl::DateTimeFormat::TryCreateFromPattern(
-        mozilla::MakeStringSpan(IcuLocale(locale.get())),
-        pattern.twoByteRange(), mozilla::Some(timeZoneChars));
+        mozilla::MakeStringSpan(locale.get()), pattern.twoByteRange(),
+        mozilla::Some(timeZoneChars));
     if (dfResult.isErr()) {
       intl::ReportInternalError(cx, dfResult.unwrapErr());
       return nullptr;
@@ -895,7 +895,7 @@ static mozilla::intl::DateTimeFormat* NewDateTimeFormat(
       return nullptr;
     }
     auto dfResult = mozilla::intl::DateTimeFormat::TryCreateFromStyle(
-        mozilla::MakeStringSpan(IcuLocale(locale.get())), style, gen,
+        mozilla::MakeStringSpan(locale.get()), style, gen,
         mozilla::Some(timeZoneChars));
     if (dfResult.isErr()) {
       intl::ReportInternalError(cx, dfResult.unwrapErr());
@@ -966,7 +966,7 @@ static mozilla::intl::DateTimeFormat* NewDateTimeFormat(
     }
 
     auto dfResult = mozilla::intl::DateTimeFormat::TryCreateFromComponents(
-        mozilla::MakeStringSpan(IcuLocale(locale.get())), bag, dtpg,
+        mozilla::MakeStringSpan(locale.get()), bag, dtpg,
         mozilla::Some(timeZoneChars));
     if (dfResult.isErr()) {
       intl::ReportInternalError(cx, dfResult.unwrapErr());

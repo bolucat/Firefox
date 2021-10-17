@@ -15,7 +15,6 @@
 #include "builtin/Array.h"
 #include "builtin/intl/CommonFunctions.h"
 #include "builtin/intl/LanguageTag.h"
-#include "builtin/intl/ScopedICUObject.h"
 #include "builtin/intl/SharedIntlData.h"
 #include "gc/FreeOp.h"
 #include "js/CharacterEncoding.h"
@@ -35,7 +34,6 @@ using namespace js;
 
 using JS::AutoStableStringChars;
 
-using js::intl::IcuLocale;
 using js::intl::ReportInternalError;
 using js::intl::SharedIntlData;
 using js::intl::StringsAreEqual;
@@ -326,7 +324,7 @@ static mozilla::intl::Collator* NewIntlCollator(
     }
   }
 
-  auto collResult = Collator::TryCreate(IcuLocale(locale.get()));
+  auto collResult = Collator::TryCreate(locale.get());
   if (collResult.isErr()) {
     ReportInternalError(cx, collResult.unwrapErr());
     return nullptr;
