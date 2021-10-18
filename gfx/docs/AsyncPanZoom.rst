@@ -141,13 +141,13 @@ top-level page, and we would like both the page and the iframe to scroll
 responsively. This means that we want independent asynchronous panning
 for both the top-level page and the iframe. In addition to iframes,
 elements that have the overflow:scroll CSS property set are also
-scrollable. In the scrollable elements are arranged in a tree structure,
-and in the APZ code we have a matching tree of AsyncPanZoomController
-(APZC) objects, one for each scrollable element. To manage this tree of
-APZC instances, we have a single APZCTreeManager object. Each APZC is
-relatively independent and handles the scrolling for its associated
-scrollable element, but there are some cases in which they need to
-interact; these cases are described in the sections below.
+scrollable. In the display list, scrollable elements are arranged in a
+tree structure, and in the APZ code we have a matching tree of
+AsyncPanZoomController (APZC) objects, one for each scrollable element.
+To manage this tree of APZC instances, we have a single APZCTreeManager
+object. Each APZC is relatively independent and handles the scrolling for
+its associated scrollable element, but there are some cases in which they
+need to interact; these cases are described in the sections below.
 
 Hit detection
 ~~~~~~~~~~~~~
@@ -186,6 +186,8 @@ some way such that input events on the iframe result in scrolling on the
 top-level page. This behaviour is referred to as “scroll handoff” (or
 “fling handoff” in the case where analogous behaviour results from the
 scrolling momentum of the page after the user has lifted their finger).
+
+.. _input-event-untransformation:
 
 Input event untransformation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -517,14 +519,15 @@ that point the scrollframe will start receiving new input blocks and will
 scroll normally.
 
 Note: with Fission (where inactive scroll frames would make it impossible
-to target the correct process in all situations) and WebRender (which
-makes displayports more lightweight as the actual rendering is offloaded
-to the compositor and can be done on demand), inactive scroll frames are
-being phased out, and we are moving towards a model where all scroll
-frames with nonempty scroll ranges are active and get a displayport and
-an APZC. To conserve memory, displayports for scroll frames which have
-not been recently scrolled are kept to a "minimal" size equal to the
-viewport size.
+to target the correct process in all situations; see
+:ref:`this section <fission-hit-testing>` for more details) and WebRender
+(which makes displayports more lightweight as the actual rendering is
+offloaded to the compositor and can be done on demand), inactive scroll
+frames are being phased out, and we are moving towards a model where all
+scroll frames with nonempty scroll ranges are active and get a
+displayport and an APZC. To conserve memory, displayports for scroll
+frames which have not been recently scrolled are kept to a "minimal" size
+equal to the viewport size.
 
 WebRender Integration
 ~~~~~~~~~~~~~~~~~~~~~
@@ -566,6 +569,11 @@ what content is scrolled by a given scroll frame, what the scroll handoff
 relationships are between APZCs, and what content is subject to what
 transforms.
 
+An additional use of the HitTestingTree is to allow APZ to keep content
+processes up to date about enclosing transforms that they are subject to.
+See :ref:`this section <sending-transforms-to-content-processes>` for
+more details.
+
 (In the past, with the Layers backend, the HitTestingTree was also used
 for compositor hit testing, hence the name. This is no longer the case,
 and there may be opportunities to simplify the tree as a result.)
@@ -579,7 +587,7 @@ WebRenderScrollData. The relevant types here are:
   metadata applying to a subtree of such layers). In the Layers backend,
   such content would be rendered into a single texture which could then
   be moved asynchronously at composite time. Since a layer of content can
-  be scrolled by multiple scroll (nested) scroll frames, a
+  be scrolled by multiple (nested) scroll frames, a
   WebRenderLayerScrollData may contain scroll metadata for more than one
   scroll frame.
 * WebRenderScrollDataWrapper, which wraps WebRenderLayerScrollData
@@ -588,7 +596,7 @@ WebRenderScrollData. The relevant types here are:
   1:1 correspondence with HitTestingTreeNodes.
 
 It's not clear whether the distinction between WebRenderLayerScrollData
-and WebRenderScrollDataWrapper still useful in a WebRender-only world.
+and WebRenderScrollDataWrapper is still useful in a WebRender-only world.
 The code could potentially be revised such that we directly build and
 store nodes of a single type with the behaviour of
 WebRenderScrollDataWrapper.
@@ -684,6 +692,89 @@ Along with sampling the APZ transforms, the compositor also triggers APZ
 animations to advance to the next timestep (usually the next vsync). This
 happens just before reading the APZ transforms.
 
+Fission Integration
+~~~~~~~~~~~~~~~~~~~
+
+This section describes how APZ interacts with the Fission (Site Isolation)
+project.
+
+Introduction
+^^^^^^^^^^^^
+
+Fission is an architectural change motivated by security considerations,
+where web content from each origin is isolated in its own process. Since
+a page can contain a mixture of content from different origins (for
+example, the top level page can be content from origin A, and it can
+contain an iframe with content from origin B), that means that rendering
+and interacting with a page can now involve coordination between APZ and
+multiple content processes.
+
+.. _fission-hit-testing:
+
+Content Process Selection for Input Events
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Input events are initially received in the browser's parent process.
+With Fission, the browser needs to decide which of possibly several
+content processes an event is targeting.
+
+Since process boundaries correspond to iframe (subdocument) boundaries,
+and every (html) document has a root scroll frame, process boundaries are
+therefore also scroll frame boundaries. Since APZ already needs a hit
+test mechanism to be able to determine which scroll frame an event
+targets, this hit test mechanism was a good fit to also use to determine
+which content process an event targets.
+
+APZ's hit test was therefore expanded to serve this purpose as well. This
+mostly required only minor modifications, such as making sure that APZ
+knows about the root scroll frames of iframes even if they're not
+scrollable. Since APZ already needs to process all input events to
+potentially apply :ref:`untransformations <input-event-untransformation>`
+related to async scrolling, as part of this process it now also labels
+input events with information identifying which content process they
+target.
+
+Hit Testing Accuracy
+^^^^^^^^^^^^^^^^^^^^
+
+Prior to Fission, APZ's hit test could afford to be somewhat inaccurate,
+as it could fall back on the dispatch-to-content mechanism to wait for
+a more accurate answer from the main thread if necessary, suffering a
+performance cost only (not a correctness cost).
+
+With Fission, an inaccurate compositor hit test now implies a correctness
+cost, as there is no cross-process main-thread fallback mechanism.
+(Such a mechanism was considered, but judged to require too much
+complexity and IPC traffic to be worth it.)
+
+Luckily, with WebRender the compositor has much more detailed information
+available to use for hit testing than it did with Layers. For example,
+the compositor can perform accurate hit testing even in the presence of
+irregular shapes such as rounded corners.
+
+APZ leverages WebRender's more accurate hit testing ability to aim to
+accurately select the target process (and target scroll frame) for an
+event in general.
+
+One consequence of this is that the dispatch-to-content mechanism is now
+used less often than before (its primary remaining use is handling
+`preventDefault()`).
+
+.. _sending-transforms-to-content-processes:
+
+Sending Transforms To Content Processes
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Content processes sometimes need to be able to convert between screen
+coordinates and their local coordinates. To do this, they need to know
+about any transforms that their containing iframe and its ancestors are
+subject to, including async transforms (particularly in cases where the
+async transforms persist for more than just a few frames).
+
+APZ has information about these transforms in its HitTestingTree. With
+Fission, APZ periodically sends content processes information about these
+transforms so that they are kept relatively up to date.
+
 Threading / Locking Overview
 ----------------------------
 
@@ -733,11 +824,11 @@ Respecting the ordering means the following:
 **The lock ordering is as follows**:
 
 1. UI main
-2. GPU main              (only if GPU enabled)
+2. GPU main (only if GPU process enabled)
 3. Compositor thread
-4. SceneBuilder thread   (only if WR enabled)
+4. SceneBuilder thread
 5. **APZ tree lock**
-6. RenderBackend thread  (only if WR enabled)
+6. RenderBackend thread
 7. **APZC map lock**
 8. **APZC instance lock**
 9. **APZ test lock**
