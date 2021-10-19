@@ -929,6 +929,14 @@ TEST(GeckoProfiler, ThreadRegistry_DataAccess)
       });
       EXPECT_EQ(ranTest, 1);
 
+      EXPECT_TRUE(TRy::WithOffThreadRefOr(
+          testThreadId,
+          [&](TRy::OffThreadRef aOffThreadRef) {
+            TestOffThreadRef(aOffThreadRef);
+            return true;
+          },
+          false));
+
       ranTest = 0;
       EXPECT_FALSE(TRy::IsRegistryMutexLockedOnCurrentThread());
       for (TRy::OffThreadRef offThreadRef : TRy::LockedRegistry{}) {
@@ -966,6 +974,22 @@ TEST(GeckoProfiler, ThreadRegistry_DataAccess)
     std::thread otherThread([&]() {
       ASSERT_NE(profiler_current_thread_id(), testThreadId);
       testThroughRegistry();
+
+      // Test that this unregistered thread is really not registered.
+      int ranTest = 0;
+      TRy::WithOffThreadRef(
+          profiler_current_thread_id(),
+          [&](TRy::OffThreadRef aOffThreadRef) { ++ranTest; });
+      EXPECT_EQ(ranTest, 0);
+
+      EXPECT_FALSE(TRy::WithOffThreadRefOr(
+          profiler_current_thread_id(),
+          [&](TRy::OffThreadRef aOffThreadRef) {
+            ++ranTest;
+            return true;
+          },
+          false));
+      EXPECT_EQ(ranTest, 0);
     });
     otherThread.join();
   });
@@ -1730,17 +1754,85 @@ TEST(GeckoProfiler, GetBacktrace)
 
 TEST(GeckoProfiler, Pause)
 {
+  profiler_init_main_thread_id();
+  ASSERT_TRUE(profiler_is_main_thread())
+  << "This test must run on the main thread";
+
   uint32_t features = ProfilerFeature::StackWalk;
-  const char* filters[] = {"GeckoMain"};
+  const char* filters[] = {"GeckoMain", "Profiled GeckoProfiler.Pause"};
 
   ASSERT_TRUE(!profiler_is_paused());
-  ASSERT_TRUE(!profiler_can_accept_markers());
+  ASSERT_TRUE(!profiler_thread_is_being_profiled());
+  ASSERT_TRUE(!profiler_thread_is_being_profiled(ProfilerThreadId{}));
+  ASSERT_TRUE(!profiler_thread_is_being_profiled(profiler_current_thread_id()));
+  ASSERT_TRUE(!profiler_thread_is_being_profiled(profiler_main_thread_id()));
+
+  std::thread{[&]() {
+    {
+      ASSERT_TRUE(!profiler_thread_is_being_profiled());
+      ASSERT_TRUE(!profiler_thread_is_being_profiled(ProfilerThreadId{}));
+      ASSERT_TRUE(
+          !profiler_thread_is_being_profiled(profiler_current_thread_id()));
+      ASSERT_TRUE(
+          !profiler_thread_is_being_profiled(profiler_main_thread_id()));
+    }
+    {
+      AUTO_PROFILER_REGISTER_THREAD(
+          "Ignored GeckoProfiler.Pause - before start");
+      ASSERT_TRUE(!profiler_thread_is_being_profiled());
+      ASSERT_TRUE(!profiler_thread_is_being_profiled(ProfilerThreadId{}));
+      ASSERT_TRUE(
+          !profiler_thread_is_being_profiled(profiler_current_thread_id()));
+      ASSERT_TRUE(
+          !profiler_thread_is_being_profiled(profiler_main_thread_id()));
+    }
+    {
+      AUTO_PROFILER_REGISTER_THREAD(
+          "Profiled GeckoProfiler.Pause - before start");
+      ASSERT_TRUE(!profiler_thread_is_being_profiled());
+      ASSERT_TRUE(!profiler_thread_is_being_profiled(ProfilerThreadId{}));
+      ASSERT_TRUE(
+          !profiler_thread_is_being_profiled(profiler_current_thread_id()));
+      ASSERT_TRUE(
+          !profiler_thread_is_being_profiled(profiler_main_thread_id()));
+    }
+  }}.join();
 
   profiler_start(PROFILER_DEFAULT_ENTRIES, PROFILER_DEFAULT_INTERVAL, features,
                  filters, MOZ_ARRAY_LENGTH(filters), 0);
 
   ASSERT_TRUE(!profiler_is_paused());
-  ASSERT_TRUE(profiler_can_accept_markers());
+  ASSERT_TRUE(profiler_thread_is_being_profiled());
+  ASSERT_TRUE(profiler_thread_is_being_profiled(ProfilerThreadId{}));
+  ASSERT_TRUE(profiler_thread_is_being_profiled(profiler_current_thread_id()));
+
+  std::thread{[&]() {
+    {
+      ASSERT_TRUE(!profiler_thread_is_being_profiled());
+      ASSERT_TRUE(!profiler_thread_is_being_profiled(ProfilerThreadId{}));
+      ASSERT_TRUE(
+          !profiler_thread_is_being_profiled(profiler_current_thread_id()));
+      ASSERT_TRUE(profiler_thread_is_being_profiled(profiler_main_thread_id()));
+    }
+    {
+      AUTO_PROFILER_REGISTER_THREAD(
+          "Ignored GeckoProfiler.Pause - after start");
+      ASSERT_TRUE(!profiler_thread_is_being_profiled());
+      ASSERT_TRUE(!profiler_thread_is_being_profiled(ProfilerThreadId{}));
+      ASSERT_TRUE(
+          !profiler_thread_is_being_profiled(profiler_current_thread_id()));
+      ASSERT_TRUE(profiler_thread_is_being_profiled(profiler_main_thread_id()));
+    }
+    {
+      AUTO_PROFILER_REGISTER_THREAD(
+          "Profiled GeckoProfiler.Pause - after start");
+      ASSERT_TRUE(profiler_thread_is_being_profiled());
+      ASSERT_TRUE(profiler_thread_is_being_profiled(ProfilerThreadId{}));
+      ASSERT_TRUE(
+          profiler_thread_is_being_profiled(profiler_current_thread_id()));
+      ASSERT_TRUE(profiler_thread_is_being_profiled(profiler_main_thread_id()));
+    }
+  }}.join();
 
   // Check that we are writing samples while not paused.
   Maybe<ProfilerBufferInfo> info1 = profiler_get_buffer_info();
@@ -1757,7 +1849,40 @@ TEST(GeckoProfiler, Pause)
   profiler_pause();
 
   ASSERT_TRUE(profiler_is_paused());
-  ASSERT_TRUE(!profiler_can_accept_markers());
+  ASSERT_TRUE(!profiler_thread_is_being_profiled());
+  ASSERT_TRUE(!profiler_thread_is_being_profiled(ProfilerThreadId{}));
+  ASSERT_TRUE(!profiler_thread_is_being_profiled(profiler_current_thread_id()));
+
+  std::thread{[&]() {
+    {
+      ASSERT_TRUE(!profiler_thread_is_being_profiled());
+      ASSERT_TRUE(!profiler_thread_is_being_profiled(ProfilerThreadId{}));
+      ASSERT_TRUE(
+          !profiler_thread_is_being_profiled(profiler_current_thread_id()));
+      ASSERT_TRUE(
+          !profiler_thread_is_being_profiled(profiler_main_thread_id()));
+    }
+    {
+      AUTO_PROFILER_REGISTER_THREAD(
+          "Ignored GeckoProfiler.Pause - after pause");
+      ASSERT_TRUE(!profiler_thread_is_being_profiled());
+      ASSERT_TRUE(!profiler_thread_is_being_profiled(ProfilerThreadId{}));
+      ASSERT_TRUE(
+          !profiler_thread_is_being_profiled(profiler_current_thread_id()));
+      ASSERT_TRUE(
+          !profiler_thread_is_being_profiled(profiler_main_thread_id()));
+    }
+    {
+      AUTO_PROFILER_REGISTER_THREAD(
+          "Profiled GeckoProfiler.Pause - after pause");
+      ASSERT_TRUE(!profiler_thread_is_being_profiled());
+      ASSERT_TRUE(!profiler_thread_is_being_profiled(ProfilerThreadId{}));
+      ASSERT_TRUE(
+          !profiler_thread_is_being_profiled(profiler_current_thread_id()));
+      ASSERT_TRUE(
+          !profiler_thread_is_being_profiled(profiler_main_thread_id()));
+    }
+  }}.join();
 
   // Check that we are not writing samples while paused.
   info1 = profiler_get_buffer_info();
@@ -1777,12 +1902,74 @@ TEST(GeckoProfiler, Pause)
   profiler_resume();
 
   ASSERT_TRUE(!profiler_is_paused());
-  ASSERT_TRUE(profiler_can_accept_markers());
+  ASSERT_TRUE(profiler_thread_is_being_profiled());
+  ASSERT_TRUE(profiler_thread_is_being_profiled(ProfilerThreadId{}));
+  ASSERT_TRUE(profiler_thread_is_being_profiled(profiler_current_thread_id()));
+
+  std::thread{[&]() {
+    {
+      ASSERT_TRUE(!profiler_thread_is_being_profiled());
+      ASSERT_TRUE(!profiler_thread_is_being_profiled(ProfilerThreadId{}));
+      ASSERT_TRUE(
+          !profiler_thread_is_being_profiled(profiler_current_thread_id()));
+      ASSERT_TRUE(profiler_thread_is_being_profiled(profiler_main_thread_id()));
+    }
+    {
+      AUTO_PROFILER_REGISTER_THREAD(
+          "Ignored GeckoProfiler.Pause - after resume");
+      ASSERT_TRUE(!profiler_thread_is_being_profiled());
+      ASSERT_TRUE(!profiler_thread_is_being_profiled(ProfilerThreadId{}));
+      ASSERT_TRUE(
+          !profiler_thread_is_being_profiled(profiler_current_thread_id()));
+      ASSERT_TRUE(profiler_thread_is_being_profiled(profiler_main_thread_id()));
+    }
+    {
+      AUTO_PROFILER_REGISTER_THREAD(
+          "Profiled GeckoProfiler.Pause - after resume");
+      ASSERT_TRUE(profiler_thread_is_being_profiled());
+      ASSERT_TRUE(profiler_thread_is_being_profiled(ProfilerThreadId{}));
+      ASSERT_TRUE(
+          profiler_thread_is_being_profiled(profiler_current_thread_id()));
+      ASSERT_TRUE(profiler_thread_is_being_profiled(profiler_main_thread_id()));
+    }
+  }}.join();
 
   profiler_stop();
 
   ASSERT_TRUE(!profiler_is_paused());
-  ASSERT_TRUE(!profiler_can_accept_markers());
+  ASSERT_TRUE(!profiler_thread_is_being_profiled());
+  ASSERT_TRUE(!profiler_thread_is_being_profiled(ProfilerThreadId{}));
+  ASSERT_TRUE(!profiler_thread_is_being_profiled(profiler_current_thread_id()));
+
+  std::thread{[&]() {
+    {
+      ASSERT_TRUE(!profiler_thread_is_being_profiled());
+      ASSERT_TRUE(!profiler_thread_is_being_profiled(ProfilerThreadId{}));
+      ASSERT_TRUE(
+          !profiler_thread_is_being_profiled(profiler_current_thread_id()));
+      ASSERT_TRUE(
+          !profiler_thread_is_being_profiled(profiler_main_thread_id()));
+    }
+    {
+      AUTO_PROFILER_REGISTER_THREAD("Ignored GeckoProfiler.Pause - after stop");
+      ASSERT_TRUE(!profiler_thread_is_being_profiled());
+      ASSERT_TRUE(!profiler_thread_is_being_profiled(ProfilerThreadId{}));
+      ASSERT_TRUE(
+          !profiler_thread_is_being_profiled(profiler_current_thread_id()));
+      ASSERT_TRUE(
+          !profiler_thread_is_being_profiled(profiler_main_thread_id()));
+    }
+    {
+      AUTO_PROFILER_REGISTER_THREAD(
+          "Profiled GeckoProfiler.Pause - after stop");
+      ASSERT_TRUE(!profiler_thread_is_being_profiled());
+      ASSERT_TRUE(!profiler_thread_is_being_profiled(ProfilerThreadId{}));
+      ASSERT_TRUE(
+          !profiler_thread_is_being_profiled(profiler_current_thread_id()));
+      ASSERT_TRUE(
+          !profiler_thread_is_being_profiled(profiler_main_thread_id()));
+    }
+  }}.join();
 }
 
 TEST(GeckoProfiler, Markers)
@@ -2130,7 +2317,7 @@ TEST(GeckoProfiler, Markers)
   std::thread registeredThread([]() {
     AUTO_PROFILER_REGISTER_THREAD("Marker test sub-thread");
     // Marker in non-profiled thread won't be stored.
-    EXPECT_TRUE(profiler_add_marker(
+    EXPECT_FALSE(profiler_add_marker(
         "Text in registered thread with stack", geckoprofiler::category::OTHER,
         MarkerStack::Capture(), geckoprofiler::markers::TextMarker{}, ""));
     // Marker will be stored in main thread, with stack from registered thread.
@@ -2144,10 +2331,10 @@ TEST(GeckoProfiler, Markers)
 
   std::thread unregisteredThread([]() {
     // Marker in unregistered thread won't be stored.
-    EXPECT_TRUE(profiler_add_marker("Text in unregistered thread with stack",
-                                    geckoprofiler::category::OTHER,
-                                    MarkerStack::Capture(),
-                                    geckoprofiler::markers::TextMarker{}, ""));
+    EXPECT_FALSE(profiler_add_marker("Text in unregistered thread with stack",
+                                     geckoprofiler::category::OTHER,
+                                     MarkerStack::Capture(),
+                                     geckoprofiler::markers::TextMarker{}, ""));
     // Marker will be stored in main thread, but stack cannot be captured in an
     // unregistered thread.
     EXPECT_TRUE(profiler_add_marker(

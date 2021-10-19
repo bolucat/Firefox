@@ -161,7 +161,6 @@ static const char sIntPrefs[][43] = {
     "ui.contextMenuOffsetHorizontal",
     "ui.GtkCSDAvailable",
     "ui.GtkCSDHideTitlebarByDefault",
-    "ui.GtkCSDTransparentBackground",
     "ui.GtkCSDMinimizeButton",
     "ui.GtkCSDMaximizeButton",
     "ui.GtkCSDCloseButton",
@@ -183,12 +182,15 @@ static_assert(ArrayLength(sIntPrefs) == size_t(LookAndFeel::IntID::End),
 
 // This array MUST be kept in the same order as the float id list in
 // LookAndFeel.h
+// clang-format off
 static const char sFloatPrefs[][37] = {
     "ui.IMEUnderlineRelativeSize",
     "ui.SpellCheckerUnderlineRelativeSize",
     "ui.caretAspectRatio",
     "ui.textScaleFactor",
+    "ui.titlebarRadius",
 };
+// clang-format on
 
 static_assert(ArrayLength(sFloatPrefs) == size_t(LookAndFeel::FloatID::End),
               "Should have a pref for each float value");

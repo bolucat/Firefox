@@ -1312,6 +1312,13 @@
   value: false
   mirror: always
 
+# Testing-only pref to cause PBrowser creation for a specific BrowsingContext to
+# fail, to test the errored codepath.
+- name: browser.tabs.remote.testOnly.failPBrowserCreation.enabled
+  type: bool
+  value: false
+  mirror: always
+
 - name: browser.tabs.remote.desktopbehavior
   type: bool
   value: false
@@ -3753,6 +3760,14 @@
   value: false
   mirror: always
 
+# Points in the native bounds geometry are required to be quantized
+# sufficiently to prevent fingerprinting. The WebXR spec suggests 
+# quantizing to the nearest 5 centimeters.
+- name: dom.vr.webxr.quantization
+  type: AtomicFloat
+  value: 0.05f
+  mirror: always
+
 #ifdef XP_WIN
   # Control firing WidgetMouseEvent by handling Windows pointer messages or
   # mouse messages.
@@ -4919,6 +4934,13 @@
   type: bool
   value: true
   mirror: once
+
+#if !defined(MOZ_WIDGET_ANDROID)
+- name: gfx.egl.prefer-gles.enabled
+  type: bool
+  value: false
+  mirror: once
+#endif
 
 # [Windows] Whether registry FontSubstitutes entries are used unconditionally,
 # or only if the original font is not available.
@@ -6346,15 +6368,6 @@
 #endif
   mirror: always
 
-- name: layers.enable-tiles
-  type: bool
-#if defined(XP_MACOSX) || defined (XP_OPENBSD)
-  value: true
-#else
-  value: false
-#endif
-  mirror: once
-
 # Force all possible layers to be always active layers.
 - name: layers.force-active
   type: bool
@@ -6502,30 +6515,6 @@
   type: RelaxedAtomicBool
   value: true
   mirror: always
-
-# We allow for configurable and rectangular tile size to avoid wasting memory
-# on devices whose screen size does not align nicely to the default tile size.
-# Although layers can be any size, they are often the same size as the screen,
-# especially for width.
-- name: layers.tile-width
-  type: int32_t
-  value: 512
-  mirror: once
-
-- name: layers.tile-height
-  type: int32_t
-  value: 512
-  mirror: once
-
-# If this is set the tile size will only be treated as a suggestion.
-# On B2G we will round this to the stride of the underlying allocation.
-# On any platform we may later use the screen size and ignore
-# tile-width/tile-height entirely. Its recommended to turn this off
-# if you change the tile size.
-- name: layers.tiles.adjust
-  type: bool
-  value: true
-  mirror: once
 
 - name: layers.recycle-allocator-rdd
   type: bool
@@ -8833,7 +8822,9 @@
 
 - name: media.webrtc.platformencoder
   type: bool
-#if defined(MOZ_WIDGET_ANDROID) || defined(NIGHTLY_BUILD)
+#if defined(MOZ_WIDGET_ANDROID)
+  value: true
+#elif defined(NIGHTLY_BUILD) && !defined(MOZ_WIDGET_GTK)
   value: true
 #else
   value: false

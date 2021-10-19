@@ -349,10 +349,13 @@ class AliasSet {
     // Hash table of a Map or Set object.
     MapOrSetHashTable = 1 << 15,
 
-    Last = MapOrSetHashTable,
+    // Internal state of the random number generator
+    RNG = 1 << 16,
+
+    Last = RNG,
     Any = Last | (Last - 1),
 
-    NumCategories = 16,
+    NumCategories = 17,
 
     // Indicates load or store.
     Store_ = 1 << 31
@@ -2027,8 +2030,7 @@ class MObjectState : public MVariadicInstruction,
 
   // As we might do read of uninitialized properties, we have to copy the
   // initial values from the template object.
-  [[nodiscard]] bool initFromTemplateObject(TempAllocator& alloc,
-                                            MDefinition* undefinedVal);
+  void initFromTemplateObject(TempAllocator& alloc, MDefinition* undefinedVal);
 
   size_t numFixedSlots() const { return numFixedSlots_; }
   size_t numSlots() const { return numSlots_; }
@@ -2089,8 +2091,7 @@ class MArrayState : public MVariadicInstruction,
                           MDefinition* initLength);
   static MArrayState* Copy(TempAllocator& alloc, MArrayState* state);
 
-  [[nodiscard]] bool initFromTemplateObject(TempAllocator& alloc,
-                                            MDefinition* undefinedVal);
+  void initFromTemplateObject(TempAllocator& alloc, MDefinition* undefinedVal);
 
   void setInitializedLength(MDefinition* def) { replaceOperand(1, def); }
 
@@ -6537,14 +6538,11 @@ class MLoadElementAndUnbox : public MBinaryInstruction,
 // Load a value from the elements vector of a native object. If the index is
 // out-of-bounds, or the indexed slot has a hole, undefined is returned instead.
 class MLoadElementHole : public MTernaryInstruction, public NoTypePolicy::Data {
-  bool needsNegativeIntCheck_;
-  bool needsHoleCheck_;
+  bool needsNegativeIntCheck_ = true;
 
   MLoadElementHole(MDefinition* elements, MDefinition* index,
-                   MDefinition* initLength, bool needsHoleCheck)
-      : MTernaryInstruction(classOpcode, elements, index, initLength),
-        needsNegativeIntCheck_(true),
-        needsHoleCheck_(needsHoleCheck) {
+                   MDefinition* initLength)
+      : MTernaryInstruction(classOpcode, elements, index, initLength) {
     setResultType(MIRType::Value);
     setMovable();
 
@@ -6564,15 +6562,11 @@ class MLoadElementHole : public MTernaryInstruction, public NoTypePolicy::Data {
   NAMED_OPERANDS((0, elements), (1, index), (2, initLength))
 
   bool needsNegativeIntCheck() const { return needsNegativeIntCheck_; }
-  bool needsHoleCheck() const { return needsHoleCheck_; }
   bool congruentTo(const MDefinition* ins) const override {
     if (!ins->isLoadElementHole()) {
       return false;
     }
     const MLoadElementHole* other = ins->toLoadElementHole();
-    if (needsHoleCheck() != other->needsHoleCheck()) {
-      return false;
-    }
     if (needsNegativeIntCheck() != other->needsNegativeIntCheck()) {
       return false;
     }

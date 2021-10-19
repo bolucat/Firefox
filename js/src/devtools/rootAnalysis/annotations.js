@@ -40,8 +40,8 @@ function indirectCallCannotGC(fullCaller, fullVariable)
 
     // This is usually a simple variable name, but sometimes a full name gets
     // passed through. And sometimes that name is truncated. Examples:
-    //   _ZL13gAbortHandler|mozalloc_oom.cpp:void (* gAbortHandler)(size_t)
-    //   _ZL14pMutexUnlockFn|umutex.cpp:void (* pMutexUnlockFn)(const void*
+    //   _ZL13gAbortHandler$mozalloc_oom.cpp:void (* gAbortHandler)(size_t)
+    //   _ZL14pMutexUnlockFn$umutex.cpp:void (* pMutexUnlockFn)(const void*
     var name = readable(fullVariable);
 
     if (name in ignoreIndirectCalls)
@@ -296,7 +296,7 @@ var ignoreFunctions = {
     "void mozilla::dom::JSStreamConsumer::~JSStreamConsumer() [[base_dtor]]": true,
 };
 
-function extraGCFunctions() {
+function extraGCFunctions(readableNames) {
     return ["ffi_call"].filter(f => f in readableNames);
 }
 
@@ -323,7 +323,7 @@ function isICU(name)
            name.match(/u(prv_malloc|prv_realloc|prv_free|case_toFullLower)_\d+/)
 }
 
-function ignoreGCFunction(mangled)
+function ignoreGCFunction(mangled, readableNames)
 {
     // Field calls will not be in readableNames
     if (!(mangled in readableNames))
@@ -408,7 +408,7 @@ function isUnsafeStorage(typeName)
     return typeName.startsWith('UniquePtr<');
 }
 
-// If edgeType is a constructor type, return whatever limits it implies for its
+// If edgeType is a constructor type, return whatever bits it implies for its
 // scope (or zero if not matching).
 function isLimitConstructor(typeInfo, edgeType, varName)
 {
@@ -422,9 +422,9 @@ function isLimitConstructor(typeInfo, edgeType, varName)
 
     // Check whether the type is a known suppression type.
     var type = edgeType.TypeFunctionCSU.Type.Name;
-    let limit = 0;
+    let attrs = 0;
     if (type in typeInfo.GCSuppressors)
-        limit = limit | LIMIT_CANNOT_GC;
+        attrs = attrs | ATTR_GC_SUPPRESSED;
 
     // And now make sure this is the constructor, not some other method on a
     // suppression type. varName[0] contains the qualified name.
@@ -438,7 +438,7 @@ function isLimitConstructor(typeInfo, edgeType, varName)
     if (m[1] != type_stem)
         return 0;
 
-    return limit;
+    return attrs;
 }
 
 // nsISupports subclasses' methods may be scriptable (or overridden

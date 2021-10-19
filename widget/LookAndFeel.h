@@ -254,12 +254,6 @@ class LookAndFeel {
 
     /*
      * A boolean value indicating whether client-side decorations should
-     * have transparent background.
-     */
-    GTKCSDTransparentBackground,
-
-    /*
-     * A boolean value indicating whether client-side decorations should
      * contain a minimize button.
      */
     GTKCSDMinimizeButton,
@@ -402,6 +396,9 @@ class LookAndFeel {
 
     // GTK text scale factor.
     TextScaleFactor,
+
+    // GTK titlebar radius.
+    TitlebarRadius,
 
     // Not an ID; used to define the range of valid IDs.  Must be last.
     End,

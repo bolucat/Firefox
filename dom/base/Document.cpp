@@ -11060,11 +11060,19 @@ bool Document::CanSavePresentation(nsIRequest* aNewRequest,
   nsCOMPtr<EventTarget> piTarget = do_QueryInterface(mScriptGlobalObject);
   if (!allowUnloadListeners && piTarget) {
     EventListenerManager* manager = piTarget->GetExistingListenerManager();
-    if (manager && manager->HasUnloadListeners()) {
-      MOZ_LOG(gPageCacheLog, mozilla::LogLevel::Verbose,
-              ("Save of %s blocked due to unload handlers", uri.get()));
-      aBFCacheCombo |= BFCacheStatus::UNLOAD_LISTENER;
-      ret = false;
+    if (manager) {
+      if (manager->HasUnloadListeners()) {
+        MOZ_LOG(gPageCacheLog, mozilla::LogLevel::Verbose,
+                ("Save of %s blocked due to unload handlers", uri.get()));
+        aBFCacheCombo |= BFCacheStatus::UNLOAD_LISTENER;
+        ret = false;
+      }
+      if (manager->HasBeforeUnloadListeners()) {
+        MOZ_LOG(gPageCacheLog, mozilla::LogLevel::Verbose,
+                ("Save of %s blocked due to beforeUnload handlers", uri.get()));
+        aBFCacheCombo |= BFCacheStatus::BEFOREUNLOAD_LISTENER;
+        ret = false;
+      }
     }
   }
 
@@ -17456,21 +17464,9 @@ ColorScheme Document::PreferredColorScheme(IgnoreRFP aIgnoreRFP) const {
     return ColorScheme::Light;
   }
 
-  if (auto* bc = GetBrowsingContext()) {
-    switch (bc->Top()->PrefersColorSchemeOverride()) {
-      case dom::PrefersColorSchemeOverride::Dark:
-        return ColorScheme::Dark;
-      case dom::PrefersColorSchemeOverride::Light:
-        return ColorScheme::Light;
-      case dom::PrefersColorSchemeOverride::None:
-      case dom::PrefersColorSchemeOverride::EndGuard_:
-        break;
-    }
-  }
-
   if (nsPresContext* pc = GetPresContext()) {
-    if (pc->IsPrintingOrPrintPreview()) {
-      return ColorScheme::Light;
+    if (auto scheme = pc->GetOverriddenColorScheme()) {
+      return *scheme;
     }
   }
 

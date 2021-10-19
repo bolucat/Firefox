@@ -112,8 +112,6 @@ class nsWindow final : public nsBaseWidget {
 
   NS_INLINE_DECL_REFCOUNTING_INHERITED(nsWindow, nsBaseWidget)
 
-  void CommonCreate(nsIWidget* aParent, bool aListenForResizes);
-
   virtual nsresult DispatchEvent(mozilla::WidgetGUIEvent* aEvent,
                                  nsEventStatus& aStatus) override;
 
@@ -136,7 +134,6 @@ class nsWindow final : public nsBaseWidget {
   mozilla::DesktopToLayoutDeviceScale GetDesktopToDeviceScale() override;
   mozilla::DesktopToLayoutDeviceScale GetDesktopToDeviceScaleByScreen()
       override;
-  virtual void SetParent(nsIWidget* aNewParent) override;
   virtual void SetModal(bool aModal) override;
   virtual bool IsVisible() const override;
   virtual void ConstrainPosition(bool aAllowSlop, int32_t* aX,
@@ -171,9 +168,6 @@ class nsWindow final : public nsBaseWidget {
   virtual void CaptureRollupEvents(nsIRollupListener* aListener,
                                    bool aDoCapture) override;
   [[nodiscard]] virtual nsresult GetAttention(int32_t aCycleCount) override;
-  virtual nsresult SetWindowClipRegion(
-      const nsTArray<LayoutDeviceIntRect>& aRects,
-      bool aIntersectWithExisting) override;
   virtual bool HasPendingInputEvent() override;
 
   virtual bool PrepareForFullscreenTransition(nsISupports** aData) override;
@@ -295,14 +289,10 @@ class nsWindow final : public nsBaseWidget {
   virtual void SetTransparencyMode(nsTransparencyMode aMode) override;
   virtual nsTransparencyMode GetTransparencyMode() override;
   virtual void SetWindowMouseTransparent(bool aIsTransparent) override;
-  virtual nsresult ConfigureChildren(
-      const nsTArray<Configuration>& aConfigurations) override;
   nsresult UpdateTranslucentWindowAlphaInternal(const nsIntRect& aRect,
                                                 uint8_t* aAlphas,
                                                 int32_t aStride);
   void UpdateTitlebarTransparencyBitmap();
-
-  virtual void ReparentNativeWidget(nsIWidget* aNewParent) override;
 
   virtual nsresult SynthesizeNativeMouseEvent(
       LayoutDeviceIntPoint aPoint, NativeMouseMessage aNativeMessage,
@@ -338,6 +328,7 @@ class nsWindow final : public nsBaseWidget {
   virtual nsresult SetNonClientMargins(
       LayoutDeviceIntMargin& aMargins) override;
   void SetDrawsInTitlebar(bool aState) override;
+  mozilla::LayoutDeviceIntCoord GetTitlebarRadius();
   LayoutDeviceIntRect GetTitlebarRect();
   virtual void UpdateWindowDraggingRegion(
       const LayoutDeviceIntRegion& aRegion) override;
@@ -445,13 +436,8 @@ class nsWindow final : public nsBaseWidget {
 #endif
   }
   nsCOMPtr<nsIWidget> mParent;
-  // Is this a toplevel window?
-  bool mIsTopLevel;
   // Has this widget been destroyed yet?
   bool mIsDestroyed;
-
-  // Should we send resize events on all resizes?
-  bool mListenForResizes;
   // Does WindowResized need to be called on listeners?
   bool mNeedsDispatchResized;
   // This flag tracks if we're hidden or shown.
@@ -495,7 +481,6 @@ class nsWindow final : public nsBaseWidget {
 
   void WaylandStartVsync();
   void WaylandStopVsync();
-  void DestroyChildWindows();
   GtkWidget* GetToplevelWidget();
   nsWindow* GetContainerWindow();
   void SetUrgencyHint(GtkWidget* top_window, bool state);

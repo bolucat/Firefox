@@ -1202,9 +1202,10 @@ void GCRuntime::updateAtomsBitmap() {
 }
 
 void GCRuntime::sweepCCWrappers() {
+  SweepingTracer trc(rt);
   AutoSetThreadIsSweeping threadIsSweeping;  // This can touch all zones.
   for (SweepGroupZonesIter zone(this); !zone.done(); zone.next()) {
-    zone->sweepAllCrossCompartmentWrappers();
+    zone->traceWeakCCWEdges(&trc);
   }
 }
 
@@ -1407,7 +1408,7 @@ static bool PrepareWeakCacheTasks(JSRuntime* rt,
 
   bool ok =
       IterateWeakCaches(rt, [&](JS::detail::WeakCacheBase* cache, Zone* zone) {
-        if (!cache->needsSweep()) {
+        if (cache->empty()) {
           return true;
         }
 
