@@ -340,21 +340,13 @@ void AssertLoadingPrincipalAndClientInfoMatch(
       return;
     }
     // Fall back to a slower origin equality test to support null principals.
-    nsAutoCString loadingOriginNoSuffix;
-    MOZ_ALWAYS_SUCCEEDS(
-        aLoadingPrincipal->GetOriginNoSuffix(loadingOriginNoSuffix));
+    nsAutoCString loadingOrigin;
+    MOZ_ALWAYS_SUCCEEDS(aLoadingPrincipal->GetOrigin(loadingOrigin));
 
-    nsAutoCString clientOriginNoSuffix;
-    MOZ_ALWAYS_SUCCEEDS(
-        clientPrincipal->GetOriginNoSuffix(clientOriginNoSuffix));
+    nsAutoCString clientOrigin;
+    MOZ_ALWAYS_SUCCEEDS(clientPrincipal->GetOrigin(clientOrigin));
 
-    // The client principal will have the partitionKey set if it's in a third
-    // party context, but the loading principal won't. So, we ignore he
-    // partitionKey when doing the verification here.
-    MOZ_DIAGNOSTIC_ASSERT(loadingOriginNoSuffix == clientOriginNoSuffix);
-    MOZ_DIAGNOSTIC_ASSERT(
-        aLoadingPrincipal->OriginAttributesRef().EqualsIgnoringPartitionKey(
-            clientPrincipal->OriginAttributesRef()));
+    MOZ_DIAGNOSTIC_ASSERT(loadingOrigin == clientOrigin);
   }
 #endif
 }
@@ -2536,37 +2528,6 @@ bool NS_RelaxStrictFileOriginPolicy(nsIURI* aTargetURI, nsIURI* aSourceURI,
       (!aAllowDirectoryTarget &&
        (NS_FAILED(targetFile->IsDirectory(&targetIsDir)) || targetIsDir))) {
     return false;
-  }
-
-  if (!StaticPrefs::privacy_file_unique_origin()) {
-    //
-    // If the file to be loaded is in a subdirectory of the source
-    // (or same-dir if source is not a directory) then it will
-    // inherit its source principal and be scriptable by that source.
-    //
-    bool sourceIsDir;
-    bool allowed = false;
-    nsresult rv = sourceFile->IsDirectory(&sourceIsDir);
-    if (NS_SUCCEEDED(rv) && sourceIsDir) {
-      rv = sourceFile->Contains(targetFile, &allowed);
-    } else {
-      nsCOMPtr<nsIFile> sourceParent;
-      rv = sourceFile->GetParent(getter_AddRefs(sourceParent));
-      if (NS_SUCCEEDED(rv) && sourceParent) {
-        rv = sourceParent->Equals(targetFile, &allowed);
-        if (NS_FAILED(rv) || !allowed) {
-          rv = sourceParent->Contains(targetFile, &allowed);
-        } else {
-          MOZ_ASSERT(aAllowDirectoryTarget,
-                     "sourceFile->Parent == targetFile, but targetFile "
-                     "should've been disallowed if it is a directory");
-        }
-      }
-    }
-
-    if (NS_SUCCEEDED(rv) && allowed) {
-      return true;
-    }
   }
 
   return false;
