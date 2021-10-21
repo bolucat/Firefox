@@ -32,6 +32,8 @@ class nsLookAndFeel final : public nsXPLookAndFeel {
   char16_t GetPasswordCharacterImpl() override;
   bool GetEchoPasswordImpl() override;
 
+  bool GetDefaultDrawInTitlebar() override;
+
   template <typename Callback>
   void WithAltThemeConfigured(const Callback&);
 
@@ -41,8 +43,6 @@ class nsLookAndFeel final : public nsXPLookAndFeel {
   void GetThemeInfo(nsACString&) override;
 
   static void ConfigureTheme(const LookAndFeelTheme& aTheme);
-
-  bool IsCSDAvailable() const { return mCSDAvailable; }
 
   static const nscolor kBlack = NS_RGB(0, 0, 0);
   static const nscolor kWhite = NS_RGB(255, 255, 255);
@@ -123,7 +123,7 @@ class nsLookAndFeel final : public nsXPLookAndFeel {
     nscolor mThemedScrollbarThumbInactive = kBlack;
 
     float mCaretRatio = 0.0f;
-    float mTitlebarRadius = 0.0f;
+    int32_t mTitlebarRadius = 0;
     char16_t mInvisibleCharacter = 0;
     bool mMenuSupportsDrag = false;
 
@@ -154,8 +154,6 @@ class nsLookAndFeel final : public nsXPLookAndFeel {
 
   int32_t mCaretBlinkTime = 0;
   int32_t mCaretBlinkCount = -1;
-  bool mCSDAvailable = false;
-  bool mCSDHideTitlebarByDefault = false;
   bool mCSDMaximizeButton = false;
   bool mCSDMinimizeButton = false;
   bool mCSDCloseButton = false;

@@ -247,12 +247,6 @@ class LookAndFeel {
     GTKCSDAvailable,
 
     /*
-     * A boolean value indicating whether GTK+ system titlebar should be
-     * disabled by default.
-     */
-    GTKCSDHideTitlebarByDefault,
-
-    /*
      * A boolean value indicating whether client-side decorations should
      * contain a minimize button.
      */
@@ -337,6 +331,9 @@ class LookAndFeel {
     /** A boolean value to determine whether a touch device is present */
     TouchDeviceSupportPresent,
 
+    /** GTK titlebar radius */
+    TitlebarRadius,
+
     /*
      * Not an ID; used to define the range of valid IDs.  Must be last.
      */
@@ -397,9 +394,6 @@ class LookAndFeel {
     // GTK text scale factor.
     TextScaleFactor,
 
-    // GTK titlebar radius.
-    TitlebarRadius,
-
     // Not an ID; used to define the range of valid IDs.  Must be last.
     End,
   };
@@ -411,7 +405,14 @@ class LookAndFeel {
                                               : ColorScheme::Light;
   }
 
-  static ColorScheme ColorSchemeForChrome();
+  enum class ChromeColorSchemeSetting { Light, Dark, System };
+  static ChromeColorSchemeSetting ColorSchemeSettingForChrome();
+
+  static ColorScheme ColorSchemeForChrome() { return sChromeColorScheme; }
+  static ColorScheme PreferredColorSchemeForContent() {
+    return sContentColorScheme;
+  }
+
   static ColorScheme ColorSchemeForStyle(const dom::Document&,
                                          const StyleColorSchemeFlags&);
   static ColorScheme ColorSchemeForFrame(const nsIFrame*);
@@ -503,6 +504,11 @@ class LookAndFeel {
   static bool GetEchoPassword();
 
   /**
+   * Whether we should be drawing in the titlebar by default.
+   */
+  static bool DrawInTitlebar();
+
+  /**
    * The millisecond to mask password value.
    * This value is only valid when GetEchoPassword() returns true.
    */
@@ -529,6 +535,10 @@ class LookAndFeel {
 
   static void SetData(widget::FullLookAndFeel&& aTables);
   static void NotifyChangedAllWindows(widget::ThemeChangeKind);
+
+  static void RecomputeColorSchemes();
+  static ColorScheme sChromeColorScheme;
+  static ColorScheme sContentColorScheme;
 };
 
 }  // namespace mozilla

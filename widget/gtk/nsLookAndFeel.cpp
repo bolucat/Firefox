@@ -77,6 +77,8 @@ static void settings_changed_cb(GtkSettings*, GParamSpec*, void*) {
   widget::IMContextWrapper::OnThemeChanged();
 }
 
+static bool sCSDAvailable;
+
 nsLookAndFeel::nsLookAndFeel() {
   static constexpr nsLiteralCString kObservedSettings[] = {
       // Affects system font sizes.
@@ -110,6 +112,9 @@ nsLookAndFeel::nsLookAndFeel() {
     g_signal_connect_after(settings, setting.get(),
                            G_CALLBACK(settings_changed_cb), nullptr);
   }
+
+  sCSDAvailable =
+      nsWindow::GetSystemGtkWindowDecoration() != nsWindow::GTK_DECORATION_NONE;
 }
 
 nsLookAndFeel::~nsLookAndFeel() {
@@ -362,10 +367,10 @@ void nsLookAndFeel::PerThemeData::InitCellHighlightColors() {
 void nsLookAndFeel::NativeInit() { EnsureInit(); }
 
 void nsLookAndFeel::RefreshImpl() {
-  nsXPLookAndFeel::RefreshImpl();
+  mInitialized = false;
   moz_gtk_refresh();
 
-  mInitialized = false;
+  nsXPLookAndFeel::RefreshImpl();
 }
 
 nsresult nsLookAndFeel::NativeGetColor(ColorID aID, ColorScheme aScheme,
@@ -786,12 +791,7 @@ nsresult nsLookAndFeel::NativeGetInt(IntID aID, int32_t& aResult) {
       aResult = 2;
       break;
     case IntID::GTKCSDAvailable:
-      EnsureInit();
-      aResult = mCSDAvailable;
-      break;
-    case IntID::GTKCSDHideTitlebarByDefault:
-      EnsureInit();
-      aResult = mCSDHideTitlebarByDefault;
+      aResult = sCSDAvailable;
       break;
     case IntID::GTKCSDMaximizeButton:
       EnsureInit();
@@ -830,6 +830,11 @@ nsresult nsLookAndFeel::NativeGetInt(IntID aID, int32_t& aResult) {
     case IntID::UseAccessibilityTheme: {
       EnsureInit();
       aResult = mSystemTheme.mHighContrast;
+      break;
+    }
+    case IntID::TitlebarRadius: {
+      EnsureInit();
+      aResult = EffectiveTheme().mTitlebarRadius;
       break;
     }
     case IntID::AllowOverlayScrollbarsOverlap: {
@@ -871,10 +876,6 @@ nsresult nsLookAndFeel::NativeGetFloat(FloatID aID, float& aResult) {
     case FloatID::CaretAspectRatio:
       EnsureInit();
       aResult = mSystemTheme.mCaretRatio;
-      break;
-    case FloatID::TitlebarRadius:
-      EnsureInit();
-      aResult = EffectiveTheme().mTitlebarRadius;
       break;
     case FloatID::TextScaleFactor:
       aResult = gfxPlatformGtk::GetFontScaleFactor();
@@ -1243,10 +1244,6 @@ void nsLookAndFeel::EnsureInit() {
     mCaretBlinkCount = -1;
   }
 
-  mCSDAvailable =
-      nsWindow::GtkWindowDecoration() != nsWindow::GTK_DECORATION_NONE;
-  mCSDHideTitlebarByDefault = nsWindow::HideTitlebarByDefault();
-
   mSystemTheme.Init();
 
   mCSDCloseButton = false;
@@ -1313,8 +1310,20 @@ bool nsLookAndFeel::MatchFirefoxThemeIfNeeded() {
   AutoRestore<bool> restoreIgnoreSettings(sIgnoreChangedSettings);
   sIgnoreChangedSettings = true;
 
-  const bool matchesSystem =
-      (ColorSchemeForChrome() == ColorScheme::Dark) == mSystemTheme.mIsDark;
+  const bool matchesSystem = [&] {
+    // NOTE: We can't call ColorSchemeForChrome directly because this might run
+    // while we're computing it.
+    switch (ColorSchemeSettingForChrome()) {
+      case ChromeColorSchemeSetting::Light:
+        return !mSystemTheme.mIsDark;
+      case ChromeColorSchemeSetting::Dark:
+        return mSystemTheme.mIsDark;
+      case ChromeColorSchemeSetting::System:
+        break;
+    };
+    return true;
+  }();
+
   const bool usingSystem = !mSystemThemeOverridden;
 
   LOGLNF("MatchFirefoxThemeIfNeeded(matchesSystem=%d, usingSystem=%d)\n",
@@ -1543,15 +1552,15 @@ void nsLookAndFeel::PerThemeData::Init() {
     gtk_style_context_get_property(style, "border-radius",
                                    GTK_STATE_FLAG_NORMAL, &value);
 
-    mTitlebarRadius = [&]() -> float {
+    mTitlebarRadius = [&]() -> int {
       auto type = G_VALUE_TYPE(&value);
       if (type == G_TYPE_INT) {
-        return float(g_value_get_int(&value));
+        return g_value_get_int(&value);
       }
       NS_WARNING(
           nsPrintfCString("Unknown value type %lu for titlebar radius", type)
               .get());
-      return 0.0f;
+      return 0;
     }();
     g_value_unset(&value);
   }
@@ -1815,7 +1824,7 @@ void nsLookAndFeel::PerThemeData::Init() {
              GetColorPrefName(id), NS_SUCCEEDED(rv),
              NS_SUCCEEDED(rv) ? color : 0);
     }
-    LOGLNF(" * titlebar-radius: %f\n", mTitlebarRadius);
+    LOGLNF(" * titlebar-radius: %d\n", mTitlebarRadius);
   }
 }
 
@@ -1826,6 +1835,28 @@ char16_t nsLookAndFeel::GetPasswordCharacterImpl() {
 }
 
 bool nsLookAndFeel::GetEchoPasswordImpl() { return false; }
+
+bool nsLookAndFeel::GetDefaultDrawInTitlebar() {
+  static bool drawInTitlebar = []() {
+    // When user defined widget.default-hidden-titlebar don't do any
+    // heuristics and just follow it.
+    if (Preferences::HasUserValue("widget.default-hidden-titlebar")) {
+      return Preferences::GetBool("widget.default-hidden-titlebar", false);
+    }
+
+    // Don't hide titlebar when it's disabled on current desktop.
+    const char* currentDesktop = getenv("XDG_CURRENT_DESKTOP");
+    if (!currentDesktop || !sCSDAvailable) {
+      return false;
+    }
+
+    // We hide system titlebar on Gnome/ElementaryOS without any restriction.
+    return strstr(currentDesktop, "GNOME-Flashback:GNOME") ||
+           strstr(currentDesktop, "GNOME") ||
+           strstr(currentDesktop, "Pantheon");
+  }();
+  return drawInTitlebar;
+}
 
 void nsLookAndFeel::GetThemeInfo(nsACString& aInfo) {
   aInfo.Append(mSystemTheme.mName);

@@ -10,22 +10,23 @@
 #include <stdio.h>   // for nullptr, stdout
 #include <string.h>  // for strcmp
 
-#include "ChangeAttributeTransaction.h"       // for ChangeAttributeTransaction
-#include "CompositionTransaction.h"           // for CompositionTransaction
-#include "CreateElementTransaction.h"         // for CreateElementTransaction
-#include "DeleteNodeTransaction.h"            // for DeleteNodeTransaction
-#include "DeleteRangeTransaction.h"           // for DeleteRangeTransaction
-#include "DeleteTextTransaction.h"            // for DeleteTextTransaction
-#include "EditAggregateTransaction.h"         // for EditAggregateTransaction
-#include "EditTransactionBase.h"              // for EditTransactionBase
-#include "EditorEventListener.h"              // for EditorEventListener
-#include "gfxFontUtils.h"                     // for gfxFontUtils
-#include "HTMLEditUtils.h"                    // for HTMLEditUtils
-#include "InsertNodeTransaction.h"            // for InsertNodeTransaction
-#include "InsertTextTransaction.h"            // for InsertTextTransaction
-#include "JoinNodeTransaction.h"              // for JoinNodeTransaction
-#include "PlaceholderTransaction.h"           // for PlaceholderTransaction
-#include "SplitNodeTransaction.h"             // for SplitNodeTransaction
+#include "ChangeAttributeTransaction.h"  // for ChangeAttributeTransaction
+#include "CompositionTransaction.h"      // for CompositionTransaction
+#include "CreateElementTransaction.h"    // for CreateElementTransaction
+#include "DeleteNodeTransaction.h"       // for DeleteNodeTransaction
+#include "DeleteRangeTransaction.h"      // for DeleteRangeTransaction
+#include "DeleteTextTransaction.h"       // for DeleteTextTransaction
+#include "EditAggregateTransaction.h"    // for EditAggregateTransaction
+#include "EditTransactionBase.h"         // for EditTransactionBase
+#include "EditorEventListener.h"         // for EditorEventListener
+#include "gfxFontUtils.h"                // for gfxFontUtils
+#include "HTMLEditUtils.h"               // for HTMLEditUtils
+#include "InsertNodeTransaction.h"       // for InsertNodeTransaction
+#include "InsertTextTransaction.h"       // for InsertTextTransaction
+#include "JoinNodeTransaction.h"         // for JoinNodeTransaction
+#include "PlaceholderTransaction.h"      // for PlaceholderTransaction
+#include "SplitNodeTransaction.h"        // for SplitNodeTransaction
+#include "mozilla/intl/Bidi.h"
 #include "mozilla/BasePrincipal.h"            // for BasePrincipal
 #include "mozilla/CheckedInt.h"               // for CheckedInt
 #include "mozilla/ComposerCommandsUpdater.h"  // for ComposerCommandsUpdater
@@ -2294,14 +2295,14 @@ void EditorBase::NotifyEditorObservers(
 
       if (!mDispatchInputEvent || IsEditActionAborted() ||
           IsEditActionCanceled()) {
-        return;
+        break;
       }
 
       DispatchInputEvent();
       break;
     case eNotifyEditorObserversOfBefore:
       if (NS_WARN_IF(mIsInEditSubAction)) {
-        break;
+        return;
       }
 
       mIsInEditSubAction = true;
@@ -2310,7 +2311,7 @@ void EditorBase::NotifyEditorObservers(
         RefPtr<IMEContentObserver> observer = mIMEContentObserver;
         observer->BeforeEditAction();
       }
-      break;
+      return;
     case eNotifyEditorObserversOfCancel:
       mIsInEditSubAction = false;
 
@@ -2326,6 +2327,19 @@ void EditorBase::NotifyEditorObservers(
     default:
       MOZ_CRASH("Handle all notifications here");
       break;
+  }
+
+  if (IsHTMLEditor() && !Destroyed()) {
+    // We may need to show resizing handles or update existing ones after
+    // all transactions are done. This way of doing is preferred to DOM
+    // mutation events listeners because all the changes the user can apply
+    // to a document may result in multiple events, some of them quite hard
+    // to listen too (in particular when an ancestor of the selection is
+    // changed but the selection itself is not changed).
+    DebugOnly<nsresult> rvIgnored =
+        MOZ_KnownLive(AsHTMLEditor())->RefreshEditingUI();
+    NS_WARNING_ASSERTION(NS_SUCCEEDED(rvIgnored),
+                         "HTMLEditor::RefreshEditingUI() failed, but ignored");
   }
 }
 
@@ -3486,21 +3500,6 @@ void EditorBase::EndUpdateViewBatch() {
 
   // Turn selection updating and notifications back on.
   SelectionRef().EndBatchChanges();
-
-  if (!IsHTMLEditor()) {
-    return;
-  }
-
-  // We may need to show resizing handles or update existing ones after
-  // all transactions are done. This way of doing is preferred to DOM
-  // mutation events listeners because all the changes the user can apply
-  // to a document may result in multiple events, some of them quite hard
-  // to listen too (in particular when an ancestor of the selection is
-  // changed but the selection itself is not changed).
-  DebugOnly<nsresult> rvIgnored =
-      MOZ_KnownLive(AsHTMLEditor())->RefreshEditingUI();
-  NS_WARNING_ASSERTION(NS_SUCCEEDED(rvIgnored),
-                       "HTMLEditor::RefreshEditingUI() failed, but ignored");
 }
 
 TextComposition* EditorBase::GetComposition() const { return mComposition; }
@@ -5767,12 +5766,13 @@ EditorBase::AutoCaretBidiLevelManager::AutoCaretBidiLevelManager(
   nsPrevNextBidiLevels levels = frameSelection->GetPrevNextBidiLevels(
       aPointAtCaret.GetContainerAsContent(), aPointAtCaret.Offset(), true);
 
-  nsBidiLevel levelBefore = levels.mLevelBefore;
-  nsBidiLevel levelAfter = levels.mLevelAfter;
+  mozilla::intl::Bidi::EmbeddingLevel levelBefore = levels.mLevelBefore;
+  mozilla::intl::Bidi::EmbeddingLevel levelAfter = levels.mLevelAfter;
 
-  nsBidiLevel currentCaretLevel = frameSelection->GetCaretBidiLevel();
+  mozilla::intl::Bidi::EmbeddingLevel currentCaretLevel =
+      frameSelection->GetCaretBidiLevel();
 
-  nsBidiLevel levelOfDeletion;
+  mozilla::intl::Bidi::EmbeddingLevel levelOfDeletion;
   levelOfDeletion = (nsIEditor::eNext == aDirectionAndAmount ||
                      nsIEditor::eNextWord == aDirectionAndAmount)
                         ? levelAfter

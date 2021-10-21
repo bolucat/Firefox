@@ -1211,6 +1211,17 @@
   type: RelaxedAtomicUint32
   value: 2
   mirror: always
+
+# Communicates the preferred content theme color to platform (for e.g.,
+# prefers-color-scheme).
+#
+# dark (0), light (1), or toolbar (2).
+#
+# Default to "toolbar", the theming code sets it appropriately.
+- name: browser.theme.content-theme
+  type: RelaxedAtomicUint32
+  value: 2
+  mirror: always
   rust: true
 
 # Enable Proton restyle. Requires restart.
@@ -1287,6 +1298,14 @@
 - name: browser.sessionstore.debug.no_auto_updates
   type: RelaxedAtomicBool
   value: false
+  mirror: always
+
+# Whether we should draw the tabs on top of the titlebar.
+#
+# no (0), yes (1), or default (2), which is true everywhere except Linux.
+- name: browser.tabs.drawInTitlebar
+  type: int32_t
+  value: 2
   mirror: always
 
 # If set, use DocumentChannel to directly initiate loads entirely
@@ -4790,11 +4809,7 @@
   # attempt to isolate video layers in fullscreen windows.
 -   name: gfx.core-animation.specialize-video
     type: RelaxedAtomicBool
-#if defined(MOZ_AARCH64)
-    value: false
-#else
     value: true
-#endif
     mirror: always
 #endif
 
@@ -9782,6 +9797,14 @@
 - name: network.trr.padding
   type: RelaxedAtomicBool
   value: true
+  mirror: always
+
+# The block size to pad to. Capped at 1024 bytes.
+# Setting it to 0 doesn't add additional padding, but allows the server to
+# respond with padding (RFC7930 Sec 4)
+- name: network.trr.padding.length
+  type: RelaxedAtomicUint32
+  value: 128
   mirror: always
 
 # Whether to skip the NS check for the blocked host.

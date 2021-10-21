@@ -134,7 +134,9 @@ static CALayer* MakeOffscreenRootCALayer() {
 NativeLayerRootCA::NativeLayerRootCA(CALayer* aLayer)
     : mMutex("NativeLayerRootCA"),
       mOnscreenRepresentation(aLayer),
-      mOffscreenRepresentation(MakeOffscreenRootCALayer()) {}
+      mOffscreenRepresentation(MakeOffscreenRootCALayer()) {
+  NoteMouseMove();
+}
 
 NativeLayerRootCA::~NativeLayerRootCA() {
   MOZ_RELEASE_ASSERT(mSublayers.IsEmpty(),
@@ -162,7 +164,7 @@ void NativeLayerRootCA::AppendLayer(NativeLayer* aLayer) {
   mSublayers.AppendElement(layerCA);
   layerCA->SetBackingScale(mBackingScale);
   layerCA->SetRootWindowIsFullscreen(mWindowIsFullscreen);
-  ForAllRepresentations([&](Representation& r) { r.mMutated = true; });
+  ForAllRepresentations([&](Representation& r) { r.mMutatedLayerStructure = true; });
 }
 
 void NativeLayerRootCA::RemoveLayer(NativeLayer* aLayer) {
@@ -172,7 +174,7 @@ void NativeLayerRootCA::RemoveLayer(NativeLayer* aLayer) {
   MOZ_RELEASE_ASSERT(layerCA);
 
   mSublayers.RemoveElement(layerCA);
-  ForAllRepresentations([&](Representation& r) { r.mMutated = true; });
+  ForAllRepresentations([&](Representation& r) { r.mMutatedLayerStructure = true; });
 }
 
 void NativeLayerRootCA::SetLayers(const nsTArray<RefPtr<NativeLayer>>& aLayers) {
@@ -195,7 +197,7 @@ void NativeLayerRootCA::SetLayers(const nsTArray<RefPtr<NativeLayer>>& aLayers) 
 
   if (layersCA != mSublayers) {
     mSublayers = std::move(layersCA);
-    ForAllRepresentations([&](Representation& r) { r.mMutated = true; });
+    ForAllRepresentations([&](Representation& r) { r.mMutatedLayerStructure = true; });
   }
 }
 
@@ -238,7 +240,9 @@ bool NativeLayerRootCA::CommitToScreen() {
       return false;
     }
 
-    mOnscreenRepresentation.Commit(WhichRepresentation::ONSCREEN, mSublayers, mWindowIsFullscreen);
+    UpdateMouseMovedRecently();
+    mOnscreenRepresentation.Commit(WhichRepresentation::ONSCREEN, mSublayers, mWindowIsFullscreen,
+                                   mMouseMovedRecently);
 
     mCommitPending = false;
   }
@@ -286,7 +290,8 @@ void NativeLayerRootCA::OnNativeLayerRootSnapshotterDestroyed(
 
 void NativeLayerRootCA::CommitOffscreen() {
   MutexAutoLock lock(mMutex);
-  mOffscreenRepresentation.Commit(WhichRepresentation::OFFSCREEN, mSublayers, mWindowIsFullscreen);
+  mOffscreenRepresentation.Commit(WhichRepresentation::OFFSCREEN, mSublayers, mWindowIsFullscreen,
+                                  false);
 }
 
 template <typename F>
@@ -299,7 +304,7 @@ NativeLayerRootCA::Representation::Representation(CALayer* aRootCALayer)
     : mRootCALayer([aRootCALayer retain]) {}
 
 NativeLayerRootCA::Representation::~Representation() {
-  if (mMutated) {
+  if (mMutatedLayerStructure) {
     // Clear the root layer's sublayers. At this point the window is usually closed, so this
     // transaction does not cause any screen updates.
     AutoCATransaction transaction;
@@ -311,8 +316,12 @@ NativeLayerRootCA::Representation::~Representation() {
 
 void NativeLayerRootCA::Representation::Commit(WhichRepresentation aRepresentation,
                                                const nsTArray<RefPtr<NativeLayerCA>>& aSublayers,
-                                               bool aWindowIsFullscreen) {
-  if (!mMutated &&
+                                               bool aWindowIsFullscreen, bool aMouseMovedRecently) {
+  bool mightIsolate = (aRepresentation == WhichRepresentation::ONSCREEN &&
+                       StaticPrefs::gfx_core_animation_specialize_video());
+  bool mustRebuild = (mightIsolate && mMutatedMouseMovedRecently);
+
+  if (!mMutatedLayerStructure && !mustRebuild &&
       std::none_of(aSublayers.begin(), aSublayers.end(), [=](const RefPtr<NativeLayerCA>& layer) {
         return layer->HasUpdate(aRepresentation);
       })) {
@@ -329,7 +338,7 @@ void NativeLayerRootCA::Representation::Commit(WhichRepresentation aRepresentati
     layer->ApplyChanges(aRepresentation);
   }
 
-  if (mMutated) {
+  if (mMutatedLayerStructure || mustRebuild) {
     NSMutableArray<CALayer*>* sublayers = [NSMutableArray arrayWithCapacity:aSublayers.Length()];
     for (auto layer : aSublayers) {
       [sublayers addObject:layer->UnderlyingCALayer(aRepresentation)];
@@ -341,8 +350,7 @@ void NativeLayerRootCA::Representation::Commit(WhichRepresentation aRepresentati
     // sublayers have been set, because we need the relationships there to do the
     // bounds checking of layer spaces against each other.
     // Bug 1731821 should eliminate this entire if block.
-    if (aWindowIsFullscreen && aRepresentation == WhichRepresentation::ONSCREEN &&
-        StaticPrefs::gfx_core_animation_specialize_video()) {
+    if (mightIsolate && aWindowIsFullscreen && !aMouseMovedRecently) {
       CALayer* isolatedLayer = FindVideoLayerToIsolate(aRepresentation, aSublayers);
       if (isolatedLayer) {
         // Create a full coverage black layer behind the isolated layer.
@@ -360,9 +368,10 @@ void NativeLayerRootCA::Representation::Commit(WhichRepresentation aRepresentati
         mRootCALayer.sublayers = @[ blackLayer, isolatedLayer ];
       }
     }
-
-    mMutated = false;
   }
+
+  mMutatedLayerStructure = false;
+  mMutatedMouseMovedRecently = false;
 }
 
 CALayer* NativeLayerRootCA::Representation::FindVideoLayerToIsolate(
@@ -480,8 +489,29 @@ void NativeLayerRootCA::SetWindowIsFullscreen(bool aFullscreen) {
     for (auto layer : mSublayers) {
       layer->SetRootWindowIsFullscreen(mWindowIsFullscreen);
     }
+
+    // Treat this as a mouse move, for purposes of resetting our timer.
+    NoteMouseMove();
+
     PrepareForCommit();
     CommitToScreen();
+  }
+}
+
+void NativeLayerRootCA::NoteMouseMove() { mLastMouseMoveTime = TimeStamp::NowLoRes(); }
+
+void NativeLayerRootCA::NoteMouseMoveAtTime(const TimeStamp& aTime) { mLastMouseMoveTime = aTime; }
+
+void NativeLayerRootCA::UpdateMouseMovedRecently() {
+  static const double SECONDS_TO_WAIT = 2.0;
+
+  bool newMouseMovedRecently =
+      ((TimeStamp::NowLoRes() - mLastMouseMoveTime).ToSeconds() < SECONDS_TO_WAIT);
+
+  if (newMouseMovedRecently != mMouseMovedRecently) {
+    mMouseMovedRecently = newMouseMovedRecently;
+
+    ForAllRepresentations([&](Representation& r) { r.mMutatedMouseMovedRecently = true; });
   }
 }
 
@@ -647,7 +677,9 @@ NativeLayerCA::~NativeLayerCA() {
 }
 
 void NativeLayerCA::AttachExternalImage(wr::RenderTextureHost* aExternalImage) {
-  bool oldSpecializeVideo = ShouldSpecializeVideo();
+  MutexAutoLock lock(mMutex);
+
+  bool oldSpecializeVideo = ShouldSpecializeVideo(lock);
 
   wr::RenderMacIOSurfaceTextureHost* texture = aExternalImage->AsRenderMacIOSurfaceTextureHost();
   MOZ_ASSERT(texture);
@@ -655,7 +687,7 @@ void NativeLayerCA::AttachExternalImage(wr::RenderTextureHost* aExternalImage) {
   mSize = texture->GetSize(0);
   mDisplayRect = IntRect(IntPoint{}, mSize);
 
-  bool changedSpecializeVideo = ShouldSpecializeVideo() != oldSpecializeVideo;
+  bool changedSpecializeVideo = ShouldSpecializeVideo(lock) != oldSpecializeVideo;
 
   ForAllRepresentations([&](Representation& r) {
     r.mMutatedFrontSurface = true;
@@ -670,15 +702,23 @@ bool NativeLayerCA::IsVideo() {
   return mTextureHost;
 }
 
-bool NativeLayerCA::ShouldSpecializeVideo() {
-  return StaticPrefs::gfx_core_animation_specialize_video() && mRootWindowIsFullscreen && IsVideo();
+bool NativeLayerCA::IsVideoAndLocked(const MutexAutoLock& aProofOfLock) {
+  // Anything with a texture host is considered a video source.
+  return mTextureHost;
+}
+
+bool NativeLayerCA::ShouldSpecializeVideo(const MutexAutoLock& aProofOfLock) {
+  return StaticPrefs::gfx_core_animation_specialize_video() && mRootWindowIsFullscreen &&
+         IsVideoAndLocked(aProofOfLock);
 }
 
 void NativeLayerCA::SetRootWindowIsFullscreen(bool aFullscreen) {
-  bool oldSpecializeVideo = ShouldSpecializeVideo();
+  MutexAutoLock lock(mMutex);
+
+  bool oldSpecializeVideo = ShouldSpecializeVideo(lock);
   mRootWindowIsFullscreen = aFullscreen;
 
-  if (ShouldSpecializeVideo() != oldSpecializeVideo) {
+  if (ShouldSpecializeVideo(lock) != oldSpecializeVideo) {
     ForAllRepresentations([&](Representation& r) { r.mMutatedSpecializeVideo = true; });
   }
 }
@@ -694,7 +734,6 @@ void NativeLayerCA::SetSurfaceIsFlipped(bool aIsFlipped) {
 
 bool NativeLayerCA::SurfaceIsFlipped() {
   MutexAutoLock lock(mMutex);
-
   return mSurfaceIsFlipped;
 }
 
@@ -756,7 +795,7 @@ void NativeLayerCA::SetBackingScale(float aBackingScale) {
 }
 
 bool NativeLayerCA::IsOpaque() {
-  MutexAutoLock lock(mMutex);
+  // mIsOpaque is const, so no need for a lock.
   return mIsOpaque;
 }
 
@@ -1094,7 +1133,7 @@ void NativeLayerCA::ApplyChanges(WhichRepresentation aRepresentation) {
   }
   GetRepresentation(aRepresentation)
       .ApplyChanges(mSize, mIsOpaque, mPosition, mTransform, mDisplayRect, mClipRect, mBackingScale,
-                    mSurfaceIsFlipped, mSamplingFilter, ShouldSpecializeVideo(), surface);
+                    mSurfaceIsFlipped, mSamplingFilter, ShouldSpecializeVideo(lock), surface);
 }
 
 bool NativeLayerCA::HasUpdate(WhichRepresentation aRepresentation) {

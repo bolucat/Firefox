@@ -497,6 +497,13 @@ pub struct TextureCacheUpdate {
     pub source: TextureUpdateSource,
 }
 
+/// Command to update the contents of the texture cache.
+#[derive(Debug)]
+pub struct TextureCacheCopy {
+    pub src_rect: DeviceIntRect,
+    pub dst_rect: DeviceIntRect,
+}
+
 /// Atomic set of commands to manipulate the texture cache, generated on the
 /// RenderBackend thread and executed on the Renderer thread.
 ///
@@ -511,6 +518,9 @@ pub struct TextureUpdateList {
     pub allocations: Vec<TextureCacheAllocation>,
     /// Commands to update the contents of the textures. Processed second.
     pub updates: FastHashMap<CacheTextureId, Vec<TextureCacheUpdate>>,
+    /// Commands to move items within the cache, these are applied before everything
+    /// else in the update list.
+    pub copies: FastHashMap<(CacheTextureId, CacheTextureId), Vec<TextureCacheCopy>>,
 }
 
 impl TextureUpdateList {
@@ -520,6 +530,7 @@ impl TextureUpdateList {
             clears_shared_cache: false,
             allocations: Vec::new(),
             updates: FastHashMap::default(),
+            copies: FastHashMap::default(),
         }
     }
 
@@ -623,6 +634,25 @@ impl TextureUpdateList {
         };
     }
 
+    /// Push a copy operation from a texture to another.
+    ///
+    /// The source and destination rectangles must have the same size.
+    /// The copies are applied before every other operations in the
+    /// texture update list.
+    pub fn push_copy(
+        &mut self,
+        src_id: CacheTextureId, src_rect: &DeviceIntRect,
+        dst_id: CacheTextureId, dst_rect: &DeviceIntRect,
+    ) {
+        debug_assert_eq!(src_rect.size(), dst_rect.size());
+        self.copies.entry((src_id, dst_id))
+            .or_insert_with(Vec::new)
+            .push(TextureCacheCopy {
+                src_rect: *src_rect,
+                dst_rect: *dst_rect,
+            });
+    }
+
     fn debug_assert_coalesced(&self, id: CacheTextureId) {
         debug_assert!(
             self.allocations.iter().filter(|x| x.id == id).count() <= 1,
@@ -686,17 +716,7 @@ pub enum ResultMsg {
 }
 
 #[derive(Clone, Debug)]
-pub struct ResourceCacheError {
-    description: String,
-}
-
-impl ResourceCacheError {
-    pub fn new(description: String) -> ResourceCacheError {
-        ResourceCacheError {
-            description,
-        }
-    }
-}
+pub struct ResourceCacheError;
 
 /// Primitive metadata we pass around in a bunch of places
 #[derive(Copy, Clone, Debug)]

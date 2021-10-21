@@ -495,7 +495,6 @@ void GCRuntime::freeFromBackgroundThread(AutoLockHelperThreadState& lock) {
 
 void GCRuntime::waitBackgroundFreeEnd() { freeTask.join(); }
 
-
 template <class ZoneIterT>
 IncrementalProgress GCRuntime::markWeakReferences(
     SliceBudget& incrementalBudget) {
@@ -1277,7 +1276,7 @@ bool UniqueIdGCPolicy::traceWeak(JSTracer* trc, Cell** keyp, uint64_t* valuep) {
 void GCRuntime::sweepWeakRefs() {
   for (SweepGroupZonesIter zone(this); !zone.done(); zone.next()) {
     AutoSetThreadIsSweeping threadIsSweeping(zone);
-    zone->weakRefMap().sweep(&storeBuffer());
+    zone->weakRefMap().traceWeak(&sweepingTracer, &storeBuffer());
   }
 }
 
@@ -1452,13 +1451,13 @@ void GCRuntime::sweepEmbeddingWeakPointers(JSFreeOp* fop) {
   callFinalizeCallbacks(fop, JSFINALIZE_GROUP_PREPARE);
   {
     AutoPhase ap2(stats(), PhaseKind::WEAK_ZONES_CALLBACK);
-    callWeakPointerZonesCallbacks();
+    callWeakPointerZonesCallbacks(&sweepingTracer);
   }
   {
     AutoPhase ap2(stats(), PhaseKind::WEAK_COMPARTMENT_CALLBACK);
     for (SweepGroupZonesIter zone(this); !zone.done(); zone.next()) {
       for (CompartmentsInZoneIter comp(zone); !comp.done(); comp.next()) {
-        callWeakPointerCompartmentCallbacks(comp);
+        callWeakPointerCompartmentCallbacks(&sweepingTracer, comp);
       }
     }
   }

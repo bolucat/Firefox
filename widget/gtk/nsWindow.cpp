@@ -184,6 +184,8 @@ static nsWindow* get_window_for_gtk_widget(GtkWidget* widget);
 static nsWindow* get_window_for_gdk_window(GdkWindow* window);
 static GtkWidget* get_gtk_widget_for_gdk_window(GdkWindow* window);
 static GdkCursor* get_gtk_cursor(nsCursor aCursor);
+static GdkWindow* get_inner_gdk_window(GdkWindow* aWindow, gint x, gint y,
+                                       gint* retx, gint* rety);
 
 static int is_parent_ungrab_enter(GdkEventCrossing* aEvent);
 static int is_parent_grab_leave(GdkEventCrossing* aEvent);
@@ -269,8 +271,6 @@ static SystemTimeConverter<guint32>& TimeConverter() {
   return sTimeConverterSingleton;
 }
 
-nsWindow::GtkWindowDecoration nsWindow::sGtkWindowDecoration =
-    GTK_DECORATION_UNKNOWN;
 bool nsWindow::sTransparentMainWindow = false;
 
 namespace mozilla {
@@ -1893,6 +1893,24 @@ void nsWindow::NativeMoveResizeWaylandPopupCallback(
   }
 
   if (needsPositionUpdate) {
+    // See Bug 1735095
+    // Font scale causes rounding errors which we can't handle by move-to-rect.
+    // The font scale should not be used, but let's handle it somehow to
+    // avoid endless move calls.
+    if (StaticPrefs::layout_css_devPixelsPerPx() > 0 ||
+        gfxPlatformGtk::GetFontScaleFactor() != 1) {
+      bool roundingError = (abs(newBounds.x - mBounds.x) < 2 &&
+                            abs(newBounds.y - mBounds.y) < 2);
+      if (roundingError) {
+        // Keep the window where it is.
+        GdkPoint topLeft = DevicePixelsToGdkPointRoundDown(mBounds.TopLeft());
+        LOG_POPUP("  apply rounding error workaround, move to %d, %d",
+                  topLeft.x, topLeft.y);
+        gtk_window_move(GTK_WINDOW(mShell), topLeft.x, topLeft.y);
+        return;
+      }
+    }
+
     LOG_POPUP("  needPositionUpdate, new bounds [%d, %d]", newBounds.x,
               newBounds.y);
     mBounds.x = newBounds.x;
@@ -2180,6 +2198,12 @@ void nsWindow::WaylandPopupMove() {
     p2a = AppUnitsPerCSSPixel() / gfxPlatformGtk::GetFontScaleFactor();
   }
 
+  // Although we have mPopupPosition / mRelativePopupPosition here
+  // we can't use it. move-to-rect needs anchor rectangle to position a popup
+  // but we have only a point from Resize().
+  //
+  // So we need to extract popup position from nsMenuPopupFrame() and duplicate
+  // the layout work here.
   nsRect anchorRectAppUnits = popupFrame->GetAnchorRect();
   anchorRect = LayoutDeviceIntRect::FromUnknownRect(
       anchorRectAppUnits.ToNearestPixels(p2a));
@@ -2304,6 +2328,8 @@ void nsWindow::WaylandPopupMove() {
         cursorOffset.MoveBy(margin.left, margin.top);
         break;
     }
+    cursorOffset.x /= p2a;
+    cursorOffset.y /= p2a;
   }
 
   if (!g_signal_handler_find(gdkWindow, G_SIGNAL_MATCH_FUNC, 0, 0, nullptr,
@@ -2312,8 +2338,8 @@ void nsWindow::WaylandPopupMove() {
                      G_CALLBACK(NativeMoveResizeCallback), this);
   }
 
-  LOG_POPUP("  popup window cursor offset x: %d y: %d\n", cursorOffset.x / p2a,
-            cursorOffset.y / p2a);
+  LOG_POPUP("  popup window cursor offset x: %d y: %d\n", cursorOffset.x,
+            cursorOffset.y);
   GdkRectangle rect = {anchorRect.x, anchorRect.y, anchorRect.width,
                        anchorRect.height};
 
@@ -2331,7 +2357,7 @@ void nsWindow::WaylandPopupMove() {
   LOG_POPUP("  move-to-rect call");
   mPopupLastAnchor = anchorRect;
   sGdkWindowMoveToRect(gdkWindow, &rect, rectAnchor, menuAnchor, hints,
-                       cursorOffset.x / p2a, cursorOffset.y / p2a);
+                       cursorOffset.x, cursorOffset.y);
 }
 
 void nsWindow::SetZIndex(int32_t aZIndex) {
@@ -6100,8 +6126,8 @@ void nsWindow::UpdateWindowDraggingRegion(
 }
 
 LayoutDeviceIntCoord nsWindow::GetTitlebarRadius() {
-  int32_t cssCoord =
-      std::ceil(LookAndFeel::GetFloat(LookAndFeel::FloatID::TitlebarRadius));
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
+  int32_t cssCoord = LookAndFeel::GetInt(LookAndFeel::IntID::TitlebarRadius);
   return GdkCoordToDevicePixels(cssCoord);
 }
 
@@ -6352,12 +6378,18 @@ nsresult nsWindow::UpdateTranslucentWindowAlphaInternal(const nsIntRect& aRect,
   return NS_OK;
 }
 
+#define TITLEBAR_HEIGHT 10
+
 LayoutDeviceIntRect nsWindow::GetTitlebarRect() {
   if (!mGdkWindow || !mDrawInTitlebar) {
     return LayoutDeviceIntRect();
   }
 
-  return LayoutDeviceIntRect(0, 0, mBounds.width, GetTitlebarRadius());
+  int height = 0;
+  if (DoDrawTilebarCorners()) {
+    height = GdkCeiledScaleFactor() * TITLEBAR_HEIGHT;
+  }
+  return LayoutDeviceIntRect(0, 0, mBounds.width, height);
 }
 
 void nsWindow::UpdateTitlebarTransparencyBitmap() {
@@ -7693,13 +7725,21 @@ gboolean WindowDragMotionHandler(GtkWidget* aWidget,
   nscoord retx = 0;
   nscoord rety = 0;
 
-  LOGDRAG("WindowDragMotionHandler nsWindow %p\n", (void*)window);
+  GdkWindow* innerWindow = get_inner_gdk_window(gtk_widget_get_window(aWidget),
+                                                aX, aY, &retx, &rety);
+  RefPtr<nsWindow> innerMostWindow = get_window_for_gdk_window(innerWindow);
+
+  if (!innerMostWindow) {
+    innerMostWindow = window;
+  }
+
+  LOGDRAG("WindowDragMotionHandler nsWindow %p\n", (void*)innerMostWindow);
 
   LayoutDeviceIntPoint point = window->GdkPointToDevicePixels({retx, rety});
 
   RefPtr<nsDragService> dragService = nsDragService::GetInstance();
-  if (!dragService->ScheduleMotionEvent(window, aDragContext, aDataOffer, point,
-                                        aTime)) {
+  if (!dragService->ScheduleMotionEvent(innerMostWindow, aDragContext,
+                                        aDataOffer, point, aTime)) {
     return FALSE;
   }
   // We need to reply to drag_motion event on Wayland immediately,
@@ -7766,13 +7806,21 @@ gboolean WindowDragDropHandler(GtkWidget* aWidget, GdkDragContext* aDragContext,
   nscoord retx = 0;
   nscoord rety = 0;
 
-  LOGDRAG("WindowDragDropHandler nsWindow %p\n", (void*)window);
+  GdkWindow* innerWindow = get_inner_gdk_window(gtk_widget_get_window(aWidget),
+                                                aX, aY, &retx, &rety);
+  RefPtr<nsWindow> innerMostWindow = get_window_for_gdk_window(innerWindow);
+
+  if (!innerMostWindow) {
+    innerMostWindow = window;
+  }
+
+  LOGDRAG("WindowDragDropHandler nsWindow %p\n", (void*)innerMostWindow);
 
   LayoutDeviceIntPoint point = window->GdkPointToDevicePixels({retx, rety});
 
   RefPtr<nsDragService> dragService = nsDragService::GetInstance();
-  return dragService->ScheduleDropEvent(window, aDragContext, aDataOffer, point,
-                                        aTime);
+  return dragService->ScheduleDropEvent(innerMostWindow, aDragContext,
+                                        aDataOffer, point, aTime);
 }
 
 static gboolean drag_drop_event_cb(GtkWidget* aWidget,
@@ -7807,6 +7855,27 @@ static nsresult initialize_prefs(void) {
   }
 
   return NS_OK;
+}
+
+// TODO: Can we simplify it for mShell/mContainer only scenario?
+static GdkWindow* get_inner_gdk_window(GdkWindow* aWindow, gint x, gint y,
+                                       gint* retx, gint* rety) {
+  gint cx, cy, cw, ch;
+  GList* children = gdk_window_peek_children(aWindow);
+  for (GList* child = g_list_last(children); child;
+       child = g_list_previous(child)) {
+    auto* childWindow = (GdkWindow*)child->data;
+    if (get_window_for_gdk_window(childWindow)) {
+      gdk_window_get_geometry(childWindow, &cx, &cy, &cw, &ch);
+      if ((cx < x) && (x < (cx + cw)) && (cy < y) && (y < (cy + ch)) &&
+          gdk_window_is_visible(childWindow)) {
+        return get_inner_gdk_window(childWindow, x - cx, y - cy, retx, rety);
+      }
+    }
+  }
+  *retx = x;
+  *rety = y;
+  return aWindow;
 }
 
 static int is_parent_ungrab_enter(GdkEventCrossing* aEvent) {
@@ -8571,83 +8640,63 @@ nsresult nsWindow::SynthesizeNativeTouchPadPinch(
 }
 
 nsWindow::GtkWindowDecoration nsWindow::GetSystemGtkWindowDecoration() {
-  if (sGtkWindowDecoration != GTK_DECORATION_UNKNOWN) {
-    return sGtkWindowDecoration;
-  }
-
-  // Allow MOZ_GTK_TITLEBAR_DECORATION to override our heuristics
-  const char* decorationOverride = getenv("MOZ_GTK_TITLEBAR_DECORATION");
-  if (decorationOverride) {
-    if (strcmp(decorationOverride, "none") == 0) {
-      sGtkWindowDecoration = GTK_DECORATION_NONE;
-    } else if (strcmp(decorationOverride, "client") == 0) {
-      sGtkWindowDecoration = GTK_DECORATION_CLIENT;
-    } else if (strcmp(decorationOverride, "system") == 0) {
-      sGtkWindowDecoration = GTK_DECORATION_SYSTEM;
+  static GtkWindowDecoration sGtkWindowDecoration = [] {
+    // Allow MOZ_GTK_TITLEBAR_DECORATION to override our heuristics
+    if (const char* decorationOverride =
+            getenv("MOZ_GTK_TITLEBAR_DECORATION")) {
+      if (strcmp(decorationOverride, "none") == 0) {
+        return GTK_DECORATION_NONE;
+      }
+      if (strcmp(decorationOverride, "client") == 0) {
+        return GTK_DECORATION_CLIENT;
+      }
+      if (strcmp(decorationOverride, "system") == 0) {
+        return GTK_DECORATION_SYSTEM;
+      }
     }
-    return sGtkWindowDecoration;
-  }
 
-  // nsWindow::GetSystemGtkWindowDecoration can be called from various threads
-  // so we can't use gfxPlatformGtk here.
-  if (GdkIsWaylandDisplay()) {
-    sGtkWindowDecoration = GTK_DECORATION_CLIENT;
-    return sGtkWindowDecoration;
-  }
-
-  // GTK_CSD forces CSD mode - use also CSD because window manager
-  // decorations does not work with CSD.
-  // We check GTK_CSD as well as gtk_window_should_use_csd() does.
-  const char* csdOverride = getenv("GTK_CSD");
-  if (csdOverride && *csdOverride == '1') {
-    sGtkWindowDecoration = GTK_DECORATION_CLIENT;
-    return sGtkWindowDecoration;
-  }
-
-  const char* currentDesktop = getenv("XDG_CURRENT_DESKTOP");
-  if (currentDesktop) {
-    // GNOME Flashback (fallback)
-    if (strstr(currentDesktop, "GNOME-Flashback:GNOME") != nullptr) {
-      sGtkWindowDecoration = GTK_DECORATION_SYSTEM;
-      // Pop Linux Bug 1629198
-    } else if (strstr(currentDesktop, "pop:GNOME") != nullptr) {
-      sGtkWindowDecoration = GTK_DECORATION_CLIENT;
-      // gnome-shell
-    } else if (strstr(currentDesktop, "GNOME") != nullptr) {
-      sGtkWindowDecoration = GTK_DECORATION_SYSTEM;
-    } else if (strstr(currentDesktop, "XFCE") != nullptr) {
-      sGtkWindowDecoration = GTK_DECORATION_CLIENT;
-    } else if (strstr(currentDesktop, "X-Cinnamon") != nullptr) {
-      sGtkWindowDecoration = GTK_DECORATION_SYSTEM;
-      // KDE Plasma
-    } else if (strstr(currentDesktop, "KDE") != nullptr) {
-      sGtkWindowDecoration = GTK_DECORATION_CLIENT;
-    } else if (strstr(currentDesktop, "Enlightenment") != nullptr) {
-      sGtkWindowDecoration = GTK_DECORATION_CLIENT;
-    } else if (strstr(currentDesktop, "LXDE") != nullptr) {
-      sGtkWindowDecoration = GTK_DECORATION_CLIENT;
-    } else if (strstr(currentDesktop, "openbox") != nullptr) {
-      sGtkWindowDecoration = GTK_DECORATION_CLIENT;
-    } else if (strstr(currentDesktop, "i3") != nullptr) {
-      sGtkWindowDecoration = GTK_DECORATION_NONE;
-    } else if (strstr(currentDesktop, "MATE") != nullptr) {
-      sGtkWindowDecoration = GTK_DECORATION_CLIENT;
-      // Ubuntu Unity
-    } else if (strstr(currentDesktop, "Unity") != nullptr) {
-      sGtkWindowDecoration = GTK_DECORATION_SYSTEM;
-      // Elementary OS
-    } else if (strstr(currentDesktop, "Pantheon") != nullptr) {
-      sGtkWindowDecoration = GTK_DECORATION_CLIENT;
-    } else if (strstr(currentDesktop, "LXQt") != nullptr) {
-      sGtkWindowDecoration = GTK_DECORATION_SYSTEM;
-    } else if (strstr(currentDesktop, "Deepin") != nullptr) {
-      sGtkWindowDecoration = GTK_DECORATION_CLIENT;
-    } else {
-      sGtkWindowDecoration = GTK_DECORATION_CLIENT;
+    // nsWindow::GetSystemGtkWindowDecoration can be called from various
+    // threads so we can't use gfxPlatformGtk here.
+    if (GdkIsWaylandDisplay()) {
+      return GTK_DECORATION_CLIENT;
     }
-  } else {
-    sGtkWindowDecoration = GTK_DECORATION_NONE;
-  }
+
+    // GTK_CSD forces CSD mode - use also CSD because window manager
+    // decorations does not work with CSD.
+    // We check GTK_CSD as well as gtk_window_should_use_csd() does.
+    const char* csdOverride = getenv("GTK_CSD");
+    if (csdOverride && *csdOverride == '1') {
+      return GTK_DECORATION_CLIENT;
+    }
+
+    const char* currentDesktop = getenv("XDG_CURRENT_DESKTOP");
+    if (!currentDesktop) {
+      return GTK_DECORATION_NONE;
+    }
+    // clang-format off
+    if (strstr(currentDesktop, "pop:GNOME") || // Bug 1629198
+        strstr(currentDesktop, "KDE") ||
+        strstr(currentDesktop, "Enlightenment") ||
+        strstr(currentDesktop, "LXDE") ||
+        strstr(currentDesktop, "openbox") ||
+        strstr(currentDesktop, "MATE") ||
+        strstr(currentDesktop, "Pantheon") ||
+        strstr(currentDesktop, "Deepin")) {
+      return GTK_DECORATION_CLIENT;
+    }
+    if (strstr(currentDesktop, "GNOME") ||
+        strstr(currentDesktop, "X-Cinnamon") ||
+        strstr(currentDesktop, "LXQt") ||
+        strstr(currentDesktop, "Unity")) {
+      return GTK_DECORATION_SYSTEM;
+    }
+    if (strstr(currentDesktop, "i3")) {
+      return GTK_DECORATION_NONE;
+    }
+    // clang-format on
+
+    return GTK_DECORATION_CLIENT;
+  }();
   return sGtkWindowDecoration;
 }
 
@@ -8673,29 +8722,6 @@ bool nsWindow::TitlebarUseShapeMask() {
     return Preferences::GetBool("widget.titlebar-x11-use-shape-mask", false);
   }();
   return useShapeMask;
-}
-
-bool nsWindow::HideTitlebarByDefault() {
-  static int hideTitlebar = []() {
-    // When user defined widget.default-hidden-titlebar don't do any
-    // heuristics and just follow it.
-    if (Preferences::HasUserValue("widget.default-hidden-titlebar")) {
-      return Preferences::GetBool("widget.default-hidden-titlebar", false);
-    }
-
-    // Don't hide titlebar when it's disabled on current desktop.
-    const char* currentDesktop = getenv("XDG_CURRENT_DESKTOP");
-    if (!currentDesktop ||
-        GetSystemGtkWindowDecoration() == GTK_DECORATION_NONE) {
-      return false;
-    }
-
-    // We hide system titlebar on Gnome/ElementaryOS without any restriction.
-    return ((strstr(currentDesktop, "GNOME-Flashback:GNOME") != nullptr ||
-             strstr(currentDesktop, "GNOME") != nullptr ||
-             strstr(currentDesktop, "Pantheon") != nullptr));
-  }();
-  return hideTitlebar;
 }
 
 int32_t nsWindow::RoundsWidgetCoordinatesTo() { return GdkCeiledScaleFactor(); }
