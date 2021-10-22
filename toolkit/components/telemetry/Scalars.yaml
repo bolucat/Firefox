@@ -1820,7 +1820,6 @@ os.environment:
     kind: string
     notification_emails:
       - application-update-telemetry-alerts@mozilla.com
-      - agashlin@mozilla.com
       - shong@mozilla.com
     release_channel_collection: opt-out
     products:
@@ -1856,7 +1855,6 @@ os.environment:
     kind: boolean
     notification_emails:
       - application-update-telemetry-alerts@mozilla.com
-      - agashlin@mozilla.com
       - shong@mozilla.com
     release_channel_collection: opt-out
     products:
@@ -6271,6 +6269,23 @@ deletion.request:
     record_into_store:
       - 'deletion-request'
 
+  context_id:
+    bug_numbers:
+      - 1729474
+    description: >
+      An identifier to identify users for Contextual Services user interaction pings.
+    expires: never
+    kind: string
+    notification_emails:
+      - najiang@mozilla.com
+    release_channel_collection: opt-out
+    products:
+      - 'firefox'
+    record_in_processes:
+      - 'main'
+    record_into_store:
+      - 'deletion-request'
+
 policies:
   count:
     bug_numbers:
@@ -7088,7 +7103,7 @@ migration:
     expires: never
     kind: boolean
     notification_emails:
-      - agashlin@mozilla.com
+      - application-update-telemetry-alerts@mozilla.com
     release_channel_collection: opt-out
     products:
       - 'firefox'

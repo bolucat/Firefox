@@ -69,7 +69,7 @@ static size_t BaseNameLength(const mozilla::intl::Locale& tag) {
     baseNameLength += 1 + tag.region().length();
   }
   for (const auto& variant : tag.variants()) {
-    baseNameLength += 1 + strlen(variant.get());
+    baseNameLength += 1 + variant.size();
   }
   return baseNameLength;
 }
@@ -94,7 +94,7 @@ static mozilla::Maybe<IndexAndLength> UnicodeExtensionPosition(
     MOZ_ASSERT(!mozilla::IsAsciiUppercaseAlpha(extension[0]),
                "extensions are case normalized to lowercase");
 
-    size_t extensionLength = strlen(extension.get());
+    size_t extensionLength = extension.size();
     if (extension[0] == 'u') {
       return mozilla::Some(IndexAndLength{index, extensionLength});
     }
@@ -113,7 +113,7 @@ static LocaleObject* CreateLocaleObject(JSContext* cx, HandleObject prototype,
     return nullptr;
   }
 
-  RootedString tagStr(cx, buffer.toString(cx));
+  RootedString tagStr(cx, buffer.toAsciiString(cx));
   if (!tagStr) {
     return nullptr;
   }
@@ -411,10 +411,11 @@ bool js::intl::ApplyUnicodeExtensionToTag(
 
   const char* unicodeExtensionEnd = nullptr;
   const char* unicodeExtensionKeywords = nullptr;
-  if (const char* unicodeExtension = tag.unicodeExtension()) {
-    unicodeExtensionEnd = unicodeExtension + strlen(unicodeExtension);
+  if (auto unicodeExtension = tag.unicodeExtension()) {
+    const char* unicodeExtensionBegin = unicodeExtension->data();
+    unicodeExtensionEnd = unicodeExtensionBegin + unicodeExtension->size();
 
-    SepKeywordIterator<char> iter(unicodeExtension, unicodeExtensionEnd);
+    SepKeywordIterator<char> iter(unicodeExtensionBegin, unicodeExtensionEnd);
 
     // Find the start of the first keyword.
     unicodeExtensionKeywords = iter.next();
@@ -423,7 +424,7 @@ bool js::intl::ApplyUnicodeExtensionToTag(
     const char* attributesEnd = unicodeExtensionKeywords
                                     ? unicodeExtensionKeywords
                                     : unicodeExtensionEnd;
-    if (!newExtension.append(unicodeExtension + 1, attributesEnd)) {
+    if (!newExtension.append(unicodeExtensionBegin + 1, attributesEnd)) {
       return false;
     }
   }
@@ -464,13 +465,8 @@ bool js::intl::ApplyUnicodeExtensionToTag(
     }
   }
 
-  // Null-terminate the new Unicode extension string.
-  if (!newExtension.append('\0')) {
-    return false;
-  }
-
-  if (!tag.setUnicodeExtension(newExtension.begin())) {
-    intl::ReportInternalError(cx);
+  if (auto res = tag.setUnicodeExtension(newExtension); res.isErr()) {
+    intl::ReportInternalError(cx, res.unwrapErr());
     return false;
   }
 
@@ -947,8 +943,8 @@ static bool Locale_maximize(JSContext* cx, const CallArgs& args) {
     return false;
   }
 
-  if (!tag.addLikelySubtags()) {
-    intl::ReportInternalError(cx);
+  if (auto result = tag.addLikelySubtags(); result.isErr()) {
+    intl::ReportInternalError(cx, result.unwrapErr());
     return false;
   }
 
@@ -984,8 +980,8 @@ static bool Locale_minimize(JSContext* cx, const CallArgs& args) {
     return false;
   }
 
-  if (!tag.removeLikelySubtags()) {
-    intl::ReportInternalError(cx);
+  if (auto result = tag.removeLikelySubtags(); result.isErr()) {
+    intl::ReportInternalError(cx, result.unwrapErr());
     return false;
   }
 
@@ -1371,7 +1367,7 @@ bool js::intl_ValidateAndCanonicalizeLanguageTag(JSContext* cx, unsigned argc,
     return false;
   }
 
-  JSString* resultStr = buffer.toString(cx);
+  JSString* resultStr = buffer.toAsciiString(cx);
   if (!resultStr) {
     return false;
   }
@@ -1428,7 +1424,7 @@ bool js::intl_TryValidateAndCanonicalizeLanguageTag(JSContext* cx,
     return false;
   }
 
-  JSString* resultStr = buffer.toString(cx);
+  JSString* resultStr = buffer.toAsciiString(cx);
   if (!resultStr) {
     return false;
   }

@@ -1549,7 +1549,7 @@ class MacroAssembler : public MacroAssemblerSpecific {
   inline void branchNeg32(Condition cond, Register reg,
                           Label* label) PER_SHARED_ARCH;
 
-  inline void branchAdd64(Condition cond, Imm32 imm, Register64 dest,
+  inline void branchAdd64(Condition cond, Imm64 imm, Register64 dest,
                           Label* label) DEFINED_ON(x86, arm);
 
   template <typename T>
@@ -3817,6 +3817,16 @@ class MacroAssembler : public MacroAssemblerSpecific {
                                            const ABIArg& instanceArg,
                                            wasm::SymbolicAddress builtin,
                                            wasm::FailureMode failureMode);
+
+  // The System ABI frequently states that the high bits of a 64-bit register
+  // that holds a 32-bit return value are unpredictable, and C++ compilers will
+  // indeed generate code that leaves garbage in the upper bits.
+  //
+  // Adjust the contents of the 64-bit register `r` to conform to our internal
+  // convention, which requires predictable high bits.  In practice, this means
+  // that the 32-bit valuewill be zero-extended or sign-extended to 64 bits as
+  // appropriate for the platform.
+  void widenInt32(Register r) DEFINED_ON(arm64, x64, mips64);
 
   // As enterFakeExitFrame(), but using register conventions appropriate for
   // wasm stubs.

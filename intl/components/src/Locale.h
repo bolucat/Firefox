@@ -10,6 +10,7 @@
 #include "mozilla/Assertions.h"
 #include "mozilla/intl/ICUError.h"
 #include "mozilla/intl/ICU4CGlue.h"
+#include "mozilla/Maybe.h"
 #include "mozilla/Span.h"
 #include "mozilla/TextUtils.h"
 #include "mozilla/TypedEnumBits.h"
@@ -244,17 +245,80 @@ class MOZ_STACK_CLASS Locale final {
   Locale(const Locale&) = delete;
   Locale& operator=(const Locale&) = delete;
 
+  template <class Vec>
+  class SubtagIterator {
+    using Iter = decltype(std::declval<const Vec>().begin());
+
+    Iter iter_;
+
+   public:
+    explicit SubtagIterator(Iter iter) : iter_(iter) {}
+
+    // std::iterator traits.
+    using iterator_category = std::input_iterator_tag;
+    using value_type = Span<const char>;
+    using difference_type = ptrdiff_t;
+    using pointer = value_type*;
+    using reference = value_type&;
+
+    SubtagIterator& operator++() {
+      iter_++;
+      return *this;
+    }
+
+    SubtagIterator operator++(int) {
+      SubtagIterator result = *this;
+      ++(*this);
+      return result;
+    }
+
+    bool operator==(const SubtagIterator& aOther) const {
+      return iter_ == aOther.iter_;
+    }
+
+    bool operator!=(const SubtagIterator& aOther) const {
+      return !(*this == aOther);
+    }
+
+    value_type operator*() const { return MakeStringSpan(iter_->get()); }
+  };
+
+  template <size_t N>
+  class SubtagEnumeration {
+    using Vec = Vector<UniqueChars, N>;
+
+    const Vec& vector_;
+
+   public:
+    explicit SubtagEnumeration(const Vec& vector) : vector_(vector) {}
+
+    size_t length() const { return vector_.length(); }
+    bool empty() const { return vector_.empty(); }
+
+    auto begin() const { return SubtagIterator<Vec>(vector_.begin()); }
+    auto end() const { return SubtagIterator<Vec>(vector_.end()); }
+
+    Span<const char> operator[](size_t index) const {
+      return MakeStringSpan(vector_[index].get());
+    }
+  };
+
   const LanguageSubtag& language() const { return language_; }
   const ScriptSubtag& script() const { return script_; }
   const RegionSubtag& region() const { return region_; }
-  const auto& variants() const { return variants_; }
-  const auto& extensions() const { return extensions_; }
-  const char* privateuse() const { return privateuse_.get(); }
+  auto variants() const { return SubtagEnumeration(variants_); }
+  auto extensions() const { return SubtagEnumeration(extensions_); }
+  Maybe<Span<const char>> privateuse() const {
+    if (const char* p = privateuse_.get()) {
+      return Some(MakeStringSpan(p));
+    }
+    return Nothing();
+  }
 
   /**
-   * Return the Unicode extension subtag or nullptr if not present.
+   * Return the Unicode extension subtag or Nothing if not present.
    */
-  const char* unicodeExtension() const;
+  Maybe<Span<const char>> unicodeExtension() const;
 
  private:
   ptrdiff_t unicodeExtensionIndex() const;
@@ -325,7 +389,7 @@ class MOZ_STACK_CLASS Locale final {
    * Set the Unicode extension subtag. The input must be a valid Unicode
    * extension subtag.
    */
-  [[nodiscard]] bool setUnicodeExtension(const char* extension);
+  ICUResult setUnicodeExtension(Span<const char> extension);
 
   /**
    * Remove any Unicode extension subtag if present.
@@ -368,7 +432,7 @@ class MOZ_STACK_CLASS Locale final {
    * Fill the buffer with a string representation of the locale.
    */
   template <typename B>
-  Result<Ok, ICUError> toString(B& buffer) const {
+  ICUResult toString(B& buffer) const {
     static_assert(std::is_same_v<typename B::CharType, char>);
 
     size_t capacity = toStringCapacity();
@@ -391,14 +455,14 @@ class MOZ_STACK_CLASS Locale final {
    *
    * Spec: <https://www.unicode.org/reports/tr35/#Likely_Subtags>
    */
-  [[nodiscard]] bool addLikelySubtags();
+  ICUResult addLikelySubtags();
 
   /**
    * Remove likely-subtags from the locale.
    *
    * Spec: <https://www.unicode.org/reports/tr35/#Likely_Subtags>
    */
-  [[nodiscard]] bool removeLikelySubtags();
+  ICUResult removeLikelySubtags();
 
   /**
    * Returns the default locale as an ICU locale identifier. The returned string
@@ -423,6 +487,7 @@ class MOZ_STACK_CLASS Locale final {
 
  private:
   static UniqueChars DuplicateStringToUniqueChars(const char* s);
+  static UniqueChars DuplicateStringToUniqueChars(Span<const char> s);
   size_t toStringCapacity() const;
   size_t toStringAppend(char* buffer) const;
 };
@@ -641,11 +706,7 @@ class MOZ_STACK_CLASS LocaleParser final {
    public:
     Range(size_t begin, size_t length) : begin_(begin), length_(length) {}
 
-    template <typename T>
-    T* begin(T* ptr) const {
-      return ptr + begin_;
-    }
-
+    size_t begin() const { return begin_; }
     size_t length() const { return length_; }
   };
 

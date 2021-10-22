@@ -25,18 +25,15 @@ use nserror::{nsresult, NS_ERROR_FAILURE, NS_OK};
 use nsstring::{nsACString, nsCString};
 use thin_vec::ThinVec;
 
-#[cfg(not(target_os = "android"))]
+// Needed for re-export.
+#[cfg(target_os = "android")]
+pub use glean_ffi;
+
 #[macro_use]
 extern crate cstr;
-#[cfg(not(target_os = "android"))]
-#[macro_use]
+#[cfg_attr(not(target_os = "android"), macro_use)]
 extern crate xpcom;
 
-#[cfg(not(target_os = "android"))]
-mod init;
-
-#[cfg(target_os = "android")]
-#[path = "android_init.rs"]
 mod init;
 
 pub use init::fog_init;
@@ -44,6 +41,11 @@ pub use init::fog_init;
 #[no_mangle]
 pub extern "C" fn fog_shutdown() {
     glean::shutdown();
+}
+
+#[no_mangle]
+pub extern "C" fn fog_register_pings() {
+    fog::pings::register_pings();
 }
 
 static mut PENDING_BUF: Vec<u8> = Vec::new();

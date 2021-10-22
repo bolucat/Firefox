@@ -581,9 +581,6 @@ class ScriptSource {
   // See: CompileOptions::mutedErrors.
   bool mutedErrors_ = false;
 
-  // Set to true if parser saw  asmjs directives.
-  bool containsAsmJS_ = false;
-
   //
   // End of fields.
   //
@@ -1022,9 +1019,6 @@ class ScriptSource {
     introductionOffset_.emplace(offset);
   }
 
-  bool containsAsmJS() const { return containsAsmJS_; }
-  void setContainsAsmJS() { containsAsmJS_ = true; }
-
   // Return wether an XDR encoder is present or not.
   bool hasEncoder() const { return bool(xdrEncoder_); }
 
@@ -1063,9 +1057,9 @@ class ScriptSource {
 
  public:
   template <XDRMode mode>
-  [[nodiscard]] static XDRResult XDR(
-      XDRState<mode>* xdr, const JS::ReadOnlyCompileOptions* maybeOptions,
-      RefPtr<ScriptSource>& source);
+  [[nodiscard]] static XDRResult XDR(XDRState<mode>* xdr,
+                                     const JS::DecodeOptions* maybeOptions,
+                                     RefPtr<ScriptSource>& source);
 };
 
 // [SMDOC] ScriptSourceObject

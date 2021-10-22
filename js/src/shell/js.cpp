@@ -2316,28 +2316,11 @@ static bool Evaluate(JSContext* cx, unsigned argc, Value* vp) {
     if (!ParseDebugMetadata(cx, opts, &privateValue, &elementAttributeName)) {
       return false;
     }
+    if (!ParseSourceOptions(cx, opts, &displayURL, &sourceMapURL)) {
+      return false;
+    }
 
     RootedValue v(cx);
-    if (!JS_GetProperty(cx, opts, "displayURL", &v)) {
-      return false;
-    }
-    if (!v.isUndefined()) {
-      displayURL = ToString(cx, v);
-      if (!displayURL) {
-        return false;
-      }
-    }
-
-    if (!JS_GetProperty(cx, opts, "sourceMapURL", &v)) {
-      return false;
-    }
-    if (!v.isUndefined()) {
-      sourceMapURL = ToString(cx, v);
-      if (!sourceMapURL) {
-        return false;
-      }
-    }
-
     if (!JS_GetProperty(cx, opts, "catchTermination", &v)) {
       return false;
     }
@@ -2491,8 +2474,10 @@ static bool Evaluate(JSContext* cx, unsigned argc, Value* vp) {
 
         RefPtr<JS::Stencil> stencil;
 
-        JS::TranscodeResult rv =
-            JS::DecodeStencil(cx, options, range, getter_AddRefs(stencil));
+        JS::DecodeOptions decodeOptions(options);
+
+        JS::TranscodeResult rv = JS::DecodeStencil(cx, decodeOptions, range,
+                                                   getter_AddRefs(stencil));
         if (!ConvertTranscodeResultToJSException(cx, rv)) {
           return false;
         }
@@ -2530,23 +2515,9 @@ static bool Evaluate(JSContext* cx, unsigned argc, Value* vp) {
       }
     }
 
-    if (displayURL && !script->scriptSource()->hasDisplayURL()) {
-      UniqueTwoByteChars chars = JS_CopyStringCharsZ(cx, displayURL);
-      if (!chars) {
-        return false;
-      }
-      if (!script->scriptSource()->setDisplayURL(cx, std::move(chars))) {
-        return false;
-      }
-    }
-    if (sourceMapURL && !script->scriptSource()->hasSourceMapURL()) {
-      UniqueTwoByteChars chars = JS_CopyStringCharsZ(cx, sourceMapURL);
-      if (!chars) {
-        return false;
-      }
-      if (!script->scriptSource()->setSourceMapURL(cx, std::move(chars))) {
-        return false;
-      }
+    if (!SetSourceOptions(cx, script->scriptSource(), displayURL,
+                          sourceMapURL)) {
+      return false;
     }
 
     JS::InstantiateOptions instantiateOptions(options);
@@ -8088,8 +8059,9 @@ class StreamCacheEntry : public AtomicRefCounted<StreamCacheEntry>,
 
   const Uint8Vector& bytes() const { return bytes_; }
 
-  void storeOptimizedEncoding(JS::UniqueOptimizedEncodingBytes src) override {
-    MOZ_ASSERT(src->length() > 0);
+  void storeOptimizedEncoding(const uint8_t* srcBytes,
+                              size_t srcLength) override {
+    MOZ_ASSERT(srcLength > 0);
 
     // Tolerate races since a single StreamCacheEntry object can be used as
     // the source of multiple streaming compilations.
@@ -8098,10 +8070,10 @@ class StreamCacheEntry : public AtomicRefCounted<StreamCacheEntry>,
       return;
     }
 
-    if (!dstBytes->resize(src->length())) {
+    if (!dstBytes->resize(srcLength)) {
       return;
     }
-    memcpy(dstBytes->begin(), src->begin(), src->length());
+    memcpy(dstBytes->begin(), srcBytes, srcLength);
   }
 
   bool hasOptimizedEncoding() const { return !optimized_.lock()->empty(); }

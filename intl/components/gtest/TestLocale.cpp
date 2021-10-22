@@ -16,12 +16,12 @@ TEST(IntlLocale, LocaleSettersAndGetters)
   locale.setLanguage("fr");
   locale.setRegion("CA");
   locale.setScript("Latn");
-  ASSERT_TRUE(locale.setUnicodeExtension("u-ca-gregory"));
+  ASSERT_TRUE(
+      locale.setUnicodeExtension(MakeStringSpan("u-ca-gregory")).isOk());
   ASSERT_TRUE(locale.language().equalTo("fr"));
   ASSERT_TRUE(locale.region().equalTo("CA"));
   ASSERT_TRUE(locale.script().equalTo("Latn"));
-  ASSERT_EQ(MakeStringSpan(locale.unicodeExtension()),
-            MakeStringSpan("u-ca-gregory"));
+  ASSERT_EQ(locale.unicodeExtension().value(), MakeStringSpan("u-ca-gregory"));
 
   TestBuffer<char> buffer;
   ASSERT_TRUE(locale.toString(buffer).isOk());
@@ -32,10 +32,8 @@ TEST(IntlLocale, LocaleSettersAndGetters)
   ASSERT_TRUE(LocaleParser::tryParse(
                   MakeStringSpan("fr-CA-fonipa-t-es-AR-h0-hybrid"), locale2)
                   .isOk());
-  ASSERT_EQ(MakeStringSpan(locale2.variants()[0].get()),
-            MakeStringSpan("fonipa"));
-  ASSERT_EQ(MakeStringSpan(locale2.extensions()[0].get()),
-            MakeStringSpan("t-es-AR-h0-hybrid"));
+  ASSERT_EQ(locale2.variants()[0], MakeStringSpan("fonipa"));
+  ASSERT_EQ(locale2.extensions()[0], MakeStringSpan("t-es-AR-h0-hybrid"));
   locale2.clearVariants();
   ASSERT_EQ(locale2.variants().length(), 0UL);
 }
@@ -62,11 +60,11 @@ TEST(IntlLocale, LikelySubtags)
 {
   Locale locale;
   ASSERT_TRUE(LocaleParser::tryParse(MakeStringSpan("zh"), locale).isOk());
-  ASSERT_TRUE(locale.addLikelySubtags());
+  ASSERT_TRUE(locale.addLikelySubtags().isOk());
   TestBuffer<char> buffer;
   ASSERT_TRUE(locale.toString(buffer).isOk());
   ASSERT_TRUE(buffer.verboseMatches("zh-Hans-CN"));
-  ASSERT_TRUE(locale.removeLikelySubtags());
+  ASSERT_TRUE(locale.removeLikelySubtags().isOk());
   buffer.clear();
   ASSERT_TRUE(locale.toString(buffer).isOk());
   ASSERT_TRUE(buffer.verboseMatches("zh"));
