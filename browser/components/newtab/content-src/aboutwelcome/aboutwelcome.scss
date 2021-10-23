@@ -5,6 +5,7 @@
 @use 'sass:math';
 @import '../styles/normalize';
 
+$break-point-small: 570px;
 $break-point-medium: 610px;
 $break-point-large: 866px;
 $logo-size: 80px;
@@ -37,6 +38,10 @@ body {
   height: 100vh;
   background: radial-gradient(79.33% 221.6% at 7.58% 89.55%, #15141A 0%, rgba(21, 20, 26, 0) 54.36%, rgba(21, 20, 26, 0.63) 100%) center / cover no-repeat fixed;
   background-color: #212121;
+
+  @media (prefers-contrast: more) {
+    background-color: var(--in-content-page-background);
+  }
 
   --main-content-min-height: 271px;
 
@@ -581,6 +586,16 @@ body {
         &:hover {
           background-color: #5B5B66;
           color: #E0E0E6;
+        }
+
+        @media (max-height: $break-point-small) {
+          color: var(--in-content-link-color);
+
+          &:hover {
+            background-color: #5B5B66;
+            color: var(--in-content-link-color-hover);
+            text-decoration: underline;
+          }
         }
       }
     }
