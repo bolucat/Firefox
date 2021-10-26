@@ -340,11 +340,13 @@ RefPtr<WinWindowOcclusionTracker> WinWindowOcclusionTracker::Get() {
 }
 
 /* static */
-void WinWindowOcclusionTracker::Start() {
+void WinWindowOcclusionTracker::Ensure() {
   MOZ_ASSERT(NS_IsMainThread());
-  MOZ_RELEASE_ASSERT(!sTracker);
+  LOG(LogLevel::Info, "WinWindowOcclusionTracker::Ensure()");
 
-  LOG(LogLevel::Info, "WinWindowOcclusionTracker::Start()");
+  if (sTracker) {
+    return;
+  }
 
   base::Thread* thread = new base::Thread("WinWindowOcclusionCalc");
 
@@ -414,7 +416,6 @@ void WinWindowOcclusionTracker::Enable(nsBaseWidget* aWindow, HWND aHwnd) {
       aWindow, aHwnd);
 
   auto it = mHwndRootWindowMap.find(aHwnd);
-  MOZ_ASSERT(it == mHwndRootWindowMap.end());
   if (it != mHwndRootWindowMap.end()) {
     return;
   }
@@ -719,6 +720,37 @@ void WinWindowOcclusionTracker::MarkNonIconicWindowsOccluded() {
                      : OcclusionState::OCCLUDED;
     window->NotifyOcclusionState(state);
   }
+}
+
+// static
+BOOL WinWindowOcclusionTracker::DumpOccludingWindowsCallback(HWND aHWnd,
+                                                             LPARAM aLParam) {
+  HWND hwnd = reinterpret_cast<HWND>(aLParam);
+
+  LayoutDeviceIntRect windowRect;
+  bool windowIsOccluding = IsWindowVisibleAndFullyOpaque(aHWnd, &windowRect);
+  if (windowIsOccluding) {
+    nsAutoString className;
+    if (WinUtils::GetClassName(aHWnd, className)) {
+      const auto name = NS_ConvertUTF16toUTF8(className);
+      printf_stderr(
+          "DumpOccludingWindowsCallback() aHWnd %p className %s windowRect(%d, "
+          "%d, %d, %d)\n",
+          aHWnd, name.get(), windowRect.x, windowRect.y, windowRect.width,
+          windowRect.height);
+    }
+  }
+
+  if (aHWnd == hwnd) {
+    return false;
+  }
+  return true;
+}
+
+void WinWindowOcclusionTracker::DumpOccludingWindows(HWND aHWnd) {
+  printf_stderr("DumpOccludingWindows() until aHWnd %p visible %d iconic %d\n",
+                aHWnd, ::IsWindowVisible(aHWnd), ::IsIconic(aHWnd));
+  ::EnumWindows(&DumpOccludingWindowsCallback, reinterpret_cast<LPARAM>(aHWnd));
 }
 
 // static

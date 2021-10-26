@@ -543,9 +543,7 @@ test_description_schema = Schema(
         Optional("expires-after"): str,
         # The different configurations that should be run against this task, defined
         # in the TEST_VARIANTS object.
-        Optional("variants"): optionally_keyed_by(
-            "test-platform", "project", Any(list(TEST_VARIANTS))
-        ),
+        Optional("variants"): Any(list(TEST_VARIANTS)),
         # Whether to run this task with e10s.  If false, run
         # without e10s; if true, run with e10s; if 'both', run one task with and
         # one task without e10s.  E10s tasks have "-e10s" appended to the test name
@@ -1060,7 +1058,6 @@ def handle_keyed_by(config, tasks):
         "docker-image",
         "max-run-time",
         "chunks",
-        "variants",
         "e10s",
         "suite",
         "run-on-projects",
@@ -1337,6 +1334,11 @@ def split_variants(config, tasks):
         variants = task.pop("variants", [])
 
         yield copy.deepcopy(task)
+
+        # Ignore variants on non-Firefox apps.
+        # This is only needed temporarily.
+        if task.get("app") not in (None, "firefox"):
+            continue
 
         for name in variants:
             variant = TEST_VARIANTS[name]

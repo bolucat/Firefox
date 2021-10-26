@@ -51,7 +51,7 @@ class WinWindowOcclusionTracker final
   static RefPtr<WinWindowOcclusionTracker> Get();
 
   /// Can only be called from the main thread.
-  static void Start();
+  static void Ensure();
 
   /// Can only be called from the main thread.
   static void ShutDown();
@@ -78,6 +78,8 @@ class WinWindowOcclusionTracker final
   SerializedTaskDispatcher* GetSerializedTaskDispatcher() {
     return mSerializedTaskDispatcher;
   }
+
+  void DumpOccludingWindows(HWND aHWnd);
 
  private:
   friend class ::WinWindowOcclusionTrackerTest;
@@ -247,6 +249,8 @@ class WinWindowOcclusionTracker final
 
     friend class OcclusionUpdateRunnable;
   };
+
+  static BOOL CALLBACK DumpOccludingWindowsCallback(HWND aHWnd, LPARAM aLParam);
 
   // Returns true if we are interested in |hwnd| for purposes of occlusion
   // calculation. We are interested in |hwnd| if it is a window that is

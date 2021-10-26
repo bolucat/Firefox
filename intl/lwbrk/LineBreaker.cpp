@@ -14,11 +14,6 @@
 using namespace mozilla::unicode;
 using namespace mozilla::intl;
 
-/*static*/
-already_AddRefed<LineBreaker> LineBreaker::Create() {
-  return RefPtr<LineBreaker>(new LineBreaker()).forget();
-}
-
 /*
 
    Simplification of Pair Table in JIS X 4051
@@ -913,56 +908,48 @@ static int8_t ContextualAnalysis(char32_t prev, char32_t cur, char32_t next,
   return GetClass(cur, aLevel, aIsChineseOrJapanese);
 }
 
-int32_t LineBreaker::WordMove(const char16_t* aText, uint32_t aLen,
-                              uint32_t aPos, int8_t aDirection) {
-  bool textNeedsJISx4051 = false;
-  int32_t begin, end;
-
-  for (begin = aPos; begin > 0 && !NS_IsSpace(aText[begin - 1]); --begin) {
-    if (IS_CJK_CHAR(aText[begin]) ||
-        NS_NeedsPlatformNativeHandling(aText[begin])) {
-      textNeedsJISx4051 = true;
-    }
-  }
-  for (end = aPos + 1; end < int32_t(aLen) && !NS_IsSpace(aText[end]); ++end) {
-    if (IS_CJK_CHAR(aText[end]) || NS_NeedsPlatformNativeHandling(aText[end])) {
-      textNeedsJISx4051 = true;
-    }
-  }
-
-  int32_t ret;
-  AutoTArray<uint8_t, 2000> breakState;
-  if (!textNeedsJISx4051) {
-    // No complex text character, do not try to do complex line break.
-    // (This is required for serializers. See Bug #344816.)
-    if (aDirection < 0) {
-      ret = (begin == int32_t(aPos)) ? begin - 1 : begin;
-    } else {
-      ret = end;
-    }
-  } else {
-    // XXX(Bug 1631371) Check if this should use a fallible operation as it
-    // pretended earlier.
-    breakState.AppendElements(end - begin);
-    GetJISx4051Breaks(aText + begin, end - begin, WordBreak::Normal,
-                      Strictness::Auto, false, breakState.Elements());
-
-    ret = aPos;
-    do {
-      ret += aDirection;
-    } while (begin < ret && ret < end && !breakState[ret - begin]);
-  }
-
-  return ret;
-}
-
 int32_t LineBreaker::Next(const char16_t* aText, uint32_t aLen, uint32_t aPos) {
   MOZ_ASSERT(aText);
 
   if (aPos >= aLen) {
     return NS_LINEBREAKER_NEED_MORE_TEXT;
   }
-  return WordMove(aText, aLen, aPos, 1);
+
+  bool textNeedsComplexLineBreak = false;
+  int32_t begin, end;
+
+  for (begin = aPos; begin > 0 && !NS_IsSpace(aText[begin - 1]); --begin) {
+    if (IS_CJK_CHAR(aText[begin]) ||
+        NS_NeedsPlatformNativeHandling(aText[begin])) {
+      textNeedsComplexLineBreak = true;
+    }
+  }
+  for (end = aPos + 1; end < int32_t(aLen) && !NS_IsSpace(aText[end]); ++end) {
+    if (IS_CJK_CHAR(aText[end]) || NS_NeedsPlatformNativeHandling(aText[end])) {
+      textNeedsComplexLineBreak = true;
+    }
+  }
+
+  int32_t ret;
+  if (!textNeedsComplexLineBreak) {
+    // No complex text character, do not try to do complex line break.
+    // (This is required for serializers. See Bug #344816.)
+    ret = end;
+  } else {
+    AutoTArray<uint8_t, 2000> breakState;
+    // XXX(Bug 1631371) Check if this should use a fallible operation as it
+    // pretended earlier.
+    breakState.AppendElements(end - begin);
+    ComputeBreakPositions(aText + begin, end - begin, WordBreak::Normal,
+                          Strictness::Auto, false, breakState.Elements());
+
+    ret = aPos;
+    do {
+      ++ret;
+    } while (begin < ret && ret < end && !breakState[ret - begin]);
+  }
+
+  return ret;
 }
 
 static bool SuppressBreakForKeepAll(uint32_t aPrev, uint32_t aCh) {
@@ -993,10 +980,11 @@ static bool SuppressBreakForKeepAll(uint32_t aPrev, uint32_t aCh) {
          affectedByKeepAll(GetLineBreakClass(aCh));
 }
 
-void LineBreaker::GetJISx4051Breaks(const char16_t* aChars, uint32_t aLength,
-                                    WordBreak aWordBreak, Strictness aLevel,
-                                    bool aIsChineseOrJapanese,
-                                    uint8_t* aBreakBefore) {
+void LineBreaker::ComputeBreakPositions(const char16_t* aChars,
+                                        uint32_t aLength, WordBreak aWordBreak,
+                                        Strictness aLevel,
+                                        bool aIsChineseOrJapanese,
+                                        uint8_t* aBreakBefore) {
   uint32_t cur;
   int8_t lastClass = CLASS_NONE;
   ContextState state(aChars, aLength);
@@ -1121,10 +1109,10 @@ void LineBreaker::GetJISx4051Breaks(const char16_t* aChars, uint32_t aLength,
   }
 }
 
-void LineBreaker::GetJISx4051Breaks(const uint8_t* aChars, uint32_t aLength,
-                                    WordBreak aWordBreak, Strictness aLevel,
-                                    bool aIsChineseOrJapanese,
-                                    uint8_t* aBreakBefore) {
+void LineBreaker::ComputeBreakPositions(const uint8_t* aChars, uint32_t aLength,
+                                        WordBreak aWordBreak, Strictness aLevel,
+                                        bool aIsChineseOrJapanese,
+                                        uint8_t* aBreakBefore) {
   uint32_t cur;
   int8_t lastClass = CLASS_NONE;
   ContextState state(aChars, aLength);

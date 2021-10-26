@@ -26,18 +26,14 @@ function validMemoryType(shared, initial, max) {
   wasmEvalText(memoryTypeModuleText(shared, initial, max));
   // TODO: JS-API cannot specify pages above UINT32_MAX
   // https://github.com/WebAssembly/memory64/issues/24
-  if (max <= MaxUint32) {
-    new WebAssembly.Memory(memoryTypeDescriptor(shared, initial, max));
-  }
+  new WebAssembly.Memory(memoryTypeDescriptor(shared, initial, max));
 }
 function invalidMemoryType(shared, initial, max, compileMessage, jsMessage) {
   wasmFailValidateText(memoryTypeModuleText(shared, initial, max), compileMessage);
   assertErrorMessage(() => wasmEvalText(memoryTypeModuleText(shared, initial, max)), WebAssembly.CompileError, compileMessage);
   // TODO: JS-API cannot specify pages above UINT32_MAX
   // https://github.com/WebAssembly/memory64/issues/24
-  if (max === undefined || max <= MaxUint32) {
-    assertErrorMessage(() => new WebAssembly.Memory(memoryTypeDescriptor(shared, initial, max)), Error, jsMessage);
-  }
+  assertErrorMessage(() => new WebAssembly.Memory(memoryTypeDescriptor(shared, initial, max)), Error, jsMessage);
 }
 
 // valid to define a memory with i64
@@ -254,6 +250,7 @@ if (getBuildConfiguration()["pointer-byte-size"] == 8) {
 
 if (WebAssembly.Function) {
     // TODO: "index" is not yet part of the spec
+    // TODO: values outside the u32 range are not yet part of the spec
     // https://github.com/WebAssembly/memory64/issues/24
 
     let m64 = new WebAssembly.Memory({index:"i64", initial:1});
@@ -261,7 +258,15 @@ if (WebAssembly.Function) {
 
     let m32 = new WebAssembly.Memory({initial:1});
     assertEq(m32.type().index, "i32");
+
+    let ins = new WebAssembly.Instance(new WebAssembly.Module(wasmTextToBinary(`
+(module
+  (memory (export "mem") i64 1 0x100000000))`)));
+    assertEq(ins.exports.mem.type().minimum, 1);
+    assertEq(ins.exports.mem.type().maximum, 0x100000000);
 }
+
+// Instructions
 
 const SMALL = 64;  // < offsetguard everywhere
 const BIG = 131072;  // > offsetguard on 32-bit
@@ -1365,41 +1370,54 @@ function testAtomicWake(ins, mem, LOC) {
 // Sometimes we start memory at zero to disable certain bounds checking
 // optimizations.  Other times we start memory at something beyond most of
 // our references to enable those optimizations.
-let configs = [[40, 0, 3, ''], [40, 3, '', '']];
+let configs = [[40, 0, 3], [40, 3, '']];
 
 // On 64-bit systems, test beyond 2GB and also beyond 4GB
 if (getBuildConfiguration()["pointer-byte-size"] == 8) {
-    configs.push([Math.pow(2, 31) + 40, 32771, '', '']);
-    configs.push([Math.pow(2, 32) + 40, 65539, '', '']);
+    configs.push([Math.pow(2, 31) + 40, 32771, '']);
+    configs.push([Math.pow(2, 32) + 40, 65539, '']);
+    configs.push([Math.pow(2, 31) + 40, 32771, 32773]);
+    configs.push([Math.pow(2, 32) + 40, 65539, 65541]);
 }
 
-for (let [LOC, start, max, shared] of configs) {
-    const ins = makeTest(LOC, start, max, shared);
-    if (start == 0) {
-        assertEq(ins.exports.mem.grow(max), 0);
-    }
+for ( let shared of ['','shared'] ) {
+    for (let [LOC, start, max] of configs) {
+        if (shared != '' && max == '') {
+            continue;
+        }
+        const ins = makeTest(LOC, start, max, shared);
+        if (max != '') {
+            // This can OOM legitimately; let it.
+            let res = ins.exports.mem.grow(max - start);
+            if (res == -1) {
+                print("SPURIOUS OOM");
+                continue;
+            }
+            assertEq(res, start);
+        }
 
-    const mem32 = new Int32Array(ins.exports.mem.buffer);
-    const mem64 = new BigInt64Array(ins.exports.mem.buffer);
+        const mem32 = new Int32Array(ins.exports.mem.buffer);
+        const mem64 = new BigInt64Array(ins.exports.mem.buffer);
 
-    for ( let m of [mem32, mem64] ) {
-        testRead(ins, m, LOC, "");
-        testWrite(ins, m, LOC, "");
-        testRead(ins, m, LOC, "a");
-        testWrite(ins, m, LOC, "a");
-        testAtomicRMW(ins, m, LOC, "add", (r,s) => r+s);
-        testAtomicRMW(ins, m, LOC, "sub", (r,s) => r-s);
-        testAtomicRMW(ins, m, LOC, "and", (r,s) => r&s);
-        testAtomicRMW(ins, m, LOC, "or", (r,s) => r|s);
-        testAtomicRMW(ins, m, LOC, "xor", (r,s) => r^s);
-        testAtomicRMW(ins, m, LOC, "xchg", (r,s) => s);
-        testAtomicCmpxchg(ins, m, LOC);
-        testAtomicWake(ins, m, LOC);
-    }
+        for ( let m of [mem32, mem64] ) {
+            testRead(ins, m, LOC, "");
+            testWrite(ins, m, LOC, "");
+            testRead(ins, m, LOC, "a");
+            testWrite(ins, m, LOC, "a");
+            testAtomicRMW(ins, m, LOC, "add", (r,s) => r+s);
+            testAtomicRMW(ins, m, LOC, "sub", (r,s) => r-s);
+            testAtomicRMW(ins, m, LOC, "and", (r,s) => r&s);
+            testAtomicRMW(ins, m, LOC, "or", (r,s) => r|s);
+            testAtomicRMW(ins, m, LOC, "xor", (r,s) => r^s);
+            testAtomicRMW(ins, m, LOC, "xchg", (r,s) => s);
+            testAtomicCmpxchg(ins, m, LOC);
+            testAtomicWake(ins, m, LOC);
+        }
 
-    if (wasmSimdEnabled()) {
-        testReadV128(ins, mem32, LOC);
-        testWriteV128(ins, mem32, LOC);
+        if (wasmSimdEnabled()) {
+            testReadV128(ins, mem32, LOC);
+            testWriteV128(ins, mem32, LOC);
+        }
     }
 }
 
@@ -1434,19 +1452,24 @@ for ( let shared of ['','shared'] ) {
 
     assertEq(ins.exports.size(), 1n);
 
+    // OOM with very low probability will result in test failure
     assertEq(ins.exports.grow(2n), 1n);
     assertEq(ins.exports.size(), 3n);
 
+    // OOM with very low probability will result in test failure
     assertEq(ins.exports.grow(1n), -1n);
     assertEq(ins.exports.size(), 3n);
 
+    // More than max pages
     assertEq(ins.exports.grow(100000n), -1n);
     assertEq(ins.exports.size(), 3n);
 
-    assertEq(ins.exports.grow(0x1_0000_0000_0000n), -1n); // More than 2^48 pages
+    // More than 2^48 pages
+    assertEq(ins.exports.grow(0x1_0000_0000_0000n), -1n);
     assertEq(ins.exports.size(), 3n);
 
-    assertEq(ins.exports.grow(-1n), -1n); // More than 2^48 pages - interpreted as unsigned
+    // More than 2^48 pages - interpreted as unsigned
+    assertEq(ins.exports.grow(-1n), -1n);
     assertEq(ins.exports.size(), 3n);
 
     var mem = new Uint8Array(ins.exports.mem.buffer);
@@ -1473,13 +1496,30 @@ if (getBuildConfiguration()["pointer-byte-size"] == 8) {
 
         assertEq(ins.exports.size(), BigInt(initial));
 
-        assertEq(ins.exports.grow(2n), BigInt(initial));
+        // This can OOM legitimately; let it.
+        {
+            let res = ins.exports.grow(2n);
+            if (res == -1) {
+                print("SPURIOUS OOM");
+                continue;
+            }
+            assertEq(res, BigInt(initial));
+        }
         assertEq(ins.exports.size(), BigInt(initial + 2));
 
+        // This must fail
         assertEq(ins.exports.grow(BigInt(limit - (initial + 2) + 1)), -1n);
         assertEq(ins.exports.size(), BigInt(initial + 2));
 
-        assertEq(ins.exports.grow(BigInt(limit - (initial + 2))), BigInt(initial + 2));
+        // This can OOM legitimately; let it.
+        {
+            let res = ins.exports.grow(BigInt(limit - (initial + 2)));
+            if (res == -1) {
+                print("SPURIOUS OOM");
+                continue;
+            }
+            assertEq(res, BigInt(initial + 2));
+        }
         assertEq(ins.exports.size(), BigInt(limit));
 
         let mem = new Uint8Array(ins.exports.mem.buffer);

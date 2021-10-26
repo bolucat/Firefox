@@ -16,12 +16,9 @@
 #include "mozilla/dom/Document.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/ElementInternals.h"
-#include "mozilla/dom/WebComponentsBinding.h"
 #include "mozilla/RefPtr.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsGenericHTMLElement.h"
 #include "nsWrapperCache.h"
-#include "nsContentUtils.h"
 #include "nsTHashSet.h"
 
 namespace mozilla {
@@ -32,6 +29,7 @@ namespace dom {
 struct CustomElementData;
 struct ElementDefinitionOptions;
 class CallbackFunction;
+class CustomElementCallback;
 class CustomElementReaction;
 class DocGroup;
 class Promise;
@@ -41,53 +39,26 @@ enum class ElementCallbackType {
   eDisconnected,
   eAdopted,
   eAttributeChanged,
+  eFormReset,
+  eFormDisabled,
   eGetCustomInterface
 };
 
 struct LifecycleCallbackArgs {
-  nsString name;
-  nsString oldValue;
-  nsString newValue;
-  nsString namespaceURI;
+  // Used by the attribute changed callback.
+  nsString mName;
+  nsString mOldValue;
+  nsString mNewValue;
+  nsString mNamespaceURI;
 
-  size_t SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const;
-};
-
-struct LifecycleAdoptedCallbackArgs {
+  // Used by the adopted callback.
   RefPtr<Document> mOldDocument;
   RefPtr<Document> mNewDocument;
-};
 
-class CustomElementCallback {
- public:
-  CustomElementCallback(Element* aThisObject, ElementCallbackType aCallbackType,
-                        CallbackFunction* aCallback);
-  void Traverse(nsCycleCollectionTraversalCallback& aCb) const;
-  size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const;
-  void Call();
-  void SetArgs(LifecycleCallbackArgs& aArgs) {
-    MOZ_ASSERT(mType == ElementCallbackType::eAttributeChanged,
-               "Arguments are only used by attribute changed callback.");
-    mArgs = aArgs;
-  }
+  // Used by the form disabled callback.
+  bool mDisabled;
 
-  void SetAdoptedCallbackArgs(
-      LifecycleAdoptedCallbackArgs& aAdoptedCallbackArgs) {
-    MOZ_ASSERT(mType == ElementCallbackType::eAdopted,
-               "Arguments are only used by adopted callback.");
-    mAdoptedCallbackArgs = aAdoptedCallbackArgs;
-  }
-
- private:
-  // The this value to use for invocation of the callback.
-  RefPtr<Element> mThisObject;
-  RefPtr<CallbackFunction> mCallback;
-  // The type of callback (eCreated, eAttached, etc.)
-  ElementCallbackType mType;
-  // Arguments to be passed to the callback,
-  // used by the attribute changed callback.
-  LifecycleCallbackArgs mArgs;
-  LifecycleAdoptedCallbackArgs mAdoptedCallbackArgs;
+  size_t SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const;
 };
 
 // Each custom element has an associated callback queue and an element is
@@ -426,11 +397,10 @@ class CustomElementRegistry final : public nsISupports, public nsWrapperCache {
   CustomElementDefinition* LookupCustomElementDefinition(
       JSContext* aCx, JSObject* aConstructor) const;
 
-  static void EnqueueLifecycleCallback(
-      ElementCallbackType aType, Element* aCustomElement,
-      LifecycleCallbackArgs* aArgs,
-      LifecycleAdoptedCallbackArgs* aAdoptedCallbackArgs,
-      CustomElementDefinition* aDefinition);
+  static void EnqueueLifecycleCallback(ElementCallbackType aType,
+                                       Element* aCustomElement,
+                                       const LifecycleCallbackArgs& aArgs,
+                                       CustomElementDefinition* aDefinition);
 
   /**
    * Upgrade an element.
@@ -507,12 +477,6 @@ class CustomElementRegistry final : public nsISupports, public nsWrapperCache {
   bool JSObjectToAtomArray(JSContext* aCx, JS::Handle<JSObject*> aConstructor,
                            const nsString& aName,
                            nsTArray<RefPtr<nsAtom>>& aArray, ErrorResult& aRv);
-
-  static UniquePtr<CustomElementCallback> CreateCustomElementCallback(
-      ElementCallbackType aType, Element* aCustomElement,
-      LifecycleCallbackArgs* aArgs,
-      LifecycleAdoptedCallbackArgs* aAdoptedCallbackArgs,
-      CustomElementDefinition* aDefinition);
 
   void UpgradeCandidates(nsAtom* aKey, CustomElementDefinition* aDefinition,
                          ErrorResult& aRv);

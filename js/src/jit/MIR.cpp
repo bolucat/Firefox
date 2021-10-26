@@ -3814,7 +3814,7 @@ bool MCompare::tryFoldEqualOperands(bool* result) {
   return true;
 }
 
-static JSType TypeOfName(JSString* str) {
+static JSType TypeOfName(JSLinearString* str) {
   static constexpr std::array types = {
       JSTYPE_UNDEFINED, JSTYPE_OBJECT,  JSTYPE_FUNCTION, JSTYPE_STRING,
       JSTYPE_NUMBER,    JSTYPE_BOOLEAN, JSTYPE_SYMBOL,   JSTYPE_BIGINT,
@@ -3823,7 +3823,7 @@ static JSType TypeOfName(JSString* str) {
 
   const JSAtomState& names = GetJitContext()->runtime->names();
   for (auto type : types) {
-    if (str == TypeName(type, names)) {
+    if (EqualStrings(str, TypeName(type, names))) {
       return type;
     }
   }
@@ -3859,7 +3859,7 @@ static mozilla::Maybe<std::pair<MTypeOfName*, JSType>> IsTypeOfCompare(
 
   auto* constant = lhs->isConstant() ? lhs->toConstant() : rhs->toConstant();
 
-  JSType type = TypeOfName(constant->toString());
+  JSType type = TypeOfName(&constant->toString()->asLinear());
   return mozilla::Some(std::pair(typeOfName, type));
 }
 
@@ -4800,7 +4800,7 @@ MDefinition* MWasmTernarySimd128::foldsTo(TempAllocator& alloc) {
 }
 
 MDefinition* MWasmBinarySimd128::foldsTo(TempAllocator& alloc) {
-  if (simdOp() == wasm::SimdOp::V8x16Swizzle && rhs()->isWasmFloatConstant()) {
+  if (simdOp() == wasm::SimdOp::I8x16Swizzle && rhs()->isWasmFloatConstant()) {
     // Specialize swizzle(v, constant) as shuffle(mask, v, zero) to trigger all
     // our shuffle optimizations.  We don't report this rewriting as the report
     // will be overwritten by the subsequent shuffle analysis.
