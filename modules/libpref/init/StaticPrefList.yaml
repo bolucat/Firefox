@@ -2530,11 +2530,7 @@
 # Is support for HTMLElement.inputMode enabled?
 - name: dom.forms.inputmode
   type: bool
-#if defined(ANDROID)
   value: true
-#else
-  value: @IS_NOT_RELEASE_OR_BETA@
-#endif
   mirror: always
 
 # Enable Directory API. By default, disabled.
@@ -4218,6 +4214,12 @@
 # is not controlled by this pref, only the extension code ability to use
 # navigator.serviceWorker.register is locked behind this pref.
 - name: extensions.serviceWorkerRegister.allowed
+  type: bool
+  value: false
+  mirror: always
+
+# Legacy behavior on filterResponse calls on intercepted sw script requests.
+- name: extensions.filterResponseServiceWorkerScript.disabled
   type: bool
   value: false
   mirror: always
@@ -5907,6 +5909,16 @@
     type: bool
     value: @IS_NOT_EARLY_BETA_OR_EARLIER@
     mirror: always
+
+#if defined(ENABLE_TESTS)
+  # If true, NS_GetComplexLineBreaks compares the line breaks produced in the
+  # content process using the Uniscribe line breaker, with those from a
+  # brokered call to the parent.
+-   name: intl.compare_against_brokered_complex_line_breaks
+    type: bool
+    value: false
+    mirror: always
+#endif
 #endif
 
 # If you use legacy Chinese IME which puts an ideographic space to composition
