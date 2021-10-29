@@ -305,6 +305,7 @@ enum BFCacheStatus {
   ABOUT_PAGE = 1 << 13,                  // Status 13
   RESTORING = 1 << 14,                   // Status 14
   BEFOREUNLOAD_LISTENER = 1 << 15,       // Status 15
+  ACTIVE_LOCK = 1 << 16,                 // Status 16
 };
 
 }  // namespace dom
@@ -1198,7 +1199,7 @@ class Document : public nsINode,
 
   // Instead using this method, what you probably want is
   // RemoveFromBFCacheSync() as we do in MessagePort and BroadcastChannel.
-  void DisallowBFCaching(uint16_t aStatus = BFCacheStatus::NOT_ALLOWED);
+  void DisallowBFCaching(uint32_t aStatus = BFCacheStatus::NOT_ALLOWED);
 
   bool IsBFCachingAllowed() const { return !mBFCacheDisallowed; }
 
@@ -1450,6 +1451,11 @@ class Document : public nsINode,
    */
   void ChangeContentEditableCount(Element*, int32_t aChange);
   void DeferredContentEditableCountChange(Element*);
+
+  uint32_t UpdateLockCount(bool aIncrement) {
+    mLockCount += aIncrement ? 1 : -1;
+    return mLockCount;
+  };
 
   enum class EditingState : int8_t {
     eTearingDown = -2,
@@ -2359,7 +2365,7 @@ class Document : public nsINode,
    * combination is when we try to BFCache aNewRequest
    */
   virtual bool CanSavePresentation(nsIRequest* aNewRequest,
-                                   uint16_t& aBFCacheCombo,
+                                   uint32_t& aBFCacheCombo,
                                    bool aIncludeSubdocuments,
                                    bool aAllowUnloadListeners = true);
 
@@ -4835,6 +4841,7 @@ class Document : public nsINode,
   uint32_t mLazyLoadImageReachViewportLoaded;
 
   uint32_t mContentEditableCount;
+  uint32_t mLockCount = 0;
   EditingState mEditingState;
 
   // Compatibility mode

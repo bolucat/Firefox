@@ -175,6 +175,7 @@ static const char sIntPrefs[][43] = {
     "ui.systemHorizontalScrollbarHeight",
     "ui.touchDeviceSupportPresent",
     "ui.titlebarRadius",
+    "ui.GtkMenuRadius",
 };
 
 static_assert(ArrayLength(sIntPrefs) == size_t(LookAndFeel::IntID::End),
@@ -188,6 +189,7 @@ static const char sFloatPrefs[][37] = {
     "ui.SpellCheckerUnderlineRelativeSize",
     "ui.caretAspectRatio",
     "ui.textScaleFactor",
+    "ui.cursorScale",
 };
 // clang-format on
 

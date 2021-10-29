@@ -6768,7 +6768,7 @@ bool nsDocShell::CanSavePresentation(uint32_t aLoadType,
   // If the document does not want its presentation cached, then don't.
   RefPtr<Document> doc = mScriptGlobal->GetExtantDoc();
 
-  uint16_t bfCacheCombo = 0;
+  uint32_t bfCacheCombo = 0;
   bool canSavePresentation =
       doc->CanSavePresentation(aNewRequest, bfCacheCombo, true);
   MOZ_ASSERT_IF(canSavePresentation, bfCacheCombo == 0);
@@ -9376,7 +9376,7 @@ nsresult nsDocShell::InternalLoad(nsDocShellLoadState* aLoadState,
   // before calling Stop() below.
   if (mozilla::SessionHistoryInParent()) {
     Document* document = GetDocument();
-    uint16_t flags = 0;
+    uint32_t flags = 0;
     if (document && !document->CanSavePresentation(nullptr, flags, true)) {
       // This forces some flags into the WindowGlobalParent's mBFCacheStatus,
       // which we'll then use in CanonicalBrowsingContext::AllowedInBFCache,
@@ -9856,6 +9856,15 @@ nsIPrincipal* nsDocShell::GetInheritedPrincipal(
 
   nsCOMPtr<nsICacheInfoChannel> cacheChannel(do_QueryInterface(channel));
   auto loadType = aLoadState->LoadType();
+
+  if (loadType == LOAD_RELOAD_NORMAL &&
+      StaticPrefs::
+          browser_soft_reload_only_force_validate_top_level_document()) {
+    nsCOMPtr<nsICacheInfoChannel> cachingChannel = do_QueryInterface(channel);
+    if (cachingChannel) {
+      cachingChannel->SetForceValidateCacheContent(true);
+    }
+  }
 
   // figure out if we need to set the post data stream on the channel...
   if (aLoadState->PostDataStream()) {
