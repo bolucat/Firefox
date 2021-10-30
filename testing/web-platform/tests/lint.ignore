@@ -335,6 +335,7 @@ SET TIMEOUT: resources/testharness.js
 SET TIMEOUT: scheduler/tentative/current-task-signal-async-abort.any.js
 SET TIMEOUT: scheduler/tentative/current-task-signal-async-priority.any.js
 SET TIMEOUT: speculation-rules/prerender/resources/activation-start.html
+SET TIMEOUT: speculation-rules/prerender/resources/deferred-promise-utils.js
 SET TIMEOUT: speculation-rules/prerender/resources/utils.js
 
 # setTimeout use in reftests
@@ -823,6 +824,8 @@ CSS-COLLIDING-REF-NAME: css/css-break/background-image-001-ref.html
 
 # Ported crashtests from Mozilla
 SET TIMEOUT: editing/crashtests/backcolor-in-nested-editing-host-td-from-DOMAttrModified.html
+SET TIMEOUT: editing/crashtests/inserthtml-after-temporarily-removing-document-element.html
 SET TIMEOUT: editing/crashtests/inserthtml-in-text-adopted-to-other-document.html
 SET TIMEOUT: editing/crashtests/insertorderedlist-in-text-adopted-to-other-document.html
+SET TIMEOUT: editing/crashtests/make-editable-div-inline-and-set-contenteditable-of-input-to-false.html
 SET TIMEOUT: editing/crashtests/outdent-across-svg-boundary.html
