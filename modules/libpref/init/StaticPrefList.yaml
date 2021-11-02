@@ -827,6 +827,8 @@
   value: "#0000EE"
   mirror: never
 
+# If you change this, you probably also want to change
+# nsXPLookAndFeel::GenericDarkColor for MozNativehyperlinktext.
 - name: browser.anchor_color.dark
   type: String
   value: "#9E9EFF"
@@ -1449,6 +1451,8 @@
   value: "#551A8B"
   mirror: never
 
+# If you change this, you probably also want to change
+# nsXPLookAndFeel::GenericDarkColor for MozNativevisitedhyperlinktext.
 - name: browser.visited_color.dark
   type: String
   value: "#D0ADF0"
@@ -6824,12 +6828,6 @@
   mirror: always
   rust: true
 
-# Whether to use background-image to style autofill controls.
-- name: layout.css.autofill.background
-  type: bool
-  value: true
-  mirror: always
-
 # Whether the `:-moz-submit-invalid` pseudo-class is exposed to content.
 - name: layout.css.moz-submit-invalid.enabled
   type: RelaxedAtomicBool
@@ -6857,7 +6855,7 @@
 # Whether the `color-scheme` css property and meta tags are enabled.
 - name: layout.css.color-scheme.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: @EARLY_BETA_OR_EARLIER@
   mirror: always
   rust: true
 
@@ -7278,12 +7276,6 @@
   mirror: always
   rust: true
 
-# Is CSSOM-View scroll-behavior and its MSD smooth scrolling enabled?
-- name: layout.css.scroll-behavior.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 # Tuning of the smooth scroll motion used by CSSOM-View scroll-behavior.
 # Spring-constant controls the strength of the simulated MSD
 # (Mass-Spring-Damper).
@@ -7602,6 +7594,14 @@
 - name: layout.css.scroll-anchoring.highlight
   type: bool
   value: false
+  mirror: always
+
+# Pref to control whether we reselect scroll anchors if sub-optimal
+#
+# See https://github.com/w3c/csswg-drafts/issues/6787
+- name: layout.css.scroll-anchoring.reselect-if-suboptimal
+  type: bool
+  value: true
   mirror: always
 
 # Are shared memory User Agent style sheets enabled?
@@ -12072,7 +12072,7 @@
 
 - name: widget.windows.window_occlusion_tracking.enabled
   type: bool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 - name: widget.windows.window_occlusion_tracking_display_state.enabled

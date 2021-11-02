@@ -173,7 +173,7 @@ def _scrub_system_site_packages():
     sys.path = [path for path in sys.path if path not in site_paths]
 
 
-def _activate_python_environment(topsrcdir):
+def _activate_python_environment(topsrcdir, state_dir):
     # We need the "mach" module to access the logic to parse virtualenv
     # requirements. Since that depends on "packaging" (and, transitively,
     # "pyparsing"), we add those to the path too.
@@ -186,20 +186,28 @@ def _activate_python_environment(topsrcdir):
         )
     ]
 
-    from mach.requirements import MachEnvRequirements
-
-    thunderbird_dir = os.path.join(topsrcdir, "comm")
-    is_thunderbird = os.path.exists(thunderbird_dir) and bool(
-        os.listdir(thunderbird_dir)
+    from mach.virtualenv import (
+        MozVirtualenvMetadata,
+        MozVirtualenvMetadataOutOfDateError,
+        VirtualenvManager,
     )
 
-    requirements = MachEnvRequirements.from_requirements_definition(
-        topsrcdir,
-        is_thunderbird,
-        True,
-        os.path.join(topsrcdir, "build", "mach_virtualenv_packages.txt"),
-    )
+    try:
+        mach_virtualenv = VirtualenvManager(
+            topsrcdir,
+            os.path.join(state_dir, "_virtualenvs"),
+            "mach",
+        )
+        active_metadata = MozVirtualenvMetadata.from_runtime()
+        is_mach_virtualenv = (
+            active_metadata and active_metadata.virtualenv_name == "mach"
+        )
+    except MozVirtualenvMetadataOutOfDateError as e:
+        print(e)
+        print('This should be resolved by running "./mach create-mach-environment".')
+        sys.exit(1)
 
+    requirements = mach_virtualenv.requirements()
     if os.environ.get("MACH_USE_SYSTEM_PYTHON") or os.environ.get("MOZ_AUTOMATION"):
         env_var = (
             "MOZ_AUTOMATION"
@@ -252,16 +260,35 @@ def _activate_python_environment(topsrcdir):
             # (optional) dependencies are not installed.
             _scrub_system_site_packages()
 
-    elif sys.prefix == sys.base_prefix:
-        # We're in an environment where we normally use the Mach virtualenv,
+        sys.path[0:0] = [
+            os.path.join(topsrcdir, pth.path)
+            for pth in requirements.pth_requirements
+            + requirements.vendored_requirements
+        ]
+    elif is_mach_virtualenv:
+        # We're running in the Mach virtualenv - check that it's up-to-date.
+        # Note that the "pip package check" exists to ensure that a virtualenv isn't
+        # corrupted by ad-hoc pip installs. Since the Mach virtualenv is unlikely
+        # to be affected by such installs, and since it takes ~400ms to get the list
+        # of installed pip packages (a *lot* of time to wait during Mach init), we
+        # skip verifying that our pip packages exist.
+        if not mach_virtualenv.up_to_date(skip_pip_package_check=True):
+            print(
+                'The "mach" virtualenv is not up-to-date, please run '
+                '"./mach create-mach-environment"'
+            )
+            sys.exit(1)
+    else:
+        # We're in an environment where we normally *would* use the Mach virtualenv,
         # but we're running a "nativecmd" such as "create-mach-environment".
         # Remove global site packages from sys.path to improve isolation accordingly.
         _scrub_system_site_packages()
 
-    sys.path[0:0] = [
-        os.path.join(topsrcdir, pth.path)
-        for pth in requirements.pth_requirements + requirements.vendored_requirements
-    ]
+        sys.path[0:0] = [
+            os.path.join(topsrcdir, pth.path)
+            for pth in requirements.pth_requirements
+            + requirements.vendored_requirements
+        ]
 
 
 def initialize(topsrcdir):
@@ -288,7 +315,7 @@ def initialize(topsrcdir):
         shutil.rmtree(deleted_dir, ignore_errors=True)
 
     state_dir = _create_state_dir()
-    _activate_python_environment(topsrcdir)
+    _activate_python_environment(topsrcdir, state_dir)
 
     import mach.base
     import mach.main

@@ -417,6 +417,30 @@ void RemoteAccessibleBase<Derived>::DOMNodeID(nsString& aID) const {
   }
 }
 
+template <class Derived>
+RefPtr<const AccAttributes>
+RemoteAccessibleBase<Derived>::GetCachedTextAttributes() {
+  MOZ_ASSERT(IsText() || IsHyperText());
+  if (mCachedFields) {
+    auto attrs =
+        mCachedFields->GetAttributeRefPtr<AccAttributes>(nsGkAtoms::style);
+    VERIFY_CACHE(CacheDomain::Text);
+    return attrs;
+  }
+  return nullptr;
+}
+
+template <class Derived>
+already_AddRefed<AccAttributes>
+RemoteAccessibleBase<Derived>::DefaultTextAttributes() {
+  RefPtr<const AccAttributes> attrs = GetCachedTextAttributes();
+  RefPtr<AccAttributes> result = new AccAttributes();
+  if (attrs) {
+    attrs->CopyTo(result);
+  }
+  return result.forget();
+}
+
 template class RemoteAccessibleBase<RemoteAccessible>;
 
 }  // namespace a11y

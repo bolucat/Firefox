@@ -217,6 +217,7 @@ class RemoteAccessibleBase : public Accessible, public HyperTextAccessibleBase {
 
   uint32_t GetCachedTextLength();
   Maybe<const nsTArray<int32_t>&> GetCachedTextLines();
+  RefPtr<const AccAttributes> GetCachedTextAttributes();
 
   virtual HyperTextAccessibleBase* AsHyperTextBase() override {
     return IsHyperText() ? static_cast<HyperTextAccessibleBase*>(this)
@@ -232,6 +233,8 @@ class RemoteAccessibleBase : public Accessible, public HyperTextAccessibleBase {
   // HyperTextAccessibleBase
   // XXX Implement this once it's cached.
   virtual int32_t CaretOffset() const override { return -1; }
+
+  virtual already_AddRefed<AccAttributes> DefaultTextAttributes() override;
 
  protected:
   RemoteAccessibleBase(uint64_t aID, Derived* aParent,
