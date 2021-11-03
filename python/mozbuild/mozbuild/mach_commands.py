@@ -571,7 +571,7 @@ def join_ensure_dir(dir1, dir2):
 @CommandArgumentGroup("Android")
 @CommandArgument(
     "--package",
-    default="org.mozilla.geckoview.test",
+    default="org.mozilla.geckoview.test_runner",
     group="Android",
     help="Package name of test app.",
 )
@@ -885,6 +885,11 @@ def _get_android_install_parser():
         action="store_true",
         help="Print verbose output when installing.",
     )
+    parser.add_argument(
+        "--aab",
+        action="store_true",
+        help="Install as AAB (Android App Bundle)",
+    )
     return parser
 
 
@@ -968,6 +973,12 @@ def _get_android_run_parser():
         "or /path/to/target/profile",
     )
     group.add_argument("--url", default=None, help="URL to open")
+    group.add_argument(
+        "--aab",
+        action="store_true",
+        default=False,
+        help="Install app ass App Bundle (AAB).",
+    )
     group.add_argument(
         "--no-install",
         action="store_true",
@@ -1227,6 +1238,7 @@ def _run_android(
     env=[],
     profile=None,
     url=None,
+    aab=False,
     no_install=None,
     no_wait=None,
     fail_if_running=None,
@@ -1247,8 +1259,8 @@ def _run_android(
 
     if app == "org.mozilla.geckoview_example":
         activity_name = "org.mozilla.geckoview_example.GeckoViewActivity"
-    elif app == "org.mozilla.geckoview.test":
-        activity_name = "org.mozilla.geckoview.test.TestRunnerActivity"
+    elif app == "org.mozilla.geckoview.test_runner":
+        activity_name = "org.mozilla.geckoview.test_runner.TestRunnerActivity"
     elif "fennec" in app or "firefox" in app:
         activity_name = "org.mozilla.gecko.BrowserApp"
     else:
@@ -1263,6 +1275,7 @@ def _run_android(
     verify_android_device(
         command_context,
         app=app,
+        aab=aab,
         debugger=debug,
         install=InstallIntent.NO if no_install else InstallIntent.YES,
     )

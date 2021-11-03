@@ -633,7 +633,8 @@ class InitializeVirtualDesktopManagerTask : public Task {
 nsWindow::nsWindow(bool aIsChildWindow)
     : nsWindowBase(),
       mResizeState(NOT_RESIZING),
-      mIsChildWindow(aIsChildWindow) {
+      mIsChildWindow(aIsChildWindow),
+      mDesktopId("DesktopIdMutex") {
   if (!gInitializedVirtualDesktopManager) {
     TaskController::Get()->AddTask(
         MakeAndAddRef<InitializeVirtualDesktopManagerTask>());
@@ -2297,23 +2298,71 @@ void nsWindow::SetSizeMode(nsSizeMode aMode) {
   }
 }
 
-void nsWindow::GetWorkspaceID(nsAString& workspaceID) {
+void DoGetWorkspaceID(HWND aWnd, nsAString* aWorkspaceID) {
   RefPtr<IVirtualDesktopManager> desktopManager = gVirtualDesktopManager;
-  if (!desktopManager) {
+  if (!desktopManager || !aWnd) {
     return;
   }
 
   GUID desktop;
-  HRESULT hr = desktopManager->GetWindowDesktopId(mWnd, &desktop);
+  HRESULT hr = desktopManager->GetWindowDesktopId(aWnd, &desktop);
   if (FAILED(hr)) {
     return;
   }
 
   RPC_WSTR workspaceIDStr = nullptr;
   if (UuidToStringW(&desktop, &workspaceIDStr) == RPC_S_OK) {
-    workspaceID.Assign((wchar_t*)workspaceIDStr);
+    aWorkspaceID->Assign((wchar_t*)workspaceIDStr);
     RpcStringFreeW(&workspaceIDStr);
   }
+}
+
+void nsWindow::GetWorkspaceID(nsAString& workspaceID) {
+  // If we have a value cached, use that, but also make sure it is
+  // scheduled to be updated.  If we don't yet have a value, get
+  // one synchronously.
+  auto desktop = mDesktopId.Lock();
+  if (desktop->mID.IsEmpty()) {
+    DoGetWorkspaceID(mWnd, &desktop->mID);
+    desktop->mUpdateIsQueued = false;
+  } else {
+    AsyncUpdateWorkspaceID(*desktop);
+  }
+
+  workspaceID = desktop->mID;
+}
+
+void nsWindow::AsyncUpdateWorkspaceID(Desktop& aDesktop) {
+  struct UpdateWorkspaceIdTask : public Task {
+    explicit UpdateWorkspaceIdTask(nsWindow* aSelf)
+        : Task(false /* mainThread */, EventQueuePriority::Normal),
+          mSelf(aSelf) {}
+
+    bool Run() override {
+      auto desktop = mSelf->mDesktopId.Lock();
+      if (desktop->mUpdateIsQueued) {
+        DoGetWorkspaceID(mSelf->mWnd, &desktop->mID);
+        desktop->mUpdateIsQueued = false;
+      }
+      return true;
+    }
+
+#ifdef MOZ_COLLECTING_RUNNABLE_TELEMETRY
+    bool GetName(nsACString& aName) override {
+      aName.AssignLiteral("UpdateWorkspaceIdTask");
+      return true;
+    }
+#endif
+
+    RefPtr<nsWindow> mSelf;
+  };
+
+  if (aDesktop.mUpdateIsQueued) {
+    return;
+  }
+
+  aDesktop.mUpdateIsQueued = true;
+  TaskController::Get()->AddTask(MakeAndAddRef<UpdateWorkspaceIdTask>(this));
 }
 
 void nsWindow::MoveToWorkspace(const nsAString& workspaceID) {
@@ -2323,10 +2372,13 @@ void nsWindow::MoveToWorkspace(const nsAString& workspaceID) {
   }
 
   GUID desktop;
-  const nsString& flat = PromiseFlatString(workspaceID);
+  const nsString flat = PromiseFlatString(workspaceID);
   RPC_WSTR workspaceIDStr = reinterpret_cast<RPC_WSTR>((wchar_t*)flat.get());
   if (UuidFromStringW(workspaceIDStr, &desktop) == RPC_S_OK) {
-    desktopManager->MoveWindowToDesktop(mWnd, desktop);
+    if (SUCCEEDED(desktopManager->MoveWindowToDesktop(mWnd, desktop))) {
+      auto desktop = mDesktopId.Lock();
+      desktop->mID = workspaceID;
+    }
   }
 }
 
@@ -4329,7 +4381,7 @@ bool nsWindow::TouchEventShouldStartDrag(EventMessage aEventMessage,
     DispatchInputEvent(&hittest);
 
     if (EventTarget* target = hittest.GetDOMEventTarget()) {
-      if (nsCOMPtr<nsIContent> content = do_QueryInterface(target)) {
+      if (nsIContent* content = nsIContent::FromEventTarget(target)) {
         // Check if the element or any parent element has the
         // attribute we're looking for.
         for (Element* element = content->GetAsElementOrParentElement(); element;

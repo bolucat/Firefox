@@ -20,7 +20,10 @@
 namespace mozilla {
 namespace a11y {
 
-uint64_t RemoteAccessible::State() const {
+uint64_t RemoteAccessible::State() {
+  if (StaticPrefs::accessibility_cache_enabled_AtStartup()) {
+    return RemoteAccessibleBase<RemoteAccessible>::State();
+  }
   uint64_t state = 0;
   Unused << mDoc->SendState(mID, &state);
   return state;

@@ -199,16 +199,6 @@ static_assert(ArrayLength(sFloatPrefs) == size_t(LookAndFeel::FloatID::End),
 // This array MUST be kept in the same order as the color list in
 // specified/color.rs
 static const char sColorPrefs[][41] = {
-    "ui.windowBackground",
-    "ui.windowForeground",
-    "ui.widgetBackground",
-    "ui.widgetForeground",
-    "ui.widgetSelectBackground",
-    "ui.widgetSelectForeground",
-    "ui.widget3DHighlight",
-    "ui.widget3DShadow",
-    "ui.textBackground",
-    "ui.textForeground",
     "ui.textSelectBackgroundDisabled",
     "ui.textSelectBackgroundAttention",
     "ui.textHighlightBackground",
@@ -633,10 +623,8 @@ Maybe<nscolor> nsXPLookAndFeel::GenericDarkColor(ColorID aID) {
   static constexpr nscolor kWindowText = NS_RGB(251, 251, 254);
   switch (aID) {
     case ColorID::Window:  // --in-content-page-background
-    case ColorID::WindowBackground:
     case ColorID::Background:
     case ColorID::Menu:
-    case ColorID::TextBackground:
       color = kWindowBackground;
       break;
     case ColorID::MozOddtreerow:
@@ -645,8 +633,6 @@ Maybe<nscolor> nsXPLookAndFeel::GenericDarkColor(ColorID aID) {
       break;
     case ColorID::Windowtext:  // --in-content-page-color
     case ColorID::Menutext:
-    case ColorID::WindowForeground:
-    case ColorID::TextForeground:
     case ColorID::MozDialogtext:
     case ColorID::Fieldtext:
     case ColorID::Buttontext:  // --in-content-button-text-color (via
@@ -1194,16 +1180,6 @@ static bool ColorIsCSSAccessible(LookAndFeel::ColorID aId) {
   using ColorID = LookAndFeel::ColorID;
 
   switch (aId) {
-    case ColorID::WindowBackground:
-    case ColorID::WindowForeground:
-    case ColorID::WidgetBackground:
-    case ColorID::WidgetForeground:
-    case ColorID::WidgetSelectBackground:
-    case ColorID::WidgetSelectForeground:
-    case ColorID::Widget3DHighlight:
-    case ColorID::Widget3DShadow:
-    case ColorID::TextBackground:
-    case ColorID::TextForeground:
     case ColorID::TextSelectBackgroundDisabled:
     case ColorID::TextSelectBackgroundAttention:
     case ColorID::TextHighlightBackground:

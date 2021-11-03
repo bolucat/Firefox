@@ -215,26 +215,6 @@ pub enum Color {
 #[derive(Clone, Copy, Debug, MallocSizeOf, Parse, PartialEq, ToCss, ToShmem)]
 #[repr(u8)]
 pub enum SystemColor {
-    #[css(skip)]
-    WindowBackground,
-    #[css(skip)]
-    WindowForeground,
-    #[css(skip)]
-    WidgetBackground,
-    #[css(skip)]
-    WidgetForeground,
-    #[css(skip)]
-    WidgetSelectBackground,
-    #[css(skip)]
-    WidgetSelectForeground,
-    #[css(skip)]
-    Widget3DHighlight,
-    #[css(skip)]
-    Widget3DShadow,
-    #[css(skip)]
-    TextBackground,
-    #[css(skip)]
-    TextForeground,
     #[parse(condition = "ParserContext::in_ua_or_chrome_sheet")]
     TextSelectBackgroundDisabled,
     #[parse(condition = "ParserContext::in_ua_or_chrome_sheet")]

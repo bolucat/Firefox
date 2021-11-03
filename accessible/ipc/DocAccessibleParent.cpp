@@ -8,6 +8,7 @@
 #include "mozilla/a11y/Platform.h"
 #include "mozilla/dom/BrowserBridgeParent.h"
 #include "mozilla/dom/BrowserParent.h"
+#include "mozilla/StaticPrefs_accessibility.h"
 #include "xpcAccessibleDocument.h"
 #include "xpcAccEvents.h"
 #include "nsAccUtils.h"
@@ -18,7 +19,6 @@
 #  include "Compatibility.h"
 #  include "mozilla/mscom/PassthruProxy.h"
 #  include "mozilla/mscom/Ptr.h"
-#  include "mozilla/StaticPrefs_accessibility.h"
 #  include "nsWinUtils.h"
 #  include "RootAccessible.h"
 #else
@@ -240,6 +240,9 @@ mozilla::ipc::IPCResult DocAccessibleParent::RecvEvent(
     return IPC_OK();
   }
 
+  if (aEventType == nsIAccessibleEvent::EVENT_FOCUS) {
+    mFocus = aID;
+  }
   ProxyEvent(proxy, aEventType);
 
   if (!nsCoreUtils::AccEventObserversExist()) {
@@ -269,6 +272,9 @@ mozilla::ipc::IPCResult DocAccessibleParent::RecvStateChangeEvent(
     return IPC_OK();
   }
 
+  if (StaticPrefs::accessibility_cache_enabled_AtStartup()) {
+    target->UpdateStateCache(aState, aEnabled);
+  }
   ProxyStateChangeEvent(target, aState, aEnabled);
 
   if (!nsCoreUtils::AccEventObserversExist()) {
@@ -955,6 +961,7 @@ mozilla::ipc::IPCResult DocAccessibleParent::RecvFocusEvent(
     return IPC_OK();
   }
 
+  mFocus = aID;
   ProxyFocusEvent(proxy, aCaretRect);
 
   if (!nsCoreUtils::AccEventObserversExist()) {
