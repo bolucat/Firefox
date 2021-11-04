@@ -83,10 +83,9 @@ class WebrtcAudioConduit : public AudioSessionConduit,
         });
   }
 
-  Maybe<DOMHighResTimeStamp> LastRtcpReceived() const override;
   Maybe<uint16_t> RtpSendBaseSeqFor(uint32_t aSsrc) const override;
 
-  DOMHighResTimeStamp GetNow() const override;
+  const dom::RTCStatsTimestampMaker& GetTimestampMaker() const override;
 
   void StopTransmitting();
   void StartTransmitting();
@@ -148,7 +147,8 @@ class WebrtcAudioConduit : public AudioSessionConduit,
   // Called when a parameter in mControl has changed. Call thread.
   void OnControlConfigChange();
 
-  std::vector<uint32_t> GetLocalSSRCs() const override;
+  Ssrcs GetLocalSSRCs() const override;
+  Maybe<Ssrc> GetRemoteSSRC() const override;
 
  private:
   /**
@@ -163,7 +163,6 @@ class WebrtcAudioConduit : public AudioSessionConduit,
 
  public:
   void UnsetRemoteSSRC(uint32_t ssrc) override {}
-  bool GetRemoteSSRC(uint32_t* ssrc) const override;
 
   Maybe<webrtc::AudioReceiveStream::Stats> GetReceiverStats() const override;
   Maybe<webrtc::AudioSendStream::Stats> GetSenderStats() const override;
@@ -281,9 +280,6 @@ class WebrtcAudioConduit : public AudioSessionConduit,
 
   // Accessed from mStsThread. Last successfully polled RTT
   Maybe<DOMHighResTimeStamp> mRttSec;
-
-  // Call thread.
-  Maybe<DOMHighResTimeStamp> mLastRtcpReceived;
 
   // Call thread only. ssrc -> base_seq
   std::map<uint32_t, uint16_t> mRtpSendBaseSeqs;

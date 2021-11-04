@@ -4389,6 +4389,22 @@
   value: 2592000   # 30 days (in seconds)
   mirror: always
 
+# Time in seconds before a site are considered high-value by the login detection
+# service is no longer considered high-value and isolated in the "highValueHasSavedLogin"
+# or "highValueIsLoggedIn" configuration.
+- name: fission.highValue.login.expiration
+  type: uint32_t
+  value: 2592000   # 30 days (in seconds)
+  mirror: always
+
+# If true, capture login attemp, and add "highValueIsLoggedIn" permission to
+# the permission manager no matter whether fission is enabled and
+# WebContentIsolationStrateg is set to IsolateHighvalue.
+- name: fission.highValue.login.monitor
+  type: bool
+  value: false
+  mirror: always
+
 #---------------------------------------------------------------------------
 # Prefs starting with "font."
 #---------------------------------------------------------------------------
@@ -5329,6 +5345,15 @@
 - name: gfx.webrender.blob-tile-size
   type: uint32_t
   value: 256
+  mirror: always
+
+- name: gfx.webrender.batched-upload-threshold
+  type: int32_t
+#if defined(MOZ_WIDGET_ANDROID)
+  value: 262144
+#else
+  value: 65536
+#endif
   mirror: always
 
 - name: gfx.webrender.compositor

@@ -233,11 +233,7 @@ nsTArray<RefPtr<RTCStatsPromise>> RTCRtpReceiver::GetStatsInternal() {
             nsString idstr = kind + u"_"_ns;
             idstr.AppendInt(static_cast<uint32_t>(pipeline->Level()));
 
-            Maybe<uint32_t> ssrc;
-            unsigned int ssrcval;
-            if (pipeline->mConduit->GetRemoteSSRC(&ssrcval)) {
-              ssrc = Some(ssrcval);
-            }
+            Maybe<uint32_t> ssrc = pipeline->mConduit->GetRemoteSSRC();
 
             // Add frame history
             asVideo.apply([&](const auto& conduit) {
@@ -271,10 +267,8 @@ nsTArray<RefPtr<RTCStatsPromise>> RTCRtpReceiver::GetStatsInternal() {
 
             auto constructCommonInboundRtpStats =
                 [&](RTCInboundRtpStreamStats& aLocal) {
-                  // TODO(bug 1496533): Should we use the time of the
-                  // most-recently received RTP packet? If so, what do we use if
-                  // we haven't received any RTP? Now?
-                  aLocal.mTimestamp.Construct(pipeline->GetNow());
+                  aLocal.mTimestamp.Construct(
+                      pipeline->GetTimestampMaker().GetNow());
                   aLocal.mId.Construct(localId);
                   aLocal.mType.Construct(RTCStatsType::Inbound_rtp);
                   ssrc.apply(
@@ -295,12 +289,14 @@ nsTArray<RefPtr<RTCStatsPromise>> RTCRtpReceiver::GetStatsInternal() {
               }
 
               // First, fill in remote stat with rtcp sender data, if present.
-              aConduit->LastRtcpReceived().apply([&](auto& aTimestamp) {
+              if (audioStats->last_sender_report_timestamp_ms) {
                 RTCRemoteOutboundRtpStreamStats remote;
-                constructCommonRemoteOutboundRtpStats(remote, aTimestamp);
-                if (!audioStats->last_sender_report_timestamp_ms) {
-                  return;
-                }
+                constructCommonRemoteOutboundRtpStats(
+                    remote,
+                    aConduit->GetTimestampMaker().ConvertNtpToDomTime(
+                        webrtc::Timestamp::Millis(
+                            *audioStats->last_sender_report_timestamp_ms) +
+                        webrtc::TimeDelta::Seconds(webrtc::kNtpJan1970)));
                 remote.mPacketsSent.Construct(
                     audioStats->sender_reports_packets_sent);
                 remote.mBytesSent.Construct(
@@ -311,7 +307,7 @@ nsTArray<RefPtr<RTCStatsPromise>> RTCRtpReceiver::GetStatsInternal() {
                         std::move(remote), fallible)) {
                   mozalloc_handle_oom(0);
                 }
-              });
+              }
 
               // Then, fill in local side (with cross-link to remote only if
               // present)
@@ -325,7 +321,10 @@ nsTArray<RefPtr<RTCStatsPromise>> RTCRtpReceiver::GetStatsInternal() {
                * Potential new stats that are now available upstream.
               if (audioStats->last_packet_received_timestamp_ms) {
                 local.mLastPacketReceivedTimestamp.Construct(
-                    *audioStats->last_packet_received_timestamp_ms);
+                    aConduit->GetTimestampMaker().ConvertNtpToDomTime(
+                        webrtc::Timestamp::Millis(
+                            *audioStats->last_packet_received_timestamp_ms) +
+                        webrtc::TimeDelta::Seconds(webrtc::kNtpJan1970)));
               }
               local.mHeaderBytesReceived.Construct(
                   audioStats->header_and_padding_bytes_rcvd);
@@ -335,7 +334,9 @@ nsTArray<RefPtr<RTCStatsPromise>> RTCRtpReceiver::GetStatsInternal() {
                   audioStats->fec_packets_discarded);
               if (audioStats->estimated_playout_ntp_timestamp_ms) {
                 local.mEstimatedPlayoutTimestamp.Construct(
-                    *audioStats->estimated_playout_ntp_timestamp_ms);
+                    aConduit->GetTimestampMaker().ConvertNtpToDomTime(
+                        webrtc::Timestamp::Millis(
+                            *audioStats->estimated_playout_ntp_timestamp_ms)));
               }
               local.mJitterBufferDelay.Construct(
                   audioStats->jitter_buffer_delay_seconds);
@@ -375,20 +376,26 @@ nsTArray<RefPtr<RTCStatsPromise>> RTCRtpReceiver::GetStatsInternal() {
               }
 
               // First, fill in remote stat with rtcp sender data, if present.
-              aConduit->LastRtcpReceived().apply([&](auto& aTimestamp) {
+              if (videoStats->rtcp_sender_ntp_timestamp_ms) {
                 RTCRemoteOutboundRtpStreamStats remote;
-                constructCommonRemoteOutboundRtpStats(remote, aTimestamp);
+                constructCommonRemoteOutboundRtpStats(
+                    remote, aConduit->GetTimestampMaker().ConvertNtpToDomTime(
+                                webrtc::Timestamp::Millis(
+                                    videoStats->rtcp_sender_ntp_timestamp_ms)));
                 remote.mPacketsSent.Construct(
                     videoStats->rtcp_sender_packets_sent);
                 remote.mBytesSent.Construct(
                     videoStats->rtcp_sender_octets_sent);
                 remote.mRemoteTimestamp.Construct(
-                    videoStats->rtcp_sender_ntp_timestamp_ms);
+                    (webrtc::Timestamp::Millis(
+                         videoStats->rtcp_sender_remote_ntp_timestamp_ms) -
+                     webrtc::TimeDelta::Seconds(webrtc::kNtpJan1970))
+                        .ms());
                 if (!report->mRemoteOutboundRtpStreamStats.AppendElement(
                         std::move(remote), fallible)) {
                   mozalloc_handle_oom(0);
                 }
-              });
+              }
 
               // Then, fill in local side (with cross-link to remote only if
               // present)
@@ -430,14 +437,20 @@ nsTArray<RefPtr<RTCStatsPromise>> RTCRtpReceiver::GetStatsInternal() {
                   videoStats->total_squared_inter_frame_delay);
               if (videoStats->rtp_stats.last_packet_received_timestamp_ms) {
                 local.mLastPacketReceiveTimestamp.Construct(
-                    *videoStats->rtp_stats.last_packet_received_timestamp_ms);
+                    aConduit->GetTimestampMaker().ConvertNtpToDomTime(
+                        webrtc::Timestamp::Millis(
+                            *videoStats->rtp_stats
+                                 .last_packet_received_timestamp_ms) +
+                        webrtc::TimeDelta::Seconds(webrtc::kNtpJan1970)));
               }
               local.mHeaderBytesReceived.Construct(
                   videoStats->rtp_stats.packet_counter.header_bytes +
                   videoStats->rtp_stats.packet_counter.padding_bytes);
               if (videoStats->estimated_playout_ntp_timestamp_ms) {
                 local.mEstimatedPlayoutTimestamp.Construct(
-                    *videoStats->estimated_playout_ntp_timestamp_ms);
+                    aConduit->GetTimestampMaker().ConvertNtpToDomTime(
+                        webrtc::Timestamp::Millis(
+                            *videoStats->estimated_playout_ntp_timestamp_ms)));
               }
               local.mJitterBufferDelay.Construct(
                   videoStats->jitter_buffer_delay_seconds);
@@ -446,8 +459,8 @@ nsTArray<RefPtr<RTCStatsPromise>> RTCRtpReceiver::GetStatsInternal() {
               local.mFramesReceived.Construct(
                   videoStats->frame_counts.key_frames +
                   videoStats->frame_counts.delta_frames);
-              // Not including frames dropped in the rendering pipe, which is
-              // not of webrtc's concern anyway?!
+              // Not including frames dropped in the rendering pipe, which
+              // is not of webrtc's concern anyway?!
               local.mFramesDropped.Construct(videoStats->frames_dropped);
                */
               if (!report->mInboundRtpStreamStats.AppendElement(
@@ -479,7 +492,8 @@ nsTArray<RefPtr<RTCStatsPromise>> RTCRtpReceiver::GetStatsInternal() {
 
   if (mJsepTransceiver->mTransport.mComponents) {
     promises.AppendElement(mTransportHandler->GetIceStats(
-        mJsepTransceiver->mTransport.mTransportId, mPipeline->GetNow()));
+        mJsepTransceiver->mTransport.mTransportId,
+        mPipeline->GetTimestampMaker().GetNow()));
   }
 
   return promises;

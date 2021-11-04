@@ -7,6 +7,7 @@
 #include "transport/nr_socket_proxy_config.h"
 #include "transportbridge/MediaPipelineFilter.h"
 #include "transportbridge/MediaPipeline.h"
+#include "PeerConnectionCtx.h"
 #include "PeerConnectionImpl.h"
 #include "PeerConnectionMedia.h"
 #include "RTCDtlsTransport.h"
@@ -590,7 +591,7 @@ void PeerConnectionMedia::Shutdown() {
   mDestroyed = true;
 
   if (mStunAddrsRequest) {
-    for (auto& hostname : mRegisteredMDNSHostnames) {
+    for (const auto& hostname : mRegisteredMDNSHostnames) {
       mStunAddrsRequest->SendUnregisterMDNSHostname(
           nsCString(hostname.c_str()));
     }
@@ -654,7 +655,7 @@ nsresult PeerConnectionMedia::AddTransceiver(
   if (!mCall) {
     mCall = WebrtcCallWrapper::Create(
         mParent->GetTimestampMaker(),
-        MakeUnique<media::ShutdownBlockingTicket>(
+        media::ShutdownBlockingTicket::Create(
             u"WebrtcCallWrapper shutdown blocker"_ns,
             NS_LITERAL_STRING_FROM_CSTRING(__FILE__), __LINE__),
         aSharedWebrtcState);
@@ -866,7 +867,7 @@ std::unique_ptr<NrSocketProxyConfig> PeerConnectionMedia::GetProxyConfig()
   }
 
   nsCString alpn = "webrtc,c-webrtc"_ns;
-  auto browserChild = BrowserChild::GetFrom(GetWindow());
+  auto* browserChild = BrowserChild::GetFrom(GetWindow());
   if (!browserChild) {
     // Android doesn't have browser child apparently...
     return nullptr;

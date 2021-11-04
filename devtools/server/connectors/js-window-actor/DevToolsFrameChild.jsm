@@ -156,12 +156,15 @@ class DevToolsFrameChild extends JSWindowActorChild {
    * instantiate a new dedicated target actor for each of the watchers.
    *
    * @param Object options
-   * @param String options.isBFCache
+   * @param Boolean options.isBFCache
    *        True, if the request to instantiate a new target comes from a bfcache navigation.
    *        i.e. when we receive a pageshow event with persisted=true.
    *        This will be true regardless of bfcacheInParent being enabled or disabled.
+   * @param Boolean options.ignoreIfExisting
+   *        By default to false. If true is passed, we avoid instantiating a target actor
+   *        if one already exists for this windowGlobal.
    */
-  instantiate({ isBFCache = false } = {}) {
+  instantiate({ isBFCache = false, ignoreIfExisting = false } = {}) {
     const { sharedData } = Services.cpmm;
     const sessionDataByWatcherActor = sharedData.get(SHARED_DATA_KEY_NAME);
     if (!sessionDataByWatcherActor) {
@@ -206,6 +209,12 @@ class DevToolsFrameChild extends JSWindowActorChild {
           context,
           browsingContextId: this.manager.browsingContext.id,
         });
+
+        // See comment in handleEvent(DOMDocElementInserted) to know why we try to
+        // create targets if none already exists
+        if (existingTarget && ignoreIfExisting) {
+          continue;
+        }
 
         // Bail if there is already an existing WindowGlobalTargetActor which wasn't
         // created from a JSWIndowActor.
@@ -544,15 +553,22 @@ class DevToolsFrameChild extends JSWindowActorChild {
     // First let's check if a target was created for this watcher actor in this specific
     // DevToolsFrameChild instance.
     const connectionInfo = this._connections.get(watcherActorID);
-    let targetActor = connectionInfo ? connectionInfo.actor : null;
+    const targetActor = connectionInfo ? connectionInfo.actor : null;
+    if (targetActor) {
+      return targetActor;
+    }
 
     // If we couldn't find such target, we want to see if a target was created for this
     // (watcherActorId,browserId, {browsingContextId}) in another DevToolsFrameChild instance.
     // This might be the case if we're navigating to a new page with server side target
     // enabled and we want to retrieve the target of the page we're navigating from.
+    const isMatchingBrowserElement =
+      this.manager.browsingContext.browserId == context.browserId;
+    const isMatchingWebExtension =
+      this.document.nodePrincipal.addonId == context.addonId;
     if (
-      !targetActor &&
-      this.manager.browsingContext.browserId == context.browserId
+      (context.type == "browser-element" && isMatchingBrowserElement) ||
+      (context.type == "webextension" && isMatchingWebExtension)
     ) {
       // Ensure retrieving the one target actor related to this connection.
       // This allows to distinguish actors created for various toolboxes.
@@ -564,15 +580,13 @@ class DevToolsFrameChild extends JSWindowActorChild {
       );
 
       if (!browsingContextId) {
-        targetActor = targetActors[0] || null;
-      } else {
-        targetActor = targetActors.find(
-          actor => actor.browsingContextID === browsingContextId
-        );
+        return targetActors[0] || null;
       }
+      return targetActors.find(
+        actor => actor.browsingContextID === browsingContextId
+      );
     }
-
-    return targetActor;
+    return null;
   }
 
   _addSessionDataEntry(watcherActorID, context, type, entries) {
@@ -617,6 +631,20 @@ class DevToolsFrameChild extends JSWindowActorChild {
     // as a DOM event to be listened to and so is fired by JS Window Actor code platform code.
     if (type == "DOMWindowCreated") {
       this.instantiate();
+      return;
+    }
+    // We might have ignored the DOMWindowCreated event because it was the initial about:blank document.
+    // But when loading same-process iframes, we reuse the WindowGlobal of the about:bank document
+    // to load the actual URL loaded in the iframe. This means we won't have a new DOMWindowCreated
+    // for the actual document. There is a DOMDocElementInserted fired just after, that we can catch
+    // to create a target for same-process iframes.
+    // This means that we still do not create any target for the initial documents.
+    // It is complex to instantiate targets for initial documents because:
+    // - it would mean spawning two targets for the same WindowGlobal and sharing the same innerWindowId
+    // - or have WindowGlobalTargets to handle more than one document (it would mean reusing will-navigate/window-ready events
+    // both on client and server)
+    if (type == "DOMDocElementInserted") {
+      this.instantiate({ ignoreIfExisting: true });
       return;
     }
 

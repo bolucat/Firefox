@@ -7,6 +7,7 @@
 #include "nsTArray.h"
 #include "mozilla/Assertions.h"
 #include "MainThreadUtils.h"
+#include "SystemTime.h"
 
 #include "system_wrappers/include/clock.h"
 
@@ -60,12 +61,6 @@ void MediaSessionConduit::UpdateRtpSources(
   // Empty out the cache; we'll copy things back as needed
   auto cache = std::move(mSourcesCache);
 
-  // Fix up timestamps to be consistent with JS time. We assume that
-  // source.timestamp_ms() was not terribly long ago, and so clock drift
-  // between the libwebrtc clock and our JS clock is not that significant.
-  auto jsNow = GetNow();
-  double libwebrtcNow = webrtc::Clock::GetRealTimeClock()->TimeInMilliseconds();
-
   for (const auto& source : aSources) {
     SourceKey key(source);
     auto it = cache.find(key);
@@ -99,8 +94,8 @@ void MediaSessionConduit::UpdateRtpSources(
       domEntry.mAudioLevel.Construct(rtpToDomAudioLevel(*source.audio_level()));
     }
 
-    double ago = libwebrtcNow - source.timestamp_ms();
-    domEntry.mTimestamp = jsNow - ago;
+    domEntry.mTimestamp = GetTimestampMaker().ReduceRealtimePrecision(
+        webrtc::Timestamp::Millis(source.timestamp_ms()));
     domEntry.mRtpTimestamp = source.rtp_timestamp();
     mSourcesCache[key] = domEntry;
   }
@@ -139,13 +134,13 @@ void MediaSessionConduit::InsertAudioLevelForContributingSource(
     domEntry.mAudioLevel.Construct(rtpToDomAudioLevel(aAudioLevel));
   }
 
-  int64_t libwebrtcNow =
-      webrtc::Clock::GetRealTimeClock()->TimeInMilliseconds();
-  double jsNow = GetNow();
+  webrtc::Timestamp libwebrtcNow = GetTimestampMaker().GetNowRealtime();
+  double jsNow = GetTimestampMaker().ReduceRealtimePrecision(libwebrtcNow);
   double ago = jsNow - aTimestamp;
-  uint64_t convertedTimestamp = libwebrtcNow - ago;
+  webrtc::Timestamp convertedTimestamp =
+      libwebrtcNow - webrtc::TimeDelta::Millis(ago);
 
-  SourceKey key(convertedTimestamp, aCsrcSource);
+  SourceKey key(convertedTimestamp.ms<uint32_t>(), aCsrcSource);
   mSourcesCache[key] = domEntry;
 }
 

@@ -152,8 +152,7 @@ class MediaPipeline : public sigslot::has_slots<> {
   int64_t RtpBytesReceived() const { return mRtpBytesReceived; }
   int32_t RtcpPacketsReceived() const { return mRtcpPacketsReceived; }
 
-  // Gets the current time as a DOMHighResTimeStamp
-  DOMHighResTimeStamp GetNow() const;
+  const dom::RTCStatsTimestampMaker& GetTimestampMaker() const;
 
   // Thread counting
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaPipeline)
@@ -310,9 +309,9 @@ class MediaPipelineTransmit : public MediaPipeline {
   WatchManager<MediaPipelineTransmit> mWatchManager;
   const bool mIsVideo;
   const RefPtr<PipelineListener> mListener;
-  const RefPtr<VideoFrameFeeder> mFeeder;
   RefPtr<AudioProxyThread> mAudioProcessing;
   RefPtr<VideoFrameConverter> mConverter;
+  MediaEventListener mFrameListener;
   Watchable<RefPtr<dom::MediaStreamTrack>> mDomTrack;
   // Input port connecting mDomTrack's MediaTrack to mSendTrack.
   RefPtr<MediaInputPort> mSendPort;
