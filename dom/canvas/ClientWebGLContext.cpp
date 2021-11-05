@@ -19,6 +19,7 @@
 #include "mozilla/dom/WorkerCommon.h"
 #include "mozilla/EnumeratedRange.h"
 #include "mozilla/gfx/gfxVars.h"
+#include "mozilla/gfx/CanvasManagerChild.h"
 #include "mozilla/ipc/Shmem.h"
 #include "mozilla/layers/CompositorBridgeChild.h"
 #include "mozilla/layers/ImageBridgeChild.h"
@@ -544,15 +545,16 @@ ClientWebGLContext::SetDimensions(const int32_t signedWidth,
 }
 
 static bool IsWebglOutOfProcessEnabled() {
-  bool useOop = StaticPrefs::webgl_out_of_process();
-
-  if (!gfx::gfxVars::AllowWebglOop()) {
-    useOop = false;
-  }
   if (StaticPrefs::webgl_out_of_process_force()) {
-    useOop = true;
+    return true;
   }
-  return useOop;
+  if (!gfx::gfxVars::AllowWebglOop()) {
+    return false;
+  }
+  if (!NS_IsMainThread()) {
+    return StaticPrefs::webgl_out_of_process_worker();
+  }
+  return StaticPrefs::webgl_out_of_process();
 }
 
 static inline bool StartsWith(const std::string& haystack,
@@ -608,15 +610,15 @@ bool ClientWebGLContext::CreateHostContext(const uvec2& requestedSize) {
 
     ScopedGfxFeatureReporter reporter("IpcWebGL");
 
-    auto* const cbc = layers::CompositorBridgeChild::Get();
-    MOZ_ASSERT(cbc);
-    if (!cbc) {
-      return Err("!CompositorBridgeChild::Get()");
+    auto* const cm = gfx::CanvasManagerChild::Get();
+    MOZ_ASSERT(cm);
+    if (!cm) {
+      return Err("!CanvasManagerChild::Get()");
     }
 
     RefPtr<dom::WebGLChild> outOfProcess = new dom::WebGLChild(*this);
     outOfProcess =
-        static_cast<dom::WebGLChild*>(cbc->SendPWebGLConstructor(outOfProcess));
+        static_cast<dom::WebGLChild*>(cm->SendPWebGLConstructor(outOfProcess));
     if (!outOfProcess) {
       return Err("SendPWebGLConstructor failed");
     }

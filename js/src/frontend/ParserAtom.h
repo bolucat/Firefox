@@ -420,6 +420,14 @@ class alignas(alignof(uint32_t)) ParserAtom {
     return true;
   }
 
+  bool isPrivateName() const {
+    if (length() < 2) {
+      return false;
+    }
+
+    return charAt(0) == '#';
+  }
+
   HashNumber hash() const { return hash_; }
   uint32_t length() const { return length_; }
 
@@ -672,6 +680,19 @@ class ParserAtomsTable {
   // This copies flags as well.
   TaggedParserAtomIndex internExternalParserAtom(JSContext* cx,
                                                  const ParserAtom* atom);
+
+  // The atomIndex given as argument is in relation with the context Stencil.
+  // The atomIndex might be a well-known or static, in which case this function
+  // is a no-op.
+  TaggedParserAtomIndex internExternalParserAtomIndex(
+      JSContext* cx, const CompilationStencil& context,
+      TaggedParserAtomIndex atomIndex);
+
+  // Compare an internal atom index with an external atom index coming from the
+  // stencil given as argument.
+  bool isEqualToExternalParserAtomIndex(TaggedParserAtomIndex internal,
+                                        const CompilationStencil& context,
+                                        TaggedParserAtomIndex external) const;
 
   bool addPlaceholder(JSContext* cx);
 

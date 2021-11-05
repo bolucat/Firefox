@@ -59,6 +59,7 @@ struct CompilationStencil;
 struct CompilationGCOutput;
 class ScriptStencilIterable;
 class ParserAtomsTable;
+struct InputName;
 
 // Reference to a Scope within a CompilationStencil.
 struct ScopeStencilRef {
@@ -276,6 +277,7 @@ class InputScript {
         });
   }
 
+  InputName displayAtom() const;
   void trace(JSTracer* trc);
   bool isNull() const {
     return script_.match([](const BaseScript* ptr) { return !ptr; },
@@ -327,6 +329,55 @@ class MOZ_STACK_CLASS InputScopeIter {
   }
 
   void trace(JSTracer* trc) { scope_.trace(trc); }
+};
+
+// Reference to a Binding Name within an existing CompilationStencil.
+// TaggedParserAtomIndex are in some cases indexes in the parserAtomData of the
+// CompilationStencil.
+struct NameStencilRef {
+  const CompilationStencil& context_;
+  const TaggedParserAtomIndex atomIndex_;
+};
+
+// Wraps a name for a CompilationInput. The name is either as a GC pointer to
+// a JSAtom, or a TaggedParserAtomIndex which might reference to a non-included.
+//
+// The constructor for this class are using an InputScope as argument. This
+// InputScope is made to fetch back the CompilationStencil associated with the
+// TaggedParserAtomIndex when using a Stencil as input.
+struct InputName {
+  using InputNameStorage = mozilla::Variant<JSAtom*, NameStencilRef>;
+  InputNameStorage variant_;
+
+  InputName(Scope*, JSAtom* ptr) : variant_(ptr) {}
+  InputName(const ScopeStencilRef& scope, TaggedParserAtomIndex index)
+      : variant_(NameStencilRef{scope.context_, index}) {}
+  InputName(BaseScript*, JSAtom* ptr) : variant_(ptr) {}
+  InputName(const ScriptStencilRef& script, TaggedParserAtomIndex index)
+      : variant_(NameStencilRef{script.context_, index}) {}
+
+  // The InputName is either from an instantiated name, or from another
+  // CompilationStencil. This method interns the current name in the parser atom
+  // table of a CompilationState, which has a corresponding CompilationInput.
+  TaggedParserAtomIndex internInto(JSContext* cx, ParserAtomsTable& parserAtoms,
+                                   CompilationAtomCache& atomCache);
+
+  // Compare an InputName, which is not yet interned, with `other` is either an
+  // interned name or a well-known or static string.
+  //
+  // The `otherCached` argument should be a reference to a JSAtom*, initialized
+  // to nullptr, which is used to cache the JSAtom representation of the `other`
+  // argument if needed. If a different `other` parameter is provided, the
+  // `otherCached` argument should be reset to nullptr.
+  bool isEqualTo(JSContext* cx, ParserAtomsTable& parserAtoms,
+                 CompilationAtomCache& atomCache, TaggedParserAtomIndex other,
+                 JSAtom** otherCached) const;
+
+  bool isNull() const {
+    return variant_.match(
+        [](JSAtom* ptr) { return !ptr; },
+        [](const NameStencilRef& ref) { return !ref.atomIndex_; });
+  }
 };
 
 // ScopeContext holds information derived from the scope and environment chains
@@ -432,24 +483,25 @@ struct ScopeContext {
       TaggedParserAtomIndex name);
 
  private:
-  void computeThisBinding(Scope* scope);
-  void computeThisEnvironment(Scope* enclosingScope);
-  void computeInScope(Scope* enclosingScope);
-  void cacheEnclosingScope(Scope* enclosingScope);
+  void computeThisBinding(const InputScope& scope);
+  void computeThisEnvironment(const InputScope& enclosingScope);
+  void computeInScope(const InputScope& enclosingScope);
+  void cacheEnclosingScope(const InputScope& enclosingScope);
 
-  Scope* determineEffectiveScope(Scope* scope, JSObject* environment);
+  InputScope determineEffectiveScope(InputScope& scope, JSObject* environment);
+
+  bool cachePrivateFieldsForEval(JSContext* cx, CompilationInput& input,
+                                 JSObject* enclosingEnvironment,
+                                 const InputScope& effectiveScope,
+                                 ParserAtomsTable& parserAtoms);
 
   bool cacheEnclosingScopeBindingForEval(JSContext* cx, CompilationInput& input,
                                          ParserAtomsTable& parserAtoms);
 
-  bool cachePrivateFieldsForEval(JSContext* cx, CompilationInput& input,
-                                 JSObject* enclosingEnvironment,
-                                 Scope* effectiveScope,
-                                 ParserAtomsTable& parserAtoms);
-
-  bool addToEnclosingLexicalBindingCache(JSContext* cx, CompilationInput& input,
+  bool addToEnclosingLexicalBindingCache(JSContext* cx,
                                          ParserAtomsTable& parserAtoms,
-                                         JSAtom* name,
+                                         CompilationAtomCache& atomCache,
+                                         InputName& name,
                                          EnclosingLexicalBindingKind kind);
 };
 
@@ -508,7 +560,7 @@ struct CompilationInput {
   CompilationAtomCache atomCache;
 
  private:
-  BaseScript* lazy_ = nullptr;
+  InputScript lazy_ = InputScript(nullptr);
 
  public:
   RefPtr<ScriptSource> source;
@@ -524,7 +576,7 @@ struct CompilationInput {
   //    (See EmitterScope::checkEnvironmentChainLength)
   //  * If the target is Delazification, the non-null enclosing scope of
   //    the function
-  Scope* enclosingScope = nullptr;
+  InputScope enclosingScope = InputScope(nullptr);
 
   explicit CompilationInput(const JS::ReadOnlyCompileOptions& options)
       : options(options) {}
@@ -548,7 +600,7 @@ struct CompilationInput {
     if (!initScriptSource(cx)) {
       return false;
     }
-    enclosingScope = &cx->global()->emptyGlobalScope();
+    enclosingScope = InputScope(&cx->global()->emptyGlobalScope());
     return true;
   }
 
@@ -560,7 +612,7 @@ struct CompilationInput {
     if (!initScriptSource(cx)) {
       return false;
     }
-    enclosingScope = evalEnclosingScope;
+    enclosingScope = InputScope(evalEnclosingScope);
     return true;
   }
 
@@ -581,9 +633,17 @@ struct CompilationInput {
     // function's immediately enclosing scope.
     MOZ_ASSERT(lazyScript->isReadyForDelazification());
     target = CompilationTarget::Delazification;
-    lazy_ = lazyScript;
+    lazy_ = InputScript(lazyScript);
     source = ss;
-    enclosingScope = lazy_->function()->enclosingScope();
+    enclosingScope = lazy_.enclosingScope();
+  }
+
+  void initFromStencil(CompilationStencil& context, ScriptIndex scriptIndex,
+                       ScriptSource* ss) {
+    target = CompilationTarget::Delazification;
+    lazy_ = InputScript(context, scriptIndex);
+    source = ss;
+    enclosingScope = lazy_.enclosingScope();
   }
 
   // Returns true if enclosingScope field is provided to init* function,
@@ -596,37 +656,34 @@ struct CompilationInput {
 
   // Returns the enclosing scope provided to init* function.
   // nullptr otherwise.
-  Scope* maybeNonDefaultEnclosingScope() const {
+  InputScope maybeNonDefaultEnclosingScope() const {
     if (hasNonDefaultEnclosingScope()) {
       return enclosingScope;
     }
-    return nullptr;
+    return InputScope(nullptr);
   }
 
-  // CompilationSyntaxParseCache needs a BaseScript to copy the
-  // closed-over-binding, and inner functions, as needed for skipping over
-  // already computed parameters in the FullParseHandler.
-  BaseScript* lazyOuterScript() {
-    MOZ_ASSERT(isInitialStencil() == !lazy_);
-    return lazy_;
-  }
+  // The BaseScript* is needed when instantiating a lazy function.
+  // See InstantiateTopLevel and FunctionsFromExistingLazy.
+  InputScript lazyOuterScript() { return lazy_; }
+  BaseScript* lazyOuterBaseScript() { return lazy_.raw().as<BaseScript*>(); }
 
-  // When compiling a lazy function, this is needed to initialize the
-  // FunctionBox as well as the CompilationState.
-  JSFunction* function() const { return lazy_->function(); }
+  // The JSFunction* is needed when instantiating a lazy function.
+  // See FunctionsFromExistingLazy.
+  JSFunction* function() const {
+    return lazy_.raw().as<BaseScript*>()->function();
+  }
 
   // When compiling an inner function, we want to know the unique identifier
   // which identify a function. This is computed from the source extend.
-  SourceExtent extent() const { return lazy_->extent(); }
+  SourceExtent extent() const { return lazy_.extent(); }
 
   // See `BaseScript::immutableFlags_`.
-  ImmutableScriptFlags immutableFlags() const {
-    return lazy_->immutableFlags();
-  }
+  ImmutableScriptFlags immutableFlags() const { return lazy_.immutableFlags(); }
 
   RO_IMMUTABLE_SCRIPT_FLAGS(immutableFlags())
 
-  FunctionFlags functionFlags() const { return function()->flags(); }
+  FunctionFlags functionFlags() const { return lazy_.functionFlags(); }
 
   // When delazifying, return the kind of function which is defined.
   FunctionSyntaxKind functionSyntaxKind() const;
@@ -634,12 +691,12 @@ struct CompilationInput {
   bool hasPrivateScriptData() const {
     // This is equivalent to: ngcthings != 0 || useMemberInitializers()
     // See BaseScript::CreateRawLazy.
-    return lazy_->hasPrivateScriptData();
+    return lazy_.hasPrivateScriptData();
   }
 
   // Whether this CompilationInput is parsing the top-level of a script, or
   // false if we are parsing an inner function.
-  bool isInitialStencil() { return !lazy_; }
+  bool isInitialStencil() { return lazy_.isNull(); }
 
   // Whether this CompilationInput is parsing a specific function with already
   // pre-parsed contextual information.
@@ -726,7 +783,8 @@ class CompilationSyntaxParseCache {
   // used for reporting allocation errors.
   [[nodiscard]] bool init(JSContext* cx, LifoAlloc& alloc,
                           ParserAtomsTable& parseAtoms,
-                          CompilationAtomCache& atomCache, BaseScript* lazy);
+                          CompilationAtomCache& atomCache,
+                          const InputScript& lazy);
 
  private:
   // Return the script index of a given inner function.
@@ -746,15 +804,23 @@ class CompilationSyntaxParseCache {
   [[nodiscard]] bool copyFunctionInfo(JSContext* cx,
                                       ParserAtomsTable& parseAtoms,
                                       CompilationAtomCache& atomCache,
-                                      BaseScript* lazy);
+                                      const InputScript& lazy);
   [[nodiscard]] bool copyScriptInfo(JSContext* cx, LifoAlloc& alloc,
                                     ParserAtomsTable& parseAtoms,
                                     CompilationAtomCache& atomCache,
                                     BaseScript* lazy);
+  [[nodiscard]] bool copyScriptInfo(JSContext* cx, LifoAlloc& alloc,
+                                    ParserAtomsTable& parseAtoms,
+                                    CompilationAtomCache& atomCache,
+                                    const ScriptStencilRef& lazy);
   [[nodiscard]] bool copyClosedOverBindings(JSContext* cx, LifoAlloc& alloc,
                                             ParserAtomsTable& parseAtoms,
                                             CompilationAtomCache& atomCache,
                                             BaseScript* lazy);
+  [[nodiscard]] bool copyClosedOverBindings(JSContext* cx, LifoAlloc& alloc,
+                                            ParserAtomsTable& parseAtoms,
+                                            CompilationAtomCache& atomCache,
+                                            const ScriptStencilRef& lazy);
 };
 
 // AsmJS scripts are very rare on-average, so we use a HashMap to associate
@@ -1236,7 +1302,7 @@ struct MOZ_RAII CompilationState : public ExtensibleCompilationStencil {
 
     // gcThings is later used by the full parser initialization.
     if (input.isDelazifying()) {
-      BaseScript* lazy = input.lazyOuterScript();
+      InputScript lazy = input.lazyOuterScript();
       auto& atomCache = input.atomCache;
       if (!previousParseCache.init(cx, alloc, parserAtoms, atomCache, lazy)) {
         return false;
