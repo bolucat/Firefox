@@ -368,13 +368,6 @@
   call_instruction: true
   mir_op: true
 
-# Allocate an object for |new| on the caller-side.
-# Always performs object initialization with a fast path.
-- name: CreateThisWithTemplate
-  result_type: WordSized
-  num_temps: 1
-  mir_op: true
-
 # Allocate a new arguments object for the frame.
 - name: CreateArgumentsObject
   result_type: WordSized
@@ -388,6 +381,9 @@
   gen_boilerplate: false
 
 - name: GetInlinedArgument
+  gen_boilerplate: false
+
+- name: GetInlinedArgumentHole
   gen_boilerplate: false
 
 # Get argument from arguments object.
@@ -408,6 +404,14 @@
 
 # Load an element from an arguments object.
 - name: LoadArgumentsObjectArg
+  result_type: BoxedValue
+  operands:
+    argsObject: WordSized
+    index: WordSized
+  num_temps: 1
+
+# Load an element from an arguments object. Handles out-of-bounds accesses.
+- name: LoadArgumentsObjectArgHole
   result_type: BoxedValue
   operands:
     argsObject: WordSized
@@ -2086,6 +2090,16 @@
   result_type: BoxedValue
   operands:
     index: WordSized
+
+# Load a value from the actual arguments.
+# Returns undefined if |index| is larger-or-equals to |length|. Bails out if
+# |index| is negative.
+- name: GetFrameArgumentHole
+  result_type: BoxedValue
+  operands:
+    index: WordSized
+    length: WordSized
+  num_temps: 1
 
 # Create the rest parameter.
 - name: Rest

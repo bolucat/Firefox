@@ -3468,6 +3468,24 @@ bool CacheIRCompiler::emitLoadArgumentsObjectArgResult(ObjOperandId objId,
   return true;
 }
 
+bool CacheIRCompiler::emitLoadArgumentsObjectArgHoleResult(
+    ObjOperandId objId, Int32OperandId indexId) {
+  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
+  AutoOutputRegister output(*this);
+  Register obj = allocator.useRegister(masm, objId);
+  Register index = allocator.useRegister(masm, indexId);
+  AutoScratchRegister scratch(allocator, masm);
+
+  FailurePath* failure;
+  if (!addFailurePath(&failure)) {
+    return false;
+  }
+
+  masm.loadArgumentsObjectElementHole(obj, index, output.valueReg(), scratch,
+                                      failure->label());
+  return true;
+}
+
 bool CacheIRCompiler::emitLoadDenseElementResult(ObjOperandId objId,
                                                  Int32OperandId indexId) {
   JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
@@ -7390,7 +7408,7 @@ bool CacheIRCompiler::emitCallIsSuspendedGeneratorResult(ValOperandId valId) {
 }
 
 // This op generates no code. It is consumed by the transpiler.
-bool CacheIRCompiler::emitMetaTwoByte(uint32_t, uint32_t) { return true; }
+bool CacheIRCompiler::emitMetaScriptedThisShape(uint32_t) { return true; }
 
 bool CacheIRCompiler::emitCallNativeGetElementResult(ObjOperandId objId,
                                                      Int32OperandId indexId) {

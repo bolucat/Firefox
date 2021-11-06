@@ -19,17 +19,40 @@ const PREF_MERINO_ENDPOINT_URL = "merino.endpointURL";
 
 const TELEMETRY_MERINO_LATENCY = "FX_URLBAR_MERINO_LATENCY_MS";
 
+const REMOTE_SETTINGS_SEARCH_STRING = "frab";
+
 const REMOTE_SETTINGS_DATA = [
   {
     id: 1,
     url: "http://test.com/q=frabbits",
     title: "frabbits",
-    keywords: ["fra", "frab"],
+    keywords: [REMOTE_SETTINGS_SEARCH_STRING],
     click_url: "http://click.reporting.test.com/",
     impression_url: "http://impression.reporting.test.com/",
     advertiser: "TestAdvertiser",
   },
 ];
+
+const EXPECTED_REMOTE_SETTINGS_RESULT = {
+  type: UrlbarUtils.RESULT_TYPE.URL,
+  source: UrlbarUtils.RESULT_SOURCE.SEARCH,
+  heuristic: false,
+  payload: {
+    qsSuggestion: REMOTE_SETTINGS_SEARCH_STRING,
+    title: "frabbits",
+    url: "http://test.com/q=frabbits",
+    icon: null,
+    sponsoredImpressionUrl: "http://impression.reporting.test.com/",
+    sponsoredClickUrl: "http://click.reporting.test.com/",
+    sponsoredBlockId: 1,
+    sponsoredAdvertiser: "testadvertiser",
+    isSponsored: true,
+    helpUrl: UrlbarProviderQuickSuggest.helpUrl,
+    helpL10nId: "firefox-suggest-urlbar-learn-more",
+    displayUrl: "http://test.com/q=frabbits",
+    source: "remote-settings",
+  },
+};
 
 let gMerinoResponse;
 
@@ -49,6 +72,12 @@ add_task(async function init() {
 
   // Set up the remote settings client with the test data.
   await QuickSuggestTestUtils.ensureQuickSuggestInit(REMOTE_SETTINGS_DATA);
+
+  Assert.equal(
+    typeof UrlbarQuickSuggest.SUGGESTION_SCORE,
+    "number",
+    "Sanity check: UrlbarQuickSuggest.SUGGESTION_SCORE is defined"
+  );
 });
 
 // Tests with Merino enabled and remote settings disabled.
@@ -58,6 +87,7 @@ add_task(async function oneEnabled_merino() {
 
   setMerinoResponse({
     body: {
+      request_id: "merinoOnly request_id",
       suggestions: [
         {
           full_keyword: "merinoOnly full_keyword",
@@ -77,7 +107,7 @@ add_task(async function oneEnabled_merino() {
     },
   });
 
-  let context = createContext("frab", {
+  let context = createContext(REMOTE_SETTINGS_SEARCH_STRING, {
     providers: [UrlbarProviderQuickSuggest.name],
     isPrivate: false,
   });
@@ -101,6 +131,8 @@ add_task(async function oneEnabled_merino() {
           helpUrl: UrlbarProviderQuickSuggest.helpUrl,
           helpL10nId: "firefox-suggest-urlbar-learn-more",
           displayUrl: "merinoOnly url",
+          requestId: "merinoOnly request_id",
+          source: "merino",
         },
       },
     ],
@@ -116,6 +148,7 @@ add_task(async function oneEnabled_remoteSettings() {
   // we don't fetch it.
   setMerinoResponse({
     body: {
+      request_id: "merinoOnly request_id",
       suggestions: [
         {
           full_keyword: "remoteSettingsOnly full_keyword",
@@ -133,33 +166,13 @@ add_task(async function oneEnabled_remoteSettings() {
     },
   });
 
-  let context = createContext("frab", {
+  let context = createContext(REMOTE_SETTINGS_SEARCH_STRING, {
     providers: [UrlbarProviderQuickSuggest.name],
     isPrivate: false,
   });
   await check_results({
     context,
-    matches: [
-      {
-        type: UrlbarUtils.RESULT_TYPE.URL,
-        source: UrlbarUtils.RESULT_SOURCE.SEARCH,
-        heuristic: false,
-        payload: {
-          qsSuggestion: "frab",
-          title: "frabbits",
-          url: "http://test.com/q=frabbits",
-          icon: null,
-          sponsoredImpressionUrl: "http://impression.reporting.test.com/",
-          sponsoredClickUrl: "http://click.reporting.test.com/",
-          sponsoredBlockId: 1,
-          sponsoredAdvertiser: "testadvertiser",
-          isSponsored: true,
-          helpUrl: UrlbarProviderQuickSuggest.helpUrl,
-          helpL10nId: "firefox-suggest-urlbar-learn-more",
-          displayUrl: "http://test.com/q=frabbits",
-        },
-      },
-    ],
+    matches: [EXPECTED_REMOTE_SETTINGS_RESULT],
   });
 });
 
@@ -171,6 +184,7 @@ add_task(async function higherScore_merino() {
 
   setMerinoResponse({
     body: {
+      request_id: "merinoOnly request_id",
       suggestions: [
         {
           full_keyword: "higherScore full_keyword",
@@ -188,7 +202,7 @@ add_task(async function higherScore_merino() {
     },
   });
 
-  let context = createContext("frab", {
+  let context = createContext(REMOTE_SETTINGS_SEARCH_STRING, {
     providers: [UrlbarProviderQuickSuggest.name],
     isPrivate: false,
   });
@@ -212,6 +226,8 @@ add_task(async function higherScore_merino() {
           helpUrl: UrlbarProviderQuickSuggest.helpUrl,
           helpL10nId: "firefox-suggest-urlbar-learn-more",
           displayUrl: "higherScore url",
+          requestId: "merinoOnly request_id",
+          source: "merino",
         },
       },
     ],
@@ -226,6 +242,7 @@ add_task(async function higherScore_remoteSettings() {
 
   setMerinoResponse({
     body: {
+      request_id: "merinoOnly request_id",
       suggestions: [
         {
           full_keyword: "higherScore full_keyword",
@@ -243,33 +260,13 @@ add_task(async function higherScore_remoteSettings() {
     },
   });
 
-  let context = createContext("frab", {
+  let context = createContext(REMOTE_SETTINGS_SEARCH_STRING, {
     providers: [UrlbarProviderQuickSuggest.name],
     isPrivate: false,
   });
   await check_results({
     context,
-    matches: [
-      {
-        type: UrlbarUtils.RESULT_TYPE.URL,
-        source: UrlbarUtils.RESULT_SOURCE.SEARCH,
-        heuristic: false,
-        payload: {
-          qsSuggestion: "frab",
-          title: "frabbits",
-          url: "http://test.com/q=frabbits",
-          icon: null,
-          sponsoredImpressionUrl: "http://impression.reporting.test.com/",
-          sponsoredClickUrl: "http://click.reporting.test.com/",
-          sponsoredBlockId: 1,
-          sponsoredAdvertiser: "testadvertiser",
-          isSponsored: true,
-          helpUrl: UrlbarProviderQuickSuggest.helpUrl,
-          helpL10nId: "firefox-suggest-urlbar-learn-more",
-          displayUrl: "http://test.com/q=frabbits",
-        },
-      },
-    ],
+    matches: [EXPECTED_REMOTE_SETTINGS_RESULT],
   });
 });
 
@@ -281,6 +278,7 @@ add_task(async function sameScore() {
 
   setMerinoResponse({
     body: {
+      request_id: "merinoOnly request_id",
       suggestions: [
         {
           full_keyword: "sameScore full_keyword",
@@ -298,33 +296,13 @@ add_task(async function sameScore() {
     },
   });
 
-  let context = createContext("frab", {
+  let context = createContext(REMOTE_SETTINGS_SEARCH_STRING, {
     providers: [UrlbarProviderQuickSuggest.name],
     isPrivate: false,
   });
   await check_results({
     context,
-    matches: [
-      {
-        type: UrlbarUtils.RESULT_TYPE.URL,
-        source: UrlbarUtils.RESULT_SOURCE.SEARCH,
-        heuristic: false,
-        payload: {
-          qsSuggestion: "frab",
-          title: "frabbits",
-          url: "http://test.com/q=frabbits",
-          icon: null,
-          sponsoredImpressionUrl: "http://impression.reporting.test.com/",
-          sponsoredClickUrl: "http://click.reporting.test.com/",
-          sponsoredBlockId: 1,
-          sponsoredAdvertiser: "testadvertiser",
-          isSponsored: true,
-          helpUrl: UrlbarProviderQuickSuggest.helpUrl,
-          helpL10nId: "firefox-suggest-urlbar-learn-more",
-          displayUrl: "http://test.com/q=frabbits",
-        },
-      },
-    ],
+    matches: [EXPECTED_REMOTE_SETTINGS_RESULT],
   });
 });
 
@@ -336,6 +314,7 @@ add_task(async function noMerinoScore() {
 
   setMerinoResponse({
     body: {
+      request_id: "merinoOnly request_id",
       suggestions: [
         {
           full_keyword: "noMerinoScore full_keyword",
@@ -353,33 +332,13 @@ add_task(async function noMerinoScore() {
     },
   });
 
-  let context = createContext("frab", {
+  let context = createContext(REMOTE_SETTINGS_SEARCH_STRING, {
     providers: [UrlbarProviderQuickSuggest.name],
     isPrivate: false,
   });
   await check_results({
     context,
-    matches: [
-      {
-        type: UrlbarUtils.RESULT_TYPE.URL,
-        source: UrlbarUtils.RESULT_SOURCE.SEARCH,
-        heuristic: false,
-        payload: {
-          qsSuggestion: "frab",
-          title: "frabbits",
-          url: "http://test.com/q=frabbits",
-          icon: null,
-          sponsoredImpressionUrl: "http://impression.reporting.test.com/",
-          sponsoredClickUrl: "http://click.reporting.test.com/",
-          sponsoredBlockId: 1,
-          sponsoredAdvertiser: "testadvertiser",
-          isSponsored: true,
-          helpUrl: UrlbarProviderQuickSuggest.helpUrl,
-          helpL10nId: "firefox-suggest-urlbar-learn-more",
-          displayUrl: "http://test.com/q=frabbits",
-        },
-      },
-    ],
+    matches: [EXPECTED_REMOTE_SETTINGS_RESULT],
   });
 });
 
@@ -391,6 +350,7 @@ add_task(async function noSuggestion_remoteSettings() {
 
   setMerinoResponse({
     body: {
+      request_id: "merinoOnly request_id",
       suggestions: [
         {
           full_keyword: "noSuggestion full_keyword",
@@ -432,6 +392,8 @@ add_task(async function noSuggestion_remoteSettings() {
           helpUrl: UrlbarProviderQuickSuggest.helpUrl,
           helpL10nId: "firefox-suggest-urlbar-learn-more",
           displayUrl: "noSuggestion url",
+          requestId: "merinoOnly request_id",
+          source: "merino",
         },
       },
     ],
@@ -446,37 +408,18 @@ add_task(async function noSuggestion_merino() {
 
   setMerinoResponse({
     body: {
+      request_id: "merinoOnly request_id",
       suggestions: [],
     },
   });
 
-  let context = createContext("frab", {
+  let context = createContext(REMOTE_SETTINGS_SEARCH_STRING, {
     providers: [UrlbarProviderQuickSuggest.name],
     isPrivate: false,
   });
   await check_results({
     context,
-    matches: [
-      {
-        type: UrlbarUtils.RESULT_TYPE.URL,
-        source: UrlbarUtils.RESULT_SOURCE.SEARCH,
-        heuristic: false,
-        payload: {
-          qsSuggestion: "frab",
-          title: "frabbits",
-          url: "http://test.com/q=frabbits",
-          icon: null,
-          sponsoredImpressionUrl: "http://impression.reporting.test.com/",
-          sponsoredClickUrl: "http://click.reporting.test.com/",
-          sponsoredBlockId: 1,
-          sponsoredAdvertiser: "testadvertiser",
-          isSponsored: true,
-          helpUrl: UrlbarProviderQuickSuggest.helpUrl,
-          helpL10nId: "firefox-suggest-urlbar-learn-more",
-          displayUrl: "http://test.com/q=frabbits",
-        },
-      },
-    ],
+    matches: [EXPECTED_REMOTE_SETTINGS_RESULT],
   });
 });
 
@@ -489,6 +432,7 @@ add_task(async function bothDisabled() {
   // we don't fetch it.
   setMerinoResponse({
     body: {
+      request_id: "merinoOnly request_id",
       suggestions: [
         {
           full_keyword: "bothDisabled full_keyword",
@@ -506,7 +450,7 @@ add_task(async function bothDisabled() {
     },
   });
 
-  let context = createContext("frab", {
+  let context = createContext(REMOTE_SETTINGS_SEARCH_STRING, {
     providers: [UrlbarProviderQuickSuggest.name],
     isPrivate: false,
   });
@@ -521,6 +465,7 @@ add_task(async function multipleMerinoSuggestions() {
 
   setMerinoResponse({
     body: {
+      request_id: "merinoOnly request_id",
       suggestions: [
         {
           full_keyword: "multipleMerinoSuggestions 0 full_keyword",
@@ -586,6 +531,8 @@ add_task(async function multipleMerinoSuggestions() {
           helpUrl: UrlbarProviderQuickSuggest.helpUrl,
           helpL10nId: "firefox-suggest-urlbar-learn-more",
           displayUrl: "multipleMerinoSuggestions 1 url",
+          requestId: "merinoOnly request_id",
+          source: "merino",
         },
       },
     ],
@@ -602,6 +549,7 @@ add_task(async function unexpectedResponseProperties() {
       unexpectedString: "some value",
       unexpectedArray: ["a", "b", "c"],
       unexpectedObject: { foo: "bar" },
+      request_id: "merinoOnly request_id",
       suggestions: [
         {
           full_keyword: "unexpected full_keyword",
@@ -643,6 +591,8 @@ add_task(async function unexpectedResponseProperties() {
           helpUrl: UrlbarProviderQuickSuggest.helpUrl,
           helpL10nId: "firefox-suggest-urlbar-learn-more",
           displayUrl: "unexpected url",
+          requestId: "merinoOnly request_id",
+          source: "merino",
         },
       },
     ],
@@ -708,6 +658,7 @@ add_task(async function latencyTelemetry() {
 
   setMerinoResponse({
     body: {
+      request_id: "merinoOnly request_id",
       suggestions: [
         {
           full_keyword: "latencyTelemetry full_keyword",
@@ -756,6 +707,8 @@ add_task(async function latencyTelemetry() {
           helpUrl: UrlbarProviderQuickSuggest.helpUrl,
           helpL10nId: "firefox-suggest-urlbar-learn-more",
           displayUrl: "latencyTelemetry url",
+          requestId: "merinoOnly request_id",
+          source: "merino",
         },
       },
     ],
@@ -787,6 +740,7 @@ add_task(async function latencyTelemetryCancel() {
   setMerinoResponse({
     delay: 3000,
     body: {
+      request_id: "merinoOnly request_id",
       suggestions: [
         {
           full_keyword: "latencyTelemetryCancel full_keyword",

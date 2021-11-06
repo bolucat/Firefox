@@ -1982,6 +1982,42 @@
   value: true
   mirror: always
 
+# Enable/disable Gecko specific edit commands
+- name: dom.document.edit_command.contentReadOnly.enabled
+  type: bool
+  value: @IS_NOT_NIGHTLY_BUILD@
+  mirror: always
+
+- name: dom.document.edit_command.decreasefontsize.enabled
+  type: bool
+  value: false
+  mirror: always
+
+- name: dom.document.edit_command.gethtml.enabled
+  type: bool
+  value: false
+  mirror: always
+
+- name: dom.document.edit_command.heading.enabled
+  type: bool
+  value: false
+  mirror: always
+
+- name: dom.document.edit_command.increasefontsize.enabled
+  type: bool
+  value: false
+  mirror: always
+
+- name: dom.document.edit_command.insertBrOnReturn.enabled
+  type: bool
+  value: @IS_NOT_NIGHTLY_BUILD@
+  mirror: always
+
+- name: dom.document.edit_command.readonly.enabled
+  type: bool
+  value: false
+  mirror: always
+
 # If set this to true, `Document.execCommand` may be performed nestedly.
 # Otherwise, nested calls just return false.
 - name: dom.document.exec_command.nested_calls_allowed
@@ -4387,6 +4423,22 @@
 - name: fission.highValue.coop.expiration
   type: uint32_t
   value: 2592000   # 30 days (in seconds)
+  mirror: always
+
+# Time in seconds before a site are considered high-value by the login detection
+# service is no longer considered high-value and isolated in the "highValueHasSavedLogin"
+# or "highValueIsLoggedIn" configuration.
+- name: fission.highValue.login.expiration
+  type: uint32_t
+  value: 2592000   # 30 days (in seconds)
+  mirror: always
+
+# If true, capture login attemp, and add "highValueIsLoggedIn" permission to
+# the permission manager no matter whether fission is enabled and
+# WebContentIsolationStrateg is set to IsolateHighvalue.
+- name: fission.highValue.login.monitor
+  type: bool
+  value: false
   mirror: always
 
 #---------------------------------------------------------------------------
@@ -12092,7 +12144,7 @@
 
 - name: widget.windows.window_occlusion_tracking.enabled
   type: bool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 - name: widget.windows.window_occlusion_tracking_display_state.enabled

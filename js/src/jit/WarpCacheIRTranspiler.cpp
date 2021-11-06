@@ -29,6 +29,7 @@
 #include "wasm/WasmCode.h"
 
 #include "gc/ObjectKind-inl.h"
+#include "vm/NativeObject-inl.h"
 
 using namespace js;
 using namespace js::jit;
@@ -1572,6 +1573,18 @@ bool WarpCacheIRTranspiler::emitLoadArgumentsObjectArgResult(
   MDefinition* index = getOperand(indexId);
 
   auto* load = MLoadArgumentsObjectArg::New(alloc(), obj, index);
+  add(load);
+
+  pushResult(load);
+  return true;
+}
+
+bool WarpCacheIRTranspiler::emitLoadArgumentsObjectArgHoleResult(
+    ObjOperandId objId, Int32OperandId indexId) {
+  MDefinition* obj = getOperand(objId);
+  MDefinition* index = getOperand(indexId);
+
+  auto* load = MLoadArgumentsObjectArgHole::New(alloc(), obj, index);
   add(load);
 
   pushResult(load);
@@ -4541,8 +4554,8 @@ bool WarpCacheIRTranspiler::maybeCreateThis(MDefinition* callee,
   }
   MOZ_ASSERT(kind == CallKind::Scripted);
 
-  if (thisArg->isCreateThisWithTemplate()) {
-    // We have already updated |this| based on MetaTwoByte. We do
+  if (thisArg->isNewPlainObject()) {
+    // We have already updated |this| based on MetaScriptedThisShape. We do
     // not need to generate a check.
     return false;
   }
@@ -4728,7 +4741,7 @@ bool WarpCacheIRTranspiler::emitCallInlinedFunction(ObjOperandId calleeId,
       // know that the constructor needs uninitialized this.
       MOZ_ALWAYS_FALSE(maybeCreateThis(callee, flags, CallKind::Scripted));
       mozilla::DebugOnly<MDefinition*> thisArg = callInfo_->thisArg();
-      MOZ_ASSERT(thisArg->isCreateThisWithTemplate() ||
+      MOZ_ASSERT(thisArg->isNewPlainObject() ||
                  thisArg->type() == MIRType::MagicUninitializedLexical);
     }
 
@@ -5028,16 +5041,25 @@ bool WarpCacheIRTranspiler::emitCallNativeSetter(ObjOperandId receiverId,
                         sameRealm, nargsAndFlagsOffset);
 }
 
-// TODO(post-Warp): rename the MetaTwoByte op when IonBuilder is gone.
-bool WarpCacheIRTranspiler::emitMetaTwoByte(uint32_t functionObjectOffset,
-                                            uint32_t templateObjectOffset) {
-  JSObject* templateObj = tenuredObjectStubField(templateObjectOffset);
-  MConstant* templateConst = constant(ObjectValue(*templateObj));
+bool WarpCacheIRTranspiler::emitMetaScriptedThisShape(
+    uint32_t thisShapeOffset) {
+  Shape* shape = shapeStubField(thisShapeOffset);
+  MOZ_ASSERT(shape->getObjectClass() == &PlainObject::class_);
+
+  MConstant* shapeConst = MConstant::NewShape(alloc(), shape);
+  add(shapeConst);
 
   // TODO: support pre-tenuring.
   gc::InitialHeap heap = gc::DefaultHeap;
 
-  auto* createThis = MCreateThisWithTemplate::New(alloc(), templateConst, heap);
+  uint32_t numFixedSlots = shape->numFixedSlots();
+  uint32_t numDynamicSlots = NativeObject::calculateDynamicSlots(shape);
+  gc::AllocKind kind = gc::GetGCObjectKind(numFixedSlots);
+  MOZ_ASSERT(gc::CanChangeToBackgroundAllocKind(kind, &PlainObject::class_));
+  kind = gc::ForegroundToBackgroundAllocKind(kind);
+
+  auto* createThis = MNewPlainObject::New(alloc(), shapeConst, numFixedSlots,
+                                          numDynamicSlots, kind, heap);
   add(createThis);
 
   callInfo_->thisArg()->setImplicitlyUsedUnchecked();
@@ -5118,10 +5140,10 @@ bool WarpCacheIRTranspiler::emitNewPlainObjectResult(uint32_t numFixedSlots,
 
   auto* obj = MNewPlainObject::New(alloc(), shapeConstant, numFixedSlots,
                                    numDynamicSlots, allocKind, heap);
-  addEffectful(obj);
+  add(obj);
 
   pushResult(obj);
-  return resumeAfter(obj);
+  return true;
 }
 
 bool WarpCacheIRTranspiler::emitNewArrayObjectResult(uint32_t length,

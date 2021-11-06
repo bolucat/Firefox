@@ -15,9 +15,22 @@
 
 namespace mozilla::dom::locks {
 
-void NotifyImpl(nsPIDOMWindowInner* inner, Document& aDoc, bool aCreated) {
-  uint32_t count = aDoc.UpdateLockCount(aCreated);
-  if (WindowGlobalChild* child = inner->GetWindowGlobalChild()) {
+void LockManagerChild::NotifyBFCacheOnMainThread(nsPIDOMWindowInner* aInner,
+                                                 bool aCreated) {
+  AssertIsOnMainThread();
+  if (!aInner) {
+    return;
+  }
+  Document* doc = aInner->GetExtantDoc();
+  if (!doc) {
+    return;
+  }
+  if (aCreated) {
+    aInner->RemoveFromBFCacheSync();
+  }
+
+  uint32_t count = doc->UpdateLockCount(aCreated);
+  if (WindowGlobalChild* child = aInner->GetWindowGlobalChild()) {
     if (aCreated && count == 1) {
       // The first lock is active.
       child->BlockBFCacheFor(BFCacheStatus::ACTIVE_LOCK);
@@ -27,7 +40,7 @@ void NotifyImpl(nsPIDOMWindowInner* inner, Document& aDoc, bool aCreated) {
   }
   // window actor is dead, so we should be just
   // destroying things
-  MOZ_ASSERT_IF(!inner->GetWindowGlobalChild(), !aCreated);
+  MOZ_ASSERT_IF(!aInner->GetWindowGlobalChild(), !aCreated);
 }
 
 class BFCacheNotifyLockRunnable final : public WorkerProxyToMainThreadRunnable {
@@ -37,18 +50,16 @@ class BFCacheNotifyLockRunnable final : public WorkerProxyToMainThreadRunnable {
   void RunOnMainThread(WorkerPrivate* aWorkerPrivate) override {
     MOZ_ASSERT(aWorkerPrivate);
     AssertIsOnMainThread();
-    Document* doc = aWorkerPrivate->GetDocument();
-    if (!doc) {
+    if (aWorkerPrivate->IsDedicatedWorker()) {
+      LockManagerChild::NotifyBFCacheOnMainThread(
+          aWorkerPrivate->GetAncestorWindow(), mCreated);
       return;
     }
-    nsPIDOMWindowInner* inner = doc->GetInnerWindow();
-    if (!inner) {
+    if (aWorkerPrivate->IsSharedWorker()) {
+      aWorkerPrivate->GetRemoteWorkerController()->NotifyLock(mCreated);
       return;
     }
-    if (mCreated) {
-      inner->RemoveFromBFCacheSync();
-    }
-    NotifyImpl(inner, *doc, mCreated);
+    MOZ_ASSERT_UNREACHABLE("Unexpected worker type");
   }
 
   void RunBackOnWorkerThreadForCleanup(WorkerPrivate* aWorkerPrivate) override {
@@ -77,21 +88,17 @@ void LockManagerChild::NotifyRequestDestroy() const { NotifyToWindow(false); }
 
 void LockManagerChild::NotifyToWindow(bool aCreated) const {
   if (NS_IsMainThread()) {
-    nsPIDOMWindowInner* inner = GetParentObject()->AsInnerWindow();
-    MOZ_ASSERT(inner);
-    NotifyImpl(inner, *inner->GetExtantDoc(), aCreated);
+    NotifyBFCacheOnMainThread(GetParentObject()->AsInnerWindow(), aCreated);
     return;
   }
 
   WorkerPrivate* wp = GetCurrentThreadWorkerPrivate();
-  if (!wp || !wp->IsDedicatedWorker()) {
-    return;
+  if (wp->IsDedicatedWorker() || wp->IsSharedWorker()) {
+    RefPtr<BFCacheNotifyLockRunnable> runnable =
+        new BFCacheNotifyLockRunnable(aCreated);
+
+    runnable->Dispatch(wp);
   }
-
-  RefPtr<BFCacheNotifyLockRunnable> runnable =
-      new BFCacheNotifyLockRunnable(aCreated);
-
-  runnable->Dispatch(wp);
 };
 
 }  // namespace mozilla::dom::locks

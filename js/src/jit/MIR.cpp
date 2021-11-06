@@ -3203,6 +3203,10 @@ AliasSet MLoadArgumentsObjectArg::getAliasSet() const {
   return AliasSet::Load(AliasSet::Any);
 }
 
+AliasSet MLoadArgumentsObjectArgHole::getAliasSet() const {
+  return AliasSet::Load(AliasSet::Any);
+}
+
 AliasSet MArgumentsObjectLength::getAliasSet() const {
   return AliasSet::Load(AliasSet::ObjectFields | AliasSet::FixedSlot |
                         AliasSet::DynamicSlot);
@@ -4380,11 +4384,6 @@ void MBeta::printOpcode(GenericPrinter& out) const {
 }
 #endif
 
-bool MCreateThisWithTemplate::canRecoverOnBailout() const {
-  MOZ_ASSERT(templateObject()->is<PlainObject>());
-  return true;
-}
-
 AliasSet MCreateThis::getAliasSet() const {
   return AliasSet::Load(AliasSet::Any);
 }
@@ -4436,8 +4435,6 @@ JSObject* MObjectState::templateObjectOf(MDefinition* obj) {
 
   if (obj->isNewObject()) {
     return obj->toNewObject()->templateObject();
-  } else if (obj->isCreateThisWithTemplate()) {
-    return obj->toCreateThisWithTemplate()->templateObject();
   } else if (obj->isNewCallObject()) {
     return obj->toNewCallObject()->templateObject();
   } else if (obj->isNewIterator()) {
@@ -6323,6 +6320,54 @@ MDefinition* MGetInlinedArgument::foldsTo(TempAllocator& alloc) {
   MDefinition* arg = getArg(indexConst);
   if (arg->type() != MIRType::Value) {
     arg = MBox::New(alloc, arg);
+  }
+
+  return arg;
+}
+
+MGetInlinedArgumentHole* MGetInlinedArgumentHole::New(
+    TempAllocator& alloc, MDefinition* index,
+    MCreateInlinedArgumentsObject* args) {
+  auto* ins = new (alloc) MGetInlinedArgumentHole();
+
+  uint32_t argc = args->numActuals();
+  MOZ_ASSERT(argc <= ArgumentsObject::MaxInlinedArgs);
+
+  if (!ins->init(alloc, argc + NumNonArgumentOperands)) {
+    return nullptr;
+  }
+
+  ins->initOperand(0, index);
+  for (uint32_t i = 0; i < argc; i++) {
+    ins->initOperand(i + NumNonArgumentOperands, args->getArg(i));
+  }
+
+  return ins;
+}
+
+MDefinition* MGetInlinedArgumentHole::foldsTo(TempAllocator& alloc) {
+  MDefinition* indexDef = SkipUninterestingInstructions(index());
+  if (!indexDef->isConstant() || indexDef->type() != MIRType::Int32) {
+    return this;
+  }
+
+  int32_t indexConst = indexDef->toConstant()->toInt32();
+  if (indexConst < 0) {
+    return this;
+  }
+
+  MDefinition* arg;
+  if (uint32_t(indexConst) < numActuals()) {
+    arg = getArg(indexConst);
+
+    if (arg->type() != MIRType::Value) {
+      arg = MBox::New(alloc, arg);
+    }
+  } else {
+    auto* undefined = MConstant::New(alloc, UndefinedValue());
+    block()->insertBefore(this, undefined);
+
+    arg = MBox::New(alloc, undefined);
   }
 
   return arg;

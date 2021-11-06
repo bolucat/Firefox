@@ -1074,9 +1074,8 @@ class MOZ_RAII CacheIRWriter : public JS::CustomAutoRooter {
     callNativeSetter_(receiver, setter, rhs, sameRealm, nargsAndFlags);
   }
 
-  void metaScriptedTemplateObject(JSFunction* callee,
-                                  JSObject* templateObject) {
-    metaTwoByte_(callee, templateObject);
+  void metaScriptedThisShape(Shape* thisShape) {
+    metaScriptedThisShape_(thisShape);
   }
   friend class CacheIRCloner;
 
@@ -1329,6 +1328,10 @@ class MOZ_RAII GetPropIRGenerator : public IRGenerator {
   AttachDecision tryAttachArgumentsObjectArg(HandleObject obj,
                                              ObjOperandId objId, uint32_t index,
                                              Int32OperandId indexId);
+  AttachDecision tryAttachArgumentsObjectArgHole(HandleObject obj,
+                                                 ObjOperandId objId,
+                                                 uint32_t index,
+                                                 Int32OperandId indexId);
   AttachDecision tryAttachArgumentsObjectCallee(HandleObject obj,
                                                 ObjOperandId objId,
                                                 HandleId id);
@@ -1629,7 +1632,7 @@ class MOZ_RAII OptimizeSpreadCallIRGenerator : public IRGenerator {
 };
 
 enum class StringChar { CodeAt, At };
-enum class ScriptedThisResult { NoAction, UninitializedThis, TemplateObject };
+enum class ScriptedThisResult { NoAction, UninitializedThis, PlainObjectShape };
 
 class MOZ_RAII CallIRGenerator : public IRGenerator {
  private:
@@ -1640,8 +1643,8 @@ class MOZ_RAII CallIRGenerator : public IRGenerator {
   HandleValue newTarget_;
   HandleValueArray args_;
 
-  ScriptedThisResult getThisForScripted(HandleFunction calleeFunc,
-                                        MutableHandleObject result);
+  ScriptedThisResult getThisShapeForScripted(HandleFunction calleeFunc,
+                                             MutableHandleShape result);
 
   void emitNativeCalleeGuard(JSFunction* callee);
   void emitCalleeGuard(ObjOperandId calleeId, JSFunction* callee);
