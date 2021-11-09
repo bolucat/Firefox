@@ -1106,6 +1106,7 @@ void js::Nursery::collect(JS::GCOptions options, JS::GCReason reason) {
   bool wasEmpty = isEmpty();
   if (!wasEmpty) {
     CollectionResult result = doCollection(reason);
+    MOZ_ASSERT(result.tenuredBytes <= previousGC.nurseryUsedBytes);
     previousGC.reason = reason;
     previousGC.tenuredBytes = result.tenuredBytes;
     previousGC.tenuredCells = result.tenuredCells;
@@ -1235,11 +1236,11 @@ js::Nursery::CollectionResult js::Nursery::doCollection(JS::GCReason reason) {
   // to the nursery, then those nursery objects get moved as well, until no
   // objects are left to move. That is, we iterate to a fixed point.
   startProfile(ProfileKey::CollectToObjFP);
-  collectToObjectFixedPoint(mover);
+  mover.collectToObjectFixedPoint();
   endProfile(ProfileKey::CollectToObjFP);
 
   startProfile(ProfileKey::CollectToStrFP);
-  collectToStringFixedPoint(mover);
+  mover.collectToStringFixedPoint();
   endProfile(ProfileKey::CollectToStrFP);
 
   // Sweep to update any pointers to nursery objects that have now been
@@ -1288,7 +1289,7 @@ js::Nursery::CollectionResult js::Nursery::doCollection(JS::GCReason reason) {
 #endif
   endProfile(ProfileKey::CheckHashTables);
 
-  return {mover.tenuredSize, mover.tenuredCells};
+  return {mover.getTenuredSize(), mover.getTenuredCells()};
 }
 
 void js::Nursery::traceRoots(AutoGCSession& session, TenuringTracer& mover) {

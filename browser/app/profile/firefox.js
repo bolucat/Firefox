@@ -482,6 +482,9 @@ pref("browser.urlbar.merino.enabled", false);
 // The Merino endpoint URL, not including parameters.
 pref("browser.urlbar.merino.endpointURL", "https://merino.services.mozilla.com/api/v1/suggest");
 
+// Timeout for Merino fetches (ms).
+pref("browser.urlbar.merino.timeoutMs", 200);
+
 pref("browser.altClickSave", false);
 
 // Enable logging downloads operations to the Console.
@@ -1249,9 +1252,7 @@ pref("dom.ipc.shims.enabledWarnings", false);
   // window server. Window server disconnection is automatically disabled (and
   // this pref overridden) if OOP WebGL is disabled. OOP WebGL is disabled
   // for some tests.
-  #if defined(NIGHTLY_BUILD)
-    pref("security.sandbox.content.mac.disconnect-windowserver", true);
-  #endif
+  pref("security.sandbox.content.mac.disconnect-windowserver", true);
 #endif
 
 #if defined(XP_LINUX) && defined(MOZ_SANDBOX)

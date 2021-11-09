@@ -2456,14 +2456,8 @@ void nsDocShell::MaybeCreateInitialClientSource(nsIPrincipal* aPrincipal) {
     return;
   }
 
-  // We cannot get inherited foreign partitioned principal here. Instead, we
-  // directly check which principal we want to inherit for the service worker.
   nsIPrincipal* principal =
-      aPrincipal
-          ? aPrincipal
-          : GetInheritedPrincipal(
-                false, StoragePrincipalHelper::
-                           ShouldUsePartitionPrincipalForServiceWorker(this));
+      aPrincipal ? aPrincipal : GetInheritedPrincipal(false);
 
   // Sometimes there is no principal available when we are called from
   // CreateAboutBlankContentViewer.  For example, sometimes the principal
@@ -6631,14 +6625,7 @@ nsresult nsDocShell::CreateAboutBlankContentViewer(
       partitionedPrincipal = aPartitionedPrincipal;
     }
 
-    // We cannot get the foreign partitioned prinicpal for the initial
-    // about:blank page. So, we change to check if we need to use the
-    // partitioned principal for the service worker here.
-    MaybeCreateInitialClientSource(
-        StoragePrincipalHelper::ShouldUsePartitionPrincipalForServiceWorker(
-            this)
-            ? partitionedPrincipal
-            : principal);
+    MaybeCreateInitialClientSource(principal);
 
     // generate (about:blank) document to load
     blankDoc = nsContentDLF::CreateBlankDocument(mLoadGroup, principal,
@@ -7919,7 +7906,7 @@ nsresult nsDocShell::CreateContentViewer(const nsACString& aContentType,
       NS_ENSURE_SUCCESS(rv, rv);
 
       if (!parentSite.Equals(thisSite)) {
-        if (profiler_thread_is_being_profiled()) {
+        if (profiler_thread_is_being_profiled_for_markers()) {
           nsCOMPtr<nsIURI> prinURI;
           BasePrincipal::Cast(thisPrincipal)->GetURI(getter_AddRefs(prinURI));
           nsPrintfCString marker("Iframe loaded in background: %s",
