@@ -837,7 +837,7 @@ fails-if(cocoaWidget||winWidget) random-if(!cocoaWidget&&!winWidget) != 399636-q
 == 400813-1.html 400813-1-ref.html
 == 400826-1.html 400826-1-ref.html
 == chrome://reftest/content/bugs/401946-1.xhtml about:blank
-== 402338-1.html 402338-1-ref.html
+pref(layout.outline.include-overflow,true) == 402338-1.html 402338-1-ref.html
 == 402567-1.html 402567-1-ref.html
 fuzzy-if(winWidget&&!nativeThemePref,0-8,0-1) == 402567-2.html 402567-2-ref.html
 == 402567-3.html 402567-3-ref.html
@@ -2104,4 +2104,4 @@ skip-if(!appleSilicon) != 1721223-1.html 1721223-1-notref.html # Big Sur require
 skip-if(Android) == 1727172-1.xhtml 1727172-1-ref.html
 == 1726663-1.html 1726663-1-ref.html
 != 1730314-1.html 1730314-1-ref.html
-fuzzy(0-3,0-3) fuzzy-if(Android,0-3,0-180) fuzzy-if(winWidget,0-154,0-118) == 1738700-1.html 1738700-1-ref.html
+fuzzy(0-3,0-3) fuzzy-if(Android,0-3,0-1177) fuzzy-if(winWidget,0-154,0-118) == 1738700-1.html 1738700-1-ref.html

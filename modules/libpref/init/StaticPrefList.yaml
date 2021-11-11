@@ -1326,7 +1326,7 @@
 # Whether we should draw the tabs on top of the titlebar.
 #
 # no (0), yes (1), or default (2), which is true everywhere except Linux.
-- name: browser.tabs.drawInTitlebar
+- name: browser.tabs.inTitlebar
   type: int32_t
   value: 2
   mirror: always
@@ -4839,6 +4839,41 @@
   value: 0
   mirror: once
 
+- name: gfx.canvas.accelerated
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+- name: gfx.canvas.accelerated.cache-items
+  type: RelaxedAtomicUint32
+  value: 1024
+  mirror: always
+
+- name: gfx.canvas.accelerated.cache-size
+  type: RelaxedAtomicUint32
+  value: 128
+  mirror: always
+
+- name: gfx.canvas.accelerated.max-size
+  type: RelaxedAtomicInt32
+  value: 0
+  mirror: always
+
+- name: gfx.canvas.accelerated.min-size
+  type: RelaxedAtomicInt32
+  value: 128
+  mirror: always
+
+- name: gfx.canvas.accelerated.max-surface-size
+  type: RelaxedAtomicUint32
+  value: 5280
+  mirror: always
+
+- name: gfx.canvas.accelerated.shared-page-size
+  type: RelaxedAtomicUint32
+  value: 1024
+  mirror: always
+
 # 0x7fff is the maximum supported xlib surface size and is more than enough for canvases.
 - name: gfx.canvas.max-size
   type: RelaxedAtomicInt32
@@ -6890,15 +6925,15 @@
   mirror: always
   rust: true
 
-# Whether the `:autofill` pseudo-class is exposed to content.
-- name: layout.css.autofill.enabled
+# Whether the `:-moz-lwtheme` pseudo-class is exposed to content.
+- name: layout.css.moz-lwtheme.content.enabled
   type: RelaxedAtomicBool
-  value: true
+  value: false
   mirror: always
   rust: true
 
-# Whether the `:-moz-submit-invalid` pseudo-class is exposed to content.
-- name: layout.css.moz-submit-invalid.enabled
+# Whether the `:-moz-locale-dir()` pseudo-class is exposed to content.
+- name: layout.css.moz-locale-dir.content.enabled
   type: RelaxedAtomicBool
   value: false
   mirror: always
@@ -7770,6 +7805,15 @@
 - name: layout.dynamic-toolbar-max-height
   type: RelaxedAtomicInt32
   value: 0
+  mirror: always
+
+# Whether outlines should include all overflowing descendants, or just the
+# border-box of a given element.
+#
+# Historically we have included descendants but other browsers have not.
+- name: layout.outline.include-overflow
+  type: bool
+  value: false
   mirror: always
 
 # Controls double click and Alt+Arrow word selection behavior.

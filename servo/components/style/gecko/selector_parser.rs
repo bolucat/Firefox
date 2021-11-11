@@ -127,7 +127,7 @@ impl NonTSPseudoClass {
             ([$(($css:expr, $name:ident, $state:tt, $flags:tt),)*]) => {
                 match *self {
                     $(NonTSPseudoClass::$name => check_flag!($flags),)*
-                    NonTSPseudoClass::MozLocaleDir(_) |
+                    NonTSPseudoClass::MozLocaleDir(_) => check_flag!(PSEUDO_CLASS_ENABLED_IN_UA_SHEETS_AND_CHROME),
                     NonTSPseudoClass::Lang(_) |
                     NonTSPseudoClass::Dir(_) => false,
                 }
@@ -139,11 +139,11 @@ impl NonTSPseudoClass {
     /// Returns whether the pseudo-class is enabled in content sheets.
     #[inline]
     fn is_enabled_in_content(&self) -> bool {
-        if let NonTSPseudoClass::Autofill = *self {
-            return static_prefs::pref!("layout.css.autofill.enabled");
+        if matches!(*self, Self::MozLWTheme | Self::MozLWThemeBrightText | Self::MozLWThemeDarkText) {
+            return static_prefs::pref!("layout.css.moz-lwtheme.content.enabled");
         }
-        if let NonTSPseudoClass::MozSubmitInvalid = *self {
-            return static_prefs::pref!("layout.css.moz-submit-invalid.enabled");
+        if let NonTSPseudoClass::MozLocaleDir(..) = *self {
+            return static_prefs::pref!("layout.css.moz-locale-dir.content.enabled");
         }
         !self.has_any_flag(NonTSPseudoClassFlag::PSEUDO_CLASS_ENABLED_IN_UA_SHEETS_AND_CHROME)
     }
