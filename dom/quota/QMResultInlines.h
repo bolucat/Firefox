@@ -12,11 +12,11 @@
 #endif
 
 #include "mozilla/Result.h"
+#include "mozilla/ResultExtensions.h"
+
 #ifdef QM_ERROR_STACKS_ENABLED
-#  include "mozilla/ResultVariant.h"
 #  include "nsError.h"
-#else
-#  include "mozilla/ResultExtensions.h"
+#  include "mozilla/ResultVariant.h"
 #endif
 
 namespace mozilla {
@@ -55,16 +55,27 @@ class [[nodiscard]] GenericErrorResult<QMResult> {
   operator nsresult() const { return mErrorValue.NSResult(); }
 };
 
-inline OkOrErr ToResult(const QMResult& aValue) {
+template <>
+struct ResultTypeTraits<QMResult> {
+  static QMResult From(nsresult aValue) { return ToQMResult(aValue); }
+
+  static QMResult From(const QMResult& aValue) { return aValue; }
+
+  static QMResult From(QMResult&& aValue) { return std::move(aValue); }
+};
+
+template <typename E>
+inline Result<Ok, E> ToResult(const QMResult& aValue) {
   if (NS_FAILED(aValue.NSResult())) {
-    return Err(aValue);
+    return Err(ResultTypeTraits<E>::From(aValue));
   }
   return Ok();
 }
 
-inline OkOrErr ToResult(QMResult&& aValue) {
+template <typename E>
+inline Result<Ok, E> ToResult(QMResult&& aValue) {
   if (NS_FAILED(aValue.NSResult())) {
-    return Err(std::move(aValue));
+    return Err(ResultTypeTraits<E>::From(aValue));
   }
   return Ok();
 }

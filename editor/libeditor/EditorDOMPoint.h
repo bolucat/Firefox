@@ -1030,7 +1030,8 @@ class EditorDOMPointBase final {
                                   const SelfType& aDOMPoint) {
     aStream << "{ mParent=" << aDOMPoint.mParent.get();
     if (aDOMPoint.mParent) {
-      aStream << " (" << *aDOMPoint.mParent << ")";
+      aStream << " (" << *aDOMPoint.mParent
+              << ", Length()=" << aDOMPoint.mParent->Length() << ")";
     }
     aStream << ", mChild=" << aDOMPoint.mChild.get();
     if (aDOMPoint.mChild) {
@@ -1145,6 +1146,10 @@ class EditorDOMRangeBase final {
                   aStart.EqualsOrIsBefore(aEnd));
     mStart = aStart;
     mEnd = aEnd;
+  }
+  void Clear() {
+    mStart.Clear();
+    mEnd.Clear();
   }
 
   const EditorDOMPointType& StartRef() const { return mStart; }

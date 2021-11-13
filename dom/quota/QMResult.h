@@ -62,9 +62,11 @@ inline QMResult ToQMResult(nsresult aValue) { return QMResult(aValue); }
 using OkOrErr = Result<Ok, QMResult>;
 
 #ifdef QM_ERROR_STACKS_ENABLED
-inline OkOrErr ToResult(const QMResult& aValue);
+template <typename E = nsresult>
+inline Result<Ok, E> ToResult(const QMResult& aValue);
 
-inline OkOrErr ToResult(QMResult&& aValue);
+template <typename E = nsresult>
+inline Result<Ok, E> ToResult(QMResult&& aValue);
 #endif
 
 }  // namespace mozilla
@@ -72,6 +74,17 @@ inline OkOrErr ToResult(QMResult&& aValue);
 // TODO: Maybe move this to mfbt/ResultExtensions.h
 #define MOZ_TO_RESULT(expr) ToResult(expr)
 
-#define QM_TO_RESULT(expr) ToResult(ToQMResult(expr))
+#define QM_TO_RESULT(expr) ToResult<QMResult>(expr)
+
+#define QM_TO_RESULT_INVOKE(obj, methodname, ...)                        \
+  ::mozilla::ToResultInvoke<QMResult>(                                   \
+      (obj), &::mozilla::detail::DerefedType<decltype(obj)>::methodname, \
+      ##__VA_ARGS__)
+
+#define QM_TO_RESULT_INVOKE_TYPED(resultType, obj, methodname, ...)    \
+  (::mozilla::ToResultInvoke<resultType, QMResult>(                    \
+      ::std::mem_fn(                                                   \
+          &::mozilla::detail::DerefedType<decltype(obj)>::methodname), \
+      (obj), ##__VA_ARGS__))
 
 #endif
