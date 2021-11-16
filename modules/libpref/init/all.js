@@ -654,7 +654,6 @@ pref("gfx.webrender.debug.show-overdraw", false);
 pref("gfx.webrender.debug.slow-frame-indicator", false);
 pref("gfx.webrender.debug.picture-caching", false);
 pref("gfx.webrender.debug.force-picture-invalidation", false);
-pref("gfx.webrender.debug.tile-cache-logging", false);
 pref("gfx.webrender.debug.primitives", false);
 pref("gfx.webrender.debug.small-screen", false);
 pref("gfx.webrender.debug.obscure-images", false);
@@ -988,20 +987,8 @@ pref("print.save_print_settings", true);
 // configuration.
 pref("print.more-settings.open", false);
 
-// Enables you to specify the amount of the paper that is to be treated
-// as unwriteable.  The print_edge_XXX and print_margin_XXX preferences
-// are treated as offsets that are added to this pref.
-// Default is "-1", which means "use the system default".  (If there is
-// no system default, then the -1 is treated as if it were 0.)
-// This is used by both Printing and Print Preview.
-// Units are in 1/100ths of an inch.
-pref("print.print_unwriteable_margin_top",    -1);
-pref("print.print_unwriteable_margin_left",   -1);
-pref("print.print_unwriteable_margin_right",  -1);
-pref("print.print_unwriteable_margin_bottom", -1);
-
-// Enables you to specify the gap from the edge of the paper's
-// unwriteable area to the margin.
+// Enables you to specify a user unwriteable margin, if a printer's actual
+// unwriteable margin is greater than this the printer one will be used.
 // This is used by both Printing and Print Preview
 // Units are in 1/100ths of an inch.
 pref("print.print_edge_top", 0);
@@ -1164,6 +1151,9 @@ pref("javascript.options.mem.max", -1);
 // JSGC_MODE
 pref("javascript.options.mem.gc_per_zone", true);
 pref("javascript.options.mem.gc_incremental", true);
+
+// JSGC_INCREMENTAL_WEAKMAP_ENABLED
+pref("javascript.options.mem.incremental_weakmap", true);
 
 // JSGC_SLICE_TIME_BUDGET_MS
 // Override the shell's default of unlimited slice time.

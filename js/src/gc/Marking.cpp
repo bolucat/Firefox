@@ -810,6 +810,15 @@ void GCMarker::markEphemeronEdges(EphemeronEdgeVector& edges) {
   // The above marking always goes through markAndPush, which will not cause
   // 'edges' to be appended to while iterating.
   MOZ_ASSERT(edges.length() == initialLength);
+
+  // This is not just an optimization. When nuking a CCW, we conservatively
+  // mark through the related edges and then lose the CCW->target connection
+  // that induces a sweep group edge. As a result, it is possible for the
+  // delegate zone to get marked later, look up an edge in this table, and
+  // then try to mark something in a Zone that is no longer marking.
+  if (color == CellColor::Black) {
+    edges.eraseIf([](auto& edge) { return edge.color == MarkColor::Black; });
+  }
 }
 
 // 'delegate' is no longer the delegate of 'key'.
@@ -858,11 +867,39 @@ void GCMarker::severWeakDelegate(JSObject* key, JSObject* delegate) {
 
 // 'delegate' is now the delegate of 'key'. Update weakmap marking state.
 void GCMarker::restoreWeakDelegate(JSObject* key, JSObject* delegate) {
-  if (!key->zone()->needsIncrementalBarrier() ||
-      !delegate->zone()->needsIncrementalBarrier()) {
+  if (!key->zone()->needsIncrementalBarrier()) {
+    // Temporary diagnostic printouts for when this would have asserted.
+    if (key->zone()->gcEphemeronEdges(key).has(key)) {
+      fprintf(stderr, "key zone: %d\n", int(key->zone()->gcState()));
+#ifdef DEBUG
+      key->dump();
+#endif
+      fprintf(stderr, "delegate zone: %d\n", int(delegate->zone()->gcState()));
+#ifdef DEBUG
+      delegate->dump();
+#endif
+    }
     MOZ_ASSERT(
         !key->zone()->gcEphemeronEdges(key).has(key),
         "non-collecting zone should not have populated gcEphemeronEdges");
+    return;
+  }
+  if (!delegate->zone()->needsIncrementalBarrier()) {
+    // Normally we should not have added the key -> value edge if the delegate
+    // zone is not marking (because the delegate would have been seen as black,
+    // so we would mark the key immediately instead). But if there wasn't a
+    // delegate (the key was nuked), then we won't have consulted it. So we
+    // can't do the same assertion as above.
+    //
+    // Specifically, the sequence would be:
+    // 1. Nuke the key.
+    // 2. Start the incremental GC.
+    // 3. Mark the WeakMap. Insert a key->value edge with a DeadObjectProxy key.
+    // 4. Un-nuke the key with a delegate in a nonmarking Zone.
+    //
+    // The result is an ephemeron edge (from <map,key> to value, but stored
+    // as key to value) involving a key with a delegate in a nonmarking Zone,
+    // something that ordinarily would not happen.
     return;
   }
   auto* p = key->zone()->gcEphemeronEdges(key).get(key);
@@ -2367,6 +2404,18 @@ void GCMarker::start() {
   MOZ_ASSERT(markLaterArenas == 0);
 }
 
+static void ClearEphemeronEdges(JSRuntime* rt) {
+  AutoEnterOOMUnsafeRegion oomUnsafe;
+  for (GCZonesIter zone(rt); !zone.done(); zone.next()) {
+    if (!zone->gcEphemeronEdges().clear()) {
+      oomUnsafe.crash("clearing weak keys in GCMarker::stop()");
+    }
+    if (!zone->gcNurseryEphemeronEdges().clear()) {
+      oomUnsafe.crash("clearing (nursery) weak keys in GCMarker::stop()");
+    }
+  }
+}
+
 void GCMarker::stop() {
   MOZ_ASSERT(isDrained());
   MOZ_ASSERT(!delayedMarkingList);
@@ -2381,15 +2430,7 @@ void GCMarker::stop() {
   stack.clear();
   auxStack.clear();
   setMainStackColor(MarkColor::Black);
-  AutoEnterOOMUnsafeRegion oomUnsafe;
-  for (GCZonesIter zone(runtime()); !zone.done(); zone.next()) {
-    if (!zone->gcEphemeronEdges().clear()) {
-      oomUnsafe.crash("clearing weak keys in GCMarker::stop()");
-    }
-    if (!zone->gcNurseryEphemeronEdges().clear()) {
-      oomUnsafe.crash("clearing (nursery) weak keys in GCMarker::stop()");
-    }
-  }
+  ClearEphemeronEdges(runtime());
 }
 
 template <typename F>
@@ -2410,6 +2451,7 @@ void GCMarker::reset() {
   stack.clear();
   auxStack.clear();
   setMainStackColor(MarkColor::Black);
+  ClearEphemeronEdges(runtime());
   MOZ_ASSERT(isMarkStackEmpty());
 
   forEachDelayedMarkingArena([&](Arena* arena) {
@@ -2545,8 +2587,9 @@ IncrementalProgress JS::Zone::enterWeakMarkingMode(GCMarker* marker,
       r.popFront();  // Pop before any mutations happen.
       if (edges.length() > 0) {
         gc::AutoSetMarkColor autoColor(*marker, srcColor);
+        uint32_t steps = edges.length();
         marker->markEphemeronEdges(edges);
-        budget.step(edges.length());
+        budget.step(steps);
         if (budget.isOverBudget()) {
           return NotFinished;
         }
@@ -2927,7 +2970,7 @@ struct AssertNonGrayTracer final : public JS::CallbackTracer {
   // context without making this more generic.
   explicit AssertNonGrayTracer(JSRuntime* rt)
       : JS::CallbackTracer(rt, JS::TracerKind::UnmarkGray) {}
-  void onChild(const JS::GCCellPtr& thing) override {
+  void onChild(JS::GCCellPtr thing) override {
     MOZ_ASSERT(!thing.asCell()->isMarkedGray());
   }
 };
@@ -2956,10 +2999,10 @@ class UnmarkGrayTracer final : public JS::CallbackTracer {
   // Stack of cells to traverse.
   Vector<JS::GCCellPtr, 0, SystemAllocPolicy>& stack;
 
-  void onChild(const JS::GCCellPtr& thing) override;
+  void onChild(JS::GCCellPtr thing) override;
 };
 
-void UnmarkGrayTracer::onChild(const JS::GCCellPtr& thing) {
+void UnmarkGrayTracer::onChild(JS::GCCellPtr thing) {
   Cell* cell = thing.asCell();
 
   // Cells in the nursery cannot be gray, and nor can certain kinds of tenured
@@ -3070,7 +3113,7 @@ static bool CellHasChildren(JS::GCCellPtr cell) {
   struct Tracer : public JS::CallbackTracer {
     bool hasChildren = false;
     explicit Tracer(JSRuntime* runtime) : JS::CallbackTracer(runtime) {}
-    void onChild(const JS::GCCellPtr& thing) { hasChildren = true; }
+    void onChild(JS::GCCellPtr thing) { hasChildren = true; }
   };
 
   Tracer trc(cell.asCell()->runtimeFromMainThread());

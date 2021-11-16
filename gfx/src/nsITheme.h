@@ -255,7 +255,7 @@ class nsITheme : public nsISupports {
    */
   virtual bool ThemeNeedsComboboxDropmarker() = 0;
 
-  virtual bool ThemeSupportsScrollbarButtons() { return true; }
+  virtual bool ThemeSupportsScrollbarButtons() = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsITheme, NS_ITHEME_IID)
@@ -264,7 +264,7 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsITheme, NS_ITHEME_IID)
 //
 // Do not use directly, use nsPresContext::Theme instead.
 extern already_AddRefed<nsITheme> do_GetNativeThemeDoNotUseDirectly();
-extern already_AddRefed<nsITheme> do_GetAndroidNonNativeThemeDoNotUseDirectly();
 extern already_AddRefed<nsITheme> do_GetBasicNativeThemeDoNotUseDirectly();
+extern already_AddRefed<nsITheme> do_GetRDMThemeDoNotUseDirectly();
 
 #endif

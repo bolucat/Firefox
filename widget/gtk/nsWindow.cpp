@@ -3581,8 +3581,7 @@ gboolean nsWindow::OnExposeEvent(cairo_t* cr) {
   }
 
   // If this widget uses OMTC...
-  if (renderer->GetBackendType() == LayersBackend::LAYERS_CLIENT ||
-      renderer->GetBackendType() == LayersBackend::LAYERS_WR) {
+  if (renderer->GetBackendType() == LayersBackend::LAYERS_WR) {
     listener->PaintWindow(this, region);
 
     // Re-get the listener since the will paint notification might have
@@ -5731,6 +5730,17 @@ nsresult nsWindow::Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
                      G_CALLBACK(screen_composited_changed_cb), nullptr);
   }
 
+  gtk_drag_dest_set((GtkWidget*)mShell, (GtkDestDefaults)0, nullptr, 0,
+                    (GdkDragAction)0);
+  g_signal_connect(mShell, "drag_motion", G_CALLBACK(drag_motion_event_cb),
+                   nullptr);
+  g_signal_connect(mShell, "drag_leave", G_CALLBACK(drag_leave_event_cb),
+                   nullptr);
+  g_signal_connect(mShell, "drag_drop", G_CALLBACK(drag_drop_event_cb),
+                   nullptr);
+  g_signal_connect(mShell, "drag_data_received",
+                   G_CALLBACK(drag_data_received_event_cb), nullptr);
+
   GtkSettings* default_settings = gtk_settings_get_default();
   g_signal_connect_after(default_settings, "notify::gtk-xft-dpi",
                          G_CALLBACK(settings_xft_dpi_changed_cb), this);
@@ -5756,18 +5766,6 @@ nsresult nsWindow::Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
                    G_CALLBACK(key_press_event_cb), nullptr);
   g_signal_connect(mContainer, "key_release_event",
                    G_CALLBACK(key_release_event_cb), nullptr);
-
-  gtk_drag_dest_set((GtkWidget*)mContainer, (GtkDestDefaults)0, nullptr, 0,
-                    (GdkDragAction)0);
-
-  g_signal_connect(mContainer, "drag_motion", G_CALLBACK(drag_motion_event_cb),
-                   nullptr);
-  g_signal_connect(mContainer, "drag_leave", G_CALLBACK(drag_leave_event_cb),
-                   nullptr);
-  g_signal_connect(mContainer, "drag_drop", G_CALLBACK(drag_drop_event_cb),
-                   nullptr);
-  g_signal_connect(mContainer, "drag_data_received",
-                   G_CALLBACK(drag_data_received_event_cb), nullptr);
 
 #ifdef MOZ_X11
   if (GdkIsX11Display()) {
@@ -7934,9 +7932,17 @@ gboolean WindowDragMotionHandler(GtkWidget* aWidget,
     innerMostWindow = window;
   }
 
-  LOGDRAG("WindowDragMotionHandler nsWindow %p\n", (void*)innerMostWindow);
+  int tx = 0, ty = 0;
+  // Workaround for Bug 1710344
+  // Caused by Gtk issue https://gitlab.gnome.org/GNOME/gtk/-/issues/4437
+  if (GdkIsWaylandDisplay()) {
+    gdk_window_get_position(innerWindow, &tx, &ty);
+  }
 
-  LayoutDeviceIntPoint point = window->GdkPointToDevicePixels({retx, rety});
+  LayoutDeviceIntPoint point =
+      innerMostWindow->GdkPointToDevicePixels({retx + tx, rety + ty});
+  LOGDRAG("WindowDragMotionHandler nsWindow %p coords [%d, %d]\n",
+          innerMostWindow.get(), retx, rety);
 
   RefPtr<nsDragService> dragService = nsDragService::GetInstance();
   if (!dragService->ScheduleMotionEvent(innerMostWindow, aDragContext,
@@ -8015,9 +8021,17 @@ gboolean WindowDragDropHandler(GtkWidget* aWidget, GdkDragContext* aDragContext,
     innerMostWindow = window;
   }
 
-  LOGDRAG("WindowDragDropHandler nsWindow %p\n", (void*)innerMostWindow);
+  int tx = 0, ty = 0;
+  // Workaround for Bug 1710344
+  // Caused by Gtk issue https://gitlab.gnome.org/GNOME/gtk/-/issues/4437
+  if (GdkIsWaylandDisplay()) {
+    gdk_window_get_position(innerWindow, &tx, &ty);
+  }
 
-  LayoutDeviceIntPoint point = window->GdkPointToDevicePixels({retx, rety});
+  LayoutDeviceIntPoint point =
+      window->GdkPointToDevicePixels({retx + tx, rety + ty});
+  LOGDRAG("WindowDragDropHandler nsWindow %p coords [%d,%d]\n",
+          innerMostWindow.get(), retx, rety);
 
   RefPtr<nsDragService> dragService = nsDragService::GetInstance();
   return dragService->ScheduleDropEvent(innerMostWindow, aDragContext,
