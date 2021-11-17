@@ -25,7 +25,7 @@
 #include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/gfxVars.h"
 #include "mozilla/gfx/PathHelpers.h"
-#include "mozilla/intl/Bidi.h"
+#include "mozilla/intl/BidiEmbeddingLevel.h"
 #include "mozilla/PresShell.h"
 #include "mozilla/PresShellInlines.h"
 #include "mozilla/ResultExtensions.h"
@@ -1698,7 +1698,7 @@ WritingMode nsIFrame::WritingModeForLine(WritingMode aSelfWM,
   WritingMode writingMode = aSelfWM;
 
   if (StyleTextReset()->mUnicodeBidi & NS_STYLE_UNICODE_BIDI_PLAINTEXT) {
-    mozilla::intl::Bidi::EmbeddingLevel frameLevel =
+    mozilla::intl::BidiEmbeddingLevel frameLevel =
         nsBidiPresUtils::GetFrameBaseLevel(aSubFrame);
     writingMode.SetDirectionFromBidiLevel(frameLevel);
   }
@@ -2329,7 +2329,7 @@ already_AddRefed<ComputedStyle> nsIFrame::ComputeSelectionStyle(
   // When in high-contrast mode, the style system ends up ignoring the color
   // declarations, which means that the ::selection style becomes the inherited
   // color, and default background. That's no good.
-  if (!PresContext()->PrefSheetPrefs().mUseDocumentColors) {
+  if (PresContext()->ForcingColors()) {
     return nullptr;
   }
   Element* element = FindElementAncestorForMozSelection(GetContent());
@@ -2472,7 +2472,7 @@ void nsIFrame::DisplayOutlineUnconditional(nsDisplayListBuilder* aBuilder,
   if (outline.mOutlineStyle.IsAuto()) {
     auto* disp = StyleDisplay();
     if (IsThemed(disp) && PresContext()->Theme()->ThemeDrawsFocusForWidget(
-                              disp->EffectiveAppearance())) {
+                              this, disp->EffectiveAppearance())) {
       return;
     }
   }
@@ -9106,7 +9106,7 @@ Result<bool, nsresult> nsIFrame::IsVisuallyAtLineEdge(
   }
 
   bool frameIsRTL = (nsBidiPresUtils::FrameDirection(*framePtr) ==
-                     mozilla::intl::Bidi::Direction::RTL);
+                     mozilla::intl::BidiDirection::RTL);
   if ((frameIsRTL == lineIsRTL) == (aDirection == eDirPrevious)) {
     nsIFrame::GetFirstLeaf(framePtr);
   } else {

@@ -264,9 +264,8 @@ class MOZ_STACK_CLASS CallInfo {
   MDefinition* arrayArg() const {
     MOZ_ASSERT(argFormat_ == ArgFormat::Array);
     // The array argument for a spread call or FunApply is always the last
-    // argument, unless the spread call is constructing, in which case the
-    // last argument is NewTarget, and the array argument is second-last.
-    return getArg(argc() - 1 - constructing_);
+    // argument.
+    return getArg(argc() - 1);
   }
 };
 
@@ -374,7 +373,8 @@ class WarpBuilderShared {
 
   MCall* makeCall(CallInfo& callInfo, bool needsThisCheck,
                   WrappedFunction* target = nullptr, bool isDOMCall = false);
-  MInstruction* makeSpreadCall(CallInfo& callInfo, bool isSameRealm = false,
+  MInstruction* makeSpreadCall(CallInfo& callInfo, bool needsThisCheck,
+                               bool isSameRealm = false,
                                WrappedFunction* target = nullptr);
 
  public:

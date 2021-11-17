@@ -1462,6 +1462,26 @@ class HTMLEditor final : public EditorBase,
   MaybeExtendSelectionToHardLineEdgesForBlockEditAction();
 
   /**
+   * Create an element node whose name is aTag at before aPointToInsert.  When
+   * this succeed to create an element node, this inserts the element to
+   * aPointToInsert.
+   *
+   * @param aTagName            The element name to create.
+   * @param aPointToInsert      The insertion point of new element.
+   *                            If this refers end of the container or after,
+   *                            the transaction will append the element to the
+   *                            container.
+   *                            Otherwise, will insert the element before the
+   *                            child node referred by this.
+   *                            Note that this point will be invalid once this
+   *                            method inserts the new element.
+   * @return                    The created new element node or an error.
+   */
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT Result<RefPtr<Element>, nsresult>
+  CreateAndInsertElementWithTransaction(nsAtom& aTagName,
+                                        const EditorDOMPoint& aPointToInsert);
+
+  /**
    * MaybeSplitAncestorsForInsertWithTransaction() does nothing if container of
    * aStartOfDeepestRightNode can have an element whose tag name is aTag.
    * Otherwise, looks for an ancestor node which is or is in active editing
@@ -1481,6 +1501,22 @@ class HTMLEditor final : public EditorBase,
   [[nodiscard]] MOZ_CAN_RUN_SCRIPT SplitNodeResult
   MaybeSplitAncestorsForInsertWithTransaction(
       nsAtom& aTag, const EditorDOMPoint& aStartOfDeepestRightNode);
+
+  /**
+   * InsertElementWithSplittingAncestorsWithTransaction() is a wrapper of
+   * MaybeSplitAncestorsForInsertWithTransaction() and
+   * CreateAndInsertElementWithTransaction().  I.e., will create an element
+   * whose tag name is aTagName and split ancestors if it's necessary, then,
+   * insert it.
+   *
+   * @param aTagName            The tag name which you want to insert new
+   *                            element at aPointToInsert.
+   * @param aPointToInsert      The insertion point.  New element will be
+   *                            inserted before here.
+   */
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT Result<RefPtr<Element>, nsresult>
+  InsertElementWithSplittingAncestorsWithTransaction(
+      nsAtom& aTagName, const EditorDOMPoint& aPointToInsert);
 
   /**
    * SplitRangeOffFromBlock() splits aBlockElement at two points, before

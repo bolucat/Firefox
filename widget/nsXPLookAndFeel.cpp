@@ -525,6 +525,25 @@ nscolor nsXPLookAndFeel::GetStandinForNativeColor(ColorID aID,
     return NS_RGBA(r, g, b, a);
 
   switch (aID) {
+    // These are here for the purposes of headless mode.
+    case ColorID::IMESelectedRawTextBackground:
+    case ColorID::IMESelectedConvertedTextBackground:
+    case ColorID::IMERawInputBackground:
+    case ColorID::IMEConvertedTextBackground:
+      return NS_TRANSPARENT;
+    case ColorID::IMESelectedRawTextForeground:
+    case ColorID::IMESelectedConvertedTextForeground:
+    case ColorID::IMERawInputForeground:
+    case ColorID::IMEConvertedTextForeground:
+      return NS_SAME_AS_FOREGROUND_COLOR;
+    case ColorID::IMERawInputUnderline:
+    case ColorID::IMEConvertedTextUnderline:
+      return NS_40PERCENT_FOREGROUND_COLOR;
+    COLOR(MozAccentColor, 53, 132, 228)
+    COLOR(MozAccentColorForeground, 0xff, 0xff, 0xff)
+    COLOR(SpellCheckerUnderline, 0xff, 0x00, 0x00)
+    COLOR(TextSelectDisabledBackground, 0xaa, 0xaa, 0xaa)
+
     // CSS 2 colors:
     COLOR(Activeborder, 0xB4, 0xB4, 0xB4)
     COLOR(Activecaption, 0x99, 0xB4, 0xD1)
@@ -584,6 +603,7 @@ nscolor nsXPLookAndFeel::GetStandinForNativeColor(ColorID aID,
     COLOR(MozMenuhovertext, 0x00, 0x00, 0x00)
     COLOR(MozMenubartext, 0x00, 0x00, 0x00)
     COLOR(MozMenubarhovertext, 0x00, 0x00, 0x00)
+    COLOR(MozEventreerow, 0xFF, 0xFF, 0xFF)
     COLOR(MozOddtreerow, 0xFF, 0xFF, 0xFF)
     COLOR(MozMacChromeActive, 0xB2, 0xB2, 0xB2)
     COLOR(MozMacChromeInactive, 0xE1, 0xE1, 0xE1)
@@ -1121,6 +1141,27 @@ void LookAndFeel::RecomputeColorSchemes() {
 
 ColorScheme LookAndFeel::ColorSchemeForStyle(
     const dom::Document& aDoc, const StyleColorSchemeFlags& aFlags) {
+  if (PreferenceSheet::MayForceColors()) {
+    auto& prefs = PreferenceSheet::PrefsFor(aDoc);
+    if (!prefs.mUseDocumentColors) {
+      // When forcing colors, we can use our preferred color-scheme. Do this
+      // only if we're using system colors, as dark preference colors are not
+      // exposed on the UI.
+      //
+      // Also, use light if we're using a high-contrast-theme on Windows, since
+      // Windows overrides the light colors with HCM colors when HCM is active.
+#ifdef XP_WIN
+      if (prefs.mUseAccessibilityTheme) {
+        return ColorScheme::Light;
+      }
+#endif
+      if (StaticPrefs::browser_display_use_system_colors()) {
+        return aDoc.PreferredColorScheme();
+      }
+      return ColorScheme::Light;
+    }
+  }
+
   StyleColorSchemeFlags style(aFlags);
   if (!style) {
     style.bits = aDoc.GetColorSchemeBits();

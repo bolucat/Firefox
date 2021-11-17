@@ -7,6 +7,7 @@ from __future__ import absolute_import, print_function, unicode_literals
 import argparse
 import logging
 import os
+import subprocess
 import sys
 import tempfile
 from multiprocessing import cpu_count
@@ -101,9 +102,17 @@ def python(
         python_path = which("ipython", path=bindir)
         if not python_path:
             if not no_virtualenv:
-                # Use `_run_pip` directly rather than `install_pip_package` to bypass
+                # Use `pip` directly rather than `install_pip_package()` to bypass
                 # `req.check_if_exists()` which may detect a system installed ipython.
-                command_context.virtualenv_manager._run_pip(["install", "ipython"])
+                subprocess.check_call(
+                    [
+                        command_context.virtualenv_manager.python_path,
+                        "-m",
+                        "pip",
+                        "install",
+                        "ipython",
+                    ]
+                )
                 python_path = which("ipython", path=bindir)
 
             if not python_path:
@@ -217,12 +226,7 @@ def run_python_tests(
     elif subsuite:
         filters.append(mpf.subsuite(subsuite))
 
-    tests = mp.active_tests(
-        filters=filters,
-        disabled=False,
-        python=command_context.virtualenv_manager.version_info()[0],
-        **mozinfo.info
-    )
+    tests = mp.active_tests(filters=filters, disabled=False, python=3, **mozinfo.info)
 
     if not tests:
         submsg = "for subsuite '{}' ".format(subsuite) if subsuite else ""

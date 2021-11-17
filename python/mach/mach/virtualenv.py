@@ -104,7 +104,6 @@ class VirtualenvManager(VirtualenvHelper):
         virtualenvs_dir,
         virtualenv_name,
         *,
-        base_python=sys.executable,
         manifest_path=None,
     ):
         virtualenv_path = os.path.join(virtualenvs_dir, virtualenv_name)
@@ -115,7 +114,6 @@ class VirtualenvManager(VirtualenvHelper):
         # See https://bugzilla.mozilla.org/show_bug.cgi?id=1607470
         os.environ.pop("__PYVENV_LAUNCHER__", None)
         self.topsrcdir = topsrcdir
-        self._base_python = base_python
 
         # Record the Python executable that was used to create the Virtualenv
         # so we can check this against sys.executable when verifying the
@@ -127,21 +125,10 @@ class VirtualenvManager(VirtualenvHelper):
             topsrcdir, "build", f"{virtualenv_name}_virtualenv_packages.txt"
         )
 
-        hex_version = subprocess.check_output(
-            [self._base_python, "-c", "import sys; print(sys.hexversion)"]
-        )
-        hex_version = int(hex_version.rstrip())
         self._metadata = MozVirtualenvMetadata(
-            hex_version,
+            sys.hexversion,
             virtualenv_name,
             os.path.join(self.virtualenv_root, METADATA_FILENAME),
-        )
-
-    def version_info(self):
-        return eval(
-            subprocess.check_output(
-                [self.python_path, "-c", "import sys; print(sys.version_info[:])"]
-            )
         )
 
     @property
@@ -244,7 +231,7 @@ class VirtualenvManager(VirtualenvHelper):
 
         result = subprocess.run(
             [
-                self._base_python,
+                sys.executable,
                 os.path.join(
                     self.topsrcdir,
                     "third_party",
@@ -299,37 +286,18 @@ class VirtualenvManager(VirtualenvHelper):
         with open(os.path.join(site_packages_dir, PTH_FILENAME), "a") as f:
             f.write("\n".join(pthfile_lines))
 
-        old_env_variables = {}
-        try:
-            # We ignore environment variables that may have been altered by
-            # configure or a mozconfig activated in the current shell. We trust
-            # Python is smart enough to find a proper compiler and to use the
-            # proper compiler flags. If it isn't your Python is likely broken.
-            for k in ("CC", "CXX", "CFLAGS", "CXXFLAGS", "LDFLAGS"):
-                if k not in os.environ:
-                    continue
+        pip = [self.python_path, "-m", "pip"]
+        for pypi_requirement in env_requirements.pypi_requirements:
+            subprocess.check_call(pip + ["install", str(pypi_requirement.requirement)])
 
-                old_env_variables[k] = os.environ[k]
-                del os.environ[k]
-
-            pip = [self.python_path, "-m", "pip"]
-            for pypi_requirement in env_requirements.pypi_requirements:
-                subprocess.check_call(
-                    pip + ["install", str(pypi_requirement.requirement)]
+        for requirement in env_requirements.pypi_optional_requirements:
+            try:
+                subprocess.check_call(pip + ["install", str(requirement.requirement)])
+            except subprocess.CalledProcessError:
+                print(
+                    f"Could not install {requirement.requirement.name}, so "
+                    f"{requirement.repercussion}. Continuing."
                 )
-
-            for requirement in env_requirements.pypi_optional_requirements:
-                try:
-                    subprocess.check_call(
-                        pip + ["install", str(requirement.requirement)]
-                    )
-                except subprocess.CalledProcessError:
-                    print(
-                        f"Could not install {requirement.requirement.name}, so "
-                        f"{requirement.repercussion}. Continuing."
-                    )
-        finally:
-            os.environ.update(old_env_variables)
 
         os.utime(self.activate_path, None)
         self._metadata.write()
@@ -364,7 +332,7 @@ class VirtualenvManager(VirtualenvHelper):
             if req.satisfied_by is not None:
                 return
 
-        return self._run_pip(["install", package], stderr=subprocess.STDOUT)
+        self._run_pip(["install", package])
 
     def install_pip_requirements(self, path, require_hashes=True, quiet=False):
         """Install a pip requirements.txt file.
@@ -388,13 +356,16 @@ class VirtualenvManager(VirtualenvHelper):
         if quiet:
             args.append("--quiet")
 
-        return self._run_pip(args, stderr=subprocess.STDOUT)
+        self._run_pip(args)
 
-    def _run_pip(self, args, **kwargs):
-        kwargs.setdefault("check", True)
-
+    def _run_pip(self, args):
+        # distutils will use the architecture of the running Python instance when building
+        # packages. However, it's possible for the Xcode Python to be a universal binary
+        # (x86_64 and arm64) without the associated macOS SDK supporting arm64, thereby
+        # causing a build failure. To avoid this, we explicitly influence the build to
+        # only target a single architecture - our current architecture.
         env = os.environ.copy()
-        env.setdefault("ARCHFLAGS", get_archflags())
+        env.setdefault("ARCHFLAGS", "-arch {}".format(platform.machine()))
 
         # It's tempting to call pip natively via pip.main(). However,
         # the current Python interpreter may not be the virtualenv python.
@@ -403,9 +374,13 @@ class VirtualenvManager(VirtualenvHelper):
         # force the virtualenv's interpreter to be used and all is well.
         # It /might/ be possible to cheat and set sys.executable to
         # self.python_path. However, this seems more risk than it's worth.
-        pip = [self.python_path, "-m", "pip"]
-        return subprocess.run(
-            pip + args, cwd=self.topsrcdir, env=env, universal_newlines=True, **kwargs
+        subprocess.run(
+            [self.python_path, "-m", "pip"] + args,
+            cwd=self.topsrcdir,
+            env=env,
+            universal_newlines=True,
+            stderr=subprocess.STDOUT,
+            check=True,
         )
 
     def _site_packages_dir(self):
@@ -430,12 +405,3 @@ class VirtualenvManager(VirtualenvHelper):
         if path.startswith(local_folder):
             path = os.path.join(normalized_venv_root, path[len(local_folder) + 1 :])
         return path
-
-
-def get_archflags():
-    # distutils will use the architecture of the running Python instance when building
-    # packages. However, it's possible for the Xcode Python to be a universal binary
-    # (x86_64 and arm64) without the associated macOS SDK supporting arm64, thereby
-    # causing a build failure. To avoid this, we explicitly influence the build to only
-    # target a single architecture - our current architecture.
-    return "-arch {}".format(platform.machine())
