@@ -2352,8 +2352,10 @@ var AddonManagerInternal = {
           () => startInstall("other")
         );
       } else {
-        // We download the addon and validate recommended states prior to
-        // showing the third party install panel.
+        // We download the addon and validate whether a 3rd party
+        // install prompt should be shown using e.g. recommended
+        // state and install_origins.
+        logger.info(`Addon download before validation.`);
         startInstall("other");
       }
     } catch (e) {
@@ -3100,16 +3102,44 @@ var AddonManagerInternal = {
     }
   },
 
+  /**
+   * Verify whether we need to show the 3rd party install prompt.
+   *
+   * Bypass the third party install prompt if this is an install:
+   *   - is an install from a recognized source
+   *   - is a an addon that can bypass the panel, such as a recommended addon
+   *
+   * @param {browser}      browser browser user is installing from
+   * @param {nsIURI}       url     URI for the principal of the installing source
+   * @param {AddonInstallWrapper} install
+   * @param {Object}       info    information such as addon wrapper
+   * @param {AddonWrapper} info.addon
+   * @param {string}       source  simplified string describing source of install and is
+   *                               generated based on the installing principal and checking
+   *                               against site permissions and enterprise policy.
+   *                               It may be one of "AMO", "local" or "other".
+   * @returns {Promise}            Rejected when the installation should not proceed.
+   */
   _verifyThirdPartyInstall(browser, url, install, info, source) {
-    // If this is an install from a recognized source, or it is a recommended addon, we
-    // skip the third party panel.  The source param was generated based on the installing
-    // principal and checking against site permissions and enterprise policy, so we
-    // can rely on that rather than re-validating against that principal.
+    // If we are not post-download processing, this panel was already shown.
+    // Otherwise, if this is from AMO or local, bypass the prompt.
+    if (!WEBEXT_POSTDOWNLOAD_THIRD_PARTY || ["AMO", "local"].includes(source)) {
+      return Promise.resolve();
+    }
+
+    // verify both the installing source and the xpi url are allowed.
     if (
-      !WEBEXT_POSTDOWNLOAD_THIRD_PARTY ||
-      ["AMO", "local"].includes(source) ||
-      info.addon.canBypassThirdParyInstallPrompt
+      !info.addon.validInstallOrigins({
+        installFrom: url,
+        source: install.sourceURI,
+      })
     ) {
+      install.error = AddonManager.ERROR_INVALID_DOMAIN;
+      return Promise.reject();
+    }
+
+    // Some addons such as recommended addons do not result in this prompt.
+    if (info.addon.canBypassThirdParyInstallPrompt) {
       return Promise.resolve();
     }
 
@@ -3774,6 +3804,8 @@ var AddonManager = {
   // Constants representing different types of errors while downloading an
   // add-on.
   // These will show up as AddonManager.ERROR_* (eg, ERROR_NETWORK_FAILURE)
+  // The _errors codes are translated to text for a panel in browser-addons.js.
+  // The text is located in browser.properties.
   _errors: new Map([
     // The download failed due to network problems.
     ["ERROR_NETWORK_FAILURE", -1],
@@ -3786,9 +3818,13 @@ var AddonManager = {
     // The add-on must be signed and isn't.
     ["ERROR_SIGNEDSTATE_REQUIRED", -5],
     // The downloaded add-on had a different type than expected.
+    // TODO Bug 1740792
     ["ERROR_UNEXPECTED_ADDON_TYPE", -6],
     // The addon did not have the expected ID
+    // TODO Bug 1740792
     ["ERROR_INCORRECT_ID", -7],
+    // The addon install_origins does not list the 3rd party domain.
+    ["ERROR_INVALID_DOMAIN", -8],
   ]),
   // The update check timed out
   ERROR_TIMEOUT: -1,

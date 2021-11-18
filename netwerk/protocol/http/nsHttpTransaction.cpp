@@ -418,8 +418,14 @@ static inline void CreateAndStartTimer(nsCOMPtr<nsITimer>& aTimer,
                           nsITimer::TYPE_ONE_SHOT);
 }
 
-void nsHttpTransaction::OnPendingQueueInserted() {
+void nsHttpTransaction::OnPendingQueueInserted(
+    const nsACString& aConnectionHashKey) {
   MOZ_ASSERT(OnSocketThread(), "not on socket thread");
+
+  {
+    MutexAutoLock lock(mLock);
+    mHashKeyOfConnectionEntry.Assign(aConnectionHashKey);
+  }
 
   // Don't create mHttp3BackupTimer if HTTPS RR is in play.
   if (mConnInfo->IsHttp3() && !mOrigConnInfo) {
@@ -521,6 +527,9 @@ void nsHttpTransaction::SetConnection(nsAHttpConnection* conn) {
     mConnection = conn;
     if (mConnection) {
       mIsHttp3Used = mConnection->Version() == HttpVersion::v3_0;
+#ifdef MOZ_DIAGNOSTIC_ASSERT_ENABLED
+      mConnection->SanityCheck();
+#endif
     }
   }
 }
@@ -1124,7 +1133,9 @@ bool nsHttpTransaction::PrepareSVCBRecordsForRetry(
   for (const auto& record : records) {
     nsAutoCString name;
     record->GetName(name);
-    if (name == aFailedDomainName) {
+    // If all records are in the http3 excluded list, we'll give the previous
+    // failed record one more chance.
+    if (name == aFailedDomainName && !mAllRecordsInH3ExcludedListBefore) {
       // Skip the failed one.
       continue;
     }
@@ -2551,20 +2562,25 @@ void nsHttpTransaction::DisableSpdy() {
   }
 }
 
-void nsHttpTransaction::DisableHttp3() {
+void nsHttpTransaction::DisableHttp3(bool aAllowRetryHTTPSRR) {
   MOZ_ASSERT(OnSocketThread(), "not on socket thread");
-
-  mCaps |= NS_HTTP_DISALLOW_HTTP3;
 
   // mOrigConnInfo is an indicator that HTTPS RR is used, so don't mess up the
   // connection info.
   // When HTTPS RR is used, PrepareConnInfoForRetry() could select other h3
   // record to connect.
   if (mOrigConnInfo) {
-    LOG(("nsHttpTransaction::DisableHttp3 this=%p mOrigConnInfo=%s", this,
-         mOrigConnInfo->HashKey().get()));
+    LOG(
+        ("nsHttpTransaction::DisableHttp3 this=%p mOrigConnInfo=%s "
+         "aAllowRetryHTTPSRR=%d",
+         this, mOrigConnInfo->HashKey().get(), aAllowRetryHTTPSRR));
+    if (!aAllowRetryHTTPSRR) {
+      mCaps |= NS_HTTP_DISALLOW_HTTP3;
+    }
     return;
   }
+
+  mCaps |= NS_HTTP_DISALLOW_HTTP3;
 
   MOZ_ASSERT(mConnInfo);
   if (mConnInfo) {
@@ -3170,8 +3186,8 @@ nsresult nsHttpTransaction::OnHTTPSRRAvailable(
   RefPtr<nsHttpConnectionInfo> newInfo =
       mConnInfo->CloneAndAdoptHTTPSSVCRecord(svcbRecord);
   bool needFastFallback = newInfo->IsHttp3();
-  bool foundInPendingQ =
-      gHttpHandler->ConnMgr()->RemoveTransFromConnEntry(this);
+  bool foundInPendingQ = gHttpHandler->ConnMgr()->RemoveTransFromConnEntry(
+      this, mHashKeyOfConnectionEntry);
 
   // Adopt the new connection info, so this transaction will be added into the
   // new connection entry.
@@ -3378,8 +3394,8 @@ void nsHttpTransaction::HandleFallback(
   LOG(("nsHttpTransaction %p HandleFallback to connInfo[%s]", this,
        aFallbackConnInfo->HashKey().get()));
 
-  bool foundInPendingQ =
-      gHttpHandler->ConnMgr()->RemoveTransFromConnEntry(this);
+  bool foundInPendingQ = gHttpHandler->ConnMgr()->RemoveTransFromConnEntry(
+      this, mHashKeyOfConnectionEntry);
   if (!foundInPendingQ) {
     MOZ_ASSERT(false, "transaction not in entry");
     return;
@@ -3446,6 +3462,11 @@ void nsHttpTransaction::CollectTelemetryForUploads() {
 
   Telemetry::AccumulateTimeDelta(hist, key, mTimings.requestStart,
                                  mTimings.responseStart);
+}
+
+void nsHttpTransaction::GetHashKeyOfConnectionEntry(nsACString& aResult) {
+  MutexAutoLock lock(mLock);
+  aResult.Assign(mHashKeyOfConnectionEntry);
 }
 
 }  // namespace net

@@ -4,10 +4,10 @@
 "use strict";
 
 const BaseLoader = ChromeUtils.import(
-  "resource://devtools/shared/base-loader.js"
+  "resource://devtools/shared/loader/base-loader.js"
 );
 const { require: devtoolsRequire, loader } = ChromeUtils.import(
-  "resource://devtools/shared/Loader.jsm"
+  "resource://devtools/shared/loader/Loader.jsm"
 );
 const flags = devtoolsRequire("devtools/shared/flags");
 const { joinURI } = devtoolsRequire("devtools/shared/path");
@@ -19,7 +19,7 @@ const { AppConstants } = devtoolsRequire(
 loader.lazyRequireGetter(
   this,
   "getMockedModule",
-  "devtools/client/shared/browser-loader-mocks",
+  "devtools/shared/loader/browser-loader-mocks",
   {}
 );
 

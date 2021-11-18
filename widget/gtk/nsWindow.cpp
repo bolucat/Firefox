@@ -3646,8 +3646,7 @@ gboolean nsWindow::OnExposeEvent(cairo_t* cr) {
 
   bool painted = false;
   {
-    if (renderer->GetBackendType() == LayersBackend::LAYERS_NONE ||
-        renderer->GetBackendType() == LayersBackend::LAYERS_BASIC) {
+    if (renderer->GetBackendType() == LayersBackend::LAYERS_NONE) {
       if (GetTransparencyMode() == eTransparencyTransparent &&
           layerBuffering == BufferMode::BUFFER_NONE && mHasAlphaVisual) {
         // If our draw target is unbuffered and we use an alpha channel,
@@ -5253,13 +5252,22 @@ void nsWindow::ConfigureGdkWindow() {
   }
 #endif
 
-  if (mIsDragPopup && GdkIsWaylandDisplay()) {
-    GtkWidget* parent = gtk_widget_get_parent(mShell);
-    if (parent) {
-      GtkWidgetDisableUpdates(parent);
+  if (mIsDragPopup) {
+    if (GdkIsWaylandDisplay()) {
+      // Disable painting to the widget on Wayland as we paint directly to the
+      // widget. Wayland compositors does not paint wl_subsurface
+      // of D&D widget.
+      if (GtkWidget* parent = gtk_widget_get_parent(mShell)) {
+        GtkWidgetDisableUpdates(parent);
+      }
+      GtkWidgetDisableUpdates(mShell);
+      GtkWidgetDisableUpdates(GTK_WIDGET(mContainer));
+    } else {
+      // Disable rendering of parent container on X11 to avoid flickering.
+      if (GtkWidget* parent = gtk_widget_get_parent(mShell)) {
+        gtk_window_set_opacity(GTK_WINDOW(parent), 0.0);
+      }
     }
-    GtkWidgetDisableUpdates(mShell);
-    GtkWidgetDisableUpdates(GTK_WIDGET(mContainer));
   }
 
   if (mWindowType == eWindowType_popup) {
@@ -6757,8 +6765,6 @@ void nsWindow::ReleaseGrabs(void) {
 
 GtkWidget* nsWindow::GetToplevelWidget() { return mShell; }
 
-GtkWidget* nsWindow::GetMozContainerWidget() { return GTK_WIDGET(mContainer); }
-
 GdkWindow* nsWindow::GetToplevelGdkWindow() {
   return gtk_widget_get_window(mShell);
 }
@@ -7984,12 +7990,11 @@ void WindowDragLeaveHandler(GtkWidget* aWidget) {
     return;
   }
 
-  GtkWidget* mozContainer = window->GetMozContainerWidget();
-  if (aWidget != mozContainer) {
+  if (aWidget != window->GetGtkWidget()) {
     // When the drag moves between widgets, GTK can send leave signal for
     // the old widget after the motion or drop signal for the new widget.
     // We'll send the leave event when the motion or drop event is run.
-    LOGDRAG("    Failed - mozContainer!\n");
+    LOGDRAG("    Failed - GtkWidget mismatch!\n");
     return;
   }
 

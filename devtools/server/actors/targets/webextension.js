@@ -176,6 +176,10 @@ webExtensionTargetPrototype.destroy = function() {
     });
   }
 
+  if (this.fallbackWindow) {
+    this.fallbackWindow = null;
+  }
+
   this.addon = null;
   this.addonId = null;
 
@@ -198,12 +202,6 @@ webExtensionTargetPrototype._searchFallbackWindow = function() {
   this.fallbackWindow.document.location.href = FALLBACK_DOC_URL;
 
   return this.fallbackWindow;
-};
-
-webExtensionTargetPrototype._destroyFallbackWindow = function() {
-  if (this.fallbackWindow) {
-    this.fallbackWindow = null;
-  }
 };
 
 // Discovery an extension page to use as a default target window.
@@ -234,8 +232,8 @@ webExtensionTargetPrototype._onDocShellDestroy = function(docShell) {
   this._notifyDocShellDestroy(webProgress);
 
   // If the destroyed docShell was the current docShell and the actor is
-  // currently attached, switch to the fallback window
-  if (this.attached && docShell == this.docShell) {
+  // not destroyed, switch to the fallback window
+  if (!this.isDestroyed() && docShell == this.docShell) {
     this._changeTopLevelDocument(this._searchForExtensionWindow());
   }
 };
@@ -244,33 +242,6 @@ webExtensionTargetPrototype._onNewExtensionWindow = function(window) {
   if (!this.window || this.window === this.fallbackWindow) {
     this._changeTopLevelDocument(window);
   }
-};
-
-webExtensionTargetPrototype._attach = function() {
-  // NOTE: we need to be sure that `this.window` can return a window before calling the
-  // ParentProcessTargetActor.onAttach, or the WindowGlobalTargetActor will not be
-  // subscribed to the child doc shell updates.
-
-  if (
-    !this.window ||
-    this.window.document.nodePrincipal.addonId !== this.addonId
-  ) {
-    // Discovery an existent extension page (or fallback window) to attach.
-    this._setWindow(this._searchForExtensionWindow());
-  }
-
-  // Call ParentProcessTargetActor's _attach to listen for any new/destroyed chrome
-  // docshell.
-  ParentProcessTargetActor.prototype._attach.apply(this);
-};
-
-webExtensionTargetPrototype._detach = function() {
-  // Call ParentProcessTargetActor's _detach to unsubscribe new/destroyed chrome docshell
-  // listeners.
-  ParentProcessTargetActor.prototype._detach.apply(this);
-
-  // Stop watching for new extension windows.
-  this._destroyFallbackWindow();
 };
 
 /**

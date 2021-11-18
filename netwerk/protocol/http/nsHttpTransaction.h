@@ -119,7 +119,7 @@ class nsHttpTransaction final : public nsAHttpTransaction,
 
   void DisableSpdy() override;
   void DoNotRemoveAltSvc() override { mDoNotRemoveAltSvc = true; }
-  void DisableHttp3() override;
+  void DisableHttp3(bool aAllowRetryHTTPSRR) override;
 
   nsHttpTransaction* QueryHttpTransaction() override { return this; }
 
@@ -171,6 +171,8 @@ class nsHttpTransaction final : public nsAHttpTransaction,
   virtual nsresult OnHTTPSRRAvailable(
       nsIDNSHTTPSSVCRecord* aHTTPSSVCRecord,
       nsISVCBRecord* aHighestPriorityRecord) override;
+
+  void GetHashKeyOfConnectionEntry(nsACString& aResult);
 
  private:
   friend class DeleteHttpTransaction;
@@ -501,7 +503,7 @@ class nsHttpTransaction final : public nsAHttpTransaction,
   ASpdySession* TunnelProvider() { return mTunnelProvider; }
   nsIInterfaceRequestor* SecurityCallbacks() { return mCallbacks; }
   // Called when this transaction is inserted in the pending queue.
-  void OnPendingQueueInserted();
+  void OnPendingQueueInserted(const nsACString& aConnectionHashKey);
 
  private:
   RefPtr<ASpdySession> mTunnelProvider;
@@ -553,6 +555,12 @@ class nsHttpTransaction final : public nsAHttpTransaction,
   bool ShouldRestartOn0RttError(nsresult reason);
 
   nsCOMPtr<nsIEarlyHintObserver> mEarlyHintObserver;
+  // This hash key is set when a transaction is inserted into the connection
+  // entry's pending queue.
+  // See nsHttpConnectionMgr::GetOrCreateConnectionEntry(). A transaction could
+  // be associated with the connection entry whose hash key is not the same as
+  // this transaction's.
+  nsCString mHashKeyOfConnectionEntry;
 };
 
 }  // namespace net

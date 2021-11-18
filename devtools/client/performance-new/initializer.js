@@ -23,7 +23,7 @@
   // the section on "Do not overload require" for more information.
 
   const { BrowserLoader } = ChromeUtils.import(
-    "resource://devtools/client/shared/browser-loader.js"
+    "resource://devtools/shared/loader/browser-loader.js"
   );
   const browserLoader = BrowserLoader({
     baseURI: "resource://devtools/client/performance-new/",
@@ -117,6 +117,8 @@ async function gInit(perfFront, pageContext, openAboutProfiling) {
   const l10n = new FluentL10n();
   await l10n.init([
     "devtools/client/perftools.ftl",
+    // For -brand-shorter-name used in some profiler preset descriptions.
+    "branding/brand.ftl",
     // Needed for the onboarding UI
     "devtools/client/toolbox-options.ftl",
     "browser/branding/brandings.ftl",

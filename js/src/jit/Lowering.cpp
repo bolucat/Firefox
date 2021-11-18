@@ -423,6 +423,17 @@ void LIRGenerator::visitArgumentsObjectLength(MArgumentsObjectLength* ins) {
   define(lir, ins);
 }
 
+void LIRGenerator::visitArrayFromArgumentsObject(
+    MArrayFromArgumentsObject* ins) {
+  MDefinition* argsObj = ins->argsObject();
+  MOZ_ASSERT(argsObj->type() == MIRType::Object);
+
+  auto* lir =
+      new (alloc()) LArrayFromArgumentsObject(useRegisterAtStart(argsObj));
+  defineReturn(lir, ins);
+  assignSafepoint(lir, ins);
+}
+
 void LIRGenerator::visitGuardArgumentsObjectFlags(
     MGuardArgumentsObjectFlags* ins) {
   MDefinition* argsObj = ins->argsObject();
@@ -782,7 +793,10 @@ void LIRGenerator::visitTest(MTest* test) {
          comp->compareType() == MCompare::Compare_UInt32) &&
         comp->getOperand(1)->isConstant() &&
         comp->getOperand(1)->toConstant()->isInt32(0) &&
-        comp->getOperand(0)->isBitAnd() &&
+        (comp->getOperand(0)->isBitAnd() ||
+         (comp->getOperand(0)->isWasmBinaryBitwise() &&
+          comp->getOperand(0)->toWasmBinaryBitwise()->subOpcode() ==
+              MWasmBinaryBitwise::SubOpcode::And)) &&
         comp->getOperand(0)->isEmittedAtUses()) {
       MDefinition* bitAnd = opd->getOperand(0);
       MDefinition* lhs = bitAnd->getOperand(0);
@@ -1197,7 +1211,7 @@ void LIRGenerator::visitSameValue(MSameValue* ins) {
   assignSafepoint(lir, ins);
 }
 
-void LIRGenerator::lowerBitOp(JSOp op, MBinaryBitwiseInstruction* ins) {
+void LIRGenerator::lowerBitOp(JSOp op, MBinaryInstruction* ins) {
   MDefinition* lhs = ins->getOperand(0);
   MDefinition* rhs = ins->getOperand(1);
   MOZ_ASSERT(IsIntType(ins->type()));
@@ -1355,6 +1369,26 @@ void LIRGenerator::visitBitAnd(MBitAnd* ins) {
 void LIRGenerator::visitBitOr(MBitOr* ins) { lowerBitOp(JSOp::BitOr, ins); }
 
 void LIRGenerator::visitBitXor(MBitXor* ins) { lowerBitOp(JSOp::BitXor, ins); }
+
+void LIRGenerator::visitWasmBinaryBitwise(MWasmBinaryBitwise* ins) {
+  switch (ins->subOpcode()) {
+    case MWasmBinaryBitwise::SubOpcode::And:
+      if (CanEmitBitAndAtUses(ins)) {
+        emitAtUses(ins);
+      } else {
+        lowerBitOp(JSOp::BitAnd, ins);
+      }
+      break;
+    case MWasmBinaryBitwise::SubOpcode::Or:
+      lowerBitOp(JSOp::BitOr, ins);
+      break;
+    case MWasmBinaryBitwise::SubOpcode::Xor:
+      lowerBitOp(JSOp::BitXor, ins);
+      break;
+    default:
+      MOZ_CRASH();
+  }
+}
 
 void LIRGenerator::lowerShiftOp(JSOp op, MShiftInstruction* ins) {
   MDefinition* lhs = ins->getOperand(0);
@@ -4587,7 +4621,7 @@ void LIRGenerator::visitOptimizeSpreadCallCache(MOptimizeSpreadCallCache* ins) {
   MOZ_ASSERT(value->type() == MIRType::Value);
 
   auto* lir = new (alloc()) LOptimizeSpreadCallCache(useBox(value), temp());
-  define(lir, ins);
+  defineBox(lir, ins);
   assignSafepoint(lir, ins);
 }
 

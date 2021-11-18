@@ -46,7 +46,6 @@ import os
 import re
 import io
 import json
-import shutil
 import sys
 import tarfile
 import tempfile
@@ -3543,6 +3542,9 @@ def readICUDataFilterForUnits(data_filter_file):
 
 def writeSanctionedSimpleUnitIdentifiersFiles(all_units, sanctioned_units):
     js_src_builtin_intl_dir = os.path.dirname(os.path.abspath(__file__))
+    intl_components_src_dir = os.path.join(
+        js_src_builtin_intl_dir, "../../../../intl/components/src"
+    )
 
     def find_unit_type(unit):
         result = [
@@ -3579,17 +3581,33 @@ def writeSanctionedSimpleUnitIdentifiersFiles(all_units, sanctioned_units):
             "var sanctionedSimpleUnitIdentifiers = {};".format(sanctioned_units_object)
         )
 
-    sanctioned_cpp_file = os.path.join(
-        js_src_builtin_intl_dir, "MeasureUnitGenerated.h"
-    )
-    with io.open(sanctioned_cpp_file, mode="w", encoding="utf-8", newline="") as f:
-        println = partial(print, file=f)
+    measure_unit_files = [
+        (js_src_builtin_intl_dir, "js::intl", "builtin_intl_MeasureUnitGenerated_h"),
+        (
+            intl_components_src_dir,
+            "mozilla::intl",
+            "intl_components_MeasureUnitGenerated_h",
+        ),
+    ]
 
-        println(generatedFileWarning)
+    for (dir, ns, guard) in measure_unit_files:
+        sanctioned_h_file = os.path.join(dir, "MeasureUnitGenerated.h")
+        with io.open(sanctioned_h_file, mode="w", encoding="utf-8", newline="") as f:
+            println = partial(print, file=f)
 
-        println(
-            """
-struct MeasureUnit {
+            println(generatedFileWarning)
+
+            println(
+                f"""
+#ifndef {guard}
+#define {guard}
+
+namespace {ns} {{"""
+            )
+
+            println(
+                """
+struct SimpleMeasureUnit {
   const char* const type;
   const char* const name;
 };
@@ -3599,28 +3617,27 @@ struct MeasureUnit {
  *
  * The list must be kept in alphabetical order of |name|.
  */
-inline constexpr MeasureUnit simpleMeasureUnits[] = {
+inline constexpr SimpleMeasureUnit simpleMeasureUnits[] = {
     // clang-format off"""
-        )
-
-        for unit_name in sorted(sanctioned_units):
-            println('  {{"{}", "{}"}},'.format(find_unit_type(unit_name), unit_name))
-
-        println(
-            """
-    // clang-format on
-};""".lstrip(
-                "\n"
             )
-        )
 
-    shutil.copyfile(
-        sanctioned_cpp_file,
-        os.path.join(
-            js_src_builtin_intl_dir,
-            "../../../../intl/components/src/MeasureUnitGenerated.h",
-        ),
-    )
+            for unit_name in sorted(sanctioned_units):
+                println(
+                    '  {{"{}", "{}"}},'.format(find_unit_type(unit_name), unit_name)
+                )
+
+            println(
+                f"""
+    // clang-format on
+}};
+
+}}  // namespace {ns}
+
+#endif
+""".strip(
+                    "\n"
+                )
+            )
 
     writeUnitTestFiles(all_units, sanctioned_units)
 
@@ -3759,11 +3776,14 @@ for (const locale of locales) {
 
 
 def updateUnits(topsrcdir, args):
+    js_src_builtin_intl_dir = os.path.dirname(os.path.abspath(__file__))
     icu_path = os.path.join(topsrcdir, "intl", "icu")
     icu_unit_path = os.path.join(icu_path, "source", "data", "unit")
 
     with io.open(
-        "SanctionedSimpleUnitIdentifiers.yaml", mode="r", encoding="utf-8"
+        os.path.join(js_src_builtin_intl_dir, "SanctionedSimpleUnitIdentifiers.yaml"),
+        mode="r",
+        encoding="utf-8",
     ) as f:
         sanctioned_units = yaml.safe_load(f)
 
@@ -3974,10 +3994,15 @@ def writeNumberingSystemFiles(numbering_systems):
 
 
 def updateNumberingSystems(topsrcdir, args):
+    js_src_builtin_intl_dir = os.path.dirname(os.path.abspath(__file__))
     icu_path = os.path.join(topsrcdir, "intl", "icu")
     icu_misc_path = os.path.join(icu_path, "source", "data", "misc")
 
-    with io.open("NumberingSystems.yaml", mode="r", encoding="utf-8") as f:
+    with io.open(
+        os.path.join(js_src_builtin_intl_dir, "NumberingSystems.yaml"),
+        mode="r",
+        encoding="utf-8",
+    ) as f:
         numbering_systems = yaml.safe_load(f)
 
     # Read all possible ICU unit identifiers from the "misc/numberingSystems.txt" resource.
@@ -4010,10 +4035,10 @@ if __name__ == "__main__":
     import argparse
 
     # This script must reside in js/src/builtin/intl to work correctly.
-    (thisDir, thisFile) = os.path.split(os.path.abspath(sys.argv[0]))
+    (thisDir, thisFile) = os.path.split(os.path.abspath(__file__))
     dirPaths = os.path.normpath(thisDir).split(os.sep)
     if "/".join(dirPaths[-4:]) != "js/src/builtin/intl":
-        raise RuntimeError("%s must reside in js/src/builtin/intl" % sys.argv[0])
+        raise RuntimeError("%s must reside in js/src/builtin/intl" % __file__)
     topsrcdir = "/".join(dirPaths[:-4])
 
     def EnsureHttps(v):
@@ -4068,7 +4093,7 @@ if __name__ == "__main__":
     )
     parser_tz.add_argument(
         "--out",
-        default="TimeZoneDataGenerated.h",
+        default=os.path.join(thisDir, "TimeZoneDataGenerated.h"),
         help="Output file (default: %(default)s)",
     )
     parser_tz.set_defaults(func=partial(updateTzdata, topsrcdir))
@@ -4086,7 +4111,7 @@ if __name__ == "__main__":
     )
     parser_currency.add_argument(
         "--out",
-        default="CurrencyDataGenerated.js",
+        default=os.path.join(thisDir, "CurrencyDataGenerated.js"),
         help="Output file (default: %(default)s)",
     )
     parser_currency.add_argument(
@@ -4100,7 +4125,7 @@ if __name__ == "__main__":
     parser_units.set_defaults(func=partial(updateUnits, topsrcdir))
 
     parser_numbering_systems = subparsers.add_parser(
-        "numbering", help="Update numbering systems with simple " "digit mappings"
+        "numbering", help="Update numbering systems with simple digit mappings"
     )
     parser_numbering_systems.set_defaults(
         func=partial(updateNumberingSystems, topsrcdir)
