@@ -1722,6 +1722,7 @@ BrowserGlue.prototype = {
   // set during onboarding when the user chooses to enable protections or not.
   _setDefaultCookieBehavior() {
     if (!Services.prefs.prefHasUserValue(PREF_DFPI_ENABLED_BY_DEFAULT)) {
+      Services.telemetry.scalarSet("privacy.dfpi_rollout_enabledByDefault", 2);
       return;
     }
     let dFPIEnabled = Services.prefs.getBoolPref(PREF_DFPI_ENABLED_BY_DEFAULT);
@@ -1732,6 +1733,11 @@ BrowserGlue.prototype = {
       dFPIEnabled
         ? Ci.nsICookieService.BEHAVIOR_REJECT_TRACKER_AND_PARTITION_FOREIGN
         : Ci.nsICookieService.BEHAVIOR_REJECT_TRACKER
+    );
+
+    Services.telemetry.scalarSet(
+      "privacy.dfpi_rollout_enabledByDefault",
+      dFPIEnabled ? 1 : 0
     );
 
     if (dFPIEnabled) {
@@ -4137,8 +4143,13 @@ BrowserGlue.prototype = {
       return;
     }
 
-    // We've restarted at least once; we will show the notification if possible:
-    if (!SessionStore.canRestoreLastSession) {
+    const win = BrowserWindowTracker.getTopWindow();
+    // We've restarted at least once; we will show the notification if possible.
+    // We can't do that if there's no session to restore, or this is a private window.
+    if (
+      !SessionStore.canRestoreLastSession ||
+      PrivateBrowsingUtils.isWindowPrivate(win)
+    ) {
       return;
     }
 
@@ -4147,7 +4158,6 @@ BrowserGlue.prototype = {
       ++count
     );
 
-    const win = BrowserWindowTracker.getTopWindow();
     const messageFragment = win.document.createDocumentFragment();
     const message = win.document.createElement("span");
     const icon = win.document.createElement("img");

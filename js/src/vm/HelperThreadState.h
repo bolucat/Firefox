@@ -150,9 +150,6 @@ class GlobalHelperThreadState {
   ParseTaskVector parseWorklist_;
   ParseTaskList parseFinishedList_;
 
-  // Parse tasks waiting for an atoms-zone GC to complete.
-  ParseTaskVector parseWaitingOnGC_;
-
   // Source compression worklist of tasks that we do not yet know can start.
   SourceCompressionTaskVector compressionPendingList_;
 
@@ -305,9 +302,6 @@ class GlobalHelperThreadState {
   ParseTaskList& parseFinishedList(const AutoLockHelperThreadState&) {
     return parseFinishedList_;
   }
-  ParseTaskVector& parseWaitingOnGC(const AutoLockHelperThreadState&) {
-    return parseWaitingOnGC_;
-  }
 
   SourceCompressionTaskVector& compressionPendingList(
       const AutoLockHelperThreadState&) {
@@ -393,13 +387,9 @@ class GlobalHelperThreadState {
       StartEncoding startEncoding = StartEncoding::No);
   UniquePtr<frontend::CompilationStencil> finishCompileToStencilTask(
       JSContext* cx, ParseTaskKind kind, JS::OffThreadToken* token);
-  bool generateLCovSources(JSContext* cx, ParseTask* parseTask);
   bool finishMultiParseTask(JSContext* cx, ParseTaskKind kind,
                             JS::OffThreadToken* token,
                             mozilla::Vector<RefPtr<JS::Stencil>>* stencils);
-
-  void mergeParseTaskRealm(JSContext* cx, ParseTask* parseTask,
-                           JS::Realm* dest);
 
  public:
   void cancelParseTask(JSRuntime* rt, ParseTaskKind kind,
@@ -514,24 +504,13 @@ struct ParseTask : public mozilla::LinkedListElement<ParseTask>,
   // track which one we are associated with.
   JSRuntime* runtime = nullptr;
 
-  // The global object to use while parsing.
-  JSObject* parseGlobal;
-
   // Callback invoked off thread when the parse finishes.
   JS::OffThreadCompileCallback callback;
   void* callbackData;
 
-  // Holds the final scripts between the invocation of the callback and the
-  // point where FinishOffThreadScript is called, which will destroy the
-  // ParseTask.
-  GCVector<JSScript*, 1, SystemAllocPolicy> scripts;
-
   // For the multi-decode stencil case, holds onto the set of stencils produced
   // offthread
   mozilla::Vector<RefPtr<JS::Stencil>> stencils;
-
-  // Holds the ScriptSourceObjects generated for the script compilation.
-  GCVector<ScriptSourceObject*, 1, SystemAllocPolicy> sourceObjects;
 
   // The input of the compilation.
   UniquePtr<frontend::CompilationInput> stencilInput_;
@@ -551,10 +530,11 @@ struct ParseTask : public mozilla::LinkedListElement<ParseTask>,
             JS::OffThreadCompileCallback callback, void* callbackData);
   virtual ~ParseTask();
 
-  bool init(JSContext* cx, const JS::ReadOnlyCompileOptions& options,
-            JSObject* global);
+  bool init(JSContext* cx, const JS::ReadOnlyCompileOptions& options);
 
   void activate(JSRuntime* rt);
+  void deactivate(JSRuntime* rt);
+
   virtual void parse(JSContext* cx) = 0;
   bool instantiateStencils(JSContext* cx);
 

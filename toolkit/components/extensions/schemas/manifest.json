@@ -70,6 +70,25 @@
               "type": "string",
               "format": "origin"
             }
+          },
+
+          "developer": {
+            "type": "object",
+            "optional": true,
+            "properties": {
+              "name": {
+                "type": "string",
+                "optional": true,
+                "preprocess": "localize"
+              },
+              "url": {
+                "type": "string",
+                "format": "url",
+                "optional": true,
+                "preprocess": "localize",
+                "onError": "warn"
+              }
+            }
           }
         }
       },
@@ -274,23 +293,6 @@
                 }
               }
             ]
-          },
-
-          "developer": {
-            "type": "object",
-            "optional": true,
-            "properties": {
-              "name": {
-                "type": "string",
-                "optional": true,
-                "preprocess": "localize"
-              },
-              "url": {
-                "type": "string",
-                "optional": true,
-                "preprocess": "localize"
-              }
-            }
           },
 
           "hidden": {

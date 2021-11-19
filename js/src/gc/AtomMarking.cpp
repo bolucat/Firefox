@@ -75,7 +75,6 @@ void AtomMarkingRuntime::unregisterArena(Arena* arena, const AutoLockGC& lock) {
 bool AtomMarkingRuntime::computeBitmapFromChunkMarkBits(JSRuntime* runtime,
                                                         DenseBitmap& bitmap) {
   MOZ_ASSERT(CurrentThreadIsPerformingGC());
-  MOZ_ASSERT(!runtime->hasHelperThreadZones());
 
   if (!bitmap.ensureSpace(allocatedWords)) {
     return false;
@@ -129,7 +128,6 @@ static void BitwiseOrIntoChunkMarkBits(JSRuntime* runtime, Bitmap& bitmap) {
 
 void AtomMarkingRuntime::markAtomsUsedByUncollectedZones(JSRuntime* runtime) {
   MOZ_ASSERT(CurrentThreadIsPerformingGC());
-  MOZ_ASSERT(!runtime->hasHelperThreadZones());
 
   // Try to compute a simple union of the zone atom bitmaps before updating
   // the chunk mark bitmaps. If this allocation fails then fall back to
@@ -188,12 +186,6 @@ void AtomMarkingRuntime::markAtomValue(JSContext* cx, const Value& value) {
   MOZ_ASSERT_IF(value.isGCThing(), value.isObject() ||
                                        value.isPrivateGCThing() ||
                                        value.isBigInt());
-}
-
-void AtomMarkingRuntime::adoptMarkedAtoms(Zone* target, Zone* source) {
-  MOZ_ASSERT(CurrentThreadCanAccessZone(source));
-  MOZ_ASSERT(CurrentThreadCanAccessZone(target));
-  target->markedAtoms().bitwiseOrWith(source->markedAtoms());
 }
 
 #ifdef DEBUG

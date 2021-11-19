@@ -572,18 +572,10 @@ struct JSRuntime {
   // protect access to the bytecode table;
   mozilla::Atomic<size_t, mozilla::SequentiallyConsistent> numParseTasks;
 
-  // Number of zones which may be operated on by helper threads.
-  mozilla::Atomic<size_t, mozilla::SequentiallyConsistent>
-      numActiveHelperThreadZones;
-
   friend class js::AutoLockScriptData;
 
  public:
-  void setUsedByHelperThread(JS::Zone* zone);
-  void clearUsedByHelperThread(JS::Zone* zone);
-
   bool hasParseTasks() const { return numParseTasks > 0; }
-  bool hasHelperThreadZones() const { return numActiveHelperThreadZones > 0; }
 
   void addParseTaskRef() { numParseTasks++; }
   void decParseTaskRef() { numParseTasks--; }
@@ -597,11 +589,6 @@ struct JSRuntime {
     }
 
     scriptDataLock.assertOwnedByCurrentThread();
-  }
-
-  bool currentThreadHasAtomsTableAccess() const {
-    return js::CurrentThreadCanAccessRuntime(this) &&
-           atoms_->mainThreadHasAllLocks();
   }
 #endif
 
@@ -816,10 +803,12 @@ struct JSRuntime {
     return *atoms_;
   }
 
-  const JS::Zone* atomsZone(const js::AutoAccessAtomsZone& access) const {
+  const JS::Zone* atomsZone() const {
+    MOZ_ASSERT(js::CurrentThreadCanAccessRuntime(this));
     return gc.atomsZone;
   }
-  JS::Zone* atomsZone(const js::AutoAccessAtomsZone& access) {
+  JS::Zone* atomsZone() {
+    MOZ_ASSERT(js::CurrentThreadCanAccessRuntime(this));
     return gc.atomsZone;
   }
   JS::Zone* unsafeAtomsZone() { return gc.atomsZone; }
@@ -959,11 +948,6 @@ struct JSRuntime {
   mozilla::Atomic<bool, mozilla::SequentiallyConsistent>
       parallelParsingEnabled_;
 
-#ifdef DEBUG
-  mozilla::Atomic<uint32_t> offThreadParsesRunning_;
-  mozilla::Atomic<bool> offThreadParsingBlocked_;
-#endif
-
   js::MainThreadData<bool> autoWritableJitCodeActive_;
 
  public:
@@ -979,29 +963,6 @@ struct JSRuntime {
     parallelParsingEnabled_ = value;
   }
   bool canUseParallelParsing() const { return parallelParsingEnabled_; }
-
-#ifdef DEBUG
-
-  void incOffThreadParsesRunning() {
-    MOZ_ASSERT(!isOffThreadParsingBlocked());
-    offThreadParsesRunning_++;
-  }
-
-  void decOffThreadParsesRunning() {
-    MOZ_ASSERT(isOffThreadParseRunning());
-    offThreadParsesRunning_--;
-  }
-
-  bool isOffThreadParseRunning() const { return offThreadParsesRunning_; }
-
-  bool isOffThreadParsingBlocked() const { return offThreadParsingBlocked_; }
-  void setOffThreadParsingBlocked(bool blocked) {
-    MOZ_ASSERT(offThreadParsingBlocked_ != blocked);
-    MOZ_ASSERT(!isOffThreadParseRunning());
-    offThreadParsingBlocked_ = blocked;
-  }
-
-#endif
 
   void toggleAutoWritableJitCodeActive(bool b) {
     MOZ_ASSERT(autoWritableJitCodeActive_ != b,

@@ -258,7 +258,6 @@ class ArenaLists {
   enum class ConcurrentUse : uint32_t {
     None,
     BackgroundFinalize,
-    ParallelAlloc,
     ParallelUnmark
   };
 
@@ -323,9 +322,6 @@ class ArenaLists {
 
   MOZ_ALWAYS_INLINE TenuredCell* allocateFromFreeList(AllocKind thingKind);
 
-  /* Moves all arenas from |fromArenaLists| into |this|. */
-  void adoptArenas(ArenaLists* fromArenaLists, bool targetZoneIsCollecting);
-
   inline void checkEmptyFreeLists();
   inline void checkEmptyArenaLists();
   inline void checkEmptyFreeList(AllocKind kind);
@@ -346,7 +342,6 @@ class ArenaLists {
   void mergeFinalizedArenas(AllocKind thingKind,
                             SortedArenaList& finalizedArenas);
 
-  void setParallelAllocEnabled(bool enabled);
   void setParallelUnmarkEnabled(bool enabled);
 
   inline void mergeNewArenasInMarkPhase();

@@ -57,7 +57,6 @@ class DebugModeOSRVolatileJitFrameIter;
 }  // namespace jit
 
 namespace gc {
-class AutoCheckCanAccessAtomsDuringGC;
 class AutoSuppressNurseryCellAlloc;
 }  // namespace gc
 
@@ -395,9 +394,7 @@ struct JS_PUBLIC_API JSContext : public JS::RootingContext,
 
   js::AtomsTable& atoms() { return runtime_->atoms(); }
 
-  const JS::Zone* atomsZone(const js::AutoAccessAtomsZone& access) {
-    return runtime_->atomsZone(access);
-  }
+  const JS::Zone* atomsZone() { return runtime_->atomsZone(); }
 
   js::SymbolRegistry& symbolRegistry() { return runtime_->symbolRegistry(); }
 
@@ -633,12 +630,6 @@ struct JS_PUBLIC_API JSContext : public JS::RootingContext,
   // Some code cannot tolerate compacting GC so it can be disabled temporarily
   // with AutoDisableCompactingGC which uses this counter.
   js::ContextData<unsigned> compactingDisabledCount;
-
-  bool canCollectAtoms() const {
-    // TODO: We may be able to improve this by collecting if
-    // !isOffThreadParseRunning() (bug 1468422).
-    return !runtime()->hasHelperThreadZones();
-  }
 
  private:
   // Pools used for recycling name maps and vectors when parsing and
@@ -1160,22 +1151,6 @@ class MOZ_RAII AutoLockScriptData {
 #endif
     }
   }
-};
-
-// A token used to prove you can safely access the atoms zone. This zone is
-// accessed by the main thread and by off-thread parsing. There are two
-// situations in which it is safe:
-//
-//  - the current thread holds all atoms table locks (off-thread parsing may be
-//    running and must also take one of these locks for access)
-//
-//  - the GC is running and is collecting the atoms zone (this cannot be started
-//    while off-thread parsing is happening)
-class MOZ_STACK_CLASS AutoAccessAtomsZone {
- public:
-  MOZ_IMPLICIT AutoAccessAtomsZone(const AutoLockAllAtoms& lock) {}
-  MOZ_IMPLICIT AutoAccessAtomsZone(
-      const gc::AutoCheckCanAccessAtomsDuringGC& canAccess) {}
 };
 
 class MOZ_RAII AutoNoteDebuggerEvaluationWithOnNativeCallHook {
