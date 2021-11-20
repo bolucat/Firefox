@@ -19,11 +19,14 @@ for example - use `all_tests.py` instead.
 
 
 import copy
+import hashlib
+import json
 import logging
 import re
 
 import jsone
 from mozbuild.schedules import INCLUSIVE_COMPONENTS
+from mozbuild.util import ReadOnlyDict
 from taskgraph.util.yaml import load_yaml
 from voluptuous import (
     Any,
@@ -1441,6 +1444,179 @@ def split_e10s(config, tasks):
             yield task
 
 
+test_setting_description_schema = Schema(
+    {
+        Required("_hash"): str,
+        "platform": {
+            Required("arch"): Any("32", "64", "aarch64", "arm7", "x86_64"),
+            Required("os"): {
+                Required("name"): Any("android", "linux", "macosx", "windows"),
+                Required("version"): str,
+                Optional("build"): str,
+            },
+            Optional("device"): str,
+            Optional("machine"): Any("ref-hw-2017"),
+        },
+        "build": {
+            Required("type"): Any("opt", "debug", "debug-isolated-process"),
+            Any(
+                "asan",
+                "ccov",
+                "clang-trunk",
+                "devedition",
+                "lite",
+                "mingwclang",
+                "shippable",
+                "tsan",
+            ): bool,
+        },
+        "runtime": {Any(*list(TEST_VARIANTS.keys()) + ["1proc"]): bool},
+    },
+    check=False,
+)
+"""Schema test settings must conform to. Validated by
+:py:func:`~test.test_mozilla_central.test_test_setting`"""
+
+
+@transforms.add
+def set_test_setting(config, tasks):
+    """A test ``setting`` is the set of configuration that uniquely
+    distinguishes a test task from other tasks that run the same suite
+    (ignoring chunks).
+
+    There are three different types of information that make up a setting:
+
+    1. Platform - Information describing the underlying platform tests run on,
+    e.g, OS, CPU architecture, etc.
+
+    2. Build - Information describing the build being tested, e.g build type,
+    ccov, asan/tsan, etc.
+
+    3. Runtime - Information describing which runtime parameters are enabled,
+    e.g, prefs, environment variables, etc.
+
+    This transform adds a ``test-setting`` object to the ``extra`` portion of
+    all test tasks, of the form:
+
+    .. code-block:: json
+
+        {
+            "platform": { ... },
+            "build": { ... },
+            "runtime": { ... }
+        }
+
+    This information could be derived from the label, but consuming this
+    object is less brittle.
+    """
+    # Some attributes have a dash in them which complicates parsing. Ensure we
+    # don't split them up.
+    # TODO Rename these so they don't have a dash.
+    dash_attrs = [
+        "clang-trunk",
+        "ref-hw-2017",
+    ]
+    dash_token = "%D%"
+    platform_re = re.compile(r"(\D+)(\d*)")
+
+    for task in tasks:
+        setting = {
+            "platform": {
+                "os": {},
+            },
+            "build": {},
+            "runtime": {},
+        }
+
+        # parse platform and build information out of 'test-platform'
+        platform, build_type = task["test-platform"].split("/", 1)
+
+        # ensure dashed attributes don't get split up
+        for attr in dash_attrs:
+            if attr in platform:
+                platform = platform.replace(attr, attr.replace("-", dash_token))
+
+        parts = platform.split("-")
+
+        # restore dashes now that split is finished
+        for i, part in enumerate(parts):
+            if dash_token in part:
+                parts[i] = part.replace(dash_token, "-")
+
+        match = platform_re.match(parts.pop(0))
+        assert match
+        os_name, os_version = match.groups()
+
+        device = machine = os_build = None
+        if os_name == "android":
+            device = parts.pop(0)
+            if device == "hw":
+                device = parts.pop(0)
+            else:
+                device = "emulator"
+
+            os_version = parts.pop(0)
+            if parts[0].isdigit():
+                os_version = f"{os_version}.{parts.pop(0)}"
+
+            if parts[0] == "android":
+                parts.pop(0)
+
+            arch = parts.pop(0)
+
+        else:
+            arch = parts.pop(0)
+            if parts[0].isdigit():
+                os_build = parts.pop(0)
+
+            if parts[0] == "ref-hw-2017":
+                machine = parts.pop(0)
+
+        # It's not always possible to glean the exact architecture used from
+        # the task, so sometimes this will just be set to "32" or "64".
+        setting["platform"]["arch"] = arch
+        setting["platform"]["os"] = {
+            "name": os_name,
+            "version": os_version,
+        }
+
+        if os_build:
+            setting["platform"]["os"]["build"] = os_build
+
+        if device:
+            setting["platform"]["device"] = device
+
+        if machine:
+            setting["platform"]["machine"] = machine
+
+        # parse remaining parts as build attributes
+        setting["build"]["type"] = build_type
+        while parts:
+            attr = parts.pop(0)
+            if attr == "qr":
+                # all tasks are webrender now, no need to store it
+                continue
+
+            setting["build"][attr] = True
+
+        # set runtime configuration
+        if not task["e10s"]:
+            setting["runtime"]["1proc"] = True
+
+        unittest_variant = task["attributes"].get("unittest_variant")
+        if unittest_variant:
+            for variant in unittest_variant.split("+"):
+                setting["runtime"][variant] = True
+
+        # add a hash of the setting object for easy comparisons
+        setting["_hash"] = hashlib.sha256(
+            json.dumps(setting, sort_keys=True).encode("utf-8")
+        ).hexdigest()[:12]
+
+        task["test-setting"] = ReadOnlyDict(**setting)
+        yield task
+
+
 @transforms.add
 def set_test_verify_chunks(config, tasks):
     """Set the number of chunks we use for test-verify."""
@@ -1924,6 +2100,7 @@ def make_job_description(config, tasks):
                 "total": task["chunks"],
             },
             "suite": attributes["unittest_suite"],
+            "test-setting": task.pop("test-setting"),
         }
         jobdesc["treeherder"] = {
             "symbol": task["treeherder-symbol"],

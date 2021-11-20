@@ -8,9 +8,9 @@ const { Services } = ChromeUtils.import("resource://gre/modules/Services.jsm");
 
 const ThemeVariableMap = [
   [
-    "--lwt-accent-color-inactive",
+    "--lwt-frame-inactive",
     {
-      lwtProperty: "accentcolorInactive",
+      lwtProperty: "frame_inactive",
     },
   ],
   [
@@ -41,7 +41,7 @@ const ThemeVariableMap = [
     },
   ],
   [
-    "--tab-line-color",
+    "--lwt-tab-line-color",
     {
       lwtProperty: "tab_line",
       optionalElementID: "tabbrowser-tabs",
@@ -66,7 +66,7 @@ const ThemeVariableMap = [
     },
   ],
   [
-    "--tabs-border-color",
+    "--lwt-tabs-border-color",
     {
       lwtProperty: "toolbar_top_separator",
       optionalElementID: "navigator-toolbox",
@@ -112,18 +112,6 @@ const ThemeVariableMap = [
     "--lwt-selected-tab-background-color",
     {
       lwtProperty: "tab_selected",
-    },
-  ],
-  [
-    "--autocomplete-popup-background",
-    {
-      lwtProperty: "popup",
-    },
-  ],
-  [
-    "--autocomplete-popup-color",
-    {
-      lwtProperty: "popup_text",
     },
   ],
   [
