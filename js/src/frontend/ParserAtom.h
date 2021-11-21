@@ -7,24 +7,44 @@
 #ifndef frontend_ParserAtom_h
 #define frontend_ParserAtom_h
 
-#include "mozilla/DebugOnly.h"        // mozilla::DebugOnly
 #include "mozilla/HashFunctions.h"    // mozilla::HashString
 #include "mozilla/MemoryReporting.h"  // mozilla::MallocSizeOf
 #include "mozilla/Range.h"            // mozilla::Range
 #include "mozilla/Span.h"             // mozilla::Span
-#include "mozilla/Variant.h"          // mozilla::Variant
+#include "mozilla/TextUtils.h"
 
-#include "ds/LifoAlloc.h"         // LifoAlloc
+#include <stddef.h>
+#include <stdint.h>
+
+#include "jstypes.h"
+#include "NamespaceImports.h"
+
 #include "frontend/TypedIndex.h"  // TypedIndex
 #include "js/HashTable.h"         // HashMap
-#include "js/UniquePtr.h"         // js::UniquePtr
+#include "js/ProtoKey.h"          // JS_FOR_EACH_PROTOTYPE
+#include "js/Symbol.h"            // JS_FOR_EACH_WELL_KNOWN_SYMBOL
+#include "js/TypeDecls.h"         // Latin1Char
+#include "js/Utility.h"           // UniqueChars
 #include "js/Vector.h"            // Vector
+#include "util/Text.h"            // InflatedChar16Sequence
 #include "vm/CommonPropertyNames.h"
-#include "vm/StringType.h"     // CompareChars, StringEqualsAscii
+#include "vm/StaticStrings.h"
 #include "vm/WellKnownAtom.h"  // WellKnownAtomId, WellKnownAtomInfo
+
+struct JS_PUBLIC_API JSContext;
+struct JSRuntime;
+
+class JSAtom;
+class JSString;
+
+namespace mozilla {
+union Utf8Unit;
+}
 
 namespace js {
 
+class GenericPrinter;
+class LifoAlloc;
 class StringBuffer;
 
 namespace frontend {
@@ -32,12 +52,9 @@ namespace frontend {
 struct CompilationAtomCache;
 struct CompilationStencil;
 class BorrowingCompilationStencil;
-class ParserAtom;
 
 template <typename CharT>
 class SpecificParserAtomLookup;
-
-class ParserAtomsTable;
 
 // These types correspond into indices in the StaticStrings arrays.
 enum class Length1StaticParserString : uint8_t;
@@ -384,8 +401,6 @@ class alignas(alignof(uint32_t)) ParserAtom {
 
   // End of fields.
 
-  static const uint32_t MAX_LENGTH = JSString::MAX_LENGTH;
-
   ParserAtom(uint32_t length, HashNumber hash, bool hasTwoByteChars)
       : hash_(hash),
         length_(length),
@@ -455,11 +470,6 @@ class alignas(alignof(uint32_t)) ParserAtom {
     flags_ |= UsedByStencilFlag | uint32_t(atomize);
   }
   void markAtomize(Atomize atomize) { flags_ |= uint32_t(atomize); }
-
-  constexpr void setHashAndLength(HashNumber hash, uint32_t length) {
-    hash_ = hash;
-    length_ = length;
-  }
 
   template <typename CharT>
   const CharT* chars() const {

@@ -7,22 +7,19 @@
 #include "frontend/BytecodeCompiler.h"
 
 #include "mozilla/Attributes.h"
-#include "mozilla/IntegerPrintfMacros.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/Utf8.h"     // mozilla::Utf8Unit
 #include "mozilla/Variant.h"  // mozilla::Variant
 
-#include "builtin/ModuleObject.h"
+#include "debugger/DebugAPI.h"
 #include "frontend/BytecodeCompilation.h"
 #include "frontend/BytecodeEmitter.h"
 #include "frontend/EitherParser.h"
 #include "frontend/ErrorReporter.h"
-#include "frontend/FoldConstants.h"
 #ifdef JS_ENABLE_SMOOSH
 #  include "frontend/Frontend2.h"  // Smoosh
 #endif
 #include "frontend/ModuleSharedContext.h"
-#include "frontend/Parser.h"
 #include "js/SourceText.h"
 #include "vm/FunctionFlags.h"          // FunctionFlags
 #include "vm/GeneratorAndAsyncKind.h"  // js::GeneratorKind, js::FunctionAsyncKind
@@ -35,10 +32,7 @@
 #include "vm/TraceLogging.h"
 #include "wasm/AsmJS.h"
 
-#include "debugger/DebugAPI-inl.h"  // DebugAPI
-#include "vm/EnvironmentObject-inl.h"
 #include "vm/GeckoProfiler-inl.h"
-#include "vm/JSContext-inl.h"
 
 using namespace js;
 using namespace js::frontend;
@@ -1380,19 +1374,5 @@ void frontend::FireOnNewScript(JSContext* cx,
                                JS::Handle<JSScript*> script) {
   if (!options.hideFromNewScriptInitial()) {
     DebugAPI::onNewScript(cx, script);
-  }
-}
-
-void frontend::FireOnNewScripts(JSContext* cx,
-                                const JS::InstantiateOptions& options,
-                                JS::Handle<JS::GCVector<JSScript*>> scripts) {
-  if (!options.hideFromNewScriptInitial()) {
-    JS::Rooted<JSScript*> rootedScript(cx);
-    for (auto& script : scripts) {
-      MOZ_ASSERT(script->isGlobalCode());
-
-      rootedScript = script;
-      DebugAPI::onNewScript(cx, rootedScript);
-    }
   }
 }
