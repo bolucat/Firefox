@@ -2230,37 +2230,70 @@ inline void* arena_t::ArenaRunRegAlloc(arena_run_t* aRun, arena_bin_t* aBin) {
   return nullptr;
 }
 
+// To divide by a number D that is not a power of two we multiply by (2^21 /
+// D) and then right shift by 21 positions.
+//
+//   X / D
+//
+// becomes
+//
+//   (X * size_invs[D - 3]) >> SIZE_INV_SHIFT
+//
+// Where D is d/Q and Q is a constant factor.
+template <unsigned Q, unsigned Max>
+struct FastDivide {
+  static_assert(IsPowerOfTwo(Q), "q must be a power-of-two");
+
+  // We don't need FastDivide when dividing by a power-of-two. So when we set
+  // the range (min_divisor - max_divisor inclusive) we can avoid powers-of-two.
+
+  // Because Q is a power of two Q*3 is the first not-power-of-two.
+  static const unsigned min_divisor = Q * 3;
+  static const unsigned max_divisor =
+      mozilla::IsPowerOfTwo(Max) ? Max - Q : Max;
+  // +1 because this range is inclusive.
+  static const unsigned num_divisors = (max_divisor - min_divisor) / Q + 1;
+  static_assert(max_divisor > min_divisor);
+
+  static const unsigned inv_shift = 21;
+
+  static constexpr unsigned inv(unsigned s) {
+    return ((1U << inv_shift) / (s * Q)) + 1;
+  }
+
+  static unsigned divide(size_t num, unsigned div) {
+    // clang-format off
+    static const unsigned size_invs[] = {
+      inv(3),
+      inv(4),  inv(5),  inv(6),  inv(7),
+      inv(8),  inv(9),  inv(10), inv(11),
+      inv(12), inv(13), inv(14), inv(15),
+      inv(16), inv(17), inv(18), inv(19),
+      inv(20), inv(21), inv(22), inv(23),
+      inv(24), inv(25), inv(26), inv(27),
+      inv(28), inv(29), inv(30), inv(31)
+    };
+    // clang-format on
+    static_assert(num_divisors <= sizeof(size_invs) / sizeof(unsigned),
+                  "num_divisors does not match array size");
+
+    MOZ_ASSERT(div >= min_divisor);
+    MOZ_ASSERT(div <= max_divisor);
+    MOZ_ASSERT(div % Q == 0);
+
+    // If Q isn't a power of two this optimisation would be pointless, we expect
+    // /Q to be reduced to a shift, but we asserted this above.
+    const unsigned idx = div / Q - 3;
+    MOZ_ASSERT(idx < sizeof(size_invs) / sizeof(unsigned));
+    return (num * size_invs[idx]) >> inv_shift;
+  }
+};
+
 static inline void arena_run_reg_dalloc(arena_run_t* run, arena_bin_t* bin,
                                         void* ptr, size_t size) {
-  // To divide by a number D that is not a power of two we multiply
-  // by (2^21 / D) and then right shift by 21 positions.
-  //
-  //   X / D
-  //
-  // becomes
-  //
-  //   (X * size_invs[(D / kQuantum) - 3]) >> SIZE_INV_SHIFT
-
-#define SIZE_INV_SHIFT 21
-#define SIZE_INV(s) (((1U << SIZE_INV_SHIFT) / (s * kQuantum)) + 1)
-  // clang-format off
-  static const unsigned size_invs[] = {
-    SIZE_INV(3),
-    SIZE_INV(4), SIZE_INV(5), SIZE_INV(6), SIZE_INV(7),
-    SIZE_INV(8), SIZE_INV(9), SIZE_INV(10), SIZE_INV(11),
-    SIZE_INV(12),SIZE_INV(13), SIZE_INV(14), SIZE_INV(15),
-    SIZE_INV(16),SIZE_INV(17), SIZE_INV(18), SIZE_INV(19),
-    SIZE_INV(20),SIZE_INV(21), SIZE_INV(22), SIZE_INV(23),
-    SIZE_INV(24),SIZE_INV(25), SIZE_INV(26), SIZE_INV(27),
-    SIZE_INV(28),SIZE_INV(29), SIZE_INV(30), SIZE_INV(31)
-  };
-  // clang-format on
   unsigned diff, regind, elm, bit;
 
   MOZ_DIAGNOSTIC_ASSERT(run->mMagic == ARENA_RUN_MAGIC);
-  static_assert(
-      ((sizeof(size_invs)) / sizeof(unsigned)) + 3 >= kNumQuantumClasses,
-      "size_invs doesn't have enough values");
 
   // Avoid doing division with a variable divisor if possible.  Using
   // actual division here can reduce allocator throughput by over 20%!
@@ -2268,16 +2301,20 @@ static inline void arena_run_reg_dalloc(arena_run_t* run, arena_bin_t* bin,
       (unsigned)((uintptr_t)ptr - (uintptr_t)run - bin->mRunFirstRegionOffset);
   if (mozilla::IsPowerOfTwo(size)) {
     regind = diff >> FloorLog2(size);
-  } else if (size <= ((sizeof(size_invs) / sizeof(unsigned)) * kQuantum) + 2) {
-    regind = size_invs[(size / kQuantum) - 3] * diff;
-    regind >>= SIZE_INV_SHIFT;
   } else {
-    // size_invs isn't large enough to handle this size class, so
-    // calculate regind using actual division.  This only happens
-    // if the user increases small_max via the 'S' runtime
-    // configuration option.
-    regind = diff / size;
-  };
+    SizeClass sc(size);
+    switch (sc.Type()) {
+      case SizeClass::Quantum:
+        regind = FastDivide<kQuantum, kMaxQuantumClass>::divide(diff, size);
+        break;
+      case SizeClass::QuantumWide:
+        regind =
+            FastDivide<kQuantumWide, kMaxQuantumWideClass>::divide(diff, size);
+        break;
+      default:
+        regind = diff / size;
+    }
+  }
   MOZ_DIAGNOSTIC_ASSERT(diff == regind * size);
   MOZ_DIAGNOSTIC_ASSERT(regind < bin->mRunNumRegions);
 
@@ -2289,8 +2326,6 @@ static inline void arena_run_reg_dalloc(arena_run_t* run, arena_bin_t* bin,
   MOZ_RELEASE_ASSERT((run->mRegionsMask[elm] & (1U << bit)) == 0,
                      "Double-free?");
   run->mRegionsMask[elm] |= (1U << bit);
-#undef SIZE_INV
-#undef SIZE_INV_SHIFT
 }
 
 bool arena_t::SplitRun(arena_run_t* aRun, size_t aSize, bool aLarge,

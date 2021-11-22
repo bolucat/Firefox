@@ -17,8 +17,11 @@
 #include "builtin/ModuleObject.h"
 #include "builtin/Object.h"
 #include "jit/BaselineIC.h"
+#include "jit/CacheIRCloner.h"
 #include "jit/CacheIRCompiler.h"
+#include "jit/CacheIRGenerator.h"
 #include "jit/CacheIRSpewer.h"
+#include "jit/CacheIRWriter.h"
 #include "jit/InlinableNatives.h"
 #include "jit/JitContext.h"
 #include "js/experimental/JitInfo.h"  // JSJitInfo
@@ -1260,6 +1263,9 @@ AttachDecision GetPropIRGenerator::tryAttachCrossCompartmentWrapper(
   trackAttached("CCWSlot");
   return AttachDecision::Attach;
 }
+
+static JSObject* NewWrapperWithObjectShape(JSContext* cx,
+                                           HandleNativeObject obj);
 
 static bool GetXrayExpandoShapeWrapper(JSContext* cx, HandleObject xray,
                                        MutableHandleObject wrapper) {
@@ -9819,8 +9825,8 @@ static const JSClass shapeContainerClass = {"ShapeContainer",
 
 static const size_t SHAPE_CONTAINER_SLOT = 0;
 
-JSObject* jit::NewWrapperWithObjectShape(JSContext* cx,
-                                         HandleNativeObject obj) {
+static JSObject* NewWrapperWithObjectShape(JSContext* cx,
+                                           HandleNativeObject obj) {
   MOZ_ASSERT(cx->compartment() != obj->compartment());
 
   RootedObject wrapper(cx);
