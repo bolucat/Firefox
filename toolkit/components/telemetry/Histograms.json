@@ -359,29 +359,6 @@
     "releaseChannelCollection": "opt-out",
     "description": "An enumerated count of the number of content processes, collected every five minutes."
   },
-  "CONTENT_PROCESS_MAX": {
-    "record_in_processes": ["main"],
-    "products": ["firefox"],
-    "alert_emails": ["barret@mozilla.com", "perf-telemetry-alerts@mozilla.com"],
-    "expires_in_version": "98",
-    "bug_numbers": [1688079],
-    "kind": "linear",
-    "high": 500,
-    "n_buckets": 100,
-    "releaseChannelCollection": "opt-out",
-    "description": "The maximum number of content processes, submitted when a new maximum is reached."
-  },
-  "CONTENT_PROCESS_PRECISE_MAX": {
-    "record_in_processes": ["main"],
-    "products": ["firefox"],
-    "alert_emails": ["kmadan@mozilla.com", "perf-telemetry-alerts@mozilla.com"],
-    "expires_in_version": "98",
-    "bug_numbers": [1722103],
-    "kind": "enumerated",
-    "n_values": 100,
-    "releaseChannelCollection": "opt-out",
-    "description": "The enumerated maximum number of content processes, submitted when a new maximum is reached."
-  },
   "CONTENT_PROCESS_TIME_SINCE_LAST_LAUNCH_MS": {
     "record_in_processes": ["main"],
     "products": ["firefox"],
@@ -4664,6 +4641,44 @@
     "releaseChannelCollection": "opt-out",
     "description": "When in TRR-first mode, if TRR was skipped and native failed, it lists the reason we may have skipped TRR, keyed by the provider."
   },
+
+  "TRR_RELEVANT_SKIP_REASON_TRR_FIRST": {
+    "record_in_processes": ["main", "socket"],
+    "products": ["firefox"],
+    "alert_emails": ["necko@mozilla.com", "vgosu@mozilla.com"],
+    "expires_in_version": "never",
+    "kind": "enumerated",
+    "keyed": true,
+    "n_values": 50,
+    "bug_numbers": [1649143, 1699523, 1742408],
+    "releaseChannelCollection": "opt-out",
+    "description": "When in TRR-first mode, it lists the reason we may have skipped TRR, keyed by the provider. Does not include requests that intentionally skip TRR."
+  },
+  "TRR_RELEVANT_SKIP_REASON_NATIVE_SUCCESS": {
+    "record_in_processes": ["main", "socket"],
+    "products": ["firefox"],
+    "alert_emails": ["necko@mozilla.com", "vgosu@mozilla.com"],
+    "expires_in_version": "never",
+    "kind": "enumerated",
+    "keyed": true,
+    "n_values": 50,
+    "bug_numbers": [1649143, 1699523, 1742408],
+    "releaseChannelCollection": "opt-out",
+    "description": "When in TRR-first mode, if TRR was skipped and native succeeded, it lists the reason we may have skipped TRR, keyed by the provider. Does not include requests that intentionally skip TRR."
+  },
+  "TRR_RELEVANT_SKIP_REASON_NATIVE_FAILED": {
+    "record_in_processes": ["main", "socket"],
+    "products": ["firefox"],
+    "alert_emails": ["necko@mozilla.com", "vgosu@mozilla.com"],
+    "expires_in_version": "never",
+    "kind": "enumerated",
+    "keyed": true,
+    "n_values": 50,
+    "bug_numbers": [1699523, 1742408],
+    "releaseChannelCollection": "opt-out",
+    "description": "When in TRR-first mode, if TRR was skipped and native failed, it lists the reason we may have skipped TRR, keyed by the provider. Does not include requests that intentionally skip TRR."
+  },
+
   "DNS_TRR_FIRST4": {
     "record_in_processes": ["main", "socket"],
     "products": ["firefox", "fennec"],

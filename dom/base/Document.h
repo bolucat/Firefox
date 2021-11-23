@@ -1283,7 +1283,8 @@ class Document : public nsINode,
   already_AddRefed<Promise> RequestStorageAccess(ErrorResult& aRv);
 
   already_AddRefed<Promise> RequestStorageAccessForOrigin(
-      const nsAString& aThirdPartyOrigin, ErrorResult& aRv);
+      const nsAString& aThirdPartyOrigin, const bool aRequireUserInteraction,
+      ErrorResult& aRv);
 
   bool UseRegularPrincipal() const;
 
@@ -4403,7 +4404,7 @@ class Document : public nsINode,
   using AutomaticStorageAccessPermissionGrantPromise =
       MozPromise<bool, bool, true>;
   [[nodiscard]] RefPtr<AutomaticStorageAccessPermissionGrantPromise>
-  AutomaticStorageAccessPermissionCanBeGranted();
+  AutomaticStorageAccessPermissionCanBeGranted(bool hasUserActivation);
 
   static void AddToplevelLoadingDocument(Document* aDoc);
   static void RemoveToplevelLoadingDocument(Document* aDoc);
@@ -4859,6 +4860,15 @@ class Document : public nsINode,
   uint32_t mLazyLoadImageReachViewportLoaded;
 
   uint32_t mContentEditableCount;
+  /**
+   * Count of the number of active LockRequest objects, including ones from
+   * workers. Note that the value won't be updated while the document is being
+   * destroyed.
+   *
+   * TODO(krosylight): We may want to move this to window object instead, but
+   * it's not clear whether the spec relates locks to the window/agent or the
+   * document. See also https://github.com/WICG/web-locks/issues/95.
+   */
   uint32_t mLockCount = 0;
   EditingState mEditingState;
 

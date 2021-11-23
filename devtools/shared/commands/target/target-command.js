@@ -129,7 +129,6 @@ class TargetCommand extends EventEmitter {
     //                but we wait for the watcher actor to notify us about it
     //                via target-available-form avent.
     this._gotFirstTopLevelTarget = false;
-    this.commands = commands;
     this._onResourceAvailable = this._onResourceAvailable.bind(this);
   }
 
@@ -141,6 +140,11 @@ class TargetCommand extends EventEmitter {
   // Either because a target was already available as we started calling startListening
   // or if it has just been created
   async _onTargetAvailable(targetFront) {
+    // We put the `commands` on the targetFront so it can be retrieved from any front easily.
+    // Without this, protocol.js fronts won't have any easy access to it.
+    // Ideally, Fronts would all be migrated to commands and we would no longer need this hack.
+    targetFront.commands = this.commands;
+
     // If the new target is a top level target, we are target switching.
     // Target-switching is only triggered for "local-tab" browsing-context
     // targets which should always have the topLevelTarget flag initialized
@@ -326,6 +330,10 @@ class TargetCommand extends EventEmitter {
       targetFront.baseFrontClassDestroy();
 
       targetFront.destroy();
+
+      // Delete the attribute we set from _onTargetAvailable so that we avoid leaking commands
+      // if any target front is leaked.
+      delete targetFront.commands;
     }
   }
 
@@ -486,6 +494,10 @@ class TargetCommand extends EventEmitter {
     this.targetFront.setTargetType(this.getTargetType(this.targetFront));
     this.targetFront.setIsTopLevel(true);
     this._gotFirstTopLevelTarget = true;
+
+    // See _onTargetAvailable. As this target isn't going through that method
+    // we have to replicate doing that here.
+    this.targetFront.commands = this.commands;
 
     // Add the top-level target to the list of targets.
     this._targets.add(this.targetFront);
@@ -940,6 +952,44 @@ class TargetCommand extends EventEmitter {
 
   isTargetRegistered(targetFront) {
     return this._targets.has(targetFront);
+  }
+
+  getParentTarget(targetFront) {
+    // Note that there is three temporary edgecases:
+    // * Until bug 1741927 is fixed and we remove non-EFT codepath entirely,
+    //   we may receive a `parentInnerWindowId` that doesn't relate to any target.
+    //   This happens when the parent document of the targetFront is a document loaded in the
+    //   same process as its parent document. In such scenario, and only when EFT is disabled,
+    //   we won't instantiate a target for the parent document of the targetFront.
+    // * `parentInnerWindowId` could be null in some case like for tabs in the MBT
+    //   we should report the top level target as parent. That's what `getParentWindowGlobalTarget` does.
+    //   Once we can stop using getParentWindowGlobalTarget for the other edgecase we will be able to
+    //   replace it with such fallback: `return this.targetFront;`.
+    //   browser_target_command_frames.js will help you get things right.
+    // @backward-compat { version 96 } Fx 96 started exposing `parentInnerWindowId`
+    // * And backward compat. This targetForm attribute is new. Once we drop 95 support,
+    //   we can simply remove this last bullet point as the other two edgecase may still be valid.
+    const { parentInnerWindowId } = targetFront.targetForm;
+    if (parentInnerWindowId) {
+      const targets = this.getAllTargets([TargetCommand.TYPES.FRAME]);
+      const parent = targets.find(
+        target => target.innerWindowId == parentInnerWindowId
+      );
+      // Until EFT is the only codepath supported (bug 1741927), we will fallback to `getParentWindowGlobalTarget`
+      // as we may not have a target if the parent is an iframe running in the same process as its parent.
+      if (parent) {
+        return parent;
+      }
+    }
+
+    // Note that all callsites which care about FRAME additional target
+    // should all have a toolbox using the watcher actor.
+    // It should be: MBT, regular tab toolbox and web extension.
+    // The others which still don't support watcher don't spawn FRAME targets:
+    // browser content toolbox and service workers.
+    return this.watcherFront.getParentWindowGlobalTarget(
+      targetFront.browsingContextID
+    );
   }
 
   isDestroyed() {

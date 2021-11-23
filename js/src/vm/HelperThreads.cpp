@@ -609,7 +609,6 @@ void ParseTask::runTask(AutoLockHelperThreadState& lock) {
   MOZ_ASSERT(cx->tempLifoAlloc().isEmpty());
   cx->tempLifoAlloc().freeAll();
   cx->frontendCollectionPool().purge();
-  cx->atomsZoneFreeLists().clear();
 }
 
 template <typename Unit>
@@ -862,11 +861,6 @@ static void WaitForOffThreadParses(JSRuntime* rt,
                   !helper->as<ParseTask>()->runtimeMatches(rt));
   }
 #endif
-}
-
-void js::WaitForOffThreadParses(JSRuntime* rt) {
-  AutoLockHelperThreadState lock;
-  WaitForOffThreadParses(rt, lock);
 }
 
 void js::CancelOffThreadParses(JSRuntime* rt) {
