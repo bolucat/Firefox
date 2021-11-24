@@ -9,9 +9,9 @@
 
 #include "base/process.h"
 
+#include "mozilla/UniquePtrExtensions.h"
 #include "mozilla/ipc/SharedMemory.h"
 #include <mach/port.h>
-#include "chrome/common/mach_ipc_mac.h"
 
 #ifdef FUZZING
 #  include "mozilla/ipc/SharedMemoryFuzzer.h"
@@ -28,42 +28,9 @@ class ReceivePort;
 namespace mozilla {
 namespace ipc {
 
-enum {
-  kGetPortsMsg = 1,
-  kSharePortsMsg,
-  kWaitForTexturesMsg,
-  kUpdateTextureLocksMsg,
-  kReturnIdMsg,
-  kReturnWaitForTexturesMsg,
-  kReturnPortsMsg,
-  kShutdownMsg,
-  kCleanupMsg,
-};
-
-struct MemoryPorts {
-  MachPortSender* mSender;
-  ReceivePort* mReceiver;
-
-  MemoryPorts() = default;
-  MemoryPorts(MachPortSender* sender, ReceivePort* receiver)
-      : mSender(sender), mReceiver(receiver) {}
-};
-
-class SharedMemoryBasic final : public SharedMemoryCommon<mach_port_t> {
+class SharedMemoryBasic final
+    : public SharedMemoryCommon<mozilla::UniqueMachSendRight> {
  public:
-  static void SetupMachMemory(pid_t pid, ReceivePort* listen_port,
-                              MachPortSender* listen_port_ack,
-                              MachPortSender* send_port,
-                              ReceivePort* send_port_ack, bool pidIsParent);
-
-  static void CleanupForPid(pid_t pid);
-  static void CleanupForPidWithLock(pid_t pid);
-
-  static void Shutdown();
-
-  static bool SendMachMessage(pid_t pid, MachSendMessage& message,
-                              MachReceiveMessage* response);
-
   SharedMemoryBasic();
 
   virtual bool SetHandle(Handle aHandle, OpenRights aRights) override;
@@ -98,7 +65,7 @@ class SharedMemoryBasic final : public SharedMemoryCommon<mach_port_t> {
  private:
   ~SharedMemoryBasic();
 
-  mach_port_t mPort;
+  mozilla::UniqueMachSendRight mPort;
   // Pointer to mapped region, null if unmapped.
   void* mMemory;
   // Access rights to map an existing region with.

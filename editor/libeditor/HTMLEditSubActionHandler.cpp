@@ -9,15 +9,17 @@
 #include <algorithm>
 #include <utility>
 
+#include "CSSEditUtils.h"
+#include "EditAction.h"
+#include "EditorDOMPoint.h"
+#include "EditorUtils.h"
 #include "HTMLEditUtils.h"
+#include "TypeInState.h"  // for SpecifiedStyle
 #include "WSRunObject.h"
+
 #include "mozilla/Assertions.h"
-#include "mozilla/CSSEditUtils.h"
 #include "mozilla/CheckedInt.h"
 #include "mozilla/ContentIterator.h"
-#include "mozilla/EditAction.h"
-#include "mozilla/EditorDOMPoint.h"
-#include "mozilla/EditorUtils.h"
 #include "mozilla/InternalMutationEvent.h"
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/OwningNonNull.h"
@@ -25,7 +27,6 @@
 #include "mozilla/RangeUtils.h"
 #include "mozilla/StaticPrefs_editor.h"  // for StaticPrefs::editor_*
 #include "mozilla/TextComposition.h"
-#include "mozilla/TypeInState.h"  // for SpecifiedStyle
 #include "mozilla/UniquePtr.h"
 #include "mozilla/Unused.h"
 #include "mozilla/dom/AncestorIterator.h"
@@ -1869,7 +1870,7 @@ nsresult HTMLEditor::HandleInsertBRElement(const EditorDOMPoint& aPointToBreak,
             "eDoNotCreateEmptyContainer) failed");
         return splitLinkNodeResult.Rv();
       }
-      pointToBreak = splitLinkNodeResult.SplitPoint();
+      pointToBreak = splitLinkNodeResult.AtSplitPoint<EditorDOMPoint>();
     }
     Result<RefPtr<Element>, nsresult> result =
         WhiteSpaceVisibilityKeeper::InsertBRElement(*this, pointToBreak);
@@ -2143,7 +2144,8 @@ EditActionResult HTMLEditor::SplitMailCiteElements(
   // FYI: splitCiteNodeResult grabs the previous node with nsCOMPtr.  So, it's
   //      safe to access previousNodeOfSplitPoint even after changing the DOM
   //      tree and/or selection even though it's raw pointer.
-  nsIContent* previousNodeOfSplitPoint = splitCiteNodeResult.GetPreviousNode();
+  nsIContent* previousNodeOfSplitPoint =
+      splitCiteNodeResult.GetPreviousContent();
   if (previousNodeOfSplitPoint &&
       previousNodeOfSplitPoint->IsHTMLElement(nsGkAtoms::span) &&
       previousNodeOfSplitPoint->GetPrimaryFrame() &&
@@ -2167,16 +2169,14 @@ EditActionResult HTMLEditor::SplitMailCiteElements(
   // In most cases, <br> should be inserted after current cite.  However, if
   // left cite hasn't been created because the split point was start of the
   // cite node, <br> should be inserted before the current cite.
-  EditorDOMPoint pointToInsertBRNode(splitCiteNodeResult.SplitPoint());
   Result<RefPtr<Element>, nsresult> resultOfInsertingBRElement =
-      InsertBRElementWithTransaction(pointToInsertBRNode);
+      InsertBRElementWithTransaction(
+          splitCiteNodeResult.AtSplitPoint<EditorDOMPoint>());
   if (resultOfInsertingBRElement.isErr()) {
     NS_WARNING("HTMLEditor::InsertBRElementWithTransaction() failed");
     return EditActionIgnored(resultOfInsertingBRElement.unwrapErr());
   }
   MOZ_ASSERT(resultOfInsertingBRElement.inspect());
-  // Now, offset of pointToInsertBRNode is invalid.  Let's clear it.
-  pointToInsertBRNode.Clear();
 
   // Want selection before the break, and on same line.
   EditorDOMPoint atBRElement(resultOfInsertingBRElement.inspect());
@@ -3156,16 +3156,17 @@ EditActionResult HTMLEditor::ChangeSelectedHardLinesToList(
           if (NS_WARN_IF(!atContent.GetContainerAsContent())) {
             return EditActionResult(NS_ERROR_FAILURE);
           }
-          Result<nsCOMPtr<nsIContent>, nsresult> newLeftNodeOrError =
+          SplitNodeResult splitListItemParentResult =
               SplitNodeWithTransaction(atContent);
-          if (MOZ_UNLIKELY(newLeftNodeOrError.isErr())) {
+          if (MOZ_UNLIKELY(splitListItemParentResult.Failed())) {
             NS_WARNING("HTMLEditor::SplitNodeWithTransaction() failed");
-            return EditActionResult(newLeftNodeOrError.unwrapErr());
+            return EditActionResult(splitListItemParentResult.Rv());
           }
+          MOZ_ASSERT(splitListItemParentResult.DidSplit());
           Result<RefPtr<Element>, nsresult> maybeNewListElement =
               CreateAndInsertElementWithTransaction(
                   aListElementTagName,
-                  EditorDOMPoint(atContent.GetContainer()));
+                  splitListItemParentResult.AtNextContent<EditorDOMPoint>());
           if (maybeNewListElement.isErr()) {
             NS_WARNING(
                 "HTMLEditor::CreateAndInsertElementWithTransaction() failed");
@@ -3578,10 +3579,10 @@ nsresult HTMLEditor::FormatBlockContainerWithTransaction(nsAtom& blockType) {
         NS_WARNING("HTMLEditor::SplitNodeDeepWithTransaction() failed");
         return splitNodeResult.Rv();
       }
-      EditorDOMPoint pointToInsertBRNode(splitNodeResult.SplitPoint());
       // Put a <br> element at the split point
       Result<RefPtr<Element>, nsresult> resultOfInsertingBRElement =
-          InsertBRElementWithTransaction(pointToInsertBRNode);
+          InsertBRElementWithTransaction(
+              splitNodeResult.AtSplitPoint<EditorDOMPoint>());
       if (resultOfInsertingBRElement.isErr()) {
         NS_WARNING("HTMLEditor::InsertBRElementWithTransaction() failed");
         return resultOfInsertingBRElement.unwrapErr();
@@ -5083,7 +5084,7 @@ nsresult HTMLEditor::CreateStyleForInsertText(
             "eAllowToCreateEmptyContainer) failed");
         return splitTextNodeResult.Rv();
       }
-      pointToPutCaret = splitTextNodeResult.SplitPoint();
+      pointToPutCaret = splitTextNodeResult.AtSplitPoint<EditorDOMPoint>();
     }
     if (!pointToPutCaret.IsInContentNode() ||
         !HTMLEditUtils::IsContainerNode(
@@ -6385,18 +6386,18 @@ nsresult HTMLEditor::SplitTextNodesAtRangeEnd(
 
     if (!atEnd.IsStartOfContainer() && !atEnd.IsEndOfContainer()) {
       // Split the text node.
-      Result<nsCOMPtr<nsIContent>, nsresult> newLeftNodeOrError =
-          SplitNodeWithTransaction(atEnd);
-      if (MOZ_UNLIKELY(newLeftNodeOrError.isErr())) {
+      SplitNodeResult splitAtEndResult = SplitNodeWithTransaction(atEnd);
+      if (MOZ_UNLIKELY(splitAtEndResult.Failed())) {
         NS_WARNING("HTMLEditor::SplitNodeWithTransaction() failed");
-        return newLeftNodeOrError.unwrapErr();
+        return splitAtEndResult.Rv();
       }
 
       // Correct the range.
       // The new end parent becomes the parent node of the text.
-      EditorRawDOMPoint atContainerOfSplitNode(atEnd.GetContainer());
       MOZ_ASSERT(!range->IsInSelection());
-      range->SetEnd(atContainerOfSplitNode, ignoredError);
+      range->SetEnd(splitAtEndResult.AtNextContent<EditorRawDOMPoint>()
+                        .ToRawRangeBoundary(),
+                    ignoredError);
       NS_WARNING_ASSERTION(!ignoredError.Failed(),
                            "nsRange::SetEnd() failed, but ignored");
       ignoredError.SuppressException();
@@ -6667,7 +6668,8 @@ nsresult HTMLEditor::SplitParentInlineElementsAtRangeEdges(
             "eDoNotCreateEmptyContainer) caused changing editing host");
         return NS_ERROR_EDITOR_UNEXPECTED_DOM_TREE;
       }
-      EditorRawDOMPoint splitPointAtEnd(splitEndInlineResult.SplitPoint());
+      const EditorRawDOMPoint& splitPointAtEnd =
+          splitEndInlineResult.AtSplitPoint<EditorRawDOMPoint>();
       if (!splitPointAtEnd.IsSet()) {
         NS_WARNING(
             "HTMLEditor::SplitNodeDeepWithTransaction(SplitAtEdges::"
@@ -6700,7 +6702,8 @@ nsresult HTMLEditor::SplitParentInlineElementsAtRangeEdges(
     // XXX If we split only here because of collapsed range, we're modifying
     //     only start point of aRangeItem.  Shouldn't we modify end point here
     //     if it's collapsed?
-    EditorRawDOMPoint splitPointAtStart(splitStartInlineResult.SplitPoint());
+    const EditorRawDOMPoint& splitPointAtStart =
+        splitStartInlineResult.AtSplitPoint<EditorRawDOMPoint>();
     if (MOZ_UNLIKELY(!splitPointAtStart.IsSet())) {
       NS_WARNING(
           "HTMLEditor::SplitNodeDeepWithTransaction(SplitAtEdges::"
@@ -6745,7 +6748,7 @@ nsresult HTMLEditor::SplitElementsAtEveryBRElement(
     }
 
     // Put previous node at the split point.
-    if (nsIContent* previousContent = splitNodeResult.GetPreviousNode()) {
+    if (nsIContent* previousContent = splitNodeResult.GetPreviousContent()) {
       // Might not be a left node.  A break might have been at the very
       // beginning of inline container, in which case
       // SplitNodeDeepWithTransaction() would not actually split anything.
@@ -6753,9 +6756,10 @@ nsresult HTMLEditor::SplitElementsAtEveryBRElement(
     }
 
     // Move break outside of container and also put in node list
-    EditorDOMPoint atNextNode(splitNodeResult.GetNextNode());
     // MOZ_KnownLive because 'arrayOfBRElements' is guaranteed to keep it alive.
-    nsresult rv = MoveNodeWithTransaction(MOZ_KnownLive(brElement), atNextNode);
+    nsresult rv = MoveNodeWithTransaction(
+        MOZ_KnownLive(brElement),
+        splitNodeResult.AtNextContent<EditorDOMPoint>());
     if (NS_WARN_IF(Destroyed())) {
       return NS_ERROR_EDITOR_DESTROYED;
     }
@@ -6765,7 +6769,7 @@ nsresult HTMLEditor::SplitElementsAtEveryBRElement(
     }
     aOutArrayOfContents.AppendElement(brElement);
 
-    nextContent = splitNodeResult.GetNextNode();
+    nextContent = splitNodeResult.GetNextContent();
   }
 
   // Now tack on remaining next node.
@@ -7060,13 +7064,14 @@ EditActionResult HTMLEditor::HandleInsertParagraphInParagraph(
         if (pointToSplitOrError.inspect().IsSet()) {
           pointToSplitParentDivOrP = pointToSplitOrError.unwrap();
         }
-        Result<nsCOMPtr<nsIContent>, nsresult> newLeftTextNodeOrError =
+        SplitNodeResult splitParentDivOrPResult =
             SplitNodeWithTransaction(pointToSplitParentDivOrP);
-        if (MOZ_UNLIKELY(newLeftTextNodeOrError.isErr())) {
+        if (MOZ_UNLIKELY(splitParentDivOrPResult.Failed())) {
           NS_WARNING("HTMLEditor::SplitNodeWithTransaction() failed");
-          return EditActionResult(newLeftTextNodeOrError.unwrapErr());
+          return EditActionResult(splitParentDivOrPResult.Rv());
         }
-        pointToSplitParentDivOrP.SetToEndOf(newLeftTextNodeOrError.unwrap());
+        pointToSplitParentDivOrP.SetToEndOf(
+            splitParentDivOrPResult.GetPreviousContent());
       }
 
       // We need to put new <br> after the left node if given node was split
@@ -7188,17 +7193,23 @@ nsresult HTMLEditor::SplitParagraph(Element& aParentDivOrP,
   // it'll be exposed as <br> with Element.innerHTML.  Therefore, we can use
   // normal <br> elements for placeholder in this case.  Note that Chromium
   // also behaves so.
-  if (splitDivOrPResult.GetPreviousNode()->IsElement()) {
+  if (Element* previousElementOfSplitPoint =
+          Element::FromNode(splitDivOrPResult.GetPreviousContent())) {
+    // MOZ_KnownLive(previousElementAtSplitPoint):
+    // It's grabbed by splitDivOrResult.
     nsresult rv = InsertBRElementIfEmptyBlockElement(
-        MOZ_KnownLive(*splitDivOrPResult.GetPreviousNode()->AsElement()));
+        MOZ_KnownLive(*previousElementOfSplitPoint));
     if (NS_FAILED(rv)) {
       NS_WARNING("HTMLEditor::InsertBRElementIfEmptyBlockElement() failed");
       return rv;
     }
   }
-  if (splitDivOrPResult.GetNextNode()->IsElement()) {
+  if (Element* nextElementOfSplitPoint =
+          Element::FromNode(splitDivOrPResult.GetNextContent())) {
+    // MOZ_KnownLive(nextElementAtSplitPoint):
+    // It's grabbed by splitDivOrResult.
     nsresult rv = InsertBRElementIfEmptyBlockElement(
-        MOZ_KnownLive(*splitDivOrPResult.GetNextNode()->AsElement()));
+        MOZ_KnownLive(*nextElementOfSplitPoint));
     if (NS_FAILED(rv)) {
       NS_WARNING("HTMLEditor::InsertBRElementIfEmptyBlockElement() failed");
       return rv;
@@ -7247,13 +7258,13 @@ nsresult HTMLEditor::HandleInsertParagraphInListItemElement(
     if (!HTMLEditUtils::IsLastChild(aListItem,
                                     {WalkTreeOption::IgnoreNonEditableNode})) {
       // We need to split the list!
-      Result<nsCOMPtr<nsIContent>, nsresult> newListElementOrError =
+      SplitNodeResult splitListItemParentResult =
           SplitNodeWithTransaction(EditorDOMPoint(&aListItem));
-      if (MOZ_UNLIKELY(newListElementOrError.isErr())) {
+      if (MOZ_UNLIKELY(splitListItemParentResult.Failed())) {
         NS_WARNING("HTMLEditor::SplitNodeWithTransaction() failed");
-        return newListElementOrError.unwrapErr();
+        return splitListItemParentResult.Rv();
       }
-      leftListNode = newListElementOrError.unwrap();
+      leftListNode = splitListItemParentResult.GetPreviousContent();
     }
 
     // Are we in a sublist?
@@ -7972,7 +7983,7 @@ HTMLEditor::InsertElementWithSplittingAncestorsWithTransaction(
     return Err(NS_ERROR_EDITOR_UNEXPECTED_DOM_TREE);
   }
 
-  EditorDOMPoint splitPoint = splitNodeResult.SplitPoint();
+  EditorDOMPoint splitPoint = splitNodeResult.AtSplitPoint<EditorDOMPoint>();
 
   if (aBRElementNextToSplitPoint == BRElementNextToSplitPoint::Delete) {
     // Consume a trailing br, if any.  This is to keep an alignment from
@@ -8862,13 +8873,14 @@ nsresult HTMLEditor::LiftUpListItemElement(
       return NS_ERROR_FAILURE;
     }
     MOZ_ASSERT(atListItemElement.IsSetAndValid());
-    Result<nsCOMPtr<nsIContent>, nsresult> leftListElementOrError =
+    SplitNodeResult splitListItemParentResult =
         SplitNodeWithTransaction(atListItemElement);
-    if (MOZ_UNLIKELY(leftListElementOrError.isErr())) {
+    if (MOZ_UNLIKELY(splitListItemParentResult.Failed())) {
       NS_WARNING("HTMLEditor::SplitNodeWithTransaction() failed");
-      return leftListElementOrError.unwrapErr();
+      return splitListItemParentResult.Rv();
     }
-    leftListElement = Element::FromNodeOrNull(leftListElementOrError.unwrap());
+    leftListElement =
+        Element::FromNodeOrNull(splitListItemParentResult.GetPreviousContent());
     if (MOZ_UNLIKELY(!leftListElement)) {
       NS_WARNING(
           "HTMLEditor::SplitNodeWithTransaction() didn't return left list "

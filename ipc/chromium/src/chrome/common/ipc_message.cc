@@ -43,8 +43,9 @@ Message::Message(int32_t routing_id, msgid_t type, uint32_t segment_capacity,
   header()->seqno = 0;
 #if defined(OS_MACOSX)
   header()->cookie = 0;
+  header()->num_send_rights = 0;
 #endif
-  header()->footer_offset = -1;
+  header()->event_footer_size = 0;
   if (recordWriteLatency) {
     create_time_ = mozilla::TimeStamp::Now();
   }
@@ -60,7 +61,12 @@ Message::Message(Message&& other)
     : UserMessage(&kUserMessageTypeInfo),
       Pickle(std::move(other)),
       attached_handles_(std::move(other.attached_handles_)),
-      attached_ports_(std::move(other.attached_ports_)) {
+      attached_ports_(std::move(other.attached_ports_))
+#if defined(OS_MACOSX)
+      ,
+      attached_send_rights_(std::move(other.attached_send_rights_))
+#endif
+{
   MOZ_COUNT_CTOR(IPC::Message);
 }
 
@@ -91,56 +97,46 @@ Message& Message::operator=(Message&& other) {
   *static_cast<Pickle*>(this) = std::move(other);
   attached_handles_ = std::move(other.attached_handles_);
   attached_ports_ = std::move(other.attached_ports_);
+#if defined(OS_MACOSX)
+  attached_send_rights_ = std::move(other.attached_send_rights_);
+#endif
   return *this;
 }
 
 void Message::WriteFooter(const void* data, uint32_t data_len) {
-  MOZ_ASSERT(header()->footer_offset < 0, "Already wrote a footer!");
   if (data_len == 0) {
     return;
   }
-
-  // Record the start of the footer.
-  header()->footer_offset = header()->payload_size;
 
   WriteBytes(data, data_len);
 }
 
 bool Message::ReadFooter(void* buffer, uint32_t buffer_len, bool truncate) {
-  MOZ_ASSERT(buffer_len == FooterSize());
-  MOZ_ASSERT(header()->footer_offset <= int64_t(header()->payload_size));
   if (buffer_len == 0) {
     return true;
   }
 
-  // FIXME: This is a really inefficient way to seek to the end of the message
-  // for sufficiently large messages.
-  PickleIterator footer_iter(*this);
-  if (NS_WARN_IF(!IgnoreBytes(&footer_iter, header()->footer_offset))) {
+  if (NS_WARN_IF(AlignInt(header()->payload_size) != header()->payload_size) ||
+      NS_WARN_IF(AlignInt(buffer_len) > header()->payload_size)) {
     return false;
   }
 
-  // Use a copy of the footer iterator for reading bytes so that we can use the
-  // previous iterator to truncate the message if requested.
+  // Seek to the start of the footer, and read it in. We read in with a
+  // duplicate of the iterator so we can use it to truncate later.
+  uint32_t offset = header()->payload_size - AlignInt(buffer_len);
+  PickleIterator footer_iter(*this);
+  if (NS_WARN_IF(!IgnoreBytes(&footer_iter, offset))) {
+    return false;
+  }
+
   PickleIterator read_iter(footer_iter);
   bool ok = ReadBytesInto(&read_iter, buffer, buffer_len);
 
-  // If requested, truncate the buffer to the start of the footer, and clear our
-  // footer offset back to `-1`.
+  // If requested, truncate the buffer to the start of the footer.
   if (truncate) {
-    header()->footer_offset = -1;
     Truncate(&footer_iter);
   }
-
   return ok;
-}
-
-uint32_t Message::FooterSize() const {
-  if (header()->footer_offset >= 0 &&
-      uint32_t(header()->footer_offset) < header()->payload_size) {
-    return header()->payload_size - header()->footer_offset;
-  }
-  return 0;
 }
 
 bool Message::WriteFileHandle(mozilla::UniqueFileHandle handle) {
@@ -201,6 +197,37 @@ void Message::SetAttachedPorts(nsTArray<mozilla::ipc::ScopedPort> ports) {
   MOZ_DIAGNOSTIC_ASSERT(attached_ports_.IsEmpty());
   attached_ports_ = std::move(ports);
 }
+
+#if defined(OS_MACOSX)
+bool Message::WriteMachSendRight(mozilla::UniqueMachSendRight port) {
+  uint32_t index = attached_send_rights_.Length();
+  WriteUInt32(index);
+  if (index == MAX_DESCRIPTORS_PER_MESSAGE) {
+    return false;
+  }
+  attached_send_rights_.AppendElement(std::move(port));
+  return true;
+}
+
+bool Message::ConsumeMachSendRight(PickleIterator* iter,
+                                   mozilla::UniqueMachSendRight* port) const {
+  uint32_t index;
+  if (!ReadUInt32(iter, &index)) {
+    return false;
+  }
+  if (index >= attached_send_rights_.Length()) {
+    return false;
+  }
+  // NOTE: This mutates the underlying array, replacing the send right with a
+  // null right.
+  *port = std::exchange(attached_send_rights_[index], nullptr);
+  return true;
+}
+
+uint32_t Message::num_send_rights() const {
+  return attached_send_rights_.Length();
+}
+#endif
 
 bool Message::WillBeRoutedExternally(
     mojo::core::ports::UserMessageEvent& event) {

@@ -34,11 +34,11 @@
 #include "js/UbiNode.h"      // ubi::*
 #include "js/UniquePtr.h"    // UniquePtr
 #include "util/Poison.h"  // AlwaysPoison, JS_SCOPE_DATA_TRAILING_NAMES_PATTERN, MemCheckKind
-#include "vm/JSFunction.h"    // JSFunction
-#include "vm/ScopeKind.h"     // ScopeKind
-#include "vm/Shape.h"         // Shape
-#include "vm/Xdr.h"           // XDRResult, XDRState
-#include "wasm/WasmJS.h"      // WasmInstanceObject
+#include "vm/JSFunction.h"  // JSFunction
+#include "vm/ScopeKind.h"   // ScopeKind
+#include "vm/Shape.h"       // Shape
+#include "vm/Xdr.h"         // XDRResult, XDRState
+#include "wasm/WasmJS.h"    // WasmInstanceObject
 
 class JSAtom;
 class JSFreeOp;
@@ -57,10 +57,8 @@ class GenericPrinter;
 
 namespace frontend {
 struct CompilationAtomCache;
-struct CompilationStencilMerger;
 class ScopeStencil;
 struct ScopeStencilRef;
-class ParserAtom;
 }  // namespace frontend
 
 template <typename NameT>
@@ -119,22 +117,6 @@ class AbstractBindingName<JSAtom> {
                       bool isTopLevelFunction = false)
       : bits_(uintptr_t(name) | (closedOver ? ClosedOverFlag : 0x0) |
               (isTopLevelFunction ? TopLevelFunctionFlag : 0x0)) {}
-
- private:
-  // For fromXDR.
-  AbstractBindingName(NameT* name, uint8_t flags)
-      : bits_(uintptr_t(name) | flags) {
-    static_assert(FlagMask < alignof(NameT),
-                  "Flags should fit into unused low bits of atom repr");
-    MOZ_ASSERT((flags & FlagMask) == flags);
-  }
-
- public:
-  static AbstractBindingName<NameT> fromXDR(NameT* name, uint8_t flags) {
-    return AbstractBindingName<NameT>(name, flags);
-  }
-
-  uint8_t flagsForXDR() const { return static_cast<uint8_t>(bits_ & FlagMask); }
 
   NamePointerT name() const {
     return reinterpret_cast<NameT*>(bits_ & ~FlagMask);

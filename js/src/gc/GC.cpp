@@ -2153,7 +2153,7 @@ bool GCRuntime::prepareZonesForCollection(JS::GCReason reason,
     MOZ_ASSERT(!zone->isCollecting());
     MOZ_ASSERT_IF(!zone->isAtomsZone(), !zone->compartments().empty());
     for (auto i : AllAllocKinds()) {
-      MOZ_ASSERT(!zone->arenas.arenasToSweep(i));
+      MOZ_ASSERT(zone->arenas.collectingArenaList(i).isEmpty());
     }
   }
 #endif
@@ -2304,7 +2304,6 @@ bool GCRuntime::beginPreparePhase(JS::GCReason reason, AutoGCSession& session) {
    * can be slow. This happens concurrently with the mutator and GC proper does
    * not start until this is complete.
    */
-  setParallelUnmarkEnabled(true);
   unmarkTask.initZones();
   unmarkTask.start();
 
@@ -2335,6 +2334,9 @@ void BackgroundUnmarkTask::initZones() {
     if (!zones.append(zone.get())) {
       oomUnsafe.crash("BackgroundUnmarkTask::initZones");
     }
+
+    zone->arenas.clearFreeLists();
+    zone->arenas.moveArenasToCollectingLists();
   }
 }
 
@@ -2343,30 +2345,23 @@ void BackgroundUnmarkTask::run(AutoLockHelperThreadState& helperTheadLock) {
 
   AutoTraceLog log(TraceLoggerForCurrentThread(), TraceLogger_GCUnmarking);
 
-  // We need to hold the GC lock while traversing the arena lists.
-  AutoLockGC gcLock(gc);
-
-  unmarkZones(gcLock);
-  zones.clear();
-}
-
-void BackgroundUnmarkTask::unmarkZones(AutoLockGC& lock) {
   for (Zone* zone : zones) {
     for (auto kind : AllAllocKinds()) {
-      for (ArenaIter arena(zone, kind); !arena.done(); arena.next()) {
-        AutoUnlockGC unlock(lock);
+      ArenaList& arenas = zone->arenas.collectingArenaList(kind);
+      for (ArenaListIter arena(arenas.head()); !arena.done(); arena.next()) {
         arena->unmarkAll();
         if (isCancelled()) {
-          return;
+          break;
         }
       }
     }
   }
+
+  zones.clear();
 }
 
 void GCRuntime::endPreparePhase(JS::GCReason reason) {
   MOZ_ASSERT(unmarkTask.isIdle());
-  setParallelUnmarkEnabled(false);
 
   for (GCZonesIter zone(this); !zone.done(); zone.next()) {
     /*
@@ -2375,8 +2370,6 @@ void GCRuntime::endPreparePhase(JS::GCReason reason) {
      * arenaAllocatedDuringGC().
      */
     zone->arenas.clearFreeLists();
-
-    zone->arenas.checkGCStateNotInUse();
 
     zone->markedStrings = 0;
     zone->finalizedStrings = 0;
@@ -2518,6 +2511,11 @@ void GCRuntime::beginMarkPhase(AutoGCSession& session) {
   for (GCZonesIter zone(this); !zone.done(); zone.next()) {
     // Incremental marking barriers are enabled at this point.
     zone->changeGCState(Zone::Prepare, Zone::MarkBlackOnly);
+
+    // Merge arenas allocated during the prepare phase, then move all arenas to
+    // the collecting arena lists.
+    zone->arenas.mergeArenasFromCollectingLists();
+    zone->arenas.moveArenasToCollectingLists();
   }
 
   if (rt->isBeingDestroyed()) {
@@ -2827,11 +2825,12 @@ GCRuntime::IncrementalResult GCRuntime::resetIncrementalGC(
 
     case State::Prepare:
       unmarkTask.cancelAndWait();
-      setParallelUnmarkEnabled(false);
 
       for (GCZonesIter zone(this); !zone.done(); zone.next()) {
         zone->changeGCState(Zone::Prepare, Zone::NoGC);
         zone->clearGCSliceThresholds();
+        zone->arenas.clearFreeLists();
+        zone->arenas.mergeArenasFromCollectingLists();
       }
 
       incrementalState = State::NotActive;
@@ -2850,7 +2849,7 @@ GCRuntime::IncrementalResult GCRuntime::resetIncrementalGC(
         zone->changeGCState(Zone::MarkBlackOnly, Zone::NoGC);
         zone->clearGCSliceThresholds();
         zone->arenas.unmarkPreMarkedFreeCells();
-        zone->arenas.mergeNewArenasInMarkPhase();
+        zone->arenas.mergeArenasFromCollectingLists();
       }
 
       {

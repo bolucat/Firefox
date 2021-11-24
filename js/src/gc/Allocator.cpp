@@ -556,17 +556,11 @@ TenuredCell* ArenaLists::refillFreeListAndAllocate(
     return nullptr;
   }
 
-  addNewArena(arena, thingKind);
-
-  return freeLists.setArenaAndAllocate(arena, thingKind);
-}
-
-inline void ArenaLists::addNewArena(Arena* arena, AllocKind thingKind) {
-  ArenaList& al = zone_->isGCMarking() ? newArenasInMarkPhase(thingKind)
-                                       : arenaList(thingKind);
-
+  ArenaList& al = arenaList(thingKind);
   MOZ_ASSERT(al.isCursorAtEnd());
   al.insertBeforeCursor(arena);
+
+  return freeLists.setArenaAndAllocate(arena, thingKind);
 }
 
 inline TenuredCell* FreeLists::setArenaAndAllocate(Arena* arena,
@@ -601,25 +595,6 @@ void Arena::arenaAllocatedDuringGC() {
   for (ArenaFreeCellIter cell(this); !cell.done(); cell.next()) {
     MOZ_ASSERT(!cell->isMarkedAny());
     cell->markBlack();
-  }
-}
-
-void GCRuntime::setParallelUnmarkEnabled(bool enabled) {
-  // This can only be changed on the main thread otherwise we could race.
-  MOZ_ASSERT(CurrentThreadCanAccessRuntime(rt));
-  MOZ_ASSERT(JS::RuntimeHeapIsMajorCollecting());
-  for (GCZonesIter zone(this); !zone.done(); zone.next()) {
-    zone->arenas.setParallelUnmarkEnabled(enabled);
-  }
-}
-
-void ArenaLists::setParallelUnmarkEnabled(bool enabled) {
-  static const ConcurrentUse states[2] = {ConcurrentUse::None,
-                                          ConcurrentUse::ParallelUnmark};
-
-  for (auto kind : AllAllocKinds()) {
-    MOZ_ASSERT(concurrentUse(kind) == states[!enabled]);
-    concurrentUse(kind) = states[enabled];
   }
 }
 

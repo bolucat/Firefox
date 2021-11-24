@@ -197,12 +197,13 @@ auto NodeController::SerializeEventMessage(UniquePtr<Event> aEvent,
   }
 
   message->WriteFooter(buffer.begin(), buffer.length());
+  message->set_event_footer_size(buffer.length());
 
 #ifdef DEBUG
   // Debug-assert that we can read the same data back out of the buffer.
-  MOZ_ASSERT(message->FooterSize() == length);
+  MOZ_ASSERT(message->event_footer_size() == length);
   Vector<char, 256, InfallibleAllocPolicy> buffer2;
-  (void)buffer2.initLengthUninitialized(message->FooterSize());
+  (void)buffer2.initLengthUninitialized(message->event_footer_size());
   MOZ_ASSERT(message->ReadFooter(buffer2.begin(), buffer2.length(),
                                  /* truncate */ false));
   MOZ_ASSERT(!memcmp(buffer2.begin(), buffer.begin(), buffer.length()));
@@ -220,7 +221,7 @@ auto NodeController::DeserializeEventMessage(UniquePtr<IPC::Message> aMessage,
   }
 
   Vector<char, 256, InfallibleAllocPolicy> buffer;
-  (void)buffer.initLengthUninitialized(aMessage->FooterSize());
+  (void)buffer.initLengthUninitialized(aMessage->event_footer_size());
   // Truncate the message when reading the footer, so that the extra footer data
   // is no longer present in the message. This allows future code to eventually
   // send the same `IPC::Message` to another process.
@@ -230,6 +231,7 @@ auto NodeController::DeserializeEventMessage(UniquePtr<IPC::Message> aMessage,
                            aMessage->name());
     return nullptr;
   }
+  aMessage->set_event_footer_size(0);
 
   UniquePtr<Event> event;
   if (aRelayTarget) {
@@ -306,15 +308,16 @@ void NodeController::ForwardEvent(const NodeName& aNode,
   if (aNode == mName) {
     (void)mNode->AcceptEvent(std::move(aEvent));
   } else {
-    // On Windows, messages holding HANDLEs must be relayed via the broker
-    // process so it can transfer handle ownership.
+    // On Windows and macOS, messages holding HANDLEs or mach ports must be
+    // relayed via the broker process so it can transfer ownership.
     bool needsRelay = false;
-#ifdef XP_WIN
+#if defined(XP_WIN) || defined(XP_MACOSX)
     if (!IsBroker() && aNode != kBrokerNodeName &&
         aEvent->type() == Event::kUserMessage) {
       auto* userEvent = static_cast<UserMessageEvent*>(aEvent.get());
-      needsRelay = userEvent->HasMessage() &&
-                   userEvent->GetMessage<IPC::Message>()->num_handles() > 0;
+      needsRelay =
+          userEvent->HasMessage() &&
+          userEvent->GetMessage<IPC::Message>()->num_relayed_attachments() > 0;
     }
 #endif
 
@@ -362,16 +365,13 @@ void NodeController::ForwardEvent(const NodeName& aNode,
                "Only one of the two should ever be set");
 
     if (needsRelay) {
-#ifdef XP_WIN
       NODECONTROLLER_LOG(LogLevel::Info,
-                         "Relaying message '%s' for peer %s due to %lu handles",
+                         "Relaying message '%s' for peer %s due to %" PRIu32
+                         " attachments",
                          message->name(), ToString(aNode).c_str(),
-                         message->num_handles());
-      MOZ_ASSERT(broker);
+                         message->num_relayed_attachments());
+      MOZ_ASSERT(message->num_relayed_attachments() > 0 && broker);
       broker->SendEventMessage(std::move(message));
-#else
-      MOZ_ASSERT_UNREACHABLE("relaying messages is only supported on windows");
-#endif
     } else if (needsIntroduction) {
       MOZ_ASSERT(broker);
       broker->RequestIntroduction(aNode);
@@ -416,8 +416,15 @@ void NodeController::OnEventMessage(const NodeName& aFromNode,
   AssertIOThread();
 
   bool isRelay = aMessage->is_relay();
-  NodeName relayTarget;
+  if (isRelay && aMessage->num_relayed_attachments() == 0) {
+    NODECONTROLLER_WARNING(
+        "Invalid relay message without relayed attachments from peer %s!",
+        ToString(aFromNode).c_str());
+    DropPeer(aFromNode);
+    return;
+  }
 
+  NodeName relayTarget;
   UniquePtr<Event> event = DeserializeEventMessage(
       std::move(aMessage), isRelay ? &relayTarget : nullptr);
   if (!event) {
@@ -428,7 +435,7 @@ void NodeController::OnEventMessage(const NodeName& aFromNode,
   }
 
   NodeName fromNode = aFromNode;
-#ifdef XP_WIN
+#if defined(XP_WIN) || defined(XP_MACOSX)
   if (isRelay) {
     if (event->type() != Event::kUserMessage) {
       NODECONTROLLER_WARNING(
@@ -452,12 +459,15 @@ void NodeController::OnEventMessage(const NodeName& aFromNode,
         return;
       }
       MOZ_ASSERT(message->is_relay(), "Message stopped being a relay message?");
+      MOZ_ASSERT(message->num_relayed_attachments() > 0,
+                 "Message doesn't have relayed attachments?");
 
       NODECONTROLLER_LOG(
           LogLevel::Info,
-          "Relaying message '%s' from peer %s to peer %s (%lu handles)",
+          "Relaying message '%s' from peer %s to peer %s (%" PRIu32
+          " attachments)",
           message->name(), ToString(aFromNode).c_str(),
-          ToString(relayTarget).c_str(), message->num_handles());
+          ToString(relayTarget).c_str(), message->num_relayed_attachments());
 
       RefPtr<NodeChannel> peer;
       {
@@ -736,7 +746,7 @@ static mojo::core::ports::NodeName RandomNodeName() {
   return {RandomUint64OrDie(), RandomUint64OrDie()};
 }
 
-ScopedPort NodeController::InviteChildProcess(
+std::tuple<ScopedPort, RefPtr<NodeChannel>> NodeController::InviteChildProcess(
     UniquePtr<IPC::Channel> aChannel) {
   MOZ_ASSERT(IsBroker());
   AssertIOThread();
@@ -759,7 +769,7 @@ ScopedPort NodeController::InviteChildProcess(
   }
 
   nodeChannel->Start(/* aCallConnect */ false);
-  return std::move(ports.first);
+  return std::tuple{std::move(ports.first), std::move(nodeChannel)};
 }
 
 void NodeController::InitBrokerProcess() {

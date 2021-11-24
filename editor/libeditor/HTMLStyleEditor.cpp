@@ -5,13 +5,15 @@
 
 #include "HTMLEditor.h"
 
+#include "EditAction.h"
+#include "EditorUtils.h"
+#include "HTMLEditHelpers.h"
 #include "HTMLEditUtils.h"
+#include "SelectionState.h"
+#include "TypeInState.h"
+
 #include "mozilla/Assertions.h"
 #include "mozilla/ContentIterator.h"
-#include "mozilla/EditAction.h"
-#include "mozilla/EditorUtils.h"
-#include "mozilla/SelectionState.h"
-#include "mozilla/TypeInState.h"
 #include "mozilla/mozalloc.h"
 #include "mozilla/dom/AncestorIterator.h"
 #include "mozilla/dom/Element.h"
@@ -464,24 +466,23 @@ nsresult HTMLEditor::SetInlinePropertyOnTextNode(
   EditorDOMPoint atEnd(textNodeForTheRange, aEndOffset);
   if (!atEnd.IsEndOfContainer()) {
     // We need to split off back of text node
-    Result<nsCOMPtr<nsIContent>, nsresult> newLeftTextNodeOrError =
-        SplitNodeWithTransaction(atEnd);
-    if (MOZ_UNLIKELY(newLeftTextNodeOrError.isErr())) {
+    SplitNodeResult splitAtEndResult = SplitNodeWithTransaction(atEnd);
+    if (MOZ_UNLIKELY(splitAtEndResult.Failed())) {
       NS_WARNING("HTMLEditor::SplitNodeWithTransaction() failed");
-      return newLeftTextNodeOrError.unwrapErr();
+      return splitAtEndResult.Rv();
     }
-    textNodeForTheRange = Text::FromNodeOrNull(newLeftTextNodeOrError.unwrap());
+    textNodeForTheRange =
+        Text::FromNodeOrNull(splitAtEndResult.GetPreviousContent());
   }
 
   // Split at the start of the range.
   EditorDOMPoint atStart(textNodeForTheRange, aStartOffset);
   if (!atStart.IsStartOfContainer()) {
     // We need to split off front of text node
-    Result<nsCOMPtr<nsIContent>, nsresult> newLeftTextNodeOrError =
-        SplitNodeWithTransaction(atStart);
-    if (MOZ_UNLIKELY(newLeftTextNodeOrError.isErr())) {
+    SplitNodeResult splitAtStartResult = SplitNodeWithTransaction(atStart);
+    if (MOZ_UNLIKELY(splitAtStartResult.Failed())) {
       NS_WARNING("HTMLEditor::SplitNodeWithTransaction() failed");
-      return newLeftTextNodeOrError.unwrapErr();
+      return splitAtStartResult.Rv();
     }
   }
 
@@ -807,7 +808,7 @@ SplitRangeOffResult HTMLEditor::SplitAncestorStyledInlineElementsAtRangeEdges(
       return SplitRangeOffResult(resultAtStart.Rv());
     }
     if (resultAtStart.Handled()) {
-      startOfRange = resultAtStart.SplitPoint();
+      startOfRange = resultAtStart.AtSplitPoint<EditorDOMPoint>();
       if (!startOfRange.IsSet()) {
         NS_WARNING(
             "HTMLEditor::SplitAncestorStyledInlineElementsAt() didn't return "
@@ -828,7 +829,7 @@ SplitRangeOffResult HTMLEditor::SplitAncestorStyledInlineElementsAtRangeEdges(
       return SplitRangeOffResult(resultAtEnd.Rv());
     }
     if (resultAtEnd.Handled()) {
-      endOfRange = resultAtEnd.SplitPoint();
+      endOfRange = resultAtEnd.AtSplitPoint<EditorDOMPoint>();
       if (!endOfRange.IsSet()) {
         NS_WARNING(
             "HTMLEditor::SplitAncestorStyledInlineElementsAt() didn't return "
@@ -917,7 +918,7 @@ SplitNodeResult HTMLEditor::SplitAncestorStyledInlineElementsAt(
     //     as handled with setting only previous or next node.  If its parent
     //     is a block, we do nothing but return as handled.
     SplitNodeResult splitNodeResult = SplitNodeDeepWithTransaction(
-        MOZ_KnownLive(content), result.SplitPoint(),
+        MOZ_KnownLive(content), result.AtSplitPoint<EditorDOMPoint>(),
         SplitAtEdges::eAllowToCreateEmptyContainer);
     if (MOZ_UNLIKELY(splitNodeResult.Failed())) {
       NS_WARNING("HTMLEditor::SplitNodeDeepWithTransaction() failed");
@@ -930,8 +931,9 @@ SplitNodeResult HTMLEditor::SplitAncestorStyledInlineElementsAt(
       continue;
     }
     // Mark the final result as handled forcibly.
-    result = SplitNodeResult(splitNodeResult.GetPreviousNode(),
-                             splitNodeResult.GetNextNode());
+    result = SplitNodeResult(splitNodeResult.GetPreviousContent(),
+                             splitNodeResult.GetNextContent(),
+                             SplitNodeDirection::LeftNodeIsNewOne);
     MOZ_ASSERT(result.Handled());
   }
 
@@ -967,15 +969,16 @@ EditResult HTMLEditor::ClearStyleAt(const EditorDOMPoint& aPoint,
   // If it did split nodes, but topmost ancestor inline element is split
   // at start of it, we don't need the empty inline element.  Let's remove
   // it now.
-  if (splitResult.GetPreviousNode() &&
-      HTMLEditUtils::IsEmptyNode(
-          *splitResult.GetPreviousNode(),
+  if (HTMLEditUtils::IsEmptyNode(
+          *splitResult.GetPreviousContent(),
           {EmptyCheckOption::TreatSingleBRElementAsVisible,
            EmptyCheckOption::TreatListItemAsVisible,
            EmptyCheckOption::TreatTableCellAsVisible})) {
     // Delete previous node if it's empty.
+    // MOZ_KnownLive(splitResult.GetPreviousContent()):
+    // It's grabbed by splitResult.
     nsresult rv = DeleteNodeWithTransaction(
-        MOZ_KnownLive(*splitResult.GetPreviousNode()));
+        MOZ_KnownLive(*splitResult.GetPreviousContent()));
     if (NS_WARN_IF(Destroyed())) {
       return EditResult(NS_ERROR_EDITOR_DESTROYED);
     }
@@ -990,7 +993,7 @@ EditResult HTMLEditor::ClearStyleAt(const EditorDOMPoint& aPoint,
   // we're in CSS mode.
   // XXX Chrome resets block style and creates `<span>` elements for each
   //     line in this case.
-  if (!splitResult.GetNextNode()) {
+  if (!splitResult.GetNextContent()) {
     return EditResult(aPoint);
   }
 
@@ -1001,10 +1004,10 @@ EditResult HTMLEditor::ClearStyleAt(const EditorDOMPoint& aPoint,
   // `<p><b><i>a</i></b><b><i></i></b><b><i>bc</i></b></p>`.
   //                    ^^^^^^^^^^^^^^
   nsIContent* firstLeafChildOfNextNode = HTMLEditUtils::GetFirstLeafContent(
-      *splitResult.GetNextNode(), {LeafNodeType::OnlyLeafNode});
+      *splitResult.GetNextContent(), {LeafNodeType::OnlyLeafNode});
   EditorDOMPoint atStartOfNextNode(firstLeafChildOfNextNode
                                        ? firstLeafChildOfNextNode
-                                       : splitResult.GetNextNode(),
+                                       : splitResult.GetNextContent(),
                                    0);
   RefPtr<HTMLBRElement> brElement;
   // But don't try to split non-containers like `<br>`, `<hr>` and `<img>`
@@ -1031,15 +1034,17 @@ EditResult HTMLEditor::ClearStyleAt(const EditorDOMPoint& aPoint,
   // Let's remove the next node if it becomes empty by splitting it.
   // XXX Is this possible case without mutation event listener?
   if (splitResultAtStartOfNextNode.Handled() &&
-      splitResultAtStartOfNextNode.GetNextNode() &&
+      splitResultAtStartOfNextNode.GetNextContent() &&
       HTMLEditUtils::IsEmptyNode(
-          *splitResultAtStartOfNextNode.GetNextNode(),
+          *splitResultAtStartOfNextNode.GetNextContent(),
           {EmptyCheckOption::TreatSingleBRElementAsVisible,
            EmptyCheckOption::TreatListItemAsVisible,
            EmptyCheckOption::TreatTableCellAsVisible})) {
     // Delete next node if it's empty.
+    // MOZ_KnownLive(splitResultAtStartOfNextNode.GetNextContent()):
+    // It's grabbed by splitResultAtStartOfNextNode.
     nsresult rv = DeleteNodeWithTransaction(
-        MOZ_KnownLive(*splitResultAtStartOfNextNode.GetNextNode()));
+        MOZ_KnownLive(*splitResultAtStartOfNextNode.GetNextContent()));
     if (NS_WARN_IF(Destroyed())) {
       return EditResult(NS_ERROR_EDITOR_DESTROYED);
     }
@@ -1052,23 +1057,26 @@ EditResult HTMLEditor::ClearStyleAt(const EditorDOMPoint& aPoint,
   // If there is no content, we should return here.
   // XXX Is this possible case without mutation event listener?
   if (NS_WARN_IF(!splitResultAtStartOfNextNode.Handled()) ||
-      !splitResultAtStartOfNextNode.GetPreviousNode()) {
+      !splitResultAtStartOfNextNode.GetPreviousContent()) {
     // XXX This is really odd, but we retrun this value...
-    return EditResult(
-        EditorDOMPoint(splitResult.SplitPoint().GetContainer(),
-                       splitResultAtStartOfNextNode.SplitPoint().Offset()));
+    const EditorRawDOMPoint& splitPoint =
+        splitResult.AtSplitPoint<EditorRawDOMPoint>();
+    const EditorRawDOMPoint& splitPointAtStartOfNextNode =
+        splitResultAtStartOfNextNode.AtSplitPoint<EditorRawDOMPoint>();
+    return EditResult(EditorDOMPoint(splitPoint.GetContainer(),
+                                     splitPointAtStartOfNextNode.Offset()));
   }
 
   // Now, we want to put `<br>` element into the empty split node if
   // it was in next node of the first split.
   // E.g., `<p><b><i>a</i></b><b><i><br></i></b><b><i>bc</i></b></p>`
   nsIContent* firstLeafChildOfPreviousNode = HTMLEditUtils::GetFirstLeafContent(
-      *splitResultAtStartOfNextNode.GetPreviousNode(),
+      *splitResultAtStartOfNextNode.GetPreviousContent(),
       {LeafNodeType::OnlyLeafNode});
   EditorDOMPoint pointToPutCaret(
       firstLeafChildOfPreviousNode
           ? firstLeafChildOfPreviousNode
-          : splitResultAtStartOfNextNode.GetPreviousNode(),
+          : splitResultAtStartOfNextNode.GetPreviousContent(),
       0);
   // If the right node starts with a `<br>`, suck it out of right node and into
   // the left node left node.  This is so we you don't revert back to the
@@ -1090,17 +1098,18 @@ EditResult HTMLEditor::ClearStyleAt(const EditorDOMPoint& aPoint,
   // want to make the first example as:
   // `<p><b><i>a</i></b><i>[]</i><b><i>bc</i></b></p>`
   //                    ^^^^^^^^^
-  if (splitResultAtStartOfNextNode.GetPreviousNode()->IsElement()) {
+  if (Element* previousElementOfSplitPoint = Element::FromNode(
+          splitResultAtStartOfNextNode.GetPreviousContent())) {
     // Track the point at the new hierarchy.  This is so we can know where
     // to put the selection after we call RemoveStyleInside().
     // RemoveStyleInside() could remove any and all of those nodes, so I
     // have to use the range tracking system to find the right spot to put
     // selection.
     AutoTrackDOMPoint tracker(RangeUpdaterRef(), &pointToPutCaret);
-    nsresult rv = RemoveStyleInside(
-        MOZ_KnownLive(
-            *splitResultAtStartOfNextNode.GetPreviousNode()->AsElement()),
-        aProperty, aAttribute, aSpecifiedStyle);
+    // MOZ_KnownLive(previousElementOfSplitPoint):
+    // It's grabbed by splitResultAtStartOfNextNode.
+    nsresult rv = RemoveStyleInside(MOZ_KnownLive(*previousElementOfSplitPoint),
+                                    aProperty, aAttribute, aSpecifiedStyle);
     if (NS_FAILED(rv)) {
       NS_WARNING("HTMLEditor::RemoveStyleInside() failed");
       return EditResult(rv);
@@ -2379,13 +2388,13 @@ nsresult HTMLEditor::RelativeFontChangeOnTextNode(FontSize aDir,
   EditorDOMPoint atEnd(textNodeForTheRange, aEndOffset);
   if (!atEnd.IsEndOfContainer()) {
     // We need to split off back of text node
-    Result<nsCOMPtr<nsIContent>, nsresult> newLeftTextNodeOrError =
-        SplitNodeWithTransaction(atEnd);
-    if (MOZ_UNLIKELY(newLeftTextNodeOrError.isErr())) {
+    SplitNodeResult splitAtEndResult = SplitNodeWithTransaction(atEnd);
+    if (MOZ_UNLIKELY(splitAtEndResult.Failed())) {
       NS_WARNING("HTMLEditor::SplitNodeWithTransaction() failed");
-      return newLeftTextNodeOrError.unwrapErr();
+      return splitAtEndResult.Rv();
     }
-    textNodeForTheRange = Text::FromNodeOrNull(newLeftTextNodeOrError.unwrap());
+    textNodeForTheRange =
+        Text::FromNodeOrNull(splitAtEndResult.GetPreviousContent());
     MOZ_DIAGNOSTIC_ASSERT(textNodeForTheRange);
   }
 
@@ -2393,11 +2402,10 @@ nsresult HTMLEditor::RelativeFontChangeOnTextNode(FontSize aDir,
   EditorDOMPoint atStart(textNodeForTheRange, aStartOffset);
   if (!atStart.IsStartOfContainer()) {
     // We need to split off front of text node
-    Result<nsCOMPtr<nsIContent>, nsresult> newLeftTextNodeOrError =
-        SplitNodeWithTransaction(atStart);
-    if (MOZ_UNLIKELY(newLeftTextNodeOrError.isErr())) {
+    SplitNodeResult splitAtStartResult = SplitNodeWithTransaction(atStart);
+    if (MOZ_UNLIKELY(splitAtStartResult.Failed())) {
       NS_WARNING("HTMLEditor::SplitNodeWithTransaction() failed");
-      return newLeftTextNodeOrError.unwrapErr();
+      return splitAtStartResult.Rv();
     }
   }
 

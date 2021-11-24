@@ -66,11 +66,11 @@ export async function onConnect(_commands, _resourceCommand, _actions, store) {
     targetFront.isWebExtension
   );
 
-  await targetCommand.watchTargets(
-    targetCommand.ALL_TYPES,
-    onTargetAvailable,
-    onTargetDestroyed
-  );
+  await targetCommand.watchTargets({
+    types: targetCommand.ALL_TYPES,
+    onAvailable: onTargetAvailable,
+    onDestroyed: onTargetDestroyed,
+  });
 
   // Use independant listeners for SOURCE and THREAD_STATE in order to ease
   // doing batching and notify about a set of SOURCE's in one redux action.
@@ -78,7 +78,7 @@ export async function onConnect(_commands, _resourceCommand, _actions, store) {
     onAvailable: onSourceAvailable,
   });
   await resourceCommand.watchResources([resourceCommand.TYPES.THREAD_STATE], {
-    onAvailable: onBreakpointAvailable,
+    onAvailable: onThreadStateAvailable,
   });
 
   await resourceCommand.watchResources([resourceCommand.TYPES.ERROR_MESSAGE], {
@@ -92,16 +92,16 @@ export async function onConnect(_commands, _resourceCommand, _actions, store) {
 }
 
 export function onDisconnect() {
-  targetCommand.unwatchTargets(
-    targetCommand.ALL_TYPES,
-    onTargetAvailable,
-    onTargetDestroyed
-  );
+  targetCommand.unwatchTargets({
+    types: targetCommand.ALL_TYPES,
+    onAvailable: onTargetAvailable,
+    onDestroyed: onTargetDestroyed,
+  });
   resourceCommand.unwatchResources([resourceCommand.TYPES.SOURCE], {
     onAvailable: onSourceAvailable,
   });
   resourceCommand.unwatchResources([resourceCommand.TYPES.THREAD_STATE], {
-    onAvailable: onBreakpointAvailable,
+    onAvailable: onThreadStateAvailable,
   });
   resourceCommand.unwatchResources([resourceCommand.TYPES.ERROR_MESSAGE], {
     onAvailable: actions.addExceptionFromResources,
@@ -167,8 +167,8 @@ async function onSourceAvailable(sources) {
   await actions.newGeneratedSources(frontendSources);
 }
 
-async function onBreakpointAvailable(breakpoints) {
-  for (const resource of breakpoints) {
+async function onThreadStateAvailable(resources) {
+  for (const resource of resources) {
     if (resource.targetFront.isDestroyed()) {
       continue;
     }

@@ -1986,7 +1986,7 @@ NS_IMETHODIMP nsExternalAppHandler::OnStartRequest(nsIRequest* request) {
      * We can skip this check, though, if we have a setting to open in a
      * helper app.
      * This code mirrors the code in
-     * nsExternalAppHandler::LaunchWithApplication so that what we
+     * nsExternalAppHandler::SetDownloadToLaunch so that what we
      * test here is as close as possible to what will really be
      * happening if we decide to execute
      */
@@ -2020,7 +2020,11 @@ NS_IMETHODIMP nsExternalAppHandler::OnStartRequest(nsIRequest* request) {
          action == nsIMIMEInfo::useSystemDefault ||
          shouldAutomaticallyHandleInternally) &&
         !alwaysAskWhereToSave) {
-      rv = LaunchWithApplication(shouldAutomaticallyHandleInternally, nullptr);
+      // Check if the file is local, in which case just launch it from where it
+      // is. Otherwise, set the file to launch once it's finished downloading.
+      rv = mIsFileChannel ? LaunchLocalFile()
+                          : SetDownloadToLaunch(
+                                shouldAutomaticallyHandleInternally, nullptr);
     } else {
       rv = PromptForSaveDestination();
     }
@@ -2074,11 +2078,6 @@ void nsExternalAppHandler::RecordDownloadTelemetry(nsIChannel* aChannel,
 
 bool nsExternalAppHandler::IsDownloadSpam(nsIChannel* aChannel) {
   nsCOMPtr<nsILoadInfo> loadInfo = aChannel->LoadInfo();
-
-  if (loadInfo->GetHasValidUserGestureActivation()) {
-    return false;
-  }
-
   nsCOMPtr<nsIPermissionManager> permissionManager =
       mozilla::services::GetPermissionManager();
   nsCOMPtr<nsIPrincipal> principal = loadInfo->TriggeringPrincipal();
@@ -2119,7 +2118,8 @@ bool nsExternalAppHandler::IsDownloadSpam(nsIChannel* aChannel) {
       // End cancel
       return true;
     }
-  } else {
+  }
+  if (!loadInfo->GetHasValidUserGestureActivation()) {
     permissionManager->AddFromPrincipal(
         principal, type, nsIPermissionManager::PROMPT_ACTION,
         nsIPermissionManager::EXPIRE_NEVER, 0 /* expire time */);
@@ -2740,32 +2740,13 @@ nsresult nsExternalAppHandler::ContinueSave(nsIFile* aNewFileLocation) {
   return NS_OK;
 }
 
-// LaunchWithApplication should only be called by the helper app dialog which
+// SetDownloadToLaunch should only be called by the helper app dialog which
 // allows the user to say launch with application or save to disk.
-NS_IMETHODIMP nsExternalAppHandler::LaunchWithApplication(
+NS_IMETHODIMP nsExternalAppHandler::SetDownloadToLaunch(
     bool aHandleInternally, nsIFile* aNewFileLocation) {
   if (mCanceled) return NS_OK;
 
   mHandleInternally = aHandleInternally;
-
-  // Now check if the file is local, in which case we won't bother with saving
-  // it to a temporary directory and just launch it from where it is
-  nsCOMPtr<nsIFileURL> fileUrl(do_QueryInterface(mSourceUrl));
-  if (fileUrl && mIsFileChannel) {
-    Cancel(NS_BINDING_ABORTED);
-    nsCOMPtr<nsIFile> file;
-    nsresult rv = fileUrl->GetFile(getter_AddRefs(file));
-
-    if (NS_SUCCEEDED(rv)) {
-      rv = mMimeInfo->LaunchWithFile(file);
-      if (NS_SUCCEEDED(rv)) return NS_OK;
-    }
-    nsAutoString path;
-    if (file) file->GetPath(path);
-    // If we get here, an error happened
-    SendStatusChange(kLaunchError, rv, nullptr, path);
-    return rv;
-  }
 
   // Now that the user has elected to launch the downloaded file with a helper
   // app, we're justified in removing the 'salted' name.  We'll rename to what
@@ -2812,6 +2793,23 @@ NS_IMETHODIMP nsExternalAppHandler::LaunchWithApplication(
     SendStatusChange(kWriteError, rv, nullptr, path);
     Cancel(rv);
   }
+  return rv;
+}
+
+nsresult nsExternalAppHandler::LaunchLocalFile() {
+  nsCOMPtr<nsIFileURL> fileUrl(do_QueryInterface(mSourceUrl));
+  Cancel(NS_BINDING_ABORTED);
+  nsCOMPtr<nsIFile> file;
+  nsresult rv = fileUrl->GetFile(getter_AddRefs(file));
+
+  if (NS_SUCCEEDED(rv)) {
+    rv = mMimeInfo->LaunchWithFile(file);
+    if (NS_SUCCEEDED(rv)) return NS_OK;
+  }
+  nsAutoString path;
+  if (file) file->GetPath(path);
+  // If we get here, an error happened
+  SendStatusChange(kLaunchError, rv, nullptr, path);
   return rv;
 }
 
