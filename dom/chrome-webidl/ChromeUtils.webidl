@@ -634,8 +634,7 @@ dictionary ThreadInfoDictionary {
   long long tid = 0;
   DOMString name = "";
   unsigned long long cpuCycleCount = 0;
-  unsigned long long cpuUser = 0;
-  unsigned long long cpuKernel = 0;
+  unsigned long long cpuTime = 0;
 };
 
 dictionary WindowInfoDictionary {
@@ -672,20 +671,14 @@ dictionary ChildProcInfoDictionary {
   // The cross-process descriptor for this process.
   long long pid = 0;
 
-  // Process filename (without the path name).
-  DOMString filename = "";
-
   // The best end-user measure for "memory used" that we can obtain without
   // triggering expensive computations. The value is in bytes.
   // On Mac and Linux this matches the values shown by the system monitors.
   // On Windows this will return the Commit Size.
   unsigned long long memory = 0;
 
-  // Time spent by the process in user mode, in ns.
-  unsigned long long cpuUser = 0;
-
-  // Time spent by the process in kernel mode, in ns.
-  unsigned long long cpuKernel = 0;
+  // Total CPU time spent by the process, in ns.
+  unsigned long long cpuTime = 0;
 
   // Total CPU cycles used by this process.
   // On Windows where the resolution of CPU timings is 16ms, this can
@@ -720,20 +713,14 @@ dictionary ParentProcInfoDictionary {
   // The cross-process descriptor for this process.
   long long pid = 0;
 
-  // Process filename (without the path name).
-  DOMString filename = "";
-
   // The best end-user measure for "memory used" that we can obtain without
   // triggering expensive computations. The value is in bytes.
   // On Mac and Linux this matches the values shown by the system monitors.
   // On Windows this will return the Commit Size.
   unsigned long long memory = 0;
 
-  // Time spent by the process in user mode, in ns.
-  unsigned long long cpuUser = 0;
-
-  // Time spent by the process in kernel mode, in ns.
-  unsigned long long cpuKernel = 0;
+  // Total CPU time spent by the process, in ns.
+  unsigned long long cpuTime = 0;
 
   // Total CPU cycles used by this process.
   // On Windows where the resolution of CPU timings is 16ms, this can

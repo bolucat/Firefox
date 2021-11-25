@@ -43,7 +43,7 @@ class StatReader {
     nsAutoString fileContent;
     nsresult rv = ReadFile(fileContent);
     NS_ENSURE_SUCCESS(rv, rv);
-    // We first extract the filename
+    // We first extract the file or thread name
     int32_t startPos = fileContent.RFindChar('(');
     if (startPos == -1) {
       return NS_ERROR_FAILURE;
@@ -53,7 +53,7 @@ class StatReader {
       return NS_ERROR_FAILURE;
     }
     int32_t len = endPos - (startPos + 1);
-    aInfo.filename.Assign(Substring(fileContent, startPos + 1, len));
+    mName.Assign(Substring(fileContent, startPos + 1, len));
 
     // now we can use the tokenizer for the rest of the file
     nsWhitespaceTokenizer tokenizer(Substring(fileContent, endPos + 2));
@@ -77,13 +77,13 @@ class StatReader {
       case 13:
         // Amount of time that this process has been scheduled
         // in user mode, measured in clock ticks
-        aInfo.cpuUser = GetCPUTime(aToken, &rv);
+        aInfo.cpuTime += GetCPUTime(aToken, &rv);
         NS_ENSURE_SUCCESS(rv, rv);
         break;
       case 14:
         // Amount of time that this process has been scheduled
         // in kernel mode, measured in clock ticks
-        aInfo.cpuKernel = GetCPUTime(aToken, &rv);
+        aInfo.cpuTime += GetCPUTime(aToken, &rv);
         NS_ENSURE_SUCCESS(rv, rv);
         break;
     }
@@ -120,7 +120,7 @@ class StatReader {
   base::ProcessId mPid;
   int32_t mMaxIndex;
   nsCString mFilepath;
-  ProcInfo mProcInfo;
+  nsString mName;
 
  private:
   // Reads the stat file and puts its content in a nsString.
@@ -175,9 +175,8 @@ class ThreadInfoReader final : public StatReader {
 
     aInfo.tid = mTid;
     // Copying over the data we got from StatReader::ParseProc()
-    aInfo.cpuKernel = info.cpuKernel;
-    aInfo.cpuUser = info.cpuUser;
-    aInfo.name.Assign(info.filename);
+    aInfo.cpuTime = info.cpuTime;
+    aInfo.name.Assign(mName);
     return NS_OK;
   }
 
@@ -193,7 +192,7 @@ nsresult GetCpuTimeSinceProcessStartInMs(uint64_t* aResult) {
     return rv;
   }
 
-  *aResult = (info.cpuKernel + info.cpuUser) / PR_NSEC_PER_MSEC;
+  *aResult = info.cpuTime / PR_NSEC_PER_MSEC;
   return NS_OK;
 }
 

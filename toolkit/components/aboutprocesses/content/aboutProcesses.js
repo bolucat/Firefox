@@ -173,16 +173,15 @@ var State = {
     let result = {
       tid: cur.tid,
       name: cur.name || `(${cur.tid})`,
-      // Total amount of CPU used, in ns (user + kernel).
-      totalCpu: cur.cpuUser + cur.cpuKernel,
+      // Total amount of CPU used, in ns.
+      totalCpu: cur.cpuTime,
       slopeCpu: null,
       active: null,
     };
     if (!deltaT) {
       return result;
     }
-    result.slopeCpu =
-      (result.totalCpu - (prev ? prev.cpuUser + prev.cpuKernel : 0)) / deltaT;
+    result.slopeCpu = (result.totalCpu - (prev ? prev.cpuTime : 0)) / deltaT;
     result.active =
       !!result.slopeCpu || cur.cpuCycleCount > (prev ? prev.cpuCycleCount : 0);
     return result;
@@ -258,10 +257,9 @@ var State = {
     let result = {
       pid: cur.pid,
       childID: cur.childID,
-      filename: cur.filename,
       totalRamSize: cur.memory,
       deltaRamSize: null,
-      totalCpu: cur.cpuUser + cur.cpuKernel,
+      totalCpu: cur.cpuTime,
       slopeCpu: null,
       active: null,
       type: cur.type,
@@ -304,8 +302,7 @@ var State = {
       );
     }
     result.deltaRamSize = cur.memory - prev.memory;
-    result.slopeCpu =
-      (cur.cpuUser + cur.cpuKernel - prev.cpuUser - prev.cpuKernel) / deltaT;
+    result.slopeCpu = (cur.cpuTime - prev.cpuTime) / deltaT;
     result.active = !!result.slopeCpu || cur.cpuCycleCount > prev.cpuCycleCount;
     result.threads = threads;
     return result;
@@ -774,7 +771,7 @@ var View = {
     row.win = data;
     row.className = "window";
 
-    // Column: filename
+    // Column: name
     let nameCell = row.firstChild;
     let tab = tabFinder.get(data.outerWindowId);
     let fluentName;
@@ -850,7 +847,7 @@ var View = {
     row.thread = data;
     row.className = "thread";
 
-    // Column: filename
+    // Column: name
     let nameCell = row.firstChild;
     this._fillCell(nameCell, {
       fluentName: "about-processes-thread-name-and-id",

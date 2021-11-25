@@ -56,25 +56,16 @@ RefPtr<ProcInfoPromise> GetProcInfo(nsTArray<ProcInfoRequest>&& aRequests) {
       info.type = request.processType;
       info.origin = std::move(request.origin);
       info.windows = std::move(request.windowInfo);
-      struct proc_bsdinfo proc;
-      if ((unsigned long)proc_pidinfo(request.pid, PROC_PIDTBSDINFO, 0, &proc,
-                                      PROC_PIDTBSDINFO_SIZE) < PROC_PIDTBSDINFO_SIZE) {
-        // Can't read data for this proc.
-        // Probably either a sandboxing issue or a race condition, e.g.
-        // the process has been just been killed. Regardless, skip process.
-        continue;
-      }
 
       struct proc_taskinfo pti;
       if ((unsigned long)proc_pidinfo(request.pid, PROC_PIDTASKINFO, 0, &pti,
                                       PROC_PIDTASKINFO_SIZE) < PROC_PIDTASKINFO_SIZE) {
+        // Can't read data for this process.
+        // Probably either a sandboxing issue or a race condition, e.g.
+        // the process has been just been killed. Regardless, skip process.
         continue;
       }
-
-      // copying all the info to the ProcInfo struct
-      info.filename.AssignASCII(proc.pbi_name);
-      info.cpuUser = pti.pti_total_user;
-      info.cpuKernel = pti.pti_total_system;
+      info.cpuTime = pti.pti_total_user + pti.pti_total_system;
 
       mach_port_t selectedTask;
       // If we did not get a task from a child process, we use mach_task_self()
@@ -148,8 +139,7 @@ RefPtr<ProcInfoPromise> GetProcInfo(nsTArray<ProcInfoRequest>&& aRequests) {
           holder->Reject(NS_ERROR_OUT_OF_MEMORY, __func__);
           return;
         }
-        thread->cpuUser = threadInfoData.pth_user_time;
-        thread->cpuKernel = threadInfoData.pth_system_time;
+        thread->cpuTime = threadInfoData.pth_user_time + threadInfoData.pth_system_time;
         thread->name.AssignASCII(threadInfoData.pth_name);
         thread->tid = identifierInfo.thread_id;
       }

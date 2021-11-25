@@ -600,7 +600,8 @@ bool shell::enableWasmOptimizing = false;
 #define WASM_DEFAULT_FEATURE(NAME, ...) bool shell::enableWasm##NAME = true;
 #define WASM_EXPERIMENTAL_FEATURE(NAME, ...) \
   bool shell::enableWasm##NAME = false;
-JS_FOR_WASM_FEATURES(WASM_DEFAULT_FEATURE, WASM_EXPERIMENTAL_FEATURE);
+JS_FOR_WASM_FEATURES(WASM_DEFAULT_FEATURE, WASM_DEFAULT_FEATURE,
+                     WASM_EXPERIMENTAL_FEATURE);
 #undef WASM_DEFAULT_FEATURE
 #undef WASM_EXPERIMENTAL_FEATURE
 
@@ -2305,6 +2306,11 @@ static bool Evaluate(JSContext* cx, unsigned argc, Value* vp) {
   RootedString elementAttributeName(cx);
 
   if (args.length() == 2) {
+    if (!args[1].isObject()) {
+      JS_ReportErrorASCII(cx, "evaluate: The 2nd argument must be an object");
+      return false;
+    }
+
     RootedObject opts(cx, &args[1].toObject());
     if (!js::ParseCompileOptions(cx, options, opts, &fileNameBytes)) {
       return false;
@@ -5308,9 +5314,8 @@ static bool Compile(JSContext* cx, unsigned argc, Value* vp) {
   RootedString elementAttributeName(cx);
 
   if (args.length() >= 2) {
-    if (args[1].isPrimitive()) {
-      JS_ReportErrorNumberASCII(cx, my_GetErrorMessage, nullptr,
-                                JSSMSG_INVALID_ARGS, "compile");
+    if (!args[1].isObject()) {
+      JS_ReportErrorASCII(cx, "compile: The 2nd argument must be an object");
       return false;
     }
 
@@ -5516,8 +5521,13 @@ static bool InstantiateModuleStencil(JSContext* cx, uint32_t argc, Value* vp) {
   CompileOptions options(cx);
   UniqueChars fileNameBytes;
   if (args.length() == 2) {
-    RootedObject opts(cx, &args[1].toObject());
+    if (!args[1].isObject()) {
+      JS_ReportErrorASCII(
+          cx, "instantiateModuleStencil: The 2nd argument must be an object");
+      return false;
+    }
 
+    RootedObject opts(cx, &args[1].toObject());
     if (!js::ParseCompileOptions(cx, options, opts, &fileNameBytes)) {
       return false;
     }
@@ -5551,14 +5561,14 @@ static bool InstantiateModuleStencilXDR(JSContext* cx, uint32_t argc,
                                         Value* vp) {
   CallArgs args = CallArgsFromVp(argc, vp);
 
-  if (!args.requireAtLeast(cx, "InstantiateModuleStencilXDR", 1)) {
+  if (!args.requireAtLeast(cx, "instantiateModuleStencilXDR", 1)) {
     return false;
   }
 
   /* Prepare the input byte array. */
   if (!args[0].isObject() || !args[0].toObject().is<StencilXDRBufferObject>()) {
     JS_ReportErrorASCII(
-        cx, "InstantiateModuleStencilXDR: stencil XDR object expected");
+        cx, "instantiateModuleStencilXDR: stencil XDR object expected");
     return false;
   }
   Rooted<StencilXDRBufferObject*> xdrObj(
@@ -5568,8 +5578,14 @@ static bool InstantiateModuleStencilXDR(JSContext* cx, uint32_t argc,
   CompileOptions options(cx);
   UniqueChars fileNameBytes;
   if (args.length() == 2) {
-    RootedObject opts(cx, &args[1].toObject());
+    if (!args[1].isObject()) {
+      JS_ReportErrorASCII(
+          cx,
+          "instantiateModuleStencilXDR: The 2nd argument must be an object");
+      return false;
+    }
 
+    RootedObject opts(cx, &args[1].toObject());
     if (!js::ParseCompileOptions(cx, options, opts, &fileNameBytes)) {
       return false;
     }
@@ -5596,7 +5612,7 @@ static bool InstantiateModuleStencilXDR(JSContext* cx, uint32_t argc,
 
   if (!stencil.isModule()) {
     JS_ReportErrorASCII(cx,
-                        "InstantiateModuleStencilXDR: Module stencil expected");
+                        "instantiateModuleStencilXDR: Module stencil expected");
     return false;
   }
 
@@ -5880,11 +5896,10 @@ static bool FrontendTest(JSContext* cx, unsigned argc, Value* vp,
 
   if (args.length() >= 2) {
     if (!args[1].isObject()) {
-      const char* typeName = InformalValueTypeName(args[1]);
-      JS_ReportErrorASCII(cx, "expected object (options) to parse, got %s",
-                          typeName);
+      JS_ReportErrorASCII(cx, "The 2nd argument must be an object");
       return false;
     }
+
     RootedObject objOptions(cx, &args[1].toObject());
 
     RootedValue optionModule(cx);
@@ -6200,9 +6215,9 @@ static bool OffThreadCompileScript(JSContext* cx, unsigned argc, Value* vp) {
       .setDeferDebugMetadata();
 
   if (args.length() >= 2) {
-    if (args[1].isPrimitive()) {
-      JS_ReportErrorNumberASCII(cx, my_GetErrorMessage, nullptr,
-                                JSSMSG_INVALID_ARGS, "evaluate");
+    if (!args[1].isObject()) {
+      JS_ReportErrorASCII(
+          cx, "offThreadCompileScript: The 2nd argument must be an object");
       return false;
     }
 
@@ -6340,9 +6355,9 @@ static bool OffThreadCompileToStencil(JSContext* cx, unsigned argc, Value* vp) {
       .setDeferDebugMetadata();
 
   if (args.length() >= 2) {
-    if (args[1].isPrimitive()) {
-      JS_ReportErrorNumberASCII(cx, my_GetErrorMessage, nullptr,
-                                JSSMSG_INVALID_ARGS, "evaluate");
+    if (!args[1].isObject()) {
+      JS_ReportErrorASCII(
+          cx, "offThreadCompileToStencil: The 2nd argument must be an object");
       return false;
     }
 
@@ -6557,9 +6572,9 @@ static bool OffThreadDecodeScript(JSContext* cx, unsigned argc, Value* vp) {
   options.borrowBuffer = true;
 
   if (args.length() >= 2) {
-    if (args[1].isPrimitive()) {
-      JS_ReportErrorNumberASCII(cx, my_GetErrorMessage, nullptr,
-                                JSSMSG_INVALID_ARGS, "evaluate");
+    if (!args[1].isObject()) {
+      JS_ReportErrorASCII(
+          cx, "offThreadDecodeScript: The 2nd argument must be an object");
       return false;
     }
 
@@ -11242,7 +11257,8 @@ static bool SetContextOptions(JSContext* cx, const OptionParser& op) {
 #define WASM_EXPERIMENTAL_FEATURE(NAME, LOWER_NAME, COMPILE_PRED,       \
                                   COMPILER_PRED, FLAG_PRED, SHELL, ...) \
   enableWasm##NAME = op.getBoolOption("wasm-" SHELL);
-  JS_FOR_WASM_FEATURES(WASM_DEFAULT_FEATURE, WASM_EXPERIMENTAL_FEATURE);
+  JS_FOR_WASM_FEATURES(WASM_DEFAULT_FEATURE, WASM_DEFAULT_FEATURE,
+                       WASM_EXPERIMENTAL_FEATURE);
 #undef WASM_DEFAULT_FEATURE
 #undef WASM_EXPERIMENTAL_FEATURE
 
@@ -11289,7 +11305,7 @@ static bool SetContextOptions(JSContext* cx, const OptionParser& op) {
 #endif
 
 #define WASM_FEATURE(NAME, ...) .setWasm##NAME(enableWasm##NAME)
-          JS_FOR_WASM_FEATURES(WASM_FEATURE, WASM_FEATURE)
+          JS_FOR_WASM_FEATURES(WASM_FEATURE, WASM_FEATURE, WASM_FEATURE)
 #undef WASM_FEATURE
 
 #ifdef ENABLE_WASM_SIMD_WORMHOLE
@@ -11689,7 +11705,7 @@ static void SetWorkerContextOptions(JSContext* cx) {
       .setWasmIon(enableWasmOptimizing)
 #endif
 #define WASM_FEATURE(NAME, ...) .setWasm##NAME(enableWasm##NAME)
-          JS_FOR_WASM_FEATURES(WASM_FEATURE, WASM_FEATURE)
+          JS_FOR_WASM_FEATURES(WASM_FEATURE, WASM_FEATURE, WASM_FEATURE)
 #undef WASM_FEATURE
 
 #ifdef ENABLE_WASM_SIMD_WORMHOLE
@@ -12201,12 +12217,20 @@ int main(int argc, char** argv) {
 #define WASM_DEFAULT_FEATURE(NAME, LOWER_NAME, COMPILE_PRED, COMPILER_PRED, \
                              FLAG_PRED, SHELL, ...)                         \
   !op.addBoolOption('\0', "no-wasm-" SHELL, "Disable wasm " SHELL "feature.") ||
+#define WASM_TENTATIVE_FEATURE(NAME, LOWER_NAME, COMPILE_PRED, COMPILER_PRED, \
+                               FLAG_PRED, SHELL, ...)                         \
+  !op.addBoolOption('\0', "no-wasm-" SHELL,                                   \
+                    "Disable wasm " SHELL "feature.") ||                      \
+      !op.addBoolOption('\0', "wasm-" SHELL, "No-op.") ||
 #define WASM_EXPERIMENTAL_FEATURE(NAME, LOWER_NAME, COMPILE_PRED,       \
                                   COMPILER_PRED, FLAG_PRED, SHELL, ...) \
   !op.addBoolOption('\0', "wasm-" SHELL,                                \
-                    "Enable experimental wasm " SHELL "feature.") ||
-      JS_FOR_WASM_FEATURES(WASM_DEFAULT_FEATURE, WASM_EXPERIMENTAL_FEATURE)
+                    "Enable experimental wasm " SHELL "feature.") ||    \
+      !op.addBoolOption('\0', "no-wasm-" SHELL, "No-op.") ||
+      JS_FOR_WASM_FEATURES(WASM_DEFAULT_FEATURE, WASM_TENTATIVE_FEATURE,
+                           WASM_EXPERIMENTAL_FEATURE)
 #undef WASM_DEFAULT_FEATURE
+#undef WASM_TENTATIVE_FEATURE
 #undef WASM_EXPERIMENTAL_FEATURE
 #ifdef ENABLE_WASM_SIMD_WORMHOLE
           !op.addBoolOption('\0', "wasm-simd-wormhole",
@@ -12870,7 +12894,8 @@ int main(int argc, char** argv) {
 #  define WASM_EXPERIMENTAL_FEATURE(NAME, LOWER_NAME, COMPILE_PRED,       \
                                     COMPILER_PRED, FLAG_PRED, SHELL, ...) \
     "--wasm-" SHELL,
-      JS_FOR_WASM_FEATURES(WASM_DEFAULT_FEATURE, WASM_EXPERIMENTAL_FEATURE)
+      JS_FOR_WASM_FEATURES(WASM_DEFAULT_FEATURE, WASM_DEFAULT_FEATURE,
+                           WASM_EXPERIMENTAL_FEATURE)
 #  undef WASM_DEFAULT_FEATURE
 #  undef WASM_EXPERIMENTAL_FEATURE
       // Feature selection options

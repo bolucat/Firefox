@@ -179,25 +179,14 @@ def _activate_python_environment(topsrcdir, state_dir):
         )
     ]
 
-    from mach.site import (
-        MachSiteManager,
-        VirtualenvOutOfDateException,
-        MozSiteMetadataOutOfDateError,
-    )
+    from mach.site import MachSiteManager
 
-    try:
-        mach_environment = MachSiteManager.from_environment(
-            topsrcdir,
-            # normpath state_dir to normalize msys-style slashes.
-            os.path.normpath(state_dir),
-        )
-        mach_environment.activate()
-    except (VirtualenvOutOfDateException, MozSiteMetadataOutOfDateError):
-        print(
-            'The "mach" virtualenv is not up-to-date, please run '
-            '"./mach create-mach-environment"'
-        )
-        sys.exit(1)
+    mach_environment = MachSiteManager.from_environment(
+        topsrcdir,
+        # normpath state_dir to normalize msys-style slashes.
+        os.path.normpath(state_dir),
+    )
+    mach_environment.activate()
 
 
 def initialize(topsrcdir):
@@ -417,8 +406,8 @@ def _finalize_telemetry_glean(telemetry, is_bootstrap, success):
 
     has_psutil, logical_cores, physical_cores, memory_total = get_psutil_stats()
     if has_psutil:
-        # psutil may not be available (we allow `mach create-mach-environment`
-        # to fail to install it).
+        # psutil may not be available (we may not have been able to download
+        # a wheel or build it from source).
         system_metrics.logical_cores.add(logical_cores)
         system_metrics.physical_cores.add(physical_cores)
         if memory_total is not None:

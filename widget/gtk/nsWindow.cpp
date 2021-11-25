@@ -520,7 +520,7 @@ nsWindow::nsWindow()
 }
 
 nsWindow::~nsWindow() {
-  LOG("nsWindow::~nsWindow() [%p]\n", (void*)this);
+  LOG("nsWindow::~nsWindow()");
 
   delete[] mTransparencyBitmap;
   mTransparencyBitmap = nullptr;
@@ -1255,7 +1255,7 @@ void nsWindow::ShowWaylandWindow() {
 }
 
 void nsWindow::WaylandPopupMarkAsClosed() {
-  LOG_POPUP("nsWindow::WaylandPopupMarkAsClosed: [%p]\n", this);
+  LOG("nsWindow::WaylandPopupMarkAsClosed: [%p]\n", this);
   mPopupClosed = true;
   // If we have any child popup window notify it about
   // parent switch.
@@ -1274,8 +1274,8 @@ nsWindow* nsWindow::WaylandPopupFindLast(nsWindow* aPopup) {
 // Hide and potentially removes popup from popup hierarchy.
 void nsWindow::HideWaylandPopupWindow(bool aTemporaryHide,
                                       bool aRemoveFromPopupList) {
-  LOG_POPUP("nsWindow::HideWaylandPopupWindow: remove from list %d\n",
-            aRemoveFromPopupList);
+  LOG("nsWindow::HideWaylandPopupWindow: remove from list %d\n",
+      aRemoveFromPopupList);
   if (aRemoveFromPopupList) {
     RemovePopupFromHierarchyList();
   }
@@ -1285,7 +1285,7 @@ void nsWindow::HideWaylandPopupWindow(bool aTemporaryHide,
   }
 
   bool visible = gtk_widget_is_visible(mShell);
-  LOG_POPUP("  gtk_widget_is_visible() = %d\n", visible);
+  LOG("  gtk_widget_is_visible() = %d\n", visible);
 
   // Restore only popups which are really visible
   mPopupTemporaryHidden = aTemporaryHide && visible;
@@ -1336,13 +1336,13 @@ void nsWindow::WaylandPopupRemoveClosedPopups() {
 
 // Hide all tooltips except the latest one.
 void nsWindow::WaylandPopupHideTooltips() {
-  LOG_POPUP("nsWindow::WaylandPopupHideTooltips");
+  LOG("nsWindow::WaylandPopupHideTooltips");
   MOZ_ASSERT(mWaylandToplevel == nullptr, "Should be called on toplevel only!");
 
   nsWindow* popup = mWaylandPopupNext;
   while (popup && popup->mWaylandPopupNext) {
     if (popup->mPopupType == ePopupTypeTooltip) {
-      LOG_POPUP("  hidding tooltip [%p]", popup);
+      LOG("  hidding tooltip [%p]", popup);
       popup->WaylandPopupMarkAsClosed();
     }
     popup = popup->mWaylandPopupNext;
@@ -1353,7 +1353,7 @@ void nsWindow::WaylandPopupHideTooltips() {
 // on top of regular ones.
 // If there's any remote popup opened, close all parent popups of it.
 void nsWindow::CloseAllPopupsBeforeRemotePopup() {
-  LOG_POPUP("nsWindow::CloseAllPopupsBeforeRemotePopup");
+  LOG("nsWindow::CloseAllPopupsBeforeRemotePopup");
   MOZ_ASSERT(mWaylandToplevel == nullptr, "Should be called on toplevel only!");
 
   // Don't waste time when there's only one popup opened.
@@ -1366,7 +1366,7 @@ void nsWindow::CloseAllPopupsBeforeRemotePopup() {
   while (remotePopup) {
     if (remotePopup->HasRemoteContent() ||
         remotePopup->IsWidgetOverflowWindow()) {
-      LOG_POPUP("  remote popup [%p]", remotePopup);
+      LOG("  remote popup [%p]", remotePopup);
       break;
     }
     remotePopup = remotePopup->mWaylandPopupNext;
@@ -1379,7 +1379,7 @@ void nsWindow::CloseAllPopupsBeforeRemotePopup() {
   // ...hide opened popups before the remote one.
   nsWindow* popup = mWaylandPopupNext;
   while (popup && popup != remotePopup) {
-    LOG_POPUP("  hidding popup [%p]", popup);
+    LOG("  hidding popup [%p]", popup);
     popup->WaylandPopupMarkAsClosed();
     popup = popup->mWaylandPopupNext;
   }
@@ -1434,7 +1434,7 @@ bool nsWindow::IsPopupInLayoutPopupChain(
 // Hide popups which are not in popup chain.
 void nsWindow::WaylandPopupHierarchyHideByLayout(
     nsTArray<nsIWidget*>* aLayoutWidgetHierarchy) {
-  LOG_POPUP("nsWindow::WaylandPopupHierarchyHideByLayout");
+  LOG("nsWindow::WaylandPopupHierarchyHideByLayout");
   MOZ_ASSERT(mWaylandToplevel == nullptr, "Should be called on toplevel only!");
 
   // Hide all popups which are not in layout popup chain
@@ -1444,7 +1444,7 @@ void nsWindow::WaylandPopupHierarchyHideByLayout(
     if (!popup->mPopupClosed && popup->mPopupType != ePopupTypeTooltip) {
       if (!popup->IsPopupInLayoutPopupChain(aLayoutWidgetHierarchy,
                                             /* aMustMatchParent */ false)) {
-        LOG_POPUP("  hidding popup [%p]", popup);
+        LOG("  hidding popup [%p]", popup);
         popup->WaylandPopupMarkAsClosed();
       }
     }
@@ -1455,7 +1455,7 @@ void nsWindow::WaylandPopupHierarchyHideByLayout(
 // Mark popups outside of layout hierarchy
 void nsWindow::WaylandPopupHierarchyValidateByLayout(
     nsTArray<nsIWidget*>* aLayoutWidgetHierarchy) {
-  LOG_POPUP("nsWindow::WaylandPopupHierarchyValidateByLayout");
+  LOG("nsWindow::WaylandPopupHierarchyValidateByLayout");
   nsWindow* popup = mWaylandPopupNext;
   while (popup) {
     if (popup->mPopupType == ePopupTypeTooltip) {
@@ -1463,19 +1463,18 @@ void nsWindow::WaylandPopupHierarchyValidateByLayout(
     } else if (!popup->mPopupClosed) {
       popup->mPopupMatchesLayout = popup->IsPopupInLayoutPopupChain(
           aLayoutWidgetHierarchy, /* aMustMatchParent */ true);
-      LOG_POPUP("  popup [%p] parent window [%p] matches layout %d\n",
-                (void*)popup, (void*)popup->mWaylandPopupPrev,
-                popup->mPopupMatchesLayout);
+      LOG("  popup [%p] parent window [%p] matches layout %d\n", (void*)popup,
+          (void*)popup->mWaylandPopupPrev, popup->mPopupMatchesLayout);
     }
     popup = popup->mWaylandPopupNext;
   }
 }
 
 void nsWindow::WaylandPopupHierarchyHideTemporary() {
-  LOG_POPUP("nsWindow::WaylandPopupHierarchyHideTemporary() [%p]", this);
+  LOG("nsWindow::WaylandPopupHierarchyHideTemporary() [%p]", this);
   nsWindow* popup = WaylandPopupFindLast(this);
   while (popup) {
-    LOG_POPUP("  temporary hidding popup [%p]", popup);
+    LOG("  temporary hidding popup [%p]", popup);
     nsWindow* prev = popup->mWaylandPopupPrev;
     popup->HideWaylandPopupWindow(/* aTemporaryHide */ true,
                                   /* aRemoveFromPopupList */ false);
@@ -1487,12 +1486,12 @@ void nsWindow::WaylandPopupHierarchyHideTemporary() {
 }
 
 void nsWindow::WaylandPopupHierarchyShowTemporaryHidden() {
-  LOG_POPUP("nsWindow::WaylandPopupHierarchyShowTemporaryHidden()");
+  LOG("nsWindow::WaylandPopupHierarchyShowTemporaryHidden()");
   nsWindow* popup = this;
   while (popup) {
     if (popup->mPopupTemporaryHidden) {
       popup->mPopupTemporaryHidden = false;
-      LOG_POPUP("  showing temporary hidden popup [%p]", popup);
+      LOG("  showing temporary hidden popup [%p]", popup);
       popup->ShowWaylandWindow();
     }
     popup = popup->mWaylandPopupNext;
@@ -1500,13 +1499,13 @@ void nsWindow::WaylandPopupHierarchyShowTemporaryHidden() {
 }
 
 void nsWindow::WaylandPopupHierarchyCalculatePositions() {
-  LOG_POPUP("nsWindow::WaylandPopupHierarchyCalculatePositions()");
+  LOG("nsWindow::WaylandPopupHierarchyCalculatePositions()");
 
   // Set widget hierarchy in Gtk
   nsWindow* popup = mWaylandToplevel->mWaylandPopupNext;
   while (popup) {
-    LOG_POPUP("  popup [%p] set parent window [%p]", (void*)popup,
-              (void*)popup->mWaylandPopupPrev);
+    LOG("  popup [%p] set parent window [%p]", (void*)popup,
+        (void*)popup->mWaylandPopupPrev);
     gtk_window_set_transient_for(GTK_WINDOW(popup->mShell),
                                  GTK_WINDOW(popup->mWaylandPopupPrev->mShell));
     popup = popup->mWaylandPopupNext;
@@ -1516,11 +1515,11 @@ void nsWindow::WaylandPopupHierarchyCalculatePositions() {
   while (popup) {
     // Anchored window has mPopupPosition already calculated against
     // its parent, no need to recalculate.
-    LOG_POPUP("  popup [%p] bounds [%d, %d] -> [%d x %d]", popup,
-              (int)(popup->mBounds.x / FractionalScaleFactor()),
-              (int)(popup->mBounds.y / FractionalScaleFactor()),
-              (int)(popup->mBounds.width / FractionalScaleFactor()),
-              (int)(popup->mBounds.height / FractionalScaleFactor()));
+    LOG("  popup [%p] bounds [%d, %d] -> [%d x %d]", popup,
+        (int)(popup->mBounds.x / FractionalScaleFactor()),
+        (int)(popup->mBounds.y / FractionalScaleFactor()),
+        (int)(popup->mBounds.width / FractionalScaleFactor()),
+        (int)(popup->mBounds.height / FractionalScaleFactor()));
 #ifdef MOZ_LOGGING
     if (LOG_ENABLED()) {
       nsMenuPopupFrame* popupFrame = GetMenuPopupFrame(GetFrame());
@@ -1529,14 +1528,13 @@ void nsWindow::WaylandPopupHierarchyCalculatePositions() {
         auto size = popupFrame->GetSize();
         int32_t p2a =
             AppUnitsPerCSSPixel() / gfxPlatformGtk::GetFontScaleFactor();
-        LOG_POPUP("  popup [%p] layout [%d, %d] -> [%d x %d]", popup,
-                  pos.x / p2a, pos.y / p2a, size.width / p2a,
-                  size.height / p2a);
+        LOG("  popup [%p] layout [%d, %d] -> [%d x %d]", popup, pos.x / p2a,
+            pos.y / p2a, size.width / p2a, size.height / p2a);
       }
     }
 #endif
     if (popup->mPopupContextMenu && !popup->mPopupAnchored) {
-      LOG_POPUP("  popup [%p] is first context menu", popup);
+      LOG("  popup [%p] is first context menu", popup);
       static int menuOffsetX =
           LookAndFeel::GetInt(LookAndFeel::IntID::ContextMenuOffsetHorizontal);
       static int menuOffsetY =
@@ -1545,28 +1543,27 @@ void nsWindow::WaylandPopupHierarchyCalculatePositions() {
       mRelativePopupOffset.x = menuOffsetX;
       mRelativePopupOffset.y = menuOffsetY;
     } else if (popup->mPopupAnchored) {
-      LOG_POPUP("  popup [%p] is anchored", popup);
+      LOG("  popup [%p] is anchored", popup);
       if (!popup->mPopupMatchesLayout) {
         NS_WARNING("Anchored popup does not match layout!");
       }
       popup->mRelativePopupPosition = popup->mPopupPosition;
     } else if (popup->mWaylandPopupPrev->mWaylandToplevel == nullptr) {
-      LOG_POPUP("  popup [%p] has toplevel as parent", popup);
+      LOG("  popup [%p] has toplevel as parent", popup);
       popup->mRelativePopupPosition = popup->mPopupPosition;
     } else {
       int parentX, parentY;
       GetParentPosition(&parentX, &parentY);
 
-      LOG_POPUP("  popup [%p] uses transformed coordinates\n", popup);
-      LOG_POPUP("    parent position [%d, %d]\n", parentX, parentY);
-      LOG_POPUP("    popup position [%d, %d]\n", popup->mPopupPosition.x,
-                popup->mPopupPosition.y);
+      LOG("  popup [%p] uses transformed coordinates\n", popup);
+      LOG("    parent position [%d, %d]\n", parentX, parentY);
+      LOG("    popup position [%d, %d]\n", popup->mPopupPosition.x,
+          popup->mPopupPosition.y);
 
       popup->mRelativePopupPosition.x = popup->mPopupPosition.x - parentX;
       popup->mRelativePopupPosition.y = popup->mPopupPosition.y - parentY;
     }
-    LOG_POPUP(
-        "  popup [%p] transformed popup coordinates from [%d, %d] to [%d, %d]",
+    LOG("  popup [%p] transformed popup coordinates from [%d, %d] to [%d, %d]",
         popup, popup->mPopupPosition.x, popup->mPopupPosition.y,
         popup->mRelativePopupPosition.x, popup->mRelativePopupPosition.y);
     popup = popup->mWaylandPopupNext;
@@ -1634,16 +1631,15 @@ void nsWindow::LogPopupHierarchy() {
     return;
   }
 
-  LOG_POPUP("Widget Popup Hierarchy:\n");
+  LOG("Widget Popup Hierarchy:\n");
   if (!mWaylandToplevel->mWaylandPopupNext) {
-    LOG_POPUP("    Empty\n");
+    LOG("    Empty\n");
   } else {
     int indent = 4;
     nsWindow* popup = mWaylandToplevel->mWaylandPopupNext;
     while (popup) {
       nsPrintfCString indentString("%*s", indent, " ");
-      LOG_POPUP(
-          "%s %s %s nsWindow [%p] Menu %d Permanent %d ContextMenu %d "
+      LOG("%s %s %s nsWindow [%p] Menu %d Permanent %d ContextMenu %d "
           "Anchored %d Visible %d\n",
           indentString.get(), popup->GetFrameTag().get(),
           popup->GetPopupTypeName().get(), popup, popup->WaylandPopupIsMenu(),
@@ -1654,18 +1650,17 @@ void nsWindow::LogPopupHierarchy() {
     }
   }
 
-  LOG_POPUP("Layout Popup Hierarchy:\n");
+  LOG("Layout Popup Hierarchy:\n");
   AutoTArray<nsIWidget*, 5> widgetChain;
   GetLayoutPopupWidgetChain(&widgetChain);
   if (widgetChain.Length() == 0) {
-    LOG_POPUP("    Empty\n");
+    LOG("    Empty\n");
   } else {
     for (unsigned long i = 0; i < widgetChain.Length(); i++) {
       nsWindow* window = static_cast<nsWindow*>(widgetChain[i]);
       nsPrintfCString indentString("%*s", (int)(i + 1) * 4, " ");
       if (window) {
-        LOG_POPUP(
-            "%s %s %s nsWindow [%p] Menu %d Permanent %d ContextMenu %d "
+        LOG("%s %s %s nsWindow [%p] Menu %d Permanent %d ContextMenu %d "
             "Anchored %d Visible %d\n",
             indentString.get(), window->GetFrameTag().get(),
             window->GetPopupTypeName().get(), window,
@@ -1673,7 +1668,7 @@ void nsWindow::LogPopupHierarchy() {
             window->mPopupContextMenu, window->mPopupAnchored,
             gtk_widget_is_visible(window->mShell));
       } else {
-        LOG_POPUP("%s null window\n", indentString.get());
+        LOG("%s null window\n", indentString.get());
       }
     }
   }
@@ -1688,7 +1683,7 @@ nsWindow* nsWindow::WaylandPopupGetTopmostWindow() {
       nsIWidget* parentWidget = parentView->GetNearestWidget(nullptr);
       if (parentWidget) {
         nsWindow* parentnsWindow = static_cast<nsWindow*>(parentWidget);
-        LOG_POPUP("  Topmost window: %p [nsWindow]\n", parentnsWindow);
+        LOG("  Topmost window: %p [nsWindow]\n", parentnsWindow);
         return parentnsWindow;
       }
     }
@@ -1739,8 +1734,7 @@ bool nsWindow::WaylandPopupNeedsTrackInHierarchy() {
   if (!mPopupTrackInHierarchy) {
     gtkTypeHint = GDK_WINDOW_TYPE_HINT_UTILITY;
   }
-  LOG_POPUP(
-      "nsWindow::WaylandPopupNeedsTrackInHierarchy tracked %d anchored %d\n",
+  LOG("nsWindow::WaylandPopupNeedsTrackInHierarchy tracked %d anchored %d\n",
       mPopupTrackInHierarchy, mPopupAnchored);
   gtk_window_set_type_hint(GTK_WINDOW(mShell), gtkTypeHint);
   return mPopupTrackInHierarchy;
@@ -1751,9 +1745,9 @@ bool nsWindow::IsInPopupHierarchy() {
 }
 
 void nsWindow::AddWindowToPopupHierarchy() {
-  LOG_POPUP("nsWindow::AddWindowToPopupHierarchy\n");
+  LOG("nsWindow::AddWindowToPopupHierarchy\n");
   if (!GetFrame()) {
-    LOG_POPUP("  Window without frame cannot be added as popup!\n");
+    LOG("  Window without frame cannot be added as popup!\n");
     return;
   }
 
@@ -1769,12 +1763,12 @@ void nsWindow::AddWindowToPopupHierarchy() {
 // before we open another one on that level. It means that every open
 // popup needs to have an unique parent.
 void nsWindow::UpdateWaylandPopupHierarchy() {
-  LOG_POPUP("nsWindow::UpdateWaylandPopupHierarchy\n");
+  LOG("nsWindow::UpdateWaylandPopupHierarchy\n");
 
   // This popup hasn't been added to popup hierarchy yet so no need to
   // do any configurations.
   if (!IsInPopupHierarchy()) {
-    LOG_POPUP("  popup isn't in hierarchy\n");
+    LOG("  popup isn't in hierarchy\n");
     return;
   }
 
@@ -1820,11 +1814,11 @@ void nsWindow::UpdateWaylandPopupHierarchy() {
 
   // We don't need to recompute popup positions, quit now.
   if (!changedPopup) {
-    LOG_POPUP("  changed Popup is null, quit.\n");
+    LOG("  changed Popup is null, quit.\n");
     return;
   }
 
-  LOG_POPUP("  first changed popup [%p]\n", (void*)changedPopup);
+  LOG("  first changed popup [%p]\n", (void*)changedPopup);
 
   // Hide parent popups if necessary (there are layout discontinuity)
   // reposition the popup and show them again.
@@ -1840,7 +1834,7 @@ void nsWindow::UpdateWaylandPopupHierarchy() {
   // in such case use child popup of the removed one if there's any.
   if (!changedPopup->IsInPopupHierarchy()) {
     if (!parentOfchangedPopup || !parentOfchangedPopup->mWaylandPopupNext) {
-      LOG_POPUP("  last popup was removed, quit.\n");
+      LOG("  last popup was removed, quit.\n");
       return;
     }
     changedPopup = parentOfchangedPopup->mWaylandPopupNext;
@@ -1869,8 +1863,7 @@ void nsWindow::UpdateWaylandPopupHierarchy() {
                        (!popup->mPopupAnchored &&
                         popup->mWaylandPopupPrev->mWaylandToplevel == nullptr));
     }
-    LOG_POPUP(
-        "  popup [%p] matches layout [%d] anchored [%d] first popup [%d] use "
+    LOG("  popup [%p] matches layout [%d] anchored [%d] first popup [%d] use "
         "move-to-rect %d\n",
         popup, popup->mPopupMatchesLayout, popup->mPopupAnchored,
         popup->mWaylandPopupPrev->mWaylandToplevel == nullptr, useMoveToRect);
@@ -1889,9 +1882,9 @@ static void NativeMoveResizeCallback(GdkWindow* window,
                                      const GdkRectangle* final_rect,
                                      gboolean flipped_x, gboolean flipped_y,
                                      void* aWindow) {
-  LOG_POPUP("NativeMoveResizeCallback [%p] flipped_x %d flipped_y %d\n",
+  LOG_POPUP("[%p] NativeMoveResizeCallback flipped_x %d flipped_y %d\n",
             aWindow, flipped_x, flipped_y);
-  LOG_POPUP("  new position [%d, %d] -> [%d x %d]", final_rect->x,
+  LOG_POPUP("[%p]   new position [%d, %d] -> [%d x %d]", aWindow, final_rect->x,
             final_rect->y, final_rect->width, final_rect->height);
   nsWindow* wnd = get_window_for_gdk_window(window);
 
@@ -1907,7 +1900,7 @@ void nsWindow::NativeMoveResizeWaylandPopupCallback(
       mNewBoundsAfterMoveToRect.width || mNewBoundsAfterMoveToRect.height;
 
   if (moved || resized) {
-    LOG_POPUP("  Another move/resize called during waiting for callback\n");
+    LOG("  Another move/resize called during waiting for callback\n");
 
     // Set the preferred size to zero to avoid wrong size of popup because the
     // mPreferredPopupRect is used in nsMenuPopupFrame to set dimensions
@@ -1925,8 +1918,8 @@ void nsWindow::NativeMoveResizeWaylandPopupCallback(
     return;
   }
 
-  LOG_POPUP("  orig mBounds [%d, %d] -> [%d x %d]\n", mBounds.x, mBounds.y,
-            mBounds.width, mBounds.height);
+  LOG("  orig mBounds [%d, %d] -> [%d x %d]\n", mBounds.x, mBounds.y,
+      mBounds.width, mBounds.height);
 
   LayoutDeviceIntRect newBounds(0, 0, 0, 0);
   int parentX, parentY;
@@ -1939,8 +1932,8 @@ void nsWindow::NativeMoveResizeWaylandPopupCallback(
   newBounds.width = NSToIntRound(scale * aFinalSize->width);
   newBounds.height = NSToIntRound(scale * aFinalSize->height);
 
-  LOG_POPUP("  new mBounds [%d, %d] -> [%d x %d]", newBounds.x, newBounds.y,
-            newBounds.width, newBounds.height);
+  LOG("  new mBounds [%d, %d] -> [%d x %d]", newBounds.x, newBounds.y,
+      newBounds.width, newBounds.height);
 
   bool needsPositionUpdate =
       (newBounds.x != mBounds.x || newBounds.y != mBounds.y);
@@ -1949,7 +1942,7 @@ void nsWindow::NativeMoveResizeWaylandPopupCallback(
 
   // Update view
   if (needsSizeUpdate) {
-    LOG_POPUP("  needSizeUpdate\n");
+    LOG("  needSizeUpdate\n");
     // TODO: use correct monitor here?
     int32_t p2a = AppUnitsPerCSSPixel() / gfxPlatformGtk::GetFontScaleFactor();
     mPreferredPopupRect =
@@ -1982,15 +1975,14 @@ void nsWindow::NativeMoveResizeWaylandPopupCallback(
       if (roundingError) {
         // Keep the window where it is.
         GdkPoint topLeft = DevicePixelsToGdkPointRoundDown(mBounds.TopLeft());
-        LOG_POPUP("  apply rounding error workaround, move to %d, %d",
-                  topLeft.x, topLeft.y);
+        LOG("  apply rounding error workaround, move to %d, %d", topLeft.x,
+            topLeft.y);
         gtk_window_move(GTK_WINDOW(mShell), topLeft.x, topLeft.y);
         return;
       }
     }
 
-    LOG_POPUP("  needPositionUpdate, new bounds [%d, %d]", newBounds.x,
-              newBounds.y);
+    LOG("  needPositionUpdate, new bounds [%d, %d]", newBounds.x, newBounds.y);
     mBounds.x = newBounds.x;
     mBounds.y = newBounds.y;
     NotifyWindowMoved(mBounds.x, mBounds.y);
@@ -2035,8 +2027,8 @@ void nsWindow::WaylandPopupSetDirectPosition() {
   GdkPoint position = DevicePixelsToGdkPointRoundDown(mBounds.TopLeft());
   GdkRectangle size = DevicePixelsToGdkSizeRoundUp(mBounds.Size());
 
-  LOG_POPUP("nsWindow::WaylandPopupSetDirectPosition %d,%d -> %d x %d\n",
-            position.x, position.y, size.width, size.height);
+  LOG("nsWindow::WaylandPopupSetDirectPosition %d,%d -> %d x %d\n", position.x,
+      position.y, size.width, size.height);
 
   mPopupPosition = position;
 
@@ -2077,16 +2069,16 @@ void nsWindow::WaylandPopupSetDirectPosition() {
     }
   }
 
-  LOG_POPUP("  set position [%d, %d]\n", mPopupPosition.x, mPopupPosition.y);
+  LOG("  set position [%d, %d]\n", mPopupPosition.x, mPopupPosition.y);
   gtk_window_move(GTK_WINDOW(mShell), mPopupPosition.x, mPopupPosition.y);
 
-  LOG_POPUP("  set size [%d, %d]\n", size.width, size.height);
+  LOG("  set size [%d, %d]\n", size.width, size.height);
   gtk_window_resize(GTK_WINDOW(mShell), size.width, size.height);
 
   if (mPopupPosition.x != position.x) {
     mBounds.x = mPopupPosition.x * FractionalScaleFactor();
     mBounds.y = mPopupPosition.y * FractionalScaleFactor();
-    LOG_POPUP("  setting new bounds [%d, %d]\n", mBounds.x, mBounds.y);
+    LOG("  setting new bounds [%d, %d]\n", mBounds.x, mBounds.y);
     NotifyWindowMoved(mBounds.x, mBounds.y);
     nsMenuPopupFrame* popupFrame = GetMenuPopupFrame(GetFrame());
     if (popupFrame) {
@@ -2133,19 +2125,19 @@ void nsWindow::NativeMoveResizeWaylandPopup(bool aMove, bool aResize) {
   GdkPoint position = DevicePixelsToGdkPointRoundDown(mBounds.TopLeft());
   GdkRectangle size = DevicePixelsToGdkSizeRoundUp(mBounds.Size());
 
-  LOG_POPUP("nsWindow::NativeMoveResizeWaylandPopup %d,%d -> %d x %d\n",
-            position.x, position.y, size.width, size.height);
+  LOG("nsWindow::NativeMoveResizeWaylandPopup %d,%d -> %d x %d\n", position.x,
+      position.y, size.width, size.height);
 
   // Compositor may be confused by windows with width/height = 0
   // and positioning such windows leads to Bug 1555866.
   if (!AreBoundsSane()) {
-    LOG_POPUP("  Bounds are not sane (width: %d height: %d)\n", mBounds.width,
-              mBounds.height);
+    LOG("  Bounds are not sane (width: %d height: %d)\n", mBounds.width,
+        mBounds.height);
     return;
   }
 
   if (mWaitingForMoveToRectCallback) {
-    LOG_POPUP("  waiting for move to rect, schedulling");
+    LOG("  waiting for move to rect, schedulling");
     if (aMove) {
       mNewBoundsAfterMoveToRect.x = mBounds.x;
       mNewBoundsAfterMoveToRect.y = mBounds.y;
@@ -2165,14 +2157,14 @@ void nsWindow::NativeMoveResizeWaylandPopup(bool aMove, bool aResize) {
   }
 
   if (aResize) {
-    LOG_POPUP("  set size [%d, %d]\n", size.width, size.height);
+    LOG("  set size [%d, %d]\n", size.width, size.height);
     gtk_window_resize(GTK_WINDOW(mShell), size.width, size.height);
   }
 
   if (!aMove && WaylandPopupFitsParentWindow(&size)) {
     // Popup position has not been changed and its position/size fits
     // parent window so no need to reposition the window.
-    LOG_POPUP("  fits parent window size, just resize\n");
+    LOG("  fits parent window size, just resize\n");
     return;
   }
 
@@ -2181,8 +2173,8 @@ void nsWindow::NativeMoveResizeWaylandPopup(bool aMove, bool aResize) {
 
   // Save popup position for former re-calculations when popup hierarchy
   // is changed.
-  LOG_POPUP("  popup position changed from [%d, %d] to [%d, %d]\n",
-            mPopupPosition.x, mPopupPosition.y, position.x, position.y);
+  LOG("  popup position changed from [%d, %d] to [%d, %d]\n", mPopupPosition.x,
+      mPopupPosition.y, position.x, position.y);
   mPopupPosition = position;
 
   UpdateWaylandPopupHierarchy();
@@ -2263,7 +2255,7 @@ static ResolvedPopupMargin ResolveMargin(nsMenuPopupFrame* aFrame,
 }
 
 void nsWindow::WaylandPopupMove() {
-  LOG_POPUP("nsWindow::WaylandPopupMove\n");
+  LOG("nsWindow::WaylandPopupMove\n");
 
   // Available as of GTK 3.24+
   static auto sGdkWindowMoveToRect = (void (*)(
@@ -2273,12 +2265,12 @@ void nsWindow::WaylandPopupMove() {
   GdkWindow* gdkWindow = gtk_widget_get_window(GTK_WIDGET(mShell));
   nsMenuPopupFrame* popupFrame = GetMenuPopupFrame(GetFrame());
 
-  LOG_POPUP("  original widget popup position [%d, %d]\n", mPopupPosition.x,
-            mPopupPosition.y);
-  LOG_POPUP("  relative widget popup position [%d, %d]\n",
-            mRelativePopupPosition.x, mRelativePopupPosition.y);
-  LOG_POPUP("  relative widget popup offset [%d, %d]\n", mRelativePopupOffset.x,
-            mRelativePopupOffset.y);
+  LOG("  original widget popup position [%d, %d]\n", mPopupPosition.x,
+      mPopupPosition.y);
+  LOG("  relative widget popup position [%d, %d]\n", mRelativePopupPosition.x,
+      mRelativePopupPosition.y);
+  LOG("  relative widget popup offset [%d, %d]\n", mRelativePopupOffset.x,
+      mRelativePopupOffset.y);
 
   if (mPopupUseMoveToRect) {
     mPopupUseMoveToRect = sGdkWindowMoveToRect && gdkWindow && popupFrame;
@@ -2288,16 +2280,16 @@ void nsWindow::WaylandPopupMove() {
     if (mNeedsShow && mPopupType != ePopupTypeTooltip) {
       // Workaround for https://gitlab.gnome.org/GNOME/gtk/-/issues/4308
       // Tooltips are created as subsurfaces with relative position.
-      LOG_POPUP("  use gtk_window_move(%d, %d) for hidden widget\n",
-                mPopupPosition.x + mRelativePopupOffset.x,
-                mPopupPosition.y + mRelativePopupOffset.y);
+      LOG("  use gtk_window_move(%d, %d) for hidden widget\n",
+          mPopupPosition.x + mRelativePopupOffset.x,
+          mPopupPosition.y + mRelativePopupOffset.y);
       gtk_window_move(GTK_WINDOW(mShell),
                       mPopupPosition.x + mRelativePopupOffset.x,
                       mPopupPosition.y + mRelativePopupOffset.y);
     } else {
-      LOG_POPUP("  use gtk_window_move(%d, %d) for visible widget\n",
-                mRelativePopupPosition.x + mRelativePopupOffset.x,
-                mRelativePopupPosition.y + mRelativePopupOffset.y);
+      LOG("  use gtk_window_move(%d, %d) for visible widget\n",
+          mRelativePopupPosition.x + mRelativePopupOffset.x,
+          mRelativePopupPosition.y + mRelativePopupOffset.y);
       gtk_window_move(GTK_WINDOW(mShell),
                       mRelativePopupPosition.x + mRelativePopupOffset.x,
                       mRelativePopupPosition.y + mRelativePopupOffset.y);
@@ -2307,8 +2299,8 @@ void nsWindow::WaylandPopupMove() {
                   FractionalScaleFactor();
       mBounds.y = (mRelativePopupPosition.y + mRelativePopupOffset.y) *
                   FractionalScaleFactor();
-      LOG_POPUP("  popup is moved, setting new bounds starts at [%d, %d]\n",
-                mBounds.x, mBounds.y);
+      LOG("  popup is moved, setting new bounds starts at [%d, %d]\n",
+          mBounds.x, mBounds.y);
       NotifyWindowMoved(mBounds.x, mBounds.y);
     }
     return;
@@ -2356,12 +2348,12 @@ void nsWindow::WaylandPopupMove() {
     // anchor.
     if (hasAnchorRect) {
       popupMargin = ResolveMargin(popupFrame, popupAlign, anchorAlign);
-      LOG_POPUP("  layout popup CSS anchor (%d, %d) %s, margin %s offset %s\n",
-                popupAlign, anchorAlign, ToString(anchorRectAppUnits).c_str(),
-                ToString(popupMargin.mAnchorMargin).c_str(),
-                ToString(popupMargin.mPopupOffset).c_str());
+      LOG("  layout popup CSS anchor (%d, %d) %s, margin %s offset %s\n",
+          popupAlign, anchorAlign, ToString(anchorRectAppUnits).c_str(),
+          ToString(popupMargin.mAnchorMargin).c_str(),
+          ToString(popupMargin.mPopupOffset).c_str());
       anchorRectAppUnits.Inflate(popupMargin.mAnchorMargin);
-      LOG_POPUP("    after margins %s\n", ToString(anchorRectAppUnits).c_str());
+      LOG("    after margins %s\n", ToString(anchorRectAppUnits).c_str());
       if (anchorRect.width < 0) {
         auto w = -anchorRect.width;
         anchorRect.width += w + 1;
@@ -2369,7 +2361,7 @@ void nsWindow::WaylandPopupMove() {
       }
       anchorRect =
           LayoutDeviceIntRect::FromAppUnitsToNearest(anchorRectAppUnits, p2a);
-      LOG_POPUP("    final %s\n", ToString(anchorRect).c_str());
+      LOG("    final %s\n", ToString(anchorRect).c_str());
     }
   }
 
@@ -2388,26 +2380,25 @@ void nsWindow::WaylandPopupMove() {
     anchorRect.SetRect(mRelativePopupPosition.x - mRelativePopupOffset.x,
                        mRelativePopupPosition.y - mRelativePopupOffset.y,
                        mRelativePopupOffset.x * 2, mRelativePopupOffset.y * 2);
-    LOG_POPUP("  Set anchor rect with offset [%d, %d] -> [%d x %d]",
-              anchorRect.x, anchorRect.y, anchorRect.width, anchorRect.height);
+    LOG("  Set anchor rect with offset [%d, %d] -> [%d x %d]", anchorRect.x,
+        anchorRect.y, anchorRect.width, anchorRect.height);
   } else if (!hasAnchorRect) {
-    LOG_POPUP("  No anchor rect given, use position for anchor [%d, %d]",
-              mRelativePopupPosition.x, mRelativePopupPosition.y);
+    LOG("  No anchor rect given, use position for anchor [%d, %d]",
+        mRelativePopupPosition.x, mRelativePopupPosition.y);
     anchorRect.SetRect(mRelativePopupPosition.x, mRelativePopupPosition.y, 1,
                        1);
   } else if (mWaylandPopupPrev->mWaylandToplevel != nullptr) {
     int parentX, parentY;
     GetParentPosition(&parentX, &parentY);
-    LOG_POPUP("  subtract parent position [%d, %d]\n", parentX, parentY);
+    LOG("  subtract parent position [%d, %d]\n", parentX, parentY);
     anchorRect.x -= parentX;
     anchorRect.y -= parentY;
   }
 
-  LOG_POPUP("  final popup rect position [%d, %d] -> [%d x %d]\n", anchorRect.x,
-            anchorRect.y, anchorRect.width, anchorRect.height);
+  LOG("  final popup rect position [%d, %d] -> [%d x %d]\n", anchorRect.x,
+      anchorRect.y, anchorRect.width, anchorRect.height);
 
-  LOG_POPUP("  parentRect gravity: %d anchor gravity: %d\n", rectAnchor,
-            menuAnchor);
+  LOG("  parentRect gravity: %d anchor gravity: %d\n", rectAnchor, menuAnchor);
 
   // Gtk default is: GDK_ANCHOR_FLIP | GDK_ANCHOR_SLIDE | GDK_ANCHOR_RESIZE.
   // We want to SLIDE_X menu on the dual monitor setup rather than resize it
@@ -2468,7 +2459,7 @@ void nsWindow::WaylandPopupMove() {
   // anyway but we need to set it now to avoid a race condition here.
   WaylandPopupRemoveNegativePosition();
 
-  LOG_POPUP("  move-to-rect call");
+  LOG("  move-to-rect call");
   mPopupLastAnchor = anchorRect;
 
   auto offset =
@@ -2902,7 +2893,7 @@ void nsWindow::SetFocus(Raise aRaise, mozilla::dom::CallerType aCallerType) {
 
   // If this is the widget that already has focus, return.
   if (gFocusWindow == this) {
-    LOG("  already have focus [%p]\n", (void*)this);
+    LOG("  already have focus");
     return;
   }
 
@@ -2913,7 +2904,7 @@ void nsWindow::SetFocus(Raise aRaise, mozilla::dom::CallerType aCallerType) {
     mIMContext->OnFocusWindow(this);
   }
 
-  LOG("  widget now has focus in SetFocus() [%p]\n", (void*)this);
+  LOG("  widget now has focus in SetFocus()");
 }
 
 LayoutDeviceIntRect nsWindow::GetScreenBounds() {
@@ -3284,7 +3275,7 @@ LayoutDeviceIntPoint nsWindow::WidgetToScreenOffset() {
 }
 
 void nsWindow::CaptureMouse(bool aCapture) {
-  LOG("nsWindow::CaptureMouse() [%p]\n", (void*)this);
+  LOG("nsWindow::CaptureMouse()");
 
   if (mIsDestroyed) {
     return;
@@ -3330,7 +3321,7 @@ void nsWindow::CaptureRollupEvents(nsIRollupListener* aListener,
 }
 
 nsresult nsWindow::GetAttention(int32_t aCycleCount) {
-  LOG("nsWindow::GetAttention [%p]\n", (void*)this);
+  LOG("nsWindow::GetAttention");
 
   GtkWidget* top_window = GetToplevelWidget();
   GtkWidget* top_focused_window =
@@ -3836,7 +3827,7 @@ gboolean nsWindow::OnConfigureEvent(GtkWidget* aWidget,
 }
 
 void nsWindow::OnMap() {
-  LOG("nsWindow::OnMap [%p]\n", (void*)this);
+  LOG("nsWindow::OnMap");
   // Gtk mapped out widget to screen. Configure underlying GdkWindow properly
   // as our rendering target.
   // This call means we have X11 (or Wayland) window we can render to by GL
@@ -3850,7 +3841,7 @@ void nsWindow::OnUnrealize() {
   // their references back to their container widget while the GdkWindow
   // hierarchy is still available.
   // This call means we *don't* have X11 (or Wayland) window we can render to.
-  LOG("nsWindow::OnUnrealize [%p] GdkWindow %p\n", (void*)this, mGdkWindow);
+  LOG("nsWindow::OnUnrealize GdkWindow %p", mGdkWindow);
   mIsMapped = false;
   ReleaseGdkWindow();
 }
@@ -3935,7 +3926,7 @@ void nsWindow::OnEnterNotifyEvent(GdkEventCrossing* aEvent) {
   event.mRefPoint = GdkEventCoordsToDevicePixels(aEvent->x, aEvent->y);
   event.AssignEventTime(GetWidgetEventTime(aEvent->time));
 
-  LOG("OnEnterNotify: %p\n", (void*)this);
+  LOG("OnEnterNotify");
 
   DispatchInputEvent(&event);
 }
@@ -3976,7 +3967,7 @@ void nsWindow::OnLeaveNotifyEvent(GdkEventCrossing* aEvent) {
                              ? WidgetMouseEvent::ePlatformTopLevel
                              : WidgetMouseEvent::ePlatformChild);
 
-  LOG("OnLeaveNotify: %p\n", (void*)this);
+  LOG("OnLeaveNotify");
 
   DispatchInputEvent(&event);
 }
@@ -4148,8 +4139,7 @@ void nsWindow::DispatchMissedButtonReleases(GdkEventCrossing* aGdkEvent) {
           buttonType = MouseButton::eSecondary;
       }
 
-      LOG("Synthesized button %u release on %p\n", guint(buttonType + 1),
-          (void*)this);
+      LOG("Synthesized button %u release", guint(buttonType + 1));
 
       // Dispatch a synthesized button up event to tell Gecko about the
       // change in state.  This event is marked as synthesized so that
@@ -4390,7 +4380,7 @@ void nsWindow::OnButtonReleaseEvent(GdkEventButton* aEvent) {
 }
 
 void nsWindow::OnContainerFocusInEvent(GdkEventFocus* aEvent) {
-  LOG("OnContainerFocusInEvent [%p]\n", (void*)this);
+  LOG("OnContainerFocusInEvent");
 
   // Unset the urgency hint, if possible
   GtkWidget* top_window = GetToplevelWidget();
@@ -4401,7 +4391,7 @@ void nsWindow::OnContainerFocusInEvent(GdkEventFocus* aEvent) {
   // Return if being called within SetFocus because the focus manager
   // already knows that the window is active.
   if (gBlockActivateEvent) {
-    LOG("activated notification is blocked [%p]\n", (void*)this);
+    LOG("activated notification is blocked");
     return;
   }
 
@@ -4419,11 +4409,11 @@ void nsWindow::OnContainerFocusInEvent(GdkEventFocus* aEvent) {
     gFocusWindow = this;
   }
 
-  LOG("Events sent from focus in event [%p]\n", (void*)this);
+  LOG("Events sent from focus in event");
 }
 
 void nsWindow::OnContainerFocusOutEvent(GdkEventFocus* aEvent) {
-  LOG("OnContainerFocusOutEvent [%p]\n", (void*)this);
+  LOG("OnContainerFocusOutEvent");
 
   if (mWindowType == eWindowType_toplevel ||
       mWindowType == eWindowType_dialog) {
@@ -4465,7 +4455,7 @@ void nsWindow::OnContainerFocusOutEvent(GdkEventFocus* aEvent) {
     UpdateMozWindowActive();
   }
 
-  LOG("Done with container focus out [%p]\n", (void*)this);
+  LOG("Done with container focus out");
 }
 
 bool nsWindow::DispatchCommandEvent(nsAtom* aCommand) {
@@ -4528,7 +4518,7 @@ mozilla::CurrentX11TimeGetter* nsWindow::GetCurrentTimeGetter() {
 }
 
 gboolean nsWindow::OnKeyPressEvent(GdkEventKey* aEvent) {
-  LOG("OnKeyPressEvent [%p]\n", (void*)this);
+  LOG("OnKeyPressEvent");
 
   RefPtr<nsWindow> self(this);
   KeymapWrapper::HandleKeyPressEvent(self, aEvent);
@@ -4536,7 +4526,7 @@ gboolean nsWindow::OnKeyPressEvent(GdkEventKey* aEvent) {
 }
 
 gboolean nsWindow::OnKeyReleaseEvent(GdkEventKey* aEvent) {
-  LOG("OnKeyReleaseEvent [%p]\n", (void*)this);
+  LOG("OnKeyReleaseEvent");
 
   RefPtr<nsWindow> self(this);
   if (NS_WARN_IF(!KeymapWrapper::HandleKeyReleaseEvent(self, aEvent))) {
@@ -5390,9 +5380,9 @@ nsresult nsWindow::Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
   }
 
   if (mWindowType == eWindowType_popup && !parentnsWindow) {
-    LOG_POPUP("  popup window without parent!");
+    LOG("  popup window without parent!");
     if (GdkIsWaylandDisplay()) {
-      LOG_POPUP("  switch to toplevel on Wayland.");
+      LOG("  switch to toplevel on Wayland.");
       // Wayland does not allow to create popup without parent so switch to
       // toplevel and mark as wayland panel.
       mIsWaylandPanelWindow = true;
@@ -5499,7 +5489,7 @@ nsresult nsWindow::Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
 
     SetDefaultIcon();
     gtk_window_set_type_hint(GTK_WINDOW(mShell), GDK_WINDOW_TYPE_HINT_DIALOG);
-    LOG("nsWindow::Create(): dialog [%p]\n", this);
+    LOG("nsWindow::Create(): dialog");
     if (parentnsWindow) {
       gtk_window_set_transient_for(GTK_WINDOW(mShell),
                                    GTK_WINDOW(parentnsWindow->GetGtkWidget()));
@@ -5510,7 +5500,7 @@ nsresult nsWindow::Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
     mGtkWindowRoleName = "Popup";
     mPopupHint = aInitData->mPopupHint;
 
-    LOG("nsWindow::Create() Popup [%p]\n", this);
+    LOG("nsWindow::Create() Popup");
 
     if (mNoAutoHide) {
       // ... but the window manager does not decorate this window,
@@ -5544,7 +5534,7 @@ nsresult nsWindow::Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
     if (aInitData->mIsDragPopup) {
       gtk_window_set_type_hint(GTK_WINDOW(mShell), GDK_WINDOW_TYPE_HINT_DND);
       mIsDragPopup = true;
-      LOG_POPUP("nsWindow::Create() Drag popup [%p]\n", this);
+      LOG("nsWindow::Create() Drag popup\n");
     } else if (GdkIsX11Display()) {
       // Set the window hints on X11 only. Wayland popups are configured
       // at WaylandPopupNeedsTrackInHierarchy().
@@ -5561,11 +5551,11 @@ nsresult nsWindow::Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
           break;
       }
       gtk_window_set_type_hint(GTK_WINDOW(mShell), gtkTypeHint);
-      LOG_POPUP("nsWindow::Create() popup type %s\n", GetPopupTypeName().get());
+      LOG("nsWindow::Create() popup type %s", GetPopupTypeName().get());
     }
     if (parentnsWindow) {
-      LOG_POPUP("    set parent window [%p] %s\n", parentnsWindow,
-                parentnsWindow->mGtkWindowRoleName.get());
+      LOG("    set parent window [%p] %s", parentnsWindow,
+          parentnsWindow->mGtkWindowRoleName.get());
       GtkWindow* parentWidget = GTK_WINDOW(parentnsWindow->GetGtkWidget());
       gtk_window_set_transient_for(GTK_WINDOW(mShell), parentWidget);
       if (GdkIsWaylandDisplay() && gtk_window_get_modal(parentWidget)) {
@@ -5817,8 +5807,7 @@ nsresult nsWindow::Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
   g_signal_connect(eventWidget, "touch-event", G_CALLBACK(touch_event_cb),
                    nullptr);
 
-  LOG("nsWindow [%p] type %d %s\n", (void*)this, mWindowType,
-      mIsPIPWindow ? "PIP window" : "");
+  LOG("nsWindow type %d %s\n", mWindowType, mIsPIPWindow ? "PIP window" : "");
   LOG("\tmShell %p mContainer %p mGdkWindow %p XID 0x%lx\n", mShell, mContainer,
       mGdkWindow,
       (GdkIsX11Display() && mGdkWindow) ? gdk_x11_window_get_xid(mGdkWindow)
@@ -5993,7 +5982,7 @@ void nsWindow::ResumeCompositorHiddenWindow() {
 // pause the compositor and destroy EGLSurface & resume the compositor
 // and re-create EGLSurface on next expose event.
 void nsWindow::PauseCompositorHiddenWindow() {
-  LOG("nsWindow::PauseCompositorHiddenWindow [%p]\n", (void*)this);
+  LOG("nsWindow::PauseCompositorHiddenWindow");
 
   if (mCompositorState != COMPOSITOR_ENABLED) {
     LOG("  quit early, compositor is disabled");
@@ -6039,7 +6028,7 @@ void nsWindow::PauseCompositor() {
     return;
   }
 
-  LOG("nsWindow::PauseCompositor() [%p]\n", (void*)this);
+  LOG("nsWindow::PauseCompositor()");
 
   if (mCompositorPauseTimeoutID) {
     g_source_remove(mCompositorPauseTimeoutID);
@@ -6102,7 +6091,7 @@ void nsWindow::WaylandStartVsync() {
     return;
   }
 
-  LOG("nsWindow::WaylandStartVsync() [%p]\n", (void*)this);
+  LOG("nsWindow::WaylandStartVsync()");
 
   if (!mWaylandVsyncSource) {
     mWaylandVsyncSource = new WaylandVsyncSource();
@@ -6128,7 +6117,7 @@ void nsWindow::WaylandStartVsync() {
 void nsWindow::WaylandStopVsync() {
 #ifdef MOZ_WAYLAND
   if (mWaylandVsyncSource) {
-    LOG("nsWindow::WaylandStopVsync() [%p]\n", (void*)this);
+    LOG("nsWindow::WaylandStopVsync()");
     // The widget is going to be hidden, so clear the surface of our
     // vsync source.
     WaylandVsyncSource::WaylandDisplay& display =
@@ -6228,7 +6217,7 @@ void nsWindow::NativeShow(bool aAction) {
 }
 
 void nsWindow::SetHasMappedToplevel(bool aState) {
-  LOG("nsWindow::SetHasMappedToplevel() [%p] state %d\n", (void*)this, aState);
+  LOG("nsWindow::SetHasMappedToplevel() state %d", aState);
 
   // Even when aState == mHasMappedToplevel (as when this method is called
   // from Show()), child windows need to have their state checked, so don't
@@ -8957,7 +8946,7 @@ void nsWindow::GetCompositorWidgetInitData(
     mozilla::widget::CompositorWidgetInitData* aInitData) {
   nsCString displayName;
 
-  LOG("nsWindow::GetCompositorWidgetInitData [%p]\n", (void*)this);
+  LOG("nsWindow::GetCompositorWidgetInitData");
 #ifdef MOZ_X11
   if (GdkIsX11Display() && !mGdkWindow) {
     LOG("  create mGdkWindow/mXWindow\n");
@@ -9270,11 +9259,11 @@ void nsWindow::LockAspectRatio(bool aShouldLock) {
                    (float)decHeight;
 
     mAspectRatio = width / height;
-    LOG("nsWindow::LockAspectRatio() width %f height %f aspect %f\n", width,
+    LOG("nsWindow::LockAspectRatio() width %f height %f aspect %f", width,
         height, mAspectRatio);
   } else {
     mAspectRatio = 0.0;
-    LOG("nsWindow::LockAspectRatio() [%p] removed aspect ratio\n", (void*)this);
+    LOG("nsWindow::LockAspectRatio() removed aspect ratio");
   }
 
   ApplySizeConstraints();

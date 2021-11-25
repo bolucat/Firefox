@@ -355,8 +355,6 @@ already_AddRefed<nsISerialEventTarget> IProtocol::GetActorEventTarget(
   return mToplevel->GetActorEventTarget(aActor);
 }
 
-ProcessId IProtocol::OtherPid() const { return mToplevel->OtherPid(); }
-
 void IProtocol::SetId(int32_t aId) {
   MOZ_ASSERT(mId == aId || mLinkStatus == LinkStatus::Inactive);
   mId = aId;
@@ -600,17 +598,11 @@ void IProtocol::DestroySubtree(ActorDestroyReason aWhy) {
 IToplevelProtocol::IToplevelProtocol(const char* aName, ProtocolId aProtoId,
                                      Side aSide)
     : IProtocol(aProtoId, aSide),
-      mOtherPid(mozilla::ipc::kInvalidProcessId),
+      mOtherPid(base::kInvalidProcessId),
       mLastLocalId(0),
       mEventTargetMutex("ProtocolEventTargetMutex"),
       mChannel(aName, this) {
   mToplevel = this;
-}
-
-base::ProcessId IToplevelProtocol::OtherPid() const {
-  base::ProcessId pid = OtherPidMaybeInvalid();
-  MOZ_RELEASE_ASSERT(pid != kInvalidProcessId);
-  return pid;
 }
 
 void IToplevelProtocol::SetOtherProcessId(base::ProcessId aOtherPid) {
@@ -717,18 +709,8 @@ Shmem::SharedMemory* IToplevelProtocol::CreateSharedMemory(
   int32_t id = NextId();
   Shmem shmem(Shmem::PrivateIPDLCaller(), segment.get(), id);
 
-  base::ProcessId pid =
-#ifdef ANDROID
-      // We use OtherPidMaybeInvalid() because on Android this method is
-      // actually called on an unconnected protocol, but Android's shared memory
-      // implementation doesn't actually use the PID.
-      OtherPidMaybeInvalid();
-#else
-      OtherPid();
-#endif
-
   UniquePtr<Message> descriptor =
-      shmem.ShareTo(Shmem::PrivateIPDLCaller(), pid, MSG_ROUTING_CONTROL);
+      shmem.MkCreatedMessage(Shmem::PrivateIPDLCaller(), MSG_ROUTING_CONTROL);
   if (!descriptor) {
     return nullptr;
   }
@@ -762,7 +744,7 @@ bool IToplevelProtocol::DestroySharedMemory(Shmem& shmem) {
   }
 
   UniquePtr<Message> descriptor =
-      shmem.UnshareFrom(Shmem::PrivateIPDLCaller(), MSG_ROUTING_CONTROL);
+      shmem.MkDestroyedMessage(Shmem::PrivateIPDLCaller(), MSG_ROUTING_CONTROL);
 
   MOZ_ASSERT(mShmemMap.Contains(aId),
              "Attempting to remove an ID not in the shmem map");
