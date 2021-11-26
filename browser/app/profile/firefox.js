@@ -1517,7 +1517,7 @@ pref("browser.newtabpage.activity-stream.asrouter.providers.message-groups", "{\
 // this page over http opens us up to a man-in-the-middle attack that we'd rather not face. If you are a downstream
 // repackager of this code using an alternate snippet url, please keep your users safe
 pref("browser.newtabpage.activity-stream.asrouter.providers.snippets", "{\"id\":\"snippets\",\"enabled\":false,\"type\":\"remote\",\"url\":\"https://snippets.cdn.mozilla.net/%STARTPAGE_VERSION%/%NAME%/%VERSION%/%APPBUILDID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/\",\"updateCycleInMs\":14400000}");
-pref("browser.newtabpage.activity-stream.asrouter.providers.messaging-experiments", "{\"id\":\"messaging-experiments\",\"enabled\":true,\"type\":\"remote-experiments\",\"messageGroups\":[\"cfr\",\"moments-page\",\"aboutwelcome\",\"infobar\",\"spotlight\"],\"updateCycleInMs\":3600000}");
+pref("browser.newtabpage.activity-stream.asrouter.providers.messaging-experiments", "{\"id\":\"messaging-experiments\",\"enabled\":true,\"type\":\"remote-experiments\",\"messageGroups\":[\"cfr\",\"aboutwelcome\",\"infobar\",\"spotlight\",\"moments-page\"],\"updateCycleInMs\":3600000}");
 
 // ASRouter user prefs
 pref("browser.newtabpage.activity-stream.asrouter.userprefs.cfr.addons", true);
@@ -2234,7 +2234,11 @@ pref("devtools.target-switching.server.enabled", true);
 
 // Setting this preference to true will result in DevTools creating a target for each frame
 // (i.e. not only for top-level document and remote frames).
+#if defined(NIGHTLY_BUILD)
+pref("devtools.every-frame-target.enabled", true);
+#else
 pref("devtools.every-frame-target.enabled", false);
+#endif
 
 // Toolbox Button preferences
 pref("devtools.command-button-pick.enabled", true);
@@ -2460,15 +2464,12 @@ pref("devtools.webconsole.filter.netxhr", false);
 // Webconsole autocomplete preference
 pref("devtools.webconsole.input.autocomplete",true);
 
-// Show context selector in console input, in the browser toolbox
+// Show context selector in console input
 #if defined(NIGHTLY_BUILD)
   pref("devtools.webconsole.input.context", true);
 #else
   pref("devtools.webconsole.input.context", false);
 #endif
-
-// Show context selector in console input, in the content toolbox
-pref("devtools.contenttoolbox.webconsole.input.context", false);
 
 // Set to true to eagerly show the results of webconsole terminal evaluations
 // when they don't have side effects.
@@ -2652,3 +2653,13 @@ pref("svg.context-properties.content.allowed-domains", "profile.accounts.firefox
 #ifdef NIGHTLY_BUILD
   pref("extensions.translations.disabled", true);
 #endif
+
+// A set of scores for rating the relevancy of snapshots. The suffixes after the
+// last decimal are prefixed by `_score` and reference the functions called in
+// SnapshotScorer.
+pref("browser.snapshots.score.Visit", 1);
+pref("browser.snapshots.score.CurrentSession", 1);
+pref("browser.snapshots.score.InNavigation", 3);
+pref("browser.snapshots.score.IsOverlappingVisit", 3);
+pref("browser.snapshots.score.IsUserPersisted", 1);
+pref("browser.snapshots.score.IsUsedRemoved", -10);

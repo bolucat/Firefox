@@ -13,12 +13,14 @@ XPCOMUtils.defineLazyModuleGetters(this, {
   setTimeout: "resource://gre/modules/Timer.jsm",
   Services: "resource://gre/modules/Services.jsm",
   Snapshots: "resource:///modules/Snapshots.jsm",
+  SnapshotScorer: "resource:///modules/SnapshotScorer.jsm",
   SnapshotSelector: "resource:///modules/SnapshotSelector.jsm",
   TestUtils: "resource://testing-common/TestUtils.jsm",
 });
 
 // Initialize profile.
 var gProfD = do_get_profile(true);
+Services.prefs.setBoolPref("browser.pagethumbnails.capturing_disabled", true);
 
 // Observer notifications.
 const TOPIC_ADDED = "places-snapshots-added";
@@ -281,4 +283,33 @@ async function assertSnapshotsWithContext(expected, context) {
 async function reset() {
   await Snapshots.reset();
   await Interactions.reset();
+}
+
+/**
+ * Asserts relevancy scores for snapshots are correct.
+ *
+ * @param {Snapshot[]} combinedSnapshots
+ *   The array of combined snapshots.
+ * @param {object[]} expectedSnapshots
+ *   An array of objects containing expected url and relevancyScore properties.
+ */
+function assertSnapshotScores(combinedSnapshots, expectedSnapshots) {
+  Assert.equal(
+    combinedSnapshots.length,
+    expectedSnapshots.length,
+    "Should have returned the correct amount of snapshots"
+  );
+
+  for (let i = 0; i < combinedSnapshots.length; i++) {
+    Assert.equal(
+      combinedSnapshots[i].url,
+      expectedSnapshots[i].url,
+      "Should have returned the expected URL for the snapshot"
+    );
+    Assert.equal(
+      combinedSnapshots[i].relevancyScore,
+      expectedSnapshots[i].score,
+      `Should have set the expected score for ${expectedSnapshots[i].url}`
+    );
+  }
 }

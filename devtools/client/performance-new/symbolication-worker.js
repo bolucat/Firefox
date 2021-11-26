@@ -142,19 +142,7 @@ class FileAndPathHelper {
       throw new Error(`Path "${path}" is a directory.`);
     }
 
-    const file = IOUtils.openFileForSyncReading(path);
-
-    // Create and return a FileHandle object. The methods of this object are
-    // called by wasm code (via the bindings).
-    return {
-      getLength: () => file.size,
-      readBytesInto: (dest, offset) => {
-        file.readBytesInto(dest, offset);
-      },
-      drop: () => {
-        file.close();
-      },
-    };
+    return IOUtils.openFileForSyncReading(path);
   }
 }
 
@@ -199,4 +187,21 @@ onmessage = async e => {
     postMessage({ error: createPlainErrorObject(error) });
   }
   close();
+};
+
+onunhandledrejection = e => {
+  // Unhandled rejections can happen if the WASM code throws a
+  // "RuntimeError: unreachable executed" exception, which can happen
+  // if the Rust code panics or runs out of memory.
+  // These panics currently are not propagated to the promise reject
+  // callback, see https://github.com/rustwasm/wasm-bindgen/issues/2724 .
+  // Ideally, the Rust code should never panic and handle all error
+  // cases gracefully.
+  e.preventDefault();
+  postMessage({ error: createPlainErrorObject(e.reason) });
+};
+
+// Catch any other unhandled errors, just to be sure.
+onerror = e => {
+  postMessage({ error: createPlainErrorObject(e) });
 };
