@@ -596,6 +596,12 @@ SessionHistoryEntry::SetContentViewer(nsIContentViewer* aContentViewer) {
 }
 
 NS_IMETHODIMP
+SessionHistoryEntry::GetIsInBFCache(bool* aResult) {
+  *aResult = !!SharedInfo()->mFrameLoader;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 SessionHistoryEntry::GetSticky(bool* aSticky) {
   *aSticky = SharedInfo()->mSticky;
   return NS_OK;
@@ -657,6 +663,10 @@ NS_IMETHODIMP
 SessionHistoryEntry::SetLayoutHistoryState(
     nsILayoutHistoryState* aLayoutHistoryState) {
   SharedInfo()->mLayoutHistoryState = aLayoutHistoryState;
+  if (SharedInfo()->mLayoutHistoryState) {
+    SharedInfo()->mLayoutHistoryState->SetScrollPositionOnly(
+        !SharedInfo()->mSaveLayoutState);
+  }
   return NS_OK;
 }
 
