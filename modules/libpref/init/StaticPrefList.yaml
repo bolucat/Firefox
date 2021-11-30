@@ -6275,6 +6275,14 @@
   value: false
   mirror: always
 
+#if defined(ENABLE_NEW_SET_METHODS)
+  # Experimental support for New Set methods
+- name: javascript.options.experimental.enable_new_set_methods
+  type: bool
+  value: false
+  mirror: always
+#endif
+
   # Experimental support for Top-level Await in JavaScript.
 -   name: javascript.options.experimental.top_level_await
     type: bool
@@ -9558,7 +9566,7 @@
 
 - name: network.predictor.enable-prefetch
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 - name: network.predictor.page-degradation.day
@@ -10025,6 +10033,12 @@
 # Whether to skip the NS check for the blocked host.
 # Note this is used for test only.
 - name: network.trr.skip-check-for-blocked-host
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# Whether to use the connection info that is generated asynchronously.
+- name: network.trr.async_connInfo
   type: RelaxedAtomicBool
   value: false
   mirror: always
@@ -10922,6 +10936,12 @@
 - name: privacy.partition.network_state.ws_connection_queue
   type: RelaxedAtomicBool
   value: true
+  mirror: always
+
+# Partition the service workers unconditionally when dFPI is enabled.
+- name: privacy.partition.serviceWorkers
+  type: RelaxedAtomicBool
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # The global switch to control the URL query sting stripping which strips query

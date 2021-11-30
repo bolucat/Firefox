@@ -40,6 +40,7 @@
 #include "mozilla/dom/quota/MemoryOutputStream.h"
 #include "mozilla/dom/quota/QuotaCommon.h"
 #include "mozilla/dom/quota/QuotaManager.h"
+#include "mozilla/dom/quota/ResultExtensions.h"
 #include "mozilla/dom/quota/UsageInfo.h"
 #include "mozilla/ipc/BackgroundParent.h"
 #include "mozilla/ipc/BackgroundUtils.h"
@@ -1709,7 +1710,7 @@ Result<UsageInfo, nsresult> QuotaClient::GetUsageForOrigin(
       [](UsageInfo usageInfo,
          const nsCOMPtr<nsIFile>& file) -> Result<UsageInfo, nsresult> {
         QM_TRY_INSPECT(const bool& isDirectory,
-                       MOZ_TO_RESULT_INVOKE(file, IsDirectory));
+                       MOZ_TO_RESULT_INVOKE_MEMBER(file, IsDirectory));
 
         if (isDirectory) {
           Unused << WARN_IF_FILE_IS_UNKNOWN(*file);
@@ -1721,7 +1722,7 @@ Result<UsageInfo, nsresult> QuotaClient::GetUsageForOrigin(
 
         if (StringEndsWith(leafName, kSDBSuffix)) {
           QM_TRY_INSPECT(const int64_t& fileSize,
-                         MOZ_TO_RESULT_INVOKE(file, GetFileSize));
+                         MOZ_TO_RESULT_INVOKE_MEMBER(file, GetFileSize));
 
           MOZ_ASSERT(fileSize >= 0);
 

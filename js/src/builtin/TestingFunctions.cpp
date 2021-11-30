@@ -211,6 +211,14 @@ static bool GetRealmConfiguration(JSContext* cx, unsigned argc, Value* vp) {
   }
 #endif
 
+#ifdef ENABLE_NEW_SET_METHODS
+  bool newSetMethods = cx->realm()->creationOptions().getNewSetMethodsEnabled();
+  if (!JS_SetProperty(cx, info, "enableNewSetMethods",
+                      newSetMethods ? TrueHandleValue : FalseHandleValue)) {
+    return false;
+  }
+#endif
+
   args.rval().setObject(*info);
   return true;
 }
@@ -528,6 +536,15 @@ static bool GetBuildConfiguration(JSContext* cx, unsigned argc, Value* vp) {
   value = BooleanValue(false);
 #endif
   if (!JS_SetProperty(cx, info, "change-array-by-copy", value)) {
+    return false;
+  }
+
+#ifdef ENABLE_NEW_SET_METHODS
+  value = BooleanValue(true);
+#else
+  value = BooleanValue(false);
+#endif
+  if (!JS_SetProperty(cx, info, "new-set-methods", value)) {
     return false;
   }
 
@@ -1118,8 +1135,14 @@ static bool WasmGlobalFromArrayBuffer(JSContext* cx, unsigned argc, Value* vp) {
   // Create the global object
   RootedObject proto(
       cx, GlobalObject::getOrCreatePrototype(cx, JSProto_WasmGlobal));
+  if (!proto) {
+    return false;
+  }
   RootedWasmGlobalObject result(
       cx, WasmGlobalObject::create(cx, val, false, proto));
+  if (!result) {
+    return false;
+  }
 
   args.rval().setObject(*result.get());
   return true;

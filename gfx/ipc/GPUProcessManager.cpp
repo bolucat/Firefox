@@ -388,6 +388,11 @@ GPUProcessManager::CreateUiCompositorController(nsBaseWidget* aWidget,
     mGPUChild->SendInitUiCompositorController(aId, std::move(parentPipe));
     result = UiCompositorControllerChild::CreateForGPUProcess(
         mProcessToken, std::move(childPipe));
+
+    if (result) {
+      result->SetCompositorSurfaceManager(
+          mProcess->GetCompositorSurfaceManager());
+    }
   }
   if (result) {
     result->SetBaseWidget(aWidget);
@@ -531,15 +536,6 @@ bool GPUProcessManager::DisableWebRenderConfig(wr::WebRenderError aError,
   if (wantRestart && mProcess) {
     mUnstableProcessAttempts = 1;
   }
-
-#if defined(MOZ_WIDGET_ANDROID)
-  // If aError is not wr::WebRenderError::INITIALIZE, nsWindow does not
-  // re-create LayerManager. Needs to trigger re-creating LayerManager on
-  // android
-  if (aError != wr::WebRenderError::INITIALIZE) {
-    NotifyDisablingWebRender();
-  }
-#endif
 
   return true;
 }
@@ -780,18 +776,6 @@ void GPUProcessManager::RebuildInProcessSessions() {
   for (const auto& session : sessions) {
     session->NotifySessionLost();
   }
-}
-
-void GPUProcessManager::NotifyDisablingWebRender() {
-#if defined(MOZ_WIDGET_ANDROID)
-  for (const auto& session : mRemoteSessions) {
-    session->NotifyDisablingWebRender();
-  }
-
-  for (const auto& session : mInProcessSessions) {
-    session->NotifyDisablingWebRender();
-  }
-#endif
 }
 
 void GPUProcessManager::NotifyRemoteActorDestroyed(

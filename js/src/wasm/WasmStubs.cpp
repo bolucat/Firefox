@@ -63,6 +63,11 @@ static uint32_t ResultStackSize(ValType type) {
   }
 }
 
+// Compute the size of the stack slot that the wasm ABI requires be allocated
+// for a particular MIRType.  Note that this sometimes differs from the
+// MIRType's natural size.  See also ResultStackSize above and ABIResult::size()
+// and ABIResultIter below.
+
 uint32_t js::wasm::MIRTypeToABIResultSize(jit::MIRType type) {
   switch (type) {
     case MIRType::Int32:
@@ -2513,8 +2518,8 @@ static bool GenerateImportJitExit(MacroAssembler& masm, const FuncImport& fi,
           switch (results[0].refTypeKind()) {
             case RefType::Extern:
               masm.call(SymbolicAddress::BoxValue_Anyref);
-              masm.branchTest32(Assembler::Zero, ReturnReg, ReturnReg,
-                                throwLabel);
+              masm.branchTestPtr(Assembler::Zero, ReturnReg, ReturnReg,
+                                 throwLabel);
               break;
             case RefType::Func:
             case RefType::Eq:

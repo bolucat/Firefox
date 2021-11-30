@@ -24,7 +24,7 @@ import urllib
 
 from six.moves import shlex_quote
 
-from mozboot.util import get_state_dir
+from mach.util import get_state_dir
 from mozbuild.util import ensureParentDir
 from mozfile import which
 from mozpack.copier import FileCopier
@@ -700,7 +700,7 @@ def repackage_msix(
     return output
 
 
-def _sign_msix_win(output, force, log, verbose, vendor, publisher, friendly_name):
+def _sign_msix_win(output, force, log, verbose):
     powershell_exe = find_sdk_tool("powershell.exe", log=log)
     if not powershell_exe:
         raise ValueError("powershell is required; " "set POWERSHELL or PATH")
