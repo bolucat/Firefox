@@ -1235,10 +1235,15 @@
 #
 # Returns whether the toolbar is dark (0), light (1), or system (2).
 #
-# Default to "system", the theming code sets it appropriately.
+# Default to "light" on macOS / Windows, and "system" elsewhere. The theming
+# code sets it appropriately.
 - name: browser.theme.toolbar-theme
   type: RelaxedAtomicUint32
+#if defined(XP_WIN) || defined(XP_MACOSX)
+  value: 1
+#else
   value: 2
+#endif
   mirror: always
 
 # Communicates the preferred content theme color to platform (for e.g.,
@@ -6257,6 +6262,14 @@
     value: true
     mirror: always
 
+#ifdef NIGHTLY_BUILD
+  # Experimental support for Import Assertions in JavaScript.
+-   name: javascript.options.experimental.import_assertions
+    type: bool
+    value: false
+    mirror: always
+#endif  // NIGHTLY_BUILD
+
   # Support for Private Fields in JavaScript.
 - name: javascript.options.experimental.private_fields
   type: bool
@@ -7054,7 +7067,7 @@
 # Whether we should expose all shorthands in getComputedStyle().
 - name: layout.css.computed-style.shorthands
   type: bool
-  value: false
+  value: true
   mirror: always
 
 # Whether we should avoid exposing styles of elements outside the flat tree in getComputedStyle().
@@ -9133,6 +9146,15 @@
   value: true
   mirror: always
 #endif
+
+#---------------------------------------------------------------------------
+# Prefs starting with "midi."
+#---------------------------------------------------------------------------
+
+- name: midi.testing
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
 
 #---------------------------------------------------------------------------
 # Prefs starting with "mousewheel."
