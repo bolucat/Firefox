@@ -2731,17 +2731,18 @@ LocalAccessible* LocalAccessible::EmbeddedChildAt(uint32_t aIndex) {
   return LocalChildAt(aIndex);
 }
 
-int32_t LocalAccessible::GetIndexOfEmbeddedChild(LocalAccessible* aChild) {
+int32_t LocalAccessible::IndexOfEmbeddedChild(Accessible* aChild) {
+  MOZ_ASSERT(aChild->IsLocal());
   if (mStateFlags & eHasTextKids) {
     if (!mEmbeddedObjCollector) {
       mEmbeddedObjCollector.reset(new EmbeddedObjCollector(this));
     }
     return mEmbeddedObjCollector.get()
-               ? mEmbeddedObjCollector->GetIndexAt(aChild)
+               ? mEmbeddedObjCollector->GetIndexAt(aChild->AsLocal())
                : -1;
   }
 
-  return GetIndexOf(aChild);
+  return GetIndexOf(aChild->AsLocal());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2751,13 +2752,6 @@ bool LocalAccessible::IsLink() const {
   // Every embedded accessible within hypertext accessible implements
   // hyperlink interface.
   return mParent && mParent->IsHyperText() && !IsText();
-}
-
-uint32_t LocalAccessible::StartOffset() {
-  MOZ_ASSERT(IsLink(), "StartOffset is called not on hyper link!");
-
-  HyperTextAccessible* hyperText = mParent ? mParent->AsHyperText() : nullptr;
-  return hyperText ? hyperText->GetChildOffset(this) : 0;
 }
 
 uint32_t LocalAccessible::EndOffset() {

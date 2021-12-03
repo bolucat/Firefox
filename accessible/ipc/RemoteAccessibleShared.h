@@ -137,8 +137,6 @@ nsIntPoint ImagePosition(uint32_t aCoordType);
 
 nsIntSize ImageSize();
 
-uint32_t StartOffset(bool* aOk);
-
 uint32_t EndOffset(bool* aOk);
 
 bool IsLinkValid();
@@ -152,10 +150,6 @@ RemoteAccessible* AnchorAt(uint32_t aIndex);
 uint32_t LinkCount();
 
 RemoteAccessible* LinkAt(const uint32_t& aIndex);
-
-int32_t LinkIndexOf(RemoteAccessible* aLink);
-
-int32_t LinkIndexAtOffset(uint32_t aOffset);
 
 RemoteAccessible* TableOfACell();
 

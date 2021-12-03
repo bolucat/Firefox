@@ -115,6 +115,11 @@ class Accessible {
    */
   virtual Accessible* EmbeddedChildAt(uint32_t aIndex) = 0;
 
+  /**
+   * Return index of the given embedded accessible child.
+   */
+  virtual int32_t IndexOfEmbeddedChild(Accessible* aChild) = 0;
+
   // Methods that potentially access a cache.
 
   /*
@@ -151,6 +156,12 @@ class Accessible {
    * Return all states of accessible (including ARIA states).
    */
   virtual uint64_t State() = 0;
+
+  /**
+   * Return the start offset of the embedded object within the parent
+   * HyperTextAccessibleBase.
+   */
+  virtual uint32_t StartOffset();
 
   // Methods that interact with content.
 

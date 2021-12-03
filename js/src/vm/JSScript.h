@@ -29,6 +29,7 @@
 #include "gc/Barrier.h"
 #include "gc/Rooting.h"
 #include "js/CompileOptions.h"
+#include "js/Transcoding.h"
 #include "js/UbiNode.h"
 #include "js/UniquePtr.h"
 #include "js/Utility.h"
@@ -44,8 +45,8 @@
 #include "vm/Shape.h"
 #include "vm/SharedImmutableStringsCache.h"
 #include "vm/SharedStencil.h"  // js::GCThingIndex, js::SourceExtent, js::SharedImmutableScriptData, MemberInitializers
+#include "vm/StencilEnums.h"   // SourceRetrievable
 #include "vm/Time.h"
-#include "vm/Xdr.h"  // XDRMode, XDRResult, XDRIncrementalStencilEncoder
 
 namespace JS {
 struct ScriptSourceInfo;
@@ -54,6 +55,8 @@ class SourceText;
 }  // namespace JS
 
 namespace js {
+
+class ScriptSource;
 
 class VarScope;
 class LexicalScope;
@@ -83,7 +86,10 @@ class DebugScript;
 
 namespace frontend {
 struct CompilationStencil;
+struct ExtensibleCompilationStencil;
 struct CompilationGCOutput;
+struct CompilationStencilMerger;
+class StencilXDR;
 }  // namespace frontend
 
 class ScriptCounts {
@@ -188,7 +194,28 @@ using ScriptFinalWarmUpCountMap =
                        DefaultHasher<HeapPtr<BaseScript*>>, SystemAllocPolicy>;
 #endif
 
-class ScriptSource;
+// As we execute JS sources that used lazy parsing, we may generate additional
+// bytecode that we would like to include in caches if they are being used.
+// There is a dependency cycle between JSScript / ScriptSource /
+// CompilationStencil for this scenario so introduce this smart-ptr wrapper to
+// avoid needing the full details of the stencil-merger in this file.
+class StencilIncrementalEncoderPtr {
+ public:
+  frontend::CompilationStencilMerger* merger_ = nullptr;
+
+  StencilIncrementalEncoderPtr() = default;
+  ~StencilIncrementalEncoderPtr() { reset(); }
+
+  bool hasEncoder() const { return bool(merger_); }
+
+  void reset();
+
+  bool setInitial(JSContext* cx,
+                  UniquePtr<frontend::ExtensibleCompilationStencil>&& initial);
+
+  bool addDelazification(JSContext* cx,
+                         const frontend::CompilationStencil& delazification);
+};
 
 struct ScriptSourceChunk {
   ScriptSource* ss = nullptr;
@@ -372,11 +399,6 @@ struct SourceTypeTraits<char16_t> {
 [[nodiscard]] extern bool SynchronouslyCompressSource(
     JSContext* cx, JS::Handle<BaseScript*> script);
 
-// Retrievable source can be retrieved using the source hook (and therefore
-// need not be XDR'd, can be discarded if desired because it can always be
-// reconstituted later, etc.).
-enum class SourceRetrievable { Yes, No };
-
 // [SMDOC] ScriptSource
 //
 // This class abstracts over the source we used to compile from. The current
@@ -393,6 +415,8 @@ class ScriptSource {
   friend class SourceCompressionTask;
   friend bool SynchronouslyCompressSource(JSContext* cx,
                                           JS::Handle<BaseScript*> script);
+
+  friend class frontend::StencilXDR;
 
  private:
   // Common base class of the templated variants of PinnedUnits<T>.
@@ -558,7 +582,7 @@ class ScriptSource {
   // The bytecode cache encoder is used to encode only the content of function
   // which are delazified.  If this value is not nullptr, then each delazified
   // function should be recorded before their first execution.
-  UniquePtr<XDRIncrementalStencilEncoder> xdrEncoder_ = nullptr;
+  StencilIncrementalEncoderPtr xdrEncoder_;
 
   // A string indicating how this source code was introduced into the system.
   // This is a constant, statically allocated C string, so does not need memory
@@ -608,9 +632,7 @@ class ScriptSource {
   static const size_t SourceDeflateLimit = 100;
 
   explicit ScriptSource() : id_(++idCount_) {}
-
-  void finalizeGCData();
-  ~ScriptSource();
+  ~ScriptSource() { MOZ_ASSERT(refs == 0); }
 
   void AddRef() { refs++; }
   void Release() {
@@ -963,16 +985,6 @@ class ScriptSource {
   void triggerConvertToCompressedSourceFromTask(
       SharedImmutableString compressed);
 
- private:
-  // It'd be better to make this function take <XDRMode, Unit>, as both
-  // specializations of this function contain nested Unit-parametrized
-  // helper classes that do everything the function needs to do.  But then
-  // we'd need template function partial specialization to hold XDRMode
-  // constant while varying Unit, so that idea's no dice.
-  template <XDRMode mode>
-  [[nodiscard]] XDRResult xdrUnretrievableUncompressedSource(
-      XDRState<mode>* xdr, uint8_t sourceCharSize, uint32_t uncompressedLength);
-
  public:
   const char* filename() const {
     return filename_ ? filename_.chars() : nullptr;
@@ -1020,7 +1032,7 @@ class ScriptSource {
   }
 
   // Return wether an XDR encoder is present or not.
-  bool hasEncoder() const { return bool(xdrEncoder_); }
+  bool hasEncoder() const { return xdrEncoder_.hasEncoder(); }
 
   [[nodiscard]] bool startIncrementalEncoding(
       JSContext* cx,
@@ -1033,33 +1045,6 @@ class ScriptSource {
   // |xdrEncodeTopLevel|, and free the XDR encoder.  In case of errors, the
   // |buffer| is considered undefined.
   bool xdrFinalizeEncoder(JSContext* cx, JS::TranscodeBuffer& buffer);
-
- private:
-  template <typename Unit,
-            template <typename U, SourceRetrievable CanRetrieve> class Data,
-            XDRMode mode>
-  static void codeRetrievable(ScriptSource* ss);
-
-  template <typename Unit, XDRMode mode>
-  [[nodiscard]] static XDRResult codeUncompressedData(XDRState<mode>* const xdr,
-                                                      ScriptSource* const ss);
-
-  template <typename Unit, XDRMode mode>
-  [[nodiscard]] static XDRResult codeCompressedData(XDRState<mode>* const xdr,
-                                                    ScriptSource* const ss);
-
-  template <typename Unit, XDRMode mode>
-  static void codeRetrievableData(ScriptSource* ss);
-
-  template <XDRMode mode>
-  [[nodiscard]] static XDRResult xdrData(XDRState<mode>* const xdr,
-                                         ScriptSource* const ss);
-
- public:
-  template <XDRMode mode>
-  [[nodiscard]] static XDRResult XDR(XDRState<mode>* xdr,
-                                     const JS::DecodeOptions* maybeOptions,
-                                     RefPtr<ScriptSource>& source);
 };
 
 // [SMDOC] ScriptSourceObject
@@ -1617,9 +1602,6 @@ class BaseScript : public gc::TenuredCellWithNonGCPointer<uint8_t> {
     return offsetof(BaseScript, warmUpData_);
   }
 };
-
-template <XDRMode mode>
-XDRResult XDRSourceExtent(XDRState<mode>* xdr, SourceExtent* extent);
 
 extern void SweepScriptData(JSRuntime* rt);
 

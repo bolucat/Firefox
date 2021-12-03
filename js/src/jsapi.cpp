@@ -87,7 +87,6 @@
 #include "vm/StringType.h"
 #include "vm/ToSource.h"
 #include "vm/WrapperObject.h"
-#include "vm/Xdr.h"
 #include "wasm/WasmModule.h"
 #include "wasm/WasmProcess.h"
 
@@ -2002,12 +2001,11 @@ JS_PUBLIC_API bool JSPropertySpec::getValue(JSContext* cx,
 }
 
 bool PropertySpecNameToId(JSContext* cx, JSPropertySpec::Name name,
-                          MutableHandleId id,
-                          js::PinningBehavior pin = js::DoNotPinAtom) {
+                          MutableHandleId id) {
   if (name.isSymbol()) {
     id.set(SYMBOL_TO_JSID(cx->wellKnownSymbols().get(name.symbol())));
   } else {
-    JSAtom* atom = Atomize(cx, name.string(), strlen(name.string()), pin);
+    JSAtom* atom = Atomize(cx, name.string(), strlen(name.string()));
     if (!atom) {
       return false;
     }
@@ -2023,8 +2021,16 @@ JS_PUBLIC_API bool JS::PropertySpecNameToPermanentId(JSContext* cx,
   // location that will never be marked. This is OK because the whole point
   // of this API is to populate *idp with a jsid that does not need to be
   // marked.
-  return PropertySpecNameToId(
-      cx, name, MutableHandleId::fromMarkedLocation(idp), js::PinAtom);
+  MutableHandleId id = MutableHandleId::fromMarkedLocation(idp);
+  if (!PropertySpecNameToId(cx, name, id)) {
+    return false;
+  }
+
+  if (id.isString() && !PinAtom(cx, &id.toString()->asAtom())) {
+    return false;
+  }
+
+  return true;
 }
 
 JS_PUBLIC_API bool JS::ObjectToCompletePropertyDescriptor(
@@ -2283,29 +2289,39 @@ extern JS_PUBLIC_API bool JS_IsConstructor(JSFunction* fun) {
 
 void JS::TransitiveCompileOptions::copyPODTransitiveOptions(
     const TransitiveCompileOptions& rhs) {
+  // filename_, introducerFilename_, sourceMapURL_ should be handled in caller.
+
   mutedErrors_ = rhs.mutedErrors_;
   forceFullParse_ = rhs.forceFullParse_;
   forceStrictMode_ = rhs.forceStrictMode_;
-  skipFilenameValidation_ = rhs.skipFilenameValidation_;
   sourcePragmas_ = rhs.sourcePragmas_;
+  skipFilenameValidation_ = rhs.skipFilenameValidation_;
+  hideScriptFromDebugger_ = rhs.hideScriptFromDebugger_;
+  deferDebugMetadata_ = rhs.deferDebugMetadata_;
+
   selfHostingMode = rhs.selfHostingMode;
   asmJSOption = rhs.asmJSOption;
   throwOnAsmJSValidationFailureOption = rhs.throwOnAsmJSValidationFailureOption;
   forceAsync = rhs.forceAsync;
   discardSource = rhs.discardSource;
   sourceIsLazy = rhs.sourceIsLazy;
+  allowHTMLComments = rhs.allowHTMLComments;
+  nonSyntacticScope = rhs.nonSyntacticScope;
+
+  privateClassFields = rhs.privateClassFields;
+  privateClassMethods = rhs.privateClassMethods;
+  topLevelAwait = rhs.topLevelAwait;
+  classStaticBlocks = rhs.classStaticBlocks;
+  importAssertions = rhs.importAssertions;
+  useFdlibmForSinCosTan = rhs.useFdlibmForSinCosTan;
+
+  borrowBuffer = rhs.borrowBuffer;
+  usePinnedBytecode = rhs.usePinnedBytecode;
+
   introductionType = rhs.introductionType;
   introductionLineno = rhs.introductionLineno;
   introductionOffset = rhs.introductionOffset;
   hasIntroductionInfo = rhs.hasIntroductionInfo;
-  hideScriptFromDebugger_ = rhs.hideScriptFromDebugger_;
-  deferDebugMetadata_ = rhs.deferDebugMetadata_;
-  nonSyntacticScope = rhs.nonSyntacticScope;
-  privateClassFields = rhs.privateClassFields;
-  privateClassMethods = rhs.privateClassMethods;
-  classStaticBlocks = rhs.classStaticBlocks;
-  importAssertions = rhs.importAssertions;
-  useFdlibmForSinCosTan = rhs.useFdlibmForSinCosTan;
 };
 
 void JS::ReadOnlyCompileOptions::copyPODNonTransitiveOptions(
@@ -2967,7 +2983,7 @@ JS_PUBLIC_API JSString* JS_AtomizeStringN(JSContext* cx, const char* s,
                                           size_t length) {
   AssertHeapIsIdle();
   CHECK_THREAD(cx);
-  return Atomize(cx, s, length, DoNotPinAtom);
+  return Atomize(cx, s, length);
 }
 
 JS_PUBLIC_API JSString* JS_AtomizeAndPinString(JSContext* cx, const char* s) {
@@ -2978,7 +2994,11 @@ JS_PUBLIC_API JSString* JS_AtomizeAndPinStringN(JSContext* cx, const char* s,
                                                 size_t length) {
   AssertHeapIsIdle();
   CHECK_THREAD(cx);
-  JSAtom* atom = Atomize(cx, s, length, PinAtom);
+  JSAtom* atom = Atomize(cx, s, length);
+  if (!atom || !PinAtom(cx, atom)) {
+    return nullptr;
+  }
+
   MOZ_ASSERT_IF(atom, JS_StringHasBeenPinned(cx, atom));
   return atom;
 }
@@ -3034,7 +3054,7 @@ JS_PUBLIC_API JSString* JS_AtomizeUCStringN(JSContext* cx, const char16_t* s,
                                             size_t length) {
   AssertHeapIsIdle();
   CHECK_THREAD(cx);
-  return AtomizeChars(cx, s, length, DoNotPinAtom);
+  return AtomizeChars(cx, s, length);
 }
 
 JS_PUBLIC_API size_t JS_GetStringLength(JSString* str) { return str->length(); }

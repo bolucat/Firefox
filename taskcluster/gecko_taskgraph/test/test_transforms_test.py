@@ -36,7 +36,7 @@ def make_test_task():
 def test_split_variants(monkeypatch, run_transform, make_test_task):
     # mock out variant definitions
     monkeypatch.setattr(
-        test_transforms,
+        test_transforms.variant,
         "TEST_VARIANTS",
         {
             "foo": {
@@ -82,7 +82,7 @@ def test_split_variants(monkeypatch, run_transform, make_test_task):
             }
         )
 
-    run_split_variants = partial(run_transform, test_transforms.split_variants)
+    run_split_variants = partial(run_transform, test_transforms.variant.split_variants)
 
     # test no variants
     input_task = make_test_task()
@@ -214,7 +214,7 @@ def test_set_test_setting(run_transform, task, expected):
         json.dumps(expected, sort_keys=True).encode("utf-8")
     ).hexdigest()[:12]
 
-    task = list(run_transform(test_transforms.set_test_setting, task))[0]
+    task = list(run_transform(test_transforms.other.set_test_setting, task))[0]
     assert "test-setting" in task
     assert task["test-setting"] == expected
 

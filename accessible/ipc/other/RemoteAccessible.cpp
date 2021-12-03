@@ -368,9 +368,13 @@ nsIntSize RemoteAccessible::ImageSize() {
   return retVal;
 }
 
-uint32_t RemoteAccessible::StartOffset(bool* aOk) {
+uint32_t RemoteAccessible::StartOffset() {
+  if (StaticPrefs::accessibility_cache_enabled_AtStartup()) {
+    return RemoteAccessibleBase<RemoteAccessible>::StartOffset();
+  }
   uint32_t retVal = 0;
-  Unused << mDoc->SendStartOffset(mID, &retVal, aOk);
+  bool ok;
+  Unused << mDoc->SendStartOffset(mID, &retVal, &ok);
   return retVal;
 }
 
@@ -417,16 +421,10 @@ RemoteAccessible* RemoteAccessible::LinkAt(const uint32_t& aIndex) {
   return ok ? mDoc->GetAccessible(linkID) : nullptr;
 }
 
-int32_t RemoteAccessible::LinkIndexOf(RemoteAccessible* aLink) {
-  int32_t retVal = -1;
-  if (aLink) {
-    Unused << mDoc->SendLinkIndexOf(mID, aLink->ID(), &retVal);
-  }
-
-  return retVal;
-}
-
 int32_t RemoteAccessible::LinkIndexAtOffset(uint32_t aOffset) {
+  if (StaticPrefs::accessibility_cache_enabled_AtStartup()) {
+    return RemoteAccessibleBase<RemoteAccessible>::LinkIndexAtOffset(aOffset);
+  }
   int32_t retVal = -1;
   Unused << mDoc->SendLinkIndexAtOffset(mID, aOffset, &retVal);
   return retVal;
