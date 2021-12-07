@@ -523,19 +523,28 @@ bool nsHTMLScrollFrame::TryLayout(ScrollReflowInput& aState,
     ReflowScrolledFrame(aState, aAssumeHScroll, aAssumeVScroll, aKidMetrics);
   }
 
-  nscoord vScrollbarDesiredWidth =
-      aAssumeVScroll ? aState.VScrollbarPrefWidth() : 0;
-  nscoord hScrollbarDesiredHeight =
-      aAssumeHScroll ? aState.HScrollbarPrefHeight() : 0;
+  // Bug 1715112: Consider the space occupied by scrollbar-gutter in this
+  // variable.
+  nsMargin scrollbarOrGutterSpace;
+  if (aAssumeVScroll) {
+    if (IsScrollbarOnRight()) {
+      scrollbarOrGutterSpace.right = aState.VScrollbarPrefWidth();
+    } else {
+      scrollbarOrGutterSpace.left = aState.VScrollbarPrefWidth();
+    }
+  }
+  if (aAssumeHScroll) {
+    scrollbarOrGutterSpace.bottom = aState.HScrollbarPrefHeight();
+  }
+  const nsSize scrollbarOrGutterSize(scrollbarOrGutterSpace.LeftRight(),
+                                     scrollbarOrGutterSpace.TopBottom());
 
   // First, compute our inside-border size and scrollport size
   // XXXldb Can we depend more on ComputeSize here?
   nsSize kidSize = aState.mReflowInput.mStyleDisplay->IsContainSize()
                        ? nsSize(0, 0)
                        : aKidMetrics->PhysicalSize();
-  nsSize desiredInsideBorderSize;
-  desiredInsideBorderSize.width = vScrollbarDesiredWidth + kidSize.width;
-  desiredInsideBorderSize.height = hScrollbarDesiredHeight + kidSize.height;
+  const nsSize desiredInsideBorderSize = kidSize + scrollbarOrGutterSize;
   aState.mInsideBorderSize =
       ComputeInsideBorderSize(aState, desiredInsideBorderSize);
 
@@ -544,12 +553,10 @@ bool nsHTMLScrollFrame::TryLayout(ScrollReflowInput& aState,
                           : aState.mInsideBorderSize;
 
   const nsSize scrollPortSize =
-      nsSize(std::max(0, layoutSize.width - vScrollbarDesiredWidth),
-             std::max(0, layoutSize.height - hScrollbarDesiredHeight));
+      Max(nsSize(0, 0), layoutSize - scrollbarOrGutterSize);
   if (mHelper.mIsUsingMinimumScaleSize) {
-    mHelper.mICBSize = nsSize(
-        std::max(0, aState.mInsideBorderSize.width - vScrollbarDesiredWidth),
-        std::max(0, aState.mInsideBorderSize.height - hScrollbarDesiredHeight));
+    mHelper.mICBSize =
+        Max(nsSize(0, 0), aState.mInsideBorderSize - scrollbarOrGutterSize);
   }
 
   nsSize visualViewportSize = scrollPortSize;
@@ -565,10 +572,8 @@ bool nsHTMLScrollFrame::TryLayout(ScrollReflowInput& aState,
   if (mHelper.mIsRoot && presShell->GetMobileViewportManager()) {
     visualViewportSize = nsLayoutUtils::CalculateCompositionSizeForFrame(
         this, false, &layoutSize);
-
-    visualViewportSize = nsSize(
-        std::max(0, visualViewportSize.width - vScrollbarDesiredWidth),
-        std::max(0, visualViewportSize.height - hScrollbarDesiredHeight));
+    visualViewportSize =
+        Max(nsSize(0, 0), visualViewportSize - scrollbarOrGutterSize);
 
     float resolution = presShell->GetResolution();
     visualViewportSize.width /= resolution;
@@ -647,13 +652,10 @@ bool nsHTMLScrollFrame::TryLayout(ScrollReflowInput& aState,
 
   aState.mShowHScrollbar = aAssumeHScroll;
   aState.mShowVScrollbar = aAssumeVScroll;
-  nsPoint scrollPortOrigin(aState.mComputedBorder.left,
-                           aState.mComputedBorder.top);
-  if (!IsScrollbarOnRight()) {
-    nscoord vScrollbarActualWidth = layoutSize.width - scrollPortSize.width;
-    scrollPortOrigin.x += vScrollbarActualWidth;
-  }
-  mHelper.mScrollPort = nsRect(scrollPortOrigin, scrollPortSize);
+  const nsPoint scrollPortOrigin(
+      aState.mComputedBorder.left + scrollbarOrGutterSpace.left,
+      aState.mComputedBorder.top + scrollbarOrGutterSpace.top);
+  mHelper.SetScrollPort(nsRect(scrollPortOrigin, scrollPortSize));
 
   if (mHelper.mIsRoot && gfxPlatform::UseDesktopZoomingScrollbars()) {
     bool vvChanged = true;
@@ -666,7 +668,7 @@ bool nsHTMLScrollFrame::TryLayout(ScrollReflowInput& aState,
       vvChanged = false;
       if (!aState.mShowHScrollbar &&
           aState.mHScrollbarAllowedForScrollingVVInsideLV) {
-        if (mHelper.mScrollPort.width >=
+        if (mHelper.ScrollPort().width >=
                 visualViewportSize.width + oneDevPixel &&
             visualViewportSize.width >= aState.HScrollbarMinWidth()) {
           vvChanged = true;
@@ -680,7 +682,7 @@ bool nsHTMLScrollFrame::TryLayout(ScrollReflowInput& aState,
 
       if (!aState.mShowVScrollbar &&
           aState.mVScrollbarAllowedForScrollingVVInsideLV) {
-        if (mHelper.mScrollPort.height >=
+        if (mHelper.ScrollPort().height >=
                 visualViewportSize.height + oneDevPixel &&
             visualViewportSize.height >= aState.VScrollbarMinHeight()) {
           vvChanged = true;
@@ -1023,7 +1025,7 @@ void nsHTMLScrollFrame::PlaceScrollArea(ScrollReflowInput& aState,
                                         const nsPoint& aScrollPosition) {
   nsIFrame* scrolledFrame = mHelper.mScrolledFrame;
   // Set the x,y of the scrolled frame to the correct value
-  scrolledFrame->SetPosition(mHelper.mScrollPort.TopLeft() - aScrollPosition);
+  scrolledFrame->SetPosition(mHelper.ScrollPort().TopLeft() - aScrollPosition);
 
   // Recompute our scrollable overflow, taking perspective children into
   // account. Note that this only recomputes the overflow areas stored on the
@@ -1033,7 +1035,7 @@ void nsHTMLScrollFrame::PlaceScrollArea(ScrollReflowInput& aState,
   AdjustForPerspective(aState.mContentsOverflowAreas.ScrollableOverflow());
 
   // Preserve the width or height of empty rects
-  nsSize portSize = mHelper.mScrollPort.Size();
+  const nsSize portSize = mHelper.ScrollPort().Size();
   nsRect scrolledRect = mHelper.GetUnsnappedScrolledRectInternal(
       aState.mContentsOverflowAreas.ScrollableOverflow(), portSize);
   nsRect scrolledArea =
@@ -1284,7 +1286,7 @@ void nsHTMLScrollFrame::AdjustForPerspective(nsRect& aScrollableOverflow) {
   }
   aScrollableOverflow.SetEmpty();
   GetScrollableOverflowForPerspective(
-      mHelper.mScrolledFrame, mHelper.mScrolledFrame, mHelper.mScrollPort,
+      mHelper.mScrolledFrame, mHelper.mScrolledFrame, mHelper.ScrollPort(),
       nsPoint(), aScrollableOverflow);
 }
 
@@ -1320,7 +1322,7 @@ void nsHTMLScrollFrame::Reflow(nsPresContext* aPresContext,
     reflowScrollCorner = false;
   }
 
-  const nsRect oldScrollPort = mHelper.mScrollPort;
+  const nsRect oldScrollPort = mHelper.ScrollPort();
   nsRect oldScrolledAreaBounds =
       mHelper.mScrolledFrame->ScrollableOverflowRectRelativeToParent();
   nsPoint oldScrollPosition = mHelper.GetScrollPosition();
@@ -1360,7 +1362,7 @@ void nsHTMLScrollFrame::Reflow(nsPresContext* aPresContext,
   bool didHaveVScrollbar = mHelper.mHasVerticalScrollbar;
   mHelper.mHasHorizontalScrollbar = state.mShowHScrollbar;
   mHelper.mHasVerticalScrollbar = state.mShowVScrollbar;
-  const nsRect newScrollPort = mHelper.mScrollPort;
+  const nsRect& newScrollPort = mHelper.ScrollPort();
   nsRect newScrolledAreaBounds =
       mHelper.mScrolledFrame->ScrollableOverflowRectRelativeToParent();
   if (mHelper.mSkippedScrollbarLayout || reflowHScrollbar || reflowVScrollbar ||
@@ -5849,18 +5851,29 @@ bool nsXULScrollFrame::AddRemoveScrollbar(nsBoxLayoutState& aState,
     nsSize hSize = mHelper.mHScrollbarBox->GetXULPrefSize(aState);
     nsIFrame::AddXULMargin(mHelper.mHScrollbarBox, hSize);
 
-    ScrollFrameHelper::SetScrollbarVisibility(mHelper.mHScrollbarBox, aAdd);
+    nsRect newScrollPort = mHelper.ScrollPort();
+    MOZ_ASSERT(newScrollPort.height != NS_UNCONSTRAINEDSIZE,
+               "The scroll port shouldn't have unconstrained height!");
 
-    // We can't directly pass mHasHorizontalScrollbar as the bool outparam for
-    // AddRemoveScrollbar() because it's a bool:1 bitfield. Hence this var:
-    bool hasHorizontalScrollbar;
-    bool fit = AddRemoveScrollbar(hasHorizontalScrollbar, mHelper.mScrollPort.y,
-                                  mHelper.mScrollPort.height, hSize.height,
-                                  aOnRightOrBottom, aAdd);
-    mHelper.mHasHorizontalScrollbar = hasHorizontalScrollbar;
-    if (!fit) {
-      ScrollFrameHelper::SetScrollbarVisibility(mHelper.mHScrollbarBox, !aAdd);
+    // Removing a scrollbar should always fit.
+    const bool fit = !aAdd || newScrollPort.height >= hSize.height;
+    if (fit) {
+      if (aAdd) {
+        newScrollPort.height -= hSize.height;
+      } else {
+        newScrollPort.height += hSize.height;
+      }
+      // No need to adjust newScrollPort.y because we don't support scrollbar on
+      // top side.
+      MOZ_ASSERT(aOnRightOrBottom,
+                 "We don't support a horizontal scrollbar on top side!");
+      mHelper.SetScrollPort(newScrollPort);
     }
+
+    const bool showHScrollbar = aAdd && fit;
+    mHelper.mHasHorizontalScrollbar = showHScrollbar;
+    ScrollFrameHelper::SetScrollbarVisibility(mHelper.mHScrollbarBox,
+                                              showHScrollbar);
     return fit;
   } else {
     if (!mHelper.mVScrollbarBox) {
@@ -5870,55 +5883,41 @@ bool nsXULScrollFrame::AddRemoveScrollbar(nsBoxLayoutState& aState,
     nsSize vSize = mHelper.mVScrollbarBox->GetXULPrefSize(aState);
     nsIFrame::AddXULMargin(mHelper.mVScrollbarBox, vSize);
 
-    ScrollFrameHelper::SetScrollbarVisibility(mHelper.mVScrollbarBox, aAdd);
+    nsRect newScrollPort = mHelper.ScrollPort();
+    MOZ_ASSERT(newScrollPort.width != NS_UNCONSTRAINEDSIZE,
+               "The scroll port shouldn't have unconstrained width!");
 
-    // We can't directly pass mHasVerticalScrollbar as the bool outparam for
-    // AddRemoveScrollbar() because it's a bool:1 bitfield. Hence this var:
-    bool hasVerticalScrollbar;
-    bool fit = AddRemoveScrollbar(hasVerticalScrollbar, mHelper.mScrollPort.x,
-                                  mHelper.mScrollPort.width, vSize.width,
-                                  aOnRightOrBottom, aAdd);
-    mHelper.mHasVerticalScrollbar = hasVerticalScrollbar;
-    if (!fit) {
-      ScrollFrameHelper::SetScrollbarVisibility(mHelper.mVScrollbarBox, !aAdd);
+    // Removing a scrollbar should always fit.
+    const bool fit = !aAdd || newScrollPort.width >= vSize.width;
+    const bool scrollbarOnLeft = !aOnRightOrBottom;
+    if (fit) {
+      if (aAdd) {
+        newScrollPort.width -= vSize.width;
+        if (scrollbarOnLeft) {
+          newScrollPort.x += vSize.width;
+        }
+      } else {
+        newScrollPort.width += vSize.width;
+        if (scrollbarOnLeft) {
+          newScrollPort.x -= vSize.width;
+        }
+      }
+      mHelper.SetScrollPort(newScrollPort);
     }
+
+    const bool showVScrollbar = aAdd && fit;
+    mHelper.mHasVerticalScrollbar = showVScrollbar;
+    ScrollFrameHelper::SetScrollbarVisibility(mHelper.mVScrollbarBox,
+                                              showVScrollbar);
     return fit;
   }
-}
-
-bool nsXULScrollFrame::AddRemoveScrollbar(bool& aHasScrollbar, nscoord& aXY,
-                                          nscoord& aSize, nscoord aSbSize,
-                                          bool aOnRightOrBottom, bool aAdd) {
-  nscoord size = aSize;
-  nscoord xy = aXY;
-
-  if (size != NS_UNCONSTRAINEDSIZE) {
-    if (aAdd) {
-      size -= aSbSize;
-      if (!aOnRightOrBottom && size >= 0) xy += aSbSize;
-    } else {
-      size += aSbSize;
-      if (!aOnRightOrBottom) xy -= aSbSize;
-    }
-  }
-
-  // not enough room? Yes? Return true.
-  if (size >= 0) {
-    aHasScrollbar = aAdd;
-    aSize = size;
-    aXY = xy;
-    return true;
-  }
-
-  aHasScrollbar = false;
-  return false;
 }
 
 void nsXULScrollFrame::LayoutScrollArea(nsBoxLayoutState& aState,
                                         const nsPoint& aScrollPosition) {
   ReflowChildFlags oldflags = aState.LayoutFlags();
-  nsRect childRect = nsRect(mHelper.mScrollPort.TopLeft() - aScrollPosition,
-                            mHelper.mScrollPort.Size());
+  nsRect childRect(mHelper.ScrollPort().TopLeft() - aScrollPosition,
+                   mHelper.ScrollPort().Size());
   ReflowChildFlags flags = ReflowChildFlags::NoMoveView;
 
   nsSize minSize = mHelper.mScrolledFrame->GetXULMinSize(aState);
@@ -5937,10 +5936,12 @@ void nsXULScrollFrame::LayoutScrollArea(nsBoxLayoutState& aState,
 
   childRect = mHelper.mScrolledFrame->GetRect();
 
-  if (childRect.width < mHelper.mScrollPort.width ||
-      childRect.height < mHelper.mScrollPort.height) {
-    childRect.width = std::max(childRect.width, mHelper.mScrollPort.width);
-    childRect.height = std::max(childRect.height, mHelper.mScrollPort.height);
+  const nscoord scrollPortWidth = mHelper.ScrollPort().width;
+  const nscoord scrollPortHeight = mHelper.ScrollPort().height;
+  if (childRect.width < scrollPortWidth ||
+      childRect.height < scrollPortHeight) {
+    childRect.width = std::max(childRect.width, scrollPortWidth);
+    childRect.height = std::max(childRect.height, scrollPortHeight);
 
     // remove overflow areas when we update the bounds,
     // because we've already accounted for it
@@ -6059,11 +6060,11 @@ nsresult nsXULScrollFrame::XULLayout(nsBoxLayoutState& aState) {
   nsRect clientRect(0, 0, 0, 0);
   GetXULClientRect(clientRect);
 
-  nsRect oldScrollPort = mHelper.mScrollPort;
+  const nsRect oldScrollPort = mHelper.ScrollPort();
   nsPoint oldScrollPosition = mHelper.GetLogicalScrollPosition();
 
   // the scroll area size starts off as big as our content area
-  mHelper.mScrollPort = clientRect;
+  mHelper.SetScrollPort(clientRect);
 
   /**************
    Our basic strategy here is to first try laying out the content with
@@ -6116,7 +6117,7 @@ nsresult nsXULScrollFrame::XULLayout(nsBoxLayoutState& aState) {
     nsRect scrolledRect = mHelper.GetScrolledRect();
 
     // There are two cases to consider
-    if (scrolledRect.height <= mHelper.mScrollPort.height ||
+    if (scrolledRect.height <= mHelper.ScrollPort().height ||
         styles.mVertical != StyleOverflow::Auto) {
       if (mHelper.mHasVerticalScrollbar) {
         // We left room for the vertical scrollbar, but it's not needed;
@@ -6149,7 +6150,7 @@ nsresult nsXULScrollFrame::XULLayout(nsBoxLayoutState& aState) {
 
     // if the child is wider that the scroll area
     // and we don't have a scrollbar add one.
-    if ((scrolledRect.width > mHelper.mScrollPort.width) &&
+    if ((scrolledRect.width > mHelper.ScrollPort().width) &&
         styles.mHorizontal == StyleOverflow::Auto) {
       if (!mHelper.mHasHorizontalScrollbar) {
         // no scrollbar?
@@ -6178,7 +6179,7 @@ nsresult nsXULScrollFrame::XULLayout(nsBoxLayoutState& aState) {
 
           if (styles.mVertical == StyleOverflow::Auto &&
               !mHelper.mHasVerticalScrollbar &&
-              scrolledRect.height > mHelper.mScrollPort.height) {
+              scrolledRect.height > mHelper.ScrollPort().height) {
             if (AddVerticalScrollbar(aState, scrollbarRight)) {
               needsLayout = true;
             }
@@ -6258,8 +6259,8 @@ nsresult nsXULScrollFrame::XULLayout(nsBoxLayoutState& aState) {
   if (f && f->IsBlockFrameOrSubclass()) {
     nsRect origRect = f->GetRect();
     nsRect clippedRect = origRect;
-    clippedRect.MoveBy(mHelper.mScrollPort.TopLeft());
-    clippedRect.IntersectRect(clippedRect, mHelper.mScrollPort);
+    clippedRect.MoveBy(mHelper.ScrollPort().TopLeft());
+    clippedRect.IntersectRect(clippedRect, mHelper.ScrollPort());
     OverflowAreas overflow = f->GetOverflowAreas();
     f->FinishAndStoreOverflow(overflow, clippedRect.Size());
     clippedRect.MoveTo(origRect.TopLeft());

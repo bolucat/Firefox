@@ -1396,22 +1396,14 @@
 # Cross-Origin-Embedder-Policy header will fail to load
 - name: browser.tabs.remote.useCrossOriginEmbedderPolicy
   type: RelaxedAtomicBool
-#if !defined(ANDROID)
   value: true
-#else
-  value: @IS_NIGHTLY_BUILD@
-#endif
   mirror: always
 
 # When this pref is enabled top level loads with a mismatched
 # Cross-Origin-Opener-Policy header will be loaded in a separate process.
 - name: browser.tabs.remote.useCrossOriginOpenerPolicy
   type: RelaxedAtomicBool
-#if !defined(ANDROID)
   value: true
-#else
-  value: @IS_NIGHTLY_BUILD@
-#endif
   mirror: always
 
 # When this pref is enabled then we use a separate content process for
@@ -2918,11 +2910,7 @@
 # preconditions related to COOP and COEP are met
 - name: dom.postMessage.sharedArrayBuffer.withCOOP_COEP
   type: bool
-#if !defined(ANDROID)
   value: true
-#else
-  value: @IS_NIGHTLY_BUILD@
-#endif
   mirror: once
 
 # Overridden in all.js on RELEASE_OR_BETA in order to add the locked attribute.
@@ -3107,6 +3095,12 @@
 - name: dom.requestIdleCallback.enabled
   type: bool
   value: true
+  mirror: always
+
+# Enable Screen Orientation lock
+- name: dom.screenorientation.allow-lock
+  type: bool
+  value: false
   mirror: always
 
 # Whether to enable the JavaScript start-up cache. This causes one of the first
@@ -9327,6 +9321,12 @@
   value: true
   mirror: always
 
+# Whether to use challenges in the most secure order. See bug 650091.
+- name: network.auth.choose_most_secure_challenge
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 # See the full list of values in nsICookieService.idl.
 - name: network.cookie.cookieBehavior
   type: RelaxedAtomicInt32
@@ -10143,11 +10143,7 @@
 # If 0 that means no limit.
 - name: network.url.max-length
   type: RelaxedAtomicUint32
-#if defined(EARLY_BETA_OR_EARLIER)
   value: 32 * 1024 * 1024
-#else
-  value: 0
-#endif
   mirror: always
 
 # Force remapping of remote port numbers to allow reaching local testing
@@ -12371,7 +12367,7 @@
 
 - name: widget.windows.window_occlusion_tracking.enabled
   type: bool
-  value: @EARLY_BETA_OR_EARLIER@
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 - name: widget.windows.window_occlusion_tracking_display_state.enabled

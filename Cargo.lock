@@ -539,8 +539,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.0.71"
-source = "git+https://github.com/alexcrichton/cc-rs/?rev=b2f6b146b75299c444e05bbde50d03705c7c4b6e#b2f6b146b75299c444e05bbde50d03705c7c4b6e"
+version = "1.0.72"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22a9137b95ea06864e018375b72adfb7db6e6f68cfc8df5a04d00288050485ee"
 
 [[package]]
 name = "cert_storage"
@@ -771,7 +772,7 @@ dependencies = [
 [[package]]
 name = "coreaudio-sys-utils"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/cubeb-coreaudio-rs?rev=41de71f88cd266a380e601326ec16280cad6028c#41de71f88cd266a380e601326ec16280cad6028c"
+source = "git+https://github.com/mozilla/cubeb-coreaudio-rs?rev=dea28d0c7d9952bbf430701ee244f6a4349c98f1#dea28d0c7d9952bbf430701ee244f6a4349c98f1"
 dependencies = [
  "core-foundation-sys",
  "coreaudio-sys",
@@ -1040,7 +1041,7 @@ dependencies = [
 [[package]]
 name = "cubeb-coreaudio"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/cubeb-coreaudio-rs?rev=41de71f88cd266a380e601326ec16280cad6028c#41de71f88cd266a380e601326ec16280cad6028c"
+source = "git+https://github.com/mozilla/cubeb-coreaudio-rs?rev=dea28d0c7d9952bbf430701ee244f6a4349c98f1#dea28d0c7d9952bbf430701ee244f6a4349c98f1"
 dependencies = [
  "atomic",
  "audio-mixer",
@@ -4183,17 +4184,6 @@ dependencies = [
 
 [[package]]
 name = "ron"
-version = "0.6.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "45005aa836116903a49cf3461474da697cfe66221762c6e95871092009ec86d6"
-dependencies = [
- "base64 0.13.0",
- "bitflags",
- "serde",
-]
-
-[[package]]
-name = "ron"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b861ecaade43ac97886a512b360d01d66be9f41f3c61088b42cedf92e03d678"
@@ -5583,7 +5573,7 @@ dependencies = [
  "objc",
  "plane-split",
  "rayon",
- "ron 0.6.5",
+ "ron",
  "serde",
  "smallvec",
  "svg_fmt",
@@ -5679,7 +5669,7 @@ dependencies = [
  "naga",
  "parking_lot",
  "profiling",
- "ron 0.7.0",
+ "ron",
  "serde",
  "smallvec",
  "thiserror",
@@ -5777,6 +5767,8 @@ checksum = "ac3b87c63620426dd9b991e5ce0329eff545bccbbb34f3be09ff6fb6ab51b7b6"
 [[package]]
 name = "winapi-util"
 version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "70ec6ce85bb158151cae5e5c87f95a8e97d2c0c4b001223f33a334e3ce5de178"
 dependencies = [
  "winapi",
 ]
