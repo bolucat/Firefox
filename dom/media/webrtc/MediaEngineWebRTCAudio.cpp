@@ -101,7 +101,7 @@ nsresult MediaEngineWebRTCMicrophoneSource::EvaluateSettings(
   // Determine an actual channel count to use for this source. Three factors at
   // play here: the device capabilities, the constraints passed in by content,
   // and a pref that can force things (for testing)
-  int32_t maxChannels = mDeviceInfo->MaxChannels();
+  int32_t maxChannels = static_cast<int32_t>(mDeviceInfo->MaxChannels());
 
   // First, check channelCount violation wrt constraints. This fails in case of
   // error.
@@ -250,7 +250,7 @@ void MediaEngineWebRTCMicrophoneSource::ApplySettings(
                   bool aPassThrough, uint32_t aRequestedInputChannelCount)
               : ControlMessage(aTrack),
                 mInputProcessing(aInputProcessing),
-                mAudioProcessingConfig(std::move(aAudioProcessingConfig)),
+                mAudioProcessingConfig(aAudioProcessingConfig),
                 mPassThrough(aPassThrough),
                 mRequestedInputChannelCount(aRequestedInputChannelCount) {}
 
@@ -495,7 +495,8 @@ AudioInputProcessing::AudioInputProcessing(
       mLiveBufferingAppended(Nothing()),
       mPrincipal(aPrincipalHandle),
       mEnabled(false),
-      mEnded(false) {}
+      mEnded(false),
+      mPacketCount(0) {}
 
 void AudioInputProcessing::Disconnect(MediaTrackGraphImpl* aGraph) {
   // This method is just for asserts.
@@ -879,7 +880,8 @@ void AudioInputProcessing::PacketizeAndProcess(MediaTrackGraphImpl* aGraph,
     MOZ_ASSERT(processedOutputChannelPointers.Length() == channelCountInput);
     RefPtr<SharedBuffer> other = buffer;
     mSegment.AppendFrames(other.forget(), processedOutputChannelPointersConst,
-                          mPacketizerInput->mPacketSize, mPrincipal);
+                          static_cast<int32_t>(mPacketizerInput->mPacketSize),
+                          mPrincipal);
   }
 }
 
@@ -1000,7 +1002,7 @@ void AudioInputTrack::SetInputProcessing(
           mProcessing(std::move(aProcessing)) {}
     void Run() override {
       TRACE("AudioInputTrack::SetInputProcessingImpl");
-      mTrack->SetInputProcessingImpl(std::move(mProcessing));
+      mTrack->SetInputProcessingImpl(mProcessing);
     }
   };
 
@@ -1106,7 +1108,7 @@ nsString MediaEngineWebRTCAudioCaptureSource::GetName() const {
 }
 
 nsCString MediaEngineWebRTCAudioCaptureSource::GetUUID() const {
-  nsID uuid;
+  nsID uuid{};
   char uuidBuffer[NSID_LENGTH];
   nsCString asciiString;
   ErrorResult rv;

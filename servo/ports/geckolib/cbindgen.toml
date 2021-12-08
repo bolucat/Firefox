@@ -231,10 +231,12 @@ include = [
   "AspectRatio",
   "DefaultFontSizes",
   "RuleChangeKind",
+  "PageName",
   "PageSize",
   "DProperty",
   "ImageRendering",
   "ScrollbarGutter",
+  "ScrollDirection",
 ]
 item_types = ["enums", "structs", "unions", "typedefs", "functions", "constants"]
 renaming_overrides_prefixing = true
@@ -881,4 +883,9 @@ renaming_overrides_prefixing = true
 "AnimationTimeline" = """
  public:
   StyleAnimationTimeline(): tag(Tag::Auto) {}
+"""
+
+"TimelineOrKeyframesName" = """
+ public:
+  inline nsAtom* AsAtom() const;
 """

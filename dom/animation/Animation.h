@@ -441,6 +441,10 @@ class Animation : public DOMEventTargetHelper,
     PostUpdate();
   }
 
+  bool UsingScrollTimeline() const {
+    return mTimeline && mTimeline->IsScrollTimeline();
+  }
+
  protected:
   void SilentlySetCurrentTime(const TimeDuration& aNewCurrentTime);
   void CancelNoUpdate();
@@ -552,6 +556,10 @@ class Animation : public DOMEventTargetHelper,
 
   Document* GetRenderedDocument() const;
   Document* GetTimelineDocument() const;
+
+  bool HasFiniteTimeline() const {
+    return mTimeline && !mTimeline->IsMonotonicallyIncreasing();
+  }
 
   RefPtr<AnimationTimeline> mTimeline;
   RefPtr<AnimationEffect> mEffect;
