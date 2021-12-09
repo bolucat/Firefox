@@ -126,11 +126,17 @@ const PREF_URLBAR_DEFAULTS = new Map([
   // The maximum number of results in the urlbar popup.
   ["maxRichResults", 10],
 
+  // Comma-separated list of client variants to send to Merino
+  ["merino.clientVariants", ""],
+
   // Whether Merino is enabled as a quick suggest source.
   ["merino.enabled", false],
 
   // The Merino endpoint URL, not including parameters.
   ["merino.endpointURL", "https://merino.services.mozilla.com/api/v1/suggest"],
+
+  // Comma-separated list of providers to request from Merino
+  ["merino.providers", ""],
 
   // Timeout for Merino fetches (ms).
   ["merino.timeoutMs", 200],
@@ -248,6 +254,10 @@ const PREF_URLBAR_DEFAULTS = new Map([
 
   // Count the restarts before showing the onboarding dialog.
   ["quicksuggest.seenRestarts", 0],
+
+  // Whether quick suggest results can be shown in position specified in the
+  // suggestions.
+  ["quicksuggest.allowPositionInSuggestions", true],
 
   // When using switch to tabs, if set to true this will move the tab into the
   // active window.

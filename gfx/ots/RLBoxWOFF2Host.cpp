@@ -10,6 +10,7 @@
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/RLBoxUtils.h"
 #include "mozilla/ScopeExit.h"
+#include "opentype-sanitiser.h" // For ots_ntohl
 
 using namespace rlbox;
 using namespace mozilla;
@@ -48,19 +49,19 @@ tainted_woff2<BrotliDecoderResult> RLBoxBrotliDecoderDecompressCallback(
   return res;
 }
 
-UniquePtr<RLBoxSandboxDataBase> RLBoxWOFF2SandboxPool::CreateSandboxData() {
+UniquePtr<RLBoxSandboxDataBase> RLBoxWOFF2SandboxPool::CreateSandboxData(uint64_t aSize) {
   // Create woff2 sandbox
   auto sandbox = MakeUnique<rlbox_sandbox_woff2>();
 
-#ifdef MOZ_WASM_SANDBOXING_WOFF2
-  bool createOK = sandbox->create_sandbox(/* infallible = */ false);
+#if defined(MOZ_WASM_SANDBOXING_WOFF2)
+  bool createOK = sandbox->create_sandbox(/* infallible = */ false, aSize);
 #else
   bool createOK = sandbox->create_sandbox();
 #endif
   NS_ENSURE_TRUE(createOK, nullptr);
 
   UniquePtr<RLBoxWOFF2SandboxData> sbxData =
-      MakeUnique<RLBoxWOFF2SandboxData>(std::move(sandbox));
+      MakeUnique<RLBoxWOFF2SandboxData>(aSize, std::move(sandbox));
 
   // Register brotli callback
   sbxData->mDecompressCallback = sbxData->Sandbox()->register_callback(
@@ -79,9 +80,10 @@ void RLBoxWOFF2SandboxPool::Initalize(size_t aDelaySeconds) {
   ClearOnShutdown(&RLBoxWOFF2SandboxPool::sSingleton);
 }
 
-RLBoxWOFF2SandboxData::RLBoxWOFF2SandboxData(
+RLBoxWOFF2SandboxData::RLBoxWOFF2SandboxData(uint64_t aSize,
     mozilla::UniquePtr<rlbox_sandbox_woff2> aSandbox)
-    : mSandbox(std::move(aSandbox)) {
+    : mozilla::RLBoxSandboxDataBase(aSize),
+      mSandbox(std::move(aSandbox)) {
   MOZ_COUNT_CTOR(RLBoxWOFF2SandboxData);
 }
 
@@ -91,6 +93,45 @@ RLBoxWOFF2SandboxData::~RLBoxWOFF2SandboxData() {
   mSandbox->destroy_sandbox();
   MOZ_COUNT_DTOR(RLBoxWOFF2SandboxData);
 }
+
+static bool Woff2SizeValidator(size_t aLength, size_t aSize) {
+  if (aSize < aLength) {
+    NS_WARNING("Size of decompressed WOFF 2.0 is less than compressed size");
+    return false;
+  } else if (aSize == 0) {
+    NS_WARNING("Size of decompressed WOFF 2.0 is set to 0");
+    return false;
+  } else if (aSize > OTS_MAX_DECOMPRESSED_FILE_SIZE) {
+    NS_WARNING(
+        nsPrintfCString("Size of decompressed WOFF 2.0 font exceeds %gMB",
+                        OTS_MAX_DECOMPRESSED_FILE_SIZE / (1024.0 * 1024.0))
+            .get());
+    return false;
+  }
+  return true;
+}
+
+// Code replicated from modules/woff2/src/woff2_dec.cc
+// This is used both to compute the expected size of the Woff2 RLBox sandbox
+// as well as internally by WOFF2 as a performance hint
+static uint32_t ComputeWOFF2FinalSize(const uint8_t* aData, size_t aLength) {
+  // Expected size is stored as a 4 byte value starting from the 17th byte
+  if (aLength < 20) {
+    return 0;
+  }
+
+  uint32_t decompressedSize = 0;
+  const void* location = &(aData[16]);
+  std::memcpy(&decompressedSize, location, sizeof(decompressedSize));
+  decompressedSize = ots_ntohl(decompressedSize);
+
+  if(!Woff2SizeValidator(aLength, decompressedSize)) {
+    return 0;
+  }
+
+  return decompressedSize;
+}
+
 
 template <typename T>
 using TransferBufferToWOFF2 =
@@ -111,7 +152,15 @@ bool RLBoxProcessWOFF2(ots::FontFile* aHeader, ots::OTSStream* aOutput,
   // index (7).
   NS_ENSURE_TRUE(aLength >= 8, false);
 
-  auto sandboxPoolData = RLBoxWOFF2SandboxPool::sSingleton->PopOrCreate();
+  uint32_t expectedSize = ComputeWOFF2FinalSize(aData, aLength);
+  NS_ENSURE_TRUE(expectedSize > 0, false);
+
+  // The sandbox should have space for the input, output and misc allocations
+  // To account for misc allocations, we'll set the sandbox size to
+  // input + output + 33% extra
+
+  const uint64_t expectedSandboxSize = static_cast<uint64_t>(1.33 * (aLength + expectedSize));
+  auto sandboxPoolData = RLBoxWOFF2SandboxPool::sSingleton->PopOrCreate(expectedSandboxSize);
   NS_ENSURE_TRUE(sandboxPoolData, false);
 
   const auto* sandboxData =
@@ -126,38 +175,6 @@ bool RLBoxProcessWOFF2(ots::FontFile* aHeader, ots::OTSStream* aOutput,
       sandbox, reinterpret_cast<const char*>(aData), aLength);
   NS_ENSURE_TRUE(*data, false);
 
-  // Validator for the decompression size.
-  // Returns the size and sets validateOK to true if size is valid (and false
-  // otherwise).
-  bool validateOK = false;
-  auto sizeValidator = [aLength, &validateOK](auto size) {
-    validateOK = false;
-    if (size < aLength) {
-      NS_WARNING("Size of decompressed WOFF 2.0 is less than compressed size");
-    } else if (size == 0) {
-      NS_WARNING("Size of decompressed WOFF 2.0 is set to 0");
-    } else if (size > OTS_MAX_DECOMPRESSED_FILE_SIZE) {
-      NS_WARNING(
-          nsPrintfCString("Size of decompressed WOFF 2.0 font exceeds %gMB",
-                          OTS_MAX_DECOMPRESSED_FILE_SIZE / (1024.0 * 1024.0))
-              .get());
-    } else {
-      validateOK = true;
-    }
-    return size;
-  };
-
-  // Get the (estimated) decompression size and validate it.
-
-  unsigned long decompressedSize =
-      sandbox
-          ->invoke_sandbox_function(RLBoxComputeWOFF2FinalSize, *data, aLength)
-          .copy_and_verify(sizeValidator);
-
-  if (NS_WARN_IF(!validateOK)) {
-    return false;
-  }
-
   // Perform the actual conversion to TTF.
 
   auto sizep = WOFF2Alloc<unsigned long>(sandbox);
@@ -167,7 +184,7 @@ bool RLBoxProcessWOFF2(ots::FontFile* aHeader, ots::OTSStream* aOutput,
 
   if (!sandbox
            ->invoke_sandbox_function(RLBoxConvertWOFF2ToTTF, *data, aLength,
-                                     decompressedSize, sizep.get(),
+                                     expectedSize, sizep.get(),
                                      bufOwnerString.get(), bufp.get())
            .unverified_safe_because(
                "The ProcessTT* functions validate the decompressed data.")) {
@@ -182,26 +199,28 @@ bool RLBoxProcessWOFF2(ots::FontFile* aHeader, ots::OTSStream* aOutput,
 
   // Get the actual decompression size and validate it.
   // We need to validate the size again. RLBoxConvertWOFF2ToTTF works even if
-  // the computed size (with RLBoxComputeWOFF2FinalSize) is wrong, so we can't
-  // trust the decompressedSize to be the same as size sizep.
-  unsigned long size = (*sizep.get()).copy_and_verify(sizeValidator);
+  // the computed size (with ComputeWOFF2FinalSize) is wrong, so we can't
+  // trust the expectedSize to be the same as size sizep.
+  bool validateOK = false;
+  unsigned long actualSize = (*sizep.get()).copy_and_verify([&](unsigned long val){
+    validateOK = Woff2SizeValidator(aLength, val);
+    return val;
+  });
 
-  if (NS_WARN_IF(!validateOK)) {
-    return false;
-  }
+  NS_ENSURE_TRUE(validateOK, false);
 
   const uint8_t* decompressed = reinterpret_cast<const uint8_t*>(
       (*bufp.get())
           .unverified_safe_pointer_because(
-              size, "Only care that the buffer is within sandbox boundary."));
+              actualSize, "Only care that the buffer is within sandbox boundary."));
 
   // Since ProcessTT* memcpy from the buffer, make sure it's not null.
   NS_ENSURE_TRUE(decompressed, false);
 
   if (aData[4] == 't' && aData[5] == 't' && aData[6] == 'c' &&
       aData[7] == 'f') {
-    return aProcessTTC(aHeader, aOutput, decompressed, size, aIndex);
+    return aProcessTTC(aHeader, aOutput, decompressed, actualSize, aIndex);
   }
   ots::Font font(aHeader);
-  return aProcessTTF(aHeader, &font, aOutput, decompressed, size, 0);
+  return aProcessTTF(aHeader, &font, aOutput, decompressed, actualSize, 0);
 }

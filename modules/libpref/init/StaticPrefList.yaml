@@ -2991,13 +2991,6 @@
   value: -1
   mirror: always
 
-# Preference that users can set to override temporary storage smart limit
-# calculation.
-- name: dom.quotaManager.temporaryStorage.chunkSize
-  type: RelaxedAtomicUint32
-  value: 10 * 1024
-  mirror: always
-
 # A pref that is used to enable testing features.
 - name: dom.quotaManager.testing
   type: SequentiallyConsistentAtomicBool
@@ -6561,11 +6554,6 @@
   do_not_use_directly: true
 # Instead, use gfxConfig::IsEnabled(Feature::HW_COMPOSITING).
 
-- name: layers.acceleration.draw-fps
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
 # Whether to force acceleration on, ignoring blacklists.
 
 # bug 838603 -- on Android, accidentally blacklisting OpenGL layers
@@ -9110,6 +9098,15 @@
 #endif
   mirror: always
 
+- name: media.webrtc.software_encoder.fallback
+  type: RelaxedAtomicBool
+#if defined(MOZ_WIDGET_ANDROID) || defined(NIGHTLY_BUILD)
+  value: true
+#else
+  value: false
+#endif
+  mirror: always
+
 - name: media.block-autoplay-until-in-foreground
   type: bool
 #if !defined(MOZ_WIDGET_ANDROID)
@@ -10866,12 +10863,6 @@
 - name: privacy.antitracking.testing
   type: bool
   value: false
-  mirror: always
-
-# Whether the storage allowed check should be cached on the inner window.
-- name: privacy.antitracking.cacheStorageAllowedForWindow
-  type: bool
-  value: true
   mirror: always
 
 # Controls the anti-tracking webcompat features. This includes:

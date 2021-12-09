@@ -1993,10 +1993,10 @@ pub extern "C" fn wr_transaction_scroll_layer(
     txn: &mut Transaction,
     pipeline_id: WrPipelineId,
     scroll_id: u64,
-    new_scroll_origin: LayoutPoint,
+    new_scroll_offset: LayoutVector2D,
 ) {
     let scroll_id = ExternalScrollId(scroll_id, pipeline_id);
-    txn.scroll_node_with_id(new_scroll_origin, scroll_id, ScrollClamping::NoClamping);
+    txn.set_scroll_offset(scroll_id, new_scroll_offset);
 }
 
 #[no_mangle]
@@ -2796,7 +2796,7 @@ pub extern "C" fn wr_dp_define_scroll_layer(
     parent: &WrSpatialId,
     content_rect: LayoutRect,
     clip_rect: LayoutRect,
-    scroll_offset: LayoutPoint,
+    scroll_offset: LayoutVector2D,
     key: SpatialTreeItemKey,
 ) -> WrSpatialId {
     assert!(unsafe { is_in_main_thread() });
@@ -2806,9 +2806,7 @@ pub extern "C" fn wr_dp_define_scroll_layer(
         ExternalScrollId(external_scroll_id, state.pipeline_id),
         content_rect,
         clip_rect,
-        // TODO(gw): We should also update the Gecko-side APIs to provide
-        //           this as a vector rather than a point.
-        scroll_offset.to_vector(),
+        scroll_offset,
         key,
     );
 

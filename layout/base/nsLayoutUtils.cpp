@@ -61,6 +61,7 @@
 #include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/gfxVars.h"
 #include "mozilla/gfx/PathHelpers.h"
+#include "mozilla/IntegerRange.h"
 #include "mozilla/layers/APZCCallbackHelper.h"
 #include "mozilla/layers/APZPublicUtils.h"  // for apz::CalculatePendingDisplayPort
 #include "mozilla/layers/CompositorBridgeChild.h"
@@ -160,9 +161,7 @@
 #include "UnitTransforms.h"
 #include "ViewportFrame.h"
 
-#ifdef MOZ_XUL
-#  include "nsXULPopupManager.h"
-#endif
+#include "nsXULPopupManager.h"
 
 // Make sure getpid() works.
 #ifdef XP_WIN
@@ -1181,8 +1180,8 @@ int32_t nsLayoutUtils::DoCompareTreePosition(
     return 0;
   }
 
-  int32_t index1 = parent->ComputeIndexOf(content1Ancestor);
-  int32_t index2 = parent->ComputeIndexOf(content2Ancestor);
+  const int32_t index1 = parent->ComputeIndexOf_Deprecated(content1Ancestor);
+  const int32_t index2 = parent->ComputeIndexOf_Deprecated(content2Ancestor);
 
   // None of the nodes are anonymous, just do a regular comparison.
   if (index1 >= 0 && index2 >= 0) {
@@ -1734,7 +1733,6 @@ nsPoint nsLayoutUtils::GetEventCoordinatesRelativeTo(
 
 nsIFrame* nsLayoutUtils::GetPopupFrameForEventCoordinates(
     nsPresContext* aPresContext, const WidgetEvent* aEvent) {
-#ifdef MOZ_XUL
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (!pm) {
     return nullptr;
@@ -1751,7 +1749,6 @@ nsIFrame* nsLayoutUtils::GetPopupFrameForEventCoordinates(
       return popup;
     }
   }
-#endif
   return nullptr;
 }
 
@@ -9066,9 +9063,10 @@ nsRect nsLayoutUtils::GetSelectionBoundingRect(const Selection* aSel) {
       res = TransformFrameRectToAncestor(frame, res, relativeTo);
     }
   } else {
-    int32_t rangeCount = aSel->RangeCount();
     RectAccumulator accumulator;
-    for (int32_t idx = 0; idx < rangeCount; ++idx) {
+    const uint32_t rangeCount = aSel->RangeCount();
+    for (const uint32_t idx : IntegerRange(rangeCount)) {
+      MOZ_ASSERT(aSel->RangeCount() == rangeCount);
       nsRange* range = aSel->GetRangeAt(idx);
       nsRange::CollectClientRectsAndText(
           &accumulator, nullptr, range, range->GetStartContainer(),

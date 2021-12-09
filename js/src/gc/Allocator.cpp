@@ -714,11 +714,19 @@ Arena* TenuredChunk::fetchNextFreeArena(GCRuntime* gc) {
 
 TenuredChunk* GCRuntime::getOrAllocChunk(AutoLockGCBgAlloc& lock) {
   TenuredChunk* chunk = emptyChunks(lock).pop();
-  if (!chunk) {
+  if (chunk) {
+    // Reinitialize ChunkBase; arenas are all free and may or may not be
+    // committed.
+    SetMemCheckKind(chunk, sizeof(ChunkBase), MemCheckKind::MakeUndefined);
+    chunk->initBase(rt, nullptr);
+    MOZ_ASSERT(chunk->unused());
+  } else {
     chunk = TenuredChunk::allocate(this);
     if (!chunk) {
       return nullptr;
     }
+
+    chunk->init(this, /* allMemoryCommitted = */ true);
     MOZ_ASSERT(chunk->info.numArenasFreeCommitted == 0);
   }
 
@@ -730,8 +738,15 @@ TenuredChunk* GCRuntime::getOrAllocChunk(AutoLockGCBgAlloc& lock) {
 }
 
 void GCRuntime::recycleChunk(TenuredChunk* chunk, const AutoLockGC& lock) {
+#ifdef DEBUG
+  MOZ_ASSERT(chunk->unused());
+  chunk->verify();
+#endif
+
+  // Poison ChunkBase to catch use after free.
   AlwaysPoison(chunk, JS_FREED_CHUNK_PATTERN, sizeof(ChunkBase),
                MemCheckKind::MakeNoAccess);
+
   emptyChunks(lock).push(chunk);
 }
 
@@ -745,11 +760,12 @@ TenuredChunk* GCRuntime::pickChunk(AutoLockGCBgAlloc& lock) {
     return nullptr;
   }
 
-  chunk->init(this);
-  MOZ_ASSERT(chunk->info.numArenasFreeCommitted == 0);
+#ifdef DEBUG
+  chunk->verify();
   MOZ_ASSERT(chunk->unused());
   MOZ_ASSERT(!fullChunks(lock).contains(chunk));
   MOZ_ASSERT(!availableChunks(lock).contains(chunk));
+#endif
 
   availableChunks(lock).push(chunk);
 
@@ -778,7 +794,7 @@ void BackgroundAllocTask::run(AutoLockHelperThreadState& lock) {
       if (!chunk) {
         break;
       }
-      chunk->init(gc);
+      chunk->init(gc, /* allMemoryCommitted = */ true);
     }
     chunkPool_.ref().push(chunk);
   }
@@ -795,7 +811,16 @@ TenuredChunk* TenuredChunk::allocate(GCRuntime* gc) {
   return static_cast<TenuredChunk*>(chunk);
 }
 
-void TenuredChunk::init(GCRuntime* gc) {
+static inline bool ShouldDecommitNewChunk(bool allMemoryCommitted,
+                                          const GCSchedulingState& state) {
+  if (!DecommitEnabled()) {
+    return false;
+  }
+
+  return !allMemoryCommitted || !state.inHighFrequencyGCMode();
+}
+
+void TenuredChunk::init(GCRuntime* gc, bool allMemoryCommitted) {
   /* The chunk may still have some regions marked as no-access. */
   MOZ_MAKE_MEM_UNDEFINED(this, ChunkSize);
 
@@ -808,24 +833,29 @@ void TenuredChunk::init(GCRuntime* gc) {
 
   new (this) TenuredChunk(gc->rt);
 
-  /*
-   * Decommit the arenas. We do this after poisoning so that if the OS does
-   * not have to recycle the pages, we still get the benefit of poisoning.
-   */
-  decommitAllArenas();
+  if (ShouldDecommitNewChunk(allMemoryCommitted, gc->schedulingState)) {
+    // Decommit the arenas. We do this after poisoning so that if the OS does
+    // not have to recycle the pages, we still get the benefit of poisoning.
+    decommitAllArenas();
+  } else {
+    // The chunk metadata is initialized as decommitted regardless, to avoid
+    // having to initialize the arenas at this time.
+    initAsDecommitted();
+  }
 
-#ifdef DEBUG
   verify();
-#endif
-
-  /* The rest of info fields are initialized in pickChunk. */
 }
 
 void TenuredChunk::decommitAllArenas() {
-  if (DecommitEnabled()) {
-    MarkPagesUnusedSoft(&arenas[0], ArenasPerChunk * ArenaSize);
-  }
+  MOZ_ASSERT(unused());
+  MarkPagesUnusedSoft(&arenas[0], ArenasPerChunk * ArenaSize);
+  initAsDecommitted();
+}
 
+void TenuredChunkBase::initAsDecommitted() {
+  // Set the state of all arenas to free and decommitted. They might not
+  // actually be decommitted, but in that case the re-commit operation is a
+  // no-op so it doesn't matter.
   decommittedPages.SetAll();
   freeCommittedArenas.ResetAll();
   info.numArenasFree = ArenasPerChunk;

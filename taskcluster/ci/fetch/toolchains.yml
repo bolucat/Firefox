@@ -352,27 +352,6 @@ clang-5.0:
         repo: https://github.com/llvm/llvm-project
         revision: 6a075b6de4cafebec9ca1ff9eec7229a617c93f6
 
-clang-7:
-    description: clang 7 source code
-    fetch:
-        type: git
-        repo: https://github.com/llvm/llvm-project
-        revision: d0d8eb2e5415b8be29343e3c17a18e49e67b5551
-
-clang-8:
-    description: clang 8.0.1 source code
-    fetch:
-        type: git
-        repo: https://github.com/llvm/llvm-project
-        revision: 19a71f6bdf2dddb10764939e7f0ec2b98dba76c9
-
-clang-10:
-    description: clang 10.0.0 source code
-    fetch:
-        type: git
-        repo: https://github.com/llvm/llvm-project
-        revision: d32170dbd5b0d54436537b6b75beaf44324e0c28
-
 clang-13:
     description: clang 13.0.0 source code
     fetch:
@@ -446,7 +425,7 @@ rust-minidump:
     fetch:
         type: git
         repo: https://github.com/luser/rust-minidump/
-        revision: 0c90e02544797317503d1c4cff8daab0cabdea86
+        revision: 664dcd1d8ba8c227220f8b83927095880bd68a5f
 
 fix-stacks:
     description: fix-stacks source code
@@ -481,6 +460,17 @@ sonatype-nexus:
         artifact-name: sonatype-nexus.tar.zst
         strip-components: 1
         add-prefix: sonatype-nexus/
+
+jdk-8-linux64:
+    description: Java 8 JDK
+    fetch:
+        type: static-url
+        url: https://github.com/adoptium/temurin8-binaries/releases/download/jdk8u312-b07/OpenJDK8U-jdk_x64_linux_hotspot_8u312b07.tar.gz
+        sha256: 699981083983b60a7eeb511ad640fae3ae4b879de5a3980fe837e8ade9c34a08
+        size: 103016010
+        artifact-name: jdk-8.tar.zst
+        strip-components: 1
+        add-prefix: jdk-8/
 
 makecab:
     description: makecab source code

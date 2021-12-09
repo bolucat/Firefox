@@ -20,7 +20,7 @@ static mozilla::LazyLogModule sLogger("WebGPU");
 // TODO: refactor this to avoid stack-allocating the buffer all the time.
 class ErrorBuffer {
   // if the message doesn't fit, it will be truncated
-  static constexpr unsigned BUFFER_SIZE = 256;
+  static constexpr unsigned BUFFER_SIZE = 512;
   char mUtf8[BUFFER_SIZE] = {};
   bool mGuard = false;
 
@@ -235,6 +235,7 @@ ipc::IPCResult WebGPUParent::RecvInstanceRequestAdapter(
     options.power_preference = static_cast<ffi::WGPUPowerPreference>(
         aOptions.mPowerPreference.Value());
   }
+  options.force_fallback_adapter = aOptions.mForceFallbackAdapter;
   // TODO: make available backends configurable by prefs
 
   ErrorBuffer error;

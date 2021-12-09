@@ -11,6 +11,7 @@
 #include "mozilla/ContentIterator.h"
 #include "mozilla/EditorUtils.h"
 #include "mozilla/IMEStateManager.h"
+#include "mozilla/Maybe.h"
 #include "mozilla/PresShell.h"
 #include "mozilla/RangeUtils.h"
 #include "mozilla/TextComposition.h"
@@ -50,14 +51,13 @@ using namespace widget;
 /******************************************************************/
 
 void ContentEventHandler::RawRange::AssertStartIsBeforeOrEqualToEnd() {
-  MOZ_ASSERT(*nsContentUtils::ComparePoints(
-                 mStart.Container(),
-                 static_cast<int32_t>(*mStart.Offset(
-                     NodePosition::OffsetFilter::kValidOrInvalidOffsets)),
-                 mEnd.Container(),
-                 static_cast<int32_t>(*mEnd.Offset(
-                     NodePosition::OffsetFilter::kValidOrInvalidOffsets))) <=
-             0);
+  MOZ_ASSERT(
+      *nsContentUtils::ComparePoints(
+          mStart.Container(),
+          *mStart.Offset(NodePosition::OffsetFilter::kValidOrInvalidOffsets),
+          mEnd.Container(),
+          *mEnd.Offset(NodePosition::OffsetFilter::kValidOrInvalidOffsets)) <=
+      0);
 }
 
 nsresult ContentEventHandler::RawRange::SetStart(
@@ -1046,7 +1046,7 @@ nsresult ContentEventHandler::SetRawRangeFromFlatTextOffset(
     // offset of the node, the node is the start node of the range.
     if (!startSet && aOffset <= offset + textLength) {
       nsINode* startNode = nullptr;
-      int32_t startNodeOffset = -1;
+      Maybe<uint32_t> startNodeOffset;
       if (contentAsText) {
         // Rule #1.1: [textNode or text[Node or textNode[
         uint32_t xpOffset = aOffset - offset;
@@ -1067,7 +1067,7 @@ nsresult ContentEventHandler::SetRawRangeFromFlatTextOffset(
           }
         }
         startNode = contentAsText;
-        startNodeOffset = static_cast<int32_t>(xpOffset);
+        startNodeOffset = Some(xpOffset);
       } else if (aOffset < offset + textLength) {
         // Rule #1.2 [<element>
         startNode = content->GetParent();
@@ -1075,7 +1075,7 @@ nsresult ContentEventHandler::SetRawRangeFromFlatTextOffset(
           return NS_ERROR_FAILURE;
         }
         startNodeOffset = startNode->ComputeIndexOf(content);
-        if (NS_WARN_IF(startNodeOffset == -1)) {
+        if (MOZ_UNLIKELY(NS_WARN_IF(startNodeOffset.isNothing()))) {
           // The content is being removed from the parent!
           return NS_ERROR_FAILURE;
         }
@@ -1085,29 +1085,29 @@ nsresult ContentEventHandler::SetRawRangeFromFlatTextOffset(
         if (NS_WARN_IF(!startNode)) {
           return NS_ERROR_FAILURE;
         }
-        startNodeOffset = startNode->ComputeIndexOf(content) + 1;
-        if (NS_WARN_IF(startNodeOffset == 0)) {
+        startNodeOffset = startNode->ComputeIndexOf(content);
+        if (MOZ_UNLIKELY(NS_WARN_IF(startNodeOffset.isNothing()))) {
           // The content is being removed from the parent!
           return NS_ERROR_FAILURE;
         }
+        MOZ_ASSERT(*startNodeOffset != UINT32_MAX);
+        ++(*startNodeOffset);
       } else {
         // Rule #1.4: <element>[
         startNode = content;
-        startNodeOffset = 0;
+        startNodeOffset = Some(0);
       }
       NS_ASSERTION(startNode, "startNode must not be nullptr");
-      NS_ASSERTION(startNodeOffset >= 0,
-                   "startNodeOffset must not be negative");
-      rv = aRawRange->SetStart(startNode,
-                               static_cast<uint32_t>(startNodeOffset));
+      MOZ_ASSERT(startNodeOffset.isSome(),
+                 "startNodeOffset must not be Nothing");
+      rv = aRawRange->SetStart(startNode, *startNodeOffset);
       if (NS_WARN_IF(NS_FAILED(rv))) {
         return rv;
       }
       startSet = true;
 
       if (!aLength) {
-        rv = aRawRange->SetEnd(startNode,
-                               static_cast<uint32_t>(startNodeOffset));
+        rv = aRawRange->SetEnd(startNode, *startNodeOffset);
         if (NS_WARN_IF(NS_FAILED(rv))) {
           return rv;
         }
@@ -1180,12 +1180,13 @@ nsresult ContentEventHandler::SetRawRangeFromFlatTextOffset(
       if (NS_WARN_IF(!endNode)) {
         return NS_ERROR_FAILURE;
       }
-      int32_t indexInParent = endNode->ComputeIndexOf(content);
-      if (NS_WARN_IF(indexInParent == -1)) {
+      const Maybe<uint32_t> indexInParent = endNode->ComputeIndexOf(content);
+      if (MOZ_UNLIKELY(NS_WARN_IF(indexInParent.isNothing()))) {
         // The content is being removed from the parent!
         return NS_ERROR_FAILURE;
       }
-      rv = aRawRange->SetEnd(endNode, indexInParent + 1);
+      MOZ_ASSERT(*indexInParent != UINT32_MAX);
+      rv = aRawRange->SetEnd(endNode, *indexInParent + 1);
       if (NS_WARN_IF(NS_FAILED(rv))) {
         return rv;
       }
@@ -2739,7 +2740,8 @@ nsresult ContentEventHandler::GetFlatTextLengthInRange(
   if (aIsRemovingNode) {
     DebugOnly<nsIContent*> parent = aStartPosition.Container()->GetParent();
     MOZ_ASSERT(
-        parent && parent->ComputeIndexOf(aStartPosition.Container()) == -1,
+        parent &&
+            parent->ComputeIndexOf(aStartPosition.Container()).isNothing(),
         "At removing the node, the node shouldn't be in the array of children "
         "of its parent");
     MOZ_ASSERT(aStartPosition.Container() == endPosition.Container(),
@@ -2782,7 +2784,7 @@ nsresult ContentEventHandler::GetFlatTextLengthInRange(
           return NS_ERROR_FAILURE;
         }
         int32_t indexInParent =
-            parentContent->ComputeIndexOf(endPosition.Container());
+            parentContent->ComputeIndexOf_Deprecated(endPosition.Container());
         if (NS_WARN_IF(indexInParent < 0)) {
           return NS_ERROR_FAILURE;
         }
@@ -3000,8 +3002,8 @@ static void AdjustRangeForSelection(nsIContent* aRoot, nsINode** aNode,
   }
 
   *aNode = node->GetParent();
-  MOZ_ASSERT((*aNode)->ComputeIndexOf(node) != -1);
-  *aNodeOffset = (*aNode)->ComputeIndexOf(node) + 1;
+  MOZ_ASSERT((*aNode)->ComputeIndexOf(node).isSome());
+  *aNodeOffset = (*aNode)->ComputeIndexOf_Deprecated(node) + 1;
 }
 
 nsresult ContentEventHandler::OnSelectionEvent(WidgetSelectionEvent* aEvent) {

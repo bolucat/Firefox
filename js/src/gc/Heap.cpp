@@ -382,7 +382,8 @@ bool TenuredChunk::decommitOneFreePage(GCRuntime* gc, size_t pageIndex,
   bool ok;
   {
     AutoUnlockGC unlock(lock);
-    ok = MarkPagesUnusedSoft(pageAddress(pageIndex), PageSize);
+    ok = !oom::ShouldFailWithOOM() &&
+         MarkPagesUnusedSoft(pageAddress(pageIndex), PageSize);
   }
 
   // Mark the page as decommited if successful or restore the original free
@@ -423,6 +424,11 @@ void TenuredChunk::decommitFreeArenasWithoutUnlocking(const AutoLockGC& lock) {
     }
 
     decommittedPages[i] = true;
+    for (size_t j = 0; j < ArenasPerPage; ++j) {
+      size_t arenaIndex = i * ArenasPerPage + j;
+      MOZ_ASSERT(freeCommittedArenas[arenaIndex]);
+      freeCommittedArenas[arenaIndex] = false;
+    }
     info.numArenasFreeCommitted -= ArenasPerPage;
   }
 
@@ -447,8 +453,6 @@ void TenuredChunk::updateChunkListAfterFree(GCRuntime* gc, size_t numArenasFree,
   } else {
     MOZ_ASSERT(unused());
     gc->availableChunks(lock).remove(this);
-    decommitAllArenas();
-    MOZ_ASSERT(info.numArenasFreeCommitted == 0);
     gc->recycleChunk(this, lock);
   }
 }
