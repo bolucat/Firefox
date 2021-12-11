@@ -19,7 +19,9 @@ add_task(async function test_cached_javascript_errors() {
     const listener = new ConsoleListener(innerWindowId);
 
     const errors = [];
-    const onError = (evtName, error) => errors.push(error);
+    // Do not push the whole error object in the array. It would create a strong
+    // reference preventing from reproducing GC-related bugs.
+    const onError = (evtName, error) => errors.push(error.message);
     listener.on("error", onError);
 
     const waitForMessage = listener.once("error");
@@ -32,6 +34,9 @@ add_task(async function test_cached_javascript_errors() {
     content.backup = { listener, errors, onError };
   });
 
+  // Force a GC to check that old cached messages which have been garbage
+  // collected are not re-displayed.
+  await doGC();
   await createScriptNode(`(() => {throw "error2"})()`);
 
   await SpecialPowers.spawn(gBrowser.selectedBrowser, [], async () => {
@@ -62,7 +67,7 @@ add_task(async function test_cached_javascript_errors() {
     const listener = new ConsoleListener(innerWindowId);
 
     const errors = [];
-    const onError = (evtName, error) => errors.push(error);
+    const onError = (evtName, error) => errors.push(error.message);
     listener.on("error", onError);
 
     const waitForMessage = listener.once("error");
@@ -77,23 +82,3 @@ add_task(async function test_cached_javascript_errors() {
 
   gBrowser.removeTab(gBrowser.selectedTab);
 });
-
-/**
- * Execute the provided script content by generating a dynamic script tag and
- * inserting it in the page for the current selected browser.
- *
- * @param {string} script
- *     The script to execute.
- * @return {Promise}
- *     A promise that resolves when the script node was added and removed from
- *     the content page.
- */
-function createScriptNode(script) {
-  return SpecialPowers.spawn(gBrowser.selectedBrowser, [script], function(
-    _script
-  ) {
-    var script = content.document.createElement("script");
-    script.append(content.document.createTextNode(_script));
-    content.document.body.append(script);
-  });
-}

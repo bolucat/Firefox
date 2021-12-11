@@ -14,6 +14,7 @@ XPCOMUtils.defineLazyModuleGetters(this, {
   EventEmitter: "resource://gre/modules/EventEmitter.jsm",
   Services: "resource://gre/modules/Services.jsm",
 
+  getFramesFromStack: "chrome://remote/content/shared/Stack.jsm",
   Log: "chrome://remote/content/shared/Log.jsm",
 });
 
@@ -28,7 +29,7 @@ XPCOMUtils.defineLazyGetter(this, "logger", () => Log.get());
  * Example:
  * ```
  * const onJavascriptError = (eventName, data = {}) => {
- *   const { level, message, timestamp } = data;
+ *   const { level, message, stacktrace, timestamp } = data;
  *   ...
  * };
  *
@@ -38,6 +39,16 @@ XPCOMUtils.defineLazyGetter(this, "logger", () => Log.get());
  * ...
  * listener.stopListening();
  * ```
+ *
+ * @emits message
+ *    The ConsoleListener emits "error", "warning" and "info" events, with the
+ *    following object as payload:
+ *      - {String} level - Importance, one of `info`, `warning`, `error`,
+ *        `debug`, `trace`.
+ *      - {String} message - Actual message from the console entry.
+ *      - {Array<StackFrame>} stacktrace - List of stack frames,
+ *        starting from most recent.
+ *      - {Number} timeStamp - Timestamp when the method was called.
  */
 class ConsoleListener {
   #emittedMessages;
@@ -53,7 +64,7 @@ class ConsoleListener {
   constructor(innerWindowId) {
     EventEmitter.decorate(this);
 
-    this.#emittedMessages = new WeakSet();
+    this.#emittedMessages = new Set();
     this.#innerWindowId = innerWindowId;
     this.#listening = false;
   }
@@ -64,6 +75,7 @@ class ConsoleListener {
 
   destroy() {
     this.stopListening();
+    this.#emittedMessages = null;
   }
 
   startListening() {
@@ -138,7 +150,7 @@ class ConsoleListener {
     this.emit(level, {
       level,
       message: message.errorMessage,
-      rawMessage: message,
+      stacktrace: getFramesFromStack(message.stack),
       timeStamp: message.timeStamp,
     });
   };

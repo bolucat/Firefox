@@ -2931,6 +2931,12 @@
   value: false
   mirror: always
 
+# This enables the SVGPathSeg APIs
+- name: dom.svg.pathSeg.enabled
+  type: bool
+  value: false
+  mirror: always
+
 # Preference that is primarily used for testing of problematic file paths.
 # It can also be used for switching between different storage directories, but
 # such feature is not officially supported.
@@ -3885,7 +3891,7 @@
   # mouse messages.
 -   name: dom.w3c_pointer_events.dispatch_by_pointer_messages
     type: bool
-    value: @IS_NIGHTLY_BUILD@
+    value: true
     mirror: always
 
 -   name: dom.w3c_pointer_events.scroll_by_pen.enabled
@@ -3898,6 +3904,12 @@
 - name: dom.maxtouchpoints.testing.value
   type: int32_t
   value: -1
+  mirror: always
+
+# Maximum value of navigator.hardwareConcurrency.
+- name: dom.maxHardwareConcurrency
+  type: RelaxedAtomicUint32
+  value: 128
   mirror: always
 
 # W3C pointer events draft.
@@ -8721,11 +8733,7 @@
 
 - name: media.encoder.webm.enabled
   type: RelaxedAtomicBool
-#if defined(MOZ_WEBM_ENCODER)
   value: true
-#else
-  value: false
-#endif
   mirror: always
 
 - name: media.audio-max-decode-error

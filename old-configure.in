@@ -136,15 +136,10 @@ case "$target" in
             AC_MSG_ERROR([\$(CXX) test failed.  You must have MS VC++ in your path to build.]) )
         AC_LANG_RESTORE
 
-        changequote(,)
-        _MSVC_VER_FILTER='s|.*[^!-~]([0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?).*|\1|p'
-        changequote([,])
-
         AC_DEFINE(_CRT_SECURE_NO_WARNINGS)
         AC_DEFINE(_CRT_NONSTDC_NO_WARNINGS)
         AC_DEFINE(_USE_MATH_DEFINES) # Otherwise MSVC's math.h doesn't #define M_PI.
 
-        _CC_SUITE=14
         MSVC_C_RUNTIME_DLL=vcruntime140.dll
         MSVC_CXX_RUNTIME_DLL=msvcp140.dll
 
@@ -169,23 +164,6 @@ case "$target" in
           fi
           WIN32_REDIST_DIR=`cd "$WIN32_REDIST_DIR" && (pwd -W 2>/dev/null || pwd)`
         fi
-
-        # Check linker version, except in lld builds
-        case "$LINKER" in
-        *lld*)
-            ;;
-        *)
-            _LD_FULL_VERSION=`"${LINKER}" -v 2>&1 | sed -nre "$_MSVC_VER_FILTER"`
-            _LD_MAJOR_VERSION=`echo ${_LD_FULL_VERSION} | $AWK -F\. '{ print $1 }'`
-            if test "$_LD_MAJOR_VERSION" != "$_CC_SUITE"; then
-                AC_MSG_ERROR([The linker major version, $_LD_FULL_VERSION,  does not match the compiler suite version, $_CC_SUITE.])
-            fi
-            ;;
-        esac
-
-        INCREMENTAL_LINKER=1
-
-        unset _MSVC_VER_FILTER
 
         WRAP_STL_INCLUDES=1
         STL_FLAGS="-I${DIST}/stl_wrappers"
@@ -383,17 +361,6 @@ if test "$GNU_CC"; then
       if test "$result" = "yes"; then
           HAVE_X86_AVX2=1
       fi
-      ;;
-
-    ppc*)
-      AC_MSG_CHECKING([whether we can enable AltiVec support])
-      HAVE_ALTIVEC=
-      _SAVE_CFLAGS=$CFLAGS
-      CFLAGS="$CFLAGS -maltivec"
-      AC_TRY_COMPILE(,,AC_MSG_RESULT([yes])
-                       [HAVE_ALTIVEC=1],
-                       AC_MSG_RESULT([no]))
-      CFLAGS=$_SAVE_CFLAGS
       ;;
     esac
 
@@ -1400,7 +1367,6 @@ ENABLE_SYSTEM_EXTENSION_DIRS=1
 MOZ_BRANDING_DIRECTORY=
 MOZ_OFFICIAL_BRANDING=
 MOZ_AUTH_EXTENSION=1
-MOZ_SPELLCHECK=1
 MOZ_UNIVERSALCHARDET=1
 MOZ_ZIPWRITER=1
 MOZ_NO_SMART_CARDS=
@@ -1621,14 +1587,6 @@ if test -n "$MOZ_APPLEMEDIA"; then
     [AC_MSG_ERROR([MacOS X 10.9 SDK or later is required])])
 fi
 fi # COMPILE_ENVIRONMENT
-
-dnl ========================================================
-dnl = Handle dependent MEDIA defines
-dnl ========================================================
-
-MOZ_WEBM_ENCODER=1
-AC_DEFINE(MOZ_WEBM_ENCODER)
-AC_SUBST(MOZ_WEBM_ENCODER)
 
 dnl ========================================================
 dnl NegotiateAuth
@@ -2139,15 +2097,6 @@ if test -z "${GLIB_CFLAGS}" -o -z "${GLIB_LIBS}" ; then
 fi
 fi
 
-if test -z "${GLIB_GMODULE_LIBS}" \
-   -a -n "${GLIB_CONFIG}"\
-    -a "${GLIB_CONFIG}" != no\
-; then
-    GLIB_GMODULE_LIBS=`$GLIB_CONFIG gmodule --libs`
-fi
-
-AC_SUBST_LIST(GLIB_GMODULE_LIBS)
-
 if test "$USE_FC_FREETYPE"; then
     if test "$COMPILE_ENVIRONMENT"; then
         dnl ========================================================
@@ -2283,21 +2232,16 @@ dnl =
 dnl ========================================================
 
 AC_SUBST_LIST(ASFLAGS)
-AC_SUBST(IMPLIB)
-AC_SUBST(FILTER)
 AC_SUBST(MOZ_AUTH_EXTENSION)
 AC_SUBST_LIST(MOZ_DEBUG_LDFLAGS)
 AC_SUBST_LIST(WARNINGS_CFLAGS)
 AC_SUBST_SET(MOZ_EXTENSIONS)
 
 AC_SUBST(MOZ_UNIVERSALCHARDET)
-AC_SUBST(MOZ_SPELLCHECK)
 AC_SUBST(MOZ_CRASHREPORTER)
 AC_SUBST(MOZ_CRASHREPORTER_INJECTOR)
 AC_SUBST(MOZ_STUB_INSTALLER)
 AC_SUBST(MOZ_UPDATER)
-
-AC_SUBST(INCREMENTAL_LINKER)
 
 AC_SUBST_LIST(MOZ_FIX_LINK_PATHS)
 
@@ -2515,7 +2459,6 @@ AC_SUBST(TARGET_XPCOM_ABI)
 AC_SUBST(HAVE_TOOLCHAIN_SUPPORT_MSSSE3)
 AC_SUBST(HAVE_TOOLCHAIN_SUPPORT_MSSE4_1)
 AC_SUBST(HAVE_X86_AVX2)
-AC_SUBST(HAVE_ALTIVEC)
 
 AC_SUBST(DSO_LDOPTS)
 AC_SUBST(BIN_SUFFIX)

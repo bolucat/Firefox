@@ -9,11 +9,15 @@
 #include "mozilla/glean/GleanMetrics.h"
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/ContentParent.h"
+#include "mozilla/dom/Promise.h"
 #include "mozilla/gfx/GPUChild.h"
 #include "mozilla/gfx/GPUParent.h"
 #include "mozilla/gfx/GPUProcessManager.h"
 #include "mozilla/MozPromise.h"
 #include "mozilla/ProcInfo.h"
+#include "mozilla/RDDChild.h"
+#include "mozilla/RDDParent.h"
+#include "mozilla/RDDProcessManager.h"
 #include "mozilla/Unused.h"
 #include "nsTArray.h"
 #include "nsThreadUtils.h"
@@ -96,12 +100,15 @@ void FlushAllChildData(
     promises.EmplaceBack(parent->SendFlushFOGData());
   }
 
-  GPUProcessManager* gpuManager = GPUProcessManager::Get();
-  GPUChild* gpuChild = nullptr;
-  if (gpuManager) {
-    gpuChild = gpuManager->GetGPUChild();
-    if (gpuChild) {
+  if (GPUProcessManager* gpuManager = GPUProcessManager::Get()) {
+    if (GPUChild* gpuChild = gpuManager->GetGPUChild()) {
       promises.EmplaceBack(gpuChild->SendFlushFOGData());
+    }
+  }
+
+  if (RDDProcessManager* rddManager = RDDProcessManager::Get()) {
+    if (RDDChild* rddChild = rddManager->GetRDDChild()) {
+      promises.EmplaceBack(rddChild->SendFlushFOGData());
     }
   }
 
@@ -155,6 +162,9 @@ void SendFOGData(ipc::ByteBuf&& buf) {
       Unused << mozilla::gfx::GPUParent::GetSingleton()->SendFOGData(
           std::move(buf));
       break;
+    case GeckoProcessType_RDD:
+      Unused << mozilla::RDDParent::GetSingleton()->SendFOGData(std::move(buf));
+      break;
     default:
       MOZ_ASSERT_UNREACHABLE("Unsuppored process type");
   }
@@ -183,6 +193,13 @@ RefPtr<GenericPromise> FlushAndUseFOGData() {
 
 void TestTriggerGPUMetrics() {
   gfx::GPUProcessManager::Get()->TestTriggerMetrics();
+}
+
+void TestTriggerRDDMetrics(const RefPtr<dom::Promise>& promise) {
+  RDDProcessManager::Get()->TestTriggerMetrics()->Then(
+      GetCurrentSerialEventTarget(), __func__,
+      [promise]() { promise->MaybeResolveWithUndefined(); },
+      [promise]() { promise->MaybeRejectWithUndefined(); });
 }
 
 }  // namespace glean

@@ -676,12 +676,8 @@ static void PrepareFontOptions(FcPattern* aPattern, int* aOutLoadFlags,
     }
   }
 
-  FcBool bitmap;
-  if (FcPatternGetBool(aPattern, FC_EMBEDDED_BITMAP, 0, &bitmap) !=
-      FcResultMatch) {
-    bitmap = FcFalse;
-  }
-  if (fc_antialias && (fc_hintstyle == FC_HINT_NONE || !bitmap)) {
+  if (!FcPatternAllowsBitmaps(aPattern, fc_antialias != FcFalse,
+                              fc_hintstyle != FC_HINT_NONE)) {
     loadFlags |= FT_LOAD_NO_BITMAP;
   }
 
@@ -1253,7 +1249,7 @@ gfxFontconfigFont::gfxFontconfigFont(
 gfxFontconfigFont::~gfxFontconfigFont() = default;
 
 already_AddRefed<ScaledFont> gfxFontconfigFont::GetScaledFont(
-    mozilla::gfx::DrawTarget* aTarget) {
+    const TextRunDrawParams& aRunParams) {
   if (!mAzureScaledFont) {
     mAzureScaledFont = Factory::CreateScaledFontForFontconfigFont(
         GetUnscaledFont(), GetAdjustedSize(), mFTFace, GetPattern());

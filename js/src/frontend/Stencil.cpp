@@ -1144,6 +1144,12 @@ void CompilationGCOutput::trace(JSTracer* trc) {
   scopes.trace(trc);
 }
 
+void JS::InstantiationStorage::trace(JSTracer* trc) {
+  if (gcOutput_) {
+    gcOutput_->trace(trc);
+  }
+}
+
 RegExpObject* RegExpStencil::createRegExp(
     JSContext* cx, const CompilationAtomCache& atomCache) const {
   RootedAtom atom(cx, atomCache.getExistingAtomAt(cx, atom_));
@@ -2267,6 +2273,12 @@ bool CompilationStencil::deserializeStencils(JSContext* cx,
   }
   return true;
 }
+
+ExtensibleCompilationStencil::ExtensibleCompilationStencil(JSContext* cx,
+                                                           ScriptSource* source)
+    : alloc(CompilationStencil::LifoAllocChunkSize),
+      source(source),
+      parserAtoms(cx->runtime(), alloc) {}
 
 ExtensibleCompilationStencil::ExtensibleCompilationStencil(
     JSContext* cx, CompilationInput& input)
@@ -4380,9 +4392,9 @@ already_AddRefed<JS::Stencil> JS::CompileModuleScriptToStencil(
   return CompileModuleScriptToStencilImpl(cx, options, srcBuf);
 }
 
-JSScript* JS::InstantiateGlobalStencil(JSContext* cx,
-                                       const JS::InstantiateOptions& options,
-                                       JS::Stencil* stencil) {
+JS_PUBLIC_API JSScript* JS::InstantiateGlobalStencil(
+    JSContext* cx, const JS::InstantiateOptions& options,
+    JS::Stencil* stencil) {
   CompileOptions compileOptions(cx);
   options.copyTo(compileOptions);
   Rooted<CompilationInput> input(cx, CompilationInput(compileOptions));
@@ -4394,17 +4406,28 @@ JSScript* JS::InstantiateGlobalStencil(JSContext* cx,
   return gcOutput.get().script;
 }
 
+JS_PUBLIC_API JSScript* JS::InstantiateGlobalStencil(
+    JSContext* cx, const JS::InstantiateOptions& options, JS::Stencil* stencil,
+    JS::InstantiationStorage* storage) {
+  MOZ_ASSERT(storage->isValid());
+
+  CompileOptions compileOptions(cx);
+  options.copyTo(compileOptions);
+  Rooted<CompilationInput> input(cx, CompilationInput(compileOptions));
+  if (!InstantiateStencils(cx, input.get(), *stencil, *storage->gcOutput_)) {
+    return nullptr;
+  }
+
+  return storage->gcOutput_->script;
+}
+
 JS_PUBLIC_API bool JS::StencilIsBorrowed(Stencil* stencil) {
   return stencil->storageType == CompilationStencil::StorageType::Borrowed;
 }
 
-JS_PUBLIC_API bool JS::StencilCanLazilyParse(Stencil* stencil) {
-  return stencil->canLazilyParse;
-}
-
-JSObject* JS::InstantiateModuleStencil(JSContext* cx,
-                                       const JS::InstantiateOptions& options,
-                                       JS::Stencil* stencil) {
+JS_PUBLIC_API JSObject* JS::InstantiateModuleStencil(
+    JSContext* cx, const JS::InstantiateOptions& options,
+    JS::Stencil* stencil) {
   CompileOptions compileOptions(cx);
   options.copyTo(compileOptions);
   compileOptions.setModule();
@@ -4416,6 +4439,23 @@ JSObject* JS::InstantiateModuleStencil(JSContext* cx,
   }
 
   return gcOutput.get().module;
+}
+
+JS_PUBLIC_API JSObject* JS::InstantiateModuleStencil(
+    JSContext* cx, const JS::InstantiateOptions& options, JS::Stencil* stencil,
+    JS::InstantiationStorage* storage) {
+  MOZ_ASSERT(storage->isValid());
+
+  CompileOptions compileOptions(cx);
+  options.copyTo(compileOptions);
+  compileOptions.setModule();
+
+  Rooted<CompilationInput> input(cx, CompilationInput(compileOptions));
+  if (!InstantiateStencils(cx, input.get(), *stencil, *storage->gcOutput_)) {
+    return nullptr;
+  }
+
+  return storage->gcOutput_->module;
 }
 
 JS::TranscodeResult JS::EncodeStencil(JSContext* cx, JS::Stencil* stencil,
@@ -4449,14 +4489,14 @@ JS::TranscodeResult JS::DecodeStencil(JSContext* cx,
   return TranscodeResult::Ok;
 }
 
-already_AddRefed<JS::Stencil> JS::FinishOffThreadStencil(
-    JSContext* cx, JS::OffThreadToken* token) {
-  MOZ_ASSERT(cx);
-  MOZ_ASSERT(CurrentThreadCanAccessRuntime(cx->runtime()));
-  return HelperThreadState().finishStencilParseTask(cx, token);
-}
-
 JS_PUBLIC_API size_t JS::SizeOfStencil(Stencil* stencil,
                                        mozilla::MallocSizeOf mallocSizeOf) {
   return stencil->sizeOfIncludingThis(mallocSizeOf);
+}
+
+JS::InstantiationStorage::~InstantiationStorage() {
+  if (gcOutput_) {
+    js_delete(gcOutput_);
+    gcOutput_ = nullptr;
+  }
 }

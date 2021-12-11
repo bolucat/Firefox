@@ -2862,8 +2862,7 @@ static const struct xdg_activation_token_v1_listener token_listener = {
 };
 
 void nsWindow::RequestFocusWaylandWindow(RefPtr<nsWindow> aWindow) {
-  LOG("nsWindow::RequestWindowFocusWayland(%p) gFocusWindow [%p]",
-      (void*)aWindow, gFocusWindow);
+  LOG("nsWindow::RequestWindowFocusWayland(%p)", (void*)aWindow);
 
   RefPtr<nsWaylandDisplay> display = WaylandDisplayGet();
   xdg_activation_v1* xdg_activation = display->GetXdgActivation();
@@ -2872,19 +2871,17 @@ void nsWindow::RequestFocusWaylandWindow(RefPtr<nsWindow> aWindow) {
     return;
   }
 
-  // We use xdg-activation protocol to transfer focus from gFocusWindow to
-  // aWindow. Quit if no window is focused.
-  if (gFocusWindow != this) {
-    LOG("  there isn't any focused window to transfer focus from, quit.");
+  wl_surface* focusSurface;
+  uint32_t focusSerial;
+  KeymapWrapper::GetFocusInfo(&focusSurface, &focusSerial);
+  if (!focusSurface) {
+    LOG("  We're missing focused window, quit.");
     return;
   }
 
-  wl_surface* surface =
-      mGdkWindow ? gdk_wayland_window_get_wl_surface(mGdkWindow) : nullptr;
-  if (!surface) {
-    LOG("  requesting window is hidden/unmapped, quit.");
-    return;
-  }
+  LOG("  requesting xdg-activation token, surface ID %d serial %d seat ID %d",
+      wl_proxy_get_id((struct wl_proxy*)focusSurface), focusSerial,
+      wl_proxy_get_id((struct wl_proxy*)KeymapWrapper::GetSeat()));
 
   // Store activation token at activated window for further release.
   g_clear_pointer(&aWindow->mXdgToken, xdg_activation_token_v1_destroy);
@@ -2894,9 +2891,9 @@ void nsWindow::RequestFocusWaylandWindow(RefPtr<nsWindow> aWindow) {
   // callback.
   xdg_activation_token_v1_add_listener(aWindow->mXdgToken, &token_listener,
                                        do_AddRef(aWindow).take());
-  xdg_activation_token_v1_set_serial(aWindow->mXdgToken, GetLastUserInputTime(),
-                                     display->GetSeat());
-  xdg_activation_token_v1_set_surface(aWindow->mXdgToken, surface);
+  xdg_activation_token_v1_set_serial(aWindow->mXdgToken, focusSerial,
+                                     KeymapWrapper::GetSeat());
+  xdg_activation_token_v1_set_surface(aWindow->mXdgToken, focusSurface);
   xdg_activation_token_v1_commit(aWindow->mXdgToken);
 }
 #endif
@@ -2948,6 +2945,7 @@ void nsWindow::SetFocus(Raise aRaise, mozilla::dom::CallerType aCallerType) {
       nsGTKToolkit* GTKToolkit = nsGTKToolkit::GetToolkit();
       if (GTKToolkit) {
         timestamp = GTKToolkit->GetFocusTimestamp();
+        GTKToolkit->SetFocusTimestamp(0);
       }
       if (!timestamp) {
         timestamp = GetLastUserInputTime();
@@ -2959,14 +2957,9 @@ void nsWindow::SetFocus(Raise aRaise, mozilla::dom::CallerType aCallerType) {
 
 #ifdef MOZ_WAYLAND
       if (GdkIsWaylandDisplay()) {
-        if (gFocusWindow) {
-          gFocusWindow->RequestFocusWaylandWindow(toplevelWindow);
-        } else {
-          LOG("  RequestFocusWaylandWindow(): we're missing focused window!");
-        }
+        RequestFocusWaylandWindow(toplevelWindow);
       }
 #endif
-      if (GTKToolkit) GTKToolkit->SetFocusTimestamp(0);
     }
     return;
   }
@@ -5357,6 +5350,14 @@ nsresult nsWindow::Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
 #ifdef ACCESSIBILITY
   // Send a DBus message to check whether a11y is enabled
   a11y::PreInit();
+#endif
+
+#ifdef MOZ_WAYLAND
+  // Ensure that KeymapWrapper is created on Wayland as we need it for
+  // keyboard focus tracking.
+  if (GdkIsWaylandDisplay()) {
+    KeymapWrapper::EnsureInstance();
+  }
 #endif
 
   // Ensure that the toolkit is created.
