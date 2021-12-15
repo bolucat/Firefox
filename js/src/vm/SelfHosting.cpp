@@ -2576,12 +2576,6 @@ class MOZ_STACK_CLASS AutoSelfHostingErrorReporter {
 [[nodiscard]] static bool InitSelfHostingFromStencil(
     JSContext* cx, frontend::CompilationAtomCache& atomCache,
     const frontend::CompilationStencil& stencil) {
-  // We must instantiate the atoms since they are shared between runtimes and
-  // must be frozen during this startup.
-  if (!stencil.instantiateSelfHostedForRuntime(cx, atomCache)) {
-    return false;
-  }
-
   // Build the JSAtom -> ScriptIndexRange mapping and save on the runtime.
   {
     auto& scriptMap = cx->runtime()->selfHostScriptMap.ref();
@@ -2643,8 +2637,9 @@ class MOZ_STACK_CLASS AutoSelfHostingErrorReporter {
   return true;
 }
 
-bool JSRuntime::initSelfHosting(JSContext* cx, JS::SelfHostedCache xdrCache,
-                                JS::SelfHostedWriter xdrWriter) {
+bool JSRuntime::initSelfHostingStencil(JSContext* cx,
+                                       JS::SelfHostedCache xdrCache,
+                                       JS::SelfHostedWriter xdrWriter) {
   if (parentRuntime) {
     MOZ_RELEASE_ASSERT(
         parentRuntime->hasInitializedSelfHosting(),
@@ -2671,7 +2666,6 @@ bool JSRuntime::initSelfHosting(JSContext* cx, JS::SelfHostedCache xdrCache,
 
   // Try initializing from Stencil XDR.
   bool decodeOk = false;
-  Rooted<frontend::CompilationGCOutput> output(cx);
   if (xdrCache.Length() > 0) {
     // Allow the VM to directly use bytecode from the XDR buffer without
     // copying it. The buffer must outlive all runtimes (including workers).
@@ -2697,9 +2691,9 @@ bool JSRuntime::initSelfHosting(JSContext* cx, JS::SelfHostedCache xdrCache,
     }
 
     if (decodeOk) {
-      if (!InitSelfHostingFromStencil(cx, input->atomCache, *stencil)) {
-        return false;
-      }
+      MOZ_ASSERT(input->atomCache.empty());
+
+      MOZ_ASSERT(!hasSelfHostStencil());
 
       // Move it to the runtime.
       cx->runtime()->selfHostStencilInput_ = input.release();
@@ -2752,9 +2746,7 @@ bool JSRuntime::initSelfHosting(JSContext* cx, JS::SelfHostedCache xdrCache,
     }
   }
 
-  if (!InitSelfHostingFromStencil(cx, input->atomCache, *stencil)) {
-    return false;
-  }
+  MOZ_ASSERT(input->atomCache.empty());
 
   MOZ_ASSERT(!hasSelfHostStencil());
 
@@ -2763,6 +2755,12 @@ bool JSRuntime::initSelfHosting(JSContext* cx, JS::SelfHostedCache xdrCache,
   cx->runtime()->selfHostStencil_ = stencil.forget().take();
 
   return true;
+}
+
+bool JSRuntime::initSelfHostingFromStencil(JSContext* cx) {
+  return InitSelfHostingFromStencil(
+      cx, cx->runtime()->selfHostStencilInput_->atomCache,
+      *cx->runtime()->selfHostStencil_);
 }
 
 void JSRuntime::finishSelfHosting() {

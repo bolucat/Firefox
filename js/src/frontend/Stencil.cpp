@@ -2023,13 +2023,14 @@ static bool SelfHostedDummyFunction(JSContext* cx, unsigned argc,
   MOZ_CRASH("Self-hosting top-level should not use functions directly");
 }
 
-bool CompilationStencil::instantiateSelfHostedForRuntime(
-    JSContext* cx, CompilationAtomCache& atomCache) const {
+bool CompilationStencil::instantiateSelfHostedAtoms(
+    JSContext* cx, AtomSet& atomSet, CompilationAtomCache& atomCache) const {
   MOZ_ASSERT(isInitialStencil());
 
   // We must instantiate atoms during startup so they can be made permanent
   // across multiple runtimes.
-  return InstantiateAtoms(cx, atomCache, *this);
+  return InstantiateMarkedAtomsAsPermanent(cx, atomSet, parserAtomData,
+                                           atomCache);
 }
 
 JSScript* CompilationStencil::instantiateSelfHostedTopLevelForRealm(

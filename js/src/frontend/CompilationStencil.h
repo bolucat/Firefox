@@ -47,6 +47,7 @@ class JSString;
 
 namespace js {
 
+class AtomSet;
 class JSONPrinter;
 class ModuleObject;
 
@@ -528,6 +529,8 @@ struct CompilationAtomCache {
   bool hasAtomAt(ParserAtomIndex index) const;
   bool setAtomAt(JSContext* cx, ParserAtomIndex index, JSString* atom);
   bool allocate(JSContext* cx, size_t length);
+
+  bool empty() const { return atoms_.empty(); }
 
   void stealBuffer(AtomCacheVector& atoms);
   void releaseBuffer(AtomCacheVector& atoms);
@@ -1122,8 +1125,8 @@ struct CompilationStencil {
       CompilationGCOutput& gcOutput);
 
   // Decode the special self-hosted stencil
-  [[nodiscard]] bool instantiateSelfHostedForRuntime(
-      JSContext* cx, CompilationAtomCache& atomCache) const;
+  [[nodiscard]] bool instantiateSelfHostedAtoms(
+      JSContext* cx, AtomSet& atomSet, CompilationAtomCache& atomCache) const;
   [[nodiscard]] JSScript* instantiateSelfHostedTopLevelForRealm(
       JSContext* cx, CompilationInput& input);
   [[nodiscard]] JSFunction* instantiateSelfHostedLazyFunction(
