@@ -941,6 +941,46 @@ def wasm_memory64(value, cranelift, simulator, target):
 set_config("ENABLE_WASM_MEMORY64", wasm_memory64)
 set_define("ENABLE_WASM_MEMORY64", wasm_memory64)
 
+# Support for checking for indirect call to null via traps
+# =====================================================
+
+
+@depends(milestone.is_nightly, "--enable-jit", "--enable-simulator")
+def default_wasm_call_indirect_null(is_nightly, enable_jit, simulator):
+    if not enable_jit:
+        return
+
+    if simulator:
+        return
+
+    if is_nightly:
+        return True
+
+
+option(
+    "--enable-wasm-call-indirect-null",
+    default=default_wasm_call_indirect_null,
+    help="{Enable|Disable} WebAssembly call-indirect-to-null optimization",
+)
+
+
+@depends("--enable-wasm-call-indirect-null", "--enable-jit", "--enable-simulator")
+def wasm_call_indirect_null(value, enable_jit, simulator):
+    if not value:
+        return
+
+    if not enable_jit:
+        return
+
+    if simulator:
+        return
+
+    return True
+
+
+set_config("ENABLE_WASM_CALL_INDIRECT_NULL", wasm_call_indirect_null)
+set_define("ENABLE_WASM_CALL_INDIRECT_NULL", wasm_call_indirect_null)
+
 # Options for generating the shell as a script
 # ============================================
 option("--with-qemu-exe", nargs=1, help="Use path as an arm emulator on host platforms")
@@ -1180,3 +1220,19 @@ def enable_new_set_methods(value):
 
 set_config("ENABLE_NEW_SET_METHODS", enable_new_set_methods)
 set_define("ENABLE_NEW_SET_METHODS", enable_new_set_methods)
+
+
+@depends(milestone.version)
+def js_version(version):
+    return Version(version)
+
+
+set_config("MOZJS_MAJOR_VERSION", depends(js_version.major)(lambda m: str(m)))
+set_define("MOZJS_MAJOR_VERSION", js_version.major)
+set_config("MOZJS_MINOR_VERSION", depends(js_version.minor)(lambda m: str(m)))
+set_define("MOZJS_MINOR_VERSION", js_version.minor)
+set_config("MOZJS_PATCH_VERSION", depends(js_version.patch)(lambda p: str(p)))
+set_config(
+    "MOZJS_ALPHA",
+    depends(js_version)(lambda x: x.version[-2] if x.version[-2] in "ab" else None),
+)

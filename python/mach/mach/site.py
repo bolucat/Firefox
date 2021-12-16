@@ -188,7 +188,7 @@ class MachSiteManager:
     def __init__(
         self,
         topsrcdir: str,
-        state_dir: Optional[str],
+        checkout_scoped_state_dir: Optional[str],
         requirements: MachEnvRequirements,
         external_python: "ExternalPythonSite",
         site_packages_source: SitePackagesSource,
@@ -196,7 +196,8 @@ class MachSiteManager:
         """
         Args:
             topsrcdir: The path to the Firefox repo
-            state_dir: The path to the state_dir, generally ~/.mozbuild
+            checkout_scoped_state_dir: The path to the checkout-scoped state_dir,
+                generally ~/.mozbuild/srcdirs/<checkout-based-dir>/
             requirements: The requirements associated with the Mach site, parsed from
                 the file at build/mach_virtualenv_packages.txt
             external_python: The external Python site that was used to invoke Mach.
@@ -208,7 +209,11 @@ class MachSiteManager:
         self._external_python = external_python
         self._site_packages_source = site_packages_source
         self._requirements = requirements
-        self._virtualenv_root = _mach_virtualenv_root(state_dir) if state_dir else None
+        self._virtualenv_root = (
+            _mach_virtualenv_root(checkout_scoped_state_dir)
+            if checkout_scoped_state_dir
+            else None
+        )
         self._metadata = MozSiteMetadata(
             sys.hexversion,
             "mach",
@@ -223,8 +228,8 @@ class MachSiteManager:
         """
         Args:
             topsrcdir: The path to the Firefox repo
-            get_state_dir: A function that resolve the path to the workdir-scoped
-                state_dir, generally ~/.mozbuild/srcdirs/<worktree-based-dir>/
+            get_state_dir: A function that resolve the path to the checkout-scoped
+                state_dir, generally ~/.mozbuild/srcdirs/<checkout-based-dir>/
         """
 
         requirements = resolve_requirements(topsrcdir, "mach")
@@ -315,11 +320,11 @@ class MachSiteManager:
                 sys.path[0:0] = self._requirements.pths_as_absolute(self._topsrcdir)
             elif self._site_packages_source == SitePackagesSource.NONE:
                 # Since the system packages aren't used, remove them from the sys.path
+                external_site_packages = ExternalPythonSite(
+                    sys.executable
+                ).all_site_packages_dirs()
                 sys.path = [
-                    path
-                    for path in sys.path
-                    if path
-                    not in ExternalPythonSite(sys.executable).all_site_packages_dirs()
+                    path for path in sys.path if path not in external_site_packages
                 ]
                 sys.path[0:0] = self._requirements.pths_as_absolute(self._topsrcdir)
             elif self._site_packages_source == SitePackagesSource.VENV:
@@ -327,13 +332,11 @@ class MachSiteManager:
                 # started from the Mach virtualenv.
                 if Path(sys.prefix) != Path(self._metadata.prefix):
                     # Since the system packages aren't used, remove them from the sys.path
+                    external_site_packages = ExternalPythonSite(
+                        sys.executable
+                    ).all_site_packages_dirs()
                     sys.path = [
-                        path
-                        for path in sys.path
-                        if path
-                        not in ExternalPythonSite(
-                            sys.executable
-                        ).all_site_packages_dirs()
+                        path for path in sys.path if path not in external_site_packages
                     ]
 
                     # Activate the Mach virtualenv in the current Python context. This
@@ -393,7 +396,7 @@ class CommandSiteManager:
     def __init__(
         self,
         topsrcdir: str,
-        state_dir: str,
+        checkout_scoped_state_dir: Optional[str],
         virtualenv_root: str,
         site_name: str,
         active_metadata: MozSiteMetadata,
@@ -403,7 +406,8 @@ class CommandSiteManager:
         """
         Args:
             topsrcdir: The path to the Firefox repo
-            state_dir: The path to the state_dir, generally ~/.mozbuild
+            checkout_scoped_state_dir: The path to the checkout-scoped state_dir,
+                generally ~/.mozbuild/srcdirs/<checkout-based-dir>/
             virtualenv_root: The path to the virtualenv associated with this site
             site_name: The name of this site, such as "build"
             active_metadata: The currently-active moz-managed site
@@ -413,7 +417,7 @@ class CommandSiteManager:
                 the file at build/<site_name>_virtualenv_packages.txt
         """
         self._topsrcdir = topsrcdir
-        self._state_dir = state_dir
+        self._checkout_scoped_state_dir = checkout_scoped_state_dir
         self.virtualenv_root = virtualenv_root
         self._site_name = site_name
         self._virtualenv = PythonVirtualenv(self.virtualenv_root)
@@ -436,14 +440,15 @@ class CommandSiteManager:
     def from_environment(
         cls,
         topsrcdir: str,
-        state_dir: str,
+        checkout_scoped_state_dir: Optional[str],
         site_name: str,
         command_virtualenvs_dir: str,
     ):
         """
         Args:
             topsrcdir: The path to the Firefox repo
-            state_dir: The path to the state_dir, generally ~/.mozbuild
+            checkout_scoped_state_dir: The path to the checkout-scoped state_dir,
+                generally ~/.mozbuild/srcdirs/<checkout-based-dir>/
             site_name: The name of this site, such as "build"
             command_virtualenvs_dir: The location under which this site's virtualenv
             should be created
@@ -476,7 +481,7 @@ class CommandSiteManager:
 
         return cls(
             topsrcdir,
-            state_dir,
+            checkout_scoped_state_dir,
             os.path.join(command_virtualenvs_dir, site_name),
             site_name,
             active_metadata,
@@ -593,9 +598,10 @@ class CommandSiteManager:
             lines.extend(self._external_python.all_site_packages_dirs())
         elif mach_site_packages_source == SitePackagesSource.VENV:
             # When Mach is using its on-disk virtualenv, add its site-packages directory.
+            assert self._checkout_scoped_state_dir
             lines.append(
                 PythonVirtualenv(
-                    _mach_virtualenv_root(self._state_dir)
+                    _mach_virtualenv_root(self._checkout_scoped_state_dir)
                 ).site_packages_dir()
             )
 
@@ -1049,5 +1055,5 @@ def _is_venv_up_to_date(
     return True
 
 
-def _mach_virtualenv_root(state_dir):
-    return os.path.join(state_dir, "_virtualenvs", "mach")
+def _mach_virtualenv_root(checkout_scoped_state_dir):
+    return os.path.join(checkout_scoped_state_dir, "_virtualenvs", "mach")

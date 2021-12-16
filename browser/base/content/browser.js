@@ -2347,12 +2347,6 @@ var gBrowserInit = {
 
     scheduleIdleTask(reportRemoteSubframesEnabledTelemetry);
 
-    if (AppConstants.NIGHTLY_BUILD) {
-      scheduleIdleTask(() => {
-        FissionTestingUI.init();
-      });
-    }
-
     scheduleIdleTask(() => {
       gGfxUtils.init();
     });
@@ -5451,8 +5445,9 @@ var XULBrowserWindow = {
     Services.obs.notifyObservers(
       window,
       "toggle-screenshot-disable",
-      aLocationURI.scheme == "about" &&
-        !aLocationURI.spec.startsWith("about:reader")
+      (aLocationURI.scheme == "about" &&
+        !aLocationURI.spec.startsWith("about:reader")) ||
+        Services.prefs.getBoolPref("extensions.screenshots.disabled")
     );
 
     gPermissionPanel.onLocationChange();
@@ -9996,31 +9991,4 @@ function reportRemoteSubframesEnabledTelemetry() {
   Services.telemetry
     .getHistogramById("WINDOW_REMOTE_SUBFRAMES_ENABLED_STATUS")
     .add(categoryLabel);
-}
-
-if (AppConstants.NIGHTLY_BUILD) {
-  var FissionTestingUI = {
-    init() {
-      // Handle the Fission/Non-Fission testing UI.
-      if (!Services.appinfo.fissionAutostart) {
-        return;
-      }
-
-      const openNonFissionWindowOption = Services.prefs.getBoolPref(
-        "fission.openNonFissionWindowOption",
-        false
-      );
-      if (!openNonFissionWindowOption) {
-        return;
-      }
-
-      let newFissionWindow = document.getElementById("Tools:FissionWindow");
-      let newNonFissionWindow = document.getElementById(
-        "Tools:NonFissionWindow"
-      );
-
-      newFissionWindow.hidden = gFissionBrowser;
-      newNonFissionWindow.hidden = !gFissionBrowser;
-    },
-  };
 }

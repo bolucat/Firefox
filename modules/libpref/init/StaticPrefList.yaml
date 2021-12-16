@@ -4502,13 +4502,6 @@
   value: true
   mirror: always
 
-# If true, show option for opening a non-Fission window in a menu, when Fission
-# is enabled.
-- name: fission.openNonFissionWindowOption
-  type: bool
-  value: false
-  mirror: always
-
 # The strategy used to control how sites are isolated into separate processes
 # when Fisison is enabled. This pref has no effect if Fission is disabled.
 # See the `WebContentIsolationStrategy` enum in `ProcessIsolation.cpp`.
@@ -7905,7 +7898,7 @@
 # Whether the `scrollbar-gutter` CSS property is enabled.
 - name: layout.css.scrollbar-gutter.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
   rust: true
 
@@ -12203,6 +12196,7 @@
 #   2: GTK scrollbars
 #   3: Android scrollbars
 #   4: Windows 10 scrollbars
+#   5: Windows 11 scrollbars
 #
 # Note that switching to non-default scrollbars is experimental and other
 # scrollbar-related prefs may interfere with the experience. For example,

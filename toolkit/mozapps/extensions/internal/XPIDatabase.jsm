@@ -146,6 +146,8 @@ const PROP_JSON_FIELDS = [
   "incognito",
   "userPermissions",
   "optionalPermissions",
+  "sitePermissions",
+  "siteOrigin",
   "icons",
   "iconURL",
   "blocklistState",
@@ -158,7 +160,12 @@ const PROP_JSON_FIELDS = [
   "rootURI",
 ];
 
-const SIGNED_TYPES = new Set(["extension", "locale", "theme"]);
+const SIGNED_TYPES = new Set([
+  "extension",
+  "locale",
+  "theme",
+  "sitepermission",
+]);
 
 // Time to wait before async save of XPI JSON database, in milliseconds
 const ASYNC_SAVE_DELAY_MS = 20;
@@ -784,7 +791,7 @@ class AddonInternal {
     // when the extension has opted out or it gets the permission automatically
     // on every extension startup (as system, privileged and builtin addons).
     if (
-      this.type === "extension" &&
+      (this.type === "extension" || this.type == "sitepermission") &&
       this.incognito !== "not_allowed" &&
       this.signedState !== AddonManager.SIGNEDSTATE_PRIVILEGED &&
       this.signedState !== AddonManager.SIGNEDSTATE_SYSTEM &&
@@ -1002,7 +1009,7 @@ AddonWrapper = class {
     return (
       this.signedState == AddonManager.SIGNEDSTATE_PRIVILEGED ||
       (this.signedState >= AddonManager.SIGNEDSTATE_SIGNED &&
-        this.recommendationStates.length)
+        (this.recommendationStates.length || this.type == "sitepermission"))
     );
   }
 
@@ -1396,6 +1403,8 @@ function defineAddonWrapperProperty(name, getter) {
   "validInstallOrigins",
   "dependencies",
   "signedState",
+  "sitePermissions",
+  "siteOrigin",
   "isCorrectlySigned",
 ].forEach(function(aProp) {
   defineAddonWrapperProperty(aProp, function() {

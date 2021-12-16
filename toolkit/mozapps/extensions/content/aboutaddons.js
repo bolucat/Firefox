@@ -234,7 +234,7 @@ AddonManagerListenerHandler.addListener(AddonCardListenerHandler);
 function isAbuseReportSupported(addon) {
   return (
     ABUSE_REPORT_ENABLED &&
-    ["extension", "theme"].includes(addon.type) &&
+    AbuseReporter.isSupportedAddonType(addon.type) &&
     !(addon.isBuiltin || addon.isSystem)
   );
 }
@@ -2648,6 +2648,48 @@ class AddonPermissionsList extends HTMLElement {
 }
 customElements.define("addon-permissions-list", AddonPermissionsList);
 
+class AddonSitePermissionsList extends HTMLElement {
+  setAddon(addon) {
+    this.addon = addon;
+    this.render();
+  }
+
+  async render() {
+    let appName = brandBundle.GetStringFromName("brandShortName");
+    let permissions = Extension.formatPermissionStrings(
+      {
+        sitePermissions: this.addon.sitePermissions,
+        siteOrigin: this.addon.siteOrigin,
+        appName,
+      },
+      browserBundle
+    );
+
+    this.textContent = "";
+    let frag = importTemplate("addon-sitepermissions-list");
+
+    if (permissions.msgs.length) {
+      let section = frag.querySelector(".addon-permissions-required");
+      section.hidden = false;
+      let list = section.querySelector(".addon-permissions-list");
+      let header = section.querySelector(".permission-header");
+      document.l10n.setAttributes(header, "addon-sitepermissions-required", {
+        hostname: new URL(this.addon.siteOrigin).hostname,
+      });
+
+      for (let msg of permissions.msgs) {
+        let item = document.createElement("li");
+        item.classList.add("permission-info", "permission-checked");
+        item.appendChild(document.createTextNode(msg));
+        list.appendChild(item);
+      }
+    }
+
+    this.appendChild(frag);
+  }
+}
+customElements.define("addon-sitepermissions-list", AddonSitePermissionsList);
+
 class AddonDetails extends HTMLElement {
   connectedCallback() {
     if (!this.children.length) {
@@ -2787,6 +2829,10 @@ class AddonDetails extends HTMLElement {
     this.permissionsList = this.querySelector("addon-permissions-list");
     this.permissionsList.setAddon(addon);
 
+    // Set the add-on for the sitepermissions section.
+    this.sitePermissionsList = this.querySelector("addon-sitepermissions-list");
+    this.sitePermissionsList.setAddon(addon);
+
     // Set the add-on for the preferences section.
     this.inlineOptions = this.querySelector("inline-options-browser");
     this.inlineOptions.setAddon(addon);
@@ -2808,7 +2854,7 @@ class AddonDetails extends HTMLElement {
     );
 
     // By default, all private browsing rows are hidden. Possibly show one.
-    if (addon.type != "extension") {
+    if (addon.type != "extension" && addon.type != "sitepermission") {
       // All add-addons of this type are allowed in private browsing mode, so
       // do not show any UI.
     } else if (addon.incognito == "not_allowed") {
@@ -3311,7 +3357,10 @@ class AddonCard extends HTMLElement {
           toggleDisabledButton,
           `${toggleDisabledAction}-addon-button`
         );
-      } else if (addon.type === "extension") {
+      } else if (
+        addon.type === "extension" ||
+        addon.type === "sitepermission"
+      ) {
         toggleDisabledButton.checked = !addon.userDisabled;
       }
     }
@@ -3340,7 +3389,10 @@ class AddonCard extends HTMLElement {
     }
 
     // Set the private browsing badge visibility.
-    if (addon.type == "extension" && addon.incognito != "not_allowed") {
+    if (
+      addon.incognito != "not_allowed" &&
+      (addon.type == "extension" || addon.type == "sitepermission")
+    ) {
       // Keep update synchronous, the badge can appear later.
       isAllowedInPrivateBrowsing(addon).then(isAllowed => {
         card.querySelector(
@@ -3424,7 +3476,7 @@ class AddonCard extends HTMLElement {
     if (addon.type != "theme") {
       this.card.querySelector(".theme-enable-button").remove();
     }
-    if (addon.type != "extension") {
+    if (addon.type != "extension" && addon.type != "sitepermission") {
       this.card.querySelector(".extension-enable-button").remove();
     }
 

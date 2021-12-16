@@ -282,9 +282,10 @@ option(
 )
 
 
-@depends_if("--enable-default-toolkit")
+@depends("--enable-default-toolkit")
 def full_toolkit(value):
-    return value[0]
+    if value:
+        return value[0]
 
 
 @depends(full_toolkit)
@@ -1904,6 +1905,37 @@ with only_when(compile_environment):
     )
 
 
+# PNG
+# ===
+with only_when(compile_environment):
+    system_lib_option(
+        "--with-system-png",
+        nargs="?",
+        help="Use system libpng",
+    )
+
+    @depends("--with-system-png")
+    def deprecated_system_png_path(value):
+        if len(value) == 1:
+            die(
+                "--with-system-png=PATH is not supported anymore. Please use "
+                "--with-system-png and set any necessary pkg-config environment variable."
+            )
+
+    png = pkg_check_modules("MOZ_PNG", "libpng >= 1.6.35", when="--with-system-png")
+
+    check_symbol(
+        "png_get_acTL",
+        flags=png.libs,
+        onerror=lambda: die(
+            "--with-system-png won't work because the system's libpng doesn't have APNG support"
+        ),
+        when="--with-system-png",
+    )
+
+    set_config("MOZ_SYSTEM_PNG", True, when="--with-system-png")
+
+
 # FFmpeg's ffvpx configuration
 # ==============================================================
 with only_when(compile_environment):
@@ -2572,3 +2604,133 @@ option(
 
 set_config("MOZ_DOM_STREAMS", True, when="--enable-dom-streams")
 set_define("MOZ_DOM_STREAMS", True, when="--enable-dom-streams")
+
+# libevent
+# ==============================================================
+with only_when(compile_environment):
+    system_lib_option(
+        "--with-system-libevent",
+        nargs="?",
+        help="Use system libevent",
+    )
+
+    @depends("--with-system-libevent")
+    def deprecated_system_libevent_path(value):
+        if len(value) == 1:
+            die(
+                "--with-system-libevent=PATH is not supported anymore. Please use "
+                "--with-system-libevent and set any necessary pkg-config environment variable."
+            )
+
+    pkg_check_modules("MOZ_LIBEVENT", "libevent", when="--with-system-libevent")
+
+    set_config("MOZ_SYSTEM_LIBEVENT", True, when="--with-system-libevent")
+
+
+# Crash reporting
+# ==============================================================
+@depends(target, developer_options)
+def crashreporter_default(target, developer_options):
+    if target.kernel in ("WINNT", "Darwin"):
+        return True
+    if target.kernel == "Linux" and target.cpu in ("x86", "x86_64", "arm", "aarch64"):
+        # The crash reporter prevents crash stacktraces to be logged in the
+        # logs on Android, so we leave it out by default in developer builds.
+        return target.os != "Android" or not developer_options
+
+
+option(
+    "--enable-crashreporter",
+    default=crashreporter_default,
+    help="{Enable|Disable} crash reporting",
+)
+
+
+set_config("MOZ_CRASHREPORTER", True, when="--enable-crashreporter")
+set_define("MOZ_CRASHREPORTER", True, when="--enable-crashreporter")
+add_old_configure_assignment("MOZ_CRASHREPORTER", True, when="--enable-crashreporter")
+
+with only_when(compile_environment):
+    with only_when("--enable-crashreporter"):
+        pkg_check_modules(
+            "MOZ_GTHREAD",
+            "gthread-2.0",
+            when=depends(target)(lambda t: t.os == "GNU" and t.kernel == "Linux"),
+        )
+
+        set_config(
+            "MOZ_CRASHREPORTER_INJECTOR",
+            True,
+            when=depends(target)(lambda t: t.os == "WINNT" and t.bitness == 32),
+        )
+        set_define(
+            "MOZ_CRASHREPORTER_INJECTOR",
+            True,
+            when=depends(target)(lambda t: t.os == "WINNT" and t.bitness == 32),
+        )
+
+
+# DBus
+# ==============================================================
+with only_when(toolkit_gtk):
+    option("--disable-dbus", help="Disable dbus support")
+
+    with only_when("--enable-dbus"):
+        pkg_check_modules("MOZ_DBUS", "dbus-1 >= 0.60")
+        pkg_check_modules("MOZ_DBUS_GLIB", "dbus-glib-1 >= 0.60")
+
+        set_config("MOZ_ENABLE_DBUS", True)
+        set_define("MOZ_ENABLE_DBUS", True)
+
+
+# Necko's wifi scanner
+# ==============================================================
+@depends(target)
+def necko_wifi_when(target):
+    return target.os in ("WINNT", "OSX", "DragonFly", "FreeBSD") or (
+        target.kernel == "Linux" and target.os == "GNU"
+    )
+
+
+option("--disable-necko-wifi", help="Disable necko wifi scanner", when=necko_wifi_when)
+
+set_config("NECKO_WIFI", True, when="--enable-necko-wifi")
+set_define("NECKO_WIFI", True, when="--enable-necko-wifi")
+
+
+@depends(
+    depends("--enable-necko-wifi", when=necko_wifi_when)(lambda x: x),
+    depends("--enable-dbus", when=toolkit_gtk)(lambda x: x),
+    when=depends(target)(lambda t: t.os == "GNU" and t.kernel == "Linux"),
+)
+def necko_wifi_dbus(necko_wifi, dbus):
+    if necko_wifi and not dbus:
+        die(
+            "Necko WiFi scanning needs DBus on your platform, remove --disable-dbus"
+            " or use --disable-necko-wifi"
+        )
+    return necko_wifi and dbus
+
+
+set_config("NECKO_WIFI_DBUS", True, when=necko_wifi_dbus)
+
+
+# Frontend JS debug mode
+# ==============================================================
+option("--enable-debug-js-modules", help="Enable debug mode for frontend JS libraries")
+
+set_config("DEBUG_JS_MODULES", True, when="--enable-debug-js-modules")
+
+
+# moz_dump_painting
+# ==============================================================
+option("--enable-dump-painting", help="Enable paint debugging")
+
+set_define(
+    "MOZ_DUMP_PAINTING",
+    True,
+    when=depends("--enable-dump-painting", "--enable-debug")(
+        lambda painting, debug: painting or debug
+    ),
+)
+set_define("MOZ_LAYERS_HAVE_LOG", True, when="--enable-dump-painting")

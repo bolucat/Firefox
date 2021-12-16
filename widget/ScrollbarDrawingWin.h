@@ -12,7 +12,7 @@
 
 namespace mozilla::widget {
 
-class ScrollbarDrawingWin final : public ScrollbarDrawing {
+class ScrollbarDrawingWin : public ScrollbarDrawing {
  public:
   ScrollbarDrawingWin() = default;
   virtual ~ScrollbarDrawingWin() = default;

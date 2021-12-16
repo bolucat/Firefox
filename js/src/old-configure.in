@@ -186,40 +186,6 @@ fi # COMPILE_ENVIRONMENT
 AC_SUBST(GNU_CC)
 AC_SUBST(GNU_CXX)
 
-# Separate version into components for use in shared object naming etc
-changequote(,)
-MOZJS_MAJOR_VERSION=`echo $MOZILLA_VERSION | sed "s|\(^[0-9]*\)\.[0-9]*.*|\1|"`
-MOZJS_MINOR_VERSION=`echo $MOZILLA_VERSION | sed "s|^[0-9]*\.\([0-9]*\).*|\1|"`
-MOZJS_PATCH_VERSION=`echo $MOZILLA_VERSION | sed "s|^[0-9]*\.[0-9]*[^0-9]*||"`
-IS_ALPHA=`echo $MOZILLA_VERSION | grep '[ab]'`
-
-dnl XXX in a temporary bid to avoid developer anger at renaming files
-dnl XXX before "js" symlinks exist, don't change names.
-dnl
-dnl if test -n "$JS_STANDALONE"; then
-dnl JS_SHELL_NAME=js$MOZJS_MAJOR_VERSION
-dnl JS_CONFIG_NAME=js$MOZJS_MAJOR_VERSION-config
-dnl else
-JS_SHELL_NAME=js
-JS_CONFIG_NAME=js-config
-dnl fi
-
-changequote([,])
-if test -n "$IS_ALPHA"; then
-  changequote(,)
-  MOZJS_ALPHA=`echo $MOZILLA_VERSION | sed "s|^[0-9]*\.[0-9\.]*\([^0-9]\).*|\1|"`
-  changequote([,])
-fi
-AC_DEFINE_UNQUOTED(MOZJS_MAJOR_VERSION,$MOZJS_MAJOR_VERSION)
-AC_DEFINE_UNQUOTED(MOZJS_MINOR_VERSION,$MOZJS_MINOR_VERSION)
-AC_SUBST(JS_SHELL_NAME)
-AC_SUBST(JS_CONFIG_NAME)
-AC_SUBST(MOZJS_MAJOR_VERSION)
-AC_SUBST(MOZJS_MINOR_VERSION)
-AC_SUBST(MOZJS_PATCH_VERSION)
-AC_SUBST(MOZJS_ALPHA)
-
-
 dnl ========================================================
 dnl set the defaults first
 dnl ========================================================
@@ -296,6 +262,13 @@ if test "$GNU_CC"; then
     AC_MSG_CHECKING([for -z relro option to ld])
     _SAVE_LDFLAGS=$LDFLAGS
     LDFLAGS="$LDFLAGS -Wl,-z,relro"
+    AC_TRY_LINK(,,AC_MSG_RESULT([yes]),
+                  AC_MSG_RESULT([no])
+                  LDFLAGS=$_SAVE_LDFLAGS)
+
+    AC_MSG_CHECKING([for -z now option to ld])
+    _SAVE_LDFLAGS=$LDFLAGS
+    LDFLAGS="$LDFLAGS -Wl,-z,now"
     AC_TRY_LINK(,,AC_MSG_RESULT([yes]),
                   AC_MSG_RESULT([no])
                   LDFLAGS=$_SAVE_LDFLAGS)
@@ -901,52 +874,6 @@ fi
 AM_LANGINFO_CODESET
 
 AC_LANG_C
-
-dnl **********************
-dnl *** va_copy checks ***
-dnl **********************
-AC_CACHE_CHECK([for an implementation of va_copy()],
-               ac_cv_va_copy,
-    [AC_TRY_COMPILE([#include <stdarg.h>
-                     #include <stdlib.h>
-        void f (int i, ...) {
-            va_list args1, args2;
-            va_start (args1, i);
-            va_copy (args2, args1);
-            if (va_arg (args2, int) != 42 || va_arg (args1, int) != 42)
-                exit (1);
-            va_end (args1); va_end (args2);
-        }],
-        [f(0, 42); return 0],
-        [ac_cv_va_copy=yes],
-        [ac_cv_va_copy=no]
-    )]
-)
-AC_CACHE_CHECK([whether va_list can be copied by value],
-               ac_cv_va_val_copy,
-    [AC_TRY_COMPILE([#include <stdarg.h>
-                     #include <stdlib.h>
-        void f (int i, ...) {
-            va_list args1, args2;
-            va_start (args1, i);
-            args2 = args1;
-            if (va_arg (args2, int) != 42 || va_arg (args1, int) != 42)
-                exit (1);
-            va_end (args1); va_end (args2);
-        }],
-        [f(0, 42); return 0],
-        [ac_cv_va_val_copy=yes],
-        [ac_cv_va_val_copy=no],
-    )]
-)
-if test "x$ac_cv_va_copy" = "xyes"; then
-    AC_DEFINE(VA_COPY, va_copy)
-    AC_DEFINE(HAVE_VA_COPY)
-fi
-
-if test "x$ac_cv_va_val_copy" = "xno"; then
-   AC_DEFINE(HAVE_VA_LIST_AS_ARRAY)
-fi
 
 dnl ===================================================================
 dnl ========================================================
