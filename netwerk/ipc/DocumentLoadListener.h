@@ -284,6 +284,8 @@ class DocumentLoadListener : public nsIInterfaceRequestor,
 
   uint64_t GetLoadIdentifier() const { return mLoadIdentifier; }
   uint32_t GetLoadType() const { return mLoadStateLoadType; }
+  bool IsDownload() const { return mIsDownload; }
+  bool IsLoadingJSURI() const { return mIsLoadingJSURI; }
 
   mozilla::dom::LoadingSessionHistoryInfo* GetLoadingSessionHistoryInfo() {
     return mLoadingSessionHistoryInfo.get();
@@ -540,6 +542,12 @@ class DocumentLoadListener : public nsIInterfaceRequestor,
   uint32_t mLoadStateInternalLoadFlags = 0;
   uint32_t mLoadStateLoadType = 0;
 
+  // Indicates if this load is a download.
+  bool mIsDownload = false;
+
+  // Indicates if we are loading a javascript URI.
+  bool mIsLoadingJSURI = false;
+
   // Corresponding redirect channel registrar Id for the final channel that
   // we want to use when redirecting the child, or doing a process switch.
   // 0 means redirection is not started.
@@ -570,6 +578,7 @@ class DocumentLoadListener : public nsIInterfaceRequestor,
 
   Maybe<nsCString> mOriginalUriString;
 
+  // Parent-initiated loads do not support redirects to real channels.
   bool mSupportsRedirectToRealChannel = true;
 
   Maybe<nsCString> mRemoteTypeOverride;

@@ -6753,15 +6753,15 @@ void Document::SetHeaderData(nsAtom* aHeaderField, const nsAString& aData) {
   if (aHeaderField == nsGkAtoms::refresh && !IsStaticDocument()) {
     // We get into this code before we have a script global yet, so get to our
     // container via mDocumentContainer.
-    if (nsCOMPtr<nsIRefreshURI> refresher = mDocumentContainer.get()) {
+    if (mDocumentContainer) {
       // Note: using mDocumentURI instead of mBaseURI here, for consistency
       // (used to just use the current URI of our webnavigation, but that
       // should really be the same thing).  Note that this code can run
       // before the current URI of the webnavigation has been updated, so we
       // can't assert equality here.
-      refresher->SetupRefreshURIFromHeader(mDocumentURI, NodePrincipal(),
-                                           InnerWindowID(),
-                                           NS_ConvertUTF16toUTF8(aData));
+      mDocumentContainer->SetupRefreshURIFromHeader(
+          mDocumentURI, NodePrincipal(), InnerWindowID(),
+          NS_ConvertUTF16toUTF8(aData));
     }
   }
 
@@ -10003,12 +10003,12 @@ void nsDOMAttributeMap::BlastSubtreeToPieces(nsINode* aNode) {
 namespace mozilla::dom {
 
 nsINode* Document::AdoptNode(nsINode& aAdoptedNode, ErrorResult& rv) {
-  nsINode* adoptedNode = &aAdoptedNode;
+  OwningNonNull<nsINode> adoptedNode = aAdoptedNode;
 
   // Scope firing mutation events so that we don't carry any state that
   // might be stale
   {
-    if (nsINode* parent = adoptedNode->GetParentNode()) {
+    if (nsCOMPtr<nsINode> parent = adoptedNode->GetParentNode()) {
       nsContentUtils::MaybeFireNodeRemoved(adoptedNode, parent);
     }
   }
@@ -10018,7 +10018,7 @@ nsINode* Document::AdoptNode(nsINode& aAdoptedNode, ErrorResult& rv) {
   switch (adoptedNode->NodeType()) {
     case ATTRIBUTE_NODE: {
       // Remove from ownerElement.
-      RefPtr<Attr> adoptedAttr = static_cast<Attr*>(adoptedNode);
+      OwningNonNull<Attr> adoptedAttr = static_cast<Attr&>(*adoptedNode);
 
       nsCOMPtr<Element> ownerElement = adoptedAttr->GetOwnerElement(rv);
       if (rv.Failed()) {
@@ -10026,13 +10026,11 @@ nsINode* Document::AdoptNode(nsINode& aAdoptedNode, ErrorResult& rv) {
       }
 
       if (ownerElement) {
-        RefPtr<Attr> newAttr =
+        OwningNonNull<Attr> newAttr =
             ownerElement->RemoveAttributeNode(*adoptedAttr, rv);
         if (rv.Failed()) {
           return nullptr;
         }
-
-        newAttr.swap(adoptedAttr);
       }
 
       break;

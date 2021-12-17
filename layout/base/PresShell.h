@@ -877,12 +877,17 @@ class PresShell final : public nsStubDocumentObserver,
    * bug 488242, bug 476557 and other bugs mentioned there.
    */
   void SetCanvasBackground(nscolor aColor) { mCanvasBackgroundColor = aColor; }
-  nscolor GetCanvasBackground() { return mCanvasBackgroundColor; }
+  nscolor GetCanvasBackground() const { return mCanvasBackgroundColor; }
 
   /**
-   * Use the current frame tree (if it exists) to update the background
-   * color of the most recently drawn canvas.
+   * Use the current frame tree (if it exists) to update the background color of
+   * the most recently drawn canvas.
    */
+  struct CanvasBackground {
+    nscolor mColor = 0;
+    bool mCSSSpecified = false;
+  };
+  CanvasBackground ComputeCanvasBackground() const;
   void UpdateCanvasBackground();
 
   /**
@@ -2760,7 +2765,7 @@ class PresShell final : public nsStubDocumentObserver,
 
   PresShell* GetRootPresShell() const;
 
-  nscolor GetDefaultBackgroundColorToDraw();
+  nscolor GetDefaultBackgroundColorToDraw() const;
 
   //////////////////////////////////////////////////////////////////////////////
   // Approximate frame visibility tracking implementation.
@@ -2924,8 +2929,6 @@ class PresShell final : public nsStubDocumentObserver,
   // or all frames are constructed, we won't paint anything but
   // our <body> background and scrollbars.
   nsCOMPtr<nsITimer> mPaintSuppressionTimer;
-
-  nsCOMPtr<nsITimer> mDelayedPaintTimer;
 
   // Information about live content (which still stay in DOM tree).
   // Used in case we need re-dispatch event after sending pointer event,

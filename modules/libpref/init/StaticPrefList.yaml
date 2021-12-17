@@ -6379,7 +6379,7 @@
 
 - name: javascript.options.wasm_caching
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # The amount of time we wait between a request to GC (due to leaving a page) and doing the actual GC, in ms.
@@ -7325,6 +7325,12 @@
   mirror: always
   rust: true
 
+# Is support for CSS hyphenate-character enabled?
+- name: layout.css.hyphenate-character.enabled
+  type: RelaxedAtomicBool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+
 # Is support for CSS individual transform enabled?
 - name: layout.css.individual-transform.enabled
   type: bool
@@ -7782,6 +7788,12 @@
   value: false
   mirror: always
 
+# Throttled frame rate, in frames per second.
+- name: layout.throttled_frame_rate
+  type: uint32_t
+  value: 1
+  mirror: always
+
 - name: layout.lower_priority_refresh_driver_during_load
   type: bool
   value: true
@@ -7951,6 +7963,11 @@
 - name: layout.outline.include-overflow
   type: bool
   value: false
+  mirror: always
+
+- name: layout.visibility.min-recompute-interval-ms
+  type: uint32_t
+  value: 1000
   mirror: always
 
 # Controls double click and Alt+Arrow word selection behavior.

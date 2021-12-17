@@ -1312,11 +1312,6 @@ void PresShell::Destroy() {
     mReflowContinueTimer = nullptr;
   }
 
-  if (mDelayedPaintTimer) {
-    mDelayedPaintTimer->Cancel();
-    mDelayedPaintTimer = nullptr;
-  }
-
   mSynthMouseMoveEvent.Revoke();
 
   mUpdateApproximateFrameVisibilityEvent.Revoke();
@@ -5310,30 +5305,27 @@ void PresShell::AddCanvasBackgroundColorItem(
 }
 
 static bool IsTransparentContainerElement(nsPresContext* aPresContext) {
-  nsCOMPtr<nsIDocShell> docShell = aPresContext->GetDocShell();
+  nsIDocShell* docShell = aPresContext->GetDocShell();
   if (!docShell) {
     return false;
   }
-
-  nsCOMPtr<nsPIDOMWindowOuter> pwin = docShell->GetWindow();
-  if (!pwin) return false;
-  nsCOMPtr<Element> containerElement = pwin->GetFrameElementInternal();
-
-  BrowserChild* tab = BrowserChild::GetFrom(docShell);
-  if (tab) {
-    // Check if presShell is the top PresShell. Only the top can
-    // influence the canvas background color.
-    if (aPresContext->GetPresShell() != tab->GetTopLevelPresShell()) {
-      tab = nullptr;
-    }
+  nsPIDOMWindowOuter* pwin = docShell->GetWindow();
+  if (!pwin) {
+    return false;
   }
-
-  return (containerElement && containerElement->HasAttr(
-                                  kNameSpaceID_None, nsGkAtoms::transparent)) ||
-         (tab && tab->IsTransparent());
+  if (Element* containerElement = pwin->GetFrameElementInternal()) {
+    return containerElement->HasAttr(nsGkAtoms::transparent);
+  }
+  if (BrowserChild* tab = BrowserChild::GetFrom(docShell)) {
+    // Check if presShell is the top PresShell. Only the top can influence the
+    // canvas background color.
+    return aPresContext->GetPresShell() == tab->GetTopLevelPresShell() &&
+           tab->IsTransparent();
+  }
+  return false;
 }
 
-nscolor PresShell::GetDefaultBackgroundColorToDraw() {
+nscolor PresShell::GetDefaultBackgroundColorToDraw() const {
   if (!mPresContext || !mPresContext->GetBackgroundColorDraw()) {
     return NS_RGB(255, 255, 255);
   }
@@ -5364,47 +5356,51 @@ nscolor PresShell::GetDefaultBackgroundColorToDraw() {
 }
 
 void PresShell::UpdateCanvasBackground() {
+  auto canvasBg = ComputeCanvasBackground();
+  mCanvasBackgroundColor = canvasBg.mColor;
+  mHasCSSBackgroundColor = canvasBg.mCSSSpecified;
+}
+
+PresShell::CanvasBackground PresShell::ComputeCanvasBackground() const {
   // If we have a frame tree and it has style information that
   // specifies the background color of the canvas, update our local
   // cache of that color.
   nsIFrame* rootStyleFrame = FrameConstructor()->GetRootElementStyleFrame();
-  if (rootStyleFrame) {
-    ComputedStyle* bgStyle =
-        nsCSSRendering::FindRootFrameBackground(rootStyleFrame);
-    // XXX We should really be passing the canvasframe, not the root element
-    // style frame but we don't have access to the canvasframe here. It isn't
-    // a problem because only a few frames can return something other than true
-    // and none of them would be a canvas frame or root element style frame.
-    bool drawBackgroundImage = false;
-    bool drawBackgroundColor = false;
-    const nsStyleDisplay* disp = rootStyleFrame->StyleDisplay();
-    StyleAppearance appearance = disp->EffectiveAppearance();
-    if (rootStyleFrame->IsThemed(disp) &&
-        appearance != StyleAppearance::MozWinGlass &&
-        appearance != StyleAppearance::MozWinBorderlessGlass) {
-      // Ignore the CSS background-color if -moz-appearance is used and it is
-      // not one of the glass values. (Windows 7 Glass has traditionally not
-      // overridden background colors, so we preserve that behavior for now.)
-      mCanvasBackgroundColor = NS_RGBA(0, 0, 0, 0);
-    } else {
-      mCanvasBackgroundColor = nsCSSRendering::DetermineBackgroundColor(
-          mPresContext, bgStyle, rootStyleFrame, drawBackgroundImage,
-          drawBackgroundColor);
-    }
-    mHasCSSBackgroundColor = drawBackgroundColor;
-    if (mPresContext->IsRootContentDocumentCrossProcess() &&
-        !IsTransparentContainerElement(mPresContext)) {
-      mCanvasBackgroundColor = NS_ComposeColors(
-          GetDefaultBackgroundColorToDraw(), mCanvasBackgroundColor);
-    }
+  if (!rootStyleFrame) {
+    // If the root element of the document (ie html) has style 'display: none'
+    // then the document's background color does not get drawn; return the color
+    // we actually draw.
+    return {GetDefaultBackgroundColorToDraw(), false};
   }
 
-  // If the root element of the document (ie html) has style 'display: none'
-  // then the document's background color does not get drawn; cache the
-  // color we actually draw.
-  if (!FrameConstructor()->GetRootElementFrame()) {
-    mCanvasBackgroundColor = GetDefaultBackgroundColorToDraw();
+  ComputedStyle* bgStyle =
+      nsCSSRendering::FindRootFrameBackground(rootStyleFrame);
+  // XXX We should really be passing the canvasframe, not the root element
+  // style frame but we don't have access to the canvasframe here. It isn't
+  // a problem because only a few frames can return something other than true
+  // and none of them would be a canvas frame or root element style frame.
+  nscolor color = NS_RGBA(0, 0, 0, 0);
+  bool drawBackgroundImage = false;
+  bool drawBackgroundColor = false;
+  const nsStyleDisplay* disp = rootStyleFrame->StyleDisplay();
+  StyleAppearance appearance = disp->EffectiveAppearance();
+  if (rootStyleFrame->IsThemed(disp) &&
+      appearance != StyleAppearance::MozWinGlass &&
+      appearance != StyleAppearance::MozWinBorderlessGlass) {
+    // Ignore the CSS background-color if -moz-appearance is used and it is
+    // not one of the glass values. (Windows 7 Glass has traditionally not
+    // overridden background colors, so we preserve that behavior for now.)
+  } else {
+    color = nsCSSRendering::DetermineBackgroundColor(
+        mPresContext, bgStyle, rootStyleFrame, drawBackgroundImage,
+        drawBackgroundColor);
   }
+  if (mPresContext->IsRootContentDocumentCrossProcess() &&
+      !IsTransparentContainerElement(mPresContext)) {
+    color = NS_ComposeColors(
+        GetDefaultBackgroundColorToDraw(), color);
+  }
+  return {color, drawBackgroundColor};
 }
 
 nscolor PresShell::ComputeBackstopColor(nsView* aDisplayRoot) {
