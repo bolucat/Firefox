@@ -1354,6 +1354,7 @@ static bool PrintShapeProperties(JSContext* cx, Sprinter* sp, Shape* shape) {
     RootedValue keyv(cx, IdToValue(key));
     JSString* str = ToString<NoGC>(cx, keyv);
     if (!str) {
+      ReportOutOfMemory(cx);
       return false;
     }
     if (!sp->putString(str)) {
@@ -2566,7 +2567,7 @@ JSString* js::DecompileArgument(JSContext* cx, int formalIndex, HandleValue v) {
     }
     if (result && strcmp(result.get(), "(intermediate value)")) {
       JS::ConstUTF8CharsZ utf8chars(result.get(), strlen(result.get()));
-      return NewStringCopyUTF8Z<CanGC>(cx, utf8chars);
+      return NewStringCopyUTF8Z(cx, utf8chars);
     }
   }
   if (v.isUndefined()) {
@@ -2833,7 +2834,7 @@ static bool GetPCCountJSON(JSContext* cx, const ScriptAndCounts& sac,
       }
 
       JS::ConstUTF8CharsZ utf8chars(text.get(), strlen(text.get()));
-      JSString* str = NewStringCopyUTF8Z<CanGC>(cx, utf8chars);
+      JSString* str = NewStringCopyUTF8Z(cx, utf8chars);
       if (!str) {
         return false;
       }
