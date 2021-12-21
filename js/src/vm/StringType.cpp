@@ -45,6 +45,10 @@
 #include "vm/JSContext-inl.h"
 #include "vm/JSObject-inl.h"
 #include "vm/Realm-inl.h"
+#ifdef ENABLE_RECORD_TUPLE
+#  include "vm/RecordType.h"
+#  include "vm/TupleType.h"
+#endif
 
 using namespace js;
 
@@ -2109,7 +2113,20 @@ JSString* js::ToStringSlow(
     }
     RootedBigInt i(cx, v.toBigInt());
     str = BigInt::toString<CanGC>(cx, i, 10);
-  } else {
+  }
+#ifdef ENABLE_RECORD_TUPLE
+  else if (arg.isExtendedPrimitive()) {
+    JSObject& obj = arg.toExtendedPrimitive();
+    if (obj.is<js::TupleType>()) {
+      str = js::TupleToSource(cx, &obj.as<js::TupleType>());
+    } else if (obj.is<js::RecordType>()) {
+      str = js::RecordToSource(cx, &obj.as<js::RecordType>());
+    } else {
+      MOZ_CRASH("Unsupported ExtendedPrimitive type");
+    }
+  }
+#endif
+  else {
     MOZ_ASSERT(v.isUndefined());
     str = cx->names().undefined;
   }

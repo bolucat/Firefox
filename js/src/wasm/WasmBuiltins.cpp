@@ -277,8 +277,8 @@ const SymbolicAddressSignature SASigExceptionNew = {
     {_PTR, _I32, _I32, _END}};
 const SymbolicAddressSignature SASigThrowException = {
     SymbolicAddress::ThrowException,
-    _RoN,
-    _FailOnNullPtr,
+    _VOID,
+    _FailOnNegI32,
     2,
     {_PTR, _RoN, _END}};
 const SymbolicAddressSignature SASigConsumePendingException = {
@@ -289,7 +289,7 @@ const SymbolicAddressSignature SASigConsumePendingException = {
     {_PTR, _END}};
 const SymbolicAddressSignature SASigPushRefIntoExn = {
     SymbolicAddress::PushRefIntoExn,
-    _I32,
+    _VOID,
     _FailOnNegI32,
     3,
     {_PTR, _RoN, _RoN, _END}};
@@ -567,8 +567,16 @@ bool wasm::HandleThrow(JSContext* cx, WasmFrameIter& iter,
 
         rfe->kind = ResumeFromException::RESUME_WASM_CATCH;
         rfe->framePointer = (uint8_t*)iter.frame();
+        rfe->tlsData = iter.instance()->tlsData();
+
+        size_t offsetAdjustment = 0;
+        if (iter.frame()->callerIsTrampolineFP()) {
+          offsetAdjustment = FrameWithTls::sizeWithoutFrame() +
+                             IndirectStubAdditionalAlignment;
+        }
         rfe->stackPointer =
-            (uint8_t*)(rfe->framePointer - tryNote->framePushed);
+            (uint8_t*)(rfe->framePointer -
+                       (tryNote->framePushed + offsetAdjustment));
         rfe->target = iter.instance()->codeBase(tier) + tryNote->entryPoint;
 
         // Make sure to clear trapping state if we got here due to a trap.
@@ -1288,7 +1296,7 @@ void* wasm::AddressOf(SymbolicAddress imm, ABIFunctionType* abiType) {
       MOZ_ASSERT(*abiType == ToABIType(SASigExceptionNew));
       return FuncCast(Instance::exceptionNew, *abiType);
     case SymbolicAddress::ThrowException:
-      *abiType = Args_General2;
+      *abiType = Args_Int32_GeneralGeneral;
       MOZ_ASSERT(*abiType == ToABIType(SASigThrowException));
       return FuncCast(Instance::throwException, *abiType);
     case SymbolicAddress::ConsumePendingException:

@@ -2728,3 +2728,18 @@
 
 - name: IonToWasmCall
   gen_boilerplate: false
+
+- name: WasmExceptionDataPointer
+  gen_boilerplate: false
+
+- name: WasmLoadExceptionDataValue
+  gen_boilerplate: false
+
+- name: WasmStoreExceptionDataValue
+  gen_boilerplate: false
+
+- name: WasmExceptionRefsPointer
+  gen_boilerplate: false
+
+- name: WasmLoadExceptionRefsValue
+  gen_boilerplate: false

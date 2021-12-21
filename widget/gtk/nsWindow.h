@@ -502,6 +502,9 @@ class nsWindow final : public nsBaseWidget {
   void DestroyChildWindows();
   GtkWidget* GetToplevelWidget();
   nsWindow* GetContainerWindow();
+  Window GetX11Window();
+  bool GetShapedState();
+  void EnsureGdkWindow();
   void SetUrgencyHint(GtkWidget* top_window, bool state);
   void SetDefaultIcon(void);
   void SetWindowDecoration(nsBorderStyle aStyle);
@@ -649,9 +652,8 @@ class nsWindow final : public nsBaseWidget {
 
   void ApplySizeConstraints(void);
 
-  void GetParentPosition(int* aX, int* aY);
-
   // Wayland Popup section
+  void WaylandGetParentPosition(int* aX, int* aY);
   bool WaylandPopupNeedsTrackInHierarchy();
   bool WaylandPopupIsAnchored();
   bool WaylandPopupIsMenu();
@@ -880,11 +882,6 @@ class nsWindow final : public nsBaseWidget {
                 GTK_WIDGET_COMPOSIDED_ENABLED = 2} WindowComposeRequest;
   void SetCompositorHint(WindowComposeRequest aState);
   bool ConfigureX11GLVisual();
-
-  Window mXWindow;
-  Visual* mXVisual;
-  int mXDepth;
-  bool mIsShaped;
 #endif
 #ifdef MOZ_WAYLAND
   RefPtr<mozilla::gfx::VsyncSource> mWaylandVsyncSource;
