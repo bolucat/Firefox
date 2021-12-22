@@ -361,6 +361,7 @@ pref("browser.urlbar.maxHistoricalSearchSuggestions", 2);
 pref("browser.urlbar.suggest.bookmark",             true);
 pref("browser.urlbar.suggest.history",              true);
 pref("browser.urlbar.suggest.openpage",             true);
+pref("browser.urlbar.suggest.remotetab",            true);
 pref("browser.urlbar.suggest.searches",             true);
 pref("browser.urlbar.suggest.topsites",             true);
 pref("browser.urlbar.suggest.engines",              true);
@@ -2211,13 +2212,9 @@ pref("devtools.browsertoolbox.fission", false);
 // This preference will enable watching top-level targets from the server side.
 pref("devtools.target-switching.server.enabled", true);
 
-// Setting this preference to true will result in DevTools creating a target for each frame
-// (i.e. not only for top-level document and remote frames).
-#if defined(NIGHTLY_BUILD)
+// In DevTools, create a target for each frame (i.e. not only for top-level document and
+// remote frames).
 pref("devtools.every-frame-target.enabled", true);
-#else
-pref("devtools.every-frame-target.enabled", false);
-#endif
 
 // Toolbox Button preferences
 pref("devtools.command-button-pick.enabled", true);
@@ -2446,11 +2443,7 @@ pref("devtools.webconsole.filter.netxhr", false);
 pref("devtools.webconsole.input.autocomplete",true);
 
 // Show context selector in console input
-#if defined(NIGHTLY_BUILD)
-  pref("devtools.webconsole.input.context", true);
-#else
-  pref("devtools.webconsole.input.context", false);
-#endif
+pref("devtools.webconsole.input.context", true);
 
 // Set to true to eagerly show the results of webconsole terminal evaluations
 // when they don't have side effects.

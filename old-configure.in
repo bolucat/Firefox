@@ -50,6 +50,7 @@ GLIB_VERSION_MIN_REQUIRED=GLIB_VERSION_2_42
 GLIB_VERSION_MAX_ALLOWED=GLIB_VERSION_2_42
 CAIRO_VERSION=1.10
 GTK3_VERSION=3.14.0
+GDK_VERSION_MIN_REQUIRED=GDK_VERSION_3_14
 GDK_VERSION_MAX_ALLOWED=GDK_VERSION_3_14
 W32API_VERSION=3.14
 
@@ -216,8 +217,6 @@ AC_SUBST(WRAP_STL_INCLUDES)
 dnl ========================================================
 dnl set the defaults first
 dnl ========================================================
-MOZ_USER_DIR=".mozilla"
-
 MOZ_FIX_LINK_PATHS="-Wl,-rpath-link,${DIST}/bin -Wl,-rpath-link,${prefix}/lib"
 
 dnl Configure platform-specific CPU architecture compiler options.
@@ -683,7 +682,6 @@ case "$target" in
     dnl See http://support.microsoft.com/kb/143208 to use STL
     AC_DEFINE(NOMINMAX)
     BIN_SUFFIX='.exe'
-    MOZ_USER_DIR="Mozilla"
 
     case "$host_os" in
     cygwin*|msvc*|mks*)
@@ -1211,11 +1209,8 @@ dnl ========================================================
 
 MOZ_ARG_HEADER(Application)
 
-ENABLE_SYSTEM_EXTENSION_DIRS=1
 MOZ_BRANDING_DIRECTORY=
 MOZ_OFFICIAL_BRANDING=
-MOZ_UNIVERSALCHARDET=1
-MOZ_ZIPWRITER=1
 MOZ_NO_SMART_CARDS=
 MOZ_BINARY_EXTENSIONS=
 MOZ_DEVTOOLS=server
@@ -1264,34 +1259,6 @@ dnl ========================================================
 dnl = Enable the toolkit as needed                         =
 dnl ========================================================
 
-case "$MOZ_WIDGET_TOOLKIT" in
-
-cocoa)
-    LDFLAGS="$LDFLAGS -framework Cocoa"
-    # Use -Wl as a trick to avoid -framework and framework names from
-    # being separated by AC_SUBST_LIST.
-    TK_LIBS='-Wl,-framework,Foundation -Wl,-framework,CoreFoundation -Wl,-framework,CoreLocation -Wl,-framework,QuartzCore -Wl,-framework,Carbon -Wl,-framework,CoreAudio -Wl,-framework,CoreVideo -Wl,-framework,AudioToolbox -Wl,-framework,AudioUnit -Wl,-framework,AddressBook -Wl,-framework,OpenGL -Wl,-framework,Security -Wl,-framework,ServiceManagement -Wl,-framework,CoreServices -Wl,-framework,ApplicationServices -Wl,-framework,AppKit'
-    TK_CFLAGS=""
-    CFLAGS="$CFLAGS $TK_CFLAGS"
-    CXXFLAGS="$CXXFLAGS $TK_CFLAGS"
-    MOZ_USER_DIR="Mozilla"
-    ;;
-
-uikit)
-    LDFLAGS="$LDFLAGS -framework UIKit"
-    TK_CFLAGS=""
-    TK_LIBS='-Wl,-framework,Foundation -Wl,-framework,CoreFoundation -Wl,-framework,CoreGraphics -Wl,-framework,CoreText -Wl,-framework,AVFoundation -Wl,-framework,AudioToolbox -Wl,-framework,CoreMedia -Wl,-framework,CoreVideo -Wl,-framework,OpenGLES -Wl,-framework,QuartzCore'
-    CFLAGS="$CFLAGS $TK_CFLAGS"
-    CXXFLAGS="$CXXFLAGS $TK_CFLAGS"
-    MOZ_USER_DIR="Mozilla"
-    ;;
-
-esac
-
-if test "$OS_TARGET" = Darwin; then
-    LDFLAGS="$LDFLAGS -lobjc"
-fi
-
 dnl there are a lot of tests on MOZ_ENABLE_GTK below, that are more convenient
 dnl to keep that way than testing against MOZ_WIDGET_TOOLKIT
 case "$MOZ_WIDGET_TOOLKIT" in
@@ -1303,11 +1270,9 @@ esac
 if test "$COMPILE_ENVIRONMENT"; then
   if test "$MOZ_WIDGET_TOOLKIT" = gtk; then
     PKG_CHECK_MODULES(MOZ_GTK3, gtk+-3.0 >= $GTK3_VERSION gtk+-unix-print-3.0 glib-2.0 gobject-2.0 gio-unix-2.0 $GDK_PACKAGES)
-    MOZ_GTK3_CFLAGS="-I${_topsrcdir}/widget/gtk/compat-gtk3 $MOZ_GTK3_CFLAGS"
     TK_CFLAGS=$MOZ_GTK3_CFLAGS
     TK_LIBS=$MOZ_GTK3_LIBS
-    dnl GDK_VERSION_MIN_REQUIRED is not set here as GDK3 deprecated warnings
-    dnl are suppressed by widget/gtk/compat-gtk3/gdk/gdkversionmacros.h.
+    AC_DEFINE_UNQUOTED(GDK_VERSION_MIN_REQUIRED,$GDK_VERSION_MIN_REQUIRED)
     AC_DEFINE_UNQUOTED(GDK_VERSION_MAX_ALLOWED,$GDK_VERSION_MAX_ALLOWED)
   fi
   if test "$MOZ_ENABLE_GTK"; then
@@ -1374,46 +1339,6 @@ AC_TRY_COMPILE([#include <linux/ethtool.h>],
 AC_SUBST(MOZ_WEBRTC_HAVE_ETHTOOL_SPEED_HI)
 
 dnl ========================================================
-dnl = Apple platform decoder support
-dnl ========================================================
-if test "$COMPILE_ENVIRONMENT"; then
-if test -n "$MOZ_APPLEMEDIA"; then
-  # hack in frameworks for fmp4 - see bug 1029974
-  # We load VideoToolbox and CoreMedia dynamically, so they don't appear here.
-  LDFLAGS="$LDFLAGS -framework AudioToolbox"
-  dnl Verify CoreMedia is available.
-  AC_CHECK_HEADERS([CoreMedia/CoreMedia.h VideoToolbox/VideoToolbox.h], [],
-    [AC_MSG_ERROR([MacOS X 10.9 SDK or later is required])])
-fi
-fi # COMPILE_ENVIRONMENT
-
-dnl ========================================================
-dnl Searching of system directories for extensions.
-dnl Note: this switch is meant to be used for test builds
-dnl whose behavior should not depend on what happens to be
-dnl installed on the local machine.
-dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(system-extension-dirs,
-[  --disable-system-extension-dirs
-                          Disable searching system- and account-global
-                          directories for extensions of any kind; use
-                          only profile-specific extension directories],
-  ENABLE_SYSTEM_EXTENSION_DIRS=,
-  ENABLE_SYSTEM_EXTENSION_DIRS=1 )
-if test "$ENABLE_SYSTEM_EXTENSION_DIRS"; then
-  AC_DEFINE(ENABLE_SYSTEM_EXTENSION_DIRS)
-fi
-
-dnl ========================================================
-dnl = Universalchardet
-dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(universalchardet,
-[  --disable-universalchardet
-                          Disable universal encoding detection],
-  MOZ_UNIVERSALCHARDET=,
-  MOZ_UNIVERSALCHARDET=1 )
-
-dnl ========================================================
 dnl Gamepad support
 dnl ========================================================
 
@@ -1471,15 +1396,6 @@ dnl === SQLite fdatasync check ===
 dnl ==============================
 dnl Check to see if fdatasync is available and make use of it
 AC_CHECK_FUNC(fdatasync)
-
-dnl ========================================================
-dnl = Disable zipwriter
-dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(zipwriter,
-[  --disable-zipwriter     Disable zipwriter component],
-    MOZ_ZIPWRITER=,
-    MOZ_ZIPWRITER=1 )
-AC_SUBST(MOZ_ZIPWRITER)
 
 dnl ========================================================
 dnl =
@@ -1621,20 +1537,6 @@ dnl =
 dnl ========================================================
 MOZ_ARG_HEADER(Misc. Options)
 
-dnl ========================================================
-dnl = Location of the mozilla user directory (default is ~/.mozilla).],
-dnl ========================================================
-MOZ_ARG_WITH_STRING(user-appdir,
-[  --with-user-appdir=DIR  Set user-specific appdir (default=.mozilla)],
-[ val=`echo $withval`
-if echo "$val" | grep "\/" >/dev/null; then
-    AC_MSG_ERROR("Homedir must be single relative path.")
-else
-    MOZ_USER_DIR="$val"
-fi])
-
-AC_DEFINE_UNQUOTED(MOZ_USER_DIR,"$MOZ_USER_DIR")
-
 if test -z "$SKIP_COMPILER_CHECKS"; then
 dnl ========================================================
 dnl =
@@ -1748,21 +1650,8 @@ dnl ========================================================
 AC_SUBST(MOZ_LINUX_32_SSE2_STARTUP_ERROR)
 
 dnl ========================================================
-dnl Check for pixman and cairo
+dnl Check for cairo
 dnl ========================================================
-
-MOZ_TREE_PIXMAN=1
-MOZ_ARG_ENABLE_BOOL(system-pixman,
-[ --enable-system-pixman Use system pixman (located with pkgconfig)],
-MOZ_TREE_PIXMAN=,
-MOZ_TREE_PIXMAN=force,
-MOZ_TREE_PIXMAN=1 )
-
-if test "$MOZ_TREE_PIXMAN"; then
-    AC_DEFINE(MOZ_TREE_PIXMAN)
-else
-    PKG_CHECK_MODULES(MOZ_PIXMAN, pixman-1 >= 0.36.0)
-fi
 
 if test "$OS_ARCH" = "WINNT"; then
     # For now we assume that we will have a uint64_t available through
@@ -1785,8 +1674,6 @@ esac
 AC_SUBST(MOZ_ENABLE_CAIRO_FT)
 AC_SUBST(MOZ_ENABLE_D3D10_LAYER)
 
-AC_SUBST(MOZ_TREE_PIXMAN)
-
 dnl ========================================================
 dnl =
 dnl = Maintainer debug option (no --enable equivalent)
@@ -1797,7 +1684,6 @@ AC_SUBST_LIST(ASFLAGS)
 AC_SUBST_LIST(MOZ_DEBUG_LDFLAGS)
 AC_SUBST_LIST(WARNINGS_CFLAGS)
 
-AC_SUBST(MOZ_UNIVERSALCHARDET)
 AC_SUBST(MOZ_STUB_INSTALLER)
 AC_SUBST(MOZ_UPDATER)
 
