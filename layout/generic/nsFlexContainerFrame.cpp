@@ -1229,7 +1229,7 @@ static mozilla::StyleAlignFlags SimplifyAlignOrJustifyContentForOneItem(
   // space-{between,around,evenly} (since those values only make sense with
   // multiple alignment subjects), and otherwise just use the specified value:
   if (specified == StyleAlignFlags::SPACE_BETWEEN) {
-    return StyleAlignFlags::START;
+    return StyleAlignFlags::FLEX_START;
   }
   if (specified == StyleAlignFlags::SPACE_AROUND ||
       specified == StyleAlignFlags::SPACE_EVENLY) {
@@ -1317,6 +1317,11 @@ StyleAlignFlags nsFlexContainerFrame::CSSAlignmentForAbsPosChild(
     }
   }
 
+  if (alignment == StyleAlignFlags::STRETCH) {
+    // The default fallback alignment for 'stretch' is 'flex-start'.
+    alignment = StyleAlignFlags::FLEX_START;
+  }
+
   // Resolve flex-start, flex-end, auto, left, right, baseline, last baseline;
   if (alignment == StyleAlignFlags::FLEX_START) {
     alignment = isAxisReversed ? StyleAlignFlags::END : StyleAlignFlags::START;
@@ -1331,6 +1336,13 @@ StyleAlignFlags nsFlexContainerFrame::CSSAlignmentForAbsPosChild(
   } else if (alignment == StyleAlignFlags::LAST_BASELINE) {
     alignment = StyleAlignFlags::END;
   }
+
+  MOZ_ASSERT(alignment != StyleAlignFlags::STRETCH,
+             "We should've converted 'stretch' to the fallback alignment!");
+  MOZ_ASSERT(alignment != StyleAlignFlags::FLEX_START &&
+                 alignment != StyleAlignFlags::FLEX_END,
+             "nsAbsoluteContainingBlock doesn't know how to handle "
+             "flex-relative axis for flex containers!");
 
   return (alignment | alignmentFlags);
 }

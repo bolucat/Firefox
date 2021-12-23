@@ -1268,13 +1268,6 @@
   mirror: always
   rust: true
 
-# Enable Proton restyle. Requires restart.
-- name: browser.proton.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
 - name: browser.proton.places-tooltip.enabled
   type: RelaxedAtomicBool
   value: false
@@ -4009,6 +4002,12 @@
 - name: dom.webmidi.enabled
   type: bool
   value: false
+  mirror: always
+
+# midi permission is addon-gated
+- name: dom.webmidi.gated
+  type: bool
+  value: true
   mirror: always
 
 - name: dom.webnotifications.allowinsecure
