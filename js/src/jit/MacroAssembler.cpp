@@ -3793,6 +3793,13 @@ std::pair<CodeOffset, uint32_t> MacroAssembler::wasmReserveStackChecked(
   return std::pair<CodeOffset, uint32_t>(trapInsnOffset, amount);
 }
 
+void MacroAssembler::loadWasmGlobalPtr(uint32_t globalDataOffset,
+                                       Register dest) {
+  loadPtr(Address(WasmTlsReg,
+                  offsetof(wasm::TlsData, globalArea) + globalDataOffset),
+          dest);
+}
+
 CodeOffset MacroAssembler::wasmCallImport(const wasm::CallSiteDesc& desc,
                                           const wasm::CalleeDesc& callee) {
   storePtr(WasmTlsReg,
@@ -3874,39 +3881,52 @@ CodeOffset MacroAssembler::wasmCallBuiltinInstanceMethod(
   return ret;
 }
 
-CodeOffset MacroAssembler::wasmCallIndirect(const wasm::CallSiteDesc& desc,
-                                            const wasm::CalleeDesc& callee,
-                                            bool needsBoundsCheck) {
+CodeOffset MacroAssembler::asmCallIndirect(const wasm::CallSiteDesc& desc,
+                                           const wasm::CalleeDesc& callee) {
+  MOZ_ASSERT(callee.which() == wasm::CalleeDesc::AsmJSTable);
+
   Register scratch = WasmTableCallScratchReg0;
   Register index = WasmTableCallIndexReg;
 
-  // Optimization opportunity: when offsetof(FunctionTableElem, code) == 0, as
-  // it is at present, we can probably generate better code here by folding
-  // the address computation into the load.
+  // asm.js tables require no signature check, and have had their index
+  // masked into range and thus need no bounds check.
+  loadWasmGlobalPtr(callee.tableFunctionBaseGlobalDataOffset(), scratch);
+  loadPtr(BaseIndex(scratch, index, ScalePointer), scratch);
+  storePtr(WasmTlsReg,
+           Address(getStackPointer(), WasmCallerTLSOffsetBeforeCall));
+  storePtr(WasmTlsReg,
+           Address(getStackPointer(), WasmCalleeTLSOffsetBeforeCall));
+  return call(desc, scratch);
+}
 
-  static_assert(sizeof(wasm::FunctionTableElem) == 8 ||
-                    sizeof(wasm::FunctionTableElem) == 16,
-                "elements of function tables are two words");
+CodeOffset MacroAssembler::wasmCallIndirect(
+    const wasm::CallSiteDesc& desc, const wasm::CalleeDesc& callee,
+    bool needsBoundsCheck, mozilla::Maybe<uint32_t> tableSize) {
+  MOZ_ASSERT(callee.which() == wasm::CalleeDesc::WasmTable);
 
-  if (callee.which() == wasm::CalleeDesc::AsmJSTable) {
-    // asm.js tables require no signature check, and have had their index
-    // masked into range and thus need no bounds check.
-    loadWasmGlobalPtr(callee.tableFunctionBaseGlobalDataOffset(), scratch);
-    if (sizeof(wasm::FunctionTableElem) == 8) {
-      computeEffectiveAddress(BaseIndex(scratch, index, TimesEight), scratch);
+  Register scratch = WasmTableCallScratchReg0;
+  Register index = WasmTableCallIndexReg;
+
+  wasm::BytecodeOffset trapOffset(desc.lineOrBytecode());
+
+  // WebAssembly throws if the index is out-of-bounds.
+  if (needsBoundsCheck) {
+    Label ok;
+    if (tableSize.isSome()) {
+      branch32(Assembler::Condition::Below, index, Imm32(*tableSize), &ok);
     } else {
-      lshift32(Imm32(4), index);
-      addPtr(index, scratch);
+      branch32(Assembler::Condition::Above,
+               Address(WasmTlsReg, offsetof(wasm::TlsData, globalArea) +
+                                       callee.tableLengthGlobalDataOffset()),
+               index, &ok);
     }
-    loadPtr(Address(scratch, offsetof(wasm::FunctionTableElem, code)), scratch);
-    storePtr(WasmTlsReg,
-             Address(getStackPointer(), WasmCallerTLSOffsetBeforeCall));
-    storePtr(WasmTlsReg,
-             Address(getStackPointer(), WasmCalleeTLSOffsetBeforeCall));
-    return call(desc, scratch);
+    wasmTrap(wasm::Trap::OutOfBounds, trapOffset);
+    bind(&ok);
   }
 
-  MOZ_ASSERT(callee.which() == wasm::CalleeDesc::WasmTable);
+  // Load the base pointer of the table.  Do this as early as we can to avoid
+  // waiting for the value below.
+  loadWasmGlobalPtr(callee.tableFunctionBaseGlobalDataOffset(), scratch);
 
   // Write the functype-id into the ABI functype-id register.
   wasm::TypeIdDesc funcTypeId = callee.wasmTableSigId();
@@ -3921,30 +3941,8 @@ CodeOffset MacroAssembler::wasmCallIndirect(const wasm::CallSiteDesc& desc,
       break;
   }
 
-  wasm::BytecodeOffset trapOffset(desc.lineOrBytecode());
-
-  // WebAssembly throws if the index is out-of-bounds.
-  if (needsBoundsCheck) {
-    loadWasmGlobalPtr(callee.tableLengthGlobalDataOffset(), scratch);
-
-    Label ok;
-    branch32(Assembler::Condition::Below, index, scratch, &ok);
-    wasmTrap(wasm::Trap::OutOfBounds, trapOffset);
-    bind(&ok);
-  }
-
-  // Load the base pointer of the table.
-  loadWasmGlobalPtr(callee.tableFunctionBaseGlobalDataOffset(), scratch);
-
   // Load the callee from the table.
-  if (sizeof(wasm::FunctionTableElem) == 8) {
-    computeEffectiveAddress(BaseIndex(scratch, index, TimesEight), scratch);
-  } else {
-    lshift32(Imm32(4), index);
-    addPtr(index, scratch);
-  }
-
-  loadPtr(Address(scratch, offsetof(wasm::FunctionTableElem, code)), scratch);
+  loadPtr(BaseIndex(scratch, index, ScalePointer), scratch);
 
 #ifdef ENABLE_WASM_CALL_INDIRECT_NULL
   CodeOffset callOffset = call(desc, scratch);

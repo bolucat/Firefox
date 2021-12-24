@@ -30,6 +30,9 @@ def prepare_mozconfig(mozconfig):
 
 @depends("OLD_CONFIGURE", build_project)
 def old_configure(old_configure, build_project):
+    if not old_configure:
+        die("The OLD_CONFIGURE environment variable must be set")
+
     # os.path.abspath in the sandbox will ensure forward slashes on Windows,
     # which is actually necessary because this path actually ends up literally
     # as $0, and backslashes there breaks autoconf's detection of the source
@@ -127,7 +130,7 @@ def old_configure_for(old_configure_path, extra_env=None):
         prepare_configure_options,
         altered_path,
         extra_env,
-        check_build_environment,
+        build_environment,
         old_configure_path,
         "MOZILLABUILD",
         awk,

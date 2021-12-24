@@ -50,20 +50,24 @@ using dom::MediaTrackSettings;
 using dom::VideoFacingModeEnum;
 
 static nsString DefaultVideoName() {
-  MOZ_ASSERT(!NS_IsMainThread());
   // For the purpose of testing we allow to change the name of the fake device
   // by pref.
   nsAutoString cameraNameFromPref;
   nsresult rv;
-  // Here it is preferred a "hard" block, provided by the combination of Await &
-  // InvokeAsync, instead of "soft" block, provided by sync dispatch which
-  // allows the waiting thread to spin its event loop. The latter would allow
-  // miltiple enumeration requests being processed out-of-order.
-  RefPtr<Runnable> runnable = NS_NewRunnableFunction(__func__, [&]() {
+  auto getPref = [&]() {
     rv = Preferences::GetString("media.getusermedia.fake-camera-name",
                                 cameraNameFromPref);
-  });
-  SyncRunnable::DispatchToThread(GetMainThreadSerialEventTarget(), runnable);
+  };
+  if (NS_IsMainThread()) {
+    getPref();
+  } else {
+    // Here it is preferred a "hard" block, instead of "soft" block provided
+    // by sync dispatch, which allows the waiting thread to spin its event
+    // loop. The latter would allow multiple enumeration requests being
+    // processed out-of-order.
+    RefPtr runnable = NS_NewRunnableFunction(__func__, getPref);
+    SyncRunnable::DispatchToThread(GetMainThreadSerialEventTarget(), runnable);
+  }
 
   if (NS_SUCCEEDED(rv)) {
     return std::move(cameraNameFromPref);
@@ -78,7 +82,6 @@ class MediaEngineDefaultVideoSource : public MediaEngineSource {
  public:
   MediaEngineDefaultVideoSource();
 
-  static nsString GetUUID();
   static nsString GetGroupId();
 
   nsresult Allocate(const dom::MediaTrackConstraints& aConstraints,
@@ -138,10 +141,6 @@ MediaEngineDefaultVideoSource::MediaEngineDefaultVideoSource()
       NS_ConvertASCIItoUTF16(dom::VideoFacingModeEnumValues::strings
                                  [uint8_t(VideoFacingModeEnum::Environment)]
                                      .value));
-}
-
-nsString MediaEngineDefaultVideoSource::GetUUID() {
-  return u"1041FCBD-3F12-4F7B-9E9B-1EC556DD5676"_ns;
 }
 
 nsString MediaEngineDefaultVideoSource::GetGroupId() {
@@ -612,13 +611,13 @@ void MediaEngineDefault::EnumerateDevices(
   }
 
   switch (aMediaSource) {
-    case MediaSourceEnum::Camera:
-      // Only supports camera video sources. See Bug 1038241.
+    case MediaSourceEnum::Camera: {
+      nsString name = DefaultVideoName();
       aDevices->EmplaceBack(new MediaDevice(
-          this, aMediaSource, DefaultVideoName(),
-          MediaEngineDefaultVideoSource::GetUUID(),
+          this, aMediaSource, name, /*aRawId=*/name,
           MediaEngineDefaultVideoSource::GetGroupId(), IsScary::No));
       return;
+    }
     case MediaSourceEnum::Microphone:
       aDevices->EmplaceBack(new MediaDevice(
           this, aMediaSource, u"Default Audio Device"_ns,

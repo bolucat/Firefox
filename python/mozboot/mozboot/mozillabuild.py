@@ -115,7 +115,7 @@ class MozillaBuildBootstrapper(BaseBootstrapper):
             self, no_interactive=no_interactive, no_system_changes=no_system_changes
         )
 
-    def validate_environment(self, srcdir):
+    def validate_environment(self):
         if self.application.startswith("mobile_android"):
             print(
                 "WARNING!!! Building Firefox for Android on Windows is not "
@@ -124,7 +124,7 @@ class MozillaBuildBootstrapper(BaseBootstrapper):
                 file=sys.stderr,
             )
 
-        if is_windefender_affecting_srcdir(srcdir):
+        if is_windefender_affecting_srcdir(self.srcdir):
             print(
                 "Warning: the Firefox checkout directory is currently not in the "
                 "Windows Defender exclusion list. This can cause the build process "
@@ -211,7 +211,7 @@ class MozillaBuildBootstrapper(BaseBootstrapper):
     def ensure_sccache_packages(self):
         from mozboot import sccache
 
-        self.install_toolchain_artifact(sccache.WIN64_SCCACHE)
+        self.install_toolchain_artifact("sccache")
         self.install_toolchain_artifact(sccache.RUSTC_DIST_TOOLCHAIN, no_unpack=True)
         self.install_toolchain_artifact(sccache.CLANG_DIST_TOOLCHAIN, no_unpack=True)
 
@@ -225,33 +225,20 @@ class MozillaBuildBootstrapper(BaseBootstrapper):
                 "option when beginning bootstrap."
             )
 
-        from mozboot import stylo
-
-        self.install_toolchain_artifact(stylo.WINDOWS_CLANG)
-        self.install_toolchain_artifact(stylo.WINDOWS_CBINDGEN)
+        self.install_toolchain_artifact("clang")
+        self.install_toolchain_artifact("cbindgen")
 
     def ensure_nasm_packages(self):
-        from mozboot import nasm
-
-        self.install_toolchain_artifact(nasm.WINDOWS_NASM)
+        self.install_toolchain_artifact("nasm")
 
     def ensure_node_packages(self):
-        from mozboot import node
-
-        # We don't have native aarch64 node available, but aarch64 windows
-        # runs x86 binaries, so just use the x86 packages for such hosts.
-        node_artifact = node.WIN32 if is_aarch64_host() else node.WIN64
-        self.install_toolchain_artifact(node_artifact)
+        self.install_toolchain_artifact("node")
 
     def ensure_fix_stacks_packages(self):
-        from mozboot import fix_stacks
-
-        self.install_toolchain_artifact(fix_stacks.WINDOWS_FIX_STACKS)
+        self.install_toolchain_artifact("fix-stacks")
 
     def ensure_minidump_stackwalk_packages(self):
-        from mozboot import minidump_stackwalk
-
-        self.install_toolchain_artifact(minidump_stackwalk.WINDOWS_MINIDUMP_STACKWALK)
+        self.install_toolchain_artifact("minidump_stackwalk")
 
     def _update_package_manager(self):
         pass

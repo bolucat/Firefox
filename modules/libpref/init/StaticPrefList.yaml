@@ -1124,7 +1124,7 @@
 # See bug 1710926
 - name: browser.download.improvements_to_download_panel
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # See bug 1731668
@@ -4002,12 +4002,6 @@
 - name: dom.webmidi.enabled
   type: bool
   value: false
-  mirror: always
-
-# midi permission is addon-gated
-- name: dom.webmidi.gated
-  type: bool
-  value: true
   mirror: always
 
 - name: dom.webnotifications.allowinsecure
@@ -9903,9 +9897,16 @@
   mirror: always
 #endif
 
+# Whether to allow a bypass flag to be set on httpChannel that will
+# prevent proxies from being used for that specific request.
+- name: network.proxy.allow_bypass
+  type: bool
+  value: true
+  mirror: always
+
 - name: network.proxy.parse_pac_on_socket_process
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: false
   mirror: always
 
 - name: network.proxy.detect_system_proxy_changes

@@ -241,7 +241,7 @@ include("../build/moz.configure/node.configure")
 option("--with-l10n-base", nargs=1, env="L10NBASEDIR", help="Path to l10n repositories")
 
 
-@depends("--with-l10n-base", "MOZ_AUTOMATION", check_build_environment)
+@depends("--with-l10n-base", "MOZ_AUTOMATION", build_environment)
 @imports(_from="os.path", _import="isdir")
 @imports(_from="os.path", _import="expanduser")
 @imports(_from="os", _import="environ")
@@ -451,7 +451,7 @@ def check_for_freetype2(fc_freetype):
 
 # Check for freetype2. Flags are combined with fontconfig flags.
 freetype2_info = pkg_check_modules(
-    "_FT2", "freetype2 >= 6.1.0", when=check_for_freetype2
+    "_FT2", "freetype2 >= 9.10.3", when=check_for_freetype2
 )
 
 
@@ -978,7 +978,7 @@ set_define("HAVE_FT_GLYPHSLOT_EMBOLDEN", tree_freetype)
 set_define("HAVE_FT_LOAD_SFNT_TABLE", tree_freetype)
 
 
-@depends(freetype2_combined_info, tree_freetype, check_build_environment)
+@depends(freetype2_combined_info, tree_freetype, build_environment)
 def ft2_info(freetype2_combined_info, tree_freetype, build_env):
     if tree_freetype:
         return namespace(
@@ -1260,7 +1260,7 @@ with only_when("--enable-compile-environment"):
         set_config("USE_ELF_HACK", depends_if("--enable-elf-hack")(lambda _: True))
 
 
-@depends(check_build_environment)
+@depends(build_environment)
 def idl_roots(build_env):
     return namespace(
         ipdl_root=os.path.join(build_env.topobjdir, "ipc", "ipdl"),
@@ -1418,7 +1418,6 @@ def accessibility(value, check_for_midl, midl, c_compiler):
 
 set_config("ACCESSIBILITY", accessibility)
 set_define("ACCESSIBILITY", accessibility)
-add_old_configure_assignment("ACCESSIBILITY", accessibility)
 
 
 # Addon signing
@@ -2680,6 +2679,24 @@ with only_when(compile_environment):
         )
 
 
+# Gtk+
+# ==============================================================
+with only_when(toolkit_gtk):
+    pkg_check_modules(
+        "MOZ_GTK3",
+        "gtk+-3.0 >= 3.14.0 gtk+-unix-print-3.0 glib-2.0 gobject-2.0 gio-unix-2.0",
+    )
+
+    set_define("GDK_VERSION_MIN_REQUIRED", "GDK_VERSION_3_14")
+    set_define("GDK_VERSION_MAX_ALLOWED", "GDK_VERSION_3_14")
+
+    pkg_check_modules("GLIB", "glib-2.0 >= 2.42 gobject-2.0")
+
+    set_define("GLIB_VERSION_MIN_REQUIRED", "GLIB_VERSION_2_42")
+    set_define("GLIB_VERSION_MAX_ALLOWED", "GLIB_VERSION_2_42")
+
+    set_define("MOZ_ACCESSIBILITY_ATK", True, when=accessibility)
+
 # DBus
 # ==============================================================
 with only_when(toolkit_gtk):
@@ -2898,3 +2915,30 @@ with only_when(compile_environment):
         return '"{}"'.format(appdir[0])
 
     set_define("MOZ_USER_DIR", user_appdir)
+
+
+# Check for sin_len and sin6_len - used by SCTP; only appears in Mac/*BSD generally
+# ==============================================================
+with only_when(compile_environment):
+    have_sin_len = c_compiler.try_compile(
+        includes=["netinet/in.h"],
+        body="struct sockaddr_in x; void *foo = (void*) &x.sin_len;",
+        check_msg="for sin_len in struct sockaddr_in",
+    )
+    have_sin6_len = c_compiler.try_compile(
+        includes=["netinet/in.h"],
+        body="struct sockaddr_in6 x; void *foo = (void*) &x.sin6_len;",
+        check_msg="for sin_len6 in struct sockaddr_in6",
+    )
+    set_define("HAVE_SIN_LEN", have_sin_len)
+    set_define("HAVE_SIN6_LEN", have_sin6_len)
+    # HAVE_CONN_LEN must be the same as HAVE_SIN_LEN and HAVE_SIN6_LEN
+    set_define("HAVE_SCONN_LEN", have_sin_len & have_sin6_len)
+    set_define(
+        "HAVE_SA_LEN",
+        c_compiler.try_compile(
+            includes=["netinet/in.h"],
+            body="struct sockaddr x; void *foo = (void*) &x.sa_len;",
+            check_msg="for sa_len in struct sockaddr",
+        ),
+    )
