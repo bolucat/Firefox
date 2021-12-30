@@ -961,47 +961,6 @@ dnl The macros used for command line options
 dnl are defined in build/autoconf/altoptions.m4.
 
 dnl ========================================================
-dnl =
-dnl = Check for external package dependencies
-dnl =
-dnl ========================================================
-MOZ_ARG_HEADER(External Packages)
-
-if test -n "$ZLIB_IN_MOZGLUE"; then
-    AC_DEFINE(ZLIB_IN_MOZGLUE)
-fi
-AC_SUBST(ZLIB_IN_MOZGLUE)
-
-dnl ========================================================
-dnl =
-dnl = Application
-dnl =
-dnl ========================================================
-
-MOZ_ARG_HEADER(Application)
-
-dnl ========================================================
-dnl =
-dnl = Components & Features
-dnl =
-dnl ========================================================
-MOZ_ARG_HEADER(Components and Features)
-
-dnl ========================================================
-dnl =
-dnl = Module specific options
-dnl =
-dnl ========================================================
-MOZ_ARG_HEADER(Individual module options)
-
-dnl ========================================================
-dnl =
-dnl = Debugging Options
-dnl =
-dnl ========================================================
-MOZ_ARG_HEADER(Debugging and Optimizations)
-
-dnl ========================================================
 dnl = Enable code optimization. ON by default.
 dnl ========================================================
 
@@ -1097,13 +1056,6 @@ MOZ_CONFIG_CLANG_PLUGIN
 fi # COMPILE_ENVIRONMENT
 
 dnl ========================================================
-dnl =
-dnl = Profiling and Instrumenting
-dnl =
-dnl ========================================================
-MOZ_ARG_HEADER(Profiling and Instrumenting)
-
-dnl ========================================================
 dnl = Support for demangling undefined symbols
 dnl ========================================================
 if test -z "$SKIP_LIBRARY_CHECKS"; then
@@ -1113,21 +1065,7 @@ if test -z "$SKIP_LIBRARY_CHECKS"; then
     AC_LANG_RESTORE
 fi
 
-dnl ========================================================
-dnl =
-dnl = Misc. Options
-dnl =
-dnl ========================================================
-MOZ_ARG_HEADER(Misc. Options)
-
 if test -z "$SKIP_COMPILER_CHECKS"; then
-
-dnl ========================================================
-dnl =
-dnl = Compiler Options
-dnl =
-dnl ========================================================
-MOZ_ARG_HEADER(Compiler Options)
 
 dnl ========================================================
 dnl Check for gcc -pipe support
@@ -1145,13 +1083,6 @@ fi
 fi # ! SKIP_COMPILER_CHECKS
 
 MOZ_EXPAND_LIBS
-
-dnl ========================================================
-dnl =
-dnl = Standalone module options
-dnl =
-dnl ========================================================
-MOZ_ARG_HEADER(Standalone module options (Not for building Mozilla))
 
 dnl ========================================================
 dnl =
@@ -1228,7 +1159,6 @@ AC_SUBST(TARGET_XPCOM_ABI)
 AC_SUBST(DSO_LDOPTS)
 AC_SUBST(BIN_SUFFIX)
 AC_SUBST(USE_N32)
-AC_SUBST(MOZ_LINKER)
 AC_SUBST(WIN32_CONSOLE_EXE_LDFLAGS)
 AC_SUBST(WIN32_GUI_EXE_LDFLAGS)
 

@@ -247,10 +247,6 @@ dnl ========================================================
 dnl GNU specific defaults
 dnl ========================================================
 if test "$GNU_CC"; then
-    MMX_FLAGS="-mmmx"
-    SSE_FLAGS="-msse"
-    SSE2_FLAGS="-msse2"
-    SSSE3_FLAGS="-mssse3"
     CFLAGS="$CFLAGS -fno-strict-aliasing"
 
     if test "$OS_ARCH" != "WINNT" -o -z "$CLANG_CC"; then
@@ -427,10 +423,6 @@ case "$target" in
     ;;
 
 *-android*|*-linuxandroid*)
-    if test "$COMPILE_ENVIRONMENT" -a -n "$MOZ_MEMORY"; then
-        MOZ_LINKER=1
-    fi
-
     if test -z "$CLANG_CC"; then
         MOZ_OPTIMIZE_FLAGS="-freorder-blocks -fno-reorder-functions -Os"
     else
@@ -526,15 +518,7 @@ case "$target" in
               CXXFLAGS="$CXXFLAGS -arch:SSE2"
             fi
             changequote([,])
-            SSE_FLAGS="-arch:SSE"
-            SSE2_FLAGS="-arch:SSE2"
-            dnl MSVC allows the use of intrinsics without any flags
-            dnl and doesn't have a separate arch for SSSE3
-            SSSE3_FLAGS="-arch:SSE2"
         fi
-        dnl clang-cl requires appropriate flags to enable SSSE3 support
-        dnl on all architectures.
-        SSSE3_FLAGS="-mssse3"
         dnl VS2013+ supports -Gw for better linker optimizations.
         dnl http://blogs.msdn.com/b/vcblog/archive/2013/09/11/introducing-gw-compiler-switch.aspx
         dnl Disabled on ASan because it causes false-positive ODR violations.
@@ -709,15 +693,6 @@ if test -z "$MOZ_OPTIMIZE_FLAGS"; then
     MOZ_OPTIMIZE_FLAGS="-O"
 fi
 
-AC_SUBST_LIST(MMX_FLAGS)
-AC_SUBST_LIST(SSE_FLAGS)
-AC_SUBST_LIST(SSE2_FLAGS)
-AC_SUBST_LIST(SSSE3_FLAGS)
-
-AC_SUBST(MOZ_LINKER)
-if test -n "$MOZ_LINKER"; then
-  AC_DEFINE(MOZ_LINKER)
-fi
 
 if test -z "$COMPILE_ENVIRONMENT"; then
     SKIP_COMPILER_CHECKS=1
@@ -929,22 +904,6 @@ if test "$ac_cv_clock_monotonic" != "no"; then
     AC_SUBST_LIST(REALTIME_LIBS)
 fi
 
-dnl Turn on warnings-as-errors to prevent implicit declaration of
-dnl pthread_cond_timedwait_monotonic_np, which can cause this test to
-dnl inadvertently pass even if the function does not really exist.
-_SAVE_CFLAGS="$CFLAGS"
-CFLAGS="$CFLAGS $WARNINGS_AS_ERRORS"
-AC_CACHE_CHECK(for pthread_cond_timedwait_monotonic_np,
-               ac_cv_pthread_cond_timedwait_monotonic_np,
-               AC_TRY_LINK([#include <pthread.h>],
-                           [pthread_cond_timedwait_monotonic_np(0, 0, 0);],
-                           ac_cv_pthread_cond_timewait_monotonic_np=yes,
-                           ac_cv_pthread_cond_timewait_monotonic_np=no))
-if test "$ac_cv_pthread_cond_timewait_monotonic_np" != "no"; then
-    AC_DEFINE(HAVE_PTHREAD_COND_TIMEDWAIT_MONOTONIC)
-fi
-CFLAGS=$_SAVE_CFLAGS
-
 AC_CACHE_CHECK(
     [for res_ninit()],
     ac_cv_func_res_ninit,
@@ -1043,16 +1002,7 @@ if test "$ac_cv_thread_keyword" = yes -a "$MOZ_LINKER" != 1; then
   esac
 fi
 
-dnl Using the custom linker on ARMv6 requires 16k alignment of ELF segments.
 if test -n "$MOZ_LINKER"; then
-  if test "$CPU_ARCH" = arm; then
-    dnl When building for < ARMv7, we need to ensure 16k alignment of ELF segments
-    if test -n "$ARM_ARCH" && test "$ARM_ARCH" -lt 7; then
-      LDFLAGS="$LDFLAGS -Wl,-z,max-page-size=0x4000 -Wl,-z,common-page-size=0x4000"
-      _SUBDIR_LDFLAGS="$_SUBDIR_LDFLAGS -Wl,-z,max-page-size=0x4000 -Wl,-z,common-page-size=0x4000"
-    fi
-  fi
-
 dnl gold emits wrong sysv-style elf hash tables when building both sysv and
 dnl style tables. https://sourceware.org/bugzilla/show_bug.cgi?id=13597
 dnl Since the linker only understands the sysv ones, no need to build the
@@ -1106,8 +1056,6 @@ dnl = Application
 dnl =
 dnl ========================================================
 
-MOZ_ARG_HEADER(Application)
-
 MOZ_BRANDING_DIRECTORY=
 MOZ_OFFICIAL_BRANDING=
 MOZ_NO_SMART_CARDS=
@@ -1135,31 +1083,6 @@ if test -f "${srcdir}/${MOZ_BUILD_APP}/confvars.sh" ; then
 else
   AC_MSG_RESULT([no])
 fi
-
-dnl ========================================================
-dnl Ensure Android SDK and build-tools versions depending on
-dnl mobile target.
-dnl ========================================================
-
-case "$MOZ_BUILD_APP" in
-mobile/android)
-    MOZ_ANDROID_SDK
-    ;;
-esac
-
-dnl ========================================================
-dnl =
-dnl = Toolkit Options
-dnl =
-dnl ========================================================
-MOZ_ARG_HEADER(Toolkit Options)
-
-dnl ========================================================
-dnl =
-dnl = Components & Features
-dnl =
-dnl ========================================================
-MOZ_ARG_HEADER(Components and Features)
 
 AC_SUBST(MOZ_OFFICIAL_BRANDING)
 if test -n "$MOZ_OFFICIAL_BRANDING"; then
@@ -1202,84 +1125,11 @@ fi
 AC_DEFINE_UNQUOTED(MOZ_DISTRIBUTION_ID,"$MOZ_DISTRIBUTION_ID")
 AC_SUBST(MOZ_DISTRIBUTION_ID)
 
-AC_TRY_COMPILE([#include <linux/ethtool.h>],
-               [ struct ethtool_cmd cmd; cmd.speed_hi = 0; ],
-               MOZ_WEBRTC_HAVE_ETHTOOL_SPEED_HI=1)
-
-AC_SUBST(MOZ_WEBRTC_HAVE_ETHTOOL_SPEED_HI)
-
-dnl ========================================================
-dnl Gamepad support
-dnl ========================================================
-
-if test "$COMPILE_ENVIRONMENT" ; then
-
-dnl Moved gamepad platform check to moz.build, linux header check still needed here.
-if test "$OS_TARGET" = "Linux"; then
-    MOZ_CHECK_HEADER([linux/joystick.h])
-    if test "$ac_cv_header_linux_joystick_h" != "yes"; then
-      AC_MSG_ERROR([Can't find header linux/joystick.h, needed for gamepad support. Please install Linux kernel headers.])
-    fi
-fi
-
-fi # COMPILE_ENVIRONMENT
-
-
-# Avoid defining MOZ_ENABLE_CAIRO_FT on Windows platforms because
-# "cairo-ft-font.c" includes <dlfcn.h>, which only exists on posix platforms
-if test -n "$MOZ_TREE_FREETYPE" -a "$OS_TARGET" != WINNT; then
-   MOZ_ENABLE_CAIRO_FT=1
-   CAIRO_FT_CFLAGS="-I$_topsrcdir/modules/freetype2/include"
-   AC_SUBST_LIST(CAIRO_FT_CFLAGS)
-fi
-
-dnl ========================================================
-dnl Updater
-dnl ========================================================
-
-MOZ_ARG_DISABLE_BOOL(updater,
-[  --disable-updater       Disable building of updater],
-    MOZ_UPDATER=,
-    MOZ_UPDATER=1 )
-
-if test -n "$MOZ_UPDATER"; then
-    AC_DEFINE(MOZ_UPDATER)
-fi
-
-dnl ========================================================
-dnl = Disable smartcard support
-dnl ========================================================
-if test -n "$MOZ_NO_SMART_CARDS"; then
-    AC_DEFINE(MOZ_NO_SMART_CARDS)
-fi
-AC_SUBST(MOZ_NO_SMART_CARDS)
-
-dnl ========================================================
-dnl =
-dnl = Module specific options
-dnl =
-dnl ========================================================
-MOZ_ARG_HEADER(Individual module options)
-
 dnl ==============================
 dnl === SQLite fdatasync check ===
 dnl ==============================
 dnl Check to see if fdatasync is available and make use of it
 AC_CHECK_FUNC(fdatasync)
-
-dnl ========================================================
-dnl =
-dnl = Feature options that require extra sources to be pulled
-dnl =
-dnl ========================================================
-dnl MOZ_ARG_HEADER(Features that require extra sources)
-
-dnl ========================================================
-dnl =
-dnl = Runtime debugging and Optimization Options
-dnl =
-dnl ========================================================
-MOZ_ARG_HEADER(Runtime debugging and Optimizations)
 
 dnl ========================================================
 dnl = Enable code optimization. ON by default.
@@ -1366,13 +1216,6 @@ MOZ_CONFIG_CLANG_PLUGIN
 fi # COMPILE_ENVIRONMENT
 
 dnl ========================================================
-dnl =
-dnl = Profiling and Instrumenting
-dnl =
-dnl ========================================================
-MOZ_ARG_HEADER(Profiling and Instrumenting)
-
-dnl ========================================================
 dnl = Support for demangling undefined symbols
 dnl ========================================================
 if test -z "$SKIP_LIBRARY_CHECKS"; then
@@ -1400,21 +1243,7 @@ if test -z "$SKIP_LIBRARY_CHECKS"; then
     AC_LANG_RESTORE
 fi
 
-dnl ========================================================
-dnl =
-dnl = Misc. Options
-dnl =
-dnl ========================================================
-MOZ_ARG_HEADER(Misc. Options)
-
 if test -z "$SKIP_COMPILER_CHECKS"; then
-dnl ========================================================
-dnl =
-dnl = Compiler Options
-dnl =
-dnl ========================================================
-MOZ_ARG_HEADER(Compiler Options)
-
 dnl ========================================================
 dnl Check for gcc -pipe support
 dnl ========================================================
@@ -1437,29 +1266,6 @@ MOZ_EXPAND_LIBS
 fi # COMPILE_ENVIRONMENT
 
 dnl ========================================================
-dnl =
-dnl = Static Build Options
-dnl =
-dnl ========================================================
-MOZ_ARG_HEADER(Static build options)
-
-if test -z "$MOZ_SYSTEM_ZLIB"; then
-if test -n "$JS_SHARED_LIBRARY" -o -n "$MOZ_LINKER" -o "$MOZ_WIDGET_TOOLKIT" = android; then
-  ZLIB_IN_MOZGLUE=1
-  AC_DEFINE(ZLIB_IN_MOZGLUE)
-fi
-fi
-
-AC_SUBST(ZLIB_IN_MOZGLUE)
-
-dnl ========================================================
-dnl =
-dnl = Standalone module options
-dnl =
-dnl ========================================================
-MOZ_ARG_HEADER(Standalone module options (Not for building Mozilla))
-
-dnl ========================================================
 dnl Check if we need the 32-bit Linux SSE2 error dialog
 dnl ========================================================
 
@@ -1475,11 +1281,6 @@ if test "$OS_ARCH" = "WINNT"; then
     AC_DEFINE(HAVE_UINT64_T)
 fi
 
-if test "$_HAVE_FREETYPE2"; then
-    MOZ_ENABLE_CAIRO_FT=1
-    CAIRO_FT_CFLAGS="$FT2_CFLAGS"
-fi
-
 case "$MOZ_WIDGET_TOOLKIT" in
   windows)
     if test "$COMPILE_ENVIRONMENT"; then
@@ -1487,7 +1288,6 @@ case "$MOZ_WIDGET_TOOLKIT" in
     fi
     ;;
 esac
-AC_SUBST(MOZ_ENABLE_CAIRO_FT)
 AC_SUBST(MOZ_ENABLE_D3D10_LAYER)
 
 dnl ========================================================
@@ -1501,7 +1301,6 @@ AC_SUBST_LIST(MOZ_DEBUG_LDFLAGS)
 AC_SUBST_LIST(WARNINGS_CFLAGS)
 
 AC_SUBST(MOZ_STUB_INSTALLER)
-AC_SUBST(MOZ_UPDATER)
 
 AC_SUBST_LIST(MOZ_FIX_LINK_PATHS)
 
@@ -1739,14 +1538,6 @@ dnl ========================================================
 AC_SUBST(MOZ_DEV_EDITION)
 if test -n "$MOZ_DEV_EDITION"; then
     AC_DEFINE(MOZ_DEV_EDITION)
-fi
-
-if test "$MOZ_DEBUG" -o "$DEVELOPER_OPTIONS"; then
-    A11Y_LOG=1
-fi
-AC_SUBST(A11Y_LOG)
-if test -n "$A11Y_LOG"; then
-    AC_DEFINE(A11Y_LOG)
 fi
 
 dnl Windows AccessibilityHandler

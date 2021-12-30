@@ -169,22 +169,32 @@ imply_option("--enable-profiling", dmd)
 imply_option("--enable-jemalloc", dmd, when=compile_environment)
 imply_option("--enable-replace-malloc", dmd, when=compile_environment)
 
-# ALSA cubeb backend
+# midir-based Web MIDI support
 # ==============================================================
 @depends(target)
-def alsa_default_check(target):
+def midir_linux_support(target):
     return target.kernel == "Linux" and target.os != "Android"
 
 
+@depends(target, midir_linux_support)
+def midir_support(target, midir_linux_support):
+    if target.os in ("WINNT", "OSX") or midir_linux_support:
+        return True
+
+
+set_config("MOZ_WEBMIDI_MIDIR_IMPL", midir_support)
+
+# ALSA cubeb backend
+# ==============================================================
 option("--enable-alsa", env="MOZ_ALSA", help="Enable ALSA audio backend.")
 
 
-@depends("--enable-alsa", alsa_default_check)
-def enable_alsa_or_alsa_default_check(alsa_enabled, alsa_default_check):
-    return alsa_enabled or alsa_default_check
+@depends("--enable-alsa", midir_linux_support)
+def enable_alsa_or_midir_linux_support(alsa_enabled, midir_linux_support):
+    return alsa_enabled or midir_linux_support
 
 
-pkg_check_modules("MOZ_ALSA", "alsa", when=enable_alsa_or_alsa_default_check)
+pkg_check_modules("MOZ_ALSA", "alsa", when=enable_alsa_or_midir_linux_support)
 
 set_config("MOZ_ALSA", True, when="--enable-alsa")
 set_define("MOZ_ALSA", True, when="--enable-alsa")
@@ -467,9 +477,6 @@ def freetype2_combined_info(fontconfig_info, freetype2_info):
     )
 
 
-add_old_configure_assignment(
-    "_HAVE_FREETYPE2", depends_if(freetype2_info)(lambda _: True)
-)
 set_define("MOZ_HAVE_FREETYPE2", depends_if(freetype2_info)(lambda _: True))
 
 # Apple platform decoder support
@@ -971,7 +978,6 @@ def tree_freetype(target, skia_pdf):
 
 set_define("MOZ_TREE_FREETYPE", tree_freetype)
 set_config("MOZ_TREE_FREETYPE", tree_freetype)
-add_old_configure_assignment("MOZ_TREE_FREETYPE", tree_freetype)
 
 set_define("HAVE_FT_BITMAP_SIZE_Y_PPEM", tree_freetype)
 set_define("HAVE_FT_GLYPHSLOT_EMBOLDEN", tree_freetype)
@@ -989,8 +995,18 @@ def ft2_info(freetype2_combined_info, tree_freetype, build_env):
 
 
 set_config("FT2_LIBS", ft2_info.libs)
-add_old_configure_assignment("FT2_LIBS", ft2_info.libs)
-add_old_configure_assignment("FT2_CFLAGS", ft2_info.cflags)
+
+
+@depends(target, tree_freetype, freetype2_info)
+def enable_cairo_ft(target, tree_freetype, freetype2_info):
+    # Avoid defining MOZ_ENABLE_CAIRO_FT on Windows platforms because
+    # "cairo-ft-font.c" includes <dlfcn.h>, which only exists on posix platforms
+    return freetype2_info or (tree_freetype and target.os != "WINNT")
+
+
+set_config("MOZ_ENABLE_CAIRO_FT", True, when=enable_cairo_ft)
+set_config("CAIRO_FT_CFLAGS", ft2_info.cflags, when=enable_cairo_ft)
+
 
 # WebDriver (HTTP / BiDi)
 # ==============================================================
@@ -1418,6 +1434,15 @@ def accessibility(value, check_for_midl, midl, c_compiler):
 
 set_config("ACCESSIBILITY", accessibility)
 set_define("ACCESSIBILITY", accessibility)
+
+
+@depends(moz_debug, developer_options)
+def a11y_log(debug, developer_options):
+    return debug or developer_options
+
+
+set_config("A11Y_LOG", True, when=a11y_log)
+set_define("A11Y_LOG", True, when=a11y_log)
 
 
 # Addon signing
@@ -2942,3 +2967,71 @@ with only_when(compile_environment):
             check_msg="for sa_len in struct sockaddr",
         ),
     )
+
+
+# Check for pthread_cond_timedwait_monotonic_np
+# ==============================================================
+with only_when(compile_environment):
+    set_define(
+        "HAVE_PTHREAD_COND_TIMEDWAIT_MONOTONIC",
+        c_compiler.try_compile(
+            includes=["pthread.h"],
+            body="pthread_cond_timedwait_monotonic_np(0, 0, 0);",
+            # -Werror to catch any "implicit declaration" warning that means the function
+            # is not supported.
+            flags=["-Werror"],
+            check_msg="for pthread_cond_timedwait_monotonic_np",
+        ),
+    )
+
+
+# Custom dynamic linker for Android
+# ==============================================================
+with only_when(target_is_linux & compile_environment):
+    option(
+        env="MOZ_LINKER",
+        default=depends(target.os, when="--enable-jemalloc")(
+            lambda os: os == "Android"
+        ),
+        help="{Enable|Disable} custom dynamic linker",
+    )
+
+    set_config("MOZ_LINKER", True, when="MOZ_LINKER")
+    set_define("MOZ_LINKER", True, when="MOZ_LINKER")
+    add_old_configure_assignment("MOZ_LINKER", True, when="MOZ_LINKER")
+
+    moz_linker = depends(when="MOZ_LINKER")(lambda: True)
+
+
+# 32-bits ethtool_cmd.speed
+# ==============================================================
+with only_when(target_is_linux & compile_environment):
+    set_config(
+        "MOZ_WEBRTC_HAVE_ETHTOOL_SPEED_HI",
+        c_compiler.try_compile(
+            includes=["linux/ethtool.h"],
+            body="struct ethtool_cmd cmd; cmd.speed_hi = 0;",
+            check_msg="for 32-bits ethtool_cmd.speed",
+        ),
+    )
+
+# Gamepad support
+# ==============================================================
+check_header(
+    "linux/joystick.h",
+    onerror=lambda: die(
+        "Can't find header linux/joystick.h, needed for gamepad support."
+        " Please install Linux kernel headers."
+    ),
+    when=target_is_linux & compile_environment,
+)
+
+# Smart card support
+# ==============================================================
+@depends(build_project)
+def disable_smart_cards(build_project):
+    return build_project == "mobile/android"
+
+
+set_config("MOZ_NO_SMART_CARDS", True, when=disable_smart_cards)
+set_define("MOZ_NO_SMART_CARDS", True, when=disable_smart_cards)
