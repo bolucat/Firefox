@@ -8415,7 +8415,7 @@
 #ifdef MOZ_FFMPEG
 - name: media.rdd-ffmpeg.enabled
   type: RelaxedAtomicBool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 #endif
 
@@ -9169,9 +9169,7 @@
 
 - name: media.webrtc.platformencoder
   type: RelaxedAtomicBool
-#if defined(MOZ_WIDGET_ANDROID)
-  value: true
-#elif defined(NIGHTLY_BUILD) && !defined(MOZ_WIDGET_GTK)
+#if !defined(MOZ_WIDGET_GTK)
   value: true
 #else
   value: false
@@ -9180,7 +9178,7 @@
 
 - name: media.webrtc.software_encoder.fallback
   type: RelaxedAtomicBool
-#if defined(MOZ_WIDGET_ANDROID) || defined(NIGHTLY_BUILD)
+#if !defined(MOZ_WIDGET_GTK)
   value: true
 #else
   value: false
