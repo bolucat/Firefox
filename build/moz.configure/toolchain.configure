@@ -344,10 +344,14 @@ def get_compiler_info(compiler, language):
                 version = Version("8.0.0")
             elif version < "12.0":
                 version = Version("9.0.0")
-            elif version < "12.0.1":
+            elif version < "12.0.5":
                 version = Version("10.0.0")
+            elif version < "13.0":
+                version = Version("11.1.0")
+            elif version < "13.0.1":
+                version = Version("12.0.0")
             else:
-                version = Version("10.0.0.or.more")
+                version = Version("12.0.0.or.more")
 
     return namespace(
         type=type,
@@ -2249,10 +2253,11 @@ def select_linker(linker, c_compiler, developer_options, toolchain_flags, target
         else:
             kind = "unknown"
 
-        return namespace(
-            KIND=kind,
-            LINKER_FLAG=linker_flag,
-        )
+        if kind == "unknown" or is_valid_linker(kind):
+            return namespace(
+                KIND=kind,
+                LINKER_FLAG=linker_flag,
+            )
 
     result = try_linker(linker)
     if result is None and linker:
@@ -2275,7 +2280,7 @@ def select_linker(linker, c_compiler, developer_options, toolchain_flags, target
             result = tried
 
     if result is None:
-        die("Failed to find a linker")
+        die("Failed to find an adequate linker")
 
     # If an explicit linker was given, error out if what we found is different.
     if linker and not linker.startswith(result.KIND):
