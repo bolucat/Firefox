@@ -5755,6 +5755,19 @@ StyleImageRendering nsIFrame::UsedImageRendering() const {
   return style->StyleVisibility()->mImageRendering;
 }
 
+// The touch-action CSS property applies to: all elements except: non-replaced
+// inline elements, table rows, row groups, table columns, and column groups.
+StyleTouchAction nsIFrame::UsedTouchAction() const {
+  if (IsFrameOfType(eLineParticipant)) {
+    return StyleTouchAction::AUTO;
+  }
+  auto& disp = *StyleDisplay();
+  if (disp.IsInternalTableStyleExceptCell()) {
+    return StyleTouchAction::AUTO;
+  }
+  return disp.mTouchAction;
+}
+
 Maybe<nsIFrame::Cursor> nsIFrame::GetCursor(const nsPoint&) {
   StyleCursorKind kind = StyleUI()->Cursor().keyword;
   if (kind == StyleCursorKind::Auto) {
@@ -8794,7 +8807,9 @@ nsresult nsIFrame::PeekOffsetForLine(nsPeekOffsetStruct* aPos) {
     blockFrame = newBlock;
     nsAutoLineIterator iter = blockFrame->GetLineIterator();
     int32_t thisLine = iter->FindLineContaining(lineFrame);
-    MOZ_ASSERT(thisLine >= 0, "Failed to find line!");
+    if (NS_WARN_IF(thisLine < 0)) {
+      return NS_ERROR_FAILURE;
+    }
 
     int edgeCase = 0;  // no edge case. this should look at thisLine
 
@@ -11406,8 +11421,7 @@ CompositorHitTestInfo nsIFrame::GetCompositorHitTestInfo(
 
     result += inheritedTouchAction;
 
-    const StyleTouchAction touchAction =
-        nsLayoutUtils::GetTouchActionFromFrame(touchActionFrame);
+    const StyleTouchAction touchAction = touchActionFrame->UsedTouchAction();
     // The CSS allows the syntax auto | none | [pan-x || pan-y] | manipulation
     // so we can eliminate some combinations of things.
     if (touchAction == StyleTouchAction::AUTO) {
