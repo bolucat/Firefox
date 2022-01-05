@@ -1005,7 +1005,10 @@ WEBIDL_FILES = [
 if CONFIG["MOZ_DOM_STREAMS"]:
     WEBIDL_FILES += [
         "QueuingStrategy.webidl",
+        "ReadableByteStreamController.webidl",
         "ReadableStream.webidl",
+        "ReadableStreamBYOBReader.webidl",
+        "ReadableStreamBYOBRequest.webidl",
         "ReadableStreamDefaultController.webidl",
         "ReadableStreamDefaultReader.webidl",
         "UnderlyingSink.webidl",

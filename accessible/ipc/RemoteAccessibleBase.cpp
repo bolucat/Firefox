@@ -484,8 +484,103 @@ already_AddRefed<AccAttributes> RemoteAccessibleBase<Derived>::Attributes() {
             mCachedFields->GetAttribute<RefPtr<nsAtom>>(nsGkAtoms::tag)) {
       attributes->SetAttribute(nsGkAtoms::tag, *tag);
     }
+
+    GroupPos groupPos = GroupPosition();
+    nsAccUtils::SetAccGroupAttrs(attributes, groupPos.level, groupPos.setSize,
+                                groupPos.posInSet);
+
+    bool hierarchical = false;
+    uint32_t itemCount = AccGroupInfo::TotalItemCount(this, &hierarchical);
+    if (itemCount) {
+      attributes->SetAttribute(nsGkAtoms::child_item_count,
+                              static_cast<int32_t>(itemCount));
+    }
+
+    if (hierarchical) {
+      attributes->SetAttribute(nsGkAtoms::tree, true);
+    }
   }
+
   return attributes.forget();
+}
+
+template <class Derived>
+nsAtom* RemoteAccessibleBase<Derived>::TagName() const {
+  if (mCachedFields) {
+    if (auto tag =
+            mCachedFields->GetAttribute<RefPtr<nsAtom>>(nsGkAtoms::tag)) {
+      return *tag;
+    }
+  }
+
+  return nullptr;
+}
+
+template <class Derived>
+void RemoteAccessibleBase<Derived>::ARIAGroupPosition(
+    int32_t* aLevel, int32_t* aSetSize, int32_t* aPosInSet) const {
+  if (!mCachedFields) {
+    return;
+  }
+
+  if (aLevel) {
+    if (auto level =
+            mCachedFields->GetAttribute<int32_t>(nsGkAtoms::aria_level)) {
+      *aLevel = *level;
+    }
+  }
+  if (aSetSize) {
+    if (auto setsize =
+            mCachedFields->GetAttribute<int32_t>(nsGkAtoms::aria_setsize)) {
+      *aSetSize = *setsize;
+    }
+  }
+  if (aPosInSet) {
+    if (auto posinset =
+            mCachedFields->GetAttribute<int32_t>(nsGkAtoms::aria_posinset)) {
+      *aPosInSet = *posinset;
+    }
+  }
+}
+
+template <class Derived>
+AccGroupInfo* RemoteAccessibleBase<Derived>::GetGroupInfo() const {
+  if (!mCachedFields) {
+    return nullptr;
+  }
+
+  if (auto groupInfo = mCachedFields->GetAttribute<UniquePtr<AccGroupInfo>>(
+          nsGkAtoms::group)) {
+    return groupInfo->get();
+  }
+
+  return nullptr;
+}
+
+template <class Derived>
+AccGroupInfo* RemoteAccessibleBase<Derived>::GetOrCreateGroupInfo() {
+  AccGroupInfo* groupInfo = GetGroupInfo();
+  if (groupInfo) {
+    return groupInfo;
+  }
+
+  groupInfo = AccGroupInfo::CreateGroupInfo(this);
+  if (groupInfo) {
+    if (!mCachedFields) {
+      mCachedFields = new AccAttributes();
+    }
+
+    mCachedFields->SetAttribute(nsGkAtoms::group, groupInfo);
+  }
+
+  return groupInfo;
+}
+
+template <class Derived>
+void RemoteAccessibleBase<Derived>::InvalidateGroupInfo() {
+  if (mCachedFields) {
+    mCachedFields->Remove(nsGkAtoms::group);
+  }
 }
 
 template <class Derived>

@@ -182,6 +182,8 @@ class RemoteAccessibleBase : public Accessible, public HyperTextAccessibleBase {
 
   virtual already_AddRefed<AccAttributes> Attributes() override;
 
+  virtual nsAtom* TagName() const override;
+
   // Methods that interact with content.
 
   virtual void TakeFocus() const override;
@@ -241,6 +243,8 @@ class RemoteAccessibleBase : public Accessible, public HyperTextAccessibleBase {
     mCachedFields->SetAttribute(nsGkAtoms::state, state);
   }
 
+  void InvalidateGroupInfo();
+
   virtual void AppendTextTo(nsAString& aText, uint32_t aStartOffset = 0,
                             uint32_t aLength = UINT32_MAX) override;
 
@@ -288,6 +292,13 @@ class RemoteAccessibleBase : public Accessible, public HyperTextAccessibleBase {
  protected:
   void SetParent(Derived* aParent);
   Maybe<nsRect> RetrieveCachedBounds() const;
+
+  virtual void ARIAGroupPosition(int32_t* aLevel, int32_t* aSetSize,
+                                 int32_t* aPosInSet) const override;
+
+  virtual AccGroupInfo* GetGroupInfo() const override;
+
+  virtual AccGroupInfo* GetOrCreateGroupInfo() override;
 
  private:
   uintptr_t mParent;
