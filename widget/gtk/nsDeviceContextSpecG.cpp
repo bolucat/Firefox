@@ -8,6 +8,7 @@
 #include "mozilla/gfx/PrintTargetPDF.h"
 #include "mozilla/Logging.h"
 #include "mozilla/Services.h"
+#include "mozilla/WidgetUtilsGtk.h"
 
 #include "plstr.h"
 #include "prenv.h" /* for PR_GetEnv */
@@ -274,16 +275,15 @@ gboolean nsDeviceContextSpecGTK::PrinterEnumerator(GtkPrinter* aPrinter,
 
 void nsDeviceContextSpecGTK::StartPrintJob() {
   // When using flatpak, we have to call the Print method of the portal
-  nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
-  bool shouldUsePortal;
-  giovfs->ShouldUseFlatpakPortal(&shouldUsePortal);
-  if (shouldUsePortal) {
+  //
+  // FIXME: This code doesn't seem to be working alright, see bug 1688720.
+  if (widget::ShouldUsePortal(widget::PortalKind::Print)) {
     GError* error = nullptr;
     GDBusProxy* dbusProxy = g_dbus_proxy_new_for_bus_sync(
         G_BUS_TYPE_SESSION, G_DBUS_PROXY_FLAGS_NONE, nullptr,
         "org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop",
         "org.freedesktop.portal.Print", nullptr, &error);
-    if (dbusProxy == nullptr) {
+    if (!dbusProxy) {
       NS_WARNING(
           nsPrintfCString("Unable to create dbus proxy: %s", error->message)
               .get());
@@ -293,6 +293,7 @@ void nsDeviceContextSpecGTK::StartPrintJob() {
     int fd = open(mSpoolName.get(), O_RDONLY | O_CLOEXEC);
     if (fd == -1) {
       NS_WARNING("Failed to open spool file.");
+      g_object_unref(dbusProxy);
       return;
     }
     static auto s_g_unix_fd_list_new = reinterpret_cast<GUnixFDList* (*)(void)>(
@@ -308,10 +309,9 @@ void nsDeviceContextSpecGTK::StartPrintJob() {
     close(fd);
 
     // We'll pass empty options as long as we don't have token from PreparePrint
-    // dbus call (which we don't use). This unfortunatelly lead to showing
-    // gtk print dialog and also the duplex or printer specific settings
-    // is not honored, so this needs to be fixed when the portal provides
-    // more options.
+    // dbus call (which we don't use). This unfortunately leads to showing gtk
+    // print dialog and also the duplex or printer specific settings is not
+    // honored, so this needs to be fixed when the portal provides more options.
     GVariantBuilder opt_builder;
     g_variant_builder_init(&opt_builder, G_VARIANT_TYPE_VARDICT);
 
@@ -413,19 +413,14 @@ NS_IMETHODIMP nsDeviceContextSpecGTK::EndDocument() {
     destFile->SetPermissions(0666 & ~(mask));
 
     // Notify flatpak printing portal that file is completely written
-    nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
-    bool shouldUsePortal;
-    if (giovfs) {
-      giovfs->ShouldUseFlatpakPortal(&shouldUsePortal);
-      if (shouldUsePortal) {
-        // Use the name of the file for printing to match with
-        // nsFlatpakPrintPortal
-        nsCOMPtr<nsIObserverService> os =
-            mozilla::services::GetObserverService();
-        // Pass filename to be sure that observer process the right data
-        os->NotifyObservers(nullptr, "print-to-file-finished",
-                            targetPath.get());
-      }
+    if (widget::ShouldUsePortal(widget::PortalKind::Print)) {
+      // Use the name of the file for printing to match with
+      // nsFlatpakPrintPortal
+      nsCOMPtr<nsIObserverService> os =
+          mozilla::services::GetObserverService();
+      // Pass filename to be sure that observer process the right data
+      os->NotifyObservers(nullptr, "print-to-file-finished",
+                          targetPath.get());
     }
   }
   return NS_OK;

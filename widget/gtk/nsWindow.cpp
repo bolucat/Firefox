@@ -385,28 +385,13 @@ nsWindow::nsWindow()
       mCreated(false),
       mHandleTouchEvent(false),
       mIsDragPopup(false),
-      mPopupHint(),
       mWindowScaleFactorChanged(true),
-      mWindowScaleFactor(1),
       mCompositedScreen(gdk_screen_is_composited(gdk_screen_get_default())),
       mIsAccelerated(false),
-      mShell(nullptr),
-      mContainer(nullptr),
-      mGdkWindow(nullptr),
       mWindowShouldStartDragging(false),
-      mCompositorWidgetDelegate(nullptr),
-      mCompositorState(COMPOSITOR_ENABLED),
-      mCompositorPauseTimeoutID(0),
       mHasMappedToplevel(false),
       mRetryPointerGrab(false),
-      mSizeState(nsSizeMode_Normal),
-      mAspectRatio(0.0f),
-      mAspectRatioSaved(0.0f),
-      mLastScrollEventTime(GDK_CURRENT_TIME),
-      mPendingConfigures(0),
-      mGtkWindowDecoration(GTK_DECORATION_NONE),
       mDrawToContainer(false),
-      mDrawInTitlebar(false),
       mTitlebarBackdropState(false),
       mIsPIPWindow(false),
       mIsWaylandPanelWindow(false),
@@ -415,43 +400,21 @@ nsWindow::nsWindow()
       mNoAutoHide(false),
       mMouseTransparent(false),
       mIsTransparent(false),
-      mTransparencyBitmap(nullptr),
-      mTransparencyBitmapWidth(0),
-      mTransparencyBitmapHeight(0),
-      mTransparencyBitmapForTitlebar(false),
-      mHasAlphaVisual(false),
-      mLastMotionPressure(0),
-      mLastSizeMode(nsSizeMode_Normal),
       mBoundsAreValid(true),
       mPopupTrackInHierarchy(false),
       mPopupTrackInHierarchyConfigured(false),
       mHiddenPopupPositioned(false),
-      mPopupPosition(),
+      mTransparencyBitmapForTitlebar(false),
+      mHasAlphaVisual(false),
       mPopupAnchored(false),
       mPopupContextMenu(false),
-      mRelativePopupPosition(),
-      mRelativePopupOffset(),
       mPopupMatchesLayout(false),
       mPopupChanged(false),
       mPopupTemporaryHidden(false),
       mPopupClosed(false),
       mPopupUseMoveToRect(false),
-      mPopupLastAnchor(),
-      mPreferredPopupRect(),
       mPreferredPopupRectFlushed(false),
-      mWaitingForMoveToRectCallback(false),
-      mNewBoundsAfterMoveToRect(LayoutDeviceIntRect(0, 0, 0, 0))
-#ifdef ACCESSIBILITY
-      ,
-      mRootAccessible(nullptr)
-#endif
-#ifdef MOZ_WAYLAND
-      ,
-      mNativePointerLockCenter(LayoutDeviceIntPoint()),
-      mLockedPointer(nullptr),
-      mRelativePointer(nullptr),
-      mXdgToken(nullptr)
-#endif
+      mWaitingForMoveToRectCallback(false)
 {
   mWindowType = eWindowType_child;
   mSizeConstraints.mMaxSize = GetSafeWindowSize(mSizeConstraints.mMaxSize);
@@ -676,7 +639,7 @@ void nsWindow::Destroy() {
   OnDestroy();
 }
 
-nsIWidget* nsWindow::GetParent(void) { return mParent; }
+nsIWidget* nsWindow::GetParent() { return mParent; }
 
 float nsWindow::GetDPI() {
   float dpi = 96.0f;
