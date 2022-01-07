@@ -408,6 +408,9 @@ nsresult nsCocoaWindow::CreateNativeWindow(const NSRect& aRect, nsBorderStyle aB
           features |= NSWindowStyleMaskClosable;
         }
       }
+      if (aBorderStyle & eBorderStyle_minimize) {
+        features |= NSWindowStyleMaskMiniaturizable;
+      }
       break;
     case eWindowType_toplevel:
     case eWindowType_dialog:
@@ -780,12 +783,12 @@ void nsCocoaWindow::Show(bool bState) {
 
   if (!mWindow) return;
 
-  // We need to re-execute sometimes in order to bring already-visible
-  // windows forward.
-  if (!mSheetNeedsShow && !bState && ![mWindow isVisible]) return;
-
-  // Protect against re-entering.
-  if (bState && [mWindow isBeingShown]) return;
+  if (!mSheetNeedsShow) {
+    // Early exit if our current visibility state is already the requested state.
+    if (bState == ([mWindow isVisible] || [mWindow isBeingShown])) {
+      return;
+    }
+  }
 
   [mWindow setBeingShown:bState];
   if (bState && !mWasShown) {

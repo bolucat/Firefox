@@ -41,8 +41,6 @@
 #include "nsIGlobalObject.h"
 #include "nsISupports.h"
 
-#include <unistd.h>
-
 inline void ImplCycleCollectionTraverse(
     nsCycleCollectionTraversalCallback& aCallback,
     mozilla::Variant<mozilla::Nothing,
@@ -117,16 +115,33 @@ void ReadableStream::SetReader(ReadableStreamGenericReader* aReader) {
   mReader = aReader;
 }
 
-bool ReadableStreamHasDefaultReader(ReadableStream* aStream) {
-  // Step 1.
+// https://streams.spec.whatwg.org/#readable-stream-has-byob-reader
+bool ReadableStreamHasBYOBReader(ReadableStream* aStream) {
+  // Step 1. Let reader be stream.[[reader]].
   ReadableStreamGenericReader* reader = aStream->GetReader();
 
-  // Step 2.
+  // Step 2. If reader is undefined, return false.
   if (!reader) {
     return false;
   }
 
-  // Step 3+4:
+  // Step 3. If reader implements ReadableStreamBYOBReader, return true.
+  // Step 4. Return false.
+  return reader->IsBYOB();
+}
+
+// https://streams.spec.whatwg.org/#readable-stream-has-default-reader
+bool ReadableStreamHasDefaultReader(ReadableStream* aStream) {
+  // Step 1. Let reader be stream.[[reader]].
+  ReadableStreamGenericReader* reader = aStream->GetReader();
+
+  // Step 2. If reader is undefined, return false.
+  if (!reader) {
+    return false;
+  }
+
+  // Step 3. If reader implements ReadableStreamDefaultReader, return true.
+  // Step 4. Return false.
   return reader->IsDefault();
 }
 
@@ -277,8 +292,8 @@ void ReadableStreamClose(JSContext* aCx, ReadableStream* aStream,
   aStream->SetState(ReadableStream::ReaderState::Closed);
 
   // Step 3.
-
   ReadableStreamGenericReader* reader = aStream->GetReader();
+
   // Step 4.
   if (!reader) {
     return;
@@ -346,6 +361,7 @@ already_AddRefed<Promise> ReadableStreamCancel(JSContext* aCx,
 
   // Step 6.
   if (reader && reader->IsBYOB()) {
+    // Step 6.1.
     for (RefPtr<ReadIntoRequest> readIntoRequest :
          reader->AsBYOB()->ReadIntoRequests()) {
       readIntoRequest->CloseSteps(aCx, JS::UndefinedHandleValue, aRv);
@@ -353,6 +369,9 @@ already_AddRefed<Promise> ReadableStreamCancel(JSContext* aCx,
         return nullptr;
       }
     }
+
+    // Step 6.2.
+    reader->AsBYOB()->ReadIntoRequests().clear();
   }
 
   // Step 7.
@@ -484,8 +503,7 @@ void ReadableStreamError(JSContext* aCx, ReadableStream* aStream,
   // Step 7.
   reader->ClosedPromise()->SetSettledPromiseIsHandled();
 
-  // Step 8. Implicit in the fact that we don't yet support
-  //         ReadableStreamBYOBReader
+  // Step 8.
   if (reader->IsDefault()) {
     // Step 8.1:
     ReadableStreamDefaultReader* defaultReader = reader->AsDefault();
@@ -823,14 +841,14 @@ already_AddRefed<ReadableStream> CreateReadableByteStream(
   // Step 1. Let stream be a new ReadableStream.
   RefPtr<ReadableStream> stream = new ReadableStream(aGlobal);
 
-  // Perform ! InitializeReadableStream(stream).
+  // Step 2. Perform ! InitializeReadableStream(stream).
   InitializeReadableStream(stream);
 
-  // Let controller be a new ReadableByteStreamController.
+  // Step 3. Let controller be a new ReadableByteStreamController.
   RefPtr<ReadableByteStreamController> controller =
       new ReadableByteStreamController(aGlobal);
 
-  // Perform ? SetUpReadableByteStreamController(stream, controller,
+  // Step 4. Perform ? SetUpReadableByteStreamController(stream, controller,
   // startAlgorithm, pullAlgorithm, cancelAlgorithm, 0, undefined).
   SetUpReadableByteStreamController(aCx, stream, controller, aStartAlgorithm,
                                     aPullAlgorithm, aCancelAlgorithm, 0,
@@ -839,7 +857,7 @@ already_AddRefed<ReadableStream> CreateReadableByteStream(
     return nullptr;
   }
 
-  // Return stream.
+  // Step 5. Return stream.
   return stream.forget();
 }
 
