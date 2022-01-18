@@ -76,6 +76,7 @@ treeherder:
         'R': 'Reftests'
         'R-fis': 'Reftests with fission enabled'
         'R-swr': 'Reftests with software webrender enabled'
+        'R-swr-fis': 'Reftests with software webrender and fission enabled'
         'R-wayland': 'Reftests with Wayland backend enabled'
         'Rap': 'Raptor performance tests on Firefox'
         'Rap-live': 'Raptor performance tests on Firefox with live sites'
@@ -620,4 +621,8 @@ mac-notarization:
                 by-release-level:
                     production: security/mac/hardenedruntime/production.entitlements.xml
                     default: security/mac/hardenedruntime/developer.entitlements.xml
+            default: ''
+    mac-requirements:
+        by-platform:
+            macosx64.*: build/package/mac_osx/requirements.plist
             default: ''
