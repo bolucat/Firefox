@@ -51,6 +51,7 @@
 #include "mozilla/dom/RemoteWorkerService.h"
 #include "mozilla/dom/TimeoutHandler.h"
 #include "mozilla/dom/WorkerBinding.h"
+#include "mozilla/dom/WorkerScope.h"
 #include "mozilla/dom/JSExecutionManager.h"
 #include "mozilla/dom/WindowContext.h"
 #include "mozilla/extensions/ExtensionBrowser.h"  // extensions::Create{AndDispatchInitWorkerContext,WorkerLoaded,WorkerDestroyed}Runnable
@@ -3838,7 +3839,7 @@ bool WorkerPrivate::ModifyBusyCountFromWorker(bool aIncrease) {
   return runnable->Dispatch();
 }
 
-bool WorkerPrivate::AddChildWorker(WorkerPrivate* aChildWorker) {
+bool WorkerPrivate::AddChildWorker(WorkerPrivate& aChildWorker) {
   auto data = mWorkerThreadAccessible.Access();
 
 #ifdef DEBUG
@@ -3853,20 +3854,20 @@ bool WorkerPrivate::AddChildWorker(WorkerPrivate* aChildWorker) {
   }
 #endif
 
-  NS_ASSERTION(!data->mChildWorkers.Contains(aChildWorker),
+  NS_ASSERTION(!data->mChildWorkers.Contains(&aChildWorker),
                "Already know about this one!");
-  data->mChildWorkers.AppendElement(aChildWorker);
+  data->mChildWorkers.AppendElement(&aChildWorker);
 
   return data->mChildWorkers.Length() == 1 ? ModifyBusyCountFromWorker(true)
                                            : true;
 }
 
-void WorkerPrivate::RemoveChildWorker(WorkerPrivate* aChildWorker) {
+void WorkerPrivate::RemoveChildWorker(WorkerPrivate& aChildWorker) {
   auto data = mWorkerThreadAccessible.Access();
 
-  NS_ASSERTION(data->mChildWorkers.Contains(aChildWorker),
+  NS_ASSERTION(data->mChildWorkers.Contains(&aChildWorker),
                "Didn't know about this one!");
-  data->mChildWorkers.RemoveElement(aChildWorker);
+  data->mChildWorkers.RemoveElement(&aChildWorker);
 
   if (data->mChildWorkers.IsEmpty() && !ModifyBusyCountFromWorker(false)) {
     NS_WARNING("Failed to modify busy count!");
@@ -3936,7 +3937,7 @@ void WorkerPrivate::NotifyWorkerRefs(WorkerStatus aStatus) {
     workerRef->Notify();
   }
 
-  AutoTArray<WorkerPrivate*, 10> children;
+  AutoTArray<CheckedUnsafePtr<WorkerPrivate>, 10> children;
   children.AppendElements(data->mChildWorkers);
 
   for (uint32_t index = 0; index < children.Length(); index++) {
@@ -5273,15 +5274,14 @@ WorkerGlobalScope* WorkerPrivate::GetOrCreateGlobalScope(JSContext* aCx) {
   }
 
   if (IsSharedWorker()) {
-    data->mScope = new SharedWorkerGlobalScope(
-        WrapNotNull(this), CreateClientSource(), WorkerName());
-  } else if (IsServiceWorker()) {
     data->mScope =
-        new ServiceWorkerGlobalScope(WrapNotNull(this), CreateClientSource(),
-                                     GetServiceWorkerRegistrationDescriptor());
+        new SharedWorkerGlobalScope(this, CreateClientSource(), WorkerName());
+  } else if (IsServiceWorker()) {
+    data->mScope = new ServiceWorkerGlobalScope(
+        this, CreateClientSource(), GetServiceWorkerRegistrationDescriptor());
   } else {
-    data->mScope = new DedicatedWorkerGlobalScope(
-        WrapNotNull(this), CreateClientSource(), WorkerName());
+    data->mScope = new DedicatedWorkerGlobalScope(this, CreateClientSource(),
+                                                  WorkerName());
   }
 
   JS::Rooted<JSObject*> global(aCx);
@@ -5310,7 +5310,7 @@ WorkerDebuggerGlobalScope* WorkerPrivate::CreateDebuggerGlobalScope(
       GetClientType(), HybridEventTarget(), NullPrincipalInfo());
 
   data->mDebuggerScope =
-      new WorkerDebuggerGlobalScope(WrapNotNull(this), std::move(clientSource));
+      new WorkerDebuggerGlobalScope(this, std::move(clientSource));
 
   JS::Rooted<JSObject*> global(aCx);
   NS_ENSURE_TRUE(data->mDebuggerScope->WrapGlobalObject(aCx, &global), nullptr);
