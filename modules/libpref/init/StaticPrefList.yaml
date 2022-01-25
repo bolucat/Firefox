@@ -3420,6 +3420,11 @@
   value: false
   mirror: always
 
+- name: dom.workers.requestAnimationFrame
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 - name: dom.workers.serialized-sab-access
   type: RelaxedAtomicBool
   value: false
@@ -3454,6 +3459,12 @@
 - name: dom.storageManager.enabled
   type: RelaxedAtomicBool
   value: @IS_NOT_ANDROID@
+  mirror: always
+
+# Whether the File System API is enabled
+- name: dom.fs.enabled
+  type: RelaxedAtomicBool
+  value: false
   mirror: always
 
 # Should we abort LocalStorage requests when a sync message from parent is
@@ -5408,10 +5419,23 @@
   mirror: once
   do_not_use_directly: true
 
+# Enable OffscreenCanvas everywhere.
 - name: gfx.offscreencanvas.enabled
   type: RelaxedAtomicBool
   value: false
   mirror: always
+
+# Enable OffscreenCanvas based on the domain allowlist.
+- name: gfx.offscreencanvas.domain-enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# Domains included in the allowlist.
+- name: gfx.offscreencanvas.domain-allowlist
+  type: String
+  value: ""
+  mirror: never
 
 - name: gfx.omta.background-color
   type: bool
@@ -7448,7 +7472,7 @@
 # Is support for CSS hyphenate-character enabled?
 - name: layout.css.hyphenate-character.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Is support for CSS individual transform enabled?
@@ -12522,15 +12546,6 @@
   value: false
   mirror: always
 
-# Whether we try to extract dark theme GTK colors.
-#
-# For now, needed for follow-firefox-theme. In the future will also be needed
-# for the color-scheme CSS property / meta tag / etc.
-- name: widget.gtk.alt-theme.dark
-  type: bool
-  value: true
-  mirror: always
-
 # Whether selection colors for the non-system theme get passed from the system
 # GTK theme.
 - name: widget.gtk.alt-theme.selection
@@ -12644,7 +12659,7 @@
 # Whether to use gtk portal for the mime handler.
 #  - 0: never
 #  - 1: always
-#  - 2: auto (true for flatpak or GTK_USE_PORTAL=1, false otherwise)
+#  - 2: auto (for now only true for flatpak, see bug 1516290)
 - name: widget.use-xdg-desktop-portal.mime-handler
   type: int32_t
   value: 2
