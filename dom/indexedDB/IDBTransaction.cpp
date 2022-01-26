@@ -289,9 +289,6 @@ BackgroundRequestChild* IDBTransaction::StartRequest(
     transactionChild.SendPBackgroundIDBRequestConstructor(actor, aParams);
   });
 
-  MOZ_ASSERT(actor->GetActorEventTarget(),
-             "The event target shall be inherited from its manager actor.");
-
   // Balanced in BackgroundRequestChild::Recv__delete__().
   OnNewRequest();
 
@@ -306,9 +303,6 @@ void IDBTransaction::OpenCursor(PBackgroundIDBCursorChild& aBackgroundActor,
   DoWithTransactionChild([&aBackgroundActor, &aParams](auto& actor) {
     actor.SendPBackgroundIDBCursorConstructor(&aBackgroundActor, aParams);
   });
-
-  MOZ_ASSERT(aBackgroundActor.GetActorEventTarget(),
-             "The event target shall be inherited from its manager actor.");
 
   // Balanced in BackgroundCursorChild::RecvResponse().
   OnNewRequest();
@@ -457,18 +451,6 @@ void IDBTransaction::MaybeNoteInactiveTransaction() {
     mDatabase->NoteInactiveTransaction();
     mNotedActiveTransaction = false;
   }
-}
-
-IDBTransaction::AutoRestoreState<IDBTransaction::ReadyState::Inactive,
-                                 IDBTransaction::ReadyState::Active>
-IDBTransaction::TemporarilyTransitionToActive() {
-  return AutoRestoreState<ReadyState::Inactive, ReadyState::Active>{*this};
-}
-
-IDBTransaction::AutoRestoreState<IDBTransaction::ReadyState::Active,
-                                 IDBTransaction::ReadyState::Inactive>
-IDBTransaction::TemporarilyTransitionToInactive() {
-  return AutoRestoreState<ReadyState::Active, ReadyState::Inactive>{*this};
 }
 
 void IDBTransaction::GetCallerLocation(nsAString& aFilename,
