@@ -5061,12 +5061,12 @@
 
 - name: gfx.canvas.accelerated.cache-items
   type: RelaxedAtomicUint32
-  value: 1024
+  value: 2048
   mirror: always
 
 - name: gfx.canvas.accelerated.cache-size
   type: RelaxedAtomicUint32
-  value: 128
+  value: 256
   mirror: always
 
 - name: gfx.canvas.accelerated.max-size
@@ -9517,6 +9517,14 @@
   value: 8
   mirror: always
 
+# The duration, in milliseconds, of decoded audio to keep around in the
+# AudioSink ring-buffer. New decoding operations are started when this limit is
+# reached. The total size of the ring-buffer is slightly bigger than this.
+- name: media.audio.audiosink.threshold_ms
+  type: AtomicFloat
+  value: 1000.0
+  mirror: always
+
 
 #---------------------------------------------------------------------------
 # Prefs starting with "midi."
@@ -10755,13 +10763,6 @@
 - name: network.http.early_data_max_error
   type: RelaxedAtomicUint32
   value: 5
-  mirror: always
-
-# The maximum count that we allow socket prrocess to crash. If this count is
-# reached, we won't use networking over socket process.
-- name: network.max_socket_process_failed_count
-  type: RelaxedAtomicUint32
-  value: 1
   mirror: always
 
 #---------------------------------------------------------------------------
