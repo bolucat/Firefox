@@ -198,6 +198,8 @@ class Accessible {
    */
   virtual already_AddRefed<AccAttributes> Attributes() = 0;
 
+  virtual already_AddRefed<nsAtom> DisplayStyle() const = 0;
+
   // Methods that interact with content.
 
   virtual void TakeFocus() const = 0;
@@ -436,7 +438,6 @@ class Accessible {
    * @param  aSetSize   [out] the group size
    */
   virtual void GetPositionAndSetSize(int32_t* aPosInSet, int32_t* aSetSize);
-
 
   /**
    * Return the nearest ancestor that has a primary action, or null.

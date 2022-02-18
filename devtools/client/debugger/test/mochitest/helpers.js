@@ -345,6 +345,28 @@ function assertDebugLine(dbg, line, column) {
 }
 
 /**
+ * Assert that a given line is breaklable or not.
+ * Verify that CodeMirror gutter is grayed out via the empty line classname if not breakable.
+ */
+function assertLineIsBreakable(dbg, file, line, shouldBeBreakable) {
+  const lineInfo = getCM(dbg).lineInfo(line - 1);
+  // When a line is not breakable, the "empty-line" class is added
+  // and the line is greyed out
+  if (shouldBeBreakable) {
+    ok(
+      !lineInfo.wrapClass?.includes("empty-line"),
+      `${file}:${line} should be breakable`
+    );
+  } else {
+    ok(
+      lineInfo?.wrapClass?.includes("empty-line"),
+      `${file}:${line} should NOT be breakable`
+    );
+  }
+}
+
+
+/**
  * Assert that the debugger is highlighting the correct location.
  *
  * @memberof mochitest/asserts
@@ -906,6 +928,17 @@ async function addBreakpoint(dbg, source, line, column, options) {
   );
 }
 
+/**
+ * Similar to `addBreakpoint`, but uses the UI instead or calling
+ * the actions directly. This only support breakpoint on lines,
+ * not on a specific column.
+ */
+async function addBreakpointViaGutter(dbg, line) {
+  info(`Add breakpoint via the editor on line ${line}`);
+  await clickGutter(dbg, line);
+  return waitForDispatch(dbg.store, "SET_BREAKPOINT");
+}
+
 function disableBreakpoint(dbg, source, line, column) {
   column =
     column || getFirstBreakpointColumn(dbg, { line, sourceId: source.id });
@@ -1284,6 +1317,20 @@ async function getEditorLineEl(dbg, line) {
   }
 
   return el;
+}
+
+/**
+ * Assert the text content on the line matches what is
+ * expected.
+ *
+ * @param {Object} dbg
+ * @param {Number} line
+ * @param {String} expectedTextContent
+ */
+function assertTextContentOnLine(dbg, line, expectedTextContent) {
+  const lineInfo = getCM(dbg).lineInfo(line - 1);
+  const textContent = lineInfo.text.trim();
+  is(textContent, expectedTextContent, `Expected text content on line ${line}`);
 }
 
 /*
