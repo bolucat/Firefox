@@ -4140,7 +4140,7 @@
 # Whether the WebMIDI API is enabled
 - name: dom.webmidi.enabled
   type: bool
-  value: false
+  value: @IS_NOT_ANDROID@
   mirror: always
 
 # midi permission is addon-gated
@@ -10781,13 +10781,6 @@
   value: false
   mirror: always
 
-# When this pref is true, we will use the HTTPS acceptable content encoding
-# list for trustworthy domains such as http://localhost
-- name: network.http.encoding.trustworthy_is_https
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 # Support http3 version1
 - name: network.http.http3.support_version1
   type: RelaxedAtomicBool
@@ -12829,6 +12822,20 @@
   value: 1000
   mirror: always
 
+# The timeout we should spend on a DBUS call to the Settings proxy before
+# giving up.
+#
+# -1 for the default system timeout, INT_MAX for "infinite time".
+#
+# This runs just once, but during startup, so make sure it doesn't take too
+# long. Three seconds should be way more than enough, and if we don't get the
+# reply on time then the only potential issue is that we use a light instead of
+# dark interface or vice versa.
+- name: widget.gtk.settings-portal-timeout-ms
+  type: int32_t
+  value: 3000
+  mirror: always
+
 # Whether to use gtk portal for the file picker.
 #  - 0: never
 #  - 1: always
@@ -12892,7 +12899,7 @@
 
 - name: widget.windows.window_occlusion_tracking_session_lock.enabled
   type: bool
-  value: false
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 #endif
 
