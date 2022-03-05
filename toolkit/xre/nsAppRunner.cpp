@@ -1685,6 +1685,13 @@ nsXULAppInfo::GetChromeColorSchemeIsDark(bool* aResult) {
 }
 
 NS_IMETHODIMP
+nsXULAppInfo::GetContentThemeDerivedColorSchemeIsDark(bool* aResult) {
+  *aResult =
+      LookAndFeel::ThemeDerivedColorSchemeForContent() == ColorScheme::Dark;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsXULAppInfo::GetDrawInTitlebar(bool* aResult) {
   *aResult = LookAndFeel::DrawInTitlebar();
   return NS_OK;
@@ -5270,7 +5277,7 @@ nsresult XREMain::XRE_mainRun() {
 
 #if defined(XP_WIN)
   RefPtr<mozilla::DllServices> dllServices(mozilla::DllServices::Get());
-  dllServices->StartUntrustedModulesProcessor();
+  dllServices->StartUntrustedModulesProcessor(false);
   auto dllServicesDisable =
       MakeScopeExit([&dllServices]() { dllServices->DisableFull(); });
 
