@@ -858,8 +858,8 @@ void ProxyObject::trace(JSTracer* trc, JSObject* obj) {
   TraceNullableEdge(trc, proxy->slotOfExpando(), "expando");
 
 #ifdef DEBUG
-  if (TlsContext.get()->isStrictProxyCheckingEnabled() &&
-      proxy->is<WrapperObject>()) {
+  JSContext* cx = TlsContext.get();
+  if (cx && cx->isStrictProxyCheckingEnabled() && proxy->is<WrapperObject>()) {
     CheckProxyIsInCCWMap(proxy);
   }
 #endif
@@ -885,17 +885,17 @@ void ProxyObject::trace(JSTracer* trc, JSObject* obj) {
   Proxy::trace(trc, obj);
 }
 
-static void proxy_Finalize(JSFreeOp* fop, JSObject* obj) {
+static void proxy_Finalize(JS::GCContext* gcx, JSObject* obj) {
   // Suppress a bogus warning about finalize().
   JS::AutoSuppressGCAnalysis nogc;
 
   MOZ_ASSERT(obj->is<ProxyObject>());
-  obj->as<ProxyObject>().handler()->finalize(fop, obj);
+  obj->as<ProxyObject>().handler()->finalize(gcx, obj);
 
   if (!obj->as<ProxyObject>().usingInlineValueArray()) {
     // Bug 1560019: This allocation is not tracked, but is only present when
     // objects are swapped which is assumed to be relatively rare.
-    fop->freeUntracked(js::detail::GetProxyDataLayout(obj)->values());
+    gcx->freeUntracked(js::detail::GetProxyDataLayout(obj)->values());
   }
 }
 

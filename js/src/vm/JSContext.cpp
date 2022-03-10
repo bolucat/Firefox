@@ -33,7 +33,7 @@
 #include "jspubtd.h"
 #include "jstypes.h"
 
-#include "gc/FreeOp.h"
+#include "gc/GCContext.h"
 #include "gc/Marking.h"
 #include "gc/PublicIterators.h"
 #include "irregexp/RegExpAPI.h"
@@ -953,7 +953,6 @@ JSContext::JSContext(JSRuntime* runtime, const JS::ContextOptions& options)
       nurserySuppressions_(this),
       options_(this, options),
       freeLists_(this, nullptr),
-      defaultFreeOp_(this, runtime, true),
       freeUnusedMemory(false),
       measuringExecutionTime_(this, false),
       jitActivation(this, nullptr),
@@ -975,17 +974,11 @@ JSContext::JSContext(JSRuntime* runtime, const JS::ContextOptions& options)
       dtoaState(this, nullptr),
       suppressGC(this, 0),
 #ifdef DEBUG
-      gcUse(this, GCUse::None),
-      gcSweepZone(this, nullptr),
-      isTouchingGrayThings(this, false),
       noNurseryAllocationCheck(this, 0),
       disableStrictProxyCheckingCount(this, 0),
 #endif
 #if defined(DEBUG) || defined(JS_OOM_BREAKPOINT)
       runningOOMTest(this, false),
-#endif
-#ifdef DEBUG
-      disableCompartmentCheckTracer(this, false),
 #endif
       inUnsafeRegion(this, 0),
       generationalDisabled(this, 0),
