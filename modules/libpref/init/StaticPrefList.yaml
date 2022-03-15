@@ -2861,13 +2861,13 @@
 # Whether origin trials are enabled.
 - name: dom.origin-trials.enabled
   type: bool
-  value: true
+  value: false
   mirror: always
 
 # Whether we use the test key to verify tokens.
 - name: dom.origin-trials.test-key.enabled
   type: bool
-  value: true
+  value: false
   mirror: always
 
 # Is support for Window.paintWorklet enabled?
@@ -7460,6 +7460,13 @@
   mirror: always
   rust: true
 
+# Whether the `content-visibility` CSS property is enabled
+- name: layout.css.content-visibility.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+  rust: true
+
 # Is support for GeometryUtils.convert*FromNode enabled?
 - name: layout.css.convertFromNode.enabled
   type: bool
@@ -10641,6 +10648,92 @@
   type: String
   value: ""
   mirror: never
+
+# Try and use HTTP2 when using SSL
+- name: network.http.http2.enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+- name: network.http.http2.enabled.deps
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+- name: network.http.http2.enforce-tls-profile
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+- name: network.http.http2.chunk-size
+  type: RelaxedAtomicInt32
+  value: 16000
+  mirror: always
+
+- name: network.http.http2.timeout
+  type: RelaxedAtomicInt32
+  value: 170
+  mirror: always
+
+- name: network.http.http2.coalesce-hostnames
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+- name: network.http.http2.persistent-settings
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+- name: network.http.http2.ping-threshold
+  type: RelaxedAtomicInt32
+  value: 58
+  mirror: always
+
+- name: network.http.http2.ping-timeout
+  type: RelaxedAtomicInt32
+  value: 8
+  mirror: always
+
+- name: network.http.http2.send-buffer-size
+  type: RelaxedAtomicInt32
+  value: 131072
+  mirror: always
+
+- name: network.http.http2.allow-push
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+- name: network.http.http2.push-allowance
+  type: RelaxedAtomicInt32
+  value: 131072  # 128KB
+  mirror: always
+
+- name: network.http.http2.pull-allowance
+  type: RelaxedAtomicInt32
+  value: 12582912  # 12MB
+  mirror: always
+
+- name: network.http.http2.default-concurrent
+  type: RelaxedAtomicInt32
+  value: 100
+  mirror: always
+
+- name: network.http.http2.default-hpack-buffer
+  type: RelaxedAtomicInt32
+  value: 65536 # 64K
+  mirror: always
+
+- name: network.http.http2.websockets
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+- name: network.http.http2.enable-hpack-dump
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
 
 # Enable HTTP/3
 - name: network.http.http3.enable
