@@ -2051,8 +2051,7 @@ WasmInstanceObject* WasmInstanceObject::create(
 
     // Create this just before constructing Instance to avoid rooting hazards.
     instance = Instance::create(cx, obj, code, globalDataLength, memory,
-                                std::move(tables),
-                                std::move(maybeDebug));
+                                std::move(tables), std::move(maybeDebug));
     if (!instance) {
       return nullptr;
     }

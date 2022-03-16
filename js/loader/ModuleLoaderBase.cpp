@@ -113,6 +113,12 @@ bool ModuleLoaderBase::ModuleMapContainsURL(nsIURI* aURL,
   return mFetchingModules.Contains(key) || mFetchedModules.Contains(key);
 }
 
+bool ModuleLoaderBase::IsModuleFetching(nsIURI* aURL,
+                                        nsIGlobalObject* aGlobal) const {
+  ModuleMapKey key(aURL, aGlobal);
+  return mFetchingModules.Contains(key);
+}
+
 void ModuleLoaderBase::SetModuleFetchStarted(ModuleLoadRequest* aRequest) {
   // Update the module map to indicate that a module is currently being fetched.
 
@@ -742,10 +748,6 @@ nsresult ModuleLoaderBase::EvaluateModule(nsIGlobalObject* aGlobalObject,
                             MarkerInnerWindowIdFromJSContext(cx),
                             profilerLabelString);
 
-  // When a module is already loaded, it is not feched a second time and the
-  // mDataType of the request might remain set to DataType::Unknown.
-  MOZ_ASSERT(aRequest->IsTextSource() || aRequest->IsUnknownDataType());
-
   ModuleLoadRequest* request = aRequest->AsModuleRequest();
   MOZ_ASSERT(request->mModuleScript);
   MOZ_ASSERT_IF(request->HasLoadContext(),
@@ -776,6 +778,8 @@ nsresult ModuleLoaderBase::EvaluateModule(nsIGlobalObject* aGlobalObject,
   }
 
   JS::Rooted<JS::Value> rval(cx);
+
+  mLoader->MaybePrepareModuleForBytecodeEncodingBeforeExecute(cx, request);
 
   rv = nsJSUtils::ModuleEvaluate(cx, module, &rval);
 
@@ -814,11 +818,10 @@ nsresult ModuleLoaderBase::EvaluateModule(nsIGlobalObject* aGlobalObject,
     }
   }
 
-  if (aRequest->HasLoadContext()) {
-    TRACE_FOR_TEST_NONE(aRequest->GetLoadContext()->GetScriptElement(),
-                        "scriptloader_no_encode");
-  }
-  aRequest->mCacheInfo = nullptr;
+  rv = mLoader->MaybePrepareModuleForBytecodeEncodingAfterExecute(request, rv);
+
+  mLoader->MaybeTriggerBytecodeEncoding();
+
   return rv;
 }
 

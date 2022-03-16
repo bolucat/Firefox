@@ -6814,55 +6814,55 @@ static void DotI16x8(MacroAssembler& masm, RegV128 rs, RegV128 rsd) {
 }
 
 static void ExtMulLowI8x16(MacroAssembler& masm, RegV128 rs, RegV128 rsd) {
-  masm.extMulLowInt8x16(rs, rsd);
+  masm.extMulLowInt8x16(rsd, rs, rsd);
 }
 
 static void ExtMulHighI8x16(MacroAssembler& masm, RegV128 rs, RegV128 rsd) {
-  masm.extMulHighInt8x16(rs, rsd);
+  masm.extMulHighInt8x16(rsd, rs, rsd);
 }
 
 static void ExtMulLowUI8x16(MacroAssembler& masm, RegV128 rs, RegV128 rsd) {
-  masm.unsignedExtMulLowInt8x16(rs, rsd);
+  masm.unsignedExtMulLowInt8x16(rsd, rs, rsd);
 }
 
 static void ExtMulHighUI8x16(MacroAssembler& masm, RegV128 rs, RegV128 rsd) {
-  masm.unsignedExtMulHighInt8x16(rs, rsd);
+  masm.unsignedExtMulHighInt8x16(rsd, rs, rsd);
 }
 
 static void ExtMulLowI16x8(MacroAssembler& masm, RegV128 rs, RegV128 rsd) {
-  masm.extMulLowInt16x8(rs, rsd);
+  masm.extMulLowInt16x8(rsd, rs, rsd);
 }
 
 static void ExtMulHighI16x8(MacroAssembler& masm, RegV128 rs, RegV128 rsd) {
-  masm.extMulHighInt16x8(rs, rsd);
+  masm.extMulHighInt16x8(rsd, rs, rsd);
 }
 
 static void ExtMulLowUI16x8(MacroAssembler& masm, RegV128 rs, RegV128 rsd) {
-  masm.unsignedExtMulLowInt16x8(rs, rsd);
+  masm.unsignedExtMulLowInt16x8(rsd, rs, rsd);
 }
 
 static void ExtMulHighUI16x8(MacroAssembler& masm, RegV128 rs, RegV128 rsd) {
-  masm.unsignedExtMulHighInt16x8(rs, rsd);
+  masm.unsignedExtMulHighInt16x8(rsd, rs, rsd);
 }
 
 static void ExtMulLowI32x4(MacroAssembler& masm, RegV128 rs, RegV128 rsd) {
-  masm.extMulLowInt32x4(rs, rsd);
+  masm.extMulLowInt32x4(rsd, rs, rsd);
 }
 
 static void ExtMulHighI32x4(MacroAssembler& masm, RegV128 rs, RegV128 rsd) {
-  masm.extMulHighInt32x4(rs, rsd);
+  masm.extMulHighInt32x4(rsd, rs, rsd);
 }
 
 static void ExtMulLowUI32x4(MacroAssembler& masm, RegV128 rs, RegV128 rsd) {
-  masm.unsignedExtMulLowInt32x4(rs, rsd);
+  masm.unsignedExtMulLowInt32x4(rsd, rs, rsd);
 }
 
 static void ExtMulHighUI32x4(MacroAssembler& masm, RegV128 rs, RegV128 rsd) {
-  masm.unsignedExtMulHighInt32x4(rs, rsd);
+  masm.unsignedExtMulHighInt32x4(rsd, rs, rsd);
 }
 
 static void Q15MulrSatS(MacroAssembler& masm, RegV128 rs, RegV128 rsd) {
-  masm.q15MulrSatInt16x8(rs, rsd);
+  masm.q15MulrSatInt16x8(rsd, rs, rsd);
 }
 
 static void CmpI8x16(MacroAssembler& masm, Assembler::Condition cond,
@@ -6883,13 +6883,13 @@ static void CmpI32x4(MacroAssembler& masm, Assembler::Condition cond,
 #  if defined(JS_CODEGEN_X86) || defined(JS_CODEGEN_X64)
 static void CmpI64x2ForEquality(MacroAssembler& masm, Assembler::Condition cond,
                                 RegV128 rs, RegV128 rsd) {
-  masm.compareForEqualityInt64x2(cond, rs, rsd);
+  masm.compareForEqualityInt64x2(cond, rsd, rs, rsd);
 }
 
 static void CmpI64x2ForOrdering(MacroAssembler& masm, Assembler::Condition cond,
                                 RegV128 rs, RegV128 rsd, RegV128 temp1,
                                 RegV128 temp2) {
-  masm.compareForOrderingInt64x2(cond, rs, rsd, temp1, temp2);
+  masm.compareForOrderingInt64x2(cond, rsd, rs, rsd, temp1, temp2);
 }
 #  else
 static void CmpI64x2ForEquality(MacroAssembler& masm, Assembler::Condition cond,
@@ -7473,7 +7473,7 @@ static void BitmaskI64x2(MacroAssembler& masm, RegV128 rs, RegI32 rd,
 #  endif
 
 static void Swizzle(MacroAssembler& masm, RegV128 rs, RegV128 rsd) {
-  masm.swizzleInt8x16(rs, rsd);
+  masm.swizzleInt8x16(rsd, rs, rsd);
 }
 
 static void ConvertI32x4ToF32x4(MacroAssembler& masm, RegV128 rs, RegV128 rd) {
@@ -7565,7 +7565,7 @@ static void RelaxedFmsF64x2(MacroAssembler& masm, RegV128 rs1, RegV128 rs2,
 }
 
 static void RelaxedSwizzle(MacroAssembler& masm, RegV128 rs, RegV128 rsd) {
-  masm.swizzleInt8x16Relaxed(rs, rsd);
+  masm.swizzleInt8x16Relaxed(rsd, rs, rsd);
 }
 
 static void RelaxedMinF32x4(MacroAssembler& masm, RegV128 rs, RegV128 rsd) {
