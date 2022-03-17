@@ -3655,12 +3655,12 @@
 # interfaces from the global until later.
 - name: dom.streams.readable_stream_default_controller.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 - name: dom.streams.readable_stream_default_reader.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 - name: dom.streams.byte_streams.enabled
@@ -5056,21 +5056,6 @@
 - name: general.utility-process.startup_timeout_ms
   type: RelaxedAtomicInt32
   value: 5000
-  mirror: always
-
-# Temporary pref to test website compatibility with Firefox 100 UA string. This
-# pref will be removed in Firefox 100 because it will no longer needed.
-- name: general.useragent.forceVersion100
-  type: bool
-  value: false
-  mirror: always
-
-# Temporary pref to remember whether we have handled the Nimbus enrollment
-# event for the Firefox 100 UA experiment. This pref will be removed in Firefox
-# 100 because the experiment will have ended.
-- name: general.useragent.handledVersionExperimentEnrollment
-  type: bool
-  value: false
   mirror: always
 
 #---------------------------------------------------------------------------
@@ -8885,7 +8870,7 @@
 # Allow ffmpeg decoder to decode directly onto shmem buffer
 - name: media.ffmpeg.customized-buffer-allocation
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 #ifdef MOZ_FFMPEG

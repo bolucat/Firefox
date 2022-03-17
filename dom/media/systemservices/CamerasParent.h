@@ -95,7 +95,6 @@ class CamerasParent final : public PCamerasParent,
   mozilla::ipc::IPCResult RecvStopCapture(const CaptureEngine&,
                                           const int&) override;
   mozilla::ipc::IPCResult RecvReleaseFrame(mozilla::ipc::Shmem&&) override;
-  mozilla::ipc::IPCResult RecvAllDone() override;
   void ActorDestroy(ActorDestroyReason aWhy) override;
   mozilla::ipc::IPCResult RecvEnsureInitialized(const CaptureEngine&) override;
 
@@ -146,6 +145,7 @@ class CamerasParent final : public PCamerasParent,
   // sNumOfOpenCamerasParentEngines and sVideoCaptureThread are protected by
   // sThreadMonitor
   static StaticRefPtr<VideoEngine> sEngines[CaptureEngine::MaxEngine];
+  // Number of CamerasParents for which mWebRTCAlive is true.
   static int32_t sNumOfOpenCamerasParentEngines;
   static int32_t sNumOfCamerasParents;
   static StaticMutex sMutex;

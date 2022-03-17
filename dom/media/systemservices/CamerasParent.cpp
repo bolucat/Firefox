@@ -9,6 +9,7 @@
 #include "MediaUtils.h"
 #include "VideoFrameUtils.h"
 
+#include "mozilla/AppShutdown.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/BasePrincipal.h"
 #include "mozilla/Unused.h"
@@ -207,8 +208,8 @@ nsresult CamerasParent::DispatchToVideoCaptureThread(RefPtr<Runnable> event) {
 
 void CamerasParent::StopVideoCapture() {
   LOG("%s", __PRETTY_FUNCTION__);
-  // We are called from the main thread (xpcom-shutdown) or
-  // from PBackground (when the Actor shuts down).
+  // Called when the actor is destroyed.
+  ipc::AssertIsOnBackgroundThread();
   // Shut down the WebRTC stack (on the capture thread)
   RefPtr<CamerasParent> self(this);
   DebugOnly<nsresult> rv =
@@ -227,14 +228,12 @@ void CamerasParent::StopVideoCapture() {
             thread->Stop();
             delete thread;
           }
-          nsresult rv = MustGetShutdownBarrier()->RemoveBlocker(self);
-          MOZ_DIAGNOSTIC_ASSERT(NS_SUCCEEDED(rv));
-          Unused << rv;
+          // May fail if already removed after RecvPCamerasConstructor().
+          (void)MustGetShutdownBarrier()->RemoveBlocker(self);
           return NS_OK;
         }));
-        if (NS_FAILED(rv)) {
-          LOG("Could not dispatch VideoCaptureThread destruction");
-        }
+        MOZ_DIAGNOSTIC_ASSERT(NS_SUCCEEDED(rv),
+                              "dispatch for video thread shutdown");
         return rv;
       }));
 #ifdef DEBUG
@@ -1045,17 +1044,6 @@ void CamerasParent::StopIPC() {
   mDestroyed = true;
 }
 
-mozilla::ipc::IPCResult CamerasParent::RecvAllDone() {
-  LOG("%s", __PRETTY_FUNCTION__);
-  // Don't try to send anything to the child now
-  mChildIsAlive = false;
-  IProtocol* mgr = Manager();
-  if (!Send__delete__(this)) {
-    return IPC_FAIL_NO_REASON(mgr);
-  }
-  return IPC_OK();
-}
-
 void CamerasParent::ActorDestroy(ActorDestroyReason aWhy) {
   // No more IPC from here
   LOG("%s", __PRETTY_FUNCTION__);
@@ -1073,7 +1061,13 @@ nsString CamerasParent::GetNewName() {
 }
 
 NS_IMETHODIMP CamerasParent::BlockShutdown(nsIAsyncShutdownClient*) {
-  StopVideoCapture();
+  mPBackgroundEventTarget->Dispatch(
+      NS_NewRunnableFunction(__func__, [self = RefPtr(this)]() {
+        // Send__delete() can return failure if AddBlocker() registered this
+        // CamerasParent while RecvPCamerasConstructor() called Send__delete()
+        // because it noticed that AppShutdown had started.
+        (void)Send__delete__(self);
+      }));
   return NS_OK;
 }
 
@@ -1083,7 +1077,7 @@ CamerasParent::CamerasParent()
       mPBackgroundEventTarget(GetCurrentSerialEventTarget()),
       mChildIsAlive(true),
       mDestroyed(false),
-      mWebRTCAlive(true) {
+      mWebRTCAlive(false) {
   MOZ_ASSERT(mPBackgroundEventTarget != nullptr,
              "GetCurrentThreadEventTarget failed");
   LOG("CamerasParent: %p", this);
@@ -1094,9 +1088,16 @@ CamerasParent::CamerasParent()
   }
 }
 
+// RecvPCamerasConstructor() is used because IPC messages, for
+// Send__delete__(), cannot be sent from AllocPCamerasParent().
 ipc::IPCResult CamerasParent::RecvPCamerasConstructor() {
   ipc::AssertIsOnBackgroundThread();
 
+  // A shutdown blocker must be added if sNumOfOpenCamerasParentEngines might
+  // be incremented to indicate ownership of an sVideoCaptureThread.
+  // If this task were queued after checking !IsInOrBeyond(AppShutdown), then
+  // shutdown may have proceeded on the main thread and so the task may run
+  // too late to add the blocker.
   // Don't dispatch from the constructor a runnable that may toggle the
   // reference count, because the IPC thread does not get a reference until
   // after the constructor returns.
@@ -1104,8 +1105,50 @@ ipc::IPCResult CamerasParent::RecvPCamerasConstructor() {
       NS_NewRunnableFunction(__func__, [self = RefPtr(this)]() {
         nsresult rv = MustGetShutdownBarrier()->AddBlocker(
             self, NS_LITERAL_STRING_FROM_CSTRING(__FILE__), __LINE__, u""_ns);
-        MOZ_RELEASE_ASSERT(NS_SUCCEEDED(rv));
+        LOG("AddBlocker returned 0x%x", static_cast<unsigned>(rv));
+        // AddBlocker() will fail if called after all
+        // AsyncShutdown.profileBeforeChange conditions have resolved or been
+        // removed.
+        //
+        // The success of this AddBlocker() call is expected when an
+        // sVideoCaptureThread is created based on the assumption that at
+        // least one condition (e.g. nsIAsyncShutdownBlocker) added with
+        // AsyncShutdown.profileBeforeChange.addBlocker() will not resolve or
+        // be removed until it has queued a task and that task has run.
+        // (AyncShutdown.jsm's Spinner#observe() makes a similar assumption
+        // when it calls processNextEvent(), assuming that there will be some
+        // other event generated, before checking whether its Barrier.wait()
+        // promise has resolved.)
+        //
+        // If AppShutdown::IsInOrBeyond(AppShutdown) returned false,
+        // then this main thread task was queued before AppShutdown's
+        //   sCurrentShutdownPhase is set to AppShutdown,
+        // which is before profile-before-change is notified,
+        // which is when AsyncShutdown conditions are run,
+        // which is when one condition would queue a task to resolve the
+        //   condition or remove the blocker.
+        // That task runs after this task and before AsyncShutdown prevents
+        //   further conditions being added through AddBlocker().
+        MOZ_ASSERT(NS_SUCCEEDED(rv) || !self->mWebRTCAlive);
       }));
+
+  // AsyncShutdown barriers are available only for ShutdownPhases as late as
+  // XPCOMWillShutdown.  The IPC background thread shuts down during
+  // XPCOMShutdownThreads, so actors may be created when AsyncShutdown
+  // barriers are no longer available.
+  // IsInOrBeyond() checks sCurrentShutdownPhase, which is atomic.
+  // ShutdownPhase::AppShutdown corresponds to profileBeforeChange used by
+  // MustGetShutdownBarrier() in the parent process.
+  if (AppShutdown::IsInOrBeyond(ShutdownPhase::AppShutdown)) {
+    // The usual blocker removal path depends on the existence of the
+    // `sVideoCaptureThread`, which is not ensured.  Queue removal now.
+    NS_DispatchToMainThread(
+        NS_NewRunnableFunction(__func__, [self = RefPtr(this)]() {
+          // May fail if AddBlocker() failed.
+          (void)MustGetShutdownBarrier()->RemoveBlocker(self);
+        }));
+    return Send__delete__(this) ? IPC_OK() : IPC_FAIL(this, "Failed to send");
+  }
 
   LOG("Spinning up WebRTC Cameras Thread");
   MonitorAutoLock lock(*sThreadMonitor);
@@ -1122,6 +1165,7 @@ ipc::IPCResult CamerasParent::RecvPCamerasConstructor() {
       MOZ_CRASH();
     }
   }
+  mWebRTCAlive = true;
   sNumOfOpenCamerasParentEngines++;
   return IPC_OK();
 }
