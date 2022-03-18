@@ -1305,7 +1305,7 @@
 # Communicates the preferred content theme color to platform (for e.g.,
 # prefers-color-scheme).
 #
-# dark (0), light (1), or toolbar (2).
+# dark (0), light (1), system (2), or toolbar (3).
 #
 # Default to "toolbar", the theming code sets it appropriately.
 - name: browser.theme.content-theme
@@ -8995,6 +8995,11 @@
     value: true
     mirror: once
 
+-   name: media.wmf.av1.enabled
+    type: RelaxedAtomicBool
+    value: true
+    mirror: always
+
 #endif  # MOZ_WMF
 
 - name: media.decoder-doctor.testing
@@ -9836,6 +9841,15 @@
   mirror: always
 
 - name: network.cookie.thirdparty.nonsecureSessionOnly
+  type: bool
+  value: false
+  mirror: always
+
+# If we should not store "persistent" cookies at all, i.e., make the
+# "persistent" storage be like "private" storage.  This value is only read when
+# instantiating persistent storage for the cookie service, which usually only
+# happens when the cookie service singleton is created.
+- name: network.cookie.noPersistentStorage
   type: bool
   value: false
   mirror: always

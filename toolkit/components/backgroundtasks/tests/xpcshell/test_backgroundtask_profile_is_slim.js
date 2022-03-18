@@ -86,16 +86,11 @@ const expected = [
     condition:
       AppConstants.platform == "win" || AppConstants.platform == "macosx",
   },
-  // Bug 1757229.
-  { relPath: "ShutdownDuration.json" },
-  { relPath: "Telemetry.ShutdownTime.txt" },
   // TODO: verify that directory is empty.
   { relPath: "cache2", isDirectory: true },
   // Bug 1757252.
   { relPath: "cert9.db" },
   { relPath: "compatibility.ini" },
-  // Bug 1675829.
-  { relPath: "cookies.sqlite" },
   { relPath: "crashes", isDirectory: true },
   { relPath: "data", isDirectory: true },
   // Bug 1757252.
