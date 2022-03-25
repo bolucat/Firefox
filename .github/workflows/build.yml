@@ -69,12 +69,41 @@ jobs:
         run: |
           mkdir -p release
           pushd release || exit 1
+          # Nightly Version
           wget 'https://download.mozilla.org/?product=firefox-nightly-latest-ssl&os=win64&lang=en-US' -O Firefox-Nightly-amd64.exe
           wget 'https://download.mozilla.org/?product=firefox-nightly-latest-ssl&os=win64-aarch64&lang=en-US' -O Firefox-Nightly-arm64.exe
           wget 'https://download.mozilla.org/?product=firefox-nightly-latest-ssl&os=win&lang=en-US' -O Firefox-Nightly-i386.exe
           wget 'https://download.mozilla.org/?product=firefox-nightly-latest-ssl&os=osx&lang=en-US' -O Firefox-Nightly-amd64.dmg
           wget 'https://download.mozilla.org/?product=firefox-nightly-latest-ssl&os=linux64&lang=en-US' -O Firefox-Nightly-amd64.tar.bz2 
           wget 'https://download.mozilla.org/?product=firefox-nightly-latest-ssl&os=linux&lang=en-US' -O Firefox-Nightly-i386.tar.bz2
+          # Latest Stable Version
+          wget 'https://download.mozilla.org/?product=firefox-latest-ssl&os=win64&lang=en-US' -O Firefox-amd64.exe
+          wget 'https://download.mozilla.org/?product=firefox-latest-ssl&os=win64-aarch64&lang=en-US' -O Firefox-arm64.exe
+          wget 'https://download.mozilla.org/?product=firefox-latest-ssl&os=win&lang=en-US' -O Firefox-i386.exe
+          wget 'https://download.mozilla.org/?product=firefox-latest-ssl&os=osx&lang=en-US' -O Firefox-amd64.dmg
+          wget 'https://download.mozilla.org/?product=firefox-latest-ssl&os=linux64&lang=en-US' -O Firefox-amd64.tar.bz2 
+          wget 'https://download.mozilla.org/?product=firefox-latest-ssl&os=linux&lang=en-US' -O Firefox-i386.tar.bz2
+          # Beta Version
+          wget 'https://download.mozilla.org/?product=firefox-beta-latest-ssl&os=win64&lang=en-US' -O Firefox-Beta-amd64.exe
+          wget 'https://download.mozilla.org/?product=firefox-beta-latest-ssl&os=win64-aarch64&lang=en-US' -O Firefox-Beta-arm64.exe
+          wget 'https://download.mozilla.org/?product=firefox-beta-latest-ssl&os=win&lang=en-US' -O Firefox-Beta-i386.exe
+          wget 'https://download.mozilla.org/?product=firefox-beta-latest-ssl&os=osx&lang=en-US' -O Firefox-Beta-amd64.dmg
+          wget 'https://download.mozilla.org/?product=firefox-beta-latest-ssl&os=linux64&lang=en-US' -O Firefox-Beta-amd64.tar.bz2 
+          wget 'https://download.mozilla.org/?product=firefox-beta-latest-ssl&os=linux&lang=en-US' -O Firefox-Beta-i386.tar.bz2
+          # Developer Edition Version
+          wget 'https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=win64&lang=en-US' -O Firefox-Dev-Edition-amd64.exe
+          wget 'https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=win64-aarch64&lang=en-US' -O Firefox-Dev-Edition-arm64.exe
+          wget 'https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=win&lang=en-US' -O Firefox-Dev-Edition-i386.exe
+          wget 'https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=osx&lang=en-US' -O Firefox-Dev-Edition-amd64.dmg
+          wget 'https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64&lang=en-US' -O Firefox-Dev-Edition-amd64.tar.bz2 
+          wget 'https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux&lang=en-US' -O Firefox-Dev-Edition-i386.tar.bz2
+          # ESR Version
+          wget 'https://download.mozilla.org/?product=firefox-esr-latest-ssl&os=win64&lang=en-US' -O Firefox-ESR-amd64.exe
+          wget 'https://download.mozilla.org/?product=firefox-esr-latest-ssl&os=win64-aarch64&lang=en-US' -O Firefox-ESR-arm64.exe
+          wget 'https://download.mozilla.org/?product=firefox-esr-latest-ssl&os=win&lang=en-US' -O Firefox-ESR-i386.exe
+          wget 'https://download.mozilla.org/?product=firefox-esr-latest-ssl&os=osx&lang=en-US' -O Firefox-ESR-amd64.dmg
+          wget 'https://download.mozilla.org/?product=firefox-esr-latest-ssl&os=linux64&lang=en-US' -O Firefox-ESR-amd64.tar.bz2 
+          wget 'https://download.mozilla.org/?product=firefox-esr-latest-ssl&os=linux&lang=en-US' -O Firefox-ESR-i386.tar.bz2
           popd || exit 1
 
       - name: Release
