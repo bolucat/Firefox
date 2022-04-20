@@ -359,7 +359,16 @@ this.backgroundPage = class extends ExtensionAPI {
     };
 
     extension.wakeupBackground = () => {
+      if (extension.hasShutdown) {
+        return Promise.reject(
+          new Error(
+            "wakeupBackground called while the extension was already shutting down"
+          )
+        );
+      }
       extension.emit("background-script-event");
+      // `extension.wakeupBackground` is set back to the original arrow function
+      // when the background page is terminated and `primeBackground` is called again.
       extension.wakeupBackground = () => bgStartupPromise;
       return bgStartupPromise;
     };
@@ -398,7 +407,7 @@ this.backgroundPage = class extends ExtensionAPI {
       ignoreDevToolsAttached = false,
     } = {}) => {
       await bgStartupPromise;
-      if (!this.extension) {
+      if (!this.extension || this.extension.hasShutdown) {
         // Extension was already shut down.
         return;
       }
