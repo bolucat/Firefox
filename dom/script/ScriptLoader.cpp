@@ -817,13 +817,14 @@ already_AddRefed<ScriptLoadRequest> ScriptLoader::CreateLoadRequest(
     const SRIMetadata& aIntegrity, ReferrerPolicy aReferrerPolicy) {
   nsIURI* referrer = mDocument->GetDocumentURIAsReferrer();
   nsCOMPtr<Element> domElement = do_QueryInterface(aElement);
-  RefPtr<ScriptFetchOptions> fetchOptions =
-      new ScriptFetchOptions(aCORSMode, aReferrerPolicy, aTriggeringPrincipal);
-  RefPtr<ScriptLoadContext> context = new ScriptLoadContext(domElement);
+  RefPtr<ScriptFetchOptions> fetchOptions = new ScriptFetchOptions(
+      aCORSMode, aReferrerPolicy, aTriggeringPrincipal, domElement);
+  RefPtr<ScriptLoadContext> context = new ScriptLoadContext();
 
   if (aKind == ScriptKind::eClassic) {
-    RefPtr<ScriptLoadRequest> aRequest = new ScriptLoadRequest(
-        aKind, aURI, fetchOptions, aIntegrity, referrer, context);
+    RefPtr<ScriptLoadRequest> aRequest =
+        new ScriptLoadRequest(aKind, aURI, fetchOptions, aIntegrity, referrer,
+                              new ScriptLoadContext());
 
     return aRequest.forget();
   }
@@ -2267,8 +2268,7 @@ nsresult ScriptLoader::EvaluateScript(nsIGlobalObject* aGlobalObject,
 
   // Create a ClassicScript object and associate it with the JSScript.
   RefPtr<ClassicScript> classicScript =
-      new ClassicScript(aRequest->mFetchOptions, aRequest->mBaseURL,
-                        aRequest->GetLoadContext()->mElement);
+      new ClassicScript(aRequest->mFetchOptions, aRequest->mBaseURL);
   JS::RootedValue classicScriptValue(cx, JS::PrivateValue(classicScript));
 
   JS::CompileOptions options(cx);
