@@ -237,12 +237,12 @@ wine:
         strip-components: 1
         add-prefix: wine-source/
 
-cbindgen-0.22.0:
+cbindgen-0.23.0:
     description: cbindgen source code
     fetch:
         type: git
         repo: https://github.com/eqrion/cbindgen
-        revision: 8604b2c0b720aab2582e169af4b0005d5d927770
+        revision: 798cfab52bced65a749443faa16990ec3a8e0cfe
 
 cctools-port:
     description: cctools-port source code
@@ -353,11 +353,11 @@ clang-5.0:
         revision: 6a075b6de4cafebec9ca1ff9eec7229a617c93f6
 
 clang-14:
-    description: clang 14.0.0 source code + libc++ fixes
+    description: clang 14.0.1 source code
     fetch:
         type: git
         repo: https://github.com/llvm/llvm-project
-        revision: 3f43d803382d57e3fc010ca19833077d1023e9c9
+        revision: c62053979489ccb002efe411c3af059addcb5d7d
 
 clang-trunk:
     description: clang main branch source code
