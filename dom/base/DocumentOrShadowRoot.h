@@ -76,7 +76,9 @@ class DocumentOrShadowRoot : public RadioGroupManager {
 
   size_t SheetCount() const { return mStyleSheets.Length(); }
 
-  size_t AdoptedSheetCount() const { return mAdoptedStyleSheets.Length(); }
+  const nsTArray<RefPtr<StyleSheet>>& AdoptedStyleSheets() const {
+    return mAdoptedStyleSheets;
+  }
 
   /**
    * Returns an index for the sheet in relative style order.
@@ -88,8 +90,6 @@ class DocumentOrShadowRoot : public RadioGroupManager {
   int32_t StyleOrderIndexOfSheet(const StyleSheet& aSheet) const;
 
   StyleSheetList* StyleSheets();
-
-  void GetAdoptedStyleSheets(nsTArray<RefPtr<StyleSheet>>&) const;
 
   void RemoveStyleSheet(StyleSheet&);
 

@@ -203,7 +203,7 @@ void DocumentOrShadowRoot::ClearAdoptedStyleSheets() {
 
 void DocumentOrShadowRoot::CloneAdoptedSheetsFrom(
     const DocumentOrShadowRoot& aSource) {
-  if (!aSource.AdoptedSheetCount()) {
+  if (aSource.mAdoptedStyleSheets.IsEmpty()) {
     return;
   }
 
@@ -606,11 +606,6 @@ int32_t DocumentOrShadowRoot::StyleOrderIndexOfSheet(
     return (index < 0) ? index : index + SheetCount();
   }
   return mStyleSheets.IndexOf(&aSheet);
-}
-
-void DocumentOrShadowRoot::GetAdoptedStyleSheets(
-    nsTArray<RefPtr<StyleSheet>>& aAdoptedStyleSheets) const {
-  aAdoptedStyleSheets = mAdoptedStyleSheets.Clone();
 }
 
 void DocumentOrShadowRoot::TraverseSheetRefInStylesIfApplicable(
