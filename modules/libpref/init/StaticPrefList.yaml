@@ -1913,7 +1913,7 @@
 # Block sandboxed BrowsingContexts from navigating to external protocols.
 - name: dom.block_external_protocol_navigation_from_sandbox
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Block Insecure downloads from Secure Origins
@@ -3696,22 +3696,22 @@
   mirror: always
 
 - name: dom.textMetrics.actualBoundingBox.enabled
-  type: bool
+  type: RelaxedAtomicBool
   value: true
   mirror: always
 
 - name: dom.textMetrics.baselines.enabled
-  type: bool
+  type: RelaxedAtomicBool
   value: false
   mirror: always
 
 - name: dom.textMetrics.emHeight.enabled
-  type: bool
+  type: RelaxedAtomicBool
   value: false
   mirror: always
 
 - name: dom.textMetrics.fontBoundingBox.enabled
-  type: bool
+  type: RelaxedAtomicBool
   value: false
   mirror: always
 
@@ -5411,6 +5411,13 @@
   type: bool
   value: true
   mirror: once
+
+# Do we fire a notification about missing fonts, so the front-end can decide
+# whether to try and do something about it (e.g. download additional fonts)?
+- name: gfx.missing_fonts.notify
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
 
 #if !defined(MOZ_WIDGET_ANDROID)
 - name: gfx.egl.prefer-gles.enabled
@@ -12668,6 +12675,11 @@
 - name: webgl.cgl.multithreaded
   type: RelaxedAtomicBool
   value: true
+  mirror: always
+
+- name: webgl.colorspaces.prototype
+  type: RelaxedAtomicBool
+  value: false
   mirror: always
 
 - name: webgl.debug.incomplete-tex-color
