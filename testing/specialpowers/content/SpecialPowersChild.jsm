@@ -137,17 +137,6 @@ SPConsoleListener.prototype = {
       m.innerWindowID = msg.innerWindowID;
       m.isScriptError = true;
       m.isWarning = (msg.flags & Ci.nsIScriptError.warningFlag) === 1;
-    } else if (topic === "console-api-log-event") {
-      // This is a dom/console event.
-      let unwrapped = msg.wrappedJSObject;
-      m.errorMessage = unwrapped.arguments[0];
-      m.sourceName = unwrapped.filename;
-      m.lineNumber = unwrapped.lineNumber;
-      m.columnNumber = unwrapped.columnNumber;
-      m.windowID = unwrapped.ID;
-      m.innerWindowID = unwrapped.innerID;
-      m.isConsoleEvent = true;
-      m.isWarning = unwrapped.level === "warning";
     }
 
     Object.freeze(m);
@@ -159,7 +148,6 @@ SPConsoleListener.prototype = {
     });
 
     if (!m.isScriptError && !m.isConsoleEvent && m.message === "SENTINEL") {
-      Services.obs.removeObserver(this, "console-api-log-event");
       Services.console.unregisterListener(this);
     }
   },
@@ -1197,9 +1185,6 @@ class SpecialPowersChild extends JSWindowActorChild {
   registerConsoleListener(callback) {
     let listener = new SPConsoleListener(callback, this.contentWindow);
     Services.console.registerListener(listener);
-
-    // listen for dom/console events as well
-    Services.obs.addObserver(listener, "console-api-log-event");
   }
   postConsoleSentinel() {
     Services.console.logStringMessage("SENTINEL");
@@ -2260,12 +2245,18 @@ class SpecialPowersChild extends JSWindowActorChild {
    * we need to wait for the updated data.
    */
   contentTransformsReceived(win) {
-    try {
-      // throw if win is not a remote browser.
-      return win.docShell.browserChild.contentTransformsReceived();
-    } catch (e) {
-      return Promise.resolve();
+    while (win) {
+      try {
+        return win.docShell.browserChild.contentTransformsReceived();
+      } catch (ex) {
+        // browserChild getter throws on non-e10s rather than returning null.
+      }
+      if (win == win.parent) {
+        break;
+      }
+      win = win.parent;
     }
+    return Promise.resolve();
   }
 }
 
