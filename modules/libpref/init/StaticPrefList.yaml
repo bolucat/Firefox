@@ -2206,13 +2206,7 @@
   value: true
   mirror: always
 
-# Disable clipboard.read() by default
-- name: dom.events.asyncClipboard.read
-  type: bool
-  value: false
-  mirror: always
-
-# Disable ClipboardItem and clipboard.write by default
+# Disable clipboard.read(), clipboard.write() and ClipboardItem by default
 - name: dom.events.asyncClipboard.clipboardItem
   type: bool
   value: false
@@ -6696,7 +6690,7 @@
 
 - name: javascript.options.wasm_caching
   type: bool
-  value: false
+  value: true
   mirror: always
 
 # The amount of time we wait between a request to GC (due to leaving a page) and doing the actual GC, in ms.
