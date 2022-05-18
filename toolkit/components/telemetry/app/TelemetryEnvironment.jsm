@@ -252,6 +252,11 @@ const DEFAULT_ENVIRONMENT_PREFS = new Map([
   ["browser.search.widget.inNavBar", { what: RECORD_DEFAULTPREF_VALUE }],
   ["browser.startup.homepage", { what: RECORD_PREF_STATE }],
   ["browser.startup.page", { what: RECORD_PREF_VALUE }],
+  ["browser.urlbar.autoFill", { what: RECORD_DEFAULTPREF_VALUE }],
+  [
+    "browser.urlbar.autoFill.adaptiveHistory.enabled",
+    { what: RECORD_DEFAULTPREF_VALUE },
+  ],
   [
     "browser.urlbar.quicksuggest.onboardingDialogChoice",
     { what: RECORD_DEFAULTPREF_VALUE },
@@ -326,6 +331,7 @@ const DEFAULT_ENVIRONMENT_PREFS = new Map([
   ["media.gmp-gmpopenh264.lastInstallStart", { what: RECORD_PREF_VALUE }],
   ["media.gmp-gmpopenh264.lastDownload", { what: RECORD_PREF_VALUE }],
   ["media.gmp-gmpopenh264.lastDownloadFailed", { what: RECORD_PREF_VALUE }],
+  ["media.gmp-gmpopenh264.lastDownloadFailReason", { what: RECORD_PREF_VALUE }],
   ["media.gmp-gmpopenh264.lastUpdate", { what: RECORD_PREF_VALUE }],
   ["media.gmp-gmpopenh264.visible", { what: RECORD_PREF_VALUE }],
   ["media.gmp-manager.lastCheck", { what: RECORD_PREF_VALUE }],

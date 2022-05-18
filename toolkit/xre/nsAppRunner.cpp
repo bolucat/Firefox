@@ -1985,10 +1985,7 @@ nsXULAppInfo::Callback(nsISupports* aData) {
 
 static const nsXULAppInfo kAppInfo;
 namespace mozilla {
-nsresult AppInfoConstructor(nsISupports* aOuter, REFNSIID aIID,
-                            void** aResult) {
-  NS_ENSURE_NO_AGGREGATION(aOuter);
-
+nsresult AppInfoConstructor(REFNSIID aIID, void** aResult) {
   return const_cast<nsXULAppInfo*>(&kAppInfo)->QueryInterface(aIID, aResult);
 }
 }  // namespace mozilla
@@ -2119,10 +2116,7 @@ nsSingletonFactory::nsSingletonFactory(nsISupports* aSingleton)
 NS_IMPL_ISUPPORTS(nsSingletonFactory, nsIFactory)
 
 NS_IMETHODIMP
-nsSingletonFactory::CreateInstance(nsISupports* aOuter, const nsIID& aIID,
-                                   void** aResult) {
-  NS_ENSURE_NO_AGGREGATION(aOuter);
-
+nsSingletonFactory::CreateInstance(const nsIID& aIID, void** aResult) {
   return mSingleton->QueryInterface(aIID, aResult);
 }
 

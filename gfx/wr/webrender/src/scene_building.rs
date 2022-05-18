@@ -50,6 +50,7 @@ use crate::image_tiling::simplify_repeated_primitive;
 use crate::clip::{ClipChainId, ClipItemKey, ClipStore, ClipItemKeyKind};
 use crate::clip::{ClipInternData, ClipNodeKind, ClipInstance, SceneClipInstance};
 use crate::clip::{PolygonDataHandle};
+use crate::segment::EdgeAaSegmentMask;
 use crate::spatial_tree::{SceneSpatialTree, SpatialNodeIndex, get_external_scroll_offset};
 use crate::frame_builder::{ChasePrimitive, FrameBuilderConfig};
 use crate::glyph_rasterizer::{FontInstance, SharedFontResources};
@@ -286,6 +287,7 @@ impl PictureChainBuilder {
         interners: &mut Interners,
         prim_store: &mut PrimitiveStore,
         prim_instances: &mut Vec<PrimitiveInstance>,
+        extra_pic_flags: PictureFlags,
     ) -> PictureChainBuilder {
         let prim_list = match self.current {
             PictureSource::PrimitiveList { prim_list } => {
@@ -306,11 +308,13 @@ impl PictureChainBuilder {
             }
         };
 
-        let flags = if self.set_resolve_target {
+        let mut flags = if self.set_resolve_target {
             PictureFlags::IS_RESOLVE_TARGET
         } else {
             PictureFlags::empty()
         };
+
+        flags |= extra_pic_flags;
 
         let pic_index = PictureIndex(prim_store.pictures
             .alloc()
@@ -635,6 +639,10 @@ impl<'a> SceneBuilder<'a> {
             let pic = &mut pictures[pic_index.0];
             assert_ne!(pic.spatial_node_index, SpatialNodeIndex::UNKNOWN);
 
+            if pic.flags.contains(PictureFlags::IS_RESOLVE_TARGET) {
+                pic.flags |= PictureFlags::DISABLE_SNAPPING;
+            }
+
             // If we're a surface, use that spatial node, otherwise the parent
             let spatial_node_index = match pic.composite_mode {
                 Some(_) if !pic.flags.contains(PictureFlags::WRAPS_SUB_GRAPH) => pic.spatial_node_index,
@@ -668,6 +676,10 @@ impl<'a> SceneBuilder<'a> {
                 pictures,
                 Some(spatial_node_index),
             );
+
+            if pictures[child_pic_index.0].flags.contains(PictureFlags::DISABLE_SNAPPING) {
+                pictures[pic_index.0].flags |= PictureFlags::DISABLE_SNAPPING;
+            }
         }
 
         // Restore the prim_list
@@ -1428,7 +1440,7 @@ impl<'a> SceneBuilder<'a> {
                     &mut end,
                     info.gradient.extend_mode,
                     &mut stops,
-                    &mut |rect, start, end, stops| {
+                    &mut |rect, start, end, stops, edge_aa_mask| {
                         let layout = LayoutPrimitiveInfo { rect: *rect, clip_rect: *rect, flags };
                         if let Some(prim_key_kind) = self.create_linear_gradient_prim(
                             &layout,
@@ -1439,6 +1451,7 @@ impl<'a> SceneBuilder<'a> {
                             rect.size(),
                             LayoutSize::zero(),
                             None,
+                            edge_aa_mask,
                         ) {
                             self.add_nonshadowable_primitive(
                                 spatial_node_index,
@@ -1461,6 +1474,7 @@ impl<'a> SceneBuilder<'a> {
                         tile_size,
                         info.tile_spacing,
                         None,
+                        EdgeAaSegmentMask::all(),
                     ) {
                         self.add_nonshadowable_primitive(
                             spatial_node_index,
@@ -1682,10 +1696,9 @@ impl<'a> SceneBuilder<'a> {
                     &clips,
                 );
             },
-            DisplayItem::BackdropFilter(ref _info) => {
+            DisplayItem::BackdropFilter(ref info) => {
                 profile_scope!("backdrop");
 
-                /*
                 let (layout, _, spatial_node_index, clip_chain_id) = self.process_common_properties(
                     &info.common,
                     None,
@@ -1703,7 +1716,6 @@ impl<'a> SceneBuilder<'a> {
                     filter_datas,
                     filter_primitives,
                 );
-                */
             }
 
             // Do nothing; these are dummy items for the display list parser
@@ -2272,7 +2284,6 @@ impl<'a> SceneBuilder<'a> {
         };
 
         let pic_flags = if stacking_context.flags.contains(StackingContextFlags::WRAPS_BACKDROP_FILTER) {
-            assert!(stacking_context.blit_reason.contains(BlitReason::CLIP));
             PictureFlags::WRAPS_SUB_GRAPH
         } else {
             PictureFlags::empty()
@@ -2476,6 +2487,7 @@ impl<'a> SceneBuilder<'a> {
             stacking_context.composite_ops.filter_primitives,
             stacking_context.composite_ops.filter_datas,
             None,
+            pic_flags,
         );
 
         // Same for mix-blend-mode, except we can skip if this primitive is the first in the parent
@@ -2504,6 +2516,7 @@ impl<'a> SceneBuilder<'a> {
                     &mut self.interners,
                     &mut self.prim_store,
                     &mut self.prim_instances,
+                    PictureFlags::empty(),
                 );
             } else {
                 // If we have a mix-blend-mode, the stacking context needs to be isolated
@@ -3196,6 +3209,7 @@ impl<'a> SceneBuilder<'a> {
                             LayoutSize::new(border.height as f32, border.width as f32),
                             LayoutSize::zero(),
                             Some(Box::new(nine_patch)),
+                            EdgeAaSegmentMask::all(),
                         ) {
                             Some(prim) => prim,
                             None => return,
@@ -3277,6 +3291,7 @@ impl<'a> SceneBuilder<'a> {
         stretch_size: LayoutSize,
         mut tile_spacing: LayoutSize,
         nine_patch: Option<Box<NinePatchDescriptor>>,
+        edge_aa_mask: EdgeAaSegmentMask,
     ) -> Option<LinearGradient> {
         let mut prim_rect = info.rect;
         simplify_repeated_primitive(&stretch_size, &mut tile_spacing, &mut prim_rect);
@@ -3341,6 +3356,7 @@ impl<'a> SceneBuilder<'a> {
             reverse_stops,
             nine_patch,
             cached,
+            edge_aa_mask,
         })
     }
 
@@ -3638,6 +3654,7 @@ impl<'a> SceneBuilder<'a> {
             filter_primitives,
             filter_datas,
             Some(false),
+            PictureFlags::empty(),
         );
 
         // Clip the backdrop filter to the outline of the backdrop-filter prim. If this is
@@ -3685,6 +3702,7 @@ impl<'a> SceneBuilder<'a> {
         mut filter_primitives: Vec<FilterPrimitive>,
         filter_datas: Vec<FilterData>,
         should_inflate_override: Option<bool>,
+        extra_pic_flags: PictureFlags,
     ) -> PictureChainBuilder {
         // TODO(cbrewster): Currently CSS and SVG filters live side by side in WebRender, but unexpected results will
         // happen if they are used simulataneously. Gecko only provides either filter ops or filter primitives.
@@ -3750,6 +3768,7 @@ impl<'a> SceneBuilder<'a> {
                 &mut self.interners,
                 &mut self.prim_store,
                 &mut self.prim_instances,
+                extra_pic_flags,
             );
         }
 
@@ -3786,6 +3805,7 @@ impl<'a> SceneBuilder<'a> {
                 &mut self.interners,
                 &mut self.prim_store,
                 &mut self.prim_instances,
+                extra_pic_flags,
             );
         }
 
