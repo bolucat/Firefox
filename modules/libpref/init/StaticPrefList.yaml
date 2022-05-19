@@ -341,7 +341,11 @@
 
 - name: apz.axis_lock.breakout_angle
   type: AtomicFloat
+#if defined(XP_MACOSX) && defined(NIGHTLY_BUILD)
+  value: float(M_PI / 4.0)    # 45 degrees
+#else
   value: float(M_PI / 8.0)    # 22.5 degrees
+#endif
   mirror: always
   include: <cmath>
 
@@ -358,7 +362,11 @@
 
 - name: apz.axis_lock.lock_angle
   type: AtomicFloat
+#if defined(XP_MACOSX) && defined(NIGHTLY_BUILD)
+  value: float(M_PI / 4.0)    # 45 degrees
+#else
   value: float(M_PI / 6.0)    # 30 degrees
+#endif
   mirror: always
   include: <cmath>
 
@@ -1818,6 +1826,12 @@
 # Prefs starting with "dom."
 #---------------------------------------------------------------------------
 
+# Whether CanvasRenderingContext2D.mozCurrentTransform is enabled.
+- name: dom.mozCurrentTransform.enabled
+  type: bool
+  value: @IS_NOT_EARLY_BETA_OR_EARLIER@
+  mirror: always
+
 # Allow cut/copy
 - name: dom.allow_cut_copy
   type: bool
@@ -2834,7 +2848,7 @@
 # Whether origin trials are enabled.
 - name: dom.origin-trials.enabled
   type: bool
-  value: false
+  value: true
   mirror: always
 
 # Whether we use the test key to verify tokens.
@@ -3631,12 +3645,17 @@
 
 - name: dom.streams.transform_streams.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 - name: dom.streams.pipeTo.enabled
   type: RelaxedAtomicBool
   value: true
+  mirror: always
+
+- name: dom.streams.transferable.enabled
+  type: RelaxedAtomicBool
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # For area and anchor elements with target=_blank and no rel set to
@@ -4092,24 +4111,6 @@
 - name: dom.webcomponents.shadowdom.report_usage
   type: bool
   value: false
-  mirror: always
-
-# Is support for custom element disabledFeatures enabled?
-- name: dom.webcomponents.disabledFeatures.enabled
-  type: bool
-  value: true
-  mirror: always
-
-# Is support for custom element elementInternals enabled?
-- name: dom.webcomponents.elementInternals.enabled
-  type: bool
-  value: true
-  mirror: always
-
-# Is support for form-associated custom element enabled?
-- name: dom.webcomponents.formAssociatedCustomElement.enabled
-  type: bool
-  value: true
   mirror: always
 
 # Is support for the Web GPU API enabled?
@@ -12030,6 +12031,12 @@
 - name: security.csp.enableNavigateTo
   type: bool
   value: false
+  mirror: always
+
+# wasm-unsafe-eval source keyword
+- name: security.csp.wasm-unsafe-eval.enabled
+  type: bool
+  value: true
   mirror: always
 
 # No way to enable on Android, Bug 1552602

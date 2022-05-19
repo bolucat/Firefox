@@ -37,6 +37,8 @@ using OwningReadableStreamReader =
     OwningReadableStreamDefaultReaderOrReadableStreamBYOBReader;
 class NativeUnderlyingSource;
 class BodyStreamHolder;
+class UniqueMessagePortId;
+class MessagePort;
 
 class ReadableStream final : public nsISupports, public nsWrapperCache {
  public:
@@ -78,7 +80,7 @@ class ReadableStream final : public nsISupports, public nsWrapperCache {
   void SetState(const ReaderState& aState) { mState = aState; }
 
   JS::Value StoredError() const { return mStoredError; }
-  void SetStoredError(JS::HandleValue aStoredError) {
+  void SetStoredError(JS::Handle<JS::Value> aStoredError) {
     mStoredError = aStoredError;
   }
 
@@ -94,6 +96,15 @@ class ReadableStream final : public nsISupports, public nsWrapperCache {
   bool HasNativeUnderlyingSource() { return mNativeUnderlyingSource; }
 
   void ReleaseObjects();
+
+  // [Transferable]
+  // https://html.spec.whatwg.org/multipage/structured-data.html#transfer-steps
+  MOZ_CAN_RUN_SCRIPT bool Transfer(JSContext* aCx,
+                                   UniqueMessagePortId& aPortId);
+  // https://html.spec.whatwg.org/multipage/structured-data.html#transfer-receiving-steps
+  static MOZ_CAN_RUN_SCRIPT bool ReceiveTransfer(
+      JSContext* aCx, nsIGlobalObject* aGlobal, MessagePort& aPort,
+      JS::MutableHandle<JSObject*> aReturnObject);
 
  public:
   nsIGlobalObject* GetParentObject() const { return mGlobal; }
@@ -134,7 +145,7 @@ class ReadableStream final : public nsISupports, public nsWrapperCache {
 
   // Internal Slots:
  private:
-  MOZ_KNOWN_LIVE RefPtr<ReadableStreamController> mController;
+  RefPtr<ReadableStreamController> mController;
   bool mDisturbed = false;
   RefPtr<ReadableStreamGenericReader> mReader;
   ReaderState mState = ReaderState::Readable;

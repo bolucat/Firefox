@@ -951,6 +951,12 @@ void nsWindow::ResizeInt(int aX, int aY, int aWidth, int aHeight, bool aMove) {
   // interpreted as frame bounds, but NativeResize treats these as window
   // bounds (Bug 581866).
   mBounds.SizeTo(aWidth, aHeight);
+  // Check mBounds size
+  if (mCompositorSession &&
+      !wr::WindowSizeSanityCheck(mBounds.width, mBounds.height)) {
+    gfxCriticalNoteOnce << "Invalid mBounds in ResizeInt " << mBounds
+                        << " size state " << mSizeState;
+  }
 
   // We set correct mBounds in advance here. This can be invalided by state
   // event.
@@ -1875,6 +1881,13 @@ void nsWindow::NativeMoveResizeWaylandPopupCallback(
     if (resizedByLayout) {
       mBounds.width = mNewBoundsAfterMoveToRect.width;
       mBounds.height = mNewBoundsAfterMoveToRect.height;
+      // Check mBounds size
+      if (mCompositorSession &&
+          !wr::WindowSizeSanityCheck(mBounds.width, mBounds.height)) {
+        gfxCriticalNoteOnce
+            << "Invalid mNewBoundsAfterMoveToRect in PopupCallback " << mBounds
+            << " size state " << mSizeState;
+      }
     }
     mNewBoundsAfterMoveToRect = LayoutDeviceIntRect(0, 0, 0, 0);
 
@@ -1934,6 +1947,12 @@ void nsWindow::NativeMoveResizeWaylandPopupCallback(
         mMoveToRectPopupSize.height);
   }
   mBounds = newBounds;
+  // Check mBounds size
+  if (mCompositorSession &&
+      !wr::WindowSizeSanityCheck(mBounds.width, mBounds.height)) {
+    gfxCriticalNoteOnce << "Invalid mBounds in PopupCallback " << mBounds
+                        << " size state " << mSizeState;
+  }
   WaylandPopupPropagateChangesToLayout(needsPositionUpdate, needsSizeUpdate);
 }
 
@@ -2089,7 +2108,7 @@ void nsWindow::NativeMoveResizeWaylandPopup(bool aMove, bool aResize) {
 
   bool trackedInHierarchy = WaylandPopupConfigure();
 
-  // Read popup position from layout if it was moved.
+  // Read popup position from layout if it was moved or newly created.
   // This position is used by move-to-rect method as we need anchor and other
   // info to place popup correctly.
   // We need WaylandPopupConfigure() to be called before to have all needed
@@ -2337,10 +2356,14 @@ nsWindow::WaylandPopupGetPositionFromLayout() {
   }
 
   return {
-      anchorRect, rectAnchor, menuAnchor, hints,
+      anchorRect,
+      rectAnchor,
+      menuAnchor,
+      hints,
       DevicePixelsToGdkPointRoundDown(LayoutDevicePoint::FromAppUnitsToNearest(
           popupMargin.mPopupOffset,
-          popupFrame->PresContext()->AppUnitsPerDevPixel()))};
+          popupFrame->PresContext()->AppUnitsPerDevPixel())),
+      true};
 }
 
 void nsWindow::WaylandPopupMove() {
@@ -2351,19 +2374,28 @@ void nsWindow::WaylandPopupMove() {
       GdkWindow*, const GdkRectangle*, GdkGravity, GdkGravity, GdkAnchorHints,
       gint, gint))dlsym(RTLD_DEFAULT, "gdk_window_move_to_rect");
 
-  GdkWindow* gdkWindow = gtk_widget_get_window(GTK_WIDGET(mShell));
-  nsMenuPopupFrame* popupFrame = GetMenuPopupFrame(GetFrame());
-
   LOG("  original widget popup position [%d, %d]\n", mPopupPosition.x,
       mPopupPosition.y);
   LOG("  relative widget popup position [%d, %d]\n", mRelativePopupPosition.x,
       mRelativePopupPosition.y);
 
-  if (mPopupUseMoveToRect) {
-    mPopupUseMoveToRect = sGdkWindowMoveToRect && gdkWindow && popupFrame;
+  if (mPopupUseMoveToRect && !sGdkWindowMoveToRect) {
+    LOG("  can't use move-to-rect due missing gdk_window_move_to_rect()");
+    mPopupUseMoveToRect = false;
   }
 
-  LOG(" popup use move to rect %d\n", mPopupUseMoveToRect);
+  GdkWindow* gdkWindow = gtk_widget_get_window(GTK_WIDGET(mShell));
+  nsMenuPopupFrame* popupFrame = GetMenuPopupFrame(GetFrame());
+  if (mPopupUseMoveToRect && (!gdkWindow || !popupFrame)) {
+    LOG("  can't use move-to-rect due missing gdkWindow or popupFrame");
+    mPopupUseMoveToRect = false;
+  }
+  if (mPopupUseMoveToRect && !mPopupMoveToRectParams.mAnchorSet) {
+    LOG("  can't use move-to-rect due missing anchor");
+    mPopupUseMoveToRect = false;
+  }
+
+  LOG("  popup use move to rect %d\n", mPopupUseMoveToRect);
 
   if (!mPopupUseMoveToRect) {
     if (mNeedsShow && mPopupType != ePopupTypeTooltip) {
@@ -3925,6 +3957,12 @@ void nsWindow::OnSizeAllocate(GtkAllocation* aAllocation) {
   }
 
   mBounds.SizeTo(size);
+  // Check mBounds size
+  if (mCompositorSession &&
+      !wr::WindowSizeSanityCheck(mBounds.width, mBounds.height)) {
+    gfxCriticalNoteOnce << "Invalid mBounds in OnSizeAllocate " << mBounds
+                        << " size state " << mSizeState;
+  }
 
   // Notify the GtkCompositorWidget of a ClientSizeChange
   if (mCompositorWidgetDelegate) {
@@ -4888,6 +4926,11 @@ void nsWindow::OnScaleChanged() {
   LayoutDeviceIntSize size = GdkRectToDevicePixels(allocation).Size();
   mBoundsAreValid = true;
   mBounds.SizeTo(size);
+  // Check mBounds size
+  if (mCompositorSession &&
+      !wr::WindowSizeSanityCheck(mBounds.width, mBounds.height)) {
+    gfxCriticalNoteOnce << "Invalid mBounds in OnScaleChanged " << mBounds;
+  }
 
   if (mWidgetListener) {
     if (PresShell* presShell = mWidgetListener->GetPresShell()) {

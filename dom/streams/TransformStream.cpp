@@ -12,7 +12,6 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/Promise-inl.h"
-#include "mozilla/dom/PromiseNativeHandler.h"
 #include "mozilla/dom/WritableStream.h"
 #include "mozilla/dom/ReadableStream.h"
 #include "mozilla/dom/RootedDictionary.h"
@@ -45,6 +44,13 @@ TransformStream::TransformStream(nsIGlobalObject* aGlobal) : mGlobal(aGlobal) {
   mozilla::HoldJSObjects(this);
 }
 
+TransformStream::TransformStream(nsIGlobalObject* aGlobal,
+                                 ReadableStream* aReadable,
+                                 WritableStream* aWritable)
+    : mGlobal(aGlobal), mReadable(aReadable), mWritable(aWritable) {
+  mozilla::HoldJSObjects(this);
+}
+
 TransformStream::~TransformStream() { mozilla::DropJSObjects(this); }
 
 JSObject* TransformStream::WrapObject(JSContext* aCx,
@@ -55,7 +61,7 @@ JSObject* TransformStream::WrapObject(JSContext* aCx,
 // https://streams.spec.whatwg.org/#transform-stream-error-writable-and-unblock-write
 void TransformStreamErrorWritableAndUnblockWrite(JSContext* aCx,
                                                  TransformStream* aStream,
-                                                 JS::HandleValue aError,
+                                                 JS::Handle<JS::Value> aError,
                                                  ErrorResult& aRv) {
   // Step 1: Perform !
   // TransformStreamDefaultControllerClearAlgorithms(stream.[[controller]]).
@@ -80,7 +86,7 @@ void TransformStreamErrorWritableAndUnblockWrite(JSContext* aCx,
 
 // https://streams.spec.whatwg.org/#transform-stream-error
 void TransformStreamError(JSContext* aCx, TransformStream* aStream,
-                          JS::HandleValue aError, ErrorResult& aRv) {
+                          JS::Handle<JS::Value> aError, ErrorResult& aRv) {
   // Step 1: Perform !
   // ReadableStreamDefaultControllerError(stream.[[readable]].[[controller]],
   // e).
@@ -98,7 +104,7 @@ void TransformStreamError(JSContext* aCx, TransformStream* aStream,
 MOZ_CAN_RUN_SCRIPT static already_AddRefed<Promise>
 TransformStreamDefaultControllerPerformTransform(
     JSContext* aCx, TransformStreamDefaultController* aController,
-    JS::HandleValue aChunk, ErrorResult& aRv) {
+    JS::Handle<JS::Value> aChunk, ErrorResult& aRv) {
   // Step 1: Let transformPromise be the result of performing
   // controller.[[transformAlgorithm]], passing chunk.
   RefPtr<TransformerAlgorithms> algorithms = aController->Algorithms();
@@ -111,7 +117,7 @@ TransformStreamDefaultControllerPerformTransform(
   // Step 2: Return the result of reacting to transformPromise with the
   // following rejection steps given the argument r:
   auto result = transformPromise->CatchWithCycleCollectedArgs(
-      [](JSContext* aCx, JS::HandleValue aError, ErrorResult& aRv,
+      [](JSContext* aCx, JS::Handle<JS::Value> aError, ErrorResult& aRv,
          const RefPtr<TransformStreamDefaultController>& aController)
           MOZ_CAN_RUN_SCRIPT_BOUNDARY_LAMBDA -> already_AddRefed<Promise> {
             // Step 2.1: Perform ! TransformStreamError(controller.[[stream]],
@@ -124,7 +130,7 @@ TransformStreamDefaultControllerPerformTransform(
             }
 
             // Step 2.2: Throw r.
-            JS::RootedValue r(aCx, aError);
+            JS::Rooted<JS::Value> r(aCx, aError);
             aRv.MightThrowJSException();
             aRv.ThrowJSException(aCx, r);
             return nullptr;
@@ -189,10 +195,10 @@ class TransformStreamUnderlyingSinkAlgorithms final
       // Step 3.3: Return the result of reacting to backpressureChangePromise
       // with the following fulfillment steps:
       auto result = backpressureChangePromise->ThenWithCycleCollectedArgsJS(
-          [](JSContext* aCx, JS::HandleValue, ErrorResult& aRv,
+          [](JSContext* aCx, JS::Handle<JS::Value>, ErrorResult& aRv,
              const RefPtr<TransformStream>& aStream,
              const RefPtr<TransformStreamDefaultController>& aController,
-             JS::HandleValue aChunk)
+             JS::Handle<JS::Value> aChunk)
               MOZ_CAN_RUN_SCRIPT_BOUNDARY_LAMBDA -> already_AddRefed<Promise> {
                 // Step 1: Let writable be stream.[[writable]].
                 RefPtr<WritableStream> writable = aStream->Writable();
@@ -203,7 +209,8 @@ class TransformStreamUnderlyingSinkAlgorithms final
                 // Step 3: If state is "erroring", throw
                 // writable.[[storedError]].
                 if (state == WritableStream::WriterState::Erroring) {
-                  JS::RootedValue storedError(aCx, writable->StoredError());
+                  JS::Rooted<JS::Value> storedError(aCx,
+                                                    writable->StoredError());
                   aRv.MightThrowJSException();
                   aRv.ThrowJSException(aCx, storedError);
                   return nullptr;
@@ -287,7 +294,7 @@ class TransformStreamUnderlyingSinkAlgorithms final
     // Step 5: Return the result of reacting to flushPromise:
     Result<RefPtr<Promise>, nsresult> result =
         flushPromise->ThenCatchWithCycleCollectedArgs(
-            [](JSContext* aCx, JS::HandleValue aValue, ErrorResult& aRv,
+            [](JSContext* aCx, JS::Handle<JS::Value> aValue, ErrorResult& aRv,
                const RefPtr<ReadableStream>& aReadable,
                const RefPtr<TransformStream>& aStream)
                 MOZ_CAN_RUN_SCRIPT_BOUNDARY_LAMBDA
@@ -298,7 +305,8 @@ class TransformStreamUnderlyingSinkAlgorithms final
                   // readable.[[storedError]].
                   if (aReadable->State() ==
                       ReadableStream::ReaderState::Errored) {
-                    JS::RootedValue storedError(aCx, aReadable->StoredError());
+                    JS::Rooted<JS::Value> storedError(aCx,
+                                                      aReadable->StoredError());
                     aRv.MightThrowJSException();
                     aRv.ThrowJSException(aCx, storedError);
                     return nullptr;
@@ -311,7 +319,7 @@ class TransformStreamUnderlyingSinkAlgorithms final
                       aRv);
                   return nullptr;
                 },
-            [](JSContext* aCx, JS::HandleValue aValue, ErrorResult& aRv,
+            [](JSContext* aCx, JS::Handle<JS::Value> aValue, ErrorResult& aRv,
                const RefPtr<ReadableStream>& aReadable,
                const RefPtr<TransformStream>& aStream)
                 MOZ_CAN_RUN_SCRIPT_BOUNDARY_LAMBDA
@@ -325,7 +333,8 @@ class TransformStreamUnderlyingSinkAlgorithms final
                   }
 
                   // Step 5.2.2: Throw readable.[[storedError]].
-                  JS::RootedValue storedError(aCx, aReadable->StoredError());
+                  JS::Rooted<JS::Value> storedError(aCx,
+                                                    aReadable->StoredError());
                   aRv.MightThrowJSException();
                   aRv.ThrowJSException(aCx, storedError);
                   return nullptr;
