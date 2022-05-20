@@ -155,6 +155,7 @@
 
 #    include "SpecialSystemDirectory.h"
 #    include "nsILineInputStream.h"
+#    include "mozilla/ipc/UtilityProcessSandboxing.h"
 #  endif
 #  if defined(MOZ_DEBUG) && defined(ENABLE_TESTS)
 #    include "mozilla/SandboxTestingChild.h"
@@ -1331,8 +1332,6 @@ void ContentChild::InitXPCOM(
     MOZ_ASSERT_UNREACHABLE("PBackground init can't fail at this point");
     return;
   }
-
-  LSObject::Initialize();
 
   ClientManager::Startup();
 
@@ -4841,7 +4840,7 @@ OpenBSDUnveilPaths(const nsACString& uPath, const nsACString& pledgePath) {
   return NS_OK;
 }
 
-bool StartOpenBSDSandbox(GeckoProcessType type) {
+bool StartOpenBSDSandbox(GeckoProcessType type, ipc::SandboxingKind kind) {
   nsAutoCString pledgeFile;
   nsAutoCString unveilFile;
 
@@ -4876,6 +4875,25 @@ bool StartOpenBSDSandbox(GeckoProcessType type) {
       OpenBSDFindPledgeUnveilFilePath("pledge.rdd", pledgeFile);
       OpenBSDFindPledgeUnveilFilePath("unveil.rdd", unveilFile);
       break;
+
+    case GeckoProcessType_Utility: {
+      MOZ_RELEASE_ASSERT(kind <= SandboxingKind::COUNT,
+                         "Should define a sandbox");
+      switch (kind) {
+        case ipc::SandboxingKind::UTILITY_AUDIO_DECODING:
+          OpenBSDFindPledgeUnveilFilePath("pledge.utility-audioDecoder",
+                                          pledgeFile);
+          OpenBSDFindPledgeUnveilFilePath("unveil.utility-audioDecoder",
+                                          unveilFile);
+          break;
+
+        case ipc::SandboxingKind::GENERIC_UTILITY:
+        default:
+          OpenBSDFindPledgeUnveilFilePath("pledge.utility", pledgeFile);
+          OpenBSDFindPledgeUnveilFilePath("unveil.utility", unveilFile);
+          break;
+      }
+    } break;
 
     default:
       MOZ_ASSERT(false, "unknown process type");
