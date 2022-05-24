@@ -2084,7 +2084,7 @@ void MacroAssembler::generateBailoutTail(Register scratch,
 
     // Restore values where they need to be and resume execution.
     AllocatableGeneralRegisterSet enterRegs(GeneralRegisterSet::All());
-    enterRegs.take(BaselineFrameReg);
+    enterRegs.takeUnchecked(BaselineFrameReg);
     Register jitcodeReg = enterRegs.takeAny();
 
     pop(jitcodeReg);
@@ -3753,7 +3753,8 @@ void MacroAssembler::wasmTrap(wasm::Trap trap,
 }
 
 [[nodiscard]] bool MacroAssembler::wasmStartTry(size_t* tryNoteIndex) {
-  wasm::WasmTryNote tryNote = wasm::WasmTryNote(currentOffset(), 0, 0);
+  wasm::WasmTryNote tryNote = wasm::WasmTryNote();
+  tryNote.setTryBodyBegin(currentOffset());
   return append(tryNote, tryNoteIndex);
 }
 
