@@ -1174,6 +1174,12 @@
   value: true
   mirror: always
 
+# See bug 1738574
+- name: browser.download.start_downloads_in_tmp_dir
+  type: bool
+  value: false
+  mirror: always
+
 # See bug 1747343
 - name: browser.download.always_ask_before_handling_new_types
   type: bool
@@ -8360,7 +8366,7 @@
 # Whether to draw images in CSS backgrounds if we only have a partial frame.
 - name: layout.display_partial_background_images
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 #---------------------------------------------------------------------------
@@ -8928,7 +8934,6 @@
 # When it is set to true, then the utility process will take precedence over RDD
 # to perform audio decoding.
 # TODO: Android: Bug 1767930
-# TODO: OpenBSD: Bug 1769033
 - name: media.utility-process.enabled
   type: RelaxedAtomicBool
 #if defined(XP_WIN)
@@ -8938,7 +8943,7 @@
 #elif defined(XP_LINUX) && !defined(ANDROID)
   value: true
 #elif defined(XP_OPENBSD)
-  value: false
+  value: true
 #else
   value: false
 #endif
