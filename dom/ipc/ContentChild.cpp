@@ -3877,8 +3877,7 @@ mozilla::ipc::IPCResult ContentChild::RecvRaiseWindow(
     return IPC_OK();
   }
 
-  nsFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (fm) {
+  if (RefPtr<nsFocusManager> fm = nsFocusManager::GetFocusManager()) {
     fm->RaiseWindow(window, aCallerType, aActionId);
   }
   return IPC_OK();
@@ -3893,10 +3892,9 @@ mozilla::ipc::IPCResult ContentChild::RecvAdjustWindowFocus(
     return IPC_OK();
   }
 
-  nsFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (fm) {
-    fm->AdjustInProcessWindowFocus(aContext.get(), false, aIsVisible,
-                                   aActionId);
+  if (RefPtr<nsFocusManager> fm = nsFocusManager::GetFocusManager()) {
+    RefPtr<BrowsingContext> bc = aContext.get();
+    fm->AdjustInProcessWindowFocus(bc, false, aIsVisible, aActionId);
   }
   return IPC_OK();
 }
@@ -3917,8 +3915,7 @@ mozilla::ipc::IPCResult ContentChild::RecvClearFocus(
     return IPC_OK();
   }
 
-  nsFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (fm) {
+  if (RefPtr<nsFocusManager> fm = nsFocusManager::GetFocusManager()) {
     fm->ClearFocus(window);
   }
   return IPC_OK();
@@ -4028,18 +4025,24 @@ mozilla::ipc::IPCResult ContentChild::RecvBlurToChild(
     return IPC_OK();
   }
 
-  BrowsingContext* toClear = aBrowsingContextToClear.IsDiscarded()
-                                 ? nullptr
-                                 : aBrowsingContextToClear.get();
-  BrowsingContext* toFocus = aAncestorBrowsingContextToFocus.IsDiscarded()
-                                 ? nullptr
-                                 : aAncestorBrowsingContextToFocus.get();
-
-  nsFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (fm) {
-    fm->BlurFromOtherProcess(aFocusedBrowsingContext.get(), toClear, toFocus,
-                             aIsLeavingDocument, aAdjustWidget, aActionId);
+  RefPtr<nsFocusManager> fm = nsFocusManager::GetFocusManager();
+  if (MOZ_UNLIKELY(!fm)) {
+    return IPC_OK();
   }
+
+  RefPtr<BrowsingContext> toClear = aBrowsingContextToClear.IsDiscarded()
+                                        ? nullptr
+                                        : aBrowsingContextToClear.get();
+  RefPtr<BrowsingContext> toFocus =
+      aAncestorBrowsingContextToFocus.IsDiscarded()
+          ? nullptr
+          : aAncestorBrowsingContextToFocus.get();
+
+  RefPtr<BrowsingContext> focusedBrowsingContext =
+      aFocusedBrowsingContext.get();
+
+  fm->BlurFromOtherProcess(focusedBrowsingContext, toClear, toFocus,
+                           aIsLeavingDocument, aAdjustWidget, aActionId);
   return IPC_OK();
 }
 

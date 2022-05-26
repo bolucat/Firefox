@@ -11335,12 +11335,6 @@
   value: true
   mirror: always
 
-# Whether we allow the print progress dialog to show up.
-- name: print.show_print_progress
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 # Whether we attempt to generate links in Save As PDF output.
 - name: print.save_as_pdf.links.enabled
   type: RelaxedAtomicBool
@@ -13669,7 +13663,7 @@
 - name: widget.disable-swipe-tracker
   type: bool
 #ifdef XP_WIN
-  value: @IS_NOT_NIGHTLY_BUILD@
+  value: @IS_NOT_EARLY_BETA_OR_EARLIER@
 #else
   value: false
 #endif
