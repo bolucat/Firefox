@@ -873,6 +873,8 @@ mozilla::ipc::IPCResult BrowserParent::RecvDropLinks(
 }
 
 mozilla::ipc::IPCResult BrowserParent::RecvEvent(const RemoteDOMEvent& aEvent) {
+  NS_ENSURE_TRUE(xpc::IsInAutomation(), IPC_FAIL(this, "Unexpected event"));
+
   RefPtr<Event> event = aEvent.mEvent;
   NS_ENSURE_TRUE(event, IPC_OK());
 
@@ -1714,6 +1716,8 @@ void BrowserParent::SendMouseWheelEvent(WidgetWheelEvent& aEvent) {
 
 mozilla::ipc::IPCResult BrowserParent::RecvDispatchWheelEvent(
     const mozilla::WidgetWheelEvent& aEvent) {
+  NS_ENSURE_TRUE(xpc::IsInAutomation(), IPC_FAIL(this, "Unexpected event"));
+
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (!widget) {
     return IPC_OK();
@@ -1729,6 +1733,8 @@ mozilla::ipc::IPCResult BrowserParent::RecvDispatchWheelEvent(
 
 mozilla::ipc::IPCResult BrowserParent::RecvDispatchMouseEvent(
     const mozilla::WidgetMouseEvent& aEvent) {
+  NS_ENSURE_TRUE(xpc::IsInAutomation(), IPC_FAIL(this, "Unexpected event"));
+
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (!widget) {
     return IPC_OK();
@@ -1744,6 +1750,8 @@ mozilla::ipc::IPCResult BrowserParent::RecvDispatchMouseEvent(
 
 mozilla::ipc::IPCResult BrowserParent::RecvDispatchKeyboardEvent(
     const mozilla::WidgetKeyboardEvent& aEvent) {
+  NS_ENSURE_TRUE(xpc::IsInAutomation(), IPC_FAIL(this, "Unexpected event"));
+
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (!widget) {
     return IPC_OK();
@@ -1759,6 +1767,8 @@ mozilla::ipc::IPCResult BrowserParent::RecvDispatchKeyboardEvent(
 
 mozilla::ipc::IPCResult BrowserParent::RecvDispatchTouchEvent(
     const mozilla::WidgetTouchEvent& aEvent) {
+  NS_ENSURE_TRUE(xpc::IsInAutomation(), IPC_FAIL(this, "Unexpected event"));
+
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (!widget) {
     return IPC_OK();
@@ -1781,6 +1791,8 @@ mozilla::ipc::IPCResult BrowserParent::RecvRequestNativeKeyBindings(
     nsTArray<CommandInt>* aCommands) {
   MOZ_ASSERT(aCommands);
   MOZ_ASSERT(aCommands->IsEmpty());
+
+  NS_ENSURE_TRUE(xpc::IsInAutomation(), IPC_FAIL(this, "Unexpected event"));
 
   NativeKeyBindingsType keyBindingsType =
       static_cast<NativeKeyBindingsType>(aType);
@@ -1881,6 +1893,8 @@ mozilla::ipc::IPCResult BrowserParent::RecvSynthesizeNativeKeyEvent(
     const int32_t& aNativeKeyboardLayout, const int32_t& aNativeKeyCode,
     const uint32_t& aModifierFlags, const nsString& aCharacters,
     const nsString& aUnmodifiedCharacters, const uint64_t& aObserverId) {
+  NS_ENSURE_TRUE(xpc::IsInAutomation(), IPC_FAIL(this, "Unexpected event"));
+
   AutoSynthesizedEventResponder responder(this, aObserverId, "keyevent");
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (widget) {
@@ -1895,6 +1909,8 @@ mozilla::ipc::IPCResult BrowserParent::RecvSynthesizeNativeMouseEvent(
     const LayoutDeviceIntPoint& aPoint, const uint32_t& aNativeMessage,
     const int16_t& aButton, const uint32_t& aModifierFlags,
     const uint64_t& aObserverId) {
+  NS_ENSURE_TRUE(xpc::IsInAutomation(), IPC_FAIL(this, "Unexpected event"));
+
   const uint32_t last =
       static_cast<uint32_t>(nsIWidget::NativeMouseMessage::LeaveWindow);
   NS_ENSURE_TRUE(aNativeMessage <= last, IPC_FAIL(this, "Bogus message"));
@@ -1912,6 +1928,8 @@ mozilla::ipc::IPCResult BrowserParent::RecvSynthesizeNativeMouseEvent(
 
 mozilla::ipc::IPCResult BrowserParent::RecvSynthesizeNativeMouseMove(
     const LayoutDeviceIntPoint& aPoint, const uint64_t& aObserverId) {
+  NS_ENSURE_TRUE(xpc::IsInAutomation(), IPC_FAIL(this, "Unexpected event"));
+
   AutoSynthesizedEventResponder responder(this, aObserverId, "mousemove");
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (widget) {
@@ -1925,6 +1943,8 @@ mozilla::ipc::IPCResult BrowserParent::RecvSynthesizeNativeMouseScrollEvent(
     const double& aDeltaX, const double& aDeltaY, const double& aDeltaZ,
     const uint32_t& aModifierFlags, const uint32_t& aAdditionalFlags,
     const uint64_t& aObserverId) {
+  NS_ENSURE_TRUE(xpc::IsInAutomation(), IPC_FAIL(this, "Unexpected event"));
+
   AutoSynthesizedEventResponder responder(this, aObserverId,
                                           "mousescrollevent");
   nsCOMPtr<nsIWidget> widget = GetWidget();
@@ -1940,6 +1960,8 @@ mozilla::ipc::IPCResult BrowserParent::RecvSynthesizeNativeTouchPoint(
     const uint32_t& aPointerId, const TouchPointerState& aPointerState,
     const LayoutDeviceIntPoint& aPoint, const double& aPointerPressure,
     const uint32_t& aPointerOrientation, const uint64_t& aObserverId) {
+  NS_ENSURE_TRUE(xpc::IsInAutomation(), IPC_FAIL(this, "Unexpected event"));
+
   AutoSynthesizedEventResponder responder(this, aObserverId, "touchpoint");
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (widget) {
@@ -1953,6 +1975,8 @@ mozilla::ipc::IPCResult BrowserParent::RecvSynthesizeNativeTouchPoint(
 mozilla::ipc::IPCResult BrowserParent::RecvSynthesizeNativeTouchPadPinch(
     const TouchpadGesturePhase& aEventPhase, const float& aScale,
     const LayoutDeviceIntPoint& aPoint, const int32_t& aModifierFlags) {
+  NS_ENSURE_TRUE(xpc::IsInAutomation(), IPC_FAIL(this, "Unexpected event"));
+
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (widget) {
     widget->SynthesizeNativeTouchPadPinch(aEventPhase, aScale, aPoint,
@@ -1964,6 +1988,8 @@ mozilla::ipc::IPCResult BrowserParent::RecvSynthesizeNativeTouchPadPinch(
 mozilla::ipc::IPCResult BrowserParent::RecvSynthesizeNativeTouchTap(
     const LayoutDeviceIntPoint& aPoint, const bool& aLongTap,
     const uint64_t& aObserverId) {
+  NS_ENSURE_TRUE(xpc::IsInAutomation(), IPC_FAIL(this, "Unexpected event"));
+
   AutoSynthesizedEventResponder responder(this, aObserverId, "touchtap");
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (widget) {
@@ -1974,6 +2000,8 @@ mozilla::ipc::IPCResult BrowserParent::RecvSynthesizeNativeTouchTap(
 
 mozilla::ipc::IPCResult BrowserParent::RecvClearNativeTouchSequence(
     const uint64_t& aObserverId) {
+  NS_ENSURE_TRUE(xpc::IsInAutomation(), IPC_FAIL(this, "Unexpected event"));
+
   AutoSynthesizedEventResponder responder(this, aObserverId, "cleartouch");
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (widget) {
@@ -1987,6 +2015,8 @@ mozilla::ipc::IPCResult BrowserParent::RecvSynthesizeNativePenInput(
     const LayoutDeviceIntPoint& aPoint, const double& aPressure,
     const uint32_t& aRotation, const int32_t& aTiltX, const int32_t& aTiltY,
     const int32_t& aButton, const uint64_t& aObserverId) {
+  NS_ENSURE_TRUE(xpc::IsInAutomation(), IPC_FAIL(this, "Unexpected event"));
+
   AutoSynthesizedEventResponder responder(this, aObserverId, "peninput");
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (widget) {
@@ -1999,6 +2029,8 @@ mozilla::ipc::IPCResult BrowserParent::RecvSynthesizeNativePenInput(
 
 mozilla::ipc::IPCResult BrowserParent::RecvSynthesizeNativeTouchpadDoubleTap(
     const LayoutDeviceIntPoint& aPoint, const uint32_t& aModifierFlags) {
+  NS_ENSURE_TRUE(xpc::IsInAutomation(), IPC_FAIL(this, "Unexpected event"));
+
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (widget) {
     widget->SynthesizeNativeTouchpadDoubleTap(aPoint, aModifierFlags);
@@ -2010,6 +2042,8 @@ mozilla::ipc::IPCResult BrowserParent::RecvSynthesizeNativeTouchpadPan(
     const TouchpadGesturePhase& aEventPhase, const LayoutDeviceIntPoint& aPoint,
     const double& aDeltaX, const double& aDeltaY, const int32_t& aModifierFlags,
     const uint64_t& aObserverId) {
+  NS_ENSURE_TRUE(xpc::IsInAutomation(), IPC_FAIL(this, "Unexpected event"));
+
   AutoSynthesizedEventResponder responder(this, aObserverId,
                                           "touchpadpanevent");
 
@@ -2077,13 +2111,21 @@ void BrowserParent::SendRealKeyEvent(WidgetKeyboardEvent& aEvent) {
   } else {
     aEvent.PreventNativeKeyBindings();
   }
-  DebugOnly<bool> ret =
+  SentKeyEventData sendKeyEventData{
+      aEvent.mKeyCode,      aEvent.mCharCode,      aEvent.mPseudoCharCode,
+      aEvent.mKeyNameIndex, aEvent.mCodeNameIndex, aEvent.mModifiers,
+      nsID::GenerateUUID()};
+  const bool ok =
       Manager()->IsInputPriorityEventEnabled()
-          ? PBrowserParent::SendRealKeyEvent(aEvent)
-          : PBrowserParent::SendNormalPriorityRealKeyEvent(aEvent);
+          ? PBrowserParent::SendRealKeyEvent(aEvent, sendKeyEventData.mUUID)
+          : PBrowserParent::SendNormalPriorityRealKeyEvent(
+                aEvent, sendKeyEventData.mUUID);
 
-  NS_WARNING_ASSERTION(ret, "PBrowserParent::SendRealKeyEvent() failed");
-  MOZ_ASSERT(!ret || aEvent.HasBeenPostedToRemoteProcess());
+  NS_WARNING_ASSERTION(ok, "PBrowserParent::SendRealKeyEvent() failed");
+  MOZ_ASSERT(!ok || aEvent.HasBeenPostedToRemoteProcess());
+  if (ok && aEvent.IsWaitingReplyFromRemoteProcess()) {
+    mWaitingReplyKeyboardEvents.AppendElement(sendKeyEventData);
+  }
 }
 
 void BrowserParent::SendRealTouchEvent(WidgetTouchEvent& aEvent) {
@@ -2698,8 +2740,45 @@ void BrowserParent::StopIMEStateManagement() {
 }
 
 mozilla::ipc::IPCResult BrowserParent::RecvReplyKeyEvent(
-    const WidgetKeyboardEvent& aEvent) {
+    const WidgetKeyboardEvent& aEvent, const nsID& aUUID) {
   NS_ENSURE_TRUE(mFrameElement, IPC_OK());
+
+  // First, verify aEvent is what we've sent to a remote process.
+  Maybe<size_t> index = [&]() -> Maybe<size_t> {
+    for (const size_t i : IntegerRange(mWaitingReplyKeyboardEvents.Length())) {
+      const SentKeyEventData& data = mWaitingReplyKeyboardEvents[i];
+      if (data.mUUID.Equals(aUUID)) {
+        if (NS_WARN_IF(data.mKeyCode != aEvent.mKeyCode) ||
+            NS_WARN_IF(data.mCharCode != aEvent.mCharCode) ||
+            NS_WARN_IF(data.mPseudoCharCode != aEvent.mPseudoCharCode) ||
+            NS_WARN_IF(data.mKeyNameIndex != aEvent.mKeyNameIndex) ||
+            NS_WARN_IF(data.mCodeNameIndex != aEvent.mCodeNameIndex) ||
+            NS_WARN_IF(data.mModifiers != aEvent.mModifiers)) {
+          // Got different event data from what we stored before dispatching an
+          // event with the ID.
+          return Nothing();
+        }
+        return Some(i);
+      }
+    }
+    // No entry found.
+    return Nothing();
+  }();
+  if (MOZ_UNLIKELY(index.isNothing())) {
+    return IPC_FAIL(this, "Bogus reply keyboard event");
+  }
+  // Don't discard the older keyboard events because the order may be changed if
+  // the remote process has a event listener which takes too long time and while
+  // the freezing, user may switch the tab, or if the remote process sends
+  // synchronous XMLHttpRequest.
+  mWaitingReplyKeyboardEvents.RemoveElementAt(*index);
+
+  // If the event propagation was stopped by the child, it means that the event
+  // was ignored in the child.  In the case, we should ignore it too because the
+  // focused web app didn't have a chance to prevent its default.
+  if (aEvent.PropagationStopped()) {
+    return IPC_OK();
+  }
 
   WidgetKeyboardEvent localEvent(aEvent);
   localEvent.MarkAsHandledInRemoteProcess();
