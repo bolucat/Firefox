@@ -5377,7 +5377,7 @@
 
 - name: gfx.direct3d11.reuse-decoder-device
   type: RelaxedAtomicInt32
-#ifdef NIGHTLY_BUILD
+#if defined(EARLY_BETA_OR_EARLIER)
   value: 1
 #else
   value: -1
@@ -12359,7 +12359,11 @@
 # 0 means never GREASE, 100 means always GREASE
 - name: security.tls.ech.grease_probability
   type: RelaxedAtomicUint32
+#ifdef IS_NIGHTLY_BUILD
+  value: 10
+#else
   value: 0
+#endif 
   mirror: always
 
 # Whether to retry connections without ECH Grease
