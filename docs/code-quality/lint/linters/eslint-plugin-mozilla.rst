@@ -48,6 +48,7 @@ The plugin implements the following rules:
    eslint-plugin-mozilla/prefer-formatValues
    eslint-plugin-mozilla/reject-addtask-only
    eslint-plugin-mozilla/reject-chromeutils-import-params
+   eslint-plugin-mozilla/reject-global-this
    eslint-plugin-mozilla/reject-importGlobalProperties
    eslint-plugin-mozilla/reject-osfile
    eslint-plugin-mozilla/reject-relative-requires
@@ -55,6 +56,7 @@ The plugin implements the following rules:
    eslint-plugin-mozilla/reject-scriptableunicodeconverter
    eslint-plugin-mozilla/reject-some-requires
    eslint-plugin-mozilla/reject-top-level-await
+   eslint-plugin-mozilla/reject-import-system-module-from-non-system
    eslint-plugin-mozilla/use-cc-etc
    eslint-plugin-mozilla/use-chromeutils-generateqi
    eslint-plugin-mozilla/use-chromeutils-import

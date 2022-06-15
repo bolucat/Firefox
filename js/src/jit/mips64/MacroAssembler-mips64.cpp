@@ -1825,10 +1825,12 @@ void MacroAssemblerMIPS64Compat::handleFailureWithHandlerTail(
 
   breakpoint();  // Invalid kind.
 
-  // No exception handler. Load the error value, load the new stack pointer
-  // and return from the entry frame.
+  // No exception handler. Load the error value, restore state and return from
+  // the entry frame.
   bind(&entryFrame);
   asMasm().moveValue(MagicValue(JS_ION_ERROR), JSReturnOperand);
+  loadPtr(Address(StackPointer, ResumeFromException::offsetOfFramePointer()),
+          FramePointer);
   loadPtr(Address(StackPointer, ResumeFromException::offsetOfStackPointer()),
           StackPointer);
 
@@ -1872,8 +1874,6 @@ void MacroAssemblerMIPS64Compat::handleFailureWithHandlerTail(
           StackPointer);
   loadValue(Address(FramePointer, BaselineFrame::reverseOffsetOfReturnValue()),
             JSReturnOperand);
-  ma_move(StackPointer, FramePointer);
-  pop(FramePointer);
   jump(&profilingInstrumentation);
 
   // Return the given value to the caller.
@@ -1900,6 +1900,8 @@ void MacroAssemblerMIPS64Compat::handleFailureWithHandlerTail(
     bind(&skipProfilingInstrumentation);
   }
 
+  ma_move(StackPointer, FramePointer);
+  pop(FramePointer);
   ret();
 
   // If we are bailing out to baseline to handle an exception, jump to

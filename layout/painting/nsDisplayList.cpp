@@ -6721,11 +6721,7 @@ bool nsDisplayTransform::UpdateScrollData(
     return false;
   }
   if (aLayerData) {
-    auto matrix = GetTransform().GetMatrix();
-    if (!mFrame->Combines3DTransformWithAncestors()) {
-      matrix.ProjectTo2D();
-    }
-    aLayerData->SetTransform(matrix);
+    aLayerData->SetTransform(GetTransform().GetMatrix());
     aLayerData->SetTransformIsPerspective(true);
   }
   return true;
@@ -8283,6 +8279,11 @@ bool nsDisplayBackdropFilters::CreateWebRenderCommands(
                                                       wrFilters) &&
       !SVGIntegrationUtils::BuildWebRenderFilters(
           mFrame, filterChain, wrFilters, filterClip, initialized)) {
+    if (mStyle) {
+      // TODO(bug 1769223): Support fallback backdrop-filters in the root
+      // code-path.
+      return true;
+    }
     return false;
   }
 

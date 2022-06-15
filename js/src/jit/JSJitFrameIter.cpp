@@ -147,7 +147,21 @@ void JSJitFrameIter::baselineScriptAndPc(JSScript** scriptRes,
 Value* JSJitFrameIter::actualArgs() const { return jsFrame()->argv() + 1; }
 
 uint8_t* JSJitFrameIter::prevFp() const {
-  return current_ + current()->prevFrameLocalSize() + current()->headerSize();
+  uint8_t* res =
+      current_ + current()->prevFrameLocalSize() + current()->headerSize();
+#ifdef DEBUG
+  // The saved frame pointer must match the frame descriptor, except for the
+  // special CppToJSJit entry frame (AssertJitStackInvariants calls prevFp for
+  // the entry frame too, but we don't really care about the exact return
+  // value).
+  static constexpr size_t FPOffset = CommonFrameLayout::FramePointerOffset;
+  if (current()->prevType() == FrameType::WasmToJSJit) {
+    MOZ_ASSERT(current()->callerFramePtr() == res);
+  } else if (current()->prevType() != FrameType::CppToJSJit) {
+    MOZ_ASSERT(current()->callerFramePtr() + FPOffset == res);
+  }
+#endif
+  return res;
 }
 
 void JSJitFrameIter::operator++() {
@@ -530,7 +544,16 @@ JSJitProfilingFrameIterator::JSJitProfilingFrameIterator(JSContext* cx,
 template <typename ReturnType = CommonFrameLayout*>
 static inline ReturnType GetPreviousRawFrame(CommonFrameLayout* frame) {
   size_t prevSize = frame->prevFrameLocalSize() + frame->headerSize();
-  return ReturnType((uint8_t*)frame + prevSize);
+  uint8_t* res = (uint8_t*)frame + prevSize;
+#ifdef DEBUG
+  static constexpr size_t FPOffset = CommonFrameLayout::FramePointerOffset;
+  if (frame->prevType() == FrameType::WasmToJSJit) {
+    MOZ_ASSERT(frame->callerFramePtr() == res);
+  } else {
+    MOZ_ASSERT(frame->callerFramePtr() + FPOffset == res);
+  }
+#endif
+  return ReturnType(res);
 }
 
 JSJitProfilingFrameIterator::JSJitProfilingFrameIterator(
