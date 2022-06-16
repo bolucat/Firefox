@@ -1011,9 +1011,6 @@ pref("plugins.show_infobar", false);
   pref("plugin.default.state", 1);
 #endif
 
-// Enables the download and use of the flash blocklists.
-pref("plugins.flashBlock.enabled", true);
-
 // Prefer HTML5 video over Flash content, and don't
 // load plugin instances with no src declared.
 // These prefs are documented in details on all.js.
@@ -1222,8 +1219,6 @@ pref("browser.bookmarks.editDialog.maxRecentFolders", 7);
 // By default the Edit Bookmark dialog is instant-apply. This feature pref will allow to
 // just save on Accept, once the project is complete.
 pref("browser.bookmarks.editDialog.delayedApply.enabled", false);
-
-pref("dom.ipc.shims.enabledWarnings", false);
 
 #if defined(XP_WIN) && defined(MOZ_SANDBOX)
   // This controls the strength of the Windows content process sandbox for
@@ -1609,6 +1604,8 @@ pref("browser.aboutwelcome.enabled", true);
 // Used to set multistage welcome UX
 pref("browser.aboutwelcome.screens", "");
 pref("browser.aboutwelcome.skipFocus", true);
+// Used to enable template for MR 2022 Onboarding
+pref("browser.aboutwelcome.templateMR", false);
 
 // The pref that controls if the What's New panel is enabled.
 pref("browser.messaging-system.whatsNewPanel.enabled", true);
