@@ -369,7 +369,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleBackground {
 
   // True if this background is completely transparent.
   bool IsTransparent(const nsIFrame* aFrame) const;
-  bool IsTransparent(mozilla::ComputedStyle* aStyle) const;
+  bool IsTransparent(const mozilla::ComputedStyle* aStyle) const;
 
   // We have to take slower codepaths for fixed background attachment,
   // but we don't want to do that when there's no image.
@@ -1520,6 +1520,8 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleDisplay {
     return (contain & StyleContain::LAYOUT) && !IsInternalRubyDisplayType() &&
            !IsInternalTableStyleExceptCell();
   }
+
+  bool IsContainAny() const { return !!EffectiveContainment(); }
 
   mozilla::ContainSizeAxes GetContainSizeAxes() const {
     const auto contain = EffectiveContainment();
