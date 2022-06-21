@@ -268,6 +268,9 @@ static SystemTimeConverter<guint32>& TimeConverter() {
 
 bool nsWindow::sTransparentMainWindow = false;
 
+// forward declare from mozgtk
+extern "C" MOZ_EXPORT void mozgtk_linker_holder();
+
 namespace mozilla {
 
 #ifdef MOZ_X11
@@ -428,6 +431,10 @@ nsWindow::nsWindow()
     }
 #endif
   }
+  // Dummy call to mozgtk to prevent the linker from removing
+  // the dependency with --as-needed.
+  // see toolkit/library/moz.build for details.
+  mozgtk_linker_holder();
 }
 
 nsWindow::~nsWindow() {
@@ -2996,21 +3003,28 @@ void nsWindow::SetFocus(Raise aRaise, mozilla::dom::CallerType aCallerType) {
 }
 
 LayoutDeviceIntRect nsWindow::GetScreenBounds() {
-  LayoutDeviceIntRect rect;
-  if (mContainer) {
-    // use the point including window decorations
-    gint x, y;
-    gdk_window_get_root_origin(gtk_widget_get_window(GTK_WIDGET(mContainer)),
-                               &x, &y);
-    rect.MoveTo(GdkPointToDevicePixels({x, y}));
-  } else {
-    rect.MoveTo(WidgetToScreenOffset());
-  }
+  const LayoutDeviceIntPoint origin = [&] {
+    // XXX Can't we use mGdkWindow here?
+    //
+    // Use the point including window decorations. Don't do this for popups,
+    // because we get wrong coordinates for gtk for override-redirect windows in
+    // HiDPI screens, and those don't have window decorations anyways.
+    //
+    // See https://gitlab.gnome.org/GNOME/gtk/-/merge_requests/4820
+    if (mContainer && mWindowType != eWindowType_popup) {
+      gint x, y;
+      gdk_window_get_root_origin(gtk_widget_get_window(GTK_WIDGET(mContainer)),
+                                 &x, &y);
+      return GdkPointToDevicePixels({x, y});
+    }
+    return WidgetToScreenOffset();
+  }();
+
   // mBounds.Size() is the window bounds, not the window-manager frame
   // bounds (bug 581863).  gdk_window_get_frame_extents would give the
   // frame bounds, but mBounds.Size() is returned here for consistency
   // with Resize.
-  rect.SizeTo(mBounds.Size());
+  const LayoutDeviceIntRect rect(origin, mBounds.Size());
 #if MOZ_LOGGING
   gint scale = GdkCeiledScaleFactor();
   LOG("GetScreenBounds %d,%d -> %d x %d, unscaled %d,%d -> %d x %d\n", rect.x,
@@ -5304,10 +5318,6 @@ void nsWindow::ConfigureGdkWindow() {
     // tearing because Gecko does not align its framebuffer updates with
     // vblank.
     SetCompositorHint(GTK_WIDGET_COMPOSIDED_ENABLED);
-
-    // Dummy call to a function in mozgtk to prevent the linker from removing
-    // the dependency with --as-needed.
-    XShmQueryExtension(DefaultXDisplay());
   }
 #endif
 #ifdef MOZ_WAYLAND
