@@ -859,7 +859,7 @@ class HTMLEditor final : public EditorBase,
    * Helper routines for font size changing.
    */
   enum class FontSize { incr, decr };
-  MOZ_CAN_RUN_SCRIPT nsresult
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT CreateElementResult
   RelativeFontChangeOnTextNode(FontSize aDir, Text& aTextNode,
                                uint32_t aStartOffset, uint32_t aEndOffset);
 
@@ -1495,16 +1495,25 @@ class HTMLEditor final : public EditorBase,
   /**
    * HandleInsertParagraphInParagraph() does the right thing for Enter key
    * press or 'insertParagraph' command in aParentDivOrP.  aParentDivOrP will
-   * be split at start of first selection range.
+   * be split **around** aCandidatePointToSplit.  If this thinks that it should
+   * be handled to insert a <br> instead, this returns "not handled".
    *
    * @param aParentDivOrP   The parent block.  This must be <p> or <div>
    *                        element.
-   * @return                Returns with NS_OK if this doesn't meat any
-   *                        unexpected situation.  If this method tries to
-   *                        split the paragraph, marked as handled.
+   * @param aCandidatePointToSplit
+   *                        The point where the caller want to split
+   *                        aParentDivOrP.  However, in some cases, this is not
+   *                        used as-is.  E.g., this method avoids to create new
+   *                        empty <a href> in the right paragraph.  So this may
+   *                        be adjusted to proper position around it.
+   * @param aEditingHost    The editing host.
+   * @return                If the caller should default to inserting <br>
+   *                        element, returns "not handled".
    */
-  [[nodiscard]] MOZ_CAN_RUN_SCRIPT EditActionResult
-  HandleInsertParagraphInParagraph(Element& aParentDivOrP);
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT SplitNodeResult
+  HandleInsertParagraphInParagraph(Element& aParentDivOrP,
+                                   const EditorDOMPoint& aCandidatePointToSplit,
+                                   const Element& aEditingHost);
 
   /**
    * HandleInsertParagraphInHeadingElement() handles insertParagraph command
@@ -1515,9 +1524,8 @@ class HTMLEditor final : public EditorBase,
    *
    * @param aHeadingElement     The heading element to be split.
    * @param aPointToSplit       The point to split aHeadingElement.
-   * @return                    A candidate position to put caret.
    */
-  [[nodiscard]] MOZ_CAN_RUN_SCRIPT Result<EditorDOMPoint, nsresult>
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT SplitNodeResult
   HandleInsertParagraphInHeadingElement(Element& aHeadingElement,
                                         const EditorDOMPoint& aPointToSplit);
 
@@ -1745,46 +1753,47 @@ class HTMLEditor final : public EditorBase,
 
   /**
    * InsertContainerWithTransaction() creates new element whose name is
-   * aTagName, moves aContent into the new element, then, inserts the new
-   * element into where aContent was.
-   * Note that this method does not check if aContent is valid child of
-   * the new element.  So, callers need to guarantee it.
+   * aWrapperTagName, moves aContentToBeWrapped into the new element, then,
+   * inserts the new element into where aContentToBeWrapped was.
+   * NOTE: This method does not check if aContentToBeWrapped is valid child
+   * of the new element.  So, callers need to guarantee it.
    *
-   * @param aContent            The content which will be wrapped with new
+   * @param aContentToBeWrapped The content which will be wrapped with new
    *                            element.
-   * @param aTagName            Element name of new element which will wrap
+   * @param aWrapperTagName     Element name of new element which will wrap
    *                            aContent and be inserted into where aContent
    *                            was.
-   * @return                    The new element.
    */
-  MOZ_CAN_RUN_SCRIPT already_AddRefed<Element> InsertContainerWithTransaction(
-      nsIContent& aContent, nsAtom& aTagName) {
-    return InsertContainerWithTransactionInternal(aContent, aTagName,
-                                                  *nsGkAtoms::_empty, u""_ns);
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT CreateElementResult
+  InsertContainerWithTransaction(nsIContent& aContentToBeWrapped,
+                                 nsAtom& aWrapperTagName) {
+    return InsertContainerWithTransactionInternal(
+        aContentToBeWrapped, aWrapperTagName, *nsGkAtoms::_empty, u""_ns);
   }
 
   /**
    * InsertContainerWithTransaction() creates new element whose name is
-   * aTagName, sets its aAttribute to aAttributeValue, moves aContent into the
-   * new element, then, inserts the new element into where aContent was.
-   * Note that this method does not check if aContent is valid child of
-   * the new element.  So, callers need to guarantee it.
+   * aWrapperTagName, sets its aAttribute to aAttributeValue, moves
+   * aContentToBeWrapped into the new element, then, inserts the new element
+   * into where aContentToBeWrapped was.
+   * NOTE: This method does not check if aContentToBeWrapped is valid child
+   * of the new element.  So, callers need to guarantee it.
    *
-   * @param aContent            The content which will be wrapped with new
+   * @param aContentToBeWrapped The content which will be wrapped with new
    *                            element.
-   * @param aTagName            Element name of new element which will wrap
+   * @param aWrapperTagName     Element name of new element which will wrap
    *                            aContent and be inserted into where aContent
    *                            was.
    * @param aAttribute          Attribute which should be set to the new
    *                            element.
    * @param aAttributeValue     Value to be set to aAttribute.
-   * @return                    The new element.
    */
-  MOZ_CAN_RUN_SCRIPT already_AddRefed<Element> InsertContainerWithTransaction(
-      nsIContent& aContent, nsAtom& aTagName, nsAtom& aAttribute,
-      const nsAString& aAttributeValue) {
-    return InsertContainerWithTransactionInternal(aContent, aTagName,
-                                                  aAttribute, aAttributeValue);
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT CreateElementResult
+  InsertContainerWithTransaction(nsIContent& aContentToBeWrapped,
+                                 nsAtom& aWrapperTagName, nsAtom& aAttribute,
+                                 const nsAString& aAttributeValue) {
+    return InsertContainerWithTransactionInternal(
+        aContentToBeWrapped, aWrapperTagName, aAttribute, aAttributeValue);
   }
 
   /**
@@ -3192,13 +3201,14 @@ class HTMLEditor final : public EditorBase,
 
   /**
    * InsertContainerWithTransactionInternal() creates new element whose name is
-   * aTagName, moves aContent into the new element, then, inserts the new
-   * element into where aContent was.  If aAttribute is not nsGkAtoms::_empty,
-   * aAttribute of the new element will be set to aAttributeValue.
+   * aWrapperTagName, moves aContentToBeWrapped into the new element, then,
+   * inserts the new element into where aContent was.  If aAttribute is not
+   * nsGkAtoms::_empty, aAttribute of the new element will be set to
+   * aAttributeValue.
    *
-   * @param aContent            The content which will be wrapped with new
+   * @param aContentToBeWrapped The content which will be wrapped with new
    *                            element.
-   * @param aTagName            Element name of new element which will wrap
+   * @param aWrapperTagName     Element name of new element which will wrap
    *                            aContent and be inserted into where aContent
    *                            was.
    * @param aAttribute          Attribute which should be set to the new
@@ -3206,10 +3216,10 @@ class HTMLEditor final : public EditorBase,
    *                            this does not set any attributes to the new
    *                            element.
    * @param aAttributeValue     Value to be set to aAttribute.
-   * @return                    The new element.
    */
-  MOZ_CAN_RUN_SCRIPT already_AddRefed<Element>
-  InsertContainerWithTransactionInternal(nsIContent& aContent, nsAtom& aTagName,
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT CreateElementResult
+  InsertContainerWithTransactionInternal(nsIContent& aContentToBeWrapped,
+                                         nsAtom& aWrapperTagName,
                                          nsAtom& aAttribute,
                                          const nsAString& aAttributeValue);
 
