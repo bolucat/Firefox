@@ -630,6 +630,9 @@ pref("browser.search.separatePrivateDefault.ui.banner.max", 0);
 // Enables the display of the Mozilla VPN banner in private browsing windows
 pref("browser.privatebrowsing.vpnpromourl", "https://vpn.mozilla.org/?utm_source=firefox-browser&utm_medium=firefox-%CHANNEL%-browser&utm_campaign=private-browsing-vpn-link");
 
+// Enables the new private browsing indicator.
+pref("browser.privatebrowsing.enable-new-indicator", false);
+
 // Whether the user is opted-in to privacy segmentation.
 pref("browser.privacySegmentation.enabled", false);
 
@@ -1644,9 +1647,6 @@ pref("security.app_menu.recordEventTelemetry", true);
 
 // Block insecure active content on https pages
 pref("security.mixed_content.block_active_content", true);
-
-// Show in-content login form warning UI for insecure login fields
-pref("security.insecure_field_warning.contextual.enabled", true);
 
 // Show degraded UI for http pages.
 pref("security.insecure_connection_icon.enabled", true);

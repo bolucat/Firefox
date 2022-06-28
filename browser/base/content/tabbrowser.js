@@ -753,7 +753,7 @@
           .reduce((a, b) => a.concat(b))
           .filter(
             anim =>
-              anim instanceof CSSAnimation &&
+              CSSAnimation.isInstance(anim) &&
               (anim.animationName === "tab-throbber-animation" ||
                 anim.animationName === "tab-throbber-animation-rtl") &&
               anim.playState === "running"
@@ -1433,7 +1433,7 @@
         // last clicked when switching back to that tab
         if (
           newFocusedElement &&
-          (newFocusedElement instanceof HTMLAnchorElement ||
+          (HTMLAnchorElement.isInstance(newFocusedElement) ||
             newFocusedElement.getAttributeNS(
               "http://www.w3.org/1999/xlink",
               "type"
@@ -4740,6 +4740,10 @@
         options += "," + name + "=" + aOptions[name];
       }
 
+      if (PrivateBrowsingUtils.isWindowPrivate(window)) {
+        options += ",private=1";
+      }
+
       // Play the tab closing animation to give immediate feedback while
       // waiting for the new window to appear.
       // content area when the docshells are swapped.
@@ -4762,7 +4766,7 @@
      * to a new browser window, unless it is (they are) already the only tab(s)
      * in the current window, in which case this will do nothing.
      */
-    replaceTabsWithWindow(contextTab, aOptions) {
+    replaceTabsWithWindow(contextTab, aOptions = {}) {
       let tabs;
       if (contextTab.multiselected) {
         tabs = this.selectedTabs;
@@ -5857,7 +5861,7 @@
             return;
           }
 
-          let targetIsWindow = event.target instanceof Window;
+          let targetIsWindow = Window.isInstance(event.target);
 
           // We're about to open a modal dialog, so figure out for which tab:
           // If this is a same-process modal dialog, then we're given its DOM

@@ -1244,6 +1244,12 @@
   value: false
   mirror: always
 
+# See bug 1772569
+- name: browser.download.open_pdf_attachments_inline
+  type: bool
+  value: false
+  mirror: always
+
 - name: browser.download.sanitize_non_media_extensions
   type: bool
   value: true
@@ -1515,6 +1521,13 @@
 - name: browser.tabs.remote.useCrossOriginEmbedderPolicy
   type: RelaxedAtomicBool
   value: true
+  mirror: always
+
+# This pref makes `credentialless` a valid value for
+# Cross-Origin-Embedder-Policy header
+- name: browser.tabs.remote.coep.credentialless
+  type: RelaxedAtomicBool
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # When this pref is enabled top level loads with a mismatched
