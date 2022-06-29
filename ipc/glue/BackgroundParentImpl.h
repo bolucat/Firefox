@@ -28,6 +28,10 @@ class BackgroundParentImpl : public PBackgroundParent {
 
   bool DeallocPBackgroundTestParent(PBackgroundTestParent* aActor) override;
 
+  already_AddRefed<PBackgroundFileSystemParent>
+  AllocPBackgroundFileSystemParent(
+      const PrincipalInfo& aPrincipalInfo) override;
+
   already_AddRefed<PBackgroundIDBFactoryParent>
   AllocPBackgroundIDBFactoryParent(const LoggingInfo& aLoggingInfo) override;
 
