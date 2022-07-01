@@ -2945,15 +2945,16 @@ void PrintHitTestInfoStatsInternal(nsDisplayList* aList, int& aTotal,
     if (i->GetType() == DisplayItemType::TYPE_COMPOSITOR_HITTEST_INFO) {
       aHitTest++;
 
-      const auto& hitTestInfo =
-          static_cast<nsDisplayHitTestInfoBase*>(i)->HitTestFlags();
+      const auto& hitTestInfo = static_cast<nsDisplayCompositorHitTestInfo*>(i)
+                                    ->GetHitTestInfo()
+                                    .Info();
 
       if (hitTestInfo.size() > 1) {
         aSpecial++;
         continue;
       }
 
-      if (hitTestInfo == CompositorHitTestVisibleToHit) {
+      if (hitTestInfo == CompositorHitTestFlags::eVisibleToHitTest) {
         aVisible++;
         continue;
       }
@@ -8647,7 +8648,7 @@ ScrollMetadata nsLayoutUtils::ComputeScrollMetadata(
         aContent->GetProperty(nsGkAtoms::MinimalDisplayPort));
   }
 
-  const nsIScrollableFrame* scrollableFrame = nullptr;
+  nsIScrollableFrame* scrollableFrame = nullptr;
   if (aScrollFrame) scrollableFrame = aScrollFrame->GetScrollTargetFrame();
 
   metrics.SetScrollableRect(
