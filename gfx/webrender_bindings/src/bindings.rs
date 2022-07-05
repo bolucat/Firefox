@@ -2661,7 +2661,7 @@ pub extern "C" fn wr_dp_define_clipchain(
 #[no_mangle]
 pub extern "C" fn wr_dp_define_image_mask_clip_with_parent_clip_chain(
     state: &mut WrState,
-    parent: &WrSpaceAndClipChain,
+    space: WrSpatialId,
     mask: ImageMask,
     points: *const LayoutPoint,
     point_count: usize,
@@ -2673,7 +2673,7 @@ pub extern "C" fn wr_dp_define_image_mask_clip_with_parent_clip_chain(
     let points: Vec<LayoutPoint> = c_points.iter().copied().collect();
 
     let clip_id = state.frame_builder.dl_builder.define_clip_image_mask(
-        &parent.to_webrender(state.pipeline_id),
+        space.to_webrender(state.pipeline_id),
         mask,
         &points,
         fill_rule,
@@ -2689,15 +2689,10 @@ pub extern "C" fn wr_dp_define_rounded_rect_clip(
 ) -> WrClipId {
     debug_assert!(unsafe { is_in_main_thread() });
 
-    let space_and_clip = SpaceAndClipInfo {
-        spatial_id: space.to_webrender(state.pipeline_id),
-        clip_id: ClipId::root(state.pipeline_id),
-    };
-
     let clip_id = state
         .frame_builder
         .dl_builder
-        .define_clip_rounded_rect(&space_and_clip, complex);
+        .define_clip_rounded_rect(space.to_webrender(state.pipeline_id), complex);
     WrClipId::from_webrender(clip_id)
 }
 
@@ -3866,6 +3861,7 @@ pub unsafe extern "C" fn wr_api_end_builder(
 pub struct HitResult {
     pipeline_id: WrPipelineId,
     scroll_id: u64,
+    animation_id: u64,
     hit_info: u16,
 }
 
@@ -3876,6 +3872,7 @@ pub extern "C" fn wr_api_hit_test(dh: &mut DocumentHandle, point: WorldPoint, ou
         out_results.push(HitResult {
             pipeline_id: item.pipeline,
             scroll_id: item.tag.0,
+            animation_id: item.animation_id,
             hit_info: item.tag.1,
         });
     }
