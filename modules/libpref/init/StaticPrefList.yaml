@@ -2314,6 +2314,7 @@
   do_not_use_directly: true
 
 # Control whether `navigator.clipboard.readText()` is exposed to content.
+# Currently not supported by GeckoView, see bug 1776829.
 - name: dom.events.asyncClipboard.readText
   type: bool
   value: false
@@ -2403,7 +2404,7 @@
 # This matches other browsers but historically not Gecko.
 - name: dom.fullscreen.modal
   type: bool
-  value: false
+  value: true
   mirror: always
 
 # Whether the Gamepad API is enabled
@@ -7672,6 +7673,13 @@
 
 # Whether the `content-visibility` CSS property is enabled
 - name: layout.css.content-visibility.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+  rust: true
+
+# Whether the `contain-intrinsic-size` CSS property is enabled
+- name: layout.css.contain-intrinsic-size.enabled
   type: RelaxedAtomicBool
   value: false
   mirror: always

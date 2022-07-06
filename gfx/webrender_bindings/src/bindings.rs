@@ -107,11 +107,11 @@ type WrColorDepth = ColorDepth;
 type WrColorRange = ColorRange;
 
 #[inline]
-fn clip_chain_id_to_webrender(id: u64, pipeline_id: WrPipelineId) -> ClipId {
+fn clip_chain_id_to_webrender(id: u64, pipeline_id: WrPipelineId) -> ClipChainId {
     if id == ROOT_CLIP_CHAIN {
-        ClipId::root(pipeline_id)
+        ClipChainId::INVALID
     } else {
-        ClipId::ClipChain(ClipChainId(id, pipeline_id))
+        ClipChainId(id, pipeline_id)
     }
 }
 
@@ -126,7 +126,7 @@ impl WrSpaceAndClipChain {
         //Warning: special case here to support dummy clip chain
         SpaceAndClipInfo {
             spatial_id: self.space.to_webrender(pipeline_id),
-            clip_id: clip_chain_id_to_webrender(self.clip_chain, pipeline_id),
+            clip_chain_id: clip_chain_id_to_webrender(self.clip_chain, pipeline_id),
         }
     }
 }
@@ -2700,15 +2700,10 @@ pub extern "C" fn wr_dp_define_rounded_rect_clip(
 pub extern "C" fn wr_dp_define_rect_clip(state: &mut WrState, space: WrSpatialId, clip_rect: LayoutRect) -> WrClipId {
     debug_assert!(unsafe { is_in_main_thread() });
 
-    let space_and_clip = SpaceAndClipInfo {
-        spatial_id: space.to_webrender(state.pipeline_id),
-        clip_id: ClipId::root(state.pipeline_id),
-    };
-
     let clip_id = state
         .frame_builder
         .dl_builder
-        .define_clip_rect(&space_and_clip, clip_rect);
+        .define_clip_rect(space.to_webrender(state.pipeline_id), clip_rect);
     WrClipId::from_webrender(clip_id)
 }
 
@@ -2836,7 +2831,7 @@ fn common_item_properties_for_rect(
         // early-return here for empty rects. I couldn't figure out why, but
         // it's pretty harmless to feed these through, so, uh, we do?
         clip_rect,
-        clip_id: space_and_clip.clip_id,
+        clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),
     }
@@ -2935,7 +2930,7 @@ pub extern "C" fn wr_dp_push_backdrop_filter(
 
     let prim_info = CommonItemProperties {
         clip_rect: clip_rect.unwrap(),
-        clip_id: space_and_clip.clip_id,
+        clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),
     };
@@ -2959,7 +2954,7 @@ pub extern "C" fn wr_dp_push_clear_rect(
 
     let prim_info = CommonItemProperties {
         clip_rect,
-        clip_id: space_and_clip.clip_id,
+        clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags(true, /* prefer_compositor_surface */ false),
     };
@@ -3033,7 +3028,7 @@ pub extern "C" fn wr_dp_push_image(
 
     let prim_info = CommonItemProperties {
         clip_rect: clip,
-        clip_id: space_and_clip.clip_id,
+        clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags,
     };
@@ -3070,7 +3065,7 @@ pub extern "C" fn wr_dp_push_repeating_image(
 
     let prim_info = CommonItemProperties {
         clip_rect: clip,
-        clip_id: space_and_clip.clip_id,
+        clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),
     };
@@ -3117,7 +3112,7 @@ pub extern "C" fn wr_dp_push_yuv_planar_image(
 
     let prim_info = CommonItemProperties {
         clip_rect: clip,
-        clip_id: space_and_clip.clip_id,
+        clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags2(
             is_backface_visible,
@@ -3160,7 +3155,7 @@ pub extern "C" fn wr_dp_push_yuv_NV12_image(
 
     let prim_info = CommonItemProperties {
         clip_rect: clip,
-        clip_id: space_and_clip.clip_id,
+        clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags2(
             is_backface_visible,
@@ -3203,7 +3198,7 @@ pub extern "C" fn wr_dp_push_yuv_P010_image(
 
     let prim_info = CommonItemProperties {
         clip_rect: clip,
-        clip_id: space_and_clip.clip_id,
+        clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags2(
             is_backface_visible,
@@ -3245,7 +3240,7 @@ pub extern "C" fn wr_dp_push_yuv_interleaved_image(
 
     let prim_info = CommonItemProperties {
         clip_rect: clip,
-        clip_id: space_and_clip.clip_id,
+        clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags2(
             is_backface_visible,
@@ -3287,7 +3282,7 @@ pub extern "C" fn wr_dp_push_text(
     let prim_info = CommonItemProperties {
         clip_rect: clip,
         spatial_id: space_and_clip.spatial_id,
-        clip_id: space_and_clip.clip_id,
+        clip_chain_id: space_and_clip.clip_chain_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),
     };
 
@@ -3342,7 +3337,7 @@ pub extern "C" fn wr_dp_push_line(
 
     let prim_info = CommonItemProperties {
         clip_rect: *clip,
-        clip_id: space_and_clip.clip_id,
+        clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),
     };
@@ -3383,7 +3378,7 @@ pub extern "C" fn wr_dp_push_border(
 
     let prim_info = CommonItemProperties {
         clip_rect: clip,
-        clip_id: space_and_clip.clip_id,
+        clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),
     };
@@ -3432,7 +3427,7 @@ pub extern "C" fn wr_dp_push_border_image(
 
     let prim_info = CommonItemProperties {
         clip_rect: clip,
-        clip_id: space_and_clip.clip_id,
+        clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),
     };
@@ -3487,7 +3482,7 @@ pub extern "C" fn wr_dp_push_border_gradient(
 
     let prim_info = CommonItemProperties {
         clip_rect: clip,
-        clip_id: space_and_clip.clip_id,
+        clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),
     };
@@ -3546,7 +3541,7 @@ pub extern "C" fn wr_dp_push_border_radial_gradient(
 
     let prim_info = CommonItemProperties {
         clip_rect: clip,
-        clip_id: space_and_clip.clip_id,
+        clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),
     };
@@ -3605,7 +3600,7 @@ pub extern "C" fn wr_dp_push_border_conic_gradient(
 
     let prim_info = CommonItemProperties {
         clip_rect: clip,
-        clip_id: space_and_clip.clip_id,
+        clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),
     };
@@ -3645,7 +3640,7 @@ pub extern "C" fn wr_dp_push_linear_gradient(
 
     let prim_info = CommonItemProperties {
         clip_rect: clip,
-        clip_id: space_and_clip.clip_id,
+        clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),
     };
@@ -3685,7 +3680,7 @@ pub extern "C" fn wr_dp_push_radial_gradient(
 
     let prim_info = CommonItemProperties {
         clip_rect: clip,
-        clip_id: space_and_clip.clip_id,
+        clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),
     };
@@ -3725,7 +3720,7 @@ pub extern "C" fn wr_dp_push_conic_gradient(
 
     let prim_info = CommonItemProperties {
         clip_rect: clip,
-        clip_id: space_and_clip.clip_id,
+        clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),
     };
@@ -3757,7 +3752,7 @@ pub extern "C" fn wr_dp_push_box_shadow(
 
     let prim_info = CommonItemProperties {
         clip_rect: clip,
-        clip_id: space_and_clip.clip_id,
+        clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),
     };

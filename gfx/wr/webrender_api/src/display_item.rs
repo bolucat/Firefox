@@ -72,7 +72,7 @@ pub struct CommonItemProperties {
     /// (solid colors, background-images, gradients, etc).
     pub clip_rect: LayoutRect,
     /// Additional clips
-    pub clip_id: ClipId,
+    pub clip_chain_id: ClipChainId,
     /// The coordinate-space the item is in (yes, it can be really granular)
     pub spatial_id: SpatialId,
     /// Various flags describing properties of this primitive.
@@ -88,7 +88,7 @@ impl CommonItemProperties {
         Self {
             clip_rect,
             spatial_id: space_and_clip.spatial_id,
-            clip_id: space_and_clip.clip_id,
+            clip_chain_id: space_and_clip.clip_chain_id,
             flags: PrimitiveFlags::default(),
         }
     }
@@ -103,7 +103,7 @@ impl CommonItemProperties {
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize, PeekPoke)]
 pub struct SpaceAndClipInfo {
     pub spatial_id: SpatialId,
-    pub clip_id: ClipId,
+    pub clip_chain_id: ClipChainId,
 }
 
 impl SpaceAndClipInfo {
@@ -112,7 +112,7 @@ impl SpaceAndClipInfo {
     pub fn root_scroll(pipeline_id: PipelineId) -> Self {
         SpaceAndClipInfo {
             spatial_id: SpatialId::root_scroll_node(pipeline_id),
-            clip_id: ClipId::root(pipeline_id),
+            clip_chain_id: ClipChainId::INVALID,
         }
     }
 }
@@ -247,7 +247,7 @@ pub struct ImageMaskClipDisplayItem {
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize, PeekPoke)]
 pub struct RectClipDisplayItem {
     pub id: ClipId,
-    pub parent_space_and_clip: SpaceAndClipInfo,
+    pub spatial_id: SpatialId,
     pub clip_rect: LayoutRect,
 }
 
@@ -257,13 +257,6 @@ pub struct RoundedRectClipDisplayItem {
     pub spatial_id: SpatialId,
     pub clip: ComplexClipRegion,
 }
-
-#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize, PeekPoke)]
-pub struct ClipDisplayItem {
-    pub id: ClipId,
-    pub parent_space_and_clip: SpaceAndClipInfo,
-    pub clip_rect: LayoutRect,
-} // IMPLICIT: complex_clips: Vec<ComplexClipRegion>
 
 /// The minimum and maximum allowable offset for a sticky frame in a single dimension.
 #[repr(C)]

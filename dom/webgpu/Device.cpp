@@ -79,7 +79,8 @@ void Device::Cleanup() {
     mBridge->UnregisterDevice(mId);
   }
 
-  if (mLostPromise) {
+  // Cycle collection may have disconnected the promise object.
+  if (mLostPromise && mLostPromise->PromiseObj() != nullptr) {
     auto info = MakeRefPtr<DeviceLostInfo>(GetParentObject(),
                                            dom::GPUDeviceLostReason::Destroyed,
                                            u"Device destroyed"_ns);
@@ -137,8 +138,7 @@ already_AddRefed<Buffer> Device::CreateBuffer(
     const auto& size = checked.value();
 
     // TODO: use `ShmemPool`?
-    if (!mBridge->AllocShmem(size, ipc::Shmem::SharedMemory::TYPE_BASIC,
-                             &shmem)) {
+    if (!mBridge->AllocShmem(size, &shmem)) {
       aRv.ThrowAbortError(
           nsPrintfCString("Unable to allocate shmem of size %" PRIuPTR, size));
       return nullptr;
