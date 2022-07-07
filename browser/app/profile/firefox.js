@@ -636,6 +636,11 @@ pref("browser.privatebrowsing.enable-new-indicator", false);
 // Whether the user is opted-in to privacy segmentation.
 pref("browser.privacySegmentation.enabled", false);
 
+// Temporary pref to control whether or not Private Browsing windows show up
+// as separate icons in the Windows taskbar. This will be removed and become
+// the default behaviour with 106.
+pref("browser.privacySegmentation.windowSeparation.enabled", false);
+
 // Use dark theme variant for PBM windows. This is only supported if the theme
 // sets darkTheme data.
 pref("browser.theme.dark-private-windows", false);
@@ -1809,12 +1814,10 @@ pref("browser.contentblocking.database.enabled", true);
 
 pref("dom.storage_access.enabled", true);
 
-// Enable URL query stripping in regular browsing in Nightly.
+// Enable URL query stripping in Nightly.
 #ifdef NIGHTLY_BUILD
 pref("privacy.query_stripping.enabled", true);
 #endif
-// Enable URL query stripping in Private Browsing Mode for all desktop channels.
-pref("privacy.query_stripping.enabled.pbmode", true);
 
 pref("browser.contentblocking.cryptomining.preferences.ui.enabled", true);
 pref("browser.contentblocking.fingerprinting.preferences.ui.enabled", true);
