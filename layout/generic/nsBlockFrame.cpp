@@ -6613,70 +6613,28 @@ const nsStyleText* nsBlockFrame::StyleTextForLineLayout() {
   return StyleText();
 }
 
-////////////////////////////////////////////////////////////////////////
-// Float support
-
-LogicalRect nsBlockFrame::AdjustFloatAvailableSpace(
-    BlockReflowState& aState, const LogicalRect& aFloatAvailableSpace) {
-  WritingMode wm = aState.mReflowInput.GetWritingMode();
-
-  nscoord availBSize = NS_UNCONSTRAINEDSIZE == aState.ContentBSize()
-                           ? NS_UNCONSTRAINEDSIZE
-                           : std::max(0, aState.ContentBEnd() - aState.mBCoord);
-
-  return LogicalRect(wm, aState.ContentIStart(), aState.ContentBStart(),
-                     aState.ContentISize(), availBSize);
-}
-
-nscoord nsBlockFrame::ComputeFloatISize(BlockReflowState& aState,
-                                        const LogicalRect& aFloatAvailableSpace,
-                                        nsIFrame* aFloat) {
-  MOZ_ASSERT(aFloat->HasAnyStateBits(NS_FRAME_OUT_OF_FLOW),
-             "aFloat must be an out-of-flow frame");
-
-  // Reflow the float.
-  LogicalRect availSpace =
-      AdjustFloatAvailableSpace(aState, aFloatAvailableSpace);
-
-  WritingMode blockWM = aState.mReflowInput.GetWritingMode();
-  WritingMode floatWM = aFloat->GetWritingMode();
-  ReflowInput floatRS(aState.mPresContext, aState.mReflowInput, aFloat,
-                      availSpace.Size(blockWM).ConvertTo(floatWM, blockWM));
-
-  return floatRS.ComputedSizeWithMarginBorderPadding(blockWM).ISize(blockWM);
-}
-
 void nsBlockFrame::ReflowFloat(BlockReflowState& aState,
-                               const LogicalRect& aAdjustedAvailableSpace,
+                               const LogicalSize& aAvailableSize,
                                nsIFrame* aFloat, LogicalMargin& aFloatMargin,
                                LogicalMargin& aFloatOffsets,
                                bool aFloatPushedDown,
                                nsReflowStatus& aReflowStatus) {
+  MOZ_ASSERT(aReflowStatus.IsEmpty(),
+             "Caller should pass a fresh reflow status!");
   MOZ_ASSERT(aFloat->HasAnyStateBits(NS_FRAME_OUT_OF_FLOW),
              "aFloat must be an out-of-flow frame");
 
-  // Reflow the float.
-  aReflowStatus.Reset();
-
   WritingMode wm = aState.mReflowInput.GetWritingMode();
-#ifdef NOISY_FLOAT
-  printf("Reflow Float %p in parent %p, availSpace(%d,%d,%d,%d)\n", aFloat,
-         this, aAdjustedAvailableSpace.IStart(wm),
-         aAdjustedAvailableSpace.BStart(wm), aAdjustedAvailableSpace.ISize(wm),
-         aAdjustedAvailableSpace.BSize(wm));
-#endif
 
-  ReflowInput floatRS(
-      aState.mPresContext, aState.mReflowInput, aFloat,
-      aAdjustedAvailableSpace.Size(wm).ConvertTo(aFloat->GetWritingMode(), wm));
+  ReflowInput floatRS(aState.mPresContext, aState.mReflowInput, aFloat,
+                      aAvailableSize.ConvertTo(aFloat->GetWritingMode(), wm));
 
   // Normally the mIsTopOfPage state is copied from the parent reflow
   // input.  However, when reflowing a float, if we've placed other
   // floats that force this float *down* or *narrower*, we should unset
   // the mIsTopOfPage state.
   if (floatRS.mFlags.mIsTopOfPage &&
-      (aFloatPushedDown ||
-       aAdjustedAvailableSpace.ISize(wm) != aState.ContentISize())) {
+      (aFloatPushedDown || aAvailableSize.ISize(wm) != aState.ContentISize())) {
     floatRS.mFlags.mIsTopOfPage = false;
   }
 
@@ -6700,7 +6658,10 @@ void nsBlockFrame::ReflowFloat(BlockReflowState& aState,
       }
     }
 
-    brc.ReflowBlock(aAdjustedAvailableSpace, true, margin, 0, nullptr, floatRS,
+    // When reflowing a float, aSpace argument doesn't matter because we pass
+    // nullptr to aLine and we don't call nsBlockReflowContext::PlaceBlock()
+    // later.
+    brc.ReflowBlock(LogicalRect(wm), true, margin, 0, nullptr, floatRS,
                     aReflowStatus, aState);
   } while (clearanceFrame);
 
@@ -6716,7 +6677,7 @@ void nsBlockFrame::ReflowFloat(BlockReflowState& aState,
   if (!aReflowStatus.IsFullyComplete() && ShouldAvoidBreakInside(floatRS)) {
     aReflowStatus.SetInlineLineBreakBeforeAndReset();
   } else if (aReflowStatus.IsIncomplete() &&
-             (NS_UNCONSTRAINEDSIZE == aAdjustedAvailableSpace.BSize(wm))) {
+             aAvailableSize.BSize(wm) == NS_UNCONSTRAINEDSIZE) {
     // An incomplete reflow status means we should split the float
     // if the height is constrained (bug 145305).
     aReflowStatus.Reset();
@@ -6750,11 +6711,6 @@ void nsBlockFrame::ReflowFloat(BlockReflowState& aState,
   // Pass floatRS so the frame hierarchy can be used (redoFloatRS has the same
   // hierarchy)
   aFloat->DidReflow(aState.mPresContext, &floatRS);
-
-#ifdef NOISY_FLOAT
-  printf("end ReflowFloat %p, sized to %d,%d\n", aFloat, metrics.Width(),
-         metrics.Height());
-#endif
 }
 
 StyleClear nsBlockFrame::FindTrailingClear() {
@@ -6823,7 +6779,8 @@ void nsBlockFrame::ReflowPushedFloats(BlockReflowState& aState,
     // the float doesn't get placed, we don't consider its overflow areas.
     // (Not-getting-placed means it didn't fit and we pushed it instead of
     // placing it, and its position could be stale.)
-    if (aState.FlowAndPlaceFloat(f)) {
+    if (aState.FlowAndPlaceFloat(f) ==
+        BlockReflowState::PlaceFloatResult::Placed) {
       ConsiderChildOverflow(aOverflowAreas, f);
     }
 

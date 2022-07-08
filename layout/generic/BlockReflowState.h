@@ -134,18 +134,24 @@ class BlockReflowState {
       nscoord aBCoord, nscoord aBSize,
       nsFloatManager::SavedState* aState) const;
 
-  /*
-   * The following functions all return true if they were able to place the
-   * float, false if the float did not fit in available space.
-   *
-   * Note: if these functions return false, then the float's position and size
-   * should be considered stale/invalid (until the float is successfully
-   * placed).
-   */
+  // @return true if AddFloat was able to place the float; false if the float
+  // did not fit in available space.
+  //
+  // Note: if it returns false, then the float's position and size should be
+  // considered stale/invalid (until the float is successfully placed).
   bool AddFloat(nsLineLayout* aLineLayout, nsIFrame* aFloat,
                 nscoord aAvailableISize);
 
-  bool FlowAndPlaceFloat(nsIFrame* aFloat);
+  enum class PlaceFloatResult : uint8_t {
+    Placed,
+    ShouldPlaceBelowCurrentLine,
+    ShouldPlaceInNextContinuation,
+  };
+  // @param aAvailableISizeInCurrentLine the available inline-size of the
+  //        current line if current line is not empty.
+  PlaceFloatResult FlowAndPlaceFloat(
+      nsIFrame* aFloat, mozilla::Maybe<nscoord> aAvailableISizeInCurrentLine =
+                            mozilla::Nothing());
 
   void PlaceBelowCurrentLineFloats(nsLineBox* aLine);
 
@@ -218,6 +224,8 @@ class BlockReflowState {
   LogicalRect ComputeBlockAvailSpace(nsIFrame* aFrame,
                                      const nsFlowAreaRect& aFloatAvailableSpace,
                                      bool aBlockAvoidsFloats);
+
+  LogicalSize ComputeAvailableSizeForFloat() const;
 
   void RecoverStateFrom(nsLineList::iterator aLine, nscoord aDeltaBCoord);
 
