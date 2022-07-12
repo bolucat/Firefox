@@ -374,11 +374,11 @@ void CrashStatsLogForwarder::CrashAction(LogReason aReason) {
 #ifndef RELEASE_OR_BETA
   // Non-release builds crash by default, but will use telemetry
   // if this environment variable is present.
-  static bool useTelemetry = gfxEnv::GfxDevCrashTelemetry();
+  static bool useTelemetry = gfxEnv::MOZ_GFX_CRASH_TELEMETRY();
 #else
   // Release builds use telemetry by default, but will crash instead
   // if this environment variable is present.
-  static bool useTelemetry = !gfxEnv::GfxDevCrashMozCrash();
+  static bool useTelemetry = !gfxEnv::MOZ_GFX_CRASH_MOZ_CRASH();
 #endif
 
   if (useTelemetry) {
@@ -2351,9 +2351,11 @@ void gfxPlatform::InitAcceleration() {
   // explicit.
   MOZ_ASSERT(NS_IsMainThread(), "can only initialize prefs on the main thread");
 
+#ifndef MOZ_WIDGET_GTK
   nsCOMPtr<nsIGfxInfo> gfxInfo = components::GfxInfo::Service();
   nsCString discardFailureId;
   int32_t status;
+#endif
 
   if (XRE_IsParentProcess()) {
     gfxVars::SetBrowserTabsRemoteAutostart(BrowserTabsRemoteAutostart());
@@ -2378,27 +2380,29 @@ void gfxPlatform::InitAcceleration() {
 #endif
   }
 
-  if (Preferences::GetBool("media.hardware-video-decoding.enabled", false) &&
-#ifdef XP_WIN
-      Preferences::GetBool("media.wmf.dxva.enabled", true) &&
-#endif
-      NS_SUCCEEDED(
-          gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_HARDWARE_VIDEO_DECODING,
-                                    discardFailureId, &status))) {
-    if (status == nsIGfxInfo::FEATURE_STATUS_OK ||
-#ifdef MOZ_WAYLAND
-        StaticPrefs::media_ffmpeg_vaapi_enabled() ||
-#endif
-        StaticPrefs::media_hardware_video_decoding_force_enabled_AtStartup()) {
-      sLayersSupportsHardwareVideoDecoding = true;
+  if (StaticPrefs::media_hardware_video_decoding_enabled_AtStartup()) {
+#ifdef MOZ_WIDGET_GTK
+    sLayersSupportsHardwareVideoDecoding =
+        gfxPlatformGtk::GetPlatform()->InitVAAPIConfig(
+            StaticPrefs::
+                media_hardware_video_decoding_force_enabled_AtStartup() ||
+            StaticPrefs::media_ffmpeg_vaapi_enabled());
+#else
+    if (
+#  ifdef XP_WIN
+        Preferences::GetBool("media.wmf.dxva.enabled", true) &&
+#  endif
+        NS_SUCCEEDED(gfxInfo->GetFeatureStatus(
+            nsIGfxInfo::FEATURE_HARDWARE_VIDEO_DECODING, discardFailureId,
+            &status))) {
+      if (status == nsIGfxInfo::FEATURE_STATUS_OK ||
+          StaticPrefs::
+              media_hardware_video_decoding_force_enabled_AtStartup()) {
+        sLayersSupportsHardwareVideoDecoding = true;
+      }
     }
-  }
-
-#ifdef MOZ_WAYLAND
-  sLayersSupportsHardwareVideoDecoding =
-      gfxPlatformGtk::GetPlatform()->InitVAAPIConfig(
-          sLayersSupportsHardwareVideoDecoding);
 #endif
+  }
 
   sLayersAccelerationPrefsInitialized = true;
 

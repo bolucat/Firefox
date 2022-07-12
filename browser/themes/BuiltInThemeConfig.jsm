@@ -9,7 +9,6 @@ const EXPORTED_SYMBOLS = ["_applyColorwayConfig", "BuiltInThemeConfig"];
 const { AppConstants } = ChromeUtils.import(
   "resource://gre/modules/AppConstants.jsm"
 );
-const { Services } = ChromeUtils.import("resource://gre/modules/Services.jsm");
 
 /**
  * A Map of themes built in to the browser, alongwith a Map of collections those themes belong to. Params for the objects contained
@@ -397,7 +396,7 @@ const BuiltInThemeConfig = new Map([
   [
     "activist-bold-colorway@mozilla.org",
     {
-      version: "1.1",
+      version: "1.1.1",
       path: "resource://builtin-themes/colorways/2022activist/bold/",
       collection: "independent-voices",
       l10nId: {

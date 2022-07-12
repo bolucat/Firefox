@@ -3,10 +3,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-var { XPCOMUtils } = ChromeUtils.import(
-  "resource://gre/modules/XPCOMUtils.jsm"
+var { XPCOMUtils } = ChromeUtils.importESModule(
+  "resource://gre/modules/XPCOMUtils.sys.mjs"
 );
-var { Services } = ChromeUtils.import("resource://gre/modules/Services.jsm");
 var { AppConstants } = ChromeUtils.import(
   "resource://gre/modules/AppConstants.jsm"
 );
@@ -6496,7 +6495,7 @@ function showFullScreenViewContextMenuItems(popup) {
   }
   let autoHide = popup.querySelector(".fullscreen-context-autohide");
   if (autoHide) {
-    FullScreen.getAutohide(autoHide);
+    FullScreen.updateAutohideMenuitem(autoHide);
   }
 }
 
