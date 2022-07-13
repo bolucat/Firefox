@@ -1069,6 +1069,32 @@
     "bug_numbers": [1580227],
     "description": "GC 'effectiveness', the amount of memory freed divided by main-thread collection time (MB/s)"
   },
+  "GC_WAIT_FOR_IDLE_MS": {
+    "record_in_processes": ["content"],
+    "products": ["firefox", "fennec"],
+    "alert_emails": ["dev-telemetry-gc-alerts@mozilla.org", "pbone@mozilla.com"],
+    "expires_in_version": "110",
+    "kind": "exponential",
+    "releaseChannelCollection": "opt-out",
+    "low": 1,
+    "high": 120000,
+    "n_buckets": 60,
+    "bug_numbers": [1778621],
+    "description": "The time a content process waits before the parent process said that it may begin a GC"
+  },
+  "GC_WAIT_FOR_IDLE_COUNT": {
+    "record_in_processes": ["main"],
+    "products": ["firefox", "fennec"],
+    "alert_emails": ["dev-telemetry-gc-alerts@mozilla.org", "pbone@mozilla.com"],
+    "expires_in_version": "110",
+    "kind": "exponential",
+    "releaseChannelCollection": "opt-out",
+    "low": 1,
+    "high": 120,
+    "n_buckets": 25,
+    "bug_numbers": [1778621],
+    "description": "The number of queued GCs, collected each time GCs are (de)queued)"
+  },
   "DESERIALIZE_BYTES": {
     "record_in_processes": ["main", "content"],
     "products": ["firefox"],
@@ -14070,16 +14096,6 @@
     "kind": "count",
     "description": "Count ServiceWorkers scripts that are updated. File bugs in Core::DOM in case of a Telemetry regression."
   },
-  "SERVICE_WORKER_LIFE_TIME": {
-    "record_in_processes": ["main", "content"],
-    "products": ["firefox", "fennec"],
-    "expires_in_version": "105",
-    "kind": "exponential",
-    "high": 120000,
-    "n_buckets": 20,
-    "alert_emails": ["sw-telemetry@mozilla.com", "rjesup@mozilla.com", "echuang@mozilla.com"],
-    "description": "Tracking how long a ServiceWorker stays alive after it is spawned. File bugs in Core::DOM in case of a Telemetry regression."
-  },
   "SERVICE_WORKER_RUNNING": {
     "record_in_processes": ["main"],
     "products": ["firefox", "fennec"],
@@ -16203,6 +16219,28 @@
     "high": 1000,
     "n_buckets": 50,
     "description": "Time taken by WebRender to update the texture cache in milliseconds."
+  },
+  "WR_TIME_TO_FRAME_BUILD_MS": {
+    "record_in_processes": [ "main", "gpu" ],
+    "products": [ "firefox" ],
+    "alert_emails": [ "gfx-telemetry-alerts@mozilla.com" ],
+    "bug_numbers": [ 1778395 ],
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": 1000,
+    "n_buckets": 50,
+    "description": "Time elapsed (in milliseconds) between the construction of a transaction and the associated frame build beginning."
+  },
+  "WR_TIME_TO_RENDER_START_MS": {
+    "record_in_processes": [ "main", "gpu" ],
+    "products": [ "firefox" ],
+    "alert_emails": [ "gfx-telemetry-alerts@mozilla.com" ],
+    "bug_numbers": [ 1778395 ],
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": 1000,
+    "n_buckets": 50,
+    "description": "Time elapsed (in milliseconds) between the construction of a frame and the start of rendering."
   },
   "WEB_AUDIO_BECOMES_AUDIBLE_TIME": {
     "record_in_processes": ["content"],

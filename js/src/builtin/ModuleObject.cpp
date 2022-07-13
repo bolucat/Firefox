@@ -45,7 +45,9 @@ using mozilla::Some;
 
 static_assert(ModuleStatus::Unlinked < ModuleStatus::Linking &&
                   ModuleStatus::Linking < ModuleStatus::Linked &&
-                  ModuleStatus::Linked < ModuleStatus::Evaluated &&
+                  ModuleStatus::Linked < ModuleStatus::Evaluating &&
+                  ModuleStatus::Evaluating < ModuleStatus::EvaluatingAsync &&
+                  ModuleStatus::EvaluatingAsync < ModuleStatus::Evaluated &&
                   ModuleStatus::Evaluated < ModuleStatus::Evaluated_Error,
               "Module statuses are ordered incorrectly");
 
@@ -945,6 +947,9 @@ static inline void AssertValidModuleStatus(ModuleStatus status) {
 ModuleStatus ModuleObject::status() const {
   ModuleStatus status = ModuleStatus(getReservedSlot(StatusSlot).toInt32());
   AssertValidModuleStatus(status);
+  if (status == ModuleStatus::Evaluated_Error) {
+    return ModuleStatus::Evaluated;
+  }
   return status;
 }
 
@@ -1025,17 +1030,17 @@ void ModuleObject::clearDfsIndexes() {
   setReservedSlot(DFSAncestorIndexSlot, UndefinedValue());
 }
 
-JSObject* ModuleObject::maybeTopLevelCapability() const {
+PromiseObject* ModuleObject::maybeTopLevelCapability() const {
   Value value = getReservedSlot(TopLevelCapabilitySlot);
   if (value.isUndefined()) {
     return nullptr;
   }
 
-  return &value.toObject();
+  return &value.toObject().as<PromiseObject>();
 }
 
-JSObject* ModuleObject::topLevelCapability() const {
-  JSObject* capability = maybeTopLevelCapability();
+PromiseObject* ModuleObject::topLevelCapability() const {
+  PromiseObject* capability = maybeTopLevelCapability();
   MOZ_RELEASE_ASSERT(capability);
   return capability;
 }
@@ -1051,8 +1056,9 @@ PromiseObject* ModuleObject::createTopLevelCapability(
   return resultPromise;
 }
 
-void ModuleObject::setInitialTopLevelCapability(HandleObject promiseObj) {
-  initReservedSlot(TopLevelCapabilitySlot, ObjectValue(*promiseObj));
+void ModuleObject::setInitialTopLevelCapability(
+    Handle<PromiseObject*> capability) {
+  initReservedSlot(TopLevelCapabilitySlot, ObjectValue(*capability));
 }
 
 ListObject* ModuleObject::asyncParentModules() const {
@@ -1112,12 +1118,19 @@ bool ModuleObject::hasTopLevelCapability() const {
 }
 
 bool ModuleObject::hadEvaluationError() const {
-  return status() == ModuleStatus::Evaluated_Error;
+  ModuleStatus fullStatus = ModuleStatus(getReservedSlot(StatusSlot).toInt32());
+  return fullStatus == ModuleStatus::Evaluated_Error;
 }
 
 void ModuleObject::setEvaluationError(HandleValue newValue) {
+  MOZ_ASSERT(status() != ModuleStatus::Unlinked);
+  MOZ_ASSERT(!hadEvaluationError());
+
   setReservedSlot(StatusSlot, ModuleStatusValue(ModuleStatus::Evaluated_Error));
-  return setReservedSlot(EvaluationErrorSlot, newValue);
+  setReservedSlot(EvaluationErrorSlot, newValue);
+
+  MOZ_ASSERT(status() == ModuleStatus::Evaluated);
+  MOZ_ASSERT(hadEvaluationError());
 }
 
 Value ModuleObject::maybeEvaluationError() const {
@@ -1203,7 +1216,9 @@ bool ModuleObject::instantiateFunctionDeclarations(JSContext* cx,
 bool ModuleObject::execute(JSContext* cx, Handle<ModuleObject*> self) {
 #ifdef DEBUG
   MOZ_ASSERT(self->status() == ModuleStatus::Evaluating ||
+             self->status() == ModuleStatus::EvaluatingAsync ||
              self->status() == ModuleStatus::Evaluated);
+  MOZ_ASSERT(!self->hadEvaluationError());
   if (!AssertFrozen(cx, self)) {
     return false;
   }
@@ -2380,7 +2395,8 @@ static bool OnResolvedDynamicModule(JSContext* cx, unsigned argc, Value* vp) {
   }
 
   Rooted<ModuleObject*> module(cx, &result->as<ModuleObject>());
-  if (module->status() != ModuleStatus::Evaluated) {
+  if (module->status() != ModuleStatus::EvaluatingAsync &&
+      module->status() != ModuleStatus::Evaluated) {
     JS_ReportErrorASCII(
         cx, "Unevaluated or errored module returned by module resolve hook");
     return RejectPromiseWithPendingError(cx, promise);
