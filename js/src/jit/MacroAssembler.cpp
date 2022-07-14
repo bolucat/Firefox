@@ -33,7 +33,6 @@
 #include "vm/ArrayBufferViewObject.h"
 #include "vm/FunctionFlags.h"  // js::FunctionFlags
 #include "vm/JSContext.h"
-#include "vm/TraceLogging.h"
 #include "vm/TypedArrayObject.h"
 #include "wasm/WasmBuiltins.h"
 #include "wasm/WasmCodegenTypes.h"
@@ -2228,119 +2227,6 @@ void MacroAssembler::printf(const char* output, Register value) {
   PopRegsInMask(save);
 #endif
 }
-
-#ifdef JS_TRACE_LOGGING
-void MacroAssembler::loadTraceLogger(Register logger) {
-  loadJSContext(logger);
-  loadPtr(Address(logger, offsetof(JSContext, traceLogger)), logger);
-}
-
-void MacroAssembler::tracelogStartId(Register logger, uint32_t textId,
-                                     bool force) {
-  if (!force && !TraceLogTextIdEnabled(textId)) {
-    return;
-  }
-
-  AllocatableRegisterSet regs(RegisterSet::Volatile());
-  LiveRegisterSet save(regs.asLiveSet());
-  PushRegsInMask(save);
-  regs.takeUnchecked(logger);
-
-  Register temp = regs.takeAnyGeneral();
-
-  using Fn = void (*)(TraceLoggerThread * logger, uint32_t id);
-  setupUnalignedABICall(temp);
-  passABIArg(logger);
-  move32(Imm32(textId), temp);
-  passABIArg(temp);
-  callWithABI<Fn, TraceLogStartEventPrivate>(
-      MoveOp::GENERAL, CheckUnsafeCallWithABI::DontCheckOther);
-
-  PopRegsInMask(save);
-}
-
-void MacroAssembler::tracelogStartId(Register logger, Register textId) {
-  AllocatableRegisterSet regs(RegisterSet::Volatile());
-  LiveRegisterSet save(regs.asLiveSet());
-  PushRegsInMask(save);
-  regs.takeUnchecked(logger);
-  regs.takeUnchecked(textId);
-
-  Register temp = regs.takeAnyGeneral();
-
-  using Fn = void (*)(TraceLoggerThread * logger, uint32_t id);
-  setupUnalignedABICall(temp);
-  passABIArg(logger);
-  passABIArg(textId);
-  callWithABI<Fn, TraceLogStartEventPrivate>(
-      MoveOp::GENERAL, CheckUnsafeCallWithABI::DontCheckOther);
-
-  PopRegsInMask(save);
-}
-
-void MacroAssembler::tracelogStartEvent(Register logger, Register event) {
-  AllocatableRegisterSet regs(RegisterSet::Volatile());
-  LiveRegisterSet save(regs.asLiveSet());
-  PushRegsInMask(save);
-  regs.takeUnchecked(logger);
-  regs.takeUnchecked(event);
-
-  Register temp = regs.takeAnyGeneral();
-
-  using Fn = void (*)(TraceLoggerThread*, const TraceLoggerEvent&);
-  setupUnalignedABICall(temp);
-  passABIArg(logger);
-  passABIArg(event);
-  callWithABI<Fn, TraceLogStartEvent>(MoveOp::GENERAL,
-                                      CheckUnsafeCallWithABI::DontCheckOther);
-
-  PopRegsInMask(save);
-}
-
-void MacroAssembler::tracelogStopId(Register logger, uint32_t textId,
-                                    bool force) {
-  if (!force && !TraceLogTextIdEnabled(textId)) {
-    return;
-  }
-
-  AllocatableRegisterSet regs(RegisterSet::Volatile());
-  LiveRegisterSet save(regs.asLiveSet());
-  PushRegsInMask(save);
-  regs.takeUnchecked(logger);
-
-  Register temp = regs.takeAnyGeneral();
-
-  using Fn = void (*)(TraceLoggerThread * logger, uint32_t id);
-  setupUnalignedABICall(temp);
-  passABIArg(logger);
-  move32(Imm32(textId), temp);
-  passABIArg(temp);
-
-  callWithABI<Fn, TraceLogStopEventPrivate>(
-      MoveOp::GENERAL, CheckUnsafeCallWithABI::DontCheckOther);
-
-  PopRegsInMask(save);
-}
-
-void MacroAssembler::tracelogStopId(Register logger, Register textId) {
-  AllocatableRegisterSet regs(RegisterSet::Volatile());
-  LiveRegisterSet save(regs.asLiveSet());
-  PushRegsInMask(save);
-  regs.takeUnchecked(logger);
-  regs.takeUnchecked(textId);
-
-  Register temp = regs.takeAnyGeneral();
-
-  using Fn = void (*)(TraceLoggerThread * logger, uint32_t id);
-  setupUnalignedABICall(temp);
-  passABIArg(logger);
-  passABIArg(textId);
-  callWithABI<Fn, TraceLogStopEventPrivate>(
-      MoveOp::GENERAL, CheckUnsafeCallWithABI::DontCheckOther);
-
-  PopRegsInMask(save);
-}
-#endif
 
 void MacroAssembler::convertInt32ValueToDouble(ValueOperand val) {
   Label done;

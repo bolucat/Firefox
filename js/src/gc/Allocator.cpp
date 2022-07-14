@@ -22,7 +22,6 @@
 #include "vm/PropMap.h"
 #include "vm/Runtime.h"
 #include "vm/StringType.h"
-#include "vm/TraceLogging.h"
 
 #include "gc/ArenaList-inl.h"
 #include "gc/Heap-inl.h"
@@ -781,9 +780,6 @@ BackgroundAllocTask::BackgroundAllocTask(GCRuntime* gc, ChunkPool& pool)
 
 void BackgroundAllocTask::run(AutoLockHelperThreadState& lock) {
   AutoUnlockHelperThreadState unlock(lock);
-
-  TraceLoggerThread* logger = TraceLoggerForCurrentThread();
-  AutoTraceLog logAllocation(logger, TraceLogger_GCAllocation);
 
   AutoLockGC gcLock(gc);
   while (!isCancelled() && gc->wantBackgroundAllocation(gcLock)) {

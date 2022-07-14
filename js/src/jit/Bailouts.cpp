@@ -19,7 +19,6 @@
 #include "jit/ScriptFromCalleeToken.h"
 #include "vm/JSContext.h"
 #include "vm/Stack.h"
-#include "vm/TraceLogging.h"
 
 #include "vm/JSScript-inl.h"
 #include "vm/Probes-inl.h"
@@ -125,9 +124,6 @@ bool jit::Bailout(BailoutStack* sp, BaselineBailoutInfo** bailoutInfo) {
   MOZ_ASSERT(!frame.ionScript()->invalidated());
   JitFrameLayout* currentFramePtr = frame.jsFrame();
 
-  TraceLoggerThread* logger = TraceLoggerForCurrentThread(cx);
-  TraceLogTimestamp(logger, TraceLogger_Bailout);
-
   JitSpew(JitSpew_IonBailouts, "Took bailout! Snapshot offset: %u",
           frame.snapshotOffset());
 
@@ -196,9 +192,6 @@ bool jit::InvalidationBailout(InvalidationBailoutStack* sp,
   BailoutFrameInfo bailoutData(jitActivations, sp);
   JSJitFrameIter frame(jitActivations->asJit());
   JitFrameLayout* currentFramePtr = frame.jsFrame();
-
-  TraceLoggerThread* logger = TraceLoggerForCurrentThread(cx);
-  TraceLogTimestamp(logger, TraceLogger_Invalidation);
 
   JitSpew(JitSpew_IonBailouts, "Took invalidation bailout! Snapshot offset: %u",
           frame.snapshotOffset());

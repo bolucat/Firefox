@@ -122,7 +122,6 @@
 #include "vm/Stack.h"
 #include "vm/StencilObject.h"  // StencilObject, StencilXDRBufferObject
 #include "vm/StringType.h"
-#include "vm/TraceLogging.h"
 #include "wasm/AsmJS.h"
 #include "wasm/WasmBaselineCompile.h"
 #include "wasm/WasmCraneliftCompile.h"
@@ -205,12 +204,6 @@ static bool GetRealmConfiguration(JSContext* cx, unsigned argc, Value* vp) {
     return false;
   }
 #endif
-
-  bool arrayFindLast = cx->realm()->creationOptions().getArrayFindLastEnabled();
-  if (!JS_SetProperty(cx, info, "enableArrayFindLast",
-                      arrayFindLast ? TrueHandleValue : FalseHandleValue)) {
-    return false;
-  }
 
 #ifdef ENABLE_CHANGE_ARRAY_BY_COPY
   bool changeArrayByCopy = cx->options().changeArrayByCopy();
@@ -3537,17 +3530,6 @@ void IterativeFailureTest::cleanup() {
     JS_GC(cx);
     compartmentCount = CountCompartments(cx);
   }
-
-#  ifdef JS_TRACE_LOGGING
-  // Reset the TraceLogger state if enabled.
-  TraceLoggerThread* logger = TraceLoggerForCurrentThread(cx);
-  if (logger && logger->enabled()) {
-    while (logger->enabled()) {
-      logger->disable();
-    }
-    logger->enable(cx);
-  }
-#  endif
 }
 
 void IterativeFailureTest::teardown() {
@@ -5021,27 +5003,6 @@ static bool EnableShapeConsistencyChecks(JSContext* cx, unsigned argc,
   args.rval().setUndefined();
   return true;
 }
-
-#ifdef JS_TRACE_LOGGING
-static bool EnableTraceLogger(JSContext* cx, unsigned argc, Value* vp) {
-  CallArgs args = CallArgsFromVp(argc, vp);
-  TraceLoggerThread* logger = TraceLoggerForCurrentThread(cx);
-  if (!TraceLoggerEnable(logger, cx)) {
-    return false;
-  }
-
-  args.rval().setUndefined();
-  return true;
-}
-
-static bool DisableTraceLogger(JSContext* cx, unsigned argc, Value* vp) {
-  CallArgs args = CallArgsFromVp(argc, vp);
-  TraceLoggerThread* logger = TraceLoggerForCurrentThread(cx);
-  args.rval().setBoolean(TraceLoggerDisable(logger));
-
-  return true;
-}
-#endif  // JS_TRACE_LOGGING
 
 // ShapeSnapshot holds information about an object's properties. This is used
 // for checking object and shape changes between two points in time.
@@ -8655,16 +8616,6 @@ JS_FOR_WASM_FEATURES(WASM_FEATURE, WASM_FEATURE, WASM_FEATURE)
     JS_FN_HELP("enableShapeConsistencyChecks", EnableShapeConsistencyChecks, 0, 0,
 "enableShapeConsistencyChecks()",
 "  Enable some slow Shape assertions.\n"),
-
-#ifdef JS_TRACE_LOGGING
-    JS_FN_HELP("startTraceLogger", EnableTraceLogger, 0, 0,
-"startTraceLogger()",
-"  Start logging this thread.\n"),
-
-    JS_FN_HELP("stopTraceLogger", DisableTraceLogger, 0, 0,
-"stopTraceLogger()",
-"  Stop logging this thread."),
-#endif
 
     JS_FN_HELP("reportOutOfMemory", ReportOutOfMemory, 0, 0,
 "reportOutOfMemory()",

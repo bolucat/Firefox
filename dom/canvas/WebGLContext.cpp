@@ -106,6 +106,22 @@ WebGLContextOptions::WebGLContextOptions() {
   antialias = StaticPrefs::webgl_default_antialias();
 }
 
+bool WebGLContextOptions::operator==(const WebGLContextOptions& r) const {
+  bool eq = true;
+  eq &= (alpha == r.alpha);
+  eq &= (depth == r.depth);
+  eq &= (stencil == r.stencil);
+  eq &= (premultipliedAlpha == r.premultipliedAlpha);
+  eq &= (antialias == r.antialias);
+  eq &= (preserveDrawingBuffer == r.preserveDrawingBuffer);
+  eq &= (failIfMajorPerformanceCaveat == r.failIfMajorPerformanceCaveat);
+  eq &= (xrCompatible == r.xrCompatible);
+  eq &= (powerPreference == r.powerPreference);
+  eq &= (colorSpace == r.colorSpace);
+  eq &= (ignoreColorSpace == r.ignoreColorSpace);
+  return eq;
+}
+
 StaticMutex WebGLContext::sLruMutex;
 std::list<WebGLContext*> WebGLContext::sLru;
 
@@ -894,14 +910,10 @@ constexpr auto MakeArray(Args... args) -> std::array<T, sizeof...(Args)> {
 }
 
 inline gfx::ColorSpace2 ToColorSpace2(const WebGLContextOptions& options) {
-  auto ret = gfx::ColorSpace2::UNKNOWN;
-  if (StaticPrefs::gfx_color_management_native_srgb()) {
-    ret = gfx::ColorSpace2::SRGB;
+  if (options.ignoreColorSpace) {
+    return gfx::ColorSpace2::UNKNOWN;
   }
-  if (!options.ignoreColorSpace) {
-    ret = gfx::ToColorSpace2(options.colorSpace);
-  }
-  return ret;
+  return gfx::ToColorSpace2(options.colorSpace);
 }
 
 // -
@@ -1058,16 +1070,16 @@ void WebGLContext::CopyToSwapChain(WebGLFramebuffer* const srcFb,
     return;
   }
 
-  // ColorSpace will need to be part of SwapChainOptions for DTWebgl.
-  const auto colorSpace = ToColorSpace2(mOptions);
-  auto presenter = srcFb->mSwapChain.Acquire(size, colorSpace);
-  if (!presenter) {
-    GenerateWarning("Swap chain surface creation failed.");
-    LoseContext();
-    return;
-  }
-
   {
+    // ColorSpace will need to be part of SwapChainOptions for DTWebgl.
+    const auto colorSpace = ToColorSpace2(mOptions);
+    auto presenter = srcFb->mSwapChain.Acquire(size, colorSpace);
+    if (!presenter) {
+      GenerateWarning("Swap chain surface creation failed.");
+      LoseContext();
+      return;
+    }
+
     const ScopedFBRebinder saveFB(this);
 
     const auto destFb = presenter->Fb();
