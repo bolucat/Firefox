@@ -139,14 +139,8 @@ ComputedTiming AnimationEffect::GetComputedTimingAt(
       aProgressTimelinePosition ==
       Animation::ProgressTimelinePosition::Boundary;
 
-  StickyTimeDuration beforeActiveBoundary =
-      std::max(std::min(StickyTimeDuration(aTiming.Delay()), result.mEndTime),
-               zeroDuration);
-
-  StickyTimeDuration activeAfterBoundary = std::max(
-      std::min(StickyTimeDuration(aTiming.Delay() + result.mActiveDuration),
-               result.mEndTime),
-      zeroDuration);
+  StickyTimeDuration beforeActiveBoundary = aTiming.CalcBeforeActiveBoundary();
+  StickyTimeDuration activeAfterBoundary = aTiming.CalcActiveAfterBoundary();
 
   if (localTime > activeAfterBoundary ||
       (aPlaybackRate >= 0 && localTime == activeAfterBoundary &&
@@ -258,12 +252,12 @@ ComputedTiming AnimationEffect::GetComputedTimingAt(
        thisIterationReverse) ||
       (result.mPhase == ComputedTiming::AnimationPhase::Before &&
        !thisIterationReverse)) {
-    result.mBeforeFlag = StyleEasingBeforeFlag::Set;
+    result.mBeforeFlag = true;
   }
 
   // Apply the easing.
-  if (aTiming.TimingFunction()) {
-    progress = aTiming.TimingFunction()->GetValue(progress, result.mBeforeFlag);
+  if (const auto& fn = aTiming.TimingFunction()) {
+    progress = fn->At(progress, result.mBeforeFlag);
   }
 
   MOZ_ASSERT(IsFinite(progress), "Progress value should be finite");
