@@ -2230,7 +2230,7 @@ void gfxPlatform::FontsPrefsChanged(const char* aPref) {
       !strcmp("gfx.font_rendering.ahem_antialias_none", aPref)) {
     FlushFontAndWordCaches();
   } else if (!strcmp(GFX_PREF_OPENTYPE_SVG, aPref)) {
-    gfxFontCache::GetCache()->AgeAllGenerations();
+    gfxFontCache::GetCache()->Flush();
     gfxFontCache::GetCache()->NotifyGlyphsChanged();
   }
 }
@@ -2892,7 +2892,7 @@ void gfxPlatform::InitWebGLConfig() {
     // It causes the linking of some shaders to fail. See bug 1485441.
     nsAutoString renderer;
     gfxInfo->GetAdapterDeviceID(renderer);
-    if (renderer.Find("Adreno (TM) 630") != -1) {
+    if (renderer.Find(u"Adreno (TM) 630") != -1) {
       gfxVars::SetAllowEglRbab(false);
     }
   }
