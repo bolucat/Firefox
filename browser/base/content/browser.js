@@ -2507,6 +2507,8 @@ var gBrowserInit = {
 
     gAccessibilityServiceIndicator.uninit();
 
+    FirefoxViewHandler.uninit();
+
     if (gToolbarKeyNavEnabled) {
       ToolbarKeyboardNavigator.uninit();
     }
@@ -9925,11 +9927,24 @@ var ConfirmationHint = {
 var FirefoxViewHandler = {
   tab: null,
   init() {
+    const { FirefoxViewNotificationManager } = ChromeUtils.importESModule(
+      "resource:///modules/firefox-view-notification-manager.sys.mjs"
+    );
     if (
       AppConstants.NIGHTLY_BUILD &&
       !Services.prefs.getBoolPref("browser.tabs.firefox-view")
     ) {
       document.getElementById("menu_openFirefoxView").hidden = true;
+    } else {
+      let shouldShow = FirefoxViewNotificationManager.shouldNotificationDotBeShowing();
+      this._toggleNotificationDot(shouldShow);
+    }
+    Services.obs.addObserver(this, "firefoxview-notification-dot-update");
+    this.observerAdded = true;
+  },
+  uninit() {
+    if (this.observerAdded) {
+      Services.obs.removeObserver(this, "firefoxview-notification-dot-update");
     }
   },
   openTab() {
@@ -9937,6 +9952,7 @@ var FirefoxViewHandler = {
       this.tab = gBrowser.addTrustedTab("about:firefoxview", { index: 0 });
       this.tab.addEventListener("TabClose", this, { once: true });
       gBrowser.tabContainer.addEventListener("TabSelect", this);
+      window.addEventListener("activate", this);
       gBrowser.hideTab(this.tab);
     }
     gBrowser.selectedTab = this.tab;
@@ -9947,11 +9963,34 @@ var FirefoxViewHandler = {
         document
           .getElementById("firefox-view-button")
           ?.toggleAttribute("open", e.target == this.tab);
+        this._removeNotificationDotIfTabSelected();
         break;
       case "TabClose":
         this.tab = null;
         gBrowser.tabContainer.removeEventListener("TabSelect", this);
         break;
+      case "activate":
+        this._removeNotificationDotIfTabSelected();
+        break;
     }
+  },
+  observe(sub, topic, data) {
+    if (topic === "firefoxview-notification-dot-update") {
+      let shouldShow = data === "true";
+      this._toggleNotificationDot(shouldShow);
+    }
+  },
+  _removeNotificationDotIfTabSelected() {
+    if (this.tab?.selected) {
+      Services.obs.notifyObservers(
+        null,
+        "firefoxview-notification-dot-update",
+        "false"
+      );
+    }
+  },
+  _toggleNotificationDot(shouldShow) {
+    let fxViewButton = document.getElementById("firefox-view-button");
+    fxViewButton?.setAttribute("attention", shouldShow);
   },
 };
