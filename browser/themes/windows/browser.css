@@ -453,17 +453,9 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
   margin-bottom: var(--tabs-navbar-shadow-size);
 }
 
-:root:not([privatebrowsingmode=temporary]) .accessibility-indicator,
 .private-browsing-indicator {
-  margin-inline-end: 12px;
+  margin-inline: 12px;
 }
-
-:root:not([accessibilitymode]) .private-browsing-indicator,
-.accessibility-indicator {
-  margin-inline-start: 12px;
-}
-
-/* End private browsing and accessibility indicators */
 
 #UITourTooltipButtons {
   /**
@@ -592,4 +584,23 @@ menupopup[touchmode] menuitem {
 .webextension-popup-browser,
 .webextension-popup-stack {
   border-radius: inherit;
+}
+
+#historySwipeAnimationPreviousArrow {
+  background: url("chrome://browser/skin/history-swipe-arrow.svg")
+              center left / 192px 192px no-repeat transparent;
+  will-change: transform;
+  -moz-context-properties: fill;
+}
+#historySwipeAnimationPreviousArrow:-moz-locale-dir(rtl) {
+  transform: scaleX(-1);
+}
+#historySwipeAnimationNextArrow {
+  background: url("chrome://browser/skin/history-swipe-arrow.svg")
+              center left / 192px 192px no-repeat transparent;
+  will-change: transform;
+  -moz-context-properties: fill;
+}
+#historySwipeAnimationNextArrow:-moz-locale-dir(ltr) {
+  transform: scaleX(-1);
 }
