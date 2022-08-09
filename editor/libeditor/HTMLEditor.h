@@ -2112,7 +2112,8 @@ class HTMLEditor final : public EditorBase,
     if (aPoint.IsPreviousCharPreformattedNewLine()) {
       return CharPointType::PreformattedLineBreak;
     }
-    if (EditorUtils::IsWhiteSpacePreformatted(*aPoint.ContainerAsText())) {
+    if (EditorUtils::IsWhiteSpacePreformatted(
+            *aPoint.template ContainerAs<Text>())) {
       return CharPointType::PreformattedChar;
     }
     if (aPoint.IsPreviousCharASCIISpace()) {
@@ -2130,7 +2131,8 @@ class HTMLEditor final : public EditorBase,
     if (aPoint.IsCharPreformattedNewLine()) {
       return CharPointType::PreformattedLineBreak;
     }
-    if (EditorUtils::IsWhiteSpacePreformatted(*aPoint.ContainerAsText())) {
+    if (EditorUtils::IsWhiteSpacePreformatted(
+            *aPoint.template ContainerAs<Text>())) {
       return CharPointType::PreformattedChar;
     }
     if (aPoint.IsCharASCIISpace()) {
@@ -2601,7 +2603,8 @@ class HTMLEditor final : public EditorBase,
    *
    * @param aRange      Must be positioned.
    */
-  [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult RemoveEmptyNodesIn(nsRange& aRange);
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult
+  RemoveEmptyNodesIn(const EditorDOMRange& aRange);
 
   /**
    * SetSelectionInterlinePosition() may set interline position if caret is
