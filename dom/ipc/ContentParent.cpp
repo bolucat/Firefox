@@ -593,17 +593,16 @@ ProcessID GetTelemetryProcessID(const nsACString& remoteType) {
 
 }  // anonymous namespace
 
-UniquePtr<nsTHashMap<nsUint32HashKey, ContentParent*>>
+StaticAutoPtr<nsTHashMap<nsUint32HashKey, ContentParent*>>
     ContentParent::sJSPluginContentParents;
-UniquePtr<nsTArray<ContentParent*>> ContentParent::sPrivateContent;
-UniquePtr<LinkedList<ContentParent>> ContentParent::sContentParents;
+StaticAutoPtr<LinkedList<ContentParent>> ContentParent::sContentParents;
 StaticRefPtr<ContentParent> ContentParent::sRecycledE10SProcess;
 #if defined(XP_LINUX) && defined(MOZ_SANDBOX)
-UniquePtr<SandboxBrokerPolicyFactory>
+StaticAutoPtr<SandboxBrokerPolicyFactory>
     ContentParent::sSandboxBrokerPolicyFactory;
 #endif
 #if defined(XP_MACOSX) && defined(MOZ_SANDBOX)
-UniquePtr<std::vector<std::string>> ContentParent::sMacSandboxParams;
+StaticAutoPtr<std::vector<std::string>> ContentParent::sMacSandboxParams;
 #endif
 
 // Set to true when the first content process gets created.
@@ -676,11 +675,11 @@ void ContentParent::StartUp() {
                                        kFissionOmitBlockListValues);
 
 #if defined(XP_LINUX) && defined(MOZ_SANDBOX)
-  sSandboxBrokerPolicyFactory = MakeUnique<SandboxBrokerPolicyFactory>();
+  sSandboxBrokerPolicyFactory = new SandboxBrokerPolicyFactory();
 #endif
 
 #if defined(XP_MACOSX) && defined(MOZ_SANDBOX)
-  sMacSandboxParams = MakeUnique<std::vector<std::string>>();
+  sMacSandboxParams = new std::vector<std::string>();
 #endif
 }
 
@@ -1181,8 +1180,7 @@ already_AddRefed<ContentParent> ContentParent::GetNewOrUsedJSPluginProcess(
   if (sJSPluginContentParents) {
     p = sJSPluginContentParents->Get(aPluginID);
   } else {
-    sJSPluginContentParents =
-        MakeUnique<nsTHashMap<nsUint32HashKey, ContentParent*>>();
+    sJSPluginContentParents = new nsTHashMap<nsUint32HashKey, ContentParent*>();
   }
 
   if (p) {
@@ -1423,8 +1421,12 @@ bool ContentParent::ValidatePrincipal(
 }
 
 mozilla::ipc::IPCResult ContentParent::RecvRemovePermission(
-    const IPC::Principal& aPrincipal, const nsACString& aPermissionType,
+    nsIPrincipal* aPrincipal, const nsACString& aPermissionType,
     nsresult* aRv) {
+  if (!aPrincipal) {
+    return IPC_FAIL(this, "No principal");
+  }
+
   if (!ValidatePrincipal(aPrincipal)) {
     LogAndAssertFailedPrincipalValidationInfo(aPrincipal, __func__);
   }
@@ -1899,7 +1901,6 @@ void ContentParent::RemoveFromPool(nsTArray<ContentParent*>& aPool) {
 void ContentParent::AssertNotInPool() {
   MOZ_RELEASE_ASSERT(!mIsInPool);
 
-  MOZ_RELEASE_ASSERT(!sPrivateContent || !sPrivateContent->Contains(this));
   MOZ_RELEASE_ASSERT(sRecycledE10SProcess != this);
   if (IsForJSPlugin()) {
     MOZ_RELEASE_ASSERT(!sJSPluginContentParents ||
@@ -1928,13 +1929,6 @@ void ContentParent::RemoveFromList() {
       }
     }
     return;
-  }
-
-  if (sPrivateContent) {
-    sPrivateContent->RemoveElement(this);
-    if (!sPrivateContent->Length()) {
-      sPrivateContent = nullptr;
-    }
   }
 
   if (!mIsInPool) {
@@ -2842,7 +2836,7 @@ ContentParent::ContentParent(const nsACString& aRemoteType, int32_t aJSPluginID)
 
   // Insert ourselves into the global linked list of ContentParent objects.
   if (!sContentParents) {
-    sContentParents = MakeUnique<LinkedList<ContentParent>>();
+    sContentParents = new LinkedList<ContentParent>();
   }
   sContentParents->insertBack(this);
 
@@ -3369,9 +3363,11 @@ void ContentParent::OnVarChanged(const GfxVarUpdate& aVar) {
 
 mozilla::ipc::IPCResult ContentParent::RecvSetClipboard(
     const IPCDataTransfer& aDataTransfer, const bool& aIsPrivateData,
-    const IPC::Principal& aRequestingPrincipal,
+    nsIPrincipal* aRequestingPrincipal,
     const nsContentPolicyType& aContentPolicyType,
     const int32_t& aWhichClipboard) {
+  // aRequestingPrincipal is allowed to be nullptr here.
+
   if (!ValidatePrincipal(aRequestingPrincipal,
                          {ValidatePrincipalOptions::AllowNullPtr})) {
     LogAndAssertFailedPrincipalValidationInfo(aRequestingPrincipal, __func__);
@@ -4687,7 +4683,11 @@ mozilla::ipc::IPCResult ContentParent::RecvCloseAlert(const nsAString& aName) {
 }
 
 mozilla::ipc::IPCResult ContentParent::RecvDisableNotifications(
-    const IPC::Principal& aPrincipal) {
+    nsIPrincipal* aPrincipal) {
+  if (!aPrincipal) {
+    return IPC_FAIL(this, "No principal");
+  }
+
   if (!ValidatePrincipal(aPrincipal)) {
     LogAndAssertFailedPrincipalValidationInfo(aPrincipal, __func__);
   }
@@ -4696,7 +4696,11 @@ mozilla::ipc::IPCResult ContentParent::RecvDisableNotifications(
 }
 
 mozilla::ipc::IPCResult ContentParent::RecvOpenNotificationSettings(
-    const IPC::Principal& aPrincipal) {
+    nsIPrincipal* aPrincipal) {
+  if (!aPrincipal) {
+    return IPC_FAIL(this, "No principal");
+  }
+
   if (!ValidatePrincipal(aPrincipal)) {
     LogAndAssertFailedPrincipalValidationInfo(aPrincipal, __func__);
   }
@@ -5188,7 +5192,7 @@ bool ContentParent::DeallocPWebrtcGlobalParent(PWebrtcGlobalParent* aActor) {
 #endif
 
 mozilla::ipc::IPCResult ContentParent::RecvSetOfflinePermission(
-    const Principal& aPrincipal) {
+    nsIPrincipal* aPrincipal) {
   return IPC_OK();
 }
 
@@ -5251,9 +5255,8 @@ mozilla::ipc::IPCResult ContentParent::RecvUpdateDropEffect(
 
 PContentPermissionRequestParent*
 ContentParent::AllocPContentPermissionRequestParent(
-    const nsTArray<PermissionRequest>& aRequests,
-    const IPC::Principal& aPrincipal, const IPC::Principal& aTopLevelPrincipal,
-    const bool& aIsHandlingUserInput,
+    const nsTArray<PermissionRequest>& aRequests, nsIPrincipal* aPrincipal,
+    nsIPrincipal* aTopLevelPrincipal, const bool& aIsHandlingUserInput,
     const bool& aMaybeUnsafePermissionDelegate, const TabId& aTabId) {
   RefPtr<BrowserParent> tp;
   ContentProcessManager* cpm = ContentProcessManager::GetSingleton();
@@ -5517,10 +5520,14 @@ mozilla::ipc::IPCResult ContentParent::RecvCreateWindow(
     PBrowserParent* aNewTab, const uint32_t& aChromeFlags,
     const bool& aCalledFromJS, const bool& aForPrinting,
     const bool& aForPrintPreview, nsIURI* aURIToLoad,
-    const nsACString& aFeatures, const IPC::Principal& aTriggeringPrincipal,
+    const nsACString& aFeatures, nsIPrincipal* aTriggeringPrincipal,
     nsIContentSecurityPolicy* aCsp, nsIReferrerInfo* aReferrerInfo,
     const OriginAttributes& aOriginAttributes,
     CreateWindowResolver&& aResolve) {
+  if (!aTriggeringPrincipal) {
+    return IPC_FAIL(this, "No principal");
+  }
+
   if (!ValidatePrincipal(aTriggeringPrincipal)) {
     LogAndAssertFailedPrincipalValidationInfo(aTriggeringPrincipal, __func__);
   }
@@ -5837,8 +5844,12 @@ mozilla::ipc::IPCResult ContentParent::RecvNotifyBenchmarkResult(
 }
 
 mozilla::ipc::IPCResult ContentParent::RecvNotifyPushObservers(
-    const nsACString& aScope, const IPC::Principal& aPrincipal,
+    const nsACString& aScope, nsIPrincipal* aPrincipal,
     const nsAString& aMessageId) {
+  if (!aPrincipal) {
+    return IPC_FAIL(this, "No principal");
+  }
+
   if (!ValidatePrincipal(aPrincipal)) {
     LogAndAssertFailedPrincipalValidationInfo(aPrincipal, __func__);
   }
@@ -5848,8 +5859,12 @@ mozilla::ipc::IPCResult ContentParent::RecvNotifyPushObservers(
 }
 
 mozilla::ipc::IPCResult ContentParent::RecvNotifyPushObserversWithData(
-    const nsACString& aScope, const IPC::Principal& aPrincipal,
+    const nsACString& aScope, nsIPrincipal* aPrincipal,
     const nsAString& aMessageId, nsTArray<uint8_t>&& aData) {
+  if (!aPrincipal) {
+    return IPC_FAIL(this, "No principal");
+  }
+
   if (!ValidatePrincipal(aPrincipal)) {
     LogAndAssertFailedPrincipalValidationInfo(aPrincipal, __func__);
   }
@@ -5861,7 +5876,11 @@ mozilla::ipc::IPCResult ContentParent::RecvNotifyPushObserversWithData(
 
 mozilla::ipc::IPCResult
 ContentParent::RecvNotifyPushSubscriptionChangeObservers(
-    const nsACString& aScope, const IPC::Principal& aPrincipal) {
+    const nsACString& aScope, nsIPrincipal* aPrincipal) {
+  if (!aPrincipal) {
+    return IPC_FAIL(this, "No principal");
+  }
+
   if (!ValidatePrincipal(aPrincipal)) {
     LogAndAssertFailedPrincipalValidationInfo(aPrincipal, __func__);
   }
@@ -5870,9 +5889,14 @@ ContentParent::RecvNotifyPushSubscriptionChangeObservers(
   return IPC_OK();
 }
 
-mozilla::ipc::IPCResult ContentParent::RecvPushError(
-    const nsACString& aScope, const IPC::Principal& aPrincipal,
-    const nsAString& aMessage, const uint32_t& aFlags) {
+mozilla::ipc::IPCResult ContentParent::RecvPushError(const nsACString& aScope,
+                                                     nsIPrincipal* aPrincipal,
+                                                     const nsAString& aMessage,
+                                                     const uint32_t& aFlags) {
+  if (!aPrincipal) {
+    return IPC_FAIL(this, "No principal");
+  }
+
   if (!ValidatePrincipal(aPrincipal)) {
     LogAndAssertFailedPrincipalValidationInfo(aPrincipal, __func__);
   }
@@ -5883,7 +5907,11 @@ mozilla::ipc::IPCResult ContentParent::RecvPushError(
 
 mozilla::ipc::IPCResult
 ContentParent::RecvNotifyPushSubscriptionModifiedObservers(
-    const nsACString& aScope, const IPC::Principal& aPrincipal) {
+    const nsACString& aScope, nsIPrincipal* aPrincipal) {
+  if (!aPrincipal) {
+    return IPC_FAIL(this, "No principal");
+  }
+
   if (!ValidatePrincipal(aPrincipal)) {
     LogAndAssertFailedPrincipalValidationInfo(aPrincipal, __func__);
   }
@@ -5947,8 +5975,12 @@ void ContentParent::BroadcastBlobURLUnregistration(
 }
 
 mozilla::ipc::IPCResult ContentParent::RecvStoreAndBroadcastBlobURLRegistration(
-    const nsACString& aURI, const IPCBlob& aBlob, const Principal& aPrincipal,
+    const nsACString& aURI, const IPCBlob& aBlob, nsIPrincipal* aPrincipal,
     const Maybe<nsID>& aAgentClusterId) {
+  if (!aPrincipal) {
+    return IPC_FAIL(this, "No principal");
+  }
+
   if (!ValidatePrincipal(aPrincipal, {ValidatePrincipalOptions::AllowSystem})) {
     LogAndAssertFailedPrincipalValidationInfo(aPrincipal, __func__);
   }
@@ -5971,7 +6003,11 @@ mozilla::ipc::IPCResult ContentParent::RecvStoreAndBroadcastBlobURLRegistration(
 
 mozilla::ipc::IPCResult
 ContentParent::RecvUnstoreAndBroadcastBlobURLUnregistration(
-    const nsACString& aURI, const Principal& aPrincipal) {
+    const nsACString& aURI, nsIPrincipal* aPrincipal) {
+  if (!aPrincipal) {
+    return IPC_FAIL(this, "No principal");
+  }
+
   if (!ValidatePrincipal(aPrincipal, {ValidatePrincipalOptions::AllowSystem})) {
     LogAndAssertFailedPrincipalValidationInfo(aPrincipal, __func__);
   }
@@ -6333,7 +6369,7 @@ mozilla::ipc::IPCResult ContentParent::RecvRecordDiscardedData(
 // PURLClassifierParent
 
 PURLClassifierParent* ContentParent::AllocPURLClassifierParent(
-    const Principal& aPrincipal, bool* aSuccess) {
+    nsIPrincipal* aPrincipal, bool* aSuccess) {
   MOZ_ASSERT(NS_IsMainThread());
 
   *aSuccess = true;
@@ -6342,7 +6378,7 @@ PURLClassifierParent* ContentParent::AllocPURLClassifierParent(
 }
 
 mozilla::ipc::IPCResult ContentParent::RecvPURLClassifierConstructor(
-    PURLClassifierParent* aActor, const Principal& aPrincipal, bool* aSuccess) {
+    PURLClassifierParent* aActor, nsIPrincipal* aPrincipal, bool* aSuccess) {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aActor);
   *aSuccess = false;
@@ -6515,8 +6551,12 @@ mozilla::ipc::IPCResult ContentParent::RecvAddCertException(
 
 mozilla::ipc::IPCResult
 ContentParent::RecvAutomaticStorageAccessPermissionCanBeGranted(
-    const Principal& aPrincipal,
+    nsIPrincipal* aPrincipal,
     AutomaticStorageAccessPermissionCanBeGrantedResolver&& aResolver) {
+  if (!aPrincipal) {
+    return IPC_FAIL(this, "No principal");
+  }
+
   if (!ValidatePrincipal(aPrincipal)) {
     LogAndAssertFailedPrincipalValidationInfo(aPrincipal, __func__);
   }
@@ -6528,13 +6568,17 @@ mozilla::ipc::IPCResult
 ContentParent::RecvStorageAccessPermissionGrantedForOrigin(
     uint64_t aTopLevelWindowId,
     const MaybeDiscarded<BrowsingContext>& aParentContext,
-    const Principal& aTrackingPrincipal, const nsACString& aTrackingOrigin,
+    nsIPrincipal* aTrackingPrincipal, const nsACString& aTrackingOrigin,
     const int& aAllowMode,
     const Maybe<ContentBlockingNotifier::StorageAccessPermissionGrantedReason>&
         aReason,
     StorageAccessPermissionGrantedForOriginResolver&& aResolver) {
   if (aParentContext.IsNullOrDiscarded()) {
     return IPC_OK();
+  }
+
+  if (!aTrackingPrincipal) {
+    return IPC_FAIL(this, "No principal");
   }
 
   // We only report here if we cannot report the console directly in the content
@@ -6562,13 +6606,17 @@ ContentParent::RecvStorageAccessPermissionGrantedForOrigin(
 
 mozilla::ipc::IPCResult ContentParent::RecvCompleteAllowAccessFor(
     const MaybeDiscarded<BrowsingContext>& aParentContext,
-    uint64_t aTopLevelWindowId, const Principal& aTrackingPrincipal,
+    uint64_t aTopLevelWindowId, nsIPrincipal* aTrackingPrincipal,
     const nsACString& aTrackingOrigin, uint32_t aCookieBehavior,
     const ContentBlockingNotifier::StorageAccessPermissionGrantedReason&
         aReason,
     CompleteAllowAccessForResolver&& aResolver) {
   if (aParentContext.IsNullOrDiscarded()) {
     return IPC_OK();
+  }
+
+  if (!aTrackingPrincipal) {
+    return IPC_FAIL(this, "No principal");
   }
 
   StorageAccessAPIHelper::CompleteAllowAccessFor(
@@ -6676,7 +6724,11 @@ mozilla::ipc::IPCResult ContentParent::RecvTestAllowStorageAccessRequestFlag(
 }
 
 mozilla::ipc::IPCResult ContentParent::RecvStoreUserInteractionAsPermission(
-    const Principal& aPrincipal) {
+    nsIPrincipal* aPrincipal) {
+  if (!aPrincipal) {
+    return IPC_FAIL(this, "No principal");
+  }
+
   if (!ValidatePrincipal(aPrincipal)) {
     LogAndAssertFailedPrincipalValidationInfo(aPrincipal, __func__);
   }
@@ -6685,11 +6737,14 @@ mozilla::ipc::IPCResult ContentParent::RecvStoreUserInteractionAsPermission(
 }
 
 mozilla::ipc::IPCResult ContentParent::RecvTestCookiePermissionDecided(
-    const MaybeDiscarded<BrowsingContext>& aContext,
-    const Principal& aPrincipal,
+    const MaybeDiscarded<BrowsingContext>& aContext, nsIPrincipal* aPrincipal,
     const TestCookiePermissionDecidedResolver&& aResolver) {
   if (aContext.IsNullOrDiscarded()) {
     return IPC_OK();
+  }
+
+  if (!aPrincipal) {
+    return IPC_FAIL(this, "No principal");
   }
 
   RefPtr<WindowGlobalParent> wgp =

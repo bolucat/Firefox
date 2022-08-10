@@ -16,9 +16,20 @@ XPCOMUtils.defineLazyPreferenceGetter(
   "featureTourProgress",
   "browser.firefox-view.feature-tour",
   '{"message":"","screen":"","complete":true}',
-  null,
+  handlePrefChange,
   val => JSON.parse(val)
 );
+
+async function handlePrefChange(prefName, prevVal, newVal) {
+  if (newVal.complete) {
+    _endTour();
+  } else {
+    READY = false;
+    _loadConfig(lazy.featureTourProgress.message);
+    document.getElementById(CONTAINER_ID)?.remove();
+    await _renderCallout();
+  }
+}
 
 function _addCalloutLinkElements() {
   function addStylesheet(href) {
@@ -48,8 +59,9 @@ function _addCalloutLinkElements() {
 }
 
 let CURRENT_SCREEN;
-let POSITION_HANDLER;
 let CONFIG;
+let RENDER_OBSERVER;
+let READY = false;
 
 const CONTAINER_ID = "root";
 const MESSAGES = [
@@ -65,6 +77,7 @@ const MESSAGES = [
         parent_selector: "#tabpickup-steps",
         content: {
           position: "callout",
+          arrow_position: "top",
           title: "Hop between devices with tab pickup",
           subtitle:
             "Quickly grab open tabs from your phone and open them here for maximum flow.",
@@ -75,7 +88,17 @@ const MESSAGES = [
           primary_button: {
             label: "Next",
             action: {
-              navigate: true,
+              type: "SET_PREF",
+              data: {
+                pref: {
+                  name: "browser.firefox-view.feature-tour",
+                  value: JSON.stringify({
+                    message: "FIREFOX_VIEW_FEATURE_TOUR",
+                    screen: "FEATURE_CALLOUT_2",
+                    complete: false,
+                  }),
+                },
+              },
             },
           },
           dismiss_button: {
@@ -90,13 +113,24 @@ const MESSAGES = [
         parent_selector: "#recently-closed-tabs-container",
         content: {
           position: "callout",
+          arrow_position: "bottom",
           title: "Get back your closed tabs in a snap",
           subtitle:
             "All your closed tabs will magically show up here. Never worry about accidentally closing a site again.",
           primary_button: {
             label: "Next",
             action: {
-              navigate: true,
+              type: "SET_PREF",
+              data: {
+                pref: {
+                  name: "browser.firefox-view.feature-tour",
+                  value: JSON.stringify({
+                    message: "FIREFOX_VIEW_FEATURE_TOUR",
+                    screen: "FEATURE_CALLOUT_3",
+                    complete: false,
+                  }),
+                },
+              },
             },
           },
           dismiss_button: {
@@ -111,6 +145,7 @@ const MESSAGES = [
         parent_selector: "#colorways",
         content: {
           position: "callout",
+          arrow_position: "end",
           title: "Add a splash of color",
           subtitle:
             "Paint your browser with colorways, only in Firefox. Choose the shade that speaks to you.",
@@ -121,7 +156,17 @@ const MESSAGES = [
           primary_button: {
             label: "Finish",
             action: {
-              navigate: true,
+              type: "SET_PREF",
+              data: {
+                pref: {
+                  name: "browser.firefox-view.feature-tour",
+                  value: JSON.stringify({
+                    message: "FIREFOX_VIEW_FEATURE_TOUR",
+                    screen: "",
+                    complete: true,
+                  }),
+                },
+              },
             },
           },
           dismiss_button: {
@@ -143,9 +188,17 @@ function _createContainer() {
   return container;
 }
 
+/**
+ * Set callout's position relative to parent element
+ */
 function _positionCallout() {
-  let container = document.getElementById(CONTAINER_ID);
-  let parentEl = document.querySelector(CURRENT_SCREEN?.parent_selector);
+  const positions = ["top", "bottom", "left", "right"];
+  const container = document.getElementById("root");
+  const parentEl = document.querySelector(CURRENT_SCREEN?.parent_selector);
+  const arrowPosition = CURRENT_SCREEN?.content?.arrow_position || "top";
+  const margin = 15;
+  // Is the document layout right to left?
+  const RTL = document.dir === "rtl";
 
   if (!container || !parentEl) {
     return;
@@ -155,44 +208,91 @@ function _positionCallout() {
     const rect = el.getBoundingClientRect();
     return {
       left: rect.left + window.scrollX,
+      right: rect.right + window.scrollX,
+      top: rect.top + window.scrollY,
       bottom: rect.bottom + window.scrollY,
     };
   }
-  // Set callout's position relative to parent element
-  const margin = 15;
-  let containerTop = getOffset(parentEl).bottom - margin;
-  container.style.top = `${Math.min(
-    window.innerHeight - container.offsetHeight - margin,
-    containerTop
-  )}px`;
-  let leftOffset = (parentEl.offsetWidth - container.offsetWidth) / 2;
-  let containerLeft = getOffset(parentEl).left + leftOffset;
-  container.style.left = `${Math.min(
-    window.innerWidth - container.offsetWidth - margin,
-    Math.max(containerLeft, margin)
-  )}px`;
+
+  function clearPosition() {
+    positions.forEach(position => {
+      container.style[position] = "unset";
+    });
+  }
+
+  function centerHorizontally() {
+    let sideOffset = (parentEl.offsetWidth - container.offsetWidth) / 2;
+    let containerSide = RTL
+      ? window.innerWidth - getOffset(parentEl).right + sideOffset
+      : getOffset(parentEl).left + sideOffset;
+    container.style[RTL ? "right" : "left"] = `${Math.max(
+      containerSide,
+      margin
+    )}px`;
+  }
+
+  // Position callout relative to a parent element
+  const positioners = {
+    top() {
+      let containerTop = getOffset(parentEl).bottom - margin;
+      container.style.top = `${Math.min(
+        window.innerHeight - container.offsetHeight - margin,
+        containerTop
+      )}px`;
+      centerHorizontally(container, parentEl);
+    },
+    // Point to an element below the callout
+    bottom() {
+      let containerTop =
+        getOffset(parentEl).top - container.clientHeight + margin;
+      container.style.top = `${Math.max(containerTop, 0)}px`;
+      centerHorizontally(container, parentEl);
+    },
+    // Point to an element to the right of the callout
+    left() {
+      let containerLeft = getOffset(parentEl).right - margin;
+      container.style.left = `${Math.min(
+        window.innerWidth - container.offsetWidth - margin,
+        containerLeft
+      )}px`;
+      container.style.top = `${getOffset(parentEl).top}px`;
+    },
+    // Point to an element to the left of the callout
+    right() {
+      let containerLeft =
+        getOffset(parentEl).left - container.offsetWidth + margin;
+      container.style.left = `${Math.max(containerLeft, margin)}px`;
+      container.style.top = `${getOffset(parentEl).top}px`;
+    },
+  };
+
+  clearPosition(container);
+
+  if (["start", "end"].includes(arrowPosition)) {
+    if (RTL) {
+      positioners[arrowPosition === "start" ? "right" : "left"]();
+    } else {
+      positioners[arrowPosition === "start" ? "left" : "right"]();
+    }
+  } else {
+    positioners[arrowPosition]();
+  }
 }
 
 function _addPositionListeners() {
-  POSITION_HANDLER = () => {
-    _positionCallout(CURRENT_SCREEN.parent_selector);
-  };
-  window.addEventListener("scroll", POSITION_HANDLER);
-  window.addEventListener("resize", POSITION_HANDLER);
+  window.addEventListener("scroll", _positionCallout);
+  window.addEventListener("resize", _positionCallout);
 }
 
 function _removePositionListeners() {
-  if (POSITION_HANDLER) {
-    window.removeEventListener("scroll", POSITION_HANDLER);
-    window.removeEventListener("resize", POSITION_HANDLER);
-  }
+  window.removeEventListener("scroll", _positionCallout);
+  window.removeEventListener("resize", _positionCallout);
 }
 
 function _setupWindowFunctions() {
   const AWParent = new lazy.AboutWelcomeParent();
-  const browser = document.chromeEventHandler;
   const receive = name => data =>
-    AWParent.onContentMessage(`AWPage:${name}`, data, browser);
+    AWParent.onContentMessage(`AWPage:${name}`, data, document);
   // Expose top level functions expected by the bundle.
   window.AWGetDefaultSites = () => {};
   window.AWGetFeatureConfig = () => CONFIG;
@@ -207,16 +307,13 @@ function _setupWindowFunctions() {
     "SEND_TO_DEVICE_EMAILS_SUPPORTED"
   );
   window.AWSendToParent = (name, data) => receive(name)(data);
-  window.AWNewScreen = screenIndex => {
-    CURRENT_SCREEN = CONFIG.screens?.[screenIndex];
-    if (CURRENT_SCREEN) {
-      _positionCallout();
-    }
-  };
-  window.AWFinish = () => {
-    document.getElementById(CONTAINER_ID).remove();
-    _removePositionListeners();
-  };
+  window.AWFinish = _endTour;
+}
+
+function _endTour() {
+  document.getElementById(CONTAINER_ID)?.remove();
+  _removePositionListeners();
+  RENDER_OBSERVER?.disconnect();
 }
 
 async function _addScriptsAndRender(container) {
@@ -248,6 +345,30 @@ async function _addScriptsAndRender(container) {
   container.appendChild(bundleScript);
 }
 
+function _observeRender(container) {
+  RENDER_OBSERVER.observe(container, { childList: true });
+}
+
+async function _loadConfig(messageId) {
+  let content = MESSAGES.find(m => m.id === messageId);
+  const screenId = lazy.featureTourProgress.screen;
+  if (content?.screens && screenId) {
+    // Remove screens the user has already seen
+    const screenIndex = content.screens.findIndex(s => s.id === screenId);
+    content.screens = content.screens.filter((s, i) => {
+      return i >= screenIndex;
+    });
+  }
+  CURRENT_SCREEN = content?.screens[0];
+  CONFIG = content;
+}
+
+async function _renderCallout() {
+  let container = _createContainer();
+  _observeRender(container);
+  // This results in rendering the Feature Callout
+  await _addScriptsAndRender(container);
+}
 /**
  * Render content based on about:welcome multistage template.
  */
@@ -257,18 +378,23 @@ export async function showFeatureCallout(messageId) {
     return;
   }
 
-  CONFIG = MESSAGES.find(m => m.id === messageId);
+  _loadConfig(messageId);
+
   if (!CONFIG) {
     return;
   }
 
+  RENDER_OBSERVER = new MutationObserver(function() {
+    // Check if the Feature Callout screen has loaded for the first time
+    if (!READY && document.querySelector("#root .screen")) {
+      READY = true;
+      _positionCallout();
+    }
+  });
+
   _addCalloutLinkElements();
-  let container = _createContainer();
-  _setupWindowFunctions();
-
-  // This results in rendering the Feature Callout
-  await _addScriptsAndRender(container);
-
   // Add handlers for repositioning callout
   _addPositionListeners();
+  _setupWindowFunctions();
+  await _renderCallout();
 }
