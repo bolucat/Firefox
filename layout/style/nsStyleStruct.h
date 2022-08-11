@@ -89,8 +89,11 @@ struct ContainSizeAxes {
                      const nsIFrame& aFrame) const;
   IntrinsicSize ContainIntrinsicSize(const IntrinsicSize& aUncontainedSize,
                                      const nsIFrame& aFrame) const;
-  Maybe<nscoord> ContainIntrinsicBSize(const nsIFrame& aFrame) const;
-  Maybe<nscoord> ContainIntrinsicISize(const nsIFrame& aFrame) const;
+
+  Maybe<nscoord> ContainIntrinsicBSize(const nsIFrame& aFrame,
+                                       nscoord aNoneValue = 0) const;
+  Maybe<nscoord> ContainIntrinsicISize(const nsIFrame& aFrame,
+                                       nscoord aNoneValue = 0) const;
 
   const bool mIContained;
   const bool mBContained;
@@ -1103,6 +1106,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleVisibility {
   mozilla::StyleImageRendering mImageRendering;
   mozilla::StyleWritingModeProperty mWritingMode;
   mozilla::StyleTextOrientation mTextOrientation;
+  mozilla::StyleMozBoxLayout mMozBoxLayout;
   mozilla::StylePrintColorAdjust mPrintColorAdjust;
 
   bool IsVisible() const {
@@ -1112,6 +1116,10 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleVisibility {
   bool IsVisibleOrCollapsed() const {
     return mVisible == mozilla::StyleVisibility::Visible ||
            mVisible == mozilla::StyleVisibility::Collapse;
+  }
+
+  bool EmulateMozBoxWithFlex() const {
+    return mMozBoxLayout == mozilla::StyleMozBoxLayout::Flex;
   }
 };
 
@@ -1435,16 +1443,6 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleDisplay {
 
   bool IsInternalTableStyleExceptCell() const {
     return IsInnerTableStyle() && mozilla::StyleDisplay::TableCell != mDisplay;
-  }
-
-  bool IsXULDisplayStyle() const {
-    // -moz-{inline-}box is XUL, unless we're emulating it with flexbox.
-    if (!mozilla::StaticPrefs::layout_css_emulate_moz_box_with_flex() &&
-        DisplayInside() == mozilla::StyleDisplayInside::MozBox) {
-      return true;
-    }
-
-    return DisplayOutside() == mozilla::StyleDisplayOutside::XUL;
   }
 
   bool IsFloatingStyle() const { return mozilla::StyleFloat::None != mFloat; }

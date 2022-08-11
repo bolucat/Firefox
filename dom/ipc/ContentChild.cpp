@@ -698,8 +698,8 @@ class nsGtkNativeInitRunnable : public Runnable {
   }
 };
 
-void ContentChild::Init(base::ProcessId aParentPid, const char* aParentBuildID,
-                        mozilla::ipc::ScopedPort aPort, uint64_t aChildID,
+void ContentChild::Init(mozilla::ipc::UntypedEndpoint&& aEndpoint,
+                        const char* aParentBuildID, uint64_t aChildID,
                         bool aIsForBrowser) {
 #ifdef MOZ_WIDGET_GTK
   // When running X11 only build we need to pass a display down
@@ -753,8 +753,8 @@ void ContentChild::Init(base::ProcessId aParentPid, const char* aParentBuildID,
     MOZ_CRASH("Failed to initialize the thread manager in ContentChild::Init");
   }
 
-  if (!Open(std::move(aPort), aParentPid)) {
-    MOZ_CRASH("Open failed in ContentChild::Init");
+  if (!aEndpoint.Bind(this)) {
+    MOZ_CRASH("Bind failed in ContentChild::Init");
   }
   sSingleton = this;
 
@@ -3192,16 +3192,23 @@ mozilla::ipc::IPCResult ContentChild::RecvInvokeDragSession(
 
 mozilla::ipc::IPCResult ContentChild::RecvEndDragSession(
     const bool& aDoneDrag, const bool& aUserCancelled,
-    const LayoutDeviceIntPoint& aDragEndPoint, const uint32_t& aKeyModifiers) {
+    const LayoutDeviceIntPoint& aDragEndPoint, const uint32_t& aKeyModifiers,
+    const uint32_t& aDropEffect) {
   nsCOMPtr<nsIDragService> dragService =
       do_GetService("@mozilla.org/widget/dragservice;1");
   if (dragService) {
-    if (aUserCancelled) {
-      nsCOMPtr<nsIDragSession> dragSession = nsContentUtils::GetDragSession();
-      if (dragSession) {
+    nsCOMPtr<nsIDragSession> dragSession = nsContentUtils::GetDragSession();
+    if (dragSession) {
+      if (aUserCancelled) {
         dragSession->UserCancelled();
       }
+
+      RefPtr<DataTransfer> dataTransfer = dragSession->GetDataTransfer();
+      if (dataTransfer) {
+        dataTransfer->SetDropEffectInt(aDropEffect);
+      }
     }
+
     static_cast<nsBaseDragService*>(dragService.get())
         ->SetDragEndPoint(aDragEndPoint);
     dragService->EndDragSession(aDoneDrag, aKeyModifiers);

@@ -45,6 +45,10 @@ class RemoteSpellcheckEngineChild;
 class ChildProfilerController;
 class BenchmarkStorageChild;
 
+namespace ipc {
+class UntypedEndpoint;
+}
+
 namespace loader {
 class PScriptCacheChild;
 }
@@ -102,9 +106,8 @@ class ContentChild final : public PContentChild,
       nsDocShellLoadState* aLoadState, bool* aWindowIsNew,
       BrowsingContext** aReturn);
 
-  void Init(base::ProcessId aParentPid, const char* aParentBuildID,
-            mozilla::ipc::ScopedPort aPort, uint64_t aChildID,
-            bool aIsForBrowser);
+  void Init(mozilla::ipc::UntypedEndpoint&& aEndpoint,
+            const char* aParentBuildID, uint64_t aChildID, bool aIsForBrowser);
 
   void InitXPCOM(XPCOMInitData&& aXPCOMInit,
                  const mozilla::dom::ipc::StructuredCloneData& aInitialData,
@@ -412,7 +415,7 @@ class ContentChild final : public PContentChild,
   mozilla::ipc::IPCResult RecvEndDragSession(
       const bool& aDoneDrag, const bool& aUserCancelled,
       const mozilla::LayoutDeviceIntPoint& aEndDragPoint,
-      const uint32_t& aKeyModifiers);
+      const uint32_t& aKeyModifiers, const uint32_t& aDropEffect);
 
   mozilla::ipc::IPCResult RecvPush(const nsCString& aScope,
                                    nsIPrincipal* aPrincipal,

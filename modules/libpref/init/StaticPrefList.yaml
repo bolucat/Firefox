@@ -5446,7 +5446,7 @@
   # some issues remain on Intel hardware.
 -   name: gfx.core-animation.specialize-video
     type: RelaxedAtomicBool
-#if defined(_ARM64_)
+#if defined(MOZ_AARCH64)
     value: true
 #else
     value: false
@@ -7784,12 +7784,6 @@
   value: true
   mirror: always
 
-# Are we emulating -moz-{inline}-box layout using CSS flexbox?
-- name: layout.css.emulate-moz-box-with-flex
-  type: bool
-  value: false
-  mirror: always
-
 # Is support for fit-content() enabled?
 - name: layout.css.fit-content-function.enabled
   type: RelaxedAtomicBool
@@ -8174,20 +8168,6 @@
   type: bool
   value: true
   mirror: always
-
-- name: layout.css.xul-display-values.content.enabled
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-  rust: true
-
-# Pref to control whether display: -moz-box and display: -moz-inline-box are
-# parsed in content pages.
-- name: layout.css.xul-box-display-values.content.enabled
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-  rust: true
 
 # Whether to block large cursors intersecting UI.
 - name: layout.cursor.block.enabled

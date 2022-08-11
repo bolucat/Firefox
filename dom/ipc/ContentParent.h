@@ -466,8 +466,6 @@ class ContentParent final : public PContentParent,
   mozilla::ipc::IPCResult RecvNotifyTabDestroying(const TabId& aTabId,
                                                   const ContentParentId& aCpId);
 
-  mozilla::ipc::IPCResult RecvSetOfflinePermission(nsIPrincipal* principal);
-
   mozilla::ipc::IPCResult RecvFinishShutdown();
 
   void MaybeInvokeDragSession(BrowserParent* aParent);
@@ -1112,7 +1110,7 @@ class ContentParent final : public PContentParent,
   mozilla::ipc::IPCResult RecvCopyFavicon(nsIURI* aOldURI, nsIURI* aNewURI,
                                           const bool& aInPrivateBrowsing);
 
-  mozilla::ipc::IPCResult RecvFindImageText(ShmemImage&&,
+  mozilla::ipc::IPCResult RecvFindImageText(ShmemImage&&, nsTArray<nsCString>&&,
                                             FindImageTextResolver&&);
 
   virtual void ProcessingError(Result aCode, const char* aMsgName) override;
