@@ -1799,22 +1799,48 @@ bool gfxPlatform::UseGraphiteShaping() {
   return StaticPrefs::gfx_font_rendering_graphite_enabled();
 }
 
-bool gfxPlatform::IsFontFormatSupported(uint32_t aFormatFlags) {
-  // check for strange format flags
-  MOZ_ASSERT(!(aFormatFlags & gfxUserFontSet::FLAG_FORMAT_NOT_USED),
-             "strange font format hint set");
-
-  // accept "common" formats that we support on all platforms
-  if (aFormatFlags & gfxUserFontSet::FLAG_FORMATS_COMMON) {
-    return true;
+bool gfxPlatform::IsFontFormatSupported(
+    StyleFontFaceSourceFormatKeyword aFormatHint,
+    StyleFontFaceSourceTechFlags aTechFlags) {
+  // By default, font resources are assumed to be supported; but if the format
+  // hint or technology flags explicitly indicate something we don't support,
+  // then return false.
+  switch (aFormatHint) {
+    case StyleFontFaceSourceFormatKeyword::None:
+      break;
+    case StyleFontFaceSourceFormatKeyword::Collection:
+      return false;
+    case StyleFontFaceSourceFormatKeyword::Opentype:
+    case StyleFontFaceSourceFormatKeyword::Truetype:
+      break;
+    case StyleFontFaceSourceFormatKeyword::EmbeddedOpentype:
+      return false;
+    case StyleFontFaceSourceFormatKeyword::Svg:
+      return false;
+    case StyleFontFaceSourceFormatKeyword::Woff:
+      break;
+    case StyleFontFaceSourceFormatKeyword::Woff2:
+      break;
+    case StyleFontFaceSourceFormatKeyword::Unknown:
+      return false;
+    default:
+      MOZ_ASSERT_UNREACHABLE("bad format hint!");
+      return false;
   }
-
-  // reject all other formats, known and unknown
-  if (aFormatFlags != 0) {
+  StyleFontFaceSourceTechFlags unsupportedTechnologies =
+      StyleFontFaceSourceTechFlags::INCREMENTAL |
+      StyleFontFaceSourceTechFlags::PALETTES |
+      StyleFontFaceSourceTechFlags::COLOR_COLRV1 |
+      StyleFontFaceSourceTechFlags::COLOR_SBIX;
+  if (!StaticPrefs::gfx_downloadable_fonts_keep_color_bitmaps()) {
+    unsupportedTechnologies |= StyleFontFaceSourceTechFlags::COLOR_CBDT;
+  }
+  if (!StaticPrefs::layout_css_font_variations_enabled()) {
+    unsupportedTechnologies |= StyleFontFaceSourceTechFlags::VARIATIONS;
+  }
+  if (aTechFlags & unsupportedTechnologies) {
     return false;
   }
-
-  // no format hint set, need to look at data
   return true;
 }
 
