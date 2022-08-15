@@ -186,6 +186,7 @@ enum class OpKind {
   StructGet,
   StructSet,
   ArrayNew,
+  ArrayNewFixed,
   ArrayNewDefault,
   ArrayGet,
   ArraySet,
@@ -686,9 +687,12 @@ class MOZ_STACK_CLASS OpIter : private Policy {
                                    FieldExtension extension, Value* ptr);
   [[nodiscard]] bool readStructSet(uint32_t* typeIndex, uint32_t* fieldIndex,
                                    Value* ptr, Value* val);
-  [[nodiscard]] bool readArrayNew(uint32_t* typeIndex, Value* length,
+  [[nodiscard]] bool readArrayNew(uint32_t* typeIndex, Value* numElements,
                                   Value* argValue);
-  [[nodiscard]] bool readArrayNewDefault(uint32_t* typeIndex, Value* length);
+  [[nodiscard]] bool readArrayNewFixed(uint32_t* typeIndex,
+                                       uint32_t* numElements);
+  [[nodiscard]] bool readArrayNewDefault(uint32_t* typeIndex,
+                                         Value* numElements);
   [[nodiscard]] bool readArrayGet(uint32_t* typeIndex, FieldExtension extension,
                                   Value* index, Value* ptr);
   [[nodiscard]] bool readArraySet(uint32_t* typeIndex, Value* val, Value* index,
@@ -3187,8 +3191,8 @@ inline bool OpIter<Policy>::readStructSet(uint32_t* typeIndex,
 }
 
 template <typename Policy>
-inline bool OpIter<Policy>::readArrayNew(uint32_t* typeIndex, Value* length,
-                                         Value* argValue) {
+inline bool OpIter<Policy>::readArrayNew(uint32_t* typeIndex,
+                                         Value* numElements, Value* argValue) {
   MOZ_ASSERT(Classify(op_) == OpKind::ArrayNew);
 
   if (!readArrayTypeIndex(typeIndex)) {
@@ -3197,7 +3201,7 @@ inline bool OpIter<Policy>::readArrayNew(uint32_t* typeIndex, Value* length,
 
   const ArrayType& arr = env_.types->arrayType(*typeIndex);
 
-  if (!popWithType(ValType::I32, length)) {
+  if (!popWithType(ValType::I32, numElements)) {
     return false;
   }
 
@@ -3209,8 +3213,36 @@ inline bool OpIter<Policy>::readArrayNew(uint32_t* typeIndex, Value* length,
 }
 
 template <typename Policy>
+inline bool OpIter<Policy>::readArrayNewFixed(uint32_t* typeIndex,
+                                              uint32_t* numElements) {
+  MOZ_ASSERT(Classify(op_) == OpKind::ArrayNewFixed);
+
+  if (!readArrayTypeIndex(typeIndex)) {
+    return false;
+  }
+
+  const ArrayType& arrayType = env_.types->arrayType(*typeIndex);
+
+  if (!readVarU32(numElements)) {
+    return false;
+  }
+
+  // For use with Ion, it may be necessary to add a third parameter
+  // of type `Vector<Value>*` into which this loop copies values.
+  ValType widenedElementType = arrayType.elementType_.widenToValType();
+  for (uint32_t i = 0; i < *numElements; i++) {
+    Value v;
+    if (!popWithType(widenedElementType, &v)) {
+      return false;
+    }
+  }
+
+  return push(RefType::fromTypeIndex(*typeIndex, false));
+}
+
+template <typename Policy>
 inline bool OpIter<Policy>::readArrayNewDefault(uint32_t* typeIndex,
-                                                Value* length) {
+                                                Value* numElements) {
   MOZ_ASSERT(Classify(op_) == OpKind::ArrayNewDefault);
 
   if (!readArrayTypeIndex(typeIndex)) {
@@ -3219,7 +3251,7 @@ inline bool OpIter<Policy>::readArrayNewDefault(uint32_t* typeIndex,
 
   const ArrayType& arr = env_.types->arrayType(*typeIndex);
 
-  if (!popWithType(ValType::I32, length)) {
+  if (!popWithType(ValType::I32, numElements)) {
     return false;
   }
 
