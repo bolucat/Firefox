@@ -654,8 +654,9 @@ pref("browser.privatebrowsing.enable-new-logo", false);
 pref("browser.privacySegmentation.enabled", false);
 
 // Temporary pref to control whether or not Private Browsing windows show up
-// as separate icons in the Windows taskbar.
-pref("browser.privacySegmentation.windowSeparation.enabled", true);
+// as separate icons in the Windows taskbar. This will be removed and become
+// the default behaviour with 106.
+pref("browser.privacySegmentation.windowSeparation.enabled", false);
 
 // Use dark theme variant for PBM windows. This is only supported if the theme
 // sets darkTheme data.
@@ -776,7 +777,11 @@ pref("browser.tabs.tooltipsShowPidAndActiveness", true);
 pref("browser.tabs.tooltipsShowPidAndActiveness", false);
 #endif
 
+#ifdef NIGHTLY_BUILD
+pref("browser.tabs.firefox-view", true);
+#else
 pref("browser.tabs.firefox-view", false);
+#endif
 
 // allow_eval_* is enabled on Firefox Desktop only at this
 // point in time
