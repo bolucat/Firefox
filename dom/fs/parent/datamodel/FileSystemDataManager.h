@@ -32,6 +32,10 @@ namespace fs {
 class FileSystemChildMetadata;
 }  // namespace fs
 
+namespace quota {
+class DirectoryLock;
+}  // namespace quota
+
 namespace fs::data {
 
 class FileSystemDatabaseManager;
@@ -49,10 +53,15 @@ class FileSystemDataManager
   FileSystemDataManager(const quota::OriginMetadata& aOriginMetadata,
                         MovingNotNull<RefPtr<TaskQueue>> aIOTaskQueue);
 
+  // IsExclusive is true because we want to allow the move operations. There's
+  // always just one consumer anyway.
   using CreatePromise = MozPromise<Registered<FileSystemDataManager>, nsresult,
                                    /* IsExclusive */ true>;
   static RefPtr<CreatePromise> GetOrCreateFileSystemDataManager(
       const quota::OriginMetadata& aOriginMetadata);
+
+  static void AbortOperationsForLocks(
+      const quota::Client::DirectoryLockIdTable& aDirectoryLockIds);
 
   static void InitiateShutdown();
 
@@ -66,6 +75,10 @@ class FileSystemDataManager
 
   nsISerialEventTarget* MutableIOTargetPtr() const {
     return mIOTaskQueue.get();
+  }
+
+  Maybe<quota::DirectoryLock&> MaybeDirectoryLockRef() const {
+    return ToMaybeRef(mDirectoryLock.get());
   }
 
   FileSystemDatabaseManager* MutableDatabaseManagerPtr() const {
@@ -107,6 +120,7 @@ class FileSystemDataManager
   const quota::OriginMetadata mOriginMetadata;
   const NotNull<nsCOMPtr<nsISerialEventTarget>> mBackgroundTarget;
   const NotNull<RefPtr<TaskQueue>> mIOTaskQueue;
+  RefPtr<quota::DirectoryLock> mDirectoryLock;
   UniquePtr<FileSystemDatabaseManager> mDatabaseManager;
   MozPromiseHolder<BoolPromise> mOpenPromiseHolder;
   MozPromiseHolder<BoolPromise> mClosePromiseHolder;

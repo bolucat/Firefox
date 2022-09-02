@@ -2488,6 +2488,25 @@ bool nsWindow::WaylandPopupCheckAndGetAnchor(GdkRectangle* aPopupAnchor) {
   return true;
 }
 
+void nsWindow::WaylandPopupPrepareForMove() {
+  // Visible widgets can't be positioned.
+  if (gtk_widget_is_visible(mShell)) {
+    HideWaylandPopupWindow(/* aTemporaryHide */ true,
+                           /* aRemoveFromPopupList */ false);
+  }
+  // See https://bugzilla.mozilla.org/show_bug.cgi?id=1785185#c8
+  // gtk_window_move() needs GDK_WINDOW_TYPE_HINT_UTILITY popup type.
+  // move-to-rect requires GDK_WINDOW_TYPE_HINT_POPUP_MENU popups type.
+  // GDK_WINDOW_TYPE_HINT_TOOLTIP works for both
+  // We need to set it before map event when popup is hidden.
+  if (mPopupHint != ePopupTypeTooltip) {
+    gtk_window_set_type_hint(GTK_WINDOW(mShell),
+                             mPopupUseMoveToRect
+                                 ? GDK_WINDOW_TYPE_HINT_POPUP_MENU
+                                 : GDK_WINDOW_TYPE_HINT_UTILITY);
+  }
+}
+
 void nsWindow::WaylandPopupMove() {
   // Available as of GTK 3.24+
   static auto sGdkWindowMoveToRect = (void (*)(
@@ -2512,56 +2531,33 @@ void nsWindow::WaylandPopupMove() {
   LOG("  popup use move to rect %d", mPopupUseMoveToRect);
 
   if (!mPopupUseMoveToRect) {
-    // Workaround for https://gitlab.gnome.org/GNOME/gtk/-/issues/4308
-    // Tooltips/Utility popups are created as subsurfaces with relative
-    // position.
-    bool useRelativeCoordinates =
-        gtk_window_get_type_hint(GTK_WINDOW(mShell)) ==
-            GDK_WINDOW_TYPE_HINT_UTILITY ||
-        gtk_window_get_type_hint(GTK_WINDOW(mShell)) ==
-            GDK_WINDOW_TYPE_HINT_TOOLTIP;
-
+    // Tooltips/Utility popups positioned by () are created as subsurfaces
+    // with relative position.
     GdkPoint currentPopupPosition;
     gtk_window_get_position(GTK_WINDOW(mShell), &currentPopupPosition.x,
                             &currentPopupPosition.y);
     LOG("  recent window position (%d, %d)", currentPopupPosition.x,
         currentPopupPosition.y);
 
-    GdkPoint newPopupPosition =
-        useRelativeCoordinates ? mRelativePopupPosition : mPopupPosition;
-    if (newPopupPosition.x == currentPopupPosition.x &&
-        newPopupPosition.y == currentPopupPosition.y) {
+    if (mRelativePopupPosition.x == currentPopupPosition.x &&
+        mRelativePopupPosition.y == currentPopupPosition.y) {
       LOG("  popup is already positioned, quit");
       return;
     }
 
-    // Visible widgets can't be positioned.
-    if (gtk_widget_is_visible(mShell)) {
-      HideWaylandPopupWindow(/* aTemporaryHide */ true,
-                             /* aRemoveFromPopupList */ false);
-    }
+    WaylandPopupPrepareForMove();
 
-    if (useRelativeCoordinates) {
-      LOG("  use relative gtk_window_move(%d, %d) for utility/tooltips",
-          mRelativePopupPosition.x, mRelativePopupPosition.y);
-      gtk_window_move(GTK_WINDOW(mShell), mRelativePopupPosition.x,
-                      mRelativePopupPosition.y);
-    } else {
-      LOG("  use absolute gtk_window_move(%d, %d) for menus", mPopupPosition.x,
-          mPopupPosition.y);
-      gtk_window_move(GTK_WINDOW(mShell), mPopupPosition.x, mPopupPosition.y);
-    }
+    LOG("  use relative gtk_window_move(%d, %d) for utility/tooltips",
+        mRelativePopupPosition.x, mRelativePopupPosition.y);
+    gtk_window_move(GTK_WINDOW(mShell), mRelativePopupPosition.x,
+                    mRelativePopupPosition.y);
+
     // Layout already should be aware of our bounds, since we didn't change it
     // from the widget side for flipping or so.
     return;
   }
 
-  // See https://gitlab.gnome.org/GNOME/gtk/-/issues/1986
-  // We're likely fail to reposition already visible widget.
-  if (gtk_widget_is_visible(mShell)) {
-    HideWaylandPopupWindow(/* aTemporaryHide */ true,
-                           /* aRemoveFromPopupList */ false);
-  }
+  WaylandPopupPrepareForMove();
 
   // Correct popup position now. It will be updated by gdk_window_move_to_rect()
   // anyway but we need to set it now to avoid a race condition here.
