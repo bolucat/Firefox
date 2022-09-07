@@ -4,12 +4,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "gtest/gtest.h"
-
+#include "FileSystemEntryMetadataArray.h"
 #include "FileSystemBackgroundRequestHandler.h"
 #include "FileSystemMocks.h"
 #include "fs/FileSystemRequestHandler.h"
-
+#include "gtest/gtest.h"
 #include "mozilla/dom/IPCBlob.h"
 #include "mozilla/dom/FileSystemManager.h"
 #include "mozilla/dom/FileSystemManagerChild.h"
@@ -33,7 +32,8 @@ class TestFileSystemRequestHandler : public ::testing::Test {
     mListener = MakeAndAddRef<ExpectResolveCalled>();
 
     mChild = FileSystemChildMetadata("parent"_ns, u"ChildName"_ns);
-    mEntry = FileSystemEntryMetadata("myid"_ns, u"EntryName"_ns);
+    mEntry = FileSystemEntryMetadata("myid"_ns, u"EntryName"_ns,
+                                     /* directory */ false);
     mName = u"testDir"_ns;
     mFileSystemManagerChild = MakeAndAddRef<TestFileSystemManagerChild>();
     mManager = MakeAndAddRef<FileSystemManager>(
@@ -183,9 +183,11 @@ TEST_F(TestFileSystemRequestHandler, isGetEntriesSuccessful) {
     aResolve(std::move(response));
   };
 
-  RefPtr<ExpectNotImplemented> listener = MakeAndAddRef<ExpectNotImplemented>();
+  RefPtr<ExpectResolveCalled> listener = MakeAndAddRef<ExpectResolveCalled>();
   IgnoredErrorResult rv;
   listener->ClearDone();
+  EXPECT_CALL(listener->GetSuccessHandler(), InvokeMe());
+
   RefPtr<Promise> promise = Promise::Create(mGlobal, rv);
   promise->AppendNativeHandler(listener);
 
@@ -199,7 +201,8 @@ TEST_F(TestFileSystemRequestHandler, isGetEntriesSuccessful) {
       });
 
   auto testable = GetFileSystemRequestHandler();
-  ArrayAppendable sink;
+  RefPtr<FileSystemEntryMetadataArray> sink;
+
   testable->GetEntries(mManager, mEntry.entryId(), /* page */ 0, promise, sink);
   SpinEventLoopUntil("Promise is fulfilled or timeout"_ns,
                      [listener]() { return listener->IsDone(); });

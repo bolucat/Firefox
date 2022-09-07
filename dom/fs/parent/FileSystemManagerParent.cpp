@@ -14,6 +14,7 @@
 #include "mozilla/dom/quota/ForwardDecls.h"
 #include "mozilla/dom/quota/QuotaCommon.h"
 #include "mozilla/dom/quota/ResultExtensions.h"
+#include "mozilla/ipc/BackgroundParent.h"
 #include "nsString.h"
 #include "nsTArray.h"
 
@@ -140,7 +141,20 @@ IPCResult FileSystemManagerParent::RecvResolveMsg(
 
 IPCResult FileSystemManagerParent::RecvGetEntriesMsg(
     FileSystemGetEntriesRequest&& aRequest, GetEntriesMsgResolver&& aResolver) {
-  FileSystemGetEntriesResponse response(NS_ERROR_NOT_IMPLEMENTED);
+  MOZ_ASSERT(!aRequest.parentId().IsEmpty());
+  MOZ_ASSERT(mDataManager);
+
+  auto reportError = [&aResolver](const QMResult& aRv) {
+    FileSystemGetEntriesResponse response(ToNSResult(aRv));
+    aResolver(response);
+  };
+
+  QM_TRY_UNWRAP(FileSystemDirectoryListing entries,
+                mDataManager->MutableDatabaseManagerPtr()->GetDirectoryEntries(
+                    aRequest.parentId(), aRequest.page()),
+                IPC_OK(), reportError);
+
+  FileSystemGetEntriesResponse response(entries);
   aResolver(response);
 
   return IPC_OK();
@@ -218,6 +232,8 @@ IPCResult FileSystemManagerParent::RecvNeedQuota(
 }
 
 void FileSystemManagerParent::RequestAllowToClose() {
+  ::mozilla::ipc::AssertIsOnBackgroundThread();
+
   if (mRequestedAllowToClose) {
     return;
   }
@@ -226,7 +242,12 @@ void FileSystemManagerParent::RequestAllowToClose() {
 
   // XXX Send a message to the child and wait for a response before closing!
 
-  Close();
+  InvokeAsync(mDataManager->MutableIOTargetPtr(), __func__,
+              [self = RefPtr<FileSystemManagerParent>(this)]() {
+                self->Close();
+
+                return BoolPromise::CreateAndResolve(true, __func__);
+              });
 }
 
 void FileSystemManagerParent::OnChannelClose() {
