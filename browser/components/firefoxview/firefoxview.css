@@ -99,6 +99,7 @@ body > main {
   flex: 1 1 auto;
   display: grid;
   grid-template-columns: 2fr 1fr;
+  grid-template-rows: minmax(0, auto);
 }
 
 body > main > details {
@@ -194,6 +195,7 @@ body > main > aside {
 .brand-logo > .brand-feature-name {
   margin-inline-start: 8px;
   flex: 1 1 auto;
+  font-weight: 600;
 }
 
 #colorways {
@@ -757,9 +759,12 @@ details[open] > .page-section-header > .twisty {
 
 .synced-tab-li-url,
 .synced-tab-li-device,
-.synced-tab-li-time,
 .synced-tab-li:not(:first-child) > .synced-tab-a > .synced-tab-li-title {
   font-size: .85em;
+}
+
+.synced-tab-li-time {
+  font-size: .75em;
 }
 
 .synced-tab-li-url {

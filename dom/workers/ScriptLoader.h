@@ -147,14 +147,20 @@ class WorkerScriptLoader final : public nsINamed {
   WorkerScriptLoader(WorkerPrivate* aWorkerPrivate,
                      UniquePtr<SerializedStackHolder> aOriginStack,
                      nsIEventTarget* aSyncLoopTarget,
-                     const nsTArray<nsString>& aScriptURLs,
-                     const mozilla::Encoding* aDocumentEncoding,
-                     bool aIsMainScript, WorkerScriptType aWorkerScriptType,
-                     ErrorResult& aRv);
+                     WorkerScriptType aWorkerScriptType, ErrorResult& aRv);
 
-  void CancelMainThreadWithBindingAborted() {
-    CancelMainThread(NS_BINDING_ABORTED);
-  }
+  void CancelMainThreadWithBindingAborted(
+      nsTArray<WorkerLoadContext*>&& aContextList);
+
+  void CreateScriptRequests(const nsTArray<nsString>& aScriptURLs,
+                            const mozilla::Encoding* aDocumentEncoding,
+                            bool aIsMainScript);
+
+  already_AddRefed<ScriptLoadRequest> CreateScriptLoadRequest(
+      const nsString& aScriptURL, const mozilla::Encoding* aDocumentEncoding,
+      bool aIsMainScript);
+
+  bool DispatchLoadScript(ScriptLoadRequest* aRequest);
 
   bool DispatchLoadScripts();
 
@@ -187,9 +193,10 @@ class WorkerScriptLoader final : public nsINamed {
 
   bool IsCancelled() { return mCancelMainThread.isSome(); }
 
-  void CancelMainThread(nsresult aCancelResult);
+  void CancelMainThread(nsresult aCancelResult,
+                        nsTArray<WorkerLoadContext*>* aContextList);
 
-  nsresult LoadScripts();
+  nsresult LoadScripts(nsTArray<WorkerLoadContext*>&& aContextList);
 
   nsresult LoadScript(ScriptLoadRequest* aRequest);
 
@@ -203,6 +210,10 @@ class WorkerScriptLoader final : public nsINamed {
     aName.AssignLiteral("WorkerScriptLoader");
     return NS_OK;
   }
+
+  void TryShutdown();
+
+  nsTArray<WorkerLoadContext*> GetLoadingList();
 
   nsIGlobalObject* GetGlobal();
 
