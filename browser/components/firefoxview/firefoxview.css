@@ -6,7 +6,6 @@
 :root {
   --content-area-padding-inline: 24px;
   --content-area-padding-block: 16px;
-  --sidebar-width: 200px;
   --header-spacing: 40px;
   --footer-spacing: 80px;
   --card-border-zap-gradient: linear-gradient(90deg, #9059FF 0%, #FF4AA2 52.08%, #FFBD4F 100%);
@@ -92,14 +91,14 @@ h1 {
 }
 
 body > nav {
-  flex: 0 0 var(--sidebar-width);
+  flex: 0 0 auto;
 }
 
 body > main {
   flex: 1 1 auto;
   display: grid;
   grid-template-columns: 2fr 1fr;
-  grid-template-rows: minmax(0, auto);
+  grid-template-rows: max-content 1fr;
 }
 
 body > main > details {
@@ -114,7 +113,6 @@ body > main > aside {
 @media (max-width: 76rem) {
   :host,
   :root {
-    --sidebar-width: 40px;
     --content-area-padding-inline: 12px;
   }
   .brand-logo > .brand-feature-name {
@@ -181,7 +179,8 @@ body > main > aside {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 1.5em;
+  font-size: 1.75em;
+  white-space: nowrap;
 }
 
 .brand-logo > .brand-icon {
@@ -434,6 +433,11 @@ details[open] > .page-section-header > .twisty {
 
 .card-body > button.primary {
   margin-inline-start: 0;
+  z-index: 1;
+}
+
+.card-body > .step-content {
+  z-index: 1;
 }
 
 .setup-step {
@@ -449,7 +453,6 @@ details[open] > .page-section-header > .twisty {
 .zap-card::before {
   content: "";
   position: absolute;
-  z-index: -1;
   inset: 0;
   padding: 1px; /* the "border" thickness */
   border-radius: 4px;
