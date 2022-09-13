@@ -643,25 +643,30 @@ template bool StringsCompare<ComparisonKind::GreaterThanOrEqual>(
 
 bool ArrayPushDense(JSContext* cx, Handle<ArrayObject*> arr, HandleValue v,
                     uint32_t* length) {
-  *length = arr->length();
-  DenseElementResult result =
-      arr->setOrExtendDenseElements(cx, *length, v.address(), 1);
-  if (result != DenseElementResult::Incomplete) {
-    (*length)++;
-    return result == DenseElementResult::Success;
-  }
-
-  JS::RootedValueArray<3> argv(cx);
-  argv[0].setUndefined();
-  argv[1].setObject(*arr);
-  argv[2].set(v);
-  if (!js::array_push(cx, 1, argv.begin())) {
-    return false;
-  }
+  // Shape guards guarantee that the input is an extensible ArrayObject, which
+  // has a writable "length" property and has no other indexed properties.
+  MOZ_ASSERT(arr->isExtensible());
+  MOZ_ASSERT(arr->lengthIsWritable());
+  MOZ_ASSERT(!arr->isIndexed());
 
   // Length must fit in an int32 because we guard against overflow before
   // calling this VM function.
-  *length = argv[0].toInt32();
+  uint32_t index = arr->length();
+  MOZ_ASSERT(index < uint32_t(INT32_MAX));
+
+  DenseElementResult result =
+      arr->setOrExtendDenseElements(cx, index, v.address(), 1);
+  if (result != DenseElementResult::Incomplete) {
+    *length = index + 1;
+    return result == DenseElementResult::Success;
+  }
+
+  if (!DefineDataElement(cx, arr, index, v)) {
+    return false;
+  }
+
+  arr->setLength(index + 1);
+  *length = index + 1;
   return true;
 }
 
@@ -1294,9 +1299,13 @@ JSString* StringReplace(JSContext* cx, HandleString string,
 }
 
 bool SetDenseElement(JSContext* cx, Handle<NativeObject*> obj, int32_t index,
-                     HandleValue value, bool strict) {
+                     HandleValue value) {
   // This function is called from Ion code for StoreElementHole's OOL path.
-  // In this case we know the object is native.
+  // In this case we know the object is native, extensible, and has no indexed
+  // properties.
+  MOZ_ASSERT(obj->isExtensible());
+  MOZ_ASSERT(!obj->isIndexed());
+  MOZ_ASSERT(index >= 0);
 
   DenseElementResult result =
       obj->setOrExtendDenseElements(cx, index, value.address(), 1);
@@ -1304,8 +1313,7 @@ bool SetDenseElement(JSContext* cx, Handle<NativeObject*> obj, int32_t index,
     return result == DenseElementResult::Success;
   }
 
-  RootedValue indexVal(cx, Int32Value(index));
-  return SetObjectElement(cx, obj, indexVal, value, strict);
+  return DefineDataElement(cx, obj, index, value);
 }
 
 void AssertValidBigIntPtr(JSContext* cx, JS::BigInt* bi) {

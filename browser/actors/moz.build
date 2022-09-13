@@ -32,8 +32,8 @@ with Files("WebRTCChild.jsm"):
     BUG_COMPONENT = ("Firefox", "Site Permissions")
 
 FINAL_TARGET_FILES.actors += [
-    "AboutNewTabChild.jsm",
-    "AboutNewTabParent.jsm",
+    "AboutNewTabChild.sys.mjs",
+    "AboutNewTabParent.sys.mjs",
     "AboutPluginsChild.sys.mjs",
     "AboutPluginsParent.sys.mjs",
     "AboutPocketChild.jsm",
@@ -48,7 +48,7 @@ FINAL_TARGET_FILES.actors += [
     "AboutTabCrashedParent.sys.mjs",
     "BlockedSiteChild.jsm",
     "BlockedSiteParent.jsm",
-    "BrowserProcessChild.jsm",
+    "BrowserProcessChild.sys.mjs",
     "BrowserTabChild.jsm",
     "BrowserTabParent.jsm",
     "ClickHandlerChild.jsm",

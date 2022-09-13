@@ -3344,6 +3344,9 @@
 
     getTabsToTheStartFrom(aTab) {
       let tabsToStart = [];
+      if (aTab.hidden) {
+        return tabsToStart;
+      }
       let tabs = this.visibleTabs;
       for (let i = 0; i < tabs.length; ++i) {
         if (tabs[i] == aTab) {
@@ -3365,6 +3368,9 @@
 
     getTabsToTheEndFrom(aTab) {
       let tabsToEnd = [];
+      if (aTab.hidden) {
+        return tabsToEnd;
+      }
       let tabs = this.visibleTabs;
       for (let i = tabs.length - 1; i >= 0; --i) {
         if (tabs[i] == aTab) {
@@ -6855,7 +6861,16 @@
 var StatusPanel = {
   get panel() {
     delete this.panel;
-    return (this.panel = document.getElementById("statuspanel"));
+    this.panel = document.getElementById("statuspanel");
+    this.panel.addEventListener(
+      "transitionend",
+      this._onTransitionEnd.bind(this)
+    );
+    this.panel.addEventListener(
+      "transitioncancel",
+      this._onTransitionEnd.bind(this)
+    );
+    return this.panel;
   },
 
   get isVisible() {
@@ -6894,6 +6909,7 @@ var StatusPanel = {
     if (this._labelElement.value != text || (text && !this.isVisible)) {
       this.panel.setAttribute("previoustype", this.panel.getAttribute("type"));
       this.panel.setAttribute("type", type);
+
       this._label = text;
       this._labelElement.setAttribute(
         "crop",
@@ -6930,11 +6946,23 @@ var StatusPanel = {
 
     if (val) {
       this._labelElement.value = val;
+      if (this.panel.hidden) {
+        this.panel.hidden = false;
+        // This ensures that the "inactive" attribute removal triggers a
+        // transition.
+        getComputedStyle(this.panel).display;
+      }
       this.panel.removeAttribute("inactive");
       MousePosTracker.addListener(this);
     } else {
       this.panel.setAttribute("inactive", "true");
       MousePosTracker.removeListener(this);
+    }
+  },
+
+  _onTransitionEnd() {
+    if (!this.isVisible) {
+      this.panel.hidden = true;
     }
   },
 
@@ -7031,6 +7059,8 @@ var TabContextMenu = {
       (aPopupMenu.triggerNode.tab || aPopupMenu.triggerNode.closest("tab"));
 
     this.contextTab = tab || gBrowser.selectedTab;
+    this.contextTab.addEventListener("TabAttrModified", this);
+    aPopupMenu.addEventListener("popuphiding", this);
 
     let disabled = gBrowser.tabs.length == 1;
     let multiselectionContext = this.contextTab.multiselected;
@@ -7044,10 +7074,6 @@ var TabContextMenu = {
     );
     for (let menuItem of menuItems) {
       menuItem.disabled = disabled;
-    }
-
-    if (this.contextTab.hasAttribute("customizemode")) {
-      document.getElementById("context_openTabInWindow").disabled = true;
     }
 
     disabled = gBrowser.visibleTabs.length == 1;
@@ -7097,11 +7123,13 @@ var TabContextMenu = {
     contextUnpinSelectedTabs.hidden =
       !this.contextTab.pinned || !multiselectionContext;
 
+    // Move Tab items
     let contextMoveTabOptions = document.getElementById(
       "context_moveTabOptions"
     );
     contextMoveTabOptions.setAttribute("data-l10n-args", tabCountInfo);
-    contextMoveTabOptions.disabled = gBrowser.allTabsSelected();
+    contextMoveTabOptions.disabled =
+      this.contextTab.hidden || gBrowser.allTabsSelected();
     let selectedTabs = gBrowser.selectedTabs;
     let contextMoveTabToEnd = document.getElementById("context_moveToEnd");
     let allSelectedTabsAdjacent = selectedTabs.every(
@@ -7130,6 +7158,10 @@ var TabContextMenu = {
       tabsToMove[0] == visibleTabs[0] ||
       tabsToMove[0] == visibleTabs[gBrowser._numPinnedTabs];
     contextMoveTabToStart.disabled = isFirstTab && allSelectedTabsAdjacent;
+
+    if (this.contextTab.hasAttribute("customizemode")) {
+      document.getElementById("context_openTabInWindow").disabled = true;
+    }
 
     // Only one of "Duplicate Tab"/"Duplicate Tabs" should be visible.
     document.getElementById(
@@ -7224,14 +7256,15 @@ var TabContextMenu = {
     let selectAllTabs = document.getElementById("context_selectAllTabs");
     selectAllTabs.disabled = gBrowser.allTabsSelected();
 
-    this.contextTab.addEventListener("TabAttrModified", this);
-    aPopupMenu.addEventListener("popuphiding", this);
-
     gSync.updateTabContextMenu(aPopupMenu, this.contextTab);
 
-    document.getElementById("context_reopenInContainer").hidden =
+    let reopenInContainer = document.getElementById(
+      "context_reopenInContainer"
+    );
+    reopenInContainer.hidden =
       !Services.prefs.getBoolPref("privacy.userContext.enabled", false) ||
       PrivateBrowsingUtils.isWindowPrivate(window);
+    reopenInContainer.disabled = this.contextTab.hidden;
 
     gShareUtils.updateShareURLMenuItem(
       this.contextTab.linkedBrowser,

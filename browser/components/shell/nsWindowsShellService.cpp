@@ -1080,10 +1080,20 @@ static nsresult GetMatchingShortcut(int aCSIDL, const nsAString& aAUMID,
 
 static nsresult FindMatchingShortcut(const nsAString& aAppUserModelId,
                                      const nsAString& aShortcutName,
+                                     const bool aPrivateBrowsing,
                                      nsAutoString& aShortcutPath) {
   wchar_t exePath[MAXPATHLEN] = {};
   if (NS_WARN_IF(NS_FAILED(BinaryPath::GetLong(exePath)))) {
     return NS_ERROR_FAILURE;
+  }
+
+  if (aPrivateBrowsing) {
+    if (!PathRemoveFileSpecW(exePath)) {
+      return NS_ERROR_FAILURE;
+    }
+    if (!PathAppendW(exePath, L"private_browsing.exe")) {
+      return NS_ERROR_FAILURE;
+    }
   }
 
   int shortcutCSIDLs[] = {CSIDL_COMMON_PROGRAMS, CSIDL_PROGRAMS,
@@ -1108,8 +1118,8 @@ static bool HasMatchingShortcutImpl(const nsAString& aAppUserModelId,
                                     const nsAutoString& aShortcutName) {
   // unused by us, but required
   nsAutoString shortcutPath;
-  nsresult rv =
-      FindMatchingShortcut(aAppUserModelId, aShortcutName, shortcutPath);
+  nsresult rv = FindMatchingShortcut(aAppUserModelId, aShortcutName,
+                                     aPrivateBrowsing, shortcutPath);
   if (SUCCEEDED(rv)) {
     return true;
   }
@@ -1154,7 +1164,7 @@ NS_IMETHODIMP nsWindowsShellService::HasMatchingShortcut(
     RefPtr<Localization> l10n = Localization::Create(resIds, true);
     nsAutoCString pbStr;
     IgnoredErrorResult rv;
-    l10n->FormatValueSync("private-browsing-shortcut-text"_ns, {}, pbStr, rv);
+    l10n->FormatValueSync("private-browsing-shortcut-text-2"_ns, {}, pbStr, rv);
     shortcutName.Append(NS_ConvertUTF8toUTF16(pbStr));
     shortcutName.AppendLiteral(".lnk");
   } else {
@@ -1393,19 +1403,17 @@ static nsresult PinCurrentAppToTaskbarWin10(bool aCheckOnly,
   }
 }
 
-static nsresult PinCurrentAppToTaskbarImpl(bool aCheckOnly,
-                                           bool aPrivateBrowsing,
-                                           const nsAString& aAppUserModelId,
-                                           const nsAString& aShortcutName,
-                                           nsIFile* aShortcutsLogDir,
-                                           nsIFile* greDir) {
+static nsresult PinCurrentAppToTaskbarImpl(
+    bool aCheckOnly, bool aPrivateBrowsing, const nsAString& aAppUserModelId,
+    const nsAString& aShortcutName, nsIFile* aShortcutsLogDir, nsIFile* aGreDir,
+    nsIFile* aProgramsDir) {
   MOZ_DIAGNOSTIC_ASSERT(
       !NS_IsMainThread(),
       "PinCurrentAppToTaskbarImpl should be called off main thread only");
 
   nsAutoString shortcutPath;
-  nsresult rv =
-      FindMatchingShortcut(aAppUserModelId, aShortcutName, shortcutPath);
+  nsresult rv = FindMatchingShortcut(aAppUserModelId, aShortcutName,
+                                     aPrivateBrowsing, shortcutPath);
   if (NS_FAILED(rv)) {
     shortcutPath.Truncate();
   }
@@ -1419,11 +1427,8 @@ static nsresult PinCurrentAppToTaskbarImpl(bool aCheckOnly,
 
     nsAutoString linkName(aShortcutName);
 
-    nsCOMPtr<nsIFile> exeFile(greDir);
+    nsCOMPtr<nsIFile> exeFile(aGreDir);
     if (aPrivateBrowsing) {
-      if (!NS_SUCCEEDED(rv)) {
-        return NS_ERROR_FAILURE;
-      }
       nsAutoString pbExeStr(PRIVATE_BROWSING_BINARY);
       nsresult rv = exeFile->Append(pbExeStr);
       if (!NS_SUCCEEDED(rv)) {
@@ -1441,12 +1446,16 @@ static nsresult PinCurrentAppToTaskbarImpl(bool aCheckOnly,
       }
     }
 
+    nsCOMPtr<nsIFile> shortcutFile(aProgramsDir);
+    shortcutFile->Append(aShortcutName);
+
     nsTArray<nsString> arguments;
     rv = CreateShortcutImpl(exeFile, arguments, aShortcutName, exeFile,
                             // Icon indexes are defined as Resource IDs, but
                             // CreateShortcutImpl needs an index.
                             IDI_APPICON - 1, aAppUserModelId, FOLDERID_Programs,
-                            linkName, shortcutPath, aShortcutsLogDir);
+                            linkName, shortcutFile->NativePath(),
+                            aShortcutsLogDir);
     if (!NS_SUCCEEDED(rv)) {
       return NS_ERROR_FILE_NOT_FOUND;
     }
@@ -1508,17 +1517,19 @@ static nsresult PinCurrentAppToTaskbarAsyncImpl(bool aCheckOnly,
     RefPtr<Localization> l10n = Localization::Create(resIds, true);
     nsAutoCString pbStr;
     IgnoredErrorResult rv;
-    l10n->FormatValueSync("private-browsing-shortcut-text"_ns, {}, pbStr, rv);
+    l10n->FormatValueSync("private-browsing-shortcut-text-2"_ns, {}, pbStr, rv);
     shortcutName.Append(NS_ConvertUTF8toUTF16(pbStr));
     shortcutName.AppendLiteral(".lnk");
   } else {
     shortcutName.AppendLiteral(MOZ_APP_DISPLAYNAME ".lnk");
   }
 
-  nsCOMPtr<nsIFile> greDir, updRoot, shortcutsLogDir;
+  nsCOMPtr<nsIFile> greDir, updRoot, programsDir, shortcutsLogDir;
   nsresult nsrv = NS_GetSpecialDirectory(NS_GRE_DIR, getter_AddRefs(greDir));
   NS_ENSURE_SUCCESS(nsrv, nsrv);
   nsrv = NS_GetSpecialDirectory(XRE_UPDATE_ROOT_DIR, getter_AddRefs(updRoot));
+  NS_ENSURE_SUCCESS(nsrv, nsrv);
+  rv = NS_GetSpecialDirectory(NS_WIN_PROGRAMS_DIR, getter_AddRefs(programsDir));
   NS_ENSURE_SUCCESS(nsrv, nsrv);
   nsrv = updRoot->GetParent(getter_AddRefs(shortcutsLogDir));
   NS_ENSURE_SUCCESS(nsrv, nsrv);
@@ -1530,14 +1541,15 @@ static nsresult PinCurrentAppToTaskbarAsyncImpl(bool aCheckOnly,
       NS_NewRunnableFunction(
           "CheckPinCurrentAppToTaskbarAsync",
           [aCheckOnly, aPrivateBrowsing, shortcutName, aumid = nsString{aumid},
-           shortcutsLogDir, greDir, promiseHolder = std::move(promiseHolder)] {
+           shortcutsLogDir, greDir, programsDir,
+           promiseHolder = std::move(promiseHolder)] {
             nsresult rv = NS_ERROR_FAILURE;
             HRESULT hr = CoInitialize(nullptr);
 
             if (SUCCEEDED(hr)) {
               rv = PinCurrentAppToTaskbarImpl(
                   aCheckOnly, aPrivateBrowsing, aumid, shortcutName,
-                  shortcutsLogDir.get(), greDir.get());
+                  shortcutsLogDir.get(), greDir.get(), programsDir.get());
               CoUninitialize();
             }
 
@@ -1814,7 +1826,8 @@ nsWindowsShellService::ClassifyShortcut(const nsAString& aPath,
       RefPtr<Localization> l10n = Localization::Create(resIds, true);
       nsAutoCString pbStr;
       IgnoredErrorResult rv;
-      l10n->FormatValueSync("private-browsing-shortcut-text"_ns, {}, pbStr, rv);
+      l10n->FormatValueSync("private-browsing-shortcut-text-2"_ns, {}, pbStr,
+                            rv);
       NS_ConvertUTF8toUTF16 widePbStr(pbStr);
       if (wcsstr(shortcutPath.get(), widePbStr.get())) {
         aResult.AppendLiteral("Private");

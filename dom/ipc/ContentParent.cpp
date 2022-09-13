@@ -2095,11 +2095,7 @@ void ContentParent::ActorDestroy(ActorDestroyReason why) {
           memWatcher->AddChildAnnotations(mCrashReporter);
 #endif
 
-          if (mCrashReporter->GenerateCrashReport(OtherPid())) {
-            // Propagate `isLikelyOOM`.
-            Unused << props->SetPropertyAsBool(u"isLikelyOOM"_ns,
-                                               mCrashReporter->IsLikelyOOM());
-          }
+          mCrashReporter->GenerateCrashReport(OtherPid());
         }
 
         if (mCrashReporter->HasMinidump()) {
@@ -4289,7 +4285,8 @@ void ContentParent::GeneratePairedMinidump(const char* aReason) {
 
     // Generate the report and insert into the queue for submittal.
     if (mCrashReporter->GenerateMinidumpAndPair(this, "browser"_ns)) {
-      mCreatedPairedMinidumps = mCrashReporter->FinalizeCrashReport();
+      mCrashReporter->FinalizeCrashReport();
+      mCreatedPairedMinidumps = true;
     }
   }
 }
@@ -4335,6 +4332,7 @@ void ContentParent::KillHard(const char* aReason) {
   }
 
   if (!KillProcess(otherProcessHandle, base::PROCESS_END_KILLED_BY_USER)) {
+    mCrashReporter->DeleteCrashReport();
     NS_WARNING("failed to kill subprocess!");
   }
 
