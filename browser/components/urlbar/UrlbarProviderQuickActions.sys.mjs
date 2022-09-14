@@ -25,7 +25,7 @@ const DYNAMIC_TYPE_NAME = "quickactions";
 
 // When the urlbar is first focused and no search term has been
 // entered we show a limited number of results.
-const ACTIONS_SHOWN_FOCUS = 5;
+const ACTIONS_SHOWN_FOCUS = 4;
 
 // Default icon shown for actions if no custom one is provided.
 const DEFAULT_ICON = "chrome://global/skin/icons/settings.svg";
@@ -131,7 +131,7 @@ class ProviderQuickActions extends UrlbarProvider {
     // but not when we are in the normal url mode on first focus.
     if (
       results.length > ACTIONS_SHOWN_FOCUS &&
-      !queryContext.searchString &&
+      !input &&
       !queryContext.searchMode
     ) {
       results.length = ACTIONS_SHOWN_FOCUS;
@@ -214,6 +214,7 @@ class ProviderQuickActions extends UrlbarProvider {
             "data-key": "onboarding-button",
             role: "button",
             class: "urlbarView-button urlbarView-button-help",
+            "data-l10n-id": "quickactions-learn-more",
           },
         },
       ],
