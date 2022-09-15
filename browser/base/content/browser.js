@@ -8379,7 +8379,13 @@ const gRemoteControl = {
   },
 
   getRemoteControlComponent() {
-    if (DevToolsSocketStatus.opened) {
+    // For DevTools sockets, only show the remote control cue if the socket is
+    // not coming from a regular Browser Toolbox debugging session.
+    if (
+      DevToolsSocketStatus.hasSocketOpened({
+        excludeBrowserToolboxSockets: true,
+      })
+    ) {
       return "DevTools";
     }
 
@@ -9934,7 +9940,7 @@ var FirefoxViewHandler = {
       );
     }
     if (!this.tab) {
-      this.tab = gBrowser.addTrustedTab("about:firefoxview", { index: 0 });
+      this.tab = gBrowser.addTrustedTab("about:firefoxview");
       this.tab.addEventListener("TabClose", this, { once: true });
       gBrowser.tabContainer.addEventListener("TabSelect", this);
       window.addEventListener("activate", this);

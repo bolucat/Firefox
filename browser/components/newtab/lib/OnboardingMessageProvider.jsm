@@ -36,6 +36,13 @@ XPCOMUtils.defineLazyPreferenceGetter(
   0
 );
 
+XPCOMUtils.defineLazyPreferenceGetter(
+  lazy,
+  "hidePrivatePin",
+  "browser.startup.upgradeDialog.pinPBM.disabled",
+  false
+);
+
 const L10N = new Localization([
   "branding/brand.ftl",
   "browser/branding/brandings.ftl",
@@ -232,6 +239,7 @@ const BASE_MESSAGES = () => [
                 theme: "<event>",
               },
               defaultVariationIndex: 1,
+              darkVariation: 2,
               systemVariations: ["light", "automatic", "dark"],
               variations: ["soft", "balanced", "bold"],
               colorways: [
@@ -329,7 +337,8 @@ const BASE_MESSAGES = () => [
             },
             primary_button: {
               label: {
-                string_id: "mr2022-onboarding-colorway-primary-button-label",
+                string_id:
+                  "mr2022-onboarding-colorway-primary-button-label-continue",
               },
               action: {
                 persistActiveTheme: true,
@@ -884,7 +893,7 @@ const BASE_MESSAGES = () => [
       ],
       lifetime: 12,
     },
-    targeting: "doesAppNeedPrivatePin",
+    targeting: "!inMr2022Holdback && doesAppNeedPrivatePin",
   },
 ];
 
@@ -1010,7 +1019,8 @@ const OnboardingMessageProvider = {
     );
     const needPin = await this._doesAppNeedPin();
     const needDefault = await this._doesAppNeedDefault();
-    const needPrivatePin = await this._doesAppNeedPin(true);
+    const needPrivatePin =
+      !lazy.hidePrivatePin && (await this._doesAppNeedPin(true));
     const showSegmentation = this._shouldShowPrivacySegmentationScreen();
 
     //If a user has Firefox as default remove import screen
