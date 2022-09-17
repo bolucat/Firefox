@@ -64,18 +64,11 @@ static void SetBooleanProperty(OperatorData* aOperatorData, nsString aName) {
     aOperatorData->mFlags |= NS_MATHML_OPERATOR_MOVABLELIMITS;
   else if (aName.EqualsLiteral("symmetric"))
     aOperatorData->mFlags |= NS_MATHML_OPERATOR_SYMMETRIC;
-  else if (aName.EqualsLiteral("integral"))
-    aOperatorData->mFlags |= NS_MATHML_OPERATOR_INTEGRAL;
 }
 
 static void SetProperty(OperatorData* aOperatorData, nsString aName,
                         nsString aValue) {
   if (aName.IsEmpty() || aValue.IsEmpty()) return;
-
-  // XXX These ones are not kept in the dictionary
-  // Support for these requires nsString member variables
-  // maxsize (default: infinity)
-  // minsize (default: 1)
 
   if (aName.EqualsLiteral("direction")) {
     if (aValue.EqualsLiteral("vertical"))
@@ -394,6 +387,15 @@ void nsMathMLOperators::LookupOperators(const nsString& aOperator,
 bool nsMathMLOperators::IsMirrorableOperator(const nsString& aOperator) {
   if (auto codePoint = ToUnicodeCodePoint(aOperator)) {
     return mozilla::intl::UnicodeProperties::IsMirrored(codePoint);
+  }
+  return false;
+}
+
+/* static */
+bool nsMathMLOperators::IsIntegralOperator(const nsString& aOperator) {
+  if (auto codePoint = ToUnicodeCodePoint(aOperator)) {
+    return (0x222B <= codePoint && codePoint <= 0x2233) ||
+           (0x2A0B <= codePoint && codePoint <= 0x2A1C);
   }
   return false;
 }
