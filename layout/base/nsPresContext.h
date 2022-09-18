@@ -1068,14 +1068,6 @@ class nsPresContext : public nsISupports, public mozilla::SupportsWeakPtr {
 
   bool IsDeviceSizePageSize();
 
-  bool HasWarnedAboutPositionedTableParts() const {
-    return mHasWarnedAboutPositionedTableParts;
-  }
-
-  void SetHasWarnedAboutPositionedTableParts() {
-    mHasWarnedAboutPositionedTableParts = true;
-  }
-
   bool HasWarnedAboutTooLargeDashedOrDottedRadius() const {
     return mHasWarnedAboutTooLargeDashedOrDottedRadius;
   }
@@ -1352,8 +1344,8 @@ class nsPresContext : public nsISupports, public mozilla::SupportsWeakPtr {
 
   // Does the associated document use ex or ch units?
   //
-  // TODO(emilio): It's a bit weird that this lives here but all the other
-  // relevant bits live in Device on the rust side.
+  // TODO(emilio, bug 1791281): It's a bit weird that this lives here but all
+  // the other relevant bits live in Device on the rust side.
   unsigned mUsesFontMetricDependentFontUnits : 1;
 
   // Is the current mCounterStyleManager valid?
@@ -1364,7 +1356,11 @@ class nsPresContext : public nsISupports, public mozilla::SupportsWeakPtr {
 
   unsigned mIsVisual : 1;
 
-  unsigned mHasWarnedAboutPositionedTableParts : 1;
+  // FIXME(emilio, bug 1791281): Remove this and
+  // mUsesFontMetricDependentFontUnits, which can be written to from multiple
+  // threads (synchronized, but other code reads from other bits
+  // unsynchronized).
+  unsigned mUnused : 1;
 
   unsigned mHasWarnedAboutTooLargeDashedOrDottedRadius : 1;
 
