@@ -1272,36 +1272,30 @@ StyleAlignFlags nsFlexContainerFrame::CSSAlignmentForAbsPosChild(
   StyleAlignFlags alignment{0};
   StyleAlignFlags alignmentFlags{0};
   if (isMainAxis) {
+    // We're aligning in the main axis: align according to 'justify-content'.
+    // (We don't care about justify-self; it has no effect on children of flex
+    // containers, unless https://github.com/w3c/csswg-drafts/issues/7644
+    // changes that.)
     alignment = SimplifyAlignOrJustifyContentForOneItem(
         containerStylePos->mJustifyContent,
         /*aIsAlign = */ false);
   } else {
-    const StyleAlignFlags alignContent =
-        SimplifyAlignOrJustifyContentForOneItem(
-            containerStylePos->mAlignContent,
-            /*aIsAlign = */ true);
-    if (StyleFlexWrap::Nowrap != containerStylePos->mFlexWrap &&
-        alignContent != StyleAlignFlags::STRETCH) {
-      // Multi-line, align-content isn't stretch --> align-content determines
-      // this child's alignment in the cross axis.
-      alignment = alignContent;
-    } else {
-      // Single-line, or multi-line but the (one) line stretches to fill
-      // container. Respect align-self.
-      alignment = aChildRI.mStylePosition->UsedAlignSelf(Style())._0;
-      // Extract and strip align flag bits
-      alignmentFlags = alignment & StyleAlignFlags::FLAG_BITS;
-      alignment &= ~StyleAlignFlags::FLAG_BITS;
+    // We're aligning in the cross axis: align according to 'align-self'.
+    // (We don't care about align-content; it has no effect on abspos flex
+    // children, per https://github.com/w3c/csswg-drafts/issues/7596 )
+    alignment = aChildRI.mStylePosition->UsedAlignSelf(Style())._0;
+    // Extract and strip align flag bits
+    alignmentFlags = alignment & StyleAlignFlags::FLAG_BITS;
+    alignment &= ~StyleAlignFlags::FLAG_BITS;
 
-      if (alignment == StyleAlignFlags::NORMAL) {
-        // "the 'normal' keyword behaves as 'start' on replaced
-        // absolutely-positioned boxes, and behaves as 'stretch' on all other
-        // absolutely-positioned boxes."
-        // https://drafts.csswg.org/css-align/#align-abspos
-        alignment = aChildRI.mFrame->IsFrameOfType(nsIFrame::eReplaced)
-                        ? StyleAlignFlags::START
-                        : StyleAlignFlags::STRETCH;
-      }
+    if (alignment == StyleAlignFlags::NORMAL) {
+      // "the 'normal' keyword behaves as 'start' on replaced
+      // absolutely-positioned boxes, and behaves as 'stretch' on all other
+      // absolutely-positioned boxes."
+      // https://drafts.csswg.org/css-align/#align-abspos
+      alignment = aChildRI.mFrame->IsFrameOfType(nsIFrame::eReplaced)
+                      ? StyleAlignFlags::START
+                      : StyleAlignFlags::STRETCH;
     }
   }
 
@@ -1368,19 +1362,7 @@ FlexItem* nsFlexContainerFrame::GenerateFlexItemForChild(
       // If we get here, we're resolving the flex base size for a flex item, and
       // we fall into the flexbox spec section 9.2 step 3, substep C (if we have
       // a definite cross size) or E (if not).
-      if (aChildFrame->GetAspectRatio() ||
-          aChildFrame->IsFrameOfType(eReplacedSizing)) {
-        // FIXME: This is a workaround. Once bug 1670151 is fixed, aspect-ratio
-        // will be considered when resolving flex item's flex base size with the
-        // value 'max-content'. Replaced elements without preferred
-        // aspect-ratio, e.g. <svg> without viewBox nor aspect-ratio property,
-        // need this workaround since we still want to use replaced elements'
-        // intrinsic sizing rules in
-        // https://drafts.csswg.org/css-sizing-3/#intrinsic-sizes
-        styleFlexBaseSize.emplace(StyleSize::Auto());
-      } else {
-        styleFlexBaseSize.emplace(StyleSize::MaxContent());
-      }
+      styleFlexBaseSize.emplace(StyleSize::MaxContent());
     } else if (flexBasis.IsSize() && !flexBasis.IsAuto()) {
       // For all other non-'auto' flex-basis values, we just swap in the
       // flex-basis itself for the preferred main-size property.
@@ -3653,10 +3635,9 @@ CrossAxisPositionTracker::CrossAxisPositionTracker(
   if (mPackingSpaceRemaining != 0) {
     if (mAlignContent.primary == StyleAlignFlags::BASELINE ||
         mAlignContent.primary == StyleAlignFlags::LAST_BASELINE) {
-      NS_WARNING(
-          "NYI: "
-          "align-items/align-self:left/right/self-start/self-end/baseline/"
-          "last baseline");
+      // TODO: Bug 1480850 will implement 'align-content: [first/last] baseline'
+      // for flexbox. Until then, behaves as if align-content is 'flex-start' by
+      // doing nothing.
     } else if (mAlignContent.primary == StyleAlignFlags::FLEX_START) {
       // All packing space should go at the end --> nothing to do here.
     } else if (mAlignContent.primary == StyleAlignFlags::FLEX_END) {
