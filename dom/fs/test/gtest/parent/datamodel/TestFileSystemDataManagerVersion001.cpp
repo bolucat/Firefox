@@ -83,6 +83,8 @@ TEST(TestFileSystemDatabaseManagerVersion001, smokeTestCreateRemoveDirectories)
   FileSystemDatabaseManagerVersion001* rdm = nullptr;
   ASSERT_NO_FATAL_FAILURE(MakeDatabaseManagerVersion001(rdm));
   UniquePtr<FileSystemDatabaseManagerVersion001> dm(rdm);
+  // if any of these exit early, we have to close
+  auto autoClose = MakeScopeExit([rdm] { rdm->Close(); });
 
   TEST_TRY_UNWRAP(EntryId rootId, data::GetRootHandle(getTestOrigin()));
 
@@ -125,8 +127,8 @@ TEST(TestFileSystemDatabaseManagerVersion001, smokeTestCreateRemoveDirectories)
   ASSERT_EQ(u"Second"_ns, longPath[1]);
 
   FileSystemEntryPair wrongPair(secondChild, rootId);
-  TEST_TRY_UNWRAP_ERR(rv, dm->Resolve(wrongPair));
-  ASSERT_NSEQ(NS_ERROR_DOM_NOT_FOUND_ERR, rv);
+  TEST_TRY_UNWRAP(Path emptyPath, dm->Resolve(wrongPair));
+  ASSERT_TRUE(emptyPath.IsEmpty());
 
   PageNumber page = 0;
   TEST_TRY_UNWRAP(FileSystemDirectoryListing fEntries,
@@ -141,8 +143,7 @@ TEST(TestFileSystemDatabaseManagerVersion001, smokeTestCreateRemoveDirectories)
 
   TEST_TRY_UNWRAP_ERR(
       rv, dm->RemoveDirectory(firstChildMeta, /* recursive */ false));
-  ASSERT_NSEQ(NS_ERROR_DOM_FILEHANDLE_NOT_ALLOWED_ERR,
-              rv);  // Is this a good error?
+  ASSERT_NSEQ(NS_ERROR_DOM_INVALID_MODIFICATION_ERR, rv);
 
   TEST_TRY_UNWRAP(bool isDeleted,
                   dm->RemoveDirectory(firstChildMeta, /* recursive */ true));
@@ -188,10 +189,31 @@ TEST(TestFileSystemDatabaseManagerVersion001, smokeTestCreateRemoveFiles)
   ASSERT_EQ(0u, entries.directories().Length());
   ASSERT_EQ(1u, entries.files().Length());
 
-  const auto& firstItemRef = entries.files()[0];
+  auto& firstItemRef = entries.files()[0];
   ASSERT_TRUE(u"First"_ns == firstItemRef.entryName())
   << firstItemRef.entryName();
   ASSERT_STREQ(firstChild.get(), firstItemRef.entryId().get());
+
+  nsString type;
+  TimeStamp lastModifiedMilliSeconds;
+  Path path;
+  nsCOMPtr<nsIFile> file;
+  rv = dm->GetFile({rootId, firstItemRef.entryId()}, type,
+                   lastModifiedMilliSeconds, path, file);
+  ASSERT_NSEQ(NS_OK, rv);
+
+  ASSERT_TRUE(type.IsEmpty());
+
+  const int64_t nowMilliSeconds = PR_Now() / 1000;
+  ASSERT_GE(nowMilliSeconds, lastModifiedMilliSeconds);
+  const int64_t expectedMaxDelayMilliSeconds = 100;
+  const int64_t actualDelay = nowMilliSeconds - lastModifiedMilliSeconds;
+  ASSERT_LT(actualDelay, expectedMaxDelayMilliSeconds);
+
+  ASSERT_EQ(1u, path.Length());
+  ASSERT_STREQ(u"First"_ns, path[0]);
+
+  ASSERT_NE(nullptr, file);
 
   // Getting the file entry as directory fails
   TEST_TRY_UNWRAP_ERR(
@@ -241,8 +263,7 @@ TEST(TestFileSystemDatabaseManagerVersion001, smokeTestCreateRemoveFiles)
   // If recursion is not allowed, the non-empty new directory may not be removed
   TEST_TRY_UNWRAP_ERR(
       rv, dm->RemoveDirectory(secondChildMeta, /* recursive */ false));
-  ASSERT_NSEQ(NS_ERROR_DOM_FILEHANDLE_NOT_ALLOWED_ERR,
-              rv);  // Is this a good error?
+  ASSERT_NSEQ(NS_ERROR_DOM_INVALID_MODIFICATION_ERR, rv);
 
   // If recursion is allowed, the new directory goes away.
   TEST_TRY_UNWRAP(bool isDeleted,

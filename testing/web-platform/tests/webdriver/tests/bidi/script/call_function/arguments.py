@@ -5,6 +5,65 @@ from ... import recursive_compare
 
 
 @pytest.mark.asyncio
+async def test_arguments(bidi_session, top_context):
+    result = await bidi_session.script.call_function(
+        function_declaration="(...args)=>{return args}",
+        arguments=[{
+            "type": "string",
+            "value": "ARGUMENT_STRING_VALUE"
+        }, {
+            "type": "number",
+            "value": 42}],
+        await_promise=False,
+        target=ContextTarget(top_context["context"]))
+
+    recursive_compare({
+        "type": "array",
+        "value": [{
+            "type": 'string',
+            "value": 'ARGUMENT_STRING_VALUE'
+        }, {
+            "type": 'number',
+            "value": 42}]},
+        result)
+
+
+@pytest.mark.asyncio
+async def test_default_arguments(bidi_session, top_context):
+    result = await bidi_session.script.call_function(
+        function_declaration="(...args)=>{return args}",
+        await_promise=False,
+        target=ContextTarget(top_context["context"]))
+
+    recursive_compare({
+        "type": "array",
+        "value": []
+    }, result)
+
+
+@pytest.mark.asyncio
+async def test_remote_value_argument(bidi_session, top_context):
+    remote_value_result = await bidi_session.script.evaluate(
+        expression="({SOME_PROPERTY:'SOME_VALUE'})",
+        await_promise=False,
+        result_ownership="root",
+        target=ContextTarget(top_context["context"]))
+
+    remote_value_handle = remote_value_result["handle"]
+
+    result = await bidi_session.script.call_function(
+        function_declaration="(obj)=>{return obj.SOME_PROPERTY;}",
+        arguments=[{
+            "handle": remote_value_handle}],
+        await_promise=False,
+        target=ContextTarget(top_context["context"]))
+
+    assert result == {
+        "type": "string",
+        "value": "SOME_VALUE"}
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "argument, expected",
     [
@@ -115,3 +174,51 @@ async def test_local_values(bidi_session, top_context, argument, expected_type):
     )
 
     recursive_compare(argument, result)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "value_fn, function_declaration",
+    [
+        (
+            lambda value: value,
+            "function(arg) { return arg === window.SOME_OBJECT; }",
+        ),
+        (
+            lambda value: ({"type": "object", "value": [["nested", value]]}),
+            "function(arg) { return arg.nested === window.SOME_OBJECT; }",
+        ),
+        (
+            lambda value: ({"type": "array", "value": [value]}),
+            "function(arg) { return arg[0] === window.SOME_OBJECT; }",
+        ),
+        (
+            lambda value: ({"type": "map", "value": [["foobar", value]]}),
+            "function(arg) { return arg.get('foobar') === window.SOME_OBJECT; }",
+        ),
+        (
+            lambda value: ({"type": "set", "value": [value]}),
+            "function(arg) { return arg.has(window.SOME_OBJECT); }",
+        ),
+    ],
+)
+async def test_remote_value_deserialization(
+    bidi_session, top_context, call_function, evaluate, value_fn, function_declaration
+):
+    remote_value = await evaluate(
+        "window.SOME_OBJECT = {SOME_PROPERTY:'SOME_VALUE'}; window.SOME_OBJECT",
+        result_ownership="root",
+    )
+
+    # Check that a remote value can be successfully deserialized as an "argument"
+    # parameter and compared against the original object in the page.
+    result = await call_function(
+        function_declaration=function_declaration,
+        arguments=[value_fn(remote_value)],
+    )
+    assert result == {"type": "boolean", "value": True}
+
+    # Reload the page to cleanup the state
+    await bidi_session.browsing_context.navigate(
+        context=top_context["context"], url=top_context["url"], wait="complete"
+    )

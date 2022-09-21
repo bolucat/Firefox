@@ -3624,12 +3624,10 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI* aURI,
       errorClass = nsINSSErrorsService::ERROR_CLASS_SSL_PROTOCOL;
     }
 
-    nsCOMPtr<nsISupports> securityInfo;
     nsCOMPtr<nsITransportSecurityInfo> tsi;
     if (aFailedChannel) {
-      aFailedChannel->GetSecurityInfo(getter_AddRefs(securityInfo));
+      aFailedChannel->GetSecurityInfo(getter_AddRefs(tsi));
     }
-    tsi = do_QueryInterface(securityInfo);
     if (tsi) {
       uint32_t securityState;
       tsi->GetSecurityState(&securityState);
@@ -6027,13 +6025,12 @@ already_AddRefed<nsIURI> nsDocShell::MaybeFixBadCertDomainErrorURI(
     return nullptr;
   }
 
-  nsCOMPtr<nsISupports> securityInfo;
-  rv = aChannel->GetSecurityInfo(getter_AddRefs(securityInfo));
+  nsCOMPtr<nsITransportSecurityInfo> tsi;
+  rv = aChannel->GetSecurityInfo(getter_AddRefs(tsi));
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return nullptr;
   }
 
-  nsCOMPtr<nsITransportSecurityInfo> tsi = do_QueryInterface(securityInfo);
   if (NS_WARN_IF(!tsi)) {
     return nullptr;
   }
@@ -6728,7 +6725,7 @@ nsresult nsDocShell::CreateAboutBlankContentViewer(
       if (aPrincipal) {
         principal = NullPrincipal::CreateWithInheritedAttributes(aPrincipal);
       } else {
-        principal = NullPrincipal::CreateWithInheritedAttributes(this);
+        principal = NullPrincipal::Create(GetOriginAttributes());
       }
       partitionedPrincipal = principal;
     } else {
@@ -12074,7 +12071,7 @@ nsresult nsDocShell::LoadHistoryEntry(nsDocShellLoadState* aLoadState,
       // URIs will pick it up from the about:blank page we just loaded,
       // and we don't really want even that in this case.
       nsCOMPtr<nsIPrincipal> principal =
-          NullPrincipal::CreateWithInheritedAttributes(this);
+          NullPrincipal::Create(GetOriginAttributes());
       aLoadState->SetTriggeringPrincipal(principal);
     }
   }

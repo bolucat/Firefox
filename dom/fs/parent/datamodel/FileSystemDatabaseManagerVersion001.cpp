@@ -134,7 +134,9 @@ Result<Path, QMResult> ResolveReversedPath(
     QM_TRY_UNWRAP(moreResults, stmt.ExecuteStep());
   }
 
-  return Err(QMResult(NS_ERROR_DOM_NOT_FOUND_ERR));
+  // Spec wants us to return 'null' for not-an-ancestor case
+  pathResult.Clear();
+  return pathResult;
 }
 
 Result<bool, QMResult> DoesFileExist(const FileSystemConnection& mConnection,
@@ -154,14 +156,9 @@ Result<bool, QMResult> DoesFileExist(const FileSystemConnection& mConnection,
 }
 
 nsresult GetFileAttributes(const FileSystemConnection& aConnection,
-                           const EntryId& aEntryId,
-                           TimeStamp& aLastModifiedMilliSeconds,
-                           ContentType& aType) {
+                           const EntryId& aEntryId, ContentType& aType) {
   const nsLiteralCString getFileLocation =
       "SELECT type FROM Files INNER JOIN Entries USING(handle) WHERE handle = :entryId;"_ns;
-
-  // TODO: bug 1790391: Request this from filemanager who makes the system call
-  aLastModifiedMilliSeconds = 0;
 
   QM_TRY_UNWRAP(ResultStatement stmt,
                 ResultStatement::Create(aConnection, getFileLocation));
@@ -529,15 +526,19 @@ nsresult FileSystemDatabaseManagerVersion001::GetFile(
 
   const auto& entryId = aEndpoints.childId();
 
-  QM_TRY(MOZ_TO_RESULT(GetFileAttributes(mConnection, entryId,
-                                         lastModifiedMilliSeconds, aType)));
+  QM_TRY_UNWRAP(aFile, mFileManager->GetOrCreateFile(entryId));
+
+  QM_TRY(MOZ_TO_RESULT(GetFileAttributes(mConnection, entryId, aType)));
+
+  PRTime lastModTime = 0;
+  QM_TRY(MOZ_TO_RESULT(aFile->GetLastModifiedTime(&lastModTime)));
+  lastModifiedMilliSeconds = static_cast<TimeStamp>(lastModTime);
 
   QM_TRY_UNWRAP(aPath, ResolveReversedPath(mConnection, aEndpoints));
-
+  if (aPath.IsEmpty()) {
+    return NS_ERROR_DOM_NOT_FOUND_ERR;
+  }
   aPath.Reverse();
-
-  QM_TRY_UNWRAP(aFile,
-                mFileManager->GetOrCreateFile(entryId));  // Timestamp from here
 
   return NS_OK;
 }
@@ -546,8 +547,11 @@ Result<bool, QMResult> FileSystemDatabaseManagerVersion001::RemoveDirectory(
     const FileSystemChildMetadata& aHandle, bool aRecursive) {
   MOZ_ASSERT(!aHandle.parentId().IsEmpty());
 
+  if (aHandle.childName().IsEmpty()) {
+    return false;
+  }
   DebugOnly<Name> name = aHandle.childName();
-  MOZ_ASSERT(!name.inspect().IsVoid() && !name.inspect().IsEmpty());
+  MOZ_ASSERT(!name.inspect().IsVoid());
 
   QM_TRY_UNWRAP(bool exists, DoesDirectoryExist(mConnection, aHandle));
 
@@ -562,8 +566,7 @@ Result<bool, QMResult> FileSystemDatabaseManagerVersion001::RemoveDirectory(
   QM_TRY_UNWRAP(bool isEmpty, IsDirectoryEmpty(mConnection, entryId));
 
   if (!aRecursive && !isEmpty) {
-    return Err(QMResult(
-        NS_ERROR_DOM_FILEHANDLE_NOT_ALLOWED_ERR));  // Is this correct error?
+    return Err(QMResult(NS_ERROR_DOM_INVALID_MODIFICATION_ERR));
   }
   // If it's empty or we can delete recursively, deleting the handle will
   // cascade
@@ -628,8 +631,11 @@ Result<bool, QMResult> FileSystemDatabaseManagerVersion001::RemoveFile(
     const FileSystemChildMetadata& aHandle) {
   MOZ_ASSERT(!aHandle.parentId().IsEmpty());
 
+  if (aHandle.childName().IsEmpty()) {
+    return false;
+  }
   DebugOnly<Name> name = aHandle.childName();
-  MOZ_ASSERT(!name.inspect().IsVoid() && !name.inspect().IsEmpty());
+  MOZ_ASSERT(!name.inspect().IsVoid());
 
   // Make it more evident that we won't remove directories
   QM_TRY_UNWRAP(bool exists, DoesFileExist(mConnection, aHandle));
@@ -638,18 +644,16 @@ Result<bool, QMResult> FileSystemDatabaseManagerVersion001::RemoveFile(
     return false;
   }
   // At this point, entry exists and is a file
+  QM_TRY_UNWRAP(EntryId entryId, FindEntryId(mConnection, aHandle, true));
+  MOZ_ASSERT(!entryId.IsEmpty());
 
   const nsLiteralCString deleteEntryQuery =
       "DELETE FROM Entries "
       "WHERE handle = :handle "
       ";"_ns;
 
-  QM_TRY_UNWRAP(EntryId entryId, FindEntryId(mConnection, aHandle, true));
-  MOZ_ASSERT(!entryId.IsEmpty());
-
   mozStorageTransaction transaction(
       mConnection.get(), false, mozIStorageConnection::TRANSACTION_IMMEDIATE);
-
   {
     QM_TRY_UNWRAP(ResultStatement stmt,
                   ResultStatement::Create(mConnection, deleteEntryQuery));
@@ -761,6 +765,7 @@ Result<bool, QMResult> FileSystemDatabaseManagerVersion001::MoveEntry(
 Result<Path, QMResult> FileSystemDatabaseManagerVersion001::Resolve(
     const FileSystemEntryPair& aEndpoints) const {
   QM_TRY_UNWRAP(Path path, ResolveReversedPath(mConnection, aEndpoints));
+  // Note: if not an ancestor, returns null
 
   path.Reverse();
   return path;

@@ -452,10 +452,10 @@ let JSWINDOWACTORS = {
 
   ContentSearch: {
     parent: {
-      moduleURI: "resource:///actors/ContentSearchParent.jsm",
+      esModuleURI: "resource:///actors/ContentSearchParent.sys.mjs",
     },
     child: {
-      moduleURI: "resource:///actors/ContentSearchChild.jsm",
+      esModuleURI: "resource:///actors/ContentSearchChild.sys.mjs",
       events: {
         ContentSearchClient: { capture: true, wantUntrusted: true },
       },
@@ -535,11 +535,11 @@ let JSWINDOWACTORS = {
 
   FormValidation: {
     parent: {
-      moduleURI: "resource:///actors/FormValidationParent.jsm",
+      esModuleURI: "resource:///actors/FormValidationParent.sys.mjs",
     },
 
     child: {
-      moduleURI: "resource:///actors/FormValidationChild.jsm",
+      esModuleURI: "resource:///actors/FormValidationChild.sys.mjs",
       events: {
         MozInvalidForm: {},
         // Listening to ‘pageshow’ event is only relevant if an invalid form
@@ -610,7 +610,7 @@ let JSWINDOWACTORS = {
 
   PageInfo: {
     child: {
-      moduleURI: "resource:///actors/PageInfoChild.jsm",
+      esModuleURI: "resource:///actors/PageInfoChild.sys.mjs",
     },
 
     allFrames: true,

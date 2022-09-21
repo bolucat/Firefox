@@ -323,22 +323,6 @@ function WorkerDebuggerLoader(options) {
 
 this.WorkerDebuggerLoader = WorkerDebuggerLoader;
 
-// The following APIs rely on the use of Components, and the worker debugger
-// does not provide alternative definitions for them. Consequently, they are
-// stubbed out both on the main thread and worker threads.
-
-var chrome = {
-  CC: undefined,
-  Cc: undefined,
-  ChromeWorker: undefined,
-  Cm: undefined,
-  Ci: undefined,
-  Cu: undefined,
-  Cr: undefined,
-  components: undefined,
-  Services: undefined,
-};
-
 var loader = {
   lazyGetter(object, name, lambda) {
     Object.defineProperty(object, name, {
@@ -398,9 +382,10 @@ var {
 } = function() {
   // Main thread
   if (typeof Components === "object") {
-    const { Constructor: CC } = Components;
-
-    const principal = CC("@mozilla.org/systemprincipal;1", "nsIPrincipal")();
+    const principal = Components.Constructor(
+      "@mozilla.org/systemprincipal;1",
+      "nsIPrincipal"
+    )();
 
     // To ensure that the this passed to addDebuggerToGlobal is a global, the
     // Debugger object needs to be defined in a sandbox.
@@ -529,11 +514,20 @@ this.worker = new WorkerDebuggerLoader({
     atob: this.atob,
     Services: Object.create(null),
     ChromeUtils,
+
+    // The following APIs rely on the use of Components, and the worker debugger
+    // does not provide alternative definitions for them. Consequently, they are
+    // stubbed out both on the main thread and worker threads.
+    Cc: undefined,
+    ChromeWorker: undefined,
+    Ci: undefined,
+    Cu: undefined,
+    Cr: undefined,
+    Components: undefined,
   },
   loadSubScript,
   modules: {
     Debugger,
-    chrome,
     xpcInspector,
     DebuggerNotificationObserver,
   },

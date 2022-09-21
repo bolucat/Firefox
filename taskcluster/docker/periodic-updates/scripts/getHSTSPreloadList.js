@@ -117,11 +117,10 @@ function processStsHeader(host, header, status, securityInfo) {
   if (header != null && securityInfo != null) {
     try {
       let uri = Services.io.newURI("https://" + host.name);
-      let secInfo = securityInfo.QueryInterface(Ci.nsITransportSecurityInfo);
       gSSService.processHeader(
         uri,
         header,
-        secInfo,
+        securityInfo,
         {},
         maxAge,
         includeSubdomains
@@ -427,6 +426,10 @@ function filterForcedInclusions(inHosts, outNotForced, outForced) {
       host.forceInclude = true;
       host.error = ERROR_NONE;
       outForced.push(host);
+    } else if (host.name == "asus.com") {
+      dump(
+        "INFO: Excluding asus.com from HSTS preload list (https://bugzilla.mozilla.org/show_bug.cgi?id=1788684)"
+      );
     } else {
       outNotForced.push(host);
     }

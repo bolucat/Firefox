@@ -8,12 +8,13 @@
  * This module defines custom globals injected in all our modules and also
  * pseudo modules that aren't separate files but just dynamically set values.
  *
+ * Note that some globals are being defined by base-loader.js via wantGlobalProperties property.
+ *
  * As it does so, the module itself doesn't have access to these globals,
  * nor the pseudo modules. Be careful to avoid loading any other js module as
  * they would also miss them.
  */
 
-const { Cu, Cc, Ci, Services } = require("chrome");
 const jsmScope = require("resource://devtools/shared/loader/Loader.jsm");
 
 const systemPrincipal = Services.scriptSecurityManager.getSystemPrincipal();
@@ -39,68 +40,8 @@ const {
   PathUtils,
   StructuredCloneHolder,
   TelemetryStopwatch,
+  ChromeWorker,
 } = Cu.getGlobalForObject(jsmScope);
-
-// Create a single Sandbox to access global properties needed in this module.
-// Sandbox are memory expensive, so we should create as little as possible.
-const debuggerSandbox = (exports.internalSandbox = Cu.Sandbox(systemPrincipal, {
-  // This sandbox is also reused for ChromeDebugger implementation.
-  // As we want to load the `Debugger` API for debugging chrome contexts,
-  // we have to ensure loading it in a distinct compartment from its debuggee.
-  freshCompartment: true,
-
-  wantGlobalProperties: [
-    "AbortController",
-    "atob",
-    "btoa",
-    "Blob",
-    "ChromeUtils",
-    "crypto",
-    "CSS",
-    "CSSRule",
-    "DOMParser",
-    "Element",
-    "Event",
-    "FileReader",
-    "FormData",
-    "Headers",
-    "indexedDB",
-    "InspectorUtils",
-    "Node",
-    "TextDecoder",
-    "TextEncoder",
-    "URL",
-    "URLSearchParams",
-    "Window",
-    "XMLHttpRequest",
-  ],
-}));
-
-const {
-  AbortController,
-  atob,
-  btoa,
-  Blob,
-  ChromeUtils,
-  crypto,
-  CSS,
-  CSSRule,
-  DOMParser,
-  Element,
-  Event,
-  FileReader,
-  FormData,
-  Headers,
-  indexedDB,
-  InspectorUtils,
-  Node,
-  TextDecoder,
-  TextEncoder,
-  URL,
-  URLSearchParams,
-  Window,
-  XMLHttpRequest,
-} = debuggerSandbox;
 
 /**
  * Defines a getter on a specified object that will be created upon first use.
@@ -241,6 +182,14 @@ defineLazyGetter(exports.modules, "Debugger", () => {
 });
 
 defineLazyGetter(exports.modules, "ChromeDebugger", () => {
+  // Sandbox are memory expensive, so we should create as little as possible.
+  const debuggerSandbox = Cu.Sandbox(systemPrincipal, {
+    // This sandbox is used for the ChromeDebugger implementation.
+    // As we want to load the `Debugger` API for debugging chrome contexts,
+    // we have to ensure loading it in a distinct compartment from its debuggee.
+    freshCompartment: true,
+  });
+
   const { addDebuggerToGlobal } = ChromeUtils.import(
     "resource://gre/modules/jsdebugger.jsm"
   );
@@ -255,31 +204,23 @@ defineLazyGetter(exports.modules, "xpcInspector", () => {
 // List of all custom globals exposed to devtools modules.
 // Changes here should be mirrored to devtools/.eslintrc.
 exports.globals = {
-  AbortController,
-  atob,
-  Blob,
-  btoa,
   CanonicalBrowsingContext,
+  Ci,
   ChromeUtils,
+  Components,
+  Cr,
+  Cu,
   BrowsingContext,
   WebExtensionPolicy,
   WindowGlobalParent,
   WindowGlobalChild,
   console,
-  crypto,
-  CSS,
-  CSSRule,
-  DOMParser,
+  ChromeWorker,
   DOMPoint,
   DOMQuad,
-  Event,
   NamedNodeMap,
   NodeFilter,
   DOMRect,
-  Element,
-  FileReader,
-  FormData,
-  Headers,
   IOUtils,
   isWorker: false,
   L10nRegistry,
@@ -292,17 +233,9 @@ exports.globals = {
     id: null,
   },
   Localization,
-  Node,
   PathUtils,
   reportError: Cu.reportError,
-  Services: Object.create(Services),
   StructuredCloneHolder,
-  TextDecoder,
-  TextEncoder,
-  URL,
-  URLSearchParams,
-  Window,
-  XMLHttpRequest,
 };
 // DevTools loader copy globals property descriptors on each module global
 // object so that we have to memoize them from here in order to instantiate each
@@ -337,9 +270,4 @@ lazyGlobal("setInterval", () => {
 });
 lazyGlobal("WebSocket", () => {
   return Services.appShell.hiddenDOMWindow.WebSocket;
-});
-lazyGlobal("indexedDB", () => {
-  return require("devtools/shared/indexed-db").createDevToolsIndexedDB(
-    indexedDB
-  );
 });

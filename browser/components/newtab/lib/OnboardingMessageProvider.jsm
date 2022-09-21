@@ -79,6 +79,56 @@ const BASE_MESSAGES = () => [
     trigger: { id: "protectionsPanelOpen" },
   },
   {
+    id: "CFR_FIREFOX_VIEW",
+    groups: ["cfr"],
+    template: "cfr_doorhanger",
+    content: {
+      bucket_id: "CFR_FIREFOX_VIEW",
+      anchor_id: "firefox-view-button",
+      layout: "icon_and_message",
+      icon: "chrome://browser/content/cfr-lightning.svg",
+      icon_dark_theme: "chrome://browser/content/cfr-lightning-dark.svg",
+      icon_class: "cfr-doorhanger-small-icon",
+      heading_text: {
+        string_id: "firefoxview-cfr-header",
+      },
+      text: {
+        string_id: "firefoxview-cfr-body",
+      },
+      buttons: {
+        primary: {
+          label: {
+            string_id: "firefoxview-cfr-primarybutton",
+          },
+          action: {
+            type: "OPEN_FIREFOX_VIEW",
+            navigate: true,
+          },
+        },
+        secondary: [
+          {
+            label: {
+              string_id: "firefoxview-cfr-secondarybutton",
+            },
+            action: {
+              type: "CANCEL",
+            },
+          },
+        ],
+      },
+      skip_address_bar_notifier: true,
+    },
+    frequency: {
+      lifetime: 1,
+    },
+    trigger: {
+      id: "nthTabClosed",
+    },
+    // Avoid breaking existing tests that close tabs for now.
+    targeting:
+      "tabsClosedCount >= 3 && 'browser.firefox-view.view-count'|preferenceValue == 0 && !'browser.newtabpage.activity-stream.asrouter.providers.cfr'|preferenceIsUserSet",
+  },
+  {
     id: "FX_MR_106_UPGRADE",
     template: "spotlight",
     targeting: "true",
@@ -261,7 +311,7 @@ const BASE_MESSAGES = () => [
                     string_id: "mr2022-onboarding-colorway-label-playmaker",
                   },
                   tooltip: {
-                    string_id: "mr2022-onboarding-colorway-tooltip-playmaker",
+                    string_id: "mr2022-onboarding-colorway-tooltip-playmaker2",
                   },
                   description: {
                     string_id:
@@ -275,7 +325,7 @@ const BASE_MESSAGES = () => [
                   },
                   tooltip: {
                     string_id:
-                      "mr2022-onboarding-colorway-tooltip-expressionist",
+                      "mr2022-onboarding-colorway-tooltip-expressionist2",
                   },
                   description: {
                     string_id:
@@ -288,7 +338,7 @@ const BASE_MESSAGES = () => [
                     string_id: "mr2022-onboarding-colorway-label-visionary",
                   },
                   tooltip: {
-                    string_id: "mr2022-onboarding-colorway-tooltip-visionary",
+                    string_id: "mr2022-onboarding-colorway-tooltip-visionary2",
                   },
                   description: {
                     string_id:
@@ -301,7 +351,7 @@ const BASE_MESSAGES = () => [
                     string_id: "mr2022-onboarding-colorway-label-activist",
                   },
                   tooltip: {
-                    string_id: "mr2022-onboarding-colorway-tooltip-activist",
+                    string_id: "mr2022-onboarding-colorway-tooltip-activist2",
                   },
                   description: {
                     string_id:
@@ -314,7 +364,7 @@ const BASE_MESSAGES = () => [
                     string_id: "mr2022-onboarding-colorway-label-dreamer",
                   },
                   tooltip: {
-                    string_id: "mr2022-onboarding-colorway-tooltip-dreamer",
+                    string_id: "mr2022-onboarding-colorway-tooltip-dreamer2",
                   },
                   description: {
                     string_id: "mr2022-onboarding-colorway-description-dreamer",
@@ -326,7 +376,7 @@ const BASE_MESSAGES = () => [
                     string_id: "mr2022-onboarding-colorway-label-innovator",
                   },
                   tooltip: {
-                    string_id: "mr2022-onboarding-colorway-tooltip-innovator",
+                    string_id: "mr2022-onboarding-colorway-tooltip-innovator2",
                   },
                   description: {
                     string_id:
