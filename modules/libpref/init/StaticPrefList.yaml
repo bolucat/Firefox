@@ -1391,6 +1391,12 @@
   value: 3600
   mirror: always
 
+# Whether to start the private browsing mode at application startup
+- name: browser.privatebrowsing.autostart
+  type: bool
+  value: false
+  mirror: always
+
 # Force usage of in-memory (rather than file on disk) media cache for video streaming when private browsing
 - name: browser.privatebrowsing.forceMediaMemoryCache
   type: bool
@@ -4630,6 +4636,14 @@
 - name: dom.resize_observer.last_reported_size_invalid
   type: bool
   value: true
+  mirror: always
+
+# Let Resize Observer report the size of all fragments, and not just the
+# first one, as per CSSWG resolution:
+# https://github.com/w3c/csswg-drafts/issues/3673#issuecomment-467221565
+- name: dom.resize_observer.support_fragments
+  type: bool
+  value: false
   mirror: always
 
 #---------------------------------------------------------------------------
@@ -10912,6 +10926,13 @@
   value: false
   mirror: always
 
+# If all non-direct proxies have failed, we retry all of them in case they
+# are online now.
+- name: network.proxy.retry_failed_proxies
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 # Some requests during a page load are marked as "tail", mainly trackers, but not only.
 # This pref controls whether such requests are put to the tail, behind other requests
 # emerging during page loading process.
@@ -12763,7 +12784,7 @@
 # 0 means never GREASE, 100 means always GREASE
 - name: security.tls.ech.grease_probability
   type: RelaxedAtomicUint32
-#ifdef IS_NIGHTLY_BUILD
+#ifdef NIGHTLY_BUILD
   value: 50
 #else
   value: 0

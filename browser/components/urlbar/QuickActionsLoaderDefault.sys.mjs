@@ -50,7 +50,7 @@ let openUrl = url => {
 let openAddonsUrl = url => {
   return () => {
     let window = lazy.BrowserWindowTracker.getTopWindow();
-    window.BrowserOpenAddonsMgr(url);
+    window.BrowserOpenAddonsMgr(url, { selectTabByViewId: true });
   };
 };
 
@@ -75,7 +75,7 @@ const DEFAULT_ACTIONS = {
     l10nCommands: ["quickactions-cmd-addons2", "quickactions-addons"],
     icon: "chrome://mozapps/skin/extensions/category-extensions.svg",
     label: "quickactions-addons",
-    onPick: () => openUrl("about:addons"),
+    onPick: openAddonsUrl("addons://discover/"),
   },
   bookmarks: {
     l10nCommands: ["quickactions-cmd-bookmarks", "quickactions-bookmarks"],

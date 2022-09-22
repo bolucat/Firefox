@@ -1041,7 +1041,7 @@ pref("javascript.options.mem.gc_high_frequency_large_heap_growth", 150);
 pref("javascript.options.mem.gc_low_frequency_heap_growth", 150);
 
 // JSGC_BALANCED_HEAP_LIMITS_ENABLED
-pref("javascript.options.mem.gc_balanced_heap_limits", false);
+pref("javascript.options.mem.gc_balanced_heap_limits", true);
 
 // JSGC_HEAP_GROWTH_FACTOR
 pref("javascript.options.mem.gc_heap_growth_factor", 50);
@@ -4356,9 +4356,6 @@ pref("dom.postMessage.sharedArrayBuffer.bypassCOOP_COEP.insecure.enabled", false
 #else
 pref("dom.postMessage.sharedArrayBuffer.bypassCOOP_COEP.insecure.enabled", false, locked);
 #endif
-
-// Whether to start the private browsing mode at application startup
-pref("browser.privatebrowsing.autostart", false);
 
 // Whether sites require the open-protocol-handler permission to open a
 //preferred external application for a protocol. If a site doesn't have

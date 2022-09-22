@@ -1807,10 +1807,14 @@ inline bool MarkStack::push(const SlotsOrElementsRange& array) {
 }
 
 inline const MarkStack::TaggedPtr& MarkStack::peekPtr() const {
+  MOZ_ASSERT(!isEmpty());
   return stack()[topIndex_ - 1];
 }
 
-inline MarkStack::Tag MarkStack::peekTag() const { return peekPtr().tag(); }
+inline MarkStack::Tag MarkStack::peekTag() const {
+  MOZ_ASSERT(!isEmpty());
+  return peekPtr().tag();
+}
 
 inline MarkStack::TaggedPtr MarkStack::popPtr() {
   MOZ_ASSERT(!isEmpty());
@@ -1930,7 +1934,7 @@ GCMarker::GCMarker(JSRuntime* rt)
                                          JS::WeakEdgeTraceAction::Skip)),
       stack(),
       grayPosition(0),
-      color(MarkColor::Black),
+      markColor_(MarkColor::Black),
       delayedMarkingList(nullptr),
       delayedMarkingWorkAdded(false),
       state(MarkingState::NotActive),
@@ -1959,7 +1963,7 @@ bool GCMarker::isDrained() {
 void GCMarker::start() {
   MOZ_ASSERT(state == MarkingState::NotActive);
   state = MarkingState::RegularMarking;
-  color = MarkColor::Black;
+  markColor_ = MarkColor::Black;
 
 #ifdef DEBUG
   queuePos = 0;
@@ -2009,7 +2013,7 @@ inline void GCMarker::forEachDelayedMarkingArena(F&& f) {
 }
 
 void GCMarker::reset() {
-  color = MarkColor::Black;
+  markColor_ = MarkColor::Black;
 
   barrierBuffer().clearAndFree();
   stack.clear();
@@ -2031,15 +2035,14 @@ void GCMarker::reset() {
 }
 
 void GCMarker::setMarkColor(gc::MarkColor newColor) {
-  if (color == newColor) {
+  if (markColor_ == newColor) {
     return;
   }
 
-  MOZ_ASSERT(runtime()->gc.state() == State::Sweep);
   MOZ_ASSERT(!hasBlackEntries());
 
-  color = newColor;
-  if (color == MarkColor::Black) {
+  markColor_ = newColor;
+  if (markColor_ == MarkColor::Black) {
     grayPosition = stack.position();
   } else {
     grayPosition = SIZE_MAX;
@@ -2179,20 +2182,19 @@ void GCMarker::delayMarkingChildren(Cell* cell) {
   }
   JS::TraceKind kind = MapAllocToTraceKind(arena->getAllocKind());
   MarkColor colorToMark =
-      TraceKindCanBeMarkedGray(kind) ? color : MarkColor::Black;
+      TraceKindCanBeMarkedGray(kind) ? markColor() : MarkColor::Black;
   if (!arena->hasDelayedMarking(colorToMark)) {
     arena->setHasDelayedMarking(colorToMark, true);
     delayedMarkingWorkAdded = true;
   }
 }
 
-void GCMarker::markDelayedChildren(Arena* arena, MarkColor color) {
+void GCMarker::markDelayedChildren(Arena* arena) {
   JS::TraceKind kind = MapAllocToTraceKind(arena->getAllocKind());
-  MOZ_ASSERT_IF(color == MarkColor::Gray, TraceKindCanBeMarkedGray(kind));
+  MOZ_ASSERT_IF(markColor() == MarkColor::Gray, TraceKindCanBeMarkedGray(kind));
 
-  AutoSetMarkColor setColor(*this, color);
   for (ArenaCellIterUnderGC cell(arena); !cell.done(); cell.next()) {
-    if (cell->isMarked(color)) {
+    if (cell->isMarked(markColor())) {
       JS::TraceChildren(this, JS::GCCellPtr(cell, kind));
     }
   }
@@ -2212,16 +2214,24 @@ bool GCMarker::processDelayedMarkingList(MarkColor color, SliceBudget& budget) {
   // be set again if the arena is re-added. Iterate the list until no new arenas
   // were added.
 
+  AutoSetMarkColor setColor(*this, color);
+
   do {
     delayedMarkingWorkAdded = false;
     for (Arena* arena = delayedMarkingList; arena;
          arena = arena->getNextDelayedMarking()) {
-      if (!arena->hasDelayedMarking(color)) {
-        continue;
+      if (arena->hasDelayedMarking(color)) {
+        arena->setHasDelayedMarking(color, false);
+        markDelayedChildren(arena);
+        budget.step(150);
+        if (budget.isOverBudget()) {
+          return false;
+        }
       }
-      arena->setHasDelayedMarking(color, false);
-      markDelayedChildren(arena, color);
-      budget.step(150);
+    }
+    while ((color == MarkColor::Black && hasBlackEntries()) ||
+           (color == MarkColor::Gray && hasGrayEntries())) {
+      processMarkStackTop(budget);
       if (budget.isOverBudget()) {
         return false;
       }

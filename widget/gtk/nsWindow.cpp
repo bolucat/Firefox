@@ -191,6 +191,7 @@ static int is_parent_grab_leave(GdkEventCrossing* aEvent);
 static gboolean expose_event_cb(GtkWidget* widget, cairo_t* cr);
 static gboolean configure_event_cb(GtkWidget* widget, GdkEventConfigure* event);
 static void widget_map_cb(GtkWidget* widget);
+static void widget_unmap_cb(GtkWidget* widget);
 static void widget_unrealize_cb(GtkWidget* widget);
 static void size_allocate_cb(GtkWidget* widget, GtkAllocation* allocation);
 static void toplevel_window_size_allocate_cb(GtkWidget* widget,
@@ -1243,8 +1244,8 @@ void nsWindow::HideWaylandToplevelWindow() {
       popup = prev;
     }
   }
-  gtk_widget_hide(mShell);
   WaylandStopVsync();
+  gtk_widget_hide(mShell);
 }
 
 void nsWindow::ShowWaylandToplevelWindow() {
@@ -2567,7 +2568,9 @@ void nsWindow::WaylandPopupMovePlain(int aX, int aY) {
 
   // We can directly move only popups based on wl_subsurface type.
   MOZ_DIAGNOSTIC_ASSERT(gtk_window_get_type_hint(GTK_WINDOW(mShell)) ==
-                        GDK_WINDOW_TYPE_HINT_UTILITY);
+                            GDK_WINDOW_TYPE_HINT_UTILITY ||
+                        gtk_window_get_type_hint(GTK_WINDOW(mShell)) ==
+                            GDK_WINDOW_TYPE_HINT_TOOLTIP);
 
   gtk_window_move(GTK_WINDOW(mShell), aX, aY);
 
@@ -3439,6 +3442,10 @@ void* nsWindow::GetNativeData(uint32_t aDataType) {
 #endif
 #ifdef MOZ_WAYLAND
       if (GdkIsWaylandDisplay()) {
+        if (mCompositorWidgetDelegate) {
+          MOZ_DIAGNOSTIC_ASSERT(
+              !mCompositorWidgetDelegate->AsGtkCompositorWidget()->IsHidden());
+        }
         eglWindow = moz_container_wayland_get_egl_window(
             mContainer, FractionalScaleFactor());
       }
@@ -3989,10 +3996,8 @@ gboolean nsWindow::OnConfigureEvent(GtkWidget* aWidget,
 
   // Don't fire configure event for scale changes, we handle that
   // OnScaleChanged event. Skip that for toplevel windows only.
-  if (mWindowType == eWindowType_toplevel ||
-      mWindowType == eWindowType_dialog) {
-    MOZ_DIAGNOSTIC_ASSERT(mGdkWindow,
-                          "Getting configure for invisible window?");
+  if (mGdkWindow && (mWindowType == eWindowType_toplevel ||
+                     mWindowType == eWindowType_dialog)) {
     if (mWindowScaleFactor != gdk_window_get_scale_factor(mGdkWindow)) {
       LOG("  scale factor changed to %d,return early",
           gdk_window_get_scale_factor(mGdkWindow));
@@ -4013,7 +4018,8 @@ gboolean nsWindow::OnConfigureEvent(GtkWidget* aWidget,
 
   NS_ASSERTION(GTK_IS_WINDOW(aWidget),
                "Configure event on widget that is not a GtkWindow");
-  if (gtk_window_get_window_type(GTK_WINDOW(aWidget)) == GTK_WINDOW_POPUP) {
+  if (mGdkWindow &&
+      gtk_window_get_window_type(GTK_WINDOW(aWidget)) == GTK_WINDOW_POPUP) {
     // Override-redirect window
     //
     // These windows should not be moved by the window manager, and so any
@@ -4047,12 +4053,42 @@ gboolean nsWindow::OnConfigureEvent(GtkWidget* aWidget,
 
 void nsWindow::OnMap() {
   LOG("nsWindow::OnMap");
-  // Gtk mapped out widget to screen. Configure underlying GdkWindow properly
+  // Gtk mapped widget to screen. Configure underlying GdkWindow properly
   // as our rendering target.
   // This call means we have X11 (or Wayland) window we can render to by GL
   // so we need to notify compositor about it.
   mIsMapped = true;
   ConfigureGdkWindow();
+}
+
+void nsWindow::OnUnmap() {
+  LOG("nsWindow::OnUnmap");
+
+#ifdef MOZ_WAYLAND
+  // wl_surface owned by mContainer is going to be deleted.
+  // Make sure we don't paint to it on Wayland.
+  if (GdkIsWaylandDisplay()) {
+    if (mCompositorWidgetDelegate) {
+      mCompositorWidgetDelegate->DisableRendering();
+    }
+    if (moz_container_wayland_has_egl_window(mContainer)) {
+      // Widget is backed by OpenGL EGLSurface created over wl_surface
+      // owned by mContainer.
+      // RenderCompositorEGL::Resume() deletes recent EGLSurface based on
+      // wl_surface owned by mContainer and creates a new fallback EGLSurface.
+      // Then we can delete wl_surface in moz_container_wayland_unmap().
+      // We don't want to pause compositor as it may lead to whole
+      // browser freeze (Bug 1777664).
+      if (CompositorBridgeChild* remoteRenderer = GetRemoteRenderer()) {
+        remoteRenderer->SendResume();
+      }
+    }
+    if (GdkIsWaylandDisplay()) {
+      moz_container_wayland_unmap(GTK_WIDGET(mContainer));
+    }
+  }
+#endif
+  moz_container_unmap(GTK_WIDGET(mContainer));
 }
 
 void nsWindow::OnUnrealize() {
@@ -6082,9 +6118,6 @@ nsresult nsWindow::Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
                    G_CALLBACK(widget_composited_changed_cb), nullptr);
   g_signal_connect(mShell, "property-notify-event",
                    G_CALLBACK(property_notify_event_cb), nullptr);
-  g_signal_connect(mShell, "map", G_CALLBACK(widget_map_cb), nullptr);
-  g_signal_connect(mShell, "unrealize", G_CALLBACK(widget_unrealize_cb),
-                   nullptr);
 
   if (mWindowType == eWindowType_toplevel) {
     g_signal_connect_after(mShell, "size_allocate",
@@ -6116,6 +6149,10 @@ nsresult nsWindow::Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
                          G_CALLBACK(settings_xft_dpi_changed_cb), this);
 
   // Widget signals
+  g_signal_connect(mContainer, "map", G_CALLBACK(widget_map_cb), nullptr);
+  g_signal_connect(mContainer, "unmap", G_CALLBACK(widget_unmap_cb), nullptr);
+  g_signal_connect(mContainer, "unrealize", G_CALLBACK(widget_unrealize_cb),
+                   nullptr);
   g_signal_connect_after(mContainer, "size_allocate",
                          G_CALLBACK(size_allocate_cb), nullptr);
   g_signal_connect(mContainer, "hierarchy-changed",
@@ -6415,7 +6452,7 @@ void nsWindow::ResumeCompositorImpl() {
 
   CompositorBridgeChild* remoteRenderer = GetRemoteRenderer();
   MOZ_RELEASE_ASSERT(remoteRenderer);
-  remoteRenderer->SendResumeAsync();
+  remoteRenderer->SendResume();
   remoteRenderer->SendForcePresent(wr::RenderReasons::WIDGET);
   mCompositorState = COMPOSITOR_ENABLED;
 }
@@ -7839,6 +7876,14 @@ static void widget_map_cb(GtkWidget* widget) {
   window->OnMap();
 }
 
+static void widget_unmap_cb(GtkWidget* widget) {
+  RefPtr<nsWindow> window = get_window_for_gtk_widget(widget);
+  if (!window) {
+    return;
+  }
+  window->OnUnmap();
+}
+
 static void widget_unrealize_cb(GtkWidget* widget) {
   RefPtr<nsWindow> window = get_window_for_gtk_widget(widget);
   if (!window) {
@@ -8732,6 +8777,7 @@ void nsWindow::SetCompositorWidgetDelegate(CompositorWidgetDelegate* delegate) {
     MOZ_ASSERT(mCompositorWidgetDelegate,
                "nsWindow::SetCompositorWidgetDelegate called with a "
                "non-PlatformCompositorWidgetDelegate");
+    MOZ_DIAGNOSTIC_ASSERT(mCompositorWidgetDelegate->AsGtkCompositorWidget());
     if (mIsMapped) {
       ConfigureCompositor();
     }

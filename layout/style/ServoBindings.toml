@@ -384,6 +384,8 @@ opaque-types = [
     "mozilla::WeakPtr",
     "nsWritingIterator_reference", "nsReadingIterator_reference",
     "nsTObserverArray",  # <- Inherits from nsAutoTObserverArray<T, 0>
+    "mozilla::DoublyLinkedList",
+    "mozilla::SafeDoublyLinkedList",
     "nsTHashtable",  # <- Inheriting from inner typedefs that clang
                      #    doesn't expose properly.
     "nsTBaseHashSet", # <- Ditto
@@ -444,7 +446,6 @@ cbindgen-types = [
     { gecko = "StyleBreakWithin", servo = "crate::values::computed::BreakWithin" },
     { gecko = "StyleBorderStyle", servo = "crate::values::computed::BorderStyle" },
     { gecko = "StyleOutlineStyle", servo = "crate::values::computed::OutlineStyle" },
-    { gecko = "StyleScrollDirection", servo = "crate::stylesheets::scroll_timeline_rule::ScrollDirection" },
     { gecko = "StyleScrollSnapAlign", servo = "crate::values::computed::ScrollSnapAlign" },
     { gecko = "StyleScrollSnapStop", servo = "crate::values::computed::ScrollSnapStop" },
     { gecko = "StyleScrollSnapStrictness", servo = "crate::values::computed::ScrollSnapStrictness" },

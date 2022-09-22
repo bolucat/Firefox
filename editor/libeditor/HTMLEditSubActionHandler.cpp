@@ -131,10 +131,43 @@ HTMLEditor::CreateRangeIncludingAdjuscentWhiteSpaces(
 nsresult HTMLEditor::InitEditorContentAndSelection() {
   MOZ_ASSERT(IsEditActionDataAvailable());
 
-  nsresult rv = EditorBase::InitEditorContentAndSelection();
+  // We should do nothing with the result of GetRoot() if only a part of the
+  // document is editable.
+  if (!EntireDocumentIsEditable()) {
+    return NS_OK;
+  }
+
+  nsresult rv = MaybeCreatePaddingBRElementForEmptyEditor();
   if (NS_FAILED(rv)) {
-    NS_WARNING("EditorBase::InitEditorContentAndSelection() failed");
+    NS_WARNING(
+        "HTMLEditor::MaybeCreatePaddingBRElementForEmptyEditor() failed");
     return rv;
+  }
+
+  // If the selection hasn't been set up yet, set it up collapsed to the end of
+  // our editable content.
+  // XXX I think that this shouldn't do it in `HTMLEditor` because it maybe
+  //     removed by the web app and if they call `Selection::AddRange()` without
+  //     checking the range count, it may cause multiple selection ranges.
+  if (!SelectionRef().RangeCount()) {
+    nsresult rv = CollapseSelectionToEndOfLastLeafNodeOfDocument();
+    if (NS_FAILED(rv)) {
+      NS_WARNING(
+          "HTMLEditor::CollapseSelectionToEndOfLastLeafNodeOfDocument() "
+          "failed");
+      return rv;
+    }
+  }
+
+  if (IsInPlaintextMode()) {
+    // XXX Should we do this in HTMLEditor?  It's odd to guarantee that last
+    //     empty line is visible only when it's in the plain text mode.
+    nsresult rv = EnsurePaddingBRElementInMultilineEditor();
+    if (NS_FAILED(rv)) {
+      NS_WARNING(
+          "EditorBase::EnsurePaddingBRElementInMultilineEditor() failed");
+      return rv;
+    }
   }
 
   Element* bodyOrDocumentElement = GetRoot();

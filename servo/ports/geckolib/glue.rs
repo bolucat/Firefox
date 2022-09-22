@@ -82,13 +82,12 @@ use style::gecko_bindings::structs::StyleSheet as DomStyleSheet;
 use style::gecko_bindings::structs::URLExtraData;
 use style::gecko_bindings::structs::{nsINode as RawGeckoNode, Element as RawGeckoElement};
 use style::gecko_bindings::structs::{
-    RawServoAnimationValue, RawServoAuthorStyles, RawServoCounterStyleRule,
+    RawServoAnimationValue, RawServoAuthorStyles, RawServoContainerRule, RawServoCounterStyleRule,
     RawServoDeclarationBlock, RawServoFontFaceRule, RawServoFontFeatureValuesRule,
     RawServoImportRule, RawServoKeyframe, RawServoKeyframesRule, RawServoLayerBlockRule,
     RawServoLayerStatementRule, RawServoMediaList, RawServoMediaRule, RawServoMozDocumentRule,
-    RawServoNamespaceRule, RawServoPageRule, RawServoScrollTimelineRule,
-    RawServoSharedMemoryBuilder, RawServoStyleSet, RawServoStyleSheetContents,
-    RawServoSupportsRule, RawServoContainerRule, ServoCssRules,
+    RawServoNamespaceRule, RawServoPageRule, RawServoSharedMemoryBuilder, RawServoStyleSet,
+    RawServoStyleSheetContents, RawServoSupportsRule, ServoCssRules,
 };
 use style::gecko_bindings::sugar::ownership::{FFIArcHelpers, HasArcFFI, HasFFI};
 use style::gecko_bindings::sugar::ownership::{
@@ -117,14 +116,13 @@ use style::style_adjuster::StyleAdjuster;
 use style::stylesheets::import_rule::ImportSheet;
 use style::stylesheets::keyframes_rule::{Keyframe, KeyframeSelector, KeyframesStepValue};
 use style::stylesheets::layer_rule::LayerOrder;
-use style::stylesheets::scroll_timeline_rule::ScrollDirection;
 use style::stylesheets::supports_rule::parse_condition_or_declaration;
 use style::stylesheets::{
-    AllowImportRules, CounterStyleRule, CssRule, CssRuleType, CssRules, CssRulesHelpers,
-    DocumentRule, FontFaceRule, FontFeatureValuesRule, ImportRule, KeyframesRule, LayerBlockRule,
-    LayerStatementRule, MediaRule, NamespaceRule, Origin, OriginSet, PageRule, SanitizationData,
-    SanitizationKind, ScrollTimelineRule, StyleRule, StylesheetContents,
-    StylesheetLoader as StyleStylesheetLoader, SupportsRule, UrlExtraData, ContainerRule,
+    AllowImportRules, ContainerRule, CounterStyleRule, CssRule, CssRuleType, CssRules,
+    CssRulesHelpers, DocumentRule, FontFaceRule, FontFeatureValuesRule, ImportRule, KeyframesRule,
+    LayerBlockRule, LayerStatementRule, MediaRule, NamespaceRule, Origin, OriginSet, PageRule,
+    SanitizationData, SanitizationKind, StyleRule, StylesheetContents,
+    StylesheetLoader as StyleStylesheetLoader, SupportsRule, UrlExtraData,
 };
 use style::stylist::{add_size_of_ua_cache, AuthorStylesEnabled, RuleInclusion, Stylist};
 use style::thread_state;
@@ -2320,13 +2318,6 @@ impl_basic_rule_funcs! { (Page, PageRule, RawServoPageRule),
     changed: Servo_StyleSet_PageRuleChanged,
 }
 
-impl_basic_rule_funcs! { (ScrollTimeline, ScrollTimelineRule, RawServoScrollTimelineRule),
-    getter: Servo_CssRules_GetScrollTimelineRuleAt,
-    debug: Servo_ScrollTimelineRule_Debug,
-    to_css: Servo_ScrollTimelineRule_GetCssText,
-    changed: Servo_StyleSet_ScrollTimelineRuleChanged,
-}
-
 impl_group_rule_funcs! { (Supports, SupportsRule, RawServoSupportsRule),
     get_rules: Servo_SupportsRule_GetRules,
     getter: Servo_CssRules_GetSupportsRuleAt,
@@ -2800,68 +2791,6 @@ pub extern "C" fn Servo_KeyframesRule_AppendRule(
 pub extern "C" fn Servo_KeyframesRule_DeleteRule(rule: &RawServoKeyframesRule, index: u32) {
     write_locked_arc(rule, |rule: &mut KeyframesRule| {
         rule.keyframes.remove(index as usize);
-    })
-}
-
-#[no_mangle]
-pub extern "C" fn Servo_ScrollTimelineRule_GetName(
-    rule: &RawServoScrollTimelineRule,
-) -> *mut nsAtom {
-    read_locked_arc(rule, |rule: &ScrollTimelineRule| {
-        rule.name.as_atom().as_ptr()
-    })
-}
-
-#[no_mangle]
-pub extern "C" fn Servo_ScrollTimelineRule_GetSource(
-    rule: &RawServoScrollTimelineRule,
-    result: &mut nsString,
-) {
-    read_locked_arc(rule, |rule: &ScrollTimelineRule| {
-        rule.descriptors
-            .source
-            .as_ref()
-            .unwrap_or(&Default::default())
-            .to_css(&mut CssWriter::new(result))
-            .unwrap();
-    })
-}
-
-#[no_mangle]
-pub extern "C" fn Servo_ScrollTimelineRule_GetOrientationAsString(
-    rule: &RawServoScrollTimelineRule,
-    result: &mut nsString,
-) {
-    read_locked_arc(rule, |rule: &ScrollTimelineRule| {
-        rule.descriptors
-            .orientation
-            .unwrap_or_default()
-            .to_css(&mut CssWriter::new(result))
-            .unwrap();
-    })
-}
-
-#[no_mangle]
-pub extern "C" fn Servo_ScrollTimelineRule_GetOrientation(
-    rule: &RawServoScrollTimelineRule,
-) -> ScrollDirection {
-    read_locked_arc(rule, |rule: &ScrollTimelineRule| {
-        rule.descriptors.orientation.unwrap_or_default()
-    })
-}
-
-#[no_mangle]
-pub extern "C" fn Servo_ScrollTimelineRule_GetScrollOffsets(
-    rule: &RawServoScrollTimelineRule,
-    result: &mut nsString,
-) {
-    read_locked_arc(rule, |rule: &ScrollTimelineRule| {
-        rule.descriptors
-            .offsets
-            .as_ref()
-            .unwrap_or(&Default::default())
-            .to_css(&mut CssWriter::new(result))
-            .unwrap();
     })
 }
 
@@ -5719,9 +5648,6 @@ pub extern "C" fn Servo_CSSSupports(
 }
 
 #[no_mangle]
-// Work around miscompilation when cross-LTO somehow inlines this function.
-// (bug 1789779)
-#[inline(never)]
 pub unsafe extern "C" fn Servo_NoteExplicitHints(
     element: &RawGeckoElement,
     restyle_hint: RestyleHint,
@@ -6535,21 +6461,6 @@ pub unsafe extern "C" fn Servo_StyleSet_GetCounterStyleRule(
         data.stylist
             .iter_extra_data_origins()
             .filter_map(|(d, _)| d.counter_styles.get(name))
-            .next()
-            .map_or(ptr::null(), |rule| rule.as_borrowed())
-    })
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn Servo_StyleSet_GetScrollTimelineRule(
-    raw_data: &RawServoStyleSet,
-    name: *mut nsAtom,
-) -> *const RawServoScrollTimelineRule {
-    let data = PerDocumentStyleData::from_ffi(raw_data).borrow();
-    Atom::with(name, |name| {
-        data.stylist
-            .iter_extra_data_origins()
-            .filter_map(|(d, _)| d.scroll_timelines.get(name))
             .next()
             .map_or(ptr::null(), |rule| rule.as_borrowed())
     })
