@@ -1569,21 +1569,13 @@ nsWindow* nsWindow::GetEffectiveParent() {
 }
 
 GdkPoint nsWindow::WaylandGetParentPosition() {
-  // Don't call WaylandGetParentPosition on X11 as it causes X11 roundtrips.
-  // gdk_window_get_origin is very fast on Wayland as the
-  // window position is cached by Gtk.
-  MOZ_DIAGNOSTIC_ASSERT(GdkIsWaylandDisplay());
-  gint x = 0, y = 0;
-  for (nsWindow* window = GetEffectiveParent(); window;
-       window = window->GetEffectiveParent()) {
-    // Get relative position of window
-    gint dx, dy;
-    gdk_window_get_origin(gtk_widget_get_window(window->GetGtkWidget()), &dx,
-                          &dy);
-    x += dx;
-    y += dy;
+  GdkPoint topLeft = {0, 0};
+  nsWindow* window = GetEffectiveParent();
+  if (window->IsPopup()) {
+    topLeft = DevicePixelsToGdkPointRoundDown(window->mBounds.TopLeft());
   }
-  return {x, y};
+  LOG("nsWindow::WaylandGetParentPosition() [%d, %d]\n", topLeft.x, topLeft.y);
+  return topLeft;
 }
 
 #ifdef MOZ_LOGGING
@@ -2466,18 +2458,13 @@ bool nsWindow::WaylandPopupAnchorAdjustForParentPopup(
 
   GdkRectangle finalRect;
   if (!gdk_rectangle_intersect(aPopupAnchor, &parentWindowRect, &finalRect)) {
-    // Popup anchor is outside of parent window - we can't use move-to-rect
-    *aOffset = {mPopupMoveToRectParams.mOffset.x + aPopupAnchor->x,
-                mPopupMoveToRectParams.mOffset.y + aPopupAnchor->y};
-    finalRect = *aPopupAnchor;
-    finalRect.x = finalRect.y = 0;
-  } else {
-    *aOffset = mPopupMoveToRectParams.mOffset;
+    return false;
   }
-
   *aPopupAnchor = finalRect;
   LOG("  anchor is correct %d,%d -> %d x %d", finalRect.x, finalRect.y,
       finalRect.width, finalRect.height);
+
+  *aOffset = mPopupMoveToRectParams.mOffset;
   LOG("  anchor offset %d, %d", aOffset->x, aOffset->y);
   return true;
 }
@@ -4064,6 +4051,10 @@ void nsWindow::OnMap() {
 void nsWindow::OnUnmap() {
   LOG("nsWindow::OnUnmap");
 
+  // Mark window as unmapped. It can be still used for rendering on X11
+  // untill OnUnrealize is called.
+  mIsMapped = false;
+
 #ifdef MOZ_WAYLAND
   // wl_surface owned by mContainer is going to be deleted.
   // Make sure we don't paint to it on Wayland.
@@ -4097,7 +4088,6 @@ void nsWindow::OnUnrealize() {
   // hierarchy is still available.
   // This call means we *don't* have X11 (or Wayland) window we can render to.
   LOG("nsWindow::OnUnrealize GdkWindow %p", mGdkWindow);
-  mIsMapped = false;
   ReleaseGdkWindow();
 }
 

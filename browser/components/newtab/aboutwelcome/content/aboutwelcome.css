@@ -67,6 +67,7 @@
 .onboardingContainer.featureCallout .screen[pos=callout] .section-main .main-content .steps {
   align-self: baseline;
   margin: -38px 30px -30px;
+  padding-block: 0;
 }
 .onboardingContainer.featureCallout .screen[pos=callout] .section-main .main-content .dismiss-button {
   margin-block: 25px -45px;
@@ -416,15 +417,17 @@ html {
   color: var(--in-content-button-text-color-hover);
 }
 .onboardingContainer .screen[pos=split] .section-main .main-content .action-buttons .secondary-cta .arrow-icon {
-  background: url("chrome://browser/skin/forward.svg") no-repeat right 8px center;
-  background-size: 12px;
-  padding-inline-end: 24px;
   -moz-context-properties: fill;
   fill: currentColor;
 }
-.onboardingContainer .screen[pos=split] .section-main .main-content .action-buttons .secondary-cta .arrow-icon:dir(rtl) {
+.onboardingContainer .screen[pos=split] .section-main .main-content .action-buttons .secondary-cta .arrow-icon::after {
+  content: "";
+  padding-inline-end: 12px;
+  margin-inline-start: 4px;
+  background: url("chrome://browser/skin/forward.svg") no-repeat center/12px;
+}
+.onboardingContainer .screen[pos=split] .section-main .main-content .action-buttons .secondary-cta .arrow-icon:dir(rtl)::after {
   background-image: url("chrome://browser/skin/back.svg");
-  background-position-x: left 8px;
 }
 .onboardingContainer .screen[pos=split] .section-main .main-content .logo-container {
   text-align: start;

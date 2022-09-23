@@ -111,6 +111,7 @@ interface TestInterfaceAsyncIterableSingle {
 
 dictionary TestInterfaceAsyncIteratorOptions {
   unsigned long multiplier = 1;
+  sequence<Promise<any>> blockingPromises = [];
 };
 
 [Pref="dom.expose_test_interfaces",
@@ -119,7 +120,12 @@ interface TestInterfaceAsyncIterableSingleWithArgs {
   [Throws]
   constructor();
 
+  [GenerateReturnMethod]
   async iterable<long>(optional TestInterfaceAsyncIteratorOptions options = {});
+
+  readonly attribute long returnCallCount;
+
+  readonly attribute any returnLastCalledWith;
 };
 
 [Pref="dom.expose_test_interfaces",
