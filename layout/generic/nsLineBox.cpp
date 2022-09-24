@@ -174,21 +174,14 @@ void nsLineBox::Cleanup() {
 
 #ifdef DEBUG_FRAME_DUMP
 static void ListFloats(FILE* out, const char* aPrefix,
-                       const nsFloatCacheList& aFloats) {
-  nsFloatCache* fc = aFloats.Head();
-  while (fc) {
+                       const nsTArray<nsIFrame*>& aFloats) {
+  for (nsIFrame* f : aFloats) {
     nsCString str(aPrefix);
-    nsIFrame* frame = fc->mFloat;
-    str += nsPrintfCString("floatframe@%p ", static_cast<void*>(frame));
-    if (frame) {
-      nsAutoString frameName;
-      frame->GetFrameName(frameName);
-      str += NS_ConvertUTF16toUTF8(frameName).get();
-    } else {
-      str += "\n###!!! NULL out-of-flow frame";
-    }
+    str += nsPrintfCString("floatframe@%p ", static_cast<void*>(f));
+    nsAutoString frameName;
+    f->GetFrameName(frameName);
+    str += NS_ConvertUTF16toUTF8(frameName).get();
     fprintf_stderr(out, "%s\n", str.get());
-    fc = fc->Next();
   }
 }
 
@@ -461,44 +454,36 @@ void nsLineBox::MaybeFreeData() {
   }
 }
 
-// XXX get rid of this???
-nsFloatCache* nsLineBox::GetFirstFloat() {
-  MOZ_ASSERT(IsInline(), "block line can't have floats");
-  return mInlineData ? mInlineData->mFloats.Head() : nullptr;
-}
-
-// XXX this might be too eager to free memory
-void nsLineBox::FreeFloats(nsFloatCacheFreeList& aFreeList) {
+void nsLineBox::ClearFloats() {
   MOZ_ASSERT(IsInline(), "block line can't have floats");
   if (IsInline() && mInlineData) {
-    if (mInlineData->mFloats.NotEmpty()) {
-      aFreeList.Append(mInlineData->mFloats);
-    }
+    mInlineData->mFloats.Clear();
     MaybeFreeData();
   }
 }
 
-void nsLineBox::AppendFloats(nsFloatCacheFreeList& aFreeList) {
+void nsLineBox::AppendFloats(nsTArray<nsIFrame*>&& aFloats) {
   MOZ_ASSERT(IsInline(), "block line can't have floats");
-  if (IsInline()) {
-    if (aFreeList.NotEmpty()) {
-      if (!mInlineData) {
-        mInlineData = new ExtraInlineData(GetPhysicalBounds());
-      }
-      mInlineData->mFloats.Append(aFreeList);
+  if (MOZ_UNLIKELY(!IsInline())) {
+    return;
+  }
+  if (!aFloats.IsEmpty()) {
+    if (mInlineData) {
+      mInlineData->mFloats.AppendElements(std::move(aFloats));
+    } else {
+      mInlineData = new ExtraInlineData(GetPhysicalBounds());
+      mInlineData->mFloats = std::move(aFloats);
     }
   }
 }
 
 bool nsLineBox::RemoveFloat(nsIFrame* aFrame) {
   MOZ_ASSERT(IsInline(), "block line can't have floats");
+  MOZ_ASSERT(aFrame);
   if (IsInline() && mInlineData) {
-    nsFloatCache* fc = mInlineData->mFloats.Find(aFrame);
-    if (fc) {
+    if (mInlineData->mFloats.RemoveElement(aFrame)) {
       // Note: the placeholder is part of the line's child list
       // and will be removed later.
-      mInlineData->mFloats.Remove(fc);
-      delete fc;
       MaybeFreeData();
       return true;
     }
@@ -688,161 +673,3 @@ nsLineIterator::FindFrameAt(int32_t aLineNumber, nsPoint aPos,
   }
   return NS_OK;
 }
-
-//----------------------------------------------------------------------
-
-#ifdef NS_BUILD_REFCNT_LOGGING
-nsFloatCacheList::nsFloatCacheList() : mHead(nullptr) {
-  MOZ_COUNT_CTOR(nsFloatCacheList);
-}
-#endif
-
-nsFloatCacheList::~nsFloatCacheList() {
-  DeleteAll();
-  MOZ_COUNT_DTOR(nsFloatCacheList);
-}
-
-void nsFloatCacheList::DeleteAll() {
-  nsFloatCache* c = mHead;
-  while (c) {
-    nsFloatCache* next = c->Next();
-    delete c;
-    c = next;
-  }
-  mHead = nullptr;
-}
-
-nsFloatCache* nsFloatCacheList::Tail() const {
-  nsFloatCache* fc = mHead;
-  while (fc) {
-    if (!fc->mNext) {
-      break;
-    }
-    fc = fc->mNext;
-  }
-  return fc;
-}
-
-void nsFloatCacheList::Append(nsFloatCacheFreeList& aList) {
-  MOZ_ASSERT(aList.NotEmpty(), "Appending empty list will fail");
-
-  nsFloatCache* tail = Tail();
-  if (tail) {
-    NS_ASSERTION(!tail->mNext, "Bogus!");
-    tail->mNext = aList.mHead;
-  } else {
-    NS_ASSERTION(!mHead, "Bogus!");
-    mHead = aList.mHead;
-  }
-  aList.mHead = nullptr;
-  aList.mTail = nullptr;
-}
-
-nsFloatCache* nsFloatCacheList::Find(nsIFrame* aOutOfFlowFrame) {
-  nsFloatCache* fc = mHead;
-  while (fc) {
-    if (fc->mFloat == aOutOfFlowFrame) {
-      break;
-    }
-    fc = fc->Next();
-  }
-  return fc;
-}
-
-nsFloatCache* nsFloatCacheList::RemoveAndReturnPrev(nsFloatCache* aElement) {
-  nsFloatCache* fc = mHead;
-  nsFloatCache* prev = nullptr;
-  while (fc) {
-    if (fc == aElement) {
-      if (prev) {
-        prev->mNext = fc->mNext;
-      } else {
-        mHead = fc->mNext;
-      }
-      return prev;
-    }
-    prev = fc;
-    fc = fc->mNext;
-  }
-  return nullptr;
-}
-
-//----------------------------------------------------------------------
-
-#ifdef NS_BUILD_REFCNT_LOGGING
-nsFloatCacheFreeList::nsFloatCacheFreeList() : mTail(nullptr) {
-  MOZ_COUNT_CTOR(nsFloatCacheFreeList);
-}
-
-nsFloatCacheFreeList::~nsFloatCacheFreeList() {
-  MOZ_COUNT_DTOR(nsFloatCacheFreeList);
-}
-#endif
-
-void nsFloatCacheFreeList::Append(nsFloatCacheList& aList) {
-  MOZ_ASSERT(aList.NotEmpty(), "Appending empty list will fail");
-
-  if (mTail) {
-    NS_ASSERTION(!mTail->mNext, "Bogus");
-    mTail->mNext = aList.mHead;
-  } else {
-    NS_ASSERTION(!mHead, "Bogus");
-    mHead = aList.mHead;
-  }
-  mTail = aList.Tail();
-  aList.mHead = nullptr;
-}
-
-void nsFloatCacheFreeList::Remove(nsFloatCache* aElement) {
-  nsFloatCache* prev = nsFloatCacheList::RemoveAndReturnPrev(aElement);
-  if (mTail == aElement) {
-    mTail = prev;
-  }
-}
-
-void nsFloatCacheFreeList::DeleteAll() {
-  nsFloatCacheList::DeleteAll();
-  mTail = nullptr;
-}
-
-nsFloatCache* nsFloatCacheFreeList::Alloc(nsIFrame* aFloat) {
-  MOZ_ASSERT(aFloat->HasAnyStateBits(NS_FRAME_OUT_OF_FLOW),
-             "This is a float cache, why isn't the frame out-of-flow?");
-
-  nsFloatCache* fc = mHead;
-  if (mHead) {
-    if (mHead == mTail) {
-      mHead = mTail = nullptr;
-    } else {
-      mHead = fc->mNext;
-    }
-    fc->mNext = nullptr;
-  } else {
-    fc = new nsFloatCache();
-  }
-  fc->mFloat = aFloat;
-  return fc;
-}
-
-void nsFloatCacheFreeList::Append(nsFloatCache* aFloat) {
-  NS_ASSERTION(!aFloat->mNext, "Bogus!");
-  aFloat->mNext = nullptr;
-  if (mTail) {
-    NS_ASSERTION(!mTail->mNext, "Bogus!");
-    mTail->mNext = aFloat;
-    mTail = aFloat;
-  } else {
-    NS_ASSERTION(!mHead, "Bogus!");
-    mHead = mTail = aFloat;
-  }
-}
-
-//----------------------------------------------------------------------
-
-nsFloatCache::nsFloatCache() : mFloat(nullptr), mNext(nullptr) {
-  MOZ_COUNT_CTOR(nsFloatCache);
-}
-
-#ifdef NS_BUILD_REFCNT_LOGGING
-nsFloatCache::~nsFloatCache() { MOZ_COUNT_DTOR(nsFloatCache); }
-#endif

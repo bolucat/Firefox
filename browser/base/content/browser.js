@@ -14,9 +14,11 @@ ChromeUtils.import("resource://gre/modules/NotificationDB.jsm");
 // lazy module getters
 
 ChromeUtils.defineESModuleGetters(this, {
+  AboutReaderParent: "resource:///actors/AboutReaderParent.sys.mjs",
   BrowserSearchTelemetry: "resource:///modules/BrowserSearchTelemetry.sys.mjs",
   FirefoxViewNotificationManager:
     "resource:///modules/firefox-view-notification-manager.sys.mjs",
+  PictureInPicture: "resource://gre/modules/PictureInPicture.sys.mjs",
   PlacesTransactions: "resource://gre/modules/PlacesTransactions.sys.mjs",
   PlacesUIUtils: "resource:///modules/PlacesUIUtils.sys.mjs",
   PlacesUtils: "resource://gre/modules/PlacesUtils.sys.mjs",
@@ -33,7 +35,6 @@ ChromeUtils.defineESModuleGetters(this, {
 
 XPCOMUtils.defineLazyModuleGetters(this, {
   AboutNewTab: "resource:///modules/AboutNewTab.jsm",
-  AboutReaderParent: "resource:///actors/AboutReaderParent.jsm",
   AddonManager: "resource://gre/modules/AddonManager.jsm",
   AMTelemetry: "resource://gre/modules/AddonManager.jsm",
   NewTabPagePreloading: "resource:///modules/NewTabPagePreloading.jsm",
@@ -68,7 +69,6 @@ XPCOMUtils.defineLazyModuleGetters(this, {
   PageThumbs: "resource://gre/modules/PageThumbs.jsm",
   PanelMultiView: "resource:///modules/PanelMultiView.jsm",
   PanelView: "resource:///modules/PanelMultiView.jsm",
-  PictureInPicture: "resource://gre/modules/PictureInPicture.jsm",
   PluralForm: "resource://gre/modules/PluralForm.jsm",
   Pocket: "chrome://pocket/content/Pocket.jsm",
   PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.jsm",
@@ -9073,6 +9073,11 @@ const SafeBrowsingNotificationBox = {
  * suppressed.
  */
 class TabDialogBox {
+  static _containerFor(browser) {
+    // Return the .browserContainer
+    return browser.parentNode.parentNode;
+  }
+
   constructor(browser) {
     this._weakBrowserRef = Cu.getWeakReference(browser);
 
@@ -9081,10 +9086,7 @@ class TabDialogBox {
     let dialogStack = template.content.cloneNode(true).firstElementChild;
     dialogStack.classList.add("tab-prompt-dialog");
 
-    this.browser.parentNode.insertBefore(
-      dialogStack,
-      this.browser.nextElementSibling
-    );
+    TabDialogBox._containerFor(browser).appendChild(dialogStack);
 
     // Initially the stack only contains the template
     let dialogTemplate = dialogStack.firstElementChild;
@@ -9216,10 +9218,9 @@ class TabDialogBox {
     contentDialogStack.classList.add("content-prompt-dialog");
 
     // Create a dialog manager for content prompts.
-    let tabPromptDialog = this.browser.parentNode.querySelector(
-      ".tab-prompt-dialog"
-    );
-    this.browser.parentNode.insertBefore(contentDialogStack, tabPromptDialog);
+    let browserContainer = TabDialogBox._containerFor(this.browser);
+    let tabPromptDialog = browserContainer.querySelector(".tab-prompt-dialog");
+    browserContainer.insertBefore(contentDialogStack, tabPromptDialog);
 
     let contentDialogTemplate = contentDialogStack.firstElementChild;
     this._contentDialogManager = new SubDialogManager({

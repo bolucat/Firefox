@@ -74,7 +74,8 @@ static nsSize GetContentRectSize(const nsIFrame& aFrame) {
  * https://www.w3.org/TR/resize-observer-1/#calculate-box-size
  */
 static AutoTArray<LogicalPixelSize, 1> CalculateBoxSize(
-    Element* aTarget, ResizeObserverBoxOptions aBox) {
+    Element* aTarget, ResizeObserverBoxOptions aBox,
+    const ResizeObserver& aObserver) {
   nsIFrame* frame = aTarget->GetPrimaryFrame();
 
   if (!frame) {
@@ -117,26 +118,26 @@ static AutoTArray<LogicalPixelSize, 1> CalculateBoxSize(
     return {LogicalPixelSize()};
   }
 
-  auto GetFrameSize = [&](nsIFrame* aFrame) {
+  auto GetFrameSize = [aBox](nsIFrame* aFrame) {
     switch (aBox) {
       case ResizeObserverBoxOptions::Border_box:
-        return CSSPixel::FromAppUnits(frame->GetSize()).ToUnknownSize();
+        return CSSPixel::FromAppUnits(aFrame->GetSize()).ToUnknownSize();
       case ResizeObserverBoxOptions::Device_pixel_content_box: {
         // Simply converting from app units to device units is insufficient - we
         // need to take subpixel snapping into account. Subpixel snapping
         // happens with respect to the reference frame, so do the dev pixel
         // conversion with our rectangle positioned relative to the reference
         // frame, then get the size from there.
-        const auto* referenceFrame = nsLayoutUtils::GetReferenceFrame(frame);
+        const auto* referenceFrame = nsLayoutUtils::GetReferenceFrame(aFrame);
         // GetOffsetToCrossDoc version handles <iframe>s in addition to normal
         // cases. We don't expect this to tight loop for additional checks to
         // matter.
-        const auto offset = frame->GetOffsetToCrossDoc(referenceFrame);
-        const auto contentSize = GetContentRectSize(*frame);
+        const auto offset = aFrame->GetOffsetToCrossDoc(referenceFrame);
+        const auto contentSize = GetContentRectSize(*aFrame);
         // Casting to double here is deliberate to minimize rounding error in
         // upcoming operations.
         const auto appUnitsPerDevPixel =
-            static_cast<double>(frame->PresContext()->AppUnitsPerDevPixel());
+            static_cast<double>(aFrame->PresContext()->AppUnitsPerDevPixel());
         // Calculation here is a greatly simplified version of
         // `NSRectToSnappedRect` as 1) we're not actually drawing (i.e. no draw
         // target), and 2) transform does not need to be taken into account.
@@ -155,16 +156,16 @@ static AutoTArray<LogicalPixelSize, 1> CalculateBoxSize(
       default:
         break;
     }
-    return CSSPixel::FromAppUnits(GetContentRectSize(*frame)).ToUnknownSize();
+    return CSSPixel::FromAppUnits(GetContentRectSize(*aFrame)).ToUnknownSize();
   };
-  if (!StaticPrefs::dom_resize_observer_support_fragments()) {
+  if (!StaticPrefs::dom_resize_observer_support_fragments() &&
+      !aObserver.HasNativeCallback()) {
     return {LogicalPixelSize(frame->GetWritingMode(), GetFrameSize(frame))};
   }
   AutoTArray<LogicalPixelSize, 1> size;
-  while (frame) {
-    const WritingMode wm = frame->GetWritingMode();
-    size.AppendElement(LogicalPixelSize(wm, GetFrameSize(frame)));
-    frame = frame->GetNextContinuation();
+  for (nsIFrame* cur = frame; cur; cur = cur->GetNextContinuation()) {
+    const WritingMode wm = cur->GetWritingMode();
+    size.AppendElement(LogicalPixelSize(wm, GetFrameSize(cur)));
   }
   return size;
 }
@@ -214,7 +215,8 @@ bool ResizeObservation::IsActive() const {
     return false;
   }
 
-  return mLastReportedSize != CalculateBoxSize(mTarget, mObservedBox);
+  return mLastReportedSize !=
+         CalculateBoxSize(mTarget, mObservedBox, *mObserver);
 }
 
 void ResizeObservation::UpdateLastReportedSize(
@@ -398,11 +400,11 @@ uint32_t ResizeObserver::BroadcastActiveObservations() {
     Element* target = observation->Target();
 
     auto borderBoxSize =
-        CalculateBoxSize(target, ResizeObserverBoxOptions::Border_box);
+        CalculateBoxSize(target, ResizeObserverBoxOptions::Border_box, *this);
     auto contentBoxSize =
-        CalculateBoxSize(target, ResizeObserverBoxOptions::Content_box);
+        CalculateBoxSize(target, ResizeObserverBoxOptions::Content_box, *this);
     auto devicePixelContentBoxSize = CalculateBoxSize(
-        target, ResizeObserverBoxOptions::Device_pixel_content_box);
+        target, ResizeObserverBoxOptions::Device_pixel_content_box, *this);
     RefPtr<ResizeObserverEntry> entry =
         new ResizeObserverEntry(mOwner, *target, borderBoxSize, contentBoxSize,
                                 devicePixelContentBoxSize);

@@ -361,7 +361,7 @@ checkbox {
   -moz-box-flex: 1;
 }
 
-#manualLink {
+.manualLink {
   margin-inline-start: 6px !important;
 }
 
@@ -1469,10 +1469,6 @@ richlistitem .text-link:hover {
   #browserUseBookmark,
   #browserUseBlank {
     margin-top: 10px;
-  }
-
-  #advancedPrefs {
-    margin: 0 8px;
   }
 
   #privacyPrefs {
