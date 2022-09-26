@@ -10,6 +10,7 @@
 #include "mozilla/EditorDOMPoint.h"  // for EditorDOMPoint, EditorDOMRange, etc
 #include "mozilla/EditorForwards.h"
 #include "mozilla/IntegerRange.h"       // for IntegerRange
+#include "mozilla/Maybe.h"              // for Maybe
 #include "mozilla/Result.h"             // for Result<>
 #include "mozilla/dom/Element.h"        // for dom::Element
 #include "mozilla/dom/HTMLBRElement.h"  // for dom::HTMLBRElement
@@ -27,6 +28,8 @@
 class nsITransferable;
 
 namespace mozilla {
+
+enum class StyleWhiteSpace : uint8_t;
 
 /***************************************************************************
  * EditActionResult is useful to return multiple results of an editor
@@ -85,7 +88,8 @@ class MOZ_STACK_CLASS EditActionResult final {
     return *this;
   }
 
-  EditActionResult& operator|=(const MoveNodeResult& aMoveNodeResult);
+  EditActionResult& operator|=(
+      const Result<MoveNodeResult, nsresult>& aMoveNodeResult);
 
  private:
   nsresult mRv;
@@ -394,6 +398,12 @@ class EditorUtils final {
     }
     return aContent.IsElement() && !IsPaddingBRElementForEmptyEditor(aContent);
   }
+
+  /**
+   * Get computed white-space style of aContent.
+   */
+  static Maybe<StyleWhiteSpace> GetComputedWhiteSpaceStyle(
+      const nsIContent& aContent);
 
   /**
    * IsWhiteSpacePreformatted() checks the style info for the node for the

@@ -288,7 +288,7 @@ EditActionResult WhiteSpaceVisibilityKeeper::
             EditorDOMPoint(rightBlockElement, afterRightBlockChild.Offset()),
             aEditingHost);
 #endif  // #ifdef DEBUG
-    MoveNodeResult moveNodeResult =
+    Result<MoveNodeResult, nsresult> moveNodeResult =
         aHTMLEditor.MoveOneHardLineContentsWithTransaction(
             EditorDOMPoint(rightBlockElement, afterRightBlockChild.Offset()),
             EditorDOMPoint(&aLeftBlockElement, 0u), aEditingHost,
@@ -303,24 +303,25 @@ EditActionResult WhiteSpaceVisibilityKeeper::
 #ifdef DEBUG
     MOZ_ASSERT(!firstLineHasContent.isErr());
     if (firstLineHasContent.inspect()) {
-      NS_ASSERTION(moveNodeResult.Handled(),
+      NS_ASSERTION(moveNodeResult.inspect().Handled(),
                    "Failed to consider whether moving or not something");
     } else {
-      NS_ASSERTION(moveNodeResult.Ignored(),
+      NS_ASSERTION(moveNodeResult.inspect().Ignored(),
                    "Failed to consider whether moving or not something");
     }
 #endif  // #ifdef DEBUG
 
     // We don't need to update selection here because of dontChangeMySelection
     // above.
-    moveNodeResult.IgnoreCaretPointSuggestion();
+    moveNodeResult.inspect().IgnoreCaretPointSuggestion();
     ret |= moveNodeResult;
     // Now, all children of rightBlockElement were moved to leftBlockElement.
     // So, afterRightBlockChild is now invalid.
     afterRightBlockChild.Clear();
   }
 
-  if (!invisibleBRElementAtEndOfLeftBlockElement) {
+  if (!invisibleBRElementAtEndOfLeftBlockElement ||
+      !invisibleBRElementAtEndOfLeftBlockElement->IsInComposedDoc()) {
     return ret;
   }
 
@@ -455,28 +456,33 @@ EditActionResult WhiteSpaceVisibilityKeeper::
     Result<bool, nsresult> rightBlockHasContent =
         aHTMLEditor.CanMoveChildren(aRightBlockElement, aLeftBlockElement);
 #endif  // #ifdef DEBUG
-    MoveNodeResult moveNodeResult = aHTMLEditor.MoveChildrenWithTransaction(
-        aRightBlockElement, EditorDOMPoint(atLeftBlockChild.GetContainer(),
-                                           atLeftBlockChild.Offset()));
-    if (NS_WARN_IF(moveNodeResult.EditorDestroyed())) {
-      return EditActionResult(NS_ERROR_EDITOR_DESTROYED);
-    }
-    NS_WARNING_ASSERTION(
-        moveNodeResult.isOk(),
-        "HTMLEditor::MoveChildrenWithTransaction() failed, but ignored");
-    if (moveNodeResult.isOk()) {
+    // TODO: Stop using HTMLEditor::PreserveWhiteSpaceStyle::No due to no tests.
+    Result<MoveNodeResult, nsresult> moveNodeResult =
+        aHTMLEditor.MoveChildrenWithTransaction(
+            aRightBlockElement,
+            EditorDOMPoint(atLeftBlockChild.GetContainer(),
+                           atLeftBlockChild.Offset()),
+            HTMLEditor::PreserveWhiteSpaceStyle::No);
+    if (MOZ_UNLIKELY(moveNodeResult.isErr())) {
+      if (NS_WARN_IF(moveNodeResult.inspectErr() ==
+                     NS_ERROR_EDITOR_DESTROYED)) {
+        return EditActionResult(moveNodeResult.unwrapErr());
+      }
+      NS_WARNING(
+          "HTMLEditor::MoveChildrenWithTransaction() failed, but ignored");
+    } else {
       // We don't need to update selection here because of dontChangeMySelection
       // above.
-      moveNodeResult.IgnoreCaretPointSuggestion();
+      moveNodeResult.inspect().IgnoreCaretPointSuggestion();
       ret |= moveNodeResult;
 
 #ifdef DEBUG
       MOZ_ASSERT(!rightBlockHasContent.isErr());
       if (rightBlockHasContent.inspect()) {
-        NS_ASSERTION(moveNodeResult.Handled(),
+        NS_ASSERTION(moveNodeResult.inspect().Handled(),
                      "Failed to consider whether moving or not children");
       } else {
-        NS_ASSERTION(moveNodeResult.Ignored(),
+        NS_ASSERTION(moveNodeResult.inspect().Ignored(),
                      "Failed to consider whether moving or not children");
       }
 #endif  // #ifdef DEBUG
@@ -488,13 +494,13 @@ EditActionResult WhiteSpaceVisibilityKeeper::
     // visible content.  Right block is a child and contains the contents we
     // want to move.
 
-    EditorDOMPoint atPreviousContent;
+    EditorDOMPoint pointToMoveFirstLineContent;
     if (&aLeftContentInBlock == leftBlockElement) {
       // We are working with valid HTML, aLeftContentInBlock is a block element,
       // and is therefore allowed to contain aRightBlockElement.  This is the
       // simple case, we will simply move the content in aRightBlockElement
       // out of its block.
-      atPreviousContent = atLeftBlockChild;
+      pointToMoveFirstLineContent = atLeftBlockChild;
     } else {
       // We try to work as well as possible with HTML that's already invalid.
       // Although "right block" is a block, and a block must not be contained
@@ -505,13 +511,10 @@ EditActionResult WhiteSpaceVisibilityKeeper::
       // However, in some situations this strategy moves the content to an
       // unexpected position.  (see bug 200416) The new idea is to make the
       // moving content a sibling, next to the previous visible content.
-      atPreviousContent.Set(&aLeftContentInBlock);
-
-      // We want to move our content just after the previous visible node.
-      atPreviousContent.AdvanceOffset();
+      pointToMoveFirstLineContent.SetAfter(&aLeftContentInBlock);
     }
 
-    MOZ_ASSERT(atPreviousContent.IsSetAndValid());
+    MOZ_ASSERT(pointToMoveFirstLineContent.IsSetAndValid());
 
     // Because we don't want the moving content to receive the style of the
     // previous content, we split the previous content's style.
@@ -522,15 +525,11 @@ EditActionResult WhiteSpaceVisibilityKeeper::
             EditorDOMPoint(&aRightBlockElement, 0u), aEditingHost);
 #endif  // #ifdef DEBUG
 
-    Element* editingHost =
-        aHTMLEditor.ComputeEditingHost(HTMLEditor::LimitInBodyElement::No);
-    if (MOZ_UNLIKELY(NS_WARN_IF(!editingHost))) {
-      return EditActionResult(NS_ERROR_EDITOR_UNEXPECTED_DOM_TREE);
-    }
-    if (&aLeftContentInBlock != editingHost) {
+    if (&aLeftContentInBlock != &aEditingHost) {
       SplitNodeResult splitResult =
-          aHTMLEditor.SplitAncestorStyledInlineElementsAt(atPreviousContent,
-                                                          nullptr, nullptr);
+          aHTMLEditor.SplitAncestorStyledInlineElementsAt(
+              pointToMoveFirstLineContent, nullptr, nullptr,
+              HTMLEditor::SplitAtEdges::eDoNotCreateEmptyContainer);
       if (splitResult.isErr()) {
         NS_WARNING("HTMLEditor::SplitAncestorStyledInlineElementsAt() failed");
         return EditActionResult(splitResult.unwrapErr());
@@ -542,29 +541,47 @@ EditActionResult WhiteSpaceVisibilityKeeper::
         NS_WARNING("SplitNodeResult::SuggestCaretPointTo() failed");
         return EditActionResult(rv);
       }
-      if (splitResult.Handled()) {
+      if (!splitResult.DidSplit()) {
+        // If nothing was split, we should move the first line content to after
+        // the parent inline elements.
+        for (EditorDOMPoint parentPoint = pointToMoveFirstLineContent;
+             pointToMoveFirstLineContent.IsEndOfContainer() &&
+             pointToMoveFirstLineContent.IsInContentNode();
+             pointToMoveFirstLineContent = EditorDOMPoint::After(
+                 *pointToMoveFirstLineContent.ContainerAs<nsIContent>())) {
+          if (pointToMoveFirstLineContent.GetContainer() ==
+                  &aLeftBlockElement ||
+              NS_WARN_IF(pointToMoveFirstLineContent.GetContainer() ==
+                         &aEditingHost)) {
+            break;
+          }
+        }
+      } else if (splitResult.Handled()) {
+        // If se split something, we should move the first line contents before
+        // the right elements.
         if (nsIContent* nextContentAtSplitPoint =
                 splitResult.GetNextContent()) {
-          atPreviousContent.Set(nextContentAtSplitPoint);
-          if (!atPreviousContent.IsSet()) {
+          pointToMoveFirstLineContent.Set(nextContentAtSplitPoint);
+          if (!pointToMoveFirstLineContent.IsSet()) {
             NS_WARNING("Next node of split point was orphaned");
             return EditActionResult(NS_ERROR_NULL_POINTER);
           }
         } else {
-          atPreviousContent = splitResult.AtSplitPoint<EditorDOMPoint>();
-          if (!atPreviousContent.IsSet()) {
+          pointToMoveFirstLineContent =
+              splitResult.AtSplitPoint<EditorDOMPoint>();
+          if (!pointToMoveFirstLineContent.IsSet()) {
             NS_WARNING("Split node was orphaned");
             return EditActionResult(NS_ERROR_NULL_POINTER);
           }
         }
       }
-      MOZ_DIAGNOSTIC_ASSERT(atPreviousContent.IsSetAndValid());
+      MOZ_DIAGNOSTIC_ASSERT(pointToMoveFirstLineContent.IsSetAndValid());
     }
 
-    MoveNodeResult moveNodeResult =
+    Result<MoveNodeResult, nsresult> moveNodeResult =
         aHTMLEditor.MoveOneHardLineContentsWithTransaction(
-            EditorDOMPoint(&aRightBlockElement, 0u), atPreviousContent,
-            aEditingHost);
+            EditorDOMPoint(&aRightBlockElement, 0u),
+            pointToMoveFirstLineContent, aEditingHost);
     if (moveNodeResult.isErr()) {
       NS_WARNING("HTMLEditor::MoveOneHardLineContentsWithTransaction() failed");
       return EditActionResult(moveNodeResult.unwrapErr());
@@ -573,21 +590,22 @@ EditActionResult WhiteSpaceVisibilityKeeper::
 #ifdef DEBUG
     MOZ_ASSERT(!firstLineHasContent.isErr());
     if (firstLineHasContent.inspect()) {
-      NS_ASSERTION(moveNodeResult.Handled(),
+      NS_ASSERTION(moveNodeResult.inspect().Handled(),
                    "Failed to consider whether moving or not something");
     } else {
-      NS_ASSERTION(moveNodeResult.Ignored(),
+      NS_ASSERTION(moveNodeResult.inspect().Ignored(),
                    "Failed to consider whether moving or not something");
     }
 #endif  // #ifdef DEBUG
 
     // We don't need to update selection here because of dontChangeMySelection
     // above.
-    moveNodeResult.IgnoreCaretPointSuggestion();
+    moveNodeResult.inspect().IgnoreCaretPointSuggestion();
     ret |= moveNodeResult;
   }
 
-  if (!invisibleBRElementBeforeLeftBlockElement) {
+  if (!invisibleBRElementBeforeLeftBlockElement ||
+      !invisibleBRElementBeforeLeftBlockElement->IsInComposedDoc()) {
     return ret;
   }
 
@@ -641,8 +659,14 @@ EditActionResult WhiteSpaceVisibilityKeeper::
       "The preceding invisible BR element computation was different");
   EditActionResult ret(NS_OK);
   if (aListElementTagName.isSome() ||
-      aLeftBlockElement.NodeInfo()->NameAtom() ==
-          aRightBlockElement.NodeInfo()->NameAtom()) {
+      // TODO: We should stop merging entire blocks even if they have same
+      // white-space style because Chrome behave so.  However, it's risky to
+      // change our behavior in the major cases so that we should do it in
+      // a bug to manage only the change.
+      (aLeftBlockElement.NodeInfo()->NameAtom() ==
+           aRightBlockElement.NodeInfo()->NameAtom() &&
+       EditorUtils::GetComputedWhiteSpaceStyle(aLeftBlockElement) ==
+           EditorUtils::GetComputedWhiteSpaceStyle(aRightBlockElement))) {
     // Nodes are same type.  merge them.
     EditorDOMPoint atFirstChildOfRightNode;
     nsresult rv = aHTMLEditor.JoinNearestEditableNodesWithTransaction(
@@ -677,12 +701,12 @@ EditActionResult WhiteSpaceVisibilityKeeper::
 #endif  // #ifdef DEBUG
 
     // Nodes are dissimilar types.
-    MoveNodeResult moveNodeResult =
+    Result<MoveNodeResult, nsresult> moveNodeResult =
         aHTMLEditor.MoveOneHardLineContentsWithTransaction(
             EditorDOMPoint(&aRightBlockElement, 0u),
             EditorDOMPoint(&aLeftBlockElement, 0u), aEditingHost,
             HTMLEditor::MoveToEndOfContainer::Yes);
-    if (moveNodeResult.isErr()) {
+    if (MOZ_UNLIKELY(moveNodeResult.isErr())) {
       NS_WARNING(
           "HTMLEditor::MoveOneHardLineContentsWithTransaction("
           "MoveToEndOfContainer::Yes) failed");
@@ -692,21 +716,22 @@ EditActionResult WhiteSpaceVisibilityKeeper::
 #ifdef DEBUG
     MOZ_ASSERT(!firstLineHasContent.isErr());
     if (firstLineHasContent.inspect()) {
-      NS_ASSERTION(moveNodeResult.Handled(),
+      NS_ASSERTION(moveNodeResult.inspect().Handled(),
                    "Failed to consider whether moving or not something");
     } else {
-      NS_ASSERTION(moveNodeResult.Ignored(),
+      NS_ASSERTION(moveNodeResult.inspect().Ignored(),
                    "Failed to consider whether moving or not something");
     }
 #endif  // #ifdef DEBUG
 
     // We don't need to update selection here because of dontChangeMySelection
     // above.
-    moveNodeResult.IgnoreCaretPointSuggestion();
+    moveNodeResult.inspect().IgnoreCaretPointSuggestion();
     ret |= moveNodeResult;
   }
 
-  if (!invisibleBRElementAtEndOfLeftBlockElement) {
+  if (!invisibleBRElementAtEndOfLeftBlockElement ||
+      !invisibleBRElementAtEndOfLeftBlockElement->IsInComposedDoc()) {
     return ret.MarkAsHandled();
   }
 

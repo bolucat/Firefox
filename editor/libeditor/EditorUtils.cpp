@@ -25,6 +25,7 @@
 #include "nsINode.h"                  // for nsINode
 #include "nsITransferable.h"          // for nsITransferable
 #include "nsRange.h"                  // for nsRange
+#include "nsStyleConsts.h"            // for StyleWhiteSpace
 #include "nsStyleStruct.h"            // for nsStyleText, etc
 
 namespace mozilla {
@@ -36,29 +37,31 @@ using namespace dom;
  *****************************************************************************/
 
 EditActionResult& EditActionResult::operator|=(
-    const MoveNodeResult& aMoveNodeResult) {
-  mHandled |= aMoveNodeResult.Handled();
-  // When both result are same, keep the result.
-  if (mRv == aMoveNodeResult.inspectErr()) {
-    return *this;
-  }
+    const Result<MoveNodeResult, nsresult>& aMoveNodeResult) {
+  mHandled |= aMoveNodeResult.isOk() && aMoveNodeResult.inspect().Handled();
+
   // If one of the result is NS_ERROR_EDITOR_DESTROYED, use it since it's
   // the most important error code for editor.
-  if (EditorDestroyed() || aMoveNodeResult.EditorDestroyed()) {
+  if (EditorDestroyed() ||
+      (aMoveNodeResult.isErr() &&
+       aMoveNodeResult.inspectErr() == NS_ERROR_EDITOR_DESTROYED)) {
     mRv = NS_ERROR_EDITOR_DESTROYED;
     return *this;
   }
-  // If aMoveNodeResult hasn't been set explicit nsresult value, keep current
-  // result.
-  if (aMoveNodeResult.NotInitialized()) {
-    return *this;
-  }
-  // If one of the results is error, use NS_ERROR_FAILURE.
+
+  // If one of the results is error, return error.
   if (Failed() || aMoveNodeResult.isErr()) {
+    // If both failed and the error codes are same, just return.
+    if (Failed() && aMoveNodeResult.isErr() &&
+        mRv == aMoveNodeResult.inspectErr()) {
+      return *this;
+    }
+    // If the error codes is different or one of them succeeded, use the general
+    // error code.
     mRv = NS_ERROR_FAILURE;
     return *this;
   }
-  // Otherwise, use generic success code, NS_OK.
+  // Otherwise, use general success code.
   mRv = NS_OK;
   return *this;
 }
@@ -163,6 +166,22 @@ void EditorUtils::MaskString(nsString& aString, const Text& aTextNode,
       ++i;
     }
   }
+}
+
+// static
+Maybe<StyleWhiteSpace> EditorUtils::GetComputedWhiteSpaceStyle(
+    const nsIContent& aContent) {
+  if (MOZ_UNLIKELY(!aContent.IsElement() && !aContent.GetParentElement())) {
+    return Nothing();
+  }
+  RefPtr<const ComputedStyle> elementStyle =
+      nsComputedDOMStyle::GetComputedStyleNoFlush(
+          aContent.IsElement() ? aContent.AsElement()
+                               : aContent.GetParentElement());
+  if (NS_WARN_IF(!elementStyle)) {
+    return Nothing();
+  }
+  return Some(elementStyle->StyleText()->mWhiteSpace);
 }
 
 // static

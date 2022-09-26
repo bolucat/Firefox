@@ -888,6 +888,18 @@ class HTMLEditor final : public EditorBase,
   SetInlinePropertyOnNode(nsIContent& aContent, nsAtom& aProperty,
                           nsAtom* aAttribute, const nsAString& aValue);
 
+  enum class SplitAtEdges {
+    // SplitNodeDeepWithTransaction() won't split container element
+    // nodes at their edges.  I.e., when split point is start or end of
+    // container, it won't be split.
+    eDoNotCreateEmptyContainer,
+    // SplitNodeDeepWithTransaction() always splits containers even
+    // if the split point is at edge of a container.  E.g., if split point is
+    // start of an inline element, empty inline element is created as a new left
+    // node.
+    eAllowToCreateEmptyContainer,
+  };
+
   /**
    * SplitAncestorStyledInlineElementsAtRangeEdges() splits all ancestor inline
    * elements in the block at aRange if given style matches with some of them.
@@ -914,6 +926,8 @@ class HTMLEditor final : public EditorBase,
    *                            elements.
    * @param aAttribute          Attribute name if aProperty has some styles
    *                            like nsGkAtoms::font.
+   * @param aSplitAtEdges       Whether this should split elements at start or
+   *                            end of inline elements or not.
    * @return                    The result of SplitNodeDeepWithTransaction()
    *                            with topmost split element.  If this didn't
    *                            find inline elements to be split, Handled()
@@ -921,7 +935,8 @@ class HTMLEditor final : public EditorBase,
    */
   [[nodiscard]] MOZ_CAN_RUN_SCRIPT SplitNodeResult
   SplitAncestorStyledInlineElementsAt(const EditorDOMPoint& aPointToSplit,
-                                      nsAtom* aProperty, nsAtom* aAttribute);
+                                      nsAtom* aProperty, nsAtom* aAttribute,
+                                      SplitAtEdges aSplitAtEdges);
 
   [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult GetInlinePropertyBase(
       nsStaticAtom& aHTMLProperty, nsAtom* aAttribute, const nsAString* aValue,
@@ -1830,8 +1845,9 @@ class HTMLEditor final : public EditorBase,
    * @param aContentToMove  The node to be moved.
    * @param aPointToInsert  The point where aContentToMove will be inserted.
    */
-  [[nodiscard]] MOZ_CAN_RUN_SCRIPT MoveNodeResult MoveNodeWithTransaction(
-      nsIContent& aContentToMove, const EditorDOMPoint& aPointToInsert);
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT Result<MoveNodeResult, nsresult>
+  MoveNodeWithTransaction(nsIContent& aContentToMove,
+                          const EditorDOMPoint& aPointToInsert);
 
   /**
    * MoveNodeToEndWithTransaction() moves aContentToMove to end of
@@ -1841,8 +1857,9 @@ class HTMLEditor final : public EditorBase,
    * @param aNewContainer   The new container which will contain aContentToMove
    *                        as its last child.
    */
-  [[nodiscard]] MOZ_CAN_RUN_SCRIPT MoveNodeResult MoveNodeToEndWithTransaction(
-      nsIContent& aContentToMove, nsINode& aNewContainer) {
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT Result<MoveNodeResult, nsresult>
+  MoveNodeToEndWithTransaction(nsIContent& aContentToMove,
+                               nsINode& aNewContainer) {
     return MoveNodeWithTransaction(aContentToMove,
                                    EditorDOMPoint::AtEndOf(aNewContainer));
   }
@@ -1855,10 +1872,16 @@ class HTMLEditor final : public EditorBase,
    * @param aContent            Content which should be moved.
    * @param aPointToInsert      The point to be inserted aContent or its
    *                            descendants.
+   * @param aPreserveWhiteSpaceStyle
+   *                            If yes and if it's possible to keep white-space
+   *                            style, this method will set `style` attribute to
+   *                            moving node or creating new <span> element.
    */
-  [[nodiscard]] MOZ_CAN_RUN_SCRIPT MoveNodeResult
-  MoveNodeOrChildrenWithTransaction(nsIContent& aNode,
-                                    const EditorDOMPoint& aPointToInsert);
+  enum class PreserveWhiteSpaceStyle { No, Yes };
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT Result<MoveNodeResult, nsresult>
+  MoveNodeOrChildrenWithTransaction(
+      nsIContent& aContentToMove, const EditorDOMPoint& aPointToInsert,
+      PreserveWhiteSpaceStyle aPreserveWhiteSpaceStyle);
 
   /**
    * CanMoveNodeOrChildren() returns true if
@@ -1879,9 +1902,15 @@ class HTMLEditor final : public EditorBase,
    *                            moved.
    * @param aPointToInsert      The point to be inserted children of aElement
    *                            or its descendants.
+   * @param aPreserveWhiteSpaceStyle
+   *                            If yes and if it's possible to keep white-space
+   *                            style, this method will set `style` attribute to
+   *                            moving node or creating new <span> element.
    */
-  [[nodiscard]] MOZ_CAN_RUN_SCRIPT MoveNodeResult MoveChildrenWithTransaction(
-      Element& aElement, const EditorDOMPoint& aPointToInsert);
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT Result<MoveNodeResult, nsresult>
+  MoveChildrenWithTransaction(Element& aElement,
+                              const EditorDOMPoint& aPointToInsert,
+                              PreserveWhiteSpaceStyle aPreserveWhiteSpaceStyle);
 
   /**
    * CanMoveChildren() returns true if `MoveChildrenWithTransaction()` can move
@@ -1966,7 +1995,7 @@ class HTMLEditor final : public EditorBase,
    *                                    container while we're moving nodes.
    */
   enum class MoveToEndOfContainer { Yes, No };
-  [[nodiscard]] MOZ_CAN_RUN_SCRIPT MoveNodeResult
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT Result<MoveNodeResult, nsresult>
   MoveOneHardLineContentsWithTransaction(
       const EditorDOMPoint& aPointInHardLine,
       const EditorDOMPoint& aPointToInsert, const Element& aEditingHost,
@@ -1997,18 +2026,6 @@ class HTMLEditor final : public EditorBase,
    */
   [[nodiscard]] MOZ_CAN_RUN_SCRIPT SplitNodeResult
   SplitNodeWithTransaction(const EditorDOMPoint& aStartOfRightNode);
-
-  enum class SplitAtEdges {
-    // SplitNodeDeepWithTransaction() won't split container element
-    // nodes at their edges.  I.e., when split point is start or end of
-    // container, it won't be split.
-    eDoNotCreateEmptyContainer,
-    // SplitNodeDeepWithTransaction() always splits containers even
-    // if the split point is at edge of a container.  E.g., if split point is
-    // start of an inline element, empty inline element is created as a new left
-    // node.
-    eAllowToCreateEmptyContainer,
-  };
 
   /**
    * SplitNodeDeepWithTransaction() splits aMostAncestorToSplit deeply.
