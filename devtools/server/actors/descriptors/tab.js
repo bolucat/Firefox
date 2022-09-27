@@ -15,14 +15,17 @@
 const {
   connectToFrame,
 } = require("devtools/server/connectors/frame-connector");
-loader.lazyImporter(
-  this,
+const lazy = {};
+ChromeUtils.defineModuleGetter(
+  lazy,
   "PlacesUtils",
   "resource://gre/modules/PlacesUtils.jsm"
 );
 const { ActorClassWithSpec, Actor } = require("devtools/shared/protocol");
 const { tabDescriptorSpec } = require("devtools/shared/specs/descriptors/tab");
-const { AppConstants } = require("resource://gre/modules/AppConstants.jsm");
+const { AppConstants } = ChromeUtils.import(
+  "resource://gre/modules/AppConstants.jsm"
+);
 const {
   createBrowserElementSessionContext,
 } = require("devtools/server/actors/watcher/session-context");
@@ -209,7 +212,9 @@ const TabDescriptorActor = ActorClassWithSpec(tabDescriptorSpec, {
     }
 
     try {
-      const { data } = await PlacesUtils.promiseFaviconData(this._getUrl());
+      const { data } = await lazy.PlacesUtils.promiseFaviconData(
+        this._getUrl()
+      );
       return data;
     } catch (e) {
       // Favicon unavailable for this url.

@@ -4,9 +4,9 @@
 
 "use strict";
 
-const {
-  DevToolsShim,
-} = require("chrome://devtools-startup/content/DevToolsShim.jsm");
+const { DevToolsShim } = ChromeUtils.importESModule(
+  "chrome://devtools-startup/content/DevToolsShim.sys.mjs"
+);
 
 const lazy = {};
 ChromeUtils.defineESModuleGetters(lazy, {
@@ -183,7 +183,9 @@ DevTools.prototype = {
       toolId = tool;
       tool = this._tools.get(tool);
     } else {
-      const { Deprecated } = require("resource://gre/modules/Deprecated.jsm");
+      const { Deprecated } = ChromeUtils.import(
+        "resource://gre/modules/Deprecated.jsm"
+      );
       Deprecated.warning(
         "Deprecation WARNING: gDevTools.unregisterTool(tool) is " +
           "deprecated. You should unregister a tool using its toolId: " +
@@ -581,7 +583,7 @@ DevTools.prototype = {
    * arguments description.
    *
    * Also used by 3rd party tools (eg wptrunner) and exposed by
-   * DevToolsShim.jsm.
+   * DevToolsShim.sys.mjs.
    *
    * @param {XULTab} tab
    *        The tab the toolbox will debug

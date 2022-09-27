@@ -15,7 +15,9 @@
 /* eslint-disable no-throw-literal */
 
 const { DevToolsServer } = require("devtools/server/devtools-server");
-const { XPCOMUtils } = require("resource://gre/modules/XPCOMUtils.sys.mjs");
+const { XPCOMUtils } = ChromeUtils.importESModule(
+  "resource://gre/modules/XPCOMUtils.sys.mjs"
+);
 const protocol = require("devtools/shared/protocol");
 const {
   workerDescriptorSpec,
@@ -147,7 +149,7 @@ const WorkerDescriptorActor = protocol.ActorClassWithSpec(
     },
 
     _onWorkerError(filename, lineno, message) {
-      reportError("ERROR:" + filename + ":" + lineno + ":" + message + "\n");
+      Cu.reportError("ERROR:" + filename + ":" + lineno + ":" + message + "\n");
     },
 
     _getServiceWorkerRegistrationInfo() {
