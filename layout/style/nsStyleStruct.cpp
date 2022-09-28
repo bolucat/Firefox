@@ -2702,8 +2702,7 @@ nsChangeHint nsStyleDisplay::CalcTransformPropertyDifference(
 //
 
 nsStyleVisibility::nsStyleVisibility(const Document& aDocument)
-    : mImageOrientation(StyleImageOrientation::FromImage),
-      mDirection(aDocument.GetBidiOptions() == IBMBIDI_TEXTDIRECTION_RTL
+    : mDirection(aDocument.GetBidiOptions() == IBMBIDI_TEXTDIRECTION_RTL
                      ? StyleDirection::Rtl
                      : StyleDirection::Ltr),
       mVisible(StyleVisibility::Visible),
@@ -2711,19 +2710,20 @@ nsStyleVisibility::nsStyleVisibility(const Document& aDocument)
       mWritingMode(StyleWritingModeProperty::HorizontalTb),
       mTextOrientation(StyleTextOrientation::Mixed),
       mMozBoxLayout(StyleMozBoxLayout::Legacy),
-      mPrintColorAdjust(StylePrintColorAdjust::Economy) {
+      mPrintColorAdjust(StylePrintColorAdjust::Economy),
+      mImageOrientation(StyleImageOrientation::FromImage) {
   MOZ_COUNT_CTOR(nsStyleVisibility);
 }
 
 nsStyleVisibility::nsStyleVisibility(const nsStyleVisibility& aSource)
-    : mImageOrientation(aSource.mImageOrientation),
-      mDirection(aSource.mDirection),
+    : mDirection(aSource.mDirection),
       mVisible(aSource.mVisible),
       mImageRendering(aSource.mImageRendering),
       mWritingMode(aSource.mWritingMode),
       mTextOrientation(aSource.mTextOrientation),
       mMozBoxLayout(aSource.mMozBoxLayout),
-      mPrintColorAdjust(aSource.mPrintColorAdjust) {
+      mPrintColorAdjust(aSource.mPrintColorAdjust),
+      mImageOrientation(aSource.mImageOrientation) {
   MOZ_COUNT_CTOR(nsStyleVisibility);
 }
 
@@ -2767,6 +2767,32 @@ nsChangeHint nsStyleVisibility::CalcDifference(
     hint |= nsChangeHint_NeutralChange;
   }
   return hint;
+}
+
+StyleImageOrientation nsStyleVisibility::UsedImageOrientation(
+    imgIRequest* aRequest, StyleImageOrientation aOrientation) {
+  if (aOrientation == StyleImageOrientation::FromImage || !aRequest) {
+    return aOrientation;
+  }
+
+  nsCOMPtr<nsIPrincipal> triggeringPrincipal =
+      aRequest->GetTriggeringPrincipal();
+  nsCOMPtr<nsIURI> uri = aRequest->GetURI();
+
+  // If the request was for a blob, the request may not have a triggering
+  // principal and we should use the input orientation.
+  if (!triggeringPrincipal) {
+    return aOrientation;
+  }
+
+  // If the image request is a cross-origin request, do not enforce the
+  // image orientation found in the style. Use the image orientation found
+  // in the exif data.
+  if (!triggeringPrincipal->IsSameOrigin(uri)) {
+    return StyleImageOrientation::FromImage;
+  }
+
+  return aOrientation;
 }
 
 //-----------------------
@@ -2934,8 +2960,8 @@ nsStyleText::nsStyleText(const Document& aDocument)
   RefPtr<nsAtom> language = aDocument.GetContentLanguageAsAtomForStyle();
   mTextEmphasisPosition =
       language && nsStyleUtil::MatchesLanguagePrefix(language, u"zh")
-          ? NS_STYLE_TEXT_EMPHASIS_POSITION_DEFAULT_ZH
-          : NS_STYLE_TEXT_EMPHASIS_POSITION_DEFAULT;
+          ? StyleTextEmphasisPosition::DEFAULT_ZH
+          : StyleTextEmphasisPosition::DEFAULT;
 }
 
 nsStyleText::nsStyleText(const nsStyleText& aSource)
@@ -3061,17 +3087,16 @@ nsChangeHint nsStyleText::CalcDifference(const nsStyleText& aNewData) const {
 }
 
 LogicalSide nsStyleText::TextEmphasisSide(WritingMode aWM) const {
-  MOZ_ASSERT(
-      (!(mTextEmphasisPosition & NS_STYLE_TEXT_EMPHASIS_POSITION_LEFT) !=
-       !(mTextEmphasisPosition & NS_STYLE_TEXT_EMPHASIS_POSITION_RIGHT)) &&
-      (!(mTextEmphasisPosition & NS_STYLE_TEXT_EMPHASIS_POSITION_OVER) !=
-       !(mTextEmphasisPosition & NS_STYLE_TEXT_EMPHASIS_POSITION_UNDER)));
+  MOZ_ASSERT((!(mTextEmphasisPosition & StyleTextEmphasisPosition::LEFT) !=
+              !(mTextEmphasisPosition & StyleTextEmphasisPosition::RIGHT)) &&
+             (!(mTextEmphasisPosition & StyleTextEmphasisPosition::OVER) !=
+              !(mTextEmphasisPosition & StyleTextEmphasisPosition::UNDER)));
   mozilla::Side side =
       aWM.IsVertical()
-          ? (mTextEmphasisPosition & NS_STYLE_TEXT_EMPHASIS_POSITION_LEFT
+          ? (mTextEmphasisPosition & StyleTextEmphasisPosition::LEFT
                  ? eSideLeft
                  : eSideRight)
-          : (mTextEmphasisPosition & NS_STYLE_TEXT_EMPHASIS_POSITION_OVER
+          : (mTextEmphasisPosition & StyleTextEmphasisPosition::OVER
                  ? eSideTop
                  : eSideBottom);
   LogicalSide result = aWM.LogicalSideForPhysicalSide(side);

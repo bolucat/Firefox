@@ -953,7 +953,7 @@ void nsWindow::ResizeInt(const Maybe<LayoutDeviceIntPoint>& aMove,
   ConstrainSize(&aSize.width, &aSize.height);
   LOG("  ConstrainSize: w:%d h;%d\n", aSize.width, aSize.height);
 
-  const bool resized = aSize != mLastSizeRequest;
+  const bool resized = aSize != mLastSizeRequest || mBounds.Size() != aSize;
 
   // For top-level windows, aSize should possibly be
   // interpreted as frame bounds, but NativeMoveResize treats these as window
@@ -1481,10 +1481,7 @@ void nsWindow::WaylandPopupHierarchyCalculatePositions() {
       }
     }
 #endif
-    if (popup->mPopupContextMenu && !popup->mPopupAnchored) {
-      LOG("  popup [%p] is first context menu", popup);
-      popup->mRelativePopupPosition = popup->mPopupPosition;
-    } else if (popup->WaylandPopupIsFirst()) {
+    if (popup->WaylandPopupIsFirst()) {
       LOG("  popup [%p] has toplevel as parent", popup);
       popup->mRelativePopupPosition = popup->mPopupPosition;
     } else {
@@ -1866,6 +1863,25 @@ void nsWindow::UpdateWaylandPopupHierarchy() {
         // Use it for first popups only due to another mutter bug
         // https://gitlab.gnome.org/GNOME/gtk/-/issues/5089
         // https://bugzilla.mozilla.org/show_bug.cgi?id=1784873
+        return false;
+      }
+      if (!popup->WaylandPopupIsFirst() &&
+          !mWaylandPopupPrev->WaylandPopupIsFirst() &&
+          !mWaylandPopupPrev->mPopupUseMoveToRect) {
+        // We can't use move-to-rect if there are more parents of
+        // wl_subsurface popups types.
+        //
+        // It's because wl_subsurface is ignored by xgd_popup
+        // (created by move-to-rect) so our popup scenario:
+        //
+        // toplevel -> xgd_popup(1) -> wl_subsurface(2) -> xgd_popup(3)
+        //
+        // looks for Wayland compositor as:
+        //
+        // toplevel -> xgd_popup(1) -> xgd_popup(3)
+        //
+        // If xgd_popup(1) and xgd_popup(3) are not connected
+        // move-to-rect applied to xgd_popup(3) fails and we get missing popup.
         return false;
       }
       return true;

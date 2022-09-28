@@ -1400,7 +1400,7 @@ XDRResult XDRStencilEncoder::codeStencil(
     const frontend::CompilationStencil& stencil) {
 #ifdef DEBUG
   auto sanityCheck = mozilla::MakeScopeExit(
-      [&] { MOZ_ASSERT(validateResultCode(cx(), resultCode())); });
+      [&] { MOZ_ASSERT(validateResultCode(cx(), ec(), resultCode())); });
 #endif
 
   MOZ_TRY(frontend::StencilXDR::checkCompilationStencil(this, stencil));
@@ -1433,7 +1433,7 @@ bool StencilIncrementalEncoderPtr::setInitial(
     return false;
   }
 
-  MainThreadErrorContext ec(cx);
+  AutoReportFrontendContext ec(cx);
   return merger_->setInitial(
       &ec,
       std::forward<UniquePtr<frontend::ExtensibleCompilationStencil>>(initial));
@@ -1441,7 +1441,7 @@ bool StencilIncrementalEncoderPtr::setInitial(
 
 bool StencilIncrementalEncoderPtr::addDelazification(
     JSContext* cx, const frontend::CompilationStencil& delazification) {
-  MainThreadErrorContext ec(cx);
+  AutoReportFrontendContext ec(cx);
   return merger_->addDelazification(&ec, delazification);
 }
 
@@ -1449,7 +1449,7 @@ XDRResult XDRStencilDecoder::codeStencil(
     const JS::DecodeOptions& options, frontend::CompilationStencil& stencil) {
 #ifdef DEBUG
   auto sanityCheck = mozilla::MakeScopeExit(
-      [&] { MOZ_ASSERT(validateResultCode(cx(), resultCode())); });
+      [&] { MOZ_ASSERT(validateResultCode(cx(), ec(), resultCode())); });
 #endif
 
   auto resetOptions = mozilla::MakeScopeExit([&] { options_ = nullptr; });

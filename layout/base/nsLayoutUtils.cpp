@@ -6859,25 +6859,29 @@ nsTransparencyMode nsLayoutUtils::GetFrameTransparency(
   StyleAppearance appearance =
       aCSSRootFrame->StyleDisplay()->EffectiveAppearance();
 
-  if (appearance == StyleAppearance::MozWinGlass) return eTransparencyGlass;
+  if (appearance == StyleAppearance::MozWinGlass) {
+    return eTransparencyGlass;
+  }
 
-  if (appearance == StyleAppearance::MozWinBorderlessGlass)
+  if (appearance == StyleAppearance::MozWinBorderlessGlass) {
     return eTransparencyBorderlessGlass;
+  }
 
   nsITheme::Transparency transparency;
-  if (aCSSRootFrame->IsThemed(&transparency))
+  if (aCSSRootFrame->IsThemed(&transparency)) {
     return transparency == nsITheme::eTransparent ? eTransparencyTransparent
                                                   : eTransparencyOpaque;
+  }
 
-  // We need an uninitialized window to be treated as opaque because
-  // doing otherwise breaks window display effects on some platforms,
-  // specifically Vista. (bug 450322)
+  // We need an uninitialized window to be treated as opaque because doing
+  // otherwise breaks window display effects on some platforms, specifically
+  // Vista. (bug 450322)
   if (aBackgroundFrame->IsViewportFrame() &&
       !aBackgroundFrame->PrincipalChildList().FirstChild()) {
     return eTransparencyOpaque;
   }
 
-  ComputedStyle* bgSC = nsCSSRendering::FindBackground(aBackgroundFrame);
+  const ComputedStyle* bgSC = nsCSSRendering::FindBackground(aBackgroundFrame);
   if (!bgSC) {
     return eTransparencyTransparent;
   }
@@ -7231,11 +7235,14 @@ SurfaceFromElementResult nsLayoutUtils::SurfaceFromElement(
 
   nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
 
-  // Ensure that the image is oriented the same way as it's displayed.
-  auto orientation = StyleImageOrientation::FromImage;
-  if (nsIFrame* f = content->GetPrimaryFrame()) {
-    orientation = f->StyleVisibility()->mImageOrientation;
-  }
+  // Ensure that the image is oriented the same way as it's displayed
+  // if the image request is of the same origin.
+  auto orientation =
+      content->GetPrimaryFrame()
+          ? content->GetPrimaryFrame()->StyleVisibility()->UsedImageOrientation(
+                imgRequest)
+          : nsStyleVisibility::UsedImageOrientation(
+                imgRequest, StyleImageOrientation::FromImage);
   imgContainer = OrientImage(imgContainer, orientation);
 
   const bool noRasterize = aSurfaceFlags & SFE_NO_RASTERIZING_VECTORS;

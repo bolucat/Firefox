@@ -1718,9 +1718,10 @@ class EditorBase : public nsIEditor,
    *                            point to put caret.
    */
   template <typename ContentNodeType>
-  [[nodiscard]] MOZ_CAN_RUN_SCRIPT CreateNodeResultBase<ContentNodeType>
-  InsertNodeWithTransaction(ContentNodeType& aContentToInsert,
-                            const EditorDOMPoint& aPointToInsert);
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT
+      Result<CreateNodeResultBase<ContentNodeType>, nsresult>
+      InsertNodeWithTransaction(ContentNodeType& aContentToInsert,
+                                const EditorDOMPoint& aPointToInsert);
 
   /**
    * InsertPaddingBRElementForEmptyLastLineWithTransaction() creates a padding
@@ -1732,7 +1733,7 @@ class EditorBase : public nsIEditor,
    * @return                    If succeeded, returns the new <br> element and
    *                            point to put caret around it.
    */
-  [[nodiscard]] MOZ_CAN_RUN_SCRIPT CreateElementResult
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT Result<CreateElementResult, nsresult>
   InsertPaddingBRElementForEmptyLastLineWithTransaction(
       const EditorDOMPoint& aPointToInsert);
 
@@ -2052,7 +2053,7 @@ class EditorBase : public nsIEditor,
    *                            TextEditor instance.  Otherwise,
    *                            nsIEditor::eStrip is also valid.
    */
-  [[nodiscard]] MOZ_CAN_RUN_SCRIPT virtual EditActionResult
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT virtual Result<EditActionResult, nsresult>
   HandleDeleteSelection(nsIEditor::EDirection aDirectionAndAmount,
                         nsIEditor::EStripWrappers aStripWrappers) = 0;
 
@@ -2073,9 +2074,10 @@ class EditorBase : public nsIEditor,
    * @param aSelectionHandling  Specify whether selected content should be
    *                            deleted or ignored.
    */
-  [[nodiscard]] MOZ_CAN_RUN_SCRIPT virtual EditActionResult HandleInsertText(
-      EditSubAction aEditSubAction, const nsAString& aInsertionString,
-      SelectionHandling aSelectionHandling) = 0;
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT virtual Result<EditActionResult, nsresult>
+  HandleInsertText(EditSubAction aEditSubAction,
+                   const nsAString& aInsertionString,
+                   SelectionHandling aSelectionHandling) = 0;
 
   /**
    * InsertWithQuotationsAsSubAction() inserts aQuotedText with appending ">"

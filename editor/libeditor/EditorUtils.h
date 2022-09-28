@@ -32,104 +32,50 @@ namespace mozilla {
 enum class StyleWhiteSpace : uint8_t;
 
 /***************************************************************************
- * EditActionResult is useful to return multiple results of an editor
- * action handler without out params.
- * Note that when you return an anonymous instance from a method, you should
- * use EditActionIgnored(), EditActionHandled() or EditActionCanceled() for
- * easier to read.  In other words, EditActionResult should be used when
- * declaring return type of a method, being an argument or defined as a local
- * variable.
+ * EditActionResult is useful to return the handling state of edit sub actions
+ * without out params.
  */
 class MOZ_STACK_CLASS EditActionResult final {
  public:
-  bool Succeeded() const { return NS_SUCCEEDED(mRv); }
-  bool Failed() const { return NS_FAILED(mRv); }
-  nsresult Rv() const { return mRv; }
   bool Canceled() const { return mCanceled; }
   bool Handled() const { return mHandled; }
   bool Ignored() const { return !mCanceled && !mHandled; }
-  bool EditorDestroyed() const { return mRv == NS_ERROR_EDITOR_DESTROYED; }
 
-  EditActionResult SetResult(nsresult aRv) {
-    mRv = aRv;
-    return *this;
-  }
-  EditActionResult MarkAsCanceled() {
-    mCanceled = true;
-    return *this;
-  }
-  EditActionResult MarkAsHandled() {
-    mHandled = true;
-    return *this;
-  }
-
-  explicit EditActionResult(nsresult aRv)
-      : mRv(aRv), mCanceled(false), mHandled(false) {}
+  void MarkAsCanceled() { mCanceled = true; }
+  void MarkAsHandled() { mHandled = true; }
 
   EditActionResult& operator|=(const EditActionResult& aOther) {
     mCanceled |= aOther.mCanceled;
     mHandled |= aOther.mHandled;
-    // When both result are same, keep the result.
-    if (mRv == aOther.mRv) {
-      return *this;
-    }
-    // If one of the result is NS_ERROR_EDITOR_DESTROYED, use it since it's
-    // the most important error code for editor.
-    if (EditorDestroyed() || aOther.EditorDestroyed()) {
-      mRv = NS_ERROR_EDITOR_DESTROYED;
-    }
-    // If one of the results is error, use NS_ERROR_FAILURE.
-    else if (Failed() || aOther.Failed()) {
-      mRv = NS_ERROR_FAILURE;
-    } else {
-      // Otherwise, use generic success code, NS_OK.
-      mRv = NS_OK;
-    }
     return *this;
   }
 
-  EditActionResult& operator|=(
-      const Result<MoveNodeResult, nsresult>& aMoveNodeResult);
+  EditActionResult& operator|=(const MoveNodeResult& aMoveNodeResult);
+
+  static EditActionResult IgnoredResult() {
+    return EditActionResult(false, false);
+  }
+  static EditActionResult HandledResult() {
+    return EditActionResult(false, true);
+  }
+  static EditActionResult CanceledResult() {
+    return EditActionResult(true, true);
+  }
+
+  EditActionResult(const EditActionResult&) = delete;
+  EditActionResult& operator=(const EditActionResult&) = delete;
+  EditActionResult(EditActionResult&&) = default;
+  EditActionResult& operator=(EditActionResult&&) = default;
 
  private:
-  nsresult mRv;
-  bool mCanceled;
-  bool mHandled;
+  bool mCanceled = false;
+  bool mHandled = false;
 
-  EditActionResult(nsresult aRv, bool aCanceled, bool aHandled)
-      : mRv(aRv), mCanceled(aCanceled), mHandled(aHandled) {}
+  EditActionResult(bool aCanceled, bool aHandled)
+      : mCanceled(aCanceled), mHandled(aHandled) {}
 
-  EditActionResult()
-      : mRv(NS_ERROR_NOT_INITIALIZED), mCanceled(false), mHandled(false) {}
-
-  friend EditActionResult EditActionIgnored(nsresult aRv);
-  friend EditActionResult EditActionHandled(nsresult aRv);
-  friend EditActionResult EditActionCanceled(nsresult aRv);
+  EditActionResult() : mCanceled(false), mHandled(false) {}
 };
-
-/***************************************************************************
- * When an edit action handler (or its helper) does nothing,
- * EditActionIgnored should be returned.
- */
-inline EditActionResult EditActionIgnored(nsresult aRv = NS_OK) {
-  return EditActionResult(aRv, false, false);
-}
-
-/***************************************************************************
- * When an edit action handler (or its helper) handled and not canceled,
- * EditActionHandled should be returned.
- */
-inline EditActionResult EditActionHandled(nsresult aRv = NS_OK) {
-  return EditActionResult(aRv, false, true);
-}
-
-/***************************************************************************
- * When an edit action handler (or its helper) handled and canceled,
- * EditActionHandled should be returned.
- */
-inline EditActionResult EditActionCanceled(nsresult aRv = NS_OK) {
-  return EditActionResult(aRv, true, true);
-}
 
 /***************************************************************************
  * CreateNodeResultBase is a simple class for CreateSomething() methods
@@ -162,31 +108,12 @@ enum class SuggestCaret {
   AndIgnoreTrivialError,
 };
 
-// TODO: Perhaps, we can make this inherits mozilla::Result for guaranteeing
-//       same API.  Then, changing to/from Result<*, nsresult> can be easier.
-//       For now, we should give same API name rather than same as
-//       mozilla::ErrorResult.
 template <typename NodeType>
 class MOZ_STACK_CLASS CreateNodeResultBase final {
-  typedef CreateNodeResultBase<NodeType> SelfType;
+  using SelfType = CreateNodeResultBase<NodeType>;
 
  public:
-  // FYI: NS_SUCCEEDED and NS_FAILED contain MOZ_(UN)LIKELY so that isOk() and
-  // isErr() must not required to wrap with them.
-  bool isOk() const { return NS_SUCCEEDED(mRv); }
-  bool isErr() const { return NS_FAILED(mRv); }
-  bool Handled() const {
-    MOZ_ASSERT_IF(mRv == NS_SUCCESS_DOM_NO_OPERATION, !mNode);
-    return isOk() && mRv == NS_SUCCESS_DOM_NO_OPERATION;
-  }
-  constexpr nsresult inspectErr() const { return mRv; }
-  constexpr nsresult unwrapErr() const { return inspectErr(); }
-  constexpr bool EditorDestroyed() const {
-    return MOZ_UNLIKELY(mRv == NS_ERROR_EDITOR_DESTROYED);
-  }
-  constexpr bool GotUnexpectedDOMTree() const {
-    return MOZ_UNLIKELY(mRv == NS_ERROR_EDITOR_UNEXPECTED_DOM_TREE);
-  }
+  bool Handled() const { return mNode; }
   NodeType* GetNewNode() const { return mNode; }
   RefPtr<NodeType> UnwrapNewNode() { return std::move(mNode); }
 
@@ -223,58 +150,43 @@ class MOZ_STACK_CLASS CreateNodeResultBase final {
                         const EditorBase& aEditorBase,
                         const SuggestCaretOptions& aOptions);
 
-  explicit CreateNodeResultBase(nsresult aRv) : mRv(aRv) {
-    MOZ_DIAGNOSTIC_ASSERT(NS_FAILED(mRv));
-  }
-
-  explicit CreateNodeResultBase(NodeType* aNode)
-      : mNode(aNode), mRv(aNode ? NS_OK : NS_ERROR_FAILURE) {}
-  explicit CreateNodeResultBase(NodeType* aNode,
+  explicit CreateNodeResultBase(NodeType& aNode) : mNode(&aNode) {}
+  explicit CreateNodeResultBase(NodeType& aNode,
                                 const EditorDOMPoint& aCandidateCaretPoint)
-      : mNode(aNode),
-        mCaretPoint(aCandidateCaretPoint),
-        mRv(aNode ? NS_OK : NS_ERROR_FAILURE) {}
-  explicit CreateNodeResultBase(NodeType* aNode,
+      : mNode(&aNode), mCaretPoint(aCandidateCaretPoint) {}
+  explicit CreateNodeResultBase(NodeType& aNode,
                                 EditorDOMPoint&& aCandidateCaretPoint)
-      : mNode(aNode),
-        mCaretPoint(std::move(aCandidateCaretPoint)),
-        mRv(aNode ? NS_OK : NS_ERROR_FAILURE) {}
+      : mNode(&aNode), mCaretPoint(std::move(aCandidateCaretPoint)) {}
 
   explicit CreateNodeResultBase(RefPtr<NodeType>&& aNode)
-      : mNode(std::move(aNode)), mRv(mNode.get() ? NS_OK : NS_ERROR_FAILURE) {}
+      : mNode(std::move(aNode)) {}
   explicit CreateNodeResultBase(RefPtr<NodeType>&& aNode,
                                 const EditorDOMPoint& aCandidateCaretPoint)
-      : mNode(std::move(aNode)),
-        mCaretPoint(aCandidateCaretPoint),
-        mRv(mNode.get() ? NS_OK : NS_ERROR_FAILURE) {}
+      : mNode(std::move(aNode)), mCaretPoint(aCandidateCaretPoint) {
+    MOZ_ASSERT(mNode);
+  }
   explicit CreateNodeResultBase(RefPtr<NodeType>&& aNode,
                                 EditorDOMPoint&& aCandidateCaretPoint)
-      : mNode(std::move(aNode)),
-        mCaretPoint(std::move(aCandidateCaretPoint)),
-        mRv(mNode.get() ? NS_OK : NS_ERROR_FAILURE) {}
-
-  [[nodiscard]] static SelfType NotHandled() {
-    SelfType result;
-    result.mRv = NS_SUCCESS_DOM_NO_OPERATION;
-    return result;
+      : mNode(std::move(aNode)), mCaretPoint(std::move(aCandidateCaretPoint)) {
+    MOZ_ASSERT(mNode);
   }
+
+  [[nodiscard]] static SelfType NotHandled() { return SelfType(); }
   [[nodiscard]] static SelfType NotHandled(
       const EditorDOMPoint& aPointToPutCaret) {
     SelfType result;
-    result.mRv = NS_SUCCESS_DOM_NO_OPERATION;
     result.mCaretPoint = aPointToPutCaret;
     return result;
   }
   [[nodiscard]] static SelfType NotHandled(EditorDOMPoint&& aPointToPutCaret) {
     SelfType result;
-    result.mRv = NS_SUCCESS_DOM_NO_OPERATION;
     result.mCaretPoint = std::move(aPointToPutCaret);
     return result;
   }
 
 #ifdef DEBUG
   ~CreateNodeResultBase() {
-    MOZ_ASSERT_IF(isOk(), !mCaretPoint.IsSet() || mHandledCaretPoint);
+    MOZ_ASSERT(!mCaretPoint.IsSet() || mHandledCaretPoint);
   }
 #endif
 
@@ -288,7 +200,6 @@ class MOZ_STACK_CLASS CreateNodeResultBase final {
 
   RefPtr<NodeType> mNode;
   EditorDOMPoint mCaretPoint;
-  nsresult mRv = NS_OK;
   bool mutable mHandledCaretPoint = false;
 };
 

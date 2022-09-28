@@ -949,7 +949,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleText {
   mozilla::StyleTextSizeAdjust mTextSizeAdjust;
   uint8_t mTextCombineUpright;  // NS_STYLE_TEXT_COMBINE_UPRIGHT_*
   mozilla::StyleMozControlCharacterVisibility mMozControlCharacterVisibility;
-  uint8_t mTextEmphasisPosition;  // NS_STYLE_TEXT_EMPHASIS_POSITION_*
+  mozilla::StyleTextEmphasisPosition mTextEmphasisPosition;
   mozilla::StyleTextRendering mTextRendering;
   mozilla::StyleColor mTextEmphasisColor;
   mozilla::StyleColor mWebkitTextFillColor;
@@ -1100,18 +1100,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleVisibility {
   explicit nsStyleVisibility(const mozilla::dom::Document&);
   nsStyleVisibility(const nsStyleVisibility& aVisibility);
   MOZ_COUNTED_DTOR(nsStyleVisibility)
-  static constexpr bool kHasTriggerImageLoads = false;
-
   nsChangeHint CalcDifference(const nsStyleVisibility& aNewData) const;
-
-  mozilla::StyleImageOrientation mImageOrientation;
-  mozilla::StyleDirection mDirection;
-  mozilla::StyleVisibility mVisible;
-  mozilla::StyleImageRendering mImageRendering;
-  mozilla::StyleWritingModeProperty mWritingMode;
-  mozilla::StyleTextOrientation mTextOrientation;
-  mozilla::StyleMozBoxLayout mMozBoxLayout;
-  mozilla::StylePrintColorAdjust mPrintColorAdjust;
 
   bool IsVisible() const {
     return mVisible == mozilla::StyleVisibility::Visible;
@@ -1125,6 +1114,43 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleVisibility {
   bool EmulateMozBoxWithFlex() const {
     return mMozBoxLayout == mozilla::StyleMozBoxLayout::Flex;
   }
+
+  /**
+   * Given an image request, returns the orientation that should be used
+   * on the image. The returned orientation may differ from the style
+   * struct's orientation member value, if the image request is not of the
+   * same origin.
+   *
+   * @param aRequest     The image request used to determine if same origin.
+   */
+  mozilla::StyleImageOrientation UsedImageOrientation(
+      imgIRequest* aRequest) const {
+    return UsedImageOrientation(aRequest, mImageOrientation);
+  }
+
+  /**
+   * Given an image request and an orientation, returns the orientation
+   * that should be used on the image. The returned orientation may differ
+   * from the input orientation if the image request is not of the same
+   * origin.
+   *
+   * @param aRequest     The image request used to determine if same origin.
+   * @param aOrientation The input orientation.
+   */
+  static mozilla::StyleImageOrientation UsedImageOrientation(
+      imgIRequest* aRequest, mozilla::StyleImageOrientation aOrientation);
+
+  static constexpr bool kHasTriggerImageLoads = false;
+  mozilla::StyleDirection mDirection;
+  mozilla::StyleVisibility mVisible;
+  mozilla::StyleImageRendering mImageRendering;
+  mozilla::StyleWritingModeProperty mWritingMode;
+  mozilla::StyleTextOrientation mTextOrientation;
+  mozilla::StyleMozBoxLayout mMozBoxLayout;
+  mozilla::StylePrintColorAdjust mPrintColorAdjust;
+
+ private:
+  mozilla::StyleImageOrientation mImageOrientation;
 };
 
 namespace mozilla {
