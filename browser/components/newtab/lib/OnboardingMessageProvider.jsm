@@ -16,8 +16,11 @@ const { FeatureCalloutMessages } = ChromeUtils.import(
 
 const lazy = {};
 
+ChromeUtils.defineESModuleGetters(lazy, {
+  BrowserUtils: "resource://gre/modules/BrowserUtils.sys.mjs",
+});
+
 XPCOMUtils.defineLazyModuleGetters(lazy, {
-  BrowserUtils: "resource://gre/modules/BrowserUtils.jsm",
   ShellService: "resource:///modules/ShellService.jsm",
   BuiltInThemes: "resource:///modules/BuiltInThemes.jsm",
   NimbusFeatures: "resource://nimbus/ExperimentAPI.jsm",
@@ -299,7 +302,7 @@ const BASE_MESSAGES = () => [
                     string_id: "mr2022-onboarding-colorway-label-default",
                   },
                   tooltip: {
-                    string_id: "mr2022-onboarding-colorway-tooltip-default",
+                    string_id: "mr2022-onboarding-colorway-tooltip-default2",
                   },
                   description: {
                     string_id: "mr2022-onboarding-colorway-description-default",
@@ -399,6 +402,7 @@ const BASE_MESSAGES = () => [
               label: {
                 string_id: "mr2022-onboarding-existing-colorway-checkbox-label",
               },
+              defaultValue: true,
               action: {
                 type: "CONFIGURE_HOMEPAGE",
                 data: { homePage: "default", newtab: "default" },

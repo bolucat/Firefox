@@ -228,7 +228,7 @@ typedef OfflineResourceList ApplicationCache;
   [Throws] undefined stop();
   [Throws, CrossOriginCallable, NeedsCallerType] undefined focus();
   [Throws, CrossOriginCallable, NeedsCallerType] undefined blur();
-  [Replaceable, Pref="dom.window.event.enabled"] readonly attribute any event;
+  [Replaceable, Pref="dom.window.event.enabled"] readonly attribute (Event or undefined) event;
 
   // other browsing contexts
   [Replaceable, Throws, CrossOriginReadable] readonly attribute WindowProxy frames;
@@ -430,6 +430,11 @@ partial interface Window {
    * Method for sizing this window to the content in the window.
    */
   [Throws, NeedsCallerType] undefined sizeToContent();
+  /**
+   * Chrome-only method for sizing to content with a maximum-size constraint on
+   * either (or both) directions.
+   */
+  [Throws, ChromeOnly] undefined sizeToContentConstrained(long width, long height);
 
   // XXX Shouldn't this be in nsIDOMChromeWindow?
   [ChromeOnly, Replaceable, Throws] readonly attribute XULControllers controllers;

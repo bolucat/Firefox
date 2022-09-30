@@ -109,7 +109,8 @@ async function init(aEvent) {
     document.getElementById("release").hidden = false;
   }
 
-  window.sizeToContent();
+  const prefWidth = parseFloat(document.documentElement.getAttribute("width"));
+  window.sizeToContentConstrained(prefWidth, 0);
 
   if (AppConstants.platform == "macosx") {
     window.moveTo(

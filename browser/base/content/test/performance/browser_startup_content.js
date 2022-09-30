@@ -29,7 +29,7 @@ const known_scripts = {
     "resource://gre/modules/XPCOMUtils.sys.mjs",
 
     // Logging related
-    "resource://gre/modules/Log.jsm",
+    "resource://gre/modules/Log.sys.mjs",
 
     // Browser front-end
     "resource:///actors/AboutReaderChild.sys.mjs",
@@ -77,6 +77,9 @@ const intermittently_loaded_scripts = {
     // Webcompat about:config front-end. This is part of a system add-on which
     // may not load early enough for the test.
     "resource://webcompat/AboutCompat.jsm",
+
+    // Cookie banner handling.
+    "resource://gre/actors/CookieBannerChild.jsm",
 
     // Test related
     "chrome://remote/content/marionette/actors/MarionetteEventsChild.jsm",

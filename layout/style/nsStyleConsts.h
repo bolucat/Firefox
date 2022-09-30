@@ -151,15 +151,6 @@ enum class StyleBoxShadowType : uint8_t {
   Inset,
 };
 
-// clear
-enum class StyleClear : uint8_t {
-  None = 0,
-  Left,
-  Right,
-  Both,
-  Line,
-};
-
 enum class StyleColumnFill : uint8_t {
   Balance,
   Auto,
