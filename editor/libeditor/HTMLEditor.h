@@ -124,7 +124,10 @@ class HTMLEditor final : public EditorBase,
   // nsISelectionListener overrides
   NS_DECL_NSISELECTIONLISTENER
 
-  HTMLEditor();
+  /**
+   * @param aDocument   The document whose content will be editable.
+   */
+  explicit HTMLEditor(const Document& aDocument);
 
   /**
    * @param aDocument   The document whose content will be editable.
@@ -975,20 +978,20 @@ class HTMLEditor final : public EditorBase,
   [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult OnModifyDocument();
 
   /**
-   * DoSplitNode() inserts aNewNode (left node before the container of
-   * aStartOfRightNode (right node), and moves all content before
+   * DoSplitNode() inserts aNewNode and moves all content before or after
    * aStartOfRightNode to aNewNode.
    *
-   * @param aStartOfRightNode   The point to split.  Its container will be
-   *                            the right node, i.e., becomes aNewNode's
-   *                            next sibling.  And the point will be start
-   *                            of the right node.
-   * @param aNewNode            The new node called as left node, so, this
-   *                            becomes the container of all previous content
-   *                            before aPointToSplit.
+   * @param aStartOfRightNode   The point to split.  The container will keep
+   *                            having following or previous content of this.
+   * @param aNewNode            The new node called.  The previous or following
+   *                            content of aStartOfRightNode will be moved into
+   *                            this node.
+   * @param aDirection          Whether aNewNode will have previous or following
+   *                            content of aStartOfRightNode.
    */
   MOZ_CAN_RUN_SCRIPT SplitNodeResult
-  DoSplitNode(const EditorDOMPoint& aStartOfRightNode, nsIContent& aNewNode);
+  DoSplitNode(const EditorDOMPoint& aStartOfRightNode, nsIContent& aNewNode,
+              SplitNodeDirection aDirection);
 
   /**
    * DoJoinNodes() merges contents in aContentToRemove to aContentToKeep and
@@ -1001,9 +1004,13 @@ class HTMLEditor final : public EditorBase,
    * @param aContentToRemove  The node that will be joined with aContentToKeep.
    *                          There is no requirement that the two nodes be of
    *                          the same type.
+   * @param aDirection        Whether aContentToKeep is right node or left node,
+   *                          and whether aContentToRemove is left node or right
+   *                          node.
    */
   [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult
-  DoJoinNodes(nsIContent& aContentToKeep, nsIContent& aContentToRemove);
+  DoJoinNodes(nsIContent& aContentToKeep, nsIContent& aContentToRemove,
+              JoinNodesDirection aDirection);
 
   /**
    * Routines for managing the preservation of selection across
@@ -1566,8 +1573,11 @@ class HTMLEditor final : public EditorBase,
    *
    * @param aHeadingElement     The heading element to be split.
    * @param aPointToSplit       The point to split aHeadingElement.
+   * @return                    New paragraph element, meaning right heading
+   *                            element if aHeadingElement is split, or newly
+   *                            created or existing paragraph element.
    */
-  [[nodiscard]] MOZ_CAN_RUN_SCRIPT SplitNodeResult
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT Result<InsertParagraphResult, nsresult>
   HandleInsertParagraphInHeadingElement(Element& aHeadingElement,
                                         const EditorDOMPoint& aPointToSplit);
 
@@ -1578,9 +1588,11 @@ class HTMLEditor final : public EditorBase,
    * @param aListItemElement    The list item which has the following point.
    * @param aPointToSplit       The point to split aListItemElement.
    * @param aEditingHost        The editing host.
-   * @return                    A candidate position to put caret.
+   * @return                    New paragraph element, meaning right list item
+   *                            element if aListItemElement is split, or newly
+   *                            created paragraph element.
    */
-  [[nodiscard]] MOZ_CAN_RUN_SCRIPT Result<EditorDOMPoint, nsresult>
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT Result<InsertParagraphResult, nsresult>
   HandleInsertParagraphInListItemElement(Element& aListItemElement,
                                          const EditorDOMPoint& aPointToSplit,
                                          const Element& aEditingHost);
@@ -1977,6 +1989,21 @@ class HTMLEditor final : public EditorBase,
   void MovePreviousSiblings(nsIContent& aChild,
                             const EditorRawDOMPoint& aPointToInsert,
                             ErrorResult& aError);
+
+  /**
+   * MoveInclusiveNextSiblings() moves aChild and all siblings after it to
+   * before aPointToInsert.GetChild().
+   * See explanation of MoveChildrenBetween() for the detail of the behavior.
+   *
+   * @param aChild              The node which is first node to be moved.
+   * @param aPointToInsert      The insertion point.  The container must not
+   *                            be a data node like a text node.
+   * @param aError              The result.  If this succeeds to move children,
+   *                            returns NS_OK.  Otherwise, an error.
+   */
+  void MoveInclusiveNextSiblings(nsIContent& aChild,
+                                 const EditorRawDOMPoint& aPointToInsert,
+                                 ErrorResult& aError);
 
   /**
    * MoveOneHardLineContentsWithTransaction() moves the content in a hard line
@@ -4484,7 +4511,7 @@ class HTMLEditor final : public EditorBase,
 
   // Whether use Blink/WebKit compatible joining nodes and split a node
   // direction or Gecko's traditional direction.
-  bool mUseGeckoTraditionalJoinSplitBehavior = true;
+  bool mUseGeckoTraditionalJoinSplitBehavior;
 
   // resizing
   bool mIsObjectResizingEnabled;

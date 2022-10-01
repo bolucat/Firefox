@@ -877,6 +877,12 @@ pref("print.print_edge_bottom", 0);
   pref("print.print_in_color", true);
 #endif
 
+// List of domains of web apps which depend on Gecko's traditional join/split
+// node(s) behavior or Blink/WebKit compatible one in `contenteditable` or
+// `designMode`.
+pref("editor.join_split_direction.force_use_traditional_direction", "");
+pref("editor.join_split_direction.force_use_compatible_direction", "");
+
 // Scripts & Windows prefs
 pref("dom.beforeunload_timeout_ms",         1000);
 pref("dom.disable_window_flip",             false);
@@ -1041,7 +1047,7 @@ pref("javascript.options.mem.gc_high_frequency_large_heap_growth", 150);
 pref("javascript.options.mem.gc_low_frequency_heap_growth", 150);
 
 // JSGC_BALANCED_HEAP_LIMITS_ENABLED
-pref("javascript.options.mem.gc_balanced_heap_limits", true);
+pref("javascript.options.mem.gc_balanced_heap_limits", false);
 
 // JSGC_HEAP_GROWTH_FACTOR
 pref("javascript.options.mem.gc_heap_growth_factor", 50);
