@@ -10,8 +10,8 @@ const {
   getViewportDimensions,
   loadSheet,
   removeSheet,
-} = require("devtools/shared/layout/utils");
-const EventEmitter = require("devtools/shared/event-emitter");
+} = require("resource://devtools/shared/layout/utils.js");
+const EventEmitter = require("resource://devtools/shared/event-emitter.js");
 const InspectorUtils = require("InspectorUtils");
 
 const lazyContainer = {};
@@ -19,13 +19,13 @@ const lazyContainer = {};
 loader.lazyRequireGetter(
   lazyContainer,
   "CssLogic",
-  "devtools/server/actors/inspector/css-logic",
+  "resource://devtools/server/actors/inspector/css-logic.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "isDocumentReady",
-  "devtools/server/actors/inspector/utils",
+  "resource://devtools/server/actors/inspector/utils.js",
   true
 );
 

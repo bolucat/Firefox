@@ -4,44 +4,48 @@
 
 "use strict";
 
-var { DevToolsServer } = require("devtools/server/devtools-server");
-var { ActorRegistry } = require("devtools/server/actors/utils/actor-registry");
-var DevToolsUtils = require("devtools/shared/DevToolsUtils");
+var {
+  DevToolsServer,
+} = require("resource://devtools/server/devtools-server.js");
+var {
+  ActorRegistry,
+} = require("resource://devtools/server/actors/utils/actor-registry.js");
+var DevToolsUtils = require("resource://devtools/shared/DevToolsUtils.js");
 
 loader.lazyRequireGetter(
   this,
   "RootActor",
-  "devtools/server/actors/root",
+  "resource://devtools/server/actors/root.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "TabDescriptorActor",
-  "devtools/server/actors/descriptors/tab",
+  "resource://devtools/server/actors/descriptors/tab.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "WebExtensionDescriptorActor",
-  "devtools/server/actors/descriptors/webextension",
+  "resource://devtools/server/actors/descriptors/webextension.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "WorkerDescriptorActorList",
-  "devtools/server/actors/worker/worker-descriptor-actor-list",
+  "resource://devtools/server/actors/worker/worker-descriptor-actor-list.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "ServiceWorkerRegistrationActorList",
-  "devtools/server/actors/worker/service-worker-registration-list",
+  "resource://devtools/server/actors/worker/service-worker-registration-list.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "ProcessActorList",
-  "devtools/server/actors/process",
+  "resource://devtools/server/actors/process.js",
   true
 );
 const lazy = {};

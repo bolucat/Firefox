@@ -4,8 +4,13 @@
 
 "use strict";
 
-const { ActorClassWithSpec, Actor } = require("devtools/shared/protocol");
-const { networkContentSpec } = require("devtools/shared/specs/network-content");
+const {
+  ActorClassWithSpec,
+  Actor,
+} = require("resource://devtools/shared/protocol.js");
+const {
+  networkContentSpec,
+} = require("resource://devtools/shared/specs/network-content.js");
 
 const lazy = {};
 ChromeUtils.defineModuleGetter(
@@ -17,20 +22,20 @@ ChromeUtils.defineModuleGetter(
 loader.lazyRequireGetter(
   this,
   "NetworkUtils",
-  "devtools/server/actors/network-monitor/utils/network-utils"
+  "resource://devtools/server/actors/network-monitor/utils/network-utils.js"
 );
 
 loader.lazyRequireGetter(
   this,
   "WebConsoleUtils",
-  "devtools/server/actors/webconsole/utils",
+  "resource://devtools/server/actors/webconsole/utils.js",
   true
 );
 
 const {
   TYPES: { NETWORK_EVENT_STACKTRACE },
   getResourceWatcher,
-} = require("devtools/server/actors/resources/index");
+} = require("resource://devtools/server/actors/resources/index.js");
 
 /**
  * This actor manages all network functionality runnning

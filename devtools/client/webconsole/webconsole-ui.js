@@ -30,13 +30,13 @@ ChromeUtils.defineModuleGetter(
 loader.lazyRequireGetter(
   this,
   "constants",
-  "devtools/client/webconsole/constants"
+  "resource://devtools/client/webconsole/constants.js"
 );
 
 loader.lazyRequireGetter(
   this,
   "START_IGNORE_ACTION",
-  "devtools/client/shared/redux/middleware/ignore",
+  "resource://devtools/client/shared/redux/middleware/ignore.js",
   true
 );
 const ZoomKeys = require("resource://devtools/client/shared/zoom-keys.js");
@@ -605,7 +605,7 @@ class WebConsoleUI {
     const WebConsoleWrapper = BrowserLoader({
       baseURI: "resource://devtools/client/webconsole/",
       window: this.window,
-    }).require("devtools/client/webconsole/webconsole-wrapper");
+    }).require("resource://devtools/client/webconsole/webconsole-wrapper.js");
 
     this.wrapper = new WebConsoleWrapper(
       this.outputNode,

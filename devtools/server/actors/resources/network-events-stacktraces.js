@@ -6,19 +6,19 @@
 
 const {
   TYPES: { NETWORK_EVENT_STACKTRACE },
-} = require("devtools/server/actors/resources/index");
+} = require("resource://devtools/server/actors/resources/index.js");
 
 loader.lazyRequireGetter(
   this,
   "ChannelEventSinkFactory",
-  "devtools/server/actors/network-monitor/channel-event-sink",
+  "resource://devtools/server/actors/network-monitor/channel-event-sink.js",
   true
 );
 
 loader.lazyRequireGetter(
   this,
   "NetworkUtils",
-  "devtools/server/actors/network-monitor/utils/network-utils.js"
+  "resource://devtools/server/actors/network-monitor/utils/network-utils.js"
 );
 
 class NetworkEventStackTracesWatcher {

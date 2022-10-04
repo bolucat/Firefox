@@ -4,10 +4,16 @@
 
 "use strict";
 
-const { reportException } = require("devtools/shared/DevToolsUtils");
-const { expectState } = require("devtools/server/actors/common");
+const {
+  reportException,
+} = require("resource://devtools/shared/DevToolsUtils.js");
+const { expectState } = require("resource://devtools/server/actors/common.js");
 
-loader.lazyRequireGetter(this, "EventEmitter", "devtools/shared/event-emitter");
+loader.lazyRequireGetter(
+  this,
+  "EventEmitter",
+  "resource://devtools/shared/event-emitter.js"
+);
 const lazy = {};
 ChromeUtils.defineModuleGetter(
   lazy,
@@ -17,19 +23,19 @@ ChromeUtils.defineModuleGetter(
 loader.lazyRequireGetter(
   this,
   "StackFrameCache",
-  "devtools/server/actors/utils/stack",
+  "resource://devtools/server/actors/utils/stack.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "ParentProcessTargetActor",
-  "devtools/server/actors/targets/parent-process",
+  "resource://devtools/server/actors/targets/parent-process.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "ContentProcessTargetActor",
-  "devtools/server/actors/targets/content-process",
+  "resource://devtools/server/actors/targets/content-process.js",
   true
 );
 

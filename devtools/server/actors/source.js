@@ -6,33 +6,36 @@
 
 const {
   setBreakpointAtEntryPoints,
-} = require("devtools/server/actors/breakpoint");
-const { ActorClassWithSpec, Actor } = require("devtools/shared/protocol");
-const { sourceSpec } = require("devtools/shared/specs/source");
+} = require("resource://devtools/server/actors/breakpoint.js");
+const {
+  ActorClassWithSpec,
+  Actor,
+} = require("resource://devtools/shared/protocol.js");
+const { sourceSpec } = require("resource://devtools/shared/specs/source.js");
 const {
   getSourcemapBaseURL,
-} = require("devtools/server/actors/utils/source-map-utils");
+} = require("resource://devtools/server/actors/utils/source-map-utils.js");
 const {
   getDebuggerSourceURL,
-} = require("devtools/server/actors/utils/source-url");
+} = require("resource://devtools/server/actors/utils/source-url.js");
 
 loader.lazyRequireGetter(
   this,
   "ArrayBufferActor",
-  "devtools/server/actors/array-buffer",
+  "resource://devtools/server/actors/array-buffer.js",
   true
 );
 loader.lazyRequireGetter(
   this,
   "LongStringActor",
-  "devtools/server/actors/string",
+  "resource://devtools/server/actors/string.js",
   true
 );
 
 loader.lazyRequireGetter(
   this,
   "DevToolsUtils",
-  "devtools/shared/DevToolsUtils"
+  "resource://devtools/shared/DevToolsUtils.js"
 );
 
 const windowsDrive = /^([a-zA-Z]:)/;

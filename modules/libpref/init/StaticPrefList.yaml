@@ -5845,7 +5845,7 @@
 
 - name: gfx.font_rendering.colr_v1.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 - name: gfx.font_rendering.opentype_svg.enabled
@@ -13713,6 +13713,11 @@
 - name: webgl.max-contexts-per-principal
   type: RelaxedAtomicUint32
   value: 300
+  mirror: always
+
+- name: webgl.max-size-per-texture-mib
+  type: RelaxedAtomicUint32
+  value: 1024
   mirror: always
 
 - name: webgl.max-warnings-per-context
