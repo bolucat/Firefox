@@ -17,7 +17,7 @@
 #include "mozilla/ContentIterator.h"
 #include "mozilla/EditorDOMPoint.h"
 #include "mozilla/EditorForwards.h"
-#include "mozilla/EditorUtils.h"  // for SuggestCaretOption(s)
+#include "mozilla/EditorUtils.h"  // for CaretPoint
 #include "mozilla/IntegerRange.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/RangeBoundary.h"
@@ -76,7 +76,7 @@ static inline std::ostream& operator<<(std::ostream& aStream,
  * This stores whether it's handled or not, and next insertion point and a
  * suggestion for new caret position.
  *****************************************************************************/
-class MOZ_STACK_CLASS MoveNodeResult final {
+class MOZ_STACK_CLASS MoveNodeResult final : public CaretPoint {
  public:
   constexpr bool Handled() const { return mHandled; }
   constexpr bool Ignored() const { return !Handled(); }
@@ -96,39 +96,6 @@ class MOZ_STACK_CLASS MoveNodeResult final {
    */
   void MarkAsHandled() { mHandled = true; }
 
-  /**
-   * Suggest caret position to aHTMLEditor.
-   */
-  [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult SuggestCaretPointTo(
-      const HTMLEditor& aHTMLEditor, const SuggestCaretOptions& aOptions) const;
-
-  /**
-   * IgnoreCaretPointSuggestion() should be called if the method does not want
-   * to use caret position recommended by this instance.
-   */
-  void IgnoreCaretPointSuggestion() const { mHandledCaretPoint = true; }
-
-  bool HasCaretPointSuggestion() const { return mCaretPoint.IsSet(); }
-  constexpr EditorDOMPoint&& UnwrapCaretPoint() {
-    mHandledCaretPoint = true;
-    return std::move(mCaretPoint);
-  }
-  bool MoveCaretPointTo(EditorDOMPoint& aPointToPutCaret,
-                        const SuggestCaretOptions& aOptions) {
-    MOZ_ASSERT(!aOptions.contains(SuggestCaret::AndIgnoreTrivialError));
-    MOZ_ASSERT(
-        !aOptions.contains(SuggestCaret::OnlyIfTransactionsAllowedToDoIt));
-    if (aOptions.contains(SuggestCaret::OnlyIfHasSuggestion) &&
-        !mCaretPoint.IsSet()) {
-      return false;
-    }
-    aPointToPutCaret = UnwrapCaretPoint();
-    return true;
-  }
-  bool MoveCaretPointTo(EditorDOMPoint& aPointToPutCaret,
-                        const HTMLEditor& aHTMLEditor,
-                        const SuggestCaretOptions& aOptions);
-
   MoveNodeResult(const MoveNodeResult& aOther) = delete;
   MoveNodeResult& operator=(const MoveNodeResult& aOther) = delete;
   MoveNodeResult(MoveNodeResult&& aOther) = default;
@@ -138,9 +105,9 @@ class MOZ_STACK_CLASS MoveNodeResult final {
     MOZ_ASSERT(this != &aOther);
     // aOther is merged with this instance so that its caret suggestion
     // shouldn't be handled anymore.
-    aOther.mHandledCaretPoint = true;
+    aOther.IgnoreCaretPointSuggestion();
     // Should be handled again even if it's already handled
-    mHandledCaretPoint = false;
+    UnmarkAsHandledCaretPoint();
 
     mHandled |= aOther.mHandled;
 
@@ -148,15 +115,15 @@ class MOZ_STACK_CLASS MoveNodeResult final {
     mNextInsertionPoint = aOther.mNextInsertionPoint;
 
     // Take the new caret point if and only if it's suggested.
-    if (aOther.mCaretPoint.IsSet()) {
-      mCaretPoint = aOther.mCaretPoint;
+    if (aOther.HasCaretPointSuggestion()) {
+      SetCaretPoint(aOther.CaretPointRef());
     }
     return *this;
   }
 
 #ifdef DEBUG
   ~MoveNodeResult() {
-    MOZ_ASSERT_IF(Handled(), !mCaretPoint.IsSet() || mHandledCaretPoint);
+    MOZ_ASSERT_IF(Handled(), !HasCaretPointSuggestion() || CaretPointHandled());
   }
 #endif
 
@@ -211,78 +178,64 @@ class MOZ_STACK_CLASS MoveNodeResult final {
  private:
   explicit MoveNodeResult(const EditorDOMPoint& aNextInsertionPoint,
                           bool aHandled)
-      : mNextInsertionPoint(aNextInsertionPoint),
+      : CaretPoint(),
+        mNextInsertionPoint(aNextInsertionPoint),
         mHandled(aHandled && aNextInsertionPoint.IsSet()) {
     AutoEditorDOMPointChildInvalidator computeOffsetAndForgetChild(
         mNextInsertionPoint);
   }
   explicit MoveNodeResult(EditorDOMPoint&& aNextInsertionPoint, bool aHandled)
-      : mNextInsertionPoint(std::move(aNextInsertionPoint)),
+      : CaretPoint(),
+        mNextInsertionPoint(std::move(aNextInsertionPoint)),
         mHandled(aHandled && mNextInsertionPoint.IsSet()) {
     AutoEditorDOMPointChildInvalidator computeOffsetAndForgetChild(
         mNextInsertionPoint);
   }
   explicit MoveNodeResult(const EditorDOMPoint& aNextInsertionPoint,
                           const EditorDOMPoint& aPointToPutCaret)
-      : mNextInsertionPoint(aNextInsertionPoint),
-        mCaretPoint(aPointToPutCaret),
+      : CaretPoint(aPointToPutCaret),
+        mNextInsertionPoint(aNextInsertionPoint),
         mHandled(mNextInsertionPoint.IsSet()) {
     AutoEditorDOMPointChildInvalidator computeOffsetAndForgetChild(
         mNextInsertionPoint);
   }
   explicit MoveNodeResult(EditorDOMPoint&& aNextInsertionPoint,
                           const EditorDOMPoint& aPointToPutCaret)
-      : mNextInsertionPoint(std::move(aNextInsertionPoint)),
-        mCaretPoint(aPointToPutCaret),
+      : CaretPoint(aPointToPutCaret),
+        mNextInsertionPoint(std::move(aNextInsertionPoint)),
         mHandled(mNextInsertionPoint.IsSet()) {
     AutoEditorDOMPointChildInvalidator computeOffsetAndForgetChild(
         mNextInsertionPoint);
   }
   explicit MoveNodeResult(const EditorDOMPoint& aNextInsertionPoint,
                           EditorDOMPoint&& aPointToPutCaret)
-      : mNextInsertionPoint(aNextInsertionPoint),
-        mCaretPoint(std::move(aPointToPutCaret)),
+      : CaretPoint(std::move(aPointToPutCaret)),
+        mNextInsertionPoint(aNextInsertionPoint),
         mHandled(mNextInsertionPoint.IsSet()) {
     AutoEditorDOMPointChildInvalidator computeOffsetAndForgetChild(
         mNextInsertionPoint);
   }
   explicit MoveNodeResult(EditorDOMPoint&& aNextInsertionPoint,
                           EditorDOMPoint&& aPointToPutCaret)
-      : mNextInsertionPoint(std::move(aNextInsertionPoint)),
-        mCaretPoint(std::move(aPointToPutCaret)),
+      : CaretPoint(std::move(aPointToPutCaret)),
+        mNextInsertionPoint(std::move(aNextInsertionPoint)),
         mHandled(mNextInsertionPoint.IsSet()) {
     AutoEditorDOMPointChildInvalidator computeOffsetAndForgetChild(
         mNextInsertionPoint);
   }
 
   EditorDOMPoint mNextInsertionPoint;
-  // Recommended caret point after moving a node.
-  EditorDOMPoint mCaretPoint;
   bool mHandled;
-  bool mutable mHandledCaretPoint = false;
 };
 
 /*****************************************************************************
  * SplitNodeResult is a simple class for
  * HTMLEditor::SplitNodeDeepWithTransaction().
  * This makes the callers' code easier to read.
- * TODO: Perhaps, we can make this inherits mozilla::Result for guaranteeing
- *       same API.  Then, changing to/from Result<*, nsresult> can be easier.
- *       For now, we should give same API name rather than same as
- *       mozilla::ErrorResult.
  *****************************************************************************/
-class MOZ_STACK_CLASS SplitNodeResult final {
+class MOZ_STACK_CLASS SplitNodeResult final : public CaretPoint {
  public:
-  // FYI: NS_SUCCEEDED and NS_FAILED contain MOZ_(UN)LIKELY so that isOk() and
-  //      isErr() must not required to wrap with them.
-  bool isOk() const { return NS_SUCCEEDED(mRv); }
-  bool isErr() const { return NS_FAILED(mRv); }
-  constexpr nsresult inspectErr() const { return mRv; }
-  constexpr nsresult unwrapErr() const { return inspectErr(); }
   bool Handled() const { return mPreviousNode || mNextNode; }
-  constexpr bool EditorDestroyed() const {
-    return MOZ_UNLIKELY(mRv == NS_ERROR_EDITOR_DESTROYED);
-  }
 
   /**
    * DidSplit() returns true if a node was actually split.
@@ -293,12 +246,15 @@ class MOZ_STACK_CLASS SplitNodeResult final {
    * GetPreviousContent() returns previous content node at the split point.
    */
   MOZ_KNOWN_LIVE nsIContent* GetPreviousContent() const {
-    MOZ_ASSERT(isOk());
     if (mGivenSplitPoint.IsSet()) {
       return mGivenSplitPoint.IsEndOfContainer() ? mGivenSplitPoint.GetChild()
                                                  : nullptr;
     }
     return mPreviousNode;
+  }
+  template <typename NodeType>
+  MOZ_KNOWN_LIVE NodeType* GetPreviousContentAs() const {
+    return NodeType::FromNodeOrNull(GetPreviousContent());
   }
   template <typename EditorDOMPointType>
   EditorDOMPointType AtPreviousContent() const {
@@ -312,12 +268,15 @@ class MOZ_STACK_CLASS SplitNodeResult final {
    * GetNextContent() returns next content node at the split point.
    */
   MOZ_KNOWN_LIVE nsIContent* GetNextContent() const {
-    MOZ_ASSERT(isOk());
     if (mGivenSplitPoint.IsSet()) {
       return !mGivenSplitPoint.IsEndOfContainer() ? mGivenSplitPoint.GetChild()
                                                   : nullptr;
     }
     return mNextNode;
+  }
+  template <typename NodeType>
+  MOZ_KNOWN_LIVE NodeType* GetNextContentAs() const {
+    return NodeType::FromNodeOrNull(GetNextContent());
   }
   template <typename EditorDOMPointType>
   EditorDOMPointType AtNextContent() const {
@@ -332,12 +291,15 @@ class MOZ_STACK_CLASS SplitNodeResult final {
    * returns nullptr if no node was split.
    */
   MOZ_KNOWN_LIVE nsIContent* GetNewContent() const {
-    MOZ_ASSERT(isOk());
     if (!DidSplit()) {
       return nullptr;
     }
     return mDirection == SplitNodeDirection::LeftNodeIsNewOne ? mPreviousNode
                                                               : mNextNode;
+  }
+  template <typename NodeType>
+  MOZ_KNOWN_LIVE NodeType* GetNewContentAs() const {
+    return NodeType::FromNodeOrNull(GetNewContent());
   }
   template <typename EditorDOMPointType>
   EditorDOMPointType AtNewContent() const {
@@ -351,7 +313,6 @@ class MOZ_STACK_CLASS SplitNodeResult final {
    * Returns original content node which is (or is just tried to be) split.
    */
   MOZ_KNOWN_LIVE nsIContent* GetOriginalContent() const {
-    MOZ_ASSERT(isOk());
     if (mGivenSplitPoint.IsSet()) {
       // Different from previous/next content, if the creator didn't split a
       // node, the container of the split point is the original node.
@@ -361,6 +322,10 @@ class MOZ_STACK_CLASS SplitNodeResult final {
       return mNextNode ? mNextNode : mPreviousNode;
     }
     return mPreviousNode ? mPreviousNode : mNextNode;
+  }
+  template <typename NodeType>
+  MOZ_KNOWN_LIVE NodeType* GetOriginalContentAs() const {
+    return NodeType::FromNodeOrNull(GetOriginalContent());
   }
   template <typename EditorDOMPointType>
   EditorDOMPointType AtOriginalContent() const {
@@ -376,9 +341,6 @@ class MOZ_STACK_CLASS SplitNodeResult final {
    */
   template <typename EditorDOMPointType>
   EditorDOMPointType AtSplitPoint() const {
-    if (isErr()) {
-      return EditorDOMPointType();
-    }
     if (mGivenSplitPoint.IsSet()) {
       return mGivenSplitPoint.To<EditorDOMPointType>();
     }
@@ -387,39 +349,6 @@ class MOZ_STACK_CLASS SplitNodeResult final {
     }
     return EditorDOMPointType::After(mPreviousNode);
   }
-
-  /**
-   * Suggest caret position to aHTMLEditor.
-   */
-  [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult SuggestCaretPointTo(
-      const HTMLEditor& aHTMLEditor, const SuggestCaretOptions& aOptions) const;
-
-  /**
-   * IgnoreCaretPointSuggestion() should be called if the method does not want
-   * to use caret position recommended by this instance.
-   */
-  void IgnoreCaretPointSuggestion() const { mHandledCaretPoint = true; }
-
-  bool HasCaretPointSuggestion() const { return mCaretPoint.IsSet(); }
-  constexpr EditorDOMPoint&& UnwrapCaretPoint() {
-    mHandledCaretPoint = true;
-    return std::move(mCaretPoint);
-  }
-  bool MoveCaretPointTo(EditorDOMPoint& aPointToPutCaret,
-                        const SuggestCaretOptions& aOptions) {
-    MOZ_ASSERT(!aOptions.contains(SuggestCaret::AndIgnoreTrivialError));
-    MOZ_ASSERT(
-        !aOptions.contains(SuggestCaret::OnlyIfTransactionsAllowedToDoIt));
-    if (aOptions.contains(SuggestCaret::OnlyIfHasSuggestion) &&
-        !mCaretPoint.IsSet()) {
-      return false;
-    }
-    aPointToPutCaret = UnwrapCaretPoint();
-    return true;
-  }
-  bool MoveCaretPointTo(EditorDOMPoint& aPointToPutCaret,
-                        const HTMLEditor& aHTMLEditor,
-                        const SuggestCaretOptions& aOptions);
 
   SplitNodeResult() = delete;
   SplitNodeResult(const SplitNodeResult&) = delete;
@@ -434,16 +363,12 @@ class MOZ_STACK_CLASS SplitNodeResult final {
   SplitNodeResult(SplitNodeResult&& aSplitResult,
                   const EditorDOMPoint& aNewCaretPoint)
       : SplitNodeResult(std::move(aSplitResult)) {
-    MOZ_ASSERT(isOk());
-    mCaretPoint = aNewCaretPoint;
-    mHandledCaretPoint = false;
+    SetCaretPoint(aNewCaretPoint);
   }
   SplitNodeResult(SplitNodeResult&& aSplitResult,
                   EditorDOMPoint&& aNewCaretPoint)
       : SplitNodeResult(std::move(aSplitResult)) {
-    MOZ_ASSERT(isOk());
-    mCaretPoint = std::move(aNewCaretPoint);
-    mHandledCaretPoint = false;
+    SetCaretPoint(std::move(aNewCaretPoint));
   }
 
   /**
@@ -462,50 +387,17 @@ class MOZ_STACK_CLASS SplitNodeResult final {
   SplitNodeResult(nsIContent& aNewNode, nsIContent& aSplitNode,
                   SplitNodeDirection aDirection,
                   const Maybe<EditorDOMPoint>& aNewCaretPoint = Nothing())
-      : mPreviousNode(aDirection == SplitNodeDirection::LeftNodeIsNewOne
-                          ? &aNewNode
-                          : &aSplitNode),
-        mNextNode(aDirection == SplitNodeDirection::LeftNodeIsNewOne
-                      ? &aSplitNode
-                      : &aNewNode),
-        mCaretPoint(aNewCaretPoint.isSome()
-                        ? aNewCaretPoint.ref()
-                        : EditorDOMPoint::AtEndOf(mPreviousNode)),
-        mRv(NS_OK),
+      : CaretPoint(aNewCaretPoint.isSome()
+                       ? aNewCaretPoint.ref()
+                       : EditorDOMPoint::AtEndOf(*PreviousNode(
+                             aDirection, &aNewNode, &aSplitNode))),
+        mPreviousNode(PreviousNode(aDirection, &aNewNode, &aSplitNode)),
+        mNextNode(NextNode(aDirection, &aNewNode, &aSplitNode)),
         mDirection(aDirection) {}
-  SplitNodeResult(nsCOMPtr<nsIContent>&& aNewNode,
-                  nsCOMPtr<nsIContent>&& aSplitNode,
-                  SplitNodeDirection aDirection,
-                  const Maybe<EditorDOMPoint>& aNewCaretPoint = Nothing())
-      : mPreviousNode(aDirection == SplitNodeDirection::LeftNodeIsNewOne
-                          ? std::move(aNewNode)
-                          : std::move(aSplitNode)),
-        mNextNode(aDirection == SplitNodeDirection::LeftNodeIsNewOne
-                      ? std::move(aSplitNode)
-                      : std::move(aNewNode)),
-        mCaretPoint(aNewCaretPoint.isSome()
-                        ? aNewCaretPoint.ref()
-                        : (MOZ_LIKELY(mPreviousNode)
-                               ? EditorDOMPoint::AtEndOf(mPreviousNode)
-                               : EditorDOMPoint())),
-        mRv(NS_OK),
-        mDirection(aDirection) {
-    MOZ_DIAGNOSTIC_ASSERT(mPreviousNode);
-    MOZ_DIAGNOSTIC_ASSERT(mNextNode);
-  }
-
-  /**
-   * This constructor shouldn't be used by anybody except methods which
-   * use this as error result when it fails.
-   */
-  explicit SplitNodeResult(nsresult aRv)
-      : mRv(aRv), mDirection(SplitNodeDirection::LeftNodeIsNewOne) {
-    MOZ_DIAGNOSTIC_ASSERT(NS_FAILED(mRv));
-  }
 
   SplitNodeResult ToHandledResult() const {
     mHandledCaretPoint = true;
-    SplitNodeResult result(NS_OK, mDirection);
+    SplitNodeResult result(mDirection);
     result.mPreviousNode = GetPreviousContent();
     result.mNextNode = GetNextContent();
     MOZ_DIAGNOSTIC_ASSERT(result.Handled());
@@ -528,12 +420,12 @@ class MOZ_STACK_CLASS SplitNodeResult final {
   static inline SplitNodeResult HandledButDidNotSplitDueToEndOfContainer(
       nsIContent& aNotSplitNode, SplitNodeDirection aDirection,
       const SplitNodeResult* aDeeperSplitNodeResult = nullptr) {
-    SplitNodeResult result(NS_OK, aDirection);
+    SplitNodeResult result(aDirection);
     result.mPreviousNode = &aNotSplitNode;
     // Caret should be put at the last split point instead of current node.
     if (aDeeperSplitNodeResult) {
-      result.mCaretPoint = aDeeperSplitNodeResult->mCaretPoint;
-      aDeeperSplitNodeResult->mHandledCaretPoint = true;
+      result.SetCaretPoint(aDeeperSplitNodeResult->CaretPointRef());
+      aDeeperSplitNodeResult->IgnoreCaretPointSuggestion();
     }
     return result;
   }
@@ -541,12 +433,12 @@ class MOZ_STACK_CLASS SplitNodeResult final {
   static inline SplitNodeResult HandledButDidNotSplitDueToStartOfContainer(
       nsIContent& aNotSplitNode, SplitNodeDirection aDirection,
       const SplitNodeResult* aDeeperSplitNodeResult = nullptr) {
-    SplitNodeResult result(NS_OK, aDirection);
+    SplitNodeResult result(aDirection);
     result.mNextNode = &aNotSplitNode;
     // Caret should be put at the last split point instead of current node.
     if (aDeeperSplitNodeResult) {
-      result.mCaretPoint = aDeeperSplitNodeResult->mCaretPoint;
-      aDeeperSplitNodeResult->mHandledCaretPoint = true;
+      result.SetCaretPoint(aDeeperSplitNodeResult->CaretPointRef());
+      aDeeperSplitNodeResult->IgnoreCaretPointSuggestion();
     }
     return result;
   }
@@ -556,12 +448,12 @@ class MOZ_STACK_CLASS SplitNodeResult final {
       const EditorDOMPointBase<PT, CT>& aGivenSplitPoint,
       SplitNodeDirection aDirection,
       const SplitNodeResult* aDeeperSplitNodeResult = nullptr) {
-    SplitNodeResult result(NS_OK, aDirection);
+    SplitNodeResult result(aDirection);
     result.mGivenSplitPoint = aGivenSplitPoint;
     // Caret should be put at the last split point instead of current node.
     if (aDeeperSplitNodeResult) {
-      result.mCaretPoint = aDeeperSplitNodeResult->mCaretPoint;
-      aDeeperSplitNodeResult->mHandledCaretPoint = true;
+      result.SetCaretPoint(aDeeperSplitNodeResult->CaretPointRef());
+      aDeeperSplitNodeResult->IgnoreCaretPointSuggestion();
     }
     return result;
   }
@@ -576,26 +468,39 @@ class MOZ_STACK_CLASS SplitNodeResult final {
   static inline SplitNodeResult MergeWithDeeperSplitNodeResult(
       SplitNodeResult&& aSplitNodeResult,
       const SplitNodeResult& aDeeperSplitNodeResult) {
-    aSplitNodeResult.mHandledCaretPoint = false;
-    aDeeperSplitNodeResult.mHandledCaretPoint = true;
+    aSplitNodeResult.UnmarkAsHandledCaretPoint();
+    aDeeperSplitNodeResult.IgnoreCaretPointSuggestion();
     if (aSplitNodeResult.DidSplit() ||
         !aDeeperSplitNodeResult.mCaretPoint.IsSet()) {
       return std::move(aSplitNodeResult);
     }
     SplitNodeResult result(std::move(aSplitNodeResult));
-    result.mCaretPoint = aDeeperSplitNodeResult.mCaretPoint;
+    result.SetCaretPoint(aDeeperSplitNodeResult.CaretPointRef());
     return result;
   }
 
 #ifdef DEBUG
   ~SplitNodeResult() {
-    MOZ_ASSERT_IF(isOk(), !mCaretPoint.IsSet() || mHandledCaretPoint);
+    MOZ_ASSERT(!HasCaretPointSuggestion() || CaretPointHandled());
   }
 #endif
 
  private:
-  SplitNodeResult(nsresult aRv, SplitNodeDirection aDirection)
-      : mRv(aRv), mDirection(aDirection) {}
+  explicit SplitNodeResult(SplitNodeDirection aDirection)
+      : mDirection(aDirection) {}
+
+  // Helper methods to consider previous/next node from new/old node and split
+  // direction.
+  static nsIContent* PreviousNode(SplitNodeDirection aDirection,
+                                  nsIContent* aNewOne, nsIContent* aOldOne) {
+    return aDirection == SplitNodeDirection::LeftNodeIsNewOne ? aNewOne
+                                                              : aOldOne;
+  }
+  static nsIContent* NextNode(SplitNodeDirection aDirection,
+                              nsIContent* aNewOne, nsIContent* aOldOne) {
+    return aDirection == SplitNodeDirection::LeftNodeIsNewOne ? aOldOne
+                                                              : aNewOne;
+  }
 
   // When methods which return this class split some nodes actually, they
   // need to set a set of left node and right node to this class.  However,
@@ -617,7 +522,6 @@ class MOZ_STACK_CLASS SplitNodeResult final {
   // splitter.
   EditorDOMPoint mCaretPoint;
 
-  nsresult mRv;
   SplitNodeDirection mDirection;
   bool mutable mHandledCaretPoint = false;
 };
@@ -681,7 +585,7 @@ class MOZ_STACK_CLASS JoinNodesResult final {
  * SplitRangeOffFromNodeResult class is a simple class for methods which split a
  * node at 2 points for making part of the node split off from the node.
  *****************************************************************************/
-class MOZ_STACK_CLASS SplitRangeOffFromNodeResult final {
+class MOZ_STACK_CLASS SplitRangeOffFromNodeResult final : public CaretPoint {
  public:
   /**
    * GetLeftContent() returns new created node before the part of quarried out.
@@ -756,45 +660,13 @@ class MOZ_STACK_CLASS SplitRangeOffFromNodeResult final {
     return ContentNodeType::FromNodeOrNull(GetRightmostContent());
   }
 
-  /**
-   * Suggest caret position to aHTMLEditor.
-   */
-  [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult SuggestCaretPointTo(
-      const HTMLEditor& aHTMLEditor, const SuggestCaretOptions& aOptions) const;
-
-  /**
-   * IgnoreCaretPointSuggestion() should be called if the method does not want
-   * to use caret position recommended by this instance.
-   */
-  void IgnoreCaretPointSuggestion() const { mHandledCaretPoint = true; }
-
-  bool HasCaretPointSuggestion() const { return mCaretPoint.IsSet(); }
-  constexpr EditorDOMPoint&& UnwrapCaretPoint() {
-    mHandledCaretPoint = true;
-    return std::move(mCaretPoint);
-  }
-  bool MoveCaretPointTo(EditorDOMPoint& aPointToPutCaret,
-                        const SuggestCaretOptions& aOptions) {
-    MOZ_ASSERT(!aOptions.contains(SuggestCaret::AndIgnoreTrivialError));
-    MOZ_ASSERT(
-        !aOptions.contains(SuggestCaret::OnlyIfTransactionsAllowedToDoIt));
-    if (aOptions.contains(SuggestCaret::OnlyIfHasSuggestion) &&
-        !mCaretPoint.IsSet()) {
-      return false;
-    }
-    aPointToPutCaret = UnwrapCaretPoint();
-    return true;
-  }
-  bool MoveCaretPointTo(EditorDOMPoint& aPointToPutCaret,
-                        const HTMLEditor& aHTMLEditor,
-                        const SuggestCaretOptions& aOptions);
-
   SplitRangeOffFromNodeResult() = delete;
 
   SplitRangeOffFromNodeResult(nsIContent* aLeftContent,
                               nsIContent* aMiddleContent,
                               nsIContent* aRightContent)
-      : mLeftContent(aLeftContent),
+      : CaretPoint(),
+        mLeftContent(aLeftContent),
         mMiddleContent(aMiddleContent),
         mRightContent(aRightContent) {}
 
@@ -802,20 +674,20 @@ class MOZ_STACK_CLASS SplitRangeOffFromNodeResult final {
                               nsIContent* aMiddleContent,
                               nsIContent* aRightContent,
                               EditorDOMPoint&& aPointToPutCaret)
-      : mLeftContent(aLeftContent),
+      : CaretPoint(std::move(aPointToPutCaret)),
+        mLeftContent(aLeftContent),
         mMiddleContent(aMiddleContent),
-        mRightContent(aRightContent),
-        mCaretPoint(std::move(aPointToPutCaret)) {}
+        mRightContent(aRightContent) {}
 
   SplitRangeOffFromNodeResult(const SplitRangeOffFromNodeResult& aOther) =
       delete;
   SplitRangeOffFromNodeResult& operator=(
       const SplitRangeOffFromNodeResult& aOther) = delete;
   SplitRangeOffFromNodeResult(SplitRangeOffFromNodeResult&& aOther) noexcept
-      : mLeftContent(std::move(aOther.mLeftContent)),
+      : CaretPoint(aOther.UnwrapCaretPoint()),
+        mLeftContent(std::move(aOther.mLeftContent)),
         mMiddleContent(std::move(aOther.mMiddleContent)),
-        mRightContent(std::move(aOther.mRightContent)),
-        mCaretPoint(std::move(aOther.mCaretPoint)) {
+        mRightContent(std::move(aOther.mRightContent)) {
     MOZ_ASSERT(!aOther.mMovedContent);
   }
   SplitRangeOffFromNodeResult& operator=(SplitRangeOffFromNodeResult&& aOther) =
@@ -823,7 +695,7 @@ class MOZ_STACK_CLASS SplitRangeOffFromNodeResult final {
 
 #ifdef DEBUG
   ~SplitRangeOffFromNodeResult() {
-    MOZ_ASSERT(!mCaretPoint.IsSet() || mHandledCaretPoint);
+    MOZ_ASSERT(!HasCaretPointSuggestion() || CaretPointHandled());
   }
 #endif
 
@@ -832,11 +704,6 @@ class MOZ_STACK_CLASS SplitRangeOffFromNodeResult final {
   MOZ_KNOWN_LIVE nsCOMPtr<nsIContent> mMiddleContent;
   MOZ_KNOWN_LIVE nsCOMPtr<nsIContent> mRightContent;
 
-  // The point which is a good point to put caret from point of view the
-  // splitter.
-  EditorDOMPoint mCaretPoint;
-
-  bool mutable mHandledCaretPoint = false;
   bool mutable mMovedContent = false;
 };
 
@@ -844,7 +711,7 @@ class MOZ_STACK_CLASS SplitRangeOffFromNodeResult final {
  * SplitRangeOffResult class is a simple class for methods which splits
  * specific ancestor elements at 2 DOM points.
  *****************************************************************************/
-class MOZ_STACK_CLASS SplitRangeOffResult final {
+class MOZ_STACK_CLASS SplitRangeOffResult final : public CaretPoint {
  public:
   constexpr bool Handled() const { return mHandled; }
 
@@ -854,39 +721,6 @@ class MOZ_STACK_CLASS SplitRangeOffResult final {
    * points out of the range to have been split off.
    */
   constexpr const EditorDOMRange& RangeRef() const { return mRange; }
-
-  /**
-   * Suggest caret position to aHTMLEditor.
-   */
-  [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult SuggestCaretPointTo(
-      const HTMLEditor& aHTMLEditor, const SuggestCaretOptions& aOptions) const;
-
-  /**
-   * IgnoreCaretPointSuggestion() should be called if the method does not want
-   * to use caret position recommended by this instance.
-   */
-  void IgnoreCaretPointSuggestion() const { mHandledCaretPoint = true; }
-
-  bool HasCaretPointSuggestion() const { return mCaretPoint.IsSet(); }
-  constexpr EditorDOMPoint&& UnwrapCaretPoint() {
-    mHandledCaretPoint = true;
-    return std::move(mCaretPoint);
-  }
-  bool MoveCaretPointTo(EditorDOMPoint& aPointToPutCaret,
-                        const SuggestCaretOptions& aOptions) {
-    MOZ_ASSERT(!aOptions.contains(SuggestCaret::AndIgnoreTrivialError));
-    MOZ_ASSERT(
-        !aOptions.contains(SuggestCaret::OnlyIfTransactionsAllowedToDoIt));
-    if (aOptions.contains(SuggestCaret::OnlyIfHasSuggestion) &&
-        !mCaretPoint.IsSet()) {
-      return false;
-    }
-    aPointToPutCaret = UnwrapCaretPoint();
-    return true;
-  }
-  bool MoveCaretPointTo(EditorDOMPoint& aPointToPutCaret,
-                        const HTMLEditor& aHTMLEditor,
-                        const SuggestCaretOptions& aOptions);
 
   SplitRangeOffResult() = delete;
 
@@ -910,22 +744,23 @@ class MOZ_STACK_CLASS SplitRangeOffResult final {
   SplitRangeOffResult(EditorDOMRange&& aTrackedRange,
                       SplitNodeResult&& aSplitNodeResultAtStart,
                       SplitNodeResult&& aSplitNodeResultAtEnd)
-      : mRange(std::move(aTrackedRange)),
+      : CaretPoint(),
+        mRange(std::move(aTrackedRange)),
         mHandled(aSplitNodeResultAtStart.Handled() ||
                  aSplitNodeResultAtEnd.Handled()) {
     MOZ_ASSERT(mRange.StartRef().IsSet());
     MOZ_ASSERT(mRange.EndRef().IsSet());
-    MOZ_ASSERT(aSplitNodeResultAtStart.isOk());
-    MOZ_ASSERT(aSplitNodeResultAtEnd.isOk());
     // The given results are created for creating this instance so that the
     // caller may not need to handle with them.  For making who taking the
     // responsible clearer, we should move them into this constructor.
+    EditorDOMPoint pointToPutCaret;
     SplitNodeResult splitNodeResultAtStart(std::move(aSplitNodeResultAtStart));
     SplitNodeResult splitNodeResultAtEnd(std::move(aSplitNodeResultAtEnd));
     splitNodeResultAtStart.MoveCaretPointTo(
-        mCaretPoint, {SuggestCaret::OnlyIfHasSuggestion});
-    splitNodeResultAtEnd.MoveCaretPointTo(mCaretPoint,
+        pointToPutCaret, {SuggestCaret::OnlyIfHasSuggestion});
+    splitNodeResultAtEnd.MoveCaretPointTo(pointToPutCaret,
                                           {SuggestCaret::OnlyIfHasSuggestion});
+    SetCaretPoint(std::move(pointToPutCaret));
   }
 
   SplitRangeOffResult(const SplitRangeOffResult& aOther) = delete;
@@ -942,12 +777,7 @@ class MOZ_STACK_CLASS SplitRangeOffResult final {
   // the node might have gone with another DOM tree mutation.  So, be careful
   // if you do it.
 
-  // The point which is a good point to put caret from point of view the
-  // splitter.
-  EditorDOMPoint mCaretPoint;
-
   bool mHandled;
-  bool mutable mHandledCaretPoint = false;
 };
 
 /******************************************************************************
