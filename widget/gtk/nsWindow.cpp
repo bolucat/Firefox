@@ -2420,6 +2420,13 @@ nsWindow::WaylandPopupGetPositionFromLayout() {
     hints = GdkAnchorHints(hints | GDK_ANCHOR_SLIDE);
   }
 
+  // We want tooltips to flip verticaly or slide only.
+  // See nsMenuPopupFrame::SetPopupPosition().
+  // https://searchfox.org/mozilla-central/rev/d0f5bc50aff3462c9d1546b88d60c5cb020eb15c/layout/xul/nsMenuPopupFrame.cpp#1603
+  if (mPopupType == ePopupTypeTooltip) {
+    hints = GdkAnchorHints(GDK_ANCHOR_FLIP_Y | GDK_ANCHOR_SLIDE);
+  }
+
   return {
       anchorRect,
       rectAnchor,
@@ -8340,20 +8347,21 @@ gboolean WindowDragMotionHandler(GtkWidget* aWidget,
   GdkWindow* innerWindow = get_inner_gdk_window(gtk_widget_get_window(aWidget),
                                                 aX, aY, &retx, &rety);
   RefPtr<nsWindow> innerMostWindow = get_window_for_gdk_window(innerWindow);
-
   if (!innerMostWindow) {
     innerMostWindow = window;
   }
 
-  int tx = 0, ty = 0;
   // Workaround for Bug 1710344
   // Caused by Gtk issue https://gitlab.gnome.org/GNOME/gtk/-/issues/4437
   if (innerMostWindow->IsWaylandPopup()) {
-    gdk_window_get_position(innerWindow, &tx, &ty);
+    int tx = 0, ty = 0;
+    gdk_window_get_position(innerMostWindow->GetToplevelGdkWindow(), &tx, &ty);
+    retx += tx;
+    rety += ty;
   }
 
   LayoutDeviceIntPoint point =
-      innerMostWindow->GdkPointToDevicePixels({retx + tx, rety + ty});
+      innerMostWindow->GdkPointToDevicePixels({retx, rety});
   LOGDRAG("WindowDragMotionHandler nsWindow %p coords [%d, %d]\n",
           innerMostWindow.get(), retx, rety);
 

@@ -588,6 +588,9 @@ class nsIFrame : public nsQueryFrame {
         mHasModifiedDescendants(false),
         mHasOverrideDirtyRegion(false),
         mMayHaveWillChangeBudget(false),
+#ifdef DEBUG
+        mWasVisitedByAutoFrameConstructionPageName(false),
+#endif
         mIsPrimaryFrame(false),
         mMayHaveTransformAnimation(false),
         mMayHaveOpacityAnimation(false),
@@ -1296,12 +1299,62 @@ class nsIFrame : public nsQueryFrame {
   // frame construction, we insert page breaks when we begin a new page box and
   // the previous page box had a different name.
   struct PageValues {
-    // mFirstChildPageName of null is used to indicate that no child has been
-    // constructed yet.
+    // A value of null indicates that the value is equal to what auto resolves
+    // to for this frame.
     RefPtr<const nsAtom> mStartPageValue = nullptr;
     RefPtr<const nsAtom> mEndPageValue = nullptr;
   };
   NS_DECLARE_FRAME_PROPERTY_DELETABLE(PageValuesProperty, PageValues)
+
+  const nsAtom* GetStartPageValue() const {
+    if (const PageValues* const values =
+            FirstInFlow()->GetProperty(PageValuesProperty())) {
+      return values->mStartPageValue;
+    }
+    return nullptr;
+  }
+
+  const nsAtom* GetEndPageValue() const {
+    if (const PageValues* const values =
+            FirstInFlow()->GetProperty(PageValuesProperty())) {
+      return values->mEndPageValue;
+    }
+    return nullptr;
+  }
+
+ private:
+  // The value that the CSS page-name "auto" keyword resolves to for children
+  // of this frame.
+  //
+  // A missing value for this property indicates that the auto value is the
+  // empty string, which is the default if no ancestors of a frame specify a
+  // page name. This avoids ever storing this property if the document doesn't
+  // use named pages.
+  //
+  // https://www.w3.org/TR/css-page-3/#using-named-pages
+  //
+  // Ideally this would be a const atom, but that isn't possible with the
+  // Release() call. This isn't too bad, since it's hidden behind constness-
+  // preserving getter/setter.
+  NS_DECLARE_FRAME_PROPERTY_RELEASABLE(AutoPageValueProperty, nsAtom)
+
+ public:
+  // Get the value that the CSS page-name "auto" keyword resolves to for
+  // children of this frame.
+  // This is needed when propagating page-name values up the frame tree.
+  const nsAtom* GetAutoPageValue() const {
+    if (const nsAtom* const atom = GetProperty(AutoPageValueProperty())) {
+      return atom;
+    }
+    return nsGkAtoms::_empty;
+  }
+  void SetAutoPageValue(const nsAtom* aAtom) {
+    MOZ_ASSERT(aAtom, "Atom must not be null");
+    nsAtom* const atom = const_cast<nsAtom*>(aAtom);
+    if (atom != nsGkAtoms::_empty) {
+      SetProperty(AutoPageValueProperty(), do_AddRef(atom).take());
+    }
+  }
 
   NS_DECLARE_FRAME_PROPERTY_SMALL_VALUE(LineBaselineOffset, nscoord)
 
@@ -5148,6 +5201,18 @@ class nsIFrame : public nsQueryFrame {
    */
   bool mMayHaveWillChangeBudget : 1;
 
+#ifdef DEBUG
+ public:
+  /**
+   * True if this frame has already been been visited by
+   * nsCSSFrameConstructor::AutoFrameConstructionPageName.
+   *
+   * This is used to assert that we have visited each frame only once, and is
+   * not useful otherwise.
+   */
+  bool mWasVisitedByAutoFrameConstructionPageName : 1;
+#endif
+
  private:
   /**
    * True if this is the primary frame for mContent.
@@ -5663,36 +5728,6 @@ inline bool nsFrameList::StartRemoveFrame(nsIFrame* aFrame) {
 inline void nsFrameList::Enumerator::Next() {
   NS_ASSERTION(!AtEnd(), "Should have checked AtEnd()!");
   mFrame = mFrame->GetNextSibling();
-}
-
-inline nsFrameList::FrameLinkEnumerator::FrameLinkEnumerator(
-    const nsFrameList& aList, nsIFrame* aPrevFrame)
-    : Enumerator(aList) {
-  mPrev = aPrevFrame;
-  mFrame = aPrevFrame ? aPrevFrame->GetNextSibling() : aList.FirstChild();
-}
-
-inline void nsFrameList::FrameLinkEnumerator::Next() {
-  mPrev = mFrame;
-  Enumerator::Next();
-}
-
-template <typename Predicate>
-inline void nsFrameList::FrameLinkEnumerator::Find(Predicate&& aPredicate) {
-  static_assert(
-      std::is_same<typename mozilla::FunctionTypeTraits<Predicate>::ReturnType,
-                   bool>::value &&
-          mozilla::FunctionTypeTraits<Predicate>::arity == 1 &&
-          std::is_same<typename mozilla::FunctionTypeTraits<
-                           Predicate>::template ParameterType<0>,
-                       nsIFrame*>::value,
-      "aPredicate should be of this function signature: bool(nsIFrame*)");
-
-  for (; !AtEnd(); Next()) {
-    if (aPredicate(mFrame)) {
-      return;
-    }
-  }
 }
 
 // Operators of nsFrameList::Iterator

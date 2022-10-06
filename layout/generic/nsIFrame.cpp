@@ -6524,24 +6524,21 @@ nsIFrame::SizeComputationResult nsIFrame::ComputeSize(
   }
 
   if (IsThemed(disp)) {
-    LayoutDeviceIntSize widget;
-    bool canOverride = true;
-    nsPresContext* presContext = PresContext();
-    presContext->Theme()->GetMinimumWidgetSize(
-        presContext, this, disp->EffectiveAppearance(), &widget, &canOverride);
+    nsPresContext* pc = PresContext();
+    const LayoutDeviceIntSize widget = pc->Theme()->GetMinimumWidgetSize(
+        pc, this, disp->EffectiveAppearance());
 
     // Convert themed widget's physical dimensions to logical coords
-    LogicalSize size(aWM,
-                     nsSize(presContext->DevPixelsToAppUnits(widget.width),
-                            presContext->DevPixelsToAppUnits(widget.height)));
+    LogicalSize size(aWM, LayoutDeviceIntSize::ToAppUnits(
+                              widget, pc->AppUnitsPerDevPixel()));
 
     // GetMinimumWidgetSize() returns border-box; we need content-box.
     size -= aBorderPadding;
 
-    if (size.BSize(aWM) > result.BSize(aWM) || !canOverride) {
+    if (size.BSize(aWM) > result.BSize(aWM)) {
       result.BSize(aWM) = size.BSize(aWM);
     }
-    if (size.ISize(aWM) > result.ISize(aWM) || !canOverride) {
+    if (size.ISize(aWM) > result.ISize(aWM)) {
       result.ISize(aWM) = size.ISize(aWM);
     }
   }
@@ -7968,20 +7965,22 @@ void nsIFrame::ListGeneric(nsACString& aTo, const char* aPrefix,
     aTo += nsPrintfCString(" next-%s=%p", fluid ? "in-flow" : "continuation",
                            static_cast<void*>(GetNextContinuation()));
   }
+  if (const nsAtom* const autoPageValue =
+          GetProperty(AutoPageValueProperty())) {
+    aTo += " AutoPage=";
+    aTo += nsAtomCString(autoPageValue);
+  }
   if (const nsIFrame::PageValues* const pageValues =
           GetProperty(PageValuesProperty())) {
-    nsAutoCString name;
     aTo += " PageValues={";
     if (pageValues->mStartPageValue) {
-      pageValues->mStartPageValue->ToUTF8String(name);
-      aTo += name;
+      aTo += nsAtomCString(pageValues->mStartPageValue);
     } else {
       aTo += "<null>";
     }
     aTo += ", ";
     if (pageValues->mEndPageValue) {
-      pageValues->mEndPageValue->ToUTF8String(name);
-      aTo += name;
+      aTo += nsAtomCString(pageValues->mEndPageValue);
     } else {
       aTo += "<null>";
     }

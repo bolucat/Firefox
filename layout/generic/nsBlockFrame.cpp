@@ -733,10 +733,8 @@ static bool RemoveFirstLine(nsLineList& aFromLines, nsFrameList& aFromFrames,
   *aOutLine = removedLine;
   nsLineList_iterator next = aFromLines.erase(removedLine);
   bool isLastLine = next == aFromLines.end();
-  nsIFrame* lastFrame = isLastLine ? aFromFrames.LastChild()
-                                   : next->mFirstChild->GetPrevSibling();
-  nsFrameList::FrameLinkEnumerator linkToBreak(aFromFrames, lastFrame);
-  *aOutFrames = aFromFrames.ExtractHead(linkToBreak);
+  nsIFrame* firstFrameInNextLine = isLastLine ? nullptr : next->mFirstChild;
+  *aOutFrames = aFromFrames.ExtractHead(firstFrameInNextLine);
   return isLastLine;
 }
 
@@ -2823,18 +2821,11 @@ void nsBlockFrame::ReflowDirtyLines(BlockReflowState& aState) {
     if (canBreakForPageNames && (!aState.mReflowInput.mFlags.mIsTopOfPage ||
                                  !aState.IsAdjacentWithBStart())) {
       const nsIFrame* const frame = line->mFirstChild;
-      if (const nsIFrame* prevFrame = frame->GetPrevSibling()) {
-        if (const nsIFrame::PageValues* const pageValues =
-                frame->FirstInFlow()->GetProperty(
-                    nsIFrame::PageValuesProperty())) {
-          const nsIFrame::PageValues* const prevPageValues =
-              prevFrame->FirstInFlow()->GetProperty(
-                  nsIFrame::PageValuesProperty());
-          if (prevPageValues &&
-              prevPageValues->mEndPageValue != pageValues->mStartPageValue) {
-            shouldBreakForPageName = true;
-            line->MarkDirty();
-          }
+      if (const nsIFrame* const prevFrame = frame->GetPrevSibling()) {
+        if (!frame->IsPlaceholderFrame() && !prevFrame->IsPlaceholderFrame() &&
+            frame->GetStartPageValue() != prevFrame->GetEndPageValue()) {
+          shouldBreakForPageName = true;
+          line->MarkDirty();
         }
       }
     }

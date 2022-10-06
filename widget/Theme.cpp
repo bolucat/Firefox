@@ -72,7 +72,6 @@ static constexpr gfx::sRGBColor sColorMeterRed10(
 static constexpr gfx::sRGBColor sColorMeterRed20(
     gfx::sRGBColor::UnusualFromARGB(0xff810220));
 
-static const CSSCoord kMinimumColorPickerHeight = 32.0f;
 static const CSSCoord kMinimumRangeThumbSize = 20.0f;
 static const CSSCoord kMinimumDropdownArrowButtonWidth = 18.0f;
 static const CSSCoord kMinimumSpinnerButtonWidth = 18.0f;
@@ -1504,45 +1503,34 @@ UniquePtr<ScrollbarDrawing> Theme::ScrollbarStyle() {
 #endif
 }
 
-NS_IMETHODIMP
-Theme::GetMinimumWidgetSize(nsPresContext* aPresContext, nsIFrame* aFrame,
-                            StyleAppearance aAppearance,
-                            LayoutDeviceIntSize* aResult,
-                            bool* aIsOverridable) {
+LayoutDeviceIntSize Theme::GetMinimumWidgetSize(nsPresContext* aPresContext,
+                                                nsIFrame* aFrame,
+                                                StyleAppearance aAppearance) {
   DPIRatio dpiRatio = GetDPIRatio(aFrame, aAppearance);
 
-  aResult->width = aResult->height = 0;
-  *aIsOverridable = true;
-
   if (IsWidgetScrollbarPart(aAppearance)) {
-    *aResult = GetScrollbarDrawing().GetMinimumWidgetSize(aPresContext,
-                                                          aAppearance, aFrame);
-    return NS_OK;
+    return GetScrollbarDrawing().GetMinimumWidgetSize(aPresContext, aAppearance,
+                                                      aFrame);
   }
 
+  LayoutDeviceIntSize result;
   switch (aAppearance) {
-    case StyleAppearance::Button:
-      if (aFrame->IsColorControlFrame()) {
-        aResult->height = (kMinimumColorPickerHeight * dpiRatio).Rounded();
-      }
-      break;
     case StyleAppearance::RangeThumb:
-      aResult->SizeTo((kMinimumRangeThumbSize * dpiRatio).Rounded(),
-                      (kMinimumRangeThumbSize * dpiRatio).Rounded());
+      result.SizeTo((kMinimumRangeThumbSize * dpiRatio).Rounded(),
+                    (kMinimumRangeThumbSize * dpiRatio).Rounded());
       break;
     case StyleAppearance::MozMenulistArrowButton:
-      aResult->width = (kMinimumDropdownArrowButtonWidth * dpiRatio).Rounded();
+      result.width = (kMinimumDropdownArrowButtonWidth * dpiRatio).Rounded();
       break;
     case StyleAppearance::SpinnerUpbutton:
     case StyleAppearance::SpinnerDownbutton:
-      aResult->width = (kMinimumSpinnerButtonWidth * dpiRatio).Rounded();
-      aResult->height = (kMinimumSpinnerButtonHeight * dpiRatio).Rounded();
+      result.width = (kMinimumSpinnerButtonWidth * dpiRatio).Rounded();
+      result.height = (kMinimumSpinnerButtonHeight * dpiRatio).Rounded();
       break;
     default:
       break;
   }
-
-  return NS_OK;
+  return result;
 }
 
 nsITheme::Transparency Theme::GetWidgetTransparency(

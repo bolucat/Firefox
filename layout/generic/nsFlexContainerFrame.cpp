@@ -57,6 +57,11 @@ static bool IsLegacyBox(const nsIFrame* aFlexContainer) {
       NS_STATE_FLEX_IS_EMULATING_LEGACY_WEBKIT_BOX);
 }
 
+static bool IsLegacyMozBox(const nsFlexContainerFrame* aFlexContainer) {
+  return aFlexContainer->HasAnyStateBits(
+      NS_STATE_FLEX_IS_EMULATING_LEGACY_MOZ_BOX);
+}
+
 // Returns the OrderState enum we should pass to CSSOrderAwareFrameIterator
 // (depending on whether aFlexContainer has
 // NS_STATE_FLEX_NORMAL_FLOW_CHILDREN_IN_CSS_ORDER state bit).
@@ -1432,55 +1437,6 @@ FlexItem* nsFlexContainerFrame::GenerateFlexItemForChild(
       aAxisTracker, childWM, childRI.ComputedMaxISize(),
       childRI.ComputedMaxBSize());
 
-  // SPECIAL-CASE FOR WIDGET-IMPOSED SIZES
-  // Check if we're a themed widget, in which case we might have a minimum
-  // main & cross size imposed by our widget (which we can't go below), or
-  // (more severe) our widget might have only a single valid size.
-  bool isFixedSizeWidget = false;
-  const nsStyleDisplay* disp = aChildFrame->StyleDisplay();
-  if (aChildFrame->IsThemed(disp)) {
-    LayoutDeviceIntSize widgetMinSize;
-    bool canOverride = true;
-    PresContext()->Theme()->GetMinimumWidgetSize(PresContext(), aChildFrame,
-                                                 disp->EffectiveAppearance(),
-                                                 &widgetMinSize, &canOverride);
-
-    nscoord widgetMainMinSize = PresContext()->DevPixelsToAppUnits(
-        aAxisTracker.MainComponent(widgetMinSize));
-    nscoord widgetCrossMinSize = PresContext()->DevPixelsToAppUnits(
-        aAxisTracker.CrossComponent(widgetMinSize));
-
-    // GetMinimumWidgetSize() returns border-box. We need content-box, so
-    // subtract borderPadding.
-    const LogicalMargin bpInFlexWM =
-        childRI.ComputedLogicalBorderPadding(flexWM);
-    widgetMainMinSize -= aAxisTracker.MarginSizeInMainAxis(bpInFlexWM);
-    widgetCrossMinSize -= aAxisTracker.MarginSizeInCrossAxis(bpInFlexWM);
-    // ... (but don't let that push these min sizes below 0).
-    widgetMainMinSize = std::max(0, widgetMainMinSize);
-    widgetCrossMinSize = std::max(0, widgetCrossMinSize);
-
-    if (!canOverride) {
-      // Fixed-size widget: freeze our main-size at the widget's mandated size.
-      // (Set min and max main-sizes to that size, too, to keep us from
-      // clamping to any other size later on.)
-      flexBaseSize = mainMinSize = mainMaxSize = widgetMainMinSize;
-      tentativeCrossSize = crossMinSize = crossMaxSize = widgetCrossMinSize;
-      isFixedSizeWidget = true;
-    } else {
-      // Variable-size widget: ensure our min/max sizes are at least as large
-      // as the widget's mandated minimum size, so we don't flex below that.
-      mainMinSize = std::max(mainMinSize, widgetMainMinSize);
-      mainMaxSize = std::max(mainMaxSize, widgetMainMinSize);
-
-      if (tentativeCrossSize != NS_UNCONSTRAINEDSIZE) {
-        tentativeCrossSize = std::max(tentativeCrossSize, widgetCrossMinSize);
-      }
-      crossMinSize = std::max(crossMinSize, widgetCrossMinSize);
-      crossMaxSize = std::max(crossMaxSize, widgetCrossMinSize);
-    }
-  }
-
   // Construct the flex item!
   FlexItem* item = aLine.Items().EmplaceBack(
       childRI, flexGrow, flexShrink, flexBaseSize, mainMinSize, mainMaxSize,
@@ -1518,9 +1474,8 @@ FlexItem* nsFlexContainerFrame::GenerateFlexItemForChild(
   item->ResolveFlexBaseSizeFromAspectRatio(childRI);
 
   // If we're inflexible, we can just freeze to our hypothetical main-size
-  // up-front. Similarly, if we're a fixed-size widget, we only have one
-  // valid size, so we freeze to keep ourselves from flexing.
-  if (isFixedSizeWidget || (flexGrow == 0.0f && flexShrink == 0.0f)) {
+  // up-front.
+  if (flexGrow == 0.0f && flexShrink == 0.0f) {
     item->Freeze();
     if (flexBaseSize < mainMinSize) {
       item->SetWasMinClamped();
@@ -4037,37 +3992,6 @@ LogicalSide FlexboxAxisTracker::CrossAxisStartSide() const {
       CrossAxis(), IsCrossAxisReversed() ? eLogicalEdgeEnd : eLogicalEdgeStart);
 }
 
-bool nsFlexContainerFrame::ShouldUseMozBoxCollapseBehavior(
-    const nsStyleDisplay* aFlexStyleDisp) {
-  MOZ_ASSERT(StyleDisplay() == aFlexStyleDisp, "wrong StyleDisplay passed in");
-
-  // Quick filter to screen out *actual* (not-coopted-for-emulation)
-  // flex containers, using state bit:
-  if (!IsLegacyBox(this)) {
-    return false;
-  }
-
-  // Check our own display value:
-  if (aFlexStyleDisp->mDisplay == mozilla::StyleDisplay::MozBox ||
-      aFlexStyleDisp->mDisplay == mozilla::StyleDisplay::MozInlineBox) {
-    return true;
-  }
-
-  // Check our parent's display value, if we're an anonymous box (with a
-  // potentially-untrustworthy display value):
-  auto pseudoType = Style()->GetPseudoType();
-  if (pseudoType == PseudoStyleType::scrolledContent ||
-      pseudoType == PseudoStyleType::buttonContent) {
-    const nsStyleDisplay* disp = GetParent()->StyleDisplay();
-    if (disp->mDisplay == mozilla::StyleDisplay::MozBox ||
-        disp->mDisplay == mozilla::StyleDisplay::MozInlineBox) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 void nsFlexContainerFrame::GenerateFlexLines(
     const ReflowInput& aReflowInput, const nscoord aTentativeContentBoxMainSize,
     const nscoord aTentativeContentBoxCrossSize,
@@ -4122,8 +4046,7 @@ void nsFlexContainerFrame::GenerateFlexLines(
                        iter.ItemsAreAlreadyInOrder());
 
   bool prevItemRequestedBreakAfter = false;
-  const bool useMozBoxCollapseBehavior =
-      ShouldUseMozBoxCollapseBehavior(aReflowInput.mStyleDisplay);
+  const bool useMozBoxCollapseBehavior = IsLegacyMozBox(this);
 
   for (; !iter.AtEnd(); iter.Next()) {
     nsIFrame* childFrame = *iter;
@@ -5183,7 +5106,7 @@ nsFlexContainerFrame::FlexLayoutResult nsFlexContainerFrame::DoFlexLayout(
   // constructor), we can create struts for any flex items with
   // "visibility: collapse" (and restart flex layout).
   if (aStruts.IsEmpty() &&  // (Don't make struts if we already did)
-      !ShouldUseMozBoxCollapseBehavior(aReflowInput.mStyleDisplay)) {
+      !IsLegacyMozBox(this)) {
     BuildStrutInfoFromCollapsedItems(flr.mLines, aStruts);
     if (!aStruts.IsEmpty()) {
       // Restart flex layout, using our struts.
@@ -5705,8 +5628,7 @@ nscoord nsFlexContainerFrame::IntrinsicISize(gfxContext* aRenderingContext,
                                                     NS_UNCONSTRAINEDSIZE);
   }
 
-  const bool useMozBoxCollapseBehavior =
-      ShouldUseMozBoxCollapseBehavior(StyleDisplay());
+  const bool useMozBoxCollapseBehavior = IsLegacyMozBox(this);
 
   // The loop below sets aside space for a gap before each item besides the
   // first. This bool helps us handle that special-case.
