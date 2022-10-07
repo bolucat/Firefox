@@ -167,12 +167,22 @@ class nsFrameList {
   void RemoveFrame(nsIFrame* aFrame);
 
   /**
-   * Take the frames after aAfterFrame out of the frame list.  If
-   * aAfterFrame is null, removes the entire list.
-   * @param aAfterFrame a frame in this list, or null
-   * @return the removed frames, if any
+   * Take all the frames before aFrame out of the frame list; aFrame and all the
+   * frames after it stay in this list. If aFrame is nullptr, remove the entire
+   * frame list.
+   * @param aFrame a frame in this frame list, or nullptr.
+   * @return the removed frames, if any.
    */
-  nsFrameList RemoveFramesAfter(nsIFrame* aAfterFrame);
+  [[nodiscard]] nsFrameList TakeFramesBefore(nsIFrame* aFrame);
+
+  /**
+   * Take all the frames after aFrame out of the frame list; aFrame and all the
+   * frames before it stay in this list. If aFrame is nullptr, removes the
+   * entire list.
+   * @param aFrame a frame in this list, or nullptr.
+   * @return the removed frames, if any.
+   */
+  [[nodiscard]] nsFrameList TakeFramesAfter(nsIFrame* aFrame);
 
   /**
    * Take the first frame (if any) out of the frame list.
@@ -260,27 +270,11 @@ class nsFrameList {
 
     for (nsIFrame* f : *this) {
       if (aPredicate(f)) {
-        return ExtractHead(f);
+        return TakeFramesBefore(f);
       }
     }
     return std::move(*this);
   }
-
-  /**
-   * Split this frame list such that all the previous siblings of aFrame end up
-   * in the returned list, while aFrame and all its next siblings stay in this
-   * list. If aFrame is nullptr, extract the entire frame list.
-   * Note: aFrame must be in this frame list!
-   */
-  nsFrameList ExtractHead(nsIFrame* aFrame);
-
-  /**
-   * Split this frame list such that aFrame and all its next siblings end up in
-   * the returned list; all the previous siblings of aFrame stay in this list.
-   * If aFrame is nullptr, return an empty frame list.
-   * Note: aFrame must be in this frame list!
-   */
-  nsFrameList ExtractTail(nsIFrame* aFrame);
 
   nsIFrame* FirstChild() const { return mFirstChild; }
 

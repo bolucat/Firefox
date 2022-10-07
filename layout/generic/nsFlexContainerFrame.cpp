@@ -1179,8 +1179,7 @@ static void BuildStrutInfoFromCollapsedItems(const nsTArray<FlexLine>& aLines,
   uint32_t itemIdxInContainer = 0;
   for (const FlexLine& line : aLines) {
     for (const FlexItem& item : line.Items()) {
-      if (StyleVisibility::Collapse ==
-          item.Frame()->StyleVisibility()->mVisible) {
+      if (item.Frame()->StyleVisibility()->IsCollapse()) {
         // Note the cross size of the line as the item's strut size.
         aStruts.AppendElement(
             StrutInfo(itemIdxInContainer, line.LineCrossSize()));
@@ -2212,7 +2211,7 @@ FlexItem::FlexItem(nsIFrame* aChildFrame, nscoord aCrossSize,
       mIsStrut(true),  // (this is the constructor for making struts, after all)
       mAlignSelf({StyleAlignFlags::FLEX_START}) {
   MOZ_ASSERT(mFrame, "expecting a non-null child frame");
-  MOZ_ASSERT(StyleVisibility::Collapse == mFrame->StyleVisibility()->mVisible,
+  MOZ_ASSERT(mFrame->StyleVisibility()->IsCollapse(),
              "Should only make struts for children with 'visibility:collapse'");
   MOZ_ASSERT(!mFrame->IsPlaceholderFrame(),
              "placeholder frames should not be treated as flex items");
@@ -3997,7 +3996,7 @@ void nsFlexContainerFrame::GenerateFlexLines(
     const nscoord aTentativeContentBoxCrossSize,
     const nsTArray<StrutInfo>& aStruts, const FlexboxAxisTracker& aAxisTracker,
     nscoord aMainGapSize, nsTArray<nsIFrame*>& aPlaceholders,
-    nsTArray<FlexLine>& aLines /* out */) {
+    nsTArray<FlexLine>& aLines, bool& aHasCollapsedItems) {
   MOZ_ASSERT(aLines.IsEmpty(), "Expecting outparam to start out empty");
 
   auto ConstructNewFlexLine = [&aLines, aMainGapSize]() {
@@ -4065,9 +4064,10 @@ void nsFlexContainerFrame::GenerateFlexLines(
       prevItemRequestedBreakAfter = false;
     }
 
-    if (useMozBoxCollapseBehavior &&
-        (StyleVisibility::Collapse ==
-         childFrame->StyleVisibility()->mVisible)) {
+    const bool collapsed = childFrame->StyleVisibility()->IsCollapse();
+    aHasCollapsedItems = aHasCollapsedItems || collapsed;
+
+    if (useMozBoxCollapseBehavior && collapsed) {
       // Legacy visibility:collapse behavior: make a 0-sized strut. (No need to
       // bother with aStruts and remembering cross size.)
       curLine->Items().EmplaceBack(childFrame, 0, aReflowInput.GetWritingMode(),
@@ -4623,57 +4623,61 @@ void nsFlexContainerFrame::Reflow(nsPresContext* aPresContext,
 
   // Overflow area = union(my overflow area, children's overflow areas)
   aReflowOutput.SetOverflowAreasToDesiredBounds();
-  for (nsIFrame* childFrame : mFrames) {
-    ConsiderChildOverflow(aReflowOutput.mOverflowAreas, childFrame);
+
+  // The CSS Overflow spec [1] requires that a scrollable container's
+  // scrollable overflow should include the following areas.
+  //
+  // a) "the box's own content and padding areas": we treat the *content* as
+  // the scrolled inner frame's theoretical content-box that's intrinsically
+  // sized to the union of all the flex items' margin boxes, _without_
+  // relative positioning applied. The *padding areas* is just inflation on
+  // top of the theoretical content-box by the flex container's padding.
+  //
+  // b) "the margin areas of grid item and flex item boxes for which the box
+  // establishes a containing block": a) already includes the flex items'
+  // normal-positioned margin boxes into the scrollable overflow, but their
+  // relative-positioned margin boxes should also be included because relpos
+  // children are still flex items.
+  //
+  // [1] https://drafts.csswg.org/css-overflow-3/#scrollable.
+  const bool isScrolledContent =
+      Style()->GetPseudoType() == PseudoStyleType::scrolledContent;
+  MOZ_ASSERT(
+      !isScrolledContent || aReflowInput.ComputedLogicalBorderPadding(wm) ==
+                                aReflowInput.ComputedLogicalPadding(wm),
+      "A scrolled inner frame shouldn't have any border!");
+
+  bool anyScrolledContentItem = false;
+  // Union of normal-positioned margin boxes for all the items.
+  nsRect itemMarginBoxes;
+  // Union of relative-positioned margin boxes for the relpos items only.
+  nsRect relPosItemMarginBoxes;
+  const bool useMozBoxCollapseBehavior = IsLegacyMozBox(this);
+  for (nsIFrame* f : mFrames) {
+    if (useMozBoxCollapseBehavior && f->StyleVisibility()->IsCollapse()) {
+      continue;
+    }
+    ConsiderChildOverflow(aReflowOutput.mOverflowAreas, f);
+    if (!isScrolledContent) {
+      continue;
+    }
+    if (f->IsPlaceholderFrame()) {
+      continue;
+    }
+    anyScrolledContentItem = true;
+    if (MOZ_UNLIKELY(f->IsRelativelyOrStickyPositioned())) {
+      const nsRect marginRect = f->GetMarginRectRelativeToSelf();
+      itemMarginBoxes =
+          itemMarginBoxes.Union(marginRect + f->GetNormalPosition());
+      relPosItemMarginBoxes =
+          relPosItemMarginBoxes.Union(marginRect + f->GetPosition());
+    } else {
+      itemMarginBoxes = itemMarginBoxes.Union(f->GetMarginRect());
+    }
   }
 
-  MOZ_ASSERT(!flr.mLines.IsEmpty(),
-             "Flex container should have at least one FlexLine!");
-  if (Style()->GetPseudoType() == PseudoStyleType::scrolledContent &&
-      !flr.mLines.IsEmpty() && !flr.mLines[0].IsEmpty()) {
-    MOZ_ASSERT(aReflowInput.ComputedLogicalBorderPadding(wm) ==
-                   aReflowInput.ComputedLogicalPadding(wm),
-               "A scrolled inner frame shouldn't have any border!");
-    const LogicalMargin& padding = borderPadding;
-
-    // The CSS Overflow spec [1] requires that a scrollable container's
-    // scrollable overflow should include the following areas.
-    //
-    // a) "the box's own content and padding areas": we treat the *content* as
-    // the scrolled inner frame's theoretical content-box that's intrinsically
-    // sized to the union of all the flex items' margin boxes, _without_
-    // relative positioning applied. The *padding areas* is just inflation on
-    // top of the theoretical content-box by the flex container's padding.
-    //
-    // b) "the margin areas of grid item and flex item boxes for which the box
-    // establishes a containing block": a) already includes the flex items'
-    // normal-positioned margin boxes into the scrollable overflow, but their
-    // relative-positioned margin boxes should also be included because relpos
-    // children are still flex items.
-    //
-    // [1] https://drafts.csswg.org/css-overflow-3/#scrollable.
-
-    // Union of normal-positioned margin boxes for all the items.
-    nsRect itemMarginBoxes;
-    // Union of relative-positioned margin boxes for the relpos items only.
-    nsRect relPosItemMarginBoxes;
-
-    for (const FlexLine& line : flr.mLines) {
-      for (const FlexItem& item : line.Items()) {
-        const nsIFrame* f = item.Frame();
-        if (MOZ_UNLIKELY(f->IsRelativelyOrStickyPositioned())) {
-          const nsRect marginRect = f->GetMarginRectRelativeToSelf();
-          itemMarginBoxes =
-              itemMarginBoxes.Union(marginRect + f->GetNormalPosition());
-          relPosItemMarginBoxes =
-              relPosItemMarginBoxes.Union(marginRect + f->GetPosition());
-        } else {
-          itemMarginBoxes = itemMarginBoxes.Union(f->GetMarginRect());
-        }
-      }
-    }
-
-    itemMarginBoxes.Inflate(padding.GetPhysicalMargin(wm));
+  if (anyScrolledContentItem) {
+    itemMarginBoxes.Inflate(borderPadding.GetPhysicalMargin(wm));
     aReflowOutput.mOverflowAreas.UnionAllWith(itemMarginBoxes);
     aReflowOutput.mOverflowAreas.UnionAllWith(relPosItemMarginBoxes);
   }
@@ -5007,7 +5011,8 @@ nsFlexContainerFrame::FlexLayoutResult nsFlexContainerFrame::DoFlexLayout(
 
   GenerateFlexLines(aReflowInput, aTentativeContentBoxMainSize,
                     aTentativeContentBoxCrossSize, aStruts, aAxisTracker,
-                    aMainGapSize, flr.mPlaceholders, flr.mLines);
+                    aMainGapSize, flr.mPlaceholders, flr.mLines,
+                    flr.mHasCollapsedItems);
 
   if ((flr.mLines.Length() == 1 && flr.mLines[0].IsEmpty()) ||
       aReflowInput.mStyleDisplay->IsContainLayout()) {
@@ -5105,8 +5110,8 @@ nsFlexContainerFrame::FlexLayoutResult nsFlexContainerFrame::DoFlexLayout(
   // "align-content:stretch" adjustments, from the CrossAxisPositionTracker
   // constructor), we can create struts for any flex items with
   // "visibility: collapse" (and restart flex layout).
-  if (aStruts.IsEmpty() &&  // (Don't make struts if we already did)
-      !IsLegacyMozBox(this)) {
+  // Make sure to only do this if we had no struts.
+  if (aStruts.IsEmpty() && !IsLegacyMozBox(this) && flr.mHasCollapsedItems) {
     BuildStrutInfoFromCollapsedItems(flr.mLines, aStruts);
     if (!aStruts.IsEmpty()) {
       // Restart flex layout, using our struts.
@@ -5640,31 +5645,33 @@ nscoord nsFlexContainerFrame::IntrinsicISize(gfxContext* aRenderingContext,
       continue;
     }
 
-    // If we're using legacy "visibility:collapse" behavior, then we don't
-    // care about the sizes of any collapsed children.
-    if (!useMozBoxCollapseBehavior ||
-        (StyleVisibility::Collapse !=
-         childFrame->StyleVisibility()->mVisible)) {
-      nscoord childISize = nsLayoutUtils::IntrinsicForContainer(
-          aRenderingContext, childFrame, aType);
-      // * For a row-oriented single-line flex container, the intrinsic
-      // {min/pref}-isize is the sum of its items' {min/pref}-isizes and
-      // (n-1) column gaps.
-      // * For a column-oriented flex container, the intrinsic min isize
-      // is the max of its items' min isizes.
-      // * For a row-oriented multi-line flex container, the intrinsic
-      // pref isize is former (sum), and its min isize is the latter (max).
-      bool isSingleLine = (StyleFlexWrap::Nowrap == stylePos->mFlexWrap);
-      if (axisTracker.IsRowOriented() &&
-          (isSingleLine || aType == IntrinsicISizeType::PrefISize)) {
-        containerISize += childISize;
-        if (!onFirstChild) {
-          containerISize += mainGapSize;
-        }
-        onFirstChild = false;
-      } else {  // (col-oriented, or MinISize for multi-line row flex container)
-        containerISize = std::max(containerISize, childISize);
+    if (useMozBoxCollapseBehavior &&
+        childFrame->StyleVisibility()->IsCollapse()) {
+      // If we're using legacy "visibility:collapse" behavior, then we don't
+      // care about the sizes of any collapsed children.
+      continue;
+    }
+
+    nscoord childISize = nsLayoutUtils::IntrinsicForContainer(
+        aRenderingContext, childFrame, aType);
+
+    // * For a row-oriented single-line flex container, the intrinsic
+    // {min/pref}-isize is the sum of its items' {min/pref}-isizes and
+    // (n-1) column gaps.
+    // * For a column-oriented flex container, the intrinsic min isize
+    // is the max of its items' min isizes.
+    // * For a row-oriented multi-line flex container, the intrinsic
+    // pref isize is former (sum), and its min isize is the latter (max).
+    bool isSingleLine = (StyleFlexWrap::Nowrap == stylePos->mFlexWrap);
+    if (axisTracker.IsRowOriented() &&
+        (isSingleLine || aType == IntrinsicISizeType::PrefISize)) {
+      containerISize += childISize;
+      if (!onFirstChild) {
+        containerISize += mainGapSize;
       }
+      onFirstChild = false;
+    } else {  // (col-oriented, or MinISize for multi-line row flex container)
+      containerISize = std::max(containerISize, childISize);
     }
   }
 

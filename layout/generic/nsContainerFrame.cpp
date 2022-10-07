@@ -685,8 +685,8 @@ void nsContainerFrame::ReparentFrameViewList(const nsFrameList& aChildFrameList,
     nsViewManager* viewManager = oldParentView->GetViewManager();
 
     // They're not so we need to reparent any child views
-    for (nsFrameList::Enumerator e(aChildFrameList); !e.AtEnd(); e.Next()) {
-      e.get()->ReparentFrameViewTo(viewManager, newParentView, oldParentView);
+    for (nsIFrame* f : aChildFrameList) {
+      f->ReparentFrameViewTo(viewManager, newParentView, oldParentView);
     }
   }
 }
@@ -1426,7 +1426,7 @@ nsFrameList nsContainerFrame::StealFramesAfter(nsIFrame* aChild) {
 
   for (nsIFrame* f : mFrames) {
     if (f == aChild) {
-      return mFrames.ExtractTail(f->GetNextSibling());
+      return mFrames.TakeFramesAfter(f);
     }
   }
 
@@ -1435,7 +1435,7 @@ nsFrameList nsContainerFrame::StealFramesAfter(nsIFrame* aChild) {
   if (nsFrameList* overflowFrames = GetOverflowFrames()) {
     for (nsIFrame* f : *overflowFrames) {
       if (f == aChild) {
-        return mFrames.ExtractTail(f->GetNextSibling());
+        return mFrames.TakeFramesAfter(f);
       }
     }
   }
@@ -1523,7 +1523,7 @@ void nsContainerFrame::PushChildrenToOverflow(nsIFrame* aFromChild,
 
   // Add the frames to our overflow list (let our next in flow drain
   // our overflow list when it is ready)
-  SetOverflowFrames(mFrames.RemoveFramesAfter(aPrevSibling));
+  SetOverflowFrames(mFrames.TakeFramesAfter(aPrevSibling));
 }
 
 void nsContainerFrame::PushChildren(nsIFrame* aFromChild,
@@ -1533,7 +1533,7 @@ void nsContainerFrame::PushChildren(nsIFrame* aFromChild,
   MOZ_ASSERT(aPrevSibling->GetNextSibling() == aFromChild, "bad prev sibling");
 
   // Disconnect aFromChild from its previous sibling
-  nsFrameList tail = mFrames.RemoveFramesAfter(aPrevSibling);
+  nsFrameList tail = mFrames.TakeFramesAfter(aPrevSibling);
 
   nsContainerFrame* nextInFlow =
       static_cast<nsContainerFrame*>(GetNextInFlow());
@@ -2950,9 +2950,7 @@ nsresult nsOverflowContinuationTracker::Insert(nsIFrame* aOverflowCont,
     nsIFrame* nif = aOverflowCont->GetNextInFlow();
     if ((pif && pif->GetParent() == mParent && pif != mPrevOverflowCont) ||
         (nif && nif->GetParent() == mParent && mPrevOverflowCont)) {
-      for (nsFrameList::Enumerator e(*mOverflowContList); !e.AtEnd();
-           e.Next()) {
-        nsIFrame* f = e.get();
+      for (nsIFrame* f : *mOverflowContList) {
         if (f == pif) {
           mPrevOverflowCont = pif;
           break;

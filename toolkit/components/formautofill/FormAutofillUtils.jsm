@@ -1288,8 +1288,8 @@ XPCOMUtils.defineLazyPreferenceGetter(
 
 XPCOMUtils.defineLazyPreferenceGetter(
   FormAutofillUtils,
-  "ccHeuristicsThreshold",
-  "extensions.formautofill.creditCards.heuristics.confidenceThreshold",
+  "ccFathomConfidenceThreshold",
+  "extensions.formautofill.creditCards.heuristics.fathom.confidenceThreshold",
   null,
   null,
   pref => parseFloat(pref)
@@ -1297,8 +1297,8 @@ XPCOMUtils.defineLazyPreferenceGetter(
 
 XPCOMUtils.defineLazyPreferenceGetter(
   FormAutofillUtils,
-  "ccHeuristicsNumberOnlyThreshold",
-  "extensions.formautofill.creditCards.heuristics.numberOnly.confidenceThreshold",
+  "ccFathomHighConfidenceThreshold",
+  "extensions.formautofill.creditCards.heuristics.fathom.highConfidenceThreshold",
   null,
   null,
   pref => parseFloat(pref)
@@ -1306,13 +1306,9 @@ XPCOMUtils.defineLazyPreferenceGetter(
 
 XPCOMUtils.defineLazyPreferenceGetter(
   FormAutofillUtils,
-  "ccHeuristicTestConfidence",
-  "extensions.formautofill.creditCards.heuristics.testConfidence",
-  null
-);
-
-XPCOMUtils.defineLazyPreferenceGetter(
-  FormAutofillUtils,
-  "ccHeuristicsNameExpirySection",
-  "extensions.formautofill.creditCards.heuristics.nameExpirySection.enabled"
+  "ccFathomTestConfidence",
+  "extensions.formautofill.creditCards.heuristics.fathom.testConfidence",
+  null,
+  null,
+  pref => parseFloat(pref)
 );
