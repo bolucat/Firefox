@@ -139,8 +139,8 @@ add_task(async function checkBadStsCert() {
         let advancedButton = doc.getElementById("advancedButton");
         advancedButton.click();
 
-        // aboutNetError.js is using async localization to format several messages
-        // and in result the translation may be applied later.
+        // aboutNetError.mjs is using async localization to format several
+        // messages and in result the translation may be applied later.
         // We want to return the textContent of the element only after
         // the translation completes, so let's wait for it here.
         let elements = [doc.getElementById("badCertTechnicalInfo")];
@@ -189,9 +189,7 @@ add_task(async function checkhideAddExceptionButtonViaPref() {
         ? content.document.querySelector("iframe").contentDocument
         : content.document;
 
-      let exceptionButton = doc.querySelector(
-        ".exceptionDialogButtonContainer"
-      );
+      let exceptionButton = doc.getElementById("exceptionDialogButton");
       ok(
         ContentTaskUtils.is_hidden(exceptionButton),
         "Exception button is hidden."
