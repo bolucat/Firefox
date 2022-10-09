@@ -294,8 +294,7 @@
 
       // Watch out for lazy editor init
       if (this._findField.editor) {
-        let tm = this._findField.editor.transactionManager;
-        return !!(tm.numberOfUndoItems || tm.numberOfRedoItems);
+        return this._findField.editor.canUndo || this._findField.editor.canRedo;
       }
       return false;
     }
@@ -762,9 +761,7 @@
       this.browser.finder.removeSelection();
       // Clear value and undo/redo transactions
       this._findField.value = "";
-      if (this._findField.editor) {
-        this._findField.editor.transactionManager.clear();
-      }
+      this._findField.editor?.clearUndoRedo();
       this.toggleHighlight(false);
       this._updateStatusUI();
       this._enableFindButtons(false);
