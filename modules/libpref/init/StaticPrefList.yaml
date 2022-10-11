@@ -4953,6 +4953,15 @@
   value: false
   mirror: always
 
+# Allow showing of current profile along with process names, NOT
+# including processes from Private Windows
+# Setting this pref creates a privacy leak, but helps greatly with
+# debugging
+- name: fission.processProfileName
+  type: bool
+  value: false
+  mirror: always
+
 # If true, allow process-switching documents loaded by <object> and <embed>
 # elements into a remote process.
 # NOTE: This pref has no impact outside of windows with the
@@ -8041,7 +8050,7 @@
 # Is support for the @font-palette-values rule and font-palette property enabled?
 - name: layout.css.font-palette.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
   rust: true
 
@@ -8069,7 +8078,7 @@
 # Is support for the tech() function in the @font-face src descriptor enabled?
 - name: layout.css.font-tech.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
   rust: true
 
@@ -13842,10 +13851,15 @@
 # unless they have e.g.
 # https://html.spec.whatwg.org/multipage/canvas.html#2dcontext:dom-canvasrenderingcontext2dsettings-desynchronized
 # enabled, which defaults to false.
-# This pref enables async present in cases where it is allowed.
+# This pref=true with webgl.out-of-process.async-present.force-sync=false
+# enables async present in cases where it is allowed.
 - name: webgl.out-of-process.async-present
   type: RelaxedAtomicBool
+#if !defined(MOZ_WIDGET_ANDROID) && defined(EARLY_BETA_OR_EARLIER)
+  value: true
+#else
   value: false
+#endif
   mirror: always
 
 # Forces async present to wait for a sync, even while using remote textures.

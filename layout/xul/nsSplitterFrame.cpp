@@ -52,8 +52,40 @@ class nsSplitterInfo {
   nscoord current;
   nscoord changed;
   nsCOMPtr<nsIContent> childElem;
-  int32_t flex;
 };
+
+enum class ResizeType {
+  // Resize the closest sibling in a given direction.
+  Closest,
+  // Resize the farthest sibling in a given direction.
+  Farthest,
+  // Resize only flexible siblings in a given direction.
+  Flex,
+  // No space should be taken out of any children in that direction.
+  // FIXME(emilio): This is a rather odd name...
+  Grow,
+};
+static ResizeType ResizeTypeFromAttribute(const Element& aElement,
+                                          nsAtom* aAttribute) {
+  static Element::AttrValuesArray strings[] = {
+      nsGkAtoms::farthest, nsGkAtoms::flex, nsGkAtoms::grow, nullptr};
+  switch (aElement.FindAttrValueIn(kNameSpaceID_None, aAttribute, strings,
+                                   eCaseMatters)) {
+    case 0:
+      return ResizeType::Farthest;
+    case 1:
+      return ResizeType::Flex;
+    case 2:
+      // Grow only applies to resizeAfter.
+      if (aAttribute == nsGkAtoms::resizeafter) {
+        return ResizeType::Grow;
+      }
+      break;
+    default:
+      break;
+  }
+  return ResizeType::Closest;
+}
 
 class nsSplitterFrameInner final : public nsIDOMEventListener {
  protected:
@@ -76,31 +108,27 @@ class nsSplitterFrameInner final : public nsIDOMEventListener {
   void MouseUp(nsPresContext* aPresContext, WidgetGUIEvent* aEvent);
 
   void AdjustChildren(nsPresContext* aPresContext);
-  void AdjustChildren(nsPresContext* aPresContext, nsSplitterInfo* aChildInfos,
-                      int32_t aCount, bool aIsHorizontal);
+  void AdjustChildren(nsPresContext* aPresContext,
+                      nsTArray<nsSplitterInfo>& aChildInfos,
+                      bool aIsHorizontal);
 
-  void AddRemoveSpace(nscoord aDiff, nsSplitterInfo* aChildInfos,
-                      int32_t aCount, int32_t& aSpaceLeft);
+  void AddRemoveSpace(nscoord aDiff, nsTArray<nsSplitterInfo>& aChildInfos,
+                      int32_t& aSpaceLeft);
 
-  void ResizeChildTo(nscoord& aDiff, nsSplitterInfo* aChildrenBeforeInfos,
-                     nsSplitterInfo* aChildrenAfterInfos,
-                     int32_t aChildrenBeforeCount, int32_t aChildrenAfterCount,
-                     bool aBounded);
+  void ResizeChildTo(nscoord& aDiff, bool aBounded);
 
   void UpdateState();
 
   void AddListener();
   void RemoveListener();
 
-  enum ResizeType { Closest, Farthest, Flex, Grow };
-  enum State { Open, CollapsedBefore, CollapsedAfter, Dragging };
+  enum class State { Open, CollapsedBefore, CollapsedAfter, Dragging };
   enum CollapseDirection { Before, After };
 
   ResizeType GetResizeBefore();
   ResizeType GetResizeAfter();
   State GetState();
 
-  void Reverse(UniquePtr<nsSplitterInfo[]>& aIndexes, int32_t aCount);
   bool SupportsCollapseDirection(CollapseDirection aDirection);
 
   void EnsureOrient();
@@ -112,11 +140,9 @@ class nsSplitterFrameInner final : public nsIDOMEventListener {
   nscoord mDragStart = 0;
   nsIFrame* mParentBox = nullptr;
   bool mPressed = false;
-  UniquePtr<nsSplitterInfo[]> mChildInfosBefore;
-  UniquePtr<nsSplitterInfo[]> mChildInfosAfter;
-  int32_t mChildInfosBeforeCount = 0;
-  int32_t mChildInfosAfterCount = 0;
-  State mState = Open;
+  nsTArray<nsSplitterInfo> mChildInfosBefore;
+  nsTArray<nsSplitterInfo> mChildInfosAfter;
+  State mState = State::Open;
   nscoord mSplitterPos = 0;
   bool mDragging = false;
 
@@ -127,35 +153,15 @@ class nsSplitterFrameInner final : public nsIDOMEventListener {
 
 NS_IMPL_ISUPPORTS(nsSplitterFrameInner, nsIDOMEventListener)
 
-nsSplitterFrameInner::ResizeType nsSplitterFrameInner::GetResizeBefore() {
-  static Element::AttrValuesArray strings[] = {nsGkAtoms::farthest,
-                                               nsGkAtoms::flex, nullptr};
-  switch (SplitterElement()->FindAttrValueIn(
-      kNameSpaceID_None, nsGkAtoms::resizebefore, strings, eCaseMatters)) {
-    case 0:
-      return Farthest;
-    case 1:
-      return Flex;
-  }
-  return Closest;
+ResizeType nsSplitterFrameInner::GetResizeBefore() {
+  return ResizeTypeFromAttribute(*SplitterElement(), nsGkAtoms::resizebefore);
+}
+
+ResizeType nsSplitterFrameInner::GetResizeAfter() {
+  return ResizeTypeFromAttribute(*SplitterElement(), nsGkAtoms::resizeafter);
 }
 
 nsSplitterFrameInner::~nsSplitterFrameInner() = default;
-
-nsSplitterFrameInner::ResizeType nsSplitterFrameInner::GetResizeAfter() {
-  static Element::AttrValuesArray strings[] = {
-      nsGkAtoms::farthest, nsGkAtoms::flex, nsGkAtoms::grow, nullptr};
-  switch (SplitterElement()->FindAttrValueIn(
-      kNameSpaceID_None, nsGkAtoms::resizeafter, strings, eCaseMatters)) {
-    case 0:
-      return Farthest;
-    case 1:
-      return Flex;
-    case 2:
-      return Grow;
-  }
-  return Closest;
-}
 
 nsSplitterFrameInner::State nsSplitterFrameInner::GetState() {
   static Element::AttrValuesArray strings[] = {nsGkAtoms::dragging,
@@ -165,21 +171,23 @@ nsSplitterFrameInner::State nsSplitterFrameInner::GetState() {
   switch (SplitterElement()->FindAttrValueIn(
       kNameSpaceID_None, nsGkAtoms::state, strings, eCaseMatters)) {
     case 0:
-      return Dragging;
+      return State::Dragging;
     case 1:
       switch (SplitterElement()->FindAttrValueIn(
           kNameSpaceID_None, nsGkAtoms::substate, strings_substate,
           eCaseMatters)) {
         case 0:
-          return CollapsedBefore;
+          return State::CollapsedBefore;
         case 1:
-          return CollapsedAfter;
+          return State::CollapsedAfter;
         default:
-          if (SupportsCollapseDirection(After)) return CollapsedAfter;
-          return CollapsedBefore;
+          if (SupportsCollapseDirection(After)) {
+            return State::CollapsedAfter;
+          }
+          return State::CollapsedBefore;
       }
   }
-  return Open;
+  return State::Open;
 }
 
 //
@@ -230,7 +238,6 @@ void nsSplitterFrame::Init(nsIContent* aContent, nsContainerFrame* aParent,
 
   nsBoxFrame::Init(aContent, aParent, aPrevInFlow);
 
-  mInner->mState = nsSplitterFrameInner::Open;
   mInner->AddListener();
   mInner->mParentBox = nullptr;
 }
@@ -351,7 +358,7 @@ void nsSplitterFrameInner::MouseUp(nsPresContext* aPresContext,
     mDragging = false;
     State newState = GetState();
     // if the state is dragging then make it Open.
-    if (newState == Dragging) {
+    if (newState == State::Dragging) {
       mOuter->mContent->AsElement()->SetAttr(kNameSpaceID_None,
                                              nsGkAtoms::state, u""_ns, true);
     }
@@ -368,10 +375,8 @@ void nsSplitterFrameInner::MouseUp(nsPresContext* aPresContext,
     // printf("MouseUp\n");
   }
 
-  mChildInfosBefore = nullptr;
-  mChildInfosAfter = nullptr;
-  mChildInfosBeforeCount = 0;
-  mChildInfosAfterCount = 0;
+  mChildInfosBefore.Clear();
+  mChildInfosAfter.Clear();
 }
 
 void nsSplitterFrameInner::MouseDrag(nsPresContext* aPresContext,
@@ -391,20 +396,18 @@ void nsSplitterFrameInner::MouseDrag(nsPresContext* aPresContext,
 
   ResizeType resizeAfter = GetResizeAfter();
 
-  const bool bounded = resizeAfter != nsSplitterFrameInner::Grow;
+  const bool bounded = resizeAfter != ResizeType::Grow;
 
-  for (int i = 0; i < mChildInfosBeforeCount; i++) {
-    mChildInfosBefore[i].changed = mChildInfosBefore[i].current;
+  for (auto& info : mChildInfosBefore) {
+    info.changed = info.current;
   }
 
-  for (int i = 0; i < mChildInfosAfterCount; i++) {
-    mChildInfosAfter[i].changed = mChildInfosAfter[i].current;
+  for (auto& info : mChildInfosAfter) {
+    info.changed = info.current;
   }
-
   nscoord oldPos = pos;
 
-  ResizeChildTo(pos, mChildInfosBefore.get(), mChildInfosAfter.get(),
-                mChildInfosBeforeCount, mChildInfosAfterCount, bounded);
+  ResizeChildTo(pos, bounded);
 
   State currentState = GetState();
   bool supportsBefore = SupportsCollapseDirection(Before);
@@ -424,7 +427,7 @@ void nsSplitterFrameInner::MouseDrag(nsPresContext* aPresContext,
   // if we are in a collapsed position
   if (isCollapsedBefore || isCollapsedAfter) {
     // and we are not collapsed then collapse
-    if (currentState == Dragging) {
+    if (currentState == State::Dragging) {
       if (pastEnd) {
         // printf("Collapse right\n");
         if (supportsAfter) {
@@ -449,7 +452,7 @@ void nsSplitterFrameInner::MouseDrag(nsPresContext* aPresContext,
   } else {
     // if we are not in a collapsed position and we are not dragging make sure
     // we are dragging.
-    if (currentState != Dragging) {
+    if (currentState != State::Dragging) {
       mOuter->mContent->AsElement()->SetAttr(
           kNameSpaceID_None, nsGkAtoms::state, u"dragging"_ns, true);
     }
@@ -537,7 +540,6 @@ nsresult nsSplitterFrameInner::MouseDown(Event* aMouseEvent) {
   // get our index
   nsPresContext* outerPresContext = mOuter->PresContext();
 
-  const int32_t childCount = mParentBox->PrincipalChildList().GetLength();
   RefPtr<gfxContext> rc =
       outerPresContext->PresShell()->CreateReferenceRenderingContext();
   nsBoxLayoutState state(outerPresContext, rc);
@@ -545,18 +547,15 @@ nsresult nsSplitterFrameInner::MouseDown(Event* aMouseEvent) {
   mDidDrag = false;
 
   EnsureOrient();
-  bool isHorizontal = !mOuter->IsXULHorizontal();
+  const bool isHorizontal = !mOuter->IsXULHorizontal();
 
-  ResizeType resizeBefore = GetResizeBefore();
-  ResizeType resizeAfter = GetResizeAfter();
+  const ResizeType resizeBefore = GetResizeBefore();
+  const ResizeType resizeAfter = GetResizeAfter();
+  const int32_t childCount = mParentBox->PrincipalChildList().GetLength();
 
-  mChildInfosBefore = MakeUnique<nsSplitterInfo[]>(childCount);
-  mChildInfosAfter = MakeUnique<nsSplitterInfo[]>(childCount);
-
-  // create info 2 lists. One of the children before us and one after.
+  mChildInfosBefore.Clear();
+  mChildInfosAfter.Clear();
   int32_t count = 0;
-  mChildInfosBeforeCount = 0;
-  mChildInfosAfterCount = 0;
 
   bool foundOuter = false;
   CSSOrderAwareFrameIterator iter(
@@ -572,31 +571,49 @@ nsresult nsSplitterFrameInner::MouseDown(Event* aMouseEvent) {
         // We're at the beginning, nothing to do.
         return NS_OK;
       }
-      if (count == childCount - 1 && resizeAfter != Grow) {
-        // if it's the last index then we need to allow for resizeafter="grow"
+      if (count == childCount - 1 && resizeAfter != ResizeType::Grow) {
+        // If it's the last index then we need to allow for resizeafter="grow"
         return NS_OK;
       }
     }
     count++;
 
     nsIContent* content = childBox->GetContent();
-    if (auto* element = nsXULElement::FromNode(content)) {
-      if (element->NodeInfo()->NameAtom() == nsGkAtoms::splitter) {
-        // skip over any splitters
-        continue;
-      }
+    const nscoord flex = childBox->GetXULFlex();
+    const bool isBefore = !foundOuter;
+    const bool isResizable = [&] {
+      if (auto* element = nsXULElement::FromNode(content)) {
+        if (element->NodeInfo()->NameAtom() == nsGkAtoms::splitter) {
+          // skip over any splitters
+          return false;
+        }
 
-      // We need to check for hidden attribute too, since treecols with
-      // the hidden="true" attribute are not really hidden, just collapsed
-      if (element->GetXULBoolAttr(nsGkAtoms::fixed) ||
-          element->GetXULBoolAttr(nsGkAtoms::hidden)) {
-        continue;
+        // We need to check for hidden attribute too, since treecols with
+        // the hidden="true" attribute are not really hidden, just collapsed
+        if (element->GetXULBoolAttr(nsGkAtoms::fixed) ||
+            element->GetXULBoolAttr(nsGkAtoms::hidden)) {
+          return false;
+        }
       }
+      const ResizeType resizeType = isBefore ? resizeBefore : resizeAfter;
+      switch (resizeType) {
+        case ResizeType::Grow:
+          return false;
+        case ResizeType::Flex:
+          return flex > 0;
+        case ResizeType::Closest:
+        case ResizeType::Farthest:
+          break;
+      }
+      return true;
+    }();
+
+    if (!isResizable) {
+      continue;
     }
 
     nsSize minSize;
     nsSize maxSize(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
-    const nscoord flex = childBox->GetXULFlex();
     if (childBox->IsXULBoxFrame()) {
       nsSize prefSize = childBox->GetXULPrefSize(state);
       minSize = childBox->GetXULMinSize(state);
@@ -618,31 +635,13 @@ nsresult nsSplitterFrameInner::MouseDown(Event* aMouseEvent) {
     childBox->GetXULMargin(margin);
     nsRect r(childBox->GetRect());
     r.Inflate(margin);
-    if (!foundOuter && (resizeBefore != Flex || flex > 0)) {
-      mChildInfosBefore[mChildInfosBeforeCount].childElem = content;
-      mChildInfosBefore[mChildInfosBeforeCount].min =
-          isHorizontal ? minSize.width : minSize.height;
-      mChildInfosBefore[mChildInfosBeforeCount].max =
-          isHorizontal ? maxSize.width : maxSize.height;
-      mChildInfosBefore[mChildInfosBeforeCount].current =
-          isHorizontal ? r.width : r.height;
-      mChildInfosBefore[mChildInfosBeforeCount].flex = flex;
-      mChildInfosBefore[mChildInfosBeforeCount].changed =
-          mChildInfosBefore[mChildInfosBeforeCount].current;
-      mChildInfosBeforeCount++;
-    } else if (foundOuter && (resizeAfter != Flex || flex > 0)) {
-      mChildInfosAfter[mChildInfosAfterCount].childElem = content;
-      mChildInfosAfter[mChildInfosAfterCount].min =
-          isHorizontal ? minSize.width : minSize.height;
-      mChildInfosAfter[mChildInfosAfterCount].max =
-          isHorizontal ? maxSize.width : maxSize.height;
-      mChildInfosAfter[mChildInfosAfterCount].current =
-          isHorizontal ? r.width : r.height;
-      mChildInfosAfter[mChildInfosAfterCount].flex = flex;
-      mChildInfosAfter[mChildInfosAfterCount].changed =
-          mChildInfosAfter[mChildInfosAfterCount].current;
-      mChildInfosAfterCount++;
-    }
+
+    auto& list = isBefore ? mChildInfosBefore : mChildInfosAfter;
+    nsSplitterInfo& info = *list.AppendElement();
+    info.childElem = content;
+    info.min = isHorizontal ? minSize.width : minSize.height;
+    info.max = isHorizontal ? maxSize.width : maxSize.height;
+    info.current = info.changed = isHorizontal ? r.width : r.height;
   }
 
   if (!foundOuter) {
@@ -668,28 +667,25 @@ nsresult nsSplitterFrameInner::MouseDown(Event* aMouseEvent) {
   if (reverseDirection) {
     // The before array is really the after array, and the order needs to be
     // reversed. First reverse both arrays.
-    Reverse(mChildInfosBefore, mChildInfosBeforeCount);
-    Reverse(mChildInfosAfter, mChildInfosAfterCount);
+    mChildInfosBefore.Reverse();
+    mChildInfosAfter.Reverse();
 
     // Now swap the two arrays.
-    std::swap(mChildInfosBeforeCount, mChildInfosAfterCount);
     std::swap(mChildInfosBefore, mChildInfosAfter);
   }
 
   // if resizebefore is not Farthest, reverse the list because the first child
   // in the list is the farthest, and we want the first child to be the closest.
-  if (resizeBefore != Farthest)
-    Reverse(mChildInfosBefore, mChildInfosBeforeCount);
+  if (resizeBefore != ResizeType::Farthest) {
+    mChildInfosBefore.Reverse();
+  }
 
   // if the resizeafter is the Farthest we must reverse the list because the
   // first child in the list is the closest we want the first child to be the
   // Farthest.
-  if (resizeAfter == Farthest) Reverse(mChildInfosAfter, mChildInfosAfterCount);
-
-  // grow only applies to the children after. If grow is set then no space
-  // should be taken out of any children after us. To do this we just set the
-  // size of that list to be 0.
-  if (resizeAfter == Grow) mChildInfosAfterCount = 0;
+  if (resizeAfter == ResizeType::Farthest) {
+    mChildInfosAfter.Reverse();
+  }
 
   int32_t c;
   nsPoint pt =
@@ -730,15 +726,6 @@ nsresult nsSplitterFrameInner::MouseMove(Event* aMouseEvent) {
   mDragging = true;
 
   return NS_OK;
-}
-
-void nsSplitterFrameInner::Reverse(UniquePtr<nsSplitterInfo[]>& aChildInfos,
-                                   int32_t aCount) {
-  UniquePtr<nsSplitterInfo[]> infos(new nsSplitterInfo[aCount]);
-
-  for (int i = 0; i < aCount; i++) infos[i] = aChildInfos[aCount - 1 - i];
-
-  aChildInfos = std::move(infos);
 }
 
 bool nsSplitterFrameInner::SupportsCollapseDirection(
@@ -782,22 +769,24 @@ void nsSplitterFrameInner::UpdateState() {
   if ((SupportsCollapseDirection(Before) || SupportsCollapseDirection(After)) &&
       IsValidParentBox(mOuter->GetParent())) {
     // Find the splitter's immediate sibling.
-    const bool prev = newState == CollapsedBefore || mState == CollapsedBefore;
+    const bool prev =
+        newState == State::CollapsedBefore || mState == State::CollapsedBefore;
     nsIFrame* splitterSibling =
         nsBoxFrame::SlowOrdinalGroupAwareSibling(mOuter, !prev);
     if (splitterSibling) {
       nsCOMPtr<nsIContent> sibling = splitterSibling->GetContent();
       if (sibling && sibling->IsElement()) {
-        if (mState == CollapsedBefore || mState == CollapsedAfter) {
+        if (mState == State::CollapsedBefore ||
+            mState == State::CollapsedAfter) {
           // CollapsedBefore -> Open
           // CollapsedBefore -> Dragging
           // CollapsedAfter -> Open
           // CollapsedAfter -> Dragging
           nsContentUtils::AddScriptRunner(new nsUnsetAttrRunnable(
               sibling->AsElement(), nsGkAtoms::collapsed));
-        } else if ((mState == Open || mState == Dragging) &&
-                   (newState == CollapsedBefore ||
-                    newState == CollapsedAfter)) {
+        } else if ((mState == State::Open || mState == State::Dragging) &&
+                   (newState == State::CollapsedBefore ||
+                    newState == State::CollapsedAfter)) {
           // Open -> CollapsedBefore / CollapsedAfter
           // Dragging -> CollapsedBefore / CollapsedAfter
           nsContentUtils::AddScriptRunner(new nsSetAttrRunnable(
@@ -820,10 +809,8 @@ void nsSplitterFrameInner::AdjustChildren(nsPresContext* aPresContext) {
   EnsureOrient();
   const bool isHorizontal = !mOuter->IsXULHorizontal();
 
-  AdjustChildren(aPresContext, mChildInfosBefore.get(), mChildInfosBeforeCount,
-                 isHorizontal);
-  AdjustChildren(aPresContext, mChildInfosAfter.get(), mChildInfosAfterCount,
-                 isHorizontal);
+  AdjustChildren(aPresContext, mChildInfosBefore, isHorizontal);
+  AdjustChildren(aPresContext, mChildInfosAfter, isHorizontal);
 }
 
 static nsIFrame* GetChildBoxForContent(nsIFrame* aParentBox,
@@ -838,17 +825,16 @@ static nsIFrame* GetChildBoxForContent(nsIFrame* aParentBox,
 }
 
 void nsSplitterFrameInner::AdjustChildren(nsPresContext* aPresContext,
-                                          nsSplitterInfo* aChildInfos,
-                                          int32_t aCount, bool aIsHorizontal) {
+                                          nsTArray<nsSplitterInfo>& aChildInfos,
+                                          bool aIsHorizontal) {
   /// printf("------- AdjustChildren------\n");
 
   nsBoxLayoutState state(aPresContext);
 
-  for (int i = 0; i < aCount; i++) {
-    nscoord pref = aChildInfos[i].changed;
-    nsIFrame* childBox =
-        GetChildBoxForContent(mParentBox, aChildInfos[i].childElem);
-    if (childBox) {
+  for (auto& info : aChildInfos) {
+    nscoord pref = info.changed;
+    if (nsIFrame* childBox =
+            GetChildBoxForContent(mParentBox, info.childElem)) {
       SetPreferredSize(state, childBox, aIsHorizontal, &pref);
     }
   }
@@ -903,14 +889,14 @@ void nsSplitterFrameInner::SetPreferredSize(nsBoxLayoutState& aState,
 }
 
 void nsSplitterFrameInner::AddRemoveSpace(nscoord aDiff,
-                                          nsSplitterInfo* aChildInfos,
-                                          int32_t aCount, int32_t& aSpaceLeft) {
+                                          nsTArray<nsSplitterInfo>& aChildInfos,
+                                          int32_t& aSpaceLeft) {
   aSpaceLeft = 0;
 
-  for (int i = 0; i < aCount; i++) {
-    nscoord min = aChildInfos[i].min;
-    nscoord max = aChildInfos[i].max;
-    nscoord& c = aChildInfos[i].changed;
+  for (auto& info : aChildInfos) {
+    nscoord min = info.min;
+    nscoord max = info.max;
+    nscoord& c = info.changed;
 
     // figure our how much space to add or remove
     if (c + aDiff < min) {
@@ -925,7 +911,9 @@ void nsSplitterFrameInner::AddRemoveSpace(nscoord aDiff,
     }
 
     // there is not space left? We are done
-    if (aDiff == 0) break;
+    if (aDiff == 0) {
+      break;
+    }
   }
 
   aSpaceLeft = aDiff;
@@ -939,25 +927,17 @@ void nsSplitterFrameInner::AddRemoveSpace(nscoord aDiff,
  * set it.
  */
 
-void nsSplitterFrameInner::ResizeChildTo(nscoord& aDiff,
-                                         nsSplitterInfo* aChildrenBeforeInfos,
-                                         nsSplitterInfo* aChildrenAfterInfos,
-                                         int32_t aChildrenBeforeCount,
-                                         int32_t aChildrenAfterCount,
-                                         bool aBounded) {
+void nsSplitterFrameInner::ResizeChildTo(nscoord& aDiff, bool aBounded) {
   nscoord spaceLeft;
-  AddRemoveSpace(aDiff, aChildrenBeforeInfos, aChildrenBeforeCount, spaceLeft);
+  AddRemoveSpace(aDiff, mChildInfosBefore, spaceLeft);
 
   // if there is any space left over remove it from the dif we were originally
   // given
   aDiff -= spaceLeft;
-  AddRemoveSpace(-aDiff, aChildrenAfterInfos, aChildrenAfterCount, spaceLeft);
+  AddRemoveSpace(-aDiff, mChildInfosAfter, spaceLeft);
 
-  if (spaceLeft != 0) {
-    if (aBounded) {
-      aDiff += spaceLeft;
-      AddRemoveSpace(spaceLeft, aChildrenBeforeInfos, aChildrenBeforeCount,
-                     spaceLeft);
-    }
+  if (spaceLeft != 0 && aBounded) {
+    aDiff += spaceLeft;
+    AddRemoveSpace(spaceLeft, mChildInfosBefore, spaceLeft);
   }
 }

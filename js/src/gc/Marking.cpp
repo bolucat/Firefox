@@ -1253,25 +1253,19 @@ GCMarker::MarkQueueProgress GCMarker::processMarkQueue() {
       }
 
       // Mark the object and push it onto the stack.
+      size_t oldPosition = stack.position();
       markAndTraverse(obj);
 
-      if (isMarkStackEmpty()) {
-        if (obj->asTenured().arena()->onDelayedMarkingList()) {
-          AutoEnterOOMUnsafeRegion oomUnsafe;
-          oomUnsafe.crash("mark queue OOM");
-        }
-      }
-
-      // Process just the one object that is now on top of the mark stack,
-      // possibly pushing more stuff onto the stack.
-      if (isMarkStackEmpty()) {
+      // If we overflow the stack here and delay marking, then we won't be
+      // testing what we think we're testing.
+      if (stack.position() == oldPosition) {
         MOZ_ASSERT(obj->asTenured().arena()->onDelayedMarkingList());
-        // If we overflow the stack here and delay marking, then we won't be
-        // testing what we think we're testing.
         AutoEnterOOMUnsafeRegion oomUnsafe;
         oomUnsafe.crash("Overflowed stack while marking test queue");
       }
 
+      // Process just the one object that is now on top of the mark stack,
+      // possibly pushing more stuff onto the stack.
       SliceBudget unlimited = SliceBudget::unlimited();
       processMarkStackTop(unlimited);
     } else if (val.isString()) {
@@ -1385,10 +1379,10 @@ bool GCMarker::markUntilBudgetExhausted(SliceBudget& budget,
     MOZ_ASSERT(!hasBlackEntries() && !hasGrayEntries());
     MOZ_ASSERT(barrierBuffer().empty());
 
-    // Mark children of things that caused too deep recursion during the
-    // above tracing.
-    if (hasDelayedChildren() && !markAllDelayedChildren(budget, reportTime)) {
-      return false;
+    // Mark children of things that caused too deep recursion during the above
+    // tracing.
+    if (hasDelayedChildren()) {
+      markAllDelayedChildren(reportTime);
     }
   }
 
@@ -1431,6 +1425,9 @@ inline void GCMarker::processMarkStackTop(SliceBudget& budget) {
    * marking slices, so we must check slots and element ranges read from the
    * stack.
    */
+
+  MOZ_ASSERT_IF(markColor() == MarkColor::Black, hasBlackEntries());
+  MOZ_ASSERT_IF(markColor() == MarkColor::Gray, hasGrayEntries());
 
   JSObject* obj;             // The object being scanned.
   SlotsOrElementsKind kind;  // The kind of slot range being scanned, if any.
@@ -2028,6 +2025,9 @@ void GCMarker::setMarkColor(gc::MarkColor newColor) {
 template <typename T>
 inline void GCMarker::pushTaggedPtr(T* ptr) {
   checkZone(ptr);
+  MOZ_ASSERT((markColor() == MarkColor::Black) ==
+             (stack.position() >= grayPosition));
+
   if (!stack.push(ptr)) {
     delayMarkingChildrenOnOOM(ptr);
   }
@@ -2038,6 +2038,8 @@ void GCMarker::pushValueRange(JSObject* obj, SlotsOrElementsKind kind,
   checkZone(obj);
   MOZ_ASSERT(obj->is<NativeObject>());
   MOZ_ASSERT(start <= end);
+  MOZ_ASSERT((markColor() == MarkColor::Black) ==
+             (stack.position() >= grayPosition));
 
   if (start == end) {
     return;
@@ -2178,12 +2180,12 @@ void GCMarker::markDelayedChildren(Arena* arena) {
 
 /*
  * Process arenas from |delayedMarkingList| by marking the unmarked children of
- * marked cells of color |color|. Return early if the |budget| is exceeded.
+ * marked cells of color |color|.
  *
  * This is called twice, first to mark gray children and then to mark black
  * children.
  */
-bool GCMarker::processDelayedMarkingList(MarkColor color, SliceBudget& budget) {
+void GCMarker::processDelayedMarkingList(MarkColor color) {
   // Marking delayed children may add more arenas to the list, including arenas
   // we are currently processing or have previously processed. Handle this by
   // clearing a flag on each arena before marking its children. This flag will
@@ -2199,26 +2201,17 @@ bool GCMarker::processDelayedMarkingList(MarkColor color, SliceBudget& budget) {
       if (arena->hasDelayedMarking(color)) {
         arena->setHasDelayedMarking(color, false);
         markDelayedChildren(arena);
-        budget.step(150);
-        if (budget.isOverBudget()) {
-          return false;
-        }
       }
     }
     while ((color == MarkColor::Black && hasBlackEntries()) ||
            (color == MarkColor::Gray && hasGrayEntries())) {
+      SliceBudget budget = SliceBudget::unlimited();
       processMarkStackTop(budget);
-      if (budget.isOverBudget()) {
-        return false;
-      }
     }
   } while (delayedMarkingWorkAdded);
-
-  return true;
 }
 
-bool GCMarker::markAllDelayedChildren(SliceBudget& budget,
-                                      ShouldReportMarkTime reportTime) {
+void GCMarker::markAllDelayedChildren(ShouldReportMarkTime reportTime) {
   MOZ_ASSERT(isMarkStackEmpty());
   MOZ_ASSERT(markColor() == MarkColor::Black);
   MOZ_ASSERT(delayedMarkingList);
@@ -2235,16 +2228,12 @@ bool GCMarker::markAllDelayedChildren(SliceBudget& budget,
 
   const MarkColor colors[] = {MarkColor::Black, MarkColor::Gray};
   for (MarkColor color : colors) {
-    bool finished = processDelayedMarkingList(color, budget);
+    processDelayedMarkingList(color);
     rebuildDelayedMarkingList();
-    if (!finished) {
-      return false;
-    }
   }
 
   MOZ_ASSERT(!delayedMarkingList);
   MOZ_ASSERT(!markLaterArenas);
-  return true;
 }
 
 void GCMarker::rebuildDelayedMarkingList() {

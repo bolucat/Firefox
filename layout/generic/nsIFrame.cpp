@@ -6734,6 +6734,7 @@ void nsIFrame::DidReflow(nsPresContext* aPresContext,
   NS_FRAME_TRACE(NS_FRAME_TRACE_CALLS, ("nsIFrame::DidReflow"));
 
   if (IsHiddenByContentVisibilityOfInFlowParentForLayout()) {
+    RemoveStateBits(NS_FRAME_IN_REFLOW | NS_FRAME_FIRST_REFLOW);
     return;
   }
 
@@ -6855,7 +6856,8 @@ bool nsIFrame::HidesContentForLayout() const {
 
 bool nsIFrame::IsHiddenByContentVisibilityOfInFlowParentForLayout() const {
   const auto* parent = GetInFlowParent();
-  return parent && parent->HidesContentForLayout() && !Style()->IsAnonBox();
+  return parent && parent->HidesContentForLayout() &&
+         !(Style()->IsAnonBox() && !IsFrameOfType(nsIFrame::eLineParticipant));
 }
 
 bool nsIFrame::IsHiddenByContentVisibilityOnAnyAncestor() const {
@@ -6863,18 +6865,17 @@ bool nsIFrame::IsHiddenByContentVisibilityOnAnyAncestor() const {
     return false;
   }
 
-  bool isAnonymousBox = Style()->IsAnonBox();
+  bool isAnonymousBlock =
+      Style()->IsAnonBox() && !IsFrameOfType(nsIFrame::eLineParticipant);
   for (nsIFrame* cur = GetInFlowParent(); cur; cur = cur->GetInFlowParent()) {
+    if (!isAnonymousBlock && cur->HidesContent()) {
+      return true;
+    }
+
     // Anonymous boxes are not hidden by the content-visibility of their first
     // non-anonymous ancestor, but can be hidden by ancestors further up the
     // tree.
-    if (isAnonymousBox && !cur->Style()->IsAnonBox()) {
-      isAnonymousBox = false;
-    }
-
-    if (!isAnonymousBox && cur->HidesContent()) {
-      return true;
-    }
+    isAnonymousBlock = false;
   }
 
   return false;
@@ -8448,39 +8449,6 @@ static nsresult GetNextPrevLineFromBlockFrame(nsPeekOffsetStruct* aPos,
           point.x = aPos->mDesiredCaretPos.x;
         }
 
-        // special check. if we allow non-text selection then we can allow a hit
-        // location to fall before a table. otherwise there is no way to get and
-        // click signal to fall before a table (it being a line iterator itself)
-        mozilla::PresShell* presShell = pc->PresShell();
-        int16_t isEditor = presShell->GetSelectionFlags();
-        isEditor = isEditor == nsISelectionDisplay::DISPLAY_ALL;
-        if (isEditor) {
-          if (resultFrame->IsTableWrapperFrame()) {
-            if (((point.x - offset.x + tempRect.x) < 0) ||
-                ((point.x - offset.x + tempRect.x) >
-                 tempRect.width))  // off left/right side
-            {
-              nsIContent* content = resultFrame->GetContent();
-              if (content) {
-                nsIContent* parent = content->GetParent();
-                if (parent) {
-                  aPos->mResultContent = parent;
-                  aPos->mContentOffset =
-                      parent->ComputeIndexOf_Deprecated(content);
-                  aPos->mAttach = CARET_ASSOCIATE_BEFORE;
-                  if ((point.x - offset.x + tempRect.x) > tempRect.width) {
-                    aPos->mContentOffset++;  // go to end of this frame
-                    aPos->mAttach = CARET_ASSOCIATE_AFTER;
-                  }
-                  // result frame is the result frames parent.
-                  aPos->mResultFrame = resultFrame->GetParent();
-                  return NS_POSITION_BEFORE_TABLE;
-                }
-              }
-            }
-          }
-        }
-
         if (!resultFrame->HasView()) {
           nsView* view;
           nsPoint offset;
@@ -9001,6 +8969,11 @@ nsresult nsIFrame::PeekOffsetForLine(nsPeekOffsetStruct* aPos) {
 
       if (!aPos->mResultFrame->CanProvideLineIterator()) {
         // no more selectable content at this level
+        break;
+      }
+
+      if (aPos->mResultFrame == blockFrame) {
+        // Make sure block element is not the same as the one we had before.
         break;
       }
 
