@@ -1491,6 +1491,10 @@ struct BaseCompiler final {
   inline void emitTernary(void (*op)(CompilerType&, ValType src0, ValType src1,
                                      ValType srcDest, ValType temp));
 
+  template <typename CompilerType, typename ValType>
+  inline void emitTernaryResultLast(void (*op)(CompilerType&, ValType src0,
+                                               ValType src1, ValType srcDest));
+
   template <typename R>
   [[nodiscard]] inline bool emitInstanceCallOp(
       const SymbolicAddressSignature& fn, R reader);
@@ -1665,6 +1669,7 @@ struct BaseCompiler final {
   void emitVectorAndNot();
 #  ifdef ENABLE_WASM_RELAXED_SIMD
   void emitDotI8x16I7x16AddS();
+  void emitDotBF16x8AddF32x4();
 #  endif
 
   void loadSplat(MemoryAccessDesc* access);
