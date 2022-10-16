@@ -1755,16 +1755,6 @@ void CanvasRenderingContext2D::UpdateIsOpaque() {
 }
 
 NS_IMETHODIMP
-CanvasRenderingContext2D::SetIsIPC(bool aIsIPC) {
-  if (aIsIPC != mIPC) {
-    mIPC = aIsIPC;
-    ClearTarget();
-  }
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 CanvasRenderingContext2D::SetContextOptions(JSContext* aCx,
                                             JS::Handle<JS::Value> aOptions,
                                             ErrorResult& aRvForDictionaryInit) {
@@ -4700,7 +4690,7 @@ SurfaceFromElementResult CanvasRenderingContext2D::CachedSurfaceFromElement(
     return res;
   }
 
-  res.mSourceSurface = CanvasImageCache::LookupAllCanvas(aElement);
+  res.mSourceSurface = CanvasImageCache::LookupAllCanvas(aElement, mTarget);
   if (!res.mSourceSurface) {
     return res;
   }
@@ -4846,8 +4836,8 @@ void CanvasRenderingContext2D::DrawImage(const CanvasImageSource& aImage,
       element = video;
     }
 
-    srcSurf = CanvasImageCache::LookupCanvas(element, mCanvasElement, &imgSize,
-                                             &intrinsicImgSize);
+    srcSurf = CanvasImageCache::LookupCanvas(element, mCanvasElement, mTarget,
+                                             &imgSize, &intrinsicImgSize);
   }
 
   DirectDrawInfo drawInfo;
@@ -4892,7 +4882,7 @@ void CanvasRenderingContext2D::DrawImage(const CanvasImageSource& aImage,
 
     if (res.mSourceSurface) {
       if (res.mImageRequest) {
-        CanvasImageCache::NotifyDrawImage(element, mCanvasElement,
+        CanvasImageCache::NotifyDrawImage(element, mCanvasElement, mTarget,
                                           res.mSourceSurface, imgSize,
                                           intrinsicImgSize);
       }
