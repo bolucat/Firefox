@@ -5470,7 +5470,7 @@
 #if defined(XP_MACOSX)
 - name: gfx.cairo_quartz_cg_layer.enabled
   type: bool
-  value: false
+  value: true
   mirror: always
 #endif
 
@@ -11716,6 +11716,11 @@
   type: bool
   value: false
   mirror: once
+
+- name: network.allow_large_stack_size_for_socket_thread
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
 
 #---------------------------------------------------------------------------
 # Prefs starting with "nglayout."
