@@ -819,7 +819,11 @@ class ProtonScreen extends (react__WEBPACK_IMPORTED_MODULE_0___default().PureCom
         background: content.background,
         "--mr-secondary-background-position-y": content.split_narrow_bkg_position
       } : {}
-    }, content.hero_image ? /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement(_HeroImage__WEBPACK_IMPORTED_MODULE_8__.HeroImage, {
+    }, content.image_alt_text ? /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("div", {
+      className: "sr-only image-alt",
+      role: "img",
+      "data-l10n-id": content.image_alt_text.string_id
+    }) : null, content.hero_image ? /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement(_HeroImage__WEBPACK_IMPORTED_MODULE_8__.HeroImage, {
       url: content.hero_image.url
     }) : /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement((react__WEBPACK_IMPORTED_MODULE_0___default().Fragment), null, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("div", {
       className: "message-text"
@@ -859,7 +863,7 @@ class ProtonScreen extends (react__WEBPACK_IMPORTED_MODULE_0___default().PureCom
     const currentStep = this.props.order + 1;
     return /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("main", {
       className: `screen ${this.props.id || ""} ${screenClassName} ${textColorClass}`,
-      role: "dialog",
+      role: "alertdialog",
       pos: content.position || "center",
       tabIndex: "-1",
       "aria-labelledby": "mainContentHeader",

@@ -900,7 +900,7 @@ dependencies = [
 [[package]]
 name = "coreaudio-sys-utils"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/cubeb-coreaudio-rs?rev=369c45504c45d74ebb19845506fb1596a471c7c9#369c45504c45d74ebb19845506fb1596a471c7c9"
+source = "git+https://github.com/mozilla/cubeb-coreaudio-rs?rev=93b5c01a131f65c83c11aeb317f4583405c5eb79#93b5c01a131f65c83c11aeb317f4583405c5eb79"
 dependencies = [
  "core-foundation-sys",
  "coreaudio-sys",
@@ -1146,7 +1146,7 @@ dependencies = [
 [[package]]
 name = "cubeb-coreaudio"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/cubeb-coreaudio-rs?rev=369c45504c45d74ebb19845506fb1596a471c7c9#369c45504c45d74ebb19845506fb1596a471c7c9"
+source = "git+https://github.com/mozilla/cubeb-coreaudio-rs?rev=93b5c01a131f65c83c11aeb317f4583405c5eb79#93b5c01a131f65c83c11aeb317f4583405c5eb79"
 dependencies = [
  "atomic",
  "audio-mixer",
@@ -1199,6 +1199,20 @@ name = "dap_ffi"
 version = "0.1.0"
 dependencies = [
  "prio",
+ "rand 0.7.999",
+ "thin-vec",
+]
+
+[[package]]
+name = "dap_ffi-gtest"
+version = "0.1.0"
+dependencies = [
+ "dap_ffi",
+ "hex",
+ "prio",
+ "serde",
+ "serde_json",
+ "thin-vec",
 ]
 
 [[package]]
@@ -1521,7 +1535,7 @@ dependencies = [
 [[package]]
 name = "error-support"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/application-services?rev=d8503475f43dbf1d78eef4e23b0578d0fada3f39#d8503475f43dbf1d78eef4e23b0578d0fada3f39"
+source = "git+https://github.com/mozilla/application-services?rev=b09ffe23ee60a066176e5d7f9f2c6cd95c528ceb#b09ffe23ee60a066176e5d7f9f2c6cd95c528ceb"
 dependencies = [
  "log",
 ]
@@ -2090,6 +2104,7 @@ name = "gkrust-gtest"
 version = "0.1.0"
 dependencies = [
  "bench-collections-gtest",
+ "dap_ffi-gtest",
  "fog-gtest",
  "gecko-fuzz-targets",
  "gkrust-shared",
@@ -2170,6 +2185,7 @@ dependencies = [
  "rust_minidump_writer_linux",
  "static_prefs",
  "storage",
+ "tabs",
  "tokio-reactor",
  "tokio-threadpool",
  "unic-langid",
@@ -2219,9 +2235,9 @@ dependencies = [
 
 [[package]]
 name = "glean"
-version = "51.5.0"
+version = "51.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ce399400b17c541fa191ffa27073ec672544b1d67c69d18aa8768fde42712af"
+checksum = "2dfbbb336d8195ad56be852099319eaab3ba491bc7f38d18e7ebe02242a6be20"
 dependencies = [
  "chrono",
  "crossbeam-channel",
@@ -2239,9 +2255,9 @@ dependencies = [
 
 [[package]]
 name = "glean-core"
-version = "51.5.0"
+version = "51.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f10d77ff81ef2feb11f06c4eab66da4a1f837b7d2ec1cb3117f30a2dbf4efb2d"
+checksum = "736924672efcb4cea229f024d75057fb2d0c37bb9544fdba6d8c09f6e6c3c766"
 dependencies = [
  "android_logger",
  "bincode",
@@ -2487,6 +2503,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hex"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "hexf-parse"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2640,7 +2665,7 @@ dependencies = [
 [[package]]
 name = "interrupt-support"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/application-services?rev=d8503475f43dbf1d78eef4e23b0578d0fada3f39#d8503475f43dbf1d78eef4e23b0578d0fada3f39"
+source = "git+https://github.com/mozilla/application-services?rev=b09ffe23ee60a066176e5d7f9f2c6cd95c528ceb#b09ffe23ee60a066176e5d7f9f2c6cd95c528ceb"
 dependencies = [
  "lazy_static",
  "parking_lot 0.12.999",
@@ -3727,7 +3752,7 @@ dependencies = [
 [[package]]
 name = "nss_build_common"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/application-services?rev=d8503475f43dbf1d78eef4e23b0578d0fada3f39#d8503475f43dbf1d78eef4e23b0578d0fada3f39"
+source = "git+https://github.com/mozilla/application-services?rev=b09ffe23ee60a066176e5d7f9f2c6cd95c528ceb#b09ffe23ee60a066176e5d7f9f2c6cd95c528ceb"
 
 [[package]]
 name = "nsstring"
@@ -4906,7 +4931,7 @@ dependencies = [
 [[package]]
 name = "sql-support"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/application-services?rev=d8503475f43dbf1d78eef4e23b0578d0fada3f39#d8503475f43dbf1d78eef4e23b0578d0fada3f39"
+source = "git+https://github.com/mozilla/application-services?rev=b09ffe23ee60a066176e5d7f9f2c6cd95c528ceb#b09ffe23ee60a066176e5d7f9f2c6cd95c528ceb"
 dependencies = [
  "ffi-support",
  "interrupt-support",
@@ -5088,7 +5113,7 @@ dependencies = [
 [[package]]
 name = "sync-guid"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/application-services?rev=d8503475f43dbf1d78eef4e23b0578d0fada3f39#d8503475f43dbf1d78eef4e23b0578d0fada3f39"
+source = "git+https://github.com/mozilla/application-services?rev=b09ffe23ee60a066176e5d7f9f2c6cd95c528ceb#b09ffe23ee60a066176e5d7f9f2c6cd95c528ceb"
 dependencies = [
  "base64",
  "rand 0.8.5",
@@ -5099,7 +5124,7 @@ dependencies = [
 [[package]]
 name = "sync15"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/application-services?rev=d8503475f43dbf1d78eef4e23b0578d0fada3f39#d8503475f43dbf1d78eef4e23b0578d0fada3f39"
+source = "git+https://github.com/mozilla/application-services?rev=b09ffe23ee60a066176e5d7f9f2c6cd95c528ceb#b09ffe23ee60a066176e5d7f9f2c6cd95c528ceb"
 dependencies = [
  "anyhow",
  "error-support",
@@ -5124,6 +5149,30 @@ dependencies = [
  "quote",
  "syn",
  "unicode-xid",
+]
+
+[[package]]
+name = "tabs"
+version = "0.1.0"
+source = "git+https://github.com/mozilla/application-services?rev=b09ffe23ee60a066176e5d7f9f2c6cd95c528ceb#b09ffe23ee60a066176e5d7f9f2c6cd95c528ceb"
+dependencies = [
+ "anyhow",
+ "error-support",
+ "interrupt-support",
+ "lazy_static",
+ "log",
+ "rusqlite",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "sql-support",
+ "sync-guid",
+ "sync15",
+ "thiserror",
+ "uniffi",
+ "uniffi_build",
+ "uniffi_macros",
+ "url",
 ]
 
 [[package]]
@@ -5834,7 +5883,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 [[package]]
 name = "viaduct"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/application-services?rev=d8503475f43dbf1d78eef4e23b0578d0fada3f39#d8503475f43dbf1d78eef4e23b0578d0fada3f39"
+source = "git+https://github.com/mozilla/application-services?rev=b09ffe23ee60a066176e5d7f9f2c6cd95c528ceb#b09ffe23ee60a066176e5d7f9f2c6cd95c528ceb"
 dependencies = [
  "ffi-support",
  "log",
@@ -5990,7 +6039,7 @@ dependencies = [
 [[package]]
 name = "webext-storage"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/application-services?rev=d8503475f43dbf1d78eef4e23b0578d0fada3f39#d8503475f43dbf1d78eef4e23b0578d0fada3f39"
+source = "git+https://github.com/mozilla/application-services?rev=b09ffe23ee60a066176e5d7f9f2c6cd95c528ceb#b09ffe23ee60a066176e5d7f9f2c6cd95c528ceb"
 dependencies = [
  "error-support",
  "ffi-support",

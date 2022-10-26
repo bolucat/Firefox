@@ -1223,9 +1223,9 @@ pwmgr:
 jsonfile:
   load:
     description: >
-      Records when JSONFile.jsm consumers are trying to access a missing or corrupt json file.
+      Records when JSONFile.sys.mjs consumers are trying to access a missing or corrupt json file.
       For example, Login Store trying to access logins.json when it has gone missing or corrupt.
-    # Keep synchronized with TELEMETRY_BASENAMES from JSONFile.jsm.
+    # Keep synchronized with TELEMETRY_BASENAMES from JSONFile.sys.mjs.
     objects: ["logins", "autofillprofiles"]
     bug_numbers: [1599567]
     expiry_version: never
@@ -2378,13 +2378,19 @@ intl.ui.browserLanguage:
       installId: The id for an install.
     products:
       - firefox
-    expiry_version: "109"
+    expiry_version: "122"
     notification_emails:
       - flod@mozilla.com
       - mstriemer@mozilla.com
     release_channel_collection: opt-out
     record_in_processes: ["main"]
-    bug_numbers: [1486507, 1553311, 1607501, 1672571, 1739288]
+    bug_numbers:
+      - 1486507
+      - 1553311
+      - 1607501
+      - 1672571
+      - 1739288
+      - 1796396
 
 network.dns:
   trrConfirmation:

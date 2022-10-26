@@ -45,7 +45,7 @@ function test() {
 }
 
 registerCleanupFunction(function() {
-  // Troubleshoot.jsm is imported into the global scope -- the window -- above.
+  // Troubleshoot.sys.mjs is imported into the global scope -- the window -- above.
   // If it's not deleted, it outlives the test and is reported as a leak.
   delete window.Troubleshoot;
 });
@@ -528,6 +528,39 @@ const SNAPSHOT_SCHEMA = {
         "fission.autostart.session": {
           required: false,
           type: "boolean",
+        },
+      },
+    },
+    places: {
+      required: true,
+      type: "array",
+      items: {
+        type: "object",
+        items: {
+          entity: {
+            required: true,
+            type: "string",
+          },
+          count: {
+            required: true,
+            type: "number",
+          },
+          sizeBytes: {
+            required: true,
+            type: "number",
+          },
+          sizePerc: {
+            required: true,
+            type: "number",
+          },
+          efficiencyPerc: {
+            required: true,
+            type: "number",
+          },
+          sequentialityPerc: {
+            required: true,
+            type: "number",
+          },
         },
       },
     },

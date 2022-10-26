@@ -2122,7 +2122,8 @@ const nsFrameList& nsIFrame::GetChildList(ChildListID aListID) const {
 
 void nsIFrame::GetChildLists(nsTArray<ChildList>* aLists) const {
   if (IsAbsoluteContainer()) {
-    nsFrameList absoluteList = GetAbsoluteContainingBlock()->GetChildList();
+    const nsFrameList& absoluteList =
+        GetAbsoluteContainingBlock()->GetChildList();
     absoluteList.AppendIfNonempty(aLists, GetAbsoluteListID());
   }
 }
@@ -4999,6 +5000,9 @@ nsresult nsIFrame::PeekBackwardAndForward(nsSelectionAmount aAmountBack,
       nsFrameSelection::FocusMode::kExtendSelection, CARET_ASSOCIATE_BEFORE);
   if (NS_FAILED(rv)) {
     return rv;
+  }
+  if (aAmountBack == eSelectWord) {
+    frameSelection->SetIsDoubleClickSelection(true);
   }
 
   // maintain selection

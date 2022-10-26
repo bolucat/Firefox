@@ -2,7 +2,7 @@
 ---
 repo: mozilla-central
 created_at: '2021-10-14T12:50:40.073465'
-updated_at: '2022-10-20T08:50:11.278470'
+updated_at: '2022-10-26T13:12:12.276907'
 export:
   path: ./docs/mots/index.rst
   format: rst
@@ -37,10 +37,18 @@ people:
     bmo_id: 329611
     name: Aki Sasaki
     nick: aki
+  - &allstarschh
+    bmo_id: 434670
+    name: Yoshi Cheng-Hao Huang
+    nick: allstars.chh
   - &alwu
     bmo_id: 517691
     name: Alastor Wu
     nick: alwu
+  - &amy
+    bmo_id: 622155
+    name: Amy Churchwell
+    nick: amy
   - &anba
     bmo_id: 339940
     name: André Bargull
@@ -137,6 +145,10 @@ people:
     bmo_id: 596517
     name: Brian Stack
     nick: bstack
+  - &bthrall
+    bmo_id: 700441
+    name: Bryan Thrall
+    nick: bthrall
   - &bwc
     bmo_id: 478411
     name: Byron Campen
@@ -213,10 +225,6 @@ people:
     bmo_id: 278074
     name: Daniel Holbert
     nick: dholbert
-  - &dimi
-    bmo_id: 468232
-    name: Dimi Lee
-    nick: dimi
   - &djackson
     bmo_id: 644159
     name: Dennis Jackson
@@ -225,6 +233,10 @@ people:
     bmo_id: 436087
     name: Kannan Vijayan
     nick: djvj
+  - &dlee
+    bmo_id: 468232
+    name: Dimi Lee
+    nick: dlee
   - &dlrobertson
     bmo_id: 705145
     name: Dan Robertson
@@ -508,6 +520,10 @@ people:
     bmo_id: 106098
     name: Kris Maglione
     nick: kmag
+  - &kpatenio
+    bmo_id: 690690
+    name: kpatenio
+    nick: kpatenio
   - &KrisWright
     bmo_id: 617144
     name: Kris Wright
@@ -584,8 +600,7 @@ people:
     bmo_id: 550257
     name: Molly Howell
     nick: mhowell
-  - &michal
-    bmo_id: 268625
+  - bmo_id: 268625
     name: Michal Novotny
     nick: michal
   - &mikokm
@@ -593,8 +608,8 @@ people:
     name: Miko Mynttinen
     nick: mikokm
   - &mkaply
-    bmo_id: 566790
-    name: Please use mozilla
+    bmo_id: 7313
+    name: Mike Kaply
     nick: mkaply
   - &morgan
     bmo_id: 618000
@@ -628,10 +643,6 @@ people:
     bmo_id: 438654
     name: Martin Thomson
     nick: mt
-  - &mtigley
-    bmo_id: 618808
-    name: Micah
-    nick: mtigley
   - &nalexander
     bmo_id: 432887
     name: Nick Alexander
@@ -757,8 +768,8 @@ people:
     name: Greg Mierzwinski
     nick: sparky
   - &spohl
-    bmo_id: 519726
-    name: Not active
+    bmo_id: 456485
+    name: Stephen A Pohl
     nick: spohl
   - &sstangl
     bmo_id: 383201
@@ -863,6 +874,10 @@ people:
     bmo_id: 600802
     name: Yulia Startsev
     nick: yulia
+  - &yury
+    bmo_id: 382167
+    name: Yury Delendik
+    nick: yury
   - &yzen
     bmo_id: 458165
     name: Yura Zenevich
@@ -985,7 +1000,7 @@ modules:
       - *timhuang
     peers:
       - *baku
-      - *dimi
+      - *dlee
       - *pbz
       - *johannh
     machine_name: core_antitracking
@@ -1713,17 +1728,23 @@ modules:
     owners:
       - *jandem
     peers:
+      - *allstarschh
       - *anba
       - *arai
       - *bholley
+      - *bthrall
+      - *dminor
       - *evilpie
       - *iain
       - *jonco
+      - *jseward
       - *mgaudet
       - *nbp
+      - *rhunt
       - *sfink
       - *tcampbell
       - *yulia
+      - *yury
     machine_name: core_javascript
 
   - name: 'Core: JavaScript JIT'
@@ -2039,11 +2060,18 @@ modules:
       - netwerk/system/**/*
       - netwerk/test/**/*
       - netwerk/testserver/**/*
+      - dom/fetch/**/*
+      - dom/xhr/**/*
+      - dom/network/**/*
+      - dom/websocket/**/*
     meta:
       owners_emeritus:
+        - Dragana Damjanovic
         - Patrick McManus
         - Christian Biesinger
       peers_emeritus:
+        - Michal Novotny
+        - Honza Bambas
         - Shih-Chiang Chien
         - Boris Zbarsky
         - Steve Workman
@@ -2062,12 +2090,10 @@ modules:
         - 'Core::Networking: HTTP'
         - 'Core::Networking: JAR'
         - 'Core::Networking: Websockets'
+        - 'Core::DOM: Networking'
     owners:
-      - *dragana
-    peers:
-      - *mayhemer
-      - *michal
       - *valentin
+    peers:
       - *kershaw
     machine_name: core_necko
 
@@ -2209,7 +2235,7 @@ modules:
     includes:
     # TODO
     # Implementation and consumers of Private Browsing APIs in nsILoadContext,
-    # nsIPrivateBrowsingChannel, PrivateBrowsingUtils.jsm and the related glue code. '
+    # nsIPrivateBrowsingChannel, PrivateBrowsingUtils.sys.mjs and the related glue code. '
     meta:
       owners_emeritus:
         - Ehsan Akhgari
@@ -3001,6 +3027,7 @@ modules:
           - *rpl
           - *zombie
           - *robwu
+          - *willdurand
         machine_name: addons_manager
 
       - name: Add-ons Manager UI
@@ -3062,6 +3089,7 @@ modules:
         peers:
           - *itielyn8
           - *sfoster
+          - *amy
         machine_name: desktop_theme
 
       - name: Desktop UI
@@ -3081,12 +3109,13 @@ modules:
         includes:
           - browser/components/downloads/**/*
           - toolkit/mozapps/downloads/**/*
-        meta: {}
+        meta:
+          peers_emeritus:
+            - Micah Tigley
         owners:
           - *mak
         peers:
           - *Gijs
-          - *mtigley
         machine_name: download_manager
 
       - name: Enterprise Policies
@@ -3131,7 +3160,7 @@ modules:
           - *serg
         peers:
           - *tgiles
-          - *dimi
+          - *dlee
         machine_name: form_autofill
 
       - name: In-product Messaging
@@ -3142,10 +3171,9 @@ modules:
           components:
             - Firefox::Messaging System
         owners:
-          - *aoprea
+          - *pdahiya
         peers:
           - *nanj
-          - *pdahiya
           - *Mardak
           - *k88hudson
         machine_name: inproduct_messaging
@@ -3226,10 +3254,27 @@ modules:
         peers:
           - *jaws
           - *tgiles
-          - *dimi
+          - *dlee
           - *sfoster
         machine_name: password_manager
 
+      - machine_name: firefox_pip
+        name: Picture-in-Picture
+        description: A component that allows video elements to be pulled out into
+          an always-on-top window.
+        includes:
+          - toolkit/components/pictureinpicture
+          - browser/extensions/pictureinpicture
+        excludes: []
+        owners:
+          - *mhowell
+          - *mconley
+        peers:
+          - *niklas
+          - *kpatenio
+        meta:
+          owners_emeritus:
+            - Micah Tigley
       - name: Preferences
         description: The front-end preferences system.
         includes:
@@ -3633,5 +3678,5 @@ modules:
         machine_name: webextensions
     machine_name: toolkit
 hashes:
-  config: 65134881bbb4e002a4d94efe5c79895135064c96
-  export: 77b9f5b3d03785ccedee2d81c1808d6b30fb064c
+  config: 507d43360a6cef1eb8be30c92a8188723ed955e5
+  export: b0b55aabe027549fe77b5fad0560f6f146285adf

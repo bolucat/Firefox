@@ -28,6 +28,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
   E10SUtils: "resource://gre/modules/E10SUtils.sys.mjs",
   Integration: "resource://gre/modules/Integration.sys.mjs",
   BuiltInThemes: "resource:///modules/BuiltInThemes.sys.mjs",
+  DAPTelemetrySender: "resource://gre/modules/DAPTelemetrySender.sys.mjs",
   Interactions: "resource:///modules/Interactions.sys.mjs",
   Log: "resource://gre/modules/Log.sys.mjs",
   NewTabUtils: "resource://gre/modules/NewTabUtils.sys.mjs",
@@ -46,6 +47,8 @@ ChromeUtils.defineESModuleGetters(lazy, {
   UrlbarQuickSuggest: "resource:///modules/UrlbarQuickSuggest.sys.mjs",
   WebChannel: "resource://gre/modules/WebChannel.sys.mjs",
   WindowsRegistry: "resource://gre/modules/WindowsRegistry.sys.mjs",
+  setTimeout: "resource://gre/modules/Timer.sys.mjs",
+  clearTimeout: "resource://gre/modules/Timer.sys.mjs",
 });
 
 XPCOMUtils.defineLazyModuleGetters(lazy, {
@@ -2659,10 +2662,7 @@ BrowserGlue.prototype = {
 
       {
         task: () => {
-          let { setTimeout } = ChromeUtils.importESModule(
-            "resource://gre/modules/Timer.sys.mjs"
-          );
-          setTimeout(function() {
+          lazy.setTimeout(function() {
             Services.tm.idleDispatchToMainThread(
               Services.startup.trackStartupCrashEnd
             );
@@ -2861,6 +2861,16 @@ BrowserGlue.prototype = {
       },
 
       {
+        condition: Services.prefs.getBoolPref(
+          "toolkit.telemetry.dap_enabled",
+          false
+        ),
+        task: () => {
+          lazy.DAPTelemetrySender.startup();
+        },
+      },
+
+      {
         task: () => {
           // Use idleDispatch a second time to run this after the per-window
           // idle tasks.
@@ -2964,6 +2974,21 @@ BrowserGlue.prototype = {
       () => Services.search.runBackgroundChecks(),
 
       () => lazy.BrowserUsageTelemetry.reportInstallationTelemetry(),
+
+      async () => {
+        let win = lazy.BrowserWindowTracker.getTopWindow({ private: false });
+        if (!win) {
+          return;
+        }
+
+        if (typeof win.navigator.requestMIDIAccess != "function") {
+          return;
+        }
+
+        const { inputs, outputs } = await win.navigator.requestMIDIAccess();
+        const hasMIDIDevices = inputs.size + outputs.size > 0;
+        Services.telemetry.scalarSet("dom.midi.has_devices", hasMIDIDevices);
+      },
     ];
 
     for (let task of idleTasks) {
@@ -3258,7 +3283,7 @@ BrowserGlue.prototype = {
       false
     ); // Do not export.
     if (autoExportHTML) {
-      // Sqlite.jsm and Places shutdown happen at profile-before-change, thus,
+      // Sqlite.sys.mjs and Places shutdown happen at profile-before-change, thus,
       // to be on the safe side, this should run earlier.
       lazy.AsyncShutdown.profileChangeTeardown.addBlocker(
         "Places: export bookmarks.html",
@@ -5140,7 +5165,7 @@ var ContentBlockingCategoriesPrefs = {
  * While there are some built-in permission prompts, createPermissionPrompt
  * can also be overridden by system add-ons or tests to provide new ones.
  *
- * This override ability is provided by Integration.jsm. See
+ * This override ability is provided by Integration.sys.mjs. See
  * PermissionUI.jsm for an example of how to provide a new prompt
  * from an add-on.
  */
@@ -5840,15 +5865,11 @@ var AboutHomeStartupCache = {
 
       // To avoid hanging shutdowns, we'll ensure that we wait a maximum of
       // SHUTDOWN_CACHE_WRITE_TIMEOUT_MS millseconds before giving up.
-      let { setTimeout, clearTimeout } = ChromeUtils.importESModule(
-        "resource://gre/modules/Timer.sys.mjs"
-      );
-
       const TIMED_OUT = Symbol();
       let timeoutID = 0;
 
       let timeoutPromise = new Promise(resolve => {
-        timeoutID = setTimeout(
+        timeoutID = lazy.setTimeout(
           () => resolve(TIMED_OUT),
           this.SHUTDOWN_CACHE_WRITE_TIMEOUT_MS
         );
@@ -5864,7 +5885,7 @@ var AboutHomeStartupCache = {
 
       let result = await Promise.race(promises);
       this.log.trace("Done blocking shutdown.");
-      clearTimeout(timeoutID);
+      lazy.clearTimeout(timeoutID);
       if (result === TIMED_OUT) {
         this.log.error("Timed out getting cache streams. Skipping cache task.");
         return false;

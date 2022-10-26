@@ -86,7 +86,7 @@ function toFluentID(str) {
     .toLowerCase();
 }
 
-// Each property in this object corresponds to a property in Troubleshoot.jsm's
+// Each property in this object corresponds to a property in Troubleshoot.sys.mjs's
 // snapshot data.  Each function is passed its property's corresponding data,
 // and it's the function's job to update the page with it.
 var snapshotFormatters = {
@@ -432,6 +432,33 @@ var snapshotFormatters = {
     $.append($("locked-prefs-tbody"), prefsTable(data));
   },
 
+  places(data) {
+    const statsBody = $("place-database-stats-tbody");
+    $.append(
+      statsBody,
+      data.map(function(entry) {
+        return $.new("tr", [
+          $.new("td", entry.entity),
+          $.new("td", entry.count),
+          $.new("td", entry.sizeBytes / 1024),
+          $.new("td", entry.sizePerc),
+          $.new("td", entry.efficiencyPerc),
+          $.new("td", entry.sequentialityPerc),
+        ]);
+      })
+    );
+    statsBody.style.display = "none";
+    $("place-database-stats-toggle").addEventListener("click", function(event) {
+      if (statsBody.style.display === "none") {
+        document.l10n.setAttributes(event.target, "place-database-stats-hide");
+        statsBody.style.display = "";
+      } else {
+        document.l10n.setAttributes(event.target, "place-database-stats-show");
+        statsBody.style.display = "none";
+      }
+    });
+  },
+
   printingPreferences(data) {
     if (AppConstants.platform == "android") {
       return;
@@ -577,7 +604,7 @@ var snapshotFormatters = {
     // graphics-failures-tbody tbody
     if ("failures" in data) {
       // If indices is there, it should be the same length as failures,
-      // (see Troubleshoot.jsm) but we check anyway:
+      // (see Troubleshoot.sys.mjs) but we check anyway:
       if ("indices" in data && data.failures.length == data.indices.length) {
         let combined = [];
         for (let i = 0; i < data.failures.length; i++) {

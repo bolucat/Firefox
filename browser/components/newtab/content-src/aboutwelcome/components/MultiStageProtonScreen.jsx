@@ -240,6 +240,13 @@ export class ProtonScreen extends React.PureComponent {
             : {}
         }
       >
+        {content.image_alt_text ? (
+          <div
+            className="sr-only image-alt"
+            role="img"
+            data-l10n-id={content.image_alt_text.string_id}
+          />
+        ) : null}
         {content.hero_image ? (
           <HeroImage url={content.hero_image.url} />
         ) : (
@@ -294,7 +301,7 @@ export class ProtonScreen extends React.PureComponent {
       <main
         className={`screen ${this.props.id ||
           ""} ${screenClassName} ${textColorClass}`}
-        role="dialog"
+        role="alertdialog"
         pos={content.position || "center"}
         tabIndex="-1"
         aria-labelledby="mainContentHeader"
