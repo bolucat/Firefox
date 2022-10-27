@@ -33,6 +33,133 @@ using namespace js::wasm;
 
 using mozilla::IsPowerOfTwo;
 
+using ImmediateType = uint32_t;  // for 32/64 consistency
+static const unsigned sTotalBits = sizeof(ImmediateType) * 8;
+static const unsigned sTagBits = 1;
+static const unsigned sReturnBit = 1;
+static const unsigned sLengthBits = 4;
+static const unsigned sTypeBits = 3;
+static const unsigned sMaxTypes =
+    (sTotalBits - sTagBits - sReturnBit - sLengthBits) / sTypeBits;
+
+static bool IsImmediateValType(ValType vt) {
+  switch (vt.kind()) {
+    case ValType::I32:
+    case ValType::I64:
+    case ValType::F32:
+    case ValType::F64:
+    case ValType::V128:
+      return true;
+    case ValType::Ref:
+      switch (vt.refTypeKind()) {
+        case RefType::Func:
+        case RefType::Extern:
+        case RefType::Eq:
+          return true;
+        case RefType::TypeRef:
+          return false;
+      }
+      break;
+  }
+  MOZ_CRASH("bad ValType");
+}
+
+static unsigned EncodeImmediateValType(ValType vt) {
+  static_assert(7 < (1 << sTypeBits), "fits");
+  switch (vt.kind()) {
+    case ValType::I32:
+      return 0;
+    case ValType::I64:
+      return 1;
+    case ValType::F32:
+      return 2;
+    case ValType::F64:
+      return 3;
+    case ValType::V128:
+      return 4;
+    case ValType::Ref:
+      switch (vt.refTypeKind()) {
+        case RefType::Func:
+          return 5;
+        case RefType::Extern:
+          return 6;
+        case RefType::Eq:
+          return 7;
+        case RefType::TypeRef:
+          break;
+      }
+      break;
+  }
+  MOZ_CRASH("bad ValType");
+}
+
+static bool IsImmediateFuncType(const FuncType& funcType) {
+  const ValTypeVector& results = funcType.results();
+  const ValTypeVector& args = funcType.args();
+  if (results.length() + args.length() > sMaxTypes) {
+    return false;
+  }
+
+  if (results.length() > 1) {
+    return false;
+  }
+
+  for (ValType v : results) {
+    if (!IsImmediateValType(v)) {
+      return false;
+    }
+  }
+
+  for (ValType v : args) {
+    if (!IsImmediateValType(v)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static ImmediateType LengthToBits(uint32_t length) {
+  static_assert(sMaxTypes <= ((1 << sLengthBits) - 1), "fits");
+  MOZ_ASSERT(length <= sMaxTypes);
+  return length;
+}
+
+static ImmediateType EncodeImmediateFuncType(const FuncType& funcType) {
+  ImmediateType immediate = FuncType::ImmediateBit;
+  uint32_t shift = sTagBits;
+
+  if (funcType.results().length() > 0) {
+    MOZ_ASSERT(funcType.results().length() == 1);
+    immediate |= (1 << shift);
+    shift += sReturnBit;
+
+    immediate |= EncodeImmediateValType(funcType.results()[0]) << shift;
+    shift += sTypeBits;
+  } else {
+    shift += sReturnBit;
+  }
+
+  immediate |= LengthToBits(funcType.args().length()) << shift;
+  shift += sLengthBits;
+
+  for (ValType argType : funcType.args()) {
+    immediate |= EncodeImmediateValType(argType) << shift;
+    shift += sTypeBits;
+  }
+
+  MOZ_ASSERT(shift <= sTotalBits);
+  return immediate;
+}
+
+void FuncType::initImmediateTypeId() {
+  if (!IsImmediateFuncType(*this)) {
+    immediateTypeId_ = NO_IMMEDIATE_TYPE_ID;
+    return;
+  }
+  immediateTypeId_ = EncodeImmediateFuncType(*this);
+}
+
 bool FuncType::canHaveJitEntry() const {
   return !hasUnexposableArgOrRet() &&
          !temporarilyUnsupportedReftypeForEntry() &&
@@ -100,7 +227,7 @@ CheckedInt32 StructLayout::close() {
   return RoundUpToAlignment(sizeSoFar, structAlignment);
 }
 
-bool StructType::computeLayout() {
+bool StructType::init() {
   StructLayout layout;
   for (StructField& field : fields_) {
     CheckedInt32 offset = layout.addField(field.type);
@@ -157,21 +284,20 @@ TypeResult TypeContext::isRefEquivalent(RefType first, RefType second,
 
 #ifdef ENABLE_WASM_FUNCTION_REFERENCES
   if (features_.functionReferences) {
-    // second references must have the same nullability to be equal
+    // References must have the same nullability to be equal
     if (first.isNullable() != second.isNullable()) {
       return TypeResult::False;
     }
 
     // Non type-index references are equal if they have the same kind
-    if (!first.isTypeIndex() && !second.isTypeIndex() &&
+    if (!first.isTypeRef() && !second.isTypeRef() &&
         first.kind() == second.kind()) {
       return TypeResult::True;
     }
 
     // Type-index references can be equal
-    if (first.isTypeIndex() && second.isTypeIndex()) {
-      return isTypeIndexEquivalent(first.typeIndex(), second.typeIndex(),
-                                   cache);
+    if (first.isTypeRef() && second.isTypeRef()) {
+      return isTypeDefEquivalent(first.typeDef(), second.typeDef(), cache);
     }
   }
 #endif
@@ -179,26 +305,26 @@ TypeResult TypeContext::isRefEquivalent(RefType first, RefType second,
 }
 
 #ifdef ENABLE_WASM_FUNCTION_REFERENCES
-TypeResult TypeContext::isTypeIndexEquivalent(uint32_t firstIndex,
-                                              uint32_t secondIndex,
-                                              TypeCache* cache) const {
+TypeResult TypeContext::isTypeDefEquivalent(const TypeDef* first,
+                                            const TypeDef* second,
+                                            TypeCache* cache) const {
   MOZ_ASSERT(features_.functionReferences);
 
   // Anything's equal to itself.
-  if (firstIndex == secondIndex) {
+  if (first == second) {
     return TypeResult::True;
   }
 
 #  ifdef ENABLE_WASM_GC
   if (features_.gc) {
     // A struct may be equal to a struct
-    if (isStructType(firstIndex) && isStructType(secondIndex)) {
-      return isStructEquivalent(firstIndex, secondIndex, cache);
+    if (first->isStructType() && second->isStructType()) {
+      return isStructEquivalent(first, second, cache);
     }
 
     // An array may be equal to an array
-    if (isArrayType(firstIndex) && isArrayType(secondIndex)) {
-      return isArrayEquivalent(firstIndex, secondIndex, cache);
+    if (first->isArrayType() && second->isArrayType()) {
+      return isArrayEquivalent(first, second, cache);
     }
   }
 #  endif
@@ -208,32 +334,32 @@ TypeResult TypeContext::isTypeIndexEquivalent(uint32_t firstIndex,
 #endif
 
 #ifdef ENABLE_WASM_GC
-TypeResult TypeContext::isStructEquivalent(uint32_t firstIndex,
-                                           uint32_t secondIndex,
+TypeResult TypeContext::isStructEquivalent(const TypeDef* first,
+                                           const TypeDef* second,
                                            TypeCache* cache) const {
-  if (cache->isEquivalent(firstIndex, secondIndex)) {
+  if (cache->isEquivalent(first, second)) {
     return TypeResult::True;
   }
 
-  const StructType& subType = structType(firstIndex);
-  const StructType& superType = structType(secondIndex);
+  const StructType& firstStruct = first->structType();
+  const StructType& secondStruct = second->structType();
 
   // Structs must have the same number of fields to be equal
-  if (subType.fields_.length() != superType.fields_.length()) {
+  if (firstStruct.fields_.length() != secondStruct.fields_.length()) {
     return TypeResult::False;
   }
 
   // Assume these structs are equal while checking fields. If any field is
   // not equal then we remove the assumption.
-  if (!cache->markEquivalent(firstIndex, secondIndex)) {
+  if (!cache->markEquivalent(first, second)) {
     return TypeResult::OOM;
   }
 
-  for (uint32_t i = 0; i < superType.fields_.length(); i++) {
-    TypeResult result = isStructFieldEquivalent(subType.fields_[i],
-                                                superType.fields_[i], cache);
+  for (uint32_t i = 0; i < secondStruct.fields_.length(); i++) {
+    TypeResult result = isStructFieldEquivalent(firstStruct.fields_[i],
+                                                secondStruct.fields_[i], cache);
     if (result != TypeResult::True) {
-      cache->unmarkEquivalent(firstIndex, secondIndex);
+      cache->unmarkEquivalent(first, second);
       return result;
     }
   }
@@ -251,25 +377,25 @@ TypeResult TypeContext::isStructFieldEquivalent(const StructField first,
   return isEquivalent(first.type, second.type, cache);
 }
 
-TypeResult TypeContext::isArrayEquivalent(uint32_t firstIndex,
-                                          uint32_t secondIndex,
+TypeResult TypeContext::isArrayEquivalent(const TypeDef* firstDef,
+                                          const TypeDef* secondDef,
                                           TypeCache* cache) const {
-  if (cache->isEquivalent(firstIndex, secondIndex)) {
+  if (cache->isEquivalent(firstDef, secondDef)) {
     return TypeResult::True;
   }
 
-  const ArrayType& subType = arrayType(firstIndex);
-  const ArrayType& superType = arrayType(secondIndex);
+  const ArrayType& firstArray = firstDef->arrayType();
+  const ArrayType& secondArray = secondDef->arrayType();
 
   // Assume these arrays are equal while checking fields. If the array
   // element is not equal then we remove the assumption.
-  if (!cache->markEquivalent(firstIndex, secondIndex)) {
+  if (!cache->markEquivalent(firstDef, secondDef)) {
     return TypeResult::OOM;
   }
 
-  TypeResult result = isArrayElementEquivalent(subType, superType, cache);
+  TypeResult result = isArrayElementEquivalent(firstArray, secondArray, cache);
   if (result != TypeResult::True) {
-    cache->unmarkEquivalent(firstIndex, secondIndex);
+    cache->unmarkEquivalent(firstDef, secondDef);
   }
   return result;
 }
@@ -303,31 +429,32 @@ TypeResult TypeContext::isRefSubtypeOf(RefType subType, RefType superType,
     }
 
     // Non type-index references are subtypes if they have the same kind
-    if (!subType.isTypeIndex() && !superType.isTypeIndex() &&
+    if (!subType.isTypeRef() && !superType.isTypeRef() &&
         subType.kind() == superType.kind()) {
       return TypeResult::True;
     }
 
     // Structs are subtypes of eqref
-    if (isStructType(subType) && superType.isEq()) {
+    if (subType.isTypeRef() && subType.typeDef()->isStructType() &&
+        superType.isEq()) {
       return TypeResult::True;
     }
 
     // Arrays are subtypes of eqref
-    if (isArrayType(subType) && superType.isEq()) {
+    if (subType.isTypeRef() && subType.typeDef()->isArrayType() &&
+        superType.isEq()) {
       return TypeResult::True;
     }
 
-    // The ref T <: funcref when T = func-type rule
-    if (subType.isTypeIndex() && types_[subType.typeIndex()].isFuncType() &&
+    // Funcs are subtypes of funcref
+    if (subType.isTypeRef() && subType.typeDef()->isFuncType() &&
         superType.isFunc()) {
       return TypeResult::True;
     }
 
     // Type-index references can be subtypes
-    if (subType.isTypeIndex() && superType.isTypeIndex()) {
-      return isTypeIndexSubtypeOf(subType.typeIndex(), superType.typeIndex(),
-                                  cache);
+    if (subType.isTypeRef() && superType.isTypeRef()) {
+      return isTypeDefSubtypeOf(subType.typeDef(), superType.typeDef(), cache);
     }
   }
 #endif
@@ -335,9 +462,9 @@ TypeResult TypeContext::isRefSubtypeOf(RefType subType, RefType superType,
 }
 
 #ifdef ENABLE_WASM_FUNCTION_REFERENCES
-TypeResult TypeContext::isTypeIndexSubtypeOf(uint32_t subType,
-                                             uint32_t superType,
-                                             TypeCache* cache) const {
+TypeResult TypeContext::isTypeDefSubtypeOf(const TypeDef* subType,
+                                           const TypeDef* superType,
+                                           TypeCache* cache) const {
   MOZ_ASSERT(features_.functionReferences);
 
   // Anything's a subtype of itself.
@@ -348,12 +475,12 @@ TypeResult TypeContext::isTypeIndexSubtypeOf(uint32_t subType,
 #  ifdef ENABLE_WASM_GC
   if (features_.gc) {
     // Structs may be subtypes of structs
-    if (isStructType(subType) && isStructType(superType)) {
+    if (subType->isStructType() && superType->isStructType()) {
       return isStructSubtypeOf(subType, superType, cache);
     }
 
     // Arrays may be subtypes of arrays
-    if (isArrayType(subType) && isArrayType(superType)) {
+    if (subType->isArrayType() && superType->isArrayType()) {
       return isArraySubtypeOf(subType, superType, cache);
     }
   }
@@ -363,32 +490,32 @@ TypeResult TypeContext::isTypeIndexSubtypeOf(uint32_t subType,
 #endif
 
 #ifdef ENABLE_WASM_GC
-TypeResult TypeContext::isStructSubtypeOf(uint32_t subTypeIndex,
-                                          uint32_t superTypeIndex,
+TypeResult TypeContext::isStructSubtypeOf(const TypeDef* subType,
+                                          const TypeDef* superType,
                                           TypeCache* cache) const {
-  if (cache->isSubtypeOf(subTypeIndex, superTypeIndex)) {
+  if (cache->isSubtypeOf(subType, superType)) {
     return TypeResult::True;
   }
 
-  const StructType& subType = structType(subTypeIndex);
-  const StructType& superType = structType(superTypeIndex);
+  const StructType& subStruct = subType->structType();
+  const StructType& superStruct = superType->structType();
 
   // A subtype must have at least as many fields as its supertype
-  if (subType.fields_.length() < superType.fields_.length()) {
+  if (subStruct.fields_.length() < superStruct.fields_.length()) {
     return TypeResult::False;
   }
 
   // Assume these structs are subtypes while checking fields. If any field
   // fails a check then we remove the assumption.
-  if (!cache->markSubtypeOf(subTypeIndex, superTypeIndex)) {
+  if (!cache->markSubtypeOf(subType, superType)) {
     return TypeResult::OOM;
   }
 
-  for (uint32_t i = 0; i < superType.fields_.length(); i++) {
-    TypeResult result =
-        isStructFieldSubtypeOf(subType.fields_[i], superType.fields_[i], cache);
+  for (uint32_t i = 0; i < superStruct.fields_.length(); i++) {
+    TypeResult result = isStructFieldSubtypeOf(subStruct.fields_[i],
+                                               superStruct.fields_[i], cache);
     if (result != TypeResult::True) {
-      cache->unmarkSubtypeOf(subTypeIndex, superTypeIndex);
+      cache->unmarkSubtypeOf(subType, superType);
       return result;
     }
   }
@@ -409,25 +536,25 @@ TypeResult TypeContext::isStructFieldSubtypeOf(const StructField subType,
   return TypeResult::False;
 }
 
-TypeResult TypeContext::isArraySubtypeOf(uint32_t subTypeIndex,
-                                         uint32_t superTypeIndex,
+TypeResult TypeContext::isArraySubtypeOf(const TypeDef* subType,
+                                         const TypeDef* superType,
                                          TypeCache* cache) const {
-  if (cache->isSubtypeOf(subTypeIndex, superTypeIndex)) {
+  if (cache->isSubtypeOf(subType, superType)) {
     return TypeResult::True;
   }
 
-  const ArrayType& subType = arrayType(subTypeIndex);
-  const ArrayType& superType = arrayType(superTypeIndex);
+  const ArrayType& subArray = subType->arrayType();
+  const ArrayType& superArray = superType->arrayType();
 
   // Assume these arrays are subtypes while checking elements. If the elements
   // fail the check then we remove the assumption.
-  if (!cache->markSubtypeOf(subTypeIndex, superTypeIndex)) {
+  if (!cache->markSubtypeOf(subType, superType)) {
     return TypeResult::OOM;
   }
 
-  TypeResult result = isArrayElementSubtypeOf(subType, superType, cache);
+  TypeResult result = isArrayElementSubtypeOf(subArray, superArray, cache);
   if (result != TypeResult::True) {
-    cache->unmarkSubtypeOf(subTypeIndex, superTypeIndex);
+    cache->unmarkSubtypeOf(subType, superType);
   }
   return result;
 }
@@ -446,140 +573,3 @@ TypeResult TypeContext::isArrayElementSubtypeOf(const ArrayType& subType,
   return TypeResult::False;
 }
 #endif
-
-using ImmediateType = uint32_t;  // for 32/64 consistency
-static const unsigned sTotalBits = sizeof(ImmediateType) * 8;
-static const unsigned sTagBits = 1;
-static const unsigned sReturnBit = 1;
-static const unsigned sLengthBits = 4;
-static const unsigned sTypeBits = 3;
-static const unsigned sMaxTypes =
-    (sTotalBits - sTagBits - sReturnBit - sLengthBits) / sTypeBits;
-
-static bool IsImmediateType(ValType vt) {
-  switch (vt.kind()) {
-    case ValType::I32:
-    case ValType::I64:
-    case ValType::F32:
-    case ValType::F64:
-    case ValType::V128:
-      return true;
-    case ValType::Ref:
-      switch (vt.refTypeKind()) {
-        case RefType::Func:
-        case RefType::Extern:
-        case RefType::Eq:
-          return true;
-        case RefType::TypeIndex:
-          return false;
-      }
-      break;
-  }
-  MOZ_CRASH("bad ValType");
-}
-
-static unsigned EncodeImmediateType(ValType vt) {
-  static_assert(4 < (1 << sTypeBits), "fits");
-  switch (vt.kind()) {
-    case ValType::I32:
-      return 0;
-    case ValType::I64:
-      return 1;
-    case ValType::F32:
-      return 2;
-    case ValType::F64:
-      return 3;
-    case ValType::V128:
-      return 4;
-    case ValType::Ref:
-      switch (vt.refTypeKind()) {
-        case RefType::Func:
-          return 5;
-        case RefType::Extern:
-          return 6;
-        case RefType::Eq:
-          return 7;
-        case RefType::TypeIndex:
-          break;
-      }
-      break;
-  }
-  MOZ_CRASH("bad ValType");
-}
-
-/* static */
-bool TypeIdDesc::isGlobal(const TypeDef& type) {
-  if (!type.isFuncType()) {
-    return true;
-  }
-  const FuncType& funcType = type.funcType();
-  const ValTypeVector& results = funcType.results();
-  const ValTypeVector& args = funcType.args();
-  if (results.length() + args.length() > sMaxTypes) {
-    return true;
-  }
-
-  if (results.length() > 1) {
-    return true;
-  }
-
-  for (ValType v : results) {
-    if (!IsImmediateType(v)) {
-      return true;
-    }
-  }
-
-  for (ValType v : args) {
-    if (!IsImmediateType(v)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-/* static */
-TypeIdDesc TypeIdDesc::global(const TypeDef& type, uint32_t globalDataOffset) {
-  MOZ_ASSERT(isGlobal(type));
-  return TypeIdDesc(TypeIdDescKind::Global, globalDataOffset);
-}
-
-static ImmediateType LengthToBits(uint32_t length) {
-  static_assert(sMaxTypes <= ((1 << sLengthBits) - 1), "fits");
-  MOZ_ASSERT(length <= sMaxTypes);
-  return length;
-}
-
-/* static */
-TypeIdDesc TypeIdDesc::immediate(const TypeDef& type) {
-  const FuncType& funcType = type.funcType();
-
-  ImmediateType immediate = ImmediateBit;
-  uint32_t shift = sTagBits;
-
-  if (funcType.results().length() > 0) {
-    MOZ_ASSERT(funcType.results().length() == 1);
-    immediate |= (1 << shift);
-    shift += sReturnBit;
-
-    immediate |= EncodeImmediateType(funcType.results()[0]) << shift;
-    shift += sTypeBits;
-  } else {
-    shift += sReturnBit;
-  }
-
-  immediate |= LengthToBits(funcType.args().length()) << shift;
-  shift += sLengthBits;
-
-  for (ValType argType : funcType.args()) {
-    immediate |= EncodeImmediateType(argType) << shift;
-    shift += sTypeBits;
-  }
-
-  MOZ_ASSERT(shift <= sTotalBits);
-  return TypeIdDesc(TypeIdDescKind::Immediate, immediate);
-}
-
-size_t TypeDefWithId::sizeOfExcludingThis(MallocSizeOf mallocSizeOf) const {
-  return TypeDef::sizeOfExcludingThis(mallocSizeOf);
-}

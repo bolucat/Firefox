@@ -120,7 +120,7 @@ class FuncTypeIdSet {
     }
 
     *funcTypeId = clone.release();
-    MOZ_ASSERT(!(uintptr_t(*funcTypeId) & TypeIdDesc::ImmediateBit));
+    MOZ_ASSERT(!(uintptr_t(*funcTypeId) & FuncType::ImmediateBit));
     return true;
   }
 
@@ -138,8 +138,8 @@ class FuncTypeIdSet {
 
 ExclusiveData<FuncTypeIdSet> funcTypeIdSet(mutexid::WasmFuncTypeIdSet);
 
-const void** Instance::addressOfTypeId(const TypeIdDesc& typeId) const {
-  return (const void**)(globalData() + typeId.globalDataOffset());
+const void** Instance::addressOfTypeId(const uint32_t typeIndex) const {
+  return (const void**)(globalData() + typeIndex * sizeof(void*));
 }
 
 FuncImportInstanceData& Instance::funcImportInstanceData(const FuncImport& fi) {
@@ -895,8 +895,7 @@ bool Instance::initElems(uint32_t tableIndex, const ElemSegment& seg,
 
 #ifdef ENABLE_WASM_GC
 RttValue* Instance::rttCanon(uint32_t typeIndex) const {
-  const TypeIdDesc& typeId = metadata().typeIds[typeIndex];
-  return *(RttValue**)addressOfTypeId(typeId);
+  return *(RttValue**)addressOfTypeId(typeIndex);
 }
 
 #endif  // ENABLE_WASM_GC
@@ -1713,33 +1712,25 @@ bool Instance::init(JSContext* cx, const JSFunctionVector& funcImports,
   }
 
   // Allocate in the global type sets for structural type checks
-  if (!metadata().types.empty()) {
+  const SharedTypeContext& types = metadata().types;
+  if (!types->empty()) {
 #ifdef ENABLE_WASM_GC
     if (GcAvailable(cx)) {
-      // Transfer and allocate type objects for the struct types in the module
-      MutableTypeContext tycx = js_new<TypeContext>();
-      if (!tycx || !tycx->clone(metadata().types)) {
-        return false;
-      }
-
-      for (uint32_t typeIndex = 0; typeIndex < metadata().types.length();
-           typeIndex++) {
-        const TypeDef& typeDef = metadata().types[typeIndex];
-        const TypeIdDesc& typeId = metadata().typeIds[typeIndex];
-        if (!typeId.isGlobal() ||
-            (!typeDef.isStructType() && !typeDef.isArrayType())) {
+      for (uint32_t typeIndex = 0; typeIndex < types->length(); typeIndex++) {
+        const TypeDef& typeDef = types->type(typeIndex);
+        if ((!typeDef.isStructType() && !typeDef.isArrayType())) {
           continue;
         }
 
         Rooted<RttValue*> rttValue(
-            cx, RttValue::rttCanon(cx, TypeHandle(tycx, typeIndex)));
+            cx, RttValue::rttCanon(cx, TypeHandle(types, typeIndex)));
         if (!rttValue) {
           return false;
         }
         // We do not need to use a barrier here because RttValue is always
         // tenured
         MOZ_ASSERT(rttValue.get()->isTenured());
-        *((GCPtr<JSObject*>*)addressOfTypeId(typeId)) = rttValue;
+        *((GCPtr<JSObject*>*)addressOfTypeId(typeIndex)) = rttValue;
         hasGcTypes_ = true;
       }
     }
@@ -1750,13 +1741,8 @@ bool Instance::init(JSContext* cx, const JSFunctionVector& funcImports,
     ExclusiveData<FuncTypeIdSet>::Guard lockedFuncTypeIdSet =
         funcTypeIdSet.lock();
 
-    for (uint32_t typeIndex = 0; typeIndex < metadata().types.length();
-         typeIndex++) {
-      const TypeDef& typeDef = metadata().types[typeIndex];
-      const TypeIdDesc& typeId = metadata().typeIds[typeIndex];
-      if (!typeId.isGlobal()) {
-        continue;
-      }
+    for (uint32_t typeIndex = 0; typeIndex < types->length(); typeIndex++) {
+      const TypeDef& typeDef = types->type(typeIndex);
       switch (typeDef.kind()) {
         case TypeDefKind::Func: {
           const FuncType& funcType = typeDef.funcType();
@@ -1765,7 +1751,7 @@ bool Instance::init(JSContext* cx, const JSFunctionVector& funcImports,
                                                        &funcTypeId)) {
             return false;
           }
-          *addressOfTypeId(typeId) = funcTypeId;
+          *addressOfTypeId(typeIndex) = funcTypeId;
           break;
         }
         case TypeDefKind::Struct:
@@ -1853,19 +1839,18 @@ bool Instance::init(JSContext* cx, const JSFunctionVector& funcImports,
 Instance::~Instance() {
   realm_->wasm.unregisterInstance(*this);
 
-  if (!metadata().types.empty()) {
+  const SharedTypeContext& types = metadata().types;
+  if (!types->empty()) {
     ExclusiveData<FuncTypeIdSet>::Guard lockedFuncTypeIdSet =
         funcTypeIdSet.lock();
 
-    for (uint32_t typeIndex = 0; typeIndex < metadata().types.length();
-         typeIndex++) {
-      const TypeDef& typeDef = metadata().types[typeIndex];
-      const TypeIdDesc& typeId = metadata().typeIds[typeIndex];
-      if (!typeDef.isFuncType() || !typeId.isGlobal()) {
+    for (uint32_t typeIndex = 0; typeIndex < types->length(); typeIndex++) {
+      const TypeDef& typeDef = types->type(typeIndex);
+      if (!typeDef.isFuncType()) {
         continue;
       }
       const FuncType& funcType = typeDef.funcType();
-      if (const void* funcTypeId = *addressOfTypeId(typeId)) {
+      if (const void* funcTypeId = *addressOfTypeId(typeIndex)) {
         lockedFuncTypeIdSet->deallocateFuncTypeId(funcType, funcTypeId);
       }
     }
@@ -1961,15 +1946,13 @@ void Instance::tracePrivate(JSTracer* trc) {
   TraceNullableEdge(trc, &memory_, "wasm buffer");
 #ifdef ENABLE_WASM_GC
   if (hasGcTypes_) {
-    for (uint32_t typeIndex = 0; typeIndex < metadata().types.length();
+    for (uint32_t typeIndex = 0; typeIndex < metadata().types->length();
          typeIndex++) {
-      const TypeDef& typeDef = metadata().types[typeIndex];
-      const TypeIdDesc& typeId = metadata().typeIds[typeIndex];
-      if (!typeId.isGlobal() ||
-          (!typeDef.isStructType() && !typeDef.isArrayType())) {
+      const TypeDef& typeDef = metadata().types->type(typeIndex);
+      if (!typeDef.isStructType() && !typeDef.isArrayType()) {
         continue;
       }
-      TraceNullableEdge(trc, ((GCPtr<JSObject*>*)addressOfTypeId(typeId)),
+      TraceNullableEdge(trc, ((GCPtr<JSObject*>*)addressOfTypeId(typeIndex)),
                         "wasm rtt value");
     }
   }
@@ -2405,7 +2388,7 @@ bool Instance::callExport(JSContext* cx, uint32_t funcIndex, CallArgs args,
     }
     if (type.isRefRepr()) {
       // Ensure we don't have a temporarily unsupported Ref type in callExport
-      MOZ_RELEASE_ASSERT(!type.isTypeIndex());
+      MOZ_RELEASE_ASSERT(!type.isTypeRef());
       void* ptr = *reinterpret_cast<void**>(rawArgLoc);
       // Store in rooted array until no more GC is possible.
       RootedAnyRef ref(cx, AnyRef::fromCompiledCode(ptr));

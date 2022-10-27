@@ -754,13 +754,19 @@ static void TestMatchingHolder(CacheIRWriter& writer, NativeObject* obj,
   writer.guardShapeForOwnProperties(objId, obj->shape());
 }
 
+enum class IsCrossCompartment { No, Yes };
+
 // Emit a shape guard for all objects on the proto chain. This does NOT include
 // the receiver; callers must ensure the receiver's proto is the first proto by
 // either emitting a shape guard or a prototype guard for |objId|.
 //
 // Note: this relies on shape implying proto.
+template <IsCrossCompartment MaybeCrossCompartment = IsCrossCompartment::No>
 static void ShapeGuardProtoChain(CacheIRWriter& writer, NativeObject* obj,
                                  ObjOperandId objId) {
+  uint32_t depth = 0;
+  static const uint32_t MAX_CACHED_LOADS = 4;
+
   while (true) {
     JSObject* proto = obj->staticPrototype();
     if (!proto) {
@@ -768,7 +774,20 @@ static void ShapeGuardProtoChain(CacheIRWriter& writer, NativeObject* obj,
     }
 
     obj = &proto->as<NativeObject>();
-    objId = writer.loadProto(objId);
+
+    // After guarding the shape of an object, we can safely bake that
+    // object's proto into the stub data. Compared to LoadProto, this
+    // takes one load instead of three (object -> shape -> baseshape
+    // -> proto). We cap the depth to avoid bloating the size of the
+    // stub data. To avoid compartment mismatch, we skip this optimization
+    // in the cross-compartment case.
+    if (depth < MAX_CACHED_LOADS &&
+        MaybeCrossCompartment == IsCrossCompartment::No) {
+      objId = writer.loadObject(obj);
+    } else {
+      objId = writer.loadProto(objId);
+    }
+    depth++;
 
     writer.guardShape(objId, obj->shape());
   }
@@ -798,11 +817,9 @@ static ObjOperandId ShapeGuardProtoChainForCrossCompartmentHolder(
   }
 }
 
-enum class SlotReadType { Normal, CrossCompartment };
-
 // Emit guards for reading a data property on |holder|. Returns the holder's
 // OperandId.
-template <SlotReadType MaybeCrossCompartment = SlotReadType::Normal>
+template <IsCrossCompartment MaybeCrossCompartment = IsCrossCompartment::No>
 static ObjOperandId EmitReadSlotGuard(CacheIRWriter& writer, NativeObject* obj,
                                       NativeObject* holder,
                                       ObjOperandId objId) {
@@ -813,7 +830,7 @@ static ObjOperandId EmitReadSlotGuard(CacheIRWriter& writer, NativeObject* obj,
     return objId;
   }
 
-  if (MaybeCrossCompartment == SlotReadType::CrossCompartment) {
+  if (MaybeCrossCompartment == IsCrossCompartment::Yes) {
     // Guard proto chain integrity.
     // We use a variant of guards that avoid baking in any cross-compartment
     // object pointers.
@@ -830,6 +847,7 @@ static ObjOperandId EmitReadSlotGuard(CacheIRWriter& writer, NativeObject* obj,
   return holderId;
 }
 
+template <IsCrossCompartment MaybeCrossCompartment = IsCrossCompartment::No>
 static void EmitMissingPropGuard(CacheIRWriter& writer, NativeObject* obj,
                                  ObjOperandId objId) {
   TestMatchingNativeReceiver(writer, obj, objId);
@@ -837,10 +855,10 @@ static void EmitMissingPropGuard(CacheIRWriter& writer, NativeObject* obj,
   // The property does not exist. Guard on everything in the prototype
   // chain. This is guaranteed to see only Native objects because of
   // CanAttachNativeGetProp().
-  ShapeGuardProtoChain(writer, obj, objId);
+  ShapeGuardProtoChain<MaybeCrossCompartment>(writer, obj, objId);
 }
 
-template <SlotReadType MaybeCrossCompartment = SlotReadType::Normal>
+template <IsCrossCompartment MaybeCrossCompartment = IsCrossCompartment::No>
 static void EmitReadSlotResult(CacheIRWriter& writer, NativeObject* obj,
                                NativeObject* holder, PropertyInfo prop,
                                ObjOperandId objId) {
@@ -853,9 +871,10 @@ static void EmitReadSlotResult(CacheIRWriter& writer, NativeObject* obj,
   EmitLoadSlotResult(writer, holderId, holder, prop);
 }
 
+template <IsCrossCompartment MaybeCrossCompartment = IsCrossCompartment::No>
 static void EmitMissingPropResult(CacheIRWriter& writer, NativeObject* obj,
                                   ObjOperandId objId) {
-  EmitMissingPropGuard(writer, obj, objId);
+  EmitMissingPropGuard<MaybeCrossCompartment>(writer, obj, objId);
   writer.loadUndefinedResult();
 }
 
@@ -1298,13 +1317,14 @@ AttachDecision GetPropIRGenerator::tryAttachCrossCompartmentWrapper(
 
   ObjOperandId unwrappedId = wrapperTargetId;
   if (holder) {
-    EmitReadSlotResult<SlotReadType::CrossCompartment>(
-        writer, unwrappedNative, holder, *prop, unwrappedId);
+    EmitReadSlotResult<IsCrossCompartment::Yes>(writer, unwrappedNative, holder,
+                                                *prop, unwrappedId);
     writer.wrapResult();
     writer.returnFromIC();
     trackAttached("CCWSlot");
   } else {
-    EmitMissingPropResult(writer, unwrappedNative, unwrappedId);
+    EmitMissingPropResult<IsCrossCompartment::Yes>(writer, unwrappedNative,
+                                                   unwrappedId);
     writer.returnFromIC();
     trackAttached("CCWMissing");
   }
