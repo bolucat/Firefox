@@ -498,7 +498,7 @@ pref("browser.urlbar.richSuggestions.tail", true);
 pref("browser.urlbar.sponsoredTopSites", false);
 
 // If true, show the search term in the URL bar for the users default engine.
-pref("browser.urlbar.showSearchTerms", false);
+pref("browser.urlbar.showSearchTerms.shouldShow", false);
 
 // Controls the empty search behavior in Search Mode:
 //  0 - Show nothing
@@ -2741,7 +2741,7 @@ pref("browser.firefox-view.view-count", 0);
 
 // If the user has seen the pdf.js feature tour this value reflects the tour
 // message id, the id of the last screen they saw, and whether they completed the tour
-pref("browser.pdfjs.feature-tour", "{\"message\":\"PDF_JS_FEATURE_TOUR\",\"screen\":\"\",\"complete\":false}");
+pref("browser.pdfjs.feature-tour", "{\"screen\":\"FEATURE_CALLOUT_1\",\"complete\":false}");
 
 // Enables cookie banner handling in Nightly in Private Browsing Mode. See
 // StaticPrefList.yaml for a description of the prefs.

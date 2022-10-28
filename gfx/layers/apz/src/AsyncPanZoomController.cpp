@@ -1939,9 +1939,9 @@ CSSCoord AsyncPanZoomController::ConvertScrollbarPoint(
 }
 
 static bool AllowsScrollingMoreThanOnePage(double aMultiplier) {
-  const int32_t kMinAllowPageScroll =
-      EventStateManager::MIN_MULTIPLIER_VALUE_ALLOWING_OVER_ONE_PAGE_SCROLL;
-  return Abs(aMultiplier) >= kMinAllowPageScroll;
+  return Abs(aMultiplier) >=
+         EventStateManager::MIN_MULTIPLIER_VALUE_ALLOWING_OVER_ONE_PAGE_SCROLL;
+  ;
 }
 
 ParentLayerPoint AsyncPanZoomController::GetScrollWheelDelta(
@@ -4500,7 +4500,7 @@ void AsyncPanZoomController::RequestContentRepaint(
       (mState == PINCHING || mState == ANIMATING_ZOOM) ? ZoomInProgress::Yes
                                                        : ZoomInProgress::No);
   Metrics().SetPaintRequestTime(TimeStamp::Now());
-  RequestContentRepaint(Metrics(), velocity, displayportMargins, aUpdateType);
+  RequestContentRepaint(velocity, displayportMargins, aUpdateType);
 }
 
 static CSSRect GetDisplayPortRect(const FrameMetrics& aFrameMetrics,
@@ -4520,8 +4520,8 @@ static CSSRect GetDisplayPortRect(const FrameMetrics& aFrameMetrics,
 }
 
 void AsyncPanZoomController::RequestContentRepaint(
-    const FrameMetrics& aFrameMetrics, const ParentLayerPoint& aVelocity,
-    const ScreenMargin& aDisplayportMargins, RepaintUpdateType aUpdateType) {
+    const ParentLayerPoint& aVelocity, const ScreenMargin& aDisplayportMargins,
+    RepaintUpdateType aUpdateType) {
   mRecursiveMutex.AssertCurrentThreadIn();
 
   RefPtr<GeckoContentController> controller = GetGeckoContentController();
@@ -4536,7 +4536,7 @@ void AsyncPanZoomController::RequestContentRepaint(
                         ? APZScrollAnimationType::TriggeredByScript
                         : APZScrollAnimationType::TriggeredByUserInput;
   }
-  RepaintRequest request(aFrameMetrics, aDisplayportMargins, aUpdateType,
+  RepaintRequest request(Metrics(), aDisplayportMargins, aUpdateType,
                          animationType, mScrollGeneration, mLastSnapTargetIds,
                          IsInScrollingGesture());
 
@@ -4580,12 +4580,12 @@ void AsyncPanZoomController::RequestContentRepaint(
       std::string str = info.str();
       mCheckerboardEvent->UpdateRendertraceProperty(
           CheckerboardEvent::RequestedDisplayPort,
-          GetDisplayPortRect(aFrameMetrics, aDisplayportMargins), str);
+          GetDisplayPortRect(Metrics(), aDisplayportMargins), str);
     }
   }
 
   controller->RequestContentRepaint(request);
-  mExpectedGeckoMetrics.UpdateFrom(aFrameMetrics);
+  mExpectedGeckoMetrics.UpdateFrom(Metrics());
   mLastPaintRequestMetrics = request;
 
   // We're holding the APZC lock here, so redispatch this so we can get

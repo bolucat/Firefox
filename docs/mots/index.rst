@@ -458,7 +458,8 @@ Infrastructure and tools used to generate, submit and process crash reports. Thi
       -
         | `Kris Wright (KrisWright) <https://people.mozilla.org/s?query=KrisWright>`__
         | `Calixte Denizet (calixte) <https://people.mozilla.org/s?query=calixte>`__
-        | `Aria Beingessner (Gankra) <https://people.mozilla.org/s?query=Gankra>`__
+    * - Peer(s) Emeritus
+      - Aria Beingessner
     * - Includes
       -
         | `toolkit/crashreporter/\*\*/\* <https://searchfox.org/mozilla-central/search?q=&path=toolkit/crashreporter/\*\*/\*>`__
@@ -1240,10 +1241,11 @@ The JAR handling code (protocol handler, stream implementation, and zipreader/zi
 
     * - Owner(s)
       -
-        | `vgosu <https://people.mozilla.org/s?query=vgosu>`__
+        | `Valentin Gosu (valentin) <https://people.mozilla.org/s?query=valentin>`__
     * - Peer(s)
       -
         | `Kershaw Chang (kershaw) <https://people.mozilla.org/s?query=kershaw>`__
+        | `Randell Jesup (jesup) <https://people.mozilla.org/s?query=jesup>`__
     * - Owner(s) Emeritus
       - Taras Glek, Michael Wu, Aaron Klotz
     * - Peer(s) Emeritus
@@ -1483,6 +1485,7 @@ The Mozilla Networking Library
     * - Peer(s)
       -
         | `Kershaw Chang (kershaw) <https://people.mozilla.org/s?query=kershaw>`__
+        | `Randell Jesup (jesup) <https://people.mozilla.org/s?query=jesup>`__
     * - Owner(s) Emeritus
       - Dragana Damjanovic, Patrick McManus, Christian Biesinger
     * - Peer(s) Emeritus
