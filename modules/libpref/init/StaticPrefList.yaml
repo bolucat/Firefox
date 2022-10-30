@@ -229,6 +229,18 @@
 #endif
   mirror: once
 
+# Whether to avoid accessibility activation on Windows shortly after clipboard
+# copy.
+#
+# Possible values are:
+#  * 0: never
+#  * 1: always
+#  * 2 (or others): when needed
+- name: accessibility.windows.suppress-after-clipboard-copy
+  type: uint32_t
+  value: 2
+  mirror: always
+
 #---------------------------------------------------------------------------
 # Prefs starting with "alerts."
 #---------------------------------------------------------------------------
@@ -1028,12 +1040,23 @@
   value: 40 * 1024
   mirror: always
 
+
 # Number of seconds the cache spends writing pending data and closing files
 # after shutdown has been signalled. Past that time data is not written and
 # files are left open for the OS to clean up.
 - name: browser.cache.max_shutdown_io_lag
   type: RelaxedAtomicUint32
   value: 2
+  mirror: always
+
+# After the max_shutdown_io_lag has passed, we will attempt to cancel
+# blocking IO (on windows). The CacheIOThread may pick up more blocking
+# tasks so we want to cancel those too. The main thread will be woken
+# up every shutdown_io_time_between_cancellations_ms to cancel the IO
+# on the other thread.
+- name: browser.cache.shutdown_io_time_between_cancellations_ms
+  type: RelaxedAtomicUint32
+  value: 5
   mirror: always
 
 # A percentage limit for media content type in the disk cache. When some entries
@@ -2447,6 +2470,13 @@
 # DataTransfer will be read-only whenever it should be protected, and will not
 # be disconnected after a drag event is completed.
 - name: dom.events.dataTransfer.protected.enabled
+  type: bool
+  value: false
+  mirror: always
+
+# Whether to hide normal files (i.e. non-images) in dataTransfer inside
+# the content process.
+- name: dom.events.dataTransfer.mozFile.enabled
   type: bool
   value: false
   mirror: always
@@ -7938,7 +7968,7 @@
 # Whether trigonometric constants and functions are enabled in calc().
 - name: layout.css.trig.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
   rust: true
 
@@ -9588,6 +9618,13 @@
 #else
   value: false
 #endif
+  mirror: always
+
+# Specifies how many times we restart Utility process after crash till we give
+# up.
+- name: media.utility-process.max-crashes
+  type: RelaxedAtomicInt32
+  value: 2
   mirror: always
 
 #ifdef MOZ_FFMPEG
@@ -14553,6 +14590,16 @@
   value: 0
   mirror: always
 #endif
+
+# Whether to flush the Ole clipboard synchronously.
+# Possible values are:
+#  * 0: never
+#  * 1: always
+#  * 2 (or others): when needed
+- name: widget.windows.sync-clipboard-flush
+  type: uint32_t
+  value: 2
+  mirror: always
 
 # Whether to disable SwipeTracker (e.g. swipe-to-nav).
 - name: widget.disable-swipe-tracker

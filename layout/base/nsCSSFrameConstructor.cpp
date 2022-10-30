@@ -1313,15 +1313,18 @@ nsFrameConstructorSaveState::~nsFrameConstructorSaveState() {
     MOZ_ASSERT(mState, "Can't have mList set without having a state!");
     mState->ProcessFrameInsertions(*mList, mChildListID);
 
-    if (mSavedFixedPosIsAbsPos) {
-      MOZ_ASSERT(mList == &mState->mAbsoluteList);
+    if (mList == &mState->mAbsoluteList) {
       mState->mFixedPosIsAbsPos = mSavedFixedPosIsAbsPos;
       // mAbsoluteList was moved to mFixedList, so move mFixedList back
       // and repair the old mFixedList now.
-      mState->mAbsoluteList = std::move(mState->mFixedList);
-      mState->mFixedList = std::move(mSavedList);
+      if (mSavedFixedPosIsAbsPos) {
+        mState->mAbsoluteList = std::move(mState->mFixedList);
+        mState->mFixedList = std::move(mSavedList);
+      } else {
+        mState->mAbsoluteList = std::move(mSavedList);
+      }
     } else {
-      *mList = std::move(mSavedList);
+      mState->mFloatedList = std::move(mSavedList);
     }
 
     MOZ_ASSERT(mSavedList.IsEmpty(),
@@ -4065,7 +4068,6 @@ nsCSSFrameConstructor::FindXULTagData(const Element& aElement,
 
   static constexpr FrameConstructionDataByTag sXULTagData[] = {
       SIMPLE_XUL_CREATE(image, NS_NewImageBoxFrame),
-      SIMPLE_XUL_CREATE(spacer, NS_NewLeafBoxFrame),
       SIMPLE_XUL_CREATE(treechildren, NS_NewTreeBodyFrame),
       SIMPLE_XUL_CREATE(treecol, NS_NewTreeColFrame),
       SIMPLE_TAG_CHAIN(button, nsCSSFrameConstructor::FindXULButtonData),
