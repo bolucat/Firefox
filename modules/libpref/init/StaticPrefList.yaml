@@ -1939,8 +1939,7 @@
   mirror: always
 
 # Enables the cookie banner cookie injector. The cookie banner cookie injector
-# depends on the above `cookiebanners.service.mode` pref: it would be disabled
-# if the servcie mode is disabled.
+# depends on the `cookiebanners.service.mode` pref above.
 - name: cookiebanners.cookieInjector.enabled
   type: bool
   value: true
@@ -1956,11 +1955,10 @@
   mirror: always
 
 # Enables the cookie banner auto clicking. The cookie banner auto clicking
-# depends on the above `cookiebanners.service.mode` pref: it would be disabled
-# if the servcie mode is disabled.
+# depends on the `cookiebanners.service.mode` pref above.
 - name: cookiebanners.bannerClicking.enabled
   type: bool
-  value: false
+  value: true
   mirror: always
 
 # The maximum time in ms for detecting banner and button elements for cookie
@@ -11546,6 +11544,12 @@
 - name: network.url.max-length
   type: RelaxedAtomicUint32
   value: 32 * 1024 * 1024
+  mirror: always
+
+# Should be removed if no breakage occurs. See bug 1797846
+- name: network.url.strip-data-url-whitespace
+  type: RelaxedAtomicBool
+  value: false
   mirror: always
 
 # Force remapping of remote port numbers to allow reaching local testing
