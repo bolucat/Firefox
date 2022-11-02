@@ -57,6 +57,7 @@
 #include "vm/JSObject-inl.h"
 #include "vm/JSScript-inl.h"
 #include "vm/NativeObject-inl.h"
+#include "vm/PlainObject-inl.h"
 #include "vm/StringObject-inl.h"
 #include "wasm/WasmInstance-inl.h"
 
@@ -6148,26 +6149,20 @@ AttachDecision InlinableNativeIRGenerator::tryAttachIsSuspendedGenerator() {
   return AttachDecision::Attach;
 }
 
-AttachDecision InlinableNativeIRGenerator::tryAttachToObject(
-    InlinableNative native) {
+AttachDecision InlinableNativeIRGenerator::tryAttachToObject() {
   // Self-hosted code calls this with a single argument.
-  MOZ_ASSERT_IF(native == InlinableNative::IntrinsicToObject, argc_ == 1);
+  MOZ_ASSERT(argc_ == 1);
 
   // Need a single object argument.
   // TODO(Warp): Support all or more conversions to object.
-  // Note: ToObject and Object differ in their behavior for undefined/null.
-  if (argc_ != 1 || !args_[0].isObject()) {
+  if (!args_[0].isObject()) {
     return AttachDecision::NoAction;
   }
 
   // Initialize the input operand.
   initializeInputOperand();
 
-  // Guard callee is the 'Object' function.
   // Note: we don't need to call emitNativeCalleeGuard for intrinsics.
-  if (native == InlinableNative::Object) {
-    emitNativeCalleeGuard();
-  }
 
   // Guard that the argument is an object.
   ValOperandId argId = writer.loadArgumentFixedSlot(ArgumentKind::Arg0, argc_);
@@ -6177,12 +6172,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachToObject(
   writer.loadObjectResult(objId);
   writer.returnFromIC();
 
-  if (native == InlinableNative::IntrinsicToObject) {
-    trackAttached("ToObject");
-  } else {
-    MOZ_ASSERT(native == InlinableNative::Object);
-    trackAttached("Object");
-  }
+  trackAttached("ToObject");
   return AttachDecision::Attach;
 }
 
@@ -9217,6 +9207,75 @@ AttachDecision InlinableNativeIRGenerator::tryAttachObjectCreate() {
   return AttachDecision::Attach;
 }
 
+AttachDecision InlinableNativeIRGenerator::tryAttachObjectConstructor() {
+  // Expecting no arguments or a single object argument.
+  // TODO(Warp): Support all or more conversions to object.
+  if (argc_ > 1) {
+    return AttachDecision::NoAction;
+  }
+  if (argc_ == 1 && !args_[0].isObject()) {
+    return AttachDecision::NoAction;
+  }
+
+  PlainObject* templateObj = nullptr;
+  if (argc_ == 0) {
+    // Stub doesn't support metadata builder
+    if (cx_->realm()->hasAllocationMetadataBuilder()) {
+      return AttachDecision::NoAction;
+    }
+
+    // Create a temporary object to act as the template object.
+    templateObj = NewPlainObjectWithAllocKind(cx_, NewObjectGCKind());
+    if (!templateObj) {
+      cx_->recoverFromOutOfMemory();
+      return AttachDecision::NoAction;
+    }
+  }
+
+  // Initialize the input operand.
+  initializeInputOperand();
+
+  // Guard callee and newTarget (if constructing) are this Object constructor
+  // function.
+  emitNativeCalleeGuard();
+
+  if (argc_ == 0) {
+    // TODO: Support pre-tenuring.
+    gc::AllocSite* site = script()->zone()->unknownAllocSite();
+    MOZ_ASSERT(site);
+
+    uint32_t numFixedSlots = templateObj->numUsedFixedSlots();
+    uint32_t numDynamicSlots = templateObj->numDynamicSlots();
+    gc::AllocKind allocKind = templateObj->allocKindForTenure();
+    Shape* shape = templateObj->shape();
+
+    writer.guardNoAllocationMetadataBuilder(
+        cx_->realm()->addressOfMetadataBuilder());
+    writer.newPlainObjectResult(numFixedSlots, numDynamicSlots, allocKind,
+                                shape, site);
+  } else {
+    // Use standard call flags when this is an inline Function.prototype.call(),
+    // because GetIndexOfArgument() doesn't yet support |CallFlags::FunCall|.
+    CallFlags flags = flags_;
+    if (flags.getArgFormat() == CallFlags::FunCall) {
+      flags = CallFlags(CallFlags::Standard);
+    }
+
+    // Guard that the argument is an object.
+    ValOperandId argId =
+        writer.loadArgumentFixedSlot(ArgumentKind::Arg0, argc_, flags);
+    ObjOperandId objId = writer.guardToObject(argId);
+
+    // Return the object.
+    writer.loadObjectResult(objId);
+  }
+
+  writer.returnFromIC();
+
+  trackAttached("ObjectConstructor");
+  return AttachDecision::Attach;
+}
+
 AttachDecision InlinableNativeIRGenerator::tryAttachArrayConstructor() {
   // Only optimize the |Array()| and |Array(n)| cases (with or without |new|)
   // for now. Note that self-hosted code calls this without |new| via std_Array.
@@ -9661,6 +9720,8 @@ AttachDecision InlinableNativeIRGenerator::tryAttachStub() {
         return tryAttachTypedArrayConstructor();
       case InlinableNative::String:
         return tryAttachStringConstructor();
+      case InlinableNative::Object:
+        return tryAttachObjectConstructor();
       default:
         break;
     }
@@ -9766,7 +9827,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachStub() {
     case InlinableNative::IntrinsicIsSuspendedGenerator:
       return tryAttachIsSuspendedGenerator();
     case InlinableNative::IntrinsicToObject:
-      return tryAttachToObject(native);
+      return tryAttachToObject();
     case InlinableNative::IntrinsicToInteger:
       return tryAttachToInteger();
     case InlinableNative::IntrinsicToLength:
@@ -9938,7 +9999,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachStub() {
 
     // Object natives.
     case InlinableNative::Object:
-      return tryAttachToObject(native);
+      return tryAttachObjectConstructor();
     case InlinableNative::ObjectCreate:
       return tryAttachObjectCreate();
     case InlinableNative::ObjectIs:

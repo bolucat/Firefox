@@ -576,7 +576,7 @@ class MOZ_RAII InlinableNativeIRGenerator {
   AttachDecision tryAttachUnsafeGetReservedSlot(InlinableNative native);
   AttachDecision tryAttachUnsafeSetReservedSlot();
   AttachDecision tryAttachIsSuspendedGenerator();
-  AttachDecision tryAttachToObject(InlinableNative native);
+  AttachDecision tryAttachToObject();
   AttachDecision tryAttachToInteger();
   AttachDecision tryAttachToLength();
   AttachDecision tryAttachIsObject();
@@ -639,6 +639,7 @@ class MOZ_RAII InlinableNativeIRGenerator {
   AttachDecision tryAttachNewRegExpStringIterator();
   AttachDecision tryAttachArrayIteratorPrototypeOptimizable();
   AttachDecision tryAttachObjectCreate();
+  AttachDecision tryAttachObjectConstructor();
   AttachDecision tryAttachArrayConstructor();
   AttachDecision tryAttachTypedArrayConstructor();
   AttachDecision tryAttachNumberToString();

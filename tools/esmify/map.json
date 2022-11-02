@@ -453,8 +453,6 @@
     "browser/components/urlbar/UrlbarProviderUnitConversion.jsm",
   "resource:///modules/UrlbarProvidersManager.jsm":
     "browser/components/urlbar/UrlbarProvidersManager.jsm",
-  "resource:///modules/UrlbarQuickSuggest.jsm":
-    "browser/components/urlbar/UrlbarQuickSuggest.jsm",
   "resource:///modules/UrlbarResult.jsm":
     "browser/components/urlbar/UrlbarResult.jsm",
   "resource:///modules/UrlbarSearchOneOffs.jsm":
@@ -1307,8 +1305,6 @@
     "mobile/android/modules/geckoview/MediaUtils.jsm",
   "resource://gre/modules/MessageManagerProxy.jsm":
     "toolkit/components/extensions/MessageManagerProxy.jsm",
-  "resource://gre/modules/Messaging.jsm":
-    "mobile/android/modules/geckoview/Messaging.jsm",
   "resource://gre/modules/ModulesPing.jsm":
     "toolkit/components/telemetry/pings/ModulesPing.jsm",
   "resource://gre/modules/MozProtocolHandler.jsm":

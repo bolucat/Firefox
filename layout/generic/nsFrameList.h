@@ -115,7 +115,10 @@ class nsFrameList {
   }
   nsFrameList& operator=(nsFrameList&& aOther) {
     if (this != &aOther) {
-      SetFrames(aOther);
+      MOZ_ASSERT(IsEmpty(), "Assigning to a non-empty list will lose frames!");
+      mFirstChild = aOther.FirstChild();
+      mLastChild = aOther.LastChild();
+      aOther.Clear();
     }
     return *this;
   }
@@ -147,23 +150,13 @@ class nsFrameList {
 
   void Clear() { mFirstChild = mLastChild = nullptr; }
 
-  void SetFrames(nsIFrame* aFrameList);
-
-  void SetFrames(nsFrameList& aFrameList) {
-    MOZ_ASSERT(!mFirstChild, "Losing frames");
-
-    mFirstChild = aFrameList.FirstChild();
-    mLastChild = aFrameList.LastChild();
-    aFrameList.Clear();
-  }
-
   /**
    * Append aFrameList to this list.  If aParent is not null,
    * reparents the newly added frames.  Clears out aFrameList and
    * returns a list slice represening the newly-appended frames.
    */
-  Slice AppendFrames(nsContainerFrame* aParent, nsFrameList& aFrameList) {
-    return InsertFrames(aParent, LastChild(), aFrameList);
+  Slice AppendFrames(nsContainerFrame* aParent, nsFrameList&& aFrameList) {
+    return InsertFrames(aParent, LastChild(), std::move(aFrameList));
   }
 
   /**
@@ -171,8 +164,7 @@ class nsFrameList {
    * reparents the newly added frame.
    */
   void AppendFrame(nsContainerFrame* aParent, nsIFrame* aFrame) {
-    nsFrameList temp(aFrame, aFrame);
-    AppendFrames(aParent, temp);
+    AppendFrames(aParent, nsFrameList(aFrame, aFrame));
   }
 
   /**
@@ -250,8 +242,7 @@ class nsFrameList {
    */
   void InsertFrame(nsContainerFrame* aParent, nsIFrame* aPrevSibling,
                    nsIFrame* aFrame) {
-    nsFrameList temp(aFrame, aFrame);
-    InsertFrames(aParent, aPrevSibling, temp);
+    InsertFrames(aParent, aPrevSibling, nsFrameList(aFrame, aFrame));
   }
 
   /**
@@ -261,7 +252,7 @@ class nsFrameList {
    * newly-inserted frames.
    */
   Slice InsertFrames(nsContainerFrame* aParent, nsIFrame* aPrevSibling,
-                     nsFrameList& aFrameList);
+                     nsFrameList&& aFrameList);
 
   /**
    * Split this list just before the first frame that matches aPredicate,

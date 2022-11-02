@@ -1235,17 +1235,17 @@ bool nsFlexContainerFrame::DrainSelfOverflowList() {
 }
 
 void nsFlexContainerFrame::AppendFrames(ChildListID aListID,
-                                        nsFrameList& aFrameList) {
+                                        nsFrameList&& aFrameList) {
   NoteNewChildren(aListID, aFrameList);
-  nsContainerFrame::AppendFrames(aListID, aFrameList);
+  nsContainerFrame::AppendFrames(aListID, std::move(aFrameList));
 }
 
 void nsFlexContainerFrame::InsertFrames(
     ChildListID aListID, nsIFrame* aPrevFrame,
-    const nsLineList::iterator* aPrevFrameLine, nsFrameList& aFrameList) {
+    const nsLineList::iterator* aPrevFrameLine, nsFrameList&& aFrameList) {
   NoteNewChildren(aListID, aFrameList);
   nsContainerFrame::InsertFrames(aListID, aPrevFrame, aPrevFrameLine,
-                                 aFrameList);
+                                 std::move(aFrameList));
 }
 
 void nsFlexContainerFrame::RemoveFrame(ChildListID aListID,

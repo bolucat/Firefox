@@ -141,8 +141,8 @@ nsIFrame* nsBoxFrame::SlowOrdinalGroupAwareSibling(nsIFrame* aBox, bool aNext) {
 }
 
 void nsBoxFrame::SetInitialChildList(ChildListID aListID,
-                                     nsFrameList& aChildList) {
-  nsContainerFrame::SetInitialChildList(aListID, aChildList);
+                                     nsFrameList&& aChildList) {
+  nsContainerFrame::SetInitialChildList(aListID, std::move(aChildList));
   if (aListID == kPrincipalList) {
     // initialize our list of infos.
     nsBoxLayoutState state(PresContext());
@@ -734,7 +734,7 @@ void nsBoxFrame::RemoveFrame(ChildListID aListID, nsIFrame* aOldFrame) {
 
 void nsBoxFrame::InsertFrames(ChildListID aListID, nsIFrame* aPrevFrame,
                               const nsLineList::iterator* aPrevFrameLine,
-                              nsFrameList& aFrameList) {
+                              nsFrameList&& aFrameList) {
   NS_ASSERTION(!aPrevFrame || aPrevFrame->GetParent() == this,
                "inserting after sibling frame with different parent");
   NS_ASSERTION(!aPrevFrame || mFrames.ContainsFrame(aPrevFrame),
@@ -745,7 +745,7 @@ void nsBoxFrame::InsertFrames(ChildListID aListID, nsIFrame* aPrevFrame,
 
   // insert the child frames
   const nsFrameList::Slice& newFrames =
-      mFrames.InsertFrames(this, aPrevFrame, aFrameList);
+      mFrames.InsertFrames(this, aPrevFrame, std::move(aFrameList));
 
   // notify the layout manager
   if (mLayoutManager)
@@ -755,13 +755,14 @@ void nsBoxFrame::InsertFrames(ChildListID aListID, nsIFrame* aPrevFrame,
                                 NS_FRAME_HAS_DIRTY_CHILDREN);
 }
 
-void nsBoxFrame::AppendFrames(ChildListID aListID, nsFrameList& aFrameList) {
+void nsBoxFrame::AppendFrames(ChildListID aListID, nsFrameList&& aFrameList) {
   MOZ_ASSERT(aListID == kPrincipalList, "We don't support out-of-flow kids");
 
   nsBoxLayoutState state(PresContext());
 
   // append the new frames
-  const nsFrameList::Slice& newFrames = mFrames.AppendFrames(this, aFrameList);
+  const nsFrameList::Slice& newFrames =
+      mFrames.AppendFrames(this, std::move(aFrameList));
 
   // notify the layout manager
   if (mLayoutManager) mLayoutManager->ChildrenAppended(this, state, newFrames);

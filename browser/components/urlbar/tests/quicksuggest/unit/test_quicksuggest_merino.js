@@ -40,7 +40,7 @@ const EXPECTED_REMOTE_SETTINGS_RESULT = {
     sponsoredBlockId: 1,
     sponsoredAdvertiser: "TestAdvertiser",
     isSponsored: true,
-    helpUrl: UrlbarProviderQuickSuggest.helpUrl,
+    helpUrl: QuickSuggest.HELP_URL,
     helpL10nId: "firefox-suggest-urlbar-learn-more",
     displayUrl: "http://test.com/q=frabbits",
     source: "remote-settings",
@@ -62,7 +62,7 @@ const EXPECTED_MERINO_RESULT = {
     sponsoredBlockId: 1,
     sponsoredAdvertiser: "advertiser",
     isSponsored: true,
-    helpUrl: UrlbarProviderQuickSuggest.helpUrl,
+    helpUrl: QuickSuggest.HELP_URL,
     helpL10nId: "firefox-suggest-urlbar-learn-more",
     displayUrl: "url",
     requestId: "request_id",
@@ -90,9 +90,9 @@ add_task(async function init() {
   await QuickSuggestTestUtils.ensureQuickSuggestInit(REMOTE_SETTINGS_DATA);
 
   Assert.equal(
-    typeof UrlbarQuickSuggest.DEFAULT_SUGGESTION_SCORE,
+    typeof QuickSuggestRemoteSettingsClient.DEFAULT_SUGGESTION_SCORE,
     "number",
-    "Sanity check: UrlbarQuickSuggest.DEFAULT_SUGGESTION_SCORE is defined"
+    "Sanity check: DEFAULT_SUGGESTION_SCORE is defined"
   );
 });
 
@@ -107,7 +107,7 @@ add_task(async function oneEnabled_merino() {
   // Use a score lower than the remote settings score to make sure the
   // suggestion is included regardless.
   MerinoTestUtils.server.response.body.suggestions[0].score =
-    UrlbarQuickSuggest.DEFAULT_SUGGESTION_SCORE / 2;
+    QuickSuggestRemoteSettingsClient.DEFAULT_SUGGESTION_SCORE / 2;
 
   let context = createContext(SEARCH_STRING, {
     providers: [UrlbarProviderQuickSuggest.name],
@@ -182,7 +182,7 @@ add_task(async function higherScore() {
   let histograms = MerinoTestUtils.getAndClearHistograms();
 
   MerinoTestUtils.server.response.body.suggestions[0].score =
-    2 * UrlbarQuickSuggest.DEFAULT_SUGGESTION_SCORE;
+    2 * QuickSuggestRemoteSettingsClient.DEFAULT_SUGGESTION_SCORE;
 
   let context = createContext(SEARCH_STRING, {
     providers: [UrlbarProviderQuickSuggest.name],
@@ -214,7 +214,7 @@ add_task(async function lowerScore() {
   let histograms = MerinoTestUtils.getAndClearHistograms();
 
   MerinoTestUtils.server.response.body.suggestions[0].score =
-    UrlbarQuickSuggest.DEFAULT_SUGGESTION_SCORE / 2;
+    QuickSuggestRemoteSettingsClient.DEFAULT_SUGGESTION_SCORE / 2;
 
   let context = createContext(SEARCH_STRING, {
     providers: [UrlbarProviderQuickSuggest.name],
@@ -246,7 +246,7 @@ add_task(async function sameScore() {
   let histograms = MerinoTestUtils.getAndClearHistograms();
 
   MerinoTestUtils.server.response.body.suggestions[0].score =
-    UrlbarQuickSuggest.DEFAULT_SUGGESTION_SCORE;
+    QuickSuggestRemoteSettingsClient.DEFAULT_SUGGESTION_SCORE;
 
   let context = createContext(SEARCH_STRING, {
     providers: [UrlbarProviderQuickSuggest.name],
@@ -456,7 +456,7 @@ add_task(async function multipleMerinoSuggestions() {
           sponsoredBlockId: 1,
           sponsoredAdvertiser: "multipleMerinoSuggestions 1 advertiser",
           isSponsored: true,
-          helpUrl: UrlbarProviderQuickSuggest.helpUrl,
+          helpUrl: QuickSuggest.HELP_URL,
           helpL10nId: "firefox-suggest-urlbar-learn-more",
           displayUrl: "multipleMerinoSuggestions 1 url",
           requestId: "request_id",
@@ -485,7 +485,7 @@ add_task(async function timestamps() {
 
   // Set up the Merino response with template URLs.
   let suggestion = MerinoTestUtils.server.response.body.suggestions[0];
-  let { TIMESTAMP_TEMPLATE } = UrlbarProviderQuickSuggest;
+  let { TIMESTAMP_TEMPLATE } = QuickSuggest;
 
   suggestion.url = `http://example.com/time-${TIMESTAMP_TEMPLATE}`;
   suggestion.click_url = `http://example.com/time-${TIMESTAMP_TEMPLATE}-foo`;
@@ -574,7 +574,7 @@ add_task(async function block() {
   UrlbarPrefs.set(PREF_DATA_COLLECTION_ENABLED, true);
 
   for (const suggestion of MerinoTestUtils.server.response.body.suggestions) {
-    await UrlbarProviderQuickSuggest.blockSuggestion(suggestion.url);
+    await QuickSuggest.blockSuggestion(suggestion.url);
   }
 
   const context = createContext(SEARCH_STRING, {
@@ -587,7 +587,7 @@ add_task(async function block() {
     matches: [EXPECTED_REMOTE_SETTINGS_RESULT],
   });
 
-  await UrlbarProviderQuickSuggest.clearBlockedSuggestions();
+  await QuickSuggest.clearBlockedSuggestions();
   MerinoTestUtils.server.reset();
   gClient.resetSession();
 });

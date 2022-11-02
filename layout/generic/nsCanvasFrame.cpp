@@ -264,14 +264,15 @@ nsCanvasFrame::SetHasFocus(bool aHasFocus) {
 }
 
 void nsCanvasFrame::SetInitialChildList(ChildListID aListID,
-                                        nsFrameList& aChildList) {
+                                        nsFrameList&& aChildList) {
   NS_ASSERTION(aListID != kPrincipalList || aChildList.IsEmpty() ||
                    aChildList.OnlyChild(),
                "Primary child list can have at most one frame in it");
-  nsContainerFrame::SetInitialChildList(aListID, aChildList);
+  nsContainerFrame::SetInitialChildList(aListID, std::move(aChildList));
 }
 
-void nsCanvasFrame::AppendFrames(ChildListID aListID, nsFrameList& aFrameList) {
+void nsCanvasFrame::AppendFrames(ChildListID aListID,
+                                 nsFrameList&& aFrameList) {
 #ifdef DEBUG
   MOZ_ASSERT(aListID == kPrincipalList, "unexpected child list");
   if (!mFrames.IsEmpty()) {
@@ -284,16 +285,16 @@ void nsCanvasFrame::AppendFrames(ChildListID aListID, nsFrameList& aFrameList) {
   }
   nsIFrame::VerifyDirtyBitSet(aFrameList);
 #endif
-  nsContainerFrame::AppendFrames(aListID, aFrameList);
+  nsContainerFrame::AppendFrames(aListID, std::move(aFrameList));
 }
 
 void nsCanvasFrame::InsertFrames(ChildListID aListID, nsIFrame* aPrevFrame,
                                  const nsLineList::iterator* aPrevFrameLine,
-                                 nsFrameList& aFrameList) {
+                                 nsFrameList&& aFrameList) {
   // Because we only support a single child frame inserting is the same
   // as appending
   MOZ_ASSERT(!aPrevFrame, "unexpected previous sibling frame");
-  AppendFrames(aListID, aFrameList);
+  AppendFrames(aListID, std::move(aFrameList));
 }
 
 #ifdef DEBUG
@@ -710,7 +711,7 @@ void nsCanvasFrame::Reflow(nsPresContext* aPresContext,
       // Prepend overflow to the our child list. There may already be
       // children placeholders for fixed-pos elements, which don't get
       // reflowed but must not be lost until the canvas frame is destroyed.
-      mFrames.InsertFrames(this, nullptr, *overflow);
+      mFrames.InsertFrames(this, nullptr, std::move(*overflow));
     }
   }
 

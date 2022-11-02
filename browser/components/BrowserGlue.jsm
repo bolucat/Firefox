@@ -39,12 +39,12 @@ ChromeUtils.defineESModuleGetters(lazy, {
   PlacesUIUtils: "resource:///modules/PlacesUIUtils.sys.mjs",
   PlacesUtils: "resource://gre/modules/PlacesUtils.sys.mjs",
   PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
+  QuickSuggest: "resource:///modules/QuickSuggest.sys.mjs",
   ScreenshotsUtils: "resource:///modules/ScreenshotsUtils.sys.mjs",
   SearchSERPTelemetry: "resource:///modules/SearchSERPTelemetry.sys.mjs",
   ShortcutUtils: "resource://gre/modules/ShortcutUtils.sys.mjs",
   SnapshotMonitor: "resource:///modules/SnapshotMonitor.sys.mjs",
   UrlbarPrefs: "resource:///modules/UrlbarPrefs.sys.mjs",
-  UrlbarQuickSuggest: "resource:///modules/UrlbarQuickSuggest.sys.mjs",
   WebChannel: "resource://gre/modules/WebChannel.sys.mjs",
   WindowsRegistry: "resource://gre/modules/WindowsRegistry.sys.mjs",
   setTimeout: "resource://gre/modules/Timer.sys.mjs",
@@ -2524,6 +2524,8 @@ BrowserGlue.prototype = {
       {
         condition:
           AppConstants.platform == "win" &&
+          // No Private Browsing shortcut if there's no Private Browsing :)
+          lazy.PrivateBrowsingUtils.enabled &&
           // Pref'ed off until Private Browsing window separation is enabled by default
           // to avoid a situation where a user pins the Private Browsing shortcut to
           // the Taskbar, which will end up launching into a different Taskbar icon.
@@ -2856,7 +2858,7 @@ BrowserGlue.prototype = {
 
       {
         task: () => {
-          lazy.UrlbarQuickSuggest.init();
+          lazy.QuickSuggest.init();
         },
       },
 
@@ -4442,7 +4444,7 @@ BrowserGlue.prototype = {
     if (willPrompt) {
       let win = lazy.BrowserWindowTracker.getTopWindow();
       DefaultBrowserCheck.prompt(win);
-    } else if (await lazy.UrlbarQuickSuggest.maybeShowOnboardingDialog()) {
+    } else if (await lazy.QuickSuggest.maybeShowOnboardingDialog()) {
       return;
     }
 
