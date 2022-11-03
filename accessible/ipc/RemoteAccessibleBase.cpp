@@ -703,6 +703,12 @@ Relation RemoteAccessibleBase<Derived>::RelationByType(
       for (auto s : href.Split('#')) {
         href = s;
       }
+      if (href.IsEmpty()) {
+        // This can happen if we encounter a link with an empty anchor:
+        // ie. <a href="#">hi</a>
+        return Relation();
+      }
+
       MustPruneSameDocRule rule;
       Accessible* nameMatch = nullptr;
       for (Accessible* match = p.Next(mDoc, rule); match;
@@ -765,9 +771,8 @@ Relation RemoteAccessibleBase<Derived>::RelationByType(
     Relation rel = Relation();
     // HTML radio buttons with cached names should be grouped.
     if (IsHTMLRadioButton()) {
-      auto maybeName =
-          mCachedFields->GetAttribute<nsString>(nsGkAtoms::radioLabel);
-      if (!maybeName) {
+      nsString name = GetCachedHTMLNameAttribute();
+      if (name.IsEmpty()) {
         return rel;
       }
 
@@ -776,7 +781,7 @@ Relation RemoteAccessibleBase<Derived>::RelationByType(
         ancestor = ancestor->RemoteParent();
       }
       Pivot p = Pivot(ancestor);
-      PivotRadioNameRule rule(*maybeName);
+      PivotRadioNameRule rule(name);
       Accessible* match = p.Next(ancestor, rule);
       while (match) {
         rel.AppendTarget(match->AsRemote());

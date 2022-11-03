@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -16,10 +16,10 @@ from __future__ import absolute_import, print_function, unicode_literals
 import sys
 
 major, minor = sys.version_info[:2]
-if (major < 3) or (major == 3 and minor < 5):
+if (major < 3) or (major == 3 and minor < 6):
     print(
-        "Bootstrap currently only runs on Python 3.5+."
-        "Please try re-running with python3.5+."
+        "Bootstrap currently only runs on Python 3.6+."
+        "Please try re-running with python3.6+."
     )
     sys.exit(1)
 
@@ -164,24 +164,24 @@ def git_clone_firefox(git: Path, dest: Path, watchman: Path):
     try:
         cinnabar = which("git-cinnabar")
         if not cinnabar:
+            from urllib.request import urlopen
+
             cinnabar_url = "https://github.com/glandium/git-cinnabar/"
             # If git-cinnabar isn't installed already, that's fine; we can
-            # download a temporary copy. `mach bootstrap` will clone a full copy
-            # of the repo in the state dir; we don't want to copy all that logic
-            # to this tiny bootstrapping script.
+            # download a temporary copy. `mach bootstrap` will install a copy
+            # in the state dir; we don't want to copy all that logic to this
+            # tiny bootstrapping script.
             tempdir = Path(tempfile.mkdtemp())
-            cinnabar_dir = tempdir / "git-cinnabar-master"
+            with open(tempdir / "download.py", "wb") as fh:
+                shutil.copyfileobj(
+                    urlopen(f"{cinnabar_url}/raw/master/download.py"), fh
+                )
+
             subprocess.check_call(
-                [str(git), "clone", "--depth=1", str(cinnabar_url), str(cinnabar_dir)],
+                [sys.executable, str(tempdir / "download.py")],
                 cwd=str(tempdir),
-                env=env,
             )
-            env["PATH"] = str(cinnabar_dir) + os.pathsep + env["PATH"]
-            subprocess.check_call(
-                [sys.executable, str(cinnabar_dir / "download.py")],
-                cwd=str(cinnabar_dir),
-                env=env,
-            )
+            env["PATH"] = str(tempdir) + os.pathsep + env["PATH"]
             print(
                 "WARNING! git-cinnabar is required for Firefox development  "
                 "with git. After the clone is complete, the bootstrapper "
