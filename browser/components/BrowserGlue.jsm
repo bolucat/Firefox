@@ -288,10 +288,10 @@ let JSWINDOWACTORS = {
 
   AboutPocket: {
     parent: {
-      moduleURI: "resource:///actors/AboutPocketParent.jsm",
+      esModuleURI: "resource:///actors/AboutPocketParent.sys.mjs",
     },
     child: {
-      moduleURI: "resource:///actors/AboutPocketChild.jsm",
+      esModuleURI: "resource:///actors/AboutPocketChild.sys.mjs",
 
       events: {
         DOMDocElementInserted: { capture: true },
@@ -2246,23 +2246,6 @@ BrowserGlue.prototype = {
     _checkGPCPref();
   },
 
-  _monitorPrivacySegmentationPref() {
-    const PREF_ENABLED = "browser.dataFeatureRecommendations.enabled";
-    const EVENT_CATEGORY = "privacy_segmentation";
-
-    let checkPrivacySegmentationPref = () => {
-      let isEnabled = Services.prefs.getBoolPref(PREF_ENABLED, false);
-      Services.telemetry.recordEvent(
-        EVENT_CATEGORY,
-        isEnabled ? "enable" : "disable",
-        "pref"
-      );
-    };
-
-    Services.telemetry.setEventRecordingEnabled(EVENT_CATEGORY, true);
-    Services.prefs.addObserver(PREF_ENABLED, checkPrivacySegmentationPref);
-  },
-
   // All initial windows have opened.
   _onWindowsRestored: function BG__onWindowsRestored() {
     if (this._windowsWereRestored) {
@@ -2340,7 +2323,6 @@ BrowserGlue.prototype = {
     this._setupSearchDetection();
 
     this._monitorGPCPref();
-    this._monitorPrivacySegmentationPref();
   },
 
   /**
