@@ -10,6 +10,28 @@ const { TelemetryTestUtils } = ChromeUtils.import(
   "resource://testing-common/TelemetryTestUtils.jsm"
 );
 
+const MOBILE_PROMO_DISMISSED_PREF =
+  "browser.tabs.firefox-view.mobilePromo.dismissed";
+const RECENTLY_CLOSED_STATE_PREF =
+  "browser.tabs.firefox-view.ui-state.recently-closed-tabs.open";
+const TAB_PICKUP_STATE_PREF =
+  "browser.tabs.firefox-view.ui-state.tab-pickup.open";
+
+const calloutId = "root";
+const calloutSelector = `#${calloutId}.featureCallout`;
+const primaryButtonSelector = `#${calloutId} .primary`;
+
+/**
+ * URLs used for browser_recently_closed_tabs_keyboard and
+ * browser_firefoxview_accessibility
+ */
+const URLs = [
+  "http://mochi.test:8888/browser/",
+  "https://www.example.com/",
+  "https://example.net/",
+  "https://example.org/",
+];
+
 const syncedTabsData1 = [
   {
     id: 1,
@@ -347,13 +369,94 @@ async function touchLastTabFetch() {
   await TestUtils.waitForTick();
 }
 
+let gUIStateSyncEnabled;
+function setupMocks({ fxaDevices = null, state, syncEnabled = true }) {
+  gUIStateStatus = state || UIState.STATUS_SIGNED_IN;
+  gUIStateSyncEnabled = syncEnabled;
+  if (gSandbox) {
+    gSandbox.restore();
+  }
+  const sandbox = (gSandbox = sinon.createSandbox());
+  gMockFxaDevices = fxaDevices;
+  sandbox.stub(fxAccounts.device, "recentDeviceList").get(() => fxaDevices);
+  sandbox.stub(UIState, "get").callsFake(() => {
+    return {
+      status: gUIStateStatus,
+      // Sometimes syncEnabled is not present on UIState, for example when the user signs
+      // out the state is just { status: "not_configured" }
+      ...(gUIStateSyncEnabled != undefined && {
+        syncEnabled: gUIStateSyncEnabled,
+      }),
+    };
+  });
+  return sandbox;
+}
+
+async function tearDown(sandbox) {
+  sandbox?.restore();
+  Services.prefs.clearUserPref("services.sync.lastTabFetch");
+  Services.prefs.clearUserPref(MOBILE_PROMO_DISMISSED_PREF);
+}
+
 /**
- * Opens and then closes a tab so that Firefox View can have
- * a tab available in the recently closed list
+ * Returns a value that can be used to set
+ * `browser.firefox-view.feature-tour` to change the feature tour's
+ * UI state.
+ *
+ * @see FeatureCalloutMessages.jsm for valid values of "screen"
+ *
+ * @param {number} screen The full ID of the feature callout screen
+ * @return {string} JSON string used to set
+ * `browser.firefox-view.feature-tour`
+ */
+const getPrefValueByScreen = screen => {
+  return JSON.stringify({
+    screen: `FEATURE_CALLOUT_${screen}`,
+    complete: false,
+  });
+};
+
+/**
+ * Wait for a feature callout screen of given parameters to be shown
+ * @param {Document} doc the document where the callout appears.
+ * @param {String} screenPostfix The full ID of the feature callout screen.
+ */
+const waitForCalloutScreen = async (doc, screenPostfix) => {
+  await BrowserTestUtils.waitForCondition(() =>
+    doc.querySelector(`${calloutSelector}:not(.hidden) .${screenPostfix}`)
+  );
+};
+
+/**
+ * Waits for the feature callout screen to be removed.
+ *
+ * @param {Document} doc The document where the callout appears.
+ */
+const waitForCalloutRemoved = async doc => {
+  await BrowserTestUtils.waitForCondition(() => {
+    return !doc.body.querySelector(calloutSelector);
+  });
+};
+
+/**
+ * NOTE: Should be replaced with synthesizeMouseAtCenter for
+ * simulating user input. See Bug 1798322
+ *
+ * Clicks the primary button in the feature callout dialog
+ *
+ * @param {document} doc Firefox View document
+ */
+const clickPrimaryButton = async doc => {
+  doc.querySelector(primaryButtonSelector).click();
+};
+
+/**
+ * Helper function to open and close a tab so the recently
+ * closed tabs list can have data.
  *
  * @param {string} url
- * @return {Promise} Promise that is resolved when the session
- * store has observed that the newly created tab has been closed
+ * @return {Promise} Promise that resolves when the session store
+ * has been updated after closing the tab.
  */
 async function open_then_close(url) {
   let { updatePromise } = await BrowserTestUtils.withNewTab(
@@ -370,6 +473,20 @@ async function open_then_close(url) {
   return TestUtils.topicObserved("sessionstore-closed-objects-changed");
 }
 
+/**
+ * Clears session history. Used to clear out the recently closed tabs list.
+ *
+ */
 function clearHistory() {
   Services.obs.notifyObservers(null, "browser:purge-session-history");
+}
+
+/**
+ * Cleanup function for tab pickup tests.
+ *
+ */
+function cleanup_tab_pickup() {
+  Services.prefs.clearUserPref("services.sync.engine.tabs");
+  Services.prefs.clearUserPref("services.sync.lastTabFetch");
+  Services.prefs.clearUserPref(TAB_PICKUP_STATE_PREF);
 }
