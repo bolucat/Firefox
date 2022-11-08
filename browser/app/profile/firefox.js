@@ -1791,9 +1791,6 @@ pref("media.gmp.trial-create.enabled", true);
 pref("media.gmp-gmpopenh264.visible", true);
 pref("media.gmp-gmpopenh264.enabled", true);
 
-// Set Firefox to block autoplay, asking for permission by default.
-pref("media.autoplay.default", 1); // 0=Allowed, 1=Blocked, 5=All Blocked
-
 // Block WebAudio from playing automatically.
 pref("media.autoplay.block-webaudio", true);
 
@@ -2763,8 +2760,3 @@ pref("browser.pdfjs.feature-tour", "{\"screen\":\"FEATURE_CALLOUT_1\",\"complete
 
 // Enables the cookie banner desktop UI.
 pref("cookiebanners.ui.desktop.enabled", false);
-
-// We only want to enable this pref for Desktop nightlies.
-#ifdef NIGHTLY_BUILD
-  pref("dom.sitepermsaddon-provider.enabled", true);
-#endif

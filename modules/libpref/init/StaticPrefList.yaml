@@ -3799,7 +3799,7 @@
 
 - name: dom.sitepermsaddon-provider.enabled
   type: bool
-  value: false
+  value: @IS_NOT_ANDROID@
   mirror: always
 
 # Whether automatic storage access granting heuristics should be turned on.
@@ -5799,6 +5799,11 @@
 - name: gfx.display.frame-rate-divisor
   type: RelaxedAtomicInt32
   value: 1
+  mirror: always
+
+- name: gfx.display.max-frame-rate
+  type: RelaxedAtomicInt32
+  value: 0
   mirror: always
 
 # Whether to preserve color bitmap tables in fonts (bypassing OTS).
@@ -9105,6 +9110,25 @@
 - name: media.autoplay.blocking_policy
   type: uint32_t
   value: 0
+  mirror: always
+
+# Whether to allow autoplay on extension background pages.
+- name: media.autoplay.allow-extension-background-pages
+  type: bool
+  value: true
+  mirror: always
+
+# Block autoplay, asking for permission by default.
+# 0=Allowed, 1=Blocked, 5=All Blocked
+- name: media.autoplay.default
+  type: int32_t
+  value: 1
+  mirror: always
+
+# Wether to block autoplay for webaudio
+- name: media.autoplay.block-webaudio
+  type: bool
+  value: false
   mirror: always
 
 # File-backed MediaCache size.
@@ -12857,6 +12881,12 @@
 - name: security.csp.wasm-unsafe-eval.enabled
   type: bool
   value: true
+  mirror: always
+
+# unsafe-hashes source keyword
+- name: security.csp.unsafe-hashes.enabled
+  type: bool
+  value: false
   mirror: always
 
 # The script-src-attr and script-src-elem directive
