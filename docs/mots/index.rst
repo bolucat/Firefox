@@ -1132,7 +1132,6 @@ rendering tree construction, layout (reflow), etc.
         | `layout/build/\*\*/\* <https://searchfox.org/mozilla-central/search?q=&path=layout/build/\*\*/\*>`__
         | `layout/forms/\*\*/\* <https://searchfox.org/mozilla-central/search?q=&path=layout/forms/\*\*/\*>`__
         | `layout/generic/\*\*/\* <https://searchfox.org/mozilla-central/search?q=&path=layout/generic/\*\*/\*>`__
-        | `dom/html/\*\*/\* <https://searchfox.org/mozilla-central/search?q=&path=dom/html/\*\*/\*>`__
         | `layout/printing/\*\*/\* <https://searchfox.org/mozilla-central/search?q=&path=layout/printing/\*\*/\*>`__
         | `layout/tables/\*\*/\* <https://searchfox.org/mozilla-central/search?q=&path=layout/tables/\*\*/\*>`__
         | `layout/tools/\*\*/\* <https://searchfox.org/mozilla-central/search?q=&path=layout/tools/\*\*/\*>`__
@@ -1477,7 +1476,7 @@ Advises on the use of NodeJS and npm packages at build and runtime. Reviews addi
         | `package-lock.json <https://searchfox.org/mozilla-central/search?q=&path=package-lock.json>`__
         | `node_modules/\*\*/\* <https://searchfox.org/mozilla-central/search?q=&path=node_modules/\*\*/\*>`__
     * - URL
-      - https://wiki.mozilla.org/Firefox/firefox-dev,
+      - https://wiki.mozilla.org/Firefox/firefox-dev, #nodejs on slack
     * - Bugzilla Components
       - Various
 

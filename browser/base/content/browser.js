@@ -1730,11 +1730,12 @@ var gBrowserInit = {
     gNavToolbox.palette = document.getElementById(
       "BrowserToolbarPalette"
     ).content;
-    let areas = CustomizableUI.areas;
-    areas.splice(areas.indexOf(CustomizableUI.AREA_FIXED_OVERFLOW_PANEL), 1);
-    for (let area of areas) {
-      let node = document.getElementById(area);
-      CustomizableUI.registerToolbarNode(node);
+    for (let area of CustomizableUI.areas) {
+      let type = CustomizableUI.getAreaType(area);
+      if (type == CustomizableUI.TYPE_TOOLBAR) {
+        let node = document.getElementById(area);
+        CustomizableUI.registerToolbarNode(node);
+      }
     }
     BrowserSearch.initPlaceHolder();
 
@@ -4741,7 +4742,7 @@ function updateEditUIVisibility() {
     // Now check the edit-controls toolbar buttons.
     let placement = CustomizableUI.getPlacementOfWidget("edit-controls");
     let areaType = placement ? CustomizableUI.getAreaType(placement.area) : "";
-    if (areaType == CustomizableUI.TYPE_MENU_PANEL) {
+    if (areaType == CustomizableUI.TYPE_PANEL) {
       let customizablePanel = PanelUI.overflowPanel;
       gEditUIVisible = kOpenPopupStates.includes(customizablePanel.state);
     } else if (

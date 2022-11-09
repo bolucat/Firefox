@@ -2083,12 +2083,6 @@
 # Prefs starting with "dom."
 #---------------------------------------------------------------------------
 
-# Whether CanvasRenderingContext2D.mozCurrentTransform is enabled.
-- name: dom.mozCurrentTransform.enabled
-  type: bool
-  value: false
-  mirror: always
-
 # Allow cut/copy
 - name: dom.allow_cut_copy
   type: bool
@@ -13499,6 +13493,12 @@
 #---------------------------------------------------------------------------
 # Prefs starting with "toolkit."
 #---------------------------------------------------------------------------
+
+# Makes removeDirectory background task wait for the given milliseconds before removal.
+- name: toolkit.background_tasks.remove_directory.testing.sleep_ms
+  type: RelaxedAtomicUint32
+  value: 0
+  mirror: always
 
 # Returns true if BHR is disabled.
 - name: toolkit.content-background-hang-monitor.disabled
