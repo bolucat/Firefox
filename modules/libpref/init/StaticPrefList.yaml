@@ -3846,6 +3846,15 @@
   value: false
   mirror: always
 
+# Whether the WritableFileStream is enabled on the main thread.
+# WritableFileStream currently does all IO on the current thread which is okish
+# for workers but not for the main thread. The situation will change after bug
+# 1798513.
+- name: dom.fs.main_thread_writable_file_stream
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 # LocalStorage data limit as determined by summing up the lengths of all string
 # keys and values. This is consistent with the legacy implementation and other
 # browser engines. This value should really only ever change in unit testing
@@ -7293,7 +7302,7 @@
   # Experimental support for Array Grouping in JavaScript.
 -   name: javascript.options.experimental.array_grouping
     type: bool
-    value: true
+    value: false
     mirror: always
 #endif  // NIGHTLY_BUILD
 
@@ -14663,22 +14672,6 @@
   type: bool
   value: true
   mirror: once
-
-#---------------------------------------------------------------------------
-# Prefs starting with "xul."
-#---------------------------------------------------------------------------
-
-# Pref to control whether arrow-panel animations are enabled or not.
-# Transitions are currently disabled on Linux due to rendering issues on
-# certain configurations.
-- name: xul.panel-animations.enabled
-  type: bool
-#ifdef MOZ_WIDGET_GTK
-  value: false
-#else
-  value: true
-#endif
-  mirror: always
 
 #---------------------------------------------------------------------------
 # Prefs starting with "zoom."

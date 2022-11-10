@@ -7,7 +7,9 @@
 #include "FileSystemManagerChild.h"
 
 #include "FileSystemAccessHandleChild.h"
+#include "FileSystemWritableFileStreamChild.h"
 #include "mozilla/dom/FileSystemSyncAccessHandle.h"
+#include "mozilla/dom/FileSystemWritableFileStream.h"
 
 namespace mozilla::dom {
 
@@ -20,6 +22,12 @@ void FileSystemManagerChild::CloseAll() {
     auto* child = static_cast<FileSystemAccessHandleChild*>(item);
 
     child->MutableAccessHandlePtr()->Close();
+  }
+
+  for (const auto& item : ManagedPFileSystemWritableFileStreamChild()) {
+    auto* child = static_cast<FileSystemWritableFileStreamChild*>(item);
+
+    child->MutableWritableFileStreamPtr()->Close();
   }
 }
 
@@ -34,6 +42,11 @@ void FileSystemManagerChild::Shutdown() {
 already_AddRefed<PFileSystemAccessHandleChild>
 FileSystemManagerChild::AllocPFileSystemAccessHandleChild() {
   return MakeAndAddRef<FileSystemAccessHandleChild>();
+}
+
+already_AddRefed<PFileSystemWritableFileStreamChild>
+FileSystemManagerChild::AllocPFileSystemWritableFileStreamChild() {
+  return MakeAndAddRef<FileSystemWritableFileStreamChild>();
 }
 
 ::mozilla::ipc::IPCResult FileSystemManagerChild::RecvCloseAll(
