@@ -107,15 +107,15 @@ jobs:
           popd || exit 1
 
       - name: Release
-        uses: softprops/action-gh-release@v1
+        uses: ncipollo/release-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           name: ${{ env.VERSION }}
-          tag_name: ${{ env.VERSION }}
+          tag: ${{ env.VERSION }}
           draft: false
           prerelease: false
-          files: |
+          artifacts: |
             ./release/*
             
       - name: Delete Older Release
