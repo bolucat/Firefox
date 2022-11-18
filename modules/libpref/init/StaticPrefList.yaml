@@ -2083,6 +2083,12 @@
 # Prefs starting with "dom."
 #---------------------------------------------------------------------------
 
+# Whether CanvasRenderingContext2D.mozTextStyle is enabled.
+- name: dom.mozTextStyle.enabled
+  type: bool
+  value: @IS_NOT_EARLY_BETA_OR_EARLIER@
+  mirror: always
+
 # Allow cut/copy
 - name: dom.allow_cut_copy
   type: bool
@@ -5778,6 +5784,11 @@
   type: RelaxedAtomicBool
   value: true
   mirror: always
+
+- name: gfx.direct2d.target-independent-rasterization.disabled
+  type: bool
+  value: false
+  mirror: once
 
 - name: gfx.direct3d11.reuse-decoder-device
   type: bool
@@ -10741,6 +10752,14 @@
   value: 120
   mirror: always
 
+# For lax-by-default cookies ignore cross-site redirects when the final
+# redirect is same-site again.
+# https://github.com/httpwg/http-extensions/issues/2104
+- name: network.cookie.sameSite.laxByDefault.allowBoomerangRedirect
+  type: bool
+  value: true
+  mirror: always
+
 - name: network.cookie.sameSite.noneRequiresSecure
   type: bool
   value: @IS_EARLY_BETA_OR_EARLIER@
@@ -11299,7 +11318,7 @@
 # If true, only use the token once
 - name: network.ssl_tokens_cache_use_only_once
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 # The maximum allowed length for a URL - 1MB default.
@@ -12929,7 +12948,7 @@
 # WebAuthn CTAP2 support
 - name: security.webauthn.ctap2
   type: bool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Block Worker/SharedWorker scripts with wrong MIME type.
