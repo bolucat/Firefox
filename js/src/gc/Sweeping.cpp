@@ -561,13 +561,17 @@ IncrementalProgress GCRuntime::markGrayRoots(SliceBudget& budget,
   gcstats::AutoPhase ap(stats(), phase);
 
   AutoUpdateLiveCompartments updateLive(this);
+  marker.setRootMarkingMode(true);
+  auto guard =
+      mozilla::MakeScopeExit([this]() { marker.setRootMarkingMode(false); });
 
-  if (traceEmbeddingGrayRoots(&marker, budget) == NotFinished) {
+  IncrementalProgress result = traceEmbeddingGrayRoots(marker.tracer(), budget);
+  if (result == NotFinished) {
     return NotFinished;
   }
 
   Compartment::traceIncomingCrossCompartmentEdgesForZoneGC(
-      &marker, Compartment::GrayEdges);
+      marker.tracer(), Compartment::GrayEdges);
 
   return Finished;
 }
@@ -929,7 +933,7 @@ void GCRuntime::markIncomingGrayCrossCompartmentPointers() {
                     dst->asTenured().isMarkedBlack());
 
       if (src->asTenured().isMarkedGray()) {
-        TraceManuallyBarrieredEdge(&marker, &dst,
+        TraceManuallyBarrieredEdge(marker.tracer(), &dst,
                                    "cross-compartment gray pointer");
       }
     }

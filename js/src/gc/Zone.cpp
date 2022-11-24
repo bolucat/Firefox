@@ -35,7 +35,7 @@ using namespace js::gc;
 Zone* const Zone::NotOnList = reinterpret_cast<Zone*>(1);
 
 ZoneAllocator::ZoneAllocator(JSRuntime* rt, Kind kind)
-    : JS::shadow::Zone(rt, &rt->gc.marker, kind),
+    : JS::shadow::Zone(rt, rt->gc.marker.tracer(), kind),
       jitHeapThreshold(jit::MaxCodeBytesPerProcess * 0.8) {}
 
 ZoneAllocator::~ZoneAllocator() {
@@ -481,6 +481,13 @@ void Zone::discardJitCode(JS::GCContext* gcx, const DiscardOptions& options) {
 
     // Finally, reset the active flag.
     jitScript->resetActive();
+  }
+
+  // Also clear references to jit code from RegExpShared cells at this point.
+  // This avoid holding onto ExecutablePools.
+  for (auto regExp = cellIterUnsafe<RegExpShared>(); !regExp.done();
+       regExp.next()) {
+    regExp->discardJitCode();
   }
 
   /*
