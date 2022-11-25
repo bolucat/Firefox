@@ -30,6 +30,7 @@
 #include "nsCOMPtr.h"
 #include "nsDebug.h"
 #include "nsError.h"
+#include "nsGkAtoms.h"
 #include "nsIContent.h"
 #include "nsRange.h"
 #include "nsString.h"
@@ -889,7 +890,28 @@ struct MOZ_STACK_CLASS EditorInlineStyle {
   /**
    * Returns true if the style means that all inline styles should be removed.
    */
-  bool IsStyleToClearAllInlineStyles() const { return !mHTMLProperty; }
+  [[nodiscard]] bool IsStyleToClearAllInlineStyles() const {
+    return !mHTMLProperty;
+  }
+
+  /**
+   * Returns true if the style is invertible with CSS.
+   */
+  [[nodiscard]] bool IsInvertibleWithCSS() const {
+    return mHTMLProperty == nsGkAtoms::b;
+  }
+
+  /**
+   * Returns true if the style can be specified with text-decoration.
+   */
+  enum class IgnoreSElement { No, Yes };
+  [[nodiscard]] bool IsStyleOfTextDecoration(
+      IgnoreSElement aIgnoreSElement) const {
+    return mHTMLProperty == nsGkAtoms::u ||
+           mHTMLProperty == nsGkAtoms::strike ||
+           (aIgnoreSElement == IgnoreSElement::No &&
+            mHTMLProperty == nsGkAtoms::s);
+  }
 
   explicit EditorInlineStyle(nsStaticAtom& aHTMLProperty,
                              nsAtom* aAttribute = nullptr)
@@ -944,6 +966,12 @@ struct MOZ_STACK_CLASS EditorInlineStyleAndValue : public EditorInlineStyle {
       : EditorInlineStyle(aHTMLProperty, std::move(aAttribute)),
         mAttributeValue(aValue) {}
 
+  [[nodiscard]] static EditorInlineStyleAndValue ToInvert(
+      const EditorInlineStyle& aStyle) {
+    MOZ_ASSERT(aStyle.IsInvertibleWithCSS());
+    return EditorInlineStyleAndValue(aStyle, u"-moz-editor-invert-value"_ns);
+  }
+
   // mHTMLProperty is never nullptr since all constructors guarantee it.
   // Therefore, hide it and expose its reference instead.
   MOZ_KNOWN_LIVE nsStaticAtom& HTMLPropertyRef() const {
@@ -951,8 +979,16 @@ struct MOZ_STACK_CLASS EditorInlineStyleAndValue : public EditorInlineStyle {
     return *mHTMLProperty;
   }
 
+  [[nodiscard]] bool IsStyleToInvert() const {
+    return mAttributeValue.EqualsLiteral(u"-moz-editor-invert-value");
+  }
+
  private:
   using EditorInlineStyle::mHTMLProperty;
+
+  EditorInlineStyleAndValue(const EditorInlineStyle& aStyle,
+                            const nsAString& aValue)
+      : EditorInlineStyle(aStyle), mAttributeValue(aValue) {}
 };
 
 }  // namespace mozilla

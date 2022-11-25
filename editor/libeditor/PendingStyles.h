@@ -53,6 +53,9 @@ class PendingStyle final {
   }
   SpecifiedStyle GetSpecifiedStyle() const { return mSpecifiedStyle; }
 
+  EditorInlineStyle ToInlineStyle() const;
+  EditorInlineStyleAndValue ToInlineStyleAndValue() const;
+
  private:
   MOZ_KNOWN_LIVE nsStaticAtom* const mTag = nullptr;
   // TODO: Once we stop using `HTMLEditor::SetInlinePropertiesAsSubAction` to
@@ -79,6 +82,8 @@ class PendingStyleCache final {
   const nsString& AttributeValueOrCSSValueRef() const {
     return mAttributeValueOrCSSValue;
   }
+
+  EditorInlineStyle ToInlineStyle() const;
 
  private:
   MOZ_KNOWN_LIVE nsStaticAtom& mTag;

@@ -6075,8 +6075,7 @@ Result<EditorDOMPoint, nsresult> HTMLEditor::CreateStyleForInsertText(
       // MOZ_KnownLive because we own pendingStyle which guarantees the lifetime
       // of its members.
       Result<EditorDOMPoint, nsresult> pointToPutCaretOrError =
-          ClearStyleAt(pointToPutCaret, MOZ_KnownLive(pendingStyle->GetTag()),
-                       MOZ_KnownLive(pendingStyle->GetAttribute()),
+          ClearStyleAt(pointToPutCaret, pendingStyle->ToInlineStyle(),
                        pendingStyle->GetSpecifiedStyle());
       if (MOZ_UNLIKELY(pointToPutCaretOrError.isErr())) {
         NS_WARNING("HTMLEditor::ClearStyleAt() failed");
@@ -6165,9 +6164,7 @@ Result<EditorDOMPoint, nsresult> HTMLEditor::CreateStyleForInsertText(
       // guarantees the lifetime of its members.
       Result<EditorDOMPoint, nsresult> setStyleResult = SetInlinePropertyOnNode(
           MOZ_KnownLive(*pointToPutCaret.ContainerAs<nsIContent>()),
-          MOZ_KnownLive(*pendingStyle->GetTag()),
-          MOZ_KnownLive(pendingStyle->GetAttribute()),
-          pendingStyle->AttributeValueOrCSSValueRef());
+          pendingStyle->ToInlineStyleAndValue());
       if (MOZ_UNLIKELY(setStyleResult.isErr())) {
         NS_WARNING("HTMLEditor::SetInlinePropertyOnNode() failed");
         return Err(setStyleResult.unwrapErr());
@@ -9147,11 +9144,8 @@ nsresult HTMLEditor::ReapplyCachedStyles() {
     }
     if (!isAny) {
       // then check typeinstate and html style
-      // MOZ_KnownLive(styleCacheBeforeEdit.*) because they are nsStaticAtom
-      // and its instances are alive until shutting down.
       nsresult rv = GetInlinePropertyBase(
-          MOZ_KnownLive(styleCacheBeforeEdit.TagRef()),
-          MOZ_KnownLive(styleCacheBeforeEdit.GetAttribute()),
+          styleCacheBeforeEdit.ToInlineStyle(),
           &styleCacheBeforeEdit.AttributeValueOrCSSValueRef(), &isFirst, &isAny,
           &isAll, &currentValue);
       if (NS_FAILED(rv)) {
