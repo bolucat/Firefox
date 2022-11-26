@@ -13167,30 +13167,22 @@ bool CodeGenerator::link(JSContext* cx, const WarpSnapshot* snapshot) {
   // Encode native to bytecode map if profiling is enabled.
   if (isProfilerInstrumentationEnabled()) {
     // Generate native-to-bytecode main table.
-    if (!generateCompactNativeToBytecodeMap(cx, code)) {
+    IonEntry::ScriptList scriptList;
+    if (!generateCompactNativeToBytecodeMap(cx, code, scriptList)) {
       return false;
     }
 
     uint8_t* ionTableAddr =
-        ((uint8_t*)nativeToBytecodeMap_) + nativeToBytecodeTableOffset_;
+        ((uint8_t*)nativeToBytecodeMap_.get()) + nativeToBytecodeTableOffset_;
     JitcodeIonTable* ionTable = (JitcodeIonTable*)ionTableAddr;
 
     // Construct the IonEntry that will go into the global table.
-    auto entry =
-        MakeJitcodeGlobalEntry<IonEntry>(cx, code, code->raw(), code->rawEnd());
+    auto entry = MakeJitcodeGlobalEntry<IonEntry>(
+        cx, code, code->raw(), code->rawEnd(), std::move(scriptList), ionTable);
     if (!entry) {
       return false;
     }
-    if (!ionTable->finishIonEntry(cx, nativeToBytecodeScriptListLength_,
-                                  nativeToBytecodeScriptList_,
-                                  entry->asIon())) {
-      js_free(nativeToBytecodeScriptList_);
-      js_free(nativeToBytecodeMap_);
-      return false;
-    }
-
-    // nativeToBytecodeScriptList_ is no longer needed.
-    js_free(nativeToBytecodeScriptList_);
+    (void)nativeToBytecodeMap_.release();  // Table is now owned by |entry|.
 
     // Add entry to the global table.
     JitcodeGlobalTable* globalTable =

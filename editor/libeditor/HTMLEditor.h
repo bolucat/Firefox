@@ -706,14 +706,6 @@ class HTMLEditor final : public EditorBase,
    * to make sure that AutoEditActionDataSetter is created.
    ****************************************************************************/
 
-  enum class WithTransaction { No, Yes };
-  friend std::ostream& operator<<(std::ostream& aStream,
-                                  WithTransaction aWithTransaction) {
-    aStream << "WithTransaction::"
-            << (aWithTransaction == WithTransaction::Yes ? "Yes" : "No");
-    return aStream;
-  }
-
   /**
    * InsertBRElement() creates a <br> element and inserts it before
    * aPointToInsert.
@@ -1067,21 +1059,20 @@ class HTMLEditor final : public EditorBase,
       nsIPrincipal* aSourcePrincipal) final;
 
   /**
-   * GetInlineStyles() retrieves the style of aNode and modifies each item of
+   * GetInlineStyles() retrieves the style of aElement and modifies each item of
    * aPendingStyleCacheArray.  This might cause flushing layout at retrieving
    * computed values of CSS properties.
    */
-  [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult
-  GetInlineStyles(nsIContent& aContent,
-                  AutoPendingStyleCacheArray& aPendingStyleCacheArray);
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult GetInlineStyles(
+      Element& aElement, AutoPendingStyleCacheArray& aPendingStyleCacheArray);
 
   /**
-   * CacheInlineStyles() caches style of aContent into mCachedPendingStyles of
+   * CacheInlineStyles() caches style of aElement into mCachedPendingStyles of
    * TopLevelEditSubAction.  This may cause flushing layout at retrieving
    * computed value of CSS properties.
    */
   [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult
-  CacheInlineStyles(nsIContent& aContent);
+  CacheInlineStyles(Element& aElement);
 
   /**
    * ReapplyCachedStyles() restores some styles which are disappeared during
@@ -3905,7 +3896,7 @@ class HTMLEditor final : public EditorBase,
   nsresult PromoteRangeIfStartsOrEndsInNamedAnchor(nsRange& aRange);
 
   /**
-   * RemoveStyleInside() removes elements which represent aProperty/aAttribute
+   * RemoveStyleInside() removes elements which represent aStyleToRemove
    * and removes CSS style.  This handles aElement and all its descendants
    * (including leaf text nodes) recursively.
    * TODO: Rename this to explain that this maybe remove aElement from the DOM
@@ -3916,7 +3907,7 @@ class HTMLEditor final : public EditorBase,
    * @return                 A suggest point to put caret.
    */
   [[nodiscard]] MOZ_CAN_RUN_SCRIPT Result<EditorDOMPoint, nsresult>
-  RemoveStyleInside(Element& aElement, nsAtom* aProperty, nsAtom* aAttribute,
+  RemoveStyleInside(Element& aElement, const EditorInlineStyle& aStyleToRemove,
                     SpecifiedStyle aSpecifiedStyle);
 
   /**
