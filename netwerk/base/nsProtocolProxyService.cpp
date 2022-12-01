@@ -1985,7 +1985,7 @@ void nsProtocolProxyService::LoadHostFilters(const nsACString& aFilters) {
       if (!hinfo->name.host) goto loser;
     }
 
-//#define DEBUG_DUMP_FILTERS
+// #define DEBUG_DUMP_FILTERS
 #ifdef DEBUG_DUMP_FILTERS
     printf("loaded filter[%zu]:\n", mHostFiltersArray.Length());
     printf("  is_ipaddr = %u\n", hinfo->is_ipaddr);
