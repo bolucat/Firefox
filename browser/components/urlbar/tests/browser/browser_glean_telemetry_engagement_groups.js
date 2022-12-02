@@ -23,7 +23,9 @@ add_task(async function groups_heuristics() {
     await openPopup("x");
     await doEnter();
 
-    assertGleanTelemetry([{ groups: "heuristic", results: "search_engine" }]);
+    assertEngagementTelemetry([
+      { groups: "heuristic", results: "search_engine" },
+    ]);
   });
 });
 
@@ -39,7 +41,7 @@ add_task(async function groups_adaptive_history() {
     await selectRowByURL("https://example.com/test");
     await doEnter();
 
-    assertGleanTelemetry([
+    assertEngagementTelemetry([
       {
         groups: "heuristic,adaptive_history",
         results: "search_engine,history",
@@ -66,7 +68,7 @@ add_task(async function groups_search_history() {
     await selectRowByURL("http://mochi.test:8888/?terms=foofoo");
     await doEnter();
 
-    assertGleanTelemetry([
+    assertEngagementTelemetry([
       {
         groups: "heuristic,search_history,search_history",
         results: "search_engine,search_history,search_history",
@@ -91,7 +93,7 @@ add_task(async function groups_search_suggest() {
     await selectRowByURL("http://mochi.test:8888/?terms=foofoo");
     await doEnter();
 
-    assertGleanTelemetry([
+    assertEngagementTelemetry([
       {
         groups: "heuristic,search_suggest,search_suggest",
         results: "search_engine,search_suggest,search_suggest",
@@ -115,7 +117,7 @@ add_task(async function groups_top_pick() {
     await selectRowByURL("https://example.com/sponsored");
     await doEnter();
 
-    assertGleanTelemetry([
+    assertEngagementTelemetry([
       {
         groups: "heuristic,top_pick,search_suggest,search_suggest",
         results: "search_engine,suggest_sponsor,search_suggest,search_suggest",
@@ -135,7 +137,7 @@ add_task(async function groups_top_site() {
     await selectRowByURL("https://example.com/");
     await doEnter();
 
-    assertGleanTelemetry([
+    assertEngagementTelemetry([
       {
         groups: "top_site,suggested_index",
         results: "top_site,action",
@@ -153,7 +155,7 @@ add_task(async function group_remote_tab() {
     await selectRowByProvider("RemoteTabs");
     await doEnter();
 
-    assertGleanTelemetry([
+    assertEngagementTelemetry([
       {
         groups: "heuristic,remote_tab",
         results: "search_engine,remote_tab",
@@ -173,7 +175,7 @@ add_task(async function group_addon() {
     await openPopup("omni test");
     await doEnter();
 
-    assertGleanTelemetry([
+    assertEngagementTelemetry([
       {
         groups: "addon",
         results: "addon",
@@ -197,7 +199,7 @@ add_task(async function group_general() {
     await selectRowByURL("https://example.com/bookmark");
     await doEnter();
 
-    assertGleanTelemetry([
+    assertEngagementTelemetry([
       {
         groups: "heuristic,suggested_index,general",
         results: "search_engine,action,bookmark",
@@ -215,7 +217,7 @@ add_task(async function group_general() {
     await selectRowByURL("https://example.com/test");
     await doEnter();
 
-    assertGleanTelemetry([
+    assertEngagementTelemetry([
       {
         groups: "heuristic,general",
         results: "search_engine,history",
@@ -238,7 +240,7 @@ add_task(async function group_suggest() {
     await selectRowByURL("https://example.com/nonsponsored");
     await doEnter();
 
-    assertGleanTelemetry([
+    assertEngagementTelemetry([
       {
         groups: "heuristic,suggest",
         results: "search_engine,suggest_non_sponsor",
@@ -261,7 +263,7 @@ add_task(async function group_about_page() {
     await selectRowByURL("about:robots");
     await doEnter();
 
-    assertGleanTelemetry([
+    assertEngagementTelemetry([
       {
         groups: "heuristic,about_page,about_page",
         results: "search_engine,history,history",
@@ -285,7 +287,7 @@ add_task(async function group_suggested_index() {
       EventUtils.synthesizeKey("KEY_Enter");
     });
 
-    assertGleanTelemetry([
+    assertEngagementTelemetry([
       {
         groups: "heuristic,suggested_index",
         results: "search_engine,unit",

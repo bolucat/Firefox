@@ -2382,19 +2382,22 @@ AttachDecision GetPropIRGenerator::tryAttachStringLength(ValOperandId valId,
   return AttachDecision::Attach;
 }
 
-static bool CanAttachStringChar(const Value& val, const Value& idVal) {
+enum class AttachStringChar { No, Yes, Linearize, OutOfBounds };
+
+static AttachStringChar CanAttachStringChar(const Value& val,
+                                            const Value& idVal) {
   if (!val.isString() || !idVal.isInt32()) {
-    return false;
+    return AttachStringChar::No;
   }
 
   int32_t index = idVal.toInt32();
   if (index < 0) {
-    return false;
+    return AttachStringChar::OutOfBounds;
   }
 
   JSString* str = val.toString();
   if (size_t(index) >= str->length()) {
-    return false;
+    return AttachStringChar::OutOfBounds;
   }
 
   // This follows JSString::getChar and MacroAssembler::loadStringChar.
@@ -2408,23 +2411,33 @@ static bool CanAttachStringChar(const Value& val, const Value& idVal) {
   }
 
   if (!str->isLinear()) {
-    return false;
+    return AttachStringChar::Linearize;
   }
 
-  return true;
+  return AttachStringChar::Yes;
 }
 
 AttachDecision GetPropIRGenerator::tryAttachStringChar(ValOperandId valId,
                                                        ValOperandId indexId) {
   MOZ_ASSERT(idVal_.isInt32());
 
-  if (!CanAttachStringChar(val_, idVal_)) {
+  auto attach = CanAttachStringChar(val_, idVal_);
+  if (attach == AttachStringChar::No) {
+    return AttachDecision::NoAction;
+  }
+
+  // Can't attach for out-of-bounds access without guarding that indexed
+  // properties aren't present along the prototype chain of |String.prototype|.
+  if (attach == AttachStringChar::OutOfBounds) {
     return AttachDecision::NoAction;
   }
 
   StringOperandId strId = writer.guardToString(valId);
   Int32OperandId int32IndexId = writer.guardToInt32Index(indexId);
-  writer.loadStringCharResult(strId, int32IndexId);
+  if (attach == AttachStringChar::Linearize) {
+    strId = writer.linearizeForCharAccess(strId, int32IndexId);
+  }
+  writer.loadStringCharResult(strId, int32IndexId, /* handleOOB = */ false);
   writer.returnFromIC();
 
   trackAttached("StringChar");
@@ -6813,9 +6826,12 @@ AttachDecision InlinableNativeIRGenerator::tryAttachStringChar(
     return AttachDecision::NoAction;
   }
 
-  if (!CanAttachStringChar(thisval_, args_[0])) {
+  auto attach = CanAttachStringChar(thisval_, args_[0]);
+  if (attach == AttachStringChar::No) {
     return AttachDecision::NoAction;
   }
+
+  bool handleOOB = attach == AttachStringChar::OutOfBounds;
 
   // Initialize the input operand.
   initializeInputOperand();
@@ -6833,11 +6849,21 @@ AttachDecision InlinableNativeIRGenerator::tryAttachStringChar(
       writer.loadArgumentFixedSlot(ArgumentKind::Arg0, argc_);
   Int32OperandId int32IndexId = writer.guardToInt32Index(indexId);
 
+  // Linearize the string.
+  //
+  // AttachStringChar doesn't have a separate state when OOB access happens on
+  // a string which needs to be linearized, so just linearize unconditionally
+  // for out-of-bounds accesses.
+  if (attach == AttachStringChar::Linearize ||
+      attach == AttachStringChar::OutOfBounds) {
+    strId = writer.linearizeForCharAccess(strId, int32IndexId);
+  }
+
   // Load string char or code.
   if (kind == StringChar::CodeAt) {
-    writer.loadStringCharCodeResult(strId, int32IndexId);
+    writer.loadStringCharCodeResult(strId, int32IndexId, handleOOB);
   } else {
-    writer.loadStringCharResult(strId, int32IndexId);
+    writer.loadStringCharResult(strId, int32IndexId, handleOOB);
   }
 
   writer.returnFromIC();
@@ -6860,8 +6886,8 @@ AttachDecision InlinableNativeIRGenerator::tryAttachStringCharAt() {
 }
 
 AttachDecision InlinableNativeIRGenerator::tryAttachStringFromCharCode() {
-  // Need one int32 argument.
-  if (argc_ != 1 || !args_[0].isInt32()) {
+  // Need one number argument.
+  if (argc_ != 1 || !args_[0].isNumber()) {
     return AttachDecision::NoAction;
   }
 
@@ -6873,7 +6899,14 @@ AttachDecision InlinableNativeIRGenerator::tryAttachStringFromCharCode() {
 
   // Guard int32 argument.
   ValOperandId argId = writer.loadArgumentFixedSlot(ArgumentKind::Arg0, argc_);
-  Int32OperandId codeId = writer.guardToInt32(argId);
+  Int32OperandId codeId;
+  if (args_[0].isInt32()) {
+    codeId = writer.guardToInt32(argId);
+  } else {
+    // 'fromCharCode' performs ToUint16 on its input. We can use Uint32
+    // semantics, because ToUint16(ToUint32(v)) == ToUint16(v).
+    codeId = writer.guardToInt32ModUint32(argId);
+  }
 
   // Return string created from code.
   writer.stringFromCharCodeResult(codeId);

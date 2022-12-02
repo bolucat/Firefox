@@ -23,7 +23,7 @@ add_task(async function n_chars() {
       await openPopup(input);
       await doEnter();
 
-      assertGleanTelemetry([{ n_chars: input.length }]);
+      assertEngagementTelemetry([{ n_chars: input.length }]);
     });
   }
 
@@ -36,7 +36,7 @@ add_task(async function n_chars() {
     await openPopup(input);
     await doEnter();
 
-    assertGleanTelemetry([{ n_chars: UrlbarUtils.MAX_TEXT_LENGTH * 2 }]);
+    assertEngagementTelemetry([{ n_chars: UrlbarUtils.MAX_TEXT_LENGTH * 2 }]);
   });
 });
 
@@ -47,7 +47,7 @@ add_task(async function n_words() {
       await doEnter();
 
       const splits = input.trim().split(" ");
-      assertGleanTelemetry([{ n_words: splits.length }]);
+      assertEngagementTelemetry([{ n_words: splits.length }]);
     });
   }
 
@@ -61,7 +61,7 @@ add_task(async function n_words() {
     await openPopup(input);
     await doEnter();
 
-    assertGleanTelemetry([
+    assertEngagementTelemetry([
       { n_words: UrlbarUtils.MAX_TEXT_LENGTH / word.length },
     ]);
   });

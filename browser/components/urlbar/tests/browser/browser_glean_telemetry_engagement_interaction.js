@@ -23,7 +23,7 @@ add_task(async function interaction_topsites() {
     await selectRowByURL("https://example.com/");
     await doEnter();
 
-    assertGleanTelemetry([{ interaction: "topsites" }]);
+    assertEngagementTelemetry([{ interaction: "topsites" }]);
   });
 });
 
@@ -32,7 +32,7 @@ add_task(async function interaction_typed() {
     await openPopup("x");
     await doEnter();
 
-    assertGleanTelemetry([{ interaction: "typed" }]);
+    assertEngagementTelemetry([{ interaction: "typed" }]);
   });
 
   await doTest(async browser => {
@@ -41,7 +41,7 @@ add_task(async function interaction_typed() {
     await UrlbarTestUtils.promiseSearchComplete(window);
     await doEnter();
 
-    assertGleanTelemetry([{ interaction: "typed" }]);
+    assertEngagementTelemetry([{ interaction: "typed" }]);
   });
 });
 
@@ -49,14 +49,14 @@ add_task(async function interaction_dropped() {
   await doTest(async browser => {
     await doDropAndGo("example.com");
 
-    assertGleanTelemetry([{ interaction: "dropped" }]);
+    assertEngagementTelemetry([{ interaction: "dropped" }]);
   });
 
   await doTest(async browser => {
     await showResultByArrowDown();
     await doDropAndGo("example.com");
 
-    assertGleanTelemetry([{ interaction: "dropped" }]);
+    assertEngagementTelemetry([{ interaction: "dropped" }]);
   });
 });
 
@@ -65,13 +65,13 @@ add_task(async function interaction_pasted() {
     await doPaste("www.example.com");
     await doEnter();
 
-    assertGleanTelemetry([{ interaction: "pasted" }]);
+    assertEngagementTelemetry([{ interaction: "pasted" }]);
   });
 
   await doTest(async browser => {
     await doPasteAndGo("www.example.com");
 
-    assertGleanTelemetry([{ interaction: "pasted" }]);
+    assertEngagementTelemetry([{ interaction: "pasted" }]);
   });
 
   await doTest(async browser => {
@@ -79,20 +79,20 @@ add_task(async function interaction_pasted() {
     await doPaste("x");
     await doEnter();
 
-    assertGleanTelemetry([{ interaction: "pasted" }]);
+    assertEngagementTelemetry([{ interaction: "pasted" }]);
   });
 
   await doTest(async browser => {
     await showResultByArrowDown();
     await doPasteAndGo("www.example.com");
 
-    assertGleanTelemetry([{ interaction: "pasted" }]);
+    assertEngagementTelemetry([{ interaction: "pasted" }]);
   });
 });
 
 add_task(async function interaction_topsite_search() {
   // TODO
-  // assertGleanTelemetry([{ interaction: "topsite_search" }]);
+  // assertEngagementTelemetry([{ interaction: "topsite_search" }]);
 });
 
 add_task(async function interaction_returned() {
@@ -107,16 +107,14 @@ add_task(async function interaction_returned() {
     await UrlbarTestUtils.promiseSearchComplete(window);
     await doEnter();
 
-    assertGleanTelemetry([{ interaction: "returned" }]);
+    assertEngagementTelemetry([{ interaction: "returned" }]);
   });
 });
 
 add_task(async function interaction_restarted() {
   await doTest(async browser => {
     await openPopup("search");
-    await UrlbarTestUtils.promisePopupClose(window, () => {
-      gURLBar.blur();
-    });
+    await doBlur();
     await UrlbarTestUtils.promisePopupOpen(window, () => {
       document.getElementById("Browser:OpenLocation").doCommand();
     });
@@ -124,7 +122,7 @@ add_task(async function interaction_restarted() {
     await UrlbarTestUtils.promiseSearchComplete(window);
     await doEnter();
 
-    assertGleanTelemetry([{ interaction: "restarted" }]);
+    assertEngagementTelemetry([{ interaction: "restarted" }]);
   });
 });
 
@@ -136,7 +134,7 @@ add_task(async function interaction_refined() {
     await openPopup("x y");
     await doEnter();
 
-    assertGleanTelemetry([
+    assertEngagementTelemetry([
       { interaction: "typed" },
       { interaction: "refined" },
     ]);
@@ -149,7 +147,7 @@ add_task(async function interaction_refined() {
     await openPopup("x");
     await doEnter();
 
-    assertGleanTelemetry([
+    assertEngagementTelemetry([
       { interaction: "typed" },
       { interaction: "refined" },
     ]);
@@ -162,7 +160,10 @@ add_task(async function interaction_refined() {
     await openPopup("y z");
     await doEnter();
 
-    assertGleanTelemetry([{ interaction: "typed" }, { interaction: "typed" }]);
+    assertEngagementTelemetry([
+      { interaction: "typed" },
+      { interaction: "typed" },
+    ]);
   });
 
   await doTest(async browser => {
@@ -172,7 +173,10 @@ add_task(async function interaction_refined() {
     await openPopup("x y");
     await doEnter();
 
-    assertGleanTelemetry([{ interaction: "typed" }, { interaction: "typed" }]);
+    assertEngagementTelemetry([
+      { interaction: "typed" },
+      { interaction: "typed" },
+    ]);
   });
 });
 
@@ -192,7 +196,7 @@ add_task(async function interaction_persisted_search_terms() {
     await openPopup("keyword");
     await doEnter();
 
-    assertGleanTelemetry([
+    assertEngagementTelemetry([
       { interaction: "typed" },
       { interaction: "persisted_search_terms" },
     ]);

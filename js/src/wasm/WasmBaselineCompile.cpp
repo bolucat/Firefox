@@ -5660,7 +5660,7 @@ bool BaseCompiler::emitInstanceCall(const SymbolicAddressSignature& builtin) {
         // Instance function args can now be uninterpreted pointers (eg, for
         // the cases PostBarrier and PostBarrierFilter) so we simply treat
         // them like the equivalently sized integer.
-        t = ValType::hostPtr();
+        t = ValType::fromMIRType(TargetWordMIRType());
         break;
       default:
         MOZ_CRASH("Unexpected type");
@@ -6848,7 +6848,8 @@ bool BaseCompiler::emitArrayNew() {
 
 bool BaseCompiler::emitArrayNewFixed() {
   uint32_t typeIndex, numElements;
-  if (!iter_.readArrayNewFixed(&typeIndex, &numElements)) {
+  BaseNothingVector nothings{};
+  if (!iter_.readArrayNewFixed(&typeIndex, &numElements, &nothings)) {
     return false;
   }
 
@@ -6885,6 +6886,13 @@ bool BaseCompiler::emitArrayNewFixed() {
   if (avoidPreBarrierReg) {
     freePtr(RegPtr(PreBarrierReg));
   }
+
+  // These together ensure that the max value of `index` in the loop below
+  // remains comfortably below the 2^31 boundary.  See comments on equivalent
+  // assertions in EmitArrayNewFixed in WasmIonCompile.cpp for explanation.
+  static_assert(16 /* sizeof v128 */ * MaxFunctionBytes <=
+                MaxArrayPayloadBytes);
+  MOZ_RELEASE_ASSERT(numElements <= MaxFunctionBytes);
 
   // Generate straight-line initialization code.  We could do better here if
   // there was a version of ::emitGcArraySet that took `index` as a `uint32_t`

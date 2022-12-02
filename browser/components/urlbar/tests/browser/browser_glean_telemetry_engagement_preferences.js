@@ -20,7 +20,7 @@ add_task(async function enabled() {
     await openPopup("https://example.com");
     await doEnter();
 
-    assertGleanTelemetry([{ selected_result: "url" }]);
+    assertEngagementTelemetry([{ selected_result: "url" }]);
   });
 
   await SpecialPowers.popPrefEnv();
@@ -35,7 +35,7 @@ add_task(async function disabled() {
     await openPopup("https://example.com");
     await doEnter();
 
-    assertGleanTelemetry([]);
+    assertEngagementTelemetry([]);
   });
 
   await SpecialPowers.popPrefEnv();

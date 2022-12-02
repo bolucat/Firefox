@@ -24,7 +24,7 @@ add_task(async function sap_urlbar() {
     await openPopup("y");
     await doEnter();
 
-    assertGleanTelemetry([{ sap: "urlbar_newtab" }, { sap: "urlbar" }]);
+    assertEngagementTelemetry([{ sap: "urlbar_newtab" }, { sap: "urlbar" }]);
   });
 });
 
@@ -39,7 +39,7 @@ add_task(async function sap_handoff() {
     EventUtils.synthesizeKey("x");
     await doEnter();
 
-    assertGleanTelemetry([{ sap: "handoff" }]);
+    assertEngagementTelemetry([{ sap: "handoff" }]);
   });
 });
 
@@ -62,7 +62,7 @@ add_task(async function sap_urlbar_addonpage() {
     await openPopup("x");
     await doEnter();
 
-    assertGleanTelemetry([{ sap: "urlbar_addonpage" }]);
+    assertEngagementTelemetry([{ sap: "urlbar_addonpage" }]);
   });
 
   await extension.unload();
