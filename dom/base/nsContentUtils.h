@@ -1016,7 +1016,8 @@ class nsContentUtils {
       imgRequestProxy** aRequest,
       nsContentPolicyType aContentPolicyType =
           nsIContentPolicy::TYPE_INTERNAL_IMAGE,
-      bool aUseUrgentStartForChannel = false, bool aLinkPreload = false);
+      bool aUseUrgentStartForChannel = false, bool aLinkPreload = false,
+      uint64_t aEarlyHintPreloaderId = 0);
 
   /**
    * Obtain an image loader that respects the given document/channel's privacy
@@ -1406,6 +1407,12 @@ class nsContentUtils {
    */
   static inline ExtContentPolicyType InternalContentPolicyTypeToExternal(
       nsContentPolicyType aType);
+
+  /**
+   * check whether the Link header field applies to the context resource
+   * see <http://tools.ietf.org/html/rfc5988#section-5.2>
+   */
+  static bool LinkContextIsURI(const nsAString& aAnchor, nsIURI* aDocURI);
 
   /**
    * Returns true if the content policy type is any of:
