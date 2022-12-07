@@ -1193,6 +1193,7 @@ bool WebGLContext::PushRemoteTexture(WebGLFramebuffer* fb,
   switch (desc->type()) {
     case layers::SurfaceDescriptor::TSurfaceDescriptorD3D10:
     case layers::SurfaceDescriptor::TSurfaceDescriptorMacIOSurface:
+    case layers::SurfaceDescriptor::TSurfaceTextureDescriptor:
       keepAlive = surf;
       break;
     default:
@@ -2159,6 +2160,7 @@ webgl::LinkActiveInfo GetLinkActiveInfo(
         }();
 
         const auto userName = fnUnmapName(mappedName);
+        if (StartsWith(userName, "webgl_")) continue;
 
         // -
 

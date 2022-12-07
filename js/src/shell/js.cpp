@@ -5383,7 +5383,7 @@ static bool DumpAST(JSContext* cx, const JS::ReadOnlyCompileOptions& options,
   if (goal == frontend::ParseGoal::Script) {
     pn = parser.parse();
   } else {
-    ModuleBuilder builder(cx, &parser);
+    ModuleBuilder builder(cx, &ec, &parser);
 
     SourceExtent extent = SourceExtent::makeGlobalExtent(length);
     ModuleSharedContext modulesc(cx, &ec, options, builder, extent);
@@ -5656,7 +5656,7 @@ static bool FrontendTest(JSContext* cx, unsigned argc, Value* vp,
 
   LifoAllocScope allocScope(&cx->tempLifoAlloc());
   frontend::NoScopeBindingCache scopeCache;
-  frontend::CompilationState compilationState(cx, allocScope, input.get());
+  frontend::CompilationState compilationState(cx, &ec, allocScope, input.get());
   if (!compilationState.init(cx, &ec, &scopeCache)) {
     return false;
   }
@@ -5733,7 +5733,7 @@ static bool SyntaxParse(JSContext* cx, unsigned argc, Value* vp) {
 
   LifoAllocScope allocScope(&cx->tempLifoAlloc());
   frontend::NoScopeBindingCache scopeCache;
-  frontend::CompilationState compilationState(cx, allocScope, input.get());
+  frontend::CompilationState compilationState(cx, &ec, allocScope, input.get());
   if (!compilationState.init(cx, &ec, &scopeCache)) {
     return false;
   }
@@ -11509,7 +11509,7 @@ static bool SetGCParameterFromArg(JSContext* cx, char* arg) {
 
   uint32_t paramValue = uint32_t(value);
   if (value == ULONG_MAX || value != paramValue ||
-      !cx->runtime()->gc.setParameter(key, paramValue)) {
+      !cx->runtime()->gc.setParameter(cx, key, paramValue)) {
     fprintf(stderr, "Error: Value %s is out of range for GC parameter '%s'\n",
             valueStr, name);
     return false;
@@ -11873,6 +11873,8 @@ int main(int argc, char** argv) {
       !op.addBoolOption('\0', "no-ggc", "Disable Generational GC") ||
       !op.addBoolOption('\0', "no-cgc", "Disable Compacting GC") ||
       !op.addBoolOption('\0', "no-incremental-gc", "Disable Incremental GC") ||
+      !op.addBoolOption('\0', "enable-parallel-marking",
+                        "Turn on parallel marking") ||
       !op.addStringOption('\0', "nursery-strings", "on/off",
                           "Allocate strings in the nursery") ||
       !op.addStringOption('\0', "nursery-bigints", "on/off",
@@ -12332,6 +12334,11 @@ int main(int argc, char** argv) {
 
   bool incrementalGC = !op.getBoolOption("no-incremental-gc");
   JS_SetGCParameter(cx, JSGC_INCREMENTAL_GC_ENABLED, incrementalGC);
+
+  if (op.getBoolOption("enable-parallel-marking")) {
+    JS_SetGCParameter(cx, JSGC_PARALLEL_MARKING_ENABLED, true);
+  }
+
   JS_SetGCParameter(cx, JSGC_SLICE_TIME_BUDGET_MS, 5);
 
   JS_SetGCParameter(cx, JSGC_PER_ZONE_GC_ENABLED, true);

@@ -3,11 +3,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 const lazy = {};
-ChromeUtils.defineModuleGetter(
-  lazy,
-  "SessionStore",
-  "resource:///modules/sessionstore/SessionStore.jsm"
-);
+ChromeUtils.defineESModuleGetters(lazy, {
+  SessionStore: "resource:///modules/sessionstore/SessionStore.sys.mjs",
+});
 
 import {
   formatURIForDisplay,
@@ -190,7 +188,7 @@ class RecentlyClosedTabsList extends HTMLElement {
     let deltaSeconds = (now - tabClosedAt) / 1000;
     Services.telemetry.recordEvent(
       "firefoxview",
-      "recently_closed",
+      "dismiss_closed_tab",
       "tabs",
       null,
       {

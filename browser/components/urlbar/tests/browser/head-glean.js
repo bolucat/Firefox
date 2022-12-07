@@ -33,6 +33,10 @@ function assertEngagementTelemetry(expectedExtraList) {
   _assertGleanTelemetry("engagement", expectedExtraList);
 }
 
+function assertImpressionTelemetry(expectedExtraList) {
+  _assertGleanTelemetry("impression", expectedExtraList);
+}
+
 function _assertGleanTelemetry(telemetryName, expectedExtraList) {
   const telemetries = Glean.urlbar[telemetryName].testGetValue() ?? [];
   Assert.equal(telemetries.length, expectedExtraList.length);
@@ -79,6 +83,7 @@ async function ensureQuickSuggestInit() {
 }
 
 async function doTest(testFn) {
+  await Services.fog.testFlushAllChildren();
   Services.fog.testResetFOG();
   gURLBar.controller.engagementEvent.discard();
   await PlacesUtils.history.clear();
@@ -108,7 +113,7 @@ async function doClick() {
 
 async function doClickSubButton(selector) {
   const selected = UrlbarTestUtils.getSelectedElement(window);
-  const button = selected.querySelector(selector);
+  const button = selected.closest(".urlbarView-row").querySelector(selector);
   EventUtils.synthesizeMouseAtCenter(button, {});
 }
 
@@ -140,6 +145,7 @@ async function doPaste(data) {
   document.commandDispatcher
     .getControllerForCommand("cmd_paste")
     .doCommand("cmd_paste");
+  await UrlbarTestUtils.promiseSearchComplete(window);
 }
 
 async function doPasteAndGo(data) {
@@ -306,4 +312,14 @@ async function showResultByArrowDown() {
     EventUtils.synthesizeKey("KEY_ArrowDown");
   });
   await UrlbarTestUtils.promiseSearchComplete(window);
+}
+
+async function waitForPauseImpression() {
+  await new Promise(r =>
+    setTimeout(
+      r,
+      UrlbarPrefs.get("searchEngagementTelemetry.pauseImpressionIntervalMs")
+    )
+  );
+  await Services.fog.testFlushAllChildren();
 }
