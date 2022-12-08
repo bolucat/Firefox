@@ -298,7 +298,7 @@
 
 - name: apz.scrollend-event.content.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 # After a user has executed a pan gesture, we may receive momentum phase pan
@@ -6422,6 +6422,11 @@
     value: false
     mirror: once
 -   name: gfx.webrender.dcomp-video-vp-scaling-win
+    type: bool
+    value: true
+    mirror: once
+  # Whether to use virtual surfaces, as opposed to each tile owning a surface.
+-   name: gfx.webrender.dcomp-use-virtual-surfaces
     type: bool
     value: true
     mirror: once
