@@ -9,11 +9,17 @@ ChromeUtils.defineESModuleGetters(this, {
   QuickSuggest: "resource:///modules/QuickSuggest.sys.mjs",
 });
 
-XPCOMUtils.defineLazyGetter(this, "QuickSuggestTestUtils", () => {
+const lazy = {};
+
+XPCOMUtils.defineLazyGetter(lazy, "QuickSuggestTestUtils", () => {
   const { QuickSuggestTestUtils: Utils } = ChromeUtils.importESModule(
     "resource://testing-common/QuickSuggestTestUtils.sys.mjs"
   );
   return new Utils(this);
+});
+
+ChromeUtils.defineESModuleGetters(lazy, {
+  UrlbarTestUtils: "resource://testing-common/UrlbarTestUtils.sys.mjs",
 });
 
 async function addTopSites(url) {
@@ -58,7 +64,7 @@ function _assertGleanTelemetry(telemetryName, expectedExtraList) {
 }
 
 async function ensureQuickSuggestInit() {
-  return QuickSuggestTestUtils.ensureQuickSuggestInit([
+  return lazy.QuickSuggestTestUtils.ensureQuickSuggestInit([
     {
       id: 1,
       url: "https://example.com/sponsored",
@@ -85,7 +91,7 @@ async function ensureQuickSuggestInit() {
 async function doTest(testFn) {
   await Services.fog.testFlushAllChildren();
   Services.fog.testResetFOG();
-  gURLBar.controller.engagementEvent.discard();
+  gURLBar.controller.engagementEvent.reset();
   await PlacesUtils.history.clear();
   await PlacesUtils.bookmarks.eraseEverything();
   await PlacesTestUtils.clearHistoryVisits();
@@ -308,6 +314,10 @@ async function setup() {
       Ci.nsISearchService.CHANGE_REASON_UNKNOWN
     );
   });
+}
+
+async function setupNimbus(variables) {
+  return lazy.UrlbarTestUtils.initNimbusFeature(variables);
 }
 
 async function showResultByArrowDown() {

@@ -926,14 +926,12 @@ project_flag("MOZ_PLACES", help="Build Places if required", set_as_define=True)
 project_flag(
     "MOZ_SERVICES_HEALTHREPORT",
     help="Build Firefox Health Reporter Service",
-    set_for_old_configure=True,
     set_as_define=True,
 )
 
 project_flag(
     "MOZ_NORMANDY",
     help="Enable Normandy recipe runner",
-    set_for_old_configure=True,
     set_as_define=True,
 )
 
@@ -971,9 +969,6 @@ option(
 )
 
 set_define("MOZ_TELEMETRY_REPORTING", True, when="MOZ_TELEMETRY_REPORTING")
-add_old_configure_assignment(
-    "MOZ_TELEMETRY_REPORTING", True, when="MOZ_TELEMETRY_REPORTING"
-)
 
 
 @depends("MOZ_TELEMETRY_REPORTING", milestone.is_nightly)
@@ -2372,11 +2367,12 @@ def wasm_sandboxing_libraries():
     )
 
 
-@depends(dependable(wasm_sandboxing_libraries))
-def default_wasm_sandboxing_libraries(libraries):
-    non_default_libs = set()
+@depends(dependable(wasm_sandboxing_libraries), build_project)
+def default_wasm_sandboxing_libraries(libraries, build_project):
+    if build_project != "tools/rusttests":
+        non_default_libs = set()
 
-    return tuple(l for l in libraries if l not in non_default_libs)
+        return tuple(l for l in libraries if l not in non_default_libs)
 
 
 option(
@@ -2387,6 +2383,16 @@ option(
     choices=dependable(wasm_sandboxing_libraries),
     default=default_wasm_sandboxing_libraries,
 )
+
+
+@depends(target, host, when="--with-wasm-sandboxed-libraries")
+def check_wasm_sandboxing(target, host):
+    if target.kernel == "WINNT" and host.kernel == "WINNT" and target.cpu != host.cpu:
+        # Bug 1741233
+        die(
+            f"Wasm sandboxing is not supported yet when building for {target.cpu} on {host.cpu} Windows. "
+            "Please use --without-wasm-sandboxed-libraries for now."
+        )
 
 
 @depends("--with-wasm-sandboxed-libraries")
@@ -2851,7 +2857,6 @@ option(
 
 set_config("MOZ_CRASHREPORTER", True, when="--enable-crashreporter")
 set_define("MOZ_CRASHREPORTER", True, when="--enable-crashreporter")
-add_old_configure_assignment("MOZ_CRASHREPORTER", True, when="--enable-crashreporter")
 
 with only_when(compile_environment):
     with only_when("--enable-crashreporter"):
@@ -2871,6 +2876,23 @@ with only_when(compile_environment):
             True,
             when=depends(target)(lambda t: t.os == "WINNT" and t.bitness == 32),
         )
+
+
+# If we have any service that uploads data (and requires data submission
+# policy alert), set MOZ_DATA_REPORTING.
+# ==============================================================
+@depends(
+    "MOZ_TELEMETRY_REPORTING",
+    "MOZ_SERVICES_HEALTHREPORT",
+    "--enable-crashreporter",
+    "MOZ_NORMANDY",
+)
+def data_reporting(telemetry, healthreport, crashreporter, normandy):
+    return telemetry or healthreport or crashreporter or normandy
+
+
+set_config("MOZ_DATA_REPORTING", True, when=data_reporting)
+set_define("MOZ_DATA_REPORTING", True, when=data_reporting)
 
 
 # Gtk+

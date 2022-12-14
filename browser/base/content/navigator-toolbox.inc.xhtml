@@ -255,6 +255,9 @@
                         data-l10n-id="urlbar-midi-blocked"/>
                   <image data-permission-id="install" class="blocked-permission-icon install-icon" role="button"
                         data-l10n-id="urlbar-install-blocked"/>
+                  <!-- A speaker icon for blocked speaker selection is not
+                       shown because, without text, this may be interpreted as
+                       active or blocked audio. -->
                 </box>
               </box>
               <box id="notification-popup-box"
@@ -562,7 +565,7 @@
   <html:template id="BrowserToolbarPalette">
     <toolbarbutton id="import-button"
                    class="toolbarbutton-1 chromeclass-toolbar-additional"
-                   oncommand="MigrationUtils.showMigrationWizard(window, [MigrationUtils.MIGRATION_ENTRYPOINTS.BOOKMARKS_TOOLBAR]);"
+                   oncommand="MigrationUtils.showMigrationWizard(window, { entrypoint: MigrationUtils.MIGRATION_ENTRYPOINTS.BOOKMARKS_TOOLBAR });"
                    data-l10n-id="browser-import-button2"/>
 
     <toolbarbutton id="new-window-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
