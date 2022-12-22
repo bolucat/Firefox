@@ -2623,9 +2623,6 @@ pref("devtools.webconsole.input.editorOnboarding", true);
 // Enable message grouping in the console, true by default
 pref("devtools.webconsole.groupWarningMessages", true);
 
-// Saved state of the Display content messages checkbox in the browser console.
-pref("devtools.browserconsole.contentMessages", false);
-
 // Enable network monitoring the browser toolbox console/browser console.
 pref("devtools.browserconsole.enableNetworkMonitoring", false);
 
@@ -2746,6 +2743,11 @@ pref("svg.context-properties.content.allowed-domains", "profile.accounts.firefox
 // Preference that allows individual users to disable Firefox Translations.
 #ifdef NIGHTLY_BUILD
   pref("extensions.translations.disabled", true);
+#endif
+
+// Turn on interaction measurements in Nightly only
+#ifdef NIGHTLY_BUILD
+  pref("browser.places.interactions.enabled", true);
 #endif
 
 // A set of scores for rating the relevancy of snapshots. The suffixes after the

@@ -198,6 +198,12 @@ loader.lazyRequireGetter(
   "resource://devtools/client/shared/thread-utils.js",
   true
 );
+loader.lazyRequireGetter(
+  this,
+  "SourceMapLoader",
+  "resource://devtools/client/shared/source-map-loader/index.js",
+  true
+);
 
 const DEVTOOLS_F12_DISABLED_PREF = "devtools.experiment.f12.shortcut_disabled";
 
@@ -1377,32 +1383,29 @@ Toolbox.prototype = {
     if (this._sourceMapLoader) {
       return this._sourceMapLoader;
     }
-    this._sourceMapLoader = require("devtools/client/shared/source-map-loader/index");
+    this._sourceMapLoader = new SourceMapLoader();
     this._sourceMapLoader.on("source-map-error", message =>
       this.target.logWarningInPage(message, "source map")
     );
-    this._sourceMapLoader.startSourceMapWorker();
-
     return this._sourceMapLoader;
   },
 
   /**
-   * A common access point for the client-side parser service that any panel can use.
+   * Expose the "Parser" debugger worker to both webconsole and debugger.
+   *
+   * Note that the Browser Console will also self-instantiate it as it doesn't involve a toolbox.
    */
-  get parserService() {
-    if (this._parserService) {
-      return this._parserService;
+  get parserWorker() {
+    if (this._parserWorker) {
+      return this._parserWorker;
     }
 
     const {
       ParserDispatcher,
     } = require("resource://devtools/client/debugger/src/workers/parser/index.js");
 
-    this._parserService = new ParserDispatcher();
-    this._parserService.start(
-      "resource://devtools/client/debugger/dist/parser-worker.js"
-    );
-    return this._parserService;
+    this._parserWorker = new ParserDispatcher();
+    return this._parserWorker;
   },
 
   /**
@@ -4032,9 +4035,9 @@ Toolbox.prototype = {
       this._sourceMapLoader = null;
     }
 
-    if (this._parserService) {
-      this._parserService.stop();
-      this._parserService = null;
+    if (this._parserWorker) {
+      this._parserWorker.stop();
+      this._parserWorker = null;
     }
 
     if (this.webconsolePanel) {
