@@ -519,6 +519,12 @@ who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "0.4.4 -> 0.4.5"
 
+[[audits.fallible_collections]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "0.4.5 -> 0.4.6"
+notes = "The changes in this version are mine."
+
 [[audits.fastrand]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
@@ -539,6 +545,11 @@ who = "Ryan Hunt <rhunt@eqrion.net>"
 criteria = "safe-to-deploy"
 version = "0.4.3"
 notes = "Uses no ambient capabilities, vetted the one instance of unsafe."
+
+[[audits.flate2]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "1.0.24 -> 1.0.25"
 
 [[audits.fluent]]
 who = "Zibi Braniecki <zibi@unicode.org>"
@@ -596,7 +607,22 @@ who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "2.7.0 -> 2.8.1"
 
+[[audits.fs-err]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "2.8.1 -> 2.9.0"
+
 [[audits.futures]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "0.3.21 -> 0.3.23"
+
+[[audits.futures]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "0.3.23 -> 0.3.25"
+
+[[audits.futures-channel]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "0.3.21 -> 0.3.23"
@@ -604,9 +630,19 @@ delta = "0.3.21 -> 0.3.23"
 [[audits.futures-channel]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
+delta = "0.3.23 -> 0.3.25"
+
+[[audits.futures-core]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
 delta = "0.3.21 -> 0.3.23"
 
 [[audits.futures-core]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "0.3.23 -> 0.3.25"
+
+[[audits.futures-executor]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "0.3.21 -> 0.3.23"
@@ -614,9 +650,19 @@ delta = "0.3.21 -> 0.3.23"
 [[audits.futures-executor]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
+delta = "0.3.23 -> 0.3.25"
+
+[[audits.futures-io]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
 delta = "0.3.21 -> 0.3.23"
 
 [[audits.futures-io]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "0.3.23 -> 0.3.25"
+
+[[audits.futures-macro]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "0.3.21 -> 0.3.23"
@@ -624,9 +670,19 @@ delta = "0.3.21 -> 0.3.23"
 [[audits.futures-macro]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
+delta = "0.3.23 -> 0.3.25"
+
+[[audits.futures-sink]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
 delta = "0.3.21 -> 0.3.23"
 
 [[audits.futures-sink]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "0.3.23 -> 0.3.25"
+
+[[audits.futures-task]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "0.3.21 -> 0.3.23"
@@ -634,12 +690,17 @@ delta = "0.3.21 -> 0.3.23"
 [[audits.futures-task]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
-delta = "0.3.21 -> 0.3.23"
+delta = "0.3.23 -> 0.3.25"
 
 [[audits.futures-util]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "0.3.21 -> 0.3.23"
+
+[[audits.futures-util]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "0.3.23 -> 0.3.25"
 
 [[audits.fxhash]]
 who = "Bobby Holley <bobbyholley@gmail.com>"
@@ -656,6 +717,11 @@ delta = "0.14.5 -> 0.14.6"
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "0.2.6 -> 0.2.7"
+
+[[audits.getrandom]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "0.2.7 -> 0.2.8"
 
 [[audits.glean]]
 who = "Jan-Erik Rediger <jrediger@mozilla.com>"
@@ -832,6 +898,11 @@ who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-run"
 delta = "0.3.13 -> 0.3.14"
 
+[[audits.h2]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-run"
+delta = "0.3.14 -> 0.3.15"
+
 [[audits.half]]
 who = "John M. Schanck <jschanck@mozilla.com>"
 criteria = "safe-to-deploy"
@@ -853,20 +924,40 @@ who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "0.7.0 -> 0.8.1"
 
+[[audits.headers]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-run"
+delta = "0.3.7 -> 0.3.8"
+
 [[audits.hex]]
 who = "Simon Friedberger <simon@mozilla.com>"
 criteria = "safe-to-deploy"
 version = "0.4.3"
+
+[[audits.httparse]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-run"
+delta = "1.7.1 -> 1.8.0"
 
 [[audits.hyper]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-run"
 delta = "0.14.19 -> 0.14.20"
 
+[[audits.hyper]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-run"
+delta = "0.14.20 -> 0.14.22"
+
 [[audits.indexmap]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "1.8.2 -> 1.9.1"
+
+[[audits.indexmap]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "1.9.1 -> 1.9.2"
 
 [[audits.inherent]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
@@ -950,6 +1041,11 @@ who = "Jim Blandy <jimb@red-bean.com>"
 criteria = "safe-to-deploy"
 delta = "0.23.1 -> 0.24.0"
 notes = "This audit treats Dzmitry Malyshau (kvark) as a trusted reviewer."
+
+[[audits.miniz_oxide]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "0.5.3 -> 0.6.2"
 
 [[audits.mozprofile]]
 who = "Henrik Skupin <mail@hskupin.info>"
@@ -1449,6 +1545,11 @@ who = "Emilio Cobos Álvarez <emilio@crisal.io>"
 criteria = "safe-to-deploy"
 version = "0.1.1"
 notes = "Developed in-tree, effectively."
+
+[[audits.sha1]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-run"
+delta = "0.10.0 -> 0.10.5"
 
 [[audits.slab]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
