@@ -1230,6 +1230,16 @@ who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "1.12.0 -> 1.13.1"
 
+[[audits.once_cell]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "1.13.1 -> 1.16.0"
+
+[[audits.ordered-float]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "3.0.0 -> 3.4.0"
+
 [[audits.origin-trial-token]]
 who = "Emilio Cobos Álvarez <emilio@crisal.io>"
 criteria = "safe-to-deploy"
@@ -1247,6 +1257,11 @@ who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "6.1.0 -> 6.3.0"
 
+[[audits.os_str_bytes]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "6.3.0 -> 6.4.1"
+
 [[audits.packed_simd_2]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
@@ -1256,6 +1271,11 @@ delta = "0.3.7 -> 0.3.8"
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "1.0.7 -> 1.0.8"
+
+[[audits.paste]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "1.0.8 -> 1.0.11"
 
 [[audits.pin-project]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
@@ -1287,11 +1307,21 @@ who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "0.1.1 -> 0.1.4"
 
+[[audits.pkg-config]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "0.3.25 -> 0.3.26"
+
 [[audits.plane-split]]
 who = "Nicolas Silva <nical@fastmail.com>"
 criteria = "safe-to-deploy"
 version = "0.18.0"
 notes = "Mozilla-developed package, no unsafe code, no access to file system, network or other far reaching APIs."
+
+[[audits.ppv-lite86]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "0.2.16 -> 0.2.17"
 
 [[audits.precomputed-hash]]
 who = "Bobby Holley <bobbyholley@gmail.com>"
@@ -1344,6 +1374,16 @@ who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "1.0.39 -> 1.0.43"
 
+[[audits.proc-macro2]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "1.0.43 -> 1.0.49"
+
+[[audits.profiling]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "1.0.6 -> 1.0.7"
+
 [[audits.qcms]]
 who = "Jeff Muizelaar <jmuizelaar@mozilla.com>"
 criteria = "safe-to-deploy"
@@ -1381,6 +1421,11 @@ logic, and will not abstract away `Sync` trait bounds.
 The core logic is very simple, and acts as an abstraction trait for `Cell<T>`
 and `AtomicT`.
 """
+
+[[audits.rand_core]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "0.6.3 -> 0.6.4"
 
 [[audits.raw-window-handle]]
 who = "Jim Blandy <jimb@red-bean.com>"
