@@ -728,10 +728,6 @@ void nsIFrame::Init(nsIContent* aContent, nsContainerFrame* aParent,
     AddStateBits(NS_FRAME_MAY_BE_TRANSFORMED);
   }
 
-  if (disp->mContainerType != StyleContainerType::Normal) {
-    PresContext()->RegisterContainerQueryFrame(this);
-  }
-
   if (disp->IsContainLayout() && GetContainSizeAxes().IsBoth()) {
     // In general, frames that have contain:layout+size can be reflow roots.
     // (One exception: table-wrapper frames don't work well as reflow roots,
@@ -791,7 +787,13 @@ void nsIFrame::Init(nsIContent* aContent, nsContainerFrame* aParent,
 
 void nsIFrame::InitPrimaryFrame() {
   MOZ_ASSERT(IsPrimaryFrame());
-  if (StyleDisplay()->IsContentVisibilityAuto() &&
+  const nsStyleDisplay* disp = StyleDisplay();
+
+  if (disp->mContainerType != StyleContainerType::Normal) {
+    PresContext()->RegisterContainerQueryFrame(this);
+  }
+
+  if (disp->IsContentVisibilityAuto() &&
       IsContentVisibilityPropertyApplicable()) {
     PresShell()->RegisterContentVisibilityAutoFrame(this);
     auto* element = Element::FromNodeOrNull(GetContent());
@@ -4243,6 +4245,7 @@ void nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder* aBuilder,
         savedOutOfFlowData->mContainingBlockClipChain);
     asrSetter.SetCurrentActiveScrolledRoot(
         savedOutOfFlowData->mContainingBlockActiveScrolledRoot);
+    asrSetter.SetCurrentScrollParentId(savedOutOfFlowData->mScrollParentId);
     MOZ_ASSERT(awayFromCommonPath,
                "It is impossible when savedOutOfFlowData is true");
   } else if (HasAnyStateBits(NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO) &&

@@ -1439,11 +1439,21 @@ criteria = "safe-to-deploy"
 version = "1.5.3"
 notes = "All code written or reviewed by Josh Stone or Niko Matsakis."
 
+[[audits.rayon]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "1.5.3 -> 1.6.1"
+
 [[audits.rayon-core]]
 who = "Josh Stone <jistone@redhat.com>"
 criteria = "safe-to-deploy"
 version = "1.9.3"
 notes = "All code written or reviewed by Josh Stone or Niko Matsakis."
+
+[[audits.rayon-core]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "1.9.3 -> 1.10.1"
 
 [[audits.redox_syscall]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
@@ -1455,10 +1465,20 @@ who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "1.5.6 -> 1.6.0"
 
+[[audits.regex]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "1.6.0 -> 1.7.0"
+
 [[audits.regex-syntax]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "0.6.26 -> 0.6.27"
+
+[[audits.regex-syntax]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "0.6.27 -> 0.6.28"
 
 [[audits.rkv]]
 who = "Chris H-C <chutten@mozilla.com>"
@@ -1549,6 +1569,11 @@ who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "1.0.10 -> 1.0.11"
 
+[[audits.scoped-tls]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-run"
+delta = "1.0.0 -> 1.0.1"
+
 [[audits.scroll]]
 who = "Jan-Erik Rediger <jrediger@mozilla.com>"
 criteria = "safe-to-deploy"
@@ -1580,6 +1605,11 @@ who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "1.0.10 -> 1.0.13"
 
+[[audits.semver]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "1.0.13 -> 1.0.16"
+
 [[audits.serde]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
@@ -1589,6 +1619,11 @@ delta = "1.0.137 -> 1.0.143"
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "1.0.143 -> 1.0.144"
+
+[[audits.serde]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "1.0.144 -> 1.0.151"
 
 [[audits.serde_bytes]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
@@ -1615,6 +1650,11 @@ who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "1.0.143 -> 1.0.144"
 
+[[audits.serde_derive]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "1.0.144 -> 1.0.151"
+
 [[audits.serde_json]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
@@ -1624,6 +1664,11 @@ delta = "1.0.81 -> 1.0.83"
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "1.0.83 -> 1.0.85"
+
+[[audits.serde_json]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "1.0.85 -> 1.0.91"
 
 [[audits.serde_repr]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
@@ -1646,6 +1691,11 @@ who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-run"
 delta = "0.10.0 -> 0.10.5"
 
+[[audits.sha2]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "0.10.2 -> 0.10.6"
+
 [[audits.slab]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
@@ -1655,6 +1705,16 @@ delta = "0.4.6 -> 0.4.7"
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "1.8.0 -> 1.9.0"
+
+[[audits.smallvec]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "1.9.0 -> 1.10.0"
+
+[[audits.socket2]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "0.4.4 -> 0.4.7"
 
 [[audits.svg_fmt]]
 who = "Bobby Holley <bobbyholley@gmail.com>"
@@ -1666,6 +1726,11 @@ notes = "Simple string processing with no unsafe code or ambient capability usag
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "1.0.96 -> 1.0.99"
+
+[[audits.syn]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "1.0.99 -> 1.0.107"
 
 [[audits.synstructure]]
 who = "Nika Layzell <nika@thelayzells.com>"
