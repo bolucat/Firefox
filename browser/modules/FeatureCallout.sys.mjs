@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const { XPCOMUtils } = ChromeUtils.importESModule(
-  "resource://gre/modules/XPCOMUtils.sys.mjs"
-);
+/*eslint-env browser*/
+
+import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
 
 const TRANSITION_MS = 500;
 const CONTAINER_ID = "root";
@@ -301,26 +301,53 @@ export class FeatureCallout {
       container.classList.add(className);
     };
 
+    const addValueToPixelValue = (value, pixelValue) => {
+      return `${Number(pixelValue.split("px")[0]) + value}px`;
+    };
+
+    const subtractPixelValueFromValue = (pixelValue, value) => {
+      return `${value - Number(pixelValue.split("px")[0])}px`;
+    };
+
     const overridePosition = () => {
       // We override _every_ positioner here, because we want to manually set all
       // container.style.positions in every positioner's "position" function
       // regardless of the actual arrow position
+      // Note: We override the position functions with new functions here,
+      // but they don't actually get executed until the respective position functions are called
+      // and this function is not executed unless the message has a custom position property.
+
+      // We're positioning relative to a parent element's bounds,
+      // if that parent element exists.
+
       for (const position in positioners) {
         positioners[position].position = () => {
           if (customPosition.top) {
-            container.style.top = customPosition.top;
+            container.style.top = addValueToPixelValue(
+              parentEl.getBoundingClientRect().top,
+              customPosition.top
+            );
           }
 
           if (customPosition.left) {
-            container.style.left = customPosition.left;
+            container.style.left = addValueToPixelValue(
+              parentEl.getBoundingClientRect().left,
+              customPosition.left
+            );
           }
 
           if (customPosition.right) {
-            container.style.right = customPosition.right;
+            container.style.left = subtractPixelValueFromValue(
+              customPosition.right,
+              parentEl.getBoundingClientRect().right - container.clientWidth
+            );
           }
 
           if (customPosition.bottom) {
-            container.style.bottom = customPosition.bottom;
+            container.style.top = subtractPixelValueFromValue(
+              customPosition.bottom,
+              parentEl.getBoundingClientRect().bottom - container.clientHeight
+            );
           }
         };
       }
@@ -518,8 +545,6 @@ export class FeatureCallout {
     clearPosition(container);
 
     if (customPosition) {
-      // We override the position functions with new functions here,
-      // but they don't actually get executed in the override function
       overridePosition();
     }
 
@@ -862,18 +887,4 @@ export class FeatureCallout {
     this._setupWindowFunctions();
     await this._renderCallout();
   }
-}
-
-if (typeof window !== "undefined") {
-  window.addEventListener("DOMContentLoaded", () => {
-    // Get the message id from the feature tour pref
-    // (If/when this surface is used with other pages,
-    // add logic to select the correct pref for a given
-    // page's tour using its location)
-    let Callout = new FeatureCallout({
-      win: window,
-      prefName: "browser.firefox-view.feature-tour",
-    });
-    Callout.showFeatureCallout();
-  });
 }
