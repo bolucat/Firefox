@@ -330,17 +330,25 @@ export class FeatureCallout {
           }
 
           if (customPosition.left) {
-            container.style.left = addValueToPixelValue(
+            const leftPosition = addValueToPixelValue(
               parentEl.getBoundingClientRect().left,
               customPosition.left
             );
+
+            RTL
+              ? (container.style.right = leftPosition)
+              : (container.style.left = leftPosition);
           }
 
           if (customPosition.right) {
-            container.style.left = subtractPixelValueFromValue(
+            const rightPosition = subtractPixelValueFromValue(
               customPosition.right,
               parentEl.getBoundingClientRect().right - container.clientWidth
             );
+
+            RTL
+              ? (container.style.right = rightPosition)
+              : (container.style.left = rightPosition);
           }
 
           if (customPosition.bottom) {
@@ -684,6 +692,8 @@ export class FeatureCallout {
     this.loadingConfig = false;
 
     if (result.message.template !== "feature_callout") {
+      // If another message type, like a Spotlight modal, is included
+      // in the tour, save the template name as the current screen.
       this.currentScreen = result.message.template;
       return false;
     }
