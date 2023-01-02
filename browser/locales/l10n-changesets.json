@@ -123,7 +123,7 @@
             "win64-aarch64-devedition",
             "win64-devedition"
         ],
-        "revision": "f1cac0b8be14e98859858767026bb5882b63f936"
+        "revision": "e73dd755139b3d985731378b10b5ad24a1f5ca25"
     },
     "bg": {
         "pin": false,
@@ -375,7 +375,7 @@
             "win64-aarch64-devedition",
             "win64-devedition"
         ],
-        "revision": "03aa317292cc40060c681b35c603972de7b1b66e"
+        "revision": "f3b35032a273c1fa05c4b38b4c396e22dac2544a"
     },
     "dsb": {
         "pin": false,
@@ -663,7 +663,7 @@
             "win64-aarch64-devedition",
             "win64-devedition"
         ],
-        "revision": "8dcf93734b5c0401e533779c4e66e68f130d9f16"
+        "revision": "8f5d5f9be78a4a1ca51faec969f83b26340845b6"
     },
     "fy-NL": {
         "pin": false,
@@ -825,7 +825,7 @@
             "win64-aarch64-devedition",
             "win64-devedition"
         ],
-        "revision": "6336d612e5c1c71d055a29fbdc66c9cc0fcc7095"
+        "revision": "48cc723b0333976edfdb178041a02768c7f6d0b8"
     },
     "hsb": {
         "pin": false,
@@ -951,7 +951,7 @@
             "win64-aarch64-devedition",
             "win64-devedition"
         ],
-        "revision": "63bccc3b7d91087bb2318110359dcfabb158864e"
+        "revision": "c5b9baaef3d06fd931af84bbb49edb4d666bf099"
     },
     "it": {
         "pin": false,
@@ -969,7 +969,7 @@
             "win64-aarch64-devedition",
             "win64-devedition"
         ],
-        "revision": "e2baf3bab25127b76890a30e5b0dcd6fcc9cc1a5"
+        "revision": "4abcaafa38b73ce43950e9af9068e67f7e81f4cf"
     },
     "ja": {
         "pin": false,
@@ -1137,7 +1137,7 @@
             "win64-aarch64-devedition",
             "win64-devedition"
         ],
-        "revision": "2c19481234ad4eb7d36c2dfebd310b473ffccb0c"
+        "revision": "f31e152b1c8f6e40465c11d28137ab28f05a177e"
     },
     "lt": {
         "pin": false,
@@ -1353,7 +1353,7 @@
             "win64-aarch64-devedition",
             "win64-devedition"
         ],
-        "revision": "00fc6bad540fcb35c7acdb87aed87e7920a82bb6"
+        "revision": "9c856743327b84db315cbde108d9b6fccb055c5e"
     },
     "oc": {
         "pin": false,
@@ -1425,7 +1425,7 @@
             "win64-aarch64-devedition",
             "win64-devedition"
         ],
-        "revision": "e8c5832e42ed415dcaf7ed3f27ca85bc3a447362"
+        "revision": "5f79c115ea874fe2d3699d3c79918e33377a9304"
     },
     "pt-PT": {
         "pin": false,
@@ -1443,7 +1443,7 @@
             "win64-aarch64-devedition",
             "win64-devedition"
         ],
-        "revision": "eece4e8e5db492f07b7460c4805e075a56cac6d7"
+        "revision": "0a94cc0c13042d3a6058d0646d4909f87eea6a22"
     },
     "rm": {
         "pin": false,
@@ -1497,7 +1497,7 @@
             "win64-aarch64-devedition",
             "win64-devedition"
         ],
-        "revision": "f3a16356bdc254a6ddd70924301cba2ac75a03a8"
+        "revision": "91c24883a5a5d727c998a8eead91a318a23d1449"
     },
     "sat": {
         "pin": false,
@@ -1587,7 +1587,7 @@
             "win64-aarch64-devedition",
             "win64-devedition"
         ],
-        "revision": "cb8bfec97e58d9f9a08f468216a6cbc8dfd0d749"
+        "revision": "ef2303c632cbade2f9b7b3d9c035aac80ebb5796"
     },
     "sk": {
         "pin": false,
@@ -1623,7 +1623,7 @@
             "win64-aarch64-devedition",
             "win64-devedition"
         ],
-        "revision": "d8ac4d4c63300d20a1125af079b0f52e6444d608"
+        "revision": "f86191e328473ddf286b079b421cf4fc2a13f0b3"
     },
     "son": {
         "pin": false,
@@ -1767,7 +1767,7 @@
             "win64-aarch64-devedition",
             "win64-devedition"
         ],
-        "revision": "0b70a50fe06c7445ae8d6bfa2b6baee79cc663d5"
+        "revision": "ca10061896bbf55e30a772eb96a2486d92b82921"
     },
     "th": {
         "pin": false,
@@ -1857,7 +1857,7 @@
             "win64-aarch64-devedition",
             "win64-devedition"
         ],
-        "revision": "3af0589e6f4338b158c104766d79b28778f33e6e"
+        "revision": "0dce5eff4534b931d361fb1915786b2993eb3e5d"
     },
     "ur": {
         "pin": false,
