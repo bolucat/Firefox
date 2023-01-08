@@ -4435,6 +4435,7 @@ void MacroAssembler::wasmCallIndirect(const wasm::CallSiteDesc& desc,
     case wasm::CallIndirectIdKind::Immediate:
       move32(Imm32(callIndirectId.immediate()), WasmTableCallSigReg);
       break;
+    case wasm::CallIndirectIdKind::AsmJS:
     case wasm::CallIndirectIdKind::None:
       break;
   }
@@ -4614,8 +4615,8 @@ void MacroAssembler::emitPreBarrierFastPath(JSRuntime* rt, MIRType type,
 #endif
 
   // Load the chunk address in temp2.
-  movePtr(ImmWord(~gc::ChunkMask), temp2);
-  andPtr(temp1, temp2);
+  movePtr(temp1, temp2);
+  andPtr(Imm32(int32_t(~gc::ChunkMask)), temp2);
 
   // If the GC thing is in the nursery, we don't need to barrier it.
   if (type == MIRType::Value || type == MIRType::Object ||
