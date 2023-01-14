@@ -232,6 +232,11 @@ int32_t VideoCaptureAvFoundation::OnFrame(webrtc::VideoFrame& aFrame) {
 void VideoCaptureAvFoundation::SetTrackingId(uint32_t aTrackingIdProcId) {
   RTC_DCHECK_RUN_ON(&mChecker);
   MutexLock lock(&api_lock_);
+  if (NS_WARN_IF(mTrackingId.isSome())) {
+    // This capture instance must be shared across multiple camera requests. For now ignore other
+    // requests than the first.
+    return;
+  }
   mTrackingId.emplace(TrackingId::Source::Camera, aTrackingIdProcId);
 }
 

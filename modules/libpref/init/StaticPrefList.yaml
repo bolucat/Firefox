@@ -222,8 +222,10 @@
 # the parent process.
 - name: accessibility.cache.enabled
   type: bool
-#ifdef ANDROID
+#if defined(ANDROID)
   value: true
+#elif defined(XP_WIN) || defined(XP_LINUX)
+  value: @IS_EARLY_BETA_OR_EARLIER@
 #else
   value: @IS_NOT_RELEASE_OR_BETA@
 #endif
@@ -2339,11 +2341,12 @@
   value: false
   mirror: always
 
-# Controls whether the "focus fixup rule" is enabled. Nightly-only pending
-# resolution + edits in https://github.com/whatwg/html/issues/8225
+# Controls whether the "focus fixup rule" is enabled. Subject to minor changes
+# based on https://github.com/whatwg/html/pull/8392 and
+# https://github.com/whatwg/html/issues/8225
 - name: dom.focus.fixup
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 - name: dom.mouse_capture.enabled
@@ -5762,6 +5765,13 @@
     type: RelaxedAtomicBool
     value: false
     mirror: always
+#endif
+
+#ifdef XP_MACOSX
+-   name: gfx.core-animation.low-power-telemetry-frames
+    type: int32_t
+    value: 600
+    mirror: once
 #endif
 
 #if defined(MOZ_WIDGET_ANDROID)
@@ -11284,6 +11294,13 @@
 - name: network.early-hints.preconnect.enabled
   type: RelaxedAtomicBool
   value: false
+  mirror: always
+
+# How long we should wait for EarlyHintPreloader to be used.
+# Under normal circumstances it should be used immidiately.
+- name: network.early-hints.parent-connect-timeout
+  type: uint32_t
+  value: 10000
   mirror: always
 
 # Whether to use the network process or not

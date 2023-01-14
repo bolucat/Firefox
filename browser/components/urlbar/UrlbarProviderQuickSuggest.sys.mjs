@@ -249,8 +249,7 @@ class ProviderQuickSuggest extends UrlbarProvider {
    * @returns {object} An object describing the view update.
    */
   getViewUpdate(result, idsByName) {
-    let unit = Services.locale.appLocaleAsBCP47 == "en-US" ? "f" : "c";
-    let uppercaseUnit = unit.toUpperCase();
+    let uppercaseUnit = result.payload.temperatureUnit.toUpperCase();
 
     return {
       currently: { l10n: { id: "firefox-suggest-weather-currently" } },
@@ -258,7 +257,7 @@ class ProviderQuickSuggest extends UrlbarProvider {
         l10n: {
           id: "firefox-suggest-weather-temperature",
           args: {
-            value: result.payload.temperature[unit],
+            value: result.payload.temperature,
             unit: uppercaseUnit,
           },
         },
@@ -288,8 +287,8 @@ class ProviderQuickSuggest extends UrlbarProvider {
         l10n: {
           id: "firefox-suggest-weather-high-low",
           args: {
-            high: result.payload.high[unit],
-            low: result.payload.low[unit],
+            high: result.payload.high,
+            low: result.payload.low,
             unit: uppercaseUnit,
           },
         },
@@ -380,7 +379,16 @@ class ProviderQuickSuggest extends UrlbarProvider {
       sponsoredIabCategory: suggestion.iab_category,
       isSponsored: suggestion.is_sponsored,
       helpUrl: lazy.QuickSuggest.HELP_URL,
-      helpL10n: { id: "firefox-suggest-urlbar-learn-more" },
+      helpL10n: {
+        id: lazy.UrlbarPrefs.get("resultMenu")
+          ? "urlbar-result-menu-learn-more-about-firefox-suggest"
+          : "firefox-suggest-urlbar-learn-more",
+      },
+      blockL10n: {
+        id: lazy.UrlbarPrefs.get("resultMenu")
+          ? "urlbar-result-menu-dismiss-firefox-suggest"
+          : "firefox-suggest-urlbar-block",
+      },
       source: suggestion.source,
       requestId: suggestion.request_id,
     };
@@ -406,13 +414,11 @@ class ProviderQuickSuggest extends UrlbarProvider {
       // `full_keyword`, and the user's search string is highlighted.
       payload.title = [suggestion.title, UrlbarUtils.HIGHLIGHT.TYPED];
       payload.isBlockable = lazy.UrlbarPrefs.get("bestMatchBlockingEnabled");
-      payload.blockL10n = { id: "firefox-suggest-urlbar-block" };
     } else {
       // Show the result as a usual quick suggest. Include the `full_keyword`
       // and highlight the parts that aren't in the search string.
       payload.title = suggestion.title;
       payload.isBlockable = lazy.UrlbarPrefs.get("quickSuggestBlockingEnabled");
-      payload.blockL10n = { id: "firefox-suggest-urlbar-block" };
       payload.qsSuggestion = [
         suggestion.full_keyword,
         UrlbarUtils.HIGHLIGHT.SUGGESTED,
@@ -899,6 +905,7 @@ class ProviderQuickSuggest extends UrlbarProvider {
       return null;
     }
 
+    let unit = Services.locale.regionalPrefsLocales[0] == "en-US" ? "f" : "c";
     let result = new lazy.UrlbarResult(
       UrlbarUtils.RESULT_TYPE.DYNAMIC,
       UrlbarUtils.RESULT_SOURCE.SEARCH,
@@ -906,19 +913,28 @@ class ProviderQuickSuggest extends UrlbarProvider {
         url: suggestion.url,
         icon: "chrome://global/skin/icons/highlights.svg",
         helpUrl: lazy.QuickSuggest.HELP_URL,
-        helpL10n: { id: "firefox-suggest-urlbar-learn-more" },
+        helpL10n: {
+          id: lazy.UrlbarPrefs.get("resultMenu")
+            ? "urlbar-result-menu-learn-more-about-firefox-suggest"
+            : "firefox-suggest-urlbar-learn-more",
+        },
         isBlockable: true,
-        blockL10n: { id: "firefox-suggest-urlbar-block" },
+        blockL10n: {
+          id: lazy.UrlbarPrefs.get("resultMenu")
+            ? "urlbar-result-menu-dismiss-firefox-suggest"
+            : "firefox-suggest-urlbar-block",
+        },
         requestId: suggestion.request_id,
         source: suggestion.source,
         merinoProvider: suggestion.provider,
         dynamicType: WEATHER_DYNAMIC_TYPE,
         city: suggestion.city_name,
-        temperature: suggestion.current_conditions.temperature,
+        temperatureUnit: unit,
+        temperature: suggestion.current_conditions.temperature[unit],
         currentConditions: suggestion.current_conditions.summary,
         forecast: suggestion.forecast.summary,
-        high: suggestion.forecast.high,
-        low: suggestion.forecast.low,
+        high: suggestion.forecast.high[unit],
+        low: suggestion.forecast.low[unit],
         isWeather: true,
         shouldNavigate: true,
       }
