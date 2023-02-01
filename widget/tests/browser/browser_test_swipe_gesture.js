@@ -1,6 +1,5 @@
 /* -*- Mode: indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim: set sts=2 sw=2 et tw=80: */
-/* import-globals-from ../../..//gfx/layers/apz/test/mochitest/apz_test_native_event_utils.js */
 
 "use strict";
 
@@ -579,7 +578,21 @@ add_task(async () => {
   await panLeftToRightBegin(tab.linkedBrowser, 100, 100, 100);
 
   ok(gHistorySwipeAnimation._prevBox != null, "should have prevbox");
-  let transitionPromise = new Promise(resolve => {
+  let transitionCancelPromise = new Promise(resolve => {
+    gHistorySwipeAnimation._prevBox.addEventListener(
+      "transitioncancel",
+      event => {
+        if (
+          event.propertyName == "opacity" &&
+          event.target == gHistorySwipeAnimation._prevBox
+        ) {
+          resolve();
+        }
+      },
+      { once: true }
+    );
+  });
+  let transitionStartPromise = new Promise(resolve => {
     gHistorySwipeAnimation._prevBox.addEventListener(
       "transitionstart",
       event => {
@@ -602,7 +615,7 @@ add_task(async () => {
 
   ok(gBrowser.webNavigation.canGoForward);
 
-  await transitionPromise;
+  await Promise.any([transitionStartPromise, transitionCancelPromise]);
 
   await TestUtils.waitForCondition(() => {
     return (
@@ -624,7 +637,20 @@ add_task(async () => {
   await panRightToLeftBegin(tab.linkedBrowser, 100, 100, 100);
 
   ok(gHistorySwipeAnimation._nextBox != null, "should have nextbox");
-  transitionPromise = new Promise(resolve => {
+  transitionCancelPromise = new Promise(resolve => {
+    gHistorySwipeAnimation._nextBox.addEventListener(
+      "transitioncancel",
+      event => {
+        if (
+          event.propertyName == "opacity" &&
+          event.target == gHistorySwipeAnimation._nextBox
+        ) {
+          resolve();
+        }
+      }
+    );
+  });
+  transitionStartPromise = new Promise(resolve => {
     gHistorySwipeAnimation._nextBox.addEventListener(
       "transitionstart",
       event => {
@@ -646,7 +672,7 @@ add_task(async () => {
 
   ok(gBrowser.webNavigation.canGoBack);
 
-  await transitionPromise;
+  await Promise.any([transitionStartPromise, transitionCancelPromise]);
 
   await TestUtils.waitForCondition(() => {
     return (

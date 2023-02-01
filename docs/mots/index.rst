@@ -138,7 +138,7 @@ Tracking detection and content-blocking.
     * - Peer(s)
       -
         | `Andrea Marchesini (baku) <https://people.mozilla.org/s?query=baku>`__
-        | `Dimi Lee (dimi) <https://people.mozilla.org/s?query=dimi>`__
+        | `Dimi Lee (dlee) <https://people.mozilla.org/s?query=dlee>`__
         | `Paul Zühlcke (pbz) <https://people.mozilla.org/s?query=pbz>`__
         | `Johann Hofmann (johannh) <https://people.mozilla.org/s?query=johannh>`__
     * - Peer(s) Emeritus
@@ -356,7 +356,7 @@ Native content-based security features enforced in the ContentSecurityManager, i
 
     * - Owner(s)
       -
-        | `ckerschbaumer <https://people.mozilla.org/s?query=ckerschbaumer>`__
+        | `Christoph Kerschbaumer (ckerschb) <https://people.mozilla.org/s?query=ckerschb>`__
     * - Peer(s)
       -
         | `Tanvi Vyas (tanvi) <https://people.mozilla.org/s?query=tanvi>`__
@@ -430,6 +430,34 @@ Infrastructure and tools used to generate, submit and process crash reports. Thi
       - :ref:`Crash Reporter`
     * - Bugzilla Components
       - Toolkit::Crash Reporting
+
+Core: Credentials
+~~~~~~~~~~~~~~~~~
+API Surface for FedCM and WebAuthn
+
+
+.. list-table::
+    :stub-columns: 1
+    :widths: 30 70
+
+    * - Owner(s)
+      -
+        | `Benjamin VanderSloot (bvandersloot) <https://people.mozilla.org/s?query=bvandersloot>`__
+        | `John Schanck (jschanck) <https://people.mozilla.org/s?query=jschanck>`__
+    * - Peer(s)
+      -
+        | `Tim Huang (timhuang) <https://people.mozilla.org/s?query=timhuang>`__
+        | `Paul Zühlcke (pbz) <https://people.mozilla.org/s?query=pbz>`__
+    * - Includes
+      -
+        | `toolkit/components/credentialmanagement/\*\*/\* <https://searchfox.org/mozilla-central/search?q=&path=toolkit/components/credentialmanagement/\*\*/\*>`__
+        | `browser/components/credentialmanager/\*\*/\* <https://searchfox.org/mozilla-central/search?q=&path=browser/components/credentialmanager/\*\*/\*>`__
+        | `dom/credentialmanagement/\*\*/\* <https://searchfox.org/mozilla-central/search?q=&path=dom/credentialmanagement/\*\*/\*>`__
+        | `dom/webauthn/\*\*/\* <https://searchfox.org/mozilla-central/search?q=&path=dom/webauthn/\*\*/\*>`__
+    * - Group
+      - dev-platform
+    * - Bugzilla Components
+      - Core::DOM: Credential Management, Core::DOM: Web Authentication
 
 Core: C++/Rust usage, tools, and style
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1648,7 +1676,7 @@ Caps is the capabilities-based security system.
     * - Peer(s)
       -
         | `Boris Zbarsky (bzbarsky) <https://people.mozilla.org/s?query=bzbarsky>`__
-        | `ckerschbaumer <https://people.mozilla.org/s?query=ckerschbaumer>`__
+        | `Christoph Kerschbaumer (ckerschb) <https://people.mozilla.org/s?query=ckerschb>`__
     * - Peer(s) Emeritus
       - Brendan Eich, Johnny Stenback, Dan Veditz
     * - Includes
@@ -2874,7 +2902,7 @@ Form detection and autocomplete.
     * - Peer(s)
       -
         | `Tim Giles (tgiles) <https://people.mozilla.org/s?query=tgiles>`__
-        | `Dimi Lee (dimi) <https://people.mozilla.org/s?query=dimi>`__
+        | `Dimi Lee (dlee) <https://people.mozilla.org/s?query=dlee>`__
     * - Owner(s) Emeritus
       - Matthew Noorenberghe
     * - Includes
@@ -3015,7 +3043,7 @@ Managing, saving and filling logins.
       -
         | `Jared Wein (jaws) <https://people.mozilla.org/s?query=jaws>`__
         | `Tim Giles (tgiles) <https://people.mozilla.org/s?query=tgiles>`__
-        | `Dimi Lee (dimi) <https://people.mozilla.org/s?query=dimi>`__
+        | `Dimi Lee (dlee) <https://people.mozilla.org/s?query=dlee>`__
         | `Sam Foster (sfoster) <https://people.mozilla.org/s?query=sfoster>`__
     * - Owner(s) Emeritus
       - Matthew Noorenberghe

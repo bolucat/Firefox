@@ -172,6 +172,14 @@
 #define IS_NOT_ANDROID true
 #endif
 
+#ifdef XP_WIN
+#define IS_XP_WIN true
+#define IS_NOT_XP_WIN false
+#else
+#define IS_XP_WIN false
+#define IS_NOT_XP_WIN true
+#endif
+
 #---------------------------------------------------------------------------
 # Prefs starting with "accessibility."
 #---------------------------------------------------------------------------
@@ -1283,6 +1291,7 @@
   type: String
   value: >-
     Material Icons,
+    Material Icons Extended,
     Material Icons Outlined,
     Material Icons Round,
     Material Icons Sharp,
@@ -3599,13 +3608,6 @@
   value: false
   mirror: always
 
-# This pref enables Sec-Fetch-* logic and causes corresponding
-# request headers to be set.
-- name: dom.security.secFetch.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 # This pref enables the featurePolicy header support.
 - name: dom.security.featurePolicy.header.enabled
   type: bool
@@ -4510,6 +4512,12 @@
 
 # Is support for the Web GPU API enabled?
 - name: dom.webgpu.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# Are WebGPU indirect draws/dispatches enabled?
+- name: dom.webgpu.indirect-dispatch.enabled
   type: RelaxedAtomicBool
   value: false
   mirror: always
@@ -9616,24 +9624,38 @@
     mirror: always
 #endif
 
-#ifdef XP_MACOSX
-  # These prefs control whether or not a universal build running on
-  # an Apple Silicon machine will attempt to use an x64 Widevine or
-  # OpenH264 plugin. This requires launching the GMP child process
-  # executable in x64 mode. We expect to allow this for Widevine until
-  # an arm64 version of Widevine is made available. We don't expect
-  # to need to allow this for OpenH264.
+# (When reading the next line, know that preprocessor.py doesn't
+# understand parentheses, but && is higher precedence than ||.)
+#if defined(XP_WIN) && defined(_ARM64_) || defined(XP_MACOSX)
+  # These prefs control whether or not we will allow x86/x64 plugins
+  # to run on Windows ARM or Apple Silicon machines. This requires
+  # launching the GMP child process executable in x86/x64 mode. We
+  # expect to allow this for Widevine until an arm64 version of
+  # Widevine and Clearkey is made available. We don't expect to need
+  # to allow this for OpenH264.
   #
-  # Allow a Widevine GMP x64 process to be executed on ARM builds.
+  # For Apple Silicon and OSX, it will be for universal builds and
+  # whether or not it can use the x64 Widevine plugin.
+  #
+  # For Windows ARM, it will be for ARM builds and whether or not it
+  # can use x86 Widevine or Clearkey plugins.
+
+  # May a Widevine GMP x64 process be executed on ARM builds.
 - name: media.gmp-widevinecdm.allow-x64-plugin-on-arm64
   type: RelaxedAtomicBool
   value: true
   mirror: always
 
-  # Don't allow an OpenH264 GMP x64 process to be executed on ARM builds.
+  # May an OpenH264 GMP x64 process be executed on ARM builds.
 - name: media.gmp-gmpopenh264.allow-x64-plugin-on-arm64
   type: RelaxedAtomicBool
   value: false
+  mirror: always
+
+  # May a Clearkey GMP x64 process be executed on ARM builds.
+- name: media.gmp-gmpclearkey.allow-x64-plugin-on-arm64
+  type: RelaxedAtomicBool
+  value: @IS_XP_WIN@
   mirror: always
 #endif
 
@@ -10971,7 +10993,7 @@
 
 - name: network.cookie.sameSite.laxByDefault
   type: RelaxedAtomicBool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: false
   mirror: always
 
 # lax-by-default 2 minutes tollerance for unsafe methods. The value is in seconds.
@@ -12723,6 +12745,7 @@
   type: RelaxedAtomicBool
   value: false
   mirror: always
+  do_not_use_directly: true
 
 # We automatically decline canvas permission requests if they are not initiated
 # from user input. Just in case that breaks something, we allow the user to

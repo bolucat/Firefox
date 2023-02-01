@@ -8,7 +8,7 @@
 # documentation and how to modify this file.
 repo: mozilla-central
 created_at: '2021-10-14T12:50:40.073465'
-updated_at: '2023-01-25T19:39:31.053521'
+updated_at: '2023-01-31T11:22:46.154655'
 export:
   path: ./docs/mots/index.rst
   format: rst
@@ -157,6 +157,10 @@ people:
     bmo_id: 700441
     name: Bryan Thrall
     nick: bthrall
+  - &bvandersloot
+    bmo_id: 692134
+    name: Benjamin VanderSloot
+    nick: bvandersloot
   - &bwc
     bmo_id: 478411
     name: Byron Campen
@@ -192,10 +196,10 @@ people:
     bmo_id: 553004
     name: Chris H-C
     nick: chutten
-  - &ckerschbaumer
-    bmo_id: 521513
-    name: ''
-    nick: ckerschbaumer
+  - &ckerschb
+    bmo_id: 363267
+    name: Christoph Kerschbaumer
+    nick: ckerschb
   - &cmartin
     bmo_id: 625428
     name: Chris Martin
@@ -240,10 +244,6 @@ people:
     bmo_id: 278074
     name: Daniel Holbert
     nick: dholbert
-  - &dimi
-    bmo_id: 468232
-    name: Dimi Lee
-    nick: dimi
   - &djackson
     bmo_id: 644159
     name: Dennis Jackson
@@ -252,6 +252,10 @@ people:
     bmo_id: 436087
     name: Kannan Vijayan
     nick: djvj
+  - &dlee
+    bmo_id: 468232
+    name: Dimi Lee
+    nick: dlee
   - &dlrobertson
     bmo_id: 705145
     name: Dan Robertson
@@ -1023,7 +1027,7 @@ modules:
       - *timhuang
     peers:
       - *baku
-      - *dimi
+      - *dlee
       - *pbz
       - *johannh
     machine_name: core_antitracking
@@ -1193,7 +1197,7 @@ modules:
       components:
         - 'Core::DOM: Security'
     owners:
-      - *ckerschbaumer
+      - *ckerschb
     peers:
       - *tanvi
       - *dveditz
@@ -1248,6 +1252,27 @@ modules:
       - *KrisWright
       - *calixte
     machine_name: core_crash_reporting
+
+  - machine_name: core_credentials
+    name: 'Core: Credentials'
+    description: API Surface for FedCM and WebAuthn
+    includes:
+      - toolkit/components/credentialmanagement/**/*
+      - browser/components/credentialmanager/**/*
+      - dom/credentialmanagement/**/*
+      - dom/webauthn/**/*
+    excludes: []
+    owners:
+      - *bvandersloot
+      - *jschanck
+    peers:
+      - *timhuang
+      - *pbz
+    meta:
+      group: dev-platform
+      components:
+        - 'Core::DOM: Credential Management'
+        - 'Core::DOM: Web Authentication'
 
   - name: 'Core: C++/Rust usage, tools, and style'
     description: Aspects of C++ use such as language feature usage, standard library
@@ -2265,7 +2290,7 @@ modules:
       - *bholley
     peers:
       - *bzbarsky
-      - *ckerschbaumer
+      - *ckerschb
     machine_name: core_privilege_manager
 
   - name: 'Core: Push Notifications'
@@ -3155,7 +3180,7 @@ modules:
           - *serg
         peers:
           - *tgiles
-          - *dimi
+          - *dlee
         machine_name: form_autofill
 
       - name: In-product Messaging
@@ -3249,7 +3274,7 @@ modules:
         peers:
           - *jaws
           - *tgiles
-          - *dimi
+          - *dlee
           - *sfoster
         machine_name: password_manager
 
@@ -3720,5 +3745,5 @@ modules:
         machine_name: webextensions
     machine_name: toolkit
 hashes:
-  config: bad4121af04346b365d7833bd2c687028b12b931
-  export: 6fc9f5be22e9e75f801de6b7ecb3d64b278ec1ff
+  config: 9f677ec0857bcf73217e6aa0bc01dcdb7b97be66
+  export: 45fdc64af455b15cae5f2d82edc8f467a07fee97
