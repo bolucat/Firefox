@@ -3062,14 +3062,6 @@
   value: true
   mirror: always
 
-# This pref is used to enable/disable the `document.autoplayPolicy` API which
-# returns a enum string which presents current autoplay policy and can change
-# overtime based on user session activity.
-- name: dom.media.autoplay.autoplay-policy-api
-  type: bool
-  value: false
-  mirror: always
-
 # Autoplay Policy Detection https://w3c.github.io/autoplay/
 - name: dom.media.autoplay-policy-detection.enabled
   type: RelaxedAtomicBool
@@ -5176,13 +5168,13 @@
 # If true, do not send blocklisted preference values to the subprocess
 - name: fission.omitBlocklistedPrefsInSubprocesses
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # If true, crash when a blocklisted preference is accessed in a subprocess
 - name: fission.enforceBlocklistedPrefsInSubprocesses
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 #---------------------------------------------------------------------------
@@ -10143,6 +10135,16 @@
     value: 2000000
     mirror: always
 
+# Enable PlayReady DRM for EME
+-   name: media.eme.playready.enabled
+    type: RelaxedAtomicBool
+#if defined(MOZ_MF_CDM) && defined(NIGHTLY_BUILD)
+    value: false # TODO: enable this when ready to play.
+#else
+    value: false
+#endif
+    mirror: always
+
 #endif  # MOZ_WMF
 
 - name: media.decoder-doctor.testing
@@ -13358,7 +13360,7 @@
 # No way to enable on Android, Bug 1552602
 - name: security.webauth.u2f
   type: bool
-  value: false
+  value: @IS_NOT_ANDROID@
   mirror: always
 
 # WebAuthn CTAP2 support
@@ -14427,7 +14429,7 @@
 
 - name: webgl.disable-DOM-blit-uploads
   type: RelaxedAtomicBool
-#if defined(_ARM64_) && defined(XP_MACOSX)
+#if defined(MOZ_AARCH64) && defined(XP_MACOSX)
   value: true
 #else
   value: false

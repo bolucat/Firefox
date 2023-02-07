@@ -750,10 +750,10 @@ let JSWINDOWACTORS = {
 
   ASRouter: {
     parent: {
-      moduleURI: "resource:///actors/ASRouterParent.jsm",
+      esModuleURI: "resource:///actors/ASRouterParent.sys.mjs",
     },
     child: {
-      moduleURI: "resource:///actors/ASRouterChild.jsm",
+      esModuleURI: "resource:///actors/ASRouterChild.sys.mjs",
       events: {
         // This is added so the actor instantiates immediately and makes
         // methods available to the page js on load.
@@ -777,6 +777,8 @@ let JSWINDOWACTORS = {
     allFrames: true,
   },
 
+  // The older translations feature backed by external services.
+  // This is being replaced by a newer ML-backed translation service. See Bug 971044.
   Translation: {
     parent: {
       moduleURI: "resource:///modules/translation/TranslationParent.jsm",
@@ -2855,6 +2857,14 @@ BrowserGlue.prototype = {
       },
 
       {
+        // Starts the JSOracle process for ORB JavaScript validation, if it hasn't started already.
+        name: "start-orb-javascript-oracle",
+        task: () => {
+          ChromeUtils.ensureJSOracleStarted();
+        },
+      },
+
+      {
         name: "browser-startup-idle-tasks-finished",
         task: () => {
           // Use idleDispatch a second time to run this after the per-window
@@ -3515,7 +3525,7 @@ BrowserGlue.prototype = {
   _migrateUI: function BG__migrateUI() {
     // Use an increasing number to keep track of the current migration state.
     // Completely unrelated to the current Firefox release number.
-    const UI_VERSION = 135;
+    const UI_VERSION = 136;
     const BROWSER_DOCURL = AppConstants.BROWSER_CHROME_URL;
 
     const PROFILE_DIR = Services.dirsvc.get("ProfD", Ci.nsIFile).path;
@@ -4278,16 +4288,11 @@ BrowserGlue.prototype = {
       }
     }
 
-    function migrateXULAttributeToStyle(id, attr) {
+    function migrateXULAttributeToStyle(url, id, attr) {
       try {
-        let value = Services.xulStore.getValue(BROWSER_DOCURL, id, attr);
+        let value = Services.xulStore.getValue(url, id, attr);
         if (value) {
-          Services.xulStore.setValue(
-            BROWSER_DOCURL,
-            id,
-            "style",
-            `width: ${value}px;`
-          );
+          Services.xulStore.setValue(url, id, "style", `${attr}: ${value}px;`);
         }
       } catch (ex) {
         console.error(`Error migrating ${id}'s ${attr} value: `, ex);
@@ -4300,7 +4305,7 @@ BrowserGlue.prototype = {
 
     // Bug 1793366: migrate sidebar persisted attribute from width to style.
     if (currentUIVersion < 130) {
-      migrateXULAttributeToStyle("sidebar-box", "width");
+      migrateXULAttributeToStyle(BROWSER_DOCURL, "sidebar-box", "width");
     }
 
     // Migration 131 was moved to 133 to allow for an uplift.
@@ -4338,6 +4343,14 @@ BrowserGlue.prototype = {
       }
     }
 
+    if (currentUIVersion < 136) {
+      migrateXULAttributeToStyle(
+        "chrome://browser/content/places/places.xhtml",
+        "placesList",
+        "width"
+      );
+    }
+
     // Update the migration version.
     Services.prefs.setIntPref("browser.migration.version", UI_VERSION);
   },
@@ -4350,25 +4363,20 @@ BrowserGlue.prototype = {
     let tab;
 
     const upgradeTabsProgressListener = {
-      onLocationChange(
-        aBrowser,
-        aWebProgress,
-        aRequest,
-        aLocationURI,
-        aFlags,
-        aIsSimulated
-      ) {
+      onLocationChange(aBrowser) {
         if (aBrowser === tab.linkedBrowser) {
-          // We're now far enough along in the load that we no longer have to
-          // worry about a call to onLocationChange triggering SubDialog.abort,
-          // so display the dialog
-          const config = {
-            type: "SHOW_SPOTLIGHT",
-            data,
-          };
-          lazy.SpecialMessageActions.handleAction(config, tab.linkedBrowser);
+          lazy.setTimeout(() => {
+            // We're now far enough along in the load that we no longer have to
+            // worry about a call to onLocationChange triggering SubDialog.abort,
+            // so display the dialog
+            const config = {
+              type: "SHOW_SPOTLIGHT",
+              data,
+            };
+            lazy.SpecialMessageActions.handleAction(config, tab.linkedBrowser);
 
-          gBrowser.removeTabsProgressListener(upgradeTabsProgressListener);
+            gBrowser.removeTabsProgressListener(upgradeTabsProgressListener);
+          }, 0);
         }
       },
     };
