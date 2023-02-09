@@ -260,15 +260,17 @@
 # notifications are used.
 - name: alerts.useSystemBackend
   type: bool
-#ifdef XP_WIN
-  # Linux and macOS turn on system level notification as default, but Windows is
-  # disabled due to instability (dependencies of bug 1497425).
-  value: false
-#else
   value: true
-#endif
   mirror: always
 
+#if defined(XP_WIN)
+ # On Windows, a COM Surrogate notification server receives notification events
+ # and can relaunch the application after it has been closed.
+- name: alerts.useSystemBackend.windows.notificationserver.enabled
+  type: bool
+  value: true
+  mirror: never
+#endif
 
 #ifdef ANDROID
   #---------------------------------------------------------------------------
@@ -2291,6 +2293,13 @@
   value: false
   mirror: always
 
+# HTML specification says the level should be 5
+# https://html.spec.whatwg.org/#timer-initialisation-steps
+- name: dom.clamp.timeout.nesting.level
+  type: uint32_t
+  value: 5
+  mirror: once
+
 # Disable custom highlight API; implementation pending.
 - name: dom.customHighlightAPI.enabled
   type: RelaxedAtomicBool
@@ -3965,17 +3974,13 @@
 # Whether the File System API is enabled
 - name: dom.fs.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Whether the WritableFileStream is enabled or disabled.
-# WritableFileStream implementation is currently only experimental:
-# it does not update quota information and does synchronous IO on the current
-# thread which is okish for workers but not for the main thread.
-# The situation will change after bug 1798513 is fixed.
 - name: dom.fs.writable_file_stream.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 # LocalStorage data limit as determined by summing up the lengths of all string
@@ -14039,6 +14044,26 @@
 - name: ui.key.generalAccessKey
   type: int32_t
   value: -1
+  mirror: always
+
+# Use 17 for Ctrl, 18 for Alt, 224 for Meta, 91 for Win, 0 for none.
+- name: ui.key.accelKey
+  type: uint32_t
+#ifdef XP_MACOSX
+  value: 224
+#else
+  value: 17
+#endif
+  mirror: always
+
+# See above for the key codes to use.
+- name: ui.key.menuAccessKey
+  type: uint32_t
+#ifdef XP_MACOSX
+  value: 0
+#else
+  value: 18
+#endif
   mirror: always
 
 # Only used if generalAccessKey is -1.

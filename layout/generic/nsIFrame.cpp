@@ -6972,7 +6972,8 @@ bool nsIFrame::HasSelectionInSubtree() {
 
     const auto* commonAncestorNode =
         range->GetRegisteredClosestCommonInclusiveAncestor();
-    if (commonAncestorNode->IsInclusiveDescendantOf(GetContent())) {
+    if (commonAncestorNode &&
+        commonAncestorNode->IsInclusiveDescendantOf(GetContent())) {
       return true;
     }
   }
@@ -7036,13 +7037,6 @@ void nsIFrame::UpdateIsRelevantContent(
       aRelevancyToUpdate.contains(ContentRelevancyReason::Selected)) {
     setRelevancyValue(ContentRelevancyReason::Selected,
                       HasSelectionInSubtree());
-  }
-
-  if (!oldRelevancy ||
-      aRelevancyToUpdate.contains(
-          ContentRelevancyReason::DescendantOfTopLayerElement)) {
-    setRelevancyValue(ContentRelevancyReason::DescendantOfTopLayerElement,
-                      IsDescendantOfTopLayerElement());
   }
 
   bool overallRelevancyChanged =
@@ -10543,7 +10537,8 @@ bool nsIFrame::IsFocusableDueToScrollFrame() {
   return true;
 }
 
-nsIFrame::Focusable nsIFrame::IsFocusable(bool aWithMouse) {
+nsIFrame::Focusable nsIFrame::IsFocusable(bool aWithMouse,
+                                          bool aCheckVisibility) {
   // cannot focus content in print preview mode. Only the root can be focused,
   // but that's handled elsewhere.
   if (PresContext()->Type() == nsPresContext::eContext_PrintPreview) {
@@ -10554,7 +10549,7 @@ nsIFrame::Focusable nsIFrame::IsFocusable(bool aWithMouse) {
     return {};
   }
 
-  if (!IsVisibleConsideringAncestors()) {
+  if (aCheckVisibility && !IsVisibleConsideringAncestors()) {
     return {};
   }
 

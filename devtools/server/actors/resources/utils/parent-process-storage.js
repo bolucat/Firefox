@@ -5,10 +5,7 @@
 "use strict";
 
 const EventEmitter = require("resource://devtools/shared/event-emitter.js");
-const {
-  getAllBrowsingContextsForContext,
-  isWindowGlobalPartOfContext,
-} = ChromeUtils.importESModule(
+const { isWindowGlobalPartOfContext } = ChromeUtils.importESModule(
   "resource://devtools/server/actors/watcher/browsing-context-helpers.sys.mjs"
 );
 
@@ -136,15 +133,13 @@ class ParentProcessStorage {
     this.actor = new this.ActorConstructor(storageActor);
 
     // Some storage types require to prelist their stores
-    if (typeof this.actor.preListStores === "function") {
-      try {
-        await this.actor.preListStores();
-      } catch (e) {
-        // It can happen that the actor gets destroyed while preListStores is being
-        // executed.
-        if (this.actor) {
-          throw e;
-        }
+    try {
+      await this.actor.populateStoresForHosts();
+    } catch (e) {
+      // It can happen that the actor gets destroyed while populateStoresForHosts is being
+      // executed.
+      if (this.actor) {
+        throw e;
       }
     }
 
@@ -348,9 +343,10 @@ class StorageActorMock extends EventEmitter {
 
   get windows() {
     return (
-      getAllBrowsingContextsForContext(this.watcherActor.sessionContext, {
-        acceptSameProcessIframes: true,
-      })
+      this.watcherActor
+        .getAllBrowsingContexts({
+          acceptSameProcessIframes: true,
+        })
         .map(x => {
           const uri = x.currentWindowGlobal.documentURI;
           return { location: uri };
@@ -381,13 +377,12 @@ class StorageActorMock extends EventEmitter {
   }
 
   getWindowFromHost(host) {
-    const hostBrowsingContext = getAllBrowsingContextsForContext(
-      this.watcherActor.sessionContext,
-      { acceptSameProcessIframes: true }
-    ).find(x => {
-      const hostName = this.getHostName(x.currentWindowGlobal.documentURI);
-      return hostName === host;
-    });
+    const hostBrowsingContext = this.watcherActor
+      .getAllBrowsingContexts({ acceptSameProcessIframes: true })
+      .find(x => {
+        const hostName = this.getHostName(x.currentWindowGlobal.documentURI);
+        return hostName === host;
+      });
     // In case of WebExtension or BrowserToolbox, we may pass privileged hosts
     // which don't relate to any particular window.
     // Like "indexeddb+++fx-devtools" or "chrome".

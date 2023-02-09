@@ -53,6 +53,7 @@
 #include "nsIContent.h"
 #include "nsIFormControl.h"
 
+#include "nsDisplayList.h"
 #include "nsLayoutUtils.h"
 #include "nsPresContext.h"
 #include "nsIFrame.h"
@@ -446,7 +447,23 @@ uint64_t LocalAccessible::NativeInteractiveState() const {
   if (NativelyUnavailable()) return states::UNAVAILABLE;
 
   nsIFrame* frame = GetFrame();
-  if (frame && frame->IsFocusable()) return states::FOCUSABLE;
+  // If we're caching this remote document in the parent process, we
+  // need to cache focusability irrespective of visibility. Otherwise,
+  // if this document is invisible when it first loads, we'll cache that
+  // all descendants are unfocusable and this won't get updated when the
+  // document becomes visible. Even if we did get notified when the
+  // document becomes visible, it would be wasteful to walk the entire
+  // tree to figure out what is now focusable and push cache updates.
+  // Although ignoring visibility means IsFocusable will return true for
+  // visibility: hidden, etc., this isn't a problem because we don't include
+  // those hidden elements in the a11y tree anyway.
+  const bool ignoreVisibility =
+      mDoc->IPCDoc() && StaticPrefs::accessibility_cache_enabled_AtStartup();
+  if (frame && frame->IsFocusable(
+                   /* aWithMouse */ false,
+                   /* aCheckVisibility */ !ignoreVisibility)) {
+    return states::FOCUSABLE;
+  }
 
   return 0;
 }
@@ -3478,16 +3495,12 @@ already_AddRefed<AccAttributes> LocalAccessible::BundleFieldsForCache(
   if (aCacheDomain & CacheDomain::TransformMatrix) {
     bool transformed = false;
     if (frame && frame->IsTransformed()) {
-      // We need to find a frame to make our transform relative to.
-      // It's important this frame have a corresponding accessible,
-      // because this transform is applied while walking the accessibility
-      // tree (in the parent process), not the frame tree.
-      nsIFrame* boundingFrame = FindNearestAccessibleAncestorFrame();
       // This matrix is only valid when applied to CSSPixel points/rects
-      // in the coordinate space of `frame`. It also includes the translation
-      // to the parent space.
-      gfx::Matrix4x4Flagged mtx = nsLayoutUtils::GetTransformToAncestor(
-          RelativeTo{frame}, RelativeTo{boundingFrame}, nsIFrame::IN_CSS_UNITS);
+      // in the coordinate space of `frame`.
+      gfx::Matrix4x4 mtx = nsDisplayTransform::GetResultingTransformMatrix(
+          frame, nsPoint(0, 0), AppUnitsPerCSSPixel(),
+          nsDisplayTransform::INCLUDE_PERSPECTIVE |
+              nsDisplayTransform::OFFSET_BY_ORIGIN);
       // We might get back the identity matrix. This can happen if there is no
       // actual transform. For example, if an element has
       // will-change: transform, nsIFrame::IsTransformed will return true, but
@@ -3496,8 +3509,7 @@ already_AddRefed<AccAttributes> LocalAccessible::BundleFieldsForCache(
       // point caching it.
       transformed = !mtx.IsIdentity();
       if (transformed) {
-        UniquePtr<gfx::Matrix4x4> ptr =
-            MakeUnique<gfx::Matrix4x4>(mtx.GetMatrix());
+        UniquePtr<gfx::Matrix4x4> ptr = MakeUnique<gfx::Matrix4x4>(mtx);
         fields->SetAttribute(nsGkAtoms::transform, std::move(ptr));
       }
     }
