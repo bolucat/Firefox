@@ -7,7 +7,6 @@
 #include "mozilla/dom/MediaStreamTrack.h"
 #include "mozilla/dom/Promise.h"
 #include "mozilla/glean/GleanMetrics.h"
-#include "transportbridge/MediaPipeline.h"
 #include "nsPIDOMWindow.h"
 #include "nsString.h"
 #include "mozilla/dom/VideoStreamTrack.h"
@@ -53,7 +52,8 @@ RTCRtpSender::RTCRtpSender(nsPIDOMWindowInner* aWindow, PeerConnectionImpl* aPc,
                            dom::MediaStreamTrack* aTrack,
                            const Sequence<RTCRtpEncodingParameters>& aEncodings,
                            RTCRtpTransceiver* aTransceiver)
-    : mWindow(aWindow),
+    : mWatchManager(this, AbstractThread::MainThread()),
+      mWindow(aWindow),
       mPc(aPc),
       mSenderTrack(aTrack),
       mTransportHandler(aTransportHandler),
@@ -70,6 +70,7 @@ RTCRtpSender::RTCRtpSender(nsPIDOMWindowInner* aWindow, PeerConnectionImpl* aPc,
   mPipeline = new MediaPipelineTransmit(
       mPc->GetHandle(), aTransportHandler, aCallThread, aStsThread,
       aConduit->type() == MediaSessionConduit::VIDEO, aConduit);
+  mPipeline->InitControl(this);
 
   if (aConduit->type() == MediaSessionConduit::AUDIO) {
     mDtmf = new RTCDTMFSender(aWindow, mTransceiver);
@@ -103,6 +104,10 @@ RTCRtpSender::RTCRtpSender(nsPIDOMWindowInner* aWindow, PeerConnectionImpl* aPc,
     Unused << mParameters.mEncodings.AppendElement(defaultEncoding, fallible);
     UpdateRestorableEncodings(mParameters.mEncodings);
     MaybeGetJsepRids();
+  }
+
+  if (mDtmf) {
+    mWatchManager.Watch(mTransmitting, &RTCRtpSender::UpdateDtmfSender);
   }
 }
 
@@ -1164,6 +1169,7 @@ bool RTCRtpSender::SetSenderTrackWithClosedCheck(
 
 void RTCRtpSender::Shutdown() {
   MOZ_ASSERT(NS_IsMainThread());
+  mWatchManager.Shutdown();
   mPipeline->Shutdown();
   mPipeline = nullptr;
 }
@@ -1203,6 +1209,8 @@ void RTCRtpSender::MaybeUpdateConduit() {
     return;
   }
 
+  bool wasTransmitting = mTransmitting;
+
   if (mPipeline->mConduit->type() == MediaSessionConduit::VIDEO) {
     Maybe<VideoConfig> newConfig = GetNewVideoConfig();
     if (newConfig.isSome()) {
@@ -1213,6 +1221,12 @@ void RTCRtpSender::MaybeUpdateConduit() {
     if (newConfig.isSome()) {
       ApplyAudioConfig(*newConfig);
     }
+  }
+
+  if (!mSenderTrack && !wasTransmitting && mTransmitting) {
+    MOZ_LOG(gSenderLog, LogLevel::Debug,
+            ("%s[%s]: %s Starting transmit conduit without send track!",
+             mPc->GetHandle().c_str(), GetMid().c_str(), __FUNCTION__));
   }
 }
 
@@ -1451,8 +1465,6 @@ void RTCRtpSender::ApplyVideoConfig(const VideoConfig& aConfig) {
   if (aConfig.mVideoCodec.isSome()) {
     MOZ_ASSERT(aConfig.mSsrcs.size() == aConfig.mVideoCodec->mEncodings.size());
   }
-  mTransmitting = false;
-  Stop();
 
   mSsrcs = aConfig.mSsrcs;
   mCname = aConfig.mCname;
@@ -1463,14 +1475,11 @@ void RTCRtpSender::ApplyVideoConfig(const VideoConfig& aConfig) {
   mVideoRtpRtcpConfig = aConfig.mVideoRtpRtcpConfig;
   mVideoCodecMode = aConfig.mVideoCodecMode;
 
-  if ((mTransmitting = aConfig.mTransmitting)) {
-    Start();
-  }
+  mTransmitting = aConfig.mTransmitting;
 }
 
 void RTCRtpSender::ApplyAudioConfig(const AudioConfig& aConfig) {
   mTransmitting = false;
-  Stop();
 
   mSsrcs = aConfig.mSsrcs;
   mCname = aConfig.mCname;
@@ -1482,25 +1491,12 @@ void RTCRtpSender::ApplyAudioConfig(const AudioConfig& aConfig) {
     mDtmf->SetPayloadType(aConfig.mDtmfPt, aConfig.mDtmfFreq);
   }
 
-  if ((mTransmitting = aConfig.mTransmitting)) {
-    Start();
-  }
+  mTransmitting = aConfig.mTransmitting;
 }
 
 void RTCRtpSender::Stop() {
-  mPipeline->Stop();
-  if (mDtmf) {
-    mDtmf->StopPlayout();
-  }
-}
-
-void RTCRtpSender::Start() {
-  if (!mSenderTrack) {
-    MOZ_LOG(gSenderLog, LogLevel::Debug,
-            ("%s[%s]: %s Starting transmit conduit without send track!",
-             mPc->GetHandle().c_str(), GetMid().c_str(), __FUNCTION__));
-  }
-  mPipeline->Start();
+  MOZ_ASSERT(mTransceiver->Stopped());
+  mTransmitting = false;
 }
 
 bool RTCRtpSender::HasTrack(const dom::MediaStreamTrack* aTrack) const {
@@ -1523,6 +1519,18 @@ std::string RTCRtpSender::GetMid() const { return mTransceiver->GetMidAscii(); }
 
 JsepTransceiver& RTCRtpSender::GetJsepTransceiver() {
   return *mTransceiver->GetJsepTransceiver();
+}
+
+void RTCRtpSender::UpdateDtmfSender() {
+  if (!mDtmf) {
+    return;
+  }
+
+  if (mTransmitting) {
+    return;
+  }
+
+  mDtmf->StopPlayout();
 }
 
 }  // namespace mozilla::dom

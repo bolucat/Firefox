@@ -9075,7 +9075,7 @@
 # Pref to control whether we emulate all -moz-box with modern flexbox.
 - name: layout.css.moz-box-flexbox-emulation.enabled
   type: bool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
   rust: true
 
@@ -9998,6 +9998,13 @@
 #ifdef MOZ_WIDGET_GTK
 # Use VA-API for ffmpeg video playback on Linux
 - name: media.ffmpeg.vaapi.enabled
+  type: bool
+  value: false
+  mirror: once
+
+# Force to copy dmabuf video frames
+# Used for debugging/troubleshooting only
+- name: media.ffmpeg.vaapi.force-surface-copy
   type: bool
   value: false
   mirror: once

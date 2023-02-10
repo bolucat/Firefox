@@ -42,11 +42,6 @@ XPCOMUtils.defineLazyModuleGetters(lazy, {
   Resource: "resource://services-sync/resource.js",
 });
 
-XPCOMUtils.defineLazyGetter(lazy, "ANNOS_TO_TRACK", () => [
-  lazy.PlacesUtils.LMANNO_FEEDURI,
-  lazy.PlacesUtils.LMANNO_SITEURI,
-]);
-
 const PLACES_MAINTENANCE_INTERVAL_SECONDS = 4 * 60 * 60; // 4 hours.
 
 const FOLDER_SORTINDEX = 1000000;
@@ -804,7 +799,6 @@ function BookmarksTracker(name, engine) {
 }
 BookmarksTracker.prototype = {
   onStart() {
-    lazy.PlacesUtils.bookmarks.addObserver(this, true);
     this._placesListener = new PlacesWeakCallbackWrapper(
       this.handlePlacesEvents.bind(this)
     );
@@ -813,6 +807,8 @@ BookmarksTracker.prototype = {
         "bookmark-added",
         "bookmark-removed",
         "bookmark-moved",
+        "bookmark-guid-changed",
+        "bookmark-keyword-changed",
         "bookmark-tags-changed",
         "bookmark-time-changed",
         "bookmark-title-changed",
@@ -826,12 +822,13 @@ BookmarksTracker.prototype = {
   },
 
   onStop() {
-    lazy.PlacesUtils.bookmarks.removeObserver(this);
     lazy.PlacesUtils.observers.removeListener(
       [
         "bookmark-added",
         "bookmark-removed",
         "bookmark-moved",
+        "bookmark-guid-changed",
+        "bookmark-keyword-changed",
         "bookmark-tags-changed",
         "bookmark-time-changed",
         "bookmark-title-changed",
@@ -875,10 +872,7 @@ BookmarksTracker.prototype = {
     }
   },
 
-  QueryInterface: ChromeUtils.generateQI([
-    "nsINavBookmarkObserver",
-    "nsISupportsWeakReference",
-  ]),
+  QueryInterface: ChromeUtils.generateQI(["nsISupportsWeakReference"]),
 
   /* Every add/remove/change will trigger a sync for MULTI_DEVICE */
   _upScore: function BMT__upScore() {
@@ -891,12 +885,23 @@ BookmarksTracker.prototype = {
         case "bookmark-added":
         case "bookmark-removed":
         case "bookmark-moved":
-        case "bookmark-guid-changed":
+        case "bookmark-keyword-changed":
         case "bookmark-tags-changed":
         case "bookmark-time-changed":
         case "bookmark-title-changed":
         case "bookmark-url-changed":
           if (lazy.IGNORED_SOURCES.includes(event.source)) {
+            continue;
+          }
+
+          this._log.trace(`'${event.type}': ${event.id}`);
+          this._upScore();
+          break;
+        case "bookmark-guid-changed":
+          if (event.source !== lazy.PlacesUtils.bookmarks.SOURCES.SYNC) {
+            this._log.warn(
+              "The source of bookmark-guid-changed event shoud be sync."
+            );
             continue;
           }
 
@@ -909,40 +914,6 @@ BookmarksTracker.prototype = {
           break;
       }
     }
-  },
-
-  // This method is oddly structured, but the idea is to return as quickly as
-  // possible -- this handler gets called *every time* a bookmark changes, for
-  // *each change*.
-  onItemChanged: function BMT_onItemChanged(
-    itemId,
-    property,
-    isAnno,
-    value,
-    lastModified,
-    itemType,
-    parentId,
-    guid,
-    parentGuid,
-    oldValue,
-    source
-  ) {
-    if (lazy.IGNORED_SOURCES.includes(source)) {
-      return;
-    }
-
-    if (isAnno && !lazy.ANNOS_TO_TRACK.includes(property)) {
-      // Ignore annotations except for the ones that we sync.
-      return;
-    }
-
-    this._log.trace(
-      "onItemChanged: " +
-        itemId +
-        (", " + property + (isAnno ? " (anno)" : "")) +
-        (value ? ' = "' + value + '"' : "")
-    );
-    this._upScore();
   },
 };
 
