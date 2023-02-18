@@ -104,8 +104,8 @@ XPCOMUtils.defineLazyModuleGetters(this, {
 });
 
 XPCOMUtils.defineLazyGetter(this, "fxAccounts", () => {
-  return ChromeUtils.import(
-    "resource://gre/modules/FxAccounts.jsm"
+  return ChromeUtils.importESModule(
+    "resource://gre/modules/FxAccounts.sys.mjs"
   ).getFxAccountsSingleton();
 });
 
@@ -570,13 +570,6 @@ XPCOMUtils.defineLazyPreferenceGetter(
     );
   }
 );
-
-customElements.setElementCreationCallback("translation-notification", () => {
-  Services.scriptloader.loadSubScript(
-    "chrome://browser/content/translation-notification.js",
-    window
-  );
-});
 
 customElements.setElementCreationCallback("screenshots-buttons", () => {
   Services.scriptloader.loadSubScript(
@@ -8811,9 +8804,8 @@ var MousePosTracker = {
   },
 
   handleEvent(event) {
-    let fullZoom = window.windowUtils.fullZoom;
-    this._x = event.screenX / fullZoom - window.mozInnerScreenX;
-    this._y = event.screenY / fullZoom - window.mozInnerScreenY;
+    this._x = event.screenX - window.mozInnerScreenX;
+    this._y = event.screenY - window.mozInnerScreenY;
 
     this._listeners.forEach(listener => {
       try {
