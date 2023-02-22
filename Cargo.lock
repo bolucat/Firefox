@@ -3632,7 +3632,7 @@ checksum = "a2983372caf4480544083767bf2d27defafe32af49ab4df3a0b7fc90793a3664"
 [[package]]
 name = "naga"
 version = "0.11.0"
-source = "git+https://github.com/gfx-rs/naga?rev=4b796b157cb2b67b0ab166a2238fe4e9473bfd52#4b796b157cb2b67b0ab166a2238fe4e9473bfd52"
+source = "git+https://github.com/gfx-rs/naga?rev=9742f1616c3e3dd2cc9a5880616fc886c391bb9f#9742f1616c3e3dd2cc9a5880616fc886c391bb9f"
 dependencies = [
  "bit-set",
  "bitflags",
@@ -4535,12 +4535,6 @@ checksum = "3acd125665422973a33ac9d3dd2df85edad0f4ae9b00dafb1a05e43a9f5ef8e7"
 dependencies = [
  "winapi",
 ]
-
-[[package]]
-name = "renderdoc-sys"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1382d1f0a252c4bf97dc20d979a2fdd05b024acd7c2ed0f7595d7817666a157"
 
 [[package]]
 name = "replace_with"
@@ -6353,7 +6347,7 @@ dependencies = [
 [[package]]
 name = "wgpu-core"
 version = "0.15.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=b33731c44c9dd3bfb79d889e7a699c26c3929cd3#b33731c44c9dd3bfb79d889e7a699c26c3929cd3"
+source = "git+https://github.com/gfx-rs/wgpu?rev=74303308cd6030071889e865c40aa638214ed938#74303308cd6030071889e865c40aa638214ed938"
 dependencies = [
  "arrayvec",
  "bit-vec",
@@ -6376,7 +6370,7 @@ dependencies = [
 [[package]]
 name = "wgpu-hal"
 version = "0.15.1"
-source = "git+https://github.com/gfx-rs/wgpu?rev=b33731c44c9dd3bfb79d889e7a699c26c3929cd3#b33731c44c9dd3bfb79d889e7a699c26c3929cd3"
+source = "git+https://github.com/gfx-rs/wgpu?rev=74303308cd6030071889e865c40aa638214ed938#74303308cd6030071889e865c40aa638214ed938"
 dependencies = [
  "android_system_properties",
  "arrayvec",
@@ -6402,7 +6396,6 @@ dependencies = [
  "profiling",
  "range-alloc",
  "raw-window-handle",
- "renderdoc-sys",
  "smallvec",
  "thiserror",
  "wasm-bindgen",
@@ -6414,7 +6407,7 @@ dependencies = [
 [[package]]
 name = "wgpu-types"
 version = "0.15.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=b33731c44c9dd3bfb79d889e7a699c26c3929cd3#b33731c44c9dd3bfb79d889e7a699c26c3929cd3"
+source = "git+https://github.com/gfx-rs/wgpu?rev=74303308cd6030071889e865c40aa638214ed938#74303308cd6030071889e865c40aa638214ed938"
 dependencies = [
  "bitflags",
  "js-sys",
