@@ -2161,7 +2161,7 @@
 # Whether CanvasRenderingContext2D.mozTextStyle is enabled.
 - name: dom.mozTextStyle.enabled
   type: bool
-  value: @IS_NOT_EARLY_BETA_OR_EARLIER@
+  value: false
   mirror: always
 
 # Allow cut/copy
@@ -2630,12 +2630,6 @@
 # Allow the content process to create a File from a path. This is allowed just
 # on parent process, on 'file' Content process, or for testing.
 - name: dom.file.createInChild
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
-# Whether or not File Handle is enabled.
-- name: dom.fileHandle.enabled
   type: RelaxedAtomicBool
   value: false
   mirror: always
@@ -11965,6 +11959,24 @@
 - name: network.trr.fallback_warning_heuristic_list
   type: String
   value: "canary"
+  mirror: never
+
+# Use Oblivious HTTP when making TRR requests.
+- name: network.trr.use_ohttp
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# Oblivious HTTP relay URI for TRR requests.
+- name: network.trr.ohttp.relay_uri
+  type: String
+  value: ""
+  mirror: never
+
+# URI from which to fetch the configuration for the Oblivious HTTP gateway for TRR requests.
+- name: network.trr.ohttp.config_uri
+  type: String
+  value: ""
   mirror: never
 
 # Allow the network changed event to get sent when a network topology or setup

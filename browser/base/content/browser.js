@@ -4730,7 +4730,7 @@ let gShareUtils = {
     if (AppConstants.platform == "win") {
       // We disable the item on Windows, as there's no submenu.
       // On macOS, we handle this inside the menupopup.
-      shareURL.hidden = !BrowserUtils.isShareableURL(browser.currentURI);
+      shareURL.hidden = !BrowserUtils.getShareableURL(browser.currentURI);
     }
   },
 
@@ -4785,9 +4785,12 @@ let gShareUtils = {
     let urlToShare = null;
     let titleToShare = null;
 
-    if (browser && BrowserUtils.isShareableURL(browser.currentURI)) {
-      urlToShare = browser.currentURI;
-      titleToShare = browser.contentTitle;
+    if (browser) {
+      let maybeToShare = BrowserUtils.getShareableURL(browser.currentURI);
+      if (maybeToShare) {
+        urlToShare = maybeToShare;
+        titleToShare = browser.contentTitle;
+      }
     }
     return { urlToShare, titleToShare };
   },
@@ -7823,7 +7826,7 @@ var WebAuthnPromptHelper = {
       });
     }
     let mainAction = this.buildCancelAction(mgr, tid);
-    let options = {};
+    let options = { escAction: "buttoncommand" };
     this.show(
       tid,
       "select-sign-result",
@@ -7852,6 +7855,8 @@ var WebAuthnPromptHelper = {
 
   register(mgr, { origin, tid, is_ctap2, device_selected }) {
     let mainAction = this.buildCancelAction(mgr, tid);
+    let options = { escAction: "buttoncommand" };
+    let secondaryActions = [];
     let message;
     if (is_ctap2) {
       if (device_selected) {
@@ -7862,7 +7867,15 @@ var WebAuthnPromptHelper = {
     } else {
       message = "webauthn.registerPrompt2";
     }
-    this.show(tid, "register", message, origin, mainAction);
+    this.show(
+      tid,
+      "register",
+      message,
+      origin,
+      mainAction,
+      secondaryActions,
+      options
+    );
   },
 
   registerDirect(mgr, { origin, tid }) {
@@ -7893,6 +7906,8 @@ var WebAuthnPromptHelper = {
 
   sign(mgr, { origin, tid, is_ctap2, device_selected }) {
     let mainAction = this.buildCancelAction(mgr, tid);
+    let options = { escAction: "buttoncommand" };
+    let secondaryActions = [];
     let message;
     if (is_ctap2) {
       if (device_selected) {
@@ -7903,7 +7918,15 @@ var WebAuthnPromptHelper = {
     } else {
       message = "webauthn.signPrompt2";
     }
-    this.show(tid, "sign", message, origin, mainAction);
+    this.show(
+      tid,
+      "sign",
+      message,
+      origin,
+      mainAction,
+      secondaryActions,
+      options
+    );
   },
 
   show_info(mgr, origin, tid, id, stringId) {
