@@ -3202,6 +3202,8 @@ pref("signon.masterPasswordReprompt.timeout_ms", 900000); // 15 Minutes
 pref("signon.showAutoCompleteFooter",             false);
 pref("signon.firefoxRelay.base_url", "https://relay.firefox.com/api/v1/");
 pref("signon.firefoxRelay.learn_more_url", "https://relay.firefox.com/");
+pref("signon.signupDetection.confidenceThreshold",     "0.75");
+pref("signon.signupDetection.enabled",                 false);
 
 // Satchel (Form Manager) prefs
 pref("browser.formfill.debug",            false);
@@ -4177,3 +4179,6 @@ pref("cookiebanners.listService.testSkipRemoteSettings", false);
 // The domains we will block from installing SitePermsAddons. Comma-separated
 // full domains: any subdomains of the domains listed will also be allowed.
 pref("dom.sitepermsaddon-provider.separatedBlocklistedDomains", "shopee.co.th,alipay.com,miravia.es");
+
+// Log level for logger in URLQueryStrippingListService
+pref("privacy.query_stripping.listService.logLevel", "Error");
