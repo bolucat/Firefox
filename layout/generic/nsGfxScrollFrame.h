@@ -203,6 +203,7 @@ class ScrollFrameHelper : public nsIReflowCallback {
     return pt;
   }
   nsRect GetLayoutScrollRange() const;
+  nsRect GetUnsnappedLayoutScrollRange() const;
   // Get the scroll range assuming the viewport has size (aWidth, aHeight).
   nsRect GetScrollRange(nscoord aWidth, nscoord aHeight) const;
   nsSize GetVisualViewportSize() const;
@@ -371,7 +372,7 @@ class ScrollFrameHelper : public nsIReflowCallback {
   nsRect GetScrolledRect() const;
 
   /**
-   * GetScrolledRectInternal is designed to encapsulate deciding which
+   * GetUnsnappedScrolledRectInternal is designed to encapsulate deciding which
    * directions of overflow should be reachable by scrolling and which
    * should not.  Callers should NOT depend on it having any particular
    * behavior (although nsXULScrollFrame currently does).
@@ -381,8 +382,8 @@ class ScrollFrameHelper : public nsIReflowCallback {
    * nsXULScrollFrames, and allows scrolling down and to the left for
    * nsHTMLScrollFrames with RTL directionality.
    */
-  nsRect GetScrolledRectInternal(const nsRect& aScrolledOverflowArea,
-                                 const nsSize& aScrollPortSize) const;
+  nsRect GetUnsnappedScrolledRectInternal(const nsRect& aScrolledOverflowArea,
+                                          const nsSize& aScrollPortSize) const;
 
   layers::ScrollDirections GetAvailableScrollingDirectionsForUserInputEvents()
       const;

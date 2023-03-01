@@ -528,6 +528,7 @@ class nsWindow final : public nsBaseWidget {
 
   GtkTextDirection GetTextDirection();
 
+  bool DrawsToCSDTitlebar() const;
   void AddCSDDecorationSize(int* aWidth, int* aHeight);
 
   void CreateAndPutGdkScrollEvent(mozilla::LayoutDeviceIntPoint aPoint,
@@ -801,6 +802,8 @@ class nsWindow final : public nsBaseWidget {
   void ConfigureGdkWindow();
   void ReleaseGdkWindow();
   void ConfigureCompositor();
+
+  bool IsAlwaysUndecoratedWindow() const;
 
   // nsBaseWidget
   WindowRenderer* GetWindowRenderer() override;

@@ -883,29 +883,33 @@ void nsWindow::SetSizeConstraints(const SizeConstraints& aConstraints) {
   ApplySizeConstraints();
 }
 
+bool nsWindow::DrawsToCSDTitlebar() const {
+  return mSizeMode == nsSizeMode_Normal &&
+         mGtkWindowDecoration == GTK_DECORATION_CLIENT && mDrawInTitlebar;
+}
+
 void nsWindow::AddCSDDecorationSize(int* aWidth, int* aHeight) {
-  if (mSizeMode == nsSizeMode_Normal &&
-      mGtkWindowDecoration == GTK_DECORATION_CLIENT && mDrawInTitlebar) {
-    GtkBorder decorationSize = GetCSDDecorationSize(IsPopup());
-    *aWidth += decorationSize.left + decorationSize.right;
-    *aHeight += decorationSize.top + decorationSize.bottom;
+  if (!DrawsToCSDTitlebar()) {
+    return;
   }
+  GtkBorder decorationSize = GetCSDDecorationSize(IsPopup());
+  *aWidth += decorationSize.left + decorationSize.right;
+  *aHeight += decorationSize.top + decorationSize.bottom;
 }
 
 #ifdef MOZ_WAYLAND
 bool nsWindow::GetCSDDecorationOffset(int* aDx, int* aDy) {
-  if (mSizeMode == nsSizeMode_Normal &&
-      mGtkWindowDecoration == GTK_DECORATION_CLIENT && mDrawInTitlebar) {
-    GtkBorder decorationSize = GetCSDDecorationSize(IsPopup());
-    *aDx = decorationSize.left;
-    *aDy = decorationSize.top;
-    return true;
+  if (!DrawsToCSDTitlebar()) {
+    return false;
   }
-  return false;
+  GtkBorder decorationSize = GetCSDDecorationSize(IsPopup());
+  *aDx = decorationSize.left;
+  *aDy = decorationSize.top;
+  return true;
 }
 #endif
 
-void nsWindow::ApplySizeConstraints(void) {
+void nsWindow::ApplySizeConstraints() {
   if (mShell) {
     GdkGeometry geometry;
     geometry.min_width =
@@ -918,7 +922,7 @@ void nsWindow::ApplySizeConstraints(void) {
         DevicePixelsToGdkCoordRoundDown(mSizeConstraints.mMaxSize.height);
 
     uint32_t hints = 0;
-    if (mSizeConstraints.mMinSize != LayoutDeviceIntSize(0, 0)) {
+    if (mSizeConstraints.mMinSize != LayoutDeviceIntSize()) {
       if (GdkIsWaylandDisplay()) {
         gtk_widget_set_size_request(GTK_WIDGET(mContainer), geometry.min_width,
                                     geometry.min_height);
@@ -6089,6 +6093,14 @@ nsresult nsWindow::Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
     gtk_window_set_keep_above(GTK_WINDOW(mShell), TRUE);
   }
 
+  // It is important that this happens before the realize() call below, so that
+  // we don't get bogus CSD margins on Wayland, see bug 1794577.
+  if (IsAlwaysUndecoratedWindow()) {
+    LOG("    Is undecorated Window\n");
+    gtk_window_set_titlebar(GTK_WINDOW(mShell), gtk_fixed_new());
+    gtk_window_set_decorated(GTK_WINDOW(mShell), false);
+  }
+
   // Create a container to hold child windows and child GtkWidgets.
   GtkWidget* container = moz_container_new();
   mContainer = MOZ_CONTAINER(container);
@@ -6148,10 +6160,6 @@ nsresult nsWindow::Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
 
   if (!mAlwaysOnTop) {
     gtk_widget_grab_focus(container);
-  }
-
-  if (mIsWaylandPanelWindow) {
-    gtk_window_set_decorated(GTK_WINDOW(mShell), false);
   }
 
 #ifdef MOZ_WAYLAND
@@ -8458,9 +8466,8 @@ static nsresult initialize_prefs(void) {
   if (Preferences::HasUserValue("widget.use-aspect-ratio")) {
     gUseAspectRatio = Preferences::GetBool("widget.use-aspect-ratio", true);
   } else {
-    gUseAspectRatio = IsGnomeDesktopEnvironment();
+    gUseAspectRatio = IsGnomeDesktopEnvironment() || IsKdeDesktopEnvironment();
   }
-
   return NS_OK;
 }
 
@@ -8709,6 +8716,18 @@ nsresult nsWindow::SetNonClientMargins(const LayoutDeviceIntMargin& aMargins) {
   return NS_OK;
 }
 
+bool nsWindow::IsAlwaysUndecoratedWindow() const {
+  if (mIsPIPWindow || mIsWaylandPanelWindow) {
+    return true;
+  }
+  if (mWindowType == WindowType::Dialog &&
+      !(mBorderStyle & BorderStyle::Title) &&
+      !(mBorderStyle & BorderStyle::ResizeH)) {
+    return true;
+  }
+  return false;
+}
+
 void nsWindow::SetDrawsInTitlebar(bool aState) {
   LOG("nsWindow::SetDrawsInTitlebar() State %d mGtkWindowDecoration %d\n",
       aState, (int)mGtkWindowDecoration);
@@ -8719,17 +8738,9 @@ void nsWindow::SetDrawsInTitlebar(bool aState) {
     return;
   }
 
-  if (mIsPIPWindow) {
-    gtk_window_set_decorated(GTK_WINDOW(mShell), !aState);
-    LOG("  set decoration for PIP %d", aState);
-    return;
-  }
-
-  if (mWindowType == WindowType::Dialog &&
-      !bool(mBorderStyle & BorderStyle::Title) &&
-      !bool(mBorderStyle & BorderStyle::ResizeH)) {
-    gtk_window_set_decorated(GTK_WINDOW(mShell), !aState);
-    LOG("  set decoration for dialog with titlebar=no %d", aState);
+  if (IsAlwaysUndecoratedWindow()) {
+    MOZ_ASSERT(aState, "Unexpected decoration request");
+    MOZ_ASSERT(!gtk_window_get_decorated(GTK_WINDOW(mShell)));
     return;
   }
 
@@ -9594,7 +9605,7 @@ void nsWindow::UpdateMozWindowActive() {
   }
 }
 
-void nsWindow::ForceTitlebarRedraw(void) {
+void nsWindow::ForceTitlebarRedraw() {
   MOZ_ASSERT(mDrawInTitlebar, "We should not redraw invisible titlebar.");
 
   if (!mWidgetListener || !mWidgetListener->GetPresShell()) {

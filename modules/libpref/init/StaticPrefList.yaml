@@ -6343,11 +6343,6 @@
   value: true
   mirror: always
 
-- name: gfx.webrender.svg-shapes
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 - name: gfx.webrender.debug.blob.paint-flashing
   type: RelaxedAtomicBool
   value: false
@@ -9414,7 +9409,7 @@
 #elif defined(XP_WIN) && !defined(_ARM64_)
   value: true
 #elif defined(XP_MACOSX)
-  value: true
+  value: @IS_NIGHTLY_BUILD@
 #else
   value: false
 #endif
@@ -9424,11 +9419,11 @@
   type: bool
   mirror: always
 #if defined(XP_LINUX) && !defined(MOZ_WIDGET_ANDROID)
-  value: true
+  value: @IS_NIGHTLY_BUILD@
 #elif defined(XP_WIN) && !defined(_ARM64_)
   value: true
 #elif defined(XP_MACOSX)
-  value: true
+  value: @IS_NIGHTLY_BUILD@
 #else
   value: false
 #endif
@@ -12740,10 +12735,16 @@
   value: true
   mirror: always
 
-# Block 3rd party emailtracking resources.
+# Block 3rd party emailtracking resources in all mode.
 - name: privacy.trackingprotection.emailtracking.enabled
   type: bool
   value: @IS_NIGHTLY_BUILD@
+  mirror: always
+
+# Block 3rd party emailtracking resources in Private Browsing mode.
+- name: privacy.trackingprotection.emailtracking.pbmode.enabled
+  type: bool
+  value: true
   mirror: always
 
 # Collecting 3rd party emailtracking telemetry.
@@ -14944,12 +14945,6 @@
 # Whether to use gtk high contrast themes to disable content styling like on
 # windows high contrast mode.
 - name: widget.content.gtk-high-contrast.enabled
-  type: bool
-  value: true
-  mirror: always
-
-# Whether to pause the compositor when a native window is minimized.
-- name: widget.pause-compositor-when-minimized
   type: bool
   value: true
   mirror: always
