@@ -3109,6 +3109,13 @@
   value: 2.0f
   mirror: always
 
+# Inform mozjemalloc that the foreground content processes can keep more dirty
+# pages in memory.
+- name: dom.memory.foreground_content_processes_have_larger_page_cache
+  type: bool
+  value: true
+  mirror: always
+
 # Enable meta-viewport support in remote APZ-enabled frames.
 - name: dom.meta-viewport.enabled
   type: RelaxedAtomicBool
@@ -3452,6 +3459,12 @@
   value: @IS_NIGHTLY_BUILD@
   mirror: never
 #endif
+
+# Use to control to dump CheckedUnsafePtr creation stack and assignment stacks. 
+- name: dom.checkedUnsafePtr.dumpStacks.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
 
 # Determines within what distance of a tick mark, in pixels, dragging an input
 # range range will snap the range's value to that tick mark. By default, this is
@@ -8366,7 +8379,7 @@
 
 - name: layout.css.linear-easing-function.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
   rust: true
 
@@ -8530,10 +8543,11 @@
   mirror: always
   rust: true
 
-  # Is support for :nth-child(An+B of S) and :nth-last-child(An+B of S) enabled?
+# Is support for :nth-child(An+B of S) and :nth-last-child(An+B of S) enabled?
+# Before enabling everywhere, make sure blockers of bug 1808229 are fixed.
 - name: layout.css.nth-child-of.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
   rust: true
 
@@ -12738,7 +12752,7 @@
 # Block 3rd party emailtracking resources in all mode.
 - name: privacy.trackingprotection.emailtracking.enabled
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: false
   mirror: always
 
 # Block 3rd party emailtracking resources in Private Browsing mode.
@@ -13417,7 +13431,7 @@
 # WebAuthn CTAP2 support
 - name: security.webauthn.ctap2
   type: bool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 # Block Worker/SharedWorker scripts with wrong MIME type.

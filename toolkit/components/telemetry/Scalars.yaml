@@ -7340,6 +7340,22 @@ urlbar.picked:
       record_in_processes:
         - main
 
+    weather:
+      bug_numbers:
+        - 1815699
+      description: >
+        Counts how many times this result type was picked at a given index.
+      expires: never
+      kind: uint
+      keyed: true
+      notification_emails:
+        - fx-search-telemetry@mozilla.com
+      release_channel_collection: opt-out
+      products:
+        - 'firefox'
+      record_in_processes:
+        - main
+
 urlbar.searchmode:
   bookmarkmenu:
     bug_numbers:
@@ -9266,6 +9282,39 @@ places:
     kind: uint
     notification_emails:
       - fx-search-telemetry@mozilla.com
+    release_channel_collection: opt-out
+    products:
+      - 'firefox'
+    record_in_processes:
+      - main
+
+firstStartup:
+  statusCode:
+    bug_numbers:
+      - 1749345
+    description: >
+      Status of the FirstRun service, which runs post-install/early-startup in Firefox.
+    expires: never
+    kind: uint
+    notification_emails:
+      - rhelmer@mozilla.com
+      - mconley@mozilla.com
+    release_channel_collection: opt-out
+    products:
+      - 'firefox'
+    record_in_processes:
+      - main
+
+  elapsed:
+    bug_numbers:
+      - 1749345
+    description: >
+      Number of milliseconds the FirstRun service took to run.
+    expires: never
+    kind: uint
+    notification_emails:
+      - rhelmer@mozilla.com
+      - mconley@mozilla.com
     release_channel_collection: opt-out
     products:
       - 'firefox'
