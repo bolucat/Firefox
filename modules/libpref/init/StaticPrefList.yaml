@@ -9705,7 +9705,11 @@
   # May a Clearkey GMP x64 process be executed on ARM builds.
 - name: media.gmp-gmpclearkey.allow-x64-plugin-on-arm64
   type: RelaxedAtomicBool
-  value: @IS_XP_WIN@
+#if defined(NIGHTLY_BUILD) || !defined(XP_WIN)
+  value: false
+#else
+  value: true
+#endif
   mirror: always
 #endif
 
@@ -12916,6 +12920,25 @@
   type: RelaxedAtomicUint32
   value: 0
   mirror: always
+
+# Enable the fingerprinting randomization.
+- name: privacy.resistFingerprinting.randomization.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# Enable resetting the fingerprinting randomization key daily for normal windwos.
+- name: privacy.resistFingerprinting.randomization.daily_reset.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# Enable resetting the fingerprinting randomization key daily for private windwos.
+- name: privacy.resistFingerprinting.randomization.daily_reset.private.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 
 # Anti-tracking permission expiration.
 - name: privacy.restrict3rdpartystorage.expiration

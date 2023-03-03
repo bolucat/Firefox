@@ -3529,6 +3529,39 @@ bool CacheIRCompiler::emitLoadBoundFunctionTarget(ObjOperandId objId,
   return true;
 }
 
+bool CacheIRCompiler::emitGuardBoundFunctionIsConstructor(ObjOperandId objId) {
+  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
+
+  Register obj = allocator.useRegister(masm, objId);
+
+  FailurePath* failure;
+  if (!addFailurePath(&failure)) {
+    return false;
+  }
+
+  Address flagsSlot(obj, BoundFunctionObject::offsetOfFlagsSlot());
+  masm.branchTest32(Assembler::Zero, flagsSlot,
+                    Imm32(BoundFunctionObject::IsConstructorFlag),
+                    failure->label());
+  return true;
+}
+
+bool CacheIRCompiler::emitGuardObjectIdentity(ObjOperandId obj1Id,
+                                              ObjOperandId obj2Id) {
+  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
+
+  Register obj1 = allocator.useRegister(masm, obj1Id);
+  Register obj2 = allocator.useRegister(masm, obj2Id);
+
+  FailurePath* failure;
+  if (!addFailurePath(&failure)) {
+    return false;
+  }
+
+  masm.branchPtr(Assembler::NotEqual, obj1, obj2, failure->label());
+  return true;
+}
+
 bool CacheIRCompiler::emitLoadFunctionLengthResult(ObjOperandId objId) {
   JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
   AutoOutputRegister output(*this);
