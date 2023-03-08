@@ -201,8 +201,6 @@ static FrameCtorDebugFlags gFlags[] = {
 #  define NUM_DEBUG_FLAGS (sizeof(gFlags) / sizeof(gFlags[0]))
 #endif
 
-#include "nsTreeColFrame.h"
-
 //------------------------------------------------------------------
 
 nsIFrame* NS_NewLeafBoxFrame(PresShell* aPresShell, ComputedStyle* aStyle);
@@ -2718,7 +2716,7 @@ void nsCSSFrameConstructor::SetUpDocElementContainingBlock(
     if (isXUL) {
       return false;
     }
-    if (aDocElement->OwnerDoc()->IsDocumentURISchemeChrome() &&
+    if (aDocElement->OwnerDoc()->ChromeRulesEnabled() &&
         aDocElement->AsElement()->AttrValueIs(
             kNameSpaceID_None, nsGkAtoms::scrolling, nsGkAtoms::_false,
             eCaseMatters)) {
@@ -4132,7 +4130,6 @@ nsCSSFrameConstructor::FindXULTagData(const Element& aElement,
   static constexpr FrameConstructionDataByTag sXULTagData[] = {
       SIMPLE_XUL_CREATE(image, NS_NewXULImageFrame),
       SIMPLE_XUL_CREATE(treechildren, NS_NewTreeBodyFrame),
-      SIMPLE_XUL_CREATE(treecol, NS_NewTreeColFrame),
       SIMPLE_TAG_CHAIN(label,
                        nsCSSFrameConstructor::FindXULLabelOrDescriptionData),
       SIMPLE_TAG_CHAIN(description,

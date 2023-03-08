@@ -3415,7 +3415,7 @@
   value: false
   mirror: always
 
-#ifdef XP_WIN
+#if defined(XP_WIN)
   # Preference that is used to set nsILocalFileWin::useDOSDevicePathSyntax
   # attribute for all local file instances created by QuotaManager and its
   # clients. The value of this preference is cached so changing the preference
@@ -3428,8 +3428,15 @@
     do_not_use_directly: true
 
   # Preference that is used to enable the hack for overrriding xFullPathname in
-  # TelemetryVFS.
+  # QuotaVFS.
 -   name: dom.quotaManager.overrideXFullPathname
+    type: RelaxedAtomicBool
+    value: true
+    mirror: always
+#elif defined(XP_UNIX)
+  # Preference that is used to enable the overriding of Unix xFullPathname
+  # implementation in QuotaVFS.
+-   name: dom.quotaManager.overrideXFullPathnameUnix
     type: RelaxedAtomicBool
     value: true
     mirror: always
@@ -3456,7 +3463,7 @@
 # Use a Background Task to delete files at shutdown.
 - name: dom.quotaManager.backgroundTask.enabled
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: never
 #endif
 
@@ -7637,7 +7644,7 @@
 #if defined(ENABLE_WASM_EXTENDED_CONST)
 -   name: javascript.options.wasm_extended_const
     type: bool
-    value: @IS_NIGHTLY_BUILD@
+    value: true
     mirror: always
 #endif  // defined(ENABLE_WASM_EXTENDED_CONST)
 
@@ -9716,11 +9723,7 @@
   # May a Clearkey GMP x64 process be executed on ARM builds.
 - name: media.gmp-gmpclearkey.allow-x64-plugin-on-arm64
   type: RelaxedAtomicBool
-#if defined(NIGHTLY_BUILD) || !defined(XP_WIN)
   value: false
-#else
-  value: true
-#endif
   mirror: always
 #endif
 

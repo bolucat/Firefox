@@ -1033,10 +1033,13 @@ class TelemetryEvent {
       1
     );
 
-    if (method === "engagement" && queryContext?.results?.[0].autofill) {
+    if (
+      method === "engagement" &&
+      queryContext?.view?.visibleResults?.[0]?.autofill
+    ) {
       // Record autofill impressions upon engagement.
       const type = lazy.UrlbarUtils.telemetryTypeFromResult(
-        queryContext.results[0]
+        queryContext.view.visibleResults[0]
       );
       Services.telemetry.scalarAdd(`urlbar.impression.${type}`, 1);
     }
@@ -1090,7 +1093,7 @@ class TelemetryEvent {
       searchMode
     );
     const search_mode = this.#getSearchMode(searchMode);
-    const currentResults = queryContext?.results ?? [];
+    const currentResults = queryContext?.view?.visibleResults ?? [];
     const numResults = currentResults.length;
     const groups = currentResults
       .map(r => lazy.UrlbarUtils.searchEngagementTelemetryGroup(r))
