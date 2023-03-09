@@ -128,6 +128,7 @@ export var UrlbarUtils = {
     EXTENSION: "chrome://mozapps/skin/extensions/extension.svg",
     HISTORY: "chrome://browser/skin/history.svg",
     SEARCH_GLASS: "chrome://global/skin/icons/search-glass.svg",
+    TRENDING: "chrome://global/skin/icons/trending.svg",
     TIP: "chrome://global/skin/icons/lightbulb.svg",
   },
 
@@ -1278,6 +1279,7 @@ export var UrlbarUtils = {
       case UrlbarUtils.RESULT_GROUP.FORM_HISTORY: {
         return "search_history";
       }
+      case UrlbarUtils.RESULT_GROUP.TAIL_SUGGESTION:
       case UrlbarUtils.RESULT_GROUP.REMOTE_SUGGESTION: {
         return "search_suggest";
       }
@@ -1293,8 +1295,7 @@ export var UrlbarUtils = {
         return "general";
       }
       // Group of UrlbarProviderQuickSuggest is GENERAL_PARENT.
-      case UrlbarUtils.RESULT_GROUP.GENERAL_PARENT:
-      case UrlbarUtils.RESULT_GROUP.TAIL_SUGGESTION: {
+      case UrlbarUtils.RESULT_GROUP.GENERAL_PARENT: {
         return "suggest";
       }
       case UrlbarUtils.RESULT_GROUP.ABOUT_PAGES: {
@@ -1529,6 +1530,9 @@ UrlbarUtils.RESULT_PAYLOAD_SCHEMA = {
       },
       title: {
         type: "string",
+      },
+      trending: {
+        type: "boolean",
       },
       url: {
         type: "string",

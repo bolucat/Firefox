@@ -689,7 +689,7 @@ const nsTArray<GfxDriverInfo>& GfxInfo::GetGfxDriverInfo() {
         OperatingSystem::Linux, ScreenSizeStatus::All, BatteryStatus::All,
         WindowProtocol::All, DriverVendor::MesaAll, DeviceFamily::AmdR600,
         nsIGfxInfo::FEATURE_WEBRENDER, nsIGfxInfo::FEATURE_BLOCKED_DEVICE,
-        DRIVER_COMPARISON_IGNORED, V(0, 0, 0, 0),
+        DRIVER_LESS_THAN, V(22, 2, 0, 0),
         "FEATURE_FAILURE_WEBRENDER_BUG_1673939",
         "https://gitlab.freedesktop.org/mesa/mesa/-/issues/3720");
 
@@ -825,6 +825,16 @@ const nsTArray<GfxDriverInfo>& GfxInfo::GetGfxDriverInfo() {
                                DRIVER_COMPARISON_IGNORED, V(0, 0, 0, 0),
                                "FEATURE_HARDWARE_VIDEO_DECODING_DISABLE", "");
 #endif
+    ////////////////////////////////////
+    // HW_DECODED_VIDEO_ZERO_COPY
+    // Disable on all AMD devices using Mesa (Bug 1802844).
+    APPEND_TO_DRIVER_BLOCKLIST_EXT(
+        OperatingSystem::Linux, ScreenSizeStatus::All, BatteryStatus::All,
+        WindowProtocol::All, DriverVendor::MesaAll, DeviceFamily::AtiAll,
+        nsIGfxInfo::FEATURE_HW_DECODED_VIDEO_ZERO_COPY,
+        nsIGfxInfo::FEATURE_BLOCKED_DEVICE, DRIVER_COMPARISON_IGNORED,
+        V(0, 0, 0, 0), "FEATURE_HARDWARE_VIDEO_ZERO_COPY_LINUX_AMD_DISABLE",
+        "");
 
     ////////////////////////////////////
     // FEATURE_WEBRENDER_PARTIAL_PRESENT
