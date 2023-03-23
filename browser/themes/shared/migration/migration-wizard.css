@@ -85,6 +85,8 @@ button {
   content: url(chrome://global/skin/icons/defaultFavicon.svg);
   height: 32px;
   width: 32px;
+  -moz-context-properties: fill;
+  fill: currentColor;
 }
 
 .migrator-icon,
@@ -113,6 +115,16 @@ button {
 
 .profile-name:empty {
   display: none;
+}
+
+/**
+ * Until we address bug 1823489, it's not that easy to apply styles on
+ * the panel-list. We work around this by setting the CSS variable for
+ * the border instead.
+ */
+slot::slotted(panel-list),
+slot::slotted(panel) {
+  --in-content-box-border-color: transparent;
 }
 
 div[name="page-selection"]:not([show-import-all]) #select-all,

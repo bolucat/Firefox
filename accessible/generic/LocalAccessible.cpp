@@ -1657,7 +1657,7 @@ void LocalAccessible::Value(nsString& aValue) const {
                                  nsGkAtoms::aria_valuetext, aValue)) {
       if (!NativeHasNumericValue()) {
         double checkValue = CurValue();
-        if (!IsNaN(checkValue)) {
+        if (!std::isnan(checkValue)) {
           aValue.AppendFloat(checkValue);
         }
       }
@@ -1699,7 +1699,7 @@ void LocalAccessible::Value(nsString& aValue) const {
 
 double LocalAccessible::MaxValue() const {
   double checkValue = AttrNumericValue(nsGkAtoms::aria_valuemax);
-  if (IsNaN(checkValue) && !NativeHasNumericValue()) {
+  if (std::isnan(checkValue) && !NativeHasNumericValue()) {
     // aria-valuemax isn't present and this element doesn't natively provide a
     // maximum value. Use the ARIA default.
     const nsRoleMapEntry* roleMap = ARIARoleMap();
@@ -1713,7 +1713,7 @@ double LocalAccessible::MaxValue() const {
 
 double LocalAccessible::MinValue() const {
   double checkValue = AttrNumericValue(nsGkAtoms::aria_valuemin);
-  if (IsNaN(checkValue) && !NativeHasNumericValue()) {
+  if (std::isnan(checkValue) && !NativeHasNumericValue()) {
     // aria-valuemin isn't present and this element doesn't natively provide a
     // minimum value. Use the ARIA default.
     const nsRoleMapEntry* roleMap = ARIARoleMap();
@@ -1731,7 +1731,7 @@ double LocalAccessible::Step() const {
 
 double LocalAccessible::CurValue() const {
   double checkValue = AttrNumericValue(nsGkAtoms::aria_valuenow);
-  if (IsNaN(checkValue) && !NativeHasNumericValue()) {
+  if (std::isnan(checkValue) && !NativeHasNumericValue()) {
     // aria-valuenow isn't present and this element doesn't natively provide a
     // current value. Use the ARIA default.
     const nsRoleMapEntry* roleMap = ARIARoleMap();
@@ -1753,10 +1753,10 @@ bool LocalAccessible::SetCurValue(double aValue) {
   if (State() & kValueCannotChange) return false;
 
   double checkValue = MinValue();
-  if (!IsNaN(checkValue) && aValue < checkValue) return false;
+  if (!std::isnan(checkValue) && aValue < checkValue) return false;
 
   checkValue = MaxValue();
-  if (!IsNaN(checkValue) && aValue > checkValue) return false;
+  if (!std::isnan(checkValue) && aValue > checkValue) return false;
 
   nsAutoString strValue;
   strValue.AppendFloat(aValue);
@@ -3454,8 +3454,20 @@ already_AddRefed<AccAttributes> LocalAccessible::BundleFieldsForCache(
         if (nsTextFrame* currTextFrame = do_QueryFrame(frame)) {
           nsTArray<int32_t> charData(nsAccUtils::TextLength(this) *
                                      kNumbersInRect);
+          // Continuation offsets are calculated relative to the primary frame.
+          // However, the acc's bounds are calculated using
+          // GetAllInFlowRectsUnion. For wrapped text which starts part way
+          // through a line, this might mean the top left of the acc is
+          // different to the top left of the primary frame. This also happens
+          // when the primary frame is empty (e.g. a blank line at the start of
+          // pre-formatted text), since the union rect will exclude the origin
+          // in that case. Calculate the offset from the acc's rect to the
+          // primary frame's rect.
+          nsRect accOffset =
+              nsLayoutUtils::GetAllInFlowRectsUnion(frame, frame);
           while (currTextFrame) {
             nsPoint contOffset = currTextFrame->GetOffsetTo(frame);
+            contOffset -= accOffset.TopLeft();
             int32_t length = currTextFrame->GetContentLength();
             nsTArray<nsRect> charBounds(length);
             currTextFrame->GetCharacterRectsInRange(

@@ -723,6 +723,8 @@ class TopSitesFeed {
             // Set this so that SPOC topsites won't be shown in the URL bar.
             // See Bug 1822027. Note that `sponsored_position` is 1-based.
             sponsored_position: positionIndex + 1,
+            // This is used for topsites deduping.
+            hostname: shortURL({ url: spoc.url }),
           };
           sponsored.push(link);
         }
@@ -922,7 +924,7 @@ class TopSitesFeed {
       let index = link.sponsored_position - 1;
       if (index >= withPinned.length) {
         withPinned[index] = link;
-      } else if (withPinned[index].sponsored_position) {
+      } else if (withPinned[index]?.sponsored_position) {
         // We currently want DiscoveryStream spocs to replace existing spocs.
         withPinned[index] = link;
       } else {

@@ -236,10 +236,12 @@ def cargo(
     if cargo_extra_flags is not None:
         cargo_extra_flags = " ".join(cargo_extra_flags)
 
+    ret = 0
     if cargo_build_flags:
-        try:
-            command_context.config_environment
-        except BuildEnvironmentNotFoundException:
+        # This directory is created during export. If it's not there,
+        # export hasn't run already.
+        deps = Path(command_context.topobjdir) / ".deps"
+        if not deps.exists():
             build = command_context._spawn(BuildDriver)
             ret = build.build(
                 command_context.metrics,
@@ -248,8 +250,17 @@ def cargo(
                 verbose=verbose,
                 mach_context=command_context._mach_context,
             )
-            if ret != 0:
-                return ret
+    else:
+        try:
+            command_context.config_environment
+        except BuildEnvironmentNotFoundException:
+            build = command_context._spawn(BuildDriver)
+            ret = build.configure(
+                command_context.metrics,
+                buildstatus_messages=False,
+            )
+    if ret != 0:
+        return ret
 
     # XXX duplication with `mach vendor rust`
     crates_and_roots = {
