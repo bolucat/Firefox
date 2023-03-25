@@ -155,7 +155,11 @@ class nsGenericHTMLElement : public nsGenericHTMLElementBase {
   bool PopoverOpen() const;
   bool CheckPopoverValidity(mozilla::dom::PopoverVisibilityState aExpectedState,
                             ErrorResult& aRv);
-  void ShowPopover(ErrorResult& aRv);
+  /** Returns true if the event has been cancelled. */
+  MOZ_CAN_RUN_SCRIPT bool FireBeforeToggle(bool aIsOpen);
+  MOZ_CAN_RUN_SCRIPT void ShowPopover(ErrorResult& aRv);
+  MOZ_CAN_RUN_SCRIPT void HidePopoverInternal(bool aFireEvents,
+                                              ErrorResult& aRv);
   MOZ_CAN_RUN_SCRIPT void HidePopover(ErrorResult& aRv);
   MOZ_CAN_RUN_SCRIPT void TogglePopover(bool force, ErrorResult& aRv);
 
@@ -1205,12 +1209,34 @@ class nsGenericHTMLFormControlElement : public nsGenericHTMLFormElement,
   mozilla::dom::HTMLFieldSetElement* mFieldSet;
 };
 
+enum class PopoverTargetAction : uint8_t {
+  Toggle,
+  Show,
+  Hide,
+};
+
 class nsGenericHTMLFormControlElementWithState
     : public nsGenericHTMLFormControlElement {
  public:
   nsGenericHTMLFormControlElementWithState(
       already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo,
       mozilla::dom::FromParser aFromParser, FormControlType);
+
+  // nsIContent
+  bool ParseAttribute(int32_t aNamespaceID, nsAtom* aAttribute,
+                      const nsAString& aValue,
+                      nsIPrincipal* aMaybeScriptedPrincipal,
+                      nsAttrValue& aResult) override;
+
+  // PopoverInvokerElement
+  mozilla::dom::Element* GetPopoverTargetElement() const;
+  void SetPopoverTargetElement(mozilla::dom::Element*);
+  void GetPopoverTargetAction(nsAString& aValue) const {
+    GetHTMLEnumAttr(nsGkAtoms::popovertargetaction, aValue);
+  }
+  void SetPopoverTargetAction(const nsAString& aValue) {
+    SetHTMLAttr(nsGkAtoms::popovertargetaction, aValue);
+  }
 
   /**
    * Get the presentation state for a piece of content, or create it if it does

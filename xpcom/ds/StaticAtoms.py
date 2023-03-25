@@ -1004,6 +1004,7 @@ STATIC_ATOMS = [
     Atom("popover", "popover"),
     Atom("popoverhidetarget", "popoverhidetarget"),
     Atom("popovershowtarget", "popovershowtarget"),
+    Atom("popovertargetaction", "popovertargetaction"),
     Atom("popovertoggletarget", "popovertoggletarget"),
     Atom("popup", "popup"),
     Atom("popupalign", "popupalign"),
@@ -1979,6 +1980,7 @@ STATIC_ATOMS = [
     Atom("onmozshowdropdown_sourcetouch", "onmozshowdropdown-sourcetouch"),
     Atom("onprintPreviewUpdate", "onprintPreviewUpdate"),
     Atom("onscrollend", "onscrollend"),
+    Atom("onbeforetoggle", "onbeforetoggle"),
     # WebExtensions
     Atom("moz_extension", "moz-extension"),
     Atom("all_urlsPermission", "<all_urls>"),

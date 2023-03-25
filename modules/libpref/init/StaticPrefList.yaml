@@ -3960,6 +3960,11 @@
   value: true
   mirror: always
 
+- name: dom.workers.importScripts.enforceStrictMimeType
+  type: RelaxedAtomicBool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+
 # Is support for modules (new Worker(..., {type: "module">)) enabled for workers?
 - name: dom.workers.modules.enabled
   type: RelaxedAtomicBool
@@ -4609,6 +4614,24 @@
   type: RelaxedAtomicBool
   value: false
   mirror: always
+
+# Comma-separated list of wgpu backend names to permit in WebGPU adapters.
+#
+# If non-empty, this is parsed by `wgpu_core::instance::parse_backends_from_comma_list` to
+# produce a `wgpu_types::Backends` bitset used to create a `wgpu_core::hub::Global`. As of
+# 2023-3-22, recognized names are:
+#
+#     "vulkan" | "vk" => Backends::VULKAN,
+#     "dx12" | "d3d12" => Backends::DX12,
+#     "dx11" | "d3d11" => Backends::DX11,
+#     "metal" | "mtl" => Backends::METAL,
+#     "opengl" | "gles" | "gl" => Backends::GL,
+#     "webgpu" => Backends::BROWSER_WEBGPU,
+- name: dom.webgpu.wgpu-backend
+  type: DataMutexString
+  value: ""
+  mirror: always
+  rust: true
 
 # Is support for HTMLInputElement.webkitEntries enabled?
 - name: dom.webkitBlink.filesystem.enabled
@@ -9060,6 +9083,14 @@
   value: 4
   mirror: always
 
+# Whether to load the broken image icon eagerly. This is mostly needed for
+# reftests, since the broken image icon doesn't block the load event and thus
+# there's no easy way to guarantee it's loaded.
+- name: layout.image.eager_broken_image_icon
+  type: bool
+  value: false
+  mirror: always
+
 # Enable/disable interruptible reflow, which allows reflows to stop
 # before completion (and display the partial results) when user events
 # are pending.
@@ -9484,7 +9515,7 @@
 #elif defined(XP_WIN) && !defined(_ARM64_)
   value: true
 #elif defined(XP_MACOSX)
-  value: @IS_NIGHTLY_BUILD@
+  value: true
 #else
   value: false
 #endif
@@ -9494,11 +9525,11 @@
   type: bool
   mirror: always
 #if defined(XP_LINUX) && !defined(MOZ_WIDGET_ANDROID)
-  value: @IS_NIGHTLY_BUILD@
+  value: true
 #elif defined(XP_WIN) && !defined(_ARM64_)
   value: true
 #elif defined(XP_MACOSX)
-  value: @IS_NIGHTLY_BUILD@
+  value: true
 #else
   value: false
 #endif
@@ -10081,9 +10112,12 @@
 
 # Force to copy dmabuf video frames
 # Used for debugging/troubleshooting only
-- name: media.ffmpeg.vaapi.force-surface-copy
-  type: bool
-  value: false
+# 0 - force disable
+# 1 - force enable
+# 2 - default
+- name: media.ffmpeg.vaapi.force-surface-zero-copy
+  type: uint32_t
+  value: 2
   mirror: once
 #endif # MOZ_WIDGET_GTK
 
@@ -10208,6 +10242,12 @@
 
 # Testing purpose, enable media engine on channel decoder as well.
 -   name: media.wmf.media-engine.channel-decoder.enabled
+    type: RelaxedAtomicBool
+    value: false
+    mirror: always
+
+# This allows playing DRM video via the media engine pipeline.
+-   name: media.wmf.media-engine.drm-playback
     type: RelaxedAtomicBool
     value: false
     mirror: always
