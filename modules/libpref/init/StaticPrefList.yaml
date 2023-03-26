@@ -2336,6 +2336,12 @@
   value: false
   mirror: always
 
+# Compression Streams (CompressionStream/DecompressionStream)
+- name: dom.compression_streams.enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 - name: dom.crypto.randomUUID.enabled
   type: RelaxedAtomicBool
   value: true
@@ -3115,6 +3121,12 @@
 - name: dom.media.mediasession.enabled
   type: bool
   value: true
+  mirror: always
+
+# Whether HTMLMediaElement.mozPreservesPitch is enabled.
+- name: dom.media.mozPreservesPitch.enabled
+  type: bool
+  value: @IS_NOT_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # WebCodecs API
@@ -8935,7 +8947,7 @@
 # Enable experimental enhanced color CSS color spaces. (lab(), lch(), oklab(), oklch(), color())
 - name: layout.css.more_color_4.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
   rust: true
 
