@@ -230,13 +230,7 @@
 # the parent process.
 - name: accessibility.cache.enabled
   type: bool
-#if defined(ANDROID)
   value: true
-#elif defined(XP_WIN) || defined(XP_LINUX)
-  value: @IS_EARLY_BETA_OR_EARLIER@
-#else
-  value: @IS_NOT_RELEASE_OR_BETA@
-#endif
   mirror: once
 
 # Whether to avoid accessibility activation on Windows shortly after clipboard
@@ -8479,12 +8473,6 @@
   mirror: always
   rust: true
 
-# Is support for d property for SVG path element?
-- name: layout.css.d-property.enabled
-  type: bool
-  value: true
-  mirror: always
-
 # Is support for fit-content() enabled?
 - name: layout.css.fit-content-function.enabled
   type: RelaxedAtomicBool
@@ -13020,7 +13008,7 @@
   value: true
   mirror: always
 
-# The log level for browser console messages logged in RFPHelper.jsm. Change to
+# The log level for browser console messages logged in RFPHelper.sys.mjs. Change to
 # 'All' and restart to see the messages.
 - name: privacy.resistFingerprinting.jsmloglevel
   type: String
