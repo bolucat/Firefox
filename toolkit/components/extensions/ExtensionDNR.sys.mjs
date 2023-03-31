@@ -779,6 +779,27 @@ class RuleValidator {
     this.isSessionRuleset = isSessionRuleset;
   }
 
+  /**
+   * Static method used to deserialize Rule class instances from a plain
+   * js object rule as serialized implicitly by aomStartup.encodeBlob
+   * when we store the rules into the startup cache file.
+   *
+   * @param {object} rule
+   * @returns {Rule}
+   */
+  static deserializeRule(rule) {
+    const newRule = new Rule(rule);
+    if (newRule.condition.regexFilter) {
+      newRule.condition.setCompiledRegexFilter(
+        compileRegexFilter(
+          newRule.condition.regexFilter,
+          newRule.condition.isUrlFilterCaseSensitive
+        )
+      );
+    }
+    return newRule;
+  }
+
   removeRuleIds(ruleIds) {
     for (const ruleId of ruleIds) {
       this.rulesMap.delete(ruleId);
@@ -1368,7 +1389,7 @@ class RequestDetails {
         // See the above comment for more info.
         initiatorURI: parentPrin?.isContentPrincipal ? parentPrin.URI : null,
         type: isTop ? "main_frame" : "sub_frame",
-        method: "get", // TODO 1821303: Detect POST requests.
+        method: bc.activeSessionHistoryEntry?.hasPostData ? "post" : "get",
         tabId: this.tabId,
         // In this loop we are already explicitly accounting for ancestors, so
         // we intentionally omit browsingContext even though we have |bc|. If

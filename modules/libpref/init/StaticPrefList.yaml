@@ -4610,7 +4610,7 @@
 # Is support for the Web GPU API enabled?
 - name: dom.webgpu.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Are WebGPU indirect draws/dispatches enabled?
@@ -7594,6 +7594,12 @@
   value: false
   mirror: always
 
+# Experimental support Array.fromAsync
+- name: javascript.options.experimental.enable_array_from_async
+  type: bool
+  value: false
+  mirror: always
+
 #if defined(ENABLE_NEW_SET_METHODS)
   # Experimental support for New Set methods
 - name: javascript.options.experimental.enable_new_set_methods
@@ -8808,7 +8814,7 @@
 # Is support for forced-color-adjust properties enabled?
 - name: layout.css.forced-color-adjust.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
   rust: true
 
@@ -10242,6 +10248,12 @@
 -   name: media.wmf.media-engine.raw-data-threshold.audio
     type: RelaxedAtomicInt32
     value: 2000000
+    mirror: always
+
+# Specifies how many times we restart MFCDM process after crash till we give up.
+-   name: media.wmf.media-engine.max-crashes
+    type: RelaxedAtomicInt32
+    value: 2
     mirror: always
 
 # Enable PlayReady DRM for EME
