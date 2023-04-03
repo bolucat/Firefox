@@ -1966,7 +1966,7 @@ dependencies = [
 
 [[package]]
 name = "geckodriver"
-version = "0.32.2"
+version = "0.33.0"
 dependencies = [
  "base64",
  "chrono",
@@ -3092,7 +3092,7 @@ dependencies = [
 
 [[package]]
 name = "marionette"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -5932,7 +5932,7 @@ version = "0.3.100"
 
 [[package]]
 name = "webdriver"
-version = "0.47.1"
+version = "0.48.0"
 dependencies = [
  "base64",
  "bytes",
