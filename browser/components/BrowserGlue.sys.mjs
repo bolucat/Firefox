@@ -558,7 +558,7 @@ let JSWINDOWACTORS = {
 
   LightweightTheme: {
     child: {
-      moduleURI: "resource:///actors/LightweightThemeChild.jsm",
+      esModuleURI: "resource:///actors/LightweightThemeChild.sys.mjs",
       events: {
         pageshow: { mozSystemGroup: true },
         DOMContentLoaded: {},
@@ -888,6 +888,11 @@ const STARTUP_CRASHES_END_DELAY_MS = 30 * 1000;
  * browser-lastwindow-close-* topics.
  */
 const OBSERVE_LASTWINDOW_CLOSE_TOPICS = AppConstants.platform != "macosx";
+
+export let BrowserInitState = {};
+BrowserInitState.startupIdleTaskPromise = new Promise(resolve => {
+  BrowserInitState._resolveStartupIdleTask = resolve;
+});
 
 export function BrowserGlue() {
   XPCOMUtils.defineLazyServiceGetter(
@@ -2879,6 +2884,7 @@ BrowserGlue.prototype = {
               null,
               "browser-startup-idle-tasks-finished"
             );
+            BrowserInitState._resolveStartupIdleTask();
           });
         },
       },
@@ -4872,13 +4878,7 @@ BrowserGlue.prototype = {
           Services.telemetry.recordEvent(
             "pictureinpicture.settings",
             "enable",
-            "player"
-          );
-        } else {
-          Services.telemetry.recordEvent(
-            "pictureinpicture.settings",
-            "disable",
-            "player"
+            "settings"
           );
         }
       }

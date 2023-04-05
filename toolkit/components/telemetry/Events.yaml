@@ -1059,6 +1059,169 @@ browser.launched_to_handle:
         The `action` of the system (chrome privileged) alert that Firefox was
         launched to complete.
 
+browser.migration:
+  opened:
+    objects: ["legacy_wizard", "wizard"]
+    description: >
+      Recorded when the migration wizard opens.
+    bug_numbers:
+      - 1824786
+    notification_emails:
+      - mconley@mozilla.com
+    products:
+      - "firefox"
+    record_in_processes: [main]
+    release_channel_collection: opt-out
+    expiry_version: never
+  no_browsers_found:
+    objects: ["legacy_wizard", "wizard"]
+    description: >
+      Recorded when the migration wizard reports that there are no browsers to migrate from.
+    bug_numbers:
+      - 1824786
+    notification_emails:
+      - mconley@mozilla.com
+    products:
+      - "firefox"
+    record_in_processes: [main]
+    release_channel_collection: opt-out
+    expiry_version: never
+  browser_selected:
+    objects: ["legacy_wizard", "wizard"]
+    description: >
+      Recorded when the user selects a browser to migrate from.
+    bug_numbers:
+      - 1824786
+    notification_emails:
+      - mconley@mozilla.com
+    products:
+      - "firefox"
+    record_in_processes: [main]
+    release_channel_collection: opt-out
+    expiry_version: never
+    extra_keys:
+      migrator_key: The key of the browser that was selected.
+  profile_selected:
+    objects: ["legacy_wizard", "wizard"]
+    description: >
+      Recorded when the user selects a profile to migrate from. If the browser doesn't
+      support multiple profiles, this will not be recorded.
+    bug_numbers:
+      - 1824786
+    notification_emails:
+      - mconley@mozilla.com
+    products:
+      - "firefox"
+    record_in_processes: [main]
+    release_channel_collection: opt-out
+    expiry_version: never
+    extra_keys:
+      migrator_key: The key of the browser that had a profile selected for it.
+  resources_selected:
+    objects: ["legacy_wizard", "wizard"]
+    description: >
+      Recorded when the user selects resources from the browser / profile to import.
+    bug_numbers:
+      - 1824786
+    notification_emails:
+      - mconley@mozilla.com
+    products:
+      - "firefox"
+    record_in_processes: [main]
+    release_channel_collection: opt-out
+    expiry_version: never
+    extra_keys:
+      migrator_key: The key of the browser that had resources selected for it.
+      history: >
+        "1" if history was selected. "0" otherwise.
+      formdata: >
+        "1" if form data was selected. "0" otherwise.
+      passwords: >
+        "1" if passwords was selected. "0" otherwise.
+      bookmarks: >
+        "1" if bookmarks were selected. "0" otherwise.
+      other: A count of the number of other resource types that were selected.
+      configured: >
+        "1" if Variant 2 of the new Migration Wizard was being used, and the list of
+        resources was expanded. "0" otherwise.
+  safari_perms:
+    objects: ["legacy_wizard", "wizard"]
+    description: >
+      Recorded if the user is on macOS, chose to migrate from Safari, and was presented with
+      the page of the wizard requesting permission to read from the Safari profile folder.
+    bug_numbers:
+      - 1824786
+    notification_emails:
+      - mconley@mozilla.com
+    products:
+      - "firefox"
+    record_in_processes: [main]
+    release_channel_collection: opt-out
+    expiry_version: never
+  safari_password_file:
+    objects: ["wizard"]
+    description: >
+      Recorded if the user is on macOS, chose to migrate from Safari, and was presented with
+      the page of the wizard requesting to import passwords from a file. This only gets recorded
+      in the new migration wizard.
+    bug_numbers:
+      - 1824786
+    notification_emails:
+      - mconley@mozilla.com
+    products:
+      - "firefox"
+    record_in_processes: [main]
+    release_channel_collection: opt-out
+    expiry_version: never
+  migration_started:
+    objects: ["legacy_wizard", "wizard"]
+    description: >
+      Recorded when the user begins a migration.
+    bug_numbers:
+      - 1824786
+    notification_emails:
+      - mconley@mozilla.com
+    products:
+      - "firefox"
+    record_in_processes: [main]
+    release_channel_collection: opt-out
+    expiry_version: never
+    extra_keys:
+      migrator_key: The key of the migrator that will perform the migration.
+      history: >
+        "1" if history is being migrated. "0" otherwise.
+      formdata: >
+        "1" if form data is being migrated. "0" otherwise.
+      passwords: >
+        "1" if passwords are being migrated. "0" otherwise.
+      bookmarks: >
+        "1" if bookmarks are being migrated. "0" otherwise.
+      other: A count of the number of other resource types that are being migrated.
+  migration_finished:
+    objects: ["legacy_wizard", "wizard"]
+    description: >
+      Recorded when the user finishes a migration.
+    bug_numbers:
+      - 1824786
+    notification_emails:
+      - mconley@mozilla.com
+    products:
+      - "firefox"
+    record_in_processes: [main]
+    release_channel_collection: opt-out
+    expiry_version: never
+    extra_keys:
+      migrator_key: The key of the migrator that will perform the migration.
+      history: >
+        "1" if history was migrated. "0" otherwise.
+      formdata: >
+        "1" if form data was migrated. "0" otherwise.
+      passwords: >
+        "1" if passwords were migrated. "0" otherwise.
+      bookmarks: >
+        "1" if bookmarks were migrated. "0" otherwise.
+      other: A count of the number of other resource types that were migrated.
+
 pwmgr:
   open_management:
     objects: ["aboutprotections", "autocomplete", "capturedoorhanger", "contextmenu", "direct", "fxamenu", "mainmenu", "pageinfo", "preferences", "snippet"]
@@ -2728,11 +2891,10 @@ pictureinpicture:
     expiry_version: "never"
     release_channel_collection: opt-out
   opened_method:
-    objects: ["method"]
+    objects: ["toggle", "contextMenu", "urlBar"]
     description: >
       Records the method for opening the Picture-in-Picture window.
     extra_keys:
-      method: Will be "toggle" or "contextMenu"
       firstTimeToggle: If the user has used Picture-in-Picture before
     notification_emails:
       - mconley@mozilla.com
@@ -2744,11 +2906,9 @@ pictureinpicture:
     expiry_version: "never"
     release_channel_collection: opt-out
   closed_method:
-    objects: ["method"]
+    objects: ["closeButton", "unpip", "pagehide", "fullscreen", "setupFailure", "closePlayerShortcut", "contextMenu", "videoElRemove", "videoElEmptied", "urlBar"]
     description: >
       Records the method for closing the Picture-in-Picture window.
-    extra_keys:
-      reason: Will be "close-button", "unpip", "pagehide", "fullscreen", "setup-failure", "close-player-shortcut", "context-menu", "video-el-remove", or "video-el-emptied"
     notification_emails:
       - mconley@mozilla.com
       - mtigley@mozilla.com
@@ -2778,10 +2938,102 @@ pictureinpicture:
       - 1772546
     expiry_version: "never"
     release_channel_collection: opt-out
+  backward:
+    objects: ["player"]
+    description: >
+      Recorded when the user clicks the seek backward button
+    notification_emails:
+      - mconley@mozilla.com
+      - mhowell@mozilla.com
+    products:
+      - "firefox"
+    record_in_processes:
+      - "main"
+    bug_numbers:
+      - 1822395
+    expiry_version: "116"
+    release_channel_collection: opt-out
+  backward_sequence:
+    objects: ["player"]
+    description: >
+      Recorded when the user clicks the seek backward button 3 times in a 2 second interval
+    notification_emails:
+      - mconley@mozilla.com
+      - mhowell@mozilla.com
+    products:
+      - "firefox"
+    record_in_processes:
+      - "main"
+    bug_numbers:
+      - 1822395
+    expiry_version: "116"
+    release_channel_collection: opt-out
+  forward:
+    objects: ["player"]
+    description: >
+      Recorded when the user clicks the seek forward button
+    notification_emails:
+      - mconley@mozilla.com
+      - mhowell@mozilla.com
+    products:
+      - "firefox"
+    record_in_processes:
+      - "main"
+    bug_numbers:
+      - 1822395
+    expiry_version: "116"
+    release_channel_collection: opt-out
+  forward_sequence:
+    objects: ["player"]
+    description: >
+      Recorded when the user clicks the seek forward button 3 times in a 2 second interval
+    notification_emails:
+      - mconley@mozilla.com
+      - mhowell@mozilla.com
+    products:
+      - "firefox"
+    record_in_processes:
+      - "main"
+    bug_numbers:
+      - 1822395
+    expiry_version: "116"
+    release_channel_collection: opt-out
+  seek:
+    objects: ["player"]
+    description: >
+      Recorded when the user interacts with the seek bar
+    notification_emails:
+      - mconley@mozilla.com
+      - mhowell@mozilla.com
+    products:
+      - "firefox"
+    record_in_processes:
+      - "main"
+    bug_numbers:
+      - 1822395
+    expiry_version: "116"
+    release_channel_collection: opt-out
+  fullscreen:
+    objects: ["player"]
+    extra_keys:
+      enter: true if entering fullscreen, false if exiting fullscreen
+    description: >
+      Recorded when the user clicks the fullscreen button
+    notification_emails:
+      - mconley@mozilla.com
+      - mhowell@mozilla.com
+    products:
+      - "firefox"
+    record_in_processes:
+      - "main"
+    bug_numbers:
+      - 1822395
+    expiry_version: "never"
+    release_channel_collection: opt-out
 
 pictureinpicture.settings:
   enable:
-    objects: ["player"]
+    objects: ["settings"]
     description: Recorded when Picture-in-Picture is enabled.
     notification_emails:
       - mconley@mozilla.com
@@ -2794,8 +3046,10 @@ pictureinpicture.settings:
     expiry_version: "never"
     release_channel_collection: opt-out
   disable:
-    objects: ["player"]
-    description: Recorded when Picture-in-Picture is disabled.
+    objects: ["player", "settings"]
+    description: >
+      Recorded with "settings" object when Picture-in-Picture is disabled via settings
+      Recorded with "player" object when Picture-in-Picture is disabled via PiP context menu
     notification_emails:
       - mconley@mozilla.com
     products:

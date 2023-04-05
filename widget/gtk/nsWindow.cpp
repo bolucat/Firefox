@@ -809,6 +809,12 @@ void nsWindow::SetModal(bool aModal) {
 // nsIWidget method, which means IsShown.
 bool nsWindow::IsVisible() const { return mIsShown; }
 
+bool nsWindow::IsMapped() const {
+  // TODO: Enable for X11 when Mozilla testsuite is moved to new
+  // testing environment from Ubuntu 18.04 which is broken.
+  return GdkIsWaylandDisplay() ? mIsMapped : true;
+}
+
 void nsWindow::RegisterTouchWindow() {
   mHandleTouchEvent = true;
   mTouches.Clear();
@@ -4234,6 +4240,7 @@ static bool IsBogusLeaveNotifyEvent(GdkWindow* aWindow,
     return desktopEnv.EqualsLiteral("fluxbox") ||   // Bug 1805939 comment 0.
            desktopEnv.EqualsLiteral("blackbox") ||  // Bug 1805939 comment 32.
            desktopEnv.EqualsLiteral("lg3d") ||      // Bug 1820405.
+           desktopEnv.EqualsLiteral("pekwm") ||     // Bug 1822911.
            StringBeginsWith(desktopEnv, "fvwm"_ns);
   }();
 

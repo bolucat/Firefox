@@ -757,6 +757,16 @@
   value: 0.5f
   mirror: always
 
+# If this is true, APZ fully recalculates the scroll thumb size and
+# position in the compositor. This leads to the size and position
+# being more accurate in scenarios such as async zooming, but the
+# recalculation code is error-prone so it's nightly-only for now
+# to give it more baking time.
+- name: apz.scrollthumb.recalc
+  type: RelaxedAtomicBool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+
 - name: apz.test.fails_with_native_injection
   type: RelaxedAtomicBool
   value: false
@@ -7154,7 +7164,7 @@
 # Whether to allow decoding of animated AVIF sequences.
 - name: image.avif.sequence.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Whether AVIF files containing sequences should be animated even when the
@@ -8466,14 +8476,14 @@
 # Is support for color-mix on content enabled?
 - name: layout.css.color-mix.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
   rust: true
 
 # Is support for color-mix with non-SRGB color spaces on content enabled?
 - name: layout.css.color-mix.color-spaces.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
   rust: true
 
@@ -10309,7 +10319,14 @@
   value: 2500
   mirror: always
 
+# True if we allow use of any decoders found in GMP plugins.
 - name: media.gmp.decoder.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# True if we want to try using the GMP plugin decoders first.
+- name: media.gmp.decoder.preferred
   type: RelaxedAtomicBool
   value: false
   mirror: always
@@ -12379,7 +12396,7 @@
 # Whether to enable echconfig for http3.
 - name: network.dns.http3_echconfig.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # This pref needs to be worked together with network.dns.echconfig.enabled
@@ -12388,7 +12405,7 @@
 # this pref indicate whether we can fallback to the origin server.
 - name: network.dns.echconfig.fallback_to_origin_when_all_failed
   type: RelaxedAtomicBool
-  value: true
+  value: @IS_NOT_NIGHTLY_BUILD@
   mirror: always
 
 # When true, reset the exclusion list when all records are excluded.
@@ -13242,12 +13259,6 @@
   value: false
   mirror: always
 
-#  Partition the websocket pending connection queue by OriginAttributes.
-- name: privacy.partition.network_state.ws_connection_queue
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 # Partition the service workers unconditionally when dFPI is enabled.
 - name: privacy.partition.serviceWorkers
   type: RelaxedAtomicBool
@@ -13859,7 +13870,7 @@
 - name: security.tls.ech.grease_probability
   type: RelaxedAtomicUint32
 #ifdef NIGHTLY_BUILD
-  value: 50
+  value: 100
 #else
   value: 0
 #endif
@@ -13868,13 +13879,13 @@
 # Whether to apply ECH GREASE settings to HTTP3/QUIC connections
 - name: security.tls.ech.grease_http3
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Whether to retry connections without ECH Grease
 - name: security.tls.ech.disable_grease_on_fallback
   type: RelaxedAtomicBool
-  value: true
+  value: @IS_NOT_NIGHTLY_BUILD@
   mirror: always
 
 # ECH GREASE Padding target (1-255)
@@ -14763,6 +14774,18 @@
 - name: webgl.fake-verts.max
   type: RelaxedAtomicUint32
   value: 10*1000*1000  # 10M as vec4 is count*4*4 = 160MB
+  mirror: always
+
+# Only works on Mac for now.
+- name: webgl.forbid-hardware
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# Only works on Mac for now.
+- name: webgl.forbid-software
+  type: RelaxedAtomicBool
+  value: true  # It's generally better to encourage fallback to e.g. canvas2d.
   mirror: always
 
 - name: webgl.force-enabled

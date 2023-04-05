@@ -1745,16 +1745,18 @@ Element* Element::GetAttrAssociatedElement(nsAtom* aAttr) const {
   return nullptr;
 }
 
-void Element::ExplicitlySetAttrElement(Element* aElement, nsAtom* aAttr) {
+void Element::ExplicitlySetAttrElement(nsAtom* aAttr, Element* aElement) {
   if (aElement) {
     nsExtendedDOMSlots* slots = ExtendedDOMSlots();
     slots->mExplicitlySetAttrElements.InsertOrUpdate(
         aAttr, do_GetWeakReference(aElement));
+    SetAttr(aAttr, EmptyString(), IgnoreErrors());
     return;
   }
 
   if (auto* slots = GetExistingExtendedDOMSlots()) {
     slots->mExplicitlySetAttrElements.Remove(aAttr);
+    UnsetAttr(aAttr, IgnoreErrors());
   }
 }
 
@@ -1808,11 +1810,10 @@ nsresult Element::BindToTree(BindContext& aContext, nsINode& aParent) {
   if (aParent.IsInNativeAnonymousSubtree()) {
     SetFlags(NODE_IS_IN_NATIVE_ANONYMOUS_SUBTREE);
   }
-  if (aParent.HasFlag(NODE_HAS_BEEN_IN_UA_WIDGET)) {
-    SetFlags(NODE_HAS_BEEN_IN_UA_WIDGET);
-  }
   if (IsRootOfNativeAnonymousSubtree()) {
     aParent.SetMayHaveAnonymousChildren();
+  } else if (aParent.HasFlag(NODE_HAS_BEEN_IN_UA_WIDGET)) {
+    SetFlags(NODE_HAS_BEEN_IN_UA_WIDGET);
   }
   if (aParent.HasFlag(ELEMENT_IS_DATALIST_OR_HAS_DATALIST_ANCESTOR)) {
     SetFlags(ELEMENT_IS_DATALIST_OR_HAS_DATALIST_ANCESTOR);
