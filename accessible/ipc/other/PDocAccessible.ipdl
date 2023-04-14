@@ -40,24 +40,6 @@ union OriginDocument
   PDocAccessible;
 };
 
-struct BatchData
-{
-  OriginDocument Document;
-  uint64_t ID;
-  uint64_t State;
-  LayoutDeviceIntRect Bounds;
-  uint8_t ActionCount;
-  nsString Name;
-  nsString TextValue;
-  nsString DOMNodeID;
-  nsString Description;
-  double CurValue;
-  double MinValue;
-  double MaxValue;
-  double Step;
-  nullable AccAttributes Attributes;
-};
-
 struct ShowEventData
 {
   uint64_t ID;
@@ -125,9 +107,6 @@ parent:
    * document.
    */
   async BindChildDoc(PDocAccessible aChildDoc, uint64_t aID);
-
-  // Android
-  async Batch(uint64_t aBatchType, BatchData[] aData);
 
   /*
    * Cache The World
@@ -232,6 +211,9 @@ child:
                      int32_t aSelectionNum);
   async RemoveTextSelection(uint64_t aID, int32_t aSelectionNum);
 
+  async ScrollTextLeafRangeIntoView(uint64_t aStartID, int32_t aStartOffset,
+                                    uint64_t aEndID, int32_t aEndOffset,
+                                    uint32_t aScrollType);
   async ScrollSubstringTo(uint64_t aID, int32_t aStartOffset, int32_t aEndOffset,
                           uint32_t aScrollType);
   async ScrollSubstringToPoint(uint64_t aID,

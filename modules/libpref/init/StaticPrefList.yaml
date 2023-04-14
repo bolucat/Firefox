@@ -206,7 +206,7 @@
 
 - name: accessibility.ARIAReflection.enabled
   type: bool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Whether form controls and images should be focusable with mouse, in content
@@ -862,6 +862,12 @@
 - name: apz.scale_repaint_delay_ms
   type: RelaxedAtomicInt32
   value: 500
+  mirror: always
+
+# Whether to use rounded external scroll offsets.
+- name: apz.rounded_external_scroll_offset
+  type: bool
+  value: false
   mirror: always
 
 #---------------------------------------------------------------------------
@@ -9312,6 +9318,13 @@
   mirror: always
   rust: true
 
+# Whether supports() conditions in @import is enabled
+- name: layout.css.import-supports.enabled
+  type: RelaxedAtomicBool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+  rust: true
+
 # Whether frame visibility tracking is enabled globally.
 - name: layout.framevisibility.enabled
   type: bool
@@ -12563,6 +12576,11 @@
   value: 1
   mirror: always
 
+- name: network.allow_redirect_to_data
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 - name: network.allow_raw_sockets_in_content_processes
   type: bool
   value: false
@@ -12831,13 +12849,6 @@
 - name: privacy.annotate_channels.strict_list.pbmode.enabled
   type: bool
   value: true
-  mirror: always
-
-# Enable the clearing of cache data using the clear-site-data header. If enabled,
-# header values of "cache" and "*" will clear cached data from the site
-- name: privacy.clearsitedata.cache.enabled
-  type: bool
-  value: false
   mirror: always
 
 # First Party Isolation (double keying), disabled by default.
@@ -13630,12 +13641,6 @@
   value: true
   mirror: always
 
-# No way to enable on Android, Bug 1552602
-- name: security.webauth.u2f
-  type: bool
-  value: false
-  mirror: always
-
 # WebAuthn CTAP2 support
 - name: security.webauthn.ctap2
   type: RelaxedAtomicBool
@@ -14251,6 +14256,14 @@
 - name: threads.use_low_power.enabled
   type: RelaxedAtomicBool
   value: @IS_NIGHTLY_BUILD@
+  mirror: always
+
+
+# If the process priority is set to background, put the main thread in the background.
+# Currently off by default.
+- name: threads.lower_mainthread_priority_in_background.enabled
+  type: bool
+  value: false
   mirror: always
 
 #---------------------------------------------------------------------------

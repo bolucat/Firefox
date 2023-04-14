@@ -320,9 +320,9 @@ dependencies = [
 
 [[package]]
 name = "authenticator"
-version = "0.4.0-alpha.11"
+version = "0.4.0-alpha.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e73e25e6ae754b553f930c48af8f0e5ca71e641c419151e95bafd5644ff6e21b"
+checksum = "c14dd8025f8c43525d3bcb5fba75838095ddfe99f2284a72cd1b2a9380c47ae2"
 dependencies = [
  "base64",
  "bitflags 1.3.2",
@@ -332,7 +332,7 @@ dependencies = [
  "libc",
  "libudev",
  "log",
- "memoffset 0.6.99",
+ "memoffset",
  "nom",
  "nss-gk-api",
  "pkcs11-bindings",
@@ -973,7 +973,7 @@ dependencies = [
  "autocfg",
  "cfg-if 1.0.0",
  "crossbeam-utils",
- "memoffset 0.8.0",
+ "memoffset",
  "scopeguard",
 ]
 
@@ -2192,9 +2192,9 @@ dependencies = [
 
 [[package]]
 name = "glean"
-version = "52.4.2"
+version = "52.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1bd184ec51a21129cb58a1b7380250d5f71de01b3461ab3b81594e0a2322123"
+checksum = "cd952afea9a760de2fc9f5d15f204f0ffa42178f8b77787d3b282c0b3dd1f398"
 dependencies = [
  "chrono",
  "crossbeam-channel",
@@ -2212,9 +2212,9 @@ dependencies = [
 
 [[package]]
 name = "glean-core"
-version = "52.4.2"
+version = "52.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0e543be303977a73d720ce612a49937d5ba3fac9907d2e13556a32c67293d5e"
+checksum = "fe01fda83e8387e82f9b37f727870b9075e1e0dc9f7d061b40c76735ad238a22"
 dependencies = [
  "android_logger",
  "bincode",
@@ -3072,6 +3072,7 @@ dependencies = [
  "servo_arc",
  "smallbitvec",
  "smallvec",
+ "thin-vec",
  "void",
 ]
 
@@ -3142,13 +3143,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2af2c65375e552a67fe3829ca63e8a7c27a378a62824594f43b2851d682b5ec2"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "memoffset"
-version = "0.6.99"
-dependencies = [
- "memoffset 0.8.0",
 ]
 
 [[package]]
@@ -3245,7 +3239,7 @@ dependencies = [
  "libc",
  "mach2",
  "memmap2",
- "memoffset 0.8.0",
+ "memoffset",
  "minidump-common",
  "nix 0.26.2",
  "scroll",
@@ -4998,6 +4992,7 @@ dependencies = [
  "static_prefs",
  "style_derive",
  "style_traits",
+ "thin-vec",
  "time 0.1.45",
  "to_shmem",
  "to_shmem_derive",
@@ -5273,6 +5268,7 @@ dependencies = [
  "servo_arc",
  "smallbitvec",
  "smallvec",
+ "thin-vec",
 ]
 
 [[package]]

@@ -3729,10 +3729,15 @@ void nsWindow::CreateCompositorVsyncDispatcher() {
 #endif
 
 gboolean nsWindow::OnExposeEvent(cairo_t* cr) {
-  // Send any pending resize events so that layout can update.
-  // May run event loop.
-  MaybeDispatchResized();
+  // This might destroy us.
+  NotifyOcclusionState(OcclusionState::VISIBLE);
+  if (mIsDestroyed) {
+    return FALSE;
+  }
 
+  // Send any pending resize events so that layout can update.
+  // May run event loop and destroy us.
+  MaybeDispatchResized();
   if (mIsDestroyed) {
     return FALSE;
   }
@@ -4203,11 +4208,6 @@ void nsWindow::OnEnterNotifyEvent(GdkEventCrossing* aEvent) {
     return;
   }
 
-  if (aEvent->mode == GDK_CROSSING_GRAB ||
-      aEvent->mode == GDK_CROSSING_UNGRAB) {
-    return;
-  }
-
   // Check before checking for ungrab as the button state may have
   // changed while a non-Gecko ancestor window had a pointer grab.
   DispatchMissedButtonReleases(aEvent);
@@ -4284,11 +4284,6 @@ void nsWindow::OnLeaveNotifyEvent(GdkEventCrossing* aEvent) {
   // leaves a foreign (plugin) child window without passing over a visible
   // portion of a Gecko window.
   if (aEvent->subwindow) {
-    return;
-  }
-
-  if (aEvent->mode == GDK_CROSSING_GRAB ||
-      aEvent->mode == GDK_CROSSING_UNGRAB) {
     return;
   }
 

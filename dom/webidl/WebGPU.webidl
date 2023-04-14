@@ -84,14 +84,24 @@ enum GPUPowerPreference {
 
 [Pref="dom.webgpu.enabled",
  Exposed=(Window /* ,DedicatedWorker */), SecureContext]
+interface GPUAdapterInfo {
+    readonly attribute DOMString vendor;
+    readonly attribute DOMString architecture;
+    readonly attribute DOMString device;
+    readonly attribute DOMString description;
+};
+
+[Pref="dom.webgpu.enabled",
+ Exposed=(Window /* ,DedicatedWorker */), SecureContext]
 interface GPUAdapter {
-    readonly attribute DOMString name;
     [SameObject] readonly attribute GPUSupportedFeatures features;
     [SameObject] readonly attribute GPUSupportedLimits limits;
     readonly attribute boolean isFallbackAdapter;
 
     [NewObject]
     Promise<GPUDevice> requestDevice(optional GPUDeviceDescriptor descriptor = {});
+    [NewObject]
+    Promise<GPUAdapterInfo> requestAdapterInfo(optional sequence<DOMString> unmaskHints = []);
 };
 
 dictionary GPUDeviceDescriptor {
@@ -546,9 +556,12 @@ interface GPUCompilationInfo {
     readonly attribute sequence<GPUCompilationMessage> messages;
 };
 
-// Common stuff for ComputePipeline and RenderPipeline
+enum GPUAutoLayoutMode {
+    "auto"
+};
+
 dictionary GPUPipelineDescriptorBase : GPUObjectDescriptorBase {
-    GPUPipelineLayout layout;
+    required (GPUPipelineLayout or GPUAutoLayoutMode) layout;
 };
 
 interface mixin GPUPipelineBase {
@@ -885,7 +898,7 @@ interface GPUComputePassEncoder {
     undefined dispatchWorkgroupsIndirect(GPUBuffer indirectBuffer, GPUSize64 indirectOffset);
 
     [Throws]
-    undefined endPass();
+    undefined end();
 };
 GPUComputePassEncoder includes GPUObjectBase;
 GPUComputePassEncoder includes GPUProgrammablePassEncoder;
@@ -939,7 +952,7 @@ interface GPURenderPassEncoder {
     undefined executeBundles(sequence<GPURenderBundle> bundles);
 
     [Throws]
-    undefined endPass();
+    undefined end();
 };
 GPURenderPassEncoder includes GPUObjectBase;
 GPURenderPassEncoder includes GPUProgrammablePassEncoder;
@@ -1072,6 +1085,8 @@ enum GPUQueryType {
 [Pref="dom.webgpu.enabled",
  Exposed=(Window /* ,DedicatedWorker */), SecureContext]
 interface GPUCanvasContext {
+    readonly attribute (HTMLCanvasElement or OffscreenCanvas) canvas;
+
     // Calling configure() a second time invalidates the previous one,
     // and all of the textures it's produced.
     undefined configure(GPUCanvasConfiguration descriptor);

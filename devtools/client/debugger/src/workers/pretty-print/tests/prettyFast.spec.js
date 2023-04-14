@@ -61,6 +61,11 @@ const cases = [
   },
 
   {
+    name: "for..of loop",
+    input: "for (const x of [1,2,3]) { console.log(x) }",
+  },
+
+  {
     name: "String with semicolon",
     input: "var foo = ';';\n",
   },
@@ -135,6 +140,14 @@ const cases = [
   {
     name: "Arrays",
     input: "var a=[1,2,3];",
+  },
+  {
+    name: "Arrays and spread operator",
+    input: "var a=[1,...[2,3],...[], 4];",
+  },
+  {
+    name: "Empty object/array literals",
+    input: `let a=[];const b={};c={...{},d: 42};for(let x of []){for(let y in {}){}}`,
   },
   {
     name: "Code that relies on ASI",

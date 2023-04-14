@@ -2018,8 +2018,8 @@ fuzzy(0-255,0-4054) == 1415987-1.html 1415987-1-ref.html # this is a large fuzz,
 skip-if(winWidget&&isCoverageBuild) == 1424177.html 1424177-ref.html
 == 1424680.html 1424680-ref.html
 == 1424798-1.html 1424798-ref.html
-fuzzy-if(swgl,0-1,0-31430) == 1425243-1.html 1425243-1-ref.html
-fuzzy-if(Android,0-66,0-574) fuzzy-if(d2d,0-89,0-777) fuzzy-if(!Android&&!d2d,0-1,0-31430) fuzzy-if(winWidget,1-1,31240-31412) == 1425243-2.html 1425243-2-ref.html
+== 1425243-1.html 1425243-1-ref.html
+fuzzy-if(Android,0-66,0-574) fuzzy-if(d2d,0-89,0-777) fuzzy-if(!Android&&!d2d,0-1,0-31412) fuzzy-if(winWidget,1-1,31240-31412) == 1425243-2.html 1425243-2-ref.html
 == 1430869.html 1430869-ref.html
 == 1432541.html 1432541-ref.html
 == 1446470.html 1035091-ref.html
@@ -2119,6 +2119,8 @@ skip-if(Android) test-pref(ui.textScaleFactor,150) test-pref(browser.display.os-
 skip-if(Android) test-pref(ui.textScaleFactor,50) test-pref(browser.display.os-zoom-behavior,1) != 1773633.html 1773633.html
 pref(widget.disable-dark-scrollbar,false) == 1777135.html 1777135-ref.html
 test-pref(widget.non-native-theme.use-theme-accent,false) == 1778834.html 1778834-ref.html
+# do not adjust the fuzz without looking, this test was written as fuzzy on purpose (because that was the only way to make a test work)
+fuzzy(16-47,26939-44425) == 1780191-1.svg 1780191-1-ref.svg
 pref(layout.css.prefers-color-scheme.content-override,0) == 1787127.html 1787127-ref.html
 pref(layout.css.prefers-color-scheme.content-override,1) == 1787127.html 1787127-ref.html
 pref(layout.css.prefers-color-scheme.content-override,2) == 1787127.html 1787127-ref.html
@@ -2131,3 +2133,4 @@ skip-if(!/^Windows\x20NT\x2010\.0/.test(http.oscpu)) != 1798297-1.html 1798297-1
 == 1814628-1.html 1814628-1-ref.html
 == 1814047.html 1814047-ref.html
 == 1818412-1.html 1818412-1-ref.html
+== 1827009-1.html 1827009-1-ref.html

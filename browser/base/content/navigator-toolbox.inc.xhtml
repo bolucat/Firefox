@@ -378,7 +378,7 @@
                     role="button"
                     data-l10n-id="urlbar-translations-button"
                     hidden="true"
-                    onclick="TranslationsParent.urlBarButtonClick(event);">
+                    onclick="TranslationsPanel.open(event);">
                 <image class="urlbar-icon"/>
               </hbox>
               <toolbarbutton id="urlbar-zoom-button"
@@ -456,7 +456,7 @@
       </toolbarbutton>
 
       <toolbarbutton id="unified-extensions-button"
-                     class="toolbarbutton-1"
+                     class="toolbarbutton-1 chromeclass-toolbar-additional"
                      delegatesanchor="true"
                      data-l10n-id="unified-extensions-button"
                      hidden="true"

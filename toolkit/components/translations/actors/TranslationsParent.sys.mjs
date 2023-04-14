@@ -42,14 +42,21 @@ XPCOMUtils.defineLazyPreferenceGetter(
 
 XPCOMUtils.defineLazyPreferenceGetter(
   lazy,
+  "autoTranslatePagePref",
+  "browser.translations.autoTranslate"
+);
+
+XPCOMUtils.defineLazyPreferenceGetter(
+  lazy,
   "simulateUnsupportedEnginePref",
   "browser.translations.simulateUnsupportedEngine"
 );
 
-// Do the slow/safe thing of always verifying the signature when the data is
-// loaded from the file system. This restriction could be eased in the future if it
-// proves to be a performance problem, and the security risk is acceptable.
-const VERIFY_SIGNATURES_FROM_FS = true;
+// At this time the signatures of the files are not being checked when they are being
+// loaded from disk. This signature check involves hitting the network, and translations
+// are explicitly an offline-capable feature. See Bug 1827265 for re-enabling this
+// check.
+const VERIFY_SIGNATURES_FROM_FS = false;
 
 /**
  * @typedef {import("../translations").TranslationModelRecord} TranslationModelRecord
@@ -61,12 +68,33 @@ const VERIFY_SIGNATURES_FROM_FS = true;
  */
 
 /**
+ * @typedef {Object} TranslationPair
+ * @prop {string} fromLanguage
+ * @prop {string} toLanguage
+ * @prop {string} [fromDisplayLanguage]
+ * @prop {string} [toDisplayLanguage]
+ */
+
+/**
  * The translations parent is used to orchestrate translations in Firefox. It can
  * download the wasm translation engines, and the machine learning language models.
  *
  * See Bug 971044 for more details of planned work.
  */
 export class TranslationsParent extends JSWindowActorParent {
+  /**
+   * Contains the state that would affect UI. Anytime this state is changed, a dispatch
+   * event is sent so that UI can react to it. The actor is inside of /toolkit and
+   * needs a way of notifying /browser code (or other users) of when the state changes.
+   *
+   * @type {TranslationsLanguageState}
+   */
+  languageState;
+
+  actorCreated() {
+    this.languageState = new TranslationsLanguageState(this);
+  }
+
   /**
    * The remote settings client that retrieves the language-identification model binary.
    *
@@ -88,17 +116,12 @@ export class TranslationsParent extends JSWindowActorParent {
   /** @type {RemoteSettingsClient | null} */
   #translationsWasmRemoteClient = null;
 
-  /** @type {LangTags | null} */
-  #langTags = null;
-
   /**
-   * Have translations been turned on for the page? This means a `TranslationsDocument`
-   * will have been created for the page, and it will determine how to actively translate
-   * the document.
-   *
-   * @type {boolean}
+   * If "browser.translations.autoTranslate" is set to "true" then the page will
+   * auto-translate. A user can restore the page to the original UI. This flag indicates
+   * that an auto-translate should be skipped.
    */
-  #translationsActive = false;
+  static #isPageRestoredForAutoTranslate = false;
 
   /**
    * The translation engine can be mocked for testing.
@@ -122,6 +145,14 @@ export class TranslationsParent extends JSWindowActorParent {
    * @type {number | null}
    */
   static #mockedLanguageIdConfidence = null;
+
+  /**
+   * The RemoteSettings client can be mocked for testing to ensure
+   * that logic for filtering records is behaving correctly.
+   *
+   * @type {RemoteSettingsClient | null}
+   */
+  static #mockedRemoteSettingsClient = null;
 
   /**
    * @type {null | Promise<boolean>}
@@ -194,6 +225,11 @@ export class TranslationsParent extends JSWindowActorParent {
       case "Translations:GetIsTranslationsEngineSupported": {
         return TranslationsParent.getIsTranslationsEngineSupported();
       }
+      case "Translations:FullPageTranslationFailed": {
+        // Reset the TranslationsLanguageState in case of an engine failure.
+        this.languageState.requestedTranslationPair = null;
+        break;
+      }
       case "Translations:GetLanguageTranslationModelFiles": {
         const { fromLanguage, toLanguage } = data;
         const files = await this.getLanguageTranslationModelFiles(
@@ -217,12 +253,31 @@ export class TranslationsParent extends JSWindowActorParent {
         return [files1, files2];
       }
       case "Translations:GetSupportedLanguages": {
-        return this.#getSupportedLanguages();
+        return this.getSupportedLanguages();
       }
-      case "Translations:ReportLangTags": {
-        const { langTags } = data;
-        this.#langTags = langTags;
-        this.updateUrlBarButton();
+      case "Translations:MaybeAutoTranslate": {
+        if (!lazy.autoTranslatePagePref) {
+          return false;
+        }
+
+        if (TranslationsParent.#isPageRestoredForAutoTranslate) {
+          // The user clicked the restore button. Respect it for one page load.
+          TranslationsParent.#isPageRestoredForAutoTranslate = false;
+
+          // Skip this auto-translation.
+          return false;
+        }
+
+        this.languageState.requestedTranslationPair = {
+          fromLanguage: data.docLangTag,
+          toLanguage: data.appLangTag,
+        };
+
+        // The page can be auto-translated
+        return true;
+      }
+      case "Translations:ReportDetectedLangTags": {
+        this.languageState.detectedLanguages = data.langTags;
         return undefined;
       }
     }
@@ -239,12 +294,8 @@ export class TranslationsParent extends JSWindowActorParent {
     const now = Date.now();
     const client = this.#getLanguageIdModelRemoteClient();
 
-    /** @type {ModelRecord[]} */
-    const modelRecords = await client.get({
-      // Pull the records from the network so that we never get an empty list.
-      syncIfEmpty: true,
-      verifySignature: VERIFY_SIGNATURES_FROM_FS,
-    });
+    /** @type {LanguageIdModelRecord[]} */
+    const modelRecords = await TranslationsParent.getMaxVersionRecords(client);
 
     if (modelRecords.length === 0) {
       throw new Error(
@@ -301,11 +352,7 @@ export class TranslationsParent extends JSWindowActorParent {
     lazy.console.log(`Getting remote language-identification wasm binary.`);
 
     /** @type {WasmRecord[]} */
-    const wasmRecords = await client.get({
-      // Pull the records from the network so that we never get an empty list.
-      syncIfEmpty: true,
-      verifySignature: VERIFY_SIGNATURES_FROM_FS,
-      // Only get the fasttext-wasm record.
+    const wasmRecords = await TranslationsParent.getMaxVersionRecords(client, {
       filters: { name: "fasttext-wasm" },
     });
 
@@ -362,9 +409,9 @@ export class TranslationsParent extends JSWindowActorParent {
   /**
    * Get the list of languages and their display names, sorted by their display names.
    *
-   * @returns {Promise<Array<{ langTag: string, displayName }>>}
+   * @returns {Promise<Array<{ langTag: string, displayName: string }>>}
    */
-  async #getSupportedLanguages() {
+  async getSupportedLanguages() {
     const languages = new Set();
     const languagePairs =
       TranslationsParent.#mockedLanguagePairs ??
@@ -436,6 +483,59 @@ export class TranslationsParent extends JSWindowActorParent {
   }
 
   /**
+   * Retrieves the maximum version of each record in the RemoteSettingsClient.
+   *
+   * If the client contains two different-version copies of the same record (e.g. 1.0 and 1.1)
+   * then only the 1.1-version record will be returned in the resulting collection.
+   *
+   * @param {RemoteSettingsClient} remoteSettingsClient
+   * @param {Object} [options]
+   *   @param {Object} [options.filters={}]
+   *     The filters to apply when retrieving the records from RemoteSettings.
+   *     Filters should correspond to properties on the RemoteSettings records themselves.
+   *     For example, A filter to retrieve only records with a `fromLang` value of "en" and a `toLang` value of "es":
+   *     { filters: { fromLang: "en", toLang: "es" } }
+   *   @param {Function} [options.lookupKey=(record => record.name)]
+   *     The function to use to extract a lookup key from each record.
+   *     This function should take a record as input and return a string that represents the lookup key for the record.
+   *     For most record types, the name (default) is sufficient, however if a collection contains records with
+   *     non-unique name values, it may be necessary to provide an alternative function here.
+   * @returns {Array<TranslationModelRecord | LanguageIdModelRecord | WasmRecord>}
+   */
+  static async getMaxVersionRecords(
+    remoteSettingsClient,
+    { filters = {}, lookupKey = record => record.name } = {}
+  ) {
+    const retrievedRecords = await remoteSettingsClient.get({
+      // Pull the records from the network.
+      syncIfEmpty: true,
+      // Don't verify the signature if the client is mocked.
+      verifySignature: TranslationsParent.#mockedRemoteSettingsClient
+        ? false
+        : VERIFY_SIGNATURES_FROM_FS,
+      // Apply any filters for retrieving the records.
+      filters,
+    });
+
+    // Create a mapping to only the max version of each record discriminated by
+    // the result of the lookupKey() function.
+    const maxVersionRecordMap = retrievedRecords.reduce((records, record) => {
+      const key = lookupKey(record);
+      const existing = records.get(key);
+      if (
+        !existing ||
+        // existing version less than record version
+        Services.vc.compare(existing.version, record.version) < 0
+      ) {
+        records.set(key, record);
+      }
+      return records;
+    }, new Map());
+
+    return Array.from(maxVersionRecordMap.values());
+  }
+
+  /**
    * Lazily initializes the model records, and returns the cached ones if they
    * were already retrieved.
    *
@@ -454,11 +554,14 @@ export class TranslationsParent extends JSWindowActorParent {
     lazy.console.log(`Getting remote language models.`);
 
     /** @type {TranslationModelRecord[]} */
-    const translationModelRecords = await client.get({
-      // Pull the records from the network so that we never get an empty list.
-      syncIfEmpty: true,
-      verifySignature: VERIFY_SIGNATURES_FROM_FS,
-    });
+    const translationModelRecords = await TranslationsParent.getMaxVersionRecords(
+      client,
+      {
+        // Names in this collection are not unique, so we are appending the
+        // fromLang and toLang to the name which will guarantee uniqueness
+        lookupKey: record => `${record.name}${record.fromLang}${record.toLang}`,
+      }
+    );
 
     for (const record of translationModelRecords) {
       this.#translationModelRecords.set(record.id, record);
@@ -467,7 +570,7 @@ export class TranslationsParent extends JSWindowActorParent {
     const duration = (Date.now() - now) / 1000;
     lazy.console.log(
       `Remote language models loaded in ${duration} seconds.`,
-      translationModelRecords
+      this.#translationModelRecords
     );
 
     return this.#translationModelRecords;
@@ -528,11 +631,7 @@ export class TranslationsParent extends JSWindowActorParent {
     lazy.console.log(`Getting remote bergamot-translator wasm records.`);
 
     /** @type {WasmRecord[]} */
-    const wasmRecords = await client.get({
-      // Pull the records from the network so that we never get an empty list.
-      syncIfEmpty: true,
-      verifySignature: VERIFY_SIGNATURES_FROM_FS,
-      // Only get the bergamot-translator record.
+    const wasmRecords = await TranslationsParent.getMaxVersionRecords(client, {
       filters: { name: "bergamot-translator" },
     });
 
@@ -696,6 +795,21 @@ export class TranslationsParent extends JSWindowActorParent {
   }
 
   /**
+   * For testing purposes, allow the RemoteSettingsClient to be mocked. If called
+   * with `null` the mock is removed.
+   *
+   * @param {null | RemoteSettingsClient>} client
+   */
+  static mockRemoteSettingsClient(client) {
+    TranslationsParent.#mockedRemoteSettingsClient = client;
+    if (client) {
+      console.log("Mocking RemoteSettings client");
+    } else {
+      console.log("Removing RemoteSettings client mock");
+    }
+  }
+
+  /**
    * For testing purposes, allow the LanguageIdEngine to be mocked. If called
    * with `null` in each argument, the mock is removed.
    *
@@ -717,72 +831,69 @@ export class TranslationsParent extends JSWindowActorParent {
     }
   }
 
-  static urlBarButtonClick(event) {
-    let win = event.target.ownerGlobal;
-    if (win.gBrowser) {
-      let browser = win.gBrowser.selectedBrowser;
-      let windowGlobal = browser.browsingContext.currentWindowGlobal;
+  /**
+   * @param {string} fromLanguage
+   * @param {string} toLanguage
+   */
+  translate(fromLanguage, toLanguage) {
+    this.languageState.requestedTranslationPair = {
+      fromLanguage,
+      toLanguage,
+    };
 
-      /** @type {TranslationsParent} */
-      let actor = windowGlobal.getActor("Translations");
-
-      if (actor) {
-        actor.toggleTranslation();
-      }
-    }
+    this.sendAsyncMessage("Translations:TranslatePage", {
+      fromLanguage,
+      toLanguage,
+    });
   }
 
   /**
-   * Either send a message to the child to translate, or revert a translation by
-   * refreshing the page.
+   * Restore the page to the original language by doing a hard reload.
    */
-  toggleTranslation() {
-    if (!this.#langTags) {
-      return;
+  restorePage() {
+    if (lazy.autoTranslatePagePref) {
+      // Skip auto-translate for one page load.
+      TranslationsParent.#isPageRestoredForAutoTranslate = true;
     }
-    if (this.#translationsActive) {
-      const browser = this.browsingContext.embedderElement;
-      browser.reload();
-    } else {
-      this.sendAsyncMessage("Translations:TranslatePage");
-    }
-    this.#translationsActive = !this.#translationsActive;
-    this.updateUrlBarButton();
+    this.languageState.requestedTranslationPair = null;
+
+    const browser = this.browsingContext.embedderElement;
+    browser.reload();
   }
 
-  static updateButtonFromLocationChange(browser) {
+  /**
+   * Keep track of when the location changes.
+   */
+  static #locationChangeId = 0;
+
+  static onLocationChange(browser) {
     if (!lazy.translationsEnabledPref) {
       // The pref isn't enabled, so don't attempt to get the actor.
       return;
     }
     let windowGlobal = browser.browsingContext.currentWindowGlobal;
     let actor = windowGlobal.getActor("Translations");
-    actor.updateUrlBarButton(browser);
+    TranslationsParent.#locationChangeId++;
+    actor.languageState.locationChangeId = TranslationsParent.#locationChangeId;
   }
 
   /**
-   * Set the state of the translations button in the URL bar.
+   * Is this actor active for the current location change?
+   *
+   * @param {number} locationChangeId - The id sent by the "TranslationsParent:LanguageState" event.
+   * @returns {boolean}
    */
-  updateUrlBarButton(browser = this.browsingContext.embedderElement) {
-    if (!browser) {
-      return;
-    }
+  static isActiveLocation(locationChangeId) {
+    return locationChangeId === TranslationsParent.#locationChangeId;
+  }
 
-    let doc = browser.ownerGlobal.document;
-    let button = doc.getElementById("translations-button");
-    if (!button) {
-      return;
-    }
-
-    if (this.#langTags) {
-      button.hidden = false;
-      if (this.#translationsActive) {
-        button.setAttribute("translationsactive", true);
-      }
-    } else {
-      button.removeAttribute("translationsactive");
-      button.hidden = true;
-    }
+  /**
+   * Returns the lang tags that should be offered for translation.
+   *
+   * @returns {Promise<null | { appLangTag: string, docLangTag: string }>}
+   */
+  getLangTagsForTranslation() {
+    return this.sendQuery("Translations:GetLangTagsForTranslation");
   }
 }
 
@@ -828,4 +939,97 @@ function detectSimdSupport() {
       worker.terminate();
     });
   });
+}
+
+/**
+ * State that affects the UI. Any of the state that gets set triggers a dispatch to update
+ * the UI.
+ */
+class TranslationsLanguageState {
+  #actor;
+  constructor(actor) {
+    this.#actor = actor;
+    this.dispatch();
+  }
+
+  /** @type {TranslationPair | null} */
+  #requestedTranslationPair = null;
+
+  /**
+   * When a translation is requested, this contains the translation pair. This means
+   * that the TranslationsChild should be creating a TranslationsDocument and keep
+   * the page updated with the target language.
+   *
+   * @returns {TranslationPair | null}
+   */
+  get requestedTranslationPair() {
+    return this.#requestedTranslationPair;
+  }
+
+  set requestedTranslationPair(requestedTranslationPair) {
+    this.#requestedTranslationPair = requestedTranslationPair;
+    this.dispatch();
+  }
+
+  /** @type {LangTags | null} */
+  #detectedLanguages = null;
+
+  /**
+   * The TranslationsChild will detect languages and offer them up for translation.
+   * The results are stored here.
+   *
+   * @returns {LangTags | null}
+   */
+  get detectedLanguages() {
+    return this.#detectedLanguages;
+  }
+
+  set detectedLanguages(detectedLanguages) {
+    this.#detectedLanguages = detectedLanguages;
+    this.dispatch();
+  }
+
+  /** @type {number} */
+  #locationChangeId = -1;
+
+  /**
+   * This id represents the last location change that happened for this actor. This
+   * allows the UI to disambiguate when there are races and out of order events that
+   * are dispatched. Only the most up to date `locationChangeId` is used.
+   *
+   * @returns {number}
+   */
+  get locationChangeId() {
+    return this.#locationChangeId;
+  }
+
+  set locationChangeId(locationChangeId) {
+    this.#locationChangeId = locationChangeId;
+    this.dispatch();
+  }
+
+  /**
+   * Dispatch anytime the language details change, so that any UI can react to it.
+   */
+  dispatch() {
+    if (!TranslationsParent.isActiveLocation(this.#locationChangeId)) {
+      // Do not dispatch as this location is not active.
+      return;
+    }
+
+    const browser = this.#actor.browsingContext.top.embedderElement;
+    if (!browser) {
+      return;
+    }
+    const { CustomEvent } = browser.ownerGlobal;
+    browser.dispatchEvent(
+      new CustomEvent("TranslationsParent:LanguageState", {
+        bubbles: true,
+        detail: {
+          detectedLanguages: this.#detectedLanguages,
+          requestedTranslationPair: this.#requestedTranslationPair,
+        },
+      })
+    );
+  }
 }
