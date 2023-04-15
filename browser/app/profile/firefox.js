@@ -178,8 +178,8 @@ pref("app.update.langpack.enabled", true);
   // By default, check for updates when the browser is not running every 7 hours.
   pref("app.update.background.interval", 25200);
   // By default, snapshot Firefox Messaging System targeting for use by the
-  // background update task every 30 minutes.
-  pref("app.update.background.messaging.targeting.snapshot.intervalSec", 1800);
+  // background update task every 60 minutes.
+  pref("app.update.background.messaging.targeting.snapshot.intervalSec", 3600);
 #endif
 
 #ifdef XP_MACOSX
@@ -1203,6 +1203,9 @@ pref("places.frecency.defaultVisitBonus", 0);
 // bonus (in percent) for place types for frecency calculations
 pref("places.frecency.unvisitedBookmarkBonus", 140);
 pref("places.frecency.unvisitedTypedBonus", 200);
+
+// Enables alternative frecency calculation for origins.
+pref("places.frecency.origins.alternative.featureGate", false);
 
 // Clear data by base domain (including partitioned storage) when the user
 // selects "Forget About This Site".

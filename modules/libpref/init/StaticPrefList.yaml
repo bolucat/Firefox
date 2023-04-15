@@ -3504,7 +3504,12 @@
 # Use a Background Task to delete files at shutdown.
 - name: dom.quotaManager.backgroundTask.enabled
   type: bool
+#ifdef XP_MACOSX
+# Needs to figure out how to prevent bug 1827486.
+  value: false
+#else
   value: true
+#endif
   mirror: never
 #endif
 
@@ -8218,13 +8223,6 @@
   type: int32_t
   value: -1
   mirror: always
-
-# Whether @layer is enabled
-- name: layout.css.cascade-layers.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
 
 # Whether Container Queries are enabled
 - name: layout.css.container-queries.enabled
