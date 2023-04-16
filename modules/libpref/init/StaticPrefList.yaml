@@ -2166,12 +2166,6 @@
 # Prefs starting with "dom."
 #---------------------------------------------------------------------------
 
-# Whether CanvasRenderingContext2D.mozImageSmoothingEnabled is enabled.
-- name: dom.mozImageSmoothingEnabled.enabled
-  type: bool
-  value: false
-  mirror: always
-
 # Allow cut/copy
 - name: dom.allow_cut_copy
   type: bool
@@ -14179,6 +14173,23 @@
 - name: svg.use-element.graphics-element-restrictions
   type: int32_t
   value: 1
+  mirror: always
+
+# Whether to restrict <svg:use> element recursion levels.
+#
+# - 0: Don't restrict ever.
+# - 1: Restrict everywhere
+# - 2/other: Restrict only in the parent process.
+#
+- name: svg.use-element.recursive-clone-limit.enabled
+  type: int32_t
+  value: 2
+  mirror: always
+
+# What is the recursion limit for svg use element cloning if enabled.
+- name: svg.use-element.recursive-clone-limit
+  type: uint32_t
+  value: 8
   mirror: always
 
 #---------------------------------------------------------------------------
