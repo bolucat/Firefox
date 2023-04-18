@@ -138,6 +138,7 @@ html|input.findbar-textbox[flash="true"] {
 .findbar-container > checkbox,
 .findbar-label {
   margin: 0 8px;
+  flex-shrink: 0;
 }
 
 .findbar-find-status,

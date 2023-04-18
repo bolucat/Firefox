@@ -516,29 +516,6 @@ class LocalAccessible : public nsISupports, public Accessible {
   virtual bool IsLink() const override;
 
   /**
-   * Return true if the link is valid (e. g. points to a valid URL).
-   */
-  inline bool IsLinkValid() {
-    MOZ_ASSERT(IsLink(), "IsLinkValid is called on not hyper link!");
-
-    // XXX In order to implement this we would need to follow every link
-    // Perhaps we can get information about invalid links from the cache
-    // In the mean time authors can use role="link" aria-invalid="true"
-    // to force it for links they internally know to be invalid
-    return (0 == (State() & mozilla::a11y::states::INVALID));
-  }
-
-  /**
-   * Return the number of anchors within the link.
-   */
-  virtual uint32_t AnchorCount();
-
-  /**
-   * Returns an anchor accessible at the given index.
-   */
-  virtual LocalAccessible* AnchorAt(uint32_t aAnchorIndex);
-
-  /**
    * Returns an anchor URI at the given index.
    */
   virtual already_AddRefed<nsIURI> AnchorURIAt(uint32_t aAnchorIndex) const;

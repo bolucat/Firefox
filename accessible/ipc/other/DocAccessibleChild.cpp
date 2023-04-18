@@ -613,33 +613,6 @@ mozilla::ipc::IPCResult DocAccessibleChild::RecvEndOffset(const uint64_t& aID,
   return IPC_OK();
 }
 
-mozilla::ipc::IPCResult DocAccessibleChild::RecvIsLinkValid(const uint64_t& aID,
-                                                            bool* aRetVal) {
-  LocalAccessible* acc = IdToAccessibleLink(aID);
-  if (acc) {
-    *aRetVal = acc->IsLinkValid();
-  } else {
-    *aRetVal = false;
-  }
-
-  return IPC_OK();
-}
-
-mozilla::ipc::IPCResult DocAccessibleChild::RecvAnchorCount(const uint64_t& aID,
-                                                            uint32_t* aRetVal,
-                                                            bool* aOk) {
-  LocalAccessible* acc = IdToAccessibleLink(aID);
-  if (acc) {
-    *aRetVal = acc->AnchorCount();
-    *aOk = true;
-  } else {
-    *aRetVal = 0;
-    *aOk = false;
-  }
-
-  return IPC_OK();
-}
-
 mozilla::ipc::IPCResult DocAccessibleChild::RecvAnchorURIAt(
     const uint64_t& aID, const uint32_t& aIndex, nsCString* aURI, bool* aOk) {
   LocalAccessible* acc = IdToAccessibleLink(aID);
@@ -648,24 +621,6 @@ mozilla::ipc::IPCResult DocAccessibleChild::RecvAnchorURIAt(
     nsCOMPtr<nsIURI> uri = acc->AnchorURIAt(aIndex);
     if (uri) {
       uri->GetSpec(*aURI);
-      *aOk = true;
-    }
-  }
-
-  return IPC_OK();
-}
-
-mozilla::ipc::IPCResult DocAccessibleChild::RecvAnchorAt(const uint64_t& aID,
-                                                         const uint32_t& aIndex,
-                                                         uint64_t* aIDOfAnchor,
-                                                         bool* aOk) {
-  *aIDOfAnchor = 0;
-  *aOk = false;
-  LocalAccessible* acc = IdToAccessibleLink(aID);
-  if (acc) {
-    LocalAccessible* anchor = acc->AnchorAt(aIndex);
-    if (anchor) {
-      *aIDOfAnchor = reinterpret_cast<uint64_t>(anchor->UniqueID());
       *aOk = true;
     }
   }

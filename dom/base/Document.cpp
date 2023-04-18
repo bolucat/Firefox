@@ -14014,9 +14014,6 @@ NS_IMPL_ISUPPORTS(DevToolsMutationObserver, nsIMutationObserver)
 
 void DevToolsMutationObserver::FireEvent(nsINode* aTarget,
                                          const nsAString& aType) {
-  if (aTarget->ChromeOnlyAccess()) {
-    return;
-  }
   (new AsyncEventDispatcher(aTarget, aType, CanBubble::eNo,
                             ChromeOnlyDispatch::eYes, Composed::eYes))
       ->RunDOMEventWhenSafe();
@@ -15005,6 +15002,9 @@ void Document::HidePopover(Element& aPopover, bool aFocusPreviousElement,
   }
 
   // TODO: Run auto popover steps.
+
+  aPopover.SetHasPopoverInvoker(false);
+
   // Fire beforetoggle event and re-check popover validity.
   if (aFireEvents) {
     // Intentionally ignore the return value here as only on open event the

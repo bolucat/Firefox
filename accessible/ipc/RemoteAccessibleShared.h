@@ -109,13 +109,7 @@ LayoutDeviceIntPoint ImagePosition(uint32_t aCoordType);
 
 LayoutDeviceIntSize ImageSize();
 
-bool IsLinkValid();
-
-uint32_t AnchorCount(bool* aOk);
-
 void AnchorURIAt(uint32_t aIndex, nsCString& aURI, bool* aOk);
-
-RemoteAccessible* AnchorAt(uint32_t aIndex);
 
 uint32_t LinkCount();
 

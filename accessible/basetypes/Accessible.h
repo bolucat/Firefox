@@ -560,6 +560,21 @@ class Accessible {
 
   virtual bool HasNumericValue() const = 0;
 
+  /**
+   * Return true if the link is valid (e. g. points to a valid URL).
+   */
+  bool IsLinkValid();
+
+  /**
+   * Return the number of anchors within the link.
+   */
+  uint32_t AnchorCount();
+
+  /**
+   * Returns an anchor accessible at the given index.
+   */
+  Accessible* AnchorAt(uint32_t aAnchorIndex);
+
   // Remote/Local types
 
   virtual bool IsRemote() const = 0;
