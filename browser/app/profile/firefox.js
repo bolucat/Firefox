@@ -538,9 +538,6 @@ pref("browser.urlbar.shortcuts.history", true);
 
 pref("browser.urlbar.eventTelemetry.enabled", false);
 
-// Whether search engagement telemetry should be recorded.
-pref("browser.urlbar.searchEngagementTelemetry.enabled", false);
-
 // When we send events to Urlbar extensions, we wait this amount of time in
 // milliseconds for them to respond before timing out.
 pref("browser.urlbar.extension.timeout", 400);
@@ -1611,7 +1608,7 @@ pref("browser.newtabpage.activity-stream.discoverystream.spocSiteId", "");
 pref("browser.newtabpage.activity-stream.discoverystream.sendToPocket.enabled", true);
 
 // List of regions that do not get stories, regardless of locale-list-config.
-pref("browser.newtabpage.activity-stream.discoverystream.region-stories-block", "FR");
+pref("browser.newtabpage.activity-stream.discoverystream.region-stories-block", "");
 // List of locales that get stories, regardless of region-stories-config.
 #ifdef NIGHTLY_BUILD
   pref("browser.newtabpage.activity-stream.discoverystream.locale-list-config", "en-US,en-CA,en-GB");

@@ -69,8 +69,7 @@ NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(nsDOMMutationRecord, mTarget,
 // Observer
 
 bool nsMutationReceiverBase::IsObservable(nsIContent* aContent) {
-  return !aContent->ChromeOnlyAccess() &&
-         (Observer()->IsChrome() || !aContent->IsInNativeAnonymousSubtree());
+  return !aContent->ChromeOnlyAccess() || ChromeOnlyNodes();
 }
 
 bool nsMutationReceiverBase::ObservesAttr(nsINode* aRegisterTarget,
@@ -136,35 +135,6 @@ void nsMutationReceiver::Disconnect(bool aRemoveFromObserver) {
     }
     // UnbindObject may delete 'this'!
     target->UnbindObject(observer);
-  }
-}
-
-void nsMutationReceiver::NativeAnonymousChildListChange(nsIContent* aContent,
-                                                        bool aIsRemove) {
-  if (!NativeAnonymousChildList()) {
-    return;
-  }
-
-  nsINode* parent = aContent->GetParentNode();
-  if (!parent || (!Subtree() && Target() != parent) ||
-      (Subtree() && RegisterTarget()->SubtreeRoot() != parent->SubtreeRoot())) {
-    return;
-  }
-
-  nsDOMMutationRecord* m =
-      Observer()->CurrentRecord(nsGkAtoms::nativeAnonymousChildList);
-
-  if (m->mTarget) {
-    return;
-  }
-  m->mTarget = parent;
-
-  if (aIsRemove) {
-    m->mRemovedNodes = new nsSimpleContentList(parent);
-    m->mRemovedNodes->AppendElement(aContent);
-  } else {
-    m->mAddedNodes = new nsSimpleContentList(parent);
-    m->mAddedNodes->AppendElement(aContent);
   }
 }
 
@@ -629,7 +599,7 @@ void nsDOMMutationObserver::RescheduleForRun() {
 void nsDOMMutationObserver::Observe(nsINode& aTarget,
                                     const MutationObserverInit& aOptions,
                                     nsIPrincipal& aSubjectPrincipal,
-                                    mozilla::ErrorResult& aRv) {
+                                    ErrorResult& aRv) {
   bool childList = aOptions.mChildList;
   bool attributes =
       aOptions.mAttributes.WasPassed() && aOptions.mAttributes.Value();
@@ -638,10 +608,10 @@ void nsDOMMutationObserver::Observe(nsINode& aTarget,
   bool subtree = aOptions.mSubtree;
   bool attributeOldValue = aOptions.mAttributeOldValue.WasPassed() &&
                            aOptions.mAttributeOldValue.Value();
-  bool nativeAnonymousChildList = aOptions.mNativeAnonymousChildList;
   bool characterDataOldValue = aOptions.mCharacterDataOldValue.WasPassed() &&
                                aOptions.mCharacterDataOldValue.Value();
   bool animations = aOptions.mAnimations;
+  bool chromeOnlyNodes = aOptions.mChromeOnlyNodes;
 
   if (!aOptions.mAttributes.WasPassed() &&
       (aOptions.mAttributeOldValue.WasPassed() ||
@@ -654,8 +624,7 @@ void nsDOMMutationObserver::Observe(nsINode& aTarget,
     characterData = true;
   }
 
-  if (!(childList || attributes || characterData || animations ||
-        nativeAnonymousChildList)) {
+  if (!(childList || attributes || characterData || animations)) {
     aRv.ThrowTypeError(
         "One of 'childList', 'attributes', 'characterData' must not be false.");
     return;
@@ -703,10 +672,10 @@ void nsDOMMutationObserver::Observe(nsINode& aTarget,
   r->SetSubtree(subtree);
   r->SetAttributeOldValue(attributeOldValue);
   r->SetCharacterDataOldValue(characterDataOldValue);
-  r->SetNativeAnonymousChildList(nativeAnonymousChildList);
   r->SetAttributeFilter(std::move(filters));
   r->SetAllAttributes(allAttrs);
   r->SetAnimations(animations);
+  r->SetChromeOnlyNodes(chromeOnlyNodes);
   r->RemoveClones();
 
   if (!aSubjectPrincipal.IsSystemPrincipal() &&
@@ -764,7 +733,6 @@ void nsDOMMutationObserver::GetObservingInfo(
     info.mSubtree = mr->Subtree();
     info.mAttributeOldValue.Construct(mr->AttributeOldValue());
     info.mCharacterDataOldValue.Construct(mr->CharacterDataOldValue());
-    info.mNativeAnonymousChildList = mr->NativeAnonymousChildList();
     info.mAnimations = mr->Animations();
     nsTArray<RefPtr<nsAtom>>& filters = mr->AttributeFilter();
     if (filters.Length()) {
@@ -793,10 +761,7 @@ already_AddRefed<nsDOMMutationObserver> nsDOMMutationObserver::Constructor(
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
-  bool isChrome = nsContentUtils::IsChromeDoc(window->GetExtantDoc());
-  RefPtr<nsDOMMutationObserver> observer =
-      new nsDOMMutationObserver(std::move(window), aCb, isChrome);
-  return observer.forget();
+  return MakeAndAddRef<nsDOMMutationObserver>(std::move(window), aCb);
 }
 
 bool nsDOMMutationObserver::MergeableAttributeRecord(

@@ -48,13 +48,13 @@ export class MigrationWizard extends HTMLElement {
 
           <div name="page-selection">
             <h1 data-l10n-id="migration-wizard-selection-header"></h1>
-            <button id="browser-profile-selector">
-              <span class="migrator-icon"></span>
-              <div class="migrator-description">
-                <div class="migrator-name">&nbsp;</div>
-                <div class="profile-name deemphasized-text"></div>
+            <button id="browser-profile-selector" aria-haspopup="menu" aria-labelledby="migrator-name profile-name">
+              <span class="migrator-icon" role="img"></span>
+              <div class="migrator-description" role="presentation">
+                <div id="migrator-name">&nbsp;</div>
+                <div id="profile-name" class="deemphasized-text"></div>
               </div>
-              <span class="dropdown-icon"></span>
+              <span class="dropdown-icon" role="img"></span>
             </button>
             <div class="no-resources-found error-message">
               <span class="error-icon" role="img"></span>
@@ -319,6 +319,10 @@ export class MigrationWizard extends HTMLElement {
         this.#onShowingFileImportProgress(state);
         break;
       }
+      case MigrationWizardConstants.PAGES.NO_BROWSERS_FOUND: {
+        this.#onShowingNoBrowsersFound(state);
+        break;
+      }
     }
 
     this.#deck.toggleAttribute(
@@ -362,9 +366,9 @@ export class MigrationWizard extends HTMLElement {
    */
   #onBrowserProfileSelectionChanged(panelItem) {
     this.#browserProfileSelector.selectedPanelItem = panelItem;
-    this.#browserProfileSelector.querySelector(".migrator-name").textContent =
+    this.#browserProfileSelector.querySelector("#migrator-name").textContent =
       panelItem.displayName;
-    this.#browserProfileSelector.querySelector(".profile-name").textContent =
+    this.#browserProfileSelector.querySelector("#profile-name").textContent =
       panelItem.profile?.name || "";
 
     if (panelItem.brandImage) {
@@ -473,6 +477,20 @@ export class MigrationWizard extends HTMLElement {
         button.style.backgroundImage = `url(${migrator.brandImage})`;
       } else {
         button.style.backgroundImage = `url("chrome://global/skin/icons/defaultFavicon.svg")`;
+      }
+
+      // Bug 1823489 - since the panel-list and panel-items are slotted, we
+      // cannot style them or their children in migration-wizard.css. We use
+      // inline styles for now to achieve the desired appearance, but bug 1823489
+      // will investigate having MigrationWizard own the <xul:panel>,
+      // <panel-list> and <panel-item>'s so that styling can be done in the
+      // stylesheet instead.
+      if (migrator.type == MigrationWizardConstants.MIGRATOR_TYPES.FILE) {
+        button.style.backgroundSize = "20px";
+        button.style.backgroundPosition = "6px center";
+        if (this.#browserProfileSelectorList.isDocumentRTL()) {
+          button.style.backgroundPositionX = "right 6px";
+        }
       }
 
       if (migrator.profile) {
@@ -690,6 +708,19 @@ export class MigrationWizard extends HTMLElement {
         doneButton.focus({ focusVisible: false });
       });
     }
+  }
+
+  /**
+   * Called when showing the "no browsers found" page of the wizard.
+   *
+   * @param {object} state
+   *   The state object passed into setState. The following properties are
+   *   used:
+   * @param {string} state.hasFileMigrators
+   *   True if at least one FileMigrator is available for use.
+   */
+  #onShowingNoBrowsersFound(state) {
+    this.#chooseImportFromFile.hidden = !state.hasFileMigrators;
   }
 
   /**
