@@ -41,11 +41,13 @@ ChromeUtils.defineESModuleGetters(this, {
   PlacesUIUtils: "resource:///modules/PlacesUIUtils.sys.mjs",
   PlacesUtils: "resource://gre/modules/PlacesUtils.sys.mjs",
   PluralForm: "resource://gre/modules/PluralForm.sys.mjs",
+  Pocket: "chrome://pocket/content/Pocket.sys.mjs",
   PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
   PromiseUtils: "resource://gre/modules/PromiseUtils.sys.mjs",
   PromptUtils: "resource://gre/modules/PromptUtils.sys.mjs",
   ReaderMode: "resource://gre/modules/ReaderMode.sys.mjs",
   Sanitizer: "resource:///modules/Sanitizer.sys.mjs",
+  SaveToPocket: "chrome://pocket/content/SaveToPocket.sys.mjs",
   ScreenshotsUtils: "resource:///modules/ScreenshotsUtils.sys.mjs",
   SearchUIUtils: "resource:///modules/SearchUIUtils.sys.mjs",
   SessionStartup: "resource:///modules/sessionstore/SessionStartup.sys.mjs",
@@ -89,10 +91,8 @@ XPCOMUtils.defineLazyModuleGetters(this, {
   PageThumbs: "resource://gre/modules/PageThumbs.jsm",
   PanelMultiView: "resource:///modules/PanelMultiView.jsm",
   PanelView: "resource:///modules/PanelMultiView.jsm",
-  Pocket: "chrome://pocket/content/Pocket.jsm",
   ProcessHangMonitor: "resource:///modules/ProcessHangMonitor.jsm",
   SafeBrowsing: "resource://gre/modules/SafeBrowsing.jsm",
-  SaveToPocket: "chrome://pocket/content/SaveToPocket.jsm",
   SiteDataManager: "resource:///modules/SiteDataManager.jsm",
   SitePermissions: "resource:///modules/SitePermissions.jsm",
   TabCrashHandler: "resource:///modules/ContentCrashHandlers.jsm",
@@ -9696,9 +9696,9 @@ var ConfirmationHint = {
     this._panel.setAttribute("data-message-id", messageId);
 
     // The timeout value used here allows the panel to stay open for
-    // 1.5s second after the text transition (duration=120ms) has finished.
-    // If there is a description, we show for 4s after the text transition.
-    const DURATION = options.showDescription ? 4000 : 1500;
+    // 3s after the text transition (duration=120ms) has finished.
+    // If there is a description, we show for 6s after the text transition.
+    const DURATION = options.showDescription ? 6000 : 3000;
     this._panel.addEventListener(
       "popupshown",
       () => {

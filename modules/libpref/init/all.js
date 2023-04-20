@@ -1103,6 +1103,8 @@ pref("network.protocol-handler.external.ie.http", false);
 pref("network.protocol-handler.external.iehistory", false);
 pref("network.protocol-handler.external.ierss", false);
 pref("network.protocol-handler.external.mk", false);
+pref("network.protocol-handler.external.ms-cxh", false);
+pref("network.protocol-handler.external.ms-cxh-full", false);
 pref("network.protocol-handler.external.ms-help", false);
 pref("network.protocol-handler.external.ms-msdt", false);
 pref("network.protocol-handler.external.res", false);
@@ -3188,6 +3190,7 @@ pref("signon.masterPasswordReprompt.timeout_ms", 900000); // 15 Minutes
 pref("signon.showAutoCompleteFooter",             false);
 pref("signon.firefoxRelay.base_url", "https://relay.firefox.com/api/v1/");
 pref("signon.firefoxRelay.learn_more_url", "https://support.mozilla.org/1/firefox/%VERSION%/%OS%/%LOCALE%/firefox-relay-integration");
+pref("signon.firefoxRelay.manage_url", "https://relay.firefox.com");
 pref("signon.signupDetection.confidenceThreshold",     "0.75");
 pref("signon.signupDetection.enabled",                 false);
 

@@ -17,7 +17,6 @@ async function run_test() {
   }
 
   gfxInfo.QueryInterface(Ci.nsIGfxInfoDebug);
-  gfxInfo.fireTestProcess();
 
   // Save OS in variable since createAppInfo below will change it to "xpcshell".
   const OS = Services.appinfo.OS;
@@ -155,17 +154,9 @@ async function run_test() {
       failureId
     );
     if (OS == "Linux" && status != Ci.nsIGfxInfo.FEATURE_STATUS_OK) {
-      // Recently disable on Release/late Beta
-      if (!AppConstants.EARLY_BETA_OR_EARLIER) {
-        Assert.equal(status, Ci.nsIGfxInfo.FEATURE_BLOCKED_DEVICE);
-        Assert.equal(
-          failureId.value,
-          "FEATURE_HARDWARE_VIDEO_DECODING_DISABLE"
-        );
-      } else {
-        Assert.equal(status, Ci.nsIGfxInfo.FEATURE_BLOCKED_DRIVER_VERSION);
-        Assert.equal(failureId.value, "FEATURE_HARDWARE_VIDEO_DECODING_MESA");
-      }
+      // Disabled on testsuite due to old Mesa version there.
+      Assert.equal(status, Ci.nsIGfxInfo.FEATURE_BLOCKED_DRIVER_VERSION);
+      Assert.equal(failureId.value, "FEATURE_HARDWARE_VIDEO_DECODING_MESA");
     } else {
       Assert.equal(status, Ci.nsIGfxInfo.FEATURE_STATUS_OK);
     }

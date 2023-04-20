@@ -33,6 +33,8 @@ EXPORTS += [
 ]
 
 EXPORTS.mozilla += [
+    "GfxInfo.h",
+    "GfxInfoUtils.h",
     "GRefPtr.h",
     "GUniquePtr.h",
     "WidgetUtilsGtk.h",
