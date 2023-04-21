@@ -480,12 +480,25 @@ impl AuthrsTransport {
             .map(|alg| PublicKeyCredentialParameters::try_from(*alg).unwrap())
             .collect();
 
-        let mut require_resident_key = false;
-        unsafe { args.GetRequireResidentKey(&mut require_resident_key) }.to_result()?;
+        let mut resident_key = nsString::new();
+        unsafe { args.GetResidentKey(&mut *resident_key) }.to_result()?;
+        let resident_key = if resident_key.eq("required") {
+            Some(true)
+        } else if resident_key.eq("discouraged") {
+            Some(false)
+        } else {
+            None
+        };
 
         let mut user_verification = nsString::new();
         unsafe { args.GetUserVerification(&mut *user_verification) }.to_result()?;
-        let require_user_verification = user_verification.eq("required");
+        let user_verification = if user_verification.eq("required") {
+            Some(true)
+        } else if user_verification.eq("discouraged") {
+            Some(false)
+        } else {
+            None
+        };
 
         let mut attestation_conveyance_preference = nsString::new();
         unsafe { args.GetAttestationConveyancePreference(&mut *attestation_conveyance_preference) }
@@ -517,8 +530,8 @@ impl AuthrsTransport {
             pub_cred_params,
             exclude_list,
             options: MakeCredentialsOptions {
-                resident_key: require_resident_key.then_some(true),
-                user_verification: require_user_verification.then_some(true),
+                resident_key,
+                user_verification,
             },
             extensions: Default::default(),
             pin: None,
@@ -612,7 +625,13 @@ impl AuthrsTransport {
 
         let mut user_verification = nsString::new();
         unsafe { args.GetUserVerification(&mut *user_verification) }.to_result()?;
-        let require_user_verification = user_verification.eq("required");
+        let user_verification = if user_verification.eq("required") {
+            Some(true)
+        } else if user_verification.eq("discouraged") {
+            Some(false)
+        } else {
+            None
+        };
 
         let mut alternate_rp_id = None;
         let mut maybe_alternate_rp_id = nsString::new();
@@ -678,7 +697,7 @@ impl AuthrsTransport {
             allow_list,
             options: GetAssertionOptions {
                 user_presence: Some(true),
-                user_verification: require_user_verification.then_some(true),
+                user_verification,
             },
             extensions: Default::default(),
             pin: None,
