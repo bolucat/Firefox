@@ -38,7 +38,7 @@ export class MigrationWizard extends HTMLElement {
             <div class="loading-block large"></div>
             <div class="loading-block small"></div>
             <div class="loading-block small"></div>
-            <moz-button-group class="buttons">
+            <moz-button-group class="buttons" part="buttons">
               <!-- If possible, use the same button labels as the SELECTION page with the same strings.
                    That'll prevent flicker when the load state exits if we then enter the SELECTION page. -->
               <button class="cancel-close" data-l10n-id="migration-cancel-button-label" disabled></button>
@@ -86,7 +86,7 @@ export class MigrationWizard extends HTMLElement {
               </fieldset>
             </details>
 
-            <moz-button-group class="buttons">
+            <moz-button-group class="buttons" part="buttons">
               <button class="cancel-close" data-l10n-id="migration-cancel-button-label"></button>
               <button id="import-from-file" class="primary" data-l10n-id="migration-import-from-file-button-label"></button>
               <button id="import" class="primary" data-l10n-id="migration-import-button-label"></button>
@@ -120,9 +120,10 @@ export class MigrationWizard extends HTMLElement {
                 <span class="success-text deemphasized-text">&nbsp;</span>
               </div>
             </div>
-            <moz-button-group class="buttons">
+            <moz-button-group class="buttons" part="buttons">
               <button class="cancel-close" data-l10n-id="migration-cancel-button-label" disabled></button>
-              <button class="primary done-button" data-l10n-id="migration-done-button-label"></button>
+              <button class="primary finish-button done-button" data-l10n-id="migration-done-button-label"></button>
+              <button class="primary finish-button continue-button" data-l10n-id="migration-continue-button-label"></button>
             </moz-button-group>
           </div>
 
@@ -149,7 +150,8 @@ export class MigrationWizard extends HTMLElement {
             </div>
             <moz-button-group class="buttons">
               <button class="cancel-close" data-l10n-id="migration-cancel-button-label" disabled></button>
-              <button class="primary done-button" data-l10n-id="migration-done-button-label"></button>
+              <button class="primary finish-button done-button" data-l10n-id="migration-done-button-label"></button>
+              <button class="primary finish-button continue-button" data-l10n-id="migration-continue-button-label"></button>
             </moz-button-group>
           </div>
 
@@ -165,7 +167,7 @@ export class MigrationWizard extends HTMLElement {
                 <span class="page-portrait-icon"></span>
               </li>
             </ol>
-            <moz-button-group class="buttons">
+            <moz-button-group class="buttons" part="buttons">
               <button class="cancel-close" data-l10n-id="migration-safari-password-import-skip-button"></button>
               <button class="primary" data-l10n-id="migration-safari-password-import-select-button"></button>
             </moz-button-group>
@@ -178,7 +180,7 @@ export class MigrationWizard extends HTMLElement {
               <li data-l10n-id="migration-wizard-safari-instructions-continue"></li>
               <li data-l10n-id="migration-wizard-safari-instructions-folder"></li>
             </ol>
-            <moz-button-group class="buttons">
+            <moz-button-group class="buttons" part="buttons">
               <button class="cancel-close" data-l10n-id="migration-cancel-button-label"></button>
               <button id="safari-request-permissions" class="primary" data-l10n-id="migration-wizard-safari-select-button"></button>
             </moz-button-group>
@@ -190,7 +192,7 @@ export class MigrationWizard extends HTMLElement {
               <span class="error-icon" role="img"></span>
               <div class="no-browsers-found-message" data-l10n-id="migration-wizard-import-browser-no-browsers"></div>
             </div>
-            <moz-button-group class="buttons">
+            <moz-button-group class="buttons" part="buttons">
               <button class="cancel-close" data-l10n-id="migration-cancel-button-label"></button>
               <button id="choose-import-from-file" class="primary" data-l10n-id="migration-choose-to-import-from-file-button-label"></button>
             </moz-button-group>
@@ -244,8 +246,8 @@ export class MigrationWizard extends HTMLElement {
       button.addEventListener("click", this);
     }
 
-    let doneButtons = shadow.querySelectorAll(".done-button");
-    for (let button of doneButtons) {
+    let finishButtons = shadow.querySelectorAll(".finish-button");
+    for (let button of finishButtons) {
       button.addEventListener("click", this);
     }
 
@@ -336,6 +338,10 @@ export class MigrationWizard extends HTMLElement {
     }
   }
 
+  get #dialogMode() {
+    return this.hasAttribute("dialog-mode");
+  }
+
   #ensureSelectionDropdown() {
     if (this.#browserProfileSelectorList) {
       return;
@@ -355,6 +361,7 @@ export class MigrationWizard extends HTMLElement {
     // migration wizard to style the selector dropdown so that it more
     // closely lines up with the edges of the selector button.
     this.#browserProfileSelectorList.style.boxSizing = "border-box";
+    this.#browserProfileSelectorList.style.overflowY = "scroll";
   }
 
   /**
@@ -618,9 +625,13 @@ export class MigrationWizard extends HTMLElement {
     let header = this.#shadowRoot.getElementById("progress-header");
     document.l10n.setAttributes(header, headerL10nID);
 
-    let doneButton = progressPage.querySelector(".done-button");
+    let finishButtons = progressPage.querySelectorAll(".finish-button");
     let cancelButton = progressPage.querySelector(".cancel-close");
-    doneButton.hidden = !migrationDone;
+
+    for (let finishButton of finishButtons) {
+      finishButton.hidden = !migrationDone;
+    }
+
     cancelButton.hidden = migrationDone;
 
     if (migrationDone) {
@@ -629,7 +640,10 @@ export class MigrationWizard extends HTMLElement {
       // Instead, we use a rAF to queue this up for focusing before the
       // next paint.
       requestAnimationFrame(() => {
-        doneButton.focus({ focusVisible: false });
+        let button = this.#dialogMode
+          ? progressPage.querySelector(".done-button")
+          : progressPage.querySelector(".continue-button");
+        button.focus({ focusVisible: false });
       });
     }
   }
@@ -934,7 +948,7 @@ export class MigrationWizard extends HTMLElement {
           this.#doImport();
         } else if (
           event.target.classList.contains("cancel-close") ||
-          event.target.classList.contains("done-button")
+          event.target.classList.contains("finish-button")
         ) {
           this.dispatchEvent(
             new CustomEvent("MigrationWizard:Close", { bubbles: true })

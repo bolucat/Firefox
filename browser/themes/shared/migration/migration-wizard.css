@@ -7,6 +7,7 @@
 :host {
   display: flex;
   flex-direction: column;
+  text-align: start;
   width: 22.34em;
 }
 
@@ -51,7 +52,12 @@ div[name="page-loading"] > .buttons > button {
 
 .deemphasized-text {
   font-size: 0.84em;
-  color: var(--in-content-deemphasized-text);
+}
+
+@media not (prefers-contrast) {
+  .deemphasized-text {
+    color: var(--in-content-deemphasized-text);
+  }
 }
 
 fieldset {
@@ -185,7 +191,9 @@ summary {
   margin-block-start: 16px;
 }
 
-:host(:not([dialog-mode])) .cancel-close {
+:host(:not([dialog-mode])) .cancel-close,
+:host(:not([dialog-mode])) .done-button,
+:host([dialog-mode]) .continue-button {
   display: none;
 }
 
@@ -200,6 +208,7 @@ summary {
   grid-template-areas: "icon type"
                        "icon status";
   align-items: center;
+  justify-items: start;
 }
 
 .resource-progress-group[hidden] {

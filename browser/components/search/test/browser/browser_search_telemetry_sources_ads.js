@@ -25,6 +25,14 @@ const TEST_PROVIDER_INFO = [
     taggedCodes: ["ff"],
     followOnParamNames: ["a"],
     extraAdServersRegexps: [/^https:\/\/example\.com\/ad2?/],
+    components: [
+      {
+        type: SearchSERPTelemetryUtils.COMPONENTS.AD_LINK,
+        included: {
+          default: true,
+        },
+      },
+    ],
   },
   {
     telemetryId: "example-data-attributes",
@@ -34,6 +42,14 @@ const TEST_PROVIDER_INFO = [
     taggedCodes: ["ff"],
     adServerAttributes: ["xyz"],
     extraAdServersRegexps: [/^https:\/\/example\.com\/ad/],
+    components: [
+      {
+        type: SearchSERPTelemetryUtils.COMPONENTS.AD_LINK,
+        included: {
+          default: true,
+        },
+      },
+    ],
   },
   {
     telemetryId: "slow-page-load",
@@ -43,6 +59,14 @@ const TEST_PROVIDER_INFO = [
     taggedCodes: ["ff"],
     followOnParamNames: ["a"],
     extraAdServersRegexps: [/^https:\/\/example\.com\/ad2?/],
+    components: [
+      {
+        type: SearchSERPTelemetryUtils.COMPONENTS.AD_LINK,
+        included: {
+          default: true,
+        },
+      },
+    ],
   },
 ];
 
@@ -113,6 +137,8 @@ add_task(async function test_simple_search_page_visit() {
         tagged: "true",
         partner_code: "ff",
         source: "unknown",
+        is_shopping_page: "false",
+        shopping_tab_displayed: "false",
       },
     },
   ]);
@@ -150,6 +176,8 @@ add_task(async function test_simple_search_page_visit_telemetry() {
         tagged: "true",
         partner_code: "ff",
         source: "unknown",
+        is_shopping_page: "false",
+        shopping_tab_displayed: "false",
       },
     },
   ]);
@@ -180,6 +208,8 @@ add_task(async function test_follow_on_visit() {
         tagged: "true",
         partner_code: "ff",
         source: "unknown",
+        is_shopping_page: "false",
+        shopping_tab_displayed: "false",
       },
     },
     {
@@ -188,6 +218,8 @@ add_task(async function test_follow_on_visit() {
         tagged: "true",
         partner_code: "ff",
         source: "unknown",
+        is_shopping_page: "false",
+        shopping_tab_displayed: "false",
       },
     },
   ]);
@@ -216,6 +248,8 @@ add_task(async function test_track_ad() {
         tagged: "true",
         partner_code: "ff",
         source: "unknown",
+        is_shopping_page: "false",
+        shopping_tab_displayed: "false",
       },
     },
   ]);
@@ -256,6 +290,8 @@ add_task(async function test_track_ad_on_data_attributes() {
         tagged: "true",
         partner_code: "ff",
         source: "unknown",
+        is_shopping_page: "false",
+        shopping_tab_displayed: "false",
       },
     },
   ]);
@@ -296,6 +332,8 @@ add_task(async function test_track_ad_on_data_attributes_and_hrefs() {
         tagged: "true",
         partner_code: "ff",
         source: "unknown",
+        is_shopping_page: "false",
+        shopping_tab_displayed: "false",
       },
     },
   ]);
@@ -333,6 +371,8 @@ add_task(async function test_track_no_ad_on_data_attributes_and_hrefs() {
         tagged: "true",
         partner_code: "ff",
         source: "unknown",
+        is_shopping_page: "false",
+        shopping_tab_displayed: "false",
       },
     },
   ]);
@@ -382,6 +422,8 @@ add_task(async function test_track_ad_on_DOMContentLoaded() {
         tagged: "true",
         partner_code: "ff",
         source: "unknown",
+        is_shopping_page: "false",
+        shopping_tab_displayed: "false",
       },
     },
   ]);
@@ -418,6 +460,8 @@ add_task(async function test_track_ad_on_load_event() {
         tagged: "true",
         partner_code: "ff",
         source: "unknown",
+        is_shopping_page: "false",
+        shopping_tab_displayed: "false",
       },
     },
   ]);
@@ -448,6 +492,8 @@ add_task(async function test_track_ad_organic() {
         tagged: "false",
         partner_code: "",
         source: "unknown",
+        is_shopping_page: "false",
+        shopping_tab_displayed: "false",
       },
     },
   ]);
@@ -483,6 +529,8 @@ add_task(async function test_track_ad_new_window() {
         tagged: "true",
         partner_code: "ff",
         source: "unknown",
+        is_shopping_page: "false",
+        shopping_tab_displayed: "false",
       },
     },
   ]);
@@ -524,6 +572,8 @@ add_task(async function test_track_ad_pages_without_ads() {
         tagged: "true",
         partner_code: "ff",
         source: "unknown",
+        is_shopping_page: "false",
+        shopping_tab_displayed: "false",
       },
     },
     {
@@ -532,6 +582,8 @@ add_task(async function test_track_ad_pages_without_ads() {
         tagged: "true",
         partner_code: "ff",
         source: "unknown",
+        is_shopping_page: "false",
+        shopping_tab_displayed: "false",
       },
     },
   ]);
@@ -574,9 +626,12 @@ async function track_ad_click(testOrganic) {
         tagged,
         partner_code: partnerCode,
         source: "unknown",
+        is_shopping_page: "false",
+        shopping_tab_displayed: "false",
       },
     },
   ]);
+  await promiseAdImpressionReceived(1);
 
   let pageLoadPromise = BrowserTestUtils.waitForLocationChange(gBrowser);
   await SpecialPowers.spawn(tab.linkedBrowser, [], () => {
@@ -601,10 +656,13 @@ async function track_ad_click(testOrganic) {
         tagged,
         partner_code: partnerCode,
         source: "unknown",
+        is_shopping_page: "false",
+        shopping_tab_displayed: "false",
       },
       engagements: [
         {
           action: SearchSERPTelemetryUtils.ACTIONS.CLICKED,
+          target: SearchSERPTelemetryUtils.COMPONENTS.AD_LINK,
         },
       ],
     },
@@ -635,10 +693,13 @@ async function track_ad_click(testOrganic) {
         tagged,
         partner_code: partnerCode,
         source: "unknown",
+        is_shopping_page: "false",
+        shopping_tab_displayed: "false",
       },
       engagements: [
         {
           action: SearchSERPTelemetryUtils.ACTIONS.CLICKED,
+          target: SearchSERPTelemetryUtils.COMPONENTS.AD_LINK,
         },
       ],
     },
@@ -648,9 +709,12 @@ async function track_ad_click(testOrganic) {
         tagged,
         partner_code: partnerCode,
         source: "tabhistory",
+        is_shopping_page: "false",
+        shopping_tab_displayed: "false",
       },
     },
   ]);
+  await promiseAdImpressionReceived(2);
 
   pageLoadPromise = BrowserTestUtils.waitForLocationChange(gBrowser);
   await SpecialPowers.spawn(tab.linkedBrowser, [], () => {
@@ -678,10 +742,13 @@ async function track_ad_click(testOrganic) {
         tagged,
         partner_code: partnerCode,
         source: "unknown",
+        is_shopping_page: "false",
+        shopping_tab_displayed: "false",
       },
       engagements: [
         {
           action: SearchSERPTelemetryUtils.ACTIONS.CLICKED,
+          target: SearchSERPTelemetryUtils.COMPONENTS.AD_LINK,
         },
       ],
     },
@@ -691,10 +758,13 @@ async function track_ad_click(testOrganic) {
         tagged,
         partner_code: partnerCode,
         source: "tabhistory",
+        is_shopping_page: "false",
+        shopping_tab_displayed: "false",
       },
       engagements: [
         {
           action: SearchSERPTelemetryUtils.ACTIONS.CLICKED,
+          target: SearchSERPTelemetryUtils.COMPONENTS.AD_LINK,
         },
       ],
     },
@@ -731,9 +801,12 @@ add_task(async function test_track_ad_click_with_location_change_other_tab() {
         tagged: "true",
         partner_code: "ff",
         source: "unknown",
+        is_shopping_page: "false",
+        shopping_tab_displayed: "false",
       },
     },
   ]);
+  await promiseAdImpressionReceived();
 
   const newTab = await BrowserTestUtils.openNewForegroundTab(
     gBrowser,
@@ -764,10 +837,13 @@ add_task(async function test_track_ad_click_with_location_change_other_tab() {
         tagged: "true",
         partner_code: "ff",
         source: "unknown",
+        is_shopping_page: "false",
+        shopping_tab_displayed: "false",
       },
       engagements: [
         {
           action: SearchSERPTelemetryUtils.ACTIONS.CLICKED,
+          target: SearchSERPTelemetryUtils.COMPONENTS.AD_LINK,
         },
       ],
     },
