@@ -101,12 +101,12 @@ assertSubtype(
   '(ref 0)',
   '(ref 1)',
   `(type (struct))
-   (sub 0 (type (struct (field i32))))`);
+   (type (sub 0 (struct (field i32))))`);
 assertSubtype(
   '(ref 0)',
   '(ref 1)',
   `(type (struct))
-   (sub 0 (type (struct (field i32) (field i32))))`);
+   (type (sub 0 (struct (field i32) (field i32))))`);
 
 // Struct supertypes cannot have extra fields
 assertNotSubtype(
@@ -165,9 +165,9 @@ assertSubtype(
   '(ref 2)',
   '(ref 3)',
   `(type (struct))
-   (sub 0 (type (struct (field i32))))
+   (type (sub 0 (struct (field i32))))
    (type (struct (field (ref 0))))
-   (sub 2 (type (struct (field (ref 1)))))`);
+   (type (sub 2 (struct (field (ref 1)))))`);
 
 // Arrays are subtypes of anyref, eqref, and arrayref
 assertSubtype(
@@ -261,6 +261,45 @@ assertSubtype(
   '(ref 2)',
   '(ref 3)',
   `(type (struct))
-   (sub 0 (type (struct (field i32))))
+   (type (sub 0 (struct (field i32))))
    (type (array (ref 0)))
-   (sub 2 (type (array (ref 1))))`);
+   (type (sub 2 (array (ref 1))))`);
+
+// nullref is a subtype of everything in anyref hierarchy
+assertSubtype('anyref', 'nullref');
+assertSubtype('eqref', 'nullref');
+assertSubtype('structref', 'nullref');
+assertSubtype('arrayref', 'nullref');
+assertSubtype('(ref null 0)', 'nullref', simpleTypeSection(['(struct)']));
+assertSubtype('(ref null 0)', 'nullref', simpleTypeSection(['(array i32)']));
+
+// nullref is not a subtype of any other hierarchy
+assertNotSubtype('funcref', 'nullref');
+assertNotSubtype('(ref null 0)', 'nullref', simpleTypeSection(['(func)']));
+assertNotSubtype('externref', 'nullref');
+
+// nullfuncref is a subtype of everything in funcref hierarchy
+assertSubtype('funcref', 'nullfuncref');
+assertSubtype('(ref null 0)', 'nullfuncref', simpleTypeSection(['(func)']));
+
+// nullfuncref is not a subtype of any other hierarchy
+assertNotSubtype('anyref', 'nullfuncref');
+assertNotSubtype('eqref', 'nullfuncref');
+assertNotSubtype('structref', 'nullfuncref');
+assertNotSubtype('arrayref', 'nullfuncref');
+assertNotSubtype('externref', 'nullfuncref');
+assertNotSubtype('(ref null 0)', 'nullfuncref', simpleTypeSection(['(struct)']));
+assertNotSubtype('(ref null 0)', 'nullfuncref', simpleTypeSection(['(array i32)']));
+
+// nullexternref is a subtype of everything in externref hierarchy
+assertSubtype('externref', 'nullexternref');
+
+// nullexternref is not a subtype of any other hierarchy
+assertNotSubtype('anyref', 'nullexternref');
+assertNotSubtype('eqref', 'nullexternref');
+assertNotSubtype('structref', 'nullexternref');
+assertNotSubtype('arrayref', 'nullexternref');
+assertNotSubtype('funcref', 'nullexternref');
+assertNotSubtype('(ref null 0)', 'nullexternref', simpleTypeSection(['(struct)']));
+assertNotSubtype('(ref null 0)', 'nullexternref', simpleTypeSection(['(array i32)']));
+assertNotSubtype('(ref null 0)', 'nullexternref', simpleTypeSection(['(func)']));
