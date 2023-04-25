@@ -189,8 +189,31 @@ class FuncType {
   // relationship.
   static bool canBeSubTypeOf(const FuncType& subType,
                              const FuncType& superType) {
-    // Temporarily only support equality for function subtyping
-    return FuncType::strictlyEquals(subType, superType);
+    // A subtype must have exactly as many arguments as its supertype
+    if (subType.args().length() != superType.args().length()) {
+      return false;
+    }
+
+    // A subtype must have exactly as many returns as its supertype
+    if (subType.results().length() != superType.results().length()) {
+      return false;
+    }
+
+    // Function result types are covariant
+    for (uint32_t i = 0; i < superType.results().length(); i++) {
+      if (!ValType::isSubTypeOf(subType.results()[i], superType.results()[i])) {
+        return false;
+      }
+    }
+
+    // Function argument types are contravariant
+    for (uint32_t i = 0; i < superType.args().length(); i++) {
+      if (!ValType::isSubTypeOf(superType.args()[i], subType.args()[i])) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   bool canHaveJitEntry() const;
@@ -553,6 +576,9 @@ class SuperTypeVector {
   static size_t byteSizeForTypeDef(const TypeDef& typeDef);
 
   static size_t offsetOfLength() { return offsetof(SuperTypeVector, length_); }
+  static size_t offsetOfSelfTypeDef() {
+    return offsetof(SuperTypeVector, typeDef_);
+  };
   static size_t offsetOfTypeDefInVector(uint32_t typeDefDepth);
 };
 
@@ -649,6 +675,8 @@ class TypeDef {
   void setSuperTypeVector(const SuperTypeVector* superTypeVector) {
     superTypeVector_ = superTypeVector;
   }
+
+  static size_t offsetOfKind() { return offsetof(TypeDef, kind_); }
 
   static size_t offsetOfSuperTypeVector() {
     return offsetof(TypeDef, superTypeVector_);
