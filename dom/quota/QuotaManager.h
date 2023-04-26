@@ -190,6 +190,11 @@ class QuotaManager final : public BackgroundThreadObject {
 
   void RemoveQuota();
 
+  void RemoveQuotaForRepository(PersistenceType aPersistenceType) {
+    MutexAutoLock lock(mQuotaMutex);
+    LockedRemoveQuotaForRepository(aPersistenceType);
+  }
+
   void RemoveQuotaForOrigin(PersistenceType aPersistenceType,
                             const OriginMetadata& aOriginMetadata) {
     MutexAutoLock lock(mQuotaMutex);
@@ -325,6 +330,8 @@ class QuotaManager final : public BackgroundThreadObject {
                             const nsACString& aOrigin,
                             const Nullable<Client::Type>& aClientType);
 
+  void RepositoryClearCompleted(PersistenceType aPersistenceType);
+
   void StartIdleMaintenance() {
     AssertIsOnOwningThread();
 
@@ -366,9 +373,13 @@ class QuotaManager final : public BackgroundThreadObject {
       return *mTemporaryStoragePath;
     }
 
-    MOZ_ASSERT(aPersistenceType == PERSISTENCE_TYPE_DEFAULT);
+    if (aPersistenceType == PERSISTENCE_TYPE_DEFAULT) {
+      return *mDefaultStoragePath;
+    }
 
-    return *mDefaultStoragePath;
+    MOZ_ASSERT(aPersistenceType == PERSISTENCE_TYPE_PRIVATE);
+
+    return *mPrivateStoragePath;
   }
 
   uint64_t GetGroupLimit() const;
@@ -417,6 +428,9 @@ class QuotaManager final : public BackgroundThreadObject {
   static Result<PrincipalMetadata, nsresult> GetInfoFromPrincipal(
       nsIPrincipal* aPrincipal);
 
+  static Result<PrincipalMetadata, nsresult> GetInfoFromWindow(
+      nsPIDOMWindowOuter* aWindow);
+
   static Result<nsAutoCString, nsresult> GetOriginFromPrincipal(
       nsIPrincipal* aPrincipal);
 
@@ -454,6 +468,8 @@ class QuotaManager final : public BackgroundThreadObject {
   uint64_t LockedCollectOriginsForEviction(
       uint64_t aMinSizeToBeFreed,
       nsTArray<RefPtr<OriginDirectoryLock>>& aLocks);
+
+  void LockedRemoveQuotaForRepository(PersistenceType aPersistenceType);
 
   void LockedRemoveQuotaForOrigin(const OriginMetadata& aOriginMetadata);
 
@@ -590,7 +606,8 @@ class QuotaManager final : public BackgroundThreadObject {
   template <typename Iterator>
   static void MaybeInsertNonPersistedOriginInfos(
       Iterator aDest, const RefPtr<GroupInfo>& aTemporaryGroupInfo,
-      const RefPtr<GroupInfo>& aDefaultGroupInfo);
+      const RefPtr<GroupInfo>& aDefaultGroupInfo,
+      const RefPtr<GroupInfo>& aPrivateGroupInfo);
 
   template <typename Collect, typename Pred>
   static OriginInfosFlatTraversable CollectLRUOriginInfosUntil(
@@ -628,6 +645,7 @@ class QuotaManager final : public BackgroundThreadObject {
   // Directory lock tables that are used to update origin access time.
   DirectoryLockTable mTemporaryDirectoryLockTable;
   DirectoryLockTable mDefaultDirectoryLockTable;
+  DirectoryLockTable mPrivateDirectoryLockTable;
 
   // A list of all successfully initialized persistent origins. This list isn't
   // protected by any mutex but it is only ever touched on the IO thread.
@@ -659,6 +677,7 @@ class QuotaManager final : public BackgroundThreadObject {
   LazyInitializedOnce<const nsString> mPermanentStoragePath;
   LazyInitializedOnce<const nsString> mTemporaryStoragePath;
   LazyInitializedOnce<const nsString> mDefaultStoragePath;
+  LazyInitializedOnce<const nsString> mPrivateStoragePath;
 
   MozPromiseHolder<BoolPromise> mShutdownStoragePromiseHolder;
 
