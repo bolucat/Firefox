@@ -1000,6 +1000,9 @@ static bool CanAttachDOMCall(JSContext* cx, JSJitInfo::OpType type,
     return false;
   }
 
+  // Ion codegen expects DOM_OBJECT_SLOT to be a fixed slot in LoadDOMPrivate.
+  // It can be a dynamic slot if we transplanted this reflector object with a
+  // proxy.
   if (obj->is<NativeObject>() && obj->as<NativeObject>().numFixedSlots() == 0) {
     return false;
   }
@@ -9560,7 +9563,8 @@ AttachDecision InlinableNativeIRGenerator::tryAttachObjectConstructor() {
 
   if (argc_ == 0) {
     // TODO: Support pre-tenuring.
-    gc::AllocSite* site = script()->zone()->unknownAllocSite();
+    gc::AllocSite* site =
+        script()->zone()->unknownAllocSite(JS::TraceKind::Object);
     MOZ_ASSERT(site);
 
     uint32_t numFixedSlots = templateObj->numUsedFixedSlots();
@@ -12740,7 +12744,7 @@ static gc::AllocSite* MaybeCreateAllocSite(jsbytecode* pc,
   bool isInlined = frame->icScript()->isInlined();
 
   if (inInterpreter && !isInlined) {
-    return outerScript->zone()->unknownAllocSite();
+    return outerScript->zone()->unknownAllocSite(JS::TraceKind::Object);
   }
 
   return outerScript->createAllocSite();

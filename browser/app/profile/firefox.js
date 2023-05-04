@@ -1616,7 +1616,7 @@ pref("browser.newtabpage.activity-stream.discoverystream.region-stories-block", 
   pref("browser.newtabpage.activity-stream.discoverystream.locale-list-config", "");
 #endif
 // List of regions that get stories by default.
-pref("browser.newtabpage.activity-stream.discoverystream.region-stories-config", "US,DE,CA,GB,IE,CH,AT,BE,IN");
+pref("browser.newtabpage.activity-stream.discoverystream.region-stories-config", "US,DE,CA,GB,IE,CH,AT,BE,IN,FR,IT,ES");
 // List of regions that support the new recommendations BFF, also requires region-stories-config
 pref("browser.newtabpage.activity-stream.discoverystream.region-bff-config", "FR,IT,ES");
 // List of regions that get spocs by default.
@@ -1636,7 +1636,7 @@ pref("browser.newtabpage.activity-stream.discoverystream.spocs.personalized", tr
 
 // Flip this once the user has dismissed the Pocket onboarding experience,
 pref("browser.newtabpage.activity-stream.discoverystream.onboardingExperience.dismissed", false);
-pref("browser.newtabpage.activity-stream.discoverystream.onboardingExperience.enabled", false);
+pref("browser.newtabpage.activity-stream.discoverystream.onboardingExperience.enabled", true);
 
 // User pref to show stories on newtab (feeds.system.topstories has to be set to true as well)
 pref("browser.newtabpage.activity-stream.feeds.section.topstories", true);
@@ -1814,11 +1814,7 @@ pref("media.videocontrols.picture-in-picture.audio-toggle.enabled", true);
 pref("media.videocontrols.picture-in-picture.video-toggle.enabled", true);
 pref("media.videocontrols.picture-in-picture.video-toggle.visibility-threshold", "1.0");
 pref("media.videocontrols.picture-in-picture.keyboard-controls.enabled", true);
-#ifdef NIGHTLY_BUILD
-  pref("media.videocontrols.picture-in-picture.urlbar-button.enabled", true);
-#else
-  pref("media.videocontrols.picture-in-picture.urlbar-button.enabled", false);
-#endif
+pref("media.videocontrols.picture-in-picture.urlbar-button.enabled", true);
 
 // Preferences for the older translation service backed by external services. This is
 // planned to be replaced with an integration of the Firefox Translations service.

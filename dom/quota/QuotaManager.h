@@ -230,8 +230,8 @@ class QuotaManager final : public BackgroundThreadObject {
   // for the given process.
   void AbortOperationsForProcess(ContentParentId aContentParentId);
 
-  Result<nsCOMPtr<nsIFile>, nsresult> GetDirectoryForOrigin(
-      PersistenceType aPersistenceType, const nsACString& aASCIIOrigin) const;
+  Result<nsCOMPtr<nsIFile>, nsresult> GetOriginDirectory(
+      const OriginMetadata& aOriginMetadata) const;
 
   nsresult RestoreDirectoryMetadata2(nsIFile* aDirectory);
 
@@ -313,6 +313,8 @@ class QuotaManager final : public BackgroundThreadObject {
                                      const OriginMetadata& aOriginMetadata);
 
   nsresult EnsureTemporaryStorageIsInitialized();
+
+  RefPtr<BoolPromise> ClearPrivateRepository();
 
   RefPtr<BoolPromise> ShutdownStorage();
 
@@ -419,7 +421,7 @@ class QuotaManager final : public BackgroundThreadObject {
 
   static bool IsPrincipalInfoValid(const PrincipalInfo& aPrincipalInfo);
 
-  static PrincipalMetadata GetInfoFromValidatedPrincipalInfo(
+  Result<PrincipalMetadata, nsresult> GetInfoFromValidatedPrincipalInfo(
       const PrincipalInfo& aPrincipalInfo);
 
   static nsAutoCString GetOriginFromValidatedPrincipalInfo(
@@ -558,8 +560,7 @@ class QuotaManager final : public BackgroundThreadObject {
 
   void CleanupTemporaryStorage();
 
-  void DeleteFilesForOrigin(PersistenceType aPersistenceType,
-                            const nsACString& aOrigin);
+  void DeleteOriginDirectory(const OriginMetadata& aOriginMetadata);
 
   void FinalizeOriginEviction(nsTArray<RefPtr<OriginDirectoryLock>>&& aLocks);
 
@@ -577,6 +578,12 @@ class QuotaManager final : public BackgroundThreadObject {
   DirectoryLockTable& GetDirectoryLockTable(PersistenceType aPersistenceType);
 
   bool IsSanitizedOriginValid(const nsACString& aSanitizedOrigin);
+
+  Result<nsCString, nsresult> EnsureStorageOriginFromOrigin(
+      const nsACString& aOrigin);
+
+  Result<nsCString, nsresult> GetOriginFromStorageOrigin(
+      const nsACString& aStorageOrigin);
 
   int64_t GenerateDirectoryLockId();
 
@@ -655,6 +662,10 @@ class QuotaManager final : public BackgroundThreadObject {
   // sanitized origin strings. This hash table isn't protected by any mutex but
   // it is only ever touched on the IO thread.
   nsTHashMap<nsCStringHashKey, bool> mValidOrigins;
+
+  // These maps are protected by mQuotaMutex.
+  nsTHashMap<nsCStringHashKey, nsCString> mOriginToStorageOriginMap;
+  nsTHashMap<nsCStringHashKey, nsCString> mStorageOriginToOriginMap;
 
   // This array is populated at initialization time and then never modified, so
   // it can be iterated on any thread.

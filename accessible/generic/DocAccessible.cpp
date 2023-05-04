@@ -845,7 +845,7 @@ void DocAccessible::AttributeChanged(dom::Element* aElement,
     dom::Element* elm = accessible->Elm();
     RelocateARIAOwnedIfNeeded(elm);
     ARIAActiveDescendantIDMaybeMoved(accessible);
-    accessible->SendCache(CacheDomain::DOMNodeID, CacheUpdateType::Update);
+    QueueCacheUpdate(accessible, CacheDomain::DOMNodeIDAndClass);
     QueueCacheUpdateForDependentRelations(accessible);
   }
 
@@ -1570,10 +1570,9 @@ LocalAccessible* DocAccessible::GetAccessibleEvenIfNotInMap(
   if (imageFrame) {
     LocalAccessible* parent = GetAccessible(imageFrame->GetContent());
     if (parent) {
-      LocalAccessible* area =
-          parent->AsImageMap()->GetChildAccessibleFor(aNode);
-      if (area) return area;
-
+      if (HTMLImageMapAccessible* imageMap = parent->AsImageMap()) {
+        return imageMap->GetChildAccessibleFor(aNode);
+      }
       return nullptr;
     }
   }

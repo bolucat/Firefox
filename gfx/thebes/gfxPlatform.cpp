@@ -25,6 +25,7 @@
 #include "mozilla/gfx/CanvasManagerParent.h"
 #include "mozilla/gfx/CanvasRenderThread.h"
 #include "mozilla/ClearOnShutdown.h"
+#include "mozilla/DebugOnly.h"
 #include "mozilla/EnumTypeTraits.h"
 #include "mozilla/StaticPrefs_accessibility.h"
 #include "mozilla/StaticPrefs_apz.h"
@@ -2807,19 +2808,11 @@ void gfxPlatform::InitWebRenderConfig() {
     gfxVars::SetReuseDecoderDevice(true);
   }
 
-  // SWAP_EFFECT_FLIP_SEQUENTIAL is strongly recommended on Win10+ machines --
-  // DXGI warnings are emitted by the Direct3D11 debug layer if it's not used.
-  //
-  // This avoids bug 1763981, which is only exhibited on Windows 11. (This may
-  // be due to some sort of raciness between the parent and GPU processes when
-  // no separate compositor-HWND is created. Alternatively, it may be a bug in
-  // Win11 DWM's handling of SWAP_EFFECT_SEQUENTIAL.)
-  if (Preferences::GetBool("gfx.webrender.flip-sequential", IsWin10OrLater())) {
+  if (Preferences::GetBool("gfx.webrender.flip-sequential", false)) {
     if (gfxVars::UseWebRenderANGLE()) {
       gfxVars::SetUseWebRenderFlipSequentialWin(true);
     }
   }
-
   if (Preferences::GetBool("gfx.webrender.triple-buffering.enabled", false)) {
     if (gfxVars::UseWebRenderDCompWin() ||
         gfxVars::UseWebRenderFlipSequentialWin()) {
@@ -3775,7 +3768,8 @@ void gfxPlatform::BuildContentDeviceData(
   MOZ_ASSERT(XRE_IsParentProcess());
 
   // Make sure our settings are synchronized from the GPU process.
-  GPUProcessManager::Get()->EnsureGPUReady();
+  DebugOnly<nsresult> rv = GPUProcessManager::Get()->EnsureGPUReady();
+  MOZ_ASSERT(rv != NS_ERROR_ILLEGAL_DURING_SHUTDOWN);
 
   aOut->prefs().hwCompositing() = gfxConfig::GetValue(Feature::HW_COMPOSITING);
   aOut->prefs().oglCompositing() =
