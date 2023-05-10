@@ -1178,24 +1178,10 @@ void CodeGenerator::visitFloat32ToInt32(LFloat32ToInt32* lir) {
 
 void CodeGenerator::visitInt32ToIntPtr(LInt32ToIntPtr* lir) {
 #ifdef JS_64BIT
+  // This LIR instruction is only used if the input can be negative.
+  MOZ_ASSERT(lir->mir()->canBeNegative());
+
   Register output = ToRegister(lir->output());
-
-  // This is a no-op if the input can't be negative. In debug builds assert
-  // (1) the upper 32 bits are zero and (2) the value <= INT32_MAX so that sign
-  // extension isn't needed.
-  if (!lir->mir()->canBeNegative()) {
-    MOZ_ASSERT(ToRegister(lir->input()) == output);
-#  ifdef DEBUG
-    Label ok;
-    masm.branchPtr(Assembler::BelowOrEqual, output, ImmWord(INT32_MAX), &ok);
-    masm.assumeUnreachable("LInt32ToIntPtr: unexpected range for value");
-    masm.bind(&ok);
-#  else
-    MOZ_CRASH("Not used in non-debug mode");
-#  endif
-    return;
-  }
-
   const LAllocation* input = lir->input();
   if (input->isRegister()) {
     masm.move32SignExtendToPtr(ToRegister(input), output);
@@ -2533,8 +2519,8 @@ JitCode* JitRealm::generateRegExpMatcherStub(JSContext* cx) {
   masm.bind(&matchResultJoin);
 
   MOZ_ASSERT(nativeTemplateObj.numFixedSlots() == 0);
-  // Dynamic slot count is always one less than a power of 2.
-  MOZ_ASSERT(nativeTemplateObj.numDynamicSlots() == 3);
+  // Dynamic slot count is always two less than a power of 2.
+  MOZ_ASSERT(nativeTemplateObj.numDynamicSlots() == 6);
   static_assert(RegExpRealm::MatchResultObjectIndexSlot == 0,
                 "First slot holds the 'index' property");
   static_assert(RegExpRealm::MatchResultObjectInputSlot == 1,
@@ -4239,7 +4225,7 @@ void CodeGenerator::visitMegamorphicLoadSlot(LMegamorphicLoadSlot* lir) {
   masm.passABIArg(temp2);
   masm.passABIArg(temp3);
 
-  masm.callWithABI<Fn, GetNativeDataPropertyByIdPure>();
+  masm.callWithABI<Fn, GetNativeDataPropertyPure>();
 
   MOZ_ASSERT(!output.aliases(ReturnReg));
   masm.Pop(output);
@@ -4304,30 +4290,50 @@ void CodeGenerator::visitMegamorphicLoadSlotByValue(
 
 void CodeGenerator::visitMegamorphicStoreSlot(LMegamorphicStoreSlot* lir) {
   Register obj = ToRegister(lir->object());
-  ValueOperand rhs = ToValue(lir, LMegamorphicStoreSlot::RhsIndex);
+  ValueOperand value = ToValue(lir, LMegamorphicStoreSlot::RhsIndex);
+
   Register temp0 = ToRegister(lir->temp0());
+#ifndef JS_CODEGEN_X86
   Register temp1 = ToRegister(lir->temp1());
   Register temp2 = ToRegister(lir->temp2());
+#endif
 
-  masm.Push(rhs);
-  masm.moveStackPtrTo(temp0);
+  Label cacheHit, done;
+  if (JitOptions.enableWatchtowerMegamorphic) {
+#ifdef JS_CODEGEN_X86
+    masm.emitMegamorphicCachedSetSlot(
+        lir->mir()->name(), obj, temp0, value, &cacheHit,
+        [](MacroAssembler& masm, const Address& addr, MIRType mirType) {
+          EmitPreBarrier(masm, addr, mirType);
+        });
+#else
+    masm.emitMegamorphicCachedSetSlot(
+        lir->mir()->name(), obj, temp0, temp1, temp2, value, &cacheHit,
+        [](MacroAssembler& masm, const Address& addr, MIRType mirType) {
+          EmitPreBarrier(masm, addr, mirType);
+        });
+#endif
+  }
 
-  using Fn =
-      bool (*)(JSContext* cx, JSObject* obj, PropertyName* name, Value* val);
-  masm.setupAlignedABICall();
-  masm.loadJSContext(temp1);
-  masm.passABIArg(temp1);
-  masm.passABIArg(obj);
-  masm.movePtr(ImmGCPtr(lir->mir()->name()), temp2);
-  masm.passABIArg(temp2);
-  masm.passABIArg(temp0);
-  masm.callWithABI<Fn, SetNativeDataPropertyPure>();
+  pushArg(Imm32(lir->mir()->strict()));
+  pushArg(value);
+  pushArg(lir->mir()->name(), temp0);
+  pushArg(obj);
 
-  MOZ_ASSERT(!rhs.aliases(temp0));
-  masm.storeCallPointerResult(temp0);
-  masm.Pop(rhs);
+  using Fn = bool (*)(JSContext*, HandleObject, HandleId, HandleValue, bool);
+  callVM<Fn, SetPropertyMegamorphic<true>>(lir);
 
-  bailoutIfFalseBool(temp0, lir->snapshot());
+  masm.jump(&done);
+  masm.bind(&cacheHit);
+
+  masm.branchPtrInNurseryChunk(Assembler::Equal, obj, temp0, &done);
+  masm.branchValueIsNurseryCell(Assembler::NotEqual, value, temp0, &done);
+
+  saveVolatile(temp0);
+  emitPostWriteBarrier(obj);
+  restoreVolatile(temp0);
+
+  masm.bind(&done);
 }
 
 void CodeGenerator::visitMegamorphicHasProp(LMegamorphicHasProp* lir) {
@@ -13836,14 +13842,12 @@ void CodeGenerator::visitMegamorphicSetElement(LMegamorphicSetElement* lir) {
   }
 
   pushArg(Imm32(lir->mir()->strict()));
-  pushArg(TypedOrValueRegister(MIRType::Object, AnyRegister(obj)));
   pushArg(ToValue(lir, LMegamorphicSetElement::ValueIndex));
   pushArg(ToValue(lir, LMegamorphicSetElement::IndexIndex));
   pushArg(obj);
 
-  using Fn = bool (*)(JSContext*, HandleObject, HandleValue, HandleValue,
-                      HandleValue, bool);
-  callVM<Fn, js::jit::SetElementMegamorphicCached>(lir);
+  using Fn = bool (*)(JSContext*, HandleObject, HandleValue, HandleValue, bool);
+  callVM<Fn, js::jit::SetElementMegamorphic<true>>(lir);
 
   masm.jump(&done);
   masm.bind(&cacheHit);
