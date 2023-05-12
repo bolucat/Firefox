@@ -114,8 +114,7 @@ EventListenerManagerBase::EventListenerManagerBase()
       mMayHaveTransitionEventListener(false),
       mClearingListeners(false),
       mIsMainThreadELM(NS_IsMainThread()),
-      mHasNonPrivilegedClickListeners(false),
-      mUnknownNonPrivilegedClickListeners(false) {
+      mMayHaveListenersForUntrustedEvents(false) {
   ClearNoListenersForEvents();
   static_assert(sizeof(EventListenerManagerBase) == sizeof(uint64_t),
                 "Keep the size of EventListenerManagerBase size compact!");
@@ -249,8 +248,10 @@ void EventListenerManager::AddEventListenerInternal(
   listener->mListenerIsHandler = aHandler;
   listener->mHandlerIsString = false;
   listener->mAllEvents = aAllEvents;
-  listener->mIsChrome =
-      mIsMainThreadELM && nsContentUtils::LegacyIsCallerChromeOrNativeCode();
+
+  if (listener->mFlags.mAllowUntrustedEvents) {
+    mMayHaveListenersForUntrustedEvents = true;
+  }
 
   // Detect the type of event listener.
   if (aFlags.mListenerIsJSListener) {
@@ -636,13 +637,6 @@ void EventListenerManager::AddEventListenerInternal(
     EventListenerService::NotifyAboutMainThreadListenerChange(mTarget,
                                                               aTypeAtom);
   }
-
-  if (!mHasNonPrivilegedClickListeners || mUnknownNonPrivilegedClickListeners) {
-    if (IsNonChromeClickListener(listener)) {
-      mHasNonPrivilegedClickListeners = true;
-      mUnknownNonPrivilegedClickListeners = false;
-    }
-  }
 }
 
 void EventListenerManager::ProcessApzAwareEventListenerAdd() {
@@ -819,9 +813,6 @@ void EventListenerManager::RemoveEventListenerInternal(
     if (EVENT_TYPE_EQUALS(listener, aEventMessage, aUserType, aAllEvents)) {
       if (listener->mListener == aListenerHolder &&
           listener->mFlags.EqualsForRemoval(aFlags)) {
-        if (IsNonChromeClickListener(listener)) {
-          mUnknownNonPrivilegedClickListeners = true;
-        }
         mListeners.RemoveElementAt(i);
         NotifyEventListenerRemoved(aUserType);
         if (!aAllEvents && deviceType) {
@@ -831,23 +822,6 @@ void EventListenerManager::RemoveEventListenerInternal(
       }
     }
   }
-}
-
-bool EventListenerManager::HasNonPrivilegedClickListeners() {
-  if (mUnknownNonPrivilegedClickListeners) {
-    Listener* listener;
-
-    mUnknownNonPrivilegedClickListeners = false;
-    for (uint32_t i = 0; i < mListeners.Length(); ++i) {
-      listener = &mListeners.ElementAt(i);
-      if (IsNonChromeClickListener(listener)) {
-        mHasNonPrivilegedClickListeners = true;
-        return mHasNonPrivilegedClickListeners;
-      }
-    }
-    mHasNonPrivilegedClickListeners = false;
-  }
-  return mHasNonPrivilegedClickListeners;
 }
 
 bool EventListenerManager::ListenerCanHandle(const Listener* aListener,
@@ -1011,6 +985,7 @@ EventListenerManager::Listener* EventListenerManager::SetEventHandlerInternal(
   listener->mHandlerIsString = !aTypedHandler.HasEventHandler();
   if (aPermitUntrustedEvents) {
     listener->mFlags.mAllowUntrustedEvents = true;
+    mMayHaveListenersForUntrustedEvents = true;
   }
 
   return listener;
@@ -1104,22 +1079,12 @@ void EventListenerManager::RemoveEventHandler(nsAtom* aName) {
   Listener* listener = FindEventHandler(eventMessage, aName);
 
   if (listener) {
-    if (IsNonChromeClickListener(listener)) {
-      mUnknownNonPrivilegedClickListeners = true;
-    }
     mListeners.RemoveElementAt(uint32_t(listener - &mListeners.ElementAt(0)));
     NotifyEventListenerRemoved(aName);
     if (IsDeviceType(eventMessage)) {
       DisableDevice(eventMessage);
     }
   }
-}
-
-bool EventListenerManager::IsNonChromeClickListener(Listener* aListener) {
-  return !aListener->mFlags.mInSystemGroup && !aListener->mIsChrome &&
-         aListener->mEventMessage == eMouseClick &&
-         (aListener->GetJSEventHandler() ||
-          aListener->mListener.HasWebIDLCallback());
 }
 
 nsresult EventListenerManager::CompileEventHandlerInternal(
