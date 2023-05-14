@@ -2806,7 +2806,7 @@
 # Enable indexedDB in private browsing mode with encryption
 - name: dom.indexedDB.privateBrowsing.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: false
   mirror: always
 
 # Whether or not indexedDB test mode is enabled.
@@ -12691,6 +12691,13 @@
 - name: network.webtransport.redirect.enabled
   type: RelaxedAtomicBool
   value: false
+  mirror: always
+
+# Wifi-scan polling period, in ms, when on a mobile network.
+# A value of 0 indicates that no polling should be done.
+- name: network.wifi.scanning_period
+  type: RelaxedAtomicUint32
+  value: 60000
   mirror: always
 
 #---------------------------------------------------------------------------
