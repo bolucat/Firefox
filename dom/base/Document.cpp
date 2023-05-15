@@ -8105,15 +8105,6 @@ void Document::DispatchContentLoadedEvents() {
     }
   }
 
-  // If the document has a manifest attribute, fire a MozApplicationManifest
-  // event.
-  Element* root = GetRootElement();
-  if (root && root->HasAttr(kNameSpaceID_None, nsGkAtoms::manifest)) {
-    nsContentUtils::DispatchChromeEvent(this, ToSupports(this),
-                                        u"MozApplicationManifest"_ns,
-                                        CanBubble::eYes, Cancelable::eYes);
-  }
-
   nsPIDOMWindowInner* inner = GetInnerWindow();
   if (inner) {
     inner->NoteDOMContentLoaded();
@@ -10755,10 +10746,9 @@ void Document::SetMetaViewportData(UniquePtr<ViewportMetaData> aData) {
   // Trigger recomputation of the nsViewportInfo the next time it's queried.
   mViewportType = Unknown;
 
-  RefPtr<AsyncEventDispatcher> asyncDispatcher =
-      new AsyncEventDispatcher(this, u"DOMMetaViewportFitChanged"_ns,
-                               CanBubble::eYes, ChromeOnlyDispatch::eYes);
-  asyncDispatcher->RunDOMEventWhenSafe();
+  AsyncEventDispatcher::RunDOMEventWhenSafe(
+      *this, u"DOMMetaViewportFitChanged"_ns, CanBubble::eYes,
+      ChromeOnlyDispatch::eYes);
 }
 
 EventListenerManager* Document::GetOrCreateListenerManager() {
@@ -11966,9 +11956,10 @@ void Document::MutationEventDispatched(nsINode* aTarget) {
 
   mSubtreeModifiedTargets.Clear();
 
-  for (nsINode* target : realTargets) {
+  for (const nsCOMPtr<nsINode>& target : realTargets) {
     InternalMutationEvent mutation(true, eLegacySubtreeModified);
-    (new AsyncEventDispatcher(target, mutation))->RunDOMEventWhenSafe();
+    // MOZ_KnownLive due to bug 1620312
+    AsyncEventDispatcher::RunDOMEventWhenSafe(MOZ_KnownLive(*target), mutation);
   }
 }
 
@@ -12213,9 +12204,8 @@ void Document::SetReadyStateInternal(ReadyState aReadyState,
     RecordNavigationTiming(aReadyState);
   }
 
-  RefPtr<AsyncEventDispatcher> asyncDispatcher = new AsyncEventDispatcher(
-      this, u"readystatechange"_ns, CanBubble::eNo, ChromeOnlyDispatch::eNo);
-  asyncDispatcher->RunDOMEventWhenSafe();
+  AsyncEventDispatcher::RunDOMEventWhenSafe(
+      *this, u"readystatechange"_ns, CanBubble::eNo, ChromeOnlyDispatch::eNo);
 }
 
 void Document::GetReadyState(nsAString& aReadyState) const {
@@ -14037,9 +14027,9 @@ NS_IMPL_ISUPPORTS(DevToolsMutationObserver, nsIMutationObserver)
 
 void DevToolsMutationObserver::FireEvent(nsINode* aTarget,
                                          const nsAString& aType) {
-  (new AsyncEventDispatcher(aTarget, aType, CanBubble::eNo,
-                            ChromeOnlyDispatch::eYes, Composed::eYes))
-      ->RunDOMEventWhenSafe();
+  AsyncEventDispatcher::RunDOMEventWhenSafe(*aTarget, aType, CanBubble::eNo,
+                                            ChromeOnlyDispatch::eYes,
+                                            Composed::eYes);
 }
 
 void DevToolsMutationObserver::AttributeChanged(Element* aElement,
