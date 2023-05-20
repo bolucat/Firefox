@@ -346,9 +346,12 @@ class nsContentList : public nsBaseContentList,
     mState = State::Dirty;
     InvalidateNamedItemsCache();
     Reset();
+    SetEnabledCallbacks(nsIMutationObserver::kNodeWillBeDestroyed);
   }
 
   void LastRelease() override;
+
+  class HashEntry;
 
  protected:
   // A cache from name to the first named item in mElements. Only possibly
@@ -428,6 +431,13 @@ class nsContentList : public nsBaseContentList,
    */
   void RemoveFromCaches() override { RemoveFromHashtable(); }
 
+  void MaybeMarkDirty() {
+    if (mState != State::Dirty && ++mMissedUpdates > 128) {
+      mMissedUpdates = 0;
+      SetDirty();
+    }
+  }
+
   nsINode* mRootNode;  // Weak ref
   int32_t mMatchNameSpaceId;
   RefPtr<nsAtom> mHTMLMatchAtom;
@@ -448,6 +458,8 @@ class nsContentList : public nsBaseContentList,
   void* mData = nullptr;
 
   mozilla::UniquePtr<NamedItemsCache> mNamedItemsCache;
+
+  uint8_t mMissedUpdates = 0;
 
   // The current state of the list.
   State mState;
@@ -485,6 +497,15 @@ class nsContentList : public nsBaseContentList,
    * Whether the list observes mutations to the DOM tree.
    */
   const bool mIsLiveList : 1;
+  /*
+   * True if this content list is cached in a hash table.
+   * For nsContentList (but not its subclasses), the hash table is
+   * gContentListHashTable.
+   * For nsCacheableFuncStringContentList, the hash table is
+   * gFuncStringContentListHashTable.
+   * Other subclasses of nsContentList can't be in hash tables.
+   */
+  bool mInHashtable : 1;
 
 #ifdef DEBUG_CONTENT_LIST
   void AssertInSync();
@@ -531,6 +552,8 @@ class nsCacheableFuncStringContentList : public nsContentList {
 #ifdef DEBUG
   ContentListType mType;
 #endif
+
+  class HashEntry;
 
  protected:
   nsCacheableFuncStringContentList(

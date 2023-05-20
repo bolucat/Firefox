@@ -115,9 +115,9 @@ addAccessibleTask(
   },
   {
     chrome: false,
-    iframe: isCacheEnabled,
-    remoteIframe: isCacheEnabled,
-    topLevel: isCacheEnabled,
+    iframe: true,
+    remoteIframe: true,
+    topLevel: true,
   }
 );
 
@@ -175,9 +175,9 @@ addAccessibleTask(
     chrome: true,
     // IA2 doesn't have a LINKS_TO relation and Windows non-cached
     // RemoteAccessible uses IA2, so we can't run these tests in this case.
-    topLevel: !isWinNoCache,
-    iframe: !isWinNoCache,
-    remoteIframe: !isWinNoCache,
+    topLevel: true,
+    iframe: true,
+    remoteIframe: true,
   }
 );
 
@@ -238,8 +238,8 @@ addAccessibleTask(
      * so we avoid running this test in chrome or when the cache is off.
      */
     chrome: false,
-    iframe: isCacheEnabled,
-    remoteIframe: isCacheEnabled,
-    topLevel: isCacheEnabled,
+    iframe: true,
+    remoteIframe: true,
+    topLevel: true,
   }
 );

@@ -135,14 +135,6 @@ addAccessibleTask(
   `,
   async function(browser, accDoc) {
     info("Testing simple LtR text");
-    if (isWinNoCache) {
-      ok(true, "skipping tests, running on windows without cache");
-      // We have to do this in at least one of these sub-tasks because
-      // otherwise the test harness complains this file is empty when
-      // it runs on windows without the cache enabled.
-      return;
-    }
-
     await testTextNode(accDoc, browser, "p1");
     await testTextNode(accDoc, browser, "p2");
     await testTextNode(accDoc, browser, "p3");
@@ -171,8 +163,8 @@ addAccessibleTask(
     await testTextRange(accDoc, browser, "p2", 6, 11);
   },
   {
-    topLevel: !isWinNoCache,
-    iframe: !isWinNoCache,
+    topLevel: true,
+    iframe: true,
   }
 );
 
@@ -194,8 +186,8 @@ addAccessibleTask(
     await testTextNode(accDoc, browser, "p7");
   },
   {
-    topLevel: !isWinNoCache,
-    iframe: !isWinNoCache,
+    topLevel: true,
+    iframe: true,
   }
 );
 
@@ -217,8 +209,8 @@ addAccessibleTask(
     await testTextNode(accDoc, browser, "p4");
   },
   {
-    topLevel: !isWinNoCache,
-    iframe: !isWinNoCache,
+    topLevel: true,
+    iframe: true,
   }
 );
 
@@ -235,15 +227,13 @@ addAccessibleTask(
   async function(browser, accDoc) {
     info("Testing multiline RtL text");
     await testTextNode(accDoc, browser, "p4");
-    if (!isCacheEnabled) {
-      await testTextNode(accDoc, browser, "p5"); // w/ cache fails x, w - off by one char
-    }
+    //await testTextNode(accDoc, browser, "p5"); // w/ cache fails x, w - off by one char
     // await testTextNode(accDoc, browser, "p6"); // w/o cache, fails width (a 259, e 250), w/ cache fails w, h in iframe (line wrapping)
     await testTextNode(accDoc, browser, "p7");
   },
   {
-    topLevel: !isWinNoCache,
-    iframe: !isWinNoCache,
+    topLevel: true,
+    iframe: true,
   }
 );
 
@@ -265,8 +255,8 @@ addAccessibleTask(
     await testTextRange(accDoc, browser, "p2", 6, 10);
   },
   {
-    topLevel: !isWinNoCache,
-    iframe: !isWinNoCache,
+    topLevel: true,
+    iframe: true,
   }
 );
 
@@ -299,8 +289,8 @@ addAccessibleTask(
     await testTextNode(accDoc, browser, "p6");
   },
   {
-    topLevel: isCacheEnabled,
-    iframe: isCacheEnabled,
+    topLevel: true,
+    iframe: true,
   }
 );
 
@@ -323,8 +313,8 @@ addAccessibleTask(
     // await testTextNode(accDoc, browser, "p4"); // off by 4 with caching, iframe
   },
   {
-    topLevel: isCacheEnabled,
-    iframe: isCacheEnabled,
+    topLevel: true,
+    iframe: true,
   }
 );
 
@@ -346,8 +336,8 @@ addAccessibleTask(
     await testTextNode(accDoc, browser, "d5");
   },
   {
-    topLevel: !isWinNoCache,
-    iframe: !isWinNoCache,
+    topLevel: true,
+    iframe: true,
   }
 );
 
@@ -369,8 +359,8 @@ addAccessibleTask(
   },
   {
     chrome: true,
-    topLevel: !isWinNoCache,
-    iframe: !isWinNoCache,
+    topLevel: true,
+    iframe: true,
   }
 );
 
@@ -385,8 +375,8 @@ addAccessibleTask(
   },
   {
     chrome: true,
-    topLevel: !isWinNoCache,
-    iframe: !isWinNoCache,
+    topLevel: true,
+    iframe: true,
   }
 );
 
@@ -411,8 +401,8 @@ XXX</pre>`,
   },
   {
     chrome: true,
-    topLevel: !isWinNoCache,
-    iframe: !isWinNoCache,
+    topLevel: true,
+    iframe: true,
   }
 );
 
@@ -439,8 +429,8 @@ XXX</pre>`,
   },
   {
     chrome: true,
-    topLevel: !isWinNoCache,
-    iframe: !isWinNoCache,
+    topLevel: true,
+    iframe: true,
   }
 );
 
@@ -453,7 +443,7 @@ addAccessibleTask(
     const p = findAccessibleChildByID(docAcc, "p");
     testTextBounds(p, 0, 2, [0, 0, 0, 0], COORDTYPE_SCREEN_RELATIVE);
   },
-  { chrome: true, topLevel: !isWinNoCache }
+  { chrome: true, topLevel: !true }
 );
 
 /**
@@ -482,8 +472,8 @@ X</pre>`,
   },
   {
     chrome: true,
-    topLevel: !isWinNoCache,
-    iframe: !isWinNoCache,
+    topLevel: true,
+    iframe: true,
   }
 );
 
@@ -511,8 +501,8 @@ X</pre></div>`,
   },
   {
     chrome: true,
-    topLevel: !isWinNoCache,
-    iframe: !isWinNoCache,
+    topLevel: true,
+    iframe: true,
   }
 );
 
@@ -557,7 +547,7 @@ c</textarea>
     );
     ok(newY.value < oldY.value, "y coordinate smaller after scrolling down");
   },
-  { chrome: true, topLevel: !isWinNoCache, iframe: !isWinNoCache }
+  { chrome: true, topLevel: true, iframe: !true }
 );
 
 /**
@@ -629,7 +619,7 @@ addAccessibleTask(
       "GetRangeExtents correct with TEXT_OFFSET_CARET/END_OF_TEXT"
     );
   },
-  { chrome: true, topLevel: !isWinNoCache, remoteIframe: !isWinNoCache }
+  { chrome: true, topLevel: true, remoteIframe: !true }
 );
 
 /**
@@ -671,7 +661,7 @@ foo</p>
       COORDTYPE_SCREEN_RELATIVE
     );
   },
-  { chrome: true, topLevel: !isWinNoCache, remoteIframe: !isWinNoCache }
+  { chrome: true, topLevel: true, remoteIframe: !true }
 );
 
 /**
@@ -700,7 +690,7 @@ X</pre>`,
   },
   {
     chrome: true,
-    topLevel: !isWinNoCache,
-    iframe: !isWinNoCache,
+    topLevel: true,
+    iframe: true,
   }
 );

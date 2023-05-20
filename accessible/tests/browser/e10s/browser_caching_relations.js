@@ -175,9 +175,9 @@ addAccessibleTask(
   },
   {
     chrome: true,
-    topLevel: isCacheEnabled,
-    iframe: isCacheEnabled,
-    remoteIframe: isCacheEnabled,
+    topLevel: true,
+    iframe: true,
+    remoteIframe: true,
   }
 );
 
@@ -219,9 +219,9 @@ addAccessibleTask(
     chrome: true,
     // IA2 doesn't have a LINKS_TO relation and Windows non-cached
     // RemoteAccessible uses IA2, so we can't run these tests in this case.
-    topLevel: !isWinNoCache,
-    iframe: !isWinNoCache,
-    remoteIframe: !isWinNoCache,
+    topLevel: true,
+    iframe: true,
+    remoteIframe: true,
   }
 );
 
@@ -285,5 +285,5 @@ addAccessibleTask(
   async function(browser, accDoc) {
     await testCachedRelation(accDoc, RELATION_NODE_CHILD_OF, accDoc.parent);
   },
-  { topLevel: isCacheEnabled, chrome: true }
+  { topLevel: true, chrome: true }
 );

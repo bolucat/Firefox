@@ -31,14 +31,7 @@ ef gh</pre>
   async function(browser, docAcc) {
     for (const id of ["br", "pre"]) {
       const acc = findAccessibleChildByID(docAcc, id);
-      if (isWinNoCache) {
-        todo(
-          false,
-          "Cache disabled, so RemoteAccessible doesn't support CharacterCount on Windows"
-        );
-      } else {
-        testCharacterCount([acc], 11);
-      }
+      testCharacterCount([acc], 11);
       testTextAtOffset(acc, BOUNDARY_LINE_START, [
         [0, 5, "ab cd\n", 0, 6],
         [6, 11, "ef gh", 6, 11],
@@ -51,25 +44,18 @@ ef gh</pre>
         [0, 5, "ef gh", 6, 11],
         [6, 11, "", 11, 11],
       ]);
-      if (isWinNoCache) {
-        todo(
-          false,
-          "Cache disabled, so RemoteAccessible doesn't support BOUNDARY_LINE_END on Windows"
-        );
-      } else {
-        testTextAtOffset(acc, BOUNDARY_LINE_END, [
-          [0, 5, "ab cd", 0, 5],
-          [6, 11, "\nef gh", 5, 11],
-        ]);
-        testTextBeforeOffset(acc, BOUNDARY_LINE_END, [
-          [0, 5, "", 0, 0],
-          [6, 11, "ab cd", 0, 5],
-        ]);
-        testTextAfterOffset(acc, BOUNDARY_LINE_END, [
-          [0, 5, "\nef gh", 5, 11],
-          [6, 11, "", 11, 11],
-        ]);
-      }
+      testTextAtOffset(acc, BOUNDARY_LINE_END, [
+        [0, 5, "ab cd", 0, 5],
+        [6, 11, "\nef gh", 5, 11],
+      ]);
+      testTextBeforeOffset(acc, BOUNDARY_LINE_END, [
+        [0, 5, "", 0, 0],
+        [6, 11, "ab cd", 0, 5],
+      ]);
+      testTextAfterOffset(acc, BOUNDARY_LINE_END, [
+        [0, 5, "\nef gh", 5, 11],
+        [6, 11, "", 11, 11],
+      ]);
       testTextAtOffset(acc, BOUNDARY_WORD_START, [
         [0, 2, "ab ", 0, 3],
         [3, 5, "cd\n", 3, 6],
@@ -88,40 +74,26 @@ ef gh</pre>
         [6, 8, "gh", 9, 11],
         [9, 11, "", 11, 11],
       ]);
-      if (isWinNoCache) {
-        todo(
-          false,
-          "Cache disabled, so RemoteAccessible doesn't support BOUNDARY_WORD_END on Windows"
-        );
-      } else {
-        testTextAtOffset(acc, BOUNDARY_WORD_END, [
-          [0, 1, "ab", 0, 2],
-          [2, 4, " cd", 2, 5],
-          [5, 7, "\nef", 5, 8],
-          [8, 11, " gh", 8, 11],
-        ]);
-        testTextBeforeOffset(acc, BOUNDARY_WORD_END, [
-          [0, 2, "", 0, 0],
-          [3, 5, "ab", 0, 2],
-          // See below for offset 6.
-          [7, 8, " cd", 2, 5],
-          [9, 11, "\nef", 5, 8],
-        ]);
-        if (id == "br" && !isCacheEnabled) {
-          todo(
-            false,
-            "Cache disabled, so TextBeforeOffset BOUNDARY_WORD_END returns incorrect result after br"
-          );
-        } else {
-          testTextBeforeOffset(acc, BOUNDARY_WORD_END, [[6, 6, " cd", 2, 5]]);
-        }
-        testTextAfterOffset(acc, BOUNDARY_WORD_END, [
-          [0, 2, " cd", 2, 5],
-          [3, 5, "\nef", 5, 8],
-          [6, 8, " gh", 8, 11],
-          [9, 11, "", 11, 11],
-        ]);
-      }
+      testTextAtOffset(acc, BOUNDARY_WORD_END, [
+        [0, 1, "ab", 0, 2],
+        [2, 4, " cd", 2, 5],
+        [5, 7, "\nef", 5, 8],
+        [8, 11, " gh", 8, 11],
+      ]);
+      testTextBeforeOffset(acc, BOUNDARY_WORD_END, [
+        [0, 2, "", 0, 0],
+        [3, 5, "ab", 0, 2],
+        // See below for offset 6.
+        [7, 8, " cd", 2, 5],
+        [9, 11, "\nef", 5, 8],
+      ]);
+      testTextBeforeOffset(acc, BOUNDARY_WORD_END, [[6, 6, " cd", 2, 5]]);
+      testTextAfterOffset(acc, BOUNDARY_WORD_END, [
+        [0, 2, " cd", 2, 5],
+        [3, 5, "\nef", 5, 8],
+        [6, 8, " gh", 8, 11],
+        [9, 11, "", 11, 11],
+      ]);
       testTextAtOffset(acc, BOUNDARY_PARAGRAPH, [
         [0, 5, "ab cd\n", 0, 6],
         [6, 11, "ef gh", 6, 11],
@@ -140,18 +112,6 @@ ef gh</pre>
       [1, 1, `a${kEmbedChar}d`, 0, 3],
       [2, 3, `${kEmbedChar}d`, 1, 3],
     ]);
-    if (isCacheEnabled) {
-      testTextAtOffset(linksBreaking, BOUNDARY_WORD_START, [
-        [0, 0, `a${kEmbedChar}`, 0, 2],
-        [1, 1, `a${kEmbedChar}d`, 0, 3],
-        [2, 3, `${kEmbedChar}d`, 1, 3],
-      ]);
-    } else {
-      todo(
-        false,
-        "TextLeafPoint disabled, so word boundaries are incorrect for linksBreaking"
-      );
-    }
     const p = findAccessibleChildByID(docAcc, "p");
     testTextAtOffset(p, BOUNDARY_LINE_START, [
       [0, 0, "a", 0, 1],
@@ -234,10 +194,10 @@ addAccessibleTask(
     // different offsets. This doesn't matter because they're invalid either
     // way. Since the new HyperTextAccessibleBase implementation is all we will
     // have soon, just test that.
-    chrome: isCacheEnabled,
-    topLevel: isCacheEnabled,
-    iframe: isCacheEnabled,
-    remoteIframe: isCacheEnabled,
+    chrome: true,
+    topLevel: true,
+    iframe: true,
+    remoteIframe: true,
   }
 );
 
@@ -263,9 +223,9 @@ addAccessibleTask(
   },
   {
     chrome: true,
-    topLevel: !isWinNoCache,
-    iframe: !isWinNoCache,
-    remoteIframe: !isWinNoCache,
+    topLevel: true,
+    iframe: true,
+    remoteIframe: true,
   }
 );
 
@@ -286,9 +246,9 @@ addAccessibleTask(
   },
   {
     chrome: true,
-    topLevel: !isWinNoCache,
-    iframe: !isWinNoCache,
-    remoteIframe: !isWinNoCache,
+    topLevel: true,
+    iframe: true,
+    remoteIframe: true,
   }
 );
 
@@ -362,8 +322,8 @@ addAccessibleTask(
   },
   {
     chrome: true,
-    topLevel: isCacheEnabled,
-    iframe: isCacheEnabled,
-    remoteIframe: isCacheEnabled,
+    topLevel: true,
+    iframe: true,
+    remoteIframe: true,
   }
 );

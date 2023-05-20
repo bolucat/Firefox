@@ -226,13 +226,6 @@
 #endif
   mirror: always
 
-# Whether to cache the entire accessibility trees of all content processes in
-# the parent process.
-- name: accessibility.cache.enabled
-  type: bool
-  value: true
-  mirror: once
-
 # Whether to avoid accessibility activation on Windows shortly after clipboard
 # copy.
 #
@@ -7798,10 +7791,10 @@
   mirror: always  # LoadStartupJSPrefs
   do_not_use_directly: true
 
-#if !defined(JS_CODEGEN_MIPS32) && !defined(JS_CODEGEN_MIPS64)
+#if !defined(JS_CODEGEN_MIPS32) && !defined(JS_CODEGEN_MIPS64) && !defined(JS_CODEGEN_LOONG64)
   # Spectre security vulnerability mitigations for the JS JITs.
   #
-  # NOTE: The MIPS backends do not support these mitigations (and generally
+  # NOTE: The MIPS and LoongArch backends do not support these mitigations (and generally
   #       do not need them). In that case, leave the pref unlisted with its
   #       default value of false.
 -   name: javascript.options.spectre.index_masking
@@ -7833,7 +7826,7 @@
     value: true
     mirror: always  # LoadStartupJSPrefs
     do_not_use_directly: true
-#endif  // !defined(JS_CODEGEN_MIPSXX)
+#endif  // !defined(JS_CODEGEN_MIPSXX) && !defined(JS_CODEGEN_LOONG64)
 
 # Separate pref to override the values of the Spectre-related prefs above for
 # isolated web content processes, where we don't need these mitigations.
@@ -10276,19 +10269,15 @@
     mirror: always
 
 # Using Windows Media Foundation Media Engine for encrypted playback
+# 0 : disable, 1 : enable for encrypted and clear,
+# 2 : enable for encrypted only, 3 : enable for clear only
 -   name: media.wmf.media-engine.enabled
-    type: RelaxedAtomicBool
-    value: false
+    type: RelaxedAtomicUint32
+    value: 0
     mirror: always
 
 # Testing purpose, enable media engine on channel decoder as well.
 -   name: media.wmf.media-engine.channel-decoder.enabled
-    type: RelaxedAtomicBool
-    value: false
-    mirror: always
-
-# This allows playing DRM video via the media engine pipeline.
--   name: media.wmf.media-engine.drm-playback
     type: RelaxedAtomicBool
     value: false
     mirror: always
@@ -10887,7 +10876,16 @@
 #if defined(MOZ_WIDGET_ANDROID)
   value: true
 #else
+  value: @IS_EARLY_BETA_OR_EARLIER@
+#endif
+  mirror: always
+
+- name: media.webrtc.platformencoder.sw_only
+  type: RelaxedAtomicBool
+#if defined(MOZ_WIDGET_ANDROID)
   value: false
+#else
+  value: true
 #endif
   mirror: always
 
@@ -10898,11 +10896,6 @@
 #else
   value: false
 #endif
-  mirror: always
-
-- name: media.webrtc.platformencoder.sw_mft
-  type: RelaxedAtomicBool
-  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 #if defined(XP_MACOSX)
@@ -11028,6 +11021,15 @@
   type: RelaxedAtomicBool
   value: true
   mirror: always
+
+# On Mac, enables using the `<Brand> Media Plugin Helper` executable as the
+# GMP child process instead of the plugin-container executable.
+#if defined(XP_MACOSX)
+-   name: media.plugin_helper_process.enabled
+    type: RelaxedAtomicBool
+    value: @IS_NIGHTLY_BUILD@
+    mirror: always
+#endif
 
 #---------------------------------------------------------------------------
 # Prefs starting with "midi."
