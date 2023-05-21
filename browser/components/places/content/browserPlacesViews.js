@@ -267,7 +267,8 @@ class PlacesViewBase {
         aPopup.triggerNode.id === "PlacesToolbarItems" ||
         aPopup.triggerNode.parentNode.id === "PlacesToolbarItems"
       ) {
-        let otherBookmarksMenuItem = BookmarkingUI.buildShowOtherBookmarksMenuItem();
+        let otherBookmarksMenuItem =
+          BookmarkingUI.buildShowOtherBookmarksMenuItem();
 
         if (otherBookmarksMenuItem) {
           aPopup.insertBefore(otherBookmarksMenuItem, menu.nextElementSibling);
@@ -891,9 +892,9 @@ class PlacesToolbar extends PlacesViewBase {
       ["_dropIndicator", "PlacesToolbarDropIndicator"],
       ["_chevron", "PlacesChevron"],
       ["_chevronPopup", "PlacesChevronPopup"],
-    ].forEach(function(elementGlobal) {
+    ].forEach(function (elementGlobal) {
       let [name, id] = elementGlobal;
-      thisView.__defineGetter__(name, function() {
+      thisView.__defineGetter__(name, function () {
         let element = document.getElementById(id);
         if (!element) {
           return null;
@@ -1817,12 +1818,13 @@ class PlacesToolbar extends PlacesViewBase {
         translateX = 0 - this._rootElt.getBoundingClientRect().right - halfInd;
         if (this._rootElt.firstElementChild) {
           if (dropPoint.beforeIndex == -1) {
-            translateX += this._rootElt.lastElementChild.getBoundingClientRect()
-              .left;
+            translateX +=
+              this._rootElt.lastElementChild.getBoundingClientRect().left;
           } else {
-            translateX += this._rootElt.children[
-              dropPoint.beforeIndex
-            ].getBoundingClientRect().right;
+            translateX +=
+              this._rootElt.children[
+                dropPoint.beforeIndex
+              ].getBoundingClientRect().right;
           }
         }
       } else {
@@ -1830,12 +1832,13 @@ class PlacesToolbar extends PlacesViewBase {
         translateX = 0 - this._rootElt.getBoundingClientRect().left + halfInd;
         if (this._rootElt.firstElementChild) {
           if (dropPoint.beforeIndex == -1) {
-            translateX += this._rootElt.lastElementChild.getBoundingClientRect()
-              .right;
+            translateX +=
+              this._rootElt.lastElementChild.getBoundingClientRect().right;
           } else {
-            translateX += this._rootElt.children[
-              dropPoint.beforeIndex
-            ].getBoundingClientRect().left;
+            translateX +=
+              this._rootElt.children[
+                dropPoint.beforeIndex
+              ].getBoundingClientRect().left;
           }
         }
       }

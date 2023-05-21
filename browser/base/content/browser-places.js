@@ -175,11 +175,8 @@ var StarUI = {
    * Handle popup hidden event.
    */
   async _handlePopupHiddenEvent() {
-    const {
-      bookmarkState,
-      didChangeFolder,
-      selectedFolderGuid,
-    } = gEditItemOverlay;
+    const { bookmarkState, didChangeFolder, selectedFolderGuid } =
+      gEditItemOverlay;
     gEditItemOverlay.uninitPanel(true);
 
     // Capture _removeBookmarksOnPopupHidden and _itemGuids values. Reset them
@@ -225,9 +222,8 @@ var StarUI = {
       titleL10nID
     );
 
-    this._element(
-      "editBookmarkPanel_showForNewBookmarks"
-    ).checked = this.showForNewBookmarks;
+    this._element("editBookmarkPanel_showForNewBookmarks").checked =
+      this.showForNewBookmarks;
 
     this._itemGuids = [];
     await PlacesUtils.bookmarks.fetch({ url: aUrl }, bookmark =>
@@ -257,7 +253,7 @@ var StarUI = {
       }
       target.addEventListener(
         "popupshown",
-        function(event) {
+        function (event) {
           fn();
         },
         { capture: true, once: true }
@@ -683,11 +679,12 @@ class HistoryMenu extends PlacesMenu {
     this.undoWindowMenu.removeAttribute("disabled");
 
     // populate menu
-    let windowsFragment = RecentlyClosedTabsAndWindowsMenuUtils.getWindowsFragment(
-      window,
-      "menuitem",
-      /* aPrefixRestoreAll = */ false
-    );
+    let windowsFragment =
+      RecentlyClosedTabsAndWindowsMenuUtils.getWindowsFragment(
+        window,
+        "menuitem",
+        /* aPrefixRestoreAll = */ false
+      );
     undoPopup.appendChild(windowsFragment);
   }
 
@@ -729,7 +726,8 @@ class HistoryMenu extends PlacesMenu {
       }
       openUILink(placesNode.uri, aEvent, {
         ignoreAlt: true,
-        triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(),
+        triggeringPrincipal:
+          Services.scriptSecurityManager.getSystemPrincipal(),
       });
     }
   }
@@ -983,7 +981,7 @@ var PlacesMenuDNDHandler = {
     this._closeTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
     this._closingTimerNode = event.currentTarget;
     this._closeTimer.initWithCallback(
-      function() {
+      function () {
         this._closeTimer = null;
         this._closingTimerNode = null;
         let node = PlacesControllerDragHelper.currentDropTarget;
@@ -1224,10 +1222,10 @@ var PlacesToolbarHelper = {
       return;
     }
     // Show item's uri in the status bar when hovering, and clear on exit
-    popup.addEventListener("DOMMenuItemActive", function(event) {
+    popup.addEventListener("DOMMenuItemActive", function (event) {
       XULBrowserWindow.setOverLink(event.target.link);
     });
-    popup.addEventListener("DOMMenuItemInactive", function() {
+    popup.addEventListener("DOMMenuItemInactive", function () {
       XULBrowserWindow.setOverLink("");
     });
     let fragment = document.createDocumentFragment();
@@ -1534,9 +1532,8 @@ var BookmarkingUI = {
         return false;
       }
       // Hmm, apparently not. Check for bookmarks or customize mode:
-      let bookmarksToolbarItemsPlacement = CustomizableUI.getPlacementOfWidget(
-        "personal-bookmarks"
-      );
+      let bookmarksToolbarItemsPlacement =
+        CustomizableUI.getPlacementOfWidget("personal-bookmarks");
       let bookmarksItemInToolbar =
         bookmarksToolbarItemsPlacement?.area == CustomizableUI.AREA_BOOKMARKS;
       if (!bookmarksItemInToolbar) {

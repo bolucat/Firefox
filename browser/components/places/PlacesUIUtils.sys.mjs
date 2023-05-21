@@ -722,9 +722,8 @@ export var PlacesUIUtils = {
 
     // When we're not building a context menu, only focusable views
     // are possible.  Thus, we can safely use the command dispatcher.
-    let controller = win.top.document.commandDispatcher.getControllerForCommand(
-      command
-    );
+    let controller =
+      win.top.document.commandDispatcher.getControllerForCommand(command);
     return controller || null;
   },
 
@@ -865,13 +864,11 @@ export var PlacesUIUtils = {
 
     var uri = Services.io.newURI(aURINode.uri);
     if (uri.schemeIs("javascript") || uri.schemeIs("data")) {
-      const [
-        title,
-        errorStr,
-      ] = PlacesUIUtils.promptLocalization.formatValuesSync([
-        "places-error-title",
-        "places-load-js-data-url-error",
-      ]);
+      const [title, errorStr] =
+        PlacesUIUtils.promptLocalization.formatValuesSync([
+          "places-error-title",
+          "places-load-js-data-url-error",
+        ]);
       Services.prompt.alert(aWindow, title, errorStr);
       return false;
     }
@@ -1550,7 +1547,7 @@ export var PlacesUIUtils = {
       "placesContext_copy",
     ];
     // Hide everything. We'll unhide the things we need.
-    Array.from(menupopup.children).forEach(function(child) {
+    Array.from(menupopup.children).forEach(function (child) {
       child.hidden = true;
     });
     // Store triggerNode in controller for checking if commands are enabled
@@ -1574,12 +1571,8 @@ export var PlacesUIUtils = {
       document.getElementById("placesContext_open:newprivatewindow").hidden =
         lazy.PrivateBrowsingUtils.isWindowPrivate(window) ||
         !lazy.PrivateBrowsingUtils.enabled;
-      document.getElementById(
-        "placesContext_open:newcontainertab"
-      ).hidden = !Services.prefs.getBoolPref(
-        "privacy.userContext.enabled",
-        false
-      );
+      document.getElementById("placesContext_open:newcontainertab").hidden =
+        !Services.prefs.getBoolPref("privacy.userContext.enabled", false);
     }
 
     event.target.ownerGlobal.updateCommands("places");
@@ -1665,9 +1658,8 @@ export var PlacesUIUtils = {
   },
 
   openSelectionInTabs(event) {
-    let isManaged = !!event.target.parentNode.triggerNode.closest(
-      "#managed-bookmarks"
-    );
+    let isManaged =
+      !!event.target.parentNode.triggerNode.closest("#managed-bookmarks");
     let controller;
     if (isManaged) {
       controller = this.managedBookmarksController;
@@ -1730,7 +1722,7 @@ export var PlacesUIUtils = {
             { type: lazy.PlacesUtils.TYPE_PLAINTEXT, entries: [] },
           ];
 
-          contents.forEach(function(content) {
+          contents.forEach(function (content) {
             content.entries.push(lazy.PlacesUtils.wrapNode(node, content.type));
           });
 
@@ -1747,7 +1739,7 @@ export var PlacesUIUtils = {
             );
           }
 
-          contents.forEach(function(content) {
+          contents.forEach(function (content) {
             addData(content.type, content.entries.join(lazy.PlacesUtils.endl));
           });
 
@@ -1971,7 +1963,7 @@ XPCOMUtils.defineLazyGetter(PlacesUIUtils, "SUPPORTED_FLAVORS", () => {
   return [...PlacesUIUtils.PLACES_FLAVORS, ...PlacesUIUtils.URI_FLAVORS];
 });
 
-XPCOMUtils.defineLazyGetter(PlacesUIUtils, "ellipsis", function() {
+XPCOMUtils.defineLazyGetter(PlacesUIUtils, "ellipsis", function () {
   return Services.prefs.getComplexValue(
     "intl.ellipsis",
     Ci.nsIPrefLocalizedString

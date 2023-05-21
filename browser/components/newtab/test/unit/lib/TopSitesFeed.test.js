@@ -104,7 +104,7 @@ describe("Top Sites Feed", () => {
       .callsFake(site =>
         site.url.replace(/(.com|.ca)/, "").replace("https://", "")
       );
-    const fakeDedupe = function() {};
+    const fakeDedupe = function () {};
     fakePageThumbs = {
       addExpirationFilter: sinon.stub(),
       removeExpirationFilter: sinon.stub(),
@@ -413,9 +413,8 @@ describe("Top Sites Feed", () => {
       it("should migrate pinned favicon data without getting favicons again", async () => {
         fakeNewTabUtils.pinnedLinks.links = [{ url: "https://foo.com/" }];
         await feed.getLinksWithDefaults();
-        const {
-          callCount,
-        } = fakeNewTabUtils.activityStreamProvider._addFavicons;
+        const { callCount } =
+          fakeNewTabUtils.activityStreamProvider._addFavicons;
         feed.pinnedCache.expire();
 
         const result = await feed.getLinksWithDefaults();
