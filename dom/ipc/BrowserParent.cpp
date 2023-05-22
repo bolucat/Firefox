@@ -1125,8 +1125,7 @@ void BrowserParent::Deactivate(bool aWindowLowering, uint64_t aActionId) {
 #ifdef ACCESSIBILITY
 a11y::PDocAccessibleParent* BrowserParent::AllocPDocAccessibleParent(
     PDocAccessibleParent* aParent, const uint64_t&,
-    const MaybeDiscardedBrowsingContext&, const uint32_t&,
-    const IAccessibleHolder&) {
+    const MaybeDiscardedBrowsingContext&) {
   // Reference freed in DeallocPDocAccessibleParent.
   return a11y::DocAccessibleParent::New().take();
 }
@@ -1140,8 +1139,7 @@ bool BrowserParent::DeallocPDocAccessibleParent(PDocAccessibleParent* aParent) {
 mozilla::ipc::IPCResult BrowserParent::RecvPDocAccessibleConstructor(
     PDocAccessibleParent* aDoc, PDocAccessibleParent* aParentDoc,
     const uint64_t& aParentID,
-    const MaybeDiscardedBrowsingContext& aBrowsingContext,
-    const uint32_t& aMsaaID, const IAccessibleHolder& aDocCOMProxy) {
+    const MaybeDiscardedBrowsingContext& aBrowsingContext) {
 #  if defined(ANDROID)
   MonitorAutoLock mal(nsAccessibilityService::GetAndroidMonitor());
 #  endif
@@ -1188,15 +1186,9 @@ mozilla::ipc::IPCResult BrowserParent::RecvPDocAccessibleConstructor(
     }
 
 #  ifdef XP_WIN
-    MOZ_ASSERT(aDocCOMProxy.IsNull());
-    if (!a11y::IsCacheActive()) {
-      a11y::MsaaAccessible::GetFrom(doc)->SetID(aMsaaID);
-    }
     if (a11y::nsWinUtils::IsWindowEmulationStarted()) {
       doc->SetEmulatedWindowHandle(parentDoc->GetEmulatedWindowHandle());
     }
-#  else
-    Unused << aDoc->SendConstructedInParentProcess();
 #  endif
 
     return IPC_OK();
@@ -1211,23 +1203,7 @@ mozilla::ipc::IPCResult BrowserParent::RecvPDocAccessibleConstructor(
     // In this case, we don't get aParentDoc and aParentID.
     MOZ_ASSERT(!aParentDoc && !aParentID);
     doc->SetTopLevelInContentProcess();
-#  ifdef XP_WIN
-    if (!a11y::IsCacheActive()) {
-      MOZ_ASSERT(!aDocCOMProxy.IsNull());
-      RefPtr<IAccessible> proxy(aDocCOMProxy.Get());
-      doc->SetCOMInterface(proxy);
-    }
-#  endif
     a11y::ProxyCreated(doc);
-#  ifdef XP_WIN
-    if (!a11y::IsCacheActive()) {
-      // This *must* be called after ProxyCreated because
-      // MsaaAccessible::GetFrom will fail before that.
-      a11y::MsaaAccessible* msaa = a11y::MsaaAccessible::GetFrom(doc);
-      MOZ_ASSERT(msaa);
-      msaa->SetID(aMsaaID);
-    }
-#  endif
     // It's possible the embedder accessible hasn't been set yet; e.g.
     // a hidden iframe. In that case, embedderDoc will be null and this will
     // be handled when the embedder is set.
@@ -1262,19 +1238,7 @@ mozilla::ipc::IPCResult BrowserParent::RecvPDocAccessibleConstructor(
     doc->SetTopLevel();
     a11y::DocManager::RemoteDocAdded(doc);
 #  ifdef XP_WIN
-    if (a11y::IsCacheActive()) {
-      doc->MaybeInitWindowEmulation();
-    } else {
-      a11y::MsaaAccessible::GetFrom(doc)->SetID(aMsaaID);
-      MOZ_ASSERT(!aDocCOMProxy.IsNull());
-
-      RefPtr<IAccessible> proxy(aDocCOMProxy.Get());
-      doc->SetCOMInterface(proxy);
-      doc->MaybeInitWindowEmulation();
-      if (a11y::LocalAccessible* outerDoc = doc->OuterDocOfRemoteBrowser()) {
-        doc->SendParentCOMProxy(outerDoc);
-      }
-    }
+    doc->MaybeInitWindowEmulation();
 #  endif
   }
   return IPC_OK();

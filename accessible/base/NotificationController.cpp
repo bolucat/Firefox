@@ -977,21 +977,17 @@ void NotificationController::WillRefresh(mozilla::TimeStamp aTime) {
       ipcDoc = new DocAccessibleChild(childDoc, parentIPCDoc->Manager());
       childDoc->SetIPCDoc(ipcDoc);
 
-#if defined(XP_WIN)
-      parentIPCDoc->ConstructChildDocInParentProcess(
-          ipcDoc, id,
-          a11y::IsCacheActive() ? 0 : MsaaAccessible::GetChildIDFor(childDoc));
-#else
       nsCOMPtr<nsIBrowserChild> browserChild =
           do_GetInterface(mDocument->DocumentNode()->GetDocShell());
       if (browserChild) {
         static_cast<BrowserChild*>(browserChild.get())
             ->SendPDocAccessibleConstructor(
                 ipcDoc, parentIPCDoc, id,
-                childDoc->DocumentNode()->GetBrowsingContext(), 0, 0);
+                childDoc->DocumentNode()->GetBrowsingContext());
+#ifndef XP_WIN
         ipcDoc->SendPDocAccessiblePlatformExtConstructor();
-      }
 #endif
+      }
     }
   }
 
