@@ -149,7 +149,7 @@ class nsGenericHTMLElement : public nsGenericHTMLElementBase {
     return false;
   }
 
-  mozilla::dom::PopoverState GetPopoverState() const;
+  mozilla::dom::PopoverAttributeState GetPopoverAttributeState() const;
   void PopoverPseudoStateUpdate(bool aOpen, bool aNotify);
   bool PopoverOpen() const;
   bool CheckPopoverValidity(mozilla::dom::PopoverVisibilityState aExpectedState,
@@ -169,7 +169,8 @@ class nsGenericHTMLElement : public nsGenericHTMLElementBase {
                                               bool aFireEvents,
                                               ErrorResult& aRv);
   MOZ_CAN_RUN_SCRIPT void HidePopover(ErrorResult& aRv);
-  MOZ_CAN_RUN_SCRIPT void TogglePopover(bool force, ErrorResult& aRv);
+  MOZ_CAN_RUN_SCRIPT void TogglePopover(
+      const mozilla::dom::Optional<bool>& aForce, ErrorResult& aRv);
   MOZ_CAN_RUN_SCRIPT void FocusPopover();
   void ForgetPreviouslyFocusedElementAfterHidingPopover();
   MOZ_CAN_RUN_SCRIPT void FocusPreviousElementAfterHidingPopover();

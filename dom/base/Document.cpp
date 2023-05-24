@@ -15025,7 +15025,6 @@ Document::HideAllPopoversWithoutRunningScript() {
   return HideAllPopoversUntil(*this, false, false);
 }
 
-// https://html.spec.whatwg.org/#dom-hidepopover
 void Document::HidePopover(Element& aPopover, bool aFocusPreviousElement,
                            bool aFireEvents, ErrorResult& aRv) {
   RefPtr<nsGenericHTMLElement> popoverHTMLEl =
@@ -15284,15 +15283,6 @@ bool Document::FullscreenElementReadyCheck(FullscreenRequest& aRequest) {
   }
   if (elem->IsHTMLElement(nsGkAtoms::dialog)) {
     aRequest.Reject("FullscreenDeniedHTMLDialog");
-    return false;
-  }
-  // XXXsmaug Note, we don't follow the latest fullscreen spec here.
-  //         This whole check could be probably removed.
-  if (fullscreenElement && !nsContentUtils::ContentIsHostIncludingDescendantOf(
-                               elem, fullscreenElement)) {
-    // If this document is fullscreen, only grant fullscreen requests from
-    // a descendant of the current fullscreen element.
-    aRequest.Reject("FullscreenDeniedNotDescendant");
     return false;
   }
   if (!nsContentUtils::IsChromeDoc(this) && !IsInFocusedTab(this)) {
@@ -16179,7 +16169,9 @@ void Document::SendPageUseCounters() {
   wgc->SendAccumulatePageUseCounters(counters);
 }
 
-void Document::RecomputeResistFingerprinting() {
+bool Document::RecomputeResistFingerprinting() {
+  const bool previous = mShouldResistFingerprinting;
+
   if (mParentDocument &&
       (NodePrincipal()->Equals(mParentDocument->NodePrincipal()) ||
        NodePrincipal()->GetIsNullPrincipal())) {
@@ -16197,13 +16189,12 @@ void Document::RecomputeResistFingerprinting() {
         nsContentUtils::ShouldResistFingerprinting(
             mChannel, RFPTarget::IsAlwaysEnabledForPrecompute);
   }
+
+  return previous != mShouldResistFingerprinting;
 }
 
 bool Document::ShouldResistFingerprinting(
     RFPTarget aTarget /* = RFPTarget::Unknown */) const {
-  if (aTarget == RFPTarget::IgnoreTargetAndReturnCachedValue) {
-    return mShouldResistFingerprinting;
-  }
   return mShouldResistFingerprinting && nsRFPService::IsRFPEnabledFor(aTarget);
 }
 
