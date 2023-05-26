@@ -251,7 +251,6 @@
 #include "mozilla/ipc/IdleSchedulerChild.h"
 #include "mozilla/ipc/MessageChannel.h"
 #include "mozilla/net/ChannelEventQueue.h"
-#include "mozilla/net/ChildDNSService.h"
 #include "mozilla/net/CookieJarSettings.h"
 #include "mozilla/net/NeckoChannelParams.h"
 #include "mozilla/net/RequestContextService.h"
@@ -327,6 +326,7 @@
 #include "nsIDocumentLoader.h"
 #include "nsIDocumentLoaderFactory.h"
 #include "nsIDocumentObserver.h"
+#include "nsIDNSService.h"
 #include "nsIEditingSession.h"
 #include "nsIEditor.h"
 #include "nsIEffectiveTLDService.h"
@@ -1922,31 +1922,8 @@ void Document::GetFailedCertSecurityInfo(FailedCertSecurityInfo& aInfo,
   Unused << NS_WARN_IF(NS_FAILED(pkps->HostHasPins(aURI, &aInfo.mHasHPKP)));
 }
 
-bool Document::AllowDeprecatedTls() {
-  return Preferences::GetBool("security.tls.version.enable-deprecated", false);
-}
-
-void Document::SetAllowDeprecatedTls(bool value) {
-  if (!IsErrorPage()) {
-    return;
-  }
-
-  auto docShell = GetDocShell();
-  if (!docShell) {
-    return;
-  }
-
-  auto child = BrowserChild::GetFrom(docShell);
-  if (!child) {
-    return;
-  }
-
-  child->SendSetAllowDeprecatedTls(value);
-}
-
 bool Document::IsAboutPage() const {
-  nsCOMPtr<nsIPrincipal> principal = NodePrincipal();
-  return principal->SchemeIs("about");
+  return NodePrincipal()->SchemeIs("about");
 }
 
 void Document::ConstructUbiNode(void* storage) {
@@ -2116,9 +2093,13 @@ void Document::AccumulatePageLoadTelemetry(
     bool resolvedByTRR = false;
     Unused << httpChannel->GetIsResolvedByTRR(&resolvedByTRR);
     if (resolvedByTRR) {
-      RefPtr<net::ChildDNSService> dnsServiceChild =
-          net::ChildDNSService::GetSingleton();
-      dnsServiceChild->GetTRRDomainKey(dnsKey);
+      if (nsCOMPtr<nsIDNSService> dns =
+              do_GetService(NS_DNSSERVICE_CONTRACTID)) {
+        dns->GetTRRDomainKey(dnsKey);
+      } else {
+        // Failed to get the DNS service.
+        dnsKey = "(fail)"_ns;
+      }
       aEventTelemetryDataOut.trrDomain = mozilla::Some(dnsKey);
     }
 
@@ -12402,12 +12383,12 @@ void Document::MaybePreLoadImage(nsIURI* aUri,
                                  ReferrerPolicyEnum aReferrerPolicy,
                                  bool aIsImgSet, bool aLinkPreload,
                                  const TimeStamp& aInitTimestamp) {
+  const CORSMode corsMode = dom::Element::StringToCORSMode(aCrossOriginAttr);
   if (aLinkPreload) {
     // Check if the image was already preloaded in this document to avoid
     // duplicate preloading.
-    PreloadHashKey key = PreloadHashKey::CreateAsImage(
-        aUri, NodePrincipal(),
-        dom::Element::StringToCORSMode(aCrossOriginAttr));
+    PreloadHashKey key =
+        PreloadHashKey::CreateAsImage(aUri, NodePrincipal(), corsMode);
     if (!mPreloadService.PreloadExists(key)) {
       PreLoadImage(aUri, aCrossOriginAttr, aReferrerPolicy, aIsImgSet,
                    aLinkPreload, 0);
@@ -12418,7 +12399,7 @@ void Document::MaybePreLoadImage(nsIURI* aUri,
   // Early exit if the img is already present in the img-cache
   // which indicates that the "real" load has already started and
   // that we shouldn't preload it.
-  if (nsContentUtils::IsImageInCache(aUri, this)) {
+  if (nsContentUtils::IsImageAvailable(aUri, NodePrincipal(), corsMode, this)) {
     return;
   }
 

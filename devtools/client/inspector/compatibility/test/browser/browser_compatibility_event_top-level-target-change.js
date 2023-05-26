@@ -12,17 +12,28 @@ const TEST_DATA_ISSUES = {
       ruby-align: center;
     }
     div {
-      font-variant-alternates: historical-forms;
+      scrollbar-width: thin;
     }
     </style>
     <body>
       <div>test</div>
     </body>
   `,
-  expectedIssuesOnSelected: [{ property: "ruby-align" }],
+  expectedIssuesOnSelected: [
+    {
+      property: "ruby-align",
+      url: "https://developer.mozilla.org/docs/Web/CSS/ruby-align",
+    },
+  ],
   expectedIssuesOnAll: [
-    { property: "ruby-align" },
-    { property: "font-variant-alternates" },
+    {
+      property: "ruby-align",
+      url: "https://developer.mozilla.org/docs/Web/CSS/ruby-align",
+    },
+    {
+      property: "scrollbar-width",
+      url: "https://developer.mozilla.org/docs/Web/CSS/scrollbar-width",
+    },
   ],
 };
 

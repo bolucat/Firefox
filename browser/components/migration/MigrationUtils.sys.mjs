@@ -898,13 +898,17 @@ class MigrationUtils {
 
   async insertCreditCardsWrapper(cards) {
     this._importQuantities.cards += cards.length;
-    let { formAutofillStorage } = ChromeUtils.import(
-      "resource://autofill/FormAutofillStorage.jsm"
+    let { formAutofillStorage } = ChromeUtils.importESModule(
+      "resource://autofill/FormAutofillStorage.sys.mjs"
     );
 
     await formAutofillStorage.initialize();
     for (let card of cards) {
-      await formAutofillStorage.creditCards.add(card);
+      try {
+        await formAutofillStorage.creditCards.add(card);
+      } catch (e) {
+        console.error("Failed to insert credit card due to error: ", e, card);
+      }
     }
   }
 

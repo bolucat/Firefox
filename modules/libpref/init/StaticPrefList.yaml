@@ -7614,7 +7614,7 @@
   # Experimental support for change-array-by-copy methods
 - name: javascript.options.experimental.enable_change_array_by_copy
   type: bool
-  value: false
+  value: true
   mirror: always
 
 # Experimental support Array.fromAsync
@@ -12741,6 +12741,13 @@
   value: 60000
   mirror: always
 
+# When the Access-Control-Allow-Headers is wildcard (*), whether to allow
+# CORS-protected requests with the Authorization request header.
+- name: network.cors_preflight.authorization_covered_by_wildcard
+  type: bool
+  value: true
+  mirror: always
+
 #---------------------------------------------------------------------------
 # Prefs starting with "nglayout."
 #---------------------------------------------------------------------------
@@ -13703,12 +13710,12 @@
 
 -   name: security.sandbox.gpu.shadow-stack.enabled
     type: RelaxedAtomicBool
-    value: false
+    value: @IS_NIGHTLY_BUILD@
     mirror: always
 
 -   name: security.sandbox.gmp.shadow-stack.enabled
     type: RelaxedAtomicBool
-    value: false
+    value: @IS_NIGHTLY_BUILD@
     mirror: always
 
   # Whether a Low Privilege AppContainer (LPAC) is enabled for the relevant

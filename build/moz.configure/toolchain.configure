@@ -96,7 +96,7 @@ with only_when(host_is_osx | target_is_osx):
         return Version(obj["Version"])
 
     def sdk_min_version():
-        return "13.0"
+        return "13.3"
 
     @depends(
         "--with-macos-sdk",
@@ -1289,10 +1289,6 @@ def compiler(
 
         if info.type == "clang" and language == "C++" and host_or_target.os == "OSX":
             flags.append("-stdlib=libc++")
-
-        # Suppress Clang Argument Warnings
-        if info.type in ("clang", "clang-cl"):
-            flags.append("-Qunused-arguments")
 
         # Check that the additional flags we got are enough to not require any
         # more flags. If we get an exception, just ignore it; it's liable to be

@@ -2,8 +2,8 @@ const { sinon } = ChromeUtils.importESModule(
   "resource://testing-common/Sinon.sys.mjs"
 );
 const { HttpServer } = ChromeUtils.import("resource://testing-common/httpd.js");
-const { getFxAccountsSingleton } = ChromeUtils.import(
-  "resource://gre/modules/FxAccounts.jsm"
+const { getFxAccountsSingleton } = ChromeUtils.importESModule(
+  "resource://gre/modules/FxAccounts.sys.mjs"
 );
 const { FirefoxRelayTelemetry } = ChromeUtils.importESModule(
   "resource://gre/modules/FirefoxRelayTelemetry.mjs"
@@ -203,8 +203,8 @@ add_task(async function test_pref_toggle() {
       relayIntegrationCheckbox.click();
       relayIntegrationCheckbox.click();
       await assertEvents([
-        { object: "pref_change", method: "enabled" },
         { object: "pref_change", method: "disabled" },
+        { object: "pref_change", method: "enabled" },
       ]);
     }
   );

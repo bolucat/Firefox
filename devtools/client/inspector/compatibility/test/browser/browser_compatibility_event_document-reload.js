@@ -13,7 +13,7 @@ const TEST_URI = `
     user-modify: read-only;
   }
   div {
-    font-variant-alternates: historical-forms;
+    scrollbar-width: thin;
   }
   </style>
   <body>
@@ -22,13 +22,22 @@ const TEST_URI = `
 `;
 
 const TEST_DATA_SELECTED = [
-  { property: "ruby-align" },
-  { property: "user-modify" },
+  {
+    property: "ruby-align",
+    url: "https://developer.mozilla.org/docs/Web/CSS/ruby-align",
+  },
+  {
+    property: "user-modify",
+    url: "https://developer.mozilla.org/docs/Web/CSS/user-modify",
+  },
 ];
 
 const TEST_DATA_ALL = [
   ...TEST_DATA_SELECTED,
-  { property: "font-variant-alternates" },
+  {
+    property: "scrollbar-width",
+    url: "https://developer.mozilla.org/docs/Web/CSS/scrollbar-width",
+  },
 ];
 
 const {
