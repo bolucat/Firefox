@@ -1,9 +1,8 @@
-#filter substitution
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-
-@AB_CD@.jar:
-% locale weave @AB_CD@ %locale/@AB_CD@/services/
-  locale/@AB_CD@/services/sync.properties    (%sync.properties)
+# Variables:
+#   $user (String): the user name (e.g. "Ed")
+#   $system (String): the operating system (e.g. "Android")
+account-client-name = { $user }’s { -brand-short-name } on { $system }
