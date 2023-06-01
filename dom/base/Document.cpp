@@ -15074,7 +15074,9 @@ void Document::HidePopover(Element& aPopover, bool aFocusPreviousElement,
     }
   }
 
-  aPopover.SetHasPopoverInvoker(false);
+  auto* data = popoverHTMLEl->GetPopoverData();
+  MOZ_ASSERT(data, "Should have popover data");
+  data->SetInvoker(nullptr);
 
   // Fire beforetoggle event and re-check popover validity.
   if (aFireEvents && !wasHiding) {
@@ -16201,8 +16203,7 @@ bool Document::RecomputeResistFingerprinting() {
   return previous != mShouldResistFingerprinting;
 }
 
-bool Document::ShouldResistFingerprinting(
-    RFPTarget aTarget /* = RFPTarget::Unknown */) const {
+bool Document::ShouldResistFingerprinting(RFPTarget aTarget) const {
   return mShouldResistFingerprinting && nsRFPService::IsRFPEnabledFor(aTarget);
 }
 
