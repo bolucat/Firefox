@@ -970,7 +970,7 @@
 
 - name: browser.cache.offline.enable
   type: bool
-  value: @IS_NOT_EARLY_BETA_OR_EARLIER@
+  value: false
   mirror: always
 
 - name: browser.cache.disk.enable
@@ -15404,12 +15404,6 @@
   value: true
   mirror: always
 #endif
-
-# Whether to allow gtk dark themes in content.
-- name: widget.content.allow-gtk-dark-theme
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
 
 # Whether native GTK context menus are enabled.
 # Disabled because at the very least there's missing custom icon support.
