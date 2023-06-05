@@ -14,9 +14,10 @@ import { UpdateUtils } from "resource://gre/modules/UpdateUtils.sys.mjs";
 
 const Utils = TelemetryUtils;
 
-const { AddonManager, AddonManagerPrivate } = ChromeUtils.import(
-  "resource://gre/modules/AddonManager.jsm"
-);
+import {
+  AddonManager,
+  AddonManagerPrivate,
+} from "resource://gre/modules/AddonManager.sys.mjs";
 
 const lazy = {};
 
@@ -289,7 +290,6 @@ const DEFAULT_ENVIRONMENT_PREFS = new Map([
     "extensions.formautofill.creditCards.available",
     { what: RECORD_PREF_VALUE },
   ],
-  ["extensions.formautofill.creditCards.used", { what: RECORD_PREF_VALUE }],
   ["extensions.manifestV3.enabled", { what: RECORD_PREF_VALUE }],
   ["extensions.quarantinedDomains.enabled", { what: RECORD_PREF_VALUE }],
   ["extensions.strictCompatibility", { what: RECORD_PREF_VALUE }],
