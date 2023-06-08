@@ -60,7 +60,8 @@
 
 #include "jstypes.h"  // JS_PUBLIC_API
 
-#include "js/TypeDecls.h"  // JS::MutableHandle (fwd)
+#include "js/CharacterEncoding.h"  // JS::ConstUTF8CharsZ
+#include "js/TypeDecls.h"          // JS::MutableHandle (fwd)
 
 namespace JS {
 
@@ -123,11 +124,9 @@ class JS_PUBLIC_API TransitiveCompileOptions {
  protected:
   // non-POD options:
 
-  // UTF-8 encoded file name.
-  const char* filename_ = nullptr;
+  JS::ConstUTF8CharsZ filename_;
 
-  // UTF-8 encoded introducer file name.
-  const char* introducerFilename_ = nullptr;
+  JS::ConstUTF8CharsZ introducerFilename_;
 
   const char16_t* sourceMapURL_ = nullptr;
 
@@ -154,8 +153,8 @@ class JS_PUBLIC_API TransitiveCompileOptions {
   // strict-mode.
   bool forceStrictMode_ = false;
 
-  // The Realm of this script is configured to resist fingerprinting.
-  bool shouldResistFingerprinting_ = false;
+  // The Realm of this script is configured to use fdlibm math library.
+  bool alwaysUseFdlibm_ = false;
 
   // The context has specified that source pragmas should be parsed.
   bool sourcePragmas_ = true;
@@ -269,9 +268,7 @@ class JS_PUBLIC_API TransitiveCompileOptions {
   // Read-only accessors for non-POD options. The proper way to set these
   // depends on the derived type.
   bool mutedErrors() const { return mutedErrors_; }
-  bool shouldResistFingerprinting() const {
-    return shouldResistFingerprinting_;
-  }
+  bool alwaysUseFdlibm() const { return alwaysUseFdlibm_; }
   bool forceFullParse() const {
     return eagerDelazificationIsOneOf<
         DelazificationOption::ParseEverythingEagerly>();
@@ -300,8 +297,8 @@ class JS_PUBLIC_API TransitiveCompileOptions {
     return eagerDelazificationStrategy_;
   }
   bool sourcePragmas() const { return sourcePragmas_; }
-  const char* filename() const { return filename_; }
-  const char* introducerFilename() const { return introducerFilename_; }
+  JS::ConstUTF8CharsZ filename() const { return filename_; }
+  JS::ConstUTF8CharsZ introducerFilename() const { return introducerFilename_; }
   const char16_t* sourceMapURL() const { return sourceMapURL_; }
 
   TransitiveCompileOptions(const TransitiveCompileOptions&) = delete;
@@ -316,7 +313,7 @@ class JS_PUBLIC_API TransitiveCompileOptions {
     PrintFields_(sourceMapURL_);
     PrintFields_(mutedErrors_);
     PrintFields_(forceStrictMode_);
-    PrintFields_(shouldResistFingerprinting_);
+    PrintFields_(alwaysUseFdlibm_);
     PrintFields_(sourcePragmas_);
     PrintFields_(skipFilenameValidation_);
     PrintFields_(hideScriptFromDebugger_);
@@ -480,7 +477,7 @@ class MOZ_STACK_CLASS JS_PUBLIC_API CompileOptions final
       : ReadOnlyCompileOptions() {}
 
   CompileOptions& setFile(const char* f) {
-    filename_ = f;
+    filename_ = JS::ConstUTF8CharsZ(f);
     return *this;
   }
 
@@ -490,7 +487,7 @@ class MOZ_STACK_CLASS JS_PUBLIC_API CompileOptions final
   }
 
   CompileOptions& setFileAndLine(const char* f, unsigned l) {
-    filename_ = f;
+    filename_ = JS::ConstUTF8CharsZ(f);
     lineno = l;
     return *this;
   }
@@ -563,7 +560,7 @@ class MOZ_STACK_CLASS JS_PUBLIC_API CompileOptions final
   CompileOptions& setIntroductionInfo(const char* introducerFn,
                                       const char* intro, unsigned line,
                                       uint32_t offset) {
-    introducerFilename_ = introducerFn;
+    introducerFilename_ = JS::ConstUTF8CharsZ(introducerFn);
     introductionType = intro;
     introductionLineno = line;
     introductionOffset = offset;
@@ -663,7 +660,7 @@ class JS_PUBLIC_API DecodeOptions {
   bool allocateInstantiationStorage = false;
   bool forceAsync = false;
 
-  const char* introducerFilename = nullptr;
+  const JS::ConstUTF8CharsZ introducerFilename;
 
   // See `TransitiveCompileOptions::introductionType` field for details.
   const char* introductionType = nullptr;

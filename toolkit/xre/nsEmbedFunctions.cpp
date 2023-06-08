@@ -188,7 +188,6 @@ void XRE_SetAndroidChildFds(JNIEnv* env, const XRE_AndroidChildFds& fds) {
   mozilla::ipc::SetPrefMapFd(fds.mPrefMapFd);
   IPC::Channel::SetClientChannelFd(fds.mIpcFd);
   CrashReporter::SetNotificationPipeForChild(fds.mCrashFd);
-  CrashReporter::SetCrashAnnotationPipeForChild(fds.mCrashAnnotationFd);
 }
 #endif  // defined(MOZ_WIDGET_ANDROID)
 
@@ -226,15 +225,15 @@ int GetDebugChildPauseTime() {
   if (pauseStr && *pauseStr) {
     int pause = atoi(pauseStr);
     if (pause != 1) {  // must be !=1 since =1 enables the default pause time
-#if defined(OS_WIN)
+#if defined(XP_WIN)
       pause *= 1000;  // convert to ms
 #endif
       return pause;
     }
   }
-#ifdef OS_POSIX
+#ifdef XP_UNIX
   return 30;  // seconds
-#elif defined(OS_WIN)
+#elif defined(XP_WIN)
   return 10000;  // milliseconds
 #else
   return 0;
@@ -384,8 +383,6 @@ nsresult XRE_InitChildProcess(int aArgc, char* aArgv[],
 
   bool exceptionHandlerIsSet = false;
   if (!CrashReporter::IsDummy()) {
-    CrashReporter::FileHandle crashTimeAnnotationFile =
-        CrashReporter::kInvalidFileHandle;
 #if defined(XP_WIN)
     if (aArgc < 1) {
       return NS_ERROR_FAILURE;
@@ -393,18 +390,14 @@ nsresult XRE_InitChildProcess(int aArgc, char* aArgv[],
     // Pop the first argument, this is used by the WER runtime exception module
     // which reads it from the command-line so we can just discard it here.
     --aArgc;
-
-    const char* const crashTimeAnnotationArg = aArgv[--aArgc];
-    crashTimeAnnotationFile = reinterpret_cast<CrashReporter::FileHandle>(
-        std::stoul(std::string(crashTimeAnnotationArg)));
 #endif
 
     if (aArgc < 1) return NS_ERROR_FAILURE;
     const char* const crashReporterArg = aArgv[--aArgc];
 
     if (IsCrashReporterEnabled(crashReporterArg)) {
-      exceptionHandlerIsSet = CrashReporter::SetRemoteExceptionHandler(
-          crashReporterArg, crashTimeAnnotationFile);
+      exceptionHandlerIsSet =
+          CrashReporter::SetRemoteExceptionHandler(crashReporterArg);
       MOZ_ASSERT(exceptionHandlerIsSet,
                  "Should have been able to set remote exception handler");
 
@@ -432,7 +425,7 @@ nsresult XRE_InitChildProcess(int aArgc, char* aArgv[],
   g_set_prgname(aArgv[0]);
 #endif
 
-#ifdef OS_POSIX
+#ifdef XP_UNIX
   if (PR_GetEnv("MOZ_DEBUG_CHILD_PROCESS") ||
       PR_GetEnv("MOZ_DEBUG_CHILD_PAUSE")) {
 #  if defined(XP_LINUX) && defined(DEBUG)
@@ -445,7 +438,7 @@ nsresult XRE_InitChildProcess(int aArgc, char* aArgv[],
         XRE_GetProcessTypeString(), base::GetCurrentProcId());
     sleep(GetDebugChildPauseTime());
   }
-#elif defined(OS_WIN)
+#elif defined(XP_WIN)
   if (PR_GetEnv("MOZ_DEBUG_CHILD_PROCESS")) {
     NS_DebugBreak(NS_DEBUG_BREAK,
                   "Invoking NS_DebugBreak() to debug child process", nullptr,

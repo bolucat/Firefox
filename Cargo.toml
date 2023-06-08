@@ -41,6 +41,9 @@ exclude = [
   "tools/fuzzing/rust",
   "dom/base/rust",
   "dom/origin-trials/ffi",
+
+  # Excluded because we don't want to vendor their dependencies.
+  "intl/l10n/rust/l10nregistry-tests"
 ]
 
 # Use the new dependency resolver to reduce some of the platform-specific dependencies.
@@ -95,6 +98,9 @@ mozbuild = { path = "build/rust/mozbuild" }
 
 # Dummy oslog replacement. It's only used by glean in code that is not actually used.
 oslog = { path = "build/rust/oslog" }
+
+# Override terminal_size with a dummy crate that returns a fixed 80x25 terminal size.
+terminal_size = { path = "build/rust/terminal_size" }
 
 # Patch bitflags 2.0 to 1.0 while not too many crates use 2.0 features
 bitflags = { path = "build/rust/bitflags" }
@@ -162,6 +168,7 @@ cssparser-macros = { path = "third_party/rust/cssparser-macros" }
 chardetng = { git = "https://github.com/hsivonen/chardetng", rev="3484d3e3ebdc8931493aa5df4d7ee9360a90e76b" }
 chardetng_c = { git = "https://github.com/hsivonen/chardetng_c", rev="ed8a4c6f900a90d4dbc1d64b856e61490a1c3570" }
 coremidi = { git = "https://github.com/chris-zen/coremidi.git", rev="fc68464b5445caf111e41f643a2e69ccce0b4f83" }
+cose = { git = "https://github.com/franziskuskiefer/cose-rust", rev = "43c22248d136c8b38fe42ea709d08da6355cf04b" }
 firefox-on-glean = { path = "toolkit/components/glean/api" }
 libudev-sys = { path = "dom/webauthn/libudev-sys" }
 packed_simd = { package = "packed_simd_2", git = "https://github.com/hsivonen/packed_simd", rev="412f9a0aa556611de021bde89dee8fefe6e0fbbd" }

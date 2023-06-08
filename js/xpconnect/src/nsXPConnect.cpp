@@ -189,7 +189,8 @@ void xpc::ErrorBase::Init(JSErrorBase* aReport) {
   if (!aReport->filename) {
     mFileName.SetIsVoid(true);
   } else {
-    CopyUTF8toUTF16(mozilla::MakeStringSpan(aReport->filename), mFileName);
+    CopyUTF8toUTF16(mozilla::MakeStringSpan(aReport->filename.c_str()),
+                    mFileName);
   }
 
   mSourceId = aReport->sourceId;
@@ -481,8 +482,8 @@ JSObject* CreateGlobalObject(JSContext* cx, const JSClass* clasp,
 }
 
 void InitGlobalObjectOptions(JS::RealmOptions& aOptions,
-                             bool aIsSystemPrincipal,
-                             bool aShouldResistFingerprinting) {
+                             bool aIsSystemPrincipal, bool aForceUTC,
+                             bool aAlwaysUseFdlibm) {
   bool shouldDiscardSystemSource = ShouldDiscardSystemSource();
 
   if (aIsSystemPrincipal) {
@@ -492,8 +493,9 @@ void InitGlobalObjectOptions(JS::RealmOptions& aOptions,
     aOptions.creationOptions().setSecureContext(true);
     aOptions.behaviors().setClampAndJitterTime(false);
   }
-  aOptions.behaviors().setShouldResistFingerprinting(
-      aShouldResistFingerprinting);
+
+  aOptions.creationOptions().setForceUTC(aForceUTC);
+  aOptions.creationOptions().setAlwaysUseFdlibm(aAlwaysUseFdlibm);
 
   if (shouldDiscardSystemSource) {
     aOptions.behaviors().setDiscardSource(aIsSystemPrincipal);
@@ -546,7 +548,7 @@ nsresult InitClassesWithNewWrappedGlobal(JSContext* aJSContext,
   MOZ_RELEASE_ASSERT(aPrincipal->IsSystemPrincipal());
 
   InitGlobalObjectOptions(aOptions, /* aSystemPrincipal */ true,
-                          /* aShouldResistFingerprinting */ false);
+                          /* aForceUTC */ false, /* aAlwaysUseFdlibm */ false);
 
   // Call into XPCWrappedNative to make a new global object, scope, and global
   // prototype.

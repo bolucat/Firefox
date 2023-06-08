@@ -2333,6 +2333,16 @@ def prefHeader(pref):
     return "mozilla/StaticPrefs_%s.h" % pref.partition(".")[0]
 
 
+def computeGlobalNamesFromExposureSet(exposureSet):
+    assert exposureSet is None or isinstance(exposureSet, set)
+
+    if exposureSet:
+        # Nonempty set
+        return " | ".join(map(lambda g: "GlobalNames::%s" % g, sorted(exposureSet)))
+
+    return "0"
+
+
 class MemberCondition:
     """
     An object representing the condition for a member to actually be
@@ -2359,7 +2369,6 @@ class MemberCondition:
         assert func is None or isinstance(func, str)
         assert trial is None or isinstance(trial, str)
         assert isinstance(secureContext, bool)
-        assert nonExposedGlobals is None or isinstance(nonExposedGlobals, set)
         self.pref = pref
         if self.pref:
             identifier = prefIdentifier(self.pref)
@@ -2376,13 +2385,7 @@ class MemberCondition:
 
         self.func = toFuncPtr(func)
 
-        if nonExposedGlobals:
-            # Nonempty set
-            self.nonExposedGlobals = " | ".join(
-                map(lambda g: "GlobalNames::%s" % g, sorted(nonExposedGlobals))
-            )
-        else:
-            self.nonExposedGlobals = "0"
+        self.nonExposedGlobals = computeGlobalNamesFromExposureSet(nonExposedGlobals)
 
         if trial:
             self.trial = "OriginTrial::" + trial
@@ -8657,6 +8660,8 @@ class CGCallGenerator(CGThing):
                 "needsNonSystemSubjectPrincipal" in extendedAttributes
             )
             if needsNonSystemPrincipal:
+                principalType = "nsIPrincipal*"
+                subjectPrincipalArg = "subjectPrincipal"
                 checkPrincipal = dedent(
                     """
                     if (principal->IsSystemPrincipal()) {
@@ -8665,58 +8670,29 @@ class CGCallGenerator(CGThing):
                     """
                 )
             else:
+                principalType = "NonNull<nsIPrincipal>"
+                subjectPrincipalArg = "NonNullHelper(subjectPrincipal)"
                 checkPrincipal = ""
 
-            getPrincipal = fill(
-                """
-                JS::Realm* realm = js::GetContextRealm(cx);
-                MOZ_ASSERT(realm);
-                JSPrincipals* principals = JS::GetRealmPrincipals(realm);
-                nsIPrincipal* principal = nsJSPrincipals::get(principals);
-                ${checkPrincipal}
-                """,
-                checkPrincipal=checkPrincipal,
+            self.cgRoot.append(
+                CGGeneric(
+                    fill(
+                        """
+                        ${principalType} subjectPrincipal;
+                        {
+                          JS::Realm* realm = js::GetContextRealm(cx);
+                          MOZ_ASSERT(realm);
+                          JSPrincipals* principals = JS::GetRealmPrincipals(realm);
+                          nsIPrincipal* principal = nsJSPrincipals::get(principals);
+                          ${checkPrincipal}
+                          subjectPrincipal = principal;
+                        }
+                        """,
+                        principalType=principalType,
+                        checkPrincipal=checkPrincipal,
+                    )
+                )
             )
-
-            if descriptor.interface.isExposedInAnyWorker():
-                self.cgRoot.append(
-                    CGGeneric(
-                        fill(
-                            """
-                    Maybe<nsIPrincipal*> subjectPrincipal;
-                    if (NS_IsMainThread()) {
-                      $*{getPrincipal}
-                      subjectPrincipal.emplace(principal);
-                    }
-                    """,
-                            getPrincipal=getPrincipal,
-                        )
-                    )
-                )
-                subjectPrincipalArg = "subjectPrincipal"
-            else:
-                if needsNonSystemPrincipal:
-                    principalType = "nsIPrincipal*"
-                    subjectPrincipalArg = "subjectPrincipal"
-                else:
-                    principalType = "NonNull<nsIPrincipal>"
-                    subjectPrincipalArg = "NonNullHelper(subjectPrincipal)"
-
-                self.cgRoot.append(
-                    CGGeneric(
-                        fill(
-                            """
-                    ${principalType} subjectPrincipal;
-                    {
-                      $*{getPrincipal}
-                      subjectPrincipal = principal;
-                    }
-                    """,
-                            principalType=principalType,
-                            getPrincipal=getPrincipal,
-                        )
-                    )
-                )
 
             args.append(CGGeneric("MOZ_KnownLive(%s)" % subjectPrincipalArg))
 
@@ -19074,10 +19050,7 @@ class CGNativeMember(ClassMethod):
 
         # And the nsIPrincipal
         if "needsSubjectPrincipal" in self.extendedAttrs:
-            # Cheat and assume self.descriptorProvider is a descriptor
-            if self.descriptorProvider.interface.isExposedInAnyWorker():
-                args.append(Argument("Maybe<nsIPrincipal*>", "aSubjectPrincipal"))
-            elif "needsNonSystemSubjectPrincipal" in self.extendedAttrs:
+            if "needsNonSystemSubjectPrincipal" in self.extendedAttrs:
                 args.append(Argument("nsIPrincipal*", "aPrincipal"))
             else:
                 args.append(Argument("nsIPrincipal&", "aPrincipal"))
@@ -23530,23 +23503,26 @@ class GlobalGenRoots:
         entries = list()
         # Make sure we have stable ordering.
         for name in sorted(names):
+            exposedGlobals = computeGlobalNamesFromExposureSet(d.interface.exposureSet)
             # Strip off trailing newline to make our formatting look right.
             entries.append(
                 fill(
                     """
                 {
                   /* mTag */ ${tag},
-                  /* mDeserialize */ ${name}_Binding::Deserialize
+                  /* mDeserialize */ ${name}_Binding::Deserialize,
+                  /* mExposedGlobals */ ${exposedGlobals},
                 }
                 """,
                     tag=StructuredCloneTag(name),
                     name=name,
+                    exposedGlobals=exposedGlobals,
                 )[:-1]
             )
 
         declare = dedent(
             """
-            WebIDLDeserializer LookupDeserializer(StructuredCloneTags aTag);
+            Maybe<std::pair<uint16_t, WebIDLDeserializer>> LookupDeserializer(StructuredCloneTags aTag);
             """
         )
         define = fill(
@@ -23554,19 +23530,20 @@ class GlobalGenRoots:
             struct WebIDLSerializableEntry {
               StructuredCloneTags mTag;
               WebIDLDeserializer mDeserialize;
+              uint16_t mExposedGlobals;
             };
 
             static const WebIDLSerializableEntry sEntries[] = {
               $*{entries}
             };
 
-            WebIDLDeserializer LookupDeserializer(StructuredCloneTags aTag) {
+            Maybe<std::pair<uint16_t, WebIDLDeserializer>> LookupDeserializer(StructuredCloneTags aTag) {
               for (auto& entry : sEntries) {
                 if (entry.mTag == aTag) {
-                  return entry.mDeserialize;
+                  return Some(std::pair(entry.mExposedGlobals, entry.mDeserialize));
                 }
               }
-              return nullptr;
+              return Nothing();
             }
             """,
             entries=",\n".join(entries) + "\n",

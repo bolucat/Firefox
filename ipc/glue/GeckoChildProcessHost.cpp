@@ -45,7 +45,6 @@
 #include "mozilla/GeckoArgs.h"
 #include "mozilla/Omnijar.h"
 #include "mozilla/RDDProcessHost.h"
-#include "mozilla/Scoped.h"
 #include "mozilla/Services.h"
 #include "mozilla/SharedThreadPool.h"
 #include "mozilla/StaticMutex.h"
@@ -98,19 +97,11 @@
 #include "nsNativeCharsetUtils.h"
 #include "nsTArray.h"
 #include "nscore.h"  // for NS_FREE_PERMANENT_DATA
-#include "private/pprio.h"
 #include "nsIThread.h"
 
 using mozilla::MonitorAutoLock;
 using mozilla::Preferences;
 using mozilla::StaticMutexAutoLock;
-
-namespace mozilla {
-MOZ_TYPE_SPECIFIC_SCOPED_POINTER_TEMPLATE(ScopedPRFileDesc, PRFileDesc,
-                                          PR_Close)
-}
-
-using mozilla::ScopedPRFileDesc;
 
 #ifdef MOZ_WIDGET_ANDROID
 #  include "AndroidBridge.h"
@@ -253,8 +244,6 @@ class BaseProcessLauncher {
 
   // Set during launch.
   IPC::Channel::ChannelId mChannelId;
-  ScopedPRFileDesc mCrashAnnotationReadPipe;
-  ScopedPRFileDesc mCrashAnnotationWritePipe;
   nsCOMPtr<nsIFile> mAppDir;
 };
 
@@ -282,7 +271,7 @@ class WindowsProcessLauncher : public BaseProcessLauncher {
 typedef WindowsProcessLauncher ProcessLauncher;
 #endif  // XP_WIN
 
-#ifdef OS_POSIX
+#ifdef XP_UNIX
 class PosixProcessLauncher : public BaseProcessLauncher {
  public:
   PosixProcessLauncher(GeckoChildProcessHost* aHost,
@@ -379,7 +368,7 @@ typedef LinuxProcessLauncher ProcessLauncher;
 #  elif
 #    error "Unknown platform"
 #  endif
-#endif  // OS_POSIX
+#endif  // XP_UNIX
 
 using base::ProcessHandle;
 using mozilla::ipc::BaseProcessLauncher;
@@ -470,14 +459,6 @@ GeckoChildProcessHost::~GeckoChildProcessHost()
 #endif
 
     if (mChildProcessHandle != 0) {
-#if defined(XP_WIN)
-      CrashReporter::DeregisterChildCrashAnnotationFileDescriptor(
-          base::GetProcId(mChildProcessHandle));
-#else
-      CrashReporter::DeregisterChildCrashAnnotationFileDescriptor(
-          mChildProcessHandle);
-#endif
-
       ProcessWatcher::EnsureProcessTerminated(
           mChildProcessHandle
 #ifdef NS_FREE_PERMANENT_DATA
@@ -551,16 +532,14 @@ mozilla::BinPathType BaseProcessLauncher::GetPathToBinary(
   BinPathType pathType = XRE_GetChildProcBinPathType(processType);
 
   if (pathType == BinPathType::Self) {
-#if defined(OS_WIN)
+#if defined(XP_WIN)
     wchar_t exePathBuf[MAXPATHLEN];
     if (!::GetModuleFileNameW(nullptr, exePathBuf, MAXPATHLEN)) {
       MOZ_CRASH("GetModuleFileNameW failed (FIXME)");
     }
     exePath = FilePath::FromWStringHack(exePathBuf);
-#elif defined(OS_POSIX)
-    exePath = FilePath(CommandLine::ForCurrentProcess()->argv()[0]);
 #else
-#  error Sorry; target OS not supported yet.
+    exePath = FilePath(CommandLine::ForCurrentProcess()->argv()[0]);
 #endif
     return pathType;
   }
@@ -583,7 +562,7 @@ mozilla::BinPathType BaseProcessLauncher::GetPathToBinary(
 
   if (ShouldHaveDirectoryService()) {
     MOZ_ASSERT(gGREBinPath);
-#ifdef OS_WIN
+#ifdef XP_WIN
     exePath = FilePath(char16ptr_t(gGREBinPath));
 #elif MOZ_WIDGET_COCOA
     nsCOMPtr<nsIFile> childProcPath;
@@ -606,7 +585,7 @@ mozilla::BinPathType BaseProcessLauncher::GetPathToBinary(
   }
 
   if (exePath.empty()) {
-#ifdef OS_WIN
+#ifdef XP_WIN
     exePath =
         FilePath::FromWStringHack(CommandLine::ForCurrentProcess()->program());
 #else
@@ -1126,11 +1105,6 @@ Result<Ok, LaunchError> BaseProcessLauncher::DoSetup() {
 
   MapChildLogging();
 
-  PRStatus status = PR_CreatePipe(&mCrashAnnotationReadPipe.rwget(),
-                                  &mCrashAnnotationWritePipe.rwget());
-  if (status != PR_SUCCESS) {
-    return Err(LaunchError("PR_CreatePipe", PR_GetError()));
-  }
   return Ok();
 }
 
@@ -1192,7 +1166,7 @@ Result<Ok, LaunchError> LinuxProcessLauncher::DoSetup() {
 }
 #endif  // MOZ_WIDGET_GTK
 
-#ifdef OS_POSIX
+#ifdef XP_UNIX
 Result<Ok, LaunchError> PosixProcessLauncher::DoSetup() {
   Result<Ok, LaunchError> aError = BaseProcessLauncher::DoSetup();
   if (aError.isErr()) {
@@ -1207,7 +1181,8 @@ Result<Ok, LaunchError> PosixProcessLauncher::DoSetup() {
     MOZ_ASSERT(gGREBinPath);
     nsCString path;
     NS_CopyUnicodeToNative(nsDependentString(gGREBinPath), path);
-#  if defined(OS_LINUX) || defined(OS_BSD)
+#  if defined(XP_LINUX) || defined(__DragonFly__) || defined(XP_FREEBSD) || \
+      defined(XP_NETBSD) || defined(XP_OPENBSD)
     const char* ld_library_path = PR_GetEnv("LD_LIBRARY_PATH");
     nsCString new_ld_lib_path(path.get());
 
@@ -1217,7 +1192,7 @@ Result<Ok, LaunchError> PosixProcessLauncher::DoSetup() {
     }
     mLaunchOptions->env_map["LD_LIBRARY_PATH"] = new_ld_lib_path.get();
 
-#  elif OS_MACOSX  // defined(OS_LINUX) || defined(OS_BSD)
+#  elif XP_DARWIN
     // With signed production Mac builds, the dynamic linker (dyld) will
     // ignore dyld environment variables preventing the use of variables
     // such as DYLD_LIBRARY_PATH and DYLD_INSERT_LIBRARIES.
@@ -1245,7 +1220,7 @@ Result<Ok, LaunchError> PosixProcessLauncher::DoSetup() {
       mLaunchOptions->env_map["OS_ACTIVITY_MODE"] = "disable";
     }
 #    endif  // defined(MOZ_SANDBOX)
-#  endif    // defined(OS_LINUX) || defined(OS_BSD)
+#  endif
   }
 
   FilePath exePath;
@@ -1304,7 +1279,9 @@ Result<Ok, LaunchError> PosixProcessLauncher::DoSetup() {
   mChildArgv.push_back(mPidString);
 
   if (!CrashReporter::IsDummy()) {
-#  if defined(OS_LINUX) || defined(OS_BSD) || defined(OS_SOLARIS)
+#  if defined(MOZ_WIDGET_COCOA)
+    mChildArgv.push_back(CrashReporter::GetChildNotificationPipe());
+#  elif defined(XP_UNIX)
     int childCrashFd, childCrashRemapFd;
     if (NS_WARN_IF(!CrashReporter::CreateNotificationPipeForChild(
             &childCrashFd, &childCrashRemapFd))) {
@@ -1320,15 +1297,8 @@ Result<Ok, LaunchError> PosixProcessLauncher::DoSetup() {
       // "false" == crash reporting disabled
       mChildArgv.push_back("false");
     }
-#  elif defined(MOZ_WIDGET_COCOA) /* defined(OS_LINUX) || defined(OS_BSD) || \
-                                     defined(OS_SOLARIS) */
-    mChildArgv.push_back(CrashReporter::GetChildNotificationPipe());
-#  endif  // defined(OS_LINUX) || defined(OS_BSD) || defined(OS_SOLARIS)
+#  endif
   }
-
-  int fd = PR_FileDesc2NativeHandle(mCrashAnnotationWritePipe);
-  mLaunchOptions->fds_to_remap.push_back(
-      std::make_pair(fd, CrashReporter::GetAnnotationTimeCrashFd()));
 
 #  ifdef MOZ_WIDGET_COCOA
   {
@@ -1348,7 +1318,7 @@ Result<Ok, LaunchError> PosixProcessLauncher::DoSetup() {
   mChildArgv.push_back(ChildProcessType());
   return Ok();
 }
-#endif  // OS_POSIX
+#endif  // XP_UNIX
 
 #if defined(MOZ_WIDGET_ANDROID)
 RefPtr<ProcessHandlePromise> AndroidProcessLauncher::DoLaunch() {
@@ -1357,7 +1327,7 @@ RefPtr<ProcessHandlePromise> AndroidProcessLauncher::DoLaunch() {
 }
 #endif  // MOZ_WIDGET_ANDROID
 
-#ifdef OS_POSIX
+#ifdef XP_UNIX
 RefPtr<ProcessHandlePromise> PosixProcessLauncher::DoLaunch() {
   ProcessHandle handle = 0;
   Result<Ok, LaunchError> aError =
@@ -1381,7 +1351,7 @@ Result<Ok, LaunchError> PosixProcessLauncher::DoFinishLaunch() {
 
   return Ok();
 }
-#endif  // OS_POSIX
+#endif  // XP_UNIX
 
 #ifdef XP_MACOSX
 Result<Ok, LaunchError> MacProcessLauncher::DoFinishLaunch() {
@@ -1604,11 +1574,6 @@ Result<Ok, LaunchError> WindowsProcessLauncher::DoSetup() {
       UTF8ToWide(CrashReporter::GetChildNotificationPipe()));
 
   if (!CrashReporter::IsDummy()) {
-    PROsfd h = PR_FileDesc2NativeHandle(mCrashAnnotationWritePipe);
-    mLaunchOptions->handles_to_inherit.push_back(reinterpret_cast<HANDLE>(h));
-    std::string hStr = std::to_string(h);
-    mCmdLine->AppendLooseValue(UTF8ToWide(hStr));
-
     char werDataAddress[17] = {};
     SprintfLiteral(werDataAddress, "%p", mWerDataPointer);
     mCmdLine->AppendLooseValue(UTF8ToWide(werDataAddress));
@@ -1696,9 +1661,6 @@ RefPtr<ProcessLaunchPromise> BaseProcessLauncher::FinishLaunch() {
 
   MOZ_DIAGNOSTIC_ASSERT(mResults.mHandle);
 
-  CrashReporter::RegisterChildCrashAnnotationFileDescriptor(
-      base::GetProcId(mResults.mHandle), mCrashAnnotationReadPipe.forget());
-
   Telemetry::AccumulateTimeDelta(Telemetry::CHILD_PROCESS_LAUNCH_MS,
                                  mStartTimeStamp);
 
@@ -1782,18 +1744,13 @@ RefPtr<ProcessHandlePromise> AndroidProcessLauncher::LaunchAndroidService(
   int32_t prefMapFd = fds_to_remap[1].first;
   int32_t ipcFd = fds_to_remap[2].first;
   int32_t crashFd = -1;
-  int32_t crashAnnotationFd = -1;
   if (fds_to_remap.size() == 4) {
-    crashAnnotationFd = fds_to_remap[3].first;
-  }
-  if (fds_to_remap.size() == 5) {
     crashFd = fds_to_remap[3].first;
-    crashAnnotationFd = fds_to_remap[4].first;
   }
 
   auto type = java::GeckoProcessType::FromInt(aType);
   auto genericResult = java::GeckoProcessManager::Start(
-      type, jargs, prefsFd, prefMapFd, ipcFd, crashFd, crashAnnotationFd);
+      type, jargs, prefsFd, prefMapFd, ipcFd, crashFd);
   auto typedResult = java::GeckoResult::LocalRef(std::move(genericResult));
   return ProcessHandlePromise::FromGeckoResult(typedResult);
 }
