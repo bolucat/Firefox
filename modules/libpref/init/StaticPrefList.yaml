@@ -1819,7 +1819,7 @@
 
 # Is support for CanvasRenderingContext2D.filter enabled?
 - name: canvas.filters.enabled
-  type: bool
+  type: RelaxedAtomicBool
   value: true
   mirror: always
 
@@ -2902,23 +2902,6 @@
   type: bool
   value: @IS_NOT_RELEASE_OR_BETA@
   mirror: once
-
-# Allow Flash async drawing mode in 64-bit release builds.
-- name: dom.ipc.plugins.asyncdrawing.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
-# How long we wait before unloading an idle plugin process.
-- name: dom.ipc.plugins.unloadTimeoutSecs
-  type: RelaxedAtomicUint32
-  value: 30
-  mirror: always
-
-- name: dom.ipc.plugins.allow_dxgi_surface
-  type: bool
-  value: true
-  mirror: always
 
 # Enable e10s hang monitoring (slow script checking and plugin hang detection).
 - name: dom.ipc.processHangMonitor
@@ -5636,11 +5619,6 @@
 # Prefs starting with "gfx."
 #---------------------------------------------------------------------------
 
-- name: gfx.allow-texture-direct-mapping
-  type: bool
-  value: true
-  mirror: once
-
 # Allow 24-bit colour when the hardware supports it.
 - name: gfx.android.rgb16.force
   type: bool
@@ -5985,13 +5963,6 @@
   type: bool
   value: false
   mirror: once
-
-# Whether to defer destruction of Direct2D DrawTargets to the paint thread
-# when using OMTP.
-- name: gfx.direct2d.destroy-dt-on-paintthread
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
 
 - name: gfx.direct2d.target-independent-rasterization.disabled
   type: bool
@@ -13793,6 +13764,11 @@
 
 # The style-src-attr and style-src-elem directive
 - name: security.csp.style-src-attr-elem.enabled
+  type: bool
+  value: true
+  mirror: always
+
+- name: security.csp.external-hashes.enabled
   type: bool
   value: true
   mirror: always
