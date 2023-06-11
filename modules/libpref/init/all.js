@@ -587,8 +587,6 @@ pref("accessibility.force_disabled", 0);
 
 pref("focusmanager.testmode", false);
 
-pref("accessibility.usetexttospeech", "");
-
 // Type Ahead Find
 pref("accessibility.typeaheadfind", true);
 // Enable FAYT by pressing / or "
@@ -3778,13 +3776,6 @@ pref("dom.payments.request.supportedRegions", "US,CA");
   pref("asanreporter.clientid", "unknown");
   pref("toolkit.telemetry.overrideUpdateChannel", "nightly-asan");
 #endif
-
-// Control whether clients.openWindow() opens windows in the same process
-// that called the API vs following our normal multi-process selection
-// algorithm.  Restricting openWindow to same process improves service worker
-// web compat in the short term.  Once the SW multi-e10s refactor is complete
-// this can be removed.
-pref("dom.clients.openwindow_favors_same_process", true);
 
 #ifdef RELEASE_OR_BETA
   pref("toolkit.aboutPerformance.showInternals", false);
