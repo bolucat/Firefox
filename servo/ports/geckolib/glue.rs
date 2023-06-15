@@ -816,9 +816,13 @@ pub unsafe extern "C" fn Servo_AnimationValue_GetTransform(
 #[no_mangle]
 pub unsafe extern "C" fn Servo_AnimationValue_GetOffsetPath(
     value: &AnimationValue,
-) -> *const computed::motion::OffsetPath {
+    output: &mut computed::motion::OffsetPath,
+) {
+    use style::values::animated::ToAnimatedValue;
     match *value {
-        AnimationValue::OffsetPath(ref value) => value,
+        AnimationValue::OffsetPath(ref value) => {
+            *output = ToAnimatedValue::from_animated_value(value.clone())
+        },
         _ => unreachable!("Expected offset-path"),
     }
 }
@@ -893,7 +897,8 @@ pub unsafe extern "C" fn Servo_AnimationValue_Transform(
 pub unsafe extern "C" fn Servo_AnimationValue_OffsetPath(
     p: &computed::motion::OffsetPath,
 ) -> Strong<AnimationValue> {
-    Arc::new(AnimationValue::OffsetPath(p.clone())).into()
+    use style::values::animated::ToAnimatedValue;
+    Arc::new(AnimationValue::OffsetPath(p.clone().to_animated_value())).into()
 }
 
 #[no_mangle]
@@ -1053,14 +1058,6 @@ impl_basic_serde_funcs!(
     Servo_StyleComputedTimingFunction_Deserialize,
     ComputedTimingFunction
 );
-
-#[no_mangle]
-pub extern "C" fn Servo_SVGPathData_Normalize(
-    input: &specified::SVGPathData,
-    output: &mut specified::SVGPathData,
-) {
-    *output = input.normalize();
-}
 
 // Return the ComputedValues by a base ComputedValues and the rules.
 fn resolve_rules_for_element_with_context<'a>(
@@ -2270,6 +2267,25 @@ impl_basic_rule_funcs! { (Style, StyleRule, Locked<StyleRule>),
     changed: Servo_StyleSet_StyleRuleChanged,
 }
 
+#[no_mangle]
+pub extern "C" fn Servo_StyleRule_EnsureRules(rule: &LockedStyleRule, read_only: bool) -> Strong<LockedCssRules> {
+    let global_style_data = &*GLOBAL_STYLE_DATA;
+    let lock = &global_style_data.shared_lock;
+    if read_only {
+        let guard = lock.read();
+        if let Some(ref rules) = rule.read_with(&guard).rules {
+            return rules.clone().into();
+        }
+        return CssRules::new(vec![], lock).into();
+    }
+    let mut guard = lock.write();
+    rule.write_with(&mut guard)
+        .rules
+        .get_or_insert_with(|| CssRules::new(vec![], lock))
+        .clone()
+        .into()
+}
+
 impl_basic_rule_funcs! { (Import, ImportRule, Locked<ImportRule>),
     getter: Servo_CssRules_GetImportRuleAt,
     debug: Servo_ImportRule_Debug,
@@ -2448,6 +2464,7 @@ pub extern "C" fn Servo_StyleRule_SelectorMatchesElement(
     rule: &LockedStyleRule,
     element: &RawGeckoElement,
     index: u32,
+    host: Option<&RawGeckoElement>,
     pseudo_type: PseudoStyleType,
     relevant_link_visited: bool,
 ) -> bool {
@@ -2484,6 +2501,7 @@ pub extern "C" fn Servo_StyleRule_SelectorMatchesElement(
         };
 
         let element = GeckoElement(element);
+        let host = host.map(GeckoElement);
         let quirks_mode = element.as_node().owner_doc().quirks_mode();
         let mut nth_index_cache = Default::default();
         let visited_mode = if relevant_link_visited {
@@ -2493,13 +2511,15 @@ pub extern "C" fn Servo_StyleRule_SelectorMatchesElement(
         };
         let mut ctx = MatchingContext::new_for_visited(
             matching_mode,
-            None,
+            /* bloom_filter = */ None,
             &mut nth_index_cache,
             visited_mode,
             quirks_mode,
             NeedsSelectorFlags::No,
         );
-        matches_selector(selector, 0, None, &element, &mut ctx)
+        ctx.with_shadow_host(host, |ctx| {
+            matches_selector(selector, 0, None, &element, ctx)
+        })
     })
 }
 
@@ -7569,17 +7589,6 @@ pub unsafe extern "C" fn Servo_SharedMemoryBuilder_GetLength(
 #[no_mangle]
 pub unsafe extern "C" fn Servo_SharedMemoryBuilder_Drop(builder: *mut SharedMemoryBuilder) {
     let _ = Box::from_raw(builder);
-}
-
-/// Returns a unique pointer to a clone of the shape image.
-///
-/// Probably temporary, as we move more stuff to cbindgen.
-#[no_mangle]
-#[must_use]
-pub unsafe extern "C" fn Servo_CloneBasicShape(
-    v: &computed::basic_shape::BasicShape,
-) -> *mut computed::basic_shape::BasicShape {
-    Box::into_raw(Box::new(v.clone()))
 }
 
 #[no_mangle]

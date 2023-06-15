@@ -1532,8 +1532,8 @@ var gBrowserInit = {
       if (!toolbarMenubar.hasAttribute("autohide")) {
         toolbarMenubar.setAttribute("autohide", true);
       }
-      toolbarMenubar.setAttribute(
-        "data-l10n-id",
+      document.l10n.setAttributes(
+        toolbarMenubar,
         "toolbar-context-menu-menu-bar-cmd"
       );
       toolbarMenubar.setAttribute("data-l10n-attrs", "toolbarname");
@@ -1987,8 +1987,8 @@ var gBrowserInit = {
               toplevel.toplevel_name
             );
           } else {
-            managedBookmarksButton.setAttribute(
-              "data-l10n-id",
+            document.l10n.setAttributes(
+              managedBookmarksButton,
               "managed-bookmarks"
             );
           }
@@ -5434,7 +5434,7 @@ var XULBrowserWindow = {
       }
     }
 
-    if (TranslationsParent.isRestrictedPage(gBrowser.currentURI.spec)) {
+    if (TranslationsParent.isRestrictedPage(gBrowser.currentURI.scheme)) {
       this._menuItemForTranslations.setAttribute("disabled", "true");
     } else {
       this._menuItemForTranslations.removeAttribute("disabled");

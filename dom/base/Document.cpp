@@ -207,6 +207,7 @@
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/PromiseNativeHandler.h"
 #include "mozilla/dom/ResizeObserverController.h"
+#include "mozilla/dom/RustTypes.h"
 #include "mozilla/dom/SVGElement.h"
 #include "mozilla/dom/SVGDocument.h"
 #include "mozilla/dom/SVGSVGElement.h"
@@ -4097,9 +4098,8 @@ void Document::SetDocumentURI(nsIURI* aURI) {
   }
 
   // Tell our WindowGlobalParent that the document's URI has been changed.
-  nsPIDOMWindowInner* inner = GetInnerWindow();
-  if (inner && inner->GetWindowGlobalChild()) {
-    inner->GetWindowGlobalChild()->SetDocumentURI(mDocumentURI);
+  if (WindowGlobalChild* wgc = GetWindowGlobalChild()) {
+    wgc->SetDocumentURI(mDocumentURI);
   }
 }
 
@@ -7154,8 +7154,7 @@ void Document::DeletePresShell() {
 void Document::DisallowBFCaching(uint32_t aStatus) {
   NS_ASSERTION(!mBFCacheEntry, "We're already in the bfcache!");
   if (!mBFCacheDisallowed) {
-    WindowGlobalChild* wgc = GetWindowGlobalChild();
-    if (wgc) {
+    if (WindowGlobalChild* wgc = GetWindowGlobalChild()) {
       wgc->SendUpdateBFCacheStatus(aStatus, 0);
     }
   }
@@ -8945,8 +8944,7 @@ void Document::SetDomain(const nsAString& aDomain, ErrorResult& rv) {
 
   MOZ_ALWAYS_SUCCEEDS(NodePrincipal()->SetDomain(newURI));
   MOZ_ALWAYS_SUCCEEDS(PartitionedPrincipal()->SetDomain(newURI));
-  WindowGlobalChild* wgc = GetWindowGlobalChild();
-  if (wgc) {
+  if (WindowGlobalChild* wgc = GetWindowGlobalChild()) {
     wgc->SendSetDocumentDomain(newURI);
   }
 }
@@ -9112,7 +9110,9 @@ Element* Document::GetTitleElement() {
   // we know there is nothing to do here. This avoids us having to search
   // the whole DOM if someone calls document.title on a large document
   // without a title.
-  if (!mMayHaveTitleElement) return nullptr;
+  if (!mMayHaveTitleElement) {
+    return nullptr;
+  }
 
   Element* root = GetRootElement();
   if (root && root->IsSVGElement(nsGkAtoms::svg)) {
@@ -9128,16 +9128,12 @@ Element* Document::GetTitleElement() {
 
   // We check the HTML namespace even for non-HTML documents, except SVG.  This
   // matches the spec and the behavior of all tested browsers.
-  // We avoid creating a live nsContentList since we don't need to watch for DOM
-  // tree mutations.
-  RefPtr<nsContentList> list = new nsContentList(
-      this, kNameSpaceID_XHTML, nsGkAtoms::title, nsGkAtoms::title,
-      /* aDeep = */ true,
-      /* aLiveList = */ false);
-
-  nsIContent* first = list->Item(0, false);
-
-  return first ? first->AsElement() : nullptr;
+  for (nsINode* node = GetFirstChild(); node; node = node->GetNextNode(this)) {
+    if (node->IsHTMLElement(nsGkAtoms::title)) {
+      return node->AsElement();
+    }
+  }
+  return nullptr;
 }
 
 void Document::GetTitle(nsAString& aTitle) {
@@ -9148,20 +9144,15 @@ void Document::GetTitle(nsAString& aTitle) {
     return;
   }
 
-  nsAutoString tmp;
-
   if (rootElement->IsXULElement()) {
-    rootElement->GetAttr(kNameSpaceID_None, nsGkAtoms::title, tmp);
+    rootElement->GetAttr(nsGkAtoms::title, aTitle);
+  } else if (Element* title = GetTitleElement()) {
+    nsContentUtils::GetNodeTextContent(title, false, aTitle);
   } else {
-    Element* title = GetTitleElement();
-    if (!title) {
-      return;
-    }
-    nsContentUtils::GetNodeTextContent(title, false, tmp);
+    return;
   }
 
-  tmp.CompressWhitespace();
-  aTitle = tmp;
+  aTitle.CompressWhitespace();
 }
 
 void Document::SetTitle(const nsAString& aTitle, ErrorResult& aRv) {
@@ -9230,16 +9221,18 @@ void Document::NotifyPossibleTitleChange(bool aBoundTitleElement) {
   if (aBoundTitleElement) {
     mMayHaveTitleElement = true;
   }
-  if (mPendingTitleChangeEvent.IsPending()) return;
+  if (mPendingTitleChangeEvent.IsPending()) {
+    return;
+  }
 
   MOZ_RELEASE_ASSERT(NS_IsMainThread());
   RefPtr<nsRunnableMethod<Document, void, false>> event =
       NewNonOwningRunnableMethod("Document::DoNotifyPossibleTitleChange", this,
                                  &Document::DoNotifyPossibleTitleChange);
-  nsresult rv = Dispatch(TaskCategory::Other, do_AddRef(event));
-  if (NS_SUCCEEDED(rv)) {
-    mPendingTitleChangeEvent = std::move(event);
+  if (NS_WARN_IF(NS_FAILED(Dispatch(TaskCategory::Other, do_AddRef(event))))) {
+    return;
   }
+  mPendingTitleChangeEvent = std::move(event);
 }
 
 void Document::DoNotifyPossibleTitleChange() {
@@ -9253,22 +9246,18 @@ void Document::DoNotifyPossibleTitleChange() {
   nsAutoString title;
   GetTitle(title);
 
-  RefPtr<PresShell> presShell = GetPresShell();
-  if (presShell) {
+  if (RefPtr<PresShell> presShell = GetPresShell()) {
     nsCOMPtr<nsISupports> container =
         presShell->GetPresContext()->GetContainerWeak();
     if (container) {
-      nsCOMPtr<nsIBaseWindow> docShellWin = do_QueryInterface(container);
-      if (docShellWin) {
+      if (nsCOMPtr<nsIBaseWindow> docShellWin = do_QueryInterface(container)) {
         docShellWin->SetTitle(title);
       }
     }
   }
 
-  if (nsPIDOMWindowInner* inner = GetInnerWindow()) {
-    if (WindowGlobalChild* child = inner->GetWindowGlobalChild()) {
-      child->SendUpdateDocumentTitle(title);
-    }
+  if (WindowGlobalChild* child = GetWindowGlobalChild()) {
+    child->SendUpdateDocumentTitle(title);
   }
 
   // Fire a DOM event for the title change.
@@ -12243,8 +12232,7 @@ void Document::GetReadyState(nsAString& aReadyState) const {
 void Document::SuppressEventHandling(uint32_t aIncrease) {
   mEventsSuppressed += aIncrease;
   if (mEventsSuppressed == aIncrease) {
-    WindowGlobalChild* wgc = GetWindowGlobalChild();
-    if (wgc) {
+    if (WindowGlobalChild* wgc = GetWindowGlobalChild()) {
       wgc->BlockBFCacheFor(BFCacheStatus::EVENT_HANDLING_SUPPRESSED);
     }
   }
@@ -12666,8 +12654,7 @@ void Document::UnsuppressEventHandlingAndFireEvents(bool aFireEvents) {
 
   for (nsCOMPtr<Document>& doc : documents) {
     if (!doc->EventHandlingSuppressed()) {
-      WindowGlobalChild* wgc = doc->GetWindowGlobalChild();
-      if (wgc) {
+      if (WindowGlobalChild* wgc = doc->GetWindowGlobalChild()) {
         wgc->UnblockBFCacheFor(BFCacheStatus::EVENT_HANDLING_SUPPRESSED);
       }
 
@@ -15142,8 +15129,17 @@ nsTArray<Element*> Document::AutoPopoverList() const {
 Element* Document::GetTopmostAutoPopover() const {
   for (const nsWeakPtr& weakPtr : Reversed(mTopLayer)) {
     nsCOMPtr<Element> element(do_QueryReferent(weakPtr));
-    if (element && element->IsAutoPopover()) {
-      return element;
+    if (!element) {
+      continue;
+    }
+    if (element->State().HasState(ElementState::FULLSCREEN)) {
+      continue;
+    }
+    if (element->IsAutoPopover()) {
+      auto* dialog = HTMLDialogElement::FromNode(element);
+      if (!dialog || !dialog->IsInTopLayer()) {
+        return element;
+      }
     }
   }
   return nullptr;
@@ -17149,12 +17145,7 @@ already_AddRefed<mozilla::dom::Promise> Document::HasStorageAccess(
 
 RefPtr<Document::GetContentBlockingEventsPromise>
 Document::GetContentBlockingEvents() {
-  RefPtr<nsPIDOMWindowInner> inner = GetInnerWindow();
-  if (!inner) {
-    return nullptr;
-  }
-
-  RefPtr<WindowGlobalChild> wgc = inner->GetWindowGlobalChild();
+  RefPtr<WindowGlobalChild> wgc = GetWindowGlobalChild();
   if (!wgc) {
     return nullptr;
   }
@@ -18543,8 +18534,7 @@ void Document::DisableChildElementInPictureInPictureMode() {
 
 void Document::AddMediaElementWithMSE() {
   if (mMediaElementWithMSECount++ == 0) {
-    WindowGlobalChild* wgc = GetWindowGlobalChild();
-    if (wgc) {
+    if (WindowGlobalChild* wgc = GetWindowGlobalChild()) {
       wgc->BlockBFCacheFor(BFCacheStatus::CONTAINS_MSE_CONTENT);
     }
   }
@@ -18553,8 +18543,7 @@ void Document::AddMediaElementWithMSE() {
 void Document::RemoveMediaElementWithMSE() {
   MOZ_ASSERT(mMediaElementWithMSECount > 0);
   if (--mMediaElementWithMSECount == 0) {
-    WindowGlobalChild* wgc = GetWindowGlobalChild();
-    if (wgc) {
+    if (WindowGlobalChild* wgc = GetWindowGlobalChild()) {
       wgc->UnblockBFCacheFor(BFCacheStatus::CONTAINS_MSE_CONTENT);
     }
   }

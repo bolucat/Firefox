@@ -329,6 +329,25 @@ export class UrlbarInput {
     this._suppressPrimaryAdjustment = false;
   }
 
+  setSelectionRange(selectionStart, selectionEnd) {
+    this.focus();
+
+    let beforeSelect = new CustomEvent("beforeselect", {
+      bubbles: true,
+      cancelable: true,
+    });
+    this.inputField.dispatchEvent(beforeSelect);
+    if (beforeSelect.defaultPrevented) {
+      return;
+    }
+
+    // See _on_select().  HTMLInputElement.select() dispatches a "select"
+    // event but does not set the primary selection.
+    this._suppressPrimaryAdjustment = true;
+    this.inputField.setSelectionRange(selectionStart, selectionEnd);
+    this._suppressPrimaryAdjustment = false;
+  }
+
   /**
    * Sets the URI to display in the location bar.
    *
@@ -3316,8 +3335,8 @@ export class UrlbarInput {
         }
       }
       if (untrim) {
-        this.inputField.value = this._focusUntrimmedValue =
-          this._untrimmedValue;
+        this._focusUntrimmedValue = this._untrimmedValue;
+        this._setValue(this._focusUntrimmedValue, false);
       }
     }
 
@@ -3637,8 +3656,7 @@ export class UrlbarInput {
       event.stopImmediatePropagation();
 
       const value = oldStart + pasteData + oldEnd;
-      this.inputField.value = value;
-      this._untrimmedValue = value;
+      this._setValue(value);
       this.window.gBrowser.userTypedValue = value;
 
       if (this._untrimmedValue) {
@@ -4153,11 +4171,9 @@ class AddSearchEngineHelper {
     elt.setAttribute("anonid", `add-engine-${index}`);
     elt.classList.add("menuitem-iconic");
     elt.classList.add("context-menu-add-engine");
-    elt.setAttribute("data-l10n-id", "search-one-offs-add-engine");
-    elt.setAttribute(
-      "data-l10n-args",
-      JSON.stringify({ engineName: engine.title })
-    );
+    this.input.document.l10n.setAttributes(elt, "search-one-offs-add-engine", {
+      engineName: engine.title,
+    });
     elt.setAttribute("uri", engine.uri);
     if (engine.icon) {
       elt.setAttribute("image", engine.icon);
@@ -4173,7 +4189,10 @@ class AddSearchEngineHelper {
     elt.setAttribute("anonid", "add-engine-menu");
     elt.classList.add("menu-iconic");
     elt.classList.add("context-menu-add-engine");
-    elt.setAttribute("data-l10n-id", "search-one-offs-add-engine-menu");
+    this.input.document.l10n.setAttributes(
+      elt,
+      "search-one-offs-add-engine-menu"
+    );
     if (engine.icon) {
       elt.setAttribute("image", engine.icon);
     }

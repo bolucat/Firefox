@@ -2152,8 +2152,7 @@ bool nsContentUtils::IsCallerChromeOrElementTransformGettersEnabled(
 // Older Should RFP Functions ----------------------------------
 
 /* static */
-bool nsContentUtils::ShouldResistFingerprinting(
-    RFPTarget aTarget /* = RFPTarget::Unknown */) {
+bool nsContentUtils::ShouldResistFingerprinting(RFPTarget aTarget) {
   return nsRFPService::IsRFPEnabledFor(aTarget);
 }
 
@@ -2205,16 +2204,16 @@ const char* kExemptedDomainsPrefName =
     "privacy.resistFingerprinting.exemptedDomains";
 
 /* static */
-bool nsContentUtils::ShouldResistFingerprinting(
-    const char* aJustification, RFPTarget aTarget /* = RFPTarget::Unknown */) {
+bool nsContentUtils::ShouldResistFingerprinting(const char* aJustification,
+                                                RFPTarget aTarget) {
   // See comment in header file for information about usage
   return ShouldResistFingerprinting(aTarget);
 }
 
 /* static */
-bool nsContentUtils::ShouldResistFingerprinting(
-    CallerType aCallerType, nsIGlobalObject* aGlobalObject,
-    RFPTarget aTarget /* = RFPTarget::Unknown */) {
+bool nsContentUtils::ShouldResistFingerprinting(CallerType aCallerType,
+                                                nsIGlobalObject* aGlobalObject,
+                                                RFPTarget aTarget) {
   if (aCallerType == CallerType::System) {
     return false;
   }
@@ -2240,8 +2239,8 @@ bool nsContentUtils::ShouldResistFingerprinting(nsIDocShell* aDocShell,
 }
 
 /* static */
-bool nsContentUtils::ShouldResistFingerprinting(
-    nsIChannel* aChannel, RFPTarget aTarget /* = RFPTarget::Unknown */) {
+bool nsContentUtils::ShouldResistFingerprinting(nsIChannel* aChannel,
+                                                RFPTarget aTarget) {
   if (!aChannel) {
     MOZ_LOG(nsContentUtils::ResistFingerprintingLog(), LogLevel::Info,
             ("Called nsContentUtils::ShouldResistFingerprinting(nsIChannel* "
@@ -2323,7 +2322,7 @@ bool nsContentUtils::ShouldResistFingerprinting(
 /* static */
 bool nsContentUtils::ShouldResistFingerprinting_dangerous(
     nsIURI* aURI, const mozilla::OriginAttributes& aOriginAttributes,
-    const char* aJustification, RFPTarget aTarget /* = RFPTarget::Unknown */) {
+    const char* aJustification, RFPTarget aTarget) {
   // With this check, we can ensure that the prefs and target say yes, so only
   // an exemption would cause us to return false.
   if (!ShouldResistFingerprinting("Positive return check", aTarget)) {
@@ -2364,8 +2363,8 @@ bool nsContentUtils::ShouldResistFingerprinting_dangerous(
 }
 
 /* static */
-bool nsContentUtils::ShouldResistFingerprinting(
-    nsILoadInfo* aLoadInfo, RFPTarget aTarget /* = RFPTarget::Unknown */) {
+bool nsContentUtils::ShouldResistFingerprinting(nsILoadInfo* aLoadInfo,
+                                                RFPTarget aTarget) {
   MOZ_ASSERT(aLoadInfo->GetExternalContentPolicyType() !=
                  ExtContentPolicy::TYPE_DOCUMENT &&
              aLoadInfo->GetExternalContentPolicyType() !=
@@ -2394,8 +2393,7 @@ bool nsContentUtils::ShouldResistFingerprinting(
 
 /* static */
 bool nsContentUtils::ShouldResistFingerprinting_dangerous(
-    nsIPrincipal* aPrincipal, const char* aJustification,
-    RFPTarget aTarget /* = RFPTarget::Unknown */) {
+    nsIPrincipal* aPrincipal, const char* aJustification, RFPTarget aTarget) {
   if (!aPrincipal) {
     MOZ_LOG(nsContentUtils::ResistFingerprintingLog(), LogLevel::Info,
             ("Called nsContentUtils::ShouldResistFingerprinting(nsILoadInfo* "
@@ -8613,8 +8611,7 @@ void nsContentUtils::FirePageShowEventForFrameLoaderSwap(
   }
 
   RefPtr<Document> doc = aItem->GetDocument();
-  NS_ASSERTION(doc, "What happened here?");
-  if (doc->IsShowing() == aFireIfShowing) {
+  if (doc && doc->IsShowing() == aFireIfShowing) {
     doc->OnPageShow(true, aChromeEventHandler, aOnlySystemGroup);
   }
 }
