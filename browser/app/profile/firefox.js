@@ -2165,8 +2165,8 @@ pref("browser.migrate.vivaldi.enabled", true);
 pref("browser.migrate.content-modal.enabled", true);
 pref("browser.migrate.content-modal.import-all.enabled", true);
 
-// Values can be: "default", "autoclose", "standalone".
-pref("browser.migrate.content-modal.about-welcome-behavior", "default");
+// Values can be: "default", "autoclose", "standalone", "legacy".
+pref("browser.migrate.content-modal.about-welcome-behavior", "legacy");
 
 // The maximum age of history entries we'll import, in days.
 pref("browser.migrate.history.maxAgeInDays", 180);
@@ -2272,10 +2272,6 @@ pref("screenshots.browser.component.enabled", false);
 // DoH Rollout: whether to clear the mode value at shutdown.
 pref("doh-rollout.clearModeOnShutdown", false);
 
-// URL for Learn More link for browser error logging in preferences
-pref("browser.chrome.errorReporter.infoURL",
-     "https://support.mozilla.org/1/firefox/%VERSION%/%OS%/%LOCALE%/nightly-error-collection");
-
 // Normandy client preferences
 pref("app.normandy.api_url", "https://normandy.cdn.mozilla.net/api/v1");
 pref("app.normandy.dev_mode", false);
@@ -2356,9 +2352,6 @@ pref("browser.toolbars.bookmarks.showOtherBookmarks", true);
 pref("identity.fxaccounts.toolbar.enabled", true);
 pref("identity.fxaccounts.toolbar.accessed", false);
 pref("identity.fxaccounts.toolbar.defaultVisible", false);
-
-// Prefs for different services supported by Firefox Account
-pref("identity.fxaccounts.service.monitorLoginUrl", "https://monitor.firefox.com/");
 
 // Check bundled omni JARs for corruption.
 pref("corroborator.enabled", true);

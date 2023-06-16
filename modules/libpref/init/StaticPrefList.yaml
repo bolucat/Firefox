@@ -2623,7 +2623,7 @@
 # the content process.
 - name: dom.events.dataTransfer.mozFile.enabled
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 - name: dom.events.dataTransfer.imageAsFile.enabled
@@ -2927,11 +2927,6 @@
 #endif
   mirror: always
 
-- name: dom.ipc.tabs.disabled
-  type: bool
-  value: false
-  mirror: always
-
 # Process launch delay (in milliseconds).
 - name: dom.ipc.processPrelaunch.delayMs
   type: uint32_t
@@ -3142,7 +3137,7 @@
 # WebCodecs API
 - name: dom.media.webcodecs.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Number of seconds of very quiet or silent audio before considering the audio
@@ -6569,11 +6564,6 @@
   mirror: once
 
 #ifdef XP_WIN
-  # Whether or not to fallback from WebRender to Software WebRender + D3D11.
--   name: gfx.webrender.fallback.software-d3d11
-    type: bool
-    value: true
-    mirror: once
   # Whether to use a video overlay layers with DirectComposition
 -   name: gfx.webrender.dcomp-video-overlay-win
     type: bool
@@ -10990,6 +10980,11 @@
   type: RelaxedAtomicBool
   value: true
   mirror: always
+
+- name: media.webrtc.camera.allow-pipewire
+  type: bool
+  value: false
+  mirror: once
 #endif
 
 - name: media.block-autoplay-until-in-foreground

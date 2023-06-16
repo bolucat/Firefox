@@ -77,9 +77,7 @@ export default class LoginItem extends HTMLElement {
     );
     this._favicon = this.shadowRoot.querySelector(".login-item-favicon");
     this._title = this.shadowRoot.querySelector(".login-item-title");
-    this._breachAlert = this.shadowRoot.querySelector(".breach-alert");
-    this._breachAlertLink = this._breachAlert.querySelector(".alert-link");
-    this._breachAlertDate = this._breachAlert.querySelector(".alert-date");
+    this._breachAlert = this.shadowRoot.querySelector("login-breach-alert");
     this._vulnerableAlert = this.shadowRoot.querySelector(".vulnerable-alert");
     this._vulnerableAlertLink =
       this._vulnerableAlert.querySelector(".alert-link");
@@ -152,25 +150,8 @@ export default class LoginItem extends HTMLElement {
       !this._breachesMap || !this._breachesMap.has(this._login.guid);
     if (!this._breachAlert.hidden) {
       const breachDetails = this._breachesMap.get(this._login.guid);
-      this._breachAlertLink.href = this._login.origin;
-      document.l10n.setAttributes(
-        this._breachAlertLink,
-        "about-logins-breach-alert-link",
-        { hostname: this._login.displayOrigin }
-      );
-      if (breachDetails.BreachDate) {
-        let breachDate = new Date(breachDetails.BreachDate);
-        this._breachAlertDate.hidden = isNaN(breachDate);
-        if (!isNaN(breachDate)) {
-          document.l10n.setAttributes(
-            this._breachAlertDate,
-            "about-logins-breach-alert-date",
-            {
-              date: breachDate.getTime(),
-            }
-          );
-        }
-      }
+      const breachTimestamp = new Date(breachDetails.BreachDate ?? 0).getTime();
+      this.#updateBreachAlert(this._login.origin, breachTimestamp);
     }
     this._vulnerableAlert.hidden =
       !this._vulnerableLoginsMap ||
@@ -327,6 +308,13 @@ export default class LoginItem extends HTMLElement {
         break;
       }
       case "blur": {
+        // TODO(Bug 1838494): Remove this if block
+        // This is a temporary fix until Bug 1750072 lands
+        const focusCheckboxNext = event.relatedTarget === this._revealCheckbox;
+        if (focusCheckboxNext) {
+          return;
+        }
+
         if (this.dataset.editing && event.target === this._passwordInput) {
           this._revealCheckbox.checked = false;
           this._updatePasswordRevealState();
@@ -350,9 +338,18 @@ export default class LoginItem extends HTMLElement {
         break;
       }
       case "focus": {
-        const { target } = event;
+        // TODO(Bug 1838494): Remove this if block
+        // This is a temporary fix until Bug 1750072 lands
+        const focusFromCheckbox = event.relatedTarget === this._revealCheckbox;
+        const isEditingMode = this.dataset.editing || this.dataset.isNewLogin;
+        if (focusFromCheckbox && isEditingMode) {
+          this._passwordInput.type = this._revealCheckbox.checked
+            ? "text"
+            : "password";
+          return;
+        }
 
-        if (target === this._passwordDisplayInput) {
+        if (event.target === this._passwordDisplayInput) {
           this._revealCheckbox.checked = !!this.dataset.editing;
           this._updatePasswordRevealState();
         }
@@ -362,6 +359,14 @@ export default class LoginItem extends HTMLElement {
       case "click": {
         let classList = event.currentTarget.classList;
         if (classList.contains("reveal-password-checkbox")) {
+          // TODO(Bug 1838494): Remove this if block
+          // This is a temporary fix until Bug 1750072 lands
+          if (this.dataset.editing || this.dataset.isNewLogin) {
+            this._passwordDisplayInput.replaceWith(this._passwordInput);
+            this._passwordInput.type = "text";
+            this._passwordInput.focus();
+            return;
+          }
           // We prompt for the primary password when entering edit mode already.
           if (this._revealCheckbox.checked && !this.dataset.editing) {
             let primaryPasswordAuth = await promptForPrimaryPassword(
@@ -923,6 +928,16 @@ export default class LoginItem extends HTMLElement {
     } else {
       this._originInput.replaceWith(this._originDisplayInput);
     }
+  }
+
+  // TODO(Bug 1838182): This is glue code to make lit component work
+  // Once login-item itself is a lit component, this method is going to be deleted
+  // in favour of updating the props themselves.
+  // NOTE: Adding this method here instead of login-alert because this file will be
+  // refactored soon.
+  #updateBreachAlert(hostname, date) {
+    this._breachAlert.hostname = hostname;
+    this._breachAlert.date = date;
   }
 }
 customElements.define("login-item", LoginItem);
