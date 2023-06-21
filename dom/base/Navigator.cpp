@@ -493,13 +493,7 @@ nsPluginArray* Navigator::GetPlugins(ErrorResult& aRv) {
   return mPlugins;
 }
 
-bool Navigator::PdfViewerEnabled() {
-  // We ignore pdfjs.disabled when resisting fingerprinting.
-  // See bug 1756280 for an explanation.
-  return !StaticPrefs::pdfjs_disabled() ||
-         nsContentUtils::ShouldResistFingerprinting(GetDocShell(),
-                                                    RFPTarget::Unknown);
-}
+bool Navigator::PdfViewerEnabled() { return !StaticPrefs::pdfjs_disabled(); }
 
 Permissions* Navigator::GetPermissions(ErrorResult& aRv) {
   if (!mWindow) {
@@ -869,7 +863,7 @@ uint32_t Navigator::MaxTouchPoints(CallerType aCallerType) {
   // we will spoof it into 0 if fingerprinting resistance is on.
   if (aCallerType != CallerType::System &&
       nsContentUtils::ShouldResistFingerprinting(GetDocShell(),
-                                                 RFPTarget::Unknown)) {
+                                                 RFPTarget::PointerEvents)) {
     return 0;
   }
 
@@ -1846,7 +1840,7 @@ network::Connection* Navigator::GetConnection(ErrorResult& aRv) {
     }
     mConnection = network::Connection::CreateForWindow(
         mWindow, nsGlobalWindowInner::Cast(mWindow)->ShouldResistFingerprinting(
-                     RFPTarget::Unknown));
+                     RFPTarget::NavigatorConnection));
   }
 
   return mConnection;
