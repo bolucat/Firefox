@@ -17,6 +17,8 @@ add_task(async function test_translations_panel_basics() {
     "The button is available."
   );
 
+  is(button.getAttribute("data-l10n-id"), "urlbar-translations-button");
+
   await runInPage(async TranslationsTest => {
     const { getH1 } = TranslationsTest.getSelectors();
     await TranslationsTest.assertTranslationResult(
@@ -30,6 +32,11 @@ add_task(async function test_translations_panel_basics() {
     click(button, "Opening the popup");
   });
 
+  const panel = document.getElementById("translations-panel");
+  const label = document.getElementById(panel.getAttribute("aria-labelledby"));
+  ok(label, "The a11y label for the panel can be found.");
+  ok(isVisible(label), "The a11y label for the panel is visible.");
+
   await waitForTranslationsPopupEvent("popuphidden", () => {
     click(
       getByL10nId("translations-panel-translate-button"),
@@ -41,6 +48,8 @@ add_task(async function test_translations_panel_basics() {
     { button: true, circleArrows: true, locale: false, icon: true },
     "The icon presents the loading indicator."
   );
+
+  is(button.getAttribute("data-l10n-id"), "urlbar-translations-button-loading");
 
   await waitForTranslationsPopupEvent("popupshown", () => {
     click(button, "Open the popup again");
@@ -64,6 +73,15 @@ add_task(async function test_translations_panel_basics() {
   const { locale } = await assertTranslationsButton(
     { button: true, circleArrows: false, locale: true, icon: true },
     "The icon presents the locale."
+  );
+
+  is(
+    button.getAttribute("data-l10n-id"),
+    "urlbar-translations-button-translated"
+  );
+  is(
+    button.getAttribute("data-l10n-args"),
+    '{"fromLanguage":"Spanish","toLanguage":"English"}'
   );
 
   is(locale.innerText, "en", "The English language tag is shown.");

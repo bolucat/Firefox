@@ -725,9 +725,9 @@ nsChangeHint HTMLCanvasElement::GetAttributeChangeHint(const nsAtom* aAttribute,
 }
 
 void HTMLCanvasElement::MapAttributesIntoRule(
-    const nsMappedAttributes* aAttributes, MappedDeclarations& aDecls) {
-  MapAspectRatioInto(aAttributes, aDecls);
-  MapCommonAttributesInto(aAttributes, aDecls);
+    MappedDeclarationsBuilder& aBuilder) {
+  MapAspectRatioInto(aBuilder);
+  MapCommonAttributesInto(aBuilder);
 }
 
 nsMapRuleToAttributesFunc HTMLCanvasElement::GetAttributeMappingFunction()
@@ -1181,7 +1181,7 @@ bool HTMLCanvasElement::GetIsOpaque() {
 }
 
 bool HTMLCanvasElement::GetOpaqueAttr() {
-  return HasAttr(kNameSpaceID_None, nsGkAtoms::moz_opaque);
+  return HasAttr(nsGkAtoms::moz_opaque);
 }
 
 CanvasContextType HTMLCanvasElement::GetCurrentContextType() {

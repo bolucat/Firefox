@@ -14,7 +14,6 @@
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
-#include "nsMappedAttributes.h"
 #include "nsSize.h"
 #include "mozilla/dom/Document.h"
 #include "nsImageFrame.h"
@@ -43,7 +42,7 @@
 #include "mozilla/CycleCollectedJSContext.h"
 
 #include "mozilla/EventDispatcher.h"
-#include "mozilla/MappedDeclarations.h"
+#include "mozilla/MappedDeclarationsBuilder.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/RestyleManager.h"
 
@@ -143,7 +142,7 @@ NS_IMPL_ISUPPORTS_CYCLE_COLLECTION_INHERITED(HTMLImageElement,
 NS_IMPL_ELEMENT_CLONE(HTMLImageElement)
 
 bool HTMLImageElement::IsInteractiveHTMLContent() const {
-  return HasAttr(kNameSpaceID_None, nsGkAtoms::usemap) ||
+  return HasAttr(nsGkAtoms::usemap) ||
          nsGenericHTMLElement::IsInteractiveHTMLContent();
 }
 
@@ -258,12 +257,12 @@ bool HTMLImageElement::ParseAttribute(int32_t aNamespaceID, nsAtom* aAttribute,
 }
 
 void HTMLImageElement::MapAttributesIntoRule(
-    const nsMappedAttributes* aAttributes, MappedDeclarations& aDecls) {
-  MapImageAlignAttributeInto(aAttributes, aDecls);
-  MapImageBorderAttributeInto(aAttributes, aDecls);
-  MapImageMarginAttributeInto(aAttributes, aDecls);
-  MapImageSizeAttributesInto(aAttributes, aDecls, MapAspectRatio::Yes);
-  MapCommonAttributesInto(aAttributes, aDecls);
+    MappedDeclarationsBuilder& aBuilder) {
+  MapImageAlignAttributeInto(aBuilder);
+  MapImageBorderAttributeInto(aBuilder);
+  MapImageMarginAttributeInto(aBuilder);
+  MapImageSizeAttributesInto(aBuilder, MapAspectRatio::Yes);
+  MapCommonAttributesInto(aBuilder);
 }
 
 nsChangeHint HTMLImageElement::GetAttributeChangeHint(const nsAtom* aAttribute,
@@ -617,8 +616,8 @@ void HTMLImageElement::UpdateFormOwner() {
   if (mForm && !HasFlag(ADDED_TO_FORM)) {
     // Now we need to add ourselves to the form
     nsAutoString nameVal, idVal;
-    GetAttr(kNameSpaceID_None, nsGkAtoms::name, nameVal);
-    GetAttr(kNameSpaceID_None, nsGkAtoms::id, idVal);
+    GetAttr(nsGkAtoms::name, nameVal);
+    GetAttr(nsGkAtoms::id, idVal);
 
     SetFlags(ADDED_TO_FORM);
 
@@ -1155,7 +1154,7 @@ bool HTMLImageElement::SourceElementMatches(Element* aSourceElement) {
   }
 
   nsAutoString type;
-  if (src->GetAttr(kNameSpaceID_None, nsGkAtoms::type, type) &&
+  if (src->GetAttr(nsGkAtoms::type, type) &&
       !SupportedPictureSourceType(type)) {
     return false;
   }
@@ -1343,15 +1342,14 @@ void HTMLImageElement::StopLazyLoading(StartLoading aStartLoading) {
   }
 }
 
-const nsMappedAttributes* HTMLImageElement::GetMappedAttributesFromSource()
-    const {
-  if (!IsInPicture() || !mResponsiveSelector ||
-      !mResponsiveSelector->Content()) {
+const StyleLockedDeclarationBlock*
+HTMLImageElement::GetMappedAttributesFromSource() const {
+  if (!IsInPicture() || !mResponsiveSelector) {
     return nullptr;
   }
 
   const auto* source =
-      HTMLSourceElement::FromNode(mResponsiveSelector->Content());
+      HTMLSourceElement::FromNodeOrNull(mResponsiveSelector->Content());
   if (!source) {
     return nullptr;
   }

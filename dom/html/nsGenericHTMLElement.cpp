@@ -11,7 +11,7 @@
 #include "mozilla/HTMLEditor.h"
 #include "mozilla/IMEContentObserver.h"
 #include "mozilla/IMEStateManager.h"
-#include "mozilla/MappedDeclarations.h"
+#include "mozilla/MappedDeclarationsBuilder.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/MouseEvents.h"
 #include "mozilla/PresShell.h"
@@ -28,7 +28,6 @@
 #include "nsQueryObject.h"
 #include "mozilla/dom/BindContext.h"
 #include "mozilla/dom/Document.h"
-#include "nsMappedAttributes.h"
 #include "nsPIDOMWindow.h"
 #include "nsIFrameInlines.h"
 #include "nsIScrollableFrame.h"
@@ -519,8 +518,7 @@ void nsGenericHTMLElement::UnbindFromTree(bool aNullParent) {
 
 HTMLFormElement* nsGenericHTMLElement::FindAncestorForm(
     HTMLFormElement* aCurrentForm) {
-  NS_ASSERTION(!HasAttr(kNameSpaceID_None, nsGkAtoms::form) ||
-                   IsHTMLElement(nsGkAtoms::img),
+  NS_ASSERTION(!HasAttr(nsGkAtoms::form) || IsHTMLElement(nsGkAtoms::img),
                "FindAncestorForm should not be called if @form is set!");
   if (IsInNativeAnonymousSubtree()) {
     return nullptr;
@@ -1266,26 +1264,25 @@ bool nsGenericHTMLElement::ParseScrollingValue(const nsAString& aString,
   return aResult.ParseEnumValue(aString, kScrollingTable, false);
 }
 
-static inline void MapLangAttributeInto(const nsMappedAttributes* aAttributes,
-                                        MappedDeclarations& aDecls) {
-  const nsAttrValue* langValue = aAttributes->GetAttr(nsGkAtoms::lang);
+static inline void MapLangAttributeInto(MappedDeclarationsBuilder& aBuilder) {
+  const nsAttrValue* langValue = aBuilder.GetAttr(nsGkAtoms::lang);
   if (!langValue) {
     return;
   }
   MOZ_ASSERT(langValue->Type() == nsAttrValue::eAtom);
-  aDecls.SetIdentAtomValueIfUnset(eCSSProperty__x_lang,
-                                  langValue->GetAtomValue());
-  if (!aDecls.PropertyIsSet(eCSSProperty_text_emphasis_position)) {
+  aBuilder.SetIdentAtomValueIfUnset(eCSSProperty__x_lang,
+                                    langValue->GetAtomValue());
+  if (!aBuilder.PropertyIsSet(eCSSProperty_text_emphasis_position)) {
     const nsAtom* lang = langValue->GetAtomValue();
     if (nsStyleUtil::MatchesLanguagePrefix(lang, u"zh")) {
-      aDecls.SetKeywordValue(eCSSProperty_text_emphasis_position,
-                             StyleTextEmphasisPosition::UNDER.bits);
+      aBuilder.SetKeywordValue(eCSSProperty_text_emphasis_position,
+                               StyleTextEmphasisPosition::UNDER.bits);
     } else if (nsStyleUtil::MatchesLanguagePrefix(lang, u"ja") ||
                nsStyleUtil::MatchesLanguagePrefix(lang, u"mn")) {
       // This branch is currently no part of the spec.
       // See bug 1040668 comment 69 and comment 75.
-      aDecls.SetKeywordValue(eCSSProperty_text_emphasis_position,
-                             StyleTextEmphasisPosition::OVER.bits);
+      aBuilder.SetKeywordValue(eCSSProperty_text_emphasis_position,
+                               StyleTextEmphasisPosition::OVER.bits);
     }
   }
 }
@@ -1294,31 +1291,30 @@ static inline void MapLangAttributeInto(const nsMappedAttributes* aAttributes,
  * Handle attributes common to all html elements
  */
 void nsGenericHTMLElement::MapCommonAttributesIntoExceptHidden(
-    const nsMappedAttributes* aAttributes, MappedDeclarations& aDecls) {
-  if (!aDecls.PropertyIsSet(eCSSProperty__moz_user_modify)) {
-    const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::contenteditable);
+    MappedDeclarationsBuilder& aBuilder) {
+  if (!aBuilder.PropertyIsSet(eCSSProperty__moz_user_modify)) {
+    const nsAttrValue* value = aBuilder.GetAttr(nsGkAtoms::contenteditable);
     if (value) {
       if (value->Equals(nsGkAtoms::_empty, eCaseMatters) ||
           value->Equals(nsGkAtoms::_true, eIgnoreCase)) {
-        aDecls.SetKeywordValue(eCSSProperty__moz_user_modify,
-                               StyleUserModify::ReadWrite);
+        aBuilder.SetKeywordValue(eCSSProperty__moz_user_modify,
+                                 StyleUserModify::ReadWrite);
       } else if (value->Equals(nsGkAtoms::_false, eIgnoreCase)) {
-        aDecls.SetKeywordValue(eCSSProperty__moz_user_modify,
-                               StyleUserModify::ReadOnly);
+        aBuilder.SetKeywordValue(eCSSProperty__moz_user_modify,
+                                 StyleUserModify::ReadOnly);
       }
     }
   }
 
-  MapLangAttributeInto(aAttributes, aDecls);
+  MapLangAttributeInto(aBuilder);
 }
 
 void nsGenericHTMLElement::MapCommonAttributesInto(
-    const nsMappedAttributes* aAttributes, MappedDeclarations& aDecls) {
-  MapCommonAttributesIntoExceptHidden(aAttributes, aDecls);
-
-  if (!aDecls.PropertyIsSet(eCSSProperty_display)) {
-    if (aAttributes->IndexOfAttr(nsGkAtoms::hidden) >= 0) {
-      aDecls.SetKeywordValue(eCSSProperty_display, StyleDisplay::None);
+    MappedDeclarationsBuilder& aBuilder) {
+  MapCommonAttributesIntoExceptHidden(aBuilder);
+  if (!aBuilder.PropertyIsSet(eCSSProperty_display)) {
+    if (aBuilder.GetAttr(nsGkAtoms::hidden)) {
+      aBuilder.SetKeywordValue(eCSSProperty_display, StyleDisplay::None);
     }
   }
 }
@@ -1364,24 +1360,24 @@ const Element::MappedAttributeEntry
         {nsGkAtoms::bgcolor}, {nullptr}};
 
 void nsGenericHTMLElement::MapImageAlignAttributeInto(
-    const nsMappedAttributes* aAttributes, MappedDeclarations& aDecls) {
-  const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::align);
+    MappedDeclarationsBuilder& aBuilder) {
+  const nsAttrValue* value = aBuilder.GetAttr(nsGkAtoms::align);
   if (value && value->Type() == nsAttrValue::eEnum) {
     int32_t align = value->GetEnumValue();
-    if (!aDecls.PropertyIsSet(eCSSProperty_float)) {
+    if (!aBuilder.PropertyIsSet(eCSSProperty_float)) {
       if (align == uint8_t(StyleTextAlign::Left)) {
-        aDecls.SetKeywordValue(eCSSProperty_float, StyleFloat::Left);
+        aBuilder.SetKeywordValue(eCSSProperty_float, StyleFloat::Left);
       } else if (align == uint8_t(StyleTextAlign::Right)) {
-        aDecls.SetKeywordValue(eCSSProperty_float, StyleFloat::Right);
+        aBuilder.SetKeywordValue(eCSSProperty_float, StyleFloat::Right);
       }
     }
-    if (!aDecls.PropertyIsSet(eCSSProperty_vertical_align)) {
+    if (!aBuilder.PropertyIsSet(eCSSProperty_vertical_align)) {
       switch (align) {
         case uint8_t(StyleTextAlign::Left):
         case uint8_t(StyleTextAlign::Right):
           break;
         default:
-          aDecls.SetKeywordValue(eCSSProperty_vertical_align, align);
+          aBuilder.SetKeywordValue(eCSSProperty_vertical_align, align);
           break;
       }
     }
@@ -1389,78 +1385,74 @@ void nsGenericHTMLElement::MapImageAlignAttributeInto(
 }
 
 void nsGenericHTMLElement::MapDivAlignAttributeInto(
-    const nsMappedAttributes* aAttributes, MappedDeclarations& aDecls) {
-  if (!aDecls.PropertyIsSet(eCSSProperty_text_align)) {
+    MappedDeclarationsBuilder& aBuilder) {
+  if (!aBuilder.PropertyIsSet(eCSSProperty_text_align)) {
     // align: enum
-    const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::align);
+    const nsAttrValue* value = aBuilder.GetAttr(nsGkAtoms::align);
     if (value && value->Type() == nsAttrValue::eEnum)
-      aDecls.SetKeywordValue(eCSSProperty_text_align, value->GetEnumValue());
+      aBuilder.SetKeywordValue(eCSSProperty_text_align, value->GetEnumValue());
   }
 }
 
 void nsGenericHTMLElement::MapVAlignAttributeInto(
-    const nsMappedAttributes* aAttributes, MappedDeclarations& aDecls) {
-  if (!aDecls.PropertyIsSet(eCSSProperty_vertical_align)) {
+    MappedDeclarationsBuilder& aBuilder) {
+  if (!aBuilder.PropertyIsSet(eCSSProperty_vertical_align)) {
     // align: enum
-    const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::valign);
+    const nsAttrValue* value = aBuilder.GetAttr(nsGkAtoms::valign);
     if (value && value->Type() == nsAttrValue::eEnum)
-      aDecls.SetKeywordValue(eCSSProperty_vertical_align,
-                             value->GetEnumValue());
+      aBuilder.SetKeywordValue(eCSSProperty_vertical_align,
+                               value->GetEnumValue());
   }
 }
 
-static void MapDimensionAttributeInto(MappedDeclarations& aDecls,
-                                      nsCSSPropertyID aProp,
-                                      const nsAttrValue& aValue) {
-  MOZ_ASSERT(!aDecls.PropertyIsSet(aProp),
+void nsGenericHTMLElement::MapDimensionAttributeInto(
+    MappedDeclarationsBuilder& aBuilder, nsCSSPropertyID aProp,
+    const nsAttrValue& aValue) {
+  MOZ_ASSERT(!aBuilder.PropertyIsSet(aProp),
              "Why mapping the same property twice?");
   if (aValue.Type() == nsAttrValue::eInteger) {
-    return aDecls.SetPixelValue(aProp, aValue.GetIntegerValue());
+    return aBuilder.SetPixelValue(aProp, aValue.GetIntegerValue());
   }
   if (aValue.Type() == nsAttrValue::ePercent) {
-    return aDecls.SetPercentValue(aProp, aValue.GetPercentValue());
+    return aBuilder.SetPercentValue(aProp, aValue.GetPercentValue());
   }
   if (aValue.Type() == nsAttrValue::eDoubleValue) {
-    return aDecls.SetPixelValue(aProp, aValue.GetDoubleValue());
+    return aBuilder.SetPixelValue(aProp, aValue.GetDoubleValue());
   }
 }
 
 void nsGenericHTMLElement::MapImageMarginAttributeInto(
-    const nsMappedAttributes* aAttributes, MappedDeclarations& aDecls) {
-  const nsAttrValue* value;
-
+    MappedDeclarationsBuilder& aBuilder) {
   // hspace: value
-  value = aAttributes->GetAttr(nsGkAtoms::hspace);
-  if (value) {
-    MapDimensionAttributeInto(aDecls, eCSSProperty_margin_left, *value);
-    MapDimensionAttributeInto(aDecls, eCSSProperty_margin_right, *value);
+  if (const nsAttrValue* value = aBuilder.GetAttr(nsGkAtoms::hspace)) {
+    MapDimensionAttributeInto(aBuilder, eCSSProperty_margin_left, *value);
+    MapDimensionAttributeInto(aBuilder, eCSSProperty_margin_right, *value);
   }
 
   // vspace: value
-  value = aAttributes->GetAttr(nsGkAtoms::vspace);
-  if (value) {
-    MapDimensionAttributeInto(aDecls, eCSSProperty_margin_top, *value);
-    MapDimensionAttributeInto(aDecls, eCSSProperty_margin_bottom, *value);
+  if (const nsAttrValue* value = aBuilder.GetAttr(nsGkAtoms::vspace)) {
+    MapDimensionAttributeInto(aBuilder, eCSSProperty_margin_top, *value);
+    MapDimensionAttributeInto(aBuilder, eCSSProperty_margin_bottom, *value);
   }
 }
 
 void nsGenericHTMLElement::MapWidthAttributeInto(
-    const nsMappedAttributes* aAttributes, MappedDeclarations& aDecls) {
-  if (const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::width)) {
-    MapDimensionAttributeInto(aDecls, eCSSProperty_width, *value);
+    MappedDeclarationsBuilder& aBuilder) {
+  if (const nsAttrValue* value = aBuilder.GetAttr(nsGkAtoms::width)) {
+    MapDimensionAttributeInto(aBuilder, eCSSProperty_width, *value);
   }
 }
 
 void nsGenericHTMLElement::MapHeightAttributeInto(
-    const nsMappedAttributes* aAttributes, MappedDeclarations& aDecls) {
-  if (const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::height)) {
-    MapDimensionAttributeInto(aDecls, eCSSProperty_height, *value);
+    MappedDeclarationsBuilder& aBuilder) {
+  if (const nsAttrValue* value = aBuilder.GetAttr(nsGkAtoms::height)) {
+    MapDimensionAttributeInto(aBuilder, eCSSProperty_height, *value);
   }
 }
 
-static void DoMapAspectRatio(const nsAttrValue& aWidth,
-                             const nsAttrValue& aHeight,
-                             MappedDeclarations& aDecls) {
+void nsGenericHTMLElement::DoMapAspectRatio(
+    const nsAttrValue& aWidth, const nsAttrValue& aHeight,
+    MappedDeclarationsBuilder& aBuilder) {
   Maybe<double> w;
   if (aWidth.Type() == nsAttrValue::eInteger) {
     w.emplace(aWidth.GetIntegerValue());
@@ -1476,126 +1468,88 @@ static void DoMapAspectRatio(const nsAttrValue& aWidth,
   }
 
   if (w && h) {
-    aDecls.SetAspectRatio(*w, *h);
+    aBuilder.SetAspectRatio(*w, *h);
   }
 }
 
 void nsGenericHTMLElement::MapImageSizeAttributesInto(
-    const nsMappedAttributes* aAttributes, MappedDeclarations& aDecls,
-    MapAspectRatio aMapAspectRatio) {
-  auto* width = aAttributes->GetAttr(nsGkAtoms::width);
-  auto* height = aAttributes->GetAttr(nsGkAtoms::height);
+    MappedDeclarationsBuilder& aBuilder, MapAspectRatio aMapAspectRatio) {
+  auto* width = aBuilder.GetAttr(nsGkAtoms::width);
+  auto* height = aBuilder.GetAttr(nsGkAtoms::height);
   if (width) {
-    MapDimensionAttributeInto(aDecls, eCSSProperty_width, *width);
+    MapDimensionAttributeInto(aBuilder, eCSSProperty_width, *width);
   }
   if (height) {
-    MapDimensionAttributeInto(aDecls, eCSSProperty_height, *height);
+    MapDimensionAttributeInto(aBuilder, eCSSProperty_height, *height);
   }
   if (aMapAspectRatio == MapAspectRatio::Yes && width && height) {
-    DoMapAspectRatio(*width, *height, aDecls);
-  }
-}
-
-void nsGenericHTMLElement::MapPictureSourceSizeAttributesInto(
-    const nsMappedAttributes* aAttributes, MappedDeclarations& aDecls) {
-  const auto* width = aAttributes->GetAttr(nsGkAtoms::width);
-  const auto* height = aAttributes->GetAttr(nsGkAtoms::height);
-  if (!width && !height) {
-    return;
-  }
-
-  // We should set the missing property values with auto value to make sure it
-  // overrides the declaraion created by the presentation attributes of
-  // HTMLImageElement. This can make sure we compute the ratio-dependent axis
-  // size properly by the natural aspect-ratio of the image.
-  //
-  // Note: The spec doesn't specify this, so we follow the implementation in
-  // other browsers.
-  // Spec issue: https://github.com/whatwg/html/issues/8178.
-  if (width) {
-    MapDimensionAttributeInto(aDecls, eCSSProperty_width, *width);
-  } else {
-    aDecls.SetAutoValue(eCSSProperty_width);
-  }
-
-  if (height) {
-    MapDimensionAttributeInto(aDecls, eCSSProperty_height, *height);
-  } else {
-    aDecls.SetAutoValue(eCSSProperty_height);
-  }
-
-  if (width && height) {
-    DoMapAspectRatio(*width, *height, aDecls);
-  } else {
-    aDecls.SetAutoValue(eCSSProperty_aspect_ratio);
+    DoMapAspectRatio(*width, *height, aBuilder);
   }
 }
 
 void nsGenericHTMLElement::MapAspectRatioInto(
-    const nsMappedAttributes* aAttributes, MappedDeclarations& aDecls) {
-  auto* width = aAttributes->GetAttr(nsGkAtoms::width);
-  auto* height = aAttributes->GetAttr(nsGkAtoms::height);
+    MappedDeclarationsBuilder& aBuilder) {
+  auto* width = aBuilder.GetAttr(nsGkAtoms::width);
+  auto* height = aBuilder.GetAttr(nsGkAtoms::height);
   if (width && height) {
-    DoMapAspectRatio(*width, *height, aDecls);
+    DoMapAspectRatio(*width, *height, aBuilder);
   }
 }
 
 void nsGenericHTMLElement::MapImageBorderAttributeInto(
-    const nsMappedAttributes* aAttributes, MappedDeclarations& aDecls) {
+    MappedDeclarationsBuilder& aBuilder) {
   // border: pixels
-  const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::border);
+  const nsAttrValue* value = aBuilder.GetAttr(nsGkAtoms::border);
   if (!value) return;
 
   nscoord val = 0;
   if (value->Type() == nsAttrValue::eInteger) val = value->GetIntegerValue();
 
-  aDecls.SetPixelValueIfUnset(eCSSProperty_border_top_width, (float)val);
-  aDecls.SetPixelValueIfUnset(eCSSProperty_border_right_width, (float)val);
-  aDecls.SetPixelValueIfUnset(eCSSProperty_border_bottom_width, (float)val);
-  aDecls.SetPixelValueIfUnset(eCSSProperty_border_left_width, (float)val);
+  aBuilder.SetPixelValueIfUnset(eCSSProperty_border_top_width, (float)val);
+  aBuilder.SetPixelValueIfUnset(eCSSProperty_border_right_width, (float)val);
+  aBuilder.SetPixelValueIfUnset(eCSSProperty_border_bottom_width, (float)val);
+  aBuilder.SetPixelValueIfUnset(eCSSProperty_border_left_width, (float)val);
 
-  aDecls.SetKeywordValueIfUnset(eCSSProperty_border_top_style,
-                                StyleBorderStyle::Solid);
-  aDecls.SetKeywordValueIfUnset(eCSSProperty_border_right_style,
-                                StyleBorderStyle::Solid);
-  aDecls.SetKeywordValueIfUnset(eCSSProperty_border_bottom_style,
-                                StyleBorderStyle::Solid);
-  aDecls.SetKeywordValueIfUnset(eCSSProperty_border_left_style,
-                                StyleBorderStyle::Solid);
+  aBuilder.SetKeywordValueIfUnset(eCSSProperty_border_top_style,
+                                  StyleBorderStyle::Solid);
+  aBuilder.SetKeywordValueIfUnset(eCSSProperty_border_right_style,
+                                  StyleBorderStyle::Solid);
+  aBuilder.SetKeywordValueIfUnset(eCSSProperty_border_bottom_style,
+                                  StyleBorderStyle::Solid);
+  aBuilder.SetKeywordValueIfUnset(eCSSProperty_border_left_style,
+                                  StyleBorderStyle::Solid);
 
-  aDecls.SetCurrentColorIfUnset(eCSSProperty_border_top_color);
-  aDecls.SetCurrentColorIfUnset(eCSSProperty_border_right_color);
-  aDecls.SetCurrentColorIfUnset(eCSSProperty_border_bottom_color);
-  aDecls.SetCurrentColorIfUnset(eCSSProperty_border_left_color);
+  aBuilder.SetCurrentColorIfUnset(eCSSProperty_border_top_color);
+  aBuilder.SetCurrentColorIfUnset(eCSSProperty_border_right_color);
+  aBuilder.SetCurrentColorIfUnset(eCSSProperty_border_bottom_color);
+  aBuilder.SetCurrentColorIfUnset(eCSSProperty_border_left_color);
 }
 
 void nsGenericHTMLElement::MapBackgroundInto(
-    const nsMappedAttributes* aAttributes, MappedDeclarations& aDecls) {
-  if (!aDecls.PropertyIsSet(eCSSProperty_background_image)) {
+    MappedDeclarationsBuilder& aBuilder) {
+  if (!aBuilder.PropertyIsSet(eCSSProperty_background_image)) {
     // background
-    nsAttrValue* value =
-        const_cast<nsAttrValue*>(aAttributes->GetAttr(nsGkAtoms::background));
-    if (value) {
-      aDecls.SetBackgroundImage(*value);
+    if (const nsAttrValue* value = aBuilder.GetAttr(nsGkAtoms::background)) {
+      aBuilder.SetBackgroundImage(*value);
     }
   }
 }
 
-void nsGenericHTMLElement::MapBGColorInto(const nsMappedAttributes* aAttributes,
-                                          MappedDeclarations& aDecls) {
-  if (!aDecls.PropertyIsSet(eCSSProperty_background_color)) {
-    const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::bgcolor);
-    nscolor color;
-    if (value && value->GetColorValue(color)) {
-      aDecls.SetColorValue(eCSSProperty_background_color, color);
-    }
+void nsGenericHTMLElement::MapBGColorInto(MappedDeclarationsBuilder& aBuilder) {
+  if (aBuilder.PropertyIsSet(eCSSProperty_background_color)) {
+    return;
+  }
+  const nsAttrValue* value = aBuilder.GetAttr(nsGkAtoms::bgcolor);
+  nscolor color;
+  if (value && value->GetColorValue(color)) {
+    aBuilder.SetColorValue(eCSSProperty_background_color, color);
   }
 }
 
 void nsGenericHTMLElement::MapBackgroundAttributesInto(
-    const nsMappedAttributes* aAttributes, MappedDeclarations& aDecls) {
-  MapBackgroundInto(aAttributes, aDecls);
-  MapBGColorInto(aAttributes, aDecls);
+    MappedDeclarationsBuilder& aBuilder) {
+  MapBackgroundInto(aBuilder);
+  MapBGColorInto(aBuilder);
 }
 
 //----------------------------------------------------------------------
@@ -1677,7 +1631,7 @@ void nsGenericHTMLElement::GetURIAttr(nsAtom* aAttr, nsAtom* aBaseAttr,
 
   if (!uri) {
     // Just return the attr value
-    GetAttr(kNameSpaceID_None, aAttr, aResult);
+    GetAttr(aAttr, aResult);
     return;
   }
 
@@ -1699,7 +1653,7 @@ bool nsGenericHTMLElement::GetURIAttr(nsAtom* aAttr, nsAtom* aBaseAttr,
 
   if (aBaseAttr) {
     nsAutoString baseAttrValue;
-    if (GetAttr(kNameSpaceID_None, aBaseAttr, baseAttrValue)) {
+    if (GetAttr(aBaseAttr, baseAttrValue)) {
       nsCOMPtr<nsIURI> baseAttrURI;
       nsresult rv = nsContentUtils::NewURIWithDocumentCharset(
           getter_AddRefs(baseAttrURI), baseAttrValue, OwnerDoc(), baseURI);
@@ -1819,8 +1773,7 @@ nsresult nsGenericHTMLFormElement::BindToTree(BindContext& aContext,
     // corresponding id. If @form isn't set, the element *has* to have a parent,
     // otherwise it wouldn't be possible to find a form ancestor. We should not
     // call UpdateFormOwner if none of these conditions are fulfilled.
-    if (HasAttr(kNameSpaceID_None, nsGkAtoms::form) ? IsInComposedDoc()
-                                                    : aParent.IsContent()) {
+    if (HasAttr(nsGkAtoms::form) ? IsInComposedDoc() : aParent.IsContent()) {
       UpdateFormOwner(true, nullptr);
     }
   }
@@ -1840,8 +1793,7 @@ void nsGenericHTMLFormElement::UnbindFromTree(bool aNullParent) {
         ClearForm(true, true);
       } else {
         // Recheck whether we should still have an form.
-        if (HasAttr(kNameSpaceID_None, nsGkAtoms::form) ||
-            !FindAncestorForm(form)) {
+        if (HasAttr(nsGkAtoms::form) || !FindAncestorForm(form)) {
           ClearForm(true, true);
         } else {
           UnsetFlags(MAYBE_ORPHAN_FORM_ELEMENT);
@@ -1879,7 +1831,7 @@ void nsGenericHTMLFormElement::BeforeSetAttr(int32_t aNameSpaceID,
     // remove the control from the hashtable as needed
 
     if (form && (aName == nsGkAtoms::name || aName == nsGkAtoms::id)) {
-      GetAttr(kNameSpaceID_None, aName, tmp);
+      GetAttr(aName, tmp);
 
       if (!tmp.IsEmpty()) {
         form->RemoveElementFromTable(this, tmp);
@@ -1887,13 +1839,13 @@ void nsGenericHTMLFormElement::BeforeSetAttr(int32_t aNameSpaceID,
     }
 
     if (form && aName == nsGkAtoms::type) {
-      GetAttr(kNameSpaceID_None, nsGkAtoms::name, tmp);
+      GetAttr(nsGkAtoms::name, tmp);
 
       if (!tmp.IsEmpty()) {
         form->RemoveElementFromTable(this, tmp);
       }
 
-      GetAttr(kNameSpaceID_None, nsGkAtoms::id, tmp);
+      GetAttr(nsGkAtoms::id, tmp);
 
       if (!tmp.IsEmpty()) {
         form->RemoveElementFromTable(this, tmp);
@@ -1937,13 +1889,13 @@ void nsGenericHTMLFormElement::AfterSetAttr(
     if (form && aName == nsGkAtoms::type) {
       nsAutoString tmp;
 
-      GetAttr(kNameSpaceID_None, nsGkAtoms::name, tmp);
+      GetAttr(nsGkAtoms::name, tmp);
 
       if (!tmp.IsEmpty()) {
         form->AddElementToTable(this, tmp);
       }
 
-      GetAttr(kNameSpaceID_None, nsGkAtoms::id, tmp);
+      GetAttr(nsGkAtoms::id, tmp);
 
       if (!tmp.IsEmpty()) {
         form->AddElementToTable(this, tmp);
@@ -1985,7 +1937,7 @@ Element* nsGenericHTMLFormElement::AddFormIdObserver() {
 
   nsAutoString formId;
   DocumentOrShadowRoot* docOrShadow = GetUncomposedDocOrConnectedShadowRoot();
-  GetAttr(kNameSpaceID_None, nsGkAtoms::form, formId);
+  GetAttr(nsGkAtoms::form, formId);
   NS_ASSERTION(!formId.IsEmpty(),
                "@form value should not be the empty string!");
   RefPtr<nsAtom> atom = NS_Atomize(formId);
@@ -2002,7 +1954,7 @@ void nsGenericHTMLFormElement::RemoveFormIdObserver() {
   }
 
   nsAutoString formId;
-  GetAttr(kNameSpaceID_None, nsGkAtoms::form, formId);
+  GetAttr(nsGkAtoms::form, formId);
   NS_ASSERTION(!formId.IsEmpty(),
                "@form value should not be the empty string!");
   RefPtr<nsAtom> atom = NS_Atomize(formId);
@@ -2113,7 +2065,7 @@ void nsGenericHTMLFormElement::UpdateFormOwner(bool aBindToTree,
   if (!oldForm) {
     // If @form is set, we have to use that to find the form.
     nsAutoString formId;
-    if (GetAttr(kNameSpaceID_None, nsGkAtoms::form, formId)) {
+    if (GetAttr(nsGkAtoms::form, formId)) {
       if (!formId.IsEmpty()) {
         Element* element = nullptr;
 
@@ -2149,8 +2101,8 @@ void nsGenericHTMLFormElement::UpdateFormOwner(bool aBindToTree,
   if (form && !HasFlag(ADDED_TO_FORM)) {
     // Now we need to add ourselves to the form
     nsAutoString nameVal, idVal;
-    GetAttr(kNameSpaceID_None, nsGkAtoms::name, nameVal);
-    GetAttr(kNameSpaceID_None, nsGkAtoms::id, idVal);
+    GetAttr(nsGkAtoms::name, nameVal);
+    GetAttr(nsGkAtoms::id, idVal);
 
     SetFlags(ADDED_TO_FORM);
 
@@ -2266,7 +2218,20 @@ void nsGenericHTMLElement::Click(CallerType aCallerType) {
 
   RefPtr<nsPresContext> context;
   if (doc) {
-    context = doc->GetPresContext();
+    PresShell* presShell = doc->GetPresShell();
+    if (!presShell) {
+      // We need the nsPresContext for dispatching the click event. In some
+      // rare cases we need to flush notifications to force creation of the
+      // nsPresContext here (for example when a script calls button.click()
+      // from script early during page load). We only flush the notifications
+      // if the PresShell hasn't been created yet, to limit the performance
+      // impact.
+      doc->FlushPendingNotifications(FlushType::EnsurePresShellInitAndFrames);
+      presShell = doc->GetPresShell();
+    }
+    if (presShell) {
+      context = presShell->GetPresContext();
+    }
   }
 
   SetHandlingClick();
@@ -2505,8 +2470,7 @@ static void MakeContentDescendantsEditable(nsIContent* aContent) {
   for (nsIContent* child = aContent->GetFirstChild(); child;
        child = child->GetNextSibling()) {
     if (!child->IsElement() ||
-        !child->AsElement()->HasAttr(kNameSpaceID_None,
-                                     nsGkAtoms::contenteditable)) {
+        !child->AsElement()->HasAttr(nsGkAtoms::contenteditable)) {
       MakeContentDescendantsEditable(child);
     }
   }
@@ -2825,9 +2789,9 @@ bool nsGenericHTMLFormControlElement::IsAutocapitalizeInheriting() const {
 nsresult nsGenericHTMLFormControlElement::SubmitDirnameDir(
     FormData* aFormData) {
   // Submit dirname=dir if element has non-empty dirname attribute
-  if (HasAttr(kNameSpaceID_None, nsGkAtoms::dirname)) {
+  if (HasAttr(nsGkAtoms::dirname)) {
     nsAutoString dirname;
-    GetAttr(kNameSpaceID_None, nsGkAtoms::dirname, dirname);
+    GetAttr(nsGkAtoms::dirname, dirname);
     if (!dirname.IsEmpty()) {
       const Directionality eDir = GetDirectionality();
       MOZ_ASSERT(eDir == eDir_RTL || eDir == eDir_LTR,
@@ -3024,8 +2988,7 @@ void nsGenericHTMLFormControlElementWithState::GetFormAction(nsString& aValue) {
     return;
   }
 
-  if (!GetAttr(kNameSpaceID_None, nsGkAtoms::formaction, aValue) ||
-      aValue.IsEmpty()) {
+  if (!GetAttr(nsGkAtoms::formaction, aValue) || aValue.IsEmpty()) {
     Document* document = OwnerDoc();
     nsIURI* docURI = document->GetDocumentURI();
     if (docURI) {

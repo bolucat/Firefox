@@ -1814,19 +1814,10 @@ pref("media.videocontrols.picture-in-picture.video-toggle.visibility-threshold",
 pref("media.videocontrols.picture-in-picture.keyboard-controls.enabled", true);
 pref("media.videocontrols.picture-in-picture.urlbar-button.enabled", true);
 
-// Preferences for the older translation service backed by external services. This is
-// planned to be replaced with an integration of the Firefox Translations service.
-// The prefs for the new service are located under "browser.translations" in
-// modules/libpref/init/all.js
-//
-// See Bug 971044.
-pref("browser.translation.detectLanguage", false);
+// TODO (Bug 1817084) - This pref is used for managing translation preferences
+// in the Firefox Translations addon. It should be removed when the addon is
+// removed.
 pref("browser.translation.neverForLanguages", "");
-// Show the older translation UI that uses external services. This includes UI such as
-// the info bar, notification icon and preferences.
-pref("browser.translation.ui.show", false);
-// Allows to define the translation engine. Google is default, Bing or Yandex are other options.
-pref("browser.translation.engine", "Google");
 
 // Enable Firefox translations powered by the Bergamot translations
 // engine https://browser.mt/. See Bug 971044.
@@ -1874,6 +1865,7 @@ pref("privacy.trackingprotection.cryptomining.enabled", true);
 pref("browser.contentblocking.database.enabled", true);
 
 pref("dom.storage_access.enabled", true);
+pref("dom.storage_access.frame_only", true);
 
 // Enable URL query stripping and strip on share in Nightly.
 #ifdef NIGHTLY_BUILD
@@ -2176,8 +2168,10 @@ pref("browser.migrate.history.maxAgeInDays", 180);
 // another browser. We also attempt to transfer these preferences
 // across profile resets.
 pref("browser.migrate.interactions.bookmarks", false);
+pref("browser.migrate.interactions.csvpasswords", false);
 pref("browser.migrate.interactions.history", false);
 pref("browser.migrate.interactions.passwords", false);
+
 pref("browser.migrate.preferences-entrypoint.enabled", true);
 
 pref("browser.device-migration.help-menu.hidden", false);

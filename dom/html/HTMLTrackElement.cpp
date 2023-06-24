@@ -27,7 +27,6 @@
 #include "nsIScriptError.h"
 #include "nsISupportsImpl.h"
 #include "nsISupportsPrimitives.h"
-#include "nsMappedAttributes.h"
 #include "nsNetUtil.h"
 #include "nsStyleConsts.h"
 #include "nsThreadUtils.h"
@@ -213,7 +212,7 @@ void HTMLTrackElement::SetSrc(const nsAString& aSrc, ErrorResult& aError) {
   LOG("Set src=%s", NS_ConvertUTF16toUTF8(aSrc).get());
 
   nsAutoString src;
-  if (GetAttr(kNameSpaceID_None, nsGkAtoms::src, src) && src == aSrc) {
+  if (GetAttr(nsGkAtoms::src, src) && src == aSrc) {
     LOG("No need to reload for same src url");
     return;
   }
@@ -286,7 +285,7 @@ void HTMLTrackElement::LoadResource(RefPtr<WebVTTListener>&& aWebVTTListener) {
   mLoadResourceDispatched = false;
 
   nsAutoString src;
-  if (!GetAttr(kNameSpaceID_None, nsGkAtoms::src, src) || src.IsEmpty()) {
+  if (!GetAttr(nsGkAtoms::src, src) || src.IsEmpty()) {
     LOG("Fail to load because no src");
     SetReadyState(TextTrackReadyState::FailedToLoad);
     return;

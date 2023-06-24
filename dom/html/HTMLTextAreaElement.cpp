@@ -13,7 +13,7 @@
 #include "mozilla/dom/HTMLTextAreaElementBinding.h"
 #include "mozilla/dom/MutationEventBinding.h"
 #include "mozilla/EventDispatcher.h"
-#include "mozilla/MappedDeclarations.h"
+#include "mozilla/MappedDeclarationsBuilder.h"
 #include "mozilla/MouseEvents.h"
 #include "mozilla/PresState.h"
 #include "mozilla/TextControlState.h"
@@ -32,8 +32,6 @@
 #include "nsITextControlFrame.h"
 #include "nsLayoutUtils.h"
 #include "nsLinebreakConverter.h"
-#include "nsMappedAttributes.h"
-#include "nsPIDOMWindow.h"
 #include "nsPresContext.h"
 #include "nsReadableUtils.h"
 #include "nsStyleConsts.h"
@@ -378,20 +376,18 @@ bool HTMLTextAreaElement::ParseAttribute(int32_t aNamespaceID,
 }
 
 void HTMLTextAreaElement::MapAttributesIntoRule(
-    const nsMappedAttributes* aAttributes, MappedDeclarations& aDecls) {
+    MappedDeclarationsBuilder& aBuilder) {
   // wrap=off
-  if (!aDecls.PropertyIsSet(eCSSProperty_white_space)) {
-    const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::wrap);
+  if (!aBuilder.PropertyIsSet(eCSSProperty_white_space)) {
+    const nsAttrValue* value = aBuilder.GetAttr(nsGkAtoms::wrap);
     if (value && value->Type() == nsAttrValue::eString &&
         value->Equals(nsGkAtoms::OFF, eIgnoreCase)) {
-      aDecls.SetKeywordValue(eCSSProperty_white_space, StyleWhiteSpace::Pre);
+      aBuilder.SetKeywordValue(eCSSProperty_white_space, StyleWhiteSpace::Pre);
     }
   }
 
-  nsGenericHTMLFormControlElementWithState::MapDivAlignAttributeInto(
-      aAttributes, aDecls);
-  nsGenericHTMLFormControlElementWithState::MapCommonAttributesInto(aAttributes,
-                                                                    aDecls);
+  nsGenericHTMLFormControlElementWithState::MapDivAlignAttributeInto(aBuilder);
+  nsGenericHTMLFormControlElementWithState::MapCommonAttributesInto(aBuilder);
 }
 
 nsChangeHint HTMLTextAreaElement::GetAttributeChangeHint(
@@ -679,7 +675,7 @@ HTMLTextAreaElement::SubmitNamesValues(FormData* aFormData) {
   // Get the name (if no name, no submit)
   //
   nsAutoString name;
-  GetAttr(kNameSpaceID_None, nsGkAtoms::name, name);
+  GetAttr(nsGkAtoms::name, name);
   if (name.IsEmpty()) {
     return NS_OK;
   }
@@ -730,7 +726,7 @@ void HTMLTextAreaElement::SaveState() {
     if (state) {
       // We do not want to save the real disabled state but the disabled
       // attribute.
-      state->disabled() = HasAttr(kNameSpaceID_None, nsGkAtoms::disabled);
+      state->disabled() = HasAttr(nsGkAtoms::disabled);
       state->disabledSet() = true;
     }
   }
@@ -1029,7 +1025,7 @@ void HTMLTextAreaElement::UpdateValueMissingValidityState() {
 
 void HTMLTextAreaElement::UpdateBarredFromConstraintValidation() {
   SetBarredFromConstraintValidation(
-      HasAttr(kNameSpaceID_None, nsGkAtoms::readonly) ||
+      HasAttr(nsGkAtoms::readonly) ||
       HasFlag(ELEMENT_IS_DATALIST_OR_HAS_DATALIST_ANCESTOR) || IsDisabled());
 }
 

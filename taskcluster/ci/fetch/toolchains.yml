@@ -597,14 +597,14 @@ cargo-vet:
     fetch:
         type: git
         repo: https://github.com/mozilla/cargo-vet
-        revision: ea2899fc73e65a3c683313ed117cf3d2f9b285ab
+        revision: 8c8b6d7a5237544c613de616a031586587f49a42
 
 symbol-scrapers:
     description: Linux distribution symbol scraper source
     fetch:
         type: git
         repo: http://github.com/mozilla/symbol-scrapers
-        revision: 3c3c7a93c0f707824bb245a4c87cd4a9cbb64417
+        revision: b98d7f1e3322b0b602e5acd13e58e82e50d68898
 
 cpython-3.8.10:
     description: cpython 3.8.10 source code

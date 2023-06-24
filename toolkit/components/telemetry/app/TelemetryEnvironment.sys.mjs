@@ -227,6 +227,7 @@ const DEFAULT_ENVIRONMENT_PREFS = new Map([
   ["browser.formfill.enable", { what: RECORD_PREF_VALUE }],
   ["browser.fixup.alternate.enabled", { what: RECORD_DEFAULTPREF_VALUE }],
   ["browser.migrate.interactions.bookmarks", { what: RECORD_PREF_VALUE }],
+  ["browser.migrate.interactions.csvpasswords", { what: RECORD_PREF_VALUE }],
   ["browser.migrate.interactions.history", { what: RECORD_PREF_VALUE }],
   ["browser.migrate.interactions.passwords", { what: RECORD_PREF_VALUE }],
   ["browser.newtabpage.enabled", { what: RECORD_PREF_VALUE }],
@@ -1985,6 +1986,7 @@ EnvironmentCache.prototype = {
       ContentBackend: getGfxField("ContentBackend", null),
       Headless: getGfxField("isHeadless", null),
       EmbeddedInFirefoxReality: getGfxField("EmbeddedInFirefoxReality", null),
+      TargetFrameRate: getGfxField("TargetFrameRate", null),
       // The following line is disabled due to main thread jank and will be enabled
       // again as part of bug 1154500.
       // DWriteVersion: getGfxField("DWriteVersion", null),

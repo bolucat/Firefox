@@ -239,18 +239,29 @@ void HTMLFormElement::MaybeSubmit(Element* aSubmitter) {
   //      If the result is negative (i.e., the constraint validation concluded
   //      that there were invalid fields and probably informed the user of this)
   bool noValidateState =
-      HasAttr(kNameSpaceID_None, nsGkAtoms::novalidate) ||
-      (aSubmitter &&
-       aSubmitter->HasAttr(kNameSpaceID_None, nsGkAtoms::formnovalidate));
+      HasAttr(nsGkAtoms::novalidate) ||
+      (aSubmitter && aSubmitter->HasAttr(nsGkAtoms::formnovalidate));
   if (!noValidateState && !CheckValidFormSubmission()) {
     return;
+  }
+
+  RefPtr<PresShell> presShell = doc->GetPresShell();
+  if (!presShell) {
+    // We need the nsPresContext for dispatching the submit event. In some
+    // rare cases we need to flush notifications to force creation of the
+    // nsPresContext here (for example when a script calls form.requestSubmit()
+    // from script early during page load). We only flush the notifications
+    // if the PresShell hasn't been created yet, to limit the performance
+    // impact.
+    doc->FlushPendingNotifications(FlushType::EnsurePresShellInitAndFrames);
+    presShell = doc->GetPresShell();
   }
 
   // If |PresShell::Destroy| has been called due to handling the event the pres
   // context will return a null pres shell. See bug 125624. Using presShell to
   // dispatch the event. It makes sure that event is not handled if the window
   // is being destroyed.
-  if (RefPtr<PresShell> presShell = doc->GetPresShell()) {
+  if (presShell) {
     SubmitEventInit init;
     init.mBubbles = true;
     init.mCancelable = true;
@@ -1041,7 +1052,7 @@ nsresult HTMLFormElement::ConstructEntryList(FormData* aFormData) {
 
 NotNull<const Encoding*> HTMLFormElement::GetSubmitEncoding() {
   nsAutoString acceptCharsetValue;
-  GetAttr(kNameSpaceID_None, nsGkAtoms::acceptcharset, acceptCharsetValue);
+  GetAttr(nsGkAtoms::acceptcharset, acceptCharsetValue);
 
   int32_t charsetLen = acceptCharsetValue.Length();
   if (charsetLen > 0) {
@@ -1095,11 +1106,10 @@ int32_t HTMLFormElement::CompareFormControlPosition(Element* aElement1,
 
   // If an element has a @form, we can assume it *might* be able to not have
   // a parent and still be in the form.
-  NS_ASSERTION((aElement1->HasAttr(kNameSpaceID_None, nsGkAtoms::form) ||
-                aElement1->GetParent()) &&
-                   (aElement2->HasAttr(kNameSpaceID_None, nsGkAtoms::form) ||
-                    aElement2->GetParent()),
-               "Form controls should always have parents");
+  NS_ASSERTION(
+      (aElement1->HasAttr(nsGkAtoms::form) || aElement1->GetParent()) &&
+          (aElement2->HasAttr(nsGkAtoms::form) || aElement2->GetParent()),
+      "Form controls should always have parents");
 
   // If we pass aForm, we are assuming both controls are form descendants which
   // is not always the case. This function should work but maybe slower.
@@ -1255,8 +1265,7 @@ nsresult HTMLFormElement::AddElement(nsGenericHTMLFormElement* aChild,
                                      bool aUpdateValidity, bool aNotify) {
   // If an element has a @form, we can assume it *might* be able to not have
   // a parent and still be in the form.
-  NS_ASSERTION(aChild->HasAttr(kNameSpaceID_None, nsGkAtoms::form) ||
-                   aChild->GetParent(),
+  NS_ASSERTION(aChild->HasAttr(nsGkAtoms::form) || aChild->GetParent(),
                "Form control should have a parent");
   nsCOMPtr<nsIFormControl> fc = do_QueryObject(aChild);
   MOZ_ASSERT(fc);
@@ -1597,8 +1606,7 @@ void HTMLFormElement::FlushPendingSubmission() {
 }
 
 void HTMLFormElement::GetAction(nsString& aValue) {
-  if (!GetAttr(kNameSpaceID_None, nsGkAtoms::action, aValue) ||
-      aValue.IsEmpty()) {
+  if (!GetAttr(nsGkAtoms::action, aValue) || aValue.IsEmpty()) {
     Document* document = OwnerDoc();
     nsIURI* docURI = document->GetDocumentURI();
     if (docURI) {
@@ -1631,7 +1639,7 @@ nsresult HTMLFormElement::GetActionURL(nsIURI** aActionURL,
   nsAutoString action;
 
   if (aOriginatingElement &&
-      aOriginatingElement->HasAttr(kNameSpaceID_None, nsGkAtoms::formaction)) {
+      aOriginatingElement->HasAttr(nsGkAtoms::formaction)) {
 #ifdef DEBUG
     nsCOMPtr<nsIFormControl> formControl =
         do_QueryInterface(aOriginatingElement);
@@ -1882,7 +1890,7 @@ bool HTMLFormElement::CheckValidFormSubmission() {
    * submitted when invalid. See bug 587671.
    */
 
-  NS_ASSERTION(!HasAttr(kNameSpaceID_None, nsGkAtoms::novalidate),
+  NS_ASSERTION(!HasAttr(nsGkAtoms::novalidate),
                "We shouldn't be there if novalidate is set!");
 
   AutoTArray<RefPtr<Element>, 32> invalidElements;
