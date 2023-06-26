@@ -8562,12 +8562,6 @@
   value: 3
   mirror: always
 
-# font-visibility setting when Resist Fingerprinting is enabled
-- name: layout.css.font-visibility.resistFingerprinting
-  type: int32_t
-  value: 1
-  mirror: always
-
 # Max font-visibility setting for Private Browsing contexts
 # (The actual value used in a private-browsing context will be the lesser of
 # the appropriate standard/trackingprotection/RFP value from above, and the
@@ -11779,8 +11773,7 @@
   mirror: always
 
 # Enables `<link rel="modulepreload">` tag and `Link: rel=modulepreload`
-# response header handling. The latter is not yet implemented, see:
-# https://bugzilla.mozilla.org/show_bug.cgi?id=1773056.
+# response header handling.
 - name: network.modulepreload
   type: RelaxedAtomicBool
   value: true
