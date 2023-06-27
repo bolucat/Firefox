@@ -2613,7 +2613,7 @@
 # If true, event is first captured then bubbled on target element
 - name: dom.events.phases.correctOrderOnTarget
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # This pref controls whether or not the `protected` dataTransfer state is
@@ -8581,6 +8581,13 @@
   value: @IS_NOT_RELEASE_OR_BETA@
   mirror: always
 
+# Is support for (linear|radial|conic)-gradient color interpolation methods enabled?
+- name: layout.css.gradient-color-interpolation-method.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+  rust: true
+
 # Is support for caching an grid item's block axis measurement enabled?
 - name: layout.css.grid-item-baxis-measurement.enabled
   type: bool
@@ -12650,6 +12657,13 @@
   value: 256*1024*1024 # 256 Mb
   mirror: always
 
+# Whether JAR entries that defate to a different size than RealSize/orglen
+# are considered corrupted or not
+- name: network.jar.require_size_match
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 # When this pref is true we clear the Content-Encoding header for
 # application/x-gzip Content-Type responses, see bug 1030660.
 #
@@ -14452,6 +14466,11 @@
   value: false
   mirror: always
 
+- name: toolkit.scrollbox.smoothScroll
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 - name: toolkit.scrollbox.horizontalScrollDistance
   type: RelaxedAtomicInt32
   value: 5
@@ -15650,6 +15669,16 @@
   type: bool
   value: true
   mirror: once
+
+# Whether the clipboard cached are used while getting system clipboard data.
+- name: widget.clipboard.use-cached-data.enabled
+  type: bool
+#if defined(XP_MACOSX)
+  value: true
+#else
+  value: false
+#endif
+  mirror: always
 
 #---------------------------------------------------------------------------
 # Prefs starting with "zoom."

@@ -1820,8 +1820,8 @@ pref("media.videocontrols.picture-in-picture.urlbar-button.enabled", true);
 pref("browser.translation.neverForLanguages", "");
 
 // Enable Firefox translations powered by the Bergamot translations
-// engine https://browser.mt/. See Bug 971044.
-#if defined(EARLY_BETA_OR_EARLIER)
+// engine https://browser.mt/.
+#ifdef NIGHTLY_BUILD
 pref("browser.translations.enable", true);
 #endif
 
@@ -2513,8 +2513,6 @@ pref("devtools.netmonitor.features.requestBlocking", true);
 pref("devtools.application.enabled", true);
 
 // Enable the custom formatters feature
-// TODO remove once the custom formatters feature is stable (see bug 1734614)
-pref("devtools.custom-formatters", false);
 // This preference represents the user's choice to enable the custom formatters feature.
 // While the preference above will be removed once the feature is stable, this one is menat to stay.
 pref("devtools.custom-formatters.enabled", false);

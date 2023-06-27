@@ -54,8 +54,6 @@
 #include "mozilla/dom/HTMLAnchorElement.h"
 #include "mozilla/dom/HTMLBodyElement.h"
 #include "mozilla/dom/HTMLBRElement.h"
-#include "mozilla/dom/HTMLButtonElement.h"
-#include "mozilla/dom/HTMLSummaryElement.h"
 #include "mozilla/dom/NameSpaceConstants.h"
 #include "mozilla/dom/Selection.h"
 
@@ -6701,6 +6699,93 @@ nsresult HTMLEditor::GetReturnInParagraphCreatesNewParagraph(
   return NS_OK;
 }
 
+NS_IMETHODIMP HTMLEditor::GetWrapWidth(int32_t* aWrapColumn) {
+  if (NS_WARN_IF(!aWrapColumn)) {
+    return NS_ERROR_INVALID_ARG;
+  }
+  *aWrapColumn = WrapWidth();
+  return NS_OK;
+}
+
+//
+// See if the style value includes this attribute, and if it does,
+// cut out everything from the attribute to the next semicolon.
+//
+static void CutStyle(const char* stylename, nsString& styleValue) {
+  // Find the current wrapping type:
+  int32_t styleStart = styleValue.LowerCaseFindASCII(stylename);
+  if (styleStart >= 0) {
+    int32_t styleEnd = styleValue.Find(u";", styleStart);
+    if (styleEnd > styleStart) {
+      styleValue.Cut(styleStart, styleEnd - styleStart + 1);
+    } else {
+      styleValue.Cut(styleStart, styleValue.Length() - styleStart);
+    }
+  }
+}
+
+NS_IMETHODIMP HTMLEditor::SetWrapWidth(int32_t aWrapColumn) {
+  AutoEditActionDataSetter editActionData(*this, EditAction::eSetWrapWidth);
+  if (NS_WARN_IF(!editActionData.CanHandle())) {
+    return NS_ERROR_NOT_INITIALIZED;
+  }
+
+  mWrapColumn = aWrapColumn;
+
+  // Make sure we're a plaintext editor, otherwise we shouldn't
+  // do the rest of this.
+  if (!IsInPlaintextMode()) {
+    return NS_OK;
+  }
+
+  // Ought to set a style sheet here...
+  RefPtr<Element> rootElement = GetRoot();
+  if (NS_WARN_IF(!rootElement)) {
+    return NS_ERROR_NOT_INITIALIZED;
+  }
+
+  // Get the current style for this root element:
+  nsAutoString styleValue;
+  rootElement->GetAttr(nsGkAtoms::style, styleValue);
+
+  // We'll replace styles for these values:
+  CutStyle("white-space", styleValue);
+  CutStyle("width", styleValue);
+  CutStyle("font-family", styleValue);
+
+  // If we have other style left, trim off any existing semicolons
+  // or white-space, then add a known semicolon-space:
+  if (!styleValue.IsEmpty()) {
+    styleValue.Trim("; \t", false, true);
+    styleValue.AppendLiteral("; ");
+  }
+
+  // Make sure we have fixed-width font.  This should be done for us,
+  // but it isn't, see bug 22502, so we have to add "font: -moz-fixed;".
+  // Only do this if we're wrapping.
+  if (IsWrapHackEnabled() && aWrapColumn >= 0) {
+    styleValue.AppendLiteral("font-family: -moz-fixed; ");
+  }
+
+  // and now we're ready to set the new white-space/wrapping style.
+  if (aWrapColumn > 0) {
+    // Wrap to a fixed column.
+    styleValue.AppendLiteral("white-space: pre-wrap; width: ");
+    styleValue.AppendInt(aWrapColumn);
+    styleValue.AppendLiteral("ch;");
+  } else if (!aWrapColumn) {
+    styleValue.AppendLiteral("white-space: pre-wrap;");
+  } else {
+    styleValue.AppendLiteral("white-space: pre;");
+  }
+
+  nsresult rv = rootElement->SetAttr(kNameSpaceID_None, nsGkAtoms::style,
+                                     styleValue, true);
+  NS_WARNING_ASSERTION(NS_SUCCEEDED(rv),
+                       "Element::SetAttr(nsGkAtoms::style) failed");
+  return rv;
+}
+
 Element* HTMLEditor::GetFocusedElement() const {
   nsFocusManager* focusManager = nsFocusManager::GetFocusManager();
   if (NS_WARN_IF(!focusManager)) {
@@ -6892,19 +6977,7 @@ EventTarget* HTMLEditor::GetDOMEventTarget() const {
   // whether Init() was ever called.  So we need to get the document
   // ourselves, if it exists.
   MOZ_ASSERT(IsInitialized(), "The HTMLEditor has not been initialized yet");
-  Document* doc = GetDocument();
-  if (!doc) {
-    return nullptr;
-  }
-
-  // Register the EditorEventListener to the parent of window.
-  //
-  // The advantage of this approach is HTMLEditor can still
-  // receive events when shadow dom is involved.
-  if (nsPIDOMWindowOuter* win = doc->GetWindow()) {
-    return win->GetParentTarget();
-  }
-  return nullptr;
+  return GetDocument();
 }
 
 bool HTMLEditor::ShouldReplaceRootElement() const {
@@ -7063,20 +7136,6 @@ bool HTMLEditor::IsAcceptableInputEvent(WidgetGUIEvent* aGUIEvent) const {
     }
   }
 
-  // Space event for <button> and <summary> with contenteditable
-  // should be handle by the themselves.
-  if (aGUIEvent->mMessage == eKeyPress &&
-      aGUIEvent->AsKeyboardEvent()->ShouldWorkAsSpaceKey()) {
-    nsGenericHTMLElement* element =
-        HTMLButtonElement::FromNode(eventTargetNode);
-    if (!element) {
-      element = HTMLSummaryElement::FromNode(eventTargetNode);
-    }
-
-    if (element && element->IsContentEditable()) {
-      return false;
-    }
-  }
   // This HTML editor is for contenteditable.  We need to check the validity
   // of the target.
   if (NS_WARN_IF(!eventTargetNode->IsContent())) {

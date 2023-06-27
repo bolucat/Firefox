@@ -43,9 +43,36 @@ namespace mozilla::dom {
 
 namespace {
 
-constexpr bool IsFileNotFoundError(const nsresult aRv) {
-  return NS_ERROR_DOM_FILE_NOT_FOUND_ERR == aRv ||
-         NS_ERROR_FILE_NOT_FOUND == aRv;
+CopyableErrorResult RejectWithConvertedErrors(nsresult aRv) {
+  CopyableErrorResult err;
+  switch (aRv) {
+    case NS_ERROR_DOM_FILE_NOT_FOUND_ERR:
+      [[fallthrough]];
+    case NS_ERROR_FILE_NOT_FOUND:
+      err.ThrowNotFoundError("File not found");
+      break;
+    case NS_ERROR_FILE_NO_DEVICE_SPACE:
+      err.ThrowQuotaExceededError("Quota exceeded");
+      break;
+    default:
+      err.Throw(aRv);
+  }
+
+  return err;
+}
+
+RefPtr<FileSystemWritableFileStream::WriteDataPromise> ResolvePromise(
+    const Int64Promise::ResolveOrRejectValue& aValue) {
+  MOZ_ASSERT(aValue.IsResolve());
+  return FileSystemWritableFileStream::WriteDataPromise::CreateAndResolve(
+      Some(aValue.ResolveValue()), __func__);
+}
+
+RefPtr<FileSystemWritableFileStream::WriteDataPromise> ResolvePromise(
+    const BoolPromise::ResolveOrRejectValue& aValue) {
+  MOZ_ASSERT(aValue.IsResolve());
+  return FileSystemWritableFileStream::WriteDataPromise::CreateAndResolve(
+      Nothing(), __func__);
 }
 
 class WritableFileStreamUnderlyingSinkAlgorithms final
@@ -78,15 +105,12 @@ class WritableFileStreamUnderlyingSinkAlgorithms final
 };
 
 // TODO: Refactor this function, see Bug 1804614
-void WriteImpl(RefPtr<FileSystemWritableFileStream> aStream,
-               const RefPtr<nsISerialEventTarget>& aTaskQueue,
-               nsCOMPtr<nsIInputStream> aInputStream,
-               RefPtr<fs::FileSystemThreadSafeStreamOwner>& aOutStreamOwner,
-               const Maybe<uint64_t> aPosition,
-               const RefPtr<Promise>& aPromise) {
-  auto command = aStream->CreateCommand();
-
-  InvokeAsync(
+RefPtr<Int64Promise> WriteImpl(
+    const RefPtr<nsISerialEventTarget>& aTaskQueue,
+    nsCOMPtr<nsIInputStream> aInputStream,
+    RefPtr<fs::FileSystemThreadSafeStreamOwner>& aOutStreamOwner,
+    const Maybe<uint64_t> aPosition) {
+  return InvokeAsync(
       aTaskQueue, __func__,
       [aTaskQueue, inputStream = std::move(aInputStream), aOutStreamOwner,
        aPosition]() {
@@ -127,26 +151,7 @@ void WriteImpl(RefPtr<FileSystemWritableFileStream> aStream,
                CreateAndRejectInt64Promise);
 
         return promise;
-      })
-      ->Then(
-          GetCurrentSerialEventTarget(), __func__,
-          [command,
-           aPromise](const Int64Promise::ResolveOrRejectValue& aValue) {
-            if (aValue.IsResolve()) {
-              aPromise->MaybeResolve(aValue.ResolveValue());
-              return;
-            }
-
-            if (IsFileNotFoundError(aValue.RejectValue())) {
-              aPromise->MaybeRejectWithNotFoundError("File not found");
-            } else if (aValue.RejectValue() == NS_ERROR_FILE_NO_DEVICE_SPACE) {
-              aPromise->MaybeRejectWithQuotaExceededError("Quota exceeded");
-            } else {
-              aPromise->MaybeReject(aValue.RejectValue());
-            }
-
-            aPromise->MaybeReject(aValue.RejectValue());
-          });
+      });
 }
 
 }  // namespace
@@ -323,11 +328,8 @@ FileSystemWritableFileStream::Create(
             };
 
             if (!aValue.IsResolve()) {
-              if (aValue.IsReject()) {
-                return rejectAndReturn(aValue.RejectValue());
-              }
-
-              return rejectAndReturn(NS_ERROR_DOM_UNKNOWN_ERR);
+              MOZ_ASSERT(aValue.IsReject());
+              return rejectAndReturn(aValue.RejectValue());
             }
 
             AutoJSAPI jsapi;
@@ -509,11 +511,11 @@ already_AddRefed<Promise> FileSystemWritableFileStream::Write(
   // and returns the result of running the write a chunk algorithm with stream
   // and chunk.
 
+  aError.MightThrowJSException();
+
   // https://fs.spec.whatwg.org/#write-a-chunk
   // Step 1. Let input be the result of converting chunk to a
   // FileSystemWriteChunkType.
-
-  aError.MightThrowJSException();
 
   ArrayBufferViewOrArrayBufferOrBlobOrUTF8StringOrWriteParams data;
   if (!data.Init(aCx, aChunk)) {
@@ -527,77 +529,147 @@ already_AddRefed<Promise> FileSystemWritableFileStream::Write(
     return nullptr;
   }
 
-  if (!IsOpen()) {
-    promise->MaybeRejectWithTypeError("WritableFileStream closed");
-    return promise.forget();
+  RefPtr<Promise> innerPromise = Promise::Create(GetParentObject(), aError);
+  if (aError.Failed()) {
+    return nullptr;
   }
 
+  RefPtr<Command> command = CreateCommand();
+
+  // Step 3.3.
+  Write(data)->Then(
+      GetCurrentSerialEventTarget(), __func__,
+      [self = RefPtr{this}, command,
+       promise](const WriteDataPromise::ResolveOrRejectValue& aValue) {
+        MOZ_ASSERT(!aValue.IsNothing());
+        if (aValue.IsResolve()) {
+          const Maybe<int64_t>& maybeWritten = aValue.ResolveValue();
+          if (maybeWritten.isSome()) {
+            promise->MaybeResolve(maybeWritten.value());
+            return;
+          }
+
+          promise->MaybeResolveWithUndefined();
+          return;
+        }
+
+        self->BeginClose()->Then(GetCurrentSerialEventTarget(), __func__,
+                                 [promise, rejectValue = aValue.RejectValue()](
+                                     const BoolPromise::ResolveOrRejectValue&) {
+                                   // Do not capture command to this context:
+                                   // close cannot proceed
+                                   CopyableErrorResult err = rejectValue;
+                                   promise->MaybeReject(std::move(err));
+                                 });
+      });
+
+  return promise.forget();
+}
+
+RefPtr<FileSystemWritableFileStream::WriteDataPromise>
+FileSystemWritableFileStream::Write(
+    ArrayBufferViewOrArrayBufferOrBlobOrUTF8StringOrWriteParams& aData) {
+  auto rejectWithTypeError = [](const auto& aMessage) {
+    CopyableErrorResult err;
+    err.ThrowTypeError(aMessage);
+    return WriteDataPromise::CreateAndReject(err, __func__);
+  };
+
+  auto rejectWithSyntaxError = [](const auto& aMessage) {
+    CopyableErrorResult err;
+    err.ThrowSyntaxError(aMessage);
+    return WriteDataPromise::CreateAndReject(err, __func__);
+  };
+
+  if (!IsOpen()) {
+    return rejectWithTypeError("WritableFileStream closed");
+  }
+
+  auto tryResolve = [self = RefPtr{this}](const auto& aValue)
+      -> RefPtr<FileSystemWritableFileStream::WriteDataPromise> {
+    MOZ_ASSERT(self->IsCommandActive());
+
+    if (aValue.IsResolve()) {
+      return ResolvePromise(aValue);
+    }
+
+    MOZ_ASSERT(aValue.IsReject());
+    return WriteDataPromise::CreateAndReject(
+        RejectWithConvertedErrors(aValue.RejectValue()), __func__);
+  };
+
+  auto tryResolveInt64 =
+      [tryResolve](const Int64Promise::ResolveOrRejectValue& aValue) {
+        return tryResolve(aValue);
+      };
+
+  auto tryResolveBool =
+      [tryResolve](const BoolPromise::ResolveOrRejectValue& aValue) {
+        return tryResolve(aValue);
+      };
+
   // Step 3.3. Let command be input.type if input is a WriteParams, ...
-  if (data.IsWriteParams()) {
-    const WriteParams& params = data.GetAsWriteParams();
+  if (aData.IsWriteParams()) {
+    const WriteParams& params = aData.GetAsWriteParams();
     switch (params.mType) {
       // Step 3.4. If command is "write":
       case WriteCommandType::Write: {
         if (!params.mData.WasPassed()) {
-          promise->MaybeRejectWithSyntaxError("write() requires data");
-          return promise.forget();
+          return rejectWithSyntaxError("write() requires data");
         }
 
         // Step 3.4.2. If data is undefined, reject p with a TypeError and
         // abort.
         if (params.mData.Value().IsNull()) {
-          promise->MaybeRejectWithTypeError("write() of null data");
-          return promise.forget();
+          return rejectWithTypeError("write() of null data");
         }
 
         Maybe<uint64_t> position;
 
         if (params.mPosition.WasPassed()) {
           if (params.mPosition.Value().IsNull()) {
-            promise->MaybeRejectWithTypeError("write() with null position");
-            return promise.forget();
+            return rejectWithTypeError("write() with null position");
           }
 
           position = Some(params.mPosition.Value().Value());
         }
 
-        Write(params.mData.Value().Value(), position, promise);
-        return promise.forget();
+        return Write(params.mData.Value().Value(), position)
+            ->Then(GetCurrentSerialEventTarget(), __func__,
+                   std::move(tryResolveInt64));
       }
 
       // Step 3.5. Otherwise, if command is "seek":
       case WriteCommandType::Seek:
         if (!params.mPosition.WasPassed()) {
-          promise->MaybeRejectWithSyntaxError("seek() requires a position");
-          return promise.forget();
+          return rejectWithSyntaxError("seek() requires a position");
         }
 
         // Step 3.5.1. If chunk.position is undefined, reject p with a
         // TypeError and abort.
         if (params.mPosition.Value().IsNull()) {
-          promise->MaybeRejectWithTypeError("seek() with null position");
-          return promise.forget();
+          return rejectWithTypeError("seek() with null position");
         }
 
-        Seek(params.mPosition.Value().Value(), promise);
-        return promise.forget();
+        return Seek(params.mPosition.Value().Value())
+            ->Then(GetCurrentSerialEventTarget(), __func__,
+                   std::move(tryResolveBool));
 
       // Step 3.6. Otherwise, if command is "truncate":
       case WriteCommandType::Truncate:
         if (!params.mSize.WasPassed()) {
-          promise->MaybeRejectWithSyntaxError("truncate() requires a size");
-          return promise.forget();
+          return rejectWithSyntaxError("truncate() requires a size");
         }
 
         // Step 3.6.1. If chunk.size is undefined, reject p with a TypeError
         // and abort.
         if (params.mSize.Value().IsNull()) {
-          promise->MaybeRejectWithTypeError("truncate() with null size");
-          return promise.forget();
+          return rejectWithTypeError("truncate() with null size");
         }
 
-        Truncate(params.mSize.Value().Value(), promise);
-        return promise.forget();
+        return Truncate(params.mSize.Value().Value())
+            ->Then(GetCurrentSerialEventTarget(), __func__,
+                   std::move(tryResolveBool));
 
       default:
         MOZ_CRASH("Bad WriteParams value!");
@@ -606,8 +678,9 @@ already_AddRefed<Promise> FileSystemWritableFileStream::Write(
 
   // Step 3.3. ... and "write" otherwise.
   // Step 3.4. If command is "write":
-  Write(data, Nothing(), promise);
-  return promise.forget();
+  return Write(aData, Nothing())
+      ->Then(GetCurrentSerialEventTarget(), __func__,
+             std::move(tryResolveInt64));
 }
 
 // WebIDL Boilerplate
@@ -732,18 +805,9 @@ already_AddRefed<Promise> FileSystemWritableFileStream::Truncate(
 }
 
 template <typename T>
-void FileSystemWritableFileStream::Write(const T& aData,
-                                         const Maybe<uint64_t> aPosition,
-                                         const RefPtr<Promise>& aPromise) {
+RefPtr<Int64Promise> FileSystemWritableFileStream::Write(
+    const T& aData, const Maybe<uint64_t> aPosition) {
   MOZ_ASSERT(IsOpen());
-
-  auto rejectAndReturn = [&aPromise](const nsresult rv) {
-    if (IsFileNotFoundError(rv)) {
-      aPromise->MaybeRejectWithNotFoundError("File not found");
-      return;
-    }
-    aPromise->MaybeReject(rv);
-  };
 
   nsCOMPtr<nsIInputStream> inputStream;
 
@@ -763,15 +827,13 @@ void FileSystemWritableFileStream::Write(const T& aData,
     }();
 
     // Here we copy
-
     QM_TRY(MOZ_TO_RESULT(NS_NewByteInputStream(getter_AddRefs(inputStream),
                                                AsChars(dataSpan),
                                                NS_ASSIGNMENT_COPY)),
-           rejectAndReturn);
+           CreateAndRejectInt64Promise);
 
-    WriteImpl(this, mTaskQueue, std::move(inputStream), mStreamOwner, aPosition,
-              aPromise);
-    return;
+    return WriteImpl(mTaskQueue, std::move(inputStream), mStreamOwner,
+                     aPosition);
   }
 
   // Step 3.4.7 Otherwise, if data is a Blob ...
@@ -783,11 +845,10 @@ void FileSystemWritableFileStream::Write(const T& aData,
     QM_TRY((MOZ_TO_RESULT(!error.Failed()).mapErr([&error](const nsresult rv) {
              return error.StealNSResult();
            })),
-           rejectAndReturn);
+           CreateAndRejectInt64Promise);
 
-    WriteImpl(this, mTaskQueue, std::move(inputStream), mStreamOwner, aPosition,
-              aPromise);
-    return;
+    return WriteImpl(mTaskQueue, std::move(inputStream), mStreamOwner,
+                     aPosition);
   }
 
   // Step 3.4.8 Otherwise ...
@@ -796,74 +857,41 @@ void FileSystemWritableFileStream::Write(const T& aData,
   // Here we copy
   nsCString dataString;
   if (!dataString.Assign(aData.GetAsUTF8String(), mozilla::fallible)) {
-    rejectAndReturn(NS_ERROR_OUT_OF_MEMORY);
-    return;
+    return Int64Promise::CreateAndReject(NS_ERROR_OUT_OF_MEMORY, __func__);
   }
 
   // Input stream takes ownership
   QM_TRY(MOZ_TO_RESULT(NS_NewCStringInputStream(getter_AddRefs(inputStream),
                                                 std::move(dataString))),
-         rejectAndReturn);
+         CreateAndRejectInt64Promise);
 
-  WriteImpl(this, mTaskQueue, std::move(inputStream), mStreamOwner, aPosition,
-            aPromise);
+  return WriteImpl(mTaskQueue, std::move(inputStream), mStreamOwner, aPosition);
 }
 
-void FileSystemWritableFileStream::Seek(uint64_t aPosition,
-                                        const RefPtr<Promise>& aPromise) {
+RefPtr<BoolPromise> FileSystemWritableFileStream::Seek(uint64_t aPosition) {
   MOZ_ASSERT(IsOpen());
 
   LOG_VERBOSE(("%p: Seeking to %" PRIu64, mStreamOwner.get(), aPosition));
 
-  auto command = CreateCommand();
+  return InvokeAsync(mTaskQueue, __func__,
+                     [aPosition, streamOwner = mStreamOwner]() mutable {
+                       QM_TRY(MOZ_TO_RESULT(streamOwner->Seek(aPosition)),
+                              CreateAndRejectBoolPromise);
 
-  InvokeAsync(mTaskQueue, __func__,
-              [aPosition, streamOwner = mStreamOwner]() mutable {
-                QM_TRY(MOZ_TO_RESULT(streamOwner->Seek(aPosition)),
-                       CreateAndRejectBoolPromise);
-
-                return BoolPromise::CreateAndResolve(true, __func__);
-              })
-      ->Then(
-          GetCurrentSerialEventTarget(), __func__,
-          [command, aPromise](const BoolPromise::ResolveOrRejectValue& aValue) {
-            if (aValue.IsReject()) {
-              auto rv = aValue.RejectValue();
-              if (IsFileNotFoundError(rv)) {
-                aPromise->MaybeRejectWithNotFoundError("File not found");
-                return;
-              }
-              aPromise->MaybeReject(rv);
-              return;
-            }
-            MOZ_ASSERT(aValue.IsResolve());
-            aPromise->MaybeResolveWithUndefined();
-          });
+                       return BoolPromise::CreateAndResolve(true, __func__);
+                     });
 }
 
-void FileSystemWritableFileStream::Truncate(uint64_t aSize,
-                                            const RefPtr<Promise>& aPromise) {
+RefPtr<BoolPromise> FileSystemWritableFileStream::Truncate(uint64_t aSize) {
   MOZ_ASSERT(IsOpen());
 
-  auto command = CreateCommand();
+  return InvokeAsync(mTaskQueue, __func__,
+                     [aSize, streamOwner = mStreamOwner]() mutable {
+                       QM_TRY(MOZ_TO_RESULT(streamOwner->Truncate(aSize)),
+                              CreateAndRejectBoolPromise);
 
-  InvokeAsync(mTaskQueue, __func__,
-              [aSize, streamOwner = mStreamOwner]() mutable {
-                QM_TRY(MOZ_TO_RESULT(streamOwner->Truncate(aSize)),
-                       CreateAndRejectBoolPromise);
-
-                return BoolPromise::CreateAndResolve(true, __func__);
-              })
-      ->Then(
-          GetCurrentSerialEventTarget(), __func__,
-          [command, aPromise](const BoolPromise::ResolveOrRejectValue& aValue) {
-            if (aValue.IsReject()) {
-              aPromise->MaybeReject(aValue.RejectValue());
-              return;
-            }
-
-            aPromise->MaybeResolveWithUndefined();
-          });
+                       return BoolPromise::CreateAndResolve(true, __func__);
+                     });
 }
 
 void FileSystemWritableFileStream::NoteFinishedCommand() {
@@ -940,13 +968,11 @@ WritableFileStreamUnderlyingSinkAlgorithms::AbortCallbackImpl(
 }
 
 void WritableFileStreamUnderlyingSinkAlgorithms::ReleaseObjects() {
-  // XXX We shouldn't be calling close here. We should just release the lock.
-  // However, calling close here is not a big issue for now because we don't
-  // write to a temporary file which would atomically replace the real file
-  // during close.
-  if (mStream->IsOpen()) {
-    Unused << mStream->BeginClose();
-  }
+  // WritableStream transitions to errored state whenever a rejected promise is
+  // returned. At the end of the transition, ReleaseObjects is called.
+  // Because there is no way to release the locks synchronously,
+  // we assume this has been initiated before the rejected promise is returned.
+  MOZ_ASSERT(!mStream->IsOpen());
 }
 
 }  // namespace mozilla::dom
