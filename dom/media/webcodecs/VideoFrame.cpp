@@ -13,6 +13,7 @@
 
 #include "ImageContainer.h"
 #include "VideoColorSpace.h"
+#include "WebCodecsUtils.h"
 #include "js/StructuredClone.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/Result.h"
@@ -49,33 +50,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(VideoFrame)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
-
-/*
- * The below are helpers to operate ArrayBuffer or ArrayBufferView.
- */
-template <class T>
-static Result<Span<uint8_t>, nsresult> GetArrayBufferData(const T& aBuffer) {
-  // Get buffer's data and length before using it.
-  aBuffer.ComputeState();
-
-  CheckedInt<size_t> byteLength(sizeof(typename T::element_type));
-  byteLength *= aBuffer.Length();
-  if (!byteLength.isValid()) {
-    return Err(NS_ERROR_INVALID_ARG);
-  }
-
-  return Span<uint8_t>(aBuffer.Data(), byteLength.value());
-}
-
-static Result<Span<uint8_t>, nsresult> GetSharedArrayBufferData(
-    const MaybeSharedArrayBufferViewOrMaybeSharedArrayBuffer& aBuffer) {
-  if (aBuffer.IsArrayBufferView()) {
-    return GetArrayBufferData(aBuffer.GetAsArrayBufferView());
-  }
-
-  MOZ_ASSERT(aBuffer.IsArrayBuffer());
-  return GetArrayBufferData(aBuffer.GetAsArrayBuffer());
-}
 
 /*
  * The following are utilities to convert between VideoColorSpace values to
@@ -558,22 +532,48 @@ static Result<CombinedBufferLayout, nsCString> ComputeLayoutAndAllocationSize(
   for (size_t i = 0; i < planes.Length(); ++i) {
     const VideoFrame::Format::Plane& p = planes[i];
     const gfx::IntSize sampleSize = aFormat.SampleSize(p);
+    MOZ_RELEASE_ASSERT(!sampleSize.IsEmpty());
+
+    // aRect's x, y, width, and height are int32_t, and sampleSize's width and
+    // height >= 1, so (aRect.* / sampleSize.*) must be in int32_t range.
+
+    CheckedUint32 sourceTop(aRect.Y());
+    sourceTop /= sampleSize.Height();
+    MOZ_RELEASE_ASSERT(sourceTop.isValid());
+
+    CheckedUint32 sourceHeight(aRect.Height());
+    sourceHeight /= sampleSize.Height();
+    MOZ_RELEASE_ASSERT(sourceHeight.isValid());
+
+    CheckedUint32 sourceLeftBytes(aRect.X());
+    sourceLeftBytes /= sampleSize.Width();
+    MOZ_RELEASE_ASSERT(sourceLeftBytes.isValid());
+    sourceLeftBytes *= aFormat.SampleBytes(p);
+    if (!sourceLeftBytes.isValid()) {
+      return Err(nsPrintfCString(
+          "The parsed-rect's x-offset is too large for %s plane",
+          aFormat.PlaneName(p)));
+    }
+
+    CheckedUint32 sourceWidthBytes(aRect.Width());
+    sourceWidthBytes /= sampleSize.Width();
+    MOZ_RELEASE_ASSERT(sourceWidthBytes.isValid());
+    sourceWidthBytes *= aFormat.SampleBytes(p);
+    if (!sourceWidthBytes.isValid()) {
+      return Err(
+          nsPrintfCString("The parsed-rect's width is too large for %s plane",
+                          aFormat.PlaneName(p)));
+    }
 
     // TODO: Spec here is wrong so we do differently:
     // https://github.com/w3c/webcodecs/issues/511
     // This comment should be removed once the issue is resolved.
-    ComputedPlaneLayout layout{
-        .mDestinationOffset = 0,
-        .mDestinationStride = 0,
-        .mSourceTop = (CheckedUint32(aRect.Y()) / sampleSize.Height()).value(),
-        .mSourceHeight =
-            (CheckedUint32(aRect.Height()) / sampleSize.Height()).value(),
-        .mSourceLeftBytes = (CheckedUint32(aRect.X()) / sampleSize.Width() *
-                             aFormat.SampleBytes(p))
-                                .value(),
-        .mSourceWidthBytes = (CheckedUint32(aRect.Width()) /
-                              sampleSize.Width() * aFormat.SampleBytes(p))
-                                 .value()};
+    ComputedPlaneLayout layout{.mDestinationOffset = 0,
+                               .mDestinationStride = 0,
+                               .mSourceTop = sourceTop.value(),
+                               .mSourceHeight = sourceHeight.value(),
+                               .mSourceLeftBytes = sourceLeftBytes.value(),
+                               .mSourceWidthBytes = sourceWidthBytes.value()};
     if (aPlaneLayouts) {
       const PlaneLayout& planeLayout = aPlaneLayouts->ElementAt(i);
       if (planeLayout.mStride < layout.mSourceWidthBytes) {

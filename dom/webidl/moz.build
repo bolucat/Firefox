@@ -275,7 +275,7 @@ with Files("ProgressEvent.webidl"):
     BUG_COMPONENT = ("Core", "DOM: Events")
 
 with Files("Push*"):
-    BUG_COMPONENT = ("Core", "DOM: Push Notifications")
+    BUG_COMPONENT = ("Core", "DOM: Notifications")
 
 with Files("RTC*"):
     BUG_COMPONENT = ("Core", "WebRTC")
@@ -532,6 +532,7 @@ WEBIDL_FILES = [
     "DynamicsCompressorNode.webidl",
     "Element.webidl",
     "ElementInternals.webidl",
+    "EncodedVideoChunk.webidl",
     "Event.webidl",
     "EventHandler.webidl",
     "EventListener.webidl",
