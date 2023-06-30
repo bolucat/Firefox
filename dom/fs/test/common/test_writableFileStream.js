@@ -37,7 +37,7 @@ exported_symbols.test0 = async function () {
 
 exported_symbols.quotaTest = async function () {
   const shrinkedStorageSizeKB = 5 * 1024;
-  const defaultDatabaseSize = 458752;
+  const defaultDatabaseSize = 458779;
 
   // Shrink storage size to 5MB.
   await Utils.shrinkStorageSize(shrinkedStorageSizeKB);
@@ -83,6 +83,47 @@ exported_symbols.quotaTest = async function () {
   // writable2 is already closed because of the failed write above
 
   await Utils.restoreStorageSize();
+};
+
+exported_symbols.bug1823445 = async function () {
+  const root = await navigator.storage.getDirectory();
+  const testFileName = "test1823445.txt";
+  let handle = await root.getFileHandle(testFileName, allowCreate);
+  let writable = await handle.createWritable();
+  await writable.write("abcdefghijklmnop");
+  await writable.close();
+
+  handle = await root.getFileHandle(testFileName);
+  writable = await handle.createWritable({ keepExistingData: false });
+  await writable.write("12345");
+  await writable.close();
+
+  handle = await root.getFileHandle(testFileName);
+  const file = await handle.getFile();
+  const text = await file.text();
+  Assert.equal(text, "12345");
+};
+
+exported_symbols.bug1824993 = async function () {
+  const root = await navigator.storage.getDirectory();
+  const testFileName = "test1824993.txt";
+  const handle = await root.getFileHandle(testFileName, allowCreate);
+  {
+    const writable = await handle.createWritable();
+    await writable.write("test");
+
+    {
+      const file = await handle.getFile();
+      const contents = await file.text();
+      Assert.equal(contents, "");
+    }
+
+    await writable.abort();
+  }
+
+  const file = await handle.getFile();
+  const contents = await file.text();
+  Assert.equal(contents, "");
 };
 
 exported_symbols.bug1825018 = async function () {

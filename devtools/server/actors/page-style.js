@@ -689,6 +689,9 @@ class PageStyleActor extends Actor {
       case "::first-line":
       case "::selection":
         return true;
+      // We don't want the method to throw, but we don't handle those yet (See Bug 1840872)
+      case "::highlight":
+        return false;
       case "::marker":
         return this._nodeIsListItem(node);
       case "::backdrop":
@@ -1111,10 +1114,15 @@ class PageStyleActor extends Actor {
    * Call this method whenever a CSS rule is mutated:
    * - a CSS declaration is added/changed/disabled/removed
    * - a selector is added/changed/removed
+   *
+   * @param {Array<StyleRuleActor>} rulesToForceRefresh: An array of rules that,
+   *        if observed, should be refreshed even if the state of their declaration
+   *        didn't change.
    */
-  refreshObservedRules() {
+  refreshObservedRules(rulesToForceRefresh) {
     for (const rule of this._observedRules) {
-      rule.refresh();
+      const force = rulesToForceRefresh && rulesToForceRefresh.includes(rule);
+      rule.maybeRefresh(force);
     }
   }
 

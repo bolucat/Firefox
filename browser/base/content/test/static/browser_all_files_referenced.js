@@ -92,6 +92,7 @@ if (AppConstants.MOZ_BACKGROUNDTASKS) {
 // Temporary allowlist for shopping - we'll reference this soon.
 if (AppConstants.NIGHTLY_BUILD) {
   gExceptionPaths.push("chrome://browser/content/shopping/shopping.html");
+  gExceptionPaths.push("chrome://global/content/shopping/ShoppingProduct.mjs");
 }
 
 if (AppConstants.NIGHTLY_BUILD) {
@@ -281,9 +282,6 @@ var whitelist = [
   { file: "chrome://browser/content/screenshots/copy.svg" },
   { file: "chrome://browser/content/screenshots/download.svg" },
   { file: "chrome://browser/content/screenshots/download-white.svg" },
-
-  // Bug 1824826 - Implement a view of history in Firefox View
-  { file: "resource://gre/modules/PlacesQuery.sys.mjs" },
 ];
 
 if (AppConstants.NIGHTLY_BUILD && AppConstants.platform != "win") {

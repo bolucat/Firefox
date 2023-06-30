@@ -10887,14 +10887,13 @@
   value: true
   mirror: always
 
-# setSinkId will be enabled in bug 1498512. Till then the
-# implementation will remain hidden behind this pref (Bug 1152401, Bug 934425).
+# Is the Audio Output Devices API enabled?
 - name: media.setsinkid.enabled
   type: bool
 #if defined(MOZ_WIDGET_ANDROID)
   value: false # bug 1473346
 #else
-  value: @IS_NIGHTLY_BUILD@
+  value: true
 #endif
   mirror: always
 
@@ -11321,6 +11320,15 @@
 
 # Whether to use challenges in the most secure order. See bug 650091.
 - name: network.auth.choose_most_secure_challenge
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+# Whether to allow truncated brotli with empty output. This also fixes
+# throwing an erroring when receiving highly compressed brotli files when
+# no content type is specified (Bug 1715401). This pref can be removed after
+# some time (Bug 1841061)
+- name: network.compress.allow_truncated_empty_brotli
   type: RelaxedAtomicBool
   value: true
   mirror: always
@@ -12506,6 +12514,19 @@
   mirror: always
 
 - name: network.http.http3.version_negotiation.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# When a Http/3 connection failed, whether to retry with a different IP address.
+- name: network.http.http3.retry_different_ip_family
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+# This is for testing purpose. When true, nsUDPSocket::SendWithAddress will
+# return NS_ERROR_CONNECTION_REFUSED for address "::1".
+- name: network.http.http3.block_loopback_ipv6_addr
   type: RelaxedAtomicBool
   value: false
   mirror: always
