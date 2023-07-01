@@ -11,6 +11,7 @@
 #include "FileSystemFileManager.h"
 #include "FileSystemParentTypes.h"
 #include "ResultStatement.h"
+#include "StartedTransaction.h"
 #include "mozStorageHelper.h"
 #include "mozilla/CheckedInt.h"
 #include "mozilla/dom/FileSystemDataManager.h"
@@ -67,7 +68,7 @@ Result<bool, QMResult> DoesDirectoryExist(
 
   const nsCString existsQuery =
       "SELECT EXISTS "
-      "(SELECT 1 FROM Directories JOIN Entries USING (handle) "
+      "(SELECT 1 FROM Directories INNER JOIN Entries USING (handle) "
       "WHERE Directories.name = :name AND Entries.parent = :parent ) "
       ";"_ns;
 
@@ -117,7 +118,7 @@ Result<bool, QMResult> DoesFileExist(const FileSystemConnection& aConnection,
 
   const nsCString existsQuery =
       "SELECT EXISTS "
-      "(SELECT 1 FROM Files JOIN Entries USING (handle) "
+      "(SELECT 1 FROM Files INNER JOIN Entries USING (handle) "
       "WHERE Files.name = :name AND Entries.parent = :parent ) "
       ";"_ns;
 
@@ -590,8 +591,8 @@ FileSystemDatabaseManagerVersion001::GetOrCreateDirectory(
   QM_TRY_INSPECT(const EntryId& entryId, GetEntryId(aHandle));
   MOZ_ASSERT(!entryId.IsEmpty());
 
-  mozStorageTransaction transaction(
-      mConnection.get(), false, mozIStorageConnection::TRANSACTION_IMMEDIATE);
+  QM_TRY_UNWRAP(auto transaction, StartedTransaction::Create(mConnection));
+
   {
     QM_TRY_UNWRAP(ResultStatement stmt,
                   ResultStatement::Create(mConnection, insertEntryQuery));
@@ -633,14 +634,12 @@ Result<EntryId, QMResult> FileSystemDatabaseManagerVersion001::GetOrCreateFile(
 
   // By spec, we don't allow a file and a directory
   // to have the same name and parent
-  if (exists) {
-    return Err(QMResult(NS_ERROR_DOM_TYPE_MISMATCH_ERR));
-  }
+  QM_TRY(OkIf(!exists), Err(QMResult(NS_ERROR_DOM_TYPE_MISMATCH_ERR)));
 
   QM_TRY_UNWRAP(exists, DoesFileExist(mConnection, aHandle));
 
   if (exists) {
-    QM_TRY_RETURN(FindEntryId(mConnection, aHandle, true));
+    QM_TRY_RETURN(FindEntryId(mConnection, aHandle, /* aIsFile */ true));
   }
 
   if (!aCreate) {
@@ -666,8 +665,8 @@ Result<EntryId, QMResult> FileSystemDatabaseManagerVersion001::GetOrCreateFile(
 
   const ContentType type = FileSystemContentTypeGuess::FromPath(name);
 
-  mozStorageTransaction transaction(
-      mConnection.get(), false, mozIStorageConnection::TRANSACTION_IMMEDIATE);
+  QM_TRY_UNWRAP(auto transaction, StartedTransaction::Create(mConnection));
+
   {
     QM_TRY_UNWRAP(ResultStatement stmt,
                   ResultStatement::Create(mConnection, insertEntryQuery));
@@ -927,8 +926,7 @@ Result<EntryId, QMResult> FileSystemDatabaseManagerVersion001::RenameEntry(
   QM_TRY(QM_TO_RESULT(PrepareRenameEntry(mConnection, mDataManager, aHandle,
                                          aNewName, isFile)));
 
-  mozStorageTransaction transaction(
-      mConnection.get(), false, mozIStorageConnection::TRANSACTION_IMMEDIATE);
+  QM_TRY_UNWRAP(auto transaction, StartedTransaction::Create(mConnection));
 
   if (isFile) {
     const ContentType type = FileSystemContentTypeGuess::FromPath(aNewName);
@@ -975,8 +973,7 @@ Result<EntryId, QMResult> FileSystemDatabaseManagerVersion001::MoveEntry(
       "WHERE handle = :handle "
       ";"_ns;
 
-  mozStorageTransaction transaction(
-      mConnection.get(), false, mozIStorageConnection::TRANSACTION_IMMEDIATE);
+  QM_TRY_UNWRAP(auto transaction, StartedTransaction::Create(mConnection));
 
   {
     // We always change the parent because it's simpler than checking if the
@@ -1403,12 +1400,13 @@ Result<EntryId, QMResult> FindEntryId(const FileSystemConnection& aConnection,
                                       const FileSystemChildMetadata& aHandle,
                                       bool aIsFile) {
   const nsCString aDirectoryQuery =
-      "SELECT Entries.handle FROM Directories JOIN Entries USING (handle) "
+      "SELECT Entries.handle FROM Directories "
+      "INNER JOIN Entries USING (handle) "
       "WHERE Directories.name = :name AND Entries.parent = :parent "
       ";"_ns;
 
   const nsCString aFileQuery =
-      "SELECT Entries.handle FROM Files JOIN Entries USING (handle) "
+      "SELECT Entries.handle FROM Files INNER JOIN Entries USING (handle) "
       "WHERE Files.name = :name AND Entries.parent = :parent "
       ";"_ns;
 
