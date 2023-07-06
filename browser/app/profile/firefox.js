@@ -692,12 +692,20 @@ pref("browser.search.separatePrivateDefault.ui.enabled", false);
 pref("browser.search.separatePrivateDefault.ui.banner.max", 0);
 
 // Enables search SERP telemetry (impressions, engagements and abandonment)
+#ifdef NIGHTLY_BUILD
+pref("browser.search.serpEventTelemetry.enabled", true);
+#else
 pref("browser.search.serpEventTelemetry.enabled", false);
+#endif
 
 // Enable new experimental shopping features. This is solely intended as a
 // rollout/"emergency stop" button - it will go away once the feature has
 // rolled out. There will be separate controls for user opt-in/opt-out.
 pref("browser.shopping.experience2023.enabled", false);
+
+// True if the user opted into the new experimental shopping feature.
+// By default, users are opted out.
+pref("browser.shopping.experience2023.optedIn", false);
 
 // Enables the display of the Mozilla VPN banner in private browsing windows
 pref("browser.privatebrowsing.vpnpromourl", "https://vpn.mozilla.org/?utm_source=firefox-browser&utm_medium=firefox-%CHANNEL%-browser&utm_campaign=private-browsing-vpn-link");
@@ -1255,9 +1263,6 @@ pref("app.support.baseURL", "https://support.mozilla.org/1/firefox/%VERSION%/%OS
 
 // base url for web-based feedback pages
 pref("app.feedback.baseURL", "https://ideas.mozilla.org/");
-
-// Name of alternate about: page for certificate errors (when undefined, defaults to about:neterror)
-pref("security.alternate_certificate_error_page", "certerror");
 
 pref("security.certerrors.recordEventTelemetry", true);
 pref("security.certerrors.permanentOverride", true);
@@ -2425,11 +2430,7 @@ pref("devtools.inspector.showUserAgentStyles", false);
 // Show native anonymous content and user agent shadow roots
 pref("devtools.inspector.showAllAnonymousContent", false);
 // Enable the inline CSS compatiblity warning in inspector rule view
-#ifdef NIGHTLY_BUILD
-  pref("devtools.inspector.ruleview.inline-compatibility-warning.enabled", true);
-#else
-  pref("devtools.inspector.ruleview.inline-compatibility-warning.enabled", false);
-#endif
+pref("devtools.inspector.ruleview.inline-compatibility-warning.enabled", true);
 // Enable the compatibility tool in the inspector.
 pref("devtools.inspector.compatibility.enabled", true);
 // Enable overflow debugging in the inspector.

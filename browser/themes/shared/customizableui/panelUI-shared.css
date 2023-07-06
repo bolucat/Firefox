@@ -136,8 +136,9 @@ menupopup {
   background: url(chrome://global/skin/icons/warning-fill-12.svg) center / contain no-repeat transparent;
   box-shadow: none;
   border-radius: 0;
-  -moz-context-properties: fill;
+  -moz-context-properties: fill, stroke;
   fill: var(--warning-icon-bgcolor);
+  stroke: var(--toolbar-bgcolor);
 }
 
 #fxa-toolbar-menu-button[badge-status="login_failed"] > .toolbarbutton-badge-stack > .toolbarbutton-badge {
@@ -1316,6 +1317,7 @@ toolbarpaletteitem[place="panel"] > toolbaritem {
 }
 
 #zoom-controls[cui-areatype="toolbar"] > #zoom-reset-button > .toolbarbutton-text {
+  display: block;
   /* 4 chars max, but `ch` is the width of the `0` glyph, so account for larger glyphs by adding 1ch */
   min-width: calc(5ch + var(--toolbarbutton-inner-padding) * 2);
 }
