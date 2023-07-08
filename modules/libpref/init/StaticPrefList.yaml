@@ -7552,6 +7552,12 @@
     type: bool
     value: false
     mirror: always
+
+  # Experimental support for ArrayBuffer.prototype.transfer{,ToFixedLength}() in JavaScript.
+-   name: javascript.options.experimental.arraybuffer_transfer
+    type: bool
+    value: false
+    mirror: always
 #endif  // NIGHTLY_BUILD
 
 #ifdef NIGHTLY_BUILD
@@ -7814,24 +7820,6 @@
 # privacy.resistFingerprinting is true, this pref is ignored and fdlibm is used
 # anyway.
 - name: javascript.options.use_fdlibm_for_sin_cos_tan
-  type: bool
-  value: false
-  mirror: always
-
-# Whether to support parsing '//(#@) source(Mapping)?URL=' pragmas.
-- name: javascript.options.source_pragmas
-  type: bool
-  value: true
-  mirror: always
-
-# asm.js
-- name: javascript.options.asmjs
-  type: bool
-  value: true
-  mirror: always
-
-# Whether to throw a TypeError if asm.js code hits validation failure.
-- name: javascript.options.throw_on_asmjs_validation_failure
   type: bool
   value: false
   mirror: always
@@ -8426,6 +8414,13 @@
   type: bool
   value: false
   mirror: always
+
+# Is support for xywh() enabled?
+- name: layout.css.basic-shape-xywh.enabled
+  type: RelaxedAtomicBool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+  rust: true
 
 # Should stray control characters be rendered visibly?
 - name: layout.css.control-characters.visible
@@ -9185,6 +9180,19 @@
 - name: layout.scrollbars.always-layerize-track
   type: RelaxedAtomicBool
   value: false
+  mirror: always
+
+- name: layout.scrollbars.click_and_hold_track.continue_to_end
+  type: bool
+# On Linux, click-and-hold on the scrollbar track should continue scrolling
+# until the mouse is released. On the other platforms we want to stop
+# scrolling as soon as the scrollbar thumb has reached the current mouse
+# position.
+#ifdef MOZ_WIDGET_GTK
+  value: true
+#else
+  value: false
+#endif
   mirror: always
 
 # Whether anchor is kept selected.
