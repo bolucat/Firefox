@@ -5380,7 +5380,7 @@
 
 - name: full-screen-api.enabled
   type: bool
-  value: false
+  value: true
   mirror: always
 
 - name: full-screen-api.allow-trusted-requests-only
@@ -7028,13 +7028,6 @@
 - name: image.mem.debug-reporting
   type: RelaxedAtomicBool
   value: false
-  mirror: always
-
-# Decodes images into shared memory to allow direct use in separate
-# rendering processes. Only applicable with WebRender.
-- name: image.mem.shared
-  type: RelaxedAtomicBool
-  value: true
   mirror: always
 
 # Force unmapping of unused shared surfaces after a timeout period or when we
@@ -13737,12 +13730,12 @@
 
 -   name: security.sandbox.gpu.shadow-stack.enabled
     type: RelaxedAtomicBool
-    value: @IS_NIGHTLY_BUILD@
+    value: true
     mirror: always
 
 -   name: security.sandbox.gmp.shadow-stack.enabled
     type: RelaxedAtomicBool
-    value: @IS_NIGHTLY_BUILD@
+    value: true
     mirror: always
 
   # Whether a Low Privilege AppContainer (LPAC) is enabled for the relevant
