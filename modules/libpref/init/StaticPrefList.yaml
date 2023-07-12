@@ -3134,12 +3134,6 @@
   value: true
   mirror: always
 
-# Whether HTMLMediaElement.mozPreservesPitch is enabled.
-- name: dom.media.mozPreservesPitch.enabled
-  type: bool
-  value: false
-  mirror: always
-
 # WebCodecs API
 - name: dom.media.webcodecs.enabled
   type: RelaxedAtomicBool
@@ -4764,11 +4758,6 @@
   value: true
   mirror: always
 
-- name: dom.window.content.untrusted.enabled
-  type: bool
-  value: false
-  mirror: always
-
 - name: dom.window.clientinformation.enabled
   type: bool
   value: true
@@ -4777,6 +4766,12 @@
 - name: dom.window.sidebar.enabled
   type: bool
   value: false
+  mirror: always
+
+# Whether Window.sizeToContent() is enabled.
+- name: dom.window.sizeToContent.enabled
+  type: bool
+  value: @IS_NOT_NIGHTLY_BUILD@
   mirror: always
 
 - name: dom.worker.canceling.timeoutMilliseconds
