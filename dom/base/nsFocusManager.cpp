@@ -29,7 +29,6 @@
 #include "nsTextControlFrame.h"
 #include "nsViewManager.h"
 #include "nsFrameSelection.h"
-#include "mozilla/dom/Document.h"
 #include "mozilla/dom/Selection.h"
 #include "nsXULPopupManager.h"
 #include "nsMenuPopupFrame.h"
@@ -48,6 +47,8 @@
 #include "mozilla/AccessibleCaretEventHub.h"
 #include "mozilla/ContentEvents.h"
 #include "mozilla/dom/ContentChild.h"
+#include "mozilla/dom/Document.h"
+#include "mozilla/dom/DocumentInlines.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/ElementBinding.h"
 #include "mozilla/dom/HTMLImageElement.h"
@@ -70,6 +71,7 @@
 #include "mozilla/Services.h"
 #include "mozilla/Unused.h"
 #include "mozilla/StaticPrefs_full_screen_api.h"
+#include "mozilla/widget/IMEData.h"
 #include <algorithm>
 
 #include "nsIDOMXULMenuListElement.h"
@@ -843,7 +845,7 @@ nsresult nsFocusManager::ContentRemoved(Document* aDocument,
   NS_ENSURE_ARG(aDocument);
   NS_ENSURE_ARG(aContent);
 
-  nsPIDOMWindowOuter* window = aDocument->GetWindow();
+  RefPtr<nsPIDOMWindowOuter> window = aDocument->GetWindow();
   if (!window) {
     return NS_OK;
   }
@@ -851,16 +853,17 @@ nsresult nsFocusManager::ContentRemoved(Document* aDocument,
   // if the content is currently focused in the window, or is an
   // shadow-including inclusive ancestor of the currently focused element,
   // reset the focus within that window.
-  Element* content = window->GetFocusedElement();
-  if (!content) {
+  RefPtr<Element> previousFocusedElement = window->GetFocusedElement();
+  if (!previousFocusedElement) {
     return NS_OK;
   }
 
-  if (!nsContentUtils::ContentIsHostIncludingDescendantOf(content, aContent)) {
+  if (!nsContentUtils::ContentIsHostIncludingDescendantOf(
+          previousFocusedElement, aContent)) {
     return NS_OK;
   }
 
-  Element* newFocusedElement = [&]() -> Element* {
+  RefPtr<Element> newFocusedElement = [&]() -> Element* {
     if (auto* sr = ShadowRoot::FromNode(aContent)) {
       if (sr->IsUAWidget() && sr->Host()->IsHTMLElement(nsGkAtoms::input)) {
         return sr->Host();
@@ -875,7 +878,8 @@ nsresult nsFocusManager::ContentRemoved(Document* aDocument,
   // element as well, but don't fire any events.
   if (window->GetBrowsingContext() == GetFocusedBrowsingContext()) {
     mFocusedElement = newFocusedElement;
-  } else if (Document* subdoc = aDocument->GetSubDocumentFor(content)) {
+  } else if (Document* subdoc =
+                 aDocument->GetSubDocumentFor(previousFocusedElement)) {
     // Check if the node that was focused is an iframe or similar by looking if
     // it has a subdocument. This would indicate that this focused iframe
     // and its descendants will be going away. We will need to move the focus
@@ -910,12 +914,13 @@ nsresult nsFocusManager::ContentRemoved(Document* aDocument,
   }
 
   // Notify the editor in case we removed its ancestor limiter.
-  if (content->IsEditable()) {
+  if (previousFocusedElement->IsEditable()) {
     if (nsCOMPtr<nsIDocShell> docShell = aDocument->GetDocShell()) {
       if (RefPtr<HTMLEditor> htmlEditor = docShell->GetHTMLEditor()) {
         RefPtr<Selection> selection = htmlEditor->GetSelection();
         if (selection && selection->GetFrameSelection() &&
-            content == selection->GetFrameSelection()->GetAncestorLimiter()) {
+            previousFocusedElement ==
+                selection->GetFrameSelection()->GetAncestorLimiter()) {
           htmlEditor->FinalizeSelection();
         }
       }
@@ -923,13 +928,24 @@ nsresult nsFocusManager::ContentRemoved(Document* aDocument,
   }
 
   if (!newFocusedElement) {
-    NotifyFocusStateChange(content, newFocusedElement, 0,
+    NotifyFocusStateChange(previousFocusedElement, newFocusedElement, 0,
                            /* aGettingFocus = */ false, false);
   } else {
     // We should already have the right state, which is managed by the <input>
     // widget.
     MOZ_ASSERT(newFocusedElement->State().HasState(ElementState::FOCUS));
   }
+
+  // If we changed focused element and the element still has focus, let's
+  // notify IME of focus.  Note that if new focus move has already occurred
+  // by running script, we should not let IMEStateManager of outdated focus
+  // change.
+  if (mFocusedElement == newFocusedElement && mFocusedWindow == window) {
+    RefPtr<nsPresContext> presContext(aDocument->GetPresContext());
+    IMEStateManager::OnChangeFocus(presContext, newFocusedElement,
+                                   InputContextAction::Cause::CAUSE_UNKNOWN);
+  }
+
   return NS_OK;
 }
 
@@ -1687,25 +1703,6 @@ Maybe<uint64_t> nsFocusManager::SetFocusInner(Element* aNewContent,
       }
     }
   }
-
-  // Exit fullscreen if we're focusing a windowed plugin on a non-MacOSX
-  // system. We don't control event dispatch to windowed plugins on non-MacOSX,
-  // so we can't display the "Press ESC to leave fullscreen mode" warning on
-  // key input if a windowed plugin is focused, so just exit fullscreen
-  // to guard against phishing.
-#ifndef XP_MACOSX
-  if (elementToFocus &&
-      nsContentUtils::GetInProcessSubtreeRootDocument(
-          elementToFocus->OwnerDoc())
-          ->GetFullscreenElement() &&
-      nsContentUtils::HasPluginWithUncontrolledEventDispatch(elementToFocus)) {
-    nsContentUtils::ReportToConsole(nsIScriptError::warningFlag, "DOM"_ns,
-                                    elementToFocus->OwnerDoc(),
-                                    nsContentUtils::eDOM_PROPERTIES,
-                                    "FocusedWindowedPluginWhileFullscreen");
-    Document::AsyncExitFullscreen(elementToFocus->OwnerDoc());
-  }
-#endif
 
   // if the FLAG_NOSWITCHFRAME flag is used, only allow the focus to be
   // shifted away from the current element if the new shell to focus is

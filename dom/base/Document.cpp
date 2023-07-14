@@ -10184,8 +10184,13 @@ void nsDOMAttributeMap::BlastSubtreeToPieces(nsINode* aNode) {
 
 namespace mozilla::dom {
 
-nsINode* Document::AdoptNode(nsINode& aAdoptedNode, ErrorResult& rv) {
+nsINode* Document::AdoptNode(nsINode& aAdoptedNode, ErrorResult& rv,
+                             bool aAcceptShadowRoot) {
   OwningNonNull<nsINode> adoptedNode = aAdoptedNode;
+  if (adoptedNode->IsShadowRoot() && !aAcceptShadowRoot) {
+    rv.ThrowHierarchyRequestError("The adopted node is a shadow root.");
+    return nullptr;
+  }
 
   // Scope firing mutation events so that we don't carry any state that
   // might be stale
@@ -10217,13 +10222,7 @@ nsINode* Document::AdoptNode(nsINode& aAdoptedNode, ErrorResult& rv) {
 
       break;
     }
-    case DOCUMENT_FRAGMENT_NODE: {
-      if (adoptedNode->IsShadowRoot()) {
-        rv.ThrowHierarchyRequestError("The adopted node is a shadow root.");
-        return nullptr;
-      }
-      [[fallthrough]];
-    }
+    case DOCUMENT_FRAGMENT_NODE:
     case ELEMENT_NODE:
     case PROCESSING_INSTRUCTION_NODE:
     case TEXT_NODE:
@@ -15346,18 +15345,6 @@ bool Document::FullscreenElementReadyCheck(FullscreenRequest& aRequest) {
   }
   if (!nsContentUtils::IsChromeDoc(this) && !IsInFocusedTab(this)) {
     aRequest.Reject("FullscreenDeniedNotFocusedTab");
-    return false;
-  }
-  // Deny requests when a windowed plugin is focused.
-  nsFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (!fm) {
-    NS_WARNING("Failed to retrieve focus manager in fullscreen request.");
-    aRequest.MayRejectPromise("An unexpected error occurred");
-    return false;
-  }
-  if (nsContentUtils::HasPluginWithUncontrolledEventDispatch(
-          fm->GetFocusedElement())) {
-    aRequest.Reject("FullscreenDeniedFocusedPlugin");
     return false;
   }
   return true;
