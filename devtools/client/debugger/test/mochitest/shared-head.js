@@ -1083,7 +1083,7 @@ function disableBreakpoint(dbg, source, line, column) {
     column,
   });
   const bp = getBreakpointForLocation(dbg, location);
-  return dbg.actions.disableBreakpoint(getContext(dbg), bp);
+  return dbg.actions.disableBreakpoint(bp);
 }
 
 function findBreakpoint(dbg, url, line) {
@@ -2769,19 +2769,14 @@ if (protocolHandler.hasSubstitution("testing-common")) {
   const { PromiseTestUtils } = ChromeUtils.importESModule(
     "resource://testing-common/PromiseTestUtils.sys.mjs"
   );
+  PromiseTestUtils.allowMatchingRejectionsGlobally(/Connection closed/);
+  this.PromiseTestUtils = PromiseTestUtils;
 
   // Debugger operations that are canceled because they were rendered obsolete by
   // a navigation or pause/resume end up as uncaught rejections. These never
   // indicate errors and are allowed in all debugger tests.
-  PromiseTestUtils.allowMatchingRejectionsGlobally(/Page has navigated/);
-  PromiseTestUtils.allowMatchingRejectionsGlobally(
-    /Current thread has changed/
-  );
-  PromiseTestUtils.allowMatchingRejectionsGlobally(
-    /Current thread has paused or resumed/
-  );
-  PromiseTestUtils.allowMatchingRejectionsGlobally(/Connection closed/);
-  this.PromiseTestUtils = PromiseTestUtils;
+  // All the following are related to context middleware throwing on obsolete async actions:
+  PromiseTestUtils.allowMatchingRejectionsGlobally(/DebuggerContextError/);
 }
 
 /**

@@ -2521,12 +2521,6 @@
   value: true
   mirror: always
 
-# Whether touch event listeners are passive by default.
-- name: dom.event.default_to_passive_touch_listeners
-  type: bool
-  value: true
-  mirror: always
-
 # Whether wheel listeners are passive by default.
 - name: dom.event.default_to_passive_wheel_listeners
   type: bool
@@ -4633,13 +4627,7 @@
   type: RelaxedAtomicBool
   value: @IS_NOT_ANDROID@
   mirror: always
-
-# Is the 'delegatesFocus' attribute for shadow dom
-- name: dom.shadowdom.delegatesFocus.enabled
-  type: bool
-  value: true
-  mirror: always
-
+  
 # Is the 'assign' API for slot element enabled?
 - name: dom.shadowdom.slot.assign.enabled
   type: bool
@@ -6315,6 +6303,11 @@
 
 # Whether to force using EGL over GLX.
 - name: gfx.x11-egl.force-enabled
+  type: bool
+  value: false
+  mirror: once
+
+- name: gfx.x11.glx_sgi_video_sync
   type: bool
   value: false
   mirror: once
@@ -8247,6 +8240,13 @@
   mirror: always
   rust: true
 
+# Whether sign/abs functions are enabled in calc().
+- name: layout.css.abs-sign.enabled
+  type: RelaxedAtomicBool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+  rust: true
+
 # Whether infinity / nan constants are enabled in calc().
 - name: layout.css.nan-inf.enabled
   type: RelaxedAtomicBool
@@ -9545,6 +9545,16 @@
   value: true
 #endif
   mirror: always
+
+# Whether to disable the MathML3 support for the mathvariant attribute. For
+# MathML Core, support is restricted to the <mi> element and to value "normal".
+# Corresponding automatic italicization on single-char <mi> element is also
+# implemented via text-transform: auto when that flag is enabled.
+- name: mathml.legacy_mathvariant_attribute.disabled
+  type: bool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+  rust: true
 
 #---------------------------------------------------------------------------
 # Prefs starting with "media."
