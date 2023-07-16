@@ -4,9 +4,9 @@
 
 import {
   getSelectedFrame,
-  getThreadContext,
   getCurrentThread,
   getIsCurrentThreadPaused,
+  getIsPaused,
 } from "../../selectors";
 import { PROMISE } from "../utils/middleware/promise";
 import { evaluateExpressions } from "../expressions";
@@ -14,7 +14,7 @@ import { selectLocation } from "../sources";
 import { fetchScopes } from "./fetchScopes";
 import { fetchFrames } from "./fetchFrames";
 import { recordEvent } from "../../utils/telemetry";
-import assert from "../../utils/assert";
+import { validateFrame } from "../../utils/context";
 
 export function selectThread(thread) {
   return async ({ dispatch, getState, client }) => {
@@ -22,11 +22,6 @@ export function selectThread(thread) {
       return;
     }
     dispatch({ type: "SELECT_THREAD", thread });
-
-    // Get a new context now that the current thread has changed.
-    const threadcx = getThreadContext(getState());
-    // The following assertion may fail if thread doesn't exists and SELECT_THREAD did not update the thread.
-    assert(threadcx.thread == thread, "Thread mismatch");
 
     const selectedFrame = getSelectedFrame(getState(), thread);
 
@@ -42,10 +37,8 @@ export function selectThread(thread) {
     // (frames and scopes is supposed to be fetched on pause,
     // but if two threads pause concurrently, it might be cancelled)
     if (selectedFrame) {
-      serverRequests.push(
-        dispatch(selectLocation(threadcx, selectedFrame.location))
-      );
-      serverRequests.push(dispatch(fetchFrames(threadcx)));
+      serverRequests.push(dispatch(selectLocation(selectedFrame.location)));
+      serverRequests.push(dispatch(fetchFrames(thread)));
 
       serverRequests.push(dispatch(fetchScopes(selectedFrame)));
     }
@@ -55,11 +48,9 @@ export function selectThread(thread) {
 }
 
 /**
- * Debugger commands like stepOver, stepIn, stepUp
+ * Debugger commands like stepOver, stepIn, stepOut, resume
  *
- * @param string $0.type
- * @memberof actions/pause
- * @static
+ * @param string type
  */
 export function command(type) {
   return async ({ dispatch, getState, client }) => {
@@ -82,8 +73,7 @@ export function command(type) {
 
 /**
  * StepIn
- * @memberof actions/pause
- * @static
+ *
  * @returns {Function} {@link command}
  */
 export function stepIn() {
@@ -97,8 +87,7 @@ export function stepIn() {
 
 /**
  * stepOver
- * @memberof actions/pause
- * @static
+ *
  * @returns {Function} {@link command}
  */
 export function stepOver() {
@@ -112,8 +101,7 @@ export function stepOver() {
 
 /**
  * stepOut
- * @memberof actions/pause
- * @static
+ *
  * @returns {Function} {@link command}
  */
 export function stepOut() {
@@ -127,8 +115,7 @@ export function stepOut() {
 
 /**
  * resume
- * @memberof actions/pause
- * @static
+ *
  * @returns {Function} {@link command}
  */
 export function resume() {
@@ -143,19 +130,18 @@ export function resume() {
 
 /**
  * restart frame
- * @memberof actions/pause
- * @static
  */
-export function restart(cx, frame) {
+export function restart(frame) {
   return async ({ dispatch, getState, client }) => {
-    if (!getIsCurrentThreadPaused(getState())) {
+    if (!getIsPaused(getState(), frame.thread)) {
       return null;
     }
+    validateFrame(getState(), frame);
     return dispatch({
       type: "COMMAND",
       command: "restart",
-      thread: cx.thread,
-      [PROMISE]: client.restart(cx.thread, frame.id),
+      thread: frame.thread,
+      [PROMISE]: client.restart(frame.thread, frame.id),
     });
   };
 }

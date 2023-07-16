@@ -7,6 +7,9 @@ import {
   getSelectedFrame,
   getCurrentThread,
   hasSource,
+  hasSourceActor,
+  getCurrentlyFetchedTopFrame,
+  hasFrame,
 } from "../selectors";
 
 // Context encapsulates the main parameters of the current redux state, which
@@ -95,6 +98,41 @@ export function validateBreakpoint(state, breakpoint) {
   if (!hasSource(state, breakpoint.generatedLocation.source.id)) {
     throw new ContextError(
       `Breakpoint's generated location is obsolete (source '${breakpoint.generatedLocation.source.id}' no longer exists)`
+    );
+  }
+}
+
+export function validateSource(state, source) {
+  if (!hasSource(state, source.id)) {
+    throw new ContextError(
+      `Obsolete source (source '${source.id}' no longer exists)`
+    );
+  }
+}
+
+export function validateSourceActor(state, sourceActor) {
+  if (!hasSourceActor(state, sourceActor.id)) {
+    throw new ContextError(
+      `Obsolete source actor (source '${sourceActor.id}' no longer exists)`
+    );
+  }
+}
+
+export function validateThreadFrames(state, thread, frames) {
+  const newThread = getCurrentThread(state);
+  if (thread != newThread) {
+    throw new ContextError("Selected thread has changed");
+  }
+  const newTopFrame = getCurrentlyFetchedTopFrame(state, newThread);
+  if (newTopFrame?.id != frames[0].id) {
+    throw new ContextError("Thread moved to another location");
+  }
+}
+
+export function validateFrame(state, frame) {
+  if (!hasFrame(state, frame)) {
+    throw new ContextError(
+      `Obsolete frame (frame '${frame.id}' no longer exists)`
     );
   }
 }

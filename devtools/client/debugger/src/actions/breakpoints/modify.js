@@ -109,7 +109,6 @@ export function enableBreakpoint(initialBreakpoint) {
 }
 
 export function addBreakpoint(
-  cx,
   initialLocation,
   options = {},
   disabled,
@@ -119,12 +118,7 @@ export function addBreakpoint(
     const { dispatch, getState, client } = thunkArgs;
     recordEvent("add_breakpoint");
 
-    await dispatch(
-      setBreakpointPositions({
-        cx,
-        location: initialLocation,
-      })
-    );
+    await dispatch(setBreakpointPositions(initialLocation));
 
     const position = initialLocation.column
       ? getBreakpointPositionsForLocation(getState(), initialLocation)
@@ -190,7 +184,7 @@ export function addBreakpoint(
  * @memberof actions/breakpoints
  * @static
  */
-export function removeBreakpoint(cx, initialBreakpoint) {
+export function removeBreakpoint(initialBreakpoint) {
   return ({ dispatch, getState, client }) => {
     recordEvent("remove_breakpoint");
 
@@ -202,7 +196,6 @@ export function removeBreakpoint(cx, initialBreakpoint) {
     dispatch(setSkipPausing(false));
     return dispatch({
       type: "REMOVE_BREAKPOINT",
-      cx,
       breakpoint,
       // If the breakpoint is disabled then it is not installed in the server.
       [PROMISE]: breakpoint.disabled
@@ -223,7 +216,7 @@ export function removeBreakpoint(cx, initialBreakpoint) {
  * @param {Object} target
  *        Location object where to remove breakpoints.
  */
-export function removeBreakpointAtGeneratedLocation(cx, target) {
+export function removeBreakpointAtGeneratedLocation(target) {
   return ({ dispatch, getState, client }) => {
     // remove breakpoint from the server
     const onBreakpointRemoved = clientRemoveBreakpoint(
@@ -241,7 +234,6 @@ export function removeBreakpointAtGeneratedLocation(cx, target) {
       ) {
         dispatch({
           type: "REMOVE_BREAKPOINT",
-          cx,
           breakpoint,
           [PROMISE]: onBreakpointRemoved,
         });
@@ -258,7 +250,6 @@ export function removeBreakpointAtGeneratedLocation(cx, target) {
       ) {
         dispatch({
           type: "REMOVE_PENDING_BREAKPOINT",
-          cx,
           pendingBreakpoint,
         });
       }
@@ -304,12 +295,12 @@ export function disableBreakpoint(initialBreakpoint) {
  * @param {Object} options
  *        Any options to set on the breakpoint
  */
-export function setBreakpointOptions(cx, location, options = {}) {
+export function setBreakpointOptions(location, options = {}) {
   return thunkArgs => {
     const { dispatch, getState, client } = thunkArgs;
     let breakpoint = getBreakpoint(getState(), location);
     if (!breakpoint) {
-      return dispatch(addBreakpoint(cx, location, options));
+      return dispatch(addBreakpoint(location, options));
     }
 
     // Note: setting a breakpoint's options implicitly enables it.
