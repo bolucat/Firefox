@@ -2184,11 +2184,6 @@
   value: true
   mirror: always
 
-- name: dom.allow_XUL_XBL_for_file
-  type: bool
-  value: false
-  mirror: always
-
 # Checks if offscreen animation throttling is enabled.
 - name: dom.animations.offscreen-throttling
   type: bool
@@ -2820,11 +2815,6 @@
 - name: dom.indexedDB.preprocessing
   type: RelaxedAtomicBool
   value: false
-  mirror: always
-
-- name: dom.input_events.beforeinput.enabled
-  type: bool
-  value: true
   mirror: always
 
 # Whether innerWidth / innerHeight return rounded or fractional sizes.
@@ -4744,12 +4734,7 @@
   type: bool
   value: true
   mirror: always
-
-- name: dom.window.history.async
-  type: bool
-  value: true
-  mirror: always
-
+  
 - name: dom.window.clientinformation.enabled
   type: bool
   value: true
