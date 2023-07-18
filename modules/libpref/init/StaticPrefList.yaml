@@ -752,12 +752,10 @@
 
 # If this is true, APZ fully recalculates the scroll thumb size and
 # position in the compositor. This leads to the size and position
-# being more accurate in scenarios such as async zooming, but the
-# recalculation code is error-prone so it's nightly-only for now
-# to give it more baking time.
+# being more accurate in scenarios such as async zooming.
 - name: apz.scrollthumb.recalc
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 - name: apz.test.fails_with_native_injection
@@ -2344,11 +2342,6 @@
   value: true
   mirror: always
 
-- name: dom.crypto.randomUUID.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 # Is support for CSSPseudoElement enabled?
 - name: dom.css_pseudo_element.enabled
   type: bool
@@ -2366,12 +2359,6 @@
 # Make sure cases like bug 1795380 work before trying to turn this off. See
 # bug 1680721 for some other context that might be relevant.
 - name: dom.delay.block_external_protocol_in_iframes.enabled
-  type: bool
-  value: true
-  mirror: always
-
-# HTML <dialog> element
-- name: dom.dialog_element.enabled
   type: bool
   value: true
   mirror: always
@@ -3557,12 +3544,6 @@
   value: 100
   mirror: always
 
-# Enable requestIdleCallback API
-- name: dom.requestIdleCallback.enabled
-  type: bool
-  value: true
-  mirror: always
-
 # Enable Screen Orientation lock
 - name: dom.screenorientation.allow-lock
   type: bool
@@ -4722,11 +4703,6 @@
 #else
   value: false
 #endif
-  mirror: always
-
-- name: dom.webnotifications.serviceworker.enabled
-  type: RelaxedAtomicBool
-  value: true
   mirror: always
 
 # Is support for Window.event enabled?
@@ -8328,16 +8304,6 @@
   value: true
   mirror: always
 
-# Whether we should return an empty style on invalid pseudo-elements starting
-# with a colon.
-#
-# Old behavior is returning an empty style if the string starts with a double
-# colon, and return the regular style otherwise.
-- name: layout.css.computed-style.new-invalid-pseudo-element-behavior
-  type: bool
-  value: true
-  mirror: always
-
 # Whether computed local-fragment-only image urls serialize using the same
 # rules as filter/mask/etc (not resolving the URL for local refs).
 #
@@ -10815,11 +10781,6 @@
 # navigator.mediaDevices and getUserMedia() support as well.
 # See also media.navigator.enabled
 - name: media.peerconnection.enabled
-  type: bool
-  value: true
-  mirror: always
-
-- name: media.peerconnection.dtmf.enabled
   type: bool
   value: true
   mirror: always
@@ -13517,6 +13478,30 @@
   type: String
   value: ""
   mirror: never
+
+# Main pref to enable / disable the feature.
+- name: privacy.bounceTrackingProtection.enabled
+  type: bool
+  value: false
+  mirror: once
+
+# How long to wait for a client redirect after a navigation ends.
+- name: privacy.bounceTrackingProtection.clientBounceDetectionTimerPeriodMS
+  type: uint32_t
+  value: 10000
+  mirror: always
+
+# Whether only bounces that access storage should be considered trackers.
+- name: privacy.bounceTrackingProtection.requireStatefulBounces
+  type: bool
+  value: false
+  mirror: always
+
+# To be used in test environments to enable observer messages.
+- name: privacy.bounceTrackingProtection.enableTestMode
+  type: bool
+  value: false
+  mirror: always
 
 #---------------------------------------------------------------------------
 # Prefs starting with "prompts."
