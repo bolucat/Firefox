@@ -729,6 +729,20 @@ let JSWINDOWACTORS = {
     matches: ["about:studies*"],
   },
 
+  ShoppingSidebar: {
+    parent: {
+      esModuleURI: "resource:///actors/ShoppingSidebarParent.sys.mjs",
+    },
+    child: {
+      esModuleURI: "resource:///actors/ShoppingSidebarChild.sys.mjs",
+      events: {
+        ContentReady: { wantUntrusted: true },
+      },
+    },
+    matches: ["chrome://browser/content/shopping/shopping.html"],
+    remoteTypes: ["privilegedabout"],
+  },
+
   SpeechDispatcher: {
     parent: {
       esModuleURI: "resource:///actors/SpeechDispatcherParent.sys.mjs",
@@ -3546,7 +3560,7 @@ BrowserGlue.prototype = {
   _migrateUI: function BG__migrateUI() {
     // Use an increasing number to keep track of the current migration state.
     // Completely unrelated to the current Firefox release number.
-    const UI_VERSION = 137;
+    const UI_VERSION = 138;
     const BROWSER_DOCURL = AppConstants.BROWSER_CHROME_URL;
 
     const PROFILE_DIR = Services.dirsvc.get("ProfD", Ci.nsIFile).path;
@@ -4340,6 +4354,32 @@ BrowserGlue.prototype = {
         Services.appinfo.prefersReducedMotion
       ) {
         Services.prefs.setBoolPref("general.smoothScroll", true);
+      }
+    }
+
+    if (currentUIVersion < 138) {
+      // Bug 1757297: Change scheme of all existing 'https-only-load-insecure'
+      // permissions with https scheme to http scheme.
+      try {
+        Services.perms
+          .getAllByTypes(["https-only-load-insecure"])
+          .filter(permission => permission.principal.schemeIs("https"))
+          .forEach(permission => {
+            const capability = permission.capability;
+            const uri = permission.principal.URI.mutate()
+              .setScheme("http")
+              .finalize();
+            const principal =
+              Services.scriptSecurityManager.createContentPrincipal(uri, {});
+            Services.perms.removePermission(permission);
+            Services.perms.addFromPrincipal(
+              principal,
+              "https-only-load-insecure",
+              capability
+            );
+          });
+      } catch (e) {
+        console.error("Error migrating https-only-load-insecure permission", e);
       }
     }
 

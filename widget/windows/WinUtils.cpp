@@ -28,7 +28,6 @@
 #include "mozilla/RefPtr.h"
 #include "mozilla/SchedulerGroup.h"
 #include "mozilla/WinHeaderOnlyUtils.h"
-#include "mozilla/WindowsVersion.h"
 #include "mozilla/Unused.h"
 #include "nsIContentPolicy.h"
 #include "WindowsUIUtils.h"
@@ -99,7 +98,7 @@ void WinUtils::Initialize() {
   // Dpi-Awareness is not supported with Win32k Lockdown enabled, so we don't
   // initialize DPI-related members and assert later that nothing accidently
   // uses these static members
-  if (IsWin10OrLater() && !IsWin32kLockedDown()) {
+  if (!IsWin32kLockedDown()) {
     HMODULE user32Dll = ::GetModuleHandleW(L"user32");
     if (user32Dll) {
       auto getThreadDpiAwarenessContext =
@@ -128,9 +127,7 @@ void WinUtils::Initialize() {
     }
   }
 
-  if (IsWin8OrLater()) {
-    sHasPackageIdentity = mozilla::HasPackageIdentity();
-  }
+  sHasPackageIdentity = mozilla::HasPackageIdentity();
 }
 
 // static
@@ -1468,10 +1465,6 @@ static bool IsTabletDevice() {
   // - It is used as a tablet which means that it has no keyboard connected.
   // On Windows 10 it means that it is verifying with ConvertibleSlateMode.
 
-  if (!IsWin8OrLater()) {
-    return false;
-  }
-
   if (WindowsUIUtils::GetInTabletMode()) {
     return true;
   }
@@ -1541,19 +1534,71 @@ PointerCapabilities WinUtils::GetPrimaryPointerCapabilities() {
   return PointerCapabilities::None;
 }
 
+static bool SystemHasTouchscreen() {
+  int digitizerMetrics = ::GetSystemMetrics(SM_DIGITIZER);
+  return (digitizerMetrics & NID_INTEGRATED_TOUCH) ||
+         (digitizerMetrics & NID_EXTERNAL_TOUCH);
+}
+
+static bool SystemHasPenDigitizer() {
+  int digitizerMetrics = ::GetSystemMetrics(SM_DIGITIZER);
+  return (digitizerMetrics & NID_INTEGRATED_PEN) ||
+         (digitizerMetrics & NID_EXTERNAL_PEN);
+}
+
+static bool SystemHasMouse() {
+  // As per MSDN, this value is rarely false because of virtual mice, and
+  // some machines report the existance of a mouse port as a mouse.
+  //
+  // We probably could try to distinguish if we wanted, but a virtual mouse
+  // might be there for a reason, and maybe we shouldn't assume we know
+  // better.
+  return !!::GetSystemMetrics(SM_MOUSEPRESENT);
+}
+
 /* static */
 PointerCapabilities WinUtils::GetAllPointerCapabilities() {
-  PointerCapabilities result = PointerCapabilities::None;
+  PointerCapabilities pointerCapabilities = PointerCapabilities::None;
 
-  if (IsTabletDevice() || IsTouchDeviceSupportPresent()) {
-    result |= PointerCapabilities::Coarse;
+  if (SystemHasTouchscreen()) {
+    pointerCapabilities |= PointerCapabilities::Coarse;
   }
 
-  if (IsMousePresent()) {
-    result |= PointerCapabilities::Fine | PointerCapabilities::Hover;
+  if (SystemHasPenDigitizer() || SystemHasMouse()) {
+    pointerCapabilities |=
+        PointerCapabilities::Fine | PointerCapabilities::Hover;
   }
 
-  return result;
+  return pointerCapabilities;
+}
+
+void WinUtils::GetPointerExplanation(nsAString* aExplanation) {
+  // To support localization, we will return a comma-separated list of
+  // Fluent IDs
+  *aExplanation = u"pointing-device-none";
+
+  bool first = true;
+  auto append = [&](const char16_t* str) {
+    if (first) {
+      aExplanation->Truncate();
+      first = false;
+    } else {
+      aExplanation->Append(u",");
+    }
+    aExplanation->Append(str);
+  };
+
+  if (SystemHasTouchscreen()) {
+    append(u"pointing-device-touchscreen");
+  }
+
+  if (SystemHasPenDigitizer()) {
+    append(u"pointing-device-pen-digitizer");
+  }
+
+  if (SystemHasMouse()) {
+    append(u"pointing-device-mouse");
+  }
 }
 
 /* static */
@@ -1991,10 +2036,6 @@ static LONG SetRelativeScaleStep(LUID aAdapterId, int32_t aRelativeScaleStep) {
 }
 
 nsresult WinUtils::SetHiDPIMode(bool aHiDPI) {
-  if (!IsWin10OrLater()) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-
   auto config = GetDisplayConfig();
   if (!config) {
     return NS_ERROR_NOT_AVAILABLE;
@@ -2050,10 +2091,6 @@ nsresult WinUtils::SetHiDPIMode(bool aHiDPI) {
 }
 
 nsresult WinUtils::RestoreHiDPIMode() {
-  if (!IsWin10OrLater()) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-
   if (sCurRelativeScaleStep == std::numeric_limits<int>::max()) {
     // The DPI setting hasn't been changed.
     return NS_ERROR_UNEXPECTED;

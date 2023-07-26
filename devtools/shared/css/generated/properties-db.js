@@ -1915,6 +1915,7 @@ exports.CSS_PROPERTIES = {
       "padding-box",
       "path",
       "polygon",
+      "rect",
       "revert",
       "revert-layer",
       "stroke-box",
@@ -5869,6 +5870,7 @@ exports.CSS_PROPERTIES = {
       "padding-box",
       "path",
       "polygon",
+      "rect",
       "revert",
       "revert-layer",
       "stroke-box",
@@ -6996,6 +6998,7 @@ exports.CSS_PROPERTIES = {
       "large",
       "larger",
       "lighter",
+      "math",
       "medium",
       "menu",
       "message-box",
@@ -7125,6 +7128,7 @@ exports.CSS_PROPERTIES = {
       "initial",
       "large",
       "larger",
+      "math",
       "medium",
       "revert",
       "revert-layer",
@@ -9094,6 +9098,22 @@ exports.CSS_PROPERTIES = {
       "unset"
     ]
   },
+  "math-depth": {
+    "isInherited": true,
+    "subproperties": [
+      "math-depth"
+    ],
+    "supports": [],
+    "values": [
+      "add",
+      "auto-add",
+      "inherit",
+      "initial",
+      "revert",
+      "revert-layer",
+      "unset"
+    ]
+  },
   "math-style": {
     "isInherited": true,
     "subproperties": [
@@ -9360,6 +9380,7 @@ exports.CSS_PROPERTIES = {
       "path",
       "polygon",
       "ray",
+      "rect",
       "reverse",
       "revert",
       "revert-layer",
@@ -9425,6 +9446,7 @@ exports.CSS_PROPERTIES = {
       "path",
       "polygon",
       "ray",
+      "rect",
       "revert",
       "revert-layer",
       "stroke-box",
@@ -11015,6 +11037,7 @@ exports.CSS_PROPERTIES = {
       "path",
       "polygon",
       "radial-gradient",
+      "rect",
       "repeating-conic-gradient",
       "repeating-linear-gradient",
       "repeating-radial-gradient",

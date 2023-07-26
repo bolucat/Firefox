@@ -10,8 +10,7 @@ use cssparser::{Parser, ParserInput, SourceLocation, UnicodeRange};
 use dom::{DocumentState, ElementState};
 use malloc_size_of::MallocSizeOfOps;
 use nsstring::{nsCString, nsString};
-use selectors::matching::IgnoreNthChildForInvalidation;
-use selectors::NthIndexCache;
+use selectors::matching::{IgnoreNthChildForInvalidation, SelectorCaches};
 use servo_arc::{Arc, ArcBorrow};
 use smallvec::SmallVec;
 use style::values::generics::color::ColorMixFlags;
@@ -97,7 +96,7 @@ use style::global_style_data::{
 use style::invalidation::element::restyle_hints::RestyleHint;
 use style::invalidation::stylesheets::RuleChangeKind;
 use style::media_queries::MediaList;
-use style::parser::{self, Parse, ParserContext};
+use style::parser::{Parse, ParserContext};
 use style::properties::animated_properties::{AnimationValue, AnimationValueMap};
 use style::properties::{parse_one_declaration_into, parse_style_attribute};
 use style::properties::{ComputedValues, CountedUnknownProperty, Importance, NonCustomPropertyId};
@@ -189,7 +188,6 @@ pub unsafe extern "C" fn Servo_Initialize(
 
     // Perform some debug-only runtime assertions.
     origin_flags::assert_flags_match();
-    parser::assert_parsing_mode_match();
     traversal_flags::assert_traversal_flags_match();
     specified::font::assert_variant_east_asian_matches();
     specified::font::assert_variant_ligatures_matches();
@@ -2495,7 +2493,7 @@ pub extern "C" fn Servo_StyleRule_SelectorMatchesElement(
     let element = GeckoElement(element);
     let host = host.map(GeckoElement);
     let quirks_mode = element.as_node().owner_doc().quirks_mode();
-    let mut nth_index_cache = Default::default();
+    let mut selector_caches = SelectorCaches::default();
     let visited_mode = if relevant_link_visited {
         VisitedHandlingMode::RelevantLinkVisited
     } else {
@@ -2504,7 +2502,7 @@ pub extern "C" fn Servo_StyleRule_SelectorMatchesElement(
     let mut ctx = MatchingContext::new_for_visited(
         matching_mode,
         /* bloom_filter = */ None,
-        &mut nth_index_cache,
+        &mut selector_caches,
         visited_mode,
         quirks_mode,
         NeedsSelectorFlags::No,
@@ -4401,13 +4399,12 @@ fn parse_property_into(
     value: &nsACString,
     origin: Origin,
     url_data: &UrlExtraData,
-    parsing_mode: structs::ParsingMode,
+    parsing_mode: ParsingMode,
     quirks_mode: QuirksMode,
     rule_type: CssRuleType,
     reporter: Option<&dyn ParseErrorReporter>,
 ) -> Result<(), ()> {
     let value = unsafe { value.as_str_unchecked() };
-    let parsing_mode = ParsingMode::from_bits_retain(parsing_mode);
 
     if let Some(non_custom) = property_id.non_custom_id() {
         if !non_custom.allowed_in_rule(rule_type.into()) {
@@ -4433,7 +4430,7 @@ pub unsafe extern "C" fn Servo_ParseProperty(
     property: nsCSSPropertyID,
     value: &nsACString,
     data: *mut URLExtraData,
-    parsing_mode: structs::ParsingMode,
+    parsing_mode: ParsingMode,
     quirks_mode: nsCompatibility,
     loader: *mut Loader,
     rule_type: CssRuleType,
@@ -4802,7 +4799,7 @@ fn set_property(
     value: &nsACString,
     is_important: bool,
     data: &UrlExtraData,
-    parsing_mode: structs::ParsingMode,
+    parsing_mode: ParsingMode,
     quirks_mode: QuirksMode,
     loader: *mut Loader,
     rule_type: CssRuleType,
@@ -4849,7 +4846,7 @@ pub unsafe extern "C" fn Servo_DeclarationBlock_SetProperty(
     value: &nsACString,
     is_important: bool,
     data: *mut URLExtraData,
-    parsing_mode: structs::ParsingMode,
+    parsing_mode: ParsingMode,
     quirks_mode: nsCompatibility,
     loader: *mut Loader,
     rule_type: CssRuleType,
@@ -4894,7 +4891,7 @@ pub unsafe extern "C" fn Servo_DeclarationBlock_SetPropertyById(
     value: &nsACString,
     is_important: bool,
     data: *mut URLExtraData,
-    parsing_mode: structs::ParsingMode,
+    parsing_mode: ParsingMode,
     quirks_mode: nsCompatibility,
     loader: *mut Loader,
     rule_type: CssRuleType,
@@ -5689,7 +5686,7 @@ pub extern "C" fn Servo_CSSSupports2(property: &nsACString, value: &nsACString) 
         value,
         Origin::Author,
         unsafe { dummy_url_data() },
-        structs::ParsingMode_Default,
+        ParsingMode::DEFAULT,
         QuirksMode::NoQuirks,
         CssRuleType::Style,
         None,
@@ -6941,6 +6938,7 @@ pub extern "C" fn Servo_ProcessInvalidations(
     );
     let mut data = data.as_mut().map(|d| &mut **d);
 
+    let mut selector_caches = SelectorCaches::default();
     if let Some(ref mut data) = data {
         // FIXME(emilio): Ideally we could share the nth-index-cache across all
         // the elements?
@@ -6948,7 +6946,7 @@ pub extern "C" fn Servo_ProcessInvalidations(
             element,
             &shared_style_context,
             None,
-            &mut NthIndexCache::default(),
+            &mut selector_caches,
         );
 
         if result.has_invalidated_siblings() {
@@ -7350,11 +7348,16 @@ pub unsafe extern "C" fn Servo_ParseFontShorthandForMatching(
                     Err(..) => return false,
                 }
             },
-            // Map absolute-size keywords to sizes.
             specified::FontSize::Keyword(info) => {
+                let keyword = if info.kw != specified::FontSizeKeyword::Math {
+                  info.kw
+                } else {
+                  specified::FontSizeKeyword::Medium
+                };
+                // Map absolute-size keywords to sizes.
                 // TODO: Maybe get a meaningful quirks / base size from the caller?
                 let quirks_mode = QuirksMode::NoQuirks;
-                info.kw
+                keyword
                     .to_length_without_context(
                         quirks_mode,
                         computed::Length::new(specified::FONT_MEDIUM_PX),
@@ -7445,12 +7448,12 @@ pub unsafe extern "C" fn Servo_InvalidateStyleForDocStateChanges(
                 .map(|author_styles| &*author_styles.data),
         );
 
-    let mut nth_index_cache = Default::default();
+    let mut selector_caches = SelectorCaches::default();
     let root = GeckoElement(root);
     let mut processor = DocumentStateInvalidationProcessor::new(
         iter,
         DocumentState::from_bits_retain(states_changed),
-        &mut nth_index_cache,
+        &mut selector_caches,
         root.as_node().owner_doc().quirks_mode(),
     );
 
