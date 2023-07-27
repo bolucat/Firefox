@@ -118,7 +118,7 @@ XPCOMUtils.defineLazyServiceGetters(lazy, {
   PushService: ["@mozilla.org/push/Service;1", "nsIPushService"],
 });
 
-XPCOMUtils.defineLazyGetter(
+ChromeUtils.defineLazyGetter(
   lazy,
   "accountsL10n",
   () =>
@@ -737,6 +737,7 @@ let JSWINDOWACTORS = {
       esModuleURI: "resource:///actors/ShoppingSidebarChild.sys.mjs",
       events: {
         ContentReady: { wantUntrusted: true },
+        DisableShopping: { wantUntrusted: true },
       },
     },
     matches: ["chrome://browser/content/shopping/shopping.html"],
@@ -812,7 +813,7 @@ let JSWINDOWACTORS = {
   },
 };
 
-XPCOMUtils.defineLazyGetter(
+ChromeUtils.defineLazyGetter(
   lazy,
   "WeaveService",
   () => Cc["@mozilla.org/weave/service;1"].getService().wrappedJSObject
@@ -824,19 +825,19 @@ if (AppConstants.MOZ_CRASHREPORTER) {
   });
 }
 
-XPCOMUtils.defineLazyGetter(lazy, "gBrandBundle", function () {
+ChromeUtils.defineLazyGetter(lazy, "gBrandBundle", function () {
   return Services.strings.createBundle(
     "chrome://branding/locale/brand.properties"
   );
 });
 
-XPCOMUtils.defineLazyGetter(lazy, "gBrowserBundle", function () {
+ChromeUtils.defineLazyGetter(lazy, "gBrowserBundle", function () {
   return Services.strings.createBundle(
     "chrome://browser/locale/browser.properties"
   );
 });
 
-XPCOMUtils.defineLazyGetter(lazy, "log", () => {
+ChromeUtils.defineLazyGetter(lazy, "log", () => {
   let { ConsoleAPI } = ChromeUtils.importESModule(
     "resource://gre/modules/Console.sys.mjs"
   );
@@ -911,7 +912,7 @@ export function BrowserGlue() {
     "nsIUserIdleService"
   );
 
-  XPCOMUtils.defineLazyGetter(this, "_distributionCustomizer", function () {
+  ChromeUtils.defineLazyGetter(this, "_distributionCustomizer", function () {
     const { DistributionCustomizer } = ChromeUtils.importESModule(
       "resource:///modules/distribution.sys.mjs"
     );
@@ -3560,7 +3561,7 @@ BrowserGlue.prototype = {
   _migrateUI: function BG__migrateUI() {
     // Use an increasing number to keep track of the current migration state.
     // Completely unrelated to the current Firefox release number.
-    const UI_VERSION = 138;
+    const UI_VERSION = 139;
     const BROWSER_DOCURL = AppConstants.BROWSER_CHROME_URL;
 
     const PROFILE_DIR = Services.dirsvc.get("ProfD", Ci.nsIFile).path;
@@ -4381,6 +4382,49 @@ BrowserGlue.prototype = {
       } catch (e) {
         console.error("Error migrating https-only-load-insecure permission", e);
       }
+    }
+
+    if (currentUIVersion < 139) {
+      // Reset the default permissions to ALLOW_ACTION to rollback issues for
+      // affected users, see Bug 1579517
+      // originInfo in the format [origin, type]
+      [
+        ["https://www.mozilla.org", "uitour"],
+        ["https://monitor.firefox.com", "uitour"],
+        ["https://screenshots.firefox.com", "uitour"],
+        ["https://support.mozilla.org", "uitour"],
+        ["https://truecolors.firefox.com", "uitour"],
+        ["about:home", "uitour"],
+        ["about:newtab", "uitour"],
+        ["https://addons.mozilla.org", "install"],
+        ["https://support.mozilla.org", "remote-troubleshooting"],
+        ["https://fpn.firefox.com", "install"],
+        ["about:welcome", "autoplay-media"],
+      ].forEach(originInfo => {
+        // Reset permission on the condition that it is set to
+        // UNKNOWN_ACTION, we want to prevent resetting user
+        // manipulated permissions
+        if (
+          Services.perms.UNKNOWN_ACTION ==
+          Services.perms.testPermissionFromPrincipal(
+            Services.scriptSecurityManager.createContentPrincipalFromOrigin(
+              originInfo[0]
+            ),
+            originInfo[1]
+          )
+        ) {
+          // Adding permissions which have default values does not create
+          // new permissions, but rather remove the UNKNOWN_ACTION permission
+          // overrides. User's not affected by Bug 1579517 will not be affected by this addition.
+          Services.perms.addFromPrincipal(
+            Services.scriptSecurityManager.createContentPrincipalFromOrigin(
+              originInfo[0]
+            ),
+            originInfo[1],
+            Services.perms.ALLOW_ACTION
+          );
+        }
+      });
     }
 
     // Update the migration version.
