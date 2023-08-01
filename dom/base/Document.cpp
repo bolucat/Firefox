@@ -2757,7 +2757,8 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(Document)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_WEAK_REFERENCE
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
-nsresult Document::Init() {
+nsresult Document::Init(nsIPrincipal* aPrincipal,
+                        nsIPrincipal* aPartitionedPrincipal) {
   if (mCSSLoader || mStyleImageLoader || mNodeInfoManager || mScriptLoader) {
     return NS_ERROR_ALREADY_INITIALIZED;
   }
@@ -2766,7 +2767,7 @@ nsresult Document::Init() {
   mOnloadBlocker = new OnloadBlocker();
   mStyleImageLoader = new css::ImageLoader(this);
 
-  mNodeInfoManager = new nsNodeInfoManager(this);
+  mNodeInfoManager = new nsNodeInfoManager(this, aPrincipal);
 
   // mNodeInfo keeps NodeInfoManager alive!
   mNodeInfo = mNodeInfoManager->GetDocumentNodeInfo();
@@ -2798,6 +2799,10 @@ nsresult Document::Init() {
   mFeaturePolicy->SetDefaultOrigin(NodePrincipal());
 
   mStyleSet = MakeUnique<ServoStyleSet>(*this);
+
+  if (aPrincipal) {
+    SetPrincipals(aPrincipal, aPartitionedPrincipal);
+  }
 
   RecomputeResistFingerprinting();
 
@@ -7598,6 +7603,7 @@ void Document::SetScopeObject(nsIGlobalObject* aGlobal) {
     // Same origin data documents should have the same docGroup as their scope
     // window.
     if (mLoadedAsData && window->GetExtantDoc() &&
+        window->GetExtantDoc() != this &&
         window->GetExtantDoc()->NodePrincipal() == NodePrincipal()) {
       DocGroup* docGroup = window->GetExtantDoc()->GetDocGroup();
 
@@ -12063,7 +12069,7 @@ nsresult Document::CloneDocHelper(Document* clone) const {
   clone->mIsStaticDocument = mCreatingStaticClone;
 
   // Init document
-  nsresult rv = clone->Init();
+  nsresult rv = clone->Init(NodePrincipal(), mPartitionedPrincipal);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (mCreatingStaticClone) {
@@ -12119,7 +12125,6 @@ nsresult Document::CloneDocHelper(Document* clone) const {
   // them.
   clone->SetDocumentURI(Document::GetDocumentURI());
   clone->SetChromeXHRDocURI(mChromeXHRDocURI);
-  clone->SetPrincipals(NodePrincipal(), mPartitionedPrincipal);
   clone->mActiveStoragePrincipal = mActiveStoragePrincipal;
   clone->mActiveCookiePrincipal = mActiveCookiePrincipal;
   // NOTE(emilio): Intentionally setting this to the GetDocBaseURI rather than
@@ -12617,8 +12622,9 @@ NS_IMPL_ISUPPORTS(StubCSSLoaderObserver, nsICSSLoaderObserver)
 
 SheetPreloadStatus Document::PreloadStyle(
     nsIURI* uri, const Encoding* aEncoding, const nsAString& aCrossOriginAttr,
-    const enum ReferrerPolicy aReferrerPolicy, const nsAString& aIntegrity,
-    css::StylePreloadKind aKind, uint64_t aEarlyHintPreloaderId) {
+    const enum ReferrerPolicy aReferrerPolicy, const nsAString& aNonce,
+    const nsAString& aIntegrity, css::StylePreloadKind aKind,
+    uint64_t aEarlyHintPreloaderId) {
   MOZ_ASSERT(aKind != css::StylePreloadKind::None);
 
   // The CSSLoader will retain this object after we return.
@@ -12630,7 +12636,7 @@ SheetPreloadStatus Document::PreloadStyle(
   // Charset names are always ASCII.
   auto result = CSSLoader()->LoadSheet(
       uri, aKind, aEncoding, referrerInfo, obs, aEarlyHintPreloaderId,
-      Element::StringToCORSMode(aCrossOriginAttr), aIntegrity);
+      Element::StringToCORSMode(aCrossOriginAttr), aNonce, aIntegrity);
   if (result.isErr()) {
     return SheetPreloadStatus::Errored;
   }
