@@ -26,7 +26,8 @@
 #include "mozilla/dom/PopupBlocker.h"
 #include "nsIFrame.h"
 #include "nsFrameState.h"
-#include "nsGlobalWindow.h"
+#include "nsGlobalWindowInner.h"
+#include "nsGlobalWindowOuter.h"
 #include "nsGkAtoms.h"
 #include "nsImageFrame.h"
 #include "mozilla/GlobalStyleSheetCache.h"
@@ -148,7 +149,7 @@ nsresult nsLayoutStatics::Initialize() {
 
   ContentParent::StartUp();
 
-  nsCSSProps::AddRefTable();
+  nsCSSProps::Init();
   nsColorNames::AddRefTable();
 
 #ifdef DEBUG
@@ -341,7 +342,6 @@ void nsLayoutStatics::Shutdown() {
 
   // Release all of our atoms
   nsColorNames::ReleaseTable();
-  nsCSSProps::ReleaseTable();
   nsRepeatService::Shutdown();
 
   nsXULContentUtils::Finish();
