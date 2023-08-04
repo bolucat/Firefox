@@ -594,7 +594,7 @@ pref("toolkit.scrollbox.clickToScroll.scrollDelay", 150);
 
 pref("toolkit.shopping.useOHTTP", false);
 pref("toolkit.shopping.ohttpConfigURL", "https://stage.ohttp-gateway.nonprod.webservices.mozgcp.net/ohttp-configs");
-pref("toolkit.shopping.ohttpRelayURL", "https://mozilla-ohttp-relay-test.edgecompute.app/");
+pref("toolkit.shopping.ohttpRelayURL", "https://mozilla-ohttp-dev.fastly-edge.com/");
 
 // Controls logging for Sqlite.sys.mjs.
 pref("toolkit.sqlitejsm.loglevel", "Error");
@@ -2446,9 +2446,6 @@ pref("font.size.monospace.x-math", 13);
   pref("ui.osk.detect_physical_keyboard", true);
   // Path to TabTip.exe on local machine. Cached for performance reasons.
   pref("ui.osk.on_screen_keyboard_path", "");
-  // Only try to show the on-screen keyboard on Windows 10 and later. Setting
-  // this pref to false will allow the OSK to show on Windows 8 and 8.1.
-  pref("ui.osk.require_win10", false);
   // This pref stores the "reason" that the on-screen keyboard was either
   // shown or not shown when focus is moved to an editable text field. It is
   // used to help debug why the keyboard is either not appearing when expected

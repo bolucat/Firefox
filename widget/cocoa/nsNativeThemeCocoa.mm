@@ -3207,9 +3207,7 @@ bool nsNativeThemeCocoa::ThemeSupportsWidget(nsPresContext* aPresContext, nsIFra
     case StyleAppearance::Tooltip:
 
     case StyleAppearance::Checkbox:
-    case StyleAppearance::CheckboxContainer:
     case StyleAppearance::Radio:
-    case StyleAppearance::RadioContainer:
     case StyleAppearance::MozMacHelpButton:
     case StyleAppearance::MozMacDisclosureButtonOpen:
     case StyleAppearance::MozMacDisclosureButtonClosed:
