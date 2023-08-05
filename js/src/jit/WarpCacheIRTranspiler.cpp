@@ -5390,18 +5390,21 @@ MDefinition* WarpCacheIRTranspiler::convertWasmArg(MDefinition* arg,
       MOZ_CRASH("Unexpected type for Wasm JitEntry");
     case wasm::ValType::Ref:
       // Transform the JS representation into an AnyRef representation.
-      // The resulting type is MIRType::RefOrNull.  These cases are all
+      // The resulting type is MIRType::WasmAnyRef.  These cases are all
       // effect-free.
       switch (arg->type()) {
         case MIRType::Object:
           conversion = MWasmAnyRefFromJSObject::New(alloc(), arg);
+          break;
+        case MIRType::String:
+          conversion = MWasmAnyRefFromJSString::New(alloc(), arg);
           break;
         case MIRType::Null:
           arg->setImplicitlyUsedUnchecked();
           conversion = MWasmNullConstant::New(alloc());
           break;
         default:
-          conversion = MWasmBoxValue::New(alloc(), arg);
+          conversion = MWasmAnyRefFromJSValue::New(alloc(), arg);
           break;
       }
       break;

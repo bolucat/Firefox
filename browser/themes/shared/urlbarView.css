@@ -758,6 +758,15 @@
 .urlbarView-row[rich-suggestion] > .urlbarView-row-inner > .urlbarView-row-body > .urlbarView-row-body-bottom {
   font-size: var(--urlbarView-small-font-size);
   color: var(--urlbar-popup-action-color);
+  white-space: normal;
+}
+
+.urlbarView-row[rich-suggestion] > .urlbarView-row-inner > .urlbarView-row-body > .urlbarView-row-body-description {
+  max-width: 80ch;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow-y: hidden;
 }
 
 .urlbarView-row[rich-suggestion][selected] > .urlbarView-row-inner > .urlbarView-row-body > .urlbarView-row-body-description,
@@ -795,9 +804,9 @@
   background-color: var(--urlbarView-result-button-selected-background-color);
 }
 
-.urlbarView-row[type$=_pocket] > .urlbarView-row-inner > .urlbarView-row-body > .urlbarView-row-body-description,
-.urlbarView-row[type$=_pocket] > .urlbarView-row-inner > .urlbarView-row-body > .urlbarView-row-body-bottom {
-  white-space: normal;
+.urlbarView-row[type$=_mdn] > .urlbarView-row-inner > .urlbarView-row-body > .urlbarView-row-body-description,
+.urlbarView-row[type$=_pocket] > .urlbarView-row-inner > .urlbarView-row-body > .urlbarView-row-body-description {
+  -webkit-line-clamp: 2;
 }
 
 /* Search one-offs */

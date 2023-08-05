@@ -69,7 +69,7 @@ static const unsigned BUILTIN_THUNK_LIFO_SIZE = 64 * 1024;
 #define _I32 MIRType::Int32
 #define _I64 MIRType::Int64
 #define _PTR MIRType::Pointer
-#define _RoN MIRType::RefOrNull
+#define _RoN MIRType::WasmAnyRef
 #define _VOID MIRType::None
 #define _END MIRType::None
 #define _Infallible FailureMode::Infallible
@@ -425,7 +425,7 @@ ABIArgType ToABIType(MIRType type) {
     case MIRType::Int64:
       return ArgType_Int64;
     case MIRType::Pointer:
-    case MIRType::RefOrNull:
+    case MIRType::WasmAnyRef:
       return ArgType_General;
     case MIRType::Float32:
       return ArgType_Float32;
@@ -639,7 +639,7 @@ bool wasm::HandleThrow(JSContext* cx, WasmFrameIter& iter,
 
         cx->clearPendingException();
         RootedAnyRef ref(cx, AnyRef::null());
-        if (!BoxAnyRef(cx, exn, &ref)) {
+        if (!AnyRef::fromJSValue(cx, exn, &ref)) {
           MOZ_ASSERT(cx->isThrowingOutOfMemory());
           hasCatchableException = false;
           continue;
@@ -865,7 +865,7 @@ static void* BoxValue_Anyref(Value* rawVal) {
   JSContext* cx = TlsContext.get();  // Cold code
   RootedValue val(cx, *rawVal);
   RootedAnyRef result(cx, AnyRef::null());
-  if (!BoxAnyRef(cx, val, &result)) {
+  if (!AnyRef::fromJSValue(cx, val, &result)) {
     return nullptr;
   }
   return result.get().forCompiledCode();
@@ -916,14 +916,14 @@ static int32_t CoerceInPlace_JitEntry(int funcExportIndex, Instance* instance,
       case ValType::Ref: {
         // Guarded against by temporarilyUnsupportedReftypeForEntry()
         MOZ_RELEASE_ASSERT(funcType.args()[i].refType().isExtern());
-        // Leave Object and Null alone, we will unbox inline.  All we need
-        // to do is convert other values to an Object representation.
-        if (!arg.isObjectOrNull()) {
-          RootedAnyRef result(cx, AnyRef::null());
-          if (!BoxAnyRef(cx, arg, &result)) {
+        // Perform any fallible boxing that may need to happen so that the JIT
+        // code does not need to.
+        if (AnyRef::valueNeedsBoxing(arg)) {
+          JSObject* boxedValue = AnyRef::boxValue(cx, arg);
+          if (!boxedValue) {
             return false;
           }
-          argv[i].setObject(*result.get().asJSObject());
+          argv[i] = ObjectOrNullValue(boxedValue);
         }
         break;
       }

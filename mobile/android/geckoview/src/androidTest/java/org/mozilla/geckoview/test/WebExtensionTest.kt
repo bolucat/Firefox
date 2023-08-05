@@ -581,6 +581,14 @@ class WebExtensionTest : BaseSessionTest() {
     }
 
     @Test
+    fun installExtensionIncompatible() {
+        testInstallError(
+            "dummy-incompatible.xpi",
+            WebExtension.InstallException.ErrorCodes.ERROR_INCOMPATIBLE,
+        )
+    }
+
+    @Test
     fun installDeny() {
         mainSession.loadUri("https://example.com")
         sessionRule.waitForPageStop()
@@ -3068,5 +3076,22 @@ class WebExtensionTest : BaseSessionTest() {
 
         // Uninstall the add-on before exiting the test.
         sessionRule.waitForResult(controller.uninstall(borderify))
+    }
+
+    @Test
+    fun testMozAddonManagerSetting() {
+        val settings = GeckoRuntimeSettings.Builder().build()
+        assertThat(
+            "Extension web API setting should be set to false",
+            settings.extensionsWebAPIEnabled,
+            equalTo(false),
+        )
+
+        val geckoPrefs = sessionRule.getPrefs("extensions.webapi.enabled")
+        assertThat(
+            "extensionsWebAPIEnabled matches Gecko pref value",
+            settings.extensionsWebAPIEnabled,
+            equalTo(geckoPrefs[0] as Boolean),
+        )
     }
 }

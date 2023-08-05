@@ -592,7 +592,6 @@ pref("toolkit.autocomplete.richBoundaryCutoff", 200);
 pref("toolkit.scrollbox.scrollIncrement", 20);
 pref("toolkit.scrollbox.clickToScroll.scrollDelay", 150);
 
-pref("toolkit.shopping.useOHTTP", false);
 pref("toolkit.shopping.ohttpConfigURL", "https://stage.ohttp-gateway.nonprod.webservices.mozgcp.net/ohttp-configs");
 pref("toolkit.shopping.ohttpRelayURL", "https://mozilla-ohttp-dev.fastly-edge.com/");
 
@@ -1880,11 +1879,8 @@ pref("extensions.manifestV3.enabled", true);
 // Install origins restriction.
 pref("extensions.install_origins.enabled", false);
 
-// browser_style deprecation - bug 1827910.
-// TODO bug 1830711: set to false.
-// TODO bug 1830712: remove pref.
-pref("extensions.browser_style_mv3.supported", true);
-// TODO bug 1830712: remove pref.
+// TODO: bug 1830712: remove prefs related to browser_style deprecation.
+pref("extensions.browser_style_mv3.supported", false);
 pref("extensions.browser_style_mv3.same_as_mv2", false);
 
 // Middle-mouse handling

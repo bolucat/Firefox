@@ -208,6 +208,11 @@ bool JitRuntime::generateTrampolines(JSContext* cx) {
   shapePreBarrierOffset_ = generatePreBarrier(cx, masm, MIRType::Shape);
   rangeRecorder.recordOffset("Trampoline: PreBarrier Shape");
 
+  JitSpew(JitSpew_Codegen, "# Emitting Pre Barrier for WasmAnyRef");
+  wasmAnyRefPreBarrierOffset_ =
+      generatePreBarrier(cx, masm, MIRType::WasmAnyRef);
+  rangeRecorder.recordOffset("Trampoline: PreBarrier WasmAnyRef");
+
   JitSpew(JitSpew_Codegen, "# Emitting free stub");
   generateFreeStub(masm);
   rangeRecorder.recordOffset("Trampoline: FreeStub");

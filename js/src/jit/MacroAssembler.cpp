@@ -4621,6 +4621,8 @@ static void MoveDataBlock(MacroAssembler& masm, Register base, int32_t from,
 #  elif defined(JS_CODEGEN_ARM) || defined(JS_CODEGEN_X86)
   static constexpr Register scratch = ABINonArgReg0;
   masm.push(scratch);
+#  elif defined(JS_CODEGEN_LOONG64) || defined(JS_CODEGEN_MIPS64)
+  ScratchRegisterScope scratch(masm);
 #  elif !defined(JS_CODEGEN_NONE)
   const Register scratch = ScratchReg;
 #  else
@@ -4746,7 +4748,11 @@ static void CollapseWasmFrameFast(MacroAssembler& masm,
   static constexpr Register tempForFP = ABINonArgReg3;
 
 #  ifdef JS_USE_LINK_REGISTER
+#    if defined(JS_CODEGEN_LOONG64) || defined(JS_CODEGEN_MIPS64)
+  static constexpr Register tempForRA = ra;
+#    else
   static constexpr Register tempForRA = lr;
+#    endif
 #  else
   static constexpr Register tempForRA = ABINonArgReg2;
   masm.push(tempForRA);
@@ -4852,7 +4858,11 @@ static void CollapseWasmFrameSlow(MacroAssembler& masm,
   masm.reserveStack(reserved);
 
 #  ifdef JS_USE_LINK_REGISTER
+#    if defined(JS_CODEGEN_LOONG64) || defined(JS_CODEGEN_MIPS64)
+  static constexpr Register tempForRA = ra;
+#    else
   static constexpr Register tempForRA = lr;
+#    endif
 #  else
   static constexpr Register tempForRA = ABINonArgReg2;
   masm.push(tempForRA);
@@ -5520,7 +5530,7 @@ void MacroAssembler::branchWasmRefIsSubtypeAny(
 
   // Check for null.
   if (sourceType.isNullable()) {
-    branchTestPtr(Assembler::Zero, ref, ref, nullLabel);
+    branchWasmAnyRefIsNull(true, ref, nullLabel);
   }
 
   // The only value that can inhabit 'none' is null. So, early out if we got
@@ -5538,11 +5548,19 @@ void MacroAssembler::branchWasmRefIsSubtypeAny(
     return;
   }
 
+  if (destType.isI31()) {
+    branchWasmAnyRefIsI31(true, ref, successLabel);
+    jump(failLabel);
+    bind(&fallthrough);
+    return;
+  }
+
   // 'type' is now 'eq' or lower, which currently will always be a gc object.
   // Test for non-gc objects.
   MOZ_ASSERT(scratch1 != Register::Invalid());
   if (!wasm::RefType::isSubTypeOf(sourceType, wasm::RefType::eq())) {
-    branchTestObjectIsWasmGcObject(false, ref, scratch1, failLabel);
+    branchWasmAnyRefIsObjectOrNull(false, ref, failLabel);
+    branchObjectIsWasmGcObject(false, ref, scratch1, failLabel);
   }
 
   if (destType.isEq()) {
@@ -5746,6 +5764,312 @@ void MacroAssembler::branchWasmSuperTypeVectorIsSubtype(
   // Fallthrough to the success case
 }
 
+void MacroAssembler::branchWasmAnyRefIsNull(bool isNull, Register src,
+                                            Label* label) {
+  branchTestPtr(isNull ? Assembler::Zero : Assembler::NonZero, src, src, label);
+}
+
+void MacroAssembler::branchWasmAnyRefIsI31(bool isI31, Register src,
+                                           Label* label) {
+  branchTestPtr(isI31 ? Assembler::NonZero : Assembler::Zero, src,
+                Imm32(int32_t(wasm::AnyRefTag::I31)), label);
+}
+
+void MacroAssembler::branchWasmAnyRefIsObjectOrNull(bool isObject, Register src,
+                                                    Label* label) {
+  branchTestPtr(isObject ? Assembler::Zero : Assembler::NonZero, src,
+                Imm32(int32_t(wasm::AnyRef::TagMask)), label);
+}
+
+void MacroAssembler::branchWasmAnyRefIsGCThing(bool isGCThing, Register src,
+                                               Label* label) {
+  Label fallthrough;
+  Label* isGCThingLabel = isGCThing ? label : &fallthrough;
+  Label* isNotGCThingLabel = isGCThing ? &fallthrough : label;
+
+  // A null value or i31 value are not GC things.
+  branchWasmAnyRefIsNull(true, src, isNotGCThingLabel);
+  branchWasmAnyRefIsI31(true, src, isNotGCThingLabel);
+  jump(isGCThingLabel);
+  bind(&fallthrough);
+}
+
+void MacroAssembler::branchWasmAnyRefIsNurseryCell(bool isNurseryCell,
+                                                   Register src, Register temp,
+                                                   Label* label) {
+  Label done;
+  branchWasmAnyRefIsGCThing(false, src, isNurseryCell ? &done : label);
+
+  getWasmAnyRefGCThingChunk(src, temp);
+  branchPtr(isNurseryCell ? Assembler::NotEqual : Assembler::Equal,
+            Address(temp, gc::ChunkStoreBufferOffset), ImmWord(0), label);
+  bind(&done);
+}
+
+void MacroAssembler::truncate32ToWasmI31Ref(Register src, Register dest) {
+  // This will either zero-extend or sign-extend the high 32-bits on 64-bit
+  // platforms (see comments on invariants in MacroAssembler.h). Either case
+  // is fine, as we won't use this bits.
+  move32(src, dest);
+  // Move the payload of the integer over by 1 to make room for the tag. This
+  // will perform the truncation required by the spec.
+  lshift32(Imm32(1), dest);
+  // Add the i31 tag to the integer.
+  orPtr(Imm32(int32_t(wasm::AnyRefTag::I31)), dest);
+}
+
+void MacroAssembler::convertWasmI31RefTo32Signed(Register src, Register dest) {
+  // This will either zero-extend or sign-extend the high 32-bits on 64-bit
+  // platforms (see comments on invariants in MacroAssembler.h). Either case
+  // is fine, as we won't use this bits.
+  move32(src, dest);
+  // Shift the payload back (clobbering the tag). This will sign-extend, giving
+  // us the unsigned behavior we want.
+  rshift32Arithmetic(Imm32(1), dest);
+}
+
+void MacroAssembler::convertWasmI31RefTo32Unsigned(Register src,
+                                                   Register dest) {
+  // This will either zero-extend or sign-extend the high 32-bits on 64-bit
+  // platforms (see comments on invariants in MacroAssembler.h). Either case
+  // is fine, as we won't use this bits.
+  move32(src, dest);
+  // Shift the payload back (clobbering the tag). This will zero-extend, giving
+  // us the unsigned behavior we want.
+  rshift32(Imm32(1), dest);
+}
+
+void MacroAssembler::branchValueConvertsToWasmAnyRefInline(
+    ValueOperand src, Register scratchInt, FloatRegister scratchFloat,
+    Label* label) {
+  // We can convert objects, strings, 31-bit integers and null without boxing.
+  Label checkInt32;
+  Label checkDouble;
+  Label fallthrough;
+  ScratchTagScope tag(*this, src);
+  splitTagForTest(src, tag);
+  branchTestObject(Assembler::Equal, tag, label);
+  branchTestString(Assembler::Equal, tag, label);
+  branchTestNull(Assembler::Equal, tag, label);
+  branchTestInt32(Assembler::Equal, tag, &checkInt32);
+  branchTestDouble(Assembler::Equal, tag, &checkDouble);
+  jump(&fallthrough);
+
+  bind(&checkInt32);
+  unboxInt32(src, scratchInt);
+  branch32(Assembler::GreaterThan, scratchInt, Imm32(wasm::AnyRef::MaxI31Value),
+           &fallthrough);
+  branch32(Assembler::LessThan, scratchInt, Imm32(wasm::AnyRef::MinI31Value),
+           &fallthrough);
+  jump(label);
+
+  bind(&checkDouble);
+  {
+    ScratchTagScopeRelease _(&tag);
+    convertValueToInt32(src, scratchFloat, scratchInt, &fallthrough, true,
+                        IntConversionInputKind::NumbersOnly);
+  }
+  branch32(Assembler::GreaterThan, scratchInt, Imm32(wasm::AnyRef::MaxI31Value),
+           &fallthrough);
+  branch32(Assembler::LessThan, scratchInt, Imm32(wasm::AnyRef::MinI31Value),
+           &fallthrough);
+  jump(label);
+
+  bind(&fallthrough);
+}
+
+void MacroAssembler::convertValueToWasmAnyRef(ValueOperand src, Register dest,
+                                              FloatRegister scratchFloat,
+                                              Label* oolConvert) {
+  Label doubleValue, int32Value, nullValue, stringValue, objectValue, done;
+  {
+    ScratchTagScope tag(*this, src);
+    splitTagForTest(src, tag);
+    branchTestObject(Assembler::Equal, tag, &objectValue);
+    branchTestString(Assembler::Equal, tag, &stringValue);
+    branchTestNull(Assembler::Equal, tag, &nullValue);
+    branchTestInt32(Assembler::Equal, tag, &int32Value);
+    branchTestDouble(Assembler::Equal, tag, &doubleValue);
+    jump(oolConvert);
+  }
+
+  bind(&doubleValue);
+  convertValueToInt32(src, scratchFloat, dest, oolConvert, true,
+                      IntConversionInputKind::NumbersOnly);
+  branch32(Assembler::GreaterThan, dest, Imm32(wasm::AnyRef::MaxI31Value),
+           oolConvert);
+  branch32(Assembler::LessThan, dest, Imm32(wasm::AnyRef::MinI31Value),
+           oolConvert);
+  lshiftPtr(Imm32(1), dest);
+  orPtr(Imm32((int32_t)wasm::AnyRefTag::I31), dest);
+  jump(&done);
+
+  bind(&int32Value);
+  unboxInt32(src, dest);
+  branch32(Assembler::GreaterThan, dest, Imm32(wasm::AnyRef::MaxI31Value),
+           oolConvert);
+  branch32(Assembler::LessThan, dest, Imm32(wasm::AnyRef::MinI31Value),
+           oolConvert);
+  lshiftPtr(Imm32(1), dest);
+  orPtr(Imm32((int32_t)wasm::AnyRefTag::I31), dest);
+  jump(&done);
+
+  bind(&nullValue);
+  static_assert(wasm::AnyRef::NullRefValue == 0);
+  xorPtr(dest, dest);
+  jump(&done);
+
+  bind(&stringValue);
+  unboxString(src, dest);
+  orPtr(Imm32((int32_t)wasm::AnyRefTag::String), dest);
+  jump(&done);
+
+  bind(&objectValue);
+  unboxObject(src, dest);
+
+  bind(&done);
+}
+
+void MacroAssembler::convertObjectToWasmAnyRef(Register src, Register dest) {
+  // JS objects are represented without any tagging.
+  movePtr(src, dest);
+}
+
+void MacroAssembler::convertStringToWasmAnyRef(Register src, Register dest) {
+  // JS strings require a tag.
+  movePtr(src, dest);
+  orPtr(Imm32(int32_t(wasm::AnyRefTag::String)), dest);
+}
+
+void MacroAssembler::branchObjectIsWasmGcObject(bool isGcObject, Register src,
+                                                Register scratch,
+                                                Label* label) {
+  constexpr uint32_t ShiftedMask = (Shape::kindMask() << Shape::kindShift());
+  constexpr uint32_t ShiftedKind =
+      (uint32_t(Shape::Kind::WasmGC) << Shape::kindShift());
+  MOZ_ASSERT(src != scratch);
+
+  loadPtr(Address(src, JSObject::offsetOfShape()), scratch);
+  load32(Address(scratch, Shape::offsetOfImmutableFlags()), scratch);
+  and32(Imm32(ShiftedMask), scratch);
+  branch32(isGcObject ? Assembler::Equal : Assembler::NotEqual, scratch,
+           Imm32(ShiftedKind), label);
+}
+
+// Unboxing is branchy and contorted because of Spectre mitigations - we don't
+// have enough scratch registers.  Were it not for the spectre mitigations in
+// branchTestObjClass, the branch nest below would be restructured significantly
+// by inverting branches and using fewer registers.
+
+// Unbox an anyref in src (clobbering src in the process) and then re-box it as
+// a Value in *dst.  See the definition of AnyRef for a discussion of pointer
+// representation.
+void MacroAssembler::convertWasmAnyRefToValue(Register instance, Register src,
+                                              ValueOperand dst,
+                                              Register scratch) {
+  MOZ_ASSERT(src != scratch);
+#if JS_BITS_PER_WORD == 32
+  MOZ_ASSERT(dst.typeReg() != scratch);
+  MOZ_ASSERT(dst.payloadReg() != scratch);
+#else
+  MOZ_ASSERT(dst.valueReg() != scratch);
+#endif
+
+  Label isI31, isObjectOrNull, isObject, isWasmValueBox, done;
+
+  // Check for if this is an i31 value first
+  branchTest32(Assembler::NonZero, src, Imm32(int32_t(wasm::AnyRefTag::I31)),
+               &isI31);
+  // Then check for the object or null tag
+  branchTest32(Assembler::Zero, src, Imm32(wasm::AnyRef::TagMask),
+               &isObjectOrNull);
+
+  // If we're not i31, object, or null, we must be a string
+  rshiftPtr(Imm32(wasm::AnyRef::TagShift), src);
+  lshiftPtr(Imm32(wasm::AnyRef::TagShift), src);
+  moveValue(TypedOrValueRegister(MIRType::String, AnyRegister(src)), dst);
+  jump(&done);
+
+  // This is an i31 value, convert to an int32 JS value
+  bind(&isI31);
+  rshift32Arithmetic(Imm32(1), src);
+  moveValue(TypedOrValueRegister(MIRType::Int32, AnyRegister(src)), dst);
+  jump(&done);
+
+  // Check for the null value
+  bind(&isObjectOrNull);
+  branchTestPtr(Assembler::NonZero, src, src, &isObject);
+  moveValue(NullValue(), dst);
+  jump(&done);
+
+  // Otherwise we must be a non-null object. We next to check if it's storing a
+  // boxed value
+  bind(&isObject);
+  // The type test will clear src if the test fails, so store early.
+  moveValue(TypedOrValueRegister(MIRType::Object, AnyRegister(src)), dst);
+  // Spectre mitigations: see comment above about efficiency.
+  branchTestObjClass(Assembler::Equal, src,
+                     Address(instance, wasm::Instance::offsetOfValueBoxClass()),
+                     scratch, src, &isWasmValueBox);
+  jump(&done);
+
+  // This is a boxed JS value, unbox it.
+  bind(&isWasmValueBox);
+  loadValue(Address(src, wasm::AnyRef::valueBoxOffsetOfValue()), dst);
+
+  bind(&done);
+}
+
+void MacroAssembler::convertWasmAnyRefToValue(Register instance, Register src,
+                                              const Address& dst,
+                                              Register scratch) {
+  MOZ_ASSERT(src != scratch);
+
+  Label isI31, isObjectOrNull, isObject, isWasmValueBox, done;
+
+  // Check for if this is an i31 value first
+  branchTest32(Assembler::NonZero, src, Imm32(int32_t(wasm::AnyRefTag::I31)),
+               &isI31);
+  // Then check for the object or null tag
+  branchTest32(Assembler::Zero, src, Imm32(wasm::AnyRef::TagMask),
+               &isObjectOrNull);
+
+  // If we're not i31, object, or null, we must be a string
+  rshiftPtr(Imm32(wasm::AnyRef::TagShift), src);
+  lshiftPtr(Imm32(wasm::AnyRef::TagShift), src);
+  storeValue(JSVAL_TYPE_STRING, src, dst);
+  jump(&done);
+
+  // This is an i31 value, convert to an int32 JS value
+  bind(&isI31);
+  rshift32Arithmetic(Imm32(1), src);
+  storeValue(JSVAL_TYPE_INT32, src, dst);
+  jump(&done);
+
+  // Check for the null value
+  bind(&isObjectOrNull);
+  branchTestPtr(Assembler::NonZero, src, src, &isObject);
+  storeValue(NullValue(), dst);
+  jump(&done);
+
+  // Otherwise we must be a non-null object. We next to check if it's storing a
+  // boxed value
+  bind(&isObject);
+  // The type test will clear src if the test fails, so store early.
+  storeValue(JSVAL_TYPE_OBJECT, src, dst);
+  // Spectre mitigations: see comment above about efficiency.
+  branchTestObjClass(Assembler::Equal, src,
+                     Address(instance, wasm::Instance::offsetOfValueBoxClass()),
+                     scratch, src, &isWasmValueBox);
+  jump(&done);
+
+  // This is a boxed JS value, unbox it.
+  bind(&isWasmValueBox);
+  copy64(Address(src, wasm::AnyRef::valueBoxOffsetOfValue()), dst, scratch);
+
+  bind(&done);
+}
+
 void MacroAssembler::nopPatchableToCall(const wasm::CallSiteDesc& desc) {
   CodeOffset offset = nopPatchableToCall();
   append(desc, offset);
@@ -5761,6 +6085,8 @@ void MacroAssembler::emitPreBarrierFastPath(JSRuntime* rt, MIRType type,
   // Load the GC thing in temp1.
   if (type == MIRType::Value) {
     unboxGCThingForGCBarrier(Address(PreBarrierReg, 0), temp1);
+  } else if (type == MIRType::WasmAnyRef) {
+    unboxWasmAnyRefGCThingForGCBarrier(Address(PreBarrierReg, 0), temp1);
   } else {
     MOZ_ASSERT(type == MIRType::Object || type == MIRType::String ||
                type == MIRType::Shape);
@@ -5781,7 +6107,7 @@ void MacroAssembler::emitPreBarrierFastPath(JSRuntime* rt, MIRType type,
 
   // If the GC thing is in the nursery, we don't need to barrier it.
   if (type == MIRType::Value || type == MIRType::Object ||
-      type == MIRType::String) {
+      type == MIRType::String || type == MIRType::WasmAnyRef) {
     branchPtr(Assembler::NotEqual, Address(temp2, gc::ChunkStoreBufferOffset),
               ImmWord(0), noBarrier);
   } else {

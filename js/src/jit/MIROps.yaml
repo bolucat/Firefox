@@ -570,12 +570,10 @@
 - name: WasmTruncateToInt32
   gen_boilerplate: false
 
-# Store a JS Value that can't be represented as an AnyRef pointer into an
-# object that holds the value (opaquely) as such a pointer.
-- name: WasmBoxValue
+- name: WasmAnyRefFromJSValue
   operands:
     def: Value
-  result_type: RefOrNull
+  result_type: WasmAnyRef
   congruent_to: if_operands_equal
   alias_set: none
 
@@ -583,7 +581,35 @@
   operands:
     def: Object
   type_policy: none
-  result_type: RefOrNull
+  result_type: WasmAnyRef
+  congruent_to: if_operands_equal
+  alias_set: none
+
+- name: WasmAnyRefFromJSString
+  operands:
+    def: String
+  type_policy: none
+  result_type: WasmAnyRef
+  congruent_to: if_operands_equal
+  alias_set: none
+
+- name: WasmNewI31Ref
+  operands:
+    input: Int32
+  type_policy: none
+  result_type: WasmAnyRef
+  movable: true
+  congruent_to: if_operands_equal
+  alias_set: none
+
+- name: WasmI31RefGet
+  operands:
+    input: WasmAnyRef
+  arguments:
+    wideningOp: wasm::FieldWideningOp
+  type_policy: none
+  result_type: Int32
+  movable: true
   congruent_to: if_operands_equal
   alias_set: none
 
@@ -1028,10 +1054,10 @@
 - name: WasmTrap
   gen_boilerplate: false
 
-# Trap if the given value is null
+# Trap if the given ref is null
 - name: WasmTrapIfNull
   operands:
-    value: RefOrNull
+    ref: WasmAnyRef
   arguments:
     trap: wasm::Trap
     bytecodeOffset: wasm::BytecodeOffset

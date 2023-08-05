@@ -1312,7 +1312,7 @@ const JSFunctionSpec SetObject::methods[] = {
     JS_FN("entries", entries, 0, 0),
     JS_FN("clear", clear, 0, 0),
     JS_SELF_HOSTED_FN("forEach", "SetForEach", 2, 0),
-#ifdef ENABLE_NEW_SET_METHODS
+#ifdef NIGHTLY_BUILD
     JS_SELF_HOSTED_FN("union", "SetUnion", 1, 0),
     JS_SELF_HOSTED_FN("difference", "SetDifference", 1, 0),
     JS_SELF_HOSTED_FN("intersection", "SetIntersection", 1, 0),
@@ -1734,6 +1734,33 @@ bool SetObject::clear(JSContext* cx, unsigned argc, Value* vp) {
   AutoJSMethodProfilerEntry pseudoFrame(cx, "Set.prototype", "clear");
   CallArgs args = CallArgsFromVp(argc, vp);
   return CallNonGenericMethod(cx, is, clear_impl, args);
+}
+
+bool SetObject::copy(JSContext* cx, unsigned argc, Value* vp) {
+  CallArgs args = CallArgsFromVp(argc, vp);
+  MOZ_ASSERT(args.length() == 1);
+  MOZ_ASSERT(SetObject::is(args[0]));
+
+  auto* result = SetObject::create(cx);
+  if (!result) {
+    return false;
+  }
+
+  ValueSet* set = result->getData();
+  MOZ_ASSERT(set);
+
+  auto* from = &args[0].toObject().as<SetObject>();
+  for (auto range = from->getData()->all(); !range.empty(); range.popFront()) {
+    HashableValue value = range.front().get();
+
+    if (!PostWriteBarrier(result, value) || !set->put(value)) {
+      ReportOutOfMemory(cx);
+      return false;
+    }
+  }
+
+  args.rval().setObject(*result);
+  return true;
 }
 
 /*** JS static utility functions ********************************************/
