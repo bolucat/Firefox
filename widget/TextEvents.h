@@ -124,10 +124,10 @@ struct ShortcutKeyCandidate {
 struct IgnoreModifierState {
   // When mShift is true, Shift key state will be ignored.
   bool mShift;
-  // When mOS is true, OS key state will be ignored.
-  bool mOS;
+  // When mMeta is true, Meta key state will be ignored.
+  bool mMeta;
 
-  IgnoreModifierState() : mShift(false), mOS(false) {}
+  IgnoreModifierState() : mShift(false), mMeta(false) {}
 };
 
 /******************************************************************************
@@ -235,13 +235,12 @@ class WidgetKeyboardEvent final : public WidgetInputEvent {
                               // option key is used as AltGraph key on macOS.
                               MODIFIER_ALT |
 #endif  // #ifndef XP_MAXOSX
-                              MODIFIER_CONTROL | MODIFIER_META | MODIFIER_OS));
+                              MODIFIER_CONTROL | MODIFIER_META));
   }
 
   bool IsInputtingLineBreak() const {
     return mMessage == eKeyPress && mKeyNameIndex == KEY_NAME_INDEX_Enter &&
-           !(mModifiers &
-             (MODIFIER_ALT | MODIFIER_CONTROL | MODIFIER_META | MODIFIER_OS));
+           !(mModifiers & (MODIFIER_ALT | MODIFIER_CONTROL | MODIFIER_META));
   }
 
   /**
@@ -259,8 +258,7 @@ class WidgetKeyboardEvent final : public WidgetInputEvent {
     // So, for compatibility with them, we should fire keypress event for
     // Ctrl + Enter too.
     return mMessage == eKeyPress && mKeyNameIndex == KEY_NAME_INDEX_Enter &&
-           !(mModifiers &
-             (MODIFIER_ALT | MODIFIER_META | MODIFIER_OS | MODIFIER_SHIFT));
+           !(mModifiers & (MODIFIER_ALT | MODIFIER_META | MODIFIER_SHIFT));
   }
 
   WidgetEvent* Duplicate() const override {
@@ -289,7 +287,7 @@ class WidgetKeyboardEvent final : public WidgetInputEvent {
     // demonstrate user's intent to play media.
     const bool isCombiningWithOperationKeys = (IsControl() && !IsAltGraph()) ||
                                               (IsAlt() && !IsAltGraph()) ||
-                                              IsMeta() || IsOS();
+                                              IsMeta();
     const bool isEnterOrSpaceKey =
         mKeyNameIndex == KEY_NAME_INDEX_Enter || mKeyCode == NS_VK_SPACE;
     return (PseudoCharCode() || isEnterOrSpaceKey) &&
@@ -346,8 +344,6 @@ class WidgetKeyboardEvent final : public WidgetInputEvent {
       // legacy modifier keys:
       case KEY_NAME_INDEX_Hyper:
       case KEY_NAME_INDEX_Super:
-      // obsolete modifier key:
-      case KEY_NAME_INDEX_OS:
         return false;
       default:
         return true;
@@ -710,7 +706,6 @@ class WidgetKeyboardEvent final : public WidgetInputEvent {
       case KEY_NAME_INDEX_Alt:
       case KEY_NAME_INDEX_Control:
       case KEY_NAME_INDEX_Meta:
-      case KEY_NAME_INDEX_OS:
       case KEY_NAME_INDEX_Shift:
         return true;
       default:
@@ -985,7 +980,7 @@ class WidgetQueryContentEvent : public WidgetGUIEvent {
         mWithFontRanges(false),
         mNeedsToFlushLayout(aOtherEvent.mNeedsToFlushLayout) {}
 
-  virtual WidgetEvent* Duplicate() const override {
+  WidgetEvent* Duplicate() const override {
     // This event isn't an internal event of any DOM event.
     NS_ASSERTION(!IsAllowedToDispatchDOMEvent(),
                  "WidgetQueryContentEvent needs to support Duplicate()");
@@ -1059,8 +1054,6 @@ class WidgetQueryContentEvent : public WidgetGUIEvent {
     mInput.mLength = aLength;
     Init(aOptions);
   }
-
-  bool NeedsToFlushLayout() const { return mNeedsToFlushLayout; }
 
   void RequestFontRanges() {
     MOZ_ASSERT(mMessage == eQueryTextContent);
