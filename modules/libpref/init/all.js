@@ -352,7 +352,6 @@ pref("media.peerconnection.dtls.version.min", 771);
   pref("media.getusermedia.aec_enabled", true);
   pref("media.getusermedia.aec", 1); // kModerateSuppression
   pref("media.getusermedia.use_aec_mobile", false);
-  pref("media.getusermedia.residual_echo_enabled", false);
   pref("media.getusermedia.noise_enabled", true);
   pref("media.getusermedia.noise", 2); // kHigh
   pref("media.getusermedia.agc_enabled", true);
@@ -726,10 +725,6 @@ pref("devtools.performance.popup.intro-displayed", false);
 // Stringified array of target browsers that users investigate.
 pref("devtools.inspector.compatibility.target-browsers", "");
 
-// Storage preferencex
-// Force instancing legacy storage actors
-pref("devtools.storage.test.forceLegacyActors", false);
-
 // view source
 pref("view_source.editor.path", "");
 // allows to add further arguments to the editor; use the %LINE% placeholder
@@ -956,6 +951,18 @@ pref("javascript.options.mem.gc_compacting", true);
 // JSGC_PARALLEL_MARKING_ENABLED
 // This only applies to the main runtime and does not affect workers.
 pref("javascript.options.mem.gc_parallel_marking", false);
+
+// JSGC_PARALLEL_MARKING_THRESHOLD_KB
+// Minimum heap size at which to use parallel marking, if enabled.
+#if defined(XP_WIN)
+pref("javascript.options.mem.gc_parallel_marking_threshold_kb", 20000);
+#elif defined(XP_MACOSX)
+pref("javascript.options.mem.gc_parallel_marking_threshold_kb", 4000);
+#elif defined(ANDROID)
+pref("javascript.options.mem.gc_parallel_marking_threshold_kb", 200000);
+#elif defined(XP_UNIX)
+pref("javascript.options.mem.gc_parallel_marking_threshold_kb", 200000);
+#endif
 
 // JSGC_HIGH_FREQUENCY_TIME_LIMIT
 pref("javascript.options.mem.gc_high_frequency_time_limit_ms", 1000);

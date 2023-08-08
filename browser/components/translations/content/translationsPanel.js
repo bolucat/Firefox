@@ -570,6 +570,18 @@ var TranslationsPanel = new (class {
   }
 
   /**
+   * Returns true if the panel is currently showing the default view, otherwise false.
+   *
+   * @returns {boolean}
+   */
+  #isShowingDefaultView() {
+    const { multiview } = this.elements;
+    return (
+      multiview.getAttribute("mainViewId") === "translations-panel-view-default"
+    );
+  }
+
+  /**
    * Show the default view of choosing a source and target language.
    *
    * @param {boolean} force - Force the page to show translation options.
@@ -711,38 +723,28 @@ var TranslationsPanel = new (class {
       ".never-translate-language-menuitem"
     );
 
-    if (
-      !docLangTag ||
-      !isDocLangTagSupported ||
-      docLangTag === new Intl.Locale(Services.locale.appLocaleAsBCP47).language
-    ) {
-      for (const menuitem of alwaysTranslateMenuItems) {
-        menuitem.disabled = true;
-      }
-      for (const menuitem of neverTranslateMenuItems) {
-        menuitem.disabled = true;
-      }
-      return;
-    }
-
     const alwaysTranslateLanguage =
       TranslationsParent.shouldAlwaysTranslateLanguage(docLangTag);
     const neverTranslateLanguage =
       TranslationsParent.shouldNeverTranslateLanguage(docLangTag);
+    const shouldDisable =
+      !docLangTag ||
+      !isDocLangTagSupported ||
+      docLangTag === new Intl.Locale(Services.locale.appLocaleAsBCP47).language;
 
     for (const menuitem of alwaysTranslateMenuItems) {
       menuitem.setAttribute(
         "checked",
         alwaysTranslateLanguage ? "true" : "false"
       );
-      menuitem.disabled = false;
+      menuitem.disabled = shouldDisable;
     }
     for (const menuitem of neverTranslateMenuItems) {
       menuitem.setAttribute(
         "checked",
         neverTranslateLanguage ? "true" : "false"
       );
-      menuitem.disabled = false;
+      menuitem.disabled = shouldDisable;
     }
   }
 
@@ -833,6 +835,9 @@ var TranslationsPanel = new (class {
    */
   async #showRevisitView({ fromLanguage, toLanguage }) {
     const { fromMenuList, toMenuList, intro } = this.elements;
+    if (!this.#isShowingDefaultView()) {
+      await this.#showDefaultView();
+    }
     intro.hidden = true;
     fromMenuList.value = fromLanguage;
     toMenuList.value = toLanguage;
@@ -1497,6 +1502,11 @@ var TranslationsPanel = new (class {
             this.elements.error.hidden = true;
             break;
           case "engine-load-failure":
+            if (!this.#isShowingDefaultView()) {
+              await this.#showDefaultView().catch(e => {
+                this.console?.error(e);
+              });
+            }
             this.elements.error.hidden = false;
             this.#showError({
               message: "translations-panel-error-translating",

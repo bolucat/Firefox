@@ -5801,11 +5801,6 @@
   value: true # Match naive behavior, but hopefully we can stop soon!
   mirror: always
 
-- name: gfx.compositor.clearstate
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
 # Whether GL contexts can be migrated to a different GPU (to match the one the
 # OS is using for composition).
 #
@@ -8611,6 +8606,13 @@
 
 # Is support for motion-path offset-position enabled?
 - name: layout.css.motion-path-offset-position.enabled
+  type: RelaxedAtomicBool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+  rust: true
+
+# Is support for motion-path url enabled?
+- name: layout.css.motion-path-url.enabled
   type: RelaxedAtomicBool
   value: @IS_NIGHTLY_BUILD@
   mirror: always
@@ -12646,6 +12648,12 @@
 - name: network.http.early_data_max_error
   type: RelaxedAtomicUint32
   value: 5
+  mirror: always
+
+  # If true, requests will be canceled if any of the response headers values has a NUL character
+- name: network.http.reject_NULs_in_response_header_values
+  type: RelaxedAtomicBool
+  value: true
   mirror: always
 
   # If true, remove the resumption token when 0RTT failed.
