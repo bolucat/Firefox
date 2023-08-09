@@ -104,14 +104,43 @@ struct AlternativeCharCode {
  ******************************************************************************/
 
 struct ShortcutKeyCandidate {
-  ShortcutKeyCandidate() : mCharCode(0), mIgnoreShift(0) {}
-  ShortcutKeyCandidate(uint32_t aCharCode, bool aIgnoreShift)
-      : mCharCode(aCharCode), mIgnoreShift(aIgnoreShift) {}
+  enum class ShiftState : bool {
+    // Can ignore `Shift` modifier state when comparing the key combination.
+    // E.g., Ctrl + Shift + `:` in the US keyboard layout may match with
+    // Ctrl + `:` shortcut.
+    Ignorable,
+    // `Shift` modifier state should be respected.  I.e., Ctrl + `;` in the US
+    // keyboard layout never matches with Ctrl + Shift + `;` shortcut.
+    MatchExactly,
+  };
+
+  enum class SkipIfEarlierHandlerDisabled : bool {
+    // Even if an earlier handler is disabled, this may match with another
+    // handler for avoiding inaccessible shortcut with the active keyboard
+    // layout.
+    No,
+    // If an earlier handler (i.e., preferred handler) is disabled, this should
+    // not try to match.  E.g., Ctrl + `-` in the French keyboard layout when
+    // the zoom level is the minimum value, it should not match with Ctrl + `6`
+    // shortcut (French keyboard layout introduces `-` when pressing Digit6 key
+    // without Shift, and Shift + Digit6 introduces `6`).
+    Yes,
+  };
+
+  ShortcutKeyCandidate() = default;
+  ShortcutKeyCandidate(
+      uint32_t aCharCode, ShiftState aShiftState,
+      SkipIfEarlierHandlerDisabled aSkipIfEarlierHandlerDisabled)
+      : mCharCode(aCharCode),
+        mShiftState(aShiftState),
+        mSkipIfEarlierHandlerDisabled(aSkipIfEarlierHandlerDisabled) {}
+
   // The mCharCode value which must match keyboard shortcut definition.
-  uint32_t mCharCode;
-  // true if Shift state can be ignored.  Otherwise, Shift key state must
-  // match keyboard shortcut definition.
-  bool mIgnoreShift;
+  uint32_t mCharCode = 0;
+
+  ShiftState mShiftState = ShiftState::MatchExactly;
+  SkipIfEarlierHandlerDisabled mSkipIfEarlierHandlerDisabled =
+      SkipIfEarlierHandlerDisabled::No;
 };
 
 /******************************************************************************
@@ -165,8 +194,9 @@ class WidgetKeyboardEvent final : public WidgetInputEvent {
 
   WidgetKeyboardEvent(bool aIsTrusted, EventMessage aMessage,
                       nsIWidget* aWidget,
-                      EventClassID aEventClassID = eKeyboardEventClass)
-      : WidgetInputEvent(aIsTrusted, aMessage, aWidget, aEventClassID),
+                      EventClassID aEventClassID = eKeyboardEventClass,
+                      const WidgetEventTime* aTime = nullptr)
+      : WidgetInputEvent(aIsTrusted, aMessage, aWidget, aEventClassID, aTime),
         mNativeKeyEvent(nullptr),
         mKeyCode(0),
         mCharCode(0),
@@ -265,8 +295,8 @@ class WidgetKeyboardEvent final : public WidgetInputEvent {
     MOZ_ASSERT(mClass == eKeyboardEventClass,
                "Duplicate() must be overridden by sub class");
     // Not copying widget, it is a weak reference.
-    WidgetKeyboardEvent* result =
-        new WidgetKeyboardEvent(false, mMessage, nullptr);
+    WidgetKeyboardEvent* result = new WidgetKeyboardEvent(
+        false, mMessage, nullptr, eKeyboardEventClass, this);
     result->AssignKeyEventData(*this, true);
     result->mEditCommandsForSingleLineEditor =
         mEditCommandsForSingleLineEditor.Clone();
@@ -858,8 +888,10 @@ class WidgetCompositionEvent : public WidgetGUIEvent {
   virtual WidgetCompositionEvent* AsCompositionEvent() override { return this; }
 
   WidgetCompositionEvent(bool aIsTrusted, EventMessage aMessage,
-                         nsIWidget* aWidget)
-      : WidgetGUIEvent(aIsTrusted, aMessage, aWidget, eCompositionEventClass),
+                         nsIWidget* aWidget,
+                         const WidgetEventTime* aTime = nullptr)
+      : WidgetGUIEvent(aIsTrusted, aMessage, aWidget, eCompositionEventClass,
+                       aTime),
         mNativeIMEContext(aWidget),
         mOriginalMessage(eVoidEvent) {}
 
@@ -868,7 +900,7 @@ class WidgetCompositionEvent : public WidgetGUIEvent {
                "Duplicate() must be overridden by sub class");
     // Not copying widget, it is a weak reference.
     WidgetCompositionEvent* result =
-        new WidgetCompositionEvent(false, mMessage, nullptr);
+        new WidgetCompositionEvent(false, mMessage, nullptr, this);
     result->AssignCompositionEventData(*this, true);
     result->mFlags = mFlags;
     return result;
@@ -1402,8 +1434,10 @@ class InternalEditorInputEvent : public InternalUIEvent {
   }
 
   InternalEditorInputEvent(bool aIsTrusted, EventMessage aMessage,
-                           nsIWidget* aWidget = nullptr)
-      : InternalUIEvent(aIsTrusted, aMessage, aWidget, eEditorInputEventClass),
+                           nsIWidget* aWidget = nullptr,
+                           const WidgetEventTime* aTime = nullptr)
+      : InternalUIEvent(aIsTrusted, aMessage, aWidget, eEditorInputEventClass,
+                        aTime),
         mData(VoidString()),
         mInputType(EditorInputType::eUnknown) {}
 
@@ -1412,7 +1446,7 @@ class InternalEditorInputEvent : public InternalUIEvent {
                "Duplicate() must be overridden by sub class");
     // Not copying widget, it is a weak reference.
     InternalEditorInputEvent* result =
-        new InternalEditorInputEvent(false, mMessage, nullptr);
+        new InternalEditorInputEvent(false, mMessage, nullptr, this);
     result->AssignEditorInputEventData(*this, true);
     result->mFlags = mFlags;
     return result;

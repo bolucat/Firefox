@@ -215,6 +215,13 @@ var TranslationsPanel = new (class {
   }
 
   /**
+   * Tracks if the popup is open, or scheduled to be open.
+   *
+   * @type {boolean}
+   */
+  #isPopupOpen = false;
+
+  /**
    * Show the introductory message on the first load, and keep on showing it for
    * this URI, until the user navigates away.
    *
@@ -291,9 +298,6 @@ var TranslationsPanel = new (class {
 
       // Getters by id
       getter("appMenuButton", "PanelUI-menu-button");
-      getter("button", "translations-button");
-      getter("buttonLocale", "translations-button-locale");
-      getter("buttonCircleArrows", "translations-button-circle-arrows");
       getter("cancelButton", "translations-panel-cancel");
       getter(
         "changeSourceLanguageButton",
@@ -331,6 +335,26 @@ var TranslationsPanel = new (class {
     }
 
     return this.#lazyElements;
+  }
+
+  #lazyButtonElements = null;
+
+  /**
+   * When accessing `this.elements` the first time, it de-lazifies the custom components
+   * that are needed for the popup. Avoid that by having a second element lookup
+   * just for modifying the button.
+   */
+  get buttonElements() {
+    if (!this.#lazyButtonElements) {
+      this.#lazyButtonElements = {
+        button: document.getElementById("translations-button"),
+        buttonLocale: document.getElementById("translations-button-locale"),
+        buttonCircleArrows: document.getElementById(
+          "translations-button-circle-arrows"
+        ),
+      };
+    }
+    return this.#lazyButtonElements;
   }
 
   /**
@@ -1021,6 +1045,8 @@ var TranslationsPanel = new (class {
     switch (event.target.id) {
       case panel.id: {
         TranslationsParent.telemetry().panel().onClose();
+        this.#isPopupOpen = false;
+        this.elements.error.hidden = true;
         break;
       }
       case fromMenuList.firstChild.id: {
@@ -1087,6 +1113,8 @@ var TranslationsPanel = new (class {
       isFirstUserInteraction,
     });
 
+    this.#isPopupOpen = true;
+
     PanelMultiView.openPopup(panel, target, {
       position: "bottomright topright",
       triggerEvent: event,
@@ -1140,7 +1168,7 @@ var TranslationsPanel = new (class {
       gBrowser.selectedBrowser.browsingContext.top.embedderElement.ownerGlobal;
     window.ensureCustomElements("moz-support-link");
 
-    const { button } = this.elements;
+    const { button } = this.buttonElements;
 
     const { requestedTranslationPair, locationChangeId } =
       this.#getTranslationsActor().languageState;
@@ -1193,7 +1221,7 @@ var TranslationsPanel = new (class {
    * Removes the translations button.
    */
   #hideTranslationsButton() {
-    const { button, buttonLocale, buttonCircleArrows } = this.elements;
+    const { button, buttonLocale, buttonCircleArrows } = this.buttonElements;
     button.hidden = true;
     buttonLocale.hidden = true;
     buttonCircleArrows.hidden = true;
@@ -1398,7 +1426,8 @@ var TranslationsPanel = new (class {
           isEngineReady,
         } = event.detail;
 
-        const { button, buttonLocale, buttonCircleArrows } = this.elements;
+        const { button, buttonLocale, buttonCircleArrows } =
+          this.buttonElements;
 
         const hasSupportedLanguage =
           detectedLanguages?.docLangTag &&
@@ -1411,10 +1440,12 @@ var TranslationsPanel = new (class {
           TranslationsPanel.detectedLanguages = detectedLanguages;
         }
 
-        // Make sure to use the language state that is passed by the event.detail, and
-        // don't read it from the actor here, as it's possible the actor isn't available
-        // via the gBrowser.selectedBrowser.
-        this.#updateViewFromTranslationStatus(event.detail);
+        if (this.#isPopupOpen) {
+          // Make sure to use the language state that is passed by the event.detail, and
+          // don't read it from the actor here, as it's possible the actor isn't available
+          // via the gBrowser.selectedBrowser.
+          this.#updateViewFromTranslationStatus(event.detail);
+        }
 
         if (
           // We've already requested to translate this page, so always show the icon.
@@ -1499,7 +1530,6 @@ var TranslationsPanel = new (class {
 
         switch (error) {
           case null:
-            this.elements.error.hidden = true;
             break;
           case "engine-load-failure":
             if (!this.#isShowingDefaultView()) {

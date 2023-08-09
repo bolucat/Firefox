@@ -481,7 +481,9 @@ class SyncedTabsInView extends ViewPage {
         </card-container>`
       );
     } else {
-      renderArray.push(this.generateCardContent());
+      renderArray.push(
+        html`<div class="cards-container">${this.generateCardContent()}</div>`
+      );
     }
     return renderArray;
   }
@@ -499,7 +501,8 @@ class SyncedTabsInView extends ViewPage {
       url: tab.url,
       primaryL10nId: "firefoxview-tabs-list-tab-button",
       primaryL10nArgs: JSON.stringify({ targetURI: tab.url }),
-      secondaryL10nId: "firefoxview-close-button",
+      secondaryL10nId: "fxviewtabrow-options-menu-button",
+      secondaryL10nArgs: JSON.stringify({ tabTitle: tab.title }),
     }));
   }
 

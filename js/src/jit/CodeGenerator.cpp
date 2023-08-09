@@ -2443,19 +2443,10 @@ static JitCode* GenerateRegExpMatchStubShared(JSContext* cx,
   Address flagsSlot(regexp, RegExpObject::offsetOfFlags());
   Address lastIndexSlot(regexp, RegExpObject::offsetOfLastIndex());
 
-  ArrayObject* templateObject =
-      cx->realm()->regExps.getOrCreateMatchResultTemplateObject(cx);
-  if (!templateObject) {
+  SharedShape* shape = cx->realm()->regExps.getOrCreateMatchResultShape(cx);
+  if (!shape) {
     return nullptr;
   }
-  TemplateObject templateObj(templateObject);
-  const TemplateNativeObject& nativeTemplateObj =
-      templateObj.asTemplateNativeObject();
-
-  // The template object should have enough space for the maximum number of
-  // pairs this stub can handle.
-  MOZ_ASSERT(ObjectElements::VALUES_PER_HEADER + RegExpObject::MaxPairCount ==
-             gc::GetGCKindSlots(templateObj.getAllocKind()));
 
   TempAllocator temp(&cx->tempLifoAlloc());
   JitContext jcx(cx);
@@ -2499,34 +2490,61 @@ static JitCode* GenerateRegExpMatchStubShared(JSContext* cx,
                     Address(shared, RegExpShared::offsetOfFlags()),
                     Imm32(int32_t(JS::RegExpFlag::HasIndices)), &oolEntry);
 
+  Address pairCountAddress =
+      RegExpPairCountAddress(masm, inputOutputDataStartOffset);
+
   // Construct the result.
   Register object = temp1;
-  Label matchResultJoin;
-  masm.createGCObject(object, temp2, templateObj, gc::Heap::Default, &oolEntry);
-  masm.bind(&matchResultJoin);
+  {
+    // In most cases, the array will have just 1-2 elements, so we optimize for
+    // that by emitting separate code paths for capacity 2/6/14 (= 4/8/16 slots
+    // because two slots are used for the elements header).
 
-  MOZ_ASSERT(nativeTemplateObj.numFixedSlots() == 0);
-  // Dynamic slot count is always two less than a power of 2.
-  MOZ_ASSERT(nativeTemplateObj.numDynamicSlots() == 6);
-  static_assert(RegExpRealm::MatchResultObjectIndexSlot == 0,
-                "First slot holds the 'index' property");
-  static_assert(RegExpRealm::MatchResultObjectInputSlot == 1,
-                "Second slot holds the 'input' property");
-  static_assert(RegExpRealm::MatchResultObjectGroupsSlot == 2,
-                "Third slot holds the 'groups' property");
+    // Load the array length in temp2 and the shape in temp3.
+    Label allocated;
+    masm.load32(pairCountAddress, temp2);
+    masm.movePtr(ImmGCPtr(shape), temp3);
 
-  // Initialize the slots of the result object with the dummy values
-  // defined in createMatchResultTemplateObject.
-  masm.loadPtr(Address(object, NativeObject::offsetOfSlots()), temp2);
-  masm.storeValue(
-      nativeTemplateObj.getSlot(RegExpRealm::MatchResultObjectIndexSlot),
-      Address(temp2, RegExpRealm::offsetOfMatchResultObjectIndexSlot()));
-  masm.storeValue(
-      nativeTemplateObj.getSlot(RegExpRealm::MatchResultObjectInputSlot),
-      Address(temp2, RegExpRealm::offsetOfMatchResultObjectInputSlot()));
-  masm.storeValue(
-      nativeTemplateObj.getSlot(RegExpRealm::MatchResultObjectGroupsSlot),
-      Address(temp2, RegExpRealm::offsetOfMatchResultObjectGroupsSlot()));
+    auto emitAllocObject = [&](size_t elementCapacity) {
+      gc::AllocKind kind = GuessArrayGCKind(elementCapacity);
+      MOZ_ASSERT(CanChangeToBackgroundAllocKind(kind, &ArrayObject::class_));
+      kind = ForegroundToBackgroundAllocKind(kind);
+
+#ifdef DEBUG
+      // Assert all of the available slots are used for |elementCapacity|
+      // elements.
+      size_t usedSlots = ObjectElements::VALUES_PER_HEADER + elementCapacity;
+      MOZ_ASSERT(usedSlots == GetGCKindSlots(kind));
+#endif
+
+      constexpr size_t numUsedDynamicSlots =
+          RegExpRealm::MatchResultObjectSlotSpan;
+      constexpr size_t numDynamicSlots =
+          RegExpRealm::MatchResultObjectNumDynamicSlots;
+      constexpr size_t arrayLength = 1;
+      masm.createArrayWithFixedElements(object, temp3, temp2, temp3,
+                                        arrayLength, elementCapacity,
+                                        numUsedDynamicSlots, numDynamicSlots,
+                                        kind, gc::Heap::Default, &oolEntry);
+    };
+
+    Label moreThan2;
+    masm.branch32(Assembler::Above, temp2, Imm32(2), &moreThan2);
+    emitAllocObject(2);
+    masm.jump(&allocated);
+
+    Label moreThan6;
+    masm.bind(&moreThan2);
+    masm.branch32(Assembler::Above, temp2, Imm32(6), &moreThan6);
+    emitAllocObject(6);
+    masm.jump(&allocated);
+
+    masm.bind(&moreThan6);
+    static_assert(RegExpObject::MaxPairCount == 14);
+    emitAllocObject(RegExpObject::MaxPairCount);
+
+    masm.bind(&allocated);
+  }
 
   // clang-format off
    /*
@@ -2565,9 +2583,6 @@ static JitCode* GenerateRegExpMatchStubShared(JSContext* cx,
   static_assert(sizeof(MatchPair) == 2 * sizeof(int32_t),
                 "MatchPair consists of two int32 values representing the start"
                 "and the end offset of the match");
-
-  Address pairCountAddress =
-      RegExpPairCountAddress(masm, inputOutputDataStartOffset);
 
   int32_t pairsVectorStartOffset =
       RegExpPairsVectorStartOffset(inputOutputDataStartOffset);
@@ -2689,6 +2704,11 @@ static JitCode* GenerateRegExpMatchStubShared(JSContext* cx,
       FramePointer, pairsVectorStartOffset + MatchPair::offsetOfStart());
   Address firstMatchPairLimitAddress(
       FramePointer, pairsVectorStartOffset + MatchPair::offsetOfLimit());
+
+  static_assert(RegExpRealm::MatchResultObjectIndexSlot == 0,
+                "First slot holds the 'index' property");
+  static_assert(RegExpRealm::MatchResultObjectInputSlot == 1,
+                "Second slot holds the 'input' property");
 
   masm.loadPtr(Address(object, NativeObject::offsetOfSlots()), temp2);
 
@@ -7902,8 +7922,8 @@ void CodeGenerator::visitNewArrayObject(LNewArrayObject* lir) {
 
   masm.movePtr(ImmPtr(shape), shapeReg);
   masm.createArrayWithFixedElements(
-      objReg, shapeReg, temp0Reg, arrayLength, arrayCapacity, allocKind,
-      mir->initialHeap(), ool->entry(),
+      objReg, shapeReg, temp0Reg, InvalidReg, arrayLength, arrayCapacity, 0, 0,
+      allocKind, mir->initialHeap(), ool->entry(),
       AllocSiteInput(gc::CatchAllAllocSite::Optimized));
   masm.bind(ool->rejoin());
 }
@@ -13752,9 +13772,9 @@ void CodeGenerator::visitRest(LRest* lir) {
 
     Label joinAlloc, failAlloc;
     masm.movePtr(ImmGCPtr(shape), temp0);
-    masm.createArrayWithFixedElements(temp2, temp0, temp1, arrayLength,
-                                      arrayCapacity, allocKind,
-                                      gc::Heap::Default, &failAlloc);
+    masm.createArrayWithFixedElements(temp2, temp0, temp1, InvalidReg,
+                                      arrayLength, arrayCapacity, 0, 0,
+                                      allocKind, gc::Heap::Default, &failAlloc);
     masm.jump(&joinAlloc);
     {
       masm.bind(&failAlloc);

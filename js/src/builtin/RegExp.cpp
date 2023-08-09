@@ -86,14 +86,13 @@ bool js::CreateRegExpMatchResult(JSContext* cx, HandleRegExpShared re,
 
   bool hasIndices = re->hasIndices();
 
-  // Get the templateObject that defines the shape and type of the output
-  // object.
-  RegExpRealm::ResultTemplateKind kind =
-      hasIndices ? RegExpRealm::ResultTemplateKind::WithIndices
-                 : RegExpRealm::ResultTemplateKind::Normal;
-  ArrayObject* templateObject =
-      cx->realm()->regExps.getOrCreateMatchResultTemplateObject(cx, kind);
-  if (!templateObject) {
+  // Get the shape for the output object.
+  RegExpRealm::ResultShapeKind kind =
+      hasIndices ? RegExpRealm::ResultShapeKind::WithIndices
+                 : RegExpRealm::ResultShapeKind::Normal;
+  Rooted<SharedShape*> shape(
+      cx, cx->realm()->regExps.getOrCreateMatchResultShape(cx, kind));
+  if (!shape) {
     return false;
   }
 
@@ -102,8 +101,8 @@ bool js::CreateRegExpMatchResult(JSContext* cx, HandleRegExpShared re,
   MOZ_ASSERT(numPairs > 0);
 
   // Steps 20-21: Allocate the match result object.
-  Rooted<ArrayObject*> arr(cx, NewDenseFullyAllocatedArrayWithTemplate(
-                                   cx, numPairs, templateObject));
+  Rooted<ArrayObject*> arr(
+      cx, NewDenseFullyAllocatedArrayWithShape(cx, numPairs, shape));
   if (!arr) {
     return false;
   }
@@ -135,14 +134,13 @@ bool js::CreateRegExpMatchResult(JSContext* cx, HandleRegExpShared re,
   Rooted<PlainObject*> indicesGroups(cx);
   if (hasIndices) {
     // MakeIndicesArray: step 8
-    ArrayObject* indicesTemplate =
-        cx->realm()->regExps.getOrCreateMatchResultTemplateObject(
-            cx, RegExpRealm::ResultTemplateKind::Indices);
-    if (!indicesTemplate) {
+    Rooted<SharedShape*> indicesShape(
+        cx, cx->realm()->regExps.getOrCreateMatchResultShape(
+                cx, RegExpRealm::ResultShapeKind::Indices));
+    if (!indicesShape) {
       return false;
     }
-    indices =
-        NewDenseFullyAllocatedArrayWithTemplate(cx, numPairs, indicesTemplate);
+    indices = NewDenseFullyAllocatedArrayWithShape(cx, numPairs, indicesShape);
     if (!indices) {
       return false;
     }
@@ -154,10 +152,8 @@ bool js::CreateRegExpMatchResult(JSContext* cx, HandleRegExpShared re,
       if (!indicesGroups) {
         return false;
       }
-      indices->setSlot(RegExpRealm::IndicesGroupsSlot,
-                       ObjectValue(*indicesGroups));
-    } else {
-      indices->setSlot(RegExpRealm::IndicesGroupsSlot, UndefinedValue());
+      indices->initSlot(RegExpRealm::IndicesGroupsSlot,
+                        ObjectValue(*indicesGroups));
     }
 
     // MakeIndicesArray: step 13 a-d. (Step 13.e is implemented below.)
@@ -231,34 +227,36 @@ bool js::CreateRegExpMatchResult(JSContext* cx, HandleRegExpShared re,
   } else {
     for (uint32_t i = 0; i < re->numNamedCaptures(); i++) {
       uint32_t idx = re->getNamedCaptureIndex(i);
-      groups->setSlot(i, arr->getDenseElement(idx));
+      groups->initSlot(i, arr->getDenseElement(idx));
 
       // MakeIndicesArray: Step 13.e (reordered)
       if (hasIndices) {
-        indicesGroups->setSlot(i, indices->getDenseElement(idx));
+        indicesGroups->initSlot(i, indices->getDenseElement(idx));
       }
     }
   }
 
   // Step 22 (reordered).
   // Set the |index| property.
-  arr->setSlot(RegExpRealm::MatchResultObjectIndexSlot,
-               Int32Value(matches[0].start));
+  arr->initSlot(RegExpRealm::MatchResultObjectIndexSlot,
+                Int32Value(matches[0].start));
 
   // Step 23 (reordered).
   // Set the |input| property.
-  arr->setSlot(RegExpRealm::MatchResultObjectInputSlot, StringValue(input));
+  arr->initSlot(RegExpRealm::MatchResultObjectInputSlot, StringValue(input));
 
   // Step 32 (reordered)
   // Set the |groups| property.
-  arr->setSlot(RegExpRealm::MatchResultObjectGroupsSlot,
-               groups ? ObjectValue(*groups) : UndefinedValue());
+  if (groups) {
+    arr->initSlot(RegExpRealm::MatchResultObjectGroupsSlot,
+                  ObjectValue(*groups));
+  }
 
   // Step 34b
   // Set the |indices| property.
   if (re->hasIndices()) {
-    arr->setSlot(RegExpRealm::MatchResultObjectIndicesSlot,
-                 ObjectValue(*indices));
+    arr->initSlot(RegExpRealm::MatchResultObjectIndicesSlot,
+                  ObjectValue(*indices));
   }
 
 #ifdef DEBUG
