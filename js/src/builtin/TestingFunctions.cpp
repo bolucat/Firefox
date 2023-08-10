@@ -6963,7 +6963,7 @@ static bool CompileToStencil(JSContext* cx, uint32_t argc, Value* vp) {
 
   JS::InstantiationStorage storage;
   if (prepareForInstantiate) {
-    if (!JS::PrepareForInstantiate(&fc, compileStorage, *stencil, storage)) {
+    if (!JS::PrepareForInstantiate(&fc, *stencil, storage)) {
       return false;
     }
   }
@@ -8672,7 +8672,7 @@ static bool FdLibM_Pow(JSContext* cx, unsigned argc, Value* vp) {
   if (!std::isfinite(y) && (x == 1.0 || x == -1.0)) {
     args.rval().setNaN();
   } else {
-    args.rval().setDouble(fdlibm::pow(x, y));
+    args.rval().setDouble(fdlibm_pow(x, y));
   }
   return true;
 }

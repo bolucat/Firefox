@@ -2359,6 +2359,31 @@ size_t JS::OwningCompileOptions::sizeOfExcludingThis(
          mallocSizeOf(introducerFilename_.c_str());
 }
 
+void JS::OwningCompileOptions::steal(JS::OwningCompileOptions&& rhs) {
+  // Release existing string allocations.
+  release();
+
+  copyPODNonTransitiveOptions(rhs);
+  copyPODTransitiveOptions(rhs);
+
+  filename_ = rhs.filename_;
+  rhs.filename_ = JS::ConstUTF8CharsZ();
+  introducerFilename_ = rhs.introducerFilename_;
+  rhs.introducerFilename_ = JS::ConstUTF8CharsZ();
+  sourceMapURL_ = rhs.sourceMapURL_;
+  rhs.sourceMapURL_ = nullptr;
+}
+
+void JS::OwningCompileOptions::steal(JS::OwningDecodeOptions&& rhs) {
+  // Release existing string allocations.
+  release();
+
+  rhs.copyPODOptionsTo(*this);
+
+  introducerFilename_ = rhs.introducerFilename_;
+  rhs.introducerFilename_ = JS::ConstUTF8CharsZ();
+}
+
 template <typename ContextT>
 bool JS::OwningCompileOptions::copyImpl(ContextT* cx,
                                         const ReadOnlyCompileOptions& rhs) {
@@ -2445,6 +2470,43 @@ CompileOptions& CompileOptions::setIntroductionInfoToCaller(
     return setIntroductionInfo(filename, introductionType, lineno, pcOffset);
   }
   return setIntroductionType(introductionType);
+}
+
+JS::OwningDecodeOptions::~OwningDecodeOptions() { release(); }
+
+void JS::OwningDecodeOptions::release() {
+  js_free(const_cast<char*>(introducerFilename_.c_str()));
+
+  introducerFilename_ = JS::ConstUTF8CharsZ();
+}
+
+bool JS::OwningDecodeOptions::copy(JS::FrontendContext* maybeFc,
+                                   const JS::ReadOnlyDecodeOptions& rhs) {
+  copyPODOptionsFrom(rhs);
+
+  if (rhs.introducerFilename()) {
+    MOZ_ASSERT(maybeFc);
+    const char* str =
+        DuplicateString(maybeFc, rhs.introducerFilename().c_str()).release();
+    if (!str) {
+      return false;
+    }
+    introducerFilename_ = JS::ConstUTF8CharsZ(str);
+  }
+
+  return true;
+}
+
+void JS::OwningDecodeOptions::infallibleCopy(
+    const JS::ReadOnlyDecodeOptions& rhs) {
+  copyPODOptionsFrom(rhs);
+
+  MOZ_ASSERT(!rhs.introducerFilename());
+}
+
+size_t JS::OwningDecodeOptions::sizeOfExcludingThis(
+    mozilla::MallocSizeOf mallocSizeOf) const {
+  return mallocSizeOf(introducerFilename_.c_str());
 }
 
 JS_PUBLIC_API JSObject* JS_GetGlobalFromScript(JSScript* script) {

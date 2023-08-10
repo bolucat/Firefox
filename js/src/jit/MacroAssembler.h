@@ -1322,8 +1322,10 @@ class MacroAssembler : public MacroAssemblerSpecific {
                        FloatRegister temp, Register dest);
 
   void branchIfNotRegExpPrototypeOptimizable(Register proto, Register temp,
+                                             const GlobalObject* maybeGlobal,
                                              Label* label);
   void branchIfNotRegExpInstanceOptimizable(Register regexp, Register temp,
+                                            const GlobalObject* maybeGlobal,
                                             Label* label);
 
   void loadRegExpLastIndex(Register regexp, Register string, Register lastIndex,
@@ -4791,6 +4793,8 @@ class MacroAssembler : public MacroAssemblerSpecific {
                     Label* notSameDigit);
 
   void loadJSContext(Register dest);
+
+  void loadGlobalObjectData(Register dest);
 
   void switchToRealm(Register realm);
   void switchToRealm(const void* realm, Register scratch);

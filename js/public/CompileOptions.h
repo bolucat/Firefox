@@ -115,7 +115,7 @@ enum class DelazificationOption : uint8_t {
 };
 
 class JS_PUBLIC_API InstantiateOptions;
-class JS_PUBLIC_API DecodeOptions;
+class JS_PUBLIC_API ReadOnlyDecodeOptions;
 
 // Compilation-specific part of JS::ContextOptions which is supposed to be
 // configured by user prefs.
@@ -211,7 +211,7 @@ class JS_PUBLIC_API PrefableCompileOptions {
  * compilation unit to another.
  */
 class JS_PUBLIC_API TransitiveCompileOptions {
-  friend class JS_PUBLIC_API DecodeOptions;
+  friend class JS_PUBLIC_API ReadOnlyDecodeOptions;
 
  protected:
   // non-POD options:
@@ -496,6 +496,8 @@ class JS_PUBLIC_API ReadOnlyCompileOptions : public TransitiveCompileOptions {
 #endif  // defined(DEBUG) || defined(JS_JITSPEW)
 };
 
+class JS_PUBLIC_API OwningDecodeOptions;
+
 /**
  * Compilation options, with dynamic lifetime. An instance of this type
  * makes a copy of / holds / roots all dynamically allocated resources
@@ -528,6 +530,9 @@ class JS_PUBLIC_API OwningCompileOptions final : public ReadOnlyCompileOptions {
   /** Set this to a copy of |rhs|.  Return false on OOM. */
   bool copy(JSContext* cx, const ReadOnlyCompileOptions& rhs);
   bool copy(JS::FrontendContext* fc, const ReadOnlyCompileOptions& rhs);
+
+  void steal(OwningCompileOptions&& rhs);
+  void steal(OwningDecodeOptions&& rhs);
 
   size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const;
 
@@ -765,47 +770,90 @@ class JS_PUBLIC_API InstantiateOptions {
 /**
  * Subset of CompileOptions fields used while decoding Stencils.
  */
-class JS_PUBLIC_API DecodeOptions {
+class JS_PUBLIC_API ReadOnlyDecodeOptions {
  public:
   bool borrowBuffer = false;
   bool usePinnedBytecode = false;
   bool allocateInstantiationStorage = false;
   bool forceAsync = false;
 
-  const JS::ConstUTF8CharsZ introducerFilename;
+ protected:
+  JS::ConstUTF8CharsZ introducerFilename_;
 
+ public:
   // See `TransitiveCompileOptions::introductionType` field for details.
   const char* introductionType = nullptr;
 
   unsigned introductionLineno = 0;
   uint32_t introductionOffset = 0;
 
-  DecodeOptions() = default;
+ protected:
+  ReadOnlyDecodeOptions() = default;
 
-  explicit DecodeOptions(const ReadOnlyCompileOptions& options)
-      : borrowBuffer(options.borrowBuffer),
-        usePinnedBytecode(options.usePinnedBytecode),
-        allocateInstantiationStorage(options.allocateInstantiationStorage),
-        forceAsync(options.forceAsync),
-        introducerFilename(options.introducerFilename()),
-        introductionType(options.introductionType),
-        introductionLineno(options.introductionLineno),
-        introductionOffset(options.introductionOffset) {}
+  ReadOnlyDecodeOptions(const ReadOnlyDecodeOptions&) = delete;
+  ReadOnlyDecodeOptions& operator=(const ReadOnlyDecodeOptions&) = delete;
 
-  void copyTo(CompileOptions& options) const {
+  template <typename T>
+  void copyPODOptionsFrom(const T& options) {
+    borrowBuffer = options.borrowBuffer;
+    usePinnedBytecode = options.usePinnedBytecode;
+    allocateInstantiationStorage = options.allocateInstantiationStorage;
+    forceAsync = options.forceAsync;
+    introductionType = options.introductionType;
+    introductionLineno = options.introductionLineno;
+    introductionOffset = options.introductionOffset;
+  }
+
+  template <typename T>
+  void copyPODOptionsTo(T& options) const {
     options.borrowBuffer = borrowBuffer;
     options.usePinnedBytecode = usePinnedBytecode;
     options.allocateInstantiationStorage = allocateInstantiationStorage;
     options.forceAsync = forceAsync;
-    options.introducerFilename_ = introducerFilename;
     options.introductionType = introductionType;
     options.introductionLineno = introductionLineno;
     options.introductionOffset = introductionOffset;
   }
 
-  bool hasExternalData() const {
-    return introducerFilename || introductionType;
+ public:
+  void copyTo(CompileOptions& options) const {
+    copyPODOptionsTo(options);
+    options.introducerFilename_ = introducerFilename_;
   }
+
+  JS::ConstUTF8CharsZ introducerFilename() const { return introducerFilename_; }
+};
+
+class MOZ_STACK_CLASS JS_PUBLIC_API DecodeOptions final
+    : public ReadOnlyDecodeOptions {
+ public:
+  DecodeOptions() = default;
+
+  explicit DecodeOptions(const ReadOnlyCompileOptions& options) {
+    copyPODOptionsFrom(options);
+
+    introducerFilename_ = options.introducerFilename();
+  }
+};
+
+class JS_PUBLIC_API OwningDecodeOptions final : public ReadOnlyDecodeOptions {
+  friend class OwningCompileOptions;
+
+ public:
+  OwningDecodeOptions() = default;
+
+  ~OwningDecodeOptions();
+
+  bool copy(JS::FrontendContext* maybeFc, const ReadOnlyDecodeOptions& rhs);
+  void infallibleCopy(const ReadOnlyDecodeOptions& rhs);
+
+  size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const;
+
+ private:
+  void release();
+
+  OwningDecodeOptions(const OwningDecodeOptions&) = delete;
+  OwningDecodeOptions& operator=(const OwningDecodeOptions&) = delete;
 };
 
 }  // namespace JS

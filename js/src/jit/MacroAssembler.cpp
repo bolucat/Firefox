@@ -2072,6 +2072,12 @@ static const uint8_t* ContextRealmPtr(CompileRuntime* rt) {
           JSContext::offsetOfRealm());
 }
 
+void MacroAssembler::loadGlobalObjectData(Register dest) {
+  loadPtr(AbsoluteAddress(ContextRealmPtr(runtime())), dest);
+  loadPtr(Address(dest, Realm::offsetOfActiveGlobal()), dest);
+  loadPrivate(Address(dest, GlobalObject::offsetOfGlobalDataSlot()), dest);
+}
+
 void MacroAssembler::switchToRealm(Register realm) {
   storePtr(realm, AbsoluteAddress(ContextRealmPtr(runtime())));
 }
@@ -4260,23 +4266,31 @@ void MacroAssembler::minMaxArrayNumber(Register array, FloatRegister result,
   bind(&done);
 }
 
-void MacroAssembler::branchIfNotRegExpPrototypeOptimizable(Register proto,
-                                                           Register temp,
-                                                           Label* fail) {
-  loadJSContext(temp);
-  loadPtr(Address(temp, JSContext::offsetOfRealm()), temp);
-  size_t offset = Realm::offsetOfRegExps() +
+void MacroAssembler::branchIfNotRegExpPrototypeOptimizable(
+    Register proto, Register temp, const GlobalObject* maybeGlobal,
+    Label* fail) {
+  if (maybeGlobal) {
+    movePtr(ImmGCPtr(maybeGlobal), temp);
+    loadPrivate(Address(temp, GlobalObject::offsetOfGlobalDataSlot()), temp);
+  } else {
+    loadGlobalObjectData(temp);
+  }
+  size_t offset = GlobalObjectData::offsetOfRegExpRealm() +
                   RegExpRealm::offsetOfOptimizableRegExpPrototypeShape();
   loadPtr(Address(temp, offset), temp);
   branchTestObjShapeUnsafe(Assembler::NotEqual, proto, temp, fail);
 }
 
-void MacroAssembler::branchIfNotRegExpInstanceOptimizable(Register regexp,
-                                                          Register temp,
-                                                          Label* label) {
-  loadJSContext(temp);
-  loadPtr(Address(temp, JSContext::offsetOfRealm()), temp);
-  size_t offset = Realm::offsetOfRegExps() +
+void MacroAssembler::branchIfNotRegExpInstanceOptimizable(
+    Register regexp, Register temp, const GlobalObject* maybeGlobal,
+    Label* label) {
+  if (maybeGlobal) {
+    movePtr(ImmGCPtr(maybeGlobal), temp);
+    loadPrivate(Address(temp, GlobalObject::offsetOfGlobalDataSlot()), temp);
+  } else {
+    loadGlobalObjectData(temp);
+  }
+  size_t offset = GlobalObjectData::offsetOfRegExpRealm() +
                   RegExpRealm::offsetOfOptimizableRegExpInstanceShape();
   loadPtr(Address(temp, offset), temp);
   branchTestObjShapeUnsafe(Assembler::NotEqual, regexp, temp, label);

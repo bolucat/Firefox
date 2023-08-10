@@ -319,6 +319,10 @@ class RegExpRealm {
  public:
   enum ResultShapeKind { Normal, WithIndices, Indices, NumKinds };
 
+  // Information about the last regular expression match. This is used by the
+  // static RegExp properties such as RegExp.lastParen.
+  UniquePtr<RegExpStatics> regExpStatics;
+
  private:
   /*
    * The shapes used for the result object of re.exec(), if there is a result.
@@ -335,7 +339,7 @@ class RegExpRealm {
    *  Indices: Has a |groups| property. If |hasIndices| is set, used
    *           for the |.indices| property of the result object.
    */
-  WeakHeapPtr<SharedShape*> matchResultShapes_[ResultShapeKind::NumKinds];
+  HeapPtr<SharedShape*> matchResultShapes_[ResultShapeKind::NumKinds];
 
   /*
    * The shape of RegExp.prototype object that satisfies following:
@@ -350,21 +354,21 @@ class RegExpRealm {
    *   * RegExp.prototype[@@match] is an own data property
    *   * RegExp.prototype[@@search] is an own data property
    */
-  WeakHeapPtr<Shape*> optimizableRegExpPrototypeShape_;
+  HeapPtr<Shape*> optimizableRegExpPrototypeShape_;
 
   /*
    * The shape of RegExp instance that satisfies following:
    *   * lastProperty is lastIndex
    *   * prototype is RegExp.prototype
    */
-  WeakHeapPtr<Shape*> optimizableRegExpInstanceShape_;
+  HeapPtr<Shape*> optimizableRegExpInstanceShape_;
 
   SharedShape* createMatchResultShape(JSContext* cx, ResultShapeKind kind);
 
  public:
   explicit RegExpRealm();
 
-  void traceWeak(JSTracer* trc);
+  void trace(JSTracer* trc);
 
   static const size_t MatchResultObjectIndexSlot = 0;
   static const size_t MatchResultObjectInputSlot = 1;

@@ -928,16 +928,20 @@ SharedShape* RegExpRealm::createMatchResultShape(JSContext* cx,
   return matchResultShapes_[kind];
 }
 
-void RegExpRealm::traceWeak(JSTracer* trc) {
-  for (auto& shape : matchResultShapes_) {
-    TraceWeakEdge(trc, &shape, "RegExpRealm::matchResultShapes_");
+void RegExpRealm::trace(JSTracer* trc) {
+  if (regExpStatics) {
+    regExpStatics->trace(trc);
   }
 
-  TraceWeakEdge(trc, &optimizableRegExpPrototypeShape_,
-                "RegExpRealm::optimizableRegExpPrototypeShape_");
+  for (auto& shape : matchResultShapes_) {
+    TraceNullableEdge(trc, &shape, "RegExpRealm::matchResultShapes_");
+  }
 
-  TraceWeakEdge(trc, &optimizableRegExpInstanceShape_,
-                "RegExpRealm::optimizableRegExpInstanceShape_");
+  TraceNullableEdge(trc, &optimizableRegExpPrototypeShape_,
+                    "RegExpRealm::optimizableRegExpPrototypeShape_");
+
+  TraceNullableEdge(trc, &optimizableRegExpInstanceShape_,
+                    "RegExpRealm::optimizableRegExpInstanceShape_");
 }
 
 RegExpShared* RegExpZone::get(JSContext* cx, Handle<JSAtom*> source,
