@@ -57,7 +57,6 @@ ChromeUtils.defineESModuleGetters(this, {
   PlacesTransactions: "resource://gre/modules/PlacesTransactions.sys.mjs",
   PlacesUIUtils: "resource:///modules/PlacesUIUtils.sys.mjs",
   PlacesUtils: "resource://gre/modules/PlacesUtils.sys.mjs",
-  PluralForm: "resource://gre/modules/PluralForm.sys.mjs",
   Pocket: "chrome://pocket/content/Pocket.sys.mjs",
   PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
   ProcessHangMonitor: "resource:///modules/ProcessHangMonitor.sys.mjs",
@@ -864,7 +863,14 @@ const gClickAndHoldListenersOnElement = {
       aEvent.button == 0 &&
       aEvent.target == aEvent.currentTarget &&
       !aEvent.currentTarget.open &&
-      !aEvent.currentTarget.disabled
+      !aEvent.currentTarget.disabled &&
+      // When menupopup is not hidden and we receive
+      // a click event, it means the mousedown occurred
+      // on aEvent.currentTarget and mouseup occurred on
+      // aEvent.currentTarget.menupopup, we don't
+      // need to handle the click event as menupopup
+      // handled mouseup event already.
+      aEvent.currentTarget.menupopup.hidden
     ) {
       let cmdEvent = document.createEvent("xulcommandevent");
       cmdEvent.initCommandEvent(

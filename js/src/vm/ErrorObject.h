@@ -73,6 +73,7 @@ class ErrorObject : public NativeObject {
   // info.  If |message| is non-null, then the error will have a .message
   // property with that value; otherwise the error will have no .message
   // property.
+  // columnNumber is 1-origin.
   static ErrorObject* create(JSContext* cx, JSExnType type, HandleObject stack,
                              HandleString fileName, uint32_t sourceId,
                              uint32_t lineNumber, uint32_t columnNumber,
@@ -106,8 +107,13 @@ class ErrorObject : public NativeObject {
 
   inline JSString* fileName(JSContext* cx) const;
   inline uint32_t sourceId() const;
+
+  // Line number (1-origin).
   inline uint32_t lineNumber() const;
+
+  // Column number in UTF-16 code units (1-origin).
   inline uint32_t columnNumber() const;
+
   inline JSObject* stack() const;
 
   JSString* getMessage() const {

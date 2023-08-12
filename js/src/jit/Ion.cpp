@@ -36,7 +36,6 @@
 #include "jit/IonScript.h"
 #include "jit/JitcodeMap.h"
 #include "jit/JitFrames.h"
-#include "jit/JitRealm.h"
 #include "jit/JitRuntime.h"
 #include "jit/JitSpewer.h"
 #include "jit/JitZone.h"
@@ -316,12 +315,6 @@ uint8_t* JitRuntime::allocateIonOsrTempData(size_t size) {
 
 void JitRuntime::freeIonOsrTempData() { ionOsrTempData_.ref().reset(); }
 
-JitRealm::JitRealm() : initialStringHeap(gc::Heap::Tenured) {}
-
-void JitRealm::initialize(bool zoneHasNurseryStrings) {
-  setStringsCanBeInNursery(zoneHasNurseryStrings);
-}
-
 template <typename T>
 static T PopNextBitmaskValue(uint32_t* bitmask) {
   MOZ_ASSERT(*bitmask);
@@ -332,7 +325,7 @@ static T PopNextBitmaskValue(uint32_t* bitmask) {
   return T(index);
 }
 
-void JitRealm::performStubReadBarriers(uint32_t stubsToBarrier) const {
+void JitZone::performStubReadBarriers(uint32_t stubsToBarrier) const {
   while (stubsToBarrier) {
     auto stub = PopNextBitmaskValue<StubIndex>(&stubsToBarrier);
     const WeakHeapPtr<JitCode*>& jitCode = stubs_[stub];
@@ -437,15 +430,6 @@ void JitRuntime::TraceWeakJitcodeGlobalTable(JSRuntime* rt, JSTracer* trc) {
   }
 }
 
-void JitRealm::traceWeak(JSTracer* trc, JS::Realm* realm) {
-  // Any outstanding compilations should have been cancelled by the GC.
-  MOZ_ASSERT(!HasOffThreadIonCompile(realm));
-
-  for (WeakHeapPtr<JitCode*>& stub : stubs_) {
-    TraceWeakEdge(trc, &stub, "JitRealm::stubs_");
-  }
-}
-
 bool JitZone::addInlinedCompilation(const RecompileInfo& info,
                                     JSScript* inlined) {
   MOZ_ASSERT(inlined != info.script());
@@ -537,12 +521,15 @@ bool RecompileInfo::traceWeak(JSTracer* trc) {
 void JitZone::traceWeak(JSTracer* trc, Zone* zone) {
   MOZ_ASSERT(this == zone->jitZone());
 
+  // Any outstanding compilations should have been cancelled by the GC.
+  MOZ_ASSERT(!HasOffThreadIonCompile(zone));
+
+  for (WeakHeapPtr<JitCode*>& stub : stubs_) {
+    TraceWeakEdge(trc, &stub, "JitZone::stubs_");
+  }
+
   baselineCacheIRStubCodes_.traceWeak(trc);
   inlinedCompilations_.traceWeak(trc);
-}
-
-size_t JitRealm::sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf) const {
-  return mallocSizeOf(this);
 }
 
 void JitZone::addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf,
@@ -1622,11 +1609,11 @@ static AbortReason IonCompile(JSContext* cx, HandleScript script,
     return AbortReason::Error;
   }
 
-  if (!cx->realm()->ensureJitRealmExists(cx)) {
+  if (!cx->zone()->ensureJitZoneExists(cx)) {
     return AbortReason::Error;
   }
 
-  if (!cx->realm()->jitRealm()->ensureIonStubsExist(cx)) {
+  if (!cx->zone()->jitZone()->ensureIonStubsExist(cx)) {
     return AbortReason::Error;
   }
 
@@ -2430,11 +2417,7 @@ static void InvalidateActivation(JS::GCContext* gcx,
 
 void jit::InvalidateAll(JS::GCContext* gcx, Zone* zone) {
   // The caller should previously have cancelled off thread compilation.
-#ifdef DEBUG
-  for (RealmsInZoneIter realm(zone); !realm.done(); realm.next()) {
-    MOZ_ASSERT(!HasOffThreadIonCompile(realm));
-  }
-#endif
+  MOZ_ASSERT(!HasOffThreadIonCompile(zone));
   if (zone->isAtomsZone()) {
     return;
   }

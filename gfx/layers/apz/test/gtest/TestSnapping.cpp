@@ -17,6 +17,9 @@ class APZCSnappingTesterMock : public APZCTreeManagerTester {
 };
 
 TEST_F(APZCSnappingTesterMock, Bug1265510) {
+  // Needed because the test uses SmoothWheel()
+  SCOPED_GFX_PREF_BOOL("general.smoothScroll", true);
+
   const char* treeShape = "x(x)";
   LayerIntRegion layerVisibleRegion[] = {LayerIntRect(0, 0, 100, 100),
                                          LayerIntRect(0, 100, 100, 100)};
@@ -55,9 +58,8 @@ TEST_F(APZCSnappingTesterMock, Bug1265510) {
   // Position the mouse near the bottom of the outer frame and scroll by 60px.
   // (6 lines of 10px each). APZC will actually scroll to y=100 because of the
   // mandatory snap coordinate there.
-  TimeStamp now = mcc->Time();
   QueueMockHitResult(ScrollableLayerGuid::START_SCROLL_ID);
-  SmoothWheel(manager, ScreenIntPoint(50, 80), ScreenPoint(0, 6), now);
+  SmoothWheel(manager, ScreenIntPoint(50, 80), ScreenPoint(0, 6), mcc->Time());
   // Advance in 5ms increments until we've scrolled by 70px. At this point, the
   // closest snap point is y=100, and the inner frame should be under the mouse
   // cursor.
@@ -70,12 +72,11 @@ TEST_F(APZCSnappingTesterMock, Bug1265510) {
   }
   // Now do another wheel in a new transaction. This should start scrolling the
   // inner frame; we verify that it does by checking the inner scroll position.
-  TimeStamp newTransactionTime =
-      now + TimeDuration::FromMilliseconds(
-                StaticPrefs::mousewheel_transaction_timeout() + 100);
+  mcc->AdvanceBy(TimeDuration::FromMilliseconds(
+      StaticPrefs::mousewheel_transaction_timeout() + 100));
   QueueMockHitResult(ScrollableLayerGuid::START_SCROLL_ID + 1);
-  SmoothWheel(manager, ScreenIntPoint(50, 80), ScreenPoint(0, 6),
-              newTransactionTime);
+  SmoothWheel(manager, ScreenIntPoint(50, 80), ScreenPoint(0, 6), mcc->Time());
+  mcc->AdvanceByMillis(5);
   inner->AdvanceAnimationsUntilEnd();
   EXPECT_LT(
       0.0f,

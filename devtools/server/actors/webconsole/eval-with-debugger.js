@@ -108,8 +108,14 @@ function isObject(value) {
  *         - global: the Debugger.Object for the global where the string was evaluated in.
  *         - result: the result of the evaluation.
  */
-exports.evalWithDebugger = function (string, options = {}, webConsole) {
-  if (isCommand(string.trim()) && options.eager) {
+function evalWithDebugger(string, options = {}, webConsole) {
+  if (string.trim() === "?") {
+    return evalWithDebugger(":help", options, webConsole);
+  }
+
+  const isCmd = isCommand(string.trim());
+
+  if (isCmd && options.eager) {
     return {
       result: null,
     };
@@ -119,12 +125,38 @@ exports.evalWithDebugger = function (string, options = {}, webConsole) {
 
   const { dbgGlobal, bindSelf } = getDbgGlobal(options, dbg, webConsole);
 
+  if (isCmd) {
+    const { command, args } = getCommandAndArgs(string);
+
+    const helpers = WebConsoleCommandsManager.getColonCommandFunction(
+      webConsole,
+      dbgGlobal,
+      string,
+      options.selectedNodeActor,
+      command
+    );
+
+    let result;
+    try {
+      result = helpers.commandFunc(args);
+    } catch (e) {
+      console.log(e);
+      return `throw "${e}"`;
+    }
+
+    return {
+      result,
+      helperResult: helpers.getHelperResult(),
+    };
+  }
+
   const helpers = WebConsoleCommandsManager.getWebConsoleCommands(
     webConsole,
     dbgGlobal,
     frame,
     string,
-    options.selectedNodeActor
+    options.selectedNodeActor,
+    !!options.disableBreaks
   );
   let { bindings } = helpers;
 
@@ -173,27 +205,16 @@ exports.evalWithDebugger = function (string, options = {}, webConsole) {
 
   let result;
   try {
-    if (isCommand(string)) {
-      try {
-        const { command, args } = getCommandAndArgs(string);
-        const commandFunc = helpers.rawCommands.get(command);
-        result = commandFunc(helpers.rawOwner, args);
-      } catch (e) {
-        console.log(e);
-        return `throw "${e}"`;
-      }
-    } else {
-      const evalString = getEvalInput(string, bindings);
-      result = getEvalResult(
-        dbg,
-        evalString,
-        evalOptions,
-        bindings,
-        frame,
-        dbgGlobal,
-        noSideEffectDebugger
-      );
-    }
+    const evalString = getEvalInput(string, bindings);
+    result = getEvalResult(
+      dbg,
+      evalString,
+      evalOptions,
+      bindings,
+      frame,
+      dbgGlobal,
+      noSideEffectDebugger
+    );
   } finally {
     // We need to be absolutely sure that the sideeffect-free debugger's
     // debuggees are removed because otherwise we risk them terminating
@@ -213,6 +234,11 @@ exports.evalWithDebugger = function (string, options = {}, webConsole) {
     );
   }
 
+  // The help function needs to be easy to guess, so we make the () optional.
+  if (string.trim() === "help" && isHelpFunction(result, bindings)) {
+    return evalWithDebugger(":help", options, webConsole);
+  }
+
   return {
     result,
     // Retrieve the result of commands, if any ran
@@ -221,7 +247,20 @@ exports.evalWithDebugger = function (string, options = {}, webConsole) {
     frame,
     dbgGlobal,
   };
-};
+}
+exports.evalWithDebugger = evalWithDebugger;
+
+/**
+ * Checks if the evaluation result is the 'help' function in bindings.
+ */
+function isHelpFunction(result, bindings) {
+  return (
+    "return" in result &&
+    result.return &&
+    result.return.class === "Function" &&
+    result.return === bindings.help
+  );
+}
 
 function getEvalResult(
   dbg,
@@ -534,11 +573,6 @@ function updateConsoleInputEvaluation(dbg, webConsole) {
 
 function getEvalInput(string, bindings) {
   const trimmedString = string.trim();
-  // The help function needs to be easy to guess, so we make the () optional.
-  if (bindings?.help && (trimmedString === "help" || trimmedString === "?")) {
-    return "help()";
-  }
-
   // Add easter egg for console.mihai().
   if (
     trimmedString == "console.mihai()" ||

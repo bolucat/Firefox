@@ -222,14 +222,6 @@ var TranslationsPanel = new (class {
   #isPopupOpen = false;
 
   /**
-   * Show the introductory message on the first load, and keep on showing it for
-   * this URI, until the user navigates away.
-   *
-   * @type {string | null}
-   */
-  #firstShowUriSpec = null;
-
-  /**
    * Where the lazy elements are stored.
    *
    * @type {Record<string, Element>?}
@@ -303,7 +295,6 @@ var TranslationsPanel = new (class {
         "changeSourceLanguageButton",
         "translations-panel-change-source-language"
       );
-      getter("defaultTranslate", "translations-panel-translate");
       getter("dismissErrorButton", "translations-panel-dismiss-error");
       getter("error", "translations-panel-error");
       getter("errorMessage", "translations-panel-error-message");
@@ -521,7 +512,7 @@ var TranslationsPanel = new (class {
   #updateViewFromTranslationStatus(
     languageState = this.#getTranslationsActor().languageState
   ) {
-    const { defaultTranslate, toMenuList, fromMenuList, header, cancelButton } =
+    const { translateButton, toMenuList, fromMenuList, header, cancelButton } =
       this.elements;
     const { requestedTranslationPair, isEngineReady } = languageState;
 
@@ -533,18 +524,18 @@ var TranslationsPanel = new (class {
     ) {
       // A translation has been requested, but is not ready yet.
       document.l10n.setAttributes(
-        defaultTranslate,
+        translateButton,
         "translations-panel-translate-button-loading"
       );
-      defaultTranslate.disabled = true;
+      translateButton.disabled = true;
       cancelButton.hidden = false;
       this.updateUIForReTranslation(false /* isReTranslation */);
     } else {
       document.l10n.setAttributes(
-        defaultTranslate,
+        translateButton,
         "translations-panel-translate-button"
       );
-      defaultTranslate.disabled =
+      translateButton.disabled =
         // The translation languages are the same, don't allow this translation.
         toMenuList.value === fromMenuList.value ||
         // No "to" language was provided.
@@ -617,7 +608,7 @@ var TranslationsPanel = new (class {
       panel,
       error,
       toMenuList,
-      defaultTranslate,
+      translateButton,
       langSelection,
       intro,
       header,
@@ -640,7 +631,7 @@ var TranslationsPanel = new (class {
         actionCommand: () => this.#reloadLangList(),
       });
 
-      defaultTranslate.disabled = true;
+      translateButton.disabled = true;
       this.updateUIForReTranslation(false /* isReTranslation */);
       cancelButton.hidden = false;
       langSelection.hidden = true;
@@ -671,17 +662,19 @@ var TranslationsPanel = new (class {
       this.updateUIForReTranslation(false /* isReTranslation */);
       cancelButton.hidden = false;
       multiview.setAttribute("mainViewId", "translations-panel-view-default");
+      let actor = this.#getTranslationsActor();
 
       if (!this._hasShownPanel) {
-        this.#firstShowUriSpec = gBrowser.currentURI.spec;
+        actor.firstShowUriSpec = gBrowser.currentURI.spec;
       }
 
       if (
         this._hasShownPanel &&
-        gBrowser.currentURI.spec !== this.#firstShowUriSpec
+        gBrowser.currentURI.spec !== actor.firstShowUriSpec
       ) {
         document.l10n.setAttributes(header, "translations-panel-header");
-        this.#firstShowUriSpec === null;
+        actor.firstShowUriSpec = null;
+        intro.hidden = true;
       } else {
         Services.prefs.setBoolPref("browser.translations.panelShown", true);
         intro.hidden = false;
@@ -1507,7 +1500,8 @@ var TranslationsPanel = new (class {
             // button's accessible tooltip label.
             if (
               this._hasShownPanel &&
-              gBrowser.currentURI.spec !== this.#firstShowUriSpec
+              gBrowser.currentURI.spec !==
+                this.#getTranslationsActor().firstShowUriSpec
             ) {
               document.l10n.setAttributes(
                 button,

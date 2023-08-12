@@ -639,7 +639,10 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock> {
   // profiling.
   BytecodeSite* trackedSite_;
 
+  // Line number (1-origin).
   unsigned lineno_;
+
+  // Column number in UTF-16 code units (0-origin).
   unsigned columnIndex_;
 
  public:

@@ -22,6 +22,7 @@ web-platform-tests:
     - web-platform-tests-reftest
     - web-platform-tests-wdspec
     - web-platform-tests-webgpu
+    - web-platform-tests-canvas
 
 web-platform-tests-backlog:
     - web-platform-tests-backlog
@@ -95,6 +96,7 @@ browsertime:
     - browsertime-regression-tests
     - browsertime-upload
     - browsertime-speculative
+    - browsertime-throttled
 
 browsertime-clang:
     - browsertime-tp6

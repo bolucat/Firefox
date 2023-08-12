@@ -227,8 +227,13 @@ class BytecodeRangeWithPosition : private BytecodeRange {
   }
 
   size_t initialLine;
+
+  // Line number (1-origin).
   size_t lineno;
+
+  // Column number in UTF-16 code units (0-origin).
   size_t column;
+
   const SrcNote* sn;
   jsbytecode* snpc;
   bool isEntryPoint;

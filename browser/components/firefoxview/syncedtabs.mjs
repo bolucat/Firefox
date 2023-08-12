@@ -296,11 +296,11 @@ class SyncedTabsInView extends ViewPage {
           data-l10n-id="firefoxview-syncedtabs-device-notabs"
         ></div>`;
     }
-    return html`<card-container>
-      <h2 slot="header">
+    return html`<card-container shortPageName="syncedtabs">
+      <h3 slot="header">
         <span class="icon ${deviceType}" role="presentation"></span>
         ${deviceName}
-      </h2>
+      </h3>
       <div
         slot="main"
         class="blackbox notabs"
@@ -332,10 +332,10 @@ class SyncedTabsInView extends ViewPage {
     }
     return html`${when(
         !this.overview,
-        () => html`<h2 slot="header">
+        () => html`<h3 slot="header">
           <span class="icon ${deviceType}" role="presentation"></span>
           ${deviceName}
-        </h2>`
+        </h3>`
       )}
       <fxview-tab-list
         slot="main"
@@ -348,10 +348,10 @@ class SyncedTabsInView extends ViewPage {
       >
         ${when(
           this.overview,
-          () => html`<h2 slot="header">
+          () => html`<h3 slot="header">
             <span class="icon ${deviceType}" role="presentation"></span>
             ${deviceName}
-          </h2>`
+          </h3>`
         )}
         ${this.panelListTemplate()}
       </fxview-tab-list>`;
@@ -394,7 +394,7 @@ class SyncedTabsInView extends ViewPage {
           );
         } else {
           renderArray.push(
-            html`<card-container
+            html`<card-container shortPageName="syncedtabs"
               >${this.deviceTemplate(
                 renderInfo[id].name,
                 renderInfo[id].deviceType,
@@ -469,14 +469,15 @@ class SyncedTabsInView extends ViewPage {
       renderArray.push(
         html`<card-container
           preserveCollapseState
-          viewAllPage=${this._currentSetupStateIndex == 4 ? "syncedtabs" : null}
+          shortPageName="syncedtabs"
+          ?showViewAll=${this._currentSetupStateIndex == 4}
         >
           >
-          <h2
+          <h3
             slot="header"
             data-l10n-id="firefoxview-synced-tabs-header"
             class="overview-header"
-          ></h2>
+          ></h3>
           <div slot="main">${this.generateCardContent()}</div>
         </card-container>`
       );

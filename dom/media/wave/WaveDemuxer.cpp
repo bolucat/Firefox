@@ -89,6 +89,8 @@ bool WAVTrackDemuxer::Init() {
     return false;
   }
 
+  bool hasValidFmt = false;
+
   while (true) {
     if (!HeaderParserInit()) {
       return false;
@@ -98,9 +100,7 @@ bool WAVTrackDemuxer::Init() {
     uint32_t chunkSize = mHeaderParser.GiveHeader().ChunkSize();
 
     if (chunkName == FRMT_CODE) {
-      if (!FmtChunkParserInit()) {
-        return false;
-      }
+      hasValidFmt = FmtChunkParserInit();
     } else if (chunkName == LIST_CODE) {
       mHeaderParser.Reset();
       uint64_t endOfListChunk = static_cast<uint64_t>(mOffset) + chunkSize;
@@ -124,6 +124,10 @@ bool WAVTrackDemuxer::Init() {
       mOffset += 1;
     }
     mHeaderParser.Reset();
+  }
+
+  if (!hasValidFmt) {
+    return false;
   }
 
   int64_t streamLength = StreamLength();
@@ -183,7 +187,7 @@ bool WAVTrackDemuxer::HeaderParserInit() {
 
 bool WAVTrackDemuxer::FmtChunkParserInit() {
   RefPtr<MediaRawData> fmtChunk = GetFileHeader(FindFmtChunk());
-  if (!fmtChunk) {
+  if (!fmtChunk || fmtChunk->Size() < 16) {
     return false;
   }
   nsTArray<uint8_t> fmtChunkData(fmtChunk->Data(), fmtChunk->Size());
@@ -697,13 +701,16 @@ uint16_t FormatChunk::ExtraFormatInfoSize() const {
 }
 
 AudioConfig::ChannelLayout::ChannelMap FormatChunk::ChannelMap() const {
-  // Integer or float files -- regular mapping
-  if (WaveFormat() == 1 || WaveFormat() == 2) {
+  // Regular mapping if file doesn't have channel mapping info, of if the chunk
+  // size doesn't have the field for the size of the extension data.
+  if (WaveFormat() != 0xFFFE || mRaw.Length() < 18) {
     return AudioConfig::ChannelLayout(Channels()).Map();
   }
+  // The length of this chunk is at least 18, check if it's long enough to
+  // hold the WAVE_FORMAT_EXTENSIBLE struct, that is 22 bytes. If not, fall
+  // back to a common mapping.
   if (ExtraFormatInfoSize() < 22) {
-    MOZ_ASSERT(Channels() <= 2);
-    return AudioConfig::ChannelLayout::UNKNOWN_MAP;
+    return AudioConfig::ChannelLayout(Channels()).Map();
   }
   // ChannelLayout::ChannelMap is by design bit-per-bit compatible with
   // WAVEFORMATEXTENSIBLE's dwChannelMask attribute, we can just cast here.

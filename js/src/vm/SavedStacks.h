@@ -265,7 +265,11 @@ class SavedStacks {
 
     WeakHeapPtr<JSAtom*> source;
     uint32_t sourceId;
+
+    // Line number (1-origin).
     size_t line;
+
+    // Column number in UTF-16 code units (1-origin).
     uint32_t column;
   };
 
@@ -330,7 +334,7 @@ struct MutableWrappedPtrOperations<SavedStacks::LocationValue, Wrapper>
 JS::UniqueChars BuildUTF8StackString(JSContext* cx, JSPrincipals* principals,
                                      HandleObject stack);
 
-uint32_t FixupColumnForDisplay(uint32_t column);
+uint32_t FixupMaybeWASMColumnForDisplay(uint32_t column);
 
 js::SavedFrame* UnwrapSavedFrame(JSContext* cx, JSPrincipals* principals,
                                  HandleObject obj,

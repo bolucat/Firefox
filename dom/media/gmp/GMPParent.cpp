@@ -405,6 +405,17 @@ nsresult GMPParent::LoadProcess() {
   return NS_OK;
 }
 
+void GMPParent::OnPreferenceChange(const mozilla::dom::Pref& aPref) {
+  MOZ_ASSERT(GMPEventTarget()->IsOnCurrentThread());
+  GMP_PARENT_LOG_DEBUG("%s", __FUNCTION__);
+
+  if (!mProcess) {
+    return;
+  }
+
+  Unused << SendPreferenceUpdate(aPref);
+}
+
 mozilla::ipc::IPCResult GMPParent::RecvPGMPContentChildDestroyed() {
   --mGMPContentChildCount;
   if (!IsUsed()) {
@@ -1095,8 +1106,8 @@ void GMPParent::ResolveGetContentParentPromises() {
   nsTArray<UniquePtr<MozPromiseHolder<GetGMPContentParentPromise>>> promises =
       std::move(mGetContentParentPromises);
   MOZ_ASSERT(mGetContentParentPromises.IsEmpty());
-  RefPtr<GMPContentParent::CloseBlocker> blocker(
-      new GMPContentParent::CloseBlocker(mGMPContentParent));
+  RefPtr<GMPContentParentCloseBlocker> blocker(
+      new GMPContentParentCloseBlocker(mGMPContentParent));
   for (auto& holder : promises) {
     holder->Resolve(blocker, __func__);
   }
@@ -1143,8 +1154,8 @@ void GMPParent::GetGMPContentParent(
   GMP_PARENT_LOG_DEBUG("%s %p", __FUNCTION__, this);
 
   if (mGMPContentParent) {
-    RefPtr<GMPContentParent::CloseBlocker> blocker(
-        new GMPContentParent::CloseBlocker(mGMPContentParent));
+    RefPtr<GMPContentParentCloseBlocker> blocker(
+        new GMPContentParentCloseBlocker(mGMPContentParent));
     aPromiseHolder->Resolve(blocker, __func__);
   } else {
     mGetContentParentPromises.AppendElement(std::move(aPromiseHolder));

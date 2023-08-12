@@ -2669,13 +2669,6 @@
   value: false
   mirror: always
 
-# Whether fullscreen should make the rest of the document inert.
-# This matches other browsers but historically not Gecko.
-- name: dom.fullscreen.modal
-  type: bool
-  value: true
-  mirror: always
-
 # Whether the Gamepad API is enabled
 - name: dom.gamepad.enabled
   type: bool
@@ -8493,28 +8486,9 @@
 #   1 - only base system fonts
 #   2 - also fonts from optional language packs
 #   3 - also user-installed fonts
-- name: layout.css.font-visibility.standard
+- name: layout.css.font-visibility
   type: int32_t
   value: 3
-  mirror: always
-
-# font-visibility setting when Tracking Protection is enabled
-- name: layout.css.font-visibility.trackingprotection
-  type: int32_t
-  value: 3
-  mirror: always
-
-# Max font-visibility setting for Private Browsing contexts
-# (The actual value used in a private-browsing context will be the lesser of
-# the appropriate standard/trackingprotection/RFP value from above, and the
-# private-browsing level specified by this pref.)
-- name: layout.css.font-visibility.private
-  type: int32_t
-#if defined(NIGHTLY_BUILD)
-  value: 2
-#else
-  value: 3
-#endif
   mirror: always
 
 # Is support for GeometryUtils.getBoxQuads enabled?
@@ -12802,11 +12776,6 @@
 - name: permissions.default.image
   type: RelaxedAtomicUint32
   value: 1
-  mirror: always
-
-- name: permissions.delegation.enabled
-  type: bool
-  value: true
   mirror: always
 
 - name: permissions.isolateBy.userContext

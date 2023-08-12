@@ -69,7 +69,11 @@ class ImportEntry {
   const HeapPtr<ModuleRequestObject*> moduleRequest_;
   const HeapPtr<JSAtom*> importName_;
   const HeapPtr<JSAtom*> localName_;
+
+  // Line number (1-origin).
   const uint32_t lineNumber_;
+
+  // Column number in UTF-16 code units (0-origin).
   const uint32_t columnNumber_;
 
  public:
@@ -93,7 +97,11 @@ class ExportEntry {
   const HeapPtr<ModuleRequestObject*> moduleRequest_;
   const HeapPtr<JSAtom*> importName_;
   const HeapPtr<JSAtom*> localName_;
+
+  // Line number (1-origin).
   const uint32_t lineNumber_;
+
+  // Column number in UTF-16 code units (0-origin).
   const uint32_t columnNumber_;
 
  public:
@@ -115,7 +123,11 @@ using ExportEntryVector = GCVector<ExportEntry, 0, SystemAllocPolicy>;
 
 class RequestedModule {
   const HeapPtr<ModuleRequestObject*> moduleRequest_;
+
+  // Line number (1-origin).
   const uint32_t lineNumber_;
+
+  // Column number in UTF-16 code units (0-origin).
   const uint32_t columnNumber_;
 
  public:

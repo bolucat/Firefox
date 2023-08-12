@@ -1133,7 +1133,10 @@ class FlowGraphSummary {
    private:
     Entry(size_t lineno, size_t column) : lineno_(lineno), column_(column) {}
 
+    // Line number (1-origin).
     size_t lineno_;
+
+    // Column number in UTF-16 code units (0-origin).
     size_t column_;
   };
 

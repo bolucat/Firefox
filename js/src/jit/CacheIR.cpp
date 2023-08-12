@@ -24,7 +24,7 @@
 #include "jit/CacheIRWriter.h"
 #include "jit/InlinableNatives.h"
 #include "jit/JitContext.h"
-#include "jit/JitRealm.h"
+#include "jit/JitZone.h"
 #include "js/experimental/JitInfo.h"  // JSJitInfo
 #include "js/friend/DOMProxy.h"       // JS::ExpandoAndGeneration
 #include "js/friend/WindowProxy.h"  // js::IsWindow, js::IsWindowProxy, js::ToWindowIfWindowProxy
@@ -6597,21 +6597,30 @@ static bool HasOptimizableLastIndexSlot(RegExpObject* regexp, JSContext* cx) {
 // Returns the RegExp stub used by the optimized code path for this intrinsic.
 // We store a pointer to this in the IC stub to ensure GC doesn't discard it.
 static JitCode* GetOrCreateRegExpStub(JSContext* cx, InlinableNative native) {
+  // The stubs assume the global has non-null RegExpStatics and match result
+  // shape.
+  if (!GlobalObject::getRegExpStatics(cx, cx->global()) ||
+      !cx->global()->regExpRealm().getOrCreateMatchResultShape(cx)) {
+    MOZ_ASSERT(cx->isThrowingOutOfMemory() || cx->isThrowingOverRecursed());
+    cx->clearPendingException();
+    return nullptr;
+  }
+
   JitCode* code;
   switch (native) {
     case InlinableNative::IntrinsicRegExpBuiltinExecForTest:
     case InlinableNative::IntrinsicRegExpExecForTest:
-      code = cx->realm()->jitRealm()->ensureRegExpExecTestStubExists(cx);
+      code = cx->zone()->jitZone()->ensureRegExpExecTestStubExists(cx);
       break;
     case InlinableNative::IntrinsicRegExpBuiltinExec:
     case InlinableNative::IntrinsicRegExpExec:
-      code = cx->realm()->jitRealm()->ensureRegExpExecMatchStubExists(cx);
+      code = cx->zone()->jitZone()->ensureRegExpExecMatchStubExists(cx);
       break;
     case InlinableNative::RegExpMatcher:
-      code = cx->realm()->jitRealm()->ensureRegExpMatcherStubExists(cx);
+      code = cx->zone()->jitZone()->ensureRegExpMatcherStubExists(cx);
       break;
     case InlinableNative::RegExpSearcher:
-      code = cx->realm()->jitRealm()->ensureRegExpSearcherStubExists(cx);
+      code = cx->zone()->jitZone()->ensureRegExpSearcherStubExists(cx);
       break;
     default:
       MOZ_CRASH("Unexpected native");
