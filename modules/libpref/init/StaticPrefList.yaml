@@ -3043,11 +3043,7 @@
 # disabled.
 - name: dom.keyboardevent.init_key_event.enabled_in_addons
   type: bool
-#if defined(RELEASE_OR_BETA)
-  value: true
-#else
-  value: false
-#endif
+  value: @IS_NOT_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # If this is true, keypress events for non-printable keys are dispatched only
@@ -8824,13 +8820,6 @@
   value: 0.750f
   mirror: always
 
-# Set the threshold distance in CSS pixels below which scrolling will snap to
-# an edge, when scroll snapping is set to "proximity".
-- name: layout.css.scroll-snap.proximity-threshold
-  type: RelaxedAtomicInt32
-  value: 200
-  mirror: always
-
 # Stylo thread-pool size.
 # Negative means auto, 0 disables the thread-pool (main-thread styling), other
 # numbers override as specified.
@@ -11700,13 +11689,6 @@
 - name: network.predictor.doing-tests
   type: bool
   value: false
-  mirror: always
-
-# Enables `<link rel="preload">` tag and `Link: rel=preload` response header
-# handling.
-- name: network.preload
-  type: RelaxedAtomicBool
-  value: true
   mirror: always
 
 # Enables `<link rel="preconnect">` tag and `Link: rel=preconnect` response header
