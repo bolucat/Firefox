@@ -592,11 +592,7 @@
 #    (multiplied then by pixelsPerLineStep which in GNOME-web is 40).
 -   name: apz.gtk.pangesture.delta_mode
     type: uint32_t
-#ifdef NIGHTLY_BUILD
-    value: 2
-#else
     value: 0
-#endif
     mirror: always
 
 -   name: apz.gtk.pangesture.page_delta_mode_multiplier
@@ -2963,12 +2959,6 @@
 - name: dom.forms.datetime.others
   type: bool
   value: @IS_ANDROID@
-  mirror: always
-
-# Is support for HTMLElement.enterKeyHint enabled?
-- name: dom.forms.enterkeyhint
-  type: bool
-  value: true
   mirror: always
 
 # Is support for HTMLElement.inputMode enabled?
@@ -8190,13 +8180,6 @@
   value: true
   mirror: always
 
-# Make `zoom` a `transform` + `transform-origin` alias.
-- name: layout.css.zoom-transform-hack.enabled
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-  rust: true
-
 # Whether the `-moz-control-character-visibility` property is exposed to
 # content.
 #
@@ -12911,14 +12894,6 @@
   value: true
   mirror: always
 
-# The maximum amount of time CUPS should spend enumerating print destinations
-# (in milliseconds).
-# The default value chosen here is completely arbitrary.
-- name: print.cups.enum_dests_timeout_ms
-  type: RelaxedAtomicUint32
-  value: 150
-  mirror: always
-
 #---------------------------------------------------------------------------
 # Prefs starting with "privacy."
 #---------------------------------------------------------------------------
@@ -15620,17 +15595,28 @@
   value: 0.05f
   mirror: always
 
+# When using pixel deltas for pan input, how many pixels do we consider a whole
+# swipe?
+#
 # The values for this pref are derived from trial and error in an effort to
 # match the existing behavior on the respective platforms.
-- name: widget.swipe.whole-page-pixel-size
+- name: widget.swipe.pixel-size
   type: float
-#if defined(XP_WIN)
-  value: 1100.0f
-#elif defined(XP_MACOSX)
+#if defined(XP_MACOSX)
   value: 550.0f
 #else
-  value: 40.0f
+  value: 1100.0f
 #endif
+  mirror: always
+
+# When using page deltas for pan input, how many pages do we consider a whole
+# swipe navigation?
+#
+# This is only relevant for GTK which is as of right now the only platform
+# which supports page-based pan gestures.
+- name: widget.swipe.page-size
+  type: float
+  value: 40.0f
   mirror: always
 
 - name: widget.transparent-windows

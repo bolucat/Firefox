@@ -79,7 +79,7 @@ class HistoryInView extends ViewPage {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.placesQuery.close();
-    this.migrationWizardDialog.removeEventListener(
+    this.migrationWizardDialog?.removeEventListener(
       "MigrationWizard:Close",
       this.migrationWizardDialog
     );
@@ -294,7 +294,7 @@ class HistoryInView extends ViewPage {
             ></h3>
             <fxview-tab-list
               slot="main"
-              class="history"
+              class="with-context-menu"
               dateTimeFormat=${historyItem.l10nId.includes("prev-month")
                 ? "dateTime"
                 : "time"}

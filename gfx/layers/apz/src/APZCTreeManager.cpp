@@ -1364,10 +1364,16 @@ HitTestingTreeNode* APZCTreeManager::PrepareNodeForLayer(
         if (!aLayer.Metadata().IsPaginatedPresentation()) {
           if (ancestorTransform.IsFinite() &&
               existingAncestorTransform.IsFinite()) {
-            MOZ_ASSERT(
-                false,
-                "Two layers that scroll together have different ancestor "
-                "transforms");
+            // Log separately from the assert because assert doesn't allow
+            // printf-style arguments, but it's important for debugging that the
+            // log identifies *which* scroll frame violated the condition.
+            MOZ_LOG(sLog, LogLevel::Error,
+                    ("Two layers that scroll together have different ancestor "
+                     "transforms (guid=%s)",
+                     ToString(apzc->GetGuid()).c_str()));
+            MOZ_ASSERT(false,
+                       "Two layers that scroll together have different "
+                       "ancestor transforms");
           } else {
             MOZ_ASSERT(ancestorTransform.IsFinite() ==
                        existingAncestorTransform.IsFinite());
@@ -3152,8 +3158,8 @@ ScreenToParentLayerMatrix4x4 APZCTreeManager::GetScreenToApzcTransform(
     ancestorUntransform = parent->GetAncestorTransform().Inverse();
     // asyncUntransform is updated to PA.Inverse() when parent == P
     Matrix4x4 asyncUntransform = parent
-                                     ->GetCurrentAsyncTransformWithOverscroll(
-                                         AsyncPanZoomController::eForHitTesting)
+                                     ->GetAsyncTransformForInputTransformation(
+                                         LayoutAndVisual, aApzc->GetLayersId())
                                      .Inverse()
                                      .ToUnknownMatrix();
     // untransformSinceLastApzc is RC.Inverse() * QC.Inverse() * PA.Inverse()
@@ -3189,17 +3195,17 @@ ParentLayerToScreenMatrix4x4 APZCTreeManager::GetApzcToGeckoTransform(
   // notation where the leftmost matrix in a multiplication is applied first.
 
   // asyncUntransform is LA.Inverse()
-  Matrix4x4 asyncUntransform =
-      aApzc
-          ->GetCurrentAsyncTransformWithOverscroll(
-              AsyncPanZoomController::eForHitTesting, aComponents)
-          .Inverse()
-          .ToUnknownMatrix();
+  Matrix4x4 asyncUntransform = aApzc
+                                   ->GetAsyncTransformForInputTransformation(
+                                       aComponents, aApzc->GetLayersId())
+                                   .Inverse()
+                                   .ToUnknownMatrix();
 
   // aTransformToGeckoOut is initialized to LA.Inverse() * LD * MC * NC * OC *
   // PC
   result = asyncUntransform *
-           aApzc->GetTransformToLastDispatchedPaint(aComponents) *
+           aApzc->GetTransformToLastDispatchedPaint(aComponents,
+                                                    aApzc->GetLayersId()) *
            aApzc->GetAncestorTransform();
 
   for (AsyncPanZoomController* parent = aApzc->GetParent(); parent;
@@ -3210,7 +3216,8 @@ ParentLayerToScreenMatrix4x4 APZCTreeManager::GetApzcToGeckoTransform(
     // Note: Do not pass the async transform components for the current target
     // to the parent.
     result = result *
-             parent->GetTransformToLastDispatchedPaint(LayoutAndVisual) *
+             parent->GetTransformToLastDispatchedPaint(LayoutAndVisual,
+                                                       aApzc->GetLayersId()) *
              parent->GetAncestorTransform();
 
     // The above value for result when parent == P matches the required output
@@ -3566,9 +3573,12 @@ void APZCTreeManager::SendSubtreeTransformsToChromeMainThread(
               messages.AppendElement(
                   MatrixMessage(Nothing(), ScreenRect(), layersId));
             } else {
+              // It's important to pass aRemoteLayersId=layersId here (not
+              // parent->GetLayersId()). layersId is the LayersId of the
+              // remote content for which this transform is being computed.
               messages.AppendElement(MatrixMessage(
-                  Some(parent->GetTransformToGecko()),
-                  parent->GetRemoteDocumentScreenRect(), layersId));
+                  Some(parent->GetTransformToGecko(layersId)),
+                  parent->GetRemoteDocumentScreenRect(layersId), layersId));
             }
           }
         },

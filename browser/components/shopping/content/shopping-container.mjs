@@ -30,6 +30,8 @@ export class ShoppingContainer extends MozLitElement {
     showOnboarding: { type: Boolean },
     productUrl: { type: String },
     recommendationData: { type: Object },
+    isOffline: { type: Boolean },
+    analysisEvent: { type: Object },
   };
 
   static get queries() {
@@ -52,6 +54,8 @@ export class ShoppingContainer extends MozLitElement {
     this.initialized = true;
 
     window.document.addEventListener("Update", this);
+    window.document.addEventListener("NewAnalysisRequested", this);
+    window.document.addEventListener("ReAnalysisRequested", this);
 
     window.dispatchEvent(
       new CustomEvent("ContentReady", {
@@ -61,7 +65,13 @@ export class ShoppingContainer extends MozLitElement {
     );
   }
 
-  async _update({ data, showOnboarding, productUrl, recommendationData }) {
+  async _update({
+    data,
+    showOnboarding,
+    productUrl,
+    recommendationData,
+    isPolledRequestDone,
+  }) {
     // If we're not opted in or there's no shopping URL in the main browser,
     // the actor will pass `null`, which means this will clear out any existing
     // content in the sidebar.
@@ -69,12 +79,27 @@ export class ShoppingContainer extends MozLitElement {
     this.showOnboarding = showOnboarding;
     this.productUrl = productUrl;
     this.recommendationData = recommendationData;
+    this.isOffline = !navigator.onLine;
+    this.isPolledRequestDone = isPolledRequestDone;
   }
 
   handleEvent(event) {
     switch (event.type) {
       case "Update":
         this._update(event.detail);
+        break;
+      case "NewAnalysisRequested":
+      case "ReAnalysisRequested":
+        this.analysisEvent = {
+          type: event.type,
+          productUrl: this.productUrl,
+        };
+        window.dispatchEvent(
+          new CustomEvent("PolledRequestMade", {
+            bubbles: true,
+            composed: true,
+          })
+        );
         break;
     }
   }
@@ -92,9 +117,30 @@ export class ShoppingContainer extends MozLitElement {
   }
 
   getContentTemplate() {
+    // The user requested an analysis which is not done yet.
+    // We only want to show the analysis-in-progress message-bar
+    // for the product currently in view.
+    if (
+      this.analysisEvent?.productUrl == this.productUrl &&
+      !this.isPolledRequestDone
+    ) {
+      return html`<shopping-message-bar
+          type="analysis-in-progress"
+        ></shopping-message-bar>
+        ${this.analysisEvent.type == "ReAnalysisRequested"
+          ? this.getAnalysisDetailsTemplate()
+          : null}`;
+    }
+
     if (this.data?.error) {
       return html`<shopping-message-bar
         type="generic-error"
+      ></shopping-message-bar>`;
+    }
+
+    if (this.data.deleted_product) {
+      return html`<shopping-message-bar
+        type="product-not-available"
       ></shopping-message-bar>`;
     }
 
@@ -149,7 +195,7 @@ export class ShoppingContainer extends MozLitElement {
     `;
   }
 
-  renderContainer(sidebarContent) {
+  renderContainer(sidebarContent, hideSettings = false) {
     return html`<link
         rel="stylesheet"
         href="chrome://browser/content/shopping/shopping-container.css"
@@ -173,23 +219,32 @@ export class ShoppingContainer extends MozLitElement {
             data-l10n-id="shopping-close-button"
           ></button>
         </div>
-        <div id="content" aria-busy=${!this.data}>${sidebarContent}</div>
+        <div id="content" aria-busy=${!this.data}>
+          ${sidebarContent}
+          ${!hideSettings
+            ? html`<shopping-settings></shopping-settings>`
+            : null}
+        </div>
       </div>`;
   }
 
   render() {
     let content;
+    let hideSettings;
     if (this.showOnboarding) {
       content = html`<slot name="multi-stage-message-slot"></slot>`;
+      hideSettings = true;
+    } else if (this.isOffline) {
+      content = html`<shopping-message-bar
+        type="offline"
+      ></shopping-message-bar>`;
     } else if (!this.data) {
       content = this.getLoadingTemplate();
+      hideSettings = true;
     } else {
-      content = html`
-        ${this.getContentTemplate()}
-        <shopping-settings></shopping-settings>
-      `;
+      content = this.getContentTemplate();
     }
-    return this.renderContainer(content);
+    return this.renderContainer(content, hideSettings);
   }
 }
 
