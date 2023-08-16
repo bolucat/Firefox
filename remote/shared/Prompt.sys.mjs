@@ -9,9 +9,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
   Log: "chrome://remote/content/shared/Log.sys.mjs",
 });
 
-ChromeUtils.defineLazyGetter(lazy, "logger", () =>
-  lazy.Log.get(lazy.Log.TYPES.MARIONETTE)
-);
+ChromeUtils.defineLazyGetter(lazy, "logger", () => lazy.Log.get());
 
 const COMMON_DIALOG = "chrome://global/content/commonDialog.xhtml";
 
@@ -22,7 +20,8 @@ export const modal = {
 };
 
 /**
- * Check for already existing modal or tab modal dialogs
+ * Check for already existing modal or tab modal dialogs and
+ * return the first one.
  *
  * @param {browser.Context} context
  *     Reference to the browser context to check for existent dialogs.
@@ -31,7 +30,7 @@ export const modal = {
  *     Returns instance of the Dialog class, or `null` if no modal dialog
  *     is present.
  */
-modal.findModalDialogs = function (context) {
+modal.findPrompt = function (context) {
   // First check if there is a modal dialog already present for the
   // current browser window.
   for (let win of Services.wm.getEnumerator(null)) {
@@ -316,13 +315,6 @@ modal.Dialog = class {
     return this.curBrowser_.getTabModal();
   }
 
-  get text() {
-    if (lazy.AppInfo.isAndroid) {
-      return this.window.getPromptText();
-    }
-    return this.ui.infoBody.textContent;
-  }
-
   get ui() {
     let tm = this.tabModal;
     return tm ? tm.ui : null;
@@ -371,5 +363,19 @@ modal.Dialog = class {
       const { button0, button1 } = this.ui;
       (button1 ? button1 : button0).click();
     }
+  }
+
+  /**
+   * Returns text of the prompt.
+   *
+   * @returns {string | Promise}
+   *     Returns string on desktop and Promise on Android.
+   */
+  async getText() {
+    if (lazy.AppInfo.isAndroid) {
+      const textPromise = await this.window.getPromptText();
+      return textPromise;
+    }
+    return this.ui.infoBody.textContent;
   }
 };

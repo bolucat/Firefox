@@ -736,6 +736,10 @@ pref("browser.shopping.experience2023.optedIn", 0);
 // True by default, will be set to false on opt out.
 pref("browser.shopping.experience2023.active", true);
 
+// Activates the ad card in the shopping sidebar.
+// True by default, will be set to false on opt out.
+pref("browser.shopping.experience2023.ads.enabled", true);
+
 // Enables the display of the Mozilla VPN banner in private browsing windows
 pref("browser.privatebrowsing.vpnpromourl", "https://vpn.mozilla.org/?utm_source=firefox-browser&utm_medium=firefox-%CHANNEL%-browser&utm_campaign=private-browsing-vpn-link");
 
@@ -1649,7 +1653,7 @@ pref("browser.newtabpage.activity-stream.discoverystream.essentialReadsHeader.en
 pref("browser.newtabpage.activity-stream.discoverystream.recentSaves.enabled", false);
 pref("browser.newtabpage.activity-stream.discoverystream.editorsPicksHeader.enabled", false);
 pref("browser.newtabpage.activity-stream.discoverystream.spoc-positions", "1,5,7,11,18,20");
-pref("browser.newtabpage.activity-stream.discoverystream.spoc-topsites-positions", "1");
+pref("browser.newtabpage.activity-stream.discoverystream.spoc-topsites-positions", "2");
 pref("browser.newtabpage.activity-stream.discoverystream.widget-positions", "");
 
 pref("browser.newtabpage.activity-stream.discoverystream.spocs-endpoint", "");
@@ -1676,7 +1680,7 @@ pref("browser.newtabpage.activity-stream.discoverystream.region-stories-block", 
 // List of regions that get stories by default.
 pref("browser.newtabpage.activity-stream.discoverystream.region-stories-config", "US,DE,CA,GB,IE,CH,AT,BE,IN,FR,IT,ES");
 // List of regions that support the new recommendations BFF, also requires region-stories-config
-pref("browser.newtabpage.activity-stream.discoverystream.region-bff-config", "FR,IT,ES");
+pref("browser.newtabpage.activity-stream.discoverystream.region-bff-config", "US,DE,CA,GB,IE,CH,AT,BE,IN,FR,IT,ES");
 // List of regions that get spocs by default.
 pref("browser.newtabpage.activity-stream.discoverystream.region-spocs-config", "US,CA,DE,GB,FR,IT,ES");
 // List of regions that don't get the 7 row layout.

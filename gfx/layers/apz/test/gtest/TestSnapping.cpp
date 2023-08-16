@@ -65,7 +65,7 @@ TEST_F(APZCSnappingTesterMock, Bug1265510) {
   // cursor.
   while (outer
              ->GetCurrentAsyncScrollOffset(
-                 AsyncPanZoomController::AsyncTransformConsumer::eForHitTesting)
+                 AsyncTransformConsumer::eForEventHandling)
              .y < 70) {
     mcc->AdvanceByMillis(5);
     outer->AdvanceAnimations(mcc->GetSampleTime());
@@ -78,23 +78,19 @@ TEST_F(APZCSnappingTesterMock, Bug1265510) {
   SmoothWheel(manager, ScreenIntPoint(50, 80), ScreenPoint(0, 6), mcc->Time());
   mcc->AdvanceByMillis(5);
   inner->AdvanceAnimationsUntilEnd();
-  EXPECT_LT(
-      0.0f,
-      inner
-          ->GetCurrentAsyncScrollOffset(
-              AsyncPanZoomController::AsyncTransformConsumer::eForHitTesting)
-          .y);
+  EXPECT_LT(0.0f, inner
+                      ->GetCurrentAsyncScrollOffset(
+                          AsyncTransformConsumer::eForEventHandling)
+                      .y);
 
   // However, the outer frame should also continue to the snap point, otherwise
   // it is demonstrating incorrect behaviour by violating the mandatory
   // snapping.
   outer->AdvanceAnimationsUntilEnd();
-  EXPECT_EQ(
-      100.0f,
-      outer
-          ->GetCurrentAsyncScrollOffset(
-              AsyncPanZoomController::AsyncTransformConsumer::eForHitTesting)
-          .y);
+  EXPECT_EQ(100.0f, outer
+                        ->GetCurrentAsyncScrollOffset(
+                            AsyncTransformConsumer::eForEventHandling)
+                        .y);
 }
 
 TEST_F(APZCSnappingTesterMock, Snap_After_Pinch) {
@@ -217,10 +213,10 @@ TEST_F(APZCSnappingTesterMock, SnapOnPanEndWithZeroVelocity) {
   apzc->AdvanceAnimationsUntilEnd();
   // The snapped position should be 30 rather than 100 because it's the nearest
   // snap point.
-  EXPECT_EQ(
-      apzc->GetCurrentAsyncScrollOffset(AsyncPanZoomController::eForHitTesting)
-          .y,
-      30);
+  EXPECT_EQ(apzc->GetCurrentAsyncScrollOffset(
+                    AsyncPanZoomController::eForEventHandling)
+                .y,
+            30);
 }
 
 // Smililar to above SnapOnPanEndWithZeroVelocity but with positive velocity so
@@ -298,9 +294,9 @@ TEST_F(APZCSnappingTesterMock, SnapOnPanEndWithPositiveVelocity) {
   apzc->AssertStateIsSmoothMsdScroll();
 
   apzc->AdvanceAnimationsUntilEnd();
-  EXPECT_EQ(
-      apzc->GetCurrentAsyncScrollOffset(AsyncPanZoomController::eForHitTesting)
-          .y,
-      100);
+  EXPECT_EQ(apzc->GetCurrentAsyncScrollOffset(
+                    AsyncPanZoomController::eForEventHandling)
+                .y,
+            100);
 }
 #endif

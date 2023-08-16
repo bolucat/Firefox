@@ -1173,26 +1173,10 @@ class AsyncPanZoomController {
    * the current async transform state to callers.
    */
  public:
-  /**
-   * Allows consumers of async transforms to specify for what purpose they are
-   * using the async transform:
-   *
-   *   |eForHitTesting| is intended for hit-testing and other uses that need
-   *                    the most up-to-date transform, reflecting all events
-   *                    that have been processed so far, even if the transform
-   *                    is not yet reflected visually.
-   *   |eForCompositing| is intended for the transform that should be reflected
-   *                     visually.
-   *
-   * For example, if an APZC has metrics with the mForceDisableApz flag set,
-   * then the |eForCompositing| async transform will be empty, while the
-   * |eForHitTesting| async transform will reflect processed input events
-   * regardless of mForceDisableApz.
-   */
-  enum AsyncTransformConsumer {
-    eForHitTesting,
-    eForCompositing,
-  };
+  static const AsyncTransformConsumer eForEventHandling =
+      AsyncTransformConsumer::eForEventHandling;
+  static const AsyncTransformConsumer eForCompositing =
+      AsyncTransformConsumer::eForCompositing;
 
   /**
    * Get the current scroll offset of the scrollable frame corresponding
@@ -1233,15 +1217,6 @@ class AsyncPanZoomController {
    * |aSampleIndex| specifies which sample in |mSampledState| to use.
    */
   AsyncTransform GetCurrentAsyncTransform(
-      AsyncTransformConsumer aMode,
-      AsyncTransformComponents aComponents = LayoutAndVisual,
-      std::size_t aSampleIndex = 0) const;
-
-  /**
-   * Returns the same transform as GetCurrentAsyncTransform(), but includes
-   * any transform due to axis over-scroll.
-   */
-  AsyncTransformComponentMatrix GetCurrentAsyncTransformWithOverscroll(
       AsyncTransformConsumer aMode,
       AsyncTransformComponents aComponents = LayoutAndVisual,
       std::size_t aSampleIndex = 0) const;

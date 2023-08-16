@@ -28,7 +28,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
   Log: "chrome://remote/content/shared/Log.sys.mjs",
   Marionette: "chrome://remote/content/components/Marionette.sys.mjs",
   MarionettePrefs: "chrome://remote/content/marionette/prefs.sys.mjs",
-  modal: "chrome://remote/content/marionette/modal.sys.mjs",
+  modal: "chrome://remote/content/shared/Prompt.sys.mjs",
   navigate: "chrome://remote/content/marionette/navigate.sys.mjs",
   permissions: "chrome://remote/content/marionette/permissions.sys.mjs",
   pprint: "chrome://remote/content/shared/Format.sys.mjs",
@@ -484,7 +484,7 @@ GeckoDriver.prototype.newSession = async function (cmd) {
       }
 
       // Check if there is already an open dialog for the selected browser window.
-      this.dialog = lazy.modal.findModalDialogs(this.curBrowser);
+      this.dialog = lazy.modal.findPrompt(this.curBrowser);
     }
 
     lazy.registerCommandsActor(this.currentSession.id);
@@ -1314,8 +1314,8 @@ GeckoDriver.prototype.setWindowHandle = async function (
       tab?.linkedBrowser.browsingContext;
   }
 
-  // Check for existing dialogs for the new window
-  this.dialog = lazy.modal.findModalDialogs(this.curBrowser);
+  // Check for an existing dialog for the new window
+  this.dialog = lazy.modal.findPrompt(this.curBrowser);
 
   // If there is an open window modal dialog the underlying chrome window
   // cannot be focused.
@@ -2746,10 +2746,11 @@ GeckoDriver.prototype.acceptDialog = async function () {
  * @throws {NoSuchWindowError}
  *     Top-level browsing context has been discarded.
  */
-GeckoDriver.prototype.getTextFromDialog = function () {
+GeckoDriver.prototype.getTextFromDialog = async function () {
   lazy.assert.open(this.getBrowsingContext({ top: true }));
   this._checkIfAlertIsPresent();
-  return this.dialog.text;
+  const text = await this.dialog.getText();
+  return text;
 };
 
 /**
@@ -2809,7 +2810,7 @@ GeckoDriver.prototype._handleUserPrompts = async function () {
     return;
   }
 
-  let textContent = this.dialog.text;
+  const textContent = await this.dialog.getText();
 
   const behavior = this.currentSession.unhandledPromptBehavior;
   switch (behavior) {
