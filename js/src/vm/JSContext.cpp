@@ -278,7 +278,7 @@ void JSContext::onOutOfMemory() {
     return;
   }
 
-  RootedValue oomMessage(this, StringValue(names().outOfMemory));
+  RootedValue oomMessage(this, StringValue(names().out_of_memory_));
   setPendingException(oomMessage, nullptr);
   MOZ_ASSERT(status == JS::ExceptionStatus::Throwing);
   status = JS::ExceptionStatus::OutOfMemory;
@@ -479,7 +479,7 @@ static void PrintSingleError(FILE* file, JS::ConstUTF8CharsZ toStringResult,
 
   if (report->lineno) {
     prefix = JS_smprintf("%s%u:%u ", prefix ? prefix.get() : "", report->lineno,
-                         report->column);
+                         report->column.oneOriginValue());
   }
 
   if (kind != PrintErrorKind::Error) {
@@ -704,7 +704,7 @@ JSObject* js::CreateErrorNotesArray(JSContext* cx, JSErrorReport* report) {
     if (!DefineDataProperty(cx, noteObj, cx->names().lineNumber, linenoVal)) {
       return nullptr;
     }
-    RootedValue columnVal(cx, Int32Value(note->column));
+    RootedValue columnVal(cx, Int32Value(note->column.oneOriginValue()));
     if (!DefineDataProperty(cx, noteObj, cx->names().columnNumber, columnVal)) {
       return nullptr;
     }
@@ -1075,7 +1075,7 @@ void JSContext::setRuntime(JSRuntime* rt) {
 
 #if defined(NIGHTLY_BUILD)
 static bool IsOutOfMemoryException(JSContext* cx, const Value& v) {
-  return v == StringValue(cx->names().outOfMemory);
+  return v == StringValue(cx->names().out_of_memory_);
 }
 #endif
 

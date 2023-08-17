@@ -688,7 +688,7 @@ static JSObject* CreateFunctionPrototype(JSContext* cx, JSProtoKey key) {
 
   return NewFunctionWithProto(
       cx, FunctionPrototype, 0, FunctionFlags::NATIVE_FUN, nullptr,
-      Handle<PropertyName*>(cx->names().empty), objectProto,
+      Handle<PropertyName*>(cx->names().empty_), objectProto,
       gc::AllocKind::FUNCTION, TenuredObject);
 }
 
@@ -1192,7 +1192,7 @@ static bool CreateDynamicFunction(JSContext* cx, const CallArgs& args,
 
   RootedScript maybeScript(cx);
   const char* filename;
-  unsigned lineno;
+  uint32_t lineno;
   bool mutedErrors;
   uint32_t pcOffset;
   DescribeScriptedCallerForCompilation(cx, &maybeScript, &filename, &lineno,
@@ -1753,7 +1753,7 @@ static JSAtom* SymbolToFunctionName(JSContext* cx, JS::Symbol* symbol,
 
   // Step 4.b, no prefix fastpath.
   if (!desc && prefixKind == FunctionPrefixKind::None) {
-    return cx->names().empty;
+    return cx->names().empty_;
   }
 
   // Step 5 (reordered).

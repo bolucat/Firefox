@@ -78,6 +78,7 @@ class StyleRuleActor extends Actor {
     this._declarations = [];
 
     this._pendingDeclarationChanges = [];
+    this._failedToGetRuleText = false;
 
     if (CSSRule.isInstance(item)) {
       this.type = item.type;
@@ -122,18 +123,26 @@ class StyleRuleActor extends Actor {
   // True if this rule supports as-authored styles, meaning that the
   // rule text can be rewritten using setRuleText.
   get canSetRuleText() {
-    return (
-      this.type === ELEMENT_STYLE ||
-      (this._parentSheet &&
-        // If a rule has been modified via CSSOM, then we should fall
-        // back to non-authored editing.
-        // https://bugzilla.mozilla.org/show_bug.cgi?id=1224121
-        !InspectorUtils.hasRulesModifiedByCSSOM(this._parentSheet) &&
-        // Special case about:PreferenceStyleSheet, as it is generated on
-        // the fly and the URI is not registered with the about:handler
-        // https://bugzilla.mozilla.org/show_bug.cgi?id=935803#c37
-        this._parentSheet.href !== "about:PreferenceStyleSheet")
-    );
+    if (this.type === ELEMENT_STYLE) {
+      // Element styles are always editable.
+      return true;
+    }
+    if (!this._parentSheet) {
+      return false;
+    }
+    if (InspectorUtils.hasRulesModifiedByCSSOM(this._parentSheet)) {
+      // If a rule has been modified via CSSOM, then we should fall back to
+      // non-authored editing.
+      // https://bugzilla.mozilla.org/show_bug.cgi?id=1224121
+      return false;
+    }
+    if (this._parentSheet.href === "about:PreferenceStyleSheet") {
+      // Special case about:PreferenceStyleSheet, as it is generated on the
+      // fly and the URI is not registered with the about: protocol handler
+      // https://bugzilla.mozilla.org/show_bug.cgi?id=935803#c37
+      return false;
+    }
+    return true;
   }
 
   /**
@@ -687,22 +696,35 @@ class StyleRuleActor extends Actor {
    */
   async getAuthoredCssText(skipCache = false) {
     if (!this.canSetRuleText || !this.#isRuleSupported()) {
-      return Promise.resolve("");
+      return "";
     }
 
-    if (typeof this.authoredText === "string" && !skipCache) {
-      return Promise.resolve(this.authoredText);
+    if (!skipCache) {
+      if (this._failedToGetRuleText) {
+        return "";
+      }
+      if (typeof this.authoredText === "string") {
+        return this.authoredText;
+      }
     }
 
-    const resourceId =
-      this.pageStyle.styleSheetsManager.getStyleSheetResourceId(
-        this._parentSheet
+    try {
+      const resourceId =
+        this.pageStyle.styleSheetsManager.getStyleSheetResourceId(
+          this._parentSheet
+        );
+      const cssText = await this.pageStyle.styleSheetsManager.getText(
+        resourceId
       );
-    const cssText = await this.pageStyle.styleSheetsManager.getText(resourceId);
-    const { text } = getRuleText(cssText, this.line, this.column);
-
-    // Cache the result on the rule actor to avoid parsing again next time
-    this.authoredText = text;
+      const { text } = getRuleText(cssText, this.line, this.column);
+      // Cache the result on the rule actor to avoid parsing again next time
+      this._failedToGetRuleText = false;
+      this.authoredText = text;
+    } catch (e) {
+      this._failedToGetRuleText = true;
+      this.authoredText = undefined;
+      return "";
+    }
     return this.authoredText;
   }
 
@@ -722,7 +744,7 @@ class StyleRuleActor extends Actor {
   async getRuleText() {
     // Bail out if the rule is not supported or not an element inline style.
     if (!this.#isRuleSupported(true) && this.type !== ELEMENT_STYLE) {
-      return Promise.resolve("");
+      return "";
     }
 
     let ruleBodyText;
@@ -754,7 +776,7 @@ class StyleRuleActor extends Actor {
 
     const text = `${selectorText} {${ruleBodyText}}`;
     const { result } = SharedCssLogic.prettifyCSS(text);
-    return Promise.resolve(result);
+    return result;
   }
 
   /**
@@ -827,11 +849,9 @@ class StyleRuleActor extends Actor {
    * the authored text of a (nested) rule, so all the references are properly updated.
    */
   async updateAncestorRulesAuthoredText() {
-    const promises = [];
-    for (const ancestorRule of this.ancestorRules) {
-      promises.push(ancestorRule.getAuthoredCssText(true));
-    }
-    await Promise.all(promises);
+    return Promise.all(
+      this.ancestorRules.map(rule => rule.getAuthoredCssText(true))
+    );
   }
 
   /**

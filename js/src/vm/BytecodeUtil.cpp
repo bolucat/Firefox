@@ -27,6 +27,7 @@
 #include "gc/PublicIterators.h"
 #include "jit/IonScript.h"  // IonBlockCounts
 #include "js/CharacterEncoding.h"
+#include "js/ColumnNumber.h"  // JS::LimitedColumnNumberZeroOrigin
 #include "js/experimental/CodeCoverage.h"
 #include "js/experimental/PCCountProfiling.h"  // JS::{Start,Stop}PCCountProfiling, JS::PurgePCCounts, JS::GetPCCountScript{Count,Summary,Contents}
 #include "js/friend/DumpFunctions.h"           // js::DumpPC, js::DumpScript
@@ -110,11 +111,13 @@ static bool DecompileArgumentFromStack(JSContext* cx, int formalIndex,
 
   for (size_t i = 0; i < ionCounts->numBlocks(); i++) {
     const jit::IonBlockCounts& block = ionCounts->block(i);
-    unsigned lineNumber = 0, columnNumber = 0;
+    unsigned lineNumber = 0;
+    JS::LimitedColumnNumberZeroOrigin columnNumber;
     lineNumber = PCToLineNumber(script, script->offsetToPC(block.offset()),
                                 &columnNumber);
     if (!sp->jsprintf("BB #%" PRIu32 " [%05u,%u,%u]", block.id(),
-                      block.offset(), lineNumber, columnNumber)) {
+                      block.offset(), lineNumber,
+                      columnNumber.zeroOriginValue())) {
       return false;
     }
     if (block.description()) {
@@ -2301,10 +2304,10 @@ bool ExpressionDecompiler::init() {
 bool ExpressionDecompiler::write(const char* s) { return sprinter.put(s); }
 
 bool ExpressionDecompiler::write(JSString* str) {
-  if (str == cx->names().dotThis) {
+  if (str == cx->names().dot_this_) {
     return write("this");
   }
-  if (str == cx->names().dotNewTarget) {
+  if (str == cx->names().dot_newTarget_) {
     return write("new.target");
   }
   return sprinter.putString(str);

@@ -1032,7 +1032,7 @@ static MOZ_ALWAYS_INLINE bool IsArraySpecies(JSContext* cx,
     return false;
   }
 
-  return IsSelfHostedFunctionWithName(getter, cx->names().ArraySpecies);
+  return IsSelfHostedFunctionWithName(getter, cx->names().dollar_ArraySpecies_);
 }
 
 static bool ArraySpeciesCreate(JSContext* cx, HandleObject origArray,
@@ -1265,7 +1265,7 @@ bool js::array_join(JSContext* cx, unsigned argc, Value* vp) {
   }
 
   if (detector.foundCycle()) {
-    args.rval().setString(cx->names().empty);
+    args.rval().setString(cx->names().empty_);
     return true;
   }
 
@@ -1287,7 +1287,7 @@ bool js::array_join(JSContext* cx, unsigned argc, Value* vp) {
       return false;
     }
   } else {
-    sepstr = cx->names().comma;
+    sepstr = cx->names().comma_;
   }
 
   // Steps 5-8 (When the length is zero, directly return the empty string).
@@ -1392,7 +1392,7 @@ static bool array_toLocaleString(JSContext* cx, unsigned argc, Value* vp) {
 
   // Avoid calling into self-hosted code if the array is empty.
   if (obj->is<ArrayObject>() && obj->as<ArrayObject>().length() == 0) {
-    args.rval().setString(cx->names().empty);
+    args.rval().setString(cx->names().empty_);
     return true;
   }
 
@@ -1402,7 +1402,7 @@ static bool array_toLocaleString(JSContext* cx, unsigned argc, Value* vp) {
   }
 
   if (detector.foundCycle()) {
-    args.rval().setString(cx->names().empty);
+    args.rval().setString(cx->names().empty_);
     return true;
   }
 
@@ -5375,7 +5375,8 @@ void js::ArraySpeciesLookup::initialize(JSContext* cx) {
     return;
   }
   JSFunction* speciesFun = &speciesGetter->as<JSFunction>();
-  if (!IsSelfHostedFunctionWithName(speciesFun, cx->names().ArraySpecies)) {
+  if (!IsSelfHostedFunctionWithName(speciesFun,
+                                    cx->names().dollar_ArraySpecies_)) {
     return;
   }
 

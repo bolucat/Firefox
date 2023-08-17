@@ -2110,7 +2110,6 @@ pref("privacy.fingerprintingProtection.pbmode", true);
 
 // Start the browser in e10s mode
 pref("browser.tabs.remote.autostart", true);
-pref("browser.tabs.remote.desktopbehavior", true);
 
 // Run media transport in a separate process?
 pref("media.peerconnection.mtransport_process", true);
@@ -2262,10 +2261,6 @@ pref("signon.relatedRealms.enabled", false);
 pref("signon.showAutoCompleteFooter", true);
 pref("signon.showAutoCompleteImport", "import");
 pref("signon.suggestImportCount", 3);
-
-// Enable the "Simplify Page" feature in Print Preview. This feature
-// is disabled by default in toolkit.
-pref("print.use_simplify_page", true);
 
 // Space separated list of URLS that are allowed to send objects (instead of
 // only strings) through webchannels. Bug 1275612 tracks removing this pref and capability.

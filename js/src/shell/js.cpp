@@ -1968,7 +1968,7 @@ static bool CreateUserArrayBuffer(JSContext* cx, unsigned argc, Value* vp) {
   // The reference is made through a private name, because we don't want to
   // expose |userBuffer| to user-code.
 
-  auto* privateName = NewPrivateName(cx, cx->names().empty.toHandle());
+  auto* privateName = NewPrivateName(cx, cx->names().empty_.toHandle());
   if (!privateName) {
     return false;
   }
@@ -3895,7 +3895,7 @@ static bool CopyErrorReportToObject(JSContext* cx, JSErrorReport* report,
     return false;
   }
 
-  RootedValue columnVal(cx, Int32Value(report->column));
+  RootedValue columnVal(cx, Int32Value(report->column.oneOriginValue()));
   if (!DefineDataProperty(cx, obj, cx->names().columnNumber, columnVal)) {
     return false;
   }
@@ -4144,7 +4144,7 @@ static bool EvalInContext(JSContext* cx, unsigned argc, Value* vp) {
   }
 
   JS::AutoFilename filename;
-  unsigned lineno;
+  uint32_t lineno;
 
   DescribeScriptedCaller(cx, &filename, &lineno);
   {
@@ -5406,7 +5406,7 @@ static bool GetModuleEnvironmentNames(JSContext* cx, unsigned argc, Value* vp) {
 
   // The "*namespace*" binding is a detail of current implementation so hide
   // it to give stable results in tests.
-  ids.eraseIfEqual(NameToId(cx->names().starNamespaceStar));
+  ids.eraseIfEqual(NameToId(cx->names().star_namespace_star_));
 
   uint32_t length = ids.length();
   Rooted<ArrayObject*> array(cx, NewDenseFullyAllocatedArray(cx, length));
@@ -8744,7 +8744,7 @@ static bool TransplantableObject(JSContext* cx, unsigned argc, Value* vp) {
     }
   }
 
-  jsid emptyId = NameToId(cx->names().empty);
+  jsid emptyId = NameToId(cx->names().empty_);
   RootedObject transplant(
       cx, NewFunctionByIdWithReserved(cx, TransplantObject, 0, 0, emptyId));
   if (!transplant) {

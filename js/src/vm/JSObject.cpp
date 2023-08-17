@@ -1650,7 +1650,7 @@ bool js::LookupNameUnqualified(JSContext* cx, Handle<PropertyName*> name,
   // See note above RuntimeLexicalErrorObject.
   if (pobj == env) {
     bool isTDZ = false;
-    if (prop.isFound() && name != cx->names().dotThis) {
+    if (prop.isFound() && name != cx->names().dot_this_) {
       // Treat Debugger environments specially for TDZ checks, as they
       // look like non-native environments but in fact wrap native
       // environments.
@@ -1680,7 +1680,7 @@ bool js::LookupNameUnqualified(JSContext* cx, Handle<PropertyName*> name,
       if (!(env->is<BlockLexicalEnvironmentObject>() &&
             env->as<BlockLexicalEnvironmentObject>().scope().kind() ==
                 ScopeKind::NamedLambda)) {
-        MOZ_ASSERT(name != cx->names().dotThis);
+        MOZ_ASSERT(name != cx->names().dot_this_);
         env =
             RuntimeLexicalErrorObject::create(cx, env, JSMSG_BAD_CONST_ASSIGN);
         if (!env) {
@@ -2331,7 +2331,7 @@ bool JS::OrdinaryToPrimitive(JSContext* cx, HandleObject obj, JSType hint,
         if (fun->maybeNative() == obj_toString &&
             !MaybeHasInterestingSymbolProperty(
                 cx, obj, cx->wellKnownSymbols().toStringTag)) {
-          vp.setString(cx->names().objectObject);
+          vp.setString(cx->names().object_Object_);
           return true;
         }
         if (!js::Call(cx, vp, obj, vp)) {

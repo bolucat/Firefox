@@ -3581,6 +3581,9 @@ class Document : public nsINode,
 
   void MaybeWarnAboutZoom();
 
+  // https://drafts.csswg.org/cssom-view/#evaluate-media-queries-and-report-changes
+  void EvaluateMediaQueriesAndReportChanges(bool aRecurse);
+
   // ParentNode
   nsIHTMLCollection* Children();
   uint32_t ChildElementCount();
@@ -4044,6 +4047,10 @@ class Document : public nsINode,
   void SetPrototypeDocument(nsXULPrototypeDocument* aPrototype);
 
   nsIPermissionDelegateHandler* PermDelegateHandler();
+
+  // Returns whether this is a top-level about:blank page without an opener
+  // (and thus not accessible by content).
+  bool IsContentInaccessibleAboutBlank() const;
 
   // CSS prefers-color-scheme media feature for this document.
   enum class IgnoreRFP { No, Yes };

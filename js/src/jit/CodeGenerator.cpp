@@ -52,6 +52,7 @@
 #include "jit/SharedICRegisters.h"
 #include "jit/VMFunctions.h"
 #include "jit/WarpSnapshot.h"
+#include "js/ColumnNumber.h"  // JS::LimitedColumnNumberZeroOrigin
 #include "js/experimental/JitInfo.h"  // JSJit{Getter,Setter}CallArgs, JSJitMethodCallArgsTraits, JSJitInfo
 #include "js/friend/DOMProxy.h"  // JS::ExpandoAndGeneration
 #include "js/RegExpFlags.h"      // JS::RegExpFlag
@@ -1888,6 +1889,7 @@ static void UpdateRegExpStatics(MacroAssembler& masm, Register regexp,
                           RegExpStatics::offsetOfMatchesInput(),
                           temp1 /* prev */, temp2 /* next */, volatileRegs);
   } else {
+    masm.debugAssertGCThingIsTenured(input, temp1);
     masm.storePtr(input, pendingInputAddress);
     masm.storePtr(input, matchesInputAddress);
   }
@@ -2231,7 +2233,7 @@ void CreateDependentString::generate(MacroAssembler& masm,
 
   // Zero length matches use the empty string.
   masm.branchTest32(Assembler::NonZero, temp1_, temp1_, &nonEmpty);
-  masm.movePtr(ImmGCPtr(names.empty), string_);
+  masm.movePtr(ImmGCPtr(names.empty_), string_);
   masm.jump(&done);
 
   masm.bind(&nonEmpty);
@@ -2412,6 +2414,9 @@ static JitCode* GenerateRegExpMatchStubShared(JSContext* cx,
   } else {
     JitSpew(JitSpew_Codegen, "# Emitting RegExpMatcher stub");
   }
+
+  // |initialStringHeap| could be stale after a GC.
+  JS::AutoCheckCannotGC nogc(cx);
 
   Register regexp = RegExpMatcherRegExpReg;
   Register input = RegExpMatcherStringReg;
@@ -7268,22 +7273,18 @@ bool CodeGenerator::generateBody() {
 #ifdef JS_JITSPEW
     const char* filename = nullptr;
     size_t lineNumber = 0;
-    unsigned columnNumber = 0;
+    JS::LimitedColumnNumberZeroOrigin columnNumber;
     if (current->mir()->info().script()) {
       filename = current->mir()->info().script()->filename();
       if (current->mir()->pc()) {
         lineNumber = PCToLineNumber(current->mir()->info().script(),
                                     current->mir()->pc(), &columnNumber);
       }
-    } else {
-#  ifdef DEBUG
-      lineNumber = current->mir()->lineno();
-      columnNumber = current->mir()->columnIndex();
-#  endif
     }
     JitSpew(JitSpew_Codegen, "--------------------------------");
     JitSpew(JitSpew_Codegen, "# block%zu %s:%zu:%u%s:", i,
-            filename ? filename : "?", lineNumber, columnNumber,
+            filename ? filename : "?", lineNumber,
+            columnNumber.zeroOriginValue(),
             current->mir()->isLoopHeader() ? " (loop header)" : "");
 #endif
 
@@ -8560,7 +8561,7 @@ void CodeGenerator::visitFunctionName(LFunctionName* lir) {
   Label bail;
 
   const JSAtomState& names = gen->runtime->names();
-  masm.loadFunctionName(function, output, ImmGCPtr(names.empty), &bail);
+  masm.loadFunctionName(function, output, ImmGCPtr(names.empty_), &bail);
 
   bailoutFrom(&bail, lir->snapshot());
 }
@@ -11614,7 +11615,7 @@ void CodeGenerator::visitSubstr(LSubstr* lir) {
   // Zero length, return emptystring.
   masm.branchTest32(Assembler::NonZero, length, length, &nonZero);
   const JSAtomState& names = gen->runtime->names();
-  masm.movePtr(ImmGCPtr(names.empty), output);
+  masm.movePtr(ImmGCPtr(names.empty_), output);
   masm.jump(done);
 
   // Substring from 0..|str.length|, return str.
@@ -12054,7 +12055,7 @@ void CodeGenerator::visitCharAtMaybeOutOfBounds(LCharAtMaybeOutOfBounds* lir) {
 
   // Return the empty string for out-of-bounds access.
   const JSAtomState& names = gen->runtime->names();
-  masm.movePtr(ImmGCPtr(names.empty), output);
+  masm.movePtr(ImmGCPtr(names.empty_), output);
 
   masm.spectreBoundsCheck32(index, Address(str, JSString::offsetOfLength()),
                             temp0, oolFromCharCode->rejoin());
@@ -13610,7 +13611,7 @@ void CodeGenerator::visitArrayJoin(LArrayJoin* lir) {
     Label notEmpty;
     masm.branch32(Assembler::NotEqual, length, Imm32(0), &notEmpty);
     const JSAtomState& names = gen->runtime->names();
-    masm.movePtr(ImmGCPtr(names.empty), output);
+    masm.movePtr(ImmGCPtr(names.empty_), output);
     masm.jump(&skipCall);
 
     masm.bind(&notEmpty);
@@ -14098,7 +14099,7 @@ bool CodeGenerator::generate() {
   JitSpew(JitSpew_Codegen, "# Emitting code for script %s:%u:%u",
           gen->outerInfo().script()->filename(),
           gen->outerInfo().script()->lineno(),
-          gen->outerInfo().script()->column());
+          gen->outerInfo().script()->column().zeroOriginValue());
 
   // Initialize native code table with an entry to the start of
   // top-level script.

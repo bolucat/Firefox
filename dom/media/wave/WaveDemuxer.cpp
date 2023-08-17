@@ -154,9 +154,9 @@ bool WAVTrackDemuxer::Init() {
   mInfo->mRate = mSamplesPerSecond;
   mInfo->mChannels = mChannels;
   mInfo->mBitDepth = mFmtChunk.ValidBitsPerSamples();
-  mInfo->mProfile = AssertedCast<int8_t>(mFmtChunk.WaveFormat() & 0x00FF);
+  mInfo->mProfile = AssertedCast<uint8_t>(mFmtChunk.WaveFormat() & 0x00FF);
   mInfo->mExtendedProfile =
-      AssertedCast<int8_t>(mFmtChunk.WaveFormat() & 0xFF00 >> 8);
+      AssertedCast<uint8_t>(mFmtChunk.WaveFormat() & 0xFF00 >> 8);
   mInfo->mMimeType = "audio/wave; codecs=";
   mInfo->mMimeType.AppendInt(mFmtChunk.WaveFormat());
   mInfo->mDuration = Duration();
@@ -701,21 +701,24 @@ uint16_t FormatChunk::ExtraFormatInfoSize() const {
 }
 
 AudioConfig::ChannelLayout::ChannelMap FormatChunk::ChannelMap() const {
-  // Regular mapping if file doesn't have channel mapping info, of if the chunk
-  // size doesn't have the field for the size of the extension data.
+  // Regular mapping if file doesn't have channel mapping info. Alternatively,
+  // if the chunk size doesn't have the field for the size of the extension
+  // data, return a regular mapping.
   if (WaveFormat() != 0xFFFE || mRaw.Length() < 18) {
     return AudioConfig::ChannelLayout(Channels()).Map();
   }
   // The length of this chunk is at least 18, check if it's long enough to
   // hold the WAVE_FORMAT_EXTENSIBLE struct, that is 22 bytes. If not, fall
-  // back to a common mapping.
-  if (ExtraFormatInfoSize() < 22) {
+  // back to a common mapping. The channel mapping is four bytes, starting at
+  // offset 18.
+  if (ExtraFormatInfoSize() < 22 || mRaw.Length() < 22) {
     return AudioConfig::ChannelLayout(Channels()).Map();
   }
   // ChannelLayout::ChannelMap is by design bit-per-bit compatible with
   // WAVEFORMATEXTENSIBLE's dwChannelMask attribute, we can just cast here.
-  return static_cast<AudioConfig::ChannelLayout::ChannelMap>(
+  auto channelMap = static_cast<AudioConfig::ChannelLayout::ChannelMap>(
       mRaw[21] | mRaw[20] | mRaw[19] | mRaw[18]);
+  return channelMap;
 }
 
 // DataParser

@@ -5590,7 +5590,8 @@ static bool IsArrayPrototypeOptimizable(JSContext* cx, ArrayObject* arr,
   }
 
   *iterFun = &iterVal.toObject().as<JSFunction>();
-  return IsSelfHostedFunctionWithName(*iterFun, cx->names().ArrayValues);
+  return IsSelfHostedFunctionWithName(*iterFun,
+                                      cx->names().dollar_ArrayValues_);
 }
 
 static bool IsArrayIteratorPrototypeOptimizable(JSContext* cx,
@@ -6058,7 +6059,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachArrayJoin() {
         writer.loadArgumentFixedSlot(ArgumentKind::Arg0, argc_);
     sepId = writer.guardToString(argValId);
   } else {
-    sepId = writer.loadConstantString(cx_->names().comma);
+    sepId = writer.loadConstantString(cx_->names().comma_);
   }
 
   // Do the join.

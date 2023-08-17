@@ -2840,7 +2840,7 @@ static bool date_toUTCString(JSContext* cx, unsigned argc, Value* vp) {
 
   double utctime = unwrapped->UTCTime().toNumber();
   if (!std::isfinite(utctime)) {
-    args.rval().setString(cx->names().InvalidDate);
+    args.rval().setString(cx->names().Invalid_Date_);
     return true;
   }
 
@@ -2970,7 +2970,7 @@ JSString* DateTimeHelper::timeZoneComment(JSContext* cx,
   // Reject if the result string is empty.
   size_t len = js_strlen(timeZoneStart);
   if (len == 0) {
-    return cx->names().empty;
+    return cx->names().empty_;
   }
 
   // Parenthesize the returned display name.
@@ -3048,7 +3048,7 @@ JSString* DateTimeHelper::timeZoneComment(JSContext* cx,
     }
   }
 
-  return cx->names().empty;
+  return cx->names().empty_;
 }
 #endif /* JS_HAS_INTL_API */
 
@@ -3058,7 +3058,7 @@ static bool FormatDate(JSContext* cx, DateTimeInfo::ForceUTC forceUTC,
                        double utcTime, FormatSpec format,
                        MutableHandleValue rval) {
   if (!std::isfinite(utcTime)) {
-    rval.setString(cx->names().InvalidDate);
+    rval.setString(cx->names().Invalid_Date_);
     return true;
   }
 

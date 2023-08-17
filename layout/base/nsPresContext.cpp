@@ -1553,12 +1553,8 @@ ColorScheme nsPresContext::DefaultBackgroundColorScheme() const {
   dom::Document* doc = Document();
   // Use a dark background for top-level about:blank that is inaccessible to
   // content JS.
-  {
-    BrowsingContext* bc = doc->GetBrowsingContext();
-    if (bc && bc->IsTop() && !bc->HasOpener() && doc->GetDocumentURI() &&
-        NS_IsAboutBlank(doc->GetDocumentURI())) {
-      return doc->PreferredColorScheme(Document::IgnoreRFP::Yes);
-    }
+  if (doc->IsContentInaccessibleAboutBlank()) {
+    return doc->PreferredColorScheme(Document::IgnoreRFP::Yes);
   }
   // Prefer the root color-scheme (since generally the default canvas
   // background comes from the root element's background-color), and fall back
@@ -1943,6 +1939,10 @@ void nsPresContext::MediaFeatureValuesChanged(
     mPresShell->EnsureStyleFlush();
   }
 
+  if (!mDocument->MediaQueryLists().isEmpty()) {
+    RefreshDriver()->ScheduleMediaQueryListenerUpdate();
+  }
+
   if (!mPendingMediaFeatureValuesChange) {
     mPendingMediaFeatureValuesChange = MakeUnique<MediaFeatureChange>(aChange);
   } else {
@@ -1991,46 +1991,8 @@ bool nsPresContext::FlushPendingMediaFeatureValuesChanged() {
     RebuildAllStyleData(change.mChangeHint, change.mRestyleHint);
   }
 
-  if (mDocument->IsBeingUsedAsImage()) {
-    MOZ_ASSERT(mDocument->MediaQueryLists().isEmpty());
-    return changedStyle;
-  }
-
-  // https://drafts.csswg.org/cssom-view/#evaluate-media-queries-and-report-changes
-  //
-  // Media query list listeners should be notified from a queued task
-  // (in HTML5 terms), although we also want to notify them on certain
-  // flushes.  (We're already running off an event.)
-  //
-  // TODO: This should be better integrated into the "update the rendering"
-  // steps: https://html.spec.whatwg.org/#update-the-rendering
-  //
-  // Note that we do this after the new style from media queries in
-  // style sheets has been computed.
-
-  if (mDocument->MediaQueryLists().isEmpty()) {
-    return changedStyle;
-  }
-
-  // We build a list of all the notifications we're going to send
-  // before we send any of them.
-  nsTArray<RefPtr<mozilla::dom::MediaQueryList>> listsToNotify;
-  for (MediaQueryList* mql = mDocument->MediaQueryLists().getFirst(); mql;
-       mql = static_cast<LinkedListElement<MediaQueryList>*>(mql)->getNext()) {
-    if (mql->MediaFeatureValuesChanged()) {
-      listsToNotify.AppendElement(mql);
-    }
-  }
-
-  if (!listsToNotify.IsEmpty()) {
-    nsContentUtils::AddScriptRunner(NS_NewRunnableFunction(
-        "nsPresContext::FlushPendingMediaFeatureValuesChanged",
-        [list = std::move(listsToNotify)] {
-          for (const auto& mql : list) {
-            nsAutoMicroTask mt;
-            mql->FireChangeEvent();
-          }
-        }));
+  for (MediaQueryList* mql : mDocument->MediaQueryLists()) {
+    mql->MediaFeatureValuesChanged();
   }
 
   return changedStyle;

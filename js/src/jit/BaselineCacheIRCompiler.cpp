@@ -990,7 +990,7 @@ bool BaselineCacheIRCompiler::emitArrayJoinResult(ObjOperandId objId,
   {
     Label arrayNotEmpty;
     masm.branch32(Assembler::NotEqual, lengthAddr, Imm32(0), &arrayNotEmpty);
-    masm.movePtr(ImmGCPtr(cx_->names().empty), scratch);
+    masm.movePtr(ImmGCPtr(cx_->names().empty_), scratch);
     masm.tagValue(JSVAL_TYPE_STRING, scratch, output.valueReg());
     masm.jump(&finished);
     masm.bind(&arrayNotEmpty);
@@ -1238,7 +1238,7 @@ bool BaselineCacheIRCompiler::emitLoadStringCharResult(StringOperandId strId,
     allocator.discardStack(masm);
 
     // Return the empty string for out-of-bounds access.
-    masm.movePtr(ImmGCPtr(cx_->names().empty), scratch2);
+    masm.movePtr(ImmGCPtr(cx_->names().empty_), scratch2);
 
     // This CacheIR op is always preceded by |LinearizeForCharAccess|, so we're
     // guaranteed to see no nested ropes.
@@ -2573,7 +2573,7 @@ ICAttachResult js::jit::AttachBaselineCacheIRStub(
     JitSpew(JitSpew_BaselineICFallback,
             "Tried attaching identical stub for (%s:%u:%u)",
             outerScript->filename(), outerScript->lineno(),
-            outerScript->column());
+            outerScript->column().zeroOriginValue());
     return ICAttachResult::DuplicateStub;
   }
 

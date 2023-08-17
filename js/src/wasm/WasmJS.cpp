@@ -37,6 +37,7 @@
 #include "jit/JitContext.h"
 #include "jit/JitOptions.h"
 #include "jit/Simulator.h"
+#include "js/ColumnNumber.h"  // JS::ColumnNumberOneOrigin
 #include "js/ForOfIterator.h"
 #include "js/friend/ErrorMessages.h"  // js::GetErrorMessage, JSMSG_*
 #include "js/Printf.h"
@@ -4207,7 +4208,7 @@ static bool Reject(JSContext* cx, const CompileArgs& args,
     return false;
   }
 
-  unsigned line = args.scriptedCaller.line;
+  uint32_t line = args.scriptedCaller.line;
 
   // Ideally we'd report a JSMSG_WASM_COMPILE_ERROR here, but there's no easy
   // way to create an ErrorObject for an arbitrary error code with multiple
@@ -4228,7 +4229,8 @@ static bool Reject(JSContext* cx, const CompileArgs& args,
 
   RootedObject errorObj(
       cx, ErrorObject::create(cx, JSEXN_WASMCOMPILEERROR, stack, fileName, 0,
-                              line, 0, nullptr, message, cause));
+                              line, JS::ColumnNumberOneOrigin::zero(), nullptr,
+                              message, cause));
   if (!errorObj) {
     return false;
   }

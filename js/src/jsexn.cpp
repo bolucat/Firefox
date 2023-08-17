@@ -28,6 +28,7 @@
 #include "frontend/FrontendContext.h"  // AutoReportFrontendContext
 #include "js/CharacterEncoding.h"      // JS::UTF8Chars, JS::ConstUTF8CharsZ
 #include "js/Class.h"
+#include "js/ColumnNumber.h"  // JS::ColumnNumberOneOrigin, JS::TaggedColumnNumberZeroOrigin
 #include "js/Conversions.h"
 #include "js/ErrorReport.h"             // JS::PrintError
 #include "js/Exception.h"               // JS::ExceptionStack
@@ -336,7 +337,7 @@ bool js::ErrorToException(JSContext* cx, JSErrorReport* reportp,
 
   uint32_t sourceId = reportp->sourceId;
   uint32_t lineNumber = reportp->lineno;
-  uint32_t columnNumber = reportp->column;
+  JS::ColumnNumberOneOrigin columnNumber = reportp->column;
 
   // Error reports don't provide a |cause|, so we default to |Nothing| here.
   auto cause = JS::NothingHandleValue;
@@ -593,7 +594,7 @@ bool JS::ErrorReportBuilder::init(JSContext* cx,
     ownedReport.filename = JS::ConstUTF8CharsZ(filename.get());
     ownedReport.lineno = lineno;
     ownedReport.exnType = JSEXN_INTERNALERR;
-    ownedReport.column = column;
+    ownedReport.column = JS::ColumnNumberOneOrigin(column);
 
     if (str) {
       // Note that using |str| for |message_| here is kind of wrong,
@@ -674,8 +675,8 @@ bool JS::ErrorReportBuilder::populateUncaughtExceptionReportUTF8VA(
     ownedReport.filename = JS::ConstUTF8CharsZ(filename.get());
     ownedReport.sourceId = frame->getSourceId();
     ownedReport.lineno = frame->getLine();
-    // Follow FixupMaybeWASMColumnForDisplay and set column to 1 for WASM.
-    ownedReport.column = frame->isWasm() ? 1 : frame->getColumn();
+    ownedReport.column =
+        JS::ColumnNumberOneOrigin(frame->getColumn().oneOriginValue());
     ownedReport.isMuted = frame->getMutedErrors();
   } else {
     // XXXbz this assumes the stack we have right now is still
@@ -683,11 +684,11 @@ bool JS::ErrorReportBuilder::populateUncaughtExceptionReportUTF8VA(
     NonBuiltinFrameIter iter(cx, cx->realm()->principals());
     if (!iter.done()) {
       ownedReport.filename = JS::ConstUTF8CharsZ(iter.filename());
-      uint32_t column;
+      JS::TaggedColumnNumberZeroOrigin column;
       ownedReport.sourceId =
           iter.hasScript() ? iter.script()->scriptSource()->id() : 0;
       ownedReport.lineno = iter.computeLine(&column);
-      ownedReport.column = FixupMaybeWASMColumnForDisplay(column);
+      ownedReport.column = JS::ColumnNumberOneOrigin(column.oneOriginValue());
       ownedReport.isMuted = iter.mutedErrors();
     }
   }
@@ -740,7 +741,7 @@ JSObject* js::CopyErrorObject(JSContext* cx, Handle<ErrorObject*> err) {
   }
   uint32_t sourceId = err->sourceId();
   uint32_t lineNumber = err->lineNumber();
-  uint32_t columnNumber = err->columnNumber();
+  JS::ColumnNumberOneOrigin columnNumber = err->columnNumber();
   JSExnType errorType = err->type();
 
   // Create the Error object.
@@ -751,7 +752,8 @@ JSObject* js::CopyErrorObject(JSContext* cx, Handle<ErrorObject*> err) {
 
 JS_PUBLIC_API bool JS::CreateError(JSContext* cx, JSExnType type,
                                    HandleObject stack, HandleString fileName,
-                                   uint32_t lineNumber, uint32_t columnNumber,
+                                   uint32_t lineNumber,
+                                   JS::ColumnNumberOneOrigin columnNumber,
                                    JSErrorReport* report, HandleString message,
                                    Handle<mozilla::Maybe<Value>> cause,
                                    MutableHandleValue rval) {

@@ -42,6 +42,7 @@
 #include "jit/JitSpewer.h"
 #include "js/CallAndConstruct.h"  // JS::IsCallable
 #include "js/CharacterEncoding.h"
+#include "js/ColumnNumber.h"  // JS::TaggedColumnNumberZeroOrigin, JS::ColumnNumberZeroOrigin, JS::ColumnNumberOneOrigin
 #include "js/CompileOptions.h"
 #include "js/ContextOptions.h"  // JS::ContextOptions{,Ref}
 #include "js/Conversions.h"
@@ -2461,7 +2462,7 @@ CompileOptions& CompileOptions::setIntroductionInfoToCaller(
     MutableHandle<JSScript*> introductionScript) {
   RootedScript maybeScript(cx);
   const char* filename;
-  unsigned lineno;
+  uint32_t lineno;
   uint32_t pcOffset;
   bool mutedErrors;
   DescribeScriptedCallerForCompilation(cx, &maybeScript, &filename, &lineno,
@@ -3121,7 +3122,7 @@ JS_PUBLIC_API JSString* JS_NewUCStringCopyN(JSContext* cx, const char16_t* s,
   AssertHeapIsIdle();
   CHECK_THREAD(cx);
   if (!n) {
-    return cx->names().empty;
+    return cx->names().empty_;
   }
   return NewStringCopyN<CanGC>(cx, s, n);
 }
@@ -3932,12 +3933,11 @@ JSErrorNotes::JSErrorNotes() : notes_() {}
 
 JSErrorNotes::~JSErrorNotes() = default;
 
-// column is 1-origin.
 static UniquePtr<JSErrorNotes::Note> CreateErrorNoteVA(
     FrontendContext* fc, const char* filename, unsigned sourceId,
-    unsigned lineno, unsigned column, JSErrorCallback errorCallback,
-    void* userRef, const unsigned errorNumber, ErrorArgumentsType argumentsType,
-    va_list ap) {
+    uint32_t lineno, JS::ColumnNumberOneOrigin column,
+    JSErrorCallback errorCallback, void* userRef, const unsigned errorNumber,
+    ErrorArgumentsType argumentsType, va_list ap) {
   auto note = MakeUnique<JSErrorNotes::Note>();
   if (!note) {
     ReportOutOfMemory(fc);
@@ -3959,9 +3959,10 @@ static UniquePtr<JSErrorNotes::Note> CreateErrorNoteVA(
 }
 
 bool JSErrorNotes::addNoteVA(FrontendContext* fc, const char* filename,
-                             unsigned sourceId, unsigned lineno,
-                             unsigned column, JSErrorCallback errorCallback,
-                             void* userRef, const unsigned errorNumber,
+                             unsigned sourceId, uint32_t lineno,
+                             JS::ColumnNumberOneOrigin column,
+                             JSErrorCallback errorCallback, void* userRef,
+                             const unsigned errorNumber,
                              ErrorArgumentsType argumentsType, va_list ap) {
   auto note =
       CreateErrorNoteVA(fc, filename, sourceId, lineno, column, errorCallback,
@@ -3978,10 +3979,10 @@ bool JSErrorNotes::addNoteVA(FrontendContext* fc, const char* filename,
 }
 
 bool JSErrorNotes::addNoteASCII(JSContext* cx, const char* filename,
-                                unsigned sourceId, unsigned lineno,
-                                unsigned column, JSErrorCallback errorCallback,
-                                void* userRef, const unsigned errorNumber,
-                                ...) {
+                                unsigned sourceId, uint32_t lineno,
+                                JS::ColumnNumberOneOrigin column,
+                                JSErrorCallback errorCallback, void* userRef,
+                                const unsigned errorNumber, ...) {
   AutoReportFrontendContext fc(cx);
   va_list ap;
   va_start(ap, errorNumber);
@@ -3992,10 +3993,10 @@ bool JSErrorNotes::addNoteASCII(JSContext* cx, const char* filename,
 }
 
 bool JSErrorNotes::addNoteASCII(FrontendContext* fc, const char* filename,
-                                unsigned sourceId, unsigned lineno,
-                                unsigned column, JSErrorCallback errorCallback,
-                                void* userRef, const unsigned errorNumber,
-                                ...) {
+                                unsigned sourceId, uint32_t lineno,
+                                JS::ColumnNumberOneOrigin column,
+                                JSErrorCallback errorCallback, void* userRef,
+                                const unsigned errorNumber, ...) {
   va_list ap;
   va_start(ap, errorNumber);
   bool ok = addNoteVA(fc, filename, sourceId, lineno, column, errorCallback,
@@ -4005,10 +4006,10 @@ bool JSErrorNotes::addNoteASCII(FrontendContext* fc, const char* filename,
 }
 
 bool JSErrorNotes::addNoteLatin1(JSContext* cx, const char* filename,
-                                 unsigned sourceId, unsigned lineno,
-                                 unsigned column, JSErrorCallback errorCallback,
-                                 void* userRef, const unsigned errorNumber,
-                                 ...) {
+                                 unsigned sourceId, uint32_t lineno,
+                                 JS::ColumnNumberOneOrigin column,
+                                 JSErrorCallback errorCallback, void* userRef,
+                                 const unsigned errorNumber, ...) {
   AutoReportFrontendContext fc(cx);
   va_list ap;
   va_start(ap, errorNumber);
@@ -4019,10 +4020,10 @@ bool JSErrorNotes::addNoteLatin1(JSContext* cx, const char* filename,
 }
 
 bool JSErrorNotes::addNoteLatin1(FrontendContext* fc, const char* filename,
-                                 unsigned sourceId, unsigned lineno,
-                                 unsigned column, JSErrorCallback errorCallback,
-                                 void* userRef, const unsigned errorNumber,
-                                 ...) {
+                                 unsigned sourceId, uint32_t lineno,
+                                 JS::ColumnNumberOneOrigin column,
+                                 JSErrorCallback errorCallback, void* userRef,
+                                 const unsigned errorNumber, ...) {
   va_list ap;
   va_start(ap, errorNumber);
   bool ok = addNoteVA(fc, filename, sourceId, lineno, column, errorCallback,
@@ -4032,9 +4033,10 @@ bool JSErrorNotes::addNoteLatin1(FrontendContext* fc, const char* filename,
 }
 
 bool JSErrorNotes::addNoteUTF8(JSContext* cx, const char* filename,
-                               unsigned sourceId, unsigned lineno,
-                               unsigned column, JSErrorCallback errorCallback,
-                               void* userRef, const unsigned errorNumber, ...) {
+                               unsigned sourceId, uint32_t lineno,
+                               JS::ColumnNumberOneOrigin column,
+                               JSErrorCallback errorCallback, void* userRef,
+                               const unsigned errorNumber, ...) {
   AutoReportFrontendContext fc(cx);
   va_list ap;
   va_start(ap, errorNumber);
@@ -4045,9 +4047,10 @@ bool JSErrorNotes::addNoteUTF8(JSContext* cx, const char* filename,
 }
 
 bool JSErrorNotes::addNoteUTF8(FrontendContext* fc, const char* filename,
-                               unsigned sourceId, unsigned lineno,
-                               unsigned column, JSErrorCallback errorCallback,
-                               void* userRef, const unsigned errorNumber, ...) {
+                               unsigned sourceId, uint32_t lineno,
+                               JS::ColumnNumberOneOrigin column,
+                               JSErrorCallback errorCallback, void* userRef,
+                               const unsigned errorNumber, ...) {
   va_list ap;
   va_start(ap, errorNumber);
   bool ok = addNoteVA(fc, filename, sourceId, lineno, column, errorCallback,
@@ -4521,7 +4524,8 @@ const char* AutoFilename::get() const {
 }
 
 JS_PUBLIC_API bool DescribeScriptedCaller(JSContext* cx, AutoFilename* filename,
-                                          unsigned* lineno, unsigned* column) {
+                                          uint32_t* lineno,
+                                          JS::ColumnNumberZeroOrigin* column) {
   if (filename) {
     filename->reset();
   }
@@ -4529,7 +4533,7 @@ JS_PUBLIC_API bool DescribeScriptedCaller(JSContext* cx, AutoFilename* filename,
     *lineno = 0;
   }
   if (column) {
-    *column = 0;
+    *column = JS::ColumnNumberZeroOrigin::zero();
   }
 
   if (!cx->compartment()) {
@@ -4563,9 +4567,15 @@ JS_PUBLIC_API bool DescribeScriptedCaller(JSContext* cx, AutoFilename* filename,
   }
 
   if (lineno) {
-    *lineno = i.computeLine(column);
+    JS::TaggedColumnNumberZeroOrigin columnNumber;
+    *lineno = i.computeLine(&columnNumber);
+    if (column) {
+      *column = JS::ColumnNumberZeroOrigin(columnNumber.zeroOriginValue());
+    }
   } else if (column) {
-    i.computeLine(column);
+    JS::TaggedColumnNumberZeroOrigin columnNumber;
+    i.computeLine(&columnNumber);
+    *column = JS::ColumnNumberZeroOrigin(columnNumber.zeroOriginValue());
   }
 
   return true;

@@ -409,7 +409,7 @@ static bool RegExpInitializeIgnoringLastIndex(JSContext* cx,
   Rooted<JSAtom*> pattern(cx);
   if (patternValue.isUndefined()) {
     /* Step 1. */
-    pattern = cx->names().empty;
+    pattern = cx->names().empty_;
   } else {
     /* Step 2. */
     pattern = ToAtom<CanGC>(cx, patternValue);
@@ -875,7 +875,7 @@ bool js::regexp_multiline(JSContext* cx, unsigned argc, JS::Value* vp) {
 static bool regexp_source(JSContext* cx, unsigned argc, JS::Value* vp) {
   CallArgs args = CallArgsFromVp(argc, vp);
   // Step 3.a. Return "(?:)" for %RegExp.prototype%.
-  RootedValue fallback(cx, StringValue(cx->names().emptyRegExp));
+  RootedValue fallback(cx, StringValue(cx->names().emptyRegExp_));
   return RegExpGetter(
       cx, args, "source",
       [cx, args](RegExpObject* unwrapped) {
@@ -2179,7 +2179,7 @@ bool js::RegExpPrototypeOptimizableRaw(JSContext* cx, JSObject* proto) {
   }
 
   if (!IsSelfHostedFunctionWithName(flagsGetter,
-                                    cx->names().RegExpFlagsGetter)) {
+                                    cx->names().dollar_RegExpFlagsGetter_)) {
     return false;
   }
 

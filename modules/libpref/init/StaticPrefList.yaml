@@ -1644,11 +1644,6 @@
   value: false
   mirror: always
 
-- name: browser.tabs.remote.desktopbehavior
-  type: bool
-  value: false
-  mirror: always
-
 - name: browser.tabs.remote.force-paint
   type: bool
   value: true
@@ -10505,11 +10500,7 @@
 
 - name: media.mp4.enabled
   type: RelaxedAtomicBool
-#ifdef MOZ_FMP4
   value: true
-#else
-  value: false
-#endif
   mirror: always
 
 - name: media.mp4.sniff_iso_brand
