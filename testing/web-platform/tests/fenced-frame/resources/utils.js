@@ -36,10 +36,11 @@ async function runSelectRawURL(href, resolve_to_config = false) {
     // gracefully fail rather than bring the whole test down.
   }
   return await sharedStorage.selectURL(
-      'test-url-selection-operation', [{url: href}], {
+      'test-url-selection-operation', [{url: href,
+          reportingMetadata: {'reserved.top_navigation': BEACON_URL}}], {
         data: {'mockResult': 0},
         resolveToConfig: resolve_to_config,
-        keepAlive: true
+        keepAlive: true,
       });
 }
 
@@ -70,11 +71,9 @@ async function runSelectURL(href, keylist = [], resolve_to_config = false) {
   return await runSelectRawURL(full_url, resolve_to_config);
 }
 
-async function generateURNFromFledgeRawURL(href,
-  nested_urls,
-  resolve_to_config = false,
-  ad_with_size = false,
-  requested_size = null) {
+async function generateURNFromFledgeRawURL(
+    href, nested_urls, resolve_to_config = false, ad_with_size = false,
+    requested_size = null, automatic_beacon = false) {
   const bidding_token = token();
   const seller_token = token();
 
@@ -95,13 +94,19 @@ async function generateURNFromFledgeRawURL(href,
         adComponents: ad_components_list,
       };
 
+  let biddingUrlParams =
+      new URLSearchParams(interestGroup.biddingLogicUrl.search);
+  if (requested_size)
+    biddingUrlParams.set(
+        'requested-size', requested_size[0] + '-' + requested_size[1]);
+  if (ad_with_size)
+    biddingUrlParams.set('ad-with-size', 1);
+  if (automatic_beacon)
+    biddingUrlParams.set('automatic-beacon', 1);
+  interestGroup.biddingLogicUrl.search = biddingUrlParams;
+
   if (ad_with_size) {
-    let params = new URLSearchParams(interestGroup.biddingLogicUrl.search);
-    params.set("ad-with-size", 1);
-    interestGroup.biddingLogicUrl.search = params;
-
     interestGroup.ads[0].sizeGroup = 'group1';
-
     interestGroup.adSizes = {'size1': {width: '100px', height: '50px'}};
     interestGroup.sizeGroups = {'group1': ['size1']};
   }
@@ -117,9 +122,17 @@ async function generateURNFromFledgeRawURL(href,
     auctionSignals: {biddingToken: bidding_token, sellerToken: seller_token},
     resolveToConfig: resolve_to_config
   };
+
   if (requested_size) {
+    let decisionUrlParams =
+      new URLSearchParams(auctionConfig.decisionLogicUrl.search);
+    decisionUrlParams.set(
+        'requested-size', requested_size[0] + '-' + requested_size[1]);
+    auctionConfig.decisionLogicUrl.search = decisionUrlParams;
+
     auctionConfig['requestedSize'] = {width: requested_size[0], height: requested_size[1]};
   }
+
   return navigator.runAdAuction(auctionConfig);
 }
 
@@ -140,9 +153,16 @@ async function generateURNFromFledgeRawURL(href,
 //                                                frame config.
 // @param {boolean} [ad_with_size = false] - Determines whether the auction is
 //                                           run with ad sizes specified.
-async function generateURNFromFledge(href, keylist, nested_urls=[], resolve_to_config = false, ad_with_size = false, requested_size = null) {
+// @param {boolean} [automatic_beacon = false] - If true, FLEDGE logic will
+//                                               register an automatic beacon
+//                                               after completion.
+async function generateURNFromFledge(
+    href, keylist, nested_urls = [], resolve_to_config = false,
+    ad_with_size = false, requested_size = null, automatic_beacon = false) {
   const full_url = generateURL(href, keylist);
-  return generateURNFromFledgeRawURL(full_url, nested_urls, resolve_to_config, ad_with_size, requested_size);
+  return generateURNFromFledgeRawURL(
+      full_url, nested_urls, resolve_to_config, ad_with_size, requested_size,
+      automatic_beacon);
 }
 
 // Extracts a list of UUIDs from the from the current page's URL.
@@ -247,23 +267,36 @@ function attachContext(object_constructor, html, headers, origin) {
 // function.
 // 1. crbug.com/1372536: resize-lock-input.https.html
 // 2. crbug.com/1394559: unfenced-top.https.html
-async function attachOpaqueContext(generator_api, resolve_to_config, ad_with_size, requested_size, object_constructor, html, headers, origin) {
+async function attachOpaqueContext(
+    generator_api, resolve_to_config, ad_with_size, requested_size,
+    automatic_beacon, object_constructor, html, headers, origin) {
   const [uuid, url] = generateRemoteContextURL(headers, origin);
-  const id = await (generator_api == 'fledge' ? generateURNFromFledge(url, [], [], resolve_to_config, ad_with_size, requested_size) : runSelectURL(url, [], resolve_to_config));
+  const id = await (
+      generator_api == 'fledge' ?
+          generateURNFromFledge(
+              url, [], [], resolve_to_config, ad_with_size, requested_size,
+              automatic_beacon) :
+          runSelectURL(url, [], resolve_to_config));
   const object = object_constructor(id);
   return buildRemoteContextForObject(object, uuid, html);
 }
 
-function attachPotentiallyOpaqueContext(generator_api, resolve_to_config, ad_with_size, requested_size, frame_constructor, html, headers, origin) {
+function attachPotentiallyOpaqueContext(
+    generator_api, resolve_to_config, ad_with_size, requested_size,
+    automatic_beacon, frame_constructor, html, headers, origin) {
   generator_api = generator_api.toLowerCase();
   if (generator_api == 'fledge' || generator_api == 'sharedstorage') {
-    return attachOpaqueContext(generator_api, resolve_to_config, ad_with_size, requested_size, frame_constructor, html, headers, origin);
+    return attachOpaqueContext(
+        generator_api, resolve_to_config, ad_with_size, requested_size,
+        automatic_beacon, frame_constructor, html, headers, origin);
   } else {
     return attachContext(frame_constructor, html, headers, origin);
   }
 }
 
-function attachFrameContext(element_name, generator_api, resolve_to_config, ad_with_size, requested_size, html, headers, attributes, origin) {
+function attachFrameContext(
+    element_name, generator_api, resolve_to_config, ad_with_size,
+    requested_size, automatic_beacon, html, headers, attributes, origin) {
   frame_constructor = (id) => {
     frame = document.createElement(element_name);
     attributes.forEach(attribute => {
@@ -280,10 +313,21 @@ function attachFrameContext(element_name, generator_api, resolve_to_config, ad_w
     document.body.append(frame);
     return frame;
   };
-  return attachPotentiallyOpaqueContext(generator_api, resolve_to_config, ad_with_size, requested_size, frame_constructor, html, headers, origin);
+  return attachPotentiallyOpaqueContext(
+      generator_api, resolve_to_config, ad_with_size, requested_size,
+      automatic_beacon, frame_constructor, html, headers, origin);
 }
 
-function replaceFrameContext(frame_proxy, {generator_api="", resolve_to_config=false, ad_with_size=false, requested_size=null, html="", headers=[], origin=""}={}) {
+function replaceFrameContext(frame_proxy, {
+  generator_api = '',
+  resolve_to_config = false,
+  ad_with_size = false,
+  requested_size = null,
+  automatic_beacon = false,
+  html = '',
+  headers = [],
+  origin = ''
+} = {}) {
   frame_constructor = (id) => {
     if (frame_proxy.element.nodeName == "IFRAME") {
       frame_proxy.element.src = id;
@@ -295,7 +339,9 @@ function replaceFrameContext(frame_proxy, {generator_api="", resolve_to_config=f
     }
     return frame_proxy.element;
   };
-  return attachPotentiallyOpaqueContext(generator_api, resolve_to_config, ad_with_size, requested_size, frame_constructor, html, headers, origin);
+  return attachPotentiallyOpaqueContext(
+      generator_api, resolve_to_config, ad_with_size, requested_size,
+      automatic_beacon, frame_constructor, html, headers, origin);
 }
 
 // Attach a fenced frame that waits for scripts to execute.
@@ -309,21 +355,49 @@ function replaceFrameContext(frame_proxy, {generator_api="", resolve_to_config=f
 // - ad_with_size: whether an ad auction is run with size specified for the ads
 //    and ad components. (currently only works for FLEDGE)
 // - requested_size: A 2-element list with the width and height for
-//    requestedSize in the FLEDGE auction config.
+//    requestedSize in the FLEDGE auction config. This is different from
+//    ad_with_size, which refers to size information provided alongside the ads
+//    themselves.
+// - automatic_beacon: If true and generator_api = "fledge", an automatic beacon
+//    will be registered for a top-level navigation after the FLEDGE auction
+//    completes.
 // - html: extra HTML source code to inject into the loaded frame
 // - headers: an array of header pairs [[key, value], ...]
-// - attributes: an array of attribute pairs to set on the frame [[key, value], ...]
+// - attributes: an array of attribute pairs to set on the frame [[key, value],
+// ...]
 // - origin: origin of the url, default to location.origin if not set
 // Returns a proxy that acts like the frame HTML element, but with an extra
 // function `execute`. See `attachFrameContext` or the README for more details.
-function attachFencedFrameContext({generator_api="", resolve_to_config=false, ad_with_size=false, requested_size=null, html = "", headers=[], attributes=[], origin=""}={}) {
-  return attachFrameContext('fencedframe', generator_api, resolve_to_config, ad_with_size, requested_size, html, headers, attributes, origin);
+function attachFencedFrameContext({
+  generator_api = '',
+  resolve_to_config = false,
+  ad_with_size = false,
+  requested_size = null,
+  automatic_beacon = false,
+  html = '',
+  headers = [],
+  attributes = [],
+  origin = ''
+} = {}) {
+  return attachFrameContext(
+      'fencedframe', generator_api, resolve_to_config, ad_with_size,
+      requested_size, automatic_beacon, html, headers, attributes, origin);
 }
 
 // Attach an iframe that waits for scripts to execute.
 // See `attachFencedFrameContext` for more details.
-function attachIFrameContext({generator_api="", html="", headers=[], attributes=[], origin=""}={}) {
-  return attachFrameContext('iframe', generator_api, resolve_to_config=false, ad_with_size=false, requested_size=null, html, headers, attributes, origin);
+function attachIFrameContext({
+  generator_api = '',
+  automatic_beacon = false,
+  html = '',
+  headers = [],
+  attributes = [],
+  origin = ''
+} = {}) {
+  return attachFrameContext(
+      'iframe', generator_api, resolve_to_config = false, ad_with_size = false,
+      requested_size = null, automatic_beacon, html, headers, attributes,
+      origin);
 }
 
 // Open a window that waits for scripts to execute.
