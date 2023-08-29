@@ -1431,7 +1431,8 @@ void nsFocusManager::ActivateOrDeactivate(nsPIDOMWindowOuter* aWindow,
 
   if (aWindow->GetExtantDoc()) {
     nsContentUtils::DispatchEventOnlyToChrome(
-        aWindow->GetExtantDoc(), aWindow->GetCurrentInnerWindow(),
+        aWindow->GetExtantDoc(),
+        nsGlobalWindowInner::Cast(aWindow->GetCurrentInnerWindow()),
         aActive ? u"activate"_ns : u"deactivate"_ns, CanBubble::eYes,
         Cancelable::eYes, nullptr);
   }
@@ -2427,13 +2428,15 @@ bool nsFocusManager::BlurImpl(BrowsingContext* aBrowsingContextToClear,
 
     RefPtr<Document> doc = window->GetExtantDoc();
     if (doc) {
-      SendFocusOrBlurEvent(eBlur, presShell, doc,
-                           MOZ_KnownLive(ToSupports(doc)), false);
+      SendFocusOrBlurEvent(eBlur, presShell, doc, doc, false);
     }
     if (!GetFocusedBrowsingContext()) {
       nsCOMPtr<nsPIDOMWindowInner> innerWindow =
           window->GetCurrentInnerWindow();
-      SendFocusOrBlurEvent(eBlur, presShell, doc, innerWindow, false);
+      // MOZ_KnownLive due to bug 1506441
+      SendFocusOrBlurEvent(
+          eBlur, presShell, doc,
+          MOZ_KnownLive(nsGlobalWindowInner::Cast(innerWindow)), false);
     }
 
     // check if a different window was focused
@@ -2600,14 +2603,16 @@ void nsFocusManager::Focus(
                                      GetFocusMoveActionCause(aFlags));
     }
     if (doc && !focusInOtherContentProcess) {
-      SendFocusOrBlurEvent(eFocus, presShell, doc,
-                           MOZ_KnownLive(ToSupports(doc)), aWindowRaised);
+      SendFocusOrBlurEvent(eFocus, presShell, doc, doc, aWindowRaised);
     }
     if (GetFocusedBrowsingContext() == aWindow->GetBrowsingContext() &&
         !mFocusedElement && !focusInOtherContentProcess) {
       nsCOMPtr<nsPIDOMWindowInner> innerWindow =
           aWindow->GetCurrentInnerWindow();
-      SendFocusOrBlurEvent(eFocus, presShell, doc, innerWindow, aWindowRaised);
+      // MOZ_KnownLive due to bug 1506441
+      SendFocusOrBlurEvent(
+          eFocus, presShell, doc,
+          MOZ_KnownLive(nsGlobalWindowInner::Cast(innerWindow)), aWindowRaised);
     }
   }
 
@@ -2715,7 +2720,7 @@ void nsFocusManager::Focus(
 
 class FocusBlurEvent : public Runnable {
  public:
-  FocusBlurEvent(nsISupports* aTarget, EventMessage aEventMessage,
+  FocusBlurEvent(EventTarget* aTarget, EventMessage aEventMessage,
                  nsPresContext* aContext, bool aWindowRaised, bool aIsRefocus,
                  EventTarget* aRelatedTarget)
       : mozilla::Runnable("FocusBlurEvent"),
@@ -2737,7 +2742,7 @@ class FocusBlurEvent : public Runnable {
     return EventDispatcher::Dispatch(mTarget, mContext, &event);
   }
 
-  const nsCOMPtr<nsISupports> mTarget;
+  const nsCOMPtr<EventTarget> mTarget;
   const RefPtr<nsPresContext> mContext;
   EventMessage mEventMessage;
   bool mWindowRaised;
@@ -2747,7 +2752,7 @@ class FocusBlurEvent : public Runnable {
 
 class FocusInOutEvent : public Runnable {
  public:
-  FocusInOutEvent(nsISupports* aTarget, EventMessage aEventMessage,
+  FocusInOutEvent(EventTarget* aTarget, EventMessage aEventMessage,
                   nsPresContext* aContext,
                   nsPIDOMWindowOuter* aOriginalFocusedWindow,
                   nsIContent* aOriginalFocusedContent,
@@ -2778,7 +2783,7 @@ class FocusInOutEvent : public Runnable {
     return NS_OK;
   }
 
-  const nsCOMPtr<nsISupports> mTarget;
+  const nsCOMPtr<EventTarget> mTarget;
   const RefPtr<nsPresContext> mContext;
   EventMessage mEventMessage;
   nsCOMPtr<nsPIDOMWindowOuter> mOriginalFocusedWindow;
@@ -2798,7 +2803,7 @@ static Document* GetDocumentHelper(EventTarget* aTarget) {
 }
 
 void nsFocusManager::FireFocusInOrOutEvent(
-    EventMessage aEventMessage, PresShell* aPresShell, nsISupports* aTarget,
+    EventMessage aEventMessage, PresShell* aPresShell, EventTarget* aTarget,
     nsPIDOMWindowOuter* aCurrentFocusedWindow,
     nsIContent* aCurrentFocusedContent, EventTarget* aRelatedTarget) {
   NS_ASSERTION(aEventMessage == eFocusIn || aEventMessage == eFocusOut,
@@ -2812,17 +2817,16 @@ void nsFocusManager::FireFocusInOrOutEvent(
 void nsFocusManager::SendFocusOrBlurEvent(EventMessage aEventMessage,
                                           PresShell* aPresShell,
                                           Document* aDocument,
-                                          nsISupports* aTarget,
+                                          EventTarget* aTarget,
                                           bool aWindowRaised, bool aIsRefocus,
                                           EventTarget* aRelatedTarget) {
   NS_ASSERTION(aEventMessage == eFocus || aEventMessage == eBlur,
                "Wrong event type for SendFocusOrBlurEvent");
 
-  nsCOMPtr<EventTarget> eventTarget = do_QueryInterface(aTarget);
-  nsCOMPtr<Document> eventTargetDoc = GetDocumentHelper(eventTarget);
+  nsCOMPtr<Document> eventTargetDoc = GetDocumentHelper(aTarget);
   nsCOMPtr<Document> relatedTargetDoc = GetDocumentHelper(aRelatedTarget);
 
-  // set aRelatedTarget to null if it's not in the same document as eventTarget
+  // set aRelatedTarget to null if it's not in the same document as aTarget
   if (eventTargetDoc != relatedTargetDoc) {
     aRelatedTarget = nullptr;
   }
@@ -2832,12 +2836,11 @@ void nsFocusManager::SendFocusOrBlurEvent(EventMessage aEventMessage,
     mDelayedBlurFocusEvents.RemoveElementsBy([&](const auto& event) {
       return event.mEventMessage == aEventMessage &&
              event.mPresShell == aPresShell && event.mDocument == aDocument &&
-             event.mTarget == eventTarget &&
-             event.mRelatedTarget == aRelatedTarget;
+             event.mTarget == aTarget && event.mRelatedTarget == aRelatedTarget;
     });
 
     mDelayedBlurFocusEvents.EmplaceBack(aEventMessage, aPresShell, aDocument,
-                                        eventTarget, aRelatedTarget);
+                                        aTarget, aRelatedTarget);
     return;
   }
 
@@ -2854,7 +2857,7 @@ void nsFocusManager::SendFocusOrBlurEvent(EventMessage aEventMessage,
 
 void nsFocusManager::FireFocusOrBlurEvent(EventMessage aEventMessage,
                                           PresShell* aPresShell,
-                                          nsISupports* aTarget,
+                                          EventTarget* aTarget,
                                           bool aWindowRaised, bool aIsRefocus,
                                           EventTarget* aRelatedTarget) {
   nsCOMPtr<nsPIDOMWindowOuter> currentWindow = mFocusedWindow;
