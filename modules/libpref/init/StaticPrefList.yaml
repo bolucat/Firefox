@@ -9222,6 +9222,13 @@
   mirror: always
   rust: true
 
+# Whether :-moz-broken is supported in content.
+- name: layout.css.moz-broken.content.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+  rust: true
+
 # Whether frame visibility tracking is enabled globally.
 - name: layout.framevisibility.enabled
   type: bool
@@ -15530,11 +15537,6 @@
 - name: widget.windows.window_occlusion_tracking_session_lock.enabled
   type: bool
   value: true
-  mirror: always
-
-- name: widget.windows.hide_cursor_when_typing
-  type: bool
-  value: false
   mirror: always
 
 # Whether to give explorer.exe a delated nudge to recalculate the fullscreenness
