@@ -2,6 +2,11 @@ on:
   push:
     paths:
       - ".github/workflows/*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release Tag'
+        required: false
   schedule:
     - cron: "0 18 */1 * *"
 
