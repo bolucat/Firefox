@@ -8475,12 +8475,6 @@
   mirror: always
   rust: true
 
-# Is support for CSS hyphenate-character enabled?
-- name: layout.css.hyphenate-character.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 # Is support for CSS individual transform enabled?
 - name: layout.css.individual-transform.enabled
   type: bool
@@ -8606,11 +8600,6 @@
 
 # Is support for overscroll-behavior enabled?
 - name: layout.css.overscroll-behavior.enabled
-  type: bool
-  value: true
-  mirror: always
-
-- name: layout.css.overflow-logical.enabled
   type: bool
   value: true
   mirror: always
@@ -9207,13 +9196,6 @@
   type: RelaxedAtomicBool
   value: false
   mirror: always
-
-# Whether the `scrollbar-gutter` CSS property is enabled.
-- name: layout.css.scrollbar-gutter.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
 
 # Whether supports() conditions in @import is enabled
 - name: layout.css.import-supports.enabled
@@ -10880,7 +10862,7 @@
 
 - name: media.webrtc.capture.allow-wgc
   type: RelaxedAtomicBool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: false
   mirror: always
 #endif
 
@@ -14991,6 +14973,11 @@
   value: 1024
   mirror: always
 
+- name: webgl.max-vert-ids-per-draw
+  type: RelaxedAtomicUint32
+  value: 30*1000*1000
+  mirror: always
+
 - name: webgl.max-warnings-per-context
   type: RelaxedAtomicUint32
   value: 32
@@ -15525,6 +15512,13 @@
 # false for now since it can cause some contrast-with-background issues
 # specially with grey accents, see bug 1776588.
 - name: widget.windows.uwp-system-colors.highlight-accent
+  type: bool
+  value: false
+  mirror: always
+
+# Whether to use the accent color for the titlebar, if the relevant Windows
+# setting says so. See bug 1851155.
+- name: widget.windows.titlebar-accent.enabled
   type: bool
   value: false
   mirror: always
