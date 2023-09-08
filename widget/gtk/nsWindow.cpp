@@ -5290,7 +5290,6 @@ void nsWindow::OnDPIChanged() {
     }
     mWidgetListener->UIResolutionChanged();
   }
-  NotifyThemeChanged(ThemeChangeKind::StyleAndLayout);
 }
 
 void nsWindow::OnCheckResize() { mPendingConfigures++; }
@@ -5318,13 +5317,14 @@ void nsWindow::OnScaleChanged(bool aNotify) {
 #endif
     return 0.0;
   }();
-  LOG("OnScaleChanged %d, %f -> %d, %f\n", int(mCeiledScaleFactor),
-      FractionalScaleFactor(), newCeiled, newFractional);
 
   if (mCeiledScaleFactor == newCeiled &&
       mFractionalScaleFactor == newFractional) {
     return;
   }
+
+  LOG("OnScaleChanged %d, %f -> %d, %f\n", int(mCeiledScaleFactor),
+      mFractionalScaleFactor, newCeiled, newFractional);
 
   mCeiledScaleFactor = newCeiled;
   mFractionalScaleFactor = newFractional;
@@ -5354,9 +5354,6 @@ void nsWindow::OnScaleChanged(bool aNotify) {
       presShell->BackingScaleFactorChanged();
     }
   }
-  // This affects style / layout because it affects system font sizes.
-  // Update menu's font size etc.
-  NotifyThemeChanged(ThemeChangeKind::StyleAndLayout);
 
   DispatchResized();
 
