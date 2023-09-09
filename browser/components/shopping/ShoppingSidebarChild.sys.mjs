@@ -87,6 +87,9 @@ export class ShoppingSidebarChild extends RemotePageChild {
       case "PolledRequestMade":
         this.updateContent({ isPolledRequest: true });
         break;
+      case "ReportProductAvailable":
+        this.reportProductAvailable();
+        break;
       case "ShoppingTelemetryEvent":
         this.submitShoppingEvent(event.detail);
         break;
@@ -283,6 +286,10 @@ export class ShoppingSidebarChild extends RemotePageChild {
     win.document.dispatchEvent(evt);
   }
 
+  async reportProductAvailable() {
+    await this.#product.sendReport();
+  }
+
   /**
    * Helper to handle telemetry events.
    *
@@ -324,6 +331,9 @@ export class ShoppingSidebarChild extends RemotePageChild {
         break;
       case "analyzeReviewsNoneAvailableClicked":
         Glean.shopping.surfaceAnalyzeReviewsNoneAvailableClicked.record();
+        break;
+      case "surfaceReactivatedButtonClicked":
+        Glean.shopping.surfaceReactivatedButtonClicked.record();
         break;
     }
   }

@@ -40,7 +40,7 @@
       color-mix(in srgb, currentColor 14%, transparent)
     );
 
-    --panel-shortcut-color: rgb(91, 91, 102);
+    --panel-shortcut-color: light-dark(rgb(91, 91, 102), rgb(251, 251, 254));
 
     --input-color: light-dark(rgb(21, 20, 26), rgb(251, 251, 254));
     --input-bgcolor: light-dark(rgb(255, 255, 255), #42414d);
@@ -55,7 +55,7 @@
 
     --toolbarbutton-icon-fill-attention: light-dark(rgb(0, 97, 224), rgb(0, 221, 255));
 
-    --urlbar-popup-action-color: rgb(91, 91, 102);
+    --urlbar-popup-action-color: light-dark(rgb(91, 91, 102), rgb(191, 191, 201));
     --urlbar-popup-url-color: light-dark(rgb(0, 97, 224), #00ddff);
     --urlbar-icon-fill-opacity: 0.72;
     --urlbar-box-bgcolor: light-dark(white, rgb(66, 65, 77));

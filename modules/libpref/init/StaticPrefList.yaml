@@ -7456,6 +7456,12 @@
   value: false
   mirror: always
 
+# Support for String.prototype.{is,to}WellFormed in JavaScript.
+- name: javascript.options.well_formed_unicode_strings
+  type: bool
+  value: true
+  mirror: always
+
 #ifdef NIGHTLY_BUILD
   # Experimental support for Iterator Helpers in JavaScript.
 -   name: javascript.options.experimental.iterator_helpers
@@ -7465,12 +7471,6 @@
 
   # Experimental support for Array Grouping in JavaScript.
 -   name: javascript.options.experimental.array_grouping
-    type: bool
-    value: false
-    mirror: always
-
-  # Experimental support for String.prototype.{is,to}WellFormed in JavaScript.
--   name: javascript.options.experimental.well_formed_unicode_strings
     type: bool
     value: false
     mirror: always
@@ -11760,14 +11760,6 @@
 - name: network.dns.dns_query_single_label
   type: RelaxedAtomicBool
   value: false
-  mirror: always
-
-# When this pref is true we enforce a 253 character limit on domains we try to
-# resolve. See bug 1264117. If it doesn't cause any web-compat issues we can
-# remove it in a few releases
-- name: network.dns.limit_253_chars
-  type: RelaxedAtomicBool
-  value: true
   mirror: always
 
 # When this pref is true, we copy the host name to a fresh string before
