@@ -1674,7 +1674,11 @@
 # Cross-Origin-Embedder-Policy header
 - name: browser.tabs.remote.coep.credentialless
   type: RelaxedAtomicBool
+#if defined(ANDROID)
   value: @IS_NIGHTLY_BUILD@
+#else
+  value: true
+#endif
   mirror: always
   do_not_use_directly: true
 
@@ -15297,6 +15301,12 @@
   value: true
   mirror: always
 
+# Whether we hide the pointer while typing on Linux
+- name: widget.gtk.hide-pointer-while-typing.enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 # Whether we honor the scrollbar colors from the gtk theme.
 - name: widget.gtk.theme-scrollbar-colors.enabled
   type: bool
@@ -15309,7 +15319,7 @@
 # pref for emergency purposes.
 - name: widget.gtk.rounded-bottom-corners.enabled
   type: bool
-  value: true
+  value: false
   mirror: always
   rust: true
 
