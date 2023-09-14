@@ -11201,6 +11201,12 @@
   value: true
   mirror: always
 
+# whether to redirect the channel for auth redirects. See Bug 1820807
+- name: network.auth.use_redirect_for_retries
+  type: RelaxedAtomicBool
+  value: @IS_EARLY_BETA_OR_EARLIER@
+  mirror: always
+
 # Whether to allow truncated brotli with empty output. This also fixes
 # throwing an erroring when receiving highly compressed brotli files when
 # no content type is specified (Bug 1715401). This pref can be removed after
@@ -13545,10 +13551,28 @@
   value: false
   mirror: always
 
-# Pref for mixed display content upgrading (images, audio, video).
+# Prerequisite pref for mixed display content upgrading (images, audio, video).
 - name: security.mixed_content.upgrade_display_content
   type: bool
   value: @IS_NIGHTLY_BUILD@
+  mirror: always
+
+# Upgrade images when the upgrading is enabled.
+- name: security.mixed_content.upgrade_display_content.image
+  type: bool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+
+# Upgrade audio when the upgrading is enabled.
+- name: security.mixed_content.upgrade_display_content.audio
+  type: bool
+  value: true
+  mirror: always
+
+# Upgrade videos when the upgrading is enabled.
+- name: security.mixed_content.upgrade_display_content.video
+  type: bool
+  value: true
   mirror: always
 
 # Whether strict file origin policy is in effect. "False" is traditional.

@@ -5883,15 +5883,12 @@ nsresult nsWindow::Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
                                                  TransparencyMode::Transparent);
 
   // Figure out our parent window - only used for WindowType::Child
-  GdkWindow* parentGdkWindow = nullptr;
   nsWindow* parentnsWindow = nullptr;
 
   if (aParent) {
     parentnsWindow = static_cast<nsWindow*>(aParent);
-    parentGdkWindow = parentnsWindow->mGdkWindow;
   } else if (aNativeParent && GDK_IS_WINDOW(aNativeParent)) {
-    parentGdkWindow = GDK_WINDOW(aNativeParent);
-    parentnsWindow = get_window_for_gdk_window(parentGdkWindow);
+    parentnsWindow = get_window_for_gdk_window(GDK_WINDOW(aNativeParent));
     if (!parentnsWindow) {
       return NS_ERROR_FAILURE;
     }
@@ -6139,7 +6136,12 @@ nsresult nsWindow::Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
     LOG("    Is undecorated Window\n");
     gtk_window_set_titlebar(GTK_WINDOW(mShell), gtk_fixed_new());
     gtk_window_set_decorated(GTK_WINDOW(mShell), false);
-  } else if (mWindowType == WindowType::TopLevel) {
+  } else if (mWindowType == WindowType::TopLevel && !mParent) {
+    // Disabling system titlebar for visible GtkWindow is complicated
+    // as gtk_window_set_titlebar() works on unrealized widgets only.
+    //
+    // So hide system titlebar early if there's good expectation
+    // for it (a standalone toplevel window).
     SetDrawsInTitlebar(LookAndFeel::DrawInTitlebar());
   }
 
@@ -8896,11 +8898,8 @@ void nsWindow::SetDrawsInTitlebar(bool aState) {
       !gtk_widget_get_realized(mShell)) {
     LOG("    Using CSD shortcut\n");
     MOZ_ASSERT(!mCreated);
-    if (aState) {
-      gtk_window_set_titlebar(GTK_WINDOW(mShell), gtk_fixed_new());
-    } else {
-      gtk_window_set_titlebar(GTK_WINDOW(mShell), nullptr);
-    }
+    gtk_window_set_titlebar(GTK_WINDOW(mShell),
+                            aState ? gtk_fixed_new() : nullptr);
     return;
   }
 
@@ -8933,15 +8932,12 @@ void nsWindow::SetDrawsInTitlebar(bool aState) {
     gtk_widget_reparent(GTK_WIDGET(mContainer), tmpWindow);
     gtk_widget_unrealize(GTK_WIDGET(mShell));
 
-    if (aState) {
-      // Add a hidden titlebar widget to trigger CSD, but disable the default
-      // titlebar.  GtkFixed is a somewhat random choice for a simple unused
-      // widget. gtk_window_set_titlebar() takes ownership of the titlebar
-      // widget.
-      gtk_window_set_titlebar(GTK_WINDOW(mShell), gtk_fixed_new());
-    } else {
-      gtk_window_set_titlebar(GTK_WINDOW(mShell), nullptr);
-    }
+    // Add a hidden titlebar widget to trigger CSD, but disable the default
+    // titlebar.  GtkFixed is a somewhat random choice for a simple unused
+    // widget. gtk_window_set_titlebar() takes ownership of the titlebar
+    // widget.
+    gtk_window_set_titlebar(GTK_WINDOW(mShell),
+                            aState ? gtk_fixed_new() : nullptr);
 
     /* A workaround for https://bugzilla.gnome.org/show_bug.cgi?id=791081
      * gtk_widget_realize() throws:
