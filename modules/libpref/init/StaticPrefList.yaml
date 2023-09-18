@@ -4590,6 +4590,12 @@
   mirror: always
   rust: true
 
+- name: dom.webgpu.swap-chain.external-texture-dx12
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+  rust: true
+
 # Is support for HTMLInputElement.webkitEntries enabled?
 - name: dom.webkitBlink.filesystem.enabled
   type: bool
@@ -4661,11 +4667,6 @@
 - name: dom.window.clientinformation.enabled
   type: bool
   value: true
-  mirror: always
-
-- name: dom.window.sidebar.enabled
-  type: bool
-  value: false
   mirror: always
 
 # Whether Window.sizeToContent() is enabled.
@@ -8486,13 +8487,6 @@
   value: false
   mirror: always
 
-# Pref to control whether line-height: -moz-block-height is exposed to content.
-- name: layout.css.line-height-moz-block-height.content.enabled
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-  rust: true
-
 # Is support for motion-path <basic-shape> other than path() enabled?
 # https://drafts.fxtf.org/motion-1/#valdef-offset-path-basic-shape
 - name: layout.css.motion-path-basic-shapes.enabled
@@ -10966,6 +10960,19 @@
 #endif
 
 #---------------------------------------------------------------------------
+# Prefs starting with "memory."
+#---------------------------------------------------------------------------
+
+- name: memory.phc.enabled
+  type: bool
+#if defined(MOZ_PHC)
+  value: true
+#else
+  value: false
+#endif
+  mirror: always
+
+#---------------------------------------------------------------------------
 # Prefs starting with "midi."
 #---------------------------------------------------------------------------
 
@@ -11684,12 +11691,6 @@
 - name: network.dns.disabled
   type: RelaxedAtomicBool
   value: false
-  mirror: always
-
-# Whether DNS resolution is limited to literals and cached entries.
-- name: network.dns.skipTRR-when-parental-control-enabled
-  type: RelaxedAtomicBool
-  value: true
   mirror: always
 
 - name: network.dns.disablePrefetchFromHTTPS
