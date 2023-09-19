@@ -1828,16 +1828,6 @@
   mirror: always
 
 #---------------------------------------------------------------------------
-# Prefs starting with "canvas."
-#---------------------------------------------------------------------------
-
-# Is support for CanvasRenderingContext2D's createConicGradient API enabled?
-- name: canvas.createConicGradient.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
-#---------------------------------------------------------------------------
 # Prefs starting with "channelclassifier."
 #---------------------------------------------------------------------------
 
@@ -2965,12 +2955,6 @@
   mirror: always
 #endif
 
-# Is support for HTMLElement.autocapitalize enabled?
-- name: dom.forms.autocapitalize
-  type: bool
-  value: true
-  mirror: always
-
 # Support for input type=month, type=week. By default, disabled.
 - name: dom.forms.datetime.others
   type: bool
@@ -3916,11 +3900,6 @@
   value: true
   mirror: always
 
-- name: dom.workers.requestAnimationFrame
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 - name: dom.workers.serialized-sab-access
   type: RelaxedAtomicBool
   value: false
@@ -4255,12 +4234,6 @@
 - name: dom.vibrator.max_vibrate_list_len
   type: RelaxedAtomicUint32
   value: 128
-  mirror: always
-
-# Is support for Window.visualViewport enabled?
-- name: dom.visualviewport.enabled
-  type: bool
-  value: true
   mirror: always
 
 # Is support for WebVR APIs enabled?
@@ -4600,12 +4573,6 @@
 - name: dom.webkitBlink.filesystem.enabled
   type: bool
   value: @IS_NOT_ANDROID@
-  mirror: always
-
-# Whether the Web Locks API is enabled
-- name: dom.weblocks.enabled
-  type: RelaxedAtomicBool
-  value: true
   mirror: always
 
 # Whether the WebMIDI API is enabled

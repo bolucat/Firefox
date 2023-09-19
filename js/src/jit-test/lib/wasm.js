@@ -4,7 +4,6 @@ if (!wasmIsSupported())
 load(libdir + "asserts.js");
 
 function canRunHugeMemoryTests() {
-    let conf = getBuildConfiguration();
     // We're aiming for 64-bit desktop builds with no interesting analysis
     // running that might inflate memory consumption unreasonably.  It's OK if
     // they're debug builds, though.
@@ -16,12 +15,12 @@ function canRunHugeMemoryTests() {
     let blocked = ['rooting-analysis','simulator',
                    'android','wasi','asan','tsan','ubsan','dtrace','valgrind'];
     for ( let b of blocked ) {
-        if (conf[b]) {
+        if (getBuildConfiguration(b)) {
             print("Failing canRunHugeMemoryTests() because '" + b + "' is true");
             return false;
         }
     }
-    if (conf['pointer-byte-size'] != 8) {
+    if (getBuildConfiguration("pointer-byte-size") != 8) {
         print("Failing canRunHugeMemoryTests() because the build is not 64-bit");
         return false;
     }
@@ -135,7 +134,7 @@ function _augmentSrc(src, assertions) {
             switch (type) {
                 case 'f32':
                     newSrc += `
-         i32.reinterpret/f32
+         i32.reinterpret_f32
          ${(function () {
              if (expected == 'nan:arithmetic') {
                expected = '0x7FC00000';
@@ -148,7 +147,7 @@ function _augmentSrc(src, assertions) {
                     break;
                 case 'f64':
                     newSrc += `
-         i64.reinterpret/f64
+         i64.reinterpret_f64
          ${(function () {
              if (expected == 'nan:arithmetic') {
                expected = '0x7FF8000000000000';
@@ -583,6 +582,6 @@ function assertSame(got, expected) {
 
 // TailCallIterations is selected to be large enough to trigger
 // "too much recursion", but not to be slow.
-var TailCallIterations = getBuildConfiguration().simulator ? 1000 : 100000;
+var TailCallIterations = getBuildConfiguration("simulator") ? 1000 : 100000;
 // TailCallBallast is selected to spill registers as parameters.
 var TailCallBallast = 30;

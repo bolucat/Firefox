@@ -3,8 +3,6 @@
 // This tests a bunch of wasm struct stuff, but not i8 or i16 fields.
 // See structs2.js for i8/i16 field tests.
 
-var conf = getBuildConfiguration();
-
 var bin = wasmTextToBinary(
     `(module
       (func $x1 (import "m" "x1") (type $f1))
@@ -235,7 +233,11 @@ var stress = wasmTextToBinary(
          (br $loop)))
        (local.get $list)))`);
 var stressIns = new WebAssembly.Instance(new WebAssembly.Module(stress)).exports;
-var stressLevel = conf.x64 && !conf.tsan && !conf.asan && !conf.valgrind ? 100000 : 1000;
+var stressLevel =
+    getBuildConfiguration("x64") && !getBuildConfiguration("tsan") &&
+            !getBuildConfiguration("asan") && !getBuildConfiguration("valgrind")
+        ? 100000
+        : 1000;
 var the_list = stressIns.iota1(stressLevel);
 for (let i=1; i <= stressLevel; i++) {
     assertEq(wasmGcReadField(the_list, 0), i);
@@ -267,10 +269,10 @@ assertEq(the_list, null);
             (i64.const 0x3141592653589793)))
 
           (func (export "low") (param $p eqref) (result i32)
-           (i32.wrap/i64 (struct.get $big 1 (ref.cast (ref null $big) (local.get $p)))))
+           (i32.wrap_i64 (struct.get $big 1 (ref.cast (ref null $big) (local.get $p)))))
 
           (func (export "high") (param $p eqref) (result i32)
-           (i32.wrap/i64 (i64.shr_u
+           (i32.wrap_i64 (i64.shr_u
                           (struct.get $big 1 (ref.cast (ref null $big) (local.get $p)))
                           (i64.const 32))))
 
@@ -324,14 +326,14 @@ assertEq(the_list, null);
           (func (export "update1") (param $hi i32) (param $lo i32)
            (struct.set $big 1 (global.get $g)
             (i64.or
-             (i64.shl (i64.extend_u/i32 (local.get $hi)) (i64.const 32))
-             (i64.extend_u/i32 (local.get $lo)))))
+             (i64.shl (i64.extend_i32_u (local.get $hi)) (i64.const 32))
+             (i64.extend_i32_u (local.get $lo)))))
 
           (func (export "get1_low") (result i32)
-           (i32.wrap/i64 (struct.get $big 1 (global.get $g))))
+           (i32.wrap_i64 (struct.get $big 1 (global.get $g))))
 
           (func (export "get1_high") (result i32)
-           (i32.wrap/i64
+           (i32.wrap_i64
             (i64.shr_u (struct.get $big 1 (global.get $g)) (i64.const 32))))
 
           (func (export "update2") (param $x i32)
