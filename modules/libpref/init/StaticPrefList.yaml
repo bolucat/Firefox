@@ -2963,7 +2963,7 @@
 
 - name: dom.forms.always_allow_pointer_events.enabled
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # Is support for key events and focus events on disabled elements enabled?
@@ -2976,7 +2976,7 @@
 # Note that this still allows it to be selected by `:disable`.
 - name: dom.forms.fieldset_disable_only_descendants.enabled
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # Whether to allow or disallow web apps to cancel `beforeinput` events caused
@@ -8359,12 +8359,6 @@
   mirror: always
   rust: true
 
-# Is support for workerGlobalScope.fonts enabled?
-- name: layout.css.font-loading-api.workers.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 # Is support for the @font-palette-values rule and font-palette property enabled?
 - name: layout.css.font-palette.enabled
   type: RelaxedAtomicBool
@@ -8422,12 +8416,6 @@
   mirror: always
   rust: true
 
-# Is support for caching an grid item's block axis measurement enabled?
-- name: layout.css.grid-item-baxis-measurement.enabled
-  type: bool
-  value: true
-  mirror: always
-
 # Is support for CSS masonry layout enabled?
 - name: layout.css.grid-template-masonry-value.enabled
   type: RelaxedAtomicBool
@@ -8438,7 +8426,7 @@
 # Is support for :has() enabled?
 - name: layout.css.has-selector.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
   rust: true
 
@@ -10286,7 +10274,7 @@
 #ifdef MOZ_WEBSPEECH
 -   name: media.webspeech.synth.enabled
     type: bool
-    value: false
+    value: true
     mirror: always
 #endif  # MOZ_WEBSPEECH
 
