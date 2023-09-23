@@ -454,6 +454,9 @@ const SHOPPING_MICROSURVEY = {
       content: {
         position: "split",
         layout: "survey",
+        steps_indicator: {
+          string_id: "shopping-onboarding-welcome-steps-indicator-label",
+        },
         title: {
           string_id: "shopping-survey-headline",
         },
@@ -550,6 +553,9 @@ const SHOPPING_MICROSURVEY = {
       content: {
         position: "split",
         layout: "survey",
+        steps_indicator: {
+          string_id: "shopping-onboarding-welcome-steps-indicator-label",
+        },
         title: {
           string_id: "shopping-survey-headline",
         },
@@ -751,19 +757,21 @@ class AboutWelcomeShoppingChild extends AboutWelcomeChild {
       this.setOptInTime();
     }
     // Hide the container until the user is eligible to see the survey
-    if (!lazy.isSurveySeen) {
+    // or user has just completed opt-in
+    if (!lazy.isSurveySeen || AboutWelcomeShoppingChild.optedInSession) {
       this.document.getElementById("multi-stage-message-root").hidden = true;
     }
 
-    // Early exit if user has seen survey, if we have no data,
-    // or if pdp is ineligible or not unique
+    // Early exit if user has seen survey, if we have no data, encountered
+    // an error, or if pdp is ineligible or not unique
     if (
       lazy.isSurveySeen ||
       !data ||
+      data.error ||
       !productUrl ||
-      (data?.needs_analysis &&
-        (!data?.product_id || !data?.grade || !data?.adjusted_rating)) ||
-      AboutWelcomeShoppingChild.eligiblePDPvisits.includes(data?.product_id)
+      (data.needs_analysis &&
+        (!data.product_id || !data.grade || !data.adjusted_rating)) ||
+      AboutWelcomeShoppingChild.eligiblePDPvisits.includes(data.product_id)
     ) {
       return;
     }

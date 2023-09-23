@@ -2347,11 +2347,6 @@
   value: false
   mirror: always
 
-- name: dom.enable_window_print
-  type: bool
-  value: true
-  mirror: always
-
 # Only intended for fuzzing purposes, this will break mozPrintCallback, etc.
 - name: dom.window_print.fuzzing.block_while_printing
   type: bool
@@ -2370,14 +2365,6 @@
   value: false
   mirror: always
   rust: true
-
-# Controls whether the "focus fixup rule" is enabled. Subject to minor changes
-# based on https://github.com/whatwg/html/pull/8392 and
-# https://github.com/whatwg/html/issues/8225
-- name: dom.focus.fixup
-  type: bool
-  value: true
-  mirror: always
 
 - name: dom.mouse_capture.enabled
   type: bool
@@ -13189,7 +13176,7 @@
 
 - name: privacy.partition.bloburl_per_partition_key
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 - name: privacy.window.name.update.enabled
