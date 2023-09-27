@@ -4758,6 +4758,13 @@
   value: "#FFFFFF"
   mirror: never
 
+# Whether HTMLEditor consides block or inline element with computed style or
+# only with the default style of HTML definition.
+- name: editor.block_inline_check.use_computed_style
+  type: bool
+  value: @IS_EARLY_BETA_OR_EARLIER@
+  mirror: always
+
 # Use compatible range computation when applying inline style.  This is used
 # for making it possible to backout with Normandy Pref Rollout.
 - name: editor.inline_style.range.compatible_with_the_other_browsers
@@ -7660,7 +7667,7 @@
 # anyway.
 - name: javascript.options.use_fdlibm_for_sin_cos_tan
   type: bool
-  value: false
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # Whether to support parsing '//(#@) source(Mapping)?URL=' pragmas.
@@ -13197,11 +13204,6 @@
 
 # Exclude session storage from the above preference.
 - name: privacy.partition.always_partition_third_party_non_cookie_storage.exempt_sessionstorage
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
-- name: privacy.partition.bloburl_per_agent_cluster
   type: RelaxedAtomicBool
   value: false
   mirror: always
