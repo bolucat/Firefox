@@ -100,8 +100,10 @@ struct AudioTimelineEvent final {
   };
 
   AudioTimelineEvent(Type aType, double aTime, float aValue,
-                     double aTimeConstant = 0.0, double aDuration = 0.0,
-                     const float* aCurve = nullptr, uint32_t aCurveLength = 0);
+                     double aTimeConstant = 0.0);
+  // For SetValueCurve
+  AudioTimelineEvent(Type aType, const nsTArray<float>& aValues,
+                     double aStartTime, double aDuration);
   explicit AudioTimelineEvent(AudioNodeTrack* aTrack);
   AudioTimelineEvent(const AudioTimelineEvent& rhs);
   ~AudioTimelineEvent();
@@ -293,54 +295,6 @@ class AudioEventTimeline {
     if (mEvents.IsEmpty()) {
       mSetTargetStartValue = mDefaultValue = aValue;
       mSimpleValue = Some(aValue);
-    }
-  }
-
-  void SetValueAtTime(float aValue, double aStartTime, ErrorResult& aRv) {
-    AudioTimelineEvent event(AudioTimelineEvent::SetValueAtTime, aStartTime,
-                             aValue);
-
-    if (ValidateEvent(event, aRv)) {
-      InsertEvent<double>(event);
-    }
-  }
-
-  void LinearRampToValueAtTime(float aValue, double aEndTime,
-                               ErrorResult& aRv) {
-    AudioTimelineEvent event(AudioTimelineEvent::LinearRamp, aEndTime, aValue);
-
-    if (ValidateEvent(event, aRv)) {
-      InsertEvent<double>(event);
-    }
-  }
-
-  void ExponentialRampToValueAtTime(float aValue, double aEndTime,
-                                    ErrorResult& aRv) {
-    AudioTimelineEvent event(AudioTimelineEvent::ExponentialRamp, aEndTime,
-                             aValue);
-
-    if (ValidateEvent(event, aRv)) {
-      InsertEvent<double>(event);
-    }
-  }
-
-  void SetTargetAtTime(float aTarget, double aStartTime, double aTimeConstant,
-                       ErrorResult& aRv) {
-    AudioTimelineEvent event(AudioTimelineEvent::SetTarget, aStartTime, aTarget,
-                             aTimeConstant);
-
-    if (ValidateEvent(event, aRv)) {
-      InsertEvent<double>(event);
-    }
-  }
-
-  void SetValueCurveAtTime(const float* aValues, uint32_t aValuesLength,
-                           double aStartTime, double aDuration,
-                           ErrorResult& aRv) {
-    AudioTimelineEvent event(AudioTimelineEvent::SetValueCurve, aStartTime,
-                             0.0f, 0.0f, aDuration, aValues, aValuesLength);
-    if (ValidateEvent(event, aRv)) {
-      InsertEvent<double>(event);
     }
   }
 
