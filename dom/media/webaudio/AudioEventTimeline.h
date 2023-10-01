@@ -27,7 +27,7 @@ class AudioNodeTrack;
 
 namespace dom {
 
-struct AudioTimelineEvent final {
+struct AudioTimelineEvent {
   enum Type : uint32_t {
     SetValue,
     SetValueAtTime,
@@ -104,7 +104,6 @@ struct AudioTimelineEvent final {
   // For SetValueCurve
   AudioTimelineEvent(Type aType, const nsTArray<float>& aValues,
                      double aStartTime, double aDuration);
-  explicit AudioTimelineEvent(AudioNodeTrack* aTrack);
   AudioTimelineEvent(const AudioTimelineEvent& rhs);
   ~AudioTimelineEvent();
 
@@ -116,11 +115,41 @@ struct AudioTimelineEvent final {
   // Otherwise, this returns the time of the event.
   template <class TimeType>
   double EndTime() const;
+
+  float NominalValue() const {
+    MOZ_ASSERT(mType != SetValueCurve);
+    return mValue;
+  }
+  float StartValue() const {
+    MOZ_ASSERT(mType == SetValueCurve);
+    return mCurve[0];
+  }
   // Value for an event, or for a ValueCurve event, this is the value of the
   // last element of the curve.
   float EndValue() const;
 
-  void SetTimeInTicks(int64_t aTimeInTicks) { mTime = aTimeInTicks; }
+  double TimeConstant() const {
+    MOZ_ASSERT(mType == SetTarget);
+    return mTimeConstant;
+  }
+  uint32_t CurveLength() const {
+    MOZ_ASSERT(mType == SetValueCurve);
+    return mCurveLength;
+  }
+  double Duration() const {
+    MOZ_ASSERT(mType == SetValueCurve);
+    return mDuration;
+  }
+  /**
+   * Converts an AudioTimelineEvent's floating point time members to tick
+   * values with respect to a destination AudioNodeTrack.
+   *
+   * This needs to be called for each AudioTimelineEvent that gets sent to an
+   * AudioNodeEngine, on the engine side where the AudioTimlineEvent is
+   * received.  This means that such engines need to be aware of their
+   * destination tracks as well.
+   */
+  void ConvertToTicks(AudioNodeTrack* aDestination);
 
   template <class TimeType>
   void FillTargetApproach(TimeType aBufferStartTime, Span<float> aBuffer,
@@ -140,22 +169,24 @@ struct AudioTimelineEvent final {
   }
 
  public:
-  Type mType;
-  union {
-    float mValue;
-    uint32_t mCurveLength;
-  };
-  // mCurve contains a buffer of SetValueCurve samples.  We sample the
-  // values in the buffer depending on how far along we are in time.
-  // If we're at time T and the event has started as time T0 and has a
-  // duration of D, we sample the buffer at floor(mCurveLength*(T-T0)/D)
-  // if T<T0+D, and just take the last sample in the buffer otherwise.
-  float* mCurve;
-  RefPtr<AudioNodeTrack> mTrack;
-  double mTimeConstant;
-  double mDuration;
+  const Type mType;
 
  private:
+  union {
+    float mValue;
+    uint32_t mCurveLength;  // for SetValueCurve
+  };
+  union {
+    double mTimeConstant;
+    // mCurve contains a buffer of SetValueCurve samples.  We sample the
+    // values in the buffer depending on how far along we are in time.
+    // If we're at time T and the event has started as time T0 and has a
+    // duration of D, we sample the buffer at floor(mCurveLength*(T-T0)/D)
+    // if T<T0+D, and just take the last sample in the buffer otherwise.
+    float* mCurve;
+  };
+  double mDuration;  // for SetValueCurve
+
   // This member is accessed using the `Time` method.
   //
   // The time for an event can either be in seconds or in ticks.
@@ -196,34 +227,39 @@ class AudioEventTimeline {
       aRv.ThrowRangeError<MSG_INVALID_AUDIOPARAM_METHOD_START_TIME_ERROR>();
       return false;
     }
-    if (!WebAudioUtils::IsTimeValid(aEvent.mTimeConstant)) {
-      aRv.ThrowRangeError(
-          "The exponential constant passed to setTargetAtTime must be "
-          "non-negative.");
-      return false;
-    }
 
-    if (aEvent.mType == AudioTimelineEvent::SetValueCurve) {
-      if (!aEvent.mCurve || aEvent.mCurveLength < 2) {
-        aRv.ThrowInvalidStateError("Curve length must be at least 2");
-        return false;
-      }
-      if (aEvent.mDuration <= 0) {
-        aRv.ThrowRangeError(
-            "The curve duration for setValueCurveAtTime must be strictly "
-            "positive.");
-        return false;
-      }
+    switch (aEvent.mType) {
+      case AudioTimelineEvent::SetValueCurve:
+        if (aEvent.CurveLength() < 2) {
+          aRv.ThrowInvalidStateError("Curve length must be at least 2");
+          return false;
+        }
+        if (aEvent.Duration() <= 0) {
+          aRv.ThrowRangeError(
+              "The curve duration for setValueCurveAtTime must be strictly "
+              "positive.");
+          return false;
+        }
+        MOZ_ASSERT(IsValid(aEvent.Duration()));
+        break;
+      case AudioTimelineEvent::SetTarget:
+        if (!WebAudioUtils::IsTimeValid(aEvent.TimeConstant())) {
+          aRv.ThrowRangeError(
+              "The exponential constant passed to setTargetAtTime must be "
+              "non-negative.");
+          return false;
+        }
+        [[fallthrough]];
+      default:
+        MOZ_ASSERT(IsValid(aEvent.NominalValue()));
     }
-
-    MOZ_ASSERT(IsValid(aEvent.mValue) && IsValid(aEvent.mDuration));
 
     // Make sure that new events don't fall within the duration of a
     // curve event.
     for (unsigned i = 0; i < mEvents.Length(); ++i) {
       if (mEvents[i].mType == AudioTimelineEvent::SetValueCurve &&
           TimeOf(mEvents[i]) <= TimeOf(aEvent) &&
-          TimeOf(mEvents[i]) + mEvents[i].mDuration > TimeOf(aEvent)) {
+          TimeOf(mEvents[i]) + mEvents[i].Duration() > TimeOf(aEvent)) {
         aRv.ThrowNotSupportedError("Can't add events during a curve event");
         return false;
       }
@@ -234,7 +270,7 @@ class AudioEventTimeline {
     if (aEvent.mType == AudioTimelineEvent::SetValueCurve) {
       for (unsigned i = 0; i < mEvents.Length(); ++i) {
         if (TimeOf(aEvent) < TimeOf(mEvents[i]) &&
-            TimeOf(aEvent) + aEvent.mDuration > TimeOf(mEvents[i])) {
+            TimeOf(aEvent) + aEvent.Duration() > TimeOf(mEvents[i])) {
           aRv.ThrowNotSupportedError(
               "Can't add curve events that overlap other events");
           return false;
@@ -244,7 +280,7 @@ class AudioEventTimeline {
 
     // Make sure that invalid values are not used for exponential curves
     if (aEvent.mType == AudioTimelineEvent::ExponentialRamp) {
-      if (aEvent.mValue == 0.f) {
+      if (aEvent.NominalValue() == 0.f) {
         aRv.ThrowRangeError(
             "The value passed to exponentialRampToValueAtTime must be "
             "non-zero.");
