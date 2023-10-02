@@ -96,6 +96,9 @@ struct AudioTimelineEvent {
 #ifdef DEBUG
     bool mIsInSeconds;
     bool mIsInTicks;
+
+   public:
+    bool IsInTicks() const { return mIsInTicks; };
 #endif
   };
 
@@ -157,18 +160,6 @@ struct AudioTimelineEvent {
   template <class TimeType>
   void FillFromValueCurve(TimeType aBufferStartTime, Span<float> aBuffer) const;
 
- private:
-  void SetCurveParams(const float* aCurve, uint32_t aCurveLength) {
-    mCurveLength = aCurveLength;
-    if (aCurveLength) {
-      mCurve = new float[aCurveLength];
-      PodCopy(mCurve, aCurve, aCurveLength);
-    } else {
-      mCurve = nullptr;
-    }
-  }
-
- public:
   const Type mType;
 
  private:
@@ -185,7 +176,11 @@ struct AudioTimelineEvent {
     // if T<T0+D, and just take the last sample in the buffer otherwise.
     float* mCurve;
   };
-  double mDuration;  // for SetValueCurve
+  union {
+    // mPerTickRatio is used only with SetTarget and int64_t TimeType.
+    double mPerTickRatio;
+    double mDuration;  // for SetValueCurve
+  };
 
   // This member is accessed using the `Time` method.
   //

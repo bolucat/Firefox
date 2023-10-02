@@ -37,15 +37,6 @@ static void FillExponentialRamp(double aBufferStartTime, Span<float> aBuffer,
   }
 }
 
-static float ExponentialApproach(double t0, double v0, float v1,
-                                 double timeConstant, double t) {
-  if (!mozilla::dom::WebAudioUtils::FuzzyEqual(timeConstant, 0.0)) {
-    return v1 + (v0 - v1) * fdlibm_expf(-(t - t0) / timeConstant);
-  } else {
-    return v1;
-  }
-}
-
 template <typename TimeType, typename DurationType>
 static size_t LimitedCountForDuration(size_t aMax, DurationType aDuration);
 
@@ -81,6 +72,16 @@ size_t LimitedCountForDuration<int64_t>(size_t aMax, double aDuration) {
              : static_cast<size_t>(aDuration);
 }
 
+static float* NewCurveCopy(Span<const float> aCurve) {
+  if (aCurve.Length() == 0) {
+    return nullptr;
+  }
+
+  float* curve = new float[aCurve.Length()];
+  mozilla::PodCopy(curve, aCurve.Elements(), aCurve.Length());
+  return curve;
+}
+
 namespace mozilla::dom {
 
 AudioTimelineEvent::AudioTimelineEvent(Type aType, double aTime, float aValue,
@@ -88,23 +89,28 @@ AudioTimelineEvent::AudioTimelineEvent(Type aType, double aTime, float aValue,
     : mType(aType),
       mValue(aValue),
       mTimeConstant(aTimeConstant),
-      mDuration(0.0),
+      mPerTickRatio(std::numeric_limits<double>::quiet_NaN()),
       mTime(aTime) {}
 
 AudioTimelineEvent::AudioTimelineEvent(Type aType,
                                        const nsTArray<float>& aValues,
                                        double aStartTime, double aDuration)
-    : mType(aType), mDuration(aDuration), mTime(aStartTime) {
+    : mType(aType),
+      mCurveLength(aValues.Length()),
+      mCurve(NewCurveCopy(aValues)),
+      mDuration(aDuration),
+      mTime(aStartTime) {
   MOZ_ASSERT(aType == AudioTimelineEvent::SetValueCurve);
-  SetCurveParams(aValues.Elements(), aValues.Length());
 }
 
+// cppcoreguidelines-pro-type-member-init does not know PodCopy().
+// NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
 AudioTimelineEvent::AudioTimelineEvent(const AudioTimelineEvent& rhs)
     : mType(rhs.mType) {
   PodCopy(this, &rhs, 1);
 
   if (rhs.mType == AudioTimelineEvent::SetValueCurve) {
-    SetCurveParams(rhs.mCurve, rhs.mCurveLength);
+    mCurve = NewCurveCopy(Span(rhs.mCurve, rhs.mCurveLength));
   }
 }
 
@@ -135,6 +141,15 @@ void AudioTimelineEvent::ConvertToTicks(AudioNodeTrack* aDestination) {
   switch (mType) {
     case SetTarget:
       mTimeConstant *= aDestination->mSampleRate;
+      // exp(-1/timeConstant) is usually very close to 1, but its effect
+      // depends on the difference from 1 and rounding errors would
+      // accumulate, so use double precision to retain precision in the
+      // difference.  Single precision expm1f() would be sufficient, but the
+      // arithmetic in AudioTimelineEvent::FillTargetApproach() is simpler
+      // with exp().
+      mPerTickRatio =
+          mTimeConstant == 0.0 ? 0.0 : fdlibm_exp(-1.0 / mTimeConstant);
+
       break;
     case SetValueCurve:
       mDuration *= aDestination->mSampleRate;
@@ -149,9 +164,28 @@ void AudioTimelineEvent::FillTargetApproach(TimeType aBufferStartTime,
                                             Span<float> aBuffer,
                                             double v0) const {
   MOZ_ASSERT(mType == SetTarget);
-  for (size_t i = 0; i < aBuffer.Length(); ++i) {
-    aBuffer[i] = ::ExponentialApproach(Time<TimeType>(), v0, mValue,
-                                       mTimeConstant, aBufferStartTime + i);
+  MOZ_ASSERT(aBuffer.Length() >= 1);
+  double v1 = mValue;
+  double vDelta = v0 - v1;
+  if (vDelta == 0.0 || mTimeConstant == 0.0) {
+    std::fill_n(aBuffer.Elements(), aBuffer.Length(), mValue);
+    return;
+  }
+
+  // v(t) = v1 + vDelta(t) where vDelta(t) = (v0-v1) * e^(-(t-t0)/timeConstant).
+  // Calculate the value for the first element in the buffer using this
+  // formulation.
+  vDelta *= fdlibm_expf(-(aBufferStartTime - Time<TimeType>()) / mTimeConstant);
+  for (size_t i = 0; true;) {
+    aBuffer[i] = static_cast<float>(v1 + vDelta);
+    ++i;
+    if (i == aBuffer.Length()) {
+      return;
+    }
+    // For other buffer elements, use the pre-computed exp(-1/timeConstant)
+    // for the inter-tick ratio of the difference from the target.
+    // vDelta(t+1) = vDelta(t) * e^(-1/timeConstant)
+    vDelta *= mPerTickRatio;
   }
 }
 
