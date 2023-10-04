@@ -72,6 +72,30 @@ add_task(async function test_shopping_UI_chevron_clicks() {
   Assert.equal(events[0].name, "surface_settings_expand_clicked");
 });
 
+add_task(async function test_reactivated_product_button_click() {
+  await Services.fog.testFlushAllChildren();
+  Services.fog.testResetFOG();
+
+  await BrowserTestUtils.withNewTab(
+    {
+      url: "about:shoppingsidebar",
+      gBrowser,
+    },
+    async browser => {
+      await clickProductAvailableLink(browser, MOCK_STALE_PRODUCT_RESPONSE);
+    }
+  );
+
+  await Services.fog.testFlushAllChildren();
+
+  var reanalysisEvents =
+    Glean.shopping.surfaceReactivatedButtonClicked.testGetValue();
+  assertEventMatches(reanalysisEvents[0], {
+    category: "shopping",
+    name: "surface_reactivated_button_clicked",
+  });
+});
+
 add_task(async function test_shopping_sidebar_displayed() {
   Services.fog.testResetFOG();
 
@@ -130,6 +154,30 @@ add_task(async function test_shopping_sidebar_displayed() {
 
   Assert.equal(emptyDisplayedEvents, null);
   Assert.equal(emptyAddressBarIconDisplayedEvents, null);
+});
+
+add_task(async function test_shopping_card_clicks() {
+  await Services.fog.testFlushAllChildren();
+  Services.fog.testResetFOG();
+
+  await BrowserTestUtils.withNewTab(
+    {
+      url: "about:shoppingsidebar",
+      gBrowser,
+    },
+    async browser => {
+      await clickShowMoreButton(browser, MOCK_ANALYZED_PRODUCT_RESPONSE);
+    }
+  );
+
+  await Services.fog.testFlushAllChildren();
+  var learnMoreButtonEvents =
+    Glean.shopping.surfaceShowMoreReviewsButtonClicked.testGetValue();
+
+  assertEventMatches(learnMoreButtonEvents[0], {
+    category: "shopping",
+    name: "surface_show_more_reviews_button_clicked",
+  });
 });
 
 add_task(async function test_close_telemetry_recorded() {
@@ -248,5 +296,37 @@ function clickCloseButton(browser, data) {
     await closeButton.updateComplete;
 
     closeButton.click();
+  });
+}
+
+function clickProductAvailableLink(browser, data) {
+  return SpecialPowers.spawn(browser, [data], async mockData => {
+    let shoppingContainer =
+      content.document.querySelector("shopping-container").wrappedJSObject;
+    shoppingContainer.data = Cu.cloneInto(mockData, content);
+    await shoppingContainer.updateComplete;
+
+    let shoppingMessageBar = shoppingContainer.shoppingMessageBarEl;
+    await shoppingMessageBar.updateComplete;
+
+    // calling onClickProductAvailable will fail quietly in cases where this is
+    // not possible to call, so assure it exists first.
+    Assert.notEqual(shoppingMessageBar, null);
+    await shoppingMessageBar.onClickProductAvailable();
+  });
+}
+
+function clickShowMoreButton(browser, data) {
+  return SpecialPowers.spawn(browser, [data], async mockData => {
+    let shoppingContainer =
+      content.document.querySelector("shopping-container").wrappedJSObject;
+    shoppingContainer.data = Cu.cloneInto(mockData, content);
+    await shoppingContainer.updateComplete;
+
+    let highlights = shoppingContainer.highlightsEl;
+    let card = highlights.shadowRoot.querySelector("shopping-card");
+    let button = card.shadowRoot.querySelector("article footer button");
+
+    button.click();
   });
 }

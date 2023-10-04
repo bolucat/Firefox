@@ -3429,16 +3429,7 @@ class Document : public nsINode,
   bool Hidden() const { return mVisibilityState != VisibilityState::Visible; }
   dom::VisibilityState VisibilityState() const { return mVisibilityState; }
 
- private:
-  int32_t mPictureInPictureChildElementCount = 0;
-
  public:
-  void EnableChildElementInPictureInPictureMode();
-  void DisableChildElementInPictureInPictureMode();
-
-  // True if any child element is being used in picture in picture mode.
-  bool HasPictureInPictureChildElement() const;
-
   void GetSelectedStyleSheetSet(nsAString& aSheetSet);
   void SetSelectedStyleSheetSet(const nsAString& aSheetSet);
   void GetLastStyleSheetSet(nsAString& aSheetSet) {
@@ -3773,6 +3764,8 @@ class Document : public nsINode,
   void AddResizeObserver(ResizeObserver&);
   void RemoveResizeObserver(ResizeObserver&);
   void ScheduleResizeObserversNotification() const;
+  bool HasResizeObservers() const;
+  MOZ_CAN_RUN_SCRIPT void NotifyResizeObservers();
 
   // Getter for PermissionDelegateHandler. Performs lazy initialization.
   PermissionDelegateHandler* GetPermissionDelegateHandler();

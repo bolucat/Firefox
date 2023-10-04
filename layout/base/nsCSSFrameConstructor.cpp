@@ -117,8 +117,6 @@
 #undef NOISY_FIRST_LETTER
 
 #include "nsMathMLParts.h"
-#include "mozilla/dom/SVGFilters.h"
-#include "mozilla/dom/SVGTests.h"
 #include "mozilla/SVGGradientFrame.h"
 
 #include "nsRefreshDriver.h"
@@ -1075,10 +1073,11 @@ void nsFrameConstructorState::ConstructBackdropFrameFor(nsIContent* aContent,
     return;
   }
 
+  ComputedStyle* parentStyle = nsLayoutUtils::GetStyleFrame(aFrame)->Style();
   RefPtr<ComputedStyle> style =
       mPresShell->StyleSet()->ResolvePseudoElementStyle(
           *aContent->AsElement(), PseudoStyleType::backdrop, nullptr,
-          /* aParentStyle */ nullptr);
+          parentStyle);
   MOZ_ASSERT(style->StyleDisplay()->mTopLayer == StyleTopLayer::Top);
   nsContainerFrame* parentFrame =
       GetGeometricParent(*style->StyleDisplay(), nullptr);
@@ -4844,13 +4843,6 @@ nsIFrame* nsCSSFrameConstructor::ConstructMarker(
 #define SIMPLE_SVG_CREATE(_tag, _func) \
   { nsGkAtoms::_tag, SIMPLE_SVG_FCDATA(_func) }
 
-static bool IsFilterPrimitiveChildTag(const nsAtom* aTag) {
-  return aTag == nsGkAtoms::feDistantLight || aTag == nsGkAtoms::fePointLight ||
-         aTag == nsGkAtoms::feSpotLight || aTag == nsGkAtoms::feFuncR ||
-         aTag == nsGkAtoms::feFuncG || aTag == nsGkAtoms::feFuncB ||
-         aTag == nsGkAtoms::feFuncA || aTag == nsGkAtoms::feMergeNode;
-}
-
 /* static */
 const nsCSSFrameConstructor::FrameConstructionData*
 nsCSSFrameConstructor::FindSVGData(const Element& aElement,
@@ -4923,8 +4915,7 @@ nsCSSFrameConstructor::FindSVGData(const Element& aElement,
     return &sMarkerSVGData;
   }
 
-  nsCOMPtr<SVGTests> tests = do_QueryInterface(const_cast<Element*>(&aElement));
-  if (tests && !tests->PassesConditionalProcessingTests()) {
+  if (!aElement.PassesConditionalProcessingTests()) {
     // Elements with failing conditional processing attributes never get
     // rendered.  Note that this is not where we select which frame in a
     // <switch> to render!  That happens in SVGSwitchFrame::PaintSVG.
@@ -4955,10 +4946,8 @@ nsCSSFrameConstructor::FindSVGData(const Element& aElement,
   // primitives.  If aParentFrame is null, we know that the frame that will
   // be created will be an nsInlineFrame, so it can never be a filter.
   bool parentIsFilter = aParentFrame && aParentFrame->IsSVGFilterFrame();
-  nsCOMPtr<SVGFE> filterPrimitive =
-      do_QueryInterface(const_cast<Element*>(&aElement));
-  if ((parentIsFilter && !filterPrimitive) ||
-      (!parentIsFilter && filterPrimitive)) {
+  if ((parentIsFilter && !aElement.IsSVGFilterPrimitiveElement()) ||
+      (!parentIsFilter && aElement.IsSVGFilterPrimitiveElement())) {
     return &sSuppressData;
   }
 
@@ -4968,8 +4957,10 @@ nsCSSFrameConstructor::FindSVGData(const Element& aElement,
   // primitive.
   bool parentIsFEContainerFrame =
       aParentFrame && aParentFrame->IsSVGFEContainerFrame();
-  if ((parentIsFEContainerFrame && !IsFilterPrimitiveChildTag(tag)) ||
-      (!parentIsFEContainerFrame && IsFilterPrimitiveChildTag(tag))) {
+  if ((parentIsFEContainerFrame &&
+       !aElement.IsSVGFilterPrimitiveChildElement()) ||
+      (!parentIsFEContainerFrame &&
+       aElement.IsSVGFilterPrimitiveChildElement())) {
     return &sSuppressData;
   }
 
