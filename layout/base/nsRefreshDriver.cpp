@@ -223,6 +223,10 @@ class RefreshDriverTimer {
   TimeStamp GetIdleDeadlineHint(TimeStamp aDefault) {
     MOZ_ASSERT(NS_IsMainThread());
 
+    if (!IsTicking() && !gfxPlatform::IsInLayoutAsapMode()) {
+      return aDefault;
+    }
+
     TimeStamp mostRecentRefresh = MostRecentRefresh();
     TimeDuration refreshPeriod = GetTimerRate();
     TimeStamp idleEnd = mostRecentRefresh + refreshPeriod;
@@ -1329,13 +1333,13 @@ nsRefreshDriver::nsRefreshDriver(nsPresContext* aPresContext)
       mResizeSuppressed(false),
       mNotifyDOMContentFlushed(false),
       mNeedToUpdateIntersectionObservations(false),
+      mNeedToUpdateResizeObservers(false),
       mMightNeedMediaQueryListenerUpdate(false),
       mNeedToUpdateContentRelevancy(false),
       mInNormalTick(false),
       mAttemptedExtraTickSinceLastVsync(false),
       mHasExceededAfterLoadTickPeriod(false),
-      mHasStartedTimerAtLeastOnce(false),
-      mResizeObservationCount(0) {
+      mHasStartedTimerAtLeastOnce(false) {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(mPresContext,
              "Need a pres context to tell us to call Disconnect() later "
@@ -1955,7 +1959,7 @@ auto nsRefreshDriver::GetReasonsToTick() const -> TickReasons {
   if (HasImageRequests() && !mThrottled) {
     reasons |= TickReasons::eHasImageRequests;
   }
-  if (mResizeObservationCount > 0) {
+  if (mNeedToUpdateResizeObservers) {
     reasons |= TickReasons::eNeedsToNotifyResizeObservers;
   }
   if (mNeedToUpdateIntersectionObservations) {
@@ -1994,7 +1998,7 @@ void nsRefreshDriver::AppendTickReasonsToString(TickReasons aReasons,
   if (aReasons & TickReasons::eHasImageRequests) {
     aStr.AppendLiteral(" HasImageAnimations");
   }
-  if (mResizeObservationCount > 0) {
+  if (aReasons & TickReasons::eNeedsToNotifyResizeObservers) {
     aStr.AppendLiteral(" NeedsToNotifyResizeObservers");
   }
   if (aReasons & TickReasons::eNeedsToUpdateIntersectionObservations) {
@@ -2209,6 +2213,10 @@ void nsRefreshDriver::RunFullscreenSteps() {
 void nsRefreshDriver::UpdateIntersectionObservations(TimeStamp aNowTime) {
   AUTO_PROFILER_LABEL_RELEVANT_FOR_JS("Compute intersections", LAYOUT);
 
+  if (MOZ_UNLIKELY(!mPresContext)) {
+    return;
+  }
+
   AutoTArray<RefPtr<Document>, 32> documents;
 
   if (mPresContext->Document()->HasIntersectionObservers()) {
@@ -2248,12 +2256,18 @@ void nsRefreshDriver::UpdateRelevancyOfContentVisibilityAutoFrames() {
 }
 
 void nsRefreshDriver::NotifyResizeObservers() {
-  if (mResizeObservationCount == 0) {
+  AUTO_PROFILER_LABEL_RELEVANT_FOR_JS("Notify ResizeObserver", LAYOUT);
+  if (!mNeedToUpdateResizeObservers) {
+    return;
+  }
+  // NotifyResizeObservers might re-schedule us for next tick.
+  mNeedToUpdateResizeObservers = false;
+
+  if (MOZ_UNLIKELY(!mPresContext)) {
     return;
   }
 
   AutoTArray<RefPtr<Document>, 32> documents;
-
   if (mPresContext->Document()->HasResizeObservers()) {
     documents.AppendElement(mPresContext->Document());
   }
