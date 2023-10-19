@@ -90,6 +90,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
   UIState: "resource://services-sync/UIState.sys.mjs",
   UrlbarPrefs: "resource:///modules/UrlbarPrefs.sys.mjs",
   WebChannel: "resource://gre/modules/WebChannel.sys.mjs",
+  WindowsLaunchOnLogin: "resource://gre/modules/WindowsLaunchOnLogin.sys.mjs",
   WindowsRegistry: "resource://gre/modules/WindowsRegistry.sys.mjs",
   WindowsGPOParser: "resource://gre/modules/policies/WindowsGPOParser.sys.mjs",
   clearTimeout: "resource://gre/modules/Timer.sys.mjs",
@@ -771,6 +772,8 @@ let JSWINDOWACTORS = {
         // methods available to the page js on load.
         DOMDocElementInserted: {},
         ReportProductAvailable: { wantUntrusted: true },
+        AdClicked: { wantUntrusted: true },
+        AdImpression: { wantUntrusted: true },
       },
     },
     matches: ["about:shoppingsidebar"],
@@ -1238,6 +1241,26 @@ BrowserGlue.prototype = {
           "os-autostart",
           false
         );
+        let launchOnLoginPref = "browser.startup.windowsLaunchOnLogin.enabled";
+        let profileSvc = Cc[
+          "@mozilla.org/toolkit/profile-service;1"
+        ].getService(Ci.nsIToolkitProfileService);
+        if (
+          AppConstants.platform == "win" &&
+          Services.prefs.getBoolPref(launchOnLoginPref) &&
+          !profileSvc.startWithLastProfile
+        ) {
+          // If we don't start with last profile, the user
+          // likely sees the profile selector on launch.
+          Services.prefs.setBoolPref(launchOnLoginPref, false);
+          Services.telemetry.setEventRecordingEnabled("launch_on_login", true);
+          Services.telemetry.recordEvent(
+            "launch_on_login",
+            "last_profile_disable:",
+            "startup"
+          );
+          await lazy.WindowsLaunchOnLogin.removeLaunchOnLoginRegistryKey();
+        }
         break;
     }
   },
@@ -3128,6 +3151,8 @@ BrowserGlue.prototype = {
       function reportInstallationTelemetry() {
         lazy.BrowserUsageTelemetry.reportInstallationTelemetry();
       },
+
+      RunOSKeyStoreSelfTest,
     ];
 
     for (let task of idleTasks) {
@@ -6354,3 +6379,70 @@ export var AboutHomeStartupCache = {
     this._cacheEntryResolver(this._cacheEntry);
   },
 };
+
+async function RunOSKeyStoreSelfTest() {
+  // The linux implementation always causes an OS dialog, in contrast to
+  // Windows and macOS (the latter of which causes an OS dialog to appear on
+  // local developer builds), so only run on Windows and macOS and only if this
+  // has been built and signed by Mozilla's infrastructure. Similarly, don't
+  // run this code in automation.
+  if (
+    (AppConstants.platform != "win" && AppConstants.platform != "macosx") ||
+    !AppConstants.MOZILLA_OFFICIAL ||
+    Services.env.get("MOZ_AUTOMATION")
+  ) {
+    return;
+  }
+  let osKeyStore = Cc["@mozilla.org/security/oskeystore;1"].getService(
+    Ci.nsIOSKeyStore
+  );
+  let label = Services.prefs.getCharPref("security.oskeystore.test.label", "");
+  if (!label) {
+    label = Services.uuid.generateUUID().toString().slice(1, -1);
+    Services.prefs.setCharPref("security.oskeystore.test.label", label);
+    try {
+      await osKeyStore.asyncGenerateSecret(label);
+      Glean.oskeystore.selfTest.generate.set(true);
+    } catch (_) {
+      Glean.oskeystore.selfTest.generate.set(false);
+      return;
+    }
+  }
+  let secretAvailable = await osKeyStore.asyncSecretAvailable(label);
+  Glean.oskeystore.selfTest.available.set(secretAvailable);
+  if (!secretAvailable) {
+    return;
+  }
+  let encrypted = Services.prefs.getCharPref(
+    "security.oskeystore.test.encrypted",
+    ""
+  );
+  if (!encrypted) {
+    try {
+      encrypted = await osKeyStore.asyncEncryptBytes(label, [1, 1, 3, 8]);
+      Services.prefs.setCharPref(
+        "security.oskeystore.test.encrypted",
+        encrypted
+      );
+      Glean.oskeystore.selfTest.encrypt.set(true);
+    } catch (_) {
+      Glean.oskeystore.selfTest.encrypt.set(false);
+      return;
+    }
+  }
+  try {
+    let decrypted = await osKeyStore.asyncDecryptBytes(label, encrypted);
+    if (
+      decrypted.length != 4 ||
+      decrypted[0] != 1 ||
+      decrypted[1] != 1 ||
+      decrypted[2] != 3 ||
+      decrypted[3] != 8
+    ) {
+      throw new Error("decrypted value not as expected?");
+    }
+    Glean.oskeystore.selfTest.decrypt.set(true);
+  } catch (_) {
+    Glean.oskeystore.selfTest.decrypt.set(false);
+  }
+}

@@ -1020,6 +1020,9 @@ pref("privacy.authPromptSpoofingProtection",         true);
 // Enable GPC if the user turns it on in about:preferences
 pref("privacy.globalprivacycontrol.functionality.enabled",  true);
 
+// Enable GPC in private browsing mode
+pref("privacy.globalprivacycontrol.pbmode.enabled", true);
+
 pref("network.proxy.share_proxy_settings",  false); // use the same proxy settings for all protocols
 
 // simple gestures support
@@ -2863,3 +2866,8 @@ pref("cookiebanners.ui.desktop.cfrVariant", 0);
 // Whether the reset private browsing panel should ask for confirmation before
 // performing the clear action.
 pref("browser.privatebrowsing.resetPBM.showConfirmationDialog", true);
+
+// bug 1858545: Temporary pref to enable a staged rollout of macOS attribution Telemetry
+#ifdef XP_MACOSX
+  pref("browser.attribution.macos.enabled", false);
+#endif

@@ -7866,6 +7866,7 @@ nsresult nsHttpChannel::ContinueOnStopRequestAfterAuthRetry(
 
     nsresult rv = gHttpHandler->CompleteUpgrade(aTransWithStickyConn,
                                                 mUpgradeProtocolCallback);
+    mUpgradeProtocolCallback = nullptr;
     if (NS_FAILED(rv)) {
       LOG(("  CompleteUpgrade failed with %" PRIx32,
            static_cast<uint32_t>(rv)));
@@ -9458,8 +9459,10 @@ void nsHttpChannel::SetDoNotTrack() {
 void nsHttpChannel::SetGlobalPrivacyControl() {
   MOZ_ASSERT(NS_IsMainThread(), "Must be called on the main thread");
 
-  if (StaticPrefs::privacy_globalprivacycontrol_enabled() &&
-      StaticPrefs::privacy_globalprivacycontrol_functionality_enabled()) {
+  if (StaticPrefs::privacy_globalprivacycontrol_functionality_enabled() &&
+      (StaticPrefs::privacy_globalprivacycontrol_enabled() ||
+       (StaticPrefs::privacy_globalprivacycontrol_pbmode_enabled() &&
+        NS_UsePrivateBrowsing(this)))) {
     // Send the header with a value of 1 to indicate opting-out
     DebugOnly<nsresult> rv =
         mRequestHead.SetHeader(nsHttp::GlobalPrivacyControl, "1"_ns, false);

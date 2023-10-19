@@ -176,9 +176,6 @@ pref("dom.disable_open_during_load", true);
 // Don't allow JS to move and resize existing windows (bug 456081)
 pref("dom.disable_window_move_resize", true);
 
-// Disable opening windows with the dialog feature (bug 725502)
-pref("dom.disable_window_open_dialog_feature", true);
-
 // "graceful" process termination is misinterpreted as a process crash.
 // To avoid this issue, we set dom.ipc.keepProcessesAlive.extension to 1.
 // This stops Gecko from terminating the extension process. This also reduces
@@ -270,15 +267,6 @@ pref("formhelper.autozoom", true);
 
 // Optionally send web console output to logcat (bug 1415318)
 pref("geckoview.console.enabled", false);
-
-// Turn off debug logging for official builds of GeckoView
-// to prevent privacy-sensitive data like visited URLS from
-// being saved in logs
-#ifdef RELEASE_OR_BETA
-  pref("geckoview.logging", "Warn");
-#else
-  pref("geckoview.logging", "Debug");
-#endif
 
 pref("image.cache.size", 1048576); // bytes
 
@@ -412,11 +400,6 @@ pref("toolkit.defaultChromeURI", "chrome://geckoview/content/geckoview.xhtml", l
 
 // Whether to use unified telemetry behavior; requires a restart to take effect
 pref("toolkit.telemetry.unified", false);
-
-// Show/Hide scrollbars when active/inactive (bug 1223928)
-pref("ui.scrollbarFadeBeginDelay", 450);
-pref("ui.scrollbarFadeDuration", 0);
-pref("ui.useOverlayScrollbars", 1);
 
 // Download protection lists are not available on Android (bug 1397938, bug 1394017)
 pref("urlclassifier.downloadAllowTable", "");

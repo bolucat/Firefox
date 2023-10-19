@@ -13,6 +13,7 @@ import subprocess
 import sys
 import time
 from collections import Counter, OrderedDict, namedtuple
+from itertools import dropwhile, islice, takewhile
 from textwrap import TextWrapper
 
 import six
@@ -33,6 +34,7 @@ from mozterm.widgets import Footer
 from ..backend import get_backend_class
 from ..base import MozbuildObject
 from ..compilation.warnings import WarningsCollector, WarningsDatabase
+from ..telemetry import get_cpu_brand
 from ..testing import install_test_files
 from ..util import FileAvoidWrite, mkdir, resolve_target_to_make
 from .clobber import Clobberer
@@ -178,6 +180,51 @@ class TierStatus(object):
             return d
 
 
+def record_cargo_timings(resource_monitor, timings_path):
+    cargo_start = 0
+    try:
+        with open(timings_path) as fh:
+            # Extrace the UNIT_DATA list from the cargo timing HTML file.
+            unit_data = dropwhile(lambda l: l.rstrip() != "const UNIT_DATA = [", fh)
+            unit_data = islice(unit_data, 1, None)
+            lines = takewhile(lambda l: l.rstrip() != "];", unit_data)
+            entries = json.loads("[" + "".join(lines) + "]")
+            # Normalize the entries so that any change in data format would
+            # trigger the exception handler that skips this (we don't want the
+            # build to fail in that case)
+            data = [
+                (
+                    "{} v{}{}".format(
+                        entry["name"], entry["version"], entry.get("target", "")
+                    ),
+                    entry["start"] or 0,
+                    entry["duration"] or 0,
+                )
+                for entry in entries
+            ]
+        starts = [
+            start
+            for marker, start in resource_monitor._active_markers.items()
+            if marker.startswith("Rust:")
+        ]
+        # The build system is not supposed to be running more than one cargo
+        # at the same time, which thankfully makes it easier to find the start
+        # of the one we got the timings for.
+        if len(starts) != 1:
+            return
+        cargo_start = starts[0]
+    except Exception:
+        return
+
+    if not cargo_start:
+        return
+
+    for name, start, duration in data:
+        resource_monitor.record_marker(
+            "Rust", cargo_start + start, cargo_start + start + duration, name
+        )
+
+
 class BuildMonitor(MozbuildObject):
     """Monitors the output of the build."""
 
@@ -187,7 +234,10 @@ class BuildMonitor(MozbuildObject):
         warnings_path is a path of a warnings database to use.
         """
         self._warnings_path = warnings_path
-        self.resources = SystemResourceMonitor(poll_interval=0.1)
+        self.resources = SystemResourceMonitor(
+            poll_interval=0.1,
+            metadata={"CPUName": get_cpu_brand()},
+        )
         self._resources_started = False
 
         self.tiers = TierStatus(self.resources)
@@ -220,7 +270,6 @@ class BuildMonitor(MozbuildObject):
             self.instance_warnings.insert(warning.copy())
 
         self._warnings_collector = WarningsCollector(on_warning, objdir=self.topobjdir)
-        self._build_tasks = []
 
         self.build_objects = []
         self.build_dirs = set()
@@ -258,7 +307,7 @@ class BuildMonitor(MozbuildObject):
         # If the previous line was colored (eg. for a compiler warning), our
         # line will start with the ansi reset sequence. Strip it to ensure it
         # does not interfere with our parsing of the line.
-        plain_line = self._terminal.strip(line) if self._terminal else line
+        plain_line = self._terminal.strip(line) if self._terminal else line.strip()
         if plain_line.startswith("BUILDSTATUS"):
             args = plain_line.split()[1:]
 
@@ -294,15 +343,10 @@ class BuildMonitor(MozbuildObject):
                 raise Exception("Unknown build status: %s" % action)
 
             return BuildOutputResult(None, update_needed, message)
-        elif plain_line.startswith("BUILDTASK"):
-            _, data = plain_line.split(maxsplit=1)
-            # Check that we can parse the JSON. Skip this line if we can't;
-            # we'll be missing data, but that's not a huge deal.
-            try:
-                json.loads(data)
-                self._build_tasks.append(data)
-            except json.decoder.JSONDecodeError:
-                pass
+
+        elif plain_line.startswith("Timing report saved to "):
+            cargo_timings = plain_line[len("Timing report saved to ") :]
+            record_cargo_timings(self.resources, cargo_timings)
             return BuildOutputResult(None, False, None)
 
         warning = None
@@ -331,18 +375,6 @@ class BuildMonitor(MozbuildObject):
         self.warnings_database.prune()
         self.warnings_database.save_to_file(self._warnings_path)
 
-        if "MOZ_AUTOMATION" not in os.environ:
-            build_tasks_path = self._get_state_filename("build_tasks.json")
-            with io.open(build_tasks_path, "w", encoding="utf-8", newline="\n") as fh:
-                fh.write("[")
-                first = True
-                for task in self._build_tasks:
-                    # We've already verified all of these are valid JSON, so we
-                    # can write the data out to the file directly.
-                    fh.write("%s\n  %s" % ("," if not first else "", task))
-                    first = False
-                fh.write("\n]\n")
-
         # Record usage.
         if not record_usage:
             return
@@ -357,7 +389,7 @@ class BuildMonitor(MozbuildObject):
             # the upload path, alongside, for convenience, a copy of the HTML
             # viewer.
             if "MOZ_AUTOMATION" in os.environ and "UPLOAD_PATH" in os.environ:
-                build_resources_profile_path = os.path.join(
+                build_resources_profile_path = mozpath.join(
                     os.environ["UPLOAD_PATH"], "profile_build_resources.json"
                 )
             else:
@@ -814,7 +846,7 @@ class StaticAnalysisOutputManager(OutputManager):
         assert output_format in ("text", "json"), "Invalid output format {}".format(
             output_format
         )
-        path = os.path.realpath(path)
+        path = mozpath.realpath(path)
 
         if output_format == "json":
             self.monitor._warnings_database.save_to_file(path)
@@ -1231,6 +1263,21 @@ class BuildDriver(MozbuildObject):
             def get_substs_flag(name):
                 return bool(substs.get(name, None))
 
+            host = substs.get("host")
+            monitor.resources.metadata["oscpu"] = host
+            target = substs.get("target")
+            if host != target:
+                monitor.resources.metadata["abi"] = target
+
+            product_name = substs.get("MOZ_BUILD_APP")
+            app_displayname = substs.get("MOZ_APP_DISPLAYNAME")
+            if app_displayname:
+                product_name = app_displayname
+                app_version = substs.get("MOZ_APP_VERSION")
+                if app_version:
+                    product_name += " " + app_version
+            monitor.resources.metadata["product"] = product_name
+
             mozbuild_metrics.artifact.set(get_substs_flag("MOZ_ARTIFACT_BUILDS"))
             mozbuild_metrics.debug.set(get_substs_flag("MOZ_DEBUG"))
             mozbuild_metrics.opt.set(get_substs_flag("MOZ_OPTIMIZE"))
@@ -1283,7 +1330,7 @@ class BuildDriver(MozbuildObject):
                     path_arg = self._wrap_path_argument(target)
 
                     if directory is not None:
-                        make_dir = os.path.join(self.topobjdir, directory)
+                        make_dir = mozpath.join(self.topobjdir, directory)
                         make_target = target
                     else:
                         make_dir, make_target = resolve_target_to_make(
@@ -1410,11 +1457,11 @@ class BuildDriver(MozbuildObject):
             # until we suppress them for real.
             # TODO remove entries/feature once we stop generating warnings
             # in these directories.
-            pathToThirdparty = os.path.join(
+            pathToThirdparty = mozpath.join(
                 self.topsrcdir, "tools", "rewriting", "ThirdPartyPaths.txt"
             )
 
-            pathToGenerated = os.path.join(
+            pathToGenerated = mozpath.join(
                 self.topsrcdir, "tools", "rewriting", "Generated.txt"
             )
 
@@ -1454,7 +1501,7 @@ class BuildDriver(MozbuildObject):
                         continue
 
                     if warning["flag"] in suppressed:
-                        suppressed_by_dir[os.path.dirname(path)] += 1
+                        suppressed_by_dir[mozpath.dirname(path)] += 1
                         continue
 
                 warnings.append(warning)
@@ -1616,7 +1663,7 @@ class BuildDriver(MozbuildObject):
         )
         build_site.ensure()
 
-        command = [build_site.python_path, os.path.join(self.topsrcdir, "configure.py")]
+        command = [build_site.python_path, mozpath.join(self.topsrcdir, "configure.py")]
         if options:
             command.extend(options)
 
@@ -1654,7 +1701,7 @@ class BuildDriver(MozbuildObject):
         if self.is_clobber_needed():
             print(
                 INSTALL_TESTS_CLOBBER.format(
-                    clobber_file=os.path.join(self.topobjdir, "CLOBBER")
+                    clobber_file=mozpath.join(self.topobjdir, "CLOBBER")
                 )
             )
             sys.exit(1)
@@ -1707,7 +1754,7 @@ class BuildDriver(MozbuildObject):
         return True
 
     def _write_mozconfig_json(self):
-        mozconfig_json = os.path.join(self.topobjdir, ".mozconfig.json")
+        mozconfig_json = mozpath.join(self.topobjdir, ".mozconfig.json")
         with FileAvoidWrite(mozconfig_json) as fh:
             to_write = six.ensure_text(
                 json.dumps(
@@ -1772,16 +1819,16 @@ class BuildDriver(MozbuildObject):
             if line.startswith("export ") or "UPLOAD_EXTRA_FILES" in line
         ]
 
-        mozconfig_client_mk = os.path.join(self.topobjdir, ".mozconfig-client-mk")
+        mozconfig_client_mk = mozpath.join(self.topobjdir, ".mozconfig-client-mk")
         with FileAvoidWrite(mozconfig_client_mk) as fh:
             fh.write("\n".join(mozconfig_make_lines))
 
-        mozconfig_mk = os.path.join(self.topobjdir, ".mozconfig.mk")
+        mozconfig_mk = mozpath.join(self.topobjdir, ".mozconfig.mk")
         with FileAvoidWrite(mozconfig_mk) as fh:
             fh.write("\n".join(mozconfig_filtered_lines))
 
         # Copy the original mozconfig to the objdir.
-        mozconfig_objdir = os.path.join(self.topobjdir, ".mozconfig")
+        mozconfig_objdir = mozpath.join(self.topobjdir, ".mozconfig")
         if mozconfig["path"]:
             with open(mozconfig["path"], "r") as ifh:
                 with FileAvoidWrite(mozconfig_objdir) as ofh:

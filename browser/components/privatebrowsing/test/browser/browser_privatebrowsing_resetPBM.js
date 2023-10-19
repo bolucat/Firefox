@@ -3,12 +3,17 @@
 
 "use strict";
 
+const { SessionStoreTestUtils } = ChromeUtils.importESModule(
+  "resource://testing-common/SessionStoreTestUtils.sys.mjs"
+);
+
 const PREF_ID_ALWAYS_ASK =
   "browser.privatebrowsing.resetPBM.showConfirmationDialog";
 
 const SELECTOR_TOOLBAR_BUTTON = "#reset-pbm-toolbar-button";
 
 const SELECTOR_PANELVIEW = "panel #reset-pbm-panel";
+const SELECTOR_CONTAINER = "#reset-pbm-panel-container";
 const SELECTOR_PANEL_HEADING = "#reset-pbm-panel-header > description";
 const SELECTOR_PANEL_DESCRIPTION = "#reset-pbm-panel-description";
 const SELECTOR_PANEL_CHECKBOX = "#reset-pbm-panel-checkbox";
@@ -304,6 +309,38 @@ add_task(async function test_panel() {
       "browser.privatebrowsing.resetPBM.showConfirmationDialog"
     ),
     "The always ask pref should be true."
+  );
+
+  info("Accessibility checks");
+  let panel = privateWin.document.querySelector(SELECTOR_PANELVIEW);
+  Assert.equal(
+    panel.getAttribute("role"),
+    "document",
+    "Panel should have role document."
+  );
+
+  let container = panel.querySelector(SELECTOR_CONTAINER);
+  Assert.equal(
+    container.getAttribute("role"),
+    "alertdialog",
+    "Panel container should have role alertdialog."
+  );
+  Assert.equal(
+    container.getAttribute("aria-labelledby"),
+    "reset-pbm-panel-header",
+    "aria-labelledby should point to heading."
+  );
+
+  let heading = panel.querySelector(SELECTOR_PANEL_HEADING);
+  Assert.equal(
+    heading.getAttribute("role"),
+    "heading",
+    "Heading should have role heading."
+  );
+  Assert.equal(
+    heading.getAttribute("aria-level"),
+    "2",
+    "heading should have aria-level 2"
   );
 
   info("Click the checkbox to uncheck it.");
@@ -662,6 +699,60 @@ add_task(async function test_reset_action_closes_sidebar() {
 
   // Cleanup: Close the sidebar of the normal browsing window.
   SidebarUI.hide();
+
+  // Cleanup: Close the private window that remained open.
+  await BrowserTestUtils.closeWindow(win);
+});
+
+/**
+ * Test that the session store history gets purged by the reset action.
+ */
+add_task(async function test_reset_action_purges_session_store() {
+  await SpecialPowers.pushPrefEnv({
+    set: [["browser.privatebrowsing.resetPBM.enabled", true]],
+  });
+
+  info("Open a private browsing window.");
+  let win = await BrowserTestUtils.openNewBrowserWindow({
+    private: true,
+  });
+
+  Assert.equal(
+    SessionStore.getClosedTabCountForWindow(win),
+    0,
+    "Initially there should be no closed tabs recorded for the PBM window in SessionStore."
+  );
+
+  info("Load a bunch of tabs in the private window.");
+
+  let tab;
+  let loadPromises = [
+    "https://example.com",
+    "https://example.org",
+    "https://example.net",
+  ].map(async url => {
+    tab = BrowserTestUtils.addTab(win.gBrowser, url);
+    await BrowserTestUtils.browserLoaded(tab.linkedBrowser);
+  });
+  await Promise.all(loadPromises);
+
+  info("Manually close a tab");
+  await SessionStoreTestUtils.closeTab(tab);
+
+  Assert.equal(
+    SessionStore.getClosedTabCountForWindow(win),
+    1,
+    "The manually closed tab should be recorded in SessionStore."
+  );
+
+  info("Trigger the restart PBM action");
+  await ResetPBMPanel._restartPBM(win);
+
+  Assert.equal(
+    SessionStore.getClosedTabCountForWindow(win),
+    0,
+    "After triggering the PBM reset action there should be no closed tabs recorded for the PBM window in SessionStore."
+  );
 
   // Cleanup: Close the private window that remained open.
   await BrowserTestUtils.closeWindow(win);

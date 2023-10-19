@@ -380,9 +380,6 @@ pref("media.video-queue.send-to-compositor-size", 9999);
 
 pref("media.cubeb.output_voice_routing", true);
 
-// GraphRunner (fixed MediaTrackGraph thread) control
-pref("media.audiograph.single_thread.enabled", true);
-
 // APZ preferences. For documentation/details on what these prefs do, check
 // gfx/layers/apz/src/AsyncPanZoomController.cpp.
 pref("apz.overscroll.stop_velocity_threshold", "0.01");
@@ -3984,7 +3981,6 @@ pref("extensions.formautofill.creditCards.heuristics.fathom.highConfidenceThresh
 // This is Only for testing! Set the confidence value (> 0 && <= 1) after a field is identified by fathom
 pref("extensions.formautofill.creditCards.heuristics.fathom.testConfidence", "0");
 
-pref("extensions.formautofill.firstTimeUse", true);
 pref("extensions.formautofill.loglevel", "Warn");
 // The interactivityCheckMode pref is only temporary.
 // It will be removed when we decide to only support the `focusability` mode
