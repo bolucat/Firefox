@@ -73,11 +73,6 @@ var gExceptionPaths = [
 
   // CSS files are referenced inside JS in an html template
   "chrome://browser/content/aboutlogins/components/",
-
-  // These files are for the old migration wizard which will be removed
-  // shortly.
-  "chrome://browser/content/migration/migration.xhtml",
-  "chrome://browser/content/migration/migration.js",
 ];
 
 // These are not part of the omni.ja file, so we find them only when running
@@ -107,9 +102,6 @@ if (AppConstants.NIGHTLY_BUILD) {
 // referencing the listed file in a way that the test can't detect, or a
 // bug number to remove or use the file if it is indeed currently unreferenced.
 var allowlist = [
-  // toolkit/components/pdfjs/content/PdfStreamConverter.sys.mjs
-  { file: "chrome://pdf.js/locale/viewer.properties" },
-
   // security/manager/pki/resources/content/device_manager.js
   { file: "chrome://pippki/content/load_device.xhtml" },
 
