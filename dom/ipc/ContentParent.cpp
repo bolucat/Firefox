@@ -5219,6 +5219,11 @@ mozilla::ipc::IPCResult ContentParent::RecvCopyFavicon(
 mozilla::ipc::IPCResult ContentParent::RecvFindImageText(
     IPCImage&& aImage, nsTArray<nsCString>&& aLanguages,
     FindImageTextResolver&& aResolver) {
+  if (!TextRecognition::IsSupported() ||
+      !Preferences::GetBool("dom.text-recognition.enabled")) {
+    return IPC_FAIL(this, "Text recognition not available.");
+  }
+
   RefPtr<DataSourceSurface> surf =
       nsContentUtils::IPCImageToSurface(std::move(aImage));
   if (!surf) {
@@ -5242,29 +5247,6 @@ mozilla::ipc::IPCResult ContentParent::RecvFindImageText(
 bool ContentParent::ShouldContinueFromReplyTimeout() {
   RefPtr<ProcessHangMonitor> monitor = ProcessHangMonitor::Get();
   return !monitor || !monitor->ShouldTimeOutCPOWs();
-}
-
-mozilla::ipc::IPCResult ContentParent::RecvRecordingDeviceEvents(
-    const nsAString& aRecordingStatus, const nsAString& aPageURL,
-    const bool& aIsAudio, const bool& aIsVideo) {
-  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-  if (obs) {
-    // recording-device-ipc-events needs to gather more information from content
-    // process
-    RefPtr<nsHashPropertyBag> props = new nsHashPropertyBag();
-    props->SetPropertyAsUint64(u"childID"_ns, ChildID());
-    props->SetPropertyAsBool(u"isAudio"_ns, aIsAudio);
-    props->SetPropertyAsBool(u"isVideo"_ns, aIsVideo);
-    props->SetPropertyAsAString(u"requestURL"_ns, aPageURL);
-
-    obs->NotifyObservers((nsIPropertyBag2*)props, "recording-device-ipc-events",
-                         PromiseFlatString(aRecordingStatus).get());
-  } else {
-    NS_WARNING(
-        "Could not get the Observer service for "
-        "ContentParent::RecvRecordingDeviceEvents.");
-  }
-  return IPC_OK();
 }
 
 mozilla::ipc::IPCResult ContentParent::RecvAddIdleObserver(
