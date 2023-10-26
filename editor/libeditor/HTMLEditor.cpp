@@ -2437,7 +2437,53 @@ nsresult HTMLEditor::ClearSelection() {
   return error.StealNSResult();
 }
 
-nsresult HTMLEditor::SetParagraphFormatAsAction(
+nsresult HTMLEditor::FormatBlockAsAction(const nsAString& aParagraphFormat,
+                                         nsIPrincipal* aPrincipal) {
+  AutoEditActionDataSetter editActionData(
+      *this, EditAction::eInsertBlockElement, aPrincipal);
+  nsresult rv = editActionData.CanHandleAndMaybeDispatchBeforeInputEvent();
+  if (NS_FAILED(rv)) {
+    NS_WARNING_ASSERTION(rv == NS_ERROR_EDITOR_ACTION_CANCELED,
+                         "CanHandleAndMaybeDispatchBeforeInputEvent(), failed");
+    return EditorBase::ToGenericNSResult(rv);
+  }
+
+  if (NS_WARN_IF(aParagraphFormat.IsEmpty())) {
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  RefPtr<nsAtom> tagName = NS_Atomize(aParagraphFormat);
+  MOZ_ASSERT(tagName);
+  if (NS_WARN_IF(!tagName->IsStatic()) ||
+      NS_WARN_IF(!HTMLEditUtils::IsFormatTagForFormatBlockCommand(
+          *tagName->AsStatic()))) {
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  if (tagName == nsGkAtoms::dd || tagName == nsGkAtoms::dt) {
+    // MOZ_KnownLive(tagName->AsStatic()) because nsStaticAtom instances live
+    // while the process is running.
+    Result<EditActionResult, nsresult> result =
+        MakeOrChangeListAndListItemAsSubAction(
+            MOZ_KnownLive(*tagName->AsStatic()), u""_ns,
+            SelectAllOfCurrentList::No);
+    if (MOZ_UNLIKELY(result.isErr())) {
+      NS_WARNING(
+          "HTMLEditor::MakeOrChangeListAndListItemAsSubAction("
+          "SelectAllOfCurrentList::No) failed");
+      return EditorBase::ToGenericNSResult(result.unwrapErr());
+    }
+    return NS_OK;
+  }
+
+  rv = FormatBlockContainerAsSubAction(MOZ_KnownLive(*tagName->AsStatic()),
+                                       FormatBlockMode::HTMLFormatBlockCommand);
+  NS_WARNING_ASSERTION(NS_SUCCEEDED(rv),
+                       "HTMLEditor::FormatBlockContainerAsSubAction() failed");
+  return EditorBase::ToGenericNSResult(rv);
+}
+
+nsresult HTMLEditor::SetParagraphStateAsAction(
     const nsAString& aParagraphFormat, nsIPrincipal* aPrincipal) {
   AutoEditActionDataSetter editActionData(
       *this, EditAction::eInsertBlockElement, aPrincipal);
@@ -2458,6 +2504,9 @@ nsresult HTMLEditor::SetParagraphFormatAsAction(
   ToLowerCase(lowerCaseTagName);
   RefPtr<nsAtom> tagName = NS_Atomize(lowerCaseTagName);
   MOZ_ASSERT(tagName);
+  if (NS_WARN_IF(!tagName->IsStatic())) {
+    return NS_ERROR_INVALID_ARG;
+  }
   if (tagName == nsGkAtoms::dd || tagName == nsGkAtoms::dt) {
     // MOZ_KnownLive(tagName->AsStatic()) because nsStaticAtom instances live
     // while the process is running.
@@ -2474,10 +2523,27 @@ nsresult HTMLEditor::SetParagraphFormatAsAction(
     return NS_OK;
   }
 
-  rv = FormatBlockContainerAsSubAction(*tagName);
+  rv = FormatBlockContainerAsSubAction(
+      MOZ_KnownLive(*tagName->AsStatic()),
+      FormatBlockMode::XULParagraphStateCommand);
   NS_WARNING_ASSERTION(NS_SUCCEEDED(rv),
                        "HTMLEditor::FormatBlockContainerAsSubAction() failed");
   return EditorBase::ToGenericNSResult(rv);
+}
+
+// static
+bool HTMLEditor::IsFormatElement(FormatBlockMode aFormatBlockMode,
+                                 const nsIContent& aContent) {
+  // FYI: Optimize for HTML command because it may run too many times.
+  return MOZ_LIKELY(aFormatBlockMode == FormatBlockMode::HTMLFormatBlockCommand)
+             ? HTMLEditUtils::IsFormatElementForFormatBlockCommand(aContent)
+             : (HTMLEditUtils::IsFormatElementForParagraphStateCommand(
+                    aContent) &&
+                // XXX The XUL paragraph state command treats <dl>, <dd> and
+                // <dt> elements but all handlers do not treat them as a format
+                // node.  Therefore, we keep the traditional behavior here.
+                !aContent.IsAnyOfHTMLElements(nsGkAtoms::dd, nsGkAtoms::dl,
+                                              nsGkAtoms::dt));
 }
 
 NS_IMETHODIMP HTMLEditor::GetParagraphState(bool* aMixed,
@@ -2490,7 +2556,8 @@ NS_IMETHODIMP HTMLEditor::GetParagraphState(bool* aMixed,
   }
 
   ErrorResult error;
-  ParagraphStateAtSelection paragraphState(*this, error);
+  ParagraphStateAtSelection paragraphState(
+      *this, FormatBlockMode::XULParagraphStateCommand, error);
   if (error.Failed()) {
     NS_WARNING("ParagraphStateAtSelection failed");
     return error.StealNSResult();
@@ -2902,7 +2969,8 @@ nsresult HTMLEditor::RemoveListAsAction(const nsAString& aListType,
   return rv;
 }
 
-nsresult HTMLEditor::FormatBlockContainerAsSubAction(nsAtom& aTagName) {
+nsresult HTMLEditor::FormatBlockContainerAsSubAction(
+    const nsStaticAtom& aTagName, FormatBlockMode aFormatBlockMode) {
   MOZ_ASSERT(IsEditActionDataAvailable());
 
   if (NS_WARN_IF(!mInitSucceeded)) {
@@ -2976,7 +3044,7 @@ nsresult HTMLEditor::FormatBlockContainerAsSubAction(nsAtom& aTagName) {
   AutoRangeArray selectionRanges(SelectionRef());
   Result<RefPtr<Element>, nsresult> suggestBlockElementToPutCaretOrError =
       FormatBlockContainerWithTransaction(selectionRanges, aTagName,
-                                          *editingHost);
+                                          aFormatBlockMode, *editingHost);
   if (suggestBlockElementToPutCaretOrError.isErr()) {
     NS_WARNING("HTMLEditor::FormatBlockContainerWithTransaction() failed");
     return suggestBlockElementToPutCaretOrError.unwrapErr();
@@ -3429,7 +3497,7 @@ already_AddRefed<Element> HTMLEditor::GetSelectedElement(const nsAtom* aTagName,
 }
 
 Result<CreateElementResult, nsresult> HTMLEditor::CreateAndInsertElement(
-    WithTransaction aWithTransaction, nsAtom& aTagName,
+    WithTransaction aWithTransaction, const nsAtom& aTagName,
     const EditorDOMPoint& aPointToInsert,
     const InitializeInsertingElement& aInitializer) {
   MOZ_ASSERT(IsEditActionDataAvailable());
@@ -4258,12 +4326,43 @@ HTMLEditor::ReplaceContainerWithTransactionInternal(
     return Err(NS_ERROR_FAILURE);
   }
 
+  // If we're replacing <dd> or <dt> with different type of element, we need to
+  // split the parent <dl>.
+  OwningNonNull<Element> containerElementToDelete = aOldContainer;
+  if (aOldContainer.IsAnyOfHTMLElements(nsGkAtoms::dd, nsGkAtoms::dt) &&
+      &aTagName != nsGkAtoms::dt && &aTagName != nsGkAtoms::dd &&
+      // aOldContainer always has a parent node because of removable.
+      aOldContainer.GetParentNode()->IsHTMLElement(nsGkAtoms::dl)) {
+    OwningNonNull<Element> const dlElement = *aOldContainer.GetParentElement();
+    if (NS_WARN_IF(!HTMLEditUtils::IsRemovableNode(dlElement)) ||
+        NS_WARN_IF(!HTMLEditUtils::IsSimplyEditableNode(dlElement))) {
+      return Err(NS_ERROR_FAILURE);
+    }
+    Result<SplitRangeOffFromNodeResult, nsresult> splitDLElementResult =
+        SplitRangeOffFromElement(dlElement, aOldContainer, aOldContainer);
+    if (MOZ_UNLIKELY(splitDLElementResult.isErr())) {
+      NS_WARNING("HTMLEditor::SplitRangeOffFromElement() failed");
+      return splitDLElementResult.propagateErr();
+    }
+    splitDLElementResult.inspect().IgnoreCaretPointSuggestion();
+    RefPtr<Element> middleDLElement = aOldContainer.GetParentElement();
+    if (NS_WARN_IF(!middleDLElement) ||
+        NS_WARN_IF(!middleDLElement->IsHTMLElement(nsGkAtoms::dl)) ||
+        NS_WARN_IF(!HTMLEditUtils::IsRemovableNode(*middleDLElement))) {
+      NS_WARNING("The parent <dl> was lost at splitting it");
+      return Err(NS_ERROR_EDITOR_UNEXPECTED_DOM_TREE);
+    }
+    containerElementToDelete = std::move(middleDLElement);
+  }
+
   const RefPtr<Element> newContainer = CreateHTMLContent(&aTagName);
   if (NS_WARN_IF(!newContainer)) {
     return Err(NS_ERROR_FAILURE);
   }
 
   // Set or clone attribute if needed.
+  // FIXME: What should we do attributes of <dl> elements if we removed it
+  // above?
   if (aCloneAllAttributes) {
     MOZ_ASSERT(&aAttribute == nsGkAtoms::_empty);
     CloneAttributesWithTransaction(*newContainer, aOldContainer);
@@ -4277,8 +4376,10 @@ HTMLEditor::ReplaceContainerWithTransactionInternal(
     }
   }
 
-  const OwningNonNull<nsINode> parentNode = *aOldContainer.GetParentNode();
-  const nsCOMPtr<nsINode> referenceNode = aOldContainer.GetNextSibling();
+  const OwningNonNull<nsINode> parentNode =
+      *containerElementToDelete->GetParentNode();
+  const nsCOMPtr<nsINode> referenceNode =
+      containerElementToDelete->GetNextSibling();
   AutoReplaceContainerSelNotify selStateNotify(RangeUpdaterRef(), aOldContainer,
                                                *newContainer);
   {
@@ -4294,7 +4395,7 @@ HTMLEditor::ReplaceContainerWithTransactionInternal(
     //       chrome script.
     AutoTransactionsConserveSelection conserveSelection(*this);
     // Move all children from the old container to the new container.
-    // For making all MoveNodeTransactions have a referenc node in the current
+    // For making all MoveNodeTransactions have a reference node in the current
     // parent, move nodes from last one to preceding ones.
     for (const OwningNonNull<nsIContent>& child : Reversed(arrayOfChildren)) {
       Result<MoveNodeResult, nsresult> moveChildResult =
@@ -4310,9 +4411,9 @@ HTMLEditor::ReplaceContainerWithTransactionInternal(
     }
   }
 
-  // Delete aOldContainer from the DOM tree to make it not referred by
-  // InsertNodeTransaction.
-  nsresult rv = DeleteNodeWithTransaction(aOldContainer);
+  // Delete containerElementToDelete from the DOM tree to make it not referred
+  // by InsertNodeTransaction.
+  nsresult rv = DeleteNodeWithTransaction(containerElementToDelete);
   if (NS_FAILED(rv)) {
     NS_WARNING("EditorBase::DeleteNodeWithTransaction() failed");
     return Err(rv);

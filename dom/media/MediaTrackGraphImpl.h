@@ -129,17 +129,17 @@ class MediaTrackGraphImpl : public MediaTrackGraph,
    */
   explicit MediaTrackGraphImpl(GraphDriverType aGraphDriverRequested,
                                GraphRunType aRunTypeRequested,
-                               TrackRate aSampleRate, uint32_t aChannelCount,
+                               uint64_t aWindowID, TrackRate aSampleRate,
+                               uint32_t aChannelCount,
                                CubebUtils::AudioDeviceID aOutputDeviceID,
                                nsISerialEventTarget* aMainThread);
   static MediaTrackGraphImpl* GetInstance(
       GraphDriverType aGraphDriverRequested, uint64_t aWindowID,
-      bool aShouldResistFingerprinting, TrackRate aSampleRate,
-      CubebUtils::AudioDeviceID aOutputDeviceID,
+      TrackRate aSampleRate, CubebUtils::AudioDeviceID aOutputDeviceID,
       nsISerialEventTarget* aMainThread);
   static MediaTrackGraphImpl* GetInstanceIfExists(
-      uint64_t aWindowID, bool aShouldResistFingerprinting,
-      TrackRate aSampleRate, CubebUtils::AudioDeviceID aOutputDeviceID);
+      uint64_t aWindowID, TrackRate aSampleRate,
+      CubebUtils::AudioDeviceID aOutputDeviceID);
 
   // Intended only for assertions, either on graph thread or not running (in
   // which case we must be on the main thread).
@@ -734,12 +734,17 @@ class MediaTrackGraphImpl : public MediaTrackGraph,
   nsTArray<nsCOMPtr<nsIRunnable>> mPendingUpdateRunnables;
 
   /**
+   * The ID of the inner Window which uses this graph, or zero for offline
+   * graphs.
+   */
+  const uint64_t mWindowID;
+  /**
    * Devices to use for cubeb output, or nullptr for default device.
    * A MediaTrackGraph always has an output (even if silent).
    *
    * All mOutputDeviceID access is on the graph thread.
    */
-  CubebUtils::AudioDeviceID mOutputDeviceID;
+  const CubebUtils::AudioDeviceID mOutputDeviceID;
 
   /**
    * List of resume operations waiting for a switch to an AudioCallbackDriver.

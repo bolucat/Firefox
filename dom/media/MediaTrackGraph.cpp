@@ -120,29 +120,34 @@ namespace {
  * A hash table containing the graph instances, one per Window ID,
  * sample rate, and device ID combination.
  */
-class GraphKey final {
- public:
-  GraphKey(uint64_t aWindowID, TrackRate aSampleRate,
-           CubebUtils::AudioDeviceID aOutputDeviceID)
-      : mWindowID(aWindowID),
-        mSampleRate(aSampleRate),
-        mOutputDeviceID(aOutputDeviceID) {}
-  GraphKey(const GraphKey&) = default;
-  ~GraphKey() = default;
-  bool operator==(const GraphKey& b) const {
-    return mWindowID == b.mWindowID && mSampleRate == b.mSampleRate &&
-           mOutputDeviceID == b.mOutputDeviceID;
-  }
-  PLDHashNumber Hash() const {
+struct GraphLookup final {
+  HashNumber Hash() const {
     return HashGeneric(mWindowID, mSampleRate, mOutputDeviceID);
   }
-
- private:
-  uint64_t mWindowID;
-  TrackRate mSampleRate;
-  CubebUtils::AudioDeviceID mOutputDeviceID;
+  const uint64_t mWindowID;
+  const TrackRate mSampleRate;
+  const CubebUtils::AudioDeviceID mOutputDeviceID;
 };
-nsTHashMap<nsGenericHashKey<GraphKey>, MediaTrackGraphImpl*> gGraphs;
+
+struct GraphHasher {  // for HashSet
+  using Lookup = const GraphLookup;
+
+  static HashNumber hash(const Lookup& aLookup) { return aLookup.Hash(); }
+
+  static bool match(const MediaTrackGraphImpl* aGraph, const Lookup& aLookup) {
+    return aGraph->mWindowID == aLookup.mWindowID &&
+           aGraph->GraphRate() == aLookup.mSampleRate &&
+           aGraph->mOutputDeviceID == aLookup.mOutputDeviceID;
+  }
+};
+
+// The weak reference to the graph is removed when its last track is removed.
+using GraphHashSet =
+    HashSet<MediaTrackGraphImpl*, GraphHasher, InfallibleAllocPolicy>;
+GraphHashSet* Graphs() {
+  static GraphHashSet sGraphs(4);  // 4 is minimum HashSet capacity
+  return &sGraphs;
+}
 }  // anonymous namespace
 
 static void ApplyTrackDisabling(DisabledTrackMode aDisabledMode,
@@ -3189,7 +3194,7 @@ void ProcessedMediaTrack::DestroyImpl() {
 
 MediaTrackGraphImpl::MediaTrackGraphImpl(
     GraphDriverType aDriverRequested, GraphRunType aRunTypeRequested,
-    TrackRate aSampleRate, uint32_t aChannelCount,
+    uint64_t aWindowID, TrackRate aSampleRate, uint32_t aChannelCount,
     CubebUtils::AudioDeviceID aOutputDeviceID,
     nsISerialEventTarget* aMainThread)
     : MediaTrackGraph(aSampleRate),
@@ -3201,6 +3206,7 @@ MediaTrackGraphImpl::MediaTrackGraphImpl(
       ,
       mEndTime(aDriverRequested == OFFLINE_THREAD_DRIVER ? 0 : GRAPH_TIME_MAX),
       mPortCount(0),
+      mWindowID(aWindowID),
       mOutputDeviceID(aOutputDeviceID),
       mMonitor("MediaTrackGraphImpl"),
       mLifecycleState(LIFECYCLE_THREAD_NOT_STARTED),
@@ -3278,17 +3284,14 @@ void MediaTrackGraphImpl::Destroy() {
 // GTests can create a graph without a window.
 /* static */
 MediaTrackGraphImpl* MediaTrackGraphImpl::GetInstanceIfExists(
-    uint64_t aWindowID, bool aShouldResistFingerprinting, TrackRate aSampleRate,
+    uint64_t aWindowID, TrackRate aSampleRate,
     CubebUtils::AudioDeviceID aOutputDeviceID) {
   MOZ_ASSERT(NS_IsMainThread(), "Main thread only");
+  MOZ_ASSERT(aSampleRate > 0);
 
-  TrackRate sampleRate =
-      aSampleRate
-          ? aSampleRate
-          : CubebUtils::PreferredSampleRate(aShouldResistFingerprinting);
-  GraphKey key(aWindowID, sampleRate, aOutputDeviceID);
-
-  return gGraphs.Get(key);
+  GraphHashSet::Ptr p =
+      Graphs()->lookup({aWindowID, aSampleRate, aOutputDeviceID});
+  return p ? *p : nullptr;
 }
 
 // Public method has an nsPIDOMWindowInner* parameter to ensure that the
@@ -3297,50 +3300,49 @@ MediaTrackGraphImpl* MediaTrackGraphImpl::GetInstanceIfExists(
 MediaTrackGraph* MediaTrackGraph::GetInstanceIfExists(
     nsPIDOMWindowInner* aWindow, TrackRate aSampleRate,
     CubebUtils::AudioDeviceID aOutputDeviceID) {
-  return MediaTrackGraphImpl::GetInstanceIfExists(
-      aWindow->WindowID(),
-      aWindow->AsGlobal()->ShouldResistFingerprinting(
-          RFPTarget::AudioSampleRate),
-      aSampleRate, aOutputDeviceID);
+  TrackRate sampleRate =
+      aSampleRate ? aSampleRate
+                  : CubebUtils::PreferredSampleRate(
+                        aWindow->AsGlobal()->ShouldResistFingerprinting(
+                            RFPTarget::AudioSampleRate));
+  return MediaTrackGraphImpl::GetInstanceIfExists(aWindow->WindowID(),
+                                                  sampleRate, aOutputDeviceID);
 }
 
 /* static */
 MediaTrackGraphImpl* MediaTrackGraphImpl::GetInstance(
     GraphDriverType aGraphDriverRequested, uint64_t aWindowID,
-    bool aShouldResistFingerprinting, TrackRate aSampleRate,
-    CubebUtils::AudioDeviceID aOutputDeviceID,
+    TrackRate aSampleRate, CubebUtils::AudioDeviceID aOutputDeviceID,
     nsISerialEventTarget* aMainThread) {
   MOZ_ASSERT(NS_IsMainThread(), "Main thread only");
+  MOZ_ASSERT(aSampleRate > 0);
+  MOZ_ASSERT(aGraphDriverRequested != OFFLINE_THREAD_DRIVER,
+             "Use CreateNonRealtimeInstance() for offline graphs");
 
-  TrackRate sampleRate =
-      aSampleRate
-          ? aSampleRate
-          : CubebUtils::PreferredSampleRate(aShouldResistFingerprinting);
-  MediaTrackGraphImpl* graph = GetInstanceIfExists(
-      aWindowID, aShouldResistFingerprinting, sampleRate, aOutputDeviceID);
-
-  if (!graph) {
-    GraphRunType runType = DIRECT_DRIVER;
-    if (aGraphDriverRequested != OFFLINE_THREAD_DRIVER &&
-        (Preferences::GetBool("media.audiograph.single_thread.enabled",
-                              true))) {
-      runType = SINGLE_THREAD;
-    }
-
-    // In a real time graph, the number of output channels is determined by
-    // the underlying number of channel of the default audio output device, and
-    // capped to 8.
-    uint32_t channelCount =
-        std::min<uint32_t>(8, CubebUtils::MaxNumberOfChannels());
-    graph = new MediaTrackGraphImpl(aGraphDriverRequested, runType, sampleRate,
-                                    channelCount, aOutputDeviceID, aMainThread);
-    GraphKey key(aWindowID, sampleRate, aOutputDeviceID);
-    gGraphs.InsertOrUpdate(key, graph);
-
-    LOG(LogLevel::Debug,
-        ("Starting up MediaTrackGraph %p for window 0x%" PRIx64, graph,
-         aWindowID));
+  GraphHashSet* graphs = Graphs();
+  GraphHashSet::AddPtr addPtr =
+      graphs->lookupForAdd({aWindowID, aSampleRate, aOutputDeviceID});
+  if (addPtr) {  // graph already exists
+    return *addPtr;
   }
+
+  GraphRunType runType = DIRECT_DRIVER;
+  if (Preferences::GetBool("media.audiograph.single_thread.enabled", true)) {
+    runType = SINGLE_THREAD;
+  }
+
+  // In a real time graph, the number of output channels is determined by
+  // the underlying number of channel of the default audio output device, and
+  // capped to 8.
+  uint32_t channelCount =
+      std::min<uint32_t>(8, CubebUtils::MaxNumberOfChannels());
+  MediaTrackGraphImpl* graph = new MediaTrackGraphImpl(
+      aGraphDriverRequested, runType, aWindowID, aSampleRate, channelCount,
+      aOutputDeviceID, aMainThread);
+  MOZ_ALWAYS_TRUE(graphs->add(addPtr, graph));
+
+  LOG(LogLevel::Debug, ("Starting up MediaTrackGraph %p for window 0x%" PRIx64,
+                        graph, aWindowID));
 
   return graph;
 }
@@ -3349,11 +3351,14 @@ MediaTrackGraphImpl* MediaTrackGraphImpl::GetInstance(
 MediaTrackGraph* MediaTrackGraph::GetInstance(
     GraphDriverType aGraphDriverRequested, nsPIDOMWindowInner* aWindow,
     TrackRate aSampleRate, CubebUtils::AudioDeviceID aOutputDeviceID) {
+  TrackRate sampleRate =
+      aSampleRate ? aSampleRate
+                  : CubebUtils::PreferredSampleRate(
+                        aWindow->AsGlobal()->ShouldResistFingerprinting(
+                            RFPTarget::AudioSampleRate));
   return MediaTrackGraphImpl::GetInstance(
-      aGraphDriverRequested, aWindow->WindowID(),
-      aWindow->AsGlobal()->ShouldResistFingerprinting(
-          RFPTarget::AudioSampleRate),
-      aSampleRate, aOutputDeviceID, GetMainThreadSerialEventTarget());
+      aGraphDriverRequested, aWindow->WindowID(), sampleRate, aOutputDeviceID,
+      GetMainThreadSerialEventTarget());
 }
 
 MediaTrackGraph* MediaTrackGraph::CreateNonRealtimeInstance(
@@ -3363,9 +3368,9 @@ MediaTrackGraph* MediaTrackGraph::CreateNonRealtimeInstance(
   nsISerialEventTarget* mainThread = GetMainThreadSerialEventTarget();
   // Offline graphs have 0 output channel count: they write the output to a
   // buffer, not an audio output track.
-  MediaTrackGraphImpl* graph =
-      new MediaTrackGraphImpl(OFFLINE_THREAD_DRIVER, DIRECT_DRIVER, aSampleRate,
-                              0, DEFAULT_OUTPUT_DEVICE, mainThread);
+  MediaTrackGraphImpl* graph = new MediaTrackGraphImpl(
+      OFFLINE_THREAD_DRIVER, DIRECT_DRIVER, 0, aSampleRate, 0,
+      DEFAULT_OUTPUT_DEVICE, mainThread);
 
   LOG(LogLevel::Debug, ("Starting up Offline MediaTrackGraph %p", graph));
 
@@ -3550,14 +3555,9 @@ void MediaTrackGraph::AddTrack(MediaTrack* aTrack) {
   MediaTrackGraphImpl* graph = static_cast<MediaTrackGraphImpl*>(this);
 #ifdef MOZ_DIAGNOSTIC_ASSERT_ENABLED
   if (graph->mRealtime) {
-    bool found = false;
-    for (const auto& currentGraph : gGraphs.Values()) {
-      if (currentGraph == graph) {
-        found = true;
-        break;
-      }
-    }
-    MOZ_DIAGNOSTIC_ASSERT(found, "Graph must not be shutting down");
+    GraphHashSet::Ptr p = Graphs()->lookup(
+        {graph->mWindowID, GraphRate(), graph->mOutputDeviceID});
+    MOZ_DIAGNOSTIC_ASSERT(p, "Graph must not be shutting down");
   }
 #endif
   NS_ADDREF(aTrack);
@@ -3573,12 +3573,13 @@ void MediaTrackGraphImpl::RemoveTrack(MediaTrack* aTrack) {
     LOG(LogLevel::Info, ("MediaTrackGraph %p, last track %p removed from "
                          "main thread. Graph will shut down.",
                          this, aTrack));
-    // Find the graph in the hash table and remove it.
-    for (auto iter = gGraphs.Iter(); !iter.Done(); iter.Next()) {
-      if (iter.UserData() == this) {
-        iter.Remove();
-        break;
-      }
+    if (mRealtime) {
+      // Find the graph in the hash table and remove it.
+      GraphHashSet* graphs = Graphs();
+      GraphHashSet::Ptr p =
+          graphs->lookup({mWindowID, mSampleRate, mOutputDeviceID});
+      MOZ_ASSERT(*p == this);
+      graphs->remove(p);
     }
     // The graph thread will shut itself down soon, but won't be able to do
     // that if JS continues to run.

@@ -29,9 +29,9 @@ dependencies = [
 
 [[package]]
 name = "aho-corasick"
-version = "1.1.0"
+version = "0.7.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f2135563fb5c609d2b2b87c1e8ce7bc41b0b45430fa9661f457981503dd5bf0"
+checksum = "cc936419f96fa211c1b9166887b38e5e40b19958e5b895be7c1f93adec7071ac"
 dependencies = [
  "memchr",
 ]
@@ -250,7 +250,7 @@ dependencies = [
 [[package]]
 name = "audioipc2"
 version = "0.5.0"
-source = "git+https://github.com/mozilla/audioipc?rev=0b51291d2483a17dce3e300c7784b369e02bee73#0b51291d2483a17dce3e300c7784b369e02bee73"
+source = "git+https://github.com/mozilla/audioipc?rev=ec6af6ecf8ba50b51f13d18f417de8cfb8460543#ec6af6ecf8ba50b51f13d18f417de8cfb8460543"
 dependencies = [
  "arrayvec",
  "ashmem",
@@ -272,13 +272,13 @@ dependencies = [
  "serde_bytes",
  "serde_derive",
  "slab",
- "winapi",
+ "windows-sys",
 ]
 
 [[package]]
 name = "audioipc2-client"
 version = "0.5.0"
-source = "git+https://github.com/mozilla/audioipc?rev=0b51291d2483a17dce3e300c7784b369e02bee73#0b51291d2483a17dce3e300c7784b369e02bee73"
+source = "git+https://github.com/mozilla/audioipc?rev=ec6af6ecf8ba50b51f13d18f417de8cfb8460543#ec6af6ecf8ba50b51f13d18f417de8cfb8460543"
 dependencies = [
  "audio_thread_priority",
  "audioipc2",
@@ -289,7 +289,7 @@ dependencies = [
 [[package]]
 name = "audioipc2-server"
 version = "0.5.0"
-source = "git+https://github.com/mozilla/audioipc?rev=0b51291d2483a17dce3e300c7784b369e02bee73#0b51291d2483a17dce3e300c7784b369e02bee73"
+source = "git+https://github.com/mozilla/audioipc?rev=ec6af6ecf8ba50b51f13d18f417de8cfb8460543#ec6af6ecf8ba50b51f13d18f417de8cfb8460543"
 dependencies = [
  "audio_thread_priority",
  "audioipc2",
@@ -3759,7 +3759,7 @@ checksum = "a2983372caf4480544083767bf2d27defafe32af49ab4df3a0b7fc90793a3664"
 [[package]]
 name = "naga"
 version = "0.13.0"
-source = "git+https://github.com/gfx-rs/naga?rev=33b75a27d93c6574b11b4dd4492b85b5783d6c52#33b75a27d93c6574b11b4dd4492b85b5783d6c52"
+source = "git+https://github.com/gfx-rs/naga?rev=e25280df9316434ef7752970016d01a3aede3f17#e25280df9316434ef7752970016d01a3aede3f17"
 dependencies = [
  "bit-set",
  "bitflags 2.4.0",
@@ -4572,21 +4572,9 @@ version = "0.4.999"
 
 [[package]]
 name = "regex"
-version = "1.9.4"
+version = "1.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12de2eff854e5fa4b1295edd650e227e9d8fb0c9e90b12e7f36d6a6811791a29"
-dependencies = [
- "aho-corasick",
- "memchr",
- "regex-automata",
- "regex-syntax",
-]
-
-[[package]]
-name = "regex-automata"
-version = "0.3.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49530408a136e16e5b486e883fbb6ba058e8e4e8ae6621a77b048b314336e629"
+checksum = "48aaa5748ba571fb95cd2c85c09f629215d3a6ece942baa100950af03a34f733"
 dependencies = [
  "aho-corasick",
  "memchr",
@@ -4595,9 +4583,9 @@ dependencies = [
 
 [[package]]
 name = "regex-syntax"
-version = "0.7.5"
+version = "0.6.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dbb5fb1acd8a1a18b3dd5be62d25485eb770e05afb408a9627d14d451bae12da"
+checksum = "456c603be3e8d448b072f410900c09faf164fbce2d480456f50eea6e25f9c848"
 
 [[package]]
 name = "remote_settings"
@@ -6358,7 +6346,7 @@ dependencies = [
 [[package]]
 name = "wgpu-core"
 version = "0.17.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=858d7d590ef9ebfe1b91f6f0925aacde15cce714#858d7d590ef9ebfe1b91f6f0925aacde15cce714"
+source = "git+https://github.com/gfx-rs/wgpu?rev=75989192a9c8f70893882ce0f4373ac217d380c3#75989192a9c8f70893882ce0f4373ac217d380c3"
 dependencies = [
  "arrayvec",
  "bit-vec",
@@ -6381,7 +6369,7 @@ dependencies = [
 [[package]]
 name = "wgpu-hal"
 version = "0.17.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=858d7d590ef9ebfe1b91f6f0925aacde15cce714#858d7d590ef9ebfe1b91f6f0925aacde15cce714"
+source = "git+https://github.com/gfx-rs/wgpu?rev=75989192a9c8f70893882ce0f4373ac217d380c3#75989192a9c8f70893882ce0f4373ac217d380c3"
 dependencies = [
  "android_system_properties",
  "arrayvec",
@@ -6401,6 +6389,7 @@ dependencies = [
  "metal",
  "naga",
  "objc",
+ "once_cell",
  "parking_lot",
  "profiling",
  "range-alloc",
@@ -6417,7 +6406,7 @@ dependencies = [
 [[package]]
 name = "wgpu-types"
 version = "0.17.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=858d7d590ef9ebfe1b91f6f0925aacde15cce714#858d7d590ef9ebfe1b91f6f0925aacde15cce714"
+source = "git+https://github.com/gfx-rs/wgpu?rev=75989192a9c8f70893882ce0f4373ac217d380c3#75989192a9c8f70893882ce0f4373ac217d380c3"
 dependencies = [
  "bitflags 2.4.0",
  "js-sys",
