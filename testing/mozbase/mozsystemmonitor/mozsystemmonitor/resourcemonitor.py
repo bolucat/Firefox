@@ -377,8 +377,9 @@ class SystemResourceMonitor(object):
                     virt_mem,
                     swap_mem,
                 ) = self._pipe.recv()
-            except Exception:
-                # Let's assume we're done here
+            except Exception as e:
+                warnings.warn("failed to receive data: %s" % e)
+                # Assume we can't recover
                 break
 
             # There should be nothing after the "done" message so
@@ -386,16 +387,35 @@ class SystemResourceMonitor(object):
             if start_time == "done":
                 break
 
-            io = self._io_type(*io_diff)
-            virt = self._virt_type(*virt_mem)
-            swap = self._swap_type(*swap_mem)
-            cpu_times = [self._cpu_times_type(*v) for v in cpu_diff]
+            try:
+                io = self._io_type(*io_diff)
+                virt = self._virt_type(*virt_mem)
+                swap = self._swap_type(*swap_mem)
+                cpu_times = [self._cpu_times_type(*v) for v in cpu_diff]
 
-            self.measurements.append(
-                SystemResourceUsage(
-                    start_time, end_time, cpu_times, cpu_percent, io, virt, swap
+                self.measurements.append(
+                    SystemResourceUsage(
+                        start_time, end_time, cpu_times, cpu_percent, io, virt, swap
+                    )
                 )
-            )
+            except Exception:
+                # We also can't recover, but output the data that caused the exception
+                warnings.warn(
+                    "failed to read the received data: %s"
+                    % str(
+                        (
+                            start_time,
+                            end_time,
+                            io_diff,
+                            cpu_diff,
+                            cpu_percent,
+                            virt_mem,
+                            swap_mem,
+                        )
+                    )
+                )
+
+                break
 
         # We establish a timeout so we don't hang forever if the child
         # process has crashed.
@@ -433,18 +453,21 @@ class SystemResourceMonitor(object):
             SystemResourceMonitor.instance.markers.append((name, start, end, text))
 
     @staticmethod
-    def begin_marker(name, text):
+    def begin_marker(name, text, disambiguator=None):
         if SystemResourceMonitor.instance:
-            SystemResourceMonitor.instance._active_markers[
-                name + ":" + text
-            ] = time.monotonic()
+            id = name + ":" + text
+            if disambiguator:
+                id += ":" + disambiguator
+            SystemResourceMonitor.instance._active_markers[id] = time.monotonic()
 
     @staticmethod
-    def end_marker(name, text):
+    def end_marker(name, text, disambiguator=None):
         if not SystemResourceMonitor.instance:
             return
         end = time.monotonic()
         id = name + ":" + text
+        if disambiguator:
+            id += ":" + disambiguator
         if not id in SystemResourceMonitor.instance._active_markers:
             return
         start = SystemResourceMonitor.instance._active_markers.pop(id)

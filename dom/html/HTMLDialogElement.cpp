@@ -88,9 +88,10 @@ void HTMLDialogElement::RemoveFromTopLayerIfNeeded() {
 }
 
 void HTMLDialogElement::StorePreviouslyFocusedElement() {
-  if (Element* element = nsFocusManager::GetFocusedElementStatic()) {
-    if (NS_SUCCEEDED(nsContentUtils::CheckSameOrigin(this, element))) {
-      mPreviouslyFocusedElement = do_GetWeakReference(element);
+  if (Document* doc = GetComposedDoc()) {
+    if (nsIContent* unretargetedFocus = doc->GetUnretargetedFocusedContent()) {
+      mPreviouslyFocusedElement =
+          do_GetWeakReference(unretargetedFocus->AsElement());
     }
   }
 }
@@ -148,7 +149,7 @@ void HTMLDialogElement::FocusDialog() {
     control = this;
   }
 
-  FocusCandidate(*control, IsInTopLayer());
+  FocusCandidate(control, IsInTopLayer());
 }
 
 int32_t HTMLDialogElement::TabIndexDefault() { return 0; }
