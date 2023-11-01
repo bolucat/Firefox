@@ -1127,6 +1127,25 @@
 #endif
   mirror: always
 
+# Content analysis by external applications, e.g. data-loss prevention apps
+- name: browser.contentanalysis.enabled
+  type: bool
+  value: false
+  mirror: never
+
+# Is the IPC pipe to the DLP tool specific to the user or to the system?
+- name: browser.contentanalysis.is_per_user
+  type: bool
+  value: true
+  mirror: never
+
+# Path name of pipe used to connect to a configured DLP agent.
+- name: browser.contentanalysis.pipe_path_name
+  type: String
+  value: "path_user"
+  mirror: never
+
+# Content blocking for Enhanced Tracking Protection
 - name: browser.contentblocking.database.enabled
   type: bool
   value: false
@@ -3753,6 +3772,11 @@
 - name: dom.select_events.textcontrols.selectstart.enabled
   type: bool
   value: false
+  mirror: always
+
+- name: dom.select.showPicker.enabled
+  type: bool
+  value: true
   mirror: always
 
 - name: dom.separate_event_queue_for_post_message.enabled
@@ -8406,7 +8430,7 @@
 # Is support for :has() enabled?
 - name: layout.css.has-selector.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
   rust: true
 
@@ -9115,13 +9139,6 @@
   value: false
   mirror: always
 
-# Is support for -webkit-slider* pseudos enabled?
-- name: layout.css.webkit-range-pseudos.enabled
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-  rust: true
-
 # Is 'content:none' supported on (non-pseudo) elements?
 - name: layout.css.element-content-none.enabled
   type: RelaxedAtomicBool
@@ -9144,6 +9161,13 @@
 
 # Whether :-moz-broken is supported in content.
 - name: layout.css.moz-broken.content.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+  rust: true
+
+# Whether the modern ::slider-* pseudos are enabled.
+- name: layout.css.modern-range-pseudos.enabled
   type: RelaxedAtomicBool
   value: false
   mirror: always
@@ -9327,12 +9351,6 @@
   value: 1
   mirror: always
 
-# Wether to block autoplay for webaudio
-- name: media.autoplay.block-webaudio
-  type: bool
-  value: true
-  mirror: always
-
 # File-backed MediaCache size.
 - name: media.cache_size
   type: RelaxedAtomicUint32
@@ -9353,7 +9371,11 @@
 #if defined(XP_LINUX) && !defined(MOZ_WIDGET_ANDROID) || defined(XP_WIN) || defined(XP_MACOSX)
   value: true
 #else
+#if defined(MOZ_WIDGET_ANDROID)
+  value: @IS_NIGHTLY_BUILD@
+#else
   value: false
+#endif
 #endif
 
 # Whether or not to pass AUDCLNT_STREAMOPTIONS_RAW when initializing audio
@@ -12352,7 +12374,7 @@
   mirror: always
 
 # Enable http3 network priority as described in
-# https://httpwg.org/http-extensions/draft-ietf-httpbis-priority.html
+# <https://www.rfc-editor.org/rfc/rfc9218.html>.
 - name: network.http.http3.priority
   type: RelaxedAtomicBool
   value: true
@@ -14400,6 +14422,19 @@
   type: AtomicFloat
   value: 10000.0
   mirror: always
+
+#ifdef XP_WIN
+  # Controls whether or not TimerThread will automatically increase the Windows timer
+  # resolution when appropriate conditions are met.
+-   name: timer.auto_increase_timer_resolution
+    type: RelaxedAtomicBool
+#ifdef NIGHTLY_BUILD
+    value: true
+#else
+    value: false
+#endif
+    mirror: always
+#endif
 
 #---------------------------------------------------------------------------
 # Prefs starting with "toolkit."
