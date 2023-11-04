@@ -1024,7 +1024,7 @@ async function setupAboutPreferences(
 
   async function cleanup() {
     await closeTranslationsPanelIfOpen();
-    gBrowser.removeCurrentTab();
+    BrowserTestUtils.removeTab(tab);
     await removeMocks();
     await SpecialPowers.popPrefEnv();
     TestTranslationsTelemetry.reset();

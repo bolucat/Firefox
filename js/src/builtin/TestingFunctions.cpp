@@ -1779,6 +1779,9 @@ static bool DisassembleNative(JSContext* cx, unsigned argc, Value* vp) {
       jit_end = baseline->method()->rawEnd();
     }
   } else {
+    JS_ReportErrorASCII(cx,
+                        "The function hasn't been warmed up, hence no JIT code "
+                        "to disassemble.");
     return false;
   }
 
@@ -3531,24 +3534,30 @@ static bool NewString(JSContext* cx, unsigned argc, Value* vp) {
         JS_ReportErrorASCII(cx, "Cannot set capacity of empty string");
         return false;
       }
-      if (stable.isLatin1()) {
-        auto news = cx->make_pod_arena_array<JS::Latin1Char>(
-            js::StringBufferArena, capacity);
-        if (!news) {
-          return false;
+
+      auto createLinearString = [&](const auto* chars) -> JSLinearString* {
+        using CharT =
+            std::remove_const_t<std::remove_pointer_t<decltype(chars)>>;
+
+        if (JSInlineString::lengthFits<CharT>(len)) {
+          JS_ReportErrorASCII(cx, "Cannot create small non-inline strings");
+          return nullptr;
         }
-        mozilla::PodCopy(news.get(), stable.latin1Chars(), len);
-        dest = JSLinearString::newValidLength<CanGC>(cx, std::move(news), len,
-                                                     heap);
-      } else {
+
         auto news =
-            cx->make_pod_arena_array<char16_t>(js::StringBufferArena, capacity);
+            cx->make_pod_arena_array<CharT>(js::StringBufferArena, capacity);
         if (!news) {
-          return false;
+          return nullptr;
         }
-        mozilla::PodCopy(news.get(), stable.twoByteChars(), len);
-        dest = JSLinearString::newValidLength<CanGC>(cx, std::move(news), len,
+        mozilla::PodCopy(news.get(), chars, len);
+        return JSLinearString::newValidLength<CanGC>(cx, std::move(news), len,
                                                      heap);
+      };
+
+      if (stable.isLatin1()) {
+        dest = createLinearString(stable.latin1Chars());
+      } else {
+        dest = createLinearString(stable.twoByteChars());
       }
       if (dest) {
         dest->asLinear().makeExtensible(capacity);
@@ -3610,6 +3619,19 @@ static bool NewRope(JSContext* cx, unsigned argc, Value* vp) {
   if (left->empty() || right->empty()) {
     JS_ReportErrorASCII(cx, "rope child mustn't be the empty string");
     return false;
+  }
+
+  // Disallow creating ropes which fit into inline strings.
+  if (left->hasLatin1Chars() && right->hasLatin1Chars()) {
+    if (JSInlineString::lengthFits<JS::Latin1Char>(length)) {
+      JS_ReportErrorASCII(cx, "Cannot create small non-inline ropes");
+      return false;
+    }
+  } else {
+    if (JSInlineString::lengthFits<char16_t>(length)) {
+      JS_ReportErrorASCII(cx, "Cannot create small non-inline ropes");
+      return false;
+    }
   }
 
   auto* str = JSRope::new_<CanGC>(cx, left, right, length, heap);

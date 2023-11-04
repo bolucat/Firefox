@@ -27,8 +27,8 @@ UNSUPPORTED_FEATURES = set(
         "json-modules",  # Bug 1670176
         "resizable-arraybuffer",  # Bug 1670026
         "regexp-duplicate-named-groups",  # Bug 1773135
-        "symbols-as-weakmap-keys",  # Bug 1710433
         "json-parse-with-source",  # Bug 1658310
+        "promise-with-resolvers",  # Bug 1845586
     ]
 )
 FEATURE_CHECK_NEEDED = {
@@ -47,6 +47,7 @@ SHELL_OPTIONS = {
     "ShadowRealm": "--enable-shadow-realms",
     "iterator-helpers": "--enable-iterator-helpers",
     "arraybuffer-transfer": "--enable-arraybuffer-transfer",
+    "symbols-as-weakmap-keys": "--enable-symbols-as-weakmap-keys",
 }
 
 
