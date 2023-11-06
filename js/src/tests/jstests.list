@@ -609,24 +609,8 @@ skip script test262/built-ins/AsyncGeneratorPrototype/return/return-state-comple
 skip script test262/built-ins/AsyncGeneratorPrototype/return/return-suspendedStart-broken-promise.js
 skip script test262/built-ins/AsyncGeneratorPrototype/return/return-suspendedYield-broken-promise-try-catch.js
 
-# https://github.com/tc39/proposal-intl-numberformat-v3/pull/107
-skip script test262/intl402/NumberFormat/test-option-useGrouping.js
-
-# https://github.com/tc39/test262/pull/3768
-skip script test262/intl402/DateTimeFormat/constructor-options-order.js
-skip script test262/intl402/DateTimeFormat/constructor-options-order-dayPeriod.js
-skip script test262/intl402/DateTimeFormat/constructor-options-order-timedate-style.js
-skip script test262/intl402/DateTimeFormat/constructor-options-order-fractionalSecondDigits.js
-
-# https://github.com/tc39/test262/pull/3875
-skip script test262/intl402/NumberFormat/throws-for-maximumFractionDigits-over-limit.js
-skip script test262/intl402/NumberFormat/throws-for-minimumFractionDigits-over-limit.js
-
 # Requires Unicode 15.1
 skip script test262/built-ins/RegExp/unicodeSets/generated/rgi-emoji-15.1.js
-
-# Default value for ignorePunctuation incorrectly computed.
-skip script test262/intl402/Collator/prototype/compare/ignorePunctuation.js
 
 # Time zone canonicalization proposal.
 skip script test262/intl402/DateTimeFormat/timezone-not-canonicalized.js
@@ -638,13 +622,6 @@ skip script test262/intl402/NumberFormat/constructor-option-read-order.js
 skip script test262/intl402/NumberFormat/prototype/resolvedOptions/return-keys-order-default.js
 skip script test262/intl402/PluralRules/constructor-option-read-order.js
 skip script test262/intl402/PluralRules/prototype/resolvedOptions/return-keys-order-default.js
-
-# Required support for UTC offset time zones.
-# https://github.com/tc39/ecma402/pull/788
-skip script test262/intl402/DateTimeFormat/prototype/formatToParts/offset-timezone-correct.js
-skip script test262/intl402/DateTimeFormat/prototype/format/offset-timezone-gmt-same.js
-skip script test262/intl402/DateTimeFormat/prototype/resolvedOptions/offset-timezone-basic.js
-skip script test262/intl402/DateTimeFormat/prototype/resolvedOptions/offset-timezone-change.js
 
 
 ###########################################################
