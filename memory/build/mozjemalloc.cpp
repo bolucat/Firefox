@@ -2760,7 +2760,7 @@ void arena_t::InitChunk(arena_chunk_t* aChunk, bool aZeroed) {
                  gPageSize);
 #endif
 
-  mStats.committed += gChunkHeaderNumPages;
+  mStats.committed += gChunkHeaderNumPages - 1;
 
   // Insert the run into the tree of available runs.
   mRunsAvail.Insert(&aChunk->map[gChunkHeaderNumPages]);
@@ -2785,7 +2785,7 @@ arena_chunk_t* arena_t::DeallocChunk(arena_chunk_t* aChunk) {
 #endif
 
     mStats.mapped -= kChunkSize;
-    mStats.committed -= gChunkHeaderNumPages;
+    mStats.committed -= gChunkHeaderNumPages - 1;
   }
 
   // Remove run from the tree of available runs, so that the arena does not use
@@ -2907,10 +2907,7 @@ void arena_t::Purge(size_t aMaxDirty) {
 #ifdef MALLOC_DECOMMIT
         pages_decommit((void*)(uintptr_t(chunk) + (i << gPageSize2Pow)),
                        (npages << gPageSize2Pow));
-#endif
-        mStats.committed -= npages;
-
-#ifndef MALLOC_DECOMMIT
+#else
 #  ifdef XP_SOLARIS
         posix_madvise((void*)(uintptr_t(chunk) + (i << gPageSize2Pow)),
                       (npages << gPageSize2Pow), MADV_FREE);
@@ -2922,6 +2919,8 @@ void arena_t::Purge(size_t aMaxDirty) {
         madvised = true;
 #  endif
 #endif
+        mStats.committed -= npages;
+
         if (mNumDirty <= (aMaxDirty >> 1)) {
           break;
         }
@@ -4819,6 +4818,8 @@ inline void MozJemalloc::jemalloc_stats_internal(
     // allocated.  If you change this definition please update
     // memory/replace/logalloc/replay/Replay.cpp's jemalloc_stats calculation of
     // committed.
+    MOZ_ASSERT(arena_committed >=
+               (arena_allocated + arena_dirty + arena_unused + arena_headers));
     aStats->waste += arena_committed - arena_allocated - arena_dirty -
                      arena_unused - arena_headers;
     aStats->bin_unused += arena_unused;
@@ -4829,7 +4830,7 @@ inline void MozJemalloc::jemalloc_stats_internal(
 
   // Account for arena chunk headers in bookkeeping rather than waste.
   chunk_header_size =
-      ((aStats->mapped / aStats->chunksize) * gChunkHeaderNumPages)
+      ((aStats->mapped / aStats->chunksize) * (gChunkHeaderNumPages - 1))
       << gPageSize2Pow;
 
   aStats->mapped += non_arena_mapped;
