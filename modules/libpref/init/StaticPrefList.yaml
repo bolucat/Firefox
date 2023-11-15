@@ -1615,6 +1615,13 @@
 # from parent-process BrowsingContexts
 - name: browser.tabs.documentchannel.parent-controlled
   type: bool
+  value: true
+  mirror: always
+
+# If set, use DocumentChannel to attempt a speculative load from the
+# parent whenever it's not possible to directly load from the parent.
+- name: browser.tabs.documentchannel.speculative-load
+  type: bool
   value: false
   mirror: always
 
@@ -2170,7 +2177,7 @@
 # main thread.
 - name: dom.animations.mainthread-synchronization-with-geometric-animations
   type: bool
-  value: @IS_NOT_NIGHTLY_BUILD@
+  value: false
   mirror: always
 
 # Is support for Navigator.getBattery enabled?
@@ -7627,7 +7634,7 @@
 #if defined(ENABLE_WASM_TAIL_CALLS)
 -   name: javascript.options.wasm_tail_calls
     type: bool
-    value: @IS_NIGHTLY_BUILD@
+    value: true
     mirror: always
 #endif  // defined(ENABLE_WASM_TAIL_CALLS)
 
@@ -13802,6 +13809,12 @@
 
 # residentKey support when using Android platform API
 - name: security.webauthn.webauthn_enable_android_fido2.residentkey
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# Dispatch WebAuthn requests to the macOS platform API
+- name: security.webauthn.enable_macos_passkeys
   type: RelaxedAtomicBool
   value: false
   mirror: always
