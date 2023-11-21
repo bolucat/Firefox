@@ -725,6 +725,10 @@ Tester.prototype = {
 
       Services.obs.notifyObservers(null, "test-complete");
 
+      // Ensure to reset the clipboard in case the test has modified it,
+      // so it won't affect the next tests.
+      window.SpecialPowers.clipboardCopyString("");
+
       if (
         this.currentTest.passCount === 0 &&
         this.currentTest.failCount === 0 &&
@@ -1213,7 +1217,7 @@ Tester.prototype = {
 
     this.SimpleTest.reset();
     // Reset accessibility environment.
-    this.AccessibilityUtils.reset(this.a11y_checks);
+    this.AccessibilityUtils.reset(this.a11y_checks, this.currentTest.path);
 
     // Load the tests into a testscope
     let currentScope = (this.currentTest.scope = new testScope(

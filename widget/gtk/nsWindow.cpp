@@ -414,6 +414,7 @@ nsWindow::nsWindow()
       mIsTransparent(false),
       mHasReceivedSizeAllocate(false),
       mWidgetCursorLocked(false),
+      mUndecorated(false),
       mPopupTrackInHierarchy(false),
       mPopupTrackInHierarchyConfigured(false),
       mHiddenPopupPositioned(false),
@@ -889,9 +890,17 @@ bool nsWindow::DrawsToCSDTitlebar() const {
 }
 
 void nsWindow::AddCSDDecorationSize(int* aWidth, int* aHeight) {
-  if (!DrawsToCSDTitlebar()) {
+  if (mUndecorated || mSizeMode != nsSizeMode_Normal ||
+      mGtkWindowDecoration != GTK_DECORATION_CLIENT) {
     return;
   }
+
+  // We add decoration borders if titlebar is off or on Wayland
+  // where CSD is always used.
+  if (!mDrawInTitlebar && !GdkIsWaylandDisplay()) {
+    return;
+  }
+
   GtkBorder decorationSize = GetCSDDecorationSize(IsPopup());
   *aWidth += decorationSize.left + decorationSize.right;
   *aHeight += decorationSize.top + decorationSize.bottom;
@@ -4523,8 +4532,10 @@ void nsWindow::OnMotionNotifyEvent(GdkEventMotion* aEvent) {
     SetCursor(Cursor{cursor});
     // If we set resize cursor on widget level keep it locked and prevent layout
     // to switch it back to default (by synthetic mouse events for instance)
-    // until resize is finished.
-    mWidgetCursorLocked = true;
+    // until resize is finished. This affects PIP windows only.
+    if (mIsPIPWindow) {
+      mWidgetCursorLocked = true;
+    }
     return;
   }
 
@@ -6202,7 +6213,8 @@ nsresult nsWindow::Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
 
   // It is important that this happens before the realize() call below, so that
   // we don't get bogus CSD margins on Wayland, see bug 1794577.
-  if (IsAlwaysUndecoratedWindow()) {
+  mUndecorated = IsAlwaysUndecoratedWindow();
+  if (mUndecorated) {
     LOG("    Is undecorated Window\n");
     gtk_window_set_titlebar(GTK_WINDOW(mShell), gtk_fixed_new());
     gtk_window_set_decorated(GTK_WINDOW(mShell), false);
@@ -6682,6 +6694,14 @@ void nsWindow::ResumeCompositorFlickering() {
   }
 
   MozClearHandleID(mCompositorPauseTimeoutID, g_source_remove);
+
+  // mCompositorWidgetDelegate can be deleted during timeout.
+  // In such case just flip compositor back to enabled and let
+  // SetCompositorWidgetDelegate() or Map event resume it.
+  if (!mCompositorWidgetDelegate) {
+    mCompositorState = COMPOSITOR_ENABLED;
+    return;
+  }
 
   ResumeCompositorImpl();
 }
@@ -8951,7 +8971,7 @@ void nsWindow::SetDrawsInTitlebar(bool aState) {
     return;
   }
 
-  if (IsAlwaysUndecoratedWindow()) {
+  if (mUndecorated) {
     MOZ_ASSERT(aState, "Unexpected decoration request");
     MOZ_ASSERT(!gtk_window_get_decorated(GTK_WINDOW(mShell)));
     return;

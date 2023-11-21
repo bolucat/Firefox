@@ -8687,7 +8687,7 @@
 # Is support for -moz-prefixed transition properties enabled?
 - name: layout.css.prefixes.transitions
   type: bool
-  value: true
+  value: @IS_NOT_NIGHTLY_BUILD@
   mirror: always
 
 # Is CSS error reporting enabled?
@@ -10112,11 +10112,6 @@
 -   name: media.wmf.dxva.max-videos
     type: RelaxedAtomicUint32
     value: 8
-    mirror: always
-
--   name: media.wmf.dxva.d3d9.amd-pre-uvd4.disabled
-    type: RelaxedAtomicBool
-    value: true
     mirror: always
 
 -   name: media.wmf.use-nv12-format
@@ -12461,6 +12456,14 @@
 # 0 => NewReno
 # 1 => Cubic
 - name: network.http.http3.cc_algorithm
+  type: RelaxedAtomicUint32
+  value: 1
+  mirror: always
+  rust: true
+
+# It represents the maximum duration that we used to accumulate
+# callback timeouts before we set a timer and break out of the loop.
+- name: network.http.http3.max_accumlated_time_ms
   type: RelaxedAtomicUint32
   value: 1
   mirror: always

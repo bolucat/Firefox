@@ -29,9 +29,9 @@ dependencies = [
 
 [[package]]
 name = "aho-corasick"
-version = "0.7.20"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc936419f96fa211c1b9166887b38e5e40b19958e5b895be7c1f93adec7071ac"
+checksum = "0f2135563fb5c609d2b2b87c1e8ce7bc41b0b45430fa9661f457981503dd5bf0"
 dependencies = [
  "memchr",
 ]
@@ -432,14 +432,14 @@ dependencies = [
 name = "bindgen"
 version = "0.66.999"
 dependencies = [
- "bindgen 0.68.1",
+ "bindgen 0.69.1",
 ]
 
 [[package]]
 name = "bindgen"
-version = "0.68.1"
+version = "0.69.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "726e4313eb6ec35d2730258ad4e15b547ee75d6afaa1361a922e78e59b7d8078"
+checksum = "9ffcebc3849946a7170a05992aac39da343a90676ab392c51a4280981d6379c2"
 dependencies = [
  "bitflags 2.4.0",
  "cexpr",
@@ -584,7 +584,7 @@ dependencies = [
 name = "builtins-static"
 version = "0.1.0"
 dependencies = [
- "bindgen 0.68.1",
+ "bindgen 0.69.1",
  "mozilla-central-workspace-hack",
  "nom",
  "pkcs11-bindings",
@@ -885,17 +885,17 @@ dependencies = [
 
 [[package]]
 name = "coreaudio-sys"
-version = "0.2.13"
+version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8478e5bdad14dce236b9898ea002eabfa87cbe14f0aa538dbe3b6a4bec4332d"
+checksum = "f3120ebb80a9de008e638ad833d4127d50ea3d3a960ea23ea69bc66d9358a028"
 dependencies = [
- "bindgen 0.68.1",
+ "bindgen 0.69.1",
 ]
 
 [[package]]
 name = "coreaudio-sys-utils"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/cubeb-coreaudio-rs?rev=93b5c01a131f65c83c11aeb317f4583405c5eb79#93b5c01a131f65c83c11aeb317f4583405c5eb79"
+source = "git+https://github.com/mozilla/cubeb-coreaudio-rs?rev=964e14628f285ad44522bdeeb566c1864ecd2fd8#964e14628f285ad44522bdeeb566c1864ecd2fd8"
 dependencies = [
  "core-foundation-sys",
  "coreaudio-sys",
@@ -1106,11 +1106,11 @@ dependencies = [
 [[package]]
 name = "cubeb-coreaudio"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/cubeb-coreaudio-rs?rev=93b5c01a131f65c83c11aeb317f4583405c5eb79#93b5c01a131f65c83c11aeb317f4583405c5eb79"
+source = "git+https://github.com/mozilla/cubeb-coreaudio-rs?rev=964e14628f285ad44522bdeeb566c1864ecd2fd8#964e14628f285ad44522bdeeb566c1864ecd2fd8"
 dependencies = [
  "atomic",
  "audio-mixer",
- "bitflags 1.999.999",
+ "bitflags 2.4.0",
  "coreaudio-sys-utils",
  "cubeb-backend",
  "float-cmp",
@@ -1146,7 +1146,7 @@ dependencies = [
 [[package]]
 name = "d3d12"
 version = "0.7.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=3ec547cdcaaa14488327d8f1b5f7736278c4178d#3ec547cdcaaa14488327d8f1b5f7736278c4178d"
+source = "git+https://github.com/gfx-rs/wgpu?rev=6e21f7a9291db4395192d6b510d906978ae2d251#6e21f7a9291db4395192d6b510d906978ae2d251"
 dependencies = [
  "bitflags 2.4.0",
  "libloading",
@@ -1868,9 +1868,9 @@ checksum = "aa9a19cbb55df58761df49b23516a86d432839add4af60fc256da840f66ed35b"
 
 [[package]]
 name = "form_urlencoded"
-version = "1.1.0"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9c384f161156f5260c24a097c56119f9be8c798586aecc13afbcbe7b7e26bf8"
+checksum = "a62bc1cf6f830c2ec14a513a9fb124d0a213a629668a4186f329db21fe045652"
 dependencies = [
  "percent-encoding",
 ]
@@ -2020,7 +2020,7 @@ name = "gecko-profiler"
 version = "0.1.0"
 dependencies = [
  "bincode",
- "bindgen 0.68.1",
+ "bindgen 0.69.1",
  "lazy_static",
  "mozbuild",
  "profiler-macros",
@@ -2562,7 +2562,7 @@ name = "http3server"
 version = "0.1.1"
 dependencies = [
  "base64 0.21.3",
- "bindgen 0.68.1",
+ "bindgen 0.69.1",
  "cfg-if 1.0.0",
  "http",
  "hyper",
@@ -2748,11 +2748,10 @@ checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
 
 [[package]]
 name = "idna"
-version = "0.2.3"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "418a0a6fab821475f634efe3ccc45c013f742efe03d853e8d3355d5cb850ecf8"
+checksum = "7d20d6b07bfbc108882d88ed8e37d39636dcc260e15e30c45e6ba089610b917c"
 dependencies = [
- "matches",
  "unicode-bidi",
  "unicode-normalization",
 ]
@@ -3633,7 +3632,7 @@ name = "mozilla-central-workspace-hack"
 version = "0.1.0"
 dependencies = [
  "arrayvec",
- "bindgen 0.68.1",
+ "bindgen 0.69.1",
  "bitflags 2.4.0",
  "bytes",
  "chrono",
@@ -3762,7 +3761,7 @@ checksum = "a2983372caf4480544083767bf2d27defafe32af49ab4df3a0b7fc90793a3664"
 [[package]]
 name = "naga"
 version = "0.14.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=3ec547cdcaaa14488327d8f1b5f7736278c4178d#3ec547cdcaaa14488327d8f1b5f7736278c4178d"
+source = "git+https://github.com/gfx-rs/wgpu?rev=6e21f7a9291db4395192d6b510d906978ae2d251#6e21f7a9291db4395192d6b510d906978ae2d251"
 dependencies = [
  "bit-set",
  "bitflags 2.4.0",
@@ -3781,8 +3780,8 @@ dependencies = [
 
 [[package]]
 name = "neqo-common"
-version = "0.6.6"
-source = "git+https://github.com/mozilla/neqo?tag=v0.6.6#34b2c3c45dc8c396f82ef5c3a5246f04bf0adad3"
+version = "0.6.7"
+source = "git+https://github.com/mozilla/neqo?tag=v0.6.7#8a3aaa26c97d41a65a0de0cba885667c930ca61d"
 dependencies = [
  "env_logger",
  "lazy_static",
@@ -3794,8 +3793,8 @@ dependencies = [
 
 [[package]]
 name = "neqo-crypto"
-version = "0.6.6"
-source = "git+https://github.com/mozilla/neqo?tag=v0.6.6#34b2c3c45dc8c396f82ef5c3a5246f04bf0adad3"
+version = "0.6.7"
+source = "git+https://github.com/mozilla/neqo?tag=v0.6.7#8a3aaa26c97d41a65a0de0cba885667c930ca61d"
 dependencies = [
  "bindgen 0.64.999",
  "log",
@@ -3808,8 +3807,8 @@ dependencies = [
 
 [[package]]
 name = "neqo-http3"
-version = "0.6.6"
-source = "git+https://github.com/mozilla/neqo?tag=v0.6.6#34b2c3c45dc8c396f82ef5c3a5246f04bf0adad3"
+version = "0.6.7"
+source = "git+https://github.com/mozilla/neqo?tag=v0.6.7#8a3aaa26c97d41a65a0de0cba885667c930ca61d"
 dependencies = [
  "enumset",
  "lazy_static",
@@ -3826,8 +3825,8 @@ dependencies = [
 
 [[package]]
 name = "neqo-qpack"
-version = "0.6.6"
-source = "git+https://github.com/mozilla/neqo?tag=v0.6.6#34b2c3c45dc8c396f82ef5c3a5246f04bf0adad3"
+version = "0.6.7"
+source = "git+https://github.com/mozilla/neqo?tag=v0.6.7#8a3aaa26c97d41a65a0de0cba885667c930ca61d"
 dependencies = [
  "lazy_static",
  "log",
@@ -3840,8 +3839,8 @@ dependencies = [
 
 [[package]]
 name = "neqo-transport"
-version = "0.6.6"
-source = "git+https://github.com/mozilla/neqo?tag=v0.6.6#34b2c3c45dc8c396f82ef5c3a5246f04bf0adad3"
+version = "0.6.7"
+source = "git+https://github.com/mozilla/neqo?tag=v0.6.7#8a3aaa26c97d41a65a0de0cba885667c930ca61d"
 dependencies = [
  "indexmap 1.9.3",
  "lazy_static",
@@ -4214,9 +4213,9 @@ checksum = "19b17cddbe7ec3f8bc800887bab5e717348c95ea2ca0b1bf0837fb964dc67099"
 
 [[package]]
 name = "percent-encoding"
-version = "2.2.0"
+version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "478c572c3d73181ff3c2539045f6eb99e5491218eae919370993b890cdbdd98e"
+checksum = "9b2a4787296e9989611394c33f193f676704af1686e70b8f8033ab5ba9a35a94"
 
 [[package]]
 name = "phf"
@@ -4589,9 +4588,21 @@ version = "0.4.999"
 
 [[package]]
 name = "regex"
-version = "1.7.1"
+version = "1.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "48aaa5748ba571fb95cd2c85c09f629215d3a6ece942baa100950af03a34f733"
+checksum = "12de2eff854e5fa4b1295edd650e227e9d8fb0c9e90b12e7f36d6a6811791a29"
+dependencies = [
+ "aho-corasick",
+ "memchr",
+ "regex-automata",
+ "regex-syntax",
+]
+
+[[package]]
+name = "regex-automata"
+version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "49530408a136e16e5b486e883fbb6ba058e8e4e8ae6621a77b048b314336e629"
 dependencies = [
  "aho-corasick",
  "memchr",
@@ -4600,9 +4611,9 @@ dependencies = [
 
 [[package]]
 name = "regex-syntax"
-version = "0.6.28"
+version = "0.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "456c603be3e8d448b072f410900c09faf164fbce2d480456f50eea6e25f9c848"
+checksum = "dbb5fb1acd8a1a18b3dd5be62d25485eb770e05afb408a9627d14d451bae12da"
 
 [[package]]
 name = "remote_settings"
@@ -5220,7 +5231,7 @@ dependencies = [
  "app_units",
  "arrayvec",
  "atomic_refcell",
- "bindgen 0.68.1",
+ "bindgen 0.69.1",
  "bitflags 2.4.0",
  "byteorder",
  "cssparser",
@@ -6009,12 +6020,12 @@ checksum = "2ace0b4755d0a2959962769239d56267f8a024fef2d9b32666b3dcd0946b0906"
 
 [[package]]
 name = "url"
-version = "2.1.0"
+version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75b414f6c464c879d7f9babf951f23bc3743fb7313c081b2e6ca719067ea9d61"
+checksum = "143b538f18257fac9cad154828a57c6bf5157e1aa604d4816b5995bf6de87ae5"
 dependencies = [
+ "form_urlencoded",
  "idna",
- "matches",
  "percent-encoding",
  "serde",
 ]
@@ -6363,7 +6374,7 @@ dependencies = [
 [[package]]
 name = "wgpu-core"
 version = "0.18.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=3ec547cdcaaa14488327d8f1b5f7736278c4178d#3ec547cdcaaa14488327d8f1b5f7736278c4178d"
+source = "git+https://github.com/gfx-rs/wgpu?rev=6e21f7a9291db4395192d6b510d906978ae2d251#6e21f7a9291db4395192d6b510d906978ae2d251"
 dependencies = [
  "arrayvec",
  "bit-vec",
@@ -6386,7 +6397,7 @@ dependencies = [
 [[package]]
 name = "wgpu-hal"
 version = "0.18.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=3ec547cdcaaa14488327d8f1b5f7736278c4178d#3ec547cdcaaa14488327d8f1b5f7736278c4178d"
+source = "git+https://github.com/gfx-rs/wgpu?rev=6e21f7a9291db4395192d6b510d906978ae2d251#6e21f7a9291db4395192d6b510d906978ae2d251"
 dependencies = [
  "android_system_properties",
  "arrayvec",
@@ -6423,7 +6434,7 @@ dependencies = [
 [[package]]
 name = "wgpu-types"
 version = "0.18.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=3ec547cdcaaa14488327d8f1b5f7736278c4178d#3ec547cdcaaa14488327d8f1b5f7736278c4178d"
+source = "git+https://github.com/gfx-rs/wgpu?rev=6e21f7a9291db4395192d6b510d906978ae2d251#6e21f7a9291db4395192d6b510d906978ae2d251"
 dependencies = [
  "bitflags 2.4.0",
  "js-sys",

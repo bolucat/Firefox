@@ -30,12 +30,10 @@ use style_traits::{
 
 /// A single component of the computed value.
 pub type ComputedValueComponent = GenericValueComponent<
-    // TODO(zrhoffman, bug 1856524): Use computed::Length
-    specified::Length,
+    computed::Length,
     computed::Number,
     computed::Percentage,
-    // TODO(zrhoffman, bug 1856524): Use computed::LengthPercentage
-    specified::LengthPercentage,
+    computed::LengthPercentage,
     computed::Color,
     computed::Image,
     computed::url::ComputedUrl,
@@ -143,11 +141,9 @@ impl ToComputedValue for SpecifiedValueComponent {
 
     fn to_computed_value(&self, context: &computed::Context) -> Self::ComputedValue {
         match self {
-            SpecifiedValueComponent::Length(length) => ComputedValueComponent::Length(
-                // TODO(zrhoffman, bug 1856524): Compute <length>, which may contain font-relative
-                // units
-                length.clone(),
-            ),
+            SpecifiedValueComponent::Length(length) => {
+                ComputedValueComponent::Length(length.to_computed_value(context))
+            },
             SpecifiedValueComponent::Number(number) => {
                 ComputedValueComponent::Number(number.to_computed_value(context))
             },
@@ -155,9 +151,9 @@ impl ToComputedValue for SpecifiedValueComponent {
                 ComputedValueComponent::Percentage(percentage.to_computed_value(context))
             },
             SpecifiedValueComponent::LengthPercentage(length_percentage) => {
-                // TODO(zrhoffman, bug 1856524): Compute <length-percentage>, which may contain
-                // font-relative units
-                ComputedValueComponent::LengthPercentage(length_percentage.clone())
+                ComputedValueComponent::LengthPercentage(
+                    length_percentage.to_computed_value(context),
+                )
             },
             SpecifiedValueComponent::Color(color) => {
                 ComputedValueComponent::Color(color.to_computed_value(context))
@@ -200,10 +196,9 @@ impl ToComputedValue for SpecifiedValueComponent {
 
     fn from_computed_value(computed: &Self::ComputedValue) -> Self {
         match computed {
-            ComputedValueComponent::Length(length) => SpecifiedValueComponent::Length(
-                // TODO(zrhoffman, bug 1856524): Use computed <length>
-                length.clone(),
-            ),
+            ComputedValueComponent::Length(length) => {
+                SpecifiedValueComponent::Length(ToComputedValue::from_computed_value(length))
+            },
             ComputedValueComponent::Number(number) => {
                 SpecifiedValueComponent::Number(ToComputedValue::from_computed_value(number))
             },
@@ -211,8 +206,9 @@ impl ToComputedValue for SpecifiedValueComponent {
                 ToComputedValue::from_computed_value(percentage),
             ),
             ComputedValueComponent::LengthPercentage(length_percentage) => {
-                // TODO(zrhoffman, bug 1856524): Use computed <length-percentage>
-                SpecifiedValueComponent::LengthPercentage(length_percentage.clone())
+                SpecifiedValueComponent::LengthPercentage(ToComputedValue::from_computed_value(
+                    length_percentage,
+                ))
             },
             ComputedValueComponent::Color(color) => {
                 SpecifiedValueComponent::Color(ToComputedValue::from_computed_value(color))
@@ -413,7 +409,9 @@ impl SpecifiedValue {
         allow_computationally_dependent: AllowComputationallyDependent,
     ) -> Result<Self, StyleParseError<'i>> {
         if syntax.is_universal() {
-            return Ok(Self::Universal(ComputedPropertyValue::parse(&mut input, url_data)?));
+            return Ok(Self::Universal(ComputedPropertyValue::parse(
+                &mut input, url_data,
+            )?));
         }
 
         let mut values = SmallComponentVec::new();

@@ -118,7 +118,7 @@ macro_rules! lnf_int_variable {
     }};
 }
 
-static CHROME_ENVIRONMENT_VARIABLES: [EnvironmentVariable; 6] = [
+static CHROME_ENVIRONMENT_VARIABLES: [EnvironmentVariable; 7] = [
     lnf_int_variable!(
         atom!("-moz-gtk-csd-titlebar-radius"),
         TitlebarRadius,
@@ -138,6 +138,11 @@ static CHROME_ENVIRONMENT_VARIABLES: [EnvironmentVariable; 6] = [
         atom!("-moz-gtk-csd-maximize-button-position"),
         GTKCSDMaximizeButtonPosition,
         integer
+    ),
+    lnf_int_variable!(
+        atom!("-moz-overlay-scrollbar-fade-duration"),
+        ScrollbarFadeDuration,
+        int_ms
     ),
     make_variable!(
         atom!("-moz-content-preferred-color-scheme"),
@@ -536,6 +541,19 @@ impl VariableValue {
         )
     }
 
+    /// Create VariableValue from an integer amount of milliseconds.
+    fn int_ms(number: i32, url_data: &UrlExtraData) -> Self {
+        Self::from_token(
+            Token::Dimension {
+                has_sign: false,
+                value: number as f32,
+                int_value: Some(number),
+                unit: CowRcStr::from("ms"),
+            },
+            url_data,
+        )
+    }
+
     /// Create VariableValue from an integer amount of CSS pixels.
     fn int_pixels(number: i32, url_data: &UrlExtraData) -> Self {
         Self::from_token(
@@ -912,6 +930,9 @@ impl<'a, 'b: 'a> CustomPropertiesBuilder<'a, 'b> {
                     if let Some(registration) = custom_registration {
                         let mut input = ParserInput::new(&unparsed_value.css);
                         let mut input = Parser::new(&mut input);
+                        // TODO(bug 1856522): Substitute custom property references in font-*
+                        // declarations before computing registered custom properties containing
+                        // font-relative units.
                         if let Ok(value) = SpecifiedRegisteredValue::compute(
                             &mut input,
                             registration,
