@@ -990,10 +990,10 @@ nsSHEntry::SyncTreesForSubframeNavigation(
   }
 }
 
-void nsSHEntry::EvictContentViewer() {
+void nsSHEntry::EvictDocumentViewer() {
   nsCOMPtr<nsIDocumentViewer> viewer = GetContentViewer();
   if (viewer) {
-    mShared->NotifyListenersContentViewerEvicted();
+    mShared->NotifyListenersDocumentViewerEvicted();
     // Drop the presentation state before destroying the viewer, so that
     // document teardown is able to correctly persist the state.
     SetContentViewer(nullptr);
@@ -1009,14 +1009,14 @@ nsSHEntry::SetContentViewer(nsIDocumentViewer* aViewer) {
 
 NS_IMETHODIMP
 nsSHEntry::GetContentViewer(nsIDocumentViewer** aResult) {
-  *aResult = GetState()->mContentViewer;
+  *aResult = GetState()->mDocumentViewer;
   NS_IF_ADDREF(*aResult);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsSHEntry::GetIsInBFCache(bool* aResult) {
-  *aResult = !!GetState()->mContentViewer;
+  *aResult = !!GetState()->mDocumentViewer;
   return NS_OK;
 }
 

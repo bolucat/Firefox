@@ -24,7 +24,6 @@
 #if defined(MOZ_WAYLAND)
 #  include "mozilla/widget/nsWaylandDisplay.h"
 #  include "nsWindow.h"
-#  include "mozilla/dom/power/PowerManagerService.h"
 #endif
 
 #ifdef MOZ_ENABLE_DBUS
@@ -47,8 +46,6 @@ using namespace mozilla;
 using namespace mozilla::widget;
 
 NS_IMPL_ISUPPORTS(WakeLockListener, nsIDOMMozWakeLockListener)
-
-StaticRefPtr<WakeLockListener> WakeLockListener::sSingleton;
 
 #define WAKE_LOCK_LOG(str, ...)                        \
   MOZ_LOG(gLinuxWakeLockLog, mozilla::LogLevel::Debug, \
@@ -106,8 +103,10 @@ class WakeLockTopic {
 #endif
   }
 
-  nsresult InhibitScreensaver(void);
-  nsresult UninhibitScreensaver(void);
+  nsresult InhibitScreensaver();
+  nsresult UninhibitScreensaver();
+
+  void Shutdown();
 
  private:
   bool SendInhibit();
@@ -148,18 +147,7 @@ class WakeLockTopic {
   void DBusUninhibitSucceeded();
   void DBusUninhibitFailed();
 #endif
-  ~WakeLockTopic() {
-    WAKE_LOCK_LOG("WakeLockTopic::~WakeLockTopic() state %d", mInhibited);
-#ifdef MOZ_ENABLE_DBUS
-    if (mWaitingForDBusUninhibit) {
-      return;
-    }
-    g_cancellable_cancel(mCancellable);
-#endif
-    if (mInhibited) {
-      UninhibitScreensaver();
-    }
-  }
+  ~WakeLockTopic() = default;
 
   // Why is screensaver inhibited
   nsCString mTopic;
@@ -348,21 +336,22 @@ void WakeLockTopic::DBusUninhibitScreensaver(const char* aName,
 
   RefPtr<GVariant> variant =
       dont_AddRef(g_variant_ref_sink(g_variant_new("(u)", mInhibitRequestID)));
+  nsCOMPtr<nsISerialEventTarget> target = GetCurrentSerialEventTarget();
   widget::CreateDBusProxyForBus(
       G_BUS_TYPE_SESSION,
       GDBusProxyFlags(G_DBUS_PROXY_FLAGS_DO_NOT_CONNECT_SIGNALS |
                       G_DBUS_PROXY_FLAGS_DO_NOT_LOAD_PROPERTIES),
       /* aInterfaceInfo = */ nullptr, aName, aPath, aCall, mCancellable)
       ->Then(
-          GetCurrentSerialEventTarget(), __func__,
-          [self = RefPtr{this}, this, args = RefPtr{variant},
+          target, __func__,
+          [self = RefPtr{this}, this, args = std::move(variant), target,
            aMethod](RefPtr<GDBusProxy>&& aProxy) {
             WAKE_LOCK_LOG(
                 "WakeLockTopic::DBusUninhibitScreensaver() proxy created");
             DBusProxyCall(aProxy.get(), aMethod, args.get(),
                           G_DBUS_CALL_FLAGS_NONE, DBUS_TIMEOUT, mCancellable)
                 ->Then(
-                    GetCurrentSerialEventTarget(), __func__,
+                    target, __func__,
                     [s = RefPtr{this}, this](RefPtr<GVariant>&& aResult) {
                       DBusUninhibitSucceeded();
                     },
@@ -632,6 +621,19 @@ nsresult WakeLockTopic::InhibitScreensaver() {
   return (sWakeLockType != Unsupported) ? NS_OK : NS_ERROR_FAILURE;
 }
 
+void WakeLockTopic::Shutdown() {
+  WAKE_LOCK_LOG("WakeLockTopic::Shutdown() state %d", mInhibited);
+#ifdef MOZ_ENABLE_DBUS
+  if (mWaitingForDBusUninhibit) {
+    return;
+  }
+  g_cancellable_cancel(mCancellable);
+#endif
+  if (mInhibited) {
+    UninhibitScreensaver();
+  }
+}
+
 nsresult WakeLockTopic::UninhibitScreensaver() {
   WAKE_LOCK_LOG("WakeLockTopic::UninhibitScreensaver() Inhibited %d",
                 mInhibited);
@@ -716,19 +718,12 @@ bool WakeLockTopic::SwitchToNextWakeLockType() {
   return false;
 }
 
-/* static */
-WakeLockListener* WakeLockListener::GetSingleton(bool aCreate) {
-  if (!sSingleton && aCreate) {
-    sSingleton = new WakeLockListener();
-  }
-  return sSingleton;
-}
+WakeLockListener::WakeLockListener() = default;
 
-/* static */
-void WakeLockListener::Shutdown() {
-  MOZ_LOG(gLinuxWakeLockLog, mozilla::LogLevel::Debug,
-          ("WakeLockListener::Shutdown()"));
-  sSingleton = nullptr;
+WakeLockListener::~WakeLockListener() {
+  for (const auto& topic : mTopics.Values()) {
+    topic->Shutdown();
+  }
 }
 
 nsresult WakeLockListener::Callback(const nsAString& topic,
