@@ -2522,15 +2522,15 @@ class nsContentUtils {
    */
   static bool IsSWFPlayerEnabled();
 
-  enum ContentViewerType {
+  enum DocumentViewerType {
     TYPE_UNSUPPORTED,
     TYPE_CONTENT,
     TYPE_FALLBACK,
     TYPE_UNKNOWN
   };
 
-  static already_AddRefed<nsIDocumentLoaderFactory> FindInternalContentViewer(
-      const nsACString& aType, ContentViewerType* aLoaderType = nullptr);
+  static already_AddRefed<nsIDocumentLoaderFactory> FindInternalDocumentViewer(
+      const nsACString& aType, DocumentViewerType* aLoaderType = nullptr);
 
   /**
    * This helper method returns true if the aPattern pattern matches aValue.
@@ -3681,12 +3681,16 @@ class TreeOrderComparator {
 }  // namespace mozilla::dom
 
 #define NS_INTERFACE_MAP_ENTRY_TEAROFF(_interface, _allocator) \
-  if (aIID.Equals(NS_GET_IID(_interface))) {                   \
-    foundInterface = static_cast<_interface*>(_allocator);     \
-    if (!foundInterface) {                                     \
-      *aInstancePtr = nullptr;                                 \
-      return NS_ERROR_OUT_OF_MEMORY;                           \
-    }                                                          \
+  NS_INTERFACE_MAP_ENTRY_TEAROFF_AMBIGUOUS(_interface, _interface, _allocator)
+
+#define NS_INTERFACE_MAP_ENTRY_TEAROFF_AMBIGUOUS(_interface, _implClass, \
+                                                 _allocator)             \
+  if (aIID.Equals(NS_GET_IID(_interface))) {                             \
+    foundInterface = static_cast<_implClass*>(_allocator);               \
+    if (!foundInterface) {                                               \
+      *aInstancePtr = nullptr;                                           \
+      return NS_ERROR_OUT_OF_MEMORY;                                     \
+    }                                                                    \
   } else
 
 /*

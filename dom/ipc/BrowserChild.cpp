@@ -818,7 +818,7 @@ mozilla::ipc::IPCResult BrowserChild::RecvLoadURL(
   return IPC_OK();
 }
 
-mozilla::ipc::IPCResult BrowserChild::RecvCreateAboutBlankContentViewer(
+mozilla::ipc::IPCResult BrowserChild::RecvCreateAboutBlankDocumentViewer(
     nsIPrincipal* aPrincipal, nsIPrincipal* aPartitionedPrincipal) {
   if (aPrincipal->GetIsExpandedPrincipal() ||
       aPartitionedPrincipal->GetIsExpandedPrincipal()) {
@@ -827,7 +827,7 @@ mozilla::ipc::IPCResult BrowserChild::RecvCreateAboutBlankContentViewer(
   if (aPrincipal->IsSystemPrincipal() ||
       aPartitionedPrincipal->IsSystemPrincipal()) {
     MOZ_ASSERT_UNREACHABLE(
-        "Cannot use CreateAboutBlankContentViewer to create system principal "
+        "Cannot use CreateAboutBlankDocumentViewer to create system principal "
         "document in content");
     return IPC_OK();
   }
@@ -846,8 +846,8 @@ mozilla::ipc::IPCResult BrowserChild::RecvCreateAboutBlankContentViewer(
     return IPC_OK();
   }
 
-  docShell->CreateAboutBlankContentViewer(aPrincipal, aPartitionedPrincipal,
-                                          nullptr);
+  docShell->CreateAboutBlankDocumentViewer(aPrincipal, aPartitionedPrincipal,
+                                           nullptr);
   return IPC_OK();
 }
 
@@ -3716,7 +3716,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(BrowserChildMessageManager)
   NS_INTERFACE_MAP_ENTRY(nsIMessageSender)
-  NS_INTERFACE_MAP_ENTRY(ContentFrameMessageManager)
+  NS_INTERFACE_MAP_ENTRY_CONCRETE(ContentFrameMessageManager)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
 NS_INTERFACE_MAP_END_INHERITING(DOMEventTargetHelper)
 
