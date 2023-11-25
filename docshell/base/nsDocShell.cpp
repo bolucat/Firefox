@@ -1468,11 +1468,11 @@ PresShell* nsDocShell::GetEldestPresShell() {
 }
 
 NS_IMETHODIMP
-nsDocShell::GetContentViewer(nsIDocumentViewer** aContentViewer) {
-  NS_ENSURE_ARG_POINTER(aContentViewer);
+nsDocShell::GetDocViewer(nsIDocumentViewer** aDocumentViewer) {
+  NS_ENSURE_ARG_POINTER(aDocumentViewer);
 
-  *aContentViewer = mDocumentViewer;
-  NS_IF_ADDREF(*aContentViewer);
+  *aDocumentViewer = mDocumentViewer;
+  NS_IF_ADDREF(*aDocumentViewer);
   return NS_OK;
 }
 
@@ -1585,7 +1585,7 @@ nsDocShell::GetCharset(nsACString& aCharset) {
 NS_IMETHODIMP
 nsDocShell::ForceEncodingDetection() {
   nsCOMPtr<nsIDocumentViewer> viewer;
-  GetContentViewer(getter_AddRefs(viewer));
+  GetDocViewer(getter_AddRefs(viewer));
   if (!viewer) {
     return NS_OK;
   }
@@ -5592,7 +5592,7 @@ static bool IsFollowupPartOfMultipart(nsIRequest* aRequest) {
          !firstPart;
 }
 
-nsresult nsDocShell::Embed(nsIDocumentViewer* aContentViewer,
+nsresult nsDocShell::Embed(nsIDocumentViewer* aDocumentViewer,
                            WindowGlobalChild* aWindowActor,
                            bool aIsTransientAboutBlank, bool aPersist,
                            nsIRequest* aRequest, nsIURI* aPreviousURI) {
@@ -5600,7 +5600,7 @@ nsresult nsDocShell::Embed(nsIDocumentViewer* aContentViewer,
   // setting up new document
   PersistLayoutHistoryState();
 
-  nsresult rv = SetupNewViewer(aContentViewer, aWindowActor);
+  nsresult rv = SetupNewViewer(aDocumentViewer, aWindowActor);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // XXX What if SetupNewViewer fails?
@@ -6756,7 +6756,7 @@ bool nsDocShell::CanSavePresentation(uint32_t aLoadType,
 
   MOZ_ASSERT(!mozilla::SessionHistoryInParent(),
              "mOSHE cannot be non-null with SHIP");
-  nsCOMPtr<nsIDocumentViewer> viewer = mOSHE->GetContentViewer();
+  nsCOMPtr<nsIDocumentViewer> viewer = mOSHE->GetDocumentViewer();
   if (viewer) {
     NS_WARNING("mOSHE already has a content viewer!");
     return false;
@@ -7046,15 +7046,15 @@ nsDocShell::RestorePresentationEvent::Run() {
 }
 
 NS_IMETHODIMP
-nsDocShell::BeginRestore(nsIDocumentViewer* aContentViewer, bool aTop) {
+nsDocShell::BeginRestore(nsIDocumentViewer* aDocumentViewer, bool aTop) {
   MOZ_ASSERT(!mozilla::SessionHistoryInParent());
 
   nsresult rv;
-  if (!aContentViewer) {
+  if (!aDocumentViewer) {
     rv = EnsureDocumentViewer();
     NS_ENSURE_SUCCESS(rv, rv);
 
-    aContentViewer = mDocumentViewer;
+    aDocumentViewer = mDocumentViewer;
   }
 
   // Dispatch events for restoring the presentation.  We try to simulate
@@ -7062,7 +7062,7 @@ nsDocShell::BeginRestore(nsIDocumentViewer* aContentViewer, bool aTop) {
   // the document's channel to the loadgroup to initiate stateChange
   // notifications.
 
-  RefPtr<Document> doc = aContentViewer->GetDocument();
+  RefPtr<Document> doc = aDocumentViewer->GetDocument();
   if (doc) {
     nsIChannel* channel = doc->GetChannel();
     if (channel) {
@@ -7153,7 +7153,7 @@ nsresult nsDocShell::RestorePresentation(nsISHEntry* aSHEntry,
   NS_ASSERTION(mLoadType & LOAD_CMD_HISTORY,
                "RestorePresentation should only be called for history loads");
 
-  nsCOMPtr<nsIDocumentViewer> viewer = aSHEntry->GetContentViewer();
+  nsCOMPtr<nsIDocumentViewer> viewer = aSHEntry->GetDocumentViewer();
 
   nsAutoCString spec;
   if (MOZ_UNLIKELY(MOZ_LOG_TEST(gPageCacheLog, LogLevel::Debug))) {
@@ -7182,7 +7182,7 @@ nsresult nsDocShell::RestorePresentation(nsISHEntry* aSHEntry,
   if (!::SameCOMIdentity(container, GetAsSupports(this))) {
     MOZ_LOG(gPageCacheLog, LogLevel::Debug,
             ("No valid container, clearing presentation"));
-    aSHEntry->SetContentViewer(nullptr);
+    aSHEntry->SetDocumentViewer(nullptr);
     return NS_ERROR_FAILURE;
   }
 
@@ -7254,7 +7254,7 @@ nsresult nsDocShell::RestoreFromHistory() {
     return NS_ERROR_FAILURE;
   }
 
-  nsCOMPtr<nsIDocumentViewer> viewer = mLSHE->GetContentViewer();
+  nsCOMPtr<nsIDocumentViewer> viewer = mLSHE->GetDocumentViewer();
   if (!viewer) {
     return NS_ERROR_FAILURE;
   }
@@ -7453,7 +7453,7 @@ nsresult nsDocShell::RestoreFromHistory() {
   UniquePtr<nsDocShellEditorData> data(mLSHE->ForgetEditorData());
 
   // Now remove it from the cached presentation.
-  mLSHE->SetContentViewer(nullptr);
+  mLSHE->SetDocumentViewer(nullptr);
   mEODForCurrentDocument = false;
 
   mLSHE->SetEditorData(data.release());
@@ -8075,7 +8075,7 @@ nsresult nsDocShell::SetupNewViewer(nsIDocumentViewer* aNewViewer,
       }
     } else {
       // No old content viewer, so get state from parent's content viewer
-      parent->GetContentViewer(getter_AddRefs(oldViewer));
+      parent->GetDocViewer(getter_AddRefs(oldViewer));
     }
 
     if (oldViewer) {
@@ -13220,7 +13220,7 @@ nsresult nsDocShell::CharsetChangeReloadDocument(
     mozilla::NotNull<const mozilla::Encoding*> aEncoding, int32_t aSource) {
   // XXX hack. keep the aCharset and aSource wait to pick it up
   nsCOMPtr<nsIDocumentViewer> viewer;
-  NS_ENSURE_SUCCESS(GetContentViewer(getter_AddRefs(viewer)), NS_ERROR_FAILURE);
+  NS_ENSURE_SUCCESS(GetDocViewer(getter_AddRefs(viewer)), NS_ERROR_FAILURE);
   if (viewer) {
     int32_t source;
     Unused << viewer->GetReloadEncodingAndSource(&source);

@@ -215,7 +215,7 @@ void MarkSHEntry(nsISHEntry* aSHEntry, bool aCleanupJS) {
   }
 
   nsCOMPtr<nsIDocumentViewer> viewer;
-  aSHEntry->GetContentViewer(getter_AddRefs(viewer));
+  aSHEntry->GetDocumentViewer(getter_AddRefs(viewer));
   MarkDocumentViewer(viewer, aCleanupJS);
 
   nsCOMPtr<nsIDocShellTreeItem> child;
@@ -241,7 +241,7 @@ void MarkDocShell(nsIDocShellTreeItem* aNode, bool aCleanupJS) {
   }
 
   nsCOMPtr<nsIDocumentViewer> viewer;
-  shell->GetContentViewer(getter_AddRefs(viewer));
+  shell->GetDocViewer(getter_AddRefs(viewer));
   MarkDocumentViewer(viewer, aCleanupJS);
 
   nsCOMPtr<nsIWebNavigation> webNav = do_QueryInterface(shell);
