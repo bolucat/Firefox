@@ -2227,9 +2227,10 @@
   value: false
   mirror: always
 
+  # Enable CacheAPI in private browsing mode with encryption
 - name: dom.cache.privateBrowsing.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 # Exposes window.caches and skips SecureContext check.
@@ -5458,7 +5459,7 @@
 # Alternative smooth scroll physics. ("MSD" = Mass-Spring-Damper)
 - name: general.smoothScroll.msdPhysics.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 - name: general.smoothScroll.msdPhysics.continuousMotionMaxDeltaMS
@@ -9336,6 +9337,12 @@
 - name: layout.details.force-block-layout
   type: bool
   value: true
+  mirror: always
+
+# Whether to disable layer pixel alignment in scroll related stuff.
+- name: layout.scroll.disable-pixel-alignment
+  type: bool
+  value: false
   mirror: always
 
 #---------------------------------------------------------------------------
