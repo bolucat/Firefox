@@ -8521,7 +8521,7 @@
 # https://drafts.fxtf.org/motion-1/#valdef-offset-path-basic-shape
 - name: layout.css.motion-path-basic-shapes.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
   rust: true
 
@@ -8529,28 +8529,28 @@
 # https://drafts.fxtf.org/motion-1/#valdef-offset-path-coord-box
 - name: layout.css.motion-path-coord-box.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
   rust: true
 
 # Is support for motion-path ray() enabled?
 - name: layout.css.motion-path-ray.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
   rust: true
 
 # Is support for motion-path offset-position enabled?
 - name: layout.css.motion-path-offset-position.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
   rust: true
 
 # Is support for motion-path url enabled?
 - name: layout.css.motion-path-url.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
   rust: true
 
@@ -10702,10 +10702,28 @@
 
 # WebRTC prefs follow
 
-# Enables auto refresh of stats by default
-- name: media.aboutwebrtc.auto_refresh
+# Enables auto refresh of peerconnection stats by default
+- name: media.aboutwebrtc.auto_refresh.peerconnection_section
   type: bool
   value: @IS_NOT_NIGHTLY_BUILD@
+  mirror: always
+
+# Enables auto refresh of the transport connection log by default
+- name: media.aboutwebrtc.auto_refresh.connection_log_section
+  type: bool
+  value: false
+  mirror: always
+
+# Enables auto refresh of user config by default
+- name: media.aboutwebrtc.auto_refresh.user_modified_config_section
+  type: bool
+  value: true
+  mirror: always
+
+# Enables auto refresh of media context by default
+- name: media.aboutwebrtc.auto_refresh.media_ctx_section
+  type: bool
+  value: false
   mirror: always
 
 # Enables RTCPeerConnection support. Note that, when true, this pref enables
@@ -12278,7 +12296,7 @@
 # Whether to use the rust implemented DefaultURI for unknown scheme types
 - name: network.url.useDefaultURI
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 # The maximum allowed length for a URL - 32MB default.
