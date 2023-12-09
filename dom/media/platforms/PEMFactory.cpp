@@ -18,11 +18,22 @@
 #  include "WMFEncoderModule.h"
 #endif
 
+#ifdef MOZ_FFVPX
+#  include "FFVPXRuntimeLinker.h"
+#endif
+#ifdef MOZ_FFMPEG
+#  include "FFmpegRuntimeLinker.h"
+#endif
+
+#include "mozilla/StaticPrefs_media.h"
+#include "mozilla/gfx/gfxVars.h"
+
 namespace mozilla {
 
 LazyLogModule sPEMLog("PlatformEncoderModule");
 
 PEMFactory::PEMFactory() {
+  gfx::gfxVars::Initialize();
 #ifdef MOZ_APPLEMEDIA
   RefPtr<PlatformEncoderModule> m(new AppleEncoderModule());
   mModules.AppendElement(m);
@@ -34,6 +45,26 @@ PEMFactory::PEMFactory() {
 
 #ifdef XP_WIN
   mModules.AppendElement(new WMFEncoderModule());
+#endif
+
+#ifdef MOZ_FFVPX
+  if (StaticPrefs::media_ffvpx_enabled() &&
+      StaticPrefs::media_ffmpeg_encoder_enabled()) {
+    if (RefPtr<PlatformEncoderModule> pem =
+            FFVPXRuntimeLinker::CreateEncoder()) {
+      mModules.AppendElement(pem);
+    }
+  }
+#endif
+
+#ifdef MOZ_FFMPEG
+  if (StaticPrefs::media_ffmpeg_enabled() &&
+      StaticPrefs::media_ffmpeg_encoder_enabled()) {
+    if (RefPtr<PlatformEncoderModule> pem =
+            FFmpegRuntimeLinker::CreateEncoder()) {
+      mModules.AppendElement(pem);
+    }
+  }
 #endif
 }
 
