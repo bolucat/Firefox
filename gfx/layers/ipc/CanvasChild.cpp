@@ -242,7 +242,7 @@ void CanvasChild::EndTransaction() {
     RecordEvent(RecordedCanvasEndTransaction());
     mIsInTransaction = false;
     mDormant = false;
-  } else {
+  } else if (mRecorder) {
     // Schedule to drop free buffers if we have no non-empty transactions.
     if (!mDormant) {
       mDormant = true;
@@ -258,12 +258,16 @@ void CanvasChild::EndTransaction() {
 
 void CanvasChild::DropFreeBuffersWhenDormant() {
   // Drop any free buffers if we have not had any non-empty transactions.
-  if (mDormant) {
+  if (mDormant && mRecorder) {
     mRecorder->DropFreeBuffers();
   }
 }
 
-void CanvasChild::ClearCachedResources() { mRecorder->DropFreeBuffers(); }
+void CanvasChild::ClearCachedResources() {
+  if (mRecorder) {
+    mRecorder->DropFreeBuffers();
+  }
+}
 
 bool CanvasChild::ShouldBeCleanedUp() const {
   // Always return true if we've been deactivated.
@@ -272,15 +276,20 @@ bool CanvasChild::ShouldBeCleanedUp() const {
   }
 
   // We can only be cleaned up if nothing else references our recorder.
-  return mRecorder->hasOneRef();
+  return !mRecorder || mRecorder->hasOneRef();
 }
 
 already_AddRefed<gfx::DrawTarget> CanvasChild::CreateDrawTarget(
     gfx::IntSize aSize, gfx::SurfaceFormat aFormat) {
+  if (!mRecorder) {
+    return nullptr;
+  }
+
   RefPtr<gfx::DrawTarget> dummyDt = gfx::Factory::CreateDrawTarget(
       gfx::BackendType::SKIA, gfx::IntSize(1, 1), aFormat);
   RefPtr<gfx::DrawTarget> dt = MakeAndAddRef<gfx::DrawTargetRecording>(
       mRecorder, dummyDt, gfx::IntRect(gfx::IntPoint(0, 0), aSize));
+
   return dt.forget();
 }
 
@@ -289,6 +298,7 @@ bool CanvasChild::EnsureDataSurfaceShmem(gfx::IntSize aSize,
   size_t dataFormatWidth = aSize.width * BytesPerPixel(aFormat);
   size_t sizeRequired =
       ipc::SharedMemory::PageAlignedSize(dataFormatWidth * aSize.height);
+
   if (!mDataSurfaceShmemAvailable || mDataSurfaceShmem->Size() < sizeRequired) {
     RecordEvent(RecordedPauseTranslation());
     auto dataSurfaceShmem = MakeRefPtr<ipc::SharedMemoryBasic>();

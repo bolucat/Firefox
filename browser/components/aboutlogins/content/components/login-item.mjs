@@ -262,7 +262,7 @@ export default class LoginItem extends HTMLElement {
       this._saveChangesButton,
       this.dataset.isNewLogin
         ? "login-item-save-new-button"
-        : "login-item-save-changes-button"
+        : "about-logins-login-item-save-changes-button"
     );
     this._updatePasswordRevealState();
     this._updateOriginDisplayState();
@@ -551,7 +551,7 @@ export default class LoginItem extends HTMLElement {
 
   async handleEditEvent() {
     let primaryPasswordAuth = await promptForPrimaryPassword(
-      "about-logins-edit-login-os-auth-dialog-message"
+      "about-logins-edit-login-os-auth-dialog-message2"
     );
     if (!primaryPasswordAuth) {
       return;
@@ -700,8 +700,8 @@ export default class LoginItem extends HTMLElement {
     switch (type) {
       case "delete": {
         options = {
-          title: "about-logins-confirm-remove-dialog-title",
-          message: "confirm-delete-dialog-message",
+          title: "about-logins-confirm-delete-dialog-title",
+          message: "about-logins-confirm-delete-dialog-message",
           confirmButtonLabel:
             "about-logins-confirm-remove-dialog-confirm-button",
         };

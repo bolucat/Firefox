@@ -10081,7 +10081,7 @@
 # Allow using ffmpeg encoder
 -   name: media.ffmpeg.encoder.enabled
     type: RelaxedAtomicBool
-    value: false
+    value: @IS_NOT_NIGHTLY_BUILD@
     mirror: always
 
 #if defined(MOZ_FFMPEG) || defined(MOZ_FFVPX)
@@ -10935,6 +10935,8 @@
   type: RelaxedAtomicBool
 #if defined(MOZ_WIDGET_ANDROID)
   value: true
+#elif defined(MOZ_WIDGET_GTK)
+  value: false
 #else
   value: @IS_EARLY_BETA_OR_EARLIER@
 #endif
@@ -11339,6 +11341,12 @@
 - name: network.cookie.cookieBehavior.pbmode
   type: RelaxedAtomicInt32
   value: 0 # accept all cookies
+  mirror: always
+
+# Changes cookieBehavior=5 to block third-party cookies by default
+- name: network.cookie.cookieBehavior.optInPartitioning
+  type: bool
+  value: false
   mirror: always
 
 # Stale threshold for cookies in seconds.
@@ -13924,7 +13932,7 @@
 # Dispatch WebAuthn requests to the macOS platform API
 - name: security.webauthn.enable_macos_passkeys
   type: RelaxedAtomicBool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 # Dispatch WebAuthn requests to authenticator-rs
@@ -13940,6 +13948,13 @@
   value: false
   mirror: always
   rust: true
+
+# Show the Windows Passkey settings link in about:preferences. This is
+# set to true if we find that webauthn.dll is sufficiently recent.
+- name: security.webauthn.show_ms_settings_link
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
 
 # Block Worker/SharedWorker scripts with wrong MIME type.
 - name: security.block_Worker_with_wrong_mime
@@ -15858,7 +15873,7 @@
 # Whether to render in to a child SurfaceControl rather than directly into the SurfaceView
 - name: widget.android.use-surfacecontrol
   type: bool
-  value: true
+  value: false
   mirror: once
 
 #---------------------------------------------------------------------------

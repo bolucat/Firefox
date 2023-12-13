@@ -1012,6 +1012,32 @@ const TargetingGetters = {
       height: window?.screen.availHeight,
     };
   },
+
+  get archBits() {
+    let bits = null;
+    try {
+      bits = Services.sysinfo.getProperty("archbits", null);
+    } catch (_e) {
+      // getProperty can throw if the memsize does not exist
+    }
+    if (bits) {
+      bits = Number(bits);
+    }
+    return bits;
+  },
+
+  get memoryMB() {
+    let memory = null;
+    try {
+      memory = Services.sysinfo.getProperty("memsize", null);
+    } catch (_e) {
+      // getProperty can throw if the memsize does not exist
+    }
+    if (memory) {
+      memory = Number(memory) / 1024 / 1024;
+    }
+    return memory;
+  },
 };
 
 const ASRouterTargeting = {

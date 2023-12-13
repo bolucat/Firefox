@@ -208,13 +208,13 @@ gfx::ContiguousBuffer& CanvasDrawEventRecorder::GetContiguousBuffer(
   auto newBuffer = CreateAndMapShmem(bufferSize);
   if (NS_WARN_IF(newBuffer.isNothing())) {
     mHeader->writerState = State::Failed;
-    mCurrentBuffer = CanvasBuffer(nullptr);
+    mCurrentBuffer = CanvasBuffer();
     return mCurrentBuffer;
   }
 
   if (!mHelpers->AddBuffer(std::move(newBuffer->handle), bufferSize)) {
     mHeader->writerState = State::Failed;
-    mCurrentBuffer = CanvasBuffer(nullptr);
+    mCurrentBuffer = CanvasBuffer();
     return mCurrentBuffer;
   }
 
