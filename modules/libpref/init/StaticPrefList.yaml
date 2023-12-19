@@ -4723,11 +4723,6 @@
   value: true
   mirror: always
 
-- name: dom.webidl.crosscontext_hasinstance.enabled
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
 # WebShare API - exposes navigator.share()
 - name: dom.webshare.enabled
   type: bool
@@ -5647,13 +5642,13 @@
   mirror: always
 
 - name: gfx.canvas.accelerated.max-draw-target-count
-  type: RelaxedAtomicInt32
+  type: RelaxedAtomicUint32
   value: 200
   mirror: always
 
 - name: gfx.canvas.accelerated.max-size
   type: RelaxedAtomicInt32
-  value: 0
+  value: 8192
   mirror: always
 
 - name: gfx.canvas.accelerated.min-size
@@ -11909,6 +11904,19 @@
 - name: network.dns.dns_query_single_label
   type: RelaxedAtomicBool
   value: false
+  mirror: always
+
+# Use platform DNS APIs (where available) to resolve HTTPS queries
+- name: network.dns.native_https_query
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# When resolving a native HTTPS query with native APIs
+# the Android implementation has a max timeout
+- name: network.dns.native_https_timeout_android
+  type: RelaxedAtomicInt32
+  value: 20000
   mirror: always
 
 # When this pref is true, we copy the host name to a fresh string before
