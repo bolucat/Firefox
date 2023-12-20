@@ -162,14 +162,6 @@ class CanvasTranslator final : public gfx::InlineTranslator,
       gfx::GradientStop* aRawStops, uint32_t aNumStops,
       gfx::ExtendMode aExtendMode) final;
 
-  /**
-   * Get the TextureData associated with a TextureData from another process.
-   *
-   * @param aTextureId the key used to find the TextureData
-   * @returns the TextureData found
-   */
-  TextureData* LookupTextureData(int64_t aTextureId);
-
   void CheckpointReached();
 
   void PauseTranslation();
@@ -181,7 +173,8 @@ class CanvasTranslator final : public gfx::InlineTranslator,
    */
   void RemoveTexture(int64_t aTextureId);
 
-  bool LockTexture(int64_t aTextureId, OpenMode aMode, RemoteTextureId aId);
+  bool LockTexture(int64_t aTextureId, OpenMode aMode, RemoteTextureId aId,
+                   RemoteTextureId aObsoleteId = RemoteTextureId());
   bool UnlockTexture(int64_t aTextureId, RemoteTextureId aId);
 
   bool PushRemoteTexture(TextureData* aData, RemoteTextureId aId,
@@ -358,6 +351,7 @@ class CanvasTranslator final : public gfx::InlineTranslator,
     UniquePtr<TextureData> mTextureData;
     RefPtr<gfx::DrawTarget> mDrawTarget;
     RemoteTextureOwnerId mRemoteTextureOwnerId;
+    bool mTextureLocked = false;
     bool mNotifiedRequiresRefresh = false;
     // Ref-count of how active uses of the DT. Avoids deletion when locked.
     int32_t mLocked = 1;

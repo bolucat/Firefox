@@ -96,6 +96,8 @@ if not CONFIG['MOZ_FFVPX_AUDIOONLY']:
         'golomb.c',
         'h264pred.c',
         'imgconvert.c',
+        'libaom.c',
+        'libaomenc.c',
         'libdav1d.c',
         'mathtables.c',
         'qsv_api.c',
