@@ -654,6 +654,11 @@
   value: 1.0f
   mirror: always
 
+- name: apz.minimap.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 - name: apz.mvm.force-enabled
   type: RelaxedAtomicBool
   value: true
@@ -5734,12 +5739,6 @@
   value: false
   mirror: once
 
-# How long to wait in milliseconds for a texture to be resolved
-- name: gfx.canvas.remote.texture-timeout-ms
-  type: RelaxedAtomicUint32
-  value: 10000
-  mirror: always
-
 # How many worker threads spawned for remote canvas
 #  -1 - Calculate based on processor cores
 #   0 - No worker threads spawned, will do work on CanvasRenderThread
@@ -9394,7 +9393,7 @@
 
 # Whether to disable layer pixel alignment in scroll related stuff.
 - name: layout.scroll.disable-pixel-alignment
-  type: bool
+  type: RelaxedAtomicBool
   value: false
   mirror: always
 
