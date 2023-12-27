@@ -7956,10 +7956,15 @@ bool nsIFrame::ComputeCustomOverflow(OverflowAreas& aOverflowAreas) {
 }
 
 bool nsIFrame::DoesClipChildrenInBothAxes() const {
-  nsIScrollableFrame* sf = do_QueryFrame(this);
+  if (IsScrollContainer()) {
+    return true;
+  }
   const nsStyleDisplay* display = StyleDisplay();
-  return sf || (display->mOverflowX == StyleOverflow::Clip &&
-                display->mOverflowY == StyleOverflow::Clip);
+  if (display->IsContainPaint() && SupportsContainLayoutAndPaint()) {
+    return true;
+  }
+  return display->mOverflowX == StyleOverflow::Clip &&
+         display->mOverflowY == StyleOverflow::Clip;
 }
 
 /* virtual */
@@ -11402,6 +11407,10 @@ static bool HasNoVisibleDescendants(const nsIFrame* aFrame) {
     }
   }
   return true;
+}
+
+nsIScrollableFrame* nsIFrame::GetAsScrollContainer() const {
+  return do_QueryFrame(this);
 }
 
 void nsIFrame::UpdateVisibleDescendantsState() {
