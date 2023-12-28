@@ -31,17 +31,36 @@ macosx64-sdk-13.3:
         toolchain-alias:
             - MacOSX13.3.sdk
 
-macosx64-sdk-14.0:
-    description: "MacOSX14.0 SDK"
+macosx64-sdk-14.2:
+    description: "MacOSX14.2 SDK"
     treeherder:
-        symbol: TM(sdk14.0)
+        symbol: TM(sdk14.2)
+    # Because it's using an internal tooltool artifact, it can't be used as a local-toolchain for
+    # bootstrap. But we still want to use the same script as local-toolchains.
+    attributes:
+        local-toolchain: false
     run:
+        script: private_local_toolchain.sh
         arguments:
-            - https://swcdn.apple.com/content/downloads/48/60/042-46120-A_N66A5VQ6BX/qoleua6b09wgn0qyb8ci301cmwe3q0r8i6/CLTools_macOSNMOS_SDK.pkg
-            - e2ebee6d2c9bc3beba96029cd52780447c4c25f7429a3c8cd8b49ccdace84f9d
-            - Library/Developer/CommandLineTools/SDKs/MacOSX14.0.sdk
-        toolchain-artifact: project/gecko/mac-sdk/MacOSX14.0.sdk.tar.zst
+            - unpack-sdk.py
+            - http://taskcluster/tooltool.mozilla-releng.net/sha512/22ce0acc9ab5c28845218b8c686d0208d6bf66bef64a369d3c0622247ba1258b438c9e44c64bb2bacf5e99eb398a6e7a337f2730cd4a969a7f0d2d5d3107306a
+            - 3765eade716c472a521e5b982e6932cdc6ba79df3fed4e765d0536039340b730
+            - Library/Developer/CommandLineTools/SDKs/MacOSX14.2.sdk
+        toolchain-artifact: project/gecko/mac-sdk/MacOSX14.2.sdk.tar.zst
         toolchain-alias:
             - macosx64-sdk
             - macosx64-sdk-toolchain
-            - MacOSX14.0.sdk
+        tooltool-downloads: internal
+
+macosx64-sdk-14.2-public:
+    description: "MacOSX14.2 SDK"
+    treeherder:
+        symbol: TM(sdk14.2pub)
+    run:
+        arguments:
+            - https://swcdn.apple.com/content/downloads/35/47/042-23550-A_M34N50O9N3/sua6ev7bjcexvorh4709vsgk64zgvsl42p/CLTools_macOSNMOS_SDK.pkg
+            - 3765eade716c472a521e5b982e6932cdc6ba79df3fed4e765d0536039340b730
+            - Library/Developer/CommandLineTools/SDKs/MacOSX14.2.sdk
+        toolchain-artifact: project/gecko/mac-sdk/MacOSX14.2.sdk.tar.zst
+        toolchain-alias:
+            - MacOSX14.2.sdk

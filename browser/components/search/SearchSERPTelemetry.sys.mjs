@@ -9,6 +9,7 @@ const lazy = {};
 ChromeUtils.defineESModuleGetters(lazy, {
   BrowserSearchTelemetry: "resource:///modules/BrowserSearchTelemetry.sys.mjs",
   PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
+  Region: "resource://gre/modules/Region.sys.mjs",
   RemoteSettings: "resource://services-settings/remote-settings.sys.mjs",
   SearchUtils: "resource://gre/modules/SearchUtils.sys.mjs",
 });
@@ -531,6 +532,10 @@ class TelemetryHandler {
         count: 1,
         source,
         newtabSessionId,
+        appVersion: Services.appinfo.version,
+        channel: lazy.SearchUtils.MODIFIED_APP_CHANNEL,
+        locale: Services.locale.appLocaleAsBCP47,
+        region: lazy.Region.home,
       });
     }
   }
@@ -559,8 +564,16 @@ class TelemetryHandler {
           lazy.serpEventTelemetryCategorization &&
           telemetryState.categorizationInfo
         ) {
+          let impressionInfo = telemetryState.impressionInfo;
           SERPCategorizationRecorder.recordCategorizationTelemetry({
             ...telemetryState.categorizationInfo,
+            app_version: item.appVersion,
+            channel: item.channel,
+            locale: item.locale,
+            region: item.region,
+            partner_code: impressionInfo.partnerCode,
+            provider: impressionInfo.provider,
+            tagged: impressionInfo.tagged,
             num_ads_clicked: telemetryState.adsClicked,
             num_ads_visible: telemetryState.adsVisible,
           });

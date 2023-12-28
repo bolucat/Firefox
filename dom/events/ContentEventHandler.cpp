@@ -15,6 +15,7 @@
 #include "mozilla/PresShell.h"
 #include "mozilla/RangeBoundary.h"
 #include "mozilla/RangeUtils.h"
+#include "mozilla/SelectionMovementUtils.h"
 #include "mozilla/TextComposition.h"
 #include "mozilla/TextEditor.h"
 #include "mozilla/TextEvents.h"
@@ -1119,11 +1120,10 @@ nsresult ContentEventHandler::ExpandToClusterBoundary(
   NS_ASSERTION(*aXPOffset <= aTextNode.TextLength(), "offset is out of range.");
 
   MOZ_DIAGNOSTIC_ASSERT(mDocument->GetPresShell());
-  int32_t offsetInFrame;
   CaretAssociationHint hint =
-      aForward ? CARET_ASSOCIATE_BEFORE : CARET_ASSOCIATE_AFTER;
-  nsIFrame* frame = nsFrameSelection::GetFrameForNodeOffset(
-      &aTextNode, int32_t(*aXPOffset), hint, &offsetInFrame);
+      aForward ? CaretAssociationHint::Before : CaretAssociationHint::After;
+  nsIFrame* frame = SelectionMovementUtils::GetFrameForNodeOffset(
+      &aTextNode, int32_t(*aXPOffset), hint);
   if (frame) {
     auto [startOffset, endOffset] = frame->GetOffsets();
     if (*aXPOffset == static_cast<uint32_t>(startOffset) ||

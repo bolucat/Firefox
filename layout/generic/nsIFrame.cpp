@@ -14,6 +14,7 @@
 #include "gfx2DGlue.h"
 #include "gfxUtils.h"
 #include "mozilla/Attributes.h"
+#include "mozilla/CaretAssociationHint.h"
 #include "mozilla/ComputedStyle.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/DisplayPortUtils.h"
@@ -34,6 +35,7 @@
 #include "mozilla/PresShell.h"
 #include "mozilla/PresShellInlines.h"
 #include "mozilla/ResultExtensions.h"
+#include "mozilla/SelectionMovementUtils.h"
 #include "mozilla/Sprintf.h"
 #include "mozilla/StaticAnalysisFunctions.h"
 #include "mozilla/StaticPrefs_layout.h"
@@ -4938,15 +4940,15 @@ nsresult nsIFrame::SelectByTypeAtPoint(nsPresContext* aPresContext,
     return NS_ERROR_FAILURE;
   }
 
-  int32_t offset;
-  nsIFrame* frame = nsFrameSelection::GetFrameForNodeOffset(
+  uint32_t offset;
+  nsIFrame* frame = SelectionMovementUtils::GetFrameForNodeOffset(
       offsets.content, offsets.offset, offsets.associate, &offset);
   if (!frame) {
     return NS_ERROR_FAILURE;
   }
-  return frame->PeekBackwardAndForward(aBeginAmountType, aEndAmountType, offset,
-                                       aBeginAmountType != eSelectWord,
-                                       aSelectFlags);
+  return frame->PeekBackwardAndForward(
+      aBeginAmountType, aEndAmountType, static_cast<int32_t>(offset),
+      aBeginAmountType != eSelectWord, aSelectFlags);
 }
 
 /**
@@ -5057,7 +5059,7 @@ nsresult nsIFrame::PeekBackwardAndForward(nsSelectionAmount aAmountBack,
   rv = frameSelection->HandleClick(
       MOZ_KnownLive(startpos.mResultContent) /* bug 1636889 */,
       startpos.mContentOffset, startpos.mContentOffset, focusMode,
-      CARET_ASSOCIATE_AFTER);
+      CaretAssociationHint::After);
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -5065,7 +5067,8 @@ nsresult nsIFrame::PeekBackwardAndForward(nsSelectionAmount aAmountBack,
   rv = frameSelection->HandleClick(
       MOZ_KnownLive(endpos.mResultContent) /* bug 1636889 */,
       endpos.mContentOffset, endpos.mContentOffset,
-      nsFrameSelection::FocusMode::kExtendSelection, CARET_ASSOCIATE_BEFORE);
+      nsFrameSelection::FocusMode::kExtendSelection,
+      CaretAssociationHint::Before);
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -5673,7 +5676,7 @@ static nsIFrame::ContentOffsets OffsetsForSingleFrame(nsIFrame* aFrame,
   if (aFrame->GetNextContinuation() || aFrame->GetPrevContinuation()) {
     offsets.offset = range.start;
     offsets.secondaryOffset = range.end;
-    offsets.associate = CARET_ASSOCIATE_AFTER;
+    offsets.associate = CaretAssociationHint::After;
     return offsets;
   }
 
@@ -5697,8 +5700,9 @@ static nsIFrame::ContentOffsets OffsetsForSingleFrame(nsIFrame* aFrame,
     else
       offsets.secondaryOffset = range.start;
   }
-  offsets.associate = offsets.offset == range.start ? CARET_ASSOCIATE_AFTER
-                                                    : CARET_ASSOCIATE_BEFORE;
+  offsets.associate = offsets.offset == range.start
+                          ? CaretAssociationHint::After
+                          : CaretAssociationHint::Before;
   return offsets;
 }
 
@@ -5764,8 +5768,9 @@ nsIFrame::ContentOffsets nsIFrame::GetContentOffsetsFromPoint(
     else
       offsets.offset = range.start;
     offsets.secondaryOffset = offsets.offset;
-    offsets.associate = offsets.offset == range.start ? CARET_ASSOCIATE_AFTER
-                                                      : CARET_ASSOCIATE_BEFORE;
+    offsets.associate = offsets.offset == range.start
+                            ? CaretAssociationHint::After
+                            : CaretAssociationHint::Before;
     return offsets;
   }
 
@@ -8575,8 +8580,8 @@ static nsresult GetNextPrevLineFromBlockFrame(PeekOffsetStruct* aPos,
 
   aPos->mResultFrame = nullptr;
   aPos->mResultContent = nullptr;
-  aPos->mAttach = aPos->mDirection == eDirNext ? CARET_ASSOCIATE_AFTER
-                                               : CARET_ASSOCIATE_BEFORE;
+  aPos->mAttach = aPos->mDirection == eDirNext ? CaretAssociationHint::After
+                                               : CaretAssociationHint::Before;
 
   AutoAssertNoDomMutations guard;
   nsILineIterator* it = aBlockFrame->GetLineIterator();
@@ -8752,10 +8757,9 @@ static nsresult GetNextPrevLineFromBlockFrame(PeekOffsetStruct* aPos,
         aPos->mAttach = offsets.associate;
         if (FoundValidFrame(offsets, resultFrame)) {
           found = true;
-          if (resultFrame == farStoppingFrame)
-            aPos->mAttach = CARET_ASSOCIATE_BEFORE;
-          else
-            aPos->mAttach = CARET_ASSOCIATE_AFTER;
+          aPos->mAttach = resultFrame == farStoppingFrame
+                              ? CaretAssociationHint::Before
+                              : CaretAssociationHint::After;
           break;
         }
         if (aPos->mDirection == eDirPrevious &&
@@ -8773,8 +8777,9 @@ static nsresult GetNextPrevLineFromBlockFrame(PeekOffsetStruct* aPos,
       // we need to jump to new block frame.
       aPos->mAmount = eSelectLine;
       aPos->mStartOffset = 0;
-      aPos->mAttach = aPos->mDirection == eDirNext ? CARET_ASSOCIATE_BEFORE
-                                                   : CARET_ASSOCIATE_AFTER;
+      aPos->mAttach = aPos->mDirection == eDirNext
+                          ? CaretAssociationHint::Before
+                          : CaretAssociationHint::After;
       if (aPos->mDirection == eDirPrevious)
         aPos->mStartOffset = -1;  // start from end
       return aBlockFrame->PeekOffset(aPos);
@@ -8964,8 +8969,9 @@ static void SetPeekResultFromFrame(PeekOffsetStruct& aPos, nsIFrame* aFrame,
   aPos.mContentOffset =
       aOffset < 0 ? range.end + aOffset + 1 : range.start + aOffset;
   if (aAtLineEdge == OffsetIsAtLineEdge::Yes) {
-    aPos.mAttach = aPos.mContentOffset == range.start ? CARET_ASSOCIATE_AFTER
-                                                      : CARET_ASSOCIATE_BEFORE;
+    aPos.mAttach = aPos.mContentOffset == range.start
+                       ? CaretAssociationHint::After
+                       : CaretAssociationHint::Before;
   }
 }
 
