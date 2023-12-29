@@ -34,55 +34,6 @@ using FFmpegBitRate = int;
 constexpr size_t FFmpegErrorMaxStringSize = 64;
 #endif
 
-struct H264Setting {
-  int mValue;
-  nsCString mString;
-};
-
-static const H264Setting H264Profiles[]{
-    {FF_PROFILE_H264_BASELINE, "baseline"_ns},
-    {FF_PROFILE_H264_MAIN, "main"_ns},
-    {FF_PROFILE_H264_EXTENDED, EmptyCString()},
-    {FF_PROFILE_H264_HIGH, "high"_ns}};
-
-static mozilla::Maybe<H264Setting> GetH264Profile(
-    const mozilla::H264_PROFILE& aProfile) {
-  switch (aProfile) {
-    case mozilla::H264_PROFILE::H264_PROFILE_UNKNOWN:
-      return mozilla::Nothing();
-    case mozilla::H264_PROFILE::H264_PROFILE_BASE:
-      return mozilla::Some(H264Profiles[0]);
-    case mozilla::H264_PROFILE::H264_PROFILE_MAIN:
-      return mozilla::Some(H264Profiles[1]);
-    case mozilla::H264_PROFILE::H264_PROFILE_EXTENDED:
-      return mozilla::Some(H264Profiles[2]);
-    case mozilla::H264_PROFILE::H264_PROFILE_HIGH:
-      return mozilla::Some(H264Profiles[3]);
-    default:
-      break;
-  }
-  MOZ_ASSERT_UNREACHABLE("undefined profile");
-  return mozilla::Nothing();
-}
-
-static mozilla::Maybe<H264Setting> GetH264Level(
-    const mozilla::H264_LEVEL& aLevel) {
-  int val = static_cast<int>(aLevel);
-  // Make sure value is in [10, 13] or [20, 22] or [30, 32] or [40, 42] or [50,
-  // 52].
-  if (val < 10 || val > 52) {
-    return mozilla::Nothing();
-  }
-  if ((val % 10) > 2) {
-    if (val != 13) {
-      return mozilla::Nothing();
-    }
-  }
-  nsPrintfCString str("%d", val);
-  str.Insert('.', 1);
-  return mozilla::Some(H264Setting{val, str});
-}
-
 #if LIBAVCODEC_VERSION_MAJOR < 54
 using FFmpegPixelFormat = enum PixelFormat;
 const FFmpegPixelFormat FFMPEG_PIX_FMT_NONE = FFmpegPixelFormat::PIX_FMT_NONE;
@@ -159,12 +110,80 @@ static const char* GetPixelFormatString(FFmpegPixelFormat aFormat) {
 
 namespace mozilla {
 
+struct H264Setting {
+  int mValue;
+  nsCString mString;
+};
+
+static const H264Setting H264Profiles[]{
+    {FF_PROFILE_H264_BASELINE, "baseline"_ns},
+    {FF_PROFILE_H264_MAIN, "main"_ns},
+    {FF_PROFILE_H264_EXTENDED, EmptyCString()},
+    {FF_PROFILE_H264_HIGH, "high"_ns}};
+
+static Maybe<H264Setting> GetH264Profile(const H264_PROFILE& aProfile) {
+  switch (aProfile) {
+    case H264_PROFILE::H264_PROFILE_UNKNOWN:
+      return Nothing();
+    case H264_PROFILE::H264_PROFILE_BASE:
+      return Some(H264Profiles[0]);
+    case H264_PROFILE::H264_PROFILE_MAIN:
+      return Some(H264Profiles[1]);
+    case H264_PROFILE::H264_PROFILE_EXTENDED:
+      return Some(H264Profiles[2]);
+    case H264_PROFILE::H264_PROFILE_HIGH:
+      return Some(H264Profiles[3]);
+    default:
+      break;
+  }
+  MOZ_ASSERT_UNREACHABLE("undefined profile");
+  return Nothing();
+}
+
+static Maybe<H264Setting> GetH264Level(const H264_LEVEL& aLevel) {
+  int val = static_cast<int>(aLevel);
+  // Make sure value is in [10, 13] or [20, 22] or [30, 32] or [40, 42] or [50,
+  // 52].
+  if (val < 10 || val > 52) {
+    return Nothing();
+  }
+  if ((val % 10) > 2) {
+    if (val != 13) {
+      return Nothing();
+    }
+  }
+  nsPrintfCString str("%d", val);
+  str.Insert('.', 1);
+  return Some(H264Setting{val, str});
+}
+
 static nsCString MakeErrorString(const FFmpegLibWrapper* aLib, int aErrNum) {
   MOZ_ASSERT(aLib);
 
   char errStr[ffmpeg::FFmpegErrorMaxStringSize];
   aLib->av_strerror(aErrNum, errStr, ffmpeg::FFmpegErrorMaxStringSize);
   return nsCString(errStr);
+}
+
+// TODO: Remove this function and simply use `avcodec_find_encoder` once
+// libopenh264 is supported.
+static AVCodec* FindEncoderWithPreference(const FFmpegLibWrapper* aLib,
+                                          AVCodecID aCodecId) {
+  MOZ_ASSERT(aLib);
+
+  AVCodec* codec = nullptr;
+
+  // Prioritize libx264 for now since it's the only h264 codec we tested.
+  if (aCodecId == AV_CODEC_ID_H264) {
+    codec = aLib->avcodec_find_encoder_by_name("libx264");
+    if (codec) {
+      FFMPEGV_LOG("Prefer libx264 for h264 codec");
+      return codec;
+    }
+  }
+
+  FFMPEGV_LOG("Fallback to other h264 library. Fingers crossed");
+  return aLib->avcodec_find_encoder(aCodecId);
 }
 
 template <>
@@ -200,6 +219,7 @@ FFmpegVideoEncoder<LIBAV_VER>::FFmpegVideoEncoder(
       mCodecID(aCodecID),
       mTaskQueue(aTaskQueue),
       mConfig(aConfig),
+      mCodecName(EmptyCString()),
       mCodecContext(nullptr),
       mFrame(nullptr) {
   MOZ_ASSERT(mLib);
@@ -380,13 +400,14 @@ MediaResult FFmpegVideoEncoder<LIBAV_VER>::InitInternal() {
     }
   }
 
-  AVCodec* codec = mLib->avcodec_find_encoder(mCodecID);
+  AVCodec* codec = FindEncoderWithPreference(mLib, mCodecID);
   if (!codec) {
     FFMPEGV_LOG("failed to find ffmpeg encoder for codec id %d", mCodecID);
     return MediaResult(NS_ERROR_DOM_MEDIA_FATAL_ERR,
                        RESULT_DETAIL("Unable to find codec"));
   }
   FFMPEGV_LOG("find codec: %s", codec->name);
+  mCodecName = codec->name;
 
   ForceEnablingFFmpegDebugLogs();
 
@@ -425,55 +446,61 @@ MediaResult FFmpegVideoEncoder<LIBAV_VER>::InitInternal() {
   nsCString codecSpecificLog;
   if (mConfig.mCodecSpecific) {
     if (mConfig.mCodecSpecific->is<H264Specific>()) {
-      codecSpecificLog.Append(", H264:");
+      // For libx264.
+      if (mCodecName == "libx264") {
+        codecSpecificLog.Append(", H264:");
 
-      const H264Specific& specific = mConfig.mCodecSpecific->as<H264Specific>();
+        const H264Specific& specific =
+            mConfig.mCodecSpecific->as<H264Specific>();
 
-      // Set profile.
-      Maybe<ffmpeg::H264Setting> profile =
-          ffmpeg::GetH264Profile(specific.mProfile);
-      if (!profile) {
-        FFMPEGV_LOG("failed to get h264 profile");
-        return MediaResult(NS_ERROR_DOM_MEDIA_NOT_SUPPORTED_ERR,
-                           RESULT_DETAIL("H264 profile is unknown"));
-      }
-      codecSpecificLog.Append(
-          nsPrintfCString(" profile - %d", profile->mValue));
-      mCodecContext->profile = profile->mValue;
-      if (!profile->mString.IsEmpty()) {
+        // Set profile.
+        Maybe<H264Setting> profile = GetH264Profile(specific.mProfile);
+        if (!profile) {
+          FFMPEGV_LOG("failed to get h264 profile");
+          return MediaResult(NS_ERROR_DOM_MEDIA_NOT_SUPPORTED_ERR,
+                             RESULT_DETAIL("H264 profile is unknown"));
+        }
         codecSpecificLog.Append(
-            nsPrintfCString(" (%s)", profile->mString.get()));
-        mLib->av_opt_set(mCodecContext->priv_data, "profile",
-                         profile->mString.get(), 0);
-      }
+            nsPrintfCString(" profile - %d", profile->mValue));
+        mCodecContext->profile = profile->mValue;
+        if (!profile->mString.IsEmpty()) {
+          codecSpecificLog.Append(
+              nsPrintfCString(" (%s)", profile->mString.get()));
+          mLib->av_opt_set(mCodecContext->priv_data, "profile",
+                           profile->mString.get(), 0);
+        }
 
-      // Set level.
-      Maybe<ffmpeg::H264Setting> level = ffmpeg::GetH264Level(specific.mLevel);
-      if (!level) {
-        FFMPEGV_LOG("failed to get h264 level");
-        return MediaResult(NS_ERROR_DOM_MEDIA_NOT_SUPPORTED_ERR,
-                           RESULT_DETAIL("H264 level is unknown"));
-      }
-      codecSpecificLog.Append(nsPrintfCString(", level %d (%s)", level->mValue,
-                                              level->mString.get()));
-      mCodecContext->level = level->mValue;
-      MOZ_ASSERT(!level->mString.IsEmpty());
-      mLib->av_opt_set(mCodecContext->priv_data, "level", level->mString.get(),
-                       0);
+        // Set level.
+        Maybe<H264Setting> level = GetH264Level(specific.mLevel);
+        if (!level) {
+          FFMPEGV_LOG("failed to get h264 level");
+          return MediaResult(NS_ERROR_DOM_MEDIA_NOT_SUPPORTED_ERR,
+                             RESULT_DETAIL("H264 level is unknown"));
+        }
+        codecSpecificLog.Append(nsPrintfCString(
+            ", level %d (%s)", level->mValue, level->mString.get()));
+        mCodecContext->level = level->mValue;
+        MOZ_ASSERT(!level->mString.IsEmpty());
+        mLib->av_opt_set(mCodecContext->priv_data, "level",
+                         level->mString.get(), 0);
 
-      // Set format: libx264's default format is annexb
-      if (specific.mFormat == H264BitStreamFormat::AVC) {
-        codecSpecificLog.Append(", AVCC");
-        mLib->av_opt_set(mCodecContext->priv_data, "x264-params", "annexb=0",
-                         0);
-        // mCodecContext->flags |= AV_CODEC_FLAG_GLOBAL_HEADER
-        // if we don't want to append SPS/PPS data in all keyframe
-        // (LIBAVCODEC_VERSION_MAJOR >= 57 only).
+        // Set format: libx264's default format is annexb
+        if (specific.mFormat == H264BitStreamFormat::AVC) {
+          codecSpecificLog.Append(", AVCC");
+          mLib->av_opt_set(mCodecContext->priv_data, "x264-params", "annexb=0",
+                           0);
+          // mCodecContext->flags |= AV_CODEC_FLAG_GLOBAL_HEADER
+          // if we don't want to append SPS/PPS data in all keyframe
+          // (LIBAVCODEC_VERSION_MAJOR >= 57 only).
+        } else {
+          codecSpecificLog.Append(", AnnexB");
+          // Set annexb explicitly even if it's default format.
+          mLib->av_opt_set(mCodecContext->priv_data, "x264-params", "annexb=1",
+                           0);
+        }
       } else {
-        codecSpecificLog.Append(", AnnexB");
-        // Set annexb explicitly even if it's default format.
-        mLib->av_opt_set(mCodecContext->priv_data, "x264-params", "annexb=1",
-                         0);
+        FFMPEGV_LOG("H264 settings is not implemented for codec %s ",
+                    mCodecName.get());
       }
     }
   }
@@ -912,6 +939,12 @@ FFmpegVideoEncoder<LIBAV_VER>::GetExtraData(AVPacket* aPacket) {
           H264BitStreamFormat::AVC ||
       !(aPacket->flags & AV_PKT_FLAG_KEY)) {
     return Err(NS_ERROR_NOT_AVAILABLE);
+  }
+
+  if (mCodecName != "libx264") {
+    FFMPEGV_LOG("Get extra data from codec %s has not been implemented yet",
+                mCodecName.get());
+    return Err(NS_ERROR_NOT_IMPLEMENTED);
   }
 
   bool useGlobalHeader =
