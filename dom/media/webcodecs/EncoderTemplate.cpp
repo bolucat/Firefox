@@ -789,17 +789,18 @@ void EncoderTemplate<EncoderType>::Reconfigure(
 
                     NS_DispatchToCurrentThread(NS_NewRunnableFunction(
                         "Destroy + recreate encoder after failed reconfigure",
-                        [self = RefPtr(self), message]() MOZ_CAN_RUN_SCRIPT_BOUNDARY {
-                          // Destroy the agent, and finally create a fresh
-                          // encoder with the new configuration.
-                          self->DestroyEncoderAgentIfAny();
-                          self->Configure(message);
-                        }));
+                        [self = RefPtr(self), message]()
+                            MOZ_CAN_RUN_SCRIPT_BOUNDARY {
+                              // Destroy the agent, and finally create a fresh
+                              // encoder with the new configuration.
+                              self->DestroyEncoderAgentIfAny();
+                              self->Configure(message);
+                            }));
                   });
               return;
             }
 
-            LOG("%s %p, DecodeAgent #%zu has been reconfigured on the fly to "
+            LOG("%s %p, EncoderAgent #%zu has been reconfigured on the fly to "
                 "%s",
                 EncoderType::Name.get(), self.get(), id,
                 message->ToString().get());
@@ -865,7 +866,7 @@ void EncoderTemplate<EncoderType>::Configure(
                MOZ_ASSERT(id == self->mAgent->mId);
                MOZ_ASSERT(self->mActiveConfig);
 
-               LOG("%s %p, DecodeAgent #%zu %s has been %s. now unblocks "
+               LOG("%s %p, EncoderAgent #%zu %s has been %s. now unblocks "
                    "message-queue-processing",
                    EncoderType::Name.get(), self.get(), id,
                    aMessage->ToString().get(),
@@ -878,7 +879,7 @@ void EncoderTemplate<EncoderType>::Configure(
                  // The spec asks to close the decoder with an
                  // NotSupportedError so we log the exact error here.
                  const MediaResult& error = aResult.RejectValue();
-                 LOGE("%s %p, DecodeAgent #%zu failed to configure: %s",
+                 LOGE("%s %p, EncoderAgent #%zu failed to configure: %s",
                       EncoderType::Name.get(), self.get(), id,
                       error.Description().get());
                  DebugOnly<Result<Ok, nsresult>> r = self->CloseInternal(
@@ -954,7 +955,7 @@ MessageProcessedResult EncoderTemplate<EncoderType>::ProcessEncodeMessage(
                  // The spec asks to queue a task to run close the decoder
                  // with an EncodingError so we log the exact error here.
                  const MediaResult& error = aResult.RejectValue();
-                 LOGE("%s %p, DecodeAgent #%zu %s failed: %s",
+                 LOGE("%s %p, EncoderAgent #%zu %s failed: %s",
                       EncoderType::Name.get(), self.get(), id, msgStr.get(),
                       error.Description().get());
                  self->ScheduleClose(NS_ERROR_DOM_ENCODING_NOT_SUPPORTED_ERR);
