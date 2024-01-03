@@ -34,6 +34,8 @@ using FFmpegBitRate = int;
 constexpr size_t FFmpegErrorMaxStringSize = 64;
 #endif
 
+// TODO: WebCodecs' I420A should map to MediaDataEncoder::PixelFormat and then
+// to AV_PIX_FMT_YUVA420P here.
 #if LIBAVCODEC_VERSION_MAJOR < 54
 using FFmpegPixelFormat = enum PixelFormat;
 const FFmpegPixelFormat FFMPEG_PIX_FMT_NONE = FFmpegPixelFormat::PIX_FMT_NONE;
@@ -73,8 +75,6 @@ const FFmpegPixelFormat FFMPEG_PIX_FMT_NV21 =
     FFmpegPixelFormat::AV_PIX_FMT_NV21;
 #endif
 
-// TODO: WebCodecs' I420A should map to MediaDataEncoder::PixelFormat and then
-// to AV_PIX_FMT_YUVA420P here.
 static const char* GetPixelFormatString(FFmpegPixelFormat aFormat) {
   switch (aFormat) {
     case FFMPEG_PIX_FMT_NONE:
@@ -241,7 +241,7 @@ RefPtr<MediaDataEncoder::EncodePromise> FFmpegVideoEncoder<LIBAV_VER>::Encode(
 
   FFMPEGV_LOG("Encode");
   return InvokeAsync(mTaskQueue, __func__,
-                     [self = RefPtr<FFmpegVideoEncoder<LIBAV_VER> >(this),
+                     [self = RefPtr<FFmpegVideoEncoder<LIBAV_VER>>(this),
                       sample = RefPtr<const MediaData>(aSample)]() {
                        return self->ProcessEncode(std::move(sample));
                      });
@@ -326,38 +326,8 @@ FFmpegVideoEncoder<LIBAV_VER>::ProcessReconfigure(
 
   // Tracked in bug 1869583 -- for now this encoder always reports it cannot be
   // reconfigured on the fly
-  // bool ok = false;
-  // for (const auto& confChange : aConfigurationChanges->mChanges) {
-  //   ok |= confChange.match(
-  //       // Not supported yet
-  //       [&](const DimensionsChange& aChange) -> bool { return false; },
-  //       [&](const DisplayDimensionsChange& aChange) -> bool { return false; },
-  //       [&](const BitrateModeChange& aChange) -> bool {
-  //         mConfig.mBitrateMode = aChange.get();
-  //         // TODO
-  //         return false;
-  //       },
-  //       [&](const BitrateChange& aChange) -> bool {
-  //         mConfig.mBitrate = aChange.get().refOr(0);
-  //         // TODO
-  //         return false;
-  //       },
-  //       [&](const FramerateChange& aChange) -> bool {
-  //         // TODO
-  //         return false;
-  //       },
-  //       [&](const UsageChange& aChange) -> bool {
-  //         // TODO
-  //         mConfig.mUsage = aChange.get();
-  //         return false;
-  //       },
-  //       [&](const ContentHintChange& aChange) -> bool { return false; });
-  // };
-  using P = MediaDataEncoder::ReconfigurationPromise;
-  // if (ok) {
-  //   return P::CreateAndResolve(true, __func__);
-  // }
-  return P::CreateAndReject(NS_ERROR_NOT_IMPLEMENTED, __func__);
+  return MediaDataEncoder::ReconfigurationPromise::CreateAndReject(
+      NS_ERROR_NOT_IMPLEMENTED, __func__);
 }
 
 RefPtr<MediaDataEncoder::EncodePromise>
@@ -424,17 +394,17 @@ MediaResult FFmpegVideoEncoder<LIBAV_VER>::InitInternal() {
       static_cast<ffmpeg::FFmpegBitRate>(mConfig.mBitrate);
   mCodecContext->width = static_cast<int>(mConfig.mSize.width);
   mCodecContext->height = static_cast<int>(mConfig.mSize.height);
-  if (mConfig.mFramerate) {
-    mCodecContext->time_base =
-        AVRational{.num = 1, .den = static_cast<int>(mConfig.mFramerate)};
-  } else {
-    // Choose something typical if we don't know
-    mCodecContext->time_base =
-        AVRational{.num = 1, .den = 90000};
-  }
+  // TODO(bug 1869560): The recommended time_base is the reciprocal of the frame
+  // rate, but we set it to microsecond for now.
+  mCodecContext->time_base =
+      AVRational{.num = 1, .den = static_cast<int>(USECS_PER_S)};
 #if LIBAVCODEC_VERSION_MAJOR >= 57
+  // Note that sometimes framerate can be zero (from webcodecs).
   mCodecContext->framerate =
       AVRational{.num = static_cast<int>(mConfig.mFramerate), .den = 1};
+#endif
+#if LIBAVCODEC_VERSION_MAJOR >= 60
+  mCodecContext->flags |= AV_CODEC_FLAG_FRAME_DURATION;
 #endif
   mCodecContext->gop_size = static_cast<int>(mConfig.mKeyframeInterval);
   if (mConfig.mUsage == MediaDataEncoder::Usage::Realtime) {
@@ -516,6 +486,11 @@ MediaResult FFmpegVideoEncoder<LIBAV_VER>::InitInternal() {
   // av_opt_set(mCodecContext->priv_data, "maxrate", y, 0)
   // TODO: AV1 specific settings.
 
+  // Our old version of libaom-av1 is considered experimental by the recent
+  // ffmpeg we use. Allow experimental codecs for now until we decide on an AV1
+  // encoder.
+  mCodecContext->strict_std_compliance = FF_COMPLIANCE_EXPERIMENTAL;
+
   AVDictionary* options = nullptr;
   if (int ret = OpenCodecContext(codec, &options); ret < 0) {
     FFMPEGV_LOG("failed to open %s avcodec: %s", codec->name,
@@ -555,13 +530,6 @@ int FFmpegVideoEncoder<LIBAV_VER>::OpenCodecContext(const AVCodec* aCodec,
   MOZ_ASSERT(mCodecContext);
 
   StaticMutexAutoLock mon(sMutex);
-  // Our old version of libaom-av1 is considered experimental by the recent
-  // ffmpeg we use. Allow experimental codecs for now until we decide on an AV1
-  // encoder.
-  mCodecContext->strict_std_compliance = -2;
-#if LIBAVCODEC_VERSION_MAJOR >= 60
-  mCodecContext->flags |= AV_CODEC_FLAG_FRAME_DURATION;
-#endif
   return mLib->avcodec_open2(mCodecContext, aCodec, aOptions);
 }
 
@@ -733,17 +701,22 @@ RefPtr<MediaDataEncoder::EncodePromise> FFmpegVideoEncoder<
     }
   }
 
-  // Everything in microsecond for now: bug 1869560
+  // Set presentation timestamp and duration of the AVFrame. The unit of pts is
+  // time_base.
+  // TODO(bug 1869560): The recommended time_base is the reciprocal of the frame
+  // rate, but we set it to microsecond for now.
+#  if LIBAVCODEC_VERSION_MAJOR >= 59
+  mFrame->time_base =
+      AVRational{.num = 1, .den = static_cast<int>(USECS_PER_S)};
+#  endif
   mFrame->pts = aSample->mTime.ToMicroseconds();
-#if LIBAVCODEC_VERSION_MAJOR >= 60
+#  if LIBAVCODEC_VERSION_MAJOR >= 60
   mFrame->duration = aSample->mDuration.ToMicroseconds();
+#  else
+  // Save duration in the time_base unit.
+  mDurationMap.Insert(mFrame->pts, aSample->mDuration.ToMicroseconds());
+#  endif
   mFrame->pkt_duration = aSample->mDuration.ToMicroseconds();
-#else
-  mFrame->pkt_duration = aSample->mDuration.ToMicroseconds();
-#endif
-#if LIBAVCODEC_VERSION_MAJOR >= 59
-  mFrame->time_base = {1, USECS_PER_S};
-#endif
 
   // Initialize AVPacket.
   AVPacket* pkt = mLib->av_packet_alloc();
@@ -756,8 +729,7 @@ RefPtr<MediaDataEncoder::EncodePromise> FFmpegVideoEncoder<
         __func__);
   }
 
-  auto freePacket =
-   MakeScopeExit( [this, &pkt] { mLib->av_packet_free(&pkt); } );
+  auto freePacket = MakeScopeExit([this, &pkt] { mLib->av_packet_free(&pkt); });
 
   // Send frame and receive packets.
 
@@ -828,8 +800,7 @@ FFmpegVideoEncoder<LIBAV_VER>::DrainWithModernAPIs() {
                     RESULT_DETAIL("Unable to allocate packet")),
         __func__);
   }
-  auto freePacket =
-   MakeScopeExit( [this, &pkt] { mLib->av_packet_free(&pkt); } );
+  auto freePacket = MakeScopeExit([this, &pkt] { mLib->av_packet_free(&pkt); });
 
   // Enter draining mode by sending NULL to the avcodec_send_frame(). Note that
   // this can leave the encoder in a permanent EOF state after draining. As a
@@ -915,9 +886,20 @@ RefPtr<MediaRawData> FFmpegVideoEncoder<LIBAV_VER>::ToMediaRawData(
   }
 
   data->mKeyframe = (aPacket->flags & AV_PKT_FLAG_KEY) != 0;
-  // Everything in microseconds for now: bug 1869560
+  // TODO(bug 1869560): The unit of pts, dts, and duration is time_base, which
+  // is recommended to be the reciprocal of the frame rate, but we set it to
+  // microsecond for now.
   data->mTime = media::TimeUnit::FromMicroseconds(aPacket->pts);
+#if LIBAVCODEC_VERSION_MAJOR >= 60
   data->mDuration = media::TimeUnit::FromMicroseconds(aPacket->duration);
+#else
+  int64_t duration;
+  if (mDurationMap.Find(aPacket->pts, duration)) {
+    data->mDuration = media::TimeUnit::FromMicroseconds(duration);
+  } else {
+    data->mDuration = media::TimeUnit::FromMicroseconds(aPacket->duration);
+  }
+#endif
   data->mTimecode = media::TimeUnit::FromMicroseconds(aPacket->dts);
 
   if (auto r = GetExtraData(aPacket); r.isOk()) {

@@ -7,8 +7,9 @@
 #ifndef DOM_MEDIA_PLATFORMS_FFMPEG_FFMPEGVIDEOENCODER_H_
 #define DOM_MEDIA_PLATFORMS_FFMPEG_FFMPEGVIDEOENCODER_H_
 
-#include "PlatformEncoderModule.h"
 #include "FFmpegLibWrapper.h"
+#include "PlatformEncoderModule.h"
+#include "SimpleMap.h"
 #include "mozilla/ThreadSafety.h"
 
 // This must be the last header included
@@ -28,6 +29,8 @@ class FFmpegVideoEncoder : public MediaDataEncoder {};
 // TODO: Bug 1860925: FFmpegDataEncoder
 template <>
 class FFmpegVideoEncoder<LIBAV_VER> final : public MediaDataEncoder {
+  using DurationMap = SimpleMap<int64_t>;
+
  public:
   FFmpegVideoEncoder(const FFmpegLibWrapper* aLib, AVCodecID aCodecID,
                      const RefPtr<TaskQueue>& aTaskQueue,
@@ -52,8 +55,7 @@ class FFmpegVideoEncoder<LIBAV_VER> final : public MediaDataEncoder {
   RefPtr<InitPromise> ProcessInit();
   RefPtr<EncodePromise> ProcessEncode(RefPtr<const MediaData> aSample);
   RefPtr<ReconfigurationPromise> ProcessReconfigure(
-      const RefPtr<const EncoderConfigurationChangeList>
-          aConfigurationChanges);
+      const RefPtr<const EncoderConfigurationChangeList> aConfigurationChanges);
   RefPtr<EncodePromise> ProcessDrain();
   RefPtr<ShutdownPromise> ProcessShutdown();
   MediaResult InitInternal();
@@ -86,6 +88,7 @@ class FFmpegVideoEncoder<LIBAV_VER> final : public MediaDataEncoder {
   nsCString mCodecName;
   AVCodecContext* mCodecContext;
   AVFrame* mFrame;
+  DurationMap mDurationMap;
 
   // Provide critical-section for open/close mCodecContext.
   // TODO: Merge this with FFmpegDataDecoder's one.

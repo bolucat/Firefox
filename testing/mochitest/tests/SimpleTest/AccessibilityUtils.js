@@ -108,7 +108,7 @@ this.AccessibilityUtils = (function () {
     // Checks that a node is enabled and is expected to be enabled via
     // the accessibility API.
     mustBeEnabled: true,
-    // Checks that a node has a corresponging accessible object.
+    // Checks that a node has a corresponding accessible object.
     mustHaveAccessibleRule: true,
     // Checks that accessible object (and its corresponding node) have a non-
     // negative tabindex. Platform accessibility API still sets focusable state
@@ -286,6 +286,55 @@ this.AccessibilityUtils = (function () {
   }
 
   /**
+   * Determine if an accessible is a keyboard focusable tab within a tablist.
+   * Per the ARIA design pattern, these controls aren't keyboard focusable in
+   * the usual way. Instead, focus is managed by JS code which sets tabindex on
+   * a single tab at a time. Thus, we need to special case the focusable check
+   * for these tab controls.
+   */
+  function isKeyboardFocusableTabInTablist(accessible) {
+    const node = accessible.DOMNode;
+    if (!node || !node.ownerGlobal) {
+      return false;
+    }
+    if (accessible.role != Ci.nsIAccessibleRole.ROLE_PAGETAB) {
+      return false; // Not a tab.
+    }
+    // ToDo: We may eventually need to support intervening generics between
+    // a tab and its tablist here.
+    const tablist = accessible.parent;
+    if (!tablist || tablist.role != Ci.nsIAccessibleRole.ROLE_PAGETABLIST) {
+      return false; // The tab isn't inside a tablist.
+    }
+    // ToDo: We may eventually need to support tablists which use
+    // aria-activedescendant here.
+    // Check that there is only one keyboard reachable tab.
+    const childCount = tablist.childCount;
+    let foundFocusable = false;
+    for (let c = 0; c < childCount; c++) {
+      const tab = tablist.getChildAt(c);
+      // Use tabIndex rather than a11y focusable state because all tabs might
+      // have tabindex="-1".
+      if (tab.DOMNode.tabIndex == 0) {
+        if (foundFocusable) {
+          // Only one tab within a tablist should be focusable.
+          // ToDo: Fine-tune the a11y-check error message generated in this case.
+          // Strictly speaking, it's not ideal that we're performing an action
+          // from an is function, which normally only queries something without
+          // any externally observable behaviour. That said, fixing that would
+          // involve different return values for different cases (not a tab,
+          // too many focusable tabs, etc) so we could move the a11yFail call
+          // to the caller.
+          a11yFail("Only one tab should be focusable in a tablist", accessible);
+          return false;
+        }
+        foundFocusable = true;
+      }
+    }
+    return foundFocusable;
+  }
+
+  /**
    * Determine if an accessible is a keyboard focusable button in the url bar.
    * Url bar buttons aren't keyboard focusable in the usual way. Instead,
    * focus is managed by JS code which sets tabindex on a single button at a
@@ -334,6 +383,50 @@ this.AccessibilityUtils = (function () {
   }
 
   /**
+   * Determine if an accessible is a combobox container of the url bar. We
+   * intentionally leave this element unlabeled, because its child is a search
+   * input that is the target and main control of this component. In general, we
+   * want to avoid duplication in the label announcement when a user focuses the
+   * input. Both NVDA and VO ignore the label on at least one of these controls
+   * if both have a label. But the bigger concern here is that it's very
+   * difficult to keep the accessible name synchronized between the combobox and
+   * the input. Thus, we need to special case the label check for this control.
+   */
+  function isUnlabeledUrlBarCombobox(accessible) {
+    const node = accessible.DOMNode;
+    if (!node || !node.ownerGlobal) {
+      return false;
+    }
+    const ariaRoles = getAriaRoles(accessible);
+    // There are only two cases of this pattern: <moz-input-box> and <searchbar>
+    const isMozInputBox =
+      node.tagName == "moz-input-box" &&
+      node.classList.contains("urlbar-input-box");
+    const isSearchbar = node.tagName == "searchbar" && node.id == "searchbar";
+    return (isMozInputBox || isSearchbar) && ariaRoles.includes("combobox");
+  }
+
+  /**
+   * Determine if an accessible is an option within the url bar. We know each
+   * url bar option is accessible, but it disappears as soon as it is clicked
+   * during tests and the a11y-checks do not have time to test the label,
+   * because the Fluent localization is not yet completed by then. Thus, we
+   * need to special case the label check for these controls.
+   */
+  function isUnlabeledUrlBarOption(accessible) {
+    const node = accessible.DOMNode;
+    if (!node || !node.ownerGlobal) {
+      return false;
+    }
+    const ariaRoles = getAriaRoles(accessible);
+    return (
+      node.tagName == "span" &&
+      ariaRoles.includes("option") &&
+      node.classList.contains("urlbarView-row-inner")
+    );
+  }
+
+  /**
    * Determine if a node is a XUL element for which tabIndex should be ignored.
    * Some XUL elements report -1 for the .tabIndex property, even though they
    * are in fact keyboard focusable.
@@ -360,7 +453,8 @@ this.AccessibilityUtils = (function () {
       isKeyboardFocusableOption(accessible) ||
       isKeyboardFocusablePanelMultiViewControl(accessible) ||
       isKeyboardFocusableUrlbarButton(accessible) ||
-      isKeyboardFocusableXULTab(accessible)
+      isKeyboardFocusableXULTab(accessible) ||
+      isKeyboardFocusableTabInTablist(accessible)
     ) {
       return true;
     }
@@ -540,6 +634,12 @@ this.AccessibilityUtils = (function () {
    */
   function assertLabelled(accessible, allowRecurse = true) {
     const { DOMNode } = accessible;
+    if (
+      isUnlabeledUrlBarCombobox(accessible) ||
+      isUnlabeledUrlBarOption(accessible)
+    ) {
+      return;
+    }
     let name = accessible.name;
     if (!name) {
       // If text has just been inserted into the tree, the a11y engine might not
