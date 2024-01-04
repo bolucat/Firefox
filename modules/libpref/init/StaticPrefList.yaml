@@ -7444,15 +7444,6 @@
   mirror: always
   do_not_use_directly: true
 
-# Whether the megamorphic property lookup cache is enabled.
-#
-# NOTE: This must match JitOptions defaults.
-- name: javascript.options.watchtower.megamorphic
-  type: bool
-  value: true
-  mirror: always  # LoadStartupJSPrefs
-  do_not_use_directly: true
-
 - name: javascript.options.compact_on_user_inactive
   type: bool
   value: true
@@ -9709,7 +9700,7 @@
 
 # Are test specific clearkey key systems enabled and exposed?
 - name: media.clearkey.test-key-systems.enabled
-  type: bool
+  type: RelaxedAtomicBool
   value: false
   mirror: always
 
@@ -10287,6 +10278,20 @@
     value: 2
     mirror: always
 
+# [TEST-ONLY] Use Media Foundation Clearkey CDM for EME related testing.
+-   name: media.eme.wmf.clearkey.enabled
+    type: RelaxedAtomicBool
+    value: false
+    mirror: always
+
+# [TEST-ONLY] use Media Foundation clearkey CDM dll to mock as an external CDM,
+# external CDM like Widevine and PlayReady so that we won't be interfered by
+# unexpected behaviors caused by the external library.
+-   name: media.eme.wmf.use-mock-cdm-for-external-cdms
+    type: RelaxedAtomicBool
+    value: false
+    mirror: always
+
 # Enable PlayReady DRM for EME
 -   name: media.eme.playready.enabled
     type: RelaxedAtomicBool
@@ -10300,7 +10305,7 @@
 # Use IsTypeSupportedEx for PlayReady
 -   name: media.eme.playready.istypesupportedex
     type: RelaxedAtomicBool
-    value: false
+    value: true
     mirror: always
 
 # Enable HEVC support via the windows media foundation
@@ -13922,12 +13927,6 @@
 - name: security.webauth.webauthn
   type: bool
   value: true
-  mirror: always
-
-# Navigate-to CSP 3 directive
-- name: security.csp.enableNavigateTo
-  type: bool
-  value: false
   mirror: always
 
 # WebAuthn CTAP2 support

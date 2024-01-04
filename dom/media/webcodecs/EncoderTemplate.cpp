@@ -389,9 +389,24 @@ void EncoderTemplate<EncoderType>::OutputEncodedData(
       LOGE("New config passed to output callback: %s",
            NS_ConvertUTF16toUTF8(decoderConfigInternal.ToString()).get());
     }
-    LOG("EncoderTemplate:: output callback (ts: % " PRId64 " ), %s",
-        encodedData->Timestamp(),
-        metadata.mDecoderConfig.WasPassed() ? "new config" : "");
+
+    nsAutoCString metadataInfo;
+
+    if (data->mTemporalLayerId) {
+      RootedDictionary<SvcOutputMetadata> svc(cx);
+      svc.mTemporalLayerId.Construct(data->mTemporalLayerId.value());
+      metadata.mSvc.Construct(std::move(svc));
+      metadataInfo.Append(
+          nsPrintfCString(", temporal layer id %d",
+                          metadata.mSvc.Value().mTemporalLayerId.Value()));
+    }
+
+    if (metadata.mDecoderConfig.WasPassed()) {
+      metadataInfo.Append(", new decoder config");
+    }
+
+    LOG("EncoderTemplate:: output callback (ts: % " PRId64 ")%s",
+        encodedData->Timestamp(), metadataInfo.get());
     cb->Call((typename EncoderType::OutputType&)(*encodedData), metadata);
   }
 }

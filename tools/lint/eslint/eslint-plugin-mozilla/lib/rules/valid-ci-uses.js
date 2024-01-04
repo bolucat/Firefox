@@ -26,6 +26,8 @@ const platformSpecificInterfaces = new Map([
   ["nsILegacyJumpListShortcut", "windows"],
   ["nsITaskbarWindowPreview", "windows"],
   ["nsIWindowsAlertsService", "windows"],
+  ["nsIWindowsAlertNotification", "windows"],
+  ["nsIWindowsMutexFactory", "windows"],
   ["nsIWinAppHelper", "windows"],
   ["nsIWinTaskbar", "windows"],
   ["nsIWinTaskSchedulerService", "windows"],

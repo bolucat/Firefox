@@ -149,8 +149,10 @@ class MediaDataEncoder {
     Record
   };
   using PixelFormat = dom::ImageBitmapFormat;
-  enum BitrateMode { Constant, Variable };
-  enum ScalabilityMode { None, L1T2, L1T3 };
+  enum class BitrateMode { Constant, Variable };
+  // Scalable Video Coding (SVC) settings for WebCodecs:
+  // https://www.w3.org/TR/webrtc-svc/
+  enum class ScalabilityMode { None, L1T2, L1T3 };
 
   enum class HardwarePreference { RequireHardware, RequireSoftware, None };
 

@@ -369,10 +369,10 @@ MFCDMParent::MFCDMParent(const nsAString& aKeySystem,
       mKeyMessageEvents(aManagerThread),
       mKeyChangeEvents(aManagerThread),
       mExpirationEvents(aManagerThread) {
-  // TODO : add ClearKey CDM support
   MOZ_ASSERT(IsPlayReadyKeySystemAndSupported(aKeySystem) ||
              IsWidevineExperimentKeySystemAndSupported(aKeySystem) ||
-             IsWidevineKeySystem(mKeySystem));
+             IsWidevineKeySystem(mKeySystem) ||
+             IsWMFClearKeySystemAndSupported(aKeySystem));
   MOZ_ASSERT(aManager);
   MOZ_ASSERT(aManagerThread);
   MOZ_ASSERT(XRE_IsUtilityProcess());
@@ -434,6 +434,10 @@ MFCDMParent::~MFCDMParent() {
 
 /* static */
 LPCWSTR MFCDMParent::GetCDMLibraryName(const nsString& aKeySystem) {
+  if (IsWMFClearKeySystemAndSupported(aKeySystem) ||
+      StaticPrefs::media_eme_wmf_use_mock_cdm_for_external_cdms()) {
+    return L"wmfclearkey.dll";
+  }
   // PlayReady is a built-in CDM on Windows, no need to load external library.
   if (IsPlayReadyKeySystemAndSupported(aKeySystem)) {
     return L"";
@@ -442,7 +446,6 @@ LPCWSTR MFCDMParent::GetCDMLibraryName(const nsString& aKeySystem) {
       IsWidevineKeySystem(aKeySystem)) {
     return sWidevineL1Path ? sWidevineL1Path : L"L1-not-found";
   }
-  // TODO : support ClearKey
   return L"Unknown";
 }
 
@@ -491,15 +494,18 @@ HRESULT MFCDMParent::LoadFactory(
     MFCDM_RETURN_IF_FAILED(clsFactory->CreateContentDecryptionModuleFactory(
         MapKeySystem(aKeySystem).get(), IID_PPV_ARGS(&cdmFactory)));
     aFactoryOut.Swap(cdmFactory);
-    MFCDM_PARENT_SLOG("Loaded CDM from platform!");
+    MFCDM_PARENT_SLOG("Created factory for %s from platform!",
+                      NS_ConvertUTF16toUTF8(aKeySystem).get());
     return S_OK;
   }
 
   HMODULE handle = LoadLibraryW(libraryName);
   if (!handle) {
-    MFCDM_PARENT_SLOG("Failed to load library %ls!", libraryName);
+    MFCDM_PARENT_SLOG("Failed to load library %ls! (error=%lx)", libraryName,
+                      GetLastError());
     return E_FAIL;
   }
+  MFCDM_PARENT_SLOG("Loaded external library '%ls'", libraryName);
 
   using DllGetActivationFactoryFunc =
       HRESULT(WINAPI*)(_In_ HSTRING, _COM_Outptr_ IActivationFactory**);
@@ -515,11 +521,16 @@ HRESULT MFCDMParent::LoadFactory(
   // "<key_system>.ContentDecryptionModuleFactory". In addition, when querying
   // factory, need to use original Widevine key system name.
   nsString stringId;
-  if (IsWidevineExperimentKeySystemAndSupported(aKeySystem) ||
-      IsWidevineKeySystem(aKeySystem)) {
+  if (StaticPrefs::media_eme_wmf_use_mock_cdm_for_external_cdms() ||
+      IsWMFClearKeySystemAndSupported(aKeySystem)) {
+    stringId.AppendLiteral("org.w3.clearkey");
+  } else if (IsWidevineExperimentKeySystemAndSupported(aKeySystem) ||
+             IsWidevineKeySystem(aKeySystem)) {
+    // Widevine's DLL expects "<key_system>.ContentDecryptionModuleFactory" for
+    // the class Id.
     stringId.AppendLiteral("com.widevine.alpha.ContentDecryptionModuleFactory");
   }
-  MFCDM_PARENT_SLOG("Query factory by classId '%s",
+  MFCDM_PARENT_SLOG("Query factory by classId '%s'",
                     NS_ConvertUTF16toUTF8(stringId).get());
   ScopedHString classId(stringId);
   ComPtr<IActivationFactory> pFactory = NULL;
@@ -530,7 +541,8 @@ HRESULT MFCDMParent::LoadFactory(
   MFCDM_RETURN_IF_FAILED(pFactory->ActivateInstance(&pInspectable));
   MFCDM_RETURN_IF_FAILED(pInspectable.As(&cdmFactory));
   aFactoryOut.Swap(cdmFactory);
-  MFCDM_PARENT_SLOG("Loaded %ls CDM from external library!", libraryName);
+  MFCDM_PARENT_SLOG("Created factory for %s from external library!",
+                    NS_ConvertUTF16toUTF8(aKeySystem).get());
   return S_OK;
 }
 

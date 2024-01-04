@@ -4422,12 +4422,8 @@ void CodeGenerator::visitMegamorphicLoadSlot(LMegamorphicLoadSlot* lir) {
   ValueOperand output = ToOutValue(lir);
 
   Label bail, cacheHit;
-  if (JitOptions.enableWatchtowerMegamorphic) {
-    masm.emitMegamorphicCacheLookup(lir->mir()->name(), obj, temp0, temp1,
-                                    temp2, output, &cacheHit);
-  } else {
-    masm.xorPtr(temp2, temp2);
-  }
+  masm.emitMegamorphicCacheLookup(lir->mir()->name(), obj, temp0, temp1, temp2,
+                                  output, &cacheHit);
 
   masm.branchIfNonNativeObj(obj, temp0, &bail);
 
@@ -4466,12 +4462,8 @@ void CodeGenerator::visitMegamorphicLoadSlotByValue(
   ValueOperand output = ToOutValue(lir);
 
   Label bail, cacheHit;
-  if (JitOptions.enableWatchtowerMegamorphic) {
-    masm.emitMegamorphicCacheLookupByValue(idVal, obj, temp0, temp1, temp2,
-                                           output, &cacheHit);
-  } else {
-    masm.xorPtr(temp2, temp2);
-  }
+  masm.emitMegamorphicCacheLookupByValue(idVal, obj, temp0, temp1, temp2,
+                                         output, &cacheHit);
 
   masm.branchIfNonNativeObj(obj, temp0, &bail);
 
@@ -4519,21 +4511,19 @@ void CodeGenerator::visitMegamorphicStoreSlot(LMegamorphicStoreSlot* lir) {
 #endif
 
   Label cacheHit, done;
-  if (JitOptions.enableWatchtowerMegamorphic) {
 #ifdef JS_CODEGEN_X86
-    masm.emitMegamorphicCachedSetSlot(
-        lir->mir()->name(), obj, temp0, value, &cacheHit,
-        [](MacroAssembler& masm, const Address& addr, MIRType mirType) {
-          EmitPreBarrier(masm, addr, mirType);
-        });
+  masm.emitMegamorphicCachedSetSlot(
+      lir->mir()->name(), obj, temp0, value, &cacheHit,
+      [](MacroAssembler& masm, const Address& addr, MIRType mirType) {
+        EmitPreBarrier(masm, addr, mirType);
+      });
 #else
-    masm.emitMegamorphicCachedSetSlot(
-        lir->mir()->name(), obj, temp0, temp1, temp2, value, &cacheHit,
-        [](MacroAssembler& masm, const Address& addr, MIRType mirType) {
-          EmitPreBarrier(masm, addr, mirType);
-        });
+  masm.emitMegamorphicCachedSetSlot(
+      lir->mir()->name(), obj, temp0, temp1, temp2, value, &cacheHit,
+      [](MacroAssembler& masm, const Address& addr, MIRType mirType) {
+        EmitPreBarrier(masm, addr, mirType);
+      });
 #endif
-  }
 
   pushArg(Imm32(lir->mir()->strict()));
   pushArg(value);
@@ -4565,13 +4555,8 @@ void CodeGenerator::visitMegamorphicHasProp(LMegamorphicHasProp* lir) {
   Register output = ToRegister(lir->output());
 
   Label bail, cacheHit;
-  if (JitOptions.enableWatchtowerMegamorphic) {
-    masm.emitMegamorphicCacheLookupExists(idVal, obj, temp0, temp1, temp2,
-                                          output, &cacheHit,
-                                          lir->mir()->hasOwn());
-  } else {
-    masm.xorPtr(temp2, temp2);
-  }
+  masm.emitMegamorphicCacheLookupExists(idVal, obj, temp0, temp1, temp2, output,
+                                        &cacheHit, lir->mir()->hasOwn());
 
   masm.branchIfNonNativeObj(obj, temp0, &bail);
 
@@ -14617,21 +14602,19 @@ void CodeGenerator::visitMegamorphicSetElement(LMegamorphicSetElement* lir) {
 #endif
 
   Label cacheHit, done;
-  if (JitOptions.enableWatchtowerMegamorphic) {
 #ifdef JS_CODEGEN_X86
-    masm.emitMegamorphicCachedSetSlot(
-        idVal, obj, temp0, value, &cacheHit,
-        [](MacroAssembler& masm, const Address& addr, MIRType mirType) {
-          EmitPreBarrier(masm, addr, mirType);
-        });
+  masm.emitMegamorphicCachedSetSlot(
+      idVal, obj, temp0, value, &cacheHit,
+      [](MacroAssembler& masm, const Address& addr, MIRType mirType) {
+        EmitPreBarrier(masm, addr, mirType);
+      });
 #else
-    masm.emitMegamorphicCachedSetSlot(
-        idVal, obj, temp0, temp1, temp2, value, &cacheHit,
-        [](MacroAssembler& masm, const Address& addr, MIRType mirType) {
-          EmitPreBarrier(masm, addr, mirType);
-        });
+  masm.emitMegamorphicCachedSetSlot(
+      idVal, obj, temp0, temp1, temp2, value, &cacheHit,
+      [](MacroAssembler& masm, const Address& addr, MIRType mirType) {
+        EmitPreBarrier(masm, addr, mirType);
+      });
 #endif
-  }
 
   pushArg(Imm32(lir->mir()->strict()));
   pushArg(ToValue(lir, LMegamorphicSetElement::ValueIndex));
@@ -14830,6 +14813,165 @@ void CodeGenerator::visitLoadElementAndUnbox(LLoadElementAndUnbox* ins) {
     BaseObjectElementIndex address(elements, ToRegister(ins->index()));
     EmitLoadAndUnbox(masm, address, type, mir->fallible(), result, &bail);
   }
+
+  if (mir->fallible()) {
+    bailoutFrom(&bail, ins->snapshot());
+  }
+}
+
+class OutOfLineAtomizeSlot : public OutOfLineCodeBase<CodeGenerator> {
+  LInstruction* lir_;
+  Register stringReg_;
+  Address slotAddr_;
+  TypedOrValueRegister dest_;
+
+ public:
+  OutOfLineAtomizeSlot(LInstruction* lir, Register stringReg, Address slotAddr,
+                       TypedOrValueRegister dest)
+      : lir_(lir), stringReg_(stringReg), slotAddr_(slotAddr), dest_(dest) {}
+
+  void accept(CodeGenerator* codegen) final {
+    codegen->visitOutOfLineAtomizeSlot(this);
+  }
+  LInstruction* lir() const { return lir_; }
+  Register stringReg() const { return stringReg_; }
+  Address slotAddr() const { return slotAddr_; }
+  TypedOrValueRegister dest() const { return dest_; }
+};
+
+void CodeGenerator::visitOutOfLineAtomizeSlot(OutOfLineAtomizeSlot* ool) {
+  LInstruction* lir = ool->lir();
+  Register stringReg = ool->stringReg();
+  Address slotAddr = ool->slotAddr();
+  TypedOrValueRegister dest = ool->dest();
+
+  // This code is called with a non-atomic string in |stringReg|.
+  // When it returns, |stringReg| contains an unboxed pointer to an
+  // atomized version of that string, and |slotAddr| contains a
+  // StringValue pointing to that atom. If |dest| is a ValueOperand,
+  // it contains the same StringValue; otherwise we assert that |dest|
+  // is |stringReg|.
+
+  saveLive(lir);
+  pushArg(stringReg);
+
+  using Fn = JSAtom* (*)(JSContext*, JSString*);
+  callVM<Fn, js::AtomizeString>(lir);
+  StoreRegisterTo(stringReg).generate(this);
+  restoreLiveIgnore(lir, StoreRegisterTo(stringReg).clobbered());
+
+  if (dest.hasValue()) {
+    masm.moveValue(
+        TypedOrValueRegister(MIRType::String, AnyRegister(stringReg)),
+        dest.valueReg());
+  } else {
+    MOZ_ASSERT(dest.typedReg().gpr() == stringReg);
+  }
+
+  emitPreBarrier(slotAddr);
+  masm.storeTypedOrValue(dest, slotAddr);
+
+  // We don't need a post-barrier because atoms aren't nursery-allocated.
+#ifdef DEBUG
+  // We need a temp register for the nursery check. Spill something.
+  AllocatableGeneralRegisterSet allRegs(GeneralRegisterSet::All());
+  allRegs.take(stringReg);
+  Register temp = allRegs.takeAny();
+  masm.push(temp);
+
+  Label tenured;
+  masm.branchPtrInNurseryChunk(Assembler::NotEqual, stringReg, temp, &tenured);
+  masm.assumeUnreachable("AtomizeString returned a nursery pointer");
+  masm.bind(&tenured);
+
+  masm.pop(temp);
+#endif
+
+  masm.jump(ool->rejoin());
+}
+
+void CodeGenerator::emitMaybeAtomizeSlot(LInstruction* ins, Register stringReg,
+                                         Address slotAddr,
+                                         TypedOrValueRegister dest) {
+  OutOfLineAtomizeSlot* ool =
+      new (alloc()) OutOfLineAtomizeSlot(ins, stringReg, slotAddr, dest);
+  addOutOfLineCode(ool, ins->mirRaw()->toInstruction());
+  masm.branchTest32(Assembler::Zero,
+                    Address(stringReg, JSString::offsetOfFlags()),
+                    Imm32(JSString::ATOM_BIT), ool->entry());
+  masm.bind(ool->rejoin());
+}
+
+void CodeGenerator::visitLoadFixedSlotAndAtomize(
+    LLoadFixedSlotAndAtomize* ins) {
+  Register obj = ToRegister(ins->getOperand(0));
+  Register temp = ToRegister(ins->temp0());
+  size_t slot = ins->mir()->slot();
+  ValueOperand result = ToOutValue(ins);
+
+  Address slotAddr(obj, NativeObject::getFixedSlotOffset(slot));
+  masm.loadValue(slotAddr, result);
+
+  Label notString;
+  masm.branchTestString(Assembler::NotEqual, result, &notString);
+  masm.unboxString(result, temp);
+  emitMaybeAtomizeSlot(ins, temp, slotAddr, result);
+  masm.bind(&notString);
+}
+
+void CodeGenerator::visitLoadDynamicSlotAndAtomize(
+    LLoadDynamicSlotAndAtomize* ins) {
+  ValueOperand result = ToOutValue(ins);
+  Register temp = ToRegister(ins->temp0());
+  Register base = ToRegister(ins->input());
+  int32_t offset = ins->mir()->slot() * sizeof(js::Value);
+
+  Address slotAddr(base, offset);
+  masm.loadValue(slotAddr, result);
+
+  Label notString;
+  masm.branchTestString(Assembler::NotEqual, result, &notString);
+  masm.unboxString(result, temp);
+  emitMaybeAtomizeSlot(ins, temp, slotAddr, result);
+  masm.bind(&notString);
+}
+
+void CodeGenerator::visitLoadFixedSlotUnboxAndAtomize(
+    LLoadFixedSlotUnboxAndAtomize* ins) {
+  const MLoadFixedSlotAndUnbox* mir = ins->mir();
+  MOZ_ASSERT(mir->type() == MIRType::String);
+  Register input = ToRegister(ins->object());
+  AnyRegister result = ToAnyRegister(ins->output());
+  size_t slot = mir->slot();
+
+  Address slotAddr(input, NativeObject::getFixedSlotOffset(slot));
+
+  Label bail;
+  EmitLoadAndUnbox(masm, slotAddr, MIRType::String, mir->fallible(), result,
+                   &bail);
+  emitMaybeAtomizeSlot(ins, result.gpr(), slotAddr,
+                       TypedOrValueRegister(MIRType::String, result));
+
+  if (mir->fallible()) {
+    bailoutFrom(&bail, ins->snapshot());
+  }
+}
+
+void CodeGenerator::visitLoadDynamicSlotUnboxAndAtomize(
+    LLoadDynamicSlotUnboxAndAtomize* ins) {
+  const MLoadDynamicSlotAndUnbox* mir = ins->mir();
+  MOZ_ASSERT(mir->type() == MIRType::String);
+  Register input = ToRegister(ins->slots());
+  AnyRegister result = ToAnyRegister(ins->output());
+  size_t slot = mir->slot();
+
+  Address slotAddr(input, slot * sizeof(JS::Value));
+
+  Label bail;
+  EmitLoadAndUnbox(masm, slotAddr, MIRType::String, mir->fallible(), result,
+                   &bail);
+  emitMaybeAtomizeSlot(ins, result.gpr(), slotAddr,
+                       TypedOrValueRegister(MIRType::String, result));
 
   if (mir->fallible()) {
     bailoutFrom(&bail, ins->snapshot());

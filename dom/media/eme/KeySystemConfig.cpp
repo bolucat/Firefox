@@ -37,6 +37,12 @@ bool KeySystemConfig::Supports(const nsAString& aKeySystem) {
     return true;
   }
 #else
+#  ifdef MOZ_WMF_CDM
+  // Test only, pretend we have already installed CDMs.
+  if (StaticPrefs::media_eme_wmf_use_mock_cdm_for_external_cdms()) {
+    return true;
+  }
+#  endif
   // Check if Widevine L3 or Clearkey has been downloaded via GMP downloader.
   if (IsWidevineKeySystem(aKeySystem) || IsClearkeyKeySystem(aKeySystem)) {
     return HaveGMPFor(nsCString(CHROMIUM_CDM_API),
@@ -51,7 +57,8 @@ bool KeySystemConfig::Supports(const nsAString& aKeySystem) {
                       {nsCString(kWidevineExperimentKeySystemName)});
   }
 
-  if ((IsPlayReadyKeySystemAndSupported(aKeySystem)) &&
+  if ((IsPlayReadyKeySystemAndSupported(aKeySystem) ||
+       IsWMFClearKeySystemAndSupported(aKeySystem)) &&
       WMFCDMImpl::Supports(aKeySystem)) {
     return true;
   }
@@ -67,7 +74,11 @@ bool KeySystemConfig::CreateKeySystemConfigs(
     return false;
   }
 
-  if (IsClearkeyKeySystem(aKeySystem)) {
+  bool useGMPClearKey = true;
+#ifdef MOZ_WMF_CDM
+  useGMPClearKey = !StaticPrefs::media_eme_wmf_clearkey_enabled();
+#endif
+  if (IsClearkeyKeySystem(aKeySystem) && useGMPClearKey) {
     KeySystemConfig* config = aOutConfigs.AppendElement();
     config->mKeySystem = aKeySystem;
     config->mInitDataTypes.AppendElement(u"cenc"_ns);
@@ -200,7 +211,8 @@ bool KeySystemConfig::CreateKeySystemConfigs(
   }
 #ifdef MOZ_WMF_CDM
   if (IsPlayReadyKeySystemAndSupported(aKeySystem) ||
-      IsWidevineExperimentKeySystemAndSupported(aKeySystem)) {
+      IsWidevineExperimentKeySystemAndSupported(aKeySystem) ||
+      IsWMFClearKeySystemAndSupported(aKeySystem)) {
     RefPtr<WMFCDMImpl> cdm = MakeRefPtr<WMFCDMImpl>(aKeySystem);
     return cdm->GetCapabilities(aOutConfigs);
   }
@@ -230,6 +242,12 @@ void KeySystemConfig::GetGMPKeySystemConfigs(dom::Promise* aPromise) {
   };
   FallibleTArray<dom::CDMInformation> cdmInfo;
   for (const auto& name : keySystemNames) {
+#ifdef MOZ_WMF_CDM
+    if (IsWMFClearKeySystemAndSupported(name)) {
+      // Using wmf clearkey, not gmp clearkey.
+      continue;
+    }
+#endif
     if (KeySystemConfig::CreateKeySystemConfigs(name, keySystemConfigs)) {
       auto* info = cdmInfo.AppendElement(fallible);
       if (!info) {
