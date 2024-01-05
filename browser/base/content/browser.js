@@ -60,7 +60,6 @@ ChromeUtils.defineESModuleGetters(this, {
   Pocket: "chrome://pocket/content/Pocket.sys.mjs",
   PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
   ProcessHangMonitor: "resource:///modules/ProcessHangMonitor.sys.mjs",
-  PromiseUtils: "resource://gre/modules/PromiseUtils.sys.mjs",
   PromptUtils: "resource://gre/modules/PromptUtils.sys.mjs",
   ReaderMode: "resource://gre/modules/ReaderMode.sys.mjs",
   ResetPBMPanel: "resource:///modules/ResetPBMPanel.sys.mjs",
@@ -718,7 +717,6 @@ var gInitialPages = [
   "about:blank",
   "about:home",
   "about:firefoxview",
-  "about:firefoxview-next",
   "about:newtab",
   "about:privatebrowsing",
   "about:sessionrestore",
@@ -2581,7 +2579,7 @@ var gBrowserInit = {
 ChromeUtils.defineLazyGetter(
   gBrowserInit,
   "_firstContentWindowPaintDeferred",
-  () => PromiseUtils.defer()
+  () => Promise.withResolvers()
 );
 
 gBrowserInit.idleTasksFinishedPromise = new Promise(resolve => {
@@ -9967,7 +9965,6 @@ var FirefoxViewHandler = {
     this._updateEnabledState = this._updateEnabledState.bind(this);
     this._updateEnabledState();
     NimbusFeatures.majorRelease2022.onUpdate(this._updateEnabledState);
-    NimbusFeatures.firefoxViewNext.onUpdate(this._updateEnabledState);
 
     ChromeUtils.defineESModuleGetters(this, {
       SyncedTabs: "resource://services-sync/SyncedTabs.sys.mjs",
@@ -9978,12 +9975,9 @@ var FirefoxViewHandler = {
     CustomizableUI.removeListener(this);
     Services.obs.removeObserver(this, "firefoxview-notification-dot-update");
     NimbusFeatures.majorRelease2022.offUpdate(this._updateEnabledState);
-    NimbusFeatures.firefoxViewNext.offUpdate(this._updateEnabledState);
   },
   _updateEnabledState() {
-    this._enabled =
-      NimbusFeatures.majorRelease2022.getVariable("firefoxView") ||
-      NimbusFeatures.firefoxViewNext.getVariable("enabled");
+    this._enabled = NimbusFeatures.majorRelease2022.getVariable("firefoxView");
     // We use a root attribute because there's no guarantee the button is in the
     // DOM, and visibility changes need to take effect even if it isn't in the DOM
     // right now.
@@ -9992,10 +9986,6 @@ var FirefoxViewHandler = {
       !this._enabled
     );
     document.getElementById("menu_openFirefoxView").hidden = !this._enabled;
-    document.getElementById("firefox-view-button").style.listStyleImage =
-      NimbusFeatures.firefoxViewNext.getVariable("newIcon")
-        ? ""
-        : 'url("chrome://branding/content/about-logo.png")';
   },
   onWidgetRemoved(aWidgetId) {
     if (aWidgetId == this.BUTTON_ID && this.tab) {
@@ -10018,9 +10008,7 @@ var FirefoxViewHandler = {
         CustomizableUI.getPlacementOfWidget("tabbrowser-tabs").position
       );
     }
-    const viewURL = NimbusFeatures.firefoxViewNext.getVariable("enabled")
-      ? "about:firefoxview-next"
-      : "about:firefoxview";
+    const viewURL = "about:firefoxview";
     // Need to account for navigation to Firefox View pages
     if (
       this.tab &&
@@ -10115,18 +10103,11 @@ var FirefoxViewHandler = {
       const PREF_NAME = "browser.firefox-view.view-count";
       const MAX_VIEW_COUNT = 10;
       let viewCount = Services.prefs.getIntPref(PREF_NAME, 0);
-      let isFirefoxViewNext = Services.prefs.getBoolPref(
-        "browser.tabs.firefox-view-next",
-        false
-      );
 
       // Record telemetry
-      Services.telemetry.setEventRecordingEnabled(
-        isFirefoxViewNext ? "firefoxview_next" : "firefoxview",
-        true
-      );
+      Services.telemetry.setEventRecordingEnabled("firefoxview_next", true);
       Services.telemetry.recordEvent(
-        isFirefoxViewNext ? "firefoxview_next" : "firefoxview",
+        "firefoxview_next",
         "tab_selected",
         "toolbarbutton",
         null,

@@ -310,10 +310,6 @@ void ICScript::purgeInactiveICScripts() {
   // We have an active callee ICScript. This means the current ICScript must be
   // active too.
   MOZ_ASSERT(active());
-
-  for (CallSite& callsite : *inlinedChildren_) {
-    callsite.callee_->purgeInactiveICScripts();
-  }
 }
 
 void JitScript::resetWarmUpCount(uint32_t count) {
@@ -381,6 +377,9 @@ void ICScript::prepareForDestruction(Zone* zone) {
   // nursery can point to these alloc sites.
   JSRuntime* rt = zone->runtimeFromMainThread();
   rt->gc.queueAllLifoBlocksForFreeAfterMinorGC(&allocSitesSpace_);
+
+  // Trigger write barriers.
+  PreWriteBarrier(zone, this);
 }
 
 void JitScript::prepareForDestruction(Zone* zone) {
@@ -468,7 +467,7 @@ void JitScript::purgeInactiveICScripts() {
     return;
   }
 
-  icScript()->purgeInactiveICScripts();
+  forEachICScript([](ICScript* script) { script->purgeInactiveICScripts(); });
 
   inliningRoot()->purgeInactiveICScripts();
   if (inliningRoot()->numInlinedScripts() == 0) {
@@ -718,6 +717,16 @@ static void MarkActiveICScriptsAndCopyStubs(
           ICCacheIRStub* stub = layout->maybeStubPtr()->toCacheIRStub();
           ICCacheIRStub* newStub = stub->clone(cx->runtime(), newStubSpace);
           layout->setStubPtr(newStub);
+
+          JSJitFrameIter parentFrame(frame);
+          ++parentFrame;
+          BaselineFrame* blFrame = parentFrame.baselineFrame();
+          jsbytecode* pc;
+          parentFrame.baselineScriptAndPc(nullptr, &pc);
+          uint32_t pcOffset = blFrame->script()->pcToOffset(pc);
+          if (blFrame->icScript()->hasInlinedChild(pcOffset)) {
+            blFrame->icScript()->findInlinedChild(pcOffset)->setActive();
+          }
         }
         break;
       }
