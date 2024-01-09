@@ -39,10 +39,7 @@ nsTextPaintStyle::nsTextPaintStyle(nsTextFrame* aFrame)
       mSufficientContrast(0),
       mFrameBackgroundColor(NS_RGBA(0, 0, 0, 0)),
       mSystemFieldForegroundColor(NS_RGBA(0, 0, 0, 0)),
-      mSystemFieldBackgroundColor(NS_RGBA(0, 0, 0, 0)) {
-  for (uint32_t i = 0; i < ArrayLength(mSelectionStyle); i++)
-    mSelectionStyle[i].mInit = false;
-}
+      mSystemFieldBackgroundColor(NS_RGBA(0, 0, 0, 0)) {}
 
 bool nsTextPaintStyle::EnsureSufficientContrast(nscolor* aForeColor,
                                                 nscolor* aBackColor) {
@@ -268,26 +265,26 @@ void nsTextPaintStyle::GetURLSecondaryColor(nscolor* aForeColor) {
                         NS_GET_B(textColor), 127);
 }
 
-void nsTextPaintStyle::GetIMESelectionColors(int32_t aIndex,
+void nsTextPaintStyle::GetIMESelectionColors(uint32_t aIndex,
                                              nscolor* aForeColor,
                                              nscolor* aBackColor) {
   NS_ASSERTION(aForeColor, "aForeColor is null");
   NS_ASSERTION(aBackColor, "aBackColor is null");
-  NS_ASSERTION(aIndex >= 0 && aIndex < 5, "Index out of range");
+  NS_ASSERTION(aIndex < eNumSelectionTypes, "Index out of range");
 
-  nsSelectionStyle* selectionStyle = GetSelectionStyle(aIndex);
+  nsSelectionStyle* selectionStyle = SelectionStyle(aIndex);
   *aForeColor = selectionStyle->mTextColor;
   *aBackColor = selectionStyle->mBGColor;
 }
 
 bool nsTextPaintStyle::GetSelectionUnderlineForPaint(
-    int32_t aIndex, nscolor* aLineColor, float* aRelativeSize,
+    uint32_t aIndex, nscolor* aLineColor, float* aRelativeSize,
     StyleTextDecorationStyle* aStyle) {
   NS_ASSERTION(aLineColor, "aLineColor is null");
   NS_ASSERTION(aRelativeSize, "aRelativeSize is null");
-  NS_ASSERTION(aIndex >= 0 && aIndex < 5, "Index out of range");
+  NS_ASSERTION(aIndex < eNumSelectionTypes, "Index out of range");
 
-  nsSelectionStyle* selectionStyle = GetSelectionStyle(aIndex);
+  nsSelectionStyle* selectionStyle = SelectionStyle(aIndex);
   if (selectionStyle->mUnderlineStyle == StyleTextDecorationStyle::None ||
       selectionStyle->mUnderlineColor == NS_TRANSPARENT ||
       selectionStyle->mUnderlineRelativeSize <= 0.0f)
@@ -408,10 +405,10 @@ bool nsTextPaintStyle::InitSelectionColorsAndShadow() {
   return true;
 }
 
-nsTextPaintStyle::nsSelectionStyle* nsTextPaintStyle::GetSelectionStyle(
-    int32_t aIndex) {
+nsTextPaintStyle::nsSelectionStyle* nsTextPaintStyle::SelectionStyle(
+    uint32_t aIndex) {
   InitSelectionStyle(aIndex);
-  return &mSelectionStyle[aIndex];
+  return mSelectionStyle[aIndex].ptr();
 }
 
 struct StyleIDs {
@@ -445,11 +442,11 @@ static StyleIDs SelectionStyleIDs[] = {
      LookAndFeel::IntID::SpellCheckerUnderlineStyle,
      LookAndFeel::FloatID::SpellCheckerUnderlineRelativeSize}};
 
-void nsTextPaintStyle::InitSelectionStyle(int32_t aIndex) {
-  NS_ASSERTION(aIndex >= 0 && aIndex < 5, "aIndex is invalid");
-  nsSelectionStyle* selectionStyle = &mSelectionStyle[aIndex];
-  if (selectionStyle->mInit) {
-    return;
+void nsTextPaintStyle::InitSelectionStyle(uint32_t aIndex) {
+  NS_ASSERTION(aIndex < eNumSelectionTypes, "aIndex is invalid");
+  Maybe<nsSelectionStyle>& selectionStyle = mSelectionStyle[aIndex];
+  if (selectionStyle) {
+    return;  // Already initialized; we don't need to do anything.
   }
 
   StyleIDs* styleIDs = &SelectionStyleIDs[aIndex];
@@ -491,23 +488,23 @@ void nsTextPaintStyle::InitSelectionStyle(int32_t aIndex) {
     lineColor = GetResolvedForeColor(lineColor, foreColor, backColor);
   }
 
+  selectionStyle.emplace();
   selectionStyle->mTextColor = foreColor;
   selectionStyle->mBGColor = backColor;
   selectionStyle->mUnderlineColor = lineColor;
   selectionStyle->mUnderlineStyle = lineStyle;
   selectionStyle->mUnderlineRelativeSize = relativeSize;
-  selectionStyle->mInit = true;
 }
 
 /* static */
-bool nsTextPaintStyle::GetSelectionUnderline(nsIFrame* aFrame, int32_t aIndex,
+bool nsTextPaintStyle::GetSelectionUnderline(nsIFrame* aFrame, uint32_t aIndex,
                                              nscolor* aLineColor,
                                              float* aRelativeSize,
                                              StyleTextDecorationStyle* aStyle) {
   NS_ASSERTION(aFrame, "aFrame is null");
   NS_ASSERTION(aRelativeSize, "aRelativeSize is null");
   NS_ASSERTION(aStyle, "aStyle is null");
-  NS_ASSERTION(aIndex >= 0 && aIndex < 5, "Index out of range");
+  NS_ASSERTION(aIndex < eNumSelectionTypes, "Index out of range");
 
   StyleIDs& styleID = SelectionStyleIDs[aIndex];
 

@@ -59,15 +59,15 @@ class MOZ_STACK_CLASS nsTextPaintStyle {
   bool GetCustomHighlightBackgroundColor(nsAtom* aHighlightName,
                                          nscolor* aBackColor);
   void GetURLSecondaryColor(nscolor* aForeColor);
-  void GetIMESelectionColors(int32_t aIndex, nscolor* aForeColor,
+  void GetIMESelectionColors(uint32_t aIndex, nscolor* aForeColor,
                              nscolor* aBackColor);
   // if this returns false, we don't need to draw underline.
-  bool GetSelectionUnderlineForPaint(int32_t aIndex, nscolor* aLineColor,
+  bool GetSelectionUnderlineForPaint(uint32_t aIndex, nscolor* aLineColor,
                                      float* aRelativeSize,
                                      StyleTextDecorationStyle* aStyle);
 
   // if this returns false, we don't need to draw underline.
-  static bool GetSelectionUnderline(nsIFrame*, int32_t aIndex,
+  static bool GetSelectionUnderline(nsIFrame*, uint32_t aIndex,
                                     nscolor* aLineColor, float* aRelativeSize,
                                     StyleTextDecorationStyle* aStyle);
 
@@ -77,15 +77,17 @@ class MOZ_STACK_CLASS nsTextPaintStyle {
 
   nsPresContext* PresContext() const { return mPresContext; }
 
-  enum {
+  enum : uint32_t {
     eIndexRawInput = 0,
     eIndexSelRawText,
     eIndexConvText,
     eIndexSelConvText,
-    eIndexSpellChecker
+    eIndexSpellChecker,
+    eNumSelectionTypes /* Not an actual enum value; just a record of how many
+                          enum values there are. */
   };
 
-  static int32_t GetUnderlineStyleIndexForSelectionType(
+  static uint32_t GetUnderlineStyleIndexForSelectionType(
       SelectionType aSelectionType) {
     switch (aSelectionType) {
       case SelectionType::eIMERawClause:
@@ -134,21 +136,20 @@ class MOZ_STACK_CLASS nsTextPaintStyle {
   // and background color are swapped if it's needed. And also line color will
   // be resolved from them.
   struct nsSelectionStyle {
-    bool mInit;
     nscolor mTextColor;
     nscolor mBGColor;
     nscolor mUnderlineColor;
     StyleTextDecorationStyle mUnderlineStyle;
     float mUnderlineRelativeSize;
   };
-  nsSelectionStyle mSelectionStyle[5];
+  mozilla::Maybe<nsSelectionStyle> mSelectionStyle[5];
 
   // Color initializations
   void InitCommonColors();
   bool InitSelectionColorsAndShadow();
 
-  nsSelectionStyle* GetSelectionStyle(int32_t aIndex);
-  void InitSelectionStyle(int32_t aIndex);
+  nsSelectionStyle* SelectionStyle(uint32_t aIndex);
+  void InitSelectionStyle(uint32_t aIndex);
 
   // Ensures sufficient contrast between the frame background color and the
   // selection background color, and swaps the selection text and background

@@ -109,7 +109,7 @@ browsertime-tp6:
                         - --extra-profiler-run
         run-on-projects:
             by-subtest:
-                netflix:  # Bug 1756212 - Disable temporarily due to perma on mac
+                netflix:
                     by-app:
                         firefox:
                             by-test-platform:
@@ -346,14 +346,44 @@ browsertime-benchmark:
                             - [speedometer3, sp3]
                             - [motionmark-animometer-ramp, mm-ar]
                             - [motionmark-htmlsuite-ramp, mm-hr]
+                        chrome:
+                            by-test-platform:
+                                macosx1015.*shippable.*:
+                                    - ares6
+                                    - [assorted-dom, dom]
+                                    - [jetstream2, js2]
+                                    - [matrix-react-bench, mrb]
+                                    - [motionmark-animometer, mm-a]
+                                    - [motionmark-htmlsuite, mm-h]
+                                    - [speedometer, sp]
+                                    - [speedometer3, sp3]
+                                    - [stylebench, sb]
+                                    - [sunspider, ss]
+                                    - [unity-webgl, ugl]
+                                    - [webaudio, wa]
+                                default:
+                                    - ares6
+                                    - [assorted-dom, dom]
+                                    - [jetstream2, js2]
+                                    - [matrix-react-bench, mrb]
+                                    - [motionmark-animometer, mm-a]
+                                    - [motionmark-animometer-ramp, mm-ar]
+                                    - [motionmark-htmlsuite, mm-h]
+                                    - [motionmark-htmlsuite-ramp, mm-hr]
+                                    - [speedometer, sp]
+                                    - [speedometer3, sp3]
+                                    - [stylebench, sb]
+                                    - [sunspider, ss]
+                                    - [unity-webgl, ugl]
+                                    - [webaudio, wa]
                         default:
                             - ares6
                             - [assorted-dom, dom]
                             - [jetstream2, js2]
                             - [matrix-react-bench, mrb]
                             - [motionmark-animometer, mm-a]
-                            - [motionmark-htmlsuite, mm-h]
                             - [motionmark-animometer-ramp, mm-ar]
+                            - [motionmark-htmlsuite, mm-h]
                             - [motionmark-htmlsuite-ramp, mm-hr]
                             - [speedometer, sp]
                             - [speedometer3, sp3]
@@ -599,7 +629,7 @@ browsertime-tp6-live:
                     - [google-slides, gslides]
                     - imdb
                     # - imgur (see bugs 1825337 & 1817420)
-                    - instagram  # (see bug 1736999)
+                    - instagram
                     - linkedin
                     - microsoft
                     - netflix
@@ -626,7 +656,7 @@ browsertime-tp6-live:
                     - [google-slides, gslides]
                     - imdb
                     - imgur
-                    - instagram  # (see bug 1736999)
+                    - instagram
                     - linkedin
                     - microsoft
                     - netflix

@@ -2197,7 +2197,7 @@ void nsDocShell::TriggerParentCheckDocShellIsEmpty() {
     parent->DocLoaderIsEmpty(true);
   }
   if (GetBrowsingContext()->IsContentSubframe() &&
-      !GetBrowsingContext()->GetParent()->IsInProcess()) {
+      !GetBrowsingContext()->GetParentWindowContext()->IsInProcess()) {
     if (BrowserChild* browserChild = BrowserChild::GetFrom(this)) {
       mozilla::Unused << browserChild->SendMaybeFireEmbedderLoadEvents(
           EmbedderElementEventType::NoEvent);
@@ -3381,7 +3381,8 @@ void nsDocShell::UnblockEmbedderLoadEventForFailure(bool aFireFrameErrorEvent) {
   // SendMaybeFireEmbedderLoadEvents via any of the normal call paths.
   // (Obviously, we must do this before any of the returns below.)
   RefPtr<BrowserChild> browserChild = BrowserChild::GetFrom(this);
-  if (browserChild) {
+  if (browserChild &&
+      !mBrowsingContext->GetParentWindowContext()->IsInProcess()) {
     mozilla::Unused << browserChild->SendMaybeFireEmbedderLoadEvents(
         aFireFrameErrorEvent ? EmbedderElementEventType::ErrorEvent
                              : EmbedderElementEventType::NoEvent);
@@ -8397,7 +8398,6 @@ nsresult nsDocShell::PerformRetargeting(nsDocShellLoadState* aLoadState) {
 
     int16_t shouldLoad = nsIContentPolicy::ACCEPT;
     rv = NS_CheckContentLoadPolicy(aLoadState->URI(), secCheckLoadInfo,
-                                   ""_ns,  // mime guess
                                    &shouldLoad);
 
     if (NS_FAILED(rv) || NS_CP_REJECTED(shouldLoad)) {

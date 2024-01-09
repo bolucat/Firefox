@@ -409,7 +409,7 @@ nsresult ModuleLoaderBase::RestartModuleLoad(ModuleLoadRequest* aRequest) {
 nsresult ModuleLoaderBase::StartOrRestartModuleLoad(ModuleLoadRequest* aRequest,
                                                     RestartRequest aRestart) {
   MOZ_ASSERT(aRequest->mLoader == this);
-  MOZ_ASSERT(aRequest->IsFetching());
+  MOZ_ASSERT(aRequest->IsFetching() || aRequest->IsPendingFetchingError());
 
   aRequest->SetUnknownDataType();
 
@@ -475,7 +475,7 @@ nsresult ModuleLoaderBase::GetFetchedModuleURLs(nsTArray<nsCString>& aURLs) {
 void ModuleLoaderBase::SetModuleFetchStarted(ModuleLoadRequest* aRequest) {
   // Update the module map to indicate that a module is currently being fetched.
 
-  MOZ_ASSERT(aRequest->IsFetching());
+  MOZ_ASSERT(aRequest->IsFetching() || aRequest->IsPendingFetchingError());
   MOZ_ASSERT(!ModuleMapContainsURL(aRequest->mURI));
 
   mFetchingModules.InsertOrUpdate(aRequest->mURI, nullptr);
@@ -638,9 +638,13 @@ nsresult ModuleLoaderBase::CreateModuleScript(ModuleLoadRequest* aRequest) {
       }
     }
 
+    MOZ_ASSERT(aRequest->mLoadedScript->IsModuleScript());
+    MOZ_ASSERT(aRequest->mLoadedScript->GetFetchOptions() ==
+               aRequest->mFetchOptions);
+    MOZ_ASSERT(aRequest->mLoadedScript->GetURI() == aRequest->mURI);
+    aRequest->mLoadedScript->SetBaseURL(aRequest->mBaseURL);
     RefPtr<ModuleScript> moduleScript =
-        new ModuleScript(aRequest->ReferrerPolicy(), aRequest->mFetchOptions,
-                         aRequest->mBaseURL);
+        aRequest->mLoadedScript->AsModuleScript();
     aRequest->mModuleScript = moduleScript;
 
     if (!module) {
@@ -1301,7 +1305,8 @@ UniquePtr<ImportMap> ModuleLoaderBase::ParseImportMap(
 
   MOZ_ASSERT(aRequest->IsTextSource());
   MaybeSourceText maybeSource;
-  nsresult rv = aRequest->GetScriptSource(jsapi.cx(), &maybeSource);
+  nsresult rv = aRequest->GetScriptSource(jsapi.cx(), &maybeSource,
+                                          aRequest->mLoadContext.get());
   if (NS_FAILED(rv)) {
     return nullptr;
   }
