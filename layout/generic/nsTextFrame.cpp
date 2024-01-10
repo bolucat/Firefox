@@ -5557,7 +5557,7 @@ void nsTextFrame::DrawSelectionDecorations(
     case SelectionType::eIMESelectedClause:
     case SelectionType::eSpellCheck:
     case SelectionType::eHighlight: {
-      uint32_t index = nsTextPaintStyle::GetUnderlineStyleIndexForSelectionType(
+      auto index = nsTextPaintStyle::GetUnderlineStyleIndexForSelectionType(
           aSelectionType);
       bool weDefineSelectionUnderline =
           aTextPaintStyle.GetSelectionUnderlineForPaint(
@@ -7403,7 +7403,7 @@ bool nsTextFrame::CombineSelectionUnderlineRect(nsPresContext* aPresContext,
     }
 
     float relativeSize;
-    uint32_t index = nsTextPaintStyle::GetUnderlineStyleIndexForSelectionType(
+    auto index = nsTextPaintStyle::GetUnderlineStyleIndexForSelectionType(
         sd->mSelectionType);
     if (sd->mSelectionType == SelectionType::eSpellCheck) {
       if (!nsTextPaintStyle::GetSelectionUnderline(
@@ -9566,7 +9566,8 @@ void nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
   uint32_t transformedCharsFit = mTextRun->BreakAndMeasureText(
       transformedOffset, transformedLength, HasAnyStateBits(TEXT_START_OF_LINE),
       availWidth, provider, suppressBreak, boundingBoxType, aDrawTarget,
-      textStyle->WordCanWrap(this), isBreakSpaces,
+      textStyle->WordCanWrap(this), textStyle->WhiteSpaceCanWrap(this),
+      isBreakSpaces,
       // The following are output parameters:
       canTrimTrailingWhitespace || whitespaceCanHang ? &trimmableWS : nullptr,
       textMetrics, usedHyphenation, transformedLastBreak,

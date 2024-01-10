@@ -159,8 +159,8 @@ class CanvasTranslator final : public gfx::InlineTranslator,
       gfx::SurfaceFormat aFormat) final;
 
   already_AddRefed<gfx::GradientStops> GetOrCreateGradientStops(
-      gfx::GradientStop* aRawStops, uint32_t aNumStops,
-      gfx::ExtendMode aExtendMode) final;
+      gfx::DrawTarget* aDrawTarget, gfx::GradientStop* aRawStops,
+      uint32_t aNumStops, gfx::ExtendMode aExtendMode) final;
 
   void CheckpointReached();
 
@@ -171,7 +171,8 @@ class CanvasTranslator final : public gfx::InlineTranslator,
    *
    * @param aTextureId the texture ID to remove
    */
-  void RemoveTexture(int64_t aTextureId);
+  void RemoveTexture(int64_t aTextureId, RemoteTextureTxnType aTxnType = 0,
+                     RemoteTextureTxnId aTxnId = 0);
 
   bool LockTexture(int64_t aTextureId, OpenMode aMode,
                    bool aInvalidContents = false);

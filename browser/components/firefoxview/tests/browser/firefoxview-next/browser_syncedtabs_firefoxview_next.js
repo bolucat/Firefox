@@ -50,7 +50,7 @@ add_task(async function test_unconfigured_initial_state() {
         Services.telemetry.snapshotEvents(
           Ci.nsITelemetry.DATASET_PRERELEASE_CHANNELS
         ).parent?.length >= 1,
-      "Waiting for fxa_continue firefoxview_next telemetry event.",
+      "Waiting for fxa_continue firefoxview telemetry event.",
       200,
       100
     );
@@ -106,7 +106,7 @@ add_task(async function test_signed_in() {
         Services.telemetry.snapshotEvents(
           Ci.nsITelemetry.DATASET_PRERELEASE_CHANNELS
         ).parent?.length >= 1,
-      "Waiting for fxa_mobile firefoxview_next telemetry event.",
+      "Waiting for fxa_mobile firefoxview telemetry event.",
       200,
       100
     );
@@ -317,7 +317,7 @@ add_task(async function test_tabs() {
         Services.telemetry.snapshotEvents(
           Ci.nsITelemetry.DATASET_PRERELEASE_CHANNELS
         ).parent?.length >= 1,
-      "Waiting for synced_tabs firefoxview_next telemetry event.",
+      "Waiting for synced_tabs firefoxview telemetry event.",
       200,
       100
     );
@@ -543,13 +543,10 @@ add_task(async function search_synced_tabs() {
           .length === deviceTwoTabs.length,
       "The new devices's list is restored."
     );
+    syncedTabsComponent.searchTextbox.blur();
 
-    info("Input a search query.");
-    EventUtils.synthesizeMouseAtCenter(
-      syncedTabsComponent.searchTextbox,
-      {},
-      content
-    );
+    info("Input a search query with keyboard.");
+    EventUtils.synthesizeKey("f", { accelKey: true }, content);
     EventUtils.sendString("Mozilla", content);
     await TestUtils.waitForCondition(
       () => syncedTabsComponent.fullyUpdated,

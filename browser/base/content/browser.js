@@ -9955,16 +9955,11 @@ var ConfirmationHint = {
 var FirefoxViewHandler = {
   tab: null,
   BUTTON_ID: "firefox-view-button",
-  _enabled: false,
   get button() {
     return document.getElementById(this.BUTTON_ID);
   },
   init() {
     CustomizableUI.addListener(this);
-
-    this._updateEnabledState = this._updateEnabledState.bind(this);
-    this._updateEnabledState();
-    NimbusFeatures.majorRelease2022.onUpdate(this._updateEnabledState);
 
     ChromeUtils.defineESModuleGetters(this, {
       SyncedTabs: "resource://services-sync/SyncedTabs.sys.mjs",
@@ -9974,18 +9969,6 @@ var FirefoxViewHandler = {
   uninit() {
     CustomizableUI.removeListener(this);
     Services.obs.removeObserver(this, "firefoxview-notification-dot-update");
-    NimbusFeatures.majorRelease2022.offUpdate(this._updateEnabledState);
-  },
-  _updateEnabledState() {
-    this._enabled = NimbusFeatures.majorRelease2022.getVariable("firefoxView");
-    // We use a root attribute because there's no guarantee the button is in the
-    // DOM, and visibility changes need to take effect even if it isn't in the DOM
-    // right now.
-    document.documentElement.toggleAttribute(
-      "firefoxviewhidden",
-      !this._enabled
-    );
-    document.getElementById("menu_openFirefoxView").hidden = !this._enabled;
   },
   onWidgetRemoved(aWidgetId) {
     if (aWidgetId == this.BUTTON_ID && this.tab) {
@@ -9997,10 +9980,7 @@ var FirefoxViewHandler = {
       this.button.removeAttribute("open");
     }
   },
-  openTab(event) {
-    if (event?.type == "mousedown" && event?.button != 0) {
-      return;
-    }
+  openTab(section) {
     if (!CustomizableUI.getPlacementOfWidget(this.BUTTON_ID)) {
       CustomizableUI.addWidgetToArea(
         this.BUTTON_ID,
@@ -10008,7 +9988,10 @@ var FirefoxViewHandler = {
         CustomizableUI.getPlacementOfWidget("tabbrowser-tabs").position
       );
     }
-    const viewURL = "about:firefoxview";
+    let viewURL = "about:firefoxview";
+    if (section) {
+      viewURL = `${viewURL}#${section}`;
+    }
     // Need to account for navigation to Firefox View pages
     if (
       this.tab &&
@@ -10029,6 +10012,12 @@ var FirefoxViewHandler = {
     // if this was called in response to "TabSelect"
     this._closeDeviceConnectedTab();
     gBrowser.selectedTab = this.tab;
+  },
+  openToolbarMouseEvent(event, section) {
+    if (event?.type == "mousedown" && event?.button != 0) {
+      return;
+    }
+    this.openTab(section);
   },
   handleEvent(e) {
     switch (e.type) {

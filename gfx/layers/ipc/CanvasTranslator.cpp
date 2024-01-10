@@ -796,19 +796,29 @@ already_AddRefed<gfx::DrawTarget> CanvasTranslator::CreateDrawTarget(
   return dt.forget();
 }
 
-void CanvasTranslator::RemoveTexture(int64_t aTextureId) {
+void CanvasTranslator::RemoveTexture(int64_t aTextureId,
+                                     RemoteTextureTxnType aTxnType,
+                                     RemoteTextureTxnId aTxnId) {
   // Don't erase the texture if still in use
   auto result = mTextureInfo.find(aTextureId);
-  if (result == mTextureInfo.end() || --result->second.mLocked > 0) {
+  if (result == mTextureInfo.end()) {
     return;
   }
-  if (result->second.mTextureData) {
-    result->second.mTextureData->Unlock();
+  auto& info = result->second;
+  if (aTxnType && aTxnId) {
+    RemoteTextureMap::Get()->WaitForTxn(info.mRemoteTextureOwnerId, mOtherPid,
+                                        aTxnType, aTxnId);
+  }
+  if (--info.mLocked > 0) {
+    return;
+  }
+  if (info.mTextureData) {
+    info.mTextureData->Unlock();
   }
   if (mRemoteTextureOwner) {
     // If this texture id was manually registered as a remote texture owner,
     // unregister it so it does not stick around after the texture id goes away.
-    RemoteTextureOwnerId owner = result->second.mRemoteTextureOwnerId;
+    RemoteTextureOwnerId owner = info.mRemoteTextureOwnerId;
     if (owner.IsValid()) {
       mRemoteTextureOwner->UnregisterTextureOwner(owner);
     }
@@ -980,18 +990,12 @@ void CanvasTranslator::PauseTranslation() {
 }
 
 already_AddRefed<gfx::GradientStops> CanvasTranslator::GetOrCreateGradientStops(
-    gfx::GradientStop* aRawStops, uint32_t aNumStops,
-    gfx::ExtendMode aExtendMode) {
+    gfx::DrawTarget* aDrawTarget, gfx::GradientStop* aRawStops,
+    uint32_t aNumStops, gfx::ExtendMode aExtendMode) {
+  MOZ_ASSERT(aDrawTarget);
   nsTArray<gfx::GradientStop> rawStopArray(aRawStops, aNumStops);
-  RefPtr<DrawTarget> drawTarget = GetReferenceDrawTarget();
-  if (!drawTarget) {
-    // We might end up with a null reference draw target due to a device
-    // failure, just return false so that we can recover.
-    return nullptr;
-  }
-
   return gfx::gfxGradientCache::GetOrCreateGradientStops(
-      drawTarget, rawStopArray, aExtendMode);
+      aDrawTarget, rawStopArray, aExtendMode);
 }
 
 gfx::DataSourceSurface* CanvasTranslator::LookupDataSurface(
