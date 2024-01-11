@@ -2398,12 +2398,9 @@ bool CacheIRCompiler::emitIdToStringOrSymbol(ValOperandId resultId,
   Register intReg = output.scratchReg();
   masm.unboxInt32(output, intReg);
 
-  masm.boundsCheck32PowerOfTwo(intReg, StaticStrings::INT_STATIC_LIMIT,
-                               &callVM);
-
   // Fast path for small integers.
-  masm.movePtr(ImmPtr(&cx_->runtime()->staticStrings->intStaticTable), scratch);
-  masm.loadPtr(BaseIndex(scratch, intReg, ScalePointer), intReg);
+  masm.lookupStaticIntString(intReg, intReg, scratch, cx_->staticStrings(),
+                             &callVM);
   masm.jump(&intDone);
 
   masm.bind(&callVM);
@@ -3993,6 +3990,24 @@ bool CacheIRCompiler::emitNewStringObjectResult(uint32_t templateObjectOffset,
   return true;
 }
 
+bool CacheIRCompiler::emitStringIncludesResult(StringOperandId strId,
+                                               StringOperandId searchStrId) {
+  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
+
+  AutoCallVM callvm(masm, this, allocator);
+
+  Register str = allocator.useRegister(masm, strId);
+  Register searchStr = allocator.useRegister(masm, searchStrId);
+
+  callvm.prepare();
+  masm.Push(searchStr);
+  masm.Push(str);
+
+  using Fn = bool (*)(JSContext*, HandleString, HandleString, bool*);
+  callvm.call<Fn, js::StringIncludes>();
+  return true;
+}
+
 bool CacheIRCompiler::emitStringIndexOfResult(StringOperandId strId,
                                               StringOperandId searchStrId) {
   JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
@@ -4008,6 +4023,24 @@ bool CacheIRCompiler::emitStringIndexOfResult(StringOperandId strId,
 
   using Fn = bool (*)(JSContext*, HandleString, HandleString, int32_t*);
   callvm.call<Fn, js::StringIndexOf>();
+  return true;
+}
+
+bool CacheIRCompiler::emitStringLastIndexOfResult(StringOperandId strId,
+                                                  StringOperandId searchStrId) {
+  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
+
+  AutoCallVM callvm(masm, this, allocator);
+
+  Register str = allocator.useRegister(masm, strId);
+  Register searchStr = allocator.useRegister(masm, searchStrId);
+
+  callvm.prepare();
+  masm.Push(searchStr);
+  masm.Push(str);
+
+  using Fn = bool (*)(JSContext*, HandleString, HandleString, int32_t*);
+  callvm.call<Fn, js::StringLastIndexOf>();
   return true;
 }
 
@@ -4074,6 +4107,51 @@ bool CacheIRCompiler::emitStringToUpperCaseResult(StringOperandId strId) {
 
   using Fn = JSString* (*)(JSContext*, HandleString);
   callvm.call<Fn, js::StringToUpperCase>();
+  return true;
+}
+
+bool CacheIRCompiler::emitStringTrimResult(StringOperandId strId) {
+  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
+
+  AutoCallVM callvm(masm, this, allocator);
+
+  Register str = allocator.useRegister(masm, strId);
+
+  callvm.prepare();
+  masm.Push(str);
+
+  using Fn = JSString* (*)(JSContext*, HandleString);
+  callvm.call<Fn, js::StringTrim>();
+  return true;
+}
+
+bool CacheIRCompiler::emitStringTrimStartResult(StringOperandId strId) {
+  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
+
+  AutoCallVM callvm(masm, this, allocator);
+
+  Register str = allocator.useRegister(masm, strId);
+
+  callvm.prepare();
+  masm.Push(str);
+
+  using Fn = JSString* (*)(JSContext*, HandleString);
+  callvm.call<Fn, js::StringTrimStart>();
+  return true;
+}
+
+bool CacheIRCompiler::emitStringTrimEndResult(StringOperandId strId) {
+  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
+
+  AutoCallVM callvm(masm, this, allocator);
+
+  Register str = allocator.useRegister(masm, strId);
+
+  callvm.prepare();
+  masm.Push(str);
+
+  using Fn = JSString* (*)(JSContext*, HandleString);
+  callvm.call<Fn, js::StringTrimEnd>();
   return true;
 }
 
@@ -8155,12 +8233,16 @@ bool CacheIRCompiler::emitInt32ToStringWithBaseResult(Int32OperandId inputId,
   masm.branch32(Assembler::LessThan, base, Imm32(2), failure->label());
   masm.branch32(Assembler::GreaterThan, base, Imm32(36), failure->label());
 
+  // Use lower-case characters by default.
+  constexpr bool lowerCase = true;
+
   callvm.prepare();
 
+  masm.Push(Imm32(lowerCase));
   masm.Push(base);
   masm.Push(input);
 
-  using Fn = JSString* (*)(JSContext*, int32_t, int32_t);
+  using Fn = JSString* (*)(JSContext*, int32_t, int32_t, bool);
   callvm.call<Fn, js::Int32ToStringWithBase>();
   return true;
 }

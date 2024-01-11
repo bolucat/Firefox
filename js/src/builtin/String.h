@@ -82,8 +82,14 @@ JSString* str_replaceAll_string_raw(JSContext* cx, HandleString string,
                                     HandleString pattern,
                                     HandleString replacement);
 
+extern bool StringIncludes(JSContext* cx, HandleString string,
+                           HandleString searchString, bool* result);
+
 extern bool StringIndexOf(JSContext* cx, HandleString string,
                           HandleString searchString, int32_t* result);
+
+extern bool StringLastIndexOf(JSContext* cx, HandleString string,
+                              HandleString searchString, int32_t* result);
 
 extern bool StringStartsWith(JSContext* cx, HandleString string,
                              HandleString searchString, bool* result);
@@ -94,6 +100,12 @@ extern bool StringEndsWith(JSContext* cx, HandleString string,
 extern JSString* StringToLowerCase(JSContext* cx, HandleString string);
 
 extern JSString* StringToUpperCase(JSContext* cx, HandleString string);
+
+extern JSString* StringTrim(JSContext* cx, HandleString string);
+
+extern JSString* StringTrimStart(JSContext* cx, HandleString string);
+
+extern JSString* StringTrimEnd(JSContext* cx, HandleString string);
 
 extern bool StringConstructor(JSContext* cx, unsigned argc, Value* vp);
 

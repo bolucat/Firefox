@@ -139,11 +139,16 @@
   _(StringFromCharCode)                            \
   _(StringFromCodePoint)                           \
   _(StringCharAt)                                  \
+  _(StringIncludes)                                \
   _(StringIndexOf)                                 \
+  _(StringLastIndexOf)                             \
   _(StringStartsWith)                              \
   _(StringEndsWith)                                \
   _(StringToLowerCase)                             \
   _(StringToUpperCase)                             \
+  _(StringTrim)                                    \
+  _(StringTrimStart)                               \
+  _(StringTrimEnd)                                 \
                                                    \
   _(IntrinsicStringReplaceString)                  \
   _(IntrinsicStringSplitString)                    \

@@ -1425,7 +1425,10 @@ bool WarpCacheIRTranspiler::emitInt32ToStringWithBaseResult(
   auto* guardedBase = MGuardInt32Range::New(alloc(), base, 2, 36);
   add(guardedBase);
 
-  auto* ins = MInt32ToStringWithBase::New(alloc(), input, guardedBase);
+  // Use lower-case characters by default.
+  constexpr bool lower = true;
+
+  auto* ins = MInt32ToStringWithBase::New(alloc(), input, guardedBase, lower);
   add(ins);
 
   pushResult(ins);
@@ -2168,10 +2171,13 @@ bool WarpCacheIRTranspiler::emitLoadStringCharResult(StringOperandId strId,
   MDefinition* index = getOperand(indexId);
 
   if (handleOOB) {
-    auto* ins = MCharAtMaybeOutOfBounds::New(alloc(), str, index);
-    add(ins);
+    auto* charCode = MCharCodeAtOrNegative::New(alloc(), str, index);
+    add(charCode);
 
-    pushResult(ins);
+    auto* fromCharCode = MFromCharCodeEmptyIfNegative::New(alloc(), charCode);
+    add(fromCharCode);
+
+    pushResult(fromCharCode);
     return true;
   }
 
@@ -2197,7 +2203,10 @@ bool WarpCacheIRTranspiler::emitLoadStringCharCodeResult(StringOperandId strId,
   MDefinition* index = getOperand(indexId);
 
   if (handleOOB) {
-    auto* ins = MCharCodeAtMaybeOutOfBounds::New(alloc(), str, index);
+    auto* charCode = MCharCodeAtOrNegative::New(alloc(), str, index);
+    add(charCode);
+
+    auto* ins = MNegativeToNaN::New(alloc(), charCode);
     add(ins);
 
     pushResult(ins);
@@ -2250,6 +2259,18 @@ bool WarpCacheIRTranspiler::emitStringFromCodePointResult(
   return true;
 }
 
+bool WarpCacheIRTranspiler::emitStringIncludesResult(
+    StringOperandId strId, StringOperandId searchStrId) {
+  MDefinition* str = getOperand(strId);
+  MDefinition* searchStr = getOperand(searchStrId);
+
+  auto* includes = MStringIncludes::New(alloc(), str, searchStr);
+  add(includes);
+
+  pushResult(includes);
+  return true;
+}
+
 bool WarpCacheIRTranspiler::emitStringIndexOfResult(
     StringOperandId strId, StringOperandId searchStrId) {
   MDefinition* str = getOperand(strId);
@@ -2259,6 +2280,18 @@ bool WarpCacheIRTranspiler::emitStringIndexOfResult(
   add(indexOf);
 
   pushResult(indexOf);
+  return true;
+}
+
+bool WarpCacheIRTranspiler::emitStringLastIndexOfResult(
+    StringOperandId strId, StringOperandId searchStrId) {
+  MDefinition* str = getOperand(strId);
+  MDefinition* searchStr = getOperand(searchStrId);
+
+  auto* lastIndexOf = MStringLastIndexOf::New(alloc(), str, searchStr);
+  add(lastIndexOf);
+
+  pushResult(lastIndexOf);
   return true;
 }
 
@@ -2305,6 +2338,72 @@ bool WarpCacheIRTranspiler::emitStringToUpperCaseResult(StringOperandId strId) {
   add(convert);
 
   pushResult(convert);
+  return true;
+}
+
+bool WarpCacheIRTranspiler::emitStringTrimResult(StringOperandId strId) {
+  MDefinition* str = getOperand(strId);
+
+  auto* linear = MLinearizeString::New(alloc(), str);
+  add(linear);
+
+  auto* start = MStringTrimStartIndex::New(alloc(), linear);
+  add(start);
+
+  auto* end = MStringTrimEndIndex::New(alloc(), linear, start);
+  add(end);
+
+  // Safe to truncate because both operands are positive and end >= start.
+  auto* length = MSub::New(alloc(), end, start, MIRType::Int32);
+  length->setTruncateKind(TruncateKind::Truncate);
+  add(length);
+
+  auto* substr = MSubstr::New(alloc(), linear, start, length);
+  add(substr);
+
+  pushResult(substr);
+  return true;
+}
+
+bool WarpCacheIRTranspiler::emitStringTrimStartResult(StringOperandId strId) {
+  MDefinition* str = getOperand(strId);
+
+  auto* linear = MLinearizeString::New(alloc(), str);
+  add(linear);
+
+  auto* start = MStringTrimStartIndex::New(alloc(), linear);
+  add(start);
+
+  auto* end = MStringLength::New(alloc(), linear);
+  add(end);
+
+  // Safe to truncate because both operands are positive and end >= start.
+  auto* length = MSub::New(alloc(), end, start, MIRType::Int32);
+  length->setTruncateKind(TruncateKind::Truncate);
+  add(length);
+
+  auto* substr = MSubstr::New(alloc(), linear, start, length);
+  add(substr);
+
+  pushResult(substr);
+  return true;
+}
+
+bool WarpCacheIRTranspiler::emitStringTrimEndResult(StringOperandId strId) {
+  MDefinition* str = getOperand(strId);
+
+  auto* linear = MLinearizeString::New(alloc(), str);
+  add(linear);
+
+  auto* start = constant(Int32Value(0));
+
+  auto* length = MStringTrimEndIndex::New(alloc(), linear, start);
+  add(length);
+
+  auto* substr = MSubstr::New(alloc(), linear, start, length);
+  add(substr);
+
+  pushResult(substr);
   return true;
 }
 

@@ -1780,6 +1780,95 @@ MDefinition* MConcat::foldsTo(TempAllocator& alloc) {
   return this;
 }
 
+MDefinition* MStringConvertCase::foldsTo(TempAllocator& alloc) {
+  MDefinition* string = this->string();
+
+  // Handle the pattern |str[idx].toUpperCase()| and simplify it from
+  // |StringConvertCase(FromCharCode(CharCodeAt(str, idx)))| to just
+  // |CharCodeConvertCase(CharCodeAt(str, idx))|.
+  if (string->isFromCharCode()) {
+    auto* charCode = string->toFromCharCode()->code();
+    auto mode = mode_ == Mode::LowerCase ? MCharCodeConvertCase::LowerCase
+                                         : MCharCodeConvertCase::UpperCase;
+    return MCharCodeConvertCase::New(alloc, charCode, mode);
+  }
+
+  // Handle the pattern |num.toString(base).toUpperCase()| and simplify it to
+  // directly return the string representation in the correct case.
+  if (string->isInt32ToStringWithBase()) {
+    auto* toString = string->toInt32ToStringWithBase();
+
+    bool lowerCase = mode_ == Mode::LowerCase;
+    if (toString->lowerCase() == lowerCase) {
+      return toString;
+    }
+    return MInt32ToStringWithBase::New(alloc, toString->input(),
+                                       toString->base(), lowerCase);
+  }
+
+  return this;
+}
+
+static bool IsSubstrTo(MSubstr* substr, int32_t len) {
+  // We want to match this pattern:
+  //
+  // Substr(string, Constant(0), Min(Constant(length), StringLength(string)))
+  //
+  // which is generated for the self-hosted `String.p.{substring,slice,substr}`
+  // functions when called with constants `start` and `end` parameters.
+
+  auto isConstantZero = [](auto* def) {
+    return def->isConstant() && def->toConstant()->isInt32(0);
+  };
+
+  if (!isConstantZero(substr->begin())) {
+    return false;
+  }
+
+  auto* length = substr->length();
+  if (length->isBitOr()) {
+    // Unnecessary bit-ops haven't yet been removed.
+    auto* bitOr = length->toBitOr();
+    if (isConstantZero(bitOr->lhs())) {
+      length = bitOr->rhs();
+    } else if (isConstantZero(bitOr->rhs())) {
+      length = bitOr->lhs();
+    }
+  }
+  if (!length->isMinMax() || length->toMinMax()->isMax()) {
+    return false;
+  }
+
+  auto* min = length->toMinMax();
+  if (!min->lhs()->isConstant() && !min->rhs()->isConstant()) {
+    return false;
+  }
+
+  auto* minConstant = min->lhs()->isConstant() ? min->lhs()->toConstant()
+                                               : min->rhs()->toConstant();
+
+  auto* minOperand = min->lhs()->isConstant() ? min->rhs() : min->lhs();
+  if (!minOperand->isStringLength() ||
+      minOperand->toStringLength()->string() != substr->string()) {
+    return false;
+  }
+
+  // Ensure |len| matches the substring's length.
+  return minConstant->isInt32(len);
+}
+
+MDefinition* MSubstr::foldsTo(TempAllocator& alloc) {
+  // Fold |str.substring(0, 1)| to |str.charAt(0)|.
+  if (!IsSubstrTo(this, 1)) {
+    return this;
+  }
+
+  auto* charCode = MCharCodeAtOrNegative::New(alloc, string(), begin());
+  block()->insertBefore(this, charCode);
+
+  return MFromCharCodeEmptyIfNegative::New(alloc, charCode);
+}
+
 MDefinition* MCharCodeAt::foldsTo(TempAllocator& alloc) {
   MDefinition* string = this->string();
   if (!string->isConstant() && !string->isFromCharCode()) {
@@ -3496,9 +3585,17 @@ AliasSet MGuardArgumentsObjectFlags::getAliasSet() const {
 
 MDefinition* MIdToStringOrSymbol::foldsTo(TempAllocator& alloc) {
   if (idVal()->isBox()) {
-    MIRType idType = idVal()->toBox()->input()->type();
+    auto* input = idVal()->toBox()->input();
+    MIRType idType = input->type();
     if (idType == MIRType::String || idType == MIRType::Symbol) {
       return idVal();
+    }
+    if (idType == MIRType::Int32) {
+      auto* toString =
+          MToString::New(alloc, input, MToString::SideEffectHandling::Bailout);
+      block()->insertBefore(this, toString);
+
+      return MBox::New(alloc, toString);
     }
   }
 
@@ -4475,9 +4572,24 @@ MDefinition* MCompare::tryFoldCharCompare(TempAllocator& alloc) {
   MOZ_ASSERT(right->type() == MIRType::String);
 
   // |str[i]| is compiled as |MFromCharCode(MCharCodeAt(str, i))|.
+  // Out-of-bounds access is compiled as
+  // |FromCharCodeEmptyIfNegative(CharCodeAtOrNegative(str, i))|.
   auto isCharAccess = [](MDefinition* ins) {
-    return ins->isFromCharCode() &&
-           ins->toFromCharCode()->input()->isCharCodeAt();
+    if (ins->isFromCharCode()) {
+      return ins->toFromCharCode()->code()->isCharCodeAt();
+    }
+    if (ins->isFromCharCodeEmptyIfNegative()) {
+      auto* fromCharCode = ins->toFromCharCodeEmptyIfNegative();
+      return fromCharCode->code()->isCharCodeAtOrNegative();
+    }
+    return false;
+  };
+
+  auto charAccessCode = [](MDefinition* ins) {
+    if (ins->isFromCharCode()) {
+      return ins->toFromCharCode()->code();
+    }
+    return ins->toFromCharCodeEmptyIfNegative()->code();
   };
 
   if (left->isConstant() || right->isConstant()) {
@@ -4501,7 +4613,7 @@ MDefinition* MCompare::tryFoldCharCompare(TempAllocator& alloc) {
     MConstant* charCodeConst = MConstant::New(alloc, Int32Value(charCode));
     block()->insertBefore(this, charCodeConst);
 
-    MDefinition* charCodeAt = operand->toFromCharCode()->input();
+    MDefinition* charCodeAt = charAccessCode(operand);
 
     if (left->isConstant()) {
       left = charCodeConst;
@@ -4514,8 +4626,8 @@ MDefinition* MCompare::tryFoldCharCompare(TempAllocator& alloc) {
     // Try to optimize |(MFromCharCode MCharCodeAt) <compare> (MFromCharCode
     // MCharCodeAt)| as |MCharCodeAt <compare> MCharCodeAt|.
 
-    left = left->toFromCharCode()->input();
-    right = right->toFromCharCode()->input();
+    left = charAccessCode(left);
+    right = charAccessCode(right);
   } else {
     return this;
   }
@@ -4597,52 +4709,12 @@ MDefinition* MCompare::tryFoldStringSubstring(TempAllocator& alloc) {
   if (!operand->isSubstr()) {
     return this;
   }
-
-  // We want to match this pattern:
-  // Substr(string, Constant(0), Min(Constant(length), StringLength(string)))
   auto* substr = operand->toSubstr();
-
-  auto isConstantZero = [](auto* def) {
-    return def->isConstant() && def->toConstant()->isInt32(0);
-  };
-
-  if (!isConstantZero(substr->begin())) {
-    return this;
-  }
-
-  auto* length = substr->length();
-  if (length->isBitOr()) {
-    // Unnecessary bit-ops haven't yet been removed.
-    auto* bitOr = length->toBitOr();
-    if (isConstantZero(bitOr->lhs())) {
-      length = bitOr->rhs();
-    } else if (isConstantZero(bitOr->rhs())) {
-      length = bitOr->lhs();
-    }
-  }
-  if (!length->isMinMax() || length->toMinMax()->isMax()) {
-    return this;
-  }
-
-  auto* min = length->toMinMax();
-  if (!min->lhs()->isConstant() && !min->rhs()->isConstant()) {
-    return this;
-  }
-
-  auto* minConstant = min->lhs()->isConstant() ? min->lhs()->toConstant()
-                                               : min->rhs()->toConstant();
-
-  auto* minOperand = min->lhs()->isConstant() ? min->rhs() : min->lhs();
-  if (!minOperand->isStringLength() ||
-      minOperand->toStringLength()->string() != substr->string()) {
-    return this;
-  }
 
   static_assert(JSString::MAX_LENGTH < INT32_MAX,
                 "string length can be casted to int32_t");
 
-  // Ensure the string length matches the substring's length.
-  if (!minConstant->isInt32(int32_t(constant->toString()->length()))) {
+  if (!IsSubstrTo(substr, int32_t(constant->toString()->length()))) {
     return this;
   }
 
@@ -7431,6 +7503,16 @@ MDefinition* MNormalizeSliceTerm::foldsTo(TempAllocator& alloc) {
   }
 
   return this;
+}
+
+bool MInt32ToStringWithBase::congruentTo(const MDefinition* ins) const {
+  if (!ins->isInt32ToStringWithBase()) {
+    return false;
+  }
+  if (ins->toInt32ToStringWithBase()->lowerCase() != lowerCase()) {
+    return false;
+  }
+  return congruentIfOperandsEqual(ins);
 }
 
 bool MWasmShiftSimd128::congruentTo(const MDefinition* ins) const {

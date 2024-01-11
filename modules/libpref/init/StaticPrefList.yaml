@@ -4694,13 +4694,6 @@
   value: false
   mirror: always
 
-# When this pref is set, parent documents may consider child iframes have
-# loaded while they are still loading.
-- name: dom.cross_origin_iframes_loaded_in_background
-  type: bool
-  value: false
-  mirror: always
-
 # WebIDL test prefs.
 - name: dom.webidl.test1
   type: bool
@@ -5739,6 +5732,12 @@
 - name: gfx.canvas.remote.default-buffer-size
   type: RelaxedAtomicUint32
   value: 32 * 1024
+  mirror: always
+
+# Maximum number of Default size shmem buffers to use
+- name: gfx.canvas.remote.max_default_buffers
+  type: RelaxedAtomicUint32
+  value: 256
   mirror: always
 
 # How many times to spin before waiting in remote canvas
@@ -11917,6 +11916,14 @@
 
 # Use platform DNS APIs (where available) to resolve HTTPS queries
 - name: network.dns.native_https_query
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# DnsQuery_A is broken for HTTPS queries on Windows 10.
+# Once it gets fixed, we can flip this pref to enable it.
+# Changes might not take effect until restart.
+- name: network.dns.native_https_query_win10
   type: RelaxedAtomicBool
   value: false
   mirror: always

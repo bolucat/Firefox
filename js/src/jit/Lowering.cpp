@@ -2456,6 +2456,15 @@ void LIRGenerator::visitConcat(MConcat* ins) {
   assignSafepoint(lir, ins);
 }
 
+void LIRGenerator::visitLinearizeString(MLinearizeString* ins) {
+  MDefinition* str = ins->string();
+  MOZ_ASSERT(str->type() == MIRType::String);
+
+  auto* lir = new (alloc()) LLinearizeString(useRegister(str));
+  define(lir, ins);
+  assignSafepoint(lir, ins);
+}
+
 void LIRGenerator::visitLinearizeForCharAccess(MLinearizeForCharAccess* ins) {
   MDefinition* str = ins->string();
   MDefinition* idx = ins->index();
@@ -2476,41 +2485,34 @@ void LIRGenerator::visitCharCodeAt(MCharCodeAt* ins) {
   MOZ_ASSERT(str->type() == MIRType::String);
   MOZ_ASSERT(idx->type() == MIRType::Int32);
 
-  LCharCodeAt* lir = new (alloc())
-      LCharCodeAt(useRegister(str), useRegister(idx), temp(), temp());
+  auto* lir = new (alloc())
+      LCharCodeAt(useRegister(str), useRegisterOrZero(idx), temp(), temp());
   define(lir, ins);
   assignSafepoint(lir, ins);
 }
 
-void LIRGenerator::visitCharCodeAtMaybeOutOfBounds(
-    MCharCodeAtMaybeOutOfBounds* ins) {
+void LIRGenerator::visitCharCodeAtOrNegative(MCharCodeAtOrNegative* ins) {
   MDefinition* str = ins->string();
   MDefinition* idx = ins->index();
 
   MOZ_ASSERT(str->type() == MIRType::String);
   MOZ_ASSERT(idx->type() == MIRType::Int32);
 
-  auto* lir = new (alloc()) LCharCodeAtMaybeOutOfBounds(
-      useRegister(str), useRegister(idx), temp(), temp());
+  auto* lir = new (alloc()) LCharCodeAtOrNegative(
+      useRegister(str), useRegisterOrZero(idx), temp(), temp());
+  define(lir, ins);
+  assignSafepoint(lir, ins);
+}
+
+void LIRGenerator::visitNegativeToNaN(MNegativeToNaN* ins) {
+  MOZ_ASSERT(ins->input()->type() == MIRType::Int32);
+
+  auto* lir = new (alloc()) LNegativeToNaN(useRegister(ins->input()));
   defineBox(lir, ins);
-  assignSafepoint(lir, ins);
-}
-
-void LIRGenerator::visitCharAtMaybeOutOfBounds(MCharAtMaybeOutOfBounds* ins) {
-  MDefinition* str = ins->string();
-  MDefinition* idx = ins->index();
-
-  MOZ_ASSERT(str->type() == MIRType::String);
-  MOZ_ASSERT(idx->type() == MIRType::Int32);
-
-  auto* lir = new (alloc()) LCharAtMaybeOutOfBounds(
-      useRegister(str), useRegister(idx), temp(), temp());
-  define(lir, ins);
-  assignSafepoint(lir, ins);
 }
 
 void LIRGenerator::visitFromCharCode(MFromCharCode* ins) {
-  MDefinition* code = ins->getOperand(0);
+  MDefinition* code = ins->code();
 
   MOZ_ASSERT(code->type() == MIRType::Int32);
 
@@ -2519,8 +2521,19 @@ void LIRGenerator::visitFromCharCode(MFromCharCode* ins) {
   assignSafepoint(lir, ins);
 }
 
+void LIRGenerator::visitFromCharCodeEmptyIfNegative(
+    MFromCharCodeEmptyIfNegative* ins) {
+  MDefinition* code = ins->code();
+
+  MOZ_ASSERT(code->type() == MIRType::Int32);
+
+  auto* lir = new (alloc()) LFromCharCodeEmptyIfNegative(useRegister(code));
+  define(lir, ins);
+  assignSafepoint(lir, ins);
+}
+
 void LIRGenerator::visitFromCodePoint(MFromCodePoint* ins) {
-  MDefinition* codePoint = ins->getOperand(0);
+  MDefinition* codePoint = ins->codePoint();
 
   MOZ_ASSERT(codePoint->type() == MIRType::Int32);
 
@@ -2531,6 +2544,36 @@ void LIRGenerator::visitFromCodePoint(MFromCodePoint* ins) {
   assignSafepoint(lir, ins);
 }
 
+void LIRGenerator::visitStringIncludes(MStringIncludes* ins) {
+  auto* string = ins->string();
+  MOZ_ASSERT(string->type() == MIRType::String);
+
+  auto* searchStr = ins->searchString();
+  MOZ_ASSERT(searchStr->type() == MIRType::String);
+
+  if (searchStr->isConstant()) {
+    JSLinearString* linear = &searchStr->toConstant()->toString()->asLinear();
+    size_t length = linear->length();
+    if (length == 1 || length == 2) {
+      LDefinition tempDef = LDefinition::BogusTemp();
+      if (length > 1) {
+        tempDef = temp();
+      }
+
+      auto* lir = new (alloc()) LStringIncludesSIMD(useRegister(string), temp(),
+                                                    temp(), tempDef, linear);
+      define(lir, ins);
+      assignSafepoint(lir, ins);
+      return;
+    }
+  }
+
+  auto* lir = new (alloc()) LStringIncludes(useRegisterAtStart(string),
+                                            useRegisterAtStart(searchStr));
+  defineReturn(lir, ins);
+  assignSafepoint(lir, ins);
+}
+
 void LIRGenerator::visitStringIndexOf(MStringIndexOf* ins) {
   auto* string = ins->string();
   MOZ_ASSERT(string->type() == MIRType::String);
@@ -2538,8 +2581,38 @@ void LIRGenerator::visitStringIndexOf(MStringIndexOf* ins) {
   auto* searchStr = ins->searchString();
   MOZ_ASSERT(searchStr->type() == MIRType::String);
 
+  if (searchStr->isConstant()) {
+    JSLinearString* linear = &searchStr->toConstant()->toString()->asLinear();
+    size_t length = linear->length();
+    if (length == 1 || length == 2) {
+      LDefinition tempDef = LDefinition::BogusTemp();
+      if (length > 1) {
+        tempDef = temp();
+      }
+
+      auto* lir = new (alloc()) LStringIndexOfSIMD(useRegister(string), temp(),
+                                                   temp(), tempDef, linear);
+      define(lir, ins);
+      assignSafepoint(lir, ins);
+      return;
+    }
+  }
+
   auto* lir = new (alloc())
       LStringIndexOf(useRegisterAtStart(string), useRegisterAtStart(searchStr));
+  defineReturn(lir, ins);
+  assignSafepoint(lir, ins);
+}
+
+void LIRGenerator::visitStringLastIndexOf(MStringLastIndexOf* ins) {
+  auto* string = ins->string();
+  MOZ_ASSERT(string->type() == MIRType::String);
+
+  auto* searchStr = ins->searchString();
+  MOZ_ASSERT(searchStr->type() == MIRType::String);
+
+  auto* lir = new (alloc()) LStringLastIndexOf(useRegisterAtStart(string),
+                                               useRegisterAtStart(searchStr));
   defineReturn(lir, ins);
   assignSafepoint(lir, ins);
 }
@@ -2617,6 +2690,44 @@ void LIRGenerator::visitStringConvertCase(MStringConvertCase* ins) {
     defineReturn(lir, ins);
     assignSafepoint(lir, ins);
   }
+}
+
+void LIRGenerator::visitCharCodeConvertCase(MCharCodeConvertCase* ins) {
+  MOZ_ASSERT(ins->code()->type() == MIRType::Int32);
+
+  if (ins->mode() == MCharCodeConvertCase::LowerCase) {
+    auto* lir = new (alloc())
+        LCharCodeToLowerCase(useRegister(ins->code()), tempByteOpRegister());
+    define(lir, ins);
+    assignSafepoint(lir, ins);
+  } else {
+    auto* lir = new (alloc())
+        LCharCodeToUpperCase(useRegister(ins->code()), tempByteOpRegister());
+    define(lir, ins);
+    assignSafepoint(lir, ins);
+  }
+}
+
+void LIRGenerator::visitStringTrimStartIndex(MStringTrimStartIndex* ins) {
+  auto* string = ins->string();
+  MOZ_ASSERT(string->type() == MIRType::String);
+
+  auto* lir = new (alloc()) LStringTrimStartIndex(useRegister(string));
+  define(lir, ins);
+  assignSafepoint(lir, ins);
+}
+
+void LIRGenerator::visitStringTrimEndIndex(MStringTrimEndIndex* ins) {
+  auto* string = ins->string();
+  MOZ_ASSERT(string->type() == MIRType::String);
+
+  auto* start = ins->start();
+  MOZ_ASSERT(start->type() == MIRType::Int32);
+
+  auto* lir = new (alloc())
+      LStringTrimEndIndex(useRegister(string), useRegister(start));
+  define(lir, ins);
+  assignSafepoint(lir, ins);
 }
 
 void LIRGenerator::visitStart(MStart* start) {}

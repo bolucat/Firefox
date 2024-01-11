@@ -983,6 +983,8 @@ class MacroAssembler : public MacroAssemblerSpecific {
   inline void moveDoubleToGPR64(FloatRegister src, Register64 dest) PER_ARCH;
   inline void moveGPR64ToDouble(Register64 src, FloatRegister dest) PER_ARCH;
 
+  inline void move8ZeroExtend(Register src, Register dest) PER_SHARED_ARCH;
+
   inline void move8SignExtend(Register src, Register dest) PER_SHARED_ARCH;
   inline void move16SignExtend(Register src, Register dest) PER_SHARED_ARCH;
 
@@ -4705,6 +4707,9 @@ class MacroAssembler : public MacroAssemblerSpecific {
   void loadStringChar(Register str, Register index, Register output,
                       Register scratch1, Register scratch2, Label* fail);
 
+  void loadStringChar(Register str, int32_t index, Register output,
+                      Register scratch1, Register scratch2, Label* fail);
+
   void loadRopeLeftChild(Register str, Register dest);
   void loadRopeRightChild(Register str, Register dest);
   void storeRopeChildren(Register left, Register right, Register str);
@@ -4758,6 +4763,39 @@ class MacroAssembler : public MacroAssemblerSpecific {
 
  public:
   /**
+   * Lookup the length-one string from the static strings cache.
+   */
+  void lookupStaticString(Register ch, Register dest,
+                          const StaticStrings& staticStrings);
+
+  /**
+   * Lookup the length-one string from the static strings cache. Jumps to |fail|
+   * when the string wasn't found in the strings cache.
+   */
+  void lookupStaticString(Register ch, Register dest,
+                          const StaticStrings& staticStrings, Label* fail);
+
+  /**
+   * Lookup the length-two string from the static strings cache. Jumps to |fail|
+   * when the string wasn't found in the strings cache.
+   *
+   * Clobbers |ch1| and |ch2|.
+   */
+  void lookupStaticString(Register ch1, Register ch2, Register dest,
+                          const StaticStrings& staticStrings, Label* fail);
+
+  /**
+   * Lookup the integer string from the static integer strings cache. Jumps to
+   * |fail| when the string wasn't found in the strings cache.
+   */
+  void lookupStaticIntString(Register integer, Register dest, Register scratch,
+                             const StaticStrings& staticStrings, Label* fail);
+  void lookupStaticIntString(Register integer, Register dest,
+                             const StaticStrings& staticStrings, Label* fail) {
+    lookupStaticIntString(integer, dest, dest, staticStrings, fail);
+  }
+
+  /**
    * Load the string representation of |input| in base |base|. Jumps to |fail|
    * when the string representation needs to be allocated dynamically.
    */
@@ -4765,11 +4803,11 @@ class MacroAssembler : public MacroAssemblerSpecific {
                                  Register scratch1, Register scratch2,
                                  const StaticStrings& staticStrings,
                                  const LiveRegisterSet& volatileRegs,
-                                 Label* fail);
+                                 bool lowerCase, Label* fail);
   void loadInt32ToStringWithBase(Register input, int32_t base, Register dest,
                                  Register scratch1, Register scratch2,
                                  const StaticStrings& staticStrings,
-                                 Label* fail);
+                                 bool lowerCase, Label* fail);
 
   /**
    * Load the BigInt digits from |bigInt| into |digits|.

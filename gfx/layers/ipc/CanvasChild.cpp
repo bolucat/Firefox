@@ -282,6 +282,8 @@ void CanvasChild::ClearCachedResources() {
   NS_ASSERT_OWNINGTHREAD(CanvasChild);
   if (mRecorder) {
     mRecorder->DropFreeBuffers();
+    // Notify CanvasTranslator it is about to be minimized.
+    SendClearCachedResources();
   }
 }
 
@@ -298,7 +300,8 @@ bool CanvasChild::ShouldBeCleanedUp() const {
 }
 
 already_AddRefed<gfx::DrawTarget> CanvasChild::CreateDrawTarget(
-    int64_t aTextureId, gfx::IntSize aSize, gfx::SurfaceFormat aFormat) {
+    int64_t aTextureId, const RemoteTextureOwnerId& aTextureOwnerId,
+    gfx::IntSize aSize, gfx::SurfaceFormat aFormat) {
   NS_ASSERT_OWNINGTHREAD(CanvasChild);
 
   if (!mRecorder) {
@@ -308,7 +311,7 @@ already_AddRefed<gfx::DrawTarget> CanvasChild::CreateDrawTarget(
   RefPtr<gfx::DrawTarget> dummyDt = gfx::Factory::CreateDrawTarget(
       gfx::BackendType::SKIA, gfx::IntSize(1, 1), aFormat);
   RefPtr<gfx::DrawTarget> dt = MakeAndAddRef<gfx::DrawTargetRecording>(
-      mRecorder, dummyDt, gfx::IntRect(gfx::IntPoint(0, 0), aSize));
+      mRecorder, aTextureId, aTextureOwnerId, dummyDt, aSize);
 
   mTextureInfo.insert({aTextureId, {}});
 

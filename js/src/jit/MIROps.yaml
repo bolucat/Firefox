@@ -884,9 +884,11 @@
   operands:
     input: Int32
     base: Int32
+  arguments:
+    lowerCase: bool
   result_type: String
   movable: true
-  congruent_to: if_operands_equal
+  congruent_to: custom
   alias_set: none
 
 - name: NumberParseInt
@@ -909,6 +911,15 @@
 
 - name: Concat
   gen_boilerplate: false
+
+- name: LinearizeString
+  operands:
+    string: String
+  result_type: String
+  movable: true
+  congruent_to: if_operands_equal
+  # Strings are immutable, so there is no implicit dependency.
+  alias_set: none
 
 - name: LinearizeForCharAccess
   operands:
@@ -934,29 +945,38 @@
   can_recover: true
   clone: true
 
-# Similar to CharCodeAt, but also supports out-of-bounds access.
-- name: CharCodeAtMaybeOutOfBounds
+# Similar to CharCodeAt, but returns a negative value on out-of-bounds access.
+- name: CharCodeAtOrNegative
   operands:
     string: String
     index: Int32
+  result_type: Int32
+  movable: true
+  congruent_to: if_operands_equal
+  # Strings are immutable, so there is no implicit dependency.
+  alias_set: none
+
+# Return the input if non-negative, otherwise return NaN.
+- name: NegativeToNaN
+  operands:
+    input: Int32
   result_type: Value
   movable: true
   congruent_to: if_operands_equal
-  # Strings are immutable, so there is no implicit dependency.
-  alias_set: none
-
-# Like CharCodeAtMaybeOutOfBounds, this operation also supports out-of-bounds access.
-- name: CharAtMaybeOutOfBounds
-  operands:
-    string: String
-    index: Int32
-  result_type: String
-  movable: true
-  congruent_to: if_operands_equal
-  # Strings are immutable, so there is no implicit dependency.
   alias_set: none
 
 - name: FromCharCode
+  operands:
+    code: Int32
+  result_type: String
+  movable: true
+  congruent_to: if_operands_equal
+  alias_set: none
+  can_recover: true
+  clone: true
+
+# Similar to FromCharCode, but returns the empty string if the input is negative.
+- name: FromCharCodeEmptyIfNegative
   operands:
     code: Int32
   result_type: String
@@ -976,7 +996,27 @@
   alias_set: none
   clone: true
 
+- name: StringIncludes
+  operands:
+    string: String
+    searchString: String
+  result_type: Boolean
+  movable: true
+  congruent_to: if_operands_equal
+  alias_set: none
+  possibly_calls: true
+
 - name: StringIndexOf
+  operands:
+    string: String
+    searchString: String
+  result_type: Int32
+  movable: true
+  congruent_to: if_operands_equal
+  alias_set: none
+  possibly_calls: true
+
+- name: StringLastIndexOf
   operands:
     string: String
     searchString: String
@@ -1008,6 +1048,26 @@
 
 - name: StringConvertCase
   gen_boilerplate: false
+
+- name: CharCodeConvertCase
+  gen_boilerplate: false
+
+- name: StringTrimStartIndex
+  operands:
+    string: String
+  result_type: Int32
+  movable: true
+  congruent_to: if_operands_equal
+  alias_set: none
+
+- name: StringTrimEndIndex
+  operands:
+    string: String
+    start: Int32
+  result_type: Int32
+  movable: true
+  congruent_to: if_operands_equal
+  alias_set: none
 
 - name: StringSplit
   operands:
@@ -1199,6 +1259,7 @@
     begin: Int32
     length: Int32
   result_type: String
+  folds_to: custom
   congruent_to: if_operands_equal
   alias_set: none
   movable: true

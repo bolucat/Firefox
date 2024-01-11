@@ -1491,7 +1491,9 @@ void MacroAssembler::loadStringChar(Register str, Register index,
   MOZ_ASSERT(output != scratch2);
 
   // Use scratch1 for the index (adjusted below).
-  move32(index, scratch1);
+  if (index != scratch1) {
+    move32(index, scratch1);
+  }
   movePtr(str, output);
 
   // This follows JSString::getChar.
@@ -1531,6 +1533,46 @@ void MacroAssembler::loadStringChar(Register str, Register index,
   loadChar(scratch2, scratch1, output, CharEncoding::Latin1);
 
   bind(&done);
+}
+
+void MacroAssembler::loadStringChar(Register str, int32_t index,
+                                    Register output, Register scratch1,
+                                    Register scratch2, Label* fail) {
+  MOZ_ASSERT(str != output);
+  MOZ_ASSERT(output != scratch1);
+  MOZ_ASSERT(output != scratch2);
+
+  if (index == 0) {
+    movePtr(str, scratch1);
+
+    // This follows JSString::getChar.
+    Label notRope;
+    branchIfNotRope(str, &notRope);
+
+    loadRopeLeftChild(str, scratch1);
+
+    // Rope children can't be empty, so the index can't be in the right side.
+
+    // If the left side is another rope, give up.
+    branchIfRope(scratch1, fail);
+
+    bind(&notRope);
+
+    Label isLatin1, done;
+    branchLatin1String(scratch1, &isLatin1);
+    loadStringChars(scratch1, scratch2, CharEncoding::TwoByte);
+    loadChar(Address(scratch2, 0), output, CharEncoding::TwoByte);
+    jump(&done);
+
+    bind(&isLatin1);
+    loadStringChars(scratch1, scratch2, CharEncoding::Latin1);
+    loadChar(Address(scratch2, 0), output, CharEncoding::Latin1);
+
+    bind(&done);
+  } else {
+    move32(Imm32(index), scratch1);
+    loadStringChar(str, scratch1, output, scratch1, scratch2, fail);
+  }
 }
 
 void MacroAssembler::loadStringIndexValue(Register str, Register dest,
@@ -1591,10 +1633,68 @@ void MacroAssembler::loadLengthTwoString(Register c1, Register c2,
   loadPtr(BaseIndex(dest, c1, ScalePointer), dest);
 }
 
+void MacroAssembler::lookupStaticString(Register ch, Register dest,
+                                        const StaticStrings& staticStrings) {
+  MOZ_ASSERT(ch != dest);
+
+  movePtr(ImmPtr(&staticStrings.unitStaticTable), dest);
+  loadPtr(BaseIndex(dest, ch, ScalePointer), dest);
+}
+
+void MacroAssembler::lookupStaticString(Register ch, Register dest,
+                                        const StaticStrings& staticStrings,
+                                        Label* fail) {
+  MOZ_ASSERT(ch != dest);
+
+  boundsCheck32PowerOfTwo(ch, StaticStrings::UNIT_STATIC_LIMIT, fail);
+  movePtr(ImmPtr(&staticStrings.unitStaticTable), dest);
+  loadPtr(BaseIndex(dest, ch, ScalePointer), dest);
+}
+
+void MacroAssembler::lookupStaticString(Register ch1, Register ch2,
+                                        Register dest,
+                                        const StaticStrings& staticStrings,
+                                        Label* fail) {
+  MOZ_ASSERT(ch1 != dest);
+  MOZ_ASSERT(ch2 != dest);
+
+  branch32(Assembler::AboveOrEqual, ch1,
+           Imm32(StaticStrings::SMALL_CHAR_TABLE_SIZE), fail);
+  branch32(Assembler::AboveOrEqual, ch2,
+           Imm32(StaticStrings::SMALL_CHAR_TABLE_SIZE), fail);
+
+  movePtr(ImmPtr(&StaticStrings::toSmallCharTable.storage), dest);
+  load8ZeroExtend(BaseIndex(dest, ch1, Scale::TimesOne), ch1);
+  load8ZeroExtend(BaseIndex(dest, ch2, Scale::TimesOne), ch2);
+
+  branch32(Assembler::Equal, ch1, Imm32(StaticStrings::INVALID_SMALL_CHAR),
+           fail);
+  branch32(Assembler::Equal, ch2, Imm32(StaticStrings::INVALID_SMALL_CHAR),
+           fail);
+
+  lshift32(Imm32(StaticStrings::SMALL_CHAR_BITS), ch1);
+  add32(ch2, ch1);
+
+  // Look up the string from the computed index.
+  movePtr(ImmPtr(&staticStrings.length2StaticTable), dest);
+  loadPtr(BaseIndex(dest, ch1, ScalePointer), dest);
+}
+
+void MacroAssembler::lookupStaticIntString(Register integer, Register dest,
+                                           Register scratch,
+                                           const StaticStrings& staticStrings,
+                                           Label* fail) {
+  MOZ_ASSERT(integer != scratch);
+
+  boundsCheck32PowerOfTwo(integer, StaticStrings::INT_STATIC_LIMIT, fail);
+  movePtr(ImmPtr(&staticStrings.intStaticTable), scratch);
+  loadPtr(BaseIndex(scratch, integer, ScalePointer), dest);
+}
+
 void MacroAssembler::loadInt32ToStringWithBase(
     Register input, Register base, Register dest, Register scratch1,
     Register scratch2, const StaticStrings& staticStrings,
-    const LiveRegisterSet& volatileRegs, Label* fail) {
+    const LiveRegisterSet& volatileRegs, bool lowerCase, Label* fail) {
 #ifdef DEBUG
   Label baseBad, baseOk;
   branch32(Assembler::LessThan, base, Imm32(2), &baseBad);
@@ -1605,7 +1705,7 @@ void MacroAssembler::loadInt32ToStringWithBase(
 #endif
 
   // Compute |"0123456789abcdefghijklmnopqrstuvwxyz"[r]|.
-  auto toChar = [this, base](Register r) {
+  auto toChar = [this, base, lowerCase](Register r) {
 #ifdef DEBUG
     Label ok;
     branch32(Assembler::Below, r, base, &ok);
@@ -1619,7 +1719,7 @@ void MacroAssembler::loadInt32ToStringWithBase(
     Label done;
     add32(Imm32('0'), r);
     branch32(Assembler::BelowOrEqual, r, Imm32('9'), &done);
-    add32(Imm32('a' - '0' - 10), r);
+    add32(Imm32((lowerCase ? 'a' : 'A') - '0' - 10), r);
     bind(&done);
   };
 
@@ -1659,11 +1759,12 @@ void MacroAssembler::loadInt32ToStringWithBase(
 
 void MacroAssembler::loadInt32ToStringWithBase(
     Register input, int32_t base, Register dest, Register scratch1,
-    Register scratch2, const StaticStrings& staticStrings, Label* fail) {
+    Register scratch2, const StaticStrings& staticStrings, bool lowerCase,
+    Label* fail) {
   MOZ_ASSERT(2 <= base && base <= 36, "base must be in range [2, 36]");
 
   // Compute |"0123456789abcdefghijklmnopqrstuvwxyz"[r]|.
-  auto toChar = [this, base](Register r) {
+  auto toChar = [this, base, lowerCase](Register r) {
 #ifdef DEBUG
     Label ok;
     branch32(Assembler::Below, r, Imm32(base), &ok);
@@ -1677,7 +1778,7 @@ void MacroAssembler::loadInt32ToStringWithBase(
       Label done;
       add32(Imm32('0'), r);
       branch32(Assembler::BelowOrEqual, r, Imm32('9'), &done);
-      add32(Imm32('a' - '0' - 10), r);
+      add32(Imm32((lowerCase ? 'a' : 'A') - '0' - 10), r);
       bind(&done);
     }
   };

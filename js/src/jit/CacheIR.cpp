@@ -11,6 +11,7 @@
 
 #include "jsapi.h"
 #include "jsmath.h"
+#include "jsnum.h"
 
 #include "builtin/DataViewObject.h"
 #include "builtin/MapObject.h"
@@ -5572,10 +5573,8 @@ AttachDecision OptimizeSpreadCallIRGenerator::tryAttachStub() {
   return AttachDecision::NoAction;
 }
 
-static bool IsArrayPrototypeOptimizable(JSContext* cx, Handle<ArrayObject*> arr,
-                                        MutableHandle<NativeObject*> arrProto,
-                                        uint32_t* slot,
-                                        MutableHandle<JSFunction*> iterFun) {
+static bool IsArrayInstanceOptimizable(JSContext* cx, Handle<ArrayObject*> arr,
+                                       MutableHandle<NativeObject*> arrProto) {
   // Prototype must be Array.prototype.
   auto* proto = cx->global()->maybeGetArrayPrototype();
   if (!proto || arr->staticPrototype() != proto) {
@@ -5586,20 +5585,25 @@ static bool IsArrayPrototypeOptimizable(JSContext* cx, Handle<ArrayObject*> arr,
   // The object must not have an own @@iterator property.
   PropertyKey iteratorKey =
       PropertyKey::Symbol(cx->wellKnownSymbols().iterator);
-  if (arr->lookupPure(iteratorKey)) {
-    return false;
-  }
+  return !arr->lookupPure(iteratorKey);
+}
 
+static bool IsArrayPrototypeOptimizable(JSContext* cx, Handle<ArrayObject*> arr,
+                                        Handle<NativeObject*> arrProto,
+                                        uint32_t* slot,
+                                        MutableHandle<JSFunction*> iterFun) {
+  PropertyKey iteratorKey =
+      PropertyKey::Symbol(cx->wellKnownSymbols().iterator);
   // Ensure that Array.prototype's @@iterator slot is unchanged.
-  Maybe<PropertyInfo> prop = proto->lookupPure(iteratorKey);
+  Maybe<PropertyInfo> prop = arrProto->lookupPure(iteratorKey);
   if (prop.isNothing() || !prop->isDataProperty()) {
     return false;
   }
 
   *slot = prop->slot();
-  MOZ_ASSERT(proto->numFixedSlots() == 0, "Stub code relies on this");
+  MOZ_ASSERT(arrProto->numFixedSlots() == 0, "Stub code relies on this");
 
-  const Value& iterVal = proto->getSlot(*slot);
+  const Value& iterVal = arrProto->getSlot(*slot);
   if (!iterVal.isObject() || !iterVal.toObject().is<JSFunction>()) {
     return false;
   }
@@ -5672,7 +5676,11 @@ AttachDecision OptimizeSpreadCallIRGenerator::tryAttachArray() {
   Rooted<NativeObject*> arrProto(cx_);
   uint32_t arrProtoIterSlot;
   Rooted<JSFunction*> iterFun(cx_);
-  if (!IsArrayPrototypeOptimizable(cx_, obj.as<ArrayObject>(), &arrProto,
+  if (!IsArrayInstanceOptimizable(cx_, obj.as<ArrayObject>(), &arrProto)) {
+    return AttachDecision::NoAction;
+  }
+
+  if (!IsArrayPrototypeOptimizable(cx_, obj.as<ArrayObject>(), arrProto,
                                    &arrProtoIterSlot, &iterFun)) {
     return AttachDecision::NoAction;
   }
@@ -7425,6 +7433,39 @@ AttachDecision InlinableNativeIRGenerator::tryAttachStringFromCodePoint() {
   return AttachDecision::Attach;
 }
 
+AttachDecision InlinableNativeIRGenerator::tryAttachStringIncludes() {
+  // Need one string argument.
+  if (argc_ != 1 || !args_[0].isString()) {
+    return AttachDecision::NoAction;
+  }
+
+  // Ensure |this| is a primitive string value.
+  if (!thisval_.isString()) {
+    return AttachDecision::NoAction;
+  }
+
+  // Initialize the input operand.
+  initializeInputOperand();
+
+  // Guard callee is the 'includes' native function.
+  emitNativeCalleeGuard();
+
+  // Guard this is a string.
+  ValOperandId thisValId =
+      writer.loadArgumentFixedSlot(ArgumentKind::This, argc_);
+  StringOperandId strId = writer.guardToString(thisValId);
+
+  // Guard string argument.
+  ValOperandId argId = writer.loadArgumentFixedSlot(ArgumentKind::Arg0, argc_);
+  StringOperandId searchStrId = writer.guardToString(argId);
+
+  writer.stringIncludesResult(strId, searchStrId);
+  writer.returnFromIC();
+
+  trackAttached("StringIncludes");
+  return AttachDecision::Attach;
+}
+
 AttachDecision InlinableNativeIRGenerator::tryAttachStringIndexOf() {
   // Need one string argument.
   if (argc_ != 1 || !args_[0].isString()) {
@@ -7455,6 +7496,39 @@ AttachDecision InlinableNativeIRGenerator::tryAttachStringIndexOf() {
   writer.returnFromIC();
 
   trackAttached("StringIndexOf");
+  return AttachDecision::Attach;
+}
+
+AttachDecision InlinableNativeIRGenerator::tryAttachStringLastIndexOf() {
+  // Need one string argument.
+  if (argc_ != 1 || !args_[0].isString()) {
+    return AttachDecision::NoAction;
+  }
+
+  // Ensure |this| is a primitive string value.
+  if (!thisval_.isString()) {
+    return AttachDecision::NoAction;
+  }
+
+  // Initialize the input operand.
+  initializeInputOperand();
+
+  // Guard callee is the 'lastIndexOf' native function.
+  emitNativeCalleeGuard();
+
+  // Guard this is a string.
+  ValOperandId thisValId =
+      writer.loadArgumentFixedSlot(ArgumentKind::This, argc_);
+  StringOperandId strId = writer.guardToString(thisValId);
+
+  // Guard string argument.
+  ValOperandId argId = writer.loadArgumentFixedSlot(ArgumentKind::Arg0, argc_);
+  StringOperandId searchStrId = writer.guardToString(argId);
+
+  writer.stringLastIndexOfResult(strId, searchStrId);
+  writer.returnFromIC();
+
+  trackAttached("StringLastIndexOf");
   return AttachDecision::Attach;
 }
 
@@ -7581,6 +7655,93 @@ AttachDecision InlinableNativeIRGenerator::tryAttachStringToUpperCase() {
   writer.returnFromIC();
 
   trackAttached("StringToUpperCase");
+  return AttachDecision::Attach;
+}
+
+AttachDecision InlinableNativeIRGenerator::tryAttachStringTrim() {
+  // Expecting no arguments.
+  if (argc_ != 0) {
+    return AttachDecision::NoAction;
+  }
+
+  // Ensure |this| is a primitive string value.
+  if (!thisval_.isString()) {
+    return AttachDecision::NoAction;
+  }
+
+  // Initialize the input operand.
+  initializeInputOperand();
+
+  // Guard callee is the 'trim' native function.
+  emitNativeCalleeGuard();
+
+  // Guard this is a string.
+  ValOperandId thisValId =
+      writer.loadArgumentFixedSlot(ArgumentKind::This, argc_);
+  StringOperandId strId = writer.guardToString(thisValId);
+
+  writer.stringTrimResult(strId);
+  writer.returnFromIC();
+
+  trackAttached("StringTrim");
+  return AttachDecision::Attach;
+}
+
+AttachDecision InlinableNativeIRGenerator::tryAttachStringTrimStart() {
+  // Expecting no arguments.
+  if (argc_ != 0) {
+    return AttachDecision::NoAction;
+  }
+
+  // Ensure |this| is a primitive string value.
+  if (!thisval_.isString()) {
+    return AttachDecision::NoAction;
+  }
+
+  // Initialize the input operand.
+  initializeInputOperand();
+
+  // Guard callee is the 'trimStart' native function.
+  emitNativeCalleeGuard();
+
+  // Guard this is a string.
+  ValOperandId thisValId =
+      writer.loadArgumentFixedSlot(ArgumentKind::This, argc_);
+  StringOperandId strId = writer.guardToString(thisValId);
+
+  writer.stringTrimStartResult(strId);
+  writer.returnFromIC();
+
+  trackAttached("StringTrimStart");
+  return AttachDecision::Attach;
+}
+
+AttachDecision InlinableNativeIRGenerator::tryAttachStringTrimEnd() {
+  // Expecting no arguments.
+  if (argc_ != 0) {
+    return AttachDecision::NoAction;
+  }
+
+  // Ensure |this| is a primitive string value.
+  if (!thisval_.isString()) {
+    return AttachDecision::NoAction;
+  }
+
+  // Initialize the input operand.
+  initializeInputOperand();
+
+  // Guard callee is the 'trimEnd' native function.
+  emitNativeCalleeGuard();
+
+  // Guard this is a string.
+  ValOperandId thisValId =
+      writer.loadArgumentFixedSlot(ArgumentKind::This, argc_);
+  StringOperandId strId = writer.guardToString(thisValId);
+
+  writer.stringTrimEndResult(strId);
+  writer.returnFromIC();
+
+  trackAttached("StringTrimEnd");
   return AttachDecision::Attach;
 }
 
@@ -10999,8 +11160,12 @@ AttachDecision InlinableNativeIRGenerator::tryAttachStub() {
       return tryAttachStringFromCharCode();
     case InlinableNative::StringFromCodePoint:
       return tryAttachStringFromCodePoint();
+    case InlinableNative::StringIncludes:
+      return tryAttachStringIncludes();
     case InlinableNative::StringIndexOf:
       return tryAttachStringIndexOf();
+    case InlinableNative::StringLastIndexOf:
+      return tryAttachStringLastIndexOf();
     case InlinableNative::StringStartsWith:
       return tryAttachStringStartsWith();
     case InlinableNative::StringEndsWith:
@@ -11009,6 +11174,12 @@ AttachDecision InlinableNativeIRGenerator::tryAttachStub() {
       return tryAttachStringToLowerCase();
     case InlinableNative::StringToUpperCase:
       return tryAttachStringToUpperCase();
+    case InlinableNative::StringTrim:
+      return tryAttachStringTrim();
+    case InlinableNative::StringTrimStart:
+      return tryAttachStringTrimStart();
+    case InlinableNative::StringTrimEnd:
+      return tryAttachStringTrimEnd();
     case InlinableNative::IntrinsicStringReplaceString:
       return tryAttachStringReplaceString();
     case InlinableNative::IntrinsicStringSplitString:
@@ -12867,6 +13038,11 @@ AttachDecision BinaryArithIRGenerator::tryAttachStub() {
   // Arithmetic operations (without addition) with String x Int32.
   TRY_ATTACH(tryAttachStringInt32Arith());
 
+  // Arithmetic operations (without addition) with String x Number. This needs
+  // to come after tryAttachStringInt32Arith, as the guards overlap, and we'd
+  // prefer to attach the more specialized Int32 IC if it is possible.
+  TRY_ATTACH(tryAttachStringNumberArith());
+
   trackAttached(IRGenerator::NotAttached);
   return AttachDecision::NoAction;
 }
@@ -13203,6 +13379,20 @@ AttachDecision BinaryArithIRGenerator::tryAttachStringInt32Arith() {
     return AttachDecision::NoAction;
   }
 
+  // The string operand must be convertable to an int32 value.
+  JSString* str = lhs_.isString() ? lhs_.toString() : rhs_.toString();
+
+  double num;
+  if (!StringToNumber(cx_, str, &num)) {
+    cx_->recoverFromOutOfMemory();
+    return AttachDecision::NoAction;
+  }
+
+  int32_t unused;
+  if (!mozilla::NumberIsInt32(num, &unused)) {
+    return AttachDecision::NoAction;
+  }
+
   ValOperandId lhsId(writer.setInputOperandId(0));
   ValOperandId rhsId(writer.setInputOperandId(1));
 
@@ -13238,6 +13428,64 @@ AttachDecision BinaryArithIRGenerator::tryAttachStringInt32Arith() {
       break;
     default:
       MOZ_CRASH("Unhandled op in tryAttachStringInt32Arith");
+  }
+
+  writer.returnFromIC();
+  return AttachDecision::Attach;
+}
+
+AttachDecision BinaryArithIRGenerator::tryAttachStringNumberArith() {
+  // Check for either number x string or string x number.
+  if (!(lhs_.isNumber() && rhs_.isString()) &&
+      !(lhs_.isString() && rhs_.isNumber())) {
+    return AttachDecision::NoAction;
+  }
+
+  // Must _not_ support Add, because it would be string concatenation instead.
+  if (op_ != JSOp::Sub && op_ != JSOp::Mul && op_ != JSOp::Div &&
+      op_ != JSOp::Mod && op_ != JSOp::Pow) {
+    return AttachDecision::NoAction;
+  }
+
+  ValOperandId lhsId(writer.setInputOperandId(0));
+  ValOperandId rhsId(writer.setInputOperandId(1));
+
+  auto guardToNumber = [&](ValOperandId id, const Value& v) {
+    if (v.isNumber()) {
+      return writer.guardIsNumber(id);
+    }
+
+    MOZ_ASSERT(v.isString());
+    StringOperandId strId = writer.guardToString(id);
+    return writer.guardStringToNumber(strId);
+  };
+
+  NumberOperandId lhsIntId = guardToNumber(lhsId, lhs_);
+  NumberOperandId rhsIntId = guardToNumber(rhsId, rhs_);
+
+  switch (op_) {
+    case JSOp::Sub:
+      writer.doubleSubResult(lhsIntId, rhsIntId);
+      trackAttached("BinaryArith.StringNumberSub");
+      break;
+    case JSOp::Mul:
+      writer.doubleMulResult(lhsIntId, rhsIntId);
+      trackAttached("BinaryArith.StringNumberMul");
+      break;
+    case JSOp::Div:
+      writer.doubleDivResult(lhsIntId, rhsIntId);
+      trackAttached("BinaryArith.StringNumberDiv");
+      break;
+    case JSOp::Mod:
+      writer.doubleModResult(lhsIntId, rhsIntId);
+      trackAttached("BinaryArith.StringNumberMod");
+      break;
+    case JSOp::Pow:
+      writer.doublePowResult(lhsIntId, rhsIntId);
+      trackAttached("BinaryArith.StringNumberPow");
+      break;
+    default:
+      MOZ_CRASH("Unhandled op in tryAttachStringNumberArith");
   }
 
   writer.returnFromIC();
@@ -13537,8 +13785,15 @@ AttachDecision OptimizeGetIteratorIRGenerator::tryAttachArray() {
   Rooted<NativeObject*> arrProto(cx_);
   uint32_t arrProtoIterSlot;
   Rooted<JSFunction*> iterFun(cx_);
-  if (!IsArrayPrototypeOptimizable(cx_, obj.as<ArrayObject>(), &arrProto,
+  if (!IsArrayInstanceOptimizable(cx_, obj.as<ArrayObject>(), &arrProto)) {
+    return AttachDecision::NoAction;
+  }
+
+  if (!IsArrayPrototypeOptimizable(cx_, obj.as<ArrayObject>(), arrProto,
                                    &arrProtoIterSlot, &iterFun)) {
+    // Fuse should be popped.
+    MOZ_ASSERT(
+        !obj->nonCCWRealm()->realmFuses.optimizeGetIteratorFuse.intact());
     return AttachDecision::NoAction;
   }
 
@@ -13549,6 +13804,9 @@ AttachDecision OptimizeGetIteratorIRGenerator::tryAttachArray() {
   Rooted<JSFunction*> nextFun(cx_);
   if (!IsArrayIteratorPrototypeOptimizable(
           cx_, AllowIteratorReturn::No, &arrayIteratorProto, &slot, &nextFun)) {
+    // Fuse should be popped.
+    MOZ_ASSERT(
+        !obj->nonCCWRealm()->realmFuses.optimizeGetIteratorFuse.intact());
     return AttachDecision::NoAction;
   }
 
@@ -13559,10 +13817,20 @@ AttachDecision OptimizeGetIteratorIRGenerator::tryAttachArray() {
   MOZ_ASSERT(obj->is<ArrayObject>());
   writer.guardShape(objId, obj->shape());
   writer.guardArrayIsPacked(objId);
+  bool intact = obj->nonCCWRealm()->realmFuses.optimizeGetIteratorFuse.intact();
 
-  MOZ_ASSERT(obj->nonCCWRealm()->realmFuses.optimizeGetIteratorFuse.intact());
-
-  if (!cx_->options().enableDestructuringFuse()) {
+  // If the fuse isn't intact but we've still passed all these dynamic checks
+  // then we can attach a version of the IC that dynamically checks to ensure
+  // the required invariants still hold.
+  //
+  // As an example of how this could be the case, consider an assignment
+  //
+  //    Array.prototype[Symbol.iterator] = Array.prototype[Symbol.iterator]
+  //
+  // This assignment pops the fuse, however we can still use the dynamic check
+  // version of this IC, as the actual -value- is still correct.
+  bool useDynamicCheck = !intact || !cx_->options().enableDestructuringFuse();
+  if (useDynamicCheck) {
     // Guard on Array.prototype[@@iterator].
     ObjOperandId arrProtoId = writer.loadObject(arrProto);
     ObjOperandId iterId = writer.loadObject(iterFun);
@@ -13588,7 +13856,11 @@ AttachDecision OptimizeGetIteratorIRGenerator::tryAttachArray() {
   writer.loadBooleanResult(true);
   writer.returnFromIC();
 
-  trackAttached("OptimizeGetIterator.Array");
+  if (useDynamicCheck) {
+    trackAttached("OptimizeGetIterator.Array.Dynamic");
+  } else {
+    trackAttached("OptimizeGetIterator.Array.Fuse");
+  }
   return AttachDecision::Attach;
 }
 

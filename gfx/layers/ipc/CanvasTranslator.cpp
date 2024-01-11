@@ -115,6 +115,7 @@ bool CanvasTranslator::EnsureSharedContextWebgl() {
     mSharedContext = gfx::SharedContextWebgl::Create();
     if (!mSharedContext || mSharedContext->IsContextLost()) {
       mSharedContext = nullptr;
+      ForceDrawTargetWebglFallback();
       BlockCanvas();
       return false;
     }
@@ -227,6 +228,10 @@ void CanvasTranslator::AddBuffer(ipc::SharedMemoryBasic::Handle&& aBufferHandle,
   MOZ_RELEASE_ASSERT(mHeader->readerState == State::Paused);
   MOZ_ASSERT(mDefaultBufferSize != 0);
 
+  // Check and signal the writer when we finish with a buffer, because it
+  // might have hit the buffer count limit and be waiting to use our old one.
+  CheckAndSignalWriter();
+
   // Default sized buffers will have been queued for recycling.
   if (mCurrentShmem.Size() == mDefaultBufferSize) {
     mCanvasShmems.emplace(std::move(mCurrentShmem));
@@ -326,6 +331,10 @@ void CanvasTranslator::RecycleBuffer() {
 }
 
 void CanvasTranslator::NextBuffer() {
+  // Check and signal the writer when we finish with a buffer, because it
+  // might have hit the buffer count limit and be waiting to use our old one.
+  CheckAndSignalWriter();
+
   mCurrentShmem = std::move(mCanvasShmems.front());
   mCanvasShmems.pop();
   mCurrentMemReader = mCurrentShmem.CreateMemReader();
@@ -377,6 +386,37 @@ void CanvasTranslator::Deactivate() {
 
   // Disable remote canvas for all.
   gfx::CanvasManagerParent::DisableRemoteCanvas();
+}
+
+inline gfx::DrawTargetWebgl* CanvasTranslator::TextureInfo::GetDrawTargetWebgl()
+    const {
+  if (!mTextureData && mDrawTarget &&
+      mDrawTarget->GetBackendType() == gfx::BackendType::WEBGL) {
+    return static_cast<gfx::DrawTargetWebgl*>(mDrawTarget.get());
+  }
+  return nullptr;
+}
+
+void CanvasTranslator::ForceDrawTargetWebglFallback() {
+  // This looks for any DrawTargetWebgls that have a cached data snapshot that
+  // can be used to recover a fallback TextureData in the event of a context
+  // loss.
+  for (const auto& entry : mTextureInfo) {
+    const auto& info = entry.second;
+    if (gfx::DrawTargetWebgl* webgl = info.GetDrawTargetWebgl()) {
+      if (!webgl->HasDataSnapshot()) {
+        continue;
+      }
+      RefPtr<gfx::DrawTarget> dt = CreateFallbackDrawTarget(
+          info.mRefPtr, entry.first, info.mRemoteTextureOwnerId,
+          webgl->GetSize(), webgl->GetFormat());
+      if (!dt) {
+        continue;
+      }
+      webgl->CopyToFallback(dt);
+      AddDrawTarget(info.mRefPtr, dt);
+    }
+  }
 }
 
 void CanvasTranslator::BlockCanvas() {
@@ -679,9 +719,8 @@ void CanvasTranslator::NotifyDeviceChanged() {
 gfx::DrawTargetWebgl* CanvasTranslator::GetDrawTargetWebgl(
     int64_t aTextureId) const {
   auto result = mTextureInfo.find(aTextureId);
-  if (result != mTextureInfo.end() && result->second.mDrawTarget &&
-      result->second.mDrawTarget->GetBackendType() == gfx::BackendType::WEBGL) {
-    return static_cast<gfx::DrawTargetWebgl*>(result->second.mDrawTarget.get());
+  if (result != mTextureInfo.end()) {
+    return result->second.GetDrawTargetWebgl();
   }
   return nullptr;
 }
@@ -733,14 +772,87 @@ void CanvasTranslator::PrepareShmem(int64_t aTextureId) {
   }
 }
 
-already_AddRefed<gfx::DrawTarget> CanvasTranslator::CreateDrawTarget(
-    gfx::ReferencePtr aRefPtr, const gfx::IntSize& aSize,
+void CanvasTranslator::ClearCachedResources() {
+  if (mSharedContext) {
+    // If there are any DrawTargetWebgls, then try to cache their framebuffers
+    // in software surfaces, just in case the GL context is lost. So long as
+    // there is a software copy of the framebuffer, it can be copied into a
+    // fallback TextureData later even if the GL context goes away.
+    mSharedContext->OnMemoryPressure();
+    for (auto const& entry : mTextureInfo) {
+      if (gfx::DrawTargetWebgl* webgl = entry.second.GetDrawTargetWebgl()) {
+        if (!webgl->HasDataSnapshot()) {
+          webgl->PrepareData();
+        }
+      }
+    }
+  }
+}
+
+ipc::IPCResult CanvasTranslator::RecvClearCachedResources() {
+  if (mDeactivated) {
+    // The other side might have sent a message before we deactivated.
+    return IPC_OK();
+  }
+
+  DispatchToTaskQueue(
+      NewRunnableMethod("CanvasTranslator::ClearCachedResources", this,
+                        &CanvasTranslator::ClearCachedResources));
+  return IPC_OK();
+}
+
+static const OpenMode kInitMode = OpenMode::OPEN_READ_WRITE;
+
+already_AddRefed<gfx::DrawTarget> CanvasTranslator::CreateFallbackDrawTarget(
+    gfx::ReferencePtr aRefPtr, int64_t aTextureId,
+    RemoteTextureOwnerId aTextureOwnerId, const gfx::IntSize& aSize,
     gfx::SurfaceFormat aFormat) {
-  MOZ_DIAGNOSTIC_ASSERT(mNextTextureId >= 0, "No texture ID set");
   RefPtr<gfx::DrawTarget> dt;
-  const OpenMode initMode = OpenMode::OPEN_READ_WRITE;
-  if (mNextRemoteTextureOwnerId.IsValid() &&
-      gfx::gfxVars::UseAcceleratedCanvas2D()) {
+  do {
+    UniquePtr<TextureData> textureData =
+        CreateOrRecycleTextureData(aSize, aFormat);
+    if (NS_WARN_IF(!textureData)) {
+      continue;
+    }
+
+    if (NS_WARN_IF(!textureData->Lock(kInitMode))) {
+      gfxCriticalNote << "CanvasTranslator::CreateDrawTarget lock failed";
+      continue;
+    }
+
+    dt = textureData->BorrowDrawTarget();
+    if (NS_WARN_IF(!dt)) {
+      textureData->Unlock();
+      continue;
+    }
+    // Recycled buffer contents may be uninitialized.
+    dt->ClearRect(gfx::Rect(dt->GetRect()));
+
+    TextureInfo& info = mTextureInfo[aTextureId];
+    info.mRefPtr = aRefPtr;
+    info.mTextureData = std::move(textureData);
+    info.mRemoteTextureOwnerId = aTextureOwnerId;
+    info.mTextureLockMode = kInitMode;
+  } while (!dt && CheckForFreshCanvasDevice(__LINE__));
+  return dt.forget();
+}
+
+already_AddRefed<gfx::DrawTarget> CanvasTranslator::CreateDrawTarget(
+    gfx::ReferencePtr aRefPtr, int64_t aTextureId,
+    RemoteTextureOwnerId aTextureOwnerId, const gfx::IntSize& aSize,
+    gfx::SurfaceFormat aFormat) {
+  if (aTextureId < 0) {
+    MOZ_DIAGNOSTIC_ASSERT(false, "No texture ID set");
+    return nullptr;
+  }
+
+  if (!aTextureOwnerId.IsValid()) {
+    MOZ_DIAGNOSTIC_ASSERT(false, "No texture owner set");
+    return nullptr;
+  }
+
+  RefPtr<gfx::DrawTarget> dt;
+  if (gfx::gfxVars::UseAcceleratedCanvas2D()) {
     if (EnsureSharedContextWebgl()) {
       mSharedContext->EnterTlsScope();
     }
@@ -749,51 +861,33 @@ already_AddRefed<gfx::DrawTarget> CanvasTranslator::CreateDrawTarget(
       webgl->BeginFrame(true);
       dt = webgl.forget().downcast<gfx::DrawTarget>();
       if (dt) {
-        TextureInfo& info = mTextureInfo[mNextTextureId];
+        TextureInfo& info = mTextureInfo[aTextureId];
+        info.mRefPtr = aRefPtr;
         info.mDrawTarget = dt;
-        info.mRemoteTextureOwnerId = mNextRemoteTextureOwnerId;
-        info.mTextureLockMode = initMode;
-        CacheSnapshotShmem(mNextTextureId);
+        info.mRemoteTextureOwnerId = aTextureOwnerId;
+        info.mTextureLockMode = kInitMode;
+        CacheSnapshotShmem(aTextureId);
       }
     }
     if (!dt) {
-      NotifyRequiresRefresh(mNextTextureId);
+      NotifyRequiresRefresh(aTextureId);
     }
   }
 
   if (!dt) {
-    do {
-      UniquePtr<TextureData> textureData =
-          CreateOrRecycleTextureData(aSize, aFormat);
-      if (NS_WARN_IF(!textureData)) {
-        continue;
-      }
-
-      if (NS_WARN_IF(!textureData->Lock(initMode))) {
-        gfxCriticalNote << "CanvasTranslator::CreateDrawTarget lock failed";
-        continue;
-      }
-
-      dt = textureData->BorrowDrawTarget();
-      if (NS_WARN_IF(!dt)) {
-        textureData->Unlock();
-        continue;
-      }
-      // Recycled buffer contents may be uninitialized.
-      dt->ClearRect(gfx::Rect(dt->GetRect()));
-
-      TextureInfo& info = mTextureInfo[mNextTextureId];
-      info.mTextureData = std::move(textureData);
-      info.mRemoteTextureOwnerId = mNextRemoteTextureOwnerId;
-      info.mTextureLockMode = initMode;
-    } while (!dt && CheckForFreshCanvasDevice(__LINE__));
+    dt = CreateFallbackDrawTarget(aRefPtr, aTextureId, aTextureOwnerId, aSize,
+                                  aFormat);
   }
 
   AddDrawTarget(aRefPtr, dt);
-  mNextTextureId = -1;
-  mNextRemoteTextureOwnerId = RemoteTextureOwnerId();
-
   return dt.forget();
+}
+
+already_AddRefed<gfx::DrawTarget> CanvasTranslator::CreateDrawTarget(
+    gfx::ReferencePtr aRefPtr, const gfx::IntSize& aSize,
+    gfx::SurfaceFormat aFormat) {
+  MOZ_DIAGNOSTIC_ASSERT(false, "Unexpected CreateDrawTarget call!");
+  return nullptr;
 }
 
 void CanvasTranslator::RemoveTexture(int64_t aTextureId,
@@ -839,15 +933,10 @@ bool CanvasTranslator::LockTexture(int64_t aTextureId, OpenMode aMode,
   if (info.mTextureLockMode != OpenMode::OPEN_NONE) {
     return (info.mTextureLockMode & aMode) == aMode;
   }
-  if (info.mDrawTarget &&
-      info.mDrawTarget->GetBackendType() == gfx::BackendType::WEBGL) {
-    gfx::DrawTargetWebgl* webgl =
-        static_cast<gfx::DrawTargetWebgl*>(info.mDrawTarget.get());
+  if (gfx::DrawTargetWebgl* webgl = info.GetDrawTargetWebgl()) {
     if (aMode & OpenMode::OPEN_WRITE) {
       webgl->BeginFrame(aInvalidContents);
     }
-  } else if (!info.mTextureData) {
-    return false;
   }
   info.mTextureLockMode = aMode;
   return true;
@@ -862,10 +951,8 @@ bool CanvasTranslator::UnlockTexture(int64_t aTextureId) {
   if (info.mTextureLockMode == OpenMode::OPEN_NONE) {
     return false;
   }
-  if (info.mDrawTarget &&
-      info.mDrawTarget->GetBackendType() == gfx::BackendType::WEBGL) {
-    gfx::DrawTargetWebgl* webgl =
-        static_cast<gfx::DrawTargetWebgl*>(info.mDrawTarget.get());
+
+  if (gfx::DrawTargetWebgl* webgl = info.GetDrawTargetWebgl()) {
     if (info.mTextureLockMode & OpenMode::OPEN_WRITE) {
       webgl->EndFrame();
       if (!info.mNotifiedRequiresRefresh && webgl->RequiresRefresh()) {
@@ -885,13 +972,10 @@ bool CanvasTranslator::PresentTexture(int64_t aTextureId, RemoteTextureId aId) {
   }
   auto& info = result->second;
   RemoteTextureOwnerId ownerId = info.mRemoteTextureOwnerId;
-  if (info.mDrawTarget &&
-      info.mDrawTarget->GetBackendType() == gfx::BackendType::WEBGL) {
-    gfx::DrawTargetWebgl* webgl =
-        static_cast<gfx::DrawTargetWebgl*>(info.mDrawTarget.get());
-    webgl->CopyToSwapChain(aId, ownerId, mOtherPid);
-  } else if (TextureData* data = info.mTextureData.get()) {
+  if (TextureData* data = info.mTextureData.get()) {
     PushRemoteTexture(aTextureId, data, aId, ownerId);
+  } else if (gfx::DrawTargetWebgl* webgl = info.GetDrawTargetWebgl()) {
+    webgl->CopyToSwapChain(aId, ownerId, mOtherPid);
   }
   return true;
 }

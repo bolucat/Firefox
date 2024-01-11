@@ -386,6 +386,10 @@ JSLinearString* StringFromCharCodeNoGC(JSContext* cx, int32_t code);
 JSString* StringFromCodePoint(JSContext* cx, int32_t codePoint);
 JSLinearString* LinearizeForCharAccessPure(JSString* str);
 JSLinearString* LinearizeForCharAccess(JSContext* cx, JSString* str);
+int32_t StringTrimStartIndex(const JSString* str);
+int32_t StringTrimEndIndex(const JSString* str, int32_t start);
+JSString* CharCodeToLowerCase(JSContext* cx, int32_t code);
+JSString* CharCodeToUpperCase(JSContext* cx, int32_t code);
 
 [[nodiscard]] bool SetProperty(JSContext* cx, HandleObject obj,
                                Handle<PropertyName*> name, HandleValue value,
