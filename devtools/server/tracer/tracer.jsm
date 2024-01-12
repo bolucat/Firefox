@@ -128,10 +128,12 @@ class JavaScriptTracer {
     if (!this.loggingMethod) {
       // On workers, `dump` can't be called with JavaScript on another object,
       // so bind it.
+      // Detecting worker is different if this file is loaded via Common JS loader (isWorker)
+      // or as a JSM (constructor name)
       this.loggingMethod =
+        typeof isWorker == "boolean" ||
         globalThis.constructor.name == "WorkerDebuggerGlobalScope"
-          ? // eslint-disable-next-line mozilla/reject-globalThis-modification
-            dump.bind(globalThis)
+          ? dump.bind(null)
           : dump;
     }
 
@@ -156,7 +158,9 @@ class JavaScriptTracer {
         capture: true,
       };
       // Register the event listener on the Chrome Event Handler in order to receive the event first.
-      const eventHandler = this.tracedGlobal.docShell.chromeEventHandler;
+      // When used for the parent process target, `tracedGlobal` is browser.xhtml's window, which doesn't have a chromeEventHandler.
+      const eventHandler =
+        this.tracedGlobal.docShell.chromeEventHandler || this.tracedGlobal;
       eventHandler.addEventListener("mousedown", listener, eventOptions);
       eventHandler.addEventListener("keydown", listener, eventOptions);
     } else {

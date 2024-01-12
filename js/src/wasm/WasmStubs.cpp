@@ -207,7 +207,7 @@ static void GenPrintf(DebugChannel channel, MacroAssembler& masm,
       masm.callDebugWithABI(SymbolicAddress::PrintText);
     } else {
       using Fn = void (*)(const char* output);
-      masm.callWithABI<Fn, PrintText>(MoveOp::GENERAL,
+      masm.callWithABI<Fn, PrintText>(ABIType::General,
                                       CheckUnsafeCallWithABI::DontCheckOther);
     }
   });
@@ -221,7 +221,7 @@ static void GenPrintIsize(DebugChannel channel, MacroAssembler& masm,
       masm.callDebugWithABI(SymbolicAddress::PrintI32);
     } else {
       using Fn = void (*)(int32_t val);
-      masm.callWithABI<Fn, PrintI32>(MoveOp::GENERAL,
+      masm.callWithABI<Fn, PrintI32>(ABIType::General,
                                      CheckUnsafeCallWithABI::DontCheckOther);
     }
   });
@@ -235,7 +235,7 @@ static void GenPrintPtr(DebugChannel channel, MacroAssembler& masm,
       masm.callDebugWithABI(SymbolicAddress::PrintPtr);
     } else {
       using Fn = void (*)(uint8_t* val);
-      masm.callWithABI<Fn, PrintPtr>(MoveOp::GENERAL,
+      masm.callWithABI<Fn, PrintPtr>(ABIType::General,
                                      CheckUnsafeCallWithABI::DontCheckOther);
     }
   });
@@ -257,12 +257,12 @@ static void GenPrintI64(DebugChannel channel, MacroAssembler& masm,
 static void GenPrintF32(DebugChannel channel, MacroAssembler& masm,
                         const FloatRegister& src) {
   GenPrint(channel, masm, Nothing(), [&](bool inWasm, Register temp) {
-    masm.passABIArg(src, MoveOp::FLOAT32);
+    masm.passABIArg(src, ABIType::Float32);
     if (inWasm) {
       masm.callDebugWithABI(SymbolicAddress::PrintF32);
     } else {
       using Fn = void (*)(float val);
-      masm.callWithABI<Fn, PrintF32>(MoveOp::GENERAL,
+      masm.callWithABI<Fn, PrintF32>(ABIType::General,
                                      CheckUnsafeCallWithABI::DontCheckOther);
     }
   });
@@ -271,12 +271,12 @@ static void GenPrintF32(DebugChannel channel, MacroAssembler& masm,
 static void GenPrintF64(DebugChannel channel, MacroAssembler& masm,
                         const FloatRegister& src) {
   GenPrint(channel, masm, Nothing(), [&](bool inWasm, Register temp) {
-    masm.passABIArg(src, MoveOp::DOUBLE);
+    masm.passABIArg(src, ABIType::Float64);
     if (inWasm) {
       masm.callDebugWithABI(SymbolicAddress::PrintF64);
     } else {
       using Fn = void (*)(double val);
-      masm.callWithABI<Fn, PrintF64>(MoveOp::GENERAL,
+      masm.callWithABI<Fn, PrintF64>(ABIType::General,
                                      CheckUnsafeCallWithABI::DontCheckOther);
     }
   });
@@ -2434,11 +2434,11 @@ struct ABIFunctionArgs {
   size_t len;
 
   explicit ABIFunctionArgs(ABIFunctionType sig)
-      : abiType(ABIFunctionType(sig >> ArgType_Shift)) {
+      : abiType(ABIFunctionType(sig >> ABITypeArgShift)) {
     len = 0;
     uint64_t i = uint64_t(abiType);
     while (i) {
-      i = i >> ArgType_Shift;
+      i = i >> ABITypeArgShift;
       len++;
     }
   }
@@ -2450,10 +2450,10 @@ struct ABIFunctionArgs {
     uint64_t abi = uint64_t(abiType);
     size_t argAtLSB = len - 1;
     while (argAtLSB != i) {
-      abi = abi >> ArgType_Shift;
+      abi = abi >> ABITypeArgShift;
       argAtLSB--;
     }
-    return ToMIRType(ABIArgType(abi & ArgType_Mask));
+    return ToMIRType(ABIType(abi & ABITypeArgMask));
   }
 };
 
@@ -2510,8 +2510,8 @@ bool wasm::GenerateBuiltinThunk(MacroAssembler& masm, ABIFunctionType abiType,
 #elif defined(JS_CODEGEN_X86)
   // x86 passes the return value on the x87 FP stack.
   Operand op(esp, 0);
-  MIRType retType = ToMIRType(ABIArgType(
-      std::underlying_type_t<ABIFunctionType>(abiType) & ArgType_Mask));
+  MIRType retType = ToMIRType(ABIType(
+      std::underlying_type_t<ABIFunctionType>(abiType) & ABITypeArgMask));
   if (retType == MIRType::Float32) {
     masm.fstp32(op);
     masm.loadFloat32(op, ReturnFloat32Reg);
@@ -2521,8 +2521,8 @@ bool wasm::GenerateBuiltinThunk(MacroAssembler& masm, ABIFunctionType abiType,
   }
 #elif defined(JS_CODEGEN_ARM)
   // Non hard-fp passes the return values in GPRs.
-  MIRType retType = ToMIRType(ABIArgType(
-      std::underlying_type_t<ABIFunctionType>(abiType) & ArgType_Mask));
+  MIRType retType = ToMIRType(ABIType(
+      std::underlying_type_t<ABIFunctionType>(abiType) & ABITypeArgMask));
   if (!UseHardFpABI() && IsFloatingPointType(retType)) {
     masm.ma_vxfer(r0, r1, d0);
   }
@@ -2923,7 +2923,7 @@ bool wasm::GenerateProvisionalLazyJitEntryStub(MacroAssembler& masm,
   using Fn = void* (*)();
   masm.setupUnalignedABICall(temp);
   masm.callWithABI<Fn, GetContextSensitiveInterpreterStub>(
-      MoveOp::GENERAL, CheckUnsafeCallWithABI::DontCheckHasExitFrame);
+      ABIType::General, CheckUnsafeCallWithABI::DontCheckHasExitFrame);
 
 #ifdef JS_USE_LINK_REGISTER
   masm.popReturnAddress();
