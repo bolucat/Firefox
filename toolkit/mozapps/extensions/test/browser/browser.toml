@@ -57,7 +57,6 @@ prefs = [
 ["browser_about_debugging_link.js"]
 
 ["browser_addon_list_reordering.js"]
-fail-if = ["a11y_checks"] # Bug 1854646 clicked h1.header-name may not be focusable
 
 ["browser_amo_abuse_report.js"]
 
@@ -104,7 +103,6 @@ support-files = ["head_disco.js"]
 ["browser_html_discover_view_prefs.js"]
 
 ["browser_html_list_view.js"]
-fail-if = ["a11y_checks"] # Bug 1854646 clicked h1.header-name, panel-item, div.main-search may not be focusable
 
 ["browser_html_list_view_recommendations.js"]
 skip-if = ["a11y_checks"] # Bug 1858037 to investigate intermittent a11y_checks results
@@ -145,7 +143,6 @@ https_first_disabled = true
 ["browser_manage_shortcuts_hidden.js"]
 
 ["browser_manage_shortcuts_remove.js"]
-fail-if = ["a11y_checks"] # Bug 1854646 clicked button.shortcut-remove-button may not be labeled
 
 ["browser_menu_button_accessibility.js"]
 

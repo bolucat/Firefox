@@ -78,6 +78,10 @@ struct StyleSizeOverrides {
  * @note This function needs to handle aMinValue > aMaxValue. In that case,
  *       aMinValue is returned. That's why we cannot use std::clamp() and
  *       mozilla::clamped() since they both assert max >= min.
+ * @note If aMinValue and aMaxValue are computed min block-size and max
+ *       block-size, it is simpler to use ReflowInput::ApplyMinMaxBSize().
+ *       Similarly, there is ReflowInput::ApplyMinMaxISize() for clamping an
+ *       inline-size.
  * @see http://www.w3.org/TR/CSS21/visudet.html#min-max-widths
  * @see http://www.w3.org/TR/CSS21/visudet.html#min-max-heights
  */
@@ -751,17 +755,6 @@ struct ReflowInput : public SizeComputationInput {
       nsPresContext* aPresContext, const ReflowInput* aContainingBlockRI) const;
 
   /**
-   * Apply the mComputed(Min/Max)Width constraints to the content
-   * size computed so far.
-   */
-  nscoord ApplyMinMaxWidth(nscoord aWidth) const {
-    if (NS_UNCONSTRAINEDSIZE != ComputedMaxWidth()) {
-      aWidth = std::min(aWidth, ComputedMaxWidth());
-    }
-    return std::max(aWidth, ComputedMinWidth());
-  }
-
-  /**
    * Apply the mComputed(Min/Max)ISize constraints to the content
    * size computed so far.
    */
@@ -770,29 +763,6 @@ struct ReflowInput : public SizeComputationInput {
       aISize = std::min(aISize, ComputedMaxISize());
     }
     return std::max(aISize, ComputedMinISize());
-  }
-
-  /**
-   * Apply the mComputed(Min/Max)Height constraints to the content
-   * size computed so far.
-   *
-   * @param aHeight The height that we've computed an to which we want to apply
-   *        min/max constraints.
-   * @param aConsumed The amount of the computed height that was consumed by
-   *        our prev-in-flows.
-   */
-  nscoord ApplyMinMaxHeight(nscoord aHeight, nscoord aConsumed = 0) const {
-    aHeight += aConsumed;
-
-    if (NS_UNCONSTRAINEDSIZE != ComputedMaxHeight()) {
-      aHeight = std::min(aHeight, ComputedMaxHeight());
-    }
-
-    if (NS_UNCONSTRAINEDSIZE != ComputedMinHeight()) {
-      aHeight = std::max(aHeight, ComputedMinHeight());
-    }
-
-    return aHeight - aConsumed;
   }
 
   /**
