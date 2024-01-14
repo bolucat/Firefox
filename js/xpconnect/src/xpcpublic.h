@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <type_traits>
 #include "ErrorList.h"
 #include "js/BuildId.h"
 #include "js/ErrorReport.h"
@@ -25,6 +26,7 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/TextUtils.h"
 #include "mozilla/dom/DOMString.h"
 #include "mozilla/fallible.h"
 #include "nsAtom.h"
@@ -257,6 +259,9 @@ class XPCStringConvert {
   static bool Latin1ToJSVal(JSContext* cx, const nsACString& latin1,
                             nsStringBuffer** sharedBuffer,
                             JS::MutableHandle<JS::Value> vp);
+  static bool UTF8ToJSVal(JSContext* cx, const nsACString& utf8,
+                          nsStringBuffer** sharedBuffer,
+                          JS::MutableHandle<JS::Value> vp);
 
   // Convert the given stringbuffer/length pair to a jsval
   static MOZ_ALWAYS_INLINE bool UCStringBufferToJSVal(
@@ -277,6 +282,19 @@ class XPCStringConvert {
       JS::MutableHandle<JS::Value> rval, bool* sharedBuffer) {
     JSString* str = JS_NewMaybeExternalStringLatin1(
         cx, static_cast<const JS::Latin1Char*>(buf->Data()), length,
+        &sDOMStringExternalString, sharedBuffer);
+    if (!str) {
+      return false;
+    }
+    rval.setString(str);
+    return true;
+  }
+
+  static MOZ_ALWAYS_INLINE bool UTF8StringBufferToJSVal(
+      JSContext* cx, nsStringBuffer* buf, uint32_t length,
+      JS::MutableHandle<JS::Value> rval, bool* sharedBuffer) {
+    JSString* str = JS_NewMaybeExternalStringUTF8(
+        cx, {static_cast<const char*>(buf->Data()), length},
         &sDOMStringExternalString, sharedBuffer);
     if (!str) {
       return false;
@@ -313,6 +331,19 @@ class XPCStringConvert {
     return true;
   }
 
+  static inline bool UTF8StringLiteralToJSVal(
+      JSContext* cx, const JS::UTF8Chars& chars,
+      JS::MutableHandle<JS::Value> rval) {
+    bool ignored;
+    JSString* str = JS_NewMaybeExternalStringUTF8(
+        cx, chars, &sLiteralExternalString, &ignored);
+    if (!str) {
+      return false;
+    }
+    rval.setString(str);
+    return true;
+  }
+
  private:
   static MOZ_ALWAYS_INLINE bool MaybeGetExternalStringChars(
       JSString* str, const JSExternalStringCallbacks** callbacks,
@@ -325,30 +356,54 @@ class XPCStringConvert {
     return JS::IsExternalStringLatin1(str, callbacks, chars);
   }
 
-  template <typename SrcCharT, typename DestCharT, typename T>
+  enum class AcceptedEncoding { All, ASCII };
+
+  template <typename SrcCharT, typename DestCharT, AcceptedEncoding encoding,
+            typename T>
   static MOZ_ALWAYS_INLINE bool MaybeAssignStringChars(JSString* s, size_t len,
                                                        T& dest) {
     MOZ_ASSERT(len == JS::GetStringLength(s));
+    static_assert(sizeof(SrcCharT) == sizeof(DestCharT));
+    if constexpr (encoding == AcceptedEncoding::ASCII) {
+      static_assert(
+          std::is_same_v<DestCharT, char>,
+          "AcceptedEncoding::ASCII can be used only with single byte");
+    }
 
     const JSExternalStringCallbacks* callbacks;
-    const SrcCharT* chars;
-    if (!MaybeGetExternalStringChars(s, &callbacks, &chars)) {
+    const DestCharT* chars;
+    if (!MaybeGetExternalStringChars(
+            s, &callbacks, reinterpret_cast<const SrcCharT**>(&chars))) {
       return false;
     }
 
     if (callbacks == &sDOMStringExternalString) {
+      if constexpr (encoding == AcceptedEncoding::ASCII) {
+        if (!mozilla::IsAscii(mozilla::Span(chars, len))) {
+          return false;
+        }
+      }
+
       // The characters represent an existing string buffer that we shared with
       // JS.  We can share that buffer ourselves if the string corresponds to
       // the whole buffer; otherwise we have to copy.
       if (chars[len] == '\0') {
+        // NOTE: No need to worry about SrcCharT vs DestCharT, given
+        //       nsStringBuffer::FromData takes void*.
         AssignFromStringBuffer(
-            nsStringBuffer::FromData(const_cast<SrcCharT*>(chars)), len, dest);
+            nsStringBuffer::FromData(const_cast<DestCharT*>(chars)), len, dest);
         return true;
       }
     } else if (callbacks == &sLiteralExternalString) {
+      if constexpr (encoding == AcceptedEncoding::ASCII) {
+        if (!mozilla::IsAscii(mozilla::Span(chars, len))) {
+          return false;
+        }
+      }
+
       // The characters represent a literal string constant
       // compiled into libxul; we can just use it as-is.
-      dest.AssignLiteral(reinterpret_cast<const DestCharT*>(chars), len);
+      dest.AssignLiteral(chars, len);
       return true;
     }
 
@@ -359,14 +414,24 @@ class XPCStringConvert {
   template <typename T>
   static MOZ_ALWAYS_INLINE bool MaybeAssignUCStringChars(JSString* s,
                                                          size_t len, T& dest) {
-    return MaybeAssignStringChars<char16_t, char16_t>(s, len, dest);
+    return MaybeAssignStringChars<char16_t, char16_t, AcceptedEncoding::All>(
+        s, len, dest);
   }
 
   template <typename T>
   static MOZ_ALWAYS_INLINE bool MaybeAssignLatin1StringChars(JSString* s,
                                                              size_t len,
                                                              T& dest) {
-    return MaybeAssignStringChars<JS::Latin1Char, char>(s, len, dest);
+    return MaybeAssignStringChars<JS::Latin1Char, char, AcceptedEncoding::All>(
+        s, len, dest);
+  }
+
+  template <typename T>
+  static MOZ_ALWAYS_INLINE bool MaybeAssignUTF8StringChars(JSString* s,
+                                                           size_t len,
+                                                           T& dest) {
+    return MaybeAssignStringChars<JS::Latin1Char, char,
+                                  AcceptedEncoding::ASCII>(s, len, dest);
   }
 
  private:
@@ -497,6 +562,32 @@ inline bool Latin1StringToJsval(JSContext* cx, const nsACString& str,
     return true;
   }
   return NonVoidLatin1StringToJsval(cx, str, rval);
+}
+
+/**
+ * As above, but for nsACString with UTF-8 content.
+ */
+bool NonVoidUTF8StringToJsval(JSContext* cx, nsACString& str,
+                              JS::MutableHandle<JS::Value> rval);
+bool NonVoidUTF8StringToJsval(JSContext* cx, const nsACString& str,
+                              JS::MutableHandle<JS::Value> rval);
+
+inline bool UTF8StringToJsval(JSContext* cx, nsACString& str,
+                              JS::MutableHandle<JS::Value> rval) {
+  if (str.IsVoid()) {
+    rval.setNull();
+    return true;
+  }
+  return NonVoidUTF8StringToJsval(cx, str, rval);
+}
+
+inline bool UTF8StringToJsval(JSContext* cx, const nsACString& str,
+                              JS::MutableHandle<JS::Value> rval) {
+  if (str.IsVoid()) {
+    rval.setNull();
+    return true;
+  }
+  return NonVoidUTF8StringToJsval(cx, str, rval);
 }
 
 mozilla::BasePrincipal* GetRealmPrincipal(JS::Realm* realm);
