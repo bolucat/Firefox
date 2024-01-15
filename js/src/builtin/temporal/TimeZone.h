@@ -87,6 +87,16 @@ class BuiltinTimeZoneObject : public TimeZoneObjectMaybeBuiltin {
   static const JSClassOps classOps_;
 };
 
+} /* namespace js::temporal */
+
+template <>
+inline bool JSObject::is<js::temporal::TimeZoneObjectMaybeBuiltin>() const {
+  return is<js::temporal::TimeZoneObject>() ||
+         is<js::temporal::BuiltinTimeZoneObject>();
+}
+
+namespace js::temporal {
+
 /**
  * Temporal time zones can be either objects or strings. Objects are either
  * instances of `Temporal.TimeZone` or user-defined time zones. Strings are
@@ -179,6 +189,13 @@ class TimeZoneValue final {
   bool isObject() const { return object_ && !isString(); }
 
   /**
+   * Return true if this TimeZoneValue holds a TimeZoneObjectMaybeBuiltin.
+   */
+  bool isTimeZoneObjectMaybeBuiltin() const {
+    return object_ && object_->is<TimeZoneObjectMaybeBuiltin>();
+  }
+
+  /**
    * Return this "string" time zone.
    */
   auto* toString() const {
@@ -192,6 +209,14 @@ class TimeZoneValue final {
   JSObject* toObject() const {
     MOZ_ASSERT(isObject());
     return object_;
+  }
+
+  /**
+   * Return the underlying object as a TimeZoneObjectMaybeBuiltin.
+   */
+  auto* toTimeZoneObjectMaybeBuiltin() const {
+    MOZ_ASSERT(isTimeZoneObjectMaybeBuiltin());
+    return &object_->as<TimeZoneObjectMaybeBuiltin>();
   }
 
   /**
@@ -229,11 +254,13 @@ enum class TimeZoneMethod {
 
 class TimeZoneRecord {
   TimeZoneValue receiver_;
+
+  // Null unless non-builtin time zone methods are used.
   JSObject* getOffsetNanosecondsFor_ = nullptr;
   JSObject* getPossibleInstantsFor_ = nullptr;
 
 #ifdef DEBUG
-  mozilla::EnumSet<TimeZoneMethod> lookedUpBuiltin_{};
+  mozilla::EnumSet<TimeZoneMethod> lookedUp_{};
 #endif
 
  public:
@@ -250,8 +277,8 @@ class TimeZoneRecord {
   auto* getPossibleInstantsFor() const { return getPossibleInstantsFor_; }
 
 #ifdef DEBUG
-  auto& lookedUpBuiltin() const { return lookedUpBuiltin_; }
-  auto& lookedUpBuiltin() { return lookedUpBuiltin_; }
+  auto& lookedUp() const { return lookedUp_; }
+  auto& lookedUp() { return lookedUp_; }
 #endif
 
   // Helper methods for (Mutable)WrappedPtrOperations.
@@ -390,7 +417,7 @@ bool GetInstantFor(JSContext* cx, JS::Handle<TimeZoneValue> timeZone,
 /**
  * GetInstantFor ( timeZoneRec, dateTime, disambiguation )
  */
-bool GetInstantFor(JSContext* cx, JS::MutableHandle<TimeZoneRecord> timeZone,
+bool GetInstantFor(JSContext* cx, JS::Handle<TimeZoneRecord> timeZone,
                    JS::Handle<PlainDateTimeWithCalendar> dateTime,
                    TemporalDisambiguation disambiguation, Instant* result);
 
@@ -473,23 +500,22 @@ bool CreateTimeZoneMethodsRecord(JSContext* cx,
                                  mozilla::EnumSet<TimeZoneMethod> methods,
                                  JS::MutableHandle<TimeZoneRecord> result);
 
-/**
- * TimeZoneMethodsRecordLookup ( timeZoneRec, methodName )
- */
-bool TimeZoneMethodsRecordLookup(JSContext* cx,
-                                 JS::MutableHandle<TimeZoneRecord> timeZone,
-                                 TimeZoneMethod methodName);
-
+#ifdef DEBUG
 /**
  * TimeZoneMethodsRecordHasLookedUp ( timeZoneRec, methodName )
  */
-bool TimeZoneMethodsRecordHasLookedUp(const TimeZoneRecord& timeZone,
-                                      TimeZoneMethod methodName);
+inline bool TimeZoneMethodsRecordHasLookedUp(const TimeZoneRecord& timeZone,
+                                             TimeZoneMethod methodName) {
+  // Steps 1-4.
+  return timeZone.lookedUp().contains(methodName);
+}
+#endif
 
 /**
  * TimeZoneMethodsRecordIsBuiltin ( timeZoneRec )
  */
 inline bool TimeZoneMethodsRecordIsBuiltin(const TimeZoneRecord& timeZone) {
+  // Steps 1-2.
   return timeZone.receiver().isString();
 }
 
@@ -498,12 +524,6 @@ bool WrapTimeZoneValueObject(JSContext* cx,
                              JS::MutableHandle<JSObject*> timeZone);
 
 } /* namespace js::temporal */
-
-template <>
-inline bool JSObject::is<js::temporal::TimeZoneObjectMaybeBuiltin>() const {
-  return is<js::temporal::TimeZoneObject>() ||
-         is<js::temporal::BuiltinTimeZoneObject>();
-}
 
 namespace js {
 
@@ -529,6 +549,13 @@ class WrappedPtrOperations<temporal::TimeZoneValue, Wrapper> {
   JS::Handle<JSObject*> toObject() const {
     MOZ_ASSERT(container().isObject());
     return JS::Handle<JSObject*>::fromMarkedLocation(container().address());
+  }
+
+  JS::Handle<temporal::TimeZoneObjectMaybeBuiltin*>
+  toTimeZoneObjectMaybeBuiltin() const {
+    MOZ_ASSERT(container().isTimeZoneObjectMaybeBuiltin());
+    auto h = JS::Handle<JSObject*>::fromMarkedLocation(container().address());
+    return h.template as<temporal::TimeZoneObjectMaybeBuiltin>();
   }
 
   JS::Value toValue() const { return container().toValue(); }

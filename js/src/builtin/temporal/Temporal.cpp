@@ -55,6 +55,7 @@
 #include "vm/JSContext.h"
 #include "vm/JSObject.h"
 #include "vm/ObjectOperations.h"
+#include "vm/PIC.h"
 #include "vm/PlainObject.h"
 #include "vm/Realm.h"
 #include "vm/StringType.h"
@@ -1035,7 +1036,7 @@ bool js::temporal::ToCalendarNameOption(JSContext* cx,
  * ToFractionalSecondDigits ( normalizedOptions )
  */
 bool js::temporal::ToFractionalSecondDigits(JSContext* cx,
-                                            JS::Handle<JSObject*> options,
+                                            Handle<JSObject*> options,
                                             Precision* precision) {
   // Step 1.
   Rooted<Value> digitsValue(cx);
@@ -1505,37 +1506,12 @@ bool js::temporal::ToIntegerWithTruncation(JSContext* cx, Handle<Value> value,
 /**
  * GetMethod ( V, P )
  */
-bool js::temporal::GetMethod(JSContext* cx, Handle<JSObject*> object,
-                             Handle<PropertyName*> name,
-                             MutableHandle<Value> result) {
-  // Step 1.
-  if (!GetProperty(cx, object, object, name, result)) {
-    return false;
-  }
-
-  // Steps 2-3.
-  if (!IsCallable(result)) {
-    if (auto chars = StringToNewUTF8CharsZ(cx, *name)) {
-      JS_ReportErrorNumberUTF8(cx, GetErrorMessage, nullptr,
-                               JSMSG_PROPERTY_NOT_CALLABLE, chars.get());
-    }
-    return false;
-  }
-
-  // Step 4.
-  return true;
-}
-
-/**
- * GetMethod ( V, P )
- */
-bool js::temporal::GetMethod(JSContext* cx, Handle<JSObject*> object,
-                             Handle<PropertyName*> name,
-                             MutableHandle<JSObject*> result) {
+JSObject* js::temporal::GetMethod(JSContext* cx, Handle<JSObject*> object,
+                                  Handle<PropertyName*> name) {
   // Step 1.
   Rooted<Value> value(cx);
   if (!GetProperty(cx, object, object, name, &value)) {
-    return false;
+    return nullptr;
   }
 
   // Steps 2-3.
@@ -1544,12 +1520,11 @@ bool js::temporal::GetMethod(JSContext* cx, Handle<JSObject*> object,
       JS_ReportErrorNumberUTF8(cx, GetErrorMessage, nullptr,
                                JSMSG_PROPERTY_NOT_CALLABLE, chars.get());
     }
-    return false;
+    return nullptr;
   }
 
   // Step 4.
-  result.set(&value.toObject());
-  return true;
+  return &value.toObject();
 }
 
 /**
@@ -1801,6 +1776,14 @@ bool js::temporal::GetDifferenceSettings(
   // Step 14.
   *result = {smallestUnit, largestUnit, roundingMode, roundingIncrement};
   return true;
+}
+
+bool temporal::IsArrayIterationSane(JSContext* cx, bool* result) {
+  auto* stubChain = ForOfPIC::getOrCreate(cx);
+  if (!stubChain) {
+    return false;
+  }
+  return stubChain->tryOptimizeArray(cx, result);
 }
 
 static JSObject* CreateTemporalObject(JSContext* cx, JSProtoKey key) {

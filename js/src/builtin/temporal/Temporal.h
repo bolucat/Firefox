@@ -15,6 +15,7 @@
 
 #include "builtin/temporal/TemporalRoundingMode.h"
 #include "builtin/temporal/TemporalUnit.h"
+#include "js/RootingAPI.h"
 #include "js/TypeDecls.h"
 #include "vm/NativeObject.h"
 
@@ -324,16 +325,8 @@ bool ToIntegerWithTruncation(JSContext* cx, JS::Handle<JS::Value> value,
 /**
  * GetMethod ( V, P )
  */
-bool GetMethod(JSContext* cx, JS::Handle<JSObject*> object,
-               JS::Handle<PropertyName*> name,
-               JS::MutableHandle<JS::Value> result);
-
-/**
- * GetMethod ( V, P )
- */
-bool GetMethod(JSContext* cx, JS::Handle<JSObject*> object,
-               JS::Handle<PropertyName*> name,
-               JS::MutableHandle<JSObject*> result);
+JSObject* GetMethod(JSContext* cx, JS::Handle<JSObject*> object,
+                    JS::Handle<PropertyName*> name);
 
 /**
  * SnapshotOwnProperties ( source, proto [ , excludedKeys [ , excludedValues ] ]
@@ -393,6 +386,11 @@ inline bool GetDifferenceSettings(JSContext* cx, TemporalDifference operation,
                                TemporalUnit::Nanosecond, fallbackSmallestUnit,
                                smallestLargestDefaultUnit, result);
 }
+
+/**
+ * Sets |result| to `true` when array iteration is still in its initial state.
+ */
+bool IsArrayIterationSane(JSContext* cx, bool* result);
 
 } /* namespace js::temporal */
 

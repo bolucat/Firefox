@@ -957,9 +957,9 @@ static bool AddDate(JSContext* cx, const PlainDate& date,
                     PlainDate* result) {
   MOZ_ASSERT(!HasYearsMonthsOrWeeks(duration));
 
-  // Steps 1-2. (Not applicable)
+  // Steps 1-3. (Not applicable)
 
-  // Step 3.
+  // Step 4.
   auto overflow = TemporalOverflow::Constrain;
   if (maybeOptions) {
     if (!ToTemporalOverflow(cx, maybeOptions, &overflow)) {
@@ -967,13 +967,13 @@ static bool AddDate(JSContext* cx, const PlainDate& date,
     }
   }
 
-  // Step 4.
+  // Step 5.
   TimeDuration daysDuration;
   if (!BalanceTimeDuration(cx, duration, TemporalUnit::Day, &daysDuration)) {
     return false;
   }
 
-  // Step 5.
+  // Step 6.
   return AddISODate(cx, date, {0, 0, 0, daysDuration.days}, overflow, result);
 }
 
@@ -992,15 +992,15 @@ static PlainDateObject* AddDate(JSContext* cx, Handle<CalendarRecord> calendar,
                                 Handle<Wrapped<PlainDateObject*>> date,
                                 const Duration& duration,
                                 Handle<JSObject*> maybeOptions) {
-  // Steps 1-2. (Not applicable)
+  // Steps 1-3. (Not applicable)
 
-  // Steps 3-5.
+  // Steps 4-6.
   PlainDate resultDate;
   if (!::AddDate(cx, date, duration, maybeOptions, &resultDate)) {
     return nullptr;
   }
 
-  // Step 6.
+  // Step 7.
   return CreateTemporalDate(cx, resultDate, calendar.receiver());
 }
 
@@ -1011,14 +1011,18 @@ Wrapped<PlainDateObject*> js::temporal::AddDate(
     JSContext* cx, Handle<CalendarRecord> calendar,
     Handle<Wrapped<PlainDateObject*>> date, const Duration& duration,
     Handle<JSObject*> options) {
-  // Step 1. (Not applicable in our implementation.)
+  // Step 1.
+  MOZ_ASSERT(
+      CalendarMethodsRecordHasLookedUp(calendar, CalendarMethod::DateAdd));
 
-  // Step 2.
+  // Step 2. (Not applicable in our implementation.)
+
+  // Step 3.
   if (HasYearsMonthsOrWeeks(duration)) {
     return temporal::CalendarDateAdd(cx, calendar, date, duration, options);
   }
 
-  // Steps 3-6.
+  // Steps 4-7.
   return ::AddDate(cx, calendar, date, duration, options);
 }
 
@@ -1028,14 +1032,18 @@ Wrapped<PlainDateObject*> js::temporal::AddDate(
 Wrapped<PlainDateObject*> js::temporal::AddDate(
     JSContext* cx, Handle<CalendarRecord> calendar,
     Handle<Wrapped<PlainDateObject*>> date, const Duration& duration) {
-  // Step 1. (Not applicable in our implementation.)
+  // Step 1.
+  MOZ_ASSERT(
+      CalendarMethodsRecordHasLookedUp(calendar, CalendarMethod::DateAdd));
 
-  // Step 2.
+  // Step 2. (Not applicable in our implementation.)
+
+  // Step 3.
   if (HasYearsMonthsOrWeeks(duration)) {
     return CalendarDateAdd(cx, calendar, date, duration);
   }
 
-  // Steps 3-6.
+  // Steps 4-7.
   return ::AddDate(cx, calendar, date, duration, nullptr);
 }
 
@@ -1052,14 +1060,18 @@ Wrapped<PlainDateObject*> js::temporal::AddDate(
   }
   auto duration = ToDuration(unwrappedDuration);
 
-  // Step 1. (Not applicable in our implementation.)
+  // Step 1.
+  MOZ_ASSERT(
+      CalendarMethodsRecordHasLookedUp(calendar, CalendarMethod::DateAdd));
 
-  // Step 2.
+  // Step 2. (Not applicable in our implementation.)
+
+  // Step 3.
   if (HasYearsMonthsOrWeeks(duration)) {
     return CalendarDateAdd(cx, calendar, date, durationObj);
   }
 
-  // Steps 3-6.
+  // Steps 4-7.
   return ::AddDate(cx, calendar, date, duration, nullptr);
 }
 
@@ -1076,14 +1088,18 @@ Wrapped<PlainDateObject*> js::temporal::AddDate(
   }
   auto duration = ToDuration(unwrappedDuration);
 
-  // Step 1. (Not applicable in our implementation.)
+  // Step 1.
+  MOZ_ASSERT(
+      CalendarMethodsRecordHasLookedUp(calendar, CalendarMethod::DateAdd));
 
-  // Step 2.
+  // Step 2. (Not applicable in our implementation.)
+
+  // Step 3.
   if (HasYearsMonthsOrWeeks(duration)) {
     return temporal::CalendarDateAdd(cx, calendar, date, durationObj, options);
   }
 
-  // Steps 3-5.
+  // Steps 4-7.
   return ::AddDate(cx, calendar, date, duration, options);
 }
 
@@ -1093,15 +1109,19 @@ Wrapped<PlainDateObject*> js::temporal::AddDate(
 bool js::temporal::AddDate(JSContext* cx, Handle<CalendarRecord> calendar,
                            const PlainDate& date, const Duration& duration,
                            Handle<JSObject*> options, PlainDate* result) {
-  // Step 1. (Not applicable in our implementation.)
+  // Step 1.
+  MOZ_ASSERT(
+      CalendarMethodsRecordHasLookedUp(calendar, CalendarMethod::DateAdd));
 
-  // Step 2.
+  // Step 2. (Not applicable in our implementation.)
+
+  // Step 3.
   if (HasYearsMonthsOrWeeks(duration)) {
     return temporal::CalendarDateAdd(cx, calendar, date, duration, options,
                                      result);
   }
 
-  // Steps 3-6.
+  // Steps 4-7.
   return ::AddDate(cx, date, duration, options, result);
 }
 
@@ -1111,14 +1131,18 @@ bool js::temporal::AddDate(JSContext* cx, Handle<CalendarRecord> calendar,
 bool js::temporal::AddDate(JSContext* cx, Handle<CalendarRecord> calendar,
                            Handle<Wrapped<PlainDateObject*>> date,
                            const Duration& duration, PlainDate* result) {
-  // Step 1. (Not applicable in our implementation.)
+  // Step 1.
+  MOZ_ASSERT(
+      CalendarMethodsRecordHasLookedUp(calendar, CalendarMethod::DateAdd));
 
-  // Step 2.
+  // Step 2. (Not applicable in our implementation.)
+
+  // Step 3.
   if (HasYearsMonthsOrWeeks(duration)) {
     return CalendarDateAdd(cx, calendar, date, duration, result);
   }
 
-  // Steps 3-6.
+  // Steps 4-7.
   return ::AddDate(cx, date, duration, nullptr, result);
 }
 
@@ -1543,30 +1567,19 @@ static bool DifferenceTemporalPlainDate(JSContext* cx,
 
   // Step 7.
   Rooted<CalendarRecord> calendar(cx);
-  if (!CreateCalendarMethodsRecord(cx, calendarValue, {}, &calendar)) {
+  if (!CreateCalendarMethodsRecord(cx, calendarValue,
+                                   {
+                                       CalendarMethod::DateAdd,
+                                       CalendarMethod::DateUntil,
+                                   },
+                                   &calendar)) {
     return false;
   }
 
-  // Step 8.
-  if (settings.smallestUnit <= TemporalUnit::Week) {
-    if (!CalendarMethodsRecordLookup(cx, &calendar, CalendarMethod::DateAdd)) {
-      return false;
-    }
-  }
-
-  // Step 9.
-  if (settings.largestUnit <= TemporalUnit::Week ||
-      settings.smallestUnit == TemporalUnit::Year) {
-    if (!CalendarMethodsRecordLookup(cx, &calendar,
-                                     CalendarMethod::DateUntil)) {
-      return false;
-    }
-  }
-
-  // Steps 10-11.
+  // Steps 8-9.
   Duration duration;
   if (resolvedOptions) {
-    // Step 10.
+    // Step 8.
     Rooted<Value> largestUnitValue(
         cx, StringValue(TemporalUnitToString(cx, settings.largestUnit)));
     if (!DefineDataProperty(cx, resolvedOptions, cx->names().largestUnit,
@@ -1574,7 +1587,7 @@ static bool DifferenceTemporalPlainDate(JSContext* cx,
       return false;
     }
 
-    // Step 11.
+    // Step 9.
     Duration result;
     if (!DifferenceDate(cx, calendar, temporalDate, other, resolvedOptions,
                         &result)) {
@@ -1582,7 +1595,7 @@ static bool DifferenceTemporalPlainDate(JSContext* cx,
     }
     duration = result.date();
   } else {
-    // Steps 10-11.
+    // Steps 8-9.
     Duration result;
     if (!DifferenceDate(cx, calendar, temporalDate, other, settings.largestUnit,
                         &result)) {
@@ -1591,19 +1604,32 @@ static bool DifferenceTemporalPlainDate(JSContext* cx,
     duration = result.date();
   }
 
-  // Step 12.
-  if (settings.smallestUnit != TemporalUnit::Day ||
-      settings.roundingIncrement != Increment{1}) {
-    // Steps 12.a-b.
+  // Step 10.
+  bool roundingGranularityIsNoop = settings.smallestUnit == TemporalUnit::Day &&
+                                   settings.roundingIncrement == Increment{1};
+
+  // Step 11.
+  if (!roundingGranularityIsNoop) {
+    // Steps 11.a-b.
+    Duration roundResult;
     if (!temporal::RoundDuration(cx, duration.date(),
                                  settings.roundingIncrement,
                                  settings.smallestUnit, settings.roundingMode,
-                                 temporalDate, calendar, &duration)) {
+                                 temporalDate, calendar, &roundResult)) {
       return false;
     }
+
+    // Step 11.c.
+    DateDuration balanceResult;
+    if (!temporal::BalanceDateDurationRelative(
+            cx, roundResult.date(), settings.largestUnit, settings.smallestUnit,
+            temporalDate, calendar, &balanceResult)) {
+      return false;
+    }
+    duration = balanceResult.toDuration();
   }
 
-  // Step 13.
+  // Step 12.
   if (operation == TemporalDifference::Since) {
     duration = duration.negate();
   }
@@ -2136,10 +2162,6 @@ static bool PlainDate_toPlainMonthDay(JSContext* cx, const CallArgs& args) {
       if (!IsBuiltinAccess(cx, builtinCalendar, fieldNames)) {
         break;
       }
-    } else {
-      if (!IsBuiltinAccessForStringCalendar(cx)) {
-        break;
-      }
     }
     if (!IsBuiltinAccess(cx, temporalDate, fieldNames)) {
       break;
@@ -2346,24 +2368,15 @@ static bool PlainDate_add(JSContext* cx, const CallArgs& args) {
 
   // Step 5.
   Rooted<CalendarRecord> calendar(cx);
-  if (!CreateCalendarMethodsRecord(cx, calendarValue, {}, &calendar)) {
+  if (!CreateCalendarMethodsRecord(cx, calendarValue,
+                                   {
+                                       CalendarMethod::DateAdd,
+                                   },
+                                   &calendar)) {
     return false;
   }
 
   // Step 6.
-  auto* unwrappedDuration = duration.unwrap(cx);
-  if (!unwrappedDuration) {
-    return false;
-  }
-  auto d = ToDuration(unwrappedDuration);
-
-  if (d.years != 0 || d.months != 0 || d.weeks != 0) {
-    if (!CalendarMethodsRecordLookup(cx, &calendar, CalendarMethod::DateAdd)) {
-      return false;
-    }
-  }
-
-  // Step 7.
   auto result = AddDate(cx, calendar, temporalDate, duration, options);
   if (!result) {
     return false;
@@ -2412,18 +2425,15 @@ static bool PlainDate_subtract(JSContext* cx, const CallArgs& args) {
 
   // Step 6.
   Rooted<CalendarRecord> calendar(cx);
-  if (!CreateCalendarMethodsRecord(cx, calendarValue, {}, &calendar)) {
+  if (!CreateCalendarMethodsRecord(cx, calendarValue,
+                                   {
+                                       CalendarMethod::DateAdd,
+                                   },
+                                   &calendar)) {
     return false;
   }
 
   // Step 7.
-  if (duration.years != 0 || duration.months != 0 || duration.weeks != 0) {
-    if (!CalendarMethodsRecordLookup(cx, &calendar, CalendarMethod::DateAdd)) {
-      return false;
-    }
-  }
-
-  // Step 8.
   auto result =
       temporal::AddDate(cx, calendar, temporalDate, negatedDuration, options);
   if (!result) {
@@ -2948,7 +2958,7 @@ static PlainDateNameAndNative GetPlainDateNameAndNative(
 }
 
 bool js::temporal::IsBuiltinAccess(
-    JSContext* cx, JS::Handle<PlainDateObject*> date,
+    JSContext* cx, Handle<PlainDateObject*> date,
     std::initializer_list<CalendarField> fieldNames) {
   // Don't optimize when the object has any own properties which may shadow the
   // built-in methods.

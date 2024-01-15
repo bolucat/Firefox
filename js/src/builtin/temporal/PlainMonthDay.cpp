@@ -17,7 +17,6 @@
 #include "builtin/temporal/Calendar.h"
 #include "builtin/temporal/PlainDate.h"
 #include "builtin/temporal/PlainDateTime.h"
-#include "builtin/temporal/PlainTime.h"
 #include "builtin/temporal/PlainYearMonth.h"
 #include "builtin/temporal/Temporal.h"
 #include "builtin/temporal/TemporalFields.h"
@@ -843,7 +842,7 @@ static bool PlainMonthDay_toPlainDate(JSContext* cx, const CallArgs& args) {
   }
 
   // Step 13.
-  Rooted<Value> overflow(cx, StringValue(cx->names().reject));
+  Rooted<Value> overflow(cx, StringValue(cx->names().constrain));
   if (!DefineDataProperty(cx, options, cx->names().overflow, overflow)) {
     return false;
   }

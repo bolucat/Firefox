@@ -128,6 +128,8 @@ enum class CalendarMethod {
 
 class CalendarRecord {
   CalendarValue receiver_;
+
+  // Null unless non-builtin calendar methods are used.
   JSObject* dateAdd_ = nullptr;
   JSObject* dateFromFields_ = nullptr;
   JSObject* dateUntil_ = nullptr;
@@ -138,7 +140,7 @@ class CalendarRecord {
   JSObject* yearMonthFromFields_ = nullptr;
 
 #ifdef DEBUG
-  mozilla::EnumSet<CalendarMethod> lookedUpBuiltin_{};
+  mozilla::EnumSet<CalendarMethod> lookedUp_{};
 #endif
 
  public:
@@ -161,8 +163,8 @@ class CalendarRecord {
   auto* yearMonthFromFields() const { return yearMonthFromFields_; }
 
 #ifdef DEBUG
-  auto& lookedUpBuiltin() const { return lookedUpBuiltin_; }
-  auto& lookedUpBuiltin() { return lookedUpBuiltin_; }
+  auto& lookedUp() const { return lookedUp_; }
+  auto& lookedUp() { return lookedUp_; }
 #endif
 
   // Helper methods for (Mutable)WrappedPtrOperations.
@@ -792,23 +794,22 @@ bool CreateCalendarMethodsRecord(JSContext* cx,
                                  mozilla::EnumSet<CalendarMethod> methods,
                                  JS::MutableHandle<CalendarRecord> result);
 
-/**
- * CalendarMethodsRecordLookup ( calendarRec, methodName )
- */
-bool CalendarMethodsRecordLookup(JSContext* cx,
-                                 JS::MutableHandle<CalendarRecord> calendar,
-                                 CalendarMethod methodName);
-
+#ifdef DEBUG
 /**
  * CalendarMethodsRecordHasLookedUp ( calendarRec, methodName )
  */
-bool CalendarMethodsRecordHasLookedUp(const CalendarRecord& calendar,
-                                      CalendarMethod methodName);
+inline bool CalendarMethodsRecordHasLookedUp(const CalendarRecord& calendar,
+                                             CalendarMethod methodName) {
+  // Steps 1-10.
+  return calendar.lookedUp().contains(methodName);
+}
+#endif
 
 /**
  * CalendarMethodsRecordIsBuiltin ( calendarRec )
  */
 inline bool CalendarMethodsRecordIsBuiltin(const CalendarRecord& calendar) {
+  // Steps 1-2.
   return calendar.receiver().isString();
 }
 
@@ -818,12 +819,6 @@ inline bool CalendarMethodsRecordIsBuiltin(const CalendarRecord& calendar) {
  */
 bool IsBuiltinAccess(JSContext* cx, JS::Handle<CalendarObject*> calendar,
                      std::initializer_list<CalendarField> fieldNames);
-
-/**
- * Return true when accessing the calendar fields can be optimized.
- * Otherwise returns false.
- */
-bool IsBuiltinAccessForStringCalendar(JSContext* cx);
 
 // Helper for MutableWrappedPtrOperations.
 bool WrapCalendarValue(JSContext* cx, JS::MutableHandle<JS::Value> calendar);
