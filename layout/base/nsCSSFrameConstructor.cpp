@@ -320,7 +320,7 @@ static bool ShouldSuppressColumnSpanDescendants(nsIFrame* aFrame) {
   }
 
   if (!aFrame->IsBlockFrameOrSubclass() ||
-      aFrame->HasAnyStateBits(NS_BLOCK_FLOAT_MGR | NS_FRAME_OUT_OF_FLOW) ||
+      aFrame->HasAnyStateBits(NS_BLOCK_BFC_STATE_BITS | NS_FRAME_OUT_OF_FLOW) ||
       aFrame->IsFixedPosContainingBlock()) {
     // Need to suppress column-span if we:
     // - Are a different block formatting context,
@@ -3014,9 +3014,8 @@ nsIFrame* nsCSSFrameConstructor::ConstructSelectFrame(
     // through anonymous content. The drop-down list's frame is created
     // explicitly. The combobox frame shares its content with the drop-down
     // list.
-    nsFrameState flags = NS_BLOCK_FLOAT_MGR;
     nsComboboxControlFrame* comboboxFrame =
-        NS_NewComboboxControlFrame(mPresShell, computedStyle, flags);
+        NS_NewComboboxControlFrame(mPresShell, computedStyle);
 
     // Save the history state so we don't restore during construction
     // since the complete tree is required before we restore.
@@ -3088,7 +3087,7 @@ nsIFrame* nsCSSFrameConstructor::ConstructSelectFrame(
       NS_NewListControlFrame(mPresShell, computedStyle);
 
   nsContainerFrame* scrolledFrame =
-      NS_NewSelectsAreaFrame(mPresShell, computedStyle, NS_BLOCK_FLOAT_MGR);
+      NS_NewSelectsAreaFrame(mPresShell, computedStyle);
 
   // ******* this code stolen from Initialze ScrollFrame ********
   // please adjust this code to use BuildScrollFrame.
@@ -4603,7 +4602,7 @@ nsIFrame* nsCSSFrameConstructor::ConstructNonScrollableBlock(
        aDisplay->DisplayInside() == StyleDisplayInside::FlowRoot ||
        clipPaginatedOverflow) &&
       !aParentFrame->IsInSVGTextSubtree()) {
-    flags = NS_BLOCK_FORMATTING_CONTEXT_STATE_BITS;
+    flags = NS_BLOCK_STATIC_BFC;
     if (clipPaginatedOverflow) {
       flags |= NS_BLOCK_CLIP_PAGINATED_OVERFLOW;
     }
@@ -10739,7 +10738,7 @@ nsBlockFrame* nsCSSFrameConstructor::BeginBuildingColumns(
   aColumnContent->SetComputedStyleWithoutNotification(blockStyle);
   InitAndRestoreFrame(aState, aContent, columnSet, aColumnContent);
   aColumnContent->AddStateBits(NS_FRAME_HAS_MULTI_COLUMN_ANCESTOR |
-                               NS_BLOCK_FORMATTING_CONTEXT_STATE_BITS);
+                               NS_BLOCK_STATIC_BFC);
 
   // Set up the parent-child chain.
   SetInitialSingleChild(columnSetWrapper, columnSet);

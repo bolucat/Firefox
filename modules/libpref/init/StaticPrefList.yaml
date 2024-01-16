@@ -4802,7 +4802,7 @@
 # only with the default style of HTML definition.
 - name: editor.block_inline_check.use_computed_style
   type: bool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 # Use compatible range computation when applying inline style.  This is used
@@ -8168,48 +8168,6 @@
   mirror: always
   rust: true
 
-# Whether trigonometric constants and functions are enabled in calc().
-- name: layout.css.trig.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
-# Whether the round() function is enabled in calc().
-- name: layout.css.round.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
-# Whether the mod() / rem() functions are enabled in calc().
-- name: layout.css.mod-rem.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
-# Whether exponential functions are enabled in calc().
-- name: layout.css.exp.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
-# Whether sign/abs functions are enabled in calc().
-- name: layout.css.abs-sign.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
-# Whether infinity / nan constants are enabled in calc().
-- name: layout.css.nan-inf.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
 # Should we look for counter ancestor scopes first?
 - name: layout.css.counter-ancestor-scope.enabled
   type: bool
@@ -10357,7 +10315,7 @@
 # This pref controls whether dispatch testing-only events.
 - name: media.webvtt.testing.events
   type: bool
-  value: true
+  value: false
   mirror: always
 
 - name: media.webspeech.synth.force_global_queue
@@ -11425,6 +11383,13 @@
 # Whether to strip auth headers for redirected fetch/xhr channels
 # https://fetch.spec.whatwg.org/#http-redirect-fetch
 - name: network.fetch.redirect.stripAuthHeader
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+# If true, cross origin fetch (or XHR) requests would be keyed
+# with a different cache key.
+- name: network.fetch.cache_partition_cross_origin
   type: RelaxedAtomicBool
   value: true
   mirror: always

@@ -35,11 +35,18 @@
         rel="stylesheet"
         href="chrome://browser/skin/sanitizeDialog_v2.css"
       />
+
+      <html:link rel="localization" href="branding/brand.ftl" />
       <html:link rel="localization" href="browser/sanitize.ftl" />
     </linkset>
 
     <script src="chrome://global/content/preferencesBindings.js" />
     <script src="chrome://browser/content/sanitizeDialog.js" />
+
+    <description
+      id="SanitizeOnShutdownDescription"
+      data-l10n-id="sanitize-on-shutdown-description"
+    ></description>
 
     <hbox id="SanitizeDurationBox" align="center">
       <label
@@ -95,21 +102,90 @@
       <spacer flex="1" />
     </vbox>
 
-    <groupbox>
+    <groupbox id="clearPrivateDataGroupbox">
       <hbox class="checkboxWithDescription">
         <vbox>
           <checkbox
+            class="clearingItemCheckbox"
             data-l10n-id="item-browsing-and-search"
-            preference="privacy.cpd.history"
+            id="historyAndFormData"
           />
         </vbox>
       </hbox>
       <hbox class="checkboxWithDescription">
         <vbox>
           <checkbox
+            class="clearingItemCheckbox"
             data-l10n-id="item-cookies-site-data"
-            preference="privacy.cpd.cookies"
             aria-describedby="cookies-site-data-description"
+            id="cookiesAndStorage"
+          />
+          <description
+            id="cookies-site-data-description"
+            data-l10n-id="item-cookies-site-data-description"
+            class="sanitizeCheckboxDescription text-deemphasized"
+          />
+        </vbox>
+      </hbox>
+      <hbox class="checkboxWithDescription">
+        <vbox>
+          <checkbox
+            class="clearingItemCheckbox"
+            data-l10n-id="item-cached-content"
+            aria-describedby="cached-content-description"
+            id="cache"
+          />
+          <description
+            id="cached-content-description"
+            data-l10n-id="item-cached-content-description"
+            class="sanitizeCheckboxDescription text-deemphasized"
+          />
+        </vbox>
+      </hbox>
+      <hbox class="checkboxWithDescription">
+        <vbox>
+          <checkbox
+            class="clearingItemCheckbox"
+            data-l10n-id="item-site-prefs"
+            aria-describedby="site-prefs-description"
+            id="siteSettings"
+          />
+          <description
+            id="site-prefs-description"
+            data-l10n-id="item-site-prefs-description"
+            class="sanitizeCheckboxDescription text-deemphasized"
+          />
+        </vbox>
+      </hbox>
+      <hbox class="checkboxWithDescription">
+        <vbox>
+          <checkbox
+            class="clearingItemCheckbox"
+            data-l10n-id="item-download-history"
+            id="downloads"
+          />
+        </vbox>
+      </hbox>
+    </groupbox>
+    <groupbox id="clearOnShutdownGroupbox">
+      <hbox class="checkboxWithDescription">
+        <vbox>
+          <checkbox
+            class="clearingItemCheckbox"
+            data-l10n-id="item-browsing-and-search"
+            preference="privacy.clearOnShutdown_v2.historyAndFormData"
+            id="historyAndFormData"
+          />
+        </vbox>
+      </hbox>
+      <hbox class="checkboxWithDescription">
+        <vbox>
+          <checkbox
+            class="clearingItemCheckbox"
+            data-l10n-id="item-cookies-site-data"
+            preference="privacy.clearOnShutdown_v2.cookiesAndStorage"
+            aria-describedby="cookies-site-data-description"
+            id="cookiesAndStorage"
           />
           <description
             class="sanitizeCheckboxDescription text-deemphasized"
@@ -121,9 +197,11 @@
       <hbox class="checkboxWithDescription">
         <vbox>
           <checkbox
+            class="clearingItemCheckbox"
             data-l10n-id="item-cached-content"
-            preference="privacy.cpd.cache"
+            preference="privacy.clearOnShutdown_v2.cache"
             aria-describedby="cached-content-description"
+            id="cache"
           />
           <description
             class="sanitizeCheckboxDescription text-deemphasized"
@@ -135,9 +213,11 @@
       <hbox class="checkboxWithDescription">
         <vbox>
           <checkbox
+            class="clearingItemCheckbox"
             data-l10n-id="item-site-prefs"
-            preference="privacy.cpd.siteSettings"
+            preference="privacy.clearOnShutdown_v2.siteSettings"
             aria-describedby="site-prefs-description"
+            id="siteSettings"
           />
           <description
             class="sanitizeCheckboxDescription text-deemphasized"
@@ -149,8 +229,10 @@
       <hbox class="checkboxWithDescription">
         <vbox>
           <checkbox
+            class="clearingItemCheckbox"
             data-l10n-id="item-download-history"
-            preference="privacy.cpd.downloads"
+            preference="privacy.clearOnShutdown_v2.downloads"
+            id="downloads"
           />
         </vbox>
       </hbox>

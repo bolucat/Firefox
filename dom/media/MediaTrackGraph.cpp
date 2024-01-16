@@ -20,6 +20,7 @@
 #include "ForwardedInputTrack.h"
 #include "ImageContainer.h"
 #include "AudioCaptureTrack.h"
+#include "AudioDeviceInfo.h"
 #include "AudioNodeTrack.h"
 #include "AudioNodeExternalInputTrack.h"
 #if defined(MOZ_WEBRTC)
@@ -55,6 +56,7 @@ using namespace mozilla::media;
 namespace mozilla {
 
 using AudioDeviceID = CubebUtils::AudioDeviceID;
+using IsInShutdown = MediaTrack::IsInShutdown;
 
 LazyLogModule gMediaTrackGraphLog("MediaTrackGraph");
 #ifdef LOG
@@ -895,9 +897,7 @@ void MediaTrackGraphImpl::CloseAudioInput(DeviceInputTrack* aTrack) {
 }
 
 // All AudioInput listeners get the same speaker data (at least for now).
-void MediaTrackGraphImpl::NotifyOutputData(AudioDataValue* aBuffer,
-                                           size_t aFrames, TrackRate aRate,
-                                           uint32_t aChannels) {
+void MediaTrackGraphImpl::NotifyOutputData(const AudioChunk& aChunk) {
   if (!mDeviceInputTrackManagerGraphThread.GetNativeInputTrack()) {
     return;
   }
@@ -905,7 +905,7 @@ void MediaTrackGraphImpl::NotifyOutputData(AudioDataValue* aBuffer,
 #if defined(MOZ_WEBRTC)
   for (const auto& track : mTracks) {
     if (const auto& t = track->AsAudioProcessingTrack()) {
-      t->NotifyOutputData(this, aBuffer, aFrames, aRate, aChannels);
+      t->NotifyOutputData(this, aChunk);
     }
   }
 #endif
@@ -1479,6 +1479,11 @@ void MediaTrackGraphImpl::Process(MixerCallbackReceiver* aMixerReceiver) {
     }
     AudioChunk* outputChunk = mMixer.MixedChunk();
     if (!outputDeviceEntry.mReceiver) {  // primary output
+      // Callback any observers for the AEC speaker data.  Note that one
+      // (maybe) of these will be full-duplex, the others will get their input
+      // data off separate cubeb callbacks.
+      NotifyOutputData(*outputChunk);
+
       aMixerReceiver->MixerCallback(outputChunk, mSampleRate);
     } else {
       outputDeviceEntry.mReceiver->EnqueueAudio(*outputChunk);
@@ -3755,68 +3760,70 @@ void MediaTrackGraphImpl::RemoveTrack(MediaTrack* aTrack) {
   }
 }
 
-auto MediaTrackGraph::NotifyWhenDeviceStarted(MediaTrack* aTrack)
+auto MediaTrackGraphImpl::NotifyWhenDeviceStarted(AudioDeviceID aDeviceID)
     -> RefPtr<GraphStartedPromise> {
   MOZ_ASSERT(NS_IsMainThread());
+
+  size_t index = mOutputDeviceRefCnts.IndexOf(aDeviceID);
+  if (index == decltype(mOutputDeviceRefCnts)::NoIndex) {
+    return GraphStartedPromise::CreateAndReject(NS_ERROR_INVALID_ARG, __func__);
+  }
+
   MozPromiseHolder<GraphStartedPromise> h;
   RefPtr<GraphStartedPromise> p = h.Ensure(__func__);
-  aTrack->GraphImpl()->NotifyWhenGraphStarted(aTrack, std::move(h));
+
+  if (CrossGraphReceiver* receiver = mOutputDeviceRefCnts[index].mReceiver) {
+    receiver->GraphImpl()->NotifyWhenPrimaryDeviceStarted(std::move(h));
+    return p;
+  }
+
+  // aSink corresponds to the primary audio output device of this graph.
+  NotifyWhenPrimaryDeviceStarted(std::move(h));
   return p;
 }
 
-void MediaTrackGraphImpl::NotifyWhenGraphStarted(
-    RefPtr<MediaTrack> aTrack,
+void MediaTrackGraphImpl::NotifyWhenPrimaryDeviceStarted(
     MozPromiseHolder<GraphStartedPromise>&& aHolder) {
-  class GraphStartedNotificationControlMessage : public ControlMessage {
-    RefPtr<MediaTrack> mMediaTrack;
-    MozPromiseHolder<GraphStartedPromise> mHolder;
-
-   public:
-    GraphStartedNotificationControlMessage(
-        RefPtr<MediaTrack> aTrack,
-        MozPromiseHolder<GraphStartedPromise>&& aHolder)
-        : ControlMessage(nullptr),
-          mMediaTrack(std::move(aTrack)),
-          mHolder(std::move(aHolder)) {}
-    void Run() override {
-      TRACE("MTG::GraphStartedNotificationControlMessage ControlMessage");
-      // This runs on the graph thread, so when this runs, and the current
-      // driver is an AudioCallbackDriver, we know the audio hardware is
-      // started. If not, we are going to switch soon, keep reposting this
-      // ControlMessage.
-      MediaTrackGraphImpl* graphImpl = mMediaTrack->GraphImpl();
-      if (graphImpl->CurrentDriver()->AsAudioCallbackDriver() &&
-          graphImpl->CurrentDriver()->ThreadRunning() &&
-          !graphImpl->CurrentDriver()->AsAudioCallbackDriver()->OnFallback()) {
-        // Avoid Resolve's locking on the graph thread by doing it on main.
-        graphImpl->Dispatch(NS_NewRunnableFunction(
-            "MediaTrackGraphImpl::NotifyWhenGraphStarted::Resolver",
-            [holder = std::move(mHolder)]() mutable {
-              holder.Resolve(true, __func__);
-            }));
-      } else {
-        graphImpl->DispatchToMainThreadStableState(
-            NewRunnableMethod<
-                StoreCopyPassByRRef<RefPtr<MediaTrack>>,
-                StoreCopyPassByRRef<MozPromiseHolder<GraphStartedPromise>>>(
-                "MediaTrackGraphImpl::NotifyWhenGraphStarted", graphImpl,
-                &MediaTrackGraphImpl::NotifyWhenGraphStarted,
-                std::move(mMediaTrack), std::move(mHolder)));
-      }
-    }
-    void RunDuringShutdown() override {
-      mHolder.Reject(NS_ERROR_ILLEGAL_DURING_SHUTDOWN, __func__);
-    }
-  };
-
-  if (aTrack->IsDestroyed()) {
+  MOZ_ASSERT(NS_IsMainThread());
+  if (mOutputDeviceRefCnts[0].mRefCnt == 0) {
+    // There are no track outputs that require the device, so the creator of
+    // this promise no longer needs to know when the graph is running.  Don't
+    // keep the graph alive with another message.
     aHolder.Reject(NS_ERROR_NOT_AVAILABLE, __func__);
     return;
   }
 
-  MediaTrackGraphImpl* graph = aTrack->GraphImpl();
-  graph->AppendMessage(MakeUnique<GraphStartedNotificationControlMessage>(
-      std::move(aTrack), std::move(aHolder)));
+  QueueControlOrShutdownMessage(
+      [self = RefPtr{this}, this,
+       holder = std::move(aHolder)](IsInShutdown aInShutdown) mutable {
+        if (aInShutdown == IsInShutdown::Yes) {
+          holder.Reject(NS_ERROR_ILLEGAL_DURING_SHUTDOWN, __func__);
+          return;
+        }
+
+        TRACE("MTG::NotifyWhenPrimaryDeviceStarted ControlMessage");
+        // This runs on the graph thread, so when this runs, and the current
+        // driver is an AudioCallbackDriver, we know the audio hardware is
+        // started. If not, we are going to switch soon, keep reposting this
+        // ControlMessage.
+        if (CurrentDriver()->AsAudioCallbackDriver() &&
+            CurrentDriver()->ThreadRunning() &&
+            !CurrentDriver()->AsAudioCallbackDriver()->OnFallback()) {
+          // Avoid Resolve's locking on the graph thread by doing it on main.
+          Dispatch(NS_NewRunnableFunction(
+              "MediaTrackGraphImpl::NotifyWhenPrimaryDeviceStarted::Resolver",
+              [holder = std::move(holder)]() mutable {
+                holder.Resolve(true, __func__);
+              }));
+        } else {
+          DispatchToMainThreadStableState(
+              NewRunnableMethod<
+                  StoreCopyPassByRRef<MozPromiseHolder<GraphStartedPromise>>>(
+                  "MediaTrackGraphImpl::NotifyWhenPrimaryDeviceStarted", this,
+                  &MediaTrackGraphImpl::NotifyWhenPrimaryDeviceStarted,
+                  std::move(holder)));
+        }
+      });
 }
 
 class AudioContextOperationControlMessage : public ControlMessage {
