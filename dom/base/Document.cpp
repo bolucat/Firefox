@@ -153,6 +153,8 @@
 #include "mozilla/dom/ClientState.h"
 #include "mozilla/dom/Comment.h"
 #include "mozilla/dom/ContentChild.h"
+#include "mozilla/dom/CSSBinding.h"
+#include "mozilla/dom/CSSCustomPropertyRegisteredEvent.h"
 #include "mozilla/dom/DOMImplementation.h"
 #include "mozilla/dom/DOMIntersectionObserver.h"
 #include "mozilla/dom/DOMStringList.h"
@@ -186,6 +188,7 @@
 #include "mozilla/dom/HTMLSharedElement.h"
 #include "mozilla/dom/HTMLTextAreaElement.h"
 #include "mozilla/dom/ImageTracker.h"
+#include "mozilla/dom/InspectorUtils.h"
 #include "mozilla/dom/Link.h"
 #include "mozilla/dom/MediaQueryList.h"
 #include "mozilla/dom/MediaSource.h"
@@ -2016,7 +2019,7 @@ void Document::AccumulatePageLoadTelemetry(
     glean::perf::PageLoadExtra& aEventTelemetryDataOut) {
   // Interested only in top level documents for real websites that are in the
   // foreground.
-  if (!ShouldIncludeInTelemetry(false) || !IsTopLevelContentDocument() ||
+  if (!ShouldIncludeInTelemetry() || !IsTopLevelContentDocument() ||
       !GetNavigationTiming() ||
       !GetNavigationTiming()->DocShellHasBeenActiveSinceNavigationStart()) {
     return;
@@ -2240,7 +2243,7 @@ void Document::AccumulatePageLoadTelemetry(
 
 void Document::AccumulateJSTelemetry(
     glean::perf::PageLoadExtra& aEventTelemetryDataOut) {
-  if (!IsTopLevelContentDocument() || !ShouldIncludeInTelemetry(false)) {
+  if (!IsTopLevelContentDocument() || !ShouldIncludeInTelemetry()) {
     return;
   }
 
@@ -7466,6 +7469,39 @@ void Document::PostStyleSheetRemovedEvent(StyleSheet& aSheet) {
 
   RefPtr<StyleSheetRemovedEvent> event =
       StyleSheetRemovedEvent::Constructor(this, u"StyleSheetRemoved"_ns, init);
+  event->SetTrusted(true);
+  event->SetTarget(this);
+  RefPtr<AsyncEventDispatcher> asyncDispatcher =
+      new AsyncEventDispatcher(this, event.forget(), ChromeOnlyDispatch::eYes);
+  asyncDispatcher->PostDOMEvent();
+}
+
+void Document::PostCustomPropertyRegistered(
+    const PropertyDefinition& aDefinition) {
+  if (!StyleSheetChangeEventsEnabled()) {
+    return;
+  }
+
+  CSSCustomPropertyRegisteredEventInit init;
+  init.mBubbles = true;
+  init.mCancelable = false;
+
+  InspectorCSSPropertyDefinition property;
+
+  property.mName.Append(aDefinition.mName);
+  property.mSyntax.Append(aDefinition.mSyntax);
+  property.mInherits = aDefinition.mInherits;
+  if (aDefinition.mInitialValue.WasPassed()) {
+    property.mInitialValue.Append(aDefinition.mInitialValue.Value());
+  } else {
+    property.mInitialValue.SetIsVoid(true);
+  }
+  property.mFromJS = true;
+  init.mPropertyDefinition = property;
+
+  RefPtr<CSSCustomPropertyRegisteredEvent> event =
+      CSSCustomPropertyRegisteredEvent::Constructor(
+          this, u"csscustompropertyregistered"_ns, init);
   event->SetTrusted(true);
   event->SetTarget(this);
   RefPtr<AsyncEventDispatcher> asyncDispatcher =
@@ -16067,7 +16103,7 @@ void Document::InitUseCounters() {
 
   static_assert(Telemetry::HistogramUseCounterCount > 0);
 
-  if (!ShouldIncludeInTelemetry(/* aAllowExtensionURIs = */ true)) {
+  if (!ShouldIncludeInTelemetry()) {
     return;
   }
 
@@ -18869,7 +18905,7 @@ bool Document::IsLikelyContentInaccessibleTopLevelAboutBlank() const {
   return bc && bc->IsTop() && !bc->HadOriginalOpener();
 }
 
-bool Document::ShouldIncludeInTelemetry(bool aAllowExtensionURIs) {
+bool Document::ShouldIncludeInTelemetry() const {
   if (!IsContentDocument() && !IsResourceDoc()) {
     return false;
   }
@@ -18879,18 +18915,11 @@ bool Document::ShouldIncludeInTelemetry(bool aAllowExtensionURIs) {
   }
 
   nsIPrincipal* prin = NodePrincipal();
-  if (!aAllowExtensionURIs && prin->GetIsAddonOrExpandedAddonPrincipal()) {
-    return false;
-  }
-
   // TODO(emilio): Should this use GetIsContentPrincipal() +
   // GetPrecursorPrincipal() instead (accounting for add-ons separately)?
-  if (prin->IsSystemPrincipal() || prin->SchemeIs("about") ||
-      prin->SchemeIs("chrome") || prin->SchemeIs("resource")) {
-    return false;
-  }
-
-  return true;
+  return !(prin->GetIsAddonOrExpandedAddonPrincipal() ||
+           prin->IsSystemPrincipal() || prin->SchemeIs("about") ||
+           prin->SchemeIs("chrome") || prin->SchemeIs("resource"));
 }
 
 void Document::GetConnectedShadowRoots(

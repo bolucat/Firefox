@@ -2,16 +2,22 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at <http://mozilla.org/MPL/2.0/>. */
 
-import React, { Component } from "react";
-import { button, div, label, input, span } from "react-dom-factories";
-import PropTypes from "prop-types";
+import React, { Component } from "devtools/client/shared/vendor/react";
+import {
+  button,
+  div,
+  label,
+  input,
+  span,
+} from "devtools/client/shared/vendor/react-dom-factories";
+import PropTypes from "devtools/client/shared/vendor/react-prop-types";
 import { connect } from "../../utils/connect";
-import { CloseButton } from "./Button";
+import { CloseButton } from "./Button/index";
 
 import AccessibleImage from "./AccessibleImage";
-import actions from "../../actions";
+import actions from "../../actions/index";
 import "./SearchInput.css";
-import { getSearchOptions } from "../../selectors";
+import { getSearchOptions } from "../../selectors/index";
 
 const classnames = require("devtools/client/shared/classnames.js");
 const SearchModifiers = require("devtools/client/shared/components/SearchModifiers");

@@ -1435,9 +1435,10 @@ void ServoStyleSet::MaybeInvalidateForElementInsertion(
                                                              &aElement);
 }
 
-void ServoStyleSet::MaybeInvalidateForElementAppend(const Element& aElement) {
+void ServoStyleSet::MaybeInvalidateForElementAppend(
+    const nsIContent& aFirstContent) {
   Servo_StyleSet_MaybeInvalidateRelativeSelectorForAppend(mRawData.get(),
-                                                          &aElement);
+                                                          &aFirstContent);
 }
 
 void ServoStyleSet::MaybeInvalidateForElementRemove(
@@ -1509,6 +1510,7 @@ void ServoStyleSet::RegisterProperty(const PropertyDefinition& aDefinition,
               root, RestyleHint::RecascadeSubtree(), nsChangeHint(0));
         }
       }
+      mDocument->PostCustomPropertyRegistered(aDefinition);
       break;
     case Result::InvalidName:
       return aRv.ThrowSyntaxError("Invalid name");

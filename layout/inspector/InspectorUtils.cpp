@@ -877,12 +877,19 @@ void InspectorUtils::GetCSSRegisteredProperties(
     GlobalObject& aGlobalObject, Document& aDocument,
     nsTArray<InspectorCSSPropertyDefinition>& aResult) {
   nsTArray<StylePropDef> result;
-  Servo_GetRegisteredCustomProperties(aDocument.EnsureStyleSet().RawData(),
-                                      &result);
+
+  ServoStyleSet& styleSet = aDocument.EnsureStyleSet();
+  // Update the rules before looking up @property rules.
+  styleSet.UpdateStylistIfNeeded();
+
+  Servo_GetRegisteredCustomProperties(styleSet.RawData(), &result);
   for (const auto& propDef : result) {
     InspectorCSSPropertyDefinition& property = *aResult.AppendElement();
 
-    propDef.name.AsAtom()->ToUTF8String(property.mName);
+    // Servo does not include the "--" prefix in the property definition name.
+    // Add it back as it's easier for DevTools to handle them _with_ "--".
+    property.mName.AssignLiteral("--");
+    property.mName.Append(nsAtomCString(propDef.name.AsAtom()));
     property.mSyntax.Append(propDef.syntax);
     property.mInherits = propDef.inherits;
     if (propDef.has_initial_value) {

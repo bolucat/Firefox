@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at <http://mozilla.org/MPL/2.0/>. */
 
-import React, { Component } from "react";
-import { div } from "react-dom-factories";
-import PropTypes from "prop-types";
+import React, { Component } from "devtools/client/shared/vendor/react";
+import { div } from "devtools/client/shared/vendor/react-dom-factories";
+import PropTypes from "devtools/client/shared/vendor/react-prop-types";
 import { connect } from "../../../utils/connect";
 
 import ExceptionOption from "./ExceptionOption";
@@ -12,11 +12,11 @@ import ExceptionOption from "./ExceptionOption";
 import Breakpoint from "./Breakpoint";
 import BreakpointHeading from "./BreakpointHeading";
 
-import actions from "../../../actions";
+import actions from "../../../actions/index";
 import { getSelectedLocation } from "../../../utils/selected-location";
 import { createHeadlessEditor } from "../../../utils/editor/create-editor";
 
-import { makeBreakpointId } from "../../../utils/breakpoint";
+import { makeBreakpointId } from "../../../utils/breakpoint/index";
 
 import {
   getSelectedSource,
@@ -24,7 +24,7 @@ import {
   getShouldPauseOnDebuggerStatement,
   getShouldPauseOnExceptions,
   getShouldPauseOnCaughtExceptions,
-} from "../../../selectors";
+} from "../../../selectors/index";
 
 const classnames = require("devtools/client/shared/classnames.js");
 

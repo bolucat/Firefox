@@ -1,9 +1,12 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
+import copy
 import re
 
 import filters
+from base_python_support import BasePythonSupport
+from utils import bool_from_str
 
 DOMAIN_MATCHER = re.compile(r"(?:https?:\/\/)?(?:[^@\n]+@)?(?:www\.)?([^:\/\n]+)")
 VARIANCE_THRESHOLD = 0.2
@@ -16,12 +19,13 @@ def extract_domain(link):
     raise Exception(f"Could not find domain for {link}")
 
 
-class TP6BenchSupport:
+class TP6BenchSupport(BasePythonSupport):
     def __init__(self, **kwargs):
         self._load_times = []
         self._total_times = []
         self._geomean_load_times = []
         self._sites_tested = 0
+        self._test_pages = {}
 
     def setup_test(self, test, args):
         from cmdline import DESKTOP_APPS
@@ -38,12 +42,16 @@ class TP6BenchSupport:
         playback_pageset_manifests = []
         for parsed_test in all_tests:
             if manifest_to_find in parsed_test["manifest"]:
-                test_urls.append(parsed_test["test_url"])
+                if not bool_from_str(parsed_test.get("benchmark_page", "false")):
+                    continue
+                test_url = parsed_test["test_url"]
+                test_urls.append(test_url)
                 playback_pageset_manifests.append(
                     transform_subtest(
                         parsed_test["playback_pageset_manifest"], parsed_test["name"]
                     )
                 )
+                self._test_pages[test_url] = parsed_test
 
         if len(playback_pageset_manifests) == 0:
             raise Exception("Could not find any manifests for testing.")
@@ -51,30 +59,7 @@ class TP6BenchSupport:
         test["test_url"] = ",".join(test_urls)
         test["playback_pageset_manifest"] = ",".join(playback_pageset_manifests)
 
-    def modify_command(self, cmd):
-        pass
-
     def handle_result(self, bt_result, raw_result, last_result=False, **kwargs):
-        """Parse a result for the required results.
-
-        This method handles parsing a new result from Browsertime. The
-        expected data returned should follow the following format:
-        {
-            "custom_data": True,
-            "measurements": {
-                "fcp": [0, 1, 1, 2, ...],
-                "custom-metric-name": [9, 9, 9, 8, ...]
-            }
-        }
-
-        `bt_result` holds that current results that have been parsed. Add
-        new measurements as a dictionary to `bt_result["measurements"]`. Watch
-        out for overriding other measurements.
-
-        `raw_result` is a single browser-cycle/iteration from Browsertime. Use object
-        attributes to store values across browser-cycles, and produce overall results
-        on the last run (denoted by `last_result`).
-        """
         measurements = {"totalTime": []}
 
         # Find new results to add
@@ -88,22 +73,35 @@ class TP6BenchSupport:
 
         # Gather the load times of each page/cycle to help with diagnosing issues
         load_times = []
-        page_name = None
-        page_title = None
+        result_name = None
         for cycle in raw_result["browserScripts"]:
-            if not page_name:
-                page_name = extract_domain(cycle["pageinfo"].get("url", ""))
-
-                # Use the page title to differentiate pages with similar domains, and
+            if not result_name:
+                # When the test name is unknown, we use the url TLD combined
+                # with the page title to differentiate pages with similar domains, and
                 # limit it to 35 characters
-                page_title = (
-                    cycle["pageinfo"].get("documentTitle", "")[:35].replace(" ", "")
-                )
+                page_url = cycle["pageinfo"].get("url", "")
+                if self._test_pages.get(page_url, None) is not None:
+                    result_name = self._test_pages[page_url]["name"]
+                else:
+                    page_name = extract_domain(page_url)
+                    page_title = (
+                        cycle["pageinfo"].get("documentTitle", "")[:35].replace(" ", "")
+                    )
+                    result_name = f"{page_name} - {page_title}"
 
             load_time = cycle["timings"]["loadEventEnd"]
-            measurements.setdefault(
-                f"{page_name} - {page_title} - loadTime", []
-            ).append(load_time)
+            fcp = cycle["timings"]["paintTiming"]["first-contentful-paint"]
+            lcp = (
+                cycle["timings"]
+                .get("largestContentfulPaint", {})
+                .get("renderTime", None)
+            )
+            measurements.setdefault(f"{result_name} - loadTime", []).append(load_time)
+
+            measurements.setdefault(f"{result_name} - fcp", []).append(fcp)
+
+            if lcp is not None:
+                measurements.setdefault(f"{result_name} - lcp", []).append(lcp)
 
             load_times.append(load_time)
 
@@ -135,50 +133,10 @@ class TP6BenchSupport:
             "alertThreshold": float(test.get("alert_threshold", 2.0)),
             "unit": unit,
             "replicates": replicates,
-            "value": filters.geometric_mean(replicates),
+            "value": round(filters.geometric_mean(replicates), 3),
         }
 
     def summarize_test(self, test, suite, **kwargs):
-        """Summarize the measurements found in the test as a suite with subtests.
-
-        Note that the same suite will be passed when the test is the same.
-
-        Here's a small example of an expected suite result
-        (see performance-artifact-schema.json for more information):
-            {
-                "name": "pageload-benchmark",
-                "type": "pageload",
-                "extraOptions": ["fission", "cold", "webrender"],
-                "tags": ["fission", "cold", "webrender"],
-                "lowerIsBetter": true,
-                "unit": "ms",
-                "alertThreshold": 2.0,
-                "subtests": [{
-                    "name": "totalTimePerSite",
-                    "lowerIsBetter": true,
-                    "alertThreshold": 2.0,
-                    "unit": "ms",
-                    "shouldAlert": false,
-                    "replicates": [
-                        6490.47, 6700.73, 6619.47,
-                        6823.07, 6541.53, 7152.67,
-                        6553.4, 6471.53, 6548.8, 6548.87
-                    ],
-                    "value": 6553.4
-            }
-
-        Some fields are setup by default for the suite:
-            {
-                "name": test["name"],
-                "type": test["type"],
-                "extraOptions": extra_options,
-                "tags": test.get("tags", []) + extra_options,
-                "lowerIsBetter": test["lower_is_better"],
-                "unit": test["unit"],
-                "alertThreshold": float(test["alert_threshold"]),
-                "subtests": {},
-            }
-        """
         suite["type"] = "pageload"
         if suite["subtests"] == {}:
             suite["subtests"] = []
@@ -189,3 +147,71 @@ class TP6BenchSupport:
                 self._build_subtest(measurement_name, replicates, test)
             )
         suite["subtests"].sort(key=lambda subtest: subtest["name"])
+
+    def _produce_suite_alts(self, suite_base, subtests, suite_name_prefix):
+        geomean_suite = copy.deepcopy(suite_base)
+        geomean_suite["subtests"] = copy.deepcopy(subtests)
+        median_suite = copy.deepcopy(geomean_suite)
+        median_suite["subtests"] = copy.deepcopy(subtests)
+
+        subtest_values = []
+        for subtest in subtests:
+            subtest_values.extend(subtest["replicates"])
+
+        geomean_suite["name"] = suite_name_prefix + "-geomean"
+        geomean_suite["value"] = filters.geometric_mean(subtest_values)
+        for subtest in geomean_suite["subtests"]:
+            subtest["value"] = filters.geometric_mean(subtest["replicates"])
+
+        median_suite["name"] = suite_name_prefix + "-median"
+        median_suite["value"] = filters.median(subtest_values)
+        for subtest in median_suite["subtests"]:
+            subtest["value"] = filters.median(subtest["replicates"])
+
+        return [
+            geomean_suite,
+            median_suite,
+        ]
+
+    def summarize_suites(self, suites):
+        fcp_subtests = []
+        lcp_subtests = []
+        load_time_subtests = []
+
+        for suite in suites:
+            for subtest in suite["subtests"]:
+                if "- fcp" in subtest["name"]:
+                    fcp_subtests.append(subtest)
+                elif "- lcp" in subtest["name"]:
+                    lcp_subtests.append(subtest)
+                elif "- loadTime" in subtest["name"]:
+                    load_time_subtests.append(subtest)
+
+        fcp_bench_suites = self._produce_suite_alts(
+            suites[0], fcp_subtests, "fcp-bench"
+        )
+
+        lcp_bench_suites = self._produce_suite_alts(
+            suites[0], lcp_subtests, "lcp-bench"
+        )
+
+        load_time_bench_suites = self._produce_suite_alts(
+            suites[0], load_time_subtests, "loadtime-bench"
+        )
+
+        overall_suite = copy.deepcopy(suites[0])
+        new_subtests = [
+            subtest
+            for subtest in suites[0]["subtests"]
+            if subtest["name"].startswith("total")
+        ]
+        overall_suite["subtests"] = new_subtests
+
+        new_suites = [
+            overall_suite,
+            *fcp_bench_suites,
+            *lcp_bench_suites,
+            *load_time_bench_suites,
+        ]
+        suites.pop()
+        suites.extend(new_suites)

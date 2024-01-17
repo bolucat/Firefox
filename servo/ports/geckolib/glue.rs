@@ -14,6 +14,7 @@ use selectors::matching::{ElementSelectorFlags, MatchingForInvalidation, Selecto
 use selectors::{Element, OpaqueElement};
 use servo_arc::{Arc, ArcBorrow};
 use smallvec::SmallVec;
+use style::custom_properties::DeferFontRelativeCustomPropertyResolution;
 use std::collections::BTreeSet;
 use std::fmt::Write;
 use std::iter;
@@ -6206,11 +6207,11 @@ pub extern "C" fn Servo_GetComputedKeyframeValues(
 
         // FIXME: This is pretty much a hack. Instead, the AnimatedValue should be better
         // integrated in the cascade. This would allow us to fix revert() too.
-        context.builder.custom_properties = {
+        {
             let mut builder = CustomPropertiesBuilder::new_with_properties(
                 &data.stylist,
                 style.custom_properties().clone(),
-                &context,
+                &mut context,
             );
             let priority = CascadePriority::same_tree_author_normal_at_root_layer();
             for property in &mut iter {
@@ -6233,7 +6234,11 @@ pub extern "C" fn Servo_GetComputedKeyframeValues(
                 }
             }
             iter.reset();
-            builder.build()
+            let _deferred= builder.build(DeferFontRelativeCustomPropertyResolution::No);
+            debug_assert!(
+                _deferred.is_none(),
+                "Custom property processing deferred despite specifying otherwise?"
+            );
         };
 
         let mut property_index = 0;
@@ -6948,11 +6953,11 @@ fn add_relative_selector_attribute_dependency<'a>(
 }
 
 fn inherit_relative_selector_search_direction(
-    element: &GeckoElement,
+    parent: Option<GeckoElement>,
     prev_sibling: Option<GeckoElement>,
 ) -> ElementSelectorFlags {
     let mut inherited = ElementSelectorFlags::empty();
-    if let Some(parent) = element.parent_element() {
+    if let Some(parent) = parent {
         if let Some(direction) = parent.relative_selector_search_direction() {
             inherited |= direction
                 .intersection(ElementSelectorFlags::RELATIVE_SELECTOR_SEARCH_DIRECTION_ANCESTOR);
@@ -7271,7 +7276,7 @@ pub extern "C" fn Servo_StyleSet_MaybeInvalidateRelativeSelectorForInsertion(
     let quirks_mode: QuirksMode = data.stylist.quirks_mode();
 
     let inherited =
-        inherit_relative_selector_search_direction(&element, element.prev_sibling_element());
+        inherit_relative_selector_search_direction(element.parent_element(), element.prev_sibling_element());
     // Technically, we're not handling breakouts, where the anchor is a (later-sibling) descendant.
     // For descendant case, we're ok since it's a descendant of an element yet to be styled.
     // For later-sibling descendant, `HAS_SLOW_SELECTOR_LATER_SIBLINGS` is set anyway.
@@ -7349,19 +7354,25 @@ pub extern "C" fn Servo_StyleSet_MaybeInvalidateRelativeSelectorForInsertion(
 #[no_mangle]
 pub extern "C" fn Servo_StyleSet_MaybeInvalidateRelativeSelectorForAppend(
     raw_data: &PerDocumentStyleData,
-    first_element: &RawGeckoElement,
+    first_node: &RawGeckoNode,
 ) {
-    let first_element = GeckoElement(first_element);
-    let data = raw_data.borrow();
-    let quirks_mode: QuirksMode = data.stylist.quirks_mode();
-
+    let first_node = GeckoNode(first_node);
     let inherited = inherit_relative_selector_search_direction(
-        &first_element,
-        first_element.prev_sibling_element(),
+        first_node.parent_element(),
+        first_node.prev_sibling_element(),
     );
     if inherited.is_empty() {
         return;
     }
+    let first_element = if let Some(e) = first_node.as_element() {
+        e
+    } else if let Some(e) = first_node.next_sibling_element() {
+        e
+    } else {
+        return;
+    };
+    let data = raw_data.borrow();
+    let quirks_mode: QuirksMode = data.stylist.quirks_mode();
 
     let mut element = Some(first_element);
     while let Some(e) = element {
@@ -7418,7 +7429,7 @@ pub extern "C" fn Servo_StyleSet_MaybeInvalidateRelativeSelectorForRemoval(
     let data = raw_data.borrow();
     let quirks_mode: QuirksMode = data.stylist.quirks_mode();
 
-    let inherited = inherit_relative_selector_search_direction(&element, prev_sibling);
+    let inherited = inherit_relative_selector_search_direction(element.parent_element(), prev_sibling);
     if inherited.is_empty() {
         return;
     }

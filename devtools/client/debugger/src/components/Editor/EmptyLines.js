@@ -3,10 +3,13 @@
  * file, You can obtain one at <http://mozilla.org/MPL/2.0/>. */
 
 import { connect } from "../../utils/connect";
-import { Component } from "react";
-import PropTypes from "prop-types";
-import { getSelectedSource, getSelectedBreakableLines } from "../../selectors";
-import { fromEditorLine } from "../../utils/editor";
+import { Component } from "devtools/client/shared/vendor/react";
+import PropTypes from "devtools/client/shared/vendor/react-prop-types";
+import {
+  getSelectedSource,
+  getSelectedBreakableLines,
+} from "../../selectors/index";
+import { fromEditorLine } from "../../utils/editor/index";
 import { isWasm } from "../../utils/wasm";
 
 class EmptyLines extends Component {

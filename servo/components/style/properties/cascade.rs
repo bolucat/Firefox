@@ -7,7 +7,9 @@
 use crate::applicable_declarations::CascadePriority;
 use crate::color::AbsoluteColor;
 use crate::computed_value_flags::ComputedValueFlags;
-use crate::custom_properties::CustomPropertiesBuilder;
+use crate::custom_properties::{
+    CustomPropertiesBuilder, DeferFontRelativeCustomPropertyResolution,
+};
 use crate::dom::TElement;
 use crate::font_metrics::FontMetricsOrientation;
 use crate::logical_geometry::WritingMode;
@@ -237,6 +239,11 @@ fn iter_declarations<'builder, 'decls: 'builder>(
         } else {
             let id = declaration.id().as_longhand().unwrap();
             declarations.note_declaration(declaration, priority, id);
+            if let Some(ref mut builder) = custom_builder {
+                if let PropertyDeclaration::WithVariables(ref v) = declaration {
+                    builder.note_potentially_cyclic_non_custom_dependency(id, v);
+                }
+            }
         }
     }
 }
@@ -310,13 +317,24 @@ where
             LonghandIdSet::visited_dependent()
         },
         CascadeMode::Unvisited { visited_rules } => {
-            context.builder.custom_properties = {
-                let mut builder = CustomPropertiesBuilder::new(stylist, &context);
+            let deferred_custom_properties = {
+                let mut builder = CustomPropertiesBuilder::new(stylist, &mut context);
                 iter_declarations(iter, &mut declarations, Some(&mut builder));
-                builder.build()
+                // Detect cycles, remove properties participating in them, and resolve properties, except:
+                // * Registered custom properties that depend on font-relative properties (Resolved)
+                //   when prioritary properties are resolved), and
+                // * Any property that, in turn, depend on properties like above.
+                builder.build(DeferFontRelativeCustomPropertyResolution::Yes)
             };
 
+            // Resolve prioritary properties - Guaranteed to not fall into a cycle with existing custom
+            // properties.
             cascade.apply_prioritary_properties(&mut context, &declarations, &mut shorthand_cache);
+
+            // Resolve the deferred custom properties.
+            if let Some(deferred) = deferred_custom_properties {
+                CustomPropertiesBuilder::build_deferred(deferred, stylist, &mut context);
+            }
 
             if let Some(visited_rules) = visited_rules {
                 cascade.compute_visited_style_if_needed(
