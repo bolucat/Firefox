@@ -5,7 +5,7 @@
 import React, { Component } from "devtools/client/shared/vendor/react";
 import { div, span } from "devtools/client/shared/vendor/react-dom-factories";
 import PropTypes from "devtools/client/shared/vendor/react-prop-types";
-import { connect } from "../../utils/connect";
+import { connect } from "devtools/client/shared/vendor/react-redux";
 
 import SourceIcon from "../shared/SourceIcon";
 import AccessibleImage from "../shared/AccessibleImage";
@@ -21,7 +21,7 @@ import { sourceTypes } from "../../utils/source";
 import { createLocation } from "../../utils/location";
 import { safeDecodeItemName } from "../../utils/sources-tree/utils";
 
-const classnames = require("devtools/client/shared/classnames.js");
+const classnames = require("resource://devtools/client/shared/classnames.js");
 
 class SourceTreeItem extends Component {
   static get propTypes() {

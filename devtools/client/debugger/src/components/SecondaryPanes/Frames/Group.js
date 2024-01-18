@@ -9,13 +9,10 @@ import { getLibraryFromUrl } from "../../../utils/pause/frames/index";
 
 import AccessibleImage from "../../shared/AccessibleImage";
 import FrameComponent from "./Frame";
-
-import "./Group.css";
-
 import Badge from "../../shared/Badge";
 import FrameIndent from "./FrameIndent";
 
-const classnames = require("devtools/client/shared/classnames.js");
+const classnames = require("resource://devtools/client/shared/classnames.js");
 
 function FrameLocation({ frame, expanded }) {
   const library = frame.library || getLibraryFromUrl(frame);

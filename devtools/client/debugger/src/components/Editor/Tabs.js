@@ -10,7 +10,7 @@ import {
   span,
 } from "devtools/client/shared/vendor/react-dom-factories";
 import PropTypes from "devtools/client/shared/vendor/react-prop-types";
-import { connect } from "../../utils/connect";
+import { connect } from "devtools/client/shared/vendor/react-redux";
 
 import {
   getSourceTabs,
@@ -26,15 +26,13 @@ import { getHiddenTabs } from "../../utils/tabs";
 import { getFilename, isPretty, getFileURL } from "../../utils/source";
 import actions from "../../actions/index";
 
-import "./Tabs.css";
-
 import Tab from "./Tab";
 import { PaneToggleButton } from "../shared/Button/index";
 import Dropdown from "../shared/Dropdown";
 import AccessibleImage from "../shared/AccessibleImage";
 import CommandBar from "../SecondaryPanes/CommandBar";
 
-const { debounce } = require("devtools/shared/debounce");
+const { debounce } = require("resource://devtools/shared/debounce.js");
 
 function haveTabSourcesChanged(tabSources, prevTabSources) {
   if (tabSources.length !== prevTabSources.length) {

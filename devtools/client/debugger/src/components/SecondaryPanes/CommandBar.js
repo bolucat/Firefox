@@ -6,7 +6,7 @@ import React, { Component } from "devtools/client/shared/vendor/react";
 import { div, button } from "devtools/client/shared/vendor/react-dom-factories";
 import PropTypes from "devtools/client/shared/vendor/react-prop-types";
 
-import { connect } from "../../utils/connect";
+import { connect } from "devtools/client/shared/vendor/react-redux";
 import { features, prefs } from "../../utils/prefs";
 import {
   getIsWaitingOnBreak,
@@ -23,13 +23,12 @@ import { formatKeyShortcut } from "../../utils/text";
 import actions from "../../actions/index";
 import { debugBtn } from "../shared/Button/CommandBarButton";
 import AccessibleImage from "../shared/AccessibleImage";
-import "./CommandBar.css";
 import { showMenu } from "../../context-menu/menu";
 
-const classnames = require("devtools/client/shared/classnames.js");
-const MenuButton = require("devtools/client/shared/components/menu/MenuButton");
-const MenuItem = require("devtools/client/shared/components/menu/MenuItem");
-const MenuList = require("devtools/client/shared/components/menu/MenuList");
+const classnames = require("resource://devtools/client/shared/classnames.js");
+const MenuButton = require("resource://devtools/client/shared/components/menu/MenuButton.js");
+const MenuItem = require("resource://devtools/client/shared/components/menu/MenuItem.js");
+const MenuList = require("resource://devtools/client/shared/components/menu/MenuList.js");
 
 const isMacOS = Services.appinfo.OS === "Darwin";
 

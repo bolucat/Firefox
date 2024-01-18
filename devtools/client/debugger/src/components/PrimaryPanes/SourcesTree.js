@@ -14,7 +14,7 @@ import {
   footer,
 } from "devtools/client/shared/vendor/react-dom-factories";
 import PropTypes from "devtools/client/shared/vendor/react-prop-types";
-import { connect } from "../../utils/connect";
+import { connect } from "devtools/client/shared/vendor/react-redux";
 
 // Selectors
 import {
@@ -34,8 +34,8 @@ import actions from "../../actions/index";
 import SourcesTreeItem from "./SourcesTreeItem";
 import AccessibleImage from "../shared/AccessibleImage";
 
-const classnames = require("devtools/client/shared/classnames.js");
-const Tree = require("devtools/client/shared/components/Tree");
+const classnames = require("resource://devtools/client/shared/classnames.js");
+const Tree = require("resource://devtools/client/shared/components/Tree.js");
 
 function shouldAutoExpand(item, mainThreadHost) {
   // There is only one case where we want to force auto expand,

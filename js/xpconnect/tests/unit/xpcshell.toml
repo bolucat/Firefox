@@ -70,6 +70,8 @@ support-files = [
 
 ["test_ComponentEnvironment.js"]
 
+["test_Cu_reportError_column.js"]
+
 ["test_FrameScriptEnvironment.js"]
 
 ["test_ReadableStream_from.js"]
@@ -199,6 +201,8 @@ support-files = [
 ["test_envChain_subscript.js"]
 
 ["test_envChain_subscript_in_JSM.js"]
+
+["test_error_to_exception.js"]
 
 ["test_eventSource.js"]
 

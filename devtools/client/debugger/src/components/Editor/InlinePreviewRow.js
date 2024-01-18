@@ -7,10 +7,8 @@ import ReactDOM from "devtools/client/shared/vendor/react-dom";
 
 import actions from "../../actions/index";
 import assert from "../../utils/assert";
-import { connect } from "../../utils/connect";
+import { connect } from "devtools/client/shared/vendor/react-redux";
 import InlinePreview from "./InlinePreview";
-
-import "./InlinePreview.css";
 
 // Handles rendering for each line ( row )
 // * Renders single widget for each line in codemirror

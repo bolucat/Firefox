@@ -4533,7 +4533,7 @@
 # Is support for Declarative ShadowDOM enabled?
 - name: dom.webcomponents.shadowdom.declarative.enabled
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Is support for the Web GPU API enabled?
@@ -4801,13 +4801,6 @@
 # Whether HTMLEditor consides block or inline element with computed style or
 # only with the default style of HTML definition.
 - name: editor.block_inline_check.use_computed_style
-  type: bool
-  value: true
-  mirror: always
-
-# Use compatible range computation when applying inline style.  This is used
-# for making it possible to backout with Normandy Pref Rollout.
-- name: editor.inline_style.range.compatible_with_the_other_browsers
   type: bool
   value: true
   mirror: always
@@ -7427,6 +7420,12 @@
   do_not_use_directly: true
 
 - name: javascript.options.compact_on_user_inactive
+  type: bool
+  value: true
+  mirror: always
+
+# Enable fuse based destructuring
+- name: javascript.options.destructuring_fuse
   type: bool
   value: true
   mirror: always
@@ -14182,6 +14181,11 @@
 - name: security.tls.enable_0rtt_data
   type: RelaxedAtomicBool
   value: true
+  mirror: always
+
+- name: security.tls.enable_kyber
+  type: RelaxedAtomicBool
+  value: false
   mirror: always
 
 - name: security.ssl.treat_unsafe_negotiation_as_broken

@@ -79,6 +79,7 @@ class nsHTMLScrollFrame : public nsContainerFrame,
   using InScrollingGesture = nsIScrollableFrame::InScrollingGesture;
 
   using CSSIntPoint = mozilla::CSSIntPoint;
+  using CSSPoint = mozilla::CSSPoint;
   using ScrollReflowInput = mozilla::ScrollReflowInput;
   using ScrollAnchorContainer = mozilla::layout::ScrollAnchorContainer;
   friend nsHTMLScrollFrame* NS_NewHTMLScrollFrame(
@@ -271,7 +272,8 @@ class nsHTMLScrollFrame : public nsContainerFrame,
   /**
    * @note This method might destroy the frame, pres shell and other objects.
    */
-  CSSIntPoint GetScrollPositionCSSPixels() final;
+  CSSIntPoint GetRoundedScrollPositionCSSPixels() final;
+
   /**
    * @note This method might destroy the frame, pres shell and other objects.
    */
@@ -699,6 +701,10 @@ class nsHTMLScrollFrame : public nsContainerFrame,
     }
     ScheduleScrollAnimations();
     mMayScheduleScrollAnimations = false;
+  }
+
+  CSSPoint GetScrollPositionCSSPixels() const {
+    return CSSPoint::FromAppUnits(GetScrollPosition());
   }
 
  public:

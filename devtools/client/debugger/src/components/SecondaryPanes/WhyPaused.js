@@ -5,12 +5,12 @@
 const {
   LocalizationProvider,
   Localized,
-} = require("devtools/client/shared/vendor/fluent-react");
+} = require("resource://devtools/client/shared/vendor/fluent-react.js");
 
 import React, { PureComponent } from "devtools/client/shared/vendor/react";
 import { div, span } from "devtools/client/shared/vendor/react-dom-factories";
 import PropTypes from "devtools/client/shared/vendor/react-prop-types";
-import { connect } from "../../utils/connect";
+import { connect } from "devtools/client/shared/vendor/react-redux";
 import AccessibleImage from "../shared/AccessibleImage";
 import actions from "../../actions/index";
 
@@ -26,8 +26,6 @@ import {
   getPaneCollapse,
   getPauseReason as getWhy,
 } from "../../selectors/index";
-
-import "./WhyPaused.css";
 
 class WhyPaused extends PureComponent {
   constructor(props) {

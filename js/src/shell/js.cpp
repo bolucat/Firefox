@@ -161,7 +161,6 @@
 #include "js/Stack.h"
 #include "js/StreamConsumer.h"
 #include "js/StructuredClone.h"
-#include "js/SweepingAPI.h"
 #include "js/Transcoding.h"  // JS::TranscodeBuffer, JS::TranscodeRange, JS::IsTranscodeFailureResult
 #include "js/Warnings.h"    // JS::SetWarningReporter
 #include "js/WasmModule.h"  // JS::WasmModule
@@ -752,7 +751,7 @@ bool shell::enableSymbolsAsWeakMapKeys = false;
 
 bool shell::enableArrayBufferTransfer = true;
 bool shell::enableImportAssertions = false;
-bool shell::enableDestructuringFuse = false;
+bool shell::enableDestructuringFuse = true;
 #ifdef JS_GC_ZEAL
 uint32_t shell::gZealBits = 0;
 uint32_t shell::gZealFrequency = 0;
@@ -11713,8 +11712,8 @@ bool InitOptionParser(OptionParser& op) {
                         "(no-op) Enable class static blocks") ||
       !op.addBoolOption('\0', "enable-import-assertions",
                         "Enable import assertions") ||
-      !op.addBoolOption('\0', "enable-destructuring-fuse",
-                        "Enable Destructuring Fuse") ||
+      !op.addBoolOption('\0', "disable-destructuring-fuse",
+                        "Disable Destructuring Fuse") ||
       !op.addStringOption('\0', "shared-memory", "on/off",
                           "SharedArrayBuffer and Atomics "
 #if SHARED_MEMORY_DEFAULT
@@ -11856,6 +11855,10 @@ bool InitOptionParser(OptionParser& op) {
           "Wait for COUNT calls or iterations before trial-inlining "
           "(default: 500)",
           -1) ||
+      !op.addStringOption(
+          '\0', "monomorphic-inlining", "default/always/never",
+          "Whether monomorphic inlining is used instead of trial inlining "
+          "always, never, or based on heuristics (default)") ||
       !op.addBoolOption(
           '\0', "non-writable-jitcode",
           "(NOP for fuzzers) Allocate JIT code as non-writable memory.") ||
@@ -12231,7 +12234,7 @@ bool SetContextOptions(JSContext* cx, const OptionParser& op) {
 #endif
   enableArrayBufferTransfer = !op.getBoolOption("disable-arraybuffer-transfer");
   enableImportAssertions = op.getBoolOption("enable-import-assertions");
-  enableDestructuringFuse = op.getBoolOption("enable-destructuring-fuse");
+  enableDestructuringFuse = !op.getBoolOption("disable-destructuring-fuse");
   useFdlibmForSinCosTan = op.getBoolOption("use-fdlibm-for-sin-cos-tan");
 
   JS::ContextOptionsRef(cx)
@@ -12461,6 +12464,19 @@ bool SetContextJITOptions(JSContext* cx, const OptionParser& op) {
       jit::JitOptions.maybeSetWriteProtectCode(false);
     } else {
       return OptionFailure("write-protect-code", str);
+    }
+  }
+
+  if (const char* str = op.getStringOption("monomorphic-inlining")) {
+    if (strcmp(str, "default") == 0) {
+      jit::JitOptions.monomorphicInlining =
+          jit::UseMonomorphicInlining::Default;
+    } else if (strcmp(str, "always") == 0) {
+      jit::JitOptions.monomorphicInlining = jit::UseMonomorphicInlining::Always;
+    } else if (strcmp(str, "never") == 0) {
+      jit::JitOptions.monomorphicInlining = jit::UseMonomorphicInlining::Never;
+    } else {
+      return OptionFailure("monomorphic-inlining", str);
     }
   }
 

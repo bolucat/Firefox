@@ -5,12 +5,10 @@
 import React, { Component } from "devtools/client/shared/vendor/react";
 import { div } from "devtools/client/shared/vendor/react-dom-factories";
 import PropTypes from "devtools/client/shared/vendor/react-prop-types";
-import { connect } from "../../utils/connect";
+import { connect } from "devtools/client/shared/vendor/react-redux";
 
 import { getAllThreads } from "../../selectors/index";
 import Thread from "./Thread";
-
-import "./Threads.css";
 
 export class Threads extends Component {
   static get propTypes() {

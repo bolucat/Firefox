@@ -23,6 +23,7 @@
 #include "gc/Scheduling.h"
 #include "gc/Statistics.h"
 #include "gc/StoreBuffer.h"
+#include "gc/SweepingAPI.h"
 #include "js/friend/PerformanceHint.h"
 #include "js/GCAnnotations.h"
 #include "js/UniquePtr.h"
@@ -235,13 +236,11 @@ class ZoneList {
 };
 
 struct WeakCacheToSweep {
-  JS::detail::WeakCacheBase* cache;
+  WeakCacheBase* cache;
   JS::Zone* zone;
 };
 
 class WeakCacheSweepIterator {
-  using WeakCacheBase = JS::detail::WeakCacheBase;
-
   JS::Zone* sweepZone;
   WeakCacheBase* sweepCache;
 
@@ -1206,8 +1205,7 @@ class GCRuntime {
    * used during shutdown GCs. In either case, unmarked objects may need to be
    * discarded.
    */
-  JS::WeakCache<GCVector<HeapPtr<JS::Value>, 0, SystemAllocPolicy>>
-      testMarkQueue;
+  WeakCache<GCVector<HeapPtr<JS::Value>, 0, SystemAllocPolicy>> testMarkQueue;
 
   /* Position within the test mark queue. */
   size_t queuePos = 0;

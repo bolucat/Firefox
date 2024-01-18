@@ -8,11 +8,9 @@ import PropTypes from "devtools/client/shared/vendor/react-prop-types";
 
 import AccessibleImage from "./AccessibleImage";
 
-const classnames = require("devtools/client/shared/classnames.js");
+const classnames = require("resource://devtools/client/shared/classnames.js");
 
 import { scrollList } from "../../utils/result-list";
-
-import "./ResultList.css";
 
 export default class ResultList extends Component {
   static defaultProps = {

@@ -2388,6 +2388,13 @@ class nsIFrame : public nsQueryFrame {
    * Called when this frame becomes primary for mContent.
    */
   void InitPrimaryFrame();
+  /**
+   * Called when the primary frame style changes.
+   *
+   * Kind of like DidSetComputedStyle, but the first computed style is set
+   * before SetPrimaryFrame, so we need this tweak.
+   */
+  void HandlePrimaryFrameStyleChange(ComputedStyle* aOldStyle);
 
  public:
   /**
@@ -2441,6 +2448,7 @@ class nsIFrame : public nsQueryFrame {
    * Continuation member functions
    */
   virtual nsIFrame* GetPrevContinuation() const;
+  virtual void SetPrevContinuation(nsIFrame*);
   virtual nsIFrame* GetNextContinuation() const;
   virtual void SetNextContinuation(nsIFrame*);
   virtual nsIFrame* FirstContinuation() const {
@@ -2461,6 +2469,8 @@ class nsIFrame : public nsQueryFrame {
    * Flow member functions
    */
   virtual nsIFrame* GetPrevInFlow() const;
+  virtual void SetPrevInFlow(nsIFrame*);
+
   virtual nsIFrame* GetNextInFlow() const;
   virtual void SetNextInFlow(nsIFrame*);
 
@@ -3301,8 +3311,7 @@ class nsIFrame : public nsQueryFrame {
    * https://drafts.csswg.org/css-contain-2/#relevant-to-the-user.
    * Returns true if the over-all relevancy changed.
    */
-  [[nodiscard]] bool UpdateIsRelevantContent(
-      const ContentRelevancy& aRelevancyToUpdate);
+  bool UpdateIsRelevantContent(const ContentRelevancy& aRelevancyToUpdate);
 
   /**
    * Get the "type" of the frame.
@@ -4692,8 +4701,6 @@ class nsIFrame : public nsQueryFrame {
   }
   // Update mAllDescendantsAreInvisible flag for this frame and ancestors.
   void UpdateVisibleDescendantsState();
-
-  void UpdateAnimationVisibility();
 
   /**
    * If this returns true, the frame it's called on should get the

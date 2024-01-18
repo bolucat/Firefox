@@ -9,7 +9,7 @@ import {
   span,
 } from "devtools/client/shared/vendor/react-dom-factories";
 import PropTypes from "devtools/client/shared/vendor/react-prop-types";
-import { connect } from "../utils/connect";
+import { connect } from "devtools/client/shared/vendor/react-redux";
 import { prefs } from "../utils/prefs";
 import { primaryPaneTabs } from "../constants";
 import actions from "../actions/index";
@@ -25,10 +25,10 @@ import {
   isMapScopesEnabled,
   getSourceMapErrorForSourceActor,
 } from "../selectors/index";
-const KeyShortcuts = require("devtools/client/shared/key-shortcuts");
+const KeyShortcuts = require("resource://devtools/client/shared/key-shortcuts.js");
 
-const SplitBox = require("devtools/client/shared/components/splitter/SplitBox");
-const AppErrorBoundary = require("devtools/client/shared/components/AppErrorBoundary");
+const SplitBox = require("resource://devtools/client/shared/components/splitter/SplitBox.js");
+const AppErrorBoundary = require("resource://devtools/client/shared/components/AppErrorBoundary.js");
 
 const shortcuts = new KeyShortcuts({ window });
 
@@ -36,10 +36,6 @@ const horizontalLayoutBreakpoint = window.matchMedia("(min-width: 800px)");
 const verticalLayoutBreakpoint = window.matchMedia(
   "(min-width: 10px) and (max-width: 799px)"
 );
-
-import "./variables.css";
-import "./App.css";
-import "./shared/menu.css";
 
 import { ShortcutsModal } from "./ShortcutsModal";
 import PrimaryPanes from "./PrimaryPanes/index";

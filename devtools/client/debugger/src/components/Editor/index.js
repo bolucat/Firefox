@@ -7,7 +7,7 @@ import React, { PureComponent } from "devtools/client/shared/vendor/react";
 import { div } from "devtools/client/shared/vendor/react-dom-factories";
 import { bindActionCreators } from "devtools/client/shared/vendor/redux";
 import ReactDOM from "devtools/client/shared/vendor/react-dom";
-import { connect } from "../../utils/connect";
+import { connect } from "devtools/client/shared/vendor/react-redux";
 
 import { getLineText, isLineBlackboxed } from "./../../utils/source";
 import { createLocation } from "./../../utils/location";
@@ -70,8 +70,8 @@ import {
 
 import { resizeToggleButton, resizeBreakpointGutter } from "../../utils/ui";
 
-const { debounce } = require("devtools/shared/debounce");
-const classnames = require("devtools/client/shared/classnames.js");
+const { debounce } = require("resource://devtools/shared/debounce.js");
+const classnames = require("resource://devtools/client/shared/classnames.js");
 
 const { appinfo } = Services;
 const isMacOS = appinfo.OS === "Darwin";
@@ -83,10 +83,6 @@ function isSecondary(ev) {
 function isCmd(ev) {
   return isMacOS ? ev.metaKey : ev.ctrlKey;
 }
-
-import "./Editor.css";
-import "./Breakpoints.css";
-import "./InlinePreview.css";
 
 const cssVars = {
   searchbarHeight: "var(--editor-searchbar-height)",

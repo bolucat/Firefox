@@ -24,11 +24,9 @@ import {
 } from "devtools/client/framework/actions/index";
 
 import actions from "../../actions/index";
-import { connect } from "../../utils/connect";
+import { connect } from "devtools/client/shared/vendor/react-redux";
 
 import { CloseButton } from "../shared/Button/index";
-
-import "./DOMMutationBreakpoints.css";
 
 const localizationTerms = {
   subtree: L10N.getStr("domMutationTypes.subtree"),

@@ -5,7 +5,7 @@
 import PropTypes from "devtools/client/shared/vendor/react-prop-types";
 import React, { Component } from "devtools/client/shared/vendor/react";
 import { div } from "devtools/client/shared/vendor/react-dom-factories";
-import { connect } from "../../utils/connect";
+import { connect } from "devtools/client/shared/vendor/react-redux";
 import actions from "../../actions/index";
 import {
   getActiveSearch,
@@ -18,10 +18,9 @@ import { searchKeys } from "../../constants";
 import { scrollList } from "../../utils/result-list";
 
 import SearchInput from "../shared/SearchInput";
-import "./SearchInFileBar.css";
 
-const { PluralForm } = require("devtools/shared/plural-form");
-const { debounce } = require("devtools/shared/debounce");
+const { PluralForm } = require("resource://devtools/shared/plural-form.js");
+const { debounce } = require("resource://devtools/shared/debounce.js");
 import { renderWasmText } from "../../utils/wasm";
 import {
   clearSearch,

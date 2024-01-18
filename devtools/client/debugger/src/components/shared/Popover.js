@@ -8,9 +8,7 @@ import PropTypes from "devtools/client/shared/vendor/react-prop-types";
 import BracketArrow from "./BracketArrow";
 import SmartGap from "./SmartGap";
 
-const classnames = require("devtools/client/shared/classnames.js");
-
-import "./Popover.css";
+const classnames = require("resource://devtools/client/shared/classnames.js");
 
 class Popover extends Component {
   state = {

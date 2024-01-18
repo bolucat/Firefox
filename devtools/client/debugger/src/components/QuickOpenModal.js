@@ -5,12 +5,12 @@
 import React, { Component } from "devtools/client/shared/vendor/react";
 import { div } from "devtools/client/shared/vendor/react-dom-factories";
 import PropTypes from "devtools/client/shared/vendor/react-prop-types";
-import { connect } from "../utils/connect";
+import { connect } from "devtools/client/shared/vendor/react-redux";
 import { basename } from "../utils/path";
 import { createLocation } from "../utils/location";
 
-const fuzzyAldrin = require("devtools/client/shared/vendor/fuzzaldrin-plus.js");
-const { throttle } = require("devtools/shared/throttle");
+const fuzzyAldrin = require("resource://devtools/client/shared/vendor/fuzzaldrin-plus.js");
+const { throttle } = require("resource://devtools/shared/throttle.js");
 
 import actions from "../actions/index";
 import {
@@ -34,8 +34,6 @@ import {
 import Modal from "./shared/Modal";
 import SearchInput from "./shared/SearchInput";
 import ResultList from "./shared/ResultList";
-
-import "./QuickOpenModal.css";
 
 const maxResults = 100;
 

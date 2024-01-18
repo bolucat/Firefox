@@ -8,9 +8,7 @@ import PropTypes from "devtools/client/shared/vendor/react-prop-types";
 
 import AccessibleImage from "../AccessibleImage";
 
-const classnames = require("devtools/client/shared/classnames.js");
-
-import "./styles/CommandBarButton.css";
+const classnames = require("resource://devtools/client/shared/classnames.js");
 
 export function debugBtn(
   onClick,

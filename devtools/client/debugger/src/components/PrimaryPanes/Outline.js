@@ -12,7 +12,7 @@ import {
   button,
 } from "devtools/client/shared/vendor/react-dom-factories";
 import PropTypes from "devtools/client/shared/vendor/react-prop-types";
-import { connect } from "../../utils/connect";
+import { connect } from "devtools/client/shared/vendor/react-redux";
 
 import { containsPosition, positionAfter } from "../../utils/ast";
 import { createLocation } from "../../utils/location";
@@ -25,15 +25,14 @@ import {
 } from "../../selectors/index";
 
 import OutlineFilter from "./OutlineFilter";
-import "./Outline.css";
 import PreviewFunction from "../shared/PreviewFunction";
 
 import { isFulfilled } from "../../utils/async-value";
 
-const classnames = require("devtools/client/shared/classnames.js");
+const classnames = require("resource://devtools/client/shared/classnames.js");
 const {
   score: fuzzaldrinScore,
-} = require("devtools/client/shared/vendor/fuzzaldrin-plus.js");
+} = require("resource://devtools/client/shared/vendor/fuzzaldrin-plus.js");
 
 // Set higher to make the fuzzaldrin filter more specific
 const FUZZALDRIN_FILTER_THRESHOLD = 15000;

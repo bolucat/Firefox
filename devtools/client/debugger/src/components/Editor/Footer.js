@@ -9,7 +9,7 @@ import {
   span,
 } from "devtools/client/shared/vendor/react-dom-factories";
 import PropTypes from "devtools/client/shared/vendor/react-prop-types";
-import { connect } from "../../utils/connect";
+import { connect } from "devtools/client/shared/vendor/react-redux";
 import actions from "../../actions/index";
 import {
   getSelectedSource,
@@ -30,9 +30,7 @@ import { isPretty, getFilename, shouldBlackbox } from "../../utils/source";
 import { PaneToggleButton } from "../shared/Button/index";
 import AccessibleImage from "../shared/AccessibleImage";
 
-const classnames = require("devtools/client/shared/classnames.js");
-
-import "./Footer.css";
+const classnames = require("resource://devtools/client/shared/classnames.js");
 
 class SourceFooter extends PureComponent {
   static get propTypes() {

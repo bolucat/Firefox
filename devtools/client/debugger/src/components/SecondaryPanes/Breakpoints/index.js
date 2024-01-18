@@ -5,7 +5,7 @@
 import React, { Component } from "devtools/client/shared/vendor/react";
 import { div } from "devtools/client/shared/vendor/react-dom-factories";
 import PropTypes from "devtools/client/shared/vendor/react-prop-types";
-import { connect } from "../../../utils/connect";
+import { connect } from "devtools/client/shared/vendor/react-redux";
 
 import ExceptionOption from "./ExceptionOption";
 
@@ -26,9 +26,7 @@ import {
   getShouldPauseOnCaughtExceptions,
 } from "../../../selectors/index";
 
-const classnames = require("devtools/client/shared/classnames.js");
-
-import "./Breakpoints.css";
+const classnames = require("resource://devtools/client/shared/classnames.js");
 
 class Breakpoints extends Component {
   static get propTypes() {

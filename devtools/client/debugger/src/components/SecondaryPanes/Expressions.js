@@ -14,7 +14,7 @@ import {
   span,
 } from "devtools/client/shared/vendor/react-dom-factories";
 import PropTypes from "devtools/client/shared/vendor/react-prop-types";
-import { connect } from "../../utils/connect";
+import { connect } from "devtools/client/shared/vendor/react-redux";
 import { features } from "../../utils/prefs";
 import AccessibleImage from "../shared/AccessibleImage";
 
@@ -36,10 +36,8 @@ import { getExpressionResultGripAndFront } from "../../utils/expressions";
 
 import { CloseButton } from "../shared/Button/index";
 
-import "./Expressions.css";
-
-const { debounce } = require("devtools/shared/debounce");
-const classnames = require("devtools/client/shared/classnames.js");
+const { debounce } = require("resource://devtools/shared/debounce.js");
+const classnames = require("resource://devtools/client/shared/classnames.js");
 
 const { ObjectInspector } = objectInspector;
 
