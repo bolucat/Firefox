@@ -1,8 +1,6 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-/* import-globals-from ../head.js */
-
 requestLongerTimeout(2);
 
 ChromeUtils.defineESModuleGetters(globalThis, {
@@ -639,6 +637,6 @@ add_task(async function test_search_recent_browsing() {
       () => slot.tabList.rowEls.length === NUMBER_OF_TABS,
       "All search results are shown."
     );
-    ok(BrowserTestUtils.is_hidden(showAllLink), "The show all link is hidden.");
+    ok(BrowserTestUtils.isHidden(showAllLink), "The show all link is hidden.");
   });
 });

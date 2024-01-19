@@ -1,3 +1,5 @@
+// |jit-test| --enable-import-assertions
+
 load(libdir + "match.js");
 load(libdir + "asserts.js");
 
@@ -17,13 +19,13 @@ importSpecifier = (id, name) => Pattern({
     id: id,
     name: name
 });
-moduleRequest = (specifier, assertions) => Pattern({
+moduleRequest = (specifier, attributes) => Pattern({
     type: "ModuleRequest",
     source: specifier,
-    assertions: assertions
+    attributes: attributes
 });
-importAssertion = (key, value) => Pattern({
-    type: "ImportAssertion",
+importAttribute = (key, value) => Pattern({
+    type: "ImportAttribute",
     key: key,
     value : value
 });
@@ -324,7 +326,7 @@ program([
     )
 ]).assert(parseAsModule("import 'a'"));
 
-if (getRealmConfiguration("importAssertions")) {
+if (getRealmConfiguration("importAttributes")) {
     program([
         importDeclaration(
             [
@@ -351,7 +353,7 @@ if (getRealmConfiguration("importAssertions")) {
             moduleRequest(
                 lit("b"),
                 [
-                    importAssertion(ident('type'), lit('js')),
+                    importAttribute(ident('type'), lit('js')),
                 ]
             )
         )
@@ -368,7 +370,7 @@ if (getRealmConfiguration("importAssertions")) {
             moduleRequest(
                 lit("b"),
                 [
-                    importAssertion(ident('foo'), lit('bar')),
+                    importAttribute(ident('foo'), lit('bar')),
                 ]
             )
         )
@@ -385,8 +387,44 @@ if (getRealmConfiguration("importAssertions")) {
             moduleRequest(
                 lit("b"),
                 [
-                    importAssertion(ident('type'), lit('js')),
-                    importAssertion(ident('foo'), lit('bar')),
+                    importAttribute(ident('foo'), lit('bar')),
+                ]
+            )
+        )
+    ]).assert(parseAsModule(`import a from 'b' with { foo: 'bar' }`));
+
+    // `assert` has NLTH but `with` doesn't
+    program([
+        importDeclaration(
+            [
+                importSpecifier(
+                    ident("default"),
+                    ident("a")
+                )
+            ],
+            moduleRequest(
+                lit("b"),
+                [
+                    importAttribute(ident('foo'), lit('bar')),
+                ]
+            )
+        )
+    ]).assert(parseAsModule(`import a from 'b'
+                             with { foo: 'bar' }`));
+
+    program([
+        importDeclaration(
+            [
+                importSpecifier(
+                    ident("default"),
+                    ident("a")
+                )
+            ],
+            moduleRequest(
+                lit("b"),
+                [
+                    importAttribute(ident('type'), lit('js')),
+                    importAttribute(ident('foo'), lit('bar')),
                 ]
             )
         )
@@ -394,6 +432,12 @@ if (getRealmConfiguration("importAssertions")) {
 
     assertThrowsInstanceOf(function () {
         parseAsModule("import a from 'b' assert { type: type }");
+    }, SyntaxError);
+
+    assertThrowsInstanceOf(function () {
+        // No newline allowed as assert.
+        parseAsModule(`import foo from "foo"
+        assert {type: 'js' }`);
     }, SyntaxError);
 }
 

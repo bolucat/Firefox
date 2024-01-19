@@ -129,9 +129,17 @@ class JS_PUBLIC_API ContextOptions {
     return *this;
   }
 
-  bool importAssertions() const { return compileOptions_.importAssertions(); }
-  ContextOptions& setImportAssertions(bool enabled) {
-    compileOptions_.setImportAssertions(enabled);
+  bool importAttributes() const { return compileOptions_.importAttributes(); }
+  ContextOptions& setImportAttributes(bool enabled) {
+    compileOptions_.setImportAttributes(enabled);
+    return *this;
+  }
+
+  bool importAttributesAssertSyntax() const {
+    return compileOptions_.importAttributesAssertSyntax();
+  }
+  ContextOptions& setImportAttributesAssertSyntax(bool enabled) {
+    compileOptions_.setImportAttributesAssertSyntax(enabled);
     return *this;
   }
 

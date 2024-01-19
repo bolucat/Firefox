@@ -85,7 +85,7 @@ add_task(async function test_adjusted_rating() {
           );
 
           ok(
-            ContentTaskUtils.is_hidden(adjustedRating),
+            ContentTaskUtils.isHidden(adjustedRating),
             "adjusted rating should not be visible"
           );
 
@@ -95,7 +95,7 @@ add_task(async function test_adjusted_rating() {
           await adjustedRating.updateComplete;
           mozFiveStar = adjustedRating.ratingEl;
           ok(
-            ContentTaskUtils.is_visible(adjustedRating),
+            ContentTaskUtils.isVisible(adjustedRating),
             "adjusted rating should be visible"
           );
           is(

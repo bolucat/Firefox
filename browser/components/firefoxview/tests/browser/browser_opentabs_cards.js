@@ -1,8 +1,6 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-/* import-globals-from ../head.js */
-
 const TEST_URL = "about:robots";
 const ROW_URL_ID = "fxview-tab-row-url";
 const ROW_DATE_ID = "fxview-tab-row-date";
@@ -507,7 +505,7 @@ add_task(async function search_open_tabs_recent_browsing() {
       return false;
     }, "All search results are shown.");
     is(showAllLink.role, "link", "The show all control is a link.");
-    ok(BrowserTestUtils.is_hidden(showAllLink), "The show all link is hidden.");
+    ok(BrowserTestUtils.isHidden(showAllLink), "The show all link is hidden.");
   });
   await SpecialPowers.popPrefEnv();
   await cleanup();

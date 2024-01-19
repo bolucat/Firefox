@@ -7507,7 +7507,14 @@
 
 #ifdef NIGHTLY_BUILD
   # Experimental support for Import Assertions in JavaScript.
--   name: javascript.options.experimental.import_assertions
+-   name: javascript.options.experimental.import_attributes
+    type: bool
+    value: false
+    mirror: always
+  # Import attributes were developed under the 'assert' keyword.
+  # We have that keyword under a pref, as we'd rather not ship it if we
+  # can avoid it, but in the case we can't, we'd like access to it quickly.
+-   name: javascript.options.experimental.import_attributes.assert_syntax
     type: bool
     value: false
     mirror: always

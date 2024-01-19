@@ -45,9 +45,9 @@ add_task(async function test_switchtab_override() {
   const allLabels = document.getElementById("urlbar-label-box").children;
   for (let label of allLabels) {
     if (label.id == "urlbar-label-switchtab") {
-      Assert.ok(BrowserTestUtils.is_visible(label));
+      Assert.ok(BrowserTestUtils.isVisible(label));
     } else {
-      Assert.ok(BrowserTestUtils.is_hidden(label));
+      Assert.ok(BrowserTestUtils.isHidden(label));
     }
   }
 
@@ -70,7 +70,7 @@ add_task(async function test_switchtab_override() {
 
   // Checks that all labels are hidden when Shift is held down on the SwitchToTab result
   for (let label of allLabels) {
-    Assert.ok(BrowserTestUtils.is_hidden(label));
+    Assert.ok(BrowserTestUtils.isHidden(label));
   }
 
   registerCleanupFunction(() => {
