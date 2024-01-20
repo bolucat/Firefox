@@ -10,6 +10,7 @@
 #include "Buffer.h"
 #include "RenderBundle.h"
 #include "RenderPipeline.h"
+#include "Utility.h"
 #include "ipc/WebGPUChild.h"
 #include "mozilla/webgpu/ffi/wgpu.h"
 
@@ -41,14 +42,14 @@ ffi::WGPURenderBundleEncoder* CreateRenderBundleEncoder(
   ffi::WGPUTextureFormat depthStencilFormat = {ffi::WGPUTextureFormat_Sentinel};
   if (aDesc.mDepthStencilFormat.WasPassed()) {
     depthStencilFormat =
-        WebGPUChild::ConvertTextureFormat(aDesc.mDepthStencilFormat.Value());
+        ConvertTextureFormat(aDesc.mDepthStencilFormat.Value());
     desc.depth_stencil_format = &depthStencilFormat;
   }
 
   std::vector<ffi::WGPUTextureFormat> colorFormats = {};
   for (const auto i : IntegerRange(aDesc.mColorFormats.Length())) {
     ffi::WGPUTextureFormat format = {ffi::WGPUTextureFormat_Sentinel};
-    format = WebGPUChild::ConvertTextureFormat(aDesc.mColorFormats[i]);
+    format = ConvertTextureFormat(aDesc.mColorFormats[i]);
     colorFormats.push_back(format);
   }
 
@@ -177,21 +178,32 @@ void RenderBundleEncoder::InsertDebugMarker(const nsAString& aString) {
 
 already_AddRefed<RenderBundle> RenderBundleEncoder::Finish(
     const dom::GPURenderBundleDescriptor& aDesc) {
-  RawId id = 0;
+  RawId deviceId = mParent->mId;
+  auto bridge = mParent->GetBridge();
+  MOZ_RELEASE_ASSERT(bridge);
+
+  ffi::WGPURenderBundleDescriptor desc = {};
+  webgpu::StringHelper label(aDesc.mLabel);
+  desc.label = label.Get();
+
+  ipc::ByteBuf bb;
+  RawId id;
   if (mValid) {
     mValid = false;
-    auto bridge = mParent->GetBridge();
-    if (bridge && bridge->CanSend()) {
-      auto* encoder = mEncoder.release();
-      MOZ_ASSERT(encoder);
-      id = bridge->RenderBundleEncoderFinish(*encoder, mParent->mId, aDesc);
-    }
+
+    auto* encoder = mEncoder.release();
+    id = ffi::wgpu_client_create_render_bundle(bridge->GetClient(), encoder,
+                                               deviceId, &desc, ToFFI(&bb));
+
   } else {
-    auto bridge = mParent->GetBridge();
-    if (bridge && bridge->CanSend()) {
-      id = bridge->RenderBundleEncoderFinishError(mParent->mId, mLabel);
-    }
+    id = ffi::wgpu_client_create_render_bundle_error(
+        bridge->GetClient(), deviceId, label.Get(), ToFFI(&bb));
   }
+
+  if (bridge->CanSend()) {
+    bridge->SendDeviceAction(deviceId, std::move(bb));
+  }
+
   RefPtr<RenderBundle> bundle = new RenderBundle(mParent, id);
   return bundle.forget();
 }

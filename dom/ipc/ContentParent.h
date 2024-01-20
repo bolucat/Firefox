@@ -923,10 +923,6 @@ class ContentParent final : public PContentParent,
 
   bool DeallocPCycleCollectWithLogsParent(PCycleCollectWithLogsParent* aActor);
 
-  PTestShellParent* AllocPTestShellParent();
-
-  bool DeallocPTestShellParent(PTestShellParent* shell);
-
   PScriptCacheParent* AllocPScriptCacheParent(const FileDescOrError& cacheFile,
                                               const bool& wantCacheData);
 
@@ -962,19 +958,16 @@ class ContentParent final : public PContentParent,
   bool DeallocPBenchmarkStorageParent(PBenchmarkStorageParent* aActor);
 
 #ifdef MOZ_WEBSPEECH
-  PSpeechSynthesisParent* AllocPSpeechSynthesisParent();
-  bool DeallocPSpeechSynthesisParent(PSpeechSynthesisParent* aActor);
+  already_AddRefed<PSpeechSynthesisParent> AllocPSpeechSynthesisParent();
 
   virtual mozilla::ipc::IPCResult RecvPSpeechSynthesisConstructor(
       PSpeechSynthesisParent* aActor) override;
 #endif
 
-  PWebBrowserPersistDocumentParent* AllocPWebBrowserPersistDocumentParent(
+  already_AddRefed<PWebBrowserPersistDocumentParent>
+  AllocPWebBrowserPersistDocumentParent(
       PBrowserParent* aBrowser,
       const MaybeDiscarded<BrowsingContext>& aContext);
-
-  bool DeallocPWebBrowserPersistDocumentParent(
-      PWebBrowserPersistDocumentParent* aActor);
 
   mozilla::ipc::IPCResult RecvSetClipboard(const IPCTransferable& aTransferable,
                                            const int32_t& aWhichClipboard);

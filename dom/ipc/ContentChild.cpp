@@ -1914,13 +1914,8 @@ bool ContentChild::DeallocPHeapSnapshotTempFileHelperChild(
   return true;
 }
 
-PTestShellChild* ContentChild::AllocPTestShellChild() {
-  return new TestShellChild();
-}
-
-bool ContentChild::DeallocPTestShellChild(PTestShellChild* shell) {
-  delete shell;
-  return true;
+already_AddRefed<PTestShellChild> ContentChild::AllocPTestShellChild() {
+  return MakeAndAddRef<TestShellChild>();
 }
 
 mozilla::ipc::IPCResult ContentChild::RecvPTestShellConstructor(
@@ -2012,17 +2007,6 @@ bool ContentChild::DeallocPBenchmarkStorageChild(
   delete aActor;
   return true;
 }
-
-#ifdef MOZ_WEBSPEECH
-PSpeechSynthesisChild* ContentChild::AllocPSpeechSynthesisChild() {
-  MOZ_CRASH("No one should be allocating PSpeechSynthesisChild actors");
-}
-
-bool ContentChild::DeallocPSpeechSynthesisChild(PSpeechSynthesisChild* aActor) {
-  delete aActor;
-  return true;
-}
-#endif
 
 #ifdef MOZ_WEBRTC
 PWebrtcGlobalChild* ContentChild::AllocPWebrtcGlobalChild() {
@@ -3140,10 +3124,10 @@ bool ContentChild::DeallocPContentPermissionRequestChild(
   return true;
 }
 
-PWebBrowserPersistDocumentChild*
+already_AddRefed<PWebBrowserPersistDocumentChild>
 ContentChild::AllocPWebBrowserPersistDocumentChild(
     PBrowserChild* aBrowser, const MaybeDiscarded<BrowsingContext>& aContext) {
-  return new WebBrowserPersistDocumentChild();
+  return MakeAndAddRef<WebBrowserPersistDocumentChild>();
 }
 
 mozilla::ipc::IPCResult ContentChild::RecvPWebBrowserPersistDocumentConstructor(
@@ -3166,12 +3150,6 @@ mozilla::ipc::IPCResult ContentChild::RecvPWebBrowserPersistDocumentConstructor(
     static_cast<WebBrowserPersistDocumentChild*>(aActor)->Start(foundDoc);
   }
   return IPC_OK();
-}
-
-bool ContentChild::DeallocPWebBrowserPersistDocumentChild(
-    PWebBrowserPersistDocumentChild* aActor) {
-  delete aActor;
-  return true;
 }
 
 mozilla::ipc::IPCResult ContentChild::RecvInvokeDragSession(

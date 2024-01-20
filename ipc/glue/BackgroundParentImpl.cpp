@@ -244,7 +244,7 @@ mozilla::ipc::IPCResult BackgroundParentImpl::RecvFlushPendingFileDeletions() {
   return IPC_OK();
 }
 
-BackgroundParentImpl::PBackgroundSDBConnectionParent*
+already_AddRefed<BackgroundParentImpl::PBackgroundSDBConnectionParent>
 BackgroundParentImpl::AllocPBackgroundSDBConnectionParent(
     const PersistenceType& aPersistenceType,
     const PrincipalInfo& aPrincipalInfo) {
@@ -271,16 +271,7 @@ BackgroundParentImpl::RecvPBackgroundSDBConnectionConstructor(
   return IPC_OK();
 }
 
-bool BackgroundParentImpl::DeallocPBackgroundSDBConnectionParent(
-    PBackgroundSDBConnectionParent* aActor) {
-  AssertIsInMainProcess();
-  AssertIsOnBackgroundThread();
-  MOZ_ASSERT(aActor);
-
-  return mozilla::dom::DeallocPBackgroundSDBConnectionParent(aActor);
-}
-
-BackgroundParentImpl::PBackgroundLSDatabaseParent*
+already_AddRefed<BackgroundParentImpl::PBackgroundLSDatabaseParent>
 BackgroundParentImpl::AllocPBackgroundLSDatabaseParent(
     const PrincipalInfo& aPrincipalInfo, const uint32_t& aPrivateBrowsingId,
     const uint64_t& aDatastoreId) {
@@ -304,15 +295,6 @@ BackgroundParentImpl::RecvPBackgroundLSDatabaseConstructor(
     return IPC_FAIL_NO_REASON(this);
   }
   return IPC_OK();
-}
-
-bool BackgroundParentImpl::DeallocPBackgroundLSDatabaseParent(
-    PBackgroundLSDatabaseParent* aActor) {
-  AssertIsInMainProcess();
-  AssertIsOnBackgroundThread();
-  MOZ_ASSERT(aActor);
-
-  return mozilla::dom::DeallocPBackgroundLSDatabaseParent(aActor);
 }
 
 BackgroundParentImpl::PBackgroundLSObserverParent*
@@ -527,12 +509,12 @@ BackgroundParentImpl::AllocPIdleSchedulerParent() {
   return actor.forget();
 }
 
-dom::PRemoteWorkerControllerParent*
+already_AddRefed<dom::PRemoteWorkerControllerParent>
 BackgroundParentImpl::AllocPRemoteWorkerControllerParent(
     const dom::RemoteWorkerData& aRemoteWorkerData) {
   RefPtr<dom::RemoteWorkerControllerParent> actor =
       new dom::RemoteWorkerControllerParent(aRemoteWorkerData);
-  return actor.forget().take();
+  return actor.forget();
 }
 
 IPCResult BackgroundParentImpl::RecvPRemoteWorkerControllerConstructor(
@@ -541,13 +523,6 @@ IPCResult BackgroundParentImpl::RecvPRemoteWorkerControllerConstructor(
   MOZ_ASSERT(aActor);
 
   return IPC_OK();
-}
-
-bool BackgroundParentImpl::DeallocPRemoteWorkerControllerParent(
-    dom::PRemoteWorkerControllerParent* aActor) {
-  RefPtr<dom::RemoteWorkerControllerParent> actor =
-      dont_AddRef(static_cast<dom::RemoteWorkerControllerParent*>(aActor));
-  return true;
 }
 
 already_AddRefed<dom::PRemoteWorkerServiceParent>
@@ -955,19 +930,12 @@ mozilla::ipc::IPCResult BackgroundParentImpl::RecvMessagePortForceClose(
   return IPC_OK();
 }
 
-BackgroundParentImpl::PQuotaParent* BackgroundParentImpl::AllocPQuotaParent() {
+already_AddRefed<BackgroundParentImpl::PQuotaParent>
+BackgroundParentImpl::AllocPQuotaParent() {
   AssertIsInMainProcess();
   AssertIsOnBackgroundThread();
 
   return mozilla::dom::quota::AllocPQuotaParent();
-}
-
-bool BackgroundParentImpl::DeallocPQuotaParent(PQuotaParent* aActor) {
-  AssertIsInMainProcess();
-  AssertIsOnBackgroundThread();
-  MOZ_ASSERT(aActor);
-
-  return mozilla::dom::quota::DeallocPQuotaParent(aActor);
 }
 
 mozilla::ipc::IPCResult BackgroundParentImpl::RecvShutdownQuotaManager() {
@@ -1200,14 +1168,9 @@ mozilla::ipc::IPCResult BackgroundParentImpl::RecvHasMIDIDevice(
   return IPC_OK();
 }
 
-mozilla::dom::PClientManagerParent*
+already_AddRefed<mozilla::dom::PClientManagerParent>
 BackgroundParentImpl::AllocPClientManagerParent() {
   return mozilla::dom::AllocClientManagerParent();
-}
-
-bool BackgroundParentImpl::DeallocPClientManagerParent(
-    mozilla::dom::PClientManagerParent* aActor) {
-  return mozilla::dom::DeallocClientManagerParent(aActor);
 }
 
 mozilla::ipc::IPCResult BackgroundParentImpl::RecvPClientManagerConstructor(

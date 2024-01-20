@@ -203,19 +203,15 @@ class ContentChild final : public PContentChild,
       PCycleCollectWithLogsChild* aChild, const bool& aDumpAllTraces,
       const FileDescriptor& aGCLog, const FileDescriptor& aCCLog) override;
 
-  PWebBrowserPersistDocumentChild* AllocPWebBrowserPersistDocumentChild(
+  already_AddRefed<PWebBrowserPersistDocumentChild>
+  AllocPWebBrowserPersistDocumentChild(
       PBrowserChild* aBrowser, const MaybeDiscarded<BrowsingContext>& aContext);
 
   virtual mozilla::ipc::IPCResult RecvPWebBrowserPersistDocumentConstructor(
       PWebBrowserPersistDocumentChild* aActor, PBrowserChild* aBrowser,
       const MaybeDiscarded<BrowsingContext>& aContext) override;
 
-  bool DeallocPWebBrowserPersistDocumentChild(
-      PWebBrowserPersistDocumentChild* aActor);
-
-  PTestShellChild* AllocPTestShellChild();
-
-  bool DeallocPTestShellChild(PTestShellChild*);
+  already_AddRefed<PTestShellChild> AllocPTestShellChild();
 
   virtual mozilla::ipc::IPCResult RecvPTestShellConstructor(
       PTestShellChild*) override;
@@ -243,11 +239,6 @@ class ContentChild final : public PContentChild,
   bool DeallocPBenchmarkStorageChild(PBenchmarkStorageChild* aActor);
 
   mozilla::ipc::IPCResult RecvNotifyEmptyHTTPCache();
-
-#ifdef MOZ_WEBSPEECH
-  PSpeechSynthesisChild* AllocPSpeechSynthesisChild();
-  bool DeallocPSpeechSynthesisChild(PSpeechSynthesisChild* aActor);
-#endif
 
   mozilla::ipc::IPCResult RecvRegisterChrome(
       nsTArray<ChromePackage>&& packages,

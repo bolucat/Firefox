@@ -2493,7 +2493,11 @@ void ContentParent::NotifyTabDestroyed(const TabId& aTabId,
 }
 
 TestShellParent* ContentParent::CreateTestShell() {
-  return static_cast<TestShellParent*>(SendPTestShellConstructor());
+  RefPtr<TestShellParent> actor = new TestShellParent();
+  if (!SendPTestShellConstructor(actor)) {
+    return nullptr;
+  }
+  return actor;
 }
 
 bool ContentParent::DestroyTestShell(TestShellParent* aTestShell) {
@@ -4673,15 +4677,6 @@ bool ContentParent::CycleCollectWithLogs(
       this, aDumpAllTraces, aSink, aCallback);
 }
 
-PTestShellParent* ContentParent::AllocPTestShellParent() {
-  return new TestShellParent();
-}
-
-bool ContentParent::DeallocPTestShellParent(PTestShellParent* shell) {
-  delete shell;
-  return true;
-}
-
 PScriptCacheParent* ContentParent::AllocPScriptCacheParent(
     const FileDescOrError& cacheFile, const bool& wantCacheData) {
   return new loader::ScriptCacheParent(wantCacheData);
@@ -4781,17 +4776,13 @@ bool ContentParent::DeallocPBenchmarkStorageParent(
 }
 
 #ifdef MOZ_WEBSPEECH
-PSpeechSynthesisParent* ContentParent::AllocPSpeechSynthesisParent() {
+already_AddRefed<PSpeechSynthesisParent>
+ContentParent::AllocPSpeechSynthesisParent() {
   if (!StaticPrefs::media_webspeech_synth_enabled()) {
     return nullptr;
   }
-  return new mozilla::dom::SpeechSynthesisParent();
-}
-
-bool ContentParent::DeallocPSpeechSynthesisParent(
-    PSpeechSynthesisParent* aActor) {
-  delete aActor;
-  return true;
+  RefPtr<SpeechSynthesisParent> actor = new SpeechSynthesisParent();
+  return actor.forget();
 }
 
 mozilla::ipc::IPCResult ContentParent::RecvPSpeechSynthesisConstructor(
@@ -5518,16 +5509,10 @@ bool ContentParent::DeallocPContentPermissionRequestParent(
   return true;
 }
 
-PWebBrowserPersistDocumentParent*
+already_AddRefed<PWebBrowserPersistDocumentParent>
 ContentParent::AllocPWebBrowserPersistDocumentParent(
     PBrowserParent* aBrowser, const MaybeDiscarded<BrowsingContext>& aContext) {
-  return new WebBrowserPersistDocumentParent();
-}
-
-bool ContentParent::DeallocPWebBrowserPersistDocumentParent(
-    PWebBrowserPersistDocumentParent* aActor) {
-  delete aActor;
-  return true;
+  return MakeAndAddRef<WebBrowserPersistDocumentParent>();
 }
 
 mozilla::ipc::IPCResult ContentParent::CommonCreateWindow(
@@ -6810,7 +6795,7 @@ mozilla::ipc::IPCResult ContentParent::RecvCompleteAllowAccessFor(
     return IPC_OK();
   }
 
-  StorageAccessAPIHelper::CompleteAllowAccessFor(
+  StorageAccessAPIHelper::CompleteAllowAccessForOnParentProcess(
       aParentContext.get_canonical(), aTopLevelWindowId, aTrackingPrincipal,
       aTrackingOrigin, aCookieBehavior, aReason, nullptr)
       ->Then(GetCurrentSerialEventTarget(), __func__,

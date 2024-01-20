@@ -1023,11 +1023,10 @@ pref("privacy.clearOnShutdown.offlineApps", false);
 pref("privacy.clearOnShutdown.siteSettings", false);
 pref("privacy.clearOnShutdown.openWindows", false);
 // Clear on shutdown prefs used in the new dialog
-pref("privacy.clearOnShutdown_v2.historyAndFormData", true);
+pref("privacy.clearOnShutdown_v2.historyFormDataAndDownloads", true);
 pref("privacy.clearOnShutdown_v2.cookiesAndStorage", true);
 pref("privacy.clearOnShutdown_v2.cache", true);
 pref("privacy.clearOnShutdown_v2.siteSettings", false);
-pref("privacy.clearOnShutdown_v2.downloads",   true);
 
 pref("privacy.cpd.history",                 true);
 pref("privacy.cpd.formdata",                true);
@@ -1576,7 +1575,7 @@ pref("services.sync.prefs.sync.privacy.clearOnShutdown.downloads", true);
 pref("services.sync.prefs.sync.privacy.clearOnShutdown_v2.downloads", true);
 pref("services.sync.prefs.sync.privacy.clearOnShutdown.formdata", true);
 pref("services.sync.prefs.sync.privacy.clearOnShutdown.history", true);
-pref("services.sync.prefs.sync.privacy.clearOnShutdown_v2.historyAndFormData", true);
+pref("services.sync.prefs.sync.privacy.clearOnShutdown_v2.historyFormDataAndDownloads", true);
 pref("services.sync.prefs.sync.privacy.clearOnShutdown.offlineApps", true);
 pref("services.sync.prefs.sync.privacy.clearOnShutdown.sessions", true);
 pref("services.sync.prefs.sync.privacy.clearOnShutdown.siteSettings", true);
@@ -2367,6 +2366,9 @@ pref("extensions.screenshots.disabled", false);
 
 // Preference that determines whether Screenshots is opened as a dedicated browser component
 pref("screenshots.browser.component.enabled", false);
+
+// Preference that determines what button to focus
+pref("screenshots.browser.component.last-saved-method", "download");
 
 // DoH Rollout: whether to clear the mode value at shutdown.
 pref("doh-rollout.clearModeOnShutdown", false);
