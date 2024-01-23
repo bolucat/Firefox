@@ -86,8 +86,6 @@ interface mixin MozObjectLoadingContent {
   [ChromeOnly]
   const unsigned long TYPE_LOADING     = 0;
   [ChromeOnly]
-  const unsigned long TYPE_IMAGE       = 1;
-  [ChromeOnly]
   const unsigned long TYPE_FALLBACK    = 2;
   [ChromeOnly]
   const unsigned long TYPE_FAKE_PLUGIN = 3;
@@ -109,21 +107,6 @@ interface mixin MozObjectLoadingContent {
    */
   [ChromeOnly]
   readonly attribute unsigned long displayedType;
-
-  /**
-   * Gets the content type that corresponds to the give MIME type.  See the
-   * constants above for the list of possible values.  If nothing else fits,
-   * TYPE_NULL will be returned.
-   */
-  [ChromeOnly]
-  unsigned long getContentTypeForMIMEType(DOMString aMimeType);
-
-
-  [ChromeOnly]
-  sequence<MozPluginParameter> getPluginAttributes();
-
-  [ChromeOnly]
-  sequence<MozPluginParameter> getPluginParameters();
 
   /**
    * Forces a re-evaluation and reload of the tag, optionally invalidating its
@@ -151,15 +134,5 @@ interface mixin MozObjectLoadingContent {
   readonly attribute unsigned long runID;
 };
 
-/**
- * Name:Value pair type used for passing parameters to NPAPI or javascript
- * plugins.
- */
-dictionary MozPluginParameter {
-  DOMString name = "";
-  DOMString value = "";
-};
-
-HTMLObjectElement includes MozImageLoadingContent;
 HTMLObjectElement includes MozFrameLoaderOwner;
 HTMLObjectElement includes MozObjectLoadingContent;

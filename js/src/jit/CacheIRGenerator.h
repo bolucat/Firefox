@@ -504,7 +504,7 @@ class MOZ_RAII OptimizeGetIteratorIRGenerator : public IRGenerator {
   void trackAttached(const char* name /* must be a C string literal */);
 };
 
-enum class StringChar { CodeAt, At };
+enum class StringChar { CharCodeAt, CodePointAt, CharAt, At };
 enum class ScriptedThisResult { NoAction, UninitializedThis, PlainObjectShape };
 
 class MOZ_RAII CallIRGenerator : public IRGenerator {
@@ -648,7 +648,9 @@ class MOZ_RAII InlinableNativeIRGenerator {
   AttachDecision tryAttachStringToStringValueOf();
   AttachDecision tryAttachStringChar(StringChar kind);
   AttachDecision tryAttachStringCharCodeAt();
+  AttachDecision tryAttachStringCodePointAt();
   AttachDecision tryAttachStringCharAt();
+  AttachDecision tryAttachStringAt();
   AttachDecision tryAttachStringFromCharCode();
   AttachDecision tryAttachStringFromCodePoint();
   AttachDecision tryAttachStringIncludes();

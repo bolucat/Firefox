@@ -30,6 +30,8 @@ skip-if = ["socketprocess_networking"] # Bug 1759035
 
 ["test_CFRMessageProvider.js"]
 
+["test_HighlightsFeed.js"]
+
 ["test_InflightAssetsMessageProvider.js"]
 
 ["test_NimbusRolloutMessageProvider.js"]
@@ -45,5 +47,8 @@ skip-if = ["socketprocess_networking"] # Bug 1759035
 ["test_remoteExperiments.js"]
 
 ["test_Store.js"]
+
+["test_TelemetryFeed.js"]
+support-files = ["../schemas/*.schema.json"]
 
 ["test_TopSitesFeed.js"]

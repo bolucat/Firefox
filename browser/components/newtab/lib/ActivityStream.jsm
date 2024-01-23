@@ -12,8 +12,10 @@ const lazy = {};
 ChromeUtils.defineESModuleGetters(lazy, {
   DEFAULT_SITES: "resource://activity-stream/lib/DefaultSites.sys.mjs",
   DefaultPrefs: "resource://activity-stream/lib/ActivityStreamPrefs.sys.mjs",
+  HighlightsFeed: "resource://activity-stream/lib/HighlightsFeed.sys.mjs",
   NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
   Region: "resource://gre/modules/Region.sys.mjs",
+  TelemetryFeed: "resource://activity-stream/lib/TelemetryFeed.sys.mjs",
 });
 
 // NB: Eagerly load modules that will be loaded/constructed/initialized in the
@@ -63,11 +65,6 @@ ChromeUtils.defineModuleGetter(
 );
 ChromeUtils.defineModuleGetter(
   lazy,
-  "TelemetryFeed",
-  "resource://activity-stream/lib/TelemetryFeed.jsm"
-);
-ChromeUtils.defineModuleGetter(
-  lazy,
   "FaviconFeed",
   "resource://activity-stream/lib/FaviconFeed.jsm"
 );
@@ -80,11 +77,6 @@ ChromeUtils.defineModuleGetter(
   lazy,
   "TopStoriesFeed",
   "resource://activity-stream/lib/TopStoriesFeed.jsm"
-);
-ChromeUtils.defineModuleGetter(
-  lazy,
-  "HighlightsFeed",
-  "resource://activity-stream/lib/HighlightsFeed.jsm"
 );
 ChromeUtils.defineModuleGetter(
   lazy,

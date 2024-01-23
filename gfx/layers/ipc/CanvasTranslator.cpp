@@ -145,7 +145,8 @@ mozilla::ipc::IPCResult CanvasTranslator::RecvInitTranslator(
   mHeaderShmem = MakeAndAddRef<ipc::SharedMemoryBasic>();
   if (!CreateAndMapShmem(mHeaderShmem, std::move(aReadHandle),
                          ipc::SharedMemory::RightsReadWrite, sizeof(Header))) {
-    return IPC_FAIL(this, "Failed.");
+    Deactivate();
+    return IPC_FAIL(this, "Failed to map canvas header shared memory.");
   }
 
   mHeader = static_cast<Header*>(mHeaderShmem->memory());
@@ -175,7 +176,8 @@ mozilla::ipc::IPCResult CanvasTranslator::RecvInitTranslator(
   auto handleIter = aBufferHandles.begin();
   if (!CreateAndMapShmem(mCurrentShmem.shmem, std::move(*handleIter),
                          ipc::SharedMemory::RightsReadOnly, aBufferSize)) {
-    return IPC_FAIL(this, "Failed.");
+    Deactivate();
+    return IPC_FAIL(this, "Failed to map canvas buffer shared memory.");
   }
   mCurrentMemReader = mCurrentShmem.CreateMemReader();
 
@@ -184,7 +186,8 @@ mozilla::ipc::IPCResult CanvasTranslator::RecvInitTranslator(
     CanvasShmem newShmem;
     if (!CreateAndMapShmem(newShmem.shmem, std::move(*handleIter),
                            ipc::SharedMemory::RightsReadOnly, aBufferSize)) {
-      return IPC_FAIL(this, "Failed.");
+      Deactivate();
+      return IPC_FAIL(this, "Failed to map canvas buffer shared memory.");
     }
     mCanvasShmems.emplace(std::move(newShmem));
   }
@@ -231,7 +234,14 @@ void CanvasTranslator::AddBuffer(ipc::SharedMemoryBasic::Handle&& aBufferHandle,
     return;
   }
 
-  MOZ_RELEASE_ASSERT(mHeader->readerState == State::Paused);
+  if (mHeader->readerState != State::Paused) {
+    gfxCriticalNote << "CanvasTranslator::AddBuffer bad state "
+                    << uint32_t(State(mHeader->readerState));
+    MOZ_DIAGNOSTIC_ASSERT(false, "mHeader->readerState == State::Paused");
+    Deactivate();
+    return;
+  }
+
   MOZ_ASSERT(mDefaultBufferSize != 0);
 
   // Check and signal the writer when we finish with a buffer, because it
@@ -387,7 +397,9 @@ void CanvasTranslator::Deactivate() {
     return;
   }
   mDeactivated = true;
-  mHeader->readerState = State::Failed;
+  if (mHeader) {
+    mHeader->readerState = State::Failed;
+  }
 
   // We need to tell the other side to deactivate. Make sure the stream is
   // marked as bad so that the writing side won't wait for space to write.
@@ -653,20 +665,23 @@ bool CanvasTranslator::CreateReferenceTexture() {
   mReferenceTextureData =
       CreateTextureData(gfx::IntSize(1, 1), gfx::SurfaceFormat::B8G8R8A8, true);
   if (!mReferenceTextureData) {
+    Deactivate();
     return false;
   }
 
   if (NS_WARN_IF(!mReferenceTextureData->Lock(OpenMode::OPEN_READ_WRITE))) {
     gfxCriticalNote << "CanvasTranslator::CreateReferenceTexture lock failed";
     mReferenceTextureData.reset();
+    Deactivate();
     return false;
   }
 
   mBaseDT = mReferenceTextureData->BorrowDrawTarget();
 
   if (!mBaseDT) {
-    // We might get a null draw target due to a device failure, just return
-    // false so that we can recover.
+    // We might get a null draw target due to a device failure, deactivate and
+    // return false so that we can recover.
+    Deactivate();
     return false;
   }
 

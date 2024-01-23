@@ -218,7 +218,14 @@
 
 - name: Throw
   operands:
-    ins: Value
+    value: Value
+  alias_set: custom
+  possibly_calls: true
+
+- name: ThrowWithStack
+  operands:
+    value: Value
+    stack: Value
   alias_set: custom
   possibly_calls: true
 
@@ -931,6 +938,26 @@
   # Strings are immutable, so there is no implicit dependency.
   alias_set: none
 
+- name: LinearizeForCodePointAccess
+  operands:
+    string: String
+    index: Int32
+  result_type: String
+  movable: true
+  congruent_to: if_operands_equal
+  # Strings are immutable, so there is no implicit dependency.
+  alias_set: none
+
+- name: ToRelativeStringIndex
+  operands:
+    index: Int32
+    length: Int32
+  result_type: Int32
+  movable: true
+  folds_to: custom
+  congruent_to: if_operands_equal
+  alias_set: none
+
 - name: CharCodeAt
   operands:
     string: String
@@ -956,8 +983,41 @@
   # Strings are immutable, so there is no implicit dependency.
   alias_set: none
 
+- name: CodePointAt
+  operands:
+    string: String
+    index: Int32
+  result_type: Int32
+  movable: true
+  folds_to: custom
+  congruent_to: if_operands_equal
+  # Strings are immutable, so there is no implicit dependency.
+  alias_set: none
+  compute_range: custom
+  clone: true
+
+# Similar to CodePointAt, but returns a negative value on out-of-bounds access.
+- name: CodePointAtOrNegative
+  operands:
+    string: String
+    index: Int32
+  result_type: Int32
+  movable: true
+  congruent_to: if_operands_equal
+  # Strings are immutable, so there is no implicit dependency.
+  alias_set: none
+
 # Return the input if non-negative, otherwise return NaN.
 - name: NegativeToNaN
+  operands:
+    input: Int32
+  result_type: Value
+  movable: true
+  congruent_to: if_operands_equal
+  alias_set: none
+
+# Return the input if non-negative, otherwise return undefined.
+- name: NegativeToUndefined
   operands:
     input: Int32
   result_type: Value
@@ -985,6 +1045,15 @@
   alias_set: none
   can_recover: true
   clone: true
+
+# Similar to FromCharCode, but returns the |undefined| if the input is negative.
+- name: FromCharCodeUndefinedIfNegative
+  operands:
+    code: Int32
+  result_type: Value
+  movable: true
+  congruent_to: if_operands_equal
+  alias_set: none
 
 - name: FromCodePoint
   operands:
@@ -2465,9 +2534,14 @@
 - name: AsyncResolve
   operands:
     generator: Object
-    valueOrReason: Value
-  arguments:
-    resolveKind: AsyncFunctionResolveKind
+    value: Value
+  result_type: Object
+
+- name: AsyncReject
+  operands:
+    generator: Object
+    reason: Value
+    stack: Value
   result_type: Object
 
 # Returns from this function to the previous caller; this looks like a regular

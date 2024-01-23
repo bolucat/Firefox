@@ -880,6 +880,12 @@
     value: BoxedValue
   call_instruction: true
 
+- name: ThrowWithStack
+  operands:
+    value: BoxedValue
+    stack: BoxedValue
+  call_instruction: true
+
 - name: MinMaxI
   gen_boilerplate: false
 
@@ -1190,6 +1196,23 @@
     index: WordSized
   mir_op: true
 
+# Linearize a string before a code point access.
+- name: LinearizeForCodePointAccess
+  result_type: WordSized
+  operands:
+    str: WordSized
+    index: WordSized
+  num_temps: 1
+  mir_op: true
+
+# Compute the relative string index.
+- name: ToRelativeStringIndex
+  result_type: WordSized
+  operands:
+    index: WordSized
+    length: WordSized
+  mir_op: true
+
 # Get uint16 character code from a string.
 - name: CharCodeAt
   result_type: WordSized
@@ -1206,8 +1229,30 @@
     index: WordSized
   num_temps: 2
 
+# Get uint32 code point from a string.
+- name: CodePointAt
+  result_type: WordSized
+  operands:
+    str: WordSized
+    index: WordSized
+  num_temps: 2
+
+# Get uint32 code point from a string. Return -1 on out-of-bounds.
+- name: CodePointAtOrNegative
+  result_type: WordSized
+  operands:
+    str: WordSized
+    index: WordSized
+  num_temps: 2
+
 # Box the input if non-negative. Otherwise return NaN.
 - name: NegativeToNaN
+  result_type: BoxedValue
+  operands:
+    input: WordSized
+
+# Box the input if non-negative. Otherwise return undefined.
+- name: NegativeToUndefined
   result_type: BoxedValue
   operands:
     input: WordSized
@@ -1222,6 +1267,13 @@
 # input is negative, return the empty string.
 - name: FromCharCodeEmptyIfNegative
   result_type: WordSized
+  operands:
+    code: WordSized
+
+# Convert non-negative input as a uint16 character code to a string. If the
+# input is negative, return the undefined value.
+- name: FromCharCodeUndefinedIfNegative
+  result_type: BoxedValue
   operands:
     code: WordSized
 
@@ -3397,7 +3449,16 @@
   result_type: WordSized
   operands:
     generator: WordSized
-    valueOrReason: BoxedValue
+    value: BoxedValue
+  call_instruction: true
+  mir_op: true
+
+- name: AsyncReject
+  result_type: WordSized
+  operands:
+    generator: WordSized
+    reason: BoxedValue
+    stack: BoxedValue
   call_instruction: true
   mir_op: true
 

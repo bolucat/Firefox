@@ -2478,6 +2478,32 @@ void LIRGenerator::visitLinearizeForCharAccess(MLinearizeForCharAccess* ins) {
   assignSafepoint(lir, ins);
 }
 
+void LIRGenerator::visitLinearizeForCodePointAccess(
+    MLinearizeForCodePointAccess* ins) {
+  MDefinition* str = ins->string();
+  MDefinition* idx = ins->index();
+
+  MOZ_ASSERT(str->type() == MIRType::String);
+  MOZ_ASSERT(idx->type() == MIRType::Int32);
+
+  auto* lir = new (alloc())
+      LLinearizeForCodePointAccess(useRegister(str), useRegister(idx), temp());
+  define(lir, ins);
+  assignSafepoint(lir, ins);
+}
+
+void LIRGenerator::visitToRelativeStringIndex(MToRelativeStringIndex* ins) {
+  MDefinition* index = ins->index();
+  MDefinition* length = ins->length();
+
+  MOZ_ASSERT(index->type() == MIRType::Int32);
+  MOZ_ASSERT(length->type() == MIRType::Int32);
+
+  auto* lir = new (alloc())
+      LToRelativeStringIndex(useRegister(index), useRegister(length));
+  define(lir, ins);
+}
+
 void LIRGenerator::visitCharCodeAt(MCharCodeAt* ins) {
   MDefinition* str = ins->string();
   MDefinition* idx = ins->index();
@@ -2504,10 +2530,43 @@ void LIRGenerator::visitCharCodeAtOrNegative(MCharCodeAtOrNegative* ins) {
   assignSafepoint(lir, ins);
 }
 
+void LIRGenerator::visitCodePointAt(MCodePointAt* ins) {
+  MDefinition* str = ins->string();
+  MDefinition* idx = ins->index();
+
+  MOZ_ASSERT(str->type() == MIRType::String);
+  MOZ_ASSERT(idx->type() == MIRType::Int32);
+
+  auto* lir = new (alloc())
+      LCodePointAt(useRegister(str), useRegister(idx), temp(), temp());
+  define(lir, ins);
+  assignSafepoint(lir, ins);
+}
+
+void LIRGenerator::visitCodePointAtOrNegative(MCodePointAtOrNegative* ins) {
+  MDefinition* str = ins->string();
+  MDefinition* idx = ins->index();
+
+  MOZ_ASSERT(str->type() == MIRType::String);
+  MOZ_ASSERT(idx->type() == MIRType::Int32);
+
+  auto* lir = new (alloc()) LCodePointAtOrNegative(
+      useRegister(str), useRegister(idx), temp(), temp());
+  define(lir, ins);
+  assignSafepoint(lir, ins);
+}
+
 void LIRGenerator::visitNegativeToNaN(MNegativeToNaN* ins) {
   MOZ_ASSERT(ins->input()->type() == MIRType::Int32);
 
   auto* lir = new (alloc()) LNegativeToNaN(useRegister(ins->input()));
+  defineBox(lir, ins);
+}
+
+void LIRGenerator::visitNegativeToUndefined(MNegativeToUndefined* ins) {
+  MOZ_ASSERT(ins->input()->type() == MIRType::Int32);
+
+  auto* lir = new (alloc()) LNegativeToUndefined(useRegister(ins->input()));
   defineBox(lir, ins);
 }
 
@@ -2529,6 +2588,17 @@ void LIRGenerator::visitFromCharCodeEmptyIfNegative(
 
   auto* lir = new (alloc()) LFromCharCodeEmptyIfNegative(useRegister(code));
   define(lir, ins);
+  assignSafepoint(lir, ins);
+}
+
+void LIRGenerator::visitFromCharCodeUndefinedIfNegative(
+    MFromCharCodeUndefinedIfNegative* ins) {
+  MDefinition* code = ins->code();
+
+  MOZ_ASSERT(code->type() == MIRType::Int32);
+
+  auto* lir = new (alloc()) LFromCharCodeUndefinedIfNegative(useRegister(code));
+  defineBox(lir, ins);
   assignSafepoint(lir, ins);
 }
 
@@ -5413,10 +5483,23 @@ void LIRGenerator::visitRest(MRest* ins) {
 }
 
 void LIRGenerator::visitThrow(MThrow* ins) {
-  MDefinition* value = ins->getOperand(0);
+  MDefinition* value = ins->value();
   MOZ_ASSERT(value->type() == MIRType::Value);
 
   LThrow* lir = new (alloc()) LThrow(useBoxAtStart(value));
+  add(lir, ins);
+  assignSafepoint(lir, ins);
+}
+
+void LIRGenerator::visitThrowWithStack(MThrowWithStack* ins) {
+  MDefinition* value = ins->value();
+  MOZ_ASSERT(value->type() == MIRType::Value);
+
+  MDefinition* stack = ins->stack();
+  MOZ_ASSERT(stack->type() == MIRType::Value);
+
+  auto* lir =
+      new (alloc()) LThrowWithStack(useBoxAtStart(value), useBoxAtStart(stack));
   add(lir, ins);
   assignSafepoint(lir, ins);
 }
@@ -6405,7 +6488,15 @@ void LIRGenerator::visitGenerator(MGenerator* ins) {
 
 void LIRGenerator::visitAsyncResolve(MAsyncResolve* ins) {
   auto* lir = new (alloc()) LAsyncResolve(useRegisterAtStart(ins->generator()),
-                                          useBoxAtStart(ins->valueOrReason()));
+                                          useBoxAtStart(ins->value()));
+  defineReturn(lir, ins);
+  assignSafepoint(lir, ins);
+}
+
+void LIRGenerator::visitAsyncReject(MAsyncReject* ins) {
+  auto* lir = new (alloc())
+      LAsyncReject(useRegisterAtStart(ins->generator()),
+                   useBoxAtStart(ins->reason()), useBoxAtStart(ins->stack()));
   defineReturn(lir, ins);
   assignSafepoint(lir, ins);
 }

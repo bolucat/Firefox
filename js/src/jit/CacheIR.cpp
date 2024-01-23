@@ -333,6 +333,11 @@ static ProxyStubType GetProxyStubType(JSContext* cx, HandleObject obj,
     return ProxyStubType::Generic;
   }
 
+  // Private fields are defined on a separate expando object.
+  if (id.isPrivateName()) {
+    return ProxyStubType::Generic;
+  }
+
   DOMProxyShadowsResult shadows = GetDOMProxyShadowsCheck()(cx, proxy, id);
   if (shadows == DOMProxyShadowsResult::ShadowCheckFailed) {
     cx->clearPendingException();
@@ -1760,25 +1765,69 @@ AttachDecision GetPropIRGenerator::tryAttachDOMProxyShadowed(
   return AttachDecision::Attach;
 }
 
+// Emit CacheIR to guard the DOM proxy doesn't shadow |id|. There are two types
+// of DOM proxies:
+//
+// (a) DOM proxies marked LegacyOverrideBuiltIns in WebIDL, for example
+//     HTMLDocument or HTMLFormElement. These proxies look up properties in this
+//     order:
+//
+//       (1) The expando object.
+//       (2) The proxy's named-property handler.
+//       (3) The prototype chain.
+//
+//     To optimize properties on the prototype chain, we have to guard that (1)
+//     and (2) don't shadow (3). We handle (1) by either emitting a shape guard
+//     for the expando object or by guarding the proxy has no expando object. To
+//     efficiently handle (2), the proxy must have an ExpandoAndGeneration*
+//     stored as PrivateValue. We guard on its generation field to ensure the
+//     set of names hasn't changed.
+//
+//     Missing properties can be optimized in a similar way by emitting shape
+//     guards for the prototype chain.
+//
+// (b) Other DOM proxies. These proxies look up properties in this
+//     order:
+//
+//       (1) The expando object.
+//       (2) The prototype chain.
+//       (3) The proxy's named-property handler.
+//
+//     To optimize properties on the prototype chain, we only have to guard the
+//     expando object doesn't shadow it.
+//
+//     Missing properties can't be optimized in this case because we don't have
+//     an efficient way to guard against the proxy handler shadowing the
+//     property (there's no ExpandoAndGeneration*).
+//
+// See also:
+// * DOMProxyShadows in DOMJSProxyHandler.cpp
+// * https://webidl.spec.whatwg.org/#dfn-named-property-visibility (the Note at
+//   the end)
+//
 // Callers are expected to have already guarded on the shape of the
 // object, which guarantees the object is a DOM proxy.
-static void CheckDOMProxyExpandoDoesNotShadow(CacheIRWriter& writer,
-                                              ProxyObject* obj, jsid id,
-                                              ObjOperandId objId) {
+static void CheckDOMProxyDoesNotShadow(CacheIRWriter& writer, ProxyObject* obj,
+                                       jsid id, ObjOperandId objId,
+                                       bool* canOptimizeMissing) {
   MOZ_ASSERT(IsCacheableDOMProxy(obj));
 
   Value expandoVal = GetProxyPrivate(obj);
 
   ValOperandId expandoId;
   if (!expandoVal.isObject() && !expandoVal.isUndefined()) {
+    // Case (a).
     auto expandoAndGeneration =
         static_cast<ExpandoAndGeneration*>(expandoVal.toPrivate());
     uint64_t generation = expandoAndGeneration->generation;
     expandoId = writer.loadDOMExpandoValueGuardGeneration(
         objId, expandoAndGeneration, generation);
     expandoVal = expandoAndGeneration->expando;
+    *canOptimizeMissing = true;
   } else {
+    // Case (b).
     expandoId = writer.loadDOMExpandoValue(objId);
+    *canOptimizeMissing = false;
   }
 
   if (expandoVal.isUndefined()) {
@@ -1800,25 +1849,27 @@ AttachDecision GetPropIRGenerator::tryAttachDOMProxyUnshadowed(
     ValOperandId receiverId) {
   MOZ_ASSERT(IsCacheableDOMProxy(obj));
 
-  JSObject* checkObj = obj->staticPrototype();
-  if (!checkObj) {
+  JSObject* protoObj = obj->staticPrototype();
+  if (!protoObj) {
     return AttachDecision::NoAction;
   }
 
   NativeObject* holder = nullptr;
   Maybe<PropertyInfo> prop;
   NativeGetPropKind kind =
-      CanAttachNativeGetProp(cx_, checkObj, id, &holder, &prop, pc_);
+      CanAttachNativeGetProp(cx_, protoObj, id, &holder, &prop, pc_);
   if (kind == NativeGetPropKind::None) {
     return AttachDecision::NoAction;
   }
-  auto* nativeCheckObj = &checkObj->as<NativeObject>();
+  auto* nativeProtoObj = &protoObj->as<NativeObject>();
 
   maybeEmitIdGuard(id);
 
-  // Guard that our expando object hasn't started shadowing this property.
+  // Guard that our proxy (expando) object hasn't started shadowing this
+  // property.
   TestMatchingProxyReceiver(writer, obj, objId);
-  CheckDOMProxyExpandoDoesNotShadow(writer, obj, id, objId);
+  bool canOptimizeMissing = false;
+  CheckDOMProxyDoesNotShadow(writer, obj, id, objId, &canOptimizeMissing);
 
   if (holder) {
     // Found the property on the prototype chain. Treat it like a native
@@ -1842,15 +1893,21 @@ AttachDecision GetPropIRGenerator::tryAttachDOMProxyUnshadowed(
       MOZ_ASSERT(!isSuper());
       EmitGuardGetterSetterSlot(writer, holder, *prop, holderId,
                                 /* holderIsConstant = */ true);
-      EmitCallGetterResultNoGuards(cx_, writer, kind, nativeCheckObj, holder,
+      EmitCallGetterResultNoGuards(cx_, writer, kind, nativeProtoObj, holder,
                                    *prop, receiverId);
     }
   } else {
-    // Property was not found on the prototype chain. Deoptimize down to
-    // proxy get call.
+    // Property was not found on the prototype chain.
     MOZ_ASSERT(kind == NativeGetPropKind::Missing);
-    MOZ_ASSERT(!isSuper());
-    writer.proxyGetResult(objId, id);
+    if (canOptimizeMissing) {
+      // We already guarded on the proxy's shape, so now shape guard the proto
+      // chain.
+      ObjOperandId protoId = writer.loadObject(nativeProtoObj);
+      EmitMissingPropResult(writer, nativeProtoObj, protoId);
+    } else {
+      MOZ_ASSERT(!isSuper());
+      writer.proxyGetResult(objId, id);
+    }
     writer.returnFromIC();
   }
 
@@ -2596,18 +2653,22 @@ AttachDecision GetPropIRGenerator::tryAttachStringLength(ValOperandId valId,
 enum class AttachStringChar { No, Yes, Linearize, OutOfBounds };
 
 static AttachStringChar CanAttachStringChar(const Value& val,
-                                            const Value& idVal) {
+                                            const Value& idVal,
+                                            StringChar kind) {
   if (!val.isString() || !idVal.isInt32()) {
     return AttachStringChar::No;
   }
 
+  JSString* str = val.toString();
   int32_t index = idVal.toInt32();
-  if (index < 0) {
-    return AttachStringChar::OutOfBounds;
+
+  if (index < 0 && kind == StringChar::At) {
+    static_assert(JSString::MAX_LENGTH <= INT32_MAX,
+                  "string length fits in int32");
+    index += int32_t(str->length());
   }
 
-  JSString* str = val.toString();
-  if (size_t(index) >= str->length()) {
+  if (index < 0 || size_t(index) >= str->length()) {
     return AttachStringChar::OutOfBounds;
   }
 
@@ -2616,6 +2677,18 @@ static AttachStringChar CanAttachStringChar(const Value& val,
     JSRope* rope = &str->asRope();
     if (size_t(index) < rope->leftChild()->length()) {
       str = rope->leftChild();
+
+      // MacroAssembler::loadStringChar doesn't support surrogate pairs which
+      // are split between the left and right child of a rope.
+      if (kind == StringChar::CodePointAt &&
+          size_t(index) + 1 == str->length() && str->isLinear()) {
+        // Linearize the string when the last character of the left child is a
+        // a lead surrogate.
+        char16_t ch = str->asLinear().latin1OrTwoByteChar(index);
+        if (unicode::IsLeadSurrogate(ch)) {
+          return AttachStringChar::Linearize;
+        }
+      }
     } else {
       str = rope->rightChild();
     }
@@ -2632,7 +2705,7 @@ AttachDecision GetPropIRGenerator::tryAttachStringChar(ValOperandId valId,
                                                        ValOperandId indexId) {
   MOZ_ASSERT(idVal_.isInt32());
 
-  auto attach = CanAttachStringChar(val_, idVal_);
+  auto attach = CanAttachStringChar(val_, idVal_, StringChar::CharAt);
   if (attach == AttachStringChar::No) {
     return AttachDecision::NoAction;
   }
@@ -4846,9 +4919,11 @@ AttachDecision SetPropIRGenerator::tryAttachDOMProxyUnshadowed(
 
   maybeEmitIdGuard(id);
 
-  // Guard that our expando object hasn't started shadowing this property.
+  // Guard that our proxy (expando) object hasn't started shadowing this
+  // property.
   TestMatchingProxyReceiver(writer, obj, objId);
-  CheckDOMProxyExpandoDoesNotShadow(writer, obj, id, objId);
+  bool canOptimizeMissing = false;
+  CheckDOMProxyDoesNotShadow(writer, obj, id, objId, &canOptimizeMissing);
 
   GeneratePrototypeGuards(writer, obj, holder, objId);
 
@@ -7313,7 +7388,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachStringChar(
     return AttachDecision::NoAction;
   }
 
-  auto attach = CanAttachStringChar(thisval_, args_[0]);
+  auto attach = CanAttachStringChar(thisval_, args_[0], kind);
   if (attach == AttachStringChar::No) {
     return AttachDecision::NoAction;
   }
@@ -7323,7 +7398,8 @@ AttachDecision InlinableNativeIRGenerator::tryAttachStringChar(
   // Initialize the input operand.
   initializeInputOperand();
 
-  // Guard callee is the 'charCodeAt' or 'charAt' native function.
+  // Guard callee is the 'charCodeAt', 'codePointAt', 'charAt', or 'at' native
+  // function.
   emitNativeCalleeGuard();
 
   // Guard this is a string.
@@ -7336,6 +7412,11 @@ AttachDecision InlinableNativeIRGenerator::tryAttachStringChar(
       writer.loadArgumentFixedSlot(ArgumentKind::Arg0, argc_);
   Int32OperandId int32IndexId = writer.guardToInt32Index(indexId);
 
+  // Handle relative string indices, if necessary.
+  if (kind == StringChar::At) {
+    int32IndexId = writer.toRelativeStringIndex(int32IndexId, strId);
+  }
+
   // Linearize the string.
   //
   // AttachStringChar doesn't have a separate state when OOB access happens on
@@ -7343,32 +7424,67 @@ AttachDecision InlinableNativeIRGenerator::tryAttachStringChar(
   // for out-of-bounds accesses.
   if (attach == AttachStringChar::Linearize ||
       attach == AttachStringChar::OutOfBounds) {
-    strId = writer.linearizeForCharAccess(strId, int32IndexId);
+    switch (kind) {
+      case StringChar::CharCodeAt:
+      case StringChar::CharAt:
+      case StringChar::At:
+        strId = writer.linearizeForCharAccess(strId, int32IndexId);
+        break;
+      case StringChar::CodePointAt:
+        strId = writer.linearizeForCodePointAccess(strId, int32IndexId);
+        break;
+    }
   }
 
   // Load string char or code.
-  if (kind == StringChar::CodeAt) {
-    writer.loadStringCharCodeResult(strId, int32IndexId, handleOOB);
-  } else {
-    writer.loadStringCharResult(strId, int32IndexId, handleOOB);
+  switch (kind) {
+    case StringChar::CharCodeAt:
+      writer.loadStringCharCodeResult(strId, int32IndexId, handleOOB);
+      break;
+    case StringChar::CodePointAt:
+      writer.loadStringCodePointResult(strId, int32IndexId, handleOOB);
+      break;
+    case StringChar::CharAt:
+      writer.loadStringCharResult(strId, int32IndexId, handleOOB);
+      break;
+    case StringChar::At:
+      writer.loadStringAtResult(strId, int32IndexId, handleOOB);
+      break;
   }
 
   writer.returnFromIC();
 
-  if (kind == StringChar::CodeAt) {
-    trackAttached("StringCharCodeAt");
-  } else {
-    trackAttached("StringCharAt");
+  switch (kind) {
+    case StringChar::CharCodeAt:
+      trackAttached("StringCharCodeAt");
+      break;
+    case StringChar::CodePointAt:
+      trackAttached("StringCodePointAt");
+      break;
+    case StringChar::CharAt:
+      trackAttached("StringCharAt");
+      break;
+    case StringChar::At:
+      trackAttached("StringAt");
+      break;
   }
 
   return AttachDecision::Attach;
 }
 
 AttachDecision InlinableNativeIRGenerator::tryAttachStringCharCodeAt() {
-  return tryAttachStringChar(StringChar::CodeAt);
+  return tryAttachStringChar(StringChar::CharCodeAt);
+}
+
+AttachDecision InlinableNativeIRGenerator::tryAttachStringCodePointAt() {
+  return tryAttachStringChar(StringChar::CodePointAt);
 }
 
 AttachDecision InlinableNativeIRGenerator::tryAttachStringCharAt() {
+  return tryAttachStringChar(StringChar::CharAt);
+}
+
+AttachDecision InlinableNativeIRGenerator::tryAttachStringAt() {
   return tryAttachStringChar(StringChar::At);
 }
 
@@ -11154,8 +11270,12 @@ AttachDecision InlinableNativeIRGenerator::tryAttachStub() {
       return tryAttachStringToStringValueOf();
     case InlinableNative::StringCharCodeAt:
       return tryAttachStringCharCodeAt();
+    case InlinableNative::StringCodePointAt:
+      return tryAttachStringCodePointAt();
     case InlinableNative::StringCharAt:
       return tryAttachStringCharAt();
+    case InlinableNative::StringAt:
+      return tryAttachStringAt();
     case InlinableNative::StringFromCharCode:
       return tryAttachStringFromCharCode();
     case InlinableNative::StringFromCodePoint:

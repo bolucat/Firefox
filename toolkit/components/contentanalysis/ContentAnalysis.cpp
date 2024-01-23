@@ -244,7 +244,7 @@ nsresult ContentAnalysisRequest::GetFileDigest(const nsAString& aFilePath,
   PRInt32 bytesRead = PR_Read(fd, buffer.get(), kBufferSize);
   while (bytesRead != 0) {
     if (bytesRead == -1) {
-      return NS_ERROR_DOM_FILE_NOT_READABLE_ERR;
+      return NS_ErrorAccordingToNSPR();
     }
     digest.Update(mozilla::Span<const uint8_t>(buffer.get(), bytesRead));
     bytesRead = PR_Read(fd, buffer.get(), kBufferSize);
@@ -733,6 +733,12 @@ nsresult ContentAnalysis::CancelWithError(nsCString aRequestToken,
           // May be shutting down
           return;
         }
+        nsCOMPtr<nsIObserverService> obsServ =
+            mozilla::services::GetObserverService();
+        RefPtr<ContentAnalysisResponse> response =
+            ContentAnalysisResponse::FromAction(
+                nsIContentAnalysisResponse::Action::eCanceled, aRequestToken);
+        obsServ->NotifyObservers(response, "dlp-response", nullptr);
         nsMainThreadPtrHandle<nsIContentAnalysisCallback> callbackHolder;
         {
           auto lock = owner->mCallbackMap.Lock();

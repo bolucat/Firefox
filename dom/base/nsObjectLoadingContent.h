@@ -13,15 +13,12 @@
 #ifndef NSOBJECTLOADINGCONTENT_H_
 #define NSOBJECTLOADINGCONTENT_H_
 
-#include "mozilla/Attributes.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/dom/BindingDeclarations.h"
 #include "nsIFrame.h"  // for WeakFrame only
-#include "nsImageLoadingContent.h"
 #include "nsIStreamListener.h"
 #include "nsIChannelEventSink.h"
 #include "nsIObjectLoadingContent.h"
-#include "nsIRunnable.h"
 #include "nsFrameLoaderOwner.h"
 
 class nsStopPluginRunnable;
@@ -32,7 +29,6 @@ namespace mozilla::dom {
 struct BindContext;
 template <typename T>
 class Sequence;
-struct MozPluginParameter;
 class HTMLIFrameElement;
 template <typename T>
 struct Nullable;
@@ -40,8 +36,7 @@ class WindowProxyHolder;
 class XULFrameElement;
 }  // namespace mozilla::dom
 
-class nsObjectLoadingContent : public nsImageLoadingContent,
-                               public nsIStreamListener,
+class nsObjectLoadingContent : public nsIStreamListener,
                                public nsFrameLoaderOwner,
                                public nsIObjectLoadingContent,
                                public nsIChannelEventSink {
@@ -53,8 +48,6 @@ class nsObjectLoadingContent : public nsImageLoadingContent,
   enum ObjectType {
     // Loading, type not yet known. We may be waiting for a channel to open.
     eType_Loading = TYPE_LOADING,
-    // Content is a *non-svg* image
-    eType_Image = TYPE_IMAGE,
     // Content is a "special" plugin.  Plugins are removed but these MIME
     // types display an transparent region in their place.
     // (Special plugins that have an HTML fallback are eType_Null)
@@ -84,27 +77,6 @@ class nsObjectLoadingContent : public nsImageLoadingContent,
     mNetworkCreated = aNetworkCreated;
   }
 
-  /**
-   * When the object is loaded, the attributes and all nested <param>
-   * elements are cached as name:value string pairs to be passed as
-   * parameters when instantiating the plugin.
-   *
-   * Note: these cached values can be overriden for different quirk cases.
-   */
-  // Returns the cached attributes array.
-  void GetPluginAttributes(
-      nsTArray<mozilla::dom::MozPluginParameter>& aAttributes);
-
-  // Returns the cached <param> array.
-  void GetPluginParameters(
-      nsTArray<mozilla::dom::MozPluginParameter>& aParameters);
-
-  /**
-   * Notify this class the document state has changed
-   * Called by Document so we may suspend plugins in inactive documents)
-   */
-  void NotifyOwnerDocumentActivityChanged();
-
   // Helper for WebIDL NeedResolve
   bool DoResolve(
       JSContext* aCx, JS::Handle<JSObject*> aObject, JS::Handle<jsid> aId,
@@ -126,9 +98,6 @@ class nsObjectLoadingContent : public nsImageLoadingContent,
     CopyUTF8toUTF16(mContentType, aType);
   }
   uint32_t DisplayedType() const { return mType; }
-  uint32_t GetContentTypeForMIMEType(const nsAString& aMIMEType) {
-    return GetTypeOfContent(NS_ConvertUTF16toUTF8(aMIMEType), false);
-  }
   void Reload(bool aClearActivation, mozilla::ErrorResult& aRv) {
     aRv = Reload(aClearActivation);
   }
@@ -249,16 +218,18 @@ class nsObjectLoadingContent : public nsImageLoadingContent,
 
   void CreateStaticClone(nsObjectLoadingContent* aDest) const;
 
-  nsresult BindToTree(mozilla::dom::BindContext& aCxt, nsINode& aParent) {
-    nsImageLoadingContent::BindToTree(aCxt, aParent);
-    return NS_OK;
-  }
   void UnbindFromTree(bool aNullParent = true);
 
   /**
    * Return the content policy type used for loading the element.
    */
   virtual nsContentPolicyType GetContentPolicyType() const = 0;
+
+  virtual const mozilla::dom::Element* AsElement() const = 0;
+  mozilla::dom::Element* AsElement() {
+    return const_cast<mozilla::dom::Element*>(
+        const_cast<const nsObjectLoadingContent*>(this)->AsElement());
+  }
 
   /**
    * Decides whether we should load <embed>/<object> node content.
@@ -293,22 +264,6 @@ class nsObjectLoadingContent : public nsImageLoadingContent,
     // ContentType
     eParamContentTypeChanged = 1u << 2
   };
-
-  /**
-   * Getter for child <param> elements that are not nested in another plugin
-   * dom element.
-   * This is an internal helper function and should not be used directly for
-   * passing parameters to the plugin instance.
-   *
-   * See GetPluginParameters and GetPluginAttributes, which also handle
-   * quirk-overrides.
-   *
-   * @param aParameters     The array containing pairs of name/value strings
-   *                        from nested <param> objects.
-   */
-  void GetNestedParams(nsTArray<mozilla::dom::MozPluginParameter>& aParameters);
-
-  [[nodiscard]] nsresult BuildParametersArray();
 
   /**
    * Configure fallback for deprecated plugin and broken elements.
@@ -540,9 +495,6 @@ class nsObjectLoadingContent : public nsImageLoadingContent,
   bool mRewrittenYoutubeEmbed : 1;
 
   bool mLoadingSyntheticDocument : 1;
-
-  nsTArray<mozilla::dom::MozPluginParameter> mCachedAttributes;
-  nsTArray<mozilla::dom::MozPluginParameter> mCachedParameters;
 
   // The intrinsic size and aspect ratio from a child SVG document that
   // we should use.  These are only set when we are an <object> or <embed>

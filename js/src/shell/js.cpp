@@ -5256,6 +5256,7 @@ static bool InstantiateModuleStencil(JSContext* cx, uint32_t argc, Value* vp) {
   if (!args[0].isObject()) {
     JS_ReportErrorASCII(cx,
                         "instantiateModuleStencil: Stencil object expected");
+    return false;
   }
   Rooted<js::StencilObject*> stencilObj(
       cx, args[0].toObject().maybeUnwrapIf<js::StencilObject>());
@@ -5326,14 +5327,14 @@ static bool InstantiateModuleStencilXDR(JSContext* cx, uint32_t argc,
   /* Prepare the input byte array. */
   if (!args[0].isObject()) {
     JS_ReportErrorASCII(
-        cx, "instantiateModuleStencilXDR: stencil XDR object expected");
+        cx, "instantiateModuleStencilXDR: Stencil XDR object expected");
     return false;
   }
   Rooted<StencilXDRBufferObject*> xdrObj(
       cx, args[0].toObject().maybeUnwrapIf<StencilXDRBufferObject>());
   if (!xdrObj) {
     JS_ReportErrorASCII(
-        cx, "instantiateModuleStencilXDR: stencil XDR object expected");
+        cx, "instantiateModuleStencilXDR: Stencil XDR object expected");
     return false;
   }
   MOZ_ASSERT(xdrObj->hasBuffer());
@@ -11921,8 +11922,10 @@ bool InitOptionParser(OptionParser& op) {
       !op.addBoolOption('\0', "no-ggc", "Disable Generational GC") ||
       !op.addBoolOption('\0', "no-cgc", "Disable Compacting GC") ||
       !op.addBoolOption('\0', "no-incremental-gc", "Disable Incremental GC") ||
+      !op.addBoolOption('\0', "no-parallel-marking",
+                        "Disable GC parallel marking") ||
       !op.addBoolOption('\0', "enable-parallel-marking",
-                        "Turn on parallel marking") ||
+                        "Enable GC parallel marking") ||
       !op.addIntOption(
           '\0', "marking-threads", "COUNT",
           "Set the number of threads used for parallel marking to COUNT.", 0) ||
@@ -12888,9 +12891,19 @@ bool SetContextGCOptions(JSContext* cx, const OptionParser& op) {
   bool incrementalGC = !op.getBoolOption("no-incremental-gc");
   JS_SetGCParameter(cx, JSGC_INCREMENTAL_GC_ENABLED, incrementalGC);
 
+#ifndef ANDROID
+  bool parallelMarking = true;
+#else
+  bool parallelMarking = false;
+#endif
   if (op.getBoolOption("enable-parallel-marking")) {
-    JS_SetGCParameter(cx, JSGC_PARALLEL_MARKING_ENABLED, true);
+    parallelMarking = true;
   }
+  if (op.getBoolOption("no-parallel-marking")) {
+    parallelMarking = false;
+  }
+  JS_SetGCParameter(cx, JSGC_PARALLEL_MARKING_ENABLED, parallelMarking);
+
   int32_t markingThreads = op.getIntOption("marking-threads");
   if (markingThreads > 0) {
     JS_SetGCParameter(cx, JSGC_MARKING_THREAD_COUNT, markingThreads);

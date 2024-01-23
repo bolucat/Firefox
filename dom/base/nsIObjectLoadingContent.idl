@@ -27,7 +27,6 @@ interface nsIObjectLoadingContent : nsISupports
    * See notes in nsObjectLoadingContent.h
    */
   const unsigned long TYPE_LOADING     = 0;
-  const unsigned long TYPE_IMAGE       = 1;
   const unsigned long TYPE_FALLBACK    = 2;
   const unsigned long TYPE_FAKE_PLUGIN = 3;
   const unsigned long TYPE_DOCUMENT    = 4;
@@ -53,13 +52,6 @@ interface nsIObjectLoadingContent : nsISupports
    * the constants above for the list of possible values.
    */
   readonly attribute unsigned long displayedType;
-
-  /**
-   * Gets the content type that corresponds to the give MIME type.  See the
-   * constants above for the list of possible values.  If nothing else fits,
-   * TYPE_FALLBACK will be returned.
-   */
-  unsigned long getContentTypeForMIMEType(in AUTF8String aMimeType);
 
   /**
    * Forces a re-evaluation and reload of the tag, optionally invalidating its

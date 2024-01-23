@@ -12151,6 +12151,34 @@ void CodeGenerator::visitLinearizeForCharAccess(LLinearizeForCharAccess* lir) {
   masm.bind(ool->rejoin());
 }
 
+void CodeGenerator::visitLinearizeForCodePointAccess(
+    LLinearizeForCodePointAccess* lir) {
+  Register str = ToRegister(lir->str());
+  Register index = ToRegister(lir->index());
+  Register output = ToRegister(lir->output());
+  Register temp = ToRegister(lir->temp0());
+
+  using Fn = JSLinearString* (*)(JSContext*, JSString*);
+  auto* ool = oolCallVM<Fn, jit::LinearizeForCharAccess>(
+      lir, ArgList(str), StoreRegisterTo(output));
+
+  masm.branchIfNotCanLoadStringCodePoint(str, index, output, temp,
+                                         ool->entry());
+
+  masm.movePtr(str, output);
+  masm.bind(ool->rejoin());
+}
+
+void CodeGenerator::visitToRelativeStringIndex(LToRelativeStringIndex* lir) {
+  Register index = ToRegister(lir->index());
+  Register length = ToRegister(lir->length());
+  Register output = ToRegister(lir->output());
+
+  masm.move32(Imm32(0), output);
+  masm.cmp32Move32(Assembler::LessThan, index, Imm32(0), length, output);
+  masm.add32(index, output);
+}
+
 void CodeGenerator::visitCharCodeAt(LCharCodeAt* lir) {
   Register str = ToRegister(lir->str());
   Register output = ToRegister(lir->output());
@@ -12206,6 +12234,41 @@ void CodeGenerator::visitCharCodeAtOrNegative(LCharCodeAtOrNegative* lir) {
   }
 }
 
+void CodeGenerator::visitCodePointAt(LCodePointAt* lir) {
+  Register str = ToRegister(lir->str());
+  Register index = ToRegister(lir->index());
+  Register output = ToRegister(lir->output());
+  Register temp0 = ToRegister(lir->temp0());
+  Register temp1 = ToRegister(lir->temp1());
+
+  using Fn = bool (*)(JSContext*, HandleString, int32_t, uint32_t*);
+  auto* ool = oolCallVM<Fn, jit::CodePointAt>(lir, ArgList(str, index),
+                                              StoreRegisterTo(output));
+
+  masm.loadStringCodePoint(str, index, output, temp0, temp1, ool->entry());
+  masm.bind(ool->rejoin());
+}
+
+void CodeGenerator::visitCodePointAtOrNegative(LCodePointAtOrNegative* lir) {
+  Register str = ToRegister(lir->str());
+  Register index = ToRegister(lir->index());
+  Register output = ToRegister(lir->output());
+  Register temp0 = ToRegister(lir->temp0());
+  Register temp1 = ToRegister(lir->temp1());
+
+  using Fn = bool (*)(JSContext*, HandleString, int32_t, uint32_t*);
+  auto* ool = oolCallVM<Fn, jit::CodePointAt>(lir, ArgList(str, index),
+                                              StoreRegisterTo(output));
+
+  // Return -1 for out-of-bounds access.
+  masm.move32(Imm32(-1), output);
+
+  masm.spectreBoundsCheck32(index, Address(str, JSString::offsetOfLength()),
+                            temp0, ool->rejoin());
+  masm.loadStringCodePoint(str, index, output, temp0, temp1, ool->entry());
+  masm.bind(ool->rejoin());
+}
+
 void CodeGenerator::visitNegativeToNaN(LNegativeToNaN* lir) {
   Register input = ToRegister(lir->input());
   ValueOperand output = ToOutValue(lir);
@@ -12218,13 +12281,25 @@ void CodeGenerator::visitNegativeToNaN(LNegativeToNaN* lir) {
   masm.bind(&done);
 }
 
+void CodeGenerator::visitNegativeToUndefined(LNegativeToUndefined* lir) {
+  Register input = ToRegister(lir->input());
+  ValueOperand output = ToOutValue(lir);
+
+  masm.tagValue(JSVAL_TYPE_INT32, input, output);
+
+  Label done;
+  masm.branchTest32(Assembler::NotSigned, input, input, &done);
+  masm.moveValue(JS::UndefinedValue(), output);
+  masm.bind(&done);
+}
+
 void CodeGenerator::visitFromCharCode(LFromCharCode* lir) {
   Register code = ToRegister(lir->code());
   Register output = ToRegister(lir->output());
 
   using Fn = JSLinearString* (*)(JSContext*, int32_t);
-  OutOfLineCode* ool = oolCallVM<Fn, jit::StringFromCharCode>(
-      lir, ArgList(code), StoreRegisterTo(output));
+  auto* ool = oolCallVM<Fn, js::StringFromCharCode>(lir, ArgList(code),
+                                                    StoreRegisterTo(output));
 
   // OOL path if code >= UNIT_STATIC_LIMIT.
   masm.lookupStaticString(code, output, gen->runtime->staticStrings(),
@@ -12239,8 +12314,8 @@ void CodeGenerator::visitFromCharCodeEmptyIfNegative(
   Register output = ToRegister(lir->output());
 
   using Fn = JSLinearString* (*)(JSContext*, int32_t);
-  auto* ool = oolCallVM<Fn, jit::StringFromCharCode>(lir, ArgList(code),
-                                                     StoreRegisterTo(output));
+  auto* ool = oolCallVM<Fn, js::StringFromCharCode>(lir, ArgList(code),
+                                                    StoreRegisterTo(output));
 
   // Return the empty string for negative inputs.
   const JSAtomState& names = gen->runtime->names();
@@ -12254,6 +12329,31 @@ void CodeGenerator::visitFromCharCodeEmptyIfNegative(
   masm.bind(ool->rejoin());
 }
 
+void CodeGenerator::visitFromCharCodeUndefinedIfNegative(
+    LFromCharCodeUndefinedIfNegative* lir) {
+  Register code = ToRegister(lir->code());
+  ValueOperand output = ToOutValue(lir);
+  Register temp = output.scratchReg();
+
+  using Fn = JSLinearString* (*)(JSContext*, int32_t);
+  auto* ool = oolCallVM<Fn, js::StringFromCharCode>(lir, ArgList(code),
+                                                    StoreRegisterTo(temp));
+
+  // Return |undefined| for negative inputs.
+  Label done;
+  masm.moveValue(UndefinedValue(), output);
+  masm.branchTest32(Assembler::Signed, code, code, &done);
+
+  // OOL path if code >= UNIT_STATIC_LIMIT.
+  masm.lookupStaticString(code, temp, gen->runtime->staticStrings(),
+                          ool->entry());
+
+  masm.bind(ool->rejoin());
+  masm.tagValue(JSVAL_TYPE_STRING, temp, output);
+
+  masm.bind(&done);
+}
+
 void CodeGenerator::visitFromCodePoint(LFromCodePoint* lir) {
   Register codePoint = ToRegister(lir->codePoint());
   Register output = ToRegister(lir->output());
@@ -12262,9 +12362,9 @@ void CodeGenerator::visitFromCodePoint(LFromCodePoint* lir) {
   LSnapshot* snapshot = lir->snapshot();
 
   // The OOL path is only taken when we can't allocate the inline string.
-  using Fn = JSString* (*)(JSContext*, int32_t);
-  OutOfLineCode* ool = oolCallVM<Fn, jit::StringFromCodePoint>(
-      lir, ArgList(codePoint), StoreRegisterTo(output));
+  using Fn = JSLinearString* (*)(JSContext*, char32_t);
+  auto* ool = oolCallVM<Fn, js::StringFromCodePoint>(lir, ArgList(codePoint),
+                                                     StoreRegisterTo(output));
 
   Label isTwoByte;
   Label* done = ool->rejoin();
@@ -16002,6 +16102,14 @@ void CodeGenerator::visitThrow(LThrow* lir) {
   callVM<Fn, js::ThrowOperation>(lir);
 }
 
+void CodeGenerator::visitThrowWithStack(LThrowWithStack* lir) {
+  pushArg(ToValue(lir, LThrowWithStack::StackIndex));
+  pushArg(ToValue(lir, LThrowWithStack::ValueIndex));
+
+  using Fn = bool (*)(JSContext*, HandleValue, HandleValue);
+  callVM<Fn, js::ThrowWithStackOperation>(lir);
+}
+
 class OutOfLineTypeOfV : public OutOfLineCodeBase<CodeGenerator> {
   LTypeOfV* ins_;
 
@@ -18711,16 +18819,28 @@ void CodeGenerator::visitGenerator(LGenerator* lir) {
 
 void CodeGenerator::visitAsyncResolve(LAsyncResolve* lir) {
   Register generator = ToRegister(lir->generator());
-  ValueOperand valueOrReason = ToValue(lir, LAsyncResolve::ValueOrReasonIndex);
-  AsyncFunctionResolveKind resolveKind = lir->mir()->resolveKind();
+  ValueOperand value = ToValue(lir, LAsyncResolve::ValueIndex);
 
-  pushArg(Imm32(static_cast<int32_t>(resolveKind)));
-  pushArg(valueOrReason);
+  pushArg(value);
   pushArg(generator);
 
   using Fn = JSObject* (*)(JSContext*, Handle<AsyncFunctionGeneratorObject*>,
-                           HandleValue, AsyncFunctionResolveKind);
+                           HandleValue);
   callVM<Fn, js::AsyncFunctionResolve>(lir);
+}
+
+void CodeGenerator::visitAsyncReject(LAsyncReject* lir) {
+  Register generator = ToRegister(lir->generator());
+  ValueOperand reason = ToValue(lir, LAsyncReject::ReasonIndex);
+  ValueOperand stack = ToValue(lir, LAsyncReject::StackIndex);
+
+  pushArg(stack);
+  pushArg(reason);
+  pushArg(generator);
+
+  using Fn = JSObject* (*)(JSContext*, Handle<AsyncFunctionGeneratorObject*>,
+                           HandleValue, HandleValue);
+  callVM<Fn, js::AsyncFunctionReject>(lir);
 }
 
 void CodeGenerator::visitAsyncAwait(LAsyncAwait* lir) {

@@ -1094,6 +1094,7 @@ class MacroAssembler : public MacroAssemblerSpecific {
 
   inline void add32(Register src, Register dest) PER_SHARED_ARCH;
   inline void add32(Imm32 imm, Register dest) PER_SHARED_ARCH;
+  inline void add32(Imm32 imm, Register src, Register dest) PER_SHARED_ARCH;
   inline void add32(Imm32 imm, const Address& dest) PER_SHARED_ARCH;
   inline void add32(Imm32 imm, const AbsoluteAddress& dest)
       DEFINED_ON(x86_shared);
@@ -2140,6 +2141,10 @@ class MacroAssembler : public MacroAssemblerSpecific {
   inline void cmp32Load32(Condition cond, Register lhs, Register rhs,
                           const Address& src, Register dest)
       DEFINED_ON(arm, arm64, loong64, riscv64, mips_shared, x86_shared);
+
+  inline void cmp32Load32(Condition cond, Register lhs, Imm32 rhs,
+                          const Address& src, Register dest)
+      DEFINED_ON(arm, arm64, loong64, riscv64, wasm32, mips_shared, x86_shared);
 
   inline void cmp32LoadPtr(Condition cond, const Address& lhs, Imm32 rhs,
                            const Address& src, Register dest)
@@ -4699,20 +4704,66 @@ class MacroAssembler : public MacroAssemblerSpecific {
   void loadInlineStringCharsForStore(Register str, Register dest);
 
  private:
-  void loadRopeChild(Register str, Register index, Register output,
-                     Label* isLinear);
+  enum class CharKind { CharCode, CodePoint };
+
+  void branchIfMaybeSplitSurrogatePair(Register leftChild, Register index,
+                                       Register scratch, Label* maybeSplit,
+                                       Label* notSplit);
+
+  void loadRopeChild(CharKind kind, Register str, Register index,
+                     Register output, Register maybeScratch, Label* isLinear,
+                     Label* splitSurrogate);
+
+  void branchIfCanLoadStringChar(CharKind kind, Register str, Register index,
+                                 Register scratch, Register maybeScratch,
+                                 Label* label);
+  void branchIfNotCanLoadStringChar(CharKind kind, Register str, Register index,
+                                    Register scratch, Register maybeScratch,
+                                    Label* label);
+
+  void loadStringChar(CharKind kind, Register str, Register index,
+                      Register output, Register scratch1, Register scratch2,
+                      Label* fail);
 
  public:
   void branchIfCanLoadStringChar(Register str, Register index, Register scratch,
-                                 Label* label);
+                                 Label* label) {
+    branchIfCanLoadStringChar(CharKind::CharCode, str, index, scratch,
+                              InvalidReg, label);
+  }
   void branchIfNotCanLoadStringChar(Register str, Register index,
-                                    Register scratch, Label* label);
+                                    Register scratch, Label* label) {
+    branchIfNotCanLoadStringChar(CharKind::CharCode, str, index, scratch,
+                                 InvalidReg, label);
+  }
+
+  void branchIfCanLoadStringCodePoint(Register str, Register index,
+                                      Register scratch1, Register scratch2,
+                                      Label* label) {
+    branchIfCanLoadStringChar(CharKind::CodePoint, str, index, scratch1,
+                              scratch2, label);
+  }
+  void branchIfNotCanLoadStringCodePoint(Register str, Register index,
+                                         Register scratch1, Register scratch2,
+                                         Label* label) {
+    branchIfNotCanLoadStringChar(CharKind::CodePoint, str, index, scratch1,
+                                 scratch2, label);
+  }
 
   void loadStringChar(Register str, Register index, Register output,
-                      Register scratch1, Register scratch2, Label* fail);
+                      Register scratch1, Register scratch2, Label* fail) {
+    loadStringChar(CharKind::CharCode, str, index, output, scratch1, scratch2,
+                   fail);
+  }
 
   void loadStringChar(Register str, int32_t index, Register output,
                       Register scratch1, Register scratch2, Label* fail);
+
+  void loadStringCodePoint(Register str, Register index, Register output,
+                           Register scratch1, Register scratch2, Label* fail) {
+    loadStringChar(CharKind::CodePoint, str, index, output, scratch1, scratch2,
+                   fail);
+  }
 
   void loadRopeLeftChild(Register str, Register dest);
   void loadRopeRightChild(Register str, Register dest);
@@ -4758,6 +4809,41 @@ class MacroAssembler : public MacroAssemblerSpecific {
    * Add |index| to |chars| so that |chars| now points at |chars[index]|.
    */
   void addToCharPtr(Register chars, Register index, CharEncoding encoding);
+
+  /**
+   * Branch if |src| is not a lead surrogate character.
+   */
+  void branchIfNotLeadSurrogate(Register src, Label* label);
+
+ private:
+  enum class SurrogateChar { Lead, Trail };
+  void branchSurrogate(Assembler::Condition cond, Register src,
+                       Register scratch, Label* label,
+                       SurrogateChar surrogateChar);
+
+ public:
+  /**
+   * Branch if |src| is a lead surrogate character.
+   */
+  void branchIfLeadSurrogate(Register src, Register scratch, Label* label) {
+    branchSurrogate(Assembler::Equal, src, scratch, label, SurrogateChar::Lead);
+  }
+
+  /**
+   * Branch if |src| is not a lead surrogate character.
+   */
+  void branchIfNotLeadSurrogate(Register src, Register scratch, Label* label) {
+    branchSurrogate(Assembler::NotEqual, src, scratch, label,
+                    SurrogateChar::Lead);
+  }
+
+  /**
+   * Branch if |src| is not a trail surrogate character.
+   */
+  void branchIfNotTrailSurrogate(Register src, Register scratch, Label* label) {
+    branchSurrogate(Assembler::NotEqual, src, scratch, label,
+                    SurrogateChar::Trail);
+  }
 
  private:
   void loadStringFromUnit(Register unit, Register dest,

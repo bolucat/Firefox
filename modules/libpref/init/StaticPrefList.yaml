@@ -1761,23 +1761,6 @@
   mirror: always
   do_not_use_directly: true
 
-# When this pref is enabled, <object> and <embed> elements will create
-# synthetic documents when the resource type they're loading is an image.
-- name: browser.opaqueResponseBlocking.syntheticBrowsingContext
-  type: bool
-  value: true
-  mirror: once
-
-# When this pref is enabled, <object> and <embed> elements will filter the
-# browsing contexts created for the synthetic browsing contexts for the
-# synthetic documents when browser.opaqueResponseBlocking.syntheticBrowsingContext
-# is enabled from `Window.frames`, `Window.length` and named targeting.
-- name: browser.opaqueResponseBlocking.syntheticBrowsingContext.filter
-  type: bool
-  value: true
-  mirror: once
-  do_not_use_directly: true
-
 # When true, zooming will be enabled on all sites, even ones that declare
 # user-scalable=no.
 - name: browser.ui.zoom.force-user-scalable
@@ -8329,7 +8312,7 @@
 # Whether the `content-visibility` CSS property is enabled
 - name: layout.css.content-visibility.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
   rust: true
 
@@ -8859,6 +8842,11 @@
 - name: layout.cursor.block.max-size
   type: uint32_t
   value: 32
+  mirror: always
+
+- name: layout.cursor.disable-for-popups
+  type: bool
+  value: true
   mirror: always
 
 - name: layout.display-list.build-twice
@@ -14915,7 +14903,7 @@
   value: true
   mirror: always
 
-# When true, selection is not collapased at the right click point if there is a
+# When true, selection is not collapsed at the right click point if there is a
 # non-collapsed selection.
 - name: ui.mouse.right_click.collapse_selection.stop_if_non_collapsed_selection
   type: bool
@@ -14925,6 +14913,13 @@
 # When true, selection is not collapsed at the right click point if the clicked
 # node is not editable.
 - name: ui.mouse.right_click.collapse_selection.stop_if_non_editable_node
+  type: bool
+  value: false
+  mirror: always
+
+# When true, the caret is not moved to the right click point in focused editable
+# content.
+- name: ui.mouse.right_click.move_caret.stop_if_in_focused_editable_node
   type: bool
   value: false
   mirror: always
