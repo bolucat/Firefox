@@ -15,23 +15,29 @@ add_task(
       languagePairs: LANGUAGE_PAIRS,
     });
 
-    await assertTranslationsButton(
+    await FullPageTranslationsTestUtils.assertTranslationsButton(
       { button: true, circleArrows: false, locale: false, icon: true },
       "The translations button is visible."
     );
 
-    await assertPageIsUntranslated(runInPage);
+    await FullPageTranslationsTestUtils.assertPageIsUntranslated(runInPage);
 
-    await openTranslationsPanel({ onOpenPanel: assertPanelDefaultView });
-    await openTranslationsSettingsMenu();
+    await FullPageTranslationsTestUtils.openTranslationsPanel({
+      onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewDefault,
+    });
+    await FullPageTranslationsTestUtils.openTranslationsSettingsMenu();
 
-    await assertIsAlwaysTranslateLanguage("es", { checked: false });
-    await clickAlwaysTranslateLanguage({
+    await FullPageTranslationsTestUtils.assertIsAlwaysTranslateLanguage("es", {
+      checked: false,
+    });
+    await FullPageTranslationsTestUtils.clickAlwaysTranslateLanguage({
       downloadHandler: resolveDownloads,
     });
-    await assertIsAlwaysTranslateLanguage("es", { checked: true });
+    await FullPageTranslationsTestUtils.assertIsAlwaysTranslateLanguage("es", {
+      checked: true,
+    });
 
-    await assertPageIsTranslated(
+    await FullPageTranslationsTestUtils.assertPageIsTranslated(
       "es",
       "en",
       runInPage,
@@ -43,44 +49,52 @@ add_task(
       downloadHandler: resolveDownloads,
     });
 
-    await assertPageIsTranslated(
+    await FullPageTranslationsTestUtils.assertPageIsTranslated(
       "es",
       "en",
       runInPage,
       "The page should be automatically translated."
     );
 
-    await openTranslationsPanel({ onOpenPanel: assertPanelRevisitView });
+    await FullPageTranslationsTestUtils.openTranslationsPanel({
+      onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewRevisit,
+    });
 
-    await clickRestoreButton();
+    await FullPageTranslationsTestUtils.clickRestoreButton();
 
-    await assertTranslationsButton(
+    await FullPageTranslationsTestUtils.assertTranslationsButton(
       { button: true, circleArrows: false, locale: false, icon: true },
       "The button is reverted to have an icon."
     );
 
-    await assertPageIsUntranslated(runInPage);
+    await FullPageTranslationsTestUtils.assertPageIsUntranslated(runInPage);
 
-    await openTranslationsPanel({ onOpenPanel: assertPanelDefaultView });
-    await openTranslationsSettingsMenu();
+    await FullPageTranslationsTestUtils.openTranslationsPanel({
+      onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewDefault,
+    });
+    await FullPageTranslationsTestUtils.openTranslationsSettingsMenu();
 
-    await assertIsAlwaysTranslateLanguage("es", { checked: true });
-    await clickAlwaysTranslateLanguage();
-    await assertIsAlwaysTranslateLanguage("es", { checked: false });
+    await FullPageTranslationsTestUtils.assertIsAlwaysTranslateLanguage("es", {
+      checked: true,
+    });
+    await FullPageTranslationsTestUtils.clickAlwaysTranslateLanguage();
+    await FullPageTranslationsTestUtils.assertIsAlwaysTranslateLanguage("es", {
+      checked: false,
+    });
 
-    await assertTranslationsButton(
+    await FullPageTranslationsTestUtils.assertTranslationsButton(
       { button: true, circleArrows: false, locale: false, icon: true },
       "The button shows only the icon."
     );
 
     await navigate("Reload the page", { url: SPANISH_PAGE_URL_DOT_ORG });
 
-    await assertTranslationsButton(
+    await FullPageTranslationsTestUtils.assertTranslationsButton(
       { button: true, circleArrows: false, locale: false, icon: true },
       "The button shows only the icon."
     );
 
-    await assertPageIsUntranslated(runInPage);
+    await FullPageTranslationsTestUtils.assertPageIsUntranslated(runInPage);
 
     await cleanup();
   }

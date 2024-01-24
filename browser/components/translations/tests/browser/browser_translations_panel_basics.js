@@ -12,44 +12,55 @@ add_task(async function test_translations_panel_basics() {
     languagePairs: LANGUAGE_PAIRS,
   });
 
-  const { button } = await assertTranslationsButton(
-    { button: true, circleArrows: false, locale: false, icon: true },
-    "The button is available."
-  );
+  const { button } =
+    await FullPageTranslationsTestUtils.assertTranslationsButton(
+      { button: true, circleArrows: false, locale: false, icon: true },
+      "The button is available."
+    );
 
   is(button.getAttribute("data-l10n-id"), "urlbar-translations-button2");
 
-  await assertPageIsUntranslated(runInPage);
+  await FullPageTranslationsTestUtils.assertPageIsUntranslated(runInPage);
 
-  await openTranslationsPanel({ onOpenPanel: assertPanelDefaultView });
+  await FullPageTranslationsTestUtils.openTranslationsPanel({
+    onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewDefault,
+  });
 
   const panel = document.getElementById("translations-panel");
   const label = document.getElementById(panel.getAttribute("aria-labelledby"));
   ok(label, "The a11y label for the panel can be found.");
-  assertIsVisible(true, { element: label });
+  assertVisibility({ visible: { label } });
 
-  await clickTranslateButton();
+  await FullPageTranslationsTestUtils.clickTranslateButton();
 
-  await assertTranslationsButton(
+  await FullPageTranslationsTestUtils.assertTranslationsButton(
     { button: true, circleArrows: true, locale: false, icon: true },
     "The icon presents the loading indicator."
   );
 
-  await openTranslationsPanel({ onOpenPanel: assertPanelLoadingView });
+  await FullPageTranslationsTestUtils.openTranslationsPanel({
+    onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewLoading,
+  });
 
-  await clickCancelButton();
+  await FullPageTranslationsTestUtils.clickCancelButton();
 
   await resolveDownloads(1);
 
-  await assertPageIsTranslated("es", "en", runInPage);
+  await FullPageTranslationsTestUtils.assertPageIsTranslated(
+    "es",
+    "en",
+    runInPage
+  );
 
-  await openTranslationsPanel({ onOpenPanel: assertPanelRevisitView });
+  await FullPageTranslationsTestUtils.openTranslationsPanel({
+    onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewRevisit,
+  });
 
-  await clickRestoreButton();
+  await FullPageTranslationsTestUtils.clickRestoreButton();
 
-  await assertPageIsUntranslated(runInPage);
+  await FullPageTranslationsTestUtils.assertPageIsUntranslated(runInPage);
 
-  await assertTranslationsButton(
+  await FullPageTranslationsTestUtils.assertTranslationsButton(
     { button: true, circleArrows: false, locale: false, icon: true },
     "The button is reverted to have an icon."
   );

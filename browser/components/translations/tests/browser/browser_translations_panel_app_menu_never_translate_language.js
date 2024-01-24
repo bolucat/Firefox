@@ -15,22 +15,26 @@ add_task(async function test_uncheck_never_translate_language_shows_button() {
     prefs: [["browser.translations.neverTranslateLanguages", "es"]],
   });
 
-  await assertTranslationsButton(
+  await FullPageTranslationsTestUtils.assertTranslationsButton(
     { button: true, circleArrows: false, locale: false, icon: true },
     "The translations button is available"
   );
 
-  await assertPageIsUntranslated(runInPage);
+  await FullPageTranslationsTestUtils.assertPageIsUntranslated(runInPage);
 
-  await openTranslationsPanel({
+  await FullPageTranslationsTestUtils.openTranslationsPanel({
     openFromAppMenu: true,
-    onOpenPanel: assertPanelDefaultView,
+    onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewDefault,
   });
-  await openTranslationsSettingsMenu();
+  await FullPageTranslationsTestUtils.openTranslationsSettingsMenu();
 
-  await assertIsNeverTranslateLanguage("es", { checked: true });
-  await clickNeverTranslateLanguage();
-  await assertIsNeverTranslateLanguage("es", { checked: false });
+  await FullPageTranslationsTestUtils.assertIsNeverTranslateLanguage("es", {
+    checked: true,
+  });
+  await FullPageTranslationsTestUtils.clickNeverTranslateLanguage();
+  await FullPageTranslationsTestUtils.assertIsNeverTranslateLanguage("es", {
+    checked: false,
+  });
 
   await cleanup();
 });

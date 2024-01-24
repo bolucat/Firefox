@@ -18,11 +18,16 @@ add_task(async function test_translations_telemetry_firstrun_basics() {
     expectedEventCount: 0,
   });
 
-  await assertTranslationsButton({ button: true }, "The button is available.");
+  await FullPageTranslationsTestUtils.assertTranslationsButton(
+    { button: true },
+    "The button is available."
+  );
 
-  await openTranslationsPanel({ onOpenPanel: assertPanelFirstShowView });
+  await FullPageTranslationsTestUtils.openTranslationsPanel({
+    onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewFirstShow,
+  });
 
-  await clickCancelButton();
+  await FullPageTranslationsTestUtils.clickCancelButton();
 
   await TestTranslationsTelemetry.assertEvent(Glean.translationsPanel.open, {
     expectedEventCount: 1,
@@ -51,9 +56,11 @@ add_task(async function test_translations_telemetry_firstrun_basics() {
     expectFirstInteraction: true,
   });
 
-  await openTranslationsPanel({ onOpenPanel: assertPanelFirstShowView });
+  await FullPageTranslationsTestUtils.openTranslationsPanel({
+    onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewFirstShow,
+  });
 
-  await clickCancelButton();
+  await FullPageTranslationsTestUtils.clickCancelButton();
 
   await TestTranslationsTelemetry.assertEvent(Glean.translationsPanel.open, {
     expectedEventCount: 2,

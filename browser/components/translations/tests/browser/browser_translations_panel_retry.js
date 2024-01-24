@@ -12,28 +12,43 @@ add_task(async function test_translations_panel_retry() {
     languagePairs: LANGUAGE_PAIRS,
   });
 
-  await assertTranslationsButton({ button: true }, "The button is available.");
+  await FullPageTranslationsTestUtils.assertTranslationsButton(
+    { button: true },
+    "The button is available."
+  );
 
-  await assertPageIsUntranslated(runInPage);
+  await FullPageTranslationsTestUtils.assertPageIsUntranslated(runInPage);
 
-  await openTranslationsPanel({ onOpenPanel: assertPanelDefaultView });
+  await FullPageTranslationsTestUtils.openTranslationsPanel({
+    onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewDefault,
+  });
 
-  await clickTranslateButton({
+  await FullPageTranslationsTestUtils.clickTranslateButton({
     downloadHandler: resolveDownloads,
   });
 
-  await assertPageIsTranslated("es", "en", runInPage);
+  await FullPageTranslationsTestUtils.assertPageIsTranslated(
+    "es",
+    "en",
+    runInPage
+  );
 
-  await openTranslationsPanel({ onOpenPanel: assertPanelRevisitView });
+  await FullPageTranslationsTestUtils.openTranslationsPanel({
+    onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewRevisit,
+  });
 
-  switchSelectedToLanguage("fr");
+  FullPageTranslationsTestUtils.switchSelectedToLanguage("fr");
 
-  await clickTranslateButton({
+  await FullPageTranslationsTestUtils.clickTranslateButton({
     downloadHandler: resolveDownloads,
     pivotTranslation: true,
   });
 
-  await assertPageIsTranslated("es", "fr", runInPage);
+  await FullPageTranslationsTestUtils.assertPageIsTranslated(
+    "es",
+    "fr",
+    runInPage
+  );
 
   await cleanup();
 });

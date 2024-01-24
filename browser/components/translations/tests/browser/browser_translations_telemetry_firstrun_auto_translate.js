@@ -14,17 +14,26 @@ add_task(async function test_translations_telemetry_firstrun_auto_translate() {
     prefs: [["browser.translations.panelShown", false]],
   });
 
-  await assertTranslationsButton({ button: true }, "The button is available.");
+  await FullPageTranslationsTestUtils.assertTranslationsButton(
+    { button: true },
+    "The button is available."
+  );
 
-  await assertPageIsUntranslated(runInPage);
+  await FullPageTranslationsTestUtils.assertPageIsUntranslated(runInPage);
 
-  await openTranslationsPanel({ onOpenPanel: assertPanelFirstShowView });
-  await openTranslationsSettingsMenu();
-  await clickAlwaysTranslateLanguage({
+  await FullPageTranslationsTestUtils.openTranslationsPanel({
+    onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewFirstShow,
+  });
+  await FullPageTranslationsTestUtils.openTranslationsSettingsMenu();
+  await FullPageTranslationsTestUtils.clickAlwaysTranslateLanguage({
     downloadHandler: resolveDownloads,
   });
 
-  await assertPageIsTranslated("es", "en", runInPage);
+  await FullPageTranslationsTestUtils.assertPageIsTranslated(
+    "es",
+    "en",
+    runInPage
+  );
 
   await TestTranslationsTelemetry.assertEvent(Glean.translationsPanel.open, {
     expectedEventCount: 1,
@@ -65,9 +74,11 @@ add_task(async function test_translations_telemetry_firstrun_auto_translate() {
     }
   );
 
-  await openTranslationsPanel({ onOpenPanel: assertPanelRevisitView });
+  await FullPageTranslationsTestUtils.openTranslationsPanel({
+    onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewRevisit,
+  });
 
-  await clickRestoreButton();
+  await FullPageTranslationsTestUtils.clickRestoreButton();
 
   await TestTranslationsTelemetry.assertEvent(Glean.translationsPanel.open, {
     expectedEventCount: 2,
@@ -96,8 +107,11 @@ add_task(async function test_translations_telemetry_firstrun_auto_translate() {
     expectNewFlowId: false,
   });
 
-  await assertTranslationsButton({ button: true }, "The button is available.");
-  await assertPageIsUntranslated(runInPage);
+  await FullPageTranslationsTestUtils.assertTranslationsButton(
+    { button: true },
+    "The button is available."
+  );
+  await FullPageTranslationsTestUtils.assertPageIsUntranslated(runInPage);
 
   await cleanup();
 });

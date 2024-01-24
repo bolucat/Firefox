@@ -12,11 +12,13 @@ add_task(async function test_translations_panel_manage_languages() {
     languagePairs: LANGUAGE_PAIRS,
   });
 
-  await openTranslationsPanel({ onOpenPanel: assertPanelDefaultView });
+  await FullPageTranslationsTestUtils.openTranslationsPanel({
+    onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewDefault,
+  });
 
-  await openTranslationsSettingsMenu();
+  await FullPageTranslationsTestUtils.openTranslationsSettingsMenu();
 
-  await clickManageLanguages();
+  await FullPageTranslationsTestUtils.clickManageLanguages();
 
   await waitForCondition(
     () => gBrowser.currentURI.spec === "about:preferences#general",

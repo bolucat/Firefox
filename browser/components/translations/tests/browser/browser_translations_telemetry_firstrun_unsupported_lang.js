@@ -19,9 +19,10 @@ add_task(
       prefs: [["browser.translations.panelShown", false]],
     });
 
-    await openTranslationsPanel({
+    await FullPageTranslationsTestUtils.openTranslationsPanel({
       openFromAppMenu: true,
-      onOpenPanel: assertPanelUnsupportedLanguageView,
+      onOpenPanel:
+        FullPageTranslationsTestUtils.assertPanelViewUnsupportedLanguage,
     });
 
     await TestTranslationsTelemetry.assertEvent(Glean.translationsPanel.open, {
@@ -36,7 +37,9 @@ add_task(
       ],
     });
 
-    await clickChangeSourceLanguageButton({ firstShow: true });
+    await FullPageTranslationsTestUtils.clickChangeSourceLanguageButton({
+      firstShow: true,
+    });
 
     await TestTranslationsTelemetry.assertEvent(
       Glean.translationsPanel.changeSourceLanguageButton,
@@ -63,7 +66,7 @@ add_task(
       ],
     });
 
-    await clickCancelButton();
+    await FullPageTranslationsTestUtils.clickCancelButton();
 
     await TestTranslationsTelemetry.assertEvent(
       Glean.translationsPanel.cancelButton,
@@ -80,9 +83,10 @@ add_task(
       expectFirstInteraction: true,
     });
 
-    await openTranslationsPanel({
+    await FullPageTranslationsTestUtils.openTranslationsPanel({
       openFromAppMenu: true,
-      onOpenPanel: assertPanelUnsupportedLanguageView,
+      onOpenPanel:
+        FullPageTranslationsTestUtils.assertPanelViewUnsupportedLanguage,
     });
 
     await TestTranslationsTelemetry.assertEvent(Glean.translationsPanel.open, {
@@ -97,7 +101,7 @@ add_task(
       ],
     });
 
-    await clickDismissErrorButton();
+    await FullPageTranslationsTestUtils.clickDismissErrorButton();
 
     await TestTranslationsTelemetry.assertEvent(
       Glean.translationsPanel.dismissErrorButton,

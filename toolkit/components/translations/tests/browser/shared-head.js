@@ -130,6 +130,7 @@ async function openAboutTranslations({
     runInPage
   );
 
+  await loadBlankPage();
   BrowserTestUtils.removeTab(tab);
 
   await removeMocks();
@@ -441,6 +442,7 @@ async function setupActorTest({
     actor,
     remoteClients,
     async cleanup() {
+      await loadBlankPage();
       await TranslationsParent.destroyEngineProcess();
       await closeTranslationsPanelIfOpen();
       await closeContextMenuIfOpen();
@@ -583,6 +585,7 @@ async function loadTestPage({
      * @returns {Promise<void>}
      */
     async cleanup() {
+      await loadBlankPage();
       await TranslationsParent.destroyEngineProcess();
       await closeTranslationsPanelIfOpen();
       await closeContextMenuIfOpen();
@@ -971,23 +974,28 @@ function hitEnterKey(button, message) {
 }
 
 /**
+ * Similar to assertVisibility, but is asynchronous and attempts
+ * to wait for the elements to match the expected states if they
+ * do not already.
+ *
+ * @see assertVisibility
+ *
  * @param {Object} options
  * @param {string} options.message
  * @param {Record<string, Element[]>} options.visible
  * @param {Record<string, Element[]>} options.hidden
  */
-async function assertVisibility({ message, visible, hidden }) {
-  info(message);
+async function ensureVisibility({ message = null, visible = {}, hidden = {} }) {
   try {
     // First wait for the condition to be met.
     await waitForCondition(() => {
       for (const element of Object.values(visible)) {
-        if (element.hidden) {
+        if (BrowserTestUtils.isHidden(element)) {
           return false;
         }
       }
       for (const element of Object.values(hidden)) {
-        if (!element.hidden) {
+        if (BrowserTestUtils.isVisible(element)) {
           return false;
         }
       }
@@ -997,11 +1005,26 @@ async function assertVisibility({ message, visible, hidden }) {
     // Ignore, this will get caught below.
   }
   // Now report the conditions.
+  assertVisibility({ message, visible, hidden });
+}
+
+/**
+ * Asserts that the provided elements are either visible or hidden.
+ *
+ * @param {Object} options
+ * @param {string} options.message
+ * @param {Record<string, Element[]>} options.visible
+ * @param {Record<string, Element[]>} options.hidden
+ */
+function assertVisibility({ message = null, visible = {}, hidden = {} }) {
+  if (message) {
+    info(message);
+  }
   for (const [name, element] of Object.entries(visible)) {
-    ok(!element.hidden, `${name} is visible.`);
+    ok(BrowserTestUtils.isVisible(element), `${name} is visible.`);
   }
   for (const [name, element] of Object.entries(hidden)) {
-    ok(element.hidden, `${name} is hidden.`);
+    ok(BrowserTestUtils.isHidden(element), `${name} is hidden.`);
   }
 }
 
@@ -1043,6 +1066,7 @@ async function setupAboutPreferences(
   const elements = await selectAboutPreferencesElements();
 
   async function cleanup() {
+    await loadBlankPage();
     await TranslationsParent.destroyEngineProcess();
     await closeTranslationsPanelIfOpen();
     await closeContextMenuIfOpen();
@@ -1403,4 +1427,16 @@ function promiseLoadSubDialog(aURL) {
       }
     );
   });
+}
+
+/**
+ * Loads the blank-page URL.
+ *
+ * This is useful for resetting the state during cleanup, and also
+ * before starting a test, to further help ensure that there is no
+ * unintentional state left over from test case.
+ */
+async function loadBlankPage() {
+  BrowserTestUtils.startLoadingURIString(gBrowser.selectedBrowser, BLANK_PAGE);
+  await BrowserTestUtils.browserLoaded(gBrowser.selectedBrowser);
 }

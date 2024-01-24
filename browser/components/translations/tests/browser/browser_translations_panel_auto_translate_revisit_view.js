@@ -24,34 +24,45 @@ add_task(
       ],
     });
 
-    await assertTranslationsButton(
+    await FullPageTranslationsTestUtils.assertTranslationsButton(
       { button: true, circleArrows: false, locale: false, icon: true },
       "The translations button is visible."
     );
 
-    await openTranslationsPanel({ onOpenPanel: assertPanelDefaultView });
-    await openTranslationsSettingsMenu();
+    await FullPageTranslationsTestUtils.openTranslationsPanel({
+      onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewDefault,
+    });
+    await FullPageTranslationsTestUtils.openTranslationsSettingsMenu();
 
-    await assertIsAlwaysTranslateLanguage("es", { checked: false });
-    await clickAlwaysTranslateLanguage({
+    await FullPageTranslationsTestUtils.assertIsAlwaysTranslateLanguage("es", {
+      checked: false,
+    });
+    await FullPageTranslationsTestUtils.clickAlwaysTranslateLanguage({
       downloadHandler: resolveDownloads,
     });
-    await assertIsAlwaysTranslateLanguage("es", { checked: true });
+    await FullPageTranslationsTestUtils.assertIsAlwaysTranslateLanguage("es", {
+      checked: true,
+    });
 
-    await assertPageIsTranslated("es", "en", runInPage);
+    await FullPageTranslationsTestUtils.assertPageIsTranslated(
+      "es",
+      "en",
+      runInPage
+    );
 
     await navigate("Navigate to a page in an unsupported language", {
       url: FRENCH_PAGE_URL,
     });
 
-    await assertTranslationsButton(
+    await FullPageTranslationsTestUtils.assertTranslationsButton(
       { button: false },
       "The translations button should be unavailable."
     );
 
-    await openTranslationsPanel({
+    await FullPageTranslationsTestUtils.openTranslationsPanel({
       openFromAppMenu: true,
-      onOpenPanel: assertPanelUnsupportedLanguageView,
+      onOpenPanel:
+        FullPageTranslationsTestUtils.assertPanelViewUnsupportedLanguage,
     });
 
     await navigate("Navigate back to the Spanish page.", {
@@ -59,11 +70,15 @@ add_task(
       downloadHandler: resolveDownloads,
     });
 
-    await assertPageIsTranslated("es", "en", runInPage);
+    await FullPageTranslationsTestUtils.assertPageIsTranslated(
+      "es",
+      "en",
+      runInPage
+    );
 
-    await openTranslationsPanel({
+    await FullPageTranslationsTestUtils.openTranslationsPanel({
       openFromAppMenu: true,
-      onOpenPanel: assertPanelRevisitView,
+      onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewRevisit,
     });
 
     await cleanup();

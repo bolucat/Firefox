@@ -12,11 +12,16 @@ add_task(async function test_translations_panel_cancel() {
     languagePairs: LANGUAGE_PAIRS,
   });
 
-  await assertTranslationsButton({ button: true }, "The button is available.");
+  await FullPageTranslationsTestUtils.assertTranslationsButton(
+    { button: true },
+    "The button is available."
+  );
 
-  await openTranslationsPanel({ onOpenPanel: assertPanelDefaultView });
+  await FullPageTranslationsTestUtils.openTranslationsPanel({
+    onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewDefault,
+  });
 
-  await clickCancelButton();
+  await FullPageTranslationsTestUtils.clickCancelButton();
 
   await cleanup();
 });

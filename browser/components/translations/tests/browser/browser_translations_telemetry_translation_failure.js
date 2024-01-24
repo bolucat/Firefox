@@ -17,12 +17,12 @@ add_task(
       languagePairs: LANGUAGE_PAIRS,
     });
 
-    await assertTranslationsButton(
+    await FullPageTranslationsTestUtils.assertTranslationsButton(
       { button: true, circleArrows: false, locale: false, icon: true },
       "The button is available."
     );
 
-    await assertPageIsUntranslated(runInPage);
+    await FullPageTranslationsTestUtils.assertPageIsUntranslated(runInPage);
 
     await TestTranslationsTelemetry.assertCounter(
       "RequestCount",
@@ -44,7 +44,9 @@ add_task(
       }
     );
 
-    await openTranslationsPanel({ onOpenPanel: assertPanelDefaultView });
+    await FullPageTranslationsTestUtils.openTranslationsPanel({
+      onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewDefault,
+    });
 
     await TestTranslationsTelemetry.assertEvent(Glean.translationsPanel.open, {
       expectedEventCount: 1,
@@ -57,12 +59,12 @@ add_task(
       ],
     });
 
-    await clickTranslateButton({
+    await FullPageTranslationsTestUtils.clickTranslateButton({
       downloadHandler: rejectDownloads,
-      onOpenPanel: assertPanelErrorView,
+      onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewError,
     });
 
-    await assertPageIsUntranslated(runInPage);
+    await FullPageTranslationsTestUtils.assertPageIsUntranslated(runInPage);
 
     await TestTranslationsTelemetry.assertEvent(Glean.translationsPanel.open, {
       expectedEventCount: 2,
@@ -138,10 +140,10 @@ add_task(async function test_translations_telemetry_auto_translation_failure() {
   await navigate("Navigate to a Spanish page", {
     url: SPANISH_PAGE_URL,
     downloadHandler: rejectDownloads,
-    onOpenPanel: assertPanelErrorView,
+    onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewError,
   });
 
-  await assertPageIsUntranslated(runInPage);
+  await FullPageTranslationsTestUtils.assertPageIsUntranslated(runInPage);
 
   await TestTranslationsTelemetry.assertCounter(
     "RequestCount",
@@ -193,7 +195,7 @@ add_task(async function test_translations_telemetry_auto_translation_failure() {
     }
   );
 
-  await clickCancelButton();
+  await FullPageTranslationsTestUtils.clickCancelButton();
   await TestTranslationsTelemetry.assertEvent(
     Glean.translationsPanel.cancelButton,
     {

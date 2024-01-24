@@ -13,17 +13,21 @@ add_task(async function test_translations_panel_firstrun() {
     prefs: [["browser.translations.panelShown", false]],
   });
 
-  await openTranslationsPanel({ onOpenPanel: assertPanelFirstShowView });
+  await FullPageTranslationsTestUtils.openTranslationsPanel({
+    onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewFirstShow,
+  });
 
-  await clickCancelButton();
+  await FullPageTranslationsTestUtils.clickCancelButton();
 
   await navigate("Load a different page on the same site", {
     url: SPANISH_PAGE_URL_2,
   });
 
-  await openTranslationsPanel({ onOpenPanel: assertPanelDefaultView });
+  await FullPageTranslationsTestUtils.openTranslationsPanel({
+    onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewDefault,
+  });
 
-  await clickCancelButton();
+  await FullPageTranslationsTestUtils.clickCancelButton();
 
   await cleanup();
 });

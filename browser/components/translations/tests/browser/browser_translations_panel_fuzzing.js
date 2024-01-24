@@ -92,20 +92,26 @@ add_task(async function test_translations_panel_fuzzing() {
         if (activeTab === "english") {
           await switchTab(spanishTab, "spanish tab");
         }
-        await assertTranslationsButton(
+        await FullPageTranslationsTestUtils.assertTranslationsButton(
           { button: true },
           "The button is available."
         );
-        await openTranslationsPanel({ onOpenPanel: assertPanelDefaultView });
+        await FullPageTranslationsTestUtils.openTranslationsPanel({
+          onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewDefault,
+        });
 
-        await clickTranslateButton();
+        await FullPageTranslationsTestUtils.clickTranslateButton();
 
-        await assertTranslationsButton(
+        await FullPageTranslationsTestUtils.assertTranslationsButton(
           { button: true, circleArrows: false, locale: true, icon: true },
           "Translations button is fully loaded."
         );
 
-        await assertPageIsTranslated("es", "en", runInSpanishPage);
+        await FullPageTranslationsTestUtils.assertPageIsTranslated(
+          "es",
+          "en",
+          runInSpanishPage
+        );
 
         isSpanishPageTranslated = true;
         isEngineMaybeDestroyed = false;
@@ -189,13 +195,17 @@ add_task(async function test_translations_panel_fuzzing() {
     async restoreSpanishPage() {
       if (activeTab === "spanish" && isSpanishPageTranslated) {
         reportOperation("restoreSpanishPage");
-        await openTranslationsPanel({ onOpenPanel: assertPanelRevisitView });
+        await FullPageTranslationsTestUtils.openTranslationsPanel({
+          onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewRevisit,
+        });
 
-        await clickRestoreButton();
+        await FullPageTranslationsTestUtils.clickRestoreButton();
 
-        await assertPageIsUntranslated(runInSpanishPage);
+        await FullPageTranslationsTestUtils.assertPageIsUntranslated(
+          runInSpanishPage
+        );
 
-        await assertTranslationsButton(
+        await FullPageTranslationsTestUtils.assertTranslationsButton(
           { button: true, circleArrows: false, locale: false, icon: true },
           "The button is reverted to have an icon."
         );

@@ -15,7 +15,7 @@ add_task(async function test_translations_panel_auto_offer_settings() {
     prefs: [["browser.translations.automaticallyPopup", false]],
   });
 
-  await assertTranslationsButton(
+  await FullPageTranslationsTestUtils.assertTranslationsButton(
     { button: true },
     "The translations button is shown."
   );
@@ -24,9 +24,13 @@ add_task(async function test_translations_panel_auto_offer_settings() {
     expectedEventCount: 0,
   });
 
-  await openTranslationsPanel({ onOpenPanel: assertPanelDefaultView });
-  await openTranslationsSettingsMenu();
-  await assertIsAlwaysOfferTranslationsEnabled(false);
+  await FullPageTranslationsTestUtils.openTranslationsPanel({
+    onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewDefault,
+  });
+  await FullPageTranslationsTestUtils.openTranslationsSettingsMenu();
+  await FullPageTranslationsTestUtils.assertIsAlwaysOfferTranslationsEnabled(
+    false
+  );
 
   await TestTranslationsTelemetry.assertEvent(Glean.translationsPanel.open, {
     expectedEventCount: 1,
@@ -39,7 +43,7 @@ add_task(async function test_translations_panel_auto_offer_settings() {
     ],
   });
 
-  await clickAlwaysOfferTranslations();
+  await FullPageTranslationsTestUtils.clickAlwaysOfferTranslations();
 
   await TestTranslationsTelemetry.assertEvent(
     Glean.translationsPanel.alwaysOfferTranslations,
@@ -50,10 +54,14 @@ add_task(async function test_translations_panel_auto_offer_settings() {
     }
   );
 
-  await openTranslationsPanel({ onOpenPanel: assertPanelDefaultView });
-  await assertIsAlwaysOfferTranslationsEnabled(true);
+  await FullPageTranslationsTestUtils.openTranslationsPanel({
+    onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewDefault,
+  });
+  await FullPageTranslationsTestUtils.assertIsAlwaysOfferTranslationsEnabled(
+    true
+  );
 
-  await clickCancelButton();
+  await FullPageTranslationsTestUtils.clickCancelButton();
 
   await TestTranslationsTelemetry.assertEvent(Glean.translationsPanel.open, {
     expectedEventCount: 2,
@@ -81,7 +89,10 @@ add_task(async function test_translations_panel_auto_offer_settings() {
 
   await navigate(
     "Wait for the popup to be shown when navigating to a different host.",
-    { url: SPANISH_PAGE_URL_DOT_ORG, onOpenPanel: assertPanelDefaultView }
+    {
+      url: SPANISH_PAGE_URL_DOT_ORG,
+      onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewDefault,
+    }
   );
 
   await TestTranslationsTelemetry.assertEvent(Glean.translationsPanel.open, {

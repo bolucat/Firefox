@@ -8,7 +8,7 @@
 # documentation and how to modify this file.
 repo: mozilla-central
 created_at: '2021-10-14T12:50:40.073465'
-updated_at: '2024-01-16T17:14:53.714398'
+updated_at: '2024-01-23T16:51:43.558054'
 export:
   path: ./docs/mots/index.rst
   format: rst
@@ -19,10 +19,6 @@ description: |
   The system is overseen by the owner and peers of the Module Ownership module. For the modules that make up Firefox, oversight is provided by the Firefox Technical Leadership module. Owners may add and remove peers from their modules as they wish, without reference to anyone else.
 
 people:
-  - &abr
-    bmo_id: 241693
-    name: Adam Roach
-    nick: abr
   - &adw
     bmo_id: 334927
     name: Drew Willcoxon
@@ -169,10 +165,6 @@ people:
     bmo_id: 563604
     name: Robin Steuber
     nick: bytesized
-  - &bzbarsky
-    bmo_id: 20209
-    name: Boris Zbarsky
-    nick: bzbarsky
   - &calixte
     bmo_id: 560431
     name: Calixte Denizet
@@ -236,8 +228,7 @@ people:
     bmo_id: 396948
     name: Dave Hunt
     nick: davehunt
-  - &dbaron
-    bmo_id: 3881
+  - bmo_id: 3881
     name: David Baron
     nick: dbaron
   - &dcoates
@@ -284,10 +275,6 @@ people:
     bmo_id: 1537
     name: Dan Mosedale
     nick: dmosedale
-  - &dragana
-    bmo_id: 508195
-    name: Dragana Damjanovic
-    nick: dragana
   - &dveditz
     bmo_id: 1689
     name: Daniel Veditz
@@ -339,10 +326,6 @@ people:
     bmo_id: 675384
     name: Evgeny Pavlov
     nick: epavlov
-  - &erahm
-    bmo_id: 496127
-    name: Eric Rahm
-    nick: erahm
   - &ErichDonGubler
     bmo_id: 713343
     name: Erich Gubler
@@ -370,6 +353,10 @@ people:
     bmo_id: 428608
     name: Frederik Braun
     nick: freddy
+  - &fredw
+    bmo_id: 739410
+    name: Frédéric Wang
+    nick: fredw
   - &froydnj
     bmo_id: 417288
     name: Nathan Froyd
@@ -533,10 +520,6 @@ people:
     bmo_id: 541747
     name: Jamie Nicol
     nick: jnicol
-  - &johannh
-    bmo_id: 522029
-    name: Johann Hofmann
-    nick: johannh
   - &jonalmeida
     bmo_id: 541581
     name: Jonathan Almeida
@@ -688,10 +671,6 @@ people:
     bmo_id: 275214
     name: Matjaz Horvat
     nick: mathjazz
-  - &MatsPalmgrenbugz
-    bmo_id: 5168
-    name: Mats Palmgren
-    nick: MatsPalmgren_bugz
   - &MattN
     bmo_id: 305228
     name: Matthew N
@@ -740,10 +719,6 @@ people:
     bmo_id: 91159
     name: Dave Townsend
     nick: mossop
-  - &mrbkap
-    bmo_id: 69426
-    name: Blake Kaplan
-    nick: mrbkap
   - &Ms2ger
     bmo_id: 302720
     name: ''
@@ -868,10 +843,6 @@ people:
     bmo_id: 447061
     name: Rob Wu
     nick: robwu
-  - &roc
-    bmo_id: 5038
-    name: Robert O
-    nick: roc
   - &rpl
     bmo_id: 339062
     name: Luca Greco
@@ -1018,10 +989,6 @@ people:
     bmo_id: 415378
     name: Valentin Gosu
     nick: valentin
-  - &Waldo
-    bmo_id: 83595
-    name: Jeff Walden
-    nick: Waldo
   - &wchen
     bmo_id: 414438
     name: William Chen
@@ -1038,10 +1005,6 @@ people:
     bmo_id: 373403
     name: Xidorn Quan
     nick: xidorn
-  - &ytausky
-    bmo_id: 621888
-    name: Yaron Tausky
-    nick: ytausky
   - &yulia
     bmo_id: 600802
     name: Yulia Startsev
@@ -1074,11 +1037,11 @@ modules:
     meta:
       owners_emeritus:
         - Brendan Eich
+        - Kate Hudson
     owners:
       - *bholley
       - *overholt
       - *mossop
-      - *k88hudson
       - *nalexander
       - *nika
     peers: []
@@ -1163,7 +1126,7 @@ modules:
         - Erica Wright
         - Gary Chen
         - *baku
-        - *johannh
+        - Johann Hofmann
       group: dev-platform
       components:
         - 'Core::Privacy: Anti-Tracking'
@@ -1317,8 +1280,9 @@ modules:
       - tools/rb/**/*
     meta:
       group: dev-performance
-    owners:
-      - *dbaron
+      owners_emeritus:
+        - David Baron
+    owners: []
     peers: []
     machine_name: core_code_analysis_and_debugging_tools
 
@@ -1736,6 +1700,7 @@ modules:
         - Vladimir Vukicevic
         - James Willcox(Android)
         - Nick Cameron
+        - *rhunt
       group: dev-platform
       url: https://wiki.mozilla.org/Platform/GFX https://wiki.mozilla.org/Gecko:Layers
         https://wiki.mozilla.org/Gecko:2DGraphicsSketch
@@ -1757,7 +1722,6 @@ modules:
       - *jfkthame
       - *sotaro
       - *jnicol
-      - *rhunt
       - *gw
       - *lsalzman
       - *aosmond
@@ -2008,6 +1972,8 @@ modules:
       peers_emeritus:
         - Matt Woodrow
         - Boris Zbarsky
+        - Robert O'Callahan
+        - Mats Palmgren
       group: dev-platform
       url: https://wiki.mozilla.org/Gecko:Overview#Layout
       components:
@@ -2030,12 +1996,10 @@ modules:
     owners:
       - *dholbert
     peers:
-      - *roc
       - *jfkthame
       - *tnikkel
       - *xidorn
       - *emilio
-      - *MatsPalmgrenbugz
       - *TYLin
       - *jwatt
     machine_name: core_layout_engine
@@ -2047,13 +2011,14 @@ modules:
     meta:
       peers_emeritus:
         - Johnny Stenback
+        - David Baron
+      owners_emeritus:
+        - Blake Kaplan
       url: http://www.mozilla.org/newlayout/doc/parser.html
       components:
         - 'Core::HTML: Parser'
-    owners:
-      - *mrbkap
+    owners: []
     peers:
-      - *dbaron
       - *peterv
       - *rbs
     machine_name: core_legacy_html_parser
@@ -2090,10 +2055,15 @@ modules:
       url: https://developer.mozilla.org/docs/Web/MathML
       components:
         - Core::MathML
+      peers_emeritus:
+        - Robert O'Callahan
+      owners_emeritus:
+        - *karlt
     owners:
-      - *karlt
+      - *emilio
     peers:
-      - *roc
+      - *fredw
+      - *jfkthame
     machine_name: core_mathml
 
   - name: 'Core: Media Playback'
@@ -2136,11 +2106,13 @@ modules:
       group: dev-media
       components:
         - Core::WebRTC::Networking
-    owners:
-      - *ekr
+      owners_emeritus:
+        - Eric Rescola
+      peers_emeritus:
+        - Adam Roach
+    owners: []
     peers:
       - *bwc
-      - *abr
       - *nohlmeier
     machine_name: core_media_transport
 
@@ -2172,11 +2144,13 @@ modules:
       group: dev-platform
       components:
         - Core::MFBT
+      owners_emeritus:
+        - Jeff Walden
+      peers_emeritus:
+        - *Ms2ger
     owners:
-      - *Waldo
-    peers:
-      - *Ms2ger
       - *glandium
+    peers: []
     machine_name: core_mfbt
 
   - name: 'Core: Moz2D (Graphics submodule)'
@@ -2302,12 +2276,13 @@ modules:
       components:
         - Various
       url: 'https://wiki.mozilla.org/Firefox/firefox-dev, #nodejs on slack'
+      peers_emeritus:
+        - Kate Hudson
     owners:
       - *dmosedale
     peers:
       - *standard8
       - *dcoates
-      - *k88hudson
       - *ed
       - *mossop
     machine_name: core_nodejs_usage_tools_and_style
@@ -2366,7 +2341,7 @@ modules:
         - Shawn Wilsher
         - Honza Bambas
         - *baku
-        - *johannh
+        - Johann Hofmann
       group: dev-platform
       components:
         - 'Core :: Permission Manager'
@@ -2446,6 +2421,7 @@ modules:
       - caps/**/*
     meta:
       peers_emeritus:
+        - Boris Zbarsky
         - Brendan Eich
         - Johnny Stenback
         - Dan Veditz
@@ -2456,7 +2432,6 @@ modules:
     owners:
       - *bholley
     peers:
-      - *bzbarsky
       - *ckerschb
     machine_name: core_privilege_manager
 
@@ -2471,11 +2446,11 @@ modules:
         - Lina Cambridge
       peers_emeritus:
         - Nikhil Marathe
+        - Dragana Damjanovic
       components:
         - 'Core::DOM: Notifications'
     peers:
       - *mt
-      - *dragana
     machine_name: core_push_notifications
 
   - name: 'Core: Sandboxing (Linux)'
@@ -2651,10 +2626,12 @@ modules:
       url: :ref:`String Guide`
       components:
         - Core::String
-    owners:
-      - *dbaron
-    peers:
-      - *erahm
+      owners_emeritus:
+        - David Baron
+      peers_emeritus:
+        - Eric Rahm
+    owners: []
+    peers: []
     machine_name: core_string
 
   - name: 'Core: Style System'
@@ -2691,11 +2668,12 @@ modules:
       url: https://developer.mozilla.org/docs/Web/SVG
       components:
         - Core::SVG
+      peers_emeritus:
+        - Robert O'Callahan
     owners:
       - *jwatt
     peers:
       - *longsonr
-      - *roc
       - *dholbert
       - *birtles
     machine_name: core_svg
@@ -2724,14 +2702,16 @@ modules:
     meta:
       owners_emeritus:
         - Robert O'Callahan
+      peers_emeritus:
+        - David Baron
+        - Boris Zbarsky
       group: dev-platform
       components:
         - 'Core::Layout: View Rendering'
     owners:
-      - *mstange
+      - *tnikkel
     peers:
-      - *bzbarsky
-      - *dbaron
+      - *mstange
     machine_name: core_view_system
 
   - name: 'Core: Web Audio'
@@ -2741,6 +2721,8 @@ modules:
     meta:
       owners_emeritus:
         - Ehsan Akhgari
+      peers_emeritus:
+        - Robert O'Callahan
       group: dev-platform
       url: https://wiki.mozilla.org/Web_Audio_API
       components:
@@ -2748,7 +2730,6 @@ modules:
     owners:
       - *padenot
     peers:
-      - *roc
       - *karlt
     machine_name: core_web_audio
 
@@ -2764,10 +2745,11 @@ modules:
         - 'Core::Layout: Web Painting'
       owners_emeritus:
         - Matt Woodrow
+      peers_emeritus:
+        - David Baron
+        - Robert O'Callahan
     owners:
     peers:
-      - *roc
-      - *dbaron
       - *tnikkel
       - *mstange
       - *mikokm
@@ -2786,6 +2768,7 @@ modules:
         - Jonas Sicking
         - Kyle Huey
         - Ben Kelly
+        - Yaron Tausky
       group: dev-platform
       url: https://developer.mozilla.org/docs/Web/API/Web_Workers_API/Using_web_workers
       components:
@@ -2795,7 +2778,6 @@ modules:
       - *asuth
     peers:
       - *baku
-      - *ytausky
     machine_name: core_web_workers
 
   - name: 'Core: WebGPU (Graphics submodule)'
@@ -2839,6 +2821,8 @@ modules:
     meta:
       peers_emeritus:
         - Ethan Hugg
+        - Eric Rescola
+        - Adam Roach
       group: dev-media
       url: https://wiki.mozilla.org/Media/webrtc
       components:
@@ -2847,8 +2831,6 @@ modules:
     owners:
       - *jesup
     peers:
-      - *ekr
-      - *abr
       - *bwc
     machine_name: core_webrtc
 
@@ -2904,6 +2886,9 @@ modules:
         meta:
           peers_emeritus:
             - Ethan Hugg
+            - Eric Rescola
+            - Adam Roach
+            - *nohlmeier
           group: dev-media
           url: https://wiki.mozilla.org/Media/webrtc
           components:
@@ -2911,10 +2896,7 @@ modules:
         owners:
           - *bwc
         peers:
-          - *ekr
-          - *abr
           - *jesup
-          - *nohlmeier
         machine_name: core_webrtc_signaling
     machine_name: core_webvr
 
@@ -3110,6 +3092,8 @@ modules:
       - js/xpconnect/**/*
     meta:
       peers_emeritus:
+        - Boris Zbarsky
+        - Blake Kaplan
         - Andreas Gal
         - Johnny Stenback
         - Gabor Krizsanits
@@ -3118,9 +3102,7 @@ modules:
     owners:
       - *bholley
     peers:
-      - *bzbarsky
       - *peterv
-      - *mrbkap
       - *mccr8
       - *kmag
       - *nika
@@ -3251,13 +3233,15 @@ modules:
         description: The application update services.
         includes:
           - toolkit/mozapps/update/**/*
-        meta: {}
         owners:
           - *bytesized
         peers:
           - *mhowell
-          - *agashlin
         machine_name: application_update
+        meta:
+          peers_emeritus:
+            - Adam Gashlin
+
 
       - name: Bookmarks & History
         description: The bookmarks and history services (Places).
@@ -4251,5 +4235,5 @@ modules:
         - Ryan Tilder
       group: dev-platform
 hashes:
-  config: fb060c17e3de2c36297486934de8c2bd6b42aaa3
-  export: ef436c78e9aaead2c41a6331db4800928d144df0
+  config: 44fcd2825d8bd84ce54bebe26c9260dc6d90a3b4
+  export: 707892ab2122417c049ab3b0215b6b663274f6bd

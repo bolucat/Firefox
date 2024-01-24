@@ -169,6 +169,13 @@ user-id = 4484
 user-login = "hsivonen"
 user-name = "Henri Sivonen"
 
+[[publisher.errno]]
+version = "0.3.8"
+when = "2023-11-28"
+user-id = 6825
+user-login = "sunfishcode"
+user-name = "Dan Gohman"
+
 [[publisher.etagere]]
 version = "0.2.7"
 when = "2022-05-04"
@@ -295,6 +302,13 @@ user-id = 6825
 user-login = "sunfishcode"
 user-name = "Dan Gohman"
 
+[[publisher.linux-raw-sys]]
+version = "0.4.12"
+when = "2023-11-30"
+user-id = 6825
+user-login = "sunfishcode"
+user-name = "Dan Gohman"
+
 [[publisher.lock_api]]
 version = "0.4.9"
 when = "2022-09-20"
@@ -365,6 +379,13 @@ user-id = 2915
 user-login = "Amanieu"
 user-name = "Amanieu d'Antras"
 
+[[publisher.parking_lot_core]]
+version = "0.9.9"
+when = "2023-10-17"
+user-id = 2915
+user-login = "Amanieu"
+user-name = "Amanieu d'Antras"
+
 [[publisher.paste]]
 version = "1.0.11"
 when = "2022-12-17"
@@ -430,6 +451,13 @@ user-name = "Dana Keeler"
 [[publisher.rustix]]
 version = "0.38.13"
 when = "2023-09-10"
+user-id = 6825
+user-login = "sunfishcode"
+user-name = "Dan Gohman"
+
+[[publisher.rustix]]
+version = "0.38.28"
+when = "2023-12-09"
 user-id = 6825
 user-login = "sunfishcode"
 user-name = "Dan Gohman"
@@ -514,6 +542,13 @@ user-name = "David Tolnay"
 [[publisher.termcolor]]
 version = "1.4.0"
 when = "2023-11-14"
+user-id = 189
+user-login = "BurntSushi"
+user-name = "Andrew Gallant"
+
+[[publisher.termcolor]]
+version = "1.4.1"
+when = "2024-01-10"
 user-id = 189
 user-login = "BurntSushi"
 user-name = "Andrew Gallant"
@@ -687,6 +722,13 @@ user-name = "Andrew Gallant"
 [[publisher.windows-sys]]
 version = "0.48.0"
 when = "2023-03-31"
+user-id = 64539
+user-login = "kennykerr"
+user-name = "Kenny Kerr"
+
+[[publisher.windows-sys]]
+version = "0.52.0"
+when = "2023-11-15"
 user-id = 64539
 user-login = "kennykerr"
 user-name = "Kenny Kerr"
@@ -1081,6 +1123,12 @@ and nothing suspicious.
 who = "Johan Andersson <opensource@embark-studios.com>"
 criteria = "safe-to-deploy"
 version = "1.0.58"
+
+[[audits.embark-studios.audits.cfg_aliases]]
+who = "Johan Andersson <opensource@embark-studios.com>"
+criteria = "safe-to-deploy"
+version = "0.1.1"
+notes = "No unsafe usage or ambient capabilities"
 
 [[audits.embark-studios.audits.derive_more]]
 who = "Johan Andersson <opensource@embark-studios.com>"

@@ -18,14 +18,16 @@ add_task(async function test_translations_telemetry_firstrun_failure() {
     prefs: [["browser.translations.panelShown", false]],
   });
 
-  await assertTranslationsButton(
+  await FullPageTranslationsTestUtils.assertTranslationsButton(
     { button: true, circleArrows: false, locale: false, icon: true },
     "The button is available."
   );
 
-  await assertPageIsUntranslated(runInPage);
+  await FullPageTranslationsTestUtils.assertPageIsUntranslated(runInPage);
 
-  await openTranslationsPanel({ onOpenPanel: assertPanelFirstShowView });
+  await FullPageTranslationsTestUtils.openTranslationsPanel({
+    onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewFirstShow,
+  });
 
   await TestTranslationsTelemetry.assertEvent(Glean.translationsPanel.open, {
     expectedEventCount: 1,
@@ -39,12 +41,12 @@ add_task(async function test_translations_telemetry_firstrun_failure() {
     ],
   });
 
-  await clickTranslateButton({
+  await FullPageTranslationsTestUtils.clickTranslateButton({
     downloadHandler: rejectDownloads,
-    onOpenPanel: assertPanelFirstShowErrorView,
+    onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewFirstShowError,
   });
 
-  await assertPageIsUntranslated(runInPage);
+  await FullPageTranslationsTestUtils.assertPageIsUntranslated(runInPage);
 
   await TestTranslationsTelemetry.assertEvent(Glean.translationsPanel.open, {
     expectedEventCount: 2,
@@ -95,7 +97,7 @@ add_task(async function test_translations_telemetry_firstrun_failure() {
     }
   );
 
-  await clickCancelButton();
+  await FullPageTranslationsTestUtils.clickCancelButton();
 
   await TestTranslationsTelemetry.assertEvent(
     Glean.translationsPanel.cancelButton,
@@ -111,7 +113,9 @@ add_task(async function test_translations_telemetry_firstrun_failure() {
     expectFirstInteraction: true,
   });
 
-  await openTranslationsPanel({ onOpenPanel: assertPanelFirstShowView });
+  await FullPageTranslationsTestUtils.openTranslationsPanel({
+    onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewFirstShow,
+  });
 
   await TestTranslationsTelemetry.assertEvent(Glean.translationsPanel.open, {
     expectedEventCount: 3,
@@ -125,7 +129,7 @@ add_task(async function test_translations_telemetry_firstrun_failure() {
     ],
   });
 
-  await clickCancelButton();
+  await FullPageTranslationsTestUtils.clickCancelButton();
 
   await TestTranslationsTelemetry.assertEvent(
     Glean.translationsPanel.cancelButton,

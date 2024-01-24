@@ -29,34 +29,45 @@ add_task(
         ],
       });
 
-    await assertTranslationsButton(
+    await FullPageTranslationsTestUtils.assertTranslationsButton(
       { button: true, circleArrows: false, locale: false, icon: true },
       "The translations button is visible."
     );
 
-    await openTranslationsPanel({ onOpenPanel: assertPanelDefaultView });
-    await openTranslationsSettingsMenu();
+    await FullPageTranslationsTestUtils.openTranslationsPanel({
+      onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewDefault,
+    });
+    await FullPageTranslationsTestUtils.openTranslationsSettingsMenu();
 
-    await assertIsAlwaysTranslateLanguage("es", { checked: false });
-    await clickAlwaysTranslateLanguage({
+    await FullPageTranslationsTestUtils.assertIsAlwaysTranslateLanguage("es", {
+      checked: false,
+    });
+    await FullPageTranslationsTestUtils.clickAlwaysTranslateLanguage({
       downloadHandler: resolveDownloads,
     });
-    await assertIsAlwaysTranslateLanguage("es", { checked: true });
+    await FullPageTranslationsTestUtils.assertIsAlwaysTranslateLanguage("es", {
+      checked: true,
+    });
 
-    await assertPageIsTranslated("es", "en", runInPage);
+    await FullPageTranslationsTestUtils.assertPageIsTranslated(
+      "es",
+      "en",
+      runInPage
+    );
 
     await navigate("Navigate to a page in an unsupported language", {
       url: FRENCH_PAGE_URL,
     });
 
-    await assertTranslationsButton(
+    await FullPageTranslationsTestUtils.assertTranslationsButton(
       { button: false },
       "The translations button should be unavailable."
     );
 
-    await openTranslationsPanel({
+    await FullPageTranslationsTestUtils.openTranslationsPanel({
       openFromAppMenu: true,
-      onOpenPanel: assertPanelUnsupportedLanguageView,
+      onOpenPanel:
+        FullPageTranslationsTestUtils.assertPanelViewUnsupportedLanguage,
     });
 
     info("Destroy the engine process so that an error will happen.");
@@ -65,10 +76,10 @@ add_task(
     await navigate("Navigate back to a Spanish page.", {
       url: SPANISH_PAGE_URL_DOT_ORG,
       downloadHandler: rejectDownloads,
-      onOpenPanel: assertPanelErrorView,
+      onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewError,
     });
 
-    await assertPageIsUntranslated(runInPage);
+    await FullPageTranslationsTestUtils.assertPageIsUntranslated(runInPage);
 
     await cleanup();
   }

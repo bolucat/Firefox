@@ -18,14 +18,23 @@ add_task(async function test_translations_engine_destroy_pending() {
     languagePairs: LANGUAGE_PAIRS,
   });
 
-  await assertTranslationsButton({ button: true }, "The button is available.");
-  await openTranslationsPanel({ onOpenPanel: assertPanelDefaultView });
+  await FullPageTranslationsTestUtils.assertTranslationsButton(
+    { button: true },
+    "The button is available."
+  );
+  await FullPageTranslationsTestUtils.openTranslationsPanel({
+    onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewDefault,
+  });
 
-  await clickTranslateButton({
+  await FullPageTranslationsTestUtils.clickTranslateButton({
     downloadHandler: resolveDownloads,
   });
 
-  await assertPageIsTranslated("es", "en", runInPage);
+  await FullPageTranslationsTestUtils.assertPageIsTranslated(
+    "es",
+    "en",
+    runInPage
+  );
 
   const { removeTab: removeEnglishTab } = await addTab(
     ENGLISH_PAGE_URL,

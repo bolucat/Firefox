@@ -13,7 +13,7 @@ add_task(async function test_translations_panel_auto_offer() {
     autoOffer: true,
   });
 
-  await clickCancelButton();
+  await FullPageTranslationsTestUtils.clickCancelButton();
 
   await TestTranslationsTelemetry.assertEvent(Glean.translationsPanel.open, {
     expectedEventCount: 1,
@@ -43,17 +43,17 @@ add_task(async function test_translations_panel_auto_offer() {
     url: SPANISH_PAGE_URL_2,
   });
 
-  await assertTranslationsButton(
+  await FullPageTranslationsTestUtils.assertTranslationsButton(
     { button: true },
     "The button is still shown."
   );
 
   await navigate("Navigate to a page on a different domain.", {
     url: SPANISH_PAGE_URL_DOT_ORG,
-    onOpenPanel: assertPanelDefaultView,
+    onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewDefault,
   });
 
-  await clickCancelButton();
+  await FullPageTranslationsTestUtils.clickCancelButton();
 
   await TestTranslationsTelemetry.assertEvent(Glean.translationsPanel.open, {
     expectedEventCount: 2,

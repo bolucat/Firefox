@@ -12,12 +12,12 @@ add_task(async function test_translations_telemetry_manual_translation() {
     languagePairs: LANGUAGE_PAIRS,
   });
 
-  await assertTranslationsButton(
+  await FullPageTranslationsTestUtils.assertTranslationsButton(
     { button: true, circleArrows: false, locale: false, icon: true },
     "The button is available."
   );
 
-  await assertPageIsUntranslated(runInPage);
+  await FullPageTranslationsTestUtils.assertPageIsUntranslated(runInPage);
 
   await TestTranslationsTelemetry.assertCounter(
     "RequestCount",
@@ -39,13 +39,19 @@ add_task(async function test_translations_telemetry_manual_translation() {
     }
   );
 
-  await openTranslationsPanel({ onOpenPanel: assertPanelDefaultView });
+  await FullPageTranslationsTestUtils.openTranslationsPanel({
+    onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewDefault,
+  });
 
-  await clickTranslateButton({
+  await FullPageTranslationsTestUtils.clickTranslateButton({
     downloadHandler: resolveDownloads,
   });
 
-  await assertPageIsTranslated("es", "en", runInPage);
+  await FullPageTranslationsTestUtils.assertPageIsTranslated(
+    "es",
+    "en",
+    runInPage
+  );
 
   await TestTranslationsTelemetry.assertCounter(
     "RequestCount",
@@ -114,7 +120,11 @@ add_task(async function test_translations_telemetry_auto_translation() {
     downloadHandler: resolveDownloads,
   });
 
-  await assertPageIsTranslated("es", "en", runInPage);
+  await FullPageTranslationsTestUtils.assertPageIsTranslated(
+    "es",
+    "en",
+    runInPage
+  );
 
   await TestTranslationsTelemetry.assertCounter(
     "RequestCount",

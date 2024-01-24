@@ -12,16 +12,16 @@ add_task(async function test_translations_button_hidden_in_reader_mode() {
     languagePairs: LANGUAGE_PAIRS,
   });
 
-  await assertTranslationsButton(
+  await FullPageTranslationsTestUtils.assertTranslationsButton(
     { button: true },
     "The translations button is visible."
   );
 
-  await assertPageIsUntranslated(runInPage);
+  await FullPageTranslationsTestUtils.assertPageIsUntranslated(runInPage);
 
   await toggleReaderMode();
 
-  await assertTranslationsButton(
+  await FullPageTranslationsTestUtils.assertTranslationsButton(
     { button: false },
     "The translations button is now hidden in reader mode."
   );
@@ -46,12 +46,12 @@ add_task(async function test_translations_button_hidden_in_reader_mode() {
 
   await toggleReaderMode();
 
-  await assertTranslationsButton(
+  await FullPageTranslationsTestUtils.assertTranslationsButton(
     { button: true },
     "The translations button is visible again outside of reader mode."
   );
 
-  await assertPageIsUntranslated(runInPage);
+  await FullPageTranslationsTestUtils.assertPageIsUntranslated(runInPage);
 
   await cleanup();
 });
@@ -65,20 +65,26 @@ add_task(async function test_translations_persist_in_reader_mode() {
     languagePairs: LANGUAGE_PAIRS,
   });
 
-  await assertTranslationsButton(
+  await FullPageTranslationsTestUtils.assertTranslationsButton(
     { button: true },
     "The translations button is visible."
   );
 
-  await assertPageIsUntranslated(runInPage);
+  await FullPageTranslationsTestUtils.assertPageIsUntranslated(runInPage);
 
-  await openTranslationsPanel({ onOpenPanel: assertPanelDefaultView });
+  await FullPageTranslationsTestUtils.openTranslationsPanel({
+    onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewDefault,
+  });
 
-  await clickTranslateButton({
+  await FullPageTranslationsTestUtils.clickTranslateButton({
     downloadHandler: resolveDownloads,
   });
 
-  await assertPageIsTranslated("es", "en", runInPage);
+  await FullPageTranslationsTestUtils.assertPageIsTranslated(
+    "es",
+    "en",
+    runInPage
+  );
 
   await toggleReaderMode();
 
@@ -100,7 +106,7 @@ add_task(async function test_translations_persist_in_reader_mode() {
     );
   });
 
-  await assertTranslationsButton(
+  await FullPageTranslationsTestUtils.assertTranslationsButton(
     { button: false },
     "The translations button is now hidden in reader mode."
   );

@@ -17,53 +17,67 @@ add_task(
       languagePairs: LANGUAGE_PAIRS,
     });
 
-    await assertTranslationsButton(
+    await FullPageTranslationsTestUtils.assertTranslationsButton(
       { button: true, circleArrows: false, locale: false, icon: true },
       "The translations button is visible."
     );
 
-    await assertPageIsUntranslated(runInPage);
+    await FullPageTranslationsTestUtils.assertPageIsUntranslated(runInPage);
 
-    await openTranslationsPanel({ onOpenPanel: assertPanelDefaultView });
+    await FullPageTranslationsTestUtils.openTranslationsPanel({
+      onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewDefault,
+    });
 
-    await clickTranslateButton({
+    await FullPageTranslationsTestUtils.clickTranslateButton({
       downloadHandler: resolveDownloads,
     });
 
-    await assertPageIsTranslated("es", "en", runInPage);
+    await FullPageTranslationsTestUtils.assertPageIsTranslated(
+      "es",
+      "en",
+      runInPage
+    );
 
-    await openTranslationsPanel({ onOpenPanel: assertPanelRevisitView });
-    await openTranslationsSettingsMenu();
+    await FullPageTranslationsTestUtils.openTranslationsPanel({
+      onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewRevisit,
+    });
+    await FullPageTranslationsTestUtils.openTranslationsSettingsMenu();
 
-    await assertIsNeverTranslateSite(SPANISH_PAGE_URL, { checked: false });
-    await clickNeverTranslateSite();
-    await assertIsNeverTranslateSite(SPANISH_PAGE_URL, { checked: true });
+    await FullPageTranslationsTestUtils.assertIsNeverTranslateSite(
+      SPANISH_PAGE_URL,
+      { checked: false }
+    );
+    await FullPageTranslationsTestUtils.clickNeverTranslateSite();
+    await FullPageTranslationsTestUtils.assertIsNeverTranslateSite(
+      SPANISH_PAGE_URL,
+      { checked: true }
+    );
 
-    await assertPageIsUntranslated(runInPage);
+    await FullPageTranslationsTestUtils.assertPageIsUntranslated(runInPage);
 
     await navigate("Reload the page", { url: SPANISH_PAGE_URL });
 
-    await assertPageIsUntranslated(runInPage);
+    await FullPageTranslationsTestUtils.assertPageIsUntranslated(runInPage);
 
     await navigate(
       "Navigate to a Spanish page with the same content principal",
       { url: SPANISH_PAGE_URL_2 }
     );
 
-    await assertPageIsUntranslated(runInPage);
+    await FullPageTranslationsTestUtils.assertPageIsUntranslated(runInPage);
 
     await navigate(
       "Navigate to a Spanish page with a different content principal",
       { url: SPANISH_PAGE_URL_DOT_ORG }
     );
 
-    await assertTranslationsButton(
+    await FullPageTranslationsTestUtils.assertTranslationsButton(
       { button: true },
       "The translations button should be visible, because this content principal " +
         "has not been denied translations permissions"
     );
 
-    await assertPageIsUntranslated(runInPage);
+    await FullPageTranslationsTestUtils.assertPageIsUntranslated(runInPage);
 
     await cleanup();
   }
