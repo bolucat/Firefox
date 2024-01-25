@@ -249,8 +249,8 @@ dependencies = [
 
 [[package]]
 name = "audioipc2"
-version = "0.5.0"
-source = "git+https://github.com/mozilla/audioipc?rev=44fbcd2b5417f8b5ff4907eec17b32a0fb633e03#44fbcd2b5417f8b5ff4907eec17b32a0fb633e03"
+version = "0.6.0"
+source = "git+https://github.com/mozilla/audioipc?rev=8b391135f9421dc5ab0c45f646c21651a906ce7f#8b391135f9421dc5ab0c45f646c21651a906ce7f"
 dependencies = [
  "arrayvec",
  "ashmem",
@@ -277,8 +277,8 @@ dependencies = [
 
 [[package]]
 name = "audioipc2-client"
-version = "0.5.0"
-source = "git+https://github.com/mozilla/audioipc?rev=44fbcd2b5417f8b5ff4907eec17b32a0fb633e03#44fbcd2b5417f8b5ff4907eec17b32a0fb633e03"
+version = "0.6.0"
+source = "git+https://github.com/mozilla/audioipc?rev=8b391135f9421dc5ab0c45f646c21651a906ce7f#8b391135f9421dc5ab0c45f646c21651a906ce7f"
 dependencies = [
  "audio_thread_priority",
  "audioipc2",
@@ -288,8 +288,8 @@ dependencies = [
 
 [[package]]
 name = "audioipc2-server"
-version = "0.5.0"
-source = "git+https://github.com/mozilla/audioipc?rev=44fbcd2b5417f8b5ff4907eec17b32a0fb633e03#44fbcd2b5417f8b5ff4907eec17b32a0fb633e03"
+version = "0.6.0"
+source = "git+https://github.com/mozilla/audioipc?rev=8b391135f9421dc5ab0c45f646c21651a906ce7f#8b391135f9421dc5ab0c45f646c21651a906ce7f"
 dependencies = [
  "audio_thread_priority",
  "audioipc2",
@@ -906,7 +906,7 @@ dependencies = [
 [[package]]
 name = "coreaudio-sys-utils"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/cubeb-coreaudio-rs?rev=89abc256a2eab3398f880e114b2d8308f5bc1d1a#89abc256a2eab3398f880e114b2d8308f5bc1d1a"
+source = "git+https://github.com/mozilla/cubeb-coreaudio-rs?rev=a0534f6e910213fd4f7387a9ed03c980ff20da1d#a0534f6e910213fd4f7387a9ed03c980ff20da1d"
 dependencies = [
  "core-foundation-sys",
  "coreaudio-sys",
@@ -1088,27 +1088,27 @@ dependencies = [
 
 [[package]]
 name = "cubeb"
-version = "0.10.3"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7725c00f234bd83ebd8a5c0165a0856bb6414d9161b86cbb559250c94d8a4285"
+checksum = "6db57570f2617f0214c11721e8d2325816d9dc936c2c472661ac5d90a30fba98"
 dependencies = [
  "cubeb-core",
 ]
 
 [[package]]
 name = "cubeb-backend"
-version = "0.10.7"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3154aa90b995f098f7fade918a903c13e2c6acb96da7afed160c537f8ed29611"
+checksum = "b00b0f3b84e315571bd8c4e18794180633066267a413f2f05bca65001adc8410"
 dependencies = [
  "cubeb-core",
 ]
 
 [[package]]
 name = "cubeb-core"
-version = "0.10.7"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da324c1b1487b3fe7b4048b2c797ddde9375e6cf72fb8b15ccdaf598182415b5"
+checksum = "2380c03a7df0ea3744f6a210d6340f423935e53cbf2fd68ada84b5e808e46ac7"
 dependencies = [
  "bitflags 1.999.999",
  "cubeb-sys",
@@ -1117,7 +1117,7 @@ dependencies = [
 [[package]]
 name = "cubeb-coreaudio"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/cubeb-coreaudio-rs?rev=89abc256a2eab3398f880e114b2d8308f5bc1d1a#89abc256a2eab3398f880e114b2d8308f5bc1d1a"
+source = "git+https://github.com/mozilla/cubeb-coreaudio-rs?rev=a0534f6e910213fd4f7387a9ed03c980ff20da1d#a0534f6e910213fd4f7387a9ed03c980ff20da1d"
 dependencies = [
  "atomic",
  "audio-mixer",
@@ -1134,8 +1134,8 @@ dependencies = [
 
 [[package]]
 name = "cubeb-pulse"
-version = "0.4.2"
-source = "git+https://github.com/mozilla/cubeb-pulse-rs?rev=c04c4d2c7f2291cb81a1c48f5a8c425748f18cd8#c04c4d2c7f2291cb81a1c48f5a8c425748f18cd8"
+version = "0.5.0"
+source = "git+https://github.com/mozilla/cubeb-pulse-rs?rev=8ff972c8e2ec1782ff262ac4071c0415e69b1367#8ff972c8e2ec1782ff262ac4071c0415e69b1367"
 dependencies = [
  "cubeb-backend",
  "pulse",
@@ -1146,9 +1146,9 @@ dependencies = [
 
 [[package]]
 name = "cubeb-sys"
-version = "0.10.7"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d028653f6b56c3b4af6dcc9adc35941e7433494bf29d1f69518a247db5a1cc8f"
+checksum = "3c20c457d7b34dad6e0c1a9c759c96b4420b9e9917a572998b81835799a07e1d"
 dependencies = [
  "cmake",
  "pkg-config",
@@ -1572,7 +1572,7 @@ dependencies = [
 [[package]]
 name = "error-support"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/application-services?rev=63a6260c14847c21c5a1fa3003efaf0114a3e4e5#63a6260c14847c21c5a1fa3003efaf0114a3e4e5"
+source = "git+https://github.com/mozilla/application-services?rev=9d1ab279d2aa31e4c6c80dd1ee0baf9345e26253#9d1ab279d2aa31e4c6c80dd1ee0baf9345e26253"
 dependencies = [
  "error-support-macros",
  "lazy_static",
@@ -1584,7 +1584,7 @@ dependencies = [
 [[package]]
 name = "error-support-macros"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/application-services?rev=63a6260c14847c21c5a1fa3003efaf0114a3e4e5#63a6260c14847c21c5a1fa3003efaf0114a3e4e5"
+source = "git+https://github.com/mozilla/application-services?rev=9d1ab279d2aa31e4c6c80dd1ee0baf9345e26253#9d1ab279d2aa31e4c6c80dd1ee0baf9345e26253"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2798,7 +2798,7 @@ dependencies = [
 [[package]]
 name = "interrupt-support"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/application-services?rev=63a6260c14847c21c5a1fa3003efaf0114a3e4e5#63a6260c14847c21c5a1fa3003efaf0114a3e4e5"
+source = "git+https://github.com/mozilla/application-services?rev=9d1ab279d2aa31e4c6c80dd1ee0baf9345e26253#9d1ab279d2aa31e4c6c80dd1ee0baf9345e26253"
 dependencies = [
  "lazy_static",
  "parking_lot",
@@ -3105,9 +3105,9 @@ checksum = "884e2677b40cc8c339eaefcb701c32ef1fd2493d71118dc0ca4b6a736c93bd67"
 
 [[package]]
 name = "libc"
-version = "0.2.150"
+version = "0.2.152"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89d92a4743f9a61002fae18374ed11e7973f530cb3a3255fb354818118b2203c"
+checksum = "13e3bf6590cbc649f4d1a3eefc9d5d6eb746f5200ffb04e5e142700b8faa56e7"
 
 [[package]]
 name = "libdbus-sys"
@@ -3367,14 +3367,21 @@ checksum = "2dffe52ecf27772e601905b7522cb4ef790d2cc203488bbd0e2fe85fcb74566d"
 name = "memmap2"
 version = "0.5.999"
 dependencies = [
- "memmap2 0.8.0",
+ "memmap2 0.8.999",
 ]
 
 [[package]]
 name = "memmap2"
-version = "0.8.0"
+version = "0.8.999"
+dependencies = [
+ "memmap2 0.9.3",
+]
+
+[[package]]
+name = "memmap2"
+version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43a5a03cefb0d953ec0be133036f14e109412fa594edc2f77227249db66cc3ed"
+checksum = "45fd3a57831bf88bc63f8cebc0cf956116276e97fef3966103e96416209f7c92"
 dependencies = [
  "libc",
 ]
@@ -3488,7 +3495,7 @@ dependencies = [
  "goblin 0.7.1",
  "libc",
  "mach2",
- "memmap2 0.8.0",
+ "memmap2 0.8.999",
  "memoffset 0.9.0",
  "minidump-common",
  "nix 0.27.1",
@@ -3975,7 +3982,7 @@ dependencies = [
 [[package]]
 name = "nss_build_common"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/application-services?rev=63a6260c14847c21c5a1fa3003efaf0114a3e4e5#63a6260c14847c21c5a1fa3003efaf0114a3e4e5"
+source = "git+https://github.com/mozilla/application-services?rev=9d1ab279d2aa31e4c6c80dd1ee0baf9345e26253#9d1ab279d2aa31e4c6c80dd1ee0baf9345e26253"
 
 [[package]]
 name = "nsstring"
@@ -4447,7 +4454,7 @@ dependencies = [
 name = "profiler_helper"
 version = "0.1.0"
 dependencies = [
- "memmap2 0.5.999",
+ "memmap2 0.9.3",
  "object",
  "rustc-demangle",
  "thin-vec",
@@ -4486,7 +4493,7 @@ dependencies = [
 [[package]]
 name = "pulse"
 version = "0.3.0"
-source = "git+https://github.com/mozilla/cubeb-pulse-rs?rev=c04c4d2c7f2291cb81a1c48f5a8c425748f18cd8#c04c4d2c7f2291cb81a1c48f5a8c425748f18cd8"
+source = "git+https://github.com/mozilla/cubeb-pulse-rs?rev=8ff972c8e2ec1782ff262ac4071c0415e69b1367#8ff972c8e2ec1782ff262ac4071c0415e69b1367"
 dependencies = [
  "bitflags 2.4.0",
  "pulse-ffi",
@@ -4495,7 +4502,7 @@ dependencies = [
 [[package]]
 name = "pulse-ffi"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/cubeb-pulse-rs?rev=c04c4d2c7f2291cb81a1c48f5a8c425748f18cd8#c04c4d2c7f2291cb81a1c48f5a8c425748f18cd8"
+source = "git+https://github.com/mozilla/cubeb-pulse-rs?rev=8ff972c8e2ec1782ff262ac4071c0415e69b1367#8ff972c8e2ec1782ff262ac4071c0415e69b1367"
 dependencies = [
  "libc",
 ]
@@ -4646,7 +4653,7 @@ checksum = "dbb5fb1acd8a1a18b3dd5be62d25485eb770e05afb408a9627d14d451bae12da"
 [[package]]
 name = "remote_settings"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/application-services?rev=63a6260c14847c21c5a1fa3003efaf0114a3e4e5#63a6260c14847c21c5a1fa3003efaf0114a3e4e5"
+source = "git+https://github.com/mozilla/application-services?rev=9d1ab279d2aa31e4c6c80dd1ee0baf9345e26253#9d1ab279d2aa31e4c6c80dd1ee0baf9345e26253"
 dependencies = [
  "parking_lot",
  "serde",
@@ -5176,7 +5183,7 @@ dependencies = [
 [[package]]
 name = "sql-support"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/application-services?rev=63a6260c14847c21c5a1fa3003efaf0114a3e4e5#63a6260c14847c21c5a1fa3003efaf0114a3e4e5"
+source = "git+https://github.com/mozilla/application-services?rev=9d1ab279d2aa31e4c6c80dd1ee0baf9345e26253#9d1ab279d2aa31e4c6c80dd1ee0baf9345e26253"
 dependencies = [
  "ffi-support",
  "interrupt-support",
@@ -5357,7 +5364,7 @@ checksum = "81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc"
 [[package]]
 name = "suggest"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/application-services?rev=63a6260c14847c21c5a1fa3003efaf0114a3e4e5#63a6260c14847c21c5a1fa3003efaf0114a3e4e5"
+source = "git+https://github.com/mozilla/application-services?rev=9d1ab279d2aa31e4c6c80dd1ee0baf9345e26253#9d1ab279d2aa31e4c6c80dd1ee0baf9345e26253"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5404,7 +5411,7 @@ dependencies = [
 [[package]]
 name = "sync-guid"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/application-services?rev=63a6260c14847c21c5a1fa3003efaf0114a3e4e5#63a6260c14847c21c5a1fa3003efaf0114a3e4e5"
+source = "git+https://github.com/mozilla/application-services?rev=9d1ab279d2aa31e4c6c80dd1ee0baf9345e26253#9d1ab279d2aa31e4c6c80dd1ee0baf9345e26253"
 dependencies = [
  "base64 0.21.3",
  "rand",
@@ -5415,7 +5422,7 @@ dependencies = [
 [[package]]
 name = "sync15"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/application-services?rev=63a6260c14847c21c5a1fa3003efaf0114a3e4e5#63a6260c14847c21c5a1fa3003efaf0114a3e4e5"
+source = "git+https://github.com/mozilla/application-services?rev=9d1ab279d2aa31e4c6c80dd1ee0baf9345e26253#9d1ab279d2aa31e4c6c80dd1ee0baf9345e26253"
 dependencies = [
  "anyhow",
  "error-support",
@@ -5447,7 +5454,7 @@ dependencies = [
 [[package]]
 name = "tabs"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/application-services?rev=63a6260c14847c21c5a1fa3003efaf0114a3e4e5#63a6260c14847c21c5a1fa3003efaf0114a3e4e5"
+source = "git+https://github.com/mozilla/application-services?rev=9d1ab279d2aa31e4c6c80dd1ee0baf9345e26253#9d1ab279d2aa31e4c6c80dd1ee0baf9345e26253"
 dependencies = [
  "anyhow",
  "error-support",
@@ -6089,7 +6096,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 [[package]]
 name = "viaduct"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/application-services?rev=63a6260c14847c21c5a1fa3003efaf0114a3e4e5#63a6260c14847c21c5a1fa3003efaf0114a3e4e5"
+source = "git+https://github.com/mozilla/application-services?rev=9d1ab279d2aa31e4c6c80dd1ee0baf9345e26253#9d1ab279d2aa31e4c6c80dd1ee0baf9345e26253"
 dependencies = [
  "ffi-support",
  "log",
@@ -6235,7 +6242,7 @@ dependencies = [
 [[package]]
 name = "webext-storage"
 version = "0.1.0"
-source = "git+https://github.com/mozilla/application-services?rev=63a6260c14847c21c5a1fa3003efaf0114a3e4e5#63a6260c14847c21c5a1fa3003efaf0114a3e4e5"
+source = "git+https://github.com/mozilla/application-services?rev=9d1ab279d2aa31e4c6c80dd1ee0baf9345e26253#9d1ab279d2aa31e4c6c80dd1ee0baf9345e26253"
 dependencies = [
  "anyhow",
  "error-support",
@@ -6253,6 +6260,7 @@ dependencies = [
  "sync-guid",
  "sync15",
  "thiserror",
+ "uniffi",
  "url",
 ]
 
