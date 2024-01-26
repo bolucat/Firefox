@@ -21,7 +21,7 @@
 #include "builtin/MapObject.h"
 #include "builtin/Object.h"
 #include "gc/GCEnum.h"
-#include "gc/SweepingAPI.h"         // js::gc::AutoLockStoreBuffer
+#include "gc/SweepingAPI.h"  // js::gc::AutoLockStoreBuffer
 #include "jit/BaselineCacheIRCompiler.h"
 #include "jit/CacheIRGenerator.h"
 #include "jit/IonCacheIRCompiler.h"

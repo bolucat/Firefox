@@ -2807,7 +2807,11 @@ bool JSStructuredCloneReader::readSharedWasmMemory(uint32_t nbytes,
       cx, &payload.toObject().as<SharedArrayBufferObject>());
 
   // Construct the memory.
-  RootedObject proto(cx, &cx->global()->getPrototype(JSProto_WasmMemory));
+  RootedObject proto(
+      cx, GlobalObject::getOrCreatePrototype(cx, JSProto_WasmMemory));
+  if (!proto) {
+    return false;
+  }
   RootedObject memory(
       cx, WasmMemoryObject::create(cx, sab, isHuge.toBoolean(), proto));
   if (!memory) {

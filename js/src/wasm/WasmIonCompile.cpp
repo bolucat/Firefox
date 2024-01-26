@@ -305,6 +305,7 @@ class FunctionCompiler {
   BytecodeOffset bytecodeIfNotAsmJS() const {
     return moduleEnv_.isAsmJS() ? BytecodeOffset() : iter_.bytecodeOffset();
   }
+  FeatureUsage featureUsage() const { return iter_.featureUsage(); }
 
   // Try to get a free TryControl from the cache, or allocate a new one.
   [[nodiscard]] UniqueTryControl newTryControl() {
@@ -2399,14 +2400,30 @@ class FunctionCompiler {
     }
 
     CallSiteDesc desc(lineOrBytecode, CallSiteDesc::Symbolic);
+    MWasmCallTryDesc tryDesc;
+    if (!beginTryCall(&tryDesc)) {
+      return false;
+    }
+
     MInstruction* ins;
-    ins = MWasmCallUncatchable::NewBuiltinInstanceMethodCall(
-        alloc(), desc, builtin.identity, builtin.failureMode, call.instanceArg_,
-        call.regArgs_, StackArgAreaSizeUnaligned(builtin));
+    if (tryDesc.inTry) {
+      ins = MWasmCallCatchable::NewBuiltinInstanceMethodCall(
+          alloc(), desc, builtin.identity, builtin.failureMode,
+          call.instanceArg_, call.regArgs_, StackArgAreaSizeUnaligned(builtin),
+          tryDesc);
+    } else {
+      ins = MWasmCallUncatchable::NewBuiltinInstanceMethodCall(
+          alloc(), desc, builtin.identity, builtin.failureMode,
+          call.instanceArg_, call.regArgs_, StackArgAreaSizeUnaligned(builtin));
+    }
     if (!ins) {
       return false;
     }
     curBlock_->add(ins);
+
+    if (!finishTryCall(&tryDesc)) {
+      return false;
+    }
 
     if (!def) {
       return true;
@@ -3659,8 +3676,8 @@ class FunctionCompiler {
       return false;
     }
 
-    // If there is no surrounding catching block, call an instance method to
-    // throw the exception.
+    // Call Instance::throwException to perform tag unpacking and throw the
+    // exception
     if (!emitInstanceCall1(readBytecodeOffset(), SASigThrowException, exnRef)) {
       return false;
     }
@@ -9391,6 +9408,9 @@ bool wasm::IonCompileFunctions(const ModuleEnvironment& moduleEnv,
       }
 
       f.finish();
+
+      // Record observed feature usage
+      code->featureUsage |= f.featureUsage();
     }
 
     // Compile MIR graph

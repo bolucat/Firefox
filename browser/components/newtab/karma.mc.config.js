@@ -133,11 +133,14 @@ module.exports = function (config) {
               functions: 100,
               branches: 78,
             },
-            "lib/PlacesFeed.jsm": {
-              statements: 98,
-              lines: 98,
-              functions: 100,
-              branches: 84,
+            /**
+             * PlacesFeed.sys.mjs is tested via an xpcshell test
+             */
+            "lib/PlacesFeed.sys.mjs": {
+              statements: 7,
+              lines: 7,
+              functions: 8,
+              branches: 0,
             },
             "lib/UTEventReporting.sys.mjs": {
               statements: 100,

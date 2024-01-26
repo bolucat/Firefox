@@ -1979,9 +1979,6 @@ pref("dom.global_stop_script", true);
 // Support the input event queue on the main thread of content process
 pref("input_event_queue.supported", true);
 
-// The default value for nsIPluginTag.enabledState (STATE_ENABLED = 2)
-pref("plugin.default.state", 2);
-
 // Enable multi by default.
 #if !defined(MOZ_ASAN) && !defined(MOZ_TSAN)
   pref("dom.ipc.processCount", 8);
@@ -3952,9 +3949,11 @@ pref("security.external_protocol_requires_permission", true);
 pref("extensions.formautofill.available", "detect");
 pref("extensions.formautofill.addresses.supported", "detect");
 pref("extensions.formautofill.addresses.enabled", true);
-pref("extensions.formautofill.addresses.capture.enabled", false);
-// This preference should be removed entirely once address capture v2 developing is finished
-pref("extensions.formautofill.addresses.capture.v2.enabled", false);
+#if defined(NIGHTLY_BUILD)
+  pref("extensions.formautofill.addresses.capture.enabled", true);
+#else
+  pref("extensions.formautofill.addresses.capture.enabled", false);
+#endif
 // Defies the required address form fields to trigger the display of the address capture doorhanger
 pref("extensions.formautofill.addresses.capture.requiredFields", "street-address,postal-code,address-level1,address-level2");
 pref("extensions.formautofill.addresses.ignoreAutocompleteOff", true);

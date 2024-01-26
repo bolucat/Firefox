@@ -1513,10 +1513,10 @@ already_AddRefed<nsIPrincipal> CreateTruncatedPrincipal(
   // Content Principal URIs are the main location of the information we need to
   // truncate.
   if (aPrincipal->GetIsContentPrincipal()) {
-    // Certain URIs (chrome, resource, about) don't need to be truncated as they
-    // should be free of any sensitive user browsing history.
+    // Certain URIs (chrome, resource, about, jar) don't need to be truncated
+    // as they should be free of any sensitive user browsing history.
     if (aPrincipal->SchemeIs("chrome") || aPrincipal->SchemeIs("resource") ||
-        aPrincipal->SchemeIs("about")) {
+        aPrincipal->SchemeIs("about") || aPrincipal->SchemeIs("jar")) {
       truncatedPrincipal = aPrincipal;
       return truncatedPrincipal.forget();
     }
@@ -1567,6 +1567,9 @@ already_AddRefed<nsIPrincipal> CreateTruncatedPrincipal(
       aPrincipal->GetFilePath(path);
     }
     uriString += scheme + separator + hostPort + path;
+
+    nsAutoCString principalSpec;
+    aPrincipal->GetSpec(principalSpec);
 
     nsCOMPtr<nsIURI> truncatedURI;
     nsresult rv = NS_NewURI(getter_AddRefs(truncatedURI), uriString);

@@ -180,7 +180,7 @@ class TestProvider extends UrlbarTestUtils.TestProvider {
     Assert.ok(context, "context is passed-in");
     Assert.equal(typeof add, "function", "add is a callback");
     this._context = context;
-    for (const result of this._results) {
+    for (const result of this.results) {
       add(this, result);
     }
   }
@@ -189,9 +189,7 @@ class TestProvider extends UrlbarTestUtils.TestProvider {
     if (this._context) {
       Assert.equal(this._context, context, "cancelQuery: context is the same");
     }
-    if (this._onCancel) {
-      this._onCancel();
-    }
+    this._onCancel?.();
   }
 }
 
@@ -659,10 +657,7 @@ function makeRemoteTabResult(
     url: [uri, UrlbarUtils.HIGHLIGHT.TYPED],
     device: [device, UrlbarUtils.HIGHLIGHT.TYPED],
     // Check against undefined so consumers can pass in the empty string.
-    icon:
-      typeof iconUri != "undefined"
-        ? iconUri
-        : `cached-favicon:page-icon:${uri}`,
+    icon: typeof iconUri != "undefined" ? iconUri : `page-icon:${uri}`,
     lastUsed: lastUsed * 1000,
   };
 
