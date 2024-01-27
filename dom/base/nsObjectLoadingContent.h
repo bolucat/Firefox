@@ -74,21 +74,7 @@ class nsObjectLoadingContent : public nsIStreamListener,
   }
 
   static bool IsFallbackMimeType(const nsACString& aMimeType);
-
-  // Helper for WebIDL NeedResolve
-  bool DoResolve(
-      JSContext* aCx, JS::Handle<JSObject*> aObject, JS::Handle<jsid> aId,
-      JS::MutableHandle<mozilla::Maybe<JS::PropertyDescriptor>> aDesc);
-  // The return value is whether DoResolve might end up resolving the given
-  // id.  If in doubt, return true.
-  static bool MayResolve(jsid aId);
-
   static bool IsSuccessfulRequest(nsIRequest*, nsresult* aStatus);
-
-  // Helper for WebIDL enumeration
-  void GetOwnPropertyNames(JSContext* aCx,
-                           JS::MutableHandleVector<jsid> /* unused */,
-                           bool /* unused */, mozilla::ErrorResult& aRv);
 
   // WebIDL API
   mozilla::dom::Document* GetContentDocument(nsIPrincipal& aSubjectPrincipal);
@@ -96,7 +82,6 @@ class nsObjectLoadingContent : public nsIStreamListener,
     CopyUTF8toUTF16(mContentType, aType);
   }
   uint32_t DisplayedType() const { return mType; }
-  void Reload(mozilla::ErrorResult& aRv) { aRv = Reload(); }
   nsIURI* GetSrcURI() const { return mURI; }
 
   void SwapFrameLoaders(mozilla::dom::HTMLIFrameElement& aOtherLoaderOwner,
@@ -108,14 +93,7 @@ class nsObjectLoadingContent : public nsIStreamListener,
     aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);
   }
 
-  uint32_t GetRunID(mozilla::dom::SystemCallerGuarantee,
-                    mozilla::ErrorResult& aRv);
-
   bool IsRewrittenYoutubeEmbed() const { return mRewrittenYoutubeEmbed; }
-
-  void PresetOpenerWindow(const mozilla::dom::Nullable<
-                              mozilla::dom::WindowProxyHolder>& aOpenerWindow,
-                          mozilla::ErrorResult& aRv);
 
   const mozilla::Maybe<mozilla::IntrinsicSize>& GetSubdocumentIntrinsicSize()
       const {
@@ -449,9 +427,6 @@ class nsObjectLoadingContent : public nsIStreamListener,
 
   // Type of the currently-loaded content.
   ObjectType mType : 8;
-
-  uint32_t mRunID;
-  bool mHasRunID : 1;
 
   // If true, we have opened a channel as the listener and it has reached
   // OnStartRequest. Does not get set for channels that are passed directly to

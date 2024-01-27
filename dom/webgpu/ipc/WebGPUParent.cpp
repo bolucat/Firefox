@@ -324,10 +324,9 @@ WebGPUParent::WebGPUParent()
 }
 
 WebGPUParent::~WebGPUParent() {
-  MOZ_ASSERT(mErrorScopeStackByDevice.empty(),
-             "All Devices should have been dropped.");
-  MOZ_ASSERT(mDeviceLostRequests.empty(),
-             "There should be no pending DeviceLostRequest callbacks.");
+  // All devices should have been dropped, but maybe they weren't. To
+  // ensure we don't leak memory, clear the mDeviceLostRequests.
+  mDeviceLostRequests.clear();
 }
 
 void WebGPUParent::MaintainDevices() {
