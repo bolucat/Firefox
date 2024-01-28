@@ -267,7 +267,6 @@ nsPresContext::nsPresContext(dom::Document* aDocument, nsPresContextType aType)
       mHasEverBuiltInvisibleText(false),
       mPendingInterruptFromTest(false),
       mInterruptsEnabled(false),
-      mSendAfterPaintToContent(false),
       mDrawImageBackground(true),  // always draw the background
       mDrawColorBackground(true),
       // mNeverAnimate is initialised below, in constructor body
@@ -275,8 +274,6 @@ nsPresContext::nsPresContext(dom::Document* aDocument, nsPresContextType aType)
       mCanPaginatedScroll(false),
       mDoScaledTwips(true),
       mIsRootPaginatedDocument(false),
-      mPrefBidiDirection(false),
-      mPrefScrollbarSide(0),
       mPendingThemeChanged(false),
       mPendingThemeChangeKind(0),
       mPendingUIResolutionChanged(false),
@@ -335,7 +332,6 @@ static const char* gExactCallbackPrefs[] = {
     "browser.anchor_color",
     "browser.visited_color",
     "dom.meta-viewport.enabled",
-    "dom.send_after_paint_to_content",
     "image.animation_mode",
     "intl.accept_languages",
     "layout.css.devPixelsPerPx",
@@ -435,11 +431,6 @@ void nsPresContext::GetUserPreferences() {
 
   PreferenceSheet::EnsureInitialized();
 
-  mSendAfterPaintToContent = Preferences::GetBool(
-      "dom.send_after_paint_to_content", mSendAfterPaintToContent);
-
-  mPrefScrollbarSide = StaticPrefs::layout_scrollbar_side();
-
   Document()->SetMayNeedFontPrefsUpdate();
 
   // * image animation
@@ -456,8 +447,7 @@ void nsPresContext::GetUserPreferences() {
 
   uint32_t bidiOptions = GetBidi();
 
-  mPrefBidiDirection = StaticPrefs::bidi_direction();
-  SET_BIDI_OPTION_DIRECTION(bidiOptions, mPrefBidiDirection);
+  SET_BIDI_OPTION_DIRECTION(bidiOptions, StaticPrefs::bidi_direction());
   SET_BIDI_OPTION_TEXTTYPE(bidiOptions, StaticPrefs::bidi_texttype());
   SET_BIDI_OPTION_NUMERAL(bidiOptions, StaticPrefs::bidi_numeral());
 
@@ -2263,7 +2253,7 @@ void nsPresContext::FireDOMPaintEvent(
 
   nsCOMPtr<EventTarget> dispatchTarget = do_QueryInterface(ourWindow);
   nsCOMPtr<EventTarget> eventTarget = dispatchTarget;
-  if (!IsChrome() && !mSendAfterPaintToContent) {
+  if (!IsChrome() && !StaticPrefs::dom_send_after_paint_to_content()) {
     // Don't tell the window about this event, it should not know that
     // something happened in a subdocument. Tell only the chrome event handler.
     // (Events sent to the window get propagated to the chrome event handler
