@@ -231,7 +231,7 @@ struct ExpandoAndGeneration;
 namespace js {
 
 class StaticStrings;
-class TypedArrayObject;
+class FixedLengthTypedArrayObject;
 
 enum class NativeIteratorIndices : uint32_t;
 
@@ -5230,6 +5230,8 @@ class MacroAssembler : public MacroAssemblerSpecific {
 
   void typedArrayElementSize(Register obj, Register output);
   void branchIfClassIsNotTypedArray(Register clasp, Label* notTypedArray);
+  void branchIfClassIsNotFixedLengthTypedArray(Register clasp,
+                                               Label* notTypedArray);
 
   void branchIfHasDetachedArrayBuffer(Register obj, Register temp,
                                       Label* label);
@@ -5450,7 +5452,7 @@ class MacroAssembler : public MacroAssemblerSpecific {
 
   void initTypedArraySlots(Register obj, Register temp, Register lengthReg,
                            LiveRegisterSet liveRegs, Label* fail,
-                           TypedArrayObject* templateObj,
+                           FixedLengthTypedArrayObject* templateObj,
                            TypedArrayLength lengthKind);
 
   void newGCString(Register result, Register temp, gc::Heap initialHeap,

@@ -151,6 +151,8 @@ class ArrayBufferViewObject : public NativeObject {
     return buffer->isDetached();
   }
 
+  bool hasResizableBuffer() const;
+
   bool isLengthPinned() const {
     Value buffer = bufferValue();
     if (buffer.isBoolean()) {
@@ -188,15 +190,12 @@ class ArrayBufferViewObject : public NativeObject {
   static bool ensureNonInline(JSContext* cx,
                               JS::Handle<ArrayBufferViewObject*> view);
 
+ protected:
   size_t byteOffset() const {
     return size_t(getFixedSlot(BYTEOFFSET_SLOT).toPrivate());
   }
 
-  Value byteOffsetValue() const {
-    size_t offset = byteOffset();
-    return NumberValue(offset);
-  }
-
+ public:
   static void trace(JSTracer* trc, JSObject* obj);
 };
 
