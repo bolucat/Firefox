@@ -6177,6 +6177,11 @@ static bool OffThreadCompileModuleToStencil(JSContext* cx, unsigned argc,
     if (!js::ParseCompileOptions(cx, options, opts, &fileNameBytes)) {
       return false;
     }
+
+    if (options.lineno == 0) {
+      JS_ReportErrorASCII(cx, "Module cannot be compiled with lineNumber == 0");
+      return false;
+    }
   }
 
   options.setIsRunOnce(true).setSourceIsLazy(false);
@@ -11692,6 +11697,8 @@ bool InitOptionParser(OptionParser& op) {
       !op.addBoolOption('\0', "less-debug-code",
                         "Emit less machine code for "
                         "checking assertions under DEBUG.") ||
+      !op.addBoolOption('\0', "enable-emulates-undefined-fuse",
+                        "Use the invalidating emulates undefined fuse") ||
       !op.addBoolOption('\0', "disable-weak-refs", "Disable weak references") ||
       !op.addBoolOption('\0', "disable-tosource", "Disable toSource/uneval") ||
       !op.addBoolOption('\0', "disable-property-error-message-fix",
@@ -12732,6 +12739,10 @@ bool SetContextJITOptions(JSContext* cx, const OptionParser& op) {
 
   if (op.getBoolOption("less-debug-code")) {
     jit::JitOptions.lessDebugCode = true;
+  }
+
+  if (op.getBoolOption("enable-emulates-undefined-fuse")) {
+    jit::JitOptions.useHasSeenEmulatesUndefinedFuse = true;
   }
 
   int32_t inliningEntryThreshold = op.getIntOption("inlining-entry-threshold");

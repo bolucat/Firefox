@@ -82,24 +82,6 @@ module.exports = function (config) {
               functions: 94,
               branches: 66,
             },
-            "lib/ASRouter.jsm": {
-              statements: 75,
-              lines: 75,
-              functions: 64,
-              branches: 66,
-            },
-            "lib/ASRouterDefaultConfig.jsm": {
-              statements: 0,
-              lines: 0,
-              functions: 0,
-              branches: 0,
-            },
-            "content-src/asrouter/asrouter-utils.js": {
-              statements: 66,
-              lines: 66,
-              functions: 76,
-              branches: 33,
-            },
             /**
              * TelemetryFeed.sys.mjs is tested via an xpcshell test
              */
@@ -108,12 +90,6 @@ module.exports = function (config) {
               lines: 10,
               functions: 9,
               branches: 0,
-            },
-            "lib/ASRouterParentProcessMessageHandler.jsm": {
-              statements: 98,
-              lines: 98,
-              functions: 100,
-              branches: 88,
             },
             "content-src/lib/init-store.js": {
               statements: 98,
@@ -251,11 +227,14 @@ module.exports = function (config) {
       },
       // This resolve config allows us to import with paths relative to the root directory, e.g. "lib/ActivityStream.jsm"
       resolve: {
-        extensions: [".js", ".jsx"],
+        extensions: [".js", ".jsx", ".jsm"],
         modules: [PATHS.moduleResolveDirectory, "node_modules"],
         fallback: {
           stream: require.resolve("stream-browserify"),
           buffer: require.resolve("buffer"),
+        },
+        alias: {
+          asrouter: path.join(__dirname, "../asrouter"),
         },
       },
       plugins: [
@@ -291,7 +270,7 @@ module.exports = function (config) {
                     [
                       "./tools/babel-jsm-to-commonjs.js",
                       {
-                        basePath: PATHS.resourcePathRegEx,
+                        basePaths: [[PATHS.resourcePathRegEx, ""]],
                         removeOtherImports: true,
                         replace: true,
                       },
@@ -328,15 +307,7 @@ module.exports = function (config) {
               path.resolve("lib"),
               path.resolve("common"),
             ],
-            exclude: [
-              path.resolve("test"),
-              path.resolve("vendor"),
-              path.resolve("lib/ASRouterTargeting.jsm"),
-              path.resolve("lib/ASRouterTriggerListeners.jsm"),
-              path.resolve("lib/OnboardingMessageProvider.jsm"),
-              path.resolve("lib/CFRMessageProvider.sys.mjs"),
-              path.resolve("lib/CFRPageActions.jsm"),
-            ],
+            exclude: [path.resolve("test"), path.resolve("vendor")],
           },
         ],
       },

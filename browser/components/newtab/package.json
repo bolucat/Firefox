@@ -24,7 +24,6 @@
     "babel-plugin-jsm-to-esmodules": "0.6.0",
     "buffer": "6.0.3",
     "chai": "4.3.4",
-    "chai-json-schema": "1.5.1",
     "enzyme": "3.11.0",
     "enzyme-adapter-react-16": "1.15.6",
     "joi-browser": "13.4.0",
@@ -104,7 +103,6 @@
     "fix": "npm-run-all fix:*",
     "fix:eslint": "npm run lint:eslint -- --fix",
     "fix:stylelint": "npm run lint:stylelint -- --fix",
-    "import-rollouts": "node ./bin/import-rollouts.js",
     "help": "yamscripts help",
     "yamscripts": "yamscripts compile",
     "__": "# NOTE: THESE SCRIPTS ARE COMPILED!!! EDIT yamscripts.yml instead!!!"

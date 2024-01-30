@@ -161,6 +161,7 @@ module.exports = function (config) {
         },
         alias: {
           newtab: path.join(__dirname, "../newtab"),
+          asrouter: path.join(__dirname, "../asrouter"),
         },
       },
       plugins: [
@@ -196,7 +197,13 @@ module.exports = function (config) {
                     [
                       "../newtab/tools/babel-jsm-to-commonjs.js",
                       {
-                        basePath: PATHS.resourcePathRegEx,
+                        basePaths: [
+                          [PATHS.resourcePathRegEx, ""],
+                          [
+                            /^resource:\/\/\/modules\/asrouter\//,
+                            "asrouter/modules/",
+                          ],
+                        ],
                         removeOtherImports: true,
                         replace: true,
                       },

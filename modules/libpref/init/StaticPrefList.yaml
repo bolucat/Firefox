@@ -7401,6 +7401,12 @@
   mirror: always
   do_not_use_directly: true
 
+- name: javascript.options.use_emulates_undefined_fuse
+  type: bool
+  value: false
+  mirror: always
+  do_not_use_directly: true
+
 - name: javascript.options.compact_on_user_inactive
   type: bool
   value: true
@@ -9299,13 +9305,6 @@
 # Whether underscore should be treated as a word-breaking character for
 # word selection/arrow-key movement purposes.
 - name: layout.word_select.stop_at_underscore
-  type: bool
-  value: false
-  mirror: always
-
-# Should deprecated plugin behavior fallback to normal behavior or use
-# the experimental design.
-- name: layout.use-plugin-fallback
   type: bool
   value: false
   mirror: always

@@ -8,3 +8,48 @@ JAR_MANIFESTS += ["jar.mn"]
 
 with Files("**"):
     BUG_COMPONENT = ("Firefox", "Messaging System")
+
+FINAL_TARGET_FILES.actors += [
+    "actors/ASRouterChild.sys.mjs",
+    "actors/ASRouterParent.sys.mjs",
+]
+
+EXTRA_JS_MODULES.asrouter += [
+    "modules/ASRouter.jsm",
+    "modules/ASRouterDefaultConfig.jsm",
+    "modules/ASRouterNewTabHook.sys.mjs",
+    "modules/ASRouterParentProcessMessageHandler.jsm",
+    "modules/ASRouterPreferences.jsm",
+    "modules/ASRouterTargeting.jsm",
+    "modules/ASRouterTriggerListeners.jsm",
+    "modules/CFRMessageProvider.sys.mjs",
+    "modules/CFRPageActions.jsm",
+    "modules/MessagingExperimentConstants.sys.mjs",
+    "modules/OnboardingMessageProvider.jsm",
+    "modules/PanelTestProvider.sys.mjs",
+    "modules/RemoteL10n.sys.mjs",
+]
+
+BROWSER_CHROME_MANIFESTS += [
+    "tests/browser/browser.toml",
+]
+
+XPCSHELL_TESTS_MANIFESTS += [
+    "tests/xpcshell/xpcshell.toml",
+]
+
+TESTING_JS_MODULES += [
+    "content-src/schemas/FxMSCommon.schema.json",
+    "content-src/templates/CFR/templates/CFRUrlbarChiclet.schema.json",
+    "content-src/templates/CFR/templates/ExtensionDoorhanger.schema.json",
+    "content-src/templates/CFR/templates/InfoBar.schema.json",
+    "content-src/templates/OnboardingMessage/Spotlight.schema.json",
+    "content-src/templates/OnboardingMessage/ToolbarBadgeMessage.schema.json",
+    "content-src/templates/OnboardingMessage/UpdateAction.schema.json",
+    "content-src/templates/OnboardingMessage/WhatsNewMessage.schema.json",
+    "content-src/templates/PBNewtab/NewtabPromoMessage.schema.json",
+    "content-src/templates/ToastNotification/ToastNotification.schema.json",
+    "tests/NimbusRolloutMessageProvider.sys.mjs",
+]
+
+SPHINX_TREES["docs"] = "docs"

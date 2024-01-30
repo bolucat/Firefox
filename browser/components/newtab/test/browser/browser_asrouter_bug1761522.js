@@ -4,16 +4,16 @@
 "use strict";
 
 const { ASRouter, MessageLoaderUtils } = ChromeUtils.import(
-  "resource://activity-stream/lib/ASRouter.jsm"
+  "resource:///modules/asrouter/ASRouter.jsm"
 );
 const { PanelTestProvider } = ChromeUtils.importESModule(
-  "resource://activity-stream/lib/PanelTestProvider.sys.mjs"
+  "resource:///modules/asrouter/PanelTestProvider.sys.mjs"
 );
 const { HttpServer } = ChromeUtils.importESModule(
   "resource://testing-common/httpd.sys.mjs"
 );
 const { RemoteL10n } = ChromeUtils.importESModule(
-  "resource://activity-stream/lib/RemoteL10n.sys.mjs"
+  "resource:///modules/asrouter/RemoteL10n.sys.mjs"
 );
 const { RemoteSettings } = ChromeUtils.importESModule(
   "resource://services-settings/remote-settings.sys.mjs"

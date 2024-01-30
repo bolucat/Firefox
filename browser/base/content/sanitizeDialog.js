@@ -153,6 +153,10 @@ var gSanitizePromptDialog = {
       this._dialog.setAttribute("inClearOnShutdown", "true");
       // remove the clear private data groupbox element
       clearPrivateDataGroupbox.remove();
+
+      // If this is the first time the user is opening the new clear on shutdown
+      // dialog, migrate their prefs
+      Sanitizer.maybeMigrateSanitizeOnShutdownPrefs();
     } else if (!lazy.USE_OLD_DIALOG) {
       okButtonl10nID = "sanitize-button-ok2";
       // remove the clear on shutdown groupbox element
@@ -164,22 +168,28 @@ var gSanitizePromptDialog = {
     // from (history, site data). Categories are not remembered
     // from the last time the dialog was used.
     if (!lazy.USE_OLD_DIALOG && !this._inClearOnShutdownNewDialog) {
-      let checkboxes = document.querySelectorAll(
-        "#clearPrivateDataGroupbox .clearingItemCheckbox"
-      );
       let defaults = this.defaultCheckedByContext.clearHistory;
       if (this._inClearSiteDataNewDialog) {
         defaults = this.defaultCheckedByContext.clearSiteData;
       }
 
-      for (let checkbox of checkboxes) {
+      this._allCheckboxes = document.querySelectorAll(
+        "#clearPrivateDataGroupbox .clearingItemCheckbox"
+      );
+      this._allCheckboxes.forEach(checkbox => {
         let pref = checkbox.id;
         let value = false;
         if (defaults.includes(pref)) {
           value = true;
           checkbox.checked = value;
         }
-      }
+
+        // Add event listeners to the checkboxes to ensure that the clear button is
+        // disabled if no checkboxes are checked
+        checkbox.addEventListener("command", _ =>
+          this.updateAcceptButtonState()
+        );
+      });
     }
 
     document.addEventListener("dialogaccept", e => {
@@ -198,7 +208,7 @@ var gSanitizePromptDialog = {
     // we want to show the warning box for all cases except clear on shutdown
     if (
       this.selectedTimespan === Sanitizer.TIMESPAN_EVERYTHING &&
-      !arg.inClearOnShutdown
+      !this._inClearOnShutdownNewDialog
     ) {
       this.prepareWarning();
       this.warningBox.hidden = false;
@@ -222,6 +232,14 @@ var gSanitizePromptDialog = {
     if (!lazy.USE_OLD_DIALOG) {
       this.reportTelemetry("open");
     }
+  },
+
+  updateAcceptButtonState() {
+    // Check if none of the checkboxes are checked
+    let noneChecked = Array.from(this._allCheckboxes).every(cb => !cb.checked);
+    let acceptButton = this._dialog.getButton("accept");
+
+    acceptButton.disabled = noneChecked;
   },
 
   selectByTimespan() {

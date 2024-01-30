@@ -409,6 +409,46 @@ class CodeGenerator final : public CodeGeneratorSpecific {
 #define LIR_OP(op) void visit##op(L##op* ins);
   LIR_OPCODE_LIST(LIR_OP)
 #undef LIR_OP
+
+  // In debug mode, we need to validate that we've not made a mistake with the
+  // fuse.
+  void assertObjectDoesNotEmulateUndefined(Register input, Register temp,
+                                           const MInstruction* mir);
+
+  // Enumerates the fuses that a code generation can depend on. These will
+  // be mapped to an actual fuse by validateAndRegisterFuseDependencies.
+  enum class FuseDependencyKind {
+    HasSeenObjectEmulateUndefinedFuse,
+  };
+
+  // The set of fuses this code generation depends on.
+  mozilla::EnumSet<FuseDependencyKind> fuseDependencies;
+
+  // Register a dependency on the HasSeenObjectEmulateUndefined fuse.
+  void addHasSeenObjectEmulateUndefinedFuseDependency() {
+    fuseDependencies += FuseDependencyKind::HasSeenObjectEmulateUndefinedFuse;
+  }
+
+  // Called during linking on main-thread: Ensures that the fuses are still
+  // intact, and registers a script dependency on a specific fuse before
+  // finishing compilation.
+  void validateAndRegisterFuseDependencies(JSContext* cx, HandleScript script,
+                                           bool* isValid);
+
+  // Return true if the fuse is intact, andd if the fuse is intact note the
+  // dependency
+  bool hasSeenObjectEmulateUndefinedFuseIntactAndDependencyNoted() {
+    if (!JitOptions.useHasSeenEmulatesUndefinedFuse) {
+      // if we're not active, simply pretend the fuse is popped.
+      return false;
+    }
+
+    bool intact = gen->outerInfo().hasSeenObjectEmulateUndefinedFuseIntact();
+    if (intact) {
+      addHasSeenObjectEmulateUndefinedFuseDependency();
+    }
+    return intact;
+  }
 };
 
 class OutOfLineResumableWasmTrap : public OutOfLineCodeBase<CodeGenerator> {

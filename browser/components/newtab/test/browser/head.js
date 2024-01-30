@@ -10,8 +10,8 @@ ChromeUtils.defineESModuleGetters(this, {
   PlacesTestUtils: "resource://testing-common/PlacesTestUtils.sys.mjs",
 });
 XPCOMUtils.defineLazyModuleGetters(this, {
-  ASRouter: "resource://activity-stream/lib/ASRouter.jsm",
-  QueryCache: "resource://activity-stream/lib/ASRouterTargeting.jsm",
+  ASRouter: "resource:///modules/asrouter/ASRouter.jsm",
+  QueryCache: "resource:///modules/asrouter/ASRouterTargeting.jsm",
 });
 const { FxAccounts } = ChromeUtils.importESModule(
   "resource://gre/modules/FxAccounts.sys.mjs"

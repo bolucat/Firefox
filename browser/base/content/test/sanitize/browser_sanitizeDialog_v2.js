@@ -365,7 +365,7 @@ DialogHelper.prototype = {
    * Makes sure all the checkboxes are checked.
    */
   _checkAllCheckboxesCustom(check) {
-    var cb = this.win.document.querySelectorAll("checkbox[id]");
+    var cb = this.win.document.querySelectorAll(".clearingItemCheckbox");
     ok(cb.length, "found checkboxes for ids");
     for (var i = 0; i < cb.length; ++i) {
       if (cb[i].checked != check) {
@@ -727,6 +727,69 @@ add_task(async function test_everything_warning() {
     await promiseSanitized;
 
     await promiseHistoryClearedState(uris, true);
+  };
+  dh.open();
+  await dh.promiseClosed;
+});
+
+/**
+ * Tests that the clearing button gets disabled if no checkboxes are checked
+ * and enabled when at least one checkbox is checked
+ */
+add_task(async function testAcceptButtonDisabled() {
+  let dh = new DialogHelper();
+  dh.onload = async function () {
+    let clearButton = this.win.document
+      .querySelector("dialog")
+      .getButton("accept");
+    this.uncheckAllCheckboxes();
+    await new Promise(resolve => SimpleTest.executeSoon(resolve));
+    is(clearButton.disabled, true, "Clear button should be disabled");
+    // await BrowserTestUtils.waitForMutationCondition(
+    //   clearButton,
+    //   { attributes: true },
+    //   () => clearButton.disabled,
+    //   "Clear button should be disabled"
+    // );
+
+    this.checkPrefCheckbox("cache", true);
+    await new Promise(resolve => SimpleTest.executeSoon(resolve));
+    is(clearButton.disabled, false, "Clear button should not be disabled");
+
+    this.cancelDialog();
+  };
+  dh.open();
+  await dh.promiseClosed;
+});
+
+/**
+ * Tests to see if the warning box is hidden when opened in the clear on shutdown context
+ */
+add_task(async function testWarningBoxInClearOnShutdown() {
+  let dh = new DialogHelper();
+  dh.setMode("clearSiteData");
+  dh.onload = function () {
+    this.selectDuration(Sanitizer.TIMESPAN_EVERYTHING);
+    is(
+      BrowserTestUtils.isVisible(this.getWarningPanel()),
+      true,
+      `warning panel should be visible`
+    );
+    this.acceptDialog();
+  };
+  dh.open();
+  await dh.promiseClosed;
+
+  dh = new DialogHelper();
+  dh.setMode("clearOnShutdown");
+  dh.onload = function () {
+    is(
+      BrowserTestUtils.isVisible(this.getWarningPanel()),
+      false,
+      `warning panel should not be visible`
+    );
+
+    this.cancelDialog();
   };
   dh.open();
   await dh.promiseClosed;
@@ -1312,4 +1375,32 @@ add_task(async function testClearingOptionsTelemetry() {
     telemetryObject[0].extra,
     `Expected ${telemetryObject} to be the same as ${expectedObject}`
   );
+});
+
+add_task(async function testCheckboxStatesAfterMigration() {
+  await SpecialPowers.pushPrefEnv({
+    set: [
+      ["privacy.clearOnShutdown.history", false],
+      ["privacy.clearOnShutdown.formdata", true],
+      ["privacy.clearOnShutdown.cookies", true],
+      ["privacy.clearOnShutdown.offlineApps", false],
+      ["privacy.clearOnShutdown.sessions", false],
+      ["privacy.clearOnShutdown.siteSettings", false],
+      ["privacy.clearOnShutdown.cache", true],
+      ["privacy.clearOnShutdown_v2.cookiesAndStorage", false],
+      ["privacy.sanitize.sanitizeOnShutdown.hasMigratedToNewPrefs", false],
+    ],
+  });
+
+  let dh = new DialogHelper();
+  dh.setMode("clearOnShutdown");
+  dh.onload = function () {
+    this.validateCheckbox("cookiesAndStorage", true);
+    this.validateCheckbox("historyFormDataAndDownloads", false);
+    this.validateCheckbox("cache", true);
+    this.validateCheckbox("siteSettings", false);
+    this.cancelDialog();
+  };
+  dh.open();
+  await dh.promiseClosed;
 });

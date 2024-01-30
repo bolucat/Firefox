@@ -17,7 +17,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
 XPCOMUtils.defineLazyModuleGetters(lazy, {
   InfoBar: "resource://activity-stream/lib/InfoBar.jsm",
   Spotlight: "resource://activity-stream/lib/Spotlight.jsm",
-  CFRPageActions: "resource://activity-stream/lib/CFRPageActions.jsm",
+  CFRPageActions: "resource:///modules/asrouter/CFRPageActions.jsm",
 });
 
 function dispatchCFRAction({ type, data }, browser) {
@@ -65,7 +65,7 @@ export class AboutMessagePreviewParent extends JSWindowActorParent {
     }
 
     const schema = await fetch(
-      "resource://activity-stream/schemas/MessagingExperiment.schema.json",
+      "chrome://browser/content/asrouter/schemas/MessagingExperiment.schema.json",
       { credentials: "omit" }
     ).then(rsp => rsp.json());
 

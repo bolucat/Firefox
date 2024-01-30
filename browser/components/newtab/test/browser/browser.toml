@@ -72,9 +72,9 @@ skip-if = [
   "win11_2009", # Bug 1804349
 ]
 
-["browser_foxdoodle_set_default.js"]
-
 ["browser_feature_callout_panel.js"]
+
+["browser_foxdoodle_set_default.js"]
 
 ["browser_getScreenshots.js"]
 
@@ -113,8 +113,5 @@ skip-if = [
 ["browser_topsites_contextMenu_options.js"]
 
 ["browser_topsites_section.js"]
-
-["browser_trigger_listeners.js"]
-https_first_disabled = true
 
 ["browser_trigger_messagesLoaded.js"]
