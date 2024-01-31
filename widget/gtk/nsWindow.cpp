@@ -4673,6 +4673,43 @@ void nsWindow::TryToShowNativeWindowMenu(GdkEventButton* aEvent) {
   }
 }
 
+bool nsWindow::DoTitlebarAction(LookAndFeel::TitlebarEvent aEvent,
+                                GdkEventButton* aButtonEvent) {
+  LOG("DoTitlebarAction %s click",
+      aEvent == LookAndFeel::TitlebarEvent::Double_Click ? "double" : "middle");
+  switch (LookAndFeel::GetTitlebarAction(aEvent)) {
+    case LookAndFeel::TitlebarAction::WindowMenu:
+      // Titlebar app menu
+      LOG("  action menu");
+      TryToShowNativeWindowMenu(aButtonEvent);
+      break;
+    // Lower is part of gtk_surface1 protocol which we can't support
+    // as Gtk keeps it private. So emulate it by minimize.
+    case LookAndFeel::TitlebarAction::WindowLower:
+    case LookAndFeel::TitlebarAction::WindowMinimize:
+      LOG("  action minimize");
+      SetSizeMode(nsSizeMode_Minimized);
+      break;
+    case LookAndFeel::TitlebarAction::WindowMaximize:
+      LOG("  action maximize");
+      SetSizeMode(nsSizeMode_Maximized);
+      break;
+    case LookAndFeel::TitlebarAction::WindowMaximizeToggle:
+      LOG("  action toggle maximize");
+      if (mSizeMode == nsSizeMode_Maximized) {
+        SetSizeMode(nsSizeMode_Normal);
+      } else if (mSizeMode == nsSizeMode_Normal) {
+        SetSizeMode(nsSizeMode_Maximized);
+      }
+      break;
+    case LookAndFeel::TitlebarAction::None:
+    default:
+      LOG("  action none");
+      return false;
+  }
+  return true;
+}
+
 void nsWindow::OnButtonPressEvent(GdkEventButton* aEvent) {
   LOG("Button %u press\n", aEvent->button);
 
@@ -4790,10 +4827,17 @@ void nsWindow::OnButtonPressEvent(GdkEventButton* aEvent) {
 
   nsIWidget::ContentAndAPZEventStatus eventStatus = DispatchInputEvent(&event);
 
-  if (mDraggableRegion.Contains(refPoint) &&
-      domButton == MouseButton::ePrimary &&
-      eventStatus.mContentStatus != nsEventStatus_eConsumeNoDefault) {
-    mWindowShouldStartDragging = true;
+  const bool defaultPrevented =
+      eventStatus.mContentStatus == nsEventStatus_eConsumeNoDefault;
+
+  if (!defaultPrevented && mDrawInTitlebar &&
+      mDraggableRegion.Contains(refPoint)) {
+    if (domButton == MouseButton::ePrimary) {
+      mWindowShouldStartDragging = true;
+    } else if (domButton == MouseButton::eMiddle &&
+               StaticPrefs::widget_gtk_titlebar_action_middle_click_enabled()) {
+      DoTitlebarAction(nsXPLookAndFeel::TitlebarEvent::Middle_Click, aEvent);
+    }
   }
 
   // right menu click on linux should also pop up a context menu
@@ -4856,15 +4900,11 @@ void nsWindow::OnButtonReleaseEvent(GdkEventButton* aEvent) {
   const bool defaultPrevented =
       eventStatus.mContentStatus == nsEventStatus_eConsumeNoDefault;
   // Check if mouse position in titlebar and doubleclick happened to
-  // trigger restore/maximize.
+  // trigger defined action.
   if (!defaultPrevented && mDrawInTitlebar &&
       event.mButton == MouseButton::ePrimary && event.mClickCount == 2 &&
       mDraggableRegion.Contains(pos)) {
-    if (mSizeMode == nsSizeMode_Maximized) {
-      SetSizeMode(nsSizeMode_Normal);
-    } else if (mSizeMode == nsSizeMode_Normal) {
-      SetSizeMode(nsSizeMode_Maximized);
-    }
+    DoTitlebarAction(nsXPLookAndFeel::TitlebarEvent::Double_Click, aEvent);
   }
   mLastMotionPressure = pressure;
 

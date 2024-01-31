@@ -335,8 +335,9 @@ TextPropertyEditor.prototype = {
         focusEditableFieldContainerSelector: ".ruleview-rule",
         // We don't want Enter to trigger the next editable field, just to validate
         // what the user entered, close the editor, and focus the span so the user can
-        // navigate with the keyboard as expected.
-        stopOnReturn: true,
+        // navigate with the keyboard as expected, unless the user has
+        // devtools.inspector.rule-view.focusNextOnEnter set to true
+        stopOnReturn: this.ruleView.inplaceEditorFocusNextOnEnter !== true,
         inputAriaLabel: PROPERTY_NAME_INPUT_LABEL,
       });
 
@@ -427,8 +428,9 @@ TextPropertyEditor.prototype = {
         maxWidth: () => this.container.getBoundingClientRect().width,
         cssProperties: this.cssProperties,
         cssVariables:
-          this.rule.elementStyle.variablesMap.get(this.rule.pseudoElement) ||
-          [],
+          this.rule.elementStyle.getAllCustomProperties(
+            this.rule.pseudoElement
+          ) || new Map(),
         getGridLineNames: this.getGridlineNames,
         showSuggestCompletionOnEmpty: true,
         // (Shift+)Tab will move the focus to the previous/next editable field (so property name,
@@ -437,8 +439,9 @@ TextPropertyEditor.prototype = {
         focusEditableFieldContainerSelector: ".ruleview-rule",
         // We don't want Enter to trigger the next editable field, just to validate
         // what the user entered, close the editor, and focus the span so the user can
-        // navigate with the keyboard as expected.
-        stopOnReturn: true,
+        // navigate with the keyboard as expected, unless the user has
+        // devtools.inspector.rule-view.focusNextOnEnter set to true
+        stopOnReturn: this.ruleView.inplaceEditorFocusNextOnEnter !== true,
         // Label the value input with the name span so screenreader users know what this
         // applies to.
         inputAriaLabelledBy: this.nameSpan.id,

@@ -785,7 +785,7 @@ pref("browser.shopping.experience2023.survey.pdpVisits", 0);
 // Enables the auto-open feature for the shopping sidebar,
 // including new callouts and settings UI changes
 // (this is just the feature flag).
-pref("browser.shopping.experience2023.autoOpen.enabled", true);
+pref("browser.shopping.experience2023.autoOpen.enabled", false);
 
 // Opens the shopping sidebar automatically when viewing a PDP.
 pref("browser.shopping.experience2023.autoOpen.userEnabled", true);
@@ -1063,7 +1063,11 @@ pref("privacy.history.custom",              false);
 // 6 - Last 24 hours
 pref("privacy.sanitize.timeSpan", 1);
 
+#if defined(NIGHTLY_BUILD)
+pref("privacy.sanitize.useOldClearHistoryDialog", false);
+#else
 pref("privacy.sanitize.useOldClearHistoryDialog", true);
+#endif
 
 pref("privacy.sanitize.sanitizeOnShutdown.hasMigratedToNewPrefs", false);
 
@@ -2183,6 +2187,11 @@ pref("privacy.webrtc.sharedTabWarning", false);
 // before navigating to the actual meeting room page. Doesn't survive tab close.
 pref("privacy.webrtc.deviceGracePeriodTimeoutMs", 3600000);
 
+// Bug 1857254 - MacOS 14 displays two (microphone/camera/screen share) icons in
+// menu bar we hide the firefox camera icon on macos 14 and above to avoid
+// duplicating the macos camera icon. User's can flip it back on with this pref.
+pref("privacy.webrtc.showIndicatorsOnMacos14AndAbove", false);
+
 // Enable Fingerprinting Protection in private windows..
 pref("privacy.fingerprintingProtection.pbmode", true);
 
@@ -2556,6 +2565,9 @@ pref("devtools.gridinspector.maxHighlighters", 3);
 pref("devtools.inspector.simple-highlighters-reduced-motion", false);
 // Display notice about Enter key behavior in Rules view.
 pref("devtools.inspector.showRulesViewEnterKeyNotice", true);
+// Wheter or not Enter on inplace editor in the Rules view moves focus and activates
+// next inplace editor.
+pref("devtools.inspector.rule-view.focusNextOnEnter", false);
 
 // Whether or not the box model panel is opened in the layout view
 pref("devtools.layout.boxmodel.opened", true);

@@ -9900,6 +9900,8 @@
   value: true
 #elif defined(ANDROID) && !defined(MOZ_ANDROID_CONTENT_SERVICE_ISOLATED_PROCESS)
   value: true
+#elif defined(XP_FREEBSD)
+  value: true
 #elif defined(XP_OPENBSD)
   value: true
 #else
@@ -9979,14 +9981,9 @@
 
 # Now we will completely disable the ability to perform audio decoding outside
 # of Utility.
-# We do that only on nightly builds for now.
 -   name: media.allow-audio-non-utility
     type: RelaxedAtomicBool
-#if defined(NIGHTLY_BUILD) || defined(EARLY_BETA_OR_EARLIER)
     value: false
-#else
-    value: true
-#endif // defined(NIGHTLY_BUILD) || defined(EARLY_BETA_OR_EARLIER)
     mirror: always
 
 #ifdef MOZ_OMX
@@ -11049,6 +11046,21 @@
 - name: memory.phc.min_ram_mb
   type: uint32_t
   value: 8000
+  mirror: always
+
+- name: memory.phc.avg_delay.first
+  type: uint32_t
+  value: 65536
+  mirror: always
+
+- name: memory.phc.avg_delay.normal
+  type: uint32_t
+  value: 16384
+  mirror: always
+
+- name: memory.phc.avg_delay.page_reuse
+  type: uint32_t
+  value: 262144
   mirror: always
 
 #---------------------------------------------------------------------------
@@ -15522,6 +15534,13 @@
 - name: widget.gtk.libadwaita-colors.enabled
   type: bool
   value: true
+  mirror: always
+
+# Whether to use gtk titlebar actions for middle click instead of Firefox
+# build in one
+- name: widget.gtk.titlebar-action-middle-click-enabled
+  type: bool
+  value: false
   mirror: always
 
 # Whether we enable rounded bottom corners on GTK by default.
