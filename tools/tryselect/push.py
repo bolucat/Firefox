@@ -89,18 +89,22 @@ def check_working_directory(push=True):
         sys.exit(1)
 
 
-def generate_try_task_config(method, labels, try_config=None, routes=None):
-    try_task_config = try_config or {}
-    try_task_config.setdefault("env", {})["TRY_SELECTOR"] = method
-    try_task_config.update(
-        {
-            "version": 1,
-            "tasks": sorted(labels),
-        }
-    )
-    if routes:
-        try_task_config["routes"] = routes
+def generate_try_task_config(method, labels, params=None, routes=None):
+    params = params or {}
 
+    # The user has explicitly requested a set of jobs, so run them all
+    # regardless of optimization (unless the selector explicitly sets this to
+    # True). Their dependencies can be optimized though.
+    params.setdefault("optimize_target_tasks", False)
+
+    try_config = params.setdefault("try_task_config", {})
+    try_config.setdefault("env", {})["TRY_SELECTOR"] = method
+    try_config["tasks"] = sorted(labels)
+
+    if routes:
+        try_config["routes"] = routes
+
+    try_task_config = {"version": 2, "parameters": params}
     return try_task_config
 
 

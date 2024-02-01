@@ -2563,11 +2563,9 @@ pref("devtools.gridinspector.maxHighlighters", 3);
 // Whether or not simplified highlighters should be used when
 // prefers-reduced-motion is enabled.
 pref("devtools.inspector.simple-highlighters-reduced-motion", false);
-// Display notice about Enter key behavior in Rules view.
-pref("devtools.inspector.showRulesViewEnterKeyNotice", true);
 // Wheter or not Enter on inplace editor in the Rules view moves focus and activates
 // next inplace editor.
-pref("devtools.inspector.rule-view.focusNextOnEnter", false);
+pref("devtools.inspector.rule-view.focusNextOnEnter", true);
 
 // Whether or not the box model panel is opened in the layout view
 pref("devtools.layout.boxmodel.opened", true);

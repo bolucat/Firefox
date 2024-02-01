@@ -7724,7 +7724,7 @@
 
 -   name: javascript.options.spectre.jit_to_cxx_calls
     type: bool
-    value: true
+    value: false
     mirror: always  # LoadStartupJSPrefs
     do_not_use_directly: true
 #endif  // !defined(JS_CODEGEN_MIPSXX) && !defined(JS_CODEGEN_LOONG64)
@@ -8798,13 +8798,6 @@
   type: bool
   value: true
   mirror: always
-
-# Enable experimental enhanced color CSS color spaces. (lab(), lch(), oklab(), oklch(), color())
-- name: layout.css.more_color_4.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
 
 # The margin used for detecting relevancy for `content-visibility: auto`.
 - name: layout.css.content-visibility-relevant-content-margin
@@ -15480,6 +15473,11 @@
 # However, some users may want to disable this as well.
 - name: widget.disable-dark-scrollbar
   type: bool
+  value: false
+  mirror: always
+
+- name: widget.disable_file_pickers
+  type: RelaxedAtomicBool
   value: false
   mirror: always
 
