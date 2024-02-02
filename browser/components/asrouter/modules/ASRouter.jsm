@@ -17,8 +17,10 @@ ChromeUtils.defineESModuleGetters(lazy, {
   ExperimentAPI: "resource://nimbus/ExperimentAPI.sys.mjs",
   FeatureCalloutBroker:
     "resource://activity-stream/lib/FeatureCalloutBroker.sys.mjs",
+  InfoBar: "resource://activity-stream/lib/InfoBar.sys.mjs",
   KintoHttpClient: "resource://services-common/kinto-http-client.sys.mjs",
   MacAttribution: "resource:///modules/MacAttribution.sys.mjs",
+  MomentsPageHub: "resource://activity-stream/lib/MomentsPageHub.sys.mjs",
   NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
   PanelTestProvider: "resource:///modules/asrouter/PanelTestProvider.sys.mjs",
   RemoteL10n: "resource:///modules/asrouter/RemoteL10n.sys.mjs",
@@ -27,15 +29,13 @@ ChromeUtils.defineESModuleGetters(lazy, {
   TargetingContext: "resource://messaging-system/targeting/Targeting.sys.mjs",
   Utils: "resource://services-settings/Utils.sys.mjs",
   setTimeout: "resource://gre/modules/Timer.sys.mjs",
+  Spotlight: "resource://activity-stream/lib/Spotlight.sys.mjs",
+  ToastNotification: "resource://activity-stream/lib/ToastNotification.sys.mjs",
 });
 
 XPCOMUtils.defineLazyModuleGetters(lazy, {
-  Spotlight: "resource://activity-stream/lib/Spotlight.jsm",
-  ToastNotification: "resource://activity-stream/lib/ToastNotification.jsm",
   ToolbarBadgeHub: "resource://activity-stream/lib/ToolbarBadgeHub.jsm",
   ToolbarPanelHub: "resource://activity-stream/lib/ToolbarPanelHub.jsm",
-  MomentsPageHub: "resource://activity-stream/lib/MomentsPageHub.jsm",
-  InfoBar: "resource://activity-stream/lib/InfoBar.jsm",
   ASRouterTargeting: "resource:///modules/asrouter/ASRouterTargeting.jsm",
   ASRouterPreferences: "resource:///modules/asrouter/ASRouterPreferences.jsm",
   TARGETING_PREFERENCES: "resource:///modules/asrouter/ASRouterPreferences.jsm",

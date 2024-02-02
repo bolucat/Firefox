@@ -330,10 +330,6 @@ constexpr auto kSQLiteJournalSuffix = u".sqlite-journal"_ns;
 constexpr auto kSQLiteSHMSuffix = u".sqlite-shm"_ns;
 constexpr auto kSQLiteWALSuffix = u".sqlite-wal"_ns;
 
-constexpr auto kPermissionStringBase = "indexedDB-chrome-"_ns;
-constexpr auto kPermissionReadSuffix = "-read"_ns;
-constexpr auto kPermissionWriteSuffix = "-write"_ns;
-
 // The following constants define all names of binding parameters in statements,
 // where they are bound by name. This should include all parameter names which
 // are bound by name. Binding may be done by index when the statement definition
@@ -2170,7 +2166,6 @@ class Database final
   int64_t mDirectoryLockId;
   const uint32_t mTelemetryId;
   const PersistenceType mPersistenceType;
-  const bool mChromeWriteAccessAllowed;
   const bool mInPrivateBrowsing;
   FlippedOnce<false> mClosed;
   FlippedOnce<false> mInvalidated;
@@ -2188,8 +2183,8 @@ class Database final
            const quota::OriginMetadata& aOriginMetadata, uint32_t aTelemetryId,
            SafeRefPtr<FullDatabaseMetadata> aMetadata,
            SafeRefPtr<DatabaseFileManager> aFileManager,
-           RefPtr<DirectoryLock> aDirectoryLock, bool aChromeWriteAccessAllowed,
-           bool aInPrivateBrowsing, const Maybe<const CipherKey>& aMaybeKey);
+           RefPtr<DirectoryLock> aDirectoryLock, bool aInPrivateBrowsing,
+           const Maybe<const CipherKey>& aMaybeKey);
 
   void AssertIsOnConnectionThread() const {
 #ifdef DEBUG
@@ -3044,7 +3039,6 @@ class FactoryOp
   bool mWaitingForPermissionRetry;
   bool mEnforcingQuota;
   const bool mDeleting;
-  bool mChromeWriteAccessAllowed;
   FlippedOnce<false> mInPrivateBrowsing;
 
  public:
@@ -3138,9 +3132,6 @@ class FactoryOp
  private:
   mozilla::Result<PermissionValue, nsresult> CheckPermission(
       ContentParent* aContentParent);
-
-  static bool CheckAtLeastOneAppHasPermission(
-      ContentParent* aContentParent, const nsACString& aPermissionString);
 
   nsresult FinishOpen();
 
@@ -9035,23 +9026,24 @@ Factory::AllocPBackgroundIDBFactoryRequestParent(
   MOZ_ASSERT(commonParams);
 
   const DatabaseMetadata& metadata = commonParams->metadata();
+
   if (NS_AUUF_OR_WARN_IF(!IsValidPersistenceType(metadata.persistenceType()))) {
     return nullptr;
   }
 
   const PrincipalInfo& principalInfo = commonParams->principalInfo();
-  if (NS_AUUF_OR_WARN_IF(principalInfo.type() ==
-                         PrincipalInfo::TNullPrincipalInfo)) {
+
+  if (NS_AUUF_OR_WARN_IF(!QuotaManager::IsPrincipalInfoValid(principalInfo))) {
+    IPC_FAIL(this, "Invalid principal!");
     return nullptr;
   }
+
+  MOZ_ASSERT(principalInfo.type() == PrincipalInfo::TSystemPrincipalInfo ||
+             principalInfo.type() == PrincipalInfo::TContentPrincipalInfo);
 
   if (NS_AUUF_OR_WARN_IF(
           principalInfo.type() == PrincipalInfo::TSystemPrincipalInfo &&
           metadata.persistenceType() != PERSISTENCE_TYPE_PERSISTENT)) {
-    return nullptr;
-  }
-
-  if (NS_AUUF_OR_WARN_IF(!QuotaManager::IsPrincipalInfoValid(principalInfo))) {
     return nullptr;
   }
 
@@ -9172,7 +9164,7 @@ Database::Database(SafeRefPtr<Factory> aFactory,
                    SafeRefPtr<FullDatabaseMetadata> aMetadata,
                    SafeRefPtr<DatabaseFileManager> aFileManager,
                    RefPtr<DirectoryLock> aDirectoryLock,
-                   bool aChromeWriteAccessAllowed, bool aInPrivateBrowsing,
+                   bool aInPrivateBrowsing,
                    const Maybe<const CipherKey>& aMaybeKey)
     : mFactory(std::move(aFactory)),
       mMetadata(std::move(aMetadata)),
@@ -9186,7 +9178,6 @@ Database::Database(SafeRefPtr<Factory> aFactory,
       mKey(aMaybeKey),
       mTelemetryId(aTelemetryId),
       mPersistenceType(mMetadata->mCommonMetadata.persistenceType()),
-      mChromeWriteAccessAllowed(aChromeWriteAccessAllowed),
       mInPrivateBrowsing(aInPrivateBrowsing),
       mBackgroundThread(GetCurrentSerialEventTarget())
 #ifdef DEBUG
@@ -9198,8 +9189,6 @@ Database::Database(SafeRefPtr<Factory> aFactory,
   MOZ_ASSERT(mFactory);
   MOZ_ASSERT(mMetadata);
   MOZ_ASSERT(mFileManager);
-  MOZ_ASSERT_IF(aChromeWriteAccessAllowed,
-                aPrincipalInfo.type() == PrincipalInfo::TSystemPrincipalInfo);
 
   MOZ_ASSERT(mDirectoryLock);
   MOZ_ASSERT(mDirectoryLock->Id() >= 0);
@@ -9562,17 +9551,6 @@ Database::AllocPBackgroundIDBTransactionParent(
                          aMode != IDBTransaction::Mode::ReadWrite &&
                          aMode != IDBTransaction::Mode::ReadWriteFlush &&
                          aMode != IDBTransaction::Mode::Cleanup)) {
-    return nullptr;
-  }
-
-  // If this is a readwrite transaction to a chrome database make sure the child
-  // has write access.
-  // XXX: Maybe add NS_AUUF_OR_WARN_IF also here, see bug 1758875
-  if (NS_WARN_IF((aMode == IDBTransaction::Mode::ReadWrite ||
-                  aMode == IDBTransaction::Mode::ReadWriteFlush ||
-                  aMode == IDBTransaction::Mode::Cleanup) &&
-                 mPrincipalInfo.type() == PrincipalInfo::TSystemPrincipalInfo &&
-                 !mChromeWriteAccessAllowed)) {
     return nullptr;
   }
 
@@ -14406,8 +14384,7 @@ FactoryOp::FactoryOp(SafeRefPtr<Factory> aFactory,
       mState(State::Initial),
       mWaitingForPermissionRetry(false),
       mEnforcingQuota(true),
-      mDeleting(aDeleting),
-      mChromeWriteAccessAllowed(false) {
+      mDeleting(aDeleting) {
   AssertIsOnBackgroundThread();
   MOZ_ASSERT(mFactory);
   MOZ_ASSERT(!QuotaClient::IsShuttingDownOnBackgroundThread());
@@ -14723,14 +14700,7 @@ Result<PermissionValue, nsresult> FactoryOp::CheckPermission(
 
   const PrincipalInfo& principalInfo = mCommonParams.principalInfo();
   if (principalInfo.type() != PrincipalInfo::TSystemPrincipalInfo) {
-    if (principalInfo.type() != PrincipalInfo::TContentPrincipalInfo) {
-      if (aContentParent) {
-        // We just want ContentPrincipalInfo or SystemPrincipalInfo.
-        aContentParent->KillHard("IndexedDB CheckPermission 0");
-      }
-
-      return Err(NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR);
-    }
+    MOZ_ASSERT(principalInfo.type() == PrincipalInfo::TContentPrincipalInfo);
 
     const ContentPrincipalInfo& contentPrincipalInfo =
         principalInfo.get_ContentPrincipalInfo();
@@ -14760,48 +14730,6 @@ Result<PermissionValue, nsresult> FactoryOp::CheckPermission(
   if (principalInfo.type() == PrincipalInfo::TSystemPrincipalInfo) {
     MOZ_ASSERT(mState == State::Initial);
     MOZ_ASSERT(persistenceType == PERSISTENCE_TYPE_PERSISTENT);
-
-    if (aContentParent) {
-      // Check to make sure that the child process has access to the database it
-      // is accessing.
-      NS_ConvertUTF16toUTF8 databaseName(mCommonParams.metadata().name());
-
-      const nsAutoCString permissionStringWrite =
-          kPermissionStringBase + databaseName + kPermissionWriteSuffix;
-      const nsAutoCString permissionStringRead =
-          kPermissionStringBase + databaseName + kPermissionReadSuffix;
-
-      bool canWrite = CheckAtLeastOneAppHasPermission(aContentParent,
-                                                      permissionStringWrite);
-
-      bool canRead;
-      if (canWrite) {
-        MOZ_ASSERT(CheckAtLeastOneAppHasPermission(aContentParent,
-                                                   permissionStringRead));
-        canRead = true;
-      } else {
-        canRead = CheckAtLeastOneAppHasPermission(aContentParent,
-                                                  permissionStringRead);
-      }
-
-      // Deleting a database requires write permissions.
-      if (mDeleting && !canWrite) {
-        aContentParent->KillHard("IndexedDB CheckPermission 2");
-        IDB_REPORT_INTERNAL_ERR();
-        return Err(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-      }
-
-      // Opening or deleting requires read permissions.
-      if (!canRead) {
-        aContentParent->KillHard("IndexedDB CheckPermission 3");
-        IDB_REPORT_INTERNAL_ERR();
-        return Err(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-      }
-
-      mChromeWriteAccessAllowed = canWrite;
-    } else {
-      mChromeWriteAccessAllowed = true;
-    }
 
     return PermissionValue::kPermissionAllowed;
   }
@@ -14864,16 +14792,6 @@ nsresult FactoryOp::SendVersionChangeMessages(
 
   return NS_OK;
 }  // namespace indexedDB
-
-// static
-bool FactoryOp::CheckAtLeastOneAppHasPermission(
-    ContentParent* aContentParent, const nsACString& aPermissionString) {
-  MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(aContentParent);
-  MOZ_ASSERT(!aPermissionString.IsEmpty());
-
-  return true;
-}
 
 nsresult FactoryOp::FinishOpen() {
   AssertIsOnOwningThread();
@@ -15926,8 +15844,8 @@ void OpenDatabaseOp::EnsureDatabaseActor() {
       mCommonParams.principalInfo(),
       mContentHandle ? Some(mContentHandle->ChildID()) : Nothing(),
       mOriginMetadata, mTelemetryId, mMetadata.clonePtr(),
-      mFileManager.clonePtr(), std::move(mDirectoryLock),
-      mChromeWriteAccessAllowed, mInPrivateBrowsing, maybeKey);
+      mFileManager.clonePtr(), std::move(mDirectoryLock), mInPrivateBrowsing,
+      maybeKey);
 
   if (info) {
     info->mLiveDatabases.AppendElement(

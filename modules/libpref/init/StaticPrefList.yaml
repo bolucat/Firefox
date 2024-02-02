@@ -6999,9 +6999,9 @@
 # testing/fuzzing purposes. -1 disables this limit (there are other limits in
 # place).
 - name: image.mem.max_legal_imgframe_size_kb
-  type: int32_t
+  type: RelaxedAtomicInt32
   value: -1
-  mirror: once
+  mirror: always
 
 # Whether we record SVG images as blobs or not.
 - name: image.svg.blob-image
@@ -8793,6 +8793,13 @@
   mirror: always
   rust: true
 
+# Whether user-find CSS property is enabled.
+- name: layout.css.user-find.enabled
+  type: RelaxedAtomicBool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+  rust: true
+
 # Should the :visited selector ever match (otherwise :link matches instead)?
 - name: layout.css.visited_links_enabled
   type: bool
@@ -9316,6 +9323,12 @@
 
 # Whether <details> is forced to be a block, see bug 1856374
 - name: layout.details.force-block-layout
+  type: bool
+  value: true
+  mirror: always
+
+# Whether table cells can generate scroll boxes.
+- name: layout.tables.scrollable-cells
   type: bool
   value: true
   mirror: always
@@ -12329,7 +12342,7 @@
 # Whether to use the rust implemented DefaultURI for unknown scheme types
 - name: network.url.useDefaultURI
   type: RelaxedAtomicBool
-  value: true
+  value: false
   mirror: always
 
 # The maximum allowed length for a URL - 32MB default.
@@ -12454,7 +12467,7 @@
 
 - name: network.http.http2.move_to_pending_list_after_network_change
   type: RelaxedAtomicBool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 # Enable HTTP/3

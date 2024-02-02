@@ -1,6 +1,3 @@
-// Copyright 2023 The Chromium Authors
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
 const routerRules = {
   'condition-urlpattern-constructed-source-network': [{
     condition: {urlPattern: new URLPattern({pathname: '/**/direct.txt'})},
@@ -57,6 +54,8 @@ const routerRules = {
   }],
   'condition-request-source-fetch-event':
       [{condition: {requestMode: 'no-cors'}, source: 'fetch-event'}],
+  'condition-urlpattern-string-source-fetch-event':
+      [{condition: {urlPattern: '/**/*'}, source: 'fetch-event'}],
   'multiple-router-rules': [
     {
       condition: {

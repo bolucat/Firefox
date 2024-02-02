@@ -8,26 +8,14 @@ const { actionTypes: at } = ChromeUtils.importESModule(
 );
 
 ChromeUtils.defineESModuleGetters(this, {
+  FilterAdult: "resource://activity-stream/lib/FilterAdult.sys.mjs",
   NewTabUtils: "resource://gre/modules/NewTabUtils.sys.mjs",
   PageThumbs: "resource://gre/modules/PageThumbs.sys.mjs",
+  Screenshots: "resource://activity-stream/lib/Screenshots.sys.mjs",
+  SectionsManager: "resource://activity-stream/lib/SectionsManager.sys.mjs",
+  shortURL: "resource://activity-stream/lib/ShortURL.sys.mjs",
   sinon: "resource://testing-common/Sinon.sys.mjs",
 });
-
-const { FilterAdult } = ChromeUtils.import(
-  "resource://activity-stream/lib/FilterAdult.jsm"
-);
-
-const { Screenshots } = ChromeUtils.import(
-  "resource://activity-stream/lib/Screenshots.jsm"
-);
-
-const { SectionsManager } = ChromeUtils.import(
-  "resource://activity-stream/lib/SectionsManager.jsm"
-);
-
-const { shortURL } = ChromeUtils.import(
-  "resource://activity-stream/lib/ShortURL.jsm"
-);
 
 const {
   HighlightsFeed,

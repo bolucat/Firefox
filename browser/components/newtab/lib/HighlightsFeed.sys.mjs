@@ -4,12 +4,7 @@
 
 import { actionTypes as at } from "resource://activity-stream/common/Actions.sys.mjs";
 
-const { shortURL } = ChromeUtils.import(
-  "resource://activity-stream/lib/ShortURL.jsm"
-);
-const { SectionsManager } = ChromeUtils.import(
-  "resource://activity-stream/lib/SectionsManager.jsm"
-);
+import { shortURL } from "resource://activity-stream/lib/ShortURL.sys.mjs";
 import {
   TOP_SITES_DEFAULT_ROWS,
   TOP_SITES_MAX_SITES_PER_ROW,
@@ -18,26 +13,15 @@ import { Dedupe } from "resource://activity-stream/common/Dedupe.sys.mjs";
 
 const lazy = {};
 
-ChromeUtils.defineModuleGetter(
-  lazy,
-  "FilterAdult",
-  "resource://activity-stream/lib/FilterAdult.jsm"
-);
 ChromeUtils.defineESModuleGetters(lazy, {
+  DownloadsManager: "resource://activity-stream/lib/DownloadsManager.sys.mjs",
+  FilterAdult: "resource://activity-stream/lib/FilterAdult.sys.mjs",
   LinksCache: "resource://activity-stream/lib/LinksCache.sys.mjs",
   NewTabUtils: "resource://gre/modules/NewTabUtils.sys.mjs",
   PageThumbs: "resource://gre/modules/PageThumbs.sys.mjs",
+  Screenshots: "resource://activity-stream/lib/Screenshots.sys.mjs",
+  SectionsManager: "resource://activity-stream/lib/SectionsManager.sys.mjs",
 });
-ChromeUtils.defineModuleGetter(
-  lazy,
-  "Screenshots",
-  "resource://activity-stream/lib/Screenshots.jsm"
-);
-ChromeUtils.defineModuleGetter(
-  lazy,
-  "DownloadsManager",
-  "resource://activity-stream/lib/DownloadsManager.jsm"
-);
 
 const HIGHLIGHTS_MAX_LENGTH = 16;
 
@@ -77,17 +61,17 @@ export class HighlightsFeed {
     Services.obs.addObserver(this, SYNC_BOOKMARKS_FINISHED_EVENT);
     Services.obs.addObserver(this, BOOKMARKS_RESTORE_SUCCESS_EVENT);
     Services.obs.addObserver(this, BOOKMARKS_RESTORE_FAILED_EVENT);
-    SectionsManager.onceInitialized(this.postInit.bind(this));
+    lazy.SectionsManager.onceInitialized(this.postInit.bind(this));
   }
 
   postInit() {
-    SectionsManager.enableSection(SECTION_ID, true /* isStartup */);
+    lazy.SectionsManager.enableSection(SECTION_ID, true /* isStartup */);
     this.fetchHighlights({ broadcast: true, isStartup: true });
     this.downloadsManager.init(this.store);
   }
 
   uninit() {
-    SectionsManager.disableSection(SECTION_ID);
+    lazy.SectionsManager.disableSection(SECTION_ID);
     lazy.PageThumbs.removeExpirationFilter(this);
     Services.obs.removeObserver(this, SYNC_BOOKMARKS_FINISHED_EVENT);
     Services.obs.removeObserver(this, BOOKMARKS_RESTORE_SUCCESS_EVENT);
@@ -154,7 +138,7 @@ export class HighlightsFeed {
   async fetchHighlights(options = {}) {
     // If TopSites are enabled we need them for deduping, so wait for
     // TOP_SITES_UPDATED. We also need the section to be registered to update
-    // state, so wait for postInit triggered by SectionsManager initializing.
+    // state, so wait for postInit triggered by lazy.SectionsManager initializing.
     if (
       (!this.store.getState().TopSites.initialized &&
         this.store.getState().Prefs.values["feeds.system.topsites"] &&
@@ -268,7 +252,7 @@ export class HighlightsFeed {
     // Broadcast when required or if it is the first update.
     const shouldBroadcast = options.broadcast || !initialized;
 
-    SectionsManager.updateSection(
+    lazy.SectionsManager.updateSection(
       SECTION_ID,
       { rows: highlights },
       shouldBroadcast,
@@ -288,7 +272,7 @@ export class HighlightsFeed {
       imageUrl || url,
       "image",
       image => {
-        SectionsManager.updateSectionCard(
+        lazy.SectionsManager.updateSectionCard(
           SECTION_ID,
           url,
           { image },
