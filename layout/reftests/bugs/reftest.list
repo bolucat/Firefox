@@ -833,6 +833,8 @@ random-if(!cocoaWidget&&!winWidget) != 399636-quirks-html.html 399636-quirks-ref
 == 400421-1.html 400421-1-ref.html
 == 400813-1.html 400813-1-ref.html
 == 400826-1.html 400826-1-ref.html
+== 401121-1.html 401121-1-ref.html
+== 401121-2.html 401121-2-ref.html
 == chrome://reftest/content/bugs/401946-1.xhtml about:blank
 pref(layout.outline.include-overflow,true) == 402338-1.html 402338-1-ref.html
 == 402567-1.html 402567-1-ref.html
@@ -2135,7 +2137,7 @@ pref(layout.css.prefers-color-scheme.content-override,2) == 1787127.html 1787127
 skip-if(!/^Windows\x20NT\x2010\.0/.test(http.oscpu)) == 1798297-1.html 1798297-1-ref.html
 skip-if(!/^Windows\x20NT\x2010\.0/.test(http.oscpu)) != 1798297-1.html 1798297-1-notref.html
 == 1799425-1.html 1799425-1-ref.html
-fuzzy-if(winWidget,114-114,738-738) == 1800437-1.html 1800437-1-ref.html
+fuzzy-if(winWidget,114-114,572-572) == 1800437-1.html 1800437-1-ref.html
 == 1803999-1.html 1803999-1-ref.html
 # testing the same bug but we can hit it via a few different code paths, 1 is raster image, 2 is vector image, 3 is vector image with an image restriction region
 pref(image.downscale-during-decode.enabled,true) == 1804872-1.html 1804872-1-ref.html

@@ -9,34 +9,26 @@
 #include "nsCanvasFrame.h"
 
 #include "gfxContext.h"
-#include "gfxUtils.h"
-#include "nsContainerFrame.h"
-#include "nsContentCreatorFunctions.h"
-#include "nsCSSRendering.h"
-#include "nsPresContext.h"
-#include "nsGkAtoms.h"
-#include "nsIFrameInlines.h"
-#include "nsDisplayList.h"
-#include "nsCSSFrameConstructor.h"
-#include "nsFrameManager.h"
 #include "gfxPlatform.h"
-#include "nsPrintfCString.h"
-#include "mozilla/AccessibleCaretEventHub.h"
+#include "gfxUtils.h"
 #include "mozilla/BasePrincipal.h"
 #include "mozilla/ComputedStyle.h"
+#include "mozilla/dom/AnonymousContent.h"
+#include "mozilla/layers/RenderRootStateManager.h"
+#include "mozilla/layers/StackingContextHelper.h"
+#include "mozilla/PresShell.h"
 #include "mozilla/StaticPrefs_browser.h"
 #include "mozilla/StaticPrefs_layout.h"
-#include "mozilla/dom/AnonymousContent.h"
-#include "mozilla/layers/StackingContextHelper.h"
-#include "mozilla/layers/RenderRootStateManager.h"
-#include "mozilla/PresShell.h"
-// for focus
+#include "nsContainerFrame.h"
+#include "nsContentCreatorFunctions.h"
+#include "nsCSSFrameConstructor.h"
+#include "nsCSSRendering.h"
+#include "nsDisplayList.h"
+#include "nsFrameManager.h"
+#include "nsGkAtoms.h"
+#include "nsIFrameInlines.h"
 #include "nsIScrollableFrame.h"
-#ifdef DEBUG_CANVAS_FOCUS
-#  include "nsIDocShell.h"
-#endif
-
-// #define DEBUG_CANVAS_FOCUS
+#include "nsPresContext.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -585,26 +577,6 @@ void nsCanvasFrame::BuildDisplayList(nsDisplayListBuilder* aBuilder,
     // Put our child into its own pseudo-stack.
     BuildDisplayListForChild(aBuilder, kid, aLists);
   }
-
-#ifdef DEBUG_CANVAS_FOCUS
-  nsCOMPtr<nsIContent> focusContent;
-  aPresContext->EventStateManager()->GetFocusedContent(
-      getter_AddRefs(focusContent));
-
-  bool hasFocus = false;
-  nsCOMPtr<nsISupports> container;
-  aPresContext->GetContainer(getter_AddRefs(container));
-  nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(container));
-  if (docShell) {
-    docShell->GetHasFocus(&hasFocus);
-    nsRect dirty = aBuilder->GetDirtyRect();
-    printf("%p - nsCanvasFrame::Paint R:%d,%d,%d,%d  DR: %d,%d,%d,%d\n", this,
-           mRect.x, mRect.y, mRect.width, mRect.height, dirty.x, dirty.y,
-           dirty.width, dirty.height);
-  }
-  printf("%p - Focus: %s   c: %p  DoPaint:%s\n", docShell.get(),
-         hasFocus ? "Y" : "N", focusContent.get(), mDoPaintFocus ? "Y" : "N");
-#endif
 
   if (!mDoPaintFocus) return;
   // Only paint the focus if we're visible
