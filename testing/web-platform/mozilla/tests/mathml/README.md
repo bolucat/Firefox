@@ -26,6 +26,10 @@ any specification:
    which is reduced to the case `<mi mathvariant="normal">` in MathML
    Core. See [bug 1821980](https://bugzilla.mozilla.org/1821980).
 
+- `mpadded`: Tests for some
+   [mpadded](https://www.w3.org/TR/MathML3/chapter3.html#presm.mpadded)
+   features, which are not in the initial version of MathML Core.
+
 - `menclose`: Tests for the
    [menclose](https://www.w3.org/TR/MathML3/chapter3.html#presm.menclose)
    element, which is not in the initial version of MathML Core.
@@ -37,6 +41,10 @@ any specification:
    which are removed from MathML Core.
    See [bug 1790548](https://bugzilla.mozilla.org/1790548)
    and [bug 1636428](https://bugzilla.mozilla.org/1636428).
+
+- `negative-lengths`: Tests for negative lengths, for which support or
+   interpretation is unclear in current version of MathML Core.
+   See [issue 132](https://github.com/w3c/mathml-core/issues/132).
 
 - `tables`: Tests for
    [table features](https://www.w3.org/TR/MathML3/chapter3.html#presm.tabmat)
