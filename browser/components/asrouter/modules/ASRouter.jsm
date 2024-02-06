@@ -16,11 +16,11 @@ ChromeUtils.defineESModuleGetters(lazy, {
   Downloader: "resource://services-settings/Attachments.sys.mjs",
   ExperimentAPI: "resource://nimbus/ExperimentAPI.sys.mjs",
   FeatureCalloutBroker:
-    "resource://activity-stream/lib/FeatureCalloutBroker.sys.mjs",
-  InfoBar: "resource://activity-stream/lib/InfoBar.sys.mjs",
+    "resource:///modules/asrouter/FeatureCalloutBroker.sys.mjs",
+  InfoBar: "resource:///modules/asrouter/InfoBar.sys.mjs",
   KintoHttpClient: "resource://services-common/kinto-http-client.sys.mjs",
   MacAttribution: "resource:///modules/MacAttribution.sys.mjs",
-  MomentsPageHub: "resource://activity-stream/lib/MomentsPageHub.sys.mjs",
+  MomentsPageHub: "resource:///modules/asrouter/MomentsPageHub.sys.mjs",
   NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
   PanelTestProvider: "resource:///modules/asrouter/PanelTestProvider.sys.mjs",
   RemoteL10n: "resource:///modules/asrouter/RemoteL10n.sys.mjs",
@@ -29,13 +29,13 @@ ChromeUtils.defineESModuleGetters(lazy, {
   TargetingContext: "resource://messaging-system/targeting/Targeting.sys.mjs",
   Utils: "resource://services-settings/Utils.sys.mjs",
   setTimeout: "resource://gre/modules/Timer.sys.mjs",
-  Spotlight: "resource://activity-stream/lib/Spotlight.sys.mjs",
-  ToastNotification: "resource://activity-stream/lib/ToastNotification.sys.mjs",
+  Spotlight: "resource:///modules/asrouter/Spotlight.sys.mjs",
+  ToastNotification: "resource:///modules/asrouter/ToastNotification.sys.mjs",
 });
 
 XPCOMUtils.defineLazyModuleGetters(lazy, {
-  ToolbarBadgeHub: "resource://activity-stream/lib/ToolbarBadgeHub.jsm",
-  ToolbarPanelHub: "resource://activity-stream/lib/ToolbarPanelHub.jsm",
+  ToolbarBadgeHub: "resource:///modules/asrouter/ToolbarBadgeHub.jsm",
+  ToolbarPanelHub: "resource:///modules/asrouter/ToolbarPanelHub.jsm",
   ASRouterTargeting: "resource:///modules/asrouter/ASRouterTargeting.jsm",
   ASRouterPreferences: "resource:///modules/asrouter/ASRouterPreferences.jsm",
   TARGETING_PREFERENCES: "resource:///modules/asrouter/ASRouterPreferences.jsm",

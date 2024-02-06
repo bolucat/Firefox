@@ -3,11 +3,11 @@
 ChromeUtils.defineESModuleGetters(this, {
   DiscoveryStreamFeed:
     "resource://activity-stream/lib/DiscoveryStreamFeed.sys.mjs",
-  FeatureCallout: "resource:///modules/FeatureCallout.sys.mjs",
+  FeatureCallout: "resource:///modules/asrouter/FeatureCallout.sys.mjs",
   FeatureCalloutBroker:
-    "resource://activity-stream/lib/FeatureCalloutBroker.sys.mjs",
+    "resource:///modules/asrouter/FeatureCalloutBroker.sys.mjs",
   FeatureCalloutMessages:
-    "resource://activity-stream/lib/FeatureCalloutMessages.sys.mjs",
+    "resource:///modules/asrouter/FeatureCalloutMessages.sys.mjs",
   ObjectUtils: "resource://gre/modules/ObjectUtils.sys.mjs",
   PlacesTestUtils: "resource://testing-common/PlacesTestUtils.sys.mjs",
 });
@@ -15,19 +15,11 @@ XPCOMUtils.defineLazyModuleGetters(this, {
   ASRouter: "resource:///modules/asrouter/ASRouter.jsm",
   QueryCache: "resource:///modules/asrouter/ASRouterTargeting.jsm",
 });
-const { FxAccounts } = ChromeUtils.importESModule(
-  "resource://gre/modules/FxAccounts.sys.mjs"
-);
+
 // We import sinon here to make it available across all mochitest test files
 const { sinon } = ChromeUtils.importESModule(
   "resource://testing-common/Sinon.sys.mjs"
 );
-
-// Feature callout constants
-const calloutId = "feature-callout";
-const calloutSelector = `#${calloutId}.featureCallout`;
-const calloutCTASelector = `#${calloutId} :is(.primary, .secondary)`;
-const calloutDismissSelector = `#${calloutId} .dismiss-button`;
 
 function popPrefs() {
   return SpecialPowers.popPrefEnv();
@@ -95,16 +87,6 @@ async function waitForPreloaded(browser) {
   if (readyState !== "complete") {
     await BrowserTestUtils.browserLoaded(browser);
   }
-}
-
-/**
- * Helper function to navigate and wait for page to load
- * https://searchfox.org/mozilla-central/rev/314b4297e899feaf260e7a7d1a9566a218216e7a/testing/mochitest/BrowserTestUtils/BrowserTestUtils.sys.mjs#404
- */
-async function waitForUrlLoad(url) {
-  let browser = gBrowser.selectedBrowser;
-  BrowserTestUtils.startLoadingURIString(browser, url);
-  await BrowserTestUtils.browserLoaded(browser, false, url);
 }
 
 /**
@@ -256,20 +238,4 @@ function test_newtab(testInfo, browserURL = "about:newtab") {
   // Copy the name of the content task to identify the test
   Object.defineProperty(testTask, "name", { value: contentTask.name });
   add_task(testTask);
-}
-
-async function waitForCalloutScreen(target, screenId) {
-  await BrowserTestUtils.waitForMutationCondition(
-    target,
-    { childList: true, subtree: true, attributeFilter: ["class"] },
-    () => target.querySelector(`${calloutSelector}:not(.hidden) .${screenId}`)
-  );
-}
-
-async function waitForCalloutRemoved(target) {
-  await BrowserTestUtils.waitForMutationCondition(
-    target,
-    { childList: true, subtree: true },
-    () => !target.querySelector(calloutSelector)
-  );
 }

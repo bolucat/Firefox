@@ -3,17 +3,24 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // We use importESModule here instead of static import so that
-// the Karma test environment won't choke on this module. This
+// the Karma test environment won't choke on these module. This
 // is because the Karma test environment already stubs out
 // XPCOMUtils, and overrides importESModule to be a no-op (which
-// can't be done for a static import statement).
+// can't be done for a static import statement). MESSAGE_TYPES_HASH / msg
+// isn't something that the tests for this module seem to rely on in the
+// Karma environment, but if that ever becomes the case, we should import
+// those into unit-entry like we do for the ASRouter tests.
 
 // eslint-disable-next-line mozilla/use-static-import
 const { XPCOMUtils } = ChromeUtils.importESModule(
   "resource://gre/modules/XPCOMUtils.sys.mjs"
 );
 
-import { MESSAGE_TYPE_HASH as msg } from "resource://activity-stream/common/ActorConstants.sys.mjs";
+// eslint-disable-next-line mozilla/use-static-import
+const { MESSAGE_TYPE_HASH: msg } = ChromeUtils.importESModule(
+  "resource:///modules/asrouter/ActorConstants.sys.mjs"
+);
+
 import {
   actionTypes as at,
   actionUtils as au,
@@ -25,6 +32,8 @@ const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
   AboutNewTab: "resource:///modules/AboutNewTab.sys.mjs",
+  AboutWelcomeTelemetry:
+    "resource:///modules/aboutwelcome/AboutWelcomeTelemetry.sys.mjs",
   ClientID: "resource://gre/modules/ClientID.sys.mjs",
   ExperimentAPI: "resource://nimbus/ExperimentAPI.sys.mjs",
   ExtensionSettingsStore:
@@ -36,10 +45,6 @@ ChromeUtils.defineESModuleGetters(lazy, {
   UTEventReporting: "resource://activity-stream/lib/UTEventReporting.sys.mjs",
   UpdateUtils: "resource://gre/modules/UpdateUtils.sys.mjs",
   pktApi: "chrome://pocket/content/pktApi.sys.mjs",
-});
-XPCOMUtils.defineLazyModuleGetters(lazy, {
-  AboutWelcomeTelemetry:
-    "resource:///modules/aboutwelcome/AboutWelcomeTelemetry.jsm",
 });
 ChromeUtils.defineLazyGetter(
   lazy,

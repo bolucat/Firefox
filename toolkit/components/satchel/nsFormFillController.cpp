@@ -597,38 +597,8 @@ NS_IMETHODIMP
 nsFormFillController::OnSearchComplete() { return NS_OK; }
 
 NS_IMETHODIMP
-nsFormFillController::OnTextEntered(Event* aEvent, bool itemWasSelected,
-                                    bool* aPrevent) {
-  NS_ENSURE_ARG(aPrevent);
+nsFormFillController::OnTextEntered(Event* aEvent) {
   NS_ENSURE_TRUE(mFocusedInput, NS_OK);
-
-  /**
-   * This function can get called when text wasn't actually entered
-   * into the field (e.g. if an autocomplete item wasn't selected) so
-   * we don't fire DOMAutoComplete in that case since nothing
-   * was actually autocompleted.
-   */
-  if (!itemWasSelected) {
-    return NS_OK;
-  }
-
-  // Fire off a DOMAutoComplete event
-
-  IgnoredErrorResult ignored;
-  RefPtr<Event> event = mFocusedInput->OwnerDoc()->CreateEvent(
-      u"Events"_ns, CallerType::System, ignored);
-  NS_ENSURE_STATE(event);
-
-  event->InitEvent(u"DOMAutoComplete"_ns, true, true);
-
-  // XXXjst: We mark this event as a trusted event, it's up to the
-  // callers of this to ensure that it's only called from trusted
-  // code.
-  event->SetTrusted(true);
-
-  bool defaultActionEnabled =
-      mFocusedInput->DispatchEvent(*event, CallerType::System, IgnoreErrors());
-  *aPrevent = !defaultActionEnabled;
   return NS_OK;
 }
 
@@ -925,6 +895,9 @@ nsFormFillController::HandleEvent(Event* aEvent) {
         RemoveForDocument(doc);
       }
     } break;
+    case eResize:
+      SetPopupOpen(false);
+      break;
     default:
       // Handling the default case to shut up stupid -Wswitch warnings.
       // One day compilers will be smarter...
@@ -952,6 +925,7 @@ void nsFormFillController::AttachListeners(EventTarget* aEventTarget) {
                               TrustedEventsAtCapture());
   elm->AddEventListenerByType(this, u"contextmenu"_ns,
                               TrustedEventsAtCapture());
+  elm->AddEventListenerByType(this, u"resize"_ns, TrustedEventsAtCapture());
 }
 
 void nsFormFillController::RemoveForDocument(Document* aDoc) {

@@ -15,6 +15,7 @@ FINAL_TARGET_FILES.actors += [
 ]
 
 EXTRA_JS_MODULES.asrouter += [
+    "modules/ActorConstants.sys.mjs",
     "modules/ASRouter.jsm",
     "modules/ASRouterDefaultConfig.jsm",
     "modules/ASRouterNewTabHook.sys.mjs",
@@ -24,10 +25,20 @@ EXTRA_JS_MODULES.asrouter += [
     "modules/ASRouterTriggerListeners.jsm",
     "modules/CFRMessageProvider.sys.mjs",
     "modules/CFRPageActions.jsm",
+    "modules/FeatureCallout.sys.mjs",
+    "modules/FeatureCalloutBroker.sys.mjs",
+    "modules/FeatureCalloutMessages.sys.mjs",
+    "modules/InfoBar.sys.mjs",
     "modules/MessagingExperimentConstants.sys.mjs",
+    "modules/MomentsPageHub.sys.mjs",
     "modules/OnboardingMessageProvider.jsm",
+    "modules/PageEventManager.sys.mjs",
     "modules/PanelTestProvider.sys.mjs",
     "modules/RemoteL10n.sys.mjs",
+    "modules/Spotlight.sys.mjs",
+    "modules/ToastNotification.sys.mjs",
+    "modules/ToolbarBadgeHub.jsm",
+    "modules/ToolbarPanelHub.jsm",
 ]
 
 BROWSER_CHROME_MANIFESTS += [
@@ -49,6 +60,7 @@ TESTING_JS_MODULES += [
     "content-src/templates/OnboardingMessage/WhatsNewMessage.schema.json",
     "content-src/templates/PBNewtab/NewtabPromoMessage.schema.json",
     "content-src/templates/ToastNotification/ToastNotification.schema.json",
+    "tests/InflightAssetsMessageProvider.sys.mjs",
     "tests/NimbusRolloutMessageProvider.sys.mjs",
 ]
 

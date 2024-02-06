@@ -2782,6 +2782,46 @@ bool CacheIRCompiler::emitDoubleParseIntResult(NumberOperandId numId) {
   return true;
 }
 
+bool CacheIRCompiler::emitStringToAtom(StringOperandId stringId) {
+  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
+  Register str = allocator.useRegister(masm, stringId);
+  AutoScratchRegister scratch(allocator, masm);
+
+  FailurePath* failure;
+  if (!addFailurePath(&failure)) {
+    return false;
+  }
+
+  Label done, vmCall;
+  masm.branchTest32(Assembler::NonZero, Address(str, JSString::offsetOfFlags()),
+                    Imm32(JSString::ATOM_BIT), &done);
+
+  masm.lookupStringInAtomCacheLastLookups(str, scratch, &vmCall);
+  masm.jump(&done);
+
+  masm.bind(&vmCall);
+  LiveRegisterSet save(GeneralRegisterSet::Volatile(), liveVolatileFloatRegs());
+  masm.PushRegsInMask(save);
+
+  using Fn = JSAtom* (*)(JSContext* cx, JSString* str);
+  masm.setupUnalignedABICall(scratch);
+  masm.loadJSContext(scratch);
+  masm.passABIArg(scratch);
+  masm.passABIArg(str);
+  masm.callWithABI<Fn, jit::AtomizeStringNoGC>();
+  masm.storeCallPointerResult(scratch);
+
+  LiveRegisterSet ignore;
+  ignore.add(scratch);
+  masm.PopRegsInMaskIgnore(save, ignore);
+
+  masm.branchPtr(Assembler::Equal, scratch, Imm32(0), failure->label());
+  masm.movePtr(scratch.get(), str);
+
+  masm.bind(&done);
+  return true;
+}
+
 bool CacheIRCompiler::emitBooleanToNumber(BooleanOperandId booleanId,
                                           NumberOperandId resultId) {
   JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
@@ -7822,6 +7862,60 @@ bool CacheIRCompiler::emitMegamorphicHasPropResult(ObjOperandId objId,
   return true;
 }
 
+bool CacheIRCompiler::emitSmallObjectVariableKeyHasOwnResult(
+    StringOperandId idId, uint32_t propNamesOffset, uint32_t shapeOffset) {
+  StubFieldOffset propNames(propNamesOffset, StubField::Type::JSObject);
+  AutoOutputRegister output(*this);
+  Register id = allocator.useRegister(masm, idId);
+  AutoScratchRegisterMaybeOutput propNamesReg(allocator, masm, output);
+  AutoScratchRegister endScratch(allocator, masm);
+  AutoScratchRegister scratch(allocator, masm);
+
+  FailurePath* failure;
+  if (!addFailurePath(&failure)) {
+    return false;
+  }
+
+  emitLoadStubField(propNames, propNamesReg);
+
+  Label trueResult, falseResult, loop, done;
+
+  masm.loadPtr(Address(propNamesReg, NativeObject::offsetOfElements()),
+               propNamesReg);
+  // Compute end pointer.
+  Address lengthAddr(propNamesReg, ObjectElements::offsetOfInitializedLength());
+  masm.load32(lengthAddr, endScratch);
+  masm.branch32(Assembler::Equal, endScratch, Imm32(0), &falseResult);
+  BaseObjectElementIndex endPtrAddr(propNamesReg, endScratch);
+  masm.computeEffectiveAddress(endPtrAddr, endScratch);
+
+  masm.bind(&loop);
+
+  Address atomAddr(propNamesReg.get(), 0);
+
+  masm.unboxString(atomAddr, scratch);
+  masm.branchPtr(Assembler::Equal, scratch, id, &trueResult);
+
+  masm.addPtr(Imm32(sizeof(Value)), propNamesReg);
+  masm.branchPtr(Assembler::Below, propNamesReg, endScratch, &loop);
+
+  masm.bind(&falseResult);
+  if (output.hasValue()) {
+    masm.moveValue(BooleanValue(false), output.valueReg());
+  } else {
+    masm.move32(Imm32(0), output.typedReg().gpr());
+  }
+  masm.jump(&done);
+  masm.bind(&trueResult);
+  if (output.hasValue()) {
+    masm.moveValue(BooleanValue(true), output.valueReg());
+  } else {
+    masm.move32(Imm32(1), output.typedReg().gpr());
+  }
+  masm.bind(&done);
+  return true;
+}
+
 bool CacheIRCompiler::emitCallObjectHasSparseElementResult(
     ObjOperandId objId, Int32OperandId indexId) {
   JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
@@ -10082,6 +10176,10 @@ struct ReturnTypeToJSValueType<int32_t*> {
 };
 template <>
 struct ReturnTypeToJSValueType<JSString*> {
+  static constexpr JSValueType result = JSVAL_TYPE_STRING;
+};
+template <>
+struct ReturnTypeToJSValueType<JSAtom*> {
   static constexpr JSValueType result = JSVAL_TYPE_STRING;
 };
 template <>

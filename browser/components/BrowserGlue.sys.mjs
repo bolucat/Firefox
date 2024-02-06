@@ -761,6 +761,7 @@ let JSWINDOWACTORS = {
         ReportProductAvailable: { wantUntrusted: true },
         AdClicked: { wantUntrusted: true },
         AdImpression: { wantUntrusted: true },
+        DisableShopping: { wantUntrusted: true },
       },
     },
     matches: ["about:shoppingsidebar"],
@@ -3883,8 +3884,8 @@ BrowserGlue.prototype = {
         );
 
         if (wasAddonActive) {
-          const { ProfilerMenuButton } = ChromeUtils.import(
-            "resource://devtools/client/performance-new/popup/menu-button.jsm.js"
+          const { ProfilerMenuButton } = ChromeUtils.importESModule(
+            "resource://devtools/client/performance-new/popup/menu-button.sys.mjs"
           );
           if (!ProfilerMenuButton.isInNavbar()) {
             // The profiler menu button is not enabled. Turn it on now.

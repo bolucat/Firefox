@@ -1698,6 +1698,7 @@ STATIC_ATOMS = [
     Atom("csp", "csp"),
     Atom("curl_", "curl"),
     Atom("decimalpoint_", "decimalpoint"),
+    Atom("definition", "definition"),
     Atom("definitionURL_", "definitionURL"),
     Atom("degree_", "degree"),
     Atom("denomalign_", "denomalign"),
@@ -1943,7 +1944,6 @@ STATIC_ATOMS = [
     Atom("onmozvisualresize", "onmozvisualresize"),
     Atom("onmozvisualscroll", "onmozvisualscroll"),
     # Miscellaneous events included for memory usage optimization (see bug 1542885)
-    Atom("onDOMAutoComplete", "onDOMAutoComplete"),
     Atom("onDOMContentLoaded", "onDOMContentLoaded"),
     Atom("onDOMDocElementInserted", "onDOMDocElementInserted"),
     Atom("onDOMFormBeforeSubmit", "onDOMFormBeforeSubmit"),

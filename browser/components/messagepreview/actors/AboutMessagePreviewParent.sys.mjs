@@ -10,11 +10,11 @@ const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
   FeatureCalloutBroker:
-    "resource://activity-stream/lib/FeatureCalloutBroker.sys.mjs",
-  InfoBar: "resource://activity-stream/lib/InfoBar.sys.mjs",
+    "resource:///modules/asrouter/FeatureCalloutBroker.sys.mjs",
+  InfoBar: "resource:///modules/asrouter/InfoBar.sys.mjs",
   SpecialMessageActions:
     "resource://messaging-system/lib/SpecialMessageActions.sys.mjs",
-  Spotlight: "resource://activity-stream/lib/Spotlight.sys.mjs",
+  Spotlight: "resource:///modules/asrouter/Spotlight.sys.mjs",
 });
 XPCOMUtils.defineLazyModuleGetters(lazy, {
   CFRPageActions: "resource:///modules/asrouter/CFRPageActions.jsm",
