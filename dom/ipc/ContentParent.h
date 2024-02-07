@@ -23,7 +23,6 @@
 #include "mozilla/ipc/InputStreamUtils.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/DataMutex.h"
-#include "mozilla/FileUtils.h"
 #include "mozilla/HalTypes.h"
 #include "mozilla/LinkedList.h"
 #include "mozilla/Maybe.h"
@@ -1122,17 +1121,19 @@ class ContentParent final : public PContentParent,
                                                const uint32_t& aFamilyIndex,
                                                const bool& aLoadCmaps);
 
-  mozilla::ipc::IPCResult RecvSetCharacterMap(
-      const uint32_t& aGeneration, const mozilla::fontlist::Pointer& aFacePtr,
-      const gfxSparseBitSet& aMap);
+  mozilla::ipc::IPCResult RecvSetCharacterMap(const uint32_t& aGeneration,
+                                              const uint32_t& aFamilyIndex,
+                                              const bool& aAlias,
+                                              const uint32_t& aFaceIndex,
+                                              const gfxSparseBitSet& aMap);
 
   mozilla::ipc::IPCResult RecvInitOtherFamilyNames(const uint32_t& aGeneration,
                                                    const bool& aDefer,
                                                    bool* aLoaded);
 
-  mozilla::ipc::IPCResult RecvSetupFamilyCharMap(
-      const uint32_t& aGeneration,
-      const mozilla::fontlist::Pointer& aFamilyPtr);
+  mozilla::ipc::IPCResult RecvSetupFamilyCharMap(const uint32_t& aGeneration,
+                                                 const uint32_t& aIndex,
+                                                 const bool& aAlias);
 
   mozilla::ipc::IPCResult RecvStartCmapLoading(const uint32_t& aGeneration,
                                                const uint32_t& aStartIndex);
@@ -1528,7 +1529,7 @@ class ContentParent final : public PContentParent,
 #ifdef MOZ_X11
   // Dup of child's X socket, used to scope its resources to this
   // object instead of the child process's lifetime.
-  ScopedClose mChildXSocketFdDup;
+  UniqueFileHandle mChildXSocketFdDup;
 #endif
 
   RefPtr<PProcessHangMonitorParent> mHangMonitorActor;

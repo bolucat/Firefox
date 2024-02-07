@@ -34,6 +34,7 @@
 #include "js/friend/ErrorMessages.h"  // JSErrNum, js::GetErrorMessage, JSMSG_*
 #include "js/friend/WindowProxy.h"    // js::IsWindow, js::ToWindowProxyIfWindow
 #include "js/MemoryMetrics.h"
+#include "js/Prefs.h"               // JS::Prefs
 #include "js/Printer.h"             // js::GenericPrinter, js::Fprinter
 #include "js/PropertyDescriptor.h"  // JS::FromPropertyDescriptor
 #include "js/PropertySpec.h"        // JSPropertySpec
@@ -2189,7 +2190,7 @@ JS_PUBLIC_API bool js::ShouldIgnorePropertyDefinition(JSContext* cx,
   }
 
   if (key == JSProto_FinalizationRegistry &&
-      cx->realm()->creationOptions().getWeakRefsEnabled() ==
+      JS::GetWeakRefsEnabled() ==
           JS::WeakRefSpecifier::EnabledWithoutCleanupSome &&
       id == NameToId(cx->names().cleanupSome)) {
     return true;
@@ -2198,15 +2199,13 @@ JS_PUBLIC_API bool js::ShouldIgnorePropertyDefinition(JSContext* cx,
   // It's gently surprising that this is JSProto_Function, but the trick
   // to realize is that this is a -constructor function-, not a function
   // on the prototype; and the proto of the constructor is JSProto_Function.
-  if (key == JSProto_Function &&
-      !cx->realm()->creationOptions().getArrayGroupingEnabled() &&
+  if (key == JSProto_Function && !JS::Prefs::array_grouping() &&
       (id == NameToId(cx->names().groupBy))) {
     return true;
   }
 
 #ifdef NIGHTLY_BUILD
-  if (key == JSProto_Set &&
-      !cx->realm()->creationOptions().getNewSetMethodsEnabled() &&
+  if (key == JSProto_Set && !JS::Prefs::experimental_new_set_methods() &&
       (id == NameToId(cx->names().union_) ||
        id == NameToId(cx->names().difference) ||
        id == NameToId(cx->names().intersection) ||
@@ -2219,8 +2218,7 @@ JS_PUBLIC_API bool js::ShouldIgnorePropertyDefinition(JSContext* cx,
 #endif
 
 #ifdef NIGHTLY_BUILD
-  if (key == JSProto_ArrayBuffer &&
-      !cx->realm()->creationOptions().getArrayBufferTransferEnabled() &&
+  if (key == JSProto_ArrayBuffer && !JS::Prefs::arraybuffer_transfer() &&
       (id == NameToId(cx->names().transfer) ||
        id == NameToId(cx->names().transferToFixedLength) ||
        id == NameToId(cx->names().detached))) {
@@ -2228,7 +2226,7 @@ JS_PUBLIC_API bool js::ShouldIgnorePropertyDefinition(JSContext* cx,
   }
 
   if (key == JSProto_ArrayBuffer &&
-      !cx->realm()->creationOptions().getArrayBufferResizableEnabled() &&
+      !JS::Prefs::experimental_arraybuffer_resizable() &&
       (id == NameToId(cx->names().maxByteLength) ||
        id == NameToId(cx->names().resizable) ||
        id == NameToId(cx->names().resize))) {
@@ -2236,7 +2234,7 @@ JS_PUBLIC_API bool js::ShouldIgnorePropertyDefinition(JSContext* cx,
   }
 
   if (key == JSProto_SharedArrayBuffer &&
-      !cx->realm()->creationOptions().getSharedArrayBufferGrowableEnabled() &&
+      !JS::Prefs::experimental_sharedarraybuffer_growable() &&
       (id == NameToId(cx->names().maxByteLength) ||
        id == NameToId(cx->names().growable) ||
        id == NameToId(cx->names().grow))) {

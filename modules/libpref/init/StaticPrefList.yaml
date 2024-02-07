@@ -29,13 +29,14 @@
 # -----------
 # A pref definition looks like this:
 #
-#   - name: <pref-name>                    # mandatory
-#     type: <cpp-type>                     # mandatory
-#     value: <default-value>               # mandatory
-#     mirror: <never | once | always>      # mandatory
-#     do_not_use_directly: <true | false>  # optional
-#     include: <header-file>               # optional
-#     rust: <true | false>                 # optional
+#   - name: <pref-name>                                 # mandatory
+#     type: <cpp-type>                                  # mandatory
+#     value: <default-value>                            # mandatory
+#     mirror: <never | once | always>                   # mandatory
+#     do_not_use_directly: <true | false>               # optional
+#     include: <header-file>                            # optional
+#     rust: <true | false>                              # optional
+#     set_spidermonkey_pref: <false | startup | always> # optional
 #
 # - `name` is the name of the pref, without double-quotes, as it appears
 #   in about:config. It is used in most libpref API functions (from both C++
@@ -97,6 +98,13 @@
 # - `rust` indicates if the mirror variable is used by Rust code. If so, it
 #   will be usable via the `static_prefs::pref!` macro, e.g.
 #   `static_prefs::pref!("layout.css.cross-fade.enabled")`.
+#
+# - `set_spidermonkey_pref` indicates whether SpiderMonkey boilerplate code
+#   should be generated for this pref. If this is set to 'startup', the
+#   pref on the SpiderMonkey side is only set during process startup. If set to
+#   'always', the SpiderMonkey pref value is also updated when this pref is
+#   changed at runtime.
+#   This option is only valid for javascript.options.* prefs.
 #
 # The getter function's base name is the same as the pref's name, but with
 # '.' or '-' chars converted to '_', to make a valid identifier. For example,
@@ -3438,12 +3446,6 @@
 - name: dom.screenwakelock.enabled
   type: bool
   value: true
-  mirror: always
-
-# Prevent errors when using set_permission from permissions.sys.mjs
-- name: dom.screenwakelock.testing
-  type: bool
-  value: false
   mirror: always
 
 # Whether to enable the JavaScript start-up cache. This causes one of the first
@@ -7406,11 +7408,19 @@
   value: true
   mirror: always
 
+# No-op pref for testing the SpiderMonkey pref system.
+- name: javascript.options.tests.uint32-pref
+  type: uint32_t
+  value: 1
+  mirror: always
+  set_spidermonkey_pref: always
+
 # Enable fuse based destructuring
 - name: javascript.options.destructuring_fuse
   type: bool
   value: true
   mirror: always
+  set_spidermonkey_pref: startup
 
 # The default amount of time to wait from the user being idle to starting a
 # shrinking GC. Measured in milliseconds.
@@ -7428,18 +7438,21 @@
   type: bool
   value: @IS_NIGHTLY_OR_DEV_EDITION@
   mirror: always
+  set_spidermonkey_pref: startup
 
 # Support for weak references in JavaScript (WeakRef and FinalizationRegistry).
 - name: javascript.options.weakrefs
   type: bool
   value: true
   mirror: always
+  set_spidermonkey_pref: startup
 
 # Whether to expose the FinalizationRegistry.prototype.cleanupSome method.
 - name: javascript.options.experimental.weakrefs.expose_cleanupSome
   type: bool
   value: false
   mirror: always
+  set_spidermonkey_pref: startup
 
 # ShadowRealms: https://github.com/tc39/proposal-shadowrealm
 - name: javascript.options.experimental.shadow_realms
@@ -7448,18 +7461,22 @@
   type: RelaxedAtomicBool
   value: false
   mirror: always
+  # Non-startup pref because the WPT test harness sets prefs after startup.
+  set_spidermonkey_pref: always
 
 # Support for String.prototype.{is,to}WellFormed in JavaScript.
 - name: javascript.options.well_formed_unicode_strings
   type: bool
   value: true
   mirror: always
+  set_spidermonkey_pref: startup
 
 # Support for Object.groupBy/Map.groupBy in JavaScript.
 -  name: javascript.options.array_grouping
    type: bool
    value: true
    mirror: always
+   set_spidermonkey_pref: startup
 
 #ifdef NIGHTLY_BUILD
   # Experimental support for Iterator Helpers in JavaScript.
@@ -7467,30 +7484,35 @@
     type: bool
     value: false
     mirror: always
+    set_spidermonkey_pref: startup
 
   # Experimental support for New Set methods
 -   name: javascript.options.experimental.new_set_methods
     type: bool
     value: false
     mirror: always
+    set_spidermonkey_pref: startup
 
-      # Experimental support for Symbols as WeakMap keys in JavaScript.
+  # Experimental support for Symbols as WeakMap keys in JavaScript.
 -   name: javascript.options.experimental.symbols_as_weakmap_keys
     type: bool
     value: false
     mirror: always
+    set_spidermonkey_pref: startup
 
   # Experimental support for resizable ArrayBuffers in JavaScript.
 -   name: javascript.options.experimental.arraybuffer_resizable
     type: bool
     value: false
     mirror: always
+    set_spidermonkey_pref: startup
 
   # Experimental support for growable SharedArrayBuffers in JavaScript.
 -   name: javascript.options.experimental.sharedarraybuffer_growable
     type: bool
     value: false
     mirror: always
+    set_spidermonkey_pref: startup
 #endif  // NIGHTLY_BUILD
 
 # Experimental support for ArrayBuffer.prototype.transfer{,ToFixedLength}() in JavaScript.
@@ -7498,6 +7520,7 @@
     type: bool
     value: true
     mirror: always
+    set_spidermonkey_pref: startup
 
 #ifdef NIGHTLY_BUILD
   # Experimental support for Import Assertions in JavaScript.
@@ -7683,8 +7706,9 @@
 - name: javascript.options.site_based_pretenuring
   type: bool
   value: true
-  mirror: always  # LoadStartupJSPrefs
+  mirror: always
   do_not_use_directly: true
+  set_spidermonkey_pref: startup
 
 #if !defined(JS_CODEGEN_MIPS32) && !defined(JS_CODEGEN_MIPS64) && !defined(JS_CODEGEN_LOONG64)
   # Spectre security vulnerability mitigations for the JS JITs.
@@ -7761,6 +7785,7 @@
   type: bool
   value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
+  set_spidermonkey_pref: startup
 
 # Whether to support parsing '//(#@) source(Mapping)?URL=' pragmas.
 - name: javascript.options.source_pragmas
@@ -14739,6 +14764,13 @@
   value: 5
 #endif
   mirror: always
+
+#ifdef XP_WIN
+- name: ui.key.layout.load_when_first_needed
+  type: bool
+  value: @IS_EARLY_BETA_OR_EARLIER@
+  mirror: always
+#endif
 
 # Does the access key by itself focus the menu bar?
 - name: ui.key.menuAccessKeyFocuses

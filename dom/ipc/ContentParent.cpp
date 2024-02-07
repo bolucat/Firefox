@@ -5220,10 +5220,9 @@ mozilla::ipc::IPCResult ContentParent::RecvBackUpXResources(
 #ifndef MOZ_X11
   MOZ_CRASH("This message only makes sense on X11 platforms");
 #else
-  MOZ_ASSERT(0 > mChildXSocketFdDup.get(), "Already backed up X resources??");
+  MOZ_ASSERT(!mChildXSocketFdDup, "Already backed up X resources??");
   if (aXSocketFd.IsValid()) {
-    auto rawFD = aXSocketFd.ClonePlatformHandle();
-    mChildXSocketFdDup.reset(rawFD.release());
+    mChildXSocketFdDup = aXSocketFd.ClonePlatformHandle();
   }
 #endif
   return IPC_OK();
@@ -5924,11 +5923,13 @@ mozilla::ipc::IPCResult ContentParent::RecvInitializeFamily(
 }
 
 mozilla::ipc::IPCResult ContentParent::RecvSetCharacterMap(
-    const uint32_t& aGeneration, const mozilla::fontlist::Pointer& aFacePtr,
+    const uint32_t& aGeneration, const uint32_t& aFamilyIndex,
+    const bool& aAlias, const uint32_t& aFaceIndex,
     const gfxSparseBitSet& aMap) {
   auto* fontList = gfxPlatformFontList::PlatformFontList();
   MOZ_RELEASE_ASSERT(fontList, "gfxPlatformFontList not initialized?");
-  fontList->SetCharacterMap(aGeneration, aFacePtr, aMap);
+  fontList->SetCharacterMap(aGeneration, aFamilyIndex, aAlias, aFaceIndex,
+                            aMap);
   return IPC_OK();
 }
 
@@ -5941,10 +5942,10 @@ mozilla::ipc::IPCResult ContentParent::RecvInitOtherFamilyNames(
 }
 
 mozilla::ipc::IPCResult ContentParent::RecvSetupFamilyCharMap(
-    const uint32_t& aGeneration, const mozilla::fontlist::Pointer& aFamilyPtr) {
+    const uint32_t& aGeneration, const uint32_t& aIndex, const bool& aAlias) {
   auto* fontList = gfxPlatformFontList::PlatformFontList();
   MOZ_RELEASE_ASSERT(fontList, "gfxPlatformFontList not initialized?");
-  fontList->SetupFamilyCharMap(aGeneration, aFamilyPtr);
+  fontList->SetupFamilyCharMap(aGeneration, aIndex, aAlias);
   return IPC_OK();
 }
 
