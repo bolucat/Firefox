@@ -21,6 +21,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
   UrlbarPrefs: "resource:///modules/UrlbarPrefs.sys.mjs",
   UrlbarProviderInterventions:
     "resource:///modules/UrlbarProviderInterventions.sys.mjs",
+  UrlbarProviderOpenTabs: "resource:///modules/UrlbarProviderOpenTabs.sys.mjs",
   UrlbarProvidersManager: "resource:///modules/UrlbarProvidersManager.sys.mjs",
   UrlbarProviderSearchTips:
     "resource:///modules/UrlbarProviderSearchTips.sys.mjs",
@@ -1561,6 +1562,11 @@ export var UrlbarUtils = {
   },
 
   _getQuickSuggestTelemetryType(result) {
+    if (result.payload.telemetryType == "weather") {
+      // Return "weather" without the usual source prefix for consistency with
+      // the weather result returned by UrlbarProviderWeather.
+      return "weather";
+    }
     let source = result.payload.source;
     if (source == "remote-settings") {
       source = "rs";
@@ -2129,8 +2135,10 @@ export class UrlbarQueryContext {
     this.deferUserSelectionProviders = new Set();
     this.trimmedSearchString = this.searchString.trim();
     this.userContextId =
-      options.userContextId ||
-      Ci.nsIScriptSecurityManager.DEFAULT_USER_CONTEXT_ID;
+      lazy.UrlbarProviderOpenTabs.getUserContextIdForOpenPagesTable(
+        options.userContextId,
+        this.isPrivate
+      ) || Ci.nsIScriptSecurityManager.DEFAULT_USER_CONTEXT_ID;
   }
 
   /**

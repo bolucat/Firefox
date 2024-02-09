@@ -42,6 +42,45 @@ const kExpectedRequestsOfLoadStylesheet = [
     },
 ];
 
+const kExpectedRequestsOfLoadStylesheetDisabled = [
+    {   fileNameAndSuffix: "dummy.css?1",
+        internalPriority: SpecialPowers.Ci.nsISupportsPriority.PRIORITY_NORMAL
+    },
+    {   fileNameAndSuffix: "dummy.css?2",
+        internalPriority: SpecialPowers.Ci.nsISupportsPriority.PRIORITY_NORMAL
+    },
+    {   fileNameAndSuffix: "dummy.css?3",
+        internalPriority: SpecialPowers.Ci.nsISupportsPriority.PRIORITY_NORMAL
+    },
+    {   fileNameAndSuffix: "dummy.css?4",
+        internalPriority: SpecialPowers.Ci.nsISupportsPriority.PRIORITY_NORMAL
+    },
+    {   fileNameAndSuffix: "dummy.css?5",
+        internalPriority: SpecialPowers.Ci.nsISupportsPriority.PRIORITY_NORMAL
+    },
+    {   fileNameAndSuffix: "dummy.css?6",
+        internalPriority: SpecialPowers.Ci.nsISupportsPriority.PRIORITY_NORMAL
+    },
+    {   fileNameAndSuffix: "dummy.css?7",
+        internalPriority: SpecialPowers.Ci.nsISupportsPriority.PRIORITY_NORMAL
+    },
+    {   fileNameAndSuffix: "dummy.css?8",
+        internalPriority: SpecialPowers.Ci.nsISupportsPriority.PRIORITY_NORMAL
+    },
+    {   fileNameAndSuffix: "dummy.css?9",
+        internalPriority: SpecialPowers.Ci.nsISupportsPriority.PRIORITY_NORMAL
+    },
+    {   fileNameAndSuffix: "dummy.css?10",
+        internalPriority: SpecialPowers.Ci.nsISupportsPriority.PRIORITY_NORMAL
+    },
+    {   fileNameAndSuffix: "dummy.css?11",
+        internalPriority: SpecialPowers.Ci.nsISupportsPriority.PRIORITY_NORMAL
+    },
+    {   fileNameAndSuffix: "dummy.css?12",
+        internalPriority: SpecialPowers.Ci.nsISupportsPriority.PRIORITY_NORMAL
+    },
+];
+
 const kExpectedRequestsOfLinkPreloadFont = [
     {   fileNameAndSuffix: "dummy.font?1",
         internalPriority: SpecialPowers.Ci.nsISupportsPriority.PRIORITY_LOW
@@ -84,6 +123,21 @@ const kExpectedRequestsOfLinkPreloadImage = [
     },
     {   fileNameAndSuffix: "dummy.image?4",
         internalPriority: SpecialPowers.Ci.nsISupportsPriority.PRIORITY_LOW
+    },
+];
+
+const kExpectedRequestsOfLinkPreloadImageDisabled = [
+    {   fileNameAndSuffix: "dummy.image?1",
+        internalPriority: SpecialPowers.Ci.nsISupportsPriority.PRIORITY_LOW + 1
+    },
+    {   fileNameAndSuffix: "dummy.image?2",
+        internalPriority: SpecialPowers.Ci.nsISupportsPriority.PRIORITY_LOW + 1
+    },
+    {   fileNameAndSuffix: "dummy.image?3",
+        internalPriority: SpecialPowers.Ci.nsISupportsPriority.PRIORITY_LOW + 1
+    },
+    {   fileNameAndSuffix: "dummy.image?4",
+        internalPriority: SpecialPowers.Ci.nsISupportsPriority.PRIORITY_LOW + 1
     },
 ];
 
@@ -162,6 +216,21 @@ const kExpectedRequestsOfLinkPreloadStyle = [
     },
 ];
 
+const kExpectedRequestsOfLinkPreloadStyleDisabled = [
+    {   fileNameAndSuffix: "dummy.css?1",
+        internalPriority: SpecialPowers.Ci.nsISupportsPriority.PRIORITY_HIGHEST
+    },
+    {   fileNameAndSuffix: "dummy.css?2",
+        internalPriority: SpecialPowers.Ci.nsISupportsPriority.PRIORITY_HIGHEST
+    },
+    {   fileNameAndSuffix: "dummy.css?3",
+        internalPriority: SpecialPowers.Ci.nsISupportsPriority.PRIORITY_HIGHEST
+    },
+    {   fileNameAndSuffix: "dummy.css?4",
+        internalPriority: SpecialPowers.Ci.nsISupportsPriority.PRIORITY_HIGHEST
+    },
+];
+
 const kExpectedRequestsOfModulepreload = kExpectedRequestsOfPreloadScript;
 
 const kExpectedRequestsOfModulepreloadDisabled = kExpectedRequestsOfPreloadScriptDisabled;
@@ -180,6 +249,8 @@ const kExpectedRequestsOfPrefetch = [
         internalPriority: SpecialPowers.Ci.nsISupportsPriority.PRIORITY_LOWEST
     }
 ];
+
+const kExpectedRequestsOfPrefetchDisabled = kExpectedRequestsOfPrefetch;
 
 const kPipeHeaderLinksToStylesheets =
   "=header(Link,<dummy.css?1>; rel=stylesheet; fetchpriority=low,True)" +
@@ -325,6 +396,9 @@ export const kTestData = [
 ];
 
 export const kTestDataDisabled = [
+    {   testFileName: "link-initial-load-stylesheet.h2.html",
+        expectedRequests: kExpectedRequestsOfLoadStylesheetDisabled
+    },
     {   testFileName: "link-initial-preload-font.h2.html",
         expectedRequests: kExpectedRequestsOfLinkPreloadFontDisabled
     },
@@ -334,8 +408,23 @@ export const kTestDataDisabled = [
     {   testFileName: "link-initial-preload-script.h2.html",
         expectedRequests: kExpectedRequestsOfPreloadScriptDisabled
     },
+    {   testFileName: "link-initial-preload-style.h2.html",
+        expectedRequests: kExpectedRequestsOfLinkPreloadStyleDisabled
+    },
     {   testFileName: "link-initial-modulepreload.h2.html",
         expectedRequests: kExpectedRequestsOfModulepreloadDisabled
+    },
+    {   testFileName: "link-initial-prefetch.h2.html",
+        expectedRequests: kExpectedRequestsOfPrefetchDisabled
+    },
+    {   testFileName: "link-initial-preload-image.h2.html",
+        expectedRequests: kExpectedRequestsOfLinkPreloadImageDisabled
+    },
+    {   testFileName: "link-dynamic-load-stylesheet.h2.html",
+        expectedRequests: kExpectedRequestsOfLoadStylesheetDisabled
+    },
+    {   testFileName: "link-dynamic-prefetch.h2.html",
+        expectedRequests: kExpectedRequestsOfPrefetchDisabled
     },
     {   testFileName: "link-dynamic-preload-font.h2.html",
         expectedRequests: kExpectedRequestsOfLinkPreloadFontDisabled
@@ -346,14 +435,32 @@ export const kTestDataDisabled = [
     {   testFileName: "link-dynamic-preload-script.h2.html",
         expectedRequests: kExpectedRequestsOfPreloadScriptDisabled
     },
+    {   testFileName: "link-dynamic-preload-style.h2.html",
+        expectedRequests: kExpectedRequestsOfLinkPreloadStyleDisabled
+    },
     {   testFileName: "link-dynamic-modulepreload.h2.html",
         expectedRequests: kExpectedRequestsOfModulepreloadDisabled
+    },
+    {   testFileName: "link-dynamic-preload-image.h2.html",
+        expectedRequests: kExpectedRequestsOfLinkPreloadImageDisabled
+    },
+    {   testFileName: "link-header.h2.html?pipe" + kPipeHeaderLinksToStylesheets,
+        expectedRequests: kExpectedRequestsOfLoadStylesheetDisabled
+    },
+    {   testFileName: "link-header.h2.html?pipe" + kPipeHeaderPrefetchLinks,
+        expectedRequests: kExpectedRequestsOfPrefetchDisabled
+    },
+    {   testFileName: "link-header.h2.html?pipe" + kPipeHeaderPreloadStyleLinks,
+        expectedRequests: kExpectedRequestsOfLinkPreloadStyleDisabled
     },
     {   testFileName: "link-header.h2.html?pipe" + kPipeHeaderPreloadFontLinks,
         expectedRequests: kExpectedRequestsOfLinkPreloadFontDisabled
     },
     {   testFileName: "link-header.h2.html?pipe" + kPipeHeaderPreloadFetchLinks,
         expectedRequests: kExpectedRequestsOfLinkPreloadFetchDisabled
+    },
+    {   testFileName: "link-header.h2.html?pipe" + kPipeHeaderPreloadImageLinks,
+        expectedRequests: kExpectedRequestsOfLinkPreloadImageDisabled
     },
     {   testFileName: "link-header.h2.html?pipe" + kPipeHeaderPreloadScriptLinks,
         expectedRequests: kExpectedRequestsOfPreloadScriptDisabled

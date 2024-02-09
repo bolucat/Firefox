@@ -223,6 +223,106 @@ function makeAmpResult({
 }
 
 /**
+ * Returns an expected MDN result that can be passed to `check_results()`
+ * regardless of whether the Rust backend is enabled.
+ *
+ * @returns {object}
+ *   An object that can be passed to `check_results()`.
+ */
+function makeMdnResult({ url, title, description }) {
+  let finalUrl = new URL(url);
+  finalUrl.searchParams.set("utm_medium", "firefox-desktop");
+  finalUrl.searchParams.set("utm_source", "firefox-suggest");
+  finalUrl.searchParams.set(
+    "utm_campaign",
+    "firefox-mdn-web-docs-suggestion-experiment"
+  );
+  finalUrl.searchParams.set("utm_content", "treatment");
+
+  let result = {
+    isBestMatch: true,
+    suggestedIndex: 1,
+    type: UrlbarUtils.RESULT_TYPE.URL,
+    source: UrlbarUtils.RESULT_SOURCE.OTHER_NETWORK,
+    heuristic: false,
+    payload: {
+      telemetryType: "mdn",
+      title,
+      url: finalUrl.href,
+      originalUrl: url,
+      displayUrl: finalUrl.href.replace(/^https:\/\//, ""),
+      description,
+      icon: "chrome://global/skin/icons/mdn.svg",
+      shouldShowUrl: true,
+      bottomTextL10n: { id: "firefox-suggest-mdn-bottom-text" },
+    },
+  };
+
+  if (UrlbarPrefs.get("quickSuggestRustEnabled")) {
+    result.payload.source = "rust";
+    result.payload.provider = "Mdn";
+  } else {
+    result.payload.source = "remote-settings";
+    result.payload.provider = "MDNSuggestions";
+  }
+
+  return result;
+}
+
+function makeWeatherResult({
+  source,
+  provider,
+  telemetryType = undefined,
+  temperatureUnit = undefined,
+} = {}) {
+  if (!temperatureUnit) {
+    temperatureUnit =
+      Services.locale.regionalPrefsLocales[0] == "en-US" ? "f" : "c";
+  }
+
+  let result = {
+    type: UrlbarUtils.RESULT_TYPE.DYNAMIC,
+    source: UrlbarUtils.RESULT_SOURCE.SEARCH,
+    heuristic: false,
+    suggestedIndex: 1,
+    payload: {
+      temperatureUnit,
+      url: MerinoTestUtils.WEATHER_SUGGESTION.url,
+      iconId: "6",
+      helpUrl: QuickSuggest.HELP_URL,
+      requestId: MerinoTestUtils.server.response.body.request_id,
+      source: "merino",
+      provider: "accuweather",
+      dynamicType: "weather",
+      city: MerinoTestUtils.WEATHER_SUGGESTION.city_name,
+      temperature:
+        MerinoTestUtils.WEATHER_SUGGESTION.current_conditions.temperature[
+          temperatureUnit
+        ],
+      currentConditions:
+        MerinoTestUtils.WEATHER_SUGGESTION.current_conditions.summary,
+      forecast: MerinoTestUtils.WEATHER_SUGGESTION.forecast.summary,
+      high: MerinoTestUtils.WEATHER_SUGGESTION.forecast.high[temperatureUnit],
+      low: MerinoTestUtils.WEATHER_SUGGESTION.forecast.low[temperatureUnit],
+      shouldNavigate: true,
+    },
+  };
+
+  if (UrlbarPrefs.get("quickSuggestRustEnabled")) {
+    result.payload.source = source || "rust";
+    result.payload.provider = provider || "Weather";
+    if (telemetryType !== null) {
+      result.payload.telemetryType = telemetryType || "weather";
+    }
+  } else {
+    result.payload.source = source || "merino";
+    result.payload.provider = provider || "accuweather";
+  }
+
+  return result;
+}
+
+/**
  * Tests quick suggest prefs migrations.
  *
  * @param {object} options

@@ -108,7 +108,7 @@ export class SuggestBackendRust extends BaseFeature {
       .featuresByRustSuggestionType) {
       if (feature.isEnabled && feature.isRustSuggestionTypeEnabled(type)) {
         let key = type.toUpperCase();
-        this.logger.debug("Adding provider to query:" + key);
+        this.logger.debug("Adding provider to query: " + key);
         if (!lazy.SuggestionProvider.hasOwnProperty(key)) {
           this.logger.error(`SuggestionProvider["${key}"] is not defined!`);
           continue;
@@ -118,7 +118,7 @@ export class SuggestBackendRust extends BaseFeature {
     }
 
     let suggestions = await this.#store.query(
-      new lazy.SuggestionQuery(searchString, providers)
+      new lazy.SuggestionQuery({ keyword: searchString, providers })
     );
 
     for (let suggestion of suggestions) {
@@ -170,11 +170,11 @@ export class SuggestBackendRust extends BaseFeature {
       this.#store = lazy.SuggestStore.init(
         path,
         SuggestBackendRust._test_remoteSettingsConfig ??
-          new lazy.RemoteSettingsConfig(
-            lazy.Utils.SERVER_URL,
-            lazy.Utils.actualBucketName("main"),
-            "quicksuggest"
-          )
+          new lazy.RemoteSettingsConfig({
+            collectionName: "quicksuggest",
+            bucketName: lazy.Utils.actualBucketName("main"),
+            serverUrl: lazy.Utils.SERVER_URL,
+          })
       );
     } catch (error) {
       this.logger.error("Error initializing SuggestStore:");

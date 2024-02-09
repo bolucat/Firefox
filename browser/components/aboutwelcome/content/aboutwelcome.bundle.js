@@ -404,6 +404,7 @@ const SecondaryCTA = props => {
   if (isSplitButton) {
     className += " split-button-container";
   }
+  const isDisabled = react__WEBPACK_IMPORTED_MODULE_0___default().useCallback(disabledValue => disabledValue === "hasActiveMultiSelect" ? !(props.activeMultiSelect?.length > 0) : disabledValue, [props.activeMultiSelect?.length]);
   if (isTextLink) {
     buttonStyling += " text-link";
   }
@@ -419,6 +420,7 @@ const SecondaryCTA = props => {
   }, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("button", {
     className: buttonStyling,
     value: targetElement,
+    disabled: isDisabled(props.content.secondary_button?.disabled),
     onClick: props.handleAction
   })), isSplitButton ? /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement(_SubmenuButton__WEBPACK_IMPORTED_MODULE_5__.SubmenuButton, {
     content: props.content,
@@ -901,7 +903,8 @@ const ProtonScreenActionButtons = props => {
     htmlFor: "action-checkbox"
   }))) : null, content.secondary_button ? /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement(_MultiStageAboutWelcome__WEBPACK_IMPORTED_MODULE_6__.SecondaryCTA, {
     content: content,
-    handleAction: props.handleAction
+    handleAction: props.handleAction,
+    activeMultiSelect: activeMultiSelect
   }) : null);
 };
 class ProtonScreen extends (react__WEBPACK_IMPORTED_MODULE_0___default().PureComponent) {
@@ -1013,8 +1016,7 @@ class ProtonScreen extends (react__WEBPACK_IMPORTED_MODULE_0___default().PureCom
     }) : null, content.tiles && content.tiles.type === "multiselect" && content.tiles.data ? /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement(_MultiSelect__WEBPACK_IMPORTED_MODULE_4__.MultiSelect, {
       content: content,
       activeMultiSelect: this.props.activeMultiSelect,
-      setActiveMultiSelect: this.props.setActiveMultiSelect,
-      handleAction: this.props.handleAction
+      setActiveMultiSelect: this.props.setActiveMultiSelect
     }) : null, content.tiles && content.tiles.type === "migration-wizard" ? /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement(_EmbeddedMigrationWizard__WEBPACK_IMPORTED_MODULE_12__.EmbeddedMigrationWizard, {
       handleAction: this.props.handleAction
     }) : null);
@@ -1319,7 +1321,8 @@ const MultiSelect = ({
   setActiveMultiSelect
 }) => {
   const {
-    data
+    data,
+    randomize
   } = content.tiles;
   const refs = (0,react__WEBPACK_IMPORTED_MODULE_0__.useRef)({});
   const handleChange = (0,react__WEBPACK_IMPORTED_MODULE_0__.useCallback)(() => {
@@ -1331,6 +1334,8 @@ const MultiSelect = ({
     });
     setActiveMultiSelect(newActiveMultiSelect);
   }, [setActiveMultiSelect]);
+  const items = (0,react__WEBPACK_IMPORTED_MODULE_0__.useMemo)(() => randomize ? data.sort(() => 0.5 - Math.random()) : data, [] // eslint-disable-line react-hooks/exhaustive-deps
+  );
   const containerStyle = (0,react__WEBPACK_IMPORTED_MODULE_0__.useMemo)(() => getValidStyle(content.tiles.style, MULTI_SELECT_STYLES, true), [content.tiles.style]);
 
   // When screen renders for first time, update state
@@ -1338,7 +1343,7 @@ const MultiSelect = ({
   (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
     if (!activeMultiSelect) {
       let newActiveMultiSelect = [];
-      data.forEach(({
+      items.forEach(({
         id,
         defaultValue
       }) => {
@@ -1353,7 +1358,7 @@ const MultiSelect = ({
   return /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("div", {
     className: "multi-select-container",
     style: containerStyle
-  }, data.map(({
+  }, items.map(({
     id,
     label,
     icon,
@@ -2079,6 +2084,8 @@ const EmbeddedMigrationWizard = ({
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "Loader": () => (/* binding */ Loader),
+/* harmony export */   "InstallButton": () => (/* binding */ InstallButton),
 /* harmony export */   "AddonsPicker": () => (/* binding */ AddonsPicker)
 /* harmony export */ });
 /* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(1);
@@ -2092,6 +2099,44 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
+const Loader = () => {
+  return /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("button", {
+    className: "primary"
+  }, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("div", {
+    className: "loaderContainer"
+  }, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("span", {
+    className: "loader"
+  })));
+};
+const InstallButton = props => {
+  const [installing, setInstalling] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
+  const [installComplete, setInstallComplete] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
+  let buttonLabel = installComplete ? "Installed" : "Add to Firefox";
+  function onClick(event) {
+    props.handleAction(event);
+    // Replace the label with the spinner
+    setInstalling(true);
+    window.AWEnsureAddonInstalled(props.addonId).then(value => {
+      if (value === "complete") {
+        // Set the label to "Installed"
+        setInstallComplete(true);
+      }
+      // Whether the addon installs or not, we want to remove the spinner
+      setInstalling(false);
+    });
+  }
+  return /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("div", {
+    className: "install-button-wrapper"
+  }, installing ? /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement(Loader, null) : /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement(_MSLocalized__WEBPACK_IMPORTED_MODULE_2__.Localized, {
+    text: buttonLabel
+  }, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("button", {
+    id: props.name,
+    value: props.index,
+    onClick: onClick,
+    disabled: installComplete,
+    className: "primary"
+  })));
+};
 const AddonsPicker = props => {
   const {
     content
@@ -2126,7 +2171,6 @@ const AddonsPicker = props => {
     className: "addons-picker-container"
   }, content.tiles.data.map(({
     id,
-    install_label,
     name,
     type,
     description,
@@ -2151,14 +2195,13 @@ const AddonsPicker = props => {
     text: description
   }, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("div", {
     className: "addon-description"
-  }))), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement(_MSLocalized__WEBPACK_IMPORTED_MODULE_2__.Localized, {
-    text: install_label
-  }, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("button", {
-    id: name,
-    value: index,
-    onClick: handleAction,
-    className: "primary"
-  }))) : null));
+  }))), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement(InstallButton, {
+    key: id,
+    addonId: id,
+    name: name,
+    handleAction: handleAction,
+    index: index
+  })) : null));
 };
 
 /***/ }),

@@ -28,6 +28,7 @@
 #include "mozilla/ScopeExit.h"
 #include "mozilla/StaticPrefs_security.h"
 #include "mozilla/Telemetry.h"
+#include "mozilla/glean/GleanMetrics.h"
 #include "mozilla/net/SSLTokensCache.h"
 #include "mozilla/net/SocketProcessChild.h"
 #include "mozilla/psm/IPCClientCertsChild.h"
@@ -441,6 +442,18 @@ bool retryDueToTLSIntolerance(PRErrorCode err, NSSSocketControl* socketInfo) {
   if (StaticPrefs::security_tls_ech_disable_grease_on_fallback() &&
       socketInfo->GetEchExtensionStatus() == EchExtensionStatus::kGREASE) {
     // Don't record any intolerances if we used ECH GREASE but force a retry.
+    return true;
+  }
+
+  if (!socketInfo->IsPreliminaryHandshakeDone() &&
+      socketInfo->SentXyberShare()) {
+    nsAutoCString errorName;
+    const char* prErrorName = PR_ErrorToName(err);
+    if (prErrorName) {
+      errorName.AppendASCII(prErrorName);
+    }
+    mozilla::glean::tls::xyber_intolerance_reason.Get(errorName).Add(1);
+    // Don't record version intolerance if we sent Xyber, just force a retry.
     return true;
   }
 
@@ -1448,6 +1461,7 @@ static nsresult nsSSLIOLayerSetOptions(PRFileDesc* fd, bool forSTARTTLS,
     if (SECSuccess != SSL_SendAdditionalKeyShares(fd, 2)) {
       return NS_ERROR_FAILURE;
     }
+    infoObject->WillSendXyberShare();
   } else {
     const SSLNamedGroup namedGroups[] = {
         ssl_grp_ec_curve25519, ssl_grp_ec_secp256r1, ssl_grp_ec_secp384r1,

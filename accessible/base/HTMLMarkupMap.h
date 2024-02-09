@@ -155,6 +155,8 @@ MARKUPMAP(
 
 MARKUPMAP(dt, New_HTMLDtOrDd<HTMLLIAccessible>, roles::TERM)
 
+MARKUPMAP(em, New_HyperText, roles::EMPHASIS)
+
 MARKUPMAP(
     figcaption,
     [](Element* aElement, LocalAccessible* aContext) -> LocalAccessible* {
@@ -346,6 +348,8 @@ MARKUPMAP(
     },
     0)
 
+MARKUPMAP(strong, New_HyperText, roles::STRONG)
+
 MARKUPMAP(sub, New_HyperText, roles::SUBSCRIPT)
 
 MARKUPMAP(
@@ -364,7 +368,7 @@ MARKUPMAP(
     },
     roles::TABLE)
 
-MARKUPMAP(time, New_HyperText, 0, Attr(xmlroles, time),
+MARKUPMAP(time, New_HyperText, roles::TIME, Attr(xmlroles, time),
           AttrFromDOM(datetime, datetime))
 
 MARKUPMAP(tbody, nullptr, roles::GROUPING)

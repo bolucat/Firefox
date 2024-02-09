@@ -13,6 +13,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
     "resource://gre/modules/ContextualIdentityService.sys.mjs",
   L10nCache: "resource:///modules/UrlbarUtils.sys.mjs",
   ObjectUtils: "resource://gre/modules/ObjectUtils.sys.mjs",
+  UrlbarProviderOpenTabs: "resource:///modules/UrlbarProviderOpenTabs.sys.mjs",
   UrlbarPrefs: "resource:///modules/UrlbarPrefs.sys.mjs",
   UrlbarProviderQuickSuggest:
     "resource:///modules/UrlbarProviderQuickSuggest.sys.mjs",
@@ -2224,6 +2225,8 @@ export class UrlbarView {
           return { id: "urlbar-group-mdn" };
         case "pocket":
           return { id: "urlbar-group-pocket" };
+        case "yelp":
+          return { id: "urlbar-group-local" };
       }
     }
 
@@ -2631,7 +2634,9 @@ export class UrlbarView {
     if (
       lazy.UrlbarPrefs.get("switchTabs.searchAllContainers") &&
       result.type == lazy.UrlbarUtils.RESULT_TYPE.TAB_SWITCH &&
-      result.payload.userContextId
+      lazy.UrlbarProviderOpenTabs.isContainerUserContextId(
+        result.payload.userContextId
+      )
     ) {
       let label = lazy.ContextualIdentityService.getUserContextLabel(
         result.payload.userContextId
@@ -2875,11 +2880,19 @@ export class UrlbarView {
     if (lazy.UrlbarPrefs.get("groupLabels.enabled")) {
       idArgs.push({ id: "urlbar-group-firefox-suggest" });
       idArgs.push({ id: "urlbar-group-best-match" });
-      if (
-        lazy.UrlbarPrefs.get("quickSuggestEnabled") &&
-        lazy.UrlbarPrefs.get("addonsFeatureGate")
-      ) {
-        idArgs.push({ id: "urlbar-group-addon" });
+      if (lazy.UrlbarPrefs.get("quickSuggestEnabled")) {
+        if (lazy.UrlbarPrefs.get("addonsFeatureGate")) {
+          idArgs.push({ id: "urlbar-group-addon" });
+        }
+        if (lazy.UrlbarPrefs.get("mdn.featureGate")) {
+          idArgs.push({ id: "urlbar-group-mdn" });
+        }
+        if (lazy.UrlbarPrefs.get("pocketFeatureGate")) {
+          idArgs.push({ id: "urlbar-group-pocket" });
+        }
+        if (lazy.UrlbarPrefs.get("yelpFeatureGate")) {
+          idArgs.push({ id: "urlbar-group-local" });
+        }
       }
     }
 

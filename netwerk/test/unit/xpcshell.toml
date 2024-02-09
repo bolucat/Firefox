@@ -471,6 +471,8 @@ run-sequentially = "http3server"
 
 ["test_cookie_ipv6.js"]
 
+["test_cookie_partitioned_attribute.js"]
+
 ["test_cookiejars.js"]
 
 ["test_cookiejars_safebrowsing.js"]
@@ -1033,6 +1035,10 @@ run-sequentially = "tlsserver uses fixed port"
 ["test_safeoutputstream.js"]
 
 ["test_safeoutputstream_append.js"]
+
+["test_schema_13_db.js"]
+
+["test_schema_12_migration.js"]
 
 ["test_schema_10_migration.js"]
 

@@ -556,7 +556,11 @@ pref("browser.urlbar.switchTabs.adoptIntoActiveWindow", false);
 
 // Controls whether searching for open tabs returns tabs from any container
 // or only from the current container.
+#ifdef NIGHTLY_BUILD
+pref("browser.urlbar.switchTabs.searchAllContainers", true);
+#else
 pref("browser.urlbar.switchTabs.searchAllContainers", false);
+#endif
 
 // Whether addresses and search results typed into the address bar
 // should be opened in new tabs by default.
@@ -737,6 +741,10 @@ pref("browser.search.serpEventTelemetry.enabled", true);
 
 // Enables search SERP telemetry page categorization.
 pref("browser.search.serpEventTelemetryCategorization.enabled", false);
+
+// Search Bar removal from the toolbar for users who haven’t used it in 120
+// days
+pref("browser.search.widget.removeAfterDaysUnused", 120);
 
 // Enable new experimental shopping features. This is solely intended as a
 // rollout/"emergency stop" button - it will go away once the feature has
@@ -1396,7 +1404,11 @@ pref("browser.bookmarks.editDialog.maxRecentFolders", 7);
   // On windows these levels are:
   // See - security/sandbox/win/src/sandboxbroker/sandboxBroker.cpp
   // SetSecurityLevelForContentProcess() for what the different settings mean.
-  pref("security.sandbox.content.level", 6);
+  #if defined(NIGHTLY_BUILD)
+    pref("security.sandbox.content.level", 7);
+  #else
+    pref("security.sandbox.content.level", 6);
+  #endif
 
   // Pref controlling if messages relevant to sandbox violations are logged.
   pref("security.sandbox.logging.enabled", false);
@@ -2193,10 +2205,11 @@ pref("privacy.webrtc.sharedTabWarning", false);
 // before navigating to the actual meeting room page. Doesn't survive tab close.
 pref("privacy.webrtc.deviceGracePeriodTimeoutMs", 3600000);
 
-// Bug 1857254 - MacOS 14 displays two (microphone/camera/screen share) icons in
-// menu bar we hide the firefox camera icon on macos 14 and above to avoid
-// duplicating the macos camera icon. User's can flip it back on with this pref.
-pref("privacy.webrtc.showIndicatorsOnMacos14AndAbove", false);
+// Bug 1857254 - MacOS 14 displays two (microphone/camera/screen share) icons in the menu bar
+// This pref can be used to hide the firefox camera icon on macos 14 and above to avoid
+// duplicating the macos camera icon. We show the icon by default, users can choose to flip
+// the pref to hide the icons
+pref("privacy.webrtc.showIndicatorsOnMacos14AndAbove", true);
 
 // Enable Fingerprinting Protection in private windows..
 pref("privacy.fingerprintingProtection.pbmode", true);
@@ -2964,11 +2977,7 @@ pref("cookiebanners.ui.desktop.cfrVariant", 0);
   pref("dom.security.credentialmanagement.identity.enabled", true);
 #endif
 
-#if defined(NIGHTLY_BUILD)
 pref("ui.new-webcompat-reporter.enabled", true);
-#else
-pref("ui.new-webcompat-reporter.enabled", false);
-#endif
 
 #if defined(EARLY_BETA_OR_EARLIER)
 pref("ui.new-webcompat-reporter.send-more-info-link", true);
@@ -2977,7 +2986,7 @@ pref("ui.new-webcompat-reporter.send-more-info-link", false);
 #endif
 
 # 0 = disabled, 1 = reason optional, 2 = reason required.
-pref("ui.new-webcompat-reporter.reason-dropdown", 0);
+pref("ui.new-webcompat-reporter.reason-dropdown", 2);
 
 pref("ui.new-webcompat-reporter.reason-dropdown.randomized", true);
 
