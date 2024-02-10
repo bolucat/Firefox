@@ -3945,8 +3945,14 @@ pref("extensions.formautofill.addresses.enabled", true);
 #else
   pref("extensions.formautofill.addresses.capture.enabled", false);
 #endif
-// Whether address autofill is enabled or not ( this is set via Nimbus )
-pref("extensions.formautofill.addresses.experiments.enabled", false);
+#if defined(ANDROID)
+  // On android we have custom logic to control this. Ideally we should use nimbus there as well.
+  // https://github.com/mozilla-mobile/firefox-android/blob/d566743ea0f041ce27c1204da903de380f96b46e/fenix/app/src/main/java/org/mozilla/fenix/utils/Settings.kt#L1502-L1510
+  pref("extensions.formautofill.addresses.experiments.enabled", true);
+#else
+  // Whether address autofill is enabled or not ( this is set via Nimbus )
+  pref("extensions.formautofill.addresses.experiments.enabled", false);
+#endif
 // Defies the required address form fields to trigger the display of the address capture doorhanger
 pref("extensions.formautofill.addresses.capture.requiredFields", "street-address,postal-code,address-level1,address-level2");
 pref("extensions.formautofill.addresses.ignoreAutocompleteOff", true);
@@ -3974,9 +3980,12 @@ pref("extensions.formautofill.creditCards.heuristics.fathom.testConfidence", "0"
 
 pref("extensions.formautofill.loglevel", "Warn");
 
-// Temporary prefs that we will be removed when enabling capture on form removal and on page navigation in Fx123.
-pref("extensions.formautofill.heuristics.captureOnFormRemoval", false);
-pref("extensions.formautofill.heuristics.captureOnPageNavigation", false);
+// Temporary prefs that we will be removed if the telemetry data (added in Fx123) does not show any problems with the new heuristics.
+pref("extensions.formautofill.heuristics.captureOnFormRemoval", true);
+pref("extensions.formautofill.heuristics.captureOnPageNavigation", true);
+// The interactivityCheckMode pref is only temporary.
+// It will be removed when we decide to only support the `focusability` mode
+pref("extensions.formautofill.heuristics.interactivityCheckMode", "focusability");
 
 pref("toolkit.osKeyStore.loglevel", "Warn");
 

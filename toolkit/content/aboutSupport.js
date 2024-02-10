@@ -715,7 +715,7 @@ var snapshotFormatters = {
     }
     addRow("features", "compositing", [new Text(compositor)]);
     addRow("features", "supportFontDetermination", [
-      new Text(data.fontDetermination),
+      new Text(data.supportFontDetermination),
     ]);
     delete data.windowLayerManagerRemote;
     delete data.windowLayerManagerType;
@@ -1181,6 +1181,7 @@ var snapshotFormatters = {
         $.new("td", getAudioRobustness(rvArray)),
         $.new("td", getCapabilities(rvArray)),
         $.new("td", cdmInfo.clearlead ? "Yes" : "No"),
+        $.new("td", cdmInfo.isHDCP22Compatible ? "Yes" : "No"),
       ]);
     }
 

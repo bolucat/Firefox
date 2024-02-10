@@ -1928,10 +1928,6 @@ void Document::LoadEventFired() {
   }
 }
 
-static uint32_t ConvertToUnsignedFromDouble(double aNumber) {
-  return aNumber < 0 ? 0 : static_cast<uint32_t>(aNumber);
-}
-
 void Document::RecordPageLoadEventTelemetry(
     glean::perf::PageLoadExtra& aEventTelemetryData) {
   // If the page load time is empty, then the content wasn't something we want
@@ -2146,8 +2142,8 @@ void Document::AccumulatePageLoadTelemetry(
   // First Contentful Composite
   if (TimeStamp firstContentfulComposite =
           GetNavigationTiming()->GetFirstContentfulCompositeTimeStamp()) {
-    Telemetry::AccumulateTimeDelta(Telemetry::PERF_FIRST_CONTENTFUL_PAINT_MS,
-                                   navigationStart, firstContentfulComposite);
+    glean::performance_pageload::fcp.AccumulateRawDuration(
+        firstContentfulComposite - navigationStart);
 
     if (!http3Key.IsEmpty()) {
       Telemetry::AccumulateTimeDelta(
@@ -2171,9 +2167,8 @@ void Document::AccumulatePageLoadTelemetry(
         Telemetry::DNS_PERF_FIRST_CONTENTFUL_PAINT_MS, dnsKey, navigationStart,
         firstContentfulComposite);
 
-    Telemetry::AccumulateTimeDelta(
-        Telemetry::PERF_FIRST_CONTENTFUL_PAINT_FROM_RESPONSESTART_MS,
-        responseStart, firstContentfulComposite);
+    glean::performance_pageload::fcp_responsestart.AccumulateRawDuration(
+        firstContentfulComposite - responseStart);
 
     TimeDuration fcpTime = firstContentfulComposite - navigationStart;
     if (fcpTime > zeroDuration) {
@@ -2190,21 +2185,11 @@ void Document::AccumulatePageLoadTelemetry(
         static_cast<uint32_t>((lcpTime - navigationStart).ToMilliseconds()));
   }
 
-  // DOM Content Loaded event
-  if (TimeStamp dclEventStart =
-          GetNavigationTiming()->GetDOMContentLoadedEventStartTimeStamp()) {
-    Telemetry::AccumulateTimeDelta(Telemetry::PERF_DOM_CONTENT_LOADED_TIME_MS,
-                                   navigationStart, dclEventStart);
-    Telemetry::AccumulateTimeDelta(
-        Telemetry::PERF_DOM_CONTENT_LOADED_TIME_FROM_RESPONSESTART_MS,
-        responseStart, dclEventStart);
-  }
-
   // Load event
   if (TimeStamp loadEventStart =
           GetNavigationTiming()->GetLoadEventStartTimeStamp()) {
-    Telemetry::AccumulateTimeDelta(Telemetry::PERF_PAGE_LOAD_TIME_MS,
-                                   navigationStart, loadEventStart);
+    glean::performance_pageload::load_time.AccumulateRawDuration(
+        loadEventStart - navigationStart);
     if (!http3Key.IsEmpty()) {
       Telemetry::AccumulateTimeDelta(Telemetry::HTTP3_PERF_PAGE_LOAD_TIME_MS,
                                      http3Key, navigationStart, loadEventStart);
@@ -2222,9 +2207,8 @@ void Document::AccumulatePageLoadTelemetry(
                                      loadEventStart);
     }
 
-    Telemetry::AccumulateTimeDelta(
-        Telemetry::PERF_PAGE_LOAD_TIME_FROM_RESPONSESTART_MS, responseStart,
-        loadEventStart);
+    glean::performance_pageload::load_time_responsestart.AccumulateRawDuration(
+        loadEventStart - responseStart);
 
     TimeDuration responseTime = responseStart - navigationStart;
     if (responseTime > zeroDuration) {
@@ -2256,41 +2240,34 @@ void Document::AccumulateJSTelemetry(
   JS::JSTimers timers = JS::GetJSTimers(cx);
 
   if (!timers.executionTime.IsZero()) {
-    Telemetry::Accumulate(
-        Telemetry::JS_PAGELOAD_EXECUTION_MS,
-        ConvertToUnsignedFromDouble(timers.executionTime.ToMilliseconds()));
+    glean::javascript_pageload::execution_time.AccumulateRawDuration(
+        timers.executionTime);
     aEventTelemetryDataOut.jsExecTime = mozilla::Some(
         static_cast<uint32_t>(timers.executionTime.ToMilliseconds()));
   }
 
   if (!timers.delazificationTime.IsZero()) {
-    Telemetry::Accumulate(Telemetry::JS_PAGELOAD_DELAZIFICATION_MS,
-                          ConvertToUnsignedFromDouble(
-                              timers.delazificationTime.ToMilliseconds()));
+    glean::javascript_pageload::delazification_time.AccumulateRawDuration(
+        timers.delazificationTime);
   }
 
   if (!timers.xdrEncodingTime.IsZero()) {
-    Telemetry::Accumulate(
-        Telemetry::JS_PAGELOAD_XDR_ENCODING_MS,
-        ConvertToUnsignedFromDouble(timers.xdrEncodingTime.ToMilliseconds()));
+    glean::javascript_pageload::xdr_encode_time.AccumulateRawDuration(
+        timers.xdrEncodingTime);
   }
 
   if (!timers.baselineCompileTime.IsZero()) {
-    Telemetry::Accumulate(Telemetry::JS_PAGELOAD_BASELINE_COMPILE_MS,
-                          ConvertToUnsignedFromDouble(
-                              timers.baselineCompileTime.ToMilliseconds()));
+    glean::javascript_pageload::baseline_compile_time.AccumulateRawDuration(
+        timers.baselineCompileTime);
   }
 
   if (!timers.gcTime.IsZero()) {
-    Telemetry::Accumulate(
-        Telemetry::JS_PAGELOAD_GC_MS,
-        ConvertToUnsignedFromDouble(timers.gcTime.ToMilliseconds()));
+    glean::javascript_pageload::gc_time.AccumulateRawDuration(timers.gcTime);
   }
 
   if (!timers.protectTime.IsZero()) {
-    Telemetry::Accumulate(
-        Telemetry::JS_PAGELOAD_PROTECT_MS,
-        ConvertToUnsignedFromDouble(timers.protectTime.ToMilliseconds()));
+    glean::javascript_pageload::protect_time.AccumulateRawDuration(
+        timers.protectTime);
   }
 }
 
@@ -4484,15 +4461,6 @@ bool Document::AllowsL10n() const {
   bool allowed = false;
   NodePrincipal()->IsL10nAllowed(GetDocumentURI(), &allowed);
   return allowed;
-}
-
-bool Document::IsWebAnimationsGetAnimationsEnabled(JSContext* aCx,
-                                                   JSObject* /*unused*/
-) {
-  MOZ_ASSERT(NS_IsMainThread());
-
-  return nsContentUtils::IsSystemCaller(aCx) ||
-         StaticPrefs::dom_animations_api_getAnimations_enabled();
 }
 
 bool Document::AreWebAnimationsTimelinesEnabled(JSContext* aCx,
@@ -17740,11 +17708,14 @@ already_AddRefed<mozilla::dom::Promise> Document::RequestStorageAccess(
       ContentBlockingNotifier::eStorageAccessAPI, true)
       ->Then(
           GetCurrentSerialEventTarget(), __func__,
-          [inner, promise] {
-            inner->SaveStorageAccessPermissionGranted();
-            promise->MaybeResolveWithUndefined();
-          },
-          [self, promise] {
+          [inner] { return inner->SaveStorageAccessPermissionGranted(); },
+          [] {
+            return GenericPromise::CreateAndReject(NS_ERROR_FAILURE, __func__);
+          })
+      ->Then(
+          GetCurrentSerialEventTarget(), __func__,
+          [promise] { promise->MaybeResolveWithUndefined(); },
+          [promise, self] {
             self->ConsumeTransientUserGestureActivation();
             promise->MaybeRejectWithNotAllowedError(
                 "requestStorageAccess not allowed"_ns);
@@ -18417,15 +18388,15 @@ void Document::RecordNavigationTiming(ReadyState aReadyState) {
       break;
     case READYSTATE_INTERACTIVE:
       if (!mDOMInteractiveSet) {
-        Telemetry::AccumulateTimeDelta(Telemetry::TIME_TO_DOM_INTERACTIVE_MS,
-                                       startTime);
+        glean::performance_time::dom_interactive.AccumulateRawDuration(
+            TimeStamp::Now() - startTime);
         mDOMInteractiveSet = true;
       }
       break;
     case READYSTATE_COMPLETE:
       if (!mDOMCompleteSet) {
-        Telemetry::AccumulateTimeDelta(Telemetry::TIME_TO_DOM_COMPLETE_MS,
-                                       startTime);
+        glean::performance_time::dom_complete.AccumulateRawDuration(
+            TimeStamp::Now() - startTime);
         mDOMCompleteSet = true;
       }
       break;
