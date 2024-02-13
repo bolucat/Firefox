@@ -1,9 +1,9 @@
 /* eslint-disable @microsoft/sdl/no-insecure-url */
-const { ASRouterTriggerListeners } = ChromeUtils.import(
-  "resource:///modules/asrouter/ASRouterTriggerListeners.jsm"
+const { ASRouterTriggerListeners } = ChromeUtils.importESModule(
+  "resource:///modules/asrouter/ASRouterTriggerListeners.sys.mjs"
 );
-const { ASRouter } = ChromeUtils.import(
-  "resource:///modules/asrouter/ASRouter.jsm"
+const { ASRouter } = ChromeUtils.importESModule(
+  "resource:///modules/asrouter/ASRouter.sys.mjs"
 );
 const { CFRMessageProvider } = ChromeUtils.importESModule(
   "resource:///modules/asrouter/CFRMessageProvider.sys.mjs"

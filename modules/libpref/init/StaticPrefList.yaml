@@ -11904,6 +11904,17 @@
   value: false
   mirror: always
 
+# When true, the HTTPS query will actually call the native
+# platform API. When false it will return before the call
+# to the platform API
+# This pref is necessary because having a HTTPS record
+# could cause channels to connect to a different port,
+# which is not desirable in automation.
+- name: network.dns.native_https_query_in_automation
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 # When resolving a native HTTPS query with native APIs
 # the Android implementation has a max timeout
 - name: network.dns.native_https_timeout_android
@@ -12693,6 +12704,24 @@
 - name: network.cache.bug1708673
   type: RelaxedAtomicBool
   value: false
+  mirror: always
+
+# CacheStorageService::MemoryPool::PurgeByFrecency does a rather expensive
+# sort we cannot interrupt by an incoming cache operation, so we want the
+# purging to do some progress to not have just wasted cycles.
+# Initial default 0, see bug 1879814.
+- name: network.cache.purgebyfrecency_minprogress_disk
+  type: RelaxedAtomicUint32
+  value: 0
+  mirror: always
+
+# CacheStorageService::MemoryPool::PurgeByFrecency does a rather expensive
+# sort we cannot interrupt by an incoming cache operation, so we want the
+# purging to do at least some progress to not have just wasted cycles.
+# Initial default 0, see bug 1879814.
+- name: network.cache.purgebyfrecency_minprogress_memory
+  type: RelaxedAtomicUint32
+  value: 0
   mirror: always
 
 # When true we will dispatch a background task (separate process) to

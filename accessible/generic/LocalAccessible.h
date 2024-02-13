@@ -838,6 +838,12 @@ class LocalAccessible : public nsISupports, public Accessible {
    */
   mozilla::a11y::role ARIATransformRole(mozilla::a11y::role aRole) const;
 
+  /**
+   * Return the minimum role that should be used as a last resort if the element
+   * does not have a more specific role.
+   */
+  mozilla::a11y::role GetMinimumRole(mozilla::a11y::role aRole) const;
+
   //////////////////////////////////////////////////////////////////////////////
   // Name helpers
 
@@ -1003,6 +1009,8 @@ class LocalAccessible : public nsISupports, public Accessible {
    * OOP iframe docs and tab documents.
    */
   nsIFrame* FindNearestAccessibleAncestorFrame();
+
+  LocalAccessible* GetPopoverTargetDetailsRelation() const;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(LocalAccessible, NS_ACCESSIBLE_IMPL_IID)

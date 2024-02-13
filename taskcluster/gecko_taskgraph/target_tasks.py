@@ -248,8 +248,37 @@ def accept_raptor_android_build(platform):
         return False
     if "p6" in platform and "aarch64" in platform:
         return False
+    if "s21" in platform and "aarch64" in platform:
+        return False
     if "a51" in platform:
         return True
+    return False
+
+
+def accept_raptor_desktop_build(platform):
+    """Helper function for selecting correct desktop raptor builds."""
+    if "android" in platform:
+        return False
+    # ignore all windows 7 perf jobs scheduled automatically
+    if "windows7" in platform or "windows10-32" in platform:
+        return False
+    # Completely ignore all non-shippable platforms
+    if "shippable" in platform:
+        return True
+    return False
+
+
+def accept_awsy_task(try_name, platform):
+    if accept_raptor_desktop_build(platform):
+        if "windows" in platform and "windows11-64" not in platform:
+            return False
+        if "dmd" in try_name:
+            return False
+        if "awsy-base" in try_name:
+            return True
+        if "awsy-tp6" in try_name:
+            return True
+    return False
 
 
 def filter_unsupported_artifact_builds(task, parameters):
@@ -757,16 +786,10 @@ def target_tasks_custom_car_perf_testing(full_task_graph, parameters, graph_conf
 
         try_name = attributes.get("raptor_try_name")
 
-        # Completely ignore all non-shippable platforms
-        if "shippable" not in platform:
-            return False
-
-        # ignore all windows 7 perf jobs scheduled automatically
-        if "windows10-32" in platform:
-            return False
-
         # Desktop and Android selection for CaR
-        if "android" not in platform or accept_raptor_android_build(platform):
+        if accept_raptor_desktop_build(platform) or accept_raptor_android_build(
+            platform
+        ):
             if "browsertime" in try_name and (
                 "custom-car" in try_name or "cstm-car-m" in try_name
             ):
@@ -790,14 +813,6 @@ def target_tasks_general_perf_testing(full_task_graph, parameters, graph_config)
 
         try_name = attributes.get("raptor_try_name")
 
-        # Completely ignore all non-shippable platforms
-        if "shippable" not in platform:
-            return False
-
-        # ignore all windows 7 perf jobs scheduled automatically
-        if "windows7" in platform or "windows10-32" in platform:
-            return False
-
         if "tp6-bench" in try_name:
             return False
 
@@ -806,7 +821,7 @@ def target_tasks_general_perf_testing(full_task_graph, parameters, graph_config)
             return False
 
         # Desktop selection
-        if "android" not in platform:
+        if accept_raptor_desktop_build(platform):
             # Select some browsertime tasks as desktop smoke-tests
             if "browsertime" in try_name:
                 if "chrome" in try_name:
@@ -912,9 +927,9 @@ def target_tasks_speedometer_tests(full_task_graph, parameters, graph_config):
         if attributes.get("unittest_suite") != "raptor":
             return False
 
-        if (
-            "android" not in platform and "windows10-32" not in platform
-        ) or accept_raptor_android_build(platform):
+        if accept_raptor_desktop_build(platform) or accept_raptor_android_build(
+            platform
+        ):
             try_name = attributes.get("raptor_try_name")
             if (
                 "browsertime" in try_name
@@ -1239,12 +1254,65 @@ def target_tasks_daily_beta_perf(full_task_graph, parameters, graph_config):
     def filter(task):
         platform = task.attributes.get("test_platform")
         attributes = task.attributes
-        try_name = attributes.get("raptor_try_name")
+        try_name = attributes.get("raptor_try_name") or task.label
 
-        if attributes.get("unittest_suite") != "raptor":
+        unittest_suite = attributes.get("unittest_suite")
+        if unittest_suite not in ("raptor", "awsy", "talos"):
+            return False
+        if not platform:
             return False
 
-        if platform and accept_raptor_android_build(platform):
+        # Select beta tasks for awsy
+        if "awsy" in try_name:
+            if accept_awsy_task(try_name, platform):
+                return True
+            return False
+
+        # Select beta tasks for talos
+        if "talos" == unittest_suite:
+            if accept_raptor_desktop_build(platform):
+                if "windows11-64" in platform:
+                    if "xperf" in try_name:
+                        return True
+                    return False
+                if ("mac" in platform or "windows" in platform) and "g3" in try_name:
+                    return False
+                if "-swr" in try_name:
+                    if "dromaeo" in try_name:
+                        return False
+                    if "perf-reftest-singletons" in try_name:
+                        return False
+                    if "realworldweb" in try_name:
+                        return False
+                if any(
+                    x in try_name
+                    for x in ("prof", "ipc", "gli", "sessionrestore", "tabswitch")
+                ):
+                    return False
+                return True
+            return False
+
+        if accept_raptor_desktop_build(platform):
+            if "browsertime" and "firefox" in try_name:
+                if "profiling" in try_name:
+                    return False
+                if "bytecode" in try_name:
+                    return False
+                if "live" in try_name:
+                    return False
+                if "webext" in try_name:
+                    return False
+                if "unity" in try_name:
+                    return False
+                if "wasm" in try_name:
+                    return False
+                if "tp6-bench" in try_name:
+                    return False
+                if "tp6" in try_name:
+                    return True
+                if "benchmark" in try_name:
+                    return True
+        elif accept_raptor_android_build(platform):
             # Select browsertime & geckoview specific tests
             if "browsertime" and "geckoview" in try_name:
                 if "power" in try_name:
@@ -1276,12 +1344,41 @@ def target_tasks_weekly_release_perf(full_task_graph, parameters, graph_config):
     def filter(task):
         platform = task.attributes.get("test_platform")
         attributes = task.attributes
-        try_name = attributes.get("raptor_try_name")
+        try_name = attributes.get("raptor_try_name") or task.label
 
-        if attributes.get("unittest_suite") != "raptor":
+        if attributes.get("unittest_suite") not in ("raptor", "awsy"):
+            return False
+        if not platform:
             return False
 
-        if platform and accept_raptor_android_build(platform):
+        # Select release tasks for awsy
+        if "awsy" in try_name:
+            if accept_awsy_task(try_name, platform):
+                return True
+            return False
+
+        # Select browsertime tests
+        if accept_raptor_desktop_build(platform):
+            if "browsertime" and "firefox" in try_name:
+                if "power" in try_name:
+                    return False
+                if "profiling" in try_name:
+                    return False
+                if "bytecode" in try_name:
+                    return False
+                if "live" in try_name:
+                    return False
+                if "webext" in try_name:
+                    return False
+                if "tp6-bench" in try_name:
+                    return False
+                if "tp6" in try_name:
+                    return True
+                if "benchmark" in try_name:
+                    return True
+                if "youtube-playback" in try_name:
+                    return True
+        elif accept_raptor_android_build(platform):
             # Select browsertime & geckoview specific tests
             if "browsertime" and "geckoview" in try_name:
                 if "power" in try_name:

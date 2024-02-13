@@ -9,6 +9,9 @@ const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
   AboutNewTab: "resource:///modules/AboutNewTab.sys.mjs",
+  ASRouter: "resource:///modules/asrouter/ASRouter.sys.mjs",
+  ASRouterDefaultConfig:
+    "resource:///modules/asrouter/ASRouterDefaultConfig.sys.mjs",
   ASRouterNewTabHook: "resource:///modules/asrouter/ASRouterNewTabHook.sys.mjs",
   ActorManagerParent: "resource://gre/modules/ActorManagerParent.sys.mjs",
   AddonManager: "resource://gre/modules/AddonManager.sys.mjs",
@@ -44,6 +47,8 @@ ChromeUtils.defineESModuleGetters(lazy, {
   NewTabUtils: "resource://gre/modules/NewTabUtils.sys.mjs",
   NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
   Normandy: "resource://normandy/Normandy.sys.mjs",
+  OnboardingMessageProvider:
+    "resource:///modules/asrouter/OnboardingMessageProvider.sys.mjs",
   OsEnvironment: "resource://gre/modules/OsEnvironment.sys.mjs",
   PageActions: "resource:///modules/PageActions.sys.mjs",
   PageDataService: "resource:///modules/pagedata/PageDataService.sys.mjs",
@@ -93,14 +98,6 @@ ChromeUtils.defineESModuleGetters(lazy, {
   WindowsGPOParser: "resource://gre/modules/policies/WindowsGPOParser.sys.mjs",
   clearTimeout: "resource://gre/modules/Timer.sys.mjs",
   setTimeout: "resource://gre/modules/Timer.sys.mjs",
-});
-
-XPCOMUtils.defineLazyModuleGetters(lazy, {
-  ASRouterDefaultConfig:
-    "resource:///modules/asrouter/ASRouterDefaultConfig.jsm",
-  ASRouter: "resource:///modules/asrouter/ASRouter.jsm",
-  OnboardingMessageProvider:
-    "resource:///modules/asrouter/OnboardingMessageProvider.jsm",
 });
 
 if (AppConstants.MOZ_UPDATER) {

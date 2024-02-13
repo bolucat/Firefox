@@ -11,6 +11,7 @@
 #include <gtk/gtk.h>
 #include <stdio.h>
 #include "mozilla/WidgetUtilsGtk.h"
+#include "nsWindow.h"
 
 #ifdef MOZ_LOGGING
 #  include "mozilla/Logging.h"
@@ -137,10 +138,12 @@ void moz_container_class_init(MozContainerClass* klass) {
     widget_class->map = moz_container_wayland_map;
     widget_class->size_allocate = moz_container_wayland_size_allocate;
     widget_class->map_event = moz_container_wayland_map_event;
+    widget_class->unmap = moz_container_wayland_unmap;
   } else {
 #endif
     widget_class->map = moz_container_map;
     widget_class->size_allocate = moz_container_size_allocate;
+    widget_class->unmap = moz_container_unmap;
 #ifdef MOZ_WAYLAND
   }
 #endif
@@ -193,6 +196,10 @@ void moz_container_unmap(GtkWidget* widget) {
   LOGCONTAINER(("moz_container_unmap() [%p]",
                 (void*)moz_container_get_nsWindow(MOZ_CONTAINER(widget))));
 
+  // Disable rendering to MozContainer before we unmap it.
+  nsWindow* window = moz_container_get_nsWindow(MOZ_CONTAINER(widget));
+  window->DisableRendering();
+
   gtk_widget_set_mapped(widget, FALSE);
 
   if (gtk_widget_get_has_window(widget)) {
@@ -238,6 +245,10 @@ void moz_container_unrealize(GtkWidget* widget) {
   LOGCONTAINER(("moz_container_unrealize() [%p] GdkWindow %p\n",
                 (void*)moz_container_get_nsWindow(MOZ_CONTAINER(widget)),
                 (void*)window));
+
+  if (gtk_widget_get_mapped(widget)) {
+    gtk_widget_unmap(widget);
+  }
 
   gtk_widget_unregister_window(widget, window);
   gtk_widget_set_window(widget, nullptr);

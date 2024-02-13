@@ -117,10 +117,6 @@ D3D11ShareHandleImage::MaybeCreateNV12ImageAndSetData(
   D3D11MTAutoEnter mtAutoEnter(mt.forget());
 
   AutoLockD3D11Texture lockSt(stagingTexture);
-  if (NS_WARN_IF(!lockSt.Succeeded())) {
-    gfxCriticalNoteOnce << "Locking D3D11 staging texture failed";
-    return nullptr;
-  }
 
   D3D11_MAP mapType = D3D11_MAP_WRITE;
   D3D11_MAPPED_SUBRESOURCE mappedResource;
@@ -329,7 +325,8 @@ already_AddRefed<TextureClient> D3D11RecycleAllocator::CreateOrRecycleClient(
       mUsableSurfaceFormat, aColorSpace, aColorRange, aSize, allocFlags,
       mDevice, layers::TextureFlags::DEFAULT);
 
-  RefPtr<TextureClient> textureClient = CreateOrRecycle(helper);
+  RefPtr<TextureClient> textureClient =
+      CreateOrRecycle(helper).unwrapOr(nullptr);
   return textureClient.forget();
 }
 

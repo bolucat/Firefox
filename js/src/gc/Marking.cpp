@@ -107,6 +107,9 @@ using mozilla::PodCopy;
 //
 /* clang-format on */
 
+static const size_t ValueRangeWords =
+    sizeof(MarkStack::SlotsOrElementsRange) / sizeof(uintptr_t);
+
 /*** Tracing Invariants *****************************************************/
 
 template <typename T>
@@ -1215,16 +1218,33 @@ inline void GCMarker::checkTraversedEdge(S source, T* target) {
 }
 
 template <uint32_t opts, typename S, typename T>
-void js::GCMarker::markAndTraverseEdge(S source, T* target) {
+void js::GCMarker::markAndTraverseEdge(S* source, T* target) {
   checkTraversedEdge(source, target);
   markAndTraverse<opts>(target);
 }
 
 template <uint32_t opts, typename S, typename T>
-void js::GCMarker::markAndTraverseEdge(S source, const T& target) {
+void js::GCMarker::markAndTraverseEdge(S* source, const T& target) {
   ApplyGCThingTyped(target, [this, source](auto t) {
     this->markAndTraverseEdge<opts>(source, t);
   });
+}
+
+template <uint32_t opts>
+MOZ_NEVER_INLINE bool js::GCMarker::markAndTraversePrivateGCThing(
+    JSObject* source, TenuredCell* target) {
+  JS::TraceKind kind = target->getTraceKind();
+  ApplyGCThingTyped(target, kind, [this, source](auto t) {
+    this->markAndTraverseEdge<opts>(source, t);
+  });
+
+  // Ensure stack headroom in case we pushed.
+  if (MOZ_UNLIKELY(!stack.ensureSpace(ValueRangeWords))) {
+    delayMarkingChildrenOnOOM(source);
+    return false;
+  }
+
+  return true;
 }
 
 template <uint32_t opts, typename T>
@@ -1575,6 +1595,8 @@ inline bool GCMarker::processMarkStackTop(SliceBudget& budget) {
 
 scan_value_range:
   while (index < end) {
+    MOZ_ASSERT(stack.capacity() >= stack.position() + ValueRangeWords);
+
     budget.step();
     if (budget.isOverBudget()) {
       pushValueRange(obj, kind, index, end);
@@ -1583,6 +1605,10 @@ scan_value_range:
 
     const Value& v = base[index];
     index++;
+
+    if (!v.isGCThing()) {
+      continue;
+    }
 
     if (v.isString()) {
       markAndTraverseEdge<opts>(obj, v.toString());
@@ -1609,10 +1635,12 @@ scan_value_range:
       markAndTraverseEdge<opts>(obj, v.toSymbol());
     } else if (v.isBigInt()) {
       markAndTraverseEdge<opts>(obj, v.toBigInt());
-    } else if (v.isPrivateGCThing()) {
-      // v.toGCCellPtr cannot be inlined, so construct one manually.
-      Cell* cell = v.toGCThing();
-      markAndTraverseEdge<opts>(obj, JS::GCCellPtr(cell, cell->getTraceKind()));
+    } else {
+      MOZ_ASSERT(v.isPrivateGCThing());
+      if (!markAndTraversePrivateGCThing<opts>(obj,
+                                               &v.toGCThing()->asTenured())) {
+        return true;
+      }
     }
   }
 
@@ -1634,40 +1662,43 @@ scan_obj: {
 
   NativeObject* nobj = &obj->as<NativeObject>();
 
+  // Ensure stack headroom for three ranges (fixed slots, dynamic slots and
+  // elements).
+  if (MOZ_UNLIKELY(!stack.ensureSpace(ValueRangeWords * 3))) {
+    delayMarkingChildrenOnOOM(obj);
+    return true;
+  }
+
   unsigned nslots = nobj->slotSpan();
 
-  do {
-    if (nobj->hasEmptyElements()) {
-      break;
-    }
-
+  if (!nobj->hasEmptyElements()) {
     base = nobj->getDenseElements();
     kind = SlotsOrElementsKind::Elements;
     index = 0;
     end = nobj->getDenseInitializedLength();
 
     if (!nslots) {
+      // No slots at all. Scan elements immediately.
       goto scan_value_range;
     }
+
     pushValueRange(nobj, kind, index, end);
-  } while (false);
+  }
 
   unsigned nfixed = nobj->numFixedSlots();
-
   base = nobj->fixedSlots();
   kind = SlotsOrElementsKind::FixedSlots;
   index = 0;
 
   if (nslots > nfixed) {
-    pushValueRange(nobj, kind, index, nfixed);
-    kind = SlotsOrElementsKind::DynamicSlots;
-    base = nobj->slots_;
-    end = nslots - nfixed;
-    goto scan_value_range;
+    // Push dynamic slots for later scan.
+    pushValueRange(nobj, SlotsOrElementsKind::DynamicSlots, 0, nslots - nfixed);
+    end = nfixed;
+  } else {
+    end = nslots;
   }
 
-  MOZ_ASSERT(nslots <= nobj->numFixedSlots());
-  end = nslots;
+  // Scan any fixed slots.
   goto scan_value_range;
 }
 }
@@ -1680,9 +1711,6 @@ static_assert((sizeof(MarkStack::SlotsOrElementsRange) % sizeof(uintptr_t)) ==
                   0,
               "SlotsOrElementsRange size should be a multiple of "
               "the pointer size");
-
-static const size_t ValueRangeWords =
-    sizeof(MarkStack::SlotsOrElementsRange) / sizeof(uintptr_t);
 
 template <typename T>
 struct MapTypeToMarkStackTag {};
@@ -1943,26 +1971,14 @@ inline void MarkStack::infalliblePush(const TaggedPtr& ptr) {
   MOZ_ASSERT(position() <= capacity());
 }
 
-inline bool MarkStack::push(JSObject* obj, SlotsOrElementsKind kind,
-                            size_t start) {
-  return push(SlotsOrElementsRange(kind, obj, start));
-}
+inline void MarkStack::infalliblePush(JSObject* obj, SlotsOrElementsKind kind,
+                                      size_t start) {
+  MOZ_ASSERT(position() + ValueRangeWords <= capacity());
 
-inline bool MarkStack::push(const SlotsOrElementsRange& array) {
+  SlotsOrElementsRange array(kind, obj, start);
   array.assertValid();
-
-  if (!ensureSpace(ValueRangeWords)) {
-    return false;
-  }
-
-  infalliblePush(array);
-  return true;
-}
-
-inline void MarkStack::infalliblePush(const SlotsOrElementsRange& array) {
   *reinterpret_cast<SlotsOrElementsRange*>(topPtr()) = array;
   topIndex_ += ValueRangeWords;
-  MOZ_ASSERT(position() <= capacity());
   MOZ_ASSERT(TagIsRangeTag(peekTag()));
 }
 
@@ -2194,18 +2210,9 @@ inline void GCMarker::pushValueRange(JSObject* obj, SlotsOrElementsKind kind,
   MOZ_ASSERT(obj->is<NativeObject>());
   MOZ_ASSERT(start <= end);
 
-  if (start == end) {
-    return;
+  if (start != end) {
+    stack.infalliblePush(obj, kind, start);
   }
-
-  if (MOZ_UNLIKELY(!stack.push(obj, kind, start))) {
-    delayMarkingChildrenOnOOM(obj);
-  }
-}
-
-void GCMarker::repush(JSObject* obj) {
-  MOZ_ASSERT(obj->asTenured().isMarkedAtLeast(markColor()));
-  pushTaggedPtr(obj);
 }
 
 void GCMarker::setRootMarkingMode(bool newState) {

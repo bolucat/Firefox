@@ -124,8 +124,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-ares6**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-macosx1015-64-nightlyasrelease-qr/opt**
@@ -177,8 +177,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-ares6**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-benchmark-safari-ares6**
         - ❌
         - ❌
@@ -272,8 +272,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-ares6**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
 
@@ -364,8 +364,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-assorted-dom**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-macosx1015-64-nightlyasrelease-qr/opt**
@@ -417,8 +417,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-assorted-dom**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-benchmark-safari-assorted-dom**
         - ❌
         - ❌
@@ -512,8 +512,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-assorted-dom**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
 
@@ -605,8 +605,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-jetstream2**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-macosx1015-64-nightlyasrelease-qr/opt**
@@ -658,8 +658,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-jetstream2**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-benchmark-safari-jetstream2**
         - ❌
         - ❌
@@ -753,8 +753,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-jetstream2**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
 
@@ -846,8 +846,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-matrix-react-bench**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-macosx1015-64-nightlyasrelease-qr/opt**
@@ -899,8 +899,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-matrix-react-bench**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -989,8 +989,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-matrix-react-bench**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
 
@@ -1126,8 +1126,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-motionmark-animometer**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-macosx1015-64-nightlyasrelease-qr/opt**
@@ -1179,8 +1179,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-motionmark-animometer**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-benchmark-safari-motionmark-animometer**
         - ❌
         - ❌
@@ -1274,8 +1274,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-motionmark-animometer**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    **Owner**: :jgilbert and Graphics(gfx) Team
@@ -1407,8 +1407,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-motionmark-animometer**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-macosx1015-64-nightlyasrelease-qr/opt**
@@ -1460,8 +1460,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-motionmark-animometer**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-benchmark-safari-motionmark-animometer**
         - ❌
         - ❌
@@ -1555,8 +1555,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-motionmark-animometer**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
 
@@ -1697,8 +1697,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-motionmark-animometer-ramp**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-macosx1015-64-nightlyasrelease-qr/opt**
@@ -1750,8 +1750,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-motionmark-animometer-ramp**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-benchmark-safari-motionmark-animometer-ramp**
         - ❌
         - ❌
@@ -1850,8 +1850,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-motionmark-animometer-ramp**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    **Owner**: :jgilbert and Graphics(gfx) Team
@@ -1988,8 +1988,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-motionmark-animometer-ramp**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-macosx1015-64-nightlyasrelease-qr/opt**
@@ -2041,8 +2041,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-motionmark-animometer-ramp**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-benchmark-safari-motionmark-animometer-ramp**
         - ❌
         - ❌
@@ -2141,8 +2141,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-motionmark-animometer-ramp**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
 
@@ -2279,8 +2279,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-motionmark-htmlsuite**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-macosx1015-64-nightlyasrelease-qr/opt**
@@ -2332,8 +2332,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-motionmark-htmlsuite**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-benchmark-safari-motionmark-htmlsuite**
         - ❌
         - ❌
@@ -2427,8 +2427,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-motionmark-htmlsuite**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    **Owner**: :jgilbert and Graphics(gfx) Team
@@ -2561,8 +2561,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-motionmark-htmlsuite**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-macosx1015-64-nightlyasrelease-qr/opt**
@@ -2614,8 +2614,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-motionmark-htmlsuite**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-benchmark-safari-motionmark-htmlsuite**
         - ❌
         - ❌
@@ -2709,8 +2709,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-motionmark-htmlsuite**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
 
@@ -2852,8 +2852,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-motionmark-htmlsuite-ramp**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-macosx1015-64-nightlyasrelease-qr/opt**
@@ -2905,8 +2905,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-motionmark-htmlsuite-ramp**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-benchmark-safari-motionmark-htmlsuite-ramp**
         - ❌
         - ❌
@@ -3005,8 +3005,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-motionmark-htmlsuite-ramp**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    **Owner**: :jgilbert and Graphics(gfx) Team
@@ -3144,8 +3144,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-motionmark-htmlsuite-ramp**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-macosx1015-64-nightlyasrelease-qr/opt**
@@ -3197,8 +3197,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-motionmark-htmlsuite-ramp**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-benchmark-safari-motionmark-htmlsuite-ramp**
         - ❌
         - ❌
@@ -3297,8 +3297,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-motionmark-htmlsuite-ramp**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
 
@@ -3405,6 +3405,37 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - ❌
 
 
+   .. list-table:: **test-android-hw-s21-13-0-android-aarch64-shippable-qr/opt**
+      :widths: 30 15 15 15 15
+      :header-rows: 1
+
+      * - **Test Name**
+        - mozilla-central
+        - autoland
+        - mozilla-release
+        - mozilla-beta
+      * - **browsertime-benchmark-speedometer-mobile-chrome-m-nofis**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-benchmark-speedometer-mobile-cstm-car-m-nofis**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-benchmark-speedometer-mobile-fenix-nofis**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-benchmark-speedometer-mobile-geckoview-nofis**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+
+
    .. list-table:: **test-linux1804-64-clang-trunk-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
@@ -3475,8 +3506,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-speedometer**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-macosx1015-64-nightlyasrelease-qr/opt**
@@ -3533,8 +3564,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-speedometer**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-benchmark-safari-speedometer**
         - ❌
         - ❌
@@ -3564,8 +3595,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-speedometer**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -3659,8 +3690,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-speedometer**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    **Owner**: SpiderMonkey Team
@@ -3763,6 +3794,37 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - ❌
 
 
+   .. list-table:: **test-android-hw-s21-13-0-android-aarch64-shippable-qr/opt**
+      :widths: 30 15 15 15 15
+      :header-rows: 1
+
+      * - **Test Name**
+        - mozilla-central
+        - autoland
+        - mozilla-release
+        - mozilla-beta
+      * - **browsertime-benchmark-speedometer-mobile-chrome-m-nofis**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-benchmark-speedometer-mobile-cstm-car-m-nofis**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-benchmark-speedometer-mobile-fenix-nofis**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-benchmark-speedometer-mobile-geckoview-nofis**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+
+
    .. list-table:: **test-linux1804-64-clang-trunk-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
@@ -3833,8 +3895,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-speedometer**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-macosx1015-64-nightlyasrelease-qr/opt**
@@ -3891,8 +3953,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-speedometer**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-benchmark-safari-speedometer**
         - ❌
         - ❌
@@ -3922,8 +3984,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-speedometer**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -4017,8 +4079,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-speedometer**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
 
@@ -4132,6 +4194,37 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - ❌
 
 
+   .. list-table:: **test-android-hw-s21-13-0-android-aarch64-shippable-qr/opt**
+      :widths: 30 15 15 15 15
+      :header-rows: 1
+
+      * - **Test Name**
+        - mozilla-central
+        - autoland
+        - mozilla-release
+        - mozilla-beta
+      * - **browsertime-benchmark-speedometer3-mobile-chrome-m-nofis**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-benchmark-speedometer3-mobile-cstm-car-m-nofis**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-benchmark-speedometer3-mobile-fenix-nofis**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-benchmark-speedometer3-mobile-geckoview-nofis**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+
+
    .. list-table:: **test-linux1804-64-clang-trunk-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
@@ -4202,7 +4295,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-speedometer3**
         - ✅
         - ✅
-        - ✅
+        - ❌
         - ❌
 
 
@@ -4260,7 +4353,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-speedometer3**
         - ✅
         - ✅
-        - ✅
+        - ❌
         - ❌
 
 
@@ -4286,7 +4379,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-speedometer3**
         - ✅
         - ✅
-        - ✅
+        - ❌
         - ❌
 
 
@@ -4381,7 +4474,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-speedometer3**
         - ✅
         - ✅
-        - ✅
+        - ❌
         - ❌
 
 
@@ -4492,6 +4585,37 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - ❌
 
 
+   .. list-table:: **test-android-hw-s21-13-0-android-aarch64-shippable-qr/opt**
+      :widths: 30 15 15 15 15
+      :header-rows: 1
+
+      * - **Test Name**
+        - mozilla-central
+        - autoland
+        - mozilla-release
+        - mozilla-beta
+      * - **browsertime-benchmark-speedometer3-mobile-chrome-m-nofis**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-benchmark-speedometer3-mobile-cstm-car-m-nofis**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-benchmark-speedometer3-mobile-fenix-nofis**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-benchmark-speedometer3-mobile-geckoview-nofis**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+
+
    .. list-table:: **test-linux1804-64-clang-trunk-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
@@ -4562,7 +4686,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-speedometer3**
         - ✅
         - ✅
-        - ✅
+        - ❌
         - ❌
 
 
@@ -4620,7 +4744,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-speedometer3**
         - ✅
         - ✅
-        - ✅
+        - ❌
         - ❌
 
 
@@ -4646,7 +4770,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-speedometer3**
         - ✅
         - ✅
-        - ✅
+        - ❌
         - ❌
 
 
@@ -4741,7 +4865,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-speedometer3**
         - ✅
         - ✅
-        - ✅
+        - ❌
         - ❌
 
 
@@ -4831,8 +4955,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-stylebench**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-macosx1015-64-nightlyasrelease-qr/opt**
@@ -4884,8 +5008,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-stylebench**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-benchmark-safari-stylebench**
         - ❌
         - ❌
@@ -4979,8 +5103,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-stylebench**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
 
@@ -5067,8 +5191,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-sunspider**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-macosx1015-64-nightlyasrelease-qr/opt**
@@ -5120,8 +5244,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-sunspider**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-benchmark-safari-sunspider**
         - ❌
         - ❌
@@ -5215,8 +5339,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-sunspider**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
 
@@ -5304,8 +5428,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-twitch-animation**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-macosx1015-64-nightlyasrelease-qr/opt**
@@ -5352,8 +5476,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-twitch-animation**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -5432,8 +5556,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-twitch-animation**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
 
@@ -6089,7 +6213,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-wasm-firefox-wasm-godot**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -6142,7 +6266,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-wasm-firefox-wasm-godot**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
       * - **browsertime-benchmark-wasm-safari-wasm-godot**
         - ❌
@@ -6237,7 +6361,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-wasm-firefox-wasm-godot**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -6322,7 +6446,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-wasm-firefox-wasm-godot-baseline**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -6370,7 +6494,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-wasm-firefox-wasm-godot-baseline**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -6450,7 +6574,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-wasm-firefox-wasm-godot-baseline**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -6535,7 +6659,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-wasm-firefox-wasm-godot-optimizing**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -6583,7 +6707,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-wasm-firefox-wasm-godot-optimizing**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -6663,7 +6787,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-wasm-firefox-wasm-godot-optimizing**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -6754,7 +6878,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-wasm-firefox-wasm-misc**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -6807,7 +6931,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-wasm-firefox-wasm-misc**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -6897,7 +7021,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-wasm-firefox-wasm-misc**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -6984,7 +7108,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-wasm-firefox-wasm-misc-baseline**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -7032,7 +7156,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-wasm-firefox-wasm-misc-baseline**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -7112,7 +7236,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-wasm-firefox-wasm-misc-baseline**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -7199,7 +7323,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-wasm-firefox-wasm-misc-optimizing**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -7247,7 +7371,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-wasm-firefox-wasm-misc-optimizing**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -7327,7 +7451,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-wasm-firefox-wasm-misc-optimizing**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -7416,8 +7540,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-webaudio**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-macosx1015-64-nightlyasrelease-qr/opt**
@@ -7469,8 +7593,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-webaudio**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-benchmark-safari-webaudio**
         - ❌
         - ❌
@@ -7564,8 +7688,8 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-webaudio**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
 
@@ -7627,7 +7751,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-firefox-youtube-playback-av1-sfr**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -8561,7 +8685,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-firefox-youtube-playback-h264-sfr**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -8609,7 +8733,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-firefox-youtube-playback-h264-sfr**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -8689,7 +8813,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-firefox-youtube-playback-h264-sfr**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -8820,7 +8944,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-firefox-youtube-playback-hfr**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -8868,7 +8992,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-firefox-youtube-playback-hfr**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -8948,7 +9072,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-firefox-youtube-playback-hfr**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -9840,7 +9964,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-firefox-youtube-playback-vp9-sfr**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -9888,7 +10012,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-firefox-youtube-playback-vp9-sfr**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -9968,7 +10092,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-firefox-youtube-playback-vp9-sfr**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -10056,7 +10180,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-firefox-youtube-playback-widevine-h264-sfr**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -10104,7 +10228,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-firefox-youtube-playback-widevine-h264-sfr**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -10184,7 +10308,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-firefox-youtube-playback-widevine-h264-sfr**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -10272,7 +10396,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-firefox-youtube-playback-widevine-hfr**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -10320,7 +10444,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-firefox-youtube-playback-widevine-hfr**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -10400,7 +10524,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-firefox-youtube-playback-widevine-hfr**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -10488,7 +10612,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-firefox-youtube-playback-widevine-vp9-sfr**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -10536,7 +10660,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-firefox-youtube-playback-widevine-vp9-sfr**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -10616,7 +10740,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-firefox-youtube-playback-widevine-vp9-sfr**
         - ✅
         - ❌
-        - ✅
+        - ❌
         - ❌
 
 
@@ -15684,8 +15808,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-bytecode-firefox-amazon**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-amazon**
         - ❌
         - ❌
@@ -15699,8 +15823,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-essential-firefox-amazon**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-amazon**
         - ❌
         - ❌
@@ -15797,8 +15921,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-bytecode-firefox-amazon**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-amazon**
         - ❌
         - ❌
@@ -15812,8 +15936,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-essential-firefox-amazon**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-amazon**
         - ❌
         - ❌
@@ -15987,8 +16111,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-bytecode-firefox-amazon**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-amazon**
         - ❌
         - ❌
@@ -16002,8 +16126,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-essential-firefox-amazon**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-amazon**
         - ❌
         - ❌
@@ -16136,8 +16260,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-bytecode-firefox-bing-search**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-bing-search**
         - ❌
         - ❌
@@ -16151,8 +16275,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-essential-firefox-bing-search**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-bing-search**
         - ❌
         - ❌
@@ -16229,8 +16353,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-bytecode-firefox-bing-search**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-bing-search**
         - ❌
         - ❌
@@ -16244,8 +16368,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-essential-firefox-bing-search**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-bing-search**
         - ❌
         - ❌
@@ -16389,8 +16513,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-bytecode-firefox-bing-search**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-bing-search**
         - ❌
         - ❌
@@ -16404,8 +16528,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-essential-firefox-bing-search**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-bing-search**
         - ❌
         - ❌
@@ -16509,8 +16633,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-buzzfeed**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-macosx1015-64-nightlyasrelease-qr/opt**
@@ -16562,8 +16686,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-buzzfeed**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -16652,8 +16776,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-buzzfeed**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
 
@@ -16879,8 +17003,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-bytecode-firefox-cnn**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-cnn**
         - ❌
         - ❌
@@ -16894,8 +17018,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-essential-firefox-cnn**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-sheriffed-firefox-cnn**
         - ❌
         - ❌
@@ -16967,8 +17091,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-bytecode-firefox-cnn**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-cnn**
         - ❌
         - ❌
@@ -16982,8 +17106,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-essential-firefox-cnn**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-sheriffed-firefox-cnn**
         - ❌
         - ❌
@@ -17112,8 +17236,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-bytecode-firefox-cnn**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-cnn**
         - ❌
         - ❌
@@ -17127,8 +17251,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-essential-firefox-cnn**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-sheriffed-firefox-cnn**
         - ❌
         - ❌
@@ -17242,8 +17366,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-ebay**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-ebay**
         - ❌
         - ❌
@@ -17315,8 +17439,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-ebay**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-ebay**
         - ❌
         - ❌
@@ -17445,8 +17569,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-ebay**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-ebay**
         - ❌
         - ❌
@@ -17622,8 +17746,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-espn**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-macosx1015-64-nightlyasrelease-qr/opt**
@@ -17675,8 +17799,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-espn**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -17765,8 +17889,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-espn**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
 
@@ -17907,8 +18031,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-expedia**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-macosx1015-64-nightlyasrelease-qr/opt**
@@ -17960,8 +18084,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-expedia**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -18050,8 +18174,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-expedia**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
 
@@ -18207,8 +18331,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-facebook**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-facebook**
         - ❌
         - ❌
@@ -18280,8 +18404,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-facebook**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-facebook**
         - ❌
         - ❌
@@ -18405,8 +18529,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-facebook**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-facebook**
         - ❌
         - ❌
@@ -18534,8 +18658,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-bytecode-firefox-fandom**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-fandom**
         - ❌
         - ❌
@@ -18549,8 +18673,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-essential-firefox-fandom**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-fandom**
         - ❌
         - ❌
@@ -18627,8 +18751,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-bytecode-firefox-fandom**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-fandom**
         - ❌
         - ❌
@@ -18642,8 +18766,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-essential-firefox-fandom**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-fandom**
         - ❌
         - ❌
@@ -18787,8 +18911,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-bytecode-firefox-fandom**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-fandom**
         - ❌
         - ❌
@@ -18802,8 +18926,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-essential-firefox-fandom**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-fandom**
         - ❌
         - ❌
@@ -18923,8 +19047,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-google-docs**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-google-docs**
         - ❌
         - ❌
@@ -18996,8 +19120,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-google-docs**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-google-docs**
         - ❌
         - ❌
@@ -19126,8 +19250,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-google-docs**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-google-docs**
         - ❌
         - ❌
@@ -19245,8 +19369,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-google-mail**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-google-mail**
         - ❌
         - ❌
@@ -19318,8 +19442,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-google-mail**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-google-mail**
         - ❌
         - ❌
@@ -19448,8 +19572,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-google-mail**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-google-mail**
         - ❌
         - ❌
@@ -19567,8 +19691,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-google-search**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-google-search**
         - ❌
         - ❌
@@ -19640,8 +19764,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-google-search**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-google-search**
         - ❌
         - ❌
@@ -19770,8 +19894,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-google-search**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-google-search**
         - ❌
         - ❌
@@ -19801,9 +19925,9 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page cycles**: 25
    * **page timeout**: 60000
    * **playback**: mitmproxy
-   * **playback pageset manifest**: mitm6-linux-firefox-google-slides.manifest
-   * **playback version**: 6.0.2
-   * **secondary url**: `<https://docs.google.com/document/d/1vUnn0ePU-ynArE1OdxyEHXR2G0sl74ja_st_4OOzlgE/preview>`__
+   * **playback pageset manifest**: mitm8-linux-firefox-google-slides.manifest
+   * **playback version**: 8.1.1
+   * **secondary url**: `<https://docs.google.com/presentation/d/e/2PACX-1vRWwPQQFMDkSR4RtYc7HSAGm-hoprespfemIk5SatJxd2o8yrFfrMeAAUkjdfalC5PpjJ9ZKgfsuQ1T/pub?start=false&loop=false&delayms=3000>`__
    * **test url**: `<https://docs.google.com/presentation/d/1Ici0ceWwpFvmIb3EmKeWSq_vAQdmmdFcWqaiLqUkJng/edit?usp=sharing>`__
    * **type**: pageload
    * **unit**: ms
@@ -19900,8 +20024,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-bytecode-firefox-google-slides**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-google-slides**
         - ❌
         - ❌
@@ -19915,8 +20039,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-essential-firefox-google-slides**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-google-slides**
         - ❌
         - ❌
@@ -19993,8 +20117,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-bytecode-firefox-google-slides**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-google-slides**
         - ❌
         - ❌
@@ -20008,8 +20132,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-essential-firefox-google-slides**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-google-slides**
         - ❌
         - ❌
@@ -20153,8 +20277,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-bytecode-firefox-google-slides**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-google-slides**
         - ❌
         - ❌
@@ -20168,8 +20292,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-essential-firefox-google-slides**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-google-slides**
         - ❌
         - ❌
@@ -20395,8 +20519,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-imdb**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-imdb**
         - ❌
         - ❌
@@ -20468,8 +20592,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-imdb**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-imdb**
         - ❌
         - ❌
@@ -20598,8 +20722,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-imdb**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-imdb**
         - ❌
         - ❌
@@ -20719,8 +20843,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-imgur**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-firefox-imgur**
         - ❌
         - ❌
@@ -20787,8 +20911,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-imgur**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-firefox-imgur**
         - ❌
         - ❌
@@ -20907,8 +21031,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-imgur**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-firefox-imgur**
         - ❌
         - ❌
@@ -21139,8 +21263,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-bytecode-firefox-instagram**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-instagram**
         - ❌
         - ❌
@@ -21154,8 +21278,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-essential-firefox-instagram**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-instagram**
         - ❌
         - ❌
@@ -21232,8 +21356,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-bytecode-firefox-instagram**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-instagram**
         - ❌
         - ❌
@@ -21247,8 +21371,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-essential-firefox-instagram**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-instagram**
         - ❌
         - ❌
@@ -21387,8 +21511,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-bytecode-firefox-instagram**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-instagram**
         - ❌
         - ❌
@@ -21402,8 +21526,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-essential-firefox-instagram**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-instagram**
         - ❌
         - ❌
@@ -21522,8 +21646,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-linkedin**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-linkedin**
         - ❌
         - ❌
@@ -21595,8 +21719,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-linkedin**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-linkedin**
         - ❌
         - ❌
@@ -21725,8 +21849,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-linkedin**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-linkedin**
         - ❌
         - ❌
@@ -21845,8 +21969,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-microsoft**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-microsoft**
         - ❌
         - ❌
@@ -21918,8 +22042,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-microsoft**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-microsoft**
         - ❌
         - ❌
@@ -22048,8 +22172,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-microsoft**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-microsoft**
         - ❌
         - ❌
@@ -22168,8 +22292,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-netflix**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-netflix**
         - ❌
         - ❌
@@ -22241,8 +22365,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-netflix**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-netflix**
         - ❌
         - ❌
@@ -22366,8 +22490,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-netflix**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-netflix**
         - ❌
         - ❌
@@ -22518,8 +22642,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-nytimes**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-macosx1015-64-nightlyasrelease-qr/opt**
@@ -22571,8 +22695,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-nytimes**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -22661,8 +22785,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-nytimes**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
 
@@ -22756,8 +22880,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-office**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-macosx1015-64-nightlyasrelease-qr/opt**
@@ -22809,8 +22933,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-office**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -22899,8 +23023,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-office**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
 
@@ -23008,8 +23132,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-outlook**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-outlook**
         - ❌
         - ❌
@@ -23081,8 +23205,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-outlook**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-outlook**
         - ❌
         - ❌
@@ -23206,8 +23330,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-outlook**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-outlook**
         - ❌
         - ❌
@@ -23325,8 +23449,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-paypal**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-paypal**
         - ❌
         - ❌
@@ -23398,8 +23522,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-paypal**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-paypal**
         - ❌
         - ❌
@@ -23528,8 +23652,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-paypal**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-paypal**
         - ❌
         - ❌
@@ -23648,8 +23772,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-pinterest**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-pinterest**
         - ❌
         - ❌
@@ -23721,8 +23845,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-pinterest**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-pinterest**
         - ❌
         - ❌
@@ -23851,8 +23975,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-pinterest**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-pinterest**
         - ❌
         - ❌
@@ -24078,8 +24202,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-reddit**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-reddit**
         - ❌
         - ❌
@@ -24151,8 +24275,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-reddit**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-reddit**
         - ❌
         - ❌
@@ -24281,8 +24405,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-reddit**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-reddit**
         - ❌
         - ❌
@@ -24401,8 +24525,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-tumblr**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-tumblr**
         - ❌
         - ❌
@@ -24474,8 +24598,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-tumblr**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-tumblr**
         - ❌
         - ❌
@@ -24604,8 +24728,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-tumblr**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-tumblr**
         - ❌
         - ❌
@@ -24726,8 +24850,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-twitch**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-twitch**
         - ❌
         - ❌
@@ -24799,8 +24923,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-twitch**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-twitch**
         - ❌
         - ❌
@@ -24929,8 +25053,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-twitch**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-twitch**
         - ❌
         - ❌
@@ -25058,8 +25182,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-bytecode-firefox-twitter**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-twitter**
         - ❌
         - ❌
@@ -25073,8 +25197,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-essential-firefox-twitter**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-twitter**
         - ❌
         - ❌
@@ -25151,8 +25275,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-bytecode-firefox-twitter**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-twitter**
         - ❌
         - ❌
@@ -25166,8 +25290,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-essential-firefox-twitter**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-twitter**
         - ❌
         - ❌
@@ -25306,8 +25430,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-bytecode-firefox-twitter**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-twitter**
         - ❌
         - ❌
@@ -25321,8 +25445,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-essential-firefox-twitter**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-twitter**
         - ❌
         - ❌
@@ -25426,8 +25550,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-wikia**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-macosx1015-64-nightlyasrelease-qr/opt**
@@ -25479,8 +25603,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-wikia**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -25569,8 +25693,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-wikia**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
 
@@ -25796,8 +25920,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-bytecode-firefox-wikipedia**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-wikipedia**
         - ❌
         - ❌
@@ -25811,8 +25935,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-essential-firefox-wikipedia**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-wikipedia**
         - ❌
         - ❌
@@ -25889,8 +26013,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-bytecode-firefox-wikipedia**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-wikipedia**
         - ❌
         - ❌
@@ -25904,8 +26028,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-essential-firefox-wikipedia**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-wikipedia**
         - ❌
         - ❌
@@ -26049,8 +26173,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-bytecode-firefox-wikipedia**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-wikipedia**
         - ❌
         - ❌
@@ -26064,8 +26188,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-essential-firefox-wikipedia**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-wikipedia**
         - ❌
         - ❌
@@ -26193,8 +26317,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-bytecode-firefox-yahoo-mail**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-yahoo-mail**
         - ❌
         - ❌
@@ -26208,8 +26332,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-essential-firefox-yahoo-mail**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-yahoo-mail**
         - ❌
         - ❌
@@ -26286,8 +26410,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-bytecode-firefox-yahoo-mail**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-yahoo-mail**
         - ❌
         - ❌
@@ -26301,8 +26425,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-essential-firefox-yahoo-mail**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-yahoo-mail**
         - ❌
         - ❌
@@ -26446,8 +26570,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-bytecode-firefox-yahoo-mail**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-yahoo-mail**
         - ❌
         - ❌
@@ -26461,8 +26585,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-essential-firefox-yahoo-mail**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-yahoo-mail**
         - ❌
         - ❌
@@ -26688,8 +26812,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-youtube**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-youtube**
         - ❌
         - ❌
@@ -26761,8 +26885,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-youtube**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-youtube**
         - ❌
         - ❌
@@ -26891,8 +27015,8 @@ Tests for page-load performance. The links direct to the actual websites that ar
       * - **browsertime-tp6-firefox-youtube**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-youtube**
         - ❌
         - ❌
@@ -29251,8 +29375,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-bytecode-firefox-amazon**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-amazon**
         - ❌
         - ❌
@@ -29266,8 +29390,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-essential-firefox-amazon**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-amazon**
         - ❌
         - ❌
@@ -29364,8 +29488,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-bytecode-firefox-amazon**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-amazon**
         - ❌
         - ❌
@@ -29379,8 +29503,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-essential-firefox-amazon**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-amazon**
         - ❌
         - ❌
@@ -29554,8 +29678,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-bytecode-firefox-amazon**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-amazon**
         - ❌
         - ❌
@@ -29569,8 +29693,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-essential-firefox-amazon**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-amazon**
         - ❌
         - ❌
@@ -30308,8 +30432,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-bytecode-firefox-cnn**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-cnn**
         - ❌
         - ❌
@@ -30323,8 +30447,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-essential-firefox-cnn**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-sheriffed-firefox-cnn**
         - ❌
         - ❌
@@ -30396,8 +30520,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-bytecode-firefox-cnn**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-cnn**
         - ❌
         - ❌
@@ -30411,8 +30535,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-essential-firefox-cnn**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-sheriffed-firefox-cnn**
         - ❌
         - ❌
@@ -30541,8 +30665,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-bytecode-firefox-cnn**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-cnn**
         - ❌
         - ❌
@@ -30556,8 +30680,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-essential-firefox-cnn**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-sheriffed-firefox-cnn**
         - ❌
         - ❌
@@ -31250,8 +31374,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-firefox-espn**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-macosx1015-64-nightlyasrelease-qr/opt**
@@ -31303,8 +31427,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-firefox-espn**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
    .. list-table:: **test-windows10-32-qr/opt**
@@ -31393,8 +31517,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-firefox-espn**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
 
 
 
@@ -31549,8 +31673,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-firefox-facebook**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-facebook**
         - ❌
         - ❌
@@ -31622,8 +31746,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-firefox-facebook**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-facebook**
         - ❌
         - ❌
@@ -31747,8 +31871,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-firefox-facebook**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-facebook**
         - ❌
         - ❌
@@ -32463,8 +32587,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-firefox-imdb**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-imdb**
         - ❌
         - ❌
@@ -32536,8 +32660,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-firefox-imdb**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-imdb**
         - ❌
         - ❌
@@ -32666,8 +32790,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-firefox-imdb**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-imdb**
         - ❌
         - ❌
@@ -32902,8 +33026,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-bytecode-firefox-instagram**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-instagram**
         - ❌
         - ❌
@@ -32917,8 +33041,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-essential-firefox-instagram**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-instagram**
         - ❌
         - ❌
@@ -32995,8 +33119,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-bytecode-firefox-instagram**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-instagram**
         - ❌
         - ❌
@@ -33010,8 +33134,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-essential-firefox-instagram**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-instagram**
         - ❌
         - ❌
@@ -33150,8 +33274,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-bytecode-firefox-instagram**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-instagram**
         - ❌
         - ❌
@@ -33165,8 +33289,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-essential-firefox-instagram**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-instagram**
         - ❌
         - ❌
@@ -33486,8 +33610,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-firefox-reddit**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-reddit**
         - ❌
         - ❌
@@ -33559,8 +33683,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-firefox-reddit**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-reddit**
         - ❌
         - ❌
@@ -33689,8 +33813,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-firefox-reddit**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-reddit**
         - ❌
         - ❌
@@ -34292,8 +34416,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-bytecode-firefox-wikipedia**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-wikipedia**
         - ❌
         - ❌
@@ -34307,8 +34431,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-essential-firefox-wikipedia**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-wikipedia**
         - ❌
         - ❌
@@ -34385,8 +34509,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-bytecode-firefox-wikipedia**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-wikipedia**
         - ❌
         - ❌
@@ -34400,8 +34524,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-essential-firefox-wikipedia**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-wikipedia**
         - ❌
         - ❌
@@ -34545,8 +34669,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-bytecode-firefox-wikipedia**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-essential-chrome-wikipedia**
         - ❌
         - ❌
@@ -34560,8 +34684,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-essential-firefox-wikipedia**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-wikipedia**
         - ❌
         - ❌
@@ -34785,8 +34909,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-firefox-youtube**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-youtube**
         - ❌
         - ❌
@@ -34858,8 +34982,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-firefox-youtube**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-youtube**
         - ❌
         - ❌
@@ -34988,8 +35112,8 @@ Page-load performance test suite on Android. The links direct to the actual webs
       * - **browsertime-tp6-firefox-youtube**
         - ✅
         - ✅
-        - ✅
-        - ✅
+        - ❌
+        - ❌
       * - **browsertime-tp6-live-chrome-youtube**
         - ❌
         - ❌

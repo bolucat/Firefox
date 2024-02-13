@@ -803,22 +803,20 @@ class PlanarYCbCrImage : public Image {
    * This makes a copy of the data buffers, in order to support functioning
    * in all different layer managers.
    */
-  virtual bool CopyData(const Data& aData) = 0;
+  virtual nsresult CopyData(const Data& aData) = 0;
 
   /**
    * This doesn't make a copy of the data buffers.
    */
-  virtual bool AdoptData(const Data& aData);
+  virtual nsresult AdoptData(const Data& aData);
 
   /**
    * This will create an empty data buffers according to the input data's size.
    */
-  virtual bool CreateEmptyBuffer(const Data& aData, const gfx::IntSize& aYSize,
-                                 const gfx::IntSize& aCbCrSize) {
-    return false;
-  }
-  bool CreateEmptyBuffer(const Data& aData) {
-    return CreateEmptyBuffer(aData, aData.YDataSize(), aData.CbCrDataSize());
+  virtual nsresult CreateEmptyBuffer(const Data& aData,
+                                     const gfx::IntSize& aYSize,
+                                     const gfx::IntSize& aCbCrSize) {
+    return NS_ERROR_NOT_IMPLEMENTED;
   }
 
   /**
@@ -876,7 +874,7 @@ class RecyclingPlanarYCbCrImage : public PlanarYCbCrImage {
   explicit RecyclingPlanarYCbCrImage(BufferRecycleBin* aRecycleBin)
       : mRecycleBin(aRecycleBin) {}
   virtual ~RecyclingPlanarYCbCrImage();
-  bool CopyData(const Data& aData) override;
+  nsresult CopyData(const Data& aData) override;
   size_t SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const override;
 
  protected:

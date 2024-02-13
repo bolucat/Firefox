@@ -2702,7 +2702,7 @@ void GCRuntime::endPreparePhase(JS::GCReason reason) {
 #ifdef JS_GC_ZEAL
     if (hasZealMode(ZealMode::YieldBeforeRootMarking)) {
       for (auto kind : AllAllocKinds()) {
-        for (ArenaIter arena(zone, kind); !arena.done(); arena.next()) {
+        for (ArenaIterInGC arena(zone, kind); !arena.done(); arena.next()) {
           arena->checkNoMarkedCells();
         }
       }
@@ -3251,6 +3251,8 @@ void GCRuntime::checkGCStateNotInUse() {
   MOZ_ASSERT(!hasDelayedMarking());
 
   MOZ_ASSERT(!lastMarkSlice);
+
+  MOZ_ASSERT(foregroundFinalizedArenas.ref().isNothing());
 
   for (ZonesIter zone(this, WithAtoms); !zone.done(); zone.next()) {
     if (zone->wasCollected()) {

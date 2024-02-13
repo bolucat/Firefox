@@ -1,5 +1,5 @@
-import { _ASRouter, MessageLoaderUtils } from "modules/ASRouter.jsm";
-import { QueryCache } from "modules/ASRouterTargeting.jsm";
+import { _ASRouter, MessageLoaderUtils } from "modules/ASRouter.sys.mjs";
+import { QueryCache } from "modules/ASRouterTargeting.sys.mjs";
 import {
   FAKE_LOCAL_MESSAGES,
   FAKE_LOCAL_PROVIDER,
@@ -11,9 +11,9 @@ import {
 import {
   ASRouterPreferences,
   TARGETING_PREFERENCES,
-} from "modules/ASRouterPreferences.jsm";
-import { ASRouterTriggerListeners } from "modules/ASRouterTriggerListeners.jsm";
-import { CFRPageActions } from "modules/CFRPageActions.jsm";
+} from "modules/ASRouterPreferences.sys.mjs";
+import { ASRouterTriggerListeners } from "modules/ASRouterTriggerListeners.sys.mjs";
+import { CFRPageActions } from "modules/CFRPageActions.sys.mjs";
 import { GlobalOverrider } from "test/unit/utils";
 import { PanelTestProvider } from "modules/PanelTestProvider.sys.mjs";
 import ProviderResponseSchema from "content-src/schemas/provider-response.schema.json";
@@ -1071,7 +1071,7 @@ describe("ASRouter", () => {
   describe("#_updateMessageProviders", () => {
     it("should correctly replace %STARTPAGE_VERSION% in remote provider urls", async () => {
       // If this test fails, you need to update the constant STARTPAGE_VERSION in
-      // ASRouter.jsm to match the `version` property of provider-response-schema.json
+      // ASRouter.sys.mjs to match the `version` property of provider-response-schema.json
       const expectedStartpageVersion = ProviderResponseSchema.version;
       const provider = {
         id: "foo",

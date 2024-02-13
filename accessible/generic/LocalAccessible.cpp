@@ -1212,10 +1212,15 @@ already_AddRefed<AccAttributes> LocalAccessible::NativeAttributes() {
   // Expose tag.
   attributes->SetAttribute(nsGkAtoms::tag, mContent->NodeInfo()->NameAtom());
 
-  // Expose draggable object attribute.
   if (auto htmlElement = nsGenericHTMLElement::FromNode(mContent)) {
+    // Expose draggable object attribute.
     if (htmlElement->Draggable()) {
       attributes->SetAttribute(nsGkAtoms::draggable, true);
+    }
+    nsString popover;
+    htmlElement->GetPopover(popover);
+    if (!popover.IsEmpty()) {
+      attributes->SetAttribute(nsGkAtoms::ispopup, std::move(popover));
     }
   }
 
@@ -1299,7 +1304,8 @@ bool LocalAccessible::AttributeChangesState(nsAtom* aAttribute) {
          aAttribute == nsGkAtoms::aria_busy ||
          aAttribute == nsGkAtoms::aria_multiline ||
          aAttribute == nsGkAtoms::aria_multiselectable ||
-         aAttribute == nsGkAtoms::contenteditable;
+         aAttribute == nsGkAtoms::contenteditable ||
+         aAttribute == nsGkAtoms::popovertarget;
 }
 
 void LocalAccessible::DOMAttributeChanged(int32_t aNameSpaceID,
@@ -1483,6 +1489,11 @@ void LocalAccessible::DOMAttributeChanged(int32_t aNameSpaceID,
       aAttribute == nsGkAtoms::aria_details ||
       aAttribute == nsGkAtoms::aria_errormessage) {
     mDoc->QueueCacheUpdate(this, CacheDomain::Relations);
+  }
+
+  if (aAttribute == nsGkAtoms::popovertarget) {
+    mDoc->QueueCacheUpdate(this, CacheDomain::Relations);
+    return;
   }
 
   if (aAttribute == nsGkAtoms::alt &&
@@ -1897,6 +1908,19 @@ role LocalAccessible::ARIATransformRole(role aRole) const {
   return aRole;
 }
 
+role LocalAccessible::GetMinimumRole(role aRole) const {
+  if (aRole != roles::TEXT && aRole != roles::TEXT_CONTAINER &&
+      aRole != roles::SECTION) {
+    // This isn't a generic role, so aRole is specific enough.
+    return aRole;
+  }
+  dom::Element* el = Elm();
+  if (el && el->IsHTMLElement() && el->HasAttr(nsGkAtoms::popover)) {
+    return roles::GROUPING;
+  }
+  return aRole;
+}
+
 role LocalAccessible::NativeRole() const { return roles::NOTHING; }
 
 uint8_t LocalAccessible::ActionCount() const {
@@ -2000,6 +2024,30 @@ nsIContent* LocalAccessible::GetAtomicRegion() const {
   }
 
   return atomic.EqualsLiteral("true") ? loopContent : nullptr;
+}
+
+LocalAccessible* LocalAccessible::GetPopoverTargetDetailsRelation() const {
+  dom::Element* targetEl = mContent->GetEffectivePopoverTargetElement();
+  if (!targetEl) {
+    return nullptr;
+  }
+  LocalAccessible* targetAcc = mDoc->GetAccessible(targetEl);
+  if (!targetAcc) {
+    return nullptr;
+  }
+  // Even if the popovertarget is valid, there are a few cases where we must not
+  // expose it via the details relation.
+  if (const nsAttrValue* actionVal =
+          Elm()->GetParsedAttr(nsGkAtoms::popovertargetaction)) {
+    if (static_cast<PopoverTargetAction>(actionVal->GetEnumValue()) ==
+        PopoverTargetAction::Hide) {
+      return nullptr;
+    }
+  }
+  if (targetAcc->NextSibling() == this || targetAcc->PrevSibling() == this) {
+    return nullptr;
+  }
+  return targetAcc;
 }
 
 Relation LocalAccessible::RelationByType(RelationType aType) const {
@@ -2282,13 +2330,35 @@ Relation LocalAccessible::RelationByType(RelationType aType) const {
     case RelationType::CONTAINING_APPLICATION:
       return Relation(ApplicationAcc());
 
-    case RelationType::DETAILS:
-      return Relation(
-          new IDRefsIterator(mDoc, mContent, nsGkAtoms::aria_details));
+    case RelationType::DETAILS: {
+      if (mContent->IsElement() &&
+          mContent->AsElement()->HasAttr(nsGkAtoms::aria_details)) {
+        return Relation(
+            new IDRefsIterator(mDoc, mContent, nsGkAtoms::aria_details));
+      }
+      if (LocalAccessible* target = GetPopoverTargetDetailsRelation()) {
+        return Relation(target);
+      }
+      return Relation();
+    }
 
-    case RelationType::DETAILS_FOR:
-      return Relation(
+    case RelationType::DETAILS_FOR: {
+      Relation rel(
           new RelatedAccIterator(mDoc, mContent, nsGkAtoms::aria_details));
+      RelatedAccIterator invokers(mDoc, mContent, nsGkAtoms::popovertarget);
+      while (Accessible* invoker = invokers.Next()) {
+        // We should only expose DETAILS_FOR if DETAILS was exposed on the
+        // invoker. However, DETAILS exposure on popover invokers is
+        // conditional.
+        LocalAccessible* popoverTarget =
+            invoker->AsLocal()->GetPopoverTargetDetailsRelation();
+        if (popoverTarget) {
+          MOZ_ASSERT(popoverTarget == this);
+          rel.AppendTarget(invoker);
+        }
+      }
+      return rel;
+    }
 
     case RelationType::ERRORMSG:
       return Relation(
@@ -3829,11 +3899,16 @@ already_AddRefed<AccAttributes> LocalAccessible::BundleFieldsForCache(
                 dom::HTMLLabelElement::FromNode(mContent)) {
           rel.AppendTarget(mDoc, labelEl->GetControl());
         }
+      } else if (data.mType == RelationType::DETAILS) {
+        // We need to use RelationByType for details because it might include
+        // popovertarget. Nothing exposes an implicit reverse details
+        // relation, so using RelationByType here is fine.
+        rel = RelationByType(RelationType::DETAILS);
       } else {
         // We use an IDRefsIterator here instead of calling RelationByType
         // directly because we only want to cache explicit relations. Implicit
-        // relations will be computed and stored separately in the parent
-        // process.
+        // relations (e.g. LABEL_FOR exposed on the target of aria-labelledby)
+        // will be computed and stored separately in the parent process.
         rel.AppendIter(new IDRefsIterator(mDoc, mContent, relAtom));
       }
 
@@ -3887,6 +3962,17 @@ already_AddRefed<AccAttributes> LocalAccessible::BundleFieldsForCache(
           nsAutoString role;
           nsAccUtils::GetARIAAttr(el, nsGkAtoms::role, role);
           fields->SetAttribute(CacheKey::ARIARole, std::move(role));
+        }
+      }
+
+      if (auto* htmlEl = nsGenericHTMLElement::FromNode(mContent)) {
+        // Changing popover recreates the Accessible, so it's immutable in the
+        // cache.
+        nsAutoString popover;
+        htmlEl->GetPopover(popover);
+        if (!popover.IsEmpty()) {
+          fields->SetAttribute(CacheKey::PopupType,
+                               RefPtr{NS_Atomize(popover)});
         }
       }
     }

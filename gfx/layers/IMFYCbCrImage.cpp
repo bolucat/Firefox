@@ -79,11 +79,6 @@ bool IMFYCbCrImage::CopyDataToTexture(const Data& aData, ID3D11Device* aDevice,
     AutoLockD3D11Texture lockY(textureY);
     AutoLockD3D11Texture lockCr(textureCr);
     AutoLockD3D11Texture lockCb(textureCb);
-    if (NS_WARN_IF(!lockY.Succeeded()) || NS_WARN_IF(!lockCr.Succeeded()) ||
-        NS_WARN_IF(!lockCb.Succeeded())) {
-      gfxCriticalNote << "IMFYCbCrImage::CopyDataToTexture lock failed";
-      return false;
-    }
     D3D11MTAutoEnter mtAutoEnter(mt.forget());
 
     D3D11_BOX box;
@@ -119,7 +114,7 @@ TextureClient* IMFYCbCrImage::GetD3D11TextureClient(
   {
     DXGIYCbCrTextureAllocationHelper helper(mData, TextureFlags::DEFAULT,
                                             device);
-    mTextureClient = mAllocator->CreateOrRecycle(helper);
+    mTextureClient = mAllocator->CreateOrRecycle(helper).unwrapOr(nullptr);
   }
 
   if (!mTextureClient) {

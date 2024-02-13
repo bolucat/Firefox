@@ -95,19 +95,19 @@ module.exports = function (config) {
               functions: 100,
               branches: 66,
             },
-            "modules/ASRouter.jsm": {
+            "modules/ASRouter.sys.mjs": {
               statements: 75,
               lines: 75,
               functions: 64,
               branches: 66,
             },
-            "modules/ASRouterParentProcessMessageHandler.jsm": {
+            "modules/ASRouterParentProcessMessageHandler.sys.mjs": {
               statements: 98,
               lines: 98,
               functions: 100,
               branches: 88,
             },
-            "modules/ToolbarPanelHub.jsm": {
+            "modules/ToolbarPanelHub.sys.mjs": {
               statements: 88,
               lines: 88,
               functions: 94,
@@ -149,7 +149,16 @@ module.exports = function (config) {
         // statements in .mjs files, in a similar way to what
         // babel-jsm-to-commonjs does for jsm files.
         new ResourceUriPlugin({
-          resourcePathRegEx: PATHS.resourcePathRegEx,
+          resourcePathRegExes: [
+            [
+              new RegExp("^resource://activity-stream/"),
+              path.join(__dirname, "../newtab/"),
+            ],
+            [
+              new RegExp("^resource:///modules/asrouter/"),
+              path.join(__dirname, "./modules/"),
+            ],
+          ],
         }),
         new webpack.DefinePlugin({
           "process.env.NODE_ENV": JSON.stringify("development"),
@@ -219,11 +228,11 @@ module.exports = function (config) {
             exclude: [
               path.resolve("tests"),
               path.resolve("../newtab"),
-              path.resolve("modules/ASRouterTargeting.jsm"),
-              path.resolve("modules/ASRouterTriggerListeners.jsm"),
+              path.resolve("modules/ASRouterTargeting.sys.mjs"),
+              path.resolve("modules/ASRouterTriggerListeners.sys.mjs"),
               path.resolve("modules/CFRMessageProvider.sys.mjs"),
-              path.resolve("modules/CFRPageActions.jsm"),
-              path.resolve("modules/OnboardingMessageProvider.jsm"),
+              path.resolve("modules/CFRPageActions.sys.mjs"),
+              path.resolve("modules/OnboardingMessageProvider.sys.mjs"),
             ],
           },
         ],
