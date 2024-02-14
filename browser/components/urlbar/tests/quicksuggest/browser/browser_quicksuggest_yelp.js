@@ -33,25 +33,49 @@ add_setup(async function () {
 });
 
 add_task(async function basic() {
-  await UrlbarTestUtils.promiseAutocompleteResultPopup({
-    window,
-    value: "RaMeN iN tOkYo",
-  });
+  for (let topPick of [true, false]) {
+    info("Setting yelpPriority: " + topPick);
+    await SpecialPowers.pushPrefEnv({
+      set: [["browser.urlbar.quicksuggest.yelpPriority", topPick]],
+    });
 
-  Assert.equal(UrlbarTestUtils.getResultCount(window), 2);
+    await UrlbarTestUtils.promiseAutocompleteResultPopup({
+      window,
+      value: "RaMeN iN tOkYo",
+    });
 
-  const { result } = await UrlbarTestUtils.getDetailsOfResultAt(window, 1);
-  Assert.equal(
-    result.providerName,
-    UrlbarProviderQuickSuggest.name,
-    "The result should be from the expected provider"
-  );
-  Assert.equal(result.payload.provider, "Yelp");
-  Assert.equal(
-    result.payload.url,
-    "https://www.yelp.com/search?find_desc=RaMeN&find_loc=tOkYo&utm_medium=partner&utm_source=mozilla"
-  );
-  Assert.equal(result.payload.title, "RaMeN iN tOkYo");
+    Assert.equal(UrlbarTestUtils.getResultCount(window), 2);
+
+    const details = await UrlbarTestUtils.getDetailsOfResultAt(window, 1);
+    const { result } = details;
+    Assert.equal(
+      result.providerName,
+      UrlbarProviderQuickSuggest.name,
+      "The result should be from the expected provider"
+    );
+    Assert.equal(result.payload.provider, "Yelp");
+    Assert.equal(
+      result.payload.url,
+      "https://www.yelp.com/search?find_desc=RaMeN&find_loc=tOkYo&utm_medium=partner&utm_source=mozilla"
+    );
+    Assert.equal(result.payload.title, "RaMeN iN tOkYo");
+
+    const { row } = details.element;
+    const bottom = row.querySelector(".urlbarView-row-body-bottom");
+    Assert.ok(bottom, "Bottom text element should exist");
+    Assert.ok(
+      BrowserTestUtils.isVisible(bottom),
+      "Bottom text element should be visible"
+    );
+    Assert.equal(
+      bottom.textContent,
+      "Yelp · Sponsored",
+      "Bottom text is correct"
+    );
+
+    await UrlbarTestUtils.promisePopupClose(window);
+    await SpecialPowers.popPrefEnv();
+  }
 });
 
 // Tests the "Show less frequently" result menu command.
@@ -208,8 +232,34 @@ async function doShowLessFrequently({
   UrlbarPrefs.set("yelp.showLessFrequentlyCount", 0);
 }
 
-// Tests the "Don't show this again" result menu dismissal command.
+// Tests the "Not relevant" result menu dismissal command.
+add_task(async function resultMenu_not_relevant() {
+  await doDismiss({
+    menu: "not_relevant",
+    assert: resuilt => {
+      Assert.ok(
+        QuickSuggest.blockedSuggestions.has(resuilt.payload.url),
+        "The URL should be register as blocked"
+      );
+    },
+  });
+
+  await QuickSuggest.blockedSuggestions.clear();
+});
+
+// Tests the "Not interested" result menu dismissal command.
 add_task(async function resultMenu_not_interested() {
+  await doDismiss({
+    menu: "not_interested",
+    assert: () => {
+      Assert.ok(!UrlbarPrefs.get("suggest.yelp"));
+    },
+  });
+
+  UrlbarPrefs.clear("suggest.yelp");
+});
+
+async function doDismiss({ menu, assert }) {
   await UrlbarTestUtils.promiseAutocompleteResultPopup({
     window,
     value: "ramen",
@@ -219,12 +269,17 @@ add_task(async function resultMenu_not_interested() {
   let resultIndex = 1;
   let details = await UrlbarTestUtils.getDetailsOfResultAt(window, resultIndex);
   Assert.equal(details.result.payload.provider, "Yelp");
+  let result = details.result;
 
   // Click the command.
-  await UrlbarTestUtils.openResultMenuAndClickItem(window, "not_interested", {
-    resultIndex,
-    openByMouse: true,
-  });
+  await UrlbarTestUtils.openResultMenuAndClickItem(
+    window,
+    ["[data-l10n-id=firefox-suggest-command-dont-show-this]", menu],
+    {
+      resultIndex,
+      openByMouse: true,
+    }
+  );
 
   // The row should be a tip now.
   Assert.ok(gURLBar.view.isOpen, "The view should remain open after dismissal");
@@ -278,11 +333,10 @@ add_task(async function resultMenu_not_interested() {
     );
   }
 
-  Assert.ok(!UrlbarPrefs.get("suggest.yelp"));
+  assert(result);
 
   await UrlbarTestUtils.promisePopupClose(window);
-  UrlbarPrefs.clear("suggest.yelp");
-});
+}
 
 // Tests the row/group label.
 add_task(async function rowLabel() {
