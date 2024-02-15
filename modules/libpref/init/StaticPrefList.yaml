@@ -1141,6 +1141,13 @@
   value: false
   mirror: never
 
+# Whether content analysis should allow content if there is a problem communicating
+# with the agent.
+- name: browser.contentanalysis.default_allow
+  type: bool
+  value: false
+  mirror: never
+
 # Is the IPC pipe to the DLP tool specific to the user or to the system?
 - name: browser.contentanalysis.is_per_user
   type: bool
@@ -8586,13 +8593,6 @@
   mirror: always
   rust: true
 
-# Is support for CSS overflow: overlay enabled
-- name: layout.css.overflow-overlay.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
 # Is support for overscroll-behavior enabled?
 - name: layout.css.overscroll-behavior.enabled
   type: bool
@@ -9349,7 +9349,7 @@
 # Whether table cells can generate scroll boxes.
 - name: layout.tables.scrollable-cells
   type: bool
-  value: true
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Whether to disable layer pixel alignment in scroll related stuff.

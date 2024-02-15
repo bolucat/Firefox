@@ -215,14 +215,14 @@ export class SuggestBackendRust extends BaseFeature {
     return items;
   }
 
-  #init() {
+  async #init() {
     // Create the store.
     let path = this.#storePath;
     this.logger.info("Initializing SuggestStore: " + path);
     try {
       this.#store = lazy.SuggestStore.init(
         path,
-        SuggestBackendRust._test_remoteSettingsConfig ??
+        this.#test_remoteSettingsConfig ??
           new lazy.RemoteSettingsConfig({
             collectionName: "quicksuggest",
             bucketName: lazy.Utils.actualBucketName("main"),
@@ -246,14 +246,6 @@ export class SuggestBackendRust extends BaseFeature {
       INGEST_TIMER_LAST_UPDATE_PREF,
       0
     );
-    if (lastIngestSecs) {
-      this.logger.info(
-        `Last ingest: ${lastIngestSecs}s since epoch. Not ingesting now`
-      );
-    } else {
-      this.logger.info("Last ingest time not found. Ingesting now");
-      this.#ingest();
-    }
 
     // Register the ingest timer.
     lazy.timerManager.registerTimer(
@@ -262,6 +254,15 @@ export class SuggestBackendRust extends BaseFeature {
       lazy.UrlbarPrefs.get("quicksuggest.rustIngestIntervalSeconds"),
       true // skipFirst
     );
+
+    if (lastIngestSecs) {
+      this.logger.info(
+        `Last ingest: ${lastIngestSecs}s since epoch. Not ingesting now`
+      );
+    } else {
+      this.logger.info("Last ingest time not found. Ingesting now");
+      await this.#ingest();
+    }
   }
 
   #uninit() {
@@ -271,15 +272,25 @@ export class SuggestBackendRust extends BaseFeature {
   }
 
   async #ingest() {
+    let instance = (this.#ingestInstance = {});
+    await this.#ingestPromise;
+    if (instance != this.#ingestInstance) {
+      return;
+    }
+    await (this.#ingestPromise = this.#ingestHelper());
+  }
+
+  async #ingestHelper() {
+    if (!this.#store) {
+      return;
+    }
+
     this.logger.info("Starting ingest and configs fetch");
 
     // Do the ingest.
     this.logger.debug("Starting ingest");
-    this.#ingestPromise = this.#store.ingest(
-      new lazy.SuggestIngestionConstraints()
-    );
     try {
-      await this.#ingestPromise;
+      await this.#store.ingest(new lazy.SuggestIngestionConstraints());
     } catch (error) {
       // Ingest can throw a `SuggestApiError` subclass called `Other` that has a
       // custom `reason` message, which is very helpful for diagnosing problems
@@ -288,10 +299,20 @@ export class SuggestBackendRust extends BaseFeature {
     }
     this.logger.debug("Finished ingest");
 
+    if (!this.#store) {
+      this.logger.info("#store became null, returning from ingest");
+      return;
+    }
+
     // Fetch the global config.
     this.logger.debug("Fetching global config");
     this.#config = await this.#store.fetchGlobalConfig();
     this.logger.debug("Got global config: " + JSON.stringify(this.#config));
+
+    if (!this.#store) {
+      this.logger.info("#store became null, returning from ingest");
+      return;
+    }
 
     // Fetch all provider configs. We do this for all features, even ones that
     // are currently disabled, because they may become enabled before the next
@@ -311,6 +332,17 @@ export class SuggestBackendRust extends BaseFeature {
     this.logger.info("Finished ingest and configs fetch");
   }
 
+  async _test_setRemoteSettingsConfig(config) {
+    this.#test_remoteSettingsConfig = config;
+
+    if (this.isEnabled) {
+      // Recreate the store and re-ingest.
+      Services.prefs.clearUserPref(INGEST_TIMER_LAST_UPDATE_PREF);
+      this.#uninit();
+      await this.#init();
+    }
+  }
+
   async _test_ingest() {
     await this.#ingest();
   }
@@ -326,6 +358,8 @@ export class SuggestBackendRust extends BaseFeature {
   #configsBySuggestionType = new Map();
 
   #ingestPromise;
+  #ingestInstance;
+  #test_remoteSettingsConfig;
 }
 
 /**

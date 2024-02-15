@@ -60,6 +60,10 @@ var OS_UNSUPPORTED_PARAMS = [
   [OS_PARAM_START_PAGE, OS_PARAM_START_PAGE_DEF],
 ];
 
+// An array of attributes that are saved in the engines `_metaData` object.
+// Attributes not in this array are considered as system attributes.
+const USER_ATTRIBUTES = ["alias", "order", "hideOneOffButton"];
+
 /**
  * Truncates big blobs of (data-)URIs to console-friendly sizes
  *
@@ -1044,20 +1048,34 @@ export class SearchEngine {
    * third party modifications and means that we can verify the WebExtension is
    * still in the allow list.
    *
-   * @param {string} extensionID
-   *   The WebExtension ID. For Policy engines, this is currently "set-via-policy".
-   * @param {object} manifest
-   *   An object representing the WebExtensions' manifest.
+   * @param {string} options
+   *   The options for this function.
+   * @param {AddonSearchEngine} [options.engine]
+   *   The search engine to override with this engine. If not specified, `manifest`
+   *   must be provided.
+   * @param {object} [options.extension]
+   *   An object representing the WebExtensions. If not specified,
+   *   `engine` must be provided
    */
-  overrideWithExtension(extensionID, manifest) {
+  overrideWithExtension({ engine, extension }) {
     this._overriddenData = {
       urls: this._urls,
       queryCharset: this._queryCharset,
       searchForm: this.#cachedSearchForm,
     };
-    this._urls = [];
-    this.setAttr("overriddenBy", extensionID);
-    this._setUrls(manifest.chrome_settings_overrides.search_provider);
+    if (engine) {
+      // Copy any saved user data (alias, order etc).
+      this.copyUserSettingsFrom(engine);
+
+      this._urls = engine._urls;
+      this.setAttr("overriddenBy", engine._extensionID);
+    } else {
+      this._urls = [];
+      this.setAttr("overriddenBy", extension.id);
+      this._setUrls(
+        extension.manifest.chrome_settings_overrides.search_provider
+      );
+    }
     lazy.SearchUtils.notifyAction(this, lazy.SearchUtils.MODIFIED_TYPE.CHANGED);
   }
 
@@ -1083,6 +1101,21 @@ export class SearchEngine {
         this,
         lazy.SearchUtils.MODIFIED_TYPE.CHANGED
       );
+    }
+  }
+
+  /**
+   * Copies settings from the supplied search engine. Typically used for
+   * restoring settings when removing an override.
+   *
+   * @param {SearchEngine} engine
+   *   The engine to copy the settings from.
+   */
+  copyUserSettingsFrom(engine) {
+    for (let attribute of USER_ATTRIBUTES) {
+      if (attribute in engine._metaData) {
+        this._metaData[attribute] = engine._metaData[attribute];
+      }
     }
   }
 
