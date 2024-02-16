@@ -4,7 +4,10 @@ set -ex
 
 pwd
 
-ARTIFACT_DIR=$TASKCLUSTER_ROOT_DIR/builds/worker/artifacts/
+SUITE=${1:-basic}
+SUITE=${SUITE//--/}
+
+export ARTIFACT_DIR=$TASKCLUSTER_ROOT_DIR/builds/worker/artifacts/
 mkdir -p "$ARTIFACT_DIR"
 
 # There's a bug in snapd ~2.60.3-2.61 that will make "snap refresh" fail
@@ -49,8 +52,17 @@ RUNTIME_VERSION=$(snap run firefox --version | awk '{ print $3 }')
 
 python3 -m pip install --user -r requirements.txt
 
-sed -e "s/#RUNTIME_VERSION#/${RUNTIME_VERSION}/#" < expectations.json.in > expectations.json
+# Required otherwise copy/paste does not work
+# Bug 1878643
+export TEST_NO_HEADLESS=1
 
-python3 basic_tests.py expectations.json
+if [ -n "${MOZ_LOG}" ]; then
+  export MOZ_LOG_FILE="${ARTIFACT_DIR}/gecko-log"
+fi
 
-cp ./*.png "$ARTIFACT_DIR/"
+if [ "${SUITE}" = "basic" ]; then
+  sed -e "s/#RUNTIME_VERSION#/${RUNTIME_VERSION}/#" < basic_tests/expectations.json.in > basic_tests/expectations.json
+  python3 basic_tests.py basic_tests/expectations.json
+else
+  python3 "${SUITE}"_tests.py
+fi;
