@@ -736,11 +736,6 @@ void nsGenericHTMLElement::AfterSetPopoverAttr() {
     }
 
     if (newState == PopoverAttributeState::None) {
-      // HidePopoverInternal above could have removed the popover from the top
-      // layer.
-      if (GetPopoverData()) {
-        OwnerDoc()->RemovePopoverFromTopLayer(*this);
-      }
       ClearPopoverData();
       RemoveStates(ElementState::POPOVER_OPEN);
     } else {
