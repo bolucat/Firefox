@@ -2324,6 +2324,11 @@
   value: false
   mirror: always
 
+- name: dom.domrequest.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 # Only intended for fuzzing purposes, this will break mozPrintCallback, etc.
 - name: dom.window_print.fuzzing.block_while_printing
   type: bool
@@ -8815,13 +8820,6 @@
 - name: layout.css.use-counters-unimplemented.enabled
   type: RelaxedAtomicBool
   value: true
-  mirror: always
-  rust: true
-
-# Whether user-find CSS property is enabled.
-- name: layout.css.user-find.enabled
-  type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
   mirror: always
   rust: true
 
