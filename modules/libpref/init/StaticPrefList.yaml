@@ -5693,6 +5693,12 @@
   value: false
   mirror: once
 
+# Whether OffscreenCanvas can use remote canvas
+- name: gfx.canvas.remote.allow-offscreen
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 # How many worker threads spawned for remote canvas
 #  -1 - Calculate based on processor cores
 #   0 - No worker threads spawned, will do work on CanvasRenderThread
@@ -6198,6 +6204,11 @@
 - name: gfx.offscreencanvas.shared-provider
   type: RelaxedAtomicBool
   value: true
+  mirror: always
+
+- name: gfx.offscreencanvas.snapshot-timeout-ms
+  type: int32_t
+  value: 10000
   mirror: always
 
 - name: gfx.omta.background-color
@@ -12892,10 +12903,9 @@
 # CacheStorageService::MemoryPool::PurgeByFrecency does a rather expensive
 # sort we cannot interrupt by an incoming cache operation, so we want the
 # purging to do at least some progress to not have just wasted cycles.
-# Initial default 0, see bug 1879814.
 - name: network.cache.purgebyfrecency_minprogress_memory
   type: RelaxedAtomicUint32
-  value: 0
+  value: 32
   mirror: always
 
 # When true we will dispatch a background task (separate process) to
@@ -14676,6 +14686,12 @@
 - name: svg.nearestAndFarthestViewportElement.enabled
   type: bool
   value: @IS_NOT_EARLY_BETA_OR_EARLIER@
+  mirror: always
+
+# Whether SVGAElement.text is enabled.
+- name: svg.SVGAElement.text.enabled
+  type: bool
+  value: false
   mirror: always
 
 # Tweak which elements are allowed in <svg:use> subtrees, and in which

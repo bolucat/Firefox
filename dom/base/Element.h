@@ -474,7 +474,8 @@ class Element : public FragmentOrElement {
   NS_IMETHOD_(bool) IsAttributeMapped(const nsAtom* aAttribute) const;
 
   nsresult BindToTree(BindContext&, nsINode& aParent) override;
-  void UnbindFromTree(bool aNullParent = true) override;
+  void UnbindFromTree(UnbindContext&) override;
+  using nsIContent::UnbindFromTree;
 
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
   static void MapNoAttributesInto(mozilla::MappedDeclarationsBuilder&);
@@ -660,6 +661,9 @@ class Element : public FragmentOrElement {
   // AriaAttributes
   REFLECT_NULLABLE_DOMSTRING_ATTR(AriaAtomic, aria_atomic)
   REFLECT_NULLABLE_DOMSTRING_ATTR(AriaAutoComplete, aria_autocomplete)
+  REFLECT_NULLABLE_DOMSTRING_ATTR(AriaBrailleLabel, aria_braillelabel)
+  REFLECT_NULLABLE_DOMSTRING_ATTR(AriaBrailleRoleDescription,
+                                  aria_brailleroledescription)
   REFLECT_NULLABLE_DOMSTRING_ATTR(AriaBusy, aria_busy)
   REFLECT_NULLABLE_DOMSTRING_ATTR(AriaChecked, aria_checked)
   REFLECT_NULLABLE_DOMSTRING_ATTR(AriaColCount, aria_colcount)
@@ -1244,6 +1248,16 @@ class Element : public FragmentOrElement {
   void ExplicitlySetAttrElement(nsAtom* aAttr, Element* aElement);
 
   void ClearExplicitlySetAttrElement(nsAtom*);
+
+  /**
+   * Gets the attribute element for the given attribute.
+   * https://html.spec.whatwg.org/multipage/common-dom-interfaces.html#explicitly-set-attr-element
+   * Unlike GetAttrAssociatedElement, this returns the target even if it isn't
+   * a descendant of any of this element's shadow-including ancestors. It also
+   * doesn't attempt to retrieve an element using a string id set in the content
+   * attribute.
+   */
+  Element* GetExplicitlySetAttrElement(nsAtom* aAttr) const;
 
   PseudoStyleType GetPseudoElementType() const {
     nsresult rv = NS_OK;

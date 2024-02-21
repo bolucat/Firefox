@@ -106,6 +106,7 @@
 #include "mozilla/dom/ScriptLoader.h"
 #include "mozilla/dom/ShadowRoot.h"
 #include "mozilla/dom/Text.h"
+#include "mozilla/dom/UnbindContext.h"
 #include "mozilla/dom/WindowBinding.h"
 #include "mozilla/dom/XULCommandEvent.h"
 #include "mozilla/dom/nsCSPContext.h"
@@ -1722,8 +1723,7 @@ already_AddRefed<nsIHTMLCollection> Element::GetElementsByClassName(
 }
 
 Element* Element::GetAttrAssociatedElement(nsAtom* aAttr) const {
-  const nsExtendedDOMSlots* slots = GetExistingExtendedDOMSlots();
-  if (slots) {
+  if (const nsExtendedDOMSlots* slots = GetExistingExtendedDOMSlots()) {
     nsWeakPtr weakAttrEl = slots->mExplicitlySetAttrElements.Get(aAttr);
     if (nsCOMPtr<Element> attrEl = do_QueryReferent(weakAttrEl)) {
       // If reflectedTarget's explicitly set attr-element |attrEl| is
@@ -1774,16 +1774,56 @@ void Element::ClearExplicitlySetAttrElement(nsAtom* aAttr) {
 }
 
 void Element::ExplicitlySetAttrElement(nsAtom* aAttr, Element* aElement) {
+#ifdef ACCESSIBILITY
+  nsAccessibilityService* accService = GetAccService();
+#endif
+  // Accessibility requires that no other attribute changes occur between
+  // AttrElementWillChange and AttrElementChanged. Scripts could cause
+  // this, so don't let them run here. We do this even if accessibility isn't
+  // running so that the JS behavior is consistent regardless of accessibility.
+  // Otherwise, JS might be able to use this difference to determine whether
+  // accessibility is running, which would be a privacy concern.
+  nsAutoScriptBlocker scriptBlocker;
   if (aElement) {
+#ifdef ACCESSIBILITY
+    if (accService) {
+      accService->NotifyAttrElementWillChange(this, aAttr);
+    }
+#endif
     SetAttr(aAttr, EmptyString(), IgnoreErrors());
     nsExtendedDOMSlots* slots = ExtendedDOMSlots();
     slots->mExplicitlySetAttrElements.InsertOrUpdate(
         aAttr, do_GetWeakReference(aElement));
+#ifdef ACCESSIBILITY
+    if (accService) {
+      accService->NotifyAttrElementChanged(this, aAttr);
+    }
+#endif
     return;
   }
 
+#ifdef ACCESSIBILITY
+  if (accService) {
+    accService->NotifyAttrElementWillChange(this, aAttr);
+  }
+#endif
   ClearExplicitlySetAttrElement(aAttr);
   UnsetAttr(aAttr, IgnoreErrors());
+#ifdef ACCESSIBILITY
+  if (accService) {
+    accService->NotifyAttrElementChanged(this, aAttr);
+  }
+#endif
+}
+
+Element* Element::GetExplicitlySetAttrElement(nsAtom* aAttr) const {
+  if (const nsExtendedDOMSlots* slots = GetExistingExtendedDOMSlots()) {
+    nsWeakPtr weakAttrEl = slots->mExplicitlySetAttrElements.Get(aAttr);
+    if (nsCOMPtr<Element> attrEl = do_QueryReferent(weakAttrEl)) {
+      return attrEl;
+    }
+  }
+  return nullptr;
 }
 
 void Element::GetElementsWithGrid(nsTArray<RefPtr<Element>>& aElements) {
@@ -1958,7 +1998,8 @@ nsresult Element::BindToTree(BindContext& aContext, nsINode& aParent) {
   return NS_OK;
 }
 
-bool WillDetachFromShadowOnUnbind(const Element& aElement, bool aNullParent) {
+static bool WillDetachFromShadowOnUnbind(const Element& aElement,
+                                         bool aNullParent) {
   // If our parent still is in a shadow tree by now, and we're not removing
   // ourselves from it, then we're still going to be in a shadow tree after
   // this.
@@ -1966,12 +2007,14 @@ bool WillDetachFromShadowOnUnbind(const Element& aElement, bool aNullParent) {
          (aNullParent || !aElement.GetParent()->IsInShadowTree());
 }
 
-void Element::UnbindFromTree(bool aNullParent) {
-  HandleShadowDOMRelatedRemovalSteps(aNullParent);
+void Element::UnbindFromTree(UnbindContext& aContext) {
+  const bool nullParent = aContext.IsUnbindRoot(this);
+
+  HandleShadowDOMRelatedRemovalSteps(nullParent);
 
   if (HasFlag(ELEMENT_IS_DATALIST_OR_HAS_DATALIST_ANCESTOR) &&
       !IsHTMLElement(nsGkAtoms::datalist)) {
-    if (aNullParent) {
+    if (nullParent) {
       UnsetFlags(ELEMENT_IS_DATALIST_OR_HAS_DATALIST_ANCESTOR);
     } else {
       nsIContent* parent = GetParent();
@@ -1983,7 +2026,7 @@ void Element::UnbindFromTree(bool aNullParent) {
   }
 
   const bool detachingFromShadow =
-      WillDetachFromShadowOnUnbind(*this, aNullParent);
+      WillDetachFromShadowOnUnbind(*this, nullParent);
   // Make sure to only remove from the ID table if our subtree root is actually
   // changing.
   if (IsInUncomposedDoc() || detachingFromShadow) {
@@ -2033,7 +2076,7 @@ void Element::UnbindFromTree(bool aNullParent) {
     data->ClearAllAnimationCollections();
   }
 
-  if (aNullParent) {
+  if (nullParent) {
     if (GetParent()) {
       RefPtr<nsINode> p;
       p.swap(mParent);
@@ -2071,15 +2114,13 @@ void Element::UnbindFromTree(bool aNullParent) {
     ClearElementCreatedFromPrototypeAndHasUnmodifiedL10n();
   }
 
-  if (aNullParent || !mParent->IsInShadowTree()) {
+  if (nullParent || !mParent->IsInShadowTree()) {
     UnsetFlags(NODE_IS_IN_SHADOW_TREE);
 
     // Begin keeping track of our subtree root.
-    SetSubtreeRootPointer(aNullParent ? this : mParent->SubtreeRoot());
-  }
+    SetSubtreeRootPointer(nullParent ? this : mParent->SubtreeRoot());
 
-  if (nsExtendedDOMSlots* slots = GetExistingExtendedDOMSlots()) {
-    if (aNullParent || !mParent->IsInShadowTree()) {
+    if (nsExtendedDOMSlots* slots = GetExistingExtendedDOMSlots()) {
       slots->mContainingShadow = nullptr;
     }
   }
@@ -2121,9 +2162,7 @@ void Element::UnbindFromTree(bool aNullParent) {
 
   for (nsIContent* child = GetFirstChild(); child;
        child = child->GetNextSibling()) {
-    // Note that we pass false for aNullParent here, since we don't want
-    // the kids to forget us.
-    child->UnbindFromTree(false);
+    child->UnbindFromTree(aContext);
   }
 
   MutationObservers::NotifyParentChainChanged(this);

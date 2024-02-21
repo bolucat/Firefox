@@ -14,13 +14,8 @@ ChromeUtils.defineESModuleGetters(lazy, {
   setTimeout: "resource://gre/modules/Timer.sys.mjs",
 });
 
-ChromeUtils.defineLazyGetter(lazy, "logConsole", function () {
-  return console.createInstance({
-    prefix: "PlacesPreviews",
-    maxLogLevel: Services.prefs.getBoolPref("places.previews.log", false)
-      ? "Debug"
-      : "Warn",
-  });
+ChromeUtils.defineLazyGetter(lazy, "logger", function () {
+  return lazy.PlacesUtils.getLogger({ prefix: "Previews" });
 });
 
 // Toggling Places previews requires a restart, because a database trigger
@@ -112,7 +107,7 @@ class DeletionHandler {
       this.#timeoutId = null;
       ChromeUtils.idleDispatch(() => {
         this.#deleteChunk().catch(ex =>
-          lazy.logConsole.error("Error during previews deletion:" + ex)
+          lazy.logger.error("Error during previews deletion:" + ex)
         );
       });
     }, this.timeout);
@@ -156,7 +151,7 @@ class DeletionHandler {
         if (DOMException.isInstance(ex) && ex.name == "NotFoundError") {
           deleted.push(hash);
         } else {
-          lazy.logConsole.error("Unable to delete file: " + filePath);
+          lazy.logger.error("Unable to delete file: " + filePath);
         }
       }
       if (this.#shutdownProgress.shuttingDown) {
@@ -189,7 +184,7 @@ class DeletionHandler {
 
 /**
  * Handles previews for Places urls.
- * Previews are stored in WebP format, using MD5 hash of the page url in hex
+ * Previews are stored in WebP format, using SHA256 hash of the page url in hex
  * format. All the previews are saved into a "places-previews" folder under
  * the roaming profile folder.
  */
@@ -260,13 +255,13 @@ export const PlacesPreviews = new (class extends EventEmitter {
   getPathForUrl(url) {
     return PathUtils.join(
       this.getPath(),
-      lazy.PlacesUtils.md5(url, { format: "hex" }) + this.fileExtension
+      lazy.PlacesUtils.sha256(url, { format: "hex" }) + this.fileExtension
     );
   }
 
   /**
    * Returns the file path of the preview having the given hash.
-   * @param {string} hash md5 hash in hex format.
+   * @param {string} hash SHA256 hash in hex format.
    * @returns {string } File path of the preview having the given hash.
    */
   getPathForHash(hash) {
@@ -310,7 +305,7 @@ export const PlacesPreviews = new (class extends EventEmitter {
     let filePath = this.getPathForUrl(url);
     if (!forceUpdate) {
       if (this.#recentlyUpdatedPreviews.has(filePath)) {
-        lazy.logConsole.debug("Skipping update because recently updated");
+        lazy.logger.debug("Skipping update because recently updated");
         return true;
       }
       try {
@@ -321,13 +316,13 @@ export const PlacesPreviews = new (class extends EventEmitter {
         ) {
           // File is recent enough.
           this.#recentlyUpdatedPreviews.add(filePath);
-          lazy.logConsole.debug("Skipping update because file is recent");
+          lazy.logger.debug("Skipping update because file is recent");
           return true;
         }
       } catch (ex) {
         // If the file doesn't exist, we always update it.
         if (!DOMException.isInstance(ex) || ex.name != "NotFoundError") {
-          lazy.logConsole.error("Error while trying to stat() preview" + ex);
+          lazy.logger.error("Error while trying to stat() preview" + ex);
           return false;
         }
       }
@@ -350,7 +345,7 @@ export const PlacesPreviews = new (class extends EventEmitter {
       });
     });
     if (!buffer) {
-      lazy.logConsole.error("Unable to fetch preview: " + url);
+      lazy.logger.error("Unable to fetch preview: " + url);
       return false;
     }
     try {
@@ -359,9 +354,7 @@ export const PlacesPreviews = new (class extends EventEmitter {
         tmpPath: filePath + ".tmp",
       });
     } catch (ex) {
-      lazy.logConsole.error(
-        lazy.logConsole.error("Unable to create preview: " + ex)
-      );
+      lazy.logger.error("Unable to create preview: " + ex);
       return false;
     }
     this.#recentlyUpdatedPreviews.add(filePath);
@@ -402,7 +395,7 @@ export const PlacesPreviews = new (class extends EventEmitter {
           INSERT OR IGNORE INTO moz_previews_tombstones
             SELECT hash FROM files
             EXCEPT
-            SELECT md5hex(url) FROM moz_places
+            SELECT sha256hex(url) FROM moz_places
           `
         );
       }

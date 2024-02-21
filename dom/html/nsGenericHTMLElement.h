@@ -332,7 +332,7 @@ class nsGenericHTMLElement : public nsGenericHTMLElementBase {
  public:
   // Implementation for nsIContent
   nsresult BindToTree(BindContext&, nsINode& aParent) override;
-  void UnbindFromTree(bool aNullParent = true) override;
+  void UnbindFromTree(UnbindContext&) override;
 
   Focusable IsFocusableWithoutStyle(bool aWithMouse) override {
     Focusable result;
@@ -727,6 +727,10 @@ class nsGenericHTMLElement : public nsGenericHTMLElementBase {
       const nsAttrValue* aOldValue, nsIPrincipal* aMaybeScriptedPrincipal,
       bool aNotify) override;
 
+  void OnAttrSetButNotChanged(int32_t aNamespaceID, nsAtom* aName,
+                              const nsAttrValueOrString& aValue,
+                              bool aNotify) override;
+
   MOZ_CAN_RUN_SCRIPT void AfterSetPopoverAttr();
 
   mozilla::EventListenerManager* GetEventListenerManagerForAttr(
@@ -1004,7 +1008,7 @@ class nsGenericHTMLFormElement : public nsGenericHTMLElement {
   // nsIContent
   void SaveSubtreeState() override;
   nsresult BindToTree(BindContext&, nsINode& aParent) override;
-  void UnbindFromTree(bool aNullParent = true) override;
+  void UnbindFromTree(UnbindContext&) override;
 
   /**
    * This callback is called by a fieldest on all its elements whenever its
