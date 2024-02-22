@@ -100,7 +100,7 @@ case "$target" in
         AC_DEFINE(_CRT_NONSTDC_NO_WARNINGS)
 
         MSVC_C_RUNTIME_DLL=vcruntime140.dll
-        if test -n "$IS_VS2019_OR_MORE" -a "$TARGET_CPU" != "x86"; then
+        if test "$TARGET_CPU" != "x86"; then
             MSVC_C_RUNTIME_1_DLL=vcruntime140_1.dll
         fi
         MSVC_CXX_RUNTIME_DLL=msvcp140.dll
@@ -113,13 +113,6 @@ case "$target" in
         AC_SUBST(MSVC_CXX_RUNTIME_DLL)
 
         AC_DEFINE(HAVE_SEH_EXCEPTIONS)
-
-        if test -n "$WIN32_REDIST_DIR"; then
-          if test ! -d "$WIN32_REDIST_DIR"; then
-            AC_MSG_ERROR([Invalid Win32 Redist directory: ${WIN32_REDIST_DIR}])
-          fi
-          WIN32_REDIST_DIR=`cd "$WIN32_REDIST_DIR" && (pwd -W 2>/dev/null || pwd)`
-        fi
     else
         # Check w32api version
         _W32API_MAJOR_VERSION=`echo $W32API_VERSION | $AWK -F\. '{ print $1 }'`
@@ -669,11 +662,7 @@ AC_CACHE_CHECK(for clock_gettime(CLOCK_MONOTONIC),
                [for libs in "" -lrt; do
                     _SAVE_LIBS="$LIBS"
                     LIBS="$LIBS $libs"
-dnl clock_gettime is available on OSX since 10.12, so depending on MACOSX_DEPLOYMENT_TARGET,
-dnl we should or not be able to use it. To detect if we can, we need to make the
-dnl availability attribute strict, so that compilation fails when the target is < 10.12.
-                    AC_TRY_LINK([#define availability(os, ...) availability(os, strict, __VA_ARGS)
-                                 #include <time.h>],
+                    AC_TRY_LINK([#include <time.h>],
                                  [ struct timespec ts;
                                    clock_gettime(CLOCK_MONOTONIC, &ts); ],
                                  ac_cv_clock_monotonic=$libs
@@ -955,18 +944,7 @@ esac
 dnl ========================================================
 dnl = Jemalloc build setup
 dnl ========================================================
-if test -z "$MOZ_MEMORY"; then
-  case "${target}" in
-    *-mingw*)
-      if test -z "$WIN32_REDIST_DIR" -a -z "$MOZ_DEBUG"; then
-        AC_MSG_WARN([When not building jemalloc, you need to set WIN32_REDIST_DIR to the path to the Visual C++ Redist (usually VCINSTALLDIR/redist/x86/Microsoft.VC80.CRT, for VC++ v8) if you intend to distribute your build.])
-      fi
-      ;;
-  esac
-else
-  dnl The generic feature tests that determine how to compute ncpus are long and
-  dnl complicated.  Therefore, simply define special cpp variables for the
-  dnl platforms we have special knowledge of.
+if test -n "$MOZ_MEMORY"; then
   case "${target}" in
   *-mingw*)
     export MOZ_NO_DEBUG_RTL=1
@@ -1175,9 +1153,6 @@ fi
 AC_SUBST(MOZ_SOURCE_REPO)
 AC_SUBST(MOZ_SOURCE_CHANGESET)
 AC_SUBST(MOZ_INCLUDE_SOURCE_INFO)
-
-dnl win32 options
-AC_SUBST(WIN32_REDIST_DIR)
 
 dnl Echo the CFLAGS to remove extra whitespace.
 CFLAGS=`echo \

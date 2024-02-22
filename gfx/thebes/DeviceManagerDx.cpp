@@ -253,6 +253,9 @@ std::vector<DXGI_OUTPUT_DESC1> DeviceManagerDx::GetOutputDescs() {
   HRESULT hr;
   std::vector<DXGI_OUTPUT_DESC1> outputDescs;
 
+#ifdef __MINGW32__
+  return outputDescs;
+#else
   RefPtr<IDXGIFactory1> dxgiFactory;
   hr = ::CreateDXGIFactory1(__uuidof(IDXGIFactory1),
                             getter_AddRefs(dxgiFactory));
@@ -306,6 +309,7 @@ std::vector<DXGI_OUTPUT_DESC1> DeviceManagerDx::GetOutputDescs() {
   }
 
   return outputDescs;
+#endif  // __MINGW32__
 }
 
 bool DeviceManagerDx::SystemHDREnabled() {

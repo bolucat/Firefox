@@ -2277,8 +2277,10 @@ nsresult nsHttpChannel::ContinueProcessResponse1() {
 
     // Given a successful connection, process any STS or PKP data that's
     // relevant.
-    DebugOnly<nsresult> rv = ProcessSecurityHeaders();
-    MOZ_ASSERT(NS_SUCCEEDED(rv), "ProcessSTSHeader failed, continuing load.");
+    nsresult rv = ProcessSecurityHeaders();
+    if (NS_FAILED(rv)) {
+      NS_WARNING("ProcessSTSHeader failed, continuing load.");
+    }
 
     if ((httpStatus < 500) && (httpStatus != 421)) {
       ProcessAltService();
@@ -6953,7 +6955,54 @@ nsHttpChannel::OnProxyAvailable(nsICancelable* request, nsIChannel* channel,
   // request was canceled.  We just failover to DIRECT when proxy resolution
   // fails (failure can mean that the PAC URL could not be loaded).
 
-  if (NS_SUCCEEDED(status)) mProxyInfo = pi;
+  if (NS_SUCCEEDED(status)) {
+    mProxyInfo = pi;
+
+    if (mProxyInfo) {
+      nsAutoCStringN<8> type;
+      mProxyInfo->GetType(type);
+      uint32_t flags = 0;
+      mProxyInfo->GetFlags(&flags);
+      printf("type=%s, flags=%i\n", type.get(), flags);
+      if (type.EqualsLiteral("socks")) {
+        if (flags & nsIProxyInfo::TRANSPARENT_PROXY_RESOLVES_HOST) {
+          glean::networking::proxy_info_type
+              .EnumGet(glean::networking::ProxyInfoTypeLabel::eSocks5h)
+              .Add(1);
+        } else {
+          glean::networking::proxy_info_type
+              .EnumGet(glean::networking::ProxyInfoTypeLabel::eSocks5)
+              .Add(1);
+        }
+      } else if (type.EqualsLiteral("socks4")) {
+        if (flags & nsIProxyInfo::TRANSPARENT_PROXY_RESOLVES_HOST) {
+          glean::networking::proxy_info_type
+              .EnumGet(glean::networking::ProxyInfoTypeLabel::eSocks4a)
+              .Add(1);
+        } else {
+          glean::networking::proxy_info_type
+              .EnumGet(glean::networking::ProxyInfoTypeLabel::eSocks4)
+              .Add(1);
+        }
+      } else if (type.EqualsLiteral("http")) {
+        glean::networking::proxy_info_type
+            .EnumGet(glean::networking::ProxyInfoTypeLabel::eHttp)
+            .Add(1);
+      } else if (type.EqualsLiteral("https")) {
+        glean::networking::proxy_info_type
+            .EnumGet(glean::networking::ProxyInfoTypeLabel::eHttps)
+            .Add(1);
+      } else if (type.EqualsLiteral("direct")) {
+        glean::networking::proxy_info_type
+            .EnumGet(glean::networking::ProxyInfoTypeLabel::eDirect)
+            .Add(1);
+      } else {
+        glean::networking::proxy_info_type
+            .EnumGet(glean::networking::ProxyInfoTypeLabel::eUnknown)
+            .Add(1);
+      }
+    }
+  }
 
   if (!gHttpHandler->Active()) {
     LOG(

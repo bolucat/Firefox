@@ -111,7 +111,7 @@ case "$target" in
         AC_DEFINE(_CRT_NONSTDC_NO_WARNINGS)
 
         MSVC_C_RUNTIME_DLL=vcruntime140.dll
-        if test -n "$IS_VS2019_OR_MORE" -a "$TARGET_CPU" != "x86"; then
+        if test "$TARGET_CPU" != "x86"; then
             MSVC_C_RUNTIME_1_DLL=vcruntime140_1.dll
         fi
         MSVC_CXX_RUNTIME_DLL=msvcp140.dll
@@ -628,11 +628,7 @@ AC_CACHE_CHECK(for clock_gettime(CLOCK_MONOTONIC),
                [for libs in "" -lrt; do
                     _SAVE_LIBS="$LIBS"
                     LIBS="$LIBS $libs"
-dnl clock_gettime is available on OSX since 10.12, so depending on MACOSX_DEPLOYMENT_TARGET,
-dnl we should or not be able to use it. To detect if we can, we need to make the
-dnl availability attribute strict, so that compilation fails when the target is < 10.12.
-                    AC_TRY_LINK([#define availability(os, ...) availability(os, strict, __VA_ARGS)
-                                 #include <time.h>],
+                    AC_TRY_LINK([#include <time.h>],
                                  [ struct timespec ts;
                                    clock_gettime(CLOCK_MONOTONIC, &ts); ],
                                  ac_cv_clock_monotonic=$libs
@@ -834,9 +830,6 @@ else
 fi
 
 if test "$MOZ_MEMORY"; then
-  dnl The generic feature tests that determine how to compute ncpus are long and
-  dnl complicated.  Therefore, simply define special cpp variables for the
-  dnl platforms we have special knowledge of.
   case "${target}" in
   *-mingw*)
     export MOZ_NO_DEBUG_RTL=1
