@@ -2936,19 +2936,6 @@
     "keyed": true,
     "description": "The time between navigationStart and the first contentful paint of a foreground http or https root content document, in milliseconds. The contentful paint timestamp is taken during display list building and does not include rasterization or compositing of that paint. This is collected only on page load where the main document uses or suppports HTTP3"
   },
-  "HTTPS_RR_OPEN_TO_FIRST_SENT": {
-    "alert_emails": ["necko@mozilla.com", "kershaw@mozilla.com"],
-    "record_in_processes": ["main", "content"],
-    "products": ["firefox"],
-    "bug_numbers": [1697480],
-    "expires_in_version": "126",
-    "releaseChannelCollection": "opt-out",
-    "kind": "exponential",
-    "high": 30000,
-    "n_buckets": 50,
-    "keyed": true,
-    "description": "HTTP channel(keys: uses_https_rr_page, uses_https_rr_sub, no_https_rr_page, no_https_rr_sub): Open -> first byte of request sent (ms)"
-  },
   "H3P_PERF_PAGE_LOAD_TIME_MS": {
     "record_in_processes": ["content"],
     "products": ["firefox"],
@@ -3984,25 +3971,12 @@
     "n_values": 16,
     "description": "SSL Handshake Key Exchange Algorithm for resumed handshake (null=0, rsa=1, dh=2, fortezza=3, ecdh=4)"
   },
-  "OCSP_AGE_AT_CRLITE_OVERRIDE": {
-    "record_in_processes": ["main", "socket"],
-    "products": ["firefox"],
-    "alert_emails": ["seceng-telemetry@mozilla.com", "jschanck@mozilla.com"],
-    "bug_numbers": [1794479, 1817101, 1846897],
-    "expires_in_version": "125",
-    "kind": "linear",
-    "releaseChannelCollection": "opt-out",
-    "low": 1,
-    "high": 240,
-    "n_buckets": 20,
-    "description": "When OCSP and CRLite differ, how old is the OCSP response (in hours)?"
-  },
   "CRLITE_VS_OCSP_RESULT": {
     "record_in_processes": ["main", "socket"],
     "products": ["firefox"],
     "alert_emails": ["seceng-telemetry@mozilla.com", "dkeeler@mozilla.com"],
-    "bug_numbers": [1675655, 1758827, 1817102, 1846898],
-    "expires_in_version": "125",
+    "bug_numbers": [1675655, 1758827, 1817102, 1846898, 1876443],
+    "expires_in_version": "131",
     "kind": "categorical",
     "releaseChannelCollection": "opt-out",
     "description": "Does CRLite and OCSP fetching agree when a certificate is revoked?",
@@ -4023,8 +3997,8 @@
     "record_in_processes": ["main", "socket"],
     "products": ["firefox"],
     "alert_emails": ["seceng-telemetry@mozilla.com", "jschanck@mozilla.com"],
-    "bug_numbers": [1794450, 1817101, 1846897],
-    "expires_in_version": "125",
+    "bug_numbers": [1794450, 1817101, 1846897, 1876442],
+    "expires_in_version": "never",
     "kind": "categorical",
     "releaseChannelCollection": "opt-out",
     "description": "Which revocation checking mechanisms were used?",

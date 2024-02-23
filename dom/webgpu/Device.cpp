@@ -247,6 +247,7 @@ already_AddRefed<Sampler> Device::CreateSampler(
   desc.mipmap_filter = ffi::WGPUFilterMode(aDesc.mMipmapFilter);
   desc.lod_min_clamp = aDesc.mLodMinClamp;
   desc.lod_max_clamp = aDesc.mLodMaxClamp;
+  desc.max_anisotropy = aDesc.mMaxAnisotropy;
 
   ffi::WGPUCompareFunction comparison = ffi::WGPUCompareFunction_Sentinel;
   if (aDesc.mCompare.WasPassed()) {
@@ -361,10 +362,23 @@ already_AddRefed<BindGroupLayout> Device::CreateBindGroupLayout(
       e.multisampled = entry.mTexture.Value().mMultisampled;
     }
     if (entry.mStorageTexture.WasPassed()) {
-      e.ty = entry.mStorageTexture.Value().mAccess ==
-                     dom::GPUStorageTextureAccess::Write_only
-                 ? ffi::WGPURawBindingType_WriteonlyStorageTexture
-                 : ffi::WGPURawBindingType_ReadonlyStorageTexture;
+      switch (entry.mStorageTexture.Value().mAccess) {
+        case dom::GPUStorageTextureAccess::Write_only: {
+          e.ty = ffi::WGPURawBindingType_WriteonlyStorageTexture;
+          break;
+        }
+        case dom::GPUStorageTextureAccess::Read_only: {
+          e.ty = ffi::WGPURawBindingType_ReadonlyStorageTexture;
+          break;
+        }
+        case dom::GPUStorageTextureAccess::Read_write: {
+          e.ty = ffi::WGPURawBindingType_ReadWriteStorageTexture;
+          break;
+        }
+        default: {
+          MOZ_ASSERT_UNREACHABLE();
+        }
+      }
       e.view_dimension = &optional[i].dim;
       e.storage_texture_format = &optional[i].format;
     }

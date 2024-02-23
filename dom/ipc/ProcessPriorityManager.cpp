@@ -203,8 +203,6 @@ class ProcessPriorityManagerImpl final : public nsIObserver,
   void BrowserPriorityChanged(CanonicalBrowsingContext* aBC, bool aPriority);
   void BrowserPriorityChanged(BrowserParent* aBrowserParent, bool aPriority);
 
-  void ResetPriority(ContentParent* aContentParent);
-
  private:
   static bool sPrefListenersRegistered;
   static bool sInitialized;
@@ -556,12 +554,6 @@ void ProcessPriorityManagerImpl::BrowserPriorityChanged(
         Telemetry::ScalarID::DOM_CONTENTPROCESS_OS_PRIORITY_CHANGE_CONSIDERED,
         1);
     pppm->BrowserPriorityChanged(aBrowserParent, aPriority);
-  }
-}
-
-void ProcessPriorityManagerImpl::ResetPriority(ContentParent* aContentParent) {
-  if (RefPtr pppm = GetParticularProcessPriorityManager(aContentParent)) {
-    pppm->ResetPriority();
   }
 }
 
@@ -1040,28 +1032,6 @@ void ProcessPriorityManager::BrowserPriorityChanged(
     return;
   }
   singleton->BrowserPriorityChanged(aBrowserParent, aPriority);
-}
-
-/* static */
-void ProcessPriorityManager::RemoteBrowserFrameShown(
-    nsFrameLoader* aFrameLoader) {
-  ProcessPriorityManagerImpl* singleton =
-      ProcessPriorityManagerImpl::GetSingleton();
-  if (!singleton) {
-    return;
-  }
-
-  BrowserParent* bp = BrowserParent::GetFrom(aFrameLoader);
-  NS_ENSURE_TRUE_VOID(bp);
-
-  MOZ_ASSERT(XRE_IsParentProcess());
-
-  // Ignore calls that aren't from a Browser.
-  if (!aFrameLoader->OwnerIsMozBrowserFrame()) {
-    return;
-  }
-
-  singleton->ResetPriority(bp->Manager());
 }
 
 }  // namespace mozilla

@@ -177,6 +177,7 @@ pub enum RawBindingType {
     SampledTexture,
     ReadonlyStorageTexture,
     WriteonlyStorageTexture,
+    ReadWriteStorageTexture,
 }
 
 #[repr(C)]
@@ -237,7 +238,7 @@ pub struct SamplerDescriptor<'a> {
     lod_min_clamp: f32,
     lod_max_clamp: f32,
     compare: Option<&'a wgt::CompareFunction>,
-    anisotropy_clamp: Option<&'a u16>,
+    max_anisotropy: u16,
 }
 
 #[repr(C)]
@@ -614,7 +615,7 @@ pub extern "C" fn wgpu_client_create_sampler(
         lod_min_clamp: desc.lod_min_clamp,
         lod_max_clamp: desc.lod_max_clamp,
         compare: desc.compare.cloned(),
-        anisotropy_clamp: *desc.anisotropy_clamp.unwrap_or(&1),
+        anisotropy_clamp: desc.max_anisotropy,
         border_color: None,
     };
     let action = DeviceAction::CreateSampler(id, wgpu_desc);
@@ -971,6 +972,11 @@ pub unsafe extern "C" fn wgpu_client_create_bind_group_layout(
                 },
                 RawBindingType::WriteonlyStorageTexture => wgt::BindingType::StorageTexture {
                     access: wgt::StorageTextureAccess::WriteOnly,
+                    view_dimension: *entry.view_dimension.unwrap(),
+                    format: *entry.storage_texture_format.unwrap(),
+                },
+                RawBindingType::ReadWriteStorageTexture => wgt::BindingType::StorageTexture {
+                    access: wgt::StorageTextureAccess::ReadWrite,
                     view_dimension: *entry.view_dimension.unwrap(),
                     format: *entry.storage_texture_format.unwrap(),
                 },

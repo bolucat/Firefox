@@ -11,7 +11,7 @@ import { AppConstants } from "resource://gre/modules/AppConstants.sys.mjs";
 import { FormAutofill } from "resource://autofill/FormAutofill.sys.mjs";
 import { FormAutofillUtils } from "resource://gre/modules/shared/FormAutofillUtils.sys.mjs";
 
-import { AutofillTelemetry } from "resource://autofill/AutofillTelemetry.sys.mjs";
+import { AutofillTelemetry } from "resource://gre/modules/shared/AutofillTelemetry.sys.mjs";
 import { showConfirmation } from "resource://gre/modules/FillHelpers.sys.mjs";
 
 const lazy = {};
@@ -187,7 +187,7 @@ export class AutofillDoorhanger {
 
   renderHeader() {
     // Render the header text
-    const text = this.header.querySelector(`p`);
+    const text = this.header.querySelector(`h1`);
     this.doc.l10n.setAttributes(text, this.ui.header.l10nId);
 
     // Render the menu button
@@ -529,6 +529,8 @@ export class AddressSaveDoorhanger extends AutofillDoorhanger {
       //const img = this.doc.createElement("img");
       const img = this.doc.createXULElement("image");
       img.setAttribute("class", imgClass);
+      // ToDo: provide meaningful alt values (bug 1870155):
+      img.setAttribute("alt", "");
       section.appendChild(img);
 
       // Each line is consisted of multiple <span> to form diff style texts

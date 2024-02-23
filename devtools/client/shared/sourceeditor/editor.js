@@ -166,6 +166,7 @@ class Editor extends EventEmitter {
   #loadedKeyMaps;
   #ownerDoc;
   #prefObserver;
+  #win;
 
   constructor(config) {
     super();
@@ -422,6 +423,7 @@ class Editor extends EventEmitter {
     const win = el.ownerDocument.defaultView;
 
     Services.scriptloader.loadSubScript(CM_BUNDLE, win);
+    this.#win = win;
 
     if (this.config.cssProperties) {
       // Replace the propertyKeywords, colorKeywords and valueKeywords
@@ -596,6 +598,7 @@ class Editor extends EventEmitter {
     const win = el.ownerDocument.defaultView;
 
     Services.scriptloader.loadSubScript(CM6_BUNDLE, win);
+    this.#win = win;
 
     const {
       codemirror,
@@ -608,9 +611,12 @@ class Editor extends EventEmitter {
 
     const tabSizeCompartment = new Compartment();
     const indentCompartment = new Compartment();
+    const lineWrapCompartment = new Compartment();
+
     this.#compartments = {
       tabSizeCompartment,
       indentCompartment,
+      lineWrapCompartment,
     };
 
     const indentStr = (this.config.indentWithTabs ? "\t" : " ").repeat(
@@ -627,7 +633,7 @@ class Editor extends EventEmitter {
       codemirrorLanguage.foldGutter({
         class: "cm6-dt-foldgutter",
         markerDOM: open => {
-          const button = doc.createElement("button");
+          const button = this.#ownerDoc.createElement("button");
           button.classList.add("cm6-dt-foldgutter__toggle-button");
           button.setAttribute("aria-expanded", open);
           return button;
@@ -647,7 +653,7 @@ class Editor extends EventEmitter {
     }
 
     if (this.config.lineWrapping) {
-      extensions.push(EditorView.lineWrapping);
+      extensions.push(lineWrapCompartment.of(EditorView.lineWrapping));
     }
 
     const cm = new EditorView({
@@ -683,14 +689,6 @@ class Editor extends EventEmitter {
     }
     const win = this.container.contentWindow.wrappedJSObject;
     Services.scriptloader.loadSubScript(url, win);
-  }
-
-  /**
-   * Returns the container content window
-   * @returns {Window}
-   */
-  getContainerWindow() {
-    return this.container.contentWindow.wrappedJSObject;
   }
 
   /**
@@ -923,7 +921,7 @@ class Editor extends EventEmitter {
       const {
         codemirrorState: { EditorState },
         codemirrorLanguage,
-      } = this.getContainerWindow().CodeMirror;
+      } = this.#win.CodeMirror;
 
       cm.dispatch({
         effects: this.#compartments.tabSizeCompartment.reconfigure(
@@ -1493,6 +1491,23 @@ class Editor extends EventEmitter {
     const cm = editors.get(this);
     cm.getWrapperElement().style.fontSize = parseInt(size, 10) + "px";
     cm.refresh();
+  }
+
+  setLineWrapping(value) {
+    const cm = editors.get(this);
+    if (this.config.cm6) {
+      const {
+        codemirrorView: { EditorView },
+      } = this.#win.CodeMirror;
+      cm.dispatch({
+        effects: this.#compartments.lineWrapCompartment.reconfigure(
+          value ? EditorView.lineWrapping : []
+        ),
+      });
+    } else {
+      cm.setOption("lineWrapping", value);
+    }
+    this.config.lineWrapping = value;
   }
 
   /**
