@@ -579,6 +579,7 @@ MSG_DEF(JSMSG_QUERY_LINE_WITHOUT_URL, 0, JSEXN_TYPEERR, "findScripts query objec
 MSG_DEF(JSMSG_DEBUG_CANT_SET_OPT_ENV, 1, JSEXN_REFERENCEERR, "can't set '{0}' in an optimized-out environment")
 MSG_DEF(JSMSG_DEBUG_INVISIBLE_COMPARTMENT, 0, JSEXN_TYPEERR, "object in compartment marked as invisible to Debugger")
 MSG_DEF(JSMSG_DEBUG_CENSUS_BREAKDOWN,  1, JSEXN_TYPEERR, "unrecognized 'by' value in takeCensus breakdown: {0}")
+MSG_DEF(JSMSG_DEBUG_CENSUS_BREAKDOWN_NESTED,  1, JSEXN_TYPEERR, "takeCensus breakdown 'by' value nested within itself: {0}")
 MSG_DEF(JSMSG_DEBUG_PROMISE_NOT_RESOLVED, 0, JSEXN_TYPEERR, "Promise hasn't been resolved")
 MSG_DEF(JSMSG_DEBUG_PROMISE_NOT_FULFILLED, 0, JSEXN_TYPEERR, "Promise hasn't been fulfilled")
 MSG_DEF(JSMSG_DEBUG_PROMISE_NOT_REJECTED, 0, JSEXN_TYPEERR, "Promise hasn't been rejected")
@@ -721,6 +722,7 @@ MSG_DEF(JSMSG_MISSING_EXPORT,               1, JSEXN_SYNTAXERR, "local binding f
 MSG_DEF(JSMSG_BAD_MODULE_STATUS,            1, JSEXN_INTERNALERR, "module record has unexpected status: {0}")
 MSG_DEF(JSMSG_DYNAMIC_IMPORT_FAILED,        1, JSEXN_TYPEERR, "error loading dynamically imported module: {0}")
 MSG_DEF(JSMSG_DYNAMIC_IMPORT_NOT_SUPPORTED, 0, JSEXN_TYPEERR, "Dynamic import not supported in this context")
+MSG_DEF(JSMSG_BAD_MODULE_TYPE,              0, JSEXN_TYPEERR, "invalid module type")
 
 // Import maps
 MSG_DEF(JSMSG_IMPORT_MAPS_PARSE_FAILED, 1, JSEXN_SYNTAXERR, "Failed to parse import map: Invalid JSON format. {0}")

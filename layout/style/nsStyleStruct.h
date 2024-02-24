@@ -1120,6 +1120,7 @@ struct StyleTransition {
   const StyleTime& GetDelay() const { return mDelay; }
   const StyleTime& GetDuration() const { return mDuration; }
   const StyleTransitionProperty& GetProperty() const { return mProperty; }
+  StyleTransitionBehavior GetBehavior() const { return mBehavior; }
 
   bool operator==(const StyleTransition& aOther) const;
   bool operator!=(const StyleTransition& aOther) const {
@@ -1133,6 +1134,7 @@ struct StyleTransition {
   StyleTime mDelay{0.0};
   StyleTransitionProperty mProperty{StyleTransitionProperty::NonCustom(
       StyleNonCustomPropertyId{uint16_t(eCSSProperty_all)})};
+  StyleTransitionBehavior mBehavior = StyleTransitionBehavior::Normal;
 };
 
 struct StyleAnimation {
@@ -1647,6 +1649,10 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleUIReset {
     return mTransitions[aIndex % mTransitionTimingFunctionCount]
         .GetTimingFunction();
   }
+  mozilla::StyleTransitionBehavior GetTransitionBehavior(
+      uint32_t aIndex) const {
+    return mTransitions[aIndex % mTransitionBehaviorCount].GetBehavior();
+  }
   mozilla::StyleTime GetTransitionCombinedDuration(uint32_t aIndex) const {
     // https://drafts.csswg.org/css-transitions/#transition-combined-duration
     return {std::max(GetTransitionDuration(aIndex).seconds, 0.0f) +
@@ -1708,6 +1714,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleUIReset {
   uint32_t mTransitionDurationCount;
   uint32_t mTransitionDelayCount;
   uint32_t mTransitionPropertyCount;
+  uint32_t mTransitionBehaviorCount;
   nsStyleAutoArray<mozilla::StyleAnimation> mAnimations;
   // The number of elements in mAnimations that are not from repeating
   // a list due to another property being longer.

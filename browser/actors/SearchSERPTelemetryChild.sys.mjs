@@ -439,14 +439,15 @@ class SearchAdImpression {
             for (let child of component.included.children) {
               let childElements = parent.querySelectorAll(child.selector);
               if (childElements.length) {
-                this.#recordElementData(parent, {
-                  type: component.type,
-                  childElements: Array.from(childElements),
-                });
-                break;
+                if (!child.skipCount) {
+                  this.#recordElementData(parent, {
+                    type: component.type,
+                    childElements: Array.from(childElements),
+                  });
+                }
               }
             }
-          } else {
+          } else if (!component.included.parent.skipCount) {
             this.#recordElementData(parent, {
               type: component.type,
             });
@@ -833,11 +834,8 @@ class SearchAdImpression {
 
     for (let element of elements) {
       let clickCallback = () => {
-        if (clickAction == "submitted") {
-          documentToSubmitMap.set(document, true);
-        }
         callback({
-          type,
+          target: type,
           url,
           action: clickAction,
         });
@@ -846,11 +844,8 @@ class SearchAdImpression {
 
       let keydownCallback = event => {
         if (event.key == "Enter") {
-          if (keydownEnterAction == "submitted") {
-            documentToSubmitMap.set(document, true);
-          }
           callback({
-            type,
+            target: type,
             url,
             action: keydownEnterAction,
           });
@@ -863,20 +858,6 @@ class SearchAdImpression {
         element.removeEventListener("keydown", keydownCallback);
       });
     }
-
-    document.ownerGlobal.addEventListener(
-      "pagehide",
-      () => {
-        let callbacks = documentToRemoveEventListenersMap.get(document);
-        if (callbacks) {
-          for (let removeEventListenerCallback of callbacks) {
-            removeEventListenerCallback();
-          }
-          documentToRemoveEventListenersMap.delete(document);
-        }
-      },
-      { once: true }
-    );
 
     // The map might have entries from previous callers, so we must ensure
     // we don't discard existing event listener callbacks.
@@ -1149,8 +1130,11 @@ export class SearchSERPTelemetryChild extends JSWindowActorChild {
       let timerId = Glean.serp.categorizationDuration.start();
 
       let pageActionCallback = info => {
+        if (info.action == "submitted") {
+          documentToSubmitMap.set(doc, true);
+        }
         this.sendAsyncMessage("SearchTelemetry:Action", {
-          type: info.type,
+          target: info.target,
           url: info.url,
           action: info.action,
         });
@@ -1287,6 +1271,13 @@ export class SearchSERPTelemetryChild extends JSWindowActorChild {
         break;
       }
       case "pagehide": {
+        let callbacks = documentToRemoveEventListenersMap.get(this.document);
+        if (callbacks) {
+          for (let removeEventListenerCallback of callbacks) {
+            removeEventListenerCallback();
+          }
+          documentToRemoveEventListenersMap.delete(this.document);
+        }
         this.#cancelCheck();
         break;
       }

@@ -206,7 +206,7 @@ async function navigate(
   // it doesn't close on navigate the way that it does when it's
   // open from the translations button, so ensure that we always
   // close it when we navigate to a new page.
-  await closeTranslationsPanelIfOpen();
+  await closeAllOpenPanelsAndMenus();
 
   info(message);
 
@@ -230,7 +230,7 @@ async function navigate(
 
   info(`Loading url: "${url}"`);
   if (onOpenPanel) {
-    await FullPageTranslationsTestUtils.waitForTranslationsPopupEvent(
+    await FullPageTranslationsTestUtils.waitForPanelPopupEvent(
       "popupshown",
       loadTargetPage,
       onOpenPanel
@@ -274,6 +274,146 @@ async function toggleReaderMode() {
 
   click(readerButton, "Clicking the reader-mode button");
   await readyPromise;
+}
+
+/**
+ * A collection of shared functionality utilized by
+ * FullPageTranslationsTestUtils and SelectTranslationsTestUtils.
+ *
+ * Using functions from the aforementioned classes is preferred over
+ * using functions from this class directly.
+ */
+class SharedTranslationsTestUtils {
+  /**
+   * Asserts that the mainViewId of the panel matches the given string.
+   *
+   * @param {FullPageTranslationsPanel | SelectTranslationsPanel} panel
+   * @param {string} expectedId - The expected id that mainViewId is set to.
+   */
+  static _assertPanelMainViewId(panel, expectedId) {
+    const mainViewId = panel.elements.multiview.getAttribute("mainViewId");
+    is(
+      mainViewId,
+      expectedId,
+      "The mainViewId should match its expected value"
+    );
+  }
+
+  /**
+   * Asserts that the selected from-language matches the provided arguments.
+   *
+   * @param {FullPageTranslationsPanel | SelectTranslationsPanel} panel
+   *  - The UI component or panel whose selected from-language is being asserted.
+   * @param {object} options - An object containing assertion parameters.
+   * @param {string} [options.langTag] - A BCP-47 language tag.
+   * @param {string} [options.l10nId] - A localization identifier.
+   */
+  static _assertSelectedFromLanguage(panel, { langTag, l10nId }) {
+    const { fromMenuList } = panel.elements;
+    is(
+      fromMenuList.value,
+      langTag,
+      "Expected selected from-language to match the given language tag"
+    );
+    if (l10nId) {
+      is(
+        fromMenuList.getAttribute("data-l10n-id"),
+        l10nId,
+        "Expected selected from-language to match the given l10n id"
+      );
+    }
+  }
+
+  /**
+   * Asserts that the selected to-language matches the provided arguments.
+   *
+   * @param {FullPageTranslationsPanel | SelectTranslationsPanel} panel
+   *  - The UI component or panel whose selected from-language is being asserted.
+   * @param {object} options - An object containing assertion parameters.
+   * @param {string} [options.langTag] - A BCP-47 language tag.
+   * @param {string} [options.l10nId] - A localization identifier.
+   */
+  static _assertSelectedToLanguage(panel, { langTag, l10nId }) {
+    const { toMenuList } = panel.elements;
+    if (langTag) {
+      is(
+        toMenuList.value,
+        langTag,
+        "Expected selected to-language to match the given language tag"
+      );
+    }
+    if (l10nId) {
+      is(
+        toMenuList.getAttribute("data-l10n-id"),
+        l10nId,
+        "Expected selected to-language to match the given l10n id"
+      );
+    }
+  }
+
+  /**
+   * Asserts the visibility of the given elements based on the given expectations.
+   *
+   * @param {object} elements - An object containing the elements to be checked for visibility.
+   * @param {object} expectations - An object where each property corresponds to a property in elements,
+   *                                and its value is a boolean indicating whether the element should
+   *                                be visible (true) or hidden (false).
+   * @throws Throws if elements does not contain a property for each property in expectations.
+   */
+  static _assertPanelElementVisibility(elements, expectations) {
+    const hidden = {};
+    const visible = {};
+
+    for (const propertyName in expectations) {
+      ok(
+        elements.hasOwnProperty(propertyName),
+        `Expected panel elements to have property ${propertyName}`
+      );
+      if (expectations[propertyName]) {
+        visible[propertyName] = elements[propertyName];
+      } else {
+        hidden[propertyName] = elements[propertyName];
+      }
+    }
+
+    assertVisibility({ hidden, visible });
+  }
+
+  /**
+   * Executes the provided callback before waiting for the event and then waits for the given event
+   * to be fired for the element corresponding to the provided elementId.
+   *
+   * Optionally executes a postEventAssertion function once the event occurs.
+   *
+   * @param {string} elementId - The Id of the element to wait for the event on.
+   * @param {string} eventName - The name of the event to wait for.
+   * @param {Function} callback - A callback function to execute immediately before waiting for the event.
+   *                              This is often used to trigger the event on the expected element.
+   * @param {Function|null} [postEventAssertion=null] - An optional callback function to execute after
+   *                                                    the event has occurred.
+   * @throws Throws if the element with the specified `elementId` does not exist.
+   * @returns {Promise<void>}
+   */
+  static async _waitForPopupEvent(
+    elementId,
+    eventName,
+    callback,
+    postEventAssertion = null
+  ) {
+    const element = document.getElementById(elementId);
+    if (!element) {
+      throw new Error("Unable to find the translations panel element.");
+    }
+    const promise = BrowserTestUtils.waitForEvent(element, eventName);
+    await callback();
+    info("Waiting for the translations panel popup to be shown");
+    await promise;
+    if (postEventAssertion) {
+      postEventAssertion();
+    }
+    // Wait a single tick on the event loop.
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
 }
 
 /**
@@ -515,61 +655,45 @@ class FullPageTranslationsTestUtils {
 
   /**
    * Asserts that for each provided expectation, the visible state of the corresponding
-   * element in TranslationsPanel.elements both exists and matches the visibility expectation.
+   * element in FullPageTranslationsPanel.elements both exists and matches the visibility expectation.
    *
    * @param {object} expectations
-   *   A list of expectations for the visibility of any subset of TranslationsPanel.elements
+   *   A list of expectations for the visibility of any subset of FullPageTranslationsPanel.elements
    */
   static #assertPanelElementVisibility(expectations = {}) {
-    // Assume nothing is visible by default, and overwrite them
-    // with any specific expectations provided in the argument.
-    const finalExpectations = {
-      cancelButton: false,
-      changeSourceLanguageButton: false,
-      dismissErrorButton: false,
-      error: false,
-      fromMenuList: false,
-      fromLabel: false,
-      header: false,
-      intro: false,
-      introLearnMoreLink: false,
-      langSelection: false,
-      restoreButton: false,
-      toLabel: false,
-      toMenuList: false,
-      translateButton: false,
-      unsupportedHeader: false,
-      unsupportedHint: false,
-      unsupportedLearnMoreLink: false,
-      ...expectations,
-    };
-
-    const elements = TranslationsPanel.elements;
-    const hidden = {};
-    const visible = {};
-
-    for (const propertyName in finalExpectations) {
-      ok(
-        elements.hasOwnProperty(propertyName),
-        `Expected translations panel elements to have property ${propertyName}`
-      );
-      if (finalExpectations[propertyName]) {
-        visible[propertyName] = elements[propertyName];
-      } else {
-        hidden[propertyName] = elements[propertyName];
+    SharedTranslationsTestUtils._assertPanelElementVisibility(
+      FullPageTranslationsPanel.elements,
+      {
+        cancelButton: false,
+        changeSourceLanguageButton: false,
+        dismissErrorButton: false,
+        error: false,
+        fromMenuList: false,
+        fromLabel: false,
+        header: false,
+        intro: false,
+        introLearnMoreLink: false,
+        langSelection: false,
+        restoreButton: false,
+        toLabel: false,
+        toMenuList: false,
+        translateButton: false,
+        unsupportedHeader: false,
+        unsupportedHint: false,
+        unsupportedLearnMoreLink: false,
+        // Overwrite any of the above defaults with the passed in expectations.
+        ...expectations,
       }
-    }
-
-    assertVisibility({ hidden, visible });
+    );
   }
 
   /**
-   * Asserts that the TranslationsPanel header has the expected l10nId.
+   * Asserts that the FullPageTranslationsPanel header has the expected l10nId.
    *
    * @param {string} l10nId - The expected data-l10n-id of the header.
    */
   static #assertPanelHeaderL10nId(l10nId) {
-    const { header } = TranslationsPanel.elements;
+    const { header } = FullPageTranslationsPanel.elements;
     is(
       header.getAttribute("data-l10n-id"),
       l10nId,
@@ -583,12 +707,9 @@ class FullPageTranslationsTestUtils {
    * @param {string} expectedId
    */
   static #assertPanelMainViewId(expectedId) {
-    const mainViewId =
-      TranslationsPanel.elements.multiview.getAttribute("mainViewId");
-    is(
-      mainViewId,
-      expectedId,
-      "The full-page Translations panel mainViewId should match its expected value"
+    SharedTranslationsTestUtils._assertPanelMainViewId(
+      FullPageTranslationsPanel,
+      expectedId
     );
   }
 
@@ -598,7 +719,7 @@ class FullPageTranslationsTestUtils {
   static assertPanelViewDefault() {
     info("Checking that the panel shows the default view");
     FullPageTranslationsTestUtils.#assertPanelMainViewId(
-      "translations-panel-view-default"
+      "full-page-translations-panel-view-default"
     );
     FullPageTranslationsTestUtils.#assertPanelElementVisibility({
       ...FullPageTranslationsTestUtils.#defaultViewVisibilityExpectations,
@@ -614,7 +735,7 @@ class FullPageTranslationsTestUtils {
   static assertPanelViewError() {
     info("Checking that the panel shows the error view");
     FullPageTranslationsTestUtils.#assertPanelMainViewId(
-      "translations-panel-view-default"
+      "full-page-translations-panel-view-default"
     );
     FullPageTranslationsTestUtils.#assertPanelElementVisibility({
       error: true,
@@ -644,7 +765,7 @@ class FullPageTranslationsTestUtils {
   static assertPanelViewFirstShow() {
     info("Checking that the panel shows the first-show view");
     FullPageTranslationsTestUtils.#assertPanelMainViewId(
-      "translations-panel-view-default"
+      "full-page-translations-panel-view-default"
     );
     FullPageTranslationsTestUtils.#assertPanelElementVisibility({
       intro: true,
@@ -662,7 +783,7 @@ class FullPageTranslationsTestUtils {
   static assertPanelViewFirstShowError() {
     info("Checking that the panel shows the first-show error view");
     FullPageTranslationsTestUtils.#assertPanelMainViewId(
-      "translations-panel-view-default"
+      "full-page-translations-panel-view-default"
     );
     FullPageTranslationsTestUtils.#assertPanelElementVisibility({
       error: true,
@@ -681,7 +802,7 @@ class FullPageTranslationsTestUtils {
   static assertPanelViewRevisit() {
     info("Checking that the panel shows the revisit view");
     FullPageTranslationsTestUtils.#assertPanelMainViewId(
-      "translations-panel-view-default"
+      "full-page-translations-panel-view-default"
     );
     FullPageTranslationsTestUtils.#assertPanelElementVisibility({
       header: true,
@@ -702,7 +823,7 @@ class FullPageTranslationsTestUtils {
   static assertPanelViewUnsupportedLanguage() {
     info("Checking that the panel shows the unsupported-language view");
     FullPageTranslationsTestUtils.#assertPanelMainViewId(
-      "translations-panel-view-unsupported-language"
+      "full-page-translations-panel-view-unsupported-language"
     );
     FullPageTranslationsTestUtils.#assertPanelElementVisibility({
       changeSourceLanguageButton: true,
@@ -718,13 +839,10 @@ class FullPageTranslationsTestUtils {
    *
    * @param {string} langTag - A BCP-47 language tag.
    */
-  static assertSelectedFromLanguage(langTag) {
-    info(`Checking that the selected from-language matches ${langTag}`);
-    const { fromMenuList } = TranslationsPanel.elements;
-    is(
-      fromMenuList.value,
-      langTag,
-      "Expected selected from-language to match the given language tag"
+  static assertSelectedFromLanguage({ langTag, l10nId }) {
+    SharedTranslationsTestUtils._assertSelectedFromLanguage(
+      FullPageTranslationsPanel,
+      { langTag, l10nId }
     );
   }
 
@@ -733,13 +851,10 @@ class FullPageTranslationsTestUtils {
    *
    * @param {string} langTag - A BCP-47 language tag.
    */
-  static assertSelectedToLanguage(langTag) {
-    info(`Checking that the selected to-language matches ${langTag}`);
-    const { toMenuList } = TranslationsPanel.elements;
-    is(
-      toMenuList.value,
-      langTag,
-      "Expected selected to-language to match the given language tag"
+  static assertSelectedToLanguage({ langTag, l10nId }) {
+    SharedTranslationsTestUtils._assertSelectedToLanguage(
+      FullPageTranslationsPanel,
+      { langTag, l10nId }
     );
   }
 
@@ -827,9 +942,9 @@ class FullPageTranslationsTestUtils {
    */
   static async clickCancelButton() {
     logAction();
-    const { cancelButton } = TranslationsPanel.elements;
+    const { cancelButton } = FullPageTranslationsPanel.elements;
     assertVisibility({ visible: { cancelButton } });
-    await FullPageTranslationsTestUtils.waitForTranslationsPopupEvent(
+    await FullPageTranslationsTestUtils.waitForPanelPopupEvent(
       "popuphidden",
       () => {
         click(cancelButton, "Clicking the cancel button");
@@ -847,9 +962,9 @@ class FullPageTranslationsTestUtils {
    */
   static async clickChangeSourceLanguageButton({ firstShow = false } = {}) {
     logAction();
-    const { changeSourceLanguageButton } = TranslationsPanel.elements;
+    const { changeSourceLanguageButton } = FullPageTranslationsPanel.elements;
     assertVisibility({ visible: { changeSourceLanguageButton } });
-    await FullPageTranslationsTestUtils.waitForTranslationsPopupEvent(
+    await FullPageTranslationsTestUtils.waitForPanelPopupEvent(
       "popupshown",
       () => {
         click(
@@ -868,9 +983,9 @@ class FullPageTranslationsTestUtils {
    */
   static async clickDismissErrorButton() {
     logAction();
-    const { dismissErrorButton } = TranslationsPanel.elements;
+    const { dismissErrorButton } = FullPageTranslationsPanel.elements;
     assertVisibility({ visible: { dismissErrorButton } });
-    await FullPageTranslationsTestUtils.waitForTranslationsPopupEvent(
+    await FullPageTranslationsTestUtils.waitForPanelPopupEvent(
       "popuphidden",
       () => {
         click(dismissErrorButton, "Click the dismiss-error button");
@@ -919,9 +1034,9 @@ class FullPageTranslationsTestUtils {
    */
   static async clickRestoreButton() {
     logAction();
-    const { restoreButton } = TranslationsPanel.elements;
+    const { restoreButton } = FullPageTranslationsPanel.elements;
     assertVisibility({ visible: { restoreButton } });
-    await FullPageTranslationsTestUtils.waitForTranslationsPopupEvent(
+    await FullPageTranslationsTestUtils.waitForPanelPopupEvent(
       "popuphidden",
       () => {
         click(restoreButton, "Click the restore-page button");
@@ -957,9 +1072,9 @@ class FullPageTranslationsTestUtils {
     pivotTranslation = false,
   } = {}) {
     logAction();
-    const { translateButton } = TranslationsPanel.elements;
+    const { translateButton } = FullPageTranslationsPanel.elements;
     assertVisibility({ visible: { translateButton } });
-    await FullPageTranslationsTestUtils.waitForTranslationsPopupEvent(
+    await FullPageTranslationsTestUtils.waitForPanelPopupEvent(
       "popuphidden",
       () => {
         click(translateButton);
@@ -986,25 +1101,23 @@ class FullPageTranslationsTestUtils {
    * @param {boolean} config.openWithKeyboard
    *  - Open the panel by synthesizing the keyboard. If false, synthesizes the mouse.
    */
-  static async openTranslationsPanel({
+  static async openPanel({
     onOpenPanel = null,
     openFromAppMenu = false,
     openWithKeyboard = false,
   }) {
     logAction();
-    await closeTranslationsPanelIfOpen();
+    await closeAllOpenPanelsAndMenus();
     if (openFromAppMenu) {
-      await FullPageTranslationsTestUtils.#openTranslationsPanelViaAppMenu({
+      await FullPageTranslationsTestUtils.#openPanelViaAppMenu({
         onOpenPanel,
         openWithKeyboard,
       });
     } else {
-      await FullPageTranslationsTestUtils.#openTranslationsPanelViaTranslationsButton(
-        {
-          onOpenPanel,
-          openWithKeyboard,
-        }
-      );
+      await FullPageTranslationsTestUtils.#openPanelViaTranslationsButton({
+        onOpenPanel,
+        openWithKeyboard,
+      });
     }
   }
 
@@ -1017,7 +1130,7 @@ class FullPageTranslationsTestUtils {
    * @param {boolean} config.openWithKeyboard
    *  - Open the panel by synthesizing the keyboard. If false, synthesizes the mouse.
    */
-  static async #openTranslationsPanelViaAppMenu({
+  static async #openPanelViaAppMenu({
     onOpenPanel = null,
     openWithKeyboard = false,
   }) {
@@ -1038,7 +1151,7 @@ class FullPageTranslationsTestUtils {
       "The app-menu translate button should be enabled"
     );
 
-    await FullPageTranslationsTestUtils.waitForTranslationsPopupEvent(
+    await FullPageTranslationsTestUtils.waitForPanelPopupEvent(
       "popupshown",
       () => {
         if (openWithKeyboard) {
@@ -1060,7 +1173,7 @@ class FullPageTranslationsTestUtils {
    * @param {boolean} config.openWithKeyboard
    *  - Open the panel by synthesizing the keyboard. If false, synthesizes the mouse.
    */
-  static async #openTranslationsPanelViaTranslationsButton({
+  static async #openPanelViaTranslationsButton({
     onOpenPanel = null,
     openWithKeyboard = false,
   }) {
@@ -1070,7 +1183,7 @@ class FullPageTranslationsTestUtils {
         { button: true },
         "The translations button is visible."
       );
-    await FullPageTranslationsTestUtils.waitForTranslationsPopupEvent(
+    await FullPageTranslationsTestUtils.waitForPanelPopupEvent(
       "popupshown",
       () => {
         if (openWithKeyboard) {
@@ -1091,7 +1204,7 @@ class FullPageTranslationsTestUtils {
     logAction();
     const gearIcons = getAllByL10nId("translations-panel-settings-button");
     for (const gearIcon of gearIcons) {
-      if (gearIcon.hidden) {
+      if (BrowserTestUtils.isHidden(gearIcon)) {
         continue;
       }
       click(gearIcon, "Open the settings menu");
@@ -1114,7 +1227,7 @@ class FullPageTranslationsTestUtils {
    */
   static switchSelectedFromLanguage(langTag) {
     logAction(langTag);
-    const { fromMenuList } = TranslationsPanel.elements;
+    const { fromMenuList } = FullPageTranslationsPanel.elements;
     fromMenuList.value = langTag;
     fromMenuList.dispatchEvent(new Event("command"));
   }
@@ -1126,7 +1239,7 @@ class FullPageTranslationsTestUtils {
    */
   static switchSelectedToLanguage(langTag) {
     logAction(langTag);
-    const { toMenuList } = TranslationsPanel.elements;
+    const { toMenuList } = FullPageTranslationsPanel.elements;
     toMenuList.value = langTag;
     toMenuList.dispatchEvent(new Event("command"));
   }
@@ -1142,26 +1255,19 @@ class FullPageTranslationsTestUtils {
    *   An optional assertion to be made immediately after the event occurs.
    * @returns {Promise<void>}
    */
-  static async waitForTranslationsPopupEvent(
+  static async waitForPanelPopupEvent(
     eventName,
     callback,
     postEventAssertion = null
   ) {
     // De-lazify the panel elements.
-    TranslationsPanel.elements;
-    const panel = document.getElementById("translations-panel");
-    if (!panel) {
-      throw new Error("Unable to find the translations panel element.");
-    }
-    const promise = BrowserTestUtils.waitForEvent(panel, eventName);
-    await callback();
-    info("Waiting for the translations panel popup to be shown");
-    await promise;
-    if (postEventAssertion) {
-      postEventAssertion();
-    }
-    // Wait a single tick on the event loop.
-    await new Promise(resolve => setTimeout(resolve, 0));
+    FullPageTranslationsPanel.elements;
+    await SharedTranslationsTestUtils._waitForPopupEvent(
+      "full-page-translations-panel",
+      eventName,
+      callback,
+      postEventAssertion
+    );
   }
 }
 
@@ -1210,8 +1316,7 @@ class SelectTranslationsTestUtils {
       info(message);
     }
 
-    await closeTranslationsPanelIfOpen();
-    await closeContextMenuIfOpen();
+    await closeAllOpenPanelsAndMenus();
 
     await SelectTranslationsTestUtils.openContextMenu(runInPage, {
       selectFirstParagraph,
@@ -1274,8 +1379,106 @@ class SelectTranslationsTestUtils {
         );
       }
     }
+  }
 
-    await closeContextMenuIfOpen();
+  /**
+   * Asserts that for each provided expectation, the visible state of the corresponding
+   * element in FullPageTranslationsPanel.elements both exists and matches the visibility expectation.
+   *
+   * @param {object} expectations
+   *   A list of expectations for the visibility of any subset of SelectTranslationsPanel.elements
+   */
+  static #assertPanelElementVisibility(expectations = {}) {
+    SharedTranslationsTestUtils._assertPanelElementVisibility(
+      SelectTranslationsPanel.elements,
+      {
+        betaIcon: false,
+        copyButton: false,
+        doneButton: false,
+        fromLabel: false,
+        fromMenuList: false,
+        header: false,
+        textArea: false,
+        toLabel: false,
+        toMenuList: false,
+        translateFullPageButton: false,
+        // Overwrite any of the above defaults with the passed in expectations.
+        ...expectations,
+      }
+    );
+  }
+
+  /**
+   * Asserts that the mainViewId of the panel matches the given string.
+   *
+   * @param {string} expectedId
+   */
+  static #assertPanelMainViewId(expectedId) {
+    SharedTranslationsTestUtils._assertPanelMainViewId(
+      SelectTranslationsPanel,
+      expectedId
+    );
+  }
+
+  /**
+   * Asserts that panel element visibility matches the default panel view.
+   */
+  static assertPanelViewDefault() {
+    info("Checking that the select-translations panel shows the default view");
+    SelectTranslationsTestUtils.#assertPanelMainViewId(
+      "select-translations-panel-view-default"
+    );
+    SelectTranslationsTestUtils.#assertPanelElementVisibility({
+      betaIcon: true,
+      fromLabel: true,
+      fromMenuList: true,
+      header: true,
+      textArea: true,
+      toLabel: true,
+      toMenuList: true,
+      copyButton: true,
+      doneButton: true,
+      translateFullPageButton: true,
+    });
+  }
+
+  /**
+   * Asserts that the selected from-language matches the provided language tag.
+   *
+   * @param {string} langTag - A BCP-47 language tag.
+   */
+  static assertSelectedFromLanguage({ langTag, l10nId }) {
+    SharedTranslationsTestUtils._assertSelectedFromLanguage(
+      SelectTranslationsPanel,
+      { langTag, l10nId }
+    );
+  }
+
+  /**
+   * Asserts that the selected to-language matches the provided language tag.
+   *
+   * @param {string} langTag - A BCP-47 language tag.
+   */
+  static assertSelectedToLanguage({ langTag, l10nId }) {
+    SharedTranslationsTestUtils._assertSelectedToLanguage(
+      SelectTranslationsPanel,
+      { langTag, l10nId }
+    );
+  }
+
+  /**
+   * Simulates clicking the done button and waits for the panel to close.
+   */
+  static async clickDoneButton() {
+    logAction();
+    const { doneButton } = SelectTranslationsPanel.elements;
+    assertVisibility({ visible: { doneButton } });
+    await SelectTranslationsTestUtils.waitForPanelPopupEvent(
+      "popuphidden",
+      () => {
+        click(doneButton, "Clicking the done button");
+      }
+    );
   }
 
   /**
@@ -1325,43 +1528,157 @@ class SelectTranslationsTestUtils {
     }
 
     if (openAtFirstParagraph === true) {
-      await runInPage(async TranslationsTest => {
-        const { getFirstParagraph } = TranslationsTest.getSelectors();
-        const paragraph = getFirstParagraph();
-        await TranslationsTest.rightClickContentElement(paragraph);
-      });
+      await SharedTranslationsTestUtils._waitForPopupEvent(
+        "contentAreaContextMenu",
+        "popupshown",
+        async () => {
+          await runInPage(async TranslationsTest => {
+            const { getFirstParagraph } = TranslationsTest.getSelectors();
+            const paragraph = getFirstParagraph();
+            await TranslationsTest.rightClickContentElement(paragraph);
+          });
+        }
+      );
       return;
     }
 
     if (openAtSpanishParagraph === true) {
-      await runInPage(async TranslationsTest => {
-        const { getSpanishParagraph } = TranslationsTest.getSelectors();
-        const paragraph = getSpanishParagraph();
-        await TranslationsTest.rightClickContentElement(paragraph);
-      });
+      await SharedTranslationsTestUtils._waitForPopupEvent(
+        "contentAreaContextMenu",
+        "popupshown",
+        async () => {
+          await runInPage(async TranslationsTest => {
+            const { getSpanishParagraph } = TranslationsTest.getSelectors();
+            const paragraph = getSpanishParagraph();
+            await TranslationsTest.rightClickContentElement(paragraph);
+          });
+        }
+      );
       return;
     }
 
     if (openAtEnglishHyperlink === true) {
-      await runInPage(async TranslationsTest => {
-        const { getEnglishHyperlink } = TranslationsTest.getSelectors();
-        const hyperlink = getEnglishHyperlink();
-        await TranslationsTest.rightClickContentElement(hyperlink);
-      });
+      await SharedTranslationsTestUtils._waitForPopupEvent(
+        "contentAreaContextMenu",
+        "popupshown",
+        async () => {
+          await runInPage(async TranslationsTest => {
+            const { getEnglishHyperlink } = TranslationsTest.getSelectors();
+            const hyperlink = getEnglishHyperlink();
+            await TranslationsTest.rightClickContentElement(hyperlink);
+          });
+        }
+      );
       return;
     }
 
     if (openAtSpanishHyperlink === true) {
-      await runInPage(async TranslationsTest => {
-        const { getSpanishHyperlink } = TranslationsTest.getSelectors();
-        const hyperlink = getSpanishHyperlink();
-        await TranslationsTest.rightClickContentElement(hyperlink);
-      });
+      await SharedTranslationsTestUtils._waitForPopupEvent(
+        "contentAreaContextMenu",
+        "popupshown",
+        async () => {
+          await runInPage(async TranslationsTest => {
+            const { getSpanishHyperlink } = TranslationsTest.getSelectors();
+            const hyperlink = getSpanishHyperlink();
+            await TranslationsTest.rightClickContentElement(hyperlink);
+          });
+        }
+      );
       return;
     }
 
     throw new Error(
       "openContextMenu() was not provided a declaration for which element to open the menu at."
+    );
+  }
+
+  /**
+   * Opens the Select Translations panel via the context menu based on specified options.
+   *
+   * @param {Function} runInPage - A content-exposed function to run within the context of the page.
+   * @param {object} options - Options for selecting paragraphs and opening the context menu.
+   * @param {boolean} options.selectFirstParagraph - Selects the first paragraph before opening the context menu.
+   * @param {boolean} options.selectSpanishParagraph - Selects the Spanish paragraph before opening the context menu.
+   *                                                   This is only available in SPANISH_TEST_PAGE.
+   * @param {string} options.expectedTargetLanguage - The target language for translation.
+   * @param {boolean} options.openAtFirstParagraph - Opens the context menu at the first paragraph.
+   * @param {boolean} options.openAtSpanishParagraph - Opens at the Spanish paragraph.
+   *                                                   This is only available in SPANISH_TEST_PAGE.
+   * @param {boolean} options.openAtEnglishHyperlink - Opens at the English hyperlink.
+   *                                                   This is only available in SPANISH_TEST_PAGE.
+   * @param {boolean} options.openAtSpanishHyperlink - Opens at the Spanish hyperlink.
+   *                                                   This is only available in SPANISH_TEST_PAGE.
+   * @param {Function|null} [options.onOpenPanel=null] - An optional callback function to execute after the panel opens.
+   * @param {string|null} [message=null] - An optional message to log to info.
+   * @throws Throws an error if the context menu could not be opened with the provided options.
+   * @returns {Promise<void>}
+   */
+  static async openPanel(
+    runInPage,
+    {
+      selectFirstParagraph,
+      selectSpanishParagraph,
+      expectedTargetLanguage,
+      openAtFirstParagraph,
+      openAtSpanishParagraph,
+      openAtEnglishHyperlink,
+      openAtSpanishHyperlink,
+      onOpenPanel,
+    },
+    message
+  ) {
+    logAction();
+
+    if (message) {
+      info(message);
+    }
+
+    await SelectTranslationsTestUtils.assertContextMenuTranslateSelectionItem(
+      runInPage,
+      {
+        selectFirstParagraph,
+        selectSpanishParagraph,
+        expectedTargetLanguage,
+        openAtFirstParagraph,
+        openAtSpanishParagraph,
+        openAtEnglishHyperlink,
+        openAtSpanishHyperlink,
+      },
+      message
+    );
+
+    const menuItem = getById("context-translate-selection");
+
+    await SelectTranslationsTestUtils.waitForPanelPopupEvent(
+      "popupshown",
+      () => click(menuItem),
+      onOpenPanel
+    );
+  }
+
+  /**
+   * XUL popups will fire the popupshown and popuphidden events. These will fire for
+   * any type of popup in the browser. This function waits for one of those events, and
+   * checks that the viewId of the popup is PanelUI-profiler
+   *
+   * @param {"popupshown" | "popuphidden"} eventName
+   * @param {Function} callback
+   * @param {Function} postEventAssertion
+   *   An optional assertion to be made immediately after the event occurs.
+   * @returns {Promise<void>}
+   */
+  static async waitForPanelPopupEvent(
+    eventName,
+    callback,
+    postEventAssertion = null
+  ) {
+    // De-lazify the panel elements.
+    SelectTranslationsPanel.elements;
+    await SharedTranslationsTestUtils._waitForPopupEvent(
+      "select-translations-panel",
+      eventName,
+      callback,
+      postEventAssertion
     );
   }
 }

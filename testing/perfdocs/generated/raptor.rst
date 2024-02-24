@@ -3573,7 +3573,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - ❌
 
 
-   .. list-table:: **test-macosx1300-64-shippable-qr/opt**
+   .. list-table:: **test-macosx1400-64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -3595,6 +3595,11 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-speedometer**
         - ✅
         - ✅
+        - ❌
+        - ❌
+      * - **browsertime-benchmark-safari-speedometer**
+        - ❌
+        - ❌
         - ❌
         - ❌
 
@@ -3962,7 +3967,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - ❌
 
 
-   .. list-table:: **test-macosx1300-64-shippable-qr/opt**
+   .. list-table:: **test-macosx1400-64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -3984,6 +3989,11 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-speedometer**
         - ✅
         - ✅
+        - ❌
+        - ❌
+      * - **browsertime-benchmark-safari-speedometer**
+        - ❌
+        - ❌
         - ❌
         - ❌
 
@@ -4357,7 +4367,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - ❌
 
 
-   .. list-table:: **test-macosx1300-64-shippable-qr/opt**
+   .. list-table:: **test-macosx1400-64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -4379,6 +4389,11 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-speedometer3**
         - ✅
         - ✅
+        - ❌
+        - ❌
+      * - **browsertime-benchmark-safari-speedometer3**
+        - ❌
+        - ❌
         - ❌
         - ❌
 
@@ -4748,7 +4763,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - ❌
 
 
-   .. list-table:: **test-macosx1300-64-shippable-qr/opt**
+   .. list-table:: **test-macosx1400-64-shippable-qr/opt**
       :widths: 30 15 15 15 15
       :header-rows: 1
 
@@ -4770,6 +4785,11 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
       * - **browsertime-benchmark-firefox-speedometer3**
         - ✅
         - ✅
+        - ❌
+        - ❌
+      * - **browsertime-benchmark-safari-speedometer3**
+        - ❌
+        - ❌
         - ❌
         - ❌
 
@@ -29819,6 +29839,137 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
 
 
+.. dropdown:: bild-de
+   :class-container: anchor-id-bild-de-m
+
+   **Owner**: PerfTest Team
+
+   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert threshold**: 2.0
+   * **apps**: geckoview, fenix, refbrow, chrome-m
+   * **benchmark page**: true
+   * **browser cycles**: 15
+   * **expected**: pass
+   * **lower is better**: true
+   * **page cycles**: 25
+   * **page timeout**: 60000
+   * **playback**: mitmproxy-android
+   * **playback pageset manifest**: mitm8-android-fenix-bild-de.manifest
+   * **playback version**: 8.1.1
+   * **test url**: `<https://www.bild.de/sport/american-football/nfl/super-bowl-rekordquote-fuer-die-nfl-87139668.bild.html>`__
+   * **type**: pageload
+   * **unit**: ms
+   * **use live sites**: false
+   * **Test Task**:
+
+   .. list-table:: **test-android-hw-a51-11-0-aarch64-qr/opt**
+      :widths: 30 15 15 15 15
+      :header-rows: 1
+
+      * - **Test Name**
+        - mozilla-central
+        - autoland
+        - mozilla-release
+        - mozilla-beta
+      * - **browsertime-tp6m-fenix-bild-de**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-tp6m-fenix-bild-de-nofis**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-tp6m-geckoview-bild-de**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-tp6m-geckoview-bild-de-nofis**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-tp6m-live-fenix-bild-de-nofis**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-tp6m-live-geckoview-bild-de-nofis**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-tp6m-refbrow-bild-de**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+
+
+   .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
+      :widths: 30 15 15 15 15
+      :header-rows: 1
+
+      * - **Test Name**
+        - mozilla-central
+        - autoland
+        - mozilla-release
+        - mozilla-beta
+      * - **browsertime-tp6m-chrome-m-bild-de**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-tp6m-chrome-m-bild-de-nofis**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-tp6m-fenix-bild-de**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-tp6m-fenix-bild-de-nofis**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-tp6m-geckoview-bild-de**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-tp6m-geckoview-bild-de-nofis**
+        - ✅
+        - ✅
+        - ❌
+        - ❌
+      * - **browsertime-tp6m-live-chrome-m-bild-de-nofis**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-tp6m-live-fenix-bild-de-nofis**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-tp6m-live-geckoview-bild-de-nofis**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-tp6m-refbrow-bild-de**
+        - ❌
+        - ❌
+        - ❌
+        - ❌
+
+
+
 .. dropdown:: bing
    :class-container: anchor-id-bing-m
 
@@ -34058,137 +34209,6 @@ Page-load performance test suite on Android. The links direct to the actual webs
         - ❌
         - ❌
       * - **browsertime-tp6m-refbrow-stackoverflow**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-
-.. dropdown:: web-de
-   :class-container: anchor-id-web-de-m
-
-   **Owner**: PerfTest Team
-
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
-   * **alert threshold**: 2.0
-   * **apps**: geckoview, fenix, refbrow, chrome-m
-   * **benchmark page**: true
-   * **browser cycles**: 15
-   * **expected**: pass
-   * **lower is better**: true
-   * **page cycles**: 25
-   * **page timeout**: 60000
-   * **playback**: mitmproxy-android
-   * **playback pageset manifest**: mitm7-android-gve-p2-web-de.manifest
-   * **playback version**: 8.1.1
-   * **test url**: `<https://web.de/magazine/politik/politologe-glaubt-grossen-koalition-herbst-knallen-33563566>`__
-   * **type**: pageload
-   * **unit**: ms
-   * **use live sites**: false
-   * **Test Task**:
-
-   .. list-table:: **test-android-hw-a51-11-0-aarch64-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-fenix-web-de**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-web-de-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-web-de**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-web-de-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-web-de-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-web-de-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-web-de**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-
-
-   .. list-table:: **test-android-hw-a51-11-0-aarch64-shippable-qr/opt**
-      :widths: 30 15 15 15 15
-      :header-rows: 1
-
-      * - **Test Name**
-        - mozilla-central
-        - autoland
-        - mozilla-release
-        - mozilla-beta
-      * - **browsertime-tp6m-chrome-m-web-de**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-chrome-m-web-de-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-web-de**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-fenix-web-de-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-web-de**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-geckoview-web-de-nofis**
-        - ✅
-        - ✅
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-chrome-m-web-de-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-fenix-web-de-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-live-geckoview-web-de-nofis**
-        - ❌
-        - ❌
-        - ❌
-        - ❌
-      * - **browsertime-tp6m-refbrow-web-de**
         - ❌
         - ❌
         - ❌

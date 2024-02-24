@@ -390,7 +390,8 @@ static void GtkWindowSetTransientFor(GtkWindow* aWindow, GtkWindow* aParent) {
   }
 
 nsWindow::nsWindow()
-    : mDestroyMutex("nsWindow::mDestroyMutex"),
+    : mTitlebarRectMutex("nsWindow::mTitlebarRectMutex"),
+      mDestroyMutex("nsWindow::mDestroyMutex"),
       mIsDestroyed(false),
       mIsShown(false),
       mNeedsShow(false),
@@ -584,8 +585,6 @@ void nsWindow::Destroy() {
 
   MozClearHandleID(mCompositorPauseTimeoutID, g_source_remove);
 
-  ClearTransparencyBitmap();
-
 #ifdef MOZ_WAYLAND
   // Shut down our local vsync source
   if (mWaylandVsyncSource) {
@@ -613,9 +612,9 @@ void nsWindow::Destroy() {
 
   ClearTransparencyBitmap();
 
-  // Ensure any resources assigned to the window get cleaned up first
-  // to avoid double-freeing.
-  DisableRendering();
+  DestroyLayerManager();
+
+  mSurfaceProvider.CleanupResources();
 
   g_signal_handlers_disconnect_by_data(gtk_settings_get_default(), this);
 
@@ -5362,6 +5361,8 @@ void nsWindow::OnWindowStateEvent(GtkWidget* aWidget,
     } else {
       ClearTransparencyBitmap();
     }
+  } else {
+    SetTitlebarRect();
   }
 }
 
@@ -7042,6 +7043,8 @@ void nsWindow::UpdateTopLevelOpaqueRegion() {
     moz_container_wayland_update_opaque_region(mContainer, radius);
   }
 #endif
+
+  SetTitlebarRect();
 }
 
 bool nsWindow::IsChromeWindowTitlebar() {
@@ -7217,22 +7220,20 @@ nsresult nsWindow::UpdateTranslucentWindowAlphaInternal(const nsIntRect& aRect,
 
 #define TITLEBAR_HEIGHT 10
 
-LayoutDeviceIntRect nsWindow::GetTitlebarRect() {
-  // See NS_NATIVE_EGL_WINDOW why we can't block here.
-  auto ret = LayoutDeviceIntRect();
+void nsWindow::SetTitlebarRect() {
+  MutexAutoLock lock(mTitlebarRectMutex);
 
-  if (mDestroyMutex.TryLock()) {
-    if (mGdkWindow && mDrawInTitlebar) {
-      int height = 0;
-      if (DoDrawTilebarCorners()) {
-        height = GdkCeiledScaleFactor() * TITLEBAR_HEIGHT;
-      }
-      ret = LayoutDeviceIntRect(0, 0, mBounds.width, height);
-    }
-    mDestroyMutex.Unlock();
+  if (!mGdkWindow || !DoDrawTilebarCorners()) {
+    mTitlebarRect = LayoutDeviceIntRect();
+    return;
   }
+  mTitlebarRect = LayoutDeviceIntRect(0, 0, mBounds.width,
+                                      GdkCeiledScaleFactor() * TITLEBAR_HEIGHT);
+}
 
-  return ret;
+LayoutDeviceIntRect nsWindow::GetTitlebarRect() {
+  MutexAutoLock lock(mTitlebarRectMutex);
+  return mTitlebarRect;
 }
 
 void nsWindow::UpdateTitlebarTransparencyBitmap() {
@@ -9020,6 +9021,8 @@ void nsWindow::SetDrawsInTitlebar(bool aState) {
     } else {
       ClearTransparencyBitmap();
     }
+  } else {
+    SetTitlebarRect();
   }
 }
 
@@ -9874,8 +9877,6 @@ void nsWindow::ClearRenderingQueue() {
 void nsWindow::DisableRendering() {
   LOG("nsWindow::DisableRendering()");
 
-  DestroyLayerManager();
-
   if (mGdkWindow) {
     if (mIMContext) {
       mIMContext->SetGdkWindow(nullptr);
@@ -9884,7 +9885,31 @@ void nsWindow::DisableRendering() {
     mGdkWindow = nullptr;
   }
 
-  mSurfaceProvider.CleanupResources();
+#ifdef MOZ_WAYLAND
+  // Widget is backed by OpenGL EGLSurface created over wl_surface
+  // owned by mContainer.
+  // RenderCompositorEGL::Resume() deletes recent EGLSurface based on
+  // wl_surface owned by mContainer and creates a new fallback EGLSurface.
+  // Then we can delete wl_surface in moz_container_wayland_unmap().
+  // We don't want to pause compositor as it may lead to whole
+  // browser freeze (Bug 1777664).
+  ///
+  // We don't need to do such operation for SW backend as
+  // WindowSurfaceWaylandMB::Commit() gets wl_surface from
+  // MozContainer every commit.
+  if (moz_container_wayland_has_egl_window(mContainer) &&
+      mCompositorWidgetDelegate) {
+    if (CompositorBridgeChild* remoteRenderer = GetRemoteRenderer()) {
+      // Call DisableRendering() to make GtkCompositorWidget hidden.
+      // Then SendResume() will create fallback EGLSurface, see
+      // GLContextEGL::CreateEGLSurfaceForCompositorWidget().
+      mCompositorWidgetDelegate->DisableRendering();
+      remoteRenderer->SendResume();
+      mCompositorWidgetDelegate->EnableRendering(GetX11Window(),
+                                                 GetShapedState());
+    }
+  }
+#endif
 }
 
 // Apply workaround for Mutter compositor bug (mzbz#1777269).

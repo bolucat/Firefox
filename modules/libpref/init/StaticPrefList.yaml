@@ -8234,6 +8234,13 @@
   mirror: always
   rust: true
 
+# Whether transition-behavior property is enabled?
+- name: layout.css.transition-behavior.enabled
+  type: RelaxedAtomicBool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+  rust: true
+
 # Should we look for counter ancestor scopes first?
 - name: layout.css.counter-ancestor-scope.enabled
   type: bool
@@ -9664,7 +9671,7 @@
 # Is support for MediaKeys.getStatusForPolicy enabled?
 - name: media.eme.hdcp-policy-check.enabled
   type: bool
-  value: false
+  value: @IS_NIGHTLY_OR_DEV_EDITION@
   mirror: always
 
 - name: media.eme.max-throughput-ms
@@ -10235,8 +10242,8 @@
 # Enable PlayReady DRM for EME
 -   name: media.eme.playready.enabled
     type: RelaxedAtomicBool
-#if defined(MOZ_WMF_CDM) && defined(NIGHTLY_BUILD)
-    value: false # TODO: enable this when ready to play.
+#if defined(MOZ_WMF_CDM) && defined(IS_NIGHTLY_OR_DEV_EDITION)
+    value: true
 #else
     value: false
 #endif
@@ -10255,6 +10262,8 @@
     type: RelaxedAtomicUint32
 #if defined(NIGHTLY_BUILD)
     value: 1
+#elif defined(MOZ_DEV_EDITION)
+    value: 2
 #else
     value: 0
 #endif
@@ -10681,6 +10690,14 @@
   type: bool
   value: true
   mirror: once
+
+# Tell the audio backend to prefer a stream adapted for voice when processing is
+# enabled through constraints (possibly defaults). Whether it has any effect
+# depends on the backend.
+- name: media.getusermedia.microphone.prefer_voice_stream_with_processing.enabled
+  type: RelaxedAtomicBool
+  value: True
+  mirror: always
 
 # This pref turns on legacy (non-spec) exposure of camera and microphone
 # information from enumerateDevices and devicechange ahead of successful
@@ -11778,7 +11795,7 @@
 # Indicates whether the `fetchpriority` attribute for elements which support it
 # (e.g. `<script>`) is enabled.
 - name: network.fetchpriority.enabled
-  type: bool
+  type: RelaxedAtomicBool
   value: false
   mirror: always
 
@@ -11959,6 +11976,24 @@
   mirror: always
 - name: network.fetchpriority.adjustments.non-deferred-style.auto
   type: int32_t
+  value: 0
+  mirror: always
+
+# Adjustments to apply to the internal priority of gloable fetch API
+# for fetchpriority=low/high/auto with respect to the case when
+# network.fetchpriority is disabled.
+# - When the flag is disabled, Gecko currently sets priority to NORMAL.
+# - When the flag is enabled, it respectively maps to LOW/HIGH/NORMAL.
+- name: network.fetchpriority.adjustments.global-fetch-api.low
+  type: RelaxedAtomicInt32
+  value: 10
+  mirror: always
+- name: network.fetchpriority.adjustments.global-fetch-api.high
+  type: RelaxedAtomicInt32
+  value: -10
+  mirror: always
+- name: network.fetchpriority.adjustments.global-fetch-api.auto
+  type: RelaxedAtomicInt32
   value: 0
   mirror: always
 

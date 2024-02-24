@@ -184,8 +184,13 @@ XPCOMUtils.defineLazyScriptGetter(
 );
 XPCOMUtils.defineLazyScriptGetter(
   this,
-  "TranslationsPanel",
-  "chrome://browser/content/translations/translationsPanel.js"
+  "SelectTranslationsPanel",
+  "chrome://browser/content/translations/selectTranslationsPanel.js"
+);
+XPCOMUtils.defineLazyScriptGetter(
+  this,
+  "FullPageTranslationsPanel",
+  "chrome://browser/content/translations/fullPageTranslationsPanel.js"
 );
 XPCOMUtils.defineLazyScriptGetter(
   this,
@@ -1685,13 +1690,13 @@ var gBrowserInit = {
     gBrowser.addEventListener("DOMUpdateBlockedPopups", gPopupBlockerObserver);
     gBrowser.addEventListener(
       "TranslationsParent:LanguageState",
-      TranslationsPanel
+      FullPageTranslationsPanel
     );
     gBrowser.addEventListener(
       "TranslationsParent:OfferTranslation",
-      TranslationsPanel
+      FullPageTranslationsPanel
     );
-    gBrowser.addTabsProgressListener(TranslationsPanel);
+    gBrowser.addTabsProgressListener(FullPageTranslationsPanel);
 
     window.addEventListener("AppCommand", HandleAppCommandEvent, true);
 

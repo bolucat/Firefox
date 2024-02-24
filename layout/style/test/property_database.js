@@ -14088,6 +14088,36 @@ if (IsCSSPropertyPrefEnabled("layout.css.prefixes.transitions")) {
   });
 }
 
+if (IsCSSPropertyPrefEnabled("layout.css.transition-behavior.enabled")) {
+  Object.assign(gCSSProperties, {
+    "transition-behavior": {
+      domProp: "transitionBehavior",
+      inherited: false,
+      type: CSS_TYPE_LONGHAND,
+      applies_to_marker: true,
+      initial_values: ["normal"],
+      other_values: ["allow-discrete"],
+      invalid_values: ["none", "auto", "discrete"],
+    },
+  });
+
+  gCSSProperties["transition"].subproperties.push("transition-behavior");
+  gCSSProperties["transition"].initial_values.push("normal");
+  gCSSProperties["transition"].other_values.push(
+    "allow-discrete",
+    "width allow-discrete",
+    "1s allow-discrete",
+    "linear allow-discrete"
+  );
+  gCSSProperties["-webkit-transition"].subproperties.push(
+    "transition-behavior"
+  );
+
+  if (IsCSSPropertyPrefEnabled("layout.css.prefixes.transitions")) {
+    gCSSProperties["-moz-transition"].subproperties.push("transition-behavior");
+  }
+}
+
 // Copy aliased properties' fields from their alias targets. Keep this logic
 // at the bottom of this file to ensure all the aliased properties are
 // processed.
