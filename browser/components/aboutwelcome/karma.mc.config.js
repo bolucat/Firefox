@@ -161,12 +161,6 @@ module.exports = function (config) {
     webpack: {
       mode: "none",
       devtool: "inline-source-map",
-      // This loader allows us to override required files in tests
-      resolveLoader: {
-        alias: {
-          inject: path.join(__dirname, "../newtab/loaders/inject-loader"),
-        },
-      },
       // This resolve config allows us to import with paths relative to the root directory
       resolve: {
         extensions: [".js", ".jsx"],
@@ -175,10 +169,6 @@ module.exports = function (config) {
           "node_modules",
           PATHS.newtabResolveDirectory,
         ],
-        fallback: {
-          stream: require.resolve("stream-browserify"),
-          buffer: require.resolve("buffer"),
-        },
         alias: {
           newtab: path.join(__dirname, "../newtab"),
           asrouter: path.join(__dirname, "../asrouter"),

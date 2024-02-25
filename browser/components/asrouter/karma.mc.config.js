@@ -122,24 +122,14 @@ module.exports = function (config) {
     webpack: {
       mode: "none",
       devtool: "inline-source-map",
-      // This loader allows us to override required files in tests
-      resolveLoader: {
-        alias: {
-          inject: path.join(__dirname, "../newtab/loaders/inject-loader"),
-        },
-      },
       // This resolve config allows us to import with paths relative to the root directory
       resolve: {
-        extensions: [".js", ".jsx"],
+        extensions: [".mjs", ".js", ".jsx"],
         modules: [
           PATHS.moduleResolveDirectory,
           "node_modules",
           PATHS.newtabResolveDirectory,
         ],
-        fallback: {
-          stream: require.resolve("stream-browserify"),
-          buffer: require.resolve("buffer"),
-        },
         alias: {
           newtab: path.join(__dirname, "../newtab"),
         },
@@ -191,7 +181,7 @@ module.exports = function (config) {
           },
           {
             enforce: "post",
-            test: /\.js[mx]?$/,
+            test: /\.js[x]?$/,
             loader: "@jsdevtools/coverage-istanbul-loader",
             options: { esModules: true },
             include: [path.resolve("content-src"), path.resolve("modules")],
