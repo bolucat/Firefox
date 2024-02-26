@@ -18,12 +18,14 @@
  *   require-atomic-updates - bug 1551829.
  *     - This generates too many false positives that are not easy to work
  *       around, and false positives seem to be inherent in the rule.
- *   no-inner-declarations - bug 1487642
+ *   no-inner-declarations - bug 1487642.
  *     - Would be interested if this could apply to just vars, but at the moment
  *       it doesn't.
  *   max-depth
  *      - Don't enforce the maximum depth that blocks can be nested. The
  *        complexity rule is a better rule to check this.
+ *   no-useless-escape - bug 1881262.
+ *     - This doesn't reveal any actual errors, and is a lot of work to address.
  */
 module.exports = {
   env: {
@@ -165,10 +167,6 @@ module.exports = {
     // No credentials submitted with fetch calls
     "fetch-options/no-fetch-credentials": "off",
 
-    // XXX This rule line should be removed to enable it. See bug 1487642.
-    // Enforce return statements in getters
-    "getter-return": "off",
-
     // Maximum depth callbacks can be nested.
     "max-nested-callbacks": ["error", 10],
 
@@ -211,20 +209,12 @@ module.exports = {
     "no-caller": "error",
 
     // XXX Bug 1487642 - decide if we want to enable this or not.
-    // Disallow lexical declarations in case clauses
-    "no-case-declarations": "off",
-
-    // XXX Bug 1487642 - decide if we want to enable this or not.
     // Disallow the use of console
     "no-console": "off",
 
     // Disallows expressions where the operation doesn't affect the value.
     // TODO: This is enabled by default in ESLint's v9 recommended configuration.
     "no-constant-binary-expression": "error",
-
-    // XXX Bug 1487642 - decide if we want to enable this or not.
-    // Disallow constant expressions in conditions
-    "no-constant-condition": "off",
 
     // If an if block ends with a return no need for an else block
     "no-else-return": "error",
@@ -343,8 +333,7 @@ module.exports = {
     // lines)
     "no-useless-concat": "error",
 
-    // XXX Bug 1487642 - decide if we want to enable this or not.
-    // Disallow unnecessary escape characters
+    // See explicit decisions at top of file.
     "no-useless-escape": "off",
 
     // Disallow redundant return statements
