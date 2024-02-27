@@ -3047,11 +3047,6 @@
   value: @IS_NIGHTLY_BUILD@
   mirror: always
 
-- name: dom.media.webcodecs.force-osx-h264-enabled
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
 # Number of seconds of very quiet or silent audio before considering the audio
 # inaudible.
 - name: dom.media.silence_duration_for_audibility
@@ -9224,12 +9219,6 @@
 #
 # See https://github.com/w3c/csswg-drafts/issues/6787
 - name: layout.css.scroll-anchoring.reselect-if-suboptimal
-  type: bool
-  value: true
-  mirror: always
-
-# Handle scroll-anchoring adjustments as absolute scroll position updates.
-- name: layout.css.scroll-anchoring.absolute-update
   type: bool
   value: true
   mirror: always

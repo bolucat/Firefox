@@ -34,6 +34,22 @@ const SEARCH_TELEMETRY_SHARED = {
 };
 
 /**
+ * Standard events mapped to the telemetry action.
+ */
+const EVENT_TYPE_TO_ACTION = {
+  click: "clicked",
+};
+
+/**
+ * A map of object conditions mapped to the condition that should be run when
+ * an event is triggered. The condition name is referenced in Remote Settings
+ * under the optional `condition` string for an event listener.
+ */
+const CONDITIONS = {
+  keydownEnter: event => event.key == "Enter",
+};
+
+/**
  * SearchProviders looks after keeping track of the search provider information
  * received from the main process.
  *
@@ -103,6 +119,129 @@ class SearchProviders {
         break;
       }
     }
+  }
+}
+
+/**
+ * @typedef {object} EventListenerParam
+ * @property {string} eventType
+ *  The type of event the listener should listen for. If the event type is
+ *  is non-standard, it should correspond to a definition in
+ *  CUSTOM_EVENT_TYPE_TO_DATA that will re-map it to a standard type. TODO
+ * @property {string} target
+ *  The type of component that was the source of the event.
+ * @property {string | null} action
+ *  The action that should be reported in telemetry.
+ */
+
+/**
+ * Provides a way to add listeners to elements, as well as unload them.
+ */
+class ListenerHelper {
+  /**
+   * Adds each event listener in an array of event listeners to each element
+   * in an array of elements, and sets their unloading.
+   *
+   * @param {Array<Element>} elements
+   *  DOM elements to add event listeners to.
+   * @param {Array<EventListenerParam>} eventListenerParams
+   *  The type of event to add the listener to.
+   * @param {string} target
+   */
+  static addListeners(elements, eventListenerParams, target) {
+    if (!elements?.length || !eventListenerParams?.length) {
+      return;
+    }
+
+    let document = elements[0].ownerGlobal.document;
+    let callback = documentToEventCallbackMap.get(document);
+    if (!callback) {
+      return;
+    }
+
+    // The map might have entries from previous callers, so we must ensure
+    // we don't discard existing event listener callbacks.
+    let removeListenerCallbacks = [];
+    if (documentToRemoveEventListenersMap.has(document)) {
+      removeListenerCallbacks = documentToRemoveEventListenersMap.get(document);
+    }
+
+    for (let params of eventListenerParams) {
+      let removeListeners = ListenerHelper.addListener(
+        elements,
+        params,
+        target,
+        callback
+      );
+      removeListenerCallbacks = removeListenerCallbacks.concat(removeListeners);
+    }
+
+    documentToRemoveEventListenersMap.set(document, removeListenerCallbacks);
+  }
+
+  /**
+   * Add an event listener to each element in an array of elements.
+   *
+   * @param {Array<Element>} elements
+   *  DOM elements to add event listeners to.
+   * @param {EventListenerParam} eventListenerParam
+   * @param {string} target
+   * @param {Function} callback
+   * @returns {Array<function>} Array of remove event listener functions.
+   */
+  static addListener(elements, eventListenerParam, target, callback) {
+    let { action, eventType, target: customTarget } = eventListenerParam;
+
+    if (customTarget) {
+      target = customTarget;
+    }
+
+    if (!action) {
+      action = EVENT_TYPE_TO_ACTION[eventType];
+      if (!action) {
+        return [];
+      }
+    }
+
+    // Some events might have specific conditions we want to check before
+    // registering an engagement event.
+    let eventCallback;
+    if (eventListenerParam.condition) {
+      if (CONDITIONS[eventListenerParam.condition]) {
+        let condition = CONDITIONS[eventListenerParam.condition];
+        eventCallback = async event => {
+          let start = Cu.now();
+          if (condition(event)) {
+            callback({ action, target });
+          }
+          ChromeUtils.addProfilerMarker(
+            "SearchSERPTelemetryChild._eventCallback",
+            start,
+            "Call cached function before callback."
+          );
+        };
+      } else {
+        // If a component included a condition, but it wasn't found it is
+        // due to the fact that it was added in a more recent Firefox version
+        // than what is provided via search-telemetry-v2. Since the version of
+        // Firefox the user is using doesn't include this condition,
+        // we shouldn't add the event.
+        return [];
+      }
+    } else {
+      eventCallback = () => {
+        callback({ action, target });
+      };
+    }
+
+    let removeListenerCallbacks = [];
+    for (let element of elements) {
+      element.addEventListener(eventType, eventCallback);
+      removeListenerCallbacks.push(() => {
+        element.removeEventListener(eventType, eventCallback);
+      });
+    }
+    return removeListenerCallbacks;
   }
 }
 
@@ -252,12 +391,24 @@ class SearchAdImpression {
     // - For others, map its component type and check visibility.
     for (let [element, data] of this.#elementToAdDataMap.entries()) {
       if (data.type == "incontent_searchbox") {
+        // Bug 1880413: Deprecate hard coding the incontent search box.
         // If searchbox has child elements, observe those, otherwise
         // fallback to its parent element.
-        this.#addEventListenerToElements(
-          data.childElements.length ? data.childElements : [element],
-          data.type,
-          false
+        let searchElements = data.childElements.length
+          ? data.childElements
+          : [element];
+        ListenerHelper.addListeners(
+          searchElements,
+          [
+            { eventType: "click", target: data.type },
+            {
+              eventType: "keydown",
+              target: data.type,
+              action: "submitted",
+              condition: "keydownEnter",
+            },
+          ],
+          data.type
         );
         continue;
       }
@@ -399,7 +550,19 @@ class SearchAdImpression {
           });
         }
         if (result.relatedElements?.length) {
-          this.#addEventListenerToElements(result.relatedElements, result.type);
+          // Bug 1880413: Deprecate related elements.
+          // Bottom-up approach with related elements are only used for
+          // non-link elements related to ads, like carousel arrows.
+          ListenerHelper.addListeners(
+            result.relatedElements,
+            [
+              {
+                action: "expanded",
+                eventType: "click",
+              },
+            ],
+            result.type
+          );
         }
       }
     }
@@ -428,17 +591,51 @@ class SearchAdImpression {
         component.included.parent.selector
       );
       if (parents.length) {
+        let eventListeners = component.included.parent.eventListeners;
+        if (eventListeners?.length) {
+          ListenerHelper.addListeners(parents, eventListeners, component.type);
+        }
         for (let parent of parents) {
+          // Bug 1880413: Deprecate related elements.
+          // Top-down related elements are either used for auto-suggested
+          // elements of a searchbox, or elements on a page which we can't
+          // find through a bottom up approach but we want an add a listener,
+          // like carousels with arrows.
           if (component.included.related?.selector) {
-            this.#addEventListenerToElements(
-              parent.querySelectorAll(component.included.related.selector),
-              component.type
+            let relatedElements = parent.querySelectorAll(
+              component.included.related.selector
             );
+            if (relatedElements.length) {
+              // For the search box, related elements with event listeners are
+              // auto-suggested terms. For everything else (e.g. carousels)
+              // they are expanded.
+              ListenerHelper.addListeners(
+                relatedElements,
+                [
+                  {
+                    action:
+                      component.type == "incontent_searchbox"
+                        ? "submitted"
+                        : "expanded",
+                    eventType: "click",
+                  },
+                ],
+                component.type
+              );
+            }
           }
           if (component.included.children) {
             for (let child of component.included.children) {
               let childElements = parent.querySelectorAll(child.selector);
               if (childElements.length) {
+                if (child.eventListeners) {
+                  childElements = Array.from(childElements);
+                  ListenerHelper.addListeners(
+                    childElements,
+                    child.eventListeners,
+                    child.type ?? component.type
+                  );
+                }
                 if (!child.skipCount) {
                   this.#recordElementData(parent, {
                     type: component.type,
@@ -788,85 +985,6 @@ class SearchAdImpression {
         childElements,
       });
     }
-  }
-
-  /**
-   * Adds a click listener to a specific element.
-   *
-   * @param {Array<Element>} elements
-   *  DOM elements to add event listeners to.
-   * @param {string} type
-   *  The component type of the element.
-   * @param {boolean} isRelated
-   *  Whether the elements input are related to components or are actual
-   *  components.
-   */
-  #addEventListenerToElements(elements, type, isRelated = true) {
-    if (!elements?.length) {
-      return;
-    }
-    let clickAction = "clicked";
-    let keydownEnterAction = "clicked";
-
-    switch (type) {
-      case "incontent_searchbox":
-        keydownEnterAction = "submitted";
-        if (isRelated) {
-          // The related element to incontent_search are autosuggested elements
-          // which when clicked should cause different action than if the
-          // searchbox is clicked.
-          clickAction = "submitted";
-        }
-        break;
-      case "ad_carousel":
-      case "refined_search_buttons":
-        if (isRelated) {
-          clickAction = "expanded";
-        }
-        break;
-    }
-
-    let document = elements[0].ownerGlobal.document;
-    let url = document.documentURI;
-    let callback = documentToEventCallbackMap.get(document);
-
-    let removeListenerCallbacks = [];
-
-    for (let element of elements) {
-      let clickCallback = () => {
-        callback({
-          target: type,
-          url,
-          action: clickAction,
-        });
-      };
-      element.addEventListener("click", clickCallback);
-
-      let keydownCallback = event => {
-        if (event.key == "Enter") {
-          callback({
-            target: type,
-            url,
-            action: keydownEnterAction,
-          });
-        }
-      };
-      element.addEventListener("keydown", keydownCallback);
-
-      removeListenerCallbacks.push(() => {
-        element.removeEventListener("click", clickCallback);
-        element.removeEventListener("keydown", keydownCallback);
-      });
-    }
-
-    // The map might have entries from previous callers, so we must ensure
-    // we don't discard existing event listener callbacks.
-    if (documentToRemoveEventListenersMap.has(document)) {
-      let callbacks = documentToRemoveEventListenersMap.get(document);
-      removeListenerCallbacks = removeListenerCallbacks.concat(callbacks);
-    }
-
-    documentToRemoveEventListenersMap.set(document, removeListenerCallbacks);
   }
 }
 
