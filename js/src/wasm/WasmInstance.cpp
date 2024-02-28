@@ -1948,35 +1948,42 @@ static bool ArrayCopyFromElem(JSContext* cx, Handle<WasmArrayObject*> arrayObj,
 // take into account the enclosing recursion group of the type. This is
 // temporary until builtin module functions can specify a precise array type
 // for params/results.
-static WasmArrayObject* CastToI16Array(HandleAnyRef ref, bool needMutable) {
-  if (!ref.isJSObject()) {
-    return nullptr;
-  }
+template <bool isMutable>
+static WasmArrayObject* UncheckedCastToArrayI16(HandleAnyRef ref) {
   JSObject& object = ref.toJSObject();
-  if (!object.is<WasmArrayObject>()) {
-    return nullptr;
-  }
   WasmArrayObject& array = object.as<WasmArrayObject>();
-  const ArrayType& type = array.typeDef().arrayType();
-  if (type.elementType_ != StorageType::I16) {
-    return nullptr;
-  }
-  if (needMutable && !type.isMutable_) {
-    return nullptr;
-  }
+  DebugOnly<const ArrayType*> type(&array.typeDef().arrayType());
+  MOZ_ASSERT(type->elementType_ == StorageType::I16);
+  MOZ_ASSERT(type->isMutable_ == isMutable);
   return &array;
 }
 
 /* static */
-void* Instance::stringFromWTF16Array(Instance* instance, void* arrayArg,
-                                     uint32_t arrayStart, uint32_t arrayCount) {
-  JSContext* cx = instance->cx();
-  RootedAnyRef arrayRef(cx, AnyRef::fromCompiledCode(arrayArg));
-  Rooted<WasmArrayObject*> array(cx);
-  if (!(array = CastToI16Array(arrayRef, false))) {
-    ReportTrapError(cx, JSMSG_WASM_BAD_CAST);
+int32_t Instance::stringTest(Instance* instance, void* stringArg) {
+  AnyRef string = AnyRef::fromCompiledCode(stringArg);
+  if (string.isNull() || !string.isJSString()) {
+    return 0;
+  }
+  return 1;
+}
+
+/* static */
+void* Instance::stringCast(Instance* instance, void* stringArg) {
+  AnyRef string = AnyRef::fromCompiledCode(stringArg);
+  if (string.isNull() || !string.isJSString()) {
+    ReportTrapError(instance->cx(), JSMSG_WASM_BAD_CAST);
     return nullptr;
   }
+  return string.forCompiledCode();
+}
+
+/* static */
+void* Instance::stringFromCharCodeArray(Instance* instance, void* arrayArg,
+                                        uint32_t arrayStart,
+                                        uint32_t arrayCount) {
+  JSContext* cx = instance->cx();
+  RootedAnyRef arrayRef(cx, AnyRef::fromCompiledCode(arrayArg));
+  Rooted<WasmArrayObject*> array(cx, UncheckedCastToArrayI16<true>(arrayRef));
 
   CheckedUint32 lastIndexPlus1 =
       CheckedUint32(arrayStart) + CheckedUint32(arrayCount);
@@ -1997,8 +2004,8 @@ void* Instance::stringFromWTF16Array(Instance* instance, void* arrayArg,
 }
 
 /* static */
-int32_t Instance::stringToWTF16Array(Instance* instance, void* stringArg,
-                                     void* arrayArg, uint32_t arrayStart) {
+int32_t Instance::stringIntoCharCodeArray(Instance* instance, void* stringArg,
+                                          void* arrayArg, uint32_t arrayStart) {
   JSContext* cx = instance->cx();
   AnyRef stringRef = AnyRef::fromCompiledCode(stringArg);
   if (!stringRef.isJSString()) {
@@ -2009,11 +2016,7 @@ int32_t Instance::stringToWTF16Array(Instance* instance, void* stringArg,
   size_t stringLength = string->length();
 
   RootedAnyRef arrayRef(cx, AnyRef::fromCompiledCode(arrayArg));
-  Rooted<WasmArrayObject*> array(cx);
-  if (!(array = CastToI16Array(arrayRef, true))) {
-    ReportTrapError(cx, JSMSG_WASM_BAD_CAST);
-    return -1;
-  }
+  Rooted<WasmArrayObject*> array(cx, UncheckedCastToArrayI16<true>(arrayRef));
 
   CheckedUint32 lastIndexPlus1 = CheckedUint32(arrayStart) + stringLength;
   if (!lastIndexPlus1.isValid() ||
@@ -2120,8 +2123,8 @@ int32_t Instance::stringLength(Instance* instance, void* stringArg) {
   return (int32_t)stringRef.toJSString()->length();
 }
 
-void* Instance::stringConcatenate(Instance* instance, void* firstStringArg,
-                                  void* secondStringArg) {
+void* Instance::stringConcat(Instance* instance, void* firstStringArg,
+                             void* secondStringArg) {
   JSContext* cx = instance->cx();
 
   AnyRef firstStringRef = AnyRef::fromCompiledCode(firstStringArg);

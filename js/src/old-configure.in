@@ -250,30 +250,12 @@ dnl ========================================================
 dnl System overrides of the defaults for target
 dnl ========================================================
 
+MOZ_OPTIMIZE_LDFLAGS="${_COMPILATION_OPTIMIZE_LDFLAGS} ${MOZ_OPTIMIZE_FLAGS}"
+
 case "$target" in
 *-darwin*)
     MOZ_OPTIMIZE_FLAGS="-O3"
     DSO_LDOPTS=''
-
-    dnl DTrace and -dead_strip don't interact well. See bug 403132.
-    dnl ===================================================================
-    if test "x$enable_dtrace" = "xyes"; then
-        echo "Skipping -dead_strip because DTrace is enabled. See bug 403132."
-    else
-        dnl check for the presence of the -dead_strip linker flag
-        AC_MSG_CHECKING([for -dead_strip option to ld])
-        _SAVE_LDFLAGS=$LDFLAGS
-        LDFLAGS="$LDFLAGS -Wl,-dead_strip"
-        AC_TRY_LINK(,[return 0;],_HAVE_DEAD_STRIP=1,_HAVE_DEAD_STRIP=)
-        if test -n "$_HAVE_DEAD_STRIP" ; then
-            AC_MSG_RESULT([yes])
-            MOZ_OPTIMIZE_LDFLAGS="-Wl,-dead_strip"
-        else
-            AC_MSG_RESULT([no])
-        fi
-
-        LDFLAGS=$_SAVE_LDFLAGS
-    fi
     MOZ_FIX_LINK_PATHS=
     ;;
 
@@ -619,71 +601,6 @@ then
 fi
 
 
-dnl Checks for library functions.
-dnl ========================================================
-
-dnl check for clock_gettime(), the CLOCK_MONOTONIC clock
-AC_CACHE_CHECK(for clock_gettime(CLOCK_MONOTONIC),
-               ac_cv_clock_monotonic,
-               [for libs in "" -lrt; do
-                    _SAVE_LIBS="$LIBS"
-                    LIBS="$LIBS $libs"
-                    AC_TRY_LINK([#include <time.h>],
-                                 [ struct timespec ts;
-                                   clock_gettime(CLOCK_MONOTONIC, &ts); ],
-                                 ac_cv_clock_monotonic=$libs
-                                 LIBS="$_SAVE_LIBS"
-                                 break,
-                                 ac_cv_clock_monotonic=no)
-                    LIBS="$_SAVE_LIBS"
-                done])
-if test "$ac_cv_clock_monotonic" != "no"; then
-    HAVE_CLOCK_MONOTONIC=1
-    REALTIME_LIBS=$ac_cv_clock_monotonic
-    AC_DEFINE(HAVE_CLOCK_MONOTONIC)
-    AC_SUBST(HAVE_CLOCK_MONOTONIC)
-    AC_SUBST_LIST(REALTIME_LIBS)
-fi
-
-dnl Checks for math functions.
-dnl ========================================================
-AC_CHECK_LIB(m, sin)
-
-AC_CACHE_CHECK(
-    [for res_ninit()],
-    ac_cv_func_res_ninit,
-    [if test "$OS_TARGET" = NetBSD -o "$OS_TARGET" = OpenBSD; then
-        dnl no need for res_ninit() on NetBSD and OpenBSD
-        ac_cv_func_res_ninit=no
-     else
-       AC_TRY_LINK([
-            #ifdef linux
-            #define _BSD_SOURCE 1
-            #endif
-            #include <sys/types.h>
-            #include <netinet/in.h>
-            #include <arpa/nameser.h>
-            #include <resolv.h>
-            ],
-            [int foo = res_ninit(&_res);],
-            [ac_cv_func_res_ninit=yes],
-            [ac_cv_func_res_ninit=no])
-     fi
-    ])
-
-if test "$ac_cv_func_res_ninit" = "yes"; then
-    AC_DEFINE(HAVE_RES_NINIT)
-dnl must add the link line we do something as foolish as this... dougt
-dnl else
-dnl    AC_CHECK_LIB(bind, res_ninit, AC_DEFINE(HAVE_RES_NINIT),
-dnl        AC_CHECK_LIB(resolv, res_ninit, AC_DEFINE(HAVE_RES_NINIT)))
-fi
-
-AM_LANGINFO_CODESET
-
-AC_LANG_C
-
-dnl ===================================================================
 dnl ========================================================
 dnl Put your C++ language/feature checks below
 dnl ========================================================
@@ -713,35 +630,6 @@ if test "$GNU_CC"; then
   fi
 
   TARGET_COMPILER_ABI="${TARGET_COMPILER_ABI-${ARM_ABI_PREFIX}gcc3}"
-fi
-
-# try harder, when checking for __thread support, see bug 521750 comment #33 and below
-# We pass MOZ_OPTIMIZE_LDFLAGS to the linker because if dead_strip is
-# enabled, the linker in xcode 4.1 will crash. Without this it would crash when
-# linking XUL.
-_SAVE_LDFLAGS=$LDFLAGS
-LDFLAGS="$LDFLAGS $DSO_LDOPTS $MOZ_OPTIMIZE_LDFLAGS"
-AC_CACHE_CHECK(for __thread keyword for TLS variables,
-               ac_cv_thread_keyword,
-               [AC_TRY_LINK([__thread bool tlsIsMainThread = false;],
-                            [return tlsIsMainThread;],
-                            ac_cv_thread_keyword=yes,
-                            ac_cv_thread_keyword=no)])
-LDFLAGS=$_SAVE_LDFLAGS
-if test "$ac_cv_thread_keyword" = yes; then
-  # mips builds fail with TLS variables because of a binutils bug.
-  # See bug 528687
-  case "${target}" in
-    mips*-*)
-      :
-      ;;
-    *-android*|*-linuxandroid*)
-      :
-      ;;
-    *)
-      AC_DEFINE(HAVE_THREAD_TLS_KEYWORD)
-      ;;
-  esac
 fi
 
 dnl End of C++ language/feature checks

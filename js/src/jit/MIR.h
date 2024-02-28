@@ -421,10 +421,13 @@ class AliasSet {
     // The generation counter associated with the global object
     GlobalGenerationCounter = 1 << 26,
 
-    Last = GlobalGenerationCounter,
+    // The SharedArrayRawBuffer::length field.
+    SharedArrayRawBufferLength = 1 << 27,
+
+    Last = SharedArrayRawBufferLength,
 
     Any = Last | (Last - 1),
-    NumCategories = 27,
+    NumCategories = 28,
 
     // Indicates load or store.
     Store_ = 1 << 31
@@ -1276,6 +1279,35 @@ class MVariadicT : public T {
 // MFoo::New constructor for variadic instructions fallibly
 // initializes the operands_ array and must be checked for OOM.
 using MVariadicInstruction = MVariadicT<MInstruction>;
+
+// All barriered operations:
+// - MCompareExchangeTypedArrayElement
+// - MExchangeTypedArrayElement
+// - MAtomicTypedArrayElementBinop
+// - MGrowableSharedArrayBufferByteLength
+//
+// And operations which are optionally barriered:
+// - MLoadUnboxedScalar
+// - MStoreUnboxedScalar
+// - MResizableTypedArrayLength
+// - MResizableDataViewByteLength
+//
+// Must have the following attributes:
+//
+// - Not movable
+// - Not removable
+// - Not congruent with any other instruction
+// - Effectful (they alias every TypedArray store)
+//
+// The intended effect of those constraints is to prevent all loads and stores
+// preceding the barriered operation from being moved to after the barriered
+// operation, and vice versa, and to prevent the barriered operation from being
+// removed or hoisted.
+
+enum class MemoryBarrierRequirement : bool {
+  NotRequired,
+  Required,
+};
 
 MIR_OPCODE_CLASS_GENERATED
 
@@ -7040,44 +7072,22 @@ class MArrayPopShift : public MUnaryInstruction,
   ALLOW_CLONE(MArrayPopShift)
 };
 
-// All barriered operations - MCompareExchangeTypedArrayElement,
-// MExchangeTypedArrayElement, and MAtomicTypedArrayElementBinop, as
-// well as MLoadUnboxedScalar and MStoreUnboxedScalar when they are
-// marked as requiring a memory barrer - have the following
-// attributes:
-//
-// - Not movable
-// - Not removable
-// - Not congruent with any other instruction
-// - Effectful (they alias every TypedArray store)
-//
-// The intended effect of those constraints is to prevent all loads
-// and stores preceding the barriered operation from being moved to
-// after the barriered operation, and vice versa, and to prevent the
-// barriered operation from being removed or hoisted.
-
-enum MemoryBarrierRequirement {
-  DoesNotRequireMemoryBarrier,
-  DoesRequireMemoryBarrier
-};
-
-// Also see comments at MMemoryBarrierRequirement, above.
-
 // Load an unboxed scalar value from an array buffer view or other object.
 class MLoadUnboxedScalar : public MBinaryInstruction,
                            public NoTypePolicy::Data {
   int32_t offsetAdjustment_ = 0;
   Scalar::Type storageType_;
-  bool requiresBarrier_;
+  MemoryBarrierRequirement requiresBarrier_;
 
-  MLoadUnboxedScalar(
-      MDefinition* elements, MDefinition* index, Scalar::Type storageType,
-      MemoryBarrierRequirement requiresBarrier = DoesNotRequireMemoryBarrier)
+  MLoadUnboxedScalar(MDefinition* elements, MDefinition* index,
+                     Scalar::Type storageType,
+                     MemoryBarrierRequirement requiresBarrier =
+                         MemoryBarrierRequirement::NotRequired)
       : MBinaryInstruction(classOpcode, elements, index),
         storageType_(storageType),
-        requiresBarrier_(requiresBarrier == DoesRequireMemoryBarrier) {
+        requiresBarrier_(requiresBarrier) {
     setResultType(MIRType::Value);
-    if (requiresBarrier_) {
+    if (requiresBarrier_ == MemoryBarrierRequirement::Required) {
       setGuard();  // Not removable or movable
     } else {
       setMovable();
@@ -7097,7 +7107,7 @@ class MLoadUnboxedScalar : public MBinaryInstruction,
     // Bailout if the result does not fit in an int32.
     return storageType_ == Scalar::Uint32 && type() == MIRType::Int32;
   }
-  bool requiresMemoryBarrier() const { return requiresBarrier_; }
+  auto requiresMemoryBarrier() const { return requiresBarrier_; }
   int32_t offsetAdjustment() const { return offsetAdjustment_; }
   void setOffsetAdjustment(int32_t offsetAdjustment) {
     offsetAdjustment_ = offsetAdjustment;
@@ -7105,14 +7115,14 @@ class MLoadUnboxedScalar : public MBinaryInstruction,
   AliasSet getAliasSet() const override {
     // When a barrier is needed make the instruction effectful by
     // giving it a "store" effect.
-    if (requiresBarrier_) {
+    if (requiresBarrier_ == MemoryBarrierRequirement::Required) {
       return AliasSet::Store(AliasSet::UnboxedElement);
     }
     return AliasSet::Load(AliasSet::UnboxedElement);
   }
 
   bool congruentTo(const MDefinition* ins) const override {
-    if (requiresBarrier_) {
+    if (requiresBarrier_ == MemoryBarrierRequirement::Required) {
       return false;
     }
     if (!ins->isLoadUnboxedScalar()) {
@@ -7198,26 +7208,29 @@ class MLoadDataViewElement : public MTernaryInstruction,
 };
 
 // Load a value from a typed array. Out-of-bounds accesses are handled in-line.
-class MLoadTypedArrayElementHole : public MBinaryInstruction,
-                                   public SingleObjectPolicy::Data {
+class MLoadTypedArrayElementHole : public MTernaryInstruction,
+                                   public NoTypePolicy::Data {
   Scalar::Type arrayType_;
   bool forceDouble_;
 
-  MLoadTypedArrayElementHole(MDefinition* object, MDefinition* index,
-                             Scalar::Type arrayType, bool forceDouble)
-      : MBinaryInstruction(classOpcode, object, index),
+  MLoadTypedArrayElementHole(MDefinition* elements, MDefinition* index,
+                             MDefinition* length, Scalar::Type arrayType,
+                             bool forceDouble)
+      : MTernaryInstruction(classOpcode, elements, index, length),
         arrayType_(arrayType),
         forceDouble_(forceDouble) {
     setResultType(MIRType::Value);
     setMovable();
+    MOZ_ASSERT(elements->type() == MIRType::Elements);
     MOZ_ASSERT(index->type() == MIRType::IntPtr);
+    MOZ_ASSERT(length->type() == MIRType::IntPtr);
     MOZ_ASSERT(arrayType >= 0 && arrayType < Scalar::MaxTypedArrayViewType);
   }
 
  public:
   INSTRUCTION_HEADER(LoadTypedArrayElementHole)
   TRIVIAL_NEW_WRAPPERS
-  NAMED_OPERANDS((0, object), (1, index))
+  NAMED_OPERANDS((0, elements), (1, index), (2, length))
 
   Scalar::Type arrayType() const { return arrayType_; }
   bool forceDouble() const { return forceDouble_; }
@@ -7239,8 +7252,7 @@ class MLoadTypedArrayElementHole : public MBinaryInstruction,
     return congruentIfOperandsEqual(other);
   }
   AliasSet getAliasSet() const override {
-    return AliasSet::Load(AliasSet::UnboxedElement | AliasSet::ObjectFields |
-                          AliasSet::ArrayBufferViewLengthOrOffset);
+    return AliasSet::Load(AliasSet::UnboxedElement);
   }
   bool canProduceFloat32() const override {
     return arrayType_ == Scalar::Float32;
@@ -7280,16 +7292,16 @@ class StoreUnboxedScalarBase {
 class MStoreUnboxedScalar : public MTernaryInstruction,
                             public StoreUnboxedScalarBase,
                             public StoreUnboxedScalarPolicy::Data {
-  bool requiresBarrier_;
+  MemoryBarrierRequirement requiresBarrier_;
 
-  MStoreUnboxedScalar(
-      MDefinition* elements, MDefinition* index, MDefinition* value,
-      Scalar::Type storageType,
-      MemoryBarrierRequirement requiresBarrier = DoesNotRequireMemoryBarrier)
+  MStoreUnboxedScalar(MDefinition* elements, MDefinition* index,
+                      MDefinition* value, Scalar::Type storageType,
+                      MemoryBarrierRequirement requiresBarrier =
+                          MemoryBarrierRequirement::NotRequired)
       : MTernaryInstruction(classOpcode, elements, index, value),
         StoreUnboxedScalarBase(storageType),
-        requiresBarrier_(requiresBarrier == DoesRequireMemoryBarrier) {
-    if (requiresBarrier_) {
+        requiresBarrier_(requiresBarrier) {
+    if (requiresBarrier_ == MemoryBarrierRequirement::Required) {
       setGuard();  // Not removable or movable
     }
     MOZ_ASSERT(elements->type() == MIRType::Elements);
@@ -7305,7 +7317,7 @@ class MStoreUnboxedScalar : public MTernaryInstruction,
   AliasSet getAliasSet() const override {
     return AliasSet::Store(AliasSet::UnboxedElement);
   }
-  bool requiresMemoryBarrier() const { return requiresBarrier_; }
+  auto requiresMemoryBarrier() const { return requiresBarrier_; }
   TruncateKind operandTruncateKind(size_t index) const override;
 
   bool canConsumeFloat32(MUse* use) const override {
@@ -8997,6 +9009,55 @@ class MGuardToClass : public MUnaryInstruction,
   }
 };
 
+class MGuardToEitherClass : public MUnaryInstruction,
+                            public SingleObjectPolicy::Data {
+  const JSClass* class1_;
+  const JSClass* class2_;
+
+  MGuardToEitherClass(MDefinition* object, const JSClass* clasp1,
+                      const JSClass* clasp2)
+      : MUnaryInstruction(classOpcode, object),
+        class1_(clasp1),
+        class2_(clasp2) {
+    MOZ_ASSERT(object->type() == MIRType::Object);
+    MOZ_ASSERT(clasp1 != clasp2, "Use MGuardToClass instead");
+    MOZ_ASSERT(!clasp1->isJSFunction(), "Use MGuardToFunction instead");
+    MOZ_ASSERT(!clasp2->isJSFunction(), "Use MGuardToFunction instead");
+    setResultType(MIRType::Object);
+    setMovable();
+
+    // We will bail out if the class type is incorrect, so we need to ensure we
+    // don't eliminate this instruction
+    setGuard();
+  }
+
+ public:
+  INSTRUCTION_HEADER(GuardToEitherClass)
+  TRIVIAL_NEW_WRAPPERS
+  NAMED_OPERANDS((0, object))
+
+  const JSClass* getClass1() const { return class1_; }
+  const JSClass* getClass2() const { return class2_; }
+
+  MDefinition* foldsTo(TempAllocator& alloc) override;
+  AliasSet getAliasSet() const override { return AliasSet::None(); }
+  bool congruentTo(const MDefinition* ins) const override {
+    if (!ins->isGuardToEitherClass()) {
+      return false;
+    }
+    const auto* other = ins->toGuardToEitherClass();
+    if (getClass1() != other->getClass1() &&
+        getClass1() != other->getClass2()) {
+      return false;
+    }
+    if (getClass2() != other->getClass1() &&
+        getClass2() != other->getClass2()) {
+      return false;
+    }
+    return congruentIfOperandsEqual(ins);
+  }
+};
+
 class MGuardToFunction : public MUnaryInstruction,
                          public SingleObjectPolicy::Data {
   explicit MGuardToFunction(MDefinition* object)
@@ -9335,6 +9396,23 @@ class MObjectToIterator : public MUnaryInstruction,
 
   bool wantsIndices() const { return wantsIndices_; }
   void setWantsIndices(bool value) { wantsIndices_ = value; }
+};
+
+class MPostIntPtrConversion : public MUnaryInstruction,
+                              public NoTypePolicy::Data {
+  explicit MPostIntPtrConversion(MDefinition* input)
+      : MUnaryInstruction(classOpcode, input) {
+    // Passes through the input.
+    setResultType(input->type());
+
+    // Note: Must be non-movable so we can attach a resume point.
+  }
+
+ public:
+  INSTRUCTION_HEADER(PostIntPtrConversion)
+  TRIVIAL_NEW_WRAPPERS
+
+  AliasSet getAliasSet() const override { return AliasSet::None(); }
 };
 
 // Flips the input's sign bit, independently of the rest of the number's

@@ -1658,7 +1658,7 @@ bool BaseCompiler::callIndirect(uint32_t funcTypeIndex, uint32_t tableIndex,
   return true;
 }
 
-#ifdef ENABLE_WASM_FUNCTION_REFERENCES
+#ifdef ENABLE_WASM_GC
 void BaseCompiler::callRef(const Stk& calleeRef, const FunctionCall& call,
                            CodeOffset* fastCallOffset,
                            CodeOffset* slowCallOffset) {
@@ -3226,6 +3226,13 @@ bool BaseCompiler::jumpConditionalWithResults(BranchState* b, RegRef object,
                                               RefType sourceType,
                                               RefType destType,
                                               bool onSuccess) {
+  // Temporarily take the result registers so that branchIfRefSubtype
+  // doesn't use them.
+  needIntegerResultRegisters(b->resultType);
+  BranchIfRefSubtypeRegisters regs =
+      allocRegistersForBranchIfRefSubtype(destType);
+  freeIntegerResultRegisters(b->resultType);
+
   if (b->hasBlockResults()) {
     StackHeight resultsBase(0);
     if (!topBranchParams(b->resultType, &resultsBase)) {
@@ -3233,13 +3240,12 @@ bool BaseCompiler::jumpConditionalWithResults(BranchState* b, RegRef object,
     }
     if (b->stackHeight != resultsBase) {
       Label notTaken;
-      // Temporarily take the result registers so that branchIfRefSubtype
-      // doesn't use them.
-      needIntegerResultRegisters(b->resultType);
-      branchIfRefSubtype(
+
+      masm.branchWasmRefIsSubtype(
           object, sourceType, destType, &notTaken,
-          /*onSuccess=*/b->invertBranch ? onSuccess : !onSuccess);
-      freeIntegerResultRegisters(b->resultType);
+          /*onSuccess=*/b->invertBranch ? onSuccess : !onSuccess, regs.superSTV,
+          regs.scratch1, regs.scratch2);
+      freeRegistersForBranchIfRefSubtype(regs);
 
       // Shuffle stack args.
       shuffleStackResultsBeforeBranch(resultsBase, b->stackHeight,
@@ -3250,8 +3256,11 @@ bool BaseCompiler::jumpConditionalWithResults(BranchState* b, RegRef object,
     }
   }
 
-  branchIfRefSubtype(object, sourceType, destType, b->label,
-                     /*onSuccess=*/b->invertBranch ? !onSuccess : onSuccess);
+  masm.branchWasmRefIsSubtype(
+      object, sourceType, destType, b->label,
+      /*onSuccess=*/b->invertBranch ? !onSuccess : onSuccess, regs.superSTV,
+      regs.scratch1, regs.scratch2);
+  freeRegistersForBranchIfRefSubtype(regs);
   return true;
 }
 #endif
@@ -3866,7 +3875,7 @@ bool BaseCompiler::emitBrIf() {
   return emitBranchPerform(&b);
 }
 
-#ifdef ENABLE_WASM_FUNCTION_REFERENCES
+#ifdef ENABLE_WASM_GC
 bool BaseCompiler::emitBrOnNull() {
   MOZ_ASSERT(!hasLatentOp());
 
@@ -5277,7 +5286,7 @@ bool BaseCompiler::emitReturnCallIndirect() {
 }
 #endif
 
-#ifdef ENABLE_WASM_FUNCTION_REFERENCES
+#ifdef ENABLE_WASM_GC
 bool BaseCompiler::emitCallRef() {
   const FuncType* funcType;
   Nothing unused_callee;
@@ -6280,7 +6289,7 @@ bool BaseCompiler::emitRefIsNull() {
   return true;
 }
 
-#ifdef ENABLE_WASM_FUNCTION_REFERENCES
+#ifdef ENABLE_WASM_GC
 bool BaseCompiler::emitRefAsNonNull() {
   Nothing nothing;
   if (!iter_.readRefAsNonNull(&nothing)) {
@@ -8341,103 +8350,30 @@ bool BaseCompiler::emitI31Get(FieldWideningOp wideningOp) {
   return true;
 }
 
-void BaseCompiler::emitRefTestCommon(RefType sourceType, RefType destType) {
-  Label success;
-  Label join;
-  RegRef ref = popRef();
-  RegI32 result = needI32();
-
-  branchIfRefSubtype(ref, sourceType, destType, &success,
-                     /*onSuccess=*/true);
-  masm.xor32(result, result);
-  masm.jump(&join);
-  masm.bind(&success);
-  masm.move32(Imm32(1), result);
-  masm.bind(&join);
-
-  pushI32(result);
-  freeRef(ref);
+BranchIfRefSubtypeRegisters BaseCompiler::allocRegistersForBranchIfRefSubtype(
+    RefType destType) {
+  BranchWasmRefIsSubtypeRegisters needs =
+      MacroAssembler::regsForBranchWasmRefIsSubtype(destType);
+  return BranchIfRefSubtypeRegisters{
+      .superSTV = needs.needSuperSTV
+                      ? loadSuperTypeVector(
+                            moduleEnv_.types->indexOf(*destType.typeDef()))
+                      : RegPtr::Invalid(),
+      .scratch1 = needs.needScratch1 ? needI32() : RegI32::Invalid(),
+      .scratch2 = needs.needScratch2 ? needI32() : RegI32::Invalid(),
+  };
 }
 
-void BaseCompiler::emitRefCastCommon(RefType sourceType, RefType destType) {
-  RegRef ref = popRef();
-
-  Label success;
-  branchIfRefSubtype(ref, sourceType, destType, &success, /*onSuccess=*/true);
-  masm.wasmTrap(Trap::BadCast, bytecodeOffset());
-  masm.bind(&success);
-  pushRef(ref);
-}
-
-void BaseCompiler::branchIfRefSubtype(RegRef ref, RefType sourceType,
-                                      RefType destType, Label* label,
-                                      bool onSuccess) {
-  switch (destType.hierarchy()) {
-    case wasm::RefTypeHierarchy::Any: {
-      RegPtr superSTV;
-      if (MacroAssembler::needSuperSTVForBranchWasmRefIsSubtypeAny(destType)) {
-        uint32_t typeIndex = moduleEnv_.types->indexOf(*destType.typeDef());
-        superSTV = loadSuperTypeVector(typeIndex);
-      }
-      RegI32 scratch1 =
-          MacroAssembler::needScratch1ForBranchWasmRefIsSubtypeAny(destType)
-              ? needI32()
-              : RegI32::Invalid();
-      RegI32 scratch2 =
-          MacroAssembler::needScratch2ForBranchWasmRefIsSubtypeAny(destType)
-              ? needI32()
-              : RegI32::Invalid();
-
-      masm.branchWasmRefIsSubtypeAny(ref, sourceType, destType, label,
-                                     onSuccess, superSTV, scratch1, scratch2);
-
-      if (scratch2.isValid()) {
-        freeI32(scratch2);
-      }
-      if (scratch1.isValid()) {
-        freeI32(scratch1);
-      }
-      if (superSTV.isValid()) {
-        freePtr(superSTV);
-      }
-    } break;
-    case wasm::RefTypeHierarchy::Func: {
-      RegPtr superSTV;
-      RegI32 scratch1;
-      if (MacroAssembler::needSuperSTVAndScratch1ForBranchWasmRefIsSubtypeFunc(
-              destType)) {
-        uint32_t typeIndex = moduleEnv_.types->indexOf(*destType.typeDef());
-        superSTV = loadSuperTypeVector(typeIndex);
-        scratch1 = needI32();
-      }
-      RegI32 scratch2 =
-          MacroAssembler::needScratch2ForBranchWasmRefIsSubtypeFunc(destType)
-              ? needI32()
-              : RegI32::Invalid();
-
-      masm.branchWasmRefIsSubtypeFunc(ref, sourceType, destType, label,
-                                      onSuccess, superSTV, scratch1, scratch2);
-
-      if (scratch2.isValid()) {
-        freeI32(scratch2);
-      }
-      if (scratch1.isValid()) {
-        freeI32(scratch1);
-      }
-      if (superSTV.isValid()) {
-        freePtr(superSTV);
-      }
-    } break;
-    case wasm::RefTypeHierarchy::Extern: {
-      masm.branchWasmRefIsSubtypeExtern(ref, sourceType, destType, label,
-                                        onSuccess);
-    } break;
-    case wasm::RefTypeHierarchy::Exn: {
-      masm.branchWasmRefIsSubtypeExn(ref, sourceType, destType, label,
-                                     onSuccess);
-    } break;
-    default:
-      MOZ_CRASH("unknown type hierarchy in cast");
+void BaseCompiler::freeRegistersForBranchIfRefSubtype(
+    const BranchIfRefSubtypeRegisters& regs) {
+  if (regs.superSTV.isValid()) {
+    freePtr(regs.superSTV);
+  }
+  if (regs.scratch1.isValid()) {
+    freeI32(regs.scratch1);
+  }
+  if (regs.scratch2.isValid()) {
+    freeI32(regs.scratch2);
   }
 }
 
@@ -8453,7 +8389,26 @@ bool BaseCompiler::emitRefTest(bool nullable) {
     return true;
   }
 
-  emitRefTestCommon(sourceType, destType);
+  Label success;
+  Label join;
+  RegRef ref = popRef();
+  RegI32 result = needI32();
+
+  BranchIfRefSubtypeRegisters regs =
+      allocRegistersForBranchIfRefSubtype(destType);
+  masm.branchWasmRefIsSubtype(ref, sourceType, destType, &success,
+                              /*onSuccess=*/true, regs.superSTV, regs.scratch1,
+                              regs.scratch2);
+  freeRegistersForBranchIfRefSubtype(regs);
+
+  masm.xor32(result, result);
+  masm.jump(&join);
+  masm.bind(&success);
+  masm.move32(Imm32(1), result);
+  masm.bind(&join);
+
+  pushI32(result);
+  freeRef(ref);
 
   return true;
 }
@@ -8470,7 +8425,19 @@ bool BaseCompiler::emitRefCast(bool nullable) {
     return true;
   }
 
-  emitRefCastCommon(sourceType, destType);
+  RegRef ref = popRef();
+
+  Label success;
+  BranchIfRefSubtypeRegisters regs =
+      allocRegistersForBranchIfRefSubtype(destType);
+  masm.branchWasmRefIsSubtype(ref, sourceType, destType, &success,
+                              /*onSuccess=*/true, regs.superSTV, regs.scratch1,
+                              regs.scratch2);
+  freeRegistersForBranchIfRefSubtype(regs);
+
+  masm.wasmTrap(Trap::BadCast, bytecodeOffset());
+  masm.bind(&success);
+  pushRef(ref);
 
   return true;
 }
@@ -9809,13 +9776,13 @@ bool BaseCompiler::emitCallBuiltinModuleFunc() {
     return true;
   }
 
-  if (builtinModuleFunc->usesMemory) {
+  if (builtinModuleFunc->usesMemory()) {
     // The final parameter of an builtinModuleFunc is implicitly the heap base
     pushHeapBase(0);
   }
 
   // Call the builtinModuleFunc
-  return emitInstanceCall(builtinModuleFunc->signature);
+  return emitInstanceCall(*builtinModuleFunc->sig());
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -10022,36 +9989,18 @@ bool BaseCompiler::emitBody() {
       case uint16_t(Op::Else):
         CHECK_NEXT(emitElse());
       case uint16_t(Op::Try):
-        if (!moduleEnv_.exceptionsEnabled()) {
-          return iter_.unrecognizedOpcode(&op);
-        }
         CHECK_NEXT(emitTry());
       case uint16_t(Op::Catch):
-        if (!moduleEnv_.exceptionsEnabled()) {
-          return iter_.unrecognizedOpcode(&op);
-        }
         CHECK_NEXT(emitCatch());
       case uint16_t(Op::CatchAll):
-        if (!moduleEnv_.exceptionsEnabled()) {
-          return iter_.unrecognizedOpcode(&op);
-        }
         CHECK_NEXT(emitCatchAll());
       case uint16_t(Op::Delegate):
-        if (!moduleEnv_.exceptionsEnabled()) {
-          return iter_.unrecognizedOpcode(&op);
-        }
         CHECK(emitDelegate());
         iter_.popDelegate();
         NEXT();
       case uint16_t(Op::Throw):
-        if (!moduleEnv_.exceptionsEnabled()) {
-          return iter_.unrecognizedOpcode(&op);
-        }
         CHECK_NEXT(emitThrow());
       case uint16_t(Op::Rethrow):
-        if (!moduleEnv_.exceptionsEnabled()) {
-          return iter_.unrecognizedOpcode(&op);
-        }
         CHECK_NEXT(emitRethrow());
       case uint16_t(Op::ThrowRef):
         if (!moduleEnv_.exnrefEnabled()) {
@@ -10096,16 +10045,15 @@ bool BaseCompiler::emitBody() {
         }
         CHECK_NEXT(emitReturnCallIndirect());
 #endif
-#ifdef ENABLE_WASM_FUNCTION_REFERENCES
+#ifdef ENABLE_WASM_GC
       case uint16_t(Op::CallRef):
-        if (!moduleEnv_.functionReferencesEnabled()) {
+        if (!moduleEnv_.gcEnabled()) {
           return iter_.unrecognizedOpcode(&op);
         }
         CHECK_NEXT(emitCallRef());
 #  ifdef ENABLE_WASM_TAIL_CALLS
       case uint16_t(Op::ReturnCallRef):
-        if (!moduleEnv_.functionReferencesEnabled() ||
-            !moduleEnv_.tailCallsEnabled()) {
+        if (!moduleEnv_.gcEnabled() || !moduleEnv_.tailCallsEnabled()) {
           return iter_.unrecognizedOpcode(&op);
         }
         CHECK_NEXT(emitReturnCallRef());
@@ -10642,19 +10590,19 @@ bool BaseCompiler::emitBody() {
       case uint16_t(Op::MemorySize):
         CHECK_NEXT(emitMemorySize());
 
-#ifdef ENABLE_WASM_FUNCTION_REFERENCES
+#ifdef ENABLE_WASM_GC
       case uint16_t(Op::RefAsNonNull):
-        if (!moduleEnv_.functionReferencesEnabled()) {
+        if (!moduleEnv_.gcEnabled()) {
           return iter_.unrecognizedOpcode(&op);
         }
         CHECK_NEXT(emitRefAsNonNull());
       case uint16_t(Op::BrOnNull):
-        if (!moduleEnv_.functionReferencesEnabled()) {
+        if (!moduleEnv_.gcEnabled()) {
           return iter_.unrecognizedOpcode(&op);
         }
         CHECK_NEXT(emitBrOnNull());
       case uint16_t(Op::BrOnNonNull):
-        if (!moduleEnv_.functionReferencesEnabled()) {
+        if (!moduleEnv_.gcEnabled()) {
           return iter_.unrecognizedOpcode(&op);
         }
         CHECK_NEXT(emitBrOnNonNull());

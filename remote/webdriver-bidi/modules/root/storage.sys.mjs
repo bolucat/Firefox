@@ -12,6 +12,8 @@ ChromeUtils.defineESModuleGetters(lazy, {
     "chrome://remote/content/webdriver-bidi/modules/root/network.sys.mjs",
   error: "chrome://remote/content/shared/webdriver/Errors.sys.mjs",
   TabManager: "chrome://remote/content/shared/TabManager.sys.mjs",
+  UserContextManager:
+    "chrome://remote/content/shared/UserContextManager.sys.mjs",
 });
 
 const CookieFieldsMapping = {
@@ -96,14 +98,14 @@ class StorageModule extends Module {
    *
    * @property {PartitionType} [type=PartitionType.storageKey]
    * @property {string=} sourceOrigin
-   * @property {string=} userContext (not supported)
+   * @property {string=} userContext
    */
 
   /**
    * @typedef PartitionKey
    *
    * @property {string=} sourceOrigin
-   * @property {string=} userContext (not supported)
+   * @property {string=} userContext
    */
 
   /**
@@ -117,6 +119,48 @@ class StorageModule extends Module {
    *    An object which represent the partition key which was used
    *    to retrieve the cookies.
    */
+
+  /**
+   * Remove zero or more cookies which match a set of provided parameters.
+   *
+   * @param {object=} options
+   * @param {CookieFilter=} options.filter
+   *     An object which holds field names and values, which
+   *     should be used to filter the output of the command.
+   * @param {PartitionDescriptor=} options.partition
+   *     An object which holds the information which
+   *     should be used to build a partition key.
+   *
+   * @returns {PartitionKey}
+   *     An object with the partition key which was used to
+   *     retrieve cookies which had to be removed.
+   * @throws {InvalidArgumentError}
+   *     If the provided arguments are not valid.
+   * @throws {NoSuchFrameError}
+   *     If the provided browsing context cannot be found.
+   */
+  async deleteCookies(options = {}) {
+    let { filter = {} } = options;
+    const { partition: partitionSpec = null } = options;
+
+    this.#assertPartition(partitionSpec);
+    filter = this.#assertCookieFilter(filter);
+
+    const partitionKey = this.#expandStoragePartitionSpec(partitionSpec);
+    const store = this.#getTheCookieStore(partitionKey);
+    const cookies = this.#getMatchingCookies(store, filter);
+
+    for (const cookie of cookies) {
+      Services.cookies.remove(
+        cookie.host,
+        cookie.name,
+        cookie.path,
+        cookie.originAttributes
+      );
+    }
+
+    return { partitionKey: this.#formatPartitionKey(partitionKey) };
+  }
 
   /**
    * Retrieve zero or more cookies which match a set of provided parameters.
@@ -136,27 +180,27 @@ class StorageModule extends Module {
    *     If the provided arguments are not valid.
    * @throws {NoSuchFrameError}
    *     If the provided browsing context cannot be found.
-   * @throws {UnsupportedOperationError}
-   *     Raised when the command is called with `userContext` as
-   *     in `partition` argument.
    */
   async getCookies(options = {}) {
     let { filter = {} } = options;
     const { partition: partitionSpec = null } = options;
 
     this.#assertPartition(partitionSpec);
-    filter = this.#assertGetCookieFilter(filter);
+    filter = this.#assertCookieFilter(filter);
 
     const partitionKey = this.#expandStoragePartitionSpec(partitionSpec);
     const store = this.#getTheCookieStore(partitionKey);
     const cookies = this.#getMatchingCookies(store, filter);
+    const serializedCookies = [];
 
-    // Bug 1875255. Exchange platform id for Webdriver BiDi id for the user context to return it to the client.
-    // For now we use platform user context id for returning cookies for a specific browsing context in the platform API,
-    // but we can not return it directly to the client, so for now we just remove it from the response.
-    delete partitionKey.userContext;
+    for (const cookie of cookies) {
+      serializedCookies.push(this.#serializeCookie(cookie));
+    }
 
-    return { cookies, partitionKey };
+    return {
+      cookies: serializedCookies,
+      partitionKey: this.#formatPartitionKey(partitionKey),
+    };
   }
 
   /**
@@ -195,9 +239,6 @@ class StorageModule extends Module {
    *     If the provided browsing context cannot be found.
    * @throws {UnableToSetCookieError}
    *     If the cookie was not added.
-   * @throws {UnsupportedOperationError}
-   *     Raised when the command is called with `userContext` as
-   *     in `partition` argument.
    */
   async setCookie(options = {}) {
     const { cookie: cookieSpec, partition: partitionSpec = null } = options;
@@ -264,12 +305,7 @@ class StorageModule extends Module {
       throw new lazy.error.UnableToSetCookieError(e);
     }
 
-    // Bug 1875255. Exchange platform id for Webdriver BiDi id for the user context to return it to the client.
-    // For now we use platform user context id for returning cookies for a specific browsing context in the platform API,
-    // but we can not return it directly to the client, so for now we just remove it from the response.
-    delete partitionKey.userContext;
-
-    return { partitionKey };
+    return { partitionKey: this.#formatPartitionKey(partitionKey) };
   }
 
   #assertCookie(cookie) {
@@ -318,7 +354,7 @@ class StorageModule extends Module {
     }
   }
 
-  #assertGetCookieFilter(filter) {
+  #assertCookieFilter(filter) {
     lazy.assert.object(
       filter,
       `Expected "filter" to be an object, got ${filter}`
@@ -454,10 +490,11 @@ class StorageModule extends Module {
             `Expected "partition.userContext" to be a string, got ${userContext}`
           );
 
-          // TODO: Bug 1875255. Implement support for "userContext" field.
-          throw new lazy.error.UnsupportedOperationError(
-            `"userContext" as a field on "partition" argument is not supported yet for "storage.getCookies" command`
-          );
+          if (!lazy.UserContextManager.hasUserContextId(userContext)) {
+            throw new lazy.error.NoSuchUserContextError(
+              `User Context with id ${userContext} was not found`
+            );
+          }
         }
         break;
       }
@@ -505,6 +542,40 @@ class StorageModule extends Module {
   }
 
   /**
+   * Deserialize filter.
+   *
+   * @see https://w3c.github.io/webdriver-bidi/#deserialize-filter
+   */
+  #deserializeFilter(filter) {
+    const deserializedFilter = {};
+    for (const [fieldName, value] of Object.entries(filter)) {
+      if (value === null) {
+        continue;
+      }
+
+      const deserializedName = CookieFieldsMapping[fieldName];
+      let deserializedValue;
+
+      switch (deserializedName) {
+        case "sameSite":
+          deserializedValue = this.#getSameSitePlatformProperty(value);
+          break;
+
+        case "value":
+          deserializedValue = this.#deserializeProtocolBytes(value);
+          break;
+
+        default:
+          deserializedValue = value;
+      }
+
+      deserializedFilter[deserializedName] = deserializedValue;
+    }
+
+    return deserializedFilter;
+  }
+
+  /**
    * Deserialize the value to string, since platform API
    * returns cookie's value as a string.
    */
@@ -544,8 +615,29 @@ class StorageModule extends Module {
     const partitionKey = {};
     for (const keyName of PartitionKeyAttributes) {
       if (keyName in partitionSpec) {
-        partitionKey[keyName] = partitionSpec[keyName];
+        // Retrieve a platform user context id.
+        if (keyName === "userContext") {
+          partitionKey[keyName] = lazy.UserContextManager.getInternalIdById(
+            partitionSpec.userContext
+          );
+        } else {
+          partitionKey[keyName] = partitionSpec[keyName];
+        }
       }
+    }
+
+    return partitionKey;
+  }
+
+  /**
+   * Prepare the partition key in the right format for returning to a client.
+   */
+  #formatPartitionKey(partitionKey) {
+    if ("userContext" in partitionKey) {
+      // Exchange platform id for Webdriver BiDi id for the user context to return it to the client.
+      partitionKey.userContext = lazy.UserContextManager.getIdByInternalId(
+        partitionKey.userContext
+      );
     }
 
     return partitionKey;
@@ -595,11 +687,11 @@ class StorageModule extends Module {
    */
   #getMatchingCookies(cookieStore, filter) {
     const cookies = [];
+    const deserializedFilter = this.#deserializeFilter(filter);
 
     for (const storedCookie of cookieStore) {
-      const serializedCookie = this.#serializeCookie(storedCookie);
-      if (this.#matchCookie(serializedCookie, filter)) {
-        cookies.push(serializedCookie);
+      if (this.#matchCookie(storedCookie, deserializedFilter)) {
+        cookies.push(storedCookie);
       }
     }
     return cookies;
@@ -702,19 +794,23 @@ class StorageModule extends Module {
    * @see https://w3c.github.io/webdriver-bidi/#match-cookie
    */
   #matchCookie(storedCookie, filter) {
-    for (const [fieldName] of Object.entries(CookieFieldsMapping)) {
-      let value = filter[fieldName];
-      if (value !== null) {
-        let storedCookieValue = storedCookie[fieldName];
+    for (const [fieldName, value] of Object.entries(filter)) {
+      // Since we set `null` to not specified values, we have to check for `null` here
+      // and not match on these values.
+      if (value === null) {
+        continue;
+      }
 
-        if (fieldName === "value") {
-          value = this.#deserializeProtocolBytes(value);
-          storedCookieValue = this.#deserializeProtocolBytes(storedCookieValue);
-        }
+      let storedCookieValue = storedCookie[fieldName];
 
-        if (storedCookieValue !== value) {
-          return false;
-        }
+      // The platform represantation of cookie doesn't contain a size field,
+      // so we have to calculate it to match.
+      if (fieldName === "size") {
+        storedCookieValue = this.#getCookieSize(storedCookie);
+      }
+
+      if (storedCookieValue !== value) {
+        return false;
       }
     }
 

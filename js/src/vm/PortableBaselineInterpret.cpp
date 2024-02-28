@@ -762,13 +762,28 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
           return ICInterpretOpResult::NextIC;
         }
         break;
+      case GuardClassKind::ResizableArrayBuffer:
+        if (object->getClass() != &ResizableArrayBufferObject::class_) {
+          return ICInterpretOpResult::NextIC;
+        }
+        break;
       case GuardClassKind::FixedLengthSharedArrayBuffer:
         if (object->getClass() != &FixedLengthSharedArrayBufferObject::class_) {
           return ICInterpretOpResult::NextIC;
         }
         break;
+      case GuardClassKind::GrowableSharedArrayBuffer:
+        if (object->getClass() != &GrowableSharedArrayBufferObject::class_) {
+          return ICInterpretOpResult::NextIC;
+        }
+        break;
       case GuardClassKind::FixedLengthDataView:
         if (object->getClass() != &FixedLengthDataViewObject::class_) {
+          return ICInterpretOpResult::NextIC;
+        }
+        break;
+      case GuardClassKind::ResizableDataView:
+        if (object->getClass() != &ResizableDataViewObject::class_) {
           return ICInterpretOpResult::NextIC;
         }
         break;
@@ -2490,12 +2505,14 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
   CACHEOP_CASE_UNIMPL(RegExpInstanceOptimizableResult)
   CACHEOP_CASE_UNIMPL(GetFirstDollarIndexResult)
   CACHEOP_CASE_UNIMPL(GuardIsFixedLengthTypedArray)
+  CACHEOP_CASE_UNIMPL(GuardIsResizableTypedArray)
   CACHEOP_CASE_UNIMPL(StringToAtom)
   CACHEOP_CASE_UNIMPL(GuardIndexIsValidUpdateOrAdd)
   CACHEOP_CASE_UNIMPL(GuardIndexIsNotDenseElement)
   CACHEOP_CASE_UNIMPL(GuardTagNotEqual)
   CACHEOP_CASE_UNIMPL(GuardXrayExpandoShapeAndDefaultProto)
   CACHEOP_CASE_UNIMPL(GuardXrayNoExpando)
+  CACHEOP_CASE_UNIMPL(GuardEitherClass)
   CACHEOP_CASE_UNIMPL(LoadScriptedProxyHandler)
   CACHEOP_CASE_UNIMPL(IdToStringOrSymbol)
   CACHEOP_CASE_UNIMPL(DoubleToUint8Clamped)
@@ -2525,10 +2542,22 @@ ICInterpretOps(BaselineFrame* frame, VMFrameManager& frameMgr, State& state,
   CACHEOP_CASE_UNIMPL(IsTypedArrayConstructorResult)
   CACHEOP_CASE_UNIMPL(ArrayBufferViewByteOffsetInt32Result)
   CACHEOP_CASE_UNIMPL(ArrayBufferViewByteOffsetDoubleResult)
+  CACHEOP_CASE_UNIMPL(ResizableTypedArrayByteOffsetMaybeOutOfBoundsInt32Result)
+  CACHEOP_CASE_UNIMPL(ResizableTypedArrayByteOffsetMaybeOutOfBoundsDoubleResult)
   CACHEOP_CASE_UNIMPL(TypedArrayByteLengthInt32Result)
   CACHEOP_CASE_UNIMPL(TypedArrayByteLengthDoubleResult)
+  CACHEOP_CASE_UNIMPL(ResizableTypedArrayByteLengthInt32Result)
+  CACHEOP_CASE_UNIMPL(ResizableTypedArrayByteLengthDoubleResult)
+  CACHEOP_CASE_UNIMPL(ResizableTypedArrayLengthInt32Result)
+  CACHEOP_CASE_UNIMPL(ResizableTypedArrayLengthDoubleResult)
   CACHEOP_CASE_UNIMPL(TypedArrayElementSizeResult)
+  CACHEOP_CASE_UNIMPL(ResizableDataViewByteLengthInt32Result)
+  CACHEOP_CASE_UNIMPL(ResizableDataViewByteLengthDoubleResult)
+  CACHEOP_CASE_UNIMPL(GrowableSharedArrayBufferByteLengthInt32Result)
+  CACHEOP_CASE_UNIMPL(GrowableSharedArrayBufferByteLengthDoubleResult)
   CACHEOP_CASE_UNIMPL(GuardHasAttachedArrayBuffer)
+  CACHEOP_CASE_UNIMPL(GuardResizableArrayBufferViewInBounds)
+  CACHEOP_CASE_UNIMPL(GuardResizableArrayBufferViewInBoundsOrDetached)
   CACHEOP_CASE_UNIMPL(NewArrayIteratorResult)
   CACHEOP_CASE_UNIMPL(NewStringIteratorResult)
   CACHEOP_CASE_UNIMPL(NewRegExpStringIteratorResult)

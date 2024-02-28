@@ -3255,6 +3255,95 @@ void MacroAssembler::loadArrayBufferViewLengthIntPtr(Register obj,
   loadPrivate(slotAddr, output);
 }
 
+void MacroAssembler::loadGrowableSharedArrayBufferByteLengthIntPtr(
+    Synchronization sync, Register obj, Register output) {
+  // Load the SharedArrayRawBuffer.
+  loadPrivate(Address(obj, SharedArrayBufferObject::rawBufferOffset()), output);
+
+  memoryBarrierBefore(sync);
+
+  // Load the byteLength of the SharedArrayRawBuffer into |output|.
+  static_assert(sizeof(mozilla::Atomic<size_t>) == sizeof(size_t));
+  loadPtr(Address(output, SharedArrayRawBuffer::offsetOfByteLength()), output);
+
+  memoryBarrierAfter(sync);
+}
+
+void MacroAssembler::loadResizableArrayBufferViewLengthIntPtr(
+    ResizableArrayBufferView view, Synchronization sync, Register obj,
+    Register output, Register scratch) {
+  // Inline implementation of ArrayBufferViewObject::length(), when the input is
+  // guaranteed to be a resizable arraybuffer view object.
+
+  loadArrayBufferViewLengthIntPtr(obj, output);
+
+  Label done;
+  branchPtr(Assembler::NotEqual, output, ImmWord(0), &done);
+
+  // Load obj->elements in |scratch|.
+  loadPtr(Address(obj, NativeObject::offsetOfElements()), scratch);
+
+  // If backed by non-shared memory, detached and out-of-bounds both return
+  // zero, so we're done here.
+  branchTest32(Assembler::Zero,
+               Address(scratch, ObjectElements::offsetOfFlags()),
+               Imm32(ObjectElements::SHARED_MEMORY), &done);
+
+  // Load the auto-length slot.
+  unboxBoolean(Address(obj, ArrayBufferViewObject::autoLengthOffset()),
+               scratch);
+
+  // If non-auto length, there's nothing to do.
+  branchTest32(Assembler::Zero, scratch, scratch, &done);
+
+  // Load bufferByteLength into |output|.
+  {
+    // Resizable TypedArrays are guaranteed to have an ArrayBuffer.
+    unboxObject(Address(obj, ArrayBufferViewObject::bufferOffset()), output);
+
+    // Load the byte length from the raw-buffer of growable SharedArrayBuffers.
+    loadGrowableSharedArrayBufferByteLengthIntPtr(sync, output, output);
+  }
+
+  // Load the byteOffset into |scratch|.
+  loadArrayBufferViewByteOffsetIntPtr(obj, scratch);
+
+  // Compute the accessible byte length |bufferByteLength - byteOffset|.
+  subPtr(scratch, output);
+
+  if (view == ResizableArrayBufferView::TypedArray) {
+    // Compute the array length from the byte length.
+    resizableTypedArrayElementShiftBy(obj, output, scratch);
+  }
+
+  bind(&done);
+}
+
+void MacroAssembler::loadResizableTypedArrayByteOffsetMaybeOutOfBoundsIntPtr(
+    Register obj, Register output, Register scratch) {
+  // Inline implementation of TypedArrayObject::byteOffsetMaybeOutOfBounds(),
+  // when the input is guaranteed to be a resizable typed array object.
+
+  loadArrayBufferViewByteOffsetIntPtr(obj, output);
+
+  // TypedArray is neither detached nor out-of-bounds when byteOffset non-zero.
+  Label done;
+  branchPtr(Assembler::NotEqual, output, ImmWord(0), &done);
+
+  // We're done when the initial byteOffset is zero.
+  loadPrivate(Address(obj, ArrayBufferViewObject::initialByteOffsetOffset()),
+              output);
+  branchPtr(Assembler::Equal, output, ImmWord(0), &done);
+
+  // If the buffer is attached, return initialByteOffset.
+  branchIfHasAttachedArrayBuffer(obj, scratch, &done);
+
+  // Otherwise return zero to match the result for fixed-length TypedArrays.
+  movePtr(ImmWord(0), output);
+
+  bind(&done);
+}
+
 void MacroAssembler::loadDOMExpandoValueGuardGeneration(
     Register obj, ValueOperand output,
     JS::ExpandoAndGeneration* expandoAndGeneration, uint64_t generation,
@@ -6196,26 +6285,60 @@ void MacroAssembler::wasmBoundsCheckRange32(
   bind(&ok);
 }
 
-bool MacroAssembler::needScratch1ForBranchWasmRefIsSubtypeAny(
+BranchWasmRefIsSubtypeRegisters MacroAssembler::regsForBranchWasmRefIsSubtype(
     wasm::RefType type) {
   MOZ_ASSERT(type.isValid());
-  MOZ_ASSERT(type.isAnyHierarchy());
-  return !type.isNone() && !type.isAny();
+  switch (type.hierarchy()) {
+    case wasm::RefTypeHierarchy::Any:
+      return BranchWasmRefIsSubtypeRegisters{
+          .needSuperSTV = type.isTypeRef(),
+          .needScratch1 = !type.isNone() && !type.isAny(),
+          .needScratch2 =
+              type.isTypeRef() && type.typeDef()->subTypingDepth() >=
+                                      wasm::MinSuperTypeVectorLength,
+      };
+    case wasm::RefTypeHierarchy::Func:
+      return BranchWasmRefIsSubtypeRegisters{
+          .needSuperSTV = type.isTypeRef(),
+          .needScratch1 = type.isTypeRef(),
+          .needScratch2 =
+              type.isTypeRef() && type.typeDef()->subTypingDepth() >=
+                                      wasm::MinSuperTypeVectorLength,
+      };
+    case wasm::RefTypeHierarchy::Extern:
+    case wasm::RefTypeHierarchy::Exn:
+      return BranchWasmRefIsSubtypeRegisters{
+          .needSuperSTV = false,
+          .needScratch1 = false,
+          .needScratch2 = false,
+      };
+    default:
+      MOZ_CRASH("unknown type hierarchy for cast");
+  }
 }
 
-bool MacroAssembler::needScratch2ForBranchWasmRefIsSubtypeAny(
-    wasm::RefType type) {
-  MOZ_ASSERT(type.isValid());
-  MOZ_ASSERT(type.isAnyHierarchy());
-  return type.isTypeRef() &&
-         type.typeDef()->subTypingDepth() >= wasm::MinSuperTypeVectorLength;
-}
-
-bool MacroAssembler::needSuperSTVForBranchWasmRefIsSubtypeAny(
-    wasm::RefType type) {
-  MOZ_ASSERT(type.isValid());
-  MOZ_ASSERT(type.isAnyHierarchy());
-  return type.isTypeRef();
+void MacroAssembler::branchWasmRefIsSubtype(
+    Register ref, wasm::RefType sourceType, wasm::RefType destType,
+    Label* label, bool onSuccess, Register superSTV, Register scratch1,
+    Register scratch2) {
+  switch (destType.hierarchy()) {
+    case wasm::RefTypeHierarchy::Any: {
+      branchWasmRefIsSubtypeAny(ref, sourceType, destType, label, onSuccess,
+                                superSTV, scratch1, scratch2);
+    } break;
+    case wasm::RefTypeHierarchy::Func: {
+      branchWasmRefIsSubtypeFunc(ref, sourceType, destType, label, onSuccess,
+                                 superSTV, scratch1, scratch2);
+    } break;
+    case wasm::RefTypeHierarchy::Extern: {
+      branchWasmRefIsSubtypeExtern(ref, sourceType, destType, label, onSuccess);
+    } break;
+    case wasm::RefTypeHierarchy::Exn: {
+      branchWasmRefIsSubtypeExn(ref, sourceType, destType, label, onSuccess);
+    } break;
+    default:
+      MOZ_CRASH("unknown type hierarchy for wasm cast");
+  }
 }
 
 void MacroAssembler::branchWasmRefIsSubtypeAny(
@@ -6226,12 +6349,12 @@ void MacroAssembler::branchWasmRefIsSubtypeAny(
   MOZ_ASSERT(destType.isValid());
   MOZ_ASSERT(sourceType.isAnyHierarchy());
   MOZ_ASSERT(destType.isAnyHierarchy());
-  MOZ_ASSERT_IF(needScratch1ForBranchWasmRefIsSubtypeAny(destType),
-                scratch1 != Register::Invalid());
-  MOZ_ASSERT_IF(needScratch2ForBranchWasmRefIsSubtypeAny(destType),
-                scratch2 != Register::Invalid());
-  MOZ_ASSERT_IF(needSuperSTVForBranchWasmRefIsSubtypeAny(destType),
-                superSTV != Register::Invalid());
+
+  mozilla::DebugOnly<BranchWasmRefIsSubtypeRegisters> needs =
+      regsForBranchWasmRefIsSubtype(destType);
+  MOZ_ASSERT_IF(needs.value.needSuperSTV, superSTV != Register::Invalid());
+  MOZ_ASSERT_IF(needs.value.needScratch1, scratch1 != Register::Invalid());
+  MOZ_ASSERT_IF(needs.value.needScratch2, scratch2 != Register::Invalid());
 
   Label fallthrough;
   Label* successLabel = onSuccess ? label : &fallthrough;
@@ -6320,21 +6443,6 @@ void MacroAssembler::branchWasmRefIsSubtypeAny(
   bind(&fallthrough);
 }
 
-bool MacroAssembler::needSuperSTVAndScratch1ForBranchWasmRefIsSubtypeFunc(
-    wasm::RefType type) {
-  MOZ_ASSERT(type.isValid());
-  MOZ_ASSERT(type.isFuncHierarchy());
-  return type.isTypeRef();
-}
-
-bool MacroAssembler::needScratch2ForBranchWasmRefIsSubtypeFunc(
-    wasm::RefType type) {
-  MOZ_ASSERT(type.isValid());
-  MOZ_ASSERT(type.isFuncHierarchy());
-  return type.isTypeRef() &&
-         type.typeDef()->subTypingDepth() >= wasm::MinSuperTypeVectorLength;
-}
-
 void MacroAssembler::branchWasmRefIsSubtypeFunc(
     Register ref, wasm::RefType sourceType, wasm::RefType destType,
     Label* label, bool onSuccess, Register superSTV, Register scratch1,
@@ -6343,11 +6451,12 @@ void MacroAssembler::branchWasmRefIsSubtypeFunc(
   MOZ_ASSERT(destType.isValid());
   MOZ_ASSERT(sourceType.isFuncHierarchy());
   MOZ_ASSERT(destType.isFuncHierarchy());
-  MOZ_ASSERT_IF(
-      needSuperSTVAndScratch1ForBranchWasmRefIsSubtypeFunc(destType),
-      superSTV != Register::Invalid() && scratch1 != Register::Invalid());
-  MOZ_ASSERT_IF(needScratch2ForBranchWasmRefIsSubtypeFunc(destType),
-                scratch2 != Register::Invalid());
+
+  mozilla::DebugOnly<BranchWasmRefIsSubtypeRegisters> needs =
+      regsForBranchWasmRefIsSubtype(destType);
+  MOZ_ASSERT_IF(needs.value.needSuperSTV, superSTV != Register::Invalid());
+  MOZ_ASSERT_IF(needs.value.needScratch1, scratch1 != Register::Invalid());
+  MOZ_ASSERT_IF(needs.value.needScratch2, scratch2 != Register::Invalid());
 
   Label fallthrough;
   Label* successLabel = onSuccess ? label : &fallthrough;
@@ -7422,11 +7531,11 @@ void MacroAssembler::debugAssertCanonicalInt32(Register r) {
 }
 #endif
 
-void MacroAssembler::memoryBarrierBefore(const Synchronization& sync) {
+void MacroAssembler::memoryBarrierBefore(Synchronization sync) {
   memoryBarrier(sync.barrierBefore);
 }
 
-void MacroAssembler::memoryBarrierAfter(const Synchronization& sync) {
+void MacroAssembler::memoryBarrierAfter(Synchronization sync) {
   memoryBarrier(sync.barrierAfter);
 }
 
@@ -7823,6 +7932,74 @@ void MacroAssembler::typedArrayElementSize(Register obj, Register output) {
   bind(&done);
 }
 
+void MacroAssembler::resizableTypedArrayElementShiftBy(Register obj,
+                                                       Register output,
+                                                       Register scratch) {
+  loadObjClassUnsafe(obj, scratch);
+
+#ifdef DEBUG
+  Label invalidClass, validClass;
+  branchPtr(Assembler::Below, scratch,
+            ImmPtr(std::begin(TypedArrayObject::resizableClasses)),
+            &invalidClass);
+  branchPtr(Assembler::Below, scratch,
+            ImmPtr(std::end(TypedArrayObject::resizableClasses)), &validClass);
+  bind(&invalidClass);
+  assumeUnreachable("value isn't a valid ResizableLengthTypedArray class");
+  bind(&validClass);
+#endif
+
+  auto classForType = [](Scalar::Type type) {
+    MOZ_ASSERT(type < Scalar::MaxTypedArrayViewType);
+    return &TypedArrayObject::resizableClasses[type];
+  };
+
+  Label zero, one, two, three;
+
+  static_assert(ValidateSizeRange(Scalar::Int8, Scalar::Int16),
+                "element shift is zero in [Int8, Int16)");
+  branchPtr(Assembler::Below, scratch, ImmPtr(classForType(Scalar::Int16)),
+            &zero);
+
+  static_assert(ValidateSizeRange(Scalar::Int16, Scalar::Int32),
+                "element shift is one in [Int16, Int32)");
+  branchPtr(Assembler::Below, scratch, ImmPtr(classForType(Scalar::Int32)),
+            &one);
+
+  static_assert(ValidateSizeRange(Scalar::Int32, Scalar::Float64),
+                "element shift is two in [Int32, Float64)");
+  branchPtr(Assembler::Below, scratch, ImmPtr(classForType(Scalar::Float64)),
+            &two);
+
+  static_assert(ValidateSizeRange(Scalar::Float64, Scalar::Uint8Clamped),
+                "element shift is three in [Float64, Uint8Clamped)");
+  branchPtr(Assembler::Below, scratch,
+            ImmPtr(classForType(Scalar::Uint8Clamped)), &three);
+
+  static_assert(ValidateSizeRange(Scalar::Uint8Clamped, Scalar::BigInt64),
+                "element shift is zero in [Uint8Clamped, BigInt64)");
+  branchPtr(Assembler::Below, scratch, ImmPtr(classForType(Scalar::BigInt64)),
+            &zero);
+
+  static_assert(
+      ValidateSizeRange(Scalar::BigInt64, Scalar::MaxTypedArrayViewType),
+      "element shift is three in [BigInt64, MaxTypedArrayViewType)");
+  // Fall through for BigInt64 and BigUint64
+
+  bind(&three);
+  rshiftPtr(Imm32(3), output);
+  jump(&zero);
+
+  bind(&two);
+  rshiftPtr(Imm32(2), output);
+  jump(&zero);
+
+  bind(&one);
+  rshiftPtr(Imm32(1), output);
+
+  bind(&zero);
+}
+
 void MacroAssembler::branchIfClassIsNotTypedArray(Register clasp,
                                                   Label* notTypedArray) {
   // Inline implementation of IsTypedArrayClass().
@@ -7856,28 +8033,103 @@ void MacroAssembler::branchIfClassIsNotFixedLengthTypedArray(
             notTypedArray);
 }
 
-void MacroAssembler::branchIfHasDetachedArrayBuffer(Register obj, Register temp,
+void MacroAssembler::branchIfClassIsNotResizableTypedArray(
+    Register clasp, Label* notTypedArray) {
+  // Inline implementation of IsResizableTypedArrayClass().
+
+  const auto* firstTypedArrayClass =
+      std::begin(TypedArrayObject::resizableClasses);
+  const auto* lastTypedArrayClass =
+      std::prev(std::end(TypedArrayObject::resizableClasses));
+
+  branchPtr(Assembler::Below, clasp, ImmPtr(firstTypedArrayClass),
+            notTypedArray);
+  branchPtr(Assembler::Above, clasp, ImmPtr(lastTypedArrayClass),
+            notTypedArray);
+}
+
+void MacroAssembler::branchIfHasDetachedArrayBuffer(BranchIfDetached branchIf,
+                                                    Register obj, Register temp,
                                                     Label* label) {
   // Inline implementation of ArrayBufferViewObject::hasDetachedBuffer().
+
+  // TODO: The data-slot of detached views is set to undefined, which would be
+  // a faster way to detect detached buffers.
+
+  // auto cond = branchIf == BranchIfDetached::Yes ? Assembler::Equal
+  //                                               : Assembler::NotEqual;
+  // branchTestUndefined(cond, Address(obj,
+  //                     ArrayBufferViewObject::dataOffset()), label);
+
+  Label done;
+  Label* ifNotDetached = branchIf == BranchIfDetached::Yes ? &done : label;
+  Condition detachedCond =
+      branchIf == BranchIfDetached::Yes ? Assembler::NonZero : Assembler::Zero;
 
   // Load obj->elements in temp.
   loadPtr(Address(obj, NativeObject::offsetOfElements()), temp);
 
   // Shared buffers can't be detached.
-  Label done;
   branchTest32(Assembler::NonZero,
                Address(temp, ObjectElements::offsetOfFlags()),
-               Imm32(ObjectElements::SHARED_MEMORY), &done);
+               Imm32(ObjectElements::SHARED_MEMORY), ifNotDetached);
 
   // An ArrayBufferView with a null/true buffer has never had its buffer
   // exposed, so nothing can possibly detach it.
   fallibleUnboxObject(Address(obj, ArrayBufferViewObject::bufferOffset()), temp,
-                      &done);
+                      ifNotDetached);
 
-  // Load the ArrayBuffer flags and branch if the detached flag is set.
+  // Load the ArrayBuffer flags and branch if the detached flag is (not) set.
   unboxInt32(Address(temp, ArrayBufferObject::offsetOfFlagsSlot()), temp);
-  branchTest32(Assembler::NonZero, temp, Imm32(ArrayBufferObject::DETACHED),
-               label);
+  branchTest32(detachedCond, temp, Imm32(ArrayBufferObject::DETACHED), label);
+
+  if (branchIf == BranchIfDetached::Yes) {
+    bind(&done);
+  }
+}
+
+void MacroAssembler::branchIfResizableArrayBufferViewOutOfBounds(Register obj,
+                                                                 Register temp,
+                                                                 Label* label) {
+  // Implementation of ArrayBufferViewObject::isOutOfBounds().
+
+  Label done;
+
+  loadArrayBufferViewLengthIntPtr(obj, temp);
+  branchPtr(Assembler::NotEqual, temp, ImmWord(0), &done);
+
+  loadArrayBufferViewByteOffsetIntPtr(obj, temp);
+  branchPtr(Assembler::NotEqual, temp, ImmWord(0), &done);
+
+  loadPrivate(Address(obj, ArrayBufferViewObject::initialLengthOffset()), temp);
+  branchPtr(Assembler::NotEqual, temp, ImmWord(0), label);
+
+  loadPrivate(Address(obj, ArrayBufferViewObject::initialByteOffsetOffset()),
+              temp);
+  branchPtr(Assembler::NotEqual, temp, ImmWord(0), label);
+
+  bind(&done);
+}
+
+void MacroAssembler::branchIfResizableArrayBufferViewInBounds(Register obj,
+                                                              Register temp,
+                                                              Label* label) {
+  // Implementation of ArrayBufferViewObject::isOutOfBounds().
+
+  Label done;
+
+  loadArrayBufferViewLengthIntPtr(obj, temp);
+  branchPtr(Assembler::NotEqual, temp, ImmWord(0), label);
+
+  loadArrayBufferViewByteOffsetIntPtr(obj, temp);
+  branchPtr(Assembler::NotEqual, temp, ImmWord(0), label);
+
+  loadPrivate(Address(obj, ArrayBufferViewObject::initialLengthOffset()), temp);
+  branchPtr(Assembler::NotEqual, temp, ImmWord(0), &done);
+
+  loadPrivate(Address(obj, ArrayBufferViewObject::initialByteOffsetOffset()),
+              temp);
+  branchPtr(Assembler::Equal, temp, ImmWord(0), label);
 
   bind(&done);
 }

@@ -1875,6 +1875,49 @@
   operands:
     object: WordSized
 
+# Read the length of a resizable typed array.
+- name: ResizableTypedArrayLength
+  result_type: WordSized
+  operands:
+    object: WordSized
+  arguments:
+    synchronization: js::jit::Synchronization
+  num_temps: 1
+
+# Read the possibly out-of-bounds byteOffset of a resizable typed array.
+- name: ResizableTypedArrayByteOffsetMaybeOutOfBounds
+  result_type: WordSized
+  operands:
+    object: WordSized
+  num_temps: 1
+
+# Read the byte length of a resizable data view.
+- name: ResizableDataViewByteLength
+  result_type: WordSized
+  operands:
+    object: WordSized
+  arguments:
+    synchronization: js::jit::Synchronization
+  num_temps: 1
+
+# Read the byte length of a growable shared array buffer.
+- name: GrowableSharedArrayBufferByteLength
+  result_type: WordSized
+  operands:
+    object: WordSized
+
+# Guard a resizable array buffer view is in-bounds.
+- name: GuardResizableArrayBufferViewInBounds
+  operands:
+    object: WordSized
+  num_temps: 1
+
+# Guard a resizable array buffer view is in-bounds.
+- name: GuardResizableArrayBufferViewInBoundsOrDetached
+  operands:
+    object: WordSized
+  num_temps: 1
+
 - name: GuardHasAttachedArrayBuffer
   operands:
     object: WordSized
@@ -2052,9 +2095,9 @@
 - name: LoadTypedArrayElementHole
   result_type: BoxedValue
   operands:
-    object: WordSized
+    elements: WordSized
     index: WordSized
-  num_temps: 1
+    length: WordSized
   mir_op: true
 
 - name: LoadTypedArrayElementHoleBigInt
@@ -2941,6 +2984,11 @@
     object: WordSized
   num_temps: 1
 
+- name: GuardIsResizableTypedArray
+  operands:
+    object: WordSized
+  num_temps: 1
+
 - name: GuardHasProxyHandler
   operands:
     object: WordSized
@@ -3063,6 +3111,13 @@
   mir_op: true
 
 - name: GuardToClass
+  result_type: WordSized
+  operands:
+    lhs: WordSized
+  num_temps: 1
+  mir_op: true
+
+- name: GuardToEitherClass
   result_type: WordSized
   operands:
     lhs: WordSized

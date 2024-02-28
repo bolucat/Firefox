@@ -515,8 +515,11 @@ enum class GuardClassKind : uint8_t {
   Array,
   PlainObject,
   FixedLengthArrayBuffer,
+  ResizableArrayBuffer,
   FixedLengthSharedArrayBuffer,
+  GrowableSharedArrayBuffer,
   FixedLengthDataView,
+  ResizableDataView,
   MappedArguments,
   UnmappedArguments,
   WindowProxy,
@@ -524,6 +527,13 @@ enum class GuardClassKind : uint8_t {
   BoundFunction,
   Set,
   Map,
+};
+
+const JSClass* ClassFor(GuardClassKind kind);
+
+enum class ArrayBufferViewKind : uint8_t {
+  FixedLength,
+  Resizable,
 };
 
 }  // namespace jit

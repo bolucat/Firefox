@@ -99,6 +99,7 @@ using namespace js::jit;
 
 using JS::GenericNaN;
 using mozilla::AssertedCast;
+using mozilla::CheckedUint32;
 using mozilla::DebugOnly;
 using mozilla::FloatingPoint;
 using mozilla::Maybe;
@@ -4628,6 +4629,17 @@ void CodeGenerator::visitGuardIsFixedLengthTypedArray(
   Label bail;
   masm.loadObjClassUnsafe(obj, temp);
   masm.branchIfClassIsNotFixedLengthTypedArray(temp, &bail);
+  bailoutFrom(&bail, guard->snapshot());
+}
+
+void CodeGenerator::visitGuardIsResizableTypedArray(
+    LGuardIsResizableTypedArray* guard) {
+  Register obj = ToRegister(guard->input());
+  Register temp = ToRegister(guard->temp0());
+
+  Label bail;
+  masm.loadObjClassUnsafe(obj, temp);
+  masm.branchIfClassIsNotResizableTypedArray(temp, &bail);
   bailoutFrom(&bail, guard->snapshot());
 }
 
@@ -9657,6 +9669,68 @@ void CodeGenerator::visitTypedArrayElementSize(LTypedArrayElementSize* lir) {
   Register out = ToRegister(lir->output());
 
   masm.typedArrayElementSize(obj, out);
+}
+
+void CodeGenerator::visitResizableTypedArrayByteOffsetMaybeOutOfBounds(
+    LResizableTypedArrayByteOffsetMaybeOutOfBounds* lir) {
+  Register obj = ToRegister(lir->object());
+  Register out = ToRegister(lir->output());
+  Register temp = ToRegister(lir->temp0());
+
+  masm.loadResizableTypedArrayByteOffsetMaybeOutOfBoundsIntPtr(obj, out, temp);
+}
+
+void CodeGenerator::visitResizableTypedArrayLength(
+    LResizableTypedArrayLength* lir) {
+  Register obj = ToRegister(lir->object());
+  Register out = ToRegister(lir->output());
+  Register temp = ToRegister(lir->temp0());
+
+  masm.loadResizableTypedArrayLengthIntPtr(lir->synchronization(), obj, out,
+                                           temp);
+}
+
+void CodeGenerator::visitResizableDataViewByteLength(
+    LResizableDataViewByteLength* lir) {
+  Register obj = ToRegister(lir->object());
+  Register out = ToRegister(lir->output());
+  Register temp = ToRegister(lir->temp0());
+
+  masm.loadResizableDataViewByteLengthIntPtr(lir->synchronization(), obj, out,
+                                             temp);
+}
+
+void CodeGenerator::visitGrowableSharedArrayBufferByteLength(
+    LGrowableSharedArrayBufferByteLength* lir) {
+  Register obj = ToRegister(lir->object());
+  Register out = ToRegister(lir->output());
+
+  // Explicit |byteLength| accesses are seq-consistent atomic loads.
+  auto sync = Synchronization::Load();
+
+  masm.loadGrowableSharedArrayBufferByteLengthIntPtr(sync, obj, out);
+}
+
+void CodeGenerator::visitGuardResizableArrayBufferViewInBounds(
+    LGuardResizableArrayBufferViewInBounds* lir) {
+  Register obj = ToRegister(lir->object());
+  Register temp = ToRegister(lir->temp0());
+
+  Label bail;
+  masm.branchIfResizableArrayBufferViewOutOfBounds(obj, temp, &bail);
+  bailoutFrom(&bail, lir->snapshot());
+}
+
+void CodeGenerator::visitGuardResizableArrayBufferViewInBoundsOrDetached(
+    LGuardResizableArrayBufferViewInBoundsOrDetached* lir) {
+  Register obj = ToRegister(lir->object());
+  Register temp = ToRegister(lir->temp0());
+
+  Label done, bail;
+  masm.branchIfResizableArrayBufferViewInBounds(obj, temp, &done);
+  masm.branchIfHasAttachedArrayBuffer(obj, temp, &bail);
+  masm.bind(&done);
+  bailoutFrom(&bail, lir->snapshot());
 }
 
 void CodeGenerator::visitGuardHasAttachedArrayBuffer(
@@ -17262,25 +17336,20 @@ void CodeGenerator::visitLoadDataViewElement(LLoadDataViewElement* lir) {
 
 void CodeGenerator::visitLoadTypedArrayElementHole(
     LLoadTypedArrayElementHole* lir) {
-  Register object = ToRegister(lir->object());
+  Register elements = ToRegister(lir->elements());
+  Register index = ToRegister(lir->index());
+  Register length = ToRegister(lir->length());
   const ValueOperand out = ToOutValue(lir);
 
-  // Load the length.
   Register scratch = out.scratchReg();
-  Register scratch2 = ToRegister(lir->temp0());
-  Register index = ToRegister(lir->index());
-  masm.loadArrayBufferViewLengthIntPtr(object, scratch);
 
   // Load undefined if index >= length.
   Label outOfBounds, done;
-  masm.spectreBoundsCheckPtr(index, scratch, scratch2, &outOfBounds);
-
-  // Load the elements vector.
-  masm.loadPtr(Address(object, ArrayBufferViewObject::dataOffset()), scratch);
+  masm.spectreBoundsCheckPtr(index, length, scratch, &outOfBounds);
 
   Scalar::Type arrayType = lir->mir()->arrayType();
   Label fail;
-  BaseIndex source(scratch, index, ScaleFromScalarType(arrayType));
+  BaseIndex source(elements, index, ScaleFromScalarType(arrayType));
   MacroAssembler::Uint32Mode uint32Mode =
       lir->mir()->forceDouble() ? MacroAssembler::Uint32Mode::ForceDouble
                                 : MacroAssembler::Uint32Mode::FailOnDouble;
@@ -17300,37 +17369,38 @@ void CodeGenerator::visitLoadTypedArrayElementHole(
 
 void CodeGenerator::visitLoadTypedArrayElementHoleBigInt(
     LLoadTypedArrayElementHoleBigInt* lir) {
-  Register object = ToRegister(lir->object());
+  Register elements = ToRegister(lir->elements());
+  Register index = ToRegister(lir->index());
+  Register length = ToRegister(lir->length());
   const ValueOperand out = ToOutValue(lir);
 
-  // On x86 there are not enough registers. In that case reuse the output's
-  // type register as temporary.
-#ifdef JS_CODEGEN_X86
-  MOZ_ASSERT(lir->temp()->isBogusTemp());
-  Register temp = out.typeReg();
-#else
   Register temp = ToRegister(lir->temp());
-#endif
-  Register64 temp64 = ToRegister64(lir->temp64());
 
-  // Load the length.
-  Register scratch = out.scratchReg();
-  Register index = ToRegister(lir->index());
-  masm.loadArrayBufferViewLengthIntPtr(object, scratch);
+  // On x86 there are not enough registers. In that case reuse the output
+  // registers as temporaries.
+#ifdef JS_CODEGEN_X86
+  MOZ_ASSERT(lir->temp64().isBogusTemp());
+  Register64 temp64 = out.toRegister64();
+#else
+  Register64 temp64 = ToRegister64(lir->temp64());
+#endif
 
   // Load undefined if index >= length.
   Label outOfBounds, done;
-  masm.spectreBoundsCheckPtr(index, scratch, temp, &outOfBounds);
-
-  // Load the elements vector.
-  masm.loadPtr(Address(object, ArrayBufferViewObject::dataOffset()), scratch);
+  masm.spectreBoundsCheckPtr(index, length, temp, &outOfBounds);
 
   Scalar::Type arrayType = lir->mir()->arrayType();
-  BaseIndex source(scratch, index, ScaleFromScalarType(arrayType));
+  BaseIndex source(elements, index, ScaleFromScalarType(arrayType));
   masm.load64(source, temp64);
 
+#ifdef JS_CODEGEN_X86
+  Register bigInt = temp;
+  Register maybeTemp = InvalidReg;
+#else
   Register bigInt = out.scratchReg();
-  emitCreateBigInt(lir, arrayType, temp64, bigInt, temp);
+  Register maybeTemp = temp;
+#endif
+  emitCreateBigInt(lir, arrayType, temp64, bigInt, maybeTemp);
 
   masm.tagValue(JSVAL_TYPE_BIGINT, bigInt, out);
   masm.jump(&done);
@@ -18452,6 +18522,24 @@ void CodeGenerator::visitGuardToClass(LGuardToClass* ins) {
   bailoutFrom(&notEqual, ins->snapshot());
 }
 
+void CodeGenerator::visitGuardToEitherClass(LGuardToEitherClass* ins) {
+  Register lhs = ToRegister(ins->lhs());
+  Register temp = ToRegister(ins->temp0());
+
+  // branchTestObjClass may zero the object register on speculative paths
+  // (we should have a defineReuseInput allocation in this case).
+  Register spectreRegToZero = lhs;
+
+  Label notEqual;
+
+  masm.branchTestObjClass(Assembler::NotEqual, lhs,
+                          {ins->mir()->getClass1(), ins->mir()->getClass2()},
+                          temp, spectreRegToZero, &notEqual);
+
+  // Can't return null-return here, so bail.
+  bailoutFrom(&notEqual, ins->snapshot());
+}
+
 void CodeGenerator::visitGuardToFunction(LGuardToFunction* ins) {
   Register lhs = ToRegister(ins->lhs());
   Register temp = ToRegister(ins->temp0());
@@ -18798,35 +18886,6 @@ void CodeGenerator::visitWasmTrapIfNull(LWasmTrapIfNull* lir) {
   masm.bind(&nonNull);
 }
 
-static void BranchWasmRefIsSubtype(MacroAssembler& masm, Register ref,
-                                   const wasm::RefType& sourceType,
-                                   const wasm::RefType& destType, Label* label,
-                                   Register superSTV, Register scratch1,
-                                   Register scratch2) {
-  switch (destType.hierarchy()) {
-    case wasm::RefTypeHierarchy::Any: {
-      masm.branchWasmRefIsSubtypeAny(ref, sourceType, destType, label,
-                                     /*onSuccess=*/true, superSTV, scratch1,
-                                     scratch2);
-    } break;
-    case wasm::RefTypeHierarchy::Func: {
-      masm.branchWasmRefIsSubtypeFunc(ref, sourceType, destType, label,
-                                      /*onSuccess=*/true, superSTV, scratch1,
-                                      scratch2);
-    } break;
-    case wasm::RefTypeHierarchy::Extern: {
-      masm.branchWasmRefIsSubtypeExtern(ref, sourceType, destType, label,
-                                        /*onSuccess=*/true);
-    } break;
-    case wasm::RefTypeHierarchy::Exn: {
-      masm.branchWasmRefIsSubtypeExn(ref, sourceType, destType, label,
-                                     /*onSuccess=*/true);
-    } break;
-    default:
-      MOZ_CRASH("could not generate casting code for unknown type hierarchy");
-  }
-}
-
 void CodeGenerator::visitWasmRefIsSubtypeOfAbstract(
     LWasmRefIsSubtypeOfAbstract* ins) {
   MOZ_ASSERT(gen->compilingWasm());
@@ -18842,8 +18901,9 @@ void CodeGenerator::visitWasmRefIsSubtypeOfAbstract(
   Label onSuccess;
   Label onFail;
   Label join;
-  BranchWasmRefIsSubtype(masm, ref, mir->sourceType(), mir->destType(),
-                         &onSuccess, superSTV, scratch1, scratch2);
+  masm.branchWasmRefIsSubtype(ref, mir->sourceType(), mir->destType(),
+                              &onSuccess, /*onSuccess=*/true, superSTV,
+                              scratch1, scratch2);
   masm.bind(&onFail);
   masm.xor32(result, result);
   masm.jump(&join);
@@ -18866,8 +18926,9 @@ void CodeGenerator::visitWasmRefIsSubtypeOfConcrete(
   Register result = ToRegister(ins->output());
   Label onSuccess;
   Label join;
-  BranchWasmRefIsSubtype(masm, ref, mir->sourceType(), mir->destType(),
-                         &onSuccess, superSTV, scratch1, scratch2);
+  masm.branchWasmRefIsSubtype(ref, mir->sourceType(), mir->destType(),
+                              &onSuccess, /*onSuccess=*/true, superSTV,
+                              scratch1, scratch2);
   masm.move32(Imm32(0), result);
   masm.jump(&join);
   masm.bind(&onSuccess);
@@ -18882,9 +18943,9 @@ void CodeGenerator::visitWasmRefIsSubtypeOfAbstractAndBranch(
   Register scratch1 = ToTempRegisterOrInvalid(ins->temp0());
   Label* onSuccess = getJumpLabelForBranch(ins->ifTrue());
   Label* onFail = getJumpLabelForBranch(ins->ifFalse());
-  BranchWasmRefIsSubtype(masm, ref, ins->sourceType(), ins->destType(),
-                         onSuccess, Register::Invalid(), scratch1,
-                         Register::Invalid());
+  masm.branchWasmRefIsSubtype(
+      ref, ins->sourceType(), ins->destType(), onSuccess, /*onSuccess=*/true,
+      Register::Invalid(), scratch1, Register::Invalid());
   masm.jump(onFail);
 }
 
@@ -18897,8 +18958,9 @@ void CodeGenerator::visitWasmRefIsSubtypeOfConcreteAndBranch(
   Register scratch2 = ToTempRegisterOrInvalid(ins->temp1());
   Label* onSuccess = getJumpLabelForBranch(ins->ifTrue());
   Label* onFail = getJumpLabelForBranch(ins->ifFalse());
-  BranchWasmRefIsSubtype(masm, ref, ins->sourceType(), ins->destType(),
-                         onSuccess, superSTV, scratch1, scratch2);
+  masm.branchWasmRefIsSubtype(ref, ins->sourceType(), ins->destType(),
+                              onSuccess, /*onSuccess=*/true, superSTV, scratch1,
+                              scratch2);
   masm.jump(onFail);
 }
 
@@ -19090,9 +19152,10 @@ void CodeGenerator::visitWasmNewArrayObject(LWasmNewArrayObject* lir) {
   if (lir->numElements()->isConstant()) {
     // numElements is constant, so we can do optimized code generation.
     uint32_t numElements = lir->numElements()->toConstant()->toInt32();
-    uint32_t storageBytes =
-        WasmArrayObject::calcStorageBytes(mir->elemSize(), numElements);
-    if (storageBytes > WasmArrayObject_MaxInlineBytes) {
+    CheckedUint32 storageBytes =
+        WasmArrayObject::calcStorageBytesChecked(mir->elemSize(), numElements);
+    if (!storageBytes.isValid() ||
+        storageBytes.value() > WasmArrayObject_MaxInlineBytes) {
       // Too much array data to store inline. Immediately perform an instance
       // call to handle the out-of-line storage.
       masm.move32(Imm32(numElements), temp1);
@@ -19111,8 +19174,8 @@ void CodeGenerator::visitWasmNewArrayObject(LWasmNewArrayObject* lir) {
       addOutOfLineCode(ool, lir->mir());
 
       masm.wasmNewArrayObjectFixed(instance, output, typeDefData, temp1, temp2,
-                                   ool->entry(), numElements, storageBytes,
-                                   mir->zeroFields());
+                                   ool->entry(), numElements,
+                                   storageBytes.value(), mir->zeroFields());
 
       masm.bind(ool->rejoin());
     }

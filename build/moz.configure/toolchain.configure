@@ -1615,6 +1615,7 @@ host_windows_abi = windows_abi(host, host_c_compiler)
 
 # Generic compiler-based conditions.
 building_with_gcc = depends(c_compiler)(lambda info: info.type == "gcc")
+building_with_gnu_cc = depends(c_compiler)(lambda info: info.type != "clang-cl")
 
 
 @depends(cxx_compiler, ccache_prefix)
@@ -2201,6 +2202,38 @@ set_define(
 )
 set_config("WRAP_SYSTEM_INCLUDES", wrap_system_includes)
 set_config("VISIBILITY_FLAGS", visibility_flags)
+
+
+# try harder, when checking for __thread support, see bug 521750 comment #33 and below
+# We pass linker_optimize_flags to the linker because if dead_strip is
+# enabled, the linker in xcode 4.1 will crash. Without this it would crash when
+# linking XUL.
+
+
+@depends(target, c_compiler)
+def check_thread(target, c_compiler):
+    if target.cpu in ("mips32", "mips64"):
+        # mips builds fail with TLS variables because of a binutils bug.
+        # See bug 528687
+        return False
+    if target.os == "Android":
+        # The custom dynamic linker doesn't support TLS variables
+        return False
+    if target.kernel == "OpenBSD":
+        # OpenBSD doesn't have TLS support, and the test succeeds with clang++
+        return False
+    return c_compiler.type != "clang-cl"
+
+
+set_define(
+    "HAVE_THREAD_TLS_KEYWORD",
+    try_link(
+        body="static __thread bool tlsIsMainThread = false; return tlsIsMainThread;",
+        flags=linker_optimize_flags.ldflags,
+        check_msg="for __thread keyword for TLS variables",
+        when=check_thread,
+    ),
+)
 
 
 @template
@@ -3279,3 +3312,16 @@ set_config(
         flags=["-mavx512vnni", "-mavx512bw", "-mavx512f", "-mavx512dq", "-mavx512cd"],
     ),
 )
+
+# dtrace support
+##
+option("--enable-dtrace", help="Build with dtrace support")
+
+dtrace = check_header(
+    "sys/sdt.h",
+    when="--enable-dtrace",
+    onerror=lambda: die("dtrace enabled but sys/sdt.h not found"),
+)
+
+set_config("HAVE_DTRACE", True, when=dtrace)
+set_define("INCLUDE_MOZILLA_DTRACE", True, when=dtrace)

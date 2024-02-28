@@ -141,14 +141,22 @@ const customLazy = {
  * @param {Boolean} options.traceOnNextInteraction
  *        Optional setting to enable when the tracing should only start when the
  *        use starts interacting with the page. i.e. on next keydown or mousedown.
+ * @param {Boolean} options.traceSteps
+ *        Optional setting to enable tracing each frame within a function execution.
+ *        (i.e. not only function call and function returns [when traceFunctionReturn is true])
  * @param {Boolean} options.traceFunctionReturn
  *        Optional setting to enable when the tracing should notify about frame exit.
  *        i.e. when a function call returns or throws.
+ * @param {String} options.filterFrameSourceUrl
+ *        Optional setting to restrict all traces to only a given source URL.
+ *        This is a loose check, so any source whose URL includes the passed string will be traced.
  * @param {Number} options.maxDepth
  *        Optional setting to ignore frames when depth is greater than the passed number.
  * @param {Number} options.maxRecords
  *        Optional setting to stop the tracer after having recorded at least
  *        the passed number of top level frames.
+ * @param {Number} options.pauseOnStep
+ *        Optional setting to delay each frame execution for a given amount of time in ms.
  */
 class JavaScriptTracer {
   constructor(options) {
@@ -196,11 +204,24 @@ class JavaScriptTracer {
       }
       this.traceDOMMutations = options.traceDOMMutations;
     }
+    this.traceSteps = !!options.traceSteps;
     this.traceValues = !!options.traceValues;
     this.traceFunctionReturn = !!options.traceFunctionReturn;
     this.maxDepth = options.maxDepth;
     this.maxRecords = options.maxRecords;
     this.records = 0;
+    if ("pauseOnStep" in options) {
+      if (typeof options.pauseOnStep != "number") {
+        throw new Error("'pauseOnStep' attribute should be a number");
+      }
+      this.pauseOnStep = options.pauseOnStep;
+    }
+    if ("filterFrameSourceUrl" in options) {
+      if (typeof options.filterFrameSourceUrl != "string") {
+        throw new Error("'filterFrameSourceUrl' attribute should be a string");
+      }
+      this.filterFrameSourceUrl = options.filterFrameSourceUrl;
+    }
 
     // An increment used to identify function calls and their returned/exit frames
     this.frameId = 0;
@@ -553,6 +574,14 @@ class JavaScriptTracer {
       return;
     }
     try {
+      // If an optional filter is passed, ignore frames which aren't matching the filter string
+      if (
+        this.filterFrameSourceUrl &&
+        !frame.script.source.url?.includes(this.filterFrameSourceUrl)
+      ) {
+        return;
+      }
+
       // Because of async frame which are popped and entered again on completion of the awaited async task,
       // we have to compute the depth from the frame. (and can't use a simple increment on enter/decrement on pop).
       const depth = getFrameDepth(frame);
@@ -617,6 +646,39 @@ class JavaScriptTracer {
         this.logFrameEnteredToStdout(frame, depth);
       }
 
+      if (this.traceSteps) {
+        frame.onStep = () => {
+          // Spidermonkey steps on many intermediate positions which don't make sense to the user.
+          // `isStepStart` is close to each statement start, which is meaningful to the user.
+          const { isStepStart } = frame.script.getOffsetMetadata(frame.offset);
+          if (!isStepStart) {
+            return;
+          }
+
+          shouldLogToStdout = true;
+          if (listeners.size > 0) {
+            shouldLogToStdout = false;
+            for (const listener of listeners) {
+              // If any listener return true, also log to stdout
+              if (typeof listener.onTracingFrameStep == "function") {
+                shouldLogToStdout |= listener.onTracingFrameStep({
+                  frame,
+                  depth,
+                  prefix: this.prefix,
+                });
+              }
+            }
+          }
+          if (shouldLogToStdout) {
+            this.logFrameStepToStdout(frame, depth);
+          }
+          // Optionaly pause the frame execution by letting the other event loop to run in between.
+          if (typeof this.pauseOnStep == "number") {
+            syncPause(this.pauseOnStep);
+          }
+        };
+      }
+
       frame.onPop = completion => {
         // Special case async frames. We are exiting the current frame because of waiting for an async task.
         // (this is typically a `await foo()` from an async function)
@@ -670,6 +732,11 @@ class JavaScriptTracer {
           this.logFrameExitedToStdout(frame, depth, why, rv);
         }
       };
+
+      // Optionaly pause the frame execution by letting the other event loop to run in between.
+      if (typeof this.pauseOnStep == "number") {
+        syncPause(this.pauseOnStep);
+      }
     } catch (e) {
       console.error("Exception while tracing javascript", e);
     }
@@ -721,6 +788,20 @@ class JavaScriptTracer {
       }
       message += ")";
     }
+
+    this.loggingMethod(this.prefix + message + "\n");
+  }
+
+  /**
+   * Display to stdout one given frame execution, which represents a step within a function execution.
+   *
+   * @param {Debugger.Frame} frame
+   * @param {Number} depth
+   */
+  logFrameStepToStdout(frame, depth) {
+    const padding = "—".repeat(depth + 1);
+
+    const message = `${padding}— ${getTerminalHyperLink(frame)}`;
 
     this.loggingMethod(this.prefix + message + "\n");
   }
@@ -935,6 +1016,27 @@ function getTerminalHyperLink(frame) {
   // Use special characters in order to print working hyperlinks right from the terminal
   // See https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
   return `\x1B]8;;${href}\x1B\\${href}\x1B]8;;\x1B\\`;
+}
+
+/**
+ * Helper function to synchronously pause the current frame execution
+ * for a given duration in ms.
+ *
+ * @param {Number} duration
+ */
+function syncPause(duration) {
+  let freeze = true;
+  const timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
+  timer.initWithCallback(
+    () => {
+      freeze = false;
+    },
+    duration,
+    Ci.nsITimer.TYPE_ONE_SHOT
+  );
+  Services.tm.spinEventLoopUntil("debugger-slow-motion", function () {
+    return !freeze;
+  });
 }
 
 // This JSM may be execute as CommonJS when loaded in the worker thread

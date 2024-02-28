@@ -291,7 +291,7 @@ class SnapTests(SnapTestsBase):
         return True
 
     def test_youtube(self, exp):
-        self.open_tab("https://www.youtube.com")
+        self.open_tab("https://www.youtube.com/channel/UCYfdidRxbB8Qhf0Nx7ioOYw")
 
         # Wait for the consent dialog and accept it
         self._logger.info("Wait for consent form")
@@ -304,20 +304,11 @@ class SnapTests(SnapTestsBase):
         except TimeoutException:
             self._logger.info("Wait for consent form: timed out, maybe it is not here")
 
-        try:
-            # Find first video and click it
-            self._logger.info("Wait for one video")
-            self._wait.until(
-                EC.visibility_of_element_located((By.ID, "video-title-link"))
-            ).click()
-        except TimeoutException:
-            # We might have got the "try searching to get started"
-            # link to News channel
-            self._driver.get("https://www.youtube.com/channel/UCYfdidRxbB8Qhf0Nx7ioOYw")
-            self._logger.info("Wait again for one video")
-            self._wait.until(
-                EC.visibility_of_element_located((By.ID, "video-title-link"))
-            ).click()
+        # Find first video and click it
+        self._logger.info("Wait for one video")
+        self._wait.until(
+            EC.visibility_of_element_located((By.ID, "video-title-link"))
+        ).click()
 
         # Wait for duration to be set to something
         self._logger.info("Wait for video to start")
@@ -329,6 +320,79 @@ class SnapTests(SnapTestsBase):
         assert (
             video.get_property("duration") > exp["duration"]
         ), "youtube video should have duration"
+
+        self._wait.until(lambda d: video.get_property("currentTime") > exp["playback"])
+        self._logger.info("video played: {}".format(video.get_property("currentTime")))
+        assert (
+            video.get_property("currentTime") > exp["playback"]
+        ), "youtube video should perform playback"
+
+        return True
+
+    def wait_for_enable_drm(self):
+        rv = True
+        self._driver.set_context("chrome")
+        self._driver.execute_script(
+            "Services.prefs.setBoolPref('media.gmp-manager.updateEnabled', true);"
+        )
+
+        channel = self._driver.execute_script(
+            "return Services.prefs.getCharPref('app.update.channel');"
+        )
+        if channel == "esr":
+            rv = False
+        else:
+            enable_drm_button = self._wait.until(
+                EC.visibility_of_element_located(
+                    (By.CSS_SELECTOR, ".notification-button[label='Enable DRM']")
+                )
+            )
+            self._logger.info("Enabling DRMs")
+            enable_drm_button.click()
+            self._wait.until(
+                EC.invisibility_of_element_located(
+                    (By.CSS_SELECTOR, ".notification-button[label='Enable DRM']")
+                )
+            )
+
+            self._logger.info("Installing DRMs")
+            self._wait.until(
+                EC.visibility_of_element_located(
+                    (By.CSS_SELECTOR, ".infobar[value='drmContentCDMInstalling']")
+                )
+            )
+
+            self._logger.info("Waiting for DRMs installation to complete")
+            self._longwait.until(
+                EC.invisibility_of_element_located(
+                    (By.CSS_SELECTOR, ".infobar[value='drmContentCDMInstalling']")
+                )
+            )
+
+        self._driver.set_context("content")
+        return rv
+
+    def test_youtube_film(self, exp):
+        self.open_tab("https://www.youtube.com/watch?v=i4FSx9LXVSE")
+        if not self.wait_for_enable_drm():
+            self._logger.info("Skipped on ESR because cannot enable DRM")
+            return True
+
+        # Wait for duration to be set to something
+        self._logger.info("Wait for video to start")
+        video = self._wait.until(
+            EC.visibility_of_element_located(
+                (By.CSS_SELECTOR, "video.html5-main-video")
+            )
+        )
+        self._wait.until(lambda d: type(video.get_property("duration")) == float)
+        self._logger.info("video duration: {}".format(video.get_property("duration")))
+        assert (
+            video.get_property("duration") > exp["duration"]
+        ), "youtube video should have duration"
+
+        self._driver.execute_script("arguments[0].click();", video)
+        video.send_keys("k")
 
         self._wait.until(lambda d: video.get_property("currentTime") > exp["playback"])
         self._logger.info("video played: {}".format(video.get_property("currentTime")))

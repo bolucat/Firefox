@@ -15,9 +15,13 @@ const REMOTE_SETTINGS_RECORDS = [
       subjects: ["ramen", "ab", "alongerkeyword"],
       preModifiers: ["best"],
       postModifiers: ["delivery"],
-      locationSigns: [{ keyword: "in", needLocation: true }],
+      locationSigns: [
+        { keyword: "in", needLocation: true },
+        { keyword: "nearby", needLocation: false },
+      ],
       yelpModifiers: [],
       icon: "1234",
+      score: 0.5,
     },
   },
 ];
@@ -58,14 +62,25 @@ add_task(async function basic() {
       },
     },
     {
-      description: "No specific location",
-      query: "ramen",
+      description: "No specific location with location-sign",
+      query: "ramen in",
       expected: {
         url: "https://www.yelp.com/search?find_desc=ramen&find_loc=Yokohama%2C+Kanagawa",
         originalUrl: "https://www.yelp.com/search?find_desc=ramen",
         displayUrl:
           "yelp.com/search?find_desc=ramen&find_loc=Yokohama,+Kanagawa",
         title: "ramen in Yokohama, Kanagawa",
+      },
+    },
+    {
+      description: "No specific location with location-modifier",
+      query: "ramen nearby",
+      expected: {
+        url: "https://www.yelp.com/search?find_desc=ramen+nearby&find_loc=Yokohama%2C+Kanagawa",
+        originalUrl: "https://www.yelp.com/search?find_desc=ramen+nearby",
+        displayUrl:
+          "yelp.com/search?find_desc=ramen+nearby&find_loc=Yokohama,+Kanagawa",
+        title: "ramen nearby in Yokohama, Kanagawa",
       },
     },
     {
@@ -143,7 +158,13 @@ add_task(async function basic() {
         "Subject exact match with length == minKeywordLength, showLessFrequentlyCount non-zero",
       query: "ramen",
       showLessFrequentlyCount: 1,
-      expected: null,
+      expected: {
+        url: "https://www.yelp.com/search?find_desc=ramen&find_loc=Yokohama%2C+Kanagawa",
+        originalUrl: "https://www.yelp.com/search?find_desc=ramen",
+        displayUrl:
+          "yelp.com/search?find_desc=ramen&find_loc=Yokohama,+Kanagawa",
+        title: "ramen in Yokohama, Kanagawa",
+      },
     },
     {
       description: "Query too short: alon",
@@ -166,7 +187,13 @@ add_task(async function basic() {
         "Query length == minKeywordLength, subject not exact match, showLessFrequentlyCount non-zero",
       query: "along",
       showLessFrequentlyCount: 1,
-      expected: null,
+      expected: {
+        url: "https://www.yelp.com/search?find_desc=alongerkeyword&find_loc=Yokohama%2C+Kanagawa",
+        originalUrl: "https://www.yelp.com/search?find_desc=alongerkeyword",
+        displayUrl:
+          "yelp.com/search?find_desc=alongerkeyword&find_loc=Yokohama,+Kanagawa",
+        title: "alongerkeyword in Yokohama, Kanagawa",
+      },
     },
     {
       description:
@@ -186,7 +213,13 @@ add_task(async function basic() {
         "Query length < minKeywordLength + showLessFrequentlyCount, subject not exact match",
       query: "alonge",
       showLessFrequentlyCount: 2,
-      expected: null,
+      expected: {
+        url: "https://www.yelp.com/search?find_desc=alongerkeyword&find_loc=Yokohama%2C+Kanagawa",
+        originalUrl: "https://www.yelp.com/search?find_desc=alongerkeyword",
+        displayUrl:
+          "yelp.com/search?find_desc=alongerkeyword&find_loc=Yokohama,+Kanagawa",
+        title: "alongerkeyword in Yokohama, Kanagawa",
+      },
     },
     {
       description:
@@ -452,6 +485,49 @@ add_task(async function yelpSuggestPriority() {
   });
 });
 
+// Tests the `yelpSuggestNonPriorityIndex` Nimbus variable, which controls the
+// group-relative suggestedIndex. The default Yelp suggestedIndex is 0, unlike
+// most other Suggest suggestion types, which use -1.
+add_task(async function nimbusSuggestedIndex() {
+  const cleanUpNimbusEnable = await UrlbarTestUtils.initNimbusFeature({
+    yelpSuggestNonPriorityIndex: -1,
+  });
+  await QuickSuggestTestUtils.forceSync();
+
+  await check_results({
+    context: createContext("ramen in tokyo", {
+      providers: [UrlbarProviderQuickSuggest.name],
+      isPrivate: false,
+    }),
+    matches: [
+      makeExpectedResult({
+        url: "https://www.yelp.com/search?find_desc=ramen&find_loc=tokyo",
+        title: "ramen in tokyo",
+        isTopPick: false,
+        suggestedIndex: -1,
+      }),
+    ],
+  });
+
+  await cleanUpNimbusEnable();
+  await QuickSuggestTestUtils.forceSync();
+
+  await check_results({
+    context: createContext("ramen in tokyo", {
+      providers: [UrlbarProviderQuickSuggest.name],
+      isPrivate: false,
+    }),
+    matches: [
+      makeExpectedResult({
+        url: "https://www.yelp.com/search?find_desc=ramen&find_loc=tokyo",
+        title: "ramen in tokyo",
+        isTopPick: false,
+        suggestedIndex: 0,
+      }),
+    ],
+  });
+});
+
 // Tests the "Not relevant" command: a dismissed suggestion shouldn't be added.
 add_task(async function notRelevant() {
   let result = makeExpectedResult({
@@ -556,27 +632,135 @@ add_task(async function notInterested() {
 
 // Tests the "show less frequently" behavior.
 add_task(async function showLessFrequently() {
+  UrlbarPrefs.set("yelp.showLessFrequentlyCount", 0);
+  UrlbarPrefs.set("yelp.minKeywordLength", 0);
+  let cleanUpNimbus = await UrlbarTestUtils.initNimbusFeature({
+    yelpMinKeywordLength: 0,
+    yelpShowLessFrequentlyCap: 3,
+  });
+
   let location = `${GEOLOCATION.city}, ${GEOLOCATION.region}`;
 
   let originalUrl = new URL("https://www.yelp.com/search");
-  originalUrl.searchParams.set("find_desc", "alongerkeyword");
+  originalUrl.searchParams.set("find_desc", "best ramen");
 
   let url = new URL(originalUrl);
   url.searchParams.set("find_loc", location);
 
-  await doShowLessFrequentlyTests({
-    feature: QuickSuggest.getFeature("YelpSuggestions"),
-    showLessFrequentlyCountPref: "yelp.showLessFrequentlyCount",
-    nimbusCapVariable: "yelpShowLessFrequentlyCap",
-    expectedResult: () =>
-      makeExpectedResult({
-        url: url.toString(),
-        originalUrl: originalUrl.toString(),
-        title: `alongerkeyword in ${location}`,
-      }),
-    keyword: "alongerkeyword",
-    keywordBaseIndex: 5,
+  let result = makeExpectedResult({
+    url: url.toString(),
+    originalUrl: originalUrl.toString(),
+    title: `best ramen in ${location}`,
   });
+
+  const testData = [
+    {
+      input: "best ra",
+      before: {
+        canShowLessFrequently: true,
+        showLessFrequentlyCount: 0,
+        minKeywordLength: 0,
+      },
+      after: {
+        canShowLessFrequently: true,
+        showLessFrequentlyCount: 1,
+        minKeywordLength: 8,
+      },
+    },
+    {
+      input: "best ram",
+      before: {
+        canShowLessFrequently: true,
+        showLessFrequentlyCount: 1,
+        minKeywordLength: 8,
+      },
+      after: {
+        canShowLessFrequently: true,
+        showLessFrequentlyCount: 2,
+        minKeywordLength: 9,
+      },
+    },
+    {
+      input: "best rame",
+      before: {
+        canShowLessFrequently: true,
+        showLessFrequentlyCount: 2,
+        minKeywordLength: 9,
+      },
+      after: {
+        canShowLessFrequently: false,
+        showLessFrequentlyCount: 3,
+        minKeywordLength: 10,
+      },
+    },
+    {
+      input: "best ramen",
+      before: {
+        canShowLessFrequently: false,
+        showLessFrequentlyCount: 3,
+        minKeywordLength: 10,
+      },
+      after: {
+        canShowLessFrequently: false,
+        showLessFrequentlyCount: 3,
+        minKeywordLength: 11,
+      },
+    },
+  ];
+
+  for (let { input, before, after } of testData) {
+    let feature = QuickSuggest.getFeature("YelpSuggestions");
+
+    await check_results({
+      context: createContext(input, {
+        providers: [UrlbarProviderQuickSuggest.name],
+        isPrivate: false,
+      }),
+      matches: [result],
+    });
+
+    Assert.equal(
+      UrlbarPrefs.get("yelp.minKeywordLength"),
+      before.minKeywordLength
+    );
+    Assert.equal(feature.canShowLessFrequently, before.canShowLessFrequently);
+    Assert.equal(
+      feature.showLessFrequentlyCount,
+      before.showLessFrequentlyCount
+    );
+
+    feature.handleCommand(
+      {
+        acknowledgeFeedback: () => {},
+        invalidateResultMenuCommands: () => {},
+      },
+      result,
+      "show_less_frequently",
+      input
+    );
+
+    Assert.equal(
+      UrlbarPrefs.get("yelp.minKeywordLength"),
+      after.minKeywordLength
+    );
+    Assert.equal(feature.canShowLessFrequently, after.canShowLessFrequently);
+    Assert.equal(
+      feature.showLessFrequentlyCount,
+      after.showLessFrequentlyCount
+    );
+
+    await check_results({
+      context: createContext(input, {
+        providers: [UrlbarProviderQuickSuggest.name],
+        isPrivate: false,
+      }),
+      matches: [],
+    });
+  }
+
+  await cleanUpNimbus();
+  UrlbarPrefs.clear("yelp.showLessFrequentlyCount");
+  UrlbarPrefs.clear("yelp.minKeywordLength");
 });
 
 // The `Yelp` Rust provider should be passed to the Rust component when
@@ -606,22 +790,41 @@ add_task(async function rustProviders() {
   await QuickSuggestTestUtils.forceSync();
 });
 
-function makeExpectedResult(expected) {
+function makeExpectedResult({
+  url,
+  title,
+  isTopPick = false,
+  // The default Yelp suggestedIndex is 0, unlike most other Suggest suggestion
+  // types, which use -1.
+  suggestedIndex = 0,
+  isSuggestedIndexRelativeToGroup = true,
+  originalUrl = undefined,
+  displayUrl = undefined,
+}) {
   const utmParameters = "&utm_medium=partner&utm_source=mozilla";
 
-  let url = expected.url + utmParameters;
-  let originalUrl = expected.originalUrl ?? expected.url;
-  let displayUrl =
-    (expected.displayUrl ??
-      expected.url
+  originalUrl ??= url;
+
+  displayUrl =
+    (displayUrl ??
+      url
         .replace(/^https:\/\/www[.]/, "")
         .replace("%20", " ")
         .replace("%2C", ",")) + utmParameters;
 
+  url += utmParameters;
+
+  if (isTopPick) {
+    suggestedIndex = 1;
+    isSuggestedIndexRelativeToGroup = false;
+  }
+
   return {
     type: UrlbarUtils.RESULT_TYPE.URL,
     source: UrlbarUtils.RESULT_SOURCE.SEARCH,
-    isBestMatch: expected.isTopPick ?? false,
+    isBestMatch: !!isTopPick,
+    suggestedIndex,
+    isSuggestedIndexRelativeToGroup,
     heuristic: false,
     payload: {
       source: "rust",
@@ -631,7 +834,7 @@ function makeExpectedResult(expected) {
       bottomTextL10n: { id: "firefox-suggest-yelp-bottom-text" },
       url,
       originalUrl,
-      title: expected.title,
+      title,
       displayUrl,
       icon: null,
     },

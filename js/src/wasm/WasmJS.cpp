@@ -4652,6 +4652,10 @@ static bool WebAssembly_validate(JSContext* cx, unsigned argc, Value* vp) {
   }
 
   FeatureOptions options;
+  if (!options.init(cx, callArgs.get(1))) {
+    return false;
+  }
+
   UniqueChars error;
   bool validated = Validate(cx, *bytecode, options, &error);
 
@@ -5351,15 +5355,13 @@ static bool WebAssemblyClassFinish(JSContext* cx, HandleObject object,
     }
   }
 
-  if (ExceptionsAvailable(cx)) {
-    constexpr NameAndProtoKey exceptionEntries[] = {
-        {"Tag", JSProto_WasmTag},
-        {"Exception", JSProto_WasmException},
-    };
-    for (const auto& entry : exceptionEntries) {
-      if (!WebAssemblyDefineConstructor(cx, wasm, entry, &ctorValue, &id)) {
-        return false;
-      }
+  constexpr NameAndProtoKey exceptionEntries[] = {
+      {"Tag", JSProto_WasmTag},
+      {"Exception", JSProto_WasmException},
+  };
+  for (const auto& entry : exceptionEntries) {
+    if (!WebAssemblyDefineConstructor(cx, wasm, entry, &ctorValue, &id)) {
+      return false;
     }
   }
 

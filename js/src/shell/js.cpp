@@ -724,12 +724,6 @@ bool shell::enableWasm = false;
 bool shell::enableSharedMemory = SHARED_MEMORY_DEFAULT;
 bool shell::enableWasmBaseline = false;
 bool shell::enableWasmOptimizing = false;
-
-#define WASM_FEATURE(NAME, _, STAGE, ...) \
-  bool shell::enableWasm##NAME = STAGE != WasmFeatureStage::Experimental;
-JS_FOR_WASM_FEATURES(WASM_FEATURE);
-#undef WASM_FEATURE
-
 bool shell::enableWasmVerbose = false;
 bool shell::enableTestWasmAwaitTier2 = false;
 bool shell::enableSourcePragmas = true;
@@ -11015,9 +11009,6 @@ static void SetWorkerContextOptions(JSContext* cx) {
       .setWasm(enableWasm)
       .setWasmBaseline(enableWasmBaseline)
       .setWasmIon(enableWasmOptimizing)
-#define WASM_FEATURE(NAME, ...) .setWasm##NAME(enableWasm##NAME)
-          JS_FOR_WASM_FEATURES(WASM_FEATURE)
-#undef WASM_FEATURE
 
       .setWasmVerbose(enableWasmVerbose)
       .setTestWasmAwaitTier2(enableTestWasmAwaitTier2)
@@ -11453,21 +11444,34 @@ static bool ParsePrefValue(const char* name, const char* val, T* result) {
   }
 }
 
-static bool SetJSPref(const char* pref) {
-  const char* assign = strchr(pref, '=');
-  if (!assign) {
-    fprintf(stderr, "Missing '=' for --setpref\n");
-    return false;
+static bool SetJSPrefToTrueForBool(const char* name) {
+  // Search for a matching pref and try to set it to a default value for the
+  // type.
+#define CHECK_PREF(NAME, CPP_NAME, TYPE, SETTER, IS_STARTUP_PREF)      \
+  if (strcmp(name, NAME) == 0) {                                       \
+    if constexpr (std::is_same_v<TYPE, bool>) {                        \
+      JS::Prefs::SETTER(true);                                         \
+      return true;                                                     \
+    } else {                                                           \
+      fprintf(stderr, "Pref %s must have a value specified.\n", name); \
+      return false;                                                    \
+    }                                                                  \
   }
+  FOR_EACH_JS_PREF(CHECK_PREF)
+#undef CHECK_PREF
 
-  size_t nameLen = assign - pref;
-  const char* valStart = assign + 1;  // Skip '='.
+  // Nothing matched, return false
+  fprintf(stderr, "Invalid pref name: %s\n", name);
+  return false;
+}
 
-  // Search for a matching pref and try to set it.
+static bool SetJSPrefToValue(const char* name, size_t nameLen,
+                             const char* value) {
+  // Search for a matching pref and try to set it to the provided value.
 #define CHECK_PREF(NAME, CPP_NAME, TYPE, SETTER, IS_STARTUP_PREF)         \
-  if (nameLen == strlen(NAME) && memcmp(pref, NAME, strlen(NAME)) == 0) { \
+  if (nameLen == strlen(NAME) && memcmp(name, NAME, strlen(NAME)) == 0) { \
     TYPE v;                                                               \
-    if (!ParsePrefValue<TYPE>(NAME, valStart, &v)) {                      \
+    if (!ParsePrefValue<TYPE>(NAME, value, &v)) {                         \
       return false;                                                       \
     }                                                                     \
     JS::Prefs::SETTER(v);                                                 \
@@ -11476,8 +11480,27 @@ static bool SetJSPref(const char* pref) {
   FOR_EACH_JS_PREF(CHECK_PREF)
 #undef CHECK_PREF
 
-  fprintf(stderr, "Invalid pref name: %s\n", pref);
+  // Nothing matched, return false
+  fprintf(stderr, "Invalid pref name: %s\n", name);
   return false;
+}
+
+static bool SetJSPref(const char* pref) {
+  const char* assign = strchr(pref, '=');
+  if (!assign) {
+    if (!SetJSPrefToTrueForBool(pref)) {
+      return false;
+    }
+    return true;
+  }
+
+  size_t nameLen = assign - pref;
+  const char* valStart = assign + 1;  // Skip '='.
+
+  if (!SetJSPrefToValue(pref, nameLen, valStart)) {
+    return false;
+  }
+  return true;
 }
 
 static void ListJSPrefs() {
@@ -11832,20 +11855,8 @@ bool InitOptionParser(OptionParser& op) {
       !op.addBoolOption('\0', "test-wasm-await-tier2",
                         "Forcibly activate tiering and block "
                         "instantiation on completion of tier2") ||
-#define WASM_FEATURE(NAME, LOWER_NAME, STAGE, COMPILE_PRED, COMPILER_PRED, \
-                     FLAG_PRED, FLAG_FORCE_ON, FLAG_FUZZ_ON, SHELL, ...)   \
-  !op.addBoolOption('\0', "no-wasm-" SHELL,                                \
-                    STAGE == WasmFeatureStage::Experimental                \
-                        ? "No-op."                                         \
-                        : "Disable wasm " SHELL " feature.") ||            \
-      !op.addBoolOption('\0', "wasm-" SHELL,                               \
-                        STAGE == WasmFeatureStage::Experimental            \
-                            ? "Enable wasm " SHELL " feature."             \
-                            : "No-op.") ||
-      JS_FOR_WASM_FEATURES(WASM_FEATURE)
-#undef WASM_FEATURE
-          !op.addBoolOption('\0', "no-native-regexp",
-                            "Disable native regexp compilation") ||
+      !op.addBoolOption('\0', "no-native-regexp",
+                        "Disable native regexp compilation") ||
       !op.addIntOption(
           '\0', "regexp-warmup-threshold", "COUNT",
           "Wait for COUNT invocations before compiling regexps to native code "
@@ -12206,14 +12217,30 @@ bool InitOptionParser(OptionParser& op) {
 #endif
       !op.addStringOption('\0', "telemetry-dir", "[directory]",
                           "Output telemetry results in a directory") ||
-      !op.addMultiStringOption('\0', "setpref", "name=val",
-                               "Set the value of a JS pref. Use --list-prefs "
+      !op.addMultiStringOption('P', "setpref", "name[=val]",
+                               "Set the value of a JS pref. The value may "
+                               "be omitted for boolean prefs, in which case "
+                               "they default to true. Use --list-prefs "
                                "to print all pref names.") ||
       !op.addBoolOption(
           '\0', "list-prefs",
           "Print list of prefs that can be set with --setpref.") ||
       !op.addBoolOption('\0', "use-fdlibm-for-sin-cos-tan",
-                        "Use fdlibm for Math.sin, Math.cos, and Math.tan")) {
+                        "Use fdlibm for Math.sin, Math.cos, and Math.tan") ||
+      !op.addBoolOption('\0', "wasm-gc",
+                        "Enable WebAssembly gc proposal.") ||
+      !op.addBoolOption('\0', "wasm-relaxed-simd",
+                        "Enable WebAssembly relaxed-simd proposal.") ||
+      !op.addBoolOption('\0', "wasm-multi-memory",
+                        "Enable WebAssembly multi-memory proposal.") ||
+      !op.addBoolOption('\0', "wasm-memory-control",
+                        "Enable WebAssembly memory-control proposal.") ||
+      !op.addBoolOption('\0', "wasm-memory64",
+                        "Enable WebAssembly memory64 proposal.") ||
+      !op.addBoolOption('\0', "wasm-tail-calls",
+                        "Enable WebAssembly tail-calls proposal.") ||
+      !op.addBoolOption('\0', "wasm-js-string-builtins",
+                        "Enable WebAssembly js-string-builtins proposal.")) {
     return false;
   }
 
@@ -12264,6 +12291,19 @@ bool SetGlobalOptionsPreJSInit(const OptionParser& op) {
       op.getBoolOption("use-fdlibm-for-sin-cos-tan"));
   JS::Prefs::setAtStartup_property_error_message_fix(
       !op.getBoolOption("disable-property-error-message-fix"));
+
+  if (op.getBoolOption("wasm-gc") ||
+      op.getBoolOption("wasm-relaxed-simd") ||
+      op.getBoolOption("wasm-multi-memory") ||
+      op.getBoolOption("wasm-memory-control") ||
+      op.getBoolOption("wasm-memory64") ||
+      op.getBoolOption("wasm-tail-calls") ||
+      op.getBoolOption("wasm-js-string-builtins")) {
+    fprintf(
+        stderr,
+        "Wasm shell flags are now using prefs, use -P wasm_feature instead.\n");
+    return false;
+  }
 
   if (op.getBoolOption("list-prefs")) {
     ListJSPrefs();
@@ -12556,17 +12596,6 @@ bool SetContextWasmOptions(JSContext* cx, const OptionParser& op) {
     }
   }
 
-#define WASM_FEATURE(NAME, LOWER_NAME, STAGE, COMPILE_PRED, COMPILER_PRED, \
-                     FLAG_PRED, FLAG_FORCE_ON, FLAG_FUZZ_ON, SHELL, ...)   \
-  if (STAGE == WasmFeatureStage::Experimental) {                           \
-    enableWasm##NAME = op.getBoolOption("wasm-" SHELL);                    \
-  } else {                                                                 \
-    enableWasm##NAME = !op.getBoolOption("no-wasm-" SHELL);                \
-  }
-
-  JS_FOR_WASM_FEATURES(WASM_FEATURE);
-#undef WASM_FEATURE
-
   enableWasmVerbose = op.getBoolOption("wasm-verbose");
   enableTestWasmAwaitTier2 = op.getBoolOption("test-wasm-await-tier2");
 
@@ -12575,11 +12604,7 @@ bool SetContextWasmOptions(JSContext* cx, const OptionParser& op) {
       .setWasm(enableWasm)
       .setWasmForTrustedPrinciples(enableWasm)
       .setWasmBaseline(enableWasmBaseline)
-      .setWasmIon(enableWasmOptimizing)
-#define WASM_FEATURE(NAME, ...) .setWasm##NAME(enableWasm##NAME)
-          JS_FOR_WASM_FEATURES(WASM_FEATURE)
-#undef WASM_FEATURE
-      ;
+      .setWasmIon(enableWasmOptimizing);
 
 #ifndef __wasi__
   // This must be set before self-hosted code is initialized, as self-hosted
@@ -12598,12 +12623,6 @@ bool SetContextWasmOptions(JSContext* cx, const OptionParser& op) {
 
   // Also the following are to be propagated.
   const char* to_propagate[] = {
-#  define WASM_FEATURE(NAME, LOWER_NAME, STAGE, COMPILE_PRED, COMPILER_PRED, \
-                       FLAG_PRED, FLAG_FORCE_ON, FLAG_FUZZ_ON, SHELL, ...)   \
-    STAGE == WasmFeatureStage::Experimental ? "--wasm-" SHELL                \
-                                            : "--no-wasm-" SHELL,
-      JS_FOR_WASM_FEATURES(WASM_FEATURE)
-#  undef WASM_FEATURE
       // Compiler selection options
       "--test-wasm-await-tier2",
       NULL};

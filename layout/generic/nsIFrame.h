@@ -1380,6 +1380,8 @@ class nsIFrame : public nsQueryFrame {
     return nullptr;
   }
 
+  bool HasUnreflowedContainerQueryAncestor() const;
+
  private:
   // The value that the CSS page-name "auto" keyword resolves to for children
   // of this frame.
@@ -3307,13 +3309,6 @@ class nsIFrame : public nsQueryFrame {
    * ancestor due to `content-visibility`.
    */
   bool IsHiddenByContentVisibilityOfInFlowParentForLayout() const;
-
-  /**
-   * Whether or not this frame's content is a descendant of a top layer element
-   * used to determine if this frame is relevant content for
-   * `content-visibility: auto`.
-   */
-  bool IsDescendantOfTopLayerElement() const;
 
   /**
    * Returns true if this frame has a SelectionType::eNormal type selection in

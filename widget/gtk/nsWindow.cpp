@@ -402,6 +402,7 @@ nsWindow::nsWindow()
       mIsDragPopup(false),
       mCompositedScreen(gdk_screen_is_composited(gdk_screen_get_default())),
       mIsAccelerated(false),
+      mIsAlert(false),
       mWindowShouldStartDragging(false),
       mHasMappedToplevel(false),
       mRetryPointerGrab(false),
@@ -5855,6 +5856,10 @@ void nsWindow::ConfigureGdkWindow() {
   EnsureGdkWindow();
   OnScaleChanged(/* aNotify = */ false);
 
+  if (mIsAlert) {
+    gdk_window_set_override_redirect(mGdkWindow, TRUE);
+  }
+
 #ifdef MOZ_X11
   if (GdkIsX11Display()) {
     GdkVisual* gdkVisual = gdk_window_get_visual(mGdkWindow);
@@ -6003,6 +6008,7 @@ nsresult nsWindow::Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
   // and can be changed so we use WaylandPopupIsPermanent() to get
   // recent popup config (Bug 1728952).
   mNoAutoHide = aInitData && aInitData->mNoAutoHide;
+  mIsAlert = aInitData && aInitData->mIsAlert;
 
   // Popups that are not noautohide are only temporary. The are used
   // for menus and the like and disappear when another window is used.
@@ -6092,10 +6098,11 @@ nsresult nsWindow::Create(nsIWidget* aParent, nsNativeWidget aNativeParent,
   if (mIsPIPWindow) {
     LOG("    Is PIP window\n");
     gtk_window_set_type_hint(GTK_WINDOW(mShell), GDK_WINDOW_TYPE_HINT_UTILITY);
-  } else if (aInitData && aInitData->mIsAlert) {
+  } else if (mIsAlert) {
     LOG("    Is alert window\n");
     gtk_window_set_type_hint(GTK_WINDOW(mShell),
                              GDK_WINDOW_TYPE_HINT_NOTIFICATION);
+    gtk_window_set_skip_taskbar_hint(GTK_WINDOW(mShell), TRUE);
   } else if (mWindowType == WindowType::Dialog) {
     mGtkWindowRoleName = "Dialog";
 
@@ -9888,31 +9895,38 @@ void nsWindow::DisableRendering() {
     mGdkWindow = nullptr;
   }
 
+  // Until Bug 1654938 is fixed we delete layer manager for hidden popups,
+  // otherwise it can easily hold 1GB+ memory for long time.
+  if (mWindowType == WindowType::Popup) {
+    DestroyLayerManager();
+    mSurfaceProvider.CleanupResources();
+  } else {
 #ifdef MOZ_WAYLAND
-  // Widget is backed by OpenGL EGLSurface created over wl_surface
-  // owned by mContainer.
-  // RenderCompositorEGL::Resume() deletes recent EGLSurface based on
-  // wl_surface owned by mContainer and creates a new fallback EGLSurface.
-  // Then we can delete wl_surface in moz_container_wayland_unmap().
-  // We don't want to pause compositor as it may lead to whole
-  // browser freeze (Bug 1777664).
-  ///
-  // We don't need to do such operation for SW backend as
-  // WindowSurfaceWaylandMB::Commit() gets wl_surface from
-  // MozContainer every commit.
-  if (moz_container_wayland_has_egl_window(mContainer) &&
-      mCompositorWidgetDelegate) {
-    if (CompositorBridgeChild* remoteRenderer = GetRemoteRenderer()) {
-      // Call DisableRendering() to make GtkCompositorWidget hidden.
-      // Then SendResume() will create fallback EGLSurface, see
-      // GLContextEGL::CreateEGLSurfaceForCompositorWidget().
-      mCompositorWidgetDelegate->DisableRendering();
-      remoteRenderer->SendResume();
-      mCompositorWidgetDelegate->EnableRendering(GetX11Window(),
-                                                 GetShapedState());
+    // Widget is backed by OpenGL EGLSurface created over wl_surface
+    // owned by mContainer.
+    // RenderCompositorEGL::Resume() deletes recent EGLSurface based on
+    // wl_surface owned by mContainer and creates a new fallback EGLSurface.
+    // Then we can delete wl_surface in moz_container_wayland_unmap().
+    // We don't want to pause compositor as it may lead to whole
+    // browser freeze (Bug 1777664).
+    ///
+    // We don't need to do such operation for SW backend as
+    // WindowSurfaceWaylandMB::Commit() gets wl_surface from
+    // MozContainer every commit.
+    if (moz_container_wayland_has_egl_window(mContainer) &&
+        mCompositorWidgetDelegate) {
+      if (CompositorBridgeChild* remoteRenderer = GetRemoteRenderer()) {
+        // Call DisableRendering() to make GtkCompositorWidget hidden.
+        // Then SendResume() will create fallback EGLSurface, see
+        // GLContextEGL::CreateEGLSurfaceForCompositorWidget().
+        mCompositorWidgetDelegate->DisableRendering();
+        remoteRenderer->SendResume();
+        mCompositorWidgetDelegate->EnableRendering(GetX11Window(),
+                                                   GetShapedState());
+      }
     }
-  }
 #endif
+  }
 }
 
 // Apply workaround for Mutter compositor bug (mzbz#1777269).

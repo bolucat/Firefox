@@ -477,7 +477,7 @@ this.AccessibilityUtils = (function () {
   }
 
   /**
-   * Determine if an accessible is a combobox container of the url bar. We
+   * Determine if a DOM node is a combobox container of the url bar. We
    * intentionally leave this element unlabeled, because its child is a search
    * input that is the target and main control of this component. In general, we
    * want to avoid duplication in the label announcement when a user focuses the
@@ -486,65 +486,122 @@ this.AccessibilityUtils = (function () {
    * difficult to keep the accessible name synchronized between the combobox and
    * the input. Thus, we need to special case the label check for this control.
    */
-  function isUnlabeledUrlBarCombobox(accessible) {
-    const node = accessible.DOMNode;
+  function isUnlabeledUrlBarCombobox(node) {
     if (!node || !node.ownerGlobal) {
       return false;
     }
-    const ariaRoles = getAriaRoles(accessible);
+    let ariaRole = node.getAttribute("role");
     // There are only two cases of this pattern: <moz-input-box> and <searchbar>
     const isMozInputBox =
       node.tagName == "moz-input-box" &&
       node.classList.contains("urlbar-input-box");
     const isSearchbar = node.tagName == "searchbar" && node.id == "searchbar";
-    return (isMozInputBox || isSearchbar) && ariaRoles.includes("combobox");
+    return (isMozInputBox || isSearchbar) && ariaRole == "combobox";
   }
 
   /**
-   * Determine if an accessible is an option within the url bar. We know each
+   * Determine if a DOM node is an option within the url bar. We know each
    * url bar option is accessible, but it disappears as soon as it is clicked
    * during tests and the a11y-checks do not have time to test the label,
    * because the Fluent localization is not yet completed by then. Thus, we
    * need to special case the label check for these controls.
    */
-  function isUnlabeledUrlBarOption(accessible) {
-    const node = accessible.DOMNode;
+  function isUnlabeledUrlBarOption(node) {
     if (!node || !node.ownerGlobal) {
       return false;
     }
-    const ariaRoles = getAriaRoles(accessible);
-    return (
+    const role = getAccessible(node)?.role;
+    const isOption =
       node.tagName == "span" &&
-      ariaRoles.includes("option") &&
-      node.classList.contains("urlbarView-row-inner") &&
-      node.hasAttribute("data-l10n-id")
-    );
+      node.getAttribute("role") == "option" &&
+      node.classList.contains("urlbarView-row-inner");
+    const isMenuItem =
+      node.tagName == "menuitem" &&
+      role == Ci.nsIAccessibleRole.ROLE_MENUITEM &&
+      node.classList.contains("urlbarView-result-menuitem");
+    // Not all options have "data-l10n-id" attributes in the URL Bar, because
+    // some of options are autocomplete options based on the user input and
+    // they are not expected to be localized.
+    return isOption || isMenuItem;
   }
 
   /**
-   * Determine if an accessible is a menuitem within the XUL menu. We know each
+   * Determine if a DOM node is a menuitem within the XUL menu. We know each
    * menuitem is accessible, but it disappears as soon as it is clicked during
    * tests and the a11y-checks do not have time to test the label, because the
    * Fluent localization is not yet completed by then. Thus, we need to special
    * case the label check for these controls.
    */
-  function isUnlabeledMenuitem(accessible) {
-    const node = accessible.DOMNode;
+  function isUnlabeledMenuitem(node) {
     if (!node || !node.ownerGlobal) {
       return false;
     }
-    let hasLabel = false;
-    for (const child of node.childNodes) {
-      if (child.tagName == "label") {
-        hasLabel = true;
-      }
-    }
+    const hasLabel = node.querySelector("label, description");
+    const isMenuItem =
+      node.getAttribute("role") == "menuitem" ||
+      (node.tagName == "richlistitem" &&
+        node.classList.contains("autocomplete-richlistitem")) ||
+      (node.tagName == "menuitem" &&
+        node.classList.contains("urlbarView-result-menuitem"));
+
+    const isParentMenu =
+      node.parentNode.getAttribute("role") == "menu" ||
+      (node.parentNode.tagName == "richlistbox" &&
+        node.parentNode.classList.contains("autocomplete-richlistbox")) ||
+      (node.parentNode.tagName == "menupopup" &&
+        node.parentNode.classList.contains("urlbarView-result-menu"));
     return (
-      accessible.role == Ci.nsIAccessibleRole.ROLE_MENUITEM &&
-      accessible.parent.role == Ci.nsIAccessibleRole.ROLE_MENUPOPUP &&
+      isMenuItem &&
+      isParentMenu &&
       hasLabel &&
-      node.hasAttribute("data-l10n-id")
+      (node.hasAttribute("data-l10n-id") || node.tagName == "richlistitem")
     );
+  }
+
+  /**
+   * Determine if the node is a "Show All" or one of image buttons on the
+   * about:config page, or a "X" close button on moz-message-bar. We know these
+   * buttons are accessible, but they disappear/are replaced as soon as they
+   * are clicked during tests and the a11y-checks do not have time to test the
+   * label, because the Fluent localization is not yet completed by then.
+   * Thus, we need to special case the label check for these controls.
+   */
+  function isUnlabeledImageButton(node) {
+    if (!node || !node.ownerGlobal) {
+      return false;
+    }
+    const isShowAllButton = node.id == "show-all";
+    const isReplacedImageButton =
+      node.classList.contains("button-add") ||
+      node.classList.contains("button-delete") ||
+      node.classList.contains("button-reset");
+    const isCloseMozMessageBarButton =
+      node.classList.contains("close") &&
+      node.getAttribute("data-l10n-id") == "moz-message-bar-close-button";
+    return (
+      node.tagName.toLowerCase() == "button" &&
+      node.hasAttribute("data-l10n-id") &&
+      (isShowAllButton || isReplacedImageButton || isCloseMozMessageBarButton)
+    );
+  }
+
+  /**
+   * Determine if a node is a XUL:button on a prompt popup. We know this button
+   * is accessible, but it disappears as soon as it is clicked during tests and
+   * the a11y-checks do not have time to test the label, because the Fluent
+   * localization is not yet completed by then. Thus, we need to special case
+   * the label check for these controls.
+   */
+  function isUnlabeledXulButton(node) {
+    if (!node || !node.ownerGlobal) {
+      return false;
+    }
+    const hasLabel = node.querySelector("label, xul\\:label");
+    const isButton =
+      node.getAttribute("role") == "button" ||
+      node.tagName == "button" ||
+      node.tagName == "xul:button";
+    return isButton && hasLabel && node.hasAttribute("data-l10n-id");
   }
 
   /**
@@ -758,13 +815,6 @@ this.AccessibilityUtils = (function () {
     const { DOMNode } = accessible;
     let name = accessible.name;
     if (!name) {
-      if (
-        isUnlabeledUrlBarCombobox(accessible) ||
-        isUnlabeledUrlBarOption(accessible) ||
-        isUnlabeledMenuitem(accessible)
-      ) {
-        return;
-      }
       // If text has just been inserted into the tree, the a11y engine might not
       // have picked it up yet.
       forceRefreshDriverTick(DOMNode);
@@ -773,6 +823,21 @@ this.AccessibilityUtils = (function () {
       } catch (e) {
         // The Accessible died because the DOM node was removed or hidden.
         if (gEnv.labelRule) {
+          // Some elements disappear as soon as they are clicked during tests,
+          // their accessible dies before the Fluent localization is completed.
+          // We want to exclude these groups of nodes from the label check.
+          // Note: In other cases, this first block isn't necessarily hit
+          // because Fluent isn't finished yet. This might happen if a text
+          // node was inserted (whether by Fluent or something else) but a11y
+          // hasn't picked it up yet, but the node gets hidden before a11y
+          // can pick it up.
+          if (
+            isUnlabeledUrlBarOption(DOMNode) ||
+            isUnlabeledMenuitem(DOMNode) ||
+            isUnlabeledImageButton(DOMNode)
+          ) {
+            return;
+          }
           a11yWarn("Unlabeled element removed before l10n finished", {
             DOMNode,
           });
@@ -795,6 +860,13 @@ this.AccessibilityUtils = (function () {
               accessible.name;
             } catch (e) {
               // The Accessible died because the DOM node was removed or hidden.
+              if (
+                isUnlabeledUrlBarOption(DOMNode) ||
+                isUnlabeledImageButton(DOMNode) ||
+                isUnlabeledXulButton(DOMNode)
+              ) {
+                return;
+              }
               a11yWarn("Unlabeled element removed before l10n finished", {
                 DOMNode,
               });
@@ -811,6 +883,11 @@ this.AccessibilityUtils = (function () {
       name = name.trim();
     }
     if (gEnv.labelRule && !name) {
+      // The URL and Search Bar comboboxes are purposefully unlabeled,
+      // since they include labeled inputs that are receiving focus.
+      if (isUnlabeledUrlBarCombobox(DOMNode)) {
+        return;
+      }
       a11yFail("Interactive elements must be labeled", accessible);
 
       return;

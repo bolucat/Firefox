@@ -174,6 +174,12 @@ enum class PostBarrierKind {
   Imprecise,
 };
 
+struct BranchIfRefSubtypeRegisters {
+  RegPtr superSTV;
+  RegI32 scratch1;
+  RegI32 scratch2;
+};
+
 //////////////////////////////////////////////////////////////////////////////
 //
 // Wasm baseline compiler proper.
@@ -967,7 +973,7 @@ struct BaseCompiler final {
                     bool tailCall, CodeOffset* fastCallOffset,
                     CodeOffset* slowCallOffset);
   CodeOffset callImport(unsigned instanceDataOffset, const FunctionCall& call);
-#ifdef ENABLE_WASM_FUNCTION_REFERENCES
+#ifdef ENABLE_WASM_GC
   void callRef(const Stk& calleeRef, const FunctionCall& call,
                CodeOffset* fastCallOffset, CodeOffset* slowCallOffset);
 #  ifdef ENABLE_WASM_TAIL_CALLS
@@ -1635,7 +1641,7 @@ struct BaseCompiler final {
   [[nodiscard]] bool emitRefFunc();
   [[nodiscard]] bool emitRefNull();
   [[nodiscard]] bool emitRefIsNull();
-#ifdef ENABLE_WASM_FUNCTION_REFERENCES
+#ifdef ENABLE_WASM_GC
   [[nodiscard]] bool emitRefAsNonNull();
   [[nodiscard]] bool emitBrOnNull();
   [[nodiscard]] bool emitBrOnNonNull();
@@ -1747,15 +1753,10 @@ struct BaseCompiler final {
   template <typename T, typename NullCheckPolicy>
   void emitGcSetScalar(const T& dst, StorageType type, AnyReg value);
 
-  // Common code for both old and new ref.test instructions.
-  void emitRefTestCommon(RefType sourceType, RefType destType);
-  // Common code for both old and new ref.cast instructions.
-  void emitRefCastCommon(RefType sourceType, RefType destType);
-
-  // Allocate registers and branch if the given wasm ref is a subtype of the
-  // given heap type.
-  void branchIfRefSubtype(RegRef ref, RefType sourceType, RefType destType,
-                          Label* label, bool onSuccess);
+  BranchIfRefSubtypeRegisters allocRegistersForBranchIfRefSubtype(
+      RefType destType);
+  void freeRegistersForBranchIfRefSubtype(
+      const BranchIfRefSubtypeRegisters& regs);
 
   // Write `value` to wasm struct `object`, at `areaBase + areaOffset`.  The
   // caller must decide on the in- vs out-of-lineness before the call and set

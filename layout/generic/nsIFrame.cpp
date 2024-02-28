@@ -6994,15 +6994,7 @@ bool nsIFrame::IsContentRelevant() const {
   MOZ_ASSERT(element);
 
   Maybe<ContentRelevancy> relevancy = element->GetContentRelevancy();
-  if (relevancy.isSome()) {
-    return !relevancy->isEmpty();
-  }
-
-  // If there is no relevancy set, then this frame still has not received had
-  // the initial visibility callback call. In that case, only rely on whether
-  // or not it is inside a top layer element which will never change for this
-  // frame and allows proper rendering of the top layer.
-  return IsDescendantOfTopLayerElement();
+  return relevancy.isSome() && !relevancy->isEmpty();
 }
 
 bool nsIFrame::HidesContent(
@@ -7086,21 +7078,6 @@ bool nsIFrame::HasSelectionInSubtree() {
         range->GetRegisteredClosestCommonInclusiveAncestor();
     if (commonAncestorNode &&
         commonAncestorNode->IsInclusiveDescendantOf(GetContent())) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-bool nsIFrame::IsDescendantOfTopLayerElement() const {
-  if (!GetContent()) {
-    return false;
-  }
-
-  nsTArray<dom::Element*> topLayer = PresContext()->Document()->GetTopLayer();
-  for (auto* element : topLayer) {
-    if (GetContent()->IsInclusiveFlatTreeDescendantOf(element)) {
       return true;
     }
   }
@@ -11583,6 +11560,26 @@ nsIFrame::PhysicalAxes nsIFrame::ShouldApplyOverflowClipping(
   bool clip = HasAnyStateBits(NS_BLOCK_CLIP_PAGINATED_OVERFLOW) &&
               PresContext()->IsPaginated() && IsBlockFrame();
   return clip ? PhysicalAxes::Both : PhysicalAxes::None;
+}
+
+bool nsIFrame::HasUnreflowedContainerQueryAncestor() const {
+  // If this frame has done the first reflow, its ancestors are guaranteed to
+  // have as well.
+  if (!HasAnyStateBits(NS_FRAME_FIRST_REFLOW) ||
+      !PresContext()->HasContainerQueryFrames()) {
+    return false;
+  }
+  for (nsIFrame* cur = GetInFlowParent(); cur; cur = cur->GetInFlowParent()) {
+    if (!cur->HasAnyStateBits(NS_FRAME_FIRST_REFLOW)) {
+      // Done first reflow from this ancestor up, including query containers.
+      return false;
+    }
+    if (cur->StyleDisplay()->IsQueryContainer()) {
+      return true;
+    }
+  }
+  // No query container from this frame up to root.
+  return false;
 }
 
 #ifdef DEBUG

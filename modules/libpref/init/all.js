@@ -2655,7 +2655,6 @@ pref("font.size.monospace.x-math", 13);
 
   // Middle-mouse handling
   pref("middlemouse.paste", true);
-  pref("middlemouse.openNewWindow", true);
   pref("middlemouse.scrollbarPosition", true);
 
   // Tab focus model bit field:
@@ -2686,7 +2685,6 @@ pref("font.size.monospace.x-math", 13);
 
   // Middle-mouse handling
   pref("middlemouse.paste", true);
-  pref("middlemouse.openNewWindow", true);
   pref("middlemouse.scrollbarPosition", true);
 
   // Tab focus model bit field:
@@ -3949,11 +3947,7 @@ pref("security.external_protocol_requires_permission", true);
 pref("extensions.formautofill.available", "detect");
 pref("extensions.formautofill.addresses.supported", "detect");
 pref("extensions.formautofill.addresses.enabled", true);
-#if defined(NIGHTLY_BUILD)
-  pref("extensions.formautofill.addresses.capture.enabled", true);
-#else
-  pref("extensions.formautofill.addresses.capture.enabled", false);
-#endif
+pref("extensions.formautofill.addresses.capture.enabled", true);
 #if defined(ANDROID)
   // On android we have custom logic to control this. Ideally we should use nimbus there as well.
   // https://github.com/mozilla-mobile/firefox-android/blob/d566743ea0f041ce27c1204da903de380f96b46e/fenix/app/src/main/java/org/mozilla/fenix/utils/Settings.kt#L1502-L1510
