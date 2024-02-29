@@ -23,6 +23,7 @@ const lazy = {};
 ChromeUtils.defineESModuleGetters(lazy, {
   ContextualIdentityService:
     "resource://gre/modules/ContextualIdentityService.sys.mjs",
+  NewTabUtils: "resource://gre/modules/NewTabUtils.sys.mjs",
   NonPrivateTabs: "resource:///modules/OpenTabs.sys.mjs",
   getTabsTargetForWindow: "resource:///modules/OpenTabs.sys.mjs",
   PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
@@ -505,6 +506,18 @@ class OpenTabsInViewCard extends ViewPageContent {
     }
   }
 
+  closeTab(event) {
+    const tab = event.originalTarget.tabElement;
+    tab?.ownerGlobal.gBrowser.removeTab(tab);
+
+    Services.telemetry.recordEvent(
+      "firefoxview_next",
+      "close_open_tab",
+      "tabs",
+      null
+    );
+  }
+
   viewVisibleCallback() {
     this.getRootNode().host.toggleVisibilityInCardContainer(true);
   }
@@ -539,11 +552,13 @@ class OpenTabsInViewCard extends ViewPageContent {
         )}
         <div class="fxview-tab-list-container" slot="main">
           <fxview-tab-list
-            class="with-context-menu"
             .hasPopup=${"menu"}
             ?compactRows=${this.classList.contains("width-limited")}
             @fxview-tab-list-primary-action=${this.onTabListRowClick}
             @fxview-tab-list-secondary-action=${this.openContextMenu}
+            @fxview-tab-list-tertiary-action=${this.closeTab}
+            secondaryActionClass="options-button"
+            tertiaryActionClass="dismiss-button"
             .maxTabsLength=${this.getMaxTabsLength()}
             .tabItems=${this.searchResults ||
             getTabListItems(this.tabs, this.recentBrowsing)}
@@ -781,11 +796,6 @@ class OpenTabsContextMenu extends MozLitElement {
       />
       <panel-list data-tab-type="opentabs">
         <panel-item
-          data-l10n-id="fxviewtabrow-close-tab"
-          data-l10n-attrs="accesskey"
-          @click=${this.closeTab}
-        ></panel-item>
-        <panel-item
           data-l10n-id="fxviewtabrow-move-tab"
           data-l10n-attrs="accesskey"
           submenu="move-tab-menu"
@@ -852,11 +862,13 @@ function getContainerObj(tab) {
  *  Array of named tab indicators
  */
 function getIndicatorsForTab(tab) {
+  const url = tab.linkedBrowser?.currentURI?.spec || "";
   let tabIndicators = [];
   let hasAttention =
     (tab.pinned &&
       (tab.hasAttribute("attention") || tab.hasAttribute("titlechanged"))) ||
     (!tab.pinned && tab.hasAttribute("attention"));
+
   if (tab.pinned) {
     tabIndicators.push("pinned");
   }
@@ -872,9 +884,12 @@ function getIndicatorsForTab(tab) {
   if (tab.hasAttribute("muted")) {
     tabIndicators.push("muted");
   }
+  if (checkIfPinnedNewTab(url)) {
+    tabIndicators.push("pinnedOnNewTab");
+  }
+
   return tabIndicators;
 }
-
 /**
  * Gets the primary l10n id for a tab when normalizing for fxview-tab-list
  *
@@ -916,6 +931,18 @@ function getPrimaryL10nArgs(tab, isRecentBrowsing, url) {
 }
 
 /**
+ * Check if a given url is pinned on the new tab page
+ *
+ * @param {string} url
+ *   url to check
+ * @returns {boolean}
+ *   is tabbed pinned on new tab page
+ */
+function checkIfPinnedNewTab(url) {
+  return url && lazy.NewTabUtils.pinnedLinks.isPinned({ url });
+}
+
+/**
  * Convert a list of tabs into the format expected by the fxview-tab-list
  * component.
  *
@@ -932,7 +959,7 @@ function getTabListItems(tabs, isRecentBrowsing) {
   return filtered.map(tab => {
     let tabIndicators = getIndicatorsForTab(tab);
     let containerObj = getContainerObj(tab);
-    const url = tab.linkedBrowser?.currentURI?.spec || "";
+    const url = tab?.linkedBrowser?.currentURI?.spec || "";
     return {
       containerObj,
       indicators: tabIndicators,
@@ -944,6 +971,14 @@ function getTabListItems(tabs, isRecentBrowsing) {
           ? "fxviewtabrow-options-menu-button"
           : null,
       secondaryL10nArgs:
+        isRecentBrowsing || (!isRecentBrowsing && !tab.pinned)
+          ? JSON.stringify({ tabTitle: tab.label })
+          : null,
+      tertiaryL10nId:
+        isRecentBrowsing || (!isRecentBrowsing && !tab.pinned)
+          ? "fxviewtabrow-close-tab-button"
+          : null,
+      tertiaryL10nArgs:
         isRecentBrowsing || (!isRecentBrowsing && !tab.pinned)
           ? JSON.stringify({ tabTitle: tab.label })
           : null,

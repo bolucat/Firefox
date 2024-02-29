@@ -36,6 +36,13 @@ const lazy = createLazyLoaders({
  */
 function selectElementsInPanelview(panelview) {
   const document = panelview.ownerDocument;
+
+  // Forcefully cast the window to the type Window
+  /** @type {any} */
+  const windowAny = document.defaultView;
+  /** @type {Window} */
+  const window = windowAny;
+
   /**
    * Get an element or throw an error if it's not found. This is more friendly
    * for TypeScript.
@@ -54,16 +61,10 @@ function selectElementsInPanelview(panelview) {
     return element;
   }
 
-  // Forcefully cast the window to the type ChromeWindow.
-  /** @type {any} */
-  const chromeWindowAny = document.defaultView;
-  /** @type {ChromeWindow} */
-  const chromeWindow = chromeWindowAny;
-
   return {
     document,
     panelview,
-    window: chromeWindow,
+    window,
     inactive: getElementById("PanelUI-profiler-inactive"),
     active: getElementById("PanelUI-profiler-active"),
     presetDescription: getElementById("PanelUI-profiler-content-description"),

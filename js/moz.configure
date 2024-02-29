@@ -567,7 +567,7 @@ set_config("JS_MASM_VERBOSE", depends_if("--enable-masm-verbose")(lambda _: True
 # FJCVTZS instruction as part of ARMv8.3-JSConv.
 @depends(target)
 def is_apple_silicon(target):
-    return target.os == "OSX" and target.kernel == "Darwin" and target.cpu == "aarch64"
+    return target.kernel == "Darwin" and target.cpu == "aarch64"
 
 
 option(
@@ -1072,25 +1072,16 @@ set_define("ENABLE_WASM_MEMORY_CONTROL", wasm_memory_control)
 # =====================================
 
 
-@depends(milestone.is_nightly)
-def default_wasm_multi_memory(is_nightly):
-    if is_nightly:
-        return True
-
-
 option(
-    "--enable-wasm-multi-memory",
-    default=default_wasm_multi_memory,
+    "--disable-wasm-multi-memory",
     help="{Enable|Disable} WebAssembly multi-memory",
 )
 
 
-@depends("--enable-wasm-multi-memory", "--wasm-no-experimental")
-def wasm_multi_memory(value, no_experimental):
-    if no_experimental or not value:
-        return
-
-    return True
+@depends("--disable-wasm-multi-memory")
+def wasm_multi_memory(value):
+    if value:
+        return True
 
 
 set_config("ENABLE_WASM_MULTI_MEMORY", wasm_multi_memory)
