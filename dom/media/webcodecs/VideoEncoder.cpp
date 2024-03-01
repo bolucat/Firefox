@@ -101,8 +101,7 @@ VideoEncoderConfigInternal::VideoEncoderConfigInternal(
       mBitrateMode(aConfig.mBitrateMode),
       mLatencyMode(aConfig.mLatencyMode),
       mContentHint(aConfig.mContentHint),
-      mAvc(aConfig.mAvc) {
-}
+      mAvc(aConfig.mAvc) {}
 
 VideoEncoderConfigInternal::VideoEncoderConfigInternal(
     const VideoEncoderConfig& aConfig)
@@ -119,8 +118,7 @@ VideoEncoderConfigInternal::VideoEncoderConfigInternal(
       mBitrateMode(aConfig.mBitrateMode),
       mLatencyMode(aConfig.mLatencyMode),
       mContentHint(OptionalToMaybe(aConfig.mContentHint)),
-      mAvc(OptionalToMaybe(aConfig.mAvc)) {
-}
+      mAvc(OptionalToMaybe(aConfig.mAvc)) {}
 
 nsString VideoEncoderConfigInternal::ToString() const {
   nsString rv;
@@ -238,10 +236,25 @@ EncoderConfig VideoEncoderConfigInternal::ToEncoderConfig() const {
     if (ExtractH264CodecDetails(mCodec, profile, constraints, level)) {
       if (profile == H264_PROFILE_BASE || profile == H264_PROFILE_MAIN ||
           profile == H264_PROFILE_EXTENDED || profile == H264_PROFILE_HIGH) {
-        specific.emplace(
-            H264Specific(static_cast<H264_PROFILE>(profile), static_cast<H264_LEVEL>(level), format));
+        specific.emplace(H264Specific(static_cast<H264_PROFILE>(profile),
+                                      static_cast<H264_LEVEL>(level), format));
       }
     }
+  }
+  uint8_t numTemporalLayers = 1;
+  MediaDataEncoder::ScalabilityMode scalabilityMode;
+  if (mScalabilityMode) {
+    if (mScalabilityMode->EqualsLiteral("L1T2")) {
+      scalabilityMode = MediaDataEncoder::ScalabilityMode::L1T2;
+      numTemporalLayers = 2;
+    } else if (mScalabilityMode->EqualsLiteral("L1T3")) {
+      scalabilityMode = MediaDataEncoder::ScalabilityMode::L1T3;
+      numTemporalLayers = 3;
+    } else {
+      scalabilityMode = MediaDataEncoder::ScalabilityMode::None;
+    }
+  } else {
+    scalabilityMode = MediaDataEncoder::ScalabilityMode::None;
   }
   // Only for vp9, not vp8
   if (codecType == CodecType::VP9) {
@@ -254,27 +267,26 @@ EncoderConfig VideoEncoderConfigInternal::ToEncoderConfig() const {
       LOGE("Error extracting VPX codec details, non fatal");
     }
 #endif
-    specific.emplace(VP9Specific());
+    specific.emplace(VP9Specific(
+        VPXComplexity::Normal, /* Complexity */
+        true,                  /* Resilience */
+        numTemporalLayers,     /* Number of temporal layers */
+        true,                  /* Denoising */
+        false,                 /* Auto resize */
+        false,                 /* Frame dropping */
+        true,                  /* Adaptive Qp */
+        1,                     /* Number of spatial layers */
+        false                  /* Flexible */
+        ));
   }
-  MediaDataEncoder::ScalabilityMode scalabilityMode;
-  if (mScalabilityMode) {
-    if (mScalabilityMode->EqualsLiteral("L1T2")) {
-      scalabilityMode = MediaDataEncoder::ScalabilityMode::L1T2;
-    } else if (mScalabilityMode->EqualsLiteral("L1T3")) {
-      scalabilityMode = MediaDataEncoder::ScalabilityMode::L1T3;
-    } else {
-      scalabilityMode = MediaDataEncoder::ScalabilityMode::None;
-    }
-  } else {
-    scalabilityMode = MediaDataEncoder::ScalabilityMode::None;
-  }
-  return EncoderConfig(
-      codecType, {mWidth, mHeight}, usage, ImageBitmapFormat::RGBA32, ImageBitmapFormat::RGBA32,
-      AssertedCast<uint8_t>(mFramerate.refOr(0.f)), 0, mBitrate.refOr(0),
-      mBitrateMode == VideoEncoderBitrateMode::Constant
-          ? MediaDataEncoder::BitrateMode::Constant
-          : MediaDataEncoder::BitrateMode::Variable,
-      hwPref, scalabilityMode, specific);
+  return EncoderConfig(codecType, {mWidth, mHeight}, usage,
+                       ImageBitmapFormat::RGBA32, ImageBitmapFormat::RGBA32,
+                       AssertedCast<uint8_t>(mFramerate.refOr(0.f)), 0,
+                       mBitrate.refOr(0),
+                       mBitrateMode == VideoEncoderBitrateMode::Constant
+                           ? MediaDataEncoder::BitrateMode::Constant
+                           : MediaDataEncoder::BitrateMode::Variable,
+                       hwPref, scalabilityMode, specific);
 }
 already_AddRefed<WebCodecsConfigurationChangeList>
 VideoEncoderConfigInternal::Diff(

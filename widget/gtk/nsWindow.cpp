@@ -615,6 +615,8 @@ void nsWindow::Destroy() {
 
   DestroyLayerManager();
 
+  // mSurfaceProvider holds reference to this nsWindow so we need to explicitly
+  // clear it here to avoid nsWindow leak.
   mSurfaceProvider.CleanupResources();
 
   g_signal_handlers_disconnect_by_data(gtk_settings_get_default(), this);
@@ -4121,6 +4123,16 @@ void nsWindow::OnUnmap() {
     if (sGtkDragCancel) {
       sGtkDragCancel(mSourceDragContext);
       mSourceDragContext = nullptr;
+    }
+  }
+
+  // We don't have valid XWindow any more,
+  // so clear stored ones at GtkCompositorWidget() for OMTC rendering
+  // and mSurfaceProvider for legacy rendering.
+  if (GdkIsX11Display()) {
+    mSurfaceProvider.CleanupResources();
+    if (mCompositorWidgetDelegate) {
+      mCompositorWidgetDelegate->DisableRendering();
     }
   }
 }

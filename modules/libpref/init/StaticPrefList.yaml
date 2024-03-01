@@ -5595,7 +5595,7 @@
   value: 0
   mirror: once
 
-#if defined(XP_MACOSX)
+#if defined(XP_DARWIN)
 - name: gfx.cairo_quartz_cg_layer.enabled
   type: bool
   value: true
@@ -6110,7 +6110,7 @@
   value: false
   mirror: always
 
-#if defined(XP_MACOSX)
+#if defined(XP_DARWIN)
   # Set to true to revert from HarfBuzz AAT shaping to the old Core Text
   # backend.
 -   name: gfx.font_rendering.coretext.enabled
@@ -8639,20 +8639,6 @@
 #
 # [1]: https://drafts.csswg.org/css-pseudo-4/#selectordef-marker
 - name: layout.css.marker.restricted
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
-# Is support for math-style enabled?
-- name: layout.css.math-style.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
-# Is support for math-depth enabled?
-- name: layout.css.math-depth.enabled
   type: RelaxedAtomicBool
   value: true
   mirror: always

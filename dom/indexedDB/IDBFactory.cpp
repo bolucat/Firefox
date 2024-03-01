@@ -242,6 +242,12 @@ Result<RefPtr<IDBFactory>, nsresult> IDBFactory::CreateForMainThreadJSInternal(
     return Err(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
   }
 
+  nsresult rv = mgr->EnsureLocale();
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    IDB_REPORT_INTERNAL_ERR();
+    return Err(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  };
+
   return CreateInternal(aGlobal, std::move(aPrincipalInfo),
                         /* aInnerWindowID */ 0);
 }
@@ -283,9 +289,16 @@ nsresult IDBFactory::AllowedForWindowInternal(
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aWindow);
 
-  if (NS_WARN_IF(!IndexedDatabaseManager::GetOrCreate())) {
+  IndexedDatabaseManager* mgr = IndexedDatabaseManager::GetOrCreate();
+  if (NS_WARN_IF(!mgr)) {
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
+
+  nsresult rv = mgr->EnsureLocale();
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    IDB_REPORT_INTERNAL_ERR();
+    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+  };
 
   StorageAccess access = StorageAllowedForWindow(aWindow);
 
@@ -341,9 +354,15 @@ bool IDBFactory::AllowedForPrincipal(nsIPrincipal* aPrincipal,
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aPrincipal);
 
-  if (NS_WARN_IF(!IndexedDatabaseManager::GetOrCreate())) {
+  IndexedDatabaseManager* mgr = IndexedDatabaseManager::GetOrCreate();
+  if (NS_WARN_IF(!mgr)) {
     return false;
   }
+
+  nsresult rv = mgr->EnsureLocale();
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return false;
+  };
 
   if (aPrincipal->IsSystemPrincipal()) {
     if (aIsSystemPrincipal) {
@@ -573,19 +592,20 @@ RefPtr<IDBOpenDBRequest> IDBFactory::OpenInternal(
 
   PersistenceType persistenceType;
 
-  bool isInternal = principalInfo.type() == PrincipalInfo::TSystemPrincipalInfo;
-  if (!isInternal &&
+  bool isPersistent =
+      principalInfo.type() == PrincipalInfo::TSystemPrincipalInfo;
+  if (!isPersistent &&
       principalInfo.type() == PrincipalInfo::TContentPrincipalInfo) {
     nsCString origin =
         principalInfo.get_ContentPrincipalInfo().originNoSuffix();
-    isInternal = QuotaManager::IsOriginInternal(origin);
+    isPersistent = QuotaManager::IsOriginInternal(origin);
   }
 
   const bool isPrivate =
       principalInfo.type() == PrincipalInfo::TContentPrincipalInfo &&
       principalInfo.get_ContentPrincipalInfo().attrs().mPrivateBrowsingId > 0;
 
-  if (isInternal) {
+  if (isPersistent) {
     // Chrome privilege and internal origins always get persistent storage.
     persistenceType = PERSISTENCE_TYPE_PERSISTENT;
   } else if (isPrivate) {
@@ -641,7 +661,8 @@ RefPtr<IDBOpenDBRequest> IDBFactory::OpenInternal(
 
       mBackgroundActor = static_cast<BackgroundFactoryChild*>(
           backgroundActor->SendPBackgroundIDBFactoryConstructor(
-              actor, idbThreadLocal->GetLoggingInfo()));
+              actor, idbThreadLocal->GetLoggingInfo(),
+              IndexedDatabaseManager::GetLocale()));
 
       if (NS_WARN_IF(!mBackgroundActor)) {
         mBackgroundActorFailed = true;

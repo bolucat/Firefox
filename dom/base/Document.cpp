@@ -104,6 +104,7 @@
 #include "mozilla/SMILTimeContainer.h"
 #include "mozilla/ScopeExit.h"
 #include "mozilla/Components.h"
+#include "mozilla/SVGUtils.h"
 #include "mozilla/ServoStyleConsts.h"
 #include "mozilla/ServoTypes.h"
 #include "mozilla/SizeOfState.h"
@@ -2503,7 +2504,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(Document)
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mOnloadBlocker)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mLazyLoadObserver)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mLastRememberedSizeObserver)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mElementsObservedForLastRememberedSize)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDOMImplementation)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mImageMaps)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mOrientationPendingPromise)
@@ -2625,7 +2626,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(Document)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mSecurityInfo)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mDisplayDocument)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mLazyLoadObserver)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mLastRememberedSizeObserver)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mElementsObservedForLastRememberedSize);
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mFontFaceSet)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mReadyForIdle)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mDocumentL10n)
@@ -16447,27 +16448,79 @@ DOMIntersectionObserver& Document::EnsureLazyLoadObserver() {
   return *mLazyLoadObserver;
 }
 
-ResizeObserver& Document::EnsureLastRememberedSizeObserver() {
-  if (!mLastRememberedSizeObserver) {
-    mLastRememberedSizeObserver =
-        ResizeObserver::CreateLastRememberedSizeObserver(*this);
-  }
-  return *mLastRememberedSizeObserver;
-}
-
 void Document::ObserveForLastRememberedSize(Element& aElement) {
   if (NS_WARN_IF(!IsActive())) {
     return;
   }
-  // Options are initialized with ResizeObserverBoxOptions::Content_box by
-  // default, which is what we want.
-  static ResizeObserverOptions options;
-  EnsureLastRememberedSizeObserver().Observe(aElement, options);
+  mElementsObservedForLastRememberedSize.Insert(&aElement);
 }
 
 void Document::UnobserveForLastRememberedSize(Element& aElement) {
-  if (mLastRememberedSizeObserver) {
-    mLastRememberedSizeObserver->Unobserve(aElement);
+  mElementsObservedForLastRememberedSize.Remove(&aElement);
+}
+
+void Document::UpdateLastRememberedSizes() {
+  auto shouldRemoveElement = [&](auto* element) {
+    if (element->GetComposedDoc() != this) {
+      element->RemoveLastRememberedBSize();
+      element->RemoveLastRememberedISize();
+      return true;
+    }
+    return !element->GetPrimaryFrame();
+  };
+
+  for (auto it = mElementsObservedForLastRememberedSize.begin(),
+            end = mElementsObservedForLastRememberedSize.end();
+       it != end; ++it) {
+    if (shouldRemoveElement(*it)) {
+      mElementsObservedForLastRememberedSize.Remove(it);
+      continue;
+    }
+    const auto element = *it;
+    MOZ_ASSERT(element->GetComposedDoc() == this);
+    nsIFrame* frame = element->GetPrimaryFrame();
+    MOZ_ASSERT(frame);
+
+    // As for ResizeObserver, skip nodes hidden `content-visibility`.
+    if (frame->IsHiddenByContentVisibilityOnAnyAncestor()) {
+      continue;
+    }
+
+    MOZ_ASSERT(!frame->IsLineParticipant() || frame->IsReplaced(),
+               "Should have unobserved non-replaced inline.");
+    MOZ_ASSERT(!frame->HidesContent(),
+               "Should have unobserved element skipping its contents.");
+    const nsStylePosition* stylePos = frame->StylePosition();
+    const WritingMode wm = frame->GetWritingMode();
+    bool canUpdateBSize = stylePos->ContainIntrinsicBSize(wm).HasAuto();
+    bool canUpdateISize = stylePos->ContainIntrinsicISize(wm).HasAuto();
+    MOZ_ASSERT(canUpdateBSize || !element->HasLastRememberedBSize(),
+               "Should have removed the last remembered block size.");
+    MOZ_ASSERT(canUpdateISize || !element->HasLastRememberedISize(),
+               "Should have removed the last remembered inline size.");
+    MOZ_ASSERT(canUpdateBSize || canUpdateISize,
+               "Should have unobserved if we can't update any size.");
+
+    AutoTArray<LogicalPixelSize, 1> contentSizeList =
+        ResizeObserver::CalculateBoxSize(element,
+                                         ResizeObserverBoxOptions::Content_box,
+                                         /* aForceFragmentHandling */ true);
+    MOZ_ASSERT(!contentSizeList.IsEmpty());
+
+    if (canUpdateBSize) {
+      float bSize = 0;
+      for (const auto& current : contentSizeList) {
+        bSize += current.BSize();
+      }
+      element->SetLastRememberedBSize(bSize);
+    }
+    if (canUpdateISize) {
+      float iSize = 0;
+      for (const auto& current : contentSizeList) {
+        iSize = std::max(iSize, current.ISize());
+      }
+      element->SetLastRememberedISize(iSize);
+    }
   }
 }
 
@@ -17118,13 +17171,7 @@ bool Document::IsExtensionPage() const {
 
 void Document::AddResizeObserver(ResizeObserver& aObserver) {
   MOZ_ASSERT(!mResizeObservers.Contains(&aObserver));
-  // Insert internal ResizeObservers before scripted ones, since they may have
-  // observable side-effects and we don't want to expose the insertion time.
-  if (aObserver.HasNativeCallback()) {
-    mResizeObservers.InsertElementAt(0, &aObserver);
-  } else {
-    mResizeObservers.AppendElement(&aObserver);
-  }
+  mResizeObservers.AppendElement(&aObserver);
 }
 
 void Document::RemoveResizeObserver(ResizeObserver& aObserver) {
@@ -17179,6 +17226,18 @@ void Document::DetermineProximityToViewportAndNotifyResizeObservers() {
     // sub-documents or ancestors, so flushing layout for the whole browsing
     // context tree makes sure we don't miss anyone.
     FlushLayoutForWholeBrowsingContextTree(*this);
+
+    // Last remembered sizes are recorded "at the time that ResizeObserver
+    // events are determined and delivered".
+    // https://drafts.csswg.org/css-sizing-4/#last-remembered
+    //
+    // We do it right after layout to make sure sizes are up-to-date. If we do
+    // it after determining the proximities to viewport of
+    // 'content-visibility: auto' nodes, and if one of such node ever becomes
+    // relevant to the user, then we would be incorrectly recording the size
+    // of its rendering when it was skipping its content.
+    UpdateLastRememberedSizes();
+
     if (PresShell* presShell = GetPresShell()) {
       auto result = presShell->DetermineProximityToViewport();
       if (result.mHadInitialDetermination) {

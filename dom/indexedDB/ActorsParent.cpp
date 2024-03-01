@@ -2092,6 +2092,7 @@ class TransactionDatabaseOperationBase : public DatabaseOperationBase {
 
 class Factory final : public PBackgroundIDBFactoryParent,
                       public AtomicSafeRefCounted<Factory> {
+  nsCString mSystemLocale;
   RefPtr<DatabaseLoggingInfo> mLoggingInfo;
 
 #ifdef DEBUG
@@ -2103,7 +2104,7 @@ class Factory final : public PBackgroundIDBFactoryParent,
 
  public:
   [[nodiscard]] static SafeRefPtr<Factory> Create(
-      const LoggingInfo& aLoggingInfo);
+      const LoggingInfo& aLoggingInfo, const nsACString& aSystemLocale);
 
   DatabaseLoggingInfo* GetLoggingInfo() const {
     AssertIsOnBackgroundThread();
@@ -2112,11 +2113,14 @@ class Factory final : public PBackgroundIDBFactoryParent,
     return mLoggingInfo;
   }
 
+  const nsCString& GetSystemLocale() const { return mSystemLocale; }
+
   MOZ_DECLARE_REFCOUNTED_TYPENAME(mozilla::dom::indexedDB::Factory)
   MOZ_INLINE_DECL_SAFEREFCOUNTING_INHERITED(Factory, AtomicSafeRefCounted)
 
   // Only constructed in Create().
-  explicit Factory(RefPtr<DatabaseLoggingInfo> aLoggingInfo);
+  Factory(RefPtr<DatabaseLoggingInfo> aLoggingInfo,
+          const nsACString& aSystemLocale);
 
   // IPDL methods are only called by IPDL.
   void ActorDestroy(ActorDestroyReason aWhy) override;
@@ -2992,16 +2996,10 @@ class FactoryOp
 
  protected:
   enum class State {
-    // Just created on the PBackground thread, dispatched to the main thread.
-    // Next step is either SendingResults if permission is denied,
-    // PermissionChallenge if the permission is unknown, or FinishOpen
-    // if permission is granted.
+    // Just created on the PBackground thread, dispatched to the current thread.
+    // Next step is either SendingResults if opening initialization failed, or
+    // DirectoryOpenPending if the opening initialization succeeded.
     Initial,
-
-    // Ensuring quota manager is created and opening directory on the
-    // PBackground thread. Next step is either SendingResults if quota manager
-    // is not available or DirectoryOpenPending if quota manager is available.
-    FinishOpen,
 
     // Waiting for directory open allowed on the PBackground thread. The next
     // step is either SendingResults if directory lock failed to acquire, or
@@ -3160,10 +3158,6 @@ class FactoryOp
   virtual void SendBlockedNotification() = 0;
 
  private:
-  mozilla::Result<PermissionValue, nsresult> CheckPermission();
-
-  nsresult FinishOpen();
-
   // Test whether this FactoryOp needs to wait for the given op.
   bool MustWaitFor(const FactoryOp& aExistingOp);
 };
@@ -6548,7 +6542,7 @@ already_AddRefed<nsIThreadPool> MakeConnectionIOTarget() {
  ******************************************************************************/
 
 already_AddRefed<PBackgroundIDBFactoryParent> AllocPBackgroundIDBFactoryParent(
-    const LoggingInfo& aLoggingInfo) {
+    const LoggingInfo& aLoggingInfo, const nsACString& aSystemLocale) {
   AssertIsOnBackgroundThread();
 
   if (NS_WARN_IF(QuotaClient::IsShuttingDownOnBackgroundThread())) {
@@ -6562,15 +6556,15 @@ already_AddRefed<PBackgroundIDBFactoryParent> AllocPBackgroundIDBFactoryParent(
     return nullptr;
   }
 
-  SafeRefPtr<Factory> actor = Factory::Create(aLoggingInfo);
+  SafeRefPtr<Factory> actor = Factory::Create(aLoggingInfo, aSystemLocale);
   MOZ_ASSERT(actor);
 
   return actor.forget();
 }
 
 bool RecvPBackgroundIDBFactoryConstructor(
-    PBackgroundIDBFactoryParent* aActor,
-    const LoggingInfo& /* aLoggingInfo */) {
+    PBackgroundIDBFactoryParent* aActor, const LoggingInfo& /* aLoggingInfo */,
+    const nsACString& /* aSystemLocale */) {
   AssertIsOnBackgroundThread();
   MOZ_ASSERT(aActor);
   MOZ_ASSERT(!QuotaClient::IsShuttingDownOnBackgroundThread());
@@ -8979,8 +8973,10 @@ DatabaseLoggingInfo::~DatabaseLoggingInfo() {
  * Factory
  ******************************************************************************/
 
-Factory::Factory(RefPtr<DatabaseLoggingInfo> aLoggingInfo)
-    : mLoggingInfo(std::move(aLoggingInfo))
+Factory::Factory(RefPtr<DatabaseLoggingInfo> aLoggingInfo,
+                 const nsACString& aSystemLocale)
+    : mSystemLocale(aSystemLocale),
+      mLoggingInfo(std::move(aLoggingInfo))
 #ifdef DEBUG
       ,
       mActorDestroyed(false)
@@ -8993,7 +8989,8 @@ Factory::Factory(RefPtr<DatabaseLoggingInfo> aLoggingInfo)
 Factory::~Factory() { MOZ_ASSERT(mActorDestroyed); }
 
 // static
-SafeRefPtr<Factory> Factory::Create(const LoggingInfo& aLoggingInfo) {
+SafeRefPtr<Factory> Factory::Create(const LoggingInfo& aLoggingInfo,
+                                    const nsACString& aSystemLocale) {
   AssertIsOnBackgroundThread();
   MOZ_ASSERT(!QuotaClient::IsShuttingDownOnBackgroundThread());
 
@@ -9030,7 +9027,7 @@ SafeRefPtr<Factory> Factory::Create(const LoggingInfo& aLoggingInfo) {
             return do_AddRef(entry.Data());
           });
 
-  return MakeSafeRefPtr<Factory>(std::move(loggingInfo));
+  return MakeSafeRefPtr<Factory>(std::move(loggingInfo), aSystemLocale);
 }
 
 void Factory::ActorDestroy(ActorDestroyReason aWhy) {
@@ -9109,6 +9106,14 @@ Factory::AllocPBackgroundIDBFactoryRequestParent(
     return nullptr;
   }
 
+  if (NS_AUUF_OR_WARN_IF(
+          principalInfo.type() == PrincipalInfo::TContentPrincipalInfo &&
+          QuotaManager::IsOriginInternal(
+              principalInfo.get_ContentPrincipalInfo().originNoSuffix()) &&
+          metadata.persistenceType() != PERSISTENCE_TYPE_PERSISTENT)) {
+    return nullptr;
+  }
+
   Maybe<ContentParentId> contentParentId;
 
   uint64_t childID = BackgroundParent::GetChildID(Manager());
@@ -9151,7 +9156,7 @@ mozilla::ipc::IPCResult Factory::RecvPBackgroundIDBFactoryRequestConstructor(
 
   auto* op = static_cast<FactoryOp*>(aActor);
 
-  MOZ_ALWAYS_SUCCEEDS(NS_DispatchToMainThread(op));
+  MOZ_ALWAYS_SUCCEEDS(NS_DispatchToCurrentThread(op));
   return IPC_OK();
 }
 
@@ -14541,10 +14546,6 @@ void FactoryOp::StringifyState(nsACString& aResult) const {
       aResult.AppendLiteral("Initial");
       return;
 
-    case State::FinishOpen:
-      aResult.AppendLiteral("FinishOpen");
-      return;
-
     case State::DirectoryOpenPending:
       aResult.AppendLiteral("DirectoryOpenPending");
       return;
@@ -14603,23 +14604,50 @@ void FactoryOp::Stringify(nsACString& aResult) const {
 }
 
 nsresult FactoryOp::Open() {
-  AssertIsOnMainThread();
+  AssertIsOnOwningThread();
   MOZ_ASSERT(mState == State::Initial);
+  MOZ_ASSERT(mOriginMetadata.mOrigin.IsEmpty());
+  MOZ_ASSERT(!mDirectoryLock);
 
-  if (NS_WARN_IF(QuotaClient::IsShuttingDownOnNonBackgroundThread()) ||
-      !OperationMayProceed()) {
+  if (NS_WARN_IF(QuotaClient::IsShuttingDownOnBackgroundThread()) ||
+      IsActorDestroyed()) {
     IDB_REPORT_INTERNAL_ERR();
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
 
+  QM_TRY(QuotaManager::EnsureCreated());
+
+  QuotaManager* const quotaManager = QuotaManager::Get();
+  MOZ_ASSERT(quotaManager);
+
+  const DatabaseMetadata& metadata = mCommonParams.metadata();
+
+  const PersistenceType persistenceType = metadata.persistenceType();
+
   const PrincipalInfo& principalInfo = mCommonParams.principalInfo();
+
+  QM_TRY_UNWRAP(auto principalMetadata,
+                quotaManager->GetInfoFromValidatedPrincipalInfo(principalInfo));
+
+  mOriginMetadata = {std::move(principalMetadata), persistenceType};
+
   if (principalInfo.type() == PrincipalInfo::TSystemPrincipalInfo) {
     MOZ_ASSERT(mCommonParams.metadata().persistenceType() ==
                PERSISTENCE_TYPE_PERSISTENT);
+
+    mEnforcingQuota = false;
   } else if (principalInfo.type() == PrincipalInfo::TContentPrincipalInfo) {
     const ContentPrincipalInfo& contentPrincipalInfo =
         principalInfo.get_ContentPrincipalInfo();
-    if (contentPrincipalInfo.attrs().mPrivateBrowsingId != 0) {
+
+    MOZ_ASSERT_IF(
+        QuotaManager::IsOriginInternal(contentPrincipalInfo.originNoSuffix()),
+        mCommonParams.metadata().persistenceType() ==
+            PERSISTENCE_TYPE_PERSISTENT);
+
+    mEnforcingQuota = persistenceType != PERSISTENCE_TYPE_PERSISTENT;
+
+    if (mOriginMetadata.mIsPrivate) {
       if (StaticPrefs::dom_indexedDB_privateBrowsing_enabled()) {
         // Explicitly disallow moz-extension urls from using the encrypted
         // indexedDB storage mode when the caller is an extension (see Bug
@@ -14638,35 +14666,46 @@ nsresult FactoryOp::Open() {
     MOZ_ASSERT(false);
   }
 
-  QM_TRY_INSPECT(const auto& permission, CheckPermission());
+  QuotaManager::GetStorageId(persistenceType, mOriginMetadata.mOrigin,
+                             Client::IDB, mDatabaseId);
 
-  MOZ_ASSERT(permission == PermissionValue::kPermissionAllowed ||
-             permission == PermissionValue::kPermissionDenied);
+  mDatabaseId.Append('*');
+  mDatabaseId.Append(NS_ConvertUTF16toUTF8(metadata.name()));
 
-  if (permission == PermissionValue::kPermissionDenied) {
-    return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
-  }
+  // Need to get database file path before opening the directory.
+  // XXX: For what reason?
+  QM_TRY_UNWRAP(
+      mDatabaseFilePath,
+      ([this, metadata, quotaManager]() -> mozilla::Result<nsString, nsresult> {
+        QM_TRY_INSPECT(const auto& dbFile,
+                       quotaManager->GetOriginDirectory(mOriginMetadata));
 
-  {
-    // These services have to be started on the main thread currently.
+        QM_TRY(MOZ_TO_RESULT(dbFile->Append(
+            NS_LITERAL_STRING_FROM_CSTRING(IDB_DIRECTORY_NAME))));
 
-    IndexedDatabaseManager* mgr;
-    if (NS_WARN_IF(!(mgr = IndexedDatabaseManager::GetOrCreate()))) {
-      IDB_REPORT_INTERNAL_ERR();
-      return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-    }
+        QM_TRY(MOZ_TO_RESULT(
+            dbFile->Append(GetDatabaseFilenameBase(metadata.name(),
+                                                   mOriginMetadata.mIsPrivate) +
+                           kSQLiteSuffix)));
 
-    nsCOMPtr<mozIStorageService> ss;
-    if (NS_WARN_IF(!(ss = do_GetService(MOZ_STORAGE_SERVICE_CONTRACTID)))) {
-      IDB_REPORT_INTERNAL_ERR();
-      return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-    }
-  }
+        QM_TRY_RETURN(
+            MOZ_TO_RESULT_INVOKE_MEMBER_TYPED(nsString, dbFile, GetPath));
+      }()));
 
-  MOZ_ASSERT(permission == PermissionValue::kPermissionAllowed);
+  // Open directory
+  mState = State::DirectoryOpenPending;
 
-  mState = State::FinishOpen;
-  MOZ_ALWAYS_SUCCEEDS(mOwningEventTarget->Dispatch(this, NS_DISPATCH_NORMAL));
+  quotaManager->OpenClientDirectory({mOriginMetadata, Client::IDB})
+      ->Then(
+          GetCurrentSerialEventTarget(), __func__,
+          [self = RefPtr(this)](
+              const ClientDirectoryLockPromise::ResolveOrRejectValue& aValue) {
+            if (aValue.IsResolve()) {
+              self->DirectoryLockAcquired(aValue.ResolveValue());
+            } else {
+              self->DirectoryLockFailed();
+            }
+          });
 
   return NS_OK;
 }
@@ -14789,37 +14828,6 @@ void FactoryOp::FinishSendResults() {
   mFactory = nullptr;
 }
 
-Result<PermissionValue, nsresult> FactoryOp::CheckPermission() {
-  MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(mState == State::Initial);
-
-  const PrincipalInfo& principalInfo = mCommonParams.principalInfo();
-  MOZ_ASSERT(principalInfo.type() == PrincipalInfo::TSystemPrincipalInfo ||
-             principalInfo.type() == PrincipalInfo::TContentPrincipalInfo);
-
-  if (principalInfo.type() == PrincipalInfo::TSystemPrincipalInfo) {
-    MOZ_ASSERT(mState == State::Initial);
-
-    return PermissionValue::kPermissionAllowed;
-  }
-
-  QM_TRY_INSPECT(
-      const auto& permission,
-      ([persistenceType = mCommonParams.metadata().persistenceType(),
-        origin = QuotaManager::GetOriginFromValidatedPrincipalInfo(
-            principalInfo)]() -> mozilla::Result<PermissionValue, nsresult> {
-        if (persistenceType == PERSISTENCE_TYPE_PERSISTENT) {
-          if (QuotaManager::IsOriginInternal(origin)) {
-            return PermissionValue::kPermissionAllowed;
-          }
-          return Err(NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR);
-        }
-        return PermissionValue::kPermissionAllowed;
-      })());
-
-  return permission;
-}
-
 nsresult FactoryOp::SendVersionChangeMessages(
     DatabaseActorInfo* aDatabaseActorInfo, Maybe<Database&> aOpeningDatabase,
     uint64_t aOldVersion, const Maybe<uint64_t>& aNewVersion) {
@@ -14860,91 +14868,6 @@ nsresult FactoryOp::SendVersionChangeMessages(
   return NS_OK;
 }  // namespace indexedDB
 
-nsresult FactoryOp::FinishOpen() {
-  AssertIsOnOwningThread();
-  MOZ_ASSERT(mState == State::FinishOpen);
-  MOZ_ASSERT(mOriginMetadata.mOrigin.IsEmpty());
-  MOZ_ASSERT(!mDirectoryLock);
-
-  if (NS_WARN_IF(QuotaClient::IsShuttingDownOnBackgroundThread()) ||
-      IsActorDestroyed()) {
-    IDB_REPORT_INTERNAL_ERR();
-    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-  }
-
-  QM_TRY(QuotaManager::EnsureCreated());
-
-  QuotaManager* const quotaManager = QuotaManager::Get();
-  MOZ_ASSERT(quotaManager);
-
-  const PrincipalInfo& principalInfo = mCommonParams.principalInfo();
-
-  const DatabaseMetadata& metadata = mCommonParams.metadata();
-
-  const PersistenceType persistenceType = metadata.persistenceType();
-
-  if (principalInfo.type() == PrincipalInfo::TSystemPrincipalInfo) {
-    mOriginMetadata = {QuotaManager::GetInfoForChrome(), persistenceType};
-
-    MOZ_ASSERT(QuotaManager::IsOriginInternal(mOriginMetadata.mOrigin));
-
-    mEnforcingQuota = false;
-  } else {
-    MOZ_ASSERT(principalInfo.type() == PrincipalInfo::TContentPrincipalInfo);
-
-    QM_TRY_UNWRAP(
-        auto principalMetadata,
-        quotaManager->GetInfoFromValidatedPrincipalInfo(principalInfo));
-
-    mOriginMetadata = {std::move(principalMetadata), persistenceType};
-
-    mEnforcingQuota = persistenceType != PERSISTENCE_TYPE_PERSISTENT;
-  }
-
-  QuotaManager::GetStorageId(persistenceType, mOriginMetadata.mOrigin,
-                             Client::IDB, mDatabaseId);
-
-  mDatabaseId.Append('*');
-  mDatabaseId.Append(NS_ConvertUTF16toUTF8(metadata.name()));
-
-  // Need to get database file path before opening the directory.
-  // XXX: For what reason?
-  QM_TRY_UNWRAP(
-      mDatabaseFilePath,
-      ([this, metadata, quotaManager]() -> mozilla::Result<nsString, nsresult> {
-        QM_TRY_INSPECT(const auto& dbFile,
-                       quotaManager->GetOriginDirectory(mOriginMetadata));
-
-        QM_TRY(MOZ_TO_RESULT(dbFile->Append(
-            NS_LITERAL_STRING_FROM_CSTRING(IDB_DIRECTORY_NAME))));
-
-        QM_TRY(MOZ_TO_RESULT(
-            dbFile->Append(GetDatabaseFilenameBase(metadata.name(),
-                                                   mOriginMetadata.mIsPrivate) +
-                           kSQLiteSuffix)));
-
-        QM_TRY_RETURN(
-            MOZ_TO_RESULT_INVOKE_MEMBER_TYPED(nsString, dbFile, GetPath));
-      }()));
-
-  // Open directory
-  mState = State::DirectoryOpenPending;
-
-  quotaManager->OpenClientDirectory({mOriginMetadata, Client::IDB})
-      ->Then(
-          GetCurrentSerialEventTarget(), __func__,
-          [self = RefPtr(this)](
-              const ClientDirectoryLockPromise::ResolveOrRejectValue& aValue) {
-            if (aValue.IsResolve()) {
-              self->DirectoryLockAcquired(aValue.ResolveValue());
-            } else {
-              self->DirectoryLockFailed();
-            }
-          });
-
-  return NS_OK;
-}
-
 bool FactoryOp::MustWaitFor(const FactoryOp& aExistingOp) {
   AssertIsOnOwningThread();
 
@@ -14983,10 +14906,6 @@ FactoryOp::Run() {
   switch (mState) {
     case State::Initial:
       QM_WARNONLY_TRY(MOZ_TO_RESULT(Open()), handleError);
-      break;
-
-    case State::FinishOpen:
-      QM_WARNONLY_TRY(MOZ_TO_RESULT(FinishOpen()), handleError);
       break;
 
     case State::DatabaseOpenPending:
@@ -15393,7 +15312,7 @@ nsresult OpenDatabaseOp::LoadDatabaseInformation(
 
   QM_TRY_INSPECT(
       const auto& lastIndexId,
-      ([&aConnection,
+      ([this, &aConnection,
         &objectStores]() -> mozilla::Result<IndexOrObjectStoreId, nsresult> {
         // Load index information
         QM_TRY_INSPECT(
@@ -15410,7 +15329,7 @@ nsresult OpenDatabaseOp::LoadDatabaseInformation(
 
         QM_TRY(CollectWhileHasResult(
             *stmt,
-            [&lastIndexId, &objectStores, &aConnection,
+            [this, &lastIndexId, &objectStores, &aConnection,
              usedIds = Maybe<nsTHashSet<uint64_t>>{},
              usedNames = Maybe<nsTHashSet<nsString>>{}](
                 auto& stmt) mutable -> mozilla::Result<Ok, nsresult> {
@@ -15501,8 +15420,7 @@ nsresult OpenDatabaseOp::LoadDatabaseInformation(
                     indexMetadata->mCommonMetadata.locale();
                 const bool& isAutoLocale =
                     indexMetadata->mCommonMetadata.autoLocale();
-                const nsCString& systemLocale =
-                    IndexedDatabaseManager::GetLocale();
+                const nsCString& systemLocale = mFactory->GetSystemLocale();
                 if (!systemLocale.IsEmpty() && isAutoLocale &&
                     !indexedLocale.Equals(systemLocale)) {
                   QM_TRY(MOZ_TO_RESULT(UpdateLocaleAwareIndex(

@@ -4,11 +4,39 @@
 
 //! Write colors into CSS strings.
 
-use super::{parsing, AbsoluteColor, ColorFlags, ColorSpace};
+use super::{AbsoluteColor, ColorFlags, ColorSpace};
 use crate::values::normalize;
-use cssparser::color::{serialize_color_alpha, PredefinedColorSpace};
+use cssparser::color::{clamp_unit_f32, serialize_color_alpha, OPAQUE};
 use std::fmt::{self, Write};
 use style_traits::{CssWriter, ToCss};
+
+/// A [`ModernComponent`] can serialize to `none`, `nan`, `infinity` and
+/// floating point values.
+struct ModernComponent<'a>(&'a Option<f32>);
+
+impl<'a> ToCss for ModernComponent<'a> {
+    fn to_css<W>(&self, dest: &mut CssWriter<W>) -> fmt::Result
+    where
+        W: fmt::Write,
+    {
+        if let Some(value) = self.0 {
+            if value.is_finite() {
+                value.to_css(dest)
+            } else if value.is_nan() {
+                dest.write_str("calc(NaN)")
+            } else {
+                debug_assert!(value.is_infinite());
+                if value.is_sign_negative() {
+                    dest.write_str("calc(-infinity)")
+                } else {
+                    dest.write_str("calc(infinity)")
+                }
+            }
+        } else {
+            dest.write_str("none")
+        }
+    }
+}
 
 impl ToCss for AbsoluteColor {
     fn to_css<W>(&self, dest: &mut CssWriter<W>) -> fmt::Result
@@ -18,64 +46,73 @@ impl ToCss for AbsoluteColor {
         match self.color_space {
             ColorSpace::Srgb if self.flags.contains(ColorFlags::IS_LEGACY_SRGB) => {
                 // The "none" keyword is not supported in the rgb/rgba legacy syntax.
-                cssparser::ToCss::to_css(
-                    &parsing::RgbaLegacy::from_floats(
-                        self.components.0,
-                        self.components.1,
-                        self.components.2,
-                        self.alpha,
-                    ),
-                    dest,
-                )
+                let has_alpha = self.alpha != OPAQUE;
+
+                dest.write_str(if has_alpha { "rgba(" } else { "rgb(" })?;
+                clamp_unit_f32(self.components.0).to_css(dest)?;
+                dest.write_str(", ")?;
+                clamp_unit_f32(self.components.1).to_css(dest)?;
+                dest.write_str(", ")?;
+                clamp_unit_f32(self.components.2).to_css(dest)?;
+
+                // Legacy syntax does not allow none components.
+                serialize_color_alpha(dest, Some(self.alpha), true)?;
+
+                dest.write_char(')')
             },
             ColorSpace::Hsl | ColorSpace::Hwb => self.into_srgb_legacy().to_css(dest),
-            ColorSpace::Lab => cssparser::ToCss::to_css(
-                &parsing::Lab::new(self.c0(), self.c1(), self.c2(), self.alpha()),
-                dest,
-            ),
-            ColorSpace::Lch => cssparser::ToCss::to_css(
-                &parsing::Lch::new(self.c0(), self.c1(), self.c2(), self.alpha()),
-                dest,
-            ),
-            ColorSpace::Oklab => cssparser::ToCss::to_css(
-                &parsing::Oklab::new(self.c0(), self.c1(), self.c2(), self.alpha()),
-                dest,
-            ),
-            ColorSpace::Oklch => cssparser::ToCss::to_css(
-                &parsing::Oklch::new(self.c0(), self.c1(), self.c2(), self.alpha()),
-                dest,
-            ),
+            ColorSpace::Oklab | ColorSpace::Lab | ColorSpace::Oklch | ColorSpace::Lch => {
+                if let ColorSpace::Oklab | ColorSpace::Oklch = self.color_space {
+                    dest.write_str("ok")?;
+                }
+                if let ColorSpace::Oklab | ColorSpace::Lab = self.color_space {
+                    dest.write_str("lab(")?;
+                } else {
+                    dest.write_str("lch(")?;
+                }
+                ModernComponent(&self.c0()).to_css(dest)?;
+                dest.write_char(' ')?;
+                ModernComponent(&self.c1()).to_css(dest)?;
+                dest.write_char(' ')?;
+                ModernComponent(&self.c2()).to_css(dest)?;
+                serialize_color_alpha(dest, self.alpha(), false)?;
+                dest.write_char(')')
+            },
             _ => {
-                let color_space = match self.color_space {
+                #[cfg(debug_assertions)]
+                match self.color_space {
                     ColorSpace::Srgb => {
                         debug_assert!(
                             !self.flags.contains(ColorFlags::IS_LEGACY_SRGB),
                             "legacy srgb is not a color function"
                         );
-                        PredefinedColorSpace::Srgb
                     },
-                    ColorSpace::SrgbLinear => PredefinedColorSpace::SrgbLinear,
-                    ColorSpace::DisplayP3 => PredefinedColorSpace::DisplayP3,
-                    ColorSpace::A98Rgb => PredefinedColorSpace::A98Rgb,
-                    ColorSpace::ProphotoRgb => PredefinedColorSpace::ProphotoRgb,
-                    ColorSpace::Rec2020 => PredefinedColorSpace::Rec2020,
-                    ColorSpace::XyzD50 => PredefinedColorSpace::XyzD50,
-                    ColorSpace::XyzD65 => PredefinedColorSpace::XyzD65,
-
+                    ColorSpace::SrgbLinear |
+                    ColorSpace::DisplayP3 |
+                    ColorSpace::A98Rgb |
+                    ColorSpace::ProphotoRgb |
+                    ColorSpace::Rec2020 |
+                    ColorSpace::XyzD50 |
+                    ColorSpace::XyzD65 => {
+                        // These color spaces are allowed.
+                    },
                     _ => {
                         unreachable!("other color spaces do not support color() syntax")
                     },
                 };
 
-                let color_function = parsing::ColorFunction {
-                    color_space,
-                    c1: self.c0(),
-                    c2: self.c1(),
-                    c3: self.c2(),
-                    alpha: self.alpha(),
-                };
-                let color = parsing::Color::ColorFunction(color_function);
-                cssparser::ToCss::to_css(&color, dest)
+                dest.write_str("color(")?;
+                self.color_space.to_css(dest)?;
+                dest.write_char(' ')?;
+                ModernComponent(&self.c0()).to_css(dest)?;
+                dest.write_char(' ')?;
+                ModernComponent(&self.c1()).to_css(dest)?;
+                dest.write_char(' ')?;
+                ModernComponent(&self.c2()).to_css(dest)?;
+
+                serialize_color_alpha(dest, self.alpha(), false)?;
+
+                dest.write_char(')')
             },
         }
     }
