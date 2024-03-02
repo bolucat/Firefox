@@ -822,9 +822,7 @@ VideoDecoder::VideoDecoder(nsIGlobalObject* aParent,
   LOG("VideoDecoder %p ctor", this);
 }
 
-VideoDecoder::~VideoDecoder() {
-  LOG("VideoDecoder %p dtor", this);
-}
+VideoDecoder::~VideoDecoder() { LOG("VideoDecoder %p dtor", this); }
 
 JSObject* VideoDecoder::WrapObject(JSContext* aCx,
                                    JS::Handle<JSObject*> aGivenProto) {

@@ -17,6 +17,7 @@ namespace mozilla {
 class BounceTrackingState;
 class BounceTrackingStateGlobal;
 class BounceTrackingProtectionStorage;
+class ContentBlockingAllowListCache;
 class OriginAttributes;
 
 extern LazyLogModule gBounceTrackingProtectionLog;
@@ -33,10 +34,17 @@ class BounceTrackingProtection final : public nsIBounceTrackingProtection {
   // navigation start for bounce tracking, or if the client bounce detection
   // timer expires after process response received for bounce tracking without
   // observing a client redirect.
-  nsresult RecordStatefulBounces(BounceTrackingState* aBounceTrackingState);
+  [[nodiscard]] nsresult RecordStatefulBounces(
+      BounceTrackingState* aBounceTrackingState);
 
   // Stores a user activation flag with a timestamp for the given principal.
-  nsresult RecordUserActivation(nsIPrincipal* aPrincipal);
+  [[nodiscard]] nsresult RecordUserActivation(nsIPrincipal* aPrincipal);
+
+  // Clears expired user interaction flags for the given state global. If
+  // aStateGlobal == nullptr, clears expired user interaction flags for all
+  // state globals.
+  [[nodiscard]] nsresult ClearExpiredUserInteractions(
+      BounceTrackingStateGlobal* aStateGlobal = nullptr);
 
  private:
   BounceTrackingProtection();
@@ -53,13 +61,19 @@ class BounceTrackingProtection final : public nsIBounceTrackingProtection {
       MozPromise<nsTArray<nsCString>, nsresult, true>;
   RefPtr<PurgeBounceTrackersMozPromise> PurgeBounceTrackers();
 
-  nsresult PurgeBounceTrackersForStateGlobal(
-      BounceTrackingStateGlobal* aStateGlobal,
-      const OriginAttributes& aOriginAttributes);
-
   // Pending clear operations are stored as ClearDataMozPromise, one per host.
   using ClearDataMozPromise = MozPromise<nsCString, uint32_t, true>;
-  nsTArray<RefPtr<ClearDataMozPromise>> mClearPromises;
+
+  // Clear state for classified bounce trackers for a specific state global.
+  // aClearPromises is populated with promises for each host that is cleared.
+  [[nodiscard]] nsresult PurgeBounceTrackersForStateGlobal(
+      BounceTrackingStateGlobal* aStateGlobal,
+      ContentBlockingAllowListCache& aContentBlockingAllowList,
+      nsTArray<RefPtr<ClearDataMozPromise>>& aClearPromises);
+
+  // Whether a purge operation is currently in progress. This avoids running
+  // multiple purge operations at the same time.
+  bool mPurgeInProgress = false;
 
   // Wraps nsIClearDataCallback in MozPromise.
   class ClearDataCallback final : public nsIClearDataCallback {
