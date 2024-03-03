@@ -1368,7 +1368,8 @@ void ChromeUtils::ClearStyleSheetCache(GlobalObject&) {
 static WebIDLProcType ProcTypeToWebIDL(mozilla::ProcType aType) {
   // Max is the value of the last enum, not the length, so add one.
   static_assert(
-      WebIDLProcTypeValues::Count == static_cast<size_t>(ProcType::Max) + 1,
+      static_cast<size_t>(MaxContiguousEnumValue<WebIDLProcType>::value) ==
+          static_cast<size_t>(ProcType::Max),
       "In order for this static cast to be okay, "
       "WebIDLProcType must match ProcType exactly");
 
@@ -2075,9 +2076,9 @@ unsigned ChromeUtils::AliveUtilityProcesses(const GlobalObject&) {
 void ChromeUtils::GetAllPossibleUtilityActorNames(GlobalObject& aGlobal,
                                                   nsTArray<nsCString>& aNames) {
   aNames.Clear();
-  for (size_t i = 0; i < WebIDLUtilityActorNameValues::Count; ++i) {
-    auto idlName = static_cast<UtilityActorName>(i);
-    aNames.AppendElement(WebIDLUtilityActorNameValues::GetString(idlName));
+  for (UtilityActorName idlName :
+       MakeWebIDLEnumeratedRange<WebIDLUtilityActorName>()) {
+    aNames.AppendElement(GetEnumString(idlName));
   }
 }
 

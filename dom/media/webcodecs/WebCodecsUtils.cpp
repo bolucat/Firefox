@@ -151,8 +151,6 @@ gfx::YUVColorSpace ToColorSpace(VideoMatrixCoefficients aMatrix) {
       return gfx::YUVColorSpace::BT601;
     case VideoMatrixCoefficients::Bt2020_ncl:
       return gfx::YUVColorSpace::BT2020;
-    case VideoMatrixCoefficients::EndGuard_:
-      break;
   }
   MOZ_ASSERT_UNREACHABLE("unsupported VideoMatrixCoefficients");
   return gfx::YUVColorSpace::Default;
@@ -171,8 +169,7 @@ gfx::TransferFunction ToTransferFunction(
     case VideoTransferCharacteristics::Hlg:
       return gfx::TransferFunction::HLG;
     case VideoTransferCharacteristics::Linear:
-    case VideoTransferCharacteristics::EndGuard_:
-      break;
+      return gfx::TransferFunction::Default;
   }
   MOZ_ASSERT_UNREACHABLE("unsupported VideoTransferCharacteristics");
   return gfx::TransferFunction::Default;
@@ -190,8 +187,6 @@ gfx::ColorSpace2 ToPrimaries(VideoColorPrimaries aPrimaries) {
       return gfx::ColorSpace2::BT2020;
     case VideoColorPrimaries::Smpte432:
       return gfx::ColorSpace2::DISPLAY_P3;
-    case VideoColorPrimaries::EndGuard_:
-      break;
   }
   MOZ_ASSERT_UNREACHABLE("unsupported VideoTransferCharacteristics");
   return gfx::ColorSpace2::UNKNOWN;
@@ -364,15 +359,13 @@ struct ConfigurationChangeToString {
   }
   nsCString operator()(
       const HardwareAccelerationChange& aHardwareAccelerationChange) {
-    return nsPrintfCString("HW acceleration: %s",
-                           dom::HardwareAccelerationValues::GetString(
-                               aHardwareAccelerationChange.get())
-                               .data());
+    return nsPrintfCString(
+        "HW acceleration: %s",
+        dom::GetEnumString(aHardwareAccelerationChange.get()).get());
   }
   nsCString operator()(const AlphaChange& aAlphaChange) {
-    return nsPrintfCString(
-        "Alpha: %s",
-        dom::AlphaOptionValues::GetString(aAlphaChange.get()).data());
+    return nsPrintfCString("Alpha: %s",
+                           dom::GetEnumString(aAlphaChange.get()).get());
   }
   nsCString operator()(const ScalabilityModeChange& aScalabilityModeChange) {
     if (aScalabilityModeChange.get().isNothing()) {
@@ -383,15 +376,12 @@ struct ConfigurationChangeToString {
         NS_ConvertUTF16toUTF8(aScalabilityModeChange.get().value()).get());
   }
   nsCString operator()(const BitrateModeChange& aBitrateModeChange) {
-    return nsPrintfCString(
-        "Bitrate mode: %s",
-        dom::VideoEncoderBitrateModeValues::GetString(aBitrateModeChange.get())
-            .data());
+    return nsPrintfCString("Bitrate mode: %s",
+                           dom::GetEnumString(aBitrateModeChange.get()).get());
   }
   nsCString operator()(const LatencyModeChange& aLatencyModeChange) {
-    return nsPrintfCString(
-        "Latency mode: %s",
-        dom::LatencyModeValues::GetString(aLatencyModeChange.get()).data());
+    return nsPrintfCString("Latency mode: %s",
+                           dom::GetEnumString(aLatencyModeChange.get()).get());
   }
   nsCString operator()(const ContentHintChange& aContentHintChange) {
     return nsPrintfCString("Content hint: %s",
@@ -489,9 +479,6 @@ WebCodecsConfigurationChangeList::ToPEMChangeList() const {
   return rv.forget();
 }
 
-#define ENUM_TO_STRING(enumType, enumValue) \
-  enumType##Values::GetString(enumValue).data()
-
 nsCString ColorSpaceInitToString(
     const dom::VideoColorSpaceInit& aColorSpaceInit) {
   nsCString rv("VideoColorSpace");
@@ -502,18 +489,15 @@ nsCString ColorSpaceInitToString(
   }
   if (!aColorSpaceInit.mMatrix.IsNull()) {
     rv.AppendPrintf(" matrix: %s",
-                    ENUM_TO_STRING(dom::VideoMatrixCoefficients,
-                                   aColorSpaceInit.mMatrix.Value()));
+                    GetEnumString(aColorSpaceInit.mMatrix.Value()).get());
   }
   if (!aColorSpaceInit.mTransfer.IsNull()) {
     rv.AppendPrintf(" transfer: %s",
-                    ENUM_TO_STRING(dom::VideoTransferCharacteristics,
-                                   aColorSpaceInit.mTransfer.Value()));
+                    GetEnumString(aColorSpaceInit.mTransfer.Value()).get());
   }
   if (!aColorSpaceInit.mPrimaries.IsNull()) {
     rv.AppendPrintf(" primaries: %s",
-                    ENUM_TO_STRING(dom::VideoColorPrimaries,
-                                   aColorSpaceInit.mPrimaries.Value()));
+                    GetEnumString(aColorSpaceInit.mPrimaries.Value()).get());
   }
 
   return rv;

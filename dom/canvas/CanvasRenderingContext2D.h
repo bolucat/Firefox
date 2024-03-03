@@ -1008,9 +1008,11 @@ class CanvasRenderingContext2D : public nsICanvasRenderingContextInternal,
     RefPtr<nsAtom> fontLanguage;
     nsFont fontFont;
 
-    EnumeratedArray<Style, Style::MAX, RefPtr<CanvasGradient>> gradientStyles;
-    EnumeratedArray<Style, Style::MAX, RefPtr<CanvasPattern>> patternStyles;
-    EnumeratedArray<Style, Style::MAX, nscolor> colorStyles;
+    EnumeratedArray<Style, RefPtr<CanvasGradient>, size_t(Style::MAX)>
+        gradientStyles;
+    EnumeratedArray<Style, RefPtr<CanvasPattern>, size_t(Style::MAX)>
+        patternStyles;
+    EnumeratedArray<Style, nscolor, size_t(Style::MAX)> colorStyles;
 
     nsCString font;
     CanvasTextAlign textAlign = CanvasTextAlign::Start;

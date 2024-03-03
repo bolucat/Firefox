@@ -41,8 +41,6 @@ let InternalFaviconLoader = {
    *   The options object containing:
    * @param {object} options.uri
    *   The URI of the favicon to cancel.
-   * @param {number} options.innerWindowID
-   *   The inner window ID of the window. Unused.
    * @param {number} options.timerID
    *   The timer ID of the timeout to be cancelled
    * @param {*} options.callback
@@ -50,7 +48,7 @@ let InternalFaviconLoader = {
    * @param {string} reason
    *   The reason for cancelling the request.
    */
-  _cancelRequest({ uri, innerWindowID, timerID, callback }, reason) {
+  _cancelRequest({ uri, timerID, callback }, reason) {
     // Break cycle
     let request = callback.request;
     delete callback.request;
