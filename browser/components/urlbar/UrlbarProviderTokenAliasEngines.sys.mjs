@@ -153,19 +153,16 @@ class ProviderTokenAliasEngines extends UrlbarProvider {
   /**
    * Gets the provider's priority.
    *
-   * @param {UrlbarQueryContext} queryContext The query context object
    * @returns {number} The provider's priority for the given query.
    */
-  getPriority(queryContext) {
+  getPriority() {
     return this.PRIORITY;
   }
 
   /**
    * Cancels a running query.
-   *
-   * @param {object} queryContext The query context object
    */
-  cancelQuery(queryContext) {
+  cancelQuery() {
     if (this._autofillData?.instance == this.queryInstance) {
       this._autofillData = null;
     }
