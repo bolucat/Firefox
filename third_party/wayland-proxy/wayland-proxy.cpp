@@ -326,11 +326,6 @@ struct pollfd* ProxiedConnection::LoadPollFd(struct pollfd* aPfds) {
 }
 
 bool ProxiedConnection::ConnectToCompositor() {
-  if (!(mCompositorFlags & POLLOUT)) {
-    // Try again later
-    return true;
-  }
-
   struct sockaddr_un addr = {};
   addr.sun_family = AF_UNIX;
   strcpy(addr.sun_path, mWaylandDisplay);
@@ -754,7 +749,7 @@ WaylandProxy::~WaylandProxy() {
 }
 
 void* WaylandProxy::RunProxyThread(WaylandProxy* aProxy) {
-#ifdef __linux__
+#if defined(__linux__) || defined(__FreeBSD__)
   pthread_setname_np(pthread_self(), "WaylandProxy");
 #endif
   aProxy->Run();

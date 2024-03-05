@@ -28,6 +28,7 @@
 #include "nsCSSFrameConstructor.h"
 #include "nsDisplayList.h"
 #include "nsFieldSetFrame.h"
+#include "nsGfxScrollFrame.h"
 #include "nsHashKeys.h"
 #include "nsIFrameInlines.h"  // for nsIFrame::GetLogicalNormalPosition (don't remove)
 #include "nsLayoutUtils.h"
@@ -3685,7 +3686,8 @@ static Subgrid* SubgridComputeMarginBorderPadding(
       sz.ComputedLogicalMargin(cbWM) + sz.ComputedLogicalBorderPadding(cbWM);
 
   if (aGridItem.mFrame != subgridFrame) {
-    nsIScrollableFrame* scrollFrame = aGridItem.mFrame->GetScrollTargetFrame();
+    nsHTMLScrollFrame* scrollFrame =
+        do_QueryFrame(aGridItem.mFrame->GetScrollTargetFrame());
     if (scrollFrame) {
       MOZ_ASSERT(
           sz.ComputedLogicalMargin(cbWM) == LogicalMargin(cbWM) &&
@@ -3699,7 +3701,7 @@ static Subgrid* SubgridComputeMarginBorderPadding(
           szScrollFrame.ComputedLogicalMargin(cbWM) +
           szScrollFrame.ComputedLogicalBorder(cbWM);
 
-      nsMargin ssz = scrollFrame->GetActualScrollbarSizes();
+      nsMargin ssz = scrollFrame->IntrinsicScrollbarGutterSize();
       subgrid->mMarginBorderPadding += LogicalMargin(cbWM, ssz);
     }
 
@@ -5298,7 +5300,8 @@ static nscoord MeasuringReflow(nsIFrame* aChild,
                                const LogicalSize& aCBSize,
                                nscoord aIMinSizeClamp = NS_MAXSIZE,
                                nscoord aBMinSizeClamp = NS_MAXSIZE) {
-  nsContainerFrame* parent = aChild->GetParent();
+  MOZ_ASSERT(aChild->IsGridItem(), "aChild should be a grid item!");
+  auto* parent = static_cast<nsGridContainerFrame*>(aChild->GetParent());
   nsPresContext* pc = aChild->PresContext();
   Maybe<ReflowInput> dummyParentState;
   const ReflowInput* rs = aReflowInput;
@@ -5317,6 +5320,11 @@ static nscoord MeasuringReflow(nsIFrame* aChild,
 #endif
   auto wm = aChild->GetWritingMode();
   ComputeSizeFlags csFlags = ComputeSizeFlag::IsGridMeasuringReflow;
+  // Shrink-wrap grid items that will be aligned (rather than stretched) in
+  // their own inline axis.
+  if (!parent->GridItemShouldStretch(aChild, eLogicalAxisInline)) {
+    csFlags += ComputeSizeFlag::ShrinkWrap;
+  }
   if (aAvailableSize.ISize(wm) == INFINITE_ISIZE_COORD) {
     csFlags += ComputeSizeFlag::ShrinkWrap;
   }

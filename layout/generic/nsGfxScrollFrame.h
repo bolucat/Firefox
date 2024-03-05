@@ -110,7 +110,13 @@ class nsHTMLScrollFrame : public nsContainerFrame,
   // Return the sum of inline-size of the scrollbar gutters (if any) at the
   // inline-start and inline-end edges of the scroll frame (for a potential
   // scrollbar that scrolls in the block axis).
-  nscoord IntrinsicScrollbarGutterSizeAtInlineEdges();
+  nscoord IntrinsicScrollbarGutterSizeAtInlineEdges() const;
+
+  // Return the size of space created by scrollbar-gutter or actual scrollbars,
+  // assuming that the content is *not* overflowing the container. In other
+  // words, this space is created by stable scrollbar-gutter or by scrollbars
+  // due to "overflow: scroll".
+  nsMargin IntrinsicScrollbarGutterSize() const;
 
   // Compute stable scrollbar-gutter from scrollbar-width and scrollbar-gutter
   // properties.

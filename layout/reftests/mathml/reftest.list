@@ -1,21 +1,16 @@
 == overbar-width-1.xhtml overbar-width-1-ref.xhtml
-== stretchy-largeop-1.html stretchy-largeop-1-ref.html
-== stretchy-largeop-2.html stretchy-largeop-2-ref.html
-== stretchy-largeop-3.html stretchy-largeop-3-ref.html
 == underbar-width-1.xhtml underbar-width-1-ref.xhtml
 == scale-stretchy-1.xhtml scale-stretchy-1-ref.xhtml
 != scale-stretchy-2.xhtml scale-stretchy-2-ref.xhtml
 fails-if(cocoaWidget) == scale-stretchy-3.xhtml scale-stretchy-3-ref.xhtml
 != scale-stretchy-4.xhtml scale-stretchy-4-ref.xhtml
 != scale-stretchy-5.xhtml scale-stretchy-5-ref.xhtml
-!= stretchy-1.html stretchy-1-ref.html
 == scriptlevel-movablelimits-1.html scriptlevel-movablelimits-1-ref.html
 == munderover-align-accent-false.html munderover-align-accent-false-ref.html
 == munderover-align-accent-true.html munderover-align-accent-true-ref.html
 == munder-mover-align-accent-true.html munder-mover-align-accent-true-ref.html
 == munder-mover-align-accent-false.html munder-mover-align-accent-false-ref.html
 == munderover-empty-scripts.html munderover-empty-scripts-ref.html
-== mo-glyph-size.html mo-glyph-size-ref.html
 fuzzy(0-1,0-80) fuzzy-if(Android,0-255,0-105) fuzzy-if(gtkWidget,0-255,0-136) skip-if(winWidget) == multiscripts-1.html multiscripts-1-ref.html # Windows: bug 1314684; Android: bug 1392254; Linux: bug 1599638
 fails-if(winWidget) fuzzy-if(gtkWidget,255-255,776226-776226) == subscript-italic-correction.html subscript-italic-correction-ref.html # bug 961482 (Windows), bug 1599640 (Linux)
 

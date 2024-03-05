@@ -1147,6 +1147,14 @@
   value: "A DLP agent"
   mirror: never
 
+# (optional) The organization name that the DLP agent should have. If this is
+# non-empty and the DLP agent is not signed with this organization name,
+# Firefox will fail the connection.
+- name: browser.contentanalysis.client_signature
+  type: String
+  value: ""
+  mirror: never
+
 # Content analysis by external applications, e.g. data-loss prevention apps
 - name: browser.contentanalysis.enabled
   type: bool
@@ -4815,6 +4823,12 @@
 - name: dom.iframe_lazy_loading.enabled
   type: RelaxedAtomicBool
   value: true
+  mirror: always
+
+# Whether allowing using <tab> to move focus to root elements
+- name: dom.disable_tab_focus_to_root_element
+  type: bool
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 #---------------------------------------------------------------------------
@@ -10242,7 +10256,11 @@
 # 2 : enable for encrypted only, 3 : enable for clear only
 -   name: media.wmf.media-engine.enabled
     type: RelaxedAtomicUint32
+#if defined(IS_NIGHTLY_OR_DEV_EDITION)
+    value: 2
+#else
     value: 0
+#endif
     mirror: always
 
 # Testing purpose, enable media engine on channel decoder as well.

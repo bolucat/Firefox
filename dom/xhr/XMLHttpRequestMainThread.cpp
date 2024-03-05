@@ -40,6 +40,7 @@
 #include "mozilla/LoadInfo.h"
 #include "mozilla/LoadContext.h"
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/net/ContentRange.h"
 #include "mozilla/PreloaderBase.h"
 #include "mozilla/ScopeExit.h"
 #include "mozilla/SpinEventLoopUntil.h"
@@ -48,6 +49,7 @@
 #include "mozilla/StaticPrefs_privacy.h"
 #include "mozilla/dom/ProgressEvent.h"
 #include "nsDataChannel.h"
+#include "nsIBaseChannel.h"
 #include "nsIJARChannel.h"
 #include "nsIJARURI.h"
 #include "nsReadableUtils.h"
@@ -863,14 +865,28 @@ bool XMLHttpRequestMainThread::IsDeniedCrossSiteCORSRequest() {
   return false;
 }
 
-Maybe<nsBaseChannel::ContentRange>
+bool XMLHttpRequestMainThread::BadContentRangeRequested() {
+  if (!mChannel) {
+    return false;
+  }
+  // Only nsIBaseChannel supports this
+  nsCOMPtr<nsIBaseChannel> baseChan = do_QueryInterface(mChannel);
+  if (!baseChan) {
+    return false;
+  }
+  // A bad range was requested if the channel has no content range
+  // despite the request specifying a range header.
+  return !baseChan->ContentRange() && mAuthorRequestHeaders.Has("range");
+}
+
+RefPtr<mozilla::net::ContentRange>
 XMLHttpRequestMainThread::GetRequestedContentRange() const {
   MOZ_ASSERT(mChannel);
-  nsBaseChannel* baseChan = static_cast<nsBaseChannel*>(mChannel.get());
+  nsCOMPtr<nsIBaseChannel> baseChan = do_QueryInterface(mChannel);
   if (!baseChan) {
-    return mozilla::Nothing();
+    return nullptr;
   }
-  return baseChan->GetContentRange();
+  return baseChan->ContentRange();
 }
 
 void XMLHttpRequestMainThread::GetContentRangeHeader(nsACString& out) const {
@@ -878,8 +894,8 @@ void XMLHttpRequestMainThread::GetContentRangeHeader(nsACString& out) const {
     out.SetIsVoid(true);
     return;
   }
-  Maybe<nsBaseChannel::ContentRange> range = GetRequestedContentRange();
-  if (range.isSome()) {
+  RefPtr<mozilla::net::ContentRange> range = GetRequestedContentRange();
+  if (range) {
     range->AsHeader(out);
   } else {
     out.SetIsVoid(true);
@@ -943,8 +959,7 @@ uint32_t XMLHttpRequestMainThread::GetStatus(ErrorResult& aRv) {
   nsCOMPtr<nsIHttpChannel> httpChannel = GetCurrentHttpChannel();
   if (!httpChannel) {
     // Pretend like we got a 200/206 response, since our load was successful
-    return IsBlobURI(mRequestURL) && GetRequestedContentRange().isSome() ? 206
-                                                                         : 200;
+    return GetRequestedContentRange() ? 206 : 200;
   }
 
   uint32_t status;
@@ -1193,13 +1208,13 @@ bool XMLHttpRequestMainThread::IsSafeHeader(
 
 bool XMLHttpRequestMainThread::GetContentType(nsACString& aValue) const {
   MOZ_ASSERT(mChannel);
-  nsCOMPtr<nsIURI> uri;
-  if (NS_SUCCEEDED(mChannel->GetURI(getter_AddRefs(uri))) &&
-      uri->SchemeIs("data")) {
-    nsDataChannel* dchan = static_cast<nsDataChannel*>(mChannel.get());
-    MOZ_ASSERT(dchan);
-    aValue.Assign(dchan->MimeType());
-    return true;
+  nsCOMPtr<nsIBaseChannel> baseChan = do_QueryInterface(mChannel);
+  if (baseChan) {
+    RefPtr<CMimeType> fullMimeType(baseChan->FullMimeType());
+    if (fullMimeType) {
+      fullMimeType->Serialize(aValue);
+      return true;
+    }
   }
   if (NS_SUCCEEDED(mChannel->GetContentType(aValue))) {
     nsCString value;
@@ -1955,8 +1970,7 @@ XMLHttpRequestMainThread::OnStartRequest(nsIRequest* request) {
 
   // If we were asked for a bad range on a blob URL, but we're async,
   // we should throw now in order to fire an error progress event.
-  if (IsBlobURI(mRequestURL) && GetRequestedContentRange().isNothing() &&
-      mAuthorRequestHeaders.Has("range")) {
+  if (BadContentRangeRequested()) {
     return NS_ERROR_NET_PARTIAL_TRANSFER;
   }
 
@@ -3127,7 +3141,7 @@ void XMLHttpRequestMainThread::SendInternal(const BodyExtractorBase* aBody,
       if (uploadContentType.IsVoid()) {
         uploadContentType = defaultContentType;
       } else if (aBodyIsDocumentOrString) {
-        UniquePtr<CMimeType> contentTypeRecord =
+        RefPtr<CMimeType> contentTypeRecord =
             CMimeType::Parse(uploadContentType);
         nsAutoCString charset;
         if (contentTypeRecord &&
@@ -3390,7 +3404,7 @@ void XMLHttpRequestMainThread::OverrideMimeType(const nsAString& aMimeType,
     return;
   }
 
-  UniquePtr<MimeType> parsed = MimeType::Parse(aMimeType);
+  RefPtr<MimeType> parsed = MimeType::Parse(aMimeType);
   if (parsed) {
     parsed->Serialize(mOverrideMimeType);
   } else {

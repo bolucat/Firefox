@@ -2144,26 +2144,31 @@ BrowserGlue.prototype = {
     const COMPONENT_PREF = "screenshots.browser.component.enabled";
     const ID = "screenshots@mozilla.org";
     const _checkScreenshotsPref = async () => {
-      let addon = await lazy.AddonManager.getAddonByID(ID);
-      if (!addon) {
-        return;
-      }
       let screenshotsDisabled = Services.prefs.getBoolPref(
         SCREENSHOTS_PREF,
         false
       );
-      let componentEnabled = Services.prefs.getBoolPref(COMPONENT_PREF, false);
+      let componentEnabled = Services.prefs.getBoolPref(COMPONENT_PREF, true);
+
+      let screenshotsAddon = await lazy.AddonManager.getAddonByID(ID);
+
       if (screenshotsDisabled) {
         if (componentEnabled) {
           lazy.ScreenshotsUtils.uninitialize();
-        } else {
-          await addon.disable({ allowSystemAddons: true });
+        } else if (screenshotsAddon?.isActive) {
+          await screenshotsAddon.disable({ allowSystemAddons: true });
         }
       } else if (componentEnabled) {
         lazy.ScreenshotsUtils.initialize();
-        await addon.disable({ allowSystemAddons: true });
+        if (screenshotsAddon?.isActive) {
+          await screenshotsAddon.disable({ allowSystemAddons: true });
+        }
       } else {
-        await addon.enable({ allowSystemAddons: true });
+        try {
+          await screenshotsAddon.enable({ allowSystemAddons: true });
+        } catch (ex) {
+          console.error(`Error trying to enable screenshots extension: ${ex}`);
+        }
         lazy.ScreenshotsUtils.uninitialize();
       }
     };
@@ -2434,7 +2439,6 @@ BrowserGlue.prototype = {
       LATE_TASKS_IDLE_TIME_SEC
     );
 
-    this._monitorScreenshotsPref();
     this._monitorWebcompatReporterPref();
     this._monitorHTTPSOnlyPref();
     this._monitorIonPref();
@@ -2787,13 +2791,9 @@ BrowserGlue.prototype = {
       },
 
       {
-        name: "ScreenshotsUtils.initialize",
+        name: "BrowserGlue._monitorScreenshotsPref",
         task: () => {
-          if (
-            Services.prefs.getBoolPref("screenshots.browser.component.enabled")
-          ) {
-            lazy.ScreenshotsUtils.initialize();
-          }
+          this._monitorScreenshotsPref();
         },
       },
 
@@ -3175,8 +3175,6 @@ BrowserGlue.prototype = {
       function reportInstallationTelemetry() {
         lazy.BrowserUsageTelemetry.reportInstallationTelemetry();
       },
-
-      RunOSKeyStoreSelfTest,
     ];
 
     for (let task of idleTasks) {
@@ -6450,70 +6448,3 @@ export var AboutHomeStartupCache = {
     this._cacheEntryResolver(this._cacheEntry);
   },
 };
-
-async function RunOSKeyStoreSelfTest() {
-  // The linux implementation always causes an OS dialog, in contrast to
-  // Windows and macOS (the latter of which causes an OS dialog to appear on
-  // local developer builds), so only run on Windows and macOS and only if this
-  // has been built and signed by Mozilla's infrastructure. Similarly, don't
-  // run this code in automation.
-  if (
-    (AppConstants.platform != "win" && AppConstants.platform != "macosx") ||
-    !AppConstants.MOZILLA_OFFICIAL ||
-    Services.env.get("MOZ_AUTOMATION")
-  ) {
-    return;
-  }
-  let osKeyStore = Cc["@mozilla.org/security/oskeystore;1"].getService(
-    Ci.nsIOSKeyStore
-  );
-  let label = Services.prefs.getCharPref("security.oskeystore.test.label", "");
-  if (!label) {
-    label = Services.uuid.generateUUID().toString().slice(1, -1);
-    Services.prefs.setCharPref("security.oskeystore.test.label", label);
-    try {
-      await osKeyStore.asyncGenerateSecret(label);
-      Glean.oskeystore.selfTest.generate.set(true);
-    } catch (_) {
-      Glean.oskeystore.selfTest.generate.set(false);
-      return;
-    }
-  }
-  let secretAvailable = await osKeyStore.asyncSecretAvailable(label);
-  Glean.oskeystore.selfTest.available.set(secretAvailable);
-  if (!secretAvailable) {
-    return;
-  }
-  let encrypted = Services.prefs.getCharPref(
-    "security.oskeystore.test.encrypted",
-    ""
-  );
-  if (!encrypted) {
-    try {
-      encrypted = await osKeyStore.asyncEncryptBytes(label, [1, 1, 3, 8]);
-      Services.prefs.setCharPref(
-        "security.oskeystore.test.encrypted",
-        encrypted
-      );
-      Glean.oskeystore.selfTest.encrypt.set(true);
-    } catch (_) {
-      Glean.oskeystore.selfTest.encrypt.set(false);
-      return;
-    }
-  }
-  try {
-    let decrypted = await osKeyStore.asyncDecryptBytes(label, encrypted);
-    if (
-      decrypted.length != 4 ||
-      decrypted[0] != 1 ||
-      decrypted[1] != 1 ||
-      decrypted[2] != 3 ||
-      decrypted[3] != 8
-    ) {
-      throw new Error("decrypted value not as expected?");
-    }
-    Glean.oskeystore.selfTest.decrypt.set(true);
-  } catch (_) {
-    Glean.oskeystore.selfTest.decrypt.set(false);
-  }
-}

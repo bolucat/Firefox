@@ -244,7 +244,7 @@ class AutofillChangeset extends Changeset {
     super();
   }
 
-  getModifiedTimestamp(id) {
+  getModifiedTimestamp(_id) {
     throw new Error("Don't use timestamps to resolve autofill merge conflicts");
   }
 

@@ -299,20 +299,18 @@ class AutofillRecords {
     });
   }
 
-  observe(subject, topic, data) {
-    switch (topic) {
-      case "formautofill-storage-changed":
-        let collectionName = subject.wrappedJSObject.collectionName;
-        if (collectionName != this._collectionName) {
-          return;
-        }
-        const telemetryType =
-          subject.wrappedJSObject.collectionName == "creditCards"
-            ? lazy.AutofillTelemetry.CREDIT_CARD
-            : lazy.AutofillTelemetry.ADDRESS;
-        const count = this._data.filter(entry => !entry.deleted).length;
-        lazy.AutofillTelemetry.recordAutofillProfileCount(telemetryType, count);
-        break;
+  observe(subject, topic, _data) {
+    if (topic == "formautofill-storage-changed") {
+      let collectionName = subject.wrappedJSObject.collectionName;
+      if (collectionName != this._collectionName) {
+        return;
+      }
+      const telemetryType =
+        subject.wrappedJSObject.collectionName == "creditCards"
+          ? lazy.AutofillTelemetry.CREDIT_CARD
+          : lazy.AutofillTelemetry.ADDRESS;
+      const count = this._data.filter(entry => !entry.deleted).length;
+      lazy.AutofillTelemetry.recordAutofillProfileCount(telemetryType, count);
     }
   }
 
@@ -1486,36 +1484,36 @@ class AutofillRecords {
   }
 
   // An interface to be inherited.
-  _recordReadProcessor(record) {}
+  _recordReadProcessor(_record) {}
 
   // An interface to be inherited.
-  async computeFields(record) {}
+  async computeFields(_record) {}
 
   /**
    * An interface to be inherited to mutate the argument to normalize it.
    *
-   * @param {object} partialRecord containing the record passed by the consumer of
+   * @param {object} _partialRecord containing the record passed by the consumer of
    *                               storage and in the case of `update` with
    *                               `preserveOldProperties` will only include the
    *                               properties that the user is changing so the
    *                               lack of a field doesn't mean that the record
    *                               won't have that field.
    */
-  _normalizeFields(partialRecord) {}
+  _normalizeFields(_partialRecord) {}
 
   /**
    * An interface to be inherited to validate that the complete record is
    * consistent and isn't missing required fields. Overrides should throw for
    * invalid records.
    *
-   * @param {object} record containing the complete record that would be stored
+   * @param {object} _record containing the complete record that would be stored
    *                        if this doesn't throw due to an error.
    * @throws
    */
-  _validateFields(record) {}
+  _validateFields(_record) {}
 
   // An interface to be inherited.
-  migrateRemoteRecord(remoteRecord) {}
+  migrateRemoteRecord(_remoteRecord) {}
 }
 
 export class AddressesBase extends AutofillRecords {
@@ -1879,7 +1877,7 @@ export class CreditCardsBase extends AutofillRecords {
     return hasNewComputedFields;
   }
 
-  async _encryptNumber(creditCard) {
+  async _encryptNumber(_creditCard) {
     throw Components.Exception("", Cr.NS_ERROR_NOT_IMPLEMENTED);
   }
 
