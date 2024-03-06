@@ -140,9 +140,7 @@ void MediaDecoder::InitStatics() {
 #  if defined(MOZ_FFMPEG)
     Preferences::Lock("media.utility-ffmpeg.enabled");
 #  endif  // defined(MOZ_FFMPEG)
-#  if defined(MOZ_FFVPX)
     Preferences::Lock("media.utility-ffvpx.enabled");
-#  endif  // defined(MOZ_FFVPX)
 #  if defined(MOZ_WMF)
     Preferences::Lock("media.utility-wmf.enabled");
 #  endif  // defined(MOZ_WMF)
@@ -194,12 +192,6 @@ void MediaDecoder::SetOutputCaptureState(OutputCaptureState aState,
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(mDecoderStateMachine, "Must be called after Load().");
   MOZ_ASSERT_IF(aState == OutputCaptureState::Capture, aDummyTrack);
-
-  if (mOutputCaptureState.Ref() != aState) {
-    LOG("Capture state change from %s to %s",
-        OutputCaptureStateToStr(mOutputCaptureState.Ref()),
-        OutputCaptureStateToStr(aState));
-  }
   mOutputCaptureState = aState;
   if (mOutputDummyTrack.Ref().get() != aDummyTrack) {
     mOutputDummyTrack = nsMainThreadPtrHandle<SharedDummyTrack>(
@@ -456,7 +448,6 @@ void MediaDecoder::OnPlaybackErrorEvent(const MediaResult& aError) {
   }
   LOG("Need to create a new %s state machine",
       needExternalEngine ? "external engine" : "normal");
-  mStateMachineRecreated = true;
 
   nsresult rv = CreateAndInitStateMachine(
       false /* live stream */,
@@ -618,6 +609,7 @@ nsresult MediaDecoder::CreateAndInitStateMachine(bool aIsLiveStream,
   NS_ENSURE_TRUE(GetStateMachine(), NS_ERROR_FAILURE);
   GetStateMachine()->DispatchIsLiveStream(aIsLiveStream);
 
+  mMDSMCreationTime = Some(TimeStamp::Now());
   nsresult rv = mDecoderStateMachine->Init(this);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -890,6 +882,14 @@ void MediaDecoder::FirstFrameLoaded(
   // loading state.
   if (mPlayState == PLAY_STATE_LOADING) {
     ChangeState(mNextState);
+  }
+
+  // We only care about video first frame.
+  if (mInfo->HasVideo() && mMDSMCreationTime) {
+    mTelemetryProbesReporter->OntFirstFrameLoaded(
+        TimeStamp::Now() - *mMDSMCreationTime, IsMSE(),
+        mDecoderStateMachine->IsExternalEngineStateMachine());
+    mMDSMCreationTime.reset();
   }
 
   // GetOwner()->FirstFrameLoaded() might call us back. Put it at the bottom of

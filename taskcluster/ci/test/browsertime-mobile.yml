@@ -378,11 +378,12 @@ browsertime-benchmark-speedometer3-mobile:
                 by-test-platform:
                     android-hw-a51.*shippable-qr.*: [trunk-only]
                     default: []
-            cstm-car-m:
+            cstm-car-m: [mozilla-central]
+            chrome-m:
                 by-test-platform:
-                    android-hw-p6.*shippable-qr.*: []
-                    android-hw-s21.*shippable-qr.*: []
-                    default: [mozilla-central]
+                    android-hw-p6.*shippable-qr.*: [mozilla-central]
+                    android-hw-s21.*shippable-qr.*: [mozilla-central]
+                    default: []
             default: []
     treeherder-symbol: Btime(sp3)
     mozharness:
@@ -399,6 +400,24 @@ browsertime-benchmark-motionmark:
             - [motionmark-animometer-ramp, mm-ar]
             - [motionmark-htmlsuite, mm-h]
             - [motionmark-htmlsuite-ramp, mm-hr]
+    run-on-projects:
+        by-app:
+            chrome-m: []
+            default:
+                by-test-platform:
+                    android-hw-a51-.*aarch64-shippable-qr.*: [mozilla-central]
+                    default: []
+    treeherder-symbol: Btime()
+    tier: 2
+
+browsertime-benchmark-motionmark-1-3:
+    description: Raptor (browsertime) Motionmark 1.3 benchmark tests
+    run-without-variant: false
+    raptor:
+        apps: [geckoview, fenix, chrome-m, cstm-car-m]
+        subtests:
+            - [motionmark-1-3, mm-1.3]
+            - [motionmark-htmlsuite-1-3, mm-h-1.3]
     run-on-projects:
         by-app:
             chrome-m: []

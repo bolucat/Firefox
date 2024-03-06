@@ -12,8 +12,11 @@ with Files("*TextInput*"):
 
 SOURCES += [
     "GfxInfo.cpp",
+    "MediaKeysEventSourceFactory.cpp",
     "nsAppShell.mm",
+    "nsBidiKeyboard.mm",
     "nsLookAndFeel.mm",
+    "nsNativeThemeUIKit.mm",
     "nsWidgetFactory.mm",
     "nsWindow.mm",
     "TextInputHandler.mm",
@@ -29,4 +32,8 @@ LOCAL_INCLUDES += [
 
 XPCOM_MANIFESTS += [
     "components.conf",
+]
+
+OS_LIBS += [
+    "-framework UIKit",
 ]

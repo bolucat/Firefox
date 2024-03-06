@@ -29,6 +29,7 @@
 #include "nsSocketTransportService2.h"
 #include "nsThreadUtils.h"
 #include "sslerr.h"
+#include "WebTransportCertificateVerifier.h"
 
 namespace mozilla::net {
 
@@ -153,7 +154,20 @@ nsresult Http3Session::Init(const nsHttpConnectionInfo* aConnInfo,
   SessionCacheInfo info;
   udpConn->ChangeConnectionState(ConnectionState::TLS_HANDSHAKING);
 
-  if (StaticPrefs::network_http_http3_enable_0rtt() &&
+  auto hasServCertHashes = [&]() -> bool {
+    if (!mConnInfo->GetWebTransport()) {
+      return false;
+    }
+    const nsTArray<RefPtr<nsIWebTransportHash>>* servCertHashes =
+        gHttpHandler->ConnMgr()->GetServerCertHashes(mConnInfo);
+    return servCertHashes && !servCertHashes->IsEmpty();
+  };
+
+  // In WebTransport, when servCertHashes is specified, it indicates that the
+  // connection to the WebTransport server should authenticate using the
+  // expected certificate hash. Therefore, 0RTT should be disabled in this
+  // context to ensure the certificate hash is checked.
+  if (StaticPrefs::network_http_http3_enable_0rtt() && !hasServCertHashes() &&
       NS_SUCCEEDED(SSLTokensCache::Get(peerId, token, info))) {
     LOG(("Found a resumption token in the cache."));
     mHttp3Connection->SetResumptionToken(token);
@@ -2125,6 +2139,32 @@ void Http3Session::CallCertVerification(Maybe<nsCString> aEchPublicName) {
     mHttp3Connection->PeerAuthenticated(SSL_ERROR_BAD_CERTIFICATE);
     mError = psm::GetXPCOMFromNSSError(SSL_ERROR_BAD_CERTIFICATE);
     return;
+  }
+
+  if (mConnInfo->GetWebTransport()) {
+    // if our connection is webtransport, we might do a verification
+    // based on serverCertificatedHashes
+    const nsTArray<RefPtr<nsIWebTransportHash>>* servCertHashes =
+        gHttpHandler->ConnMgr()->GetServerCertHashes(mConnInfo);
+    if (servCertHashes && !servCertHashes->IsEmpty() &&
+        certInfo.certs.Length() >= 1) {
+      // ok, we verify based on serverCertificateHashes
+      mozilla::pkix::Result rv = AuthCertificateWithServerCertificateHashes(
+          certInfo.certs[0], *servCertHashes);
+      if (rv != mozilla::pkix::Result::Success) {
+        // ok we failed, report it back
+        LOG(
+            ("Http3Session::CallCertVerification [this=%p] "
+             "AuthCertificateWithServerCertificateHashes failed",
+             this));
+        mHttp3Connection->PeerAuthenticated(SSL_ERROR_BAD_CERTIFICATE);
+        mError = psm::GetXPCOMFromNSSError(SSL_ERROR_BAD_CERTIFICATE);
+        return;
+      }
+      // ok, we succeded
+      Authenticated(0);
+      return;
+    }
   }
 
   Maybe<nsTArray<nsTArray<uint8_t>>> stapledOCSPResponse;
