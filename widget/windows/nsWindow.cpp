@@ -175,12 +175,11 @@
 #include <zmouse.h>
 #include <richedit.h>
 
-#if defined(ACCESSIBILITY)
-
+#ifdef ACCESSIBILITY
 #  ifdef DEBUG
 #    include "mozilla/a11y/Logging.h"
 #  endif
-
+#  include "mozilla/a11y/Compatibility.h"
 #  include "oleidl.h"
 #  include <winuser.h>
 #  include "nsAccessibilityService.h"
@@ -190,7 +189,7 @@
 #  if !defined(WINABLEAPI)
 #    include <winable.h>
 #  endif  // !defined(WINABLEAPI)
-#endif    // defined(ACCESSIBILITY)
+#endif
 
 #include "WindowsUIUtils.h"
 
@@ -1353,7 +1352,7 @@ DWORD nsWindow::WindowExStyle() {
   if (mIsAlert) {
     MOZ_ASSERT(mWindowType == WindowType::Dialog,
                "Expect alert windows to have type=dialog");
-    return WS_EX_TOOLWINDOW;
+    return WS_EX_TOOLWINDOW | WS_EX_TOPMOST;
   }
   return WS_EX_WINDOWEDGE;
 }
@@ -3058,9 +3057,7 @@ void nsWindow::SetTransparencyMode(TransparencyMode aMode) {
 
 void nsWindow::UpdateWindowDraggingRegion(
     const LayoutDeviceIntRegion& aRegion) {
-  if (mDraggableRegion != aRegion) {
-    mDraggableRegion = aRegion;
-  }
+  mDraggableRegion = aRegion;
 }
 
 /**************************************************************
@@ -5039,6 +5036,44 @@ bool nsWindow::ProcessMessageInternal(UINT msg, WPARAM& wParam, LPARAM& lParam,
       break;
     }
 
+    case WM_GETTITLEBARINFOEX: {
+      if (!mCustomNonClient) {
+        break;
+      }
+      auto* info = reinterpret_cast<TITLEBARINFOEX*>(lParam);
+      const LayoutDeviceIntPoint origin = WidgetToScreenOffset();
+      auto GeckoClientToWinScreenRect =
+          [&origin](LayoutDeviceIntRect aRect) -> RECT {
+        aRect.MoveBy(origin);
+        return {
+            .left = aRect.x,
+            .top = aRect.y,
+            .right = aRect.XMost(),
+            .bottom = aRect.YMost(),
+        };
+      };
+      auto SetButton = [&](size_t aIndex, WindowButtonType aType) {
+        info->rgrect[aIndex] =
+            GeckoClientToWinScreenRect(mWindowBtnRect[aType]);
+        DWORD& state = info->rgstate[aIndex];
+        if (mWindowBtnRect[aType].IsEmpty()) {
+          state = STATE_SYSTEM_INVISIBLE;
+        } else {
+          state = STATE_SYSTEM_FOCUSABLE;
+        }
+      };
+      info->rgrect[0] = info->rcTitleBar =
+          GeckoClientToWinScreenRect(mDraggableRegion.GetBounds());
+      info->rgstate[0] = 0;
+      SetButton(2, WindowButtonType::Minimize);
+      SetButton(3, WindowButtonType::Maximize);
+      SetButton(5, WindowButtonType::Close);
+      // We don't have a help button.
+      info->rgstate[4] = STATE_SYSTEM_INVISIBLE;
+      info->rgrect[4] = {0, 0, 0, 0};
+      result = true;
+    } break;
+
     case WM_NCHITTEST: {
       if (mInputRegion.mFullyTransparent) {
         // Treat this window as transparent.
@@ -6169,6 +6204,9 @@ int32_t nsWindow::ClientMarginHitTestPoint(int32_t aX, int32_t aY) {
     if (mWindowBtnRect[WindowButtonType::Minimize].Contains(pt)) {
       testResult = HTMINBUTTON;
     } else if (mWindowBtnRect[WindowButtonType::Maximize].Contains(pt)) {
+#ifdef ACCESSIBILITY
+      a11y::Compatibility::SuppressA11yForSnapLayouts();
+#endif
       testResult = HTMAXBUTTON;
     } else if (mWindowBtnRect[WindowButtonType::Close].Contains(pt)) {
       testResult = HTCLOSE;

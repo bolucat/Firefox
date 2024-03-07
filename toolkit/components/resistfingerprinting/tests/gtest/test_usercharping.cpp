@@ -17,16 +17,25 @@ const auto* const kUUIDPref =
 
 TEST(ResistFingerprinting, UserCharacteristics_Simple)
 {
+  mozilla::glean::characteristics::max_touch_points.Set(7);
+
   bool submitted = false;
   mozilla::glean_pings::UserCharacteristics.TestBeforeNextSubmit(
-      [&submitted](const nsACString& aReason) { submitted = true; });
+      [&submitted](const nsACString& aReason) {
+        submitted = true;
+
+        ASSERT_EQ(
+            7, mozilla::glean::characteristics::max_touch_points.TestGetValue()
+                   .unwrap()
+                   .ref());
+      });
   mozilla::glean_pings::UserCharacteristics.Submit();
   ASSERT_TRUE(submitted);
 }
 
 TEST(ResistFingerprinting, UserCharacteristics_Complex)
 {
-  nsUserCharacteristics::PopulateData();
+  nsUserCharacteristics::PopulateData(true);
 
   bool submitted = false;
   mozilla::glean_pings::UserCharacteristics.TestBeforeNextSubmit(
@@ -52,6 +61,11 @@ TEST(ResistFingerprinting, UserCharacteristics_Complex)
                 .unwrap()
                 .value()
                 .get());
+        ASSERT_EQ(
+            testing::MaxTouchPoints(),
+            mozilla::glean::characteristics::max_touch_points.TestGetValue()
+                .unwrap()
+                .ref());
       });
   nsUserCharacteristics::SubmitPing();
   ASSERT_TRUE(submitted);
@@ -88,7 +102,7 @@ TEST(ResistFingerprinting, UserCharacteristics_ClearPref)
                 .value()
                 .get());
       });
-  nsUserCharacteristics::PopulateData();
+  nsUserCharacteristics::PopulateData(true);
   nsUserCharacteristics::SubmitPing();
 
   auto original_value =
@@ -121,7 +135,7 @@ TEST(ResistFingerprinting, UserCharacteristics_ClearPref)
         Preferences::GetCString(kUUIDPref, uuidValue);
         ASSERT_STRNE("", uuidValue.get());
       });
-  nsUserCharacteristics::PopulateData();
+  nsUserCharacteristics::PopulateData(true);
   nsUserCharacteristics::SubmitPing();
 
   Preferences::SetBool("datareporting.healthreport.uploadEnabled",

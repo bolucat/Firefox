@@ -154,6 +154,12 @@ class ErrorBuffer {
     }
     return Some(Error{*filterType, false, nsCString{mMessageUtf8}});
   }
+
+  void CoerceValidationToInternal() {
+    if (mType == ffi::WGPUErrorBufferType_Validation) {
+      mType = ffi::WGPUErrorBufferType_Internal;
+    }
+  }
 };
 
 struct PendingSwapChainDrop {
@@ -1001,15 +1007,16 @@ static void ReadbackPresentCallback(ffi::WGPUBufferMapAsyncStatus status,
     ErrorBuffer getRangeError;
     const auto mapped = ffi::wgpu_server_buffer_get_mapped_range(
         req->mContext, bufferId, 0, bufferSize, getRangeError.ToFFI());
+    getRangeError.CoerceValidationToInternal();
     if (req->mData->mParent) {
       req->mData->mParent->ForwardError(data->mDeviceId, getRangeError);
-    } else if (auto innerError = getRangeError.GetError()) {
-      // If an error occured in get_mapped_range, treat it as an internal error
-      // and crash. The error handling story for something unexpected happening
-      // during the present glue needs to befigured out in a more global way.
+    }
+    if (auto innerError = getRangeError.GetError()) {
       MOZ_LOG(sLogger, LogLevel::Info,
-              ("WebGPU present: buffer get_mapped_range failed: %s\n",
+              ("WebGPU present: buffer get_mapped_range for internal "
+               "presentation readback failed: %s\n",
                innerError->message.get()));
+      return;
     }
 
     MOZ_RELEASE_ASSERT(mapped.length >= bufferSize);
@@ -1036,11 +1043,14 @@ static void ReadbackPresentCallback(ffi::WGPUBufferMapAsyncStatus status,
     }
     ErrorBuffer unmapError;
     wgpu_server_buffer_unmap(req->mContext, bufferId, unmapError.ToFFI());
+    unmapError.CoerceValidationToInternal();
     if (req->mData->mParent) {
       req->mData->mParent->ForwardError(data->mDeviceId, unmapError);
-    } else if (auto innerError = unmapError.GetError()) {
+    }
+    if (auto innerError = unmapError.GetError()) {
       MOZ_LOG(sLogger, LogLevel::Info,
-              ("WebGPU present: buffer unmap failed: %s\n",
+              ("WebGPU present: buffer unmap for internal presentation "
+               "readback failed: %s\n",
                innerError->message.get()));
     }
   } else {

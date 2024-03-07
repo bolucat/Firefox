@@ -1815,12 +1815,7 @@ this.VideoControlsImplWidget = class {
 
       updateMuteButtonState() {
         var muted = this.isEffectivelyMuted;
-
-        if (muted) {
-          this.muteButton.setAttribute("muted", "true");
-        } else {
-          this.muteButton.removeAttribute("muted");
-        }
+        this.muteButton.toggleAttribute("muted", muted);
 
         var id = muted
           ? "videocontrols-unmute-button"
@@ -2026,12 +2021,7 @@ this.VideoControlsImplWidget = class {
       },
 
       setCastingButtonState() {
-        if (this.isCastingOn) {
-          this.castingButton.setAttribute("enabled", "true");
-        } else {
-          this.castingButton.removeAttribute("enabled");
-        }
-
+        this.castingButton.toggleAttribute("enabled", this.isCastingOn);
         this.adjustControlSize();
       },
 
@@ -2058,22 +2048,15 @@ this.VideoControlsImplWidget = class {
       },
 
       setClosedCaptionButtonState() {
-        if (this.isClosedCaptionOn) {
-          this.closedCaptionButton.setAttribute("enabled", "true");
-        } else {
-          this.closedCaptionButton.removeAttribute("enabled");
-        }
-
+        this.closedCaptionButton.toggleAttribute(
+          "enabled",
+          this.isClosedCaptionOn
+        );
         let ttItems = this.textTrackList.childNodes;
 
         for (let tti of ttItems) {
           const idx = +tti.getAttribute("index");
-
-          if (idx == this.currentTextTrackIndex) {
-            tti.setAttribute("aria-checked", "true");
-          } else {
-            tti.setAttribute("aria-checked", "false");
-          }
+          tti.setAttribute("aria-checked", idx == this.currentTextTrackIndex);
         }
 
         this.adjustControlSize();
@@ -2804,10 +2787,6 @@ this.VideoControlsImplWidget = class {
     if (this.Utils.isTouchControls) {
       this.TouchUtils.init(this.shadowRoot, this.Utils);
     }
-    this.shadowRoot.firstChild.dispatchEvent(
-      new this.window.CustomEvent("VideoBindingAttached")
-    );
-
     this._setupEventListeners();
   }
 
@@ -3080,9 +3059,6 @@ this.NoControlsMobileImplWidget = class {
       },
     };
     this.Utils.init(this.shadowRoot);
-    this.Utils.video.dispatchEvent(
-      new this.window.CustomEvent("MozNoControlsVideoBindingAttached")
-    );
   }
 
   elementStateMatches() {

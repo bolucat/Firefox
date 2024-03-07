@@ -1531,8 +1531,10 @@ static bool ArrayCopyFromData(JSContext* cx, Handle<WasmArrayObject*> arrayObj,
 
   // Because `numBytesToCopy` is an in-range `CheckedUint32`, the cast to
   // `size_t` is safe even on a 32-bit target.
-  memcpy(arrayObj->data_, &seg->bytes[segByteOffset],
-         size_t(numBytesToCopy.value()));
+  if (!seg->bytes.empty()) {
+    memcpy(arrayObj->data_, &seg->bytes[segByteOffset],
+           size_t(numBytesToCopy.value()));
+  }
 
   return true;
 }
@@ -2542,6 +2544,7 @@ bool Instance::init(JSContext* cx, const JSObjectVector& funcImports,
     size_t numWords = std::max<size_t>((numFuncs + 31) / 32, 1);
     debugFilter_ = (uint32_t*)js_calloc(numWords, sizeof(uint32_t));
     if (!debugFilter_) {
+      ReportOutOfMemory(cx);
       return false;
     }
   }
@@ -2555,6 +2558,7 @@ bool Instance::init(JSContext* cx, const JSObjectVector& funcImports,
 
   // Take references to the passive data segments
   if (!passiveDataSegments_.resize(dataSegments.length())) {
+    ReportOutOfMemory(cx);
     return false;
   }
   for (size_t i = 0; i < dataSegments.length(); i++) {
@@ -2566,6 +2570,7 @@ bool Instance::init(JSContext* cx, const JSObjectVector& funcImports,
   // Create InstanceElemSegments for any passive element segments, since these
   // are the ones available at runtime.
   if (!passiveElemSegments_.resize(elemSegments.length())) {
+    ReportOutOfMemory(cx);
     return false;
   }
   for (size_t i = 0; i < elemSegments.length(); i++) {
@@ -2574,6 +2579,7 @@ bool Instance::init(JSContext* cx, const JSObjectVector& funcImports,
       passiveElemSegments_[i] = InstanceElemSegment();
       InstanceElemSegment& instanceSeg = passiveElemSegments_[i];
       if (!instanceSeg.reserve(seg.numElements())) {
+        ReportOutOfMemory(cx);
         return false;
       }
 
