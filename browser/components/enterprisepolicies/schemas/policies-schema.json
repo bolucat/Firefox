@@ -235,6 +235,36 @@
       }
     },
 
+    "ContentAnalysis": {
+      "type": "object",
+      "properties": {
+        "Enabled": {
+          "type": "boolean"
+        },
+        "PipePathName": {
+          "type": "string"
+        },
+        "AgentTimeout": {
+          "type": "number"
+        },
+        "AllowUrlRegexList": {
+          "type": "string"
+        },
+        "DenyUrlRegexList": {
+          "type": "string"
+        },
+        "IsPerUser": {
+          "type": "boolean"
+        },
+        "ShowBlockedResult": {
+          "type": "boolean"
+        },
+        "DefaultAllow": {
+          "type": "boolean"
+        }
+      }
+    },
+
     "Cookies": {
       "type": "object",
       "properties": {

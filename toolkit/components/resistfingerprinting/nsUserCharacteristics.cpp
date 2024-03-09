@@ -13,11 +13,14 @@
 #include "mozilla/glean/GleanPings.h"
 #include "mozilla/glean/GleanMetrics.h"
 
+#include "mozilla/StaticPrefs_media.h"
+
 #include "mozilla/LookAndFeel.h"
 #include "mozilla/PreferenceSheet.h"
 #include "mozilla/RelativeLuminanceUtils.h"
 #include "mozilla/ServoStyleConsts.h"
 #include "mozilla/dom/ScreenBinding.h"
+#include "mozilla/intl/TimeZone.h"
 #include "mozilla/widget/ScreenManager.h"
 
 #include "gfxPlatformFontList.h"
@@ -26,6 +29,8 @@
 #  include "WinUtils.h"
 #elif defined(MOZ_WIDGET_ANDROID)
 #  include "mozilla/java/GeckoAppShellWrappers.h"
+#elif defined(XP_MACOSX)
+#  include "nsMacUtilsImpl.h"
 #endif
 
 static mozilla::LazyLogModule gUserCharacteristicsLog("UserCharacteristics");
@@ -86,19 +91,26 @@ void PopulateCSSProperties() {
     return mozilla::StylePrefersContrast::Custom;
   }();
   mozilla::glean::characteristics::prefers_contrast.Set((int)prefersContrast);
+}
 
-  int32_t colorDepth;
-  mozilla::dom::ScreenColorGamut colorGamut;
-
+void PopulateScreenProperties() {
   auto& screenManager = mozilla::widget::ScreenManager::GetSingleton();
   RefPtr<mozilla::widget::Screen> screen = screenManager.GetPrimaryScreen();
   MOZ_ASSERT(screen);
 
+  mozilla::dom::ScreenColorGamut colorGamut;
   screen->GetColorGamut(&colorGamut);
+  mozilla::glean::characteristics::color_gamut.Set((int)colorGamut);
+
+  int32_t colorDepth;
   screen->GetColorDepth(&colorDepth);
+  mozilla::glean::characteristics::color_depth.Set(colorDepth);
 
   mozilla::glean::characteristics::color_gamut.Set((int)colorGamut);
   mozilla::glean::characteristics::color_depth.Set(colorDepth);
+  const mozilla::LayoutDeviceIntRect rect = screen->GetRect();
+  mozilla::glean::characteristics::screen_height.Set(rect.Height());
+  mozilla::glean::characteristics::screen_width.Set(rect.Width());
 }
 
 void PopulateMissingFonts() {
@@ -106,6 +118,19 @@ void PopulateMissingFonts() {
   gfxPlatformFontList::PlatformFontList()->GetMissingFonts(aMissingFonts);
 
   mozilla::glean::characteristics::missing_fonts.Set(aMissingFonts);
+}
+
+void PopulatePrefs() {
+  nsAutoCString acceptLang;
+  mozilla::Preferences::GetLocalizedCString("intl.accept_languages",
+                                            acceptLang);
+  mozilla::glean::characteristics::prefs_intl_accept_languages.Set(acceptLang);
+
+  mozilla::glean::characteristics::prefs_media_eme_enabled.Set(
+      mozilla::StaticPrefs::media_eme_enabled());
+
+  mozilla::glean::characteristics::prefs_zoom_text_only.Set(
+      !mozilla::Preferences::GetBool("browser.zoom.full"));
 }
 
 // ==================================================================
@@ -119,6 +144,7 @@ const int kSubmissionSchema = 0;
 void nsUserCharacteristics::MaybeSubmitPing() {
   MOZ_LOG(gUserCharacteristicsLog, mozilla::LogLevel::Debug,
           ("In MaybeSubmitPing()"));
+  MOZ_ASSERT(XRE_IsParentProcess());
 
   /**
    * There are two preferences at play here:
@@ -202,6 +228,7 @@ const auto* const kUUIDPref =
 nsresult nsUserCharacteristics::PopulateData(bool aTesting /* = false */) {
   MOZ_LOG(gUserCharacteristicsLog, mozilla::LogLevel::Warning,
           ("Populating Data"));
+  MOZ_ASSERT(XRE_IsParentProcess());
   mozilla::glean::characteristics::submission_schema.Set(kSubmissionSchema);
 
   nsAutoCString uuidString;
@@ -228,6 +255,34 @@ nsresult nsUserCharacteristics::PopulateData(bool aTesting /* = false */) {
 
   PopulateMissingFonts();
   PopulateCSSProperties();
+  PopulateScreenProperties();
+  PopulatePrefs();
+
+  mozilla::glean::characteristics::target_frame_rate.Set(
+      gfxPlatform::TargetFrameRate());
+
+  int32_t processorCount = 0;
+#if defined(XP_MACOSX)
+  if (nsMacUtilsImpl::IsTCSMAvailable()) {
+    // On failure, zero is returned from GetPhysicalCPUCount()
+    // and we fallback to PR_GetNumberOfProcessors below.
+    processorCount = nsMacUtilsImpl::GetPhysicalCPUCount();
+  }
+#endif
+  if (processorCount == 0) {
+    processorCount = PR_GetNumberOfProcessors();
+  }
+  mozilla::glean::characteristics::processor_count.Set(processorCount);
+
+  AutoTArray<char16_t, 128> tzBuffer;
+  auto result = mozilla::intl::TimeZone::GetDefaultTimeZone(tzBuffer);
+  if (result.isOk()) {
+    NS_ConvertUTF16toUTF8 timeZone(
+        nsDependentString(tzBuffer.Elements(), tzBuffer.Length()));
+    mozilla::glean::characteristics::timezone.Set(timeZone);
+  } else {
+    mozilla::glean::characteristics::timezone.Set("<error>"_ns);
+  }
 
   return NS_OK;
 }

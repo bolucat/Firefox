@@ -295,9 +295,6 @@ pref("browser.shell.checkDefaultPDF", true);
 // Will be set to `true` if the user indicates that they don't want to be asked
 // again about Firefox being their default PDF handler any more.
 pref("browser.shell.checkDefaultPDF.silencedByUser", false);
-// URL to navigate to when launching Firefox after accepting the Windows Default
-// Browser Agent "Set Firefox as default" call to action.
-pref("browser.shell.defaultBrowserAgent.thanksURL", "https://www.mozilla.org/%LOCALE%/firefox/set-as-default/thanks/");
 #endif
 
 
@@ -2321,8 +2318,6 @@ pref("browser.migrate.interactions.history", false);
 pref("browser.migrate.interactions.passwords", false);
 
 pref("browser.migrate.preferences-entrypoint.enabled", true);
-
-pref("browser.device-migration.help-menu.hidden", false);
 
 pref("extensions.pocket.api", "api.getpocket.com");
 pref("extensions.pocket.bffApi", "firefox-api-proxy.cdn.mozilla.net");

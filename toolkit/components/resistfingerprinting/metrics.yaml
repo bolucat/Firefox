@@ -261,3 +261,151 @@ characteristics:
       # Text metrics are _required_ to be web_activity or highly_sensitive, so even though this
       # is more like 'technical' (per the Data Review), I'm marking highly sensitive.
       - highly_sensitive
+
+  screen_width:
+    type: quantity
+    unit: pixels
+    description: >
+      Width of the primary screen in pixels.
+    lifetime: application
+    send_in_pings:
+      - user-characteristics
+    notification_emails:
+      - tom@mozilla.com
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1879151
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1881749
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1881749#c5
+    expires: never
+    data_sensitivity:
+      - technical
+
+  screen_height:
+    type: quantity
+    unit: pixels
+    description: >
+      Height of the primary screen in pixels.
+    lifetime: application
+    send_in_pings:
+      - user-characteristics
+    notification_emails:
+      - tom@mozilla.com
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1879151
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1881749
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1881749#c5
+    expires: never
+    data_sensitivity:
+      - technical
+
+  processor_count:
+    type: quantity
+    unit: int
+    description: >
+      Number of processors.
+    lifetime: application
+    send_in_pings:
+      - user-characteristics
+    notification_emails:
+      - tom@mozilla.com
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1879151
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1881759
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1881759#c4
+    expires: never
+    data_sensitivity:
+      - technical
+
+  timezone:
+    type: string
+    description: >
+      The the current timezone of the system
+    lifetime: application
+    send_in_pings:
+      - user-characteristics
+    notification_emails:
+      - tom@mozilla.com
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1879151
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1881773
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1881773#c4
+    expires: never
+    data_sensitivity:
+      - interaction
+
+  target_frame_rate:
+    type: quantity
+    unit: int
+    description: >
+      The target frame rate in frames-per-second.
+    lifetime: application
+    send_in_pings:
+      - user-characteristics
+    notification_emails:
+      - tom@mozilla.com
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1879151
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1882054
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1882054#c3
+    expires: never
+    data_sensitivity:
+      - technical
+
+  prefs_intl_accept_languages:
+    type: string
+    description: >
+      Value of the intl.accept_languages pref.
+    lifetime: application
+    send_in_pings:
+      - user-characteristics
+    notification_emails:
+      - tom@mozilla.com
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1879151
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1882482
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1882482#c6
+    expires: never
+    data_sensitivity:
+      - interaction
+
+  prefs_media_eme_enabled:
+    type: boolean
+    description: >
+      Value of the media.eme.enabled pref.
+    lifetime: application
+    send_in_pings:
+      - user-characteristics
+    notification_emails:
+      - tom@mozilla.com
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1879151
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1882482
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1882482#c6
+    expires: never
+    data_sensitivity:
+      - interaction
+
+  prefs_zoom_text_only:
+    type: boolean
+    description: >
+      Text-only zoom enabled (vs. full-zoom)
+    lifetime: application
+    send_in_pings:
+      - user-characteristics
+    notification_emails:
+      - tom@mozilla.com
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1879151
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1882482
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1882482#c6
+    expires: never
+    data_sensitivity:
+      - interaction
