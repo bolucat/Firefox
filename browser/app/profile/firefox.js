@@ -57,7 +57,7 @@ pref("extensions.systemAddon.update.url", "https://aus5.mozilla.org/update/3/Sys
 pref("extensions.systemAddon.update.enabled", true);
 
 // Disable add-ons that are not installed by the user in all scopes by default.
-// See the SCOPE constants in AddonManager.jsm for values to use here.
+// See the SCOPE constants in AddonManager.sys.mjs for values to use here.
 pref("extensions.autoDisableScopes", 15);
 // Scopes to scan for changes at startup.
 pref("extensions.startupScanScopes", 0);
@@ -1847,6 +1847,8 @@ pref("pdfjs.previousHandler.alwaysAskBeforeHandling", false);
 // Try to convert PDFs sent as octet-stream
 pref("pdfjs.handleOctetStream", true);
 
+pref("sidebar.companion", false);
+
 // Is the sidebar positioned ahead of the content browser
 pref("sidebar.position_start", true);
 
@@ -3007,9 +3009,8 @@ pref("ui.new-webcompat-reporter.reason-dropdown.randomized", true);
 pref("browser.privatebrowsing.resetPBM.showConfirmationDialog", true);
 
 // the preferences related to the Nimbus experiment, to activate and deactivate
-// the the entire rollout or deactivate only the OS prompt (see: bug 1864216)
+// the the entire rollout (see: bug 1864216 - two prompts, 1877500 - set two in one prompt)
 pref("browser.mailto.dualPrompt", false);
-pref("browser.mailto.dualPrompt.os", false);
 // When visiting a site which uses registerProtocolHandler: Ask the user to set Firefox as
 // default mailto handler.
 pref("browser.mailto.prompt.os", true);

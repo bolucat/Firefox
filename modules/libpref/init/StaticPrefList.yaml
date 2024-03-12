@@ -1192,6 +1192,22 @@
   value: "path_user"
   mirror: never
 
+# Space-separated list of regexs that are compared to URLs of resources
+# being checked by content-analysis.  Resources that match are not checked
+# and are always permitted.
+- name: browser.contentanalysis.allow_url_regex_list
+  type: String
+  value: ""
+  mirror: never
+
+# Space-separated list of regexs that are compared to URLs of resources
+# being checked by content-analysis.  Resources that match are not checked
+# and are always denied.
+- name: browser.contentanalysis.deny_url_regex_list
+  type: String
+  value: ""
+  mirror: never
+
 # Should CA ignore the system setting and use silent notifications?
 - name: browser.contentanalysis.silent_notifications
   type: bool
@@ -3169,6 +3185,13 @@
 - name: dom.navigation.locationChangeRateLimit.timespan
   type: uint32_t
   value: 10
+  mirror: always
+
+# Whether to allow <object> and <embed> element loads to be retargeted to an
+# external application or download.
+- name: dom.navigation.object_embed.allow_retargeting
+  type: bool
+  value: false
   mirror: always
 
 # Network Information API
@@ -6825,10 +6848,8 @@
 #endif
   mirror: once
 
-# Enable NVIDIA RTX Video Super Resolution for video overlay on Windows
-# Note: This is also a setting in NVIDIA's driver settings, so once this is
-# stable, it should default to true
-- name: gfx.webrender.super-resolution.nvidia
+# Enable VideoProcessor Super Resolution for video overlay
+- name: gfx.webrender.overlay-vp-super-resolution
   type: bool
   value: false
   mirror: once
@@ -15242,11 +15263,10 @@
   mirror: always
 
 # If the user has clicked an element, how long do we keep the :active state
-# before it is cleared by the mouse sequences fired after a
-# touchstart/touchend.
+# before it is cleared.
 - name: ui.touch_activation.duration_ms
   type: int32_t
-  value: 10
+  value: 50
   mirror: always
 
 # Prevent system colors from being exposed to CSS or canvas.
@@ -15956,6 +15976,15 @@
 # Disabled because there are some minor bugs and it needs deeper integration
 # with the front-end.
 - name: widget.gtk.global-menu.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# Whether GTK global menubar support is enabled using wayland's experimental
+# dbus_annotation protocol:
+# https://gitlab.freedesktop.org/wayland/wayland-protocols/-/merge_requests/52
+# Disabled until it has a final shape and it is available in compositors.
+- name: widget.gtk.global-menu.wayland.enabled
   type: RelaxedAtomicBool
   value: false
   mirror: always

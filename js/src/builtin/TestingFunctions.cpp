@@ -2117,8 +2117,7 @@ static bool wasmMetadataAnalysis(JSContext* cx, unsigned argc, Value* vp) {
       }
     }
 
-    JSObject* results =
-        NewPlainObjectWithUniqueNames(cx, props.begin(), props.length());
+    JSObject* results = NewPlainObjectWithUniqueNames(cx, props);
     if (!results) {
       return false;
     }
@@ -7240,13 +7239,10 @@ static bool CompileToStencil(JSContext* cx, uint32_t argc, Value* vp) {
 
   AutoReportFrontendContext fc(cx);
   RefPtr<JS::Stencil> stencil;
-  JS::CompilationStorage compileStorage;
   if (isModule) {
-    stencil =
-        JS::CompileModuleScriptToStencil(&fc, options, srcBuf, compileStorage);
+    stencil = JS::CompileModuleScriptToStencil(&fc, options, srcBuf);
   } else {
-    stencil =
-        JS::CompileGlobalScriptToStencil(&fc, options, srcBuf, compileStorage);
+    stencil = JS::CompileGlobalScriptToStencil(&fc, options, srcBuf);
   }
   if (!stencil) {
     return false;
