@@ -895,6 +895,8 @@ export var ScreenshotsUtils = {
     canvas.width = region.width * devicePixelRatio;
     canvas.height = region.height * devicePixelRatio;
 
+    const snapshotSize = Math.floor(MAX_SNAPSHOT_DIMENSION * devicePixelRatio);
+
     for (
       let startLeft = region.left;
       startLeft < region.right;
@@ -921,10 +923,18 @@ export var ScreenshotsUtils = {
           "rgb(255,255,255)"
         );
 
+        // The `left` and `top` need to be a multiple of the `snapshotSize` to
+        // prevent gaps/lines from appearing in the screenshot.
+        // If devicePixelRatio is 0.3, snapshotSize would be 307 after flooring
+        // from 307.2. Therefore every fifth snapshot would have a start of
+        // 307.2 * 5 or 1536 which is not a multiple of 307 and would cause a
+        // gap/line in the snapshot.
+        let left = Math.floor((startLeft - region.left) * devicePixelRatio);
+        let top = Math.floor((startTop - region.top) * devicePixelRatio);
         context.drawImage(
           snapshot,
-          Math.floor((startLeft - region.left) * devicePixelRatio),
-          Math.floor((startTop - region.top) * devicePixelRatio),
+          left - (left % snapshotSize),
+          top - (top % snapshotSize),
           Math.floor(width * devicePixelRatio),
           Math.floor(height * devicePixelRatio)
         );
@@ -980,8 +990,23 @@ export var ScreenshotsUtils = {
       "@mozilla.org/widget/transferable;1"
     ].createInstance(Ci.nsITransferable);
     transferable.init(null);
-    transferable.addDataFlavor("image/png");
-    transferable.setTransferData("image/png", imgDecoded);
+    // Internal consumers expect the image data to be stored as a
+    // nsIInputStream. On Linux and Windows, pasted data is directly
+    // retrieved from the system's native clipboard, and made available
+    // as a nsIInputStream.
+    //
+    // On macOS, nsClipboard::GetNativeClipboardData (nsClipboard.mm) uses
+    // a cached copy of nsITransferable if available, e.g. when the copy
+    // was initiated by the same browser instance. To make sure that a
+    // nsIInputStream is returned instead of the cached imgIContainer,
+    // the image is exported as as `kNativeImageMime`. Data associated
+    // with this type is converted to a platform-specific image format
+    // when written to the clipboard. The type is not used when images
+    // are read from the clipboard (on all platforms, not just macOS).
+    // This forces nsClipboard::GetNativeClipboardData to fall back to
+    // the native clipboard, and return the image as a nsITransferable.
+    transferable.addDataFlavor("application/x-moz-nativeimage");
+    transferable.setTransferData("application/x-moz-nativeimage", imgDecoded);
 
     Services.clipboard.setData(
       transferable,
