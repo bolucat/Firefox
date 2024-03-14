@@ -1655,27 +1655,18 @@
   value: 15000
   mirror: always
 
-# Platform collection of data for session store
-- name: browser.sessionstore.platform_collection
+# Disable collection of data for session store using the native collector code,
+# instead use the older implementation that's not compatible with session
+# history in the parent (and thus Fission).
+- name: browser.sessionstore.disable_platform_collection
   type: bool
-#if defined(ANDROID) || defined(MOZ_THUNDERBIRD)
-  value: false
-#else
+#if defined(MOZ_THUNDERBIRD)
   value: true
+#else
+  value: false
 #endif
   mirror: once
-
-# Platform collection of session storage data for session store
-- name: browser.sessionstore.collect_session_storage
-  type: bool
-  value: @IS_NOT_ANDROID@
-  mirror: once
-
-# Platform collection of zoom data for session store
-- name: browser.sessionstore.collect_zoom
-  type: bool
-  value: @IS_NOT_ANDROID@
-  mirror: once
+  do_not_use_directly: true
 
 # Causes SessionStore to ignore non-final update messages from
 # browser tabs that were not caused by a flush from the parent.
@@ -1683,18 +1674,6 @@
 - name: browser.sessionstore.debug.no_auto_updates
   type: RelaxedAtomicBool
   value: false
-  mirror: always
-
-# If set, when a link is opened to a new tab, do not switch to the new tab.
-#
-# This pref is used when the link is opened with "Open Link in New Tab",
-# middle-click, etc.
-#
-# See also browser.tabs.loadDivertedInBackground, which is used when the website
-# diverts the link into a new tab.
-- name: browser.tabs.loadInBackground
-  type: bool
-  value: true
   mirror: always
 
 # Whether we should draw the tabs on top of the titlebar.
@@ -1710,12 +1689,6 @@
 - name: browser.tabs.documentchannel.parent-controlled
   type: bool
   value: false
-  mirror: always
-
-# If set, middle clicking on a link opens the link in a new tab.
-- name: browser.tabs.opentabfor.middleclick
-  type: bool
-  value: true
   mirror: always
 
 # Testing-only pref which makes data: URIs be loaded in a "web" content process
@@ -3706,6 +3679,13 @@
 - name: dom.security.skip_remote_script_assertion_in_system_priv_context
   type: RelaxedAtomicBool
   value: false
+  mirror: always
+
+# If and only if true, support for Trusted Types
+# (https://w3c.github.io/trusted-types/dist/spec/) is enabled.
+- name: dom.security.trusted_types.enabled
+  type: RelaxedAtomicBool
+  value: False
   mirror: always
 
 # If true, all content requests will get upgraded to HTTPS://
@@ -10282,7 +10262,11 @@
 # 2 : enable for encrypted only, 3 : enable for clear only
 -   name: media.wmf.media-engine.enabled
     type: RelaxedAtomicUint32
+#if defined(IS_NIGHTLY_OR_DEV_EDITION)
+    value: 2
+#else
     value: 0
+#endif
     mirror: always
 
 # Testing purpose, enable media engine on channel decoder as well.
@@ -10307,6 +10291,12 @@
 -   name: media.wmf.media-engine.max-crashes
     type: RelaxedAtomicInt32
     value: 2
+    mirror: always
+
+# Bypass the gfx block list check for the media engine playback.
+-   name: media.wmf.media-engine.bypass-gfx-blocklist
+    type: RelaxedAtomicBool
+    value: false
     mirror: always
 
 # [TEST-ONLY] Use Media Foundation Clearkey CDM for EME related testing.
@@ -11206,21 +11196,6 @@
   mirror: always
 
 #---------------------------------------------------------------------------
-# Prefs starting with "middlemouse."
-#---------------------------------------------------------------------------
-
-# If set and browser.tabs.opentabfor.middleclick is not set, middle clicking on
-# a link opens the link in a new window.
-- name: middlemouse.openNewWindow
-  type: bool
-#if defined(ANDROID) || !defined(XP_MACOSX) && defined(XP_UNIX)
-  value: true
-#else
-  value: false
-#endif
-  mirror: always
-
-#---------------------------------------------------------------------------
 # Prefs starting with "midi."
 #---------------------------------------------------------------------------
 
@@ -11593,15 +11568,6 @@
 - name: network.http.redirect.stripAuthHeader
   type: RelaxedAtomicBool
   value: true
-  mirror: always
-
-# When true, HttpChannelParent::SendRedirectFailed might race against
-# HttpChannelParent::Delete when completing a redirect.
-# This exists only to prevent unexpected regressions.
-# It should be removed in a few releases.
-- name: network.http.redirect.raceDeletion
-  type: RelaxedAtomicBool
-  value: false
   mirror: always
 
 # Prefs allowing granular control of referers.
@@ -16025,6 +15991,12 @@
 - name: widget.gtk.titlebar-action-middle-click-enabled
   type: bool
   value: false
+  mirror: always
+
+# Whether to ignore middle click events on widget level.
+- name: widget.gtk.middle-click-enabled
+  type: bool
+  value: true
   mirror: always
 
 # Whether we enable rounded bottom corners on GTK by default.

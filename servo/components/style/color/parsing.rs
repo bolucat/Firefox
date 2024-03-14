@@ -8,14 +8,20 @@
 //! Relative colors, color-mix, system colors, and other such things require better calc() support
 //! and integration.
 
-use crate::color::convert::normalize_hue;
-use crate::values::normalize;
+use crate::color::component::ColorComponent;
 use cssparser::color::{
     clamp_floor_256_f32, clamp_unit_f32, parse_hash_color, PredefinedColorSpace, OPAQUE,
 };
 use cssparser::{match_ignore_ascii_case, CowRcStr, Parser, Token};
 use std::str::FromStr;
-use style_traits::ParseError;
+use style_traits::{ParseError, StyleParseErrorKind};
+
+impl From<u8> for ColorComponent<u8> {
+    #[inline]
+    fn from(value: u8) -> Self {
+        ColorComponent::Value(value)
+    }
+}
 
 /// Return the named color with the given name.
 ///
@@ -27,13 +33,23 @@ pub fn parse_color_keyword<Output>(ident: &str) -> Result<Output, ()>
 where
     Output: FromParsedColor,
 {
-    Ok(match_ignore_ascii_case! { ident ,
-        "transparent" => Output::from_rgba(0, 0, 0, 0.0),
+    Ok(match_ignore_ascii_case! { ident,
+        "transparent" => Output::from_rgba(
+            0u8.into(),
+            0u8.into(),
+            0u8.into(),
+            ColorComponent::Value(NumberOrPercentage::Number { value: 0.0 }),
+        ),
         "currentcolor" => Output::from_current_color(),
         _ => {
             let (r, g, b) = cssparser::color::parse_named_color(ident)?;
-            Output::from_rgba(r, g, b, OPAQUE)
-        }
+            Output::from_rgba(
+                r.into(),
+                g.into(),
+                b.into(),
+                ColorComponent::Value(NumberOrPercentage::Number { value: OPAQUE }),
+            )
+        },
     })
 }
 
@@ -49,9 +65,15 @@ where
     let location = input.current_source_location();
     let token = input.next()?;
     match *token {
-        Token::Hash(ref value) | Token::IDHash(ref value) => {
-            parse_hash_color(value.as_bytes()).map(|(r, g, b, a)| P::Output::from_rgba(r, g, b, a))
-        },
+        Token::Hash(ref value) | Token::IDHash(ref value) => parse_hash_color(value.as_bytes())
+            .map(|(r, g, b, a)| {
+                P::Output::from_rgba(
+                    r.into(),
+                    g.into(),
+                    b.into(),
+                    ColorComponent::Value(NumberOrPercentage::Number { value: a }),
+                )
+            }),
         Token::Ident(ref value) => parse_color_keyword(value),
         Token::Function(ref name) => {
             let name = name.clone();
@@ -76,29 +98,13 @@ where
 {
     let color = match_ignore_ascii_case! { &name,
         "rgb" | "rgba" => parse_rgb(color_parser, arguments),
-
         "hsl" | "hsla" => parse_hsl(color_parser, arguments),
-
         "hwb" => parse_hwb(color_parser, arguments),
-
-        // for L: 0% = 0.0, 100% = 100.0
-        // for a and b: -100% = -125, 100% = 125
-        "lab" => parse_lab_like(color_parser, arguments, 100.0, 125.0, P::Output::from_lab),
-
-        // for L: 0% = 0.0, 100% = 100.0
-        // for C: 0% = 0, 100% = 150
-        "lch" => parse_lch_like(color_parser, arguments, 100.0, 150.0, P::Output::from_lch),
-
-        // for L: 0% = 0.0, 100% = 1.0
-        // for a and b: -100% = -0.4, 100% = 0.4
-        "oklab" => parse_lab_like(color_parser, arguments, 1.0, 0.4, P::Output::from_oklab),
-
-        // for L: 0% = 0.0, 100% = 1.0
-        // for C: 0% = 0.0 100% = 0.4
-        "oklch" => parse_lch_like(color_parser, arguments, 1.0, 0.4, P::Output::from_oklch),
-
+        "lab" => parse_lab_like(color_parser, arguments, P::Output::from_lab),
+        "lch" => parse_lch_like(color_parser, arguments, P::Output::from_lch),
+        "oklab" => parse_lab_like(color_parser, arguments, P::Output::from_oklab),
+        "oklch" => parse_lch_like(color_parser, arguments, P::Output::from_oklch),
         "color" => parse_color_with_color_space(color_parser, arguments),
-
         _ => return Err(arguments.new_unexpected_token_error(Token::Ident(name))),
     }?;
 
@@ -107,50 +113,47 @@ where
     Ok(color)
 }
 
-/// Parse the alpha component by itself from either number or percentage,
-/// clipping the result to [0.0..1.0].
-#[inline]
-fn parse_alpha_component<'i, 't, P>(
-    color_parser: &P,
-    arguments: &mut Parser<'i, 't>,
-) -> Result<f32, ParseError<'i>>
-where
-    P: ColorParser<'i>,
-{
-    // Percent reference range for alpha: 0% = 0.0, 100% = 1.0
-    let alpha = color_parser
-        .parse_number_or_percentage(arguments)?
-        .to_number(1.0);
-    Ok(normalize(alpha).clamp(0.0, OPAQUE))
-}
-
 fn parse_legacy_alpha<'i, 't, P>(
     color_parser: &P,
     arguments: &mut Parser<'i, 't>,
-) -> Result<f32, ParseError<'i>>
+) -> Result<ColorComponent<NumberOrPercentage>, ParseError<'i>>
 where
     P: ColorParser<'i>,
 {
-    Ok(if !arguments.is_exhausted() {
+    if !arguments.is_exhausted() {
         arguments.expect_comma()?;
-        parse_alpha_component(color_parser, arguments)?
+        color_parser.parse_number_or_percentage(arguments, false)
     } else {
-        OPAQUE
-    })
+        Ok(ColorComponent::Value(NumberOrPercentage::Number {
+            value: OPAQUE,
+        }))
+    }
 }
 
 fn parse_modern_alpha<'i, 't, P>(
     color_parser: &P,
     arguments: &mut Parser<'i, 't>,
-) -> Result<Option<f32>, ParseError<'i>>
+) -> Result<ColorComponent<NumberOrPercentage>, ParseError<'i>>
 where
     P: ColorParser<'i>,
 {
     if !arguments.is_exhausted() {
         arguments.expect_delim('/')?;
-        parse_none_or(arguments, |p| parse_alpha_component(color_parser, p))
+        color_parser.parse_number_or_percentage(arguments, true)
     } else {
-        Ok(Some(OPAQUE))
+        Ok(ColorComponent::Value(NumberOrPercentage::Number {
+            value: OPAQUE,
+        }))
+    }
+}
+
+impl ColorComponent<NumberOrPercentage> {
+    /// Return true if the component contains a percentage.
+    pub fn is_percentage(&self) -> Result<bool, ()> {
+        Ok(match self {
+            Self::Value(NumberOrPercentage::Percentage { .. }) => true,
+            _ => false,
+        })
     }
 }
 
@@ -162,54 +165,54 @@ fn parse_rgb<'i, 't, P>(
 where
     P: ColorParser<'i>,
 {
-    let maybe_red = parse_none_or(arguments, |p| color_parser.parse_number_or_percentage(p))?;
+    let location = arguments.current_source_location();
+
+    let maybe_red = color_parser.parse_number_or_percentage(arguments, true)?;
 
     // If the first component is not "none" and is followed by a comma, then we
     // are parsing the legacy syntax.
-    let is_legacy_syntax = maybe_red.is_some() && arguments.try_parse(|p| p.expect_comma()).is_ok();
+    let is_legacy_syntax =
+        !maybe_red.is_none() && arguments.try_parse(|p| p.expect_comma()).is_ok();
 
     let (red, green, blue, alpha) = if is_legacy_syntax {
-        let (red, green, blue) = match maybe_red.unwrap() {
-            NumberOrPercentage::Number { value } => {
-                let red = clamp_floor_256_f32(value);
-                let green = clamp_floor_256_f32(color_parser.parse_number(arguments)?);
-                arguments.expect_comma()?;
-                let blue = clamp_floor_256_f32(color_parser.parse_number(arguments)?);
-                (red, green, blue)
-            },
-            NumberOrPercentage::Percentage { unit_value } => {
-                let red = clamp_unit_f32(unit_value);
-                let green = clamp_unit_f32(color_parser.parse_percentage(arguments)?);
-                arguments.expect_comma()?;
-                let blue = clamp_unit_f32(color_parser.parse_percentage(arguments)?);
-                (red, green, blue)
-            },
+        let Ok(is_percentage) = maybe_red.is_percentage() else {
+            return Err(location.new_custom_error(StyleParseErrorKind::UnspecifiedError));
+        };
+        let (red, green, blue) = if is_percentage {
+            let red = maybe_red.map_value(|v| clamp_unit_f32(v.to_number(1.0)));
+            let green = color_parser
+                .parse_percentage(arguments, false)?
+                .map_value(clamp_unit_f32);
+            arguments.expect_comma()?;
+            let blue = color_parser
+                .parse_percentage(arguments, false)?
+                .map_value(clamp_unit_f32);
+            (red, green, blue)
+        } else {
+            let red = maybe_red.map_value(|v| clamp_floor_256_f32(v.to_number(255.0)));
+            let green = color_parser
+                .parse_number(arguments, false)?
+                .map_value(clamp_floor_256_f32);
+            arguments.expect_comma()?;
+            let blue = color_parser
+                .parse_number(arguments, false)?
+                .map_value(clamp_floor_256_f32);
+            (red, green, blue)
         };
 
         let alpha = parse_legacy_alpha(color_parser, arguments)?;
 
         (red, green, blue, alpha)
     } else {
-        #[inline]
-        fn get_component_value(c: Option<NumberOrPercentage>) -> u8 {
-            c.map(|c| match c {
-                NumberOrPercentage::Number { value } => clamp_floor_256_f32(value),
-                NumberOrPercentage::Percentage { unit_value } => clamp_unit_f32(unit_value),
-            })
-            .unwrap_or(0)
-        }
+        let red = maybe_red.map_value(|v| clamp_floor_256_f32(v.to_number(255.0)));
+        let green = color_parser
+            .parse_number_or_percentage(arguments, true)?
+            .map_value(|v| clamp_floor_256_f32(v.to_number(255.0)));
+        let blue = color_parser
+            .parse_number_or_percentage(arguments, true)?
+            .map_value(|v| clamp_floor_256_f32(v.to_number(255.0)));
 
-        let red = get_component_value(maybe_red);
-
-        let green = get_component_value(parse_none_or(arguments, |p| {
-            color_parser.parse_number_or_percentage(p)
-        })?);
-
-        let blue = get_component_value(parse_none_or(arguments, |p| {
-            color_parser.parse_number_or_percentage(p)
-        })?);
-
-        let alpha = parse_modern_alpha(color_parser, arguments)?.unwrap_or(0.0);
+        let alpha = parse_modern_alpha(color_parser, arguments)?;
 
         (red, green, blue, alpha)
     };
@@ -228,35 +231,34 @@ fn parse_hsl<'i, 't, P>(
 where
     P: ColorParser<'i>,
 {
-    // Percent reference range for S and L: 0% = 0.0, 100% = 100.0
-    const LIGHTNESS_RANGE: f32 = 100.0;
-    const SATURATION_RANGE: f32 = 100.0;
-
-    let maybe_hue = parse_none_or(arguments, |p| color_parser.parse_angle_or_number(p))?;
+    let hue = color_parser.parse_number_or_angle(arguments, true)?;
 
     // If the hue is not "none" and is followed by a comma, then we are parsing
     // the legacy syntax.
-    let is_legacy_syntax = maybe_hue.is_some() && arguments.try_parse(|p| p.expect_comma()).is_ok();
+    let is_legacy_syntax = !hue.is_none() && arguments.try_parse(|p| p.expect_comma()).is_ok();
 
-    let saturation: Option<f32>;
-    let lightness: Option<f32>;
-
-    let alpha = if is_legacy_syntax {
-        saturation = Some(color_parser.parse_percentage(arguments)? * SATURATION_RANGE);
+    let (saturation, lightness, alpha) = if is_legacy_syntax {
+        let saturation = color_parser
+            .parse_percentage(arguments, false)?
+            .map_value(|unit_value| NumberOrPercentage::Percentage { unit_value });
         arguments.expect_comma()?;
-        lightness = Some(color_parser.parse_percentage(arguments)? * LIGHTNESS_RANGE);
-        Some(parse_legacy_alpha(color_parser, arguments)?)
+        let lightness = color_parser
+            .parse_percentage(arguments, false)?
+            .map_value(|unit_value| NumberOrPercentage::Percentage { unit_value });
+        (
+            saturation,
+            lightness,
+            parse_legacy_alpha(color_parser, arguments)?,
+        )
     } else {
-        saturation = parse_none_or(arguments, |p| color_parser.parse_number_or_percentage(p))?
-            .map(|v| v.to_number(SATURATION_RANGE));
-        lightness = parse_none_or(arguments, |p| color_parser.parse_number_or_percentage(p))?
-            .map(|v| v.to_number(LIGHTNESS_RANGE));
-        parse_modern_alpha(color_parser, arguments)?
+        let saturation = color_parser.parse_number_or_percentage(arguments, true)?;
+        let lightness = color_parser.parse_number_or_percentage(arguments, true)?;
+        (
+            saturation,
+            lightness,
+            parse_modern_alpha(color_parser, arguments)?,
+        )
     };
-
-    let hue = maybe_hue.map(|h| normalize_hue(h.degrees()));
-    let saturation = saturation.map(|s| s.clamp(0.0, SATURATION_RANGE));
-    let lightness = lightness.map(|l| l.clamp(0.0, LIGHTNESS_RANGE));
 
     Ok(P::Output::from_hsl(hue, saturation, lightness, alpha))
 }
@@ -272,35 +274,29 @@ fn parse_hwb<'i, 't, P>(
 where
     P: ColorParser<'i>,
 {
-    // Percent reference range for W and B: 0% = 0.0, 100% = 100.0
-    const WHITENESS_RANGE: f32 = 100.0;
-    const BLACKNESS_RANGE: f32 = 100.0;
-
     let (hue, whiteness, blackness, alpha) = parse_components(
         color_parser,
         arguments,
-        P::parse_angle_or_number,
+        P::parse_number_or_angle,
         P::parse_number_or_percentage,
         P::parse_number_or_percentage,
     )?;
 
-    let hue = hue.map(|h| normalize_hue(h.degrees()));
-    let whiteness = whiteness.map(|w| w.to_number(WHITENESS_RANGE).clamp(0.0, WHITENESS_RANGE));
-    let blackness = blackness.map(|b| b.to_number(BLACKNESS_RANGE).clamp(0.0, BLACKNESS_RANGE));
-
     Ok(P::Output::from_hwb(hue, whiteness, blackness, alpha))
 }
 
-type IntoColorFn<Output> =
-    fn(l: Option<f32>, a: Option<f32>, b: Option<f32>, alpha: Option<f32>) -> Output;
+type IntoLabFn<Output> = fn(
+    l: ColorComponent<NumberOrPercentage>,
+    a: ColorComponent<NumberOrPercentage>,
+    b: ColorComponent<NumberOrPercentage>,
+    alpha: ColorComponent<NumberOrPercentage>,
+) -> Output;
 
 #[inline]
 fn parse_lab_like<'i, 't, P>(
     color_parser: &P,
     arguments: &mut Parser<'i, 't>,
-    lightness_range: f32,
-    a_b_range: f32,
-    into_color: IntoColorFn<P::Output>,
+    into_color: IntoLabFn<P::Output>,
 ) -> Result<P::Output, ParseError<'i>>
 where
     P: ColorParser<'i>,
@@ -313,20 +309,21 @@ where
         P::parse_number_or_percentage,
     )?;
 
-    let lightness = lightness.map(|l| l.to_number(lightness_range));
-    let a = a.map(|a| a.to_number(a_b_range));
-    let b = b.map(|b| b.to_number(a_b_range));
-
     Ok(into_color(lightness, a, b, alpha))
 }
+
+type IntoLchFn<Output> = fn(
+    l: ColorComponent<NumberOrPercentage>,
+    a: ColorComponent<NumberOrPercentage>,
+    b: ColorComponent<NumberOrAngle>,
+    alpha: ColorComponent<NumberOrPercentage>,
+) -> Output;
 
 #[inline]
 fn parse_lch_like<'i, 't, P>(
     color_parser: &P,
     arguments: &mut Parser<'i, 't>,
-    lightness_range: f32,
-    chroma_range: f32,
-    into_color: IntoColorFn<P::Output>,
+    into_color: IntoLchFn<P::Output>,
 ) -> Result<P::Output, ParseError<'i>>
 where
     P: ColorParser<'i>,
@@ -336,12 +333,8 @@ where
         arguments,
         P::parse_number_or_percentage,
         P::parse_number_or_percentage,
-        P::parse_angle_or_number,
+        P::parse_number_or_angle,
     )?;
-
-    let lightness = lightness.map(|l| l.to_number(lightness_range));
-    let chroma = chroma.map(|c| c.to_number(chroma_range));
-    let hue = hue.map(|h| normalize_hue(h.degrees()));
 
     Ok(into_color(lightness, chroma, hue, alpha))
 }
@@ -371,10 +364,6 @@ where
         P::parse_number_or_percentage,
     )?;
 
-    let c1 = c1.map(|c| c.to_number(1.0));
-    let c2 = c2.map(|c| c.to_number(1.0));
-    let c3 = c3.map(|c| c.to_number(1.0));
-
     Ok(P::Output::from_color_function(
         color_space,
         c1,
@@ -384,8 +373,15 @@ where
     ))
 }
 
-type ComponentParseResult<'i, R1, R2, R3> =
-    Result<(Option<R1>, Option<R2>, Option<R3>, Option<f32>), ParseError<'i>>;
+type ComponentParseResult<'i, R1, R2, R3> = Result<
+    (
+        ColorComponent<R1>,
+        ColorComponent<R2>,
+        ColorComponent<R3>,
+        ColorComponent<NumberOrPercentage>,
+    ),
+    ParseError<'i>,
+>;
 
 /// Parse the color components and alpha with the modern [color-4] syntax.
 pub fn parse_components<'i, 't, P, F1, F2, F3, R1, R2, R3>(
@@ -397,27 +393,17 @@ pub fn parse_components<'i, 't, P, F1, F2, F3, R1, R2, R3>(
 ) -> ComponentParseResult<'i, R1, R2, R3>
 where
     P: ColorParser<'i>,
-    F1: FnOnce(&P, &mut Parser<'i, 't>) -> Result<R1, ParseError<'i>>,
-    F2: FnOnce(&P, &mut Parser<'i, 't>) -> Result<R2, ParseError<'i>>,
-    F3: FnOnce(&P, &mut Parser<'i, 't>) -> Result<R3, ParseError<'i>>,
+    F1: FnOnce(&P, &mut Parser<'i, 't>, bool) -> Result<ColorComponent<R1>, ParseError<'i>>,
+    F2: FnOnce(&P, &mut Parser<'i, 't>, bool) -> Result<ColorComponent<R2>, ParseError<'i>>,
+    F3: FnOnce(&P, &mut Parser<'i, 't>, bool) -> Result<ColorComponent<R3>, ParseError<'i>>,
 {
-    let r1 = parse_none_or(input, |p| f1(color_parser, p))?;
-    let r2 = parse_none_or(input, |p| f2(color_parser, p))?;
-    let r3 = parse_none_or(input, |p| f3(color_parser, p))?;
+    let r1 = f1(color_parser, input, true)?;
+    let r2 = f2(color_parser, input, true)?;
+    let r3 = f3(color_parser, input, true)?;
 
     let alpha = parse_modern_alpha(color_parser, input)?;
 
     Ok((r1, r2, r3, alpha))
-}
-
-fn parse_none_or<'i, 't, F, T, E>(input: &mut Parser<'i, 't>, thing: F) -> Result<Option<T>, E>
-where
-    F: FnOnce(&mut Parser<'i, 't>) -> Result<T, E>,
-{
-    match input.try_parse(|p| p.expect_ident_matching("none")) {
-        Ok(_) => Ok(None),
-        Err(_) => Ok(Some(thing(input)?)),
-    }
 }
 
 /// Either a number or a percentage.
@@ -447,7 +433,7 @@ impl NumberOrPercentage {
 }
 
 /// Either an angle or a number.
-pub enum AngleOrNumber {
+pub enum NumberOrAngle {
     /// `<number>`.
     Number {
         /// The numeric value parsed, as a float.
@@ -460,13 +446,13 @@ pub enum AngleOrNumber {
     },
 }
 
-impl AngleOrNumber {
-    /// Return the angle in degrees. `AngleOrNumber::Number` is returned as
+impl NumberOrAngle {
+    /// Return the angle in degrees. `NumberOrAngle::Number` is returned as
     /// degrees, because it is the canonical unit.
     pub fn degrees(&self) -> f32 {
         match *self {
-            AngleOrNumber::Number { value } => value,
-            AngleOrNumber::Angle { degrees } => degrees,
+            Self::Number { value } => value,
+            Self::Angle { degrees } => degrees,
         }
     }
 }
@@ -482,24 +468,34 @@ pub trait ColorParser<'i> {
     /// Parse an `<angle>` or `<number>`.
     ///
     /// Returns the result in degrees.
-    fn parse_angle_or_number<'t>(
+    fn parse_number_or_angle<'t>(
         &self,
         input: &mut Parser<'i, 't>,
-    ) -> Result<AngleOrNumber, ParseError<'i>>;
+        allow_none: bool,
+    ) -> Result<ColorComponent<NumberOrAngle>, ParseError<'i>>;
 
     /// Parse a `<percentage>` value.
     ///
     /// Returns the result in a number from 0.0 to 1.0.
-    fn parse_percentage<'t>(&self, input: &mut Parser<'i, 't>) -> Result<f32, ParseError<'i>>;
+    fn parse_percentage<'t>(
+        &self,
+        input: &mut Parser<'i, 't>,
+        allow_none: bool,
+    ) -> Result<ColorComponent<f32>, ParseError<'i>>;
 
     /// Parse a `<number>` value.
-    fn parse_number<'t>(&self, input: &mut Parser<'i, 't>) -> Result<f32, ParseError<'i>>;
+    fn parse_number<'t>(
+        &self,
+        input: &mut Parser<'i, 't>,
+        allow_none: bool,
+    ) -> Result<ColorComponent<f32>, ParseError<'i>>;
 
     /// Parse a `<number>` value or a `<percentage>` value.
     fn parse_number_or_percentage<'t>(
         &self,
         input: &mut Parser<'i, 't>,
-    ) -> Result<NumberOrPercentage, ParseError<'i>>;
+        allow_none: bool,
+    ) -> Result<ColorComponent<NumberOrPercentage>, ParseError<'i>>;
 }
 
 /// This trait is used by the [`ColorParser`] to construct colors of any type.
@@ -508,58 +504,67 @@ pub trait FromParsedColor {
     fn from_current_color() -> Self;
 
     /// Construct a new color from red, green, blue and alpha components.
-    fn from_rgba(red: u8, green: u8, blue: u8, alpha: f32) -> Self;
+    fn from_rgba(
+        red: ColorComponent<u8>,
+        green: ColorComponent<u8>,
+        blue: ColorComponent<u8>,
+        alpha: ColorComponent<NumberOrPercentage>,
+    ) -> Self;
 
     /// Construct a new color from hue, saturation, lightness and alpha components.
     fn from_hsl(
-        hue: Option<f32>,
-        saturation: Option<f32>,
-        lightness: Option<f32>,
-        alpha: Option<f32>,
+        hue: ColorComponent<NumberOrAngle>,
+        saturation: ColorComponent<NumberOrPercentage>,
+        lightness: ColorComponent<NumberOrPercentage>,
+        alpha: ColorComponent<NumberOrPercentage>,
     ) -> Self;
 
     /// Construct a new color from hue, blackness, whiteness and alpha components.
     fn from_hwb(
-        hue: Option<f32>,
-        whiteness: Option<f32>,
-        blackness: Option<f32>,
-        alpha: Option<f32>,
+        hue: ColorComponent<NumberOrAngle>,
+        whiteness: ColorComponent<NumberOrPercentage>,
+        blackness: ColorComponent<NumberOrPercentage>,
+        alpha: ColorComponent<NumberOrPercentage>,
     ) -> Self;
 
     /// Construct a new color from the `lab` notation.
-    fn from_lab(lightness: Option<f32>, a: Option<f32>, b: Option<f32>, alpha: Option<f32>)
-        -> Self;
+    fn from_lab(
+        lightness: ColorComponent<NumberOrPercentage>,
+        a: ColorComponent<NumberOrPercentage>,
+        b: ColorComponent<NumberOrPercentage>,
+        alpha: ColorComponent<NumberOrPercentage>,
+    ) -> Self;
 
     /// Construct a new color from the `lch` notation.
     fn from_lch(
-        lightness: Option<f32>,
-        chroma: Option<f32>,
-        hue: Option<f32>,
-        alpha: Option<f32>,
+        lightness: ColorComponent<NumberOrPercentage>,
+        chroma: ColorComponent<NumberOrPercentage>,
+        hue: ColorComponent<NumberOrAngle>,
+        alpha: ColorComponent<NumberOrPercentage>,
     ) -> Self;
 
     /// Construct a new color from the `oklab` notation.
     fn from_oklab(
-        lightness: Option<f32>,
-        a: Option<f32>,
-        b: Option<f32>,
-        alpha: Option<f32>,
+        lightness: ColorComponent<NumberOrPercentage>,
+        a: ColorComponent<NumberOrPercentage>,
+        b: ColorComponent<NumberOrPercentage>,
+        alpha: ColorComponent<NumberOrPercentage>,
     ) -> Self;
 
     /// Construct a new color from the `oklch` notation.
     fn from_oklch(
-        lightness: Option<f32>,
-        chroma: Option<f32>,
-        hue: Option<f32>,
-        alpha: Option<f32>,
+        lightness: ColorComponent<NumberOrPercentage>,
+        chroma: ColorComponent<NumberOrPercentage>,
+        hue: ColorComponent<NumberOrAngle>,
+        alpha: ColorComponent<NumberOrPercentage>,
     ) -> Self;
 
     /// Construct a new color with a predefined color space.
     fn from_color_function(
         color_space: PredefinedColorSpace,
-        c1: Option<f32>,
-        c2: Option<f32>,
-        c3: Option<f32>,
-        alpha: Option<f32>,
+        c1: ColorComponent<NumberOrPercentage>,
+        c2: ColorComponent<NumberOrPercentage>,
+        c3: ColorComponent<NumberOrPercentage>,
+        alpha: ColorComponent<NumberOrPercentage>,
     ) -> Self;
 }

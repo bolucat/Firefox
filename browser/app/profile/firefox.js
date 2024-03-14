@@ -718,6 +718,13 @@ pref("browser.download.clearHistoryOnDelete", 0);
 pref("browser.helperApps.showOpenOptionForPdfJS", true);
 pref("browser.helperApps.showOpenOptionForViewableInternally", true);
 
+// Whether search-config-v2 is enabled.
+#ifdef NIGHTLY_BUILD
+pref("browser.search.newSearchConfig.enabled", true);
+#else
+pref("browser.search.newSearchConfig.enabled", false);
+#endif
+
 // search engines URL
 pref("browser.search.searchEnginesURL",      "https://addons.mozilla.org/%LOCALE%/firefox/search-engines/");
 
@@ -886,6 +893,8 @@ pref("browser.tabs.warnOnClose", false);
 pref("browser.tabs.warnOnCloseOtherTabs", true);
 pref("browser.tabs.warnOnOpen", true);
 pref("browser.tabs.maxOpenBeforeWarn", 15);
+pref("browser.tabs.loadInBackground", true);
+pref("browser.tabs.opentabfor.middleclick", true);
 pref("browser.tabs.loadDivertedInBackground", false);
 pref("browser.tabs.loadBookmarksInBackground", false);
 pref("browser.tabs.loadBookmarksInTabs", false);
@@ -1298,8 +1307,6 @@ pref("browser.sessionstore.upgradeBackup.maxUpgradeBackups", 3);
 pref("browser.sessionstore.debug", false);
 // Forget closed windows/tabs after two weeks
 pref("browser.sessionstore.cleanup.forget_closed_after", 1209600000);
-// Platform collects session storage data for session store
-pref("browser.sessionstore.collect_session_storage", true);
 
 // temporary pref that will be removed in a future release, see bug 1836952
 pref("browser.sessionstore.persist_closed_tabs_between_sessions", true);
@@ -2913,6 +2920,13 @@ pref("svg.context-properties.content.allowed-domains", "profile.accounts.firefox
 // Preference that allows individual users to disable Firefox Translations.
 #ifdef NIGHTLY_BUILD
   pref("extensions.translations.disabled", true);
+#endif
+
+#if defined(XP_MACOSX) || defined(XP_WIN)
+pref("browser.firefoxbridge.enabled", false);
+pref("browser.firefoxbridge.extensionOrigins",
+    "chrome-extension://gkcbmfjnnjoambnfmihmnkneakghogca/"
+);
 #endif
 
 // Turn on interaction measurements

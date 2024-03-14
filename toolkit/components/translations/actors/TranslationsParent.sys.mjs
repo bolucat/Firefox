@@ -142,11 +142,11 @@ const VERIFY_SIGNATURES_FROM_FS = false;
  */
 
 /**
- * @typedef {Object} TranslationPair
- * @prop {string} fromLanguage
- * @prop {string} toLanguage
- * @prop {string} [fromDisplayLanguage]
- * @prop {string} [toDisplayLanguage]
+ * @typedef {object} TranslationPair
+ * @property {string} fromLanguage
+ * @property {string} toLanguage
+ * @property {string} [fromDisplayLanguage]
+ * @property {string} [toDisplayLanguage]
  */
 
 /**
@@ -332,6 +332,7 @@ export class TranslationsParent extends JSWindowActorParent {
 
   /**
    * Telemetry functions for Translations
+   *
    * @returns {TranslationsTelemetry}
    */
   static telemetry() {
@@ -351,6 +352,7 @@ export class TranslationsParent extends JSWindowActorParent {
   /**
    * Offer translations (for instance by automatically opening the popup panel) whenever
    * languages are detected, but only do it once per host per session.
+   *
    * @param {LangTags} detectedLanguages
    */
   maybeOfferTranslations(detectedLanguages) {
@@ -512,7 +514,7 @@ export class TranslationsParent extends JSWindowActorParent {
    * about:* pages will not be translated. Keep this logic up to date with the "matches"
    * array in the `toolkit/modules/ActorManagerParent.sys.mjs` definition.
    *
-   * @param {string} scheme - The URI spec
+   * @param {object} gBrowser
    * @returns {boolean}
    */
   static isRestrictedPage(gBrowser) {
@@ -553,6 +555,7 @@ export class TranslationsParent extends JSWindowActorParent {
 
   /**
    * Provide a way for tests to override the system locales.
+   *
    * @type {null | string[]}
    */
   static mockedSystemLocales = null;
@@ -848,6 +851,7 @@ export class TranslationsParent extends JSWindowActorParent {
 
   /**
    * The cached language pairs.
+   *
    * @type {Promise<Array<LanguagePair>> | null}
    */
   static #languagePairs = null;
@@ -937,8 +941,8 @@ export class TranslationsParent extends JSWindowActorParent {
   /**
    * Create a unique list of languages, sorted by the display name.
    *
-   * @param {Object} supportedLanguages
-   * @returns {Array<{ langTag: string, displayName: string}}
+   * @param {object} supportedLanguages
+   * @returns {Array<{ langTag: string, displayName: string}>}
    */
   static getLanguageList(supportedLanguages) {
     const displayNames = new Map();
@@ -966,8 +970,8 @@ export class TranslationsParent extends JSWindowActorParent {
   }
 
   /**
-   * @param {Object} event
-   * @param {Object} event.data
+   * @param {object} event
+   * @param {object} event.data
    * @param {TranslationModelRecord[]} event.data.created
    * @param {TranslationModelRecord[]} event.data.updated
    * @param {TranslationModelRecord[]} event.data.deleted
@@ -1043,12 +1047,13 @@ export class TranslationsParent extends JSWindowActorParent {
    * then only the 1.1-version record will be returned in the resulting collection.
    *
    * @param {RemoteSettingsClient} remoteSettingsClient
-   * @param {Object} [options]
-   *   @param {Object} [options.filters={}]
+   * @param {object} [options]
+   *   @param {object} [options.filters={}]
    *     The filters to apply when retrieving the records from RemoteSettings.
    *     Filters should correspond to properties on the RemoteSettings records themselves.
    *     For example, A filter to retrieve only records with a `fromLang` value of "en" and a `toLang` value of "es":
    *     { filters: { fromLang: "en", toLang: "es" } }
+   *   @param {number} options.majorVersion
    *   @param {Function} [options.lookupKey=(record => record.name)]
    *     The function to use to extract a lookup key from each record.
    *     This function should take a record as input and return a string that represents the lookup key for the record.
@@ -1433,7 +1438,7 @@ export class TranslationsParent extends JSWindowActorParent {
   /**
    * Deletes language files that match a language.
    *
-   * @param {string} requestedLanguage The BCP 47 language tag.
+   * @param {string} language The BCP 47 language tag.
    */
   static async deleteLanguageFiles(language) {
     const client = TranslationsParent.#getTranslationModelsRemoteClient();
@@ -1454,7 +1459,7 @@ export class TranslationsParent extends JSWindowActorParent {
   /**
    * Download language files that match a language.
    *
-   * @param {string} requestedLanguage The BCP 47 language tag.
+   * @param {string} language The BCP 47 language tag.
    */
   static async downloadLanguageFiles(language) {
     const client = TranslationsParent.#getTranslationModelsRemoteClient();
@@ -1503,6 +1508,7 @@ export class TranslationsParent extends JSWindowActorParent {
 
   /**
    * Delete all language model files.
+   *
    * @returns {Promise<string[]>} A list of record IDs.
    */
   static async deleteAllLanguageFiles() {
@@ -1763,8 +1769,10 @@ export class TranslationsParent extends JSWindowActorParent {
    * @param {string} fromLanguage
    * @param {string} toLanguage
    * @param {boolean} withQualityEstimation
-   * @returns {Promise<{downloadSize: long, modelFound: boolean}> Download size is the size in bytes of the estimated download for display purposes. Model found indicates a model was found.
-   * e.g., a result of {size: 0, modelFound: false} indicates no bytes to download, because a model wasn't located.
+   * @returns {Promise<{downloadSize: long, modelFound: boolean}>} Download size is the
+   *   size in bytes of the estimated download for display purposes. Model found indicates
+   *   a model was found. e.g., a result of {size: 0, modelFound: false} indicates no
+   *   bytes to download, because a model wasn't located.
    */
   static async #getModelDownloadSize(
     fromLanguage,
@@ -1860,6 +1868,7 @@ export class TranslationsParent extends JSWindowActorParent {
   /**
    * Report an error. Having this as a method allows tests to check that an error
    * was properly reported.
+   *
    * @param {Error} error - Providing an Error object makes sure the stack is properly
    *                        reported.
    * @param {any[]} args - Any args to pass on to console.error.
@@ -2740,11 +2749,11 @@ class TranslationsLanguageState {
 }
 
 /**
- * @typedef {Object} QueueItem
- * @prop {Function} download
- * @prop {Function} [onSuccess]
- * @prop {Function} [onFailure]
- * @prop {number} [retriesLeft]
+ * @typedef {object} QueueItem
+ * @property {Function} download
+ * @property {Function} [onSuccess]
+ * @property {Function} [onFailure]
+ * @property {number} [retriesLeft]
  */
 
 /**

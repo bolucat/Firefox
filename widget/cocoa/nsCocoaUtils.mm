@@ -632,43 +632,6 @@ nsresult nsCocoaUtils::CreateDualRepresentationNSImageFromImageContainer(
 }
 
 // static
-void nsCocoaUtils::GetStringForNSString(const NSString* aSrc,
-                                        nsAString& aDist) {
-  NS_OBJC_BEGIN_TRY_IGNORE_BLOCK;
-
-  if (!aSrc) {
-    aDist.Truncate();
-    return;
-  }
-
-  aDist.SetLength([aSrc length]);
-  [aSrc getCharacters:reinterpret_cast<unichar*>(aDist.BeginWriting())
-                range:NSMakeRange(0, [aSrc length])];
-
-  NS_OBJC_END_TRY_IGNORE_BLOCK;
-}
-
-// static
-NSString* nsCocoaUtils::ToNSString(const nsAString& aString) {
-  if (aString.IsEmpty()) {
-    return [NSString string];
-  }
-  return [NSString stringWithCharacters:reinterpret_cast<const unichar*>(
-                                            aString.BeginReading())
-                                 length:aString.Length()];
-}
-
-// static
-NSString* nsCocoaUtils::ToNSString(const nsACString& aCString) {
-  if (aCString.IsEmpty()) {
-    return [NSString string];
-  }
-  return [[[NSString alloc] initWithBytes:aCString.BeginReading()
-                                   length:aCString.Length()
-                                 encoding:NSUTF8StringEncoding] autorelease];
-}
-
-// static
 NSURL* nsCocoaUtils::ToNSURL(const nsAString& aURLString) {
   nsAutoCString encodedURLString;
   nsresult rv = NS_GetSpecWithNSURLEncoding(encodedURLString,

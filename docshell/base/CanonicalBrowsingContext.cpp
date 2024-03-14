@@ -1220,7 +1220,8 @@ Maybe<int32_t> CanonicalBrowsingContext::HistoryGo(
     // Check for user interaction if desired, except for the first and last
     // history entries. We compare with >= to account for the case where
     // aOffset >= length.
-    if (!aRequireUserInteraction || index.value() >= shistory->Length() - 1 ||
+    if (!StaticPrefs::browser_navigation_requireUserInteraction() ||
+        !aRequireUserInteraction || index.value() >= shistory->Length() - 1 ||
         index.value() <= 0) {
       break;
     }
@@ -2579,11 +2580,6 @@ nsresult CanonicalBrowsingContext::WriteSessionStorageToSessionStore(
 
 void CanonicalBrowsingContext::UpdateSessionStoreSessionStorage(
     const std::function<void()>& aDone) {
-  if (!StaticPrefs::browser_sessionstore_collect_session_storage_AtStartup()) {
-    aDone();
-    return;
-  }
-
   using DataPromise = BackgroundSessionStorageManager::DataPromise;
   BackgroundSessionStorageManager::GetData(
       this, StaticPrefs::browser_sessionstore_dom_storage_limit(),
@@ -2612,7 +2608,7 @@ void CanonicalBrowsingContext::UpdateSessionStoreForStorage(
 }
 
 void CanonicalBrowsingContext::MaybeScheduleSessionStoreUpdate() {
-  if (!StaticPrefs::browser_sessionstore_platform_collection_AtStartup()) {
+  if (!SessionStorePlatformCollection()) {
     return;
   }
 

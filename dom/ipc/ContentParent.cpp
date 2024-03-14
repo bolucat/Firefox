@@ -3529,16 +3529,29 @@ mozilla::ipc::IPCResult ContentParent::RecvClipboardHasType(
   return IPC_OK();
 }
 
-mozilla::ipc::IPCResult ContentParent::RecvGetExternalClipboardFormats(
-    const int32_t& aWhichClipboard, const bool& aPlainTextOnly,
-    nsTArray<nsCString>* aTypes) {
-  MOZ_ASSERT(aTypes);
-  DataTransfer::GetExternalClipboardFormats(aWhichClipboard, aPlainTextOnly,
-                                            aTypes);
-  return IPC_OK();
-}
-
 namespace {
+
+static Result<ClipboardReadRequest, nsresult> CreateClipboardReadRequest(
+    ContentParent& aContentParent,
+    nsIAsyncGetClipboardData& aAsyncGetClipboardData) {
+  nsTArray<nsCString> flavors;
+  nsresult rv = aAsyncGetClipboardData.GetFlavorList(flavors);
+  if (NS_FAILED(rv)) {
+    return Err(rv);
+  }
+
+  auto requestParent = MakeNotNull<RefPtr<ClipboardReadRequestParent>>(
+      &aContentParent, &aAsyncGetClipboardData);
+
+  // Open a remote endpoint for our PClipboardReadRequest actor.
+  ManagedEndpoint<PClipboardReadRequestChild> childEndpoint =
+      aContentParent.OpenPClipboardReadRequestEndpoint(requestParent);
+  if (NS_WARN_IF(!childEndpoint.IsValid())) {
+    return Err(NS_ERROR_FAILURE);
+  }
+
+  return ClipboardReadRequest(std::move(childEndpoint), std::move(flavors));
+}
 
 class ClipboardGetCallback final : public nsIAsyncClipboardGetCallback {
  public:
@@ -3553,20 +3566,16 @@ class ClipboardGetCallback final : public nsIAsyncClipboardGetCallback {
   // nsIAsyncClipboardGetCallback
   NS_IMETHOD OnSuccess(
       nsIAsyncGetClipboardData* aAsyncGetClipboardData) override {
-    nsTArray<nsCString> flavors;
-    nsresult rv = aAsyncGetClipboardData->GetFlavorList(flavors);
-    if (NS_FAILED(rv)) {
-      return OnError(rv);
+    MOZ_ASSERT(mContentParent);
+    MOZ_ASSERT(aAsyncGetClipboardData);
+
+    auto result =
+        CreateClipboardReadRequest(*mContentParent, *aAsyncGetClipboardData);
+    if (result.isErr()) {
+      return OnError(result.unwrapErr());
     }
 
-    auto requestParent = MakeNotNull<RefPtr<ClipboardReadRequestParent>>(
-        mContentParent, aAsyncGetClipboardData);
-    if (!mContentParent->SendPClipboardReadRequestConstructor(
-            requestParent, std::move(flavors))) {
-      return OnError(NS_ERROR_FAILURE);
-    }
-
-    mResolver(PClipboardReadRequestOrError(requestParent));
+    mResolver(result.unwrap());
     return NS_OK;
   }
 
@@ -3626,6 +3635,48 @@ mozilla::ipc::IPCResult ContentParent::RecvGetClipboardAsync(
     return IPC_OK();
   }
 
+  return IPC_OK();
+}
+
+mozilla::ipc::IPCResult ContentParent::RecvGetClipboardDataSnapshotSync(
+    nsTArray<nsCString>&& aTypes, const int32_t& aWhichClipboard,
+    const MaybeDiscarded<WindowContext>& aRequestingWindowContext,
+    ClipboardReadRequestOrError* aRequestOrError) {
+  // If the requesting context has been discarded, cancel the paste.
+  if (aRequestingWindowContext.IsDiscarded()) {
+    *aRequestOrError = NS_ERROR_FAILURE;
+    return IPC_OK();
+  }
+
+  RefPtr<WindowGlobalParent> requestingWindow =
+      aRequestingWindowContext.get_canonical();
+  if (requestingWindow && requestingWindow->GetContentParent() != this) {
+    return IPC_FAIL(
+        this, "attempt to paste into WindowContext loaded in another process");
+  }
+
+  nsCOMPtr<nsIClipboard> clipboard(do_GetService(kCClipboardCID));
+  if (!clipboard) {
+    *aRequestOrError = NS_ERROR_FAILURE;
+    return IPC_OK();
+  }
+
+  nsCOMPtr<nsIAsyncGetClipboardData> asyncGetClipboardData;
+  nsresult rv =
+      clipboard->GetDataSnapshotSync(aTypes, aWhichClipboard, requestingWindow,
+                                     getter_AddRefs(asyncGetClipboardData));
+  if (NS_FAILED(rv)) {
+    *aRequestOrError = rv;
+    return IPC_OK();
+  }
+
+  auto result = CreateClipboardReadRequest(*this, *asyncGetClipboardData);
+  if (result.isErr()) {
+    *aRequestOrError = result.unwrapErr();
+    return IPC_OK();
+  }
+
+  *aRequestOrError = result.unwrap();
   return IPC_OK();
 }
 
@@ -5597,7 +5648,6 @@ mozilla::ipc::IPCResult ContentParent::CommonCreateWindow(
 
   MOZ_ASSERT(aOpenLocation == nsIBrowserDOMWindow::OPEN_NEWTAB ||
              aOpenLocation == nsIBrowserDOMWindow::OPEN_NEWTAB_BACKGROUND ||
-             aOpenLocation == nsIBrowserDOMWindow::OPEN_NEWTAB_FOREGROUND ||
              aOpenLocation == nsIBrowserDOMWindow::OPEN_NEWWINDOW ||
              aOpenLocation == nsIBrowserDOMWindow::OPEN_PRINT_BROWSER);
 
@@ -5608,7 +5658,6 @@ mozilla::ipc::IPCResult ContentParent::CommonCreateWindow(
 
   if (aOpenLocation == nsIBrowserDOMWindow::OPEN_NEWTAB ||
       aOpenLocation == nsIBrowserDOMWindow::OPEN_NEWTAB_BACKGROUND ||
-      aOpenLocation == nsIBrowserDOMWindow::OPEN_NEWTAB_FOREGROUND ||
       aOpenLocation == nsIBrowserDOMWindow::OPEN_PRINT_BROWSER) {
     RefPtr<Element> openerElement = do_QueryObject(frame);
 
@@ -5837,8 +5886,7 @@ mozilla::ipc::IPCResult ContentParent::RecvCreateWindow(
   // do this work.
   MOZ_ALWAYS_SUCCEEDS(newBC->SetHasSiblings(
       openLocation == nsIBrowserDOMWindow::OPEN_NEWTAB ||
-      openLocation == nsIBrowserDOMWindow::OPEN_NEWTAB_BACKGROUND ||
-      openLocation == nsIBrowserDOMWindow::OPEN_NEWTAB_FOREGROUND));
+      openLocation == nsIBrowserDOMWindow::OPEN_NEWTAB_BACKGROUND));
 
   newTab->SwapFrameScriptsFrom(cwi.frameScripts());
   newTab->MaybeShowFrame();

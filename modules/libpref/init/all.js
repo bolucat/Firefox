@@ -736,6 +736,7 @@ pref("devtools.performance.recording.threads.remote", "[\"GeckoMain\",\"Composit
 // build artifacts of local builds.
 pref("devtools.performance.recording.objdirs", "[]");
 pref("devtools.performance.recording.power.external-url", "");
+pref("devtools.performance.recording.markers.external-url", "");
 // The popup will display some introductory text the first time it is displayed.
 pref("devtools.performance.popup.intro-displayed", false);
 
@@ -2674,6 +2675,7 @@ pref("font.size.monospace.x-math", 13);
 
   // Middle-mouse handling
   pref("middlemouse.paste", true);
+  pref("middlemouse.openNewWindow", true);
   pref("middlemouse.scrollbarPosition", true);
 
   // Tab focus model bit field:
@@ -2704,6 +2706,7 @@ pref("font.size.monospace.x-math", 13);
 
   // Middle-mouse handling
   pref("middlemouse.paste", true);
+  pref("middlemouse.openNewWindow", true);
   pref("middlemouse.scrollbarPosition", true);
 
   // Tab focus model bit field:

@@ -470,8 +470,13 @@ struct IPCImage {
     ImageIntSize size;
 };
 
-union PClipboardReadRequestOrError {
-    PClipboardReadRequest;
+struct ClipboardReadRequest {
+    ManagedEndpoint<PClipboardReadRequestChild> childEndpoint;
+    nsCString[] availableTypes;
+};
+
+union ClipboardReadRequestOrError {
+    ClipboardReadRequest;
     nsresult;
 };
 
@@ -1057,8 +1062,6 @@ child:
 
     async PRemotePrintJob();
 
-    async PClipboardReadRequest(nsCString[] aTypes);
-
 parent:
     async SynchronizeLayoutHistoryState(MaybeDiscardedBrowsingContext aContext,
                                         nullable nsILayoutHistoryState aState);
@@ -1226,14 +1229,16 @@ parent:
                       MaybeDiscardedWindowContext aRequestingWindowContext)
         returns (IPCTransferableData transferableData);
 
-    // Returns a list of formats supported by the clipboard
-    sync GetExternalClipboardFormats(int32_t aWhichClipboard, bool aPlainTextOnly) returns (nsCString[] aTypes);
-
     // Requests getting data from clipboard.
     async GetClipboardAsync(nsCString[] aTypes, int32_t aWhichClipboard,
                             MaybeDiscardedWindowContext aRequestingWindowContext,
                             nsIPrincipal aRequestingPrincipal)
-        returns (PClipboardReadRequestOrError aClipboardReadRequest);
+        returns (ClipboardReadRequestOrError aClipboardReadRequestOrError);
+
+    // Requests getting data from clipboard.
+    sync GetClipboardDataSnapshotSync(nsCString[] aTypes, int32_t aWhichClipboard,
+                                      MaybeDiscardedWindowContext aRequestingWindowContext)
+        returns (ClipboardReadRequestOrError aClipboardReadRequestOrError);
 
     // Clears the clipboard.
     async EmptyClipboard(int32_t aWhichClipboard);

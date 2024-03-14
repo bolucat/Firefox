@@ -50,6 +50,14 @@ add_setup(async function () {
   await SearchTestUtils.promiseNewSearchEngine({
     url: getRootDirectory(gTestPath) + "testEngine_chromeicon.xml",
   });
+
+  // Install a WebExtension based engine to allow testing passing of plain
+  // URIs (moz-extension://) to the content process.
+  await SearchTestUtils.installSearchExtension({
+    icons: {
+      16: "favicon.ico",
+    },
+  });
 });
 
 add_task(async function GetState() {
@@ -460,7 +468,7 @@ var currentStateObj = async function (isPrivateWindowValue, hiddenEngine = "") {
     ),
   };
   for (let engine of await Services.search.getVisibleEngines()) {
-    let uri = engine.getIconURL(16);
+    let uri = await engine.getIconURL(16);
     state.engines.push({
       name: engine.name,
       iconData: await iconDataFromURI(uri),
@@ -476,7 +484,7 @@ var currentStateObj = async function (isPrivateWindowValue, hiddenEngine = "") {
 };
 
 async function constructEngineObj(engine) {
-  let uriFavicon = engine.getIconURL(16);
+  let uriFavicon = await engine.getIconURL(16);
   return {
     name: engine.name,
     iconData: await iconDataFromURI(uriFavicon),
@@ -491,7 +499,7 @@ function iconDataFromURI(uri) {
     );
   }
 
-  if (!uri.startsWith("data:")) {
+  if (!uri.startsWith("data:") && !uri.startsWith("blob:")) {
     plainURIIconTested = true;
     return Promise.resolve(uri);
   }
