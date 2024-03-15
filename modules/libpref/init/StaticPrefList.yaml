@@ -2586,7 +2586,7 @@
 # Control whether `navigator.clipboard.readText()` is exposed to content.
 - name: dom.events.asyncClipboard.readText
   type: bool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
   do_not_use_directly: true
 
@@ -5902,7 +5902,7 @@
   value: false
   mirror: always
 
-#ifdef XP_MACOSX
+#ifdef XP_DARWIN
   # Create specialized video-only layers for video content in
   # fullscreen windows. Consistently works well on Apple Silicon,
   # some issues remain on Intel hardware.
@@ -5916,7 +5916,7 @@
     mirror: always
 #endif
 
-#if defined(XP_MACOSX) && defined(NIGHTLY_BUILD)
+#if defined(XP_DARWIN) && defined(NIGHTLY_BUILD)
   # Spoof the timing of the video sample instead of marking the untimed
   # sample to be displayed immediately.
 -   name: gfx.core-animation.specialize-video.spoof-timing
@@ -5938,7 +5938,7 @@
     mirror: always
 #endif
 
-#ifdef XP_MACOSX
+#ifdef XP_DARWIN
 -   name: gfx.core-animation.low-power-telemetry-frames
     type: int32_t
     value: 600
@@ -6704,7 +6704,7 @@
     mirror: always
 #endif
 
-#ifdef XP_MACOSX
+#ifdef XP_DARWIN
   # Files show up in $HOME/Desktop/nativelayerdumps-PID/frame-123.html
 -   name: gfx.webrender.debug.dump-native-layer-tree-to-file
     type: RelaxedAtomicBool
@@ -8985,6 +8985,12 @@
   mirror: always
   rust: true
 
+# UA styles for h1 in article/aside/nav/section. See bug 1883896.
+- name: layout.css.h1-in-section-ua-styles.enabled
+  type: RelaxedAtomicBool
+  value: @IS_NOT_NIGHTLY_BUILD@
+  mirror: always
+
 # The maximum width or height of the cursor we should allow when intersecting
 # the UI, in CSS pixels.
 - name: layout.cursor.block.max-size
@@ -10262,7 +10268,7 @@
 # 2 : enable for encrypted only, 3 : enable for clear only
 -   name: media.wmf.media-engine.enabled
     type: RelaxedAtomicUint32
-#if defined(IS_NIGHTLY_OR_DEV_EDITION)
+#if defined(NIGHTLY_BUILD)
     value: 2
 #else
     value: 0
@@ -12225,7 +12231,7 @@
 # Use platform DNS APIs (where available) to resolve HTTPS queries
 - name: network.dns.native_https_query
   type: RelaxedAtomicBool
-#if defined(NIGHTLY_BUILD) && !defined(XP_MACOSX)
+#if defined(EARLY_BETA_OR_EARLIER) && !defined(XP_MACOSX)
   value: true
 #else
   value: false
