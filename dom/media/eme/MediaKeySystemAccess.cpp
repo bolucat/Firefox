@@ -231,31 +231,53 @@ static KeySystemConfig::EMECodecString ToEMEAPICodecString(
   return ""_ns;
 }
 
-static nsTArray<KeySystemConfig> GetSupportedKeySystems() {
+static nsTArray<KeySystemConfig> GetSupportedKeySystems(
+    const nsAString& aKeySystem, bool aIsHardwareDecryption) {
+  using DecryptionInfo = KeySystemConfig::DecryptionInfo;
   nsTArray<KeySystemConfig> keySystemConfigs;
-
-  const nsTArray<nsString> keySystemNames{
-      NS_ConvertUTF8toUTF16(kClearKeyKeySystemName),
-      NS_ConvertUTF8toUTF16(kWidevineKeySystemName),
-#ifdef MOZ_WMF_CDM
-      NS_ConvertUTF8toUTF16(kPlayReadyKeySystemName),
-      NS_ConvertUTF8toUTF16(kPlayReadyKeySystemHardware),
-      NS_ConvertUTF8toUTF16(kPlayReadyHardwareClearLeadKeySystemName),
-      NS_ConvertUTF8toUTF16(kWidevineExperimentKeySystemName),
-      NS_ConvertUTF8toUTF16(kWidevineExperiment2KeySystemName),
-#endif
-  };
-  for (const auto& name : keySystemNames) {
-    Unused << KeySystemConfig::CreateKeySystemConfigs(name, keySystemConfigs);
+  if (IsWidevineKeySystem(aKeySystem) || IsClearkeyKeySystem(aKeySystem)) {
+    Unused << KeySystemConfig::CreateKeySystemConfigs(
+        aKeySystem, DecryptionInfo::Software, keySystemConfigs);
   }
+#ifdef MOZ_WMF_CDM
+  if (IsPlayReadyKeySystem(aKeySystem)) {
+    Unused << KeySystemConfig::CreateKeySystemConfigs(
+        NS_ConvertUTF8toUTF16(kPlayReadyKeySystemName),
+        DecryptionInfo::Software, keySystemConfigs);
+    if (aIsHardwareDecryption) {
+      Unused << KeySystemConfig::CreateKeySystemConfigs(
+          NS_ConvertUTF8toUTF16(kPlayReadyKeySystemName),
+          DecryptionInfo::Hardware, keySystemConfigs);
+      Unused << KeySystemConfig::CreateKeySystemConfigs(
+          NS_ConvertUTF8toUTF16(kPlayReadyKeySystemHardware),
+          DecryptionInfo::Hardware, keySystemConfigs);
+      Unused << KeySystemConfig::CreateKeySystemConfigs(
+          NS_ConvertUTF8toUTF16(kPlayReadyHardwareClearLeadKeySystemName),
+          DecryptionInfo::Hardware, keySystemConfigs);
+    }
+  }
+  // If key system is kWidevineKeySystemName but with hardware decryption
+  // requirement, then we need to check those experiement key systems which are
+  // used for hardware decryption.
+  if (IsWidevineExperimentKeySystem(aKeySystem) ||
+      (IsWidevineKeySystem(aKeySystem) && aIsHardwareDecryption)) {
+    Unused << KeySystemConfig::CreateKeySystemConfigs(
+        NS_ConvertUTF8toUTF16(kWidevineExperimentKeySystemName),
+        DecryptionInfo::Hardware, keySystemConfigs);
+    Unused << KeySystemConfig::CreateKeySystemConfigs(
+        NS_ConvertUTF8toUTF16(kWidevineExperiment2KeySystemName),
+        DecryptionInfo::Hardware, keySystemConfigs);
+  }
+#endif
   return keySystemConfigs;
 }
 
 static bool GetKeySystemConfigs(
-    const nsAString& aKeySystem,
+    const nsAString& aKeySystem, bool aIsHardwareDecryption,
     nsTArray<KeySystemConfig>& aOutKeySystemConfig) {
   bool foundConfigs = false;
-  for (auto& config : GetSupportedKeySystems()) {
+  for (auto& config :
+       GetSupportedKeySystems(aKeySystem, aIsHardwareDecryption)) {
     if (config.IsSameKeySystem(aKeySystem)) {
       aOutKeySystemConfig.AppendElement(std::move(config));
       foundConfigs = true;
@@ -266,9 +288,10 @@ static bool GetKeySystemConfigs(
 
 /* static */
 bool MediaKeySystemAccess::KeySystemSupportsInitDataType(
-    const nsAString& aKeySystem, const nsAString& aInitDataType) {
+    const nsAString& aKeySystem, const nsAString& aInitDataType,
+    bool aIsHardwareDecryption) {
   nsTArray<KeySystemConfig> implementations;
-  GetKeySystemConfigs(aKeySystem, implementations);
+  GetKeySystemConfigs(aKeySystem, aIsHardwareDecryption, implementations);
   bool containInitType = false;
   for (const auto& config : implementations) {
     if (config.mInitDataTypes.Contains(aInitDataType)) {
@@ -1042,7 +1065,11 @@ bool MediaKeySystemAccess::GetSupportedConfig(
     DecoderDoctorDiagnostics* aDiagnostics, bool aIsPrivateBrowsing,
     const std::function<void(const char*)>& aDeprecationLogFn) {
   nsTArray<KeySystemConfig> implementations;
-  if (!GetKeySystemConfigs(aKeySystem, implementations)) {
+  const bool isHardwareDecryptionRequest =
+      CheckIfHarewareDRMConfigExists(aConfigs) ||
+      DoesKeySystemSupportHardwareDecryption(aKeySystem);
+  if (!GetKeySystemConfigs(aKeySystem, isHardwareDecryptionRequest,
+                           implementations)) {
     return false;
   }
   for (const auto& implementation : implementations) {

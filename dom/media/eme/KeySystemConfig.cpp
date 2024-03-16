@@ -57,9 +57,10 @@ bool KeySystemConfig::Supports(const nsAString& aKeySystem) {
                       {nsCString(kWidevineExperimentKeySystemName)});
   }
 
-  if ((IsPlayReadyKeySystemAndSupported(aKeySystem) ||
-       IsWMFClearKeySystemAndSupported(aKeySystem)) &&
-      WMFCDMImpl::Supports(aKeySystem)) {
+  // PlayReady and WMF-based ClearKey are always installed, we don't need to
+  // download them.
+  if (IsPlayReadyKeySystemAndSupported(aKeySystem) ||
+      IsWMFClearKeySystemAndSupported(aKeySystem)) {
     return true;
   }
 #endif
@@ -69,7 +70,8 @@ bool KeySystemConfig::Supports(const nsAString& aKeySystem) {
 
 /* static */
 bool KeySystemConfig::CreateKeySystemConfigs(
-    const nsAString& aKeySystem, nsTArray<KeySystemConfig>& aOutConfigs) {
+    const nsAString& aKeySystem, const DecryptionInfo aDecryption,
+    nsTArray<KeySystemConfig>& aOutConfigs) {
   if (!Supports(aKeySystem)) {
     return false;
   }
@@ -229,7 +231,8 @@ bool KeySystemConfig::CreateKeySystemConfigs(
   if (IsPlayReadyKeySystemAndSupported(aKeySystem) ||
       IsWidevineExperimentKeySystemAndSupported(aKeySystem)) {
     RefPtr<WMFCDMImpl> cdm = MakeRefPtr<WMFCDMImpl>(aKeySystem);
-    return cdm->GetCapabilities(aOutConfigs);
+    return cdm->GetCapabilities(aDecryption == DecryptionInfo::Hardware,
+                                aOutConfigs);
   }
 #endif
   return false;
@@ -263,7 +266,9 @@ void KeySystemConfig::GetGMPKeySystemConfigs(dom::Promise* aPromise) {
       continue;
     }
 #endif
-    if (KeySystemConfig::CreateKeySystemConfigs(name, keySystemConfigs)) {
+    if (KeySystemConfig::CreateKeySystemConfigs(
+            name, KeySystemConfig::DecryptionInfo::Software,
+            keySystemConfigs)) {
       auto* info = cdmInfo.AppendElement(fallible);
       if (!info) {
         aPromise->MaybeReject(NS_ERROR_OUT_OF_MEMORY);

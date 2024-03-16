@@ -8,13 +8,13 @@
 
 #include "jsfriendapi.h"
 #include "MediaData.h"
+#include "KeySystemConfig.h"
 #include "mozilla/StaticPrefs_media.h"
 #include "mozilla/dom/KeySystemNames.h"
 #include "mozilla/dom/UnionTypes.h"
 
 #ifdef MOZ_WMF_CDM
 #  include "mozilla/PMFCDM.h"
-#  include "KeySystemConfig.h"
 #endif
 
 namespace mozilla {
@@ -161,6 +161,25 @@ bool IsHardwareDecryptionSupported(
   return supportHardwareDecryption;
 }
 
+bool IsHardwareDecryptionSupported(const KeySystemConfig& aConfig) {
+  bool supportHardwareDecryption = false;
+  for (const auto& robustness : aConfig.mAudioRobustness) {
+    if (robustness.EqualsLiteral("HW_SECURE_ALL")) {
+      supportHardwareDecryption = true;
+      break;
+    }
+  }
+  for (const auto& robustness : aConfig.mVideoRobustness) {
+    if (robustness.EqualsLiteral("3000") ||
+        robustness.EqualsLiteral("HW_SECURE_ALL") ||
+        robustness.EqualsLiteral("HW_SECURE_DECODE")) {
+      supportHardwareDecryption = true;
+      break;
+    }
+  }
+  return supportHardwareDecryption;
+}
+
 const char* EncryptionSchemeStr(const CryptoScheme& aScheme) {
   switch (aScheme) {
     case CryptoScheme::None:
@@ -243,6 +262,18 @@ bool CheckIfHarewareDRMConfigExists(
     }
   }
   return foundHWDRMconfig;
+}
+
+bool DoesKeySystemSupportHardwareDecryption(const nsAString& aKeySystem) {
+#ifdef MOZ_WMF_CDM
+  if (aKeySystem.EqualsLiteral(kPlayReadyKeySystemHardware) ||
+      aKeySystem.EqualsLiteral(kPlayReadyHardwareClearLeadKeySystemName) ||
+      aKeySystem.EqualsLiteral(kWidevineExperimentKeySystemName) ||
+      aKeySystem.EqualsLiteral(kWidevineExperiment2KeySystemName)) {
+    return true;
+  }
+#endif
+  return false;
 }
 
 }  // namespace mozilla
