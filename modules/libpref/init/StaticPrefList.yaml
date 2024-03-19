@@ -6851,6 +6851,11 @@
   value: false
   mirror: always
 
+- name: gfx.remote-texture.recycle.disabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 #---------------------------------------------------------------------------
 # Prefs starting with "gl." (OpenGL)
 #---------------------------------------------------------------------------
@@ -8474,6 +8479,13 @@
 - name: layout.css.basic-shape-rect.enabled
   type: RelaxedAtomicBool
   value: true
+  mirror: always
+  rust: true
+
+# Is support for shape() enabled?
+- name: layout.css.basic-shape-shape.enabled
+  type: RelaxedAtomicBool
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
   rust: true
 
@@ -13178,6 +13190,12 @@
 - name: network.http.remove_resumption_token_when_early_data_failed
   type: RelaxedAtomicBool
   value: true
+  mirror: always
+
+  # The length of cnonce string used in HTTP digest auth.
+- name: network.http.digest_auth_cnonce_length
+  type: uint32_t
+  value: 64
   mirror: always
 
   # If true, HTTP response content-type headers will be parsed using the standards-compliant MimeType parser

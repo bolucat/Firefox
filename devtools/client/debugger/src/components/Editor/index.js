@@ -68,7 +68,11 @@ import {
   endOperation,
 } from "../../utils/editor/index";
 
-import { resizeToggleButton, resizeBreakpointGutter } from "../../utils/ui";
+import {
+  resizeToggleButton,
+  getLineNumberWidth,
+  resizeBreakpointGutter,
+} from "../../utils/ui";
 
 const { debounce } = require("resource://devtools/shared/debounce.js");
 const classnames = require("resource://devtools/client/shared/classnames.js");
@@ -169,7 +173,7 @@ class Editor extends PureComponent {
       if (this.props.selectedSource != nextProps.selectedSource) {
         this.props.updateViewport();
         resizeBreakpointGutter(editor.codeMirror);
-        resizeToggleButton(editor.codeMirror);
+        resizeToggleButton(getLineNumberWidth(editor.codeMirror));
       }
     } else {
       // For codemirror 6
@@ -177,6 +181,12 @@ class Editor extends PureComponent {
       if (shouldUpdateText) {
         this.setText(nextProps, editor);
       }
+    }
+  }
+
+  onEditorUpdated(v) {
+    if (v.docChanged || v.geometryChanged) {
+      resizeToggleButton(v.view.dom.querySelector(".cm-gutters").clientWidth);
     }
   }
 
@@ -216,32 +226,18 @@ class Editor extends PureComponent {
       codeMirrorWrapper.addEventListener("keydown", e => this.onKeyDown(e));
       codeMirrorWrapper.addEventListener("click", e => this.onClick(e));
       codeMirrorWrapper.addEventListener("mouseover", onMouseOver(codeMirror));
-
-      const toggleFoldMarkerVisibility = () => {
-        if (node instanceof HTMLElement) {
-          node
-            .querySelectorAll(".CodeMirror-guttermarker-subtle")
-            .forEach(elem => {
-              elem.classList.toggle("visible");
-            });
-        }
-      };
-
-      const codeMirrorGutter = codeMirror.getGutterElement();
-      codeMirrorGutter.addEventListener(
-        "mouseleave",
-        toggleFoldMarkerVisibility
-      );
-      codeMirrorGutter.addEventListener(
-        "mouseenter",
-        toggleFoldMarkerVisibility
-      );
       codeMirrorWrapper.addEventListener("contextmenu", event =>
         this.openMenu(event)
       );
 
       codeMirror.on("scroll", this.onEditorScroll);
       this.onEditorScroll();
+    } else {
+      editor.setUpdateListener(this.onEditorUpdated);
+      editor.setGutterEventListeners({
+        click: (event, cm, line) => this.onGutterClick(cm, line, null, event),
+        contextmenu: (event, cm, line) => this.openMenu(event, line, true),
+      });
     }
     this.setState({ editor });
     return editor;
@@ -396,8 +392,9 @@ class Editor extends PureComponent {
       e.preventDefault();
     }
   };
-
-  openMenu(event) {
+  // Note: The line is optional, if not passed (as is likely for codemirror 6)
+  // it fallsback to lineAtHeight.
+  openMenu(event, line) {
     event.stopPropagation();
     event.preventDefault();
 
@@ -421,13 +418,19 @@ class Editor extends PureComponent {
 
     const target = event.target;
     const { id: sourceId } = selectedSource;
-    const line = lineAtHeight(editor, sourceId, event);
+    line = line ?? lineAtHeight(editor, sourceId, event);
 
     if (typeof line != "number") {
       return;
     }
 
-    if (target.classList.contains("CodeMirror-linenumber")) {
+    if (
+      // handles codemirror 6
+      (target.classList.contains("cm-gutterElement") &&
+        target.closest(".cm-gutter.cm-lineNumbers")) ||
+      // handles codemirror 5
+      target.classList.contains("CodeMirror-linenumber")
+    ) {
       const location = createLocation({
         line,
         column: undefined,
@@ -440,7 +443,14 @@ class Editor extends PureComponent {
         line
       ).trim();
 
-      this.props.showEditorGutterContextMenu(event, editor, location, lineText);
+      const lineObject = { from: { line }, to: { line } };
+
+      this.props.showEditorGutterContextMenu(
+        event,
+        lineObject,
+        location,
+        lineText
+      );
       return;
     }
 
@@ -540,10 +550,6 @@ class Editor extends PureComponent {
           isSourceOnIgnoreList
         )
     );
-  };
-
-  onGutterContextMenu = event => {
-    this.openMenu(event);
   };
 
   onClick(e) {

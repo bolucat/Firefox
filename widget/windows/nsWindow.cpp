@@ -1335,8 +1335,6 @@ DWORD nsWindow::WindowExStyle() {
       }
       return extendedStyle;
     }
-    case WindowType::Sheet:
-      MOZ_FALLTHROUGH_ASSERT("Sheets are macOS specific");
     case WindowType::Dialog:
     case WindowType::TopLevel:
     case WindowType::Invisible:
@@ -2041,6 +2039,13 @@ void nsWindow::Resize(double aX, double aY, double aWidth, double aHeight,
   }
 
   if (aRepaint) Invalidate();
+}
+
+mozilla::Maybe<bool> nsWindow::IsResizingNativeWidget() {
+  if (mResizeState == RESIZING) {
+    return Some(true);
+  }
+  return Some(false);
 }
 
 /**************************************************************

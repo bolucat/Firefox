@@ -1,6 +1,9 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
+// Test regularly times out - especially with verify
+requestLongerTimeout(2);
+
 const TEST_URL1 = "about:robots";
 const TEST_URL2 = "https://example.org/";
 const TEST_URL3 = "about:mozilla";
@@ -19,11 +22,6 @@ const fxaDevicesWithCommands = [
     lastAccessTime: Date.now() + 60000, // add 30min
   },
 ];
-
-async function getRowsForCard(card) {
-  await TestUtils.waitForCondition(() => card.tabList.rowEls.length);
-  return card.tabList.rowEls;
-}
 
 function getVisibleTabURLs(win = window) {
   return win.gBrowser.visibleTabs.map(tab => tab.linkedBrowser.currentURI.spec);
@@ -62,7 +60,7 @@ async function waitUntilRowsMatch(openTabs, cardIndex, expectedURLs) {
     card.shadowRoot,
     { characterData: true, childList: true, subtree: true },
     async () => {
-      let rows = await getRowsForCard(card);
+      let rows = await getTabRowsForCard(card);
       return (
         rows.length == expectedURLs.length &&
         JSON.stringify(getTabRowURLs(rows)) == expectedURLsAsString
@@ -118,7 +116,7 @@ async function moreMenuSetup() {
   let cards = getOpenTabsCards(openTabs);
   is(cards.length, 1, "There is one open window.");
 
-  let rows = await getRowsForCard(cards[0]);
+  let rows = await getTabRowsForCard(cards[0]);
 
   let firstTab = rows[0];
 

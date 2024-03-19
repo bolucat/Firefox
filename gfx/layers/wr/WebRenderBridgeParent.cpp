@@ -1919,6 +1919,10 @@ mozilla::ipc::IPCResult WebRenderBridgeParent::RecvClearCachedResources() {
       wr::AsUint64(mPipelineId), wr::AsUint64(mApi->GetId()),
       IsRootWebRenderBridgeParent());
 
+  if (!IsRootWebRenderBridgeParent()) {
+    mApi->FlushPendingWrTransactionEventsWithoutWait();
+  }
+
   // Clear resources
   wr::TransactionBuilder txn(mApi);
   txn.SetLowPriority(true);
@@ -2618,17 +2622,17 @@ void WebRenderBridgeParent::ScheduleGenerateFrame(wr::RenderReasons aReasons) {
 }
 
 void WebRenderBridgeParent::FlushRendering(wr::RenderReasons aReasons,
-                                           bool aBlocking) {
+                                           bool aWaitForPresent) {
   if (mDestroyed) {
     return;
   }
 
-  if (aBlocking) {
-    FlushSceneBuilds();
-    FlushFrameGeneration(aReasons);
+  // This gets called during e.g. window resizes, so we need to flush the
+  // scene (which has the display list at the new window size).
+  FlushSceneBuilds();
+  FlushFrameGeneration(aReasons);
+  if (aWaitForPresent) {
     FlushFramePresentation();
-  } else {
-    ScheduleGenerateFrame(aReasons);
   }
 }
 
