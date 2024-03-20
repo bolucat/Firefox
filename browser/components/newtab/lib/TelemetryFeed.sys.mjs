@@ -18,13 +18,13 @@ const { XPCOMUtils } = ChromeUtils.importESModule(
 
 // eslint-disable-next-line mozilla/use-static-import
 const { MESSAGE_TYPE_HASH: msg } = ChromeUtils.importESModule(
-  "resource:///modules/asrouter/ActorConstants.sys.mjs"
+  "resource:///modules/asrouter/ActorConstants.mjs"
 );
 
 import {
   actionTypes as at,
   actionUtils as au,
-} from "resource://activity-stream/common/Actions.sys.mjs";
+} from "resource://activity-stream/common/Actions.mjs";
 import { Prefs } from "resource://activity-stream/lib/ActivityStreamPrefs.sys.mjs";
 import { classifySite } from "resource://activity-stream/lib/SiteClassifier.sys.mjs";
 

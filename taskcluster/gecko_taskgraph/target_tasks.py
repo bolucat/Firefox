@@ -921,6 +921,8 @@ def target_tasks_general_perf_testing(full_task_graph, parameters, graph_config)
                 # Don't run android CaR sp tests as we already have a cron for this.
                 if "m-car" in try_name:
                     return False
+                if "fenix" in try_name:
+                    return False
                 if "speedometer" in try_name:
                     return True
         return False
@@ -1076,6 +1078,18 @@ def target_tasks_nightly_desktop(full_task_graph, parameters, graph_config):
         | set(target_tasks_nightly_linux(full_task_graph, parameters, graph_config))
         | set(target_tasks_nightly_asan(full_task_graph, parameters, graph_config))
         | set(release_tasks)
+    )
+
+
+@_target_task("nightly_all")
+def target_tasks_nightly_all(full_task_graph, parameters, graph_config):
+    from android_taskgraph.target_tasks import (
+        target_tasks_nightly as target_tasks_nightly_android,
+    )
+
+    return list(
+        set(target_tasks_nightly_desktop(full_task_graph, parameters, graph_config))
+        | set(target_tasks_nightly_android(full_task_graph, parameters, graph_config))
     )
 
 
@@ -1457,7 +1471,6 @@ def target_tasks_raptor_tp6m(full_task_graph, parameters, graph_config):
                 "browsertime" in try_name
                 and "amazon" in try_name
                 and "search" not in try_name
-                and "fenix" in try_name
             ):
                 return True
 

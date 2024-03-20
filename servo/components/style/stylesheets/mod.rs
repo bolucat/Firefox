@@ -26,6 +26,7 @@ mod rules_iterator;
 mod style_rule;
 mod stylesheet;
 pub mod supports_rule;
+mod scope_rule;
 
 #[cfg(feature = "gecko")]
 use crate::gecko_bindings::sugar::refptr::RefCounted;
@@ -70,6 +71,7 @@ pub use self::rules_iterator::{
     EffectiveRulesIterator, NestedRuleIterationCondition, RulesIterator,
 };
 pub use self::style_rule::StyleRule;
+pub use self::scope_rule::ScopeRule;
 pub use self::stylesheet::{AllowImportRules, SanitizationData, SanitizationKind};
 pub use self::stylesheet::{DocumentStyleSheet, Namespaces, Stylesheet};
 pub use self::stylesheet::{StylesheetContents, StylesheetInDocument, UserAgentStylesheets};
@@ -132,7 +134,11 @@ impl Drop for UrlExtraData {
 impl ToShmem for UrlExtraData {
     fn to_shmem(&self, _builder: &mut SharedMemoryBuilder) -> to_shmem::Result<Self> {
         if self.0 & 1 == 0 {
-            let shared_extra_datas = unsafe { &structs::URLExtraData_sShared };
+            let shared_extra_datas = unsafe {
+                std::ptr::addr_of!(structs::URLExtraData_sShared)
+                    .as_ref()
+                    .unwrap()
+            };
             let self_ptr = self.as_ref() as *const _ as *mut _;
             let sheet_id = shared_extra_datas
                 .iter()
@@ -265,6 +271,7 @@ pub enum CssRule {
     Document(Arc<DocumentRule>),
     LayerBlock(Arc<LayerBlockRule>),
     LayerStatement(Arc<LayerStatementRule>),
+    Scope(Arc<ScopeRule>),
 }
 
 impl CssRule {
@@ -311,6 +318,9 @@ impl CssRule {
             },
             // TODO(emilio): Add memory reporting for these rules.
             CssRule::LayerBlock(_) | CssRule::LayerStatement(_) => 0,
+            CssRule::Scope(ref rule) => {
+                rule.unconditional_shallow_size_of(ops) + rule.size_of(guard, ops)
+            }
         }
     }
 }
@@ -349,6 +359,7 @@ pub enum CssRuleType {
     FontPaletteValues = 19,
     // 20 is an arbitrary number to use for Property.
     Property = 20,
+    Scope = 21,
 }
 
 impl CssRuleType {
@@ -436,6 +447,7 @@ impl CssRule {
             CssRule::LayerBlock(_) => CssRuleType::LayerBlock,
             CssRule::LayerStatement(_) => CssRuleType::LayerStatement,
             CssRule::Container(_) => CssRuleType::Container,
+            CssRule::Scope(_) => CssRuleType::Scope,
         }
     }
 
@@ -567,6 +579,9 @@ impl DeepCloneWithLock for CssRule {
             CssRule::LayerBlock(ref arc) => {
                 CssRule::LayerBlock(Arc::new(arc.deep_clone_with_lock(lock, guard, params)))
             },
+            CssRule::Scope(ref arc) => {
+                CssRule::Scope(Arc::new(arc.deep_clone_with_lock(lock, guard, params)))
+            }
         }
     }
 }
@@ -592,6 +607,7 @@ impl ToCssWithGuard for CssRule {
             CssRule::LayerBlock(ref rule) => rule.to_css(guard, dest),
             CssRule::LayerStatement(ref rule) => rule.to_css(guard, dest),
             CssRule::Container(ref rule) => rule.to_css(guard, dest),
+            CssRule::Scope(ref rule) => rule.to_css(guard, dest),
         }
     }
 }

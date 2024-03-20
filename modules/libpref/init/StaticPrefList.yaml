@@ -6811,7 +6811,7 @@
 # for devices with weak GPUs, or when running SWGL.
 - name: gfx.webrender.low-quality-pinch-zoom
   type: bool
-#if defined(MOZ_WIDGET_ANDROID) && defined(NIGHTLY_BUILD)
+#if defined(MOZ_WIDGET_ANDROID)
   value: true
 #else
   value: false
@@ -7623,6 +7623,13 @@
 
   # Experimental support for growable SharedArrayBuffers in JavaScript.
 -   name: javascript.options.experimental.sharedarraybuffer_growable
+    type: bool
+    value: false
+    mirror: always
+    set_spidermonkey_pref: startup
+
+  # Experimental support for Uint8Array base64/hex in JavaScript.
+-   name: javascript.options.experimental.uint8array_base64
     type: bool
     value: false
     mirror: always
@@ -8749,6 +8756,13 @@
 - name: layout.css.properties-and-values.enabled
   type: RelaxedAtomicBool
   value: @IS_NIGHTLY_BUILD@
+  mirror: always
+  rust: true
+
+# Whether @scope rule is enabled
+- name: layout.css.at-scope.enabled
+  type: RelaxedAtomicBool
+  value: false
   mirror: always
   rust: true
 
@@ -13271,6 +13285,11 @@
   value: "file,moz-gio"
   mirror: never
 
+# Enable off-main-thread decompression of network streams
+- name: network.decompression_off_mainthread
+  type: bool
+  value: true
+  mirror: always
 
 #---------------------------------------------------------------------------
 # Prefs starting with "nglayout."
@@ -13791,7 +13810,7 @@
 # Enable the heuristic to allow storage access for windows opened using window.open()
 - name: privacy.restrict3rdpartystorage.heuristic.redirect
   type: bool
-  value: true
+  value: @IS_NOT_NIGHTLY_BUILD@
   mirror: always
 
 # Anti-tracking permission expiration.
