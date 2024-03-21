@@ -1680,21 +1680,15 @@ pref("browser.topsites.contile.sov.enabled", true);
 pref("browser.partnerlink.attributionURL", "https://topsites.services.mozilla.com/cid/");
 pref("browser.partnerlink.campaign.topsites", "amzn_2020_a1");
 
-// Whether to show tab level system prompts opened via nsIPrompt(Service) as
-// SubDialogs in the TabDialogBox (true) or as TabModalPrompt in the
-// TabModalPromptBox (false).
-pref("prompts.tabChromePromptSubDialog", true);
-
-// Whether to show the dialogs opened at the content level, such as
-// alert() or prompt(), using a SubDialogManager in the TabDialogBox.
-pref("prompts.contentPromptSubDialog", true);
-
 // Whether to show window-modal dialogs opened for browser windows
 // in a SubDialog inside their parent, instead of an OS level window.
 pref("prompts.windowPromptSubDialog", true);
 
 // Activates preloading of the new tab url.
 pref("browser.newtab.preload", true);
+
+// Current new tab page background image.
+pref("browser.newtabpage.activity-stream.newtabWallpapers.wallpaper", "");
 
 pref("browser.newtabpage.activity-stream.newNewtabExperience.colors", "#0090ED,#FF4F5F,#2AC3A2,#FF7139,#A172FF,#FFA437,#FF2A8A");
 

@@ -375,39 +375,39 @@ def setup_browsertime(config, tasks):
 
         cd_fetches = {
             "android.*": [
-                "linux64-chromedriver-120",
                 "linux64-chromedriver-121",
                 "linux64-chromedriver-122",
+                "linux64-chromedriver-123",
             ],
             "linux.*": [
-                "linux64-chromedriver-120",
                 "linux64-chromedriver-121",
                 "linux64-chromedriver-122",
+                "linux64-chromedriver-123",
             ],
             "macosx1015.*": [
-                "mac64-chromedriver-120",
                 "mac64-chromedriver-121",
                 "mac64-chromedriver-122",
+                "mac64-chromedriver-123",
             ],
             "macosx1400.*": [
-                "mac-arm-chromedriver-120",
                 "mac-arm-chromedriver-121",
                 "mac-arm-chromedriver-122",
+                "mac-arm-chromedriver-123",
             ],
             "windows.*aarch64.*": [
-                "win32-chromedriver-120",
                 "win32-chromedriver-121",
                 "win32-chromedriver-122",
+                "win32-chromedriver-123",
             ],
             "windows.*-32.*": [
-                "win32-chromedriver-120",
                 "win32-chromedriver-121",
                 "win32-chromedriver-122",
+                "win32-chromedriver-123",
             ],
             "windows.*-64.*": [
-                "win32-chromedriver-120",
                 "win32-chromedriver-121",
                 "win32-chromedriver-122",
+                "win32-chromedriver-123",
             ],
         }
 
@@ -803,7 +803,7 @@ test_setting_description_schema = Schema(
             },
             Optional("device"): str,
             Optional("display"): "wayland",
-            Optional("machine"): Any("ref-hw-2017", "hw-ref"),
+            Optional("machine"): "hw-ref",
         },
         "build": {
             Required("type"): Any("opt", "debug", "debug-isolated-process"),
@@ -864,7 +864,6 @@ def set_test_setting(config, tasks):
     # TODO Rename these so they don't have a dash.
     dash_attrs = [
         "clang-trunk",
-        "ref-hw-2017",
         "hw-ref",
     ]
     dash_token = "%D%"
@@ -919,9 +918,6 @@ def set_test_setting(config, tasks):
             arch = parts.pop(0)
             if parts[0].isdigit():
                 os_build = parts.pop(0)
-
-            if parts and parts[0] == "ref-hw-2017":
-                machine = parts.pop(0)
 
             if parts and parts[0] == "hw-ref":
                 machine = parts.pop(0)
