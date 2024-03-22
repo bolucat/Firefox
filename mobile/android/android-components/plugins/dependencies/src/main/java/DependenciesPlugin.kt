@@ -14,7 +14,7 @@ class DependenciesPlugin : Plugin<Settings> {
 
 // Synchronized version numbers for dependencies used by (some) modules
 object Versions {
-    const val kotlin = "1.9.22"
+    const val kotlin = "1.9.23"
     const val coroutines = "1.8.0"
     const val serialization = "1.6.3"
     const val python_envs_plugin = "0.0.31"
@@ -27,7 +27,7 @@ object Versions {
     const val maven_ant_tasks = "2.1.3"
     const val jacoco = "0.8.11"
     const val okhttp = "4.12.0"
-    const val okio = "3.8.0"
+    const val okio = "3.9.0"
     const val androidsvg = "1.4"
 
     const val android_gradle_plugin = "8.3.0"
@@ -46,12 +46,12 @@ object Versions {
     const val leakcanary = "2.13"
 
     const val material = "1.9.0"
-    const val ksp = "1.0.17"
+    const val ksp = "1.0.19"
     val ksp_plugin = "$kotlin-$ksp"
 
     // see https://android-developers.googleblog.com/2022/06/independent-versioning-of-Jetpack-Compose-libraries.html
     // for Jetpack Compose libraries versioning
-    const val compose_compiler = "1.5.10"
+    const val compose_compiler = "1.5.11"
 
     object AndroidX {
         const val activityCompose = "1.7.2"
@@ -61,7 +61,7 @@ object Versions {
         const val browser = "1.8.0"
         const val biometric = "1.1.0"
         const val cardview = "1.0.0"
-        const val compose_bom = "2023.10.01"
+        const val compose_bom = "2024.03.00"
         const val constraintlayout = "2.1.4"
         const val coordinatorlayout = "1.2.0"
         const val core = "1.12.0"
