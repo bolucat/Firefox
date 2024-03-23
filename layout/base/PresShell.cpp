@@ -2238,9 +2238,16 @@ PresShell::GetAccessibleCaretEventHub() const {
   return eventHub.forget();
 }
 
-void PresShell::SetCaret(nsCaret* aNewCaret) { mCaret = aNewCaret; }
+void PresShell::SetCaret(nsCaret* aNewCaret) {
+  if (mCaret == aNewCaret) {
+    return;
+  }
+  mCaret->SchedulePaint();
+  mCaret = aNewCaret;
+  aNewCaret->SchedulePaint();
+}
 
-void PresShell::RestoreCaret() { mCaret = mOriginalCaret; }
+void PresShell::RestoreCaret() { SetCaret(mOriginalCaret); }
 
 NS_IMETHODIMP PresShell::SetCaretEnabled(bool aInEnable) {
   bool oldEnabled = mCaretEnabled;
@@ -4473,6 +4480,26 @@ MOZ_CAN_RUN_SCRIPT_BOUNDARY void PresShell::ElementStateChanged(
   }
 }
 
+MOZ_CAN_RUN_SCRIPT_BOUNDARY void PresShell::CustomStatesWillChange(
+    Element& aElement) {
+  if (MOZ_UNLIKELY(!mDidInitialize)) {
+    return;
+  }
+
+  mPresContext->RestyleManager()->CustomStatesWillChange(aElement);
+}
+
+MOZ_CAN_RUN_SCRIPT_BOUNDARY void PresShell::CustomStateChanged(
+    Element& aElement, nsAtom* aState) {
+  MOZ_ASSERT(!mIsDocumentGone, "Unexpected CustomStateChanged");
+  MOZ_ASSERT(aState, "Unexpected empty state");
+
+  if (mDidInitialize) {
+    nsAutoCauseReflowNotifier crNotifier(this);
+    mPresContext->RestyleManager()->CustomStateChanged(aElement, aState);
+  }
+}
+
 void PresShell::DocumentStatesChanged(DocumentState aStateMask) {
   MOZ_ASSERT(!mIsDocumentGone, "Unexpected DocumentStatesChanged");
   MOZ_ASSERT(mDocument);
@@ -5647,7 +5674,9 @@ void PresShell::SetRenderingState(const RenderingState& aState) {
 }
 
 void PresShell::SynthesizeMouseMove(bool aFromScroll) {
-  if (!StaticPrefs::layout_reflow_synthMouseMove()) return;
+  if (!StaticPrefs::layout_reflow_synthMouseMove()) {
+    return;
+  }
 
   if (mPaintingSuppressed || !mIsActive || !mPresContext) {
     return;
@@ -5660,8 +5689,9 @@ void PresShell::SynthesizeMouseMove(bool aFromScroll) {
     return;
   }
 
-  if (mMouseLocation == nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE))
+  if (mMouseLocation == nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE)) {
     return;
+  }
 
   if (!mSynthMouseMoveEvent.IsPending()) {
     RefPtr<nsSynthMouseMoveEvent> ev =
@@ -11220,8 +11250,7 @@ Maybe<MobileViewportManager::ManagerType> UseMobileViewportManager(
   if (nsLayoutUtils::ShouldHandleMetaViewport(aDocument)) {
     return Some(MobileViewportManager::ManagerType::VisualAndMetaViewport);
   }
-  if (StaticPrefs::apz_mvm_force_enabled() ||
-      nsLayoutUtils::AllowZoomingForDocument(aDocument)) {
+  if (nsLayoutUtils::AllowZoomingForDocument(aDocument)) {
     return Some(MobileViewportManager::ManagerType::VisualViewportOnly);
   }
   return Nothing();

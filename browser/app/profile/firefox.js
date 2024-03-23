@@ -356,6 +356,10 @@ pref("browser.overlink-delay", 80);
 
 pref("browser.theme.colorway-closet", true);
 
+#ifdef XP_MACOSX
+pref("browser.theme.macos.native-theme", false);
+#endif
+
 // Whether expired built-in colorways themes that are active or retained
 // should be allowed to check for updates and be updated to an AMO hosted
 // theme with the same id (as part of preparing to remove from mozilla-central
@@ -3028,3 +3032,6 @@ pref("browser.profiles.enabled", false);
 
 pref("startup.homepage_override_url_nimbus", "");
 pref("startup.homepage_override_nimbus_maxVersion", "");
+
+// Pref to enable the content relevancy feature.
+pref("toolkit.contentRelevancy.enabled", false);

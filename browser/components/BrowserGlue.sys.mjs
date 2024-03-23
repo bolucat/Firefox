@@ -27,6 +27,8 @@ ChromeUtils.defineESModuleGetters(lazy, {
   BrowserUsageTelemetry: "resource:///modules/BrowserUsageTelemetry.sys.mjs",
   BrowserWindowTracker: "resource:///modules/BrowserWindowTracker.sys.mjs",
   BuiltInThemes: "resource:///modules/BuiltInThemes.sys.mjs",
+  ContentRelevancyManager:
+    "resource://gre/modules/ContentRelevancyManager.sys.mjs",
   ContextualIdentityService:
     "resource://gre/modules/ContextualIdentityService.sys.mjs",
   Corroborate: "resource://gre/modules/Corroborate.sys.mjs",
@@ -80,8 +82,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
   Sanitizer: "resource:///modules/Sanitizer.sys.mjs",
   SaveToPocket: "chrome://pocket/content/SaveToPocket.sys.mjs",
   ScreenshotsUtils: "resource:///modules/ScreenshotsUtils.sys.mjs",
-  SearchSERPDomainToCategoriesMap:
-    "resource:///modules/SearchSERPTelemetry.sys.mjs",
+  SearchSERPCategorization: "resource:///modules/SearchSERPTelemetry.sys.mjs",
   SearchSERPTelemetry: "resource:///modules/SearchSERPTelemetry.sys.mjs",
   SessionStartup: "resource:///modules/sessionstore/SessionStartup.sys.mjs",
   SessionStore: "resource:///modules/sessionstore/SessionStore.sys.mjs",
@@ -2111,7 +2112,7 @@ BrowserGlue.prototype = {
 
       () => lazy.BrowserUsageTelemetry.uninit(),
       () => lazy.SearchSERPTelemetry.uninit(),
-      () => lazy.SearchSERPDomainToCategoriesMap.uninit(),
+      () => lazy.SearchSERPCategorization.uninit(),
       () => lazy.Interactions.uninit(),
       () => lazy.PageDataService.uninit(),
       () => lazy.PageThumbs.uninit(),
@@ -3082,9 +3083,16 @@ BrowserGlue.prototype = {
       },
 
       {
-        name: "SearchSERPDomainToCategoriesMap.init",
+        name: "SearchSERPCategorization.init",
         task: () => {
-          lazy.SearchSERPDomainToCategoriesMap.init().catch(console.error);
+          lazy.SearchSERPCategorization.init();
+        },
+      },
+
+      {
+        name: "ContentRelevancyManager.init",
+        task: () => {
+          lazy.ContentRelevancyManager.init();
         },
       },
 
