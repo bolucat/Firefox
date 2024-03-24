@@ -1974,6 +1974,10 @@ class TransactionDatabaseOperationBase : public DatabaseOperationBase {
   };
 
   InitializedOnce<const NotNull<SafeRefPtr<TransactionBase>>> mTransaction;
+  // Unique request id within the context of the transaction, allocated by the
+  // transaction in the content process starting from 0. Values less than 0 are
+  // impossible and forbidden. Used to support the explicit commit() request.
+  const int64_t mRequestId;
   InternalState mInternalState = InternalState::Initial;
   bool mWaitingForContinue = false;
   const bool mTransactionIsAborted;
@@ -2035,10 +2039,11 @@ class TransactionDatabaseOperationBase : public DatabaseOperationBase {
   virtual void Cleanup();
 
  protected:
-  explicit TransactionDatabaseOperationBase(
-      SafeRefPtr<TransactionBase> aTransaction);
+  TransactionDatabaseOperationBase(SafeRefPtr<TransactionBase> aTransaction,
+                                   int64_t aRequestId);
 
   TransactionDatabaseOperationBase(SafeRefPtr<TransactionBase> aTransaction,
+                                   const int64_t aRequestId,
                                    uint64_t aLoggingSerialNumber);
 
   ~TransactionDatabaseOperationBase() override;
@@ -2419,6 +2424,7 @@ class Database::StartTransactionOp final
  private:
   explicit StartTransactionOp(SafeRefPtr<TransactionBase> aTransaction)
       : TransactionDatabaseOperationBase(std::move(aTransaction),
+                                         /* aRequestId */ 0,
                                          /* aLoggingSerialNumber */ 0) {}
 
   ~StartTransactionOp() override = default;
@@ -2766,7 +2772,8 @@ class TransactionBase : public AtomicSafeRefCounted<TransactionBase> {
     CommitOrAbort();
   }
 
-  PBackgroundIDBRequestParent* AllocRequest(RequestParams&& aParams,
+  PBackgroundIDBRequestParent* AllocRequest(const int64_t aRequestId,
+                                            RequestParams&& aParams,
                                             bool aTrustParams);
 
   bool StartRequest(PBackgroundIDBRequestParent* aActor);
@@ -2776,7 +2783,7 @@ class TransactionBase : public AtomicSafeRefCounted<TransactionBase> {
   already_AddRefed<PBackgroundIDBCursorParent> AllocCursor(
       const OpenCursorParams& aParams, bool aTrustParams);
 
-  bool StartCursor(PBackgroundIDBCursorParent* aActor,
+  bool StartCursor(PBackgroundIDBCursorParent* aActor, const int64_t aRequestId,
                    const OpenCursorParams& aParams);
 
   virtual void UpdateMetadata(nsresult aResult) {}
@@ -2859,20 +2866,20 @@ class NormalTransaction final : public TransactionBase,
   mozilla::ipc::IPCResult RecvAbort(const nsresult& aResultCode) override;
 
   PBackgroundIDBRequestParent* AllocPBackgroundIDBRequestParent(
-      const RequestParams& aParams) override;
+      const int64_t& aRequestId, const RequestParams& aParams) override;
 
   mozilla::ipc::IPCResult RecvPBackgroundIDBRequestConstructor(
-      PBackgroundIDBRequestParent* aActor,
+      PBackgroundIDBRequestParent* aActor, const int64_t& aRequestId,
       const RequestParams& aParams) override;
 
   bool DeallocPBackgroundIDBRequestParent(
       PBackgroundIDBRequestParent* aActor) override;
 
   already_AddRefed<PBackgroundIDBCursorParent> AllocPBackgroundIDBCursorParent(
-      const OpenCursorParams& aParams) override;
+      const int64_t& aRequestId, const OpenCursorParams& aParams) override;
 
   mozilla::ipc::IPCResult RecvPBackgroundIDBCursorConstructor(
-      PBackgroundIDBCursorParent* aActor,
+      PBackgroundIDBCursorParent* aActor, const int64_t& aRequestId,
       const OpenCursorParams& aParams) override;
 
  public:
@@ -2951,20 +2958,20 @@ class VersionChangeTransaction final
       const IndexOrObjectStoreId& aIndexId, const nsAString& aName) override;
 
   PBackgroundIDBRequestParent* AllocPBackgroundIDBRequestParent(
-      const RequestParams& aParams) override;
+      const int64_t& aRequestId, const RequestParams& aParams) override;
 
   mozilla::ipc::IPCResult RecvPBackgroundIDBRequestConstructor(
-      PBackgroundIDBRequestParent* aActor,
+      PBackgroundIDBRequestParent* aActor, const int64_t& aRequestId,
       const RequestParams& aParams) override;
 
   bool DeallocPBackgroundIDBRequestParent(
       PBackgroundIDBRequestParent* aActor) override;
 
   already_AddRefed<PBackgroundIDBCursorParent> AllocPBackgroundIDBCursorParent(
-      const OpenCursorParams& aParams) override;
+      const int64_t& aRequestId, const OpenCursorParams& aParams) override;
 
   mozilla::ipc::IPCResult RecvPBackgroundIDBCursorConstructor(
-      PBackgroundIDBCursorParent* aActor,
+      PBackgroundIDBCursorParent* aActor, const int64_t& aRequestId,
       const OpenCursorParams& aParams) override;
 };
 
@@ -3250,7 +3257,7 @@ class OpenDatabaseOp::VersionChangeOp final
   explicit VersionChangeOp(OpenDatabaseOp* aOpenDatabaseOp)
       : TransactionDatabaseOperationBase(
             aOpenDatabaseOp->mVersionChangeTransaction.clonePtr(),
-            aOpenDatabaseOp->LoggingSerialNumber()),
+            /* aRequestId */ 0, aOpenDatabaseOp->LoggingSerialNumber()),
         mOpenDatabaseOp(aOpenDatabaseOp),
         mRequestedVersion(aOpenDatabaseOp->mRequestedVersion),
         mPreviousVersion(
@@ -3335,7 +3342,8 @@ class VersionChangeTransactionOp : public TransactionDatabaseOperationBase {
  protected:
   explicit VersionChangeTransactionOp(
       SafeRefPtr<VersionChangeTransaction> aTransaction)
-      : TransactionDatabaseOperationBase(std::move(aTransaction)) {}
+      : TransactionDatabaseOperationBase(std::move(aTransaction),
+                                         /* aRequestId */ 0) {}
 
   ~VersionChangeTransactionOp() override = default;
 
@@ -3520,8 +3528,9 @@ class NormalTransactionOp : public TransactionDatabaseOperationBase,
   void Cleanup() override;
 
  protected:
-  explicit NormalTransactionOp(SafeRefPtr<TransactionBase> aTransaction)
-      : TransactionDatabaseOperationBase(std::move(aTransaction))
+  NormalTransactionOp(SafeRefPtr<TransactionBase> aTransaction,
+                      const int64_t aRequestId)
+      : TransactionDatabaseOperationBase(std::move(aTransaction), aRequestId)
 #ifdef DEBUG
         ,
         mResponseSent(false)
@@ -3648,6 +3657,7 @@ class ObjectStoreAddOrPutRequestOp final : public NormalTransactionOp {
  private:
   // Only created by TransactionBase.
   ObjectStoreAddOrPutRequestOp(SafeRefPtr<TransactionBase> aTransaction,
+                               const int64_t aRequestId,
                                RequestParams&& aParams);
 
   ~ObjectStoreAddOrPutRequestOp() override = default;
@@ -3884,6 +3894,7 @@ class ObjectStoreGetRequestOp final : public NormalTransactionOp {
  private:
   // Only created by TransactionBase.
   ObjectStoreGetRequestOp(SafeRefPtr<TransactionBase> aTransaction,
+                          const int64_t aRequestId,
                           const RequestParams& aParams, bool aGetAll);
 
   ~ObjectStoreGetRequestOp() override = default;
@@ -3913,6 +3924,7 @@ class ObjectStoreGetKeyRequestOp final : public NormalTransactionOp {
  private:
   // Only created by TransactionBase.
   ObjectStoreGetKeyRequestOp(SafeRefPtr<TransactionBase> aTransaction,
+                             const int64_t aRequestId,
                              const RequestParams& aParams, bool aGetAll);
 
   ~ObjectStoreGetKeyRequestOp() override = default;
@@ -3931,6 +3943,7 @@ class ObjectStoreDeleteRequestOp final : public NormalTransactionOp {
 
  private:
   ObjectStoreDeleteRequestOp(SafeRefPtr<TransactionBase> aTransaction,
+                             const int64_t aRequestId,
                              const ObjectStoreDeleteParams& aParams);
 
   ~ObjectStoreDeleteRequestOp() override = default;
@@ -3952,6 +3965,7 @@ class ObjectStoreClearRequestOp final : public NormalTransactionOp {
 
  private:
   ObjectStoreClearRequestOp(SafeRefPtr<TransactionBase> aTransaction,
+                            const int64_t aRequestId,
                             const ObjectStoreClearParams& aParams);
 
   ~ObjectStoreClearRequestOp() override = default;
@@ -3972,8 +3986,10 @@ class ObjectStoreCountRequestOp final : public NormalTransactionOp {
 
  private:
   ObjectStoreCountRequestOp(SafeRefPtr<TransactionBase> aTransaction,
+                            const int64_t aRequestId,
                             const ObjectStoreCountParams& aParams)
-      : NormalTransactionOp(std::move(aTransaction)), mParams(aParams) {}
+      : NormalTransactionOp(std::move(aTransaction), aRequestId),
+        mParams(aParams) {}
 
   ~ObjectStoreCountRequestOp() override = default;
 
@@ -3991,8 +4007,8 @@ class IndexRequestOpBase : public NormalTransactionOp {
 
  protected:
   IndexRequestOpBase(SafeRefPtr<TransactionBase> aTransaction,
-                     const RequestParams& aParams)
-      : NormalTransactionOp(std::move(aTransaction)),
+                     const int64_t aRequestId, const RequestParams& aParams)
+      : NormalTransactionOp(std::move(aTransaction), aRequestId),
         mMetadata(IndexMetadataForParams(Transaction(), aParams)) {}
 
   ~IndexRequestOpBase() override = default;
@@ -4015,7 +4031,8 @@ class IndexGetRequestOp final : public IndexRequestOpBase {
  private:
   // Only created by TransactionBase.
   IndexGetRequestOp(SafeRefPtr<TransactionBase> aTransaction,
-                    const RequestParams& aParams, bool aGetAll);
+                    const int64_t aRequestId, const RequestParams& aParams,
+                    bool aGetAll);
 
   ~IndexGetRequestOp() override = default;
 
@@ -4035,7 +4052,8 @@ class IndexGetKeyRequestOp final : public IndexRequestOpBase {
  private:
   // Only created by TransactionBase.
   IndexGetKeyRequestOp(SafeRefPtr<TransactionBase> aTransaction,
-                       const RequestParams& aParams, bool aGetAll);
+                       const int64_t aRequestId, const RequestParams& aParams,
+                       bool aGetAll);
 
   ~IndexGetKeyRequestOp() override = default;
 
@@ -4053,8 +4071,8 @@ class IndexCountRequestOp final : public IndexRequestOpBase {
  private:
   // Only created by TransactionBase.
   IndexCountRequestOp(SafeRefPtr<TransactionBase> aTransaction,
-                      const RequestParams& aParams)
-      : IndexRequestOpBase(std::move(aTransaction), aParams),
+                      const int64_t aRequestId, const RequestParams& aParams)
+      : IndexRequestOpBase(std::move(aTransaction), aRequestId, aParams),
         mParams(aParams.get_IndexCountParams()) {}
 
   ~IndexCountRequestOp() override = default;
@@ -4154,7 +4172,8 @@ class CursorBase : public PBackgroundIDBCursorParent {
   ~CursorBase() override { MOZ_ASSERT(!mObjectStoreMetadata); }
 
  private:
-  virtual bool Start(const OpenCursorParams& aParams) = 0;
+  virtual bool Start(const int64_t aRequestId,
+                     const OpenCursorParams& aParams) = 0;
 };
 
 class IndexCursorBase : public CursorBase {
@@ -4312,7 +4331,7 @@ class Cursor final
   LazyInitializedOnce<const typename Base::ContinueQueries> mContinueQueries;
 
   // Only called by TransactionBase.
-  bool Start(const OpenCursorParams& aParams) final;
+  bool Start(const int64_t aRequestId, const OpenCursorParams& aParams) final;
 
   void SendResponseInternal(CursorResponse& aResponse,
                             const FilesArrayT<CursorType>& aFiles);
@@ -4326,8 +4345,8 @@ class Cursor final
   mozilla::ipc::IPCResult RecvDeleteMe() override;
 
   mozilla::ipc::IPCResult RecvContinue(
-      const CursorRequestParams& aParams, const Key& aCurrentKey,
-      const Key& aCurrentObjectStoreKey) override;
+      const int64_t& aRequestId, const CursorRequestParams& aParams,
+      const Key& aCurrentKey, const Key& aCurrentObjectStoreKey) override;
 
  public:
   Cursor(SafeRefPtr<TransactionBase> aTransaction,
@@ -4374,8 +4393,9 @@ class Cursor<CursorType>::CursorOpBase
 #endif
 
  protected:
-  explicit CursorOpBase(Cursor* aCursor)
-      : TransactionDatabaseOperationBase(aCursor->mTransaction.clonePtr()),
+  explicit CursorOpBase(Cursor* aCursor, const int64_t aRequestId)
+      : TransactionDatabaseOperationBase(aCursor->mTransaction.clonePtr(),
+                                         /* aRequestId */ aRequestId),
         mCursor(aCursor)
 #ifdef DEBUG
         ,
@@ -4553,9 +4573,10 @@ class Cursor<CursorType>::OpenOp final : public CursorOpBase {
   using CursorOpBase::mResponse;
 
   // Only created by Cursor.
-  OpenOp(Cursor* const aCursor,
+  OpenOp(Cursor* const aCursor, const int64_t aRequestId,
          const Maybe<SerializedKeyRange>& aOptionalKeyRange)
-      : CursorOpBase(aCursor), mOptionalKeyRange(aOptionalKeyRange) {}
+      : CursorOpBase(aCursor, aRequestId),
+        mOptionalKeyRange(aOptionalKeyRange) {}
 
   // Reference counted.
   ~OpenOp() override = default;
@@ -4573,9 +4594,9 @@ class Cursor<CursorType>::ContinueOp final
   const CursorRequestParams mParams;
 
   // Only created by Cursor.
-  ContinueOp(Cursor* const aCursor, CursorRequestParams aParams,
-             CursorPosition<CursorType> aPosition)
-      : CursorOpBase(aCursor),
+  ContinueOp(Cursor* const aCursor, int64_t aRequestId,
+             CursorRequestParams aParams, CursorPosition<CursorType> aPosition)
+      : CursorOpBase(aCursor, aRequestId),
         mParams(std::move(aParams)),
         mCurrentPosition{std::move(aPosition)} {
     MOZ_ASSERT(mParams.type() != CursorRequestParams::T__None);
@@ -9909,14 +9930,13 @@ void TransactionBase::CommitOrAbort() {
     return;
   }
 
-  // In case of a failed request that was started after committing was
-  // initiated, abort (cf.
-  // https://w3c.github.io/IndexedDB/#async-execute-request step 5.3 vs. 5.4).
-  // Note this can only happen here when we are committing explicitly, otherwise
-  // the decision is made by the child.
+  // In case of a failed request and explicitly committed transaction, abort
+  // (cf. https://w3c.github.io/IndexedDB/#async-execute-request step 5.3
+  // vs. 5.4). It's worth emphasizing this can only happen here when we are
+  // committing explicitly, otherwise the decision is made by the child.
   if (NS_SUCCEEDED(mResultCode) && mLastFailedRequest &&
       *mLastRequestBeforeCommit &&
-      *mLastFailedRequest >= **mLastRequestBeforeCommit) {
+      *mLastFailedRequest == **mLastRequestBeforeCommit) {
     mResultCode = NS_ERROR_DOM_INDEXEDDB_ABORT_ERR;
   }
 
@@ -10370,7 +10390,7 @@ void TransactionBase::Invalidate() {
 }
 
 PBackgroundIDBRequestParent* TransactionBase::AllocRequest(
-    RequestParams&& aParams, bool aTrustParams) {
+    const int64_t aRequestId, RequestParams&& aParams, bool aTrustParams) {
   AssertIsOnBackgroundThread();
   MOZ_ASSERT(aParams.type() != RequestParams::T__None);
 
@@ -10392,67 +10412,77 @@ PBackgroundIDBRequestParent* TransactionBase::AllocRequest(
   switch (aParams.type()) {
     case RequestParams::TObjectStoreAddParams:
     case RequestParams::TObjectStorePutParams:
-      actor = new ObjectStoreAddOrPutRequestOp(SafeRefPtrFromThis(),
+      actor = new ObjectStoreAddOrPutRequestOp(SafeRefPtrFromThis(), aRequestId,
                                                std::move(aParams));
       break;
 
     case RequestParams::TObjectStoreGetParams:
-      actor = new ObjectStoreGetRequestOp(SafeRefPtrFromThis(), aParams,
-                                          /* aGetAll */ false);
+      actor =
+          new ObjectStoreGetRequestOp(SafeRefPtrFromThis(), aRequestId, aParams,
+                                      /* aGetAll */ false);
       break;
 
     case RequestParams::TObjectStoreGetAllParams:
-      actor = new ObjectStoreGetRequestOp(SafeRefPtrFromThis(), aParams,
-                                          /* aGetAll */ true);
+      actor =
+          new ObjectStoreGetRequestOp(SafeRefPtrFromThis(), aRequestId, aParams,
+                                      /* aGetAll */ true);
       break;
 
     case RequestParams::TObjectStoreGetKeyParams:
-      actor = new ObjectStoreGetKeyRequestOp(SafeRefPtrFromThis(), aParams,
+      actor = new ObjectStoreGetKeyRequestOp(SafeRefPtrFromThis(), aRequestId,
+                                             aParams,
                                              /* aGetAll */ false);
       break;
 
     case RequestParams::TObjectStoreGetAllKeysParams:
-      actor = new ObjectStoreGetKeyRequestOp(SafeRefPtrFromThis(), aParams,
+      actor = new ObjectStoreGetKeyRequestOp(SafeRefPtrFromThis(), aRequestId,
+                                             aParams,
                                              /* aGetAll */ true);
       break;
 
     case RequestParams::TObjectStoreDeleteParams:
-      actor = new ObjectStoreDeleteRequestOp(
-          SafeRefPtrFromThis(), aParams.get_ObjectStoreDeleteParams());
+      actor =
+          new ObjectStoreDeleteRequestOp(SafeRefPtrFromThis(), aRequestId,
+                                         aParams.get_ObjectStoreDeleteParams());
       break;
 
     case RequestParams::TObjectStoreClearParams:
-      actor = new ObjectStoreClearRequestOp(
-          SafeRefPtrFromThis(), aParams.get_ObjectStoreClearParams());
+      actor =
+          new ObjectStoreClearRequestOp(SafeRefPtrFromThis(), aRequestId,
+                                        aParams.get_ObjectStoreClearParams());
       break;
 
     case RequestParams::TObjectStoreCountParams:
-      actor = new ObjectStoreCountRequestOp(
-          SafeRefPtrFromThis(), aParams.get_ObjectStoreCountParams());
+      actor =
+          new ObjectStoreCountRequestOp(SafeRefPtrFromThis(), aRequestId,
+                                        aParams.get_ObjectStoreCountParams());
       break;
 
     case RequestParams::TIndexGetParams:
-      actor = new IndexGetRequestOp(SafeRefPtrFromThis(), aParams,
+      actor = new IndexGetRequestOp(SafeRefPtrFromThis(), aRequestId, aParams,
                                     /* aGetAll */ false);
       break;
 
     case RequestParams::TIndexGetKeyParams:
-      actor = new IndexGetKeyRequestOp(SafeRefPtrFromThis(), aParams,
-                                       /* aGetAll */ false);
+      actor =
+          new IndexGetKeyRequestOp(SafeRefPtrFromThis(), aRequestId, aParams,
+                                   /* aGetAll */ false);
       break;
 
     case RequestParams::TIndexGetAllParams:
-      actor = new IndexGetRequestOp(SafeRefPtrFromThis(), aParams,
+      actor = new IndexGetRequestOp(SafeRefPtrFromThis(), aRequestId, aParams,
                                     /* aGetAll */ true);
       break;
 
     case RequestParams::TIndexGetAllKeysParams:
-      actor = new IndexGetKeyRequestOp(SafeRefPtrFromThis(), aParams,
-                                       /* aGetAll */ true);
+      actor =
+          new IndexGetKeyRequestOp(SafeRefPtrFromThis(), aRequestId, aParams,
+                                   /* aGetAll */ true);
       break;
 
     case RequestParams::TIndexCountParams:
-      actor = new IndexCountRequestOp(SafeRefPtrFromThis(), aParams);
+      actor =
+          new IndexCountRequestOp(SafeRefPtrFromThis(), aRequestId, aParams);
       break;
 
     default:
@@ -10562,6 +10592,7 @@ already_AddRefed<PBackgroundIDBCursorParent> TransactionBase::AllocCursor(
 }
 
 bool TransactionBase::StartCursor(PBackgroundIDBCursorParent* const aActor,
+                                  const int64_t aRequestId,
                                   const OpenCursorParams& aParams) {
   AssertIsOnBackgroundThread();
   MOZ_ASSERT(aActor);
@@ -10569,7 +10600,7 @@ bool TransactionBase::StartCursor(PBackgroundIDBCursorParent* const aActor,
 
   auto* const op = static_cast<CursorBase*>(aActor);
 
-  if (NS_WARN_IF(!op->Start(aParams))) {
+  if (NS_WARN_IF(!op->Start(aRequestId, aParams))) {
     return false;
   }
 
@@ -10648,16 +10679,18 @@ mozilla::ipc::IPCResult NormalTransaction::RecvAbort(
 
 PBackgroundIDBRequestParent*
 NormalTransaction::AllocPBackgroundIDBRequestParent(
-    const RequestParams& aParams) {
+    const int64_t& aRequestId, const RequestParams& aParams) {
   AssertIsOnBackgroundThread();
   MOZ_ASSERT(aParams.type() != RequestParams::T__None);
 
-  return AllocRequest(std::move(const_cast<RequestParams&>(aParams)),
+  return AllocRequest(aRequestId,
+                      std::move(const_cast<RequestParams&>(aParams)),
                       IsSameProcessActor());
 }
 
 mozilla::ipc::IPCResult NormalTransaction::RecvPBackgroundIDBRequestConstructor(
-    PBackgroundIDBRequestParent* const aActor, const RequestParams& aParams) {
+    PBackgroundIDBRequestParent* const aActor, const int64_t& aRequestId,
+    const RequestParams& aParams) {
   AssertIsOnBackgroundThread();
   MOZ_ASSERT(aActor);
   MOZ_ASSERT(aParams.type() != RequestParams::T__None);
@@ -10678,19 +10711,20 @@ bool NormalTransaction::DeallocPBackgroundIDBRequestParent(
 
 already_AddRefed<PBackgroundIDBCursorParent>
 NormalTransaction::AllocPBackgroundIDBCursorParent(
-    const OpenCursorParams& aParams) {
+    const int64_t& aRequestId, const OpenCursorParams& aParams) {
   AssertIsOnBackgroundThread();
 
   return AllocCursor(aParams, IsSameProcessActor());
 }
 
 mozilla::ipc::IPCResult NormalTransaction::RecvPBackgroundIDBCursorConstructor(
-    PBackgroundIDBCursorParent* const aActor, const OpenCursorParams& aParams) {
+    PBackgroundIDBCursorParent* const aActor, const int64_t& aRequestId,
+    const OpenCursorParams& aParams) {
   AssertIsOnBackgroundThread();
   MOZ_ASSERT(aActor);
   MOZ_ASSERT(aParams.type() != OpenCursorParams::T__None);
 
-  if (!StartCursor(aActor, aParams)) {
+  if (!StartCursor(aActor, aRequestId, aParams)) {
     return IPC_FAIL(this, "StartCursor failed!");
   }
   return IPC_OK();
@@ -11234,17 +11268,19 @@ mozilla::ipc::IPCResult VersionChangeTransaction::RecvRenameIndex(
 
 PBackgroundIDBRequestParent*
 VersionChangeTransaction::AllocPBackgroundIDBRequestParent(
-    const RequestParams& aParams) {
+    const int64_t& aRequestId, const RequestParams& aParams) {
   AssertIsOnBackgroundThread();
   MOZ_ASSERT(aParams.type() != RequestParams::T__None);
 
-  return AllocRequest(std::move(const_cast<RequestParams&>(aParams)),
+  return AllocRequest(aRequestId,
+                      std::move(const_cast<RequestParams&>(aParams)),
                       IsSameProcessActor());
 }
 
 mozilla::ipc::IPCResult
 VersionChangeTransaction::RecvPBackgroundIDBRequestConstructor(
-    PBackgroundIDBRequestParent* aActor, const RequestParams& aParams) {
+    PBackgroundIDBRequestParent* aActor, const int64_t& aRequestId,
+    const RequestParams& aParams) {
   AssertIsOnBackgroundThread();
   MOZ_ASSERT(aActor);
   MOZ_ASSERT(aParams.type() != RequestParams::T__None);
@@ -11265,7 +11301,7 @@ bool VersionChangeTransaction::DeallocPBackgroundIDBRequestParent(
 
 already_AddRefed<PBackgroundIDBCursorParent>
 VersionChangeTransaction::AllocPBackgroundIDBCursorParent(
-    const OpenCursorParams& aParams) {
+    const int64_t& aRequestId, const OpenCursorParams& aParams) {
   AssertIsOnBackgroundThread();
 
   return AllocCursor(aParams, IsSameProcessActor());
@@ -11273,12 +11309,13 @@ VersionChangeTransaction::AllocPBackgroundIDBCursorParent(
 
 mozilla::ipc::IPCResult
 VersionChangeTransaction::RecvPBackgroundIDBCursorConstructor(
-    PBackgroundIDBCursorParent* aActor, const OpenCursorParams& aParams) {
+    PBackgroundIDBCursorParent* aActor, const int64_t& aRequestId,
+    const OpenCursorParams& aParams) {
   AssertIsOnBackgroundThread();
   MOZ_ASSERT(aActor);
   MOZ_ASSERT(aParams.type() != OpenCursorParams::T__None);
 
-  if (!StartCursor(aActor, aParams)) {
+  if (!StartCursor(aActor, aRequestId, aParams)) {
     return IPC_FAIL(this, "StartCursor failed!");
   }
   return IPC_OK();
@@ -11427,7 +11464,8 @@ bool Cursor<CursorType>::VerifyRequestParams(
 }
 
 template <IDBCursorType CursorType>
-bool Cursor<CursorType>::Start(const OpenCursorParams& aParams) {
+bool Cursor<CursorType>::Start(const int64_t aRequestId,
+                               const OpenCursorParams& aParams) {
   AssertIsOnBackgroundThread();
   MOZ_ASSERT(aParams.type() == ToOpenCursorParamsType(CursorType));
   MOZ_ASSERT(this->mObjectStoreMetadata);
@@ -11439,7 +11477,7 @@ bool Cursor<CursorType>::Start(const OpenCursorParams& aParams) {
   const Maybe<SerializedKeyRange>& optionalKeyRange =
       GetCommonOpenCursorParams(aParams).optionalKeyRange();
 
-  const RefPtr<OpenOp> openOp = new OpenOp(this, optionalKeyRange);
+  const RefPtr<OpenOp> openOp = new OpenOp(this, aRequestId, optionalKeyRange);
 
   if (NS_WARN_IF(!openOp->Init(*mTransaction))) {
     openOp->Cleanup();
@@ -11563,8 +11601,8 @@ mozilla::ipc::IPCResult Cursor<CursorType>::RecvDeleteMe() {
 
 template <IDBCursorType CursorType>
 mozilla::ipc::IPCResult Cursor<CursorType>::RecvContinue(
-    const CursorRequestParams& aParams, const Key& aCurrentKey,
-    const Key& aCurrentObjectStoreKey) {
+    const int64_t& aRequestId, const CursorRequestParams& aParams,
+    const Key& aCurrentKey, const Key& aCurrentObjectStoreKey) {
   AssertIsOnBackgroundThread();
   MOZ_ASSERT(aParams.type() != CursorRequestParams::T__None);
   MOZ_ASSERT(this->mObjectStoreMetadata);
@@ -11614,7 +11652,7 @@ mozilla::ipc::IPCResult Cursor<CursorType>::RecvContinue(
   }
 
   const RefPtr<ContinueOp> continueOp =
-      new ContinueOp(this, aParams, std::move(position));
+      new ContinueOp(this, aRequestId, aParams, std::move(position));
   if (NS_WARN_IF(!continueOp->Init(*mTransaction))) {
     continueOp->Cleanup();
     return IPC_FAIL(this, "ContinueOp initialization failed!");
@@ -16531,20 +16569,23 @@ nsresult DeleteDatabaseOp::VersionChangeOp::Run() {
 }
 
 TransactionDatabaseOperationBase::TransactionDatabaseOperationBase(
-    SafeRefPtr<TransactionBase> aTransaction)
+    SafeRefPtr<TransactionBase> aTransaction, const int64_t aRequestId)
     : DatabaseOperationBase(aTransaction->GetLoggingInfo()->Id(),
                             aTransaction->GetLoggingInfo()->NextRequestSN()),
       mTransaction(WrapNotNull(std::move(aTransaction))),
+      mRequestId(aRequestId),
       mTransactionIsAborted((*mTransaction)->IsAborted()),
       mTransactionLoggingSerialNumber((*mTransaction)->LoggingSerialNumber()) {
   MOZ_ASSERT(LoggingSerialNumber());
 }
 
 TransactionDatabaseOperationBase::TransactionDatabaseOperationBase(
-    SafeRefPtr<TransactionBase> aTransaction, uint64_t aLoggingSerialNumber)
+    SafeRefPtr<TransactionBase> aTransaction, const int64_t aRequestId,
+    uint64_t aLoggingSerialNumber)
     : DatabaseOperationBase(aTransaction->GetLoggingInfo()->Id(),
                             aLoggingSerialNumber),
       mTransaction(WrapNotNull(std::move(aTransaction))),
+      mRequestId(aRequestId),
       mTransactionIsAborted((*mTransaction)->IsAborted()),
       mTransactionLoggingSerialNumber((*mTransaction)->LoggingSerialNumber()) {}
 
@@ -16768,7 +16809,7 @@ void TransactionDatabaseOperationBase::SendPreprocessInfoOrResults(
     mWaitingForContinue = true;
   } else {
     if (mLoggingSerialNumber) {
-      (*mTransaction)->NoteFinishedRequest(mLoggingSerialNumber, ResultCode());
+      (*mTransaction)->NoteFinishedRequest(mRequestId, ResultCode());
     }
 
     Cleanup();
@@ -18238,8 +18279,9 @@ mozilla::ipc::IPCResult NormalTransactionOp::RecvContinue(
 }
 
 ObjectStoreAddOrPutRequestOp::ObjectStoreAddOrPutRequestOp(
-    SafeRefPtr<TransactionBase> aTransaction, RequestParams&& aParams)
-    : NormalTransactionOp(std::move(aTransaction)),
+    SafeRefPtr<TransactionBase> aTransaction, const int64_t aRequestId,
+    RequestParams&& aParams)
+    : NormalTransactionOp(std::move(aTransaction), aRequestId),
       mParams(
           std::move(aParams.type() == RequestParams::TObjectStoreAddParams
                         ? aParams.get_ObjectStoreAddParams().commonParams()
@@ -18754,9 +18796,9 @@ ObjectStoreAddOrPutRequestOp::SCInputStream::IsNonBlocking(bool* _retval) {
 }
 
 ObjectStoreGetRequestOp::ObjectStoreGetRequestOp(
-    SafeRefPtr<TransactionBase> aTransaction, const RequestParams& aParams,
-    bool aGetAll)
-    : NormalTransactionOp(std::move(aTransaction)),
+    SafeRefPtr<TransactionBase> aTransaction, const int64_t aRequestId,
+    const RequestParams& aParams, bool aGetAll)
+    : NormalTransactionOp(std::move(aTransaction), aRequestId),
       mObjectStoreId(aGetAll
                          ? aParams.get_ObjectStoreGetAllParams().objectStoreId()
                          : aParams.get_ObjectStoreGetParams().objectStoreId()),
@@ -18926,9 +18968,9 @@ void ObjectStoreGetRequestOp::GetResponse(RequestResponse& aResponse,
 }
 
 ObjectStoreGetKeyRequestOp::ObjectStoreGetKeyRequestOp(
-    SafeRefPtr<TransactionBase> aTransaction, const RequestParams& aParams,
-    bool aGetAll)
-    : NormalTransactionOp(std::move(aTransaction)),
+    SafeRefPtr<TransactionBase> aTransaction, const int64_t aRequestId,
+    const RequestParams& aParams, bool aGetAll)
+    : NormalTransactionOp(std::move(aTransaction), aRequestId),
       mObjectStoreId(
           aGetAll ? aParams.get_ObjectStoreGetAllKeysParams().objectStoreId()
                   : aParams.get_ObjectStoreGetKeyParams().objectStoreId()),
@@ -19014,9 +19056,9 @@ void ObjectStoreGetKeyRequestOp::GetResponse(RequestResponse& aResponse,
 }
 
 ObjectStoreDeleteRequestOp::ObjectStoreDeleteRequestOp(
-    SafeRefPtr<TransactionBase> aTransaction,
+    SafeRefPtr<TransactionBase> aTransaction, const int64_t aRequestId,
     const ObjectStoreDeleteParams& aParams)
-    : NormalTransactionOp(std::move(aTransaction)),
+    : NormalTransactionOp(std::move(aTransaction), aRequestId),
       mParams(aParams),
       mObjectStoreMayHaveIndexes(false) {
   AssertIsOnBackgroundThread();
@@ -19075,9 +19117,9 @@ nsresult ObjectStoreDeleteRequestOp::DoDatabaseWork(
 }
 
 ObjectStoreClearRequestOp::ObjectStoreClearRequestOp(
-    SafeRefPtr<TransactionBase> aTransaction,
+    SafeRefPtr<TransactionBase> aTransaction, const int64_t aRequestId,
     const ObjectStoreClearParams& aParams)
-    : NormalTransactionOp(std::move(aTransaction)),
+    : NormalTransactionOp(std::move(aTransaction), aRequestId),
       mParams(aParams),
       mObjectStoreMayHaveIndexes(false) {
   AssertIsOnBackgroundThread();
@@ -19248,8 +19290,9 @@ SafeRefPtr<FullIndexMetadata> IndexRequestOpBase::IndexMetadataForParams(
 }
 
 IndexGetRequestOp::IndexGetRequestOp(SafeRefPtr<TransactionBase> aTransaction,
+                                     const int64_t aRequestId,
                                      const RequestParams& aParams, bool aGetAll)
-    : IndexRequestOpBase(std::move(aTransaction), aParams),
+    : IndexRequestOpBase(std::move(aTransaction), aRequestId, aParams),
       mDatabase(Transaction().GetDatabasePtr()),
       mOptionalKeyRange(aGetAll
                             ? aParams.get_IndexGetAllParams().optionalKeyRange()
@@ -19378,9 +19421,9 @@ void IndexGetRequestOp::GetResponse(RequestResponse& aResponse,
 }
 
 IndexGetKeyRequestOp::IndexGetKeyRequestOp(
-    SafeRefPtr<TransactionBase> aTransaction, const RequestParams& aParams,
-    bool aGetAll)
-    : IndexRequestOpBase(std::move(aTransaction), aParams),
+    SafeRefPtr<TransactionBase> aTransaction, const int64_t aRequestId,
+    const RequestParams& aParams, bool aGetAll)
+    : IndexRequestOpBase(std::move(aTransaction), aRequestId, aParams),
       mOptionalKeyRange(
           aGetAll ? aParams.get_IndexGetAllKeysParams().optionalKeyRange()
                   : Some(aParams.get_IndexGetKeyParams().keyRange())),

@@ -98,6 +98,7 @@ IDBTransaction::IDBTransaction(IDBDatabase* const aDatabase,
       mLoggingSerialNumber(GetIndexedDBThreadLocal()->NextTransactionSN(aMode)),
       mNextObjectStoreId(0),
       mNextIndexId(0),
+      mNextRequestId(0),
       mAbortCode(NS_OK),
       mPendingRequestCount(0),
       mFilename(std::move(aFilename)),
@@ -287,8 +288,9 @@ BackgroundRequestChild* IDBTransaction::StartRequest(
   BackgroundRequestChild* const actor =
       new BackgroundRequestChild(std::move(aRequest));
 
-  DoWithTransactionChild([actor, &aParams](auto& transactionChild) {
-    transactionChild.SendPBackgroundIDBRequestConstructor(actor, aParams);
+  DoWithTransactionChild([this, actor, &aParams](auto& transactionChild) {
+    transactionChild.SendPBackgroundIDBRequestConstructor(
+        actor, NextRequestId(), aParams);
   });
 
   // Balanced in BackgroundRequestChild::Recv__delete__().
@@ -302,8 +304,9 @@ void IDBTransaction::OpenCursor(PBackgroundIDBCursorChild& aBackgroundActor,
   AssertIsOnOwningThread();
   MOZ_ASSERT(aParams.type() != OpenCursorParams::T__None);
 
-  DoWithTransactionChild([&aBackgroundActor, &aParams](auto& actor) {
-    actor.SendPBackgroundIDBCursorConstructor(&aBackgroundActor, aParams);
+  DoWithTransactionChild([this, &aBackgroundActor, &aParams](auto& actor) {
+    actor.SendPBackgroundIDBCursorConstructor(&aBackgroundActor,
+                                              NextRequestId(), aParams);
   });
 
   // Balanced in BackgroundCursorChild::RecvResponse().
@@ -383,15 +386,16 @@ void IDBTransaction::SendCommit(const bool aAutoCommit) {
       LoggingSerialNumber(), requestSerialNumber,
       aAutoCommit ? "automatically" : "explicitly");
 
-  const auto lastRequestSerialNumber =
-      [this, aAutoCommit,
-       requestSerialNumber]() -> Maybe<decltype(requestSerialNumber)> {
+  const int64_t requestId = NextRequestId();
+
+  const auto lastRequestId = [this, aAutoCommit,
+                              requestId]() -> Maybe<decltype(requestId)> {
     if (aAutoCommit) {
       return Nothing();
     }
 
-    // In case of an explicit commit, we need to note the serial number of the
-    // last request to check if a request submitted before the commit request
+    // In case of an explicit commit, we need to note the id of the last
+    // request to check if a request submitted before the commit request
     // failed. If we are currently in an event handler for a request on this
     // transaction, ignore this request. This is used to synchronize the
     // transaction's committing state with the parent side, to abort the
@@ -405,15 +409,13 @@ void IDBTransaction::SendCommit(const bool aAutoCommit) {
     const bool dispatchingEventForThisTransaction =
         maybeCurrentTransaction && &maybeCurrentTransaction.ref() == this;
 
-    return Some(requestSerialNumber
-                    ? (requestSerialNumber -
-                       (dispatchingEventForThisTransaction ? 0 : 1))
+    return Some(requestId
+                    ? (requestId - (dispatchingEventForThisTransaction ? 0 : 1))
                     : 0);
   }();
 
-  DoWithTransactionChild([lastRequestSerialNumber](auto& actor) {
-    actor.SendCommit(lastRequestSerialNumber);
-  });
+  DoWithTransactionChild(
+      [lastRequestId](auto& actor) { actor.SendCommit(lastRequestId); });
 
   mSentCommitOrAbort.Flip();
 }
@@ -815,6 +817,12 @@ int64_t IDBTransaction::NextIndexId() {
   MOZ_ASSERT(Mode::VersionChange == mMode);
 
   return mNextIndexId++;
+}
+
+int64_t IDBTransaction::NextRequestId() {
+  AssertIsOnOwningThread();
+
+  return mNextRequestId++;
 }
 
 void IDBTransaction::InvalidateCursorCaches() {
