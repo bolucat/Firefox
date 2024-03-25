@@ -12,7 +12,10 @@
 #include "LocalAccessible-inl.h"
 #include "mozilla/a11y/RemoteAccessible.h"
 #include "MsaaAccessible.h"
+#include "MsaaRootAccessible.h"
+#include "nsAccUtils.h"
 #include "nsTextEquivUtils.h"
+#include "RootAccessible.h"
 
 using namespace mozilla;
 using namespace mozilla::a11y;
@@ -21,24 +24,28 @@ using namespace mozilla::a11y;
 // uiaRawElmProvider
 ////////////////////////////////////////////////////////////////////////////////
 
-Accessible* uiaRawElmProvider::Acc() {
-  return static_cast<MsaaAccessible*>(this)->Acc();
+Accessible* uiaRawElmProvider::Acc() const {
+  return static_cast<const MsaaAccessible*>(this)->Acc();
 }
 
 // IUnknown
 
-// Because uiaRawElmProvider inherits multiple COM interfaces (and thus multiple
-// IUnknowns), we need to explicitly implement AddRef and Release to make
-// our QueryInterface implementation (IMPL_IUNKNOWN2) happy.
-ULONG STDMETHODCALLTYPE uiaRawElmProvider::AddRef() {
-  return static_cast<MsaaAccessible*>(this)->AddRef();
+STDMETHODIMP
+uiaRawElmProvider::QueryInterface(REFIID aIid, void** aInterface) {
+  *aInterface = nullptr;
+  if (aIid == IID_IAccessibleEx) {
+    *aInterface = static_cast<IAccessibleEx*>(this);
+  } else if (aIid == IID_IRawElementProviderSimple) {
+    *aInterface = static_cast<IRawElementProviderSimple*>(this);
+  } else if (aIid == IID_IRawElementProviderFragment) {
+    *aInterface = static_cast<IRawElementProviderFragment*>(this);
+  } else {
+    return E_NOINTERFACE;
+  }
+  MOZ_ASSERT(*aInterface);
+  static_cast<MsaaAccessible*>(this)->AddRef();
+  return S_OK;
 }
-
-ULONG STDMETHODCALLTYPE uiaRawElmProvider::Release() {
-  return static_cast<MsaaAccessible*>(this)->Release();
-}
-
-IMPL_IUNKNOWN2(uiaRawElmProvider, IAccessibleEx, IRawElementProviderSimple)
 
 ////////////////////////////////////////////////////////////////////////////////
 // IAccessibleEx
@@ -113,8 +120,9 @@ uiaRawElmProvider::get_ProviderOptions(
     __RPC__out enum ProviderOptions* aOptions) {
   if (!aOptions) return E_INVALIDARG;
 
-  // This method is not used with IAccessibleEx implementations.
-  *aOptions = ProviderOptions_ServerSideProvider;
+  *aOptions = ProviderOptions_ServerSideProvider |
+              ProviderOptions_UseComThreading |
+              ProviderOptions_HasNativeIAccessible;
   return S_OK;
 }
 
@@ -230,8 +238,24 @@ uiaRawElmProvider::GetPropertyValue(PROPERTYID aPropertyId,
       break;
     }
 
-    case UIA_IsControlElementPropertyId:
+    case UIA_AutomationIdPropertyId: {
+      nsAutoString id;
+      acc->DOMNodeID(id);
+      if (!id.IsEmpty()) {
+        aPropertyValue->vt = VT_BSTR;
+        aPropertyValue->bstrVal = ::SysAllocString(id.get());
+        return S_OK;
+      }
+      break;
+    }
+
+    case UIA_ControlTypePropertyId:
+      aPropertyValue->vt = VT_I4;
+      aPropertyValue->lVal = GetControlType();
+      break;
+
     case UIA_IsContentElementPropertyId:
+    case UIA_IsControlElementPropertyId:
       aPropertyValue->vt = VT_BOOL;
       aPropertyValue->boolVal = IsControl() ? VARIANT_TRUE : VARIANT_FALSE;
       return S_OK;
@@ -244,9 +268,127 @@ STDMETHODIMP
 uiaRawElmProvider::get_HostRawElementProvider(
     __RPC__deref_out_opt IRawElementProviderSimple** aRawElmProvider) {
   if (!aRawElmProvider) return E_INVALIDARG;
-
-  // This method is not used with IAccessibleEx implementations.
   *aRawElmProvider = nullptr;
+  Accessible* acc = Acc();
+  if (!acc) {
+    return CO_E_OBJNOTCONNECTED;
+  }
+  if (acc->IsRoot()) {
+    HWND hwnd = MsaaAccessible::GetHWNDFor(acc);
+    return UiaHostProviderFromHwnd(hwnd, aRawElmProvider);
+  }
+  return S_OK;
+}
+
+// IRawElementProviderFragment
+
+STDMETHODIMP
+uiaRawElmProvider::Navigate(
+    enum NavigateDirection aDirection,
+    __RPC__deref_out_opt IRawElementProviderFragment** aRetVal) {
+  if (!aRetVal) {
+    return E_INVALIDARG;
+  }
+  *aRetVal = nullptr;
+  Accessible* acc = Acc();
+  if (!acc) {
+    return CO_E_OBJNOTCONNECTED;
+  }
+  Accessible* target = nullptr;
+  switch (aDirection) {
+    case NavigateDirection_Parent:
+      if (!acc->IsRoot()) {
+        target = acc->Parent();
+      }
+      break;
+    case NavigateDirection_NextSibling:
+      if (!acc->IsRoot()) {
+        target = acc->NextSibling();
+      }
+      break;
+    case NavigateDirection_PreviousSibling:
+      if (!acc->IsRoot()) {
+        target = acc->PrevSibling();
+      }
+      break;
+    case NavigateDirection_FirstChild:
+      if (!nsAccUtils::MustPrune(acc)) {
+        target = acc->FirstChild();
+      }
+      break;
+    case NavigateDirection_LastChild:
+      if (!nsAccUtils::MustPrune(acc)) {
+        target = acc->LastChild();
+      }
+      break;
+    default:
+      return E_INVALIDARG;
+  }
+  RefPtr<IRawElementProviderFragment> fragment =
+      MsaaAccessible::GetFrom(target);
+  fragment.forget(aRetVal);
+  return S_OK;
+}
+
+STDMETHODIMP
+uiaRawElmProvider::get_BoundingRectangle(__RPC__out struct UiaRect* aRetVal) {
+  if (!aRetVal) {
+    return E_INVALIDARG;
+  }
+  Accessible* acc = Acc();
+  if (!acc) {
+    return CO_E_OBJNOTCONNECTED;
+  }
+  LayoutDeviceIntRect rect = acc->Bounds();
+  aRetVal->left = rect.X();
+  aRetVal->top = rect.Y();
+  aRetVal->width = rect.Width();
+  aRetVal->height = rect.Height();
+  return S_OK;
+}
+
+STDMETHODIMP
+uiaRawElmProvider::GetEmbeddedFragmentRoots(
+    __RPC__deref_out_opt SAFEARRAY** aRetVal) {
+  if (!aRetVal) {
+    return E_INVALIDARG;
+  }
+  *aRetVal = nullptr;
+  return S_OK;
+}
+
+STDMETHODIMP
+uiaRawElmProvider::SetFocus() {
+  Accessible* acc = Acc();
+  if (!acc) {
+    return CO_E_OBJNOTCONNECTED;
+  }
+  acc->TakeFocus();
+  return S_OK;
+}
+
+STDMETHODIMP
+uiaRawElmProvider::get_FragmentRoot(
+    __RPC__deref_out_opt IRawElementProviderFragmentRoot** aRetVal) {
+  if (!aRetVal) {
+    return E_INVALIDARG;
+  }
+  *aRetVal = nullptr;
+  Accessible* acc = Acc();
+  if (!acc) {
+    return CO_E_OBJNOTCONNECTED;
+  }
+  LocalAccessible* localAcc = acc->AsLocal();
+  if (!localAcc) {
+    localAcc = acc->AsRemote()->OuterDocOfRemoteBrowser();
+    if (!localAcc) {
+      return CO_E_OBJNOTCONNECTED;
+    }
+  }
+  MsaaAccessible* msaa = MsaaAccessible::GetFrom(localAcc->RootAccessible());
+  RefPtr<IRawElementProviderFragmentRoot> fragRoot =
+      static_cast<MsaaRootAccessible*>(msaa);
+  fragRoot.forget(aRetVal);
   return S_OK;
 }
 
@@ -313,4 +455,21 @@ bool uiaRawElmProvider::IsControl() {
   }
 
   return true;
+}
+
+long uiaRawElmProvider::GetControlType() const {
+  Accessible* acc = Acc();
+  MOZ_ASSERT(acc);
+#define ROLE(_geckoRole, stringRole, ariaRole, atkRole, macRole, macSubrole, \
+             msaaRole, ia2Role, androidClass, iosIsElement, uiaControlType,  \
+             nameRule)                                                       \
+  case roles::_geckoRole:                                                    \
+    return uiaControlType;                                                   \
+    break;
+  switch (acc->Role()) {
+#include "RoleMap.h"
+  }
+#undef ROLE
+  MOZ_CRASH("Unknown role.");
+  return 0;
 }

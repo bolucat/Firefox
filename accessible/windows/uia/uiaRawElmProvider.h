@@ -8,7 +8,6 @@
 #define mozilla_a11y_uiaRawElmProvider_h__
 
 #include "objbase.h"
-#include "IUnknownImpl.h"
 #include "uiautomation.h"
 
 namespace mozilla {
@@ -20,12 +19,11 @@ class Accessible;
  * IRawElementProviderSimple implementation (maintains IAccessibleEx approach).
  */
 class uiaRawElmProvider : public IAccessibleEx,
-                          public IRawElementProviderSimple {
+                          public IRawElementProviderSimple,
+                          public IRawElementProviderFragment {
  public:
   // IUnknown
-  DECL_IUNKNOWN_INHERITED
-  ULONG STDMETHODCALLTYPE AddRef() override;
-  ULONG STDMETHODCALLTYPE Release() override;
+  STDMETHODIMP QueryInterface(REFIID aIid, void** aInterface);
 
   // IAccessibleEx
   virtual HRESULT STDMETHODCALLTYPE GetObjectForChild(
@@ -59,9 +57,30 @@ class uiaRawElmProvider : public IAccessibleEx,
       /* [retval][out] */ __RPC__deref_out_opt IRawElementProviderSimple**
           aRawElmProvider);
 
+  // IRawElementProviderFragment
+  virtual HRESULT STDMETHODCALLTYPE Navigate(
+      /* [in] */ enum NavigateDirection aDirection,
+      /* [retval][out] */ __RPC__deref_out_opt IRawElementProviderFragment**
+          aRetVal);
+
+  // GetRuntimeId is shared with IAccessibleEx.
+
+  virtual HRESULT STDMETHODCALLTYPE get_BoundingRectangle(
+      /* [retval][out] */ __RPC__out struct UiaRect* aRetVal);
+
+  virtual HRESULT STDMETHODCALLTYPE GetEmbeddedFragmentRoots(
+      /* [retval][out] */ __RPC__deref_out_opt SAFEARRAY** aRetVal);
+
+  virtual HRESULT STDMETHODCALLTYPE SetFocus(void);
+
+  virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_FragmentRoot(
+      /* [retval][out] */ __RPC__deref_out_opt IRawElementProviderFragmentRoot**
+          aRetVal);
+
  private:
-  Accessible* Acc();
+  Accessible* Acc() const;
   bool IsControl();
+  long GetControlType() const;
 };
 
 }  // namespace a11y
