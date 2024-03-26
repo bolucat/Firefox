@@ -7,8 +7,9 @@
 #ifndef mozilla_a11y_uiaRawElmProvider_h__
 #define mozilla_a11y_uiaRawElmProvider_h__
 
-#include "objbase.h"
-#include "uiautomation.h"
+#include <objbase.h>
+#include <stdint.h>
+#include <uiautomation.h>
 
 namespace mozilla {
 namespace a11y {
@@ -20,8 +21,12 @@ class Accessible;
  */
 class uiaRawElmProvider : public IAccessibleEx,
                           public IRawElementProviderSimple,
-                          public IRawElementProviderFragment {
+                          public IRawElementProviderFragment,
+                          public IInvokeProvider {
  public:
+  static void RaiseUiaEventForGeckoEvent(Accessible* aAcc,
+                                         uint32_t aGeckoEvent);
+
   // IUnknown
   STDMETHODIMP QueryInterface(REFIID aIid, void** aInterface);
 
@@ -76,6 +81,9 @@ class uiaRawElmProvider : public IAccessibleEx,
   virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_FragmentRoot(
       /* [retval][out] */ __RPC__deref_out_opt IRawElementProviderFragmentRoot**
           aRetVal);
+
+  // IInvokeProvider
+  virtual HRESULT STDMETHODCALLTYPE Invoke(void);
 
  private:
   Accessible* Acc() const;

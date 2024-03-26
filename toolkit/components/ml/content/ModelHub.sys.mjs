@@ -23,6 +23,10 @@ const ALLOWED_HUBS = [
   "https://model-hub.mozilla.org",
 ];
 
+const ALLOWED_HEADERS_KEYS = ["Content-Type", "ETag", "status"];
+const DEFAULT_URL_TEMPLATE =
+  "${organization}/${modelName}/resolve/${modelVersion}/${file}";
+
 /**
  * Checks if a given URL string corresponds to an allowed hub.
  *
@@ -101,11 +105,11 @@ export class IndexedDBCache {
   fileStoreName;
 
   /**
-   * Name of the object store for storing metadata.
+   * Name of the object store for storing headers.
    *
    * @type {string}
    */
-  metadataStoreName;
+  headersStoreName;
   /**
    * Maximum size of the cache in bytes. Defaults to 1GB.
    *
@@ -124,7 +128,7 @@ export class IndexedDBCache {
     this.dbName = dbName;
     this.dbVersion = version;
     this.fileStoreName = "files";
-    this.metadataStoreName = "metadata";
+    this.headersStoreName = "headers";
   }
 
   /**
@@ -138,7 +142,7 @@ export class IndexedDBCache {
     const cacheInstance = new IndexedDBCache(dbName, version);
     cacheInstance.db = await cacheInstance.#openDB();
     const storedSize = await cacheInstance.#getData(
-      cacheInstance.metadataStoreName,
+      cacheInstance.headersStoreName,
       "totalSize"
     );
     cacheInstance.totalSize = storedSize ? storedSize.size : 0;
@@ -171,8 +175,8 @@ export class IndexedDBCache {
         if (!db.objectStoreNames.contains(this.fileStoreName)) {
           db.createObjectStore(this.fileStoreName, { keyPath: "id" });
         }
-        if (!db.objectStoreNames.contains(this.metadataStoreName)) {
-          db.createObjectStore(this.metadataStoreName, { keyPath: "id" });
+        if (!db.objectStoreNames.contains(this.headersStoreName)) {
+          db.createObjectStore(this.headersStoreName, { keyPath: "id" });
         }
       };
     });
@@ -235,22 +239,22 @@ export class IndexedDBCache {
   }
 
   /**
-   * Retrieves the ETag for a specific cache entry.
+   * Retrieves the headers for a specific cache entry.
    *
    * @param {string} organization - The organization name.
    * @param {string} modelName - The model name.
    * @param {string} modelVersion - The model version.
    * @param {string} file - The file name.
-   * @returns {Promise<string|null>} The ETag value or null if not found.
+   * @returns {Promise<object|null>} The headers or null if not found.
    */
-  async getETag(organization, modelName, modelVersion, file) {
-    const metadataKey = `${organization}/${modelName}/${modelVersion}`;
+  async getHeaders(organization, modelName, modelVersion, file) {
+    const headersKey = `${organization}/${modelName}/${modelVersion}`;
     const cacheKey = `${organization}/${modelName}/${modelVersion}/${file}`;
-    const metadata = await this.#getData(this.metadataStoreName, metadataKey);
-    if (metadata && metadata.files[cacheKey]) {
-      return metadata.files[cacheKey].etag; // Return the ETag for the specified file
+    const headers = await this.#getData(this.headersStoreName, headersKey);
+    if (headers && headers.files[cacheKey]) {
+      return headers.files[cacheKey];
     }
-    return null; // Return null if no ETag is found
+    return null; // Return null if no headers is found
   }
 
   /**
@@ -260,13 +264,19 @@ export class IndexedDBCache {
    * @param {string} modelName - The model name.
    * @param {string} modelVersion - The model version.
    * @param {string} file - The file name.
-   * @returns {Promise<ArrayBuffer|null>} The file ArrayBuffer or null if not found.
+   * @returns {Promise<[ArrayBuffer, object]|null>} The file ArrayBuffer and its headers or null if not found.
    */
   async getFile(organization, modelName, modelVersion, file) {
     const cacheKey = `${organization}/${modelName}/${modelVersion}/${file}`;
     const stored = await this.#getData(this.fileStoreName, cacheKey);
     if (stored) {
-      return stored.data;
+      const headers = await this.getHeaders(
+        organization,
+        modelName,
+        modelVersion,
+        file
+      );
+      return [stored.data, headers];
     }
     return null; // Return null if no file is found
   }
@@ -279,33 +289,52 @@ export class IndexedDBCache {
    * @param {string} modelVersion - The model version.
    * @param {string} file - The file name.
    * @param {ArrayBuffer} arrayBuffer - The data to cache.
-   * @param {string|null} ETag - The ETag for the file.
+   * @param {object} [headers] - The headers for the file.
    * @returns {Promise<void>}
    */
-  async put(organization, modelName, modelVersion, file, arrayBuffer, ETag) {
+  async put(
+    organization,
+    modelName,
+    modelVersion,
+    file,
+    arrayBuffer,
+    headers = {}
+  ) {
     const cacheKey = `${organization}/${modelName}/${modelVersion}/${file}`;
     const newSize = this.totalSize + arrayBuffer.byteLength;
     if (newSize > this.#maxSize) {
       throw new Error("Exceeding total cache size limit of 1GB");
     }
 
-    const metadataKey = `${organization}/${modelName}/${modelVersion}`;
+    const headersKey = `${organization}/${modelName}/${modelVersion}`;
     const data = { id: cacheKey, data: arrayBuffer };
 
     // Store the file data
     await this.#updateData(this.fileStoreName, data);
 
-    // Update metadata store with ETag
-    const effectiveETag = ETag === null ? NO_ETAG : ETag;
-    const metadata = (await this.#getData(
-      this.metadataStoreName,
-      metadataKey
+    // Update headers store - whith defaults for ETag and Content-Type
+    headers = headers || {};
+    headers["Content-Type"] =
+      headers["Content-Type"] ?? "application/octet-stream";
+    headers.ETag = headers.ETag ?? NO_ETAG;
+
+    // filter out any keys that are not allowed
+    headers = Object.keys(headers)
+      .filter(key => ALLOWED_HEADERS_KEYS.includes(key))
+      .reduce((obj, key) => {
+        obj[key] = headers[key];
+        return obj;
+      }, {});
+
+    const headersStore = (await this.#getData(
+      this.headersStoreName,
+      headersKey
     )) || {
-      id: metadataKey,
+      id: headersKey,
       files: {},
     };
-    metadata.files[cacheKey] = { etag: effectiveETag }; // Structure to store ETag by cacheKey
-    await this.#updateData(this.metadataStoreName, metadata);
+    headersStore.files[cacheKey] = headers;
+    await this.#updateData(this.headersStoreName, headersStore);
 
     // Update size
     await this.#updateTotalSize(arrayBuffer.byteLength);
@@ -319,7 +348,7 @@ export class IndexedDBCache {
    */
   async #updateTotalSize(sizeToAdd) {
     this.totalSize += sizeToAdd;
-    await this.#updateData(this.metadataStoreName, {
+    await this.#updateData(this.headersStoreName, {
       id: "totalSize",
       size: this.totalSize,
     });
@@ -333,13 +362,13 @@ export class IndexedDBCache {
    * @returns {Promise<void>}
    */
   async deleteModel(organization, modelName, modelVersion) {
-    const metadataKey = `${organization}/${modelName}/${modelVersion}`;
-    const metadata = await this.#getData(this.metadataStoreName, metadataKey);
-    if (metadata) {
-      for (const fileKey in metadata.files) {
+    const headersKey = `${organization}/${modelName}/${modelVersion}`;
+    const headers = await this.#getData(this.headersStoreName, headersKey);
+    if (headers) {
+      for (const fileKey in headers.files) {
         await this.#deleteData(this.fileStoreName, fileKey);
       }
-      await this.#deleteData(this.metadataStoreName, metadataKey); // Remove metadata entry after files are deleted
+      await this.#deleteData(this.headersStoreName, headersKey); // Remove headers entry after files are deleted
     }
   }
 
@@ -352,10 +381,10 @@ export class IndexedDBCache {
     const models = [];
     return new Promise((resolve, reject) => {
       const transaction = this.db.transaction(
-        [this.metadataStoreName],
+        [this.headersStoreName],
         "readonly"
       );
-      const store = transaction.objectStore(this.metadataStoreName);
+      const store = transaction.objectStore(this.headersStoreName);
       const request = store.openCursor();
       request.onerror = event => reject(event.target.error);
       request.onsuccess = event => {
@@ -372,12 +401,22 @@ export class IndexedDBCache {
 }
 
 export class ModelHub {
-  constructor(rootUrl) {
+  constructor({ rootUrl, urlTemplate = DEFAULT_URL_TEMPLATE }) {
     if (!allowedHub(rootUrl)) {
       throw new Error(`Invalid model hub root url: ${rootUrl}`);
     }
     this.rootUrl = rootUrl;
     this.cache = null;
+
+    // Ensures the URL template is well-formed and does not contain any invalid characters.
+    const pattern = /^(?:\$\{\w+\}|\w+)(?:\/(?:\$\{\w+\}|\w+))*$/;
+    //               ^                                         $   Start and end of string
+    //                (?:\$\{\w+\}|\w+)                            Match a ${placeholder} or alphanumeric characters
+    //                                 (?:\/(?:\$\{\w+\}|\w+))*    Zero or more groups of a forward slash followed by a ${placeholder} or alphanumeric characters
+    if (!pattern.test(urlTemplate)) {
+      throw new Error(`Invalid URL template: ${urlTemplate}`);
+    }
+    this.urlTemplate = urlTemplate;
   }
 
   async #initCache() {
@@ -400,10 +439,24 @@ export class ModelHub {
     if (!baseUrl.pathname.endsWith("/")) {
       baseUrl.pathname += "/";
     }
-    const additionalPath = `${organization}/${modelName}/resolve/${modelVersion}/${file}`;
+
+    // Replace placeholders in the URL template with the provided data.
+    // If some keys are missing in the data object, the placeholder is left as is.
+    // If the placeholder is not found in the data object, it is left as is.
+    const data = {
+      organization,
+      modelName,
+      modelVersion,
+      file,
+    };
+    const path = this.urlTemplate.replace(
+      /\$\{(\w+)\}/g,
+      (match, key) => data[key] || match
+    );
     const fullPath = `${baseUrl.pathname}${
-      additionalPath.startsWith("/") ? additionalPath.slice(1) : additionalPath
+      path.startsWith("/") ? path.slice(1) : path
     }`;
+
     const urlObject = new URL(fullPath, baseUrl.origin);
     urlObject.searchParams.append("download", "true");
     return urlObject.toString();
@@ -438,13 +491,20 @@ export class ModelHub {
     //                     [A-Za-z0-9-.]+     Alphanum characters, hyphens, or periods, one or more times
     const versionRegex = /^[A-Za-z0-9-.]+$/;
 
-    // Matches filenames starting with alphanumeric or underscore, optionally ending with a dot followed by a 2-4 letter extension.
+    // Matches filenames with subdirectories, starting with alphanumeric or underscore,
+    // and optionally ending with a dot followed by a 2-4 letter extension.
     //
-    //                 ^                                          $   Start and end of string
-    //                  (?![.])                                       Negative lookahead for not starting with a period
-    //                         [A-Za-z0-9-_]+                         Alphanum characters, hyphens, or underscores, one or more times
-    //                                       (?:[.][A-Za-z]{2,4})?    Optional non-capturing group for file extension of 2 to 4 letters
-    const fileRegex = /^(?![.])[A-Za-z0-9-_]+(?:[.][A-Za-z]{2,4})?$/;
+    //                 ^                                    $   Start and end of string
+    //                  (?:\/)?                                  Optional leading slash (for absolute paths or root directory)
+    //                        (?!\/)                             Negative lookahead for not starting with a slash
+    //                              [A-Za-z0-9-_]+               First directory or filename
+    //                                           (?:            Begin non-capturing group for additional directories or file
+    //                                              \/              Directory separator
+    //                                                [A-Za-z0-9-_]+ Directory or file name
+    //                                                             )* Zero or more times
+    //                                                               (?:[.][A-Za-z]{2,4})?   Optional non-capturing group for file extension
+    const fileRegex =
+      /^(?:\/)?(?!\/)[A-Za-z0-9-_]+(?:\/[A-Za-z0-9-_]+)*(?:[.][A-Za-z]{2,4})?$/;
 
     if (!orgRegex.test(organization) || !isNaN(parseInt(organization))) {
       return new Error(`Invalid organization name ${organization}`);
@@ -496,14 +556,39 @@ export class ModelHub {
   }
 
   /**
-   * Given an organization, model, and version, fetch a model file in the hub.
+   * Given an organization, model, and version, fetch a model file in the hub as a Response.
    *
    * @param {object} config
    * @param {string} config.organization
    * @param {string} config.modelName
    * @param {string} config.modelVersion
    * @param {string} config.file
-   * @returns {Promise<ArrayBuffer>} The file content
+   * @returns {Promise<Response>} The file content
+   */
+  async getModelFileAsResponse({
+    organization,
+    modelName,
+    modelVersion,
+    file,
+  }) {
+    const [blob, headers] = await this.getModelFileAsBlob({
+      organization,
+      modelName,
+      modelVersion,
+      file,
+    });
+    return new Response(blob, { headers });
+  }
+
+  /**
+   * Given an organization, model, and version, fetch a model file in the hub as an ArrayBuffer.
+   *
+   * @param {object} config
+   * @param {string} config.organization
+   * @param {string} config.modelName
+   * @param {string} config.modelVersion
+   * @param {string} config.file
+   * @returns {Promise<[ArrayBuffer, headers]>} The file content
    */
   async getModelFileAsArrayBuffer({
     organization,
@@ -511,6 +596,26 @@ export class ModelHub {
     modelVersion,
     file,
   }) {
+    const [blob, headers] = await this.getModelFileAsBlob({
+      organization,
+      modelName,
+      modelVersion,
+      file,
+    });
+    return [await blob.arrayBuffer(), headers];
+  }
+
+  /**
+   * Given an organization, model, and version, fetch a model file in the hub as blob.
+   *
+   * @param {object} config
+   * @param {string} config.organization
+   * @param {string} config.modelName
+   * @param {string} config.modelVersion
+   * @param {string} config.file
+   * @returns {Promise<[Blob, object]>} The file content
+   */
+  async getModelFileAsBlob({ organization, modelName, modelVersion, file }) {
     // Make sure inputs are clean. We don't sanitize them but throw an exception
     let checkError = this.#checkInput(
       organization,
@@ -535,23 +640,23 @@ export class ModelHub {
     );
 
     // storage lookup
-    const cachedEtag = await this.cache.getETag(
+    const cachedHeaders = await this.cache.getHeaders(
       organization,
       modelName,
       modelVersion,
       file
     );
+    const cachedEtag = cachedHeaders ? cachedHeaders.ETag : null;
 
     // If we have something in store, and the hub ETag is null or it matches the cached ETag, return the cached response
     if (cachedEtag !== null && (hubETag === null || cachedEtag === hubETag)) {
       lazy.console.debug(`Cache Hit`);
-      let data = await this.cache.getFile(
+      return await this.cache.getFile(
         organization,
         modelName,
         modelVersion,
         file
       );
-      return data;
     }
 
     lazy.console.debug(`Fetching ${url}`);
@@ -559,15 +664,22 @@ export class ModelHub {
       const response = await fetch(url);
       if (response.ok) {
         const clone = response.clone();
+        const headers = {
+          // We don't store the boundary or the charset, just the content type,
+          // so we drop what's after the semicolon.
+          "Content-Type": response.headers.get("Content-Type").split(";")[0],
+          ETag: hubETag,
+        };
+
         await this.cache.put(
           organization,
           modelName,
           modelVersion,
           file,
-          await clone.arrayBuffer(),
-          hubETag
+          await clone.blob(),
+          headers
         );
-        return await response.arrayBuffer();
+        return [await response.blob(), headers];
       }
     } catch (error) {
       lazy.console.error(`Failed to fetch ${url}:`, error);

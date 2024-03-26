@@ -167,6 +167,7 @@ class Editor extends EventEmitter {
   #prefObserver;
   #win;
   #lineGutterMarkers = new Map();
+  #lineContentMarkers = new Map();
 
   #updateListener = null;
 
@@ -625,6 +626,7 @@ class Editor extends EventEmitter {
     const lineWrapCompartment = new Compartment();
     const lineNumberCompartment = new Compartment();
     const lineNumberMarkersCompartment = new Compartment();
+    const lineContentMarkerCompartment = new Compartment();
 
     this.#compartments = {
       tabSizeCompartment,
@@ -632,6 +634,7 @@ class Editor extends EventEmitter {
       lineWrapCompartment,
       lineNumberCompartment,
       lineNumberMarkersCompartment,
+      lineContentMarkerCompartment,
     };
 
     const indentStr = (this.config.indentWithTabs ? "\t" : " ").repeat(
@@ -673,6 +676,7 @@ class Editor extends EventEmitter {
         }
       }),
       lineNumberMarkersCompartment.of([]),
+      lineContentMarkerCompartment.of(this.#lineContentMarkersExtension([])),
       // keep last so other extension take precedence
       codemirror.minimalSetup,
     ];
@@ -687,6 +691,98 @@ class Editor extends EventEmitter {
     });
 
     editors.set(this, cm);
+  }
+
+  /**
+   * This creates the extension used to manage the rendering of markers
+   * for in editor line content.
+   * @param   {Array}             markers                    - The current list of markers
+   * @returns {Array<ViewPlugin>} showLineContentDecorations - An extension which is an array containing the view
+   *                                                           which manages the rendering of the line content markers.
+   */
+  #lineContentMarkersExtension(markers) {
+    const {
+      codemirrorView: { Decoration, ViewPlugin },
+      codemirrorState: { RangeSetBuilder },
+    } = this.#CodeMirror6;
+
+    // Build and return the decoration set
+    function buildDecorations(view) {
+      const builder = new RangeSetBuilder();
+      for (const { from, to } of view.visibleRanges) {
+        for (let pos = from; pos <= to; ) {
+          const line = view.state.doc.lineAt(pos);
+          for (const { lineClassName, condition } of markers) {
+            if (condition(line.number)) {
+              builder.add(
+                line.from,
+                line.from,
+                Decoration.line({ class: lineClassName })
+              );
+            }
+          }
+          pos = line.to + 1;
+        }
+      }
+      return builder.finish();
+    }
+
+    // The view which handles rendering and updating the
+    // markers decorations
+    const showLineContentDecorations = ViewPlugin.fromClass(
+      class {
+        decorations;
+        constructor(view) {
+          this.decorations = buildDecorations(view);
+        }
+        update(update) {
+          if (update.docChanged || update.viewportChanged) {
+            this.decorations = buildDecorations(update.view);
+          }
+        }
+      },
+      { decorations: v => v.decorations }
+    );
+
+    return [showLineContentDecorations];
+  }
+
+  /**
+   * This adds a marker used to add classes to editor line based on a condition.
+   *   @property {object}     marker           - The rule rendering a marker or class.
+   *   @property {object}     marker.id       - The unique identifier for this marker
+   *   @property {string}     marker.lineClassName - The css class to add to the line
+   *   @property {function}   marker.condition - The condition that decides if the marker/class gets added or removed.
+   *                                             The line is passed as an argument.
+   */
+  setLineContentMarker(marker) {
+    const cm = editors.get(this);
+    this.#lineContentMarkers.set(marker.id, marker);
+
+    cm.dispatch({
+      effects: this.#compartments.lineContentMarkerCompartment.reconfigure(
+        this.#lineContentMarkersExtension(
+          Array.from(this.#lineContentMarkers.values())
+        )
+      ),
+    });
+  }
+
+  /**
+   * This removes the marker which has the specified className
+   * @param {string} markerId - The unique identifier for this marker
+   */
+  removeLineContentMarker(markerId) {
+    const cm = editors.get(this);
+    this.#lineContentMarkers.delete(markerId);
+
+    cm.dispatch({
+      effects: this.#compartments.lineContentMarkerCompartment.reconfigure(
+        this.#lineContentMarkersExtension(
+          Array.from(this.#lineContentMarkers.values())
+        )
+      ),
+    });
   }
 
   /**
@@ -724,9 +820,10 @@ class Editor extends EventEmitter {
    *   @param {Array<Marker>} markers         - The list of marker objects which defines the rules
    *                                            for rendering each marker.
    *   @property {object}     marker - The rule rendering a marker or class. This is required.
-   *   @property {string}     marker.gutterLineClassName - The css class to add to the line. This is required.
+   *   @property {string}     marker.id - The unique identifier for this marker.
+   *   @property {string}     marker.lineClassName - The css class to add to the line. This is required.
    *   @property {function}   marker.condition - The condition that decides if the marker/class  gets added or removed.
-   *   @property {function=}  marker.createGutterLineElementNode - This gets the line as an argument and should return the DOM element which
+   *   @property {function=}  marker.createLineElementNode - This gets the line as an argument and should return the DOM element which
    *                                            is used for the marker. This is optional.
    */
   setLineGutterMarkers(markers) {
@@ -735,7 +832,10 @@ class Editor extends EventEmitter {
     if (markers) {
       // Cache the markers for use later. See next comment
       for (const marker of markers) {
-        this.#lineGutterMarkers.set(marker.gutterLineClassName, marker);
+        if (!marker.id) {
+          throw new Error("Marker has no unique identifier");
+        }
+        this.#lineGutterMarkers.set(marker.id, marker);
       }
     }
     // When no markers are passed, the cached markers are used to update the line gutters.
@@ -773,9 +873,9 @@ class Editor extends EventEmitter {
       for (let pos = from; pos <= to; ) {
         const line = cm.state.doc.lineAt(pos);
         for (const {
-          gutterLineClassName,
+          lineClassName,
           condition,
-          createGutterLineElementNode,
+          createLineElementNode,
         } of markers) {
           if (typeof condition !== "function") {
             throw new Error("The `condition` is not a valid function");
@@ -785,9 +885,9 @@ class Editor extends EventEmitter {
               line.from,
               line.to,
               new LineGutterMarker(
-                gutterLineClassName,
+                lineClassName,
                 line.number,
-                createGutterLineElementNode
+                createLineElementNode
               )
             );
           }

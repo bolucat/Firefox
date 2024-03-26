@@ -539,7 +539,11 @@ nsresult nsFrameSelection::ConstrainFrameAndPointToAnchorSubtree(
 
   NS_ENSURE_STATE(mPresShell);
   RefPtr<PresShell> presShell = mPresShell;
-  nsIContent* anchorRoot = anchorContent->GetSelectionRootContent(presShell);
+  nsIContent* anchorRoot =
+      anchorContent
+          ->GetSelectionRootContent(
+              presShell,
+              StaticPrefs::dom_shadowdom_selection_across_boundary_enabled() /* aAllowCrossShadowBoundary */);
   NS_ENSURE_TRUE(anchorRoot, NS_ERROR_UNEXPECTED);
 
   //
@@ -549,7 +553,10 @@ nsresult nsFrameSelection::ConstrainFrameAndPointToAnchorSubtree(
   nsCOMPtr<nsIContent> content = aFrame->GetContent();
 
   if (content) {
-    nsIContent* contentRoot = content->GetSelectionRootContent(presShell);
+    nsIContent* contentRoot =
+        content->GetSelectionRootContent(
+            presShell, StaticPrefs::
+                           dom_shadowdom_selection_across_boundary_enabled() /* aAllowCrossShadowBoundary */);
     NS_ENSURE_TRUE(contentRoot, NS_ERROR_UNEXPECTED);
 
     if (anchorRoot == contentRoot) {
@@ -573,8 +580,9 @@ nsresult nsFrameSelection::ConstrainFrameAndPointToAnchorSubtree(
       if (cursorFrame && cursorFrame->PresShell() == presShell) {
         nsCOMPtr<nsIContent> cursorContent = cursorFrame->GetContent();
         NS_ENSURE_TRUE(cursorContent, NS_ERROR_FAILURE);
-        nsIContent* cursorContentRoot =
-            cursorContent->GetSelectionRootContent(presShell);
+        nsIContent* cursorContentRoot = cursorContent->GetSelectionRootContent(
+            presShell, StaticPrefs::
+                           dom_shadowdom_selection_across_boundary_enabled() /* aAllowCrossShadowBoundary */);
         NS_ENSURE_TRUE(cursorContentRoot, NS_ERROR_UNEXPECTED);
         if (cursorContentRoot == anchorRoot) {
           *aRetFrame = cursorFrame;
@@ -1493,11 +1501,11 @@ void nsFrameSelection::SetDragState(bool aState) {
     // Notify that reason is mouse up.
     SetChangeReasons(nsISelectionListener::MOUSEUP_REASON);
 
-    // flag is set to false in `NotifySelectionListeners`.
+    // flag is set to NotApplicable in `Selection::NotifySelectionListeners`.
     // since this function call is part of click event, this would immediately
     // reset the flag, rendering it useless.
-    AutoRestore<bool> restoreIsDoubleClickSelectionFlag(
-        mIsDoubleClickSelection);
+    AutoRestore<ClickSelectionType> restoreClickSelectionType(
+        mClickSelectionType);
     // Be aware, the Selection instance may be destroyed after this call.
     NotifySelectionListeners(SelectionType::eNormal);
   }

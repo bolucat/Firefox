@@ -13,7 +13,10 @@
 #include "mozilla/glean/GleanPings.h"
 #include "mozilla/glean/GleanMetrics.h"
 
+#include "mozilla/StaticPrefs_dom.h"
+#include "mozilla/StaticPrefs_general.h"
 #include "mozilla/StaticPrefs_media.h"
+#include "mozilla/StaticPrefs_widget.h"
 
 #include "mozilla/LookAndFeel.h"
 #include "mozilla/PreferenceSheet.h"
@@ -129,6 +132,21 @@ void PopulatePrefs() {
 
   glean::characteristics::prefs_zoom_text_only.Set(
       !Preferences::GetBool("browser.zoom.full"));
+
+  glean::characteristics::prefs_privacy_donottrackheader_enabled.Set(
+      StaticPrefs::privacy_donottrackheader_enabled());
+  glean::characteristics::prefs_privacy_globalprivacycontrol_enabled.Set(
+      StaticPrefs::privacy_globalprivacycontrol_enabled());
+
+  glean::characteristics::prefs_general_autoscroll.Set(
+      Preferences::GetBool("general.autoScroll"));
+  glean::characteristics::prefs_general_smoothscroll.Set(
+      StaticPrefs::general_smoothScroll());
+  glean::characteristics::prefs_overlay_scrollbars.Set(
+      StaticPrefs::widget_gtk_overlay_scrollbars_enabled());
+
+  glean::characteristics::prefs_block_popups.Set(
+      StaticPrefs::dom_disable_open_during_load());
 }
 
 // ==================================================================
@@ -136,7 +154,7 @@ void PopulatePrefs() {
 // metric is set, this variable should be incremented. It'll be a lot. It's
 // okay. We're going to need it to know (including during development) what is
 // the source of the data we are looking at.
-const int kSubmissionSchema = 0;
+const int kSubmissionSchema = 1;
 
 /* static */
 void nsUserCharacteristics::MaybeSubmitPing() {

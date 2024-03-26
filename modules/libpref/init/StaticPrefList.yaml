@@ -478,11 +478,6 @@
   value: true
   mirror: always
 
-- name: apz.drag.initial.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 - name: apz.drag.touch.enabled
   type: RelaxedAtomicBool
   value: true
@@ -4577,6 +4572,14 @@
   value: @IS_NOT_ANDROID@
   mirror: always
 
+# Whether allowing selection across the boundary
+# between shadow DOM and light DOM.
+# This is based on https://github.com/mfreed7/shadow-dom-selection
+- name: dom.shadowdom.selection_across_boundary.enabled
+  type: bool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+
 # NOTE: This preference is used in unit tests. If it is removed or its default
 # value changes, please update test_sharedMap_static_prefs.js accordingly.
 - name: dom.webcomponents.shadowdom.report_usage
@@ -4847,7 +4850,7 @@
 # Whether allowing using <tab> to move focus to root elements
 - name: dom.disable_tab_focus_to_root_element
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 #---------------------------------------------------------------------------
@@ -7947,6 +7950,16 @@
 - name: javascript.options.throw_on_asmjs_validation_failure
   type: bool
   value: false
+  mirror: always
+
+# Whether to disable the jit within the main process
+- name: javascript.options.main_process_disable_jit
+  type: bool
+#ifdef XP_IOS
+  value: true
+#else
+  value: false
+#endif
   mirror: always
 
 #---------------------------------------------------------------------------

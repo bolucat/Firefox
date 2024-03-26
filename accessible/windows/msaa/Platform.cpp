@@ -69,6 +69,7 @@ void a11y::ProxyDestroyed(RemoteAccessible* aProxy) {
 
 void a11y::PlatformEvent(Accessible* aTarget, uint32_t aEventType) {
   MsaaAccessible::FireWinEvent(aTarget, aEventType);
+  uiaRawElmProvider::RaiseUiaEventForGeckoEvent(aTarget, aEventType);
 }
 
 void a11y::PlatformStateChangeEvent(Accessible* aTarget, uint64_t, bool) {
@@ -91,6 +92,8 @@ void a11y::PlatformFocusEvent(Accessible* aTarget,
 
   AccessibleWrap::UpdateSystemCaretFor(aTarget, aCaretRect);
   MsaaAccessible::FireWinEvent(aTarget, nsIAccessibleEvent::EVENT_FOCUS);
+  uiaRawElmProvider::RaiseUiaEventForGeckoEvent(
+      aTarget, nsIAccessibleEvent::EVENT_FOCUS);
 }
 
 void a11y::PlatformCaretMoveEvent(Accessible* aTarget, int32_t aOffset,

@@ -386,7 +386,7 @@ class TelemetryHandler {
    * unit tests can set it to easy to test values.
    *
    * @param {Array} providerInfo
-   *   See {@link https://searchfox.org/mozilla-central/search?q=search-telemetry-schema.json}
+   *   See {@link https://searchfox.org/mozilla-central/search?q=search-telemetry-v2-schema.json}
    *   for type information.
    */
   overrideSearchTelemetryForTests(providerInfo) {
@@ -1647,7 +1647,10 @@ class ContentHandler {
       !telemetryState.adImpressionsReported
     ) {
       for (let [componentType, data] of info.adImpressions.entries()) {
-        telemetryState.adsVisible += data.adsVisible;
+        // Not all ad impressions are sponsored.
+        if (AD_COMPONENTS.includes(componentType)) {
+          telemetryState.adsVisible += data.adsVisible;
+        }
 
         lazy.logConsole.debug("Counting ad:", { type: componentType, ...data });
         Glean.serp.adImpression.record({
@@ -1795,6 +1798,7 @@ class ContentHandler {
             partner_code: impressionInfo.partnerCode,
             provider: impressionInfo.provider,
             tagged: impressionInfo.tagged,
+            is_shopping_page: impressionInfo.isShoppingPage,
             num_ads_clicked: telemetryState.adsClicked,
             num_ads_visible: telemetryState.adsVisible,
           });

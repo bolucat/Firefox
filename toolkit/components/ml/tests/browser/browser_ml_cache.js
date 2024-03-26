@@ -7,13 +7,21 @@ const { sinon } = ChromeUtils.importESModule(
 );
 
 // Root URL of the fake hub, see the `data` dir in the tests.
-const FAKE_HUB = "chrome://global/content/ml/tests";
+const FAKE_HUB =
+  "chrome://mochitests/content/browser/toolkit/components/ml/tests/browser/data";
 
 const FAKE_MODEL_ARGS = {
   organization: "acme",
   modelName: "bert",
   modelVersion: "main",
   file: "config.json",
+};
+
+const FAKE_ONNX_MODEL_ARGS = {
+  organization: "acme",
+  modelName: "bert",
+  modelVersion: "main",
+  file: "onnx/config.json",
 };
 
 const badHubs = [
@@ -30,7 +38,7 @@ const badHubs = [
 add_task(async function test_bad_hubs() {
   for (const badHub of badHubs) {
     Assert.throws(
-      () => new ModelHub(badHub),
+      () => new ModelHub({ rootUrl: badHub }),
       new RegExp(`Error: Invalid model hub root url: ${badHub}`),
       `Should throw with ${badHub}`
     );
@@ -46,7 +54,7 @@ let goodHubs = [
 ];
 
 add_task(async function test_allowed_hub() {
-  goodHubs.forEach(url => new ModelHub(url));
+  goodHubs.forEach(url => new ModelHub({ rootUrl: url }));
 });
 
 const badInputs = [
@@ -107,7 +115,7 @@ const badInputs = [
 ];
 
 add_task(async function test_bad_inputs() {
-  const hub = new ModelHub(FAKE_HUB);
+  const hub = new ModelHub({ rootUrl: FAKE_HUB });
 
   for (const badInput of badInputs) {
     const params = badInput[0];
@@ -122,9 +130,11 @@ add_task(async function test_bad_inputs() {
 });
 
 add_task(async function test_getting_file() {
-  const hub = new ModelHub(FAKE_HUB);
+  const hub = new ModelHub({ rootUrl: FAKE_HUB });
 
-  let array = await hub.getModelFileAsArrayBuffer(FAKE_MODEL_ARGS);
+  let [array, headers] = await hub.getModelFileAsArrayBuffer(FAKE_MODEL_ARGS);
+
+  Assert.equal(headers["Content-Type"], "application/json");
 
   // check the content of the file.
   let jsonData = JSON.parse(
@@ -134,8 +144,56 @@ add_task(async function test_getting_file() {
   Assert.equal(jsonData.hidden_size, 768);
 });
 
+add_task(async function test_getting_file_in_subdir() {
+  const hub = new ModelHub({ rootUrl: FAKE_HUB });
+
+  let [array, metadata] = await hub.getModelFileAsArrayBuffer(
+    FAKE_ONNX_MODEL_ARGS
+  );
+
+  Assert.equal(metadata["Content-Type"], "application/json");
+
+  // check the content of the file.
+  let jsonData = JSON.parse(
+    String.fromCharCode.apply(null, new Uint8Array(array))
+  );
+
+  Assert.equal(jsonData.hidden_size, 768);
+});
+
+add_task(async function test_getting_file_custom_path() {
+  const hub = new ModelHub({
+    rootUrl: FAKE_HUB,
+    urlTemplate: "${organization}/${modelName}/resolve/${modelVersion}/${file}",
+  });
+
+  let res = await hub.getModelFileAsArrayBuffer(FAKE_MODEL_ARGS);
+
+  Assert.equal(res[1]["Content-Type"], "application/json");
+});
+
+add_task(async function test_getting_file_custom_path_rogue() {
+  const urlTemplate =
+    "${organization}/${modelName}/resolve/${modelVersion}/${file}?some_id=bedqwdw";
+  Assert.throws(
+    () => new ModelHub({ rootUrl: FAKE_HUB, urlTemplate }),
+    /Invalid URL template/,
+    `Should throw with ${urlTemplate}`
+  );
+});
+
+add_task(async function test_getting_file_as_response() {
+  const hub = new ModelHub({ rootUrl: FAKE_HUB });
+
+  let response = await hub.getModelFileAsResponse(FAKE_MODEL_ARGS);
+
+  // check the content of the file.
+  let jsonData = await response.json();
+  Assert.equal(jsonData.hidden_size, 768);
+});
+
 add_task(async function test_getting_file_from_cache() {
-  const hub = new ModelHub(FAKE_HUB);
+  const hub = new ModelHub({ rootUrl: FAKE_HUB });
   let array = await hub.getModelFileAsArrayBuffer(FAKE_MODEL_ARGS);
 
   // stub to verify that the data was retrieved from IndexDB
@@ -195,30 +253,62 @@ add_task(async function test_Init() {
 add_task(async function test_PutAndGet() {
   const cache = await initializeCache();
   const testData = new ArrayBuffer(8); // Example data
-  await cache.put("org", "model", "v1", "file.txt", testData, "ETAG123");
+  await cache.put("org", "model", "v1", "file.txt", testData, {
+    ETag: "ETAG123",
+  });
 
-  const retrievedData = await cache.getFile("org", "model", "v1", "file.txt");
+  const [retrievedData, headers] = await cache.getFile(
+    "org",
+    "model",
+    "v1",
+    "file.txt"
+  );
   Assert.deepEqual(
     retrievedData,
     testData,
     "The retrieved data should match the stored data."
   );
+  Assert.equal(
+    headers.ETag,
+    "ETAG123",
+    "The retrieved ETag should match the stored ETag."
+  );
+
   await deleteCache(cache);
 });
 
 /**
- * Test retrieving the ETag for a cache entry.
+ * Test retrieving the headers for a cache entry.
  */
-add_task(async function test_GetETag() {
+add_task(async function test_GetHeaders() {
   const cache = await initializeCache();
   const testData = new ArrayBuffer(8);
-  await cache.put("org", "model", "v1", "file.txt", testData, "ETAG123");
+  const headers = {
+    ETag: "ETAG123",
+    status: 200,
+    extra: "extra",
+  };
 
-  const etag = await cache.getETag("org", "model", "v1", "file.txt");
-  Assert.equal(
-    etag,
-    "ETAG123",
-    "The retrieved ETag should match the stored ETag."
+  await cache.put("org", "model", "v1", "file.txt", testData, headers);
+
+  const storedHeaders = await cache.getHeaders(
+    "org",
+    "model",
+    "v1",
+    "file.txt"
+  );
+
+  // The `extra` field should be removed from the stored headers because
+  // it's not part of the allowed keys.
+  // The content-type one is added when not present
+  Assert.deepEqual(
+    {
+      ETag: "ETAG123",
+      status: 200,
+      "Content-Type": "application/octet-stream",
+    },
+    storedHeaders,
+    "The retrieved headers should match the stored headers."
   );
   await deleteCache(cache);
 });

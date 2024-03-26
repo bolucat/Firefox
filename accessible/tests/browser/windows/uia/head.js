@@ -4,7 +4,7 @@
 
 "use strict";
 
-/* exported gIsUiaEnabled, addUiaTask */
+/* exported gIsUiaEnabled, addUiaTask, definePyVar, assignPyVarToUiaWithId, setUpWaitForUiaEvent, setUpWaitForUiaPropEvent, waitForUiaEvent */
 
 // Load the shared-head file first.
 Services.scriptloader.loadSubScript(
@@ -52,4 +52,53 @@ function addUiaTask(doc, task, options = {}) {
   if (uiaDisabled) {
     addTask(false);
   }
+}
+
+/**
+ * Define a global Python variable and assign it to a given Python expression.
+ */
+function definePyVar(varName, expression) {
+  return runPython(`
+    global ${varName}
+    ${varName} = ${expression}
+  `);
+}
+
+/**
+ * Get the UIA element with the given id and assign it to a global Python
+ * variable using the id as the variable name.
+ */
+function assignPyVarToUiaWithId(id) {
+  return definePyVar(id, `findUiaByDomId(doc, "${id}")`);
+}
+
+/**
+ * Set up to wait for a UIA event. You must await this before performing the
+ * action which fires the event.
+ */
+function setUpWaitForUiaEvent(eventName, id) {
+  return definePyVar(
+    "onEvent",
+    `WaitForUiaEvent(eventId=UIA_${eventName}EventId, match="${id}")`
+  );
+}
+
+/**
+ * Set up to wait for a UIA property change event. You must await this before
+ * performing the action which fires the event.
+ */
+function setUpWaitForUiaPropEvent(propName, id) {
+  return definePyVar(
+    "onEvent",
+    `WaitForUiaEvent(property=UIA_${propName}PropertyId, match="${id}")`
+  );
+}
+
+/**
+ * Wait for the event requested in setUpWaitForUia*Event.
+ */
+function waitForUiaEvent() {
+  return runPython(`
+    onEvent.wait()
+  `);
 }

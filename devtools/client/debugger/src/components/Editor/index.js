@@ -287,12 +287,12 @@ class Editor extends PureComponent {
     } = this.props;
     const { editor } = this.state;
 
-    if (!selectedSource) {
+    if (!selectedSource || !editor) {
       return;
     }
 
     // Sets the breakables lines for codemirror 6
-    if (features.codemirrorNext && editor) {
+    if (features.codemirrorNext) {
       const shouldUpdateBreakableLines =
         prevProps.breakableLines.size !== this.props.breakableLines.size ||
         prevProps.selectedSource?.id !== selectedSource.id;
@@ -302,7 +302,8 @@ class Editor extends PureComponent {
       if (shouldUpdateBreakableLines) {
         editor.setLineGutterMarkers([
           {
-            gutterLineClassName: "empty-line",
+            id: "empty-line-marker",
+            lineClassName: "empty-line",
             condition: line => {
               const lineNumber = fromEditorLine(
                 selectedSource.id,
@@ -315,34 +316,28 @@ class Editor extends PureComponent {
         ]);
       }
 
-      const blackboxedRangesForSelectedSource =
-        blackboxedRanges[selectedSource.url];
-      const shouldUpdateBlackboxedLines =
-        prevProps.blackboxedRanges[selectedSource.url]?.length !==
-          blackboxedRangesForSelectedSource?.length ||
-        prevProps.selectedSource?.id !== selectedSource?.id ||
-        prevProps.isSourceOnIgnoreList !== isSourceOnIgnoreList;
+      function condition(line) {
+        const lineNumber = fromEditorLine(selectedSource.id, line);
 
-      if (shouldUpdateBlackboxedLines) {
-        editor.setLineGutterMarkers([
-          {
-            gutterLineClassName: "blackboxed-line",
-            condition: line => {
-              const lineNumber = fromEditorLine(
-                selectedSource.id,
-                line,
-                isSourceWasm
-              );
-
-              return isLineBlackboxed(
-                blackboxedRangesForSelectedSource,
-                lineNumber,
-                isSourceOnIgnoreList
-              );
-            },
-          },
-        ]);
+        return isLineBlackboxed(
+          blackboxedRanges[selectedSource.url],
+          lineNumber,
+          isSourceOnIgnoreList
+        );
       }
+
+      editor.setLineGutterMarkers([
+        {
+          id: "blackboxed-line-gutter-marker",
+          lineClassName: "blackboxed-line",
+          condition,
+        },
+      ]);
+      editor.setLineContentMarker({
+        id: "blackboxed-line-marker",
+        lineClassName: "blackboxed-line",
+        condition,
+      });
     }
   }
 
@@ -794,9 +789,15 @@ class Editor extends PureComponent {
     const { editor } = this.state;
 
     if (features.codemirrorNext) {
-      return React.createElement(Breakpoints, {
-        editor,
-      });
+      return React.createElement(
+        React.Fragment,
+        null,
+        React.createElement(Breakpoints, {
+          editor,
+        }),
+        React.createElement(DebugLine, { editor, selectedSource }),
+        React.createElement(Exceptions, { editor })
+      );
     }
 
     if (!selectedSource || !editor || !getDocument(selectedSource.id)) {

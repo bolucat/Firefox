@@ -6,13 +6,18 @@
 
 #include "uiaRawElmProvider.h"
 
+#include <comdef.h>
+#include <uiautomationcoreapi.h>
+
 #include "AccAttributes.h"
 #include "AccessibleWrap.h"
 #include "ARIAMap.h"
 #include "LocalAccessible-inl.h"
 #include "mozilla/a11y/RemoteAccessible.h"
+#include "mozilla/StaticPrefs_accessibility.h"
 #include "MsaaAccessible.h"
 #include "MsaaRootAccessible.h"
+#include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
 #include "nsTextEquivUtils.h"
 #include "RootAccessible.h"
@@ -28,6 +33,38 @@ Accessible* uiaRawElmProvider::Acc() const {
   return static_cast<const MsaaAccessible*>(this)->Acc();
 }
 
+/* static */
+void uiaRawElmProvider::RaiseUiaEventForGeckoEvent(Accessible* aAcc,
+                                                   uint32_t aGeckoEvent) {
+  if (!StaticPrefs::accessibility_uia_enable()) {
+    return;
+  }
+  auto* uia = MsaaAccessible::GetFrom(aAcc);
+  if (!uia) {
+    return;
+  }
+  PROPERTYID property = 0;
+  switch (aGeckoEvent) {
+    case nsIAccessibleEvent::EVENT_DESCRIPTION_CHANGE:
+      property = UIA_FullDescriptionPropertyId;
+      break;
+    case nsIAccessibleEvent::EVENT_FOCUS:
+      ::UiaRaiseAutomationEvent(uia, UIA_AutomationFocusChangedEventId);
+      return;
+    case nsIAccessibleEvent::EVENT_NAME_CHANGE:
+      property = UIA_NamePropertyId;
+      break;
+  }
+  // Don't pointlessly query the property value if no UIA clients are listening.
+  if (property && ::UiaClientsAreListening()) {
+    // We can't get the old value. Thankfully, clients don't seem to need it.
+    _variant_t oldVal;
+    _variant_t newVal;
+    uia->GetPropertyValue(property, &newVal);
+    ::UiaRaiseAutomationPropertyChangedEvent(uia, property, oldVal, newVal);
+  }
+}
+
 // IUnknown
 
 STDMETHODIMP
@@ -39,6 +76,8 @@ uiaRawElmProvider::QueryInterface(REFIID aIid, void** aInterface) {
     *aInterface = static_cast<IRawElementProviderSimple*>(this);
   } else if (aIid == IID_IRawElementProviderFragment) {
     *aInterface = static_cast<IRawElementProviderFragment*>(this);
+  } else if (aIid == IID_IInvokeProvider) {
+    *aInterface = static_cast<IInvokeProvider*>(this);
   } else {
     return E_NOINTERFACE;
   }
@@ -120,9 +159,9 @@ uiaRawElmProvider::get_ProviderOptions(
     __RPC__out enum ProviderOptions* aOptions) {
   if (!aOptions) return E_INVALIDARG;
 
-  *aOptions = ProviderOptions_ServerSideProvider |
-              ProviderOptions_UseComThreading |
-              ProviderOptions_HasNativeIAccessible;
+  *aOptions = static_cast<enum ProviderOptions>(
+      ProviderOptions_ServerSideProvider | ProviderOptions_UseComThreading |
+      ProviderOptions_HasNativeIAccessible);
   return S_OK;
 }
 
@@ -130,8 +169,19 @@ STDMETHODIMP
 uiaRawElmProvider::GetPatternProvider(
     PATTERNID aPatternId, __RPC__deref_out_opt IUnknown** aPatternProvider) {
   if (!aPatternProvider) return E_INVALIDARG;
-
   *aPatternProvider = nullptr;
+  Accessible* acc = Acc();
+  if (!acc) {
+    return CO_E_OBJNOTCONNECTED;
+  }
+  switch (aPatternId) {
+    case UIA_InvokePatternId:
+      if (acc->ActionCount() > 0) {
+        RefPtr<IInvokeProvider> invoke = this;
+        invoke.forget(aPatternProvider);
+      }
+      return S_OK;
+  }
   return S_OK;
 }
 
@@ -254,11 +304,49 @@ uiaRawElmProvider::GetPropertyValue(PROPERTYID aPropertyId,
       aPropertyValue->lVal = GetControlType();
       break;
 
+    case UIA_FullDescriptionPropertyId: {
+      nsAutoString desc;
+      acc->Description(desc);
+      if (!desc.IsEmpty()) {
+        aPropertyValue->vt = VT_BSTR;
+        aPropertyValue->bstrVal = ::SysAllocString(desc.get());
+        return S_OK;
+      }
+      break;
+    }
+
+    case UIA_HasKeyboardFocusPropertyId:
+      aPropertyValue->vt = VT_BOOL;
+      aPropertyValue->boolVal = VARIANT_FALSE;
+      if (auto* focusMgr = FocusMgr()) {
+        if (focusMgr->IsFocused(acc)) {
+          aPropertyValue->boolVal = VARIANT_TRUE;
+        }
+      }
+      return S_OK;
+
     case UIA_IsContentElementPropertyId:
     case UIA_IsControlElementPropertyId:
       aPropertyValue->vt = VT_BOOL;
       aPropertyValue->boolVal = IsControl() ? VARIANT_TRUE : VARIANT_FALSE;
       return S_OK;
+
+    case UIA_IsKeyboardFocusablePropertyId:
+      aPropertyValue->vt = VT_BOOL;
+      aPropertyValue->boolVal =
+          (acc->State() & states::FOCUSABLE) ? VARIANT_TRUE : VARIANT_FALSE;
+      return S_OK;
+
+    case UIA_NamePropertyId: {
+      nsAutoString name;
+      acc->Name(name);
+      if (!name.IsEmpty()) {
+        aPropertyValue->vt = VT_BSTR;
+        aPropertyValue->bstrVal = ::SysAllocString(name.get());
+        return S_OK;
+      }
+      break;
+    }
   }
 
   return S_OK;
@@ -389,6 +477,23 @@ uiaRawElmProvider::get_FragmentRoot(
   RefPtr<IRawElementProviderFragmentRoot> fragRoot =
       static_cast<MsaaRootAccessible*>(msaa);
   fragRoot.forget(aRetVal);
+  return S_OK;
+}
+
+// IInvokeProvider methods
+
+STDMETHODIMP
+uiaRawElmProvider::Invoke() {
+  Accessible* acc = Acc();
+  if (!acc) {
+    return CO_E_OBJNOTCONNECTED;
+  }
+  if (acc->DoAction(0)) {
+    // We don't currently have a way to notify when the action was actually
+    // handled. The UIA documentation says it's okay to fire this immediately if
+    // it "is not possible or practical to wait until the action is complete".
+    ::UiaRaiseAutomationEvent(this, UIA_Invoke_InvokedEventId);
+  }
   return S_OK;
 }
 
