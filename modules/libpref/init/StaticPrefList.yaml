@@ -8674,36 +8674,6 @@
   value: false
   mirror: always
 
-# Is support for motion-path <basic-shape> other than path() enabled?
-# https://drafts.fxtf.org/motion-1/#valdef-offset-path-basic-shape
-- name: layout.css.motion-path-basic-shapes.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
-# Is support for motion-path <coord-box> enabled?
-# https://drafts.fxtf.org/motion-1/#valdef-offset-path-coord-box
-- name: layout.css.motion-path-coord-box.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
-# Is support for motion-path ray() enabled?
-- name: layout.css.motion-path-ray.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
-# Is support for motion-path offset-position enabled?
-- name: layout.css.motion-path-offset-position.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
 # Is support for motion-path url enabled?
 - name: layout.css.motion-path-url.enabled
   type: RelaxedAtomicBool
@@ -11619,6 +11589,13 @@
 # If true, cross origin fetch (or XHR) requests would be keyed
 # with a different cache key.
 - name: network.fetch.cache_partition_cross_origin
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+# If true, when browser code itself makes network requests, default to
+# omitting credentials.
+- name: network.fetch.systemDefaultsToOmittingCredentials
   type: RelaxedAtomicBool
   value: true
   mirror: always

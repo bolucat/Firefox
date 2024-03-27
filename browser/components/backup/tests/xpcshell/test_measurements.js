@@ -12,11 +12,26 @@ const { BackupService } = ChromeUtils.importESModule(
 const { CredentialsAndSecurityBackupResource } = ChromeUtils.importESModule(
   "resource:///modules/backup/CredentialsAndSecurityBackupResource.sys.mjs"
 );
+const { MiscDataBackupResource } = ChromeUtils.importESModule(
+  "resource:///modules/backup/MiscDataBackupResource.sys.mjs"
+);
 const { PlacesBackupResource } = ChromeUtils.importESModule(
   "resource:///modules/backup/PlacesBackupResource.sys.mjs"
 );
 const { PreferencesBackupResource } = ChromeUtils.importESModule(
   "resource:///modules/backup/PreferencesBackupResource.sys.mjs"
+);
+
+const { CookiesBackupResource } = ChromeUtils.importESModule(
+  "resource:///modules/backup/CookiesBackupResource.sys.mjs"
+);
+
+const { FormHistoryBackupResource } = ChromeUtils.importESModule(
+  "resource:///modules/backup/FormHistoryBackupResource.sys.mjs"
+);
+
+const { SessionStoreBackupResource } = ChromeUtils.importESModule(
+  "resource:///modules/backup/SessionStoreBackupResource.sys.mjs"
 );
 
 const { TelemetryTestUtils } = ChromeUtils.importESModule(
@@ -302,4 +317,186 @@ add_task(async function test_preferencesBackupResource() {
     let tempPath = PathUtils.join(tempDir, "chrome", processedMockFilePath);
     await IOUtils.remove(tempPath, { recursive: true });
   }
+});
+
+/**
+ * Tests that we can measure miscellaneous files in the profile directory.
+ */
+add_task(async function test_miscDataBackupResource() {
+  Services.fog.testResetFOG();
+
+  const EXPECTED_MISC_KILOBYTES_SIZE = 131;
+  const tempDir = PathUtils.tempDir;
+  const mockFiles = new Map([
+    ["times.json", 5],
+    ["signedInUser.json", 5],
+    ["enumerate_devices.txt", 1],
+    ["protections.sqlite", 100],
+    ["SiteSecurityServiceState.bin", 10],
+  ]);
+
+  for (let [mockFileName, mockFileSize] of mockFiles) {
+    let tempPath = PathUtils.join(tempDir, mockFileName);
+    await createKilobyteSizedFile(tempPath, mockFileSize);
+  }
+
+  let miscDataBackupResource = new MiscDataBackupResource();
+  await miscDataBackupResource.measure(tempDir);
+
+  let measurement = Glean.browserBackup.miscDataSize.testGetValue();
+  let scalars = TelemetryTestUtils.getProcessScalars("parent", false, false);
+
+  TelemetryTestUtils.assertScalar(
+    scalars,
+    "browser.backup.misc_data_size",
+    measurement,
+    "Glean and telemetry measurements for misc data should be equal"
+  );
+  Assert.equal(
+    measurement,
+    EXPECTED_MISC_KILOBYTES_SIZE,
+    "Should have collected the correct glean measurement for misc files"
+  );
+
+  for (let mockFileName of mockFiles.keys()) {
+    let tempPath = PathUtils.join(tempDir, mockFileName);
+    await IOUtils.remove(tempPath);
+  }
+});
+
+/**
+ * Tests that we can measure the Cookies db in a profile directory.
+ */
+add_task(async function test_cookiesBackupResource() {
+  const EXPECTED_COOKIES_DB_SIZE = 1230;
+
+  Services.fog.testResetFOG();
+
+  // Create resource files in temporary directory
+  let tempDir = PathUtils.tempDir;
+  let tempCookiesDBPath = PathUtils.join(tempDir, "cookies.sqlite");
+  await createKilobyteSizedFile(tempCookiesDBPath, EXPECTED_COOKIES_DB_SIZE);
+
+  let cookiesBackupResource = new CookiesBackupResource();
+  await cookiesBackupResource.measure(tempDir);
+
+  let cookiesMeasurement = Glean.browserBackup.cookiesSize.testGetValue();
+  let scalars = TelemetryTestUtils.getProcessScalars("parent", false, false);
+
+  // Compare glean vs telemetry measurements
+  TelemetryTestUtils.assertScalar(
+    scalars,
+    "browser.backup.cookies_size",
+    cookiesMeasurement,
+    "Glean and telemetry measurements for cookies.sqlite should be equal"
+  );
+
+  // Compare glean measurements vs actual file sizes
+  Assert.equal(
+    cookiesMeasurement,
+    EXPECTED_COOKIES_DB_SIZE,
+    "Should have collected the correct glean measurement for cookies.sqlite"
+  );
+
+  await maybeRemoveFile(tempCookiesDBPath);
+});
+
+/**
+ * Tests that we can measure the Form History db in a profile directory.
+ */
+add_task(async function test_formHistoryBackupResource() {
+  const EXPECTED_FORM_HISTORY_DB_SIZE = 500;
+
+  Services.fog.testResetFOG();
+
+  // Create resource files in temporary directory
+  let tempDir = PathUtils.tempDir;
+  let tempFormHistoryDBPath = PathUtils.join(tempDir, "formhistory.sqlite");
+  await createKilobyteSizedFile(
+    tempFormHistoryDBPath,
+    EXPECTED_FORM_HISTORY_DB_SIZE
+  );
+
+  let formHistoryBackupResource = new FormHistoryBackupResource();
+  await formHistoryBackupResource.measure(tempDir);
+
+  let formHistoryMeasurement =
+    Glean.browserBackup.formHistorySize.testGetValue();
+  let scalars = TelemetryTestUtils.getProcessScalars("parent", false, false);
+
+  // Compare glean vs telemetry measurements
+  TelemetryTestUtils.assertScalar(
+    scalars,
+    "browser.backup.form_history_size",
+    formHistoryMeasurement,
+    "Glean and telemetry measurements for formhistory.sqlite should be equal"
+  );
+
+  // Compare glean measurements vs actual file sizes
+  Assert.equal(
+    formHistoryMeasurement,
+    EXPECTED_FORM_HISTORY_DB_SIZE,
+    "Should have collected the correct glean measurement for formhistory.sqlite"
+  );
+
+  await IOUtils.remove(tempFormHistoryDBPath);
+});
+
+/**
+ * Tests that we can measure the Session Store JSON and backups directory.
+ */
+add_task(async function test_sessionStoreBackupResource() {
+  const EXPECTED_KILOBYTES_FOR_BACKUPS_DIR = 1000;
+  Services.fog.testResetFOG();
+
+  // Create the sessionstore-backups directory.
+  let tempDir = PathUtils.tempDir;
+  let sessionStoreBackupsPath = PathUtils.join(
+    tempDir,
+    "sessionstore-backups",
+    "restore.jsonlz4"
+  );
+  await createKilobyteSizedFile(
+    sessionStoreBackupsPath,
+    EXPECTED_KILOBYTES_FOR_BACKUPS_DIR
+  );
+
+  let sessionStoreBackupResource = new SessionStoreBackupResource();
+  await sessionStoreBackupResource.measure(tempDir);
+
+  let sessionStoreBackupsDirectoryMeasurement =
+    Glean.browserBackup.sessionStoreBackupsDirectorySize.testGetValue();
+  let sessionStoreMeasurement =
+    Glean.browserBackup.sessionStoreSize.testGetValue();
+  let scalars = TelemetryTestUtils.getProcessScalars("parent", false, false);
+
+  // Compare glean vs telemetry measurements
+  TelemetryTestUtils.assertScalar(
+    scalars,
+    "browser.backup.session_store_backups_directory_size",
+    sessionStoreBackupsDirectoryMeasurement,
+    "Glean and telemetry measurements for session store backups directory should be equal"
+  );
+  TelemetryTestUtils.assertScalar(
+    scalars,
+    "browser.backup.session_store_size",
+    sessionStoreMeasurement,
+    "Glean and telemetry measurements for session store should be equal"
+  );
+
+  // Compare glean measurements vs actual file sizes
+  Assert.equal(
+    sessionStoreBackupsDirectoryMeasurement,
+    EXPECTED_KILOBYTES_FOR_BACKUPS_DIR,
+    "Should have collected the correct glean measurement for the sessionstore-backups directory"
+  );
+
+  // Session store measurement is from `getCurrentState`, so exact size is unknown.
+  Assert.greater(
+    sessionStoreMeasurement,
+    0,
+    "Should have collected a measurement for the session store"
+  );
+
+  await IOUtils.remove(sessionStoreBackupsPath);
 });
