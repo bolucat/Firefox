@@ -2189,7 +2189,7 @@
   mir_op: ClampToUint8
 
 - name: LoadScriptedProxyHandler
-  result_type: BoxedValue
+  result_type: WordSized
   operands:
     object: WordSized
   mir_op: true
@@ -3694,6 +3694,7 @@
   result_type: WordSized
   operands:
     object: WordSized
+  mir_op: true
 
 - name: GuardHasGetterSetter
   operands:

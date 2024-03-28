@@ -80,7 +80,7 @@ pub fn error_dialog<M: std::fmt::Display>(config: &Config, message: M) {
     };
 
     let window = ui! {
-        Window title(string_or("crashreporter-title", "Crash Reporter")) hsize(600) vsize(400)
+        Window title(string_or("crashreporter-branded-title", "Firefox Crash Reporter")) hsize(600) vsize(400)
             close_when(&close) halign(Alignment::Fill) valign(Alignment::Fill) {
             VBox margin(10) spacing(10) halign(Alignment::Fill) valign(Alignment::Fill) {
                 Label text(string_or(
@@ -222,12 +222,12 @@ impl ReportCrashUI {
         };
 
         let main_window = ui! {
-            Window title(config.string("crashreporter-title")) hsize(600) vsize(400)
+            Window title(config.string("crashreporter-branded-title")) hsize(600) vsize(400)
                 halign(Alignment::Fill) valign(Alignment::Fill) close_when(close_window)
                 child_window(details_window)
             {
                 VBox margin(10) spacing(10) halign(Alignment::Fill) valign(Alignment::Fill) {
-                    Label text(config.string("crashreporter-crash-message")),
+                    Label text(config.string("crashreporter-crashed-and-restore")),
                     Label text(config.string("crashreporter-plea")),
                     Checkbox["send"] checked(send_report) label(config.string("crashreporter-send-report"))
                         enabled(&input_enabled),
@@ -258,16 +258,16 @@ impl ReportCrashUI {
                     },
                     HBox valign(Alignment::End) halign(Alignment::End) spacing(10)
                     {
+                        Button["quit"] on_click(cc! { (logic) move || logic.push(|s| s.quit()) })
+                            enabled(&input_enabled) hsize(160)
+                        {
+                            Label text(config.string("crashreporter-button-quit"))
+                        },
                         Button["restart"] visible(config.restart_command.is_some())
                             on_click(cc! { (logic) move || logic.push(|s| s.restart()) })
                             enabled(&input_enabled) hsize(160)
                         {
                             Label text(config.string("crashreporter-button-restart"))
-                        },
-                        Button["quit"] on_click(cc! { (logic) move || logic.push(|s| s.quit()) })
-                            enabled(&input_enabled) hsize(160)
-                        {
-                            Label text(config.string("crashreporter-button-quit"))
                         }
                     }
                 }

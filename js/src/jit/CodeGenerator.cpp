@@ -6279,7 +6279,8 @@ void CodeGenerator::visitCallKnown(LCallKnown* call) {
       UnusedStackBytesForCall(call->mir()->paddedNumStackArgs());
   WrappedFunction* target = call->getSingleTarget();
 
-  // Native single targets (except wasm) are handled by LCallNative.
+  // Native single targets (except Wasm and TrampolineNative functions) are
+  // handled by LCallNative.
   MOZ_ASSERT(target->hasJitEntry());
 
   // Missing arguments must have been explicitly appended by WarpBuilder.
@@ -15856,15 +15857,16 @@ void CodeGenerator::visitMegamorphicSetElement(LMegamorphicSetElement* lir) {
 
 void CodeGenerator::visitLoadScriptedProxyHandler(
     LLoadScriptedProxyHandler* ins) {
-  const Register obj = ToRegister(ins->getOperand(0));
-  ValueOperand output = ToOutValue(ins);
+  Register obj = ToRegister(ins->getOperand(0));
+  Register output = ToRegister(ins->output());
 
-  masm.loadPtr(Address(obj, ProxyObject::offsetOfReservedSlots()),
-               output.scratchReg());
-  masm.loadValue(
-      Address(output.scratchReg(), js::detail::ProxyReservedSlots::offsetOfSlot(
-                                       ScriptedProxyHandler::HANDLER_EXTRA)),
-      output);
+  masm.loadPtr(Address(obj, ProxyObject::offsetOfReservedSlots()), output);
+
+  Label bail;
+  Address handlerAddr(output, js::detail::ProxyReservedSlots::offsetOfSlot(
+                                  ScriptedProxyHandler::HANDLER_EXTRA));
+  masm.fallibleUnboxObject(handlerAddr, output, &bail);
+  bailoutFrom(&bail, ins->snapshot());
 }
 
 #ifdef JS_PUNBOX64
@@ -19880,9 +19882,17 @@ void CodeGenerator::visitLoadWrapperTarget(LLoadWrapperTarget* lir) {
   Register output = ToRegister(lir->output());
 
   masm.loadPtr(Address(object, ProxyObject::offsetOfReservedSlots()), output);
-  masm.unboxObject(
-      Address(output, js::detail::ProxyReservedSlots::offsetOfPrivateSlot()),
-      output);
+
+  // Bail for revoked proxies.
+  Label bail;
+  Address targetAddr(output,
+                     js::detail::ProxyReservedSlots::offsetOfPrivateSlot());
+  if (lir->mir()->fallible()) {
+    masm.fallibleUnboxObject(targetAddr, output, &bail);
+    bailoutFrom(&bail, lir->snapshot());
+  } else {
+    masm.unboxObject(targetAddr, output);
+  }
 }
 
 void CodeGenerator::visitGuardHasGetterSetter(LGuardHasGetterSetter* lir) {

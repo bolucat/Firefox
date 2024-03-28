@@ -2167,6 +2167,7 @@ pub extern "C" fn Servo_CssRules_InsertRule(
     rule: &nsACString,
     index: u32,
     containing_rule_types: u32,
+    parse_relative_rule_type: Option<&CssRuleType>,
     loader: *mut Loader,
     allow_import_rules: AllowImportRules,
     gecko_stylesheet: *mut DomStyleSheet,
@@ -2194,6 +2195,7 @@ pub extern "C" fn Servo_CssRules_InsertRule(
         contents,
         index as usize,
         CssRuleTypes::from_bits(containing_rule_types),
+        parse_relative_rule_type.cloned(),
         loader,
         allow_import_rules,
     );
@@ -7537,6 +7539,21 @@ pub extern "C" fn Servo_StyleSet_HasStateDependency(
     data.stylist
         .any_applicable_rule_data(element, |data| data.has_state_dependency(state))
 }
+
+#[no_mangle]
+pub extern "C" fn Servo_StyleSet_HasNthOfCustomStateDependency(
+    raw_data: &PerDocumentStyleData,
+    element: &RawGeckoElement,
+    state: *mut nsAtom,
+) -> bool {
+    let element = GeckoElement(element);
+    let data = raw_data.borrow();
+    data.stylist
+        .any_applicable_rule_data(element, |data| unsafe {
+            AtomIdent::with(state, |atom| data.has_nth_of_custom_state_dependency(atom))
+        })
+}
+
 
 #[no_mangle]
 pub extern "C" fn Servo_StyleSet_HasNthOfStateDependency(

@@ -357,7 +357,11 @@ pref("browser.overlink-delay", 80);
 pref("browser.theme.colorway-closet", true);
 
 #ifdef XP_MACOSX
+#ifdef NIGHTLY_BUILD
+pref("browser.theme.macos.native-theme", true);
+#else
 pref("browser.theme.macos.native-theme", false);
+#endif
 #endif
 
 // Whether expired built-in colorways themes that are active or retained
@@ -752,7 +756,11 @@ pref("browser.search.separatePrivateDefault.ui.banner.max", 0);
 pref("browser.search.serpEventTelemetry.enabled", true);
 
 // Enables search SERP telemetry page categorization.
+#ifdef NIGHTLY_BUILD
+pref("browser.search.serpEventTelemetryCategorization.enabled", true);
+#else
 pref("browser.search.serpEventTelemetryCategorization.enabled", false);
+#endif
 
 // Search Bar removal from the toolbar for users who haven’t used it in 120
 // days
@@ -2509,9 +2517,6 @@ pref("identity.fxaccounts.toolbar.pxiToolbarEnabled.monitorEnabled", true);
 pref("identity.fxaccounts.toolbar.pxiToolbarEnabled.relayEnabled", true);
 pref("identity.fxaccounts.toolbar.pxiToolbarEnabled.vpnEnabled", true);
 
-// Check bundled omni JARs for corruption.
-pref("corroborator.enabled", true);
-
 // Toolbox preferences
 pref("devtools.toolbox.footer.height", 250);
 pref("devtools.toolbox.sidebar.width", 500);
@@ -2519,7 +2524,8 @@ pref("devtools.toolbox.host", "bottom");
 pref("devtools.toolbox.previousHost", "right");
 pref("devtools.toolbox.selectedTool", "inspector");
 pref("devtools.toolbox.zoomValue", "1");
-pref("devtools.toolbox.splitconsoleEnabled", false);
+pref("devtools.toolbox.splitconsole.enabled", true);
+pref("devtools.toolbox.splitconsole.open", false);
 pref("devtools.toolbox.splitconsoleHeight", 100);
 pref("devtools.toolbox.tabsOrder", "");
 // This is only used for local Web Extension debugging,
@@ -2549,7 +2555,6 @@ pref("devtools.popups.debug", false);
 // Toolbox Button preferences
 pref("devtools.command-button-pick.enabled", true);
 pref("devtools.command-button-frames.enabled", true);
-pref("devtools.command-button-splitconsole.enabled", true);
 pref("devtools.command-button-responsive.enabled", true);
 pref("devtools.command-button-screenshot.enabled", false);
 pref("devtools.command-button-rulers.enabled", false);

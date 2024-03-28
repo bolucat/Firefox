@@ -127,7 +127,9 @@ void EncoderTemplate<EncoderType>::Configure(const ConfigType& aConfig,
   RefPtr<ConfigTypeInternal> config =
       EncoderType::CreateConfigInternal(aConfig);
   if (!config) {
-    aRv.Throw(NS_ERROR_UNEXPECTED);  // Invalid description data.
+    DebugOnly<Result<Ok, nsresult>> r =
+        CloseInternal(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
+    MOZ_ASSERT(r.value.isOk());
     return;
   }
 
@@ -299,7 +301,27 @@ void EncoderTemplate<EncoderType>::ReportError(const nsresult& aResult) {
 }
 
 template <typename EncoderType>
-void EncoderTemplate<EncoderType>::OutputEncodedData(
+template <typename T, typename U>
+void EncoderTemplate<EncoderType>::CopyExtradataToDescriptionIfNeeded(
+    nsIGlobalObject* aGlobal, const T& aConfigInternal, U& aConfig) {
+  if (aConfigInternal.mDescription &&
+      !aConfigInternal.mDescription.value()->IsEmpty()) {
+    auto& abov = aConfig.mDescription.Construct();
+    AutoEntryScript aes(aGlobal, "EncoderConfigToaConfigConfig");
+    size_t lengthBytes = aConfigInternal.mDescription.value()->Length();
+    UniquePtr<uint8_t[], JS::FreePolicy> extradata(new uint8_t[lengthBytes]);
+    PodCopy(extradata.get(), aConfigInternal.mDescription.value()->Elements(),
+            lengthBytes);
+    JS::Rooted<JSObject*> description(
+        aes.cx(), JS::NewArrayBufferWithContents(aes.cx(), lengthBytes,
+                                                 std::move(extradata)));
+    JS::Rooted<JS::Value> value(aes.cx(), JS::ObjectValue(*description));
+    DebugOnly<bool> rv = abov.Init(aes.cx(), value);
+  }
+}
+
+template <>
+void EncoderTemplate<VideoEncoderTraits>::OutputEncodedVideoData(
     nsTArray<RefPtr<MediaRawData>>&& aData) {
   AssertIsOnOwningThread();
   MOZ_ASSERT(mState == CodecState::Configured);
@@ -313,7 +335,7 @@ void EncoderTemplate<EncoderType>::OutputEncodedData(
       jsapi.Init(GetParentObject());  // TODO: check returned value?
   JSContext* cx = jsapi.cx();
 
-  RefPtr<typename EncoderType::OutputCallbackType> cb(mOutputCallback);
+  RefPtr<EncodedVideoChunkOutputCallback> cb(mOutputCallback);
   for (auto& data : aData) {
     // It's possible to have reset() called in between this task having been
     // dispatched, and running -- no output callback should happen when that's
@@ -323,10 +345,10 @@ void EncoderTemplate<EncoderType>::OutputEncodedData(
     if (!mActiveConfig) {
       return;
     }
-    RefPtr<typename EncoderType::OutputType> encodedData =
+    RefPtr<EncodedVideoChunk> encodedData =
         EncodedDataToOutputType(GetParentObject(), data);
 
-    RootedDictionary<typename EncoderType::MetadataType> metadata(cx);
+    RootedDictionary<EncodedVideoChunkMetadata> metadata(cx);
     if (mOutputNewDecoderConfig) {
       VideoDecoderConfigInternal decoderConfigInternal =
           EncoderConfigToDecoderConfig(GetParentObject(), data, *mActiveConfig);
@@ -354,23 +376,10 @@ void EncoderTemplate<EncoderType>::OutputEncodedData(
             MaybeToNullable(decoderConfigInternal.mColorSpace->mTransfer);
         decoderConfig.mColorSpace.Construct(std::move(colorSpace));
       }
-      if (decoderConfigInternal.mDescription &&
-          !decoderConfigInternal.mDescription.value()->IsEmpty()) {
-        auto& abov = decoderConfig.mDescription.Construct();
-        AutoEntryScript aes(GetParentObject(), "EncoderConfigToDecoderConfig");
-        size_t lengthBytes =
-            decoderConfigInternal.mDescription.value()->Length();
-        UniquePtr<uint8_t[], JS::FreePolicy> extradata(
-            new uint8_t[lengthBytes]);
-        PodCopy(extradata.get(),
-                decoderConfigInternal.mDescription.value()->Elements(),
-                lengthBytes);
-        JS::Rooted<JSObject*> description(
-            aes.cx(), JS::NewArrayBufferWithContents(aes.cx(), lengthBytes,
-                                                     std::move(extradata)));
-        JS::Rooted<JS::Value> value(aes.cx(), JS::ObjectValue(*description));
-        DebugOnly<bool> rv = abov.Init(aes.cx(), value);
-      }
+
+      CopyExtradataToDescriptionIfNeeded(GetParentObject(),
+                                         decoderConfigInternal, decoderConfig);
+
       if (decoderConfigInternal.mDisplayAspectHeight) {
         decoderConfig.mDisplayAspectHeight.Construct(
             decoderConfigInternal.mDisplayAspectHeight.value());
@@ -387,7 +396,7 @@ void EncoderTemplate<EncoderType>::OutputEncodedData(
       metadata.mDecoderConfig.Construct(std::move(decoderConfig));
       mOutputNewDecoderConfig = false;
       LOGE("New config passed to output callback: %s",
-           NS_ConvertUTF16toUTF8(decoderConfigInternal.ToString()).get());
+           decoderConfigInternal.ToString().get());
     }
 
     nsAutoCString metadataInfo;
@@ -407,7 +416,73 @@ void EncoderTemplate<EncoderType>::OutputEncodedData(
 
     LOG("EncoderTemplate:: output callback (ts: % " PRId64 ")%s",
         encodedData->Timestamp(), metadataInfo.get());
-    cb->Call((typename EncoderType::OutputType&)(*encodedData), metadata);
+    cb->Call((EncodedVideoChunk&)(*encodedData), metadata);
+  }
+}
+
+template <>
+void EncoderTemplate<AudioEncoderTraits>::OutputEncodedAudioData(
+    nsTArray<RefPtr<MediaRawData>>&& aData) {
+  AssertIsOnOwningThread();
+  MOZ_ASSERT(mState == CodecState::Configured);
+  MOZ_ASSERT(mActiveConfig);
+
+  // Get JSContext for RootedDictionary.
+  // The EncoderType::MetadataType, AudioDecoderConfig
+  // below are rooted to work around the JS hazard issues.
+  AutoJSAPI jsapi;
+  DebugOnly<bool> ok =
+      jsapi.Init(GetParentObject());  // TODO: check returned value?
+  JSContext* cx = jsapi.cx();
+
+  RefPtr<EncodedAudioChunkOutputCallback> cb(mOutputCallback);
+  for (auto& data : aData) {
+    // It's possible to have reset() called in between this task having been
+    // dispatched, and running -- no output callback should happen when that's
+    // the case.
+    // This is imprecise in the spec, but discussed in
+    // https://github.com/w3c/webcodecs/issues/755 and agreed upon.
+    if (!mActiveConfig) {
+      return;
+    }
+    RefPtr<EncodedAudioChunk> encodedData =
+        EncodedDataToOutputType(GetParentObject(), data);
+
+    RootedDictionary<EncodedAudioChunkMetadata> metadata(cx);
+    if (mOutputNewDecoderConfig) {
+      AudioDecoderConfigInternal decoderConfigInternal =
+          this->EncoderConfigToDecoderConfig(GetParentObject(), data,
+                                             *mActiveConfig);
+
+      // Convert VideoDecoderConfigInternal to VideoDecoderConfig
+      RootedDictionary<AudioDecoderConfig> decoderConfig(cx);
+      decoderConfig.mCodec = decoderConfigInternal.mCodec;
+      decoderConfig.mNumberOfChannels = decoderConfigInternal.mNumberOfChannels;
+      decoderConfig.mSampleRate = decoderConfigInternal.mSampleRate;
+
+      CopyExtradataToDescriptionIfNeeded(GetParentObject(),
+                                         decoderConfigInternal, decoderConfig);
+
+      metadata.mDecoderConfig.Construct(std::move(decoderConfig));
+      mOutputNewDecoderConfig = false;
+      LOGE("New config passed to output callback: %s",
+           decoderConfigInternal.ToString().get());
+    }
+
+    nsAutoCString metadataInfo;
+
+    if (metadata.mDecoderConfig.WasPassed()) {
+      metadataInfo.Append(", new decoder config");
+    }
+
+    LOG("EncoderTemplate:: output callback (ts: % " PRId64
+        ", duration: % " PRId64 ", %zu bytes, %" PRIu64 " so far)",
+        encodedData->Timestamp(),
+        !encodedData->GetDuration().IsNull()
+            ? encodedData->GetDuration().Value()
+            : 0,
+        data->Size(), mPacketsOutput++);
+    cb->Call((EncodedAudioChunk&)(*encodedData), metadata);
   }
 }
 
@@ -478,7 +553,11 @@ class EncoderTemplate<EncoderType>::OutputRunnable final
     LOGV("%s %p, yields %s-result for EncoderAgent #%zu",
          EncoderType::Name.get(), mEncoder.get(), mLabel.get(), mConfigureId);
     RefPtr<Self> d = std::move(mEncoder);
-    d->OutputEncodedData(std::move(mData));
+    if constexpr (std::is_same_v<EncoderType, VideoEncoderTraits>) {
+      d->OutputEncodedVideoData(std::move(mData));
+    } else {
+      d->OutputEncodedAudioData(std::move(mData));
+    }
 
     return NS_OK;
   }
@@ -715,15 +794,16 @@ void EncoderTemplate<EncoderType>::Reconfigure(
     RefPtr<ConfigureMessage> aMessage) {
   MOZ_ASSERT(mAgent);
 
-  LOG("Reconfiguring encoder: %s",
-      NS_ConvertUTF16toUTF8(aMessage->Config()->ToString()).get());
+  LOG("Reconfiguring encoder: %s", aMessage->Config()->ToString().get());
 
   RefPtr<ConfigTypeInternal> config = aMessage->Config();
   RefPtr<WebCodecsConfigurationChangeList> configDiff =
       config->Diff(*mActiveConfig);
 
-  // Nothing to do, return now
+  // Nothing to do, return now, but per spec the config
+  // must be output next time a packet is output.
   if (configDiff->Empty()) {
+    mOutputNewDecoderConfig = true;
     LOG("Reconfigure with identical config, returning.");
     mProcessingMessage = nullptr;
     StopBlockingMessageQueue();
@@ -731,9 +811,8 @@ void EncoderTemplate<EncoderType>::Reconfigure(
   }
 
   LOG("Attempting to reconfigure encoder: old: %s new: %s, diff: %s",
-      NS_ConvertUTF16toUTF8(mActiveConfig->ToString()).get(),
-      NS_ConvertUTF16toUTF8(config->ToString()).get(),
-      NS_ConvertUTF16toUTF8(configDiff->ToString()).get());
+      mActiveConfig->ToString().get(), config->ToString().get(),
+      configDiff->ToString().get());
 
   RefPtr<EncoderConfigurationChangeList> changeList =
       configDiff->ToPEMChangeList();
@@ -833,8 +912,7 @@ void EncoderTemplate<EncoderType>::Configure(
     RefPtr<ConfigureMessage> aMessage) {
   MOZ_ASSERT(!mAgent);
 
-  LOG("Configuring encoder: %s",
-      NS_ConvertUTF16toUTF8(aMessage->Config()->ToString()).get());
+  LOG("Configuring encoder: %s", aMessage->Config()->ToString().get());
 
   mOutputNewDecoderConfig = true;
   mActiveConfig = aMessage->Config();
@@ -866,7 +944,7 @@ void EncoderTemplate<EncoderType>::Configure(
   MOZ_ASSERT(mActiveConfig);
 
   LOG("Real configuration with fresh config: %s",
-      NS_ConvertUTF16toUTF8(mActiveConfig->ToString().get()).get());
+      mActiveConfig->ToString().get());
 
   EncoderConfig config = mActiveConfig->ToEncoderConfig();
   mAgent->Configure(config)
@@ -1218,6 +1296,7 @@ void EncoderTemplate<EncoderType>::DestroyEncoderAgentIfAny() {
 }
 
 template class EncoderTemplate<VideoEncoderTraits>;
+template class EncoderTemplate<AudioEncoderTraits>;
 
 #undef LOG
 #undef LOGW

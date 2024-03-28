@@ -12,6 +12,11 @@ const allWebNNOperandDataTypes = [
   'uint8'
 ];
 
+// https://webidl.spec.whatwg.org/#idl-unsigned-long
+// The unsigned long type is an unsigned integer type that has values in the
+// range [0, 4294967295].
+// 4294967295 = 2 ** 32 - 1
+const kMaxUnsignedLong = 2 ** 32 - 1;
 const unsignedLongType = 'unsigned long';
 
 const dimensions0D = [];
@@ -173,9 +178,7 @@ function generateOutOfRangeValuesArray(type) {
   let range, outsideValueArray;
   switch (type) {
     case 'unsigned long':
-      // https://webidl.spec.whatwg.org/#idl-unsigned-long
-      // The unsigned long type is an unsigned integer type that has values in the range [0, 4294967295].
-      range = [0, 4294967295];
+      range = [0, kMaxUnsignedLong];
       break;
     default:
       throw new Error(`Unsupport ${type}`);
@@ -356,4 +359,60 @@ function validateOptionsAxes(operationName, inputRank) {
       }
     }, `[${subOperationName}] DataError is expected if two or more values are same in the axes sequence`);
   }
+}
+
+/**
+ * Basic test that the builder method specified by `operationName` throws if
+ * given an input from another builder. Operands which do not accept a float32
+ * square 2D input should pass their own `operatorDescriptor`.
+ * @param {String} operationName
+ * @param {String} operatorDescriptor
+ */
+function validateInputFromAnotherBuilder(operatorName, operatorDescriptor = {
+  dataType: 'float32',
+  dimensions: [2, 2]
+}) {
+  multi_builder_test(async (t, builder, otherBuilder) => {
+    const inputFromOtherBuilder =
+        otherBuilder.input('input', operatorDescriptor);
+    assert_throws_js(
+        TypeError, () => builder[operatorName](inputFromOtherBuilder));
+  }, `[${operatorName}] throw if input is from another builder`);
+};
+
+/**
+ * Basic test that the builder method specified by `operationName` throws if one
+ * of its inputs is from another builder. This helper may only be used by
+ * operands which accept float32 square 2D inputs.
+ * @param {String} operationName
+ */
+function validateTwoInputsFromMultipleBuilders(operatorName) {
+  const opDescriptor = {dataType: 'float32', dimensions: [2, 2]};
+
+  multi_builder_test(async (t, builder, otherBuilder) => {
+    const inputFromOtherBuilder = otherBuilder.input('other', opDescriptor);
+
+    const input = builder.input('input', opDescriptor);
+    assert_throws_js(
+        TypeError, () => builder[operatorName](inputFromOtherBuilder, input));
+  }, `[${operatorName}] throw if first input is from another builder`);
+
+  multi_builder_test(async (t, builder, otherBuilder) => {
+    const inputFromOtherBuilder = otherBuilder.input('other', opDescriptor);
+
+    const input = builder.input('input', opDescriptor);
+    assert_throws_js(
+        TypeError, () => builder[operatorName](input, inputFromOtherBuilder));
+  }, `[${operatorName}] throw if second input is from another builder`);
+};
+
+function multi_builder_test(func, description) {
+  promise_test(async t => {
+    const context = await navigator.ml.createContext();
+
+    const builder = new MLGraphBuilder(context);
+    const otherBuilder = new MLGraphBuilder(context);
+
+    await func(t, builder, otherBuilder);
+  }, description);
 }
