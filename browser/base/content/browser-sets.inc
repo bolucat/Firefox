@@ -16,8 +16,8 @@
 
   <commandset id="mainCommandSet">
     <command id="cmd_newNavigator" oncommand="OpenBrowserWindow()"/>
-    <command id="cmd_handleBackspace" oncommand="BrowserHandleBackspace();" />
-    <command id="cmd_handleShiftBackspace" oncommand="BrowserHandleShiftBackspace();" />
+    <command id="cmd_handleBackspace" oncommand="BrowserCommands.handleBackspace();" />
+    <command id="cmd_handleShiftBackspace" oncommand="BrowserCommands.handleShiftBackspace();" />
 
     <command id="cmd_newNavigatorTab" oncommand="BrowserOpenTab({ event });"/>
     <command id="cmd_newNavigatorTabNoEvent" oncommand="BrowserOpenTab();"/>
@@ -60,8 +60,8 @@
             oncommand="PlacesCommandHook.searchBookmarks();"/>
     <command id="Browser:BookmarkAllTabs"
              oncommand="PlacesCommandHook.bookmarkTabs();"/>
-    <command id="Browser:Back"    oncommand="BrowserBack();" disabled="true"/>
-    <command id="Browser:BackOrBackDuplicate" oncommand="BrowserBack(event);" disabled="true">
+    <command id="Browser:Back"    oncommand="BrowserCommands.back();" disabled="true"/>
+    <command id="Browser:BackOrBackDuplicate" oncommand="BrowserCommands.back(event);" disabled="true">
       <observes element="Browser:Back" attribute="disabled"/>
     </command>
     <command id="Browser:Forward" oncommand="BrowserCommands.forward();" disabled="true"/>
@@ -69,11 +69,11 @@
       <observes element="Browser:Forward" attribute="disabled"/>
     </command>
     <command id="Browser:Stop"    oncommand="BrowserStop();" disabled="true"/>
-    <command id="Browser:Reload"  oncommand="if (event.shiftKey) BrowserReloadSkipCache(); else BrowserReload()" disabled="true"/>
-    <command id="Browser:ReloadOrDuplicate" oncommand="BrowserReloadOrDuplicate(event)" disabled="true">
+    <command id="Browser:Reload"  oncommand="if (event.shiftKey) BrowserCommands.reloadSkipCache(); else BrowserCommands.reload()" disabled="true"/>
+    <command id="Browser:ReloadOrDuplicate" oncommand="BrowserCommands.reloadOrDuplicate(event)" disabled="true">
       <observes element="Browser:Reload" attribute="disabled"/>
     </command>
-    <command id="Browser:ReloadSkipCache" oncommand="BrowserReloadSkipCache()" disabled="true">
+    <command id="Browser:ReloadSkipCache" oncommand="BrowserCommands.reloadSkipCache()" disabled="true">
       <observes element="Browser:Reload" attribute="disabled"/>
     </command>
     <command id="Browser:NextTab" oncommand="gBrowser.tabContainer.advanceSelectedTab(1, true);"/>
@@ -216,7 +216,7 @@
     <key id="goBackKb2" data-l10n-id="nav-back-shortcut-alt" command="Browser:Back" modifiers="accel"/>
     <key id="goForwardKb2" data-l10n-id="nav-fwd-shortcut-alt" command="Browser:Forward" modifiers="accel"/>
 #endif
-    <key id="goHome" keycode="VK_HOME" oncommand="BrowserHome();" modifiers="alt"/>
+    <key id="goHome" keycode="VK_HOME" oncommand="BrowserCommands.home();" modifiers="alt"/>
     <key keycode="VK_F5" command="Browser:Reload"/>
 #ifndef XP_MACOSX
     <key id="showAllHistoryKb" data-l10n-id="history-show-all-shortcut" command="Browser:ShowAllHistory" modifiers="accel,shift"/>

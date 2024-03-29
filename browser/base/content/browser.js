@@ -108,7 +108,7 @@ ChromeUtils.defineLazyGetter(this, "fxAccounts", () => {
 
 XPCOMUtils.defineLazyScriptGetter(
   this,
-  "BrowserCommands",
+  ["BrowserCommands", "kSkipCacheFlags"],
   "chrome://browser/content/browser-commands.js"
 );
 
@@ -2624,13 +2624,13 @@ gBrowserInit.idleTasksFinishedPromise = new Promise(resolve => {
 function HandleAppCommandEvent(evt) {
   switch (evt.command) {
     case "Back":
-      BrowserBack();
+      BrowserCommands.back();
       break;
     case "Forward":
       BrowserCommands.forward();
       break;
     case "Reload":
-      BrowserReloadSkipCache();
+      BrowserCommands.reloadSkipCache();
       break;
     case "Stop":
       if (XULBrowserWindow.stopCommand.getAttribute("disabled") != "true") {
@@ -2644,7 +2644,7 @@ function HandleAppCommandEvent(evt) {
       SidebarUI.toggle("viewBookmarksSidebar");
       break;
     case "Home":
-      BrowserHome();
+      BrowserCommands.home();
       break;
     case "New":
       BrowserOpenTab();
@@ -2677,189 +2677,8 @@ function HandleAppCommandEvent(evt) {
   evt.preventDefault();
 }
 
-function gotoHistoryIndex(aEvent) {
-  aEvent = getRootEvent(aEvent);
-
-  let index = aEvent.target.getAttribute("index");
-  if (!index) {
-    return false;
-  }
-
-  let where = whereToOpenLink(aEvent);
-
-  if (where == "current") {
-    // Normal click. Go there in the current tab and update session history.
-
-    try {
-      gBrowser.gotoIndex(index);
-    } catch (ex) {
-      return false;
-    }
-    return true;
-  }
-  // Modified click. Go there in a new tab/window.
-
-  let historyindex = aEvent.target.getAttribute("historyindex");
-  duplicateTabIn(gBrowser.selectedTab, where, Number(historyindex));
-  return true;
-}
-
-function BrowserBack(aEvent) {
-  let where = whereToOpenLink(aEvent, false, true);
-
-  if (where == "current") {
-    try {
-      gBrowser.goBack();
-    } catch (ex) {}
-  } else {
-    duplicateTabIn(gBrowser.selectedTab, where, -1);
-  }
-}
-
-function BrowserHandleBackspace() {
-  switch (Services.prefs.getIntPref("browser.backspace_action")) {
-    case 0:
-      BrowserBack();
-      break;
-    case 1:
-      goDoCommand("cmd_scrollPageUp");
-      break;
-  }
-}
-
-function BrowserHandleShiftBackspace() {
-  switch (Services.prefs.getIntPref("browser.backspace_action")) {
-    case 0:
-      BrowserCommands.forward();
-      break;
-    case 1:
-      goDoCommand("cmd_scrollPageDown");
-      break;
-  }
-}
-
 function BrowserStop() {
   gBrowser.webNavigation.stop(Ci.nsIWebNavigation.STOP_ALL);
-}
-
-function BrowserReloadOrDuplicate(aEvent) {
-  aEvent = getRootEvent(aEvent);
-  let accelKeyPressed =
-    AppConstants.platform == "macosx" ? aEvent.metaKey : aEvent.ctrlKey;
-  var backgroundTabModifier = aEvent.button == 1 || accelKeyPressed;
-
-  if (aEvent.shiftKey && !backgroundTabModifier) {
-    BrowserReloadSkipCache();
-    return;
-  }
-
-  let where = whereToOpenLink(aEvent, false, true);
-  if (where == "current") {
-    BrowserReload();
-  } else {
-    duplicateTabIn(gBrowser.selectedTab, where);
-  }
-}
-
-function BrowserReload() {
-  if (gBrowser.currentURI.schemeIs("view-source")) {
-    // Bug 1167797: For view source, we always skip the cache
-    return BrowserReloadSkipCache();
-  }
-  const reloadFlags = Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
-  BrowserReloadWithFlags(reloadFlags);
-}
-
-const kSkipCacheFlags =
-  Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_PROXY |
-  Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_CACHE;
-function BrowserReloadSkipCache() {
-  // Bypass proxy and cache.
-  BrowserReloadWithFlags(kSkipCacheFlags);
-}
-
-function BrowserHome(aEvent) {
-  if (aEvent && "button" in aEvent && aEvent.button == 2) {
-    // right-click: do nothing
-    return;
-  }
-
-  var homePage = HomePage.get(window);
-  var where = whereToOpenLink(aEvent, false, true);
-  var urls;
-  var notifyObservers;
-
-  // Don't load the home page in pinned or hidden tabs (e.g. Firefox View).
-  if (
-    where == "current" &&
-    (gBrowser?.selectedTab.pinned || gBrowser?.selectedTab.hidden)
-  ) {
-    where = "tab";
-  }
-
-  // openTrustedLinkIn in utilityOverlay.js doesn't handle loading multiple pages
-  switch (where) {
-    case "current":
-      // If we're going to load an initial page in the current tab as the
-      // home page, we set initialPageLoadedFromURLBar so that the URL
-      // bar is cleared properly (even during a remoteness flip).
-      if (isInitialPage(homePage)) {
-        gBrowser.selectedBrowser.initialPageLoadedFromUserAction = homePage;
-      }
-      loadOneOrMoreURIs(
-        homePage,
-        Services.scriptSecurityManager.getSystemPrincipal(),
-        null
-      );
-      if (isBlankPageURL(homePage)) {
-        gURLBar.select();
-      } else {
-        gBrowser.selectedBrowser.focus();
-      }
-      notifyObservers = true;
-      aEvent?.preventDefault();
-      break;
-    case "tabshifted":
-    case "tab":
-      urls = homePage.split("|");
-      var loadInBackground = Services.prefs.getBoolPref(
-        "browser.tabs.loadBookmarksInBackground",
-        false
-      );
-      // The homepage observer event should only be triggered when the homepage opens
-      // in the foreground. This is mostly to support the homepage changed by extension
-      // doorhanger which doesn't currently support background pages. This may change in
-      // bug 1438396.
-      notifyObservers = !loadInBackground;
-      gBrowser.loadTabs(urls, {
-        inBackground: loadInBackground,
-        triggeringPrincipal:
-          Services.scriptSecurityManager.getSystemPrincipal(),
-        csp: null,
-      });
-      if (!loadInBackground) {
-        if (isBlankPageURL(homePage)) {
-          gURLBar.select();
-        } else {
-          gBrowser.selectedBrowser.focus();
-        }
-      }
-      aEvent?.preventDefault();
-      break;
-    case "window":
-      // OpenBrowserWindow will trigger the observer event, so no need to do so here.
-      notifyObservers = false;
-      OpenBrowserWindow();
-      aEvent?.preventDefault();
-      break;
-  }
-  if (notifyObservers) {
-    // A notification for when a user has triggered their homepage. This is used
-    // to display a doorhanger explaining that an extension has modified the
-    // homepage, if necessary. Observers are only notified if the homepage
-    // becomes the active page.
-    Services.obs.notifyObservers(null, "browser-open-homepage-start");
-  }
 }
 
 function loadOneOrMoreURIs(aURIString, aTriggeringPrincipal, aCsp) {
@@ -3474,84 +3293,6 @@ function getDefaultHomePage() {
 
 function BrowserFullScreen() {
   window.fullScreen = !window.fullScreen || BrowserHandler.kiosk;
-}
-
-function BrowserReloadWithFlags(reloadFlags) {
-  let unchangedRemoteness = [];
-
-  for (let tab of gBrowser.selectedTabs) {
-    let browser = tab.linkedBrowser;
-    let url = browser.currentURI;
-    let urlSpec = url.spec;
-    // We need to cache the content principal here because the browser will be
-    // reconstructed when the remoteness changes and the content prinicpal will
-    // be cleared after reconstruction.
-    let principal = tab.linkedBrowser.contentPrincipal;
-    if (gBrowser.updateBrowserRemotenessByURL(browser, urlSpec)) {
-      // If the remoteness has changed, the new browser doesn't have any
-      // information of what was loaded before, so we need to load the previous
-      // URL again.
-      if (tab.linkedPanel) {
-        loadBrowserURI(browser, url, principal);
-      } else {
-        // Shift to fully loaded browser and make
-        // sure load handler is instantiated.
-        tab.addEventListener(
-          "SSTabRestoring",
-          () => loadBrowserURI(browser, url, principal),
-          { once: true }
-        );
-        gBrowser._insertBrowser(tab);
-      }
-    } else {
-      unchangedRemoteness.push(tab);
-    }
-  }
-
-  if (!unchangedRemoteness.length) {
-    return;
-  }
-
-  // Reset temporary permissions on the remaining tabs to reload.
-  // This is done here because we only want to reset
-  // permissions on user reload.
-  for (let tab of unchangedRemoteness) {
-    SitePermissions.clearTemporaryBlockPermissions(tab.linkedBrowser);
-    // Also reset DOS mitigations for the basic auth prompt on reload.
-    delete tab.linkedBrowser.authPromptAbuseCounter;
-  }
-  gIdentityHandler.hidePopup();
-  gPermissionPanel.hidePopup();
-
-  let handlingUserInput = document.hasValidTransientUserGestureActivation;
-
-  for (let tab of unchangedRemoteness) {
-    if (tab.linkedPanel) {
-      sendReloadMessage(tab);
-    } else {
-      // Shift to fully loaded browser and make
-      // sure load handler is instantiated.
-      tab.addEventListener("SSTabRestoring", () => sendReloadMessage(tab), {
-        once: true,
-      });
-      gBrowser._insertBrowser(tab);
-    }
-  }
-
-  function loadBrowserURI(browser, url, principal) {
-    browser.loadURI(url, {
-      flags: reloadFlags,
-      triggeringPrincipal: principal,
-    });
-  }
-
-  function sendReloadMessage(tab) {
-    tab.linkedBrowser.sendMessageToActor(
-      "Browser:Reload",
-      { flags: reloadFlags, handlingUserInput },
-      "BrowserTab"
-    );
-  }
 }
 
 // TODO: can we pull getPEMString in from pippki.js instead of
@@ -4436,7 +4177,8 @@ function FillHistoryMenu(aParent) {
       item.setAttribute("label", entry.title || uri);
       item.setAttribute("index", j);
 
-      // Cache this so that gotoHistoryIndex doesn't need the original index
+      // Cache this so that BrowserCommands.gotoHistoryIndex doesn't need the
+      // original index
       item.setAttribute("historyindex", j - index);
 
       if (j != index) {
@@ -7284,7 +7026,9 @@ function handleDroppedLink(
 
 function BrowserForceEncodingDetection() {
   gBrowser.selectedBrowser.forceEncodingDetection();
-  BrowserReloadWithFlags(Ci.nsIWebNavigation.LOAD_FLAGS_CHARSET_CHANGE);
+  BrowserCommands.reloadWithFlags(
+    Ci.nsIWebNavigation.LOAD_FLAGS_CHARSET_CHANGE
+  );
 }
 
 var ToolbarContextMenu = {
