@@ -14,6 +14,7 @@ import mozilla.components.browser.state.action.ContentAction
 import mozilla.components.browser.state.action.EngineAction
 import mozilla.components.browser.state.action.ExtensionsProcessAction
 import mozilla.components.browser.state.action.TabListAction
+import mozilla.components.browser.state.action.TranslationsAction
 import mozilla.components.browser.state.engine.EngineMiddleware
 import mozilla.components.browser.state.state.BrowserState
 import mozilla.components.browser.state.state.createTab
@@ -21,6 +22,8 @@ import mozilla.components.browser.state.state.recover.RecoverableTab
 import mozilla.components.browser.state.state.recover.TabState
 import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.concept.engine.Engine
+import mozilla.components.concept.engine.translate.TranslationError
+import mozilla.components.concept.engine.translate.TranslationOperation
 import mozilla.components.service.glean.testing.GleanTestRule
 import mozilla.components.support.base.android.Clock
 import mozilla.components.support.test.ext.joinBlocking
@@ -40,6 +43,7 @@ import org.junit.runner.RunWith
 import org.mozilla.fenix.GleanMetrics.Addons
 import org.mozilla.fenix.GleanMetrics.Events
 import org.mozilla.fenix.GleanMetrics.Metrics
+import org.mozilla.fenix.GleanMetrics.Translations
 import org.mozilla.fenix.components.AppStore
 import org.mozilla.fenix.components.appstate.AppAction
 import org.mozilla.fenix.components.metrics.Event
@@ -448,6 +452,124 @@ class TelemetryMiddlewareTest {
 
         assertEquals(1, Addons.extensionsProcessUiDisable.testGetValue())
         assertNull(Addons.extensionsProcessUiRetry.testGetValue())
+    }
+
+    @Test
+    fun `WHEN TranslateOfferAction is dispatched THEN update telemetry`() {
+        assertNull(Translations.offerEvent.testGetValue())
+
+        store.dispatch(TranslationsAction.TranslateOfferAction(tabId = "1")).joinBlocking()
+
+        val telemetry = Translations.offerEvent.testGetValue()?.firstOrNull()
+        assertEquals("offer", telemetry?.extra?.get("item"))
+    }
+
+    @Test
+    fun `WHEN TranslateExpectedAction is dispatched THEN update telemetry`() {
+        assertNull(Translations.offerEvent.testGetValue())
+
+        store.dispatch(TranslationsAction.TranslateExpectedAction(tabId = "1")).joinBlocking()
+
+        val telemetry = Translations.offerEvent.testGetValue()?.firstOrNull()
+        assertEquals("expected", telemetry?.extra?.get("item"))
+    }
+
+    @Test
+    fun `WHEN TranslateAction is dispatched THEN update telemetry`() {
+        assertNull(Translations.translateRequested.testGetValue())
+
+        store.dispatch(
+            TranslationsAction.TranslateAction(
+                tabId = "1",
+                fromLanguage = "en",
+                toLanguage = "es",
+                options = null,
+            ),
+        ).joinBlocking()
+
+        val telemetry = Translations.translateRequested.testGetValue()?.firstOrNull()
+        assertEquals("es", telemetry?.extra?.get("to_language"))
+        assertEquals("en", telemetry?.extra?.get("from_language"))
+    }
+
+    @Test
+    fun `WHEN TranslateSuccessAction is dispatched THEN update telemetry`() {
+        assertNull(Translations.translateSuccess.testGetValue())
+
+        // Shouldn't record other operations
+        store.dispatch(
+            TranslationsAction.TranslateSuccessAction(
+                tabId = "1",
+                operation = TranslationOperation.FETCH_SUPPORTED_LANGUAGES,
+            ),
+        ).joinBlocking()
+        assertNull(Translations.translateSuccess.testGetValue())
+
+        // Should record translate operations
+        store.dispatch(
+            TranslationsAction.TranslateSuccessAction(
+                tabId = "1",
+                operation = TranslationOperation.TRANSLATE,
+            ),
+        ).joinBlocking()
+
+        val telemetry = Translations.translateSuccess.testGetValue()?.firstOrNull()
+        assertNotNull(telemetry)
+    }
+
+    @Test
+    fun `WHEN TranslateExceptionAction for Translate operation is dispatched THEN update telemetry`() {
+        assertNull(Translations.translateFailed.testGetValue())
+
+        // Shouldn't record other operations
+        store.dispatch(
+            TranslationsAction.TranslateExceptionAction(
+                tabId = "1",
+                operation = TranslationOperation.FETCH_SUPPORTED_LANGUAGES,
+                translationError = TranslationError.UnknownError(IllegalStateException()),
+            ),
+        ).joinBlocking()
+        assertNull(Translations.translateFailed.testGetValue())
+
+        // Should record translate operations
+        store.dispatch(
+            TranslationsAction.TranslateExceptionAction(
+                tabId = "1",
+                operation = TranslationOperation.TRANSLATE,
+                translationError = TranslationError.CouldNotTranslateError(null),
+            ),
+        ).joinBlocking()
+
+        val telemetry = Translations.translateFailed.testGetValue()?.firstOrNull()
+        assertEquals(TranslationError.CouldNotTranslateError(cause = null).errorName, telemetry?.extra?.get("error"))
+    }
+
+    @Test
+    fun `WHEN SetEngineSupportedAction is dispatched AND supported THEN update telemetry`() {
+        assertNull(Translations.engineSupported.testGetValue())
+
+        store.dispatch(
+            TranslationsAction.SetEngineSupportedAction(
+                isEngineSupported = true,
+            ),
+        ).joinBlocking()
+
+        val telemetry = Translations.engineSupported.testGetValue()?.firstOrNull()
+        assertEquals("supported", telemetry?.extra?.get("support"))
+    }
+
+    @Test
+    fun `WHEN SetEngineSupportedAction is dispatched AND unsupported THEN update telemetry`() {
+        assertNull(Translations.engineSupported.testGetValue())
+
+        store.dispatch(
+            TranslationsAction.SetEngineSupportedAction(
+                isEngineSupported = false,
+            ),
+        ).joinBlocking()
+
+        val telemetry = Translations.engineSupported.testGetValue()?.firstOrNull()
+        assertEquals("unsupported", telemetry?.extra?.get("support"))
     }
 }
 

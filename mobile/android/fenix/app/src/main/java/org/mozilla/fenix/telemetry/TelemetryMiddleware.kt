@@ -12,6 +12,7 @@ import mozilla.components.browser.state.action.DownloadAction
 import mozilla.components.browser.state.action.EngineAction
 import mozilla.components.browser.state.action.ExtensionsProcessAction
 import mozilla.components.browser.state.action.TabListAction
+import mozilla.components.browser.state.action.TranslationsAction
 import mozilla.components.browser.state.selector.findTab
 import mozilla.components.browser.state.selector.findTabOrCustomTab
 import mozilla.components.browser.state.selector.normalTabs
@@ -19,6 +20,7 @@ import mozilla.components.browser.state.selector.privateTabs
 import mozilla.components.browser.state.state.BrowserState
 import mozilla.components.browser.state.state.SessionState
 import mozilla.components.concept.base.crash.CrashReporting
+import mozilla.components.concept.engine.translate.TranslationOperation
 import mozilla.components.lib.state.Middleware
 import mozilla.components.lib.state.MiddlewareContext
 import mozilla.components.support.base.log.logger.Logger
@@ -29,6 +31,7 @@ import org.mozilla.fenix.GleanMetrics.Addons
 import org.mozilla.fenix.GleanMetrics.Awesomebar
 import org.mozilla.fenix.GleanMetrics.Events
 import org.mozilla.fenix.GleanMetrics.Metrics
+import org.mozilla.fenix.GleanMetrics.Translations
 import org.mozilla.fenix.components.metrics.Event
 import org.mozilla.fenix.components.metrics.MetricController
 import org.mozilla.fenix.ext.components
@@ -152,6 +155,37 @@ class TelemetryMiddleware(
                 } else {
                     Awesomebar.engagement.record()
                 }
+            }
+            is TranslationsAction.TranslateOfferAction -> {
+                Translations.offerEvent.record(Translations.OfferEventExtra("offer"))
+            }
+            is TranslationsAction.TranslateExpectedAction -> {
+                Translations.offerEvent.record(Translations.OfferEventExtra("expected"))
+            }
+            is TranslationsAction.TranslateAction -> {
+                Translations.translateRequested.record(
+                    Translations.TranslateRequestedExtra(
+                        fromLanguage = action.fromLanguage,
+                        toLanguage = action.toLanguage,
+                    ),
+                )
+            }
+            is TranslationsAction.TranslateSuccessAction -> {
+                if (action.operation == TranslationOperation.TRANSLATE) {
+                    Translations.translateSuccess.record()
+                }
+            }
+            is TranslationsAction.TranslateExceptionAction -> {
+                if (action.operation == TranslationOperation.TRANSLATE) {
+                    Translations.translateFailed.record(
+                        Translations.TranslateFailedExtra(action.translationError.errorName),
+                    )
+                }
+            }
+            is TranslationsAction.SetEngineSupportedAction -> {
+                Translations.engineSupported.record(
+                    Translations.EngineSupportedExtra(if (action.isEngineSupported) "supported" else "unsupported"),
+                )
             }
             else -> {
                 // no-op
