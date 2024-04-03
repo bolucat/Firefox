@@ -19,6 +19,7 @@
 #include "MainThreadUtils.h"
 #include "ScopedNSSTypes.h"
 
+#include "mozilla/AntiTrackingUtils.h"
 #include "mozilla/ArrayIterator.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/Atomics.h"
@@ -1267,7 +1268,10 @@ Maybe<nsTArray<uint8_t>> nsRFPService::GenerateKey(nsIChannel* aChannel) {
 
   // Set the partitionKey using the top level URI to ensure that the key is
   // specific to the top level site.
-  attrs.SetPartitionKey(topLevelURI);
+  bool foreignByAncestorContext =
+      AntiTrackingUtils::IsThirdPartyChannel(aChannel) &&
+      loadInfo->GetIsThirdPartyContextToTopWindow();
+  attrs.SetPartitionKey(topLevelURI, foreignByAncestorContext);
 
   nsAutoCString oaSuffix;
   attrs.CreateSuffix(oaSuffix);
@@ -1337,8 +1341,14 @@ nsRFPService::CleanRandomKeyByPrincipal(nsIPrincipal* aPrincipal) {
 
   OriginAttributes attrs = aPrincipal->OriginAttributesRef();
   nsCOMPtr<nsIURI> uri = aPrincipal->GetURI();
-  attrs.SetPartitionKey(uri);
 
+  attrs.SetPartitionKey(uri, false);
+  ClearBrowsingSessionKey(attrs);
+
+  // We must also include the cross-site embeds of this principal that end up
+  // re-embedded back into the same principal's top level, otherwise state will
+  // persist for this target
+  attrs.SetPartitionKey(uri, true);
   ClearBrowsingSessionKey(attrs);
   return NS_OK;
 }
@@ -1354,14 +1364,21 @@ nsRFPService::CleanRandomKeyByDomain(const nsACString& aDomain) {
 
   // Use the originAttributes to get the partitionKey.
   OriginAttributes attrs;
-  attrs.SetPartitionKey(httpURI);
+  attrs.SetPartitionKey(httpURI, false);
 
   // Create a originAttributesPattern and set the http partitionKey to the
   // pattern.
   OriginAttributesPattern pattern;
   pattern.mPartitionKey.Reset();
   pattern.mPartitionKey.Construct(attrs.mPartitionKey);
+  ClearBrowsingSessionKey(pattern);
 
+  // We must also include the cross-site embeds of this principal that end up
+  // re-embedded back into the same principal's top level, otherwise state will
+  // persist for this target
+  attrs.SetPartitionKey(httpURI, true);
+  pattern.mPartitionKey.Reset();
+  pattern.mPartitionKey.Construct(attrs.mPartitionKey);
   ClearBrowsingSessionKey(pattern);
 
   // Get https URI from the domain.
@@ -1370,10 +1387,17 @@ nsRFPService::CleanRandomKeyByDomain(const nsACString& aDomain) {
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Use the originAttributes to get the partitionKey and set to the pattern.
-  attrs.SetPartitionKey(httpsURI);
+  attrs.SetPartitionKey(httpsURI, false);
   pattern.mPartitionKey.Reset();
   pattern.mPartitionKey.Construct(attrs.mPartitionKey);
+  ClearBrowsingSessionKey(pattern);
 
+  // We must also include the cross-site embeds of this principal that end up
+  // re-embedded back into the same principal's top level, otherwise state will
+  // persist for this target
+  attrs.SetPartitionKey(httpsURI, true);
+  pattern.mPartitionKey.Reset();
+  pattern.mPartitionKey.Construct(attrs.mPartitionKey);
   ClearBrowsingSessionKey(pattern);
   return NS_OK;
 }
@@ -1395,12 +1419,20 @@ nsRFPService::CleanRandomKeyByHost(const nsACString& aHost,
 
   // Use the originAttributes to get the partitionKey.
   OriginAttributes attrs;
-  attrs.SetPartitionKey(httpURI);
+  attrs.SetPartitionKey(httpURI, false);
 
   // Set the partitionKey to the pattern.
   pattern.mPartitionKey.Reset();
   pattern.mPartitionKey.Construct(attrs.mPartitionKey);
 
+  ClearBrowsingSessionKey(pattern);
+
+  // We must also include the cross-site embeds of this principal that end up
+  // re-embedded back into the same principal's top level, otherwise state will
+  // persist for this target
+  attrs.SetPartitionKey(httpURI, true);
+  pattern.mPartitionKey.Reset();
+  pattern.mPartitionKey.Construct(attrs.mPartitionKey);
   ClearBrowsingSessionKey(pattern);
 
   // Get https URI from the host.
@@ -1409,10 +1441,17 @@ nsRFPService::CleanRandomKeyByHost(const nsACString& aHost,
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Use the originAttributes to get the partitionKey and set to the pattern.
-  attrs.SetPartitionKey(httpsURI);
+  attrs.SetPartitionKey(httpsURI, false);
   pattern.mPartitionKey.Reset();
   pattern.mPartitionKey.Construct(attrs.mPartitionKey);
+  ClearBrowsingSessionKey(pattern);
 
+  // We must also include the cross-site embeds of this principal that end up
+  // re-embedded back into the same principal's top level, otherwise state will
+  // persist for this target
+  attrs.SetPartitionKey(httpsURI, true);
+  pattern.mPartitionKey.Reset();
+  pattern.mPartitionKey.Construct(attrs.mPartitionKey);
   ClearBrowsingSessionKey(pattern);
   return NS_OK;
 }
@@ -2011,7 +2050,7 @@ Maybe<RFPTarget> nsRFPService::GetOverriddenFingerprintingSettingsForChannel(
   }
 
   // The channel is for the first-party load.
-  if (!loadInfo->GetIsThirdPartyContextToTopWindow()) {
+  if (!AntiTrackingUtils::IsThirdPartyChannel(aChannel)) {
     return GetOverriddenFingerprintingSettingsForURI(uri, nullptr);
   }
 
@@ -2054,8 +2093,9 @@ Maybe<RFPTarget> nsRFPService::GetOverriddenFingerprintingSettingsForChannel(
     nsAutoString scheme;
     nsAutoString domain;
     int32_t unused;
+    bool unused2;
     if (!OriginAttributes::ParsePartitionKey(partitionKey, scheme, domain,
-                                             unused)) {
+                                             unused, unused2)) {
       MOZ_ASSERT(false);
       return Nothing();
     }
@@ -2096,12 +2136,16 @@ Maybe<RFPTarget> nsRFPService::GetOverriddenFingerprintingSettingsForChannel(
   cookieJarSettings->GetPartitionKey(partitionKey);
 
   OriginAttributes attrs;
-  attrs.SetPartitionKey(topURI);
+  attrs.SetPartitionKey(topURI, false);
+
+  OriginAttributes attrsForeignByAncestor;
+  attrsForeignByAncestor.SetPartitionKey(topURI, true);
 
   // The partitionKey of the channel could haven't been set here if the loading
   // channel is top-level.
   MOZ_ASSERT_IF(!partitionKey.IsEmpty(),
-                attrs.mPartitionKey.Equals(partitionKey));
+                attrs.mPartitionKey.Equals(partitionKey) ||
+                    attrsForeignByAncestor.mPartitionKey.Equals(partitionKey));
 #endif
 
   return GetOverriddenFingerprintingSettingsForURI(topURI, uri);

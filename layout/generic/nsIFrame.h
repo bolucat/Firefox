@@ -5487,25 +5487,6 @@ class nsIFrame : public nsQueryFrame {
   // NS_FRAME_IS_DIRTY bit set
   static void VerifyDirtyBitSet(const nsFrameList& aFrameList);
 
-  // Display Reflow Debugging
-  static void* DisplayReflowEnter(nsPresContext* aPresContext, nsIFrame* aFrame,
-                                  const ReflowInput& aReflowInput);
-  static void* DisplayLayoutEnter(nsIFrame* aFrame);
-  static void* DisplayIntrinsicISizeEnter(nsIFrame* aFrame, const char* aType);
-  static void* DisplayIntrinsicSizeEnter(nsIFrame* aFrame, const char* aType);
-  static void DisplayReflowExit(nsPresContext* aPresContext, nsIFrame* aFrame,
-                                ReflowOutput& aMetrics,
-                                const nsReflowStatus& aStatus,
-                                void* aFrameTreeNode);
-  static void DisplayLayoutExit(nsIFrame* aFrame, void* aFrameTreeNode);
-  static void DisplayIntrinsicISizeExit(nsIFrame* aFrame, const char* aType,
-                                        nscoord aResult, void* aFrameTreeNode);
-  static void DisplayIntrinsicSizeExit(nsIFrame* aFrame, const char* aType,
-                                       nsSize aResult, void* aFrameTreeNode);
-
-  static void DisplayReflowStartup();
-  static void DisplayReflowShutdown();
-
   static mozilla::LazyLogModule sFrameLogModule;
 #endif
 };

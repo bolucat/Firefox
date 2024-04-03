@@ -8874,7 +8874,6 @@ void nsGridContainerFrame::Reflow(nsPresContext* aPresContext,
 
   MarkInReflow();
   DO_GLOBAL_REFLOW_COUNT("nsGridContainerFrame");
-  DISPLAY_REFLOW(aPresContext, this, aReflowInput, aDesiredSize, aStatus);
   MOZ_ASSERT(aStatus.IsEmpty(), "Caller should pass a fresh reflow status!");
 
   if (IsFrameTreeTooDeep(aReflowInput, aDesiredSize, aStatus)) {
@@ -9678,7 +9677,6 @@ nscoord nsGridContainerFrame::GetMinISize(gfxContext* aRC) {
     return f->GetMinISize(aRC);
   }
 
-  DISPLAY_MIN_INLINE_SIZE(this, mCachedMinISize);
   if (mCachedMinISize == NS_INTRINSIC_ISIZE_UNKNOWN) {
     Maybe<nscoord> containISize = ContainIntrinsicISize();
     mCachedMinISize = containISize
@@ -9694,7 +9692,6 @@ nscoord nsGridContainerFrame::GetPrefISize(gfxContext* aRC) {
     return f->GetPrefISize(aRC);
   }
 
-  DISPLAY_PREF_INLINE_SIZE(this, mCachedPrefISize);
   if (mCachedPrefISize == NS_INTRINSIC_ISIZE_UNKNOWN) {
     Maybe<nscoord> containISize = ContainIntrinsicISize();
     mCachedPrefISize = containISize

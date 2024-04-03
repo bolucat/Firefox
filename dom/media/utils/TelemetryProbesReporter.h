@@ -8,6 +8,7 @@
 #include "MediaInfo.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/AwakeTimeStamp.h"
+#include "mozilla/EnumSet.h"
 #include "AudioChannelService.h"
 #include "nsISupportsImpl.h"
 
@@ -66,8 +67,19 @@ class TelemetryProbesReporter final {
   void OnMutedChanged(bool aMuted);
   void OnDecodeSuspended();
   void OnDecodeResumed();
-  void OntFirstFrameLoaded(const TimeDuration& aLoadedFirstFrameTime,
-                           bool aIsMSE, bool aIsExternalEngineStateMachine);
+
+  enum class FirstFrameLoadedFlag {
+    IsMSE,
+    IsExternalEngineStateMachine,
+    IsHLS,
+    IsHardwareDecoding,
+  };
+  using FirstFrameLoadedFlagSet = EnumSet<FirstFrameLoadedFlag, uint8_t>;
+  void OntFirstFrameLoaded(const double aLoadedFirstFrameTime,
+                           const double aLoadedMetadataTime,
+                           const double aTotalWaitingDataTime,
+                           const double aTotalBufferingTime,
+                           const FirstFrameLoadedFlagSet aFlags);
 
   double GetTotalVideoPlayTimeInSeconds() const;
   double GetTotalVideoHDRPlayTimeInSeconds() const;

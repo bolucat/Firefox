@@ -1122,7 +1122,6 @@ mochitest-webgpu:
             default:
                 by-test-platform:
                     android.*: []
-                    macosx.*: []
                     # Things like asan/tsan/32bit are restricted to --full
                     # via UNCOMMON_TRY_TASK_LABELS
                     # in taskcluster/gecko_taskgraph/target_tasks.py.
@@ -1131,10 +1130,13 @@ mochitest-webgpu:
         by-test-platform:
             macosx.*64-ccov.*/.*: 7200
             default: 1800
-    # Bug 1296733: llvmpipe with mesa 9.2.1 lacks thread safety
-    allow-software-gl-layers: false
     mozharness:
         mochitest-flavor: plain
+        extra-options:
+            by-test-platform:
+                macos.*:
+                    - --setpref=gfx.webgpu.ignore-blocklist=true
+                default: []
 
 mochitest-remote:
     description: "Mochitest for the remote agent (/remote folder)"

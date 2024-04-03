@@ -595,26 +595,18 @@ nsIScrollableFrame* nsTableCellFrame::GetScrollTargetFrame() const {
 
 /* virtual */
 nscoord nsTableCellFrame::GetMinISize(gfxContext* aRenderingContext) {
-  nscoord result = 0;
-  DISPLAY_MIN_INLINE_SIZE(this, result);
-
   nsIFrame* inner = mFrames.FirstChild();
-  result = nsLayoutUtils::IntrinsicForContainer(aRenderingContext, inner,
-                                                IntrinsicISizeType::MinISize,
-                                                nsLayoutUtils::IGNORE_PADDING);
-  return result;
+  return nsLayoutUtils::IntrinsicForContainer(aRenderingContext, inner,
+                                              IntrinsicISizeType::MinISize,
+                                              nsLayoutUtils::IGNORE_PADDING);
 }
 
 /* virtual */
 nscoord nsTableCellFrame::GetPrefISize(gfxContext* aRenderingContext) {
-  nscoord result = 0;
-  DISPLAY_PREF_INLINE_SIZE(this, result);
-
   nsIFrame* inner = mFrames.FirstChild();
-  result = nsLayoutUtils::IntrinsicForContainer(aRenderingContext, inner,
-                                                IntrinsicISizeType::PrefISize,
-                                                nsLayoutUtils::IGNORE_PADDING);
-  return result;
+  return nsLayoutUtils::IntrinsicForContainer(aRenderingContext, inner,
+                                              IntrinsicISizeType::PrefISize,
+                                              nsLayoutUtils::IGNORE_PADDING);
 }
 
 /* virtual */ nsIFrame::IntrinsicSizeOffsetData
@@ -680,7 +672,6 @@ void nsTableCellFrame::Reflow(nsPresContext* aPresContext,
                               nsReflowStatus& aStatus) {
   MarkInReflow();
   DO_GLOBAL_REFLOW_COUNT("nsTableCellFrame");
-  DISPLAY_REFLOW(aPresContext, this, aReflowInput, aDesiredSize, aStatus);
   MOZ_ASSERT(aStatus.IsEmpty(), "Caller should pass a fresh reflow status!");
 
   if (aReflowInput.mFlags.mSpecialBSizeReflow) {
@@ -713,14 +704,12 @@ void nsTableCellFrame::Reflow(nsPresContext* aPresContext,
     if (aReflowInput.mFlags.mSpecialBSizeReflow) {
       const_cast<ReflowInput&>(aReflowInput)
           .SetComputedBSize(BSize(wm) - bp.BStartEnd(wm));
-      DISPLAY_REFLOW_CHANGE();
     } else {
       const nscoord computedUnpaginatedBSize =
           CalcUnpaginatedBSize(*this, *tableFrame, bp.BStartEnd(wm));
       if (computedUnpaginatedBSize > 0) {
         const_cast<ReflowInput&>(aReflowInput)
             .SetComputedBSize(computedUnpaginatedBSize);
-        DISPLAY_REFLOW_CHANGE();
       }
     }
   }

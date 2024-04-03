@@ -491,19 +491,13 @@ void nsMenuPopupFrame::TweakMinPrefISize(nscoord& aSize) {
 }
 
 nscoord nsMenuPopupFrame::GetMinISize(gfxContext* aRC) {
-  nscoord result;
-  DISPLAY_PREF_INLINE_SIZE(this, result);
-
-  result = nsBlockFrame::GetMinISize(aRC);
+  nscoord result = nsBlockFrame::GetMinISize(aRC);
   TweakMinPrefISize(result);
   return result;
 }
 
 nscoord nsMenuPopupFrame::GetPrefISize(gfxContext* aRC) {
-  nscoord result;
-  DISPLAY_PREF_INLINE_SIZE(this, result);
-
-  result = nsBlockFrame::GetPrefISize(aRC);
+  nscoord result = nsBlockFrame::GetPrefISize(aRC);
   TweakMinPrefISize(result);
   return result;
 }
@@ -514,7 +508,6 @@ void nsMenuPopupFrame::Reflow(nsPresContext* aPresContext,
                               nsReflowStatus& aStatus) {
   MarkInReflow();
   DO_GLOBAL_REFLOW_COUNT("nsMenuPopupFrame");
-  DISPLAY_REFLOW(aPresContext, this, aReflowInput, aDesiredSize, aStatus);
   MOZ_ASSERT(aStatus.IsEmpty(), "Caller should pass a fresh reflow status!");
 
   const auto wm = GetWritingMode();

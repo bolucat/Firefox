@@ -229,7 +229,6 @@ web-platform-tests-webgpu:
     virtualization: virtual-with-gpu
     tier:
         by-test-platform:
-            .*-32.*/.*: 3
             android.*: 3  # https://bugzilla.mozilla.org/show_bug.cgi?id=1849914
             macos.*: 3  # https://bugzilla.mozilla.org/show_bug.cgi?id=1849913
             linux2204.*-64.*: 3  # https://bugzilla.mozilla.org/show_bug.cgi?id=1849912
@@ -254,8 +253,7 @@ web-platform-tests-webgpu:
     variants: []  # We don't need sw or nofis testing.
     run-on-projects:
         by-test-platform:
-            android.*: []  # Out of scope
-            linux1804.*: []  # We don't support anything less than Mesa Lavapipe 22.1.2, so this is _out_.
+            android.*: []  # https://bugzilla.mozilla.org/show_bug.cgi?id=1836811
             .*-wayland/debug.*: []  # https://bugzilla.mozilla.org/show_bug.cgi?id=1864700
             default: ['mozilla-central']
     mozharness:

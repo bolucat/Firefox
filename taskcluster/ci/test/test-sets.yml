@@ -15,6 +15,10 @@
 
 ### Feature-specific test groups
 
+webgpu:
+    - mochitest-webgpu
+    - web-platform-tests-webgpu
+
 web-platform-tests:
     - web-platform-tests
     - web-platform-tests-crashtest
@@ -22,7 +26,6 @@ web-platform-tests:
     - web-platform-tests-print-reftest
     - web-platform-tests-reftest
     - web-platform-tests-wdspec
-    - web-platform-tests-webgpu
     - web-platform-tests-canvas
 
 web-platform-tests-backlog:
@@ -31,9 +34,6 @@ web-platform-tests-backlog:
 
 mochitest-devtools-chrome:
     - mochitest-devtools-chrome
-
-mochitest-webgpu:
-    - mochitest-webgpu
 
 talos:
     - talos-bcv
@@ -235,7 +235,6 @@ windows32-2009-tests:
     - mochitest-plain
     - mochitest-plain-gpu
     - mochitest-remote
-    - mochitest-webgpu
     - reftest
     - telemetry-tests-client
     - test-verify
@@ -279,7 +278,6 @@ windows11-2009-tests:
     - mochitest-plain
     - mochitest-plain-gpu
     - mochitest-remote
-    - mochitest-webgpu
     - mochitest-webgl1-core
     - mochitest-webgl1-ext
     - mochitest-webgl2-core
@@ -301,7 +299,6 @@ mingwclang-tests-debug:
     - mochitest-webgl1-ext
     - mochitest-webgl2-core
     - mochitest-webgl2-ext
-    - mochitest-webgpu
     - reftest
     - telemetry-tests-client
 
@@ -318,7 +315,6 @@ mingwclang-win32-tests-debug:
     - mochitest-webgl1-ext
     - mochitest-webgl2-core
     - mochitest-webgl2-ext
-    - mochitest-webgpu
     # - reftest - disabled, see bug 1642719
     - telemetry-tests-client
 
@@ -366,7 +362,6 @@ macosx1100-64-qr-tests:
     - mochitest-browser-media
     - mochitest-chrome-gpu
     - mochitest-media
-    - mochitest-webgpu
     - mochitest-webgl1-core
     - mochitest-webgl1-ext
     - mochitest-webgl2-core
@@ -400,7 +395,6 @@ macosx1015-64-qr-tests:
     - mochitest-webgl1-ext
     - mochitest-webgl2-core
     - mochitest-webgl2-ext
-    - mochitest-webgpu
     - reftest
     - telemetry-tests-client
     - test-verify

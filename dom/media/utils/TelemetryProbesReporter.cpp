@@ -293,23 +293,31 @@ void TelemetryProbesReporter::OnDecodeResumed() {
 }
 
 void TelemetryProbesReporter::OntFirstFrameLoaded(
-    const TimeDuration& aLoadedFirstFrameTime, bool aIsMSE,
-    bool aIsExternalEngineStateMachine) {
+    const double aLoadedFirstFrameTime, const double aLoadedMetadataTime,
+    const double aTotalWaitingDataTime, const double aTotalBufferingTime,
+    const FirstFrameLoadedFlagSet aFlags) {
   const MediaInfo& info = mOwner->GetMediaInfo();
   MOZ_ASSERT(info.HasVideo());
   nsCString resolution;
   DetermineResolutionForTelemetry(info, resolution);
 
+  const bool isMSE = aFlags.contains(FirstFrameLoadedFlag::IsMSE);
+  const bool isExternalEngineStateMachine =
+      aFlags.contains(FirstFrameLoadedFlag::IsExternalEngineStateMachine);
+
   glean::media_playback::FirstFrameLoadedExtra extraData;
-  extraData.firstFrameLoadedTime = Some(aLoadedFirstFrameTime.ToMilliseconds());
-  if (!aIsMSE && !aIsExternalEngineStateMachine) {
+  extraData.firstFrameLoadedTime = Some(aLoadedFirstFrameTime);
+  extraData.metadataLoadedTime = Some(aLoadedMetadataTime);
+  extraData.totalWaitingDataTime = Some(aTotalWaitingDataTime);
+  extraData.bufferingTime = Some(aTotalBufferingTime);
+  if (!isMSE && !isExternalEngineStateMachine) {
     extraData.playbackType = Some("Non-MSE playback"_ns);
-  } else if (aIsMSE && !aIsExternalEngineStateMachine) {
+  } else if (isMSE && !isExternalEngineStateMachine) {
     extraData.playbackType = !mOwner->IsEncrypted() ? Some("MSE playback"_ns)
                                                     : Some("EME playback"_ns);
-  } else if (!aIsMSE && aIsExternalEngineStateMachine) {
+  } else if (!isMSE && isExternalEngineStateMachine) {
     extraData.playbackType = Some("Non-MSE media-engine playback"_ns);
-  } else if (aIsMSE && aIsExternalEngineStateMachine) {
+  } else if (isMSE && isExternalEngineStateMachine) {
     extraData.playbackType = !mOwner->IsEncrypted()
                                  ? Some("MSE media-engine playback"_ns)
                                  : Some("EME media-engine playback"_ns);
@@ -322,13 +330,30 @@ void TelemetryProbesReporter::OntFirstFrameLoaded(
   if (const auto keySystem = mOwner->GetKeySystem()) {
     extraData.keySystem = Some(NS_ConvertUTF16toUTF8(*keySystem));
   }
+  if (aFlags.contains(FirstFrameLoadedFlag::IsHardwareDecoding)) {
+    extraData.isHardwareDecoding = Some(true);
+  }
+
+#ifdef MOZ_WIDGET_ANDROID
+  if (aFlags.contains(FirstFrameLoadedFlag::IsHLS)) {
+    extraData.hlsDecoder = Some(true);
+  }
+#endif
 
   if (MOZ_LOG_TEST(gTelemetryProbesReporterLog, LogLevel::Debug)) {
     nsPrintfCString logMessage{
-        "Media_Playabck First_Frame_Loaded event, time(ms)=%f, "
-        "playback-type=%s, videoCodec=%s, resolution=%s",
-        aLoadedFirstFrameTime.ToMilliseconds(), extraData.playbackType->get(),
-        extraData.videoCodec->get(), extraData.resolution->get()};
+        "Media_Playabck First_Frame_Loaded event, time(ms)=["
+        "full:%f, loading-meta:%f, waiting-data:%f, buffering:%f], "
+        "playback-type=%s, "
+        "videoCodec=%s, resolution=%s, hardware=%d",
+        aLoadedFirstFrameTime,
+        aLoadedMetadataTime,
+        aTotalWaitingDataTime,
+        aTotalBufferingTime,
+        extraData.playbackType->get(),
+        extraData.videoCodec->get(),
+        extraData.resolution->get(),
+        aFlags.contains(FirstFrameLoadedFlag::IsHardwareDecoding)};
     if (const auto keySystem = mOwner->GetKeySystem()) {
       logMessage.Append(nsPrintfCString{
           ", keySystem=%s", NS_ConvertUTF16toUTF8(*keySystem).get()});
@@ -336,6 +361,7 @@ void TelemetryProbesReporter::OntFirstFrameLoaded(
     LOG("%s", logMessage.get());
   }
   glean::media_playback::first_frame_loaded.Record(Some(extraData));
+  mOwner->DispatchAsyncTestingEvent(u"mozfirstframeloadedprobe"_ns);
 }
 
 void TelemetryProbesReporter::OnShutdown() {

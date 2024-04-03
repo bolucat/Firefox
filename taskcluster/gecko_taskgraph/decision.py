@@ -355,9 +355,6 @@ def get_decision_parameters(graph_config, options):
         )
         parameters.update(PER_PROJECT_PARAMETERS["default"])
 
-    # Determine if this should be a backstop push.
-    parameters["backstop"] = is_backstop(parameters)
-
     # `target_tasks_method` has higher precedence than `project` parameters
     if options.get("target_tasks_method"):
         parameters["target_tasks_method"] = options["target_tasks_method"]
@@ -365,11 +362,7 @@ def get_decision_parameters(graph_config, options):
     # ..but can be overridden by the commit message: if it contains the special
     # string "DONTBUILD" and this is an on-push decision task, then use the
     # special 'nothing' target task method.
-    if (
-        "DONTBUILD" in commit_message
-        and options["tasks_for"] == "hg-push"
-        and not parameters["backstop"]
-    ):
+    if "DONTBUILD" in commit_message and options["tasks_for"] == "hg-push":
         parameters["target_tasks_method"] = "nothing"
 
     if options.get("include_push_tasks"):
@@ -394,6 +387,9 @@ def get_decision_parameters(graph_config, options):
 
     if options.get("optimize_target_tasks") is not None:
         parameters["optimize_target_tasks"] = options["optimize_target_tasks"]
+
+    # Determine if this should be a backstop push.
+    parameters["backstop"] = is_backstop(parameters)
 
     if "decision-parameters" in graph_config["taskgraph"]:
         find_object(graph_config["taskgraph"]["decision-parameters"])(
@@ -456,14 +452,17 @@ def set_try_config(parameters, task_config_file):
 def set_decision_indexes(decision_task_id, params, graph_config):
     index_paths = []
     if params["backstop"]:
-        index_paths.append(BACKSTOP_INDEX)
+        # When two Decision tasks run at nearly the same time, it's possible
+        # they both end up being backstops if the second checks the backstop
+        # index before the first inserts it. Insert this index first to reduce
+        # the chances of that happening.
+        index_paths.insert(0, BACKSTOP_INDEX)
 
     subs = params.copy()
     subs["trust-domain"] = graph_config["trust-domain"]
 
-    index_paths = [i.format(**subs) for i in index_paths]
     for index_path in index_paths:
-        insert_index(index_path, decision_task_id, use_proxy=True)
+        insert_index(index_path.format(**subs), decision_task_id, use_proxy=True)
 
 
 def write_artifact(filename, data):

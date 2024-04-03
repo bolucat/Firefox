@@ -813,8 +813,6 @@ nscoord nsBlockFrame::GetMinISize(gfxContext* aRenderingContext) {
     return firstInFlow->GetMinISize(aRenderingContext);
   }
 
-  DISPLAY_MIN_INLINE_SIZE(this, mCachedMinISize);
-
   CheckIntrinsicCacheAgainstShrinkWrapState();
 
   if (mCachedMinISize != NS_INTRINSIC_ISIZE_UNKNOWN) {
@@ -901,8 +899,6 @@ nscoord nsBlockFrame::GetPrefISize(gfxContext* aRenderingContext) {
   if (firstInFlow != this) {
     return firstInFlow->GetPrefISize(aRenderingContext);
   }
-
-  DISPLAY_PREF_INLINE_SIZE(this, mCachedPrefISize);
 
   CheckIntrinsicCacheAgainstShrinkWrapState();
 
@@ -1348,7 +1344,6 @@ void nsBlockFrame::Reflow(nsPresContext* aPresContext, ReflowOutput& aMetrics,
 
   MarkInReflow();
   DO_GLOBAL_REFLOW_COUNT("nsBlockFrame");
-  DISPLAY_REFLOW(aPresContext, this, aReflowInput, aMetrics, aStatus);
   MOZ_ASSERT(aStatus.IsEmpty(), "Caller should pass a fresh reflow status!");
 
 #ifdef DEBUG

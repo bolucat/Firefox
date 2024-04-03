@@ -553,19 +553,14 @@ void nsTextControlFrame::AppendAnonymousContentTo(
 }
 
 nscoord nsTextControlFrame::GetPrefISize(gfxContext* aRenderingContext) {
-  nscoord result = 0;
-  DISPLAY_PREF_INLINE_SIZE(this, result);
   WritingMode wm = GetWritingMode();
-  result = CalcIntrinsicSize(aRenderingContext, wm).ISize(wm);
-  return result;
+  return CalcIntrinsicSize(aRenderingContext, wm).ISize(wm);
 }
 
 nscoord nsTextControlFrame::GetMinISize(gfxContext* aRenderingContext) {
-  // Our min inline size is just our preferred width if we have auto inline size
-  nscoord result;
-  DISPLAY_MIN_INLINE_SIZE(this, result);
-  result = GetPrefISize(aRenderingContext);
-  return result;
+  // Our min inline size is just our preferred inline-size if we have auto
+  // inline size.
+  return GetPrefISize(aRenderingContext);
 }
 
 Maybe<nscoord> nsTextControlFrame::ComputeBaseline(
@@ -601,7 +596,6 @@ void nsTextControlFrame::Reflow(nsPresContext* aPresContext,
                                 nsReflowStatus& aStatus) {
   MarkInReflow();
   DO_GLOBAL_REFLOW_COUNT("nsTextControlFrame");
-  DISPLAY_REFLOW(aPresContext, this, aReflowInput, aDesiredSize, aStatus);
   MOZ_ASSERT(aStatus.IsEmpty(), "Caller should pass a fresh reflow status!");
 
   // set values of reflow's out parameters
