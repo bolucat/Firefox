@@ -119,6 +119,11 @@ void uiaRawElmProvider::RaiseUiaEventForStateChange(Accessible* aAcc,
       newVal.vt = VT_I4;
       newVal.lVal = ToExpandCollapseState(aEnabled ? aState : 0);
       break;
+    case states::UNAVAILABLE:
+      property = UIA_IsEnabledPropertyId;
+      newVal.vt = VT_BOOL;
+      newVal.boolVal = aEnabled ? VARIANT_FALSE : VARIANT_TRUE;
+      break;
     default:
       return;
   }
@@ -145,6 +150,8 @@ uiaRawElmProvider::QueryInterface(REFIID aIid, void** aInterface) {
     *aInterface = static_cast<IExpandCollapseProvider*>(this);
   } else if (aIid == IID_IInvokeProvider) {
     *aInterface = static_cast<IInvokeProvider*>(this);
+  } else if (aIid == IID_IScrollItemProvider) {
+    *aInterface = static_cast<IScrollItemProvider*>(this);
   } else if (aIid == IID_IToggleProvider) {
     *aInterface = static_cast<IToggleProvider*>(this);
   } else {
@@ -260,6 +267,11 @@ uiaRawElmProvider::GetPatternProvider(
         invoke.forget(aPatternProvider);
       }
       return S_OK;
+    case UIA_ScrollItemPatternId: {
+      RefPtr<IScrollItemProvider> scroll = this;
+      scroll.forget(aPatternProvider);
+      return S_OK;
+    }
     case UIA_TogglePatternId:
       if (HasTogglePattern()) {
         RefPtr<IToggleProvider> toggle = this;
@@ -414,6 +426,12 @@ uiaRawElmProvider::GetPropertyValue(PROPERTYID aPropertyId,
     case UIA_IsControlElementPropertyId:
       aPropertyValue->vt = VT_BOOL;
       aPropertyValue->boolVal = IsControl() ? VARIANT_TRUE : VARIANT_FALSE;
+      return S_OK;
+
+    case UIA_IsEnabledPropertyId:
+      aPropertyValue->vt = VT_BOOL;
+      aPropertyValue->boolVal =
+          (acc->State() & states::UNAVAILABLE) ? VARIANT_FALSE : VARIANT_TRUE;
       return S_OK;
 
     case UIA_IsKeyboardFocusablePropertyId:
@@ -646,6 +664,17 @@ uiaRawElmProvider::get_ExpandCollapseState(
     return CO_E_OBJNOTCONNECTED;
   }
   *aRetVal = ToExpandCollapseState(acc->State());
+  return S_OK;
+}
+
+// IScrollItemProvider methods
+
+MOZ_CAN_RUN_SCRIPT_BOUNDARY STDMETHODIMP uiaRawElmProvider::ScrollIntoView() {
+  Accessible* acc = Acc();
+  if (!acc) {
+    return CO_E_OBJNOTCONNECTED;
+  }
+  acc->ScrollTo(nsIAccessibleScrollType::SCROLL_TYPE_ANYWHERE);
   return S_OK;
 }
 

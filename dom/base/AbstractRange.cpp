@@ -267,15 +267,23 @@ nsINode* AbstractRange::GetClosestCommonInclusiveAncestor(
       return startContainer ? startContainer->GetComposedDoc()
                             : endContainer->GetComposedDoc();
     }
-    // RangeBoundary allows the container to be shadow roots; When
-    // this happens, we should use the shadow host here.
-    if (startContainer->IsShadowRoot()) {
-      startContainer = startContainer->GetContainingShadowHost();
-    }
-    if (endContainer->IsShadowRoot()) {
-      endContainer = endContainer->GetContainingShadowHost();
-    }
-    return nsContentUtils::GetCommonFlattenedTreeAncestor(
+
+    const auto rescope = [](nsINode*& aContainer) {
+      if (!aContainer) {
+        return;
+      }
+      // RangeBoundary allows the container to be shadow roots; When
+      // this happens, we should use the shadow host here.
+      if (auto* shadowRoot = ShadowRoot::FromNode(aContainer)) {
+        aContainer = shadowRoot->GetHost();
+        return;
+      }
+    };
+
+    rescope(startContainer);
+    rescope(endContainer);
+
+    return nsContentUtils::GetCommonFlattenedTreeAncestorForSelection(
         startContainer ? startContainer->AsContent() : nullptr,
         endContainer ? endContainer->AsContent() : nullptr);
   }
@@ -341,8 +349,15 @@ nsresult AbstractRange::SetStartAndEndInternal(
       // which they have been collapsed to one end, and it also may have a pair
       // of start and end which are the original value.
       aRange->DoSetRange(aEndBoundary, aEndBoundary, newEndRoot);
-      aRange->AsDynamicRange()->CreateOrUpdateCrossShadowBoundaryRangeIfNeeded(
-          aStartBoundary, aEndBoundary);
+
+      // Don't create the cross shadow bounday range if the one of the roots is
+      // an UA widget regardless whether the boundaries are allowed to cross
+      // shadow boundary or not.
+      if (!IsRootUAWidget(newStartRoot) && !IsRootUAWidget(newEndRoot)) {
+        aRange->AsDynamicRange()
+            ->CreateOrUpdateCrossShadowBoundaryRangeIfNeeded(aStartBoundary,
+                                                             aEndBoundary);
+      }
     }
     return NS_OK;
   }
@@ -556,4 +571,12 @@ void AbstractRange::ClearForReuse() {
   mCalledByJS = false;
 }
 
+/*static*/
+bool AbstractRange::IsRootUAWidget(const nsINode* aRoot) {
+  MOZ_ASSERT(aRoot);
+  if (const ShadowRoot* shadowRoot = ShadowRoot::FromNode(aRoot)) {
+    return shadowRoot->IsUAWidget();
+  }
+  return false;
+}
 }  // namespace mozilla::dom

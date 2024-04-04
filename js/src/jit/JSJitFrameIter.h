@@ -177,6 +177,9 @@ class JSJitFrameIter {
     return type_ == FrameType::BaselineInterpreterEntry;
   }
   bool isRectifier() const { return type_ == FrameType::Rectifier; }
+  bool isTrampolineNative() const {
+    return type_ == FrameType::TrampolineNative;
+  }
   bool isBareExit() const;
   bool isUnwoundJitExit() const;
   template <typename T>
@@ -494,6 +497,42 @@ class SnapshotIterator {
   SnapshotIterator();
 
   Value read() { return allocationValue(readAllocation()); }
+
+  int32_t readInt32() {
+    Value val = read();
+    MOZ_RELEASE_ASSERT(val.isInt32());
+    return val.toInt32();
+  }
+
+  double readNumber() {
+    Value val = read();
+    MOZ_RELEASE_ASSERT(val.isNumber());
+    return val.toNumber();
+  }
+
+  JSString* readString() {
+    Value val = read();
+    MOZ_RELEASE_ASSERT(val.isString());
+    return val.toString();
+  }
+
+  JS::BigInt* readBigInt() {
+    Value val = read();
+    MOZ_RELEASE_ASSERT(val.isBigInt());
+    return val.toBigInt();
+  }
+
+  JSObject* readObject() {
+    Value val = read();
+    MOZ_RELEASE_ASSERT(val.isObject());
+    return &val.toObject();
+  }
+
+  JS::GCCellPtr readGCCellPtr() {
+    Value val = read();
+    MOZ_RELEASE_ASSERT(val.isGCThing());
+    return val.toGCCellPtr();
+  }
 
   // Read the |Normal| value unless it is not available and that the snapshot
   // provides a |Default| value. This is useful to avoid invalidations of the

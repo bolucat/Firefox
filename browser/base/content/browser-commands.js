@@ -196,6 +196,10 @@ var BrowserCommands = {
     }
   },
 
+  stop() {
+    gBrowser.webNavigation.stop(Ci.nsIWebNavigation.STOP_ALL);
+  },
+
   home(aEvent) {
     if (aEvent?.button == 2) {
       // right-click: do nothing
@@ -279,5 +283,99 @@ var BrowserCommands = {
       // becomes the active page.
       Services.obs.notifyObservers(null, "browser-open-homepage-start");
     }
+  },
+
+  openTab({ event, url } = {}) {
+    let werePassedURL = !!url;
+    url ??= BROWSER_NEW_TAB_URL;
+    let searchClipboard =
+      gMiddleClickNewTabUsesPasteboard && event?.button == 1;
+
+    let relatedToCurrent = false;
+    let where = "tab";
+
+    if (event) {
+      where = whereToOpenLink(event, false, true);
+
+      switch (where) {
+        case "tab":
+        case "tabshifted":
+          // When accel-click or middle-click are used, open the new tab as
+          // related to the current tab.
+          relatedToCurrent = true;
+          break;
+        case "current":
+          where = "tab";
+          break;
+      }
+    }
+
+    // A notification intended to be useful for modular peformance tracking
+    // starting as close as is reasonably possible to the time when the user
+    // expressed the intent to open a new tab.  Since there are a lot of
+    // entry points, this won't catch every single tab created, but most
+    // initiated by the user should go through here.
+    //
+    // Note 1: This notification gets notified with a promise that resolves
+    //         with the linked browser when the tab gets created
+    // Note 2: This is also used to notify a user that an extension has changed
+    //         the New Tab page.
+    Services.obs.notifyObservers(
+      {
+        wrappedJSObject: new Promise(resolve => {
+          let options = {
+            relatedToCurrent,
+            resolveOnNewTabCreated: resolve,
+          };
+          if (!werePassedURL && searchClipboard) {
+            let clipboard = readFromClipboard();
+            clipboard =
+              UrlbarUtils.stripUnsafeProtocolOnPaste(clipboard).trim();
+            if (clipboard) {
+              url = clipboard;
+              options.allowThirdPartyFixup = true;
+            }
+          }
+          openTrustedLinkIn(url, where, options);
+        }),
+      },
+      "browser-open-newtab-start"
+    );
+  },
+
+  openFileWindow() {
+    // Get filepicker component.
+    try {
+      const nsIFilePicker = Ci.nsIFilePicker;
+      const fp = Cc["@mozilla.org/filepicker;1"].createInstance(nsIFilePicker);
+      const fpCallback = function fpCallback_done(aResult) {
+        if (aResult == nsIFilePicker.returnOK) {
+          try {
+            if (fp.file) {
+              gLastOpenDirectory.path = fp.file.parent.QueryInterface(
+                Ci.nsIFile
+              );
+            }
+          } catch (ex) {}
+          openTrustedLinkIn(fp.fileURL.spec, "current");
+        }
+      };
+
+      fp.init(
+        window.browsingContext,
+        gNavigatorBundle.getString("openFile"),
+        nsIFilePicker.modeOpen
+      );
+      fp.appendFilters(
+        nsIFilePicker.filterAll |
+          nsIFilePicker.filterText |
+          nsIFilePicker.filterImages |
+          nsIFilePicker.filterXML |
+          nsIFilePicker.filterHTML |
+          nsIFilePicker.filterPDF
+      );
+      fp.displayDirectory = gLastOpenDirectory.path;
+      fp.open(fpCallback);
+    } catch (ex) {}
   },
 };

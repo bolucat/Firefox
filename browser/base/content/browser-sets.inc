@@ -19,9 +19,9 @@
     <command id="cmd_handleBackspace" oncommand="BrowserCommands.handleBackspace();" />
     <command id="cmd_handleShiftBackspace" oncommand="BrowserCommands.handleShiftBackspace();" />
 
-    <command id="cmd_newNavigatorTab" oncommand="BrowserOpenTab({ event });"/>
-    <command id="cmd_newNavigatorTabNoEvent" oncommand="BrowserOpenTab();"/>
-    <command id="Browser:OpenFile"  oncommand="BrowserOpenFileWindow();"/>
+    <command id="cmd_newNavigatorTab" oncommand="BrowserCommands.openTab({ event });"/>
+    <command id="cmd_newNavigatorTabNoEvent" oncommand="BrowserCommands.openTab();"/>
+    <command id="Browser:OpenFile"  oncommand="BrowserCommands.openFileWindow();"/>
     <command id="Browser:SavePage" oncommand="saveBrowser(gBrowser.selectedBrowser);"/>
 
     <command id="Browser:SendLink"
@@ -68,7 +68,7 @@
     <command id="Browser:ForwardOrForwardDuplicate" oncommand="BrowserCommands.forward(event);" disabled="true">
       <observes element="Browser:Forward" attribute="disabled"/>
     </command>
-    <command id="Browser:Stop"    oncommand="BrowserStop();" disabled="true"/>
+    <command id="Browser:Stop"    oncommand="BrowserCommands.stop();" disabled="true"/>
     <command id="Browser:Reload"  oncommand="if (event.shiftKey) BrowserCommands.reloadSkipCache(); else BrowserCommands.reload()" disabled="true"/>
     <command id="Browser:ReloadOrDuplicate" oncommand="BrowserCommands.reloadOrDuplicate(event)" disabled="true">
       <observes element="Browser:Reload" attribute="disabled"/>

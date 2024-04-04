@@ -1,7 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 #include "nsRFPService.h"
 
@@ -110,6 +110,8 @@ static mozilla::LazyLogModule gFingerprinterDetection("FingerprinterDetection");
 #define LAST_PB_SESSION_EXITED_TOPIC "last-pb-context-exited"
 #define IDLE_TOPIC "browser-idle-startup-tasks-finished"
 #define GFX_FEATURES "gfx-features-ready"
+#define USER_CHARACTERISTICS_TEST_REQUEST \
+  "user-characteristics-testing-please-populate-data"
 
 static constexpr uint32_t kVideoFramesPerSec = 30;
 static constexpr uint32_t kVideoDroppedRatio = 5;
@@ -190,6 +192,9 @@ nsresult nsRFPService::Init() {
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = obs->AddObserver(this, GFX_FEATURES, false);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = obs->AddObserver(this, USER_CHARACTERISTICS_TEST_REQUEST, false);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -290,6 +295,7 @@ void nsRFPService::StartShutdown() {
       obs->RemoveObserver(this, OBSERVER_TOPIC_IDLE_DAILY);
       obs->RemoveObserver(this, IDLE_TOPIC);
       obs->RemoveObserver(this, GFX_FEATURES);
+      obs->RemoveObserver(this, USER_CHARACTERISTICS_TEST_REQUEST);
     }
   }
 
@@ -349,6 +355,12 @@ nsRFPService::Observe(nsISupports* aObject, const char* aTopic,
     if (seenTopicsForUserCharacteristics == kNumTopicsForUserCharacteristics) {
       nsUserCharacteristics::MaybeSubmitPing();
     }
+  }
+
+  if (!strcmp(USER_CHARACTERISTICS_TEST_REQUEST, aTopic) &&
+      xpc::IsInAutomation()) {
+    nsUserCharacteristics::PopulateDataAndEventuallySubmit(
+        /* aUpdatePref = */ false, /* aTesting = */ true);
   }
 
   if (!strcmp(OBSERVER_TOPIC_IDLE_DAILY, aTopic)) {

@@ -2634,7 +2634,7 @@ function HandleAppCommandEvent(evt) {
       break;
     case "Stop":
       if (XULBrowserWindow.stopCommand.getAttribute("disabled") != "true") {
-        BrowserStop();
+        BrowserCommands.stop();
       }
       break;
     case "Search":
@@ -2647,7 +2647,7 @@ function HandleAppCommandEvent(evt) {
       BrowserCommands.home();
       break;
     case "New":
-      BrowserOpenTab();
+      BrowserCommands.openTab();
       break;
     case "Close":
       BrowserCloseTabOrWindow();
@@ -2659,7 +2659,7 @@ function HandleAppCommandEvent(evt) {
       openHelpLink("firefox-help");
       break;
     case "Open":
-      BrowserOpenFileWindow();
+      BrowserCommands.openFileWindow();
       break;
     case "Print":
       PrintUtils.startPrintWindow(gBrowser.selectedBrowser.browsingContext);
@@ -2675,10 +2675,6 @@ function HandleAppCommandEvent(evt) {
   }
   evt.stopPropagation();
   evt.preventDefault();
-}
-
-function BrowserStop() {
-  gBrowser.webNavigation.stop(Ci.nsIWebNavigation.STOP_ALL);
 }
 
 function loadOneOrMoreURIs(aURIString, aTriggeringPrincipal, aCsp) {
@@ -2729,62 +2725,6 @@ function openLocation(event) {
   );
 }
 
-function BrowserOpenTab({ event, url } = {}) {
-  let werePassedURL = !!url;
-  url ??= BROWSER_NEW_TAB_URL;
-  let searchClipboard = gMiddleClickNewTabUsesPasteboard && event?.button == 1;
-
-  let relatedToCurrent = false;
-  let where = "tab";
-
-  if (event) {
-    where = whereToOpenLink(event, false, true);
-
-    switch (where) {
-      case "tab":
-      case "tabshifted":
-        // When accel-click or middle-click are used, open the new tab as
-        // related to the current tab.
-        relatedToCurrent = true;
-        break;
-      case "current":
-        where = "tab";
-        break;
-    }
-  }
-
-  // A notification intended to be useful for modular peformance tracking
-  // starting as close as is reasonably possible to the time when the user
-  // expressed the intent to open a new tab.  Since there are a lot of
-  // entry points, this won't catch every single tab created, but most
-  // initiated by the user should go through here.
-  //
-  // Note 1: This notification gets notified with a promise that resolves
-  //         with the linked browser when the tab gets created
-  // Note 2: This is also used to notify a user that an extension has changed
-  //         the New Tab page.
-  Services.obs.notifyObservers(
-    {
-      wrappedJSObject: new Promise(resolve => {
-        let options = {
-          relatedToCurrent,
-          resolveOnNewTabCreated: resolve,
-        };
-        if (!werePassedURL && searchClipboard) {
-          let clipboard = readFromClipboard();
-          clipboard = UrlbarUtils.stripUnsafeProtocolOnPaste(clipboard).trim();
-          if (clipboard) {
-            url = clipboard;
-            options.allowThirdPartyFixup = true;
-          }
-        }
-        openTrustedLinkIn(url, where, options);
-      }),
-    },
-    "browser-open-newtab-start"
-  );
-}
-
 var gLastOpenDirectory = {
   _lastDir: null,
   get path() {
@@ -2824,40 +2764,6 @@ var gLastOpenDirectory = {
     this._lastDir = null;
   },
 };
-
-function BrowserOpenFileWindow() {
-  // Get filepicker component.
-  try {
-    const nsIFilePicker = Ci.nsIFilePicker;
-    let fp = Cc["@mozilla.org/filepicker;1"].createInstance(nsIFilePicker);
-    let fpCallback = function fpCallback_done(aResult) {
-      if (aResult == nsIFilePicker.returnOK) {
-        try {
-          if (fp.file) {
-            gLastOpenDirectory.path = fp.file.parent.QueryInterface(Ci.nsIFile);
-          }
-        } catch (ex) {}
-        openTrustedLinkIn(fp.fileURL.spec, "current");
-      }
-    };
-
-    fp.init(
-      window.browsingContext,
-      gNavigatorBundle.getString("openFile"),
-      nsIFilePicker.modeOpen
-    );
-    fp.appendFilters(
-      nsIFilePicker.filterAll |
-        nsIFilePicker.filterText |
-        nsIFilePicker.filterImages |
-        nsIFilePicker.filterXML |
-        nsIFilePicker.filterHTML |
-        nsIFilePicker.filterPDF
-    );
-    fp.displayDirectory = gLastOpenDirectory.path;
-    fp.open(fpCallback);
-  } catch (ex) {}
-}
 
 function BrowserCloseTabOrWindow(event) {
   // If we're not a browser window, just close the window.
@@ -5814,7 +5720,7 @@ nsBrowserAccess.prototype = {
     }
 
     if (aIsExternal && (!aURI || aURI.spec == "about:blank")) {
-      win.BrowserOpenTab(); // this also focuses the location bar
+      win.BrowserCommands.openTab(); // this also focuses the location bar
       win.focus();
       return win.gBrowser.selectedBrowser;
     }

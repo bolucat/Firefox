@@ -1313,6 +1313,13 @@ static bool DrainJobQueue(JSContext* cx, unsigned argc, Value* vp) {
     return false;
   }
 
+  if (cx->isEvaluatingModule != 0) {
+    JS_ReportErrorASCII(
+        cx,
+        "Can't drain the job queue when executing the top level of a module");
+    return false;
+  }
+
   RunShellJobs(cx);
 
   if (GetShellContext(cx)->quitting) {
@@ -5456,7 +5463,7 @@ static bool ModuleLink(JSContext* cx, unsigned argc, Value* vp) {
 
   Rooted<ModuleObject*> module(cx,
                                object->as<ShellModuleObjectWrapper>().get());
-  if (!js::ModuleLink(cx, module)) {
+  if (!JS::ModuleLink(cx, module)) {
     return false;
   }
 
@@ -5485,7 +5492,7 @@ static bool ModuleEvaluate(JSContext* cx, unsigned argc, Value* vp) {
 
     Rooted<ModuleObject*> module(cx,
                                  object->as<ShellModuleObjectWrapper>().get());
-    if (!js::ModuleEvaluate(cx, module, args.rval())) {
+    if (!JS::ModuleEvaluate(cx, module, args.rval())) {
       return false;
     }
   }
