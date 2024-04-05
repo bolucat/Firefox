@@ -200,13 +200,7 @@ addUiaTask(
         "summary has ExpandCollapseState_Expanded"
       );
       info("Calling Expand on summary");
-      let failed = false;
-      try {
-        await runPython(`pattern.Expand()`);
-      } catch {
-        failed = true;
-      }
-      ok(failed, "Expand on summary failed");
+      await testPythonRaises(`pattern.Expand()`, "Expand on summary failed");
       info("Calling Collapse on summary");
       await setUpWaitForUiaPropEvent(
         "ExpandCollapseExpandCollapseState",
@@ -224,13 +218,10 @@ addUiaTask(
         "summary has ExpandCollapseState_Collapsed"
       );
       info("Calling Collapse on summary");
-      failed = false;
-      try {
-        await runPython(`pattern.Collapse()`);
-      } catch {
-        failed = true;
-      }
-      ok(failed, "Collapse on summary failed");
+      await testPythonRaises(
+        `pattern.Collapse()`,
+        "Collapse on summary failed"
+      );
     }
 
     await assignPyVarToUiaWithId("popup");
@@ -290,5 +281,165 @@ addUiaTask(
     await scrolled;
     ok(true, "Document scrolled");
     testStates(button, 0, 0, STATE_OFFSCREEN);
+  }
+);
+
+/**
+ * Test the Value pattern.
+ */
+addUiaTask(
+  `
+<input id="text" value="before">
+<input id="textRo" readonly value="textRo">
+<input id="textDis" disabled value="textDis">
+<select id="select"><option selected>a</option><option>b</option></select>
+<progress id="progress" value="0.5"></progress>
+<input id="range" type="range" aria-valuetext="02:00:00">
+<a id="link" href="https://example.com/">Link</a>
+<div id="ariaTextbox" contenteditable role="textbox">before</div>
+<button id="button">button</button>
+  `,
+  async function testValue() {
+    await definePyVar("doc", `getDocUia()`);
+    await assignPyVarToUiaWithId("text");
+    await definePyVar("pattern", `getUiaPattern(text, "Value")`);
+    ok(await runPython(`bool(pattern)`), "text has Value pattern");
+    ok(
+      !(await runPython(`pattern.CurrentIsReadOnly`)),
+      "text has IsReadOnly false"
+    );
+    is(
+      await runPython(`pattern.CurrentValue`),
+      "before",
+      "text has correct Value"
+    );
+    info("SetValue on text");
+    await setUpWaitForUiaPropEvent("ValueValue", "text");
+    await runPython(`pattern.SetValue("after")`);
+    await waitForUiaEvent();
+    is(
+      await runPython(`pattern.CurrentValue`),
+      "after",
+      "text has correct Value"
+    );
+
+    await assignPyVarToUiaWithId("textRo");
+    await definePyVar("pattern", `getUiaPattern(textRo, "Value")`);
+    ok(await runPython(`bool(pattern)`), "textRo has Value pattern");
+    ok(
+      await runPython(`pattern.CurrentIsReadOnly`),
+      "textRo has IsReadOnly true"
+    );
+    is(
+      await runPython(`pattern.CurrentValue`),
+      "textRo",
+      "textRo has correct Value"
+    );
+    info("SetValue on textRo");
+    await testPythonRaises(
+      `pattern.SetValue("after")`,
+      "SetValue on textRo failed"
+    );
+
+    await assignPyVarToUiaWithId("textDis");
+    await definePyVar("pattern", `getUiaPattern(textDis, "Value")`);
+    ok(await runPython(`bool(pattern)`), "textDis has Value pattern");
+    ok(
+      !(await runPython(`pattern.CurrentIsReadOnly`)),
+      "textDis has IsReadOnly false"
+    );
+    is(
+      await runPython(`pattern.CurrentValue`),
+      "textDis",
+      "textDis has correct Value"
+    );
+    // The IA2 -> UIA proxy doesn't fail SetValue for a disabled element.
+    if (gIsUiaEnabled) {
+      info("SetValue on textDis");
+      await testPythonRaises(
+        `pattern.SetValue("after")`,
+        "SetValue on textDis failed"
+      );
+    }
+
+    await assignPyVarToUiaWithId("select");
+    await definePyVar("pattern", `getUiaPattern(select, "Value")`);
+    ok(await runPython(`bool(pattern)`), "select has Value pattern");
+    ok(
+      !(await runPython(`pattern.CurrentIsReadOnly`)),
+      "select has IsReadOnly false"
+    );
+    is(
+      await runPython(`pattern.CurrentValue`),
+      "a",
+      "select has correct Value"
+    );
+    info("SetValue on select");
+    await testPythonRaises(
+      `pattern.SetValue("b")`,
+      "SetValue on select failed"
+    );
+
+    await assignPyVarToUiaWithId("progress");
+    await definePyVar("pattern", `getUiaPattern(progress, "Value")`);
+    ok(await runPython(`bool(pattern)`), "progress has Value pattern");
+    // Gecko a11y doesn't treat progress bars as read only, but it probably
+    // should.
+    todo(
+      await runPython(`pattern.CurrentIsReadOnly`),
+      "progress has IsReadOnly true"
+    );
+    is(
+      await runPython(`pattern.CurrentValue`),
+      "50%",
+      "progress has correct Value"
+    );
+    info("SetValue on progress");
+    await testPythonRaises(
+      `pattern.SetValue("60%")`,
+      "SetValue on progress failed"
+    );
+
+    await assignPyVarToUiaWithId("range");
+    await definePyVar("pattern", `getUiaPattern(range, "Value")`);
+    ok(await runPython(`bool(pattern)`), "range has Value pattern");
+    is(
+      await runPython(`pattern.CurrentValue`),
+      "02:00:00",
+      "range has correct Value"
+    );
+
+    await assignPyVarToUiaWithId("link");
+    await definePyVar("pattern", `getUiaPattern(link, "Value")`);
+    ok(await runPython(`bool(pattern)`), "link has Value pattern");
+    is(
+      await runPython(`pattern.CurrentValue`),
+      "https://example.com/",
+      "link has correct Value"
+    );
+
+    await assignPyVarToUiaWithId("ariaTextbox");
+    await definePyVar("pattern", `getUiaPattern(ariaTextbox, "Value")`);
+    ok(await runPython(`bool(pattern)`), "ariaTextbox has Value pattern");
+    ok(
+      !(await runPython(`pattern.CurrentIsReadOnly`)),
+      "ariaTextbox has IsReadOnly false"
+    );
+    is(
+      await runPython(`pattern.CurrentValue`),
+      "before",
+      "ariaTextbox has correct Value"
+    );
+    info("SetValue on ariaTextbox");
+    await setUpWaitForUiaPropEvent("ValueValue", "ariaTextbox");
+    await runPython(`pattern.SetValue("after")`);
+    await waitForUiaEvent();
+    is(
+      await runPython(`pattern.CurrentValue`),
+      "after",
+      "ariaTextbox has correct Value"
+    );
+
+    await testPatternAbsent("button", "Value");
   }
 );

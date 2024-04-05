@@ -1038,7 +1038,7 @@ bool SchemeIsFTP(nsIURI* aURI);
 // step 2.1 in https://url.spec.whatwg.org/#scheme-state
 bool SchemeIsSpecial(const nsACString&);
 bool IsSchemeChangePermitted(nsIURI*, const nsACString&);
-already_AddRefed<nsIURI> TryChangeProtocol(nsIURI*, const nsAString&);
+already_AddRefed<nsIURI> TryChangeProtocol(nsIURI*, const nsACString&);
 
 struct LinkHeader {
   nsString mHref;
@@ -1116,6 +1116,8 @@ nsresult HasRootDomain(const nsACString& aInput, const nsACString& aHost,
 void CheckForBrokenChromeURL(nsILoadInfo* aLoadInfo, nsIURI* aURI);
 
 bool IsCoepCredentiallessEnabled(bool aIsOriginTrialCoepCredentiallessEnabled);
+
+void ParseSimpleURISchemes(const nsACString& schemeList);
 
 }  // namespace net
 }  // namespace mozilla

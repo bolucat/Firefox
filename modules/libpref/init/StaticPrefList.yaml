@@ -4135,6 +4135,12 @@
   value: false
   mirror: always
 
+- name: dom.text_fragments.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+  rust: true
+
 - name: dom.textMetrics.actualBoundingBox.enabled
   type: RelaxedAtomicBool
   value: true
@@ -5115,15 +5121,6 @@
 - name: fission.processProfileName
   type: bool
   value: false
-  mirror: always
-
-# If true, allow process-switching documents loaded by <object> and <embed>
-# elements into a remote process.
-# NOTE: This pref has no impact outside of windows with the
-# `useRemoteSubframes` flag set.
-- name: fission.remoteObjectEmbed
-  type: bool
-  value: true
   mirror: always
 
 # The strategy used to control how sites are isolated into separate processes
@@ -11186,6 +11183,12 @@
     mirror: always
 #endif
 
+# Bug 1860492 - Deprecate and remove theora
+-  name: media.theora.enabled
+   type: RelaxedAtomicBool
+   value: @IS_NOT_NIGHTLY_BUILD@
+   mirror: always
+
 #---------------------------------------------------------------------------
 # Prefs starting with "memory."
 #---------------------------------------------------------------------------
@@ -11909,7 +11912,7 @@
 # (e.g. `<script>`) is enabled.
 - name: network.fetchpriority.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Adjustments to apply to the internal priority of <link rel=preload as=script
@@ -12761,6 +12764,19 @@
   value: false
   mirror: always
 
+# Allows use of a protocol exception list that will bypass defaultURI parser
+- name: network.url.some_schemes_bypass_defaultURI_fallback
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+# A list of schemes to allow for bypassing defaultURI as default
+# This is only used when network.url.some_schemes_bypass_defaultURI_fallback is true
+- name: network.url.simple_uri_schemes
+  type: String
+  value: ""
+  mirror: never
+
 # The maximum allowed length for a URL - 32MB default.
 # If 0 that means no limit.
 - name: network.url.max-length
@@ -12829,6 +12845,16 @@
 - name: network.http.http2.coalesce-hostnames
   type: RelaxedAtomicBool
   value: true
+  mirror: always
+
+# When true, origin A and origin B will be coalesced if they have an overlap
+# in IP addresses as advertized by DNS, regardless if the existing connection
+# to origin A is not to an IP present in B's DNS response.
+# When false, an existing connection will only be reused if the
+# connection's remote IP is also present in B's DNS response.
+- name: network.http.http2.aggressive_coalescing
+  type: RelaxedAtomicBool
+  value: false
   mirror: always
 
 - name: network.http.http2.ping-threshold

@@ -13,6 +13,7 @@
  * https://drafts.csswg.org/cssom/#extensions-to-the-document-interface
  * https://drafts.csswg.org/cssom-view/#extensions-to-the-document-interface
  * https://wicg.github.io/feature-policy/#policy
+ * https://wicg.github.io/scroll-to-text-fragment/#feature-detectability
  */
 
 interface ContentSecurityPolicy;
@@ -154,7 +155,7 @@ partial interface Document {
 
   [PutForwards=href, LegacyUnforgeable] readonly attribute Location? location;
   [SetterThrows]                           attribute DOMString domain;
-  readonly attribute DOMString referrer;
+  readonly attribute UTF8String referrer;
   [Throws] attribute DOMString cookie;
   readonly attribute DOMString lastModified;
   readonly attribute DOMString readyState;
@@ -747,3 +748,12 @@ partial interface Document {
 };
 
 Document includes NonElementParentNode;
+
+/**
+ * Extension to add the fragmentDirective property.
+ * https://wicg.github.io/scroll-to-text-fragment/#feature-detectability
+ */
+partial interface Document {
+    [Pref="dom.text_fragments.enabled", SameObject]
+    readonly attribute FragmentDirective fragmentDirective;
+};

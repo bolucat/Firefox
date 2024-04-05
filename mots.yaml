@@ -8,7 +8,7 @@
 # documentation and how to modify this file.
 repo: mozilla-central
 created_at: '2021-10-14T12:50:40.073465'
-updated_at: '2024-04-03T10:44:37.118446'
+updated_at: '2024-04-04T19:44:57.780772'
 export:
   path: ./docs/mots/index.rst
   format: rst
@@ -845,7 +845,7 @@ people:
     nick: ryan.sleevi
   - &saschanaz
     bmo_id: 473060
-    name: Kagami
+    name: Kagami Rosylight
     nick: saschanaz
   - &Sasha
     bmo_id: 704132
@@ -2253,6 +2253,28 @@ modules:
       - *mossop
     machine_name: core_nodejs_usage_tools_and_style
 
+  - name: 'Core: Notifications'
+    description: The infrastructure for Web Notifications API and the Firefox Desktop
+      notifications.
+    includes:
+      - dom/notification/**/*
+      - toolkit/components/alerts/**/*
+      - toolkit/system/gnome/nsAlertsIconListener*
+      - toolkit/system/gnome/nsSystemAlertsService*
+      - widget/windows/ToastNotification*
+      - widget/cocoa/OSXNotificationCenter*
+    meta:
+      group: dev-platform
+      components:
+        - 'Core::DOM: Notifications'
+        - Toolkit::Alerts Service
+    owners:
+      - *saschanaz
+    peers:
+      - *nalexander
+      - *nrishel
+    machine_name: core_notifications
+
   - name: 'Core: NSPR'
     description: Netscape Portable Runtime
     includes:
@@ -2406,6 +2428,7 @@ modules:
       web applications.
     includes:
       - dom/push/**/*
+      - dom/interfaces/push/**/*
     meta:
       owners_emeritus:
         - Doug Turner
@@ -2415,7 +2438,7 @@ modules:
         - Dragana Damjanovic
         - *mt
       components:
-        - 'Core::DOM: Notifications'
+        - 'Core::DOM: Push Subscriptions'
     peers: []
     machine_name: core_push_subscriptions
 
@@ -4215,5 +4238,5 @@ modules:
         - Ryan Tilder
       group: dev-platform
 hashes:
-  config: 20f0fcbf456adb6c635b7565b9f57d7b13f0bb85
-  export: a3e3795c00cfb9241207b69cdf1f8eb7639301fe
+  config: 1650f8aa7595ca3b30f71f18cad0b42b9e957137
+  export: 760771e343bdf7a45922c80e4643fe0f71fd3be6

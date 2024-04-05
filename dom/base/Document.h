@@ -244,6 +244,7 @@ class EventListener;
 struct FailedCertSecurityInfo;
 class FeaturePolicy;
 class FontFaceSet;
+class FragmentDirective;
 class FrameRequestCallback;
 class ImageTracker;
 class HighlightRegistry;
@@ -3272,7 +3273,7 @@ class Document : public nsINode,
   void SetDomain(const nsAString& aDomain, mozilla::ErrorResult& rv);
   void GetCookie(nsAString& aCookie, mozilla::ErrorResult& rv);
   void SetCookie(const nsAString& aCookie, mozilla::ErrorResult& rv);
-  void GetReferrer(nsAString& aReferrer) const;
+  void GetReferrer(nsACString& aReferrer) const;
   void GetLastModified(nsAString& aLastModified) const;
   void GetReadyState(nsAString& aReadyState) const;
 
@@ -4090,6 +4091,13 @@ class Document : public nsINode,
    * with this document.
    */
   class HighlightRegistry& HighlightRegistry();
+
+  /**
+   * @brief Returns the `FragmentDirective` object which contains information
+   * and functionality to extract or create text directives.
+   * Guaranteed to be non-null.
+   */
+  class FragmentDirective* FragmentDirective();
 
   bool ShouldResistFingerprinting(RFPTarget aTarget) const;
   bool IsInPrivateBrowsing() const;
@@ -5369,6 +5377,7 @@ class Document : public nsINode,
   nsTArray<CanvasUsage> mCanvasUsage;
   uint64_t mLastCanvasUsage = 0;
 
+  RefPtr<class FragmentDirective> mFragmentDirective;
   UniquePtr<RadioGroupContainer> mRadioGroupContainer;
 
  public:
