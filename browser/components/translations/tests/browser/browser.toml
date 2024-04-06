@@ -109,6 +109,30 @@ skip-if = ["os == 'linux' && !debug"] # Bug 1863227
 
 ["browser_translations_select_context_menu_with_text_selected.js"]
 
-["browser_translations_select_panel_language_selectors.js"]
+["browser_translations_select_panel_engine_cache.js"]
 
-["browser_translations_select_panel_mainview_ui.js"]
+["browser_translations_select_panel_fallback_to_doc_language.js"]
+
+["browser_translations_select_panel_open_to_idle_state.js"]
+
+["browser_translations_select_panel_retranslate_on_change_language_directly.js"]
+
+["browser_translations_select_panel_retranslate_on_change_language_from_dropdown_menu.js"]
+
+["browser_translations_select_panel_select_current_language_directly.js"]
+
+["browser_translations_select_panel_select_current_language_from_dropdown_menu.js"]
+
+["browser_translations_select_panel_select_same_from_and_to_languages_directly.js"]
+
+["browser_translations_select_panel_select_same_from_and_to_languages_from_dropdown_menu.js"]
+
+["browser_translations_select_panel_translate_on_change_language_directly.js"]
+
+["browser_translations_select_panel_translate_on_change_language_from_dropdown_menu.js"]
+
+["browser_translations_select_panel_translate_on_change_language_multiple_times_directly.js"]
+
+["browser_translations_select_panel_translate_on_change_language_multiple_times_from_dropdown_menu.js"]
+
+["browser_translations_select_panel_translate_on_open.js"]

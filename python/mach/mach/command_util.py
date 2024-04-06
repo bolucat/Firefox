@@ -48,6 +48,7 @@ class MachCommandReference:
 
 
 MACH_COMMANDS = {
+    "addstory": MachCommandReference("toolkit/content/widgets/mach_commands.py"),
     "addtest": MachCommandReference("testing/mach_commands.py"),
     "addwidget": MachCommandReference("toolkit/content/widgets/mach_commands.py"),
     "android": MachCommandReference("mobile/android/mach_commands.py"),
@@ -67,6 +68,7 @@ MACH_COMMANDS = {
         "python/mozbuild/mozbuild/build_commands.py",
     ),
     "buildsymbols": MachCommandReference("python/mozbuild/mozbuild/mach_commands.py"),
+    "buildtokens": MachCommandReference("toolkit/content/widgets/mach_commands.py"),
     "busted": MachCommandReference("tools/mach_commands.py"),
     "cargo": MachCommandReference("python/mozbuild/mozbuild/mach_commands.py"),
     "clang-format": MachCommandReference(

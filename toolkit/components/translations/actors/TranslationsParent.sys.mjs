@@ -477,6 +477,24 @@ export class TranslationsParent extends JSWindowActorParent {
   }
 
   /**
+   * Retrieves the Translations actor from the current browser context.
+   *
+   * @param {object} browser - The browser object from which to get the context.
+   *
+   * @returns {object} The Translations actor for handling translation actions.
+   * @throws {Error} Throws an error if the TranslationsParent actor cannot be found.
+   */
+  static getTranslationsActor(browser) {
+    const actor =
+      browser.browsingContext.currentWindowGlobal.getActor("Translations");
+
+    if (!actor) {
+      throw new Error("Unable to get the TranslationsParent actor.");
+    }
+    return actor;
+  }
+
+  /**
    * Detect if Wasm SIMD is supported, and cache the value. It's better to check
    * for support before downloading large binary blobs to a user who can't even
    * use the feature. This function also respects mocks and simulating unsupported
@@ -668,6 +686,42 @@ export class TranslationsParent extends JSWindowActorParent {
     TranslationsParent.#preferredLanguages = [...langTags];
 
     return TranslationsParent.#preferredLanguages;
+  }
+
+  /**
+   * Requests a new translations port.
+   *
+   * @param {number} innerWindowId - The id of the current window.
+   * @param {string} fromLanguage - The BCP-47 from-language tag.
+   * @param {string} toLanguage - The BCP-47 to-language tag.
+   *
+   * @returns {Promise<MessagePort | undefined>} The port for communication with the translation engine, or undefined on failure.
+   */
+  static async requestTranslationsPort(
+    innerWindowId,
+    fromLanguage,
+    toLanguage
+  ) {
+    let translationsEngineParent;
+    try {
+      translationsEngineParent =
+        await lazy.EngineProcess.getTranslationsEngineParent();
+    } catch (error) {
+      console.error("Failed to get the translation engine process", error);
+      return undefined;
+    }
+
+    // The MessageChannel will be used for communicating directly between the content
+    // process and the engine's process.
+    const { port1, port2 } = new MessageChannel();
+    translationsEngineParent.startTranslation(
+      fromLanguage,
+      toLanguage,
+      port1,
+      innerWindowId
+    );
+
+    return port2;
   }
 
   async receiveMessage({ name, data }) {

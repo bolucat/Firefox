@@ -9,6 +9,9 @@
 const { EngineProcess } = ChromeUtils.importESModule(
   "chrome://global/content/ml/EngineProcess.sys.mjs"
 );
+const { TranslationsPanelShared } = ChromeUtils.importESModule(
+  "chrome://browser/content/translations/TranslationsPanelShared.sys.mjs"
+);
 
 // Avoid about:blank's non-standard behavior.
 const BLANK_PAGE =
@@ -32,6 +35,8 @@ const NO_LANGUAGE_URL =
   URL_COM_PREFIX + DIR_PATH + "translations-tester-no-tag.html";
 const EMPTY_PDF_URL =
   URL_COM_PREFIX + DIR_PATH + "translations-tester-empty-pdf-file.pdf";
+const SELECT_TEST_PAGE_URL =
+  URL_COM_PREFIX + DIR_PATH + "translations-tester-select.html";
 
 const PIVOT_LANGUAGE = "en";
 const LANGUAGE_PAIRS = [
@@ -364,18 +369,19 @@ async function closeAllOpenPanelsAndMenus() {
  */
 async function closePopupIfOpen(popupElementId) {
   await waitForCondition(async () => {
-    const contextMenu = document.getElementById(popupElementId);
-    if (!contextMenu) {
+    const popupElement = document.getElementById(popupElementId);
+    if (!popupElement) {
       return true;
     }
-    if (contextMenu.state === "closed") {
+    if (popupElement.state === "closed") {
       return true;
     }
     let popuphiddenPromise = BrowserTestUtils.waitForEvent(
-      contextMenu,
+      popupElement,
       "popuphidden"
     );
-    PanelMultiView.hidePopup(contextMenu);
+    popupElement.hidePopup();
+    PanelMultiView.hidePopup(popupElement);
     await popuphiddenPromise;
     return false;
   });
@@ -471,6 +477,7 @@ async function createAndMockRemoteSettings({
   // The TranslationsParent will pull the language pair values from the JSON dump
   // of Remote Settings. Clear these before mocking the translations engine.
   TranslationsParent.clearCache();
+  TranslationsPanelShared.clearCache();
 
   TranslationsParent.mockTranslationsEngine(
     remoteClients.translationModels.client,
@@ -485,6 +492,7 @@ async function createAndMockRemoteSettings({
 
       TranslationsParent.unmockTranslationsEngine();
       TranslationsParent.clearCache();
+      TranslationsPanelShared.clearCache();
     },
     remoteClients,
   };
@@ -1443,4 +1451,11 @@ function promiseLoadSubDialog(aURL) {
 async function loadBlankPage() {
   BrowserTestUtils.startLoadingURIString(gBrowser.selectedBrowser, BLANK_PAGE);
   await BrowserTestUtils.browserLoaded(gBrowser.selectedBrowser);
+}
+
+/**
+ * Destroys the Translations Engine process.
+ */
+async function destroyTranslationsEngine() {
+  await EngineProcess.destroyTranslationsEngine();
 }

@@ -123,8 +123,9 @@ VideoEncoderConfigInternal::VideoEncoderConfigInternal(
 nsCString VideoEncoderConfigInternal::ToString() const {
   nsCString rv;
 
-  rv.AppendPrintf("Codec: %s, [%" PRIu32 "x%" PRIu32 "],",
-                  NS_ConvertUTF16toUTF8(mCodec).get(), mWidth, mHeight);
+  rv.AppendLiteral("Codec: ");
+  rv.Append(NS_ConvertUTF16toUTF8(mCodec));
+  rv.AppendPrintf(" [%" PRIu32 "x%" PRIu32 "],", mWidth, mHeight);
   if (mDisplayWidth.isSome()) {
     rv.AppendPrintf(", display[%" PRIu32 "x%" PRIu32 "]", mDisplayWidth.value(),
                     mDisplayHeight.value());
@@ -557,7 +558,7 @@ already_AddRefed<Promise> VideoEncoder::IsConfigSupported(
 }
 
 RefPtr<EncodedVideoChunk> VideoEncoder::EncodedDataToOutputType(
-    nsIGlobalObject* aGlobalObject, RefPtr<MediaRawData>& aData) {
+    nsIGlobalObject* aGlobalObject, const RefPtr<MediaRawData>& aData) {
   AssertIsOnOwningThread();
 
   MOZ_RELEASE_ASSERT(aData->mType == MediaData::Type::RAW_DATA);
