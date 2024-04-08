@@ -9121,23 +9121,20 @@ pub extern "C" fn Servo_GetSelectorWarnings(
 }
 
 #[no_mangle]
-pub extern "C" fn Servo_GetRuleBodyTextOffsets(
+pub extern "C" fn Servo_GetRuleBodyText(
     initial_text: &nsACString,
-    result_start_offset: &mut u32,
-    result_end_offset: &mut u32,
-) -> bool {
+    ret_val: &mut nsACString,
+) {
     let css_text = unsafe { initial_text.as_str_unchecked() };
     let mut input = ParserInput::new(&css_text);
     let mut input = Parser::new(&mut input);
 
-    let mut start_offset = 0;
     let mut found_start = false;
 
     // Search forward for the opening brace.
     while let Ok(token) = input.next() {
         match *token {
             Token::CurlyBracketBlock => {
-                start_offset = input.position().byte_index();
                 found_start = true;
                 break;
             },
@@ -9145,13 +9142,14 @@ pub extern "C" fn Servo_GetRuleBodyTextOffsets(
         }
 
         if token.is_parse_error() {
-            return false;
+            break;
         }
     }
 
 
     if !found_start {
-        return false;
+        ret_val.set_is_void(true);
+        return;
     }
 
     let token_start = input.position();
@@ -9161,16 +9159,111 @@ pub extern "C" fn Servo_GetRuleBodyTextOffsets(
             Ok(())
         }
     );
-    let mut end_offset = input.position().byte_index();
+
+    // We're not guaranteed to have a closing bracket, but when we do, we need to move
+    // the end offset before it.
+    let mut token_slice = input.slice_from(token_start);
+    if token_slice.ends_with("}") {
+        token_slice = token_slice.strip_suffix("}").unwrap();
+    }
+    ret_val.assign(token_slice);
+}
+
+#[no_mangle]
+pub extern "C" fn Servo_ReplaceBlockRuleBodyTextInStylesheetText(
+    stylesheet_text: &nsACString,
+    line: u32,
+    column: u32,
+    new_body_text: &nsACString,
+    ret_val: &mut nsACString,
+) {
+    let css_text = unsafe { stylesheet_text.as_str_unchecked() };
+
+    let Some(rule_start_index) = get_byte_index_from_line_and_column(css_text, line, column) else {
+        ret_val.set_is_void(true);
+        return;
+    };
+
+    let mut input = ParserInput::new(&css_text[rule_start_index..]);
+    let mut input = Parser::new(&mut input);
+    let mut found_start = false;
+
+    // Search forward for the opening brace.
+    while let Ok(token) = input.next() {
+        if matches!(*token, Token::CurlyBracketBlock) {
+            found_start = true;
+            break;
+        }
+
+        if token.is_parse_error() {
+            break;
+        }
+    }
+
+    if !found_start {
+        ret_val.set_is_void(true);
+        return;
+    }
+
+    let token_start = input.position();
+    let rule_body_start = rule_start_index + token_start.byte_index();
+    // Parse the nested block to move the parser to the end of the block
+    let _ = input.parse_nested_block(
+        |_i| -> Result<(), CssParseError<'_, BasicParseError>> {
+            Ok(())
+        }
+    );
+    let mut rule_body_end = rule_start_index + input.position().byte_index();
+
     // We're not guaranteed to have a closing bracket, but when we do, we need to move
     // the end offset before it.
     let token_slice = input.slice_from(token_start);
     if token_slice.ends_with("}") {
-        end_offset = end_offset - 1;
+        rule_body_end -= 1;
     }
 
-    *result_start_offset = start_offset as u32;
-    *result_end_offset = end_offset as u32;
+    ret_val.append(&css_text[..rule_body_start]);
+    ret_val.append(new_body_text);
+    ret_val.append(&css_text[rule_body_end..]);
+}
 
-    return true;
+/// Find css_text byte position corresponding to the passed line and column
+fn get_byte_index_from_line_and_column(
+    css_text: &str,
+    line: u32,
+    column: u32,
+) -> Option<usize> {
+    // Find the byte index of the start of the passed line within css_text
+    let mut line_byte_index = Some(0);
+    if line != 1 {
+        let mut current_line = 1;
+        let mut last_byte = None;
+        line_byte_index = css_text.bytes().position(|byte| {
+            if (byte == b'\n' && last_byte != Some(b'\r')) || byte == b'\r' {
+                current_line += 1;
+            }
+
+            last_byte = Some(byte);
+            return current_line == line;
+        });
+    }
+
+    if line_byte_index.is_none() {
+        return None;
+    }
+
+    if column == 1 {
+        return line_byte_index;
+    }
+
+    let line_byte_index = line_byte_index.unwrap();
+    let mut current_column = 1;
+    for (byte_index, _char) in css_text[line_byte_index..].char_indices() {
+        if current_column == column {
+            return Some(line_byte_index + byte_index);
+        }
+        current_column += 1;
+    }
+
+    None
 }

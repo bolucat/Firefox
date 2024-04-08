@@ -1002,22 +1002,19 @@ void InspectorUtils::GetCSSRegisteredProperties(
 }
 
 /* static */
-void InspectorUtils::GetRuleBodyTextOffsets(
-    GlobalObject&, const nsACString& aInitialText,
-    Nullable<InspectorGetRuleBodyTextResult>& aResult) {
-  uint32_t resultStartOffset;
-  uint32_t resultEndOffset;
-
-  if (!Servo_GetRuleBodyTextOffsets(&aInitialText, &resultStartOffset,
-                                    &resultEndOffset)) {
-    aResult.SetNull();
-    return;
-  }
-
-  InspectorGetRuleBodyTextResult& offsets = aResult.SetValue();
-  offsets.mStartOffset = resultStartOffset;
-  offsets.mEndOffset = resultEndOffset;
+void InspectorUtils::GetRuleBodyText(GlobalObject&,
+                                     const nsACString& aInitialText,
+                                     nsACString& aBodyText) {
+  Servo_GetRuleBodyText(&aInitialText, &aBodyText);
 }
 
+/* static */
+void InspectorUtils::ReplaceBlockRuleBodyTextInStylesheet(
+    GlobalObject&, const nsACString& aStyleSheetText, uint32_t aLine,
+    uint32_t aColumn, const nsACString& aNewBodyText,
+    nsACString& aNewStyleSheetText) {
+  Servo_ReplaceBlockRuleBodyTextInStylesheetText(
+      &aStyleSheetText, aLine, aColumn, &aNewBodyText, &aNewStyleSheetText);
+}
 }  // namespace dom
 }  // namespace mozilla

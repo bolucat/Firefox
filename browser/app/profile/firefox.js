@@ -643,9 +643,9 @@ pref("browser.urlbar.suggest.mdn", true);
 // Feature gate pref for Yelp suggestions in the urlbar.
 pref("browser.urlbar.yelp.featureGate", false);
 
-// The minimum prefix length of yelp query the user must type to trigger
-// the suggestion.
-pref("browser.urlbar.yelp.minKeywordLength", 5);
+// The minimum prefix length of a Yelp keyword the user must type to trigger the
+// suggestion. 0 means the min length should be taken from Nimbus.
+pref("browser.urlbar.yelp.minKeywordLength", 0);
 
 // Whether Yelp suggestions should be shown as top picks.
 pref("browser.urlbar.yelp.priority", false);
@@ -1433,7 +1433,11 @@ pref("browser.bookmarks.editDialog.maxRecentFolders", 7);
   // On windows these levels are:
   // See - security/sandbox/win/src/sandboxbroker/sandboxBroker.cpp
   // SetSecurityLevelForContentProcess() for what the different settings mean.
-  pref("security.sandbox.content.level", 6);
+  #if defined(NIGHTLY_BUILD)
+    pref("security.sandbox.content.level", 7);
+  #else
+    pref("security.sandbox.content.level", 6);
+  #endif
 
   // Pref controlling if messages relevant to sandbox violations are logged.
   pref("security.sandbox.logging.enabled", false);
