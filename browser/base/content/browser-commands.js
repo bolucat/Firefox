@@ -378,4 +378,199 @@ var BrowserCommands = {
       fp.open(fpCallback);
     } catch (ex) {}
   },
+
+  closeTabOrWindow(event) {
+    // If we're not a browser window, just close the window.
+    if (window.location.href != AppConstants.BROWSER_CHROME_URL) {
+      closeWindow(true);
+      return;
+    }
+
+    // In a multi-select context, close all selected tabs
+    if (gBrowser.multiSelectedTabsCount) {
+      gBrowser.removeMultiSelectedTabs();
+      return;
+    }
+
+    // Keyboard shortcuts that would close a tab that is pinned select the first
+    // unpinned tab instead.
+    if (
+      event &&
+      (event.ctrlKey || event.metaKey || event.altKey) &&
+      gBrowser.selectedTab.pinned
+    ) {
+      if (gBrowser.visibleTabs.length > gBrowser._numPinnedTabs) {
+        gBrowser.tabContainer.selectedIndex = gBrowser._numPinnedTabs;
+      }
+      return;
+    }
+
+    // If the current tab is the last one, this will close the window.
+    gBrowser.removeCurrentTab({ animate: true });
+  },
+
+  tryToCloseWindow(event) {
+    if (WindowIsClosing(event)) {
+      window.close();
+    } // WindowIsClosing does all the necessary checks
+  },
+
+  /**
+   * Open the View Source dialog.
+   *
+   * @param args
+   *        An object with the following properties:
+   *
+   *        URL (required):
+   *          A string URL for the page we'd like to view the source of.
+   *        browser (optional):
+   *          The browser containing the document that we would like to view the
+   *          source of. This is required if outerWindowID is passed.
+   *        outerWindowID (optional):
+   *          The outerWindowID of the content window containing the document that
+   *          we want to view the source of. You only need to provide this if you
+   *          want to attempt to retrieve the document source from the network
+   *          cache.
+   *        lineNumber (optional):
+   *          The line number to focus on once the source is loaded.
+   */
+  async viewSourceOfDocument(args) {
+    // Check if external view source is enabled.  If so, try it.  If it fails,
+    // fallback to internal view source.
+    if (Services.prefs.getBoolPref("view_source.editor.external")) {
+      try {
+        await top.gViewSourceUtils.openInExternalEditor(args);
+        return;
+      } catch (data) {}
+    }
+
+    let tabBrowser = gBrowser;
+    let preferredRemoteType;
+    let initialBrowsingContextGroupId;
+    if (args.browser) {
+      preferredRemoteType = args.browser.remoteType;
+      initialBrowsingContextGroupId = args.browser.browsingContext.group.id;
+    } else {
+      if (!tabBrowser) {
+        throw new Error(
+          "viewSourceOfDocument should be passed the " +
+            "subject browser if called from a window without " +
+            "gBrowser defined."
+        );
+      }
+      // Some internal URLs (such as specific chrome: and about: URLs that are
+      // not yet remote ready) cannot be loaded in a remote browser.  View
+      // source in tab expects the new view source browser's remoteness to match
+      // that of the original URL, so disable remoteness if necessary for this
+      // URL.
+      const oa = E10SUtils.predictOriginAttributes({ window });
+      preferredRemoteType = E10SUtils.getRemoteTypeForURI(
+        args.URL,
+        gMultiProcessBrowser,
+        gFissionBrowser,
+        E10SUtils.DEFAULT_REMOTE_TYPE,
+        null,
+        oa
+      );
+    }
+
+    // In the case of popups, we need to find a non-popup browser window.
+    if (!tabBrowser || !window.toolbar.visible) {
+      // This returns only non-popup browser windows by default.
+      const browserWindow = BrowserWindowTracker.getTopWindow();
+      tabBrowser = browserWindow.gBrowser;
+    }
+
+    const inNewWindow = !Services.prefs.getBoolPref("view_source.tab");
+
+    // `viewSourceInBrowser` will load the source content from the page
+    // descriptor for the tab (when possible) or fallback to the network if
+    // that fails.  Either way, the view source module will manage the tab's
+    // location, so use "about:blank" here to avoid unnecessary redundant
+    // requests.
+    const tab = tabBrowser.addTab("about:blank", {
+      relatedToCurrent: true,
+      inBackground: inNewWindow,
+      skipAnimation: inNewWindow,
+      preferredRemoteType,
+      initialBrowsingContextGroupId,
+      triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(),
+      skipLoad: true,
+    });
+    args.viewSourceBrowser = tabBrowser.getBrowserForTab(tab);
+    top.gViewSourceUtils.viewSourceInBrowser(args);
+
+    if (inNewWindow) {
+      tabBrowser.hideTab(tab);
+      tabBrowser.replaceTabWithWindow(tab);
+    }
+  },
+
+  /**
+   * Opens the View Source dialog for the source loaded in the root
+   * top-level document of the browser. This is really just a
+   * convenience wrapper around viewSourceOfDocument.
+   *
+   * @param browser
+   *        The browser that we want to load the source of.
+   */
+  viewSource(browser) {
+    this.viewSourceOfDocument({
+      browser,
+      outerWindowID: browser.outerWindowID,
+      URL: browser.currentURI.spec,
+    });
+  },
+
+  /**
+   * @param documentURL URL of the document to view, or null for this window's document
+   * @param initialTab name of the initial tab to display, or null for the first tab
+   * @param imageElement image to load in the Media Tab of the Page Info window; can be null/omitted
+   * @param browsingContext the browsingContext of the frame that we want to view information about; can be null/omitted
+   * @param browser the browser containing the document we're interested in inspecting; can be null/omitted
+   */
+  pageInfo(documentURL, initialTab, imageElement, browsingContext, browser) {
+    const args = { initialTab, imageElement, browsingContext, browser };
+
+    documentURL =
+      documentURL || window.gBrowser.selectedBrowser.currentURI.spec;
+
+    const isPrivate = PrivateBrowsingUtils.isWindowPrivate(window);
+
+    // Check for windows matching the url
+    for (const currentWindow of Services.wm.getEnumerator(
+      "Browser:page-info"
+    )) {
+      if (currentWindow.closed) {
+        continue;
+      }
+      if (
+        currentWindow.document.documentElement.getAttribute("relatedUrl") ==
+          documentURL &&
+        PrivateBrowsingUtils.isWindowPrivate(currentWindow) == isPrivate
+      ) {
+        currentWindow.focus();
+        currentWindow.resetPageInfo(args);
+        return currentWindow;
+      }
+    }
+
+    // We didn't find a matching window, so open a new one.
+    let options = "chrome,toolbar,dialog=no,resizable";
+
+    // Ensure the window groups correctly in the Windows taskbar
+    if (isPrivate) {
+      options += ",private";
+    }
+    return openDialog(
+      "chrome://browser/content/pageinfo/pageInfo.xhtml",
+      "",
+      options,
+      args
+    );
+  },
+
+  fullScreen() {
+    window.fullScreen = !window.fullScreen || BrowserHandler.kiosk;
+  },
 };

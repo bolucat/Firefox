@@ -2378,7 +2378,7 @@
 # Whether CustomStateSet is enabled
 - name: dom.element.customstateset.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
   rust: true
 
@@ -3509,7 +3509,7 @@
 # Enable Screen Wake Lock API
 - name: dom.screenwakelock.enabled
   type: bool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 # Whether to enable the JavaScript start-up cache. This causes one of the first
@@ -3837,10 +3837,10 @@
   value: 120000
   mirror: always
 
-# SetDocumentURI security option, enforces origin check
+# Enforce origin check whenever a content process tries to set a document URI
 - name: dom.security.setdocumenturi
   type: bool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 # Whether or not selection events on text controls are enabled.
@@ -8838,6 +8838,13 @@
   type: bool
   value: false
   mirror: always
+
+# Enable relative color syntax: https://drafts.csswg.org/css-color-5/#relative-colors
+- name: layout.css.relative-color-syntax.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+  rust: true
 
 # Is CSS error reporting enabled?
 - name: layout.css.report_errors

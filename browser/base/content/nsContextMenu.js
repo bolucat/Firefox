@@ -1619,7 +1619,7 @@ class nsContextMenu {
 
   // Open new "view source" window with the frame's URL.
   viewFrameSource() {
-    BrowserViewSourceOfDocument({
+    BrowserCommands.viewSourceOfDocument({
       browser: this.browser,
       URL: this.contentData.docLocation,
       outerWindowID: this.frameOuterWindowID,
@@ -1627,7 +1627,7 @@ class nsContextMenu {
   }
 
   viewInfo() {
-    BrowserPageInfo(
+    BrowserCommands.pageInfo(
       this.contentData.docLocation,
       null,
       null,
@@ -1637,7 +1637,7 @@ class nsContextMenu {
   }
 
   viewImageInfo() {
-    BrowserPageInfo(
+    BrowserCommands.pageInfo(
       this.contentData.docLocation,
       "mediaTab",
       this.imageInfo,
@@ -1661,7 +1661,7 @@ class nsContextMenu {
   }
 
   viewFrameInfo() {
-    BrowserPageInfo(
+    BrowserCommands.pageInfo(
       this.contentData.docLocation,
       null,
       null,

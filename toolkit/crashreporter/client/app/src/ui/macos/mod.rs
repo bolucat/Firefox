@@ -37,6 +37,7 @@ use cocoa::{
     NSTextField_NSTextFieldConvenience, NSView_NSConstraintBasedLayoutInstallingConstraints,
     NSView_NSConstraintBasedLayoutLayering, NSView_NSSafeAreas, PNSObject,
 };
+use once_cell::sync::Lazy;
 
 /// https://developer.apple.com/documentation/foundation/1497293-string_encodings/nsutf8stringencoding?language=objc
 const NSUTF8StringEncoding: cocoa::NSStringEncoding = 4;
@@ -183,10 +184,9 @@ fn enqueue<F: Fn() + 'static>(f: F) {
     // # Safety
     // The array is static and cannot be changed.
     unsafe impl Sync for RunloopModes {}
+    unsafe impl Send for RunloopModes {}
 
-    lazy_static::lazy_static! {
-        static ref RUNLOOP_MODES: RunloopModes = RunloopModes::new();
-    }
+    static RUNLOOP_MODES: Lazy<RunloopModes> = Lazy::new(RunloopModes::new);
 
     unsafe {
         cocoa::NSRunLoop::mainRunLoop().performInModes_block_(RUNLOOP_MODES.0, &*block);
@@ -799,6 +799,22 @@ impl ViewRenderer {
                         control.setEnabled_(enabled.into());
                     });
                     unsafe { control.setEnabled_((*b.borrow()).into()) };
+                }
+                Property::ReadOnly(_) => {
+                    unimplemented!("ElementStyle::enabled doesn't support ReadOnly")
+                }
+            }
+        } else if let Ok(text) = cocoa::NSText::try_from(view) {
+            let normally_editable = unsafe { text.isEditable() } == runtime::YES;
+            match &style.enabled {
+                Property::Static(e) => {
+                    unsafe { text.setEditable_((*e && normally_editable).into()) };
+                }
+                Property::Binding(b) => {
+                    b.on_change(move |&enabled| unsafe {
+                        text.setEditable_((enabled && normally_editable).into());
+                    });
+                    unsafe { text.setEditable_((*b.borrow() && normally_editable).into()) };
                 }
                 Property::ReadOnly(_) => {
                     unimplemented!("ElementStyle::enabled doesn't support ReadOnly")

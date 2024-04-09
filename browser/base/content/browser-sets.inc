@@ -32,17 +32,17 @@
     <command id="cmd_printPreviewToggle" oncommand="PrintUtils.togglePrintPreview(gBrowser.selectedBrowser.browsingContext);"/>
     <command id="cmd_file_importFromAnotherBrowser" oncommand="MigrationUtils.showMigrationWizard(window, { entrypoint: MigrationUtils.MIGRATION_ENTRYPOINTS.FILE_MENU });"/>
     <command id="cmd_help_importFromAnotherBrowser" oncommand="MigrationUtils.showMigrationWizard(window, { entrypoint: MigrationUtils.MIGRATION_ENTRYPOINTS.HELP_MENU });"/>
-    <command id="cmd_close" oncommand="BrowserCloseTabOrWindow(event);"/>
-    <command id="cmd_closeWindow" oncommand="BrowserTryToCloseWindow(event)"/>
+    <command id="cmd_close" oncommand="BrowserCommands.closeTabOrWindow(event);"/>
+    <command id="cmd_closeWindow" oncommand="BrowserCommands.tryToCloseWindow(event)"/>
     <command id="cmd_toggleMute" oncommand="gBrowser.toggleMuteAudioOnMultiSelectedTabs(gBrowser.selectedTab)"/>
     <command id="cmd_CustomizeToolbars" oncommand="gCustomizeMode.enter()"/>
     <command id="cmd_toggleOfflineStatus" oncommand="BrowserOffline.toggleOfflineStatus();"/>
     <command id="cmd_quitApplication" oncommand="goQuitApplication(event)"/>
 
     <command id="View:AboutProcesses" oncommand="switchToTabHavingURI('about:processes', true)"/>
-    <command id="View:PageSource" oncommand="BrowserViewSource(window.gBrowser.selectedBrowser);"/>
-    <command id="View:PageInfo" oncommand="BrowserPageInfo();"/>
-    <command id="View:FullScreen" oncommand="BrowserFullScreen();"/>
+    <command id="View:PageSource" oncommand="BrowserCommands.viewSource(window.gBrowser.selectedBrowser);"/>
+    <command id="View:PageInfo" oncommand="BrowserCommands.pageInfo();"/>
+    <command id="View:FullScreen" oncommand="BrowserCommands.fullScreen();"/>
     <command id="View:ReaderView" oncommand="AboutReaderParent.toggleReaderMode(event);"/>
     <command id="View:PictureInPicture" oncommand="PictureInPicture.onCommand(event);"/>
     <command id="cmd_find" oncommand="gLazyFindCommand('onFindCommand')"/>
