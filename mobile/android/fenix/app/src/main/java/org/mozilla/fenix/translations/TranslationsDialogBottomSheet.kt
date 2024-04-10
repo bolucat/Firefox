@@ -464,7 +464,7 @@ private fun TranslationsDialogHeader(
             ) {
                 Icon(
                     painter = painterResource(id = R.drawable.mozac_ic_settings_24),
-                    contentDescription = stringResource(id = R.string.translation_option_bottom_sheet_title),
+                    contentDescription = stringResource(id = R.string.translation_option_bottom_sheet_title_heading),
                     tint = FirefoxTheme.colors.iconPrimary,
                 )
             }
@@ -602,38 +602,40 @@ private fun TranslationsDropdown(
                     tint = FirefoxTheme.colors.iconPrimary,
                 )
 
-                ContextualMenu(
-                    showMenu = expanded,
-                    onDismissRequest = {
-                        expanded = false
-                    },
-                    menuItems = getContextMenuItems(
-                        translateLanguages = translateLanguages,
-                        selectedLanguage = initiallySelected,
-                        onClickItem = {
-                            onLanguageSelection(it)
+                if (expanded) {
+                    ContextualMenu(
+                        showMenu = expanded,
+                        onDismissRequest = {
+                            expanded = false
                         },
-                    ),
-                    modifier = Modifier
-                        .onGloballyPositioned { coordinates ->
-                            contextMenuWidthDp = with(density) {
-                                coordinates.size.width.toDp()
+                        menuItems = getContextMenuItems(
+                            translateLanguages = translateLanguages,
+                            selectedLanguage = initiallySelected,
+                            onClickItem = {
+                                onLanguageSelection(it)
+                            },
+                        ),
+                        modifier = Modifier
+                            .onGloballyPositioned { coordinates ->
+                                contextMenuWidthDp = with(density) {
+                                    coordinates.size.width.toDp()
+                                }
                             }
-                        }
-                        .requiredSizeIn(maxHeight = 200.dp)
-                        .padding(horizontal = if (initiallySelected == null) 36.dp else 4.dp),
-                    offset = if (isInLandscapeMode) {
-                        DpOffset(
-                            -contextMenuWidthDp + ICON_SIZE,
-                            ICON_SIZE,
-                        )
-                    } else {
-                        DpOffset(
-                            0.dp,
-                            ICON_SIZE,
-                        )
-                    },
-                )
+                            .requiredSizeIn(maxHeight = 200.dp)
+                            .padding(horizontal = if (initiallySelected == null) 36.dp else 4.dp),
+                        offset = if (isInLandscapeMode) {
+                            DpOffset(
+                                -contextMenuWidthDp + ICON_SIZE,
+                                ICON_SIZE,
+                            )
+                        } else {
+                            DpOffset(
+                                0.dp,
+                                ICON_SIZE,
+                            )
+                        },
+                    )
+                }
             }
         }
 

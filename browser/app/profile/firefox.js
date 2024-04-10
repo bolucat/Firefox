@@ -1689,10 +1689,6 @@ pref("browser.topsites.contile.sov.enabled", true);
 pref("browser.partnerlink.attributionURL", "https://topsites.services.mozilla.com/cid/");
 pref("browser.partnerlink.campaign.topsites", "amzn_2020_a1");
 
-// Whether to show window-modal dialogs opened for browser windows
-// in a SubDialog inside their parent, instead of an OS level window.
-pref("prompts.windowPromptSubDialog", true);
-
 // Activates preloading of the new tab url.
 pref("browser.newtab.preload", true);
 
@@ -3027,11 +3023,8 @@ pref("browser.mailto.dualPrompt", false);
 // default mailto handler.
 pref("browser.mailto.prompt.os", true);
 
-#if defined(NIGHTLY_BUILD)
+// Pref to initialize the BackupService soon after startup.
 pref("browser.backup.enabled", true);
-#else
-pref("browser.backup.enabled", false);
-#endif
 
 // Pref to enable the new profiles
 pref("browser.profiles.enabled", false);

@@ -35,6 +35,21 @@ export class BackupResource {
   }
 
   /**
+   * This must be overridden to return a boolean indicating whether the
+   * resource requires encryption when being backed up. Encryption should be
+   * required for particularly sensitive data, such as passwords / credentials,
+   * cookies, or payment methods. If you're not sure, talk to someone from the
+   * Privacy team.
+   *
+   * @type {boolean}
+   */
+  static get requiresEncryption() {
+    throw new Error(
+      "BackupResource::requiresEncryption needs to be overridden."
+    );
+  }
+
+  /**
    * Get the size of a file.
    *
    * @param {string} filePath - path to a file.
@@ -132,7 +147,9 @@ export class BackupResource {
    * Perform a safe copy of the resource(s) and write them into the backup
    * database. The Promise should resolve with an object that can be serialized
    * to JSON, as it will be written to the manifest file. This same object will
-   * be deserialized and passed to restore() when restoring the backup.
+   * be deserialized and passed to restore() when restoring the backup. This
+   * object can be null if no additional information is needed to restore the
+   * backup.
    *
    * @param {string} stagingPath
    *   The path to the staging folder where copies of the datastores for this
@@ -144,7 +161,7 @@ export class BackupResource {
    *   just shut down, or during test), then this is a string set to that user
    *   profile path.
    *
-   * @returns {Promise<object>}
+   * @returns {Promise<object|null>}
    */
   // eslint-disable-next-line no-unused-vars
   async backup(stagingPath, profilePath = null) {

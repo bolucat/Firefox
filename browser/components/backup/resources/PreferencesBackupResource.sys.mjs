@@ -13,6 +13,10 @@ export class PreferencesBackupResource extends BackupResource {
     return "preferences";
   }
 
+  static get requiresEncryption() {
+    return false;
+  }
+
   async backup(stagingPath, profilePath = PathUtils.profileDir) {
     // These are files that can be simply copied into the staging folder using
     // IOUtils.copy.
@@ -57,11 +61,7 @@ export class PreferencesBackupResource extends BackupResource {
     let prefsDestFile = await IOUtils.getFile(prefsDestPath);
     await Services.prefs.backupPrefFile(prefsDestFile);
 
-    // `backup` must return some JSON serializable object which can be passed
-    // to `restore` to restore the resource. In this case, there's no
-    // extra information we need to pass along, so we just return the empty
-    // object.
-    return {};
+    return null;
   }
 
   async measure(profilePath = PathUtils.profileDir) {

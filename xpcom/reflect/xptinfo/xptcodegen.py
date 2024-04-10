@@ -9,6 +9,7 @@ import json
 from collections import OrderedDict
 
 import buildconfig
+from mozbuild.util import memoize
 from perfecthash import PerfectHash
 
 # Pick a nice power-of-two size for our intermediate PHF tables.
@@ -135,6 +136,7 @@ def split_iid(iid):  # Get the individual components out of an IID string.
     return tuple(split_at_idxs(iid, (8, 4, 4, 2, 2, 2, 2, 2, 2, 2, 2)))
 
 
+@memoize
 def iid_bytes(iid):  # Get the byte representation of the IID for hashing.
     bs = bytearray()
     for num in split_iid(iid):
@@ -624,6 +626,16 @@ def link_and_write(files, outfile, outheader):
         assert interface["name"] not in names, "duplicated name %s" % interface["name"]
         iids.add(interface["uuid"])
         names.add(interface["name"])
+
+    # All forwards referenced from scriptable members must be known (as scriptable).
+    for iface in interfaces:
+        for ref in iface["needs_scriptable"]:
+            if not ref in names:
+                raise Exception(
+                    f"Scriptable member in {iface['name']} references unknown {ref}. "
+                    "Forward must be a known and [scriptable] interface, "
+                    "or the referencing member marked with [noscript]."
+                )
 
     link_to_cpp(interfaces, outfile, outheader)
 

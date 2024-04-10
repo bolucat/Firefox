@@ -4815,7 +4815,7 @@
     "expires_in_version": "never",
     "kind": "enumerated",
     "n_values": 6,
-    "description": "encoding removed: 0=unknown, 1=gzip, 2=deflate, 3=brotli"
+    "description": "encoding removed: 0=unknown, 1=gzip, 2=deflate, 3=brotli, 4=zstd"
   },
   "CACHE_LM_INCONSISTENT": {
     "record_in_processes": ["main", "content"],
@@ -13172,83 +13172,6 @@
     "bug_numbers": [1121966],
     "alert_emails": ["perf-telemetry-alerts@mozilla.com"],
     "description": "Scaling percentage for the display where the first window is opened"
-  },
-  "SHUTDOWN_PHASE_DURATION_TICKS_QUIT_APPLICATION": {
-    "record_in_processes": ["main", "content"],
-    "products": ["firefox", "fennec", "thunderbird"],
-    "expires_in_version": "never",
-    "kind": "exponential",
-    "high": 65,
-    "n_buckets": 10,
-    "bug_numbers": [1689953],
-    "alert_emails": ["dothayer@mozilla.com, jstutte@mozilla.com"],
-    "description": "Duration of shutdown phase quit-application, as measured by the shutdown terminator in ticks of 100ms"
-  },
-  "SHUTDOWN_PHASE_DURATION_TICKS_PROFILE_CHANGE_NET_TEARDOWN": {
-    "record_in_processes": ["main", "content"],
-    "products": ["firefox", "fennec", "thunderbird"],
-    "expires_in_version": "never",
-    "kind": "exponential",
-    "high": 65,
-    "n_buckets": 10,
-    "bug_numbers": [1689953],
-    "alert_emails": ["dothayer@mozilla.com, jstutte@mozilla.com"],
-    "description": "Duration of shutdown phase profile-change-net-teardown, as measured by the shutdown terminator in ticks of 100ms"
-  },
-  "SHUTDOWN_PHASE_DURATION_TICKS_PROFILE_CHANGE_TEARDOWN": {
-    "record_in_processes": ["main", "content"],
-    "products": ["firefox", "fennec", "thunderbird"],
-    "expires_in_version": "never",
-    "kind": "exponential",
-    "high": 65,
-    "n_buckets": 10,
-    "bug_numbers": [1689953],
-    "alert_emails": ["dothayer@mozilla.com, jstutte@mozilla.com"],
-    "description": "Duration of shutdown phase profile-change-teardown, as measured by the shutdown terminator in ticks of 100ms"
-  },
-  "SHUTDOWN_PHASE_DURATION_TICKS_PROFILE_BEFORE_CHANGE": {
-    "record_in_processes": ["main", "content"],
-    "products": ["firefox", "fennec", "thunderbird"],
-    "expires_in_version": "never",
-    "kind": "exponential",
-    "high": 65,
-    "n_buckets": 10,
-    "bug_numbers": [1689953],
-    "alert_emails": ["dothayer@mozilla.com, jstutte@mozilla.com"],
-    "description": "Duration of shutdown phase profile-before-change, as measured by the shutdown terminator in ticks of 100ms"
-  },
-  "SHUTDOWN_PHASE_DURATION_TICKS_PROFILE_BEFORE_CHANGE_QM": {
-    "record_in_processes": ["main", "content"],
-    "products": ["firefox", "fennec", "thunderbird"],
-    "expires_in_version": "never",
-    "kind": "exponential",
-    "high": 65,
-    "n_buckets": 10,
-    "bug_numbers": [1689953],
-    "alert_emails": ["dothayer@mozilla.com, jstutte@mozilla.com"],
-    "description": "Duration of shutdown phase profile-before-change-qm, as measured by the shutdown terminator in ticks of 100ms"
-  },
-  "SHUTDOWN_PHASE_DURATION_TICKS_XPCOM_WILL_SHUTDOWN": {
-    "record_in_processes": ["main", "content"],
-    "products": ["firefox", "fennec", "thunderbird"],
-    "expires_in_version": "never",
-    "kind": "exponential",
-    "high": 65,
-    "n_buckets": 10,
-    "bug_numbers": [1689953],
-    "alert_emails": ["dothayer@mozilla.com, jstutte@mozilla.com"],
-    "description": "Duration of shutdown phase xpcom-will-shutdown, as measured by the shutdown terminator in ticks of 100ms"
-  },
-  "SHUTDOWN_PHASE_DURATION_TICKS_XPCOM_SHUTDOWN": {
-    "record_in_processes": ["main", "content"],
-    "products": ["firefox", "fennec", "thunderbird"],
-    "expires_in_version": "never",
-    "kind": "exponential",
-    "high": 65,
-    "n_buckets": 10,
-    "bug_numbers": [1689953],
-    "alert_emails": ["dothayer@mozilla.com, jstutte@mozilla.com"],
-    "description": "Duration of shutdown phase xpcom-shutdown, as measured by the shutdown terminator in ticks of 100ms"
   },
   "TAP_TO_LOAD_ENABLED": {
     "record_in_processes": ["main", "content"],
