@@ -44,8 +44,7 @@ class NonNativeInputTrack;
 //     } else {
 //       MOZ_ASSERT(mInputs.Length() == 1);
 //       AudioSegment data;
-//       DeviceInputConsumerTrack::GetInputSourceData(data, mInputs[0], aFrom,
-//                                                    aTo);
+//       DeviceInputConsumerTrack::GetInputSourceData(data, aFrom, aTo);
 //       // You can do audio data processing before appending to mSegment here.
 //       GetData<AudioSegment>()->AppendFrom(&data);
 //     }
@@ -77,8 +76,8 @@ class DeviceInputConsumerTrack : public ProcessedMediaTrack {
   void DisconnectDeviceInput();
   Maybe<CubebUtils::AudioDeviceID> DeviceId() const;
   NotNull<AudioDataListener*> GetAudioDataListener() const;
-  bool ConnectToNativeDevice() const;
-  bool ConnectToNonNativeDevice() const;
+  bool ConnectedToNativeDevice() const;
+  bool ConnectedToNonNativeDevice() const;
 
   // Any thread:
   DeviceInputConsumerTrack* AsDeviceInputConsumerTrack() override {
@@ -87,10 +86,10 @@ class DeviceInputConsumerTrack : public ProcessedMediaTrack {
 
  protected:
   // Graph thread API:
-  // Get the data in [aFrom, aTo) from aPort->GetSource() to aOutput. aOutput
-  // needs to be empty.
-  void GetInputSourceData(AudioSegment& aOutput, const MediaInputPort* aPort,
-                          GraphTime aFrom, GraphTime aTo) const;
+  // Get the data in [aFrom, aTo) from the device input to aOutput. aOutput
+  // needs to be empty. A device input must be connected.
+  void GetInputSourceData(AudioSegment& aOutput, GraphTime aFrom,
+                          GraphTime aTo) const;
 
   // Main Thread variables:
   RefPtr<MediaInputPort> mPort;

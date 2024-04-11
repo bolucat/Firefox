@@ -127,28 +127,28 @@ NotNull<AudioDataListener*> DeviceInputConsumerTrack::GetAudioDataListener()
   return WrapNotNull(mListener.get());
 }
 
-bool DeviceInputConsumerTrack::ConnectToNativeDevice() const {
+bool DeviceInputConsumerTrack::ConnectedToNativeDevice() const {
   MOZ_ASSERT(NS_IsMainThread());
   return mDeviceInputTrack && mDeviceInputTrack->AsNativeInputTrack();
 }
 
-bool DeviceInputConsumerTrack::ConnectToNonNativeDevice() const {
+bool DeviceInputConsumerTrack::ConnectedToNonNativeDevice() const {
   MOZ_ASSERT(NS_IsMainThread());
   return mDeviceInputTrack && mDeviceInputTrack->AsNonNativeInputTrack();
 }
 
 void DeviceInputConsumerTrack::GetInputSourceData(AudioSegment& aOutput,
-                                                  const MediaInputPort* aPort,
                                                   GraphTime aFrom,
                                                   GraphTime aTo) const {
   AssertOnGraphThread();
   MOZ_ASSERT(aOutput.IsEmpty());
 
-  MediaTrack* source = aPort->GetSource();
+  MediaInputPort* port = mInputs[0];
+  MediaTrack* source = port->GetSource();
   GraphTime next;
   for (GraphTime t = aFrom; t < aTo; t = next) {
     MediaInputPort::InputInterval interval =
-        MediaInputPort::GetNextInputInterval(aPort, t);
+        MediaInputPort::GetNextInputInterval(port, t);
     interval.mEnd = std::min(interval.mEnd, aTo);
 
     const bool inputEnded =

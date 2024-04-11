@@ -6,12 +6,6 @@ http://creativecommons.org/publicdomain/zero/1.0/ */
 const { CredentialsAndSecurityBackupResource } = ChromeUtils.importESModule(
   "resource:///modules/backup/CredentialsAndSecurityBackupResource.sys.mjs"
 );
-const { MiscDataBackupResource } = ChromeUtils.importESModule(
-  "resource:///modules/backup/MiscDataBackupResource.sys.mjs"
-);
-const { PlacesBackupResource } = ChromeUtils.importESModule(
-  "resource:///modules/backup/PlacesBackupResource.sys.mjs"
-);
 const { AddonsBackupResource } = ChromeUtils.importESModule(
   "resource:///modules/backup/AddonsBackupResource.sys.mjs"
 );
@@ -83,59 +77,6 @@ add_task(async function test_profDDiskSpace() {
 });
 
 /**
- * Tests that we can measure Places DB related files in the profile directory.
- */
-add_task(async function test_placesBackupResource() {
-  Services.fog.testResetFOG();
-
-  const EXPECTED_PLACES_DB_SIZE = 5240;
-  const EXPECTED_FAVICONS_DB_SIZE = 5240;
-
-  // Create resource files in temporary directory
-  const tempDir = PathUtils.tempDir;
-  let tempPlacesDBPath = PathUtils.join(tempDir, "places.sqlite");
-  let tempFaviconsDBPath = PathUtils.join(tempDir, "favicons.sqlite");
-  await createKilobyteSizedFile(tempPlacesDBPath, EXPECTED_PLACES_DB_SIZE);
-  await createKilobyteSizedFile(tempFaviconsDBPath, EXPECTED_FAVICONS_DB_SIZE);
-
-  let placesBackupResource = new PlacesBackupResource();
-  await placesBackupResource.measure(tempDir);
-
-  let placesMeasurement = Glean.browserBackup.placesSize.testGetValue();
-  let faviconsMeasurement = Glean.browserBackup.faviconsSize.testGetValue();
-  let scalars = TelemetryTestUtils.getProcessScalars("parent", false, false);
-
-  // Compare glean vs telemetry measurements
-  TelemetryTestUtils.assertScalar(
-    scalars,
-    "browser.backup.places_size",
-    placesMeasurement,
-    "Glean and telemetry measurements for places.sqlite should be equal"
-  );
-  TelemetryTestUtils.assertScalar(
-    scalars,
-    "browser.backup.favicons_size",
-    faviconsMeasurement,
-    "Glean and telemetry measurements for favicons.sqlite should be equal"
-  );
-
-  // Compare glean measurements vs actual file sizes
-  Assert.equal(
-    placesMeasurement,
-    EXPECTED_PLACES_DB_SIZE,
-    "Should have collected the correct glean measurement for places.sqlite"
-  );
-  Assert.equal(
-    faviconsMeasurement,
-    EXPECTED_FAVICONS_DB_SIZE,
-    "Should have collected the correct glean measurement for favicons.sqlite"
-  );
-
-  await IOUtils.remove(tempPlacesDBPath);
-  await IOUtils.remove(tempFaviconsDBPath);
-});
-
-/**
  * Tests that we can measure credentials related files in the profile directory.
  */
 add_task(async function test_credentialsAndSecurityBackupResource() {
@@ -202,54 +143,6 @@ add_task(async function test_credentialsAndSecurityBackupResource() {
   );
 
   // Cleanup
-  await maybeRemovePath(tempDir);
-});
-
-/**
- * Tests that we can measure miscellaneous files in the profile directory.
- */
-add_task(async function test_miscDataBackupResource() {
-  Services.fog.testResetFOG();
-
-  const EXPECTED_MISC_KILOBYTES_SIZE = 241;
-  const tempDir = await IOUtils.createUniqueDirectory(
-    PathUtils.tempDir,
-    "MiscDataBackupResource-measurement-test"
-  );
-
-  const mockFiles = [
-    { path: "times.json", sizeInKB: 5 },
-    { path: "enumerate_devices.txt", sizeInKB: 1 },
-    { path: "protections.sqlite", sizeInKB: 100 },
-    { path: "SiteSecurityServiceState.bin", sizeInKB: 10 },
-    { path: ["storage", "permanent", "chrome", "123ABC.sqlite"], sizeInKB: 40 },
-    { path: ["storage", "permanent", "chrome", "456DEF.sqlite"], sizeInKB: 40 },
-    {
-      path: ["storage", "permanent", "chrome", "mockIDBDir", "890HIJ.sqlite"],
-      sizeInKB: 40,
-    },
-  ];
-
-  await createTestFiles(tempDir, mockFiles);
-
-  let miscDataBackupResource = new MiscDataBackupResource();
-  await miscDataBackupResource.measure(tempDir);
-
-  let measurement = Glean.browserBackup.miscDataSize.testGetValue();
-  let scalars = TelemetryTestUtils.getProcessScalars("parent", false, false);
-
-  TelemetryTestUtils.assertScalar(
-    scalars,
-    "browser.backup.misc_data_size",
-    measurement,
-    "Glean and telemetry measurements for misc data should be equal"
-  );
-  Assert.equal(
-    measurement,
-    EXPECTED_MISC_KILOBYTES_SIZE,
-    "Should have collected the correct glean measurement for misc files"
-  );
-
   await maybeRemovePath(tempDir);
 });
 

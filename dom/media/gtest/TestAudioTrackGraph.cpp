@@ -557,8 +557,7 @@ class TestDeviceInputConsumerTrack : public DeviceInputConsumerTrack {
     } else {
       MOZ_ASSERT(mInputs.Length() == 1);
       AudioSegment data;
-      DeviceInputConsumerTrack::GetInputSourceData(data, mInputs[0], aFrom,
-                                                   aTo);
+      DeviceInputConsumerTrack::GetInputSourceData(data, aFrom, aTo);
       GetData<AudioSegment>()->AppendFrom(&data);
     }
   };
@@ -620,8 +619,8 @@ TEST(TestAudioTrackGraph, DeviceChangedCallback)
       TestDeviceInputConsumerTrack::Create(graphImpl);
   track1->ConnectDeviceInput(device1, listener1.get(), PRINCIPAL_HANDLE_NONE);
 
-  EXPECT_TRUE(track1->ConnectToNativeDevice());
-  EXPECT_FALSE(track1->ConnectToNonNativeDevice());
+  EXPECT_TRUE(track1->ConnectedToNativeDevice());
+  EXPECT_FALSE(track1->ConnectedToNonNativeDevice());
   auto started =
       Invoke([&] { return graphImpl->NotifyWhenDeviceStarted(nullptr); });
   RefPtr<SmartMockCubebStream> stream1 = WaitFor(cubeb->StreamInitEvent());
@@ -637,8 +636,8 @@ TEST(TestAudioTrackGraph, DeviceChangedCallback)
       TestDeviceInputConsumerTrack::Create(graphImpl);
   track2->ConnectDeviceInput(device2, listener2.get(), PRINCIPAL_HANDLE_NONE);
 
-  EXPECT_FALSE(track2->ConnectToNativeDevice());
-  EXPECT_TRUE(track2->ConnectToNonNativeDevice());
+  EXPECT_FALSE(track2->ConnectedToNativeDevice());
+  EXPECT_TRUE(track2->ConnectedToNonNativeDevice());
   RefPtr<SmartMockCubebStream> stream2 = WaitFor(cubeb->StreamInitEvent());
   EXPECT_TRUE(stream2->mHasInput);
   EXPECT_FALSE(stream2->mHasOutput);
@@ -852,8 +851,8 @@ TEST(TestAudioTrackGraph, RestartAudioIfMaxChannelCountChanged)
     track1->ConnectDeviceInput(nativeDevice, listener1.get(),
                                PRINCIPAL_HANDLE_NONE);
 
-    EXPECT_TRUE(track1->ConnectToNativeDevice());
-    EXPECT_FALSE(track1->ConnectToNonNativeDevice());
+    EXPECT_TRUE(track1->ConnectedToNativeDevice());
+    EXPECT_FALSE(track1->ConnectedToNonNativeDevice());
     auto started =
         Invoke([&] { return graphImpl->NotifyWhenDeviceStarted(nullptr); });
     nativeStream = WaitFor(cubeb->StreamInitEvent());
@@ -891,8 +890,8 @@ TEST(TestAudioTrackGraph, RestartAudioIfMaxChannelCountChanged)
         TestDeviceInputConsumerTrack::Create(graphImpl);
     track3->ConnectDeviceInput(nonNativeDevice, listener3.get(),
                                PRINCIPAL_HANDLE_NONE);
-    EXPECT_FALSE(track3->ConnectToNativeDevice());
-    EXPECT_TRUE(track3->ConnectToNonNativeDevice());
+    EXPECT_FALSE(track3->ConnectedToNativeDevice());
+    EXPECT_TRUE(track3->ConnectedToNonNativeDevice());
 
     RefPtr<SmartMockCubebStream> nonNativeStream =
         WaitFor(cubeb->StreamInitEvent());
@@ -1511,32 +1510,40 @@ TEST(TestAudioTrackGraph, AudioProcessingTrackDisabling)
   stream->SetOutputRecordingEnabled(true);
 
   // Wait for a second worth of audio data.
-  uint32_t totalFrames = 0;
-  WaitUntil(stream->FramesProcessedEvent(), [&](uint32_t aFrames) {
-    totalFrames += aFrames;
-    return totalFrames > static_cast<uint32_t>(graph->GraphRate());
-  });
+  uint64_t targetPosition = graph->GraphRate();
+  auto AdvanceToTargetPosition = [&] {
+    DispatchFunction([&] {
+      processingTrack->GraphImpl()->AppendMessage(MakeUnique<GoFaster>(cubeb));
+    });
+    WaitUntil(stream->FramesProcessedEvent(), [&](uint32_t aFrames) {
+      // Position() gives a more up-to-date indication than summing aFrames if
+      // multiple events are queued.
+      if (stream->Position() < targetPosition) {
+        return false;
+      }
+      cubeb->DontGoFaster();
+      return true;
+    });
+  };
+  AdvanceToTargetPosition();
 
   const uint32_t ITERATION_COUNT = 5;
   uint32_t iterations = ITERATION_COUNT;
-  DisabledTrackMode currentMode = DisabledTrackMode::SILENCE_BLACK;
+  DisabledTrackMode nextMode = DisabledTrackMode::SILENCE_BLACK;
   while (iterations--) {
     // toggle the track enabled mode, wait a second, do this ITERATION_COUNT
     // times
     DispatchFunction([&] {
-      processingTrack->SetDisabledTrackMode(currentMode);
-      if (currentMode == DisabledTrackMode::SILENCE_BLACK) {
-        currentMode = DisabledTrackMode::ENABLED;
+      processingTrack->SetDisabledTrackMode(nextMode);
+      if (nextMode == DisabledTrackMode::SILENCE_BLACK) {
+        nextMode = DisabledTrackMode::ENABLED;
       } else {
-        currentMode = DisabledTrackMode::SILENCE_BLACK;
+        nextMode = DisabledTrackMode::SILENCE_BLACK;
       }
     });
 
-    totalFrames = 0;
-    WaitUntil(stream->FramesProcessedEvent(), [&](uint32_t aFrames) {
-      totalFrames += aFrames;
-      return totalFrames > static_cast<uint32_t>(graph->GraphRate());
-    });
+    targetPosition += graph->GraphRate();
+    AdvanceToTargetPosition();
   }
 
   // Clean up.
