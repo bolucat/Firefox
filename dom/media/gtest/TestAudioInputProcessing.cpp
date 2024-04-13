@@ -30,11 +30,21 @@ class MockGraph : public MediaTrackGraphImpl {
 
   void Init(uint32_t aChannels) {
     MediaTrackGraphImpl::Init(OFFLINE_THREAD_DRIVER, DIRECT_DRIVER, aChannels);
-    // Remove this graph's driver since it holds a ref. If no AppendMessage
-    // takes place, the driver never starts. This will also make sure no-one
-    // tries to use it. We are still kept alive by the self-ref. Destroy() must
-    // be called to break that cycle.
-    SetCurrentDriver(nullptr);
+
+    MonitorAutoLock lock(mMonitor);
+    // We don't need a graph driver.  Advance to
+    // LIFECYCLE_WAITING_FOR_TRACK_DESTRUCTION so that the driver never
+    // starts.  Graph control messages run as in shutdown, synchronously.
+    // This permits the main thread part of track initialization through
+    // AudioProcessingTrack::Create().
+    mLifecycleState = LIFECYCLE_WAITING_FOR_TRACK_DESTRUCTION;
+#ifdef DEBUG
+    mCanRunMessagesSynchronously = true;
+#endif
+    // Remove this graph's driver since it holds a ref. We are still kept
+    // alive by the self-ref. Destroy() must be called to break that cycle if
+    // no tracks are created and destroyed.
+    mDriver = nullptr;
   }
 
   MOCK_CONST_METHOD0(OnGraphThread, bool());
@@ -53,6 +63,7 @@ TEST(TestAudioInputProcessing, Buffering)
   const uint32_t channels = 1;
   auto graph = MakeRefPtr<NiceMock<MockGraph>>(rate);
   graph->Init(channels);
+  RefPtr track = AudioProcessingTrack::Create(graph);
 
   auto aip = MakeRefPtr<AudioInputProcessing>(channels);
 
@@ -62,19 +73,26 @@ TEST(TestAudioInputProcessing, Buffering)
   GraphTime processedTime;
   GraphTime nextTime;
   AudioSegment output;
+  MediaEnginePrefs settings;
+  settings.mChannels = channels;
+  // pref "media.getusermedia.agc2_forced" defaults to true.
+  // mAgc would need to be set to something other than kAdaptiveAnalog
+  // for mobile, as asserted in AudioInputProcessing::ConfigForPrefs,
+  // if gain_controller1 were used.
+  settings.mAgc2Forced = true;
 
   // Toggle pass-through mode without starting
   {
-    EXPECT_EQ(aip->PassThrough(graph), false);
+    EXPECT_EQ(aip->IsPassThrough(graph), true);
     EXPECT_EQ(aip->NumBufferedFrames(graph), 0);
 
-    aip->SetPassThrough(graph, true);
+    settings.mAgcOn = true;
+    aip->ApplySettings(graph, nullptr, settings);
+    EXPECT_EQ(aip->IsPassThrough(graph), false);
     EXPECT_EQ(aip->NumBufferedFrames(graph), 0);
 
-    aip->SetPassThrough(graph, false);
-    EXPECT_EQ(aip->NumBufferedFrames(graph), 0);
-
-    aip->SetPassThrough(graph, true);
+    settings.mAgcOn = false;
+    aip->ApplySettings(graph, nullptr, settings);
     EXPECT_EQ(aip->NumBufferedFrames(graph), 0);
   }
 
@@ -88,14 +106,15 @@ TEST(TestAudioInputProcessing, Buffering)
     AudioSegment input;
     generator.Generate(input, nextTime - processedTime);
 
-    aip->Process(graph, processedTime, nextTime, &input, &output);
+    aip->Process(track, processedTime, nextTime, &input, &output);
     EXPECT_EQ(input.GetDuration(), nextTime - processedTime);
     EXPECT_EQ(output.GetDuration(), nextTime);
     EXPECT_EQ(aip->NumBufferedFrames(graph), 0);
   }
 
   // Set aip to processing/non-pass-through mode
-  aip->SetPassThrough(graph, false);
+  settings.mAgcOn = true;
+  aip->ApplySettings(graph, nullptr, settings);
   {
     // Need (nextTime - processedTime) = 256 - 128 = 128 frames this round.
     // aip has not started yet, so output will be filled with silence data
@@ -106,7 +125,7 @@ TEST(TestAudioInputProcessing, Buffering)
     AudioSegment input;
     generator.Generate(input, nextTime - processedTime);
 
-    aip->Process(graph, processedTime, nextTime, &input, &output);
+    aip->Process(track, processedTime, nextTime, &input, &output);
     EXPECT_EQ(input.GetDuration(), nextTime - processedTime);
     EXPECT_EQ(output.GetDuration(), nextTime);
     EXPECT_EQ(aip->NumBufferedFrames(graph), 0);
@@ -124,7 +143,7 @@ TEST(TestAudioInputProcessing, Buffering)
     AudioSegment input;
     generator.Generate(input, nextTime - processedTime);
 
-    aip->Process(graph, processedTime, nextTime, &input, &output);
+    aip->Process(track, processedTime, nextTime, &input, &output);
     EXPECT_EQ(input.GetDuration(), nextTime - processedTime);
     EXPECT_EQ(output.GetDuration(), nextTime);
     EXPECT_EQ(aip->NumBufferedFrames(graph), 0);
@@ -145,7 +164,7 @@ TEST(TestAudioInputProcessing, Buffering)
     AudioSegment input;
     generator.Generate(input, nextTime - processedTime);
 
-    aip->Process(graph, processedTime, nextTime, &input, &output);
+    aip->Process(track, processedTime, nextTime, &input, &output);
     EXPECT_EQ(input.GetDuration(), nextTime - processedTime);
     EXPECT_EQ(output.GetDuration(), nextTime);
     EXPECT_EQ(aip->NumBufferedFrames(graph), 32);
@@ -159,7 +178,7 @@ TEST(TestAudioInputProcessing, Buffering)
     AudioSegment input;
     generator.Generate(input, nextTime - processedTime);
 
-    aip->Process(graph, processedTime, nextTime, &input, &output);
+    aip->Process(track, processedTime, nextTime, &input, &output);
     EXPECT_EQ(input.GetDuration(), nextTime - processedTime);
     EXPECT_EQ(output.GetDuration(), nextTime);
     EXPECT_EQ(aip->NumBufferedFrames(graph), 32);
@@ -178,13 +197,15 @@ TEST(TestAudioInputProcessing, Buffering)
     AudioSegment input;
     generator.Generate(input, nextTime - processedTime);
 
-    aip->Process(graph, processedTime, nextTime, &input, &output);
+    aip->Process(track, processedTime, nextTime, &input, &output);
     EXPECT_EQ(input.GetDuration(), nextTime - processedTime);
     EXPECT_EQ(output.GetDuration(), nextTime);
     EXPECT_EQ(aip->NumBufferedFrames(graph), 64);
   }
 
-  aip->SetPassThrough(graph, true);
+  // Set aip to pass-through mode
+  settings.mAgcOn = false;
+  aip->ApplySettings(graph, nullptr, settings);
   {
     // Need (nextTime - processedTime) = 512 - 512 = 0 frames this round.
     // No buffering in pass-through mode
@@ -194,14 +215,14 @@ TEST(TestAudioInputProcessing, Buffering)
     AudioSegment input;
     generator.Generate(input, nextTime - processedTime);
 
-    aip->Process(graph, processedTime, nextTime, &input, &output);
+    aip->Process(track, processedTime, nextTime, &input, &output);
     EXPECT_EQ(input.GetDuration(), nextTime - processedTime);
     EXPECT_EQ(output.GetDuration(), processedTime);
     EXPECT_EQ(aip->NumBufferedFrames(graph), 0);
   }
 
   aip->Stop(graph);
-  graph->Destroy();
+  track->Destroy();
 }
 
 TEST(TestAudioInputProcessing, ProcessDataWithDifferentPrincipals)
@@ -210,6 +231,7 @@ TEST(TestAudioInputProcessing, ProcessDataWithDifferentPrincipals)
   const uint32_t channels = 2;
   auto graph = MakeRefPtr<NiceMock<MockGraph>>(rate);
   graph->Init(channels);
+  RefPtr track = AudioProcessingTrack::Create(graph);
 
   auto aip = MakeRefPtr<AudioInputProcessing>(channels);
   AudioGenerator<AudioDataValue> generator(channels, rate);
@@ -269,13 +291,18 @@ TEST(TestAudioInputProcessing, ProcessDataWithDifferentPrincipals)
   };
 
   // Check the principals in audio-processing mode.
-  EXPECT_EQ(aip->PassThrough(graph), false);
+  MediaEnginePrefs settings;
+  settings.mChannels = channels;
+  settings.mAgcOn = true;
+  settings.mAgc2Forced = true;
+  aip->ApplySettings(graph, nullptr, settings);
+  EXPECT_EQ(aip->IsPassThrough(graph), false);
   aip->Start(graph);
   {
     AudioSegment output;
     {
       AudioSegment data;
-      aip->Process(graph, 0, 4800, &input, &data);
+      aip->Process(track, 0, 4800, &input, &data);
       EXPECT_EQ(input.GetDuration(), 4800);
       EXPECT_EQ(data.GetDuration(), 4800);
 
@@ -283,7 +310,7 @@ TEST(TestAudioInputProcessing, ProcessDataWithDifferentPrincipals)
       EXPECT_EQ(aip->NumBufferedFrames(graph), 480);
       AudioSegment dummy;
       dummy.AppendNullData(480);
-      aip->Process(graph, 0, 480, &dummy, &data);
+      aip->Process(track, 0, 480, &dummy, &data);
       EXPECT_EQ(dummy.GetDuration(), 480);
       EXPECT_EQ(data.GetDuration(), 480 + 4800);
 
@@ -295,10 +322,12 @@ TEST(TestAudioInputProcessing, ProcessDataWithDifferentPrincipals)
   }
 
   // Check the principals in pass-through mode.
-  aip->SetPassThrough(graph, true);
+  settings.mAgcOn = false;
+  aip->ApplySettings(graph, nullptr, settings);
+  EXPECT_EQ(aip->IsPassThrough(graph), true);
   {
     AudioSegment output;
-    aip->Process(graph, 0, 4800, &input, &output);
+    aip->Process(track, 0, 4800, &input, &output);
     EXPECT_EQ(input.GetDuration(), 4800);
     EXPECT_EQ(output.GetDuration(), 4800);
 
@@ -306,7 +335,7 @@ TEST(TestAudioInputProcessing, ProcessDataWithDifferentPrincipals)
   }
 
   aip->Stop(graph);
-  graph->Destroy();
+  track->Destroy();
 }
 
 TEST(TestAudioInputProcessing, Downmixing)
@@ -315,6 +344,7 @@ TEST(TestAudioInputProcessing, Downmixing)
   const uint32_t channels = 4;
   auto graph = MakeRefPtr<NiceMock<MockGraph>>(rate);
   graph->Init(channels);
+  RefPtr track = AudioProcessingTrack::Create(graph);
 
   auto aip = MakeRefPtr<AudioInputProcessing>(channels);
 
@@ -324,7 +354,12 @@ TEST(TestAudioInputProcessing, Downmixing)
   GraphTime processedTime;
   GraphTime nextTime;
 
-  aip->SetPassThrough(graph, false);
+  MediaEnginePrefs settings;
+  settings.mChannels = channels;
+  settings.mAgcOn = true;
+  settings.mAgc2Forced = true;
+  aip->ApplySettings(graph, nullptr, settings);
+  EXPECT_EQ(aip->IsPassThrough(graph), false);
   aip->Start(graph);
 
   processedTime = 0;
@@ -344,7 +379,7 @@ TEST(TestAudioInputProcessing, Downmixing)
     // downmix to mono, scaling the input by 1/4 in the process.
     // We can't compare the input and output signal because the sine is going to
     // be mangledui
-    aip->Process(graph, processedTime, nextTime, &input, &output);
+    aip->Process(track, processedTime, nextTime, &input, &output);
     EXPECT_EQ(input.GetDuration(), nextTime - processedTime);
     EXPECT_EQ(output.GetDuration(), nextTime);
     EXPECT_EQ(output.MaxChannelCount(), 1u);
@@ -364,15 +399,18 @@ TEST(TestAudioInputProcessing, Downmixing)
     }
   }
 
-  // Now, repeat the test, checking we get the unmodified 4 channels.
-  aip->SetPassThrough(graph, true);
+  // Now, repeat the test in pass-through mode, checking we get the unmodified
+  // 4 channels.
+  settings.mAgcOn = false;
+  aip->ApplySettings(graph, nullptr, settings);
+  EXPECT_EQ(aip->IsPassThrough(graph), true);
 
   AudioSegment input, output;
   processedTime = nextTime;
   nextTime += MediaTrackGraphImpl::RoundUpToEndOfAudioBlock(frames);
   generator.Generate(input, nextTime - processedTime);
 
-  aip->Process(graph, processedTime, nextTime, &input, &output);
+  aip->Process(track, processedTime, nextTime, &input, &output);
   EXPECT_EQ(input.GetDuration(), nextTime - processedTime);
   EXPECT_EQ(output.GetDuration(), nextTime - processedTime);
   // This time, no downmix: 4 channels of input, 4 channels of output
@@ -388,5 +426,5 @@ TEST(TestAudioInputProcessing, Downmixing)
   }
 
   aip->Stop(graph);
-  graph->Destroy();
+  track->Destroy();
 }

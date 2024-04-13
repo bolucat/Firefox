@@ -9557,6 +9557,13 @@
   mirror: always
   rust: true
 
+# Whether to disable extra top/bottom spacing for stretchy operators.
+- name: mathml.top_bottom_spacing_for_stretchy_operators.disabled
+  type: bool
+  value: true
+  mirror: always
+  rust: true
+
 #---------------------------------------------------------------------------
 # Prefs starting with "media."
 #---------------------------------------------------------------------------
@@ -13152,6 +13159,12 @@
 
 # This preference can be used to turn off IPv6 name lookups. See bug 68796.
 - name: network.dns.disableIPv6
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# Whether to prefer IPv6 name lookups.
+- name: network.dns.preferIPv6
   type: RelaxedAtomicBool
   value: false
   mirror: always
