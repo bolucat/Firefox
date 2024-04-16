@@ -312,7 +312,7 @@ class MOZ_STACK_CLASS nsFlexContainerFrame::FlexboxAxisTracker {
         return StyleAlignFlags::START;
       }
 
-      MOZ_ASSERT(wm.PhysicalAxis(MainAxis()) == eAxisHorizontal,
+      MOZ_ASSERT(wm.PhysicalAxis(MainAxis()) == PhysicalAxis::Horizontal,
                  "Vertical column-oriented flex container's main axis should "
                  "be parallel to physical left <-> right axis!");
       // Map 'left' or 'right' to 'start' or 'end', depending on its block flow
@@ -2257,7 +2257,7 @@ FlexItem::FlexItem(ReflowInput& aFlexItemReflowInput, float aFlexGrow,
       // (Note: this is *not* the "flex-start" side; rather, it's the *logical*
       // i.e. WM-relative block-start or inline-start side.)
       mozilla::Side containerStartSideInCrossAxis = mCBWM.PhysicalSide(
-          MakeLogicalSide(aAxisTracker.CrossAxis(), eLogicalEdgeStart));
+          MakeLogicalSide(aAxisTracker.CrossAxis(), LogicalEdge::Start));
 
       // We already know these two Sides (the item's block-start and the
       // container's 'logical start' side for its cross axis) are in the same
@@ -2354,7 +2354,7 @@ nscoord FlexItem::BaselineOffsetFromOuterCrossEdge(
     // column-oriented flex container. We need to synthesize the item's baseline
     // from its border-box edge.
     const bool isMainAxisHorizontal =
-        mCBWM.PhysicalAxis(MainAxis()) == mozilla::eAxisHorizontal;
+        mCBWM.PhysicalAxis(MainAxis()) == PhysicalAxis::Horizontal;
 
     // When the main axis is horizontal, the synthesized baseline is the bottom
     // edge of the item's border-box. Otherwise, when the main axis is vertical,
@@ -2448,7 +2448,7 @@ void FlexItem::ResolveFlexBaseSizeFromAspectRatio(
 uint32_t FlexItem::NumAutoMarginsInAxis(LogicalAxis aAxis) const {
   uint32_t numAutoMargins = 0;
   const auto& styleMargin = mFrame->StyleMargin()->mMargin;
-  for (const auto edge : {eLogicalEdgeStart, eLogicalEdgeEnd}) {
+  for (const auto edge : {LogicalEdge::Start, LogicalEdge::End}) {
     const auto side = MakeLogicalSide(aAxis, edge);
     if (styleMargin.Get(mCBWM, side).IsAuto()) {
       numAutoMargins++;
@@ -2708,12 +2708,12 @@ class MOZ_STACK_CLASS PositionTracker {
 
   inline LogicalSide StartSide() {
     return MakeLogicalSide(
-        mAxis, mIsAxisReversed ? eLogicalEdgeEnd : eLogicalEdgeStart);
+        mAxis, mIsAxisReversed ? LogicalEdge::End : LogicalEdge::Start);
   }
 
   inline LogicalSide EndSide() {
     return MakeLogicalSide(
-        mAxis, mIsAxisReversed ? eLogicalEdgeStart : eLogicalEdgeEnd);
+        mAxis, mIsAxisReversed ? LogicalEdge::Start : LogicalEdge::End);
   }
 
   // Advances our position across the start edge of the given margin, in the
@@ -4111,12 +4111,13 @@ FlexboxAxisTracker::FlexboxAxisTracker(
 
 LogicalSide FlexboxAxisTracker::MainAxisStartSide() const {
   return MakeLogicalSide(
-      MainAxis(), IsMainAxisReversed() ? eLogicalEdgeEnd : eLogicalEdgeStart);
+      MainAxis(), IsMainAxisReversed() ? LogicalEdge::End : LogicalEdge::Start);
 }
 
 LogicalSide FlexboxAxisTracker::CrossAxisStartSide() const {
-  return MakeLogicalSide(
-      CrossAxis(), IsCrossAxisReversed() ? eLogicalEdgeEnd : eLogicalEdgeStart);
+  return MakeLogicalSide(CrossAxis(), IsCrossAxisReversed()
+                                          ? LogicalEdge::End
+                                          : LogicalEdge::Start);
 }
 
 void nsFlexContainerFrame::GenerateFlexLines(

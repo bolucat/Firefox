@@ -1,10 +1,19 @@
 [DEFAULT]
-support-files = ["!/toolkit/components/satchel/test/subtst_privbrowsing.html"]
+support-files = [
+  "!/toolkit/components/satchel/test/subtst_privbrowsing.html",
+  "formhistory_autocomplete.sqlite",
+]
+
+["browser_autocomplete.js"]
+lineno = "7"
 
 ["browser_close_tab.js"]
+lineno = "10"
 
 ["browser_popup_mouseover.js"]
 skip-if = ["verify"]
+lineno = "13"
 
 ["browser_privbrowsing_perwindowpb.js"]
 skip-if = ["verify"]
+lineno = "17"

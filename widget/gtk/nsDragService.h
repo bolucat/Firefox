@@ -24,6 +24,42 @@ class SourceSurface;
 }
 }  // namespace mozilla
 
+class DragData final {
+ public:
+  NS_INLINE_DECL_REFCOUNTING(DragData)
+
+  DragData(void* aData, uint32_t aDataLen, bool aCopyData) {
+    UpdateData(aData, aDataLen, aCopyData);
+  }
+  DragData(const void* aData, uint32_t aDataLen) {
+    // Always copy const data as we want to update it in-place by
+    // UTF8/UTF16 conversions.
+    UpdateData(const_cast<void*>(aData), aDataLen, /* aCopyData */ true);
+  }
+  explicit DragData(gchar** aDragUris) : mDragUris(aDragUris) {}
+
+  bool HasURIs() const { return !!mDragUris.get(); }
+  gchar** GetURIs() const { return mDragUris.get(); }
+
+  void UpdateData(void* aData, uint32_t aDataLen, bool aCopyData = false);
+  void* GetData() const { return mDragData; }
+  uint32_t GetDataLen() const { return mDragDataLen; }
+  mozilla::Span<char> GetDataSpan() const {
+    return mozilla::Span((char*)mDragData, mDragDataLen);
+  }
+
+ private:
+  void ReleaseData();
+  ~DragData();
+
+  // We don't use any auto pointers here because we pass mDragData directly
+  // to various code which re-allocates it and releases it by malloc/free.
+  uint32_t mDragDataLen = 0;
+  void* mDragData = nullptr;
+
+  mozilla::GUniquePtr<gchar*> mDragUris;
+};
+
 /**
  * Native GTK DragService wrapper
  */
@@ -161,15 +197,15 @@ class nsDragService final : public nsBaseDragService, public nsIObserver {
   RefPtr<GdkDragContext> mPendingDragContext;
 
   // We cache all data for the current drag context,
-  // because waiting for the data in GetTargetDragData can be very slow.
-  nsTHashMap<nsCStringHashKey, nsTArray<uint8_t>> mCachedData;
+  // because waiting for the data in GetDragData can be very slow.
+  //
   // mCachedData are tied to mCachedDragContext. mCachedDragContext is not
   // ref counted and may be already deleted on Gtk side.
+  //
   // We used it for mCachedData invalidation only and can't be used for
   // any D&D operation.
   uintptr_t mCachedDragContext;
-
-  nsTHashMap<nsCStringHashKey, mozilla::GUniquePtr<gchar*>> mCachedUris;
+  nsRefPtrHashtable<nsVoidPtrHashKey, DragData> mCachedDragData;
 
   guint mPendingTime;
 
@@ -197,18 +233,16 @@ class nsDragService final : public nsBaseDragService, public nsIObserver {
   // is it OK to drop on us?
   bool mCanDrop;
 
-  // have we received our drag data?
-  bool mTargetDragDataReceived;
-  // last data received and its length
-  void* mTargetDragData;
-  uint32_t mTargetDragDataLen;
-  mozilla::GUniquePtr<gchar*> mTargetDragUris;
+  // Received drag data
+  RefPtr<DragData> mDragData;
+
   // is the current target drag context contain a list?
   bool IsTargetContextList(void);
   // this will get the native data from the last target given a
   // specific flavor
-  void GetTargetDragData(GdkAtom aFlavor, nsTArray<nsCString>& aDropFlavors,
-                         bool aResetTargetData = true);
+  void GetDragData(GdkAtom aRequestedFlavor,
+                   const nsTArray<GdkAtom>& aAvailableDragFlavors,
+                   bool aResetDragData = true);
   // this will reset all of the target vars
   void TargetResetData(void);
   // Ensure our data cache belongs to aDragContext and clear the cache if
@@ -247,7 +281,7 @@ class nsDragService final : public nsBaseDragService, public nsIObserver {
 #ifdef MOZ_LOGGING
   const char* GetDragServiceTaskName(nsDragService::DragTask aTask);
 #endif
-  void GetDragFlavors(nsTArray<nsCString>& aFlavors);
+  void GetAvailableDragFlavors(nsTArray<GdkAtom>& aAvailableFlavors);
   gboolean DispatchDropEvent();
   static uint32_t GetCurrentModifiers();
 
@@ -264,6 +298,17 @@ class nsDragService final : public nsBaseDragService, public nsIObserver {
   guint mTempFileTimerID;
   // How deep we're nested in event loops
   int mEventLoopDepth;
+
+ public:
+  static GdkAtom sTextMimeAtom;
+  static GdkAtom sMozUrlTypeAtom;
+  static GdkAtom sMimeListTypeAtom;
+  static GdkAtom sTextUriListTypeAtom;
+  static GdkAtom sTextPlainUTF8TypeAtom;
+  static GdkAtom sXdndDirectSaveTypeAtom;
+  static GdkAtom sTabDropTypeAtom;
+  static GdkAtom sPortalFileAtom;
+  static GdkAtom sPortalFileTransferAtom;
 };
 
 #endif  // nsDragService_h__

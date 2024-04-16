@@ -8,6 +8,7 @@
 #define builtin_temporal_Calendar_h
 
 #include "mozilla/Assertions.h"
+#include "mozilla/Attributes.h"
 #include "mozilla/EnumSet.h"
 
 #include <initializer_list>
@@ -49,7 +50,7 @@ class CalendarObject : public NativeObject {
  * Calendar value, which is either a string containing a canonical calendar
  * identifier or an object.
  */
-class CalendarValue final {
+class MOZ_STACK_CLASS CalendarValue final {
   JS::Value value_{};
 
  public:
@@ -126,7 +127,7 @@ enum class CalendarMethod {
   YearMonthFromFields,
 };
 
-class CalendarRecord {
+class MOZ_STACK_CLASS CalendarRecord final {
   CalendarValue receiver_;
 
   // Null unless non-builtin calendar methods are used.
@@ -190,6 +191,7 @@ class CalendarRecord {
   void trace(JSTracer* trc);
 };
 
+struct DateDuration;
 struct Duration;
 struct PlainDate;
 struct PlainDateTime;
@@ -199,6 +201,7 @@ class PlainDateTimeObject;
 class PlainMonthDayObject;
 class PlainYearMonthObject;
 enum class CalendarOption;
+enum class TemporalOverflow;
 enum class TemporalUnit;
 
 /**
@@ -305,7 +308,7 @@ JSObject* CalendarMergeFields(JSContext* cx,
  */
 Wrapped<PlainDateObject*> CalendarDateAdd(
     JSContext* cx, JS::Handle<CalendarRecord> calendar,
-    JS::Handle<Wrapped<PlainDateObject*>> date, const Duration& duration);
+    JS::Handle<Wrapped<PlainDateObject*>> date, const DateDuration& duration);
 
 /**
  * CalendarDateAdd ( calendarRec, date, duration [ , options ] )
@@ -336,14 +339,14 @@ Wrapped<PlainDateObject*> CalendarDateAdd(
  * CalendarDateAdd ( calendarRec, date, duration [ , options ] )
  */
 bool CalendarDateAdd(JSContext* cx, JS::Handle<CalendarRecord> calendar,
-                     const PlainDate& date, const Duration& duration,
+                     const PlainDate& date, const DateDuration& duration,
                      PlainDate* result);
 
 /**
  * CalendarDateAdd ( calendarRec, date, duration [ , options ] )
  */
 bool CalendarDateAdd(JSContext* cx, JS::Handle<CalendarRecord> calendar,
-                     const PlainDate& date, const Duration& duration,
+                     const PlainDate& date, const DateDuration& duration,
                      JS::Handle<JSObject*> options, PlainDate* result);
 
 /**
@@ -351,7 +354,22 @@ bool CalendarDateAdd(JSContext* cx, JS::Handle<CalendarRecord> calendar,
  */
 bool CalendarDateAdd(JSContext* cx, JS::Handle<CalendarRecord> calendar,
                      JS::Handle<Wrapped<PlainDateObject*>> date,
-                     const Duration& duration, PlainDate* result);
+                     const DateDuration& duration, PlainDate* result);
+
+/**
+ * CalendarDateUntil ( calendarRec, one, two, options )
+ */
+bool CalendarDateUntil(JSContext* cx, JS::Handle<CalendarRecord> calendar,
+                       const PlainDate& one, const PlainDate& two,
+                       TemporalUnit largestUnit, DateDuration* result);
+
+/**
+ * CalendarDateUntil ( calendarRec, one, two, options )
+ */
+bool CalendarDateUntil(JSContext* cx, JS::Handle<CalendarRecord> calendar,
+                       const PlainDate& one, const PlainDate& two,
+                       TemporalUnit largestUnit,
+                       JS::Handle<PlainObject*> options, DateDuration* result);
 
 /**
  * CalendarDateUntil ( calendarRec, one, two, options )
@@ -359,7 +377,7 @@ bool CalendarDateAdd(JSContext* cx, JS::Handle<CalendarRecord> calendar,
 bool CalendarDateUntil(JSContext* cx, JS::Handle<CalendarRecord> calendar,
                        JS::Handle<Wrapped<PlainDateObject*>> one,
                        JS::Handle<Wrapped<PlainDateObject*>> two,
-                       JS::Handle<PlainObject*> options, Duration* result);
+                       TemporalUnit largestUnit, DateDuration* result);
 
 /**
  * CalendarDateUntil ( calendarRec, one, two, options )
@@ -367,7 +385,8 @@ bool CalendarDateUntil(JSContext* cx, JS::Handle<CalendarRecord> calendar,
 bool CalendarDateUntil(JSContext* cx, JS::Handle<CalendarRecord> calendar,
                        JS::Handle<Wrapped<PlainDateObject*>> one,
                        JS::Handle<Wrapped<PlainDateObject*>> two,
-                       TemporalUnit largestUnit, Duration* result);
+                       TemporalUnit largestUnit,
+                       JS::Handle<PlainObject*> options, DateDuration* result);
 
 /**
  * CalendarYear ( calendar, dateLike )
@@ -724,6 +743,13 @@ Wrapped<PlainDateObject*> CalendarDateFromFields(
 Wrapped<PlainDateObject*> CalendarDateFromFields(
     JSContext* cx, JS::Handle<CalendarRecord> calendar,
     JS::Handle<PlainObject*> fields, JS::Handle<PlainObject*> options);
+
+/**
+ * CalendarDateFromFields ( calendarRec, fields [ , options ] )
+ */
+Wrapped<PlainDateObject*> CalendarDateFromFields(
+    JSContext* cx, JS::Handle<CalendarRecord> calendar,
+    JS::Handle<PlainObject*> fields, TemporalOverflow overflow);
 
 /**
  * CalendarYearMonthFromFields ( calendarRec, fields [ , options ] )

@@ -137,18 +137,22 @@ static bool IterableToListOfStrings(JSContext* cx, Handle<Value> items,
 
   // Step 1. (Not applicable in our implementation.)
 
-  // Steps 2-3.
+  // Step 2.
   Rooted<Value> nextValue(cx);
   Rooted<PropertyKey> value(cx);
   while (true) {
+    // Step 2.a.
     bool done;
     if (!iterator.next(&nextValue, &done)) {
       return false;
     }
+
+    // Step 2.b.
     if (done) {
-      break;
+      return true;
     }
 
+    // Step 2.d. (Reordered)
     if (nextValue.isString()) {
       if (!PrimitiveValueToId<CanGC>(cx, nextValue, &value)) {
         return false;
@@ -159,15 +163,14 @@ static bool IterableToListOfStrings(JSContext* cx, Handle<Value> items,
       continue;
     }
 
+    // Step 2.c.1.
     ReportValueError(cx, JSMSG_UNEXPECTED_TYPE, JSDVG_IGNORE_STACK, nextValue,
                      nullptr, "not a string");
 
+    // Step 2.c.2.
     iterator.closeThrow();
     return false;
   }
-
-  // Step 4.
-  return true;
 }
 
 /**
@@ -312,7 +315,7 @@ int32_t js::temporal::ToISODayOfYear(const PlainDate& date) {
   MOZ_ASSERT(ISODateTimeWithinLimits(date));
 
   // Steps 1-5.
-  auto& [year, month, day] = date;
+  const auto& [year, month, day] = date;
   return ::ToISODayOfYear(year, month, day);
 }
 
@@ -423,7 +426,7 @@ struct YearWeek final {
 static YearWeek ToISOWeekOfYear(const PlainDate& date) {
   MOZ_ASSERT(ISODateTimeWithinLimits(date));
 
-  auto& [year, month, day] = date;
+  const auto& [year, month, day] = date;
 
   // TODO: https://en.wikipedia.org/wiki/Week#The_ISO_week_date_system
   // TODO: https://en.wikipedia.org/wiki/ISO_week_date#Algorithms
@@ -1054,6 +1057,88 @@ static bool BuiltinCalendarFields(
   return true;
 }
 
+/**
+ * Temporal.Calendar.prototype.fields ( fields )
+ */
+static bool BuiltinCalendarFields(JSContext* cx, Handle<Value> fields,
+                                  MutableHandle<Value> result) {
+  // Step 4.
+  JS::ForOfIterator iterator(cx);
+  if (!iterator.init(fields)) {
+    return false;
+  }
+
+  // Step 5.
+  JS::RootedVector<Value> fieldNames(cx);
+  mozilla::EnumSet<CalendarField> seen;
+
+  // Step 6.
+  Rooted<Value> nextValue(cx);
+  Rooted<JSLinearString*> linear(cx);
+  while (true) {
+    // Step 6.a.
+    bool done;
+    if (!iterator.next(&nextValue, &done)) {
+      return false;
+    }
+
+    // Step 6.b.
+    if (done) {
+      auto* array =
+          NewDenseCopiedArray(cx, fieldNames.length(), fieldNames.begin());
+      if (!array) {
+        return false;
+      }
+
+      result.setObject(*array);
+      return true;
+    }
+
+    // Step 6.c.
+    if (!nextValue.isString()) {
+      // Step 6.c.1.
+      ReportValueError(cx, JSMSG_UNEXPECTED_TYPE, JSDVG_IGNORE_STACK, nextValue,
+                       nullptr, "not a string");
+
+      // Step 6.c.2.
+      iterator.closeThrow();
+      return false;
+    }
+
+    linear = nextValue.toString()->ensureLinear(cx);
+    if (!linear) {
+      return false;
+    }
+
+    // Step 6.e. (Reordered)
+    CalendarField field;
+    if (!ToCalendarField(cx, linear, &field)) {
+      iterator.closeThrow();
+      return false;
+    }
+
+    // Step 6.d.
+    if (seen.contains(field)) {
+      // Step 6.d.1.
+      if (auto chars = QuoteString(cx, linear, '"')) {
+        JS_ReportErrorNumberUTF8(cx, GetErrorMessage, nullptr,
+                                 JSMSG_TEMPORAL_CALENDAR_DUPLICATE_FIELD,
+                                 chars.get());
+      }
+
+      // Step 6.d.2.
+      iterator.closeThrow();
+      return false;
+    }
+
+    // Step 6.f.
+    if (!fieldNames.append(nextValue)) {
+      return false;
+    }
+    seen += field;
+  }
+}
+
 #ifdef DEBUG
 static bool IsSorted(std::initializer_list<CalendarField> fieldNames) {
   return std::is_sorted(fieldNames.begin(), fieldNames.end(),
@@ -1075,15 +1160,12 @@ bool js::temporal::CalendarFields(
   MOZ_ASSERT(
       CalendarMethodsRecordHasLookedUp(calendar, CalendarMethod::Fields));
 
-  // FIXME: spec issue - the input is already sorted, let's assert this, too.
+  // Step 1.
   MOZ_ASSERT(IsSorted(fieldNames));
-
-  // FIXME: spec issue - the input shouldn't have duplicate elements. Let's
-  // assert this, too.
   MOZ_ASSERT(std::adjacent_find(fieldNames.begin(), fieldNames.end()) ==
              fieldNames.end());
 
-  // Step 1.
+  // Step 2.
   auto fields = calendar.fields();
   if (!fields) {
     bool arrayIterationSane;
@@ -1098,16 +1180,14 @@ bool js::temporal::CalendarFields(
     }
 
     if (arrayIterationSane) {
-      // Steps 1.a-b. (Not applicable in our implementation.)
-
-      // Step 1.c.
+      // Steps 2.a-b.
       return BuiltinCalendarFields(cx, fieldNames, result.get());
 
-      // Steps 1.d-f. (Not applicable in our implementation.)
+      // Steps 2.c-e. (Not applicable in our implementation.)
     }
   }
 
-  // Step 2. (Inlined call to CalendarMethodsRecordCall.)
+  // Step 3. (Inlined call to CalendarMethodsRecordCall.)
 
   auto* array = NewDenseFullyAllocatedArray(cx, fieldNames.size());
   if (!array) {
@@ -1120,15 +1200,22 @@ bool js::temporal::CalendarFields(
     array->initDenseElement(i, StringValue(name));
   }
 
-  Rooted<Value> fieldsFn(cx, ObjectValue(*fields));
-  auto thisv = calendar.receiver().toValue();
   Rooted<Value> fieldsArray(cx, ObjectValue(*array));
-  if (!Call(cx, fieldsFn, thisv, fieldsArray, &fieldsArray)) {
-    return false;
+  Rooted<Value> calendarFieldNames(cx);
+  if (fields) {
+    Rooted<Value> fieldsFn(cx, ObjectValue(*fields));
+    auto thisv = calendar.receiver().toValue();
+    if (!Call(cx, fieldsFn, thisv, fieldsArray, &calendarFieldNames)) {
+      return false;
+    }
+  } else {
+    if (!BuiltinCalendarFields(cx, fieldsArray, &calendarFieldNames)) {
+      return false;
+    }
   }
 
-  // Steps 3-4.
-  if (!IterableToListOfStrings(cx, fieldsArray, result)) {
+  // Steps 4-5.
+  if (!IterableToListOfStrings(cx, calendarFieldNames, result)) {
     return false;
   }
 
@@ -2481,9 +2568,38 @@ Wrapped<PlainDateObject*> js::temporal::CalendarDateFromFields(
   return ::CalendarDateFromFields(cx, calendar, fields, options);
 }
 
+/**
+ * CalendarDateFromFields ( calendarRec, fields [ , options ] )
+ */
+Wrapped<PlainDateObject*> js::temporal::CalendarDateFromFields(
+    JSContext* cx, Handle<CalendarRecord> calendar, Handle<PlainObject*> fields,
+    TemporalOverflow overflow) {
+  // FIXME: spec issue - unnecessary options object when using "constrain".
+  // https://github.com/tc39/proposal-temporal/issues/2803
+
+  Rooted<PlainObject*> options(cx, NewPlainObjectWithProto(cx, nullptr));
+  if (!options) {
+    return nullptr;
+  }
+
+  Rooted<Value> value(cx);
+  if (overflow == TemporalOverflow::Constrain) {
+    value = StringValue(cx->names().constrain);
+  } else {
+    MOZ_ASSERT(overflow == TemporalOverflow::Reject);
+    value = StringValue(cx->names().reject);
+  }
+  if (!DefineDataProperty(cx, options, cx->names().overflow, value)) {
+    return nullptr;
+  }
+
+  // Steps 1-6.
+  return ::CalendarDateFromFields(cx, calendar, fields, options);
+}
+
 struct RegulatedISOYearMonth final {
-  double year;
-  int32_t month;
+  double year = 0;
+  int32_t month = 0;
 };
 
 /**
@@ -2850,7 +2966,7 @@ static bool ISOFieldKeysToIgnore(JSContext* cx, const PropertyVector& keys,
 
   // Step 2.
   bool seenMonthOrMonthCode = false;
-  for (auto& key : keys) {
+  for (const auto& key : keys) {
     // Reorder the substeps in order to use |putNew| instead of |put|, because
     // the former is slightly faster.
 
@@ -3060,7 +3176,7 @@ JSObject* js::temporal::CalendarMergeFields(
  * Temporal.Calendar.prototype.dateAdd ( date, duration [ , options ] )
  */
 static bool BuiltinCalendarAdd(JSContext* cx, const PlainDate& date,
-                               const Duration& duration,
+                               const NormalizedDuration& duration,
                                Handle<JSObject*> options, PlainDate* result) {
   MOZ_ASSERT(IsValidISODate(date));
   MOZ_ASSERT(IsValidDuration(duration));
@@ -3076,15 +3192,51 @@ static bool BuiltinCalendarAdd(JSContext* cx, const PlainDate& date,
   }
 
   // Step 8.
-  TimeDuration balanceResult;
-  if (!BalanceTimeDuration(cx, duration, TemporalUnit::Day, &balanceResult)) {
-    return false;
-  }
+  const auto& timeDuration = duration.time;
 
   // Step 9.
-  Duration addDuration = {duration.years, duration.months, duration.weeks,
-                          balanceResult.days};
+  auto balanceResult = BalanceTimeDuration(timeDuration, TemporalUnit::Day);
+
+  // Step 10.
+  auto addDuration = DateDuration{
+      duration.date.years,
+      duration.date.months,
+      duration.date.weeks,
+      duration.date.days + balanceResult.days,
+  };
   return AddISODate(cx, date, addDuration, overflow, result);
+}
+
+/**
+ * Temporal.Calendar.prototype.dateAdd ( date, duration [ , options ] )
+ */
+static bool BuiltinCalendarAdd(JSContext* cx, const PlainDate& date,
+                               const DateDuration& duration,
+                               Handle<JSObject*> options, PlainDate* result) {
+  // Steps 1-6. (Not applicable)
+
+  // Step 8. (Reordered)
+  auto normalized = CreateNormalizedDurationRecord(duration, {});
+
+  // Steps 7-10.
+  return BuiltinCalendarAdd(cx, date, normalized, options, result);
+}
+
+/**
+ * Temporal.Calendar.prototype.dateAdd ( date, duration [ , options ] )
+ */
+static PlainDateObject* BuiltinCalendarAdd(JSContext* cx, const PlainDate& date,
+                                           const DateDuration& duration,
+                                           Handle<JSObject*> options) {
+  // Steps 1-10.
+  PlainDate result;
+  if (!BuiltinCalendarAdd(cx, date, duration, options, &result)) {
+    return nullptr;
+  }
+
+  // Step 11.
+  Rooted<CalendarValue> calendar(cx, CalendarValue(cx->names().iso8601));
+  return CreateTemporalDate(cx, result, calendar);
 }
 
 /**
@@ -3095,13 +3247,16 @@ static PlainDateObject* BuiltinCalendarAdd(JSContext* cx, const PlainDate& date,
                                            Handle<JSObject*> options) {
   // Steps 1-6. (Not applicable)
 
-  // Steps 7-9.
+  // Step 8. (Reordered)
+  auto normalized = CreateNormalizedDurationRecord(duration);
+
+  // Steps 7-10.
   PlainDate result;
-  if (!BuiltinCalendarAdd(cx, date, duration, options, &result)) {
+  if (!BuiltinCalendarAdd(cx, date, normalized, options, &result)) {
     return nullptr;
   }
 
-  // Step 10.
+  // Step 11.
   Rooted<CalendarValue> calendar(cx, CalendarValue(cx->names().iso8601));
   return CreateTemporalDate(cx, result, calendar);
 }
@@ -3188,6 +3343,38 @@ static Wrapped<PlainDateObject*> CalendarDateAdd(
  */
 static Wrapped<PlainDateObject*> CalendarDateAdd(
     JSContext* cx, Handle<CalendarRecord> calendar,
+    Handle<Wrapped<PlainDateObject*>> date, const DateDuration& duration,
+    Handle<JSObject*> options) {
+  MOZ_ASSERT(
+      CalendarMethodsRecordHasLookedUp(calendar, CalendarMethod::DateAdd));
+
+  // Step 1. (Not applicable).
+
+  // Step 3. (Reordered)
+  if (!calendar.dateAdd()) {
+    auto* unwrappedDate = date.unwrap(cx);
+    if (!unwrappedDate) {
+      return nullptr;
+    }
+    auto date = ToPlainDate(unwrappedDate);
+
+    return BuiltinCalendarAdd(cx, date, duration, options);
+  }
+
+  // Steps 2 and 4-5.
+  Rooted<DurationObject*> durationObj(
+      cx, CreateTemporalDuration(cx, duration.toDuration()));
+  if (!durationObj) {
+    return nullptr;
+  }
+  return CalendarDateAddSlow(cx, calendar, date, durationObj, options);
+}
+
+/**
+ * CalendarDateAdd ( calendarRec, date, duration [ , options ] )
+ */
+static Wrapped<PlainDateObject*> CalendarDateAdd(
+    JSContext* cx, Handle<CalendarRecord> calendar,
     Handle<Wrapped<PlainDateObject*>> date,
     Handle<Wrapped<DurationObject*>> duration, Handle<JSObject*> options) {
   MOZ_ASSERT(
@@ -3221,8 +3408,8 @@ static Wrapped<PlainDateObject*> CalendarDateAdd(
  */
 static bool CalendarDateAdd(JSContext* cx, Handle<CalendarRecord> calendar,
                             Handle<Wrapped<PlainDateObject*>> date,
-                            const Duration& duration, Handle<JSObject*> options,
-                            PlainDate* result) {
+                            const DateDuration& duration,
+                            Handle<JSObject*> options, PlainDate* result) {
   MOZ_ASSERT(
       CalendarMethodsRecordHasLookedUp(calendar, CalendarMethod::DateAdd));
 
@@ -3241,7 +3428,8 @@ static bool CalendarDateAdd(JSContext* cx, Handle<CalendarRecord> calendar,
 
   // Steps 2 and 4-5.
 
-  Rooted<DurationObject*> durationObj(cx, CreateTemporalDuration(cx, duration));
+  Rooted<DurationObject*> durationObj(
+      cx, CreateTemporalDuration(cx, duration.toDuration()));
   if (!durationObj) {
     return false;
   }
@@ -3259,7 +3447,7 @@ static bool CalendarDateAdd(JSContext* cx, Handle<CalendarRecord> calendar,
  * CalendarDateAdd ( calendarRec, date, duration [ , options ] )
  */
 static bool CalendarDateAdd(JSContext* cx, Handle<CalendarRecord> calendar,
-                            const PlainDate& date, const Duration& duration,
+                            const PlainDate& date, const DateDuration& duration,
                             Handle<JSObject*> options, PlainDate* result) {
   MOZ_ASSERT(
       CalendarMethodsRecordHasLookedUp(calendar, CalendarMethod::DateAdd));
@@ -3279,7 +3467,8 @@ static bool CalendarDateAdd(JSContext* cx, Handle<CalendarRecord> calendar,
     return false;
   }
 
-  Rooted<DurationObject*> durationObj(cx, CreateTemporalDuration(cx, duration));
+  Rooted<DurationObject*> durationObj(
+      cx, CreateTemporalDuration(cx, duration.toDuration()));
   if (!durationObj) {
     return false;
   }
@@ -3311,7 +3500,7 @@ Wrapped<PlainDateObject*> js::temporal::CalendarDateAdd(
  */
 Wrapped<PlainDateObject*> js::temporal::CalendarDateAdd(
     JSContext* cx, Handle<CalendarRecord> calendar,
-    Handle<Wrapped<PlainDateObject*>> date, const Duration& duration) {
+    Handle<Wrapped<PlainDateObject*>> date, const DateDuration& duration) {
   // Step 1.
   Handle<JSObject*> options = nullptr;
 
@@ -3352,7 +3541,7 @@ Wrapped<PlainDateObject*> js::temporal::CalendarDateAdd(
 bool js::temporal::CalendarDateAdd(JSContext* cx,
                                    Handle<CalendarRecord> calendar,
                                    const PlainDate& date,
-                                   const Duration& duration,
+                                   const DateDuration& duration,
                                    PlainDate* result) {
   // Step 1.
   Handle<JSObject*> options = nullptr;
@@ -3364,9 +3553,12 @@ bool js::temporal::CalendarDateAdd(JSContext* cx,
 /**
  * CalendarDateAdd ( calendarRec, date, duration [ , options ] )
  */
-bool js::temporal::CalendarDateAdd(
-    JSContext* cx, Handle<CalendarRecord> calendar, const PlainDate& date,
-    const Duration& duration, Handle<JSObject*> options, PlainDate* result) {
+bool js::temporal::CalendarDateAdd(JSContext* cx,
+                                   Handle<CalendarRecord> calendar,
+                                   const PlainDate& date,
+                                   const DateDuration& duration,
+                                   Handle<JSObject*> options,
+                                   PlainDate* result) {
   // Step 1. (Not applicable)
 
   // Steps 2-5.
@@ -3379,7 +3571,7 @@ bool js::temporal::CalendarDateAdd(
 bool js::temporal::CalendarDateAdd(JSContext* cx,
                                    Handle<CalendarRecord> calendar,
                                    Handle<Wrapped<PlainDateObject*>> date,
-                                   const Duration& duration,
+                                   const DateDuration& duration,
                                    PlainDate* result) {
   // Step 1.
   Handle<JSObject*> options = nullptr;
@@ -3391,18 +3583,15 @@ bool js::temporal::CalendarDateAdd(JSContext* cx,
 /**
  * Temporal.Calendar.prototype.dateUntil ( one, two [ , options ] )
  */
-static Duration BuiltinCalendarDateUntil(const PlainDate& one,
-                                         const PlainDate& two,
-                                         TemporalUnit largestUnit) {
+static DateDuration BuiltinCalendarDateUntil(const PlainDate& one,
+                                             const PlainDate& two,
+                                             TemporalUnit largestUnit) {
   // Steps 1-3. (Not applicable)
 
   // Steps 4-8. (Not applicable)
 
-  // Step 9.
-  auto difference = DifferenceISODate(one, two, largestUnit);
-
-  // Step 10.
-  return difference.toDuration();
+  // Steps 9-10.
+  return DifferenceISODate(one, two, largestUnit);
 }
 
 /**
@@ -3412,7 +3601,7 @@ static bool BuiltinCalendarDateUntil(JSContext* cx,
                                      Handle<Wrapped<PlainDateObject*>> one,
                                      Handle<Wrapped<PlainDateObject*>> two,
                                      TemporalUnit largestUnit,
-                                     Duration* result) {
+                                     DateDuration* result) {
   MOZ_ASSERT(largestUnit <= TemporalUnit::Day);
 
   auto* unwrappedOne = one.unwrap(cx);
@@ -3432,36 +3621,30 @@ static bool BuiltinCalendarDateUntil(JSContext* cx,
   return true;
 }
 
-/**
- * Temporal.Calendar.prototype.dateUntil ( one, two [ , options ] )
- */
-static bool BuiltinCalendarDateUntil(JSContext* cx,
-                                     Handle<Wrapped<PlainDateObject*>> one,
-                                     Handle<Wrapped<PlainDateObject*>> two,
-                                     Handle<JSObject*> options,
-                                     Duration* result) {
-  // Steps 1-6. (Not applicable)
-
-  // Steps 7-8.
-  auto largestUnit = TemporalUnit::Day;
-  if (!GetTemporalUnit(cx, options, TemporalUnitKey::LargestUnit,
-                       TemporalUnitGroup::Date, &largestUnit)) {
-    return false;
-  }
-
-  // Steps 9-10.
-  return BuiltinCalendarDateUntil(cx, one, two, largestUnit, result);
-}
-
 static bool CalendarDateUntilSlow(JSContext* cx,
                                   Handle<CalendarRecord> calendar,
                                   Handle<Wrapped<PlainDateObject*>> one,
                                   Handle<Wrapped<PlainDateObject*>> two,
-                                  Handle<JSObject*> options, Duration* result) {
+                                  TemporalUnit largestUnit,
+                                  Handle<JSObject*> maybeOptions,
+                                  DateDuration* result) {
   MOZ_ASSERT(
       CalendarMethodsRecordHasLookedUp(calendar, CalendarMethod::DateUntil));
   MOZ_ASSERT(calendar.receiver().isObject());
   MOZ_ASSERT(calendar.dateUntil());
+
+  Rooted<JSObject*> options(cx, maybeOptions);
+  if (!options) {
+    options = NewPlainObjectWithProto(cx, nullptr);
+    if (!options) {
+      return false;
+    }
+  }
+
+  Rooted<Value> value(cx, StringValue(TemporalUnitToString(cx, largestUnit)));
+  if (!DefineDataProperty(cx, options, cx->names().largestUnit, value)) {
+    return false;
+  }
 
   // Step 1. (Inlined call to CalendarMethodsRecordCall.)
   Rooted<JS::Value> dateUntil(cx, ObjectValue(*calendar.dateUntil()));
@@ -3488,8 +3671,31 @@ static bool CalendarDateUntilSlow(JSContext* cx,
   }
 
   // Step 4.
-  *result = ToDuration(&rval.toObject().unwrapAs<DurationObject>());
+  auto duration = ToDuration(&rval.toObject().unwrapAs<DurationObject>());
+  *result = duration.toDateDuration();
   return true;
+}
+
+static bool CalendarDateUntilSlow(JSContext* cx,
+                                  Handle<CalendarRecord> calendar,
+                                  const PlainDate& one, const PlainDate& two,
+                                  TemporalUnit largestUnit,
+                                  Handle<JSObject*> maybeOptions,
+                                  DateDuration* result) {
+  Rooted<PlainDateObject*> date1(
+      cx, CreateTemporalDate(cx, one, calendar.receiver()));
+  if (!date1) {
+    return false;
+  }
+
+  Rooted<PlainDateObject*> date2(
+      cx, CreateTemporalDate(cx, two, calendar.receiver()));
+  if (!date2) {
+    return false;
+  }
+
+  return CalendarDateUntilSlow(cx, calendar, date1, date2, largestUnit,
+                               maybeOptions, result);
 }
 
 /**
@@ -3497,20 +3703,58 @@ static bool CalendarDateUntilSlow(JSContext* cx,
  */
 bool js::temporal::CalendarDateUntil(JSContext* cx,
                                      Handle<CalendarRecord> calendar,
-                                     Handle<Wrapped<PlainDateObject*>> one,
-                                     Handle<Wrapped<PlainDateObject*>> two,
-                                     Handle<PlainObject*> options,
-                                     Duration* result) {
+                                     const PlainDate& one, const PlainDate& two,
+                                     TemporalUnit largestUnit,
+                                     DateDuration* result) {
   MOZ_ASSERT(
       CalendarMethodsRecordHasLookedUp(calendar, CalendarMethod::DateUntil));
+  MOZ_ASSERT(largestUnit <= TemporalUnit::Day);
 
   // Step 2. (Reordered)
   if (!calendar.dateUntil()) {
-    return BuiltinCalendarDateUntil(cx, one, two, options, result);
+    *result = BuiltinCalendarDateUntil(one, two, largestUnit);
+    return true;
   }
 
   // Steps 1 and 3-4.
-  return CalendarDateUntilSlow(cx, calendar, one, two, options, result);
+  return CalendarDateUntilSlow(cx, calendar, one, two, largestUnit, nullptr,
+                               result);
+}
+
+/**
+ * CalendarDateUntil ( calendarRec, one, two, options )
+ */
+bool js::temporal::CalendarDateUntil(JSContext* cx,
+                                     Handle<CalendarRecord> calendar,
+                                     const PlainDate& one, const PlainDate& two,
+                                     TemporalUnit largestUnit,
+                                     Handle<PlainObject*> options,
+                                     DateDuration* result) {
+  MOZ_ASSERT(
+      CalendarMethodsRecordHasLookedUp(calendar, CalendarMethod::DateUntil));
+
+  // As an optimization, our implementation only adds |largestUnit| to the
+  // options object when taking the slow-path.
+#ifdef DEBUG
+  // The object must be extensible, otherwise we'd need to throw an error when
+  // attempting to add the "largestUnit" property to a non-extensible object.
+  MOZ_ASSERT(options->isExtensible());
+
+  // Similarily, if there's an existing "largestUnit" property, this property
+  // must be configurable.
+  auto largestUnitProp = options->lookupPure(cx->names().largestUnit);
+  MOZ_ASSERT_IF(largestUnitProp, largestUnitProp->configurable());
+#endif
+
+  // Step 2. (Reordered)
+  if (!calendar.dateUntil()) {
+    *result = BuiltinCalendarDateUntil(one, two, largestUnit);
+    return true;
+  }
+
+  // Steps 1 and 3-4.
+  return CalendarDateUntilSlow(cx, calendar, one, two, largestUnit, options,
+                               result);
 }
 
 /**
@@ -3521,7 +3765,7 @@ bool js::temporal::CalendarDateUntil(JSContext* cx,
                                      Handle<Wrapped<PlainDateObject*>> one,
                                      Handle<Wrapped<PlainDateObject*>> two,
                                      TemporalUnit largestUnit,
-                                     Duration* result) {
+                                     DateDuration* result) {
   MOZ_ASSERT(
       CalendarMethodsRecordHasLookedUp(calendar, CalendarMethod::DateUntil));
   MOZ_ASSERT(largestUnit <= TemporalUnit::Day);
@@ -3531,18 +3775,45 @@ bool js::temporal::CalendarDateUntil(JSContext* cx,
     return BuiltinCalendarDateUntil(cx, one, two, largestUnit, result);
   }
 
-  Rooted<PlainObject*> untilOptions(cx, NewPlainObjectWithProto(cx, nullptr));
-  if (!untilOptions) {
-    return false;
-  }
+  // Steps 1 and 3-4.
+  return CalendarDateUntilSlow(cx, calendar, one, two, largestUnit, nullptr,
+                               result);
+}
 
-  Rooted<Value> value(cx, StringValue(TemporalUnitToString(cx, largestUnit)));
-  if (!DefineDataProperty(cx, untilOptions, cx->names().largestUnit, value)) {
-    return false;
+/**
+ * CalendarDateUntil ( calendarRec, one, two, options )
+ */
+bool js::temporal::CalendarDateUntil(JSContext* cx,
+                                     Handle<CalendarRecord> calendar,
+                                     Handle<Wrapped<PlainDateObject*>> one,
+                                     Handle<Wrapped<PlainDateObject*>> two,
+                                     TemporalUnit largestUnit,
+                                     Handle<PlainObject*> options,
+                                     DateDuration* result) {
+  MOZ_ASSERT(
+      CalendarMethodsRecordHasLookedUp(calendar, CalendarMethod::DateUntil));
+
+  // As an optimization, our implementation only adds |largestUnit| to the
+  // options object when taking the slow-path.
+#ifdef DEBUG
+  // The object must be extensible, otherwise we'd need to throw an error when
+  // attempting to add the "largestUnit" property to a non-extensible object.
+  MOZ_ASSERT(options->isExtensible());
+
+  // Similarily, if there's an existing "largestUnit" property, this property
+  // must be configurable.
+  auto largestUnitProp = options->lookupPure(cx->names().largestUnit);
+  MOZ_ASSERT_IF(largestUnitProp, largestUnitProp->configurable());
+#endif
+
+  // Step 2. (Reordered)
+  if (!calendar.dateUntil()) {
+    return BuiltinCalendarDateUntil(cx, one, two, largestUnit, result);
   }
 
   // Steps 1 and 3-4.
-  return CalendarDateUntilSlow(cx, calendar, one, two, untilOptions, result);
+  return CalendarDateUntilSlow(cx, calendar, one, two, largestUnit, options,
+                               result);
 }
 
 /**
@@ -3925,7 +4196,7 @@ static bool Calendar_dateAdd(JSContext* cx, const CallArgs& args) {
     }
   }
 
-  // Steps 7-10.
+  // Steps 7-11.
   auto* obj = BuiltinCalendarAdd(cx, date, duration, options);
   if (!obj) {
     return false;
@@ -3979,10 +4250,11 @@ static bool Calendar_dateUntil(JSContext* cx, const CallArgs& args) {
     }
   }
 
-  // Steps 9-10.
+  // Step 9.
   auto duration = BuiltinCalendarDateUntil(one, two, largestUnit);
 
-  auto* obj = CreateTemporalDuration(cx, duration);
+  // Step 10.
+  auto* obj = CreateTemporalDuration(cx, duration.toDuration());
   if (!obj) {
     return false;
   }
@@ -4363,76 +4635,8 @@ static bool Calendar_fields(JSContext* cx, const CallArgs& args) {
   // Step 3.
   MOZ_ASSERT(IsISO8601Calendar(&args.thisv().toObject().as<CalendarObject>()));
 
-  // Step 4.
-  JS::ForOfIterator iterator(cx);
-  if (!iterator.init(args.get(0))) {
-    return false;
-  }
-
-  // Step 5.
-  JS::RootedVector<Value> fieldNames(cx);
-  mozilla::EnumSet<CalendarField> seen;
-
-  // Steps 6-7.
-  Rooted<Value> nextValue(cx);
-  Rooted<JSLinearString*> linear(cx);
-  while (true) {
-    // Steps 7.a and 7.b.i.
-    bool done;
-    if (!iterator.next(&nextValue, &done)) {
-      return false;
-    }
-    if (done) {
-      break;
-    }
-
-    // Step 7.b.ii.
-    if (!nextValue.isString()) {
-      ReportValueError(cx, JSMSG_UNEXPECTED_TYPE, JSDVG_IGNORE_STACK, nextValue,
-                       nullptr, "not a string");
-      iterator.closeThrow();
-      return false;
-    }
-
-    linear = nextValue.toString()->ensureLinear(cx);
-    if (!linear) {
-      return false;
-    }
-
-    // Step 7.b.iv. (Reordered)
-    CalendarField field;
-    if (!ToCalendarField(cx, linear, &field)) {
-      iterator.closeThrow();
-      return false;
-    }
-
-    // Step 7.b.iii.
-    if (seen.contains(field)) {
-      if (auto chars = QuoteString(cx, linear, '"')) {
-        JS_ReportErrorNumberUTF8(cx, GetErrorMessage, nullptr,
-                                 JSMSG_TEMPORAL_CALENDAR_DUPLICATE_FIELD,
-                                 chars.get());
-      }
-      iterator.closeThrow();
-      return false;
-    }
-
-    // Step 7.b.v.
-    if (!fieldNames.append(nextValue)) {
-      return false;
-    }
-    seen += field;
-  }
-
-  // Step 8.
-  auto* array =
-      NewDenseCopiedArray(cx, fieldNames.length(), fieldNames.begin());
-  if (!array) {
-    return false;
-  }
-
-  args.rval().setObject(*array);
-  return true;
+  // Steps 4-6.
+  return BuiltinCalendarFields(cx, args.get(0), args.rval());
 }
 
 /**
@@ -4512,18 +4716,14 @@ static bool Calendar_mergeFields(JSContext* cx, const CallArgs& args) {
   for (size_t i = 0; i < fieldsKeys.length(); i++) {
     Handle<PropertyKey> key = fieldsKeys[i];
 
-    // Step 12.a.
-    // FIXME: spec issue - unnecessary initialisation
-    // https://github.com/tc39/proposal-temporal/issues/2549
-
-    // Steps 12.b-c.
+    // Steps 12.a-b.
     if (overriddenKeys.has(key)) {
       if (!GetProperty(cx, additionalFieldsCopy, additionalFieldsCopy, key,
                        &propValue)) {
         return false;
       }
 
-      // Step 12.d. (Reordered)
+      // Step 12.c. (Reordered)
       if (propValue.isUndefined()) {
         // The property can be undefined if the key is "month" or "monthCode".
         MOZ_ASSERT(key.isAtom(cx->names().month) ||
@@ -4540,7 +4740,7 @@ static bool Calendar_mergeFields(JSContext* cx, const CallArgs& args) {
       MOZ_ASSERT(!propValue.isUndefined());
     }
 
-    // Step 12.d.
+    // Step 12.c.
     if (!DefineDataProperty(cx, merged, key, propValue)) {
       return false;
     }

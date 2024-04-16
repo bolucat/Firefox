@@ -96,16 +96,19 @@ static PlainMonthDayObject* CreateTemporalMonthDay(
   }
 
   // Step 5.
-  obj->setFixedSlot(PlainMonthDayObject::ISO_MONTH_SLOT, Int32Value(isoMonth));
+  obj->setFixedSlot(PlainMonthDayObject::ISO_MONTH_SLOT,
+                    Int32Value(int32_t(isoMonth)));
 
   // Step 6.
-  obj->setFixedSlot(PlainMonthDayObject::ISO_DAY_SLOT, Int32Value(isoDay));
+  obj->setFixedSlot(PlainMonthDayObject::ISO_DAY_SLOT,
+                    Int32Value(int32_t(isoDay)));
 
   // Step 7.
   obj->setFixedSlot(PlainMonthDayObject::CALENDAR_SLOT, calendar.toValue());
 
   // Step 8.
-  obj->setFixedSlot(PlainMonthDayObject::ISO_YEAR_SLOT, Int32Value(isoYear));
+  obj->setFixedSlot(PlainMonthDayObject::ISO_YEAR_SLOT,
+                    Int32Value(int32_t(isoYear)));
 
   // Step 9.
   return obj;
@@ -117,7 +120,7 @@ static PlainMonthDayObject* CreateTemporalMonthDay(
  */
 PlainMonthDayObject* js::temporal::CreateTemporalMonthDay(
     JSContext* cx, const PlainDate& date, Handle<CalendarValue> calendar) {
-  auto& [isoYear, isoMonth, isoDay] = date;
+  const auto& [isoYear, isoMonth, isoDay] = date;
 
   // Step 1.
   if (!ThrowIfInvalidISODate(cx, date)) {
@@ -306,8 +309,6 @@ static Wrapped<PlainMonthDayObject*> ToTemporalMonthDay(
   if (!obj) {
     return nullptr;
   }
-
-  // FIXME: spec bug - missing call to CreateCalendarMethodsRecord
 
   // Step 13.
   Rooted<CalendarRecord> calendar(cx);
@@ -530,13 +531,11 @@ static bool PlainMonthDay_with(JSContext* cx, const CallArgs& args) {
   if (!temporalMonthDayLike) {
     return false;
   }
-
-  // Step 4.
-  if (!RejectTemporalLikeObject(cx, temporalMonthDayLike)) {
+  if (!ThrowIfTemporalLikeObject(cx, temporalMonthDayLike)) {
     return false;
   }
 
-  // Step 5.
+  // Step 4.
   Rooted<PlainObject*> resolvedOptions(cx);
   if (args.hasDefined(1)) {
     Rooted<JSObject*> options(cx,
@@ -552,7 +551,7 @@ static bool PlainMonthDay_with(JSContext* cx, const CallArgs& args) {
     return false;
   }
 
-  // Step 6.
+  // Step 5.
   Rooted<CalendarRecord> calendar(cx);
   if (!CreateCalendarMethodsRecord(cx, calendarValue,
                                    {
@@ -564,7 +563,7 @@ static bool PlainMonthDay_with(JSContext* cx, const CallArgs& args) {
     return false;
   }
 
-  // Step 7.
+  // Step 6.
   JS::RootedVector<PropertyKey> fieldNames(cx);
   if (!CalendarFields(cx, calendar,
                       {CalendarField::Day, CalendarField::Month,
@@ -573,34 +572,34 @@ static bool PlainMonthDay_with(JSContext* cx, const CallArgs& args) {
     return false;
   }
 
-  // Step 8.
+  // Step 7.
   Rooted<PlainObject*> fields(cx,
                               PrepareTemporalFields(cx, monthDay, fieldNames));
   if (!fields) {
     return false;
   }
 
-  // Step 9.
+  // Step 8.
   Rooted<PlainObject*> partialMonthDay(
       cx, PreparePartialTemporalFields(cx, temporalMonthDayLike, fieldNames));
   if (!partialMonthDay) {
     return false;
   }
 
-  // Step 10.
+  // Step 9.
   Rooted<JSObject*> mergedFields(
       cx, CalendarMergeFields(cx, calendar, fields, partialMonthDay));
   if (!mergedFields) {
     return false;
   }
 
-  // Step 11.
+  // Step 10.
   fields = PrepareTemporalFields(cx, mergedFields, fieldNames);
   if (!fields) {
     return false;
   }
 
-  // Step 12.
+  // Step 11.
   auto obj = js::temporal::CalendarMonthDayFromFields(cx, calendar, fields,
                                                       resolvedOptions);
   if (!obj) {
@@ -835,21 +834,9 @@ static bool PlainMonthDay_toPlainDate(JSContext* cx, const CallArgs& args) {
     return false;
   }
 
-  // Step 12.
-  Rooted<PlainObject*> options(cx, NewPlainObjectWithProto(cx, nullptr));
-  if (!options) {
-    return false;
-  }
-
-  // Step 13.
-  Rooted<Value> overflow(cx, StringValue(cx->names().constrain));
-  if (!DefineDataProperty(cx, options, cx->names().overflow, overflow)) {
-    return false;
-  }
-
-  // Step 14.
+  // Steps 12-14.
   auto obj = js::temporal::CalendarDateFromFields(
-      cx, calendar, mergedFromConcatenatedFields, options);
+      cx, calendar, mergedFromConcatenatedFields, TemporalOverflow::Constrain);
   if (!obj) {
     return false;
   }

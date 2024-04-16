@@ -7,6 +7,7 @@
 #include "builtin/temporal/PlainDate.h"
 
 #include "mozilla/Assertions.h"
+#include "mozilla/Casting.h"
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/Maybe.h"
 
@@ -99,20 +100,15 @@ static bool IsValidISODate(T year, T month, T day) {
   // Step 3.
   int32_t daysInMonth = js::temporal::ISODaysInMonth(year, int32_t(month));
 
-  // Step 4.
-  if (day < 1 || day > daysInMonth) {
-    return false;
-  }
-
-  // Step 5.
-  return true;
+  // Steps 4-5.
+  return 1 <= day && day <= daysInMonth;
 }
 
 /**
  * IsValidISODate ( year, month, day )
  */
 bool js::temporal::IsValidISODate(const PlainDate& date) {
-  auto& [year, month, day] = date;
+  const auto& [year, month, day] = date;
   return ::IsValidISODate(year, month, day);
 }
 
@@ -170,20 +166,15 @@ static bool ThrowIfInvalidISODate(JSContext* cx, T year, T month, T day) {
   // Step 3.
   int32_t daysInMonth = js::temporal::ISODaysInMonth(year, int32_t(month));
 
-  // Step 4.
-  if (!ThrowIfInvalidDateValue(cx, "day", 1, daysInMonth, day)) {
-    return false;
-  }
-
-  // Step 5.
-  return true;
+  // Steps 4-5.
+  return ThrowIfInvalidDateValue(cx, "day", 1, daysInMonth, day);
 }
 
 /**
  * IsValidISODate ( year, month, day )
  */
 bool js::temporal::ThrowIfInvalidISODate(JSContext* cx, const PlainDate& date) {
-  auto& [year, month, day] = date;
+  const auto& [year, month, day] = date;
   return ::ThrowIfInvalidISODate(cx, year, month, day);
 }
 
@@ -201,7 +192,7 @@ bool js::temporal::ThrowIfInvalidISODate(JSContext* cx, double year,
  * With |overflow = "constrain"|.
  */
 static PlainDate ConstrainISODate(const PlainDate& date) {
-  auto& [year, month, day] = date;
+  const auto& [year, month, day] = date;
 
   // Step 1.a.
   int32_t m = std::clamp(month, 1, 12);
@@ -316,13 +307,16 @@ static PlainDateObject* CreateTemporalDate(JSContext* cx, const CallArgs& args,
   }
 
   // Step 5.
-  object->setFixedSlot(PlainDateObject::ISO_YEAR_SLOT, Int32Value(isoYear));
+  object->setFixedSlot(PlainDateObject::ISO_YEAR_SLOT,
+                       Int32Value(int32_t(isoYear)));
 
   // Step 6.
-  object->setFixedSlot(PlainDateObject::ISO_MONTH_SLOT, Int32Value(isoMonth));
+  object->setFixedSlot(PlainDateObject::ISO_MONTH_SLOT,
+                       Int32Value(int32_t(isoMonth)));
 
   // Step 7.
-  object->setFixedSlot(PlainDateObject::ISO_DAY_SLOT, Int32Value(isoDay));
+  object->setFixedSlot(PlainDateObject::ISO_DAY_SLOT,
+                       Int32Value(int32_t(isoDay)));
 
   // Step 8.
   object->setFixedSlot(PlainDateObject::CALENDAR_SLOT, calendar.toValue());
@@ -336,7 +330,7 @@ static PlainDateObject* CreateTemporalDate(JSContext* cx, const CallArgs& args,
  */
 PlainDateObject* js::temporal::CreateTemporalDate(
     JSContext* cx, const PlainDate& date, Handle<CalendarValue> calendar) {
-  auto& [isoYear, isoMonth, isoDay] = date;
+  const auto& [isoYear, isoMonth, isoDay] = date;
 
   // Step 1.
   if (!ThrowIfInvalidISODate(cx, date)) {
@@ -602,30 +596,28 @@ bool js::temporal::ToTemporalDate(JSContext* cx, Handle<Value> item,
 /**
  * Mathematical Operations, "modulo" notation.
  */
-static int32_t NonNegativeModulo(double x, int32_t y) {
-  MOZ_ASSERT(IsInteger(x));
+static int32_t NonNegativeModulo(int64_t x, int32_t y) {
   MOZ_ASSERT(y > 0);
 
-  double r = std::fmod(x, y);
-
-  int32_t result;
-  MOZ_ALWAYS_TRUE(mozilla::NumberEqualsInt32(r, &result));
-
+  int32_t result = mozilla::AssertedCast<int32_t>(x % y);
   return (result < 0) ? (result + y) : result;
 }
 
 struct BalancedYearMonth final {
-  double year = 0;
+  int64_t year = 0;
   int32_t month = 0;
 };
 
 /**
  * BalanceISOYearMonth ( year, month )
  */
-static BalancedYearMonth BalanceISOYearMonth(double year, double month) {
-  // Step 1.
-  MOZ_ASSERT(IsInteger(year));
-  MOZ_ASSERT(IsInteger(month));
+static BalancedYearMonth BalanceISOYearMonth(int64_t year, int64_t month) {
+  MOZ_ASSERT(std::abs(year) < (int64_t(1) << 33),
+             "year is the addition of plain-date year with duration years");
+  MOZ_ASSERT(std::abs(month) < (int64_t(1) << 33),
+             "month is the addition of plain-date month with duration months");
+
+  // Step 1. (Not applicable in our implementation.)
 
   // Note: If either abs(year) or abs(month) is greater than 2^53 (the double
   // integral precision limit), the additions resp. subtractions below are
@@ -633,18 +625,17 @@ static BalancedYearMonth BalanceISOYearMonth(double year, double month) {
   // function (AddISODate) will throw an error for large values anyway.
 
   // Step 2.
-  year = year + std::floor((month - 1) / 12);
-  MOZ_ASSERT(IsInteger(year) || std::isinf(year));
+  int64_t balancedYear = year + temporal::FloorDiv(month - 1, 12);
 
   // Step 3.
-  int32_t mon = NonNegativeModulo(month - 1, 12) + 1;
-  MOZ_ASSERT(1 <= mon && mon <= 12);
+  int32_t balancedMonth = NonNegativeModulo(month - 1, 12) + 1;
+  MOZ_ASSERT(1 <= balancedMonth && balancedMonth <= 12);
 
   // Step 4.
-  return {year, mon};
+  return {balancedYear, balancedMonth};
 }
 
-static bool CanBalanceISOYear(double year) {
+static bool CanBalanceISOYear(int64_t year) {
   // TODO: Export these values somewhere.
   constexpr int32_t minYear = -271821;
   constexpr int32_t maxYear = 275760;
@@ -654,7 +645,7 @@ static bool CanBalanceISOYear(double year) {
   return minYear <= year && year <= maxYear;
 }
 
-static bool CanBalanceISODay(double day) {
+static bool CanBalanceISODay(int64_t day) {
   // The maximum number of seconds from the epoch is 8.64 * 10^12.
   constexpr int64_t maxInstantSeconds = 8'640'000'000'000;
 
@@ -684,10 +675,9 @@ PlainDate js::temporal::BalanceISODateNew(int32_t year, int32_t month,
   MOZ_ASSERT(1 <= month && month <= 12);
 
   // Steps 1-3.
-  int64_t ms = MakeDate(year, month, day);
+  double ms = double(MakeDate(year, month, day));
 
-  // FIXME: spec issue - |ms| can be non-finite
-  // https://github.com/tc39/proposal-temporal/issues/2315
+  // TODO: Add ISODateToEpochDays & friends which handle larger inputs.
 
   // TODO: This approach isn't efficient, because MonthFromTime and DayFromTime
   // both recompute YearFromTime.
@@ -725,9 +715,8 @@ PlainDate js::temporal::BalanceISODate(int32_t year, int32_t month,
   MOZ_ASSERT(1 <= month && month <= 12);
   MOZ_ASSERT(CanBalanceISODay(day));
 
-  // TODO: BalanceISODate now works using MakeDate
+  // TODO: BalanceISODate now works using ISODateToEpochDays & friends.
   // TODO: Can't use JS::MakeDate, because it expects valid month/day values.
-  // https://github.com/tc39/proposal-temporal/issues/2315
 
   // Step 1. (Not applicable in our implementation.)
 
@@ -811,7 +800,7 @@ PlainDate js::temporal::BalanceISODate(int32_t year, int32_t month,
  * AddISODate ( year, month, day, years, months, weeks, days, overflow )
  */
 bool js::temporal::AddISODate(JSContext* cx, const PlainDate& date,
-                              const Duration& duration,
+                              const DateDuration& duration,
                               TemporalOverflow overflow, PlainDate* result) {
   MOZ_ASSERT(IsValidISODate(date));
   MOZ_ASSERT(ISODateTimeWithinLimits(date));
@@ -822,18 +811,11 @@ bool js::temporal::AddISODate(JSContext* cx, const PlainDate& date,
   // BalanceISODate.
   MOZ_ASSERT(IsValidDuration(duration));
 
-  // Step 1.
-  MOZ_ASSERT(IsInteger(duration.years));
-  MOZ_ASSERT(IsInteger(duration.months));
-  MOZ_ASSERT(IsInteger(duration.weeks));
-  MOZ_ASSERT(IsInteger(duration.days));
-
-  // Step 2. (Not applicable in our implementation.)
+  // Steps 1-2. (Not applicable in our implementation.)
 
   // Step 3.
   auto yearMonth = BalanceISOYearMonth(date.year + duration.years,
                                        date.month + duration.months);
-  MOZ_ASSERT(IsInteger(yearMonth.year) || std::isinf(yearMonth.year));
   MOZ_ASSERT(1 <= yearMonth.month && yearMonth.month <= 12);
 
   // FIXME: spec issue?
@@ -881,7 +863,7 @@ bool js::temporal::AddISODate(JSContext* cx, const PlainDate& date,
   // about imprecise number arithmetic here.
 
   // Steps 5-6.
-  double d = regulated.day + (duration.days + duration.weeks * 7);
+  int64_t d = regulated.day + (duration.days + duration.weeks * 7);
 
   // Just as with |yearMonth.year|, also directly throw an error if the |days|
   // value is too large.
@@ -952,65 +934,51 @@ static bool HasYearsMonthsOrWeeks(const Duration& duration) {
   return duration.years != 0 || duration.months != 0 || duration.weeks != 0;
 }
 
-static bool AddDate(JSContext* cx, const PlainDate& date,
-                    const Duration& duration, Handle<JSObject*> maybeOptions,
-                    PlainDate* result) {
-  MOZ_ASSERT(!HasYearsMonthsOrWeeks(duration));
-
-  // Steps 1-3. (Not applicable)
-
-  // Step 4.
-  auto overflow = TemporalOverflow::Constrain;
-  if (maybeOptions) {
-    if (!ToTemporalOverflow(cx, maybeOptions, &overflow)) {
-      return false;
-    }
-  }
-
-  // Step 5.
-  TimeDuration daysDuration;
-  if (!BalanceTimeDuration(cx, duration, TemporalUnit::Day, &daysDuration)) {
-    return false;
-  }
-
-  // Step 6.
-  return AddISODate(cx, date, {0, 0, 0, daysDuration.days}, overflow, result);
-}
-
-static bool AddDate(JSContext* cx, Handle<Wrapped<PlainDateObject*>> date,
-                    const Duration& duration, Handle<JSObject*> maybeOptions,
-                    PlainDate* result) {
-  auto* unwrappedDate = date.unwrap(cx);
-  if (!unwrappedDate) {
-    return false;
-  }
-  return ::AddDate(cx, ToPlainDate(unwrappedDate), duration, maybeOptions,
-                   result);
-}
-
-static PlainDateObject* AddDate(JSContext* cx, Handle<CalendarRecord> calendar,
-                                Handle<Wrapped<PlainDateObject*>> date,
-                                const Duration& duration,
-                                Handle<JSObject*> maybeOptions) {
-  // Steps 1-3. (Not applicable)
-
-  // Steps 4-6.
-  PlainDate resultDate;
-  if (!::AddDate(cx, date, duration, maybeOptions, &resultDate)) {
-    return nullptr;
-  }
-
-  // Step 7.
-  return CreateTemporalDate(cx, resultDate, calendar.receiver());
+static bool HasYearsMonthsOrWeeks(const DateDuration& duration) {
+  return duration.years != 0 || duration.months != 0 || duration.weeks != 0;
 }
 
 /**
  * AddDate ( calendarRec, plainDate, duration [ , options ] )
  */
-Wrapped<PlainDateObject*> js::temporal::AddDate(
-    JSContext* cx, Handle<CalendarRecord> calendar,
-    Handle<Wrapped<PlainDateObject*>> date, const Duration& duration,
-    Handle<JSObject*> options) {
+static bool AddDate(JSContext* cx, const PlainDate& date,
+                    const NormalizedDuration& duration,
+                    TemporalOverflow overflow, PlainDate* result) {
+  MOZ_ASSERT(!HasYearsMonthsOrWeeks(duration.date));
+  MOZ_ASSERT(IsValidDuration(duration));
+
+  // Steps 1-4. (Not applicable)
+
+  // Step 5. (Not applicable)
+  const auto& timeDuration = duration.time;
+
+  // Step 6.
+  int64_t balancedDays =
+      BalanceTimeDuration(timeDuration, TemporalUnit::Day).days;
+  int64_t days = duration.date.days + balancedDays;
+
+  // Step 7.
+  return AddISODate(cx, date, {0, 0, 0, days}, overflow, result);
+}
+
+static bool AddDate(JSContext* cx, Handle<Wrapped<PlainDateObject*>> date,
+                    const NormalizedDuration& duration,
+                    TemporalOverflow overflow, PlainDate* result) {
+  auto* unwrappedDate = date.unwrap(cx);
+  if (!unwrappedDate) {
+    return false;
+  }
+  return ::AddDate(cx, ToPlainDate(unwrappedDate), duration, overflow, result);
+}
+
+/**
+ * AddDate ( calendarRec, plainDate, duration [ , options ] )
+ */
+static Wrapped<PlainDateObject*> AddDate(JSContext* cx,
+                                         Handle<CalendarRecord> calendar,
+                                         Handle<Wrapped<PlainDateObject*>> date,
+                                         const Duration& duration,
+                                         Handle<JSObject*> options) {
   // Step 1.
   MOZ_ASSERT(
       CalendarMethodsRecordHasLookedUp(calendar, CalendarMethod::DateAdd));
@@ -1022,8 +990,23 @@ Wrapped<PlainDateObject*> js::temporal::AddDate(
     return temporal::CalendarDateAdd(cx, calendar, date, duration, options);
   }
 
-  // Steps 4-7.
-  return ::AddDate(cx, calendar, date, duration, options);
+  // Step 4.
+  auto overflow = TemporalOverflow::Constrain;
+  if (!ToTemporalOverflow(cx, options, &overflow)) {
+    return nullptr;
+  }
+
+  // Step 5.
+  auto normalized = CreateNormalizedDurationRecord(duration);
+
+  // Steps 6-7.
+  PlainDate resultDate;
+  if (!::AddDate(cx, date, normalized, overflow, &resultDate)) {
+    return nullptr;
+  }
+
+  // Step 8.
+  return CreateTemporalDate(cx, resultDate, calendar.receiver());
 }
 
 /**
@@ -1031,7 +1014,7 @@ Wrapped<PlainDateObject*> js::temporal::AddDate(
  */
 Wrapped<PlainDateObject*> js::temporal::AddDate(
     JSContext* cx, Handle<CalendarRecord> calendar,
-    Handle<Wrapped<PlainDateObject*>> date, const Duration& duration) {
+    Handle<Wrapped<PlainDateObject*>> date, const DateDuration& duration) {
   // Step 1.
   MOZ_ASSERT(
       CalendarMethodsRecordHasLookedUp(calendar, CalendarMethod::DateAdd));
@@ -1043,8 +1026,20 @@ Wrapped<PlainDateObject*> js::temporal::AddDate(
     return CalendarDateAdd(cx, calendar, date, duration);
   }
 
-  // Steps 4-7.
-  return ::AddDate(cx, calendar, date, duration, nullptr);
+  // Step 4.
+  auto overflow = TemporalOverflow::Constrain;
+
+  // Step 5.
+  auto normalized = NormalizedDuration{duration};
+
+  // Steps 6-7.
+  PlainDate resultDate;
+  if (!::AddDate(cx, date, normalized, overflow, &resultDate)) {
+    return nullptr;
+  }
+
+  // Step 8.
+  return CreateTemporalDate(cx, resultDate, calendar.receiver());
 }
 
 /**
@@ -1052,33 +1047,15 @@ Wrapped<PlainDateObject*> js::temporal::AddDate(
  */
 Wrapped<PlainDateObject*> js::temporal::AddDate(
     JSContext* cx, Handle<CalendarRecord> calendar,
-    Handle<Wrapped<PlainDateObject*>> date,
-    Handle<Wrapped<DurationObject*>> durationObj) {
-  auto* unwrappedDuration = durationObj.unwrap(cx);
-  if (!unwrappedDuration) {
-    return nullptr;
-  }
-  auto duration = ToDuration(unwrappedDuration);
-
-  // Step 1.
-  MOZ_ASSERT(
-      CalendarMethodsRecordHasLookedUp(calendar, CalendarMethod::DateAdd));
-
-  // Step 2. (Not applicable in our implementation.)
-
-  // Step 3.
-  if (HasYearsMonthsOrWeeks(duration)) {
-    return CalendarDateAdd(cx, calendar, date, durationObj);
-  }
-
-  // Steps 4-7.
-  return ::AddDate(cx, calendar, date, duration, nullptr);
+    Handle<Wrapped<PlainDateObject*>> date, const DateDuration& duration,
+    Handle<JSObject*> options) {
+  return ::AddDate(cx, calendar, date, duration.toDuration(), options);
 }
 
 /**
  * AddDate ( calendarRec, plainDate, duration [ , options ] )
  */
-Wrapped<PlainDateObject*> js::temporal::AddDate(
+static Wrapped<PlainDateObject*> AddDate(
     JSContext* cx, Handle<CalendarRecord> calendar,
     Handle<Wrapped<PlainDateObject*>> date,
     Handle<Wrapped<DurationObject*>> durationObj, Handle<JSObject*> options) {
@@ -1099,15 +1076,30 @@ Wrapped<PlainDateObject*> js::temporal::AddDate(
     return temporal::CalendarDateAdd(cx, calendar, date, durationObj, options);
   }
 
-  // Steps 4-7.
-  return ::AddDate(cx, calendar, date, duration, options);
+  // Step 4.
+  auto overflow = TemporalOverflow::Constrain;
+  if (!ToTemporalOverflow(cx, options, &overflow)) {
+    return nullptr;
+  }
+
+  // Step 5.
+  auto normalized = CreateNormalizedDurationRecord(duration);
+
+  // Steps 6-7.
+  PlainDate resultDate;
+  if (!::AddDate(cx, date, normalized, overflow, &resultDate)) {
+    return nullptr;
+  }
+
+  // Step 8.
+  return CreateTemporalDate(cx, resultDate, calendar.receiver());
 }
 
 /**
  * AddDate ( calendarRec, plainDate, duration [ , options ] )
  */
 bool js::temporal::AddDate(JSContext* cx, Handle<CalendarRecord> calendar,
-                           const PlainDate& date, const Duration& duration,
+                           const PlainDate& date, const DateDuration& duration,
                            Handle<JSObject*> options, PlainDate* result) {
   // Step 1.
   MOZ_ASSERT(
@@ -1121,8 +1113,17 @@ bool js::temporal::AddDate(JSContext* cx, Handle<CalendarRecord> calendar,
                                      result);
   }
 
-  // Steps 4-7.
-  return ::AddDate(cx, date, duration, options, result);
+  // Step 4.
+  auto overflow = TemporalOverflow::Constrain;
+  if (!ToTemporalOverflow(cx, options, &overflow)) {
+    return false;
+  }
+
+  // Step 5.
+  auto normalized = NormalizedDuration{duration};
+
+  // Steps 5-8.
+  return ::AddDate(cx, date, normalized, overflow, result);
 }
 
 /**
@@ -1130,7 +1131,7 @@ bool js::temporal::AddDate(JSContext* cx, Handle<CalendarRecord> calendar,
  */
 bool js::temporal::AddDate(JSContext* cx, Handle<CalendarRecord> calendar,
                            Handle<Wrapped<PlainDateObject*>> date,
-                           const Duration& duration, PlainDate* result) {
+                           const DateDuration& duration, PlainDate* result) {
   // Step 1.
   MOZ_ASSERT(
       CalendarMethodsRecordHasLookedUp(calendar, CalendarMethod::DateAdd));
@@ -1142,8 +1143,14 @@ bool js::temporal::AddDate(JSContext* cx, Handle<CalendarRecord> calendar,
     return CalendarDateAdd(cx, calendar, date, duration, result);
   }
 
-  // Steps 4-7.
-  return ::AddDate(cx, date, duration, nullptr, result);
+  // Step 4.
+  auto overflow = TemporalOverflow::Constrain;
+
+  // Step 5.
+  auto normalized = NormalizedDuration{duration};
+
+  // Steps 6-8.
+  return ::AddDate(cx, date, normalized, overflow, result);
 }
 
 /**
@@ -1153,8 +1160,9 @@ bool js::temporal::DifferenceDate(JSContext* cx,
                                   Handle<CalendarRecord> calendar,
                                   Handle<Wrapped<PlainDateObject*>> one,
                                   Handle<Wrapped<PlainDateObject*>> two,
+                                  TemporalUnit largestUnit,
                                   Handle<PlainObject*> options,
-                                  Duration* result) {
+                                  DateDuration* result) {
   auto* unwrappedOne = one.unwrap(cx);
   if (!unwrappedOne) {
     return false;
@@ -1172,8 +1180,7 @@ bool js::temporal::DifferenceDate(JSContext* cx,
   // Step 3.
   MOZ_ASSERT(options->staticPrototype() == nullptr);
 
-  // Step 4.
-  MOZ_ASSERT(options->containsPure(cx->names().largestUnit));
+  // Step 4. (Not applicable in our implementation.)
 
   // Step 5.
   if (oneDate == twoDate) {
@@ -1182,30 +1189,18 @@ bool js::temporal::DifferenceDate(JSContext* cx,
   }
 
   // Step 6.
-  Rooted<JS::Value> largestUnit(cx);
-  if (!GetProperty(cx, options, options, cx->names().largestUnit,
-                   &largestUnit)) {
-    return false;
-  }
+  if (largestUnit == TemporalUnit::Day) {
+    // Step 6.a.
+    int32_t days = DaysUntil(oneDate, twoDate);
 
-  if (largestUnit.isString()) {
-    bool isDay;
-    if (!EqualStrings(cx, largestUnit.toString(), cx->names().day, &isDay)) {
-      return false;
-    }
-
-    if (isDay) {
-      // Step 6.a.
-      int32_t days = DaysUntil(oneDate, twoDate);
-
-      // Step 6.b.
-      *result = {0, 0, 0, double(days)};
-      return true;
-    }
+    // Step 6.b.
+    *result = {0, 0, 0, days};
+    return true;
   }
 
   // Step 7.
-  return CalendarDateUntil(cx, calendar, one, two, options, result);
+  return CalendarDateUntil(cx, calendar, one, two, largestUnit, options,
+                           result);
 }
 
 /**
@@ -1215,7 +1210,8 @@ bool js::temporal::DifferenceDate(JSContext* cx,
                                   Handle<CalendarRecord> calendar,
                                   Handle<Wrapped<PlainDateObject*>> one,
                                   Handle<Wrapped<PlainDateObject*>> two,
-                                  TemporalUnit largestUnit, Duration* result) {
+                                  TemporalUnit largestUnit,
+                                  DateDuration* result) {
   auto* unwrappedOne = one.unwrap(cx);
   if (!unwrappedOne) {
     return false;
@@ -1242,7 +1238,69 @@ bool js::temporal::DifferenceDate(JSContext* cx,
     int32_t days = DaysUntil(oneDate, twoDate);
 
     // Step 6.b.
-    *result = {0, 0, 0, double(days)};
+    *result = {0, 0, 0, days};
+    return true;
+  }
+
+  // Step 7.
+  return CalendarDateUntil(cx, calendar, one, two, largestUnit, result);
+}
+
+/**
+ * DifferenceDate ( calendarRec, one, two, options )
+ */
+bool js::temporal::DifferenceDate(JSContext* cx,
+                                  Handle<CalendarRecord> calendar,
+                                  const PlainDate& one, const PlainDate& two,
+                                  TemporalUnit largestUnit,
+                                  Handle<PlainObject*> options,
+                                  DateDuration* result) {
+  // Steps 1-4. (Not applicable in our implementation.)
+
+  // Step 5.
+  if (one == two) {
+    *result = {};
+    return true;
+  }
+
+  // Step 6.
+  if (largestUnit == TemporalUnit::Day) {
+    // Step 6.a.
+    int32_t days = DaysUntil(one, two);
+
+    // Step 6.b.
+    *result = {0, 0, 0, days};
+    return true;
+  }
+
+  // Step 7.
+  return CalendarDateUntil(cx, calendar, one, two, largestUnit, options,
+                           result);
+}
+
+/**
+ * DifferenceDate ( calendarRec, one, two, options )
+ */
+bool js::temporal::DifferenceDate(JSContext* cx,
+                                  Handle<CalendarRecord> calendar,
+                                  const PlainDate& one, const PlainDate& two,
+                                  TemporalUnit largestUnit,
+                                  DateDuration* result) {
+  // Steps 1-4. (Not applicable in our implementation.)
+
+  // Step 5.
+  if (one == two) {
+    *result = {};
+    return true;
+  }
+
+  // Step 6.
+  if (largestUnit == TemporalUnit::Day) {
+    // Step 6.a.
+    int32_t days = DaysUntil(one, two);
+
+    // Step 6.b.
+    *result = {0, 0, 0, days};
     return true;
   }
 
@@ -1280,8 +1338,8 @@ int32_t js::temporal::CompareISODate(const PlainDate& one,
 static DateDuration CreateDateDurationRecord(int32_t years, int32_t months,
                                              int32_t weeks, int32_t days) {
   MOZ_ASSERT(IsValidDuration(
-      {double(years), double(months), double(weeks), double(days)}));
-  return {double(years), double(months), double(weeks), double(days)};
+      Duration{double(years), double(months), double(weeks), double(days)}));
+  return {years, months, weeks, days};
 }
 
 /**
@@ -1577,31 +1635,19 @@ static bool DifferenceTemporalPlainDate(JSContext* cx,
   }
 
   // Steps 8-9.
-  Duration duration;
+  DateDuration difference;
   if (resolvedOptions) {
-    // Step 8.
-    Rooted<Value> largestUnitValue(
-        cx, StringValue(TemporalUnitToString(cx, settings.largestUnit)));
-    if (!DefineDataProperty(cx, resolvedOptions, cx->names().largestUnit,
-                            largestUnitValue)) {
+    // Steps 8-9.
+    if (!DifferenceDate(cx, calendar, temporalDate, other, settings.largestUnit,
+                        resolvedOptions, &difference)) {
       return false;
     }
-
-    // Step 9.
-    Duration result;
-    if (!DifferenceDate(cx, calendar, temporalDate, other, resolvedOptions,
-                        &result)) {
-      return false;
-    }
-    duration = result.date();
   } else {
     // Steps 8-9.
-    Duration result;
     if (!DifferenceDate(cx, calendar, temporalDate, other, settings.largestUnit,
-                        &result)) {
+                        &difference)) {
       return false;
     }
-    duration = result.date();
   }
 
   // Step 10.
@@ -1611,8 +1657,8 @@ static bool DifferenceTemporalPlainDate(JSContext* cx,
   // Step 11.
   if (!roundingGranularityIsNoop) {
     // Steps 11.a-b.
-    Duration roundResult;
-    if (!temporal::RoundDuration(cx, duration.date(),
+    NormalizedDuration roundResult;
+    if (!temporal::RoundDuration(cx, {difference, {}},
                                  settings.roundingIncrement,
                                  settings.smallestUnit, settings.roundingMode,
                                  temporalDate, calendar, &roundResult)) {
@@ -1622,19 +1668,21 @@ static bool DifferenceTemporalPlainDate(JSContext* cx,
     // Step 11.c.
     DateDuration balanceResult;
     if (!temporal::BalanceDateDurationRelative(
-            cx, roundResult.date(), settings.largestUnit, settings.smallestUnit,
+            cx, roundResult.date, settings.largestUnit, settings.smallestUnit,
             temporalDate, calendar, &balanceResult)) {
       return false;
     }
-    duration = balanceResult.toDuration();
+    difference = balanceResult;
   }
 
   // Step 12.
+  auto duration = difference.toDuration();
   if (operation == TemporalDifference::Since) {
     duration = duration.negate();
   }
+  MOZ_ASSERT(IsValidDuration(duration));
 
-  auto* obj = CreateTemporalDuration(cx, duration.date());
+  auto* obj = CreateTemporalDuration(cx, duration);
   if (!obj) {
     return false;
   }
@@ -2433,8 +2481,7 @@ static bool PlainDate_subtract(JSContext* cx, const CallArgs& args) {
   }
 
   // Step 7.
-  auto result =
-      temporal::AddDate(cx, calendar, temporalDate, negatedDuration, options);
+  auto result = ::AddDate(cx, calendar, temporalDate, negatedDuration, options);
   if (!result) {
     return false;
   }
@@ -2465,13 +2512,11 @@ static bool PlainDate_with(JSContext* cx, const CallArgs& args) {
   if (!temporalDateLike) {
     return false;
   }
-
-  // Step 4.
-  if (!RejectTemporalLikeObject(cx, temporalDateLike)) {
+  if (!ThrowIfTemporalLikeObject(cx, temporalDateLike)) {
     return false;
   }
 
-  // Step 5.
+  // Step 4.
   Rooted<PlainObject*> resolvedOptions(cx);
   if (args.hasDefined(1)) {
     Rooted<JSObject*> options(cx,
@@ -2487,7 +2532,7 @@ static bool PlainDate_with(JSContext* cx, const CallArgs& args) {
     return false;
   }
 
-  // Step 6.
+  // Step 5.
   Rooted<CalendarValue> calendarValue(cx, temporalDate->calendar());
   Rooted<CalendarRecord> calendar(cx);
   if (!CreateCalendarMethodsRecord(cx, calendarValue,
@@ -2500,7 +2545,7 @@ static bool PlainDate_with(JSContext* cx, const CallArgs& args) {
     return false;
   }
 
-  // Step 7.
+  // Step 6.
   JS::RootedVector<PropertyKey> fieldNames(cx);
   if (!CalendarFields(cx, calendar,
                       {CalendarField::Day, CalendarField::Month,
@@ -2509,34 +2554,34 @@ static bool PlainDate_with(JSContext* cx, const CallArgs& args) {
     return false;
   }
 
-  // Step 8.
+  // Step 7.
   Rooted<PlainObject*> fields(
       cx, PrepareTemporalFields(cx, temporalDate, fieldNames));
   if (!fields) {
     return false;
   }
 
-  // Step 9.
+  // Step 8.
   Rooted<PlainObject*> partialDate(
       cx, PreparePartialTemporalFields(cx, temporalDateLike, fieldNames));
   if (!partialDate) {
     return false;
   }
 
-  // Step 10.
+  // Step 9.
   Rooted<JSObject*> mergedFields(
       cx, CalendarMergeFields(cx, calendar, fields, partialDate));
   if (!mergedFields) {
     return false;
   }
 
-  // Step 11.
+  // Step 10.
   fields = PrepareTemporalFields(cx, mergedFields, fieldNames);
   if (!fields) {
     return false;
   }
 
-  // Step 12.
+  // Step 11.
   auto result =
       temporal::CalendarDateFromFields(cx, calendar, fields, resolvedOptions);
   if (!result) {

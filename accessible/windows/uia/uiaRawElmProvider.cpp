@@ -11,6 +11,7 @@
 
 #include "AccAttributes.h"
 #include "AccessibleWrap.h"
+#include "ApplicationAccessible.h"
 #include "ARIAMap.h"
 #include "LocalAccessible-inl.h"
 #include "mozilla/a11y/RemoteAccessible.h"
@@ -420,6 +421,18 @@ uiaRawElmProvider::GetPropertyValue(PROPERTYID aPropertyId,
       aPropertyValue->lVal = GetControlType();
       break;
 
+    case UIA_FrameworkIdPropertyId:
+      if (ApplicationAccessible* app = ApplicationAcc()) {
+        nsAutoString name;
+        app->PlatformName(name);
+        if (!name.IsEmpty()) {
+          aPropertyValue->vt = VT_BSTR;
+          aPropertyValue->bstrVal = ::SysAllocString(name.get());
+          return S_OK;
+        }
+      }
+      break;
+
     case UIA_FullDescriptionPropertyId: {
       nsAutoString desc;
       acc->Description(desc);
@@ -459,6 +472,11 @@ uiaRawElmProvider::GetPropertyValue(PROPERTYID aPropertyId,
           (acc->State() & states::FOCUSABLE) ? VARIANT_TRUE : VARIANT_FALSE;
       return S_OK;
 
+    case UIA_LevelPropertyId:
+      aPropertyValue->vt = VT_I4;
+      aPropertyValue->lVal = acc->GroupPosition().level;
+      return S_OK;
+
     case UIA_NamePropertyId: {
       nsAutoString name;
       acc->Name(name);
@@ -469,6 +487,16 @@ uiaRawElmProvider::GetPropertyValue(PROPERTYID aPropertyId,
       }
       break;
     }
+
+    case UIA_PositionInSetPropertyId:
+      aPropertyValue->vt = VT_I4;
+      aPropertyValue->lVal = acc->GroupPosition().posInSet;
+      return S_OK;
+
+    case UIA_SizeOfSetPropertyId:
+      aPropertyValue->vt = VT_I4;
+      aPropertyValue->lVal = acc->GroupPosition().setSize;
+      return S_OK;
   }
 
   return S_OK;

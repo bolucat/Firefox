@@ -515,6 +515,14 @@ menupopup::part(drop-indicator) {
 
 /* End private browsing indicator */
 
+/* Content analysis indicator */
+
+:root:not([contentanalysisactive]) #content-analysis-indicator {
+  display: none;
+}
+
+/* End content analysis indicator */
+
 /* Override theme colors since the picker uses extra colors that
    themes cannot set */
 #DateTimePickerPanel {
@@ -648,7 +656,7 @@ menupopup::part(drop-indicator) {
       float: inline-end;
       background-color: transparent;
       flex-direction: row-reverse;
-      /* Override proton-doorhanger default styles that increase the size of the button */
+      /* Override doorhanger default styles that increase the size of the button */
       margin: 0;
     }
 

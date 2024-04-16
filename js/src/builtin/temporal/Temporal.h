@@ -13,6 +13,7 @@
 
 #include "jstypes.h"
 
+#include "builtin/temporal/Int128.h"
 #include "builtin/temporal/TemporalRoundingMode.h"
 #include "builtin/temporal/TemporalUnit.h"
 #include "js/RootingAPI.h"
@@ -34,9 +35,6 @@ class TemporalObject : public NativeObject {
  private:
   static const ClassSpec classSpec_;
 };
-
-struct Instant;
-struct PlainTime;
 
 /**
  * Rounding increment, which is an integer in the range [1, 1'000'000'000].
@@ -171,37 +169,32 @@ bool ToTemporalRoundingMode(JSContext* cx, JS::Handle<JSObject*> options,
 /**
  * RoundNumberToIncrement ( x, increment, roundingMode )
  */
-bool RoundNumberToIncrement(JSContext* cx, const Instant& x, int64_t increment,
-                            TemporalRoundingMode roundingMode, Instant* result);
+Int128 RoundNumberToIncrement(int64_t numerator, int64_t denominator,
+                              Increment increment,
+                              TemporalRoundingMode roundingMode);
 
 /**
  * RoundNumberToIncrement ( x, increment, roundingMode )
  */
-bool RoundNumberToIncrement(JSContext* cx, int64_t numerator, TemporalUnit unit,
-                            Increment increment,
-                            TemporalRoundingMode roundingMode, double* result);
+Int128 RoundNumberToIncrement(const Int128& numerator,
+                              const Int128& denominator, Increment increment,
+                              TemporalRoundingMode roundingMode);
 
 /**
  * RoundNumberToIncrement ( x, increment, roundingMode )
  */
-bool RoundNumberToIncrement(JSContext* cx, JS::Handle<JS::BigInt*> numerator,
-                            TemporalUnit unit, Increment increment,
-                            TemporalRoundingMode roundingMode, double* result);
+Int128 RoundNumberToIncrement(const Int128& x, const Int128& increment,
+                              TemporalRoundingMode roundingMode);
 
 /**
- * RoundNumberToIncrement ( x, increment, roundingMode )
+ * Return the double value of the fractional number `numerator / denominator`.
  */
-bool RoundNumberToIncrement(JSContext* cx, int64_t numerator,
-                            int64_t denominator, Increment increment,
-                            TemporalRoundingMode roundingMode, double* result);
+double FractionToDouble(int64_t numerator, int64_t denominator);
 
 /**
- * RoundNumberToIncrement ( x, increment, roundingMode )
+ * Return the double value of the fractional number `numerator / denominator`.
  */
-bool RoundNumberToIncrement(JSContext* cx, JS::Handle<JS::BigInt*> numerator,
-                            JS::Handle<JS::BigInt*> denominator,
-                            Increment increment,
-                            TemporalRoundingMode roundingMode, double* result);
+double FractionToDouble(const Int128& numerator, const Int128& denominator);
 
 enum class CalendarOption { Auto, Always, Never, Critical };
 
@@ -221,7 +214,7 @@ class Precision final {
   constexpr Precision(int8_t value, Tag) : value_(value) {}
 
  public:
-  constexpr explicit Precision(uint8_t value) : value_(value) {
+  constexpr explicit Precision(uint8_t value) : value_(int8_t(value)) {
     MOZ_ASSERT(value < 10);
   }
 
@@ -306,9 +299,12 @@ bool ToShowOffsetOption(JSContext* cx, JS::Handle<JSObject*> options,
                         ShowOffsetOption* result);
 
 /**
- * RejectTemporalLikeObject ( object )
+ * IsPartialTemporalObject ( object )
+ *
+ * Our implementation performs error reporting in this function instead of in
+ * the caller to provide better error messages.
  */
-bool RejectTemporalLikeObject(JSContext* cx, JS::Handle<JSObject*> object);
+bool ThrowIfTemporalLikeObject(JSContext* cx, JS::Handle<JSObject*> object);
 
 /**
  * ToPositiveIntegerWithTruncation ( argument )

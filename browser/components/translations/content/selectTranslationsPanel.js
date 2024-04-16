@@ -164,12 +164,20 @@ var SelectTranslationsPanel = new (class {
         fromMenuList: "select-translations-panel-from",
         fromMenuPopup: "select-translations-panel-from-menupopup",
         header: "select-translations-panel-header",
+        mainContent: "select-translations-panel-main-content",
         textArea: "select-translations-panel-text-area",
         toLabel: "select-translations-panel-to-label",
         toMenuList: "select-translations-panel-to",
         toMenuPopup: "select-translations-panel-to-menupopup",
+        translateButton: "select-translations-panel-translate-button",
         translateFullPageButton:
           "select-translations-panel-translate-full-page-button",
+        tryAnotherSourceMenuList:
+          "select-translations-panel-try-another-language",
+        unsupportedLanguageContent:
+          "select-translations-panel-unsupported-language-content",
+        unsupportedLanguageMessageBar:
+          "select-translations-panel-unsupported-language-message-bar",
       });
     }
 
@@ -220,7 +228,6 @@ var SelectTranslationsPanel = new (class {
    * @param {string} textToTranslate - The text for which the language detection and target language retrieval are performed.
    * @returns {Promise<{fromLang?: string, toLang?: string}>} - An object containing the language pair for the translation.
    *   The `fromLang` property is omitted if it is a language that is not currently supported by Firefox Translations.
-   *   The `toLang` property is omitted if it is the same as `fromLang`.
    */
   async getLangPairPromise(textToTranslate) {
     const [fromLang, toLang] = await Promise.all([
@@ -228,11 +235,7 @@ var SelectTranslationsPanel = new (class {
       TranslationsParent.getTopPreferredSupportedToLang(),
     ]);
 
-    return {
-      fromLang,
-      // If the fromLang and toLang are the same, discard the toLang.
-      toLang: fromLang === toLang ? undefined : toLang,
-    };
+    return { fromLang, toLang };
   }
 
   /**
@@ -295,10 +298,12 @@ var SelectTranslationsPanel = new (class {
    */
   async #initializeLanguageMenuLists(langPairPromise) {
     const { fromLang, toLang } = await langPairPromise;
-    const { fromMenuList, toMenuList } = this.elements;
+    const { fromMenuList, toMenuList, tryAnotherSourceMenuList } =
+      this.elements;
     await Promise.all([
       this.#initializeLanguageMenuList(fromLang, fromMenuList),
       this.#initializeLanguageMenuList(toLang, toMenuList),
+      this.#initializeLanguageMenuList(null, tryAnotherSourceMenuList),
     ]);
   }
 
@@ -318,7 +323,7 @@ var SelectTranslationsPanel = new (class {
       return;
     }
 
-    this.#registerSourceText(sourceText);
+    this.#registerSourceText(sourceText, langPairPromise);
     await this.#ensureLangListsBuilt();
 
     await Promise.all([
@@ -326,7 +331,6 @@ var SelectTranslationsPanel = new (class {
       this.#initializeLanguageMenuLists(langPairPromise),
     ]);
 
-    this.#displayIdlePlaceholder();
     this.#maybeRequestTranslation();
     await this.#openPopup(event, screenX, screenY);
   }
@@ -340,6 +344,7 @@ var SelectTranslationsPanel = new (class {
    */
   async #openPopup(event, screenX, screenY) {
     await window.ensureCustomElements("moz-button-group");
+    await window.ensureCustomElements("moz-message-bar");
 
     this.console?.log("Showing SelectTranslationsPanel");
     const { panel } = this.elements;
@@ -351,14 +356,30 @@ var SelectTranslationsPanel = new (class {
    * on the length of the text.
    *
    * @param {string} sourceText - The text to translate.
+   * @param {Promise<{fromLang?: string, toLang?: string}>} langPairPromise
    *
    * @returns {Promise<void>}
    */
-  #registerSourceText(sourceText) {
+  async #registerSourceText(sourceText, langPairPromise) {
     const { textArea } = this.elements;
-    this.#changeStateTo("idle", /* retainEntries */ false, {
-      sourceText,
-    });
+    const { fromLang, toLang } = await langPairPromise;
+    const isFromLangSupported = await TranslationsParent.isSupportedAsFromLang(
+      fromLang
+    );
+
+    if (isFromLangSupported) {
+      this.#changeStateTo("idle", /* retainEntries */ false, {
+        sourceText,
+        fromLanguage: fromLang,
+        toLanguage: toLang,
+      });
+    } else {
+      this.#changeStateTo("unsupported", /* retainEntries */ false, {
+        sourceText,
+        detectedLanguage: fromLang,
+        toLanguage: toLang,
+      });
+    }
 
     if (sourceText.length < SelectTranslationsPanel.textLengthThreshold) {
       textArea.style.height = SelectTranslationsPanel.shortTextHeight;
@@ -423,18 +444,36 @@ var SelectTranslationsPanel = new (class {
    * Handles events when the panels select from-language is changed.
    */
   onChangeFromLanguage() {
-    const { fromMenuList, toMenuList } = this.elements;
+    const { fromMenuList } = this.elements;
     this.#maybeTranslateOnEvents(["blur", "keypress"], fromMenuList);
-    this.#maybeStealLanguageFrom(toMenuList);
   }
 
   /**
    * Handles events when the panels select to-language is changed.
    */
   onChangeToLanguage() {
-    const { toMenuList, fromMenuList } = this.elements;
+    const { toMenuList } = this.elements;
     this.#maybeTranslateOnEvents(["blur", "keypress"], toMenuList);
-    this.#maybeStealLanguageFrom(fromMenuList);
+  }
+
+  /**
+   * Handles events when the panel's try-another-source language is changed.
+   */
+  onChangeTryAnotherSourceLanguage() {
+    const { tryAnotherSourceMenuList, translateButton } = this.elements;
+    if (tryAnotherSourceMenuList.value) {
+      translateButton.disabled = false;
+    }
+  }
+
+  /**
+   * Handles events when the panel's translate button is clicked.
+   */
+  onClickTranslateButton() {
+    const { fromMenuList, tryAnotherSourceMenuList } = this.elements;
+    fromMenuList.value = tryAnotherSourceMenuList.value;
+    this.#deselectLanguage(tryAnotherSourceMenuList);
+    this.#maybeRequestTranslation();
   }
 
   /**
@@ -447,21 +486,6 @@ var SelectTranslationsPanel = new (class {
     menuList.value = "";
     document.l10n.setAttributes(menuList, "translations-panel-choose-language");
     await document.l10n.translateElements([menuList]);
-  }
-
-  /**
-   * Deselects the language from the target menu list if both menu lists
-   * have the same language selected, simulating the effect of one menu
-   * list stealing the selected language value from the other.
-   *
-   * @param {Element} menuList - The target menu list element to update.
-   */
-  async #maybeStealLanguageFrom(menuList) {
-    const { fromLanguage, toLanguage } = this.#getSelectedLanguagePair();
-    if (fromLanguage === toLanguage) {
-      await this.#deselectLanguage(menuList);
-      this.#maybeFocusMenuList(menuList);
-    }
   }
 
   /**
@@ -570,9 +594,9 @@ var SelectTranslationsPanel = new (class {
   /**
    * Retrieves the current phase of the translation state.
    *
-   * @returns {SelectTranslationsPanelState}
+   * @returns {string}
    */
-  #phase() {
+  phase() {
     return this.#translationState.phase;
   }
 
@@ -580,14 +604,14 @@ var SelectTranslationsPanel = new (class {
    * @returns {boolean} True if the panel is open, otherwise false.
    */
   #isOpen() {
-    return this.#phase() !== "closed";
+    return this.phase() !== "closed";
   }
 
   /**
    * @returns {boolean} True if the panel is closed, otherwise false.
    */
   #isClosed() {
-    return this.#phase() === "closed";
+    return this.phase() === "closed";
   }
 
   /**
@@ -608,7 +632,8 @@ var SelectTranslationsPanel = new (class {
       case "closed":
       case "idle":
       case "translatable":
-      case "translated": {
+      case "translated":
+      case "unsupported": {
         textArea.classList.remove("translating");
         break;
       }
@@ -617,7 +642,7 @@ var SelectTranslationsPanel = new (class {
       }
     }
 
-    const previousPhase = this.#phase();
+    const previousPhase = this.phase();
     if (data && retainEntries) {
       // Change the phase and apply new entries from data, but retain non-overwritten entries from previous state.
       this.#translationState = { ...this.#translationState, phase, ...data };
@@ -632,19 +657,26 @@ var SelectTranslationsPanel = new (class {
       this.#translationState = { phase };
     }
 
-    if (previousPhase === this.#phase()) {
+    if (previousPhase === this.phase()) {
       // Do not continue on to update the UI because the phase didn't change.
       return;
     }
 
-    const { fromLanguage, toLanguage } = this.#translationState;
+    const { fromLanguage, toLanguage, detectedLanguage } =
+      this.#translationState;
+    const sourceLanguage = fromLanguage ? fromLanguage : detectedLanguage;
     this.console?.debug(
-      `SelectTranslationsPanel (${fromLanguage ? fromLanguage : "??"}-${
+      `SelectTranslationsPanel (${sourceLanguage ? sourceLanguage : "??"}-${
         toLanguage ? toLanguage : "??"
       }) state change (${previousPhase} => ${phase})`
     );
 
     this.#updatePanelUIFromState();
+    document.dispatchEvent(
+      new CustomEvent("SelectTranslationsPanelStateChanged", {
+        detail: { phase },
+      })
+    );
   }
 
   /**
@@ -660,7 +692,7 @@ var SelectTranslationsPanel = new (class {
    * @throws {Error} If the current state is not "translatable".
    */
   #changeStateToTranslating() {
-    const phase = this.#phase();
+    const phase = this.phase();
     if (phase !== "translatable") {
       throw new Error(`Invalid state change (${phase} => translating)`);
     }
@@ -673,7 +705,7 @@ var SelectTranslationsPanel = new (class {
    * @throws {Error} If the current state is not "translating".
    */
   #changeStateToTranslated(translatedText) {
-    const phase = this.#phase();
+    const phase = this.phase();
     if (phase !== "translating") {
       throw new Error(`Invalid state change (${phase} => translated)`);
     }
@@ -704,14 +736,10 @@ var SelectTranslationsPanel = new (class {
       !fromLanguage ||
       // No to-language is selected, so we cannot translate.
       !toLanguage ||
-      // The same language has been selected, so we cannot translate.
-      fromLanguage === toLanguage
-    ) {
-      nextPhase = "idle";
-    } else if (
       // The languages have not changed, so there is nothing to do.
-      previousFromLanguage === fromLanguage &&
-      previousToLanguage === toLanguage
+      (this.phase() !== "idle" &&
+        previousFromLanguage === fromLanguage &&
+        previousToLanguage === toLanguage)
     ) {
       nextPhase = previousPhase;
     }
@@ -750,6 +778,8 @@ var SelectTranslationsPanel = new (class {
    * Displays the placeholder text for the translation state's "idle" phase.
    */
   #displayIdlePlaceholder() {
+    this.#showMainContent();
+
     const { textArea } = SelectTranslationsPanel.elements;
     textArea.value = this.#idlePlaceholderText;
     this.#updateTextDirection();
@@ -761,6 +791,8 @@ var SelectTranslationsPanel = new (class {
    * Displays the placeholder text for the translation state's "translating" phase.
    */
   #displayTranslatingPlaceholder() {
+    this.#showMainContent();
+
     const { textArea } = SelectTranslationsPanel.elements;
     textArea.value = this.#translatingPlaceholderText;
     this.#updateTextDirection();
@@ -772,6 +804,8 @@ var SelectTranslationsPanel = new (class {
    * Displays the translated text for the translation state's "translated" phase.
    */
   #displayTranslatedText() {
+    this.#showMainContent();
+
     const { toLanguage } = this.#getSelectedLanguagePair();
     const { textArea } = SelectTranslationsPanel.elements;
     textArea.value = this.getTranslatedText();
@@ -781,25 +815,62 @@ var SelectTranslationsPanel = new (class {
   }
 
   /**
+   * Sets attributes on panel elements that are specifically relevant
+   * to the SelectTranslationsPanel's state.
+   *
+   * @param {object} options - Options of which attributes to set.
+   * @param {Record<string, Element[]>} options.makeHidden - Make these elements hidden.
+   * @param {Record<string, Element[]>} options.makeVisible - Make these elements visible.
+   * @param {Record<string, Element[]>} options.addDefault - Give these elements the default attribute.
+   * @param {Record<string, Element[]>} options.removeDefault - Remove the default attribute from these elements.
+   */
+  #setPanelElementAttributes({
+    makeHidden = [],
+    makeVisible = [],
+    addDefault = [],
+    removeDefault = [],
+  }) {
+    for (const element of makeHidden) {
+      element.hidden = true;
+    }
+    for (const element of makeVisible) {
+      element.hidden = false;
+    }
+    for (const element of addDefault) {
+      element.setAttribute("default", "true");
+    }
+    for (const element of removeDefault) {
+      element.removeAttribute("default");
+    }
+  }
+
+  /**
    * Enables or disables UI components that are conditional on a valid language pair being selected.
    */
   #updateConditionalUIEnabledState() {
     const { fromLanguage, toLanguage } = this.#getSelectedLanguagePair();
-    const { copyButton, translateFullPageButton, textArea } = this.elements;
+    const {
+      copyButton,
+      translateFullPageButton,
+      translateButton,
+      textArea,
+      tryAnotherSourceMenuList,
+    } = this.elements;
 
     const invalidLangPairSelected = !fromLanguage || !toLanguage;
-    const isTranslating = this.#phase() === "translating";
+    const isTranslating = this.phase() === "translating";
 
     textArea.disabled = invalidLangPairSelected;
     translateFullPageButton.disabled = invalidLangPairSelected;
     copyButton.disabled = invalidLangPairSelected || isTranslating;
+    translateButton.disabled = !tryAnotherSourceMenuList.value;
   }
 
   /**
    * Updates the panel UI based on the current phase of the translation state.
    */
   #updatePanelUIFromState() {
-    switch (this.#phase()) {
+    switch (this.phase()) {
       case "idle": {
         this.#displayIdlePlaceholder();
         break;
@@ -812,7 +883,82 @@ var SelectTranslationsPanel = new (class {
         this.#displayTranslatedText();
         break;
       }
+      case "unsupported": {
+        this.#displayUnsupportedLanguageMessage();
+      }
     }
+  }
+
+  /**
+   * Shows the panel's main-content group of elements.
+   */
+  #showMainContent() {
+    const {
+      mainContent,
+      unsupportedLanguageContent,
+      doneButton,
+      translateButton,
+      translateFullPageButton,
+    } = this.elements;
+    this.#setPanelElementAttributes({
+      makeHidden: [unsupportedLanguageContent, translateButton],
+      makeVisible: [mainContent, doneButton, translateFullPageButton],
+      addDefault: [doneButton],
+      removeDefault: [translateButton],
+    });
+  }
+
+  /**
+   * Shows the panel's unsupported-language group of elements.
+   */
+  #showUnsupportedLanguageContent() {
+    const {
+      mainContent,
+      unsupportedLanguageContent,
+      doneButton,
+      translateButton,
+      translateFullPageButton,
+    } = this.elements;
+    this.#setPanelElementAttributes({
+      makeHidden: [mainContent, translateFullPageButton],
+      makeVisible: [unsupportedLanguageContent, doneButton, translateButton],
+      addDefault: [translateButton],
+      removeDefault: [doneButton],
+    });
+  }
+
+  /**
+   * Displays the panel's unsupported language message bar, showing
+   * the panel's unsupported-language elements.
+   */
+  #displayUnsupportedLanguageMessage() {
+    const { detectedLanguage } = this.#translationState;
+    const { unsupportedLanguageMessageBar } = this.elements;
+    const displayNames = new Services.intl.DisplayNames(undefined, {
+      type: "language",
+    });
+    try {
+      const language = displayNames.of(detectedLanguage);
+      if (language) {
+        document.l10n.setAttributes(
+          unsupportedLanguageMessageBar,
+          "select-translations-panel-unsupported-language-message-known",
+          { language }
+        );
+      } else {
+        // Will be immediately caught.
+        throw new Error();
+      }
+    } catch {
+      // Either displayNames.of() threw, or we threw due to no display name found.
+      // In either case, localize the message for an unknown language.
+      document.l10n.setAttributes(
+        unsupportedLanguageMessageBar,
+        "select-translations-panel-unsupported-language-message-unknown"
+      );
+    }
+    this.#updateConditionalUIEnabledState();
+    this.#showUnsupportedLanguageContent();
   }
 
   /**
@@ -876,11 +1022,10 @@ var SelectTranslationsPanel = new (class {
       this.#translator = null;
     }
 
-    this.#translator = await Translator.create(
-      fromLanguage,
-      toLanguage,
-      this.#requestTranslationsPort
-    );
+    this.#translator = await Translator.create(fromLanguage, toLanguage, {
+      allowSameLanguage: true,
+      requestTranslationsPort: this.#requestTranslationsPort,
+    });
     return this.#translator;
   }
 

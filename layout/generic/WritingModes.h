@@ -50,7 +50,7 @@ enum class LogicalAxis : uint8_t {
   Block,
   Inline,
 };
-enum LogicalEdge { eLogicalEdgeStart = 0x0, eLogicalEdgeEnd = 0x1 };
+enum class LogicalEdge : uint8_t { Start, End };
 
 enum class LogicalSide : uint8_t {
   BStart,
@@ -72,7 +72,7 @@ enum class LogicalCorner : uint8_t {
 };
 
 // Physical axis constants.
-enum PhysicalAxis { eAxisVertical = 0x0, eAxisHorizontal = 0x1 };
+enum class PhysicalAxis : uint8_t { Vertical, Horizontal };
 
 // Represents zero or more physical axes.
 enum class PhysicalAxes : uint8_t {
@@ -104,16 +104,16 @@ inline LogicalAxis GetAxis(LogicalSide aSide) {
 }
 
 inline LogicalEdge GetEdge(LogicalSide aSide) {
-  return IsEnd(aSide) ? eLogicalEdgeEnd : eLogicalEdgeStart;
+  return IsEnd(aSide) ? LogicalEdge::End : LogicalEdge::Start;
 }
 
 inline LogicalEdge GetOppositeEdge(LogicalEdge aEdge) {
   // This relies on the only two LogicalEdge enum values being 0 and 1.
-  return LogicalEdge(1 - aEdge);
+  return LogicalEdge(1 - static_cast<uint8_t>(aEdge));
 }
 
 inline LogicalSide MakeLogicalSide(LogicalAxis aAxis, LogicalEdge aEdge) {
-  return LogicalSide((uint8_t(aAxis) << 1) | aEdge);
+  return LogicalSide((uint8_t(aAxis) << 1) | static_cast<uint8_t>(aEdge));
 }
 
 inline LogicalSide GetOppositeSide(LogicalSide aSide) {
@@ -339,8 +339,9 @@ class WritingMode {
                       uint8_t(StyleWritingModeProperty::VerticalRl) == 1 &&
                       uint8_t(StyleWritingModeProperty::VerticalLr) == 3 &&
                       uint8_t(LogicalAxis::Block) == 0 &&
-                      uint8_t(LogicalAxis::Inline) == 1 && eAxisVertical == 0 &&
-                      eAxisHorizontal == 1,
+                      uint8_t(LogicalAxis::Inline) == 1 &&
+                      uint8_t(PhysicalAxis::Vertical) == 0 &&
+                      uint8_t(PhysicalAxis::Horizontal) == 1,
                   "unexpected writing-mode, logical axis or physical axis "
                   "constant values");
     return mozilla::PhysicalAxis((aWritingModeValue ^ uint8_t(aAxis)) & 0x1);
@@ -376,7 +377,7 @@ class WritingMode {
     // What's left of the writing-mode should be in the range 0-3:
     NS_ASSERTION(aWritingModeValue < 4, "invalid aWritingModeValue value");
 
-    return kLogicalBlockSides[aWritingModeValue][aEdge];
+    return kLogicalBlockSides[aWritingModeValue][static_cast<uint8_t>(aEdge)];
   }
 
   mozilla::Side PhysicalSideForInlineAxis(LogicalEdge aEdge) const {
@@ -419,7 +420,7 @@ class WritingMode {
                    StyleWritingMode::LINE_INVERTED._0 == 0x08,
                "unexpected mask values");
     int index = mWritingMode._0 & 0x0F;
-    return kLogicalInlineSides[index][aEdge];
+    return kLogicalInlineSides[index][static_cast<uint8_t>(aEdge)];
   }
 
   /**
@@ -580,7 +581,7 @@ class WritingMode {
   bool ParallelAxisStartsOnSameSide(LogicalAxis aLogicalAxis,
                                     const WritingMode& aOther) const {
     mozilla::Side myStartSide =
-        this->PhysicalSide(MakeLogicalSide(aLogicalAxis, eLogicalEdgeStart));
+        this->PhysicalSide(MakeLogicalSide(aLogicalAxis, LogicalEdge::Start));
 
     // Figure out which of aOther's axes is parallel to |this| WritingMode's
     // aLogicalAxis, and get its physical start side as well.
@@ -588,7 +589,7 @@ class WritingMode {
                                   ? GetOrthogonalAxis(aLogicalAxis)
                                   : aLogicalAxis;
     mozilla::Side otherWMStartSide =
-        aOther.PhysicalSide(MakeLogicalSide(otherWMAxis, eLogicalEdgeStart));
+        aOther.PhysicalSide(MakeLogicalSide(otherWMAxis, LogicalEdge::Start));
 
     NS_ASSERTION(myStartSide % 2 == otherWMStartSide % 2,
                  "Should end up with sides in the same physical axis");

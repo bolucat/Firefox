@@ -2599,13 +2599,19 @@ static bool Evaluate(JSContext* cx, unsigned argc, Value* vp) {
         return false;
       }
 
-      JSObject* obj = &v.toObject();
-      if (obj->isUnqualifiedVarObj()) {
-        JS_ReportErrorASCII(
-            cx,
-            "\"envChainObject\" passed to evaluate() should not be an "
-            "unqualified variables object");
-        return false;
+      RootedObject obj(cx, &v.toObject());
+      {
+        // This may be a CCW, so try to unwrap before checking
+        // if it is an unqualified variables object. We still append
+        // the original object to the environment chain however.
+        JSObject* unwrappedObj = js::UncheckedUnwrap(obj, cx);
+        if (unwrappedObj->isUnqualifiedVarObj()) {
+          JS_ReportErrorASCII(
+              cx,
+              "\"envChainObject\" passed to evaluate() should not be an "
+              "unqualified variables object");
+          return false;
+        }
       }
 
       if (!envChain.append(obj)) {
@@ -12262,9 +12268,6 @@ bool InitOptionParser(OptionParser& op) {
                         "Disable GC parallel marking") ||
       !op.addBoolOption('\0', "enable-parallel-marking",
                         "Enable GC parallel marking") ||
-      !op.addIntOption(
-          '\0', "marking-threads", "COUNT",
-          "Set the number of threads used for parallel marking to COUNT.", 0) ||
       !op.addStringOption('\0', "nursery-strings", "on/off",
                           "Allocate strings in the nursery") ||
       !op.addStringOption('\0', "nursery-bigints", "on/off",
@@ -13301,11 +13304,6 @@ bool SetContextGCOptions(JSContext* cx, const OptionParser& op) {
     parallelMarking = false;
   }
   JS_SetGCParameter(cx, JSGC_PARALLEL_MARKING_ENABLED, parallelMarking);
-
-  int32_t markingThreads = op.getIntOption("marking-threads");
-  if (markingThreads > 0) {
-    JS_SetGCParameter(cx, JSGC_MARKING_THREAD_COUNT, markingThreads);
-  }
 
   JS_SetGCParameter(cx, JSGC_SLICE_TIME_BUDGET_MS, 5);
 

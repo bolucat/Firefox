@@ -8,6 +8,7 @@
 #define builtin_temporal_PlainDateTime_h
 
 #include "mozilla/Assertions.h"
+#include "mozilla/Attributes.h"
 
 #include <stdint.h>
 
@@ -176,7 +177,7 @@ bool InterpretTemporalDateTimeFields(JSContext* cx,
 bool DifferenceISODateTime(JSContext* cx, const PlainDateTime& one,
                            const PlainDateTime& two,
                            JS::Handle<CalendarRecord> calendar,
-                           TemporalUnit largestUnit, Duration* result);
+                           TemporalUnit largestUnit, DateDuration* result);
 
 /**
  * DifferenceISODateTime ( y1, mon1, d1, h1, min1, s1, ms1, mus1, ns1, y2, mon2,
@@ -186,9 +187,10 @@ bool DifferenceISODateTime(JSContext* cx, const PlainDateTime& one,
                            const PlainDateTime& two,
                            JS::Handle<CalendarRecord> calendar,
                            TemporalUnit largestUnit,
-                           JS::Handle<PlainObject*> options, Duration* result);
+                           JS::Handle<PlainObject*> options,
+                           DateDuration* result);
 
-class PlainDateTimeWithCalendar {
+class MOZ_STACK_CLASS PlainDateTimeWithCalendar final {
   PlainDateTime dateTime_;
   CalendarValue calendar_;
 

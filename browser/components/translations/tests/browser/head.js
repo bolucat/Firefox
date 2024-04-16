@@ -297,6 +297,20 @@ class SharedTranslationsTestUtils {
   }
 
   /**
+   * Asserts that the given element has the expected L10nId.
+   *
+   * @param {Element} element - The element to assert against.
+   * @param {string} l10nId - The expected localization id.
+   */
+  static _assertL10nId(element, l10nId) {
+    is(
+      element.getAttribute("data-l10n-id"),
+      l10nId,
+      `The element ${element.id} should have L10n Id ${l10nId}.`
+    );
+  }
+
+  /**
    * Asserts that the mainViewId of the panel matches the given string.
    *
    * @param {FullPageTranslationsPanel | SelectTranslationsPanel} panel
@@ -685,11 +699,7 @@ class FullPageTranslationsTestUtils {
    */
   static #assertPanelHeaderL10nId(l10nId) {
     const { header } = FullPageTranslationsPanel.elements;
-    is(
-      header.getAttribute("data-l10n-id"),
-      l10nId,
-      "The translations panel header should match the expected data-l10n-id"
-    );
+    SharedTranslationsTestUtils._assertL10nId(header, l10nId);
   }
 
   /**
@@ -699,11 +709,7 @@ class FullPageTranslationsTestUtils {
    */
   static #assertPanelErrorL10nId(l10nId) {
     const { errorMessage } = FullPageTranslationsPanel.elements;
-    is(
-      errorMessage.getAttribute("data-l10n-id"),
-      l10nId,
-      "The translations panel error message should match the expected data-l10n-id"
-    );
+    SharedTranslationsTestUtils._assertL10nId(errorMessage, l10nId);
   }
 
   /**
@@ -1433,21 +1439,6 @@ class SelectTranslationsTestUtils {
   }
 
   /**
-   * Elements that should always be visible in the SelectTranslationsPanel.
-   */
-  static #alwaysPresentElements = {
-    betaIcon: true,
-    copyButton: true,
-    doneButton: true,
-    fromLabel: true,
-    fromMenuList: true,
-    header: true,
-    toLabel: true,
-    toMenuList: true,
-    textArea: true,
-  };
-
-  /**
    * Asserts that for each provided expectation, the visible state of the corresponding
    * element in FullPageTranslationsPanel.elements both exists and matches the visibility expectation.
    *
@@ -1458,7 +1449,23 @@ class SelectTranslationsTestUtils {
     SharedTranslationsTestUtils._assertPanelElementVisibility(
       SelectTranslationsPanel.elements,
       {
-        ...SelectTranslationsTestUtils.#alwaysPresentElements,
+        betaIcon: false,
+        copyButton: false,
+        doneButton: false,
+        fromLabel: false,
+        fromMenuList: false,
+        fromMenuPopup: false,
+        header: false,
+        mainContent: false,
+        textArea: false,
+        toLabel: false,
+        toMenuList: false,
+        toMenuPopup: false,
+        translateButton: false,
+        translateFullPageButton: false,
+        tryAnotherSourceMenuList: false,
+        unsupportedLanguageContent: false,
+        unsupportedLanguageMessageBar: false,
         // Overwrite any of the above defaults with the passed in expectations.
         ...expectations,
       }
@@ -1466,26 +1473,58 @@ class SelectTranslationsTestUtils {
   }
 
   /**
+   * Waits for the panel's translation state to reach the given phase,
+   * if it is not currently in that phase already.
+   *
+   * @param {string} phase - The phase of the panel's translation state to wait for.
+   */
+  static async waitForPanelState(phase) {
+    const currentPhase = SelectTranslationsPanel.phase();
+    if (currentPhase !== phase) {
+      info(
+        `Waiting for SelectTranslationsPanel to change state from "${currentPhase}" to "${phase}"`
+      );
+      await BrowserTestUtils.waitForEvent(
+        document,
+        "SelectTranslationsPanelStateChanged",
+        event => event.detail.phase === phase
+      );
+    }
+  }
+
+  /**
    * Asserts that the SelectTranslationsPanel UI matches the expected
    * state when the panel has completed its translation.
    */
-  static assertPanelViewTranslated() {
+  static async assertPanelViewTranslated() {
     const { textArea } = SelectTranslationsPanel.elements;
+    await SelectTranslationsTestUtils.waitForPanelState("translated");
     ok(
       !textArea.classList.contains("translating"),
       "The textarea should not have the translating class."
     );
     SelectTranslationsTestUtils.#assertPanelElementVisibility({
-      ...SelectTranslationsTestUtils.#alwaysPresentElements,
+      betaIcon: true,
+      copyButton: true,
+      doneButton: true,
+      fromLabel: true,
+      fromMenuList: true,
+      header: true,
+      mainContent: true,
+      textArea: true,
+      toLabel: true,
+      toMenuList: true,
+      translateFullPageButton: true,
     });
     SelectTranslationsTestUtils.#assertConditionalUIEnabled({
       textArea: true,
       copyButton: true,
+      doneButton: true,
       translateFullPageButton: true,
     });
     SelectTranslationsTestUtils.#assertPanelHasTranslatedText();
     SelectTranslationsTestUtils.#assertPanelTextAreaHeight();
-    SelectTranslationsTestUtils.#assertPanelTextAreaOverflow();
+    await SelectTranslationsTestUtils.#assertPanelTextAreaOverflow();
   }
 
   static #assertPanelTextAreaDirection(langTag = null) {
@@ -1503,22 +1542,52 @@ class SelectTranslationsTestUtils {
   }
 
   /**
+   * Asserts that the SelectTranslationsPanel UI matches the expected
+   * state when the panel has completed its translation.
+   */
+  static async assertPanelViewUnsupportedLanguage() {
+    await SelectTranslationsTestUtils.waitForPanelState("unsupported");
+    const { translateButton, unsupportedLanguageMessageBar } =
+      SelectTranslationsPanel.elements;
+    SelectTranslationsTestUtils.#assertPanelElementVisibility({
+      betaIcon: true,
+      doneButton: true,
+      header: true,
+      translateButton: true,
+      tryAnotherSourceMenuList: true,
+      unsupportedLanguageContent: true,
+      unsupportedLanguageMessageBar: true,
+    });
+    SelectTranslationsTestUtils.#assertConditionalUIEnabled({
+      doneButton: true,
+      translateButton: false,
+    });
+    ok(
+      translateButton.disabled,
+      "The translate button should be disabled when first shown."
+    );
+    SharedTranslationsTestUtils._assertL10nId(
+      unsupportedLanguageMessageBar,
+      "select-translations-panel-unsupported-language-message-known"
+    );
+  }
+
+  /**
    * Asserts that the SelectTranslationsPanel translated text area is
    * both scrollable and scrolled to the top.
    */
-  static #assertPanelTextAreaOverflow() {
+  static async #assertPanelTextAreaOverflow() {
     const { textArea } = SelectTranslationsPanel.elements;
-    is(
-      textArea.style.overflow,
-      "auto",
-      "The translated-text area should be scrollable."
-    );
-    if (textArea.scrollHeight > textArea.clientHeight) {
-      is(
-        textArea.scrollTop,
-        0,
-        "The translated-text area should be scrolled to the top."
+    if (textArea.style.overflow !== "auto") {
+      await BrowserTestUtils.waitForMutationCondition(
+        textArea,
+        { attributes: true, attributeFilter: ["style"] },
+        () => textArea.style.overflow === "auto"
       );
+    }
+    if (textArea.scrollHeight > textArea.clientHeight) {
+      info("Ensuring that the textarea is scrolled to the top.");
+      await waitForCondition(() => textArea.scrollTop === 0);
     }
   }
 
@@ -1551,77 +1620,27 @@ class SelectTranslationsTestUtils {
    * Asserts that the SelectTranslationsPanel UI matches the expected
    * state when the panel is actively translating text.
    */
-  static assertPanelViewActivelyTranslating() {
+  static async assertPanelViewActivelyTranslating() {
     const { textArea } = SelectTranslationsPanel.elements;
+    await SelectTranslationsTestUtils.waitForPanelState("translating");
     ok(
       textArea.classList.contains("translating"),
       "The textarea should have the translating class."
     );
     SelectTranslationsTestUtils.#assertPanelElementVisibility({
-      ...SelectTranslationsTestUtils.#alwaysPresentElements,
+      betaIcon: true,
+      copyButton: true,
+      doneButton: true,
+      fromLabel: true,
+      fromMenuList: true,
+      header: true,
+      mainContent: true,
+      textArea: true,
+      toLabel: true,
+      toMenuList: true,
+      translateFullPageButton: true,
     });
     SelectTranslationsTestUtils.#assertPanelHasTranslatingPlaceholder();
-  }
-
-  /**
-   * Asserts that the SelectTranslationsPanel UI matches the expected
-   * state when no from-language is selected in the panel.
-   */
-  static async assertPanelViewNoFromLangSelected() {
-    const { textArea } = SelectTranslationsPanel.elements;
-    ok(
-      !textArea.classList.contains("translating"),
-      "The textarea should not have the translating class."
-    );
-    SelectTranslationsTestUtils.#assertPanelElementVisibility({
-      ...SelectTranslationsTestUtils.#alwaysPresentElements,
-    });
-    await SelectTranslationsTestUtils.#assertPanelHasIdlePlaceholder();
-    SelectTranslationsTestUtils.#assertConditionalUIEnabled({
-      textArea: false,
-      copyButton: false,
-      translateFullPageButton: false,
-    });
-    SelectTranslationsTestUtils.assertSelectedFromLanguage(null);
-  }
-
-  /**
-   * Asserts that the SelectTranslationsPanel UI matches the expected
-   * state when no to-language is selected in the panel.
-   */
-  static async assertPanelViewNoToLangSelected() {
-    const { textArea } = SelectTranslationsPanel.elements;
-    ok(
-      !textArea.classList.contains("translating"),
-      "The textarea should not have the translating class."
-    );
-    SelectTranslationsTestUtils.#assertPanelElementVisibility({
-      ...SelectTranslationsTestUtils.#alwaysPresentElements,
-    });
-    SelectTranslationsTestUtils.assertSelectedToLanguage(null);
-    SelectTranslationsTestUtils.#assertConditionalUIEnabled({
-      textArea: false,
-      copyButton: false,
-      translateFullPageButton: false,
-    });
-    await SelectTranslationsTestUtils.#assertPanelHasIdlePlaceholder();
-  }
-
-  /**
-   * Asserts that the SelectTranslationsPanel UI contains the
-   * idle placeholder text.
-   */
-  static async #assertPanelHasIdlePlaceholder() {
-    const { textArea } = SelectTranslationsPanel.elements;
-    const expected = await document.l10n.formatValue(
-      "select-translations-panel-idle-placeholder-text"
-    );
-    is(
-      textArea.value,
-      expected,
-      "Translated text area should be the idle placeholder."
-    );
-    SelectTranslationsTestUtils.#assertPanelTextAreaDirection();
   }
 
   /**
@@ -1642,6 +1661,7 @@ class SelectTranslationsTestUtils {
     SelectTranslationsTestUtils.#assertConditionalUIEnabled({
       textArea: true,
       copyButton: false,
+      doneButton: true,
       translateFullPageButton: true,
     });
   }
@@ -1655,6 +1675,23 @@ class SelectTranslationsTestUtils {
       SelectTranslationsPanel.elements;
     const fromLanguage = fromMenuList.value;
     const toLanguage = toMenuList.value;
+    SelectTranslationsTestUtils.#assertPanelTextAreaDirection(toLanguage);
+    SelectTranslationsTestUtils.#assertConditionalUIEnabled({
+      textArea: true,
+      copyButton: true,
+      doneButton: true,
+      translateFullPageButton: true,
+    });
+
+    if (fromLanguage === toLanguage) {
+      is(
+        SelectTranslationsPanel.getSourceText(),
+        SelectTranslationsPanel.getTranslatedText(),
+        "The source text should passthrough as the translated text."
+      );
+      return;
+    }
+
     const translatedSuffix = ` [${fromLanguage} to ${toLanguage}]`;
     ok(
       textArea.value.endsWith(translatedSuffix),
@@ -1666,45 +1703,32 @@ class SelectTranslationsTestUtils {
         translatedSuffix.length,
       "Expected translated text length to correspond to the source text length."
     );
-    SelectTranslationsTestUtils.#assertPanelTextAreaDirection(toLanguage);
-    SelectTranslationsTestUtils.#assertConditionalUIEnabled({
-      textArea: true,
-      copyButton: true,
-      translateFullPageButton: true,
-    });
   }
 
   /**
    * Asserts the enabled state of action buttons in the SelectTranslationsPanel.
    *
-   * @param {boolean} expectEnabled - Whether the buttons should be enabled (true) or not (false).
+   * @param {Record<string, boolean>} enabledStates
+   *  - An object that maps whether each element should be enabled (true) or disabled (false).
    */
-  static #assertConditionalUIEnabled({
-    copyButton: copyButtonEnabled,
-    translateFullPageButton: translateFullPageButtonEnabled,
-    textArea: textAreaEnabled,
-  }) {
-    const { copyButton, translateFullPageButton, textArea } =
-      SelectTranslationsPanel.elements;
-    is(
-      copyButton.disabled,
-      !copyButtonEnabled,
-      `The copy button should be ${copyButtonEnabled ? "enabled" : "disabled"}.`
-    );
-    is(
-      translateFullPageButton.disabled,
-      !translateFullPageButtonEnabled,
-      `The translate-full-page button should be ${
-        translateFullPageButtonEnabled ? "enabled" : "disabled"
-      }.`
-    );
-    is(
-      textArea.disabled,
-      !textAreaEnabled,
-      `The translated-text area should be ${
-        textAreaEnabled ? "enabled" : "disabled"
-      }.`
-    );
+  static #assertConditionalUIEnabled(enabledStates) {
+    const elements = SelectTranslationsPanel.elements;
+
+    for (const [elementName, isEnabled] of Object.entries(enabledStates)) {
+      const element = elements[elementName];
+      if (!element) {
+        throw new Error(
+          `SelectTranslationsPanel element '${elementName}' not found.`
+        );
+      }
+      is(
+        element.disabled,
+        !isEnabled,
+        `The element '${elementName} should be ${
+          isEnabled ? "enabled" : "disabled"
+        }.`
+      );
+    }
   }
 
   /**
@@ -1760,6 +1784,40 @@ class SelectTranslationsTestUtils {
         click(doneButton, "Clicking the done button");
       }
     );
+  }
+
+  /**
+   * Simulates clicking the Translate button in the SelectTranslationsPanel,
+   * then waits for any pending translation effects, based on the provided options.
+   *
+   * @param {object} config
+   * @param {Function} [config.downloadHandler]
+   *  - The function handle expected downloads, resolveDownloads() or rejectDownloads()
+   *    Leave as null to test more granularly, such as testing opening the loading view,
+   *    or allowing for the automatic downloading of files.
+   * @param {boolean} [config.pivotTranslation]
+   *  - True if the expected translation is a pivot translation, otherwise false.
+   *    Affects the number of expected downloads.
+   * @param {Function} [config.onTranslated]
+   *  - An optional callback function to execute after the translation completes.
+   */
+  static async clickTranslateButton({
+    downloadHandler,
+    pivotTranslation,
+    onTranslated,
+  }) {
+    logAction();
+    const { translateButton } = SelectTranslationsPanel.elements;
+    assertVisibility({ visible: { doneButton: translateButton } });
+    ok(!translateButton.disabled, "The translate button should be enabled.");
+    click(translateButton);
+    await SelectTranslationsTestUtils.waitForPanelState("translatable");
+    if (downloadHandler) {
+      await this.handleDownloads({ downloadHandler, pivotTranslation });
+    }
+    if (onTranslated) {
+      await onTranslated();
+    }
   }
 
   /**
@@ -1863,27 +1921,9 @@ class SelectTranslationsTestUtils {
    * @returns {Promise<void>}
    */
   static async handleDownloads({ downloadHandler, pivotTranslation }) {
-    const { textArea } = SelectTranslationsPanel.elements;
-
     if (downloadHandler) {
-      if (textArea.style.overflow !== "hidden") {
-        await BrowserTestUtils.waitForMutationCondition(
-          textArea,
-          { attributes: true, attributeFilter: ["style"] },
-          () => textArea.style.overflow === "hidden"
-        );
-      }
-
       await SelectTranslationsTestUtils.assertPanelViewActivelyTranslating();
       await downloadHandler(pivotTranslation ? 2 : 1);
-    }
-
-    if (textArea.style.overflow === "hidden") {
-      await BrowserTestUtils.waitForMutationCondition(
-        textArea,
-        { attributes: true, attributeFilter: ["style"] },
-        () => textArea.style.overflow === "auto"
-      );
     }
   }
 
@@ -1897,6 +1937,7 @@ class SelectTranslationsTestUtils {
    * @returns {Promise<void>}
    */
   static async changeSelectedFromLanguage(langTags, options) {
+    logAction(langTags);
     const { fromMenuList, fromMenuPopup } = SelectTranslationsPanel.elements;
     const { openDropdownMenu } = options;
 
@@ -1912,6 +1953,28 @@ class SelectTranslationsTestUtils {
   }
 
   /**
+   * Change the selected language in the try-another-source-language dropdown.
+   *
+   * @param {string} langTag - A BCP-47 language tag.
+   */
+  static async changeSelectedTryAnotherSourceLanguage(langTag) {
+    logAction(langTag);
+    const { tryAnotherSourceMenuList, translateButton } =
+      SelectTranslationsPanel.elements;
+    await SelectTranslationsTestUtils.#changeSelectedLanguageDirectly(
+      [langTag],
+      { menuList: tryAnotherSourceMenuList },
+      {
+        onChangeLanguage: () =>
+          ok(
+            !translateButton.disabled,
+            "The translate button should be enabled after selecting a language."
+          ),
+      }
+    );
+  }
+
+  /**
    * Switches the selected to-language to the provided language tag.
    *
    * @param {string[]} langTags - An array of BCP-47 language tags.
@@ -1923,6 +1986,7 @@ class SelectTranslationsTestUtils {
    * @returns {Promise<void>}
    */
   static async changeSelectedToLanguage(langTags, options) {
+    logAction(langTags);
     const { toMenuList, toMenuPopup } = SelectTranslationsPanel.elements;
     const { openDropdownMenu } = options;
 
@@ -1965,9 +2029,10 @@ class SelectTranslationsTestUtils {
       await menuListUpdated;
     }
 
+    menuList.focus();
+    EventUtils.synthesizeKey("KEY_Enter");
+
     if (downloadHandler) {
-      menuList.focus();
-      EventUtils.synthesizeKey("KEY_Enter");
       await SelectTranslationsTestUtils.handleDownloads(options);
     }
 
