@@ -6057,6 +6057,13 @@
   value: 0
   mirror: always
 
+# Whether to disable downloadable font cache so that behavior is consistently
+# the uncached load behavior across pages (useful for testing reflow problems)
+- name: gfx.downloadable_fonts.disable_cache
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 # Whether to preserve color bitmap tables in fonts (bypassing OTS).
 # Currently these are supported only on platforms where we use Freetype
 # to render fonts (Linux/Gtk and Android).
@@ -7794,6 +7801,16 @@
 -   name: javascript.options.wasm_memory_control
     type: bool
     value: false
+    mirror: always
+    set_spidermonkey_pref: startup
+
+-   name: javascript.options.wasm_branch_hinting
+    type: bool
+#if defined(ENABLE_WASM_BRANCH_HINTING)
+    value: @IS_NIGHTLY_BUILD@
+#else
+    value: false
+#endif
     mirror: always
     set_spidermonkey_pref: startup
 
@@ -11257,6 +11274,13 @@
    type: RelaxedAtomicBool
    value: @IS_NOT_NIGHTLY_BUILD@
    mirror: always
+
+# When this is true, the protection mask that Firefox replies to Widevine API
+# QueryOutputProtectionStatus is `kProtectionHDCP` when no potential capturing.
+- name: media.widevine.hdcp-protection-mask
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
 
 #---------------------------------------------------------------------------
 # Prefs starting with "memory."

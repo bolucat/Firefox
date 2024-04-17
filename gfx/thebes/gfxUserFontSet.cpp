@@ -706,7 +706,6 @@ bool gfxUserFontEntry::LoadPlatformFont(uint32_t aSrcIndex,
                                         const uint8_t* aSanitizedFontData,
                                         uint32_t aSanitizedLength,
                                         nsTArray<OTSMessage>&& aMessages) {
-  MOZ_ASSERT(NS_IsMainThread());
   RefPtr<gfxUserFontSet> fontSet = GetUserFontSet();
   if (NS_WARN_IF(!fontSet)) {
     free((void*)aOriginalFontData);
@@ -820,7 +819,11 @@ bool gfxUserFontEntry::LoadPlatformFont(uint32_t aSrcIndex,
          this, uint32_t(fontSet->mGeneration), fontCompressionRatio));
     mPlatformFontEntry = fe;
     SetLoadState(STATUS_LOADED);
-    gfxUserFontSet::UserFontCache::CacheFont(fe);
+    if (NS_IsMainThread()) {
+      // UserFontCache::CacheFont is not currently safe to call off-main-thread,
+      // so we only cache the font if this is a main-thread load.
+      gfxUserFontSet::UserFontCache::CacheFont(fe);
+    }
   } else {
     LOG((
         "userfonts (%p) [src %d] failed uri: (%s) for (%s)"
@@ -1235,7 +1238,7 @@ void gfxUserFontSet::UserFontCache::CacheFont(gfxFontEntry* aFontEntry) {
                "caching a font associated with no family yet");
 
   // if caching is disabled, simply return
-  if (Preferences::GetBool("gfx.downloadable_fonts.disable_cache")) {
+  if (StaticPrefs::gfx_downloadable_fonts_disable_cache()) {
     return;
   }
 
@@ -1308,8 +1311,7 @@ void gfxUserFontSet::UserFontCache::ForgetFont(gfxFontEntry* aFontEntry) {
 
 gfxFontEntry* gfxUserFontSet::UserFontCache::GetFont(
     const gfxFontFaceSrc& aSrc, const gfxUserFontEntry& aUserFontEntry) {
-  if (!sUserFonts ||
-      Preferences::GetBool("gfx.downloadable_fonts.disable_cache")) {
+  if (!sUserFonts || StaticPrefs::gfx_downloadable_fonts_disable_cache()) {
     return nullptr;
   }
 

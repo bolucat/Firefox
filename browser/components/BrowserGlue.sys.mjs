@@ -3088,11 +3088,9 @@ BrowserGlue.prototype = {
 
       {
         name: "DAPTelemetrySender.startup",
-        condition:
-          lazy.TelemetryUtils.isTelemetryEnabled &&
-          lazy.NimbusFeatures.dapTelemetry.getVariable("enabled"),
-        task: () => {
-          lazy.DAPTelemetrySender.startup();
+        condition: lazy.TelemetryUtils.isTelemetryEnabled,
+        task: async () => {
+          await lazy.DAPTelemetrySender.startup();
         },
       },
 
@@ -5734,7 +5732,9 @@ export var AboutHomeStartupCache = {
 
     this.setDeferredResult(this.CACHE_RESULT_SCALARS.UNSET);
 
-    this._enabled = !!lazy.NimbusFeatures.abouthomecache.getVariable("enabled");
+    this._enabled = Services.prefs.getBoolPref(
+      "browser.startup.homepage.abouthome_cache.enabled"
+    );
 
     if (!this._enabled) {
       this.recordResult(this.CACHE_RESULT_SCALARS.DISABLED);

@@ -415,10 +415,6 @@ pref("gfx.downloadable_fonts.enabled", true);
 pref("gfx.downloadable_fonts.fallback_delay", 3000);
 pref("gfx.downloadable_fonts.fallback_delay_short", 100);
 
-// disable downloadable font cache so that behavior is consistently
-// the uncached load behavior across pages (useful for testing reflow problems)
-pref("gfx.downloadable_fonts.disable_cache", false);
-
 #ifdef XP_WIN
   pref("gfx.font_rendering.directwrite.use_gdi_table_loading", true);
 #endif
@@ -986,6 +982,9 @@ pref("javascript.options.mem.gc_parallel_marking_threshold_mb", 16);
 #elif defined(XP_UNIX)
 pref("javascript.options.mem.gc_parallel_marking_threshold_mb", 16);
 #endif
+
+// JSGC_MAX_MARKING_THREADS
+pref("javascript.options.mem.gc_max_parallel_marking_threads", 2);
 
 // JSGC_HIGH_FREQUENCY_TIME_LIMIT
 pref("javascript.options.mem.gc_high_frequency_time_limit_ms", 1000);
