@@ -47,7 +47,9 @@ void DynamicResampler::EnsurePreBuffer(media::TimeUnit aDuration) {
   if (buffered.IsZero()) {
     // Wait for the first input segment before deciding how much to pre-buffer.
     // If it is large it indicates high-latency, and the buffer would have to
-    // handle that.
+    // handle that.  This also means that the pre-buffer is not set up just
+    // before a large input segment would extend the buffering beyond the
+    // desired level.
     return;
   }
 
@@ -93,7 +95,6 @@ void DynamicResampler::ResampleInternal(const float* aInBuffer,
   MOZ_ASSERT(mInRate);
   MOZ_ASSERT(mOutRate);
 
-  MOZ_ASSERT(aInBuffer);
   MOZ_ASSERT(aInFrames);
   MOZ_ASSERT(*aInFrames > 0);
   MOZ_ASSERT(aOutBuffer);
@@ -125,7 +126,6 @@ void DynamicResampler::ResampleInternal(const int16_t* aInBuffer,
   MOZ_ASSERT(mInRate);
   MOZ_ASSERT(mOutRate);
 
-  MOZ_ASSERT(aInBuffer);
   MOZ_ASSERT(aInFrames);
   MOZ_ASSERT(*aInFrames > 0);
   MOZ_ASSERT(aOutBuffer);
@@ -152,6 +152,7 @@ void DynamicResampler::UpdateResampler(uint32_t aOutRate, uint32_t aChannels) {
   MOZ_ASSERT(aChannels);
 
   if (mChannels != aChannels) {
+    media::TimeUnit bufferDuration(InFramesBufferSize(), mInRate);
     if (mResampler) {
       speex_resampler_destroy(mResampler);
     }
@@ -192,9 +193,7 @@ void DynamicResampler::UpdateResampler(uint32_t aOutRate, uint32_t aChannels) {
         b->SetSampleFormat(mSampleFormat);
       }
     }
-    media::TimeUnit d = mSetBufferDuration;
-    mSetBufferDuration = media::TimeUnit::Zero();
-    EnsureInputBufferDuration(d);
+    EnsureInputBufferDuration(bufferDuration);
     mInputTail.SetLength(mChannels);
     return;
   }
@@ -236,13 +235,9 @@ void DynamicResampler::WarmUpResampler(bool aSkipLatency) {
     }
   }
   if (aSkipLatency) {
-    int inputLatency = speex_resampler_get_input_latency(mResampler);
-    MOZ_ASSERT(inputLatency > 0);
-    uint32_t ratioNum, ratioDen;
-    speex_resampler_get_ratio(mResampler, &ratioNum, &ratioDen);
-    // Ratio at this point is one so only skip the input latency. No special
-    // calculations are needed.
-    speex_resampler_set_skip_frac_num(mResampler, inputLatency * ratioDen);
+    // Don't generate output frames corresponding to times before the next
+    // input sample.
+    speex_resampler_skip_zeros(mResampler);
   }
   mIsWarmingUp = false;
 }
@@ -268,7 +263,16 @@ void DynamicResampler::AppendInputSilence(const uint32_t aInFrames) {
 }
 
 uint32_t DynamicResampler::InFramesBufferSize() const {
-  return mSetBufferDuration.ToTicksAtRate(mInRate);
+  if (mSampleFormat == AUDIO_FORMAT_SILENCE) {
+    return 0;
+  }
+  // Buffers may have different capacities if a memory allocation has failed.
+  MOZ_ASSERT(!mInternalInBuffer.IsEmpty());
+  uint32_t min = std::numeric_limits<uint32_t>::max();
+  for (const auto& b : mInternalInBuffer) {
+    min = std::min(min, b.Capacity());
+  }
+  return min;
 }
 
 uint32_t DynamicResampler::InFramesBuffered(uint32_t aChannelIndex) const {

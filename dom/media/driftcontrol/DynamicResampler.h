@@ -174,24 +174,24 @@ class DynamicResampler final {
     }
 
     uint32_t totalOutFramesNeeded = aOutFrames;
-    auto resample = [&] {
-      mInternalInBuffer[aChannelIndex].ReadNoCopy(
-          [&](const Span<const T>& aInBuffer) -> uint32_t {
-            if (!totalOutFramesNeeded) {
-              return 0;
-            }
-            uint32_t outFramesResampled = totalOutFramesNeeded;
-            uint32_t inFrames = aInBuffer.Length();
-            ResampleInternal(aInBuffer.data(), &inFrames, aOutBuffer,
-                             &outFramesResampled, aChannelIndex);
-            aOutBuffer += outFramesResampled;
-            totalOutFramesNeeded -= outFramesResampled;
-            mInputTail[aChannelIndex].StoreTail<T>(aInBuffer.To(inFrames));
-            return inFrames;
-          });
+    auto resample = [&](const T* aInBuffer, uint32_t aInLength) -> uint32_t {
+      uint32_t outFramesResampled = totalOutFramesNeeded;
+      uint32_t inFrames = aInLength;
+      ResampleInternal(aInBuffer, &inFrames, aOutBuffer, &outFramesResampled,
+                       aChannelIndex);
+      aOutBuffer += outFramesResampled;
+      totalOutFramesNeeded -= outFramesResampled;
+      mInputTail[aChannelIndex].StoreTail<T>(aInBuffer, inFrames);
+      return inFrames;
     };
 
-    resample();
+    mInternalInBuffer[aChannelIndex].ReadNoCopy(
+        [&](const Span<const T>& aInBuffer) -> uint32_t {
+          if (!totalOutFramesNeeded) {
+            return 0;
+          }
+          return resample(aInBuffer.Elements(), aInBuffer.Length());
+        });
 
     if (totalOutFramesNeeded == 0) {
       return false;
@@ -204,8 +204,7 @@ class DynamicResampler final {
           ((CheckedUint32(totalOutFramesNeeded) * mInRate + mOutRate - 1) /
            mOutRate)
               .value();
-      mInternalInBuffer[aChannelIndex].WriteSilence(totalInFramesNeeded);
-      resample();
+      resample(nullptr, totalInFramesNeeded);
     }
     mIsPreBufferSet = false;
     return true;
@@ -234,18 +233,6 @@ class DynamicResampler final {
   }
 
   bool EnsureInputBufferDuration(media::TimeUnit aDuration) {
-    if (aDuration <= mSetBufferDuration) {
-      // Buffer size is sufficient.
-      return true;
-    }
-
-    // 5 second cap.
-    const media::TimeUnit cap = media::TimeUnit::FromSeconds(5);
-    if (mSetBufferDuration == cap) {
-      // Already at the cap.
-      return false;
-    }
-
     uint32_t sampleSize = 0;
     if (mSampleFormat == AUDIO_FORMAT_FLOAT32) {
       sampleSize = sizeof(float);
@@ -258,8 +245,22 @@ class DynamicResampler final {
       return true;
     }
 
+    uint32_t sizeInFrames = InFramesBufferSize();
+    media::TimeUnit duration(sizeInFrames, mInRate);
+    if (aDuration <= duration) {
+      // Buffer size is sufficient.
+      return true;  // no reallocation necessary
+    }
+
+    // 5 second cap.
+    const media::TimeUnit cap = media::TimeUnit::FromSeconds(5);
+    if (duration >= cap) {
+      // Already at the cap.
+      return false;
+    }
+
     // As a backoff strategy, at least double the previous size.
-    media::TimeUnit duration = mSetBufferDuration * 2;
+    duration = duration * 2;
 
     if (aDuration > duration) {
       // A larger buffer than the normal backoff strategy provides is needed, or
@@ -269,29 +270,24 @@ class DynamicResampler final {
     }
 
     duration = std::min(cap, duration);
+    const uint32_t newSizeInFrames =
+        static_cast<uint32_t>(duration.ToTicksAtRate(mInRate));
 
     bool success = true;
     for (auto& b : mInternalInBuffer) {
-      success = success &&
-                b.SetLengthBytes(sampleSize * duration.ToTicksAtRate(mInRate));
+      success = success && b.EnsureLengthBytes(sampleSize * newSizeInFrames);
     }
 
     if (success) {
       // All buffers have the new size.
-      mSetBufferDuration = duration;
       return true;
     }
 
-    const uint32_t sizeInFrames =
-        static_cast<uint32_t>(mSetBufferDuration.ToTicksAtRate(mInRate));
     // Allocating an input buffer failed. We stick with the old buffer size.
     NS_WARNING(nsPrintfCString("Failed to allocate a buffer of %u bytes (%u "
                                "frames). Expect glitches.",
-                               sampleSize * sizeInFrames, sizeInFrames)
+                               sampleSize * newSizeInFrames, newSizeInFrames)
                    .get());
-    for (auto& b : mInternalInBuffer) {
-      MOZ_ALWAYS_TRUE(b.SetLengthBytes(sampleSize * sizeInFrames));
-    }
     return false;
   }
 
@@ -302,7 +298,6 @@ class DynamicResampler final {
   bool mIsPreBufferSet = false;
   bool mIsWarmingUp = false;
   media::TimeUnit mPreBufferDuration;
-  media::TimeUnit mSetBufferDuration = media::TimeUnit::Zero();
   uint32_t mChannels = 0;
   uint32_t mOutRate;
 
@@ -324,16 +319,16 @@ class DynamicResampler final {
     }
     template <typename T>
     void StoreTail(const T* aInBuffer, uint32_t aInFrames) {
-      if (aInFrames >= MAXSIZE) {
-        PodCopy(Buffer<T>(), aInBuffer + aInFrames - MAXSIZE, MAXSIZE);
-        mSize = MAXSIZE;
+      const T* inBuffer = aInBuffer;
+      mSize = std::min(aInFrames, MAXSIZE);
+      if (inBuffer) {
+        PodCopy(Buffer<T>(), inBuffer + aInFrames - mSize, mSize);
       } else {
-        PodCopy(Buffer<T>(), aInBuffer, aInFrames);
-        mSize = aInFrames;
+        std::fill_n(Buffer<T>(), mSize, static_cast<T>(0));
       }
     }
     uint32_t Length() { return mSize; }
-    static const uint32_t MAXSIZE = 20;
+    static constexpr uint32_t MAXSIZE = 20;
 
    private:
     float mBuffer[MAXSIZE] = {};

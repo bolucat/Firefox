@@ -13,6 +13,7 @@
 #include "mozilla/AlreadyAddRefed.h"
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/ContentBlockingAllowList.h"
+#include "mozilla/glean/GleanMetrics.h"
 #include "mozilla/Logging.h"
 #include "mozilla/Services.h"
 #include "mozilla/StaticPrefs_privacy.h"
@@ -134,6 +135,11 @@ nsresult BounceTrackingProtection::RecordStatefulBounces(
 
   // For each host in navigable’s bounce tracking record's bounce set:
   for (const nsACString& host : record->GetBounceHosts()) {
+    // Skip "null" entries, they are only used for logging purposes.
+    if (host.EqualsLiteral("null")) {
+      continue;
+    }
+
     // If host equals navigable’s bounce tracking record's initial host,
     // continue.
     if (host == record->GetInitialHost()) {
@@ -222,9 +228,11 @@ nsresult BounceTrackingProtection::RecordStatefulBounces(
 nsresult BounceTrackingProtection::RecordUserActivation(
     nsIPrincipal* aPrincipal) {
   MOZ_ASSERT(XRE_IsParentProcess());
-
   NS_ENSURE_ARG_POINTER(aPrincipal);
-  NS_ENSURE_TRUE(aPrincipal->GetIsContentPrincipal(), NS_ERROR_FAILURE);
+
+  if (!BounceTrackingState::ShouldTrackPrincipal(aPrincipal)) {
+    return NS_OK;
+  }
 
   nsAutoCString siteHost;
   nsresult rv = aPrincipal->GetBaseDomain(siteHost);
@@ -579,17 +587,26 @@ nsresult BounceTrackingProtection::PurgeBounceTrackersForStateGlobal(
 
     RefPtr<ClearDataMozPromise::Private> clearPromise =
         new ClearDataMozPromise::Private(__func__);
-    RefPtr<ClearDataCallback> cb = new ClearDataCallback(clearPromise, host);
+    RefPtr<ClearDataCallback> cb =
+        new ClearDataCallback(clearPromise, host, bounceTime);
 
     MOZ_LOG(gBounceTrackingProtectionLog, LogLevel::Debug,
             ("%s: Purge state for host: %s", __FUNCTION__,
              PromiseFlatCString(host).get()));
 
-    // TODO: Bug 1842067: Clear by site + OA.
-    rv = clearDataService->DeleteDataFromBaseDomain(host, false,
-                                                    TRACKER_PURGE_FLAGS, cb);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      clearPromise->Reject(0, __func__);
+    if (StaticPrefs::privacy_bounceTrackingProtection_enableDryRunMode()) {
+      // In dry-run mode, we don't actually clear the data, but we still want to
+      // resolve the promise to indicate that the data would have been cleared.
+      // Go through ClearDataCallback rather than directly resolving the promise
+      // to ensure telemetry is collected.
+      cb->OnDataDeleted(0);
+    } else {
+      // TODO: Bug 1842067: Clear by site + OA.
+      rv = clearDataService->DeleteDataFromBaseDomain(host, false,
+                                                      TRACKER_PURGE_FLAGS, cb);
+      if (NS_WARN_IF(NS_FAILED(rv))) {
+        clearPromise->Reject(0, __func__);
+      }
     }
 
     aClearPromises.AppendElement(clearPromise);
@@ -651,13 +668,38 @@ NS_IMPL_ISUPPORTS(BounceTrackingProtection::ClearDataCallback,
 NS_IMETHODIMP BounceTrackingProtection::ClearDataCallback::OnDataDeleted(
     uint32_t aFailedFlags) {
   if (aFailedFlags) {
+    MOZ_LOG(gBounceTrackingProtectionLog, LogLevel::Error,
+            ("%s: Failed to clear mHost: %s, mBounceTime: %" PRIu64
+             ", aFailedFlags: %d",
+             __FUNCTION__, mHost.get(), mBounceTime, aFailedFlags));
+    RecordClearDataTelemetry(false);
+
     mPromise->Reject(aFailedFlags, __func__);
   } else {
     MOZ_LOG(gBounceTrackingProtectionLog, LogLevel::Info,
-            ("%s: Cleared %s", __FUNCTION__, mHost.get()));
+            ("%s: Cleared: mHost: %s, mBounceTime: %" PRIu64, __FUNCTION__,
+             mHost.get(), mBounceTime));
+    RecordClearDataTelemetry(true);
+
     mPromise->Resolve(std::move(mHost), __func__);
   }
   return NS_OK;
+}
+
+void BounceTrackingProtection::ClearDataCallback::RecordClearDataTelemetry(
+    bool success) {
+// Record a glean event for the clear action. This is only recorded in
+// pre-release channels since we record the site host which is considered
+// category 3 data.
+// https://wiki.mozilla.org/Data_Collection#Data_Collection_Categories
+#if defined(EARLY_BETA_OR_EARLIER)
+  glean::bounce_tracking_protection::ActionPurgeExtra extra = {
+      .bounceTime = Some(mBounceTime / PR_USEC_PER_SEC),
+      .siteHost = Some(mHost),
+      .success = Some(success),
+  };
+  glean::bounce_tracking_protection::action_purge.Record(Some(extra));
+#endif  // defined(EARLY_BETA_OR_EARLIER)
 }
 
 }  // namespace mozilla

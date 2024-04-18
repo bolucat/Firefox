@@ -23,7 +23,7 @@ Locally, Raptor can be invoked with the following command:
    browsertime
    debugging
    contributing
-   metrics
+   raptor-metrics
 
 .. contents::
    :depth: 2
@@ -9110,7 +9110,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
 
    **Owner**: PerfTest Team
 
-   * **alert on**: H264.1080p30@1X_dropped_frames H264.1080p60@1X_dropped_frames H264.1440p30@1X_dropped_frames H264.144p15@1X_dropped_frames H264.2160p30@1X_dropped_frames H264.240p30@1X_dropped_frames H264.360p30@1X_dropped_frames H264.480p30@1X_dropped_frames H264.720p30@1X_dropped_frames H264.720p60@1X_dropped_frames VP9.1080p30@1X_dropped_frames VP9.1080p60@1X_dropped_frames VP9.1440p30@1X_dropped_frames VP9.1440p60@1X_dropped_frames VP9.144p30@1X_dropped_frames VP9.2160p30@1X_dropped_frames VP9.2160p60@1X_dropped_frames VP9.240p30@1X_dropped_frames VP9.360p30@1X_dropped_frames VP9.480p30@1X_dropped_frames VP9.720p30@1X_dropped_frames VP9.720p60@1X_dropped_frames
+   * **alert on**: `H264.1080p30@1X_dropped_frames <raptor-metrics.html#youtube-playback-metrics>`__, `H264.1080p60@1X_dropped_frames <raptor-metrics.html#youtube-playback-metrics>`__, `H264.1440p30@1X_dropped_frames <raptor-metrics.html#youtube-playback-metrics>`__, `H264.144p15@1X_dropped_frames <raptor-metrics.html#youtube-playback-metrics>`__, `H264.2160p30@1X_dropped_frames <raptor-metrics.html#youtube-playback-metrics>`__, `H264.240p30@1X_dropped_frames <raptor-metrics.html#youtube-playback-metrics>`__, `H264.360p30@1X_dropped_frames <raptor-metrics.html#youtube-playback-metrics>`__, `H264.480p30@1X_dropped_frames <raptor-metrics.html#youtube-playback-metrics>`__, `H264.720p30@1X_dropped_frames <raptor-metrics.html#youtube-playback-metrics>`__, `H264.720p60@1X_dropped_frames <raptor-metrics.html#youtube-playback-metrics>`__, `VP9.1080p30@1X_dropped_frames <raptor-metrics.html#youtube-playback-metrics>`__, `VP9.1080p60@1X_dropped_frames <raptor-metrics.html#youtube-playback-metrics>`__, `VP9.1440p30@1X_dropped_frames <raptor-metrics.html#youtube-playback-metrics>`__, `VP9.1440p60@1X_dropped_frames <raptor-metrics.html#youtube-playback-metrics>`__, `VP9.144p30@1X_dropped_frames <raptor-metrics.html#youtube-playback-metrics>`__, `VP9.2160p30@1X_dropped_frames <raptor-metrics.html#youtube-playback-metrics>`__, `VP9.2160p60@1X_dropped_frames <raptor-metrics.html#youtube-playback-metrics>`__, `VP9.240p30@1X_dropped_frames <raptor-metrics.html#youtube-playback-metrics>`__, `VP9.360p30@1X_dropped_frames <raptor-metrics.html#youtube-playback-metrics>`__, `VP9.480p30@1X_dropped_frames <raptor-metrics.html#youtube-playback-metrics>`__, `VP9.720p30@1X_dropped_frames <raptor-metrics.html#youtube-playback-metrics>`__, `VP9.720p60@1X_dropped_frames <raptor-metrics.html#youtube-playback-metrics>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, geckoview, fenix, refbrow, chrome
    * **expected**: pass
@@ -10264,7 +10264,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
 
    **Owner**: PerfTest Team
 
-   * **alert on**: H2641080p60fps@1X_dropped_frames H264720p60fps@1X_dropped_frames
+   * **alert on**: `H2641080p60fps@1X_dropped_frames <raptor-metrics.html#youtube-playback-metrics>`__, `H264720p60fps@1X_dropped_frames <raptor-metrics.html#youtube-playback-metrics>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, geckoview, fenix, refbrow, chrome
    * **expected**: pass
@@ -14999,7 +14999,7 @@ Browsertime tests that use a custom pageload test script. These use the pageload
 
    **Description**: Used to run vanilla browsertime tests through raptor. For example: `./mach raptor --browsertime -t browsertime --browsertime-arg url=https://www.sitespeed.io --browsertime-arg iterations=3`
 
-   * **alert on**: fcp, loadtime
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__
    * **alert threshold**: 2.0
    * **apps**: firefox
    * **browser cycles**: 1
@@ -15027,7 +15027,7 @@ Browsertime tests that use a custom pageload test script. These use the pageload
    **Description**: Verifies that connection time on a pageload is zero when a speculative connection has first been made
 
    * **alert change type**: absolute
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__
    * **alert threshold**: 10.0
    * **apps**: firefox
    * **browser cycles**: 3
@@ -15552,7 +15552,7 @@ Browsertime tests that use a custom pageload test script. These use the pageload
    **Description**: Measures process switch time
 
    * **accept zero vismet**: true
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome
    * **browser cycles**: 25
@@ -15789,7 +15789,7 @@ Browsertime tests that use a custom pageload test script. These use the pageload
 
    **Description**: Pageload test using a throttled network environment
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__
    * **alert threshold**: 2.0
    * **apps**: firefox
    * **browser cycles**: 3
@@ -16663,7 +16663,7 @@ Browsertime tests that use a custom pageload test script. These use the pageload
 
    **Description**: Measures pageload metrics for the first-install about:welcome page
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__
    * **alert threshold**: 2.0
    * **apps**: firefox
    * **browser cycles**: 25
@@ -16871,7 +16871,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: false
@@ -17447,7 +17447,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: true
@@ -17845,7 +17845,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: false
@@ -18084,7 +18084,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: true
@@ -18565,7 +18565,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome
    * **benchmark page**: false
@@ -18788,7 +18788,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: true
@@ -19112,7 +19112,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: false
@@ -19423,7 +19423,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: true
@@ -19435,7 +19435,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
    * **page cycles**: 25
    * **page timeout**: 60000
    * **playback**: mitmproxy
-   * **playback pageset manifest**: mitm7-linux-firefox-expedia.manifest
+   * **playback pageset manifest**: mitm8-darwin-firefox-expedia.manifest
    * **playback version**: 8.1.1
    * **secondary url**: `<https://groups.expedia.com/Group-Rate/?locale=en_US&ol=1>`__
    * **test url**: `<https://expedia.com/Hotel-Search?destination=New+York%2C+New+York&latLong=40.756680%2C-73.986470&regionId=178293&startDate=&endDate=&rooms=1&_xpid=11905%7C1&adults=2>`__
@@ -19709,14 +19709,14 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: true
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile interval**: 1
-   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#54>`__
+   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#55>`__
    * **lower is better**: true
    * **page cycles**: 25
    * **page timeout**: 60000
@@ -20075,14 +20075,14 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: false
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile interval**: 1
-   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#59>`__
+   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#60>`__
    * **lower is better**: true
    * **page cycles**: 25
    * **page timeout**: 60000
@@ -20473,14 +20473,14 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: true
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile interval**: 1
-   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#64>`__
+   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#65>`__
    * **lower is better**: true
    * **page complete wait time**: 8000
    * **page cycles**: 25
@@ -20798,14 +20798,14 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: false
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile interval**: 1
-   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#69>`__
+   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#70>`__
    * **lower is better**: true
    * **page cycles**: 25
    * **page timeout**: 60000
@@ -21121,14 +21121,14 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: true
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile interval**: 1
-   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#74>`__
+   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#75>`__
    * **lower is better**: true
    * **page cycles**: 25
    * **page timeout**: 60000
@@ -21444,14 +21444,14 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: false
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile interval**: 1
-   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#78>`__
+   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#79>`__
    * **lower is better**: true
    * **page cycles**: 25
    * **page timeout**: 60000
@@ -21843,14 +21843,14 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: true
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile interval**: 1
-   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#84>`__
+   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#85>`__
    * **lower is better**: true
    * **page cycles**: 25
    * **page timeout**: 60000
@@ -22274,14 +22274,14 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: false
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile interval**: 1
-   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#88>`__
+   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#89>`__
    * **lower is better**: true
    * **page cycles**: 25
    * **page timeout**: 60000
@@ -22579,14 +22579,14 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: true
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile interval**: 1
-   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#100>`__
+   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#101>`__
    * **lower is better**: true
    * **page cycles**: 25
    * **page timeout**: 60000
@@ -23080,14 +23080,14 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: true
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile interval**: 1
-   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#105>`__
+   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#106>`__
    * **lower is better**: true
    * **page cycles**: 25
    * **page timeout**: 60000
@@ -23404,19 +23404,19 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: true
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile interval**: 1
-   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#110>`__
+   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#111>`__
    * **lower is better**: true
    * **page cycles**: 25
    * **page timeout**: 60000
    * **playback**: mitmproxy
-   * **playback pageset manifest**: mitm7-linux-firefox-microsoft.manifest
+   * **playback pageset manifest**: mitm8-linux-firefox-microsoft.manifest
    * **playback version**: 8.1.1
    * **secondary url**: `<https://support.microsoft.com/en-us>`__
    * **test url**: `<https://www.microsoft.com/en-us/>`__
@@ -23728,14 +23728,14 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: true
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile interval**: 1
-   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#114>`__
+   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#116>`__
    * **lower is better**: true
    * **page cycles**: 25
    * **page timeout**: 60000
@@ -24047,14 +24047,14 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: true
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile interval**: 1
-   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#119>`__
+   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#121>`__
    * **lower is better**: true
    * **page cycles**: 25
    * **page timeout**: 60000
@@ -24333,14 +24333,14 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: true
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile interval**: 1
-   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#123>`__
+   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#125>`__
    * **lower is better**: true
    * **page cycles**: 25
    * **page timeout**: 60000
@@ -24572,7 +24572,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome
    * **benchmark page**: false
@@ -24795,14 +24795,14 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: true
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile interval**: 1
-   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#127>`__
+   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#129>`__
    * **lower is better**: true
    * **page cycles**: 25
    * **page timeout**: 60000
@@ -25113,14 +25113,14 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: true
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile interval**: 1
-   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#131>`__
+   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#133>`__
    * **lower is better**: true
    * **page cycles**: 25
    * **page timeout**: 60000
@@ -25436,14 +25436,14 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: false
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile interval**: 1
-   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#135>`__
+   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#137>`__
    * **lower is better**: true
    * **page cycles**: 25
    * **page timeout**: 60000
@@ -25760,14 +25760,14 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: false
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile interval**: 1
-   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#141>`__
+   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#143>`__
    * **lower is better**: true
    * **page cycles**: 25
    * **page timeout**: 60000
@@ -26191,7 +26191,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome
    * **benchmark page**: false
@@ -26414,7 +26414,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome
    * **benchmark page**: false
@@ -26637,14 +26637,14 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: true
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile interval**: 1
-   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#147>`__
+   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#149>`__
    * **lower is better**: true
    * **page cycles**: 25
    * **page timeout**: 60000
@@ -26961,14 +26961,14 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: true
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile interval**: 1
-   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#152>`__
+   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#154>`__
    * **lower is better**: true
    * **measure**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
    * **page cycles**: 25
@@ -27287,14 +27287,14 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: false
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile interval**: 1
-   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#165>`__
+   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#167>`__
    * **lower is better**: true
    * **page cycles**: 25
    * **page timeout**: 60000
@@ -27680,7 +27680,7 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome
    * **benchmark page**: false
@@ -27903,14 +27903,14 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: false
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile interval**: 1
-   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#170>`__
+   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#172>`__
    * **lower is better**: true
    * **page cycles**: 25
    * **page timeout**: 60000
@@ -28142,14 +28142,14 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: true
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile interval**: 1
-   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#175>`__
+   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#177>`__
    * **lower is better**: true
    * **page cycles**: 25
    * **page timeout**: 60000
@@ -28648,14 +28648,14 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: false
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile interval**: 1
-   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#179>`__
+   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#181>`__
    * **lower is better**: true
    * **page cycles**: 25
    * **page timeout**: 60000
@@ -29046,14 +29046,14 @@ Tests for page-load performance. The links direct to the actual websites that ar
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari, custom-car
    * **benchmark page**: true
    * **browser cycles**: 25
    * **expected**: pass
    * **gecko profile interval**: 1
-   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#184>`__
+   * **link searchfox**: `<https://searchfox.org/mozilla-central/source/testing/raptor/raptor/tests/tp6/desktop/browsertime-tp6.toml#186>`__
    * **lower is better**: true
    * **page cycles**: 25
    * **page timeout**: 60000
@@ -29485,7 +29485,7 @@ Browsertime tests that interact with the webpage. Includes responsiveness tests 
    **Description**: Navigates to cnn main page, then to the world sub-page.
 
    * **accept zero vismet**: true
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari
    * **browser cycles**: 10
@@ -29727,7 +29727,7 @@ Browsertime tests that interact with the webpage. Includes responsiveness tests 
    **Description**: Navigates to facebook, then the sub-pages friends, marketplace, groups.
 
    * **accept zero vismet**: true
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari
    * **browser cycles**: 10
@@ -29969,7 +29969,7 @@ Browsertime tests that interact with the webpage. Includes responsiveness tests 
    **Description**: Navigates from the Bill Gates AMA to the Reddit members section.
 
    * **accept zero vismet**: true
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari
    * **browser cycles**: 10
@@ -30211,7 +30211,7 @@ Browsertime tests that interact with the webpage. Includes responsiveness tests 
    **Description**: Navigates the `thisisbillgates` user starting at the main user page, then to the posts, comments, hot, and top sections.
 
    * **accept zero vismet**: true
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari
    * **browser cycles**: 10
@@ -30453,7 +30453,7 @@ Browsertime tests that interact with the webpage. Includes responsiveness tests 
    **Description**: Navigates the `thisisbillgates` user starting at the main user page, then to the posts, comments, hot, and top sections.
 
    * **accept zero vismet**: true
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__
    * **alert threshold**: 2.0
    * **apps**: firefox, chrome, safari
    * **browser cycles**: 10
@@ -30697,7 +30697,7 @@ A set of test pages that are run as live sites instead of recorded versions. The
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m, firefox, chrome
    * **browser cycles**: 15
@@ -30765,7 +30765,7 @@ A set of test pages that are run as live sites instead of recorded versions. The
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m, firefox, chrome
    * **browser cycles**: 15
@@ -30833,7 +30833,7 @@ A set of test pages that are run as live sites instead of recorded versions. The
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m, firefox, chrome
    * **browser cycles**: 15
@@ -30901,7 +30901,7 @@ A set of test pages that are run as live sites instead of recorded versions. The
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m, firefox, chrome
    * **browser cycles**: 15
@@ -30969,7 +30969,7 @@ A set of test pages that are run as live sites instead of recorded versions. The
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m, firefox, chrome
    * **browser cycles**: 15
@@ -31037,7 +31037,7 @@ A set of test pages that are run as live sites instead of recorded versions. The
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m, firefox, chrome
    * **browser cycles**: 15
@@ -31105,7 +31105,7 @@ A set of test pages that are run as live sites instead of recorded versions. The
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m, firefox, chrome
    * **browser cycles**: 15
@@ -31173,7 +31173,7 @@ A set of test pages that are run as live sites instead of recorded versions. The
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m, firefox, chrome
    * **browser cycles**: 15
@@ -31241,7 +31241,7 @@ A set of test pages that are run as live sites instead of recorded versions. The
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m, firefox, chrome
    * **browser cycles**: 15
@@ -31309,7 +31309,7 @@ A set of test pages that are run as live sites instead of recorded versions. The
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m, firefox, chrome
    * **browser cycles**: 15
@@ -31377,7 +31377,7 @@ A set of test pages that are run as live sites instead of recorded versions. The
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m, firefox, chrome
    * **browser cycles**: 15
@@ -31445,7 +31445,7 @@ A set of test pages that are run as live sites instead of recorded versions. The
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m, firefox, chrome
    * **browser cycles**: 15
@@ -31518,7 +31518,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m
    * **benchmark page**: true
@@ -31615,7 +31615,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m
    * **benchmark page**: true
@@ -32189,7 +32189,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m
    * **benchmark page**: true
@@ -32296,7 +32296,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m
    * **benchmark page**: true
@@ -32428,7 +32428,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m
    * **benchmark page**: true
@@ -32560,7 +32560,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m
    * **benchmark page**: true
@@ -32692,7 +32692,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m
    * **benchmark page**: true
@@ -32824,7 +32824,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m
    * **benchmark page**: true
@@ -33303,7 +33303,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m
    * **benchmark page**: true
@@ -33435,7 +33435,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m
    * **benchmark page**: true
@@ -33567,7 +33567,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m
    * **benchmark page**: true
@@ -33699,7 +33699,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m
    * **benchmark page**: true
@@ -33831,7 +33831,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m
    * **benchmark page**: true
@@ -34140,7 +34140,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m
    * **benchmark page**: true
@@ -34505,7 +34505,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m
    * **benchmark page**: true
@@ -34637,7 +34637,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m
    * **benchmark page**: true
@@ -34735,7 +34735,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m
    * **benchmark page**: true
@@ -34867,7 +34867,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m
    * **benchmark page**: true
@@ -35000,7 +35000,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m
    * **benchmark page**: true
@@ -35429,7 +35429,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m
    * **benchmark page**: true
@@ -35929,7 +35929,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m
    * **benchmark page**: true
@@ -36026,7 +36026,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m
    * **benchmark page**: true
@@ -36455,7 +36455,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m
    * **benchmark page**: true
@@ -36562,7 +36562,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m
    * **benchmark page**: true
@@ -36694,7 +36694,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m
    * **benchmark page**: true
@@ -37198,7 +37198,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m
    * **benchmark page**: true
@@ -37627,7 +37627,7 @@ Page-load performance test suite on Android. The links direct to the actual webs
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime, ContentfulSpeedIndex, PerceptualSpeedIndex, SpeedIndex, FirstVisualChange, LastVisualChange, largestContentfulPaint
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__, `ContentfulSpeedIndex <raptor-metrics.html#contentful-speed-index>`__, `PerceptualSpeedIndex <raptor-metrics.html#perceptual-speed-index>`__, `SpeedIndex <raptor-metrics.html#speed-index>`__, `FirstVisualChange <raptor-metrics.html#first-visual-change>`__, `LastVisualChange <raptor-metrics.html#last-visual-change>`__, `largestContentfulPaint <raptor-metrics.html#largest-contentful-paint>`__
    * **alert threshold**: 2.0
    * **apps**: geckoview, fenix, refbrow, chrome-m
    * **benchmark page**: true
@@ -37771,7 +37771,7 @@ These tests aren't used in standard testing, they are only used in the Raptor un
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__
    * **alert threshold**: 2.0
    * **apps**: firefox
    * **expected**: pass
@@ -37793,7 +37793,7 @@ These tests aren't used in standard testing, they are only used in the Raptor un
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__
    * **alert threshold**: 2.0
    * **apps**: firefox
    * **expected**: pass
@@ -37815,7 +37815,7 @@ These tests aren't used in standard testing, they are only used in the Raptor un
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__
    * **alert threshold**: 2.0
    * **apps**: firefox
    * **expected**: pass
@@ -37837,7 +37837,7 @@ These tests aren't used in standard testing, they are only used in the Raptor un
 
    **Owner**: PerfTest Team
 
-   * **alert on**: fcp, loadtime
+   * **alert on**: `fcp <raptor-metrics.html#first-paint>`__, `loadtime <raptor-metrics.html#load-time>`__
    * **alert threshold**: 2.0
    * **apps**: firefox
    * **expected**: pass
