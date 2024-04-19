@@ -34,9 +34,10 @@ from mozterm.widgets import Footer
 from ..backend import get_backend_class
 from ..base import MozbuildObject
 from ..compilation.warnings import WarningsCollector, WarningsDatabase
+from ..dirutils import mkdir
 from ..telemetry import get_cpu_brand
 from ..testing import install_test_files
-from ..util import FileAvoidWrite, mkdir, resolve_target_to_make
+from ..util import FileAvoidWrite, resolve_target_to_make
 from .clobber import Clobberer
 
 FINDER_SLOW_MESSAGE = """
@@ -678,14 +679,14 @@ class BuildOutputManager(OutputManager):
         if message:
             self.log(logging.INFO, "build_output", {"line": message}, "{line}")
         elif state_changed:
-            have_handler = hasattr(self, "handler")
+            have_handler = hasattr(self, "_handler")
             if have_handler:
-                self.handler.acquire()
+                self._handler.acquire()
             try:
                 self.refresh()
             finally:
                 if have_handler:
-                    self.handler.release()
+                    self._handler.release()
 
 
 class StaticAnalysisFooter(Footer):
@@ -740,14 +741,14 @@ class StaticAnalysisOutputManager(OutputManager):
         if relevant:
             self.log(logging.INFO, "build_output", {"line": line}, "{line}")
         else:
-            have_handler = hasattr(self, "handler")
+            have_handler = hasattr(self, "_handler")
             if have_handler:
-                self.handler.acquire()
+                self._handler.acquire()
             try:
                 self.refresh()
             finally:
                 if have_handler:
-                    self.handler.release()
+                    self._handler.release()
 
     def write(self, path, output_format):
         assert output_format in ("text", "json"), "Invalid output format {}".format(

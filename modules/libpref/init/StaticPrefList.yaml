@@ -1659,6 +1659,13 @@
   mirror: once
   do_not_use_directly: true
 
+#if defined(NIGHTLY_BUILD) || defined(MOZ_DEV_EDITION) || defined(DEBUG)
+- name: browser.startup.record
+  type: bool
+  value: false
+  mirror: always
+#endif
+
 # Causes SessionStore to ignore non-final update messages from
 # browser tabs that were not caused by a flush from the parent.
 # This is a testing flag and should not be used by end-users.
@@ -3095,6 +3102,15 @@
 - name: dom.memory.foreground_content_processes_have_larger_page_cache
   type: bool
   value: true
+  mirror: always
+
+# 0 no-op
+# 1 free dirty mozjemalloc pages
+# 2 trigger memory-pressure/heap-minimize
+# 3 trigger memory-pressure/low-memory
+- name: dom.memory.memory_pressure_on_background
+  type: uint32_t
+  value: 0
   mirror: always
 
 # Enable meta-viewport support in remote APZ-enabled frames.

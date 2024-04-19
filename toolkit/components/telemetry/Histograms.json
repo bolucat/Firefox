@@ -9738,7 +9738,7 @@
   },
   "TELEMETRY_TEST_CATEGORICAL_OPTOUT": {
     "record_in_processes": ["main", "content"],
-    "products": ["firefox", "fennec", "geckoview_streaming", "thunderbird"],
+    "products": ["firefox", "fennec", "thunderbird"],
     "alert_emails": ["telemetry-client-dev@mozilla.com"],
     "bug_numbers": [1188888],
     "expires_in_version": "never",
@@ -9956,7 +9956,7 @@
   },
   "TELEMETRY_TEST_EXPIRED": {
     "record_in_processes": ["main", "content"],
-    "products": ["firefox", "fennec", "thunderbird", "geckoview_streaming"],
+    "products": ["firefox", "fennec", "thunderbird"],
     "alert_emails": ["telemetry-client-dev@mozilla.com"],
     "expires_in_version": "4",
     "kind": "linear",
@@ -10210,32 +10210,6 @@
     "bug_numbers": [1498164],
     "description": "a testing histogram; not meant to be touched",
     "record_into_store": ["main", "sync"]
-  },
-  "TELEMETRY_TEST_STREAMING": {
-    "record_in_processes": ["main"],
-    "products": ["geckoview_streaming"],
-    "alert_emails": ["telemetry-client-dev@mozilla.com"],
-    "expires_in_version": "never",
-    "kind": "linear",
-    "low": 1,
-    "high": 2147483646,
-    "n_buckets": 10,
-    "releaseChannelCollection": "opt-out",
-    "bug_numbers": [1566366],
-    "description": "a testing histogram; not meant to be touched"
-  },
-  "TELEMETRY_TEST_STREAMING_2": {
-    "record_in_processes": ["main"],
-    "products": ["geckoview_streaming"],
-    "alert_emails": ["telemetry-client-dev@mozilla.com"],
-    "expires_in_version": "never",
-    "kind": "linear",
-    "low": 1,
-    "high": 2147483646,
-    "n_buckets": 10,
-    "releaseChannelCollection": "opt-out",
-    "bug_numbers": [1566366],
-    "description": "a testing histogram; not meant to be touched"
   },
   "STARTUP_CRASH_DETECTED": {
     "record_in_processes": ["main", "content"],
@@ -12339,14 +12313,14 @@
     "n_values": 10,
     "description": "How often would blocked mixed content be allowed if HSTS upgrades were allowed? 0=display/no-HSTS, 1=display/HSTS, 2=active/no-HSTS, 3=active/HSTS"
   },
-  "INSECURE_DOWNLOADS": {
+  "MIXED_CONTENT_DOWNLOADS": {
     "record_in_processes": ["main", "content"],
     "products": ["firefox"],
-    "alert_emails": ["seceng-telemetry@mozilla.com", "ckerschb@mozilla.com"],
-    "bug_numbers": [1877195],
-    "expires_in_version": "130",
+    "alert_emails": ["seceng-telemetry@mozilla.com", "sstreich@mozilla.com"],
+    "bug_numbers": [1646768],
+    "expires_in_version": "90",
     "kind": "boolean",
-    "description": "Accumulates how many downloads are insecure (True = The download is insecure, False= The download is secure)"
+    "description": "Accumulates how many downloads are mixed-content (True = The download is MixedContent, False= is not MixedContent)"
   },
   "MIXED_CONTENT_IMAGES": {
     "record_in_processes": ["main", "content"],

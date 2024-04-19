@@ -46,7 +46,6 @@ static INLINE __m128i xx_loadu_128(const void *a) {
   return _mm_loadu_si128((const __m128i *)a);
 }
 
-
 // _mm_loadu_si64 has been introduced in GCC 9, reimplement the function
 // manually on older compilers.
 #if !defined(__clang__) && __GNUC_MAJOR__ < 9

@@ -698,8 +698,6 @@ impl<'a> WindowChildRenderer<'a> {
                             win::GetClientRect(hwnd, &mut rect);
                             Gdi::InflateRect(&mut rect, -2, -2);
 
-                            let enabled = KeyboardAndMouse::IsWindowEnabled(hwnd) != 0;
-
                             let dc = gdi::DC::new(hwnd).expect("failed to create GDI DC");
                             dc.with_object_selected(
                                 win::SendMessageW(hwnd, win::WM_GETFONT, 0, 0) as _,
@@ -708,12 +706,7 @@ impl<'a> WindowChildRenderer<'a> {
                                         hdc,
                                         Controls::GetThemeSysColor(0, Gdi::COLOR_GRAYTEXT),
                                     );
-                                    if !enabled {
-                                        Gdi::SetBkColor(
-                                            hdc,
-                                            Controls::GetThemeSysColor(0, Gdi::COLOR_3DFACE),
-                                        );
-                                    }
+                                    Gdi::SetBkMode(hdc, Gdi::TRANSPARENT as i32);
                                     success!(nonzero Gdi::DrawTextW(
                                         hdc,
                                         placeholder.pcwstr(),
@@ -726,6 +719,13 @@ impl<'a> WindowChildRenderer<'a> {
                             .expect("failed to select font gdi object");
                         }
                     }
+
+                    // Multiline edit controls capture the tab key. We want it to work as usual in
+                    // the dialog (focusing the next input control).
+                    if msg == win::WM_GETDLGCODE && wparam == KeyboardAndMouse::VK_TAB as usize {
+                        return 0;
+                    }
+
                     if msg == win::WM_DESTROY {
                         drop(unsafe { Box::from_raw(dw_ref_data as *mut SubClassData) });
                     }

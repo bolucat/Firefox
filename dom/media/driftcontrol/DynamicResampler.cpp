@@ -8,14 +8,13 @@
 namespace mozilla {
 
 DynamicResampler::DynamicResampler(uint32_t aInRate, uint32_t aOutRate,
-                                   media::TimeUnit aPreBufferDuration)
-    : mInRate(aInRate),
-      mPreBufferDuration(aPreBufferDuration),
-      mOutRate(aOutRate) {
+                                   uint32_t aInputPreBufferFrameCount)
+    : mOutRate(aOutRate),
+      mInputPreBufferFrameCount(aInputPreBufferFrameCount),
+      mInRate(aInRate) {
   MOZ_ASSERT(aInRate);
   MOZ_ASSERT(aOutRate);
-  MOZ_ASSERT(aPreBufferDuration.IsPositiveOrZero());
-  UpdateResampler(mOutRate, STEREO);
+  UpdateResampler(mInRate, STEREO);
   mInputStreamFile.Open("DynamicResamplerInFirstChannel", 1, mInRate);
   mOutputStreamFile.Open("DynamicResamplerOutFirstChannel", 1, mOutRate);
 }
@@ -35,7 +34,10 @@ void DynamicResampler::SetSampleFormat(AudioSampleFormat aFormat) {
     b.SetSampleFormat(mSampleFormat);
   }
 
-  EnsureInputBufferDuration(CalculateInputBufferDuration());
+  // Pre-allocate something big.
+  // EnsureInputBufferDuration() adds 50ms for jitter to this first allocation
+  // so the 50ms argument means at least 100ms.
+  EnsureInputBufferSizeInFrames(mInRate / 20);
 }
 
 void DynamicResampler::EnsurePreBuffer(media::TimeUnit aDuration) {
@@ -43,8 +45,8 @@ void DynamicResampler::EnsurePreBuffer(media::TimeUnit aDuration) {
     return;
   }
 
-  media::TimeUnit buffered(mInternalInBuffer[0].AvailableRead(), mInRate);
-  if (buffered.IsZero()) {
+  uint32_t buffered = mInternalInBuffer[0].AvailableRead();
+  if (buffered == 0) {
     // Wait for the first input segment before deciding how much to pre-buffer.
     // If it is large it indicates high-latency, and the buffer would have to
     // handle that.  This also means that the pre-buffer is not set up just
@@ -55,23 +57,24 @@ void DynamicResampler::EnsurePreBuffer(media::TimeUnit aDuration) {
 
   mIsPreBufferSet = true;
 
-  media::TimeUnit needed = aDuration + mPreBufferDuration;
-  EnsureInputBufferDuration(needed);
+  uint32_t needed =
+      aDuration.ToTicksAtRate(mInRate) + mInputPreBufferFrameCount;
+  EnsureInputBufferSizeInFrames(needed);
 
   if (needed > buffered) {
     for (auto& b : mInternalInBuffer) {
-      b.PrependSilence((needed - buffered).ToTicksAtRate(mInRate));
+      b.PrependSilence(needed - buffered);
     }
   } else if (needed < buffered) {
     for (auto& b : mInternalInBuffer) {
-      b.Discard((buffered - needed).ToTicksAtRate(mInRate));
+      b.Discard(buffered - needed);
     }
   }
 }
 
-void DynamicResampler::SetPreBufferDuration(media::TimeUnit aDuration) {
-  MOZ_ASSERT(aDuration.IsPositive());
-  mPreBufferDuration = aDuration;
+void DynamicResampler::SetInputPreBufferFrameCount(
+    uint32_t aInputPreBufferFrameCount) {
+  mInputPreBufferFrameCount = aInputPreBufferFrameCount;
 }
 
 bool DynamicResampler::Resample(float* aOutBuffer, uint32_t aOutFrames,
@@ -147,20 +150,20 @@ void DynamicResampler::ResampleInternal(const int16_t* aInBuffer,
   }
 }
 
-void DynamicResampler::UpdateResampler(uint32_t aOutRate, uint32_t aChannels) {
-  MOZ_ASSERT(aOutRate);
+void DynamicResampler::UpdateResampler(uint32_t aInRate, uint32_t aChannels) {
+  MOZ_ASSERT(aInRate);
   MOZ_ASSERT(aChannels);
 
   if (mChannels != aChannels) {
-    media::TimeUnit bufferDuration(InFramesBufferSize(), mInRate);
+    uint32_t bufferSizeInFrames = InFramesBufferSize();
     if (mResampler) {
       speex_resampler_destroy(mResampler);
     }
-    mResampler = speex_resampler_init(aChannels, mInRate, aOutRate,
+    mResampler = speex_resampler_init(aChannels, aInRate, mOutRate,
                                       SPEEX_RESAMPLER_QUALITY_MIN, nullptr);
     MOZ_ASSERT(mResampler);
     mChannels = aChannels;
-    mOutRate = aOutRate;
+    mInRate = aInRate;
     // Between mono and stereo changes, keep always allocated 2 channels to
     // avoid reallocations in the most common case.
     if ((mChannels == STEREO || mChannels == 1) &&
@@ -193,12 +196,12 @@ void DynamicResampler::UpdateResampler(uint32_t aOutRate, uint32_t aChannels) {
         b->SetSampleFormat(mSampleFormat);
       }
     }
-    EnsureInputBufferDuration(bufferDuration);
+    EnsureInputBufferSizeInFrames(bufferSizeInFrames);
     mInputTail.SetLength(mChannels);
     return;
   }
 
-  if (mOutRate != aOutRate) {
+  if (mInRate != aInRate) {
     // If the rates was the same the resampler was not being used so warm up.
     if (mOutRate == mInRate) {
       WarmUpResampler(true);
@@ -207,9 +210,9 @@ void DynamicResampler::UpdateResampler(uint32_t aOutRate, uint32_t aChannels) {
 #ifdef DEBUG
     int rv =
 #endif
-        speex_resampler_set_rate(mResampler, mInRate, aOutRate);
+        speex_resampler_set_rate(mResampler, aInRate, mOutRate);
     MOZ_ASSERT(rv == RESAMPLER_ERR_SUCCESS);
-    mOutRate = aOutRate;
+    mInRate = aInRate;
   }
 }
 
@@ -280,7 +283,7 @@ uint32_t DynamicResampler::InFramesBuffered(uint32_t aChannelIndex) const {
   MOZ_ASSERT(aChannelIndex <= mChannels);
   MOZ_ASSERT(aChannelIndex <= mInternalInBuffer.Length());
   if (!mIsPreBufferSet) {
-    return mPreBufferDuration.ToTicksAtRate(mInRate);
+    return mInputPreBufferFrameCount;
   }
   return mInternalInBuffer[aChannelIndex].AvailableRead();
 }

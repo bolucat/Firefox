@@ -85,6 +85,7 @@ class WorkerDebuggerGlobalScope;
 class WorkerErrorReport;
 class WorkerEventTarget;
 class WorkerGlobalScope;
+class WorkerParentRef;
 class WorkerRef;
 class WorkerRunnable;
 class WorkerDebuggeeRunnable;
@@ -590,7 +591,7 @@ class WorkerPrivate final
                                 uint32_t aFlags = NS_DISPATCH_NORMAL);
 
   nsresult DispatchDebuggeeToMainThread(
-      already_AddRefed<WorkerDebuggeeRunnable> aRunnable,
+      already_AddRefed<WorkerRunnable> aRunnable,
       uint32_t aFlags = NS_DISPATCH_NORMAL);
 
   // Get an event target that will dispatch runnables as control runnables on
@@ -1050,10 +1051,12 @@ class WorkerPrivate final
                     nsIEventTarget* aSyncLoopTarget = nullptr);
 
   nsresult DispatchControlRunnable(
-      already_AddRefed<WorkerControlRunnable> aWorkerControlRunnable);
+      already_AddRefed<WorkerRunnable> aWorkerRunnable);
 
   nsresult DispatchDebuggerRunnable(
       already_AddRefed<WorkerRunnable> aDebuggerRunnable);
+
+  nsresult DispatchToParent(already_AddRefed<WorkerRunnable> aRunnable);
 
   bool IsOnParentThread() const;
 
@@ -1170,6 +1173,8 @@ class WorkerPrivate final
   // block WorkerPrivate::mParentEventTargetRef cycle-collection.
   // Worker thread only.
   void AdjustNonblockingCCBackgroundActorCount(int32_t aCount);
+
+  RefPtr<WorkerParentRef> GetWorkerParentRef() const;
 
  private:
   WorkerPrivate(
@@ -1368,7 +1373,7 @@ class WorkerPrivate final
 
   WorkerDebugger* mDebugger;
 
-  workerinternals::Queue<WorkerControlRunnable*, 4> mControlQueue;
+  workerinternals::Queue<WorkerRunnable*, 4> mControlQueue;
   workerinternals::Queue<WorkerRunnable*, 4> mDebuggerQueue;
 
   // Touched on multiple threads, protected with mMutex. Only modified on the
@@ -1624,6 +1629,8 @@ class WorkerPrivate final
   // This flag is used to ensure we only call NotifyStorageKeyUsed once per
   // global.
   bool hasNotifiedStorageKeyUsed{false};
+
+  RefPtr<WorkerParentRef> mParentRef;
 };
 
 class AutoSyncLoopHolder {
@@ -1662,6 +1669,42 @@ class AutoSyncLoopHolder {
     // This can be null if CreateNewSyncLoop() fails.
     return mTarget;
   }
+};
+
+/**
+ * WorkerParentRef is a RefPtr<WorkerPrivate> wrapper for cross-thread access.
+ * WorkerPrivate needs to be accessed in multiple threads; for example,
+ * in WorkerParentThreadRunnable, the associated WorkerPrivate must be accessed
+ * in the worker thread when creating/dispatching and in the parent thread when
+ * executing. Unfortunately, RefPtr can not be used on this WorkerPrivate since
+ * it is not a thread-safe ref-counted object.
+ *
+ * Instead of using a raw pointer and a complicated mechanism to ensure the
+ * WorkerPrivate's accessibility. WorkerParentRef is used to resolve the
+ * problem. WorkerParentRef has a RefPtr<WorkerPrivate> mWorkerPrivate
+ * initialized on the parent thread when WorkerPrivate::Constructor().
+ * WorkerParentRef is a thread-safe ref-counted object that can be copied at
+ * any thread by WorkerPrivate::GetWorkerParentRef() and propagated to other
+ * threads. In the target thread, call WorkerParentRef::Private() to get the
+ * reference for WorkerPrivate or get a nullptr if the Worker has shut down.
+ *
+ * Since currently usage cases, WorkerParentRef::Private() will assert to be on
+ * the parent thread.
+ */
+class WorkerParentRef final {
+ public:
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(WorkerParentRef);
+
+  explicit WorkerParentRef(RefPtr<WorkerPrivate>& aWorkerPrivate);
+
+  const RefPtr<WorkerPrivate>& Private() const;
+
+  void DropWorkerPrivate();
+
+ private:
+  ~WorkerParentRef();
+
+  RefPtr<WorkerPrivate> mWorkerPrivate;
 };
 
 }  // namespace dom

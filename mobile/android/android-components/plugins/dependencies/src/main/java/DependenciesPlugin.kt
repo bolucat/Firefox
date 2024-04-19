@@ -46,12 +46,12 @@ object Versions {
     const val leakcanary = "2.13"
 
     const val material = "1.9.0"
-    const val ksp = "1.0.19"
+    const val ksp = "1.0.20"
     val ksp_plugin = "$kotlin-$ksp"
 
     // see https://android-developers.googleblog.com/2022/06/independent-versioning-of-Jetpack-Compose-libraries.html
     // for Jetpack Compose libraries versioning
-    const val compose_compiler = "1.5.11"
+    const val compose_compiler = "1.5.12"
 
     object AndroidX {
         const val activityCompose = "1.7.2"

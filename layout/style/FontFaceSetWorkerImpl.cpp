@@ -177,11 +177,11 @@ void FontFaceSetWorkerImpl::DispatchToOwningThread(
     return;
   }
 
-  class FontFaceSetWorkerRunnable final : public WorkerRunnable {
+  class FontFaceSetWorkerRunnable final : public WorkerThreadRunnable {
    public:
     FontFaceSetWorkerRunnable(WorkerPrivate* aWorkerPrivate,
                               std::function<void()>&& aFunc)
-        : WorkerRunnable(aWorkerPrivate, "FontFaceSetWorkerRunnable"),
+        : WorkerThreadRunnable("FontFaceSetWorkerRunnable"),
           mFunc(std::move(aFunc)) {}
 
     bool WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate) override {
@@ -195,7 +195,7 @@ void FontFaceSetWorkerImpl::DispatchToOwningThread(
 
   RefPtr<FontFaceSetWorkerRunnable> runnable =
       new FontFaceSetWorkerRunnable(workerPrivate, std::move(aFunc));
-  runnable->Dispatch();
+  runnable->Dispatch(workerPrivate);
 }
 
 uint64_t FontFaceSetWorkerImpl::GetInnerWindowID() {
