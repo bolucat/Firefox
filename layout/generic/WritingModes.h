@@ -11,10 +11,8 @@
 
 #include "mozilla/intl/BidiEmbeddingLevel.h"
 #include "mozilla/ComputedStyle.h"
-#include "mozilla/EnumeratedRange.h"
-
+#include "mozilla/EnumSet.h"
 #include "nsRect.h"
-#include "nsBidiUtils.h"
 #include "nsStyleStruct.h"
 
 // It is the caller's responsibility to operate on logical-coordinate objects
@@ -58,11 +56,6 @@ enum class LogicalSide : uint8_t {
   IStart,
   IEnd,
 };
-
-constexpr auto AllLogicalSides() {
-  return mozilla::MakeInclusiveEnumeratedRange(LogicalSide::BStart,
-                                               LogicalSide::IEnd);
-}
 
 enum class LogicalCorner : uint8_t {
   BStartIStart,
@@ -120,22 +113,11 @@ inline LogicalSide GetOppositeSide(LogicalSide aSide) {
   return MakeLogicalSide(GetAxis(aSide), GetOppositeEdge(GetEdge(aSide)));
 }
 
-enum LogicalSideBits {
-  eLogicalSideBitsNone = 0,
-  eLogicalSideBitsBStart = 1 << static_cast<uint8_t>(LogicalSide::BStart),
-  eLogicalSideBitsBEnd = 1 << static_cast<uint8_t>(LogicalSide::BEnd),
-  eLogicalSideBitsIEnd = 1 << static_cast<uint8_t>(LogicalSide::IEnd),
-  eLogicalSideBitsIStart = 1 << static_cast<uint8_t>(LogicalSide::IStart),
-  eLogicalSideBitsBBoth = eLogicalSideBitsBStart | eLogicalSideBitsBEnd,
-  eLogicalSideBitsIBoth = eLogicalSideBitsIStart | eLogicalSideBitsIEnd,
-  eLogicalSideBitsAll = eLogicalSideBitsBBoth | eLogicalSideBitsIBoth
-};
-
-enum LineRelativeDir {
-  eLineRelativeDirOver = static_cast<uint8_t>(LogicalSide::BStart),
-  eLineRelativeDirUnder = static_cast<uint8_t>(LogicalSide::BEnd),
-  eLineRelativeDirLeft = static_cast<uint8_t>(LogicalSide::IStart),
-  eLineRelativeDirRight = static_cast<uint8_t>(LogicalSide::IEnd)
+enum class LineRelativeDir : uint8_t {
+  Over = static_cast<uint8_t>(LogicalSide::BStart),
+  Under = static_cast<uint8_t>(LogicalSide::BEnd),
+  Left = static_cast<uint8_t>(LogicalSide::IStart),
+  Right = static_cast<uint8_t>(LogicalSide::IEnd)
 };
 
 /**
@@ -1108,48 +1090,51 @@ class LogicalSize {
  * LogicalSides represents a set of logical sides.
  */
 struct LogicalSides final {
+  static constexpr EnumSet<LogicalSide> BBoth{LogicalSide::BStart,
+                                              LogicalSide::BEnd};
+  static constexpr EnumSet<LogicalSide> IBoth{LogicalSide::IStart,
+                                              LogicalSide::IEnd};
+  static constexpr EnumSet<LogicalSide> All{
+      LogicalSide::BStart, LogicalSide::BEnd, LogicalSide::IStart,
+      LogicalSide::IEnd};
+
   explicit LogicalSides(WritingMode aWritingMode)
+#ifdef DEBUG
+      : mWritingMode(aWritingMode)
+#endif
+  {
+  }
+  LogicalSides(WritingMode aWritingMode, LogicalSides aSides)
       :
 #ifdef DEBUG
         mWritingMode(aWritingMode),
 #endif
-        mBits(0) {
+        mSides(aSides.mSides) {
   }
-  LogicalSides(WritingMode aWritingMode, LogicalSideBits aSideBits)
+  LogicalSides(WritingMode aWritingMode, EnumSet<LogicalSide> aSides)
       :
 #ifdef DEBUG
         mWritingMode(aWritingMode),
 #endif
-        mBits(aSideBits) {
-    MOZ_ASSERT((aSideBits & ~eLogicalSideBitsAll) == 0, "illegal side bits");
+        mSides(aSides) {
   }
-  bool IsEmpty() const { return mBits == 0; }
-  bool BStart() const { return mBits & eLogicalSideBitsBStart; }
-  bool BEnd() const { return mBits & eLogicalSideBitsBEnd; }
-  bool IStart() const { return mBits & eLogicalSideBitsIStart; }
-  bool IEnd() const { return mBits & eLogicalSideBitsIEnd; }
-  bool Contains(LogicalSideBits aSideBits) const {
-    MOZ_ASSERT((aSideBits & ~eLogicalSideBitsAll) == 0, "illegal side bits");
-    return (mBits & aSideBits) == aSideBits;
+  bool IsEmpty() const { return mSides.isEmpty(); }
+  bool BStart() const { return mSides.contains(LogicalSide::BStart); }
+  bool BEnd() const { return mSides.contains(LogicalSide::BEnd); }
+  bool IStart() const { return mSides.contains(LogicalSide::IStart); }
+  bool IEnd() const { return mSides.contains(LogicalSide::IEnd); }
+  bool Contains(LogicalSide aSide) const { return mSides.contains(aSide); }
+  LogicalSides& operator+=(LogicalSides aOther) {
+    mSides += aOther.mSides;
+    return *this;
   }
-  LogicalSides operator|(LogicalSides aOther) const {
-    CHECK_WRITING_MODE(aOther.GetWritingMode());
-    return *this | LogicalSideBits(aOther.mBits);
-  }
-  LogicalSides operator|(LogicalSideBits aSideBits) const {
-    return LogicalSides(GetWritingMode(), LogicalSideBits(mBits | aSideBits));
-  }
-  LogicalSides& operator|=(LogicalSides aOther) {
-    CHECK_WRITING_MODE(aOther.GetWritingMode());
-    return *this |= LogicalSideBits(aOther.mBits);
-  }
-  LogicalSides& operator|=(LogicalSideBits aSideBits) {
-    mBits |= aSideBits;
+  LogicalSides& operator+=(LogicalSide aOther) {
+    mSides += aOther;
     return *this;
   }
   bool operator==(LogicalSides aOther) const {
     CHECK_WRITING_MODE(aOther.GetWritingMode());
-    return mBits == aOther.mBits;
+    return mSides == aOther.mSides;
   }
   bool operator!=(LogicalSides aOther) const {
     CHECK_WRITING_MODE(aOther.GetWritingMode());
@@ -1166,7 +1151,7 @@ struct LogicalSides final {
 #ifdef DEBUG
   WritingMode mWritingMode;
 #endif
-  uint8_t mBits;
+  EnumSet<LogicalSide> mSides;
 };
 
 /**

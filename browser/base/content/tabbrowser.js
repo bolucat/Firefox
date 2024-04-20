@@ -161,6 +161,7 @@
       TO_START: 2,
       TO_END: 3,
       MULTI_SELECTED: 4,
+      DUPLICATES: 6,
     },
 
     _lastRelatedTabMap: new WeakMap(),
@@ -346,6 +347,59 @@
 
     get visibleTabs() {
       return this.tabContainer._getVisibleTabs();
+    },
+
+    getDuplicateTabsToClose(aTab) {
+      // One would think that a set is better, but it would need to copy all
+      // the strings instead of just keeping references to the nsIURI objects,
+      // and the array is presumed to be small anyways.
+      let keys = [];
+      let keyForTab = tab => {
+        let uri = tab.linkedBrowser?.currentURI;
+        if (!uri) {
+          return null;
+        }
+        return {
+          uri,
+          userContextId: tab.userContextId,
+        };
+      };
+      let keyEquals = (a, b) => {
+        return a.userContextId == b.userContextId && a.uri.equals(b.uri);
+      };
+      if (aTab.multiselected) {
+        for (let tab of this.selectedTabs) {
+          let key = keyForTab(tab);
+          if (key) {
+            keys.push(key);
+          }
+        }
+      } else {
+        let key = keyForTab(aTab);
+        if (key) {
+          keys.push(key);
+        }
+      }
+
+      if (!keys.length) {
+        return [];
+      }
+
+      let duplicateTabs = [];
+      for (let tab of this.tabs) {
+        if (tab == aTab || tab.pinned) {
+          continue;
+        }
+        if (aTab.multiselected && tab.multiselected) {
+          continue;
+        }
+        let key = keyForTab(tab);
+        if (key && keys.some(k => keyEquals(k, key))) {
+          duplicateTabs.push(tab);
+        }
+      }
+
+      return duplicateTabs;
     },
 
     get _numPinnedTabs() {
@@ -3509,6 +3563,28 @@
       return tabsToEnd;
     },
 
+    removeDuplicateTabs(aTab) {
+      let tabs = this.getDuplicateTabsToClose(aTab);
+      if (!tabs.length) {
+        return;
+      }
+
+      if (
+        !this.warnAboutClosingTabs(tabs.length, this.closingTabsEnum.DUPLICATES)
+      ) {
+        return;
+      }
+
+      this.removeTabs(tabs);
+      if (tabs.length) {
+        ConfirmationHint.show(aTab, "confirmation-hint-duplicate-tabs-closed", {
+          l10nArgs: {
+            tabCount: tabs.length,
+          },
+        });
+      }
+    },
+
     /**
      * In a multi-select context, the tabs (except pinned tabs) that are located to the
      * left of the leftmost selected tab will be removed.
@@ -4355,6 +4431,56 @@
           "close-last-tab"
         );
       }
+    },
+    /**
+     * Closes tabs within the browser that match a given list of nsURIs. Returns
+     * any nsURIs that could not be closed successfully. This does not close any
+     * tabs that have a beforeUnload prompt
+     *
+     * @param {nsURI[]} urisToClose
+     *   The set of uris to remove.
+     * @returns {nsURI[]}
+     *  the nsURIs that weren't found in this browser
+     */
+    async closeTabsByURI(urisToClose) {
+      let remainingURIsToClose = [...urisToClose];
+      let tabsToRemove = [];
+      for (let tab of this.tabs) {
+        let currentURI = tab.linkedBrowser.currentURI;
+        // Find any URI that matches the current tab's URI
+        const matchedIndex = remainingURIsToClose.findIndex(uriToClose =>
+          uriToClose.equals(currentURI)
+        );
+
+        if (matchedIndex > -1) {
+          tabsToRemove.push(tab);
+          remainingURIsToClose.splice(matchedIndex, 1); // Remove the matched URI
+        }
+      }
+
+      if (tabsToRemove.length) {
+        const { beforeUnloadComplete, lastToClose } = this._startRemoveTabs(
+          tabsToRemove,
+          {
+            animate: false,
+            suppressWarnAboutClosingWindow: true,
+            skipPermitUnload: false,
+            skipRemoves: false,
+            skipSessionStore: false,
+          }
+        );
+
+        // Wait for the beforeUnload handlers to complete.
+        await beforeUnloadComplete;
+
+        // _startRemoveTabs doesn't close the last tab in the window
+        // for this use case, we simply close it
+        if (lastToClose) {
+          this.removeTab(lastToClose);
+        }
+      }
+      // If we still have uris, that means we couldn't find them in this window instance
+      return remainingURIsToClose;
     },
 
     /**
@@ -7554,9 +7680,8 @@ var TabContextMenu = {
       tabsToMove[0] == visibleTabs[gBrowser._numPinnedTabs];
     contextMoveTabToStart.disabled = isFirstTab && allSelectedTabsAdjacent;
 
-    if (this.contextTab.hasAttribute("customizemode")) {
-      document.getElementById("context_openTabInWindow").disabled = true;
-    }
+    document.getElementById("context_openTabInWindow").disabled =
+      this.contextTab.hasAttribute("customizemode");
 
     // Only one of "Duplicate Tab"/"Duplicate Tabs" should be visible.
     document.getElementById("context_duplicateTab").hidden =
@@ -7589,6 +7714,17 @@ var TabContextMenu = {
     document
       .getElementById("context_closeTab")
       .setAttribute("data-l10n-args", tabCountInfo);
+
+    let closeDuplicateEnabled = Services.prefs.getBoolPref(
+      "browser.tabs.context.close-duplicate.enabled"
+    );
+    let closeDuplicateTabsItem = document.getElementById(
+      "context_closeDuplicateTabs"
+    );
+    closeDuplicateTabsItem.hidden = !closeDuplicateEnabled;
+    closeDuplicateTabsItem.disabled =
+      !closeDuplicateEnabled ||
+      !gBrowser.getDuplicateTabsToClose(this.contextTab).length;
 
     // Disable "Close Multiple Tabs" if all sub menuitems are disabled
     document.getElementById("context_closeTabOptions").disabled =
