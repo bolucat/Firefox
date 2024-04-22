@@ -146,21 +146,15 @@ class IDBFactory final : public GlobalTeardownObserver, public nsWrapperCache {
 
   bool IsChrome() const;
 
-  [[nodiscard]] RefPtr<IDBOpenDBRequest> Open(JSContext* aCx,
-                                              const nsAString& aName,
-                                              uint64_t aVersion,
-                                              CallerType aCallerType,
-                                              ErrorResult& aRv);
+  [[nodiscard]] RefPtr<IDBOpenDBRequest> Open(
+      JSContext* aCx, const nsAString& aName,
+      const Optional<uint64_t>& aVersion, CallerType aCallerType,
+      ErrorResult& aRv);
 
-  [[nodiscard]] RefPtr<IDBOpenDBRequest> Open(JSContext* aCx,
-                                              const nsAString& aName,
-                                              const IDBOpenDBOptions& aOptions,
-                                              CallerType aCallerType,
-                                              ErrorResult& aRv);
-
-  [[nodiscard]] RefPtr<IDBOpenDBRequest> DeleteDatabase(
-      JSContext* aCx, const nsAString& aName, const IDBOpenDBOptions& aOptions,
-      CallerType aCallerType, ErrorResult& aRv);
+  [[nodiscard]] RefPtr<IDBOpenDBRequest> DeleteDatabase(JSContext* aCx,
+                                                        const nsAString& aName,
+                                                        CallerType aCallerType,
+                                                        ErrorResult& aRv);
 
   already_AddRefed<Promise> Databases(JSContext* aCx);
 

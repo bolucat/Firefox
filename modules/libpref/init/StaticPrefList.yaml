@@ -6390,6 +6390,15 @@
   value: 0
   mirror: always
 
+# Meant to be used for tests only. If greater than 0 then we assert that the
+# number of active render textures increases by this amount or less.
+#ifdef DEBUG
+- name: gfx.testing.assert-render-textures-increase
+  type: RelaxedAtomicInt32
+  value: 0
+  mirror: always
+#endif
+
 - name: gfx.text.disable-aa
   type: bool
   value: false
@@ -13387,7 +13396,7 @@
   # The length of cnonce string used in HTTP digest auth.
 - name: network.http.digest_auth_cnonce_length
   type: uint32_t
-  value: 64
+  value: 16
   mirror: always
 
   # If true, HTTP response content-type headers will be parsed using the standards-compliant MimeType parser

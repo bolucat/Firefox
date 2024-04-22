@@ -17902,11 +17902,10 @@ interface IDBFactory {
     /** [MDN Reference](https://developer.mozilla.org/docs/Web/API/IDBFactory/cmp) */
     cmp(first: any, second: any): number;
     /** [MDN Reference](https://developer.mozilla.org/docs/Web/API/IDBFactory/deleteDatabase) */
-    deleteDatabase(name: string, options?: IDBOpenDBOptions): IDBOpenDBRequest;
+    deleteDatabase(name: string): IDBOpenDBRequest;
     deleteForPrincipal(principal: Principal, name: string, options?: IDBOpenDBOptions): IDBOpenDBRequest;
     /** [MDN Reference](https://developer.mozilla.org/docs/Web/API/IDBFactory/open) */
-    open(name: string, version: number): IDBOpenDBRequest;
-    open(name: string, options?: IDBOpenDBOptions): IDBOpenDBRequest;
+    open(name: string, version?: number): IDBOpenDBRequest;
     openForPrincipal(principal: Principal, name: string, version: number): IDBOpenDBRequest;
     openForPrincipal(principal: Principal, name: string, options?: IDBOpenDBOptions): IDBOpenDBRequest;
 }

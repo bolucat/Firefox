@@ -41,6 +41,8 @@ class MOZ_STACK_CLASS WSScanResult final {
     NotInitialized,
     // Could be the DOM tree is broken as like crash tests.
     UnexpectedError,
+    // The scanner cannot work in uncomposed tree, but tried to scan in it.
+    InUncomposedDoc,
     // The run is maybe collapsible white-spaces at start of a hard line.
     LeadingWhiteSpaces,
     // The run is maybe collapsible white-spaces at end of a hard line.
@@ -59,6 +61,8 @@ class MOZ_STACK_CLASS WSScanResult final {
     OtherBlockBoundary,
     // Current block's boundary.
     CurrentBlockBoundary,
+    // Inline editing host boundary.
+    InlineEditingHostBoundary,
   };
 
   friend std::ostream& operator<<(std::ostream& aStream, const WSType& aType) {
@@ -67,6 +71,8 @@ class MOZ_STACK_CLASS WSScanResult final {
         return aStream << "WSType::NotInitialized";
       case WSType::UnexpectedError:
         return aStream << "WSType::UnexpectedError";
+      case WSType::InUncomposedDoc:
+        return aStream << "WSType::InUncomposedDoc";
       case WSType::LeadingWhiteSpaces:
         return aStream << "WSType::LeadingWhiteSpaces";
       case WSType::TrailingWhiteSpaces:
@@ -85,17 +91,24 @@ class MOZ_STACK_CLASS WSScanResult final {
         return aStream << "WSType::OtherBlockBoundary";
       case WSType::CurrentBlockBoundary:
         return aStream << "WSType::CurrentBlockBoundary";
+      case WSType::InlineEditingHostBoundary:
+        return aStream << "WSType::InlineEditingHostBoundary";
     }
     return aStream << "<Illegal value>";
   }
 
   friend class WSRunScanner;  // Because of WSType.
 
+  explicit WSScanResult(WSType aReason) : mReason(aReason) {
+    MOZ_ASSERT(mReason == WSType::UnexpectedError ||
+               mReason == WSType::NotInitialized);
+  }
+
  public:
   WSScanResult() = delete;
-  MOZ_NEVER_INLINE_DEBUG WSScanResult(nsIContent* aContent, WSType aReason,
+  MOZ_NEVER_INLINE_DEBUG WSScanResult(nsIContent& aContent, WSType aReason,
                                       BlockInlineCheck aBlockInlineCheck)
-      : mContent(aContent), mReason(aReason) {
+      : mContent(&aContent), mReason(aReason) {
     AssertIfInvalidData(aBlockInlineCheck);
   }
   MOZ_NEVER_INLINE_DEBUG WSScanResult(const EditorDOMPoint& aPoint,
@@ -107,68 +120,57 @@ class MOZ_STACK_CLASS WSScanResult final {
     AssertIfInvalidData(aBlockInlineCheck);
   }
 
+  static WSScanResult Error() { return WSScanResult(WSType::UnexpectedError); }
+
   MOZ_NEVER_INLINE_DEBUG void AssertIfInvalidData(
       BlockInlineCheck aBlockInlineCheck) const {
 #ifdef DEBUG
     MOZ_ASSERT(mReason == WSType::UnexpectedError ||
+               mReason == WSType::InUncomposedDoc ||
                mReason == WSType::NonCollapsibleCharacters ||
                mReason == WSType::CollapsibleWhiteSpaces ||
                mReason == WSType::BRElement ||
                mReason == WSType::PreformattedLineBreak ||
                mReason == WSType::SpecialContent ||
                mReason == WSType::CurrentBlockBoundary ||
-               mReason == WSType::OtherBlockBoundary);
+               mReason == WSType::OtherBlockBoundary ||
+               mReason == WSType::InlineEditingHostBoundary);
     MOZ_ASSERT_IF(mReason == WSType::UnexpectedError, !mContent);
+    MOZ_ASSERT_IF(mReason != WSType::UnexpectedError, mContent);
+    MOZ_ASSERT_IF(mReason == WSType::InUncomposedDoc,
+                  !mContent->IsInComposedDoc());
+    MOZ_ASSERT_IF(mContent && !mContent->IsInComposedDoc(),
+                  mReason == WSType::InUncomposedDoc);
     MOZ_ASSERT_IF(mReason == WSType::NonCollapsibleCharacters ||
                       mReason == WSType::CollapsibleWhiteSpaces,
-                  mContent && mContent->IsText());
+                  mContent->IsText());
     MOZ_ASSERT_IF(mReason == WSType::BRElement,
-                  mContent && mContent->IsHTMLElement(nsGkAtoms::br));
-    MOZ_ASSERT_IF(mReason == WSType::PreformattedLineBreak,
-                  mContent && mContent->IsText() &&
-                      EditorUtils::IsNewLinePreformatted(*mContent));
+                  mContent->IsHTMLElement(nsGkAtoms::br));
+    MOZ_ASSERT_IF(
+        mReason == WSType::PreformattedLineBreak,
+        mContent->IsText() && EditorUtils::IsNewLinePreformatted(*mContent));
     MOZ_ASSERT_IF(
         mReason == WSType::SpecialContent,
-        mContent &&
-            ((mContent->IsText() && !mContent->IsEditable()) ||
-             (!mContent->IsHTMLElement(nsGkAtoms::br) &&
-              !HTMLEditUtils::IsBlockElement(*mContent, aBlockInlineCheck))));
+        (mContent->IsText() && !mContent->IsEditable()) ||
+            (!mContent->IsHTMLElement(nsGkAtoms::br) &&
+             !HTMLEditUtils::IsBlockElement(*mContent, aBlockInlineCheck)));
     MOZ_ASSERT_IF(mReason == WSType::OtherBlockBoundary,
-                  mContent && HTMLEditUtils::IsBlockElement(*mContent,
-                                                            aBlockInlineCheck));
-    // If mReason is WSType::CurrentBlockBoundary, mContent can be any content.
-    // In most cases, it's current block element which is editable.  However, if
-    // there is no editable block parent, this is topmost editable inline
-    // content. Additionally, if there is no editable content, this is the
-    // container start of scanner and is not editable.
-    if (mReason == WSType::CurrentBlockBoundary) {
-      if (!mContent ||
-          // Although not expected that scanning in orphan document fragment,
-          // it's okay.
-          !mContent->IsInComposedDoc() ||
-          // This is what the most preferred result is mContent itself is a
-          // block.
-          HTMLEditUtils::IsBlockElement(*mContent, aBlockInlineCheck) ||
-          // If mContent is not editable, we cannot check whether there is no
-          // block ancestor in the limiter which we don't have.  Therefore,
-          // let's skip the ancestor check.
-          !mContent->IsEditable()) {
-        return;
-      }
-      const DebugOnly<Element*> closestAncestorEditableBlockElement =
-          HTMLEditUtils::GetAncestorElement(
-              *mContent, HTMLEditUtils::ClosestEditableBlockElement,
-              aBlockInlineCheck);
-      MOZ_ASSERT_IF(
-          mReason == WSType::CurrentBlockBoundary,
-          // There is no editable block ancestor, it's fine.
-          !closestAncestorEditableBlockElement ||
-              // If we found an editable block, but mContent can be inline if
-              // it's an editing host (root or its parent is not editable).
-              !closestAncestorEditableBlockElement->GetParentElement() ||
-              !closestAncestorEditableBlockElement->GetParentElement()
-                   ->IsEditable());
-    }
+                  HTMLEditUtils::IsBlockElement(*mContent, aBlockInlineCheck));
+    MOZ_ASSERT_IF(mReason == WSType::CurrentBlockBoundary,
+                  mContent->IsElement());
+    MOZ_ASSERT_IF(mReason == WSType::CurrentBlockBoundary,
+                  mContent->IsEditable());
+    MOZ_ASSERT_IF(mReason == WSType::CurrentBlockBoundary,
+                  HTMLEditUtils::IsBlockElement(*mContent, aBlockInlineCheck));
+    MOZ_ASSERT_IF(mReason == WSType::InlineEditingHostBoundary,
+                  mContent->IsElement());
+    MOZ_ASSERT_IF(mReason == WSType::InlineEditingHostBoundary,
+                  mContent->IsEditable());
+    MOZ_ASSERT_IF(mReason == WSType::InlineEditingHostBoundary,
+                  !HTMLEditUtils::IsBlockElement(*mContent, aBlockInlineCheck));
+    MOZ_ASSERT_IF(mReason == WSType::InlineEditingHostBoundary,
+                  !mContent->GetParentElement() ||
+                      !mContent->GetParentElement()->IsEditable());
 #endif  // #ifdef DEBUG
   }
 
@@ -185,6 +187,10 @@ class MOZ_STACK_CLASS WSScanResult final {
 
   [[nodiscard]] bool ContentIsElement() const {
     return mContent && mContent->IsElement();
+  }
+
+  [[nodiscard]] bool ContentIsText() const {
+    return mContent && mContent->IsText();
   }
 
   /**
@@ -334,6 +340,13 @@ class MOZ_STACK_CLASS WSScanResult final {
    */
   bool ReachedNonEditableOtherBlockElement() const {
     return ReachedOtherBlockElement() && !GetContent()->IsEditable();
+  }
+
+  /**
+   * The scanner reached inline editing host boundary.
+   */
+  [[nodiscard]] bool ReachedInlineEditingHostBoundary() const {
+    return mReason == WSType::InlineEditingHostBoundary;
   }
 
   /**
@@ -588,6 +601,9 @@ class MOZ_STACK_CLASS WSRunScanner final {
   bool StartsFromBlockBoundary() const {
     return TextFragmentDataAtStartRef().StartsFromBlockBoundary();
   }
+  bool StartsFromInlineEditingHostBoundary() const {
+    return TextFragmentDataAtStartRef().StartsFromInlineEditingHostBoundary();
+  }
   bool StartsFromHardLineBreak() const {
     return TextFragmentDataAtStartRef().StartsFromHardLineBreak();
   }
@@ -617,6 +633,9 @@ class MOZ_STACK_CLASS WSRunScanner final {
   }
   bool EndsByBlockBoundary() const {
     return TextFragmentDataAtStartRef().EndsByBlockBoundary();
+  }
+  bool EndsByInlineEditingHostBoundary() const {
+    return TextFragmentDataAtStartRef().EndsByInlineEditingHostBoundary();
   }
 
   MOZ_NEVER_INLINE_DEBUG Element* StartReasonOtherBlockElementPtr() const {
@@ -687,6 +706,9 @@ class MOZ_STACK_CLASS WSRunScanner final {
     bool EndsByBlockBoundary() const {
       return mRightWSType == WSType::CurrentBlockBoundary ||
              mRightWSType == WSType::OtherBlockBoundary;
+    }
+    bool EndsByInlineEditingHostBoundary() const {
+      return mRightWSType == WSType::InlineEditingHostBoundary;
     }
 
     /**
@@ -916,6 +938,9 @@ class MOZ_STACK_CLASS WSRunScanner final {
         return mReason == WSType::CurrentBlockBoundary ||
                mReason == WSType::OtherBlockBoundary;
       }
+      bool IsInlineEditingHostBoundary() const {
+        return mReason == WSType::InlineEditingHostBoundary;
+      }
       bool IsHardLineBreak() const {
         return mReason == WSType::CurrentBlockBoundary ||
                mReason == WSType::OtherBlockBoundary ||
@@ -950,8 +975,8 @@ class MOZ_STACK_CLASS WSRunScanner final {
       EditorDOMPoint mPoint;
       // Must be one of WSType::NotInitialized,
       // WSType::NonCollapsibleCharacters, WSType::SpecialContent,
-      // WSType::BRElement, WSType::CurrentBlockBoundary or
-      // WSType::OtherBlockBoundary.
+      // WSType::BRElement, WSType::CurrentBlockBoundary,
+      // WSType::OtherBlockBoundary or WSType::InlineEditingHostBoundary.
       WSType mReason = WSType::NotInitialized;
     };
 
@@ -1027,6 +1052,9 @@ class MOZ_STACK_CLASS WSRunScanner final {
       return mStart.IsOtherBlockBoundary();
     }
     bool StartsFromBlockBoundary() const { return mStart.IsBlockBoundary(); }
+    bool StartsFromInlineEditingHostBoundary() const {
+      return mStart.IsInlineEditingHostBoundary();
+    }
     bool StartsFromHardLineBreak() const { return mStart.IsHardLineBreak(); }
     bool EndsByNonCollapsibleCharacters() const {
       return mEnd.IsNonCollapsibleCharacters();
@@ -1053,6 +1081,9 @@ class MOZ_STACK_CLASS WSRunScanner final {
     }
     bool EndsByOtherBlockElement() const { return mEnd.IsOtherBlockBoundary(); }
     bool EndsByBlockBoundary() const { return mEnd.IsBlockBoundary(); }
+    bool EndsByInlineEditingHostBoundary() const {
+      return mEnd.IsInlineEditingHostBoundary();
+    }
 
     WSType StartRawReason() const { return mStart.RawReason(); }
     WSType EndRawReason() const { return mEnd.RawReason(); }
@@ -1224,7 +1255,7 @@ class MOZ_STACK_CLASS WSRunScanner final {
     bool FollowingContentMayBecomeFirstVisibleContent(
         const EditorDOMPointType& aPoint) const {
       MOZ_ASSERT(aPoint.IsSetAndValid());
-      if (!mStart.IsHardLineBreak()) {
+      if (!mStart.IsHardLineBreak() && !mStart.IsInlineEditingHostBoundary()) {
         return false;
       }
       // If the point is before start of text fragment, that means that the
@@ -1260,7 +1291,7 @@ class MOZ_STACK_CLASS WSRunScanner final {
       MOZ_ASSERT(aPoint.IsSetAndValid());
       // If this fragment is ends by block boundary, always the caller needs
       // additional check.
-      if (mEnd.IsBlockBoundary()) {
+      if (mEnd.IsBlockBoundary() || mEnd.IsInlineEditingHostBoundary()) {
         return true;
       }
 

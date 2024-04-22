@@ -1292,7 +1292,9 @@ Result<InsertTextResult, nsresult> WhiteSpaceVisibilityKeeper::ReplaceText(
       // If the insertion point is (was) before the start of text and it's
       // immediately after a hard line break, the first ASCII white-space should
       // be replaced with an NBSP for making it visible.
-      else if (textFragmentDataAtStart.StartsFromHardLineBreak() &&
+      else if ((textFragmentDataAtStart.StartsFromHardLineBreak() ||
+                textFragmentDataAtStart
+                    .StartsFromInlineEditingHostBoundary()) &&
                isInsertionPointEqualsOrIsBeforeStartOfText) {
         theString.SetCharAt(HTMLEditUtils::kNBSP, 0);
       }
@@ -1325,7 +1327,8 @@ Result<InsertTextResult, nsresult> WhiteSpaceVisibilityKeeper::ReplaceText(
       // If the end of replacing range is (was) after the end of text and it's
       // immediately before block boundary, the last ASCII white-space should
       // be replaced with an NBSP for making it visible.
-      else if (textFragmentDataAtEnd.EndsByBlockBoundary() &&
+      else if ((textFragmentDataAtEnd.EndsByBlockBoundary() ||
+                textFragmentDataAtEnd.EndsByInlineEditingHostBoundary()) &&
                isInsertionPointEqualsOrAfterEndOfText) {
         theString.SetCharAt(HTMLEditUtils::kNBSP, lastCharIndex);
       }
@@ -1721,9 +1724,23 @@ template <typename PT, typename CT>
 WSScanResult WSRunScanner::ScanPreviousVisibleNodeOrBlockBoundaryFrom(
     const EditorDOMPointBase<PT, CT>& aPoint) const {
   MOZ_ASSERT(aPoint.IsSet());
+  MOZ_ASSERT(aPoint.IsInComposedDoc());
+
+  if (MOZ_UNLIKELY(!aPoint.IsSet())) {
+    return WSScanResult::Error();
+  }
+
+  // We may not be able to check editable state in uncomposed tree as expected.
+  // For example, only some descendants in an editing host is temporarily
+  // removed from the tree, they are not editable unless nested contenteditable
+  // attribute is set to "true".
+  if (MOZ_UNLIKELY(!aPoint.IsInComposedDoc())) {
+    return WSScanResult(*aPoint.template ContainerAs<nsIContent>(),
+                        WSType::InUncomposedDoc, mBlockInlineCheck);
+  }
 
   if (!TextFragmentDataAtStartRef().IsInitialized()) {
-    return WSScanResult(nullptr, WSType::UnexpectedError, mBlockInlineCheck);
+    return WSScanResult::Error();
   }
 
   // If the range has visible text and start of the visible text is before
@@ -1736,7 +1753,7 @@ WSScanResult WSRunScanner::ScanPreviousVisibleNodeOrBlockBoundaryFrom(
     // things now.  Whether keep scanning editable things or not should be
     // considered by the caller.
     if (aPoint.GetChild() && !aPoint.GetChild()->IsEditable()) {
-      return WSScanResult(aPoint.GetChild(), WSType::SpecialContent,
+      return WSScanResult(*aPoint.GetChild(), WSType::SpecialContent,
                           mBlockInlineCheck);
     }
     const auto atPreviousChar =
@@ -1752,14 +1769,25 @@ WSScanResult WSRunScanner::ScanPreviousVisibleNodeOrBlockBoundaryFrom(
     }
   }
 
+  if (NS_WARN_IF(TextFragmentDataAtStartRef().StartRawReason() ==
+                 WSType::UnexpectedError)) {
+    return WSScanResult::Error();
+  }
+
   // Otherwise, return the start of the range.
   if (TextFragmentDataAtStartRef().GetStartReasonContent() !=
       TextFragmentDataAtStartRef().StartRef().GetContainer()) {
+    if (NS_WARN_IF(!TextFragmentDataAtStartRef().GetStartReasonContent())) {
+      return WSScanResult::Error();
+    }
     // In this case, TextFragmentDataAtStartRef().StartRef().Offset() is not
     // meaningful.
-    return WSScanResult(TextFragmentDataAtStartRef().GetStartReasonContent(),
+    return WSScanResult(*TextFragmentDataAtStartRef().GetStartReasonContent(),
                         TextFragmentDataAtStartRef().StartRawReason(),
                         mBlockInlineCheck);
+  }
+  if (NS_WARN_IF(!TextFragmentDataAtStartRef().StartRef().IsSet())) {
+    return WSScanResult::Error();
   }
   return WSScanResult(TextFragmentDataAtStartRef().StartRef(),
                       TextFragmentDataAtStartRef().StartRawReason(),
@@ -1770,9 +1798,23 @@ template <typename PT, typename CT>
 WSScanResult WSRunScanner::ScanNextVisibleNodeOrBlockBoundaryFrom(
     const EditorDOMPointBase<PT, CT>& aPoint) const {
   MOZ_ASSERT(aPoint.IsSet());
+  MOZ_ASSERT(aPoint.IsInComposedDoc());
+
+  if (MOZ_UNLIKELY(!aPoint.IsSet())) {
+    return WSScanResult::Error();
+  }
+
+  // We may not be able to check editable state in uncomposed tree as expected.
+  // For example, only some descendants in an editing host is temporarily
+  // removed from the tree, they are not editable unless nested contenteditable
+  // attribute is set to "true".
+  if (MOZ_UNLIKELY(!aPoint.IsInComposedDoc())) {
+    return WSScanResult(*aPoint.template ContainerAs<nsIContent>(),
+                        WSType::InUncomposedDoc, mBlockInlineCheck);
+  }
 
   if (!TextFragmentDataAtStartRef().IsInitialized()) {
-    return WSScanResult(nullptr, WSType::UnexpectedError, mBlockInlineCheck);
+    return WSScanResult::Error();
   }
 
   // If the range has visible text and aPoint equals or is before the end of the
@@ -1785,7 +1827,7 @@ WSScanResult WSRunScanner::ScanNextVisibleNodeOrBlockBoundaryFrom(
     // things now.  Whether keep scanning editable things or not should be
     // considered by the caller.
     if (aPoint.GetChild() && !aPoint.GetChild()->IsEditable()) {
-      return WSScanResult(aPoint.GetChild(), WSType::SpecialContent,
+      return WSScanResult(*aPoint.GetChild(), WSType::SpecialContent,
                           mBlockInlineCheck);
     }
     const auto atNextChar =
@@ -1801,14 +1843,25 @@ WSScanResult WSRunScanner::ScanNextVisibleNodeOrBlockBoundaryFrom(
     }
   }
 
+  if (NS_WARN_IF(TextFragmentDataAtStartRef().EndRawReason() ==
+                 WSType::UnexpectedError)) {
+    return WSScanResult::Error();
+  }
+
   // Otherwise, return the end of the range.
   if (TextFragmentDataAtStartRef().GetEndReasonContent() !=
       TextFragmentDataAtStartRef().EndRef().GetContainer()) {
+    if (NS_WARN_IF(!TextFragmentDataAtStartRef().GetEndReasonContent())) {
+      return WSScanResult::Error();
+    }
     // In this case, TextFragmentDataAtStartRef().EndRef().Offset() is not
     // meaningful.
-    return WSScanResult(TextFragmentDataAtStartRef().GetEndReasonContent(),
+    return WSScanResult(*TextFragmentDataAtStartRef().GetEndReasonContent(),
                         TextFragmentDataAtStartRef().EndRawReason(),
                         mBlockInlineCheck);
+  }
+  if (NS_WARN_IF(!TextFragmentDataAtStartRef().EndRef().IsSet())) {
+    return WSScanResult::Error();
   }
   return WSScanResult(TextFragmentDataAtStartRef().EndRef(),
                       TextFragmentDataAtStartRef().EndRawReason(),
@@ -1944,6 +1997,7 @@ WSRunScanner::TextFragmentData::BoundaryData WSRunScanner::TextFragmentData::
         const Element* aEditingHost, NoBreakingSpaceData* aNBSPData,
         BlockInlineCheck aBlockInlineCheck) {
   MOZ_ASSERT(aPoint.IsSetAndValid());
+  MOZ_ASSERT(aEditableBlockParentOrTopmostEditableInlineElement.IsEditable());
 
   if (aPoint.IsInTextNode() && !aPoint.IsStartOfContainer()) {
     Maybe<BoundaryData> startInTextNode =
@@ -1967,14 +2021,16 @@ WSRunScanner::TextFragmentData::BoundaryData WSRunScanner::TextFragmentData::
           {LeafNodeType::LeafNodeOrNonEditableNode}, aBlockInlineCheck,
           aEditingHost);
   if (!previousLeafContentOrBlock) {
-    // no prior node means we exhausted
-    // aEditableBlockParentOrTopmostEditableInlineElement
-    // mReasonContent can be either a block element or any non-editable
-    // content in this case.
+    // No previous content means that we reached
+    // aEditableBlockParentOrTopmostEditableInlineElement boundary.
     return BoundaryData(aPoint,
                         const_cast<Element&>(
                             aEditableBlockParentOrTopmostEditableInlineElement),
-                        WSType::CurrentBlockBoundary);
+                        HTMLEditUtils::IsBlockElement(
+                            aEditableBlockParentOrTopmostEditableInlineElement,
+                            aBlockInlineCheck)
+                            ? WSType::CurrentBlockBoundary
+                            : WSType::InlineEditingHostBoundary);
   }
 
   if (HTMLEditUtils::IsBlockElement(*previousLeafContentOrBlock,
@@ -2088,6 +2144,7 @@ WSRunScanner::TextFragmentData::BoundaryData::ScanCollapsibleWhiteSpaceEndFrom(
     const Element* aEditingHost, NoBreakingSpaceData* aNBSPData,
     BlockInlineCheck aBlockInlineCheck) {
   MOZ_ASSERT(aPoint.IsSetAndValid());
+  MOZ_ASSERT(aEditableBlockParentOrTopmostEditableInlineElement.IsEditable());
 
   if (aPoint.IsInTextNode() && !aPoint.IsEndOfContainer()) {
     Maybe<BoundaryData> endInTextNode =
@@ -2111,14 +2168,16 @@ WSRunScanner::TextFragmentData::BoundaryData::ScanCollapsibleWhiteSpaceEndFrom(
           {LeafNodeType::LeafNodeOrNonEditableNode}, aBlockInlineCheck,
           aEditingHost);
   if (!nextLeafContentOrBlock) {
-    // no next node means we exhausted
-    // aEditableBlockParentOrTopmostEditableInlineElement
-    // mReasonContent can be either a block element or any non-editable
-    // content in this case.
+    // No next content means that we reached
+    // aEditableBlockParentOrTopmostEditableInlineElement boundary.
     return BoundaryData(aPoint.template To<EditorDOMPoint>(),
                         const_cast<Element&>(
                             aEditableBlockParentOrTopmostEditableInlineElement),
-                        WSType::CurrentBlockBoundary);
+                        HTMLEditUtils::IsBlockElement(
+                            aEditableBlockParentOrTopmostEditableInlineElement,
+                            aBlockInlineCheck)
+                            ? WSType::CurrentBlockBoundary
+                            : WSType::InlineEditingHostBoundary);
   }
 
   if (HTMLEditUtils::IsBlockElement(*nextLeafContentOrBlock,
@@ -2172,7 +2231,7 @@ WSRunScanner::TextFragmentData::InvisibleLeadingWhiteSpaceRangeRef() const {
   }
 
   // If it's start of line, there is no invisible leading white-spaces.
-  if (!StartsFromHardLineBreak()) {
+  if (!StartsFromHardLineBreak() && !StartsFromInlineEditingHostBoundary()) {
     mLeadingWhiteSpaceRange.emplace();
     return mLeadingWhiteSpaceRange.ref();
   }
@@ -2202,7 +2261,8 @@ WSRunScanner::TextFragmentData::InvisibleTrailingWhiteSpaceRangeRef() const {
   // If it's not immediately before a block boundary nor an invisible
   // preformatted linefeed, there is no invisible trailing white-spaces.  Note
   // that collapsible white-spaces before a `<br>` element is visible.
-  if (!EndsByBlockBoundary() && !EndsByInvisiblePreformattedLineBreak()) {
+  if (!EndsByBlockBoundary() && !EndsByInlineEditingHostBoundary() &&
+      !EndsByInvisiblePreformattedLineBreak()) {
     mTrailingWhiteSpaceRange.emplace();
     return mTrailingWhiteSpaceRange.ref();
   }
@@ -2332,7 +2392,7 @@ WSRunScanner::TextFragmentData::VisibleWhiteSpacesDataRef() const {
     return mVisibleWhiteSpacesData.ref();
   }
 
-  if (!StartsFromHardLineBreak()) {
+  if (!StartsFromHardLineBreak() && !StartsFromInlineEditingHostBoundary()) {
     VisibleWhiteSpacesData visibleWhiteSpaces;
     if (mStart.PointRef().IsSet()) {
       visibleWhiteSpaces.SetStartPoint(mStart.PointRef());
@@ -2352,7 +2412,8 @@ WSRunScanner::TextFragmentData::VisibleWhiteSpacesDataRef() const {
     return mVisibleWhiteSpacesData.ref();
   }
 
-  MOZ_ASSERT(StartsFromHardLineBreak());
+  MOZ_ASSERT(StartsFromHardLineBreak() ||
+             StartsFromInlineEditingHostBoundary());
   MOZ_ASSERT(maybeHaveLeadingWhiteSpaces);
 
   VisibleWhiteSpacesData visibleWhiteSpaces;
@@ -2360,7 +2421,7 @@ WSRunScanner::TextFragmentData::VisibleWhiteSpacesDataRef() const {
     visibleWhiteSpaces.SetStartPoint(leadingWhiteSpaceRange.EndRef());
   }
   visibleWhiteSpaces.SetStartFromLeadingWhiteSpaces();
-  if (!EndsByBlockBoundary()) {
+  if (!EndsByBlockBoundary() && !EndsByInlineEditingHostBoundary()) {
     // then no trailing ws.  this normal run ends the overall ws run.
     if (mEnd.PointRef().IsSet()) {
       visibleWhiteSpaces.SetEndPoint(mEnd.PointRef());
@@ -2370,7 +2431,7 @@ WSRunScanner::TextFragmentData::VisibleWhiteSpacesDataRef() const {
     return mVisibleWhiteSpacesData.ref();
   }
 
-  MOZ_ASSERT(EndsByBlockBoundary());
+  MOZ_ASSERT(EndsByBlockBoundary() || EndsByInlineEditingHostBoundary());
 
   if (!maybeHaveTrailingWhiteSpaces) {
     // normal ws runs right up to adjacent block (nbsp next to block)
@@ -3401,7 +3462,8 @@ nsresult WhiteSpaceVisibilityKeeper::NormalizeVisibleWhiteSpacesAt(
         isPreviousCharCollapsibleASCIIWhiteSpace) {
       // First, try to insert <br> element if NBSP is at end of a block.
       // XXX We should stop this if there is a visible content.
-      if (visibleWhiteSpaces.EndsByBlockBoundary() &&
+      if ((visibleWhiteSpaces.EndsByBlockBoundary() ||
+           visibleWhiteSpaces.EndsByInlineEditingHostBoundary()) &&
           aPoint.IsInContentNode()) {
         bool insertBRElement = HTMLEditUtils::IsBlockElement(
             *aPoint.template ContainerAs<nsIContent>(),
@@ -4320,7 +4382,8 @@ WSRunScanner::GetRangeContainingInvisibleWhiteSpacesAtRangeBoundaries(
     // If there is no invisible white-space and the line starts with a
     // text node, shrink the range to start of the text node.
     else if (!aRange.StartRef().IsInTextNode() &&
-             textFragmentDataAtStart.StartsFromBlockBoundary() &&
+             (textFragmentDataAtStart.StartsFromBlockBoundary() ||
+              textFragmentDataAtStart.StartsFromInlineEditingHostBoundary()) &&
              textFragmentDataAtStart.EndRef().IsInTextNode()) {
       result.SetStart(textFragmentDataAtStart.EndRef());
     }
@@ -4353,7 +4416,8 @@ WSRunScanner::GetRangeContainingInvisibleWhiteSpacesAtRangeBoundaries(
     // If there is no invisible white-space and the line ends with a text
     // node, shrink the range to end of the text node.
     else if (!aRange.EndRef().IsInTextNode() &&
-             textFragmentDataAtEnd.EndsByBlockBoundary() &&
+             (textFragmentDataAtEnd.EndsByBlockBoundary() ||
+              textFragmentDataAtEnd.EndsByInlineEditingHostBoundary()) &&
              textFragmentDataAtEnd.StartRef().IsInTextNode()) {
       result.SetEnd(EditorDOMPoint::AtEndOf(
           *textFragmentDataAtEnd.StartRef().ContainerAs<Text>()));
