@@ -1035,6 +1035,7 @@ pub enum PrimitiveInstanceKind {
         /// Handle to the common interned data for this primitive.
         data_handle: ConicGradientDataHandle,
         visible_tiles_range: GradientTileRange,
+        cached: bool,
     },
     /// Clear out a rect, used for special effects.
     Clear {
@@ -1215,8 +1216,9 @@ pub struct PrimitiveScratchBuffer {
     /// Set of sub-graphs that are required, determined during visibility pass
     pub required_sub_graphs: FastHashSet<PictureIndex>,
 
-    /// Temporary buffer for building segments in to during prepare pass
-    pub quad_segments: Vec<QuadSegment>,
+    /// Temporary buffers for building segments in to during prepare pass
+    pub quad_direct_segments: Vec<QuadSegment>,
+    pub quad_indirect_segments: Vec<QuadSegment>,
 }
 
 impl Default for PrimitiveScratchBuffer {
@@ -1231,7 +1233,8 @@ impl Default for PrimitiveScratchBuffer {
             debug_items: Vec::new(),
             messages: Vec::new(),
             required_sub_graphs: FastHashSet::default(),
-            quad_segments: Vec::new(),
+            quad_direct_segments: Vec::new(),
+            quad_indirect_segments: Vec::new(),
         }
     }
 }
@@ -1245,7 +1248,8 @@ impl PrimitiveScratchBuffer {
         self.segment_instances.recycle(recycler);
         self.gradient_tiles.recycle(recycler);
         recycler.recycle_vec(&mut self.debug_items);
-        recycler.recycle_vec(&mut self.quad_segments);
+        recycler.recycle_vec(&mut self.quad_direct_segments);
+        recycler.recycle_vec(&mut self.quad_indirect_segments);
     }
 
     pub fn begin_frame(&mut self) {
@@ -1254,7 +1258,8 @@ impl PrimitiveScratchBuffer {
         // location.
         self.clip_mask_instances.clear();
         self.clip_mask_instances.push(ClipMaskKind::None);
-        self.quad_segments.clear();
+        self.quad_direct_segments.clear();
+        self.quad_indirect_segments.clear();
 
         self.border_cache_handles.clear();
 

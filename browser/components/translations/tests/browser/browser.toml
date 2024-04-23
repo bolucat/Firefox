@@ -62,6 +62,8 @@ skip-if = ["true"]
 
 ["browser_translations_full_page_panel_gear.js"]
 
+["browser_translations_full_page_panel_init_failure.js"]
+
 ["browser_translations_full_page_panel_never_translate_language.js"]
 
 ["browser_translations_full_page_panel_never_translate_site_auto.js"]
@@ -117,6 +119,8 @@ skip-if = ["os == 'linux' && !debug"] # Bug 1863227
 
 ["browser_translations_select_panel_fallback_to_doc_language.js"]
 
+["browser_translations_select_panel_init_failure.js"]
+
 ["browser_translations_select_panel_retranslate_on_change_language_directly.js"]
 
 ["browser_translations_select_panel_retranslate_on_change_language_from_dropdown_menu.js"]
@@ -129,6 +133,10 @@ skip-if = ["os == 'linux' && !debug"] # Bug 1863227
 
 ["browser_translations_select_panel_select_same_from_and_to_languages_from_dropdown_menu.js"]
 
+["browser_translations_select_panel_settings_menu.js"]
+
+["browser_translations_select_panel_translate_full_page_button.js"]
+
 ["browser_translations_select_panel_translate_on_change_language_directly.js"]
 
 ["browser_translations_select_panel_translate_on_change_language_from_dropdown_menu.js"]
@@ -138,5 +146,11 @@ skip-if = ["os == 'linux' && !debug"] # Bug 1863227
 ["browser_translations_select_panel_translate_on_change_language_multiple_times_from_dropdown_menu.js"]
 
 ["browser_translations_select_panel_translate_on_open.js"]
+
+["browser_translations_select_panel_translation_failure_after_unsupported_language.js"]
+
+["browser_translations_select_panel_translation_failure_on_open.js"]
+
+["browser_translations_select_panel_translation_failure_on_retranslate.js"]
 
 ["browser_translations_select_panel_unsupported_language.js"]

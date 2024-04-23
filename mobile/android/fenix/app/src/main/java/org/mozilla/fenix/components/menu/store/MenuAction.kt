@@ -5,6 +5,8 @@
 package org.mozilla.fenix.components.menu.store
 
 import mozilla.components.lib.state.Action
+import mozilla.components.service.fxa.manager.AccountState
+import org.mozilla.fenix.components.menu.MenuAccessPoint
 
 /**
  * Actions to dispatch through the [MenuStore] to modify the [MenuState].
@@ -22,6 +24,17 @@ sealed class MenuAction : Action {
      * [MenuAction] dispatched when a navigation event occurs for a specific destination.
      */
     sealed class Navigate : MenuAction() {
+
+        /**
+         * [Navigate] action dispatched when navigating to Mozilla account.
+         *
+         * @property accountState The [AccountState] of a Mozilla account.
+         * @property accesspoint The access point that was used to navigate to the menu.
+         */
+        data class MozillaAccount(
+            val accountState: AccountState,
+            val accesspoint: MenuAccessPoint,
+        ) : Navigate()
 
         /**
          * [Navigate] action dispatched when navigating to the help SUMO article.
@@ -52,5 +65,15 @@ sealed class MenuAction : Action {
          * [Navigate] action dispatched when navigating to passwords.
          */
         data object Passwords : Navigate()
+
+        /**
+         * [Navigate] action dispatched when navigating to customize homepage.
+         */
+        data object CustomizeHomepage : Navigate()
+
+        /**
+         * [Navigate] action dispatched when navigating to release notes.
+         */
+        data object ReleaseNotes : Navigate()
     }
 }

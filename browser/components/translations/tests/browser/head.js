@@ -681,6 +681,9 @@ class FullPageTranslationsTestUtils {
         changeSourceLanguageButton: false,
         dismissErrorButton: false,
         error: false,
+        errorMessage: false,
+        errorMessageHint: false,
+        errorHintAction: false,
         fromMenuList: false,
         fromLabel: false,
         header: false,
@@ -749,6 +752,34 @@ class FullPageTranslationsTestUtils {
   }
 
   /**
+   * Asserts that panel element visibility matches the initialization-failure view.
+   */
+  static assertPanelViewInitFailure() {
+    info("Checking that the panel shows the default view");
+    const { translateButton } = FullPageTranslationsPanel.elements;
+    FullPageTranslationsTestUtils.#assertPanelMainViewId(
+      "full-page-translations-panel-view-default"
+    );
+    FullPageTranslationsTestUtils.#assertPanelElementVisibility({
+      cancelButton: true,
+      error: true,
+      errorMessage: true,
+      errorMessageHint: true,
+      errorHintAction: true,
+      header: true,
+      translateButton: true,
+    });
+    is(
+      translateButton.disabled,
+      true,
+      "The translate button should be disabled."
+    );
+    FullPageTranslationsTestUtils.#assertPanelHeaderL10nId(
+      "translations-panel-header"
+    );
+  }
+
+  /**
    * Asserts that panel element visibility matches the panel error view.
    */
   static assertPanelViewError() {
@@ -758,6 +789,7 @@ class FullPageTranslationsTestUtils {
     );
     FullPageTranslationsTestUtils.#assertPanelElementVisibility({
       error: true,
+      errorMessage: true,
       ...FullPageTranslationsTestUtils.#defaultViewVisibilityExpectations,
     });
     FullPageTranslationsTestUtils.#assertPanelHeaderL10nId(
@@ -1085,7 +1117,7 @@ class FullPageTranslationsTestUtils {
   static async #clickSettingsMenuItemByL10nId(l10nId) {
     info(`Toggling the "${l10nId}" settings menu item.`);
     click(getByL10nId(l10nId), `Clicking the "${l10nId}" settings menu item.`);
-    await closeSettingsMenuIfOpen();
+    await closeFullPagePanelSettingsMenuIfOpen();
   }
 
   /**
@@ -1486,19 +1518,25 @@ class SelectTranslationsTestUtils {
       SelectTranslationsPanel.elements,
       {
         betaIcon: false,
+        cancelButton: false,
         copyButton: false,
         doneButton: false,
         fromLabel: false,
         fromMenuList: false,
         fromMenuPopup: false,
         header: false,
+        initFailureContent: false,
+        initFailureMessageBar: false,
         mainContent: false,
+        settingsButton: false,
         textArea: false,
         toLabel: false,
         toMenuList: false,
         toMenuPopup: false,
         translateButton: false,
         translateFullPageButton: false,
+        translationFailureMessageBar: false,
+        tryAgainButton: false,
         tryAnotherSourceMenuList: false,
         tryAnotherSourceMenuPopup: false,
         unsupportedLanguageContent: false,
@@ -1548,6 +1586,7 @@ class SelectTranslationsTestUtils {
       fromMenuList: true,
       header: true,
       mainContent: true,
+      settingsButton: true,
       textArea: true,
       toLabel: true,
       toMenuList: true,
@@ -1571,6 +1610,44 @@ class SelectTranslationsTestUtils {
     SelectTranslationsTestUtils.#assertPanelHasTranslatedText();
     SelectTranslationsTestUtils.#assertPanelTextAreaHeight();
     await SelectTranslationsTestUtils.#assertPanelTextAreaOverflow();
+  }
+
+  /**
+   * Asserts that the SelectTranslationsPanel UI matches the expected
+   * state when the language lists fail to initialize upon opening the panel.
+   */
+  static async assertPanelViewInitFailure() {
+    await SelectTranslationsTestUtils.waitForPanelState("init-failure");
+    SelectTranslationsTestUtils.#assertPanelElementVisibility({
+      header: true,
+      betaIcon: true,
+      cancelButton: true,
+      initFailureContent: true,
+      initFailureMessageBar: true,
+      settingsButton: true,
+      tryAgainButton: true,
+    });
+  }
+
+  /**
+   * Asserts that the SelectTranslationsPanel UI matches the expected
+   * state when a translation has failed to complete.
+   */
+  static async assertPanelViewTranslationFailure() {
+    await SelectTranslationsTestUtils.waitForPanelState("translation-failure");
+    SelectTranslationsTestUtils.#assertPanelElementVisibility({
+      header: true,
+      betaIcon: true,
+      cancelButton: true,
+      fromLabel: true,
+      fromMenuList: true,
+      mainContent: true,
+      settingsButton: true,
+      toLabel: true,
+      toMenuList: true,
+      translationFailureMessageBar: true,
+      tryAgainButton: true,
+    });
   }
 
   static #assertPanelTextAreaDirection(langTag = null) {
@@ -1602,6 +1679,7 @@ class SelectTranslationsTestUtils {
       betaIcon: true,
       doneButton: true,
       header: true,
+      settingsButton: true,
       translateButton: true,
       tryAnotherSourceMenuList: true,
       unsupportedLanguageContent: true,
@@ -1685,6 +1763,7 @@ class SelectTranslationsTestUtils {
       fromMenuList: true,
       header: true,
       mainContent: true,
+      settingsButton: true,
       textArea: true,
       toLabel: true,
       toMenuList: true,
@@ -1837,6 +1916,21 @@ class SelectTranslationsTestUtils {
   }
 
   /**
+   * Simulates clicking the cancel button and waits for the panel to close.
+   */
+  static async clickCancelButton() {
+    logAction();
+    const { cancelButton } = SelectTranslationsPanel.elements;
+    assertVisibility({ visible: { cancelButton } });
+    await SelectTranslationsTestUtils.waitForPanelPopupEvent(
+      "popuphidden",
+      () => {
+        click(cancelButton, "Clicking the cancel button");
+      }
+    );
+  }
+
+  /**
    * Simulates clicking the copy button and asserts that all relevant states are correctly updated.
    */
   static async clickCopyButton() {
@@ -1881,13 +1975,13 @@ class SelectTranslationsTestUtils {
    * @param {boolean} [config.pivotTranslation]
    *  - True if the expected translation is a pivot translation, otherwise false.
    *    Affects the number of expected downloads.
-   * @param {Function} [config.onTranslated]
-   *  - An optional callback function to execute after the translation completes.
+   * @param {Function} [config.viewAssertion]
+   *  - An optional callback function to execute for asserting the panel UI state.
    */
   static async clickTranslateButton({
     downloadHandler,
     pivotTranslation,
-    onTranslated,
+    viewAssertion,
   }) {
     logAction();
     const { translateButton } = SelectTranslationsPanel.elements;
@@ -1898,9 +1992,96 @@ class SelectTranslationsTestUtils {
     if (downloadHandler) {
       await this.handleDownloads({ downloadHandler, pivotTranslation });
     }
-    if (onTranslated) {
-      await onTranslated();
+    if (viewAssertion) {
+      await viewAssertion();
     }
+  }
+
+  /**
+   * Simulates clicking the translate-full-page button.
+   */
+  static async clickTranslateFullPageButton() {
+    logAction();
+    const { translateFullPageButton } = SelectTranslationsPanel.elements;
+    assertVisibility({ visible: { translateFullPageButton } });
+    click(translateFullPageButton);
+    await FullPageTranslationsTestUtils.assertTranslationsButton(
+      { button: true, circleArrows: true, locale: false, icon: true },
+      "The icon presents the loading indicator."
+    );
+  }
+
+  /**
+   * Simulates clicking the try-again button.
+   *
+   * @param {object} config
+   * @param {Function} [config.downloadHandler]
+   *  - The function handle expected downloads, resolveDownloads() or rejectDownloads()
+   *    Leave as null to test more granularly, such as testing opening the loading view,
+   *    or allowing for the automatic downloading of files.
+   * @param {boolean} [config.pivotTranslation]
+   *  - True if the expected translation is a pivot translation, otherwise false.
+   *    Affects the number of expected downloads.
+   * @param {Function} [config.viewAssertion]
+   *  - An optional callback function to execute for asserting the panel UI state.
+   */
+  static async clickTryAgainButton({
+    downloadHandler,
+    pivotTranslation,
+    viewAssertion,
+  } = {}) {
+    logAction();
+    const { tryAgainButton } = SelectTranslationsPanel.elements;
+    assertVisibility({ visible: { tryAgainButton } });
+    click(tryAgainButton, "Clicking the try-again button");
+    await SelectTranslationsTestUtils.waitForPanelState("translatable");
+    if (downloadHandler) {
+      await this.handleDownloads({ downloadHandler, pivotTranslation });
+    }
+    if (viewAssertion) {
+      await viewAssertion();
+    }
+  }
+
+  /**
+   * Opens the SelectTranslationsPanel settings menu.
+   * Requires that the translations panel is already open.
+   */
+  static async openPanelSettingsMenu() {
+    logAction();
+    const { settingsButton } = SelectTranslationsPanel.elements;
+    assertVisibility({ visible: { settingsButton } });
+    await SharedTranslationsTestUtils._waitForPopupEvent(
+      "select-translations-panel-settings-menupopup",
+      "popupshown",
+      () => click(settingsButton, "Opening the settings menu")
+    );
+    const settingsPageMenuItem = document.getElementById(
+      "select-translations-panel-open-settings-page-menuitem"
+    );
+    const aboutTranslationsMenuItem = document.getElementById(
+      "select-translations-panel-about-translations-menuitem"
+    );
+
+    assertVisibility({
+      visible: {
+        settingsPageMenuItem,
+        aboutTranslationsMenuItem,
+      },
+    });
+  }
+
+  /**
+   * Clicks the SelectTranslationsPanel settings menu item
+   * that leads to the Translations Settings in about:preferences.
+   */
+  static clickTranslationsSettingsPageMenuItem() {
+    logAction();
+    const settingsPageMenuItem = document.getElementById(
+      "select-translations-panel-open-settings-page-menuitem"
+    );
+    assertVisibility({ visible: { settingsPageMenuItem } });
+    click(settingsPageMenuItem);
   }
 
   /**

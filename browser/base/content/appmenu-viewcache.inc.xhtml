@@ -205,10 +205,10 @@
         <hbox id="this-profile-buttons">
           <toolbarbutton id="profiles-edit-this-delete-button"
                          class="subviewbutton toolbarbutton-1"
-                         oncommand="switchToTabHavingURI('about:profilemanager', true)"/>
+                         />
           <toolbarbutton id="profiles-delete-this-profile-button"
                          class="subviewbutton toolbarbutton-1"
-                         oncommand="switchToTabHavingURI('about:profilemanager', true)"/>
+                         />
         </hbox>
       </vbox>
       <toolbarseparator/>
@@ -218,15 +218,15 @@
                      class="subviewbutton"
                      data-l10n-id="appmenu-close-profile"
                      data-l10n-args='{ "profilename": "" }'
-                     oncommand=""/>
+                     />
       <toolbarbutton id="profiles-create-profile-button"
                      class="subviewbutton"
                      data-l10n-id="appmenu-create-profile"
-                     oncommand="switchToTabHavingURI('about:profilemanager', true)"/>
+                     />
       <toolbarbutton id="profiles-manage-profiles-button"
                      class="subviewbutton"
                      data-l10n-id="appmenu-manage-profiles"
-                     oncommand="switchToTabHavingURI('about:profilemanager', true)"/>
+                     />
     </vbox>
   </panelview>
 
@@ -448,7 +448,6 @@
           <toolbarbutton id="PanelUI-remotetabs-syncnow"
                          align="center"
                          class="subviewbutton"
-                         onmouseover="gSync.refreshSyncButtonsTooltip();"
                          closemenu="none">
             <hbox flex="1">
               <image class="syncNowBtn"/>
@@ -586,7 +585,6 @@
       <toolbarbutton id="PanelUI-fxa-menu-syncnow-button"
                      align="center"
                      class="subviewbutton"
-                     onmouseover="gSync.refreshSyncButtonsTooltip();"
                      closemenu="none">
         <hbox flex="1">
           <image id="PanelUI-appMenu-fxa-image-last-synced"
@@ -696,7 +694,7 @@
       <toolbarbutton id="PanelUI-fxa-menu-sendtab-not-configured-button"
                      class="PanelUI-fxa-signin-button"
                      data-l10n-id="appmenuitem-fxa-sign-in"
-                     oncommand="gSync.openPrefsFromFxaMenu('send_tab', this);"/>
+                     />
     </vbox>
   </panelview>
 
@@ -707,7 +705,7 @@
       <toolbarbutton id="PanelUI-fxa-menu-sendtab-connect-device-button"
                      class="PanelUI-fxa-signin-button"
                      data-l10n-id="appmenu-remote-tabs-connectdevice"
-                     oncommand="gSync.openConnectAnotherDeviceFromFxaMenu(this);"/>
+                     />
     </vbox>
   </panelview>
 
@@ -743,12 +741,12 @@
         <button id="reset-pbm-panel-cancel-button"
                 class="footer-button"
                 data-l10n-id="reset-pbm-panel-cancel-button"
-                oncommand="ResetPBMPanel.onCancel(this)"></button>
+                ></button>
         <button slot="primary"
                 id="reset-pbm-panel-confirm-button"
                 class="footer-button"
                 data-l10n-id="reset-pbm-panel-confirm-button"
-                oncommand="ResetPBMPanel.onConfirm(this)"></button>
+                ></button>
       </html:moz-button-group>
     </vbox>
   </panelview>

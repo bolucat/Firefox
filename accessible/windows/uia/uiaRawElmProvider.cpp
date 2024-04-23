@@ -13,6 +13,8 @@
 #include "AccessibleWrap.h"
 #include "ApplicationAccessible.h"
 #include "ARIAMap.h"
+#include "ia2AccessibleTable.h"
+#include "ia2AccessibleTableCell.h"
 #include "LocalAccessible-inl.h"
 #include "mozilla/a11y/RemoteAccessible.h"
 #include "mozilla/StaticPrefs_accessibility.h"
@@ -277,6 +279,19 @@ uiaRawElmProvider::GetPatternProvider(
         expand.forget(aPatternProvider);
       }
       return S_OK;
+    case UIA_GridPatternId:
+      if (acc->IsTable()) {
+        auto grid = GetPatternFromDerived<ia2AccessibleTable, IGridProvider>();
+        grid.forget(aPatternProvider);
+      }
+      return S_OK;
+    case UIA_GridItemPatternId:
+      if (acc->IsTableCell()) {
+        auto item =
+            GetPatternFromDerived<ia2AccessibleTableCell, IGridItemProvider>();
+        item.forget(aPatternProvider);
+      }
+      return S_OK;
     case UIA_InvokePatternId:
       // Per the UIA documentation, we should only expose the Invoke pattern "if
       // the same behavior is not exposed through another control pattern
@@ -298,6 +313,20 @@ uiaRawElmProvider::GetPatternProvider(
       scroll.forget(aPatternProvider);
       return S_OK;
     }
+    case UIA_TablePatternId:
+      if (acc->IsTable()) {
+        auto table =
+            GetPatternFromDerived<ia2AccessibleTable, ITableProvider>();
+        table.forget(aPatternProvider);
+      }
+      return S_OK;
+    case UIA_TableItemPatternId:
+      if (acc->IsTableCell()) {
+        auto item =
+            GetPatternFromDerived<ia2AccessibleTableCell, ITableItemProvider>();
+        item.forget(aPatternProvider);
+      }
+      return S_OK;
     case UIA_TogglePatternId:
       if (HasTogglePattern()) {
         RefPtr<IToggleProvider> toggle = this;
@@ -997,4 +1026,33 @@ bool uiaRawElmProvider::HasValuePattern() const {
   }
   const nsRoleMapEntry* roleMapEntry = acc->ARIARoleMap();
   return roleMapEntry && roleMapEntry->Is(nsGkAtoms::textbox);
+}
+
+template <class Derived, class Interface>
+RefPtr<Interface> uiaRawElmProvider::GetPatternFromDerived() {
+  // MsaaAccessible inherits from uiaRawElmProvider. Derived
+  // inherits from MsaaAccessible and Interface. The compiler won't let us
+  // directly static_cast to Interface, hence the intermediate casts.
+  auto* msaa = static_cast<MsaaAccessible*>(this);
+  auto* derived = static_cast<Derived*>(msaa);
+  return derived;
+}
+
+SAFEARRAY* a11y::AccessibleArrayToUiaArray(const nsTArray<Accessible*>& aAccs) {
+  if (aAccs.IsEmpty()) {
+    // The UIA documentation is unclear about this, but the UIA client
+    // framework seems to treat a null value the same as an empty array. This
+    // is also what Chromium does.
+    return nullptr;
+  }
+  SAFEARRAY* uias = SafeArrayCreateVector(VT_UNKNOWN, 0, aAccs.Length());
+  LONG indices[1] = {0};
+  for (Accessible* acc : aAccs) {
+    // SafeArrayPutElement calls AddRef on the element, so we use a raw pointer
+    // here.
+    IRawElementProviderSimple* uia = MsaaAccessible::GetFrom(acc);
+    SafeArrayPutElement(uias, indices, uia);
+    ++indices[0];
+  }
+  return uias;
 }

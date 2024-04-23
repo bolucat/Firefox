@@ -101,12 +101,15 @@ inline LogicalEdge GetEdge(LogicalSide aSide) {
 }
 
 inline LogicalEdge GetOppositeEdge(LogicalEdge aEdge) {
-  // This relies on the only two LogicalEdge enum values being 0 and 1.
-  return LogicalEdge(1 - static_cast<uint8_t>(aEdge));
+  return aEdge == LogicalEdge::Start ? LogicalEdge::End : LogicalEdge::Start;
 }
 
 inline LogicalSide MakeLogicalSide(LogicalAxis aAxis, LogicalEdge aEdge) {
-  return LogicalSide((uint8_t(aAxis) << 1) | static_cast<uint8_t>(aEdge));
+  if (aAxis == LogicalAxis::Inline) {
+    return aEdge == LogicalEdge::Start ? LogicalSide::IStart
+                                       : LogicalSide::IEnd;
+  }
+  return aEdge == LogicalEdge::Start ? LogicalSide::BStart : LogicalSide::BEnd;
 }
 
 inline LogicalSide GetOppositeSide(LogicalSide aSide) {
@@ -137,54 +140,41 @@ class WritingMode {
   /**
    * Absolute inline flow direction
    */
-  enum InlineDir {
-    eInlineLTR = 0x00,  // text flows horizontally left to right
-    eInlineRTL = 0x02,  // text flows horizontally right to left
-    eInlineTTB = 0x01,  // text flows vertically top to bottom
-    eInlineBTT = 0x03,  // text flows vertically bottom to top
+  enum class InlineDir : uint8_t {
+    LTR,  // text flows horizontally left to right
+    RTL,  // text flows horizontally right to left
+    TTB,  // text flows vertically top to bottom
+    BTT,  // text flows vertically bottom to top
   };
 
   /**
    * Absolute block flow direction
    */
-  enum BlockDir {
-    eBlockTB = 0x00,  // horizontal lines stack top to bottom
-    eBlockRL = 0x01,  // vertical lines stack right to left
-    eBlockLR = 0x05,  // vertical lines stack left to right
+  enum class BlockDir : uint8_t {
+    TB,  // horizontal lines stack top to bottom
+    RL,  // vertical lines stack right to left
+    LR,  // vertical lines stack left to right
   };
-
-  /**
-   * Line-relative (bidi-relative) inline flow direction
-   */
-  enum BidiDir {
-    eBidiLTR = 0x00,  // inline flow matches bidi LTR text
-    eBidiRTL = 0x10,  // inline flow matches bidi RTL text
-  };
-
-  /**
-   * Unknown writing mode (should never actually be stored or used anywhere).
-   */
-  enum { eUnknownWritingMode = 0xff };
 
   /**
    * Return the absolute inline flow direction as an InlineDir
    */
   InlineDir GetInlineDir() const {
-    return InlineDir(mWritingMode._0 & eInlineMask);
+    if (IsVertical()) {
+      return IsInlineReversed() ? InlineDir::BTT : InlineDir::TTB;
+    }
+    return IsInlineReversed() ? InlineDir::RTL : InlineDir::LTR;
   }
 
   /**
    * Return the absolute block flow direction as a BlockDir
    */
   BlockDir GetBlockDir() const {
-    return BlockDir(mWritingMode._0 & eBlockMask);
-  }
-
-  /**
-   * Return the line-relative inline flow direction as a BidiDir
-   */
-  BidiDir GetBidiDir() const {
-    return BidiDir((mWritingMode & StyleWritingMode::RTL)._0);
+    if (IsVertical()) {
+      return mWritingMode & StyleWritingMode::VERTICAL_LR ? BlockDir::LR
+                                                          : BlockDir::RL;
+    }
+    return BlockDir::TB;
   }
 
   /**
@@ -198,14 +188,14 @@ class WritingMode {
   }
 
   /**
-   * Return true if bidi direction is LTR. (Convenience method)
+   * Return true if bidi direction is LTR.
    */
-  bool IsBidiLTR() const { return eBidiLTR == GetBidiDir(); }
+  bool IsBidiLTR() const { return !IsBidiRTL(); }
 
   /**
-   * Return true if bidi direction is RTL. (Convenience method)
+   * Return true if bidi direction is RTL.
    */
-  bool IsBidiRTL() const { return eBidiRTL == GetBidiDir(); }
+  bool IsBidiRTL() const { return !!(mWritingMode & StyleWritingMode::RTL); }
 
   /**
    * True if it is vertical and vertical-lr, or is horizontal and bidi LTR.
@@ -224,12 +214,12 @@ class WritingMode {
   /**
    * True if vertical-mode block direction is LR (convenience method).
    */
-  bool IsVerticalLR() const { return eBlockLR == GetBlockDir(); }
+  bool IsVerticalLR() const { return GetBlockDir() == BlockDir::LR; }
 
   /**
    * True if vertical-mode block direction is RL (convenience method).
    */
-  bool IsVerticalRL() const { return eBlockRL == GetBlockDir(); }
+  bool IsVerticalRL() const { return GetBlockDir() == BlockDir::RL; }
 
   /**
    * True if vertical writing mode, i.e. when
@@ -396,12 +386,12 @@ class WritingMode {
     // StyleWritingMode::INLINE_REVERSED, StyleWritingMode::VERTICAL_LR and
     // StyleWritingMode::LINE_INVERTED bits.  Use these four bits to index into
     // kLogicalInlineSides.
-    MOZ_ASSERT(StyleWritingMode::VERTICAL._0 == 0x01 &&
-                   StyleWritingMode::INLINE_REVERSED._0 == 0x02 &&
-                   StyleWritingMode::VERTICAL_LR._0 == 0x04 &&
-                   StyleWritingMode::LINE_INVERTED._0 == 0x08,
-               "unexpected mask values");
-    int index = mWritingMode._0 & 0x0F;
+    static_assert(StyleWritingMode::VERTICAL._0 == 0x01 &&
+                      StyleWritingMode::INLINE_REVERSED._0 == 0x02 &&
+                      StyleWritingMode::VERTICAL_LR._0 == 0x04 &&
+                      StyleWritingMode::LINE_INVERTED._0 == 0x08,
+                  "Unexpected values for StyleWritingMode constants!");
+    uint8_t index = mWritingMode._0 & 0x0F;
     return kLogicalInlineSides[index][static_cast<uint8_t>(aEdge)];
   }
 
@@ -411,9 +401,9 @@ class WritingMode {
    */
   mozilla::Side PhysicalSide(LogicalSide aSide) const {
     if (IsBlock(aSide)) {
-      MOZ_ASSERT(StyleWritingMode::VERTICAL._0 == 0x01 &&
-                     StyleWritingMode::VERTICAL_LR._0 == 0x04,
-                 "unexpected mask values");
+      static_assert(StyleWritingMode::VERTICAL._0 == 0x01 &&
+                        StyleWritingMode::VERTICAL_LR._0 == 0x04,
+                    "Unexpected values for StyleWritingMode constants!");
       const uint8_t wm =
           ((mWritingMode & StyleWritingMode::VERTICAL_LR)._0 >> 1) |
           (mWritingMode & StyleWritingMode::VERTICAL)._0;
@@ -473,12 +463,12 @@ class WritingMode {
     };
     // clang-format on
 
-    MOZ_ASSERT(StyleWritingMode::VERTICAL._0 == 0x01 &&
-                   StyleWritingMode::INLINE_REVERSED._0 == 0x02 &&
-                   StyleWritingMode::VERTICAL_LR._0 == 0x04 &&
-                   StyleWritingMode::LINE_INVERTED._0 == 0x08,
-               "unexpected mask values");
-    int index = mWritingMode._0 & 0x0F;
+    static_assert(StyleWritingMode::VERTICAL._0 == 0x01 &&
+                      StyleWritingMode::INLINE_REVERSED._0 == 0x02 &&
+                      StyleWritingMode::VERTICAL_LR._0 == 0x04 &&
+                      StyleWritingMode::LINE_INVERTED._0 == 0x08,
+                  "Unexpected values for StyleWritingMode constants!");
+    uint8_t index = mWritingMode._0 & 0x0F;
     return kPhysicalToLogicalSides[index][aSide];
   }
 
@@ -594,10 +584,15 @@ class WritingMode {
   friend struct widget::IMENotification;
 
   /**
+   * Unknown writing mode (should never actually be stored or used anywhere).
+   */
+  static constexpr uint8_t kUnknownWritingMode = 0xff;
+
+  /**
    * Return a WritingMode representing an unknown value.
    */
   static inline WritingMode Unknown() {
-    return WritingMode(eUnknownWritingMode);
+    return WritingMode(kUnknownWritingMode);
   }
 
   /**
@@ -607,12 +602,6 @@ class WritingMode {
   explicit WritingMode(uint8_t aValue) : mWritingMode{aValue} {}
 
   StyleWritingMode mWritingMode;
-
-  enum Masks {
-    // Masks for output enums
-    eInlineMask = 0x03,  // VERTICAL | INLINE_REVERSED
-    eBlockMask = 0x05,   // VERTICAL | VERTICAL_LR
-  };
 };
 
 inline std::ostream& operator<<(std::ostream& aStream, const WritingMode& aWM) {
@@ -801,7 +790,7 @@ class LogicalPoint {
   LogicalPoint operator+(const LogicalPoint& aOther) const {
     CHECK_WRITING_MODE(aOther.GetWritingMode());
     // In non-debug builds, LogicalPoint does not store the WritingMode,
-    // so the first parameter here (which will always be eUnknownWritingMode)
+    // so the first parameter here (which will always be WritingMode::Unknown())
     // is ignored.
     return LogicalPoint(GetWritingMode(), mPoint.x + aOther.mPoint.x,
                         mPoint.y + aOther.mPoint.y);
@@ -817,7 +806,7 @@ class LogicalPoint {
   LogicalPoint operator-(const LogicalPoint& aOther) const {
     CHECK_WRITING_MODE(aOther.GetWritingMode());
     // In non-debug builds, LogicalPoint does not store the WritingMode,
-    // so the first parameter here (which will always be eUnknownWritingMode)
+    // so the first parameter here (which will always be WritingMode::Unknown())
     // is ignored.
     return LogicalPoint(GetWritingMode(), mPoint.x - aOther.mPoint.x,
                         mPoint.y - aOther.mPoint.y);
@@ -840,7 +829,7 @@ class LogicalPoint {
 
   /**
    * NOTE that in non-DEBUG builds, GetWritingMode() always returns
-   * eUnknownWritingMode, as the current mode is not stored in the logical-
+   * WritingMode::Unknown(), as the current mode is not stored in the logical-
    * geometry classes. Therefore, this method is private; it is used ONLY
    * by the DEBUG-mode checking macros in this class and its friends;
    * other code is not allowed to ask a logical point for its writing mode,

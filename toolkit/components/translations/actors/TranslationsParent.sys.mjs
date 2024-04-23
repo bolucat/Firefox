@@ -443,6 +443,15 @@ export class TranslationsParent extends JSWindowActorParent {
   }
 
   /**
+   * Returns whether the Translations Engine is mocked for testing.
+   *
+   * @returns {boolean}
+   */
+  static isTranslationsEngineMocked() {
+    return TranslationsParent.#isTranslationsEngineMocked;
+  }
+
+  /**
    * Offer translations (for instance by automatically opening the popup panel) whenever
    * languages are detected, but only do it once per host per session.
    *
@@ -1041,6 +1050,7 @@ export class TranslationsParent extends JSWindowActorParent {
    * @returns {Promise<SupportedLanguages>}
    */
   static async getSupportedLanguages() {
+    await chaosMode(1 / 4);
     const languagePairs = await TranslationsParent.getLanguagePairs();
 
     /** @type {Set<string>} */

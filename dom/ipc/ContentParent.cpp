@@ -2021,11 +2021,6 @@ void ContentParent::MarkAsDead() {
   mLifecycleState = LifecycleState::DEAD;
 }
 
-void ContentParent::OnChannelError() {
-  RefPtr<ContentParent> kungFuDeathGrip(this);
-  PContentParent::OnChannelError();
-}
-
 void ContentParent::ProcessingError(Result aCode, const char* aReason) {
   if (MsgDropped == aCode) {
     return;
@@ -2440,7 +2435,7 @@ void ContentParent::NotifyTabDestroyed(const TabId& aTabId,
   MOZ_LOG(ContentParent::GetLog(), LogLevel::Verbose,
           ("NotifyTabDestroyed %p", this));
 
-  MaybeBeginShutDown(/* aExpectedBrowserCount */ 1);
+  MaybeBeginShutDown();
 }
 
 TestShellParent* ContentParent::CreateTestShell() {
@@ -5240,8 +5235,7 @@ mozilla::ipc::IPCResult ContentParent::RecvFindImageText(
     return IPC_FAIL(this, "Text recognition not available.");
   }
 
-  RefPtr<DataSourceSurface> surf =
-      nsContentUtils::IPCImageToSurface(std::move(aImage));
+  RefPtr<DataSourceSurface> surf = nsContentUtils::IPCImageToSurface(aImage);
   if (!surf) {
     aResolver(TextRecognitionResultOrError("Failed to read image"_ns));
     return IPC_OK();

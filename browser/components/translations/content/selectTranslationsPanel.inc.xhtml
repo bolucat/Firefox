@@ -20,15 +20,27 @@
                class="translations-panel-beta-icon">
         </image>
       </hbox>
-      <toolbarbutton id="select-translations-panel-settings"
+      <toolbarbutton id="select-translations-panel-settings-button"
                      class="panel-info-button translations-panel-settings-gear-icon"
                      data-l10n-id="translations-panel-settings-button"
                      closemenu="none" />
     </hbox>
+    <html:div id="select-translations-panel-init-failure-content"
+              class="translations-panel-content"
+              hidden="true">
+      <html:moz-message-bar id="select-translations-panel-init-failure-message-bar"
+                            type="error"
+                            class="select-translations-panel-message-bar"
+                            data-l10n-id="select-translations-panel-init-failure-message"
+                            data-l10n-attrs="message">
+      </html:moz-message-bar>
+    </html:div>
     <html:div id="select-translations-panel-unsupported-language-content" hidden="true">
       <vbox flex="1" class="select-translations-panel-content">
         <html:moz-message-bar id="select-translations-panel-unsupported-language-message-bar"
+                              type="info"
                               class="select-translations-panel-message-bar"
+                              data-l10n-id="select-translations-panel-unsupported-language-message-unknown"
                               data-l10n-attrs="message">
         </html:moz-message-bar>
         <label id="select-translations-panel-try-another-language-label"
@@ -96,6 +108,12 @@
                        readonly="true"
                        tabindex="0">
         </html:textarea>
+        <html:moz-message-bar id="select-translations-panel-translation-failure-message-bar"
+                              type="error"
+                              hidden="true"
+                              data-l10n-id="select-translations-panel-translation-failure-message"
+                              data-l10n-attrs="message">
+        </html:moz-message-bar>
       </vbox>
     </html:div>
     <html:moz-button-group id="select-translations-panel-footer-button-group"
@@ -107,6 +125,11 @@
         </button>
       </html:div>
       <html:div id="select-translations-panel-end-button-group">
+        <button id="select-translations-panel-cancel-button"
+                class="footer-button"
+                hidden="true"
+                data-l10n-id="select-translations-panel-cancel-button">
+        </button>
         <button id="select-translations-panel-translate-full-page-button"
                 class="footer-button"
                 data-l10n-id="select-translations-panel-translate-full-page-button">
@@ -122,6 +145,12 @@
                 hidden="true"
                 default="true"
                 disabled="true">
+        </button>
+        <button id="select-translations-panel-try-again-button"
+                class="footer-button"
+                data-l10n-id="select-translations-panel-try-again-button"
+                hidden="true"
+                default="true">
         </button>
       </html:div>
     </html:moz-button-group>

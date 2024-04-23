@@ -9,15 +9,19 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.navigation.fragment.findNavController
+import androidx.navigation.fragment.navArgs
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+import mozilla.components.lib.state.ext.observeAsState
+import mozilla.components.service.fxa.manager.AccountState.NotAuthenticated
 import org.mozilla.fenix.BrowserDirection
 import org.mozilla.fenix.HomeActivity
 import org.mozilla.fenix.R
-import org.mozilla.fenix.components.accounts.AccountState
+import org.mozilla.fenix.components.components
 import org.mozilla.fenix.components.lazyStore
 import org.mozilla.fenix.components.menu.compose.MenuDialog
 import org.mozilla.fenix.components.menu.compose.MenuDialogBottomSheet
@@ -27,7 +31,6 @@ import org.mozilla.fenix.components.menu.store.MenuState
 import org.mozilla.fenix.components.menu.store.MenuStore
 import org.mozilla.fenix.ext.runIfFragmentIsAttached
 import org.mozilla.fenix.settings.SupportUtils
-import org.mozilla.fenix.settings.SupportUtils.SumoTopic
 import org.mozilla.fenix.theme.FirefoxTheme
 
 /**
@@ -35,13 +38,15 @@ import org.mozilla.fenix.theme.FirefoxTheme
  */
 class MenuDialogFragment : BottomSheetDialogFragment() {
 
+    private val args by navArgs<MenuDialogFragmentArgs>()
+
     private val store by lazyStore { viewModelScope ->
         MenuStore(
             initialState = MenuState(),
             middleware = listOf(
                 MenuNavigationMiddleware(
                     navController = findNavController(),
-                    openSumoTopic = ::openSumoTopic,
+                    openToBrowser = ::openToBrowser,
                     scope = viewModelScope,
                 ),
             ),
@@ -69,10 +74,24 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
         setContent {
             FirefoxTheme {
                 MenuDialogBottomSheet(onRequestDismiss = {}) {
+                    val syncStore = components.backgroundServices.syncStore
+                    val account by syncStore.observeAsState(initialValue = null) { state -> state.account }
+                    val accountState by syncStore.observeAsState(initialValue = NotAuthenticated) { state ->
+                        state.accountState
+                    }
+
                     MenuDialog(
-                        account = null,
-                        accountState = AccountState.NO_ACCOUNT,
-                        onSignInButtonClick = {},
+                        accessPoint = args.accesspoint,
+                        account = account,
+                        accountState = accountState,
+                        onMozillaAccountButtonClick = {
+                            store.dispatch(
+                                MenuAction.Navigate.MozillaAccount(
+                                    accountState = accountState,
+                                    accesspoint = args.accesspoint,
+                                ),
+                            )
+                        },
                         onHelpButtonClick = {
                             store.dispatch(MenuAction.Navigate.Help)
                         },
@@ -91,20 +110,32 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                         onPasswordsMenuClick = {
                             store.dispatch(MenuAction.Navigate.Passwords)
                         },
+                        onCustomizeHomepageMenuClick = {
+                            store.dispatch(MenuAction.Navigate.CustomizeHomepage)
+                        },
+                        onNewInFirefoxMenuClick = {
+                            store.dispatch(MenuAction.Navigate.ReleaseNotes)
+                        },
                     )
                 }
             }
         }
     }
 
-    private fun openSumoTopic(topic: SumoTopic) = runIfFragmentIsAttached {
-        (activity as HomeActivity).openToBrowserAndLoad(
-            searchTermOrURL = SupportUtils.getSumoURLForTopic(
+    private fun openToBrowser(params: BrowserNavigationParams) = runIfFragmentIsAttached {
+        val url = params.url ?: params.sumoTopic?.let {
+            SupportUtils.getSumoURLForTopic(
                 context = requireContext(),
-                topic = topic,
-            ),
-            newTab = true,
-            from = BrowserDirection.FromMenuDialogFragment,
-        )
+                topic = it,
+            )
+        }
+
+        url?.let {
+            (activity as HomeActivity).openToBrowserAndLoad(
+                searchTermOrURL = url,
+                newTab = true,
+                from = BrowserDirection.FromMenuDialogFragment,
+            )
+        }
     }
 }

@@ -130,13 +130,6 @@ var SelectTranslationsPanel = new (class {
   #translationState = { phase: "closed" };
 
   /**
-   * The Translator for the current language pair.
-   *
-   * @type {Translator}
-   */
-  #translator;
-
-  /**
    * An Id that increments with each translation, used to help keep track
    * of whether an active translation request continue its progression or
    * stop due to the existence of a newer translation request.
@@ -172,13 +165,18 @@ var SelectTranslationsPanel = new (class {
 
       TranslationsPanelShared.defineLazyElements(document, this.#lazyElements, {
         betaIcon: "select-translations-panel-beta-icon",
+        cancelButton: "select-translations-panel-cancel-button",
         copyButton: "select-translations-panel-copy-button",
         doneButton: "select-translations-panel-done-button",
         fromLabel: "select-translations-panel-from-label",
         fromMenuList: "select-translations-panel-from",
         fromMenuPopup: "select-translations-panel-from-menupopup",
         header: "select-translations-panel-header",
+        initFailureContent: "select-translations-panel-init-failure-content",
+        initFailureMessageBar:
+          "select-translations-panel-init-failure-message-bar",
         mainContent: "select-translations-panel-main-content",
+        settingsButton: "select-translations-panel-settings-button",
         textArea: "select-translations-panel-text-area",
         toLabel: "select-translations-panel-to-label",
         toMenuList: "select-translations-panel-to",
@@ -186,6 +184,9 @@ var SelectTranslationsPanel = new (class {
         translateButton: "select-translations-panel-translate-button",
         translateFullPageButton:
           "select-translations-panel-translate-full-page-button",
+        translationFailureMessageBar:
+          "select-translations-panel-translation-failure-message-bar",
+        tryAgainButton: "select-translations-panel-try-again-button",
         tryAnotherSourceMenuList:
           "select-translations-panel-try-another-language",
         tryAnotherSourceMenuPopup:
@@ -246,6 +247,19 @@ var SelectTranslationsPanel = new (class {
    *   The `fromLang` property is omitted if it is a language that is not currently supported by Firefox Translations.
    */
   async getLangPairPromise(textToTranslate) {
+    if (
+      TranslationsParent.isInAutomation() &&
+      !TranslationsParent.isTranslationsEngineMocked()
+    ) {
+      // If we are in automation, and the Translations Engine is NOT mocked, then that means
+      // we are in a test case in which we are not explicitly testing Select Translations,
+      // and the code to get the supported languages below will not be available. However,
+      // we still need to ensure that the translate-selection menuitem in the context menu
+      // is compatible with all code in other tests, so we will return "en" for the purpose
+      // of being able to localize and display the context-menu item in other test cases.
+      return { toLang: "en" };
+    }
+
     const [fromLang, toLang] = await Promise.all([
       SelectTranslationsPanel.getTopSupportedDetectedLanguage(textToTranslate),
       TranslationsParent.getTopPreferredSupportedToLang(),
@@ -269,15 +283,11 @@ var SelectTranslationsPanel = new (class {
    * dropdowns have already been initialized.
    */
   async #ensureLangListsBuilt() {
-    try {
-      await TranslationsPanelShared.ensureLangListsBuilt(
-        document,
-        this.elements.panel,
-        gBrowser.selectedBrowser.innerWindowID
-      );
-    } catch (error) {
-      this.console?.error(error);
-    }
+    await TranslationsPanelShared.ensureLangListsBuilt(
+      document,
+      this.elements.panel,
+      gBrowser.selectedBrowser.innerWindowID
+    );
   }
 
   /**
@@ -363,16 +373,26 @@ var SelectTranslationsPanel = new (class {
       return;
     }
 
-    this.#initializeEventListeners();
-    await this.#ensureLangListsBuilt();
+    try {
+      this.#initializeEventListeners();
+      await this.#ensureLangListsBuilt();
+      await Promise.all([
+        this.#cachePlaceholderText(),
+        this.#initializeLanguageMenuLists(langPairPromise),
+        this.#registerSourceText(sourceText, langPairPromise),
+      ]);
+      this.#maybeRequestTranslation();
+    } catch (error) {
+      this.console?.error(error);
+      this.#changeStateToInitFailure(
+        event,
+        screenX,
+        screenY,
+        sourceText,
+        langPairPromise
+      );
+    }
 
-    await Promise.all([
-      this.#cachePlaceholderText(),
-      this.#initializeLanguageMenuLists(langPairPromise),
-      this.#registerSourceText(sourceText, langPairPromise),
-    ]);
-
-    this.#maybeRequestTranslation();
     await this.#openPopup(event, screenX, screenY);
   }
 
@@ -442,34 +462,82 @@ var SelectTranslationsPanel = new (class {
   }
 
   /**
+   * Opens the settings menu popup at the settings button gear-icon.
+   */
+  #openSettingsPopup() {
+    const { settingsButton } = this.elements;
+    const popup = settingsButton.ownerDocument.getElementById(
+      "select-translations-panel-settings-menupopup"
+    );
+    popup.openPopup(settingsButton, "after_start");
+  }
+
+  /**
+   * Opens the "About translation in Firefox" Mozilla support page in a new tab.
+   */
+  onAboutTranslations() {
+    this.close();
+    const window =
+      gBrowser.selectedBrowser.browsingContext.top.embedderElement.ownerGlobal;
+    window.openTrustedLinkIn(
+      "https://support.mozilla.org/kb/website-translation",
+      "tab",
+      {
+        forceForeground: true,
+        triggeringPrincipal:
+          Services.scriptSecurityManager.getSystemPrincipal(),
+      }
+    );
+  }
+
+  /**
+   * Opens the Translations section of about:preferences in a new tab.
+   */
+  openTranslationsSettingsPage() {
+    this.close();
+    const window =
+      gBrowser.selectedBrowser.browsingContext.top.embedderElement.ownerGlobal;
+    window.openTrustedLinkIn("about:preferences#general-translations", "tab");
+  }
+
+  /**
    * Handles events when a command event is triggered within the panel.
    *
    * @param {Element} target - The event target
    */
   #handleCommandEvent(target) {
     const {
+      cancelButton,
       copyButton,
       doneButton,
       fromMenuList,
       fromMenuPopup,
+      settingsButton,
       toMenuList,
       toMenuPopup,
       translateButton,
+      translateFullPageButton,
+      tryAgainButton,
       tryAnotherSourceMenuList,
       tryAnotherSourceMenuPopup,
     } = this.elements;
     switch (target.id) {
-      case copyButton.id: {
-        this.onClickCopyButton();
-        break;
-      }
+      case cancelButton.id:
       case doneButton.id: {
         this.close();
+        break;
+      }
+      case copyButton.id: {
+        this.onClickCopyButton();
         break;
       }
       case fromMenuList.id:
       case fromMenuPopup.id: {
         this.onChangeFromLanguage();
+        break;
+      }
+      case settingsButton.id: {
+        this.#openSettingsPopup();
         break;
       }
       case toMenuList.id:
@@ -479,6 +547,14 @@ var SelectTranslationsPanel = new (class {
       }
       case translateButton.id: {
         this.onClickTranslateButton();
+        break;
+      }
+      case translateFullPageButton.id: {
+        this.onClickTranslateFullPageButton();
+        break;
+      }
+      case tryAgainButton.id: {
+        this.onClickTryAgainButton();
         break;
       }
       case tryAnotherSourceMenuList.id:
@@ -605,8 +681,63 @@ var SelectTranslationsPanel = new (class {
   onClickTranslateButton() {
     const { fromMenuList, tryAnotherSourceMenuList } = this.elements;
     fromMenuList.value = tryAnotherSourceMenuList.value;
-    this.#deselectLanguage(tryAnotherSourceMenuList);
     this.#maybeRequestTranslation();
+  }
+
+  /**
+   * Handles events when the panel's translate-full-page button is clicked.
+   */
+  onClickTranslateFullPageButton() {
+    const { panel } = this.elements;
+    const { fromLanguage, toLanguage } = this.#getSelectedLanguagePair();
+    const actor = TranslationsParent.getTranslationsActor(
+      gBrowser.selectedBrowser
+    );
+    panel.addEventListener(
+      "popuphidden",
+      () =>
+        actor.translate(
+          fromLanguage,
+          toLanguage,
+          false // reportAsAutoTranslate
+        ),
+      { once: true }
+    );
+    this.close();
+  }
+
+  /**
+   * Handles events when the panel's try-again button is clicked.
+   */
+  onClickTryAgainButton() {
+    switch (this.phase()) {
+      case "translation-failure": {
+        // If the translation failed, we just need to try translating again.
+        this.#maybeRequestTranslation();
+        break;
+      }
+      case "init-failure": {
+        // If the initialization failed, we need to close the panel and try reopening it
+        // which will attempt to initialize everything again after failure.
+        const { panel } = this.elements;
+        const { event, screenX, screenY, sourceText, langPairPromise } =
+          this.#translationState;
+
+        panel.addEventListener(
+          "popuphidden",
+          () => this.open(event, screenX, screenY, sourceText, langPairPromise),
+          { once: true }
+        );
+
+        this.close();
+        break;
+      }
+      default: {
+        this.console?.error(
+          `Unexpected state "${this.phase()}" on try-again button click.`
+        );
+      }
+    }
   }
 
   /**
@@ -701,21 +832,6 @@ var SelectTranslationsPanel = new (class {
   }
 
   /**
-   * Checks if the translator's language configuration matches the given language pair.
-   *
-   * @param {string} fromLanguage - The from-language to compare.
-   * @param {string} toLanguage - The to-language to compare.
-   *
-   * @returns {boolean} - True if the translator's languages match the given pair, otherwise false.
-   */
-  #translatorMatchesLangPair(fromLanguage, toLanguage) {
-    return (
-      this.#translator?.fromLanguage === fromLanguage &&
-      this.#translator?.toLanguage === toLanguage
-    );
-  }
-
-  /**
    * Retrieves the currently selected language pair from the menu lists.
    *
    * @returns {{fromLanguage: string, toLanguage: string}} An object containing the selected languages.
@@ -783,6 +899,8 @@ var SelectTranslationsPanel = new (class {
     switch (phase) {
       case "closed":
       case "idle":
+      case "init-failure":
+      case "translation-failure":
       case "translatable":
       case "translating":
       case "translated":
@@ -868,41 +986,79 @@ var SelectTranslationsPanel = new (class {
   }
 
   /**
-   * Transitions the phase of the state based on the given language pair.
+   * Changes the phase to "init-failure".
+   */
+  #changeStateToInitFailure(
+    event,
+    screenX,
+    screenY,
+    sourceText,
+    langPairPromise
+  ) {
+    this.#changeStateTo("init-failure", /* retainEntries */ true, {
+      event,
+      screenX,
+      screenY,
+      sourceText,
+      langPairPromise,
+    });
+  }
+
+  /**
+   * Changes the phase from "translating" to "translation-failure".
+   */
+  #changeStateToTranslationFailure() {
+    const phase = this.phase();
+    if (phase !== "translating") {
+      this.console?.error(
+        `Invalid state change (${phase} => translation-failure)`
+      );
+    }
+    this.#changeStateTo("translation-failure", /* retainEntries */ true);
+  }
+
+  /**
+   * Transitions the phase to "translatable" if the proper conditions are met,
+   * otherwise retains the same phase as before.
    *
    * @param {string} fromLanguage - The BCP-47 from-language tag.
    * @param {string} toLanguage - The BCP-47 to-language tag.
-   *
-   * @returns {SelectTranslationsPanelState} The new phase of the translation state.
    */
-  #changeStateByLanguagePair(fromLanguage, toLanguage) {
+  #maybeChangeStateToTranslatable(fromLanguage, toLanguage) {
     const {
-      phase: previousPhase,
       fromLanguage: previousFromLanguage,
       toLanguage: previousToLanguage,
     } = this.#translationState;
 
-    let nextPhase = "translatable";
+    const langSelectionChanged = () =>
+      previousFromLanguage !== fromLanguage ||
+      previousToLanguage !== toLanguage;
+
+    const shouldTranslateEvenIfLangSelectionHasNotChanged = () => {
+      const phase = this.phase();
+      return (
+        // The panel has just opened, and this is the initial translation.
+        phase === "idle" ||
+        // The previous translation failed and we are about to try again.
+        phase === "translation-failure"
+      );
+    };
 
     if (
-      // No from-language is selected, so we cannot translate.
-      !fromLanguage ||
-      // No to-language is selected, so we cannot translate.
-      !toLanguage ||
-      // The languages have not changed, so there is nothing to do.
-      (this.phase() !== "idle" &&
-        previousFromLanguage === fromLanguage &&
-        previousToLanguage === toLanguage)
+      // A valid from-language is actively selected.
+      fromLanguage &&
+      // A valid to-language is actively selected.
+      toLanguage &&
+      // The language selection has changed, requiring a new translation.
+      (langSelectionChanged() ||
+        // We should try to translate even if the language selection has not changed.
+        shouldTranslateEvenIfLangSelectionHasNotChanged())
     ) {
-      nextPhase = previousPhase;
+      this.#changeStateTo("translatable", /* retainEntries */ true, {
+        fromLanguage,
+        toLanguage,
+      });
     }
-
-    this.#changeStateTo(nextPhase, /* retainEntries */ true, {
-      fromLanguage,
-      toLanguage,
-    });
-
-    return nextPhase;
   }
 
   /**
@@ -913,11 +1069,13 @@ var SelectTranslationsPanel = new (class {
   #handleCopyButtonChanges(phase) {
     switch (phase) {
       case "closed":
+      case "translation-failure":
       case "translated": {
         this.#uncheckCopyButton();
         break;
       }
       case "idle":
+      case "init-failure":
       case "translatable":
       case "translating":
       case "unsupported": {
@@ -944,6 +1102,8 @@ var SelectTranslationsPanel = new (class {
       }
       case "closed":
       case "idle":
+      case "init-failure":
+      case "translation-failure":
       case "translatable":
       case "translated":
       case "unsupported": {
@@ -966,6 +1126,14 @@ var SelectTranslationsPanel = new (class {
       case "closed":
       case "idle": {
         this.#displayIdlePlaceholder();
+        break;
+      }
+      case "init-failure": {
+        this.#displayInitFailureMessage();
+        break;
+      }
+      case "translation-failure": {
+        this.#displayTranslationFailureMessage();
         break;
       }
       case "translatable": {
@@ -1006,9 +1174,7 @@ var SelectTranslationsPanel = new (class {
       // Continue only if the current translationId matches.
       translationId === this.#translationId &&
       // Continue only if the given language pair is still the actively selected pair.
-      this.#isSelectedLangPair(fromLanguage, toLanguage) &&
-      // Continue only if the given language pair matches the current translator.
-      this.#translatorMatchesLangPair(fromLanguage, toLanguage)
+      this.#isSelectedLangPair(fromLanguage, toLanguage)
     );
   }
 
@@ -1119,23 +1285,36 @@ var SelectTranslationsPanel = new (class {
    */
   #showMainContent() {
     const {
+      cancelButton,
       copyButton,
       doneButton,
+      initFailureContent,
       mainContent,
       unsupportedLanguageContent,
+      textArea,
       translateButton,
       translateFullPageButton,
+      translationFailureMessageBar,
+      tryAgainButton,
     } = this.elements;
     this.#setPanelElementAttributes({
-      makeHidden: [unsupportedLanguageContent, translateButton],
+      makeHidden: [
+        cancelButton,
+        initFailureContent,
+        translateButton,
+        translationFailureMessageBar,
+        tryAgainButton,
+        unsupportedLanguageContent,
+      ],
       makeVisible: [
         mainContent,
         copyButton,
         doneButton,
+        textArea,
         translateFullPageButton,
       ],
       addDefault: [doneButton],
-      removeDefault: [translateButton],
+      removeDefault: [translateButton, tryAgainButton],
     });
   }
 
@@ -1144,18 +1323,96 @@ var SelectTranslationsPanel = new (class {
    */
   #showUnsupportedLanguageContent() {
     const {
+      cancelButton,
       copyButton,
       doneButton,
+      initFailureContent,
       mainContent,
       unsupportedLanguageContent,
       translateButton,
       translateFullPageButton,
+      tryAgainButton,
     } = this.elements;
     this.#setPanelElementAttributes({
-      makeHidden: [mainContent, copyButton, translateFullPageButton],
-      makeVisible: [unsupportedLanguageContent, doneButton, translateButton],
+      makeHidden: [
+        cancelButton,
+        copyButton,
+        initFailureContent,
+        mainContent,
+        translateFullPageButton,
+        tryAgainButton,
+      ],
+      makeVisible: [doneButton, translateButton, unsupportedLanguageContent],
       addDefault: [translateButton],
-      removeDefault: [doneButton],
+      removeDefault: [doneButton, tryAgainButton],
+    });
+  }
+
+  /**
+   * Displays the panel content for when the language dropdowns fail to populate.
+   */
+  #displayInitFailureMessage() {
+    const {
+      cancelButton,
+      copyButton,
+      doneButton,
+      initFailureContent,
+      mainContent,
+      unsupportedLanguageContent,
+      translateButton,
+      translateFullPageButton,
+      tryAgainButton,
+    } = this.elements;
+    this.#setPanelElementAttributes({
+      makeHidden: [
+        doneButton,
+        copyButton,
+        mainContent,
+        translateButton,
+        translateFullPageButton,
+        unsupportedLanguageContent,
+      ],
+      makeVisible: [initFailureContent, cancelButton, tryAgainButton],
+      addDefault: [tryAgainButton],
+      removeDefault: [doneButton, translateButton],
+    });
+  }
+
+  /**
+   * Displays the panel content for when a translation fails to complete.
+   */
+  #displayTranslationFailureMessage() {
+    const {
+      cancelButton,
+      copyButton,
+      doneButton,
+      initFailureContent,
+      mainContent,
+      unsupportedLanguageContent,
+      textArea,
+      translateButton,
+      translateFullPageButton,
+      translationFailureMessageBar,
+      tryAgainButton,
+    } = this.elements;
+    this.#setPanelElementAttributes({
+      makeHidden: [
+        doneButton,
+        copyButton,
+        initFailureContent,
+        translateButton,
+        translateFullPageButton,
+        textArea,
+        unsupportedLanguageContent,
+      ],
+      makeVisible: [
+        cancelButton,
+        mainContent,
+        translationFailureMessageBar,
+        tryAgainButton,
+      ],
+      addDefault: [tryAgainButton],
+      removeDefault: [doneButton, translateButton],
     });
   }
 
@@ -1243,24 +1500,16 @@ var SelectTranslationsPanel = new (class {
    *
    * @returns {Promise<Translator>} A promise that resolves to a `Translator` instance for the given language pair.
    */
-  async #getOrCreateTranslator(fromLanguage, toLanguage) {
-    if (this.#translatorMatchesLangPair(fromLanguage, toLanguage)) {
-      return this.#translator;
-    }
-
+  async #createTranslator(fromLanguage, toLanguage) {
     this.console?.log(
       `Creating new Translator (${fromLanguage}-${toLanguage})`
     );
-    if (this.#translator) {
-      this.#translator.destroy();
-      this.#translator = null;
-    }
 
-    this.#translator = await Translator.create(fromLanguage, toLanguage, {
+    const translator = await Translator.create(fromLanguage, toLanguage, {
       allowSameLanguage: true,
       requestTranslationsPort: this.#requestTranslationsPort,
     });
-    return this.#translator;
+    return translator;
   }
 
   /**
@@ -1271,14 +1520,16 @@ var SelectTranslationsPanel = new (class {
     if (this.#isClosed()) {
       return;
     }
+
     const { fromLanguage, toLanguage } = this.#getSelectedLanguagePair();
-    const nextState = this.#changeStateByLanguagePair(fromLanguage, toLanguage);
-    if (nextState !== "translatable") {
+    this.#maybeChangeStateToTranslatable(fromLanguage, toLanguage);
+
+    if (this.phase() !== "translatable") {
       return;
     }
 
     const translationId = ++this.#translationId;
-    this.#getOrCreateTranslator(fromLanguage, toLanguage)
+    this.#createTranslator(fromLanguage, toLanguage)
       .then(translator => {
         if (
           this.#shouldContinueTranslation(
@@ -1302,13 +1553,12 @@ var SelectTranslationsPanel = new (class {
           )
         ) {
           this.#changeStateToTranslated(translatedText);
-        } else if (this.#isOpen()) {
-          this.#changeStateTo("idle", /* retainEntires */ false, {
-            sourceText: this.getSourceText(),
-          });
         }
       })
-      .catch(error => this.console?.error(error));
+      .catch(error => {
+        this.console?.error(error);
+        this.#changeStateToTranslationFailure();
+      });
   }
 
   /**
