@@ -419,14 +419,8 @@ def setup_browsertime(config, tasks):
                 "win32-chromedriver-122",
                 "win32-chromedriver-123",
             ],
-            "windows.*-32.*": [
-                "win32-chromedriver-122",
-                "win32-chromedriver-123",
-                "win32-chromedriver-124",
-            ],
             "windows.*-64.*": [
-                "win32-chromedriver-122",
-                "win32-chromedriver-123",
+                "win64-chromedriver-123",
                 "win64-chromedriver-124",
             ],
         }
@@ -581,7 +575,7 @@ def enable_code_coverage(config, tasks):
                 yield task
                 continue
             task["mozharness"].setdefault("extra-options", []).append("--code-coverage")
-            task["instance-size"] = "xlarge"
+            task["instance-size"] = "xlarge-noscratch"
 
             # Temporarily disable Mac tests on mozilla-central
             if "mac" in task["build-platform"]:

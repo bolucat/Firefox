@@ -38,7 +38,7 @@ object Versions {
     const val detekt = "1.23.6"
     const val ktlint = "0.49.1"
 
-    const val sentry = "7.5.0"
+    const val sentry = "7.8.0"
 
     const val zxing = "3.5.3"
 
@@ -61,7 +61,8 @@ object Versions {
         const val browser = "1.8.0"
         const val biometric = "1.1.0"
         const val cardview = "1.0.0"
-        const val compose_bom = "2024.03.00"
+        const val collection = "1.4.0"
+        const val compose_bom = "2024.04.01"
         const val constraintlayout = "2.1.4"
         const val coordinatorlayout = "1.2.0"
         const val core = "1.12.0"
@@ -85,7 +86,7 @@ object Versions {
         const val uiautomator = "2.3.0"
         const val localbroadcastmanager = "1.0.0"
         const val swiperefreshlayout = "1.1.0"
-        const val data_store_preferences="1.0.0"
+        const val datastore="1.1.0"
     }
 
     object Firebase {
@@ -117,6 +118,7 @@ object ComponentsDependencies {
     const val androidx_biometric = "androidx.biometric:biometric:${Versions.AndroidX.biometric}"
     const val androidx_browser = "androidx.browser:browser:${Versions.AndroidX.browser}"
     const val androidx_cardview = "androidx.cardview:cardview:${Versions.AndroidX.cardview}"
+    const val androidx_collection = "androidx.collection:collection:${Versions.AndroidX.collection}"
 
     const val androidx_compose_bom = "androidx.compose:compose-bom:${Versions.AndroidX.compose_bom}"
     const val androidx_compose_animation = "androidx.compose.animation:animation"
@@ -165,7 +167,8 @@ object ComponentsDependencies {
     const val androidx_espresso_core = "androidx.test.espresso:espresso-core:${Versions.AndroidX.espresso}"
     const val androidx_localbroadcastmanager = "androidx.localbroadcastmanager:localbroadcastmanager:${Versions.AndroidX.localbroadcastmanager}"
     const val androidx_swiperefreshlayout = "androidx.swiperefreshlayout:swiperefreshlayout:${Versions.AndroidX.swiperefreshlayout}"
-    const val androidx_data_store_preferences = "androidx.datastore:datastore-preferences:${Versions.AndroidX.data_store_preferences}"
+    const val androidx_datastore = "androidx.datastore:datastore:${Versions.AndroidX.datastore}"
+    const val androidx_datastore_preferences = "androidx.datastore:datastore-preferences:${Versions.AndroidX.datastore}"
 
     const val google_material = "com.google.android.material:material:${Versions.material}"
 

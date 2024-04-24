@@ -276,6 +276,7 @@ dependencies {
     implementation ComponentsDependencies.androidx_appcompat
     implementation ComponentsDependencies.androidx_browser
     implementation ComponentsDependencies.androidx_cardview
+    implementation ComponentsDependencies.androidx_collection
     implementation ComponentsDependencies.androidx_compose_ui
     implementation ComponentsDependencies.androidx_compose_ui_tooling
     implementation ComponentsDependencies.androidx_compose_foundation
@@ -294,7 +295,7 @@ dependencies {
     implementation FocusDependencies.androidx_splashscreen
     implementation FocusDependencies.androidx_transition
     implementation ComponentsDependencies.androidx_work_runtime
-    implementation ComponentsDependencies.androidx_data_store_preferences
+    implementation ComponentsDependencies.androidx_datastore_preferences
 
     implementation FocusDependencies.google_play
 
