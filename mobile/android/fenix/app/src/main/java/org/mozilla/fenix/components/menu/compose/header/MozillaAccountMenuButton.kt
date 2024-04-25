@@ -92,7 +92,7 @@ internal fun MozillaAccountMenuButton(
 
                     Text(
                         text = stringResource(id = R.string.browser_menu_syncing_paused_caption),
-                        color = FirefoxTheme.colors.textWarning,
+                        color = FirefoxTheme.colors.textCritical,
                         maxLines = 2,
                         style = FirefoxTheme.typography.caption,
                     )
@@ -116,7 +116,7 @@ internal fun MozillaAccountMenuButton(
             Icon(
                 painter = painterResource(R.drawable.mozac_ic_warning_fill_24),
                 contentDescription = null,
-                tint = FirefoxTheme.colors.iconWarning,
+                tint = FirefoxTheme.colors.iconCritical,
             )
 
             Spacer(modifier = Modifier.width(8.dp))

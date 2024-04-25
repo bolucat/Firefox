@@ -509,8 +509,8 @@ HTMLEditor::HTMLWithContextInserter::GetNewCaretPointAfterInsertingHTML(
         wsRunScannerAtStartReason.ScanPreviousVisibleNodeOrBlockBoundaryFrom(
             pointToPutCaret);
     if (backwardScanFromPointToCaretResult.InVisibleOrCollapsibleCharacters()) {
-      pointToPutCaret =
-          backwardScanFromPointToCaretResult.Point<EditorDOMPoint>();
+      pointToPutCaret = backwardScanFromPointToCaretResult
+                            .PointAfterReachedContent<EditorDOMPoint>();
     } else if (backwardScanFromPointToCaretResult.ReachedSpecialContent()) {
       // XXX In my understanding, this is odd.  The end reason may not be
       //     same as the reached special content because the equality is

@@ -19,7 +19,7 @@ object Versions {
     const val serialization = "1.6.3"
     const val python_envs_plugin = "0.0.31"
 
-    const val mozilla_glean = "59.0.0"
+    const val mozilla_glean = "60.0.0"
 
     const val junit = "4.13.2"
     const val robolectric = "4.12.1"
@@ -65,7 +65,7 @@ object Versions {
         const val compose_bom = "2024.04.01"
         const val constraintlayout = "2.1.4"
         const val coordinatorlayout = "1.2.0"
-        const val core = "1.12.0"
+        const val core = "1.13.0"
         const val drawerlayout = "1.2.0"
         const val fragment = "1.6.2"
         const val recyclerview = "1.3.2"

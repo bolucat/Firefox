@@ -22,6 +22,7 @@
 #include "mozilla/MacroArgs.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/ResultExtensions.h"
+#include "mozilla/StaticString.h"
 #include "mozilla/Try.h"
 #if defined(QM_LOG_ERROR_ENABLED) && defined(QM_ERROR_STACKS_ENABLED)
 #  include "mozilla/Variant.h"
@@ -1133,7 +1134,7 @@ auto ErrToDefaultOk(const nsresult aValue) -> Result<V, nsresult> {
 }
 
 template <typename MozPromiseType, typename RejectValueT = nsresult>
-auto CreateAndRejectMozPromise(const char* aFunc, const RejectValueT& aRv)
+auto CreateAndRejectMozPromise(StaticString aFunc, const RejectValueT& aRv)
     -> decltype(auto) {
   if constexpr (std::is_same_v<RejectValueT, nsresult>) {
     return MozPromiseType::CreateAndReject(aRv, aFunc);
@@ -1142,12 +1143,13 @@ auto CreateAndRejectMozPromise(const char* aFunc, const RejectValueT& aRv)
   }
 }
 
-RefPtr<BoolPromise> CreateAndRejectBoolPromise(const char* aFunc, nsresult aRv);
+RefPtr<BoolPromise> CreateAndRejectBoolPromise(StaticString aFunc,
+                                               nsresult aRv);
 
-RefPtr<Int64Promise> CreateAndRejectInt64Promise(const char* aFunc,
+RefPtr<Int64Promise> CreateAndRejectInt64Promise(StaticString aFunc,
                                                  nsresult aRv);
 
-RefPtr<BoolPromise> CreateAndRejectBoolPromiseFromQMResult(const char* aFunc,
+RefPtr<BoolPromise> CreateAndRejectBoolPromiseFromQMResult(StaticString aFunc,
                                                            const QMResult& aRv);
 
 // Like Rust's collect with a step function, not a generic iterator/range.
@@ -1493,9 +1495,49 @@ Nothing HandleErrorWithCleanupReturnNothing(const char* aExpr, const T& aRv,
   return Nothing();
 }
 
-template <size_t NFunc, size_t NExpr, typename T, typename CustomRetVal>
+// Implementation of workaround for GCC bug #114812.
+#if defined(__GNUC__) && !defined(__clang__)
+namespace gcc_detail {
+// usual case: identity function
+template <typename T>
+struct invokabilize_impl {
+  auto operator()(T t) -> T { return t; }
+};
+// reference-to-function: wrap in std::function
+template <typename R, typename... Args>
+struct invokabilize_impl<R (&)(Args...)> {
+  auto operator()(R (&t)(Args...)) -> std::function<R(Args...)> {
+    return std::function{t};
+  }
+};
+// pointer-to-function: wrap in std::function
+template <typename R, typename... Args>
+struct invokabilize_impl<R (*)(Args...)> {
+  auto operator()(R (*t)(Args...)) -> std::function<R(Args...)> {
+    return std::function{t};
+  }
+};
+// entry point
+template <typename T>
+auto invokabilize(T t) {
+  return invokabilize_impl<T>{}(std::forward<T>(t));
+}
+}  // namespace gcc_detail
+#endif
+
+template <size_t NFunc, size_t NExpr, typename T, typename CustomRetVal_>
 auto HandleCustomRetVal(const char (&aFunc)[NFunc], const char (&aExpr)[NExpr],
-                        const T& aRv, CustomRetVal&& aCustomRetVal) {
+                        const T& aRv, CustomRetVal_&& aCustomRetVal_) {
+#if defined(__GNUC__) && !defined(__clang__)
+  // Workaround for gcc bug #114812. (See either that bug, or our bug 1891541,
+  // for more details.)
+  auto aCustomRetVal =
+      gcc_detail::invokabilize(std::forward<CustomRetVal_>(aCustomRetVal_));
+  using CustomRetVal = decltype(aCustomRetVal);
+#else
+  using CustomRetVal = CustomRetVal_;
+  CustomRetVal& aCustomRetVal = aCustomRetVal_;
+#endif
   if constexpr (std::is_invocable<CustomRetVal, const char[NFunc],
                                   const char[NExpr]>::value) {
     return std::forward<CustomRetVal>(aCustomRetVal)(aFunc, aExpr);

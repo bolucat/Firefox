@@ -106,17 +106,24 @@ class MOZ_STACK_CLASS WSScanResult final {
 
  public:
   WSScanResult() = delete;
-  MOZ_NEVER_INLINE_DEBUG WSScanResult(nsIContent& aContent, WSType aReason,
+  enum class ScanDirection : bool { Backward, Forward };
+  MOZ_NEVER_INLINE_DEBUG WSScanResult(ScanDirection aScanDirection,
+                                      nsIContent& aContent, WSType aReason,
                                       BlockInlineCheck aBlockInlineCheck)
-      : mContent(&aContent), mReason(aReason) {
+      : mContent(&aContent), mReason(aReason), mDirection(aScanDirection) {
+    MOZ_ASSERT(aReason != WSType::CollapsibleWhiteSpaces &&
+               aReason != WSType::NonCollapsibleCharacters &&
+               aReason != WSType::PreformattedLineBreak);
     AssertIfInvalidData(aBlockInlineCheck);
   }
-  MOZ_NEVER_INLINE_DEBUG WSScanResult(const EditorDOMPoint& aPoint,
+  MOZ_NEVER_INLINE_DEBUG WSScanResult(ScanDirection aScanDirection,
+                                      const EditorDOMPoint& aPoint,
                                       WSType aReason,
                                       BlockInlineCheck aBlockInlineCheck)
       : mContent(aPoint.GetContainerAs<nsIContent>()),
         mOffset(Some(aPoint.Offset())),
-        mReason(aReason) {
+        mReason(aReason),
+        mDirection(aScanDirection) {
     AssertIfInvalidData(aBlockInlineCheck);
   }
 
@@ -142,13 +149,31 @@ class MOZ_STACK_CLASS WSScanResult final {
     MOZ_ASSERT_IF(mContent && !mContent->IsInComposedDoc(),
                   mReason == WSType::InUncomposedDoc);
     MOZ_ASSERT_IF(mReason == WSType::NonCollapsibleCharacters ||
-                      mReason == WSType::CollapsibleWhiteSpaces,
+                      mReason == WSType::CollapsibleWhiteSpaces ||
+                      mReason == WSType::PreformattedLineBreak,
                   mContent->IsText());
+    MOZ_ASSERT_IF(mReason == WSType::NonCollapsibleCharacters ||
+                      mReason == WSType::CollapsibleWhiteSpaces ||
+                      mReason == WSType::PreformattedLineBreak,
+                  mOffset.isSome());
+    MOZ_ASSERT_IF(mReason == WSType::NonCollapsibleCharacters ||
+                      mReason == WSType::CollapsibleWhiteSpaces ||
+                      mReason == WSType::PreformattedLineBreak,
+                  mContent->AsText()->TextDataLength() > 0);
+    MOZ_ASSERT_IF(mDirection == ScanDirection::Backward &&
+                      (mReason == WSType::NonCollapsibleCharacters ||
+                       mReason == WSType::CollapsibleWhiteSpaces ||
+                       mReason == WSType::PreformattedLineBreak),
+                  *mOffset > 0);
+    MOZ_ASSERT_IF(mDirection == ScanDirection::Forward &&
+                      (mReason == WSType::NonCollapsibleCharacters ||
+                       mReason == WSType::CollapsibleWhiteSpaces ||
+                       mReason == WSType::PreformattedLineBreak),
+                  *mOffset < mContent->AsText()->TextDataLength());
     MOZ_ASSERT_IF(mReason == WSType::BRElement,
                   mContent->IsHTMLElement(nsGkAtoms::br));
-    MOZ_ASSERT_IF(
-        mReason == WSType::PreformattedLineBreak,
-        mContent->IsText() && EditorUtils::IsNewLinePreformatted(*mContent));
+    MOZ_ASSERT_IF(mReason == WSType::PreformattedLineBreak,
+                  EditorUtils::IsNewLinePreformatted(*mContent));
     MOZ_ASSERT_IF(
         mReason == WSType::SpecialContent,
         (mContent->IsText() && !mContent->IsEditable()) ||
@@ -210,53 +235,65 @@ class MOZ_STACK_CLASS WSScanResult final {
   }
 
   /**
-   * Returns true if found or reached content is ediable.
+   * Returns true if found or reached content is editable.
    */
   bool IsContentEditable() const { return mContent && mContent->IsEditable(); }
 
   /**
-   *  Offset() returns meaningful value only when
-   * InVisibleOrCollapsibleCharacters() returns true or the scanner
-   * reached to start or end of its scanning range and that is same as start or
-   * end container which are specified when the scanner is initialized.  If it's
-   * result of scanning backward, this offset means before the found point.
-   * Otherwise, i.e., scanning forward, this offset means after the found point.
+   * Offset_Deprecated() returns meaningful value only when
+   * InVisibleOrCollapsibleCharacters() returns true or the scanner reached to
+   * start or end of its scanning range and that is same as start or end
+   * container which are specified when the scanner is initialized.  If it's
+   * result of scanning backward, this offset means the point of the found
+   * point. Otherwise, i.e., scanning forward, this offset means next point
+   * of the found point.  E.g., if it reaches a collapsible white-space, this
+   * offset is at the first non-collapsible character after it.
    */
-  MOZ_NEVER_INLINE_DEBUG uint32_t Offset() const {
+  MOZ_NEVER_INLINE_DEBUG uint32_t Offset_Deprecated() const {
     NS_ASSERTION(mOffset.isSome(), "Retrieved non-meaningful offset");
     return mOffset.valueOr(0);
   }
 
   /**
-   * Point() and RawPoint() return the position in found visible node or
-   * reached block boundary.  So, they return meaningful point only when
-   * Offset() returns meaningful value.
+   * Point_Deprecated() returns the position in found visible node or reached
+   * block boundary.  So, this returns meaningful point only when
+   * Offset_Deprecated() returns meaningful value.
    */
   template <typename EditorDOMPointType>
-  EditorDOMPointType Point() const {
+  EditorDOMPointType Point_Deprecated() const {
     NS_ASSERTION(mOffset.isSome(), "Retrieved non-meaningful point");
     return EditorDOMPointType(mContent, mOffset.valueOr(0));
   }
 
   /**
-   * PointAtContent() and RawPointAtContent() return the position of found
-   * visible content or reached block element.
+   * PointAtReachedContent() returns the position of found visible content or
+   * reached block element.
    */
   template <typename EditorDOMPointType>
-  EditorDOMPointType PointAtContent() const {
+  EditorDOMPointType PointAtReachedContent() const {
     MOZ_ASSERT(mContent);
-    return EditorDOMPointType(mContent);
+    switch (mReason) {
+      case WSType::CollapsibleWhiteSpaces:
+      case WSType::NonCollapsibleCharacters:
+      case WSType::PreformattedLineBreak:
+        MOZ_DIAGNOSTIC_ASSERT(mOffset.isSome());
+        return mDirection == ScanDirection::Forward
+                   ? EditorDOMPointType(mContent, mOffset.valueOr(0))
+                   : EditorDOMPointType(mContent,
+                                        std::max(mOffset.valueOr(1), 1u) - 1);
+      default:
+        return EditorDOMPointType(mContent);
+    }
   }
 
   /**
-   * PointAfterContent() and RawPointAfterContent() retrun the position after
-   * found visible content or reached block element.
+   * PointAfterReachedContent() returns the position after found visible content
+   * or reached block element.
    */
   template <typename EditorDOMPointType>
-  EditorDOMPointType PointAfterContent() const {
+  EditorDOMPointType PointAfterReachedContent() const {
     MOZ_ASSERT(mContent);
-    return mContent ? EditorDOMPointType::After(mContent)
-                    : EditorDOMPointType();
+    return PointAtReachedContent<EditorDOMPointType>().template NextPoint();
   }
 
   /**
@@ -360,6 +397,7 @@ class MOZ_STACK_CLASS WSScanResult final {
   nsCOMPtr<nsIContent> mContent;
   Maybe<uint32_t> mOffset;
   WSType mReason;
+  ScanDirection mDirection = ScanDirection::Backward;
 };
 
 class MOZ_STACK_CLASS WSRunScanner final {
@@ -376,25 +414,29 @@ class MOZ_STACK_CLASS WSRunScanner final {
                                  aBlockInlineCheck),
         mBlockInlineCheck(aBlockInlineCheck) {}
 
-  // ScanNextVisibleNodeOrBlockBoundaryForwardFrom() returns the first visible
-  // node after aPoint.  If there is no visible nodes after aPoint, returns
-  // topmost editable inline ancestor at end of current block.  See comments
-  // around WSScanResult for the detail.
+  // ScanInclusiveNextVisibleNodeOrBlockBoundaryFrom() returns the first visible
+  // node at or after aPoint.  If there is no visible nodes after aPoint,
+  // returns topmost editable inline ancestor at end of current block.  See
+  // comments around WSScanResult for the detail.  When you reach a character,
+  // this returns WSScanResult both whose Point_Deprecated() and
+  // PointAtReachedContent() return the found character position.
   template <typename PT, typename CT>
-  WSScanResult ScanNextVisibleNodeOrBlockBoundaryFrom(
+  WSScanResult ScanInclusiveNextVisibleNodeOrBlockBoundaryFrom(
       const EditorDOMPointBase<PT, CT>& aPoint) const;
   template <typename PT, typename CT>
-  static WSScanResult ScanNextVisibleNodeOrBlockBoundary(
+  static WSScanResult ScanInclusiveNextVisibleNodeOrBlockBoundary(
       const Element* aEditingHost, const EditorDOMPointBase<PT, CT>& aPoint,
       BlockInlineCheck aBlockInlineCheck) {
     return WSRunScanner(aEditingHost, aPoint, aBlockInlineCheck)
-        .ScanNextVisibleNodeOrBlockBoundaryFrom(aPoint);
+        .ScanInclusiveNextVisibleNodeOrBlockBoundaryFrom(aPoint);
   }
 
   // ScanPreviousVisibleNodeOrBlockBoundaryFrom() returns the first visible node
   // before aPoint. If there is no visible nodes before aPoint, returns topmost
   // editable inline ancestor at start of current block.  See comments around
-  // WSScanResult for the detail.
+  // WSScanResult for the detail.  When you reach a character, this returns
+  // WSScanResult whose Point_Deprecated() returns next point of the found
+  // character and PointAtReachedContent() returns the point at found character.
   template <typename PT, typename CT>
   WSScanResult ScanPreviousVisibleNodeOrBlockBoundaryFrom(
       const EditorDOMPointBase<PT, CT>& aPoint) const;

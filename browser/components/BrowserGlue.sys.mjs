@@ -2710,12 +2710,6 @@ BrowserGlue.prototype = {
         name: "ensurePrivateBrowsingShortcutExists",
         condition:
           AppConstants.platform == "win" &&
-          // Pref'ed off until Private Browsing window separation is enabled by default
-          // to avoid a situation where a user pins the Private Browsing shortcut to
-          // the Taskbar, which will end up launching into a different Taskbar icon.
-          lazy.NimbusFeatures.majorRelease2022.getVariable(
-            "feltPrivacyWindowSeparation"
-          ) &&
           // We don't want a shortcut if it's been disabled, eg: by enterprise policy.
           lazy.PrivateBrowsingUtils.enabled &&
           // Private Browsing shortcuts for packaged builds come with the package,
@@ -2937,7 +2931,7 @@ BrowserGlue.prototype = {
             let cfg = lazy.NimbusFeatures.gleanInternalSdk.getVariable(
               "gleanMetricConfiguration"
             );
-            Services.fog.setMetricsFeatureConfig(JSON.stringify(cfg));
+            Services.fog.applyServerKnobsConfig(JSON.stringify(cfg));
           });
 
           // Register Glean to listen for experiment updates releated to the
@@ -2946,7 +2940,7 @@ BrowserGlue.prototype = {
             let cfg = lazy.NimbusFeatures.glean.getVariable(
               "gleanMetricConfiguration"
             );
-            Services.fog.setMetricsFeatureConfig(JSON.stringify(cfg));
+            Services.fog.applyServerKnobsConfig(JSON.stringify(cfg));
           });
         },
       },
@@ -4534,10 +4528,7 @@ BrowserGlue.prototype = {
         return "disallow-postUpdate";
       }
 
-      const useMROnboarding =
-        lazy.NimbusFeatures.majorRelease2022.getVariable("onboarding");
       const showUpgradeDialog =
-        useMROnboarding ??
         lazy.NimbusFeatures.upgradeDialog.getVariable("enabled");
 
       return showUpgradeDialog ? "" : "disabled";

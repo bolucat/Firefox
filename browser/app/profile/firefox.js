@@ -535,8 +535,10 @@ pref("browser.urlbar.trimURLs", true);
 
 #ifdef NIGHTLY_BUILD
 pref("browser.urlbar.trimHttps", true);
+pref("browser.urlbar.untrimOnUserInteraction.featureGate", true);
 #else
 pref("browser.urlbar.trimHttps", false);
+pref("browser.urlbar.untrimOnUserInteraction.featureGate", false);
 #endif
 
 // If changed to true, copying the entire URL from the location bar will put the
@@ -820,10 +822,6 @@ pref("browser.privatebrowsing.vpnpromourl", "https://vpn.mozilla.org/?utm_source
 
 // Whether the user has opted-in to recommended settings for data features.
 pref("browser.dataFeatureRecommendations.enabled", false);
-
-// Temporary pref to control whether or not Private Browsing windows show up
-// as separate icons in the Windows taskbar.
-pref("browser.privateWindowSeparation.enabled", true);
 
 // Use dark theme variant for PBM windows. This is only supported if the theme
 // sets darkTheme data.

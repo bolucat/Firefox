@@ -324,13 +324,25 @@ var SelectTranslationsPanel = new (class {
    */
   async #initializeLanguageMenuLists(langPairPromise) {
     const { fromLang, toLang } = await langPairPromise;
-    const { fromMenuList, toMenuList, tryAnotherSourceMenuList } =
-      this.elements;
+    const {
+      fromMenuList,
+      fromMenuPopup,
+      toMenuList,
+      toMenuPopup,
+      tryAnotherSourceMenuList,
+    } = this.elements;
+
     await Promise.all([
       this.#initializeLanguageMenuList(fromLang, fromMenuList),
       this.#initializeLanguageMenuList(toLang, toMenuList),
       this.#initializeLanguageMenuList(null, tryAnotherSourceMenuList),
     ]);
+
+    this.#maybeTranslateOnEvents(["keypress"], fromMenuList);
+    this.#maybeTranslateOnEvents(["keypress"], toMenuList);
+
+    this.#maybeTranslateOnEvents(["popuphidden"], fromMenuPopup);
+    this.#maybeTranslateOnEvents(["popuphidden"], toMenuPopup);
   }
 
   /**
@@ -370,6 +382,13 @@ var SelectTranslationsPanel = new (class {
    */
   async open(event, screenX, screenY, sourceText, langPairPromise) {
     if (this.#isOpen()) {
+      await this.#forceReopen(
+        event,
+        screenX,
+        screenY,
+        sourceText,
+        langPairPromise
+      );
       return;
     }
 
@@ -393,7 +412,28 @@ var SelectTranslationsPanel = new (class {
       );
     }
 
-    await this.#openPopup(event, screenX, screenY);
+    this.#openPopup(event, screenX, screenY);
+  }
+
+  /**
+   * Forces the panel to close and reopen at the same location.
+   *
+   * This should never be called in the regular flow of events, but is good to have in case
+   * the panel somehow gets into an invalid state.
+   *
+   * @param {Event} event - The triggering event for opening the panel.
+   * @param {number} screenX - The x-axis location of the screen at which to open the popup.
+   * @param {number} screenY - The y-axis location of the screen at which to open the popup.
+   * @param {string} sourceText - The text to translate.
+   * @param {Promise} langPairPromise - Promise resolving to language pair data for initializing dropdowns.
+   *
+   * @returns {Promise<void>}
+   */
+  async #forceReopen(event, screenX, screenY, sourceText, langPairPromise) {
+    this.console?.warn("The SelectTranslationsPanel was forced to reopen.");
+    this.close();
+    this.#changeStateToClosed();
+    await this.open(event, screenX, screenY, sourceText, langPairPromise);
   }
 
   /**
@@ -403,10 +443,7 @@ var SelectTranslationsPanel = new (class {
    * @param {number} screenX - The x-axis location of the screen at which to open the popup.
    * @param {number} screenY - The y-axis location of the screen at which to open the popup.
    */
-  async #openPopup(event, screenX, screenY) {
-    await window.ensureCustomElements("moz-button-group");
-    await window.ensureCustomElements("moz-message-bar");
-
+  #openPopup(event, screenX, screenY) {
     this.console?.log("Showing SelectTranslationsPanel");
     const { panel } = this.elements;
     panel.openPopupAtScreen(screenX, screenY, /* isContextMenu */ false, event);
@@ -447,6 +484,8 @@ var SelectTranslationsPanel = new (class {
     } else {
       textArea.style.height = SelectTranslationsPanel.longTextHeight;
     }
+
+    this.#maybeTranslateOnEvents(["focus"], textArea);
   }
 
   /**
@@ -572,18 +611,10 @@ var SelectTranslationsPanel = new (class {
    * @param {Element} target - The event target
    */
   #handlePopupShownEvent(target) {
-    const { panel, fromMenuPopup, toMenuPopup } = this.elements;
+    const { panel } = this.elements;
     switch (target.id) {
       case panel.id: {
         this.#updatePanelUIFromState();
-        break;
-      }
-      case fromMenuPopup.id: {
-        this.#maybeTranslateOnEvents(["popuphidden"], fromMenuPopup);
-        break;
-      }
-      case toMenuPopup.id: {
-        this.#maybeTranslateOnEvents(["popuphidden"], toMenuPopup);
         break;
       }
     }
@@ -600,6 +631,7 @@ var SelectTranslationsPanel = new (class {
     switch (target.id) {
       case panel.id: {
         this.#changeStateToClosed();
+        this.#removeActiveTranslationListeners();
         break;
       }
     }
@@ -639,16 +671,14 @@ var SelectTranslationsPanel = new (class {
    * Handles events when the panels select from-language is changed.
    */
   onChangeFromLanguage() {
-    const { fromMenuList } = this.elements;
-    this.#maybeTranslateOnEvents(["blur", "keypress"], fromMenuList);
+    this.#updateConditionalUIEnabledState();
   }
 
   /**
    * Handles events when the panels select to-language is changed.
    */
   onChangeToLanguage() {
-    const { toMenuList } = this.elements;
-    this.#maybeTranslateOnEvents(["blur", "keypress"], toMenuList);
+    this.#updateConditionalUIEnabledState();
   }
 
   /**
@@ -1255,9 +1285,9 @@ var SelectTranslationsPanel = new (class {
     const { fromLanguage, toLanguage } = this.#getSelectedLanguagePair();
     const {
       copyButton,
-      translateFullPageButton,
-      translateButton,
       textArea,
+      translateButton,
+      translateFullPageButton,
       tryAnotherSourceMenuList,
     } = this.elements;
 
@@ -1265,9 +1295,10 @@ var SelectTranslationsPanel = new (class {
     const isTranslating = this.phase() === "translating";
 
     textArea.disabled = invalidLangPairSelected;
-    translateFullPageButton.disabled = invalidLangPairSelected;
     copyButton.disabled = invalidLangPairSelected || isTranslating;
     translateButton.disabled = !tryAnotherSourceMenuList.value;
+    translateFullPageButton.disabled =
+      invalidLangPairSelected || fromLanguage === toLanguage;
   }
 
   /**
@@ -1376,6 +1407,7 @@ var SelectTranslationsPanel = new (class {
       addDefault: [tryAgainButton],
       removeDefault: [doneButton, translateButton],
     });
+    tryAgainButton.focus();
   }
 
   /**
@@ -1388,12 +1420,12 @@ var SelectTranslationsPanel = new (class {
       doneButton,
       initFailureContent,
       mainContent,
-      unsupportedLanguageContent,
       textArea,
       translateButton,
       translateFullPageButton,
       translationFailureMessageBar,
       tryAgainButton,
+      unsupportedLanguageContent,
     } = this.elements;
     this.#setPanelElementAttributes({
       makeHidden: [
@@ -1414,6 +1446,7 @@ var SelectTranslationsPanel = new (class {
       addDefault: [tryAgainButton],
       removeDefault: [doneButton, translateButton],
     });
+    tryAgainButton.focus();
   }
 
   /**
@@ -1576,11 +1609,10 @@ var SelectTranslationsPanel = new (class {
       for (const eventType of eventTypes) {
         let callback;
         switch (eventType) {
-          case "blur":
+          case "focus":
           case "popuphidden": {
             callback = () => {
               this.#maybeRequestTranslation();
-              this.#removeTranslationListeners(target);
             };
             break;
           }
@@ -1589,7 +1621,6 @@ var SelectTranslationsPanel = new (class {
               if (event.key === "Enter") {
                 this.#maybeRequestTranslation();
               }
-              this.#removeTranslationListeners(target);
             };
             break;
           }
@@ -1599,10 +1630,23 @@ var SelectTranslationsPanel = new (class {
             );
           }
         }
-        target.addEventListener(eventType, callback, { once: true });
+        target.addEventListener(eventType, callback);
         target.translationListenerCallbacks.push({ eventType, callback });
       }
     }
+  }
+
+  /**
+   * Removes all translation event listeners from any panel elements that would have one.
+   */
+  #removeActiveTranslationListeners() {
+    const { fromMenuList, fromMenuPopup, textArea, toMenuList, toMenuPopup } =
+      SelectTranslationsPanel.elements;
+    this.#removeTranslationListenersFrom(fromMenuList);
+    this.#removeTranslationListenersFrom(fromMenuPopup);
+    this.#removeTranslationListenersFrom(textArea);
+    this.#removeTranslationListenersFrom(toMenuList);
+    this.#removeTranslationListenersFrom(toMenuPopup);
   }
 
   /**
@@ -1610,10 +1654,15 @@ var SelectTranslationsPanel = new (class {
    *
    * @param {Element} target - The element from which event listeners are to be removed.
    */
-  #removeTranslationListeners(target) {
+  #removeTranslationListenersFrom(target) {
+    if (!target.translationListenerCallbacks) {
+      return;
+    }
+
     for (const { eventType, callback } of target.translationListenerCallbacks) {
       target.removeEventListener(eventType, callback);
     }
+
     target.translationListenerCallbacks = [];
   }
 })();
