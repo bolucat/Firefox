@@ -9,6 +9,9 @@ const { AppConstants } = ChromeUtils.importESModule(
 const { JsonSchemaValidator } = ChromeUtils.importESModule(
   "resource://gre/modules/components-utils/JsonSchemaValidator.sys.mjs"
 );
+const { UIState } = ChromeUtils.importESModule(
+  "resource://services-sync/UIState.sys.mjs"
+);
 
 add_setup(function () {
   // Much of this setup is copied from toolkit/profile/xpcshell/head.js. It is
@@ -52,12 +55,28 @@ add_setup(function () {
 });
 
 /**
- * Tests that calling BackupService.createBackup will call backup on each
- * registered BackupResource, and that each BackupResource will have a folder
- * created for them to write into.
+ * A utility function for testing BackupService.createBackup. This helper
+ * function:
+ *
+ * 1. Ensures that `backup` will be called on BackupResources with the service
+ * 2. Ensures that a backup-manifest.json will be written and contain the
+ *    ManifestEntry data returned by each BackupResource.
+ * 3. Ensures that a `staging` folder will be written to and renamed properly
+ *    once the backup creation is complete.
+ *
+ * Once this is done, a task function can be run. The task function is passed
+ * the parsed backup-manifest.json object as its only argument.
+ *
+ * @param {object} sandbox
+ *   The Sinon sandbox to be used stubs and mocks. The test using this helper
+ *   is responsible for creating and resetting this sandbox.
+ * @param {Function} taskFn
+ *   A function that is run once all default checks are done on the manifest
+ *   and staging folder. After this function returns, the staging folder will
+ *   be cleaned up.
+ * @returns {Promise<undefined>}
  */
-add_task(async function test_createBackup() {
-  let sandbox = sinon.createSandbox();
+async function testCreateBackupHelper(sandbox, taskFn) {
   let fake1ManifestEntry = { fake1: "hello from 1" };
   sandbox
     .stub(FakeBackupResource1.prototype, "backup")
@@ -172,11 +191,71 @@ add_task(async function test_createBackup() {
     "Manifest contains the expected entry for FakeBackupResource3"
   );
 
+  taskFn(manifest);
+
   // After createBackup is more fleshed out, we're going to want to make sure
   // that we're writing the manifest file and that it contains the expected
   // ManifestEntry objects, and that the staging folder was successfully
   // renamed with the current date.
   await IOUtils.remove(fakeProfilePath, { recursive: true });
+}
+
+/**
+ * Tests that calling BackupService.createBackup will call backup on each
+ * registered BackupResource, and that each BackupResource will have a folder
+ * created for them to write into. Tests in the signed-out state.
+ */
+add_task(async function test_createBackup_signed_out() {
+  let sandbox = sinon.createSandbox();
+
+  sandbox
+    .stub(UIState, "get")
+    .returns({ status: UIState.STATUS_NOT_CONFIGURED });
+  await testCreateBackupHelper(sandbox, manifest => {
+    Assert.equal(
+      manifest.meta.accountID,
+      undefined,
+      "Account ID should be undefined."
+    );
+    Assert.equal(
+      manifest.meta.accountEmail,
+      undefined,
+      "Account email should be undefined."
+    );
+  });
+
+  sandbox.restore();
+});
+
+/**
+ * Tests that calling BackupService.createBackup will call backup on each
+ * registered BackupResource, and that each BackupResource will have a folder
+ * created for them to write into. Tests in the signed-in state.
+ */
+add_task(async function test_createBackup_signed_in() {
+  let sandbox = sinon.createSandbox();
+
+  const TEST_UID = "ThisIsMyTestUID";
+  const TEST_EMAIL = "foxy@mozilla.org";
+
+  sandbox.stub(UIState, "get").returns({
+    status: UIState.STATUS_SIGNED_IN,
+    uid: TEST_UID,
+    email: TEST_EMAIL,
+  });
+
+  await testCreateBackupHelper(sandbox, manifest => {
+    Assert.equal(
+      manifest.meta.accountID,
+      TEST_UID,
+      "Account ID should be set properly."
+    );
+    Assert.equal(
+      manifest.meta.accountEmail,
+      TEST_EMAIL,
+      "Account email should be set properly."
+    );
+  });
 
   sandbox.restore();
 });
@@ -276,5 +355,68 @@ add_task(async function test_recoverFromBackup() {
 
   await IOUtils.remove(oldProfilePath, { recursive: true });
   await IOUtils.remove(newProfileRootPath, { recursive: true });
+  sandbox.restore();
+});
+
+/**
+ * Tests that if there's a post-recovery.json file in the profile directory
+ * when checkForPostRecovery() is called, that it is processed, and the
+ * postRecovery methods on the associated BackupResources are called with the
+ * entry values from the file.
+ */
+add_task(async function test_checkForPostRecovery() {
+  let sandbox = sinon.createSandbox();
+
+  let testProfilePath = await IOUtils.createUniqueDirectory(
+    PathUtils.tempDir,
+    "checkForPostRecoveryTest"
+  );
+  let fakePostRecoveryObject = {
+    [FakeBackupResource1.key]: "test 1",
+    [FakeBackupResource3.key]: "test 3",
+  };
+  await IOUtils.writeJSON(
+    PathUtils.join(testProfilePath, BackupService.POST_RECOVERY_FILE_NAME),
+    fakePostRecoveryObject
+  );
+
+  sandbox.stub(FakeBackupResource1.prototype, "postRecovery").resolves();
+  sandbox.stub(FakeBackupResource2.prototype, "postRecovery").resolves();
+  sandbox.stub(FakeBackupResource3.prototype, "postRecovery").resolves();
+
+  let bs = new BackupService({
+    FakeBackupResource1,
+    FakeBackupResource2,
+    FakeBackupResource3,
+  });
+
+  await bs.checkForPostRecovery(testProfilePath);
+
+  Assert.ok(
+    FakeBackupResource1.prototype.postRecovery.calledOnce,
+    "FakeBackupResource1.postRecovery was called once"
+  );
+  Assert.ok(
+    FakeBackupResource2.prototype.postRecovery.notCalled,
+    "FakeBackupResource2.postRecovery was not called"
+  );
+  Assert.ok(
+    FakeBackupResource3.prototype.postRecovery.calledOnce,
+    "FakeBackupResource3.postRecovery was called once"
+  );
+  Assert.ok(
+    FakeBackupResource1.prototype.postRecovery.calledWith(
+      fakePostRecoveryObject[FakeBackupResource1.key]
+    ),
+    "FakeBackupResource1.postRecovery was called with the expected argument"
+  );
+  Assert.ok(
+    FakeBackupResource3.prototype.postRecovery.calledWith(
+      fakePostRecoveryObject[FakeBackupResource3.key]
+    ),
+    "FakeBackupResource3.postRecovery was called with the expected argument"
+  );
+
+  await IOUtils.remove(testProfilePath, { recursive: true });
   sandbox.restore();
 });

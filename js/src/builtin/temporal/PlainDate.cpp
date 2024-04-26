@@ -690,15 +690,19 @@ PlainDate js::temporal::BalanceISODateNew(int32_t year, int32_t month,
 /**
  * BalanceISODate ( year, month, day )
  */
-bool js::temporal::BalanceISODate(JSContext* cx, int32_t year, int32_t month,
-                                  int64_t day, PlainDate* result) {
+bool js::temporal::BalanceISODate(JSContext* cx, const PlainDate& date,
+                                  int64_t days, PlainDate* result) {
+  MOZ_ASSERT(IsValidISODate(date));
+  MOZ_ASSERT(ISODateTimeWithinLimits(date));
+
+  int64_t day = int64_t(date.day) + days;
   if (!CanBalanceISODay(day)) {
     JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr,
                               JSMSG_TEMPORAL_PLAIN_DATE_INVALID);
     return false;
   }
 
-  *result = BalanceISODate(year, month, int32_t(day));
+  *result = BalanceISODate(date.year, date.month, int32_t(day));
   return true;
 }
 
@@ -2283,14 +2287,14 @@ static bool PlainDate_toPlainDateTime(JSContext* cx, const CallArgs& args) {
   // Default initialize the time component to all zero.
   PlainDateTime dateTime = {ToPlainDate(temporalDate), {}};
 
-  // Step 4. (Reordered)
+  // Step 3. (Inlined ToTemporalTimeOrMidnight)
   if (args.hasDefined(0)) {
     if (!ToTemporalTime(cx, args[0], &dateTime.time)) {
       return false;
     }
   }
 
-  // Steps 3 and 5.
+  // Step 4.
   auto* obj = CreateTemporalDateTime(cx, dateTime, calendar);
   if (!obj) {
     return false;
@@ -2722,7 +2726,7 @@ static bool PlainDate_toZonedDateTime(JSContext* cx, const CallArgs& args) {
 
   // Steps 3-4
   Rooted<TimeZoneValue> timeZone(cx);
-  Rooted<Value> temporalTime(cx);
+  PlainTime time = {};
   if (args.get(0).isObject()) {
     Rooted<JSObject*> item(cx, &args[0].toObject());
 
@@ -2731,8 +2735,7 @@ static bool PlainDate_toZonedDateTime(JSContext* cx, const CallArgs& args) {
       // Step 3.a.i.
       timeZone.set(TimeZoneValue(item));
 
-      // Step 3.a.ii.
-      temporalTime.setUndefined();
+      // Step 3.a.ii. (Not applicable in our implementation.)
     } else {
       // Step 3.b.i.
       Rooted<Value> timeZoneLike(cx);
@@ -2747,8 +2750,7 @@ static bool PlainDate_toZonedDateTime(JSContext* cx, const CallArgs& args) {
           return false;
         }
 
-        // Step 3.b.ii.2.
-        temporalTime.setUndefined();
+        // Step 3.b.ii.2.  (Not applicable in our implementation.)
       } else {
         // Step 3.b.iii.1.
         if (!ToTemporalTimeZone(cx, timeZoneLike, &timeZone)) {
@@ -2756,9 +2758,17 @@ static bool PlainDate_toZonedDateTime(JSContext* cx, const CallArgs& args) {
         }
 
         // Step 3.b.iii.2.
+        Rooted<Value> temporalTime(cx);
         if (!GetProperty(cx, item, item, cx->names().plainTime,
                          &temporalTime)) {
           return false;
+        }
+
+        // Step 5. (Inlined ToTemporalTimeOrMidnight)
+        if (!temporalTime.isUndefined()) {
+          if (!ToTemporalTime(cx, temporalTime, &time)) {
+            return false;
+          }
         }
       }
     }
@@ -2768,19 +2778,12 @@ static bool PlainDate_toZonedDateTime(JSContext* cx, const CallArgs& args) {
       return false;
     }
 
-    // Step 4.b.
-    temporalTime.setUndefined();
+    // Step 4.b. (Not applicable in our implementation.)
   }
 
-  // Step 6.a.
-  PlainTime time = {};
-  if (!temporalTime.isUndefined()) {
-    if (!ToTemporalTime(cx, temporalTime, &time)) {
-      return false;
-    }
-  }
+  // Step 5. (Moved next to step 3.b.iii.2.)
 
-  // Steps 5.a and 6.b
+  // Step 6.
   Rooted<PlainDateTimeWithCalendar> temporalDateTime(cx);
   if (!CreateTemporalDateTime(cx, {date, time}, calendar, &temporalDateTime)) {
     return false;

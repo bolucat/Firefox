@@ -9756,16 +9756,6 @@ JS_FN_HELP("createUserArrayBuffer", CreateUserArrayBuffer, 1, 0,
 "            or only when there are no other JavaScript frames on the stack\n"
 "            below it (false). If omitted, this is treated as 'true'."),
 
-#ifdef JS_HAS_INTL_API
-    JS_FN_HELP("addIntlExtras", AddIntlExtras, 1, 0,
-"addIntlExtras(obj)",
-"Adds various not-yet-standardized Intl functions as properties on the\n"
-"provided object (this should generally be Intl itself).  The added\n"
-"functions and their behavior are experimental: don't depend upon them\n"
-"unless you're willing to update your code if these experimental APIs change\n"
-"underneath you."),
-#endif // JS_HAS_INTL_API
-
 #ifndef __wasi__
     JS_FN_HELP("wasmCompileInSeparateProcess", WasmCompileInSeparateProcess, 1, 0,
 "wasmCompileInSeparateProcess(buffer)",
@@ -9916,6 +9906,20 @@ TestAssertRecoveredOnBailout,
 "debugGetQueuedJobs()",
 "  Returns an array of queued jobs."),
 #endif
+
+#ifdef JS_HAS_INTL_API
+  // One of the extras is AddMozDateTimeFormatConstructor, which is not fuzzing
+  // safe, since it doesn't validate the custom format pattern.
+  //
+  // See https://bugzilla.mozilla.org/show_bug.cgi?id=1887585#c1
+    JS_FN_HELP("addIntlExtras", AddIntlExtras, 1, 0,
+"addIntlExtras(obj)",
+"Adds various not-yet-standardized Intl functions as properties on the\n"
+"provided object (this should generally be Intl itself).  The added\n"
+"functions and their behavior are experimental: don't depend upon them\n"
+"unless you're willing to update your code if these experimental APIs change\n"
+"underneath you."),
+#endif // JS_HAS_INTL_API
 
     JS_FS_HELP_END
 };
@@ -12049,6 +12053,7 @@ bool InitOptionParser(OptionParser& op) {
           "Enable resizable ArrayBuffers and growable SharedArrayBuffers") ||
       !op.addBoolOption('\0', "enable-uint8array-base64",
                         "Enable Uint8Array base64/hex methods") ||
+      !op.addBoolOption('\0', "enable-float16array", "Enable Float16Array") ||
       !op.addBoolOption('\0', "enable-top-level-await",
                         "Enable top-level await") ||
       !op.addBoolOption('\0', "enable-class-static-blocks",
@@ -12437,6 +12442,9 @@ bool SetGlobalOptionsPreJSInit(const OptionParser& op) {
   if (op.getBoolOption("enable-uint8array-base64")) {
     JS::Prefs::setAtStartup_experimental_uint8array_base64(true);
   }
+  if (op.getBoolOption("enable-float16array")) {
+    JS::Prefs::setAtStartup_experimental_float16array(true);
+  }
 #endif
 #ifdef ENABLE_JSON_PARSE_WITH_SOURCE
   JS::Prefs::setAtStartup_experimental_json_parse_with_source(
@@ -12669,7 +12677,6 @@ bool SetContextOptions(JSContext* cx, const OptionParser& op) {
       op.getBoolOption("enable-import-assertions");
   enableImportAttributes = op.getBoolOption("enable-import-attributes") ||
                            enableImportAttributesAssertSyntax;
-
   JS::ContextOptionsRef(cx)
       .setSourcePragmas(enableSourcePragmas)
       .setAsyncStack(enableAsyncStacks)

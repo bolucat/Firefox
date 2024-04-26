@@ -410,7 +410,7 @@ class ContentParent final : public PContentParent,
    * WARNING: aReason appears in telemetry, so any new value passed in requires
    * data review.
    */
-  void KillHard(const char* aWhy);
+  void KillHard(const char* aReason);
 
   ContentParentId ChildID() const { return mChildID; }
 
@@ -471,12 +471,11 @@ class ContentParent final : public PContentParent,
   void ForkNewProcess(bool aBlocking);
 
   mozilla::ipc::IPCResult RecvCreateWindow(
-      PBrowserParent* aThisBrowserParent,
-      const MaybeDiscarded<BrowsingContext>& aParent, PBrowserParent* aNewTab,
-      const uint32_t& aChromeFlags, const bool& aCalledFromJS,
-      const bool& aForPrinting, const bool& aForWindowDotPrint,
-      nsIURI* aURIToLoad, const nsACString& aFeatures,
-      const UserActivation::Modifiers& aModifiers,
+      PBrowserParent* aThisTab, const MaybeDiscarded<BrowsingContext>& aParent,
+      PBrowserParent* aNewTab, const uint32_t& aChromeFlags,
+      const bool& aCalledFromJS, const bool& aForPrinting,
+      const bool& aForWindowDotPrint, nsIURI* aURIToLoad,
+      const nsACString& aFeatures, const UserActivation::Modifiers& aModifiers,
       nsIPrincipal* aTriggeringPrincipal, nsIContentSecurityPolicy* aCsp,
       nsIReferrerInfo* aReferrerInfo, const OriginAttributes& aOriginAttributes,
       CreateWindowResolver&& aResolve);
@@ -877,7 +876,7 @@ class ContentParent final : public PContentParent,
       const MaybeDiscarded<BrowsingContext>& aTarget, PrintData&& aPrintData);
 
   mozilla::ipc::IPCResult RecvConstructPopupBrowser(
-      ManagedEndpoint<PBrowserParent>&& actor,
+      ManagedEndpoint<PBrowserParent>&& aBrowserEp,
       ManagedEndpoint<PWindowGlobalParent>&& windowEp, const TabId& tabId,
       const IPCTabContext& context, const WindowGlobalInit& initialWindowInit,
       const uint32_t& chromeFlags);
@@ -1086,10 +1085,10 @@ class ContentParent final : public PContentParent,
 
   mozilla::ipc::IPCResult RecvEndDriverCrashGuard(const uint32_t& aGuardType);
 
-  mozilla::ipc::IPCResult RecvAddIdleObserver(const uint64_t& observerId,
+  mozilla::ipc::IPCResult RecvAddIdleObserver(const uint64_t& aObserverId,
                                               const uint32_t& aIdleTimeInS);
 
-  mozilla::ipc::IPCResult RecvRemoveIdleObserver(const uint64_t& observerId,
+  mozilla::ipc::IPCResult RecvRemoveIdleObserver(const uint64_t& aObserverId,
                                                  const uint32_t& aIdleTimeInS);
 
   mozilla::ipc::IPCResult RecvBackUpXResources(
@@ -1661,8 +1660,7 @@ class ThreadsafeContentParentHandle final {
 };
 
 // This is the C++ version of remoteTypePrefix in E10SUtils.sys.mjs.
-const nsDependentCSubstring RemoteTypePrefix(
-    const nsACString& aContentProcessType);
+nsDependentCSubstring RemoteTypePrefix(const nsACString& aContentProcessType);
 
 // This is based on isWebRemoteType in E10SUtils.sys.mjs.
 bool IsWebRemoteType(const nsACString& aContentProcessType);

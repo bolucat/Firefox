@@ -25,6 +25,7 @@ ChromeUtils.defineLazyGetter(lazy, "fxAccounts", () => {
 ChromeUtils.defineESModuleGetters(lazy, {
   JsonSchemaValidator:
     "resource://gre/modules/components-utils/JsonSchemaValidator.sys.mjs",
+  UIState: "resource://services-sync/UIState.sys.mjs",
 });
 
 /**
@@ -91,7 +92,7 @@ export class BackupService {
    */
   static get MANIFEST_SCHEMA() {
     if (!BackupService.#manifestSchemaPromise) {
-      BackupService.#manifestSchemaPromise = BackupService.#getSchemaForVersion(
+      BackupService.#manifestSchemaPromise = BackupService._getSchemaForVersion(
         BackupService.MANIFEST_SCHEMA_VERSION
       );
     }
@@ -112,11 +113,19 @@ export class BackupService {
   /**
    * Returns the schema for the backup manifest for a given version.
    *
+   * This should really be #getSchemaForVersion, but for some reason,
+   * sphinx-js seems to choke on static async private methods (bug 1893362).
+   * We workaround this breakage by using the `_` prefix to indicate that this
+   * method should be _considered_ private, and ask that you not use this method
+   * outside of this class. The sphinx-js issue is tracked at
+   * https://github.com/mozilla/sphinx-js/issues/240.
+   *
+   * @private
    * @param {number} version
    *   The version of the schema to return.
    * @returns {Promise<object>}
    */
-  static async #getSchemaForVersion(version) {
+  static async _getSchemaForVersion(version) {
     let schemaURL = `chrome://browser/content/backup/BackupManifest.${version}.schema.json`;
     let response = await fetch(schemaURL);
     return response.json();
@@ -135,13 +144,10 @@ export class BackupService {
       return this.#instance;
     }
     this.#instance = new BackupService(DefaultBackupResources);
-    // TODO: Here, before taking measurements, we should check to see if the
-    // current user profile contains a file with the POST_RECOVERY_FILE_NAME.
-    // If it does, we should load that file and invoke the associated
-    // BackupResource.postRecovery method for each resource key inside it. Then
-    // we should delete the file. (bug 1888436)
 
-    this.#instance.takeMeasurements();
+    this.#instance.checkForPostRecovery().then(() => {
+      this.#instance.takeMeasurements();
+    });
 
     return this.#instance;
   }
@@ -400,6 +406,16 @@ export class BackupService {
       profileName = profileSvc.currentProfile.name;
     }
 
+    // Default these to undefined rather than null so that they're not included
+    // the meta object if we're not signed in.
+    let accountID = undefined;
+    let accountEmail = undefined;
+    let fxaState = lazy.UIState.get();
+    if (fxaState.status == lazy.UIState.STATUS_SIGNED_IN) {
+      accountID = fxaState.uid;
+      accountEmail = fxaState.email;
+    }
+
     return {
       version: BackupService.MANIFEST_SCHEMA_VERSION,
       meta: {
@@ -411,6 +427,8 @@ export class BackupService {
         machineName: lazy.fxAccounts.device.getLocalName(),
         osName: Services.sysinfo.getProperty("name"),
         osVersion: Services.sysinfo.getProperty("version"),
+        accountID,
+        accountEmail,
       },
       resources: {},
     };
@@ -473,7 +491,7 @@ export class BackupService {
       }
 
       // Make sure that it conforms to the schema.
-      let manifestSchema = await BackupService.#getSchemaForVersion(
+      let manifestSchema = await BackupService._getSchemaForVersion(
         manifest.version
       );
       let schemaValidationResult = lazy.JsonSchemaValidator.validate(
@@ -561,6 +579,58 @@ export class BackupService {
         e
       );
       throw e;
+    }
+  }
+
+  /**
+   * Checks for the POST_RECOVERY_FILE_NAME in the current profile directory.
+   * If one exists, instantiates any relevant BackupResource's, and calls
+   * postRecovery() on them with the appropriate entry from the file. Once
+   * this is done, deletes the file.
+   *
+   * The file is deleted even if one of the postRecovery() steps rejects or
+   * fails.
+   *
+   * This function resolves silently if the POST_RECOVERY_FILE_NAME file does
+   * not exist, which should be the majority of cases.
+   *
+   * @param {string} [profilePath=PathUtils.profileDir]
+   *  The profile path to look for the POST_RECOVERY_FILE_NAME file. Defaults
+   *  to the current profile.
+   * @returns {Promise<undefined>}
+   */
+  async checkForPostRecovery(profilePath = PathUtils.profileDir) {
+    lazy.logConsole.debug(`Checking for post-recovery file in ${profilePath}`);
+    let postRecoveryFile = PathUtils.join(
+      profilePath,
+      BackupService.POST_RECOVERY_FILE_NAME
+    );
+
+    if (!(await IOUtils.exists(postRecoveryFile))) {
+      lazy.logConsole.debug("Did not find post-recovery file.");
+      return;
+    }
+
+    lazy.logConsole.debug("Found post-recovery file. Loading...");
+
+    try {
+      let postRecovery = await IOUtils.readJSON(postRecoveryFile);
+      for (let resourceKey in postRecovery) {
+        let postRecoveryEntry = postRecovery[resourceKey];
+        let resourceClass = this.#resources.get(resourceKey);
+        if (!resourceClass) {
+          lazy.logConsole.error(
+            `Invalid resource for post-recovery step: ${resourceKey}`
+          );
+          continue;
+        }
+
+        lazy.logConsole.debug(`Running post-recovery step for ${resourceKey}`);
+        await new resourceClass().postRecovery(postRecoveryEntry);
+        lazy.logConsole.debug(`Done post-recovery step for ${resourceKey}`);
+      }
+    } finally {
+      await IOUtils.remove(postRecoveryFile, { ignoreAbsent: true });
     }
   }
 

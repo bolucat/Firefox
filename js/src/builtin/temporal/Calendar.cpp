@@ -1271,6 +1271,26 @@ static bool RequireIntegralPositiveNumber(JSContext* cx, Handle<Value> value,
   return true;
 }
 
+static bool RequireIntegralNumberOrUndefined(JSContext* cx, Handle<Value> value,
+                                             Handle<PropertyName*> name,
+                                             MutableHandle<Value> result) {
+  if (value.isUndefined()) {
+    result.setUndefined();
+    return true;
+  }
+  return RequireIntegralNumber(cx, value, name, result);
+}
+
+static bool RequireIntegralPositiveNumberOrUndefined(
+    JSContext* cx, Handle<Value> value, Handle<PropertyName*> name,
+    MutableHandle<Value> result) {
+  if (value.isUndefined()) {
+    result.setUndefined();
+    return true;
+  }
+  return RequireIntegralPositiveNumber(cx, value, name, result);
+}
+
 static bool RequireString(JSContext* cx, Handle<Value> value,
                           Handle<PropertyName*> name,
                           MutableHandle<Value> result) {
@@ -1843,7 +1863,7 @@ static bool CalendarWeekOfYear(JSContext* cx, Handle<CalendarValue> calendar,
                                MutableHandle<Value> result) {
   // Steps 1-6.
   return CallCalendarMethod<BuiltinCalendarWeekOfYear,
-                            RequireIntegralPositiveNumber>(
+                            RequireIntegralPositiveNumberOrUndefined>(
       cx, cx->names().weekOfYear, Calendar_weekOfYear, calendar, dateLike, date,
       result);
 }
@@ -1908,7 +1928,8 @@ static bool CalendarYearOfWeek(JSContext* cx, Handle<CalendarValue> calendar,
                                const PlainDate& date,
                                MutableHandle<Value> result) {
   // Steps 1-5.
-  return CallCalendarMethod<BuiltinCalendarYearOfWeek, RequireIntegralNumber>(
+  return CallCalendarMethod<BuiltinCalendarYearOfWeek,
+                            RequireIntegralNumberOrUndefined>(
       cx, cx->names().yearOfWeek, Calendar_yearOfWeek, calendar, dateLike, date,
       result);
 }
@@ -2568,35 +2589,6 @@ Wrapped<PlainDateObject*> js::temporal::CalendarDateFromFields(
   return ::CalendarDateFromFields(cx, calendar, fields, options);
 }
 
-/**
- * CalendarDateFromFields ( calendarRec, fields [ , options ] )
- */
-Wrapped<PlainDateObject*> js::temporal::CalendarDateFromFields(
-    JSContext* cx, Handle<CalendarRecord> calendar, Handle<PlainObject*> fields,
-    TemporalOverflow overflow) {
-  // FIXME: spec issue - unnecessary options object when using "constrain".
-  // https://github.com/tc39/proposal-temporal/issues/2803
-
-  Rooted<PlainObject*> options(cx, NewPlainObjectWithProto(cx, nullptr));
-  if (!options) {
-    return nullptr;
-  }
-
-  Rooted<Value> value(cx);
-  if (overflow == TemporalOverflow::Constrain) {
-    value = StringValue(cx->names().constrain);
-  } else {
-    MOZ_ASSERT(overflow == TemporalOverflow::Reject);
-    value = StringValue(cx->names().reject);
-  }
-  if (!DefineDataProperty(cx, options, cx->names().overflow, value)) {
-    return nullptr;
-  }
-
-  // Steps 1-6.
-  return ::CalendarDateFromFields(cx, calendar, fields, options);
-}
-
 struct RegulatedISOYearMonth final {
   double year = 0;
   int32_t month = 0;
@@ -2608,33 +2600,30 @@ struct RegulatedISOYearMonth final {
 static bool RegulateISOYearMonth(JSContext* cx, double year, double month,
                                  TemporalOverflow overflow,
                                  RegulatedISOYearMonth* result) {
-  // Step 1.
   MOZ_ASSERT(IsInteger(year));
   MOZ_ASSERT(IsInteger(month));
 
-  // Step 2. (Not applicable in our implementation.)
-
-  // Step 3.
+  // Step 1.
   if (overflow == TemporalOverflow::Constrain) {
-    // Step 3.a.
+    // Step 1.a.
     month = std::clamp(month, 1.0, 12.0);
 
-    // Step 3.b.
+    // Step 1.b.
     *result = {year, int32_t(month)};
     return true;
   }
 
-  // Step 4.a.
+  // Step 2.a.
   MOZ_ASSERT(overflow == TemporalOverflow::Reject);
 
-  // Step 4.b.
+  // Step 2.b.
   if (month < 1 || month > 12) {
     JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr,
                               JSMSG_TEMPORAL_PLAIN_YEAR_MONTH_INVALID);
     return false;
   }
 
-  // Step 4.c.
+  // Step 2.c.
   *result = {year, int32_t(month)};
   return true;
 }
@@ -2990,7 +2979,7 @@ static bool ISOFieldKeysToIgnore(JSContext* cx, const PropertyVector& keys,
     }
   }
 
-  // Step 3.
+  // Steps 3-4.
   return true;
 }
 
