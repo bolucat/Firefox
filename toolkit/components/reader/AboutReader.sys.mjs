@@ -25,15 +25,19 @@ ChromeUtils.defineLazyGetter(
   "pluralRules",
   () => new Services.intl.PluralRules(undefined)
 );
+ChromeUtils.defineLazyGetter(
+  lazy,
+  "l10n",
+  () => new Localization(["toolkit/about/aboutReader.ftl"], true)
+);
 
 const COLORSCHEME_L10N_IDS = {
-  auto: "about-reader-color-theme-auto",
-  light: "about-reader-color-theme-light",
-  dark: "about-reader-color-theme-dark",
-  sepia: "about-reader-color-theme-sepia",
-  contrast: "about-reader-color-theme-contrast",
-  gray: "about-reader-color-theme-gray",
-  custom: "about-reader-color-theme-custom",
+  auto: "about-reader-color-auto-theme",
+  light: "about-reader-color-light-theme",
+  dark: "about-reader-color-dark-theme",
+  sepia: "about-reader-color-sepia-theme",
+  contrast: "about-reader-color-contrast-theme",
+  gray: "about-reader-color-gray-theme",
 };
 
 const CUSTOM_THEME_COLOR_INPUTS = [
@@ -201,6 +205,7 @@ export var AboutReader = function (
   if (Services.prefs.getBoolPref("reader.colors_menu.enabled", false)) {
     doc.getElementById("regular-color-scheme").hidden = true;
     doc.getElementById("custom-colors-color-scheme").hidden = false;
+
     this._setupSegmentedButton(
       "colors-menu-color-scheme-buttons",
       colorsMenuColorSchemeOptions,
@@ -243,19 +248,148 @@ export var AboutReader = function (
   ];
 
   let fontType = Services.prefs.getCharPref("reader.font_type");
-  this._setupSegmentedButton(
-    "font-type-buttons",
-    fontTypeOptions,
-    fontType,
-    this._setFontType.bind(this)
-  );
-  this._setFontType(fontType);
+
+  // Differentiates between the tick mark labels for width vs spacing controls
+  // for localization purposes.
+  const [narrowWidthLabel, wideWidthLabel] = lazy.l10n.formatMessagesSync([
+    "about-reader-slider-label-width-narrow",
+    "about-reader-slider-label-width-wide",
+  ]);
+  const [narrowSpacingLabel, standardSpacingLabel, wideSpacingLabel] =
+    lazy.l10n.formatMessagesSync([
+      "about-reader-slider-label-spacing-narrow",
+      "about-reader-slider-label-spacing-standard",
+      "about-reader-slider-label-spacing-wide",
+    ]);
+
+  let contentWidthSliderOptions = {
+    min: 1,
+    max: 9,
+    ticks: 9,
+    tickLabels: `["${narrowWidthLabel.value}", "${wideWidthLabel.value}"]`,
+    l10nId: "about-reader-content-width-label",
+    icon: "chrome://global/skin/reader/content-width-20.svg",
+  };
+
+  let lineSpacingSliderOptions = {
+    min: 1,
+    max: 9,
+    ticks: 9,
+    tickLabels: `["${narrowSpacingLabel.value}", "${wideSpacingLabel.value}"]`,
+    l10nId: "about-reader-line-spacing-label",
+    icon: "chrome://global/skin/reader/line-spacing-20.svg",
+  };
+
+  let characterSpacingSliderOptions = {
+    min: 1,
+    max: 9,
+    ticks: 9,
+    tickLabels: `["${standardSpacingLabel.value}", "${wideSpacingLabel.value}"]`,
+    l10nId: "about-reader-character-spacing-label",
+    icon: "chrome://global/skin/reader/character-spacing-20.svg",
+  };
+
+  let wordSpacingSliderOptions = {
+    min: 1,
+    max: 9,
+    ticks: 9,
+    tickLabels: `["${standardSpacingLabel.value}", "${wideSpacingLabel.value}"]`,
+    l10nId: "about-reader-word-spacing-label",
+    icon: "chrome://global/skin/reader/word-spacing-20.svg",
+  };
+
+  let textAlignmentOptions = [
+    {
+      l10nId: "about-reader-text-alignment-left",
+      groupName: "text-alignment",
+      value: "left",
+      itemClass: "left-align-button",
+    },
+    {
+      l10nId: "about-reader-text-alignment-center",
+      groupName: "text-alignment",
+      value: "center",
+      itemClass: "center-align-button",
+    },
+    {
+      l10nId: "about-reader-text-alignment-right",
+      groupName: "text-alignment",
+      value: "right",
+      itemClass: "right-align-button",
+    },
+  ];
+
+  // If the page is rtl, reverse order of text alignment options.
+  if (isAppLocaleRTL) {
+    textAlignmentOptions = textAlignmentOptions.reverse();
+  }
+
+  if (Services.prefs.getBoolPref("reader.improved_text_menu.enabled", false)) {
+    doc.getElementById("regular-text-menu").hidden = true;
+    doc.getElementById("improved-text-menu").hidden = false;
+
+    let contentWidth = Services.prefs.getIntPref("reader.content_width");
+    this._setupSlider(
+      "content-width",
+      contentWidthSliderOptions,
+      contentWidth,
+      this._setContentWidthSlider.bind(this)
+    );
+    this._setContentWidthSlider(contentWidth);
+
+    let lineSpacing = Services.prefs.getIntPref("reader.line_height");
+    this._setupSlider(
+      "line-spacing",
+      lineSpacingSliderOptions,
+      lineSpacing,
+      this._setLineSpacing.bind(this)
+    );
+    this._setLineSpacing(lineSpacing);
+
+    let characterSpacing = Services.prefs.getStringPref(
+      "reader.character_spacing"
+    );
+    this._setupSlider(
+      "character-spacing",
+      characterSpacingSliderOptions,
+      characterSpacing,
+      this._setCharacterSpacing.bind(this)
+    );
+    this._setCharacterSpacing(characterSpacing);
+
+    let wordSpacing = Services.prefs.getStringPref("reader.word_spacing");
+    this._setupSlider(
+      "word-spacing",
+      wordSpacingSliderOptions,
+      wordSpacing,
+      this._setWordSpacing.bind(this)
+    );
+    this._setWordSpacing(wordSpacing);
+
+    let textAlignment = Services.prefs.getCharPref("reader.text_alignment");
+    this._setupSegmentedButton(
+      "text-alignment-buttons",
+      textAlignmentOptions,
+      textAlignment,
+      this._setTextAlignment.bind(this)
+    );
+    this._setTextAlignment(textAlignment);
+  } else {
+    this._setupSegmentedButton(
+      "font-type-buttons",
+      fontTypeOptions,
+      fontType,
+      this._setFontType.bind(this)
+    );
+  }
 
   this._setupFontSizeButtons();
 
   this._setupContentWidthButtons();
 
   this._setupLineHeightButtons();
+
+  this._setFontType(fontType);
 
   if (win.speechSynthesis && Services.prefs.getBoolPref("narrate.enabled")) {
     new lazy.NarrateControls(win, this._languagePromise);
@@ -775,6 +909,80 @@ AboutReader.prototype = {
     );
   },
 
+  _setupSlider(id, options, initialValue, callback) {
+    let doc = this._doc;
+    let slider = doc.createElement("moz-slider");
+
+    slider.setAttribute("min", options.min);
+    slider.setAttribute("max", options.max);
+    slider.setAttribute("value", initialValue);
+    slider.setAttribute("ticks", options.ticks);
+    slider.setAttribute("tick-labels", options.tickLabels);
+    slider.setAttribute("data-l10n-id", options.l10nId);
+    slider.setAttribute("data-l10n-attrs", "label");
+    slider.setAttribute("slider-icon", options.icon);
+
+    slider.addEventListener("slider-changed", e => {
+      callback(e.detail);
+    });
+
+    let sliderContainer = doc.getElementById(`${id}-slider`);
+    sliderContainer.appendChild(slider);
+  },
+
+  // Rename this function to setContentWidth when the old menu is retired.
+  _setContentWidthSlider(newContentWidth) {
+    // We map the slider range [1-9] to 20-60em.
+    let width = 20 + 5 * (newContentWidth - 1) + "em";
+    this._doc.body.style.setProperty("--content-width", width);
+    this._scheduleToolbarOverlapHandler();
+    return lazy.AsyncPrefs.set(
+      "reader.content_width",
+      parseInt(newContentWidth)
+    );
+  },
+
+  _setLineSpacing(newLineSpacing) {
+    // We map the slider range [1-9] to 1-2.6em.
+    let spacing = 1 + 0.2 * (newLineSpacing - 1) + "em";
+    this._containerElement.style.setProperty("--line-height", spacing);
+    return lazy.AsyncPrefs.set("reader.line_height", parseInt(newLineSpacing));
+  },
+
+  _setCharacterSpacing(newCharSpacing) {
+    // We map the slider range [1-9] to 0-0.24em.
+    let spacing = (newCharSpacing - 1) * 0.03;
+    this._containerElement.style.setProperty(
+      "--letter-spacing",
+      `${parseFloat(spacing).toFixed(2)}em`
+    );
+    lazy.AsyncPrefs.set("reader.character_spacing", newCharSpacing);
+  },
+
+  _setWordSpacing(newWordSpacing) {
+    // We map the slider range [1-9] to 0-0.4em.
+    let spacing = (newWordSpacing - 1) * 0.05;
+    this._containerElement.style.setProperty(
+      "--word-spacing",
+      `${parseFloat(spacing).toFixed(2)}em`
+    );
+    lazy.AsyncPrefs.set("reader.word_spacing", newWordSpacing);
+  },
+
+  _setTextAlignment(newTextAlignment) {
+    if (this._textAlignment === newTextAlignment) {
+      return false;
+    }
+
+    this._containerElement.style.setProperty(
+      "--text-alignment",
+      newTextAlignment
+    );
+
+    lazy.AsyncPrefs.set("reader.text_alignment", newTextAlignment);
+    return true;
+  },
+
   _setColorScheme(newColorScheme) {
     // There's nothing to change if the new color scheme is the same as our current scheme.
     if (this._colorScheme === newColorScheme) {
@@ -823,7 +1031,11 @@ AboutReader.prototype = {
     // The input event for the last selected segmented button is fired
     // upon loading a reader article in the same session. To prevent it
     // from overwriting custom colors, we return false.
-    if (this._colorScheme == "custom" && fromInputEvent) {
+    const colorsMenuEnabled = Services.prefs.getBoolPref(
+      "reader.colors_menu.enabled",
+      false
+    );
+    if (colorsMenuEnabled && this._colorScheme == "custom" && fromInputEvent) {
       lastSelectedTheme = colorSchemePref;
       return false;
     }

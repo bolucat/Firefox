@@ -402,8 +402,8 @@ void EncoderTemplate<VideoEncoderTraits>::OutputEncodedVideoData(
 
       metadata.mDecoderConfig.Construct(std::move(decoderConfig));
       mOutputNewDecoderConfig = false;
-      LOGE("New config passed to output callback: %s",
-           decoderConfigInternal.ToString().get());
+      LOG("New config passed to output callback: %s",
+          decoderConfigInternal.ToString().get());
     }
 
     nsAutoCString metadataInfo;
@@ -461,7 +461,7 @@ void EncoderTemplate<AudioEncoderTraits>::OutputEncodedAudioData(
           this->EncoderConfigToDecoderConfig(GetParentObject(), data,
                                              *mActiveConfig);
 
-      // Convert VideoDecoderConfigInternal to VideoDecoderConfig
+      // Convert AudioDecoderConfigInternal to AudioDecoderConfig
       RootedDictionary<AudioDecoderConfig> decoderConfig(cx);
       decoderConfig.mCodec = decoderConfigInternal.mCodec;
       decoderConfig.mNumberOfChannels = decoderConfigInternal.mNumberOfChannels;
@@ -472,8 +472,8 @@ void EncoderTemplate<AudioEncoderTraits>::OutputEncodedAudioData(
 
       metadata.mDecoderConfig.Construct(std::move(decoderConfig));
       mOutputNewDecoderConfig = false;
-      LOGE("New config passed to output callback: %s",
-           decoderConfigInternal.ToString().get());
+      LOG("New config passed to output callback: %s",
+          decoderConfigInternal.ToString().get());
     }
 
     nsAutoCString metadataInfo;

@@ -17,6 +17,9 @@
   --font-size: 12;
   --content-width: 22em;
   --line-height: 1.6em;
+  --text-alignment: start;
+  --word-spacing: 0;
+  --letter-spacing: 0;
 }
 
 body {
@@ -43,6 +46,7 @@ body {
   --popup-shadow: rgba(49, 49, 49, 0.3);
   --popup-button-background: rgba(207, 207, 216, 0.33);
   --popup-button-foreground: var(--main-foreground);
+  --popup-button-selected-foreground: var(--color-gray-05);
   --popup-button-background-hover: var(--toolbar-button-background-hover);
   --popup-button-foreground-hover: var(--main-foreground);
   --popup-button-background-active: var(--toolbar-button-background-active);
@@ -60,7 +64,7 @@ body {
   --link-selected-foreground: #333;
   --visited-link-foreground: #b5007f;
   --custom-theme-background: var(--color-white);
-  --custom-theme-foreground: #14151A;
+  --custom-theme-foreground: var(--color-gray-100);
   --custom-theme-unvisited-links: var(--color-blue-50);
   --custom-theme-visited-links: #321C64;
   --custom-theme-selection-highlight: #FFFFCC;
@@ -88,7 +92,7 @@ body.contrast {
   --toolbar-button-background-hover: rgb(82, 82, 94);
   --toolbar-button-background-active: rgb(91, 91, 102);
   --popup-background: rgb(66, 65, 77);
-  --popup-button-border: rgba(255, 255, 255, 0.12);
+  --popup-button-border: rgba(255, 255, 255, 0.2);
   --popup-line: rgba(249, 249, 250, 0.1);
   --popup-button-background: rgb(43, 42, 51);
   --font-value-background: rgba(249, 249, 250, 0.15);
@@ -97,6 +101,7 @@ body.contrast {
   --link-selected-foreground: #fff;
   --visited-link-foreground: #e675fd;
   --selected-background: rgba(0, 221, 255, 0.3);
+  --popup-button-selected-foreground: var(--color-gray-100);
   /* dark colours */
 
   .moz-reader-block-img {
@@ -170,6 +175,7 @@ body.hcm {
   --icon-disabled-fill: GrayText;
   --text-selected-background: SelectedItem;
   --text-selected-foreground: SelectedItemText;
+  --popup-button-selected-foreground: SelectedItemText;
   --link-foreground: LinkText;
   --link-selected-background: SelectedItem;
   --link-selected-foreground: SelectedItemText;
@@ -501,14 +507,20 @@ button:disabled {
   border: 1px solid var(--popup-border);
   box-shadow: 0 0 10px 0 var(--popup-shadow);
   top: var(--space-xsmall);
-}
 
-.dropdown-popup h2 {
-  font-size: var(--font-size-root);
-  font-weight: var(--font-weight-bold);
-  color: var(--popup-button-foreground);
-  margin-block: var(--space-large);
-  margin-inline: var(--space-large) 0;
+  h2 {
+    font-size: var(--font-size-large);
+    font-weight: var(--font-weight-bold);
+    color: var(--popup-button-foreground);
+    margin-block: var(--space-large);
+  }
+
+  hr {
+    width: 100%;
+    margin: 0;
+    border: none;
+    border-top: 1px solid var(--popup-line);
+  }
 }
 
 .open > .dropdown-popup {
@@ -583,7 +595,6 @@ button:disabled {
 .radiorow > label {
   position: relative;
   box-sizing: border-box;
-  border-radius: 2px;
   border: 2px solid var(--popup-button-border);
 }
 
@@ -592,12 +603,14 @@ button:disabled {
 }
 
 .radiorow > label:hover {
-  background-color: var(--toolbar-button-background-hover);
+  background-color: var(--popup-button-background-hover);
+  color: var(--popup-button-foreground-hover);
 }
 
 .radiorow > input[type=radio]:focus-visible + label {
   outline: 2px solid var(--primary-color);
   outline-offset: var(--focus-outline-offset);
+  z-index: 1;
 }
 
 .font-type-buttons > label {
@@ -618,6 +631,7 @@ button:disabled {
    * baselines between serif and sans-serif, this isn't always enough. */
   line-height: 1;
   padding-top: 2px;
+  border-radius: 2px;
 }
 
 .font-type-buttons {
@@ -664,6 +678,7 @@ body.hcm .color-scheme-buttons {
   justify-content: center;
   /* We want 10px between items, but there's no margin collapsing in flexbox. */
   margin: 10px 5px;
+  border-radius: 2px;
   border-color: var(--popup-border);
 }
 
@@ -675,11 +690,104 @@ body.hcm .color-scheme-buttons {
   margin-inline-end: 10px;
 }
 
+/* Improved text and layout menu popup */
+
+#text-layout-controls {
+  display: flex;
+  flex-direction: column;
+  width: 340px;
+  padding: var(--space-large);
+  font-size: 15px;
+}
+
+.accordion-header {
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+
+  .chevron-icon {
+    background-image: url("chrome://global/skin/icons/arrow-down.svg");
+    background-position: center;
+    background-repeat: no-repeat;
+    -moz-context-properties: fill;
+    fill: currentColor;
+    height: var(--size-item-large);
+    width: var(--size-item-large);
+
+    #about-reader-advanced-layout[open] & {
+      background-image: url("chrome://global/skin/icons/arrow-up.svg");
+    }
+  }
+}
+
+.slider-container {
+  width: calc(100% - var(--space-xsmall));
+  padding-bottom: var(--space-large);
+}
+
+.text-alignment-buttons {
+  margin-top: var(--space-small);
+  gap: var(--space-xxsmall);
+
+  > label {
+    display: flex;
+    flex: 1;
+    min-height: var(--button-min-height);
+    background-repeat: no-repeat;
+    background-position: center;
+    background-color: var(--popup-button-background);
+    color: var(--popup-button-foreground);
+    -moz-context-properties: fill;
+    fill: currentColor;
+    border: none;
+
+    /* border radius does not target class because button order
+     * can be opposite in RTL */
+    &:first-of-type {
+      border-start-start-radius: var(--border-radius-small);
+      border-end-start-radius: var(--border-radius-small);
+    }
+
+    &:last-of-type {
+      border-start-end-radius: var(--border-radius-small);
+      border-end-end-radius: var(--border-radius-small);
+    }
+
+    &.left-align-button {
+      background-image: url("chrome://global/skin/reader/align-left-20.svg");
+    }
+
+    &.center-align-button {
+      background-image: url("chrome://global/skin/reader/align-center-20.svg");
+    }
+
+    &.right-align-button {
+      background-image: url("chrome://global/skin/reader/align-right-20.svg");
+    }
+
+    &[checked] {
+      background-color: var(--primary-color);
+      border: none;
+      color: var(--popup-button-selected-foreground);
+    }
+
+    body.hcm & {
+      border: 1px solid var(--popup-button-border);
+    }
+  }
+}
+
 /* Separate colors menu popup */
 
 #color-controls {
   padding-block-end: var(--space-large);
   width: 400px;
+}
+
+#about-reader-colors-menu-header {
+  margin-inline: var(--space-large) 0;
 }
 
 button-group {
@@ -787,6 +895,10 @@ button[is="named-deck-button"] {
   background-image: url("chrome://global/skin/reader/RM-Type-Controls-24x24.svg");
 }
 
+.improved-style-button {
+  background-image: url("chrome://global/skin/reader/RM-Type-Controls-24x24.svg");
+}
+
 .colors-button {
   background-image: url("chrome://mozapps/skin/extensions/category-themes.svg");
 }
@@ -844,6 +956,13 @@ button[is="named-deck-button"] {
   font-size: var(--font-size);
   max-width: var(--content-width);
   line-height: var(--line-height);
+  text-align: var(--text-alignment);
+  word-spacing: var(--word-spacing);
+  letter-spacing: var(--letter-spacing);
+
+  .header {
+    text-align: var(--text-alignment);
+  }
 }
 
 pre {
