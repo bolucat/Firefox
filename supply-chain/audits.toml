@@ -542,6 +542,11 @@ who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "0.7.6 -> 0.7.8"
 
+[[audits.ahash]]
+who = "Erich Gubler <erichdongubler@gmail.com>"
+criteria = "safe-to-deploy"
+delta = "0.8.7 -> 0.8.11"
+
 [[audits.aho-corasick]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
@@ -595,6 +600,19 @@ delta = "0.1.2 -> 0.1.4"
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "0.1.4 -> 0.1.5"
+
+[[audits.any_all_workaround]]
+who = "Henri Sivonen <hsivonen@hsivonen.fi>"
+criteria = "safe-to-deploy"
+version = "0.1.0"
+notes = "The little code that is in this crate I reviewed and modified from packed_simd (which has previously been vendored in full instead of just this small part)."
+
+[[audits.any_all_workaround]]
+who = "Henri Sivonen <hsivonen@hsivonen.fi>"
+criteria = "safe-to-deploy"
+delta = "0.1.0 -> 0.1.0@git:7fb1b7034c9f172aade21ee1c8554e8d8a48af80"
+importable = false
+notes = "This is a trivial workaround copied from elsewhere in m-c, specifically qcms."
 
 [[audits.anyhow]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
@@ -2081,6 +2099,16 @@ who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "0.2.2 -> 0.2.3"
 
+[[audits.gpu-descriptor]]
+who = "Erich Gubler <erichdongubler@gmail.com>"
+criteria = "safe-to-deploy"
+delta = "0.2.3 -> 0.3.0"
+
+[[audits.gpu-descriptor-types]]
+who = "Erich Gubler <erichdongubler@gmail.com>"
+criteria = "safe-to-deploy"
+delta = "0.1.1 -> 0.2.0"
+
 [[audits.guid_win]]
 who = "Bobby Holley <bobbyholley@gmail.com>"
 criteria = "safe-to-deploy"
@@ -2401,6 +2429,11 @@ delta = "0.2.147 -> 0.2.148"
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "0.7.3 -> 0.7.4"
+
+[[audits.libloading]]
+who = "Erich Gubler <erichdongubler@gmail.com>"
+criteria = "safe-to-deploy"
+delta = "0.7.4 -> 0.8.3"
 
 [[audits.libm]]
 who = "Makoto Kato <m_kato@ga2.so-net.ne.jp>"

@@ -104,64 +104,26 @@ namespace mozilla::gfx {
 using namespace ipc;
 using namespace layers;
 
-static GPUParent* sGPUParent;
-
-static void ReportHardwareMediaCodecSupportIfNeeded() {
-  // We only need to report the result once.
-  static bool sReported = false;
-  if (sReported) {
-    return;
-  }
+static media::MediaCodecsSupported GetFullMediaCodecSupport(
+    bool aForceRefresh = false) {
 #if defined(XP_WIN)
-  // Only report telemetry when hardware decoding is available.
-  if (!gfx::gfxVars::IsInitialized() ||
-      !gfx::gfxVars::CanUseHardwareVideoDecoding()) {
-    return;
-  }
-  sReported = true;
-
-  // TODO : we can remove this after HEVC is enabled by default.
-  // HEVC is not enabled. We need to force to enable it in order to know
-  // its support as well, and it would be turn off later.
-  if (StaticPrefs::media_wmf_hevc_enabled() != 1) {
+  // Re-initializing WMFPDM if forcing a refresh is required or hardware
+  // decoding is supported in order to get HEVC result properly. We will disable
+  // it later if the pref is OFF.
+  if (aForceRefresh || (gfx::gfxVars::IsInitialized() &&
+                        gfx::gfxVars::CanUseHardwareVideoDecoding())) {
     WMFDecoderModule::Init(WMFDecoderModule::Config::ForceEnableHEVC);
   }
-  const auto support = PDMFactory::Supported(true /* force refresh */);
-  if (support.contains(
-          mozilla::media::MediaCodecsSupport::H264HardwareDecode)) {
-    Telemetry::ScalarSet(
-        Telemetry::ScalarID::MEDIA_DEVICE_HARDWARE_DECODING_SUPPORT, u"h264"_ns,
-        true);
-  }
-  if (support.contains(mozilla::media::MediaCodecsSupport::VP8HardwareDecode)) {
-    Telemetry::ScalarSet(
-        Telemetry::ScalarID::MEDIA_DEVICE_HARDWARE_DECODING_SUPPORT, u"vp8"_ns,
-        true);
-  }
-  if (support.contains(mozilla::media::MediaCodecsSupport::VP9HardwareDecode)) {
-    Telemetry::ScalarSet(
-        Telemetry::ScalarID::MEDIA_DEVICE_HARDWARE_DECODING_SUPPORT, u"vp9"_ns,
-        true);
-  }
-  if (support.contains(mozilla::media::MediaCodecsSupport::AV1HardwareDecode)) {
-    Telemetry::ScalarSet(
-        Telemetry::ScalarID::MEDIA_DEVICE_HARDWARE_DECODING_SUPPORT, u"av1"_ns,
-        true);
-  }
-  if (support.contains(
-          mozilla::media::MediaCodecsSupport::HEVCHardwareDecode)) {
-    Telemetry::ScalarSet(
-        Telemetry::ScalarID::MEDIA_DEVICE_HARDWARE_DECODING_SUPPORT, u"hevc"_ns,
-        true);
-  }
-  if (StaticPrefs::media_wmf_hevc_enabled() != 1) {
-    WMFDecoderModule::Init();
-  }
-
+  auto disableHEVCIfNeeded = MakeScopeExit([]() {
+    if (StaticPrefs::media_wmf_hevc_enabled() != 1) {
+      WMFDecoderModule::DisableForceEnableHEVC();
+    }
+  });
 #endif
-  // TODO : in the future, when we have GPU procss on MacOS, then we can report
-  // HEVC usage as well.
+  return PDMFactory::Supported(aForceRefresh);
 }
+
+static GPUParent* sGPUParent;
 
 GPUParent::GPUParent() : mLaunchTime(TimeStamp::Now()) { sGPUParent = this; }
 
@@ -455,22 +417,20 @@ mozilla::ipc::IPCResult GPUParent::RecvInit(
   RecvGetDeviceStatus(&data);
   Unused << SendInitComplete(data);
 
-  // Dispatch a task to run when idle that will determine which codecs are
-  // usable. The primary goal is to determine if the media feature pack is
-  // installed.
-
-  nsCOMPtr<nsIRunnable> task =
-      NS_NewRunnableFunction("GPUParent::Supported", []() {
-        NS_DispatchToMainThread(NS_NewRunnableFunction(
-            "GPUParent::UpdateMediaCodecsSupported",
-            [supported = PDMFactory::Supported()]() {
-              Unused << GPUParent::GetSingleton()
-                            ->SendUpdateMediaCodecsSupported(supported);
-            }));
-        ReportHardwareMediaCodecSupportIfNeeded();
-      });
-  MOZ_ALWAYS_SUCCEEDS(
-      NS_DispatchBackgroundTask(task, nsIEventTarget::DISPATCH_NORMAL));
+  // Dispatch a task to background thread to determine the media codec supported
+  // result, and propagate it back to the chrome process on the main thread.
+  MOZ_ALWAYS_SUCCEEDS(NS_DispatchBackgroundTask(
+      NS_NewRunnableFunction(
+          "GPUParent::Supported",
+          []() {
+            NS_DispatchToMainThread(NS_NewRunnableFunction(
+                "GPUParent::UpdateMediaCodecsSupported",
+                [supported = GetFullMediaCodecSupport()]() {
+                  Unused << GPUParent::GetSingleton()
+                                ->SendUpdateMediaCodecsSupported(supported);
+                }));
+          }),
+      nsIEventTarget::DISPATCH_NORMAL));
 
   Telemetry::AccumulateTimeDelta(Telemetry::GPU_PROCESS_INITIALIZATION_TIME_MS,
                                  mLaunchTime);
@@ -555,22 +515,20 @@ mozilla::ipc::IPCResult GPUParent::RecvUpdateVar(const GfxVarUpdate& aUpdate) {
   auto scopeExit = MakeScopeExit(
       [couldUseHWDecoder = gfx::gfxVars::CanUseHardwareVideoDecoding()] {
         if (couldUseHWDecoder != gfx::gfxVars::CanUseHardwareVideoDecoding()) {
-          // The capabilities of the system may have changed, force a refresh by
-          // re-initializing the WMF PDM.
-          nsCOMPtr<nsIRunnable> task =
-              NS_NewRunnableFunction("GPUParent::RecvUpdateVar", []() {
-                WMFDecoderModule::Init();
-                NS_DispatchToMainThread(NS_NewRunnableFunction(
-                    "GPUParent::UpdateMediaCodecsSupported",
-                    [supported =
-                         PDMFactory::Supported(true /* force refresh */)]() {
-                      Unused << GPUParent::GetSingleton()
-                                    ->SendUpdateMediaCodecsSupported(supported);
-                    }));
-                ReportHardwareMediaCodecSupportIfNeeded();
-              });
-          MOZ_ALWAYS_SUCCEEDS(
-              NS_DispatchBackgroundTask(task, nsIEventTarget::DISPATCH_NORMAL));
+          MOZ_ALWAYS_SUCCEEDS(NS_DispatchBackgroundTask(
+              NS_NewRunnableFunction(
+                  "GPUParent::RecvUpdateVar",
+                  []() {
+                    NS_DispatchToMainThread(NS_NewRunnableFunction(
+                        "GPUParent::UpdateMediaCodecsSupported",
+                        [supported = GetFullMediaCodecSupport(
+                             true /* force refresh */)]() {
+                          Unused << GPUParent::GetSingleton()
+                                        ->SendUpdateMediaCodecsSupported(
+                                            supported);
+                        }));
+                  }),
+              nsIEventTarget::DISPATCH_NORMAL));
         }
       });
 #endif

@@ -482,6 +482,56 @@ class WebExtensionTest : BaseSessionTest() {
         sessionRule.waitForResult(controller.uninstall(extension))
     }
 
+    @Test
+    fun onOptionalPermissionsChanged() {
+        var extension = sessionRule.waitForResult(
+            controller.ensureBuiltIn(
+                "resource://android/assets/web_extensions/optional-permission-request/",
+                "optional-permission-request@example.com",
+            ),
+        )
+
+        assertEquals("optional-permission-request@example.com", extension.id)
+
+        var grantedOptionalPermissions = extension.metaData.grantedOptionalPermissions
+        var grantedOptionalOrigins = extension.metaData.grantedOptionalOrigins
+
+        assertThat(
+            "grantedOptionalPermissions must be 0.",
+            grantedOptionalPermissions.size,
+            equalTo(0),
+        )
+        assertThat("grantedOptionalOrigins must be 0.", grantedOptionalOrigins.size, equalTo(0))
+
+        sessionRule.delegateDuringNextWait(object : WebExtensionController.AddonManagerDelegate {
+            @AssertCalled(count = 1)
+            override fun onOptionalPermissionsChanged(updatedExtension: WebExtension) {
+                grantedOptionalPermissions = updatedExtension.metaData.grantedOptionalPermissions
+                grantedOptionalOrigins = updatedExtension.metaData.grantedOptionalOrigins
+                assertNull(updatedExtension)
+                assertArrayEquals(
+                    "grantedOptionalPermissions must be [activeTab, geolocation].",
+                    arrayOf("activeTab", "geolocation"),
+                    grantedOptionalPermissions,
+                )
+                assertArrayEquals(
+                    "grantedOptionalPermissions must be [*://example.com/*].",
+                    arrayOf("*://example.com/*"),
+                    grantedOptionalOrigins,
+                )
+            }
+        })
+
+        extension = sessionRule.waitForResult(
+            controller.addOptionalPermissions(
+                extension.id,
+                arrayOf("activeTab", "geolocation"),
+                arrayOf("*://example.com/*"),
+            ),
+        )
+        sessionRule.waitForResult(controller.uninstall(extension))
+    }
+
     private fun assertBodyBorderEqualTo(expected: String) {
         val color = mainSession.evaluateJS("document.body.style.borderColor")
         assertThat(
@@ -3720,11 +3770,6 @@ class WebExtensionTest : BaseSessionTest() {
             "mozAddonManager is exposed",
             mainSession.evaluateJS("typeof navigator.mozAddonManager") as String,
             equalTo("object"),
-        )
-        assertThat(
-            "mozAddonManager.abuseReportPanelEnabled should be false",
-            mainSession.evaluateJS("navigator.mozAddonManager.abuseReportPanelEnabled") as Boolean,
-            equalTo(false),
         )
 
         // Install an add-on, then assert results got from `mozAddonManager.getAddonByID()`.

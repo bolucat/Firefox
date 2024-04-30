@@ -15,6 +15,7 @@
 #include "vm/CompletionKind.h"      // CompletionKind
 #include "vm/FunctionPrefixKind.h"  // FunctionPrefixKind
 #include "vm/GeneratorResumeKind.h"
+#include "vm/TypeofEqOperand.h"  // TypeofEqOperand
 
 namespace js {
 
@@ -276,6 +277,11 @@ class BytecodeLocation {
                "the bytecode emitter must never generate JSOp::InitElemArray "
                "with an index exceeding int32_t range");
     return index;
+  }
+
+  TypeofEqOperand getTypeofEqOperand() const {
+    MOZ_ASSERT(is(JSOp::TypeofEq));
+    return TypeofEqOperand::fromRawValue(GET_UINT8(rawBytecode_));
   }
 
   FunctionPrefixKind getFunctionPrefixKind() const {

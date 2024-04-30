@@ -9,10 +9,10 @@
 use super::{
     color_function::ColorFunction,
     component::{ColorComponent, ColorComponentType},
-    AbsoluteColor, ColorSpace,
+    AbsoluteColor, ColorFlags, ColorSpace,
 };
 use crate::{
-    parser::ParserContext,
+    parser::{Parse, ParserContext},
     values::{
         generics::calc::CalcUnits,
         specified::{
@@ -32,6 +32,37 @@ use style_traits::{ParseError, StyleParseErrorKind};
 #[inline]
 pub fn rcs_enabled() -> bool {
     static_prefs::pref!("layout.css.relative-color-syntax.enabled")
+}
+
+/// Represents a channel keyword inside a color.
+#[derive(Clone, Copy, Debug, MallocSizeOf, Parse, PartialEq, PartialOrd, ToCss, ToShmem)]
+pub enum ChannelKeyword {
+    /// alpha
+    Alpha,
+    /// a
+    A,
+    /// b, blackness, blue
+    B,
+    /// chroma
+    C,
+    /// green
+    G,
+    /// hue
+    H,
+    /// lightness
+    L,
+    /// red
+    R,
+    /// saturation
+    S,
+    /// whiteness
+    W,
+    /// x
+    X,
+    /// y
+    Y,
+    /// z
+    Z,
 }
 
 /// Return the named color with the given name.
@@ -142,15 +173,15 @@ fn parse_origin_color<'i, 't>(
     let location = arguments.current_source_location();
 
     // We still fail if we can't parse the origin color.
-    let origin_color = parse_color_with(context, arguments)?;
+    let origin_color = SpecifiedColor::parse(context, arguments)?;
 
     // Right now we only handle absolute colors.
     // See https://bugzilla.mozilla.org/show_bug.cgi?id=1890972
-    let SpecifiedColor::Absolute(absolute) = origin_color else {
+    let Some(computed) = origin_color.to_computed_color(None) else {
         return Err(location.new_custom_error(StyleParseErrorKind::UnspecifiedError));
     };
 
-    Ok(Some(absolute.color))
+    Ok(Some(computed.resolve_to_absolute(&AbsoluteColor::BLACK)))
 }
 
 #[inline]
@@ -160,9 +191,11 @@ fn parse_rgb<'i, 't>(
 ) -> Result<ColorFunction, ParseError<'i>> {
     let component_parser = ComponentParser {
         context: component_parser.context,
-        origin_color: component_parser
-            .origin_color
-            .map(|c| c.to_color_space(ColorSpace::Srgb)),
+        origin_color: component_parser.origin_color.map(|c| {
+            let mut c = c.to_color_space(ColorSpace::Srgb);
+            c.flags.insert(ColorFlags::IS_LEGACY_SRGB);
+            c
+        }),
     };
 
     let location = arguments.current_source_location();
@@ -214,7 +247,23 @@ fn parse_rgb<'i, 't>(
         // When using the relative color syntax (having an origin color), the
         // resulting color is always in the modern syntax.
         if component_parser.origin_color.is_some() {
-            ColorFunction::Color(PredefinedColorSpace::Srgb, maybe_red, green, blue, alpha)
+            fn adjust(v: NumberOrPercentage) -> NumberOrPercentage {
+                if let NumberOrPercentage::Number { value } = v {
+                    NumberOrPercentage::Number {
+                        value: value / 255.0,
+                    }
+                } else {
+                    v
+                }
+            }
+
+            ColorFunction::Color(
+                PredefinedColorSpace::Srgb,
+                maybe_red.map_value(adjust),
+                green.map_value(adjust),
+                blue.map_value(adjust),
+                alpha,
+            )
         } else {
             fn clamp(v: NumberOrPercentage) -> u8 {
                 clamp_floor_256_f32(v.to_number(255.0))
@@ -626,7 +675,7 @@ impl<'a, 'b: 'a> ComponentParser<'a, 'b> {
             self.parse_number_or_percentage(arguments, true)
         } else {
             Ok(ColorComponent::Value(NumberOrPercentage::Number {
-                value: OPAQUE,
+                value: self.origin_color.map(|c| c.alpha).unwrap_or(OPAQUE),
             }))
         }
     }
