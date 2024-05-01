@@ -63,9 +63,7 @@ fun MicroSurveyHeader(
                 painter = painterResource(id = R.drawable.ic_close),
                 contentDescription = null, // todo update to string res once a11y strings are available.
                 tint = FirefoxTheme.colors.iconPrimary,
-                modifier = Modifier
-                    .size(20.dp)
-                    .padding(1.dp),
+                modifier = Modifier.size(20.dp),
             )
         }
     }

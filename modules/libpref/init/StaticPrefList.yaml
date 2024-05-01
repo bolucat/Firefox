@@ -2563,7 +2563,7 @@
 # to content.
 - name: dom.events.asyncClipboard.clipboardItem
   type: bool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 # Skips checking permission and user activation when accessing the clipboard.
@@ -14304,6 +14304,13 @@
 
 # To be used in automated test environments to enable observer messages.
 - name: privacy.bounceTrackingProtection.enableTestMode
+  type: bool
+  value: false
+  mirror: always
+
+# Whether the migration ran to import user activation flags into the BTP user
+# activation store. Set to false to trigger a new migration.
+- name: privacy.bounceTrackingProtection.hasMigratedUserActivationData
   type: bool
   value: false
   mirror: always

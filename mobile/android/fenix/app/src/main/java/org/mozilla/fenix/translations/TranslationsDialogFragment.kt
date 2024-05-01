@@ -28,7 +28,7 @@ import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
-import mozilla.components.browser.state.selector.findTab
+import mozilla.components.browser.state.selector.selectedTab
 import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.concept.engine.translate.Language
 import mozilla.components.concept.engine.translate.TranslationError
@@ -47,6 +47,9 @@ import org.mozilla.fenix.theme.FirefoxTheme
 import org.mozilla.fenix.translations.preferences.downloadlanguages.DownloadLanguageFileDialog
 import org.mozilla.fenix.translations.preferences.downloadlanguages.DownloadLanguageFileDialogType
 import org.mozilla.fenix.translations.preferences.downloadlanguages.DownloadLanguagesFeature
+
+// Friction should be increased, since peek height on this dialog is to fill the screen.
+private const val DIALOG_FRICTION = .65f
 
 /**
  * The enum is to know what bottom sheet to open.
@@ -78,6 +81,7 @@ class TranslationsDialogFragment : BottomSheetDialogFragment() {
                 behavior = BottomSheetBehavior.from(bottomSheet)
                 behavior?.peekHeight = resources.displayMetrics.heightPixels
                 behavior?.state = BottomSheetBehavior.STATE_EXPANDED
+                behavior?.hideFriction = DIALOG_FRICTION
             }
         }
 
@@ -92,7 +96,6 @@ class TranslationsDialogFragment : BottomSheetDialogFragment() {
             listOf(
                 TranslationsDialogMiddleware(
                     browserStore = browserStore,
-                    sessionId = args.sessionId,
                     settings = requireContext().settings(),
                 ),
             ),
@@ -245,7 +248,6 @@ class TranslationsDialogFragment : BottomSheetDialogFragment() {
             feature = TranslationsDialogBinding(
                 browserStore = browserStore,
                 translationsDialogStore = translationsDialogStore,
-                sessionId = args.sessionId,
                 getTranslatedPageTitle = { localizedFrom, localizedTo ->
                     requireContext().getString(
                         R.string.translations_bottom_sheet_title_translation_completed,
@@ -384,12 +386,17 @@ class TranslationsDialogFragment : BottomSheetDialogFragment() {
     ) {
         val pageSettingsState =
             browserStore.observeAsComposableState { state ->
-                state.findTab(args.sessionId)?.translationsState?.pageSettings
+                state.selectedTab?.translationsState?.pageSettings
             }.value
+
+        val offerTranslation = browserStore.observeAsComposableState { state ->
+            state.translationEngine.offerTranslation
+        }.value
 
         TranslationsOptionsDialog(
             context = requireContext(),
             translationPageSettings = pageSettingsState,
+            offerTranslation = offerTranslation,
             showGlobalSettings = showGlobalSettings,
             initialFrom = initialFrom,
             onStateChange = { type, checked ->
@@ -408,9 +415,7 @@ class TranslationsDialogFragment : BottomSheetDialogFragment() {
                 Translations.action.record(Translations.ActionExtra("global_settings"))
                 findNavController().navigate(
                     TranslationsDialogFragmentDirections
-                        .actionTranslationsDialogFragmentToTranslationSettingsFragment(
-                            sessionId = args.sessionId,
-                        ),
+                        .actionTranslationsDialogFragmentToTranslationSettingsFragment(),
                 )
             },
             aboutTranslationClicked = {
@@ -425,7 +430,7 @@ class TranslationsDialogFragment : BottomSheetDialogFragment() {
             setFragmentResult(
                 TRANSLATION_IN_PROGRESS,
                 bundleOf(
-                    SESSION_ID to args.sessionId,
+                    SESSION_ID to browserStore.state.selectedTab?.id,
                 ),
             )
         }
