@@ -595,7 +595,7 @@ class FullPageTranslationsTestUtils {
    * @param {string} toLanguage - The BCP-47 language tag being translated into.
    * @param {ChromeWindow} win
    */
-  static async #assertLangTagIsShownOnTranslationsButton(
+  static async assertLangTagIsShownOnTranslationsButton(
     fromLanguage,
     toLanguage,
     win = window
@@ -655,7 +655,7 @@ class FullPageTranslationsTestUtils {
       );
     };
     await runInPage(callback, { fromLang: fromLanguage, toLang: toLanguage });
-    await FullPageTranslationsTestUtils.#assertLangTagIsShownOnTranslationsButton(
+    await FullPageTranslationsTestUtils.assertLangTagIsShownOnTranslationsButton(
       fromLanguage,
       toLanguage,
       win
@@ -1387,10 +1387,21 @@ class SelectTranslationsTestUtils {
    * @param {Function} runInPage - A content-exposed function to run within the context of the page.
    * @param {object} options - Options for how to open the context menu and what properties to assert about the translate-selection item.
    *
-   * The following options will only work when testing SELECT_TEST_PAGE_URL.
-   *
    * @param {boolean} options.expectMenuItemVisible - Whether the select-translations menu item should be present in the context menu.
    * @param {boolean} options.expectedTargetLanguage - The expected target language to be shown in the context menu.
+   *
+   * The following options will work on all test pages that have an <h1> element.
+   *
+   * @param {boolean} options.selectH1 - Selects the first H1 element of the page.
+   * @param {boolean} options.openAtH1 - Opens the context menu at the first H1 element of the page.
+   *
+   * The following options will work only in the PDF_TEST_PAGE_URL.
+   *
+   * @param {boolean} options.selectPdfSpan - Selects the first span of text on the first page of a pdf.
+   * @param {boolean} options.openAtPdfSpan - Opens the context menu at the first span of text on the first page of a pdf.
+   *
+   * The following options will only work when testing SELECT_TEST_PAGE_URL.
+   *
    * @param {boolean} options.selectFrenchSection - Selects the section of French text.
    * @param {boolean} options.selectEnglishSection - Selects the section of English text.
    * @param {boolean} options.selectSpanishSection - Selects the section of Spanish text.
@@ -1414,12 +1425,16 @@ class SelectTranslationsTestUtils {
     {
       expectMenuItemVisible,
       expectedTargetLanguage,
+      selectH1,
+      selectPdfSpan,
       selectFrenchSection,
       selectEnglishSection,
       selectSpanishSection,
       selectFrenchSentence,
       selectEnglishSentence,
       selectSpanishSentence,
+      openAtH1,
+      openAtPdfSpan,
       openAtFrenchSection,
       openAtEnglishSection,
       openAtSpanishSection,
@@ -1443,12 +1458,16 @@ class SelectTranslationsTestUtils {
     await SelectTranslationsTestUtils.openContextMenu(runInPage, {
       expectMenuItemVisible,
       expectedTargetLanguage,
+      selectH1,
+      selectPdfSpan,
       selectFrenchSection,
       selectEnglishSection,
       selectSpanishSection,
       selectFrenchSentence,
       selectEnglishSentence,
       selectSpanishSentence,
+      openAtH1,
+      openAtPdfSpan,
       openAtFrenchSection,
       openAtEnglishSection,
       openAtSpanishSection,
@@ -1605,6 +1624,8 @@ class SelectTranslationsTestUtils {
       !textArea.classList.contains("translating"),
       "The textarea should not have the translating class."
     );
+    const isFullPageTranslationsRestrictedForPage =
+      TranslationsParent.isFullPageTranslationsRestrictedForPage(gBrowser);
     SelectTranslationsTestUtils.#assertPanelElementVisibility({
       betaIcon: true,
       copyButton: true,
@@ -1617,13 +1638,14 @@ class SelectTranslationsTestUtils {
       textArea: true,
       toLabel: true,
       toMenuList: true,
-      translateFullPageButton: true,
+      translateFullPageButton: !isFullPageTranslationsRestrictedForPage,
     });
     SelectTranslationsTestUtils.#assertConditionalUIEnabled({
       copyButton: true,
       doneButton: true,
       textArea: true,
-      translateFullPageButton: !sameLanguageSelected,
+      translateFullPageButton:
+        !sameLanguageSelected && !isFullPageTranslationsRestrictedForPage,
     });
 
     await waitForCondition(
@@ -1640,7 +1662,9 @@ class SelectTranslationsTestUtils {
     SharedTranslationsTestUtils._assertTabIndexOrder([
       textArea,
       copyButton,
-      ...(sameLanguageSelected ? [] : [translateFullPageButton]),
+      ...(sameLanguageSelected || isFullPageTranslationsRestrictedForPage
+        ? []
+        : [translateFullPageButton]),
       doneButton,
       settingsButton,
       fromMenuList,
@@ -1819,6 +1843,8 @@ class SelectTranslationsTestUtils {
    */
   static async assertPanelViewActivelyTranslating() {
     const { textArea } = SelectTranslationsPanel.elements;
+    const isFullPageTranslationsRestrictedForPage =
+      TranslationsParent.isFullPageTranslationsRestrictedForPage(gBrowser);
     await SelectTranslationsTestUtils.waitForPanelState("translating");
     ok(
       textArea.classList.contains("translating"),
@@ -1836,7 +1862,7 @@ class SelectTranslationsTestUtils {
       textArea: true,
       toLabel: true,
       toMenuList: true,
-      translateFullPageButton: true,
+      translateFullPageButton: !isFullPageTranslationsRestrictedForPage,
     });
     SelectTranslationsTestUtils.#assertPanelHasTranslatingPlaceholder();
   }
@@ -1851,6 +1877,8 @@ class SelectTranslationsTestUtils {
     const expected = await document.l10n.formatValue(
       "select-translations-panel-translating-placeholder-text"
     );
+    const isFullPageTranslationsRestrictedForPage =
+      TranslationsParent.isFullPageTranslationsRestrictedForPage(gBrowser);
     is(
       textArea.value,
       expected,
@@ -1861,7 +1889,9 @@ class SelectTranslationsTestUtils {
       textArea: true,
       copyButton: false,
       doneButton: true,
-      translateFullPageButton: fromMenuList.value !== toMenuList.value,
+      translateFullPageButton:
+        fromMenuList.value !== toMenuList.value &&
+        !isFullPageTranslationsRestrictedForPage,
     });
   }
 
@@ -1874,12 +1904,16 @@ class SelectTranslationsTestUtils {
       SelectTranslationsPanel.elements;
     const fromLanguage = fromMenuList.value;
     const toLanguage = toMenuList.value;
+    const isFullPageTranslationsRestrictedForPage =
+      TranslationsParent.isFullPageTranslationsRestrictedForPage(gBrowser);
+
     SelectTranslationsTestUtils.#assertPanelTextAreaDirection(toLanguage);
     SelectTranslationsTestUtils.#assertConditionalUIEnabled({
       textArea: true,
       copyButton: true,
       doneButton: true,
-      translateFullPageButton: fromLanguage !== toLanguage,
+      translateFullPageButton:
+        fromLanguage !== toLanguage && !isFullPageTranslationsRestrictedForPage,
     });
 
     if (fromLanguage === toLanguage) {
@@ -2173,6 +2207,19 @@ class SelectTranslationsTestUtils {
    * @param {Function} runInPage - A content-exposed function to run within the context of the page.
    * @param {object} options - Options for opening the context menu.
    *
+   * @param {boolean} options.expectMenuItemVisible - Whether the select-translations menu item should be present in the context menu.
+   * @param {boolean} options.expectedTargetLanguage - The expected target language to be shown in the context menu.
+   *
+   * The following options will work on all test pages that have an <h1> element.
+   *
+   * @param {boolean} options.selectH1 - Selects the first H1 element of the page.
+   * @param {boolean} options.openAtH1 - Opens the context menu at the first H1 element of the page.
+   *
+   * The following options will work only in the PDF_TEST_PAGE_URL.
+   *
+   * @param {boolean} options.selectPdfSpan - Selects the first span of text on the first page of a pdf.
+   * @param {boolean} options.openAtPdfSpan - Opens the context menu at the first span of text on the first page of a pdf.
+   *
    * The following options will only work when testing SELECT_TEST_PAGE_URL.
    *
    * @param {boolean} options.selectFrenchSection - Selects the section of French text.
@@ -2205,8 +2252,8 @@ class SelectTranslationsTestUtils {
             const selectorFunction =
               TranslationsTest.getSelectors()[data.selectorFunctionName];
             if (typeof selectorFunction === "function") {
-              const paragraph = selectorFunction();
-              TranslationsTest.selectContentElement(paragraph);
+              const element = await selectorFunction();
+              TranslationsTest.selectContentElement(element);
             }
           },
           { selectorFunctionName }
@@ -2214,6 +2261,8 @@ class SelectTranslationsTestUtils {
       }
     };
 
+    await maybeSelectContentFrom("H1");
+    await maybeSelectContentFrom("PdfSpan");
     await maybeSelectContentFrom("FrenchSection");
     await maybeSelectContentFrom("EnglishSection");
     await maybeSelectContentFrom("SpanishSection");
@@ -2235,7 +2284,7 @@ class SelectTranslationsTestUtils {
                 const selectorFunction =
                   TranslationsTest.getSelectors()[data.selectorFunctionName];
                 if (typeof selectorFunction === "function") {
-                  const element = selectorFunction();
+                  const element = await selectorFunction();
                   await TranslationsTest.rightClickContentElement(element);
                 }
               },
@@ -2246,6 +2295,8 @@ class SelectTranslationsTestUtils {
       }
     };
 
+    await maybeOpenContextMenuAt("H1");
+    await maybeOpenContextMenuAt("PdfSpan");
     await maybeOpenContextMenuAt("FrenchSection");
     await maybeOpenContextMenuAt("EnglishSection");
     await maybeOpenContextMenuAt("SpanishSection");

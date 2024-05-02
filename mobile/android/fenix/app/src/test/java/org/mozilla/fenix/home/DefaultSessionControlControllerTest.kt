@@ -46,9 +46,9 @@ import org.junit.runner.RunWith
 import org.mozilla.fenix.BrowserDirection
 import org.mozilla.fenix.GleanMetrics.Collections
 import org.mozilla.fenix.GleanMetrics.Events
+import org.mozilla.fenix.GleanMetrics.HomeBookmarks
 import org.mozilla.fenix.GleanMetrics.HomeScreen
 import org.mozilla.fenix.GleanMetrics.Pings
-import org.mozilla.fenix.GleanMetrics.RecentBookmarks
 import org.mozilla.fenix.GleanMetrics.RecentTabs
 import org.mozilla.fenix.GleanMetrics.TopSites
 import org.mozilla.fenix.HomeActivity
@@ -62,7 +62,7 @@ import org.mozilla.fenix.components.appstate.AppState
 import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.settings
 import org.mozilla.fenix.helpers.FenixRobolectricTestRunner
-import org.mozilla.fenix.home.recentbookmarks.RecentBookmark
+import org.mozilla.fenix.home.bookmarks.Bookmark
 import org.mozilla.fenix.home.recenttabs.RecentTab
 import org.mozilla.fenix.home.sessioncontrol.DefaultSessionControlController
 import org.mozilla.fenix.messaging.MessageController
@@ -142,7 +142,7 @@ class DefaultSessionControlControllerTest {
             topSites = emptyList(),
             showCollectionPlaceholder = true,
             recentTabs = emptyList(),
-            recentBookmarks = emptyList(),
+            bookmarks = emptyList(),
         )
 
         every { navController.currentDestination } returns mockk {
@@ -1186,28 +1186,28 @@ class DefaultSessionControlControllerTest {
     }
 
     @Test
-    fun `WHEN handleReportSessionMetrics is called AND there are zero recent bookmarks THEN report Event#RecentBookmarkCount(0)`() {
-        every { appState.recentBookmarks } returns emptyList()
+    fun `WHEN handleReportSessionMetrics is called AND there are zero bookmarks THEN report Event#BookmarkCount(0)`() {
+        every { appState.bookmarks } returns emptyList()
         every { appState.recentTabs } returns emptyList()
-        assertNull(RecentBookmarks.recentBookmarksCount.testGetValue())
+        assertNull(HomeBookmarks.bookmarksCount.testGetValue())
 
         createController().handleReportSessionMetrics(appState)
 
-        assertNotNull(RecentBookmarks.recentBookmarksCount.testGetValue())
-        assertEquals(0L, RecentBookmarks.recentBookmarksCount.testGetValue())
+        assertNotNull(HomeBookmarks.bookmarksCount.testGetValue())
+        assertEquals(0L, HomeBookmarks.bookmarksCount.testGetValue())
     }
 
     @Test
-    fun `WHEN handleReportSessionMetrics is called AND there is at least one recent bookmark THEN report Event#RecentBookmarkCount(1)`() {
-        val recentBookmark: RecentBookmark = mockk(relaxed = true)
-        every { appState.recentBookmarks } returns listOf(recentBookmark)
+    fun `WHEN handleReportSessionMetrics is called AND there is at least one bookmark THEN report Event#BookmarkCount(1)`() {
+        val bookmark: Bookmark = mockk(relaxed = true)
+        every { appState.bookmarks } returns listOf(bookmark)
         every { appState.recentTabs } returns emptyList()
-        assertNull(RecentBookmarks.recentBookmarksCount.testGetValue())
+        assertNull(HomeBookmarks.bookmarksCount.testGetValue())
 
         createController().handleReportSessionMetrics(appState)
 
-        assertNotNull(RecentBookmarks.recentBookmarksCount.testGetValue())
-        assertEquals(1L, RecentBookmarks.recentBookmarksCount.testGetValue())
+        assertNotNull(HomeBookmarks.bookmarksCount.testGetValue())
+        assertEquals(1L, HomeBookmarks.bookmarksCount.testGetValue())
     }
 
     @Test

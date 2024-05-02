@@ -323,6 +323,9 @@ pub struct StickyFrameDescriptor {
 
     /// A unique (per-pipeline) key for this spatial that is stable across display lists.
     pub key: SpatialTreeItemKey,
+
+    /// A property binding that we use to store an animation ID for APZ
+    pub transform: Option<PropertyBinding<LayoutTransform>>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize, PeekPoke)]
@@ -428,7 +431,6 @@ pub struct TextDisplayItem {
     pub font_key: font::FontInstanceKey,
     pub color: ColorF,
     pub glyph_options: Option<font::GlyphOptions>,
-    pub ref_frame_offset: LayoutVector2D,
 } // IMPLICIT: glyphs: Vec<font::GlyphInstance>
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, MallocSizeOf, PartialEq, Serialize, PeekPoke)]

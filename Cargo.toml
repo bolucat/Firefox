@@ -152,6 +152,8 @@ backtrace = { path = "build/rust/backtrace" }
 
 # Patch bindgen 0.63 to 0.69
 bindgen_0_63 = { package = "bindgen", path = "build/rust/bindgen-0.63" }
+# Locally patch bindgen for https://github.com/rust-lang/rust-bindgen/pull/2824
+bindgen = { path = "third_party/rust/bindgen" }
 
 # Patch nix 0.26 to 0.28
 nix = { path = "build/rust/nix" }
@@ -188,8 +190,6 @@ moz_asserts = { path = "mozglue/static/rust/moz_asserts" }
 rure = { path = "third_party/rust/rure" }
 
 # To-be-published changes.
-cssparser = { git = "https://github.com/servo/rust-cssparser", rev = "aaa966d9d6ae70c4b8a62bb5e3a14c068bb7dff0" }
-cssparser-macros = { git = "https://github.com/servo/rust-cssparser", rev = "aaa966d9d6ae70c4b8a62bb5e3a14c068bb7dff0" }
 unicode-bidi = { git = "https://github.com/servo/unicode-bidi", rev = "ca612daf1c08c53abe07327cb3e6ef6e0a760f0c" }
 
 # Other overrides

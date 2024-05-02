@@ -24,7 +24,14 @@ XPCOMUtils.defineLazyServiceGetter(
 );
 
 /**
- * This singleton class controls the Translations popup panel.
+ * This singleton class controls the SelectTranslations panel.
+ *
+ * A global instance of this class is created once per top ChromeWindow and is initialized
+ * when the context menu is opened in that window.
+ *
+ * See the comment above TranslationsParent for more details.
+ *
+ * @see TranslationsParent
  */
 var SelectTranslationsPanel = new (class {
   /** @type {Console?} */
@@ -53,6 +60,8 @@ var SelectTranslationsPanel = new (class {
 
   /**
    * The textarea height for shorter text.
+   *
+   * @type {string}
    */
   #shortTextHeight = "8em";
 
@@ -67,6 +76,8 @@ var SelectTranslationsPanel = new (class {
 
   /**
    * The textarea height for shorter text.
+   *
+   * @type {string}
    */
   #longTextHeight = "16em";
 
@@ -82,6 +93,8 @@ var SelectTranslationsPanel = new (class {
   /**
    * The threshold used to determine when the panel should
    * use the short text-height vs. the long-text height.
+   *
+   * @type {number}
    */
   #textLengthThreshold = 800;
 
@@ -121,6 +134,16 @@ var SelectTranslationsPanel = new (class {
    * @type {boolean}
    */
   #eventListenersInitialized = false;
+
+  /**
+   * This value is true if this page does not allow Full Page Translations,
+   * e.g. PDFs, reader mode, internal Firefox pages.
+   *
+   * Many of these are cases where the SelectTranslationsPanel is available
+   * even though the FullPageTranslationsPanel is not, so this helps inform
+   * whether the translate-full-page button should be allowed in this context.
+   */
+  #isFullPageTranslationsRestrictedForPage = true;
 
   /**
    * The internal state of the SelectTranslationsPanel.
@@ -225,12 +248,32 @@ var SelectTranslationsPanel = new (class {
 
     // Since none of the detected languages were supported, check to see if the
     // document has a specified language tag that is supported.
-    const actor = TranslationsParent.getTranslationsActor(
-      gBrowser.selectedBrowser
-    );
-    const detectedLanguages = actor.languageState.detectedLanguages;
-    if (detectedLanguages?.isDocLangTagSupported) {
-      return detectedLanguages.docLangTag;
+    try {
+      const actor = TranslationsParent.getTranslationsActor(
+        gBrowser.selectedBrowser
+      );
+      const detectedLanguages = actor.languageState.detectedLanguages;
+      if (detectedLanguages?.isDocLangTagSupported) {
+        return detectedLanguages.docLangTag;
+      }
+    } catch (error) {
+      // Failed to retrieve the Translations actor to detect the document language.
+      // This is most likely due to attempting to retrieve the actor in a page that
+      // is restricted for Full Page Translations, such as a PDF or reader mode, but
+      // Select Translations is often still available, so we can safely continue to
+      // the final return fallback.
+      if (
+        !TranslationsParent.isFullPageTranslationsRestrictedForPage(gBrowser)
+      ) {
+        // If we failed to retrieve the TranslationsParent actor on a non-restricted page,
+        // we should warn about this, because it is unexpected. The SelectTranslationsPanel
+        // itself will display an error state if this causes a failure, and this will help
+        // diagnose the issue if this scenario should ever occur.
+        this.console?.warn(
+          "Failed to retrieve the TranslationsParent actor on a page where Full Page Translations is not restricted."
+        );
+        this.console?.error(error);
+      }
     }
 
     // No supported language was found, so return the top detected language
@@ -283,11 +326,7 @@ var SelectTranslationsPanel = new (class {
    * dropdowns have already been initialized.
    */
   async #ensureLangListsBuilt() {
-    await TranslationsPanelShared.ensureLangListsBuilt(
-      document,
-      this.elements.panel,
-      gBrowser.selectedBrowser.innerWindowID
-    );
+    await TranslationsPanelShared.ensureLangListsBuilt(document, this);
   }
 
   /**
@@ -393,6 +432,8 @@ var SelectTranslationsPanel = new (class {
     }
 
     try {
+      this.#isFullPageTranslationsRestrictedForPage =
+        TranslationsParent.isFullPageTranslationsRestrictedForPage(gBrowser);
       this.#initializeEventListeners();
       await this.#ensureLangListsBuilt();
       await Promise.all([
@@ -720,19 +761,30 @@ var SelectTranslationsPanel = new (class {
   onClickTranslateFullPageButton() {
     const { panel } = this.elements;
     const { fromLanguage, toLanguage } = this.#getSelectedLanguagePair();
-    const actor = TranslationsParent.getTranslationsActor(
-      gBrowser.selectedBrowser
-    );
-    panel.addEventListener(
-      "popuphidden",
-      () =>
-        actor.translate(
-          fromLanguage,
-          toLanguage,
-          false // reportAsAutoTranslate
-        ),
-      { once: true }
-    );
+
+    try {
+      const actor = TranslationsParent.getTranslationsActor(
+        gBrowser.selectedBrowser
+      );
+      panel.addEventListener(
+        "popuphidden",
+        () =>
+          actor.translate(
+            fromLanguage,
+            toLanguage,
+            false // reportAsAutoTranslate
+          ),
+        { once: true }
+      );
+    } catch (error) {
+      // This situation would only occur if the translate-full-page button as invoked
+      // while Translations actor is not available. the logic within this class explicitly
+      // hides the button in this case, and this should not be possible under normal conditions,
+      // but if this button were to somehow still be invoked, the best thing we can do here is log
+      // an error to the console because the FullPageTranslationsPanel assumes that the actor is available.
+      this.console?.error(error);
+    }
+
     this.close();
   }
 
@@ -1298,7 +1350,9 @@ var SelectTranslationsPanel = new (class {
     copyButton.disabled = invalidLangPairSelected || isTranslating;
     translateButton.disabled = !tryAnotherSourceMenuList.value;
     translateFullPageButton.disabled =
-      invalidLangPairSelected || fromLanguage === toLanguage;
+      invalidLangPairSelected ||
+      fromLanguage === toLanguage ||
+      this.#isFullPageTranslationsRestrictedForPage;
   }
 
   /**
@@ -1336,13 +1390,18 @@ var SelectTranslationsPanel = new (class {
         translationFailureMessageBar,
         tryAgainButton,
         unsupportedLanguageContent,
+        ...(this.#isFullPageTranslationsRestrictedForPage
+          ? [translateFullPageButton]
+          : []),
       ],
       makeVisible: [
         mainContent,
         copyButton,
         doneButton,
         textArea,
-        translateFullPageButton,
+        ...(this.#isFullPageTranslationsRestrictedForPage
+          ? []
+          : [translateFullPageButton]),
       ],
       addDefault: [doneButton],
       removeDefault: [translateButton, tryAgainButton],

@@ -222,8 +222,7 @@ already_AddRefed<Promise> DecoderTemplate<DecoderType>::Flush(
   auto msg = UniquePtr<ControlMessage>(
       new FlushMessage(++mFlushCounter, mLatestConfigureId));
   const auto flushPromiseId = msg->AsFlushMessage()->mUniqueId;
-  DebugOnly<RefPtr<Promise>> unused;
-  MOZ_ASSERT(!mPendingFlushPromises.Find(flushPromiseId, unused));
+  MOZ_ASSERT(!mPendingFlushPromises.Contains(flushPromiseId));
   mPendingFlushPromises.Insert(flushPromiseId, p);
 
   mControlMessageQueue.emplace(std::move(msg));
@@ -748,12 +747,12 @@ MessageProcessedResult DecoderTemplate<DecoderType>::ProcessFlushMessage(
                   // during the output callback above in the execution of this
                   // task, the promise in mPendingFlushPromises is handled
                   // there. Otherwise, the promise is resolved here.
-                  RefPtr<Promise> p;
-                  if (self->mPendingFlushPromises.Find(flushPromiseId, p)) {
+                  if (Maybe<RefPtr<Promise>> p =
+                          self->mPendingFlushPromises.Take(flushPromiseId)) {
                     LOG("%s %p, resolving the promise for flush %" PRId64
                         " (unique id)",
                         DecoderType::Name.get(), self.get(), flushPromiseId);
-                    p->MaybeResolveWithUndefined();
+                    p.value()->MaybeResolveWithUndefined();
                   }
                 });
             self->mProcessingMessage.reset();
