@@ -202,10 +202,7 @@ this.SyncedTabsPanelList = class SyncedTabsPanelList {
   }
 
   _appendSyncClient(client, container, labelId, paginationInfo) {
-    let {
-      maxTabs = SyncedTabsPanelList.sRemoteTabsPerPage,
-      showInactive = false,
-    } = paginationInfo;
+    let { maxTabs = SyncedTabsPanelList.sRemoteTabsPerPage } = paginationInfo;
     // Create the element for the remote client.
     let clientItem = document.createXULElement("label");
     clientItem.setAttribute("id", labelId);
@@ -227,11 +224,24 @@ this.SyncedTabsPanelList = class SyncedTabsPanelList {
       );
       label.setAttribute("class", "PanelUI-remotetabs-notabsforclient-label");
     } else {
-      let tabs = client.tabs.filter(t => showInactive || !t.inactive);
-      let numInactive = client.tabs.length - tabs.length;
+      // We have the client obj but we need the FxA device obj so we use the clients
+      // engine to get us the FxA device
+      let device =
+        fxAccounts.device.recentDeviceList &&
+        fxAccounts.device.recentDeviceList.find(
+          d =>
+            d.id === Weave.Service.clientsEngine.getClientFxaDeviceId(client.id)
+        );
+      let remoteTabCloseAvailable =
+        device && fxAccounts.commands.closeTab.isDeviceCompatible(device);
 
-      // If this page will display all tabs, show no additional buttons.
-      // Otherwise, show a "Show More" button
+      let tabs = client.tabs.filter(t => !t.inactive);
+      let hasInactive = tabs.length != client.tabs.length;
+
+      if (hasInactive) {
+        container.append(this._createShowInactiveTabsElement(client, device));
+      }
+      // If this page isn't displaying all (regular, active) tabs, show a "Show More" button.
       let hasNextPage = tabs.length > maxTabs;
       let nextPageIsLastPage =
         hasNextPage &&
@@ -247,37 +257,14 @@ this.SyncedTabsPanelList = class SyncedTabsPanelList {
       if (hasNextPage) {
         tabs = tabs.slice(0, maxTabs);
       }
-      // We have the client obj but we need the FxA device obj so we use the clients
-      // engine to get us the FxA device
-      let device =
-        fxAccounts.device.recentDeviceList &&
-        fxAccounts.device.recentDeviceList.find(
-          d =>
-            d.id === Weave.Service.clientsEngine.getClientFxaDeviceId(client.id)
-        );
-      let remoteTabCloseAvailable =
-        device && fxAccounts.commands.closeTab.isDeviceCompatible(device);
       for (let [index, tab] of tabs.entries()) {
-        let tabEntContainer = document.createXULElement("hbox");
-        tabEntContainer.setAttribute("class", "PanelUI-tabitem-container");
-
-        let tabEnt = this._createSyncedTabElement(tab, index);
-        tabEntContainer.appendChild(tabEnt);
-        // We should only add an X button next to tabs if the device
-        // is broadcasting that it can remotely close tabs
-        if (remoteTabCloseAvailable) {
-          tabEntContainer.appendChild(
-            this._createCloseTabElement(tab.url, device)
-          );
-        }
-        container.appendChild(tabEntContainer);
-      }
-      if (numInactive) {
-        let elt = this._createShowInactiveTabsElement(
-          paginationInfo,
-          numInactive
+        let tabEnt = this._createSyncedTabElement(
+          tab,
+          index,
+          device,
+          remoteTabCloseAvailable
         );
-        container.appendChild(elt);
+        container.appendChild(tabEnt);
       }
       if (hasNextPage) {
         let showAllEnt = this._createShowMoreSyncedTabsElement(paginationInfo);
@@ -286,7 +273,10 @@ this.SyncedTabsPanelList = class SyncedTabsPanelList {
     }
   }
 
-  _createSyncedTabElement(tabInfo, index) {
+  _createSyncedTabElement(tabInfo, index, device, canCloseTabs) {
+    let tabContainer = document.createXULElement("hbox");
+    tabContainer.setAttribute("class", "PanelUI-tabitem-container");
+
     let item = document.createXULElement("toolbarbutton");
     let tooltipText = (tabInfo.title ? tabInfo.title + "\n" : "") + tabInfo.url;
     item.setAttribute("itemtype", "tab");
@@ -324,18 +314,22 @@ this.SyncedTabsPanelList = class SyncedTabsPanelList {
         CustomizableUI.hidePanelForNode(item);
       }
     });
-    return item;
+    tabContainer.appendChild(item);
+    // We should only add an X button next to tabs if the device
+    // is broadcasting that it can remotely close tabs
+    if (canCloseTabs) {
+      tabContainer.appendChild(
+        this._createCloseTabElement(tabInfo.url, device)
+      );
+    }
+    return tabContainer;
   }
 
   _createShowMoreSyncedTabsElement(paginationInfo) {
     let showMoreItem = document.createXULElement("toolbarbutton");
     showMoreItem.setAttribute("itemtype", "showmorebutton");
     showMoreItem.setAttribute("closemenu", "none");
-    showMoreItem.classList.add(
-      "subviewbutton",
-      "subviewbutton-nav",
-      "subviewbutton-nav-down"
-    );
+    showMoreItem.classList.add("subviewbutton", "subviewbutton-nav-down");
     document.l10n.setAttributes(showMoreItem, "appmenu-remote-tabs-showmore");
 
     paginationInfo.maxTabs = Infinity;
@@ -347,23 +341,38 @@ this.SyncedTabsPanelList = class SyncedTabsPanelList {
     return showMoreItem;
   }
 
-  _createShowInactiveTabsElement(paginationInfo, count) {
+  _createShowInactiveTabsElement(client, device) {
     let showItem = document.createXULElement("toolbarbutton");
-    showItem.setAttribute("itemtype", "showmorebutton");
     showItem.setAttribute("closemenu", "none");
-    showItem.classList.add(
-      "subviewbutton",
-      "subviewbutton-nav",
-      "subviewbutton-nav-down"
+    showItem.classList.add("subviewbutton", "subviewbutton-nav");
+    document.l10n.setAttributes(
+      showItem,
+      "appmenu-remote-tabs-show-inactive-tabs"
     );
-    document.l10n.setAttributes(showItem, "appmenu-remote-tabs-showinactive");
-    document.l10n.setArgs(showItem, { count });
 
-    paginationInfo.showInactive = true;
+    let canClose =
+      device && fxAccounts.commands.closeTab.isDeviceCompatible(device);
+
     showItem.addEventListener("click", e => {
-      e.preventDefault();
-      e.stopPropagation();
-      this._showSyncedTabs(paginationInfo);
+      let node = PanelMultiView.getViewNode(
+        document,
+        "PanelUI-fxa-menu-inactive-tabs"
+      );
+
+      // device name.
+      let label = node.querySelector("label[itemtype='client']");
+      label.textContent = client.name;
+
+      // Update the tab list.
+      let container = node.querySelector(".panel-subview-body");
+      container.replaceChildren(
+        ...client.tabs
+          .filter(t => t.inactive)
+          .map((tab, index) =>
+            this._createSyncedTabElement(tab, index, device, canClose)
+          )
+      );
+      PanelUI.showSubView("PanelUI-fxa-menu-inactive-tabs", showItem, e);
     });
     return showItem;
   }
@@ -419,6 +428,7 @@ var gSync = {
         "browser/accounts.ftl",
         "browser/appmenu.ftl",
         "browser/sync.ftl",
+        "browser/syncedTabs.ftl",
       ],
       true
     ));
@@ -479,7 +489,7 @@ var gSync = {
     );
     XPCOMUtils.defineLazyPreferenceGetter(
       this,
-      "PXI_TOOLBAR_ENABLED",
+      "FXA_CTA_MENU_ENABLED",
       "identity.fxaccounts.toolbar.pxiToolbarEnabled"
     );
   },
@@ -583,7 +593,7 @@ var gSync = {
 
     // If the experiment is enabled, we'll need to update the panels
     // to show some different text to the user
-    if (this.PXI_TOOLBAR_ENABLED) {
+    if (this.FXA_CTA_MENU_ENABLED) {
       this.updateFxAPanel(UIState.get());
       this.updateCTAPanel();
     }
@@ -736,7 +746,6 @@ var gSync = {
     this.updateSyncButtonsTooltip(state);
     this.updateSyncStatus(state);
     this.updateFxAPanel(state);
-    this.updateCTAPanel(state);
     // Ensure we have something in the device list in the background.
     this.ensureFxaDevices();
   },
@@ -919,12 +928,20 @@ var gSync = {
     let fxaStatus = document.documentElement.getAttribute("fxastatus");
 
     if (fxaStatus == "not_configured") {
+      // sign in button in app (hamburger) menu
+      // should take you straight to fxa sign in page
+      if (anchor.id == "appMenu-fxa-label2") {
+        this.openFxAEmailFirstPageFromFxaMenu(anchor);
+        PanelUI.hide();
+        return;
+      }
+
       // If we're signed out but have the PXI pref enabled
       // we should show the PXI panel instead of taking the user
       // straight to FxA sign-in
-      if (this.PXI_TOOLBAR_ENABLED) {
+      if (this.FXA_CTA_MENU_ENABLED) {
         this.updateFxAPanel(UIState.get());
-        this.updateCTAPanel();
+        this.updateCTAPanel(anchor);
         PanelUI.showSubView("PanelUI-fxa", anchor, aEvent);
       } else if (anchor == document.getElementById("fxa-toolbar-menu-button")) {
         // The fxa toolbar button doesn't have much context before the user
@@ -933,20 +950,13 @@ var gSync = {
         this.emitFxaToolbarTelemetry("toolbar_icon", anchor);
         openTrustedLinkIn("about:preferences#sync", "tab");
         PanelUI.hide();
-      } else {
-        let panel =
-          anchor.id == "appMenu-fxa-label2"
-            ? PanelMultiView.getViewNode(document, "PanelUI-fxa")
-            : undefined;
-        this.openFxAEmailFirstPageFromFxaMenu(panel);
-        PanelUI.hide();
       }
       return;
     }
     // If the user is signed in and we have the PXI pref enabled then add
     // the pxi panel to the existing toolbar
-    if (this.PXI_TOOLBAR_ENABLED) {
-      this.updateCTAPanel();
+    if (this.FXA_CTA_MENU_ENABLED) {
+      this.updateCTAPanel(anchor);
     }
 
     if (!gFxaToolbarAccessed) {
@@ -1021,21 +1031,16 @@ var gSync = {
     fxaMenuAccountButtonEl.removeAttribute("closemenu");
     syncSetupButtonEl.removeAttribute("hidden");
 
-    let headerTitleL10nId = this.PXI_TOOLBAR_ENABLED
-      ? "appmenuitem-sign-in-account"
-      : "appmenuitem-fxa-sign-in";
+    let headerTitleL10nId = this.FXA_CTA_MENU_ENABLED
+      ? "synced-tabs-fxa-sign-in"
+      : "appmenuitem-sign-in-account";
     let headerDescription;
     if (state.status === UIState.STATUS_NOT_CONFIGURED) {
       mainWindowEl.style.removeProperty("--avatar-image-url");
-      headerDescription = this.fluentStrings.formatValueSync(
-        "appmenu-fxa-signed-in-label"
-      );
-      // Signed out, expeirment enabled is the only state we want to hide the
-      // header description, so we make it empty and check for that when setting
-      // the value
-      if (this.PXI_TOOLBAR_ENABLED) {
-        headerDescription = "";
-      }
+      const headerDescString = this.FXA_CTA_MENU_ENABLED
+        ? "fxa-menu-sync-description"
+        : "appmenu-fxa-signed-in-label";
+      headerDescription = this.fluentStrings.formatValueSync(headerDescString);
     } else if (state.status === UIState.STATUS_LOGIN_FAILED) {
       stateValue = "login-failed";
       headerTitleL10nId = "account-disconnected2";
@@ -2141,26 +2146,23 @@ var gSync = {
 
   // This should only be shown if we have enabled the pxiPanel via
   // an experiment or explicitly through prefs
-  updateCTAPanel() {
+  updateCTAPanel(anchor) {
     const mainPanelEl = PanelMultiView.getViewNode(
       document,
       "PanelUI-fxa-cta-menu"
     );
 
-    const syncCtaEl = PanelMultiView.getViewNode(
-      document,
-      "PanelUI-fxa-menu-sync-button"
-    );
-    // If we're not in the experiment then we do not enable this at all
-    if (!this.PXI_TOOLBAR_ENABLED) {
+    // If we're not in the experiment or in the app menu (hamburger)
+    // do not show this CTA panel
+    if (
+      !this.FXA_CTA_MENU_ENABLED ||
+      (anchor && anchor.id === "appMenu-fxa-label2")
+    ) {
       // If we've previously shown this but got disabled
       // we should ensure we hide the panel
       mainPanelEl.hidden = true;
       return;
     }
-
-    // If we're already signed in an syncing, we shouldn't show the sync CTA
-    syncCtaEl.hidden = this.isSignedIn;
 
     // Monitor checks
     let monitorPanelEl = PanelMultiView.getViewNode(

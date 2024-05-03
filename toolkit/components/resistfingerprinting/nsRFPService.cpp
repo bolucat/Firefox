@@ -100,6 +100,8 @@ static mozilla::LazyLogModule gResistFingerprintingLog(
 
 static mozilla::LazyLogModule gFingerprinterDetection("FingerprinterDetection");
 
+static mozilla::LazyLogModule gTimestamps("Timestamps");
+
 #define RESIST_FINGERPRINTINGPROTECTION_OVERRIDE_PREF \
   "privacy.fingerprintingProtection.overrides"
 #define GLEAN_DATA_SUBMISSION_PREF "datareporting.healthreport.uploadEnabled"
@@ -410,7 +412,7 @@ sec_per_extra_frame = 1 / (extra_frames_per_frame * 60) // 833.33
 min_per_extra_frame = sec_per_extra_frame / 60 // 13.89
 ```
 We expect an extra frame every ~14 minutes, which is enough to be smooth.
-16.67 would be ~1.4 minutes, which is OK, but is more noticable.
+16.67 would be ~1.4 minutes, which is OK, but is more noticeable.
 Put another way, if this is the only unacceptable hitch you have across 14
 minutes, I'm impressed, and we might revisit this.
 */
@@ -631,14 +633,13 @@ double nsRFPService::ReduceTimePrecisionImpl(double aTime, TimeScale aTimeScale,
     nsAutoCString type;
     TypeToText(aType, type);
     MOZ_LOG(
-        gResistFingerprintingLog, LogLevel::Error,
+        gTimestamps, LogLevel::Error,
         ("About to assert. aTime=%lli<%lli aContextMixin=%" PRId64 " aType=%s",
          timeAsInt, kFeb282008, aContextMixin, type.get()));
-    MOZ_ASSERT(
-        false,
-        "ReduceTimePrecisionImpl was given a relative time "
-        "with an empty context mix-in (or your clock is 10+ years off.) "
-        "Run this with MOZ_LOG=nsResistFingerprinting:1 to get more details.");
+    MOZ_ASSERT(false,
+               "ReduceTimePrecisionImpl was given a relative time "
+               "with an empty context mix-in (or your clock is 10+ years off.) "
+               "Run this with MOZ_LOG=Timestamps:1 to get more details.");
   }
 
   // Cast the resolution (in microseconds) to an int.
@@ -673,7 +674,7 @@ double nsRFPService::ReduceTimePrecisionImpl(double aTime, TimeScale aTimeScale,
   double ret = double(clampedAndJittered) / (1000000.0 / double(aTimeScale));
 
   MOZ_LOG(
-      gResistFingerprintingLog, LogLevel::Verbose,
+      gTimestamps, LogLevel::Verbose,
       ("Given: (%.*f, Scaled: %.*f, Converted: %lli), Rounding %s with (%lli, "
        "Originally %.*f), "
        "Intermediate: (%lli), Clamped: (%lli) Jitter: (%i Context: %" PRId64

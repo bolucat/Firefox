@@ -11350,13 +11350,6 @@ static int Shell(JSContext* cx, OptionParser* op) {
     nocgc.emplace(cx);
   }
 
-  if (op->getBoolOption("fuzzing-safe")) {
-    fuzzingSafe = true;
-  } else {
-    fuzzingSafe =
-        (getenv("MOZ_FUZZING_SAFE") && getenv("MOZ_FUZZING_SAFE")[0] != '0');
-  }
-
 #ifdef DEBUG
   if (op->getBoolOption("differential-testing")) {
     JS::SetSupportDifferentialTesting(true);
@@ -11620,7 +11613,13 @@ static bool SetJSPrefToTrueForBool(const char* name) {
   FOR_EACH_JS_PREF(CHECK_PREF)
 #undef CHECK_PREF
 
-  // Nothing matched, return false
+  // Nothing matched. If --fuzzing-safe is used, return true after printing a
+  // message, to continue execution without breaking fuzzing when a pref is
+  // removed.
+  if (fuzzingSafe) {
+    fprintf(stderr, "Warning: Ignoring unknown pref name: %s\n", name);
+    return true;
+  }
   fprintf(stderr, "Invalid pref name: %s\n", name);
   return false;
 }
@@ -11640,7 +11639,13 @@ static bool SetJSPrefToValue(const char* name, size_t nameLen,
   FOR_EACH_JS_PREF(CHECK_PREF)
 #undef CHECK_PREF
 
-  // Nothing matched, return false
+  // Nothing matched. If --fuzzing-safe is used, return true after printing a
+  // message, to continue execution without breaking fuzzing when a pref is
+  // removed.
+  if (fuzzingSafe) {
+    fprintf(stderr, "Warning: Ignoring unknown pref name: %s\n", name);
+    return true;
+  }
   fprintf(stderr, "Invalid pref name: %s\n", name);
   return false;
 }
@@ -12061,8 +12066,6 @@ bool InitOptionParser(OptionParser& op) {
       !op.addBoolOption('\0', "enable-float16array", "Enable Float16Array") ||
       !op.addBoolOption('\0', "enable-top-level-await",
                         "Enable top-level await") ||
-      !op.addBoolOption('\0', "enable-class-static-blocks",
-                        "(no-op) Enable class static blocks") ||
       !op.addBoolOption('\0', "enable-import-assertions",
                         "Enable import attributes with old assert syntax") ||
       !op.addBoolOption('\0', "enable-import-attributes",
@@ -12108,10 +12111,6 @@ bool InitOptionParser(OptionParser& op) {
                           "Range analysis (default: on, off to disable)") ||
       !op.addStringOption('\0', "ion-sink", "on/off",
                           "Sink code motion (default: off, on to enable)") ||
-      !op.addStringOption('\0', "ion-optimization-levels", "on/off",
-                          "No-op for fuzzing") ||
-      !op.addStringOption('\0', "ion-loop-unrolling", "on/off",
-                          "(NOP for fuzzers)") ||
       !op.addStringOption(
           '\0', "ion-instruction-reordering", "on/off",
           "Instruction reordering (default: off, on to enable)") ||
@@ -12150,8 +12149,6 @@ bool InitOptionParser(OptionParser& op) {
                        "Wait for COUNT calls or iterations before compiling "
                        "at the normal optimization level (default: 1000)",
                        -1) ||
-      !op.addIntOption('\0', "ion-full-warmup-threshold", "COUNT",
-                       "No-op for fuzzing", -1) ||
       !op.addStringOption(
           '\0', "ion-regalloc", "[mode]",
           "Specify Ion register allocation:\n"
@@ -12214,9 +12211,6 @@ bool InitOptionParser(OptionParser& op) {
           '\0', "monomorphic-inlining", "default/always/never",
           "Whether monomorphic inlining is used instead of trial inlining "
           "always, never, or based on heuristics (default)") ||
-      !op.addBoolOption(
-          '\0', "non-writable-jitcode",
-          "(NOP for fuzzers) Allocate JIT code as non-writable memory.") ||
       !op.addBoolOption(
           '\0', "no-sse3",
           "Pretend CPU does not support SSE3 instructions and above "
@@ -12404,10 +12398,21 @@ bool InitOptionParser(OptionParser& op) {
   op.setArgTerminatesOptions("script", true);
   op.setArgCapturesRest("scriptArgs");
 
+  // If --fuzzing-safe is used, print a warning for unknown shell flags instead
+  // of aborting execution.
+  op.setIgnoresUnknownOptions("fuzzing-safe", true);
+
   return true;
 }
 
 bool SetGlobalOptionsPreJSInit(const OptionParser& op) {
+  if (op.getBoolOption("fuzzing-safe")) {
+    fuzzingSafe = true;
+  } else {
+    fuzzingSafe =
+        (getenv("MOZ_FUZZING_SAFE") && getenv("MOZ_FUZZING_SAFE")[0] != '0');
+  }
+
   for (MultiStringRange args = op.getMultiStringOption("setpref");
        !args.empty(); args.popFront()) {
     if (!SetJSPref(args.front())) {

@@ -435,7 +435,7 @@ pref("browser.search.param.search_rich_suggestions", "fen");
 pref("browser.urlbar.weather.featureGate", false);
 
 // Enable clipboard suggestions feature, the pref should be removed once stable.
-pref("browser.urlbar.clipboard.featureGate", true);
+pref("browser.urlbar.clipboard.featureGate", false);
 
 // When false, the weather suggestion will not be fetched when a VPN is
 // detected. When true, it will be fetched anyway.
@@ -1770,6 +1770,9 @@ pref("browser.newtabpage.activity-stream.discoverystream.region-bff-config", "US
 pref("browser.newtabpage.activity-stream.discoverystream.region-spocs-config", "US,CA,DE,GB,FR,IT,ES");
 // List of regions that don't get the 7 row layout.
 pref("browser.newtabpage.activity-stream.discoverystream.region-basic-config", "");
+
+// Add parameters to Pocket feed URL.
+pref("browser.newtabpage.activity-stream.discoverystream.pocket-feed-parameters", "&enableRankingByRegion=1");
 
 // Allows Pocket story collections to be dismissed.
 pref("browser.newtabpage.activity-stream.discoverystream.isCollectionDismissible", true);

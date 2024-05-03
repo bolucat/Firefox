@@ -72,6 +72,12 @@ notes = "The dependencies on tokio-reactor and tokio-threadpools are just a hack
 criteria = "safe-to-run"
 notes = "Used for fuzzing."
 
+[policy.gpu-descriptor]
+audit-as-crates-io = true
+
+[policy.gpu-descriptor-types]
+audit-as-crates-io = true
+
 [policy.http3server]
 criteria = "safe-to-run"
 notes = "Used for testing."
@@ -160,6 +166,10 @@ audit-as-crates-io = false
 
 [policy.peek-poke-derive]
 audit-as-crates-io = false
+
+[policy.plist]
+audit-as-crates-io = true
+notes = "This is the upstream code plus one local fix, see bug 1874167."
 
 [policy.pulse]
 audit-as-crates-io = false

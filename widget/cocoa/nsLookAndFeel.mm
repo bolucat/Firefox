@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "AppearanceOverride.h"
 #include "mozilla/widget/ThemeChangeKind.h"
 #include "nsLookAndFeel.h"
 #include "nsCocoaFeatures.h"
@@ -630,10 +629,6 @@ void nsLookAndFeel::RecordAccessibilityTelemetry() {
                   object:nil
       suspensionBehavior:NSNotificationSuspensionBehaviorDeliverImmediately];
 
-  [MOZGlobalAppearance.sharedInstance addObserver:self
-                                       forKeyPath:@"effectiveAppearance"
-                                          options:0
-                                          context:nil];
   [NSApp addObserver:self
           forKeyPath:@"effectiveAppearance"
              options:0

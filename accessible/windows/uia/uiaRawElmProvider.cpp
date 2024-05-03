@@ -22,7 +22,10 @@
 #include "MsaaRootAccessible.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
+#include "nsIAccessiblePivot.h"
 #include "nsTextEquivUtils.h"
+#include "Pivot.h"
+#include "Relation.h"
 #include "RootAccessible.h"
 
 using namespace mozilla;
@@ -58,6 +61,29 @@ static bool IsRadio(Accessible* aAcc) {
   role r = aAcc->Role();
   return r == roles::RADIOBUTTON || r == roles::RADIO_MENU_ITEM;
 }
+
+// Used to search for a text leaf descendant for the LabeledBy property.
+class LabelTextLeafRule : public PivotRule {
+ public:
+  virtual uint16_t Match(Accessible* aAcc) override {
+    if (aAcc->IsTextLeaf()) {
+      nsAutoString name;
+      aAcc->Name(name);
+      if (name.IsEmpty() || name.EqualsLiteral(" ")) {
+        // An empty or white space text leaf isn't useful as a label.
+        return nsIAccessibleTraversalRule::FILTER_IGNORE;
+      }
+      return nsIAccessibleTraversalRule::FILTER_MATCH;
+    }
+    if (!nsTextEquivUtils::HasNameRule(aAcc, eNameFromSubtreeIfReqRule)) {
+      // Don't descend into things that can't be used as label content; e.g.
+      // text boxes.
+      return nsIAccessibleTraversalRule::FILTER_IGNORE |
+             nsIAccessibleTraversalRule::FILTER_IGNORE_SUBTREE;
+    }
+    return nsIAccessibleTraversalRule::FILTER_IGNORE;
+  }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 // uiaRawElmProvider
@@ -445,19 +471,19 @@ uiaRawElmProvider::GetPropertyValue(PROPERTYID aPropertyId,
       break;
     }
 
-    // ARIA Role / shortcut
     case UIA_AriaRolePropertyId: {
-      nsAutoString xmlRoles;
-
-      RefPtr<AccAttributes> attributes = acc->Attributes();
-      attributes->GetAttribute(nsGkAtoms::xmlroles, xmlRoles);
-
-      if (!xmlRoles.IsEmpty()) {
+      nsAutoString role;
+      if (acc->HasARIARole()) {
+        RefPtr<AccAttributes> attributes = acc->Attributes();
+        attributes->GetAttribute(nsGkAtoms::xmlroles, role);
+      } else if (nsStaticAtom* computed = acc->ComputedARIARole()) {
+        computed->ToString(role);
+      }
+      if (!role.IsEmpty()) {
         aPropertyValue->vt = VT_BSTR;
-        aPropertyValue->bstrVal = ::SysAllocString(xmlRoles.get());
+        aPropertyValue->bstrVal = ::SysAllocString(role.get());
         return S_OK;
       }
-
       break;
     }
 
@@ -522,10 +548,33 @@ uiaRawElmProvider::GetPropertyValue(PROPERTYID aPropertyId,
       break;
     }
 
+    case UIA_ControllerForPropertyId:
+      aPropertyValue->vt = VT_UNKNOWN | VT_ARRAY;
+      aPropertyValue->parray = AccRelationsToUiaArray(
+          {RelationType::CONTROLLER_FOR, RelationType::ERRORMSG});
+      return S_OK;
+
     case UIA_ControlTypePropertyId:
       aPropertyValue->vt = VT_I4;
       aPropertyValue->lVal = GetControlType();
       break;
+
+    case UIA_DescribedByPropertyId:
+      aPropertyValue->vt = VT_UNKNOWN | VT_ARRAY;
+      aPropertyValue->parray = AccRelationsToUiaArray(
+          {RelationType::DESCRIBED_BY, RelationType::DETAILS});
+      return S_OK;
+
+    case UIA_FlowsFromPropertyId:
+      aPropertyValue->vt = VT_UNKNOWN | VT_ARRAY;
+      aPropertyValue->parray =
+          AccRelationsToUiaArray({RelationType::FLOWS_FROM});
+      return S_OK;
+
+    case UIA_FlowsToPropertyId:
+      aPropertyValue->vt = VT_UNKNOWN | VT_ARRAY;
+      aPropertyValue->parray = AccRelationsToUiaArray({RelationType::FLOWS_TO});
+      return S_OK;
 
     case UIA_FrameworkIdPropertyId:
       if (ApplicationAccessible* app = ApplicationAcc()) {
@@ -577,6 +626,15 @@ uiaRawElmProvider::GetPropertyValue(PROPERTYID aPropertyId,
       aPropertyValue->boolVal =
           (acc->State() & states::FOCUSABLE) ? VARIANT_TRUE : VARIANT_FALSE;
       return S_OK;
+
+    case UIA_LabeledByPropertyId:
+      if (Accessible* target = GetLabeledBy()) {
+        aPropertyValue->vt = VT_UNKNOWN;
+        RefPtr<IRawElementProviderSimple> uia = MsaaAccessible::GetFrom(target);
+        uia.forget(&aPropertyValue->punkVal);
+        return S_OK;
+      }
+      break;
 
     case UIA_LevelPropertyId:
       aPropertyValue->vt = VT_I4;
@@ -1222,6 +1280,60 @@ bool uiaRawElmProvider::HasSelectionItemPattern() {
   // In UIA, radio buttons and radio menu items are exposed as selected or
   // unselected.
   return acc->State() & states::SELECTABLE || IsRadio(acc);
+}
+
+SAFEARRAY* uiaRawElmProvider::AccRelationsToUiaArray(
+    std::initializer_list<RelationType> aTypes) const {
+  Accessible* acc = Acc();
+  MOZ_ASSERT(acc);
+  AutoTArray<Accessible*, 10> targets;
+  for (RelationType type : aTypes) {
+    Relation rel = acc->RelationByType(type);
+    while (Accessible* target = rel.Next()) {
+      targets.AppendElement(target);
+    }
+  }
+  return AccessibleArrayToUiaArray(targets);
+}
+
+Accessible* uiaRawElmProvider::GetLabeledBy() const {
+  // Per the UIA documentation, some control types should never get a value for
+  // the LabeledBy property.
+  switch (GetControlType()) {
+    case UIA_ButtonControlTypeId:
+    case UIA_CheckBoxControlTypeId:
+    case UIA_DataItemControlTypeId:
+    case UIA_MenuControlTypeId:
+    case UIA_MenuBarControlTypeId:
+    case UIA_RadioButtonControlTypeId:
+    case UIA_ScrollBarControlTypeId:
+    case UIA_SeparatorControlTypeId:
+    case UIA_StatusBarControlTypeId:
+    case UIA_TabItemControlTypeId:
+    case UIA_TextControlTypeId:
+    case UIA_ToolBarControlTypeId:
+    case UIA_ToolTipControlTypeId:
+    case UIA_TreeItemControlTypeId:
+      return nullptr;
+  }
+
+  Accessible* acc = Acc();
+  MOZ_ASSERT(acc);
+  // Even when LabeledBy is supported, it can only return a single "static text"
+  // element.
+  Relation rel = acc->RelationByType(RelationType::LABELLED_BY);
+  LabelTextLeafRule rule;
+  while (Accessible* target = rel.Next()) {
+    // If target were a text leaf, we should return that, but that shouldn't be
+    // possible because only an element (not a text node) can be the target of a
+    // relation.
+    MOZ_ASSERT(!target->IsTextLeaf());
+    Pivot pivot(target);
+    if (Accessible* leaf = pivot.Next(target, rule)) {
+      return leaf;
+    }
+  }
+  return nullptr;
 }
 
 SAFEARRAY* a11y::AccessibleArrayToUiaArray(const nsTArray<Accessible*>& aAccs) {
