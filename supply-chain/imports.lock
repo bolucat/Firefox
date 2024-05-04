@@ -281,6 +281,13 @@ user-id = 2915
 user-login = "Amanieu"
 user-name = "Amanieu d'Antras"
 
+[[publisher.hashbrown]]
+version = "0.14.5"
+when = "2024-04-28"
+user-id = 2915
+user-login = "Amanieu"
+user-name = "Amanieu d'Antras"
+
 [[publisher.headers]]
 version = "0.3.9"
 when = "2023-08-31"
@@ -575,6 +582,13 @@ user-name = "David Tolnay"
 [[publisher.serde_json]]
 version = "1.0.93"
 when = "2023-02-08"
+user-id = 3618
+user-login = "dtolnay"
+user-name = "David Tolnay"
+
+[[publisher.serde_json]]
+version = "1.0.116"
+when = "2024-04-16"
 user-id = 3618
 user-login = "dtolnay"
 user-name = "David Tolnay"

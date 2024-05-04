@@ -119,25 +119,29 @@
         </html:moz-message-bar>
       </vbox>
     </html:div>
-    <html:moz-button-group id="select-translations-panel-footer-button-group"
-                           class="panel-footer translations-panel-footer">
-      <html:div id="select-translations-panel-start-button-group">
-        <button id="select-translations-panel-copy-button"
-                class="footer-button select-translations-panel-copy-button"
-                data-l10n-id="select-translations-panel-copy-button">
-        </button>
-      </html:div>
-      <html:div id="select-translations-panel-end-button-group">
+    <html:div id="select-translations-panel-footer"
+              class="panel-footer translations-panel-footer">
+      <button id="select-translations-panel-copy-button"
+              class="footer-button select-translations-panel-copy-button"
+              data-l10n-id="select-translations-panel-copy-button">
+      </button>
+      <html:moz-button-group id="select-translations-panel-footer-button-group"
+                             class="translations-panel-button-group">
         <button id="select-translations-panel-cancel-button"
                 class="footer-button"
                 hidden="true"
                 data-l10n-id="select-translations-panel-cancel-button">
         </button>
+        <button id="select-translations-panel-done-button-secondary"
+                hidden="true"
+                class="footer-button"
+                data-l10n-id="select-translations-panel-done-button">
+        </button>
         <button id="select-translations-panel-translate-full-page-button"
                 class="footer-button"
                 data-l10n-id="select-translations-panel-translate-full-page-button">
         </button>
-        <button id="select-translations-panel-done-button"
+        <button id="select-translations-panel-done-button-primary"
                 class="footer-button"
                 data-l10n-id="select-translations-panel-done-button"
                 default="true">
@@ -155,7 +159,7 @@
                 hidden="true"
                 default="true">
         </button>
-      </html:div>
-    </html:moz-button-group>
+      </html:moz-button-group>
+    </html:div>
   </panel>
 </html:template>

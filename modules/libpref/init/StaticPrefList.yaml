@@ -200,6 +200,22 @@
 # Prefs starting with "accessibility."
 #---------------------------------------------------------------------------
 
+# Tab focus model bit field:
+# 1 focuses text controls, 2 focuses other form elements, 4 adds links.
+# Most users will want 1, 3, or 7. On macOS we expose a checkbox to alter
+# between 7 and 3.
+- name: accessibility.tabfocus
+  type: int32_t
+  value: 7
+  mirror: always
+
+# Only on mac tabfocus is expected to handle UI widgets as well as web content.
+# FIXME(emilio): This is weird now that we have a lot of HTML in our pages.
+- name: accessibility.tabfocus_applies_to_xul
+  type: bool
+  value: @IS_XP_MACOSX@
+  mirror: always
+
 - name: accessibility.accesskeycausesactivation
   type: bool
   value: true
@@ -13975,6 +13991,13 @@
   mirror: always
   do_not_use_directly: true
 
+# Disables FPP Remote settings bucket. Allows user to stop overriding
+# of FPP overrides
+- name: privacy.fingerprintingProtection.remoteOverrides.enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 # We automatically decline canvas permission requests if they are not initiated
 # from user input. Just in case that breaks something, we allow the user to
 # revert this behavior with this obscure pref. We do not intend to support this
@@ -14435,13 +14458,13 @@
 # Prerequisite pref for mixed display content upgrading (images, audio, video).
 - name: security.mixed_content.upgrade_display_content
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Upgrade images when the upgrading is enabled.
 - name: security.mixed_content.upgrade_display_content.image
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Upgrade audio when the upgrading is enabled.

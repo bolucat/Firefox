@@ -7891,7 +7891,7 @@ nsRect nsIFrame::GetNormalRect() const {
 nsRect nsIFrame::GetBoundingClientRect() {
   return nsLayoutUtils::GetAllInFlowRectsUnion(
       this, nsLayoutUtils::GetContainingBlockForClientRect(this),
-      nsLayoutUtils::RECTS_ACCOUNT_FOR_TRANSFORMS);
+      nsLayoutUtils::GetAllInFlowRectsFlag::AccountForTransforms);
 }
 
 nsPoint nsIFrame::GetPositionIgnoringScrolling() const {
@@ -11638,6 +11638,47 @@ bool nsIFrame::HasUnreflowedContainerQueryAncestor() const {
   }
   // No query container from this frame up to root.
   return false;
+}
+
+bool nsIFrame::ShouldBreakBefore(
+    const ReflowInput::BreakType aBreakType) const {
+  const auto* display = StyleDisplay();
+  return ShouldBreakBetween(display, display->mBreakBefore, aBreakType);
+}
+
+bool nsIFrame::ShouldBreakAfter(const ReflowInput::BreakType aBreakType) const {
+  const auto* display = StyleDisplay();
+  return ShouldBreakBetween(display, display->mBreakAfter, aBreakType);
+}
+
+bool nsIFrame::ShouldBreakBetween(
+    const nsStyleDisplay* aDisplay, const StyleBreakBetween aBreakBetween,
+    const ReflowInput::BreakType aBreakType) const {
+  const bool shouldBreakBetween = [&] {
+    switch (aBreakBetween) {
+      case StyleBreakBetween::Always:
+        return true;
+      case StyleBreakBetween::Auto:
+      case StyleBreakBetween::Avoid:
+        return false;
+      case StyleBreakBetween::Page:
+      case StyleBreakBetween::Left:
+      case StyleBreakBetween::Right:
+        return aBreakType == ReflowInput::BreakType::Page;
+    }
+    MOZ_ASSERT_UNREACHABLE("Unknown break-between value!");
+    return false;
+  }();
+
+  if (!shouldBreakBetween) {
+    return false;
+  }
+  if (IsAbsolutelyPositioned(aDisplay)) {
+    // 'break-before' and 'break-after' properties does not apply to
+    // absolutely-positioned boxes.
+    return false;
+  }
+  return true;
 }
 
 #ifdef DEBUG

@@ -7,6 +7,7 @@
 #include "BounceTrackingProtectionStorage.h"
 #include "BounceTrackingState.h"
 #include "BounceTrackingRecord.h"
+#include "BounceTrackingMapEntry.h"
 
 #include "BounceTrackingStateGlobal.h"
 #include "ErrorList.h"
@@ -96,7 +97,25 @@ BounceTrackingProtection::GetSingleton() {
 }
 
 BounceTrackingProtection::BounceTrackingProtection() {
-  MOZ_LOG(gBounceTrackingProtectionLog, LogLevel::Debug, ("constructor"));
+  MOZ_LOG(
+      gBounceTrackingProtectionLog, LogLevel::Info,
+      ("Init BounceTrackingProtection. Config: enableDryRunMode: %d, "
+       "bounceTrackingActivationLifetimeSec: %d, bounceTrackingGracePeriodSec: "
+       "%d, bounceTrackingPurgeTimerPeriodSec: %d, "
+       "clientBounceDetectionTimerPeriodMS: %d, requireStatefulBounces: %d, "
+       "HasMigratedUserActivationData: %d",
+       StaticPrefs::privacy_bounceTrackingProtection_enableDryRunMode(),
+       StaticPrefs::
+           privacy_bounceTrackingProtection_bounceTrackingActivationLifetimeSec(),
+       StaticPrefs::
+           privacy_bounceTrackingProtection_bounceTrackingGracePeriodSec(),
+       StaticPrefs::
+           privacy_bounceTrackingProtection_bounceTrackingPurgeTimerPeriodSec(),
+       StaticPrefs::
+           privacy_bounceTrackingProtection_clientBounceDetectionTimerPeriodMS(),
+       StaticPrefs::privacy_bounceTrackingProtection_requireStatefulBounces(),
+       StaticPrefs::
+           privacy_bounceTrackingProtection_hasMigratedUserActivationData()));
 
   mStorage = new BounceTrackingProtectionStorage();
 
@@ -227,9 +246,10 @@ nsresult BounceTrackingProtection::RecordStatefulBounces(
     }
 
     MOZ_LOG(gBounceTrackingProtectionLog, LogLevel::Info,
-            ("%s: Added candidate to mBounceTrackers: %s, Time: %" PRIu64,
+            ("%s: Added bounce tracker candidate. siteHost: %s, "
+             "aBounceTrackingState: %s",
              __FUNCTION__, PromiseFlatCString(host).get(),
-             static_cast<uint64_t>(now)));
+             aBounceTrackingState->Describe().get()));
   }
 
   // Set navigable’s bounce tracking record to null.
@@ -272,7 +292,7 @@ nsresult BounceTrackingProtection::RecordUserActivation(
   nsresult rv = aPrincipal->GetBaseDomain(siteHost);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  MOZ_LOG(gBounceTrackingProtectionLog, LogLevel::Info,
+  MOZ_LOG(gBounceTrackingProtectionLog, LogLevel::Debug,
           ("%s: siteHost: %s", __FUNCTION__, siteHost.get()));
 
   RefPtr<BounceTrackingStateGlobal> globalState =
@@ -290,7 +310,7 @@ nsresult BounceTrackingProtection::RecordUserActivation(
 NS_IMETHODIMP
 BounceTrackingProtection::TestGetBounceTrackerCandidateHosts(
     JS::Handle<JS::Value> aOriginAttributes, JSContext* aCx,
-    nsTArray<nsCString>& aCandidates) {
+    nsTArray<RefPtr<nsIBounceTrackingMapEntry>>& aCandidates) {
   MOZ_ASSERT(aCx);
 
   OriginAttributes oa;
@@ -301,8 +321,11 @@ BounceTrackingProtection::TestGetBounceTrackerCandidateHosts(
   BounceTrackingStateGlobal* globalState = mStorage->GetOrCreateStateGlobal(oa);
   MOZ_ASSERT(globalState);
 
-  for (const nsACString& host : globalState->BounceTrackersMapRef().Keys()) {
-    aCandidates.AppendElement(host);
+  for (auto iter = globalState->BounceTrackersMapRef().ConstIter();
+       !iter.Done(); iter.Next()) {
+    RefPtr<nsIBounceTrackingMapEntry> candidate =
+        new BounceTrackingMapEntry(iter.Key(), iter.Data());
+    aCandidates.AppendElement(candidate);
   }
 
   return NS_OK;
@@ -311,7 +334,7 @@ BounceTrackingProtection::TestGetBounceTrackerCandidateHosts(
 NS_IMETHODIMP
 BounceTrackingProtection::TestGetUserActivationHosts(
     JS::Handle<JS::Value> aOriginAttributes, JSContext* aCx,
-    nsTArray<nsCString>& aHosts) {
+    nsTArray<RefPtr<nsIBounceTrackingMapEntry>>& aHosts) {
   MOZ_ASSERT(aCx);
 
   OriginAttributes oa;
@@ -322,8 +345,11 @@ BounceTrackingProtection::TestGetUserActivationHosts(
   BounceTrackingStateGlobal* globalState = mStorage->GetOrCreateStateGlobal(oa);
   MOZ_ASSERT(globalState);
 
-  for (const nsACString& host : globalState->UserActivationMapRef().Keys()) {
-    aHosts.AppendElement(host);
+  for (auto iter = globalState->UserActivationMapRef().ConstIter();
+       !iter.Done(); iter.Next()) {
+    RefPtr<nsIBounceTrackingMapEntry> candidate =
+        new BounceTrackingMapEntry(iter.Key(), iter.Data());
+    aHosts.AppendElement(candidate);
   }
 
   return NS_OK;
@@ -520,7 +546,7 @@ BounceTrackingProtection::PurgeBounceTrackers() {
                   aResults) {
             MOZ_ASSERT(aResults.IsResolve(), "AllSettled never rejects");
 
-            MOZ_LOG(gBounceTrackingProtectionLog, LogLevel::Info,
+            MOZ_LOG(gBounceTrackingProtectionLog, LogLevel::Debug,
                     ("%s: Done. Cleared %zu hosts.", __FUNCTION__,
                      aResults.ResolveValue().Length()));
 
@@ -633,9 +659,11 @@ nsresult BounceTrackingProtection::PurgeBounceTrackersForStateGlobal(
         new ClearDataMozPromise::Private(__func__);
     RefPtr<ClearDataCallback> cb = new ClearDataCallback(clearPromise, host);
 
-    MOZ_LOG(gBounceTrackingProtectionLog, LogLevel::Debug,
-            ("%s: Purge state for host: %s", __FUNCTION__,
-             PromiseFlatCString(host).get()));
+    MOZ_LOG(gBounceTrackingProtectionLog, LogLevel::Info,
+            ("%s: Purging bounce tracker. siteHost: %s, bounceTime: %" PRIu64
+             " aStateGlobal: %s",
+             __FUNCTION__, PromiseFlatCString(host).get(), bounceTime,
+             aStateGlobal->Describe().get()));
 
     if (StaticPrefs::privacy_bounceTrackingProtection_enableDryRunMode()) {
       // In dry-run mode, we don't actually clear the data, but we still want to
@@ -708,7 +736,7 @@ nsresult BounceTrackingProtection::MaybeMigrateUserInteractionPermissions() {
   }
 
   MOZ_LOG(
-      gBounceTrackingProtectionLog, LogLevel::Info,
+      gBounceTrackingProtectionLog, LogLevel::Debug,
       ("%s: Importing user activation data from permissions", __FUNCTION__));
 
   // Get all user activation permissions that are within our user activation
@@ -808,7 +836,7 @@ NS_IMETHODIMP BounceTrackingProtection::ClearDataCallback::OnDataDeleted(
   if (aFailedFlags) {
     mPromise->Reject(aFailedFlags, __func__);
   } else {
-    MOZ_LOG(gBounceTrackingProtectionLog, LogLevel::Info,
+    MOZ_LOG(gBounceTrackingProtectionLog, LogLevel::Debug,
             ("%s: Cleared %s", __FUNCTION__, mHost.get()));
     mPromise->Resolve(std::move(mHost), __func__);
   }

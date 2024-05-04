@@ -45,8 +45,7 @@ function genericChecker() {
           "Poup and tab expected to have the same windowId"
         );
         browser.test.assertEq(-1, popupContext.tabId, "popup context has the expected tabId");
-        // TODO: Bug 1651506: uncomment the following assertion once popup viewType is fixed.
-        // browser.test.assertEq("POPUP", popupContext.contextType, "Got expected popup context type");
+        browser.test.assertEq("POPUP", popupContext.contextType, "Got expected popup context type");
 
         browser.test.sendMessage(`${msg}:done`);
       } catch (err) {
