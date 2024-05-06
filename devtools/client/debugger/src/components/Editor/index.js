@@ -283,7 +283,7 @@ class Editor extends PureComponent {
     }
   };
 
-  componentDidUpdate(prevProps) {
+  componentDidUpdate(prevProps, prevState) {
     const {
       selectedSource,
       blackboxedRanges,
@@ -300,7 +300,9 @@ class Editor extends PureComponent {
     if (features.codemirrorNext) {
       const shouldUpdateBreakableLines =
         prevProps.breakableLines.size !== this.props.breakableLines.size ||
-        prevProps.selectedSource?.id !== selectedSource.id;
+        prevProps.selectedSource?.id !== selectedSource.id ||
+        // Make sure we update after the editor has loaded
+        (!prevState.editor && !!editor);
 
       const isSourceWasm = isWasm(selectedSource.id);
 
@@ -802,6 +804,7 @@ class Editor extends PureComponent {
     };
   }
 
+  // eslint-disable-next-line complexity
   renderItems() {
     const {
       selectedSource,
@@ -816,25 +819,44 @@ class Editor extends PureComponent {
     } = this.props;
     const { editor } = this.state;
 
+    if (!selectedSource || !editor) {
+      return null;
+    }
+
     if (features.codemirrorNext) {
       return React.createElement(
         React.Fragment,
         null,
-        React.createElement(Breakpoints, {
-          editor,
-        }),
+        React.createElement(Breakpoints, { editor }),
         React.createElement(DebugLine, { editor, selectedSource }),
+        React.createElement(HighlightLine, { editor }),
         React.createElement(Exceptions, { editor }),
         conditionalPanelLocation
           ? React.createElement(ConditionalPanel, {
               editor,
               selectedSource,
             })
+          : null,
+        isPaused &&
+          inlinePreviewEnabled &&
+          (!selectedSource.isOriginal ||
+            selectedSource.isPrettyPrinted ||
+            mapScopesEnabled)
+          ? React.createElement(InlinePreviews, {
+              editor,
+              selectedSource,
+            })
+          : null,
+        highlightedLineRange
+          ? React.createElement(HighlightLines, {
+              editor,
+              range: highlightedLineRange,
+            })
           : null
       );
     }
 
-    if (!selectedSource || !editor || !getDocument(selectedSource.id)) {
+    if (!getDocument(selectedSource.id)) {
       return null;
     }
     return div(

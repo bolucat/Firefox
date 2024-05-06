@@ -14,11 +14,24 @@ import org.mozilla.fenix.components.menu.MenuAccessPoint
 sealed class MenuAction : Action {
 
     /**
-     * Updates whether or not the current selected tab is bookmarked.
-     *
-     * @property isBookmarked Whether or not the current selected is bookmarked.
+     * [MenuAction] dispatched to indicate that the store is initialized and
+     * ready to use. This action is dispatched automatically before any other
+     * action is processed. Its main purpose is to trigger initialization logic
+     * in middlewares.
      */
-    data class UpdateBookmarked(val isBookmarked: Boolean) : MenuAction()
+    data object InitAction : MenuAction()
+
+    /**
+     * [MenuAction] dispatched when a bookmark is to be added.
+     */
+    data object AddBookmark : MenuAction()
+
+    /**
+     * [MenuAction] dispatched when a bookmark state is updated.
+     *
+     * @property bookmarkState The new [BookmarkState] to be updated.
+     */
+    data class UpdateBookmarkState(val bookmarkState: BookmarkState) : MenuAction()
 
     /**
      * [MenuAction] dispatched when a navigation event occurs for a specific destination.
@@ -75,5 +88,55 @@ sealed class MenuAction : Action {
          * [Navigate] action dispatched when navigating to release notes.
          */
         data object ReleaseNotes : Navigate()
+
+        /**
+         * [Navigate] action dispatched when navigating to the tools submenu.
+         */
+        data object Tools : Navigate()
+
+        /**
+         * [Navigate] action dispatched when navigating to the save submenu.
+         */
+        data object Save : Navigate()
+
+        /**
+         * [Navigate] action dispatched when navigating to the extensions submenu.
+         */
+        data object Extensions : Navigate()
+
+        /**
+         * [Navigate] action dispatched when a back navigation event occurs.
+         */
+        data object Back : Navigate()
+
+        /**
+         * [Navigate] action dispatched when navigating to edit the existing bookmark.
+         */
+        data object EditBookmark : Navigate()
+
+        /**
+         * [Navigate] action dispatched when navigating to translations dialog.
+         */
+        data object Translate : Navigate()
+
+        /**
+         * [Navigate] action dispatched when navigating to the share sheet.
+         */
+        data object Share : Navigate()
+
+        /**
+         * [Navigate] action dispatched when navigating to the extensions manager.
+         */
+        data object ManageExtensions : Navigate()
+
+        /**
+         * [Navigate] action dispatched when navigating to the new tab.
+         */
+        data object NewTab : Navigate()
+
+        /**
+         * [Navigate] action dispatched when navigating to the new private tab.
+         */
+        data object NewPrivateTab : Navigate()
     }
 }

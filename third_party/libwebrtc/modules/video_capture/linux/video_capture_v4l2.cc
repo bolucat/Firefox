@@ -300,24 +300,22 @@ int32_t VideoCaptureModuleV4L2::StartCapture(
   _requestedCapability = capability;
   _captureStarted = true;
   _streaming = true;
-  }
 
   // start capture thread;
-  if (_captureThread.empty()) {
-    {
-      // Probably can't be accessed from another thread with
-      // _captureThread empty, but the analyzer doesn't know this
-      MutexLock lock(&capture_lock_);
-      quit_ = false;
-    }
-    _captureThread = rtc::PlatformThread::SpawnJoinable(
-        [self = scoped_refptr(this)] {
-          while (self->CaptureProcess()) {
-          }
-        },
-        "CaptureThread",
-        rtc::ThreadAttributes().SetPriority(rtc::ThreadPriority::kHigh));
+  if (!_captureThread.empty()) {
+    return 0;
   }
+
+  quit_ = false;
+  }
+
+  _captureThread = rtc::PlatformThread::SpawnJoinable(
+      [self = scoped_refptr(this)] {
+        while (self->CaptureProcess()) {
+        }
+      },
+      "CaptureThread",
+      rtc::ThreadAttributes().SetPriority(rtc::ThreadPriority::kHigh));
   return 0;
 }
 
