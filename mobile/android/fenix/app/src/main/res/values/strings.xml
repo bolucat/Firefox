@@ -194,7 +194,7 @@
     <string name="browser_menu_extensions">Extensions</string>
     <!-- Browser menu button that opens the extensions manager -->
     <string name="browser_menu_manage_extensions">Manage extensions</string>
-    <!-- Browser menu button that opens AMO in a tab --> -->
+    <!-- Browser menu button that opens AMO in a tab -->
     <string name="browser_menu_discover_more_extensions">Discover more extensions</string>
     <!-- Browser menu button that opens account settings -->
     <string name="browser_menu_account_settings">Account info</string>
@@ -294,8 +294,6 @@
     <!-- Browser menu label that is displayed when the current page has been translated by the translation feature.
          The first parameter is the name of the language that page was translated to (e.g. English). -->
     <string name="browser_menu_translated_to">Translated to %1$s</string>
-    <!-- Browser menu label for toggling the review quality check feature -->
-    <string name="browser_menu_review_checker">Review Checker</string>
     <!-- Browser menu label for the print feature -->
     <string name="browser_menu_print">Print…</string>
 
@@ -826,6 +824,18 @@
     <string name="fxa_tab_received_notification_name">Tab Received</string>
     <!-- %s is the device name -->
     <string name="fxa_tab_received_from_notification_name">Tab from %s</string>
+
+    <!-- Close Synced Tabs -->
+    <!-- The title for a notification shown when the user closes one tab that's currently
+    open on this device from another device that's signed in to the same Mozilla account.
+    %1$d is a placeholder for the number of tabs closed; %2$s is for the app name. -->
+    <string name="fxa_tab_closed_notification_title">%1$s %2$s tab closed</string>
+    <!-- The title for a notification shown when the user closes two or more tabs that are currently
+    open on this device from another device that's signed in to the same Mozilla account.
+    %1$d is a placeholder for the number of tabs closed; %2$s is for the app name.  -->
+    <string name="fxa_tabs_closed_notification_title">%1$d %2$s tabs closed</string>
+    <!-- The body for a "closed synced tabs" notification. -->
+    <string name="fxa_tabs_closed_text">View recently closed tabs</string>
 
     <!-- Advanced Preferences -->
     <!-- Preference for tracking protection exceptions -->

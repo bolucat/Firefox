@@ -9,34 +9,38 @@
 #include "GraphDriver.h"
 
 #include "gmock/gmock.h"
-#include "gtest/gtest-printers.h"
 #include "gtest/gtest.h"
 
 #include "MediaTrackGraphImpl.h"
 #include "mozilla/gtest/WaitFor.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/SyncRunnable.h"
-#include "mozilla/UniquePtr.h"
 #include "nsTArray.h"
 
 #include "MockCubeb.h"
 
-using namespace mozilla;
+namespace mozilla {
+
 using IterationResult = GraphInterface::IterationResult;
 using ::testing::_;
 using ::testing::AnyNumber;
+using ::testing::Eq;
+using ::testing::InSequence;
 using ::testing::NiceMock;
 
 class MockGraphInterface : public GraphInterface {
   NS_DECL_THREADSAFE_ISUPPORTS
   explicit MockGraphInterface(TrackRate aSampleRate)
       : mSampleRate(aSampleRate) {}
-  MOCK_METHOD0(NotifyInputStopped, void());
-  MOCK_METHOD5(NotifyInputData, void(const AudioDataValue*, size_t, TrackRate,
-                                     uint32_t, uint32_t));
-  MOCK_METHOD0(DeviceChanged, void());
+  MOCK_METHOD(void, NotifyInputStopped, ());
+  MOCK_METHOD(void, NotifyInputData,
+              (const AudioDataValue*, size_t, TrackRate, uint32_t, uint32_t));
+  MOCK_METHOD(void, NotifySetRequestedInputProcessingParamsResult,
+              (AudioCallbackDriver*, cubeb_input_processing_params,
+               (Result<cubeb_input_processing_params, int>&&)));
+  MOCK_METHOD(void, DeviceChanged, ());
 #ifdef DEBUG
-  MOCK_CONST_METHOD1(InDriverIteration, bool(const GraphDriver*));
+  MOCK_METHOD(bool, InDriverIteration, (const GraphDriver*), (const));
 #endif
   /* OneIteration cannot be mocked because IterationResult is non-memmovable and
    * cannot be passed as a parameter, which GMock does internally. */
@@ -108,7 +112,7 @@ class MockGraphInterface : public GraphInterface {
 NS_IMPL_ISUPPORTS0(MockGraphInterface)
 
 TEST(TestAudioCallbackDriver, StartStop)
-MOZ_CAN_RUN_SCRIPT_FOR_DEFINITION {
+MOZ_CAN_RUN_SCRIPT_BOUNDARY {
   const TrackRate rate = 44100;
   MockCubeb* cubeb = new MockCubeb();
   CubebUtils::ForceSetCubebContext(cubeb->AsCubebContext());
@@ -118,7 +122,8 @@ MOZ_CAN_RUN_SCRIPT_FOR_DEFINITION {
   EXPECT_CALL(*graph, NotifyInputStopped).Times(0);
 
   driver = MakeRefPtr<AudioCallbackDriver>(graph, nullptr, rate, 2, 0, nullptr,
-                                           nullptr, AudioInputType::Unknown);
+                                           nullptr, AudioInputType::Unknown,
+                                           CUBEB_INPUT_PROCESSING_PARAM_NONE);
   EXPECT_FALSE(driver->ThreadRunning()) << "Verify thread is not running";
   EXPECT_FALSE(driver->IsStarted()) << "Verify thread is not started";
 
@@ -135,7 +140,7 @@ MOZ_CAN_RUN_SCRIPT_FOR_DEFINITION {
   EXPECT_FALSE(driver->IsStarted()) << "Verify thread is not started";
 }
 
-void TestSlowStart(const TrackRate aRate) MOZ_CAN_RUN_SCRIPT_FOR_DEFINITION {
+void TestSlowStart(const TrackRate aRate) MOZ_CAN_RUN_SCRIPT_BOUNDARY {
   std::cerr << "TestSlowStart with rate " << aRate << std::endl;
 
   MockCubeb* cubeb = new MockCubeb();
@@ -177,15 +182,17 @@ void TestSlowStart(const TrackRate aRate) MOZ_CAN_RUN_SCRIPT_FOR_DEFINITION {
       });
 
   driver = MakeRefPtr<AudioCallbackDriver>(graph, nullptr, aRate, 2, 2, nullptr,
-                                           (void*)1, AudioInputType::Voice);
+                                           (void*)1, AudioInputType::Voice,
+                                           CUBEB_INPUT_PROCESSING_PARAM_NONE);
   EXPECT_FALSE(driver->ThreadRunning()) << "Verify thread is not running";
   EXPECT_FALSE(driver->IsStarted()) << "Verify thread is not started";
 
   graph->SetCurrentDriver(driver);
   graph->SetEnsureNextIteration(true);
 
+  auto initPromise = TakeN(cubeb->StreamInitEvent(), 1);
   driver->Start();
-  RefPtr<SmartMockCubebStream> stream = WaitFor(cubeb->StreamInitEvent());
+  auto [stream] = WaitFor(initPromise).unwrap()[0];
   cubeb->SetStreamStartFreezeEnabled(false);
 
   const size_t fallbackIterations = 3;
@@ -234,7 +241,7 @@ void TestSlowStart(const TrackRate aRate) MOZ_CAN_RUN_SCRIPT_FOR_DEFINITION {
 }
 
 TEST(TestAudioCallbackDriver, SlowStart)
-MOZ_CAN_RUN_SCRIPT_FOR_DEFINITION {
+{
   TestSlowStart(1000);   // 10ms = 10 <<< 128 samples
   TestSlowStart(8000);   // 10ms = 80  <  128 samples
   TestSlowStart(44100);  // 10ms = 441 >  128 samples
@@ -265,12 +272,13 @@ MOZ_CAN_RUN_SCRIPT_BOUNDARY {
 
   auto graph = MakeRefPtr<MockGraphInterface>(rate);
   auto driver = MakeRefPtr<AudioCallbackDriver>(
-      graph, nullptr, rate, 2, 1, nullptr, (void*)1, AudioInputType::Voice);
+      graph, nullptr, rate, 2, 1, nullptr, (void*)1, AudioInputType::Voice,
+      CUBEB_INPUT_PROCESSING_PARAM_NONE);
   EXPECT_FALSE(driver->ThreadRunning()) << "Verify thread is not running";
   EXPECT_FALSE(driver->IsStarted()) << "Verify thread is not started";
 
 #ifdef DEBUG
-  std::atomic<std::thread::id> threadInDriverIteration((std::thread::id()));
+  std::atomic<std::thread::id> threadInDriverIteration{std::thread::id()};
   EXPECT_CALL(*graph, InDriverIteration(driver.get())).WillRepeatedly([&] {
     return std::this_thread::get_id() == threadInDriverIteration;
   });
@@ -279,12 +287,18 @@ MOZ_CAN_RUN_SCRIPT_BOUNDARY {
   EXPECT_CALL(*graph, NotifyInputData(_, 0, rate, 1, _)).Times(AnyNumber());
   EXPECT_CALL(*graph, NotifyInputData(_, ignoredFrameCount, _, _, _)).Times(0);
   EXPECT_CALL(*graph, DeviceChanged);
+  Result<cubeb_input_processing_params, int> expected =
+      Err(CUBEB_ERROR_NOT_SUPPORTED);
+  EXPECT_CALL(*graph, NotifySetRequestedInputProcessingParamsResult(
+                          driver.get(), CUBEB_INPUT_PROCESSING_PARAM_NONE,
+                          Eq(std::ref(expected))));
 
   graph->SetCurrentDriver(driver);
   graph->SetEnsureNextIteration(true);
   // This starts the fallback driver.
+  auto initPromise = TakeN(cubeb->StreamInitEvent(), 1);
   driver->Start();
-  RefPtr<SmartMockCubebStream> stream = WaitFor(cubeb->StreamInitEvent());
+  auto [stream] = WaitFor(initPromise).unwrap()[0];
 
   // Wait for the audio driver to have started the stream before running data
   // callbacks. driver->Start() does a dispatch to the cubeb operation thread
@@ -394,23 +408,33 @@ MOZ_CAN_RUN_SCRIPT_BOUNDARY {
 
   auto graph = MakeRefPtr<MockGraphInterface>(rate);
   auto driver = MakeRefPtr<AudioCallbackDriver>(
-      graph, nullptr, rate, 2, 1, nullptr, (void*)1, AudioInputType::Voice);
+      graph, nullptr, rate, 2, 1, nullptr, (void*)1, AudioInputType::Voice,
+      CUBEB_INPUT_PROCESSING_PARAM_NONE);
   EXPECT_FALSE(driver->ThreadRunning()) << "Verify thread is not running";
   EXPECT_FALSE(driver->IsStarted()) << "Verify thread is not started";
 
   auto newDriver = MakeRefPtr<AudioCallbackDriver>(
-      graph, nullptr, rate, 2, 1, nullptr, (void*)1, AudioInputType::Voice);
+      graph, nullptr, rate, 2, 1, nullptr, (void*)1, AudioInputType::Voice,
+      CUBEB_INPUT_PROCESSING_PARAM_NONE);
   EXPECT_FALSE(newDriver->ThreadRunning()) << "Verify thread is not running";
   EXPECT_FALSE(newDriver->IsStarted()) << "Verify thread is not started";
 
 #ifdef DEBUG
-  std::atomic<std::thread::id> threadInDriverIteration(
-      (std::this_thread::get_id()));
+  std::atomic<std::thread::id> threadInDriverIteration{
+      std::this_thread::get_id()};
   EXPECT_CALL(*graph, InDriverIteration(_)).WillRepeatedly([&] {
     return std::this_thread::get_id() == threadInDriverIteration;
   });
 #endif
   EXPECT_CALL(*graph, NotifyInputData(_, 0, rate, 1, _)).Times(AnyNumber());
+  Result<cubeb_input_processing_params, int> expected =
+      Err(CUBEB_ERROR_NOT_SUPPORTED);
+  EXPECT_CALL(*graph, NotifySetRequestedInputProcessingParamsResult(
+                          driver.get(), CUBEB_INPUT_PROCESSING_PARAM_NONE,
+                          Eq(std::ref(expected))));
+  EXPECT_CALL(*graph, NotifySetRequestedInputProcessingParamsResult(
+                          newDriver.get(), CUBEB_INPUT_PROCESSING_PARAM_NONE,
+                          Eq(std::ref(expected))));
 
   graph->SetCurrentDriver(driver);
   graph->SetEnsureNextIteration(true);
@@ -435,7 +459,7 @@ MOZ_CAN_RUN_SCRIPT_BOUNDARY {
   bool continued = false;
 
   // This marks the audio driver as running.
-  EXPECT_EQ(stream->ManualDataCallback(1),
+  EXPECT_EQ(stream->ManualDataCallback(0),
             MockCubebStream::KeepProcessing::Yes);
 
   // If a fallback driver callback happens between the audio callback
@@ -497,7 +521,7 @@ MOZ_CAN_RUN_SCRIPT_BOUNDARY {
   NS_DispatchBackgroundTask(NS_NewRunnableFunction(
       "DeviceChangeAfterStop::postSwitchManualAudioCallback", [stream] {
         // An audio callback after switching must tell the stream to stop.
-        EXPECT_EQ(stream->ManualDataCallback(1),
+        EXPECT_EQ(stream->ManualDataCallback(0),
                   MockCubebStream::KeepProcessing::No);
       }));
 
@@ -524,10 +548,264 @@ MOZ_CAN_RUN_SCRIPT_BOUNDARY {
 #ifdef DEBUG
     AutoSetter as(threadInDriverIteration, std::thread::id());
 #endif
-    EXPECT_EQ(stream->ManualDataCallback(1),
+    EXPECT_EQ(stream->ManualDataCallback(0),
               MockCubebStream::KeepProcessing::No);
   }
 
   // Drain the event queue.
   NS_ProcessPendingEvents(nullptr);
 }
+
+void TestInputProcessingOnStart(
+    MockCubeb* aCubeb, cubeb_input_processing_params aRequested,
+    const Result<cubeb_input_processing_params, int>& aExpected)
+    MOZ_CAN_RUN_SCRIPT_BOUNDARY {
+  const TrackRate rate = 44100;
+
+  auto graph = MakeRefPtr<NiceMock<MockGraphInterface>>(rate);
+  auto driver = MakeRefPtr<AudioCallbackDriver>(
+      graph, nullptr, rate, 2, 1, nullptr, nullptr, AudioInputType::Voice,
+      aRequested);
+  EXPECT_FALSE(driver->ThreadRunning()) << "Verify thread is not running";
+  EXPECT_FALSE(driver->IsStarted()) << "Verify thread is not started";
+
+#ifdef DEBUG
+  std::atomic_bool inGraphIteration{false};
+  ON_CALL(*graph, InDriverIteration(_)).WillByDefault([&] {
+    return inGraphIteration.load() && NS_IsMainThread();
+  });
+#endif
+  bool notified = false;
+  EXPECT_CALL(*graph, NotifyInputStopped).Times(0);
+  EXPECT_CALL(*graph, NotifySetRequestedInputProcessingParamsResult(
+                          driver.get(), aRequested, Eq(std::ref(aExpected))))
+      .WillOnce([&] { notified = true; });
+
+  graph->SetCurrentDriver(driver);
+  auto initPromise = TakeN(aCubeb->StreamInitEvent(), 1);
+  driver->Start();
+  auto [stream] = WaitFor(initPromise).unwrap()[0];
+
+  // Wait for the audio driver to have started the stream before running data
+  // callbacks. driver->Start() does a dispatch to the cubeb operation thread
+  // and starts the stream there.
+  nsCOMPtr<nsIEventTarget> cubebOpThread =
+      CubebUtils::GetCubebOperationThread();
+  MOZ_ALWAYS_SUCCEEDS(SyncRunnable::DispatchToThread(
+      cubebOpThread, NS_NewRunnableFunction(__func__, [] {})));
+
+  // This makes the fallback driver stop on its next callback.
+  {
+#ifdef DEBUG
+    AutoSetter as(inGraphIteration, true);
+#endif
+    while (driver->OnFallback()) {
+      stream->ManualDataCallback(0);
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+  }
+
+  while (!notified) {
+    NS_ProcessNextEvent();
+  }
+
+  // This will block untill all events have been executed.
+  MOZ_KnownLive(driver)->Shutdown();
+  EXPECT_FALSE(driver->ThreadRunning()) << "Verify thread is not running";
+  EXPECT_FALSE(driver->IsStarted()) << "Verify thread is not started";
+}
+
+TEST(TestAudioCallbackDriver, InputProcessingOnStart)
+{
+  constexpr cubeb_input_processing_params allParams =
+      CUBEB_INPUT_PROCESSING_PARAM_ECHO_CANCELLATION |
+      CUBEB_INPUT_PROCESSING_PARAM_AUTOMATIC_GAIN_CONTROL |
+      CUBEB_INPUT_PROCESSING_PARAM_NOISE_SUPPRESSION |
+      CUBEB_INPUT_PROCESSING_PARAM_VOICE_ISOLATION;
+
+  MockCubeb* cubeb = new MockCubeb(MockCubeb::RunningMode::Manual);
+  CubebUtils::ForceSetCubebContext(cubeb->AsCubebContext());
+
+  // Not supported by backend.
+  cubeb->SetSupportedInputProcessingParams(CUBEB_INPUT_PROCESSING_PARAM_NONE,
+                                           CUBEB_ERROR_NOT_SUPPORTED);
+  TestInputProcessingOnStart(cubeb,
+                             CUBEB_INPUT_PROCESSING_PARAM_ECHO_CANCELLATION,
+                             Err(CUBEB_ERROR_NOT_SUPPORTED));
+
+  // Not supported by params.
+  cubeb->SetSupportedInputProcessingParams(CUBEB_INPUT_PROCESSING_PARAM_NONE,
+                                           CUBEB_OK);
+  TestInputProcessingOnStart(cubeb,
+                             CUBEB_INPUT_PROCESSING_PARAM_ECHO_CANCELLATION,
+                             CUBEB_INPUT_PROCESSING_PARAM_NONE);
+
+  // Successful all.
+  cubeb->SetSupportedInputProcessingParams(allParams, CUBEB_OK);
+  TestInputProcessingOnStart(cubeb, allParams, allParams);
+
+  // Successful partial.
+  TestInputProcessingOnStart(cubeb,
+                             CUBEB_INPUT_PROCESSING_PARAM_ECHO_CANCELLATION,
+                             CUBEB_INPUT_PROCESSING_PARAM_ECHO_CANCELLATION);
+
+  // Not supported by stream.
+  cubeb->SetInputProcessingApplyRv(CUBEB_ERROR);
+  TestInputProcessingOnStart(
+      cubeb, CUBEB_INPUT_PROCESSING_PARAM_ECHO_CANCELLATION, Err(CUBEB_ERROR));
+}
+
+TEST(TestAudioCallbackDriver, InputProcessingWhileRunning)
+MOZ_CAN_RUN_SCRIPT_BOUNDARY {
+  constexpr TrackRate rate = 44100;
+  constexpr cubeb_input_processing_params allParams =
+      CUBEB_INPUT_PROCESSING_PARAM_ECHO_CANCELLATION |
+      CUBEB_INPUT_PROCESSING_PARAM_AUTOMATIC_GAIN_CONTROL |
+      CUBEB_INPUT_PROCESSING_PARAM_NOISE_SUPPRESSION |
+      CUBEB_INPUT_PROCESSING_PARAM_VOICE_ISOLATION;
+  constexpr int applyError = 99;
+
+  int numNotifications = 0;
+  const auto signal = [&]() mutable {
+    MOZ_ASSERT(NS_IsMainThread());
+    ++numNotifications;
+  };
+  const auto waitForSignal = [&](int aNotification) {
+    while (numNotifications < aNotification) {
+      NS_ProcessNextEvent();
+    }
+  };
+  MockCubeb* cubeb = new MockCubeb(MockCubeb::RunningMode::Manual);
+  CubebUtils::ForceSetCubebContext(cubeb->AsCubebContext());
+
+  auto graph = MakeRefPtr<NiceMock<MockGraphInterface>>(rate);
+  auto driver = MakeRefPtr<AudioCallbackDriver>(
+      graph, nullptr, rate, 2, 1, nullptr, nullptr, AudioInputType::Voice,
+      CUBEB_INPUT_PROCESSING_PARAM_NONE);
+  EXPECT_FALSE(driver->ThreadRunning()) << "Verify thread is not running";
+  EXPECT_FALSE(driver->IsStarted()) << "Verify thread is not started";
+
+  EXPECT_CALL(*graph, NotifyInputStopped).Times(0);
+  // Expectations
+  const Result<cubeb_input_processing_params, int> noneResult =
+      CUBEB_INPUT_PROCESSING_PARAM_NONE;
+  const Result<cubeb_input_processing_params, int> aecResult =
+      CUBEB_INPUT_PROCESSING_PARAM_ECHO_CANCELLATION;
+  const Result<cubeb_input_processing_params, int> allResult = allParams;
+  const Result<cubeb_input_processing_params, int> notSupportedResult =
+      Err(CUBEB_ERROR_NOT_SUPPORTED);
+  const Result<cubeb_input_processing_params, int> applyErrorResult =
+      Err(applyError);
+  {
+    InSequence s;
+
+    // Notified on start.
+    EXPECT_CALL(*graph, NotifySetRequestedInputProcessingParamsResult(
+                            driver.get(), CUBEB_INPUT_PROCESSING_PARAM_NONE,
+                            Eq(std::ref(notSupportedResult))))
+        .WillOnce(signal);
+    // Not supported by backend.
+    EXPECT_CALL(*graph, NotifySetRequestedInputProcessingParamsResult(
+                            driver.get(),
+                            CUBEB_INPUT_PROCESSING_PARAM_NOISE_SUPPRESSION,
+                            Eq(std::ref(notSupportedResult))))
+        .WillOnce(signal);
+    // Not supported by params.
+    EXPECT_CALL(*graph, NotifySetRequestedInputProcessingParamsResult(
+                            driver.get(),
+                            CUBEB_INPUT_PROCESSING_PARAM_ECHO_CANCELLATION,
+                            Eq(std::ref(noneResult))))
+        .WillOnce(signal);
+    // Successful all.
+    EXPECT_CALL(*graph, NotifySetRequestedInputProcessingParamsResult(
+                            driver.get(), allParams, Eq(std::ref(allResult))))
+        .WillOnce(signal);
+    // Successful partial.
+    EXPECT_CALL(*graph, NotifySetRequestedInputProcessingParamsResult(
+                            driver.get(),
+                            CUBEB_INPUT_PROCESSING_PARAM_ECHO_CANCELLATION,
+                            Eq(std::ref(aecResult))))
+        .WillOnce(signal);
+    // Not supported by stream.
+    EXPECT_CALL(*graph, NotifySetRequestedInputProcessingParamsResult(
+                            driver.get(),
+                            CUBEB_INPUT_PROCESSING_PARAM_NOISE_SUPPRESSION,
+                            Eq(std::ref(applyErrorResult))))
+        .WillOnce(signal);
+  }
+
+#ifdef DEBUG
+  std::atomic_bool inGraphIteration{false};
+  ON_CALL(*graph, InDriverIteration(_)).WillByDefault([&] {
+    return inGraphIteration.load() && NS_IsMainThread();
+  });
+#endif
+
+  const auto setParams = [&](cubeb_input_processing_params aParams) {
+    {
+#ifdef DEBUG
+      AutoSetter as(inGraphIteration, true);
+#endif
+      driver->SetRequestedInputProcessingParams(aParams);
+    }
+  };
+
+  graph->SetCurrentDriver(driver);
+  auto initPromise = TakeN(cubeb->StreamInitEvent(), 1);
+  driver->Start();
+  auto [stream] = WaitFor(initPromise).unwrap()[0];
+
+  // Wait for the audio driver to have started the stream before running data
+  // callbacks. driver->Start() does a dispatch to the cubeb operation thread
+  // and starts the stream there.
+  nsCOMPtr<nsIEventTarget> cubebOpThread =
+      CubebUtils::GetCubebOperationThread();
+  MOZ_ALWAYS_SUCCEEDS(SyncRunnable::DispatchToThread(
+      cubebOpThread, NS_NewRunnableFunction(__func__, [] {})));
+
+  // This makes the fallback driver stop on its next callback.
+
+  {
+#ifdef DEBUG
+    AutoSetter as(inGraphIteration, true);
+#endif
+    while (driver->OnFallback()) {
+      stream->ManualDataCallback(0);
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+  }
+  waitForSignal(1);
+
+  // Not supported by backend.
+  cubeb->SetSupportedInputProcessingParams(CUBEB_INPUT_PROCESSING_PARAM_NONE,
+                                           CUBEB_ERROR_NOT_SUPPORTED);
+  setParams(CUBEB_INPUT_PROCESSING_PARAM_NOISE_SUPPRESSION);
+  waitForSignal(2);
+
+  // Not supported by params.
+  cubeb->SetSupportedInputProcessingParams(CUBEB_INPUT_PROCESSING_PARAM_NONE,
+                                           CUBEB_OK);
+  setParams(CUBEB_INPUT_PROCESSING_PARAM_ECHO_CANCELLATION);
+  waitForSignal(3);
+
+  // Successful all.
+  cubeb->SetSupportedInputProcessingParams(allParams, CUBEB_OK);
+  setParams(allParams);
+  waitForSignal(4);
+
+  // Successful partial.
+  setParams(CUBEB_INPUT_PROCESSING_PARAM_ECHO_CANCELLATION);
+  waitForSignal(5);
+
+  // Not supported by stream.
+  cubeb->SetInputProcessingApplyRv(applyError);
+  setParams(CUBEB_INPUT_PROCESSING_PARAM_NOISE_SUPPRESSION);
+  waitForSignal(6);
+
+  // This will block untill all events have been executed.
+  MOZ_KnownLive(driver)->Shutdown();
+  EXPECT_FALSE(driver->ThreadRunning()) << "Verify thread is not running";
+  EXPECT_FALSE(driver->IsStarted()) << "Verify thread is not started";
+}
+
+}  // namespace mozilla

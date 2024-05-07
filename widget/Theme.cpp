@@ -1099,9 +1099,6 @@ bool Theme::CreateWebRenderCommandsForWidget(
     const mozilla::layers::StackingContextHelper& aSc,
     mozilla::layers::RenderRootStateManager* aManager, nsIFrame* aFrame,
     StyleAppearance aAppearance, const nsRect& aRect) {
-  if (!StaticPrefs::widget_non_native_theme_webrender()) {
-    return false;
-  }
   WebRenderBackendData data{aBuilder, aResources, aSc, aManager};
   return DoDrawWidgetBackground(data, aFrame, aAppearance, aRect,
                                 DrawOverflow::Yes);
@@ -1208,6 +1205,7 @@ bool Theme::DoDrawWidgetBackground(PaintBackendData& aPaintData,
     case StyleAppearance::Textarea:
     case StyleAppearance::Textfield:
     case StyleAppearance::NumberInput:
+    case StyleAppearance::PasswordInput:
       PaintTextField(aPaintData, devPxRect, elementState, colors, dpiRatio);
       break;
     case StyleAppearance::Listbox:
@@ -1435,6 +1433,7 @@ LayoutDeviceIntMargin Theme::GetWidgetBorder(nsDeviceContext* aContext,
     case StyleAppearance::Textfield:
     case StyleAppearance::Textarea:
     case StyleAppearance::NumberInput:
+    case StyleAppearance::PasswordInput:
     case StyleAppearance::Listbox:
     case StyleAppearance::Menulist:
     case StyleAppearance::MenulistButton:
@@ -1503,6 +1502,7 @@ bool Theme::GetWidgetOverflow(nsDeviceContext* aContext, nsIFrame* aFrame,
     case StyleAppearance::Textarea:
     case StyleAppearance::Textfield:
     case StyleAppearance::NumberInput:
+    case StyleAppearance::PasswordInput:
     case StyleAppearance::Listbox:
     case StyleAppearance::MenulistButton:
     case StyleAppearance::Menulist:
@@ -1678,6 +1678,7 @@ bool Theme::ThemeSupportsWidget(nsPresContext* aPresContext, nsIFrame* aFrame,
     case StyleAppearance::Menulist:
     case StyleAppearance::MenulistButton:
     case StyleAppearance::NumberInput:
+    case StyleAppearance::PasswordInput:
     case StyleAppearance::MozMenulistArrowButton:
     case StyleAppearance::SpinnerUpbutton:
     case StyleAppearance::SpinnerDownbutton:

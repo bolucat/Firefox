@@ -417,8 +417,10 @@ nsresult nsTextControlFrame::CreateAnonymousContent(
   // background on the placeholder doesn't obscure the caret.
   aElements.AppendElement(mRootNode);
 
-  if (StaticPrefs::layout_forms_reveal_password_button_enabled() &&
-      IsPasswordTextControl()) {
+  if ((StaticPrefs::layout_forms_reveal_password_button_enabled() ||
+       PresContext()->Document()->ChromeRulesEnabled()) &&
+      IsPasswordTextControl() &&
+      StyleDisplay()->EffectiveAppearance() != StyleAppearance::Textfield) {
     mRevealButton =
         MakeAnonElement(PseudoStyleType::mozReveal, nullptr, nsGkAtoms::button);
     mRevealButton->SetAttr(kNameSpaceID_None, nsGkAtoms::aria_hidden,

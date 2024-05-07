@@ -19,6 +19,7 @@ import mozilla.components.concept.sync.DeviceCapability
 import mozilla.components.concept.sync.DeviceConfig
 import mozilla.components.concept.sync.DeviceType
 import mozilla.components.concept.sync.OAuthAccount
+import mozilla.components.feature.accounts.push.CloseTabsFeature
 import mozilla.components.feature.accounts.push.FxaPushSupportFeature
 import mozilla.components.feature.accounts.push.SendTabFeature
 import mozilla.components.feature.syncedtabs.SyncedTabsAutocompleteProvider
@@ -84,7 +85,12 @@ class BackgroundServices(
         // NB: flipping this flag back and worth is currently not well supported and may need hand-holding.
         // Consult with the android-components peers before changing.
         // See https://github.com/mozilla/application-services/issues/1308
-        capabilities = setOf(DeviceCapability.SEND_TAB),
+        capabilities = buildSet {
+            add(DeviceCapability.SEND_TAB)
+            if (context.settings().enableCloseSyncedTabs) {
+                add(DeviceCapability.CLOSE_TABS)
+            }
+        },
 
         // Enable encryption for account state on supported API levels (23+).
         // Just on Nightly and local builds for now.
@@ -192,6 +198,12 @@ class BackgroundServices(
 
         SendTabFeature(accountManager) { device, tabs ->
             notificationManager.showReceivedTabs(context, device, tabs)
+        }
+
+        if (context.settings().enableCloseSyncedTabs) {
+            CloseTabsFeature(context.components.core.store, accountManager) { _, remotelyClosedUrls ->
+                notificationManager.showSyncedTabsClosed(context, remotelyClosedUrls.size)
+            }.observe()
         }
 
         SyncedTabsIntegration(context, accountManager).launch()
