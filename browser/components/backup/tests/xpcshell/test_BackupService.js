@@ -12,6 +12,9 @@ const { JsonSchemaValidator } = ChromeUtils.importESModule(
 const { UIState } = ChromeUtils.importESModule(
   "resource://services-sync/UIState.sys.mjs"
 );
+const { ClientID } = ChromeUtils.importESModule(
+  "resource://gre/modules/ClientID.sys.mjs"
+);
 
 add_setup(function () {
   // Much of this setup is copied from toolkit/profile/xpcshell/head.js. It is
@@ -77,6 +80,8 @@ add_setup(function () {
  * @returns {Promise<undefined>}
  */
 async function testCreateBackupHelper(sandbox, taskFn) {
+  const EXPECTED_CLIENT_ID = await ClientID.getClientID();
+
   let fake1ManifestEntry = { fake1: "hello from 1" };
   sandbox
     .stub(FakeBackupResource1.prototype, "backup")
@@ -189,6 +194,11 @@ async function testCreateBackupHelper(sandbox, taskFn) {
     manifest.resources.fake3,
     fake3ManifestEntry,
     "Manifest contains the expected entry for FakeBackupResource3"
+  );
+  Assert.equal(
+    manifest.meta.legacyClientID,
+    EXPECTED_CLIENT_ID,
+    "The client ID was stored properly."
   );
 
   taskFn(manifest);
@@ -311,6 +321,14 @@ add_task(async function test_recoverFromBackup() {
 
   let { stagingPath } = await bs.createBackup({ profilePath: oldProfilePath });
 
+  let testTelemetryStateObject = {
+    clientID: "ed209123-04a1-04a1-04a1-c0ffeec0ffee",
+  };
+  await IOUtils.writeJSON(
+    PathUtils.join(PathUtils.profileDir, "datareporting", "state.json"),
+    testTelemetryStateObject
+  );
+
   let profile = await bs.recoverFromBackup(
     stagingPath,
     false /* shouldLaunch */,
@@ -352,6 +370,16 @@ add_task(async function test_recoverFromBackup() {
       "The post recovery data is as expected"
     );
   }
+
+  let newProfileTelemetryStateObject = await IOUtils.readJSON(
+    PathUtils.join(newProfileRootPath, "datareporting", "state.json")
+  );
+  Assert.deepEqual(
+    testTelemetryStateObject,
+    newProfileTelemetryStateObject,
+    "Recovered profile inherited telemetry state from the profile that " +
+      "initiated recovery"
+  );
 
   await IOUtils.remove(oldProfilePath, { recursive: true });
   await IOUtils.remove(newProfileRootPath, { recursive: true });

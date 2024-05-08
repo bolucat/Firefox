@@ -6,7 +6,7 @@ import org.gradle.api.Plugin
 import org.gradle.api.initialization.Settings
 
 // If you ever need to force a toolchain rebuild (taskcluster) then edit the following comment.
-// FORCE REBUILD 2023-05-24
+// FORCE REBUILD 2024-05-02
 
 class DependenciesPlugin : Plugin<Settings> {
     override fun apply(settings: Settings) = Unit
@@ -51,7 +51,7 @@ object Versions {
 
     // see https://android-developers.googleblog.com/2022/06/independent-versioning-of-Jetpack-Compose-libraries.html
     // for Jetpack Compose libraries versioning
-    const val compose_compiler = "1.5.12"
+    const val compose_compiler = "1.5.13"
 
     object AndroidX {
         const val activityCompose = "1.7.2"
@@ -62,10 +62,10 @@ object Versions {
         const val biometric = "1.1.0"
         const val cardview = "1.0.0"
         const val collection = "1.4.0"
-        const val compose_bom = "2024.04.01"
+        const val compose_bom = "2024.05.00"
         const val constraintlayout = "2.1.4"
         const val coordinatorlayout = "1.2.0"
-        const val core = "1.13.0"
+        const val core = "1.13.1"
         const val drawerlayout = "1.2.0"
         const val fragment = "1.6.2"
         const val recyclerview = "1.3.2"
@@ -86,7 +86,7 @@ object Versions {
         const val uiautomator = "2.3.0"
         const val localbroadcastmanager = "1.0.0"
         const val swiperefreshlayout = "1.1.0"
-        const val datastore="1.1.0"
+        const val datastore="1.1.1"
     }
 
     object Firebase {

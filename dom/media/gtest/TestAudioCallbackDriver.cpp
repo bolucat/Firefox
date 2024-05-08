@@ -24,6 +24,7 @@ namespace mozilla {
 using IterationResult = GraphInterface::IterationResult;
 using ::testing::_;
 using ::testing::AnyNumber;
+using ::testing::AtMost;
 using ::testing::Eq;
 using ::testing::InSequence;
 using ::testing::NiceMock;
@@ -427,6 +428,10 @@ MOZ_CAN_RUN_SCRIPT_BOUNDARY {
   });
 #endif
   EXPECT_CALL(*graph, NotifyInputData(_, 0, rate, 1, _)).Times(AnyNumber());
+  // This only happens if the first fallback driver is stopped by the audio
+  // driver handover rather than the driver switch. It happens when the
+  // subsequent audio callback performs the switch.
+  EXPECT_CALL(*graph, NotifyInputStopped()).Times(AtMost(1));
   Result<cubeb_input_processing_params, int> expected =
       Err(CUBEB_ERROR_NOT_SUPPORTED);
   EXPECT_CALL(*graph, NotifySetRequestedInputProcessingParamsResult(
@@ -454,13 +459,17 @@ MOZ_CAN_RUN_SCRIPT_BOUNDARY {
 
   initPromise = TakeN(cubeb->StreamInitEvent(), 1);
   Monitor mon(__func__);
-  MonitorAutoLock lock(mon);
   bool canContinueToStartNextDriver = false;
   bool continued = false;
 
   // This marks the audio driver as running.
   EXPECT_EQ(stream->ManualDataCallback(0),
             MockCubebStream::KeepProcessing::Yes);
+
+  // To satisfy TSAN's lock-order-inversion checking we avoid locking stream's
+  // mMutex (by calling ManualDataCallback) under mon. The SwitchTo runnable
+  // below already locks mon under stream's mMutex.
+  MonitorAutoLock lock(mon);
 
   // If a fallback driver callback happens between the audio callback
   // above, and the SwitchTo below, the driver will enter

@@ -484,6 +484,14 @@ class WebExtensionTest : BaseSessionTest() {
 
     @Test
     fun optionalOriginsNormalized() {
+        // For mv3 extensions the host_permissions are being granted automatically at install time
+        // but this test needs them to not be granted yet and so we explicitly opt-out in this test.
+        sessionRule.setPrefsUntilTestEnd(
+            mapOf(
+                "extensions.originControls.grantByDefault" to false,
+            ),
+        )
+
         var extension = sessionRule.waitForResult(
             controller.ensureBuiltIn(
                 "resource://android/assets/web_extensions/optional-permission-all-urls/",
@@ -494,8 +502,11 @@ class WebExtensionTest : BaseSessionTest() {
         assertEquals("optional-permission-all-urls@example.com", extension.id)
 
         var grantedOptionalOrigins = extension.metaData.grantedOptionalOrigins
-
-        assertThat("grantedOptionalOrigins must be 0.", grantedOptionalOrigins.size, equalTo(0))
+        assertArrayEquals(
+            "grantedOptionalPermissions must be initially empty",
+            arrayOf(),
+            grantedOptionalOrigins,
+        )
 
         extension = sessionRule.waitForResult(
             controller.addOptionalPermissions(
@@ -2847,7 +2858,7 @@ class WebExtensionTest : BaseSessionTest() {
                 "extensions.install.requireBuiltInCerts" to false,
                 "extensions.update.requireBuiltInCerts" to false,
                 "extensions.getAddons.cache.enabled" to true,
-                "extensions.getAddons.cache.lastUpdate" to 0,
+                "extensions.getAddons.cache.lastUpdate" to 1,
             ),
         )
         mainSession.loadUri("https://example.com")

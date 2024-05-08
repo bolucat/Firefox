@@ -23,6 +23,7 @@ ChromeUtils.defineLazyGetter(lazy, "fxAccounts", () => {
 });
 
 ChromeUtils.defineESModuleGetters(lazy, {
+  ClientID: "resource://gre/modules/ClientID.sys.mjs",
   JsonSchemaValidator:
     "resource://gre/modules/components-utils/JsonSchemaValidator.sys.mjs",
   UIState: "resource://services-sync/UIState.sys.mjs",
@@ -242,7 +243,7 @@ export class BackupService {
 
     try {
       lazy.logConsole.debug(`Creating backup for profile at ${profilePath}`);
-      let manifest = this.#createBackupManifest();
+      let manifest = await this.#createBackupManifest();
 
       // First, check to see if a `backups` directory already exists in the
       // profile.
@@ -420,12 +421,12 @@ export class BackupService {
   }
 
   /**
-   * Creates and returns a backup manifest object with an empty resources
+   * Creates and resolves with a backup manifest object with an empty resources
    * property.
    *
-   * @returns {object}
+   * @returns {Promise<object>}
    */
-  #createBackupManifest() {
+  async #createBackupManifest() {
     let profileSvc = Cc["@mozilla.org/toolkit/profile-service;1"].getService(
       Ci.nsIToolkitProfileService
     );
@@ -448,6 +449,7 @@ export class BackupService {
       machineName: lazy.fxAccounts.device.getLocalName(),
       osName: Services.sysinfo.getProperty("name"),
       osVersion: Services.sysinfo.getProperty("version"),
+      legacyClientID: await lazy.ClientID.getClientID(),
     };
 
     let fxaState = lazy.UIState.get();
@@ -587,6 +589,33 @@ export class BackupService {
           );
         }
       }
+
+      // Make sure that a legacy telemetry client ID exists and is written to
+      // disk.
+      let clientID = await lazy.ClientID.getClientID();
+      lazy.logConsole.debug("Current client ID: ", clientID);
+      // Next, copy over the legacy telemetry client ID state from the currently
+      // running profile. The newly created profile that we're recovering into
+      // should inherit this client ID.
+      const TELEMETRY_STATE_FILENAME = "state.json";
+      const TELEMETRY_STATE_FOLDER = "datareporting";
+      await IOUtils.makeDirectory(
+        PathUtils.join(profile.rootDir.path, TELEMETRY_STATE_FOLDER)
+      );
+      await IOUtils.copy(
+        /* source */
+        PathUtils.join(
+          PathUtils.profileDir,
+          TELEMETRY_STATE_FOLDER,
+          TELEMETRY_STATE_FILENAME
+        ),
+        /* destination */
+        PathUtils.join(
+          profile.rootDir.path,
+          TELEMETRY_STATE_FOLDER,
+          TELEMETRY_STATE_FILENAME
+        )
+      );
 
       let postRecoveryPath = PathUtils.join(
         profile.rootDir.path,

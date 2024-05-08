@@ -741,6 +741,15 @@ struct ReflowInput : public SizeComputationInput {
                                 const nsIContent* aContent, nscoord aBlockBSize,
                                 float aFontSizeInflation);
 
+  static nscoord CalcLineHeightForCanvas(const StyleLineHeight& aLh,
+                                         const nsFont& aRelativeToFont,
+                                         nsAtom* aLanguage,
+                                         bool aExplicitLanguage,
+                                         nsPresContext* aPresContext,
+                                         mozilla::WritingMode aWM);
+
+  static constexpr float kNormalLineHeightFactor = 1.2f;
+
   mozilla::LogicalSize ComputeContainingBlockRectangle(
       nsPresContext* aPresContext, const ReflowInput* aContainingBlockRI) const;
 
