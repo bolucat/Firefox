@@ -2643,6 +2643,8 @@
     <string name="debug_drawer_title">Debug Tools</string>
     <!-- Content description (not visible, for screen readers etc.): Navigate back within the debug drawer. -->
     <string name="debug_drawer_back_button_content_description">Navigate back</string>
+    <!-- Content description (not visible, for screen readers etc.): Open debug drawer. -->
+    <string name="debug_drawer_fab_content_description">Open debug drawer</string>
 
     <!-- Debug drawer tabs tools -->
     <!-- The title of the Tab Tools feature in the Debug Drawer. -->
@@ -2650,7 +2652,10 @@
     <!-- The title of the tab count section in Tab Tools. -->
     <string name="debug_drawer_tab_tools_tab_count_title">Tab count</string>
     <!-- The active tab count category in the tab count section in Tab Tools. -->
-    <string name="debug_drawer_tab_tools_tab_count_normal">Active</string>
+    <string name="debug_drawer_tab_tools_tab_count_normal" moz:removedIn="127"
+        tools:ignore="UnusedResources">Active</string>
+    <!-- The active tab count category in the tab count section in Tab Tools. -->
+    <string name="debug_drawer_tab_tools_tab_count_active">Active</string>
     <!-- The inactive tab count category in the tab count section in Tab Tools. -->
     <string name="debug_drawer_tab_tools_tab_count_inactive">Inactive</string>
     <!-- The private tab count category in the tab count section in Tab Tools. -->
