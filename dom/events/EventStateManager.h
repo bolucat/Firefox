@@ -14,6 +14,7 @@
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsIWeakReferenceUtils.h"
 #include "nsRefPtrHashtable.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/TimeStamp.h"
@@ -32,6 +33,7 @@ class imgIContainer;
 class nsIDocumentViewer;
 class nsIScrollableFrame;
 class nsITimer;
+class nsIWidget;
 class nsPresContext;
 
 enum class FormControlType : uint8_t;
@@ -65,20 +67,17 @@ class OverOutElementsWrapper final : public nsISupports {
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS(OverOutElementsWrapper)
 
+  already_AddRefed<nsIWidget> GetLastOverWidget() const;
+
   void ContentRemoved(nsIContent& aContent);
-  void WillDispatchOverAndEnterEvent(nsIContent* aOverEventTarget) {
-    mDeepestEnterEventTarget = aOverEventTarget;
-    // Store the first "over" event target we fire and don't refire "over" event
-    // to that element while the first "over" event is still ongoing.
-    mDispatchingOverEventTarget = aOverEventTarget;
-    mDeepestEnterEventTargetIsOverEventTarget = true;
-  }
+  void WillDispatchOverAndEnterEvent(nsIContent* aOverEventTarget);
   void DidDispatchOverAndEnterEvent(
-      nsIContent* aOriginalOverTargetInComposedDoc);
+      nsIContent* aOriginalOverTargetInComposedDoc,
+      nsIWidget* aOverEventTargetWidget);
   [[nodiscard]] bool IsDispatchingOverEventOn(
       nsIContent* aOverEventTarget) const {
     MOZ_ASSERT(aOverEventTarget);
-    return mDeepestEnterEventTargetIsOverEventTarget &&
+    return LastOverEventTargetIsOutEventTarget() &&
            mDeepestEnterEventTarget == aOverEventTarget;
   }
   void WillDispatchOutAndOrLeaveEvent() {
@@ -88,17 +87,19 @@ class OverOutElementsWrapper final : public nsISupports {
     mDispatchingOutOrDeepestLeaveEventTarget = mDeepestEnterEventTarget;
   }
   void DidDispatchOutAndOrLeaveEvent() {
-    mLastOverFrame = nullptr;
-    mDeepestEnterEventTarget = mDispatchingOutOrDeepestLeaveEventTarget =
-        nullptr;
+    StoreOverEventTargetAndDeepestEnterEventTarget(nullptr);
+    mDispatchingOutOrDeepestLeaveEventTarget = nullptr;
   }
   [[nodiscard]] bool IsDispatchingOutEventOnLastOverEventTarget() const {
     return mDispatchingOutOrDeepestLeaveEventTarget &&
            mDispatchingOutOrDeepestLeaveEventTarget == mDeepestEnterEventTarget;
   }
   void OverrideOverEventTarget(nsIContent* aOverEventTarget) {
-    mDeepestEnterEventTarget = aOverEventTarget;
-    mDeepestEnterEventTargetIsOverEventTarget = true;
+    StoreOverEventTargetAndDeepestEnterEventTarget(aOverEventTarget);
+    // We don't need the widget for aOverEventTarget because this method is used
+    // for adjusting the "over" event target for the following "out" event
+    // dispatch.
+    mLastOverWidget = nullptr;
   }
 
   [[nodiscard]] nsIContent* GetDeepestLeaveEventTarget() const {
@@ -112,20 +113,76 @@ class OverOutElementsWrapper final : public nsISupports {
     // last "over" event target has not been removed from the DOM tree, it's
     // the next "out" event target.  Once the last "over" target is removed,
     // "out" event should not be fired on the target nor its ancestor.
-    return mDeepestEnterEventTargetIsOverEventTarget
+    return LastOverEventTargetIsOutEventTarget()
                ? mDeepestEnterEventTarget.get()
                : nullptr;
   }
 
- public:
-  WeakFrame mLastOverFrame;
+  /**
+   * Called when EventStateManager::PreHandleEvent() receives an event which
+   * should be treated as the deadline to restore the last "over" event target
+   * as the next "out" event target and for avoiding to dispatch redundant
+   * "over" event on the same target again when it was removed but reconnected.
+   * If the last "over" event target was reconnected under the last deepest
+   * "enter" event target, this restores the last "over" event target.
+   * Otherwise, makes the instance forget the last "over" target because the
+   * user maybe has seen that the last "over" target is completely removed from
+   * the tree.
+   *
+   * @param aEvent      The event which the caller received.  If this is set to
+   *                    nullptr or not a mouse event, this forgets the pending
+   *                    last "over" event target.
+   */
+  void TryToRestorePendingRemovedOverTarget(const WidgetEvent* aEvent);
+
+  /**
+   * Return true if we have a pending removing last "over" event target at least
+   * for the weak reference to it.  In other words, when this returns true, we
+   * need to handle the pending removing "over" event target.
+   */
+  [[nodiscard]] bool MaybeHasPendingRemovingOverEventTarget() const {
+    return mPendingRemovingOverEventTarget;
+  }
 
  private:
+  /**
+   * Whether the last "over" event target is the target of "out" event if you
+   * dispatch "out" event.
+   */
+  [[nodiscard]] bool LastOverEventTargetIsOutEventTarget() const {
+    MOZ_ASSERT_IF(mDeepestEnterEventTargetIsOverEventTarget,
+                  mDeepestEnterEventTarget);
+    MOZ_ASSERT_IF(mDeepestEnterEventTargetIsOverEventTarget,
+                  !MaybeHasPendingRemovingOverEventTarget());
+    return mDeepestEnterEventTargetIsOverEventTarget;
+  }
+
+  void StoreOverEventTargetAndDeepestEnterEventTarget(
+      nsIContent* aOverEventTargetAndDeepestEnterEventTarget);
+  void UpdateDeepestEnterEventTarget(nsIContent* aDeepestEnterEventTarget);
+
+  nsCOMPtr<nsIContent> GetPendingRemovingOverEventTarget() const {
+    nsCOMPtr<nsIContent> pendingRemovingOverEventTarget =
+        do_QueryReferent(mPendingRemovingOverEventTarget);
+    return pendingRemovingOverEventTarget.forget();
+  }
+
   // The deepest event target of the last "enter" event.  If
   // mDeepestEnterEventTargetIsOverEventTarget is true, this is the last "over"
   // event target too.  If it's set to false, this is an ancestor of the last
-  // "over" event target which has not been removed from the DOM tree.
+  // "over" event target which is not removed from the DOM tree.
   nsCOMPtr<nsIContent> mDeepestEnterEventTarget;
+
+  // The last "over" event target which will be considered as disconnected or
+  // connected later because web apps may remove the "over" event target
+  // temporarily and reconnect it to the deepest "enter" target immediately.
+  // In such case, we should keep treating it as the last "over" event target
+  // as the next "out" event target.
+  // FYI: This needs to be a weak pointer.  Otherwise, the leak window checker
+  // of mochitests will detect windows in the closed tabs which ran tests
+  // synthesizing mouse moves because while a <browser> is stored with a strong
+  // pointer, the child window is also grabbed by the element.
+  nsWeakPtr mPendingRemovingOverEventTarget;
 
   // While we're dispatching "over" and "enter" events, this is set to the
   // "over" event target.  If it's removed from the DOM tree, this is set to
@@ -137,13 +194,18 @@ class OverOutElementsWrapper final : public nsISupports {
   // the DOM tree, this is set to nullptr.
   nsCOMPtr<nsIContent> mDispatchingOutOrDeepestLeaveEventTarget;
 
+  // The widget on which we dispatched the last "over" event.  Note that
+  // nsIWidget is not cycle collectable.  Therefore, for avoiding unexpected
+  // memory leaks, we use nsWeakPtr to store the widget here.
+  nsWeakPtr mLastOverWidget;
+
   const BoundaryEventType mType;
 
   // Once the last "over" element is removed from the tree, this is set
   // to false.  Then, mDeepestEnterEventTarget may be an ancestor of the
   // "over" element which should be the deepest target of next "leave"
   // element but shouldn't be target of "out" event.
-  bool mDeepestEnterEventTargetIsOverEventTarget = true;
+  bool mDeepestEnterEventTargetIsOverEventTarget = false;
 };
 
 class EventStateManager : public nsSupportsWeakReference, public nsIObserver {
@@ -467,12 +529,14 @@ class EventStateManager : public nsSupportsWeakReference, public nsIObserver {
                     nsEventStatus* aStatus);
   /**
    * Turn a GUI mouse/pointer event into a mouse/pointer event targeted at the
-   * specified content.  This returns the primary frame for the content (or null
-   * if it goes away during the event).
+   * specified content.
+   *
+   * @return widget which is the nearest widget from the event target frame.
    */
-  MOZ_CAN_RUN_SCRIPT nsIFrame* DispatchMouseOrPointerEvent(
-      WidgetMouseEvent* aMouseEvent, EventMessage aMessage,
-      nsIContent* aTargetContent, nsIContent* aRelatedContent);
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT already_AddRefed<nsIWidget>
+  DispatchMouseOrPointerEvent(WidgetMouseEvent* aMouseEvent,
+                              EventMessage aMessage, nsIContent* aTargetContent,
+                              nsIContent* aRelatedContent);
   /**
    * Synthesize DOM pointerover and pointerout events
    */

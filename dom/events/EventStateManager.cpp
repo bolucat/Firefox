@@ -73,6 +73,7 @@
 #include "nsICookieJarSettings.h"
 #include "nsIFrame.h"
 #include "nsFrameLoaderOwner.h"
+#include "nsIWeakReferenceUtils.h"
 #include "nsIWidget.h"
 #include "nsLiteralString.h"
 #include "nsPresContext.h"
@@ -296,6 +297,11 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(OverOutElementsWrapper)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
+already_AddRefed<nsIWidget> OverOutElementsWrapper::GetLastOverWidget() const {
+  nsCOMPtr<nsIWidget> widget = do_QueryReferent(mLastOverWidget);
+  return widget.forget();
+}
+
 void OverOutElementsWrapper::ContentRemoved(nsIContent& aContent) {
   if (!mDeepestEnterEventTarget) {
     return;
@@ -315,7 +321,7 @@ void OverOutElementsWrapper::ContentRemoved(nsIContent& aContent) {
     MOZ_LOG(logModule, LogLevel::Info,
             ("The last \"over\" event target (%p) is removed",
              mDeepestEnterEventTarget.get()));
-    mDeepestEnterEventTarget = nullptr;
+    StoreOverEventTargetAndDeepestEnterEventTarget(nullptr);
     return;
   }
 
@@ -327,7 +333,7 @@ void OverOutElementsWrapper::ContentRemoved(nsIContent& aContent) {
         mDispatchingOutOrDeepestLeaveEventTarget) {
       MOZ_LOG(logModule, LogLevel::Info,
               ("The dispatching \"%s\" event target (%p) is removed",
-               mDeepestEnterEventTargetIsOverEventTarget ? "out" : "leave",
+               LastOverEventTargetIsOutEventTarget() ? "out" : "leave",
                mDispatchingOutOrDeepestLeaveEventTarget.get()));
       mDispatchingOutOrDeepestLeaveEventTarget = nullptr;
     }
@@ -342,26 +348,106 @@ void OverOutElementsWrapper::ContentRemoved(nsIContent& aContent) {
            mDispatchingOutOrDeepestLeaveEventTarget, &aContent))) {
     MOZ_LOG(logModule, LogLevel::Info,
             ("The dispatching \"%s\" event target (%p) is removed",
-             mDeepestEnterEventTargetIsOverEventTarget ? "out" : "leave",
+             LastOverEventTargetIsOutEventTarget() ? "out" : "leave",
              mDispatchingOutOrDeepestLeaveEventTarget.get()));
     mDispatchingOutOrDeepestLeaveEventTarget = nullptr;
   }
   MOZ_LOG(logModule, LogLevel::Info,
           ("The last \"%s\" event target (%p) is removed and now the last "
            "deepest enter target becomes %s(%p)",
-           mDeepestEnterEventTargetIsOverEventTarget ? "over" : "enter",
+           LastOverEventTargetIsOutEventTarget() ? "over" : "enter",
            mDeepestEnterEventTarget.get(),
            aContent.GetFlattenedTreeParent()
                ? ToString(*aContent.GetFlattenedTreeParent()).c_str()
                : "nullptr",
            aContent.GetFlattenedTreeParent()));
-  mDeepestEnterEventTarget = aContent.GetFlattenedTreeParent();
-  mDeepestEnterEventTargetIsOverEventTarget = false;
+  UpdateDeepestEnterEventTarget(aContent.GetFlattenedTreeParent());
+}
+
+void OverOutElementsWrapper::TryToRestorePendingRemovedOverTarget(
+    const WidgetEvent* aEvent) {
+  if (!MaybeHasPendingRemovingOverEventTarget()) {
+    return;
+  }
+
+  LogModule* const logModule = mType == BoundaryEventType::Mouse
+                                   ? sMouseBoundaryLog
+                                   : sPointerBoundaryLog;
+
+  // If we receive a mouse event immediately, let's try to restore the last
+  // "over" event target as the following "out" event target.  We assume that a
+  // synthesized mousemove or another mouse event is being dispatched at latest
+  // the next animation frame from the removal.  However, synthesized mouse move
+  // which is enqueued by ContentRemoved() may not sent to this instance because
+  // the target is considered with the latest layout, so the document of this
+  // instance may be moved somewhere before the next animation frame.
+  // Therefore, we should not restore the last "over" target if we receive an
+  // unexpected event like a keyboard event, a wheel event, etc.
+  if (aEvent->AsMouseEvent()) {
+    // Restore the original "over" event target should be allowed only when it's
+    // reconnected under the last deepest "enter" event target because we need
+    // to dispatch "leave" events later at least on the ancestors which have
+    // never been removed from the tree.
+    // XXX If new ancestor is inserted between mDeepestEnterEventTarget and
+    // mPendingToRemoveLastOverEventTarget, we will dispatch "leave" event even
+    // though we have not dispatched "enter" event on the element.  For fixing
+    // this, we need to store the full path of the last "out" event target when
+    // it's removed from the tree.  I guess we can be relax for this issue
+    // because this hack is required for web apps which reconnect the target
+    // to the same position immediately.
+    // XXX Should be IsInclusiveFlatTreeDescendantOf()?  However, it may
+    // be reconnected into a subtree which is different from where the
+    // last over element was.
+    nsCOMPtr<nsIContent> pendingRemovingOverEventTarget =
+        GetPendingRemovingOverEventTarget();
+    if (pendingRemovingOverEventTarget &&
+        pendingRemovingOverEventTarget->IsInclusiveDescendantOf(
+            mDeepestEnterEventTarget)) {
+      // StoreOverEventTargetAndDeepestEnterEventTarget() always resets
+      // mLastOverWidget.  When we restore the pending removing "over" event
+      // target, we need to keep storing the original "over" widget too.
+      nsCOMPtr<nsIWeakReference> widget = std::move(mLastOverWidget);
+      StoreOverEventTargetAndDeepestEnterEventTarget(
+          pendingRemovingOverEventTarget);
+      mLastOverWidget = std::move(widget);
+      MOZ_LOG(logModule, LogLevel::Info,
+              ("The \"over\" event target (%p) is restored",
+               mDeepestEnterEventTarget.get()));
+      return;
+    }
+    MOZ_LOG(logModule, LogLevel::Debug,
+            ("Forgetting the last \"over\" event target (%p) because it is not "
+             "reconnected under the deepest enter event target (%p)",
+             mPendingRemovingOverEventTarget.get(),
+             mDeepestEnterEventTarget.get()));
+  } else {
+    MOZ_LOG(logModule, LogLevel::Debug,
+            ("Forgetting the last \"over\" event target (%p) because an "
+             "unexpected event (%s) is being dispatched, that means that "
+             "EventStateManager didn't receive a synthesized mousemove which "
+             "should be dispatched at next animation frame from the removal",
+             mPendingRemovingOverEventTarget.get(), ToChar(aEvent->mMessage)));
+  }
+
+  // Now, we should not restore mPendingRemovingOverEventTarget to
+  // mDeepestEnterEventTarget anymore since mPendingRemovingOverEventTarget was
+  // moved outside the subtree of mDeepestEnterEventTarget.
+  mPendingRemovingOverEventTarget = nullptr;
+}
+
+void OverOutElementsWrapper::WillDispatchOverAndEnterEvent(
+    nsIContent* aOverEventTarget) {
+  StoreOverEventTargetAndDeepestEnterEventTarget(aOverEventTarget);
+  // Store the first "over" event target we fire and don't refire "over" event
+  // to that element while the first "over" event is still ongoing.
+  mDispatchingOverEventTarget = aOverEventTarget;
 }
 
 void OverOutElementsWrapper::DidDispatchOverAndEnterEvent(
-    nsIContent* aOriginalOverTargetInComposedDoc) {
+    nsIContent* aOriginalOverTargetInComposedDoc,
+    nsIWidget* aOverEventTargetWidget) {
   mDispatchingOverEventTarget = nullptr;
+  mLastOverWidget = do_GetWeakReference(aOverEventTargetWidget);
 
   // Pointer Events define that once the `pointerover` event target is removed
   // from the tree, `pointerout` should not be fired on that and the closest
@@ -392,11 +478,11 @@ void OverOutElementsWrapper::DidDispatchOverAndEnterEvent(
   if ((!StaticPrefs::
            dom_events_mouse_pointer_boundary_keep_enter_targets_after_over_target_removed() &&
        !mDeepestEnterEventTarget) ||
-      (!mDeepestEnterEventTargetIsOverEventTarget && mDeepestEnterEventTarget &&
+      (!LastOverEventTargetIsOutEventTarget() && mDeepestEnterEventTarget &&
        nsContentUtils::ContentIsFlattenedTreeDescendantOf(
            aOriginalOverTargetInComposedDoc, mDeepestEnterEventTarget))) {
-    mDeepestEnterEventTarget = aOriginalOverTargetInComposedDoc;
-    mDeepestEnterEventTargetIsOverEventTarget = true;
+    StoreOverEventTargetAndDeepestEnterEventTarget(
+        aOriginalOverTargetInComposedDoc);
     LogModule* const logModule = mType == BoundaryEventType::Mouse
                                      ? sMouseBoundaryLog
                                      : sPointerBoundaryLog;
@@ -404,6 +490,63 @@ void OverOutElementsWrapper::DidDispatchOverAndEnterEvent(
             ("The \"over\" event target (%p) is restored",
              mDeepestEnterEventTarget.get()));
   }
+}
+
+void OverOutElementsWrapper::StoreOverEventTargetAndDeepestEnterEventTarget(
+    nsIContent* aOverEventTargetAndDeepestEnterEventTarget) {
+  mDeepestEnterEventTarget = aOverEventTargetAndDeepestEnterEventTarget;
+  mPendingRemovingOverEventTarget = nullptr;
+  mDeepestEnterEventTargetIsOverEventTarget = !!mDeepestEnterEventTarget;
+  mLastOverWidget = nullptr;  // Set it after dispatching the "over" event.
+}
+
+void OverOutElementsWrapper::UpdateDeepestEnterEventTarget(
+    nsIContent* aDeepestEnterEventTarget) {
+  if (MOZ_UNLIKELY(mDeepestEnterEventTarget == aDeepestEnterEventTarget)) {
+    return;
+  }
+
+  if (!aDeepestEnterEventTarget) {
+    // If the root element is removed, we don't need to dispatch "leave"
+    // events on any elements.  Therefore, we can forget everything.
+    StoreOverEventTargetAndDeepestEnterEventTarget(nullptr);
+    return;
+  }
+
+  if (LastOverEventTargetIsOutEventTarget()) {
+    MOZ_ASSERT(mDeepestEnterEventTarget);
+    if (mType == BoundaryEventType::Pointer) {
+      // The spec of Pointer Events defines that once the `pointerover` event
+      // target is removed from the tree, `pointerout` should not be fired on
+      // that and the closest connected ancestor at the target removal should be
+      // kept as the deepest `pointerleave` target.  All browsers considers the
+      // last `pointerover` event target is removed immediately when it occurs.
+      // Therefore, we don't need the special handling which we do for the
+      // `mouseout` event target below for considering whether we'll dispatch
+      // `pointerout` on the last `pointerover` target.
+      mPendingRemovingOverEventTarget = nullptr;
+    } else {
+      // Now, the `mouseout` event target is removed from the DOM at least
+      // temporarily.  Let's keep storing it for restoring it if it's
+      // reconnected into mDeepestEnterEventTarget in a tick because the other
+      // browsers do not treat temporary removal of the last `mouseover` target
+      // keeps storing it as the next `mouseout` event target.
+      MOZ_ASSERT(!mPendingRemovingOverEventTarget);
+      MOZ_ASSERT(mDeepestEnterEventTarget);
+      mPendingRemovingOverEventTarget =
+          do_GetWeakReference(mDeepestEnterEventTarget);
+    }
+  } else {
+    MOZ_ASSERT(!mDeepestEnterEventTargetIsOverEventTarget);
+    // If mDeepestEnterEventTarget is not the last "over" event target, we've
+    // already done the complicated state managing above.  Therefore, we only
+    // need to update mDeepestEnterEventTarget in this case.
+  }
+  mDeepestEnterEventTarget = aDeepestEnterEventTarget;
+  mDeepestEnterEventTargetIsOverEventTarget = false;
+  // Do not update mLastOverWidget here because it's required to ignore some
+  // following pointer events which are fired on widget under different top
+  // level widget.
 }
 
 /******************************************************************/
@@ -819,6 +962,23 @@ nsresult EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
       mInTouchDrag = false;
       StopTrackingDragGesture(true);
     }
+  }
+
+  if (mMouseEnterLeaveHelper && aEvent->IsTrusted()) {
+    // When the last `mouseover` event target is removed from the document,
+    // we makes mMouseEnterLeaveHelper update the last deepest `mouseenter`
+    // event target to the removed node parent and mark it as not the following
+    // `mouseout` event target.  However, the other browsers may dispatch
+    // `mouseout` on it if it's restored "immediately".  Therefore, we use
+    // the next animation frame as the deadline.  ContentRemoved() enqueues a
+    // synthesized `mousemove` to dispatch mouse boundary events under the
+    // mouse cursor soon and the synthesized event (or eMouseExitFromWidget if
+    // our window is moved) will reach here at latest the next animation frame.
+    // Therefore, we can use the event as the deadline.  If the removed last
+    // `mouseover` target is reconnected before a synthesized mouse event or
+    // a real mouse event, let's restore it as the following `mouseout` event
+    // target.  Otherwise, e.g., a keyboard event, let's forget it.
+    mMouseEnterLeaveHelper->TryToRestorePendingRemovedOverTarget(aEvent);
   }
 
   switch (aEvent->mMessage) {
@@ -4276,6 +4436,7 @@ void EventStateManager::NotifyDestroyPresContext(nsPresContext* aPresContext) {
   // as if the new presentation is resized, a new element may be hovered.
   ResetHoverState();
 
+  mMouseEnterLeaveHelper = nullptr;
   mPointersEnterLeaveHelper.Clear();
   PointerEventHandler::NotifyDestroyPresContext(presContext);
 }
@@ -4777,7 +4938,7 @@ static UniquePtr<WidgetMouseEvent> CreateMouseOrPointerWidgetEvent(
   return newEvent;
 }
 
-nsIFrame* EventStateManager::DispatchMouseOrPointerEvent(
+already_AddRefed<nsIWidget> EventStateManager::DispatchMouseOrPointerEvent(
     WidgetMouseEvent* aMouseEvent, EventMessage aMessage,
     nsIContent* aTargetContent, nsIContent* aRelatedContent) {
   // http://dvcs.w3.org/hg/webevents/raw-file/default/mouse-lock.html#methods
@@ -4794,13 +4955,27 @@ nsIFrame* EventStateManager::DispatchMouseOrPointerEvent(
       NS_WARNING("Should have pointer locked element, but didn't.");
       return nullptr;
     }
-    return mPresContext->GetPrimaryFrameFor(pointerLockedElement);
+    nsIFrame* const pointerLockedFrame =
+        mPresContext->GetPrimaryFrameFor(pointerLockedElement);
+    if (NS_WARN_IF(!pointerLockedFrame)) {
+      return nullptr;
+    }
+    return do_AddRef(pointerLockedFrame->GetNearestWidget());
   }
 
   mCurrentTargetContent = nullptr;
 
   if (!aTargetContent) {
     return nullptr;
+  }
+
+  // Store the widget before dispatching the event because some event listeners
+  // of the dispatching event may cause reframe the target or remove the target
+  // from the tree.
+  nsCOMPtr<nsIWidget> targetWidget;
+  if (nsIFrame* const targetFrame =
+          mPresContext->GetPrimaryFrameFor(aTargetContent)) {
+    targetWidget = targetFrame->GetNearestWidget();
   }
 
   nsCOMPtr<nsIContent> targetContent = aTargetContent;
@@ -4812,8 +4987,6 @@ nsIFrame* EventStateManager::DispatchMouseOrPointerEvent(
   AutoWeakFrame previousTarget = mCurrentTarget;
   mCurrentTargetContent = targetContent;
 
-  nsIFrame* targetFrame = nullptr;
-
   nsEventStatus status = nsEventStatus_eIgnore;
   ESMEventCB callback(targetContent);
   RefPtr<nsPresContext> presContext = mPresContext;
@@ -4821,10 +4994,6 @@ nsIFrame* EventStateManager::DispatchMouseOrPointerEvent(
                             nullptr, &status, &callback);
 
   if (mPresContext) {
-    // Although the primary frame was checked in event callback, it may not be
-    // the same object after event dispatch and handling, so refetch it.
-    targetFrame = mPresContext->GetPrimaryFrameFor(targetContent);
-
     // If we are entering/leaving remote content, dispatch a mouse enter/exit
     // event to the remote frame.
     if (IsTopLevelRemoteTarget(targetContent)) {
@@ -4839,7 +5008,7 @@ nsIFrame* EventStateManager::DispatchMouseOrPointerEvent(
         // old target and then dispatch a cross-process event. (mCurrentTarget
         // will be set back below.) HandleCrossProcessEvent will query for the
         // proper target via GetEventTarget which will return mCurrentTarget.
-        mCurrentTarget = targetFrame;
+        mCurrentTarget = mPresContext->GetPrimaryFrameFor(targetContent);
         HandleCrossProcessEvent(remoteEvent.get(), &status);
       } else if (aMessage == eMouseOver) {
         UniquePtr<WidgetMouseEvent> remoteEvent =
@@ -4853,7 +5022,7 @@ nsIFrame* EventStateManager::DispatchMouseOrPointerEvent(
   mCurrentTargetContent = nullptr;
   mCurrentTarget = previousTarget;
 
-  return targetFrame;
+  return targetWidget.forget();
 }
 
 static nsIContent* FindCommonAncestor(nsIContent* aNode1, nsIContent* aNode2) {
@@ -4895,15 +5064,15 @@ class EnterLeaveDispatcher {
   MOZ_CAN_RUN_SCRIPT_BOUNDARY void Dispatch() {
     if (mEventMessage == eMouseEnter || mEventMessage == ePointerEnter) {
       for (int32_t i = mTargets.Count() - 1; i >= 0; --i) {
-        mESM->DispatchMouseOrPointerEvent(mMouseEvent, mEventMessage,
-                                          MOZ_KnownLive(mTargets[i]),
-                                          mRelatedTarget);
+        nsCOMPtr<nsIWidget> widget = mESM->DispatchMouseOrPointerEvent(
+            mMouseEvent, mEventMessage, MOZ_KnownLive(mTargets[i]),
+            mRelatedTarget);
       }
     } else {
       for (int32_t i = 0; i < mTargets.Count(); ++i) {
-        mESM->DispatchMouseOrPointerEvent(mMouseEvent, mEventMessage,
-                                          MOZ_KnownLive(mTargets[i]),
-                                          mRelatedTarget);
+        nsCOMPtr<nsIWidget> widget = mESM->DispatchMouseOrPointerEvent(
+            mMouseEvent, mEventMessage, MOZ_KnownLive(mTargets[i]),
+            mRelatedTarget);
       }
     }
   }
@@ -4992,9 +5161,9 @@ void EventStateManager::NotifyMouseOut(WidgetMouseEvent* aMouseEvent,
              isPointer ? "ePointerOut" : "eMouseOut",
              outEventTarget ? ToString(*outEventTarget).c_str() : "nullptr",
              outEventTarget.get()));
-    DispatchMouseOrPointerEvent(aMouseEvent,
-                                isPointer ? ePointerOut : eMouseOut,
-                                outEventTarget, aMovingInto);
+    nsCOMPtr<nsIWidget> widget = DispatchMouseOrPointerEvent(
+        aMouseEvent, isPointer ? ePointerOut : eMouseOut, outEventTarget,
+        aMovingInto);
   }
 
   MOZ_LOG(logModule, LogLevel::Info,
@@ -5097,7 +5266,7 @@ void EventStateManager::NotifyMouseOver(WidgetMouseEvent* aMouseEvent,
           ("Dispatching %s event to %s (%p)",
            isPointer ? "ePointerOver" : "eMoustOver",
            aContent ? ToString(*aContent).c_str() : "nullptr", aContent));
-  wrapper->mLastOverFrame = DispatchMouseOrPointerEvent(
+  nsCOMPtr<nsIWidget> targetWidget = DispatchMouseOrPointerEvent(
       aMouseEvent, isPointer ? ePointerOver : eMouseOver, aContent,
       deepestLeaveEventTarget);
 
@@ -5112,7 +5281,8 @@ void EventStateManager::NotifyMouseOver(WidgetMouseEvent* aMouseEvent,
            "event target was in the document %p, and now in %p)",
            aContent->GetComposedDoc(), mDocument.get()));
   wrapper->DidDispatchOverAndEnterEvent(
-      aContent->GetComposedDoc() == mDocument ? aContent : nullptr);
+      aContent->GetComposedDoc() == mDocument ? aContent : nullptr,
+      targetWidget);
 }
 
 // Returns the center point of the window's client area. This is
@@ -5274,13 +5444,16 @@ void EventStateManager::GenerateMouseEnterExit(WidgetMouseEvent* aMouseEvent) {
       // not moving into any new element.
 
       RefPtr<OverOutElementsWrapper> helper = GetWrapperByEventID(aMouseEvent);
-      if (helper && helper->mLastOverFrame &&
-          nsContentUtils::GetTopLevelWidget(aMouseEvent->mWidget) !=
-              nsContentUtils::GetTopLevelWidget(
-                  helper->mLastOverFrame->GetNearestWidget())) {
-        // the Mouse/PointerOut event widget doesn't have same top widget with
-        // mLastOverFrame, it's a spurious event for mLastOverFrame
-        break;
+      if (helper) {
+        nsCOMPtr<nsIWidget> lastOverWidget = helper->GetLastOverWidget();
+        if (lastOverWidget &&
+            nsContentUtils::GetTopLevelWidget(aMouseEvent->mWidget) !=
+                nsContentUtils::GetTopLevelWidget(lastOverWidget)) {
+          // the Mouse/PointerOut event widget doesn't have same top widget with
+          // the last over event target, it's a spurious event for the frame for
+          // the target.
+          break;
+        }
       }
 
       // Reset sLastRefPoint, so that we'll know not to report any

@@ -7746,6 +7746,10 @@ void PresShell::EventHandler::MaybeSynthesizeCompatMouseEventsForTouchEnd(
     event.mClickCount = message == eMouseMove ? 0 : 1;
     event.mModifiers = aTouchEndEvent->mModifiers;
     event.convertToPointer = false;
+    if (TouchManager::IsPrecedingTouchPointerDownConsumedByContent()) {
+      event.PreventDefault(false);
+      event.mFlags.mOnlyChromeDispatch = true;
+    }
     nsEventStatus mouseEventStatus = nsEventStatus_eIgnore;
     presShell->HandleEvent(frameForPresShell, &event, false, &mouseEventStatus);
   }
@@ -8517,7 +8521,8 @@ nsresult PresShell::EventHandler::HandleEventWithCurrentEventInfo(
   nsresult rv = DispatchEvent(manager, aEvent, touchIsNew, aEventStatus,
                               aOverrideClickTarget);
 
-  if (!mPresShell->IsDestroying() && aIsHandlingNativeEvent) {
+  if (!mPresShell->IsDestroying() && aIsHandlingNativeEvent &&
+      aEvent->mClass != eQueryContentEventClass) {
     // Ensure that notifications to IME should be sent before getting next
     // native event from the event queue.
     // XXX Should we check the event message or event class instead of

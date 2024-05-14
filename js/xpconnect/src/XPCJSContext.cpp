@@ -969,11 +969,12 @@ static void ReloadPrefsCallback(const char* pref, void* aXpccx) {
   sStreamsEnabled = Preferences::GetBool(JS_OPTIONS_DOT_STR "streams");
 
 #ifdef JS_GC_ZEAL
-  int32_t zeal = Preferences::GetInt(JS_OPTIONS_DOT_STR "gczeal", -1);
-  int32_t zeal_frequency = Preferences::GetInt(
-      JS_OPTIONS_DOT_STR "gczeal.frequency", JS_DEFAULT_ZEAL_FREQ);
+  int32_t zeal = Preferences::GetInt(JS_OPTIONS_DOT_STR "mem.gc_zeal.mode", -1);
+  int32_t zeal_frequency =
+      Preferences::GetInt(JS_OPTIONS_DOT_STR "mem.gc_zeal.frequency",
+                          JS::BrowserDefaultGCZealFrequency);
   if (zeal >= 0) {
-    JS_SetGCZeal(cx, (uint8_t)zeal, zeal_frequency);
+    JS::SetGCZeal(cx, (uint8_t)zeal, zeal_frequency);
   }
 #endif  // JS_GC_ZEAL
 
