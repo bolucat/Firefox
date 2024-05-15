@@ -267,6 +267,9 @@
 #ifdef MOZ_WIDGET_GTK
 #  include "nsAppShell.h"
 #endif
+#ifdef MOZ_ENABLE_DBUS
+#  include "DBusService.h"
+#endif
 
 extern uint32_t gRestartMode;
 extern void InstallSignalHandlers(const char* ProgramName);
@@ -2132,6 +2135,14 @@ static void DumpHelp() {
 
 #if defined(XP_WIN) || defined(MOZ_WIDGET_GTK) || defined(XP_MACOSX)
   printf("  --headless         Run without a GUI.\n");
+#endif
+
+#if defined(MOZ_ENABLE_DBUS)
+  printf(
+      "  --dbus-service <launcher>  Run as DBus service for "
+      "org.freedesktop.Application and\n"
+      "                             set a launcher (usually /usr/bin/appname "
+      "script) for it.");
 #endif
 
   // this works, but only after the components have registered.  so if you drop
@@ -4371,6 +4382,24 @@ int XREMain::XRE_mainInit(bool* aExitFlag) {
     *aExitFlag = true;
     return 0;
   }
+
+#ifdef MOZ_ENABLE_DBUS
+  const char* dbusServiceLauncher = nullptr;
+  ar = CheckArg("dbus-service", &dbusServiceLauncher, CheckArgFlag::None);
+  if (ar == ARG_BAD) {
+    Output(true, "Missing launcher param for --dbus-service\n");
+    return 1;
+  }
+  if (ar == ARG_FOUND) {
+    UniquePtr<DBusService> dbusService =
+        MakeUnique<DBusService>(dbusServiceLauncher);
+    if (dbusService->Init()) {
+      dbusService->Run();
+    }
+    *aExitFlag = true;
+    return 0;
+  }
+#endif
 
   rv = XRE_InitCommandLine(gArgc, gArgv);
   NS_ENSURE_SUCCESS(rv, 1);

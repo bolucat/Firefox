@@ -278,41 +278,6 @@ class StyleRuleActor extends Actor {
     return sheet.associatedDocument;
   }
 
-  /**
-   * When a rule is nested in another non-at-rule (aka CSS Nesting), the client
-   * will need its desugared selector, i.e. the full selector, which includes ancestor
-   * selectors, that is computed by the platform when applying the rule.
-   * To compute it, the parent selector (&) is recursively replaced by the parent
-   * rule selector wrapped in `:is()`.
-   * For example, with the following nested rule: `body { & > main {} }`,
-   * the desugared selector will be `:is(body) > main`.
-   * See https://www.w3.org/TR/css-nesting-1/#nest-selector for more information.
-   *
-   * Returns an array of the desugared selectors. For example, if rule is:
-   *
-   * body {
-   *   & > main, & section {
-   *   }
-   * }
-   *
-   * this will return:
-   *
-   * [
-   *   `:is(body) > main`,
-   *   `:is(body) section`,
-   * ]
-   *
-   * @returns Array<String>
-   */
-  getDesugaredSelectors() {
-    // Cache the desugared selectors as it can be expensive to compute
-    if (!this._desugaredSelectors) {
-      this._desugaredSelectors = CssLogic.getSelectors(this.rawRule, true);
-    }
-
-    return this._desugaredSelectors;
-  }
-
   toString() {
     return "[StyleRuleActor for " + this.rawRule + "]";
   }
@@ -328,6 +293,8 @@ class StyleRuleActor extends Actor {
         // Indicates whether StyleRuleActor implements and can use the setRuleText method.
         // It cannot use it if the stylesheet was programmatically mutated via the CSSOM.
         canSetRuleText: this.canSetRuleText,
+        // @backward-compat { version 128 } Can be removed when 128 hits release.
+        hasMatchedSelectorIndexes: true,
       },
     };
 
@@ -336,9 +303,7 @@ class StyleRuleActor extends Actor {
       form.userAdded = true;
     }
 
-    const { computeDesugaredSelector, ancestorData } =
-      this._getAncestorDataForForm();
-    form.ancestorData = ancestorData;
+    form.ancestorData = this._getAncestorDataForForm();
 
     if (this._parentSheet) {
       form.parentStyleSheet =
@@ -362,9 +327,6 @@ class StyleRuleActor extends Actor {
         const selectorWarnings = this.rawRule.getSelectorWarnings();
         if (selectorWarnings.length) {
           form.selectorWarnings = selectorWarnings;
-        }
-        if (computeDesugaredSelector) {
-          form.desugaredSelectors = this.getDesugaredSelectors();
         }
         form.cssText = this.rawStyle.cssText || "";
         break;
@@ -494,20 +456,15 @@ class StyleRuleActor extends Actor {
 
   /**
    *
-   * @returns {Object} Object with the following properties:
-   *          - {Array<Object>} ancestorData: An array of ancestor item data
-   *          - {Boolean} computeDesugaredSelector: true if the rule has a non-at-rule
-   *                      parent rule (i.e. rule is likely to be a nested rule)
+   * @returns {Array<Object>} ancestorData: An array of ancestor item data
    */
   _getAncestorDataForForm() {
     const ancestorData = [];
-    // Flag that will be set to true if the rule has a non-at-rule parent rule
-    let computeDesugaredSelector = false;
 
     // We don't want to compute ancestor rules for keyframe rule, as they can only be
     // in @keyframes rules.
     if (this.ruleClassName === "CSSKeyframeRule") {
-      return { ancestorData, computeDesugaredSelector };
+      return ancestorData;
     }
 
     // Go through all ancestor so we can build an array of all the media queries and
@@ -558,7 +515,6 @@ class StyleRuleActor extends Actor {
         }
 
         ancestorData.push(ancestor);
-        computeDesugaredSelector = true;
       }
     }
 
@@ -598,7 +554,7 @@ class StyleRuleActor extends Actor {
         }
       }
     }
-    return { ancestorData, computeDesugaredSelector };
+    return ancestorData;
   }
 
   /**
@@ -1171,9 +1127,6 @@ class StyleRuleActor extends Actor {
       return { ruleProps: null, isMatching: true };
     }
 
-    // Nullify cached desugared selectors as it might be outdated
-    this._desugaredSelectors = null;
-
     // The rule's previous selector is lost after calling _addNewSelector(). Save it now.
     const oldValue = this.rawRule.selectorText;
     let selectorPromise = this._addNewSelector(value, editAuthored);
@@ -1208,7 +1161,7 @@ class StyleRuleActor extends Actor {
         }
 
         isMatching = entries.some(
-          ruleProp => !!ruleProp.matchedDesugaredSelectors.length
+          ruleProp => !!ruleProp.matchedSelectorIndexes.length
         );
       }
 

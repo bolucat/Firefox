@@ -1171,7 +1171,7 @@
 - name: browser.contentanalysis.enabled
   type: bool
   value: false
-  mirror: never
+  mirror: always
 
 # What content analysis should return if there is a problem communicating
 # with the agent. (see DefaultResponse enum in ContentAnalysis.h)
@@ -1189,7 +1189,7 @@
 - name: browser.contentanalysis.is_per_user
   type: bool
   value: true
-  mirror: never
+  mirror: always
 
 # Path name of pipe used to connect to a configured DLP agent.
 - name: browser.contentanalysis.pipe_path_name
@@ -8766,12 +8766,6 @@
   mirror: always
   rust: true
 
-# Is support for CSS individual transform enabled?
-- name: layout.css.individual-transform.enabled
-  type: bool
-  value: true
-  mirror: always
-
 # Is support for CSS initial-letter property enabled?
 - name: layout.css.initial-letter.enabled
   type: bool
@@ -11581,12 +11575,6 @@
   value: true
   mirror: always
 
-# Whether to use challenges in the most secure order. See bug 650091.
-- name: network.auth.choose_most_secure_challenge
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 # whether to redirect the channel for auth redirects. See Bug 1820807
 - name: network.auth.use_redirect_for_retries
   type: RelaxedAtomicBool
@@ -13636,7 +13624,7 @@
 # Whether flooding prevention feature is enabled or not.
 - name: places.history.floodingPrevention.enabled
   type: bool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Maximum elapsed time betwen a user interaction and a visit before starting to
@@ -14399,13 +14387,6 @@
 - name: security.data_uri.block_toplevel_data_uri_navigations
   type: bool
   value: true
-  mirror: always
-
-# Whether window A is allowed to navigate cross-origin window B (that is not
-# a descendant frame of A) to a URI that loads externally.
-- name: security.allow_disjointed_external_uri_loads
-  type: bool
-  value: false
   mirror: always
 
 # Allowed by default so it doesn't affect Thunderbird/SeaMonkey, but
@@ -16227,12 +16208,6 @@
 #else
   value: true
 #endif
-  mirror: always
-
-# Whether the outline style should be one big stroke or two contrasting strokes
-- name: widget.non-native-theme.solid-outline-style
-  type: bool
-  value: false
   mirror: always
 
 # Preference to disable dark scrollbar implementation.
