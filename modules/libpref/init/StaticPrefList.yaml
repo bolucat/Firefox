@@ -2406,7 +2406,7 @@
 # Whether the blocking attribute implementation is enabled,
 # see https://html.spec.whatwg.org/#blocking-attributes
 - name: dom.element.blocking.enabled
-  type: bool
+  type: RelaxedAtomicBool
   value: false
   mirror: always
 
@@ -2666,6 +2666,13 @@
 - name: dom.fetchObserver.enabled
   type: RelaxedAtomicBool
   value: false
+  mirror: always
+
+# Whether to set the incremental flag on the top level document's
+# priority header
+- name: dom.document_priority.incremental
+  type: RelaxedAtomicBool
+  value: true
   mirror: always
 
 # Allow the content process to create a File from a path. This is allowed just
@@ -4776,12 +4783,6 @@
   type: String
   value: Error
   mirror: never
-
-# Is support for Window.event enabled?
-- name: dom.window.event.enabled
-  type: bool
-  value: true
-  mirror: always
 
 - name: dom.window.clientinformation.enabled
   type: bool
@@ -7192,6 +7193,12 @@
   value: false
   mirror: always
 
+# Whether to set the incremental attribute in the Priority header for images
+- name: image.priority.incremental
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 # Whether we attempt to decode AVIF images or not.
 - name: image.avif.enabled
   type: RelaxedAtomicBool
@@ -7725,6 +7732,13 @@
 
   # Experimental support for Float16Array in JavaScript.
 -   name: javascript.options.experimental.float16array
+    type: bool
+    value: false
+    mirror: always
+    set_spidermonkey_pref: startup
+
+  # Experimental support for Duplicate Named Capture Groups in JavaScript.
+-   name: javascript.options.experimental.regexp_duplicate_named_groups
     type: bool
     value: false
     mirror: always
@@ -9550,6 +9564,12 @@
   value: false
   mirror: always
 
+# Enable/disable overflow/underflow events in content
+- name: layout.overflow-underflow.content.enabled
+  type: bool
+  value: @IS_NOT_EARLY_BETA_OR_EARLIER@
+  mirror: always
+
 - name: layout.visibility.min-recompute-interval-ms
   type: uint32_t
   value: 1000
@@ -10319,7 +10339,7 @@
 # Allow using ffmpeg encoder
 -   name: media.ffmpeg.encoder.enabled
     type: RelaxedAtomicBool
-#if defined(MOZ_WIDGET_GTK)
+#if defined(MOZ_WIDGET_GTK) || defined(XP_WIN)
     value: @IS_NIGHTLY_BUILD@
 #else
     value: false
@@ -10624,6 +10644,7 @@
   value: false
   mirror: always
 
+
 # This pref disables the reception of RTCP. It is used for testing.
 - name: media.webrtc.net.force_disable_rtcp_reception
   type: ReleaseAcquireAtomicBool
@@ -10783,7 +10804,11 @@
 # Hls
 - name: media.hls.enabled
   type: RelaxedAtomicBool
-  value: @IS_ANDROID@
+#if defined(ANDROID) && !defined(NIGHTLY_BUILD)
+  value: true
+#else
+  value: false
+#endif
   mirror: always
 
 # Max number of HLS players that can be created concurrently. Used only on
@@ -11168,32 +11193,15 @@
   value: 3.0f
   mirror: always
 
-- name: media.webrtc.platformencoder
-  type: RelaxedAtomicBool
-#if defined(MOZ_WIDGET_ANDROID)
-  value: true
-#elif defined(MOZ_WIDGET_GTK)
-  value: false
+# Encoder creation strategy for WebRTC
+# 0: prefer builtin WebRTC encoder (including OpenH264 via GMP)
+# 1: prefer PlatformEncoderModule
+- name: media.webrtc.encoder_creation_strategy
+  type: RelaxedAtomicUint32
+#ifdef ANDROID
+  value: 1
 #else
-  value: @IS_EARLY_BETA_OR_EARLIER@
-#endif
-  mirror: always
-
-- name: media.webrtc.platformencoder.sw_only
-  type: RelaxedAtomicBool
-#if defined(MOZ_WIDGET_ANDROID)
-  value: false
-#else
-  value: true
-#endif
-  mirror: always
-
-- name: media.webrtc.software_encoder.fallback
-  type: RelaxedAtomicBool
-#if !defined(MOZ_WIDGET_GTK)
-  value: true
-#else
-  value: false
+  value: 0
 #endif
   mirror: always
 
@@ -11394,6 +11402,21 @@
   value: 262144
   mirror: always
 
+- name: memory.phc.avg_delay.content.first
+  type: uint32_t
+  value: 16384
+  mirror: always
+
+- name: memory.phc.avg_delay.content.normal
+  type: uint32_t
+  value: 4096
+  mirror: always
+
+- name: memory.phc.avg_delay.content.page_reuse
+  type: uint32_t
+  value: 262144
+  mirror: always
+
 #---------------------------------------------------------------------------
 # Prefs starting with "midi."
 #---------------------------------------------------------------------------
@@ -11579,6 +11602,13 @@
 - name: network.auth.use_redirect_for_retries
   type: RelaxedAtomicBool
   value: @IS_EARLY_BETA_OR_EARLIER@
+  mirror: always
+
+# When true, authentication challenges will be sorted even if
+# an authentication is already in progress. This may cause issues sometimes.
+- name: network.auth.sort_challenge_in_progress
+  type: RelaxedAtomicBool
+  value: false
   mirror: always
 
 # Whether to allow truncated brotli with empty output. This also fixes
@@ -16682,6 +16712,26 @@
   type: bool
   value: false
   mirror: once
+
+#ifdef ANDROID
+# A threshold value for double click by mouse.
+- name: widget.double-click.threshold
+  type: RelaxedAtomicInt32
+  value: 4
+  mirror: always
+
+# A timeout value for double click by mouse.
+- name: widget.double-click.timeout
+  type: RelaxedAtomicInt32
+  value: 500
+  mirror: always
+
+# A min time value for double click by mouse.
+- name: widget.double-click.min
+  type: RelaxedAtomicInt32
+  value: 40
+  mirror: always
+#endif
 
 #---------------------------------------------------------------------------
 # Prefs starting with "zoom."

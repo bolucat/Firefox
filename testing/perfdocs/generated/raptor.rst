@@ -2,7 +2,7 @@
 Raptor
 ######
 
-Raptor is a performance-testing framework for running browser pageload and browser benchmark tests. Raptor is cross-browser compatible and is currently running in production on Firefox Desktop, Firefox Android GeckoView, Fenix, Reference Browser, Chromium, and Chrome.
+Raptor is a performance-testing framework for running browser pageload and browser benchmark tests. Raptor is cross-browser compatible and is currently running in production on Firefox Desktop, Firefox Android GeckoView, Fenix, Reference Browser, Chromium, Chrome, Safari, and Safari Technology Preview.
 
 - Contact: Dave Hunt [:davehunt]
 - Source code: https://searchfox.org/mozilla-central/source/testing/raptor
@@ -4614,7 +4614,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
    **Owner**: SpiderMonkey Team
 
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, safari, custom-car
+   * **apps**: firefox, chrome, safari, safari-tp, custom-car
    * **expected**: pass
    * **expose browser profiler**: true
    * **gecko profile interval**: 1
@@ -5398,7 +5398,7 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
    **Owner**: Performance Team
 
    * **alert threshold**: 2.0
-   * **apps**: firefox, chrome, safari, custom-car
+   * **apps**: firefox, chrome, safari, safari-tp, custom-car
    * **browser cycles**: 5
    * **cold**: true
    * **expected**: pass
@@ -5692,6 +5692,11 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - ❌
       * - **browsertime-benchmark-safari-speedometer3**
         - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-benchmark-safari-tp-speedometer3**
+        - ✅
         - ❌
         - ❌
         - ❌
@@ -6084,6 +6089,11 @@ Standard benchmarks are third-party tests (i.e. Speedometer) that we have integr
         - ❌
       * - **browsertime-benchmark-safari-speedometer3**
         - ❌
+        - ❌
+        - ❌
+        - ❌
+      * - **browsertime-benchmark-safari-tp-speedometer3**
+        - ✅
         - ❌
         - ❌
         - ❌

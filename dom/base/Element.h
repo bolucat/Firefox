@@ -120,6 +120,7 @@ namespace dom {
 struct CheckVisibilityOptions;
 struct CustomElementData;
 struct SetHTMLOptions;
+struct GetHTMLOptions;
 struct GetAnimationsOptions;
 struct ScrollIntoViewOptions;
 struct ScrollToOptions;
@@ -251,6 +252,21 @@ class Grid;
   void Set##method(Element* aElement) {                  \
     ExplicitlySetAttrElement(nsGkAtoms::attr, aElement); \
   }
+
+// TODO(keithamus): Reference the spec link once merged.
+// https://github.com/whatwg/html/pull/9841/files#diff-41cf6794ba4200b839c53531555f0f3998df4cbb01a4d5cb0b94e3ca5e23947dR86024
+enum class InvokeAction : uint8_t {
+  Invalid,
+  Custom,
+  Auto,
+  TogglePopover,
+  ShowPopover,
+  HidePopover,
+  ShowModal,
+  Toggle,
+  Close,
+  Open,
+};
 
 class Element : public FragmentOrElement {
  public:
@@ -1112,7 +1128,10 @@ class Element : public FragmentOrElement {
     return FindAttributeDependence(aAttribute, aMaps, N);
   }
 
-  MOZ_CAN_RUN_SCRIPT virtual void HandleInvokeInternal(nsAtom* aAction,
+  virtual bool IsValidInvokeAction(InvokeAction aAction) const {
+    return aAction == InvokeAction::Auto;
+  }
+  MOZ_CAN_RUN_SCRIPT virtual void HandleInvokeInternal(InvokeAction aAction,
                                                        ErrorResult& aRv) {}
 
  private:
@@ -1359,11 +1378,13 @@ class Element : public FragmentOrElement {
 
   enum class DelegatesFocus : bool { No, Yes };
   enum class ShadowRootClonable : bool { No, Yes };
+  enum class ShadowRootSerializable : bool { No, Yes };
 
   already_AddRefed<ShadowRoot> AttachShadowWithoutNameChecks(
       ShadowRootMode aMode, DelegatesFocus = DelegatesFocus::No,
       SlotAssignmentMode aSlotAssignmentMode = SlotAssignmentMode::Named,
-      ShadowRootClonable aClonable = ShadowRootClonable::No);
+      ShadowRootClonable aClonable = ShadowRootClonable::No,
+      ShadowRootSerializable aSerializable = ShadowRootSerializable::No);
 
   // Attach UA Shadow Root if it is not attached.
   enum class NotifyUAWidgetSetup : bool { No, Yes };
@@ -1543,6 +1564,7 @@ class Element : public FragmentOrElement {
 
   void SetHTML(const nsAString& aInnerHTML, const SetHTMLOptions& aOptions,
                ErrorResult& aError);
+  void GetHTML(const GetHTMLOptions& aOptions, nsAString& aResult);
 
   //----------------------------------------
 

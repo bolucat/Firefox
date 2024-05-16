@@ -14,7 +14,6 @@
 #include "nsContentUtils.h"
 #include "nsCSSAnonBoxes.h"
 #include "nsFontMetrics.h"
-#include "nsGfxScrollFrame.h"
 #include "nsIScrollableFrame.h"
 #include "nsLayoutUtils.h"
 #include "nsPresContext.h"
@@ -24,6 +23,7 @@
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/Likely.h"
 #include "mozilla/PresShell.h"
+#include "mozilla/ScrollContainerFrame.h"
 #include "mozilla/dom/Selection.h"
 #include "TextDrawTarget.h"
 
@@ -94,7 +94,7 @@ static bool IsInlineAxisOverflowVisible(nsIFrame* aFrame) {
              "expected a block frame");
 
   nsIFrame* f = aFrame;
-  while (f && f->Style()->IsAnonBox() && !f->IsScrollFrame()) {
+  while (f && f->Style()->IsAnonBox() && !f->IsScrollContainerFrame()) {
     f = f->GetParent();
   }
   if (!f) {

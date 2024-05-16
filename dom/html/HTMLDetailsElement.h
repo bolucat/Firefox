@@ -50,7 +50,8 @@ class HTMLDetailsElement final : public nsGenericHTMLElement {
 
   void AsyncEventRunning(AsyncEventDispatcher* aEvent) override;
 
-  void HandleInvokeInternal(nsAtom* aAction, ErrorResult& aRv) override;
+  bool IsValidInvokeAction(InvokeAction aAction) const override;
+  void HandleInvokeInternal(InvokeAction aAction, ErrorResult& aRv) override;
 
  protected:
   virtual ~HTMLDetailsElement();

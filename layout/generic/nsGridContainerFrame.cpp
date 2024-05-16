@@ -22,6 +22,7 @@
 #include "mozilla/Maybe.h"
 #include "mozilla/PodOperations.h"  // for PodZero
 #include "mozilla/PresShell.h"
+#include "mozilla/ScrollContainerFrame.h"
 #include "mozilla/StaticPrefs_layout.h"
 #include "nsAbsoluteContainingBlock.h"
 #include "nsAlgorithm.h"  // for clamped()
@@ -29,7 +30,6 @@
 #include "nsDisplayList.h"
 #include "nsFieldSetFrame.h"
 #include "nsHTMLButtonControlFrame.h"
-#include "nsGfxScrollFrame.h"
 #include "nsHashKeys.h"
 #include "nsIFrameInlines.h"  // for nsIFrame::GetLogicalNormalPosition (don't remove)
 #include "nsLayoutUtils.h"
@@ -3695,7 +3695,7 @@ static Subgrid* SubgridComputeMarginBorderPadding(
 
   bool scroller = false;
   nsIFrame* outerFrame = [&]() -> nsIFrame* {
-    if (nsHTMLScrollFrame* scrollFrame =
+    if (ScrollContainerFrame* scrollFrame =
             do_QueryFrame(aGridItem.mFrame->GetScrollTargetFrame())) {
       scroller = true;
       return scrollFrame;
@@ -3720,7 +3720,7 @@ static Subgrid* SubgridComputeMarginBorderPadding(
     subgrid->mMarginBorderPadding += szOuterFrame.ComputedLogicalMargin(cbWM) +
                                      szOuterFrame.ComputedLogicalBorder(cbWM);
     if (scroller) {
-      nsMargin ssz = static_cast<nsHTMLScrollFrame*>(outerFrame)
+      nsMargin ssz = static_cast<ScrollContainerFrame*>(outerFrame)
                          ->IntrinsicScrollbarGutterSize();
       subgrid->mMarginBorderPadding += LogicalMargin(cbWM, ssz);
     } else {

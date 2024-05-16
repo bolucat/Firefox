@@ -14,12 +14,12 @@ class DependenciesPlugin : Plugin<Settings> {
 
 // Synchronized version numbers for dependencies used by (some) modules
 object Versions {
-    const val kotlin = "1.9.23"
+    const val kotlin = "1.9.24"
     const val coroutines = "1.8.1"
     const val serialization = "1.6.3"
     const val python_envs_plugin = "0.0.31"
 
-    const val mozilla_glean = "60.0.0"
+    const val mozilla_glean = "60.1.0"
 
     const val junit = "4.13.2"
     const val robolectric = "4.12.1"
@@ -51,11 +51,11 @@ object Versions {
 
     // see https://android-developers.googleblog.com/2022/06/independent-versioning-of-Jetpack-Compose-libraries.html
     // for Jetpack Compose libraries versioning
-    const val compose_compiler = "1.5.13"
+    const val compose_compiler = "1.5.14"
 
     object AndroidX {
         const val activityCompose = "1.7.2"
-        const val annotation = "1.7.1"
+        const val annotation = "1.8.0"
         const val appcompat = "1.6.1"
         const val autofill = "1.1.0"
         const val browser = "1.8.0"
@@ -75,7 +75,7 @@ object Versions {
         const val espresso = "3.5.1"
         const val room = "2.6.1"
         const val savedstate = "1.2.1"
-        const val paging = "3.2.1"
+        const val paging = "3.3.0"
         const val palette = "1.0.0"
         const val preferences = "1.2.1"
         const val lifecycle = "2.7.0"

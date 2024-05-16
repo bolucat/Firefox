@@ -2897,15 +2897,42 @@ void nsGenericHTMLFormControlElementWithState::HandlePopoverTargetAction() {
 
 void nsGenericHTMLFormControlElementWithState::GetInvokeAction(
     nsAString& aValue) const {
-  GetInvokeAction()->ToString(aValue);
+  const nsAttrValue* attr = GetParsedAttr(nsGkAtoms::invokeaction);
+  if (attr) {
+    attr->GetAtomValue()->ToString(aValue);
+  }
 }
 
-nsAtom* nsGenericHTMLFormControlElementWithState::GetInvokeAction() const {
-  const nsAttrValue* attr = GetParsedAttr(nsGkAtoms::invokeaction);
-  if (attr && attr->GetAtomValue() != nsGkAtoms::_empty) {
-    return attr->GetAtomValue();
+InvokeAction nsGenericHTMLFormControlElementWithState::GetInvokeAction(
+    nsAtom* aAtom) const {
+  if (aAtom == nsGkAtoms::_empty) {
+    return InvokeAction::Auto;
   }
-  return nsGkAtoms::_auto;
+  if (nsContentUtils::EqualsIgnoreASCIICase(aAtom, nsGkAtoms::showpopover)) {
+    return InvokeAction::ShowPopover;
+  }
+  if (nsContentUtils::EqualsIgnoreASCIICase(aAtom, nsGkAtoms::hidepopover)) {
+    return InvokeAction::HidePopover;
+  }
+  if (nsContentUtils::EqualsIgnoreASCIICase(aAtom, nsGkAtoms::togglepopover)) {
+    return InvokeAction::TogglePopover;
+  }
+  if (nsContentUtils::EqualsIgnoreASCIICase(aAtom, nsGkAtoms::showmodal)) {
+    return InvokeAction::ShowModal;
+  }
+  if (nsContentUtils::EqualsIgnoreASCIICase(aAtom, nsGkAtoms::toggle)) {
+    return InvokeAction::Toggle;
+  }
+  if (nsContentUtils::EqualsIgnoreASCIICase(aAtom, nsGkAtoms::close)) {
+    return InvokeAction::Close;
+  }
+  if (nsContentUtils::EqualsIgnoreASCIICase(aAtom, nsGkAtoms::open)) {
+    return InvokeAction::Open;
+  }
+  if (nsContentUtils::ContainsChar(aAtom, '-')) {
+    return InvokeAction::Custom;
+  }
+  return InvokeAction::Invalid;
 }
 
 mozilla::dom::Element*
@@ -2922,24 +2949,30 @@ void nsGenericHTMLFormControlElementWithState::SetInvokeTargetElement(
 }
 
 void nsGenericHTMLFormControlElementWithState::HandleInvokeTargetAction() {
-  // 1. Let invokee be node's invoke target element.
   RefPtr<Element> invokee = GetInvokeTargetElement();
 
-  // 2. If invokee is null, then return.
   if (!invokee) {
     return;
   }
 
-  // 3. Let action be node's invokeaction attribute
-  // 4. If action is null or empty, then let action be the string "auto".
-  RefPtr<nsAtom> aAction = GetInvokeAction();
-  MOZ_ASSERT(!aAction->IsEmpty(), "Action should not be empty");
+  // 1. Let action be element's invokeaction attribute.
+  const nsAttrValue* attr = GetParsedAttr(nsGkAtoms::invokeaction);
 
-  // 5. Let notCancelled be the result of firing an event named invoke at
-  // invokee with its action set to action, its invoker set to node,
-  // and its cancelable attribute initialized to true.
+  nsAtom* actionRaw = attr ? attr->GetAtomValue() : nsGkAtoms::_empty;
+  InvokeAction action = GetInvokeAction(actionRaw);
+
+  // 5.3. Otherwise, if the result of running invokee's corresponding is valid
+  // invoke action steps given action is not true, then return.
+  if (action != InvokeAction::Custom && !invokee->IsValidInvokeAction(action)) {
+    return;
+  }
+
+  // 6. Let continue be the result of firing an event named invoke at invokee,
+  // using InvokeEvent, with its action attribute initialized to action's value,
+  // its invoker attribute initialized to element, and its cancelable and
+  // composed attributes initialized to true.
   InvokeEventInit init;
-  aAction->ToString(init.mAction);
+  actionRaw->ToString(init.mAction);
   init.mInvoker = this;
   init.mCancelable = true;
   init.mComposed = true;
@@ -2949,13 +2982,13 @@ void nsGenericHTMLFormControlElementWithState::HandleInvokeTargetAction() {
 
   EventDispatcher::DispatchDOMEvent(invokee, nullptr, event, nullptr, nullptr);
 
-  // 6. If notCancelled is true and invokee has an associated invocation action
-  // algorithm then run the invokee's invocation action algorithm given action.
-  if (event->DefaultPrevented()) {
+  // 7. If continue is false, then return.
+  // 8. If isCustom is true, then return.
+  if (action == InvokeAction::Custom || event->DefaultPrevented()) {
     return;
   }
 
-  invokee->HandleInvokeInternal(aAction, IgnoreErrors());
+  invokee->HandleInvokeInternal(action, IgnoreErrors());
 }
 
 void nsGenericHTMLFormControlElementWithState::GenerateStateKey() {

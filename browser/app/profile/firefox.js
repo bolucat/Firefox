@@ -1679,6 +1679,9 @@ pref("browser.menu.showCharacterEncoding", "chrome://browser/locale/browser.prop
 // This is a fallback value for when prompt callers do not specify a modalType.
 pref("prompts.defaultModalType", 3);
 
+// Whether to use the discrete Top Sites component.
+pref("browser.topsites.component.enabled", false);
+
 pref("browser.topsites.useRemoteSetting", true);
 // Fetch sponsored Top Sites from Mozilla Tiles Service (Contile)
 pref("browser.topsites.contile.enabled", true);
@@ -2437,6 +2440,9 @@ pref("screenshots.browser.component.enabled", true);
 
 // Preference that determines what button to focus
 pref("screenshots.browser.component.last-saved-method", "download");
+
+// Preference that prevents events from reaching the content page.
+pref("screenshots.browser.component.preventContentEvents", true);
 
 // DoH Rollout: whether to clear the mode value at shutdown.
 pref("doh-rollout.clearModeOnShutdown", false);

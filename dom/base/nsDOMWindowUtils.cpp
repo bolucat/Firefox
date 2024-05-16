@@ -398,7 +398,7 @@ nsDOMWindowUtils::UpdateLayerTree() {
     // (in WebRender it constantly does), thus the reftest harness can't take
     // any snapshot until the throttled animations finished.
     presShell->FlushPendingNotifications(
-        ChangesToFlush(FlushType::Display, false /* flush animations */));
+        ChangesToFlush(FlushType::Layout, false /* flush animations */));
     RefPtr<nsViewManager> vm = presShell->GetViewManager();
     if (nsView* view = vm->GetRootView()) {
       nsAutoScriptBlocker scriptBlocker;
@@ -2067,10 +2067,6 @@ nsDOMWindowUtils::NeedsFlush(int32_t aFlushType, bool* aResult) {
       flushType = FlushType::Layout;
       break;
 
-    case FLUSH_DISPLAY:
-      flushType = FlushType::Display;
-      break;
-
     default:
       return NS_ERROR_INVALID_ARG;
   }
@@ -3316,20 +3312,6 @@ nsDOMWindowUtils::CheckAndClearDisplayListState(Element* aElement,
   }
   *aResult = true;
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::IsPartOfOpaqueLayer(Element* aElement, bool* aResult) {
-  if (!aElement) {
-    return NS_ERROR_INVALID_ARG;
-  }
-
-  nsIFrame* frame = aElement->GetPrimaryFrame();
-  if (!frame) {
-    return NS_ERROR_FAILURE;
-  }
-
-  return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP

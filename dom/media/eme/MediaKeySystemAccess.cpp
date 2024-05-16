@@ -233,14 +233,15 @@ static KeySystemConfig::EMECodecString ToEMEAPICodecString(
 
 static RefPtr<KeySystemConfig::SupportedConfigsPromise>
 GetSupportedKeySystemConfigs(const nsAString& aKeySystem,
-                             bool aIsHardwareDecryption) {
+                             bool aIsHardwareDecryption,
+                             bool aIsPrivateBrowsing) {
   using DecryptionInfo = KeySystemConfig::DecryptionInfo;
   nsTArray<KeySystemConfigRequest> requests;
 
   // Software Widevine and Clearkey
   if (IsWidevineKeySystem(aKeySystem) || IsClearkeyKeySystem(aKeySystem)) {
-    requests.AppendElement(
-        KeySystemConfigRequest{aKeySystem, DecryptionInfo::Software});
+    requests.AppendElement(KeySystemConfigRequest{
+        aKeySystem, DecryptionInfo::Software, aIsPrivateBrowsing});
   }
 #ifdef MOZ_WMF_CDM
   if (IsPlayReadyEnabled()) {
@@ -249,21 +250,21 @@ GetSupportedKeySystemConfigs(const nsAString& aKeySystem,
         aKeySystem.EqualsLiteral(kPlayReadyKeySystemHardware)) {
       requests.AppendElement(
           KeySystemConfigRequest{NS_ConvertUTF8toUTF16(kPlayReadyKeySystemName),
-                                 DecryptionInfo::Software});
+                                 DecryptionInfo::Software, aIsPrivateBrowsing});
       if (aIsHardwareDecryption) {
         requests.AppendElement(KeySystemConfigRequest{
             NS_ConvertUTF8toUTF16(kPlayReadyKeySystemName),
-            DecryptionInfo::Hardware});
+            DecryptionInfo::Hardware, aIsPrivateBrowsing});
         requests.AppendElement(KeySystemConfigRequest{
             NS_ConvertUTF8toUTF16(kPlayReadyKeySystemHardware),
-            DecryptionInfo::Hardware});
+            DecryptionInfo::Hardware, aIsPrivateBrowsing});
       }
     }
     // PlayReady clearlead
     if (aKeySystem.EqualsLiteral(kPlayReadyHardwareClearLeadKeySystemName)) {
       requests.AppendElement(KeySystemConfigRequest{
           NS_ConvertUTF8toUTF16(kPlayReadyHardwareClearLeadKeySystemName),
-          DecryptionInfo::Hardware});
+          DecryptionInfo::Hardware, aIsPrivateBrowsing});
     }
   }
 
@@ -273,13 +274,13 @@ GetSupportedKeySystemConfigs(const nsAString& aKeySystem,
         (IsWidevineKeySystem(aKeySystem) && aIsHardwareDecryption)) {
       requests.AppendElement(KeySystemConfigRequest{
           NS_ConvertUTF8toUTF16(kWidevineExperimentKeySystemName),
-          DecryptionInfo::Hardware});
+          DecryptionInfo::Hardware, aIsPrivateBrowsing});
     }
     // Widevine clearlead
     if (aKeySystem.EqualsLiteral(kWidevineExperiment2KeySystemName)) {
       requests.AppendElement(KeySystemConfigRequest{
           NS_ConvertUTF8toUTF16(kWidevineExperiment2KeySystemName),
-          DecryptionInfo::Hardware});
+          DecryptionInfo::Hardware, aIsPrivateBrowsing});
     }
   }
 #endif
@@ -289,10 +290,11 @@ GetSupportedKeySystemConfigs(const nsAString& aKeySystem,
 /* static */
 RefPtr<GenericPromise> MediaKeySystemAccess::KeySystemSupportsInitDataType(
     const nsAString& aKeySystem, const nsAString& aInitDataType,
-    bool aIsHardwareDecryption) {
+    bool aIsHardwareDecryption, bool aIsPrivateBrowsing) {
   RefPtr<GenericPromise::Private> promise =
       new GenericPromise::Private(__func__);
-  GetSupportedKeySystemConfigs(aKeySystem, aIsHardwareDecryption)
+  GetSupportedKeySystemConfigs(aKeySystem, aIsHardwareDecryption,
+                               aIsPrivateBrowsing)
       ->Then(GetMainThreadSerialEventTarget(), __func__,
              [promise, initDataType = nsString{std::move(aInitDataType)}](
                  const KeySystemConfig::SupportedConfigsPromise::
@@ -820,7 +822,6 @@ static bool GetSupportedConfig(const KeySystemConfig& aKeySystem,
                                const MediaKeySystemConfiguration& aCandidate,
                                MediaKeySystemConfiguration& aOutConfig,
                                DecoderDoctorDiagnostics* aDiagnostics,
-                               bool aInPrivateBrowsing,
                                const Document* aDocument) {
   EME_LOG("Compare implementation '%s'\n with request '%s'",
           NS_ConvertUTF16toUTF8(aKeySystem.GetDebugInfo()).get(),
@@ -876,15 +877,6 @@ static bool GetSupportedConfig(const KeySystemConfig& aKeySystem,
     EME_LOG(
         "MediaKeySystemConfiguration (label='%s') rejected; "
         "persistentState requirement not satisfied.",
-        NS_ConvertUTF16toUTF8(aCandidate.mLabel).get());
-    return false;
-  }
-
-  if (config.mPersistentState == MediaKeysRequirement::Required &&
-      aInPrivateBrowsing) {
-    EME_LOG(
-        "MediaKeySystemConfiguration (label='%s') rejected; "
-        "persistentState requested in Private Browsing window.",
         NS_ConvertUTF16toUTF8(aCandidate.mLabel).get());
     return false;
   }
@@ -1078,10 +1070,9 @@ MediaKeySystemAccess::GetSupportedConfig(MediaKeySystemAccessRequest* aRequest,
   RefPtr<KeySystemConfig::KeySystemConfigPromise::Private> promise =
       new KeySystemConfig::KeySystemConfigPromise::Private(__func__);
   GetSupportedKeySystemConfigs(aRequest->mKeySystem,
-                               isHardwareDecryptionRequest)
+                               isHardwareDecryptionRequest, aIsPrivateBrowsing)
       ->Then(GetMainThreadSerialEventTarget(), __func__,
-             [promise, aRequest, aIsPrivateBrowsing,
-              document = RefPtr<const Document>{aDocument}](
+             [promise, aRequest, document = RefPtr<const Document>{aDocument}](
                  const KeySystemConfig::SupportedConfigsPromise::
                      ResolveOrRejectValue& aResult) {
                if (aResult.IsResolve()) {
@@ -1091,8 +1082,7 @@ MediaKeySystemAccess::GetSupportedConfig(MediaKeySystemAccessRequest* aRequest,
                         aRequest->mConfigs) {
                      if (mozilla::dom::GetSupportedConfig(
                              implementation, candidate, outConfig,
-                             &aRequest->mDiagnostics, aIsPrivateBrowsing,
-                             document)) {
+                             &aRequest->mDiagnostics, document)) {
                        promise->Resolve(std::move(outConfig), __func__);
                        return;
                      }

@@ -24,6 +24,7 @@ test_only:
     expires: never
     send_in_pings:
       - test-ping
+      - ride-along-ping
 
   can_we_time_it:
     type: timespan
@@ -199,6 +200,7 @@ test_only:
     labels:
       - next_to_the_fridge
       - clean
+      - 1st_counter
 
   mabels_bathroom_counters:
     type: labeled_counter

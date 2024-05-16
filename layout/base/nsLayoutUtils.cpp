@@ -1398,7 +1398,7 @@ nsRect nsLayoutUtils::GetScrolledRect(nsIFrame* aScrolledFrame,
                                       StyleDirection aDirection) {
   WritingMode wm = aScrolledFrame->GetWritingMode();
   // Potentially override the frame's direction to use the direction found
-  // by nsHTMLScrollFrame::GetScrolledFrameDir()
+  // by ScrollContainerFrame::GetScrolledFrameDir()
   wm.SetDirectionFromBidiLevel(aDirection == StyleDirection::Rtl
                                    ? mozilla::intl::BidiEmbeddingLevel::RTL()
                                    : mozilla::intl::BidiEmbeddingLevel::LTR());
@@ -2373,8 +2373,8 @@ bool nsLayoutUtils::ContainsPoint(const nsRect& aRect, const nsPoint& aPoint,
 
 nsRect nsLayoutUtils::ClampRectToScrollFrames(nsIFrame* aFrame,
                                               const nsRect& aRect) {
-  nsIFrame* closestScrollFrame =
-      nsLayoutUtils::GetClosestFrameOfType(aFrame, LayoutFrameType::Scroll);
+  nsIFrame* closestScrollFrame = nsLayoutUtils::GetClosestFrameOfType(
+      aFrame, LayoutFrameType::ScrollContainer);
 
   nsRect resultRect = aRect;
 
@@ -2393,7 +2393,7 @@ nsRect nsLayoutUtils::ClampRectToScrollFrames(nsIFrame* aFrame,
 
     // Get next ancestor scroll frame.
     closestScrollFrame = nsLayoutUtils::GetClosestFrameOfType(
-        closestScrollFrame->GetParent(), LayoutFrameType::Scroll);
+        closestScrollFrame->GetParent(), LayoutFrameType::ScrollContainer);
   }
 
   return resultRect;
@@ -3165,7 +3165,7 @@ void nsLayoutUtils::PaintFrame(gfxContext* aRenderingContext, nsIFrame* aFrame,
       // In cases where the root document is a XUL document, we want to take
       // the ViewID from the root element, as that will be the ViewID of the
       // root APZC in the tree. Skip doing this in cases where we know
-      // nsGfxScrollFrame::BuilDisplayList will do it instead.
+      // ScrollContainerFrame::BuilDisplayList will do it instead.
       if (dom::Element* element =
               presShell->GetDocument()->GetDocumentElement()) {
         id = nsLayoutUtils::FindOrCreateIDFor(element);
@@ -3652,10 +3652,10 @@ nsLayoutUtils::RectListBuilder::RectListBuilder(DOMRectList* aList)
     : mRectList(aList) {}
 
 void nsLayoutUtils::RectListBuilder::AddRect(const nsRect& aRect) {
-  RefPtr<DOMRect> rect = new DOMRect(mRectList);
+  auto rect = MakeRefPtr<DOMRect>(mRectList);
 
   rect->SetLayoutRect(aRect);
-  mRectList->Append(rect);
+  mRectList->Append(std::move(rect));
 }
 
 nsIFrame* nsLayoutUtils::GetContainingBlockForClientRect(nsIFrame* aFrame) {
@@ -4162,7 +4162,7 @@ static bool GetPercentBSize(const LengthPercentage& aStyle, nsIFrame* aFrame,
   MOZ_ASSERT(!aStyle.ConvertsToLength(),
              "GetAbsoluteCoord should have handled this");
 
-  // During reflow, nsHTMLScrollFrame::ReflowScrolledFrame uses
+  // During reflow, ScrollContainerFrame::ReflowScrolledFrame uses
   // SetComputedHeight on the reflow input for its child to propagate its
   // computed height to the scrolled content. So here we skip to the scroll
   // frame that contains this scrolled content in order to get the same
@@ -5874,7 +5874,7 @@ bool nsLayoutUtils::GetLastLineBaseline(WritingMode aWM, const nsIFrame* aFrame,
                    kid->GetLogicalNormalPosition(aWM, containerSize).B(aWM);
         return true;
       }
-      if (kid->IsScrollFrame()) {
+      if (kid->IsScrollContainerFrame()) {
         // Defer to nsIFrame::GetLogicalBaseline (which synthesizes a baseline
         // from the margin-box).
         kidBaseline = kid->GetLogicalBaseline(aWM);
@@ -5954,10 +5954,13 @@ nsIFrame* nsLayoutUtils::GetClosestLayer(nsIFrame* aFrame) {
   nsIFrame* layer;
   for (layer = aFrame; layer; layer = layer->GetParent()) {
     if (layer->IsAbsPosContainingBlock() ||
-        (layer->GetParent() && layer->GetParent()->IsScrollFrame()))
+        (layer->GetParent() && layer->GetParent()->IsScrollContainerFrame())) {
       break;
+    }
   }
-  if (layer) return layer;
+  if (layer) {
+    return layer;
+  }
   return aFrame->PresShell()->GetRootFrame();
 }
 

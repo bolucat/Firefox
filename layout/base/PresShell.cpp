@@ -2479,7 +2479,7 @@ nsIFrame* PresShell::GetRootScrollFrame() const {
     return nullptr;
   }
   nsIFrame* theFrame = rootFrame->PrincipalChildList().FirstChild();
-  if (!theFrame || !theFrame->IsScrollFrame()) {
+  if (!theFrame || !theFrame->IsScrollContainerFrame()) {
     return nullptr;
   }
   return theFrame;
@@ -5700,8 +5700,7 @@ void PresShell::SynthesizeMouseMove(bool aFromScroll) {
   }
 
   if (!mSynthMouseMoveEvent.IsPending()) {
-    RefPtr<nsSynthMouseMoveEvent> ev =
-        new nsSynthMouseMoveEvent(this, aFromScroll);
+    auto ev = MakeRefPtr<nsSynthMouseMoveEvent>(this, aFromScroll);
 
     GetPresContext()->RefreshDriver()->AddRefreshObserver(
         ev, FlushType::Display, "Synthetic mouse move event");
@@ -6080,7 +6079,7 @@ void PresShell::MarkFramesInSubtreeApproximatelyVisible(
       // We can properly set the base rect for root scroll frames on top level
       // and root content documents. Otherwise the base rect we compute might
       // be way too big without the limiting that
-      // nsHTMLScrollFrame::DecideScrollableLayer does, so we just ignore the
+      // ScrollContainerFrame::DecideScrollableLayer does, so we just ignore the
       // displayport in that case.
       nsPresContext* pc = aFrame->PresContext();
       if (scrollFrame->IsRootScrollFrameOfDocument() &&
@@ -10500,11 +10499,10 @@ bool PresShell::VerifyIncrementalReflow() {
   }
 
   // Create a presentation context to view the new frame tree
-  RefPtr<nsPresContext> cx = new nsRootPresContext(
+  auto cx = MakeRefPtr<nsRootPresContext>(
       mDocument, mPresContext->IsPaginated()
                      ? nsPresContext::eContext_PrintPreview
                      : nsPresContext::eContext_Galley);
-  NS_ENSURE_TRUE(cx, false);
 
   nsDeviceContext* dc = mPresContext->DeviceContext();
   nsresult rv = cx->Init(dc);
@@ -10516,8 +10514,7 @@ bool PresShell::VerifyIncrementalReflow() {
   nsIWidget* parentWidget = rootView->GetWidget();
 
   // Create a new view manager.
-  RefPtr<nsViewManager> vm = new nsViewManager();
-  NS_ENSURE_TRUE(vm, false);
+  auto vm = MakeRefPtr<nsViewManager>();
   rv = vm->Init(dc);
   NS_ENSURE_SUCCESS(rv, false);
 
@@ -11479,7 +11476,7 @@ bool PresShell::SetVisualViewportOffset(const nsPoint& aScrollOffset,
   nsPoint newOffset = aScrollOffset;
   nsIScrollableFrame* rootScrollFrame = GetRootScrollFrameAsScrollable();
   if (rootScrollFrame) {
-    // See the comment in nsHTMLScrollFrame::Reflow above the call to
+    // See the comment in ScrollContainerFrame::Reflow above the call to
     // SetVisualViewportOffset for why we need to do this.
     nsRect scrollRange = rootScrollFrame->GetScrollRangeForUserInputEvents();
     if (!scrollRange.Contains(newOffset)) {

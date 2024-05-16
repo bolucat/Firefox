@@ -275,24 +275,7 @@ case "$target" in
     ;;
 
 *-android*|*-linuxandroid*)
-    # From https://github.com/android-ndk/ndk/issues/133#issuecomment-308549264
-    # -Oz is smaller than -Os on clang.
-    MOZ_OPTIMIZE_FLAGS="-Oz"
-    # Disable the outliner, which causes performance regressions, and is
-    # enabled on some platforms at -Oz.
-    if test -z "$MOZ_LTO"; then
-        DISABLE_OUTLINER="-mno-outline"
-        _SAVE_CFLAGS=$CFLAGS
-        CFLAGS="$CFLAGS $DISABLE_OUTLINER"
-        AC_TRY_COMPILE(,,[MOZ_OPTIMIZE_FLAGS="$MOZ_OPTIMIZE_FLAGS $DISABLE_OUTLINER"])
-        CFLAGS="$_SAVE_CFLAGS"
-   else
-        DISABLE_OUTLINER="-Wl,-plugin-opt=-enable-machine-outliner=never"
-        _SAVE_LDFLAGS=$LDFLAGS
-        LDFLAGS="$LDFLAGS $MOZ_LTO_LDFLAGS $DISABLE_OUTLINER"
-        AC_TRY_LINK(,,[MOZ_OPTIMIZE_LDFLAGS="$MOZ_OPTIMIZE_LDFLAGS $DISABLE_OUTLINER"])
-        LDFLAGS="$_SAVE_LDFLAGS"
-    fi
+    MOZ_OPTIMIZE_FLAGS="-O2"
     ;;
 
 *-*linux*)
@@ -479,27 +462,6 @@ AC_LANG_C
 dnl Checks for libraries.
 dnl ========================================================
 AC_CHECK_LIB(c_r, gethostbyname_r)
-
-dnl We don't want to link with libdl even if it's present on OS X, since
-dnl it's not used and not part of the default installation. OS/2 has dlfcn
-dnl in libc.
-dnl We don't want to link against libm or libpthread on Darwin since
-dnl they both are just symlinks to libSystem and explicitly linking
-dnl against libSystem causes issues when debugging (see bug 299601).
-case $target in
-*-darwin*)
-    ;;
-*)
-    AC_SEARCH_LIBS(dlopen, dl,
-        MOZ_CHECK_HEADER(dlfcn.h,
-        AC_DEFINE(HAVE_DLOPEN)))
-    ;;
-esac
-
-_SAVE_CFLAGS="$CFLAGS"
-CFLAGS="$CFLAGS -D_GNU_SOURCE"
-AC_CHECK_FUNCS(dladdr)
-CFLAGS="$_SAVE_CFLAGS"
 
 if test ! "$GNU_CXX"; then
     AC_CHECK_LIB(C, demangle)
@@ -840,15 +802,6 @@ if test "$OS_ARCH" = "WINNT"; then
     # one of the above headers or mozstdint.h.
     AC_DEFINE(HAVE_UINT64_T)
 fi
-
-case "$MOZ_WIDGET_TOOLKIT" in
-  windows)
-    if test "$COMPILE_ENVIRONMENT"; then
-      MOZ_CHECK_HEADER(d3d10.h, MOZ_ENABLE_D3D10_LAYER=1)
-    fi
-    ;;
-esac
-AC_SUBST(MOZ_ENABLE_D3D10_LAYER)
 
 dnl ========================================================
 dnl =

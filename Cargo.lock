@@ -1207,7 +1207,7 @@ dependencies = [
 [[package]]
 name = "d3d12"
 version = "0.20.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=d5d683d3c491ec8cd2f5cdb43ac61e526cb7c231#d5d683d3c491ec8cd2f5cdb43ac61e526cb7c231"
+source = "git+https://github.com/gfx-rs/wgpu?rev=2f4522714c4037a1842d27bb448b634f089664ab#2f4522714c4037a1842d27bb448b634f089664ab"
 dependencies = [
  "bitflags 2.5.0",
  "libloading 0.8.3",
@@ -2387,9 +2387,9 @@ dependencies = [
 
 [[package]]
 name = "glean"
-version = "60.0.0"
+version = "60.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "782325c56864d3ce57e46840b8eb9318e8d85f5b80ba88fb85bb05d47e2e119b"
+checksum = "17dbdd29dcae47b7f8fae9378ae7bf17be18b902cbb490341af2f4d04ead6bbf"
 dependencies = [
  "glean-core",
  "inherent",
@@ -2400,9 +2400,9 @@ dependencies = [
 
 [[package]]
 name = "glean-core"
-version = "60.0.0"
+version = "60.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1d6ca4a985a5d5a947334338381da0b8a24cf23e8da574c1d40e74067c91b81"
+checksum = "99bf32010135ab5b1db37fff66096d08b9df4e9dd94c881aa0774df61c122fdf"
 dependencies = [
  "android_logger",
  "bincode",
@@ -2520,9 +2520,9 @@ dependencies = [
 
 [[package]]
 name = "gpu-allocator"
-version = "0.25.0"
+version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f56f6318968d03c18e1bcf4857ff88c61157e9da8e47c5f29055d60e1228884"
+checksum = "fdd4240fc91d3433d5e5b0fc5b67672d771850dc19bbee03c1381e19322803d7"
 dependencies = [
  "log",
  "presser",
@@ -3829,9 +3829,12 @@ dependencies = [
  "bytes",
  "cc",
  "chrono",
+ "core-foundation-sys",
  "dist-bin",
  "env_logger",
  "flate2",
+ "fluent",
+ "fluent-langneg",
  "futures-channel",
  "futures-core",
  "futures-sink",
@@ -3839,7 +3842,9 @@ dependencies = [
  "getrandom",
  "hashbrown 0.13.999",
  "hyper",
- "indexmap 1.999.999",
+ "icu_locid",
+ "indexmap 2.2.6",
+ "itertools",
  "libc",
  "log",
  "memchr",
@@ -3848,6 +3853,7 @@ dependencies = [
  "num-integer",
  "num-traits",
  "once_cell",
+ "phf",
  "proc-macro2",
  "quote",
  "regex",
@@ -3856,15 +3862,26 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec",
+ "stable_deref_trait",
  "syn",
  "time 0.3.23",
+ "time-macros",
+ "tinystr",
  "tokio",
  "tokio-util",
+ "toml",
  "tracing",
+ "unic-langid",
+ "unic-langid-impl",
+ "unicode-bidi",
  "url",
  "uuid",
  "winapi",
  "windows-sys 0.52.0",
+ "yoke",
+ "zerofrom",
+ "zerovec",
+ "zip",
 ]
 
 [[package]]
@@ -3960,7 +3977,7 @@ checksum = "a2983372caf4480544083767bf2d27defafe32af49ab4df3a0b7fc90793a3664"
 [[package]]
 name = "naga"
 version = "0.20.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=d5d683d3c491ec8cd2f5cdb43ac61e526cb7c231#d5d683d3c491ec8cd2f5cdb43ac61e526cb7c231"
+source = "git+https://github.com/gfx-rs/wgpu?rev=2f4522714c4037a1842d27bb448b634f089664ab#2f4522714c4037a1842d27bb448b634f089664ab"
 dependencies = [
  "arrayvec",
  "bit-set",
@@ -6624,7 +6641,7 @@ dependencies = [
 [[package]]
 name = "wgpu-core"
 version = "0.20.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=d5d683d3c491ec8cd2f5cdb43ac61e526cb7c231#d5d683d3c491ec8cd2f5cdb43ac61e526cb7c231"
+source = "git+https://github.com/gfx-rs/wgpu?rev=2f4522714c4037a1842d27bb448b634f089664ab#2f4522714c4037a1842d27bb448b634f089664ab"
 dependencies = [
  "arrayvec",
  "bit-vec",
@@ -6650,7 +6667,7 @@ dependencies = [
 [[package]]
 name = "wgpu-hal"
 version = "0.20.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=d5d683d3c491ec8cd2f5cdb43ac61e526cb7c231#d5d683d3c491ec8cd2f5cdb43ac61e526cb7c231"
+source = "git+https://github.com/gfx-rs/wgpu?rev=2f4522714c4037a1842d27bb448b634f089664ab#2f4522714c4037a1842d27bb448b634f089664ab"
 dependencies = [
  "android_system_properties",
  "arrayvec",
@@ -6689,7 +6706,7 @@ dependencies = [
 [[package]]
 name = "wgpu-types"
 version = "0.20.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=d5d683d3c491ec8cd2f5cdb43ac61e526cb7c231#d5d683d3c491ec8cd2f5cdb43ac61e526cb7c231"
+source = "git+https://github.com/gfx-rs/wgpu?rev=2f4522714c4037a1842d27bb448b634f089664ab#2f4522714c4037a1842d27bb448b634f089664ab"
 dependencies = [
  "bitflags 2.5.0",
  "js-sys",

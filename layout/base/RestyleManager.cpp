@@ -769,7 +769,7 @@ static nsIFrame* GetFrameForChildrenOnlyTransformHint(nsIFrame* aFrame) {
     // GetContent() returns nullptr for ViewportFrame.
     aFrame = aFrame->PrincipalChildList().FirstChild();
   }
-  // For an nsHTMLScrollFrame, this will get the SVG frame that has the
+  // For a ScrollContainerFrame, this will get the SVG frame that has the
   // children-only transforms:
   aFrame = aFrame->GetContent()->GetPrimaryFrame();
   if (aFrame->IsSVGOuterSVGFrame()) {
@@ -1128,7 +1128,7 @@ static nsIFrame* ContainingBlockForFrame(nsIFrame* aFrame) {
   // Generally frames with a different insertion frame are hard to deal with,
   // but scrollframes are easy because the containing block is just the
   // insertion frame.
-  if (aFrame->IsScrollFrame()) {
+  if (aFrame->IsScrollContainerFrame()) {
     return insertionFrame;
   }
   // Combobox frames are easy as well because they can't have positioned
