@@ -23,6 +23,13 @@ XPCOMUtils.defineLazyServiceGetter(
   "nsIClipboardHelper"
 );
 
+XPCOMUtils.defineLazyServiceGetter(
+  this,
+  "GfxInfo",
+  "@mozilla.org/gfx/info;1",
+  "nsIGfxInfo"
+);
+
 /**
  * This singleton class controls the SelectTranslations panel.
  *
@@ -80,6 +87,20 @@ var SelectTranslationsPanel = new (class {
    * @type {string}
    */
   #longTextHeight = "16em";
+
+  /**
+   * The alignment position value of the panel when it opened.
+   *
+   * We want to cache this value because some alignments, such as "before_start"
+   * and "before_end" will cause the panel to expand upward from the top edge
+   * when the user is trying to resize the text-area by dragging the resizer downward.
+   *
+   * Knowing this value helps us determine if we should disable the textarea resizer
+   * based on how and where the panel was opened.
+   *
+   * @see #maybeEnableTextAreaResizer
+   */
+  #alignmentPosition = "";
 
   /**
    * Retrieves the read-only textarea height for longer text.
@@ -479,7 +500,7 @@ var SelectTranslationsPanel = new (class {
   }
 
   /**
-   * Opens a the panel popup at a location on the screen.
+   * Opens the panel popup at a location on the screen.
    *
    * @param {Event} event - The event that triggers the popup opening.
    * @param {number} screenX - The x-axis location of the screen at which to open the popup.
@@ -488,7 +509,37 @@ var SelectTranslationsPanel = new (class {
   #openPopup(event, screenX, screenY) {
     this.console?.log("Showing SelectTranslationsPanel");
     const { panel } = this.elements;
-    panel.openPopupAtScreen(screenX, screenY, /* isContextMenu */ false, event);
+    this.#cacheAlignmentPositionOnOpen();
+    panel.openPopupAtScreenRect(
+      "after_start",
+      screenX,
+      screenY,
+      /* width */ 0,
+      /* height */ 0,
+      /* isContextMenu */ false,
+      /* attributesOverride */ false,
+      event
+    );
+  }
+
+  /**
+   * Resets the cached alignment-position value and adds an event listener
+   * to set the value again when the panel is positioned before opening.
+   * See the comment on the data member for more details.
+   *
+   * @see #alignmentPosition
+   */
+  #cacheAlignmentPositionOnOpen() {
+    const { panel } = this.elements;
+    this.#alignmentPosition = "";
+    panel.addEventListener(
+      "popuppositioned",
+      popupPositionedEvent => {
+        // Cache the alignment position when the popup is opened.
+        this.#alignmentPosition = popupPositionedEvent.alignmentPosition;
+      },
+      { once: true }
+    );
   }
 
   /**
@@ -521,6 +572,8 @@ var SelectTranslationsPanel = new (class {
       });
     }
 
+    textArea.style.resize = "none";
+    textArea.style.maxHeight = null;
     if (sourceText.length < SelectTranslationsPanel.textLengthThreshold) {
       textArea.style.height = SelectTranslationsPanel.shortTextHeight;
     } else {
@@ -646,6 +699,222 @@ var SelectTranslationsPanel = new (class {
         break;
       }
     }
+  }
+
+  /**
+   * Conditionally enables the resizer component at the bottom corner of the text area,
+   * and limits the maximum height that the textarea can be resized.
+   *
+   * For systems using Wayland, this function ensures that the panel cannot be resized past
+   * the border of the current Firefox window.
+   *
+   * For all other systems, this function ensures that the panel cannot be resized past the
+   * bottom edge of the available screen space.
+   */
+  #maybeEnableTextAreaResizer() {
+    // The alignment position of the panel is determined during the "popuppositioned" event
+    // when the panel opens. The alignment positions help us determine in which orientation
+    // the panel is anchored to the screen space.
+    //
+    // *  "after_start": The panel is anchored at the top-left     corner in LTR locales, top-right    in RTL locales.
+    // *    "after_end": The panel is anchored at the top-right    corner in LTR locales, top-left     in RTL locales.
+    // * "before_start": The panel is anchored at the bottom-left  corner in LTR locales, bottom-right in RTL locales.
+    // *   "before_end": The panel is anchored at the bottom-right corner in LTR locales, bottom-left  in RTL locales.
+    //
+    //   ┌─Anchor(LTR)          ┌─Anchor(RTL)
+    //   │       Anchor(RTL)─┐  │       Anchor(LTR)─┐
+    //   │                   │  │                   │
+    //   x───────────────────x  x───────────────────x
+    //   │                   │  │                   │
+    //   │       Panel       │  │       Panel       │
+    //   │   "after_start"   │  │    "after_end"    │
+    //   │                   │  │                   │
+    //   └───────────────────┘  └───────────────────┘
+    //
+    //   ┌───────────────────┐  ┌───────────────────┐
+    //   │                   │  │                   │
+    //   │       Panel       │  │       Panel       │
+    //   │   "before_start"  │  │    "before_end"   │
+    //   │                   │  │                   │
+    //   x───────────────────x  x───────────────────x
+    //   │                   │  │                   │
+    //   │       Anchor(RTL)─┘  │       Anchor(LTR)─┘
+    //   └─Anchor(LTR)          └─Anchor(RTL)
+    //
+    // The default choice for the panel is "after_start", to match the content context menu's alignment. However, it is
+    // possible to end up with any of the four combinations. Before the panel is opened, the XUL popup manager needs to
+    // make a determination about the size of the panel and whether or not it will fit within the visible screen area with
+    // the intended alignment. The manager may change the panel's alignment before opening to ensure the panel is fully visible.
+    //
+    // For example, if the panel is opened such that the bottom edge would be rendered off screen, then the XUL popup manager
+    // will change the alignment from "after_start" to "before_start", anchoring the panel's bottom corner to the target screen
+    // location instead of its top corner. This transformation ensures that the whole of the panel is visible on the screen.
+    //
+    // When the panel is anchored by one of its bottom corners (the "before_..." options), then it causes unintentionally odd
+    // behavior where dragging the text-area resizer downward with the mouse actually grows the panel's top edge upward, since
+    // the bottom of the panel is anchored in place. We want to disable the resizer if the panel was positioned to be anchored
+    // from one of its bottom corners.
+    switch (this.#alignmentPosition) {
+      case "after_start":
+      case "after_end": {
+        // The text-area resizer will act normally.
+        break;
+      }
+      case "before_start":
+      case "before_end": {
+        // The text-area resizer increase the size of the panel from the top edge even
+        // though the user is dragging the resizer downward with the mouse.
+        this.console?.debug(
+          `Disabling text-area resizer due to panel alignment position: "${
+            this.#alignmentPosition
+          }"`
+        );
+        return;
+      }
+      default: {
+        this.console?.debug(
+          `Disabling text-area resizer due to unexpected panel alignment position: "${
+            this.#alignmentPosition
+          }"`
+        );
+        return;
+      }
+    }
+
+    const { panel, textArea } = this.elements;
+
+    if (textArea.style.maxHeight) {
+      this.console?.debug(
+        "The text-area resizer has already been enabled at the current panel location."
+      );
+      return;
+    }
+
+    // The visible height of the text area on the screen.
+    const textAreaClientHeight = textArea.clientHeight;
+
+    // The height of the text in the text area, including text that has overflowed beyond the client height.
+    const textAreaScrollHeight = textArea.scrollHeight;
+
+    if (textAreaScrollHeight <= textAreaClientHeight) {
+      this.console?.debug(
+        "Disabling text-area resizer because the text content fits within the text area."
+      );
+      return;
+    }
+
+    // Wayland has no concept of "screen coordinates" which causes getOuterScreenRect to always
+    // return { x: 0, y: 0 } for the location. As such, we cannot tell on Wayland where the panel
+    // is positioned relative to the screen, so we must restrict the panel's resizing limits to be
+    // within the Firefox window itself.
+    let isWayland = false;
+    try {
+      isWayland = GfxInfo.windowProtocol === "wayland";
+    } catch (error) {
+      if (AppConstants.platform === "linux") {
+        this.console?.warn(error);
+        this.console?.debug(
+          "Disabling text-area resizer because we were unable to retrieve the window protocol on Linux."
+        );
+        return;
+      }
+      // Since we're not on Linux, we can safely continue with isWayland = false.
+    }
+
+    const {
+      top: panelTop,
+      left: panelLeft,
+      bottom: panelBottom,
+      right: panelRight,
+    } = isWayland
+      ? // The panel's location relative to the Firefox window.
+        panel.getBoundingClientRect()
+      : // The panel's location relative to the screen.
+        panel.getOuterScreenRect();
+
+    const window =
+      gBrowser.selectedBrowser.browsingContext.top.embedderElement.ownerGlobal;
+
+    if (isWayland) {
+      if (panelTop < 0) {
+        this.console?.debug(
+          "Disabling text-area resizer because the panel outside the top edge of the window on Wayland."
+        );
+        return;
+      }
+      if (panelBottom > window.innerHeight) {
+        this.console?.debug(
+          "Disabling text-area resizer because the panel is outside the bottom edge of the window on Wayland."
+        );
+        return;
+      }
+      if (panelLeft < 0) {
+        this.console?.debug(
+          "Disabling text-area resizer because the panel outside the left edge of the window on Wayland."
+        );
+        return;
+      }
+      if (panelRight > window.innerWidth) {
+        this.console?.debug(
+          "Disabling text-area resizer because the panel is outside the right edge of the window on Wayland."
+        );
+        return;
+      }
+    } else if (!panelBottom) {
+      // The location of the panel was unable to be retrieved by getOuterScreenRect() so we should not enable
+      // resizing the text area because we cannot accurately guard against the user resizing the panel off of
+      // the bottom edge of the screen. The worst case for the user here is that they have to utilize the scroll
+      // bar instead of resizing. This happens intermittently, but infrequently.
+      this.console?.debug(
+        "Disabling text-area resizer because the location of the bottom edge of the panel was unavailable."
+      );
+      return;
+    }
+
+    const availableHeight = isWayland
+      ? // The available height of the Firefox window.
+        window.innerHeight
+      : // The available height of the screen.
+        screen.availHeight;
+
+    // The distance in pixels between the bottom edge of the panel to the bottom
+    // edge of our available height, which will either be the bottom of the Firefox
+    // window on Wayland, otherwise the bottom of the available screen space.
+    const panelBottomToBottomEdge = availableHeight - panelBottom;
+
+    // We want to maintain some buffer of pixels between the panel's bottom edge
+    // and the bottom edge of our available space, because if they touch, it can
+    // cause visual glitching to occur.
+    const BOTTOM_EDGE_PIXEL_BUFFER = 20;
+
+    if (panelBottomToBottomEdge < BOTTOM_EDGE_PIXEL_BUFFER) {
+      this.console?.debug(
+        "Disabling text-area resizer because the bottom of the panel is already close to the bottom edge."
+      );
+      return;
+    }
+
+    // The height that the textarea could grow to before hitting the threshold of the buffer that we
+    // intend to keep between the bottom edge of the panel and the bottom edge of available space.
+    const textAreaHeightLimitForEdge =
+      textAreaClientHeight + panelBottomToBottomEdge - BOTTOM_EDGE_PIXEL_BUFFER;
+
+    // This is an arbitrary ratio, but allowing the panel's text area to span 1/2 of the available
+    // vertical real estate, even if it could expand farther, seems like a reasonable constraint.
+    const textAreaHeightLimitUpperBound = Math.trunc(availableHeight / 2);
+
+    // The final maximum height that the text area will be allowed to resize to at its current location.
+    const textAreaMaxHeight = Math.min(
+      textAreaScrollHeight,
+      textAreaHeightLimitForEdge,
+      textAreaHeightLimitUpperBound
+    );
+
+    textArea.style.resize = "vertical";
+    textArea.style.maxHeight = `${textAreaMaxHeight}px`;
+    this.console?.debug(
+      `Enabling text-area resizer with a maximum height of ${textAreaMaxHeight} pixels`
+    );
   }
 
   /**
@@ -1301,6 +1570,7 @@ var SelectTranslationsPanel = new (class {
     this.#updateTextDirection(toLanguage);
     this.#updateConditionalUIEnabledState();
     this.#indicateTranslatedTextArea({ overflow: "auto" });
+    this.#maybeEnableTextAreaResizer();
   }
 
   /**

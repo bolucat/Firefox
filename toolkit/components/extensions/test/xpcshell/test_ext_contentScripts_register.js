@@ -570,7 +570,7 @@ add_task(async function test_contentscripts_register_all_options() {
     cssPaths,
     jsPaths,
     matchAboutBlank,
-    matchOriginAsFallback, // Note: cannot be set via contentScripts.register.
+    matchOriginAsFallback,
     runAt,
     originAttributesPatterns,
   } = script;
@@ -611,6 +611,31 @@ add_task(async function test_contentscripts_register_all_options() {
     !script.matchesURI(Services.io.newURI("http://localhost/ok_exclude.html")),
     "exclude globs should not match"
   );
+
+  await extension.unload();
+});
+
+add_task(async function test_contentscripts_register_matchOriginAsFallback() {
+  async function background() {
+    await browser.contentScripts.register({
+      js: [{ file: "cs.js" }],
+      matches: ["http://localhost/*"],
+      matchOriginAsFallback: true,
+    });
+    browser.test.sendMessage("ready");
+  }
+
+  const extension = ExtensionTestUtils.loadExtension({
+    manifest: { permissions: ["http://localhost/*"] },
+    background,
+    files: { "cs.js": "" },
+  });
+  await extension.startup();
+  await extension.awaitMessage("ready");
+  const script = extension.extension.policy.contentScripts[0];
+
+  equal(script.matchOriginAsFallback, true, "matchOriginAsFallback set");
+  equal(script.matchAboutBlank, true, "matchAboutBlank implied to be true");
 
   await extension.unload();
 });
@@ -788,10 +813,24 @@ add_task(async function test_contentscripts_register_cookieStoreId() {
     const script = policy.contentScripts[contentScriptIndex];
 
     deepEqual(script.originAttributesPatterns, originAttributesPatternExpected);
+
+    info("Loading initial page to preload styles and scripts");
     let contentPage = await ExtensionTestUtils.loadContentPage(
-      `about:blank`,
+      `${BASE_URL}/file_sample_registered_styles.html`,
       contentPageOptions
     );
+    // Because the scripts have been registered independently, there is no
+    // guarantee that the CSS has applied before the JS executes. So we discard
+    // the initial result (under the assumption that the result may be unstable
+    // due to the styles still loading when we run the JS).
+    await extension.awaitMessage("registered-styles-results");
+
+    // Now that we have triggered compilation and caching of the CSS and JS,
+    // reload the page, with the expectation of getting stable results:
+    // once compiled, the styles apply immediately and there should not be any
+    // intermittent test failures due to missing CSS.
+
+    info("Loading page again, to verify CSS and JS");
     await contentPage.loadURL(`${BASE_URL}/file_sample_registered_styles.html`);
 
     let registeredStylesResults = await extension.awaitMessage(

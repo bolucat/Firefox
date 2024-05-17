@@ -10,6 +10,7 @@
 #include "AccGroupInfo.h"
 #include "AccIterator.h"
 #include "CachedTableAccessible.h"
+#include "CssAltContent.h"
 #include "DocAccessible-inl.h"
 #include "mozilla/a11y/AccAttributes.h"
 #include "mozilla/a11y/DocAccessibleChild.h"
@@ -151,6 +152,11 @@ ENameValueFlag LocalAccessible::Name(nsString& aName) const {
         return eNameFromTooltip;
       }
     }
+  }
+
+  if (auto cssAlt = CssAltContent(mContent)) {
+    cssAlt.AppendToString(aName);
+    return eNameOK;
   }
 
   aName.SetIsVoid(true);
@@ -1303,6 +1309,8 @@ void LocalAccessible::DOMAttributeChanged(int32_t aNameSpaceID,
   // Fire accessible event after short timer, because we need to wait for
   // DOM attribute & resulting layout to actually change. Otherwise,
   // assistive technology will retrieve the wrong state/value/selection info.
+
+  CssAltContent::HandleAttributeChange(mContent, aNameSpaceID, aAttribute);
 
   // XXX todo
   // We still need to handle special HTML cases here

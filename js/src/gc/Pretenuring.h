@@ -32,6 +32,7 @@ enum class GCReason;
 
 namespace js::gc {
 
+struct AllocSiteFilter;
 class GCRuntime;
 class PretenuringNursery;
 
@@ -49,6 +50,12 @@ enum class CatchAllAllocSite { Unknown, Optimized };
 // unknown sites or JS JIT optimized code.
 class AllocSite {
  public:
+  enum class Kind : uint32_t {
+    Normal = 0,
+    Unknown = 1,
+    Optimized = 2,
+    Missing = 3
+  };
   enum class State : uint32_t { ShortLived = 0, Unknown = 1, LongLived = 2 };
 
   // The JIT depends on being able to tell the states apart by checking a single
@@ -76,8 +83,10 @@ class AllocSite {
   // Note that the offset does not need to correspond with the script stored in
   // this AllocSite, because if we're doing trial-inlining, the script will be
   // the outer script and the pc offset can be in an inlined script.
-  static constexpr uint32_t InvalidPCOffset = UINT32_MAX;
-  uint32_t pcOffset_ = InvalidPCOffset;
+  uint32_t pcOffset_ : 30;
+  static constexpr uint32_t InvalidPCOffset = Bit(30) - 1;
+
+  uint32_t kind_ : 2;
 
   // Number of nursery allocations at this site since last nursery collection.
   uint32_t nurseryAllocCount = 0;
@@ -103,44 +112,63 @@ class AllocSite {
   uintptr_t rawScript() const { return scriptAndState & ~STATE_MASK; }
 
  public:
-  AllocSite() : nurseryPromotedCount(0), invalidationCount(0), traceKind_(0) {}
+  static constexpr uint32_t MaxValidPCOffset = InvalidPCOffset - 1;
 
-  // Create a dummy site to use for unknown allocations.
-  explicit AllocSite(JS::Zone* zone, JS::TraceKind kind)
-      : zone_(zone),
+  // Default constructor. Clients must call one of the init methods afterwards.
+  AllocSite()
+      : pcOffset_(InvalidPCOffset),
+        kind_(uint32_t(Kind::Unknown)),
         nurseryPromotedCount(0),
         invalidationCount(0),
-        traceKind_(uint32_t(kind)) {
-    MOZ_ASSERT(traceKind_ < NurseryTraceKinds);
-  }
+        traceKind_(0) {}
 
   // Create a site for an opcode in the given script.
   AllocSite(JS::Zone* zone, JSScript* script, uint32_t pcOffset,
-            JS::TraceKind kind)
-      : AllocSite(zone, kind) {
-    MOZ_ASSERT(script != WasmScript);
+            JS::TraceKind traceKind, Kind siteKind = Kind::Normal)
+      : zone_(zone),
+        pcOffset_(pcOffset),
+        kind_(uint32_t(siteKind)),
+        nurseryPromotedCount(0),
+        invalidationCount(0),
+        traceKind_(uint32_t(traceKind)) {
+    MOZ_ASSERT(pcOffset <= MaxValidPCOffset);
+    MOZ_ASSERT(pcOffset_ == pcOffset);
     setScript(script);
-    pcOffset_ = pcOffset;
   }
 
-  void initUnknownSite(JS::Zone* zone, JS::TraceKind kind) {
-    MOZ_ASSERT(!zone_ && scriptAndState == uintptr_t(State::Unknown));
+  void initUnknownSite(JS::Zone* zone, JS::TraceKind traceKind) {
+    assertUninitialized();
     zone_ = zone;
-    nurseryPromotedCount = 0;
-    invalidationCount = 0;
-    traceKind_ = uint32_t(kind);
+    traceKind_ = uint32_t(traceKind);
     MOZ_ASSERT(traceKind_ < NurseryTraceKinds);
+  }
+
+  void initOptimizedSite(JS::Zone* zone) {
+    assertUninitialized();
+    zone_ = zone;
+    kind_ = uint32_t(Kind::Optimized);
   }
 
   // Initialize a site to be a wasm site.
   void initWasm(JS::Zone* zone) {
-    MOZ_ASSERT(!zone_ && scriptAndState == uintptr_t(State::Unknown));
+    assertUninitialized();
     zone_ = zone;
+    kind_ = uint32_t(Kind::Normal);
     setScript(WasmScript);
-    nurseryPromotedCount = 0;
-    invalidationCount = 0;
     traceKind_ = uint32_t(JS::TraceKind::Object);
   }
+
+  void assertUninitialized() {
+#ifdef DEBUG
+    MOZ_ASSERT(!zone_);
+    MOZ_ASSERT(isUnknown());
+    MOZ_ASSERT(scriptAndState == uintptr_t(State::Unknown));
+    MOZ_ASSERT(nurseryPromotedCount == 0);
+    MOZ_ASSERT(invalidationCount == 0);
+#endif
+  }
+
+  static void staticAsserts();
 
   JS::Zone* zone() const { return zone_; }
 
@@ -164,17 +192,25 @@ class AllocSite {
     return pcOffset_;
   }
 
-  // Whether this site is not an unknown or optimized site.
-  bool isNormal() const { return rawScript() != 0; }
+  bool isNormal() const { return kind() == Kind::Normal; }
+  bool isUnknown() const { return kind() == Kind::Unknown; }
+  bool isOptimized() const { return kind() == Kind::Optimized; }
+  bool isMissing() const { return kind() == Kind::Missing; }
 
-  enum class Kind : uint32_t { Normal, Unknown, Optimized };
-  Kind kind() const;
+  Kind kind() const {
+    MOZ_ASSERT((Kind(kind_) == Kind::Normal || Kind(kind_) == Kind::Missing) ==
+               (rawScript() != 0));
+    return Kind(kind_);
+  }
 
   bool isInAllocatedList() const { return nextNurseryAllocated; }
 
   // Whether allocations at this site should be allocated in the nursery or the
   // tenured heap.
   Heap initialHeap() const {
+    if (!isNormal()) {
+      return Heap::Default;
+    }
     return state() == State::LongLived ? Heap::Tenured : Heap::Default;
   }
 
@@ -202,8 +238,9 @@ class AllocSite {
   // Called for every active alloc site after minor GC.
   enum SiteResult { NoChange, WasPretenured, WasPretenuredAndInvalidated };
   SiteResult processSite(GCRuntime* gc, size_t attentionThreshold,
-                         bool reportInfo, size_t reportThreshold);
-  void processCatchAllSite(bool reportInfo, size_t reportThreshold);
+                         const AllocSiteFilter& reportFilter);
+  void processMissingSite(const AllocSiteFilter& reportFilter);
+  void processCatchAllSite(const AllocSiteFilter& reportFilter);
 
   void updateStateOnMinorGC(double promotionRate);
 
@@ -215,8 +252,11 @@ class AllocSite {
   bool invalidateScript(GCRuntime* gc);
 
   void trace(JSTracer* trc);
+  bool traceWeak(JSTracer* trc);
+  bool needsSweep(JSTracer* trc) const;
 
-  static void printInfoHeader(JS::GCReason reason, double promotionRate);
+  static void printInfoHeader(GCRuntime* gc, JS::GCReason reason,
+                              double promotionRate);
   static void printInfoFooter(size_t sitesCreated, size_t sitesActive,
                               size_t sitesPretenured, size_t sitesInvalidated);
   void printInfo(bool hasPromotionRate, double promotionRate,
@@ -282,12 +322,12 @@ class PretenuringZone {
   // allocations). Calculated during nursery collection.
   uint32_t nurseryAllocCounts[NurseryTraceKinds] = {0};
 
-  explicit PretenuringZone(JS::Zone* zone)
-      : optimizedAllocSite(zone, JS::TraceKind::Object) {
+  explicit PretenuringZone(JS::Zone* zone) {
     for (uint32_t i = 0; i < NurseryTraceKinds; i++) {
       unknownAllocSites[i].initUnknownSite(zone, JS::TraceKind(i));
       promotedAllocSites[i].initUnknownSite(zone, JS::TraceKind(i));
     }
+    optimizedAllocSite.initOptimizedSite(zone);
   }
 
   AllocSite& unknownAllocSite(JS::TraceKind kind) {
@@ -334,7 +374,7 @@ class PretenuringZone {
 
 // Pretenuring information stored as part of the the GC nursery.
 class PretenuringNursery {
-  gc::AllocSite* allocatedSites;
+  AllocSite* allocatedSites;
 
   size_t allocSitesCreated = 0;
 
@@ -358,7 +398,7 @@ class PretenuringNursery {
 
   size_t doPretenuring(GCRuntime* gc, JS::GCReason reason,
                        bool validPromotionRate, double promotionRate,
-                       bool reportInfo, size_t reportThreshold);
+                       const AllocSiteFilter& reportFilter);
 
   void maybeStopPretenuring(GCRuntime* gc);
 
@@ -369,6 +409,29 @@ class PretenuringNursery {
  private:
   void updateTotalAllocCounts(AllocSite* site);
 };
+
+// Describes which alloc sites to report on, if any.
+struct AllocSiteFilter {
+  size_t allocThreshold = 0;
+  uint8_t siteKindMask = 0;
+  uint8_t traceKindMask = 0;
+  uint8_t stateMask = 0;
+  bool enabled = false;
+
+  bool matches(const AllocSite& site) const;
+
+  static bool readFromString(const char* string, AllocSiteFilter* filter);
+};
+
+#ifdef JS_GC_ZEAL
+
+// To help discover good places to add allocation sites, automatically create an
+// allocation site for an allocation that didn't supply one.
+AllocSite* GetOrCreateMissingAllocSite(JSContext* cx, JSScript* script,
+                                       uint32_t pcOffset,
+                                       JS::TraceKind traceKind);
+
+#endif  // JS_GC_ZEAL
 
 }  // namespace js::gc
 

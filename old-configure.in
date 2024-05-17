@@ -459,15 +459,6 @@ MOZ_CXX11
 
 AC_LANG_C
 
-dnl Checks for libraries.
-dnl ========================================================
-AC_CHECK_LIB(c_r, gethostbyname_r)
-
-if test ! "$GNU_CXX"; then
-    AC_CHECK_LIB(C, demangle)
-fi
-
-AC_CHECK_LIB(socket, socket)
 
 dnl ========================================================
 dnl = pthread support
@@ -766,17 +757,6 @@ Android|WINNT|Darwin)
   AC_DEFINE(MOZ_GLUE_IN_PROGRAM)
   ;;
 esac
-
-dnl ========================================================
-dnl = Jemalloc build setup
-dnl ========================================================
-if test -n "$MOZ_MEMORY"; then
-  case "${target}" in
-  *-mingw*)
-    export MOZ_NO_DEBUG_RTL=1
-    ;;
-  esac
-fi # MOZ_MEMORY
 AC_SUBST(MOZ_GLUE_IN_PROGRAM)
 
 dnl ========================================================
@@ -792,16 +772,6 @@ AC_LANG_C
 if test "$COMPILE_ENVIRONMENT"; then
 MOZ_EXPAND_LIBS
 fi # COMPILE_ENVIRONMENT
-
-dnl ========================================================
-dnl Check for cairo
-dnl ========================================================
-
-if test "$OS_ARCH" = "WINNT"; then
-    # For now we assume that we will have a uint64_t available through
-    # one of the above headers or mozstdint.h.
-    AC_DEFINE(HAVE_UINT64_T)
-fi
 
 dnl ========================================================
 dnl =
