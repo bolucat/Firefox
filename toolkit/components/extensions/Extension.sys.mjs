@@ -1273,7 +1273,8 @@ export class ExtensionData {
     }
 
     let { permissions, origins } = this.permissionsObject(
-      this.manifest.optional_permissions
+      this.manifest.optional_permissions,
+      this.manifest.optional_host_permissions
     );
     if (this.originControls) {
       for (let origin of this.getManifestOrigins()) {
@@ -1521,6 +1522,8 @@ export class ExtensionData {
       },
       preprocessors: {},
       manifestVersion: this.manifestVersion,
+      // We introduced this context param in Bug 1831417.
+      ignoreUnrecognizedProperties: false,
     };
 
     if (this.fluentL10n || this.localeData) {

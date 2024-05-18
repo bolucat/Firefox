@@ -576,12 +576,6 @@ pref("browser.urlbar.showSearchTerms.featureGate", false);
 // a default search engine results page.
 pref("browser.urlbar.showSearchTerms.enabled", true);
 
-// Controls the empty search behavior in Search Mode:
-//  0 - Show nothing
-//  1 - Show search history
-//  2 - Show search and browsing history
-pref("browser.urlbar.update2.emptySearchBehavior", 0);
-
 // Whether the urlbar displays one-offs to filter searches to history,
 // bookmarks, or tabs.
 pref("browser.urlbar.shortcuts.bookmarks", true);
@@ -1700,7 +1694,7 @@ pref("browser.newtab.preload", true);
 
 // Weather widget for newtab
 pref("browser.newtabpage.activity-stream.system.showWeather", false);
-pref("browser.newtabpage.activity-stream.showWeather", false);
+pref("browser.newtabpage.activity-stream.showWeather", true);
 pref("browser.newtabpage.activity-stream.weather.query", "");
 pref("browser.newtabpage.activity-stream.weather.locationSearchEnabled", false);
 pref("browser.newtabpage.activity-stream.weather.temperatureUnits", "f");
@@ -3058,6 +3052,8 @@ pref("browser.mailto.prompt.os", true);
 
 // Pref to initialize the BackupService soon after startup.
 pref("browser.backup.enabled", true);
+// Pref to control whether scheduled backups run or not.
+pref("browser.backup.scheduled.enabled", false);
 // Pref to control the visibility of the backup section in about:preferences
 pref("browser.backup.preferences.ui.enabled", false);
 // The number of SQLite database pages to backup per step.
@@ -3075,3 +3071,5 @@ pref("startup.homepage_override_nimbus_maxVersion", "");
 pref("toolkit.contentRelevancy.enabled", false);
 // Pref to enable the ingestion through the Rust component.
 pref("toolkit.contentRelevancy.ingestEnabled", false);
+// Pref to enable extra logging for the content relevancy feature
+pref("toolkit.contentRelevancy.log", false);

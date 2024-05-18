@@ -20,27 +20,24 @@
 #include "mozilla/Maybe.h"
 #include "mozilla/ScrollStyles.h"
 #include "mozilla/UniquePtr.h"
-#include "mozilla/PresShell.h"
-
 #include "nsCOMPtr.h"
-#include "nsILayoutHistoryState.h"
-#include "nsIAnonymousContentCreator.h"
 #include "nsFrameManager.h"
+#include "nsIAnonymousContentCreator.h"
 #include "nsIFrame.h"
+#include "nsILayoutHistoryState.h"
 
 struct nsStyleDisplay;
 struct nsGenConInitializer;
 
 class nsBlockFrame;
 class nsContainerFrame;
-class nsFirstLineFrame;
-class nsFirstLetterFrame;
+class nsCanvasFrame;
 class nsCSSAnonBoxPseudoStaticAtom;
-class nsPageSequenceFrame;
-
-class nsPageContentFrame;
-
+class nsFirstLetterFrame;
+class nsFirstLineFrame;
 class nsFrameConstructorState;
+class nsPageContentFrame;
+class nsPageSequenceFrame;
 
 namespace mozilla {
 
@@ -48,6 +45,7 @@ class ComputedStyle;
 class PresShell;
 class PrintedSheetFrame;
 class RestyleManager;
+class ViewportFrame;
 
 namespace dom {
 
@@ -97,11 +95,9 @@ class nsCSSFrameConstructor final : public nsFrameManager {
     Async,
   };
 
-  mozilla::RestyleManager* RestyleManager() const {
-    return mPresShell->GetPresContext()->RestyleManager();
-  }
+  mozilla::RestyleManager* RestyleManager() const;
 
-  nsIFrame* ConstructRootFrame();
+  mozilla::ViewportFrame* ConstructRootFrame();
 
  private:
   enum Operation { CONTENTAPPEND, CONTENTINSERT };

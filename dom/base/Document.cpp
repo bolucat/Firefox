@@ -7110,7 +7110,7 @@ void Document::DeletePresShell() {
   // objects for @font-face rules that came from the style set. There's no need
   // to call EnsureStyleFlush either, the shell is going away anyway, so there's
   // no point on it.
-  MarkUserFontSetDirty();
+  mFontFaceSetDirty = true;
 
   if (IsEditingOn()) {
     TurnEditingOff();
@@ -13120,6 +13120,8 @@ void Document::ScrollToRef() {
   // tracked in https://bugzil.la/1888756.
   const bool didScrollToTextFragment =
       presShell->HighlightAndGoToTextFragment(true);
+
+  FragmentDirective()->ClearUninvokedDirectives();
 
   // 2. If fragment is the empty string and no text directives have been
   // scrolled to, then return the special value top of the document.
