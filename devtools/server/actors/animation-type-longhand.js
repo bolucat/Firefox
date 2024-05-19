@@ -9,6 +9,8 @@ exports.ANIMATION_TYPE_FOR_LONGHANDS = [
   [
     "discrete",
     new Set([
+      "anchor-name",
+      "anchor-scope",
       "align-content",
       "align-items",
       "align-self",

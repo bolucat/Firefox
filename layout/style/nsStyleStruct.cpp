@@ -2093,7 +2093,8 @@ nsStyleDisplay::nsStyleDisplay()
       mBaselineSource(StyleBaselineSource::Auto),
       mWebkitLineClamp(0),
       mShapeMargin(LengthPercentage::Zero()),
-      mShapeOutside(StyleShapeOutside::None()) {
+      mShapeOutside(StyleShapeOutside::None()),
+      mAnchorScope(StyleAnchorScope::None()) {
   MOZ_COUNT_CTOR(nsStyleDisplay);
 }
 
@@ -2151,7 +2152,9 @@ nsStyleDisplay::nsStyleDisplay(const nsStyleDisplay& aSource)
       mWebkitLineClamp(aSource.mWebkitLineClamp),
       mShapeImageThreshold(aSource.mShapeImageThreshold),
       mShapeMargin(aSource.mShapeMargin),
-      mShapeOutside(aSource.mShapeOutside) {
+      mShapeOutside(aSource.mShapeOutside),
+      mAnchorName(aSource.mAnchorName),
+      mAnchorScope(aSource.mAnchorScope) {
   MOZ_COUNT_CTOR(nsStyleDisplay);
 }
 
@@ -2522,7 +2525,9 @@ nsChangeHint nsStyleDisplay::CalcDifference(
                 mContentVisibility != aNewData.mContentVisibility ||
                 mContainerType != aNewData.mContainerType ||
                 mContain != aNewData.mContain ||
-                mContainerName != aNewData.mContainerName)) {
+                mContainerName != aNewData.mContainerName ||
+                mAnchorName != aNewData.mAnchorName ||
+                mAnchorScope != aNewData.mAnchorScope)) {
     hint |= nsChangeHint_NeutralChange;
   }
 

@@ -82,6 +82,8 @@ exclude = [
   "AuthorStyles",
 ]
 include = [
+  "AnchorName",
+  "AnchorScope",
   "AnimationTimeline",
   "AnimationIterationCount",
   "AnimationDirection",
