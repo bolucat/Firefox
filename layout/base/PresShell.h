@@ -19,7 +19,6 @@
 #include "mozilla/dom/DocumentBinding.h"
 #include "mozilla/FlushType.h"
 #include "mozilla/layers/FocusTarget.h"
-#include "mozilla/layout/LayoutTelemetryTools.h"
 #include "mozilla/Logging.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/PresShellForwards.h"
@@ -27,7 +26,6 @@
 #include "mozilla/StaticPtr.h"
 #include "mozilla/UniquePtr.h"
 #include "mozilla/WeakPtr.h"
-#include "mozilla/widget/ThemeChangeKind.h"
 #include "nsColor.h"
 #include "nsCOMArray.h"
 #include "nsCoord.h"
@@ -1235,9 +1233,7 @@ class PresShell final : public nsStubDocumentObserver,
     mIsNeverPainting = aNeverPainting;
   }
 
-  bool MightHavePendingFontLoads() const {
-    return ObservingStyleFlushes() || mReflowContinueTimer;
-  }
+  bool MightHavePendingFontLoads() const { return ObservingStyleFlushes(); }
 
   void SyncWindowProperties(bool aSync);
   struct WindowSizeConstraints {
@@ -2927,11 +2923,6 @@ class PresShell final : public nsStubDocumentObserver,
   nsIFrame* mCurrentReflowRoot = nullptr;
 #endif  // #ifdef DEBUG
 
-  // Send, and reset, the current per tick telemetry. This includes:
-  // * non-zero number of style and layout flushes
-  // * non-zero ms duration spent in style and reflow since the last tick.
-  void PingPerTickTelemetry(FlushType aFlushType);
-
  private:
   // IMPORTANT: The ownership implicit in the following member variables
   // has been explicitly checked.  If you add any members to this class,
@@ -2958,12 +2949,6 @@ class PresShell final : public nsStubDocumentObserver,
 
   // The `performance.now()` value when we last started to process reflows.
   DOMHighResTimeStamp mLastReflowStart{0.0};
-
-  // At least on Win32 and Mac after interupting a reflow we need to post
-  // the resume reflow event off a timer to avoid event starvation because
-  // posted messages are processed before other messages when the modal
-  // moving/sizing loop is running, see bug 491700 for details.
-  nsCOMPtr<nsITimer> mReflowContinueTimer;
 
 #ifdef DEBUG
   // We track allocated pointers in a diagnostic hash set, to assert against
@@ -3262,8 +3247,6 @@ class PresShell final : public nsStubDocumentObserver,
   static bool sDisableNonTestMouseEvents;
 
   static bool sProcessInteractable;
-
-  layout_telemetry::Data mLayoutTelemetry;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(PresShell, NS_PRESSHELL_IID)
