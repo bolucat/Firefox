@@ -11826,7 +11826,7 @@
 
 # Whether to add urgency and incremental to request headers
 - name: network.http.priority_header.enabled
-  type: bool
+  type: RelaxedAtomicBool
   value: true
   mirror: always
 
@@ -12483,7 +12483,7 @@
 # Use platform DNS APIs (where available) to resolve HTTPS queries
 - name: network.dns.native_https_query
   type: RelaxedAtomicBool
-#if !defined(XP_MACOSX)
+#if defined(EARLY_BETA_OR_EARLIER) && !defined(XP_MACOSX)
   value: true
 #else
   value: false
@@ -12565,7 +12565,15 @@
   value: false
   mirror: always
 
-# Whether the SOCKS proxy should be in charge of DNS resolution.
+# Whether the SOCKS5 proxy should be in charge of DNS resolution. Making it a
+# SOCKS5h proxy by convention
+- name: network.proxy.socks5_remote_dns
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+# Whether the SOCKS4 proxy should be in charge of DNS resolution. Making it a
+# SOCKS4a proxy.
 - name: network.proxy.socks_remote_dns
   type: RelaxedAtomicBool
   value: false
@@ -13049,7 +13057,7 @@
 
 - name: network.http.http2.enabled.deps
   type: RelaxedAtomicBool
-  value: true
+  value: false
   mirror: always
 
 - name: network.http.http2.enforce-tls-profile
@@ -13380,6 +13388,11 @@
 - name: network.cache.shutdown_purge_folder_wait_seconds
   type: RelaxedAtomicUint32
   value: 10
+  mirror: always
+
+- name: network.cache.persist_permanent_redirects_http
+  type: bool
+  value: false
   mirror: always
 
 # This is used for a temporary workaround for a web-compat issue. If pref is

@@ -980,14 +980,6 @@ nsDragService::EndDragSession(bool aDoneDrag, uint32_t aKeyModifiers) {
   mTargetDragContextForRemote = nullptr;
   mTargetWindow = nullptr;
   mPendingWindow = nullptr;
-  mPendingDragContext = nullptr;
-  mPendingWindowPoint = {};
-  mScheduledTask = eDragTaskNone;
-  if (mTaskSource) {
-    g_source_remove(mTaskSource);
-    mTaskSource = 0;
-  }
-  mPendingTime = 0;
   mCachedDragContext = 0;
 
   return nsBaseDragService::EndDragSession(aDoneDrag, aKeyModifiers);
@@ -1251,31 +1243,37 @@ nsDragService::IsDataFlavorSupported(const char* aDataFlavor, bool* _retval) {
     *_retval = true;
     return NS_OK;
   }
-  if (requestedFlavor == sTextUriListTypeAtom &&
-      (IsDragFlavorAvailable(sURLMimeAtom) ||
-       IsDragFlavorAvailable(sFileMimeAtom))) {
+
+  // Check for file/url conversion from uri list
+  if ((requestedFlavor == sURLMimeAtom || requestedFlavor == sFileMimeAtom) &&
+      IsDragFlavorAvailable(sTextUriListTypeAtom)) {
+    LOGDRAGSERVICE("  %s supported with conversion from %s", aDataFlavor,
+                   gTextUriListType);
     *_retval = true;
+    return NS_OK;
   }
+
   // check for automatic _NETSCAPE_URL -> text/x-moz-url mapping
-  if (requestedFlavor == sMozUrlTypeAtom &&
-      IsDragFlavorAvailable(sURLMimeAtom)) {
+  if (requestedFlavor == sURLMimeAtom &&
+      IsDragFlavorAvailable(sMozUrlTypeAtom)) {
+    LOGDRAGSERVICE("  %s supported with conversion from %s", aDataFlavor,
+                   gMozUrlType);
     *_retval = true;
+    return NS_OK;
   }
-  // check for file portal
-  // If we're asked for kURLMime/kFileMime we can convert gPortalFile
-  // or gPortalFileTransfer to it.
-  if ((requestedFlavor == sPortalFileAtom ||
-       requestedFlavor == sPortalFileTransferAtom) &&
-      (IsDragFlavorAvailable(sURLMimeAtom) ||
-       IsDragFlavorAvailable(sFileMimeAtom))) {
+
+  // If we're asked for kURLMime/kFileMime we can get it from PortalFile
+  // or PortalFileTransfer flavors.
+  if ((requestedFlavor == sURLMimeAtom || requestedFlavor == sFileMimeAtom) &&
+      (IsDragFlavorAvailable(sPortalFileAtom) ||
+       IsDragFlavorAvailable(sPortalFileTransferAtom))) {
+    LOGDRAGSERVICE("  %s supported with conversion from %s/%s", aDataFlavor,
+                   gPortalFile, gPortalFileTransfer);
     *_retval = true;
+    return NS_OK;
   }
-  if (*_retval) {
-    LOGDRAGSERVICE("  %s supported with conversion", aDataFlavor);
-  }
-  if (!*_retval) {
-    LOGDRAGSERVICE("  %s is not supported", aDataFlavor);
-  }
+
+  LOGDRAGSERVICE("  %s is not supported", aDataFlavor);
   return NS_OK;
 }
 
@@ -2462,15 +2460,20 @@ static gboolean invisibleSourceDragFailed(GtkWidget* aWidget,
   // GDK_DRAG_CANCEL_ERROR error code
   // (see data_source_cancelled/gdkselection-wayland.c).
   // Bug 1527976
-  if (widget::GdkIsWaylandDisplay() && aResult == GTK_DRAG_RESULT_ERROR &&
-      dragService->IsDragFlavorAvailable(nsDragService::sTabDropTypeAtom)) {
-    aResult = GTK_DRAG_RESULT_NO_TARGET;
-    LOGDRAGSERVICESTATIC("invisibleSourceDragFailed(%p): Wayland tab drop",
-                         aContext);
-  } else {
-    LOGDRAGSERVICESTATIC("invisibleSourceDragFailed(%p) %s", aContext,
-                         kGtkDragResults[aResult]);
+  if (widget::GdkIsWaylandDisplay() && aResult == GTK_DRAG_RESULT_ERROR) {
+    for (GList* tmp = gdk_drag_context_list_targets(aContext); tmp;
+         tmp = tmp->next) {
+      if (nsDragService::sTabDropTypeAtom == GDK_POINTER_TO_ATOM(tmp->data)) {
+        aResult = GTK_DRAG_RESULT_NO_TARGET;
+        LOGDRAGSERVICESTATIC("invisibleSourceDragFailed(%p): Wayland tab drop",
+                             aContext);
+        break;
+      }
+    }
   }
+
+  LOGDRAGSERVICESTATIC("invisibleSourceDragFailed(%p) %s", aContext,
+                       kGtkDragResults[aResult]);
   // End the drag session now (rather than waiting for the drag-end signal)
   // so that operations performed on dropEffect == none can start immediately
   // rather than waiting for the drag-failed animation to finish.
@@ -2693,7 +2696,6 @@ gboolean nsDragService::RunScheduledTask() {
     // Nothing more to do
     // Returning false removes the task source from the event loop.
     mTaskSource = 0;
-    mPendingDragContext = nullptr;
     return FALSE;
   }
 

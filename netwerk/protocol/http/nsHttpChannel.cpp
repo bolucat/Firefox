@@ -878,6 +878,13 @@ nsresult nsHttpChannel::Connect() {
     SetRequestHeader("Accept-Encoding"_ns, "identity"_ns, true);
   }
 
+#ifdef MOZ_WIDGET_ANDROID
+  bool val = false;
+  if (nsIOService::ShouldAddAdditionalSearchHeaders(mURI, &val)) {
+    SetRequestHeader("X-Search-Subdivision"_ns, val ? "1"_ns : "0"_ns, false);
+  }
+#endif
+
   bool isTrackingResource = IsThirdPartyTrackingResource();
   LOG(("nsHttpChannel %p tracking resource=%d, cos=%lu, inc=%d", this,
        isTrackingResource, mClassOfService.Flags(),
@@ -5091,7 +5098,17 @@ nsresult nsHttpChannel::InitCacheEntry() {
 void nsHttpChannel::UpdateInhibitPersistentCachingFlag() {
   // The no-store directive within the 'Cache-Control:' header indicates
   // that we must not store the response in a persistent cache.
-  if (mResponseHead->NoStore()) mLoadFlags |= INHIBIT_PERSISTENT_CACHING;
+  if (mResponseHead->NoStore()) {
+    mLoadFlags |= INHIBIT_PERSISTENT_CACHING;
+    return;
+  }
+
+  if (!StaticPrefs::network_cache_persist_permanent_redirects_http() &&
+      mURI->SchemeIs("http") &&
+      nsHttp::IsPermanentRedirect(mResponseHead->Status())) {
+    mLoadFlags |= INHIBIT_PERSISTENT_CACHING;
+    return;
+  }
 
   // Only cache SSL content on disk if the pref is set
   if (!gHttpHandler->IsPersistentHttpsCachingEnabled() &&
