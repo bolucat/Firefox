@@ -30,6 +30,7 @@
 #include "nsIEffectiveTLDService.h"
 #include "nsIIDNService.h"
 #include "nsIScriptError.h"
+#include "nsIScriptSecurityManager.h"
 #include "nsIURL.h"
 #include "nsIURI.h"
 #include "nsIWebProgressListener.h"
@@ -395,7 +396,7 @@ CookieService::GetCookieStringFromDocument(Document* aDocument,
   // CHIPS - If CHIPS is enabled the partitioned cookie jar is always available
   // (and therefore the partitioned principal), the unpartitioned cookie jar is
   // only available in first-party or third-party with storageAccess contexts.
-  bool isCHIPS = StaticPrefs::network_cookie_cookieBehavior_optInPartitioning();
+  bool isCHIPS = StaticPrefs::network_cookie_CHIPS_enabled();
   bool isUnpartitioned =
       cookiePrincipal->OriginAttributesRef().mPartitionKey.IsEmpty();
   if (isCHIPS && isUnpartitioned) {
@@ -547,7 +548,7 @@ CookieService::GetCookieStringFromHttp(nsIURI* aHostURI, nsIChannel* aChannel,
   // (and therefore the partitioned OriginAttributes), the unpartitioned cookie
   // jar is only available in first-party or third-party with storageAccess
   // contexts.
-  bool isCHIPS = StaticPrefs::network_cookie_cookieBehavior_optInPartitioning();
+  bool isCHIPS = StaticPrefs::network_cookie_CHIPS_enabled();
   bool isUnpartitioned = storageOriginAttributes.mPartitionKey.IsEmpty();
   if (isCHIPS && isUnpartitioned) {
     // Assert that we are only doing this if we are first-party or third-party
@@ -759,7 +760,7 @@ CookieService::SetCookieStringFromHttp(nsIURI* aHostURI,
   OriginAttributes partitionedPrincipalOriginAttributes;
   bool isPartitionedPrincipal =
       !storagePrincipalOriginAttributes.mPartitionKey.IsEmpty();
-  bool isCHIPS = StaticPrefs::network_cookie_cookieBehavior_optInPartitioning();
+  bool isCHIPS = StaticPrefs::network_cookie_CHIPS_enabled();
   // Only need to get OAs if we don't already use the partitioned principal.
   if (isCHIPS && !isPartitionedPrincipal) {
     StoragePrincipalHelper::GetOriginAttributes(
@@ -773,10 +774,12 @@ CookieService::SetCookieStringFromHttp(nsIURI* aHostURI,
     CookieStruct cookieData;
     bool canSetCookie = false;
 
-    moreCookieToRead =
-        CanSetCookie(aHostURI, baseDomain, cookieData, requireHostMatch,
-                     cookieStatus, cookieHeader, true, isForeignAndNotAddon,
-                     mustBePartitioned, crc, canSetCookie);
+    moreCookieToRead = CanSetCookie(
+        aHostURI, baseDomain, cookieData, requireHostMatch, cookieStatus,
+        cookieHeader, true, isForeignAndNotAddon, mustBePartitioned,
+        storagePrincipalOriginAttributes.mPrivateBrowsingId !=
+            nsIScriptSecurityManager::DEFAULT_PRIVATE_BROWSING_ID,
+        crc, canSetCookie);
 
     if (!canSetCookie) {
       continue;
@@ -1158,6 +1161,20 @@ void CookieService::GetCookiesForURI(
         continue;
       }
 
+      // Check if we need to block the cookie because of opt-in partitioning.
+      // We will only allow partitioned cookies with "partitioned" attribution
+      // if opt-in partitioning is enabled.
+      if (aIsForeign && cookieJarSettings->GetPartitionForeign() &&
+          (StaticPrefs::network_cookie_cookieBehavior_optInPartitioning() ||
+           (attrs.mPrivateBrowsingId !=
+                nsIScriptSecurityManager::DEFAULT_PRIVATE_BROWSING_ID &&
+            StaticPrefs::
+                network_cookie_cookieBehavior_optInPartitioning_pbmode())) &&
+          !(cookie->IsPartitioned() && cookie->RawIsPartitioned()) &&
+          !aStorageAccessPermissionGranted) {
+        continue;
+      }
+
       if (aHttpBound && aIsSameSiteForeign) {
         bool blockCookie = !ProcessSameSiteCookieForForeignRequest(
             aChannel, cookie, aIsSafeTopLevelNav, aHadCrossSiteRedirects,
@@ -1258,7 +1275,8 @@ bool CookieService::CanSetCookie(
     nsIURI* aHostURI, const nsACString& aBaseDomain, CookieStruct& aCookieData,
     bool aRequireHostMatch, CookieStatus aStatus, nsCString& aCookieHeader,
     bool aFromHttp, bool aIsForeignAndNotAddon, bool aPartitionedOnly,
-    nsIConsoleReportCollector* aCRC, bool& aSetCookie) {
+    bool aIsInPrivateBrowsing, nsIConsoleReportCollector* aCRC,
+    bool& aSetCookie) {
   MOZ_ASSERT(aHostURI);
 
   aSetCookie = false;
@@ -1458,7 +1476,10 @@ bool CookieService::CanSetCookie(
   // that we have upcoming changes. Otherwise we give a rejection message.
   if (aPartitionedOnly && !aCookieData.isPartitioned() &&
       aIsForeignAndNotAddon) {
-    if (StaticPrefs::network_cookie_cookieBehavior_optInPartitioning()) {
+    if (StaticPrefs::network_cookie_cookieBehavior_optInPartitioning() ||
+        (aIsInPrivateBrowsing &&
+         StaticPrefs::
+             network_cookie_cookieBehavior_optInPartitioning_pbmode())) {
       COOKIE_LOGFAILURE(SET_COOKIE, aHostURI, savedCookieHeader,
                         "foreign cookies must be partitioned");
       CookieLogging::LogMessageToConsole(
@@ -1811,7 +1832,7 @@ bool CookieService::ParseAttributes(nsIConsoleReportCollector* aCRC,
         AutoTArray<nsString, 1>{NS_ConvertUTF8toUTF16(aCookieData.name())});
 
     // We only drop the cookie if CHIPS is enabled.
-    if (StaticPrefs::network_cookie_cookieBehavior_optInPartitioning()) {
+    if (StaticPrefs::network_cookie_CHIPS_enabled()) {
       return newCookie;
     }
   }

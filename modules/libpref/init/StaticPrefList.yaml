@@ -3218,13 +3218,6 @@
   value: true
   mirror: always
 
-# Whether we shouldn't show an error page for unknown protocols (and should
-# show a console warning instead).
-- name: dom.no_unknown_protocol_error.enabled
-  type: bool
-  value: true
-  mirror: always
-
 # Whether origin trials are enabled.
 - name: dom.origin-trials.enabled
   type: bool
@@ -6932,6 +6925,11 @@
   value: false
   mirror: always
 
+- name: gfx.remote-texture.wait-owner-at-image-host
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 #---------------------------------------------------------------------------
 # Prefs starting with "gl." (OpenGL)
 #---------------------------------------------------------------------------
@@ -9644,6 +9642,26 @@
   mirror: always
 
 #---------------------------------------------------------------------------
+# Prefs starting with "logging."
+#---------------------------------------------------------------------------
+
+# If this pref is true, prefs in the logging.config branch will be cleared on
+# startup. This prevents unadvertedly creating huge log files that fill the disk
+# when forgetting to remove the logging preferences.
+- name: logging.config.clear_on_startup
+  type: bool
+  value: true
+  mirror: never
+
+# Allow setting log modules at runtimes easily with a MOZ_LOG string.
+# This preference is empty by default but defined, this makes it easy to use
+# especially on mobile by searching for it in about:config.
+- name: logging.config.modules
+  type: String
+  value: ""
+  mirror: never
+
+#---------------------------------------------------------------------------
 # Prefs starting with "mathml."
 #---------------------------------------------------------------------------
 
@@ -10989,15 +11007,16 @@
 # depends on the backend.
 - name: media.getusermedia.microphone.prefer_voice_stream_with_processing.enabled
   type: RelaxedAtomicBool
-  value: True
+  value: true
   mirror: always
 
 # Tell the audio backend to create a voice stream for later re-use before asking
 # the user for microphone permissions, if approving those permissions would
 # result in a voice stream when created later on.
+# Disabled on macOS since it breaks VPIO's AEC. See bug 1895787.
 - name: media.getusermedia.microphone.voice_stream_priming.enabled
   type: RelaxedAtomicBool
-  value: @IS_XP_MACOSX@
+  value: false
   mirror: always
 
 # This pref turns on legacy (non-spec) exposure of camera and microphone
@@ -11654,6 +11673,19 @@
   value: false
   mirror: always
 
+# Changes cookieBehavior=5 to block third-party cookies in the private browsing
+# mode.
+- name: network.cookie.cookieBehavior.optInPartitioning.pbmode
+  type: bool
+  value: false
+  mirror: always
+
+# Whether to support CHIPS(Cookies Having Independent Partitioned State).
+- name: network.cookie.CHIPS.enabled
+  type: bool
+  value: false
+  mirror: always
+
 # Stale threshold for cookies in seconds.
 - name: network.cookie.staleThreshold
   type: uint32_t
@@ -11788,13 +11820,6 @@
   value: true
   mirror: always
 
-# Whether to strip auth headers for redirected fetch/xhr channels
-# https://fetch.spec.whatwg.org/#http-redirect-fetch
-- name: network.fetch.redirect.stripAuthHeader
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 # If true, cross origin fetch (or XHR) requests would be keyed
 # with a different cache key.
 - name: network.fetch.cache_partition_cross_origin
@@ -11805,13 +11830,6 @@
 # If true, when browser code itself makes network requests, default to
 # omitting credentials.
 - name: network.fetch.systemDefaultsToOmittingCredentials
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
-# Whether to strip auth headers for redirected http channels
-# https://fetch.spec.whatwg.org/#http-redirect-fetch
-- name: network.http.redirect.stripAuthHeader
   type: RelaxedAtomicBool
   value: true
   mirror: always
@@ -12769,12 +12787,6 @@
   value: false
   mirror: always
 
-# This pref controls whether to use TRRServiceChannel off main thread.
-- name: network.trr.fetch_off_main_thread
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 # If we should wait for captive portal confirmation before enabling TRR
 - name: network.trr.wait-for-portal
   type: RelaxedAtomicBool
@@ -13015,12 +13027,6 @@
 - name: network.url.max-length
   type: RelaxedAtomicUint32
   value: 32 * 1024 * 1024
-  mirror: always
-
-# Should be removed if no breakage occurs. See bug 1797846
-- name: network.url.strip-data-url-whitespace
-  type: RelaxedAtomicBool
-  value: false
   mirror: always
 
   # If true, will be more strict with status code parsing

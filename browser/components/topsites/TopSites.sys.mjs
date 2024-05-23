@@ -2,10 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import {
-  actionCreators as ac,
-  actionTypes as at,
-} from "resource://activity-stream/common/Actions.mjs";
+import { actionTypes as at } from "resource://activity-stream/common/Actions.mjs";
 import { TippyTopProvider } from "resource://activity-stream/lib/TippyTopProvider.sys.mjs";
 import {
   insertPinned,
@@ -18,7 +15,6 @@ import {
   CUSTOM_SEARCH_SHORTCUTS,
   SEARCH_SHORTCUTS_EXPERIMENT,
   SEARCH_SHORTCUTS_SEARCH_ENGINES_PREF,
-  SEARCH_SHORTCUTS_HAVE_PINNED_PREF,
   checkHasSearchEngine,
   getSearchProvider,
   getSearchFormURL,
@@ -27,13 +23,12 @@ import {
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
+  FaviconFeed: "resource://activity-stream/lib/FaviconFeed.sys.mjs",
   FilterAdult: "resource://activity-stream/lib/FilterAdult.sys.mjs",
   LinksCache: "resource://activity-stream/lib/LinksCache.sys.mjs",
   NewTabUtils: "resource://gre/modules/NewTabUtils.sys.mjs",
-  PageThumbs: "resource://gre/modules/PageThumbs.sys.mjs",
   Region: "resource://gre/modules/Region.sys.mjs",
   RemoteSettings: "resource://services-settings/remote-settings.sys.mjs",
-  Screenshots: "resource://activity-stream/lib/Screenshots.sys.mjs",
 });
 
 ChromeUtils.defineLazyGetter(lazy, "log", () => {
@@ -44,7 +39,6 @@ ChromeUtils.defineLazyGetter(lazy, "log", () => {
 });
 
 const DEFAULT_SITES_PREF = "default.sites";
-const SHOWN_ON_NEWTAB_PREF = "feeds.topsites";
 export const DEFAULT_TOP_SITES = [];
 const FRECENCY_THRESHOLD = 100 + 1; // 1 visit (skip first-run/one-time pages)
 const MIN_FAVICON_SIZE = 96;
@@ -55,6 +49,18 @@ const PINNED_FAVICON_PROPS_TO_MIGRATE = [
   "faviconSize",
 ];
 const ROWS_PREF = "topSitesRows";
+
+// Preferences
+const NO_DEFAULT_SEARCH_TILE_PREF =
+  "browser.newtabpage.activity-stream.improvesearch.noDefaultSearchTile";
+const SEARCH_SHORTCUTS_HAVE_PINNED_PREF =
+  "browser.newtabpage.activity-stream.improvesearch.topSiteSearchShortcuts.havePinned";
+// TODO: Rename this when re-subscribing to the search engines pref.
+const SEARCH_SHORTCUTS_ENGINES =
+  "browser.newtabpage.activity-stream.improvesearch.topSiteSearchShortcuts.searchEngines";
+const TOP_SITE_SEARCH_SHORTCUTS_PREF =
+  "browser.newtabpage.activity-stream.improvesearch.topSiteSearchShortcuts";
+const TOP_SITES_ROWS_PREF = "browser.newtabpage.activity-stream.topSitesRows";
 
 // Search experiment stuff
 const FILTER_DEFAULT_SEARCH_PREF = "improvesearch.noDefaultSearchTile";
@@ -78,6 +84,10 @@ function getShortURLForCurrentSearch() {
 }
 
 class _TopSites {
+  #inited = false;
+  #searchShortcuts = [];
+  #sites = [];
+
   constructor() {
     this._tippyTopProvider = new TippyTopProvider();
     ChromeUtils.defineLazyGetter(
@@ -99,28 +109,45 @@ class _TopSites {
       "links",
       [...CACHED_LINK_PROPS_TO_MIGRATE, ...PINNED_FAVICON_PROPS_TO_MIGRATE]
     );
-    lazy.PageThumbs.addExpirationFilter(this);
+    this.faviconFeed = new lazy.FaviconFeed();
   }
 
-  init() {
+  async init() {
+    if (this.#inited) {
+      return;
+    }
+    this.#inited = true;
     lazy.log.debug("Initializing TopSites.");
     // If the feed was previously disabled PREFS_INITIAL_VALUES was never received
-    this._readDefaults({ isStartup: true });
     Services.obs.addObserver(this, "browser-search-engine-modified");
     Services.obs.addObserver(this, "browser-region-updated");
     Services.prefs.addObserver(REMOTE_SETTING_DEFAULTS_PREF, this);
     Services.prefs.addObserver(DEFAULT_SITES_OVERRIDE_PREF, this);
     Services.prefs.addObserver(DEFAULT_SITES_EXPERIMENTS_PREF_BRANCH, this);
+    await this._readDefaults({ isStartup: true });
   }
 
   uninit() {
+    if (!this.#inited) {
+      return;
+    }
     lazy.log.debug("Un-initializing TopSites.");
-    lazy.PageThumbs.removeExpirationFilter(this);
     Services.obs.removeObserver(this, "browser-search-engine-modified");
     Services.obs.removeObserver(this, "browser-region-updated");
     Services.prefs.removeObserver(REMOTE_SETTING_DEFAULTS_PREF, this);
     Services.prefs.removeObserver(DEFAULT_SITES_OVERRIDE_PREF, this);
     Services.prefs.removeObserver(DEFAULT_SITES_EXPERIMENTS_PREF_BRANCH, this);
+    this.#searchShortcuts = [];
+    this.#sites = [];
+    this.#inited = false;
+  }
+
+  _reset() {
+    // Allow automated tests to reset the internal state of the component.
+    if (Cu.isInAutomation) {
+      this.#searchShortcuts = [];
+      this.#sites = [];
+    }
   }
 
   observe(subj, topic, data) {
@@ -131,7 +158,7 @@ class _TopSites {
         // We also need to drop search shortcuts when their engine gets removed / hidden.
         if (
           data === "engine-default" &&
-          this.store.getState().Prefs.values[FILTER_DEFAULT_SEARCH_PREF]
+          Services.prefs.getBoolPref(NO_DEFAULT_SEARCH_TILE_PREF, true)
         ) {
           delete this._currentSearchHostname;
           this._currentSearchHostname = getShortURLForCurrentSearch();
@@ -153,6 +180,30 @@ class _TopSites {
     }
   }
 
+  /**
+   * Returns a copied version of non-sponsored Top Sites. It will initialize
+   * the component if it hasn't been already in order to set up and cache the
+   * list, which will include pinned sites and search shortcuts. The number of
+   * Top Sites returned is based on the number shown on New Tab due to the fact
+   * it is the interface in which sites can be pinned/removed.
+   *
+   * @returns {Array<object>}
+   *   A list of Top Sites.
+   */
+  async getSites() {
+    if (!this.#inited) {
+      await this.init();
+    }
+    return structuredClone(this.#sites);
+  }
+
+  async getSearchShortcuts() {
+    if (!this.#inited) {
+      await this.init();
+    }
+    return structuredClone(this.#searchShortcuts);
+  }
+
   _dedupeKey(site) {
     return site && site.hostname;
   }
@@ -164,10 +215,8 @@ class _TopSites {
     this._useRemoteSetting = false;
 
     if (!Services.prefs.getBoolPref(REMOTE_SETTING_DEFAULTS_PREF)) {
-      this.refreshDefaults(
-        this.store.getState().Prefs.values[DEFAULT_SITES_PREF],
-        { isStartup }
-      );
+      let sites = Services.prefs.getStringPref(DEFAULT_SITES_OVERRIDE_PREF, "");
+      await this.refreshDefaults(sites, { isStartup });
       return;
     }
 
@@ -179,7 +228,7 @@ class _TopSites {
       Cu.isInAutomation
     ) {
       let sites = Services.prefs.getStringPref(DEFAULT_SITES_OVERRIDE_PREF, "");
-      this.refreshDefaults(sites, { isStartup });
+      await this.refreshDefaults(sites, { isStartup });
       return;
     }
 
@@ -210,10 +259,10 @@ class _TopSites {
       DEFAULT_TOP_SITES.push(link);
     }
 
-    this.refresh({ broadcast: true, isStartup });
+    await this.refresh({ isStartup });
   }
 
-  refreshDefaults(sites, { isStartup = false } = {}) {
+  async refreshDefaults(sites, { isStartup = false } = {}) {
     // Clear out the array of any previous defaults
     DEFAULT_TOP_SITES.length = 0;
 
@@ -229,7 +278,7 @@ class _TopSites {
       }
     }
 
-    this.refresh({ broadcast: true, isStartup });
+    await this.refresh({ isStartup });
   }
 
   async _getRemoteConfig(firstTime = true) {
@@ -317,19 +366,6 @@ class _TopSites {
     return result;
   }
 
-  filterForThumbnailExpiration(callback) {
-    const { rows } = this.store.getState().TopSites;
-    callback(
-      rows.reduce((acc, site) => {
-        acc.push(site.url);
-        if (site.customScreenshotURL) {
-          acc.push(site.customScreenshotURL);
-        }
-        return acc;
-      }, [])
-    );
-  }
-
   /**
    * shouldFilterSearchTile - is default filtering enabled and does a given hostname match the user's default search engine?
    *
@@ -338,7 +374,7 @@ class _TopSites {
    */
   shouldFilterSearchTile(hostname) {
     if (
-      this.store.getState().Prefs.values[FILTER_DEFAULT_SEARCH_PREF] &&
+      Services.prefs.getBoolPref(NO_DEFAULT_SEARCH_TILE_PREF, true) &&
       (SEARCH_FILTERS.includes(hostname) ||
         hostname === this._currentSearchHostname)
     ) {
@@ -356,19 +392,17 @@ class _TopSites {
    */
   async _maybeInsertSearchShortcuts(plainPinnedSites) {
     // Only insert shortcuts if the experiment is running
-    if (this.store.getState().Prefs.values[SEARCH_SHORTCUTS_EXPERIMENT]) {
+    if (Services.prefs.getBoolPref(TOP_SITE_SEARCH_SHORTCUTS_PREF, true)) {
       // We don't want to insert shortcuts we've previously inserted
-      const prevInsertedShortcuts = this.store
-        .getState()
-        .Prefs.values[SEARCH_SHORTCUTS_HAVE_PINNED_PREF].split(",")
+      const prevInsertedShortcuts = Services.prefs
+        .getStringPref(SEARCH_SHORTCUTS_HAVE_PINNED_PREF, "")
+        .split(",")
         .filter(s => s); // Filter out empty strings
       const newInsertedShortcuts = [];
 
       let shouldPin = this._useRemoteSetting
         ? DEFAULT_TOP_SITES.filter(s => s.searchTopSite).map(s => s.hostname)
-        : this.store
-            .getState()
-            .Prefs.values[SEARCH_SHORTCUTS_SEARCH_ENGINES_PREF].split(",");
+        : Services.prefs.getStringPref(SEARCH_SHORTCUTS_ENGINES, "").split(",");
       shouldPin = shouldPin
         .map(getSearchProvider)
         .filter(s => s && s.shortURL !== this._currentSearchHostname);
@@ -383,7 +417,7 @@ class _TopSites {
       }
 
       const numberOfSlots =
-        this.store.getState().Prefs.values[ROWS_PREF] *
+        Services.prefs.getIntPref(TOP_SITES_ROWS_PREF, 1) *
         TOP_SITES_MAX_SITES_PER_ROW;
 
       // The plainPinnedSites array is populated with pinned sites at their
@@ -417,11 +451,9 @@ class _TopSites {
       }
 
       if (newInsertedShortcuts.length) {
-        this.store.dispatch(
-          ac.SetPref(
-            SEARCH_SHORTCUTS_HAVE_PINNED_PREF,
-            prevInsertedShortcuts.concat(newInsertedShortcuts).join(",")
-          )
+        Services.prefs.setStringPref(
+          SEARCH_SHORTCUTS_HAVE_PINNED_PREF,
+          prevInsertedShortcuts.concat(newInsertedShortcuts).join(",")
         );
         return true;
       }
@@ -431,10 +463,17 @@ class _TopSites {
   }
 
   // eslint-disable-next-line max-statements
-  async getLinksWithDefaults(isStartup = false) {
-    const prefValues = this.store.getState().Prefs.values;
-    const numItems = prefValues[ROWS_PREF] * TOP_SITES_MAX_SITES_PER_ROW;
-    const searchShortcutsExperiment = prefValues[SEARCH_SHORTCUTS_EXPERIMENT];
+  async getLinksWithDefaults() {
+    // Clear the previous sites.
+    this.#sites = [];
+
+    const numItems =
+      Services.prefs.getIntPref(TOP_SITES_ROWS_PREF, 1) *
+      TOP_SITES_MAX_SITES_PER_ROW;
+    const searchShortcutsExperiment = Services.prefs.getBoolPref(
+      TOP_SITE_SEARCH_SHORTCUTS_PREF,
+      true
+    );
     // We must wait for search services to initialize in order to access default
     // search engine properties without triggering a synchronous initialization
     try {
@@ -587,16 +626,13 @@ class _TopSites {
     // Remove excess items.
     withPinned = withPinned.slice(0, numItems);
 
-    // Now, get a tippy top icon, a rich icon, or screenshot for every item
+    // Now, get a tippy top icon or a rich icon for every item.
     for (const link of withPinned) {
       if (link) {
-        // If there is a custom screenshot this is the only image we display
-        if (link.customScreenshotURL) {
-          this._fetchScreenshot(link, link.customScreenshotURL, isStartup);
-        } else if (link.searchTopSite && !link.isDefault) {
+        if (link.searchTopSite && !link.isDefault) {
           await this._attachTippyTopIconForSearchShortcut(link, link.label);
         } else {
-          this._fetchIcon(link, isStartup);
+          this._fetchIcon(link);
         }
 
         // Remove internal properties that might be updated after dispatch
@@ -607,7 +643,7 @@ class _TopSites {
       }
     }
 
-    this._linksWithDefaults = withPinned;
+    this.#sites = withPinned;
 
     return withPinned;
   }
@@ -640,7 +676,6 @@ class _TopSites {
    * Refresh the top sites data for content.
    *
    * @param {object} options
-   * @param {bool} options.broadcast Should the update be broadcasted.
    * @param {bool} options.isStartup Being called while TopSitesFeed is initting.
    */
   async refresh(options = {}) {
@@ -659,35 +694,18 @@ class _TopSites {
       await this._tippyTopProvider.init();
     }
 
-    const links = await this.getLinksWithDefaults({
-      isStartup: options.isStartup,
-    });
-    const newAction = {
-      type: at.TOP_SITES_UPDATED,
-      data: { links },
-    };
-
-    if (options.isStartup) {
-      newAction.meta = {
-        isStartup: true,
-      };
-    }
-
-    if (options.broadcast) {
-      // Broadcast an update to all open content pages
-      this.store.dispatch(ac.BroadcastToContent(newAction));
-    } else {
-      // Don't broadcast only update the state and update the preloaded tab.
-      this.store.dispatch(ac.AlsoToPreloaded(newAction));
-    }
+    await this.getLinksWithDefaults();
     this._refreshing = false;
-    if (Cu.isInAutomation) {
-      Services.obs.notifyObservers(null, "topsites-refreshed");
-    }
+    Services.obs.notifyObservers(null, "topsites-refreshed", options.isStartup);
   }
 
   async updateCustomSearchShortcuts(isStartup = false) {
-    if (!this.store.getState().Prefs.values[SEARCH_SHORTCUTS_EXPERIMENT]) {
+    if (
+      !Services.prefs.getBoolPref(
+        "browser.newtabpage.activity-stream.improvesearch.noDefaultSearchTile",
+        true
+      )
+    ) {
       return;
     }
 
@@ -708,14 +726,13 @@ class _TopSites {
       }
     }
 
-    this.store.dispatch(
-      ac.BroadcastToContent({
-        type: at.UPDATE_SEARCH_SHORTCUTS,
-        data: { searchShortcuts },
-        meta: {
-          isStartup,
-        },
-      })
+    // TODO: Determine what the purpose of this is.
+    this.#searchShortcuts = searchShortcuts;
+
+    Services.obs.notifyObservers(
+      null,
+      "topsites-updated-custom-search-shortcuts",
+      isStartup
     );
   }
 
@@ -735,9 +752,9 @@ class _TopSites {
   }
 
   /**
-   * Get an image for the link preferring tippy top, rich favicon, screenshots.
+   * Get an image for the link preferring tippy top, or rich favicon.
    */
-  async _fetchIcon(link, isStartup = false) {
+  async _fetchIcon(link) {
     // Nothing to do if we already have a rich icon from the page
     if (link.favicon && link.faviconSize >= MIN_FAVICON_SIZE) {
       return;
@@ -751,68 +768,10 @@ class _TopSites {
 
     // Make a request for a better icon
     this._requestRichIcon(link.url);
-
-    // Also request a screenshot if we don't have one yet
-    await this._fetchScreenshot(link, link.url, isStartup);
-  }
-
-  /**
-   * Fetch, cache and broadcast a screenshot for a specific topsite.
-   *
-   * @param {object} link cached topsite object
-   * @param {string} url where to fetch the image from
-   * @param {boolean} isStartup Whether the screenshot is fetched while
-   * initting TopSitesFeed.
-   */
-  async _fetchScreenshot(link, url, isStartup = false) {
-    // We shouldn't bother caching screenshots if they won't be shown.
-    if (
-      link.screenshot ||
-      !this.store.getState().Prefs.values[SHOWN_ON_NEWTAB_PREF]
-    ) {
-      return;
-    }
-    await lazy.Screenshots.maybeCacheScreenshot(
-      link,
-      url,
-      "screenshot",
-      screenshot =>
-        this.store.dispatch(
-          ac.BroadcastToContent({
-            data: { screenshot, url: link.url },
-            type: at.SCREENSHOT_UPDATED,
-            meta: {
-              isStartup,
-            },
-          })
-        )
-    );
-  }
-
-  /**
-   * Dispatch screenshot preview to target or notify if request failed.
-   *
-   * @param {string} url The URL used to capture the screenshot
-   * @param {string} target Id of content process where to dispatch the result
-   */
-  async getScreenshotPreview(url, target) {
-    const preview = (await lazy.Screenshots.getScreenshotForURL(url)) || "";
-    this.store.dispatch(
-      ac.OnlyToOneContent(
-        {
-          data: { url, preview },
-          type: at.PREVIEW_RESPONSE,
-        },
-        target
-      )
-    );
   }
 
   _requestRichIcon(url) {
-    this.store.dispatch({
-      type: at.RICH_ICON_MISSING,
-      data: { url },
-    });
+    this.faviconFeed.fetchIcon(url);
   }
 
   /**
@@ -823,7 +782,7 @@ class _TopSites {
     this.pinnedCache.expire();
 
     // Refresh to update pinned sites with screenshots, trigger deduping, etc.
-    this.refresh({ broadcast: true });
+    this.refresh();
   }
 
   /**
@@ -893,9 +852,7 @@ class _TopSites {
   }
 
   unpinAllSearchShortcuts() {
-    Services.prefs.clearUserPref(
-      `browser.newtabpage.activity-stream.${SEARCH_SHORTCUTS_HAVE_PINNED_PREF}`
-    );
+    Services.prefs.clearUserPref(SEARCH_SHORTCUTS_HAVE_PINNED_PREF);
     for (let pinnedLink of lazy.NewTabUtils.pinnedLinks.links) {
       if (pinnedLink && pinnedLink.searchTopSite) {
         lazy.NewTabUtils.pinnedLinks.unpin(pinnedLink);
@@ -914,14 +871,13 @@ class _TopSites {
         lazy.NewTabUtils.pinnedLinks.unpin(pinnedLink);
         this.pinnedCache.expire();
 
-        const prevInsertedShortcuts = this.store
-          .getState()
-          .Prefs.values[SEARCH_SHORTCUTS_HAVE_PINNED_PREF].split(",");
-        this.store.dispatch(
-          ac.SetPref(
-            SEARCH_SHORTCUTS_HAVE_PINNED_PREF,
-            prevInsertedShortcuts.filter(s => s !== vendor).join(",")
-          )
+        const prevInsertedShortcuts = Services.prefs.getStringPref(
+          SEARCH_SHORTCUTS_HAVE_PINNED_PREF,
+          ""
+        );
+        Services.prefs.setStringPref(
+          SEARCH_SHORTCUTS_HAVE_PINNED_PREF,
+          prevInsertedShortcuts.filter(s => s !== vendor).join(",")
         );
         break;
       }
@@ -934,19 +890,15 @@ class _TopSites {
    * effectively increasing their index again.
    */
   _adjustPinIndexForSponsoredLinks(site, index) {
-    if (!this._linksWithDefaults) {
+    if (!this.#sites) {
       return index;
     }
     // Adjust insertion index for sponsored sites since their position is
     // fixed.
     let adjustedIndex = index;
     for (let i = 0; i < index; i++) {
-      const link = this._linksWithDefaults[i];
-      if (
-        link &&
-        link.sponsored_position &&
-        this._linksWithDefaults[i]?.url !== site.url
-      ) {
+      const link = this.#sites[i];
+      if (link && link.sponsored_position && this.#sites[i]?.url !== site.url) {
         adjustedIndex--;
       }
     }
@@ -963,7 +915,7 @@ class _TopSites {
     // we can end up with a bunch of pinned sites that can never be unpinned again
     // from the UI.
     const topSitesCount =
-      this.store.getState().Prefs.values[ROWS_PREF] *
+      Services.prefs.getIntPref(TOP_SITES_ROWS_PREF, 1) *
       TOP_SITES_MAX_SITES_PER_ROW;
     if (index >= topSitesCount) {
       return;
@@ -1016,7 +968,7 @@ class _TopSites {
       index,
       action.data.draggedFromIndex !== undefined
         ? action.data.draggedFromIndex
-        : this.store.getState().Prefs.values[ROWS_PREF] *
+        : Services.prefs.getIntPref(TOP_SITES_ROWS_PREF, 1) *
             TOP_SITES_MAX_SITES_PER_ROW
     );
 
@@ -1032,7 +984,7 @@ class _TopSites {
 
     // Pin the addedShortcuts.
     const numberOfSlots =
-      this.store.getState().Prefs.values[ROWS_PREF] *
+      Services.prefs.getIntPref(TOP_SITES_ROWS_PREF, 1) *
       TOP_SITES_MAX_SITES_PER_ROW;
     addedShortcuts.forEach(shortcut => {
       // Find first hole in pinnedLinks.
@@ -1062,22 +1014,22 @@ class _TopSites {
         this.updateCustomSearchShortcuts(true /* isStartup */);
         break;
       case at.SYSTEM_TICK:
-        this.refresh({ broadcast: false });
+        this.refresh();
         break;
       // All these actions mean we need new top sites
       case at.PLACES_HISTORY_CLEARED:
       case at.PLACES_LINKS_DELETED:
         this.frecentCache.expire();
-        this.refresh({ broadcast: true });
+        this.refresh();
         break;
       case at.PLACES_LINKS_CHANGED:
         this.frecentCache.expire();
-        this.refresh({ broadcast: false });
+        this.refresh();
         break;
       case at.PLACES_LINK_BLOCKED:
         this.frecentCache.expire();
         this.pinnedCache.expire();
-        this.refresh({ broadcast: true });
+        this.refresh();
         break;
       case at.PREF_CHANGED:
         switch (action.data.name) {
@@ -1089,7 +1041,7 @@ class _TopSites {
           case ROWS_PREF:
           case FILTER_DEFAULT_SEARCH_PREF:
           case SEARCH_SHORTCUTS_SEARCH_ENGINES_PREF:
-            this.refresh({ broadcast: true });
+            this.refresh();
             break;
           case SEARCH_SHORTCUTS_EXPERIMENT:
             if (action.data.value) {
@@ -1097,7 +1049,7 @@ class _TopSites {
             } else {
               this.unpinAllSearchShortcuts();
             }
-            this.refresh({ broadcast: true });
+            this.refresh();
         }
         break;
       case at.PREFS_INITIAL_VALUES:
@@ -1113,9 +1065,6 @@ class _TopSites {
         break;
       case at.TOP_SITES_INSERT:
         this.insert(action);
-        break;
-      case at.PREVIEW_REQUEST:
-        this.getScreenshotPreview(action.data.url, action.meta.fromTarget);
         break;
       case at.UPDATE_PINNED_SEARCH_SHORTCUTS:
         this.updatePinnedSearchShortcuts(action.data);

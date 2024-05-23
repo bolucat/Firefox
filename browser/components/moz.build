@@ -65,7 +65,6 @@ DIRS += [
     "sidebar",
     "syncedtabs",
     "tabbrowser",
-    "tabpreview",
     "tabunloader",
     "textrecognition",
     "topsites",
