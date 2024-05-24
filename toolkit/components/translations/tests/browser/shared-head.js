@@ -1195,8 +1195,12 @@ class TestTranslationsTelemetry {
   static async assertCounter(name, counter, expectedCount) {
     // Ensures that glean metrics are collected from all child processes
     // so that calls to testGetValue() are up to date.
-    await Services.fog.testFlushAllChildren();
-    const count = counter.testGetValue() ?? 0;
+    let count;
+    await waitForCondition(async () => {
+      await Services.fog.testFlushAllChildren();
+      count = counter.testGetValue() ?? 0;
+      return expectedCount === count;
+    });
     is(
       count,
       expectedCount,
@@ -1211,39 +1215,33 @@ class TestTranslationsTelemetry {
    * @param {object} expectations - The test expectations.
    * @param {number} expectations.expectedEventCount - The expected count of events.
    * @param {boolean} expectations.expectNewFlowId
-   * @param {boolean} [expectations.expectFirstInteraction]
-   * - Expects the flowId to be different than the previous flowId if true,
-   *   and expects it to be the same if false.
-   * @param {Array<Function>} [expectations.allValuePredicates=[]]
-   * - An array of function predicates to assert for all event values.
-   * @param {Array<Function>} [expectations.finalValuePredicates=[]]
-   * - An array of function predicates to assert for only the final event value.
+   * @param {Record<string, string | boolean | number>} [expectations.assertForAllEvents]
+   * - A record of key-value pairs to assert against all events in this category.
+   * @param {Record<string, string | boolean | number>} [expectations.assertForMostRecentEvent]
+   * - A record of key-value pairs to assert against the most recently recorded event in this category.
    */
   static async assertEvent(
     event,
     {
       expectedEventCount,
       expectNewFlowId = null,
-      expectFirstInteraction = null,
-      allValuePredicates = [],
-      finalValuePredicates = [],
+      assertForAllEvents = {},
+      assertForMostRecentEvent = {},
     }
   ) {
     // Ensures that glean metrics are collected from all child processes
     // so that calls to testGetValue() are up to date.
-    await Services.fog.testFlushAllChildren();
-    const events = event.testGetValue() ?? [];
-    const eventCount = events.length;
+    let events;
+    let eventCount;
+    await waitForCondition(async () => {
+      await Services.fog.testFlushAllChildren();
+      events = event.testGetValue() ?? [];
+      eventCount = events.length;
+      return expectedEventCount === eventCount;
+    });
+
     const name =
       eventCount > 0 ? `${events[0].category}.${events[0].name}` : null;
-
-    if (eventCount > 0 && expectFirstInteraction !== null) {
-      is(
-        events[eventCount - 1].extra.first_interaction,
-        expectFirstInteraction ? "true" : "false",
-        "The newest event should be match the given first-interaction expectation"
-      );
-    }
 
     if (eventCount > 0 && expectNewFlowId !== null) {
       const flowId = events[eventCount - 1].extra.flow_id;
@@ -1279,34 +1277,38 @@ class TestTranslationsTelemetry {
       `There should be ${expectedEventCount} telemetry events of type ${name}`
     );
 
-    if (allValuePredicates.length !== 0) {
+    if (Object.keys(assertForAllEvents).length !== 0) {
       is(
         eventCount > 0,
         true,
-        `Telemetry event ${name} should contain values if allPredicates are specified`
+        `Telemetry event ${name} should contain values if assertForMostRecentEvent are specified`
       );
-      for (const value of events) {
-        for (const predicate of allValuePredicates) {
+      for (const [key, expectedEntry] of Object.entries(
+        assertForMostRecentEvent
+      )) {
+        for (const event of events) {
           is(
-            predicate(value),
-            true,
-            `Telemetry event ${name} allPredicate { ${predicate.toString()} } should pass for each value`
+            event.extra[key],
+            String(expectedEntry),
+            `Telemetry event ${name} value for ${key} should match the expected entry`
           );
         }
       }
     }
 
-    if (finalValuePredicates.length !== 0) {
+    if (Object.keys(assertForMostRecentEvent).length !== 0) {
       is(
         eventCount > 0,
         true,
-        `Telemetry event ${name} should contain values if finalPredicates are specified`
+        `Telemetry event ${name} should contain values if assertForMostRecentEvent are specified`
       );
-      for (const predicate of finalValuePredicates) {
+      for (const [key, expectedEntry] of Object.entries(
+        assertForMostRecentEvent
+      )) {
         is(
-          predicate(events[eventCount - 1]),
-          true,
-          `Telemetry event ${name} finalPredicate { ${predicate.toString()} } should pass for final value`
+          events[eventCount - 1].extra[key],
+          String(expectedEntry),
+          `Telemetry event ${name} value for ${key} should match the expected entry`
         );
       }
     }

@@ -757,7 +757,7 @@ export class SearchEngine {
         }
         break;
       case "http":
-      case "https":
+      case "https": {
         let iconLoadCallback = function (byteArray, contentType) {
           // This callback may run after we've already set a preferred icon,
           // so check again.
@@ -798,7 +798,7 @@ export class SearchEngine {
           if (this._engineAddedToStore) {
             lazy.SearchUtils.notifyAction(
               this,
-              lazy.SearchUtils.MODIFIED_TYPE.CHANGED
+              lazy.SearchUtils.MODIFIED_TYPE.ICON_CHANGED
             );
           }
           this._hasPreferredIcon = isPreferred;
@@ -816,6 +816,7 @@ export class SearchEngine {
         chan.notificationCallbacks = listener;
         chan.asyncOpen(listener);
         break;
+      }
     }
   }
 

@@ -59,18 +59,15 @@ namespace mozilla::dom {
  */
 
 template <typename DecoderType>
-DecoderTemplate<DecoderType>::ControlMessage::ControlMessage(
-    const nsACString& aTitle)
-    : mTitle(aTitle) {}
+DecoderTemplate<DecoderType>::ConfigureMessage::ConfigureMessage(
+    WebCodecsId aConfigId, UniquePtr<ConfigTypeInternal>&& aConfig)
+    : ControlMessage(aConfigId), mConfig(std::move(aConfig)) {}
 
 template <typename DecoderType>
-DecoderTemplate<DecoderType>::ConfigureMessage::ConfigureMessage(
-    Id aId, UniquePtr<ConfigTypeInternal>&& aConfig)
-    : ControlMessage(
-          nsPrintfCString("configure #%d (%s)", aId,
-                          NS_ConvertUTF16toUTF8(aConfig->mCodec).get())),
-      mId(aId),
-      mConfig(std::move(aConfig)) {}
+nsCString DecoderTemplate<DecoderType>::ConfigureMessage::ToString() const {
+  return nsPrintfCString("configure #%zu (%s)", ControlMessage::mConfigId,
+                         NS_ConvertUTF16toUTF8(mConfig->mCodec).get());
+}
 
 /* static */
 template <typename DecoderType>
@@ -79,17 +76,21 @@ DecoderTemplate<DecoderType>::ConfigureMessage::Create(
     UniquePtr<ConfigTypeInternal>&& aConfig) {
   // This needs to be atomic since this can run on the main thread or worker
   // thread.
-  static std::atomic<Id> sNextId = NoId;
+  static std::atomic<WebCodecsId> sNextId = 0;
   return new ConfigureMessage(++sNextId, std::move(aConfig));
 }
 
 template <typename DecoderType>
 DecoderTemplate<DecoderType>::DecodeMessage::DecodeMessage(
-    SeqId aSeqId, ConfigId aConfigId, UniquePtr<InputTypeInternal>&& aData)
-    : ControlMessage(
-          nsPrintfCString("decode #%zu (config #%d)", aSeqId, aConfigId)),
-      mSeqId(aSeqId),
-      mData(std::move(aData)) {}
+    WebCodecsId aSeqId, WebCodecsId aConfigId,
+    UniquePtr<InputTypeInternal>&& aData)
+    : ControlMessage(aConfigId), mSeqId(aSeqId), mData(std::move(aData)) {}
+
+template <typename DecoderType>
+nsCString DecoderTemplate<DecoderType>::DecodeMessage::ToString() const {
+  return nsPrintfCString("decode #%zu (config #%zu)", mSeqId,
+                         ControlMessage::mConfigId);
+}
 
 static int64_t GenerateUniqueId() {
   // This needs to be atomic since this can run on the main thread or worker
@@ -99,12 +100,17 @@ static int64_t GenerateUniqueId() {
 }
 
 template <typename DecoderType>
-DecoderTemplate<DecoderType>::FlushMessage::FlushMessage(SeqId aSeqId,
-                                                         ConfigId aConfigId)
-    : ControlMessage(
-          nsPrintfCString("flush #%zu (config #%d)", aSeqId, aConfigId)),
+DecoderTemplate<DecoderType>::FlushMessage::FlushMessage(WebCodecsId aSeqId,
+                                                         WebCodecsId aConfigId)
+    : ControlMessage(aConfigId),
       mSeqId(aSeqId),
       mUniqueId(GenerateUniqueId()) {}
+
+template <typename DecoderType>
+nsCString DecoderTemplate<DecoderType>::FlushMessage::ToString() const {
+  return nsPrintfCString("flush #%zu (config #%zu)", mSeqId,
+                         ControlMessage::mConfigId);
+}
 
 /*
  * Below are DecoderTemplate implementation
@@ -123,7 +129,7 @@ DecoderTemplate<DecoderType>::DecoderTemplate(
       mMessageQueueBlocked(false),
       mDecodeQueueSize(0),
       mDequeueEventScheduled(false),
-      mLatestConfigureId(ConfigureMessage::NoId),
+      mLatestConfigureId(0),
       mDecodeCounter(0),
       mFlushCounter(0) {}
 
@@ -163,7 +169,7 @@ void DecoderTemplate<DecoderType>::Configure(const ConfigType& aConfig,
 
   mControlMessageQueue.emplace(
       UniquePtr<ControlMessage>(ConfigureMessage::Create(std::move(config))));
-  mLatestConfigureId = mControlMessageQueue.back()->AsConfigureMessage()->mId;
+  mLatestConfigureId = mControlMessageQueue.back()->mConfigId;
   LOG("%s %p enqueues %s", DecoderType::Name.get(), this,
       mControlMessageQueue.back()->ToString().get());
   ProcessControlMessageQueue();
@@ -465,7 +471,8 @@ MessageProcessedResult DecoderTemplate<DecoderType>::ProcessConfigureMessage(
     errorMessage.AppendPrintf("CreateTrackInfo failed: %s", res.get());
   } else if (!DecoderType::IsSupported(msg->Config())) {
     errorMessage.Append("Not supported.");
-  } else if (!CreateDecoderAgent(msg->mId, msg->TakeConfig(), i.unwrap())) {
+  } else if (!CreateDecoderAgent(msg->mConfigId, msg->TakeConfig(),
+                                 i.unwrap())) {
     errorMessage.Append("DecoderAgent creation failed.");
   }
   if (!errorMessage.IsEmpty()) {

@@ -1208,7 +1208,11 @@ target_sysroot = sysroot(target)
 def system_lib_option(name, *args, **kwargs):
     option(name, *args, **kwargs)
 
-    @depends(name, target_sysroot.bootstrapped)
+    @depends(
+        name,
+        target_sysroot.bootstrapped,
+        when=kwargs.get("when"),
+    )
     def no_system_lib_in_sysroot(value, bootstrapped):
         if bootstrapped and value:
             die(
@@ -1720,7 +1724,9 @@ host_windows_abi = windows_abi(host, host_c_compiler)
 
 # Generic compiler-based conditions.
 building_with_gcc = depends(c_compiler)(lambda info: info.type == "gcc")
-building_with_gnu_cc = depends(c_compiler)(lambda info: info.type != "clang-cl")
+building_with_gnu_compatible_cc = depends(c_compiler)(
+    lambda info: info.type != "clang-cl"
+)
 
 
 @depends(cxx_compiler, ccache_prefix)
@@ -3310,9 +3316,19 @@ def nm_names(toolchain_prefix, c_compiler):
 check_prog("NM", nm_names, paths=clang_search_path, when=target_has_linux_kernel)
 
 
+# We don't use it in the code, but it can be useful for debugging, so give
+# the user the option of enabling it.
 option("--enable-cpp-rtti", help="Enable C++ RTTI")
 
-add_old_configure_assignment("_MOZ_USE_RTTI", "1", when="--enable-cpp-rtti")
+
+@depends(compilation_flags, c_compiler, "--enable-cpp-rtti")
+def enable_cpp_rtti(compilation_flags, c_compiler, enable_rtti):
+    if enable_rtti:
+        return
+    if c_compiler.type == "clang-cl":
+        compilation_flags.cxxflags.append("-GR-")
+    else:
+        compilation_flags.cxxflags.append("-fno-rtti")
 
 
 option(
