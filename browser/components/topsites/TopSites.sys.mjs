@@ -2,7 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { actionTypes as at } from "resource://activity-stream/common/Actions.mjs";
 import { TippyTopProvider } from "resource://activity-stream/lib/TippyTopProvider.sys.mjs";
 import {
   insertPinned,
@@ -13,8 +12,6 @@ import { shortURL } from "resource://activity-stream/lib/ShortURL.sys.mjs";
 
 import {
   CUSTOM_SEARCH_SHORTCUTS,
-  SEARCH_SHORTCUTS_EXPERIMENT,
-  SEARCH_SHORTCUTS_SEARCH_ENGINES_PREF,
   checkHasSearchEngine,
   getSearchProvider,
   getSearchFormURL,
@@ -27,6 +24,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
   FilterAdult: "resource://activity-stream/lib/FilterAdult.sys.mjs",
   LinksCache: "resource://activity-stream/lib/LinksCache.sys.mjs",
   NewTabUtils: "resource://gre/modules/NewTabUtils.sys.mjs",
+  PlacesUtils: "resource://gre/modules/PlacesUtils.sys.mjs",
   Region: "resource://gre/modules/Region.sys.mjs",
   RemoteSettings: "resource://services-settings/remote-settings.sys.mjs",
 });
@@ -38,7 +36,6 @@ ChromeUtils.defineLazyGetter(lazy, "log", () => {
   return new Logger("TopSites");
 });
 
-const DEFAULT_SITES_PREF = "default.sites";
 export const DEFAULT_TOP_SITES = [];
 const FRECENCY_THRESHOLD = 100 + 1; // 1 visit (skip first-run/one-time pages)
 const MIN_FAVICON_SIZE = 96;
@@ -48,7 +45,6 @@ const PINNED_FAVICON_PROPS_TO_MIGRATE = [
   "faviconRef",
   "faviconSize",
 ];
-const ROWS_PREF = "topSitesRows";
 
 // Preferences
 const NO_DEFAULT_SEARCH_TILE_PREF =
@@ -63,7 +59,6 @@ const TOP_SITE_SEARCH_SHORTCUTS_PREF =
 const TOP_SITES_ROWS_PREF = "browser.newtabpage.activity-stream.topSitesRows";
 
 // Search experiment stuff
-const FILTER_DEFAULT_SEARCH_PREF = "improvesearch.noDefaultSearchTile";
 const SEARCH_FILTERS = [
   "google",
   "search.yahoo",
@@ -110,6 +105,7 @@ class _TopSites {
       [...CACHED_LINK_PROPS_TO_MIGRATE, ...PINNED_FAVICON_PROPS_TO_MIGRATE]
     );
     this.faviconFeed = new lazy.FaviconFeed();
+    this.handlePlacesEvents = this.handlePlacesEvents.bind(this);
   }
 
   async init() {
@@ -118,12 +114,7 @@ class _TopSites {
     }
     this.#inited = true;
     lazy.log.debug("Initializing TopSites.");
-    // If the feed was previously disabled PREFS_INITIAL_VALUES was never received
-    Services.obs.addObserver(this, "browser-search-engine-modified");
-    Services.obs.addObserver(this, "browser-region-updated");
-    Services.prefs.addObserver(REMOTE_SETTING_DEFAULTS_PREF, this);
-    Services.prefs.addObserver(DEFAULT_SITES_OVERRIDE_PREF, this);
-    Services.prefs.addObserver(DEFAULT_SITES_EXPERIMENTS_PREF_BRANCH, this);
+    this.#addObservers();
     await this._readDefaults({ isStartup: true });
   }
 
@@ -132,14 +123,47 @@ class _TopSites {
       return;
     }
     lazy.log.debug("Un-initializing TopSites.");
-    Services.obs.removeObserver(this, "browser-search-engine-modified");
-    Services.obs.removeObserver(this, "browser-region-updated");
-    Services.prefs.removeObserver(REMOTE_SETTING_DEFAULTS_PREF, this);
-    Services.prefs.removeObserver(DEFAULT_SITES_OVERRIDE_PREF, this);
-    Services.prefs.removeObserver(DEFAULT_SITES_EXPERIMENTS_PREF_BRANCH, this);
+    this.#removeObservers();
     this.#searchShortcuts = [];
     this.#sites = [];
     this.#inited = false;
+    this.frecentCache.expire();
+    this.pinnedCache.expire();
+  }
+
+  #addObservers() {
+    // If the feed was previously disabled PREFS_INITIAL_VALUES was never received
+    Services.obs.addObserver(this, "browser-search-engine-modified");
+    Services.obs.addObserver(this, "browser-region-updated");
+    Services.obs.addObserver(this, "newtab-linkBlocked");
+    Services.prefs.addObserver(REMOTE_SETTING_DEFAULTS_PREF, this);
+    Services.prefs.addObserver(DEFAULT_SITES_OVERRIDE_PREF, this);
+    Services.prefs.addObserver(DEFAULT_SITES_EXPERIMENTS_PREF_BRANCH, this);
+    Services.prefs.addObserver(NO_DEFAULT_SEARCH_TILE_PREF, this);
+    Services.prefs.addObserver(SEARCH_SHORTCUTS_ENGINES, this);
+    Services.prefs.addObserver(TOP_SITES_ROWS_PREF, this);
+    Services.prefs.addObserver(TOP_SITE_SEARCH_SHORTCUTS_PREF, this);
+    lazy.PlacesUtils.observers.addListener(
+      ["bookmark-added", "bookmark-removed", "history-cleared", "page-removed"],
+      this.handlePlacesEvents
+    );
+  }
+
+  #removeObservers() {
+    Services.obs.removeObserver(this, "browser-search-engine-modified");
+    Services.obs.removeObserver(this, "browser-region-updated");
+    Services.obs.removeObserver(this, "newtab-linkBlocked");
+    Services.prefs.removeObserver(REMOTE_SETTING_DEFAULTS_PREF, this);
+    Services.prefs.removeObserver(DEFAULT_SITES_OVERRIDE_PREF, this);
+    Services.prefs.removeObserver(DEFAULT_SITES_EXPERIMENTS_PREF_BRANCH, this);
+    Services.prefs.removeObserver(NO_DEFAULT_SEARCH_TILE_PREF, this);
+    Services.prefs.removeObserver(SEARCH_SHORTCUTS_ENGINES, this);
+    Services.prefs.removeObserver(TOP_SITES_ROWS_PREF, this);
+    Services.prefs.removeObserver(TOP_SITE_SEARCH_SHORTCUTS_PREF, this);
+    lazy.PlacesUtils.observers.removeListener(
+      ["bookmark-added", "bookmark-removed", "history-cleared", "page-removed"],
+      this.handlePlacesEvents
+    );
   }
 
   _reset() {
@@ -168,15 +192,97 @@ class _TopSites {
       case "browser-region-updated":
         this._readDefaults();
         break;
+      case "newtab-linkBlocked":
+        this.frecentCache.expire();
+        this.pinnedCache.expire();
+        this.refresh();
+        break;
       case "nsPref:changed":
-        if (
-          data === REMOTE_SETTING_DEFAULTS_PREF ||
-          data === DEFAULT_SITES_OVERRIDE_PREF ||
-          data.startsWith(DEFAULT_SITES_EXPERIMENTS_PREF_BRANCH)
-        ) {
-          this._readDefaults();
+        switch (data) {
+          case DEFAULT_SITES_OVERRIDE_PREF:
+          case REMOTE_SETTING_DEFAULTS_PREF:
+            this._readDefaults();
+            break;
+          case NO_DEFAULT_SEARCH_TILE_PREF:
+            this.refresh();
+            break;
+          case TOP_SITES_ROWS_PREF:
+          case SEARCH_SHORTCUTS_ENGINES:
+            this.refresh();
+            break;
+          case TOP_SITE_SEARCH_SHORTCUTS_PREF:
+            if (Services.prefs.getBoolPref(TOP_SITE_SEARCH_SHORTCUTS_PREF)) {
+              this.updateCustomSearchShortcuts();
+            } else {
+              this.unpinAllSearchShortcuts();
+            }
+            this.refresh();
+            break;
+          default:
+            if (data.startsWith(DEFAULT_SITES_EXPERIMENTS_PREF_BRANCH)) {
+              this._readDefaults();
+            }
+            break;
         }
         break;
+    }
+  }
+
+  handlePlacesEvents(events) {
+    for (const {
+      itemType,
+      source,
+      url,
+      isRemovedFromStore,
+      isTagging,
+      type,
+    } of events) {
+      switch (type) {
+        case "history-cleared":
+          this.frecentCache.expire();
+          this.refresh();
+          break;
+        case "page-removed":
+          if (isRemovedFromStore) {
+            this.frecentCache.expire();
+            this.refresh();
+          }
+          break;
+        case "bookmark-added":
+          // Skips items that are not bookmarks (like folders), about:* pages or
+          // default bookmarks, added when the profile is created.
+          if (
+            isTagging ||
+            itemType !== lazy.PlacesUtils.bookmarks.TYPE_BOOKMARK ||
+            source === lazy.PlacesUtils.bookmarks.SOURCES.IMPORT ||
+            source === lazy.PlacesUtils.bookmarks.SOURCES.RESTORE ||
+            source === lazy.PlacesUtils.bookmarks.SOURCES.RESTORE_ON_STARTUP ||
+            source === lazy.PlacesUtils.bookmarks.SOURCES.SYNC ||
+            (!url.startsWith("http://") && !url.startsWith("https://"))
+          ) {
+            return;
+          }
+
+          // TODO: Add a timed delay in case many links are changed.
+          this.frecentCache.expire();
+          this.refresh();
+          break;
+        case "bookmark-removed":
+          if (
+            isTagging ||
+            (itemType === lazy.PlacesUtils.bookmarks.TYPE_BOOKMARK &&
+              source !== lazy.PlacesUtils.bookmarks.SOURCES.IMPORT &&
+              source !== lazy.PlacesUtils.bookmarks.SOURCES.RESTORE &&
+              source !==
+                lazy.PlacesUtils.bookmarks.SOURCES.RESTORE_ON_STARTUP &&
+              source !== lazy.PlacesUtils.bookmarks.SOURCES.SYNC)
+          ) {
+            // TODO: Add a timed delay in case many links are changed.
+            this.frecentCache.expire();
+            this.refresh();
+          }
+          break;
+      }
     }
   }
 
@@ -193,6 +299,11 @@ class _TopSites {
   async getSites() {
     if (!this.#inited) {
       await this.init();
+      // TopSites was initialized by the store calling the initialization
+      // function and then updating custom search shortcuts. Since
+      // initialization now happens upon the first get, we move the update
+      // custom search shortcuts here.
+      await this.updateCustomSearchShortcuts(true);
     }
     return structuredClone(this.#sites);
   }
@@ -200,6 +311,11 @@ class _TopSites {
   async getSearchShortcuts() {
     if (!this.#inited) {
       await this.init();
+      // TopSites was initialized by the store calling the initialization
+      // function and then updating custom search shortcuts. Since
+      // initialization now happens upon the first get, we move the update
+      // custom search shortcuts here.
+      await this.updateCustomSearchShortcuts(true);
     }
     return structuredClone(this.#searchShortcuts);
   }
@@ -1005,74 +1121,6 @@ class _TopSites {
     });
 
     this._broadcastPinnedSitesUpdated();
-  }
-
-  onAction(action) {
-    switch (action.type) {
-      case at.INIT:
-        this.init();
-        this.updateCustomSearchShortcuts(true /* isStartup */);
-        break;
-      case at.SYSTEM_TICK:
-        this.refresh();
-        break;
-      // All these actions mean we need new top sites
-      case at.PLACES_HISTORY_CLEARED:
-      case at.PLACES_LINKS_DELETED:
-        this.frecentCache.expire();
-        this.refresh();
-        break;
-      case at.PLACES_LINKS_CHANGED:
-        this.frecentCache.expire();
-        this.refresh();
-        break;
-      case at.PLACES_LINK_BLOCKED:
-        this.frecentCache.expire();
-        this.pinnedCache.expire();
-        this.refresh();
-        break;
-      case at.PREF_CHANGED:
-        switch (action.data.name) {
-          case DEFAULT_SITES_PREF:
-            if (!this._useRemoteSetting) {
-              this.refreshDefaults(action.data.value);
-            }
-            break;
-          case ROWS_PREF:
-          case FILTER_DEFAULT_SEARCH_PREF:
-          case SEARCH_SHORTCUTS_SEARCH_ENGINES_PREF:
-            this.refresh();
-            break;
-          case SEARCH_SHORTCUTS_EXPERIMENT:
-            if (action.data.value) {
-              this.updateCustomSearchShortcuts();
-            } else {
-              this.unpinAllSearchShortcuts();
-            }
-            this.refresh();
-        }
-        break;
-      case at.PREFS_INITIAL_VALUES:
-        if (!this._useRemoteSetting) {
-          this.refreshDefaults(action.data[DEFAULT_SITES_PREF]);
-        }
-        break;
-      case at.TOP_SITES_PIN:
-        this.pin(action);
-        break;
-      case at.TOP_SITES_UNPIN:
-        this.unpin(action);
-        break;
-      case at.TOP_SITES_INSERT:
-        this.insert(action);
-        break;
-      case at.UPDATE_PINNED_SEARCH_SHORTCUTS:
-        this.updatePinnedSearchShortcuts(action.data);
-        break;
-      case at.UNINIT:
-        this.uninit();
-        break;
-    }
   }
 }
 

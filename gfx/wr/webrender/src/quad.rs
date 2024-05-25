@@ -76,12 +76,12 @@ pub fn push_quad(
     scratch: &mut PrimitiveScratchBuffer,
 
 ) {
-    let map_prim_to_surface = frame_context.spatial_tree.get_relative_transform(
+    let map_prim_to_raster = frame_context.spatial_tree.get_relative_transform(
         prim_spatial_node_index,
         pic_context.raster_spatial_node_index,
     );
-    let prim_is_2d_scale_translation = map_prim_to_surface.is_2d_scale_translation();
-    let prim_is_2d_axis_aligned = map_prim_to_surface.is_2d_axis_aligned();
+    let prim_is_2d_scale_translation = map_prim_to_raster.is_2d_scale_translation();
+    let prim_is_2d_axis_aligned = map_prim_to_raster.is_2d_axis_aligned();
 
     let strategy = get_prim_render_strategy(
         prim_spatial_node_index,
@@ -195,12 +195,12 @@ pub fn push_quad(
             let clip_coverage_rect = surface
                 .map_to_device_rect(&clip_chain.pic_coverage_rect, frame_context.spatial_tree);
 
-            surface.map_local_to_surface.set_target_spatial_node(
+            surface.map_local_to_picture.set_target_spatial_node(
                 prim_spatial_node_index,
                 frame_context.spatial_tree,
             );
 
-            let Some(pic_rect) = surface.map_local_to_surface.map(local_rect) else { return };
+            let Some(pic_rect) = surface.map_local_to_picture.map(local_rect) else { return };
 
             let unclipped_surface_rect = surface.map_to_device_rect(
                 &pic_rect, frame_context.spatial_tree
@@ -321,7 +321,7 @@ pub fn push_quad(
             }
 
             if !scratch.quad_direct_segments.is_empty() {
-                let local_to_device = map_prim_to_surface.as_2d_scale_offset()
+                let local_to_device = map_prim_to_raster.as_2d_scale_offset()
                     .expect("bug: nine-patch segments should be axis-aligned only")
                     .scale(device_pixel_scale.0);
 
@@ -356,7 +356,7 @@ pub fn push_quad(
             let clip_coverage_rect = surface
                 .map_to_device_rect(&clip_chain.pic_coverage_rect, frame_context.spatial_tree);
 
-            let local_to_device = map_prim_to_surface.as_2d_scale_offset()
+            let local_to_device = map_prim_to_raster.as_2d_scale_offset()
                 .expect("bug: nine-patch segments should be axis-aligned only")
                 .scale(device_pixel_scale.0);
 
