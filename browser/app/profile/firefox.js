@@ -1086,12 +1086,12 @@ pref("privacy.history.custom",              false);
 // 6 - Last 24 hours
 pref("privacy.sanitize.timeSpan", 1);
 
-pref("privacy.sanitize.useOldClearHistoryDialog", true);
+pref("privacy.sanitize.useOldClearHistoryDialog", false);
 
-pref("privacy.sanitize.clearOnShutdown.hasMigratedToNewPrefs", false);
+pref("privacy.sanitize.clearOnShutdown.hasMigratedToNewPrefs2", false);
 // flag to track migration of clear history dialog prefs, where cpd stands for
 // clear private data
-pref("privacy.sanitize.cpd.hasMigratedToNewPrefs", false);
+pref("privacy.sanitize.cpd.hasMigratedToNewPrefs2", false);
 
 pref("privacy.panicButton.enabled",         true);
 
