@@ -3830,6 +3830,13 @@
   value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
+# If true, will add a special temporary HTTPS-First exception for a site when a
+# HTTPS-First upgrade fails.
+- name: dom.security.https_first_add_exception_on_failiure
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 - name: dom.security.unexpected_system_load_telemetry_enabled
   type: bool
   value: true
@@ -5076,6 +5083,14 @@
 # When true, extensions can run content scripts in about:blank documents that
 # have a null principal. When false, extensions require permissions to all URLs.
 - name: extensions.script_about_blank_without_permission
+  type: bool
+  value: false
+  mirror: always
+
+# When true, content scripts of MV2 extensions can run in blob:-documents without
+# requiring match_origin_as_fallback to be set, to revert bug 1897113.
+# TODO bug 1899134: Remove this pref.
+- name: extensions.script_blob_without_match_origin_as_fallback
   type: bool
   value: false
   mirror: always
@@ -10646,6 +10661,24 @@
 - name: media.gmp.decoder.reorder_frames
   type: RelaxedAtomicBool
   value: true
+  mirror: always
+
+# True if we allow use of any encoders found in GMP plugins.
+- name: media.gmp.encoder.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# True if we want to request the multithreaded GMP encoder.
+- name: media.gmp.encoder.multithreaded
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# True if we want to try using the GMP plugin encoders first.
+- name: media.gmp.encoder.preferred
+  type: RelaxedAtomicBool
+  value: false
   mirror: always
 
 # Whether to suspend decoding of videos in background tabs.

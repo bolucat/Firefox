@@ -744,6 +744,11 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStylePosition {
   StyleSize mHeight;
   StyleSize mMinHeight;
   StyleMaxSize mMaxHeight;
+
+  // 'auto' or a `<dashed-ident>` referencing an anchor positioning anchor
+  // element.
+  mozilla::StylePositionAnchor mPositionAnchor;
+
   mozilla::StyleFlexBasis mFlexBasis;
   StyleImplicitGridTracks mGridAutoColumns;
   StyleImplicitGridTracks mGridAutoRows;
@@ -1084,13 +1089,6 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleVisibility {
 };
 
 namespace mozilla {
-
-inline StyleTextTransform StyleTextTransform::None() {
-  return StyleTextTransform{StyleTextTransformCase::None,
-                            StyleTextTransformOther()};
-}
-
-inline bool StyleTextTransform::IsNone() const { return *this == None(); }
 
 // Note that IsAuto() does not exclude the possibility that `left` or `right`
 // is set; it refers only to behavior in horizontal typographic mode.

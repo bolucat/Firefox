@@ -955,7 +955,7 @@ nsresult nsHttpChannel::ConnectOnTailUnblock() {
   // If the content is valid, we should attempt to do so, as technically the
   // cache has won the race.
   if (mRaceCacheWithNetwork && mCachedContentIsValid) {
-    Unused << ReadFromCache(true);
+    Unused << ReadFromCache();
   }
 
   return TriggerNetwork();
@@ -987,7 +987,7 @@ nsresult nsHttpChannel::ContinueConnect() {
           LOG(("  AsyncCall failed (%08x)", static_cast<uint32_t>(rv)));
         }
       }
-      rv = ReadFromCache(true);
+      rv = ReadFromCache();
       if (NS_FAILED(rv) && event) {
         event->Revoke();
       }
@@ -2246,46 +2246,6 @@ nsresult nsHttpChannel::ProcessResponse() {
       }
     }
     Telemetry::Accumulate(Telemetry::HTTP_SAW_QUIC_ALT_PROTOCOL_2, saw_quic);
-
-    // Gather data on how many URLS get redirected
-    switch (httpStatus) {
-      case 200:
-        Telemetry::Accumulate(Telemetry::HTTP_RESPONSE_STATUS_CODE, 0);
-        break;
-      case 301:
-        Telemetry::Accumulate(Telemetry::HTTP_RESPONSE_STATUS_CODE, 1);
-        break;
-      case 302:
-        Telemetry::Accumulate(Telemetry::HTTP_RESPONSE_STATUS_CODE, 2);
-        break;
-      case 304:
-        Telemetry::Accumulate(Telemetry::HTTP_RESPONSE_STATUS_CODE, 3);
-        break;
-      case 307:
-        Telemetry::Accumulate(Telemetry::HTTP_RESPONSE_STATUS_CODE, 4);
-        break;
-      case 308:
-        Telemetry::Accumulate(Telemetry::HTTP_RESPONSE_STATUS_CODE, 5);
-        break;
-      case 400:
-        Telemetry::Accumulate(Telemetry::HTTP_RESPONSE_STATUS_CODE, 6);
-        break;
-      case 401:
-        Telemetry::Accumulate(Telemetry::HTTP_RESPONSE_STATUS_CODE, 7);
-        break;
-      case 403:
-        Telemetry::Accumulate(Telemetry::HTTP_RESPONSE_STATUS_CODE, 8);
-        break;
-      case 404:
-        Telemetry::Accumulate(Telemetry::HTTP_RESPONSE_STATUS_CODE, 9);
-        break;
-      case 500:
-        Telemetry::Accumulate(Telemetry::HTTP_RESPONSE_STATUS_CODE, 10);
-        break;
-      default:
-        Telemetry::Accumulate(Telemetry::HTTP_RESPONSE_STATUS_CODE, 11);
-        break;
-    }
   }
 
   // Let the predictor know whether this was a cacheable response or not so
@@ -3601,7 +3561,7 @@ nsresult nsHttpChannel::ProcessPartialContent(
   // the cached content is valid, although incomplete.
   mCachedContentIsValid = true;
   return CallOrWaitForResume([aContinueProcessResponseFunc](auto* self) {
-    nsresult rv = self->ReadFromCache(false);
+    nsresult rv = self->ReadFromCache();
     return aContinueProcessResponseFunc(self, rv);
   });
 }
@@ -3742,7 +3702,7 @@ nsresult nsHttpChannel::ProcessNotModified(
   if (NS_FAILED(rv)) return rv;
 
   return CallOrWaitForResume([aContinueProcessResponseFunc](auto* self) {
-    nsresult rv = self->ReadFromCache(false);
+    nsresult rv = self->ReadFromCache();
     return aContinueProcessResponseFunc(self, rv);
   });
 }
@@ -4077,7 +4037,6 @@ nsHttpChannel::OnCacheEntryCheck(nsICacheEntry* entry, uint32_t* aResult) {
     rv = OpenCacheInputStream(entry, true);
     if (NS_SUCCEEDED(rv)) {
       mCachedContentIsValid = true;
-      entry->MaybeMarkValid();
     }
     return rv;
   }
@@ -4352,10 +4311,6 @@ nsHttpChannel::OnCacheEntryCheck(nsICacheEntry* entry, uint32_t* aResult) {
     }
   }
 
-  if (mCachedContentIsValid) {
-    entry->MaybeMarkValid();
-  }
-
   LOG(
       ("nsHTTPChannel::OnCacheEntryCheck exit [this=%p doValidation=%d "
        "result=%d]\n",
@@ -4449,7 +4404,7 @@ nsresult nsHttpChannel::OnCacheEntryAvailableInternal(nsICacheEntry* entry,
   }
 
   if (mRaceCacheWithNetwork && mCachedContentIsValid) {
-    Unused << ReadFromCache(true);
+    Unused << ReadFromCache();
   }
 
   return TriggerNetwork();
@@ -4799,7 +4754,7 @@ nsresult nsHttpChannel::OpenCacheInputStream(nsICacheEntry* cacheEntry,
 
 // Actually process the cached response that we started to handle in CheckCache
 // and/or StartBufferingCachedEntity.
-nsresult nsHttpChannel::ReadFromCache(bool alreadyMarkedValid) {
+nsresult nsHttpChannel::ReadFromCache(void) {
   NS_ENSURE_TRUE(mCacheEntry, NS_ERROR_FAILURE);
   NS_ENSURE_TRUE(mCachedContentIsValid, NS_ERROR_FAILURE);
   NS_ENSURE_TRUE(!mCachePump, NS_OK);  // already opened
@@ -4864,16 +4819,6 @@ nsresult nsHttpChannel::ReadFromCache(bool alreadyMarkedValid) {
   // from the cache, or 2) this may be due to a 304 not modified response,
   // in which case we could have security info from a socket transport.
   if (!mSecurityInfo) mSecurityInfo = mCachedSecurityInfo;
-
-  if (!alreadyMarkedValid && !LoadCachedContentIsPartial()) {
-    // We validated the entry, and we have write access to the cache, so
-    // mark the cache entry as valid in order to allow others access to
-    // this cache entry.
-    //
-    // TODO: This should be done asynchronously so we don't take the cache
-    // service lock on the main thread.
-    mCacheEntry->MaybeMarkValid();
-  }
 
   nsresult rv;
 
@@ -8306,12 +8251,12 @@ nsresult nsHttpChannel::ContinueOnStopRequest(nsresult aStatus, bool aIsFromNet,
 
   // perform any final cache operations before we close the cache entry.
   if (mCacheEntry && LoadRequestTimeInitialized()) {
-    bool writeAccess;
     // New implementation just returns value of the !LoadCacheEntryIsReadOnly()
     // flag passed in. Old implementation checks on nsICache::ACCESS_WRITE
     // flag.
-    mCacheEntry->HasWriteAccess(!LoadCacheEntryIsReadOnly(), &writeAccess);
-    if (writeAccess) {
+
+    // Assume that write access is granted
+    if (!LoadCacheEntryIsReadOnly()) {
       nsresult rv = FinalizeCacheEntry();
       if (NS_FAILED(rv)) {
         LOG(("FinalizeCacheEntry failed (%08x)", static_cast<uint32_t>(rv)));

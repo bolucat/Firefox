@@ -663,6 +663,8 @@
     <string name="addons_permissions_allow_for_all_sites" tools:ignore="UnusedResources">Allow for all sites</string>
     <!-- The subtitle for the allow for all sites preference toggle -->
     <string name="addons_permissions_allow_for_all_sites_subtitle" tools:ignore="UnusedResources">If you trust this extension, you can give it permission on every website.</string>
+    <!-- The text shown when an add-on does not require permissions -->
+    <string name="addons_does_not_require_permissions">This extension doesn’t require any permissions.</string>
 
     <!-- Add-on Preferences -->
     <!-- Preference to customize the configured AMO (addons.mozilla.org) collection -->
@@ -1378,6 +1380,23 @@
     <!-- Text shown in the notification that pops up to remind the user that a private browsing session is active. -->
     <string name="notification_pbm_delete_text_2">Close private tabs</string>
 
+    <!-- Microsuverys -->
+    <!-- Text shown in prompt for printing microsurvey. -->
+    <string name="microsurvey_prompt_printing_title" tools:ignore="UnusedResources">Help make printing in Firefox better. It only takes a sec</string>
+    <!-- Text shown in prompt for printing microsurvey. 'Firefox' intentionally hardcoded here--> -->
+    <string name="microsurvey_survey_printing_title" tools:ignore="UnusedResources">How satisfied are you with printing in Firefox?</string>
+    <!-- Text for option one, shown in microsurvey.-->
+    <string name="microsurvey_survey_5_point_option_0" tools:ignore="UnusedResources">Neutral</string>
+    <!-- Text for option two, shown in microsurvey.-->
+    <string name="microsurvey_survey_5_point_option_1" tools:ignore="UnusedResources">Very Dissatisfied</string>
+    <!-- Text for option three, shown in microsurvey.-->
+    <string name="microsurvey_survey_5_point_option_2" tools:ignore="UnusedResources">Dissatisfied</string>
+    <!-- Text for option four, shown in microsurvey.-->
+    <string name="microsurvey_survey_5_point_option_3" tools:ignore="UnusedResources">Satisfied</string>
+    <!-- Text for option five, shown in microsurvey.-->
+    <string name="microsurvey_survey_5_point_option_4" tools:ignore="UnusedResources">Very Satisfied</string>
+
+
     <!-- Text shown in the notification that pops up to remind the user that a private browsing session is active for Android 14+ -->
     <string name="notification_erase_title_android_14">Close private tabs?</string>
     <string name="notification_erase_text_android_14">Tap or swipe this notification to close private tabs.</string>
@@ -1450,10 +1469,6 @@
     <string name="qr_scanner_dialog_invalid_ok">OK</string>
     <!-- Tab collection deletion prompt dialog message. Placeholder will be replaced with the collection name -->
     <string name="tab_collection_dialog_message">Are you sure you want to delete %1$s?</string>
-    <!-- Collection and tab deletion prompt dialog message. This will show when the last tab from a collection is deleted -->
-    <string name="delete_tab_and_collection_dialog_message">Deleting this tab will delete the entire collection. You can create new collections at any time.</string>
-    <!-- Collection and tab deletion prompt dialog title. Placeholder will be replaced with the collection name. This will show when the last tab from a collection is deleted -->
-    <string name="delete_tab_and_collection_dialog_title">Delete %1$s?</string>
     <!-- Tab collection deletion prompt dialog option to delete the collection -->
     <string name="tab_collection_dialog_positive">Delete</string>
     <!-- Text displayed in a notification when the user enters full screen mode -->
