@@ -537,9 +537,10 @@ class EventStateManager : public nsSupportsWeakReference, public nsIObserver {
    * @return widget which is the nearest widget from the event target frame.
    */
   [[nodiscard]] MOZ_CAN_RUN_SCRIPT already_AddRefed<nsIWidget>
-  DispatchMouseOrPointerEvent(WidgetMouseEvent* aMouseEvent,
-                              EventMessage aMessage, nsIContent* aTargetContent,
-                              nsIContent* aRelatedContent);
+  DispatchMouseOrPointerBoundaryEvent(WidgetMouseEvent* aMouseEvent,
+                                      EventMessage aMessage,
+                                      nsIContent* aTargetContent,
+                                      nsIContent* aRelatedContent);
   /**
    * Synthesize DOM pointerover and pointerout events
    */
@@ -1338,6 +1339,7 @@ class EventStateManager : public nsSupportsWeakReference, public nsIObserver {
   // State of keys when the original gesture-down happened
   Modifiers mGestureModifiers;
   uint16_t mGestureDownButtons;
+  int16_t mGestureDownButton;
 
   LastMouseDownInfo mLastLeftMouseDownInfo;
   LastMouseDownInfo mLastMiddleMouseDownInfo;

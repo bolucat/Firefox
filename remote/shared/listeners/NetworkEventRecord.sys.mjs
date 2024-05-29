@@ -61,16 +61,37 @@ export class NetworkEventRecord {
   }
 
   /**
-   * Add network request POST data.
+   * Add network request cache details.
    *
    * Required API for a NetworkObserver event owner.
    *
-   * @param {object} postData
-   *     The request POST data.
+   * @param {object} options
+   * @param {boolean} options.fromCache
    */
-  addRequestPostData(postData) {
-    this.#request.setPostData(postData);
+  addCacheDetails(options) {
+    const { fromCache } = options;
+    this.#fromCache = fromCache;
   }
+
+  /**
+   * Add network request raw headers.
+   *
+   * Required API for a NetworkObserver event owner.
+   *
+   * @param {object} options
+   * @param {string} options.rawHeaders
+   */
+  addRawHeaders(options) {
+    const { rawHeaders } = options;
+    this.#request.addRawHeaders(rawHeaders);
+  }
+
+  /**
+   * Add network request POST data.
+   *
+   * Required API for a NetworkObserver event owner.
+   */
+  addRequestPostData() {}
 
   /**
    * Add the initial network response information.

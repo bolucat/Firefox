@@ -462,6 +462,7 @@ cbindgen-types = [
     { gecko = "StyleBackgroundSize", servo = "crate::values::computed::BackgroundSize" },
     { gecko = "StyleGenericBackgroundSize", servo = "crate::values::generics::background::BackgroundSize" },
     { gecko = "StyleBorderImageSlice", servo = "crate::values::computed::BorderImageSlice" },
+    { gecko = "StyleBorderSpacing", servo = "crate::values::computed::BorderSpacing" },
     { gecko = "StyleGenericLengthOrNumber", servo = "crate::values::generics::length::LengthOrNumber" },
     { gecko = "StyleCSSPixelLength", servo = "crate::values::computed::length::CSSPixelLength" },
     { gecko = "StyleNonNegativeLength", servo = "crate::values::computed::NonNegativeLength" },
@@ -596,6 +597,7 @@ cbindgen-types = [
     { gecko = "StyleForcedColorAdjust", servo = "crate::values::computed::ForcedColorAdjust" },
     { gecko = "StyleScrollbarGutter", servo = "crate::values::computed::ScrollbarGutter" },
     { gecko = "StyleHyphenateCharacter", servo = "crate::values::computed::HyphenateCharacter" },
+    { gecko = "StyleColumnCount", servo = "crate::values::computed::ColumnCount" },
     { gecko = "StyleContentVisibility", servo = "crate::values::computed::ContentVisibility" },
     { gecko = "StyleContainIntrinsicSize", servo = "crate::values::computed::ContainIntrinsicSize" },
     { gecko = "StyleFontStyle", servo = "crate::values::computed::font::FontStyle" },
@@ -623,6 +625,11 @@ cbindgen-types = [
     { gecko = "StyleAnchorName", servo = "crate::values::computed::position::AnchorName" },
     { gecko = "StyleAnchorScope", servo = "crate::values::computed::position::AnchorScope" },
     { gecko = "StylePositionAnchor", servo = "crate::values::computed::position::PositionAnchor" },
+    { gecko = "StylePositionVisibility", servo = "crate::values::computed::position::PositionVisibility" },
+    { gecko = "StyleFontVariantEastAsian", servo = "crate::values::computed::font::FontVariantEastAsian" },
+    { gecko = "StyleFontVariantLigatures", servo = "crate::values::computed::font::FontVariantLigatures" },
+    { gecko = "StyleFontVariantNumeric", servo = "crate::values::computed::font::FontVariantNumeric" },
+    { gecko = "StyleInitialLetter", servo = "crate::values::computed::text::InitialLetter" },
 ]
 
 mapped-generic-types = [

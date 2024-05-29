@@ -141,17 +141,15 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleFont {
   mozilla::Length mFontSizeOffset;
   mozilla::StyleFontSizeKeyword mFontSizeKeyword;
   mozilla::StyleFontPalette mFontPalette;
-
   // math-depth support (used for MathML scriptlevel)
   int8_t mMathDepth;
   mozilla::StyleLineHeight mLineHeight;
+  // allow different min font-size for certain cases
+  mozilla::StylePercentage mMinFontSizeRatio{1.0f};
   // MathML  mathvariant support
   mozilla::StyleMathVariant mMathVariant;
   // math-style support (used for MathML displaystyle)
   mozilla::StyleMathStyle mMathStyle;
-
-  // allow different min font-size for certain cases
-  uint8_t mMinFontSizeRatio = 100;  // percent * 100
 
   // Was mLanguage set based on a lang attribute in the document?
   bool mExplicitLanguage = false;
@@ -748,6 +746,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStylePosition {
   // 'auto' or a `<dashed-ident>` referencing an anchor positioning anchor
   // element.
   mozilla::StylePositionAnchor mPositionAnchor;
+  mozilla::StylePositionVisibility mPositionVisibility;
 
   mozilla::StyleFlexBasis mFlexBasis;
   StyleImplicitGridTracks mGridAutoColumns;
@@ -838,8 +837,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleTextReset {
   mozilla::StyleTextDecorationLine mTextDecorationLine;
   mozilla::StyleTextDecorationStyle mTextDecorationStyle;
   mozilla::StyleUnicodeBidi mUnicodeBidi;
-  nscoord mInitialLetterSink;  // 0 means normal
-  float mInitialLetterSize;    // 0.0f means normal
+  mozilla::StyleInitialLetter mInitialLetter;
   mozilla::StyleColor mTextDecorationColor;
   mozilla::StyleTextDecorationLength mTextDecorationThickness;
 };
@@ -1595,8 +1593,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleTableBorder {
   STYLE_STRUCT(nsStyleTableBorder)
   nsStyleTableBorder();
 
-  nscoord mBorderSpacingCol;
-  nscoord mBorderSpacingRow;
+  mozilla::StyleBorderSpacing mBorderSpacing;
   mozilla::StyleBorderCollapse mBorderCollapse;
   mozilla::StyleCaptionSide mCaptionSide;
   mozilla::StyleEmptyCells mEmptyCells;
@@ -1816,25 +1813,18 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleColumn {
   STYLE_STRUCT(nsStyleColumn)
   nsStyleColumn();
 
-  // This is the maximum number of columns we can process. It's used in
-  // nsColumnSetFrame.
-  static const uint32_t kMaxColumnCount = 1000;
-
-  // This represents the value of column-count: auto.
-  static const uint32_t kColumnCountAuto = 0;
-
-  uint32_t mColumnCount = kColumnCountAuto;
+  mozilla::StyleColumnCount mColumnCount = mozilla::StyleColumnCount::Auto();
   mozilla::NonNegativeLengthOrAuto mColumnWidth;
 
   mozilla::StyleColor mColumnRuleColor;
-  mozilla::StyleBorderStyle mColumnRuleStyle;  // StyleborderStyle::*
+  mozilla::StyleBorderStyle mColumnRuleStyle;
   mozilla::StyleColumnFill mColumnFill = mozilla::StyleColumnFill::Balance;
   mozilla::StyleColumnSpan mColumnSpan = mozilla::StyleColumnSpan::None;
 
   nscoord GetColumnRuleWidth() const { return mActualColumnRuleWidth; }
 
   bool IsColumnContainerStyle() const {
-    return mColumnCount != kColumnCountAuto || !mColumnWidth.IsAuto();
+    return !mColumnCount.IsAuto() || !mColumnWidth.IsAuto();
   }
 
   bool IsColumnSpanStyle() const {

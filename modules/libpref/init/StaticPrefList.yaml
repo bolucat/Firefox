@@ -6942,7 +6942,7 @@
 
 - name: gfx.remote-texture.wait-owner-at-image-host
   type: RelaxedAtomicBool
-  value: true
+  value: @IS_NOT_NIGHTLY_BUILD@
   mirror: always
 
 #---------------------------------------------------------------------------
@@ -7986,6 +7986,19 @@
   mirror: always
   do_not_use_directly: true
   set_spidermonkey_pref: startup
+
+#if defined(DEBUG) || defined(NIGHTLY_BUILD) || defined(JS_GC_ZEAL)
+# Enable extra poisoning of GC memory.
+- name: javascript.options.extra_gc_poisoning
+  type: bool
+#ifdef DEBUG
+  value: true
+#else
+  value: false
+#endif
+  mirror: always
+  set_spidermonkey_pref: startup
+#endif
 
 #if !defined(JS_CODEGEN_MIPS32) && !defined(JS_CODEGEN_MIPS64) && !defined(JS_CODEGEN_LOONG64)
   # Spectre security vulnerability mitigations for the JS JITs.
@@ -13338,12 +13351,6 @@
 - name: network.dns.httpssvc.http3_fast_fallback_timeout
   type: RelaxedAtomicUint32
   value: 50
-  mirror: always
-
-# Whether to force a transaction to wait https rr.
-- name: network.dns.force_waiting_https_rr
-  type: RelaxedAtomicBool
-  value: true
   mirror: always
 
 # The TTL for negative responses of TXT and HTTPS records.

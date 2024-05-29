@@ -44,9 +44,6 @@ const MANAGE_ADDRESSES_L10N_IDS = [
   "autofill-manage-addresses-title",
 ];
 const EDIT_ADDRESS_L10N_IDS = [
-  "autofill-address-given-name",
-  "autofill-address-additional-name",
-  "autofill-address-family-name",
   "autofill-address-name",
   "autofill-address-organization",
   "autofill-address-street",
@@ -92,9 +89,9 @@ const EDIT_CREDITCARD_L10N_IDS = [
   "autofill-card-network",
 ];
 const FIELD_STATES = {
-  NORMAL: "NORMAL",
-  AUTO_FILLED: "AUTO_FILLED",
-  PREVIEW: "PREVIEW",
+  NORMAL: "",
+  AUTO_FILLED: "autofill",
+  PREVIEW: "preview",
 };
 const FORM_SUBMISSION_REASON = {
   FORM_SUBMIT_EVENT: "form-submit-event",

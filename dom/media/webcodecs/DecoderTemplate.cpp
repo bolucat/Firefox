@@ -60,20 +60,22 @@ namespace mozilla::dom {
 
 template <typename DecoderType>
 DecoderTemplate<DecoderType>::ConfigureMessage::ConfigureMessage(
-    WebCodecsId aConfigId, UniquePtr<ConfigTypeInternal>&& aConfig)
-    : ControlMessage(aConfigId), mConfig(std::move(aConfig)) {}
+    WebCodecsId aConfigId, already_AddRefed<ConfigTypeInternal> aConfig)
+    : ControlMessage(aConfigId),
+      mConfig(aConfig),
+      mCodec(NS_ConvertUTF16toUTF8(mConfig->mCodec)) {}
 
 template <typename DecoderType>
 nsCString DecoderTemplate<DecoderType>::ConfigureMessage::ToString() const {
   return nsPrintfCString("configure #%zu (%s)", ControlMessage::mConfigId,
-                         NS_ConvertUTF16toUTF8(mConfig->mCodec).get());
+                         mCodec.get());
 }
 
 /* static */
 template <typename DecoderType>
 typename DecoderTemplate<DecoderType>::ConfigureMessage*
 DecoderTemplate<DecoderType>::ConfigureMessage::Create(
-    UniquePtr<ConfigTypeInternal>&& aConfig) {
+    already_AddRefed<ConfigTypeInternal> aConfig) {
   // This needs to be atomic since this can run on the main thread or worker
   // thread.
   static std::atomic<WebCodecsId> sNextId = 0;
@@ -155,7 +157,7 @@ void DecoderTemplate<DecoderType>::Configure(const ConfigType& aConfig,
   }
 
   // Clone a ConfigType as the active decoder config.
-  UniquePtr<ConfigTypeInternal> config =
+  RefPtr<ConfigTypeInternal> config =
       DecoderType::CreateConfigInternal(aConfig);
   if (!config) {
     aRv.Throw(NS_ERROR_UNEXPECTED);  // Invalid description data.
@@ -168,7 +170,7 @@ void DecoderTemplate<DecoderType>::Configure(const ConfigType& aConfig,
   mFlushCounter = 0;
 
   mControlMessageQueue.emplace(
-      UniquePtr<ControlMessage>(ConfigureMessage::Create(std::move(config))));
+      UniquePtr<ControlMessage>(ConfigureMessage::Create(config.forget())));
   mLatestConfigureId = mControlMessageQueue.back()->mConfigId;
   LOG("%s %p enqueues %s", DecoderType::Name.get(), this,
       mControlMessageQueue.back()->ToString().get());
@@ -651,10 +653,10 @@ MessageProcessedResult DecoderTemplate<DecoderType>::ProcessDecodeMessage(
                       msgStr.get());
                  self->QueueATask("Output Decoded Data",
                                   [self = RefPtr{self}, data = std::move(data),
-                                   config = *(self->mActiveConfig)]()
+                                   config = RefPtr{self->mActiveConfig}]()
                                       MOZ_CAN_RUN_SCRIPT_BOUNDARY {
                                         self->OutputDecodedData(std::move(data),
-                                                                config);
+                                                                *config);
                                       });
                }
                self->ProcessControlMessageQueue();
@@ -756,9 +758,9 @@ MessageProcessedResult DecoderTemplate<DecoderType>::ProcessFlushMessage(
             self->QueueATask(
                 "Flush: output decoding data task",
                 [self = RefPtr{self}, data = std::move(data),
-                 config = *(self->mActiveConfig),
+                 config = RefPtr{self->mActiveConfig},
                  flushPromiseId]() MOZ_CAN_RUN_SCRIPT_BOUNDARY {
-                  self->OutputDecodedData(std::move(data), config);
+                  self->OutputDecodedData(std::move(data), *config);
                   // If Reset() was invoked before this task executes, or
                   // during the output callback above in the execution of this
                   // task, the promise in mPendingFlushPromises is handled
@@ -795,7 +797,7 @@ MessageProcessedResult DecoderTemplate<DecoderType>::ProcessFlushMessage(
 
 template <typename DecoderType>
 bool DecoderTemplate<DecoderType>::CreateDecoderAgent(
-    DecoderAgent::Id aId, UniquePtr<ConfigTypeInternal>&& aConfig,
+    DecoderAgent::Id aId, already_AddRefed<ConfigTypeInternal> aConfig,
     UniquePtr<TrackInfo>&& aInfo) {
   AssertIsOnOwningThread();
   MOZ_ASSERT(mState == CodecState::Configured);

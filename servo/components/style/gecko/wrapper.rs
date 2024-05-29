@@ -875,10 +875,12 @@ impl<'le> GeckoElement<'le> {
         // function.
         if let Some(ref existing) = existing_transitions.get(&property_declaration_id.to_owned()) {
             let after_value =
-                AnimationValue::from_computed_values(property_declaration_id, after_change_style)
-                    .unwrap();
-
-            return ***existing != after_value;
+                AnimationValue::from_computed_values(property_declaration_id, after_change_style);
+            debug_assert!(
+                after_value.is_some() ||
+                    matches!(property_declaration_id, PropertyDeclarationId::Custom(..))
+            );
+            return after_value.is_none() || ***existing != after_value.unwrap();
         }
 
         if combined_duration_seconds <= 0.0f32 {
@@ -889,10 +891,15 @@ impl<'le> GeckoElement<'le> {
             AnimationValue::from_computed_values(property_declaration_id, before_change_style);
         let to = AnimationValue::from_computed_values(property_declaration_id, after_change_style);
 
-        // If the declaration contains a custom property and getComputedValue was previously called
-        // before that custom property was defined, `from` will be `None` here.
         debug_assert!(
-            to.is_some() == from.is_some() || matches!(to, Some(AnimationValue::Custom(..)))
+            to.is_some() == from.is_some() ||
+                // If the declaration contains a custom property and getComputedValue was previously
+                // called before that custom property was defined, `from` will be `None` here.
+                matches!(from, Some(AnimationValue::Custom(..))) ||
+                // Similarly, if the declaration contains a custom property, getComputedValue was
+                // previously called, and the custom property registration is removed, `to` will be
+                // `None`.
+                matches!(to, Some(AnimationValue::Custom(..)))
         );
 
         from != to
