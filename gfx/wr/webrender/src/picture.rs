@@ -954,12 +954,15 @@ impl Tile {
         &mut self,
         ctx: &TilePreUpdateContext,
     ) {
-        self.local_tile_rect = PictureRect::from_origin_and_size(
+        self.local_tile_rect = PictureRect::new(
             PicturePoint::new(
                 self.tile_offset.x as f32 * ctx.tile_size.width,
                 self.tile_offset.y as f32 * ctx.tile_size.height,
             ),
-            ctx.tile_size,
+            PicturePoint::new(
+                (self.tile_offset.x + 1) as f32 * ctx.tile_size.width,
+                (self.tile_offset.y + 1) as f32 * ctx.tile_size.height,
+            ),
         );
         // TODO(gw): This is a hack / fix for Box2D::union in euclid not working with
         //           zero sized rect accumulation. Once that lands, we'll revert this
@@ -1631,10 +1634,14 @@ pub struct TileCacheParams {
     pub shared_clip_leaf_id: Option<ClipLeafId>,
     // Virtual surface sizes are always square, so this represents both the width and height
     pub virtual_surface_size: i32,
-    // The number of compositor surfaces that are being requested for this tile cache.
+    // The number of Image surfaces that are being requested for this tile cache.
     // This is only a suggestion - the tile cache will clamp this as a reasonable number
     // and only promote a limited number of surfaces.
-    pub overlay_surface_count: usize,
+    pub image_surface_count: usize,
+    // The number of YuvImage surfaces that are being requested for this tile cache.
+    // This is only a suggestion - the tile cache will clamp this as a reasonable number
+    // and only promote a limited number of surfaces.
+    pub yuv_image_surface_count: usize,
 }
 
 /// Defines which sub-slice (effectively a z-index) a primitive exists on within
@@ -1849,6 +1856,11 @@ pub struct TileCacheInstance {
     pub underlays: Vec<ExternalSurfaceDescriptor>,
     /// "Region" (actually a spanning rect) containing all overlay promoted surfaces
     pub overlay_region: PictureRect,
+    /// The number YuvImage prims in this cache, provided in our TileCacheParams.
+    pub yuv_images_count: usize,
+    /// The remaining number of YuvImage prims we will see this frame. We prioritize
+    /// promoting these before promoting any Image prims.
+    pub yuv_images_remaining: usize,
 }
 
 enum SurfacePromotionResult {
@@ -1860,7 +1872,7 @@ impl TileCacheInstance {
     pub fn new(params: TileCacheParams) -> Self {
         // Determine how many sub-slices we need. Clamp to an arbitrary limit to ensure
         // we don't create a huge number of OS compositor tiles and sub-slices.
-        let sub_slice_count = params.overlay_surface_count.min(MAX_COMPOSITOR_SURFACES) + 1;
+        let sub_slice_count = (params.image_surface_count + params.yuv_image_surface_count).min(MAX_COMPOSITOR_SURFACES) + 1;
 
         let mut sub_slices = Vec::with_capacity(sub_slice_count);
         for _ in 0 .. sub_slice_count {
@@ -1913,6 +1925,8 @@ impl TileCacheInstance {
             backdrop_surface: None,
             underlays: Vec::new(),
             overlay_region: PictureRect::zero(),
+            yuv_images_count: params.yuv_image_surface_count,
+            yuv_images_remaining: 0,
         }
     }
 
@@ -1953,7 +1967,7 @@ impl TileCacheInstance {
 
         // Determine how many sub-slices we need, based on how many compositor surface prims are
         // in the supplied primitive list.
-        let required_sub_slice_count = params.overlay_surface_count.min(MAX_COMPOSITOR_SURFACES) + 1;
+        let required_sub_slice_count = (params.image_surface_count + params.yuv_image_surface_count).min(MAX_COMPOSITOR_SURFACES) + 1;
 
         if self.sub_slices.len() != required_sub_slice_count {
             self.tile_rect = TileRect::zero();
@@ -1994,6 +2008,9 @@ impl TileCacheInstance {
         // Since the slice flags may have changed, ensure we re-evaluate the
         // appropriate tile size for this cache next update.
         self.frames_until_size_eval = 0;
+
+        // Update the number of YuvImage prims we have in the scene.
+        self.yuv_images_count = params.yuv_image_surface_count;
     }
 
     /// Destroy any manually managed resources before this picture cache is
@@ -2057,6 +2074,7 @@ impl TileCacheInstance {
         self.deferred_dirty_tests.clear();
         self.underlays.clear();
         self.overlay_region = PictureRect::zero();
+        self.yuv_images_remaining = self.yuv_images_count;
 
         for sub_slice in &mut self.sub_slices {
             sub_slice.reset();
@@ -2200,8 +2218,7 @@ impl TileCacheInstance {
         }
 
         // Use that compositor transform to calculate a relative local to surface
-        // TODO(nical): this looks wrong. It should probably be `local_to_device.then(&raster_to_device.inverse())`.
-        let local_to_raster = local_to_device.pre_transform(&raster_to_device.inverse());
+        let local_to_raster = local_to_device.then(&raster_to_device.inverse());
 
         const EPSILON: f32 = 0.001;
         let compositor_translation_changed =
@@ -2697,7 +2714,7 @@ impl TileCacheInstance {
             frame_context.spatial_tree,
         );
 
-        let normalized_prim_to_device = prim_offset.pre_transform(&local_prim_to_device);
+        let normalized_prim_to_device = prim_offset.then(&local_prim_to_device);
 
         let local_to_raster = ScaleOffset::identity();
         let raster_to_device = normalized_prim_to_device;
@@ -3149,18 +3166,23 @@ impl TileCacheInstance {
                 }
 
                 let mut promote_to_surface = false;
-                match self.can_promote_to_surface(image_key.common.flags,
-                                                  prim_clip_chain,
-                                                  prim_spatial_node_index,
-                                                  is_root_tile_cache,
-                                                  sub_slice_index,
-                                                  CompositorSurfaceKind::Overlay,
-                                                  pic_coverage_rect,
-                                                  frame_context) {
-                    SurfacePromotionResult::Failed => {
-                    }
-                    SurfacePromotionResult::Success => {
-                        promote_to_surface = true;
+                
+                // Only consider promoting Images if all of our YuvImages have been
+                // processed (whether they were promoted or not).
+                if self.yuv_images_remaining == 0 {
+                    match self.can_promote_to_surface(image_key.common.flags,
+                                                      prim_clip_chain,
+                                                      prim_spatial_node_index,
+                                                      is_root_tile_cache,
+                                                      sub_slice_index,
+                                                      CompositorSurfaceKind::Overlay,
+                                                      pic_coverage_rect,
+                                                      frame_context) {
+                        SurfacePromotionResult::Failed => {
+                        }
+                        SurfacePromotionResult::Success => {
+                            promote_to_surface = true;
+                        }
                     }
                 }
 
@@ -3208,6 +3230,15 @@ impl TileCacheInstance {
             }
             PrimitiveInstanceKind::YuvImage { data_handle, ref mut compositor_surface_kind, .. } => {
                 let prim_data = &data_stores.yuv_image[data_handle];
+
+                // Note if this is one of the YuvImages we were considering for
+                // surface promotion. We only care for primitives that were added
+                // to us, indicated by is_root_tile_cache. Those are the only ones
+                // that were added to the TileCacheParams that configured the
+                // current scene.
+                if is_root_tile_cache && prim_data.common.flags.contains(PrimitiveFlags::PREFER_COMPOSITOR_SURFACE) {
+                    self.yuv_images_remaining -= 1;
+                }
 
                 let clip_on_top = prim_clip_chain.needs_mask;
                 let prefer_underlay = clip_on_top || !cfg!(target_os = "macos");
@@ -3403,10 +3434,10 @@ impl TileCacheInstance {
         };
 
         // Calculate the screen rect in local space. When we calculate backdrops, we
-        // care only that they cover the visible rect, and don't have any overlapping
-        // prims in the visible rect.
-        let visible_local_rect = self.local_rect.intersection(&self.screen_rect_in_pic_space).unwrap_or_default();
-        if pic_coverage_rect.intersects(&visible_local_rect) {
+        // care only that they cover the visible rect (based off the local clip), and
+        // don't have any overlapping prims in the visible rect.
+        let visible_local_clip_rect = self.local_clip_rect.intersection(&self.screen_rect_in_pic_space).unwrap_or_default();
+        if pic_coverage_rect.intersects(&visible_local_clip_rect) {
             self.found_prims_after_backdrop = true;
         }
 
@@ -3496,7 +3527,7 @@ impl TileCacheInstance {
                 }
 
                 if let Some(kind) = backdrop_candidate.kind {
-                    if backdrop_candidate.opaque_rect.contains_box(&visible_local_rect) {
+                    if backdrop_candidate.opaque_rect.contains_box(&visible_local_clip_rect) {
                         self.found_prims_after_backdrop = false;
                         self.backdrop.kind = Some(kind);
                         self.backdrop.backdrop_rect = backdrop_candidate.opaque_rect;
@@ -3967,22 +3998,26 @@ impl SurfaceInfo {
 
     pub fn map_to_device_rect(
         &self,
-        local_rect: &PictureRect,
+        picture_rect: &PictureRect,
         spatial_tree: &SpatialTree,
     ) -> DeviceRect {
         let raster_rect = if self.raster_spatial_node_index != self.surface_spatial_node_index {
+            // Currently, the surface's spatial node can be different from its raster node only
+            // for surfaces in the root coordinate system for snapping reasons.
+            // See `PicturePrimitive::assign_surface`.
             assert_eq!(self.device_pixel_scale.0, 1.0);
+            assert_eq!(self.raster_spatial_node_index, spatial_tree.root_reference_frame_index());
 
-            let local_to_world = SpaceMapper::new_with_target(
-                spatial_tree.root_reference_frame_index(),
+            let pic_to_raster = SpaceMapper::new_with_target(
+                self.raster_spatial_node_index,
                 self.surface_spatial_node_index,
                 WorldRect::max_rect(),
                 spatial_tree,
             );
 
-            local_to_world.map(&local_rect).unwrap()
+            pic_to_raster.map(&picture_rect).unwrap()
         } else {
-            local_rect.cast_unit()
+            picture_rect.cast_unit()
         };
 
         raster_rect * self.device_pixel_scale
@@ -4732,9 +4767,12 @@ pub struct PrimitiveList {
     /// List of primitives grouped into clusters.
     pub clusters: Vec<PrimitiveCluster>,
     pub child_pictures: Vec<PictureIndex>,
-    /// The number of preferred compositor surfaces that were found when
-    /// adding prims to this list, which might be rendered as overlays
-    pub overlay_surface_count: usize,
+    /// The number of Image compositor surfaces that were found when
+    /// adding prims to this list, which might be rendered as overlays.
+    pub image_surface_count: usize,
+    /// The number of YuvImage compositor surfaces that were found when
+    /// adding prims to this list, which might be rendered as overlays.
+    pub yuv_image_surface_count: usize,
     pub needs_scissor_rect: bool,
 }
 
@@ -4747,7 +4785,8 @@ impl PrimitiveList {
         PrimitiveList {
             clusters: Vec::new(),
             child_pictures: Vec::new(),
-            overlay_surface_count: 0,
+            image_surface_count: 0,
+            yuv_image_surface_count: 0,
             needs_scissor_rect: false,
         }
     }
@@ -4755,7 +4794,8 @@ impl PrimitiveList {
     pub fn merge(&mut self, other: PrimitiveList) {
         self.clusters.extend(other.clusters);
         self.child_pictures.extend(other.child_pictures);
-        self.overlay_surface_count += other.overlay_surface_count;
+        self.image_surface_count += other.image_surface_count;
+        self.yuv_image_surface_count += other.yuv_image_surface_count;
         self.needs_scissor_rect |= other.needs_scissor_rect;
     }
 
@@ -4788,7 +4828,7 @@ impl PrimitiveList {
                 // be allocating more subslices than we actually need, but it
                 // gives us maximum flexibility.
                 if prim_flags.contains(PrimitiveFlags::PREFER_COMPOSITOR_SURFACE) {
-                    self.overlay_surface_count += 1;
+                    self.yuv_image_surface_count += 1;
                 }
             }
             PrimitiveInstanceKind::Image { .. } => {
@@ -4798,7 +4838,7 @@ impl PrimitiveList {
                 // it's a little bit of work, as scene building doesn't have access
                 // to the opacity state of an image key at this point.
                 if prim_flags.contains(PrimitiveFlags::PREFER_COMPOSITOR_SURFACE) {
-                    self.overlay_surface_count += 1;
+                    self.image_surface_count += 1;
                 }
             }
             _ => {}

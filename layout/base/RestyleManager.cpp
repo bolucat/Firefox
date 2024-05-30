@@ -19,6 +19,7 @@
 #include "mozilla/PresShell.h"
 #include "mozilla/PresShellInlines.h"
 #include "mozilla/ProfilerLabels.h"
+#include "mozilla/ScrollContainerFrame.h"
 #include "mozilla/ServoBindings.h"
 #include "mozilla/ServoStyleSetInlines.h"
 #include "mozilla/StaticPrefs_layout.h"
@@ -38,7 +39,6 @@
 #include "ScrollSnap.h"
 #include "nsAnimationManager.h"
 #include "nsBlockFrame.h"
-#include "nsIScrollableFrame.h"
 #include "nsContentUtils.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsCSSRendering.h"
@@ -1458,10 +1458,10 @@ static inline void TryToDealWithScrollbarChange(nsChangeHint& aHint,
         // Under these conditions, we're OK to assume that this "overflow"
         // change only impacts the root viewport's scrollframe, which
         // already exists, so we can simply reflow instead of reframing.
-        if (nsIScrollableFrame* sf = do_QueryFrame(aFrame)) {
+        if (ScrollContainerFrame* sf = do_QueryFrame(aFrame)) {
           sf->MarkScrollbarsDirtyForReflow();
-        } else if (nsIScrollableFrame* sf =
-                       aPc->PresShell()->GetRootScrollFrameAsScrollable()) {
+        } else if (ScrollContainerFrame* sf =
+                       aPc->PresShell()->GetRootScrollContainerFrame()) {
           sf->MarkScrollbarsDirtyForReflow();
         }
         aHint |= nsChangeHint_ReflowHintsForScrollbarChange;
@@ -1475,7 +1475,7 @@ static inline void TryToDealWithScrollbarChange(nsChangeHint& aHint,
   }
 
   const bool scrollable = aFrame->StyleDisplay()->IsScrollableOverflow();
-  if (nsIScrollableFrame* sf = do_QueryFrame(aFrame)) {
+  if (ScrollContainerFrame* sf = do_QueryFrame(aFrame)) {
     if (scrollable && sf->HasAllNeededScrollbars()) {
       sf->MarkScrollbarsDirtyForReflow();
       // Once we've created scrollbars for a frame, don't bother reconstructing

@@ -594,8 +594,8 @@ def target_tasks_mozilla_release(full_task_graph, parameters, graph_config):
     ]
 
 
-@register_target_task("mozilla_esr115_tasks")
-def target_tasks_mozilla_esr115(full_task_graph, parameters, graph_config):
+@register_target_task("mozilla_esr128_tasks")
+def target_tasks_mozilla_esr128(full_task_graph, parameters, graph_config):
     """Select the set of tasks required for a promotable beta or release build
     of desktop, without android CI. The candidates build process involves a pipeline
     of builds and signing, but does not include beetmover or balrog jobs."""
@@ -609,7 +609,7 @@ def target_tasks_mozilla_esr115(full_task_graph, parameters, graph_config):
 
         platform = task.attributes.get("build_platform")
 
-        # Android is not built on esr115.
+        # Android is not built on esr.
         if platform and "android" in platform:
             return False
 
@@ -1209,7 +1209,7 @@ def target_tasks_release_simulation(full_task_graph, parameters, graph_config):
         "nightly": "mozilla-central",
         "beta": "mozilla-beta",
         "release": "mozilla-release",
-        "esr115": "mozilla-esr115",
+        "esr128": "mozilla-esr128",
     }
     target_project = project_by_release.get(parameters["release_type"])
     if target_project is None:
@@ -1622,6 +1622,10 @@ def target_tasks_snap_upstream_tests(full_task_graph, parameters, graph_config):
 @register_target_task("nightly-android")
 def target_tasks_nightly_android(full_task_graph, parameters, graph_config):
     def filter(task, parameters):
+        # bug 1899553: don't automatically schedule uploads to google play
+        if task.kind == "push-bundle":
+            return False
+
         # geckoview
         if task.attributes.get("shipping_product") == "fennec" and task.kind in (
             "beetmover-geckoview",

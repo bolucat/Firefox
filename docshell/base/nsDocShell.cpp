@@ -35,6 +35,7 @@
 #include "mozilla/ResultExtensions.h"
 #include "mozilla/SchedulerGroup.h"
 #include "mozilla/ScopeExit.h"
+#include "mozilla/ScrollContainerFrame.h"
 #include "mozilla/ScrollTypes.h"
 #include "mozilla/SimpleEnumerator.h"
 #include "mozilla/StaticPrefs_browser.h"
@@ -146,7 +147,6 @@
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsScriptSecurityManager.h"
-#include "nsIScrollableFrame.h"
 #include "nsIScrollObserver.h"
 #include "nsISupportsPrimitives.h"
 #include "nsISecureBrowserUI.h"
@@ -4907,7 +4907,7 @@ void nsDocShell::SetTitleOnHistoryEntry(bool aUpdateEntryInSessionHistory) {
 
 nsPoint nsDocShell::GetCurScrollPos() {
   nsPoint scrollPos;
-  if (nsIScrollableFrame* sf = GetRootScrollFrame()) {
+  if (ScrollContainerFrame* sf = GetRootScrollContainerFrame()) {
     scrollPos = sf->GetVisualViewportOffset();
   }
   return scrollPos;
@@ -4915,7 +4915,7 @@ nsPoint nsDocShell::GetCurScrollPos() {
 
 nsresult nsDocShell::SetCurScrollPosEx(int32_t aCurHorizontalPos,
                                        int32_t aCurVerticalPos) {
-  nsIScrollableFrame* sf = GetRootScrollFrame();
+  ScrollContainerFrame* sf = GetRootScrollContainerFrame();
   NS_ENSURE_TRUE(sf, NS_ERROR_FAILURE);
 
   ScrollMode scrollMode =
@@ -4958,11 +4958,11 @@ void nsDocShell::SetScrollbarPreference(mozilla::ScrollbarPreference aPref) {
   if (!ps) {
     return;
   }
-  nsIFrame* scrollFrame = ps->GetRootScrollFrame();
-  if (!scrollFrame) {
+  nsIFrame* rootScrollContainerFrame = ps->GetRootScrollContainerFrame();
+  if (!rootScrollContainerFrame) {
     return;
   }
-  ps->FrameNeedsReflow(scrollFrame,
+  ps->FrameNeedsReflow(rootScrollContainerFrame,
                        IntrinsicDirty::FrameAncestorsAndDescendants,
                        NS_FRAME_IS_DIRTY);
 }
@@ -7578,12 +7578,9 @@ nsresult nsDocShell::RestoreFromHistory() {
               ("resize widget(%d, %d, %d, %d)", newBounds.x, newBounds.y,
                newBounds.width, newBounds.height));
       mDocumentViewer->SetBounds(newBounds);
-    } else {
-      nsIScrollableFrame* rootScrollFrame =
-          presShell->GetRootScrollFrameAsScrollable();
-      if (rootScrollFrame) {
-        rootScrollFrame->PostScrolledAreaEventForCurrentArea();
-      }
+    } else if (ScrollContainerFrame* sf =
+                   presShell->GetRootScrollContainerFrame()) {
+      sf->PostScrolledAreaEventForCurrentArea();
     }
   }
 
@@ -10707,7 +10704,7 @@ nsresult nsDocShell::ScrollToAnchor(bool aCurHasRef, bool aNewHasRef,
     return NS_OK;
   }
 
-  nsIScrollableFrame* rootScroll = presShell->GetRootScrollFrameAsScrollable();
+  ScrollContainerFrame* rootScroll = presShell->GetRootScrollContainerFrame();
   if (rootScroll) {
     rootScroll->ClearDidHistoryRestore();
   }
@@ -12352,11 +12349,11 @@ nsresult nsDocShell::GetPromptAndStringBundle(nsIPrompt** aPrompt,
   return NS_OK;
 }
 
-nsIScrollableFrame* nsDocShell::GetRootScrollFrame() {
+ScrollContainerFrame* nsDocShell::GetRootScrollContainerFrame() {
   PresShell* presShell = GetPresShell();
   NS_ENSURE_TRUE(presShell, nullptr);
 
-  return presShell->GetRootScrollFrameAsScrollable();
+  return presShell->GetRootScrollContainerFrame();
 }
 
 nsresult nsDocShell::EnsureScriptEnvironment() {
@@ -12683,8 +12680,6 @@ class OnLinkClickEvent : public Runnable {
                    bool aIsTrusted, nsIPrincipal* aTriggeringPrincipal);
 
   NS_IMETHOD Run() override {
-    AutoPopupStatePusher popupStatePusher(mPopupState);
-
     // We need to set up an AutoJSAPI here for the following reason: When we
     // do OnLinkClickSync we'll eventually end up in
     // nsGlobalWindow::OpenInternal which only does popup blocking if
@@ -12704,7 +12699,6 @@ class OnLinkClickEvent : public Runnable {
   nsCOMPtr<nsIContent> mContent;
   RefPtr<nsDocShellLoadState> mLoadState;
   nsCOMPtr<nsIPrincipal> mTriggeringPrincipal;
-  PopupBlocker::PopupControlState mPopupState;
   bool mNoOpenerImplied;
   bool mIsTrusted;
 };
@@ -12718,7 +12712,6 @@ OnLinkClickEvent::OnLinkClickEvent(nsDocShell* aHandler, nsIContent* aContent,
       mContent(aContent),
       mLoadState(aLoadState),
       mTriggeringPrincipal(aTriggeringPrincipal),
-      mPopupState(PopupBlocker::GetPopupControlState()),
       mNoOpenerImplied(aNoOpenerImplied),
       mIsTrusted(aIsTrusted) {}
 

@@ -145,7 +145,7 @@ constexpr auto SAMESITE_MDN_URL =
 
 namespace {
 
-void ComposeCookieString(nsTArray<Cookie*>& aCookieList,
+void ComposeCookieString(nsTArray<RefPtr<Cookie>>& aCookieList,
                          nsACString& aCookieString) {
   for (Cookie* cookie : aCookieList) {
     // check if we have anything to write
@@ -410,18 +410,27 @@ CookieService::GetCookieStringFromDocument(Document* aDocument,
   // CHIPS - If CHIPS is enabled the partitioned cookie jar is always available
   // (and therefore the partitioned principal), the unpartitioned cookie jar is
   // only available in first-party or third-party with storageAccess contexts.
-  bool isCHIPS = StaticPrefs::network_cookie_CHIPS_enabled();
-  bool isUnpartitioned =
-      cookiePrincipal->OriginAttributesRef().mPartitionKey.IsEmpty();
-  if (isCHIPS && isUnpartitioned) {
-    // Assert that we are only doing this if we are first-party or third-party
-    // with storageAccess.
-    MOZ_ASSERT(!thirdParty || aDocument->UsingStorageAccess());
-    // Add the partitioned principal to principals
-    principals.AppendElement(aDocument->PartitionedPrincipal());
+  // In both cases, the document will have storage access.
+  bool isCHIPS = StaticPrefs::network_cookie_CHIPS_enabled() &&
+                 aDocument->CookieJarSettings()->GetPartitionForeign();
+  bool documentHasStorageAccess = false;
+  rv = aDocument->HasStorageAccessSync(documentHasStorageAccess);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (isCHIPS && documentHasStorageAccess) {
+    // Assert that the cookie principal is unpartitioned.
+    MOZ_ASSERT(cookiePrincipal->OriginAttributesRef().mPartitionKey.IsEmpty());
+    // Only append the partitioned originAttributes if the partitionKey is set.
+    // The partitionKey could be empty for partitionKey in partitioned
+    // originAttributes if the document is for privilege context, such as the
+    // extension's background page.
+    if (!aDocument->PartitionedPrincipal()
+             ->OriginAttributesRef()
+             .mPartitionKey.IsEmpty()) {
+      principals.AppendElement(aDocument->PartitionedPrincipal());
+    }
   }
 
-  nsTArray<Cookie*> cookieList;
+  nsTArray<RefPtr<Cookie>> cookieList;
 
   for (auto& principal : principals) {
     if (!CookieCommons::IsSchemeSupported(principal)) {
@@ -451,9 +460,10 @@ CookieService::GetCookieStringFromDocument(Document* aDocument,
     int64_t currentTimeInUsec = PR_Now();
     int64_t currentTime = currentTimeInUsec / PR_USEC_PER_SEC;
 
-    const nsTArray<RefPtr<Cookie>>* cookies = storage->GetCookiesFromHost(
-        baseDomain, principal->OriginAttributesRef());
-    if (!cookies) {
+    nsTArray<RefPtr<Cookie>> cookies;
+    storage->GetCookiesFromHost(baseDomain, principal->OriginAttributesRef(),
+                                cookies);
+    if (cookies.IsEmpty()) {
       continue;
     }
 
@@ -465,7 +475,7 @@ CookieService::GetCookieStringFromDocument(Document* aDocument,
     bool stale = false;
 
     // iterate the cookies!
-    for (Cookie* cookie : *cookies) {
+    for (Cookie* cookie : cookies) {
       // check the host, since the base domain lookup is conservative.
       if (!CookieCommons::DomainMatches(cookie, hostFromURI)) {
         continue;
@@ -562,25 +572,32 @@ CookieService::GetCookieStringFromHttp(nsIURI* aHostURI, nsIChannel* aChannel,
   // (and therefore the partitioned OriginAttributes), the unpartitioned cookie
   // jar is only available in first-party or third-party with storageAccess
   // contexts.
-  bool isCHIPS = StaticPrefs::network_cookie_CHIPS_enabled();
-  bool isUnpartitioned = storageOriginAttributes.mPartitionKey.IsEmpty();
+  nsCOMPtr<nsICookieJarSettings> cookieJarSettings =
+      CookieCommons::GetCookieJarSettings(aChannel);
+  bool isCHIPS = StaticPrefs::network_cookie_CHIPS_enabled() &&
+                 cookieJarSettings->GetPartitionForeign();
+  bool isUnpartitioned =
+      !result.contains(ThirdPartyAnalysis::IsForeign) ||
+      result.contains(ThirdPartyAnalysis::IsStorageAccessPermissionGranted);
   if (isCHIPS && isUnpartitioned) {
-    // Assert that we are only doing this if we are first-party or third-party
-    // with storageAccess.
-    MOZ_ASSERT(
-        !result.contains(ThirdPartyAnalysis::IsForeign) ||
-        result.contains(ThirdPartyAnalysis::IsStorageAccessPermissionGranted));
+    // Assert that the storage originAttributes is empty. In other words,
+    // it's unpartitioned.
+    MOZ_ASSERT(storageOriginAttributes.mPartitionKey.IsEmpty());
     // Add the partitioned principal to principals
     OriginAttributes partitionedOriginAttributes;
     StoragePrincipalHelper::GetOriginAttributes(
         aChannel, partitionedOriginAttributes,
         StoragePrincipalHelper::ePartitionedPrincipal);
-    originAttributesList.AppendElement(partitionedOriginAttributes);
-    // Assert partitionedOAs have partitioneKey set.
-    MOZ_ASSERT(!partitionedOriginAttributes.mPartitionKey.IsEmpty());
+    // Only append the partitioned originAttributes if the partitionKey is set.
+    // The partitionKey could be empty for partitionKey in partitioned
+    // originAttributes if the channel is for privilege request, such as
+    // extension's requests.
+    if (!partitionedOriginAttributes.mPartitionKey.IsEmpty()) {
+      originAttributesList.AppendElement(partitionedOriginAttributes);
+    }
   }
 
-  AutoTArray<Cookie*, 8> foundCookieList;
+  AutoTArray<RefPtr<Cookie>, 8> foundCookieList;
   GetCookiesForURI(
       aHostURI, aChannel, result.contains(ThirdPartyAnalysis::IsForeign),
       result.contains(ThirdPartyAnalysis::IsThirdPartyTrackingResource),
@@ -774,7 +791,8 @@ CookieService::SetCookieStringFromHttp(nsIURI* aHostURI,
   OriginAttributes partitionedPrincipalOriginAttributes;
   bool isPartitionedPrincipal =
       !storagePrincipalOriginAttributes.mPartitionKey.IsEmpty();
-  bool isCHIPS = StaticPrefs::network_cookie_CHIPS_enabled();
+  bool isCHIPS = StaticPrefs::network_cookie_CHIPS_enabled() &&
+                 cookieJarSettings->GetPartitionForeign();
   // Only need to get OAs if we don't already use the partitioned principal.
   if (isCHIPS && !isPartitionedPrincipal) {
     StoragePrincipalHelper::GetOriginAttributes(
@@ -1039,7 +1057,7 @@ void CookieService::GetCookiesForURI(
     bool aHadCrossSiteRedirects, bool aHttpBound,
     bool aAllowSecureCookiesToInsecureOrigin,
     const nsTArray<OriginAttributes>& aOriginAttrsList,
-    nsTArray<Cookie*>& aCookieList) {
+    nsTArray<RefPtr<Cookie>>& aCookieList) {
   NS_ASSERTION(aHostURI, "null host!");
 
   if (!CookieCommons::IsSchemeSupported(aHostURI)) {
@@ -1132,9 +1150,9 @@ void CookieService::GetCookiesForURI(
     int64_t currentTime = currentTimeInUsec / PR_USEC_PER_SEC;
     bool stale = false;
 
-    const nsTArray<RefPtr<Cookie>>* cookies =
-        storage->GetCookiesFromHost(baseDomain, attrs);
-    if (!cookies) {
+    nsTArray<RefPtr<Cookie>> cookies;
+    storage->GetCookiesFromHost(baseDomain, attrs, cookies);
+    if (cookies.IsEmpty()) {
       continue;
     }
 
@@ -1144,7 +1162,7 @@ void CookieService::GetCookiesForURI(
             aHostURI, "network.cookie.sameSite.laxByDefault.disabledHosts");
 
     // iterate the cookies!
-    for (Cookie* cookie : *cookies) {
+    for (Cookie* cookie : cookies) {
       // check the host, since the base domain lookup is conservative.
       if (!CookieCommons::DomainMatches(cookie, hostFromURI)) {
         continue;
@@ -2397,14 +2415,16 @@ CookieService::GetCookiesFromHost(const nsACString& aHost,
 
   CookieStorage* storage = PickStorage(attrs);
 
-  const nsTArray<RefPtr<Cookie>>* cookies =
-      storage->GetCookiesFromHost(baseDomain, attrs);
+  nsTArray<RefPtr<Cookie>> cookies;
+  storage->GetCookiesFromHost(baseDomain, attrs, cookies);
 
-  if (cookies) {
-    aResult.SetCapacity(cookies->Length());
-    for (Cookie* cookie : *cookies) {
-      aResult.AppendElement(cookie);
-    }
+  if (cookies.IsEmpty()) {
+    return NS_OK;
+  }
+
+  aResult.SetCapacity(cookies.Length());
+  for (Cookie* cookie : cookies) {
+    aResult.AppendElement(cookie);
   }
 
   return NS_OK;
