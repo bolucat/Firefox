@@ -1706,8 +1706,9 @@ pref("browser.newtabpage.activity-stream.discoverystream.region-weather-config",
 
 // Preference to enable wallpaper selection in the Customize Menu of new tab page
 pref("browser.newtabpage.activity-stream.newtabWallpapers.enabled", false);
+pref("browser.newtabpage.activity-stream.newtabWallpapers.v2.enabled", false);
 
-// Current new tab page background image.
+// Current new tab page background images.
 pref("browser.newtabpage.activity-stream.newtabWallpapers.wallpaper-light", "");
 pref("browser.newtabpage.activity-stream.newtabWallpapers.wallpaper-dark", "");
 
@@ -2005,13 +2006,7 @@ pref("browser.translations.newSettingsUI.enable", false);
 
 // Enable Firefox Select translations powered by Bergamot translations
 // engine https://browser.mt/.
-#if defined(EARLY_BETA_OR_EARLIER)
-  // Enables Select Translations for Early Beta and Nightly.
-  pref("browser.translations.select.enable", true);
-#else
-  // Disables Select Translations for Late Beta and Release.
-  pref("browser.translations.select.enable", false);
-#endif
+pref("browser.translations.select.enable", true);
 
 // Telemetry settings.
 // Determines if Telemetry pings can be archived locally.
@@ -3043,9 +3038,13 @@ pref("browser.privatebrowsing.resetPBM.showConfirmationDialog", true);
 // the preferences related to the Nimbus experiment, to activate and deactivate
 // the the entire rollout (see: bug 1864216 - two prompts, 1877500 - set two in one prompt)
 pref("browser.mailto.dualPrompt", false);
-// When visiting a site which uses registerProtocolHandler: Ask the user to set Firefox as
-// default mailto handler.
-pref("browser.mailto.prompt.os", true);
+// Display a reminder prompt for known webmailers if the prompt was not
+// dismissed before the next visit of that webmailer.
+pref("browser.mailto.dualPrompt.onLocationChange", false);
+// configures after how many minutes is the prompt shown again after it was
+// dismissed. This differs from clicking the 'x' button and 'not now' (forever=0)
+pref("browser.mailto.dualPrompt.dismissNotNowMinutes", 525600); // one year
+pref("browser.mailto.dualPrompt.dismissXClickMinutes", 1440); // one day
 
 // Pref to initialize the BackupService soon after startup.
 pref("browser.backup.enabled", true);

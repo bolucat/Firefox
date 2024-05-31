@@ -695,7 +695,7 @@
 #if defined(XP_MACOSX) || defined(XP_WIN)
   value: true
 #else
-  value: false
+  value: @IS_NIGHTLY_BUILD@
 #endif
   mirror: always
 
@@ -9952,14 +9952,14 @@
   mirror: always
 
 # Whether we expose the functionality proposed in
-# https://github.com/WICG/encrypted-media-encryption-scheme/blob/master/explainer.md
+# https://w3c.github.io/encrypted-media/#ref-for-dom-mediakeysystemmediacapability-encryptionscheme-2
 # I.e. if true, apps calling navigator.requestMediaKeySystemAccess() can pass
 # an optional encryption scheme as part of MediaKeySystemMediaCapability
 # objects. If a scheme is present when we check for support, we must ensure we
 # support that scheme in order to provide key system access.
 - name: media.eme.encrypted-media-encryption-scheme.enabled
   type: bool
-  value: false
+  value: true
   mirror: always
 
 # Do we need explicit approval from the application to allow access to EME?
@@ -13431,15 +13431,6 @@
 # This is used for a temporary workaround for a web-compat issue. If pref is
 # true CORS preflight requests are allowed to send client certificates.
 - name: network.cors_preflight.allow_client_cert
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
-# If true nsCORSListenerProxy will reject any URL that contains user & password
-# regardless if it's a redirect or not. When false nsCORSListenerProxy will
-# only reject URLs with a username and password when they happen on a redirected
-# channel.
-- name: network.cors_preflight.block_userpass_uri
   type: RelaxedAtomicBool
   value: false
   mirror: always
