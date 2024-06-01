@@ -270,6 +270,7 @@ nsHttpHandler::nsHttpHandler()
   runtime = mozilla::components::XULRuntime::Service();
   if (runtime) {
     runtime->GetProcessID(&mProcessId);
+    runtime->GetUniqueProcessID(&mUniqueProcessId);
   }
 }
 
@@ -732,7 +733,8 @@ nsresult nsHttpHandler::GenerateHostPort(const nsCString& host, int32_t port,
 }
 
 // static
-uint8_t nsHttpHandler::UrgencyFromCoSFlags(uint32_t cos) {
+uint8_t nsHttpHandler::UrgencyFromCoSFlags(uint32_t cos,
+                                           int32_t aSupportsPriority) {
   uint8_t urgency;
   if (cos & nsIClassOfService::UrgentStart) {
     // coming from an user interaction => response should be the highest
@@ -756,7 +758,32 @@ uint8_t nsHttpHandler::UrgencyFromCoSFlags(uint32_t cos) {
     // all others get a lower priority than the main html document
     urgency = 4;
   }
-  return urgency;
+
+  int8_t adjustment = 0;
+  if (mozilla::StaticPrefs::network_fetchpriority_adjust_urgency()) {
+    if (aSupportsPriority <= nsISupportsPriority::PRIORITY_HIGHEST) {
+      adjustment = -2;
+    } else if (aSupportsPriority <= nsISupportsPriority::PRIORITY_HIGH) {
+      adjustment = -1;
+    } else if (aSupportsPriority >= nsISupportsPriority::PRIORITY_LOWEST) {
+      adjustment = 2;
+    } else if (aSupportsPriority >= nsISupportsPriority::PRIORITY_LOW) {
+      adjustment = 1;
+    }
+  }
+
+  auto adjustUrgency = [](uint8_t u, int8_t a) -> uint8_t {
+    int16_t result = static_cast<int16_t>(u) + a;
+    if (result <= 0) {
+      return 0;
+    }
+    if (result >= 6) {
+      return 6;
+    }
+    return result;
+  };
+
+  return adjustUrgency(urgency, adjustment);
 }
 
 //-----------------------------------------------------------------------------
@@ -2498,11 +2525,10 @@ void nsHttpHandler::ShutdownConnectionManager() {
 nsresult nsHttpHandler::NewChannelId(uint64_t& channelId) {
   channelId =
       // channelId is sometimes passed to JavaScript code (e.g. devtools),
-      // and since on Linux PID_MAX_LIMIT is 2^22 we cannot
-      // shift PID more than 31 bits left. Otherwise resulting values
-      // will be exceed safe JavaScript integer range.
-      ((static_cast<uint64_t>(mProcessId) << 31) & 0xFFFFFFFF80000000LL) |
-      mNextChannelId++;
+      // values should not exceed safe JavaScript integer range (2^53 – 1).
+      // Since the uniqueProcessId starts at 0, this should be safe to use
+      // unless we create more than 2^22 processes.
+      ((mUniqueProcessId << 31) & 0xFFFFFFFF80000000LL) | mNextChannelId++;
   return NS_OK;
 }
 
@@ -2775,10 +2801,6 @@ void nsHttpHandler::MaybeAddAltSvcForTesting(
         *map, nsCString("https"), originHost, originPort, aUsername,
         aPrivateBrowsing, aCallbacks, nullptr, 0, aOriginAttributes, true);
   }
-}
-
-bool nsHttpHandler::UseHTTPSRRAsAltSvcEnabled() const {
-  return StaticPrefs::network_dns_use_https_rr_as_altsvc();
 }
 
 bool nsHttpHandler::EchConfigEnabled(bool aIsHttp3) const {

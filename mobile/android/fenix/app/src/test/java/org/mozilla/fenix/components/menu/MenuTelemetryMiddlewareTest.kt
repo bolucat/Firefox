@@ -162,6 +162,16 @@ class MenuTelemetryMiddlewareTest {
     }
 
     @Test
+    fun `WHEN navigating to the save to collection sheet THEN record the share browser menu telemetry`() {
+        val store = createStore()
+        assertNull(Events.browserMenuAction.testGetValue())
+
+        store.dispatch(MenuAction.Navigate.SaveToCollection(hasCollection = true)).joinBlocking()
+
+        assertTelemetryRecorded(Events.browserMenuAction, item = "save_to_collection")
+    }
+
+    @Test
     fun `WHEN navigating to the share sheet THEN record the share browser menu telemetry`() {
         val store = createStore()
         assertNull(Events.browserMenuAction.testGetValue())
@@ -208,6 +218,16 @@ class MenuTelemetryMiddlewareTest {
         val snapshot = Translations.action.testGetValue()!!
         assertEquals(1, snapshot.size)
         assertEquals("main_flow_browser", snapshot.single().extra?.getValue("item"))
+    }
+
+    @Test
+    fun `WHEN deleting browsing data and quitting THEN record the quit browser menu telemetry`() {
+        val store = createStore()
+        assertNull(Events.browserMenuAction.testGetValue())
+
+        store.dispatch(MenuAction.DeleteBrowsingDataAndQuit).joinBlocking()
+
+        assertTelemetryRecorded(Events.browserMenuAction, item = "quit")
     }
 
     private fun assertTelemetryRecorded(

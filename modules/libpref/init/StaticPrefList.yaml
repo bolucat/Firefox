@@ -695,7 +695,7 @@
 #if defined(XP_MACOSX) || defined(XP_WIN)
   value: true
 #else
-  value: @IS_NIGHTLY_BUILD@
+  value: false
 #endif
   mirror: always
 
@@ -7472,7 +7472,7 @@
   mirror: always
 
 
-#if defined(XP_MACOSX) || defined(MOZ_WIDGET_GTK)
+#if defined(XP_MACOSX) || defined(MOZ_WIDGET_GTK) || defined(ANDROID)
 # Whether text input without keyboard press nor IME composition should cause a
 # set of composition events or not.  E.g., when you use Emoji picker on macOS,
 # it inserts an Emoji character directly.  If set to true, `compositionstart`,
@@ -12176,6 +12176,13 @@
   value: @IS_NIGHTLY_BUILD@
   mirror: always
 
+# When true, the channel's urgency will be adjusted based on the
+# channel's nsISupportsPriority.
+- name: network.fetchpriority.adjust_urgency
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 # Adjustments to apply to the internal priority of <link rel=preload as=script
 # fetchpriority=low/high/auto> and equivalent Link header with respect to the
 # case when network.fetchpriority is disabled.
@@ -13592,7 +13599,7 @@
   value: true
   mirror: always
 
-# Minimum content-lengthe to use off-main-thread decompression of network streams
+# Minimum content-length to use off-main-thread decompression of network streams
 - name: network.decompression_off_mainthread_min_size
   type: int32_t
   value: 512

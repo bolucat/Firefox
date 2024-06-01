@@ -1693,10 +1693,6 @@ void PresShell::EndObservingDocument() {
   mIsObservingDocument = false;
 }
 
-#ifdef DEBUG_kipp
-char* nsPresShell_ReflowStackPointerTop;
-#endif
-
 void PresShell::InitPaintSuppressionTimer() {
   // Default to PAINTLOCK_EVENT_DELAY if we can't get the pref value.
   Document* doc = mDocument->GetDisplayDocument()
@@ -8682,15 +8678,19 @@ void PresShell::EventHandler::MaybeHandleKeyboardEventBeforeDispatch(
     }
   }
 
-  nsCOMPtr<Document> pointerLockedDoc = PointerLockManager::GetLockedDocument();
-  if (!mPresShell->mIsLastChromeOnlyEscapeKeyConsumed && pointerLockedDoc) {
-    // XXX See above comment to understand the reason why this needs
-    //     to claim that the Escape key event is consumed by content
-    //     even though it will be dispatched only into chrome.
-    aKeyboardEvent->PreventDefaultBeforeDispatch(CrossProcessForwarding::eStop);
-    aKeyboardEvent->mFlags.mOnlyChromeDispatch = true;
-    if (aKeyboardEvent->mMessage == eKeyUp) {
-      PointerLockManager::Unlock();
+  if (XRE_IsParentProcess() &&
+      !mPresShell->mIsLastChromeOnlyEscapeKeyConsumed) {
+    if (PointerLockManager::GetLockedRemoteTarget() ||
+        PointerLockManager::IsLocked()) {
+      // XXX See above comment to understand the reason why this needs
+      //     to claim that the Escape key event is consumed by content
+      //     even though it will be dispatched only into chrome.
+      aKeyboardEvent->PreventDefaultBeforeDispatch(
+          CrossProcessForwarding::eStop);
+      aKeyboardEvent->mFlags.mOnlyChromeDispatch = true;
+      if (aKeyboardEvent->mMessage == eKeyUp) {
+        PointerLockManager::Unlock();
+      }
     }
   }
 }
@@ -10890,9 +10890,6 @@ void ReflowCountMgr::DoGrandHTMLTotals() {
 
 //------------------------------------
 void ReflowCountMgr::DisplayTotals(const char* aStr) {
-#  ifdef DEBUG_rods
-  printf("%s\n", aStr ? aStr : "No name");
-#  endif
   if (mDumpFrameCounts) {
     DoGrandTotals();
   }

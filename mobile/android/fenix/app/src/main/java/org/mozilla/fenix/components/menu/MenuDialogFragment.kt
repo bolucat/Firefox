@@ -46,6 +46,7 @@ import org.mozilla.fenix.components.menu.store.MenuState
 import org.mozilla.fenix.components.menu.store.MenuStore
 import org.mozilla.fenix.ext.runIfFragmentIsAttached
 import org.mozilla.fenix.settings.SupportUtils
+import org.mozilla.fenix.settings.deletebrowsingdata.deleteAndQuit
 import org.mozilla.fenix.theme.FirefoxTheme
 
 /**
@@ -81,10 +82,12 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                     val browserStore = components.core.store
                     val syncStore = components.backgroundServices.syncStore
                     val bookmarksStorage = components.core.bookmarksStorage
+                    val tabCollectionStorage = components.core.tabCollectionStorage
                     val addBookmarkUseCase = components.useCases.bookmarksUseCases.addBookmark
                     val printContentUseCase = components.useCases.sessionUseCases.printContent
                     val saveToPdfUseCase = components.useCases.sessionUseCases.saveToPdf
                     val selectedTab = browserStore.state.selectedTab
+                    val settings = components.settings
 
                     val navHostController = rememberNavController()
                     val coroutineScope = rememberCoroutineScope()
@@ -101,6 +104,13 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                 MenuDialogMiddleware(
                                     bookmarksStorage = bookmarksStorage,
                                     addBookmarkUseCase = addBookmarkUseCase,
+                                    onDeleteAndQuit = {
+                                        deleteAndQuit(
+                                            activity = activity as HomeActivity,
+                                            coroutineScope = coroutineScope,
+                                            snackbar = null,
+                                        )
+                                    },
                                     scope = coroutineScope,
                                 ),
                                 MenuNavigationMiddleware(
@@ -135,6 +145,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                 account = account,
                                 accountState = accountState,
                                 isPrivate = browsingModeManager.mode.isPrivate,
+                                showQuitMenu = settings.shouldDeleteBrowsingDataOnQuit,
                                 onMozillaAccountButtonClick = {
                                     store.dispatch(
                                         MenuAction.Navigate.MozillaAccount(
@@ -184,6 +195,9 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                 onNewInFirefoxMenuClick = {
                                     store.dispatch(MenuAction.Navigate.ReleaseNotes)
                                 },
+                                onQuitMenuClick = {
+                                    store.dispatch(MenuAction.DeleteBrowsingDataAndQuit)
+                                },
                             )
                         }
 
@@ -227,7 +241,14 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                 },
                                 onAddToShortcutsMenuClick = {},
                                 onAddToHomeScreenMenuClick = {},
-                                onSaveToCollectionMenuClick = {},
+                                onSaveToCollectionMenuClick = {
+                                    store.dispatch(
+                                        MenuAction.Navigate.SaveToCollection(
+                                            hasCollection = tabCollectionStorage
+                                                .cachedTabCollections.isNotEmpty(),
+                                        ),
+                                    )
+                                },
                                 onSaveAsPDFMenuClick = {
                                     saveToPdfUseCase()
                                     dismiss()

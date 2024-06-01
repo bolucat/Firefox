@@ -926,7 +926,9 @@ pref("javascript.options.mem.incremental_weakmap", true);
 
 // JSGC_SLICE_TIME_BUDGET_MS
 // Override the shell's default of unlimited slice time.
-pref("javascript.options.mem.gc_incremental_slice_ms", 5);
+// Note that this only applies to non-idle slices, which
+// should be the minority.
+pref("javascript.options.mem.gc_incremental_slice_ms", 10);
 
 // JSGC_COMPACTING_ENABLED
 pref("javascript.options.mem.gc_compacting", true);
@@ -4160,9 +4162,6 @@ pref("extensions.formautofill.loglevel", "Warn");
 // Temporary prefs that we will be removed if the telemetry data (added in Fx123) does not show any problems with the new heuristics.
 pref("extensions.formautofill.heuristics.captureOnFormRemoval", true);
 pref("extensions.formautofill.heuristics.captureOnPageNavigation", true);
-// The interactivityCheckMode pref is only temporary.
-// It will be removed when we decide to only support the `focusability` mode
-pref("extensions.formautofill.heuristics.interactivityCheckMode", "focusability");
 
 pref("toolkit.osKeyStore.loglevel", "Warn");
 

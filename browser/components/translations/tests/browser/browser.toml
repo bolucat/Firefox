@@ -165,12 +165,16 @@ skip-if = ["os == 'linux' && !debug"] # Bug 1863227
 
 ["browser_translations_select_panel_unsupported_language.js"]
 
-["browser_translations_select_telemetry_init_failure_ui.js"]
+["browser_translations_select_telemetry_init_failure_ui_then_cancel.js"]
+
+["browser_translations_select_telemetry_init_failure_ui_then_succeed.js"]
 
 ["browser_translations_select_telemetry_primary_ui.js"]
 
 ["browser_translations_select_telemetry_settings_menu.js"]
 
-["browser_translations_select_telemetry_translation_failure_ui.js"]
+["browser_translations_select_telemetry_translation_failure_ui_then_cancel.js"]
+
+["browser_translations_select_telemetry_translation_failure_ui_then_succeed.js"]
 
 ["browser_translations_select_telemetry_unsupported_language_ui.js"]

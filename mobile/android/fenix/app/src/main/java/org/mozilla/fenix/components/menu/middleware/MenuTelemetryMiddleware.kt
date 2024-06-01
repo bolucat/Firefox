@@ -108,6 +108,12 @@ class MenuTelemetryMiddleware(
                 }
             }
 
+            is MenuAction.Navigate.SaveToCollection -> Events.browserMenuAction.record(
+                Events.BrowserMenuActionExtra(
+                    item = "save_to_collection",
+                ),
+            )
+
             MenuAction.Navigate.Share -> Events.browserMenuAction.record(
                 Events.BrowserMenuActionExtra(
                     item = "share",
@@ -123,6 +129,12 @@ class MenuTelemetryMiddleware(
                     ),
                 )
             }
+
+            MenuAction.DeleteBrowsingDataAndQuit -> Events.browserMenuAction.record(
+                Events.BrowserMenuActionExtra(
+                    item = "quit",
+                ),
+            )
 
             MenuAction.InitAction,
             MenuAction.Navigate.Back,
