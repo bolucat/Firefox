@@ -935,8 +935,12 @@ pref("browser.tabs.tooltipsShowPidAndActiveness", true);
 pref("browser.tabs.tooltipsShowPidAndActiveness", false);
 #endif
 
-pref("browser.tabs.cardPreview.enabled", false);
-pref("browser.tabs.cardPreview.showThumbnails", true);
+#ifdef NIGHTLY_BUILD
+pref("browser.tabs.hoverPreview.enabled", true);
+#else
+pref("browser.tabs.hoverPreview.enabled", false);
+#endif
+pref("browser.tabs.hoverPreview.showThumbnails", true);
 
 pref("browser.tabs.firefox-view.logLevel", "Warn");
 
@@ -2952,8 +2956,6 @@ pref("browser.firefox-view.feature-tour", "{\"screen\":\"FIREFOX_VIEW_SPOTLIGHT\
 pref("browser.firefox-view.view-count", 0);
 // Maximum number of rows to show on the "History" page.
 pref("browser.firefox-view.max-history-rows", 300);
-// Enables search functionality in Firefox View.
-pref("browser.firefox-view.search.enabled", true);
 // Enables virtual list functionality in Firefox View.
 pref("browser.firefox-view.virtual-list.enabled", true);
 

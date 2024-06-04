@@ -8657,7 +8657,7 @@
 # Whether alt text in content is enabled.
 - name: layout.css.content.alt-text.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
   rust: true
 
@@ -8988,7 +8988,7 @@
 # Enable relative color syntax: https://drafts.csswg.org/css-color-5/#relative-colors
 - name: layout.css.relative-color-syntax.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
   rust: true
 
@@ -9597,6 +9597,12 @@
 - name: layout.overflow-underflow.content.enabled
   type: bool
   value: @IS_NOT_EARLY_BETA_OR_EARLIER@
+  mirror: always
+
+# Enable/disable overflow/underflow events in addon content
+- name: layout.overflow-underflow.content.enabled_in_addons
+  type: bool
+  value: true
   mirror: always
 
 - name: layout.visibility.min-recompute-interval-ms

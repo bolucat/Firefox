@@ -581,7 +581,7 @@ bool AsyncPanZoomController::FuzzyGreater(ParentLayerCoord aCoord1,
   return (aCoord1 - aCoord2) / zoom > COORDINATE_EPSILON;
 }
 
-class MOZ_STACK_CLASS StateChangeNotificationBlocker final {
+class StateChangeNotificationBlocker final {
  public:
   explicit StateChangeNotificationBlocker(AsyncPanZoomController* aApzc)
       : mApzc(aApzc) {
@@ -590,7 +590,17 @@ class MOZ_STACK_CLASS StateChangeNotificationBlocker final {
     mApzc->mNotificationBlockers++;
   }
 
+  StateChangeNotificationBlocker(const StateChangeNotificationBlocker&) =
+      delete;
+  StateChangeNotificationBlocker(StateChangeNotificationBlocker&& aOther)
+      : mApzc(aOther.mApzc), mInitialState(aOther.mInitialState) {
+    aOther.mApzc = nullptr;
+  }
+
   ~StateChangeNotificationBlocker() {
+    if (!mApzc) {  // moved-from
+      return;
+    }
     AsyncPanZoomController::PanZoomState newState;
     {
       RecursiveMutexAutoLock lock(mApzc->mRecursiveMutex);
@@ -4897,8 +4907,19 @@ bool AsyncPanZoomController::AdvanceAnimations(const SampleTime& aSampleTime) {
   // UpdateAnimation()). This needs to be done after the monitor is released
   // since the tasks are allowed to call APZCTreeManager methods which can grab
   // the tree lock.
-  for (uint32_t i = 0; i < deferredTasks.Length(); ++i) {
-    APZThreadUtils::RunOnControllerThread(std::move(deferredTasks[i]));
+  // Move the StateChangeNotificationBlocker into the task so that notifications
+  // continue to be blocked until the deferred tasks have run.
+  // Additionally store a RefPtr(this) in the lambda since
+  // StateChangeNotificationBlocker keeps a raw pointer to the APZC.
+  if (!deferredTasks.IsEmpty()) {
+    APZThreadUtils::RunOnControllerThread(NS_NewRunnableFunction(
+        "AsyncPanZoomController::AdvanceAnimations deferred tasks",
+        [keepApzcAlive = RefPtr(this), blocker = std::move(blocker),
+         deferredTasks = std::move(deferredTasks)]() {
+          for (uint32_t i = 0; i < deferredTasks.Length(); ++i) {
+            deferredTasks[i]->Run();
+          }
+        }));
   }
 
   // If any of the deferred tasks starts a new animation, it will request a

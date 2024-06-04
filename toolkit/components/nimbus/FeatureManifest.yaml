@@ -75,7 +75,7 @@ prefFlips:
       description: "The prefs to set."
   schema:
     uri: resource://nimbus/schemas/PrefFlipsFeature.schema.json
-    path: toolkit/component/nimbus/schemas/PrefFlipsFeature.schema.json
+    path: toolkit/components/nimbus/schemas/PrefFlipsFeature.schema.json
 
 
 # `search` is for search engine experimentation features which do not require
@@ -867,6 +867,12 @@ pocketNewtab:
         pref: browser.newtabpage.activity-stream.newtabWallpapers.enabled
       description: >-
         Turns on and off wallpaper support.
+    weatherLocationSearch:
+      type: boolean
+      fallbackPref: >-
+        browser.newtabpage.activity-stream.weather.locationSearchEnabled
+      description: >-
+        Turns on and off location search for newtab weather widget
     recsPersonalized:
       type: boolean
       fallbackPref: >-
@@ -2768,7 +2774,7 @@ tabPreview:
       type: boolean
       setPref:
         branch: default
-        pref: browser.tabs.cardPreview.enabled
+        pref: browser.tabs.hoverPreview.enabled
       description: >-
         When true, users will see the new card preview when hovering a tab, instead of the standard tooltip
 
