@@ -1436,7 +1436,7 @@ pref("browser.bookmarks.editDialog.maxRecentFolders", 7);
   #if defined(NIGHTLY_BUILD)
     pref("security.sandbox.content.level", 7);
   #else
-    pref("security.sandbox.content.level", 6);
+    pref("security.sandbox.content.level", 7);
   #endif
 
   // Pref controlling if messages relevant to sandbox violations are logged.
@@ -1706,15 +1706,28 @@ pref("browser.newtabpage.activity-stream.weather.locationSearchEnabled", false);
 pref("browser.newtabpage.activity-stream.weather.temperatureUnits", "f");
 pref("browser.newtabpage.activity-stream.weather.display", "simple");
 // List of regions that get weather by default.
-pref("browser.newtabpage.activity-stream.discoverystream.region-weather-config", "");
+#ifdef NIGHTLY_BUILD
+  pref("browser.newtabpage.activity-stream.discoverystream.region-weather-config", "US,CA");
+#else
+  pref("browser.newtabpage.activity-stream.discoverystream.region-weather-config", "");
+#endif
 
 // Preference to enable wallpaper selection in the Customize Menu of new tab page
-pref("browser.newtabpage.activity-stream.newtabWallpapers.enabled", false);
+#ifdef NIGHTLY_BUILD
+  pref("browser.newtabpage.activity-stream.newtabWallpapers.enabled", true);
+#else
+  pref("browser.newtabpage.activity-stream.newtabWallpapers.enabled", false);
+#endif
 pref("browser.newtabpage.activity-stream.newtabWallpapers.v2.enabled", false);
 
 // Current new tab page background images.
 pref("browser.newtabpage.activity-stream.newtabWallpapers.wallpaper-light", "");
 pref("browser.newtabpage.activity-stream.newtabWallpapers.wallpaper-dark", "");
+
+// Preference to show feature highlight about wallpaper on new tab page
+pref("browser.newtabpage.activity-stream.newtabWallpapers.highlightEnabled", false);
+pref("browser.newtabpage.activity-stream.newtabWallpapers.highlightDismissed", false);
+pref("browser.newtabpage.activity-stream.newtabWallpapers.highlightSeenCounter", 0);
 
 pref("browser.newtabpage.activity-stream.newNewtabExperience.colors", "#0090ED,#FF4F5F,#2AC3A2,#FF7139,#A172FF,#FFA437,#FF2A8A");
 

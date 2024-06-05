@@ -19,11 +19,8 @@ trailer = """
 #pragma GCC diagnostic pop
 #include "mozilla/ServoStyleConstsInlines.h"
 """
-autogen_warning = """/* DO NOT MODIFY THIS MANUALLY! This file was generated using cbindgen.
- * To generate this file:
- *   1. Get the latest cbindgen using `cargo install --force cbindgen`
- *      a. Alternatively, you can clone `https://github.com/eqrion/cbindgen` and use a tagged release
- *   2. Run `rustup run nightly cbindgen toolkit/library/rust/ --lockfile Cargo.lock --crate style -o layout/style/ServoStyleConsts.h`
+autogen_warning = """/* DO NOT MODIFY THIS MANUALLY! This file was generated using cbindgen. See RunCbindgen.py
+ * To modify this file, edit servo/ports/geckolib/cbindgen.toml and build Firefox.
  */
 """
 include_guard = "mozilla_ServoStyleConsts_h"
@@ -119,6 +116,7 @@ include = [
   "DisplayMode",
   "Platform",
   "PositionAnchor",
+  "PositionTryOptions",
   "PositionTryOrder",
   "PositionVisibility",
   "GtkThemeFamily",
@@ -505,7 +503,7 @@ renaming_overrides_prefixing = true
 
   // Defined in WritingModes.h
   inline const T& Get(mozilla::Side) const;
-  inline const T& Get(WritingMode, LogicalSide) const;
+  inline const T& Get(LogicalSide, WritingMode) const;
   inline const T& GetIStart(WritingMode) const;
   inline const T& GetBStart(WritingMode) const;
   inline const T& Start(LogicalAxis, WritingMode) const;
@@ -514,7 +512,7 @@ renaming_overrides_prefixing = true
   inline const T& End(LogicalAxis, WritingMode) const;
 
   inline T& Get(mozilla::Side);
-  inline T& Get(WritingMode, LogicalSide);
+  inline T& Get(LogicalSide, WritingMode);
   inline T& GetIStart(WritingMode);
   inline T& GetBStart(WritingMode);
   inline T& GetIEnd(WritingMode);

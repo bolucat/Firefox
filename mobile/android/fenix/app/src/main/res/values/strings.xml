@@ -663,7 +663,7 @@
     <string name="addons_permissions_allow_for_all_sites" tools:ignore="UnusedResources">Allow for all sites</string>
     <!-- The subtitle for the allow for all sites preference toggle -->
     <string name="addons_permissions_allow_for_all_sites_subtitle" tools:ignore="UnusedResources">If you trust this extension, you can give it permission on every website.</string>
-    <!-- The text shown when an add-on does not require permissions -->
+    <!-- The text shown when an extension does not require permissions -->
     <string name="addons_does_not_require_permissions">This extension doesn’t require any permissions.</string>
 
     <!-- Add-on Preferences -->
@@ -1381,7 +1381,7 @@
     <string name="notification_pbm_delete_text_2">Close private tabs</string>
 
     <!-- Microsuverys -->
-    <!-- Text shown in prompt for printing microsurvey. -->
+    <!-- Text shown in prompt for printing microsurvey. "sec" It's an abrevation for "second". -->
     <string name="microsurvey_prompt_printing_title" tools:ignore="UnusedResources">Help make printing in Firefox better. It only takes a sec</string>
     <!-- Text shown in prompt for printing microsurvey. 'Firefox' intentionally hardcoded here--> -->
     <string name="microsurvey_survey_printing_title" tools:ignore="UnusedResources">How satisfied are you with printing in Firefox?</string>
@@ -2515,8 +2515,10 @@
     <string name="download_languages_language_item_preference">%1$s (%2$s)</string>
     <!-- The subhead of the download language preference screen will appear above the items that were not downloaded. -->
     <string name="download_language_header_preference">Download Languages</string>
-    <!-- All languages list item. When the user presses this item, they can download or delete all languages. -->
+    <!-- All languages list item. When the user presses this item, they can download all languages. -->
     <string name="download_language_all_languages_item_preference">All languages</string>
+    <!-- All languages list item. When the user presses this item, they can delete all languages that were downloaded. -->
+    <string name="download_language_all_languages_item_preference_to_delete">Delete all languages</string>
     <!-- Content description (not visible, for screen readers etc.): For a language list item that was downloaded, the user can now delete it. -->
     <string name="download_languages_item_content_description_downloaded_state">Delete</string>
     <!-- Content description (not visible, for screen readers etc.): For a language list item, downloading is in progress. -->
@@ -2524,7 +2526,7 @@
     <!-- Content description (not visible, for screen readers etc.): For a language list item that was not downloaded. -->
     <string name="download_languages_item_content_description_not_downloaded_state">Download</string>
     <!-- Content description (not visible, for screen readers etc.): For a language list item that is selected. -->
-    <string name="download_languages_item_content_description_selected_state">Selected</string>
+    <string name="download_languages_item_content_description_selected_state" moz:removedIn="127" tools:ignore="UnusedResources">Selected</string>
 
     <!-- Title for the dialog used by the translations feature to confirm deleting a language.
     The dialog will be presented when the user requests deletion of a language.

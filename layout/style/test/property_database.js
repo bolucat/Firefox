@@ -7942,7 +7942,19 @@ var gCSSProperties = {
     applies_to_placeholder: true,
     // don't know whether left and right are same as start
     initial_values: ["start"],
-    other_values: ["center", "justify", "end", "match-parent"],
+    other_values: [
+      "center",
+      "justify",
+      "end",
+      "match-parent",
+      // At least -webkit-center is needed for compat, see bug 1899042.
+      "-moz-center",
+      "-webkit-center",
+      "-moz-left",
+      "-webkit-left",
+      "-moz-right",
+      "-webkit-right",
+    ],
     invalid_values: [
       "true",
       "true true",
@@ -13416,6 +13428,31 @@ if (IsCSSPropertyPrefEnabled("layout.css.anchor-positioning.enabled")) {
     initial_values: ["auto"],
     other_values: ["--foo"],
     invalid_values: ["none", "--foo, auto", "auto, --bar", "foo"],
+  };
+
+  gCSSProperties["position-try-options"] = {
+    domProp: "positionTryOptions",
+    inherited: false,
+    type: CSS_TYPE_LONGHAND,
+    initial_values: ["none"],
+    other_values: [
+      "--foo",
+      "flip-block",
+      "flip-inline",
+      "flip-start",
+      "left",
+      "span-y-start",
+      "span-block-start inline-end",
+      "span-all self-block-end",
+      "end span-start",
+      "center span-all",
+    ],
+    invalid_values: [
+      "foo",
+      "none none",
+      "span-y-start self-block-end",
+      "flip-block flip-start",
+    ],
   };
 
   gCSSProperties["position-try-order"] = {

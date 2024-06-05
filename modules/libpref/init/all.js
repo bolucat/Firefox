@@ -592,7 +592,7 @@ pref("toolkit.telemetry.dap_visit_counting_enabled", false);
 // See https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Match_patterns
 pref("toolkit.telemetry.dap_visit_counting_experiment_list", "[]");
 // Leader endpoint for the DAP protocol
-pref("toolkit.telemetry.dap_leader", "https://dap-07-1.api.divviup.org/");
+pref("toolkit.telemetry.dap_leader", "https://dap-09-3.api.divviup.org/");
 // Not used for anything. Just additional information.
 pref("toolkit.telemetry.dap_leader_owner", "ISRG");
 // Second DAP server. Only two are currently supported.
@@ -1861,14 +1861,14 @@ pref("services.common.uptake.sampleRate", 1);   // 1%
 
 pref("extensions.abuseReport.enabled", false);
 // Whether Firefox integrated abuse reporting feature should be opening the new abuse report form hosted on AMO.
-pref("extensions.abuseReport.amoFormURL", "https://addons.mozilla.org/%LOCALE%/%APP%/feedback/addon/%addonID%/");
+pref("extensions.abuseReport.amoFormURL", "https://addons.mozilla.org/%LOCALE%/firefox/feedback/addon/%addonID%/");
 pref("extensions.addonAbuseReport.url", "https://services.addons.mozilla.org/api/v5/abuse/report/addon/");
 
 // Blocklist preferences
 pref("extensions.blocklist.enabled", true);
 pref("extensions.blocklist.detailsURL", "https://blocked.cdn.mozilla.net/");
 pref("extensions.blocklist.itemURL", "https://blocked.cdn.mozilla.net/%blockID%.html");
-pref("extensions.blocklist.addonItemURL", "https://addons.mozilla.org/%LOCALE%/%APP%/blocked-addon/%addonID%/%addonVersion%/");
+pref("extensions.blocklist.addonItemURL", "https://addons.mozilla.org/%LOCALE%/firefox/blocked-addon/%addonID%/%addonVersion%/");
 // Controls what level the blocklist switches from warning about items to forcibly
 // blocking them.
 pref("extensions.blocklist.level", 2);
@@ -3584,16 +3584,6 @@ pref("browser.search.suggest.enabled.private", false);
 pref("browser.search.separatePrivateDefault", true);
 pref("browser.search.separatePrivateDefault.ui.enabled", false);
 pref("browser.search.removeEngineInfobar.enabled", true);
-
-// Enables a new search configuration style with no functional changes for the
-// user. This is solely intended as a rollout button - it will go away once the
-// new configuration has been rolled out.
-// Whether search-config-v2 is enabled.
-#ifdef NIGHTLY_BUILD
-pref("browser.search.newSearchConfig.enabled", true);
-#else
-pref("browser.search.newSearchConfig.enabled", false);
-#endif
 
 // GMPInstallManager prefs
 

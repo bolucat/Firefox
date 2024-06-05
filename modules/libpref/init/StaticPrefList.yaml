@@ -695,7 +695,7 @@
 #if defined(XP_MACOSX) || defined(XP_WIN)
   value: true
 #else
-  value: false
+  value: @IS_NIGHTLY_BUILD@
 #endif
   mirror: always
 
@@ -2378,13 +2378,6 @@
   value: @IS_NOT_EARLY_BETA_OR_EARLIER@
   mirror: always
 
-# If set this to true, `Document.execCommand` may be performed nestedly.
-# Otherwise, nested calls just return false.
-- name: dom.document.exec_command.nested_calls_allowed
-  type: bool
-  value: false
-  mirror: always
-
 # Only intended for fuzzing purposes, this will break mozPrintCallback, etc.
 - name: dom.window_print.fuzzing.block_while_printing
   type: bool
@@ -2650,7 +2643,7 @@
 # event as a default action of `beforeinput`.
 - name: dom.events.textevent.enabled
   type: bool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Whether to expose test interfaces of various sorts
@@ -2701,6 +2694,13 @@
 - name: dom.forms.number.grouping
   type: bool
   value: false
+  mirror: always
+
+# The interval in milliseconds between two Escape key events where the second
+# key event will exit fullscreen, even if it is consumed.
+- name: dom.fullscreen.force_exit_on_multiple_escape_interval
+  type: uint32_t
+  value: 500
   mirror: always
 
 # Whether the Gamepad API is enabled
@@ -3161,15 +3161,6 @@
 
 # Are missing-property use counters for certain DOM attributes enabled?
 - name: dom.missing_prop_counters.enabled
-  type: bool
-  value: true
-  mirror: always
-
-# Whether we disable triggering mutation events for changes to style
-# attribute via CSSOM.
-# NOTE: This preference is used in unit tests. If it is removed or its default
-# value changes, please update test_sharedMap_static_prefs.js accordingly.
-- name: dom.mutation-events.cssom.disabled
   type: bool
   value: true
   mirror: always
@@ -9995,7 +9986,7 @@
 # Is support for MediaKeys.getStatusForPolicy enabled?
 - name: media.eme.hdcp-policy-check.enabled
   type: bool
-  value: @IS_NIGHTLY_OR_DEV_EDITION@
+  value: true
   mirror: always
 
 - name: media.eme.max-throughput-ms
@@ -11722,7 +11713,7 @@
 # Whether to support CHIPS(Cookies Having Independent Partitioned State).
 - name: network.cookie.CHIPS.enabled
   type: bool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Stale threshold for cookies in seconds.
@@ -14752,7 +14743,7 @@
 # residentKey support when using Android platform API
 - name: security.webauthn.webauthn_enable_android_fido2.residentkey
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 # Dispatch WebAuthn requests to the macOS platform API
@@ -15343,13 +15334,13 @@
   rust: true
 
 - name: telemetry.fog.test.activity_limit
-  type: RelaxedAtomicUint32
+  type: RelaxedAtomicInt32
   value: 120
   mirror: always
   rust: true
 
 - name: telemetry.fog.test.inactivity_limit
-  type: RelaxedAtomicUint32
+  type: RelaxedAtomicInt32
   value: 1200
   mirror: always
   rust: true

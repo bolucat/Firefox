@@ -1081,21 +1081,13 @@ nsresult ExternalResourceMap::PendingLoad::SetupViewer(
       new LoadgroupCallbacks(callbacks);
   newLoadGroup->SetNotificationCallbacks(newCallbacks);
 
-  // This is some serious hackery cribbed from docshell
-  nsCOMPtr<nsICategoryManager> catMan =
-      do_GetService(NS_CATEGORYMANAGER_CONTRACTID);
-  NS_ENSURE_TRUE(catMan, NS_ERROR_NOT_AVAILABLE);
-  nsCString contractId;
-  nsresult rv =
-      catMan->GetCategoryEntry("Gecko-Content-Viewers", type, contractId);
-  NS_ENSURE_SUCCESS(rv, rv);
   nsCOMPtr<nsIDocumentLoaderFactory> docLoaderFactory =
-      do_GetService(contractId.get());
+      nsContentUtils::FindInternalDocumentViewer(type);
   NS_ENSURE_TRUE(docLoaderFactory, NS_ERROR_NOT_AVAILABLE);
 
   nsCOMPtr<nsIDocumentViewer> viewer;
   nsCOMPtr<nsIStreamListener> listener;
-  rv = docLoaderFactory->CreateInstance(
+  nsresult rv = docLoaderFactory->CreateInstance(
       "external-resource", chan, newLoadGroup, type, nullptr, nullptr,
       getter_AddRefs(listener), getter_AddRefs(viewer));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -5400,8 +5392,7 @@ bool Document::ExecCommand(const nsAString& aHTMLCommandName, bool aShowUI,
 
   // If we're running an execCommand, we should just return false.
   // https://github.com/w3c/editing/issues/200#issuecomment-575241816
-  if (!StaticPrefs::dom_document_exec_command_nested_calls_allowed() &&
-      !markRunningExecCommand.IsSafeToRun()) {
+  if (!markRunningExecCommand.IsSafeToRun()) {
     return false;
   }
 
@@ -18988,7 +18979,7 @@ bool Document::IsLikelyContentInaccessibleTopLevelAboutBlank() const {
   // really reliable but doesn't affect the correctness of our page probes, so
   // it's not too terrible.
   BrowsingContext* bc = GetBrowsingContext();
-  return bc && bc->IsTop() && !bc->HadOriginalOpener();
+  return bc && bc->IsTop() && !bc->GetTopLevelCreatedByWebContent();
 }
 
 bool Document::ShouldIncludeInTelemetry() const {

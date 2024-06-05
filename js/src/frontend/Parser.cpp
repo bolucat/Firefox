@@ -1216,8 +1216,12 @@ static Maybe<ModuleScope::ParserData*> NewModuleScopeData(
   }
 
   ModuleScope::ParserData* bindings = nullptr;
-  uint32_t numBindings =
-      imports.length() + vars.length() + lets.length() + consts.length();
+  uint32_t numBindings = imports.length() + vars.length() + lets.length() +
+                         consts.length()
+#ifdef ENABLE_EXPLICIT_RESOURCE_MANAGEMENT
+                         + usings.length()
+#endif
+      ;
 
   if (numBindings > 0) {
     bindings = NewEmptyBindingData<ModuleScope>(fc, alloc, numBindings);
@@ -1229,7 +1233,12 @@ static Maybe<ModuleScope::ParserData*> NewModuleScopeData(
     InitializeBindingData(bindings, numBindings, imports,
                           &ParserModuleScopeSlotInfo::varStart, vars,
                           &ParserModuleScopeSlotInfo::letStart, lets,
-                          &ParserModuleScopeSlotInfo::constStart, consts);
+                          &ParserModuleScopeSlotInfo::constStart, consts
+#ifdef ENABLE_EXPLICIT_RESOURCE_MANAGEMENT
+                          ,
+                          &ParserModuleScopeSlotInfo::usingStart, usings
+#endif
+    );
   }
 
   return Some(bindings);
@@ -2565,6 +2574,14 @@ bool GeneralParser<ParseHandler, Unit>::matchOrInsertSemicolon(
       error(JSMSG_YIELD_OUTSIDE_GENERATOR);
       return false;
     }
+
+#ifdef ENABLE_EXPLICIT_RESOURCE_MANAGEMENT
+    if (!this->pc_->isUsingSyntaxAllowed() &&
+        anyChars.currentToken().type == TokenKind::Using) {
+      error(JSMSG_USING_OUTSIDE_BLOCK_OR_MODULE);
+      return false;
+    }
+#endif
 
     /* Advance the scanner for proper error location reporting. */
     tokenStream.consumeKnownToken(tt, modifier);
@@ -9661,7 +9678,8 @@ GeneralParser<ParseHandler, Unit>::statementListItem(
           return errorResult();
         }
 
-        if (nextTokUsing == TokenKind::Using) {
+        if (nextTokUsing == TokenKind::Using &&
+            this->pc_->isUsingSyntaxAllowed()) {
           tokenStream.consumeKnownToken(nextTokUsing,
                                         TokenStream::SlashIsRegExp);
           TokenKind nextTokIdentifier = TokenKind::Eof;
@@ -9803,7 +9821,8 @@ GeneralParser<ParseHandler, Unit>::statementListItem(
       if (!tokenStream.peekTokenSameLine(&nextTok)) {
         return errorResult();
       }
-      if (!TokenKindIsPossibleIdentifier(nextTok)) {
+      if (!TokenKindIsPossibleIdentifier(nextTok) ||
+          !this->pc_->isUsingSyntaxAllowed()) {
         if (!tokenStream.peekToken(&nextTok)) {
           return errorResult();
         }

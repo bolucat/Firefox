@@ -139,6 +139,7 @@ if CONFIG["OS_ARCH"] == "WINNT" and CONFIG["CC_TYPE"] not in ("clang", "gcc"):
 
 DIRS += [
     "build",
+    "buildid_reader",
     "gtest",
 ]
 
@@ -412,3 +413,7 @@ if CONFIG["COMPILE_ENVIRONMENT"]:
     GeneratedFile(
         "buildid.cpp", script="gen_buildid.py", inputs=["!build/%s.list" % libxul_list]
     )
+
+    EXPORTS += [
+        "buildid_section.h",
+    ]
