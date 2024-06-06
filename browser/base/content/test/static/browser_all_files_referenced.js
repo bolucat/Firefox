@@ -287,10 +287,6 @@ var allowlist = [
 
   // Referenced programmatically
   { file: "chrome://browser/content/backup/BackupManifest.1.schema.json" },
-
-  // These will be referenced once bug 1897278 lands.
-  { file: "resource://app/modules/backup/ArchiveEncryptionState.sys.mjs" },
-  { file: "resource://app/modules/backup/ArchiveUtils.sys.mjs" },
 ];
 
 if (AppConstants.NIGHTLY_BUILD) {
@@ -363,9 +359,6 @@ const ignorableAllowlist = new Set([
 
   // dom/media/gmp/GMPParent.cpp
   "resource://gre/gmp-clearkey/0.1/manifest.json",
-
-  // Bug 1351669 - obsolete test file
-  "resource://gre/res/test.properties",
 ]);
 for (let entry of ignorableAllowlist) {
   allowlist.add(entry);

@@ -1202,7 +1202,7 @@
 # and are always permitted.
 - name: browser.contentanalysis.allow_url_regex_list
   type: String
-  value: ""
+  value: "^about:.*"
   mirror: never
 
 # Space-separated list of regexs that are compared to URLs of resources
@@ -2222,18 +2222,6 @@
 
 # Checks if offscreen animation throttling is enabled.
 - name: dom.animations.offscreen-throttling
-  type: bool
-  value: true
-  mirror: always
-
-# Is support for composite operations from the Web Animations API enabled?
-- name: dom.animations-api.compositing.enabled
-  type: bool
-  value: true
-  mirror: always
-
-# Is support for timelines from the Web Animations API enabled?
-- name: dom.animations-api.timelines.enabled
   type: bool
   value: true
   mirror: always
@@ -3848,6 +3836,18 @@
 
 # pref controls `identity` credentials being exposed
 - name: dom.security.credentialmanagement.identity.enabled
+  type: bool
+  value: false
+  mirror: always
+
+# pref controls "heavyweight" network discoverable `identity` credentials being exposed
+- name: dom.security.credentialmanagement.identity.heavyweight.enabled
+  type: bool
+  value: false
+  mirror: always
+
+# pref controls storable "lightweight" `identity` credentials being exposed
+- name: dom.security.credentialmanagement.identity.lightweight.enabled
   type: bool
   value: false
   mirror: always
@@ -5873,6 +5873,11 @@
   value: true
   mirror: always
 
+- name: gfx.canvas.remote.recycle-used-data-surface
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 - name: gfx.canvas.willreadfrequently.enabled
   type: bool
 #if defined(XP_WIN)
@@ -7685,6 +7690,20 @@
     mirror: always
     set_spidermonkey_pref: startup
 
+  # Experimental support for resizable ArrayBuffers in JavaScript.
+-   name: javascript.options.experimental.arraybuffer_resizable
+    type: bool
+    value: true
+    mirror: always
+    set_spidermonkey_pref: startup
+
+  # Experimental support for growable SharedArrayBuffers in JavaScript.
+-   name: javascript.options.experimental.sharedarraybuffer_growable
+    type: bool
+    value: true
+    mirror: always
+    set_spidermonkey_pref: startup
+
 #ifdef NIGHTLY_BUILD
   # Experimental support for Iterator Helpers in JavaScript.
 -   name: javascript.options.experimental.iterator_helpers
@@ -7702,20 +7721,6 @@
 
   # Experimental support for Symbols as WeakMap keys in JavaScript.
 -   name: javascript.options.experimental.symbols_as_weakmap_keys
-    type: bool
-    value: false
-    mirror: always
-    set_spidermonkey_pref: startup
-
-  # Experimental support for resizable ArrayBuffers in JavaScript.
--   name: javascript.options.experimental.arraybuffer_resizable
-    type: bool
-    value: false
-    mirror: always
-    set_spidermonkey_pref: startup
-
-  # Experimental support for growable SharedArrayBuffers in JavaScript.
--   name: javascript.options.experimental.sharedarraybuffer_growable
     type: bool
     value: false
     mirror: always
@@ -11666,7 +11671,7 @@
 # whether to redirect the channel for auth redirects. See Bug 1820807
 - name: network.auth.use_redirect_for_retries
   type: RelaxedAtomicBool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 # When true, authentication challenges will be sorted even if
@@ -13287,6 +13292,18 @@
   mirror: always
   rust: true
 
+# Whether to send a Xyber768 key share in HTTP/3 TLS handshakes.
+# Has no effect unless security.tls.enable_kyber is true.
+- name: network.http.http3.enable_kyber
+  type: RelaxedAtomicBool
+#ifdef ANDROID
+  value: false
+#else
+  value: @IS_NIGHTLY_BUILD@
+#endif
+  mirror: always
+  rust: true
+
 # When true, a http request will be upgraded to https when HTTPS RR is
 # available.
 - name: network.dns.upgrade_with_https_rr
@@ -13591,7 +13608,9 @@
   mirror: never
 
 # Enable off-main-thread decompression of network streams
-- name: network.decompression_off_mainthread
+# Note:network.decompression_off_mainthread triggered a bug, so
+# we switched to a new pref that can be turned off safely
+- name: network.decompression_off_mainthread2
   type: bool
   value: true
   mirror: always
@@ -14365,7 +14384,7 @@
 # Main pref to enable / disable the feature.
 - name: privacy.bounceTrackingProtection.enabled
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: once
 
 # How long to wait for a client redirect after a navigation ends.
@@ -15049,6 +15068,17 @@
 #else
   value: @IS_NIGHTLY_BUILD@
 #endif
+  mirror: always
+  rust: true
+
+- name: security.tls.enable_certificate_compression_zlib
+  type: RelaxedAtomicBool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+
+- name: security.tls.enable_certificate_compression_brotli
+  type: RelaxedAtomicBool
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 - name: security.ssl.treat_unsafe_negotiation_as_broken

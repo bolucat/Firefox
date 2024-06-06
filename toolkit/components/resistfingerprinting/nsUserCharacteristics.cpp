@@ -39,6 +39,12 @@
 #include "nsIAppWindow.h"
 #include "nsIDocShellTreeOwner.h"
 #include "nsIBaseWindow.h"
+#include "mozilla/MediaManager.h"
+#include "mozilla/dom/MediaDeviceInfoBinding.h"
+#include "mozilla/MozPromise.h"
+#include "nsThreadUtils.h"
+#include "CubebDeviceEnumerator.h"
+#include "mozilla/media/MediaUtils.h"
 
 #include "gfxPlatformFontList.h"
 #include "prsystem.h"
@@ -72,13 +78,16 @@ int MaxTouchPoints() {
 }  // extern "C"
 };  // namespace testing
 
+using VoidPromise = MozPromise<void_t, void_t, true>::Private;
+
 // ==================================================================
 // ==================================================================
-already_AddRefed<mozilla::dom::Promise> ContentPageStuff() {
+RefPtr<VoidPromise> ContentPageStuff() {
   nsCOMPtr<nsIUserCharacteristicsPageService> ucp =
       do_GetService("@mozilla.org/user-characteristics-page;1");
   MOZ_ASSERT(ucp);
 
+  RefPtr<VoidPromise> voidPromise = new VoidPromise(__func__);
   RefPtr<mozilla::dom::Promise> promise;
   nsresult rv = ucp->CreateContentPage(getter_AddRefs(promise));
   if (NS_FAILED(rv)) {
@@ -89,7 +98,21 @@ already_AddRefed<mozilla::dom::Promise> ContentPageStuff() {
   MOZ_LOG(gUserCharacteristicsLog, mozilla::LogLevel::Debug,
           ("Created Content Page"));
 
-  return promise.forget();
+  if (promise) {
+    promise->AddCallbacksWithCycleCollectedArgs(
+        [=](JSContext*, JS::Handle<JS::Value>, mozilla::ErrorResult&) {
+          voidPromise->Resolve(void_t(), __func__);
+        },
+        [=](JSContext*, JS::Handle<JS::Value>, mozilla::ErrorResult&) {
+          voidPromise->Reject(void_t(), __func__);
+        });
+  } else {
+    MOZ_LOG(gUserCharacteristicsLog, mozilla::LogLevel::Error,
+            ("Did not get a Promise back from ContentPageStuff"));
+    voidPromise->Reject(void_t(), __func__);
+  }
+
+  return voidPromise;
 }
 
 void PopulateCSSProperties() {
@@ -383,6 +406,115 @@ void PopulateScaling() {
   glean::characteristics::scalings.Set(output);
 }
 
+RefPtr<VoidPromise> PopulateMediaDevices() {
+  RefPtr<VoidPromise> voidPromise = new VoidPromise(__func__);
+  MediaManager::Get()->GetPhysicalDevices()->Then(
+      GetCurrentSerialEventTarget(), __func__,
+      [=](const RefPtr<const MediaManager::MediaDeviceSetRefCnt>& aDevices) {
+        uint32_t cameraCount = 0;
+        uint32_t microphoneCount = 0;
+        uint32_t speakerCount = 0;
+        std::set<nsString> groupIds;
+        std::set<nsString> groupIdsWoSpeakers;
+
+        for (const auto& device : *aDevices) {
+          if (device->mKind == dom::MediaDeviceKind::Videoinput) {
+            cameraCount++;
+          } else if (device->mKind == dom::MediaDeviceKind::Audioinput) {
+            microphoneCount++;
+          } else if (device->mKind == dom::MediaDeviceKind::Audiooutput) {
+            speakerCount++;
+          }
+          if (groupIds.find(device->mRawGroupID) == groupIds.end()) {
+            groupIds.insert(device->mRawGroupID);
+            if (device->mKind != dom::MediaDeviceKind::Audiooutput) {
+              groupIdsWoSpeakers.insert(device->mRawGroupID);
+            }
+          }
+        }
+
+        nsCString json;
+        json.AppendPrintf(
+            R"({"cameraCount": %u, "microphoneCount": %u, "speakerCount": %u, "groupCount": %zu, "groupCountWoSpeakers": %zu})",
+            cameraCount, microphoneCount, speakerCount, groupIds.size(),
+            groupIdsWoSpeakers.size());
+        glean::characteristics::media_devices.Set(json);
+        voidPromise->Resolve(void_t(), __func__);
+      },
+      [=](RefPtr<MediaMgrError>&& reason) {
+        voidPromise->Reject(void_t(), __func__);
+      });
+  return voidPromise;
+}
+
+RefPtr<VoidPromise> PopulateAudioDeviceProperties() {
+  RefPtr<VoidPromise> voidPromise = new VoidPromise(__func__);
+
+  NS_DispatchBackgroundTask(
+      NS_NewRunnableFunction("PopulateAudioDeviceProperties", [=]() {
+        RefPtr<CubebDeviceEnumerator> enumerator =
+            CubebDeviceEnumerator::GetInstance();
+        RefPtr<const CubebDeviceEnumerator::AudioDeviceSet> devices;
+
+        nsCString output = "{"_ns;
+
+        nsCString list = "["_ns;
+        devices = enumerator->EnumerateAudioInputDevices();
+        for (const auto& deviceInfo : *devices) {
+          uint32_t maxChannels;
+          deviceInfo->GetMaxChannels(&maxChannels);
+
+          list.AppendPrintf(R"({"rate":%d,"channels":%d)",
+                            deviceInfo->DefaultRate(), maxChannels);
+          if (deviceInfo->Preferred()) {
+            list.Append(",\"default\":1");
+          }
+          list.Append("}");
+
+          if (&deviceInfo != &devices->LastElement()) {
+            list.Append(',');
+          }
+        }
+        list.Append(']');
+
+        output.AppendPrintf(R"("devices":%s,)", list.get());
+
+        double inputMean, inputStdDev, outputMean, outputStdDev;
+        CubebUtils::EstimatedLatencyDefaultDevices(&inputMean, &inputStdDev,
+                                                   CubebUtils::Side::Input);
+        CubebUtils::EstimatedLatencyDefaultDevices(&outputMean, &outputStdDev,
+                                                   CubebUtils::Side::Output);
+
+        cubeb_stream_params output_params;
+        output_params.format = CUBEB_SAMPLE_FLOAT32NE;
+        output_params.rate = CubebUtils::PreferredSampleRate(false);
+        output_params.channels = 2;
+        output_params.layout = CUBEB_LAYOUT_UNDEFINED;
+        output_params.prefs =
+            CubebUtils::GetDefaultStreamPrefs(CUBEB_DEVICE_TYPE_OUTPUT);
+
+        uint32_t latencyFrames =
+            CubebUtils::GetCubebMTGLatencyInFrames(&output_params);
+        RefPtr<AudioDeviceInfo> defaultOutputDevice =
+            enumerator->DefaultDevice(CubebDeviceEnumerator::Side::OUTPUT);
+        output.AppendPrintf(
+            R"("latency":[%f,%f,%f,%f],"latFrames":%d,"rate":%u,"channels":%u)",
+            inputMean, inputStdDev, outputMean, outputStdDev, latencyFrames,
+            defaultOutputDevice->DefaultRate(),
+            defaultOutputDevice->MaxChannels());
+
+        output.Append("}");
+
+        glean::characteristics::audio_devices.Set(output);
+
+        NS_DispatchToMainThread(NS_NewRunnableFunction(
+            "PopulateAudioDeviceProperties",
+            [=]() { voidPromise->Resolve(void_t(), __func__); }));
+      }));
+
+  return voidPromise;
+}
+
 // ==================================================================
 // The current schema of the data. Anytime you add a metric, or change how a
 // metric is set, this variable should be incremented. It'll be a lot. It's
@@ -504,6 +636,7 @@ void nsUserCharacteristics::PopulateDataAndEventuallySubmit(
 
   // ------------------------------------------------------------------------
 
+  nsTArray<RefPtr<MozPromise<mozilla::void_t, mozilla::void_t, true>>> promises;
   if (!aTesting) {
     // Many of the later peices of data do not work in a gtest
     // so skip populating them
@@ -516,6 +649,8 @@ void nsUserCharacteristics::PopulateDataAndEventuallySubmit(
     PopulatePrefs();
     PopulateFontPrefs();
     PopulateScaling();
+    promises.AppendElement(PopulateMediaDevices());
+    promises.AppendElement(PopulateAudioDeviceProperties());
 
     glean::characteristics::target_frame_rate.Set(
         gfxPlatform::TargetFrameRate());
@@ -548,14 +683,11 @@ void nsUserCharacteristics::PopulateDataAndEventuallySubmit(
     glean::characteristics::system_locale.Set(locale);
   }
 
-  // When this promise resolves, everything succeeded and we can submit.
-  RefPtr<mozilla::dom::Promise> promise = ContentPageStuff();
+  promises.AppendElement(ContentPageStuff());
 
   // ------------------------------------------------------------------------
 
-  auto fulfillSteps = [aUpdatePref, aTesting](
-                          JSContext* aCx, JS::Handle<JS::Value> aPromiseResult,
-                          mozilla::ErrorResult& aRv) {
+  auto fulfillSteps = [aUpdatePref, aTesting]() {
     MOZ_LOG(gUserCharacteristicsLog, mozilla::LogLevel::Debug,
             ("ContentPageStuff Promise Resolved"));
 
@@ -572,20 +704,13 @@ void nsUserCharacteristics::PopulateDataAndEventuallySubmit(
     }
   };
 
-  // Something failed in the Content Page...
-  auto rejectSteps = [](JSContext* aCx, JS::Handle<JS::Value> aReason,
-                        mozilla::ErrorResult& aRv) {
-    MOZ_LOG(gUserCharacteristicsLog, mozilla::LogLevel::Error,
-            ("ContentPageStuff Promise Rejected"));
-  };
-
-  if (promise) {
-    promise->AddCallbacksWithCycleCollectedArgs(std::move(fulfillSteps),
-                                                std::move(rejectSteps));
-  } else {
-    MOZ_LOG(gUserCharacteristicsLog, mozilla::LogLevel::Error,
-            ("Did not get a Promise back from ContentPageStuff"));
-  }
+  VoidPromise::All(GetCurrentSerialEventTarget(), promises)
+      ->Then(
+          GetCurrentSerialEventTarget(), __func__, [=]() { fulfillSteps(); },
+          []() {
+            MOZ_LOG(gUserCharacteristicsLog, mozilla::LogLevel::Error,
+                    ("One of the promises rejected."));
+          });
 }
 
 /* static */

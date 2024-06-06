@@ -82,7 +82,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
 
 import { ExtensionUtils } from "resource://gre/modules/ExtensionUtils.sys.mjs";
 
-const { ExtensionError } = ExtensionUtils;
+const { DefaultWeakMap, ExtensionError } = ExtensionUtils;
 
 XPCOMUtils.defineLazyPreferenceGetter(
   lazy,
@@ -1344,15 +1344,44 @@ class RequestDetails {
     this.tabId = tabId;
     this.browsingContext = browsingContext;
 
-    this.requestDomain = this.#domainFromURI(requestURI);
-    this.initiatorDomain = initiatorURI
+    let requestDomain = this.#domainFromURI(requestURI);
+    let initiatorDomain = initiatorURI
       ? this.#domainFromURI(initiatorURI)
       : null;
+    this.allRequestDomains =
+      requestDomain && this.#getAllDomainsWithin(requestDomain);
+    this.allInitiatorDomains =
+      initiatorDomain && this.#getAllDomainsWithin(initiatorDomain);
+
+    this.domainType = this.#isThirdParty(requestURI, initiatorURI)
+      ? "thirdParty"
+      : "firstParty";
 
     this.requestURIspec = requestURI.spec;
     this.requestDataForUrlFilter = new RequestDataForUrlFilter(
       this.requestURIspec
     );
+  }
+
+  #isThirdParty(requestURI, initiatorURI) {
+    if (!initiatorURI) {
+      // E.g. main_frame request or opaque origin.
+      return true;
+    }
+
+    try {
+      return (
+        Services.eTLD.getBaseDomain(requestURI) !==
+        Services.eTLD.getBaseDomain(initiatorURI)
+      );
+    } catch (err) {
+      // May throw if either domain is an IP address, lacks a public suffix
+      // (e.g. http://localhost or moz-extension://UUID)
+      // or contains characters disallowed in URIs. Fall back:
+      return (
+        this.#domainFromURI(requestURI) !== this.#domainFromURI(initiatorURI)
+      );
+    }
   }
 
   static fromChannelWrapper(channel) {
@@ -1473,7 +1502,33 @@ class RequestDetails {
       return null;
     }
   }
+
+  /**
+   * @param {string} domain - The canonical representation of the host of a URL.
+   * @returns {string[]} A non-empty list of the domain and all superdomains
+   *   within the given domain. This may include items that are not resolvable
+   *   domains, such as "com" (from input "example.com").
+   */
+  #getAllDomainsWithin(domain) {
+    const domains = [domain];
+    let i = 0;
+    // Reminder: domain cannot start with a dot, nor contain consecutive dots.
+    while ((i = domain.indexOf(".", i) + 1) !== 0) {
+      domain = domain.slice(i);
+      // A full domain can end with a dot (FQDN) such as "example.com.", in
+      // which case the last domain should be "com." and not "".
+      if (domain) {
+        domains.push(domain);
+      }
+    }
+    return domains;
+  }
 }
+
+// Domain lists in rule conditions (requestDomains, excludedRequestDomains,
+// initiatorDomains, excludedInitiatorDomains) could be really long, containing
+// thousands of entries. We convert them to Set for faster lookup.
+const gDomainsListToSet = new DefaultWeakMap(domains => new Set(domains));
 
 /**
  * This RequestEvaluator class's logic is documented at the top of this file.
@@ -1765,23 +1820,26 @@ class RequestEvaluator {
     }
     if (
       cond.excludedRequestDomains &&
-      this.#matchesDomains(cond.excludedRequestDomains, this.req.requestDomain)
+      this.#matchesDomains(
+        cond.excludedRequestDomains,
+        this.req.allRequestDomains
+      )
     ) {
       return false;
     }
     if (
       cond.requestDomains &&
-      !this.#matchesDomains(cond.requestDomains, this.req.requestDomain)
+      !this.#matchesDomains(cond.requestDomains, this.req.allRequestDomains)
     ) {
       return false;
     }
     if (
       cond.excludedInitiatorDomains &&
       // Note: unable to only match null principals (bug 1798225).
-      this.req.initiatorDomain &&
+      this.req.allInitiatorDomains &&
       this.#matchesDomains(
         cond.excludedInitiatorDomains,
-        this.req.initiatorDomain
+        this.req.allInitiatorDomains
       )
     ) {
       return false;
@@ -1789,13 +1847,18 @@ class RequestEvaluator {
     if (
       cond.initiatorDomains &&
       // Note: unable to only match null principals (bug 1798225).
-      (!this.req.initiatorDomain ||
-        !this.#matchesDomains(cond.initiatorDomains, this.req.initiatorDomain))
+      (!this.req.allInitiatorDomains ||
+        !this.#matchesDomains(
+          cond.initiatorDomains,
+          this.req.allInitiatorDomains
+        ))
     ) {
       return false;
     }
 
-    // TODO bug 1797408: domainType
+    if (cond.domainType && cond.domainType !== this.req.domainType) {
+      return false;
+    }
 
     if (cond.requestMethods) {
       if (!cond.requestMethods.includes(this.req.method)) {
@@ -1817,23 +1880,18 @@ class RequestEvaluator {
   }
 
   /**
-   * @param {string[]} domains - A list of canonicalized domain patterns.
+   * @param {string[]} domainsInCondition - A potentially long list of
+   *   canonicalized domain patterns that are part of a rule condition.
    *   Canonical means punycode, no ports, and IPv6 without brackets, and not
    *   starting with a dot. May end with a dot if it is a FQDN.
-   * @param {string} host - The canonical representation of the host of a URL.
-   * @returns {boolean} Whether the given host is a (sub)domain of any of the
-   *   given domains.
+   * @param {string[]} targetDomains - The list of domains and superdomains
+   *   within the original URI (see #getAllDomainsWithin).
+   * @returns {boolean} Whether the actual host (encoded in targetDomains) is a
+   *   (sub)domain of any of the domains in the condition (domainsInCondition).
    */
-  #matchesDomains(domains, host) {
-    return domains.some(domain => {
-      return (
-        host.endsWith(domain) &&
-        // either host === domain
-        (host.length === domain.length ||
-          // or host = "something." + domain (WITH a domain separator).
-          host.charAt(host.length - domain.length - 1) === ".")
-      );
-    });
+  #matchesDomains(domainsInCondition, targetDomains) {
+    const ruleDomainsSet = gDomainsListToSet.get(domainsInCondition);
+    return targetDomains.some(domain => ruleDomainsSet.has(domain));
   }
 
   /**

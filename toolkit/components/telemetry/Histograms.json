@@ -451,17 +451,6 @@
     "releaseChannelCollection": "opt-out",
     "description": "Whether a content process was launched synchronously (unnecessarily delaying UI response)."
   },
-  "COOKIE_BANNERS_CLICK_HANDLE_DURATION_MS": {
-    "record_in_processes": ["content"],
-    "products": ["firefox"],
-    "alert_emails": ["pbz@mozilla.com", "tihuang@mozilla.com"],
-    "expires_in_version": "128",
-    "bug_numbers": [1797078, 1804259, 1827765, 1850874, 1861317],
-    "kind": "exponential",
-    "high": 600000,
-    "n_buckets": 100,
-    "description": "Counts how long it takes to handle cookie banners successfully from DOMContentLoaded until click."
-  },
   "CYCLE_COLLECTOR": {
     "record_in_processes": ["main", "content"],
     "products": ["firefox", "fennec"],
@@ -3056,6 +3045,16 @@
       "HTTPSFirst"
     ],
     "description": "Was the URL upgraded to HTTPS?"
+  },
+  "HTTP_RESPONSE_STATUS_CODE": {
+    "record_in_processes": ["main", "content"],
+    "products": ["firefox", "fennec"],
+    "alert_emails": ["smayya@mozilla.com"],
+    "bug_numbers": [1896350],
+    "expires_in_version": "134",
+    "kind": "enumerated",
+    "n_values": 12,
+    "description": "Http response status (0=200, 1=301, 2=302, 3=304, 4=307, 5=308, 6=400, 7=401, 8=403, 9=404, 10=500, 11=other)"
   },
   "HTTP_NET_VS_CACHE_ONSTART_QSMALL_NORMALPRI_V2": {
     "record_in_processes": ["main", "content"],

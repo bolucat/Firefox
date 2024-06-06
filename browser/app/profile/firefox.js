@@ -279,6 +279,9 @@ pref("browser.shell.defaultBrowserCheckCount", 0);
 // Attempt to set the default browser on Windows 10 using the UserChoice registry keys,
 // before falling back to launching the modern Settings dialog.
 pref("browser.shell.setDefaultBrowserUserChoice", true);
+// When setting default via UserChoice, temporarily rename an ancestor registry key to
+// prevent kernel drivers from locking the UserChoice subkeys.
+pref("browser.shell.setDefaultBrowserUserChoice.regRename", false);
 // When setting the default browser on Windows 10 using the UserChoice
 // registry keys, also try to set Firefox as the default PDF handler.
 pref("browser.shell.setDefaultPDFHandler", true);
@@ -422,10 +425,10 @@ pref("browser.urlbar.suggest.recentsearches",       true);
 
 pref("browser.urlbar.scotchBonnet.enableOverride", false);
 
-#if defined(EARLY_BETA_OR_EARLIER)
-  // Enable Trending suggestions.
-  pref("browser.urlbar.trending.featureGate", true);
-#endif
+// Enable trending suggestions and recent searches.
+pref("browser.urlbar.trending.featureGate", true);
+pref("browser.urlbar.trending.requireSearchMode", false);
+pref("browser.urlbar.recentsearches.featureGate", true);
 
 // Enable Rich Entities.
 pref("browser.urlbar.richSuggestions.featureGate", true);
@@ -1723,6 +1726,7 @@ pref("browser.newtabpage.activity-stream.newtabWallpapers.v2.enabled", false);
 // Current new tab page background images.
 pref("browser.newtabpage.activity-stream.newtabWallpapers.wallpaper-light", "");
 pref("browser.newtabpage.activity-stream.newtabWallpapers.wallpaper-dark", "");
+pref("browser.newtabpage.activity-stream.newtabWallpapers.wallpaper-color", "");
 
 // Preference to show feature highlight about wallpaper on new tab page
 pref("browser.newtabpage.activity-stream.newtabWallpapers.highlightEnabled", false);
@@ -3025,6 +3029,7 @@ pref("cookiebanners.ui.desktop.cfrVariant", 0);
 
 #ifdef NIGHTLY_BUILD
   pref("dom.security.credentialmanagement.identity.enabled", true);
+  pref("dom.security.credentialmanagement.identity.heavyweight.enabled", true);
 #endif
 
 pref("ui.new-webcompat-reporter.enabled", true);
