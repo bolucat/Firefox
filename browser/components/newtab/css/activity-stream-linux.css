@@ -837,7 +837,13 @@ main section {
 }
 .top-site-outer .title .icon {
   margin-inline-end: 2px;
-  fill: var(--newtab-text-primary-color);
+  fill: var(--newtab-contextual-text-primary-color);
+}
+.lightWallpaper .top-site-outer .title .icon {
+  color-scheme: light;
+}
+.darkWallpaper .top-site-outer .title .icon {
+  color-scheme: dark;
 }
 .top-site-outer .title span {
   display: block;
@@ -5056,6 +5062,7 @@ main section {
   font-size: var(--font-size-small);
   font-weight: normal;
   margin: var(--space-large) 0;
+  flex-grow: 1;
 }
 .feature-highlight .toggle-button {
   border: none;
@@ -5127,8 +5134,10 @@ main section {
   width: 12px;
 }
 
-.paintbrush-icon {
-  background-image: url("chrome://activity-stream/content/data/content/assets/glyph-paintbrush-16.svg");
+.customize-icon {
+  -moz-context-properties: fill;
+  fill: var(--icon-color);
+  background-image: url("chrome://browser/skin/customize.svg");
   background-size: var(--icon-size-default);
   height: var(--icon-size-default);
   width: var(--icon-size-default);
@@ -5157,6 +5166,7 @@ main section {
   display: block;
   margin-inline-start: auto;
   background-color: var(--button-background-color);
+  margin-block-start: var(--space-small);
 }
 
 .ASRouterButton {

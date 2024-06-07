@@ -7,6 +7,7 @@ const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
   HiddenFrame: "resource://gre/modules/HiddenFrame.sys.mjs",
+  Preferences: "resource://gre/modules/Preferences.sys.mjs",
 });
 
 ChromeUtils.defineLazyGetter(lazy, "console", () => {
@@ -189,8 +190,12 @@ export class UserCharacteristicsPageService {
         for (let gamepad of data.output.gamepads) {
           Glean.characteristics.gamepads.add(gamepad);
         }
+        this.populateIntlLocale();
 
         Glean.characteristics.zoomCount.set(await this.populateZoomPrefs());
+        Glean.characteristics.pixelRatio.set(
+          await this.populateDevicePixelRatio(browser.ownerGlobal)
+        );
 
         try {
           Glean.characteristics.canvasdata1.set(data.output.canvas1data);
@@ -211,6 +216,13 @@ export class UserCharacteristicsPageService {
             data.output.fingerprintjscanvas2data
           );
           Glean.characteristics.voices.set(data.output.voices);
+          Glean.characteristics.mediaCapabilities.set(
+            data.output.mediaCapabilities
+          );
+          this.populateDisabledMediaPrefs();
+          Glean.characteristics.audioFingerprint.set(
+            data.output.audioFingerprint
+          );
         } catch (e) {
           // Grab the exception and send it to the console
           // (we don't see it otherwise)
@@ -218,6 +230,7 @@ export class UserCharacteristicsPageService {
           // But still fail
           throw e;
         }
+        Glean.characteristics.mathOps.set(await this.populateMathOps());
 
         lazy.console.debug("Unregistering actor");
         Services.obs.notifyObservers(
@@ -246,6 +259,54 @@ export class UserCharacteristicsPageService {
     return zoomPrefsCount;
   }
 
+  async populateDevicePixelRatio(window) {
+    return (
+      (window.browsingContext.overrideDPPX || window.devicePixelRatio) * 100
+    );
+  }
+
+  populateIntlLocale() {
+    const locale = new Intl.DisplayNames(undefined, {
+      type: "region",
+    }).resolvedOptions().locale;
+    Glean.characteristics.intlLocale.set(locale);
+  }
+
+  async populateMathOps() {
+    // Taken from https://github.com/fingerprintjs/fingerprintjs/blob/da64ad07a9c1728af595068e4a306a4151c5d503/src/sources/math.ts
+    // At the time, fingerprintjs was licensed under MIT. Slightly modified to reduce payload size.
+    const ops = [
+      // Native
+      [Math.acos, 0.123124234234234242],
+      [Math.acosh, 1e308],
+      [Math.asin, 0.123124234234234242],
+      [Math.asinh, 1],
+      [Math.atanh, 0.5],
+      [Math.atan, 0.5],
+      [Math.sin, -1e300],
+      [Math.sinh, 1],
+      [Math.cos, 10.000000000123],
+      [Math.cosh, 1],
+      [Math.tan, -1e300],
+      [Math.tanh, 1],
+      [Math.exp, 1],
+      [Math.expm1, 1],
+      [Math.log1p, 10],
+      // Polyfills (I'm not sure if we need polyfills since firefox seem to have all of these operations, but I'll leave it here just in case they yield different values due to chaining)
+      [value => Math.pow(Math.PI, value), -100],
+      [value => Math.log(value + Math.sqrt(value * value - 1)), 1e154],
+      [value => Math.log(value + Math.sqrt(value * value + 1)), 1],
+      [value => Math.log((1 + value) / (1 - value)) / 2, 0.5],
+      [value => Math.exp(value) - 1 / Math.exp(value) / 2, 1],
+      [value => (Math.exp(value) + 1 / Math.exp(value)) / 2, 1],
+      [value => Math.exp(value) - 1, 1],
+      [value => (Math.exp(2 * value) - 1) / (Math.exp(2 * value) + 1), 1],
+      [value => Math.log(1 + value), 10],
+    ].map(([op, value]) => [op || (() => 0), value]);
+
+    return JSON.stringify(ops.map(([op, value]) => op(value)));
+  }
+
   async pageLoaded(browsingContext, data) {
     lazy.console.debug(
       `pageLoaded browsingContext=${browsingContext} data=${data}`
@@ -259,5 +320,33 @@ export class UserCharacteristicsPageService {
       return;
     }
     throw new Error(`No backround resolve for ${browser} found`);
+  }
+
+  async populateDisabledMediaPrefs() {
+    const PREFS = [
+      "media.wave.enabled",
+      "media.ogg.enabled",
+      "media.opus.enabled",
+      "media.mp4.enabled",
+      "media.wmf.hevc.enabled",
+      "media.webm.enabled",
+      "media.av1.enabled",
+      "media.encoder.webm.enabled",
+      "media.mediasource.enabled",
+      "media.mediasource.mp4.enabled",
+      "media.mediasource.webm.enabled",
+      "media.mediasource.vp9.enabled",
+    ];
+
+    const defaultPrefs = new lazy.Preferences({ defaultBranch: true });
+    const changedPrefs = {};
+    for (const pref of PREFS) {
+      const value = lazy.Preferences.get(pref);
+      if (lazy.Preferences.isSet(pref) && defaultPrefs.get(pref) !== value) {
+        const key = pref.substring(6).substring(0, pref.length - 8 - 6);
+        changedPrefs[key] = value;
+      }
+    }
+    Glean.characteristics.changedMediaPrefs.set(JSON.stringify(changedPrefs));
   }
 }

@@ -660,6 +660,226 @@ function populateVoiceList() {
   };
 }
 
+function populateMediaCapabilities() {
+  // Decoding: MP4 and WEBM are PDM dependant, while the other types are not, so for MP4 and WEBM we manually check for mimetypes.
+  // We also don't make an extra check for media-source as both file and media-source end up calling the same code path except for
+  // some prefs that block some mime types but we collect them.
+  // Encoding: It isn't dependant on hardware, so we just skip it, but collect media.encoder.webm.enabled pref.
+  const mimeTypes = {
+    audio: [
+      // WEBM
+      "audio/webm; codecs=vorbis",
+      "audio/webm; codecs=opus",
+      // MP4
+      "audio/mp4; codecs=mp4a.40.2",
+      "audio/mp4; codecs=mp3",
+      "audio/mp4; codecs=opus",
+      "audio/mp4; codecs=flac",
+    ],
+    video: [
+      // WEBM
+      "video/webm; codecs=vp9",
+      "video/webm; codecs=vp8",
+      "video/webm; codecs=av1",
+      // MP4
+      "video/mp4; codecs=vp9",
+      "video/mp4; codecs=vp8",
+      "video/mp4; codecs=hev1.1.6.L123.B0",
+      "video/mp4; codecs=avc1.64001F",
+    ],
+  };
+
+  const audioConfig = {
+    type: "file",
+    audio: {
+      channels: 2,
+      bitrate: 64000,
+      samplerate: 44000,
+    },
+  };
+
+  const videoConfig = {
+    type: "file",
+    video: {
+      width: 1280,
+      height: 720,
+      bitrate: 10000,
+      framerate: 30,
+    },
+  };
+
+  async function getCapabilities() {
+    // Firefox reports all supported audio codecs as smooth and power efficient
+    // so we just check supported codecs for audio
+    const capabilities = {
+      unsupported: [],
+      videos: {},
+    };
+
+    for (const audioMime of mimeTypes.audio) {
+      audioConfig.audio.contentType = audioMime;
+      const capability = await navigator.mediaCapabilities.decodingInfo(
+        audioConfig
+      );
+      if (!capability.supported) {
+        capabilities.unsupported.push(audioMime);
+      }
+    }
+
+    for (const videoMime of mimeTypes.video) {
+      videoConfig.video.contentType = videoMime;
+      const capability = await navigator.mediaCapabilities.decodingInfo(
+        videoConfig
+      );
+      if (!capability.supported) {
+        capabilities.unsupported.push(videoMime);
+      } else {
+        capabilities.videos[videoMime] = {
+          smooth: capability.smooth,
+          powerEfficient: capability.powerEfficient,
+        };
+      }
+    }
+
+    return JSON.stringify(capabilities);
+  }
+
+  return {
+    mediaCapabilities: getCapabilities(),
+  };
+}
+
+function populateAudioFingerprint() {
+  // Trimmed down version of https://github.com/fingerprintjs/fingerprintjs/blob/c463ca034747df80d95cc96a0a9c686d8cd001a5/src/sources/audio.ts
+  // At that time, fingerprintjs was licensed with MIT.
+  const hashFromIndex = 4500;
+  const hashToIndex = 5000;
+  const context = new window.OfflineAudioContext(1, hashToIndex, 44100);
+
+  const oscillator = context.createOscillator();
+  oscillator.type = "triangle";
+  oscillator.frequency.value = 10000;
+
+  const compressor = context.createDynamicsCompressor();
+  compressor.threshold.value = -50;
+  compressor.knee.value = 40;
+  compressor.ratio.value = 12;
+  compressor.attack.value = 0;
+  compressor.release.value = 0.25;
+
+  oscillator.connect(compressor);
+  compressor.connect(context.destination);
+  oscillator.start(0);
+
+  const [renderPromise, finishRendering] = startRenderingAudio(context);
+  const fingerprintPromise = renderPromise.then(
+    buffer => getHash(buffer.getChannelData(0).subarray(hashFromIndex)),
+    error => {
+      if (error === "TIMEOUT" || error.name === "SUSPENDED") {
+        return "TIMEOUT";
+      }
+      throw error;
+    }
+  );
+
+  /**
+   * Starts rendering the audio context.
+   * When the returned function is called, the render process starts finishing.
+   */
+  function startRenderingAudio(context) {
+    const renderTryMaxCount = 3;
+    const renderRetryDelay = 500;
+    const runningMaxAwaitTime = 500;
+    const runningSufficientTime = 5000;
+    let finalize = () => undefined;
+
+    const resultPromise = new Promise((resolve, reject) => {
+      let isFinalized = false;
+      let renderTryCount = 0;
+      let startedRunningAt = 0;
+
+      context.oncomplete = event => resolve(event.renderedBuffer);
+
+      const startRunningTimeout = () => {
+        setTimeout(
+          () => reject("TIMEMOUT"),
+          Math.min(
+            runningMaxAwaitTime,
+            startedRunningAt + runningSufficientTime - Date.now()
+          )
+        );
+      };
+
+      const tryRender = () => {
+        try {
+          context.startRendering();
+
+          switch (context.state) {
+            case "running":
+              startedRunningAt = Date.now();
+              if (isFinalized) {
+                startRunningTimeout();
+              }
+              break;
+
+            // Sometimes the audio context doesn't start after calling `startRendering` (in addition to the cases where
+            // audio context doesn't start at all). A known case is starting an audio context when the browser tab is in
+            // background on iPhone. Retries usually help in this case.
+            case "suspended":
+              // The audio context can reject starting until the tab is in foreground. Long fingerprint duration
+              // in background isn't a problem, therefore the retry attempts don't count in background. It can lead to
+              // a situation when a fingerprint takes very long time and finishes successfully. FYI, the audio context
+              // can be suspended when `document.hidden === false` and start running after a retry.
+              if (!document.hidden) {
+                renderTryCount++;
+              }
+              if (isFinalized && renderTryCount >= renderTryMaxCount) {
+                reject("SUSPENDED");
+              } else {
+                setTimeout(tryRender, renderRetryDelay);
+              }
+              break;
+          }
+        } catch (error) {
+          reject(error);
+        }
+      };
+
+      tryRender();
+
+      finalize = () => {
+        if (!isFinalized) {
+          isFinalized = true;
+          if (startedRunningAt > 0) {
+            startRunningTimeout();
+          }
+        }
+      };
+    });
+
+    return [resultPromise, finalize];
+  }
+
+  function getHash(signal) {
+    let hash = 0;
+    for (let i = 0; i < signal.length; ++i) {
+      hash += Math.abs(signal[i]);
+    }
+    // return as string for Glean.
+    // We probably don't want use sha-1/256 etc. as fingerprintjs
+    // states a difference of 0.0000022 implies a different device
+    // so we are actually interested in the number. We multiply by
+    // 10e7 and submit as int.
+    return hash * 10e7;
+  }
+
+  finishRendering();
+
+  return {
+    audioFingerprint: fingerprintPromise,
+  };
+}
+
 // =======================================================================
 // Setup & Populating
 
@@ -681,6 +901,8 @@ const LocalFiraSans = new FontFace(
     ...populateWebGLCanvases(),
     ...populateFingerprintJSCanvases(),
     ...populateVoiceList(),
+    ...populateMediaCapabilities(),
+    ...populateAudioFingerprint(),
   };
 
   debug("Awaiting", Object.keys(data).length, "data promises.");
