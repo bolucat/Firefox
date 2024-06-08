@@ -1200,9 +1200,11 @@
 # Space-separated list of regexs that are compared to URLs of resources
 # being checked by content-analysis.  Resources that match are not checked
 # and are always permitted.
+# By default this does not check any about: page except for about:blank
+# and about:srcdoc.
 - name: browser.contentanalysis.allow_url_regex_list
   type: String
-  value: "^about:.*"
+  value: "^about:(?!blank|srcdoc).*"
   mirror: never
 
 # Space-separated list of regexs that are compared to URLs of resources
@@ -6539,6 +6541,14 @@
   mirror: always
 
 - name: gfx.webrender.debug.dl.dump-content-serialized
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# When true, we output warning messages when rejecting surface promotion
+# when it has been requested. This is important for color correctness of
+# wide color videos, as well as for GPU performance for all videos.
+- name: gfx.webrender.debug.surface-promotion-logging
   type: RelaxedAtomicBool
   value: false
   mirror: always
@@ -15562,11 +15572,6 @@
 - name: toolkit.telemetry.geckoview.maxBatchStalenessMS
   type: RelaxedAtomicUint32
   value: 60000
-  mirror: always
-
-- name: toolkit.telemetry.geckoview.streaming
-  type: RelaxedAtomicBool
-  value: false
   mirror: always
 
 - name: toolkit.telemetry.testing.overrideProductsCheck
