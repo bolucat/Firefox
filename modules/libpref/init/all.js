@@ -3992,7 +3992,7 @@ pref("services.common.log.logger.tokenserverclient", "Debug");
   // 1: WebDriver BiDi
   // 2: CDP (Chrome DevTools Protocol)
   // 3: WebDriver BiDi + CDP
-  pref("remote.active-protocols", 3);
+  pref("remote.active-protocols", 1);
 
   // Enable WebDriver BiDi experimental commands and events.
   #if defined(NIGHTLY_BUILD)
@@ -4050,6 +4050,10 @@ pref("devtools.errorconsole.deprecation_warnings", true);
 
 // Disable service worker debugging on all channels (see Bug 1651605).
 pref("devtools.debugger.features.windowless-service-workers", false);
+
+// Bug 1824726 replaced client side throttling with server side throttling.
+// Use a preference in order to rollback in case of trouble.
+pref("devtools.client-side-throttling.enable", false);
 
 // Disable remote debugging protocol logging.
 pref("devtools.debugger.log", false);

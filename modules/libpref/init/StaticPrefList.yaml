@@ -172,6 +172,12 @@
 #define IS_NOT_EARLY_BETA_OR_EARLIER true
 #endif
 
+#if defined(MOZ_DEV_EDITION) || defined(EARLY_BETA_OR_EARLIER)
+#define DEV_EDITION_OR_EARLY_BETA_OR_EARLIER true
+#else
+#define DEV_EDITION_OR_EARLY_BETA_OR_EARLIER false
+#endif
+
 #ifdef ANDROID
 #define IS_ANDROID true
 #define IS_NOT_ANDROID false
@@ -3751,13 +3757,6 @@
   value: true
   mirror: always
 
-# If true, when checking if it's upgrade downgrade cycles, the URI path will be
-# also checked.
-- name: dom.security.https_only_check_path_upgrade_downgrade_endless_loop
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 # If true and HTTPS-only mode is enabled, requests
 # to local IP addresses are also upgraded
 - name: dom.security.https_only_mode.upgrade_local
@@ -5891,7 +5890,7 @@
 
 - name: gfx.canvas.remote.recycle-used-data-surface
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 - name: gfx.canvas.willreadfrequently.enabled
@@ -7984,6 +7983,12 @@
     mirror: always
     set_spidermonkey_pref: startup
 
+-   name: javascript.options.wasm_experimental_compile_pipeline
+    type: bool
+    value: false
+    mirror: always
+    set_spidermonkey_pref: startup
+
 # Support for pretenuring allocations based on their allocation site.
 - name: javascript.options.site_based_pretenuring
   type: bool
@@ -8818,6 +8823,12 @@
 - name: layout.css.initial-letter.enabled
   type: bool
   value: false
+  mirror: always
+
+# Is eager first-letter processing during intrinsic size computation enabled?
+- name: layout.css.intrinsic-size-first-letter.enabled
+  type: bool
+  value: true
   mirror: always
 
 # Which model to use for CSS letter-spacing:
@@ -10527,7 +10538,7 @@
 # 2 : enable for encrypted only, 3 : enable for clear only
 -   name: media.wmf.media-engine.enabled
     type: RelaxedAtomicUint32
-#if defined(NIGHTLY_BUILD)
+#if defined(DEV_EDITION_OR_EARLY_BETA_OR_EARLIER)
     value: 2
 #else
     value: 0
@@ -10581,7 +10592,7 @@
 # Enable PlayReady DRM for EME
 -   name: media.eme.playready.enabled
     type: RelaxedAtomicBool
-#if defined(MOZ_WMF_CDM) && defined(IS_NIGHTLY_OR_DEV_EDITION)
+#if defined(MOZ_WMF_CDM) && defined(DEV_EDITION_OR_EARLY_BETA_OR_EARLIER)
     value: true
 #else
     value: false
@@ -10601,7 +10612,7 @@
     type: RelaxedAtomicUint32
 #if defined(NIGHTLY_BUILD)
     value: 1
-#elif defined(MOZ_DEV_EDITION)
+#elif defined(MOZ_DEV_EDITION) || defined(EARLY_BETA_OR_EARLIER)
     value: 2
 #else
     value: 0
@@ -13483,13 +13494,6 @@
 - name: network.jar.max_available_size
   type: RelaxedAtomicUint32
   value: 256*1024*1024 # 256 Mb
-  mirror: always
-
-# Whether JAR entries that defate to a different size than RealSize/orglen
-# are considered corrupted or not
-- name: network.jar.require_size_match
-  type: RelaxedAtomicBool
-  value: true
   mirror: always
 
 # When decompressing an archived entry we need to allocate a buffer
