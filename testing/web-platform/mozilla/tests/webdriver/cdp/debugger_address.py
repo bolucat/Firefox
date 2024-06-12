@@ -4,7 +4,14 @@ import json
 
 import pytest
 from support.context import using_context
+from support.helpers import clear_pref
 from tests.support.http_request import HTTPRequest
+
+
+@pytest.fixture(autouse=True)
+def clear_protocol_pref(session):
+    yield
+    clear_pref(session, "remote.active-protocols")
 
 
 @pytest.mark.capabilities(

@@ -4332,7 +4332,7 @@
 
 - name: dom.vibrator.enabled
   type: bool
-  value: true
+  value: false
   mirror: always
 
 - name: dom.vibrator.max_vibrate_ms
@@ -4770,11 +4770,7 @@
 
 - name: dom.webnotifications.vibrate.enabled
   type: RelaxedAtomicBool
-#if defined(MOZ_WIDGET_ANDROID)
-  value: @IS_NIGHTLY_BUILD@
-#else
   value: false
-#endif
   mirror: always
 
 # Setting log level for notification modules.
@@ -6544,6 +6540,14 @@
   value: false
   mirror: always
 
+# When true, we output warning messages when rejecting surface promotion
+# when it has been requested. This is important for color correctness of
+# wide color videos, as well as for GPU performance for all videos.
+- name: gfx.webrender.debug.surface-promotion-logging
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 #ifdef MOZ_WIDGET_GTK
 - name: gfx.webrender.reject-software-driver
   type: bool
@@ -6554,6 +6558,11 @@
 - name: gfx.webrender.debug.highlight-painted-layers
   type: RelaxedAtomicBool
   value: false
+  mirror: always
+
+- name: gfx.webrender.debug.slow-cpu-frame-threshold
+  type: AtomicFloat
+  value: 10.0
   mirror: always
 
 - name: gfx.webrender.late-scenebuild-threshold
@@ -10957,11 +10966,6 @@
   value: false
   mirror: always
 
-- name: media.media-capabilities.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 - name: media.media-capabilities.screen.enabled
   type: RelaxedAtomicBool
   value: false
@@ -11783,6 +11787,11 @@
   value: false
   mirror: always
 
+- name: network.cookie.sameSite.crossSiteIframeSetCheck
+  type: bool
+  value: true
+  mirror: always
+
 - name: network.cookie.thirdparty.sessionOnly
   type: bool
   value: false
@@ -12392,7 +12401,7 @@
   value: 0
   mirror: always
 
-# Adjustments to apply to the internal priority of gloable fetch API
+# Adjustments to apply to the internal priority of global fetch API
 # for fetchpriority=low/high/auto with respect to the case when
 # network.fetchpriority is disabled.
 # - When the flag is disabled, Gecko currently sets priority to NORMAL.
@@ -12426,6 +12435,24 @@
   value: -20
   mirror: always
 - name: network.fetchpriority.adjustments.images.auto
+  type: int32_t
+  value: 0
+  mirror: always
+
+# Adjustments to apply to the internal priority of <audio>, <track>, <video>,
+# or <link rel=preload as=audio/track/video> with respect to the case when
+# network.fetchpriority is disabled.
+# - When the flag is disabled, Gecko currently sets priority to NORMAL.
+# - When the flag is enabled, it respectively maps to LOW/LOW/HIGH.
+- name: network.fetchpriority.adjustments.media.low
+  type: int32_t
+  value: 10
+  mirror: always
+- name: network.fetchpriority.adjustments.media.high
+  type: int32_t
+  value: 0
+  mirror: always
+- name: network.fetchpriority.adjustments.media.auto
   type: int32_t
   value: 0
   mirror: always
@@ -15558,16 +15585,6 @@
 - name: toolkit.telemetry.ipcBatchTimeout
   type: uint32_t
   value: 2000
-  mirror: always
-
-- name: toolkit.telemetry.geckoview.batchDurationMS
-  type: RelaxedAtomicUint32
-  value: 5000
-  mirror: always
-
-- name: toolkit.telemetry.geckoview.maxBatchStalenessMS
-  type: RelaxedAtomicUint32
-  value: 60000
   mirror: always
 
 - name: toolkit.telemetry.testing.overrideProductsCheck
