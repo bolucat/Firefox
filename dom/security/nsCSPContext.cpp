@@ -222,20 +222,18 @@ bool nsCSPContext::permitsInternal(
                 ? Resource{nsCOMPtr<nsIURI>{aContentLocation}}
                 : Resource{CSPViolationData::BlockedContentSource::Unknown};
 
-        CSPViolationData cspViolationData{p, std::move(resource)};
+        CSPViolationData cspViolationData{p, std::move(resource), lineNumber,
+                                          columnNumber, /* aSample */ u""_ns};
 
         AsyncReportViolation(
             aTriggeringElement, aCSPEventListener, std::move(cspViolationData),
             aOriginalURIIfRedirect, /* in case of redirect originalURI is not
                                        null */
             violatedDirective, violatedDirectiveString,
-            aDir,          // aViolatedDirective
-            u""_ns,        // no observer subject
-            spec,          // source file
-            false,         // aReportSample (no sample)
-            u""_ns,        /* no script sample    */
-            lineNumber,    /* line number      */
-            columnNumber); /*  column number    */
+            aDir,    // aViolatedDirective
+            u""_ns,  // no observer subject
+            spec,    // source file
+            false);  // aReportSample (no sample)
       }
     }
   }
@@ -565,7 +563,8 @@ void nsCSPContext::reportInlineViolation(
   CSPViolationData cspViolationData{
       aViolatedPolicyIndex,
       CSPViolationData::Resource{
-          CSPViolationData::BlockedContentSource::Inline}};
+          CSPViolationData::BlockedContentSource::Inline},
+      lineNumber, columnNumber, aSample};
 
   AsyncReportViolation(aTriggeringElement, aCSPEventListener,
                        std::move(cspViolationData),
@@ -575,10 +574,7 @@ void nsCSPContext::reportInlineViolation(
                        aEffectiveDirective,  // aEffectiveDirective
                        observerSubject,      // aObserverSubject
                        sourceFile,           // aSourceFile
-                       aReportSample,        // aReportSample
-                       aSample,              // aScriptSample
-                       lineNumber,           // aLineNum
-                       columnNumber);        // aColumnNum
+                       aReportSample);       // aReportSample
 }
 
 NS_IMETHODIMP
@@ -758,14 +754,15 @@ nsCSPContext::LogViolationDetails(
         violatedDirectiveNameAndValue, &reportSample);
 
     CSPViolationData cspViolationData{
-        p, CSPViolationData::Resource{blockedContentSource}};
+        p, CSPViolationData::Resource{blockedContentSource},
+        static_cast<uint32_t>(aLineNum), static_cast<uint32_t>(aColumnNum),
+        aScriptSample};
 
     AsyncReportViolation(
         aTriggeringElement, aCSPEventListener, std::move(cspViolationData),
         nullptr, violatedDirectiveName, violatedDirectiveNameAndValue,
         CSPDirective::SCRIPT_SRC_DIRECTIVE /* aEffectiveDirective */,
-        observerSubject, aSourceFile, reportSample, aScriptSample, aLineNum,
-        aColumnNum);
+        observerSubject, aSourceFile, reportSample);
   }
   return NS_OK;
 }
@@ -978,8 +975,8 @@ void StripURIForReporting(nsIURI* aSelfURI, nsIURI* aURI,
 
 nsresult nsCSPContext::GatherSecurityPolicyViolationEventData(
     nsIURI* aOriginalURI, const nsAString& aEffectiveDirective,
-    const CSPViolationData& aCSPViolationData, const nsAString& aSourceFile,
-    const nsAString& aScriptSample, uint32_t aLineNum, uint32_t aColumnNum,
+    const mozilla::dom::CSPViolationData& aCSPViolationData,
+    const nsAString& aSourceFile, const nsAString& aScriptSample,
     mozilla::dom::SecurityPolicyViolationEventInit& aViolationEventInit) {
   EnsureIPCPoliciesRead();
   NS_ENSURE_ARG_MAX(aCSPViolationData.mViolatedPolicyIndex,
@@ -1076,10 +1073,10 @@ nsresult nsCSPContext::GatherSecurityPolicyViolationEventData(
   aViolationEventInit.mStatusCode = statusCode;
 
   // line-number
-  aViolationEventInit.mLineNumber = aLineNum;
+  aViolationEventInit.mLineNumber = aCSPViolationData.mLineNumber;
 
   // column-number
-  aViolationEventInit.mColumnNumber = aColumnNum;
+  aViolationEventInit.mColumnNumber = aCSPViolationData.mColumnNumber;
 
   aViolationEventInit.mBubbles = true;
   aViolationEventInit.mComposed = true;
@@ -1399,8 +1396,7 @@ class CSPReportSenderRunnable final : public Runnable {
                           const CSPDirective aEffectiveDirective,
                           const nsAString& aObserverSubject,
                           const nsAString& aSourceFile, bool aReportSample,
-                          const nsAString& aScriptSample, uint32_t aLineNum,
-                          uint32_t aColumnNum, nsCSPContext* aCSPContext)
+                          nsCSPContext* aCSPContext)
       : mozilla::Runnable("CSPReportSenderRunnable"),
         mTriggeringElement(aTriggeringElement),
         mCSPEventListener(aCSPEventListener),
@@ -1412,9 +1408,6 @@ class CSPReportSenderRunnable final : public Runnable {
         mViolatedDirectiveNameAndValue(aViolatedDirectiveNameAndValue),
         mEffectiveDirective(aEffectiveDirective),
         mSourceFile(aSourceFile),
-        mScriptSample(aScriptSample),
-        mLineNum(aLineNum),
-        mColumnNum(aColumnNum),
         mCSPContext(aCSPContext) {
     NS_ASSERTION(!aViolatedDirectiveName.IsEmpty(),
                  "Can not send reports without a violated directive");
@@ -1441,19 +1434,6 @@ class CSPReportSenderRunnable final : public Runnable {
       supportscstr->SetData(subject);
       mObserverSubject = do_QueryInterface(supportscstr);
     }
-
-    // Truncate sample string.
-    uint32_t length = mScriptSample.Length();
-    if (length > nsCSPContext::ScriptSampleMaxLength()) {
-      uint32_t desiredLength = nsCSPContext::ScriptSampleMaxLength();
-      // Don't cut off right before a low surrogate. Just include it.
-      if (NS_IS_LOW_SURROGATE(mScriptSample[desiredLength])) {
-        desiredLength++;
-      }
-      mScriptSample.Replace(nsCSPContext::ScriptSampleMaxLength(),
-                            length - desiredLength,
-                            nsContentUtils::GetLocalizedEllipsis());
-    }
   }
 
   NS_IMETHOD Run() override {
@@ -1468,8 +1448,7 @@ class CSPReportSenderRunnable final : public Runnable {
 
     nsresult rv = mCSPContext->GatherSecurityPolicyViolationEventData(
         mOriginalURI, effectiveDirective, mCSPViolationData, mSourceFile,
-        mReportSample ? mScriptSample : EmptyString(), mLineNum, mColumnNum,
-        init);
+        mReportSample ? mCSPViolationData.mSample : EmptyString(), init);
     NS_ENSURE_SUCCESS(rv, rv);
 
     // 1) notify observers
@@ -1526,30 +1505,34 @@ class CSPReportSenderRunnable final : public Runnable {
 
         AutoTArray<nsString, 2> params = {mViolatedDirectiveNameAndValue,
                                           effectiveDirective};
-        mCSPContext->logToConsole(errorName, params, mSourceFile, mScriptSample,
-                                  mLineNum, mColumnNum,
-                                  nsIScriptError::errorFlag);
+        mCSPContext->logToConsole(
+            errorName, params, mSourceFile, mCSPViolationData.mSample,
+            mCSPViolationData.mLineNumber, mCSPViolationData.mColumnNumber,
+            nsIScriptError::errorFlag);
         break;
       }
 
       case CSPViolationData::BlockedContentSource::Eval: {
         AutoTArray<nsString, 2> params = {mViolatedDirectiveNameAndValue,
                                           effectiveDirective};
-        mCSPContext->logToConsole(mReportOnlyFlag ? "CSPROEvalScriptViolation"
-                                                  : "CSPEvalScriptViolation",
-                                  params, mSourceFile, mScriptSample, mLineNum,
-                                  mColumnNum, nsIScriptError::errorFlag);
+        mCSPContext->logToConsole(
+            mReportOnlyFlag ? "CSPROEvalScriptViolation"
+                            : "CSPEvalScriptViolation",
+            params, mSourceFile, mCSPViolationData.mSample,
+            mCSPViolationData.mLineNumber, mCSPViolationData.mColumnNumber,
+            nsIScriptError::errorFlag);
         break;
       }
 
       case CSPViolationData::BlockedContentSource::WasmEval: {
         AutoTArray<nsString, 2> params = {mViolatedDirectiveNameAndValue,
                                           effectiveDirective};
-        mCSPContext->logToConsole(mReportOnlyFlag
-                                      ? "CSPROWasmEvalScriptViolation"
-                                      : "CSPWasmEvalScriptViolation",
-                                  params, mSourceFile, mScriptSample, mLineNum,
-                                  mColumnNum, nsIScriptError::errorFlag);
+        mCSPContext->logToConsole(
+            mReportOnlyFlag ? "CSPROWasmEvalScriptViolation"
+                            : "CSPWasmEvalScriptViolation",
+            params, mSourceFile, mCSPViolationData.mSample,
+            mCSPViolationData.mLineNumber, mCSPViolationData.mColumnNumber,
+            nsIScriptError::errorFlag);
         break;
       }
 
@@ -1594,9 +1577,10 @@ class CSPReportSenderRunnable final : public Runnable {
 
         AutoTArray<nsString, 3> params = {mViolatedDirectiveNameAndValue,
                                           source, effectiveDirective};
-        mCSPContext->logToConsole(errorName, params, mSourceFile, mScriptSample,
-                                  mLineNum, mColumnNum,
-                                  nsIScriptError::errorFlag);
+        mCSPContext->logToConsole(
+            errorName, params, mSourceFile, mCSPViolationData.mSample,
+            mCSPViolationData.mLineNumber, mCSPViolationData.mColumnNumber,
+            nsIScriptError::errorFlag);
       }
     }
   }
@@ -1612,9 +1596,6 @@ class CSPReportSenderRunnable final : public Runnable {
   CSPDirective mEffectiveDirective;
   nsCOMPtr<nsISupports> mObserverSubject;
   nsString mSourceFile;
-  nsString mScriptSample;
-  uint32_t mLineNum;
-  uint32_t mColumnNum;
   RefPtr<nsCSPContext> mCSPContext;
 };
 
@@ -1634,12 +1615,6 @@ class CSPReportSenderRunnable final : public Runnable {
  *        violation topic.
  * @param aSourceFile
  *        name of the file containing the inline script violation
- * @param aScriptSample
- *        a sample of the violating inline script
- * @param aLineNum
- *        source line number of the violation (if available)
- * @param aColumnNum
- *        source column number of the violation (if available)
  */
 nsresult nsCSPContext::AsyncReportViolation(
     mozilla::dom::Element* aTriggeringElement,
@@ -1648,8 +1623,7 @@ nsresult nsCSPContext::AsyncReportViolation(
     const nsAString& aViolatedDirectiveName,
     const nsAString& aViolatedDirectiveNameAndValue,
     const CSPDirective aEffectiveDirective, const nsAString& aObserverSubject,
-    const nsAString& aSourceFile, bool aReportSample,
-    const nsAString& aScriptSample, uint32_t aLineNum, uint32_t aColumnNum) {
+    const nsAString& aSourceFile, bool aReportSample) {
   EnsureIPCPoliciesRead();
   NS_ENSURE_ARG_MAX(aCSPViolationData.mViolatedPolicyIndex,
                     mPolicies.Length() - 1);
@@ -1659,8 +1633,7 @@ nsresult nsCSPContext::AsyncReportViolation(
       aOriginalURI,
       mPolicies[aCSPViolationData.mViolatedPolicyIndex]->getReportOnlyFlag(),
       aViolatedDirectiveName, aViolatedDirectiveNameAndValue,
-      aEffectiveDirective, aObserverSubject, aSourceFile, aReportSample,
-      aScriptSample, aLineNum, aColumnNum, this);
+      aEffectiveDirective, aObserverSubject, aSourceFile, aReportSample, this);
 
   if (XRE_IsContentProcess()) {
     if (mEventTarget) {

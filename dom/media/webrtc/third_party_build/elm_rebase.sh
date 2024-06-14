@@ -70,6 +70,15 @@ fi
 # * o pipefail: All stages of all pipes should succeed.
 set -eEuo pipefail
 
+# always make sure the repo is clean before doing the rebase
+CHANGED_FILE_CNT=`hg status | wc -l | tr -d " "`
+if [ "x$CHANGED_FILE_CNT" != "x0" ]; then
+  echo "There are modified or untracked files in the repo."
+  echo "Please cleanup the repo before running"
+  echo "$0"
+  exit 1
+fi
+
 if [ -f $STATE_DIR/rebase_resume_state ]; then
   source $STATE_DIR/rebase_resume_state
 else
@@ -167,6 +176,19 @@ That command looks like:
   hg bookmark -r elm $MOZ_BOOKMARK
 
   hg update $MOZ_NEW_CENTRAL
+
+  ERROR_HELP=$"
+Running ./mach bootstrap has failed.  For details, see:
+$LOG_DIR/log-bootstrap.txt
+"
+  echo "Running ./mach bootstrap..."
+  ./mach bootstrap --application=browser --no-system-changes &> $LOG_DIR/log-bootstrap.txt
+  echo "Done running ./mach bootstrap"
+  ERROR_HELP=""
+
+  echo "Running ./mach clobber..."
+  ./mach clobber &> $LOG_DIR/log-sanity-clobber.txt
+  echo "Done running ./mach clobber"
 
   # pre-work is complete, let's write out a temporary config file that allows
   # us to resume
@@ -272,7 +294,46 @@ for commit in $COMMITS; do
   echo "Done processing $commit"
 done
 
-rm $STATE_DIR/rebase_resume_state
+ERROR_HELP=$"
+Running the sanity build has failed.  For details, see:
+$LOG_DIR/log-sanity-build.txt
+
+Please fix the build, commit the changes (if necessary, the
+patch-stack will be fixed up during steps following the
+build), and then run:
+  bash $0
+"
+echo "Running sanity build..."
+./mach build &> $LOG_DIR/log-sanity-build.txt
+echo "Done running sanity build"
+ERROR_HELP=""
+
+# In case any changes were made to fix the build after the rebase,
+# we'll check for changes since the last patch-stack update in
+# third_party/libwebrtc/moz-patch-stack.
+# TODO: this is copied from verify_vendoring.sh.  We should make
+# make this reusable.
+# we grab the entire firstline description for convenient logging
+LAST_PATCHSTACK_UPDATE_COMMIT=`hg log -r ::. --template "{node|short} {desc|firstline}\n" \
+    --include "third_party/libwebrtc/moz-patch-stack/*.patch" | tail -1`
+echo "LAST_PATCHSTACK_UPDATE_COMMIT: $LAST_PATCHSTACK_UPDATE_COMMIT"
+
+LAST_PATCHSTACK_UPDATE_COMMIT_SHA=`echo $LAST_PATCHSTACK_UPDATE_COMMIT \
+    | awk '{ print $1; }'`
+echo "LAST_PATCHSTACK_UPDATE_COMMIT_SHA: $LAST_PATCHSTACK_UPDATE_COMMIT_SHA"
+
+# grab the oldest, non "Vendor from libwebrtc" line
+CANDIDATE_COMMITS=`hg log --template "{node|short} {desc|firstline}\n" \
+    -r "children($LAST_PATCHSTACK_UPDATE_COMMIT_SHA)::. - desc('re:(Vendor libwebrtc)')" \
+    --include "third_party/libwebrtc/" | awk 'BEGIN { ORS=" " }; { print $1; }'`
+echo "CANDIDATE_COMMITS:"
+echo "$CANDIDATE_COMMITS"
+
+EXTRACT_COMMIT_RANGE=""
+if [ "x$CANDIDATE_COMMITS" != "x" ]; then
+  EXTRACT_COMMIT_RANGE="$CANDIDATE_COMMITS"
+  echo "EXTRACT_COMMIT_RANGE: $EXTRACT_COMMIT_RANGE"
+fi
 
 # This is blank in case no changes have been made in third_party/libwebrtc
 # since the previous rebase (or original elm reset).
@@ -282,9 +343,10 @@ echo "Checking for new mercurial changes in third_party/libwebrtc"
 FIXUP_INSTRUCTIONS=$"
 Mercurial changes in third_party/libwebrtc since the last rebase have been
 detected (using the verify_vendoring.sh script).  Running the following
-commands should remedy the situation:
+commands should help remedy the situation:
 
-  ./mach python $SCRIPT_DIR/extract-for-git.py $MOZ_OLD_CENTRAL::$MOZ_NEW_CENTRAL
+  ./mach python $SCRIPT_DIR/extract-for-git.py \\
+         $MOZ_OLD_CENTRAL::$MOZ_NEW_CENTRAL $EXTRACT_COMMIT_RANGE
   mv mailbox.patch $MOZ_LIBWEBRTC_SRC
   (cd $MOZ_LIBWEBRTC_SRC && \\
    git am mailbox.patch)
@@ -305,11 +367,13 @@ echo "Verify vendoring..."
 bash $SCRIPT_DIR/verify_vendoring.sh &> $LOG_DIR/log-verify.txt || PATCH_STACK_FIXUP="$FIXUP_INSTRUCTIONS"
 echo "Done checking for new mercurial changes in third_party/libwebrtc"
 
+# now that we've run all the things that should be fallible, remove the
+# resume state file
+rm $STATE_DIR/rebase_resume_state
+
 REMAINING_STEPS=$"
 The rebase process is complete.  The following steps must be completed manually:
 $PATCH_STACK_FIXUP
-  ./mach bootstrap --application=browser --no-system-changes && \\
-  ./mach clobber && ./mach build && \\
   hg push -r tip --force && \\
   hg push -B $MOZ_BOOKMARK
 "
