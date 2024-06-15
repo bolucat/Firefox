@@ -2641,7 +2641,7 @@
 # event as a default action of `beforeinput`.
 - name: dom.events.textevent.enabled
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Whether to expose test interfaces of various sorts
@@ -4604,6 +4604,13 @@
   value: @IS_NIGHTLY_BUILD@
   mirror: always
 
+# Whether `click`, `auxclick` and `contextmenu` events are dispatched as a
+# PointerEvent or MouseEvent.
+- name: dom.w3c_pointer_events.dispatch_click_as_pointer_event
+  type: bool
+  value: true
+  mirror: always
+
 # In case Touch API is enabled, this pref controls whether to support
 # ontouch* event handlers, document.createTouch, document.createTouchList and
 # document.createEvent("TouchEvent").
@@ -5890,6 +5897,11 @@
   type: RelaxedAtomicBool
   value: true
   mirror: always
+
+- name: gfx.canvas.remote.use-canvas-translator-event
+  type: bool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: once
 
 - name: gfx.canvas.willreadfrequently.enabled
   type: bool
@@ -13470,6 +13482,12 @@
   type: RelaxedAtomicBool
   value: false
   mirror: always
+
+# Only used for testing
+- name: network.dns.mock_HTTPS_RR_domain
+  type: String
+  value: ""
+  mirror: never
 
 # Whether to add additional record IPs to the cache
 - name: network.trr.add_additional_records

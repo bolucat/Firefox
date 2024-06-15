@@ -144,12 +144,14 @@ import org.mozilla.fenix.home.toolbar.DefaultToolbarController
 import org.mozilla.fenix.home.toolbar.SearchSelectorBinding
 import org.mozilla.fenix.home.toolbar.SearchSelectorMenuBinding
 import org.mozilla.fenix.home.topsites.DefaultTopSitesView
+import org.mozilla.fenix.home.ui.Homepage
 import org.mozilla.fenix.messaging.DefaultMessageController
 import org.mozilla.fenix.messaging.FenixMessageSurfaceId
 import org.mozilla.fenix.messaging.MessagingFeature
 import org.mozilla.fenix.microsurvey.ui.MicrosurveyRequestPrompt
 import org.mozilla.fenix.nimbus.FxNimbus
 import org.mozilla.fenix.perf.MarkersFragmentLifecycleCallbacks
+import org.mozilla.fenix.perf.StartupTimeline
 import org.mozilla.fenix.search.SearchDialogFragment
 import org.mozilla.fenix.search.toolbar.DefaultSearchSelectorController
 import org.mozilla.fenix.search.toolbar.SearchSelectorMenu
@@ -488,14 +490,18 @@ class HomeFragment : Fragment() {
             listenForMicrosurveyMessage(requireContext())
         }
 
-        sessionControlView = SessionControlView(
-            containerView = binding.sessionControlRecyclerView,
-            viewLifecycleOwner = viewLifecycleOwner,
-            interactor = sessionControlInteractor,
-            fragmentManager = parentFragmentManager,
-        )
+        if (requireContext().settings().enableComposeHomepage) {
+            initHomepage()
+        } else {
+            sessionControlView = SessionControlView(
+                containerView = binding.sessionControlRecyclerView,
+                viewLifecycleOwner = viewLifecycleOwner,
+                interactor = sessionControlInteractor,
+                fragmentManager = parentFragmentManager,
+            )
 
-        updateSessionControlView()
+            updateSessionControlView()
+        }
 
         disableAppBarDragging()
 
@@ -598,10 +604,12 @@ class HomeFragment : Fragment() {
                     Column {
                         if (currentlyDisplayedMessage != null) {
                             MicrosurveyRequestPrompt()
+                            binding.bottomBarShadow.visibility = View.GONE
+                        } else {
+                            binding.bottomBarShadow.visibility = View.VISIBLE
                         }
 
                         if (isToolbarAtBottom) {
-                            // TODO android bottom bar shadow causing gap FXDROID-2056
                             AndroidView(factory = { _ -> binding.toolbarLayout })
                         } else {
                             Divider()
@@ -702,10 +710,10 @@ class HomeFragment : Fragment() {
                     Column {
                         if (currentlyDisplayedMessage != null) {
                             MicrosurveyRequestPrompt()
+                            binding.bottomBarShadow.visibility = View.GONE
                         }
 
                         if (isToolbarAtTheBottom) {
-                            // TODO android bottom bar shadow causing gap FXDROID-2056
                             AndroidView(factory = { _ -> binding.toolbarLayout })
                         } else {
                             Divider()
@@ -894,7 +902,13 @@ class HomeFragment : Fragment() {
         tabCounterView?.update(requireComponents.core.store.state)
 
         if (bundleArgs.getBoolean(FOCUS_ON_ADDRESS_BAR)) {
-            sessionControlInteractor.onNavigateSearch()
+            // If the fragment gets recreated by the activity, the search fragment might get recreated as well. Changing
+            // between browsing modes triggers activity recreation, so when changing modes goes together with navigating
+            // home, we should avoid navigating to search twice.
+            val searchFragmentAlreadyAdded = parentFragmentManager.fragments.any { it is SearchDialogFragment }
+            if (!searchFragmentAlreadyAdded) {
+                sessionControlInteractor.onNavigateSearch()
+            }
         } else if (bundleArgs.getBoolean(SCROLL_TO_COLLECTION)) {
             MainScope().launch {
                 delay(ANIM_SCROLL_DELAY)
@@ -945,6 +959,26 @@ class HomeFragment : Fragment() {
             profilerStartTime,
             "HomeFragment.onViewCreated",
         )
+    }
+
+    private fun initHomepage() {
+        binding.homeAppBar.isVisible = false
+        binding.homepageView.isVisible = true
+
+        binding.homepageView.apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+
+            setContent {
+                FirefoxTheme {
+                    Homepage(
+                        interactor = sessionControlInteractor,
+                        onTopSitesItemBound = {
+                            StartupTimeline.onTopSitesItemBound(activity = (requireActivity() as HomeActivity))
+                        },
+                    )
+                }
+            }
+        }
     }
 
     private fun initTabStrip() {

@@ -417,7 +417,7 @@ static void RecordReflowStatus(bool aChildIsBlock,
 NS_DECLARE_FRAME_PROPERTY_WITH_DTOR_NEVER_CALLED(OverflowLinesProperty,
                                                  nsBlockFrame::FrameLines)
 NS_DECLARE_FRAME_PROPERTY_FRAMELIST(OverflowOutOfFlowsProperty)
-NS_DECLARE_FRAME_PROPERTY_FRAMELIST(PushedFloatProperty)
+NS_DECLARE_FRAME_PROPERTY_FRAMELIST(PushedFloatsProperty)
 NS_DECLARE_FRAME_PROPERTY_FRAMELIST(OutsideMarkerProperty)
 NS_DECLARE_FRAME_PROPERTY_WITHOUT_DTOR(InsideMarkerProperty, nsIFrame)
 NS_DECLARE_FRAME_PROPERTY_SMALL_VALUE(BlockEndEdgeOfChildrenProperty, nscoord)
@@ -459,7 +459,7 @@ void nsBlockFrame::Destroy(DestroyContext& aContext) {
   nsLineBox::DeleteLineList(presContext, mLines, &mFrames, aContext);
 
   if (HasPushedFloats()) {
-    SafelyDestroyFrameListProp(aContext, presShell, PushedFloatProperty());
+    SafelyDestroyFrameListProp(aContext, presShell, PushedFloatsProperty());
     RemoveStateBits(NS_BLOCK_HAS_PUSHED_FLOATS);
   }
 
@@ -479,7 +479,7 @@ void nsBlockFrame::Destroy(DestroyContext& aContext) {
 
   if (HasOutsideMarker()) {
     SafelyDestroyFrameListProp(aContext, presShell, OutsideMarkerProperty());
-    RemoveStateBits(NS_BLOCK_FRAME_HAS_OUTSIDE_MARKER);
+    RemoveStateBits(NS_BLOCK_HAS_OUTSIDE_MARKER);
   }
 
   nsContainerFrame::Destroy(aContext);
@@ -771,14 +771,10 @@ void nsBlockFrame::CheckIntrinsicCacheAgainstShrinkWrapState() {
     return;
   }
   bool inflationEnabled = !presContext->mInflationDisabledForShrinkWrap;
-  if (inflationEnabled != HasAnyStateBits(NS_BLOCK_FRAME_INTRINSICS_INFLATED)) {
+  if (inflationEnabled != HasAnyStateBits(NS_BLOCK_INTRINSICS_INFLATED)) {
     mCachedMinISize = NS_INTRINSIC_ISIZE_UNKNOWN;
     mCachedPrefISize = NS_INTRINSIC_ISIZE_UNKNOWN;
-    if (inflationEnabled) {
-      AddStateBits(NS_BLOCK_FRAME_INTRINSICS_INFLATED);
-    } else {
-      RemoveStateBits(NS_BLOCK_FRAME_INTRINSICS_INFLATED);
-    }
+    AddOrRemoveStateBits(NS_BLOCK_INTRINSICS_INFLATED, inflationEnabled);
   }
 }
 
@@ -5862,7 +5858,7 @@ void nsBlockFrame::DrainSelfPushedFloats() {
     }
 
     if (ourPushedFloats->IsEmpty()) {
-      RemovePushedFloats()->Delete(presShell);
+      StealPushedFloats()->Delete(presShell);
     }
   }
 }
@@ -5874,7 +5870,7 @@ void nsBlockFrame::DrainPushedFloats() {
   // floats list, containing floats that we need to own.  Take these.
   nsBlockFrame* prevBlock = static_cast<nsBlockFrame*>(GetPrevInFlow());
   if (prevBlock) {
-    AutoFrameListPtr list(PresContext(), prevBlock->RemovePushedFloats());
+    AutoFrameListPtr list(PresContext(), prevBlock->StealPushedFloats());
     if (list && list->NotEmpty()) {
       mFloats.InsertFrames(this, nullptr, std::move(*list));
     }
@@ -6000,7 +5996,7 @@ nsFrameList* nsBlockFrame::GetPushedFloats() const {
   if (!HasPushedFloats()) {
     return nullptr;
   }
-  nsFrameList* result = GetProperty(PushedFloatProperty());
+  nsFrameList* result = GetProperty(PushedFloatsProperty());
   NS_ASSERTION(result, "value should always be non-empty when state set");
   return result;
 }
@@ -6012,17 +6008,17 @@ nsFrameList* nsBlockFrame::EnsurePushedFloats() {
   }
 
   result = new (PresShell()) nsFrameList;
-  SetProperty(PushedFloatProperty(), result);
+  SetProperty(PushedFloatsProperty(), result);
   AddStateBits(NS_BLOCK_HAS_PUSHED_FLOATS);
 
   return result;
 }
 
-nsFrameList* nsBlockFrame::RemovePushedFloats() {
+nsFrameList* nsBlockFrame::StealPushedFloats() {
   if (!HasPushedFloats()) {
     return nullptr;
   }
-  nsFrameList* result = TakeProperty(PushedFloatProperty());
+  nsFrameList* result = TakeProperty(PushedFloatsProperty());
   RemoveStateBits(NS_BLOCK_HAS_PUSHED_FLOATS);
   NS_ASSERTION(result, "value should always be non-empty when state set");
   return result;
@@ -6372,7 +6368,7 @@ void nsBlockFrame::RemoveFloat(nsIFrame* aFloat) {
     MOZ_ASSERT(
         (GetOverflowOutOfFlows() &&
          GetOverflowOutOfFlows()->ContainsFrame(aFloat)) ||
-            (GetPushedFloats() && GetPushedFloats()->ContainsFrame(aFloat)),
+            (HasPushedFloats() && GetPushedFloats()->ContainsFrame(aFloat)),
         "aFloat is not our child or on an unexpected frame list");
   }
 #endif
@@ -6383,13 +6379,9 @@ void nsBlockFrame::RemoveFloat(nsIFrame* aFloat) {
 
   nsFrameList* list = GetPushedFloats();
   if (list && list->ContinueRemoveFrame(aFloat)) {
-#if 0
-    // XXXmats not yet - need to investigate BlockReflowState::mPushedFloats
-    // first so we don't leave it pointing to a deleted list.
     if (list->IsEmpty()) {
-      delete RemovePushedFloats();
+      StealPushedFloats()->Delete(PresShell());
     }
-#endif
     return;
   }
 
@@ -7392,14 +7384,8 @@ bool nsBlockFrame::HasPushedFloatsFromPrevContinuation() const {
   }
 #endif
 
-  // We may have a pending push of pushed floats too:
-  if (HasPushedFloats()) {
-    // XXX we can return 'true' here once we make HasPushedFloats
-    // not lie.  (see nsBlockFrame::RemoveFloat)
-    auto* pushedFloats = GetPushedFloats();
-    return pushedFloats && !pushedFloats->IsEmpty();
-  }
-  return false;
+  // We may have a pending push of pushed floats, too.
+  return HasPushedFloats();
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -7869,14 +7855,14 @@ void nsBlockFrame::Init(nsIContent* aContent, nsContainerFrame* aParent,
   // NS_BLOCK_FLAGS_NON_INHERITED_MASK bits below.
   constexpr nsFrameState NS_BLOCK_FLAGS_MASK =
       NS_BLOCK_BFC | NS_BLOCK_HAS_FIRST_LETTER_STYLE |
-      NS_BLOCK_FRAME_HAS_OUTSIDE_MARKER | NS_BLOCK_HAS_FIRST_LETTER_CHILD |
-      NS_BLOCK_FRAME_HAS_INSIDE_MARKER;
+      NS_BLOCK_HAS_FIRST_LETTER_CHILD | NS_BLOCK_HAS_OUTSIDE_MARKER |
+      NS_BLOCK_HAS_INSIDE_MARKER;
 
   // This is the subset of NS_BLOCK_FLAGS_MASK that is NOT inherited
   // by default.  They should only be set on the first-in-flow.
   constexpr nsFrameState NS_BLOCK_FLAGS_NON_INHERITED_MASK =
-      NS_BLOCK_FRAME_HAS_OUTSIDE_MARKER | NS_BLOCK_HAS_FIRST_LETTER_CHILD |
-      NS_BLOCK_FRAME_HAS_INSIDE_MARKER;
+      NS_BLOCK_HAS_FIRST_LETTER_CHILD | NS_BLOCK_HAS_OUTSIDE_MARKER |
+      NS_BLOCK_HAS_INSIDE_MARKER;
 
   if (aPrevInFlow) {
     // Copy over the inherited block frame bits from the prev-in-flow.
@@ -7942,17 +7928,15 @@ void nsBlockFrame::SetInitialChildList(ChildListID aListID,
 
 void nsBlockFrame::SetMarkerFrameForListItem(nsIFrame* aMarkerFrame) {
   MOZ_ASSERT(aMarkerFrame);
-  MOZ_ASSERT(!HasAnyStateBits(NS_BLOCK_FRAME_HAS_INSIDE_MARKER |
-                              NS_BLOCK_FRAME_HAS_OUTSIDE_MARKER),
-             "How can we have a ::marker frame already?");
+  MOZ_ASSERT(!HasMarker(), "How can we have a ::marker frame already?");
 
   if (StyleList()->mListStylePosition == StyleListStylePosition::Inside) {
     SetProperty(InsideMarkerProperty(), aMarkerFrame);
-    AddStateBits(NS_BLOCK_FRAME_HAS_INSIDE_MARKER);
+    AddStateBits(NS_BLOCK_HAS_INSIDE_MARKER);
   } else {
     SetProperty(OutsideMarkerProperty(),
                 new (PresShell()) nsFrameList(aMarkerFrame, aMarkerFrame));
-    AddStateBits(NS_BLOCK_FRAME_HAS_OUTSIDE_MARKER);
+    AddStateBits(NS_BLOCK_HAS_OUTSIDE_MARKER);
   }
 }
 

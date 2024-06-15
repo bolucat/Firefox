@@ -235,31 +235,17 @@ class nsBlockFrame : public nsContainerFrame {
   // not 'none', and no 'content'?
   bool MarkerIsEmpty() const;
 
-  /**
-   * Return true if this frame has a ::marker frame.
-   */
+  // Return true if this frame has a ::marker frame.
   bool HasMarker() const { return HasOutsideMarker() || HasInsideMarker(); }
 
-  /**
-   * @return true if this frame has an inside ::marker frame.
-   */
+  // Return true if this frame has an inside ::marker frame.
   bool HasInsideMarker() const {
-    return HasAnyStateBits(NS_BLOCK_FRAME_HAS_INSIDE_MARKER);
+    return HasAnyStateBits(NS_BLOCK_HAS_INSIDE_MARKER);
   }
 
-  /**
-   * @return true if this frame has an outside ::marker frame.
-   */
+  // Return true if this frame has an outside ::marker frame.
   bool HasOutsideMarker() const {
-    return HasAnyStateBits(NS_BLOCK_FRAME_HAS_OUTSIDE_MARKER);
-  }
-
-  /**
-   * @return the ::marker frame or nullptr if we don't have one.
-   */
-  nsIFrame* GetMarker() const {
-    nsIFrame* outside = GetOutsideMarker();
-    return outside ? outside : GetInsideMarker();
+    return HasAnyStateBits(NS_BLOCK_HAS_OUTSIDE_MARKER);
   }
 
   /**
@@ -977,24 +963,22 @@ class nsBlockFrame : public nsContainerFrame {
   // This takes ownership of the frames in aList.
   void SetOverflowOutOfFlows(nsFrameList&& aList, nsFrameList* aPropValue);
 
-  /**
-   * @return the inside ::marker frame or nullptr if we don't have one.
-   */
+  // Return the ::marker frame or nullptr if we don't have one.
+  nsIFrame* GetMarker() const {
+    nsIFrame* outside = GetOutsideMarker();
+    return outside ? outside : GetInsideMarker();
+  }
+
+  // Return the inside ::marker frame or nullptr if we don't have one.
   nsIFrame* GetInsideMarker() const;
 
-  /**
-   * @return the outside ::marker frame or nullptr if we don't have one.
-   */
+  //  Return the outside ::marker frame or nullptr if we don't have one.
   nsIFrame* GetOutsideMarker() const;
 
-  /**
-   * @return the outside ::marker frame list frame property.
-   */
+  // Return the outside ::marker frame list frame property.
   nsFrameList* GetOutsideMarkerList() const;
 
-  /**
-   * @return true if this frame has pushed floats.
-   */
+  // Return true if this frame has pushed floats.
   bool HasPushedFloats() const {
     return HasAnyStateBits(NS_BLOCK_HAS_PUSHED_FLOATS);
   }
@@ -1003,11 +987,16 @@ class nsBlockFrame : public nsContainerFrame {
   // of floats during reflow, between when we decide they don't fit in
   // this block until our next continuation takes them.
   nsFrameList* GetPushedFloats() const;
+
   // Get the pushed floats list, or if there is not currently one,
   // make a new empty one.
   nsFrameList* EnsurePushedFloats();
-  // Remove and return the pushed floats list.
-  nsFrameList* RemovePushedFloats();
+
+  // Get the pushed float list and remove the property from this frame.
+  //
+  // The caller is responsible for deleting the returned list and managing the
+  // ownership of all frames in the list.
+  [[nodiscard]] nsFrameList* StealPushedFloats();
 
 #ifdef DEBUG
   void VerifyLines(bool aFinalCheckOK);

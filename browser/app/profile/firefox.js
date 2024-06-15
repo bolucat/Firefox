@@ -822,6 +822,10 @@ pref("browser.dataFeatureRecommendations.enabled", false);
 // sets darkTheme data.
 pref("browser.theme.dark-private-windows", true);
 
+// Pref to control whether or not Private Browsing windows show up
+// as separate icons in the Windows taskbar.
+pref("browser.privateWindowSeparation.enabled", true);
+
 // Controls visibility of the privacy segmentation preferences section.
 pref("browser.privacySegmentation.preferences.show", false);
 
@@ -1437,7 +1441,7 @@ pref("browser.bookmarks.editDialog.maxRecentFolders", 7);
   // See - security/sandbox/win/src/sandboxbroker/sandboxBroker.cpp
   // SetSecurityLevelForContentProcess() for what the different settings mean.
   #if defined(NIGHTLY_BUILD)
-    pref("security.sandbox.content.level", 7);
+    pref("security.sandbox.content.level", 8);
   #else
     pref("security.sandbox.content.level", 7);
   #endif
