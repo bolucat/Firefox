@@ -504,7 +504,6 @@ dnl ========================================================
 
 MOZ_BRANDING_DIRECTORY=
 MOZ_OFFICIAL_BRANDING=
-MOZ_DEVTOOLS=server
 
 dnl ========================================================
 dnl = Trademarked Branding
@@ -723,7 +722,6 @@ AC_SUBST(MOZ_EME_PROCESS_BUNDLEID)
 # builds (e.g. Aurora for Firefox).
 # - MOZ_APP_PROFILE: When set, used for application.ini's
 # "Profile" field, which controls profile location.
-# - MOZ_PROFILE_MIGRATOR: When set, enables profile migrator.
 
 # The following environment variables used to have an effect, but don't anymore:
 # - MOZ_APP_VERSION: Defines the application version number. This was replaced with
@@ -756,12 +754,9 @@ AC_SUBST(MOZ_APP_DISPLAYNAME)
 AC_SUBST(MOZ_APP_PROFILE)
 AC_SUBST(MAR_CHANNEL_ID)
 AC_SUBST(ACCEPTED_MAR_CHANNEL_IDS)
-AC_SUBST(MOZ_PROFILE_MIGRATOR)
 AC_DEFINE_UNQUOTED(MOZ_APP_UA_NAME, "$MOZ_APP_UA_NAME")
 AC_SUBST(MOZ_APP_UA_NAME)
 AC_DEFINE_UNQUOTED(MOZ_APP_UA_VERSION, "$MOZ_APP_VERSION")
-AC_DEFINE_UNQUOTED(BROWSER_CHROME_URL, $BROWSER_CHROME_URL)
-AC_DEFINE_UNQUOTED(BROWSER_CHROME_URL_QUOTED, "$BROWSER_CHROME_URL")
 
 AC_SUBST(MOZ_APP_MAXVERSION)
 
@@ -770,10 +765,6 @@ if test "$MOZILLA_OFFICIAL"; then
     MOZ_INCLUDE_SOURCE_INFO=1
 fi
 
-# External builds (specifically Ubuntu) may drop the hg repo information, so we allow to
-# explicitly set the repository and changeset information in.
-AC_SUBST(MOZ_SOURCE_REPO)
-AC_SUBST(MOZ_SOURCE_CHANGESET)
 AC_SUBST(MOZ_INCLUDE_SOURCE_INFO)
 
 dnl Echo the CFLAGS to remove extra whitespace.
@@ -856,8 +847,6 @@ AC_SUBST(DSO_LDOPTS)
 AC_SUBST(BIN_SUFFIX)
 AC_SUBST(WIN32_CONSOLE_EXE_LDFLAGS)
 AC_SUBST(WIN32_GUI_EXE_LDFLAGS)
-
-AC_SUBST(MOZ_DEVTOOLS)
 
 dnl Used specifically by Thunderbird
 AC_SUBST(NSS_EXTRA_SYMBOLS_FILE)
