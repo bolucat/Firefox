@@ -639,9 +639,12 @@ enum struct SeekOffset {
   MinusHalfDataSize,
   PlusHalfDataSize,
   PlusDataSize,
-  MinusDataSize
+  MinusDataSize,
+  MinusDataSizeAndOne,
+  PlusOne,
+  MinusOne
 };
-using SeekOp = std::pair<int32_t, SeekOffset>;
+using SeekOp = std::tuple<int32_t, SeekOffset, nsresult>;
 
 using PackedSeekTestParams = std::tuple<size_t, size_t, std::vector<SeekOp>>;
 
@@ -666,7 +669,7 @@ std::string SeekTestParamToString(
   ss << "data" << testParams.mDataSize << kSeparator << "writechunk"
      << testParams.mBlockSize << kSeparator;
   for (const auto& seekOp : testParams.mSeekOps) {
-    switch (seekOp.first) {
+    switch (std::get<0>(seekOp)) {
       case nsISeekableStream::NS_SEEK_SET:
         ss << "Set";
         break;
@@ -679,7 +682,7 @@ std::string SeekTestParamToString(
       default:
         MOZ_CRASH("Unknown whence");
     };
-    switch (seekOp.second) {
+    switch (std::get<1>(seekOp)) {
       case SeekOffset::Zero:
         ss << "Zero";
         break;
@@ -692,8 +695,17 @@ std::string SeekTestParamToString(
       case SeekOffset::MinusDataSize:
         ss << "MinusDataSize";
         break;
+      case SeekOffset::MinusDataSizeAndOne:
+        ss << "MinusDataSizeAndOne";
+        break;
       case SeekOffset::PlusDataSize:
         ss << "PlusDataSize";
+        break;
+      case SeekOffset::PlusOne:
+        ss << "PlusOne";
+        break;
+      case SeekOffset::MinusOne:
+        ss << "MinusOne";
         break;
     };
   }
@@ -727,7 +739,7 @@ class ParametrizedSeekCryptTest
 
     uint32_t accumulatedOffset = 0;
     for (const auto& seekOp : testParams.mSeekOps) {
-      const auto offset = [offsetKind = seekOp.second,
+      const auto offset = [offsetKind = std::get<1>(seekOp),
                            dataSize = testParams.mDataSize]() -> int64_t {
         switch (offsetKind) {
           case SeekOffset::Zero:
@@ -738,25 +750,61 @@ class ParametrizedSeekCryptTest
             return static_cast<int64_t>(dataSize) / 2;
           case SeekOffset::MinusDataSize:
             return -static_cast<int64_t>(dataSize);
+          case SeekOffset::MinusDataSizeAndOne:
+            return -static_cast<int64_t>(dataSize + 1);
           case SeekOffset::PlusDataSize:
             return static_cast<int64_t>(dataSize);
+          case SeekOffset::PlusOne:
+            return 1;
+          case SeekOffset::MinusOne:
+            return -1;
         }
         MOZ_CRASH("Unknown SeekOffset");
       }();
-      switch (seekOp.first) {
-        case nsISeekableStream::NS_SEEK_SET:
-          accumulatedOffset = offset;
-          break;
-        case nsISeekableStream::NS_SEEK_CUR:
-          accumulatedOffset += offset;
-          break;
-        case nsISeekableStream::NS_SEEK_END:
-          accumulatedOffset = testParams.mDataSize + offset;
-          break;
-        default:
-          MOZ_CRASH("Unknown whence");
+      nsresult rv = inStream->Seek(std::get<0>(seekOp), offset);
+      EXPECT_EQ(std::get<2>(seekOp), rv);
+      // XXX Need to skip remaining checks for this specific case for now.
+      if (std::get<0>(seekOp) == nsISeekableStream::NS_SEEK_END &&
+          std::get<1>(seekOp) == SeekOffset::PlusOne &&
+          testParams.mDataSize != 0) {
+        // XXX The seek operation leaves invalid state after trying to position
+        // past the end of the stream, other checks must be skipped because of
+        // that!
+        return;
       }
-      EXPECT_EQ(NS_OK, inStream->Seek(seekOp.first, offset));
+      // XXX Need to skip remaining checks for this specific case for now.
+      if (std::get<0>(seekOp) == nsISeekableStream::NS_SEEK_CUR &&
+          std::get<1>(seekOp) == SeekOffset::MinusOne &&
+          testParams.mDataSize != 0) {
+        // XXX The seek operation leaves invalid state after trying to position
+        // before the start of the stream, other checks must be skipped because
+        // of that!
+        return;
+      }
+      // XXX Need to skip remaining checks for this specific case for now.
+      if (std::get<0>(seekOp) == nsISeekableStream::NS_SEEK_END &&
+          std::get<1>(seekOp) == SeekOffset::MinusDataSizeAndOne &&
+          testParams.mDataSize != 0) {
+        // XXX The seek operation leaves invalid state after trying to position
+        // before the start of the stream, other checks must be skipped because
+        // of that!
+        return;
+      }
+      if (NS_SUCCEEDED(rv)) {
+        switch (std::get<0>(seekOp)) {
+          case nsISeekableStream::NS_SEEK_SET:
+            accumulatedOffset = offset;
+            break;
+          case nsISeekableStream::NS_SEEK_CUR:
+            accumulatedOffset += offset;
+            break;
+          case nsISeekableStream::NS_SEEK_END:
+            accumulatedOffset = testParams.mDataSize + offset;
+            break;
+          default:
+            MOZ_CRASH("Unknown whence");
+        }
+      }
     }
 
     {
@@ -831,26 +879,39 @@ INSTANTIATE_TEST_SUITE_P(
         /* seekOperations */
         testing::Values(/* NS_SEEK_SET only, single ops */
                         std::vector<SeekOp>{{nsISeekableStream::NS_SEEK_SET,
-                                             SeekOffset::PlusDataSize}},
+                                             SeekOffset::PlusDataSize, NS_OK}},
                         std::vector<SeekOp>{{nsISeekableStream::NS_SEEK_SET,
-                                             SeekOffset::PlusHalfDataSize}},
+                                             SeekOffset::PlusHalfDataSize,
+                                             NS_OK}},
                         /* NS_SEEK_SET only, multiple ops */
                         std::vector<SeekOp>{
                             {nsISeekableStream::NS_SEEK_SET,
-                             SeekOffset::PlusHalfDataSize},
-                            {nsISeekableStream::NS_SEEK_SET, SeekOffset::Zero}},
+                             SeekOffset::PlusHalfDataSize, NS_OK},
+                            {nsISeekableStream::NS_SEEK_SET, SeekOffset::Zero,
+                             NS_OK}},
                         /* NS_SEEK_CUR only, single ops */
-                        std::vector<SeekOp>{
-                            {nsISeekableStream::NS_SEEK_CUR, SeekOffset::Zero}},
                         std::vector<SeekOp>{{nsISeekableStream::NS_SEEK_CUR,
-                                             SeekOffset::PlusDataSize}},
+                                             SeekOffset::Zero, NS_OK}},
                         std::vector<SeekOp>{{nsISeekableStream::NS_SEEK_CUR,
-                                             SeekOffset::PlusHalfDataSize}},
+                                             SeekOffset::PlusDataSize, NS_OK}},
+                        std::vector<SeekOp>{{nsISeekableStream::NS_SEEK_CUR,
+                                             SeekOffset::PlusHalfDataSize,
+                                             NS_OK}},
+                        std::vector<SeekOp>{{nsISeekableStream::NS_SEEK_CUR,
+                                             SeekOffset::MinusOne,
+                                             NS_ERROR_ILLEGAL_VALUE}},
                         /* NS_SEEK_END only, single ops */
-                        std::vector<SeekOp>{
-                            {nsISeekableStream::NS_SEEK_END, SeekOffset::Zero}},
                         std::vector<SeekOp>{{nsISeekableStream::NS_SEEK_END,
-                                             SeekOffset::MinusDataSize}},
+                                             SeekOffset::Zero, NS_OK}},
                         std::vector<SeekOp>{{nsISeekableStream::NS_SEEK_END,
-                                             SeekOffset::MinusHalfDataSize}})),
+                                             SeekOffset::MinusDataSize, NS_OK}},
+                        std::vector<SeekOp>{{nsISeekableStream::NS_SEEK_END,
+                                             SeekOffset::MinusDataSizeAndOne,
+                                             NS_ERROR_ILLEGAL_VALUE}},
+                        std::vector<SeekOp>{{nsISeekableStream::NS_SEEK_END,
+                                             SeekOffset::MinusHalfDataSize,
+                                             NS_OK}},
+                        std::vector<SeekOp>{{nsISeekableStream::NS_SEEK_END,
+                                             SeekOffset::PlusOne,
+                                             NS_ERROR_ILLEGAL_VALUE}})),
     SeekTestParamToString);

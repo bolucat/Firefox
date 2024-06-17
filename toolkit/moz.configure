@@ -27,12 +27,27 @@ project_flag(
 )
 
 project_flag(
+    env="MOZ_APP_UA_NAME",
+    default="",
+    nargs=1,
+    help="application name in the User Agent string",
+)
+
+project_flag(
     env="MOZ_DEVTOOLS",
     default="server",
     choices=("all", "server"),
     nargs=1,
     help="which devtools version should be built",
 )
+
+
+option(
+    env="MOZ_STUB_INSTALLER",
+    help="produce a stub installer",
+)
+set_config("MOZ_STUB_INSTALLER", True, when="MOZ_STUB_INSTALLER")
+
 
 project_flag(
     env="MOZ_PROFILE_MIGRATOR",
@@ -57,6 +72,22 @@ option(env="MOZ_SOURCE_REPO", nargs=1, help="project source repository")
 set_config("MOZ_SOURCE_REPO", depends_if("MOZ_SOURCE_REPO")(lambda src: src[0]))
 option(env="MOZ_SOURCE_CHANGESET", nargs=1, help="source changeset")
 set_config("MOZ_SOURCE_CHANGESET", depends_if("MOZ_SOURCE_CHANGESET")(lambda v: v[0]))
+
+option(
+    env="MOZ_INCLUDE_SOURCE_INFO",
+    # Build revisions should always be present in official builds
+    default=mozilla_official,
+    help="include build repository informations",
+)
+set_config("MOZ_INCLUDE_SOURCE_INFO", True, when="MOZ_INCLUDE_SOURCE_INFO")
+
+option(
+    "--with-distribution-id",
+    nargs=1,
+    default="org.mozilla",
+    help="Set distribution-specific id",
+)
+set_config("MOZ_DISTRIBUTION_ID", depends_if("--with-distribution-id")(lambda v: v[0]))
 
 
 @depends("MOZ_APP_VENDOR", build_project)
@@ -1515,7 +1546,6 @@ option(
     help="{Enable|Disable} support for RAW media",
 )
 
-set_config("MOZ_RAW", depends_if("--enable-raw")(lambda _: True))
 set_define("MOZ_RAW", depends_if("--enable-raw")(lambda _: True))
 
 

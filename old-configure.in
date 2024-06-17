@@ -553,21 +553,6 @@ fi
 AC_SUBST(MOZ_BRANDING_DIRECTORY)
 
 dnl ========================================================
-dnl = Distribution ID
-dnl ========================================================
-MOZ_ARG_WITH_STRING(distribution-id,
-[  --with-distribution-id=ID
-                          Set distribution-specific id (default=org.mozilla)],
-[ val=`echo $withval`
-    MOZ_DISTRIBUTION_ID="$val"])
-
-if test -z "$MOZ_DISTRIBUTION_ID"; then
-   MOZ_DISTRIBUTION_ID="org.mozilla"
-fi
-
-AC_SUBST(MOZ_DISTRIBUTION_ID)
-
-dnl ========================================================
 dnl = Enable code optimization. ON by default.
 dnl ========================================================
 
@@ -639,8 +624,6 @@ dnl ========================================================
 
 AC_SUBST_LIST(ASFLAGS)
 AC_SUBST_LIST(MOZ_DEBUG_LDFLAGS)
-
-AC_SUBST(MOZ_STUB_INSTALLER)
 
 AC_SUBST_LIST(MOZ_FIX_LINK_PATHS)
 
@@ -754,18 +737,9 @@ AC_SUBST(MOZ_APP_DISPLAYNAME)
 AC_SUBST(MOZ_APP_PROFILE)
 AC_SUBST(MAR_CHANNEL_ID)
 AC_SUBST(ACCEPTED_MAR_CHANNEL_IDS)
-AC_DEFINE_UNQUOTED(MOZ_APP_UA_NAME, "$MOZ_APP_UA_NAME")
-AC_SUBST(MOZ_APP_UA_NAME)
 AC_DEFINE_UNQUOTED(MOZ_APP_UA_VERSION, "$MOZ_APP_VERSION")
 
 AC_SUBST(MOZ_APP_MAXVERSION)
-
-if test "$MOZILLA_OFFICIAL"; then
-    # Build revisions should always be present in official builds
-    MOZ_INCLUDE_SOURCE_INFO=1
-fi
-
-AC_SUBST(MOZ_INCLUDE_SOURCE_INFO)
 
 dnl Echo the CFLAGS to remove extra whitespace.
 CFLAGS=`echo \
