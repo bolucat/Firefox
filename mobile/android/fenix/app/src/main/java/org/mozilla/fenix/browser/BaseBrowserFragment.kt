@@ -27,6 +27,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
+import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
@@ -87,6 +88,8 @@ import mozilla.components.feature.prompts.dialog.FullScreenNotificationDialog
 import mozilla.components.feature.prompts.identitycredential.DialogColors
 import mozilla.components.feature.prompts.identitycredential.DialogColorsProvider
 import mozilla.components.feature.prompts.login.LoginDelegate
+import mozilla.components.feature.prompts.login.PasswordGeneratorDialogColors
+import mozilla.components.feature.prompts.login.PasswordGeneratorDialogColorsProvider
 import mozilla.components.feature.prompts.login.SuggestStrongPasswordDelegate
 import mozilla.components.feature.prompts.share.ShareDelegate
 import mozilla.components.feature.readerview.ReaderViewFeature
@@ -699,6 +702,17 @@ abstract class BaseBrowserFragment :
             },
         )
 
+        val passwordGeneratorColorsProvider = PasswordGeneratorDialogColorsProvider {
+            PasswordGeneratorDialogColors(
+                title = ThemeManager.resolveAttributeColor(attribute = R.attr.textPrimary),
+                description = ThemeManager.resolveAttributeColor(attribute = R.attr.textSecondary),
+                background = ThemeManager.resolveAttributeColor(attribute = R.attr.layer1),
+                confirmButton = ThemeManager.resolveAttributeColor(attribute = R.attr.actionPrimary),
+                passwordBox = ThemeManager.resolveAttributeColor(attribute = R.attr.layer2),
+                boxBorder = ThemeManager.resolveAttributeColor(attribute = R.attr.textDisabled),
+            )
+        }
+
         val bottomToolbarHeight = context.settings().getBottomToolbarHeight()
 
         downloadFeature.onDownloadStopped = { downloadState, _, downloadJobStatus ->
@@ -844,6 +858,10 @@ abstract class BaseBrowserFragment :
                         get() = binding.suggestStrongPasswordBar
                 },
                 isSuggestStrongPasswordEnabled = context.settings().enableSuggestStrongPassword,
+                shouldAutomaticallyShowSuggestedPassword = { context.settings().isFirstTimeEngagingWithSignup },
+                onFirstTimeEngagedWithSignup = {
+                    context.settings().isFirstTimeEngagingWithSignup = false
+                },
                 onSaveLoginWithStrongPassword = { url, password ->
                     handleOnSaveLoginWithGeneratedStrongPassword(
                         passwordsStorage = context.components.core.passwordsStorage,
@@ -851,6 +869,10 @@ abstract class BaseBrowserFragment :
                         password = password,
                     )
                 },
+                onSavedGeneratedPassword = {
+                    showSnackbarAfterUsingTheGeneratedPassword()
+                },
+                passwordGeneratorColorsProvider = passwordGeneratorColorsProvider,
                 creditCardDelegate = object : CreditCardDelegate {
                     override val creditCardPickerView
                         get() = binding.creditCardSelectBar
@@ -1086,6 +1108,17 @@ abstract class BaseBrowserFragment :
                 duration = Snackbar.LENGTH_LONG,
             )
         }
+    }
+
+    /**
+     * Show a [Snackbar] when credentials are saved using the generated password.
+     */
+    private fun showSnackbarAfterUsingTheGeneratedPassword() {
+        ContextMenuSnackbarDelegate().show(
+            snackBarParentView = binding.dynamicSnackbarContainer,
+            text = R.string.mozac_feature_prompts_suggest_strong_password_saved_snackbar_title,
+            duration = Snackbar.LENGTH_LONG,
+        )
     }
 
     /**
@@ -1341,7 +1374,12 @@ abstract class BaseBrowserFragment :
                 FirefoxTheme {
                     Column {
                         if (currentlyDisplayedMessage != null) {
-                            MicrosurveyRequestPrompt()
+                            MicrosurveyRequestPrompt {
+                                findNavController().nav(
+                                    R.id.homeFragment,
+                                    BrowserFragmentDirections.actionGlobalMicrosurveyDialog(),
+                                )
+                            }
                         }
 
                         if (isToolbarAtBottom) {
@@ -1463,7 +1501,12 @@ abstract class BaseBrowserFragment :
                 FirefoxTheme {
                     Column {
                         if (currentlyDisplayedMessage != null) {
-                            MicrosurveyRequestPrompt()
+                            MicrosurveyRequestPrompt {
+                                findNavController().nav(
+                                    R.id.homeFragment,
+                                    BrowserFragmentDirections.actionGlobalMicrosurveyDialog(),
+                                )
+                            }
                         }
 
                         if (isToolbarAtBottom) {
@@ -1931,6 +1974,10 @@ abstract class BaseBrowserFragment :
             (view as? SwipeGestureLayout)?.isSwipeEnabled = false
             browserToolbarView.collapse()
             browserToolbarView.gone()
+            _bottomToolbarContainerView?.toolbarContainerView?.apply {
+                collapse()
+                isVisible = false
+            }
             val browserEngine = binding.swipeRefresh.layoutParams as CoordinatorLayout.LayoutParams
             browserEngine.bottomMargin = 0
             browserEngine.topMargin = 0
@@ -1952,6 +1999,7 @@ abstract class BaseBrowserFragment :
             }
             if (webAppToolbarShouldBeVisible) {
                 browserToolbarView.visible()
+                _bottomToolbarContainerView?.toolbarContainerView?.isVisible = true
                 initializeEngineView(
                     topToolbarHeight = requireContext().settings().getTopToolbarHeight(
                         includeTabStrip = customTabSessionId == null && requireContext().isTabStripEnabled(),
@@ -1959,6 +2007,7 @@ abstract class BaseBrowserFragment :
                     bottomToolbarHeight = requireContext().settings().getBottomToolbarHeight(),
                 )
                 browserToolbarView.expand()
+                _bottomToolbarContainerView?.toolbarContainerView?.expand()
             }
         }
 
@@ -1978,6 +2027,7 @@ abstract class BaseBrowserFragment :
                 toolbarView = browserToolbarView.view,
                 bottomToolbarContainerView = _bottomToolbarContainerView?.toolbarContainerView,
                 reinitializeNavBar = ::reinitializeNavBar,
+                reinitializeMicrosurveyPrompt = ::reinitializeMicrosurveyPrompt,
             )
         }
 

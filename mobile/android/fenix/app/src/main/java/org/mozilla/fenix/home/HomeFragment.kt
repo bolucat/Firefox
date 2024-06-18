@@ -539,6 +539,7 @@ class HomeFragment : Fragment() {
                 toolbarView = binding.toolbarLayout,
                 bottomToolbarContainerView = _bottomToolbarContainerView?.toolbarContainerView,
                 reinitializeNavBar = ::reinitializeNavBar,
+                reinitializeMicrosurveyPrompt = { initializeMicrosurveyPrompt(requireContext()) },
             )
         }
 
@@ -597,7 +598,12 @@ class HomeFragment : Fragment() {
                 FirefoxTheme {
                     Column {
                         if (currentlyDisplayedMessage != null) {
-                            MicrosurveyRequestPrompt()
+                            MicrosurveyRequestPrompt {
+                                findNavController().nav(
+                                    R.id.homeFragment,
+                                    HomeFragmentDirections.actionGlobalMicrosurveyDialog(),
+                                )
+                            }
                             binding.bottomBarShadow.visibility = View.GONE
                         } else {
                             binding.bottomBarShadow.visibility = View.VISIBLE
@@ -703,7 +709,12 @@ class HomeFragment : Fragment() {
                 FirefoxTheme {
                     Column {
                         if (currentlyDisplayedMessage != null) {
-                            MicrosurveyRequestPrompt()
+                            MicrosurveyRequestPrompt {
+                                findNavController().nav(
+                                    R.id.homeFragment,
+                                    HomeFragmentDirections.actionGlobalMicrosurveyDialog(),
+                                )
+                            }
                             binding.bottomBarShadow.visibility = View.GONE
                         }
 

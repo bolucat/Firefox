@@ -1961,6 +1961,14 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     )
 
     /**
+     * Indicates first time engaging with signup
+     */
+    var isFirstTimeEngagingWithSignup: Boolean by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_first_time_engage_with_signup),
+        default = true,
+    )
+
+    /**
      * Indicates if the user has chosen to show sponsored search suggestions in the awesomebar.
      * The default value is computed lazily, and based on whether Firefox Suggest is enabled.
      */
@@ -2040,6 +2048,27 @@ class Settings(private val appContext: Context) : PreferencesHolder {
             toolbarHeight
         } else {
             0
+        }
+    }
+
+    /**
+     * Returns the height of the bottom toolbar container.
+     *
+     * The bottom toolbar container can consist of a navigation bar, the microsurvey prompt
+     * a combination of a navigation and microsurvey prompt, or be absent.
+     */
+    fun getBottomToolbarContainerHeight(): Int {
+        val isNavBarEnabled = enableIncompleteToolbarRedesign
+        val isMicrosurveyEnabled = shouldShowMicrosurveyPrompt
+        val navbarHeight = appContext.resources.getDimensionPixelSize(R.dimen.browser_navbar_height)
+        val microsurveyHeight =
+            appContext.resources.getDimensionPixelSize(R.dimen.browser_microsurvey_height)
+
+        return when {
+            isNavBarEnabled && isMicrosurveyEnabled -> navbarHeight + microsurveyHeight
+            isNavBarEnabled -> navbarHeight
+            isMicrosurveyEnabled -> microsurveyHeight
+            else -> 0
         }
     }
 

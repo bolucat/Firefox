@@ -61,53 +61,6 @@
   display: none;
 }
 
-#PopupAutoComplete > richlistbox > richlistitem[originaltype="loginsFooter"] {
-  justify-content: center;
-  color: FieldText;
-  min-height: 2.6666em;
-  border-top: 1px solid rgba(38,38,38,.15);
-  background-color: hsla(0,0%,80%,.35); /* match arrowpanel-dimmed */;
-}
-
-#PopupAutoComplete > richlistbox > richlistitem[originaltype="loginsFooter"]:hover,
-#PopupAutoComplete > richlistbox > richlistitem[originaltype="loginsFooter"][selected] {
-  background-color: hsla(0,0%,80%,.5); /* match arrowpanel-dimmed-further */
-}
-
-/* Define the minimum width based on the style of result rows.
-   The order of the min-width rules below must be in increasing order. */
-#PopupAutoComplete:is([resultstyles~="loginsFooter"], [resultstyles~="insecureWarning"])::part(content) {
-  min-width: 17em;
-}
-
-#PopupAutoComplete:is([resultstyles~="importableLogins"], [resultstyles~="generatedPassword"])::part(content) {
-  min-width: 22em;
-}
-
-#PopupAutoComplete > richlistbox > richlistitem[originaltype="insecureWarning"] {
-  height: auto;
-}
-
-#PopupAutoComplete > richlistbox > richlistitem[originaltype="loginWithOrigin"] > .ac-site-icon,
-#PopupAutoComplete > richlistbox > richlistitem[originaltype="insecureWarning"] > .ac-site-icon {
-  margin-inline-start: 0;
-  display: initial;
-}
-
-#PopupAutoComplete > richlistbox > richlistitem[originaltype="insecureWarning"] > .ac-title > .ac-text-overflow-container > .ac-title-text {
-  text-overflow: initial;
-  white-space: initial;
-}
-
-#PopupAutoComplete > richlistbox > richlistitem[originaltype="insecureWarning"] > .ac-title > label {
-  margin-inline-start: 0;
-}
-
-/* ::::: Unified Back-/Forward Button ::::: */
-.unified-nav-current {
-  font-weight: bold;
-}
-
 .bookmark-item > label {
   /* ensure we use the direction of the bookmarks label instead of the
    * browser locale */
@@ -165,13 +118,6 @@ menupopup[emptyplacesresult="true"] > .hide-if-empty-places-result {
   }
 }
 
-.popup-anchor {
-  /* should occupy space but not be visible */
-  opacity: 0;
-  pointer-events: none;
-  position: absolute;
-}
-
 /* Apply crisp rendering for favicons at exactly 2dppx resolution */
 @media (resolution: 2dppx) {
   .PanelUI-remotetabs-clientcontainer > toolbarbutton > .toolbarbutton-icon,
@@ -191,71 +137,6 @@ menupopup[emptyplacesresult="true"] > .hide-if-empty-places-result {
 :root[firefoxviewhidden] #wrapper-firefox-view-button,
 :root[firefoxviewhidden] #firefox-view-button {
   display: none;
-}
-
-/* UI Tour */
-
-@keyframes uitour-wobble {
-  from {
-    transform: rotate(0deg) translateX(3px) rotate(0deg);
-  }
-  50% {
-    transform: rotate(360deg) translateX(3px) rotate(-360deg);
-  }
-  to {
-    transform: rotate(720deg) translateX(0px) rotate(-720deg);
-  }
-}
-
-@keyframes uitour-zoom {
-  from {
-    transform: scale(0.8);
-  }
-  50% {
-    transform: scale(1.0);
-  }
-  to {
-    transform: scale(0.8);
-  }
-}
-
-@keyframes uitour-color {
-  from {
-    border-color: #5B9CD9;
-  }
-  50% {
-    border-color: #FF0000;
-  }
-  to {
-    border-color: #5B9CD9;
-  }
-}
-
-#UITourHighlightContainer,
-#UITourHighlight {
-  pointer-events: none;
-}
-
-#UITourHighlight[active] {
-  animation-delay: 2s;
-  animation-fill-mode: forwards;
-  animation-iteration-count: infinite;
-  animation-timing-function: linear;
-}
-
-#UITourHighlight[active="wobble"] {
-  animation-name: uitour-wobble;
-  animation-delay: 0s;
-  animation-duration: 1.5s;
-  animation-iteration-count: 1;
-}
-#UITourHighlight[active="zoom"] {
-  animation-name: uitour-zoom;
-  animation-duration: 1s;
-}
-#UITourHighlight[active="color"] {
-  animation-name: uitour-color;
-  animation-duration: 2s;
 }
 
 .popup-notification-invalid-input {
@@ -362,22 +243,6 @@ printpreview-pagination:focus-within,
 #screenshotsPagePanel {
   position: relative;
   max-height: 0;
-}
-
-
-#sidebar-box {
-  min-width: 14em;
-  max-width: 36em;
-  width: 18em;
-}
-
-/* WebExtension Sidebars */
-#sidebar-box[sidebarcommand$="-sidebar-action"] > #sidebar-header > #sidebar-switcher-target > #sidebar-icon {
-  list-style-image: var(--webextension-menuitem-image, inherit);
-  -moz-context-properties: fill;
-  fill: currentColor;
-  width: 16px;
-  height: 16px;
 }
 
 toolbar[keyNav=true]:not([collapsed=true], [customizing=true]) toolbartabstop {

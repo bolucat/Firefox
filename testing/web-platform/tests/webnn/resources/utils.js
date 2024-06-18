@@ -380,6 +380,7 @@ const PrecisionMetrics = {
   elu: {ULP: {float32: 18, float16: 18}},
   expand: {ULP: {float32: 0, float16: 0}},
   gather: {ULP: {float32: 0, float16: 0}},
+  gelu: {ULP: {float32: 18, float16: 18}},
   gemm: {ULP: {float32: getGemmPrecisionTolerance, float16: getGemmPrecisionTolerance}},
   instanceNormalization: {ULP: {float32: 840, float16: 8400}},
   hardSigmoid: {ULP: {float32: 2, float16: 2}},
@@ -548,15 +549,39 @@ const checkResults = (operationName, namedOutputOperands, outputs, resources) =>
     // the outputs of split() or gru() is a sequence
     for (let operandName in namedOutputOperands) {
       const suboutputResource = getNamedResource(expected, operandName);
-      assert_array_equals(namedOutputOperands[operandName].shape(), suboutputResource.shape ?? []);
       outputData = outputs[operandName];
+      // If data is scalar and shape is not, it means it's expecting to be
+      // filled by the scalar value. Also limit the array size so it doesn't
+      // timeout.
+      if (typeof (suboutputResource.data) === 'number' &&
+          suboutputResource.shape && sizeOfShape(suboutputResource.shape) > 1) {
+        const size = Math.min(
+            kMaximumIndexToValidate, sizeOfShape(suboutputResource.shape));
+        suboutputResource.data = [
+          new Array(size).fill(suboutputResource.data), suboutputResource.type
+        ];
+        outputData = outputData.subarray(0, kMaximumIndexToValidate);
+      }
+      assert_array_equals(
+          namedOutputOperands[operandName].shape(),
+          suboutputResource.shape ?? []);
       tolerance = getPrecisonTolerance(operationName, metricType, resources);
       doAssert(operationName, outputData, suboutputResource.data, tolerance, suboutputResource.type, metricType)
     }
   } else {
     assert_array_equals(namedOutputOperands[expected.name].shape(), expected.shape ?? []);
     outputData = outputs[expected.name];
+    // If data is scalar and shape is not, it means it's expecting to be filled
+    // by the scalar value. Also limit the array size so it doesn't timeout.
+    if (typeof (expected.data) === 'number' && expected.shape &&
+        sizeOfShape(expected.shape) > 1) {
+      const size =
+          Math.min(kMaximumIndexToValidate, sizeOfShape(expected.shape));
+      expected.data = new Array(size).fill(expected.data);
+      outputData = outputData.subarray(0, kMaximumIndexToValidate);
+    }
     expectedData = expected.data;
+
     operandType = expected.type;
     tolerance = getPrecisonTolerance(operationName, metricType, resources);
     doAssert(operationName, outputData, expectedData, tolerance, operandType, metricType)
@@ -782,6 +807,20 @@ const buildSlice = (operationName, builder, resources) => {
   const inputOperand = createSingleInputOperand(builder, resources);
   // invoke builder.slice()
   namedOutputOperand[resources.expected.name] = builder[operationName](inputOperand, resources.starts, resources.sizes);
+  return namedOutputOperand;
+};
+
+const buildSoftmax = (operationName, builder, resources) => {
+  // MLOperand softmax(MLOperand input, [EnforceRange] unsigned long axis);
+  const namedOutputOperand = {};
+  const inputOperand = createSingleInputOperand(builder, resources);
+  if (resources.axis !== undefined) {
+    // invoke builder.softmax(input, axis)
+    namedOutputOperand[resources.expected.name] = builder[operationName](inputOperand, resources.axis);
+  } else {
+    // invoke builder.softmax(input)
+    namedOutputOperand[resources.expected.name] = builder[operationName](inputOperand);
+  }
   return namedOutputOperand;
 };
 

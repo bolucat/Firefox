@@ -129,7 +129,7 @@ NS_IMETHODIMP DecryptingInputStream<CipherStrategy>::ReadSegments(
   while (aCount > 0) {
     // We have some decrypted data in our buffer.  Provide it to the callers
     // writer function.
-    if (mPlainBytes > 0) {
+    if (mNextByte < mPlainBytes) {
       MOZ_ASSERT(!mPlainBuffer.IsEmpty());
       uint32_t remaining = PlainLength();
       uint32_t numToWrite = std::min(aCount, remaining);
@@ -152,32 +152,26 @@ NS_IMETHODIMP DecryptingInputStream<CipherStrategy>::ReadSegments(
       mNextByte += numWritten;
       MOZ_ASSERT(mNextByte <= mPlainBytes);
 
-      if (mNextByte == mPlainBytes) {
-        mNextByte = 0;
-        mLastBlockLength = mPlainBytes;
-        mPlainBytes = 0;
-      }
-
       aCount -= numWritten;
 
       continue;
     }
 
-    // Otherwise decrypt the next chunk and loop.  Any resulting data
-    // will set mPlainBytes which we check at the top of the loop.
+    // Otherwise decrypt the next chunk and loop.  Any resulting data will set
+    // mPlainBytes and mNextByte which we check at the top of the loop.
     uint32_t bytesRead;
     rv = ParseNextChunk(&bytesRead);
     if (NS_FAILED(rv)) {
       return rv;
     }
 
-    // If we couldn't read anything and there is no more data to provide
-    // to the caller, then this is eof.
-    if (bytesRead == 0 && mPlainBytes == 0) {
+    // If we couldn't read anything, then this is eof.
+    if (bytesRead == 0) {
       return NS_OK;
     }
 
-    mPlainBytes += bytesRead;
+    mPlainBytes = bytesRead;
+    mNextByte = 0;
   }
 
   return NS_OK;
@@ -186,10 +180,6 @@ NS_IMETHODIMP DecryptingInputStream<CipherStrategy>::ReadSegments(
 template <typename CipherStrategy>
 nsresult DecryptingInputStream<CipherStrategy>::ParseNextChunk(
     uint32_t* const aBytesReadOut) {
-  // There must not be any plain data already in mPlainBuffer.
-  MOZ_ASSERT(mPlainBytes == 0);
-  MOZ_ASSERT(mNextByte == 0);
-
   *aBytesReadOut = 0;
 
   if (!EnsureBuffers()) {
@@ -293,12 +283,17 @@ NS_IMETHODIMP DecryptingInputStream<CipherStrategy>::Tell(
     return rv;
   }
 
-  const auto fullBlocks = basePosition / *mBlockSize;
+  if (basePosition == 0) {
+    *aRetval = 0;
+    return NS_OK;
+  }
+
   MOZ_ASSERT(0 == basePosition % *mBlockSize);
 
-  *aRetval = (fullBlocks - ((mPlainBytes || mLastBlockLength) ? 1 : 0)) *
-                 mEncryptedBlock->MaxPayloadLength() +
-             mNextByte + (mNextByte ? 0 : mLastBlockLength);
+  const auto fullBlocks = basePosition / *mBlockSize;
+  MOZ_ASSERT(fullBlocks);
+
+  *aRetval = (fullBlocks - 1) * mEncryptedBlock->MaxPayloadLength() + mNextByte;
   return NS_OK;
 }
 
@@ -313,13 +308,31 @@ NS_IMETHODIMP DecryptingInputStream<CipherStrategy>::Seek(const int32_t aWhence,
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
+  int64_t baseCurrent;
+  nsresult rv = (*mBaseSeekableStream)->Tell(&baseCurrent);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return Err(rv);
+  }
+
   // Can't call this just in NS_SEEK_CUR case, because getting the decrypted
   // size below changes the current position.
   int64_t current;
-  nsresult rv = Tell(&current);
+  rv = Tell(&current);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
+
+  // If there's a failure we need to restore any previous state.
+  auto autoRestorePreviousState =
+      MakeScopeExit([baseSeekableStream = *mBaseSeekableStream,
+                     savedBaseCurrent = baseCurrent,
+                     savedPlainBytes = mPlainBytes, savedNextByte = mNextByte,
+                     &plainBytes = mPlainBytes, &nextByte = mNextByte] {
+        nsresult rv = baseSeekableStream->Seek(NS_SEEK_SET, savedBaseCurrent);
+        Unused << NS_WARN_IF(NS_FAILED(rv));
+        plainBytes = savedPlainBytes;
+        nextByte = savedNextByte;
+      });
 
   // XXX The size of the stream could also be queried and stored once only.
   auto decryptedStreamSizeOrErr = [this]() -> Result<int64_t, nsresult> {
@@ -344,9 +357,6 @@ NS_IMETHODIMP DecryptingInputStream<CipherStrategy>::Seek(const int32_t aWhence,
       return Err(rv);
     }
 
-    mNextByte = 0;
-    mPlainBytes = 0;
-
     uint32_t bytesRead;
     rv = ParseNextChunk(&bytesRead);
     if (NS_WARN_IF(NS_FAILED(rv))) {
@@ -354,7 +364,6 @@ NS_IMETHODIMP DecryptingInputStream<CipherStrategy>::Seek(const int32_t aWhence,
     }
     MOZ_ASSERT(bytesRead);
 
-    // XXX Shouldn't ParseNextChunk better update mPlainBytes?
     mPlainBytes = bytesRead;
 
     mNextByte = bytesRead;
@@ -406,50 +415,21 @@ NS_IMETHODIMP DecryptingInputStream<CipherStrategy>::Seek(const int32_t aWhence,
     return rv;
   }
 
-  mNextByte = 0;
-  mPlainBytes = 0;
-
   uint32_t readBytes;
   rv = ParseNextChunk(&readBytes);
   if (NS_WARN_IF(NS_FAILED(rv))) {
-    // XXX Do we need to do more here? Restore any previous state?
     return rv;
   }
 
-  // We positioned after the last block, we must read that to know its size.
-  // XXX We could know earlier if we positioned us after the last block.
-  if (!readBytes) {
-    // XXX It seems that this check was added to prevent seeking before the
-    // start of the base stream during the Seek call below.
-    if (baseBlocksOffset == 0) {
-      // The stream is empty.
-      return NS_OK;
-    }
-
-    nsresult rv = (*mBaseSeekableStream)->Seek(NS_SEEK_CUR, -*mBlockSize);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      return rv;
-    }
-
-    rv = ParseNextChunk(&readBytes);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      // XXX Do we need to do more here? Restore any previous state?
-      return rv;
-    }
-
-    // XXX Investigate if we can actually remove the extra Seek and
-    // ParseNextChecck above given we don't use readBytes anymore. It seems
-    // this code was added in
-    // https://phabricator.services.mozilla.com/D74669?vs=276120&id=276956#toc
-    // and then there was another revision
-    // https://phabricator.services.mozilla.com/D74669?vs=293270&id=294180#toc
-    // which properly fixed Tell implementation and the Seek and ParseNextCunk
-    // were somehow forgotten to be removed here.
-    readBytes = 0;
+  if (readBytes == 0 && baseBlocksOffset != 0) {
+    mPlainBytes = mEncryptedBlock->MaxPayloadLength();
+    mNextByte = mEncryptedBlock->MaxPayloadLength();
+  } else {
+    mPlainBytes = readBytes;
+    mNextByte = nextByteOffset;
   }
 
-  mPlainBytes = readBytes;
-  mNextByte = nextByteOffset;
+  autoRestorePreviousState.release();
 
   return NS_OK;
 }

@@ -19,7 +19,7 @@ object Versions {
     const val serialization = "1.6.3"
     const val python_envs_plugin = "0.0.31"
 
-    const val mozilla_glean = "60.1.1"
+    const val mozilla_glean = "60.3.0"
 
     const val junit = "4.13.2"
     const val robolectric = "4.12.1"
@@ -38,7 +38,7 @@ object Versions {
     const val detekt = "1.23.6"
     const val ktlint = "0.49.1"
 
-    const val sentry = "7.9.0"
+    const val sentry = "7.10.0"
 
     const val zxing = "3.5.3"
 
@@ -62,7 +62,7 @@ object Versions {
         const val biometric = "1.1.0"
         const val cardview = "1.0.0"
         const val collection = "1.4.0"
-        const val compose_bom = "2024.05.00"
+        const val compose_bom = "2024.06.00"
         const val constraintlayout = "2.1.4"
         const val coordinatorlayout = "1.2.0"
         const val core = "1.13.1"
