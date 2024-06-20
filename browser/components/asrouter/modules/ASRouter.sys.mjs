@@ -28,6 +28,7 @@ const { RemoteSettings } = ChromeUtils.importESModule(
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
+  MESSAGE_TYPE_HASH: "resource:///modules/asrouter/ActorConstants.mjs",
   ASRouterPreferences:
     "resource:///modules/asrouter/ASRouterPreferences.sys.mjs",
   ASRouterTargeting: "resource:///modules/asrouter/ASRouterTargeting.sys.mjs",
@@ -66,7 +67,6 @@ ChromeUtils.defineLazyGetter(lazy, "log", () => {
   );
   return new Logger("ASRouter");
 });
-import { actionCreators as ac } from "resource://activity-stream/common/Actions.mjs";
 import { MESSAGING_EXPERIMENTS_DEFAULT_FEATURES } from "resource:///modules/asrouter/MessagingExperimentConstants.sys.mjs";
 import { CFRMessageProvider } from "resource:///modules/asrouter/CFRMessageProvider.sys.mjs";
 import { OnboardingMessageProvider } from "resource:///modules/asrouter/OnboardingMessageProvider.sys.mjs";
@@ -437,16 +437,15 @@ export const MessageLoaderUtils = {
   },
 
   _handleRemoteSettingsUndesiredEvent(event, providerId, dispatchCFRAction) {
-    if (dispatchCFRAction) {
-      dispatchCFRAction(
-        ac.ASRouterUserEvent({
-          action: "asrouter_undesired_event",
-          event,
-          message_id: "n/a",
-          event_context: providerId,
-        })
-      );
-    }
+    dispatchCFRAction?.({
+      type: lazy.MESSAGE_TYPE_HASH.AS_ROUTER_TELEMETRY_USER_EVENT,
+      data: {
+        action: "asrouter_undesired_event",
+        message_id: "n/a",
+        event,
+        event_context: providerId,
+      },
+    });
   },
 
   /**
@@ -925,6 +924,10 @@ export class _ASRouter {
     if (needsUpdate.length) {
       let newState = { messages: [], providers: [] };
       for (const provider of this.state.providers) {
+        if (provider.id === "message-groups") {
+          // Message groups are handled separately by loadAllMessageGroups
+          continue;
+        }
         if (needsUpdate.includes(provider)) {
           const { messages, lastUpdated, errors } =
             await MessageLoaderUtils.loadMessagesForProvider(provider, {
@@ -1241,14 +1244,15 @@ export class _ASRouter {
 
   _handleTargetingError(error, message) {
     console.error(error);
-    this.dispatchCFRAction(
-      ac.ASRouterUserEvent({
-        message_id: message.id,
+    this.dispatchCFRAction?.({
+      type: lazy.MESSAGE_TYPE_HASH.AS_ROUTER_TELEMETRY_USER_EVENT,
+      data: {
         action: "asrouter_undesired_event",
+        message_id: message.id,
         event: "TARGETING_EXPRESSION_ERROR",
         event_context: {},
-      })
-    );
+      },
+    });
   }
 
   // Return an object containing targeting parameters used to select messages

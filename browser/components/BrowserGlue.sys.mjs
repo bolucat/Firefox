@@ -47,6 +47,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
     "resource:///modules/FirefoxBridgeExtensionUtils.sys.mjs",
   FormAutofillUtils: "resource://gre/modules/shared/FormAutofillUtils.sys.mjs",
   FxAccounts: "resource://gre/modules/FxAccounts.sys.mjs",
+  GenAI: "resource:///modules/GenAI.sys.mjs",
   HomePage: "resource:///modules/HomePage.sys.mjs",
   Integration: "resource://gre/modules/Integration.sys.mjs",
   Interactions: "resource:///modules/Interactions.sys.mjs",
@@ -455,6 +456,7 @@ let JSWINDOWACTORS = {
         "BackupUI:GetBackupFileInfo": { wantUntrusted: true },
         "BackupUI:RestoreFromBackupFile": { wantUntrusted: true },
         "BackupUI:RestoreFromBackupChooseFile": { wantUntrusted: true },
+        "BackupUI:ToggleEncryption": { wantUntrusted: true },
       },
     },
     matches: ["about:preferences*", "about:settings*"],
@@ -869,13 +871,7 @@ let JSWINDOWACTORS = {
         DOMDocElementInserted: {},
       },
     },
-    matches: [
-      "about:asrouter*",
-      "about:home*",
-      "about:newtab*",
-      "about:welcome*",
-      "about:privatebrowsing*",
-    ],
+    matches: ["about:asrouter*", "about:welcome*", "about:privatebrowsing*"],
     remoteTypes: ["privilegedabout"],
   },
 
@@ -3161,6 +3157,13 @@ BrowserGlue.prototype = {
         condition: AppConstants.MOZ_UPDATER,
         task: () => {
           lazy.UpdateListener.maybeShowUnsupportedNotification();
+        },
+      },
+
+      {
+        name: "GenAI.init",
+        task() {
+          lazy.GenAI.init();
         },
       },
 

@@ -3572,15 +3572,15 @@ namespace {
 
 static Result<ClipboardReadRequest, nsresult> CreateClipboardReadRequest(
     ContentParent& aContentParent,
-    nsIAsyncGetClipboardData& aAsyncGetClipboardData) {
+    nsIClipboardDataSnapshot& aClipboardDataSnapshot) {
   nsTArray<nsCString> flavors;
-  nsresult rv = aAsyncGetClipboardData.GetFlavorList(flavors);
+  nsresult rv = aClipboardDataSnapshot.GetFlavorList(flavors);
   if (NS_FAILED(rv)) {
     return Err(rv);
   }
 
   auto requestParent = MakeNotNull<RefPtr<ClipboardReadRequestParent>>(
-      &aContentParent, &aAsyncGetClipboardData);
+      &aContentParent, &aClipboardDataSnapshot);
 
   // Open a remote endpoint for our PClipboardReadRequest actor.
   ManagedEndpoint<PClipboardReadRequestChild> childEndpoint =
@@ -3592,24 +3592,25 @@ static Result<ClipboardReadRequest, nsresult> CreateClipboardReadRequest(
   return ClipboardReadRequest(std::move(childEndpoint), std::move(flavors));
 }
 
-class ClipboardGetCallback final : public nsIAsyncClipboardGetCallback {
+class ClipboardGetCallback final : public nsIClipboardGetDataSnapshotCallback {
  public:
-  ClipboardGetCallback(ContentParent* aContentParent,
-                       ContentParent::GetClipboardAsyncResolver&& aResolver)
+  ClipboardGetCallback(
+      ContentParent* aContentParent,
+      ContentParent::GetClipboardDataSnapshotResolver&& aResolver)
       : mContentParent(aContentParent), mResolver(std::move(aResolver)) {}
 
   // This object will never be held by a cycle-collected object, so it doesn't
   // need to be cycle-collected despite holding alive cycle-collected objects.
   NS_DECL_ISUPPORTS
 
-  // nsIAsyncClipboardGetCallback
+  // nsIClipboardGetDataSnapshotCallback
   NS_IMETHOD OnSuccess(
-      nsIAsyncGetClipboardData* aAsyncGetClipboardData) override {
+      nsIClipboardDataSnapshot* aClipboardDataSnapshot) override {
     MOZ_ASSERT(mContentParent);
-    MOZ_ASSERT(aAsyncGetClipboardData);
+    MOZ_ASSERT(aClipboardDataSnapshot);
 
     auto result =
-        CreateClipboardReadRequest(*mContentParent, *aAsyncGetClipboardData);
+        CreateClipboardReadRequest(*mContentParent, *aClipboardDataSnapshot);
     if (result.isErr()) {
       return OnError(result.unwrapErr());
     }
@@ -3627,18 +3628,18 @@ class ClipboardGetCallback final : public nsIAsyncClipboardGetCallback {
   ~ClipboardGetCallback() = default;
 
   RefPtr<ContentParent> mContentParent;
-  ContentParent::GetClipboardAsyncResolver mResolver;
+  ContentParent::GetClipboardDataSnapshotResolver mResolver;
 };
 
-NS_IMPL_ISUPPORTS(ClipboardGetCallback, nsIAsyncClipboardGetCallback)
+NS_IMPL_ISUPPORTS(ClipboardGetCallback, nsIClipboardGetDataSnapshotCallback)
 
 }  // namespace
 
-mozilla::ipc::IPCResult ContentParent::RecvGetClipboardAsync(
+mozilla::ipc::IPCResult ContentParent::RecvGetClipboardDataSnapshot(
     nsTArray<nsCString>&& aTypes, const int32_t& aWhichClipboard,
     const MaybeDiscarded<WindowContext>& aRequestingWindowContext,
     mozilla::NotNull<nsIPrincipal*> aRequestingPrincipal,
-    GetClipboardAsyncResolver&& aResolver) {
+    GetClipboardDataSnapshotResolver&& aResolver) {
   if (!ValidatePrincipal(aRequestingPrincipal,
                          {ValidatePrincipalOptions::AllowSystem,
                           ValidatePrincipalOptions::AllowExpanded})) {
@@ -3667,8 +3668,8 @@ mozilla::ipc::IPCResult ContentParent::RecvGetClipboardAsync(
   }
 
   auto callback = MakeRefPtr<ClipboardGetCallback>(this, std::move(aResolver));
-  rv = clipboard->AsyncGetData(aTypes, aWhichClipboard, requestingWindow,
-                               aRequestingPrincipal, callback);
+  rv = clipboard->GetDataSnapshot(aTypes, aWhichClipboard, requestingWindow,
+                                  aRequestingPrincipal, callback);
   if (NS_FAILED(rv)) {
     callback->OnError(rv);
     return IPC_OK();
@@ -3700,16 +3701,16 @@ mozilla::ipc::IPCResult ContentParent::RecvGetClipboardDataSnapshotSync(
     return IPC_OK();
   }
 
-  nsCOMPtr<nsIAsyncGetClipboardData> asyncGetClipboardData;
+  nsCOMPtr<nsIClipboardDataSnapshot> clipboardDataSnapshot;
   nsresult rv =
       clipboard->GetDataSnapshotSync(aTypes, aWhichClipboard, requestingWindow,
-                                     getter_AddRefs(asyncGetClipboardData));
+                                     getter_AddRefs(clipboardDataSnapshot));
   if (NS_FAILED(rv)) {
     *aRequestOrError = rv;
     return IPC_OK();
   }
 
-  auto result = CreateClipboardReadRequest(*this, *asyncGetClipboardData);
+  auto result = CreateClipboardReadRequest(*this, *clipboardDataSnapshot);
   if (result.isErr()) {
     *aRequestOrError = result.unwrapErr();
     return IPC_OK();

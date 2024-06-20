@@ -14,13 +14,21 @@ XPCOMUtils.defineLazyPreferenceGetter(
 );
 XPCOMUtils.defineLazyPreferenceGetter(
   lazy,
+  "chatOpenSidebarOnProviderChange",
+  "browser.ml.chat.openSidebarOnProviderChange",
+  true
+);
+XPCOMUtils.defineLazyPreferenceGetter(
+  lazy,
   "chatPromptPrefix",
   "browser.ml.chat.prompt.prefix"
 );
 XPCOMUtils.defineLazyPreferenceGetter(
   lazy,
   "chatProvider",
-  "browser.ml.chat.provider"
+  "browser.ml.chat.provider",
+  null,
+  (_pref, _old, val) => onChatProviderChange(val)
 );
 XPCOMUtils.defineLazyPreferenceGetter(
   lazy,
@@ -30,6 +38,17 @@ XPCOMUtils.defineLazyPreferenceGetter(
 
 export const GenAI = {
   chatProviders: new Map(),
+
+  /**
+   * Handle startup tasks like telemetry, adding listeners.
+   */
+  init() {
+    // Access this getter for its side effect of observing provider pref change
+    lazy.chatProvider;
+
+    // Detect about:preferences to add controls
+    Services.obs.addObserver(this, "experimental-pane-loaded");
+  },
 
   /**
    * Build prompts menu to ask chat for context menu or popup.
@@ -88,23 +107,44 @@ export const GenAI = {
    * @param {Event} event from menu command
    */
   async handleAskChat({ target }) {
+    // TODO bug 1902449 to make this less context-menu specific
     const win = target.ownerGlobal;
-    const { selectedTab } = win.gBrowser;
+    const { gBrowser, SidebarController } = win;
+    const { selectedTab } = gBrowser;
+    const prompt = this.buildChatPrompt(target, {
+      currentTabTitle:
+        (selectedTab._labelIsContentTitle && selectedTab.label) || "",
+      selection: target.closest("menu").context.selectionInfo.fullText ?? "",
+    });
+
+    // Pass the prompt via GET url ?q= param or request header
+    const { header } = this.chatProviders.get(lazy.chatProvider) ?? {};
     const url = new URL(lazy.chatProvider);
-    url.searchParams.set(
-      "q",
-      this.buildChatPrompt(target, {
-        currentTabTitle:
-          (selectedTab._labelIsContentTitle && selectedTab.label) || "",
-        selection: target.closest("menu").context.selectionInfo.fullText ?? "",
-      })
-    );
-    if (lazy.chatSidebar) {
-      await win.SidebarController.show("viewGenaiChatSidebar");
-      win.SidebarController.browser.contentWindow.request(url);
+    const options = {
+      inBackground: false,
+      relatedToCurrent: true,
+      triggeringPrincipal: Services.scriptSecurityManager.createNullPrincipal(
+        {}
+      ),
+    };
+    if (header) {
+      options.headers = Cc[
+        "@mozilla.org/io/string-input-stream;1"
+      ].createInstance(Ci.nsIStringInputStream);
+      options.headers.data = `${header}: ${encodeURIComponent(prompt)}\r\n`;
     } else {
-      win.openWebLinkIn(url + "", "tab", { relatedToCurrent: true });
+      url.searchParams.set("q", prompt);
     }
+
+    // Get the desired browser to handle the prompt url request
+    let browser;
+    if (lazy.chatSidebar) {
+      await SidebarController.show("viewGenaiChatSidebar");
+      browser = await SidebarController.browser.contentWindow.browserPromise;
+    } else {
+      browser = gBrowser.addTab("", options).linkedBrowser;
+    }
+    browser.fixupAndLoadURIString(url, options);
   },
 
   /**
@@ -126,4 +166,22 @@ export const GenAI = {
     // TODO bug 1895433 populate providers
     Preferences.add({ id: "browser.ml.chat.provider", type: "string" });
   },
+
+  // nsIObserver
+  observe(window) {
+    this.buildPreferences(window);
+  },
 };
+
+/**
+ * Ensure the chat sidebar is shown to reflect changed provider.
+ *
+ * @param {string} value New pref value
+ */
+function onChatProviderChange(value) {
+  if (value && lazy.chatEnabled && lazy.chatOpenSidebarOnProviderChange) {
+    Services.wm
+      .getMostRecentWindow("navigator:browser")
+      ?.SidebarController.show("viewGenaiChatSidebar");
+  }
+}
