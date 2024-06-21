@@ -180,6 +180,7 @@
 #include "mozilla/dom/HTMLBodyElement.h"
 #include "mozilla/dom/HTMLCollectionBinding.h"
 #include "mozilla/dom/HTMLDialogElement.h"
+#include "mozilla/dom/HTMLEmbedElement.h"
 #include "mozilla/dom/HTMLFormElement.h"
 #include "mozilla/dom/HTMLIFrameElement.h"
 #include "mozilla/dom/HTMLImageElement.h"
@@ -187,6 +188,7 @@
 #include "mozilla/dom/HTMLLinkElement.h"
 #include "mozilla/dom/HTMLMediaElement.h"
 #include "mozilla/dom/HTMLMetaElement.h"
+#include "mozilla/dom/HTMLObjectElement.h"
 #include "mozilla/dom/HTMLSharedElement.h"
 #include "mozilla/dom/HTMLTextAreaElement.h"
 #include "mozilla/dom/ImageTracker.h"
@@ -3947,74 +3949,68 @@ nsresult Document::InitCSP(nsIChannel* aChannel) {
   return NS_OK;
 }
 
-static Document* GetInProcessParentDocumentFrom(BrowsingContext* aContext) {
-  BrowsingContext* parentContext = aContext->GetParent();
-  if (!parentContext) {
+static FeaturePolicy* GetFeaturePolicyFromElement(Element* aElement) {
+  if (auto* iframe = HTMLIFrameElement::FromNodeOrNull(aElement)) {
+    return iframe->FeaturePolicy();
+  }
+
+  if (!HTMLObjectElement::FromNodeOrNull(aElement) &&
+      !HTMLEmbedElement::FromNodeOrNull(aElement)) {
     return nullptr;
   }
 
-  WindowContext* windowContext = parentContext->GetCurrentWindowContext();
-  if (!windowContext) {
-    return nullptr;
-  }
-
-  return windowContext->GetDocument();
+  return aElement->OwnerDoc()->FeaturePolicy();
 }
 
-already_AddRefed<dom::FeaturePolicy> Document::GetParentFeaturePolicy() {
-  BrowsingContext* browsingContext = GetBrowsingContext();
-  if (!browsingContext) {
-    return nullptr;
-  }
-  if (!browsingContext->IsContentSubframe()) {
-    return nullptr;
-  }
-
-  HTMLIFrameElement* iframe =
-      HTMLIFrameElement::FromNodeOrNull(browsingContext->GetEmbedderElement());
-  if (iframe) {
-    return do_AddRef(iframe->FeaturePolicy());
-  }
-
-  if (XRE_IsParentProcess()) {
-    return do_AddRef(browsingContext->Canonical()->GetContainerFeaturePolicy());
-  }
-
-  if (Document* parentDocument =
-          GetInProcessParentDocumentFrom(browsingContext)) {
-    return do_AddRef(parentDocument->FeaturePolicy());
-  }
-
-  WindowContext* windowContext = browsingContext->GetCurrentWindowContext();
-  if (!windowContext) {
-    return nullptr;
-  }
-
-  WindowGlobalChild* child = windowContext->GetWindowGlobalChild();
-  if (!child) {
-    return nullptr;
-  }
-
-  return do_AddRef(child->GetContainerFeaturePolicy());
-}
-
-void Document::InitFeaturePolicy() {
+void Document::InitFeaturePolicy(
+    const Variant<Nothing, FeaturePolicyInfo, Element*>&
+        aContainerFeaturePolicy) {
   MOZ_ASSERT(mFeaturePolicy, "we should have FeaturePolicy created");
 
   mFeaturePolicy->ResetDeclaredPolicy();
 
   mFeaturePolicy->SetDefaultOrigin(NodePrincipal());
 
-  RefPtr<mozilla::dom::FeaturePolicy> parentPolicy = GetParentFeaturePolicy();
-  if (parentPolicy) {
-    // Let's inherit the policy from the parent HTMLIFrameElement if it exists.
-    mFeaturePolicy->InheritPolicy(parentPolicy);
-    mFeaturePolicy->SetSrcOrigin(parentPolicy->GetSrcOrigin());
+  RefPtr<dom::FeaturePolicy> featurePolicy = mFeaturePolicy;
+  aContainerFeaturePolicy.match(
+      [](const Nothing&) {},
+      [featurePolicy](const FeaturePolicyInfo& aContainerFeaturePolicy) {
+        // Let's inherit the policy from the possibly cross-origin container.
+        featurePolicy->InheritPolicy(aContainerFeaturePolicy);
+        featurePolicy->SetSrcOrigin(aContainerFeaturePolicy.mSrcOrigin);
+      },
+      [featurePolicy](Element* aContainer) {
+        // Let's inherit the policy from the parent container element if it
+        // exists.
+        if (RefPtr<dom::FeaturePolicy> containerFeaturePolicy =
+                GetFeaturePolicyFromElement(aContainer)) {
+          featurePolicy->InheritPolicy(containerFeaturePolicy);
+          featurePolicy->SetSrcOrigin(containerFeaturePolicy->GetSrcOrigin());
+        }
+      });
+}
+
+Element* GetEmbedderElementFrom(BrowsingContext* aBrowsingContext) {
+  if (!aBrowsingContext) {
+    return nullptr;
   }
+  if (!aBrowsingContext->IsContentSubframe()) {
+    return nullptr;
+  }
+
+  return aBrowsingContext->GetEmbedderElement();
 }
 
 nsresult Document::InitFeaturePolicy(nsIChannel* aChannel) {
-  InitFeaturePolicy();
+  nsCOMPtr<nsILoadInfo> loadInfo = aChannel->LoadInfo();
+  if (Element* embedderElement = GetEmbedderElementFrom(GetBrowsingContext())) {
+    InitFeaturePolicy(AsVariant(embedderElement));
+  } else if (Maybe<FeaturePolicyInfo> featurePolicyContainer =
+                 loadInfo->GetContainerFeaturePolicyInfo()) {
+    InitFeaturePolicy(AsVariant(*featurePolicyContainer));
+  } else {
+    InitFeaturePolicy(AsVariant(Nothing{}));
+  }
 
   // We don't want to parse the http Feature-Policy header if this pref is off.
   if (!StaticPrefs::dom_security_featurePolicy_header_enabled()) {
@@ -13179,6 +13175,11 @@ void Document::ScrollToRef() {
     return;
   }
 
+  // XXX(:jjaschke): Document policy integration should happen here
+  // as soon as https://bugzil.la/1860915 lands.
+  // XXX(:jjaschke): Same goes for User Activation and security aspects,
+  // tracked in https://bugzil.la/1888756.
+
   // https://wicg.github.io/scroll-to-text-fragment/#invoking-text-directives
   // Monkeypatching HTML § 7.4.6.3 Scrolling to a fragment:
   // 1. Let text directives be the document's pending text directives.
@@ -13187,8 +13188,8 @@ void Document::ScrollToRef() {
       fragmentDirective->FindTextFragmentsInDocument();
   // 2. If ranges is non-empty, then:
   // 2.1 Let firstRange be the first item of ranges
-  const RefPtr<nsRange> textDirectiveToScroll =
-      !textDirectives.IsEmpty() ? textDirectives[0] : nullptr;
+  RefPtr<nsRange> firstRange =
+      !textDirectives.IsEmpty() ? textDirectives.ElementAt(0) : nullptr;
   // 2.2 Visually indicate each range in ranges in an implementation-defined
   // way. The indication must not be observable from author script. See § 3.7
   // Indicating The Text Match.
@@ -13206,7 +13207,7 @@ void Document::ScrollToRef() {
   }
   // 2. If fragment is the empty string and no text directives have been
   // scrolled to, then return the special value top of the document.
-  if (!textDirectiveToScroll && mScrollToRef.IsEmpty()) {
+  if (textDirectives.IsEmpty() && mScrollToRef.IsEmpty()) {
     return;
   }
   // 3. Let potentialIndicatedElement be the result of finding a potential
@@ -13214,14 +13215,8 @@ void Document::ScrollToRef() {
   NS_ConvertUTF8toUTF16 ref(mScrollToRef);
   // This also covers 2.3 of the Monkeypatch for text fragments mentioned above:
   // 2.3 Set firstRange as document's indicated part, return.
-
-  const bool scrollToTextDirective =
-      textDirectiveToScroll
-          ? fragmentDirective->IsTextDirectiveAllowedToBeScrolledTo()
-          : mChangeScrollPosWhenScrollingToRef;
-
-  auto rv =
-      presShell->GoToAnchor(ref, textDirectiveToScroll, scrollToTextDirective);
+  auto rv = presShell->GoToAnchor(ref, firstRange,
+                                  mChangeScrollPosWhenScrollingToRef);
 
   // 4. If potentialIndicatedElement is not null, then return
   // potentialIndicatedElement.
@@ -13462,8 +13457,8 @@ static void CachePrintSelectionRanges(const Document& aSourceDoc,
     const nsRange* range = sourceDocIsStatic ? origRanges->ElementAt(i).get()
                                              : origSelection->GetRangeAt(i);
     MOZ_ASSERT(range);
-    nsINode* startContainer = range->GetStartContainer();
-    nsINode* endContainer = range->GetEndContainer();
+    nsINode* startContainer = range->GetMayCrossShadowBoundaryStartContainer();
+    nsINode* endContainer = range->GetMayCrossShadowBoundaryEndContainer();
 
     if (!startContainer || !endContainer) {
       continue;
@@ -13478,10 +13473,11 @@ static void CachePrintSelectionRanges(const Document& aSourceDoc,
       continue;
     }
 
-    RefPtr<nsRange> clonedRange =
-        nsRange::Create(startNode, range->StartOffset(), endNode,
-                        range->EndOffset(), IgnoreErrors());
-    if (clonedRange && !clonedRange->Collapsed()) {
+    RefPtr<nsRange> clonedRange = nsRange::Create(
+        startNode, range->MayCrossShadowBoundaryStartOffset(), endNode,
+        range->MayCrossShadowBoundaryEndOffset(), IgnoreErrors());
+    if (clonedRange &&
+        !clonedRange->AreNormalRangeAndCrossShadowBoundaryRangeCollapsed()) {
       printRanges->AppendElement(std::move(clonedRange));
     }
   }
@@ -16964,20 +16960,6 @@ void Document::NotifyUserGestureActivation(
 bool Document::HasBeenUserGestureActivated() {
   RefPtr<WindowContext> wc = GetWindowContext();
   return wc && wc->HasBeenUserGestureActivated();
-}
-
-bool Document::ConsumeTextDirectiveUserActivation() {
-  if (!mChannel) {
-    return false;
-  }
-  nsCOMPtr<nsILoadInfo> loadInfo = mChannel->LoadInfo();
-  if (!loadInfo) {
-    return false;
-  }
-  const bool textDirectiveUserActivation =
-      loadInfo->GetTextDirectiveUserActivation();
-  loadInfo->SetTextDirectiveUserActivation(false);
-  return textDirectiveUserActivation;
 }
 
 DOMHighResTimeStamp Document::LastUserGestureTimeStamp() {

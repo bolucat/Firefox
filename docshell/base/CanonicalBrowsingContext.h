@@ -10,11 +10,13 @@
 #include "mozilla/dom/BrowsingContext.h"
 #include "mozilla/dom/MediaControlKeySource.h"
 #include "mozilla/dom/BrowsingContextWebProgress.h"
+#include "mozilla/dom/FeaturePolicy.h"
 #include "mozilla/dom/ProcessIsolation.h"
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/SessionHistoryEntry.h"
 #include "mozilla/dom/SessionStoreRestoreData.h"
 #include "mozilla/dom/SessionStoreUtils.h"
+#include "mozilla/dom/UniqueContentParentKeepAlive.h"
 #include "mozilla/dom/ipc/IdType.h"
 #include "mozilla/RefPtr.h"
 #include "mozilla/MozPromise.h"
@@ -315,9 +317,10 @@ class CanonicalBrowsingContext final : public BrowsingContext {
 
   void ResetScalingZoom();
 
-  void SetContainerFeaturePolicy(FeaturePolicy* aContainerFeaturePolicy);
-  FeaturePolicy* GetContainerFeaturePolicy() const {
-    return mContainerFeaturePolicy;
+  void SetContainerFeaturePolicy(
+      Maybe<FeaturePolicyInfo>&& aContainerFeaturePolicyInfo);
+  const Maybe<FeaturePolicyInfo>& GetContainerFeaturePolicy() const {
+    return mContainerFeaturePolicyInfo;
   }
 
   void SetRestoreData(SessionStoreRestoreData* aData, ErrorResult& aError);
@@ -458,7 +461,7 @@ class CanonicalBrowsingContext final : public BrowsingContext {
 
     RefPtr<CanonicalBrowsingContext> mTarget;
     RefPtr<RemotenessPromise::Private> mPromise;
-    RefPtr<ContentParent> mContentParent;
+    UniqueContentParentKeepAlive mContentParentKeepAlive;
     RefPtr<BrowsingContextGroup> mSpecificGroup;
 
     bool mProcessReady = false;
@@ -582,7 +585,7 @@ class CanonicalBrowsingContext final : public BrowsingContext {
   nsCOMPtr<nsIWebProgressListener> mDocShellProgressBridge;
   RefPtr<nsBrowserStatusFilter> mStatusFilter;
 
-  RefPtr<FeaturePolicy> mContainerFeaturePolicy;
+  Maybe<FeaturePolicyInfo> mContainerFeaturePolicyInfo;
 
   friend class BrowserSessionStore;
   WeakPtr<SessionStoreFormData>& GetSessionStoreFormDataRef() {

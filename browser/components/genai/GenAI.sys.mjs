@@ -7,10 +7,18 @@
 import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
 
 const lazy = {};
+ChromeUtils.defineESModuleGetters(lazy, {
+  ASRouterTargeting: "resource:///modules/asrouter/ASRouterTargeting.sys.mjs",
+});
 XPCOMUtils.defineLazyPreferenceGetter(
   lazy,
   "chatEnabled",
   "browser.ml.chat.enabled"
+);
+XPCOMUtils.defineLazyPreferenceGetter(
+  lazy,
+  "chatHideLocalhost",
+  "browser.ml.chat.hideLocalhost"
 );
 XPCOMUtils.defineLazyPreferenceGetter(
   lazy,
@@ -37,7 +45,23 @@ XPCOMUtils.defineLazyPreferenceGetter(
 );
 
 export const GenAI = {
-  chatProviders: new Map(),
+  // Any chat provider can be used and those that match the URLs in this object
+  // will allow for additional UI shown such as populating dropdown with a name,
+  // showing links, and other special behaviors needed for individual providers.
+  // The ordering of this list affects UI and currently alphabetical by name.
+  chatProviders: new Map([
+    // Until bug 1903900 to better handle max length issues, track in comments
+    // 8k max length uri before 414
+    [
+      "http://localhost:8080",
+      {
+        get hidden() {
+          return lazy.chatHideLocalhost;
+        },
+        name: "localhost",
+      },
+    ],
+  ]),
 
   /**
    * Handle startup tasks like telemetry, adding listeners.
@@ -53,32 +77,70 @@ export const GenAI = {
   /**
    * Build prompts menu to ask chat for context menu or popup.
    *
-   * @param {MozMenu} menu Element to update
-   * @param {nsContextMenu} context Additional menu context
+   * @param {MozMenu} menu element to update
+   * @param {nsContextMenu} nsContextMenu helpers for context menu
    */
-  buildAskChatMenu(menu, context) {
+  async buildAskChatMenu(menu, nsContextMenu) {
+    nsContextMenu.showItem(menu, false);
     if (!lazy.chatEnabled || lazy.chatProvider == "") {
-      context.showItem(menu, false);
       return;
     }
-
-    menu.context = context;
-    menu.label = "Ask chatbot";
+    menu.label = `Ask ${
+      this.chatProviders.get(lazy.chatProvider)?.name ?? "chatbot"
+    }`;
     menu.menupopup?.remove();
+
+    // Prepare context used for both targeting and handling prompts
+    const window = menu.ownerGlobal;
+    const tab = window.gBrowser.getTabForBrowser(nsContextMenu.browser);
+    const context = {
+      provider: lazy.chatProvider,
+      selection: nsContextMenu.selectionInfo.fullText ?? "",
+      tabTitle: (tab._labelIsContentTitle && tab.label) || "",
+      window,
+    };
+
+    // Add menu items that pass along context for handling
+    (await this.getContextualPrompts(context)).forEach(promptObj =>
+      menu
+        .appendItem(promptObj.label, promptObj.value)
+        .addEventListener("command", () =>
+          this.handleAskChat(promptObj, context)
+        )
+    );
+    nsContextMenu.showItem(menu, menu.itemCount > 0);
+  },
+
+  /**
+   * Get prompts from prefs evaluated with context
+   *
+   * @param {object} context data used for targeting
+   * @returns {promise} array of matching prompt objects
+   */
+  getContextualPrompts(context) {
+    // Treat prompt objects as messages to reuse targeting capabilities
+    const messages = [];
     Services.prefs.getChildList("browser.ml.chat.prompts.").forEach(pref => {
       try {
-        let prompt = Services.prefs.getStringPref(pref);
+        const promptObj = {
+          label: Services.prefs.getStringPref(pref),
+          targeting: "true",
+          value: "",
+        };
         try {
-          prompt = JSON.parse(prompt);
+          // Prompts can be JSON with label, value, targeting and other keys
+          Object.assign(promptObj, JSON.parse(promptObj.label));
         } catch (ex) {}
-        menu
-          .appendItem(prompt.label ?? prompt, prompt.value ?? "")
-          .addEventListener("command", this.handleAskChat.bind(this));
+        messages.push(promptObj);
       } catch (ex) {
-        console.error("Failed to add menu item for " + pref, ex);
+        console.error("Failed to get prompt pref " + pref, ex);
       }
     });
-    context.showItem(menu, menu.itemCount > 0);
+    return lazy.ASRouterTargeting.findMatchingMessage({
+      messages,
+      returnAll: true,
+      trigger: { context },
+    });
   },
 
   /**
@@ -104,18 +166,11 @@ export const GenAI = {
   /**
    * Handle selected prompt by opening tab or sidebar.
    *
-   * @param {Event} event from menu command
+   * @param {object} promptObj to convert to string
+   * @param {object} context of how the prompt should be handled
    */
-  async handleAskChat({ target }) {
-    // TODO bug 1902449 to make this less context-menu specific
-    const win = target.ownerGlobal;
-    const { gBrowser, SidebarController } = win;
-    const { selectedTab } = gBrowser;
-    const prompt = this.buildChatPrompt(target, {
-      currentTabTitle:
-        (selectedTab._labelIsContentTitle && selectedTab.label) || "",
-      selection: target.closest("menu").context.selectionInfo.fullText ?? "",
-    });
+  async handleAskChat(promptObj, context) {
+    const prompt = this.buildChatPrompt(promptObj, context);
 
     // Pass the prompt via GET url ?q= param or request header
     const { header } = this.chatProviders.get(lazy.chatProvider) ?? {};
@@ -139,10 +194,11 @@ export const GenAI = {
     // Get the desired browser to handle the prompt url request
     let browser;
     if (lazy.chatSidebar) {
+      const { SidebarController } = context.window;
       await SidebarController.show("viewGenaiChatSidebar");
       browser = await SidebarController.browser.contentWindow.browserPromise;
     } else {
-      browser = gBrowser.addTab("", options).linkedBrowser;
+      browser = context.window.gBrowser.addTab("", options).linkedBrowser;
     }
     browser.fixupAndLoadURIString(url, options);
   },
@@ -163,8 +219,53 @@ export const GenAI = {
     onEnabledChange();
     enabled.on("change", onEnabledChange);
 
-    // TODO bug 1895433 populate providers
-    Preferences.add({ id: "browser.ml.chat.provider", type: "string" });
+    // Populate providers and hide from list if necessary
+    this.chatProviders.forEach((data, url) => {
+      providerEl.appendItem(data.name, url).hidden = data.hidden ?? false;
+    });
+    const provider = Preferences.add({
+      id: "browser.ml.chat.provider",
+      type: "string",
+    });
+    let customItem;
+    const onProviderChange = () => {
+      // Add/update the Custom entry if it's not a default provider entry
+      if (provider.value && !this.chatProviders.has(provider.value)) {
+        if (!customItem) {
+          customItem = providerEl.appendItem();
+        }
+        customItem.label = `Custom (${provider.value})`;
+        customItem.value = provider.value;
+
+        // Select the item if the preference changed not via menu
+        providerEl.selectedItem = customItem;
+      }
+
+      // Update potentially multiple links for the provider
+      const links = document.getElementById("genai-chat-links");
+      const providerData = this.chatProviders.get(provider.value);
+      for (let i = 1; i <= 2; i++) {
+        const name = `link${i}`;
+        let link = links.querySelector(`[data-l10n-name=${name}]`);
+        const href = providerData?.[name];
+        if (href) {
+          if (!link) {
+            link = links.appendChild(document.createElement("a"));
+            link.dataset.l10nName = name;
+            link.target = "_blank";
+          }
+          link.href = href;
+        } else {
+          link?.remove();
+        }
+      }
+      document.l10n.setAttributes(
+        links,
+        providerData?.linksId ?? "genai-settings-chat-links"
+      );
+    };
+    onProviderChange();
+    provider.on("change", onProviderChange);
   },
 
   // nsIObserver

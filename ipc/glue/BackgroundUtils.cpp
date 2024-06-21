@@ -587,7 +587,6 @@ nsresult LoadInfoToLoadInfoArgs(nsILoadInfo* aLoadInfo,
       integrityMetadata, aLoadInfo->GetSkipContentSniffing(),
       aLoadInfo->GetHttpsOnlyStatus(), aLoadInfo->GetHstsStatus(),
       aLoadInfo->GetHasValidUserGestureActivation(),
-      aLoadInfo->GetTextDirectiveUserActivation(),
       aLoadInfo->GetAllowDeprecatedSystemRequests(),
       aLoadInfo->GetIsInDevToolsContext(), aLoadInfo->GetParserCreatedScript(),
       aLoadInfo->GetIsFromProcessingFrameAttributes(),
@@ -878,7 +877,6 @@ nsresult LoadInfoArgsToLoadInfo(const LoadInfoArgs& loadInfoArgs,
       loadInfoArgs.cspNonce(), loadInfoArgs.integrityMetadata(),
       loadInfoArgs.skipContentSniffing(), loadInfoArgs.httpsOnlyStatus(),
       loadInfoArgs.hstsStatus(), loadInfoArgs.hasValidUserGestureActivation(),
-      loadInfoArgs.textDirectiveUserActivation(),
       loadInfoArgs.allowDeprecatedSystemRequests(),
       loadInfoArgs.isInDevToolsContext(), loadInfoArgs.parserCreatedScript(),
       loadInfoArgs.storagePermission(), overriddenFingerprintingSettings,
@@ -956,7 +954,6 @@ void LoadInfoToParentLoadInfoForwarder(
       aLoadInfo->GetAllowInsecureRedirectToDataURI(), ipcController, tainting,
       aLoadInfo->GetSkipContentSniffing(), aLoadInfo->GetHttpsOnlyStatus(),
       aLoadInfo->GetHstsStatus(), aLoadInfo->GetHasValidUserGestureActivation(),
-      aLoadInfo->GetTextDirectiveUserActivation(),
       aLoadInfo->GetAllowDeprecatedSystemRequests(),
       aLoadInfo->GetIsInDevToolsContext(), aLoadInfo->GetParserCreatedScript(),
       aLoadInfo->GetTriggeringSandboxFlags(),
@@ -965,10 +962,11 @@ void LoadInfoToParentLoadInfoForwarder(
       aLoadInfo->GetServiceWorkerTaintingSynthesized(),
       aLoadInfo->GetDocumentHasUserInteracted(),
       aLoadInfo->GetAllowListFutureDocumentsCreatedFromThisRedirectChain(),
-      cookieJarSettingsArgs, aLoadInfo->GetRequestBlockingReason(),
-      aLoadInfo->GetStoragePermission(), overriddenFingerprintingSettingsArg,
-      aLoadInfo->GetIsMetaRefresh(), isThirdPartyContextToTopWindow,
-      aLoadInfo->GetIsInThirdPartyContext(), unstrippedURI);
+      cookieJarSettingsArgs, aLoadInfo->GetContainerFeaturePolicyInfo(),
+      aLoadInfo->GetRequestBlockingReason(), aLoadInfo->GetStoragePermission(),
+      overriddenFingerprintingSettingsArg, aLoadInfo->GetIsMetaRefresh(),
+      isThirdPartyContextToTopWindow, aLoadInfo->GetIsInThirdPartyContext(),
+      unstrippedURI);
 }
 
 nsresult MergeParentLoadInfoForwarder(
@@ -991,9 +989,6 @@ nsresult MergeParentLoadInfoForwarder(
   } else {
     aLoadInfo->MaybeIncreaseTainting(aForwarderArgs.tainting());
   }
-  rv = aLoadInfo->SetTextDirectiveUserActivation(
-      aForwarderArgs.textDirectiveUserActivation());
-  NS_ENSURE_SUCCESS(rv, rv);
 
   rv = aLoadInfo->SetSkipContentSniffing(aForwarderArgs.skipContentSniffing());
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1076,6 +1071,11 @@ nsresult MergeParentLoadInfoForwarder(
 
   rv = aLoadInfo->SetUnstrippedURI(aForwarderArgs.unstrippedURI());
   NS_ENSURE_SUCCESS(rv, rv);
+
+  if (aForwarderArgs.containerFeaturePolicyInfo()) {
+    aLoadInfo->SetContainerFeaturePolicyInfo(
+        *aForwarderArgs.containerFeaturePolicyInfo());
+  }
 
   return NS_OK;
 }

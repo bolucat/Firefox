@@ -47,10 +47,6 @@
   }
 }
 
-menupopup[emptyplacesresult="true"] > .hide-if-empty-places-result {
-  display: none;
-}
-
 #navigator-toolbox ,
 #mainPopupSet {
   min-width: 1px;
@@ -61,17 +57,6 @@ menupopup[emptyplacesresult="true"] > .hide-if-empty-places-result {
 #historySwipeAnimationContainer {
   overflow: hidden;
   pointer-events: none;
-}
-
-/* notification anchors should only be visible when their associated
-   notifications are */
-#nav-bar:not([keyNav=true]) .notification-anchor-icon {
-  -moz-user-focus: normal;
-}
-
-#blocked-permissions-container > .blocked-permission-icon:not([showing]),
-.notification-anchor-icon:not([showing]) {
-  display: none;
 }
 
 #invalid-form-popup {
@@ -116,8 +101,4 @@ menupopup[emptyplacesresult="true"] > .hide-if-empty-places-result {
 #screenshotsPagePanel {
   position: relative;
   max-height: 0;
-}
-
-toolbar[keyNav=true]:not([collapsed=true], [customizing=true]) toolbartabstop {
-  -moz-user-focus: normal;
 }

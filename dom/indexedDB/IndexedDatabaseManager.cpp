@@ -22,8 +22,10 @@
 #include "mozilla/dom/ErrorEvent.h"
 #include "mozilla/dom/ErrorEventBinding.h"
 #include "mozilla/dom/WorkerScope.h"
+#include "mozilla/dom/Promise.h"
 #include "mozilla/dom/RootedDictionary.h"
 #include "mozilla/dom/quota/Assertions.h"
+#include "mozilla/dom/quota/PromiseUtils.h"
 #include "mozilla/dom/quota/ResultExtensions.h"
 #include "mozilla/intl/LocaleCanonicalizer.h"
 #include "mozilla/ipc/BackgroundChild.h"
@@ -351,6 +353,30 @@ void IndexedDatabaseManager::Destroy() {
   delete this;
 }
 
+nsresult IndexedDatabaseManager::EnsureBackgroundActor() {
+  if (mBackgroundActor) {
+    return NS_OK;
+  }
+
+  PBackgroundChild* bgActor = BackgroundChild::GetForCurrentThread();
+  if (NS_WARN_IF(!bgActor)) {
+    return NS_ERROR_FAILURE;
+  }
+
+  {
+    BackgroundUtilsChild* actor = new BackgroundUtilsChild(this);
+
+    mBackgroundActor = static_cast<BackgroundUtilsChild*>(
+        bgActor->SendPBackgroundIndexedDBUtilsConstructor(actor));
+
+    if (NS_WARN_IF(!mBackgroundActor)) {
+      return NS_ERROR_FAILURE;
+    }
+  }
+
+  return NS_OK;
+}
+
 // static
 bool IndexedDatabaseManager::ResolveSandboxBinding(JSContext* aCx) {
   MOZ_ASSERT(NS_IsMainThread());
@@ -603,27 +629,7 @@ nsresult IndexedDatabaseManager::BlockAndGetFileReferences(
     return NS_ERROR_UNEXPECTED;
   }
 
-  if (!mBackgroundActor) {
-    PBackgroundChild* bgActor = BackgroundChild::GetForCurrentThread();
-    if (NS_WARN_IF(!bgActor)) {
-      return NS_ERROR_FAILURE;
-    }
-
-    BackgroundUtilsChild* actor = new BackgroundUtilsChild(this);
-
-    // We don't set event target for BackgroundUtilsChild because:
-    // 1. BackgroundUtilsChild is a singleton.
-    // 2. SendGetFileReferences is a sync operation to be returned asap if
-    // unlabeled.
-    // 3. The rest operations like DeleteMe/__delete__ only happens at shutdown.
-    // Hence, we should keep it unlabeled.
-    mBackgroundActor = static_cast<BackgroundUtilsChild*>(
-        bgActor->SendPBackgroundIndexedDBUtilsConstructor(actor));
-  }
-
-  if (NS_WARN_IF(!mBackgroundActor)) {
-    return NS_ERROR_FAILURE;
-  }
+  QM_TRY(MOZ_TO_RESULT(EnsureBackgroundActor()));
 
   if (!mBackgroundActor->SendGetFileReferences(
           aPersistenceType, nsCString(aOrigin), nsString(aDatabaseName),
@@ -656,6 +662,44 @@ nsresult IndexedDatabaseManager::FlushPendingFileDeletions() {
 NS_IMPL_ADDREF(IndexedDatabaseManager)
 NS_IMPL_RELEASE_WITH_DESTROY(IndexedDatabaseManager, Destroy())
 NS_IMPL_QUERY_INTERFACE(IndexedDatabaseManager, nsIIndexedDatabaseManager)
+
+NS_IMETHODIMP
+IndexedDatabaseManager::DoMaintenance(JSContext* aContext, Promise** _retval) {
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(_retval);
+
+  if (NS_WARN_IF(!StaticPrefs::dom_indexedDB_testing())) {
+    return NS_ERROR_UNEXPECTED;
+  }
+
+  QM_TRY(MOZ_TO_RESULT(EnsureBackgroundActor()));
+
+  RefPtr<Promise> promise;
+  nsresult rv = CreatePromise(aContext, getter_AddRefs(promise));
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+
+  mBackgroundActor->SendDoMaintenance()->Then(
+      GetCurrentSerialEventTarget(), __func__,
+      [promise](const PBackgroundIndexedDBUtilsChild::DoMaintenancePromise::
+                    ResolveOrRejectValue& aValue) {
+        if (aValue.IsReject()) {
+          promise->MaybeReject(NS_ERROR_FAILURE);
+          return;
+        }
+
+        if (NS_FAILED(aValue.ResolveValue())) {
+          promise->MaybeReject(aValue.ResolveValue());
+          return;
+        }
+
+        promise->MaybeResolveWithUndefined();
+      });
+
+  promise.forget(_retval);
+  return NS_OK;
+}
 
 // static
 void IndexedDatabaseManager::LoggingModePrefChangedCallback(
