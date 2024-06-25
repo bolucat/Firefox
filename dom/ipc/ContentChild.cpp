@@ -815,9 +815,7 @@ void ContentChild::AddProfileToProcessName(const nsACString& aProfile) {
   nsCOMPtr<nsIPrincipal> isolationPrincipal =
       ContentParent::CreateRemoteTypeIsolationPrincipal(mRemoteType);
   if (isolationPrincipal) {
-    // DEFAULT_PRIVATE_BROWSING_ID is the value when it's not private
-    if (isolationPrincipal->OriginAttributesRef().mPrivateBrowsingId !=
-        nsIScriptSecurityManager::DEFAULT_PRIVATE_BROWSING_ID) {
+    if (isolationPrincipal->OriginAttributesRef().IsPrivateBrowsing()) {
       return;
     }
   }
@@ -859,11 +857,9 @@ void ContentChild::SetProcessName(const nsACString& aName,
       // DEFAULT_PRIVATE_BROWSING_ID is the value when it's not private
       MOZ_LOG(ContentParent::GetLog(), LogLevel::Debug,
               ("private = %d, pref = %d",
-               isolationPrincipal->OriginAttributesRef().mPrivateBrowsingId !=
-                   nsIScriptSecurityManager::DEFAULT_PRIVATE_BROWSING_ID,
+               isolationPrincipal->OriginAttributesRef().IsPrivateBrowsing(),
                StaticPrefs::fission_processPrivateWindowSiteNames()));
-      if (isolationPrincipal->OriginAttributesRef().mPrivateBrowsingId ==
-              nsIScriptSecurityManager::DEFAULT_PRIVATE_BROWSING_ID
+      if (!isolationPrincipal->OriginAttributesRef().IsPrivateBrowsing()
 #ifdef NIGHTLY_BUILD
           // Nightly can show site names for private windows, with a second pref
           || StaticPrefs::fission_processPrivateWindowSiteNames()
@@ -2102,11 +2098,10 @@ mozilla::ipc::IPCResult ContentChild::RecvClearStyleSheetCache(
 mozilla::ipc::IPCResult ContentChild::RecvClearImageCacheFromPrincipal(
     nsIPrincipal* aPrincipal) {
   imgLoader* loader;
-  if (aPrincipal->OriginAttributesRef().mPrivateBrowsingId ==
-      nsIScriptSecurityManager::DEFAULT_PRIVATE_BROWSING_ID) {
-    loader = imgLoader::NormalLoader();
-  } else {
+  if (aPrincipal->OriginAttributesRef().IsPrivateBrowsing()) {
     loader = imgLoader::PrivateBrowsingLoader();
+  } else {
+    loader = imgLoader::NormalLoader();
   }
 
   loader->RemoveEntriesInternal(aPrincipal, nullptr);
@@ -2711,13 +2706,6 @@ mozilla::ipc::IPCResult ContentChild::RecvRemoteType(
   CrashReporter::RecordAnnotationNSCString(
       CrashReporter::Annotation::RemoteType, remoteTypePrefix);
 
-  // Defer RemoteWorkerService initialization until the child process does
-  // receive its specific remoteType and can become actionable for the
-  // RemoteWorkerManager in the parent process.
-  if (mRemoteType != PREALLOC_REMOTE_TYPE) {
-    RemoteWorkerService::Initialize();
-  }
-
   return IPC_OK();
 }
 
@@ -2733,6 +2721,12 @@ void ContentChild::PreallocInit() {
 // Call RemoteTypePrefix() on the result to remove URIs if you want to use this
 // for telemetry.
 const nsACString& ContentChild::GetRemoteType() const { return mRemoteType; }
+
+mozilla::ipc::IPCResult ContentChild::RecvInitRemoteWorkerService(
+    Endpoint<PRemoteWorkerServiceChild>&& aEndpoint) {
+  RemoteWorkerService::InitializeChild(std::move(aEndpoint));
+  return IPC_OK();
+}
 
 mozilla::ipc::IPCResult ContentChild::RecvInitBlobURLs(
     nsTArray<BlobURLRegistrationData>&& aRegistrations) {
