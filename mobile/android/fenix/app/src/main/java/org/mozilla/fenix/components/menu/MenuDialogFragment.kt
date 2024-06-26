@@ -84,8 +84,12 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                     val browserStore = components.core.store
                     val syncStore = components.backgroundServices.syncStore
                     val bookmarksStorage = components.core.bookmarksStorage
+                    val pinnedSiteStorage = components.core.pinnedSiteStorage
                     val tabCollectionStorage = components.core.tabCollectionStorage
                     val addBookmarkUseCase = components.useCases.bookmarksUseCases.addBookmark
+                    val addPinnedSiteUseCase = components.useCases.topSitesUseCase.addPinnedSites
+                    val removePinnedSiteUseCase = components.useCases.topSitesUseCase.removeTopSites
+                    val topSitesMaxLimit = components.settings.topSitesMaxLimit
                     val printContentUseCase = components.useCases.sessionUseCases.printContent
                     val saveToPdfUseCase = components.useCases.sessionUseCases.saveToPdf
                     val selectedTab = browserStore.state.selectedTab
@@ -105,6 +109,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                             middleware = listOf(
                                 MenuDialogMiddleware(
                                     bookmarksStorage = bookmarksStorage,
+                                    pinnedSiteStorage = pinnedSiteStorage,
                                     addBookmarkUseCase = addBookmarkUseCase,
                                     onDeleteAndQuit = {
                                         deleteAndQuit(
@@ -113,6 +118,9 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                             snackbar = null,
                                         )
                                     },
+                                    addPinnedSiteUseCase = addPinnedSiteUseCase,
+                                    removePinnedSitesUseCase = removePinnedSiteUseCase,
+                                    topSitesMaxLimit = topSitesMaxLimit,
                                     scope = coroutineScope,
                                 ),
                                 MenuNavigationMiddleware(
@@ -135,6 +143,9 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                     }
                     val isBookmarked by store.observeAsState(initialValue = false) { state ->
                         state.browserMenuState != null && state.browserMenuState.bookmarkState.isBookmarked
+                    }
+                    val isPinned by store.observeAsState(initialValue = false) { state ->
+                        state.browserMenuState != null && state.browserMenuState.isPinned
                     }
 
                     NavHost(
@@ -238,6 +249,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                         composable(route = SAVE_MENU_ROUTE) {
                             SaveSubmenu(
                                 isBookmarked = isBookmarked,
+                                isPinned = isPinned,
                                 onBackButtonClick = {
                                     store.dispatch(MenuAction.Navigate.Back)
                                 },
@@ -247,7 +259,13 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                 onEditBookmarkButtonClick = {
                                     store.dispatch(MenuAction.Navigate.EditBookmark)
                                 },
-                                onAddToShortcutsMenuClick = {},
+                                onShortcutsMenuClick = {
+                                    if (!isPinned) {
+                                        store.dispatch(MenuAction.AddShortcut)
+                                    } else {
+                                        store.dispatch(MenuAction.RemoveShortcut)
+                                    }
+                                },
                                 onAddToHomeScreenMenuClick = {},
                                 onSaveToCollectionMenuClick = {
                                     store.dispatch(
