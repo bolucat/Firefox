@@ -4,6 +4,11 @@
 
 "use strict";
 
+/* eslint-disable camelcase */
+const SupportedTextSelection_None = 0;
+const SupportedTextSelection_Multiple = 2;
+/* eslint-enable camelcase */
+
 /**
  * Test the Text pattern's DocumentRange property. This also tests where the
  * Text pattern is exposed.
@@ -660,5 +665,221 @@ addUiaTask(
       "MoveEndpointByUnit return correct"
     );
     is(await runPython(`range.GetText(-1)`), "i", "range text correct");
+  }
+);
+
+/**
+ * Test the Text pattern's SupportedTextSelection property.
+ */
+addUiaTask(
+  `
+<style>
+body {
+  user-select: none;
+}
+</style>
+<input id="input">
+  `,
+  async function testTextSupportedTextSelection() {
+    let result = await runPython(`
+      global doc
+      doc = getDocUia()
+      input = findUiaByDomId(doc, "input")
+      text = getUiaPattern(input, "Text")
+      return text.SupportedTextSelection
+    `);
+    is(
+      result,
+      SupportedTextSelection_Multiple,
+      "input SupportedTextSelection correct"
+    );
+    // The IA2 -> UIA bridge doesn't understand that text isn't selectable in
+    // this document.
+    if (gIsUiaEnabled) {
+      is(
+        await runPython(`getUiaPattern(doc, "Text").SupportedTextSelection`),
+        SupportedTextSelection_None,
+        "doc SupportedTextSelection correct"
+      );
+    }
+  }
+);
+
+/**
+ * Test the Text pattern's GetSelection method with the caret.
+ */
+addUiaTask(
+  `<textarea id="textarea" cols="2">ab cd</textarea>`,
+  async function testTextGetSelectionCaret(browser, docAcc) {
+    await runPython(`
+      doc = getDocUia()
+      textarea = findUiaByDomId(doc, "textarea")
+      global text
+      text = getUiaPattern(textarea, "Text")
+    `);
+    is(await runPython(`text.GetSelection().Length`), 0, "No selection");
+    info("Focusing textarea");
+    const textarea = findAccessibleChildByID(docAcc, "textarea");
+    let moved = waitForEvent(EVENT_TEXT_CARET_MOVED, textarea);
+    textarea.takeFocus();
+    await moved;
+    is(await runPython(`text.GetSelection().Length`), 1, "1 selection");
+    await definePyVar("range", `text.GetSelection().GetElement(0)`);
+    ok(await runPython(`bool(range)`), "Got selection range 0");
+    info("Expanding to character");
+    await runPython(`range.ExpandToEnclosingUnit(TextUnit_Character)`);
+    is(await runPython(`range.GetText(-1)`), "a", "range text correct");
+
+    info("Pressing ArrowRight");
+    moved = waitForEvent(EVENT_TEXT_CARET_MOVED, textarea);
+    EventUtils.synthesizeKey("KEY_ArrowRight");
+    await moved;
+    is(await runPython(`text.GetSelection().Length`), 1, "1 selection");
+    await definePyVar("range", `text.GetSelection().GetElement(0)`);
+    ok(await runPython(`bool(range)`), "Got selection range 0");
+    info("Expanding to character");
+    await runPython(`range.ExpandToEnclosingUnit(TextUnit_Character)`);
+    is(await runPython(`range.GetText(-1)`), "b", "range text correct");
+
+    // The IA2 -> UIA proxy doesn't handle the insertion point at the end of a
+    // line correctly.
+    if (!gIsUiaEnabled) {
+      return;
+    }
+
+    // Test the insertion point at the end of a wrapped line.
+    info("Pressing End");
+    moved = waitForEvent(EVENT_TEXT_CARET_MOVED, textarea);
+    EventUtils.synthesizeKey("KEY_End");
+    await moved;
+    is(await runPython(`text.GetSelection().Length`), 1, "1 selection");
+    await definePyVar("range", `text.GetSelection().GetElement(0)`);
+    ok(await runPython(`bool(range)`), "Got selection range 0");
+    info("Expanding to character");
+    await runPython(`range.ExpandToEnclosingUnit(TextUnit_Character)`);
+    is(await runPython(`range.GetText(-1)`), "", "range text correct");
+    info("Moving end 1 character");
+    await runPython(
+      `range.MoveEndpointByUnit(TextPatternRangeEndpoint_End, TextUnit_Character, 1)`
+    );
+    is(await runPython(`range.GetText(-1)`), "c", "range text correct");
+    info("Expanding to line at caret");
+    await definePyVar("range", `text.GetSelection().GetElement(0)`);
+    await runPython(`range.ExpandToEnclosingUnit(TextUnit_Line)`);
+    is(await runPython(`range.GetText(-1)`), "ab ", "range text correct");
+
+    // Test the insertion point at the end of the textarea.
+    info("Pressing Ctrl+End");
+    moved = waitForEvent(EVENT_TEXT_CARET_MOVED, textarea);
+    EventUtils.synthesizeKey("KEY_End", { ctrlKey: true });
+    await moved;
+    is(await runPython(`text.GetSelection().Length`), 1, "1 selection");
+    await definePyVar("range", `text.GetSelection().GetElement(0)`);
+    ok(await runPython(`bool(range)`), "Got selection range 0");
+    info("Expanding to character");
+    await runPython(`range.ExpandToEnclosingUnit(TextUnit_Character)`);
+    is(await runPython(`range.GetText(-1)`), "", "range text correct");
+    info("Expanding to line");
+    await definePyVar("range", `text.GetSelection().GetElement(0)`);
+    await runPython(`range.ExpandToEnclosingUnit(TextUnit_Line)`);
+    is(await runPython(`range.GetText(-1)`), "cd", "range text correct");
+  }
+);
+
+/**
+ * Test the Text pattern's GetSelection method with selection.
+ */
+addUiaTask(
+  `<textarea id="textarea" cols="3">ab cd</textarea>`,
+  async function testTextGetSelectionSelection(browser, docAcc) {
+    await runPython(`
+      doc = getDocUia()
+      textarea = findUiaByDomId(doc, "textarea")
+      global text
+      text = getUiaPattern(textarea, "Text")
+    `);
+    is(await runPython(`text.GetSelection().Length`), 0, "No selection");
+    info("Focusing textarea");
+    const textarea = findAccessibleChildByID(docAcc, "textarea");
+    let moved = waitForEvent(EVENT_TEXT_CARET_MOVED, textarea);
+    textarea.takeFocus();
+    await moved;
+    is(await runPython(`text.GetSelection().Length`), 1, "1 selection");
+    await definePyVar("range", `text.GetSelection().GetElement(0)`);
+    ok(await runPython(`bool(range)`), "Got selection range 0");
+    is(await runPython(`range.GetText(-1)`), "", "range text correct");
+
+    info("Selecting ab");
+    moved = waitForEvent(EVENT_TEXT_SELECTION_CHANGED, textarea);
+    await invokeContentTask(browser, [], () => {
+      content.document.getElementById("textarea").setSelectionRange(0, 2);
+    });
+    await moved;
+    is(await runPython(`text.GetSelection().Length`), 1, "1 selection");
+    await definePyVar("range", `text.GetSelection().GetElement(0)`);
+    ok(await runPython(`bool(range)`), "Got selection range 0");
+    is(await runPython(`range.GetText(-1)`), "ab", "range text correct");
+
+    // XXX Multiple selections aren't possible in editable text. A test for that
+    // should be added in bug 1901458.
+  }
+);
+
+/**
+ * Test the Text pattern's TextSelectionChanged event.
+ */
+addUiaTask(
+  `<input id="input" value="abc">`,
+  async function testTextTextSelectionChanged(browser) {
+    info("Focusing input");
+    await setUpWaitForUiaEvent("Text_TextSelectionChanged", "input");
+    await invokeContentTask(browser, [], () => {
+      content.document.getElementById("input").focus();
+    });
+    await waitForUiaEvent();
+    ok(true, "input got TextSelectionChanged event");
+    info("Moving caret to b");
+    await setUpWaitForUiaEvent("Text_TextSelectionChanged", "input");
+    await invokeContentTask(browser, [], () => {
+      content.document.getElementById("input").setSelectionRange(1, 1);
+    });
+    await waitForUiaEvent();
+    ok(true, "input got TextSelectionChanged event");
+    info("Selecting bc");
+    await setUpWaitForUiaEvent("Text_TextSelectionChanged", "input");
+    await invokeContentTask(browser, [], () => {
+      content.document.getElementById("input").setSelectionRange(1, 3);
+    });
+    await waitForUiaEvent();
+    ok(true, "input got TextSelectionChanged event");
+  }
+);
+
+/**
+ * Test the Text pattern's TextChanged event.
+ */
+addUiaTask(
+  `<input id="input" value="abc">`,
+  async function testTextTextChanged(browser) {
+    info("Focusing input");
+    let moved = waitForEvent(EVENT_TEXT_CARET_MOVED, "input");
+    await invokeContentTask(browser, [], () => {
+      content.document.getElementById("input").focus();
+    });
+    await moved;
+    info("Deleting a");
+    await setUpWaitForUiaEvent("Text_TextChanged", "input");
+    await invokeContentTask(browser, [], () => {
+      content.document.execCommand("forwardDelete");
+    });
+    await waitForUiaEvent();
+    ok(true, "input got TextChanged event");
+    info("Inserting a");
+    await setUpWaitForUiaEvent("Text_TextChanged", "input");
+    await invokeContentTask(browser, [], () => {
+      content.document.execCommand("insertText", false, "a");
+    });
+    await waitForUiaEvent();
+    ok(true, "input got TextChanged event");
   }
 );
