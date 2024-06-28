@@ -286,7 +286,11 @@ pref("media.videocontrols.keyboard-tab-to-all-controls", true);
   pref("media.navigator.video.default_height",0); // adaptive default
   pref("media.navigator.video.max_fs", 12288); // Enough for 2048x1536
   pref("media.navigator.video.max_fr", 60);
-  pref("media.navigator.video.disable_h264_baseline", false);
+  #ifdef NIGHTLY_BUILD
+    pref("media.navigator.video.disable_h264_baseline", false);
+  #else
+    pref("media.navigator.video.disable_h264_baseline", true);
+  #endif
   pref("media.navigator.video.h264.level", 31); // 0x42E01f - level 3.1
   pref("media.navigator.video.h264.max_br", 0);
   pref("media.navigator.video.h264.max_mbps", 0);
@@ -608,9 +612,13 @@ pref("toolkit.telemetry.translations.logLevel", "Error");
 // this pref via our remote update/experimentation system
 pref("toolkit.telemetry.user_characteristics_ping.current_version", 0);
 // pref containing the value for the user of the last version of the ping we sent
-// if a user wants to disable this type of ping explicitly, set this to -1
-// firefox/mozilla will not modify this value if a negative number is present.
 pref("toolkit.telemetry.user_characteristics_ping.last_version_sent", 0);
+// if a user wants to disable this type of ping explicitly, set this to true
+// firefox/mozilla will not modify this value.
+pref("toolkit.telemetry.user_characteristics_ping.opt-out", false);
+// if a user wants to send a single ping of this type, they can set it
+// to true. It will be set to false again after a successfull ping.
+pref("toolkit.telemetry.user_characteristics_ping.send-once", false);
 // A unique identifier for the user characteristics ping. This is not the same as
 // the telemetry client id (which is not sent in this ping), it is cleared when a
 // user opts-out of telemetry, it is set upon first telemetry submission

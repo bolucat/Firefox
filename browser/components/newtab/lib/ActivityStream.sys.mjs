@@ -460,6 +460,13 @@ export const PREFS_CONFIG = new Map([
     },
   ],
   [
+    "discoverystream.thumbsUpDown.enabled",
+    {
+      title: "Allow users to give thumbs up/down on recommended stories",
+      value: false,
+    },
+  ],
+  [
     "discoverystream.region-basic-layout",
     {
       title: "Decision to use basic layout based on region.",
@@ -503,6 +510,13 @@ export const PREFS_CONFIG = new Map([
       title: "Track rec impressions",
       skipBroadcast: true,
       value: "{}",
+    },
+  ],
+  [
+    "discoverystream.topicSelection.enabled",
+    {
+      title: "Enables topic selection for discovery stream",
+      value: false,
     },
   ],
   [
