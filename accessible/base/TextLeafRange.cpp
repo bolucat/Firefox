@@ -1011,6 +1011,14 @@ TextLeafPoint TextLeafPoint::GetCaret(Accessible* aAcc) {
       return TextLeafPoint();
     }
     TextLeafPoint point = ht->ToTextLeafPoint(htOffset);
+    if (!point) {
+      // Bug 1905021: This happens in the wild, but we don't understand why.
+      // ToTextLeafPoint should only fail if the HyperText offset is invalid,
+      // but CaretOffset shouldn't return an invalid offset.
+      MOZ_ASSERT_UNREACHABLE(
+          "Got HyperText CaretOffset but ToTextLeafPoint failed");
+      return point;
+    }
     nsIFrame* frame = ht->GetFrame();
     RefPtr<nsFrameSelection> sel = frame ? frame->GetFrameSelection() : nullptr;
     if (sel && sel->GetHint() == CaretAssociationHint::Before) {
