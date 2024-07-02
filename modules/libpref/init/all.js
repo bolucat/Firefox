@@ -197,6 +197,10 @@ pref("pdfjs.enableHighlightEditor", true);
   pref("pdfjs.enableHighlightFloatingButton", false);
 #endif
 
+#if defined(XP_WIN)
+pref("pdfjs.enableHWA", true);
+#endif
+
 // Disable support for MathML
 pref("mathml.disabled",    false);
 
@@ -935,9 +939,7 @@ pref("javascript.options.mem.incremental_weakmap", true);
 
 // JSGC_SLICE_TIME_BUDGET_MS
 // Override the shell's default of unlimited slice time.
-// Note that this only applies to non-idle slices, which
-// should be the minority.
-pref("javascript.options.mem.gc_incremental_slice_ms", 10);
+pref("javascript.options.mem.gc_incremental_slice_ms", 5);
 
 // JSGC_COMPACTING_ENABLED
 pref("javascript.options.mem.gc_compacting", true);

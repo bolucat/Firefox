@@ -106,6 +106,7 @@ import org.mozilla.fenix.components.FenixSnackbar
 import org.mozilla.fenix.components.PrivateShortcutCreateManager
 import org.mozilla.fenix.components.TabCollectionStorage
 import org.mozilla.fenix.components.appstate.AppAction
+import org.mozilla.fenix.components.appstate.AppAction.MessagingAction.MicrosurveyAction
 import org.mozilla.fenix.components.menu.MenuAccessPoint
 import org.mozilla.fenix.components.toolbar.BottomToolbarContainerIntegration
 import org.mozilla.fenix.components.toolbar.BottomToolbarContainerView
@@ -614,9 +615,12 @@ class HomeFragment : Fragment() {
                                     MicrosurveyRequestPrompt(
                                         microsurvey = it,
                                         onStartSurveyClicked = {
+                                            context.components.appStore.dispatch(
+                                                MicrosurveyAction.Started(it.id),
+                                            )
                                             findNavController().nav(
                                                 R.id.homeFragment,
-                                                HomeFragmentDirections.actionGlobalMicrosurveyDialog(),
+                                                HomeFragmentDirections.actionGlobalMicrosurveyDialog(it.id),
                                             )
                                         },
                                         onCloseButtonClicked = {
@@ -765,9 +769,10 @@ class HomeFragment : Fragment() {
                                     MicrosurveyRequestPrompt(
                                         microsurvey = it,
                                         onStartSurveyClicked = {
+                                            context.components.appStore.dispatch(MicrosurveyAction.Started(it.id))
                                             findNavController().nav(
                                                 R.id.homeFragment,
-                                                HomeFragmentDirections.actionGlobalMicrosurveyDialog(),
+                                                HomeFragmentDirections.actionGlobalMicrosurveyDialog(it.id),
                                             )
                                         },
                                         onCloseButtonClicked = {
@@ -821,9 +826,6 @@ class HomeFragment : Fragment() {
 
     private fun shouldShowMicrosurveyPrompt(context: Context) =
         context.components.settings.shouldShowMicrosurveyPrompt
-
-    private fun isToolbarAtBottom(context: Context) =
-        context.components.settings.toolbarPosition == ToolbarPosition.BOTTOM
 
     /**
      * Returns a [TopSitesConfig] which specifies how many top sites to display and whether or
