@@ -4657,6 +4657,17 @@
   value: @IS_NIGHTLY_BUILD@
   mirror: always
 
+# When this pref is enabled:
+#  - Shadow DOM is not pierced by default anymore
+#  - The method accepts optional CaretPositionFromPointOptions to allow piercing
+#    certain ShadowRoots
+#
+# https://drafts.csswg.org/cssom-view/#dom-document-caretpositionfrompoint
+- name: dom.shadowdom.new_caretPositionFromPoint_behavior.enabled
+  type: bool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+
 # NOTE: This preference is used in unit tests. If it is removed or its default
 # value changes, please update test_sharedMap_static_prefs.js accordingly.
 - name: dom.webcomponents.shadowdom.report_usage
@@ -5647,6 +5658,13 @@
 - name: geo.provider.geoclue.always_high_accuracy
   type: bool
   value: true
+  mirror: always
+
+# Time in milliseconds after which geoclue will try to fallback to MLS if no
+# location is received after successful start.
+- name: geo.provider.geoclue.mls_fallback_timeout_ms
+  type: uint32_t
+  value: 5000
   mirror: always
 #endif
 
@@ -7748,13 +7766,6 @@
   value: 130
   mirror: always
   do_not_use_directly: true
-
-- name: javascript.options.use_emulates_undefined_fuse
-  type: bool
-  value: true
-  mirror: always
-  do_not_use_directly: true
-  set_spidermonkey_pref: startup
 
 - name: javascript.options.compact_on_user_inactive
   type: bool
@@ -11633,7 +11644,7 @@
 
 - name: memory.phc.enabled
   type: bool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 - name: memory.phc.min_ram_mb
@@ -15301,17 +15312,17 @@
 
 - name: security.tls.enable_certificate_compression_zlib
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 - name: security.tls.enable_certificate_compression_brotli
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 - name: security.tls.enable_certificate_compression_zstd
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 - name: security.ssl.treat_unsafe_negotiation_as_broken
@@ -15619,6 +15630,13 @@
 
 - name: test.events.async.enabled
   type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# Enable assertions in IMEContentObserver::FlatTextCache on debug builds.
+# If this pref is enabled, DOM mutation becomes much slower.
+- name: test.ime_content_observer.assert_valid_cache
+  type: bool
   value: false
   mirror: always
 

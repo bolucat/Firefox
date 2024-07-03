@@ -434,6 +434,7 @@ abstract class BaseBrowserFragment :
         )
         val browserToolbarController = DefaultBrowserToolbarController(
             store = store,
+            appStore = context.components.appStore,
             tabsUseCases = requireComponents.useCases.tabsUseCases,
             activity = activity,
             settings = context.settings(),
@@ -539,7 +540,7 @@ abstract class BaseBrowserFragment :
             )
         }
 
-        if (FeatureFlags.microsurveysEnabled) {
+        if (context.settings().microsurveyFeatureEnabled) {
             listenForMicrosurveyMessage(
                 browserToolbar = browserToolbarView.view,
                 view = view,
@@ -1393,6 +1394,9 @@ abstract class BaseBrowserFragment :
                                         )
                                     },
                                     onCloseButtonClicked = {
+                                        context.components.appStore.dispatch(
+                                            MicrosurveyAction.Dismissed(it.id),
+                                        )
                                         context.settings().shouldShowMicrosurveyPrompt = false
                                         shouldShowMicrosurveyPrompt.value = false
                                     },
@@ -1505,11 +1509,8 @@ abstract class BaseBrowserFragment :
     }
 
     @VisibleForTesting
-    internal fun initializeMicrosurveyFeature(
-        context: Context,
-        microsurveyEnabled: Boolean = FeatureFlags.microsurveysEnabled,
-    ) {
-        if (context.settings().isExperimentationEnabled && microsurveyEnabled) {
+    internal fun initializeMicrosurveyFeature(context: Context) {
+        if (context.settings().isExperimentationEnabled && context.settings().microsurveyFeatureEnabled) {
             messagingFeatureMicrosurvey.set(
                 feature = MessagingFeature(
                     appStore = requireComponents.appStore,
@@ -1555,6 +1556,9 @@ abstract class BaseBrowserFragment :
                                         )
                                     },
                                     onCloseButtonClicked = {
+                                        context.components.appStore.dispatch(
+                                            MicrosurveyAction.Dismissed(it.id),
+                                        )
                                         context.settings().shouldShowMicrosurveyPrompt = false
                                         shouldShowMicrosurveyPrompt.value = false
                                     },

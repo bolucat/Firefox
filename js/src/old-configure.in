@@ -166,7 +166,6 @@ case "$host" in
         HOST_CFLAGS="$HOST_CFLAGS -mwindows"
     fi
     HOST_CFLAGS="$HOST_CFLAGS -DXP_WIN -DWIN32 -D_WIN32 -D_CRT_SECURE_NO_WARNINGS"
-    HOST_OPTIMIZE_FLAGS="${HOST_OPTIMIZE_FLAGS=-O2}"
     HOST_BIN_SUFFIX=.exe
 
     case "${host_cpu}" in
@@ -186,17 +185,14 @@ case "$host" in
 
 *-darwin*)
     HOST_CFLAGS="$HOST_CFLAGS -DXP_UNIX -DXP_MACOSX"
-    HOST_OPTIMIZE_FLAGS="${HOST_OPTIMIZE_FLAGS=-O3}"
     ;;
 
 *-linux*|*-kfreebsd*-gnu|*-gnu*)
     HOST_CFLAGS="$HOST_CFLAGS -DXP_UNIX"
-    HOST_OPTIMIZE_FLAGS="${HOST_OPTIMIZE_FLAGS=-O3}"
     ;;
 
 *)
     HOST_CFLAGS="$HOST_CFLAGS -DXP_UNIX"
-    HOST_OPTIMIZE_FLAGS="${HOST_OPTIMIZE_FLAGS=-O2}"
     ;;
 esac
 
@@ -221,21 +217,10 @@ case "$target" in
 *-*linux*)
     MOZ_PGO_OPTIMIZE_FLAGS="-O3"
     MOZ_OPTIMIZE_FLAGS="-O3"
-
-    case "${target_cpu}" in
-    alpha*)
-    	CFLAGS="$CFLAGS -mieee"
-    	CXXFLAGS="$CXXFLAGS -mieee"
-    ;;
-    esac
     ;;
 
 *-mingw*)
     if test "$CC_TYPE" != clang-cl ; then
-        # != clang-cl will match gcc and clang
-        if test "$CC_TYPE" = gcc ; then
-            AC_MSG_ERROR(Firefox cannot be built with mingw-gcc and requires a mingw-clang toolchain to work)
-        fi
 
         # Silence problematic clang warnings
         CXXFLAGS="$CXXFLAGS -Wno-incompatible-ms-struct"
@@ -383,34 +368,6 @@ AC_SUBST_LIST(MOZ_OPTIMIZE_LDFLAGS)
 AC_SUBST_LIST(MOZ_PGO_OPTIMIZE_FLAGS)
 
 dnl ========================================================
-dnl = Enable jemalloc
-dnl ========================================================
-
-if test "$JS_STANDALONE" -a -z "$MOZ_MEMORY"; then
-  MOZ_GLUE_IN_PROGRAM=
-else
-  case "${OS_TARGET}" in
-  Android|WINNT|Darwin)
-    MOZ_GLUE_IN_PROGRAM=
-    ;;
-  *)
-    dnl On !Android !Windows !OSX, we only want to link executables against mozglue
-    MOZ_GLUE_IN_PROGRAM=1
-    AC_DEFINE(MOZ_GLUE_IN_PROGRAM)
-    ;;
-  esac
-fi
-
-AC_SUBST(MOZ_GLUE_IN_PROGRAM)
-
-dnl ========================================================
-dnl instruments
-dnl ========================================================
-if test -n "$MOZ_INSTRUMENTS"; then
-    LIBS="$LIBS -framework CoreFoundation"
-fi
-
-dnl ========================================================
 dnl = Enable using the clang plugin to build
 dnl ========================================================
 
@@ -464,12 +421,10 @@ OS_CFLAGS="$CFLAGS"
 OS_CXXFLAGS="$CXXFLAGS"
 OS_CPPFLAGS="$CPPFLAGS"
 OS_LDFLAGS="$LDFLAGS"
-OS_LIBS="$LIBS"
 AC_SUBST_LIST(OS_CFLAGS)
 AC_SUBST_LIST(OS_CXXFLAGS)
 AC_SUBST_LIST(OS_CPPFLAGS)
 AC_SUBST_LIST(OS_LDFLAGS)
-AC_SUBST(OS_LIBS)
 
 AC_SUBST(HOST_CC)
 AC_SUBST(HOST_CXX)
@@ -477,7 +432,6 @@ AC_SUBST_LIST(HOST_CFLAGS)
 AC_SUBST_LIST(HOST_CPPFLAGS)
 AC_SUBST_LIST(HOST_CXXFLAGS)
 AC_SUBST(HOST_LDFLAGS)
-AC_SUBST_LIST(HOST_OPTIMIZE_FLAGS)
 AC_SUBST(HOST_BIN_SUFFIX)
 
 AC_SUBST(BIN_SUFFIX)
@@ -501,7 +455,7 @@ JS_LIBRARY_NAME="mozjs-$MOZILLA_SYMBOLVERSION"
 else
 JS_LIBRARY_NAME="mozjs"
 fi
-JS_CONFIG_LIBS="$NSPR_LIBS $LIBS"
+JS_CONFIG_LIBS="$NSPR_LIBS $MOZ_INSTRUMENTS_LIBS"
 if test "$CC_TYPE" != clang-cl ; then
 JS_CONFIG_MOZ_JS_LIBS='-L${libdir} -l${JS_LIBRARY_NAME}'
 else

@@ -77,6 +77,11 @@ def check_libstdcxx_linkage():
     die("Firefox does not support linking statically with libstdc++")
 
 
+check_and_add_flag(
+    "-mieee",
+    when=target_has_linux_kernel & depends(target.cpu)(lambda cpu: cpu == "Alpha"),
+)
+
 # Identical Code Folding
 option(
     "--enable-icf",
@@ -536,6 +541,18 @@ def add_cmflags(compilation_flags, toolkit):
 set_config("OS_COMPILE_CMFLAGS", compilation_flags.cmflags)
 set_config("OS_COMPILE_CMMFLAGS", compilation_flags.cmmflags)
 
+
+# Default host optimization flags
+# ---------------------------------
+@depends(host_c_compiler)
+def host_optimize_flags(compiler):
+    if compiler.type == "clang-cl":
+        return ["-O2"]
+    else:
+        return ["-O3"]
+
+
+set_config("HOST_OPTIMIZE_FLAGS", host_optimize_flags)
 
 # Please keep these last in this file.
 add_old_configure_assignment("_COMPILATION_ASFLAGS", asm_flags.asflags)
