@@ -603,7 +603,7 @@ class HomeFragment : Fragment() {
             context = context,
             parent = binding.homeLayout,
             hideOnScroll = false,
-            composableContent = {
+            content = {
                 FirefoxTheme {
                     Column {
                         val shouldShowMicrosurveyPrompt =
@@ -756,7 +756,7 @@ class HomeFragment : Fragment() {
             val searchFragmentAlreadyAdded = parentFragmentManager.fragments.any { it is SearchDialogFragment }
             val searchFragmentShouldBeAdded = !isConfigChange && bundleArgs.getBoolean(FOCUS_ON_ADDRESS_BAR)
             val shouldShowNavbar = !isToolbarAtBottom || !searchFragmentAlreadyAdded && !searchFragmentShouldBeAdded
-            composeView.isVisible = shouldShowNavbar
+            toolbarContainerView.isVisible = shouldShowNavbar
         }
 
         bottomToolbarContainerIntegration.set(
@@ -797,13 +797,15 @@ class HomeFragment : Fragment() {
         _bottomToolbarContainerView = BottomToolbarContainerView(
             context = context,
             parent = binding.homeLayout,
-            composableContent = {
+            content = {
                 FirefoxTheme {
                     Column {
                         val shouldShowMicrosurveyPrompt =
                             remember { mutableStateOf(context.settings().shouldShowMicrosurveyPrompt) }
+                        val shouldShowNavBarCFR =
+                            context.shouldAddNavigationBar() && context.settings().shouldShowNavigationBarCFR
 
-                        if (shouldShowMicrosurveyPrompt.value && !context.settings().shouldShowNavigationBarCFR) {
+                        if (shouldShowMicrosurveyPrompt.value && !shouldShowNavBarCFR) {
                             currentMicrosurvey.let {
                                 if (it == null) {
                                     binding.bottomBarShadow.visibility = View.VISIBLE

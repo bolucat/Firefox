@@ -3822,7 +3822,7 @@
 # with a fallback
 - name: dom.security.https_first_schemeless
   type: RelaxedAtomicBool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 # If true, will add a special temporary HTTPS-First exception for a site when a
@@ -5924,7 +5924,7 @@
 
 - name: gfx.canvas.remote.use-canvas-translator-event
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: once
 
 - name: gfx.canvas.willreadfrequently.enabled
@@ -7104,7 +7104,7 @@
 
 - name: gfx.remote-texture.wait-owner-at-image-host
   type: RelaxedAtomicBool
-  value: @IS_NOT_NIGHTLY_BUILD@
+  value: false
   mirror: always
 
 #---------------------------------------------------------------------------
@@ -12777,7 +12777,7 @@
 # Use platform DNS APIs (where available) to resolve HTTPS queries
 - name: network.dns.native_https_query
   type: RelaxedAtomicBool
-#if defined(EARLY_BETA_OR_EARLIER) && !defined(XP_MACOSX)
+#if !defined(XP_MACOSX)
   value: true
 #else
   value: false
@@ -16141,6 +16141,11 @@
 #else
   value: false
 #endif
+  mirror: always
+
+- name: webgl.1.request_es2
+  type: RelaxedAtomicBool
+  value: true
   mirror: always
 
 - name: webgl.angle.force-d3d11

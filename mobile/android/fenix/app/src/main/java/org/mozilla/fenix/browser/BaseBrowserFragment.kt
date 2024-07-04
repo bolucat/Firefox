@@ -88,6 +88,7 @@ import mozilla.components.feature.prompts.PromptFeature.Companion.PIN_REQUEST
 import mozilla.components.feature.prompts.address.AddressDelegate
 import mozilla.components.feature.prompts.creditcard.CreditCardDelegate
 import mozilla.components.feature.prompts.dialog.FullScreenNotificationDialog
+import mozilla.components.feature.prompts.file.AndroidPhotoPicker
 import mozilla.components.feature.prompts.identitycredential.DialogColors
 import mozilla.components.feature.prompts.identitycredential.DialogColorsProvider
 import mozilla.components.feature.prompts.login.LoginDelegate
@@ -297,9 +298,31 @@ abstract class BaseBrowserFragment :
 
     private lateinit var savedLoginsLauncher: ActivityResultLauncher<Intent>
 
+    // Registers a photo picker activity launcher in single-select mode.
+    private val singleMediaPicker =
+        AndroidPhotoPicker.singleMediaPicker(
+            { getFragment() },
+            { getPromptsFeature() },
+        )
+
+    // Registers a photo picker activity launcher in multi-select mode.
+    private val multipleMediaPicker =
+        AndroidPhotoPicker.multipleMediaPicker(
+            { getFragment() },
+            { getPromptsFeature() },
+        )
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         savedLoginsLauncher = registerForActivityResult { navigateToSavedLoginsFragment() }
+    }
+
+    private fun getFragment(): Fragment {
+        return this
+    }
+
+    private fun getPromptsFeature(): PromptFeature? {
+        return promptsFeature.get()
     }
 
     @CallSuper
@@ -901,6 +924,11 @@ abstract class BaseBrowserFragment :
                         findNavController().navigate(directions)
                     }
                 },
+                androidPhotoPicker = AndroidPhotoPicker(
+                    requireContext(),
+                    singleMediaPicker,
+                    multipleMediaPicker,
+                ),
             ),
             owner = this,
             view = view,
@@ -1376,7 +1404,7 @@ abstract class BaseBrowserFragment :
             context = context,
             parent = binding.browserLayout,
             hideOnScroll = isToolbarDynamic(context),
-            composableContent = {
+            content = {
                 FirefoxTheme {
                     Column {
                         val shouldShowMicrosurveyPrompt =
@@ -1399,6 +1427,13 @@ abstract class BaseBrowserFragment :
                                         )
                                         context.settings().shouldShowMicrosurveyPrompt = false
                                         shouldShowMicrosurveyPrompt.value = false
+
+                                        resumeDownloadDialogState(
+                                            getCurrentTab()?.id,
+                                            context.components.core.store,
+                                            context,
+                                            context.settings().getBottomToolbarHeight(),
+                                        )
                                     },
                                 )
                             }
@@ -1538,7 +1573,7 @@ abstract class BaseBrowserFragment :
             context = context,
             parent = binding.browserLayout,
             hideOnScroll = isToolbarDynamic(context),
-            composableContent = {
+            content = {
                 FirefoxTheme {
                     Column {
                         val shouldShowMicrosurveyPrompt =
@@ -1561,6 +1596,13 @@ abstract class BaseBrowserFragment :
                                         )
                                         context.settings().shouldShowMicrosurveyPrompt = false
                                         shouldShowMicrosurveyPrompt.value = false
+
+                                        resumeDownloadDialogState(
+                                            getCurrentTab()?.id,
+                                            context.components.core.store,
+                                            context,
+                                            context.settings().getBottomToolbarHeight(),
+                                        )
                                     },
                                 )
                             }
