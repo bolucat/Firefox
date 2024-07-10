@@ -248,11 +248,9 @@ class HomeFragment : Fragment() {
         get() = _sessionControlInteractor!!
 
     private var sessionControlView: SessionControlView? = null
-    private var tabCounterView: TabCounterView? = null
-    private var toolbarView: ToolbarView? = null
 
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    internal var homeMenuView: HomeMenuView? = null
+    internal var toolbarView: ToolbarView? = null
 
     private var lastAppliedWallpaperName: String = Wallpaper.defaultName
 
@@ -485,14 +483,12 @@ class HomeFragment : Fragment() {
 
         toolbarView = ToolbarView(
             binding = binding,
-            context = requireContext(),
             interactor = sessionControlInteractor,
+            homeFragment = this,
+            homeActivity = activity,
+            onShowPinVerification = { intent -> savedLoginsLauncher.launch(intent) },
+            onBiometricAuthenticationSuccessful = { navigateToSavedLoginsFragment() },
         )
-
-        val shouldAddNavigationBar = requireContext().shouldAddNavigationBar()
-        if (shouldAddNavigationBar) {
-            initializeNavBar(activity)
-        }
 
         if (requireContext().settings().microsurveyFeatureEnabled) {
             listenForMicrosurveyMessage(requireContext())
@@ -536,7 +532,7 @@ class HomeFragment : Fragment() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
 
-        homeMenuView?.dismissMenu()
+        toolbarView?.dismissMenu()
 
         // If the navbar feature could be visible, we should update it's state.
         val shouldUpdateNavBarState =
@@ -549,7 +545,7 @@ class HomeFragment : Fragment() {
                 reinitializeNavBar = ::reinitializeNavBar,
                 reinitializeMicrosurveyPrompt = { initializeMicrosurveyPrompt(requireContext()) },
             )
-            toolbarView?.updateLayout()
+            toolbarView?.updateButtonVisibility()
         }
 
         // If the microsurvey feature is visible, we should update it's state.
@@ -977,24 +973,10 @@ class HomeFragment : Fragment() {
         observeSearchEngineNameChanges()
         observeWallpaperUpdates()
 
-        homeMenuView = HomeMenuView(
-            view = view,
-            context = view.context,
-            lifecycleOwner = viewLifecycleOwner,
-            homeActivity = activity as HomeActivity,
-            navController = findNavController(),
-            homeFragment = this,
-            menuButton = WeakReference(binding.menuButton),
-            onShowPinVerification = { intent -> savedLoginsLauncher.launch(intent) },
-            onBiometricAuthenticationSuccessful = { navigateToSavedLoginsFragment() },
-        ).also { it.build() }
-
-        tabCounterView = TabCounterView(
-            context = requireContext(),
-            browsingModeManager = browsingModeManager,
-            navController = findNavController(),
-            tabCounter = binding.tabButton,
-        )
+        val shouldAddNavigationBar = requireContext().shouldAddNavigationBar()
+        if (shouldAddNavigationBar) {
+            initializeNavBar(activity as HomeActivity)
+        }
 
         toolbarView?.build()
         if (requireContext().isTabStripEnabled()) {
@@ -1007,7 +989,7 @@ class HomeFragment : Fragment() {
         }
 
         consumeFrom(requireComponents.core.store) {
-            tabCounterView?.update(it)
+            toolbarView?.updateTabCounter(it)
             showCollectionsPlaceholder(it)
         }
 
@@ -1026,7 +1008,7 @@ class HomeFragment : Fragment() {
             requireComponents.appStore.dispatch(AppAction.TabStripAction.UpdateLastTabClosed(null))
         }
 
-        tabCounterView?.update(requireComponents.core.store.state)
+        toolbarView?.updateTabCounter(requireComponents.core.store.state)
 
         if (bundleArgs.getBoolean(FOCUS_ON_ADDRESS_BAR)) {
             // If the fragment gets recreated by the activity, the search fragment might get recreated as well. Changing
@@ -1211,9 +1193,7 @@ class HomeFragment : Fragment() {
         super.onDestroyView()
 
         _sessionControlInteractor = null
-        homeMenuView = null
         sessionControlView = null
-        tabCounterView = null
         toolbarView = null
         _bottomToolbarContainerView = null
         _binding = null
