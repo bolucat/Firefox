@@ -25,7 +25,7 @@ internal const val TOOLS_MENU_ROUTE = "tools_menu"
 internal fun ToolsSubmenu(
     isReaderViewActive: Boolean,
     isTranslated: Boolean,
-    isTranslationSupported: Boolean?,
+    isTranslationSupported: Boolean,
     translatedLanguage: String,
     onBackButtonClick: () -> Unit,
     onReaderViewMenuClick: () -> Unit,
@@ -48,11 +48,12 @@ internal fun ToolsSubmenu(
                 onClick = onReaderViewMenuClick,
             )
 
-            if (isTranslationSupported == true) {
+            if (isTranslationSupported) {
                 Divider(color = FirefoxTheme.colors.borderSecondary)
 
                 TranslationMenuItem(
                     isTranslated = isTranslated,
+                    isReaderViewActive = isReaderViewActive,
                     translatedLanguage = translatedLanguage,
                     onClick = onTranslatePageMenuClick,
                 )
@@ -109,6 +110,7 @@ private fun ReaderViewMenuItem(
 @Composable
 private fun TranslationMenuItem(
     isTranslated: Boolean,
+    isReaderViewActive: Boolean,
     translatedLanguage: String,
     onClick: () -> Unit,
 ) {
@@ -119,13 +121,14 @@ private fun TranslationMenuItem(
                 translatedLanguage,
             ),
             beforeIconPainter = painterResource(id = R.drawable.mozac_ic_translate_24),
-            state = MenuItemState.ACTIVE,
+            state = if (isReaderViewActive) MenuItemState.DISABLED else MenuItemState.ENABLED,
             onClick = onClick,
         )
     } else {
         MenuItem(
             label = stringResource(id = R.string.browser_menu_translate_page),
             beforeIconPainter = painterResource(id = R.drawable.mozac_ic_translate_24),
+            state = if (isReaderViewActive) MenuItemState.DISABLED else MenuItemState.ENABLED,
             onClick = onClick,
         )
     }

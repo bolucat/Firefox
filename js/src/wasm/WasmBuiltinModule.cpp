@@ -219,9 +219,9 @@ bool CompileBuiltinModule(JSContext* cx,
 
   // Compile the module functions
   UniqueChars error;
-  ModuleGenerator mg(*compileArgs, codeMeta, &compilerEnv, nullptr, &error,
-                     nullptr);
-  if (!mg.init(nullptr)) {
+  ModuleGenerator mg(*compileArgs, codeMeta, &compilerEnv,
+                     compilerEnv.initialState(), nullptr, &error, nullptr);
+  if (!mg.initializeCompleteTier()) {
     ReportOutOfMemory(cx);
     return false;
   }

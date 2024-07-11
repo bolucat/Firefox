@@ -10089,7 +10089,7 @@ void nsWindow::OnMap() {
     OnScaleChanged(/* aNotify = */ false);
 
     if (mIsAlert) {
-      gdk_window_set_override_redirect(mGdkWindow, TRUE);
+      gdk_window_set_override_redirect(GetToplevelGdkWindow(), TRUE);
     }
 
 #ifdef MOZ_X11
@@ -10275,4 +10275,11 @@ void nsWindow::SetDragSource(GdkDragContext* aSourceDragContext) {
       menuPopupFrame->SetIsDragSource(!!aSourceDragContext);
     }
   }
+}
+
+UniquePtr<MozContainerSurfaceLock> nsWindow::LockSurface() {
+  if (mIsDestroyed) {
+    return nullptr;
+  }
+  return MakeUnique<MozContainerSurfaceLock>(mContainer);
 }

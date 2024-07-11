@@ -988,9 +988,9 @@ class SuspendingFunctionModuleFactory {
       return nullptr;
     }
 
-    ModuleGenerator mg(*compileArgs, codeMeta, &compilerEnv, nullptr, nullptr,
-                       nullptr);
-    if (!mg.init(nullptr)) {
+    ModuleGenerator mg(*compileArgs, codeMeta, &compilerEnv,
+                       compilerEnv.initialState(), nullptr, nullptr, nullptr);
+    if (!mg.initializeCompleteTier()) {
       return nullptr;
     }
     // Build functions and keep bytecodes around until the end.
@@ -1489,9 +1489,9 @@ class PromisingFunctionModuleFactory {
       return nullptr;
     }
 
-    ModuleGenerator mg(*compileArgs, codeMeta, &compilerEnv, nullptr, nullptr,
-                       nullptr);
-    if (!mg.init(nullptr)) {
+    ModuleGenerator mg(*compileArgs, codeMeta, &compilerEnv,
+                       compilerEnv.initialState(), nullptr, nullptr, nullptr);
+    if (!mg.initializeCompleteTier()) {
       return nullptr;
     }
     // Build functions and keep bytecodes around until the end.

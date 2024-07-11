@@ -74,10 +74,12 @@ ModuleGenerator::MacroAssemblerScope::MacroAssemblerScope(LifoAlloc& lifo)
 ModuleGenerator::ModuleGenerator(const CompileArgs& args,
                                  CodeMetadata* codeMeta,
                                  CompilerEnvironment* compilerEnv,
+                                 CompileState compileState,
                                  const Atomic<bool>* cancelled,
                                  UniqueChars* error,
                                  UniqueCharsVector* warnings)
     : compileArgs_(&args),
+      compileState_(compileState),
       error_(error),
       warnings_(warnings),
       cancelled_(cancelled),
@@ -105,7 +107,8 @@ ModuleGenerator::~ModuleGenerator() {
       AutoLockHelperThreadState lock;
 
       // Remove any pending compilation tasks from the worklist.
-      size_t removed = RemovePendingWasmCompileTasks(taskState_, mode(), lock);
+      size_t removed =
+          RemovePendingWasmCompileTasks(taskState_, compileState_, lock);
       MOZ_ASSERT(outstanding_ >= removed);
       outstanding_ -= removed;
 
@@ -137,7 +140,10 @@ ModuleGenerator::~ModuleGenerator() {
   }
 }
 
-bool ModuleGenerator::init(CodeMetadataForAsmJS* codeMetaForAsmJS) {
+bool ModuleGenerator::initializeCompleteTier(
+    CodeMetadataForAsmJS* codeMetaForAsmJS) {
+  MOZ_ASSERT(compileState_ != CompileState::LazyTier2);
+
   // Initialize our task system
   if (!initTasks()) {
     return false;
@@ -149,41 +155,12 @@ bool ModuleGenerator::init(CodeMetadataForAsmJS* codeMetaForAsmJS) {
   MOZ_ASSERT(isAsmJS() == !!codeMetaForAsmJS);
   codeMetaForAsmJS_ = codeMetaForAsmJS;
 
-  if (compileArgs_->scriptedCaller.filename) {
-    codeMeta_->filename =
-        DuplicateString(compileArgs_->scriptedCaller.filename.get());
-    if (!codeMeta_->filename) {
-      return false;
-    }
-
-    codeMeta_->filenameIsURL = compileArgs_->scriptedCaller.filenameIsURL;
-  } else {
-    MOZ_ASSERT(!compileArgs_->scriptedCaller.filenameIsURL);
-  }
-
-  if (compileArgs_->sourceMapURL) {
-    codeMeta_->sourceMapURL = DuplicateString(compileArgs_->sourceMapURL.get());
-    if (!codeMeta_->sourceMapURL) {
-      return false;
-    }
-  }
-
   // Allocate space in instance for declarations that need it.  This sets
   // various fields in `codeMeta_` and leaves the total length in
   // `codeMeta_->instanceDataLength`.
   MOZ_ASSERT(codeMeta_->instanceDataLength == 0);
-  if (!codeMeta_->initInstanceLayout()) {
+  if (!codeMeta_->initInstanceLayout(mode())) {
     return false;
-  }
-
-  // Initialize function import metadata
-  if (!funcImports_.resize(codeMeta_->numFuncImports)) {
-    return false;
-  }
-
-  for (size_t i = 0; i < codeMeta_->numFuncImports; i++) {
-    funcImports_[i] = FuncImport(codeMeta_->funcs[i].typeIndex,
-                                 codeMeta_->offsetOfFuncImportInstanceData(i));
   }
 
   // Generate the shared stubs block
@@ -191,12 +168,29 @@ bool ModuleGenerator::init(CodeMetadataForAsmJS* codeMetaForAsmJS) {
     return false;
   }
 
-  // Start creating a code block for a complete tier of code
-  if (!startCompleteTier()) {
+  return startCompleteTier();
+}
+
+bool ModuleGenerator::initializePartialTier(const Code& code,
+                                            uint32_t funcIndex) {
+  MOZ_ASSERT(compileState_ == CompileState::LazyTier2);
+  MOZ_ASSERT(!isAsmJS());
+
+  // Initialize our task system
+  if (!initTasks()) {
     return false;
   }
 
-  return true;
+  // Allocate space in instance for declarations that need it.  This sets
+  // various fields in `codeMeta_` and leaves the total length in
+  // `codeMeta_->instanceDataLength`.
+  MOZ_ASSERT(codeMeta_->instanceDataLength == 0);
+  if (!codeMeta_->initInstanceLayout(mode())) {
+    return false;
+  }
+
+  partialTieringCode_ = &code;
+  return startPartialTier(funcIndex);
 }
 
 bool ModuleGenerator::funcIsCompiledInBlock(uint32_t funcIndex) const {
@@ -557,11 +551,13 @@ void CompileTask::runHelperThreadTask(AutoLockHelperThreadState& lock) {
 }
 
 ThreadType CompileTask::threadType() {
-  switch (compilerEnv.mode()) {
-    case CompileMode::Once:
-    case CompileMode::Tier1:
+  switch (compileState) {
+    case CompileState::Once:
+    case CompileState::EagerTier1:
+    case CompileState::LazyTier1:
       return ThreadType::THREAD_TYPE_WASM_COMPILE_TIER1;
-    case CompileMode::Tier2:
+    case CompileState::EagerTier2:
+    case CompileState::LazyTier2:
       return ThreadType::THREAD_TYPE_WASM_COMPILE_TIER2;
     default:
       MOZ_CRASH();
@@ -586,7 +582,8 @@ bool ModuleGenerator::initTasks() {
     return false;
   }
   for (size_t i = 0; i < numTasks; i++) {
-    tasks_.infallibleEmplaceBack(*codeMeta_, *compilerEnv_, taskState_,
+    tasks_.infallibleEmplaceBack(*codeMeta_, *compilerEnv_, compileState_,
+                                 taskState_,
                                  COMPILATION_LIFO_DEFAULT_CHUNK_SIZE);
   }
 
@@ -640,7 +637,7 @@ bool ModuleGenerator::launchBatchCompile() {
     return locallyCompileCurrentTask();
   }
 
-  if (!StartOffThreadWasmCompile(currentTask_, mode())) {
+  if (!StartOffThreadWasmCompile(currentTask_, compileState_)) {
     return false;
   }
   outstanding_++;
@@ -849,9 +846,13 @@ UniqueCodeBlock ModuleGenerator::finishCodeBlock(UniqueLinkData* linkData) {
   }
 
   for (CallFarJump far : callFarJumps_) {
-    masm_->patchFarJump(
-        jit::CodeOffset(far.jumpOffset),
-        funcCodeRangeInBlock(far.targetFuncIndex).funcUncheckedCallEntry());
+    if (funcIsCompiledInBlock(far.targetFuncIndex)) {
+      masm_->patchFarJump(
+          jit::CodeOffset(far.jumpOffset),
+          funcCodeRangeInBlock(far.targetFuncIndex).funcUncheckedCallEntry());
+    } else if (!linkData_->callFarJumps.append(far)) {
+      return nullptr;
+    }
   }
 
   codeBlock_->debugTrapOffset = debugTrapCodeOffset_;
@@ -896,7 +897,7 @@ UniqueCodeBlock ModuleGenerator::finishCodeBlock(UniqueLinkData* linkData) {
   }
 
   SharedCodeSegment segment = CodeSegment::createFromMasm(
-      *masm_, *linkData_, sharedStubsCodeBlock_.get());
+      *masm_, *linkData_, partialTieringCode_.get());
   if (!segment) {
     warnf("failed to allocate executable memory for module");
     return nullptr;
@@ -921,6 +922,16 @@ UniqueCodeBlock ModuleGenerator::finishCodeBlock(UniqueLinkData* linkData) {
 bool ModuleGenerator::generateSharedStubs() {
   if (!startCodeBlock(CodeBlockKind::SharedStubs)) {
     return false;
+  }
+
+  // Initialize function import metadata
+  if (!funcImports_.resize(codeMeta_->numFuncImports)) {
+    return false;
+  }
+
+  for (size_t i = 0; i < codeMeta_->numFuncImports; i++) {
+    funcImports_[i] = FuncImport(codeMeta_->funcs[i].typeIndex,
+                                 codeMeta_->offsetOfFuncImportInstanceData(i));
   }
 
   // The shared stubs code will contains function definitions for each imported
@@ -1040,7 +1051,26 @@ bool ModuleGenerator::startCompleteTier() {
   return true;
 }
 
-UniqueCodeBlock ModuleGenerator::finishCompleteTier(UniqueLinkData* linkData) {
+bool ModuleGenerator::startPartialTier(uint32_t funcIndex) {
+  if (!startCodeBlock(CodeBlock::kindFromTier(tier()))) {
+    return false;
+  }
+
+  if (!FuncToCodeRangeMap::createDense(funcIndex, 1,
+                                       &codeBlock_->funcToCodeRange)) {
+    return false;
+  }
+
+  const FuncDesc& func = codeMeta_->funcs[funcIndex];
+  if (func.isExported() && !codeBlock_->funcExports.emplaceBack(FuncExport(
+                               func.typeIndex, funcIndex, func.isEager()))) {
+    return false;
+  }
+
+  return true;
+}
+
+UniqueCodeBlock ModuleGenerator::finishTier(UniqueLinkData* linkData) {
   MOZ_ASSERT(finishedFuncDefs_);
 
   while (outstanding_ > 0) {
@@ -1050,7 +1080,9 @@ UniqueCodeBlock ModuleGenerator::finishCompleteTier(UniqueLinkData* linkData) {
   }
 
 #ifdef DEBUG
-  codeBlock_->funcToCodeRange.assertAllInitialized();
+  if (mode() != CompileMode::LazyTiering) {
+    codeBlock_->funcToCodeRange.assertAllInitialized();
+  }
 #endif
 
   // Now that all funcs have been compiled, we can generate entry stubs for
@@ -1074,7 +1106,26 @@ bool ModuleGenerator::finishCodeMetadata(const Bytes& bytecode) {
   // FIXME: this comment seems wrong.
   // Finish initialization of Metadata, which is only needed for constructing
   // the initial Module, not for tier-2 compilation.
-  MOZ_ASSERT(mode() != CompileMode::Tier2);
+  MOZ_ASSERT(compileState_ != CompileState::EagerTier2);
+
+  if (compileArgs_->scriptedCaller.filename) {
+    codeMeta_->filename =
+        DuplicateString(compileArgs_->scriptedCaller.filename.get());
+    if (!codeMeta_->filename) {
+      return false;
+    }
+
+    codeMeta_->filenameIsURL = compileArgs_->scriptedCaller.filenameIsURL;
+  } else {
+    MOZ_ASSERT(!compileArgs_->scriptedCaller.filenameIsURL);
+  }
+
+  if (compileArgs_->sourceMapURL) {
+    codeMeta_->sourceMapURL = DuplicateString(compileArgs_->sourceMapURL.get());
+    if (!codeMeta_->sourceMapURL) {
+      return false;
+    }
+  }
 
   // Copy over additional debug information.
 
@@ -1111,10 +1162,12 @@ bool ModuleGenerator::finishCodeMetadata(const Bytes& bytecode) {
 SharedModule ModuleGenerator::finishModule(
     const ShareableBytes& bytecode, MutableModuleMetadata moduleMeta,
     JS::OptimizedEncodingListener* maybeTier2Listener) {
-  MOZ_ASSERT(mode() == CompileMode::Once || mode() == CompileMode::Tier1);
+  MOZ_ASSERT(compileState_ == CompileState::Once ||
+             compileState_ == CompileState::EagerTier1 ||
+             compileState_ == CompileState::LazyTier1);
 
   UniqueLinkData tier1LinkData;
-  UniqueCodeBlock tier1Code = finishCompleteTier(&tier1LinkData);
+  UniqueCodeBlock tier1Code = finishTier(&tier1LinkData);
   if (!tier1Code) {
     return nullptr;
   }
@@ -1174,24 +1227,23 @@ SharedModule ModuleGenerator::finishModule(
     return nullptr;
   }
 
-  MutableCode code = js_new<Code>(mode(), *codeMeta_, codeMetaForAsmJS_);
+  // We keep the bytecode alive for debuggable modules, or if we're doing
+  // partial tiering.
+  bool keepBytecode = compilerEnv_->debugEnabled() ||
+                      compilerEnv_->mode() == CompileMode::LazyTiering;
+  MutableCode code = js_new<Code>(mode(), *codeMeta_, codeMetaForAsmJS_,
+                                  keepBytecode ? &bytecode : nullptr,
+                                  keepBytecode ? compileArgs_.get() : nullptr);
   if (!code || !code->initialize(std::move(funcImports_),
                                  std::move(sharedStubsCodeBlock_),
                                  *sharedStubsLinkData_, std::move(tier1Code))) {
     return nullptr;
   }
 
-  const ShareableBytes* debugBytecode = nullptr;
-  if (compilerEnv_->debugEnabled()) {
-    MOZ_ASSERT(mode() == CompileMode::Once);
-    MOZ_ASSERT(tier() == Tier::Debug);
-    debugBytecode = &bytecode;
-  }
-
   // All the components are finished, so create the complete Module and start
   // tier-2 compilation if requested.
 
-  MutableModule module = js_new<Module>(*moduleMeta, *code, debugBytecode);
+  MutableModule module = js_new<Module>(*moduleMeta, *code);
   if (!module) {
     return nullptr;
   }
@@ -1222,7 +1274,7 @@ SharedModule ModuleGenerator::finishModule(
     }
   }
 
-  if (mode() == CompileMode::Tier1) {
+  if (compileState_ == CompileState::EagerTier1) {
     module->startTier2(*compileArgs_, bytecode, maybeTier2Listener);
   } else if (tier() == Tier::Serialized && maybeTier2Listener) {
     Bytes bytes;
@@ -1237,7 +1289,7 @@ SharedModule ModuleGenerator::finishModule(
 // Complete all tier-2 construction.  This merely augments the existing Code
 // and does not require moduleMeta_.
 bool ModuleGenerator::finishTier2(const Module& module) {
-  MOZ_ASSERT(mode() == CompileMode::Tier2);
+  MOZ_ASSERT(compileState_ == CompileState::EagerTier2);
   MOZ_ASSERT(tier() == Tier::Optimized);
   MOZ_ASSERT(!compilerEnv_->debugEnabled());
 
@@ -1246,7 +1298,7 @@ bool ModuleGenerator::finishTier2(const Module& module) {
   }
 
   UniqueLinkData tier2LinkData;
-  UniqueCodeBlock tier2Code = finishCompleteTier(&tier2LinkData);
+  UniqueCodeBlock tier2Code = finishTier(&tier2LinkData);
   if (!tier2Code) {
     return false;
   }
@@ -1259,6 +1311,24 @@ bool ModuleGenerator::finishTier2(const Module& module) {
 
   return module.finishTier2(*sharedStubsLinkData_, *tier2LinkData,
                             std::move(tier2Code));
+}
+
+bool ModuleGenerator::finishPartialTier2(const Code& code) {
+  MOZ_ASSERT(compileState_ == CompileState::LazyTier2);
+  MOZ_ASSERT(tier() == Tier::Optimized);
+  MOZ_ASSERT(!compilerEnv_->debugEnabled());
+
+  if (cancelled_ && *cancelled_) {
+    return false;
+  }
+
+  UniqueLinkData tier2LinkData;
+  UniqueCodeBlock tier2Code = finishTier(&tier2LinkData);
+  if (!tier2Code) {
+    return false;
+  }
+
+  return code.finishTier2(*tier2LinkData, std::move(tier2Code));
 }
 
 void ModuleGenerator::warnf(const char* msg, ...) {

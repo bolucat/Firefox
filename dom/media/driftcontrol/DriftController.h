@@ -64,12 +64,11 @@ class DriftController final {
   uint32_t NumCorrectionChanges() const { return mNumCorrectionChanges; }
 
   /**
-   * The amount of time the buffering level has been within the hysteresis
-   * threshold.
+   * The amount of time that the difference between the buffering level and
+   * the desired value has been both less than 20% of the desired level and
+   * less than 10ms of buffered frames.
    */
-  media::TimeUnit DurationWithinHysteresis() const {
-    return mDurationWithinHysteresis;
-  }
+  media::TimeUnit DurationNearDesired() const { return mDurationNearDesired; }
 
   /**
    * The amount of time that has passed since the last time SetDesiredBuffering
@@ -99,24 +98,23 @@ class DriftController final {
                    uint32_t aBufferSize);
 
  private:
-  // This implements a simple PID controller with feedback.
+  // This implements a simple PD controller with feedback.
   // Set point:     SP = mDesiredBuffering.
-  // Process value: PV(t) = aBufferedFrames. This is the feedback.
-  // Error:         e(t) = aBufferedFrames - mDesiredBuffering.
+  // Process value: PV(t) = mAvgBufferedFramesEst. This includes the feedback.
+  // Error:         e(t) = mAvgBufferedFramesEst - mDesiredBuffering.
   //                Error is positive when the process value is high, which is
   //                the opposite of conventional PID controllers because this
   //                is a reverse-acting system.
-  // Control value: CV(t) = the value to add to the nominal source rate, i.e.
-  //                the corrected source rate = nominal source rate + CV(t).
+  // Control value: CV(t) = the value to add to the estimated source rate with
+  //                drift as measured by the output clock, i.e.
+  //                the corrected source rate = estimated source rate + CV(t).
   //
   // Controller:
   // Proportional part: The error, p(t) = e(t), multiplied by a gain factor, Kp.
-  // Integral part:     The historic cumulative value of the error,
-  //                    i(t+1) = i(t) + e(t+1), multiplied by a gain factor, Ki.
   // Derivative part:   The error's rate of change, d(t+1) = (e(t+1)-e(t))/1,
   //                    multiplied by a gain factor, Kd.
   // Control signal:    The sum of the parts' output,
-  //                    u(t) = Kp*p(t) + Ki*i(t) + Kd*d(t).
+  //                    u(t) = Kp*p(t) + Kd*d(t).
   //
   // Control action: Converting the control signal to a source sample rate.
   //                 Simplified, a positive control signal means the buffer is
@@ -139,26 +137,52 @@ class DriftController final {
   const uint32_t mSourceRate;
   const uint32_t mTargetRate;
   const media::TimeUnit mAdjustmentInterval = media::TimeUnit::FromSeconds(1);
-  const media::TimeUnit mIntegralCapTimeLimit =
-      media::TimeUnit(10, 1).ToBase(mTargetRate);
 
  private:
   media::TimeUnit mDesiredBuffering;
-  int32_t mPreviousError = 0;
-  float mIntegral = 0.0;
-  Maybe<float> mIntegralCenterForCap;
+  float mPreviousError = 0.f;
   float mCorrectedSourceRate;
   Maybe<int32_t> mLastHysteresisBoundaryCorrection;
   media::TimeUnit mDurationWithinHysteresis;
+  media::TimeUnit mDurationNearDesired;
   uint32_t mNumCorrectionChanges = 0;
-
+  // Moving averages of input and output durations, used in a ratio to
+  // estimate clock drift. Each average is calculated using packet durations
+  // from the same time intervals (between output requests), with the same
+  // weights, to support their use as a ratio.  Durations from many packets
+  // are essentially summed (with consistent denominators) to provide
+  // longish-term measures of clock advance.  These are independent of any
+  // corrections in resampling ratio.
+  double mInputDurationAvg = 0.0;
+  double mOutputDurationAvg = 0.0;
+  // Moving average of mInputDurationAvg/mOutputDurationAvg to smooth
+  // out short-term deviations from an estimated longish-term drift rate.
+  // Greater than 1 means the input clock has advanced faster than the output
+  // clock.  This is the output of a second low pass filter stage.
+  double mDriftEstimate = 1.0;
+  // Output of the first low pass filter stage for mDriftEstimate
+  double mStage1Drift = 1.0;
+  // Estimate of the average buffering level after each output request, in
+  // input frames (and fractions thereof), smoothed to reduce the effect of
+  // short term variations.  This is adjusted for estimated clock drift and for
+  // corrections in the resampling ratio.  This is the output of a second low
+  // pass filter stage.
+  double mAvgBufferedFramesEst = 0.0;
+  // Output of the first low pass filter stage for mAvgBufferedFramesEst
+  double mStage1Buffered = 0.0;
+  // Whether handling an underrun, including waiting for the first input sample.
+  bool mIsHandlingUnderrun = true;
   // An estimate of the source's latency, i.e. callback buffer size, in frames.
+  // Like mInputDurationAvg, this measures the duration arriving between each
+  // output request, but mMeasuredSourceLatency does not include zero
+  // duration measurements.
   RollingMean<media::TimeUnit, media::TimeUnit> mMeasuredSourceLatency;
   // An estimate of the target's latency, i.e. callback buffer size, in frames.
   RollingMean<media::TimeUnit, media::TimeUnit> mMeasuredTargetLatency;
 
   media::TimeUnit mTargetClock;
   media::TimeUnit mTotalTargetClock;
+  media::TimeUnit mTargetClockAfterLastSourcePacket;
   media::TimeUnit mLastDesiredBufferingChangeTime;
 };
 

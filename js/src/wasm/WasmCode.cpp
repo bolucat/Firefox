@@ -118,7 +118,7 @@ void FreeCode::operator()(uint8_t* bytes) {
 
 bool wasm::StaticallyLink(jit::AutoMarkJitCodeWritableForThread& writable,
                           uint8_t* base, const LinkData& linkData,
-                          const CodeBlock* maybeSharedStubs) {
+                          const Code* maybeCode) {
   if (!EnsureBuiltinThunksInitialized(writable)) {
     return false;
   }
@@ -131,6 +131,16 @@ bool wasm::StaticallyLink(jit::AutoMarkJitCodeWritableForThread& writable,
     label.setLinkMode(static_cast<CodeLabel::LinkMode>(link.mode));
 #endif
     Assembler::Bind(base, label);
+  }
+
+  for (CallFarJump far : linkData.callFarJumps) {
+    MOZ_ASSERT(maybeCode && maybeCode->mode() == CompileMode::LazyTiering);
+    const CodeBlock& bestBlock = maybeCode->funcCodeBlock(far.targetFuncIndex);
+    uint32_t stubRangeIndex = bestBlock.funcToCodeRange[far.targetFuncIndex];
+    const CodeRange& stubRange = bestBlock.codeRanges[stubRangeIndex];
+    uint8_t* stubBase = bestBlock.segment->base();
+    MacroAssembler::patchFarJump(base + far.jumpOffset,
+                                 stubBase + stubRange.funcUncheckedCallEntry());
   }
 
   for (auto imm : MakeEnumeratedRange(SymbolicAddress::Limit)) {
@@ -269,8 +279,8 @@ static void SendCodeRangesToProfiler(
 
 bool CodeSegment::linkAndMakeExecutable(
     jit::AutoMarkJitCodeWritableForThread& writable, const LinkData& linkData,
-    const CodeBlock* maybeSharedStubs) {
-  if (!StaticallyLink(writable, bytes_.get(), linkData, maybeSharedStubs)) {
+    const Code* maybeCode) {
+  if (!StaticallyLink(writable, bytes_.get(), linkData, maybeCode)) {
     return false;
   }
 
@@ -294,9 +304,9 @@ SharedCodeSegment CodeSegment::createEmpty(size_t capacityBytes) {
 }
 
 /* static */
-SharedCodeSegment CodeSegment::createFromMasm(
-    MacroAssembler& masm, const LinkData& linkData,
-    const CodeBlock* maybeSharedStubs) {
+SharedCodeSegment CodeSegment::createFromMasm(MacroAssembler& masm,
+                                              const LinkData& linkData,
+                                              const Code* maybeCode) {
   uint32_t codeLength = masm.bytesNeeded();
   if (codeLength == 0) {
     return js_new<CodeSegment>(nullptr, 0, 0);
@@ -314,7 +324,7 @@ SharedCodeSegment CodeSegment::createFromMasm(
   SharedCodeSegment segment =
       js_new<CodeSegment>(std::move(codeBytes), codeLength, codeCapacity);
   if (!segment ||
-      !segment->linkAndMakeExecutable(*writable, linkData, maybeSharedStubs)) {
+      !segment->linkAndMakeExecutable(*writable, linkData, maybeCode)) {
     return nullptr;
   }
 
@@ -322,9 +332,9 @@ SharedCodeSegment CodeSegment::createFromMasm(
 }
 
 /* static */
-SharedCodeSegment CodeSegment::createFromBytes(
-    const uint8_t* unlinkedBytes, size_t unlinkedBytesLength,
-    const LinkData& linkData, const CodeBlock* maybeSharedStubs) {
+SharedCodeSegment CodeSegment::createFromBytes(const uint8_t* unlinkedBytes,
+                                               size_t unlinkedBytesLength,
+                                               const LinkData& linkData) {
   uint32_t codeLength = unlinkedBytesLength;
   if (codeLength == 0) {
     return js_new<CodeSegment>(nullptr, 0, 0);
@@ -342,7 +352,7 @@ SharedCodeSegment CodeSegment::createFromBytes(
   SharedCodeSegment segment =
       js_new<CodeSegment>(std::move(codeBytes), codeLength, codeCapacity);
   if (!segment ||
-      !segment->linkAndMakeExecutable(*writable, linkData, maybeSharedStubs)) {
+      !segment->linkAndMakeExecutable(*writable, linkData, nullptr)) {
     return nullptr;
   }
   return segment;
@@ -618,16 +628,13 @@ bool Code::createTier2LazyEntryStubs(const WriteGuard& guard,
     return false;
   }
 
-  for (size_t i = 0; i < guard->lazyExports.length(); i++) {
-    const LazyFuncExport& lfe = guard->lazyExports[i];
-    // Our tier2 code doesn't contain any imported function definitions.
-    if (lfe.funcIndex < funcImports_.length()) {
-      continue;
+  for (size_t i = 0; i < tier2Code.funcExports.length(); i++) {
+    const FuncExport& fe = tier2Code.funcExports[i];
+    const LazyFuncExport* lfe = lookupLazyFuncExport(guard, fe.funcIndex());
+    if (lfe) {
+      MOZ_ASSERT(lfe->funcKind == CodeBlockKind::BaselineTier);
+      funcExportIndices.infallibleAppend(i);
     }
-    MOZ_ASSERT(lfe.funcKind == CodeBlockKind::BaselineTier);
-    size_t funcExportIndex;
-    tier2Code.lookupFuncExport(lfe.funcIndex, &funcExportIndex);
-    funcExportIndices.infallibleAppend(funcExportIndex);
   }
 
   if (funcExportIndices.length() == 0) {
@@ -644,19 +651,36 @@ bool Code::createTier2LazyEntryStubs(const WriteGuard& guard,
   return true;
 }
 
-bool Code::finishCompleteTier2(const LinkData& linkData,
-                               UniqueCodeBlock tier2Code) const {
-  MOZ_RELEASE_ASSERT(bestTier() == Tier::Baseline &&
+bool Code::requestTierUp(uint32_t funcIndex,
+                         uint32_t funcBytecodeOffset) const {
+  MOZ_ASSERT(mode_ == CompileMode::LazyTiering);
+  FuncState& state = funcStates_[funcIndex - codeMeta_->numFuncImports];
+  if (!state.tierUpState.compareExchange(TierUpState::NotRequested,
+                                         TierUpState::Requested)) {
+    return true;
+  }
+
+  return CompilePartialTier2(*compileArgs_.get(), bytecode_->bytes, funcIndex,
+                             funcBytecodeOffset, *this, nullptr, nullptr,
+                             nullptr);
+}
+
+bool Code::finishTier2(const LinkData& linkData,
+                       UniqueCodeBlock tier2Code) const {
+  MOZ_RELEASE_ASSERT(mode_ == CompileMode::EagerTiering ||
+                     mode_ == CompileMode::LazyTiering);
+  MOZ_RELEASE_ASSERT(hasCompleteTier2_ == false &&
                      tier2Code->tier() == Tier::Optimized);
   // Acquire the write guard before we start mutating anything. We hold this
   // for the minimum amount of time necessary.
+  CodeBlock* tier2CodePointer;
   {
     auto guard = data_.writeLock();
 
-    // Grab the tier2 pointer before moving it into the block vector. This
-    // ensures we maintain the invariant that tier2_ is never read if hasTier2_
-    // is false.
-    CodeBlock* tier2CodePointer = tier2Code.get();
+    // Borrow the tier2 pointer before moving it into the block vector. This
+    // ensures we maintain the invariant that completeTier2_ is never read if
+    // hasCompleteTier2_ is false.
+    tier2CodePointer = tier2Code.get();
 
     // Publish this code to the process wide map.
     if (!tier2Code->initialize(*this) ||
@@ -685,9 +709,23 @@ bool Code::finishCompleteTier2(const LinkData& linkData,
     jit::FlushExecutionContextForAllThreads();
 
     // Now that we can't fail or otherwise abort tier2, make it live.
-    tier2_ = tier2CodePointer;
-    hasTier2_ = true;
-    MOZ_ASSERT(hasTier2());
+    if (mode_ == CompileMode::EagerTiering) {
+      completeTier2_ = tier2CodePointer;
+      hasCompleteTier2_ = true;
+
+      // We don't need to update funcStates, because we're doing eager tiering
+      MOZ_ASSERT(!funcStates_.get());
+    } else {
+      for (const CodeRange& cr : tier2CodePointer->codeRanges) {
+        if (!cr.isFunction()) {
+          continue;
+        }
+        FuncState& state =
+            funcStates_.get()[cr.funcIndex() - codeMeta_->numFuncImports];
+        state.bestTier = tier2CodePointer;
+        state.tierUpState = TierUpState::Finished;
+      }
+    }
 
     // Update jump vectors with pointers to tier-2 lazy entry stubs, if any.
     if (stub2Index) {
@@ -705,9 +743,8 @@ bool Code::finishCompleteTier2(const LinkData& linkData,
   // And we update the jump vectors with pointers to tier-2 functions and eager
   // stubs.  Callers will continue to invoke tier-1 code until, suddenly, they
   // will invoke tier-2 code.  This is benign.
-  const CodeBlock& optimizedTierCode = completeTierCodeBlock(Tier::Optimized);
-  uint8_t* base = optimizedTierCode.segment->base();
-  for (const CodeRange& cr : optimizedTierCode.codeRanges) {
+  uint8_t* base = tier2CodePointer->segment->base();
+  for (const CodeRange& cr : tier2CodePointer->codeRanges) {
     // These are racy writes that we just want to be visible, atomically,
     // eventually.  All hardware we care about will do this right.  But
     // we depend on the compiler not splitting the stores hidden inside the
@@ -721,8 +758,8 @@ bool Code::finishCompleteTier2(const LinkData& linkData,
   return true;
 }
 
-void* Code::lookupLazyInterpEntry(const WriteGuard& guard,
-                                  uint32_t funcIndex) const {
+const LazyFuncExport* Code::lookupLazyFuncExport(const WriteGuard& guard,
+                                                 uint32_t funcIndex) const {
   size_t match;
   if (!BinarySearchIf(
           guard->lazyExports, 0, guard->lazyExports.length(),
@@ -732,10 +769,18 @@ void* Code::lookupLazyInterpEntry(const WriteGuard& guard,
           &match)) {
     return nullptr;
   }
-  const LazyFuncExport& fe = guard->lazyExports[match];
-  const CodeBlock& block = *guard->blocks[fe.lazyStubBlockIndex];
+  return &guard->lazyExports[match];
+}
+
+void* Code::lookupLazyInterpEntry(const WriteGuard& guard,
+                                  uint32_t funcIndex) const {
+  const LazyFuncExport* fe = lookupLazyFuncExport(guard, funcIndex);
+  if (!fe) {
+    return nullptr;
+  }
+  const CodeBlock& block = *guard->blocks[fe->lazyStubBlockIndex];
   const CodeSegment& segment = *block.segment;
-  return segment.base() + block.codeRanges[fe.funcCodeRangeIndex].begin();
+  return segment.base() + block.codeRanges[fe->funcCodeRangeIndex].begin();
 }
 
 CodeBlock::~CodeBlock() {
@@ -931,7 +976,7 @@ bool JumpTables::initialize(CompileMode mode, const CodeBlock& sharedStubs,
 
   numFuncs_ = numFuncs;
 
-  if (mode_ == CompileMode::Tier1) {
+  if (mode_ != CompileMode::Once) {
     tiering_ = TablePointer(js_pod_calloc<void*>(numFuncs));
     if (!tiering_) {
       return false;
@@ -968,16 +1013,20 @@ bool JumpTables::initialize(CompileMode mode, const CodeBlock& sharedStubs,
 }
 
 Code::Code(CompileMode mode, const CodeMetadata& codeMeta,
-           const CodeMetadataForAsmJS* codeMetaForAsmJS)
+           const CodeMetadataForAsmJS* codeMetaForAsmJS,
+           const ShareableBytes* maybeBytecode,
+           const CompileArgs* maybeCompileArgs)
     : mode_(mode),
       data_(mutexid::WasmCodeProtected),
       codeMeta_(&codeMeta),
       codeMetaForAsmJS_(codeMetaForAsmJS),
-      tier1_(nullptr),
-      tier2_(nullptr),
+      completeTier1_(nullptr),
+      completeTier2_(nullptr),
       profilingLabels_(mutexid::WasmCodeProfilingLabels,
                        CacheableCharsVector()),
-      trapCode_(nullptr) {}
+      trapCode_(nullptr),
+      bytecode_(maybeBytecode),
+      compileArgs_(maybeCompileArgs) {}
 
 bool Code::initialize(FuncImportVector&& funcImports,
                       UniqueCodeBlock sharedStubs,
@@ -995,14 +1044,14 @@ bool Code::initialize(FuncImportVector&& funcImports,
   CodeBlock* tier1CodePointer = tierCodeBlock.get();
 
   sharedStubs_ = sharedStubs.get();
-  tier1_ = tierCodeBlock.get();
+  completeTier1_ = tierCodeBlock.get();
   trapCode_ = sharedStubs_->segment->base() + sharedStubsLinkData.trapOffset;
-  if (!jumpTables_.initialize(mode_, *sharedStubs_, *tier1_) ||
+  if (!jumpTables_.initialize(mode_, *sharedStubs_, *completeTier1_) ||
       !guard->blocks.append(std::move(sharedStubs)) ||
       !guard->blocks.append(std::move(tierCodeBlock)) ||
-      !blockMap_.insert(sharedStubs_) || !blockMap_.insert(tier1_)) {
+      !blockMap_.insert(sharedStubs_) || !blockMap_.insert(completeTier1_)) {
     // Reset the tier1 pointer to maintain the initialization invariant
-    tier1_ = nullptr;
+    completeTier1_ = nullptr;
     MOZ_ASSERT(!initialized());
     return false;
   }
@@ -1012,9 +1061,19 @@ bool Code::initialize(FuncImportVector&& funcImports,
   if (!tier1CodePointer->initialize(*this) ||
       !sharedStubsCodePointer->initialize(*this)) {
     // Reset the tier1 pointer to maintain the initialization invariant
-    tier1_ = nullptr;
+    completeTier1_ = nullptr;
     MOZ_ASSERT(!initialized());
     return false;
+  }
+
+  if (mode_ == CompileMode::LazyTiering) {
+    uint32_t numFuncDefs = codeMeta_->numFuncs() - codeMeta_->numFuncImports;
+    funcStates_ = FuncStatesPointer(js_pod_calloc<FuncState>(numFuncDefs));
+    for (uint32_t funcDefIndex = 0; funcDefIndex < numFuncDefs;
+         funcDefIndex++) {
+      funcStates_.get()[funcDefIndex].bestTier = completeTier1_;
+      funcStates_.get()[funcDefIndex].tierUpState = TierUpState::NotRequested;
+    }
   }
 
   MOZ_ASSERT(initialized());
@@ -1029,49 +1088,49 @@ uint32_t Code::getFuncIndex(JSFunction* fun) const {
   return jumpTables_.funcIndexFromJitEntry(fun->wasmJitEntry());
 }
 
-Tiers Code::tiers() const {
-  if (hasTier2()) {
-    return Tiers(tier1_->tier(), tier2_->tier());
+Tiers Code::completeTiers() const {
+  if (hasCompleteTier2_) {
+    return Tiers(completeTier1_->tier(), completeTier2_->tier());
   }
-  return Tiers(tier1_->tier());
+  return Tiers(completeTier1_->tier());
 }
 
-bool Code::hasTier(Tier t) const {
-  if (hasTier2() && tier2_->tier() == t) {
+bool Code::hasCompleteTier(Tier t) const {
+  if (hasCompleteTier2_ && completeTier2_->tier() == t) {
     return true;
   }
-  return tier1_->tier() == t;
+  return completeTier1_->tier() == t;
 }
 
-Tier Code::stableTier() const { return tier1_->tier(); }
+Tier Code::stableCompleteTier() const { return completeTier1_->tier(); }
 
-Tier Code::bestTier() const {
-  if (hasTier2()) {
-    return tier2_->tier();
+Tier Code::bestCompleteTier() const {
+  if (hasCompleteTier2_) {
+    return completeTier2_->tier();
   }
-  return tier1_->tier();
+  return completeTier1_->tier();
 }
 
-const CodeBlock& Code::codeBlock(Tier tier) const {
+const CodeBlock& Code::completeTierCodeBlock(Tier tier) const {
   switch (tier) {
     case Tier::Baseline:
-      if (tier1_->tier() == Tier::Baseline) {
-        MOZ_ASSERT(tier1_->initialized());
-        return *tier1_;
+      if (completeTier1_->tier() == Tier::Baseline) {
+        MOZ_ASSERT(completeTier1_->initialized());
+        return *completeTier1_;
       }
       MOZ_CRASH("No code segment at this tier");
     case Tier::Optimized:
-      if (tier1_->tier() == Tier::Optimized) {
-        MOZ_ASSERT(tier1_->initialized());
-        return *tier1_;
+      if (completeTier1_->tier() == Tier::Optimized) {
+        MOZ_ASSERT(completeTier1_->initialized());
+        return *completeTier1_;
       }
       // It is incorrect to ask for the optimized tier without there being such
       // a tier and the tier having been committed.  The guard here could
-      // instead be `if (hasTier2()) ... ` but codeBlock(t) should not be called
-      // in contexts where that test is necessary.
-      MOZ_RELEASE_ASSERT(hasTier2());
-      MOZ_ASSERT(tier2_->initialized());
-      return *tier2_;
+      // instead be `if (hasCompleteTier2_) ... ` but codeBlock(t) should not be
+      // called in contexts where that test is necessary.
+      MOZ_RELEASE_ASSERT(hasCompleteTier2_);
+      MOZ_ASSERT(completeTier2_->initialized());
+      return *completeTier2_;
   }
   MOZ_CRASH();
 }
@@ -1081,7 +1140,7 @@ bool Code::lookupFunctionTier(const CodeRange* codeRange, Tier* tier) const {
   // exists in metadata and not a lazy stub tier. Generalizing to access lazy
   // stubs would require taking a lock, which is undesirable for the profiler.
   MOZ_ASSERT(codeRange->isFunction());
-  for (Tier t : tiers()) {
+  for (Tier t : completeTiers()) {
     const CodeBlock& code = completeTierCodeBlock(t);
     if (codeRange >= code.codeRanges.begin() &&
         codeRange < code.codeRanges.end()) {
@@ -1111,7 +1170,7 @@ void Code::ensureProfilingLabels(bool profilingEnabled) const {
   // Any tier will do, we only need tier-invariant data that are incidentally
   // stored with the code ranges.
   const CodeBlock& sharedStubsCodeBlock = sharedStubs();
-  const CodeBlock& tier1CodeBlock = completeTierCodeBlock(stableTier());
+  const CodeBlock& tier1CodeBlock = completeTierCodeBlock(stableCompleteTier());
 
   // Ignore any OOM failures, nothing we can do about it
   (void)appendProfilingLabels(labels, sharedStubsCodeBlock);
@@ -1212,7 +1271,7 @@ void Code::addSizeOfMiscIfNotSeen(
   }
 
   sharedStubs().addSizeOfMisc(mallocSizeOf, code, data);
-  for (auto t : tiers()) {
+  for (auto t : completeTiers()) {
     completeTierCodeBlock(t).addSizeOfMisc(mallocSizeOf, code, data);
   }
 }
@@ -1292,7 +1351,7 @@ MetadataAnalysisHashMap Code::metadataAnalysis(JSContext* cx) const {
     return hashmap;
   }
 
-  for (auto t : tiers()) {
+  for (auto t : completeTiers()) {
     const CodeBlock& codeBlock = completeTierCodeBlock(t);
     size_t length = codeBlock.funcToCodeRange.numEntries();
     length += codeBlock.codeRanges.length();

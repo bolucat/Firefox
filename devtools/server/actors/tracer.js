@@ -27,8 +27,8 @@ loader.lazyRequireGetter(
 );
 loader.lazyRequireGetter(
   this,
-  "ConsoleTracingListener",
-  "resource://devtools/server/actors/tracer/console.js",
+  "ResourcesTracingListener",
+  "resource://devtools/server/actors/tracer/resources.js",
   true
 );
 loader.lazyRequireGetter(
@@ -40,12 +40,15 @@ loader.lazyRequireGetter(
 
 // Indexes of each data type within the array describing a frame
 exports.TRACER_FIELDS_INDEXES = {
-  FRAME_IMPLEMENTATION: 0,
-  FRAME_NAME: 1,
-  FRAME_SOURCEID: 2,
-  FRAME_LINE: 3,
-  FRAME_COLUMN: 4,
-  FRAME_URL: 5,
+  // This is shared with all the data types
+  TYPE: 0,
+
+  FRAME_IMPLEMENTATION: 1,
+  FRAME_NAME: 2,
+  FRAME_SOURCEID: 3,
+  FRAME_LINE: 4,
+  FRAME_COLUMN: 5,
+  FRAME_URL: 6,
 };
 
 const VALID_LOG_METHODS = Object.values(TRACER_LOG_METHODS);
@@ -137,7 +140,7 @@ class TracerActor extends Actor {
         ListenerClass = StdoutTracingListener;
         break;
       case TRACER_LOG_METHODS.CONSOLE:
-        ListenerClass = ConsoleTracingListener;
+        ListenerClass = ResourcesTracingListener;
         break;
       case TRACER_LOG_METHODS.PROFILER:
         ListenerClass = ProfilerTracingListener;

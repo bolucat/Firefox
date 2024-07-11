@@ -54,31 +54,46 @@ MOZ_LOG_FILE=/tmp/driftcontrol.csv       \
 
         t = df["t"]
         buffering = df["buffering"]
+        avgbuffered = df["avgbuffered"]
         desired = df["desired"]
         buffersize = df["buffersize"]
         inlatency = df["inlatency"]
         outlatency = df["outlatency"]
+        inframesavg = df["inframesavg"]
+        outframesavg = df["outframesavg"]
         inrate = df["inrate"]
         outrate = df["outrate"]
+        driftestimate = df["driftestimate"]
         hysteresisthreshold = df["hysteresisthreshold"]
         corrected = df["corrected"]
         hysteresiscorrected = df["hysteresiscorrected"]
         configured = df["configured"]
         p = df["p"]
-        i = df["i"]
         d = df["d"]
         kpp = df["kpp"]
-        kii = df["kii"]
         kdd = df["kdd"]
         control = df["control"]
 
         output_file("plot.html")
 
         fig1 = figure()
+        # Variables with more variation are plotted after smoother variables
+        # because latter variables are drawn on top and so visibility of
+        # individual values in the variables with more variation is improved
+        # (when both variables are shown).
+        fig1.line(
+            t, inframesavg, color="violet", legend_label="Average input packet size"
+        )
+        fig1.line(
+            t, outframesavg, color="purple", legend_label="Average output packet size"
+        )
         fig1.line(t, inlatency, color="hotpink", legend_label="In latency")
         fig1.line(t, outlatency, color="firebrick", legend_label="Out latency")
-        fig1.line(t, buffering, color="dodgerblue", legend_label="Actual buffering")
         fig1.line(t, desired, color="goldenrod", legend_label="Desired buffering")
+        fig1.line(
+            t, avgbuffered, color="orangered", legend_label="Average buffered estimate"
+        )
+        fig1.line(t, buffering, color="dodgerblue", legend_label="Actual buffering")
         fig1.line(t, buffersize, color="seagreen", legend_label="Buffer size")
         fig1.varea(
             t,
@@ -92,6 +107,12 @@ MOZ_LOG_FILE=/tmp/driftcontrol.csv       \
         fig2 = figure(x_range=fig1.x_range)
         fig2.line(t, inrate, color="hotpink", legend_label="Nominal in sample rate")
         fig2.line(t, outrate, color="firebrick", legend_label="Nominal out sample rate")
+        fig2.line(
+            t,
+            driftestimate * inrate,
+            color="orangered",
+            legend_label="Estimated in rate with drift",
+        )
         fig2.line(
             t, corrected, color="dodgerblue", legend_label="Corrected in sample rate"
         )
@@ -107,12 +128,10 @@ MOZ_LOG_FILE=/tmp/driftcontrol.csv       \
 
         fig3 = figure(x_range=fig1.x_range)
         fig3.line(t, p, color="goldenrod", legend_label="P")
-        fig3.line(t, i, color="dodgerblue", legend_label="I")
         fig3.line(t, d, color="seagreen", legend_label="D")
 
         fig4 = figure(x_range=fig1.x_range)
         fig4.line(t, kpp, color="goldenrod", legend_label="KpP")
-        fig4.line(t, kii, color="dodgerblue", legend_label="KiI")
         fig4.line(t, kdd, color="seagreen", legend_label="KdD")
         fig4.line(t, control, color="hotpink", legend_label="Control Signal")
 

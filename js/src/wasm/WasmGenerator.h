@@ -138,6 +138,7 @@ struct CompileTaskState {
 struct CompileTask : public HelperThreadTask {
   const CodeMetadata& codeMeta;
   const CompilerEnvironment& compilerEnv;
+  const CompileState compileState;
 
   CompileTaskState& state;
   LifoAlloc lifo;
@@ -145,10 +146,11 @@ struct CompileTask : public HelperThreadTask {
   CompiledCode output;
 
   CompileTask(const CodeMetadata& codeMeta,
-              const CompilerEnvironment& compilerEnv, CompileTaskState& state,
-              size_t defaultChunkSize)
+              const CompilerEnvironment& compilerEnv, CompileState compileState,
+              CompileTaskState& state, size_t defaultChunkSize)
       : codeMeta(codeMeta),
         compilerEnv(compilerEnv),
+        compileState(compileState),
         state(state),
         lifo(defaultChunkSize) {}
 
@@ -182,11 +184,15 @@ class MOZ_STACK_CLASS ModuleGenerator {
 
   // Constant parameters
   SharedCompileArgs const compileArgs_;
+  const CompileState compileState_;
   UniqueChars* const error_;
   UniqueCharsVector* const warnings_;
   const Atomic<bool>* const cancelled_;
   CodeMetadata* const codeMeta_;
   CompilerEnvironment* const compilerEnv_;
+
+  // Data that is used for partial tiering
+  SharedCode partialTieringCode_;
 
   // Data that is moved into the Module/Code as the result of finish()
   FuncImportVector funcImports_;
@@ -242,12 +248,15 @@ class MOZ_STACK_CLASS ModuleGenerator {
   [[nodiscard]] bool generateSharedStubs();
 
   // Starts the creation of a complete tier of wasm code. Every function
-  // defined in this module must be compiled, then finishCompleteTier must be
+  // defined in this module must be compiled, then finishTier must be
   // called.
   [[nodiscard]] bool startCompleteTier();
-  // Finishes a complete tier of wasm code. Returns a `linkData` through an
-  // out-param that can be serialized with the code block.
-  UniqueCodeBlock finishCompleteTier(UniqueLinkData* linkData);
+  // Starts the creation of a partial tier of wasm code. The specified function
+  // must be compiled, then finishTier must be called.
+  [[nodiscard]] bool startPartialTier(uint32_t funcIndex);
+  // Finishes a complete or partial tier of wasm code. Returns a `linkData`
+  // through an out-param that can be serialized with the code block.
+  UniqueCodeBlock finishTier(UniqueLinkData* linkData);
 
   bool finishCodeMetadata(const Bytes& bytecode);
 
@@ -260,11 +269,14 @@ class MOZ_STACK_CLASS ModuleGenerator {
 
  public:
   ModuleGenerator(const CompileArgs& args, CodeMetadata* codeMeta,
-                  CompilerEnvironment* compilerEnv,
+                  CompilerEnvironment* compilerEnv, CompileState compilerState,
                   const Atomic<bool>* cancelled, UniqueChars* error,
                   UniqueCharsVector* warnings);
   ~ModuleGenerator();
-  [[nodiscard]] bool init(CodeMetadataForAsmJS* codeMetaForAsmJS);
+  [[nodiscard]] bool initializeCompleteTier(
+      CodeMetadataForAsmJS* codeMetaForAsmJS = nullptr);
+  [[nodiscard]] bool initializePartialTier(const Code& code,
+                                           uint32_t maybeFuncIndex);
 
   // Before finishFuncDefs() is called, compileFuncDef() must be called once
   // for each funcIndex in the range [0, env->numFuncDefs()).
@@ -289,6 +301,7 @@ class MOZ_STACK_CLASS ModuleGenerator {
                             MutableModuleMetadata moduleMeta,
                             JS::OptimizedEncodingListener* maybeTier2Listener);
   [[nodiscard]] bool finishTier2(const Module& module);
+  [[nodiscard]] bool finishPartialTier2(const Code& code);
 };
 
 }  // namespace wasm
