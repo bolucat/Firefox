@@ -651,8 +651,6 @@ class HomeFragment : Fragment() {
                                 dismissButtonColor = FirefoxTheme.colors.iconOnColor.toArgb(),
                                 indicatorDirection = CFRPopup.IndicatorDirection.DOWN,
                                 popupVerticalOffset = 10.dp,
-                                dismissOnBackPress = true,
-                                dismissOnClickOutside = false,
                                 indicatorArrowStartOffset = 130.dp,
                             ),
                             onCFRShown = { NavigationBar.navigationBarCfrShown.record(NoExtras()) },
@@ -672,7 +670,7 @@ class HomeFragment : Fragment() {
                             text = {
                                 FirefoxTheme {
                                     Text(
-                                        text = stringResource(R.string.navbar_cfr_message),
+                                        text = stringResource(R.string.navbar_cfr_message_2),
                                         color = FirefoxTheme.colors.textOnColorPrimary,
                                         style = FirefoxTheme.typography.body2,
                                     )

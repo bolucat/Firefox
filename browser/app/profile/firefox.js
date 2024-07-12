@@ -1735,6 +1735,8 @@ pref("browser.newtabpage.activity-stream.weather.display", "simple");
 #else
   pref("browser.newtabpage.activity-stream.discoverystream.region-weather-config", "");
 #endif
+// List of locales that weather widget supports.
+pref("browser.newtabpage.activity-stream.discoverystream.locale-weather-config", "en-US,en-GB,en-CA");
 
 // Preference to enable wallpaper selection in the Customize Menu of new tab page
 #ifdef NIGHTLY_BUILD
@@ -2034,7 +2036,7 @@ pref("identity.fxaccounts.commands.remoteTabManagement.enabled", false);
 
 // Controls whether or not the client association ping has values set on it
 // when the sync-ui-state:update notification fires.
-pref("identity.fxaccounts.telemetry.clientAssociationPing.enabled", false);
+pref("identity.fxaccounts.telemetry.clientAssociationPing.enabled", true);
 
 // Note: when media.gmp-*.visible is true, provided we're running on a
 // supported platform/OS version, the corresponding CDM appears in the
@@ -2698,8 +2700,7 @@ pref("devtools.inspector.simple-highlighters-reduced-motion", false);
 // next inplace editor.
 pref("devtools.inspector.rule-view.focusNextOnEnter", true);
 // Display @starting-style rules in the Rules view.
-// Should be removed when Bug 1905035 is fixed.
-pref("devtools.inspector.rule-view.starting-style", false);
+pref("devtools.inspector.rule-view.starting-style", true);
 
 // Whether or not the box model panel is opened in the layout view
 pref("devtools.layout.boxmodel.opened", true);
