@@ -838,8 +838,7 @@ static void* RequestTierUp(JSContext* cx, JitActivation* activation) {
 
   // Try to Ion-compile it.  Note that `ok == true` signifies either
   // "duplicate request" or "not a duplicate, and compilation succeeded".
-  bool ok = codeBlock->code->requestTierUp(funcIndex,
-                                           codeRange->funcLineOrBytecode());
+  bool ok = codeBlock->code->requestTierUp(funcIndex);
   // If compilation failed, there's no feasible way to recover.
   if (!ok) {
     wasm::Log(cx, "Failed to tier-up function=%d in instance=%p.", funcIndex,
@@ -1007,7 +1006,7 @@ static int32_t CoerceInPlace_JitEntry(int funcIndex, Instance* instance,
   JSContext* cx = TlsContext.get();  // Cold code
 
   const Code& code = instance->code();
-  const FuncType& funcType = code.getFuncExportType(funcIndex);
+  const FuncType& funcType = code.codeMeta().getFuncType(funcIndex);
 
   for (size_t i = 0; i < funcType.args().length(); i++) {
     HandleValue arg = HandleValue::fromMarkedLocation(&argv[i]);

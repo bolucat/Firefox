@@ -188,17 +188,19 @@ class MOZ_STACK_CLASS ModuleGenerator {
   UniqueChars* const error_;
   UniqueCharsVector* const warnings_;
   const Atomic<bool>* const cancelled_;
-  CodeMetadata* const codeMeta_;
-  CompilerEnvironment* const compilerEnv_;
+  const CodeMetadata* const codeMeta_;
+  const CompilerEnvironment* const compilerEnv_;
 
   // Data that is used for partial tiering
   SharedCode partialTieringCode_;
 
   // Data that is moved into the Module/Code as the result of finish()
+  FuncDefRangeVector funcDefRanges_;
   FuncImportVector funcImports_;
   UniqueLinkData sharedStubsLinkData_;
   UniqueCodeBlock sharedStubsCodeBlock_;
   MutableCodeMetadataForAsmJS codeMetaForAsmJS_;
+  FeatureUsage featureUsage_;
 
   // Data that is used to construct a CodeBlock
   UniqueCodeBlock codeBlock_;
@@ -245,7 +247,7 @@ class MOZ_STACK_CLASS ModuleGenerator {
 
   // Generate a code block containing all stubs that are shared between the
   // different tiers.
-  [[nodiscard]] bool generateSharedStubs();
+  [[nodiscard]] bool prepareTier1();
 
   // Starts the creation of a complete tier of wasm code. Every function
   // defined in this module must be compiled, then finishTier must be
@@ -258,20 +260,23 @@ class MOZ_STACK_CLASS ModuleGenerator {
   // through an out-param that can be serialized with the code block.
   UniqueCodeBlock finishTier(UniqueLinkData* linkData);
 
-  bool finishCodeMetadata(const Bytes& bytecode);
-
   bool isAsmJS() const { return codeMeta_->isAsmJS(); }
   Tier tier() const { return compilerEnv_->tier(); }
   CompileMode mode() const { return compilerEnv_->mode(); }
   bool debugEnabled() const { return compilerEnv_->debugEnabled(); }
+  bool compilingTier1() const {
+    return compileState_ == CompileState::Once ||
+           compileState_ == CompileState::EagerTier1 ||
+           compileState_ == CompileState::LazyTier1;
+  }
 
   void warnf(const char* msg, ...) MOZ_FORMAT_PRINTF(2, 3);
 
  public:
-  ModuleGenerator(const CompileArgs& args, CodeMetadata* codeMeta,
-                  CompilerEnvironment* compilerEnv, CompileState compilerState,
-                  const Atomic<bool>* cancelled, UniqueChars* error,
-                  UniqueCharsVector* warnings);
+  ModuleGenerator(const CodeMetadata& codeMeta,
+                  const CompilerEnvironment& compilerEnv,
+                  CompileState compilerState, const Atomic<bool>* cancelled,
+                  UniqueChars* error, UniqueCharsVector* warnings);
   ~ModuleGenerator();
   [[nodiscard]] bool initializeCompleteTier(
       CodeMetadataForAsmJS* codeMetaForAsmJS = nullptr);

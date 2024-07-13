@@ -3547,6 +3547,13 @@ StyleContentVisibility nsStyleDisplay::ContentVisibility(
   if (PrecludesSizeContainmentOrContentVisibilityWithFrame(aFrame)) {
     return StyleContentVisibility::Visible;
   }
+  // If we're in print/print-preview, or being used as an image, we should
+  // always treat `auto` as `visible`.
+  if (mContentVisibility == StyleContentVisibility::Auto &&
+      (aFrame.PresContext()->IsPrintingOrPrintPreview() ||
+       aFrame.PresContext()->Document()->IsBeingUsedAsImage())) {
+    return StyleContentVisibility::Visible;
+  }
   return mContentVisibility;
 }
 

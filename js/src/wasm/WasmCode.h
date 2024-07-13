@@ -157,6 +157,7 @@ struct LinkData : LinkDataCacheablePod {
 WASM_DECLARE_CACHEABLE_POD(LinkData::InternalLink);
 
 using UniqueLinkData = UniquePtr<LinkData>;
+using UniqueLinkDataVector = Vector<UniqueLinkData, 0, SystemAllocPolicy>;
 
 // Executable code must be deallocated specially.
 
@@ -174,7 +175,8 @@ class CodeBlock;
 
 using UniqueCodeBlock = UniquePtr<CodeBlock>;
 using UniqueConstCodeBlock = UniquePtr<const CodeBlock>;
-using UniqueCodeBlockVector = Vector<UniqueCodeBlock, 0, SystemAllocPolicy>;
+using UniqueConstCodeBlockVector =
+    Vector<UniqueConstCodeBlock, 0, SystemAllocPolicy>;
 using RawCodeBlockVector = Vector<const CodeBlock*, 0, SystemAllocPolicy>;
 
 enum class CodeBlockKind {
@@ -388,6 +390,8 @@ class CodeBlock {
  public:
   // Weak reference to the code that owns us, not serialized.
   const Code* code;
+  // The index we are held inside our containing Code::data::blocks_ vector.
+  size_t codeBlockIndex;
 
   // The following information is all serialized
   // Which kind of code is being stored in this block. Most consumers don't
@@ -427,14 +431,22 @@ class CodeBlock {
 
   explicit CodeBlock(CodeBlockKind kind)
       : code(nullptr),
+        codeBlockIndex((size_t)-1),
         kind(kind),
         debugTrapOffset(0),
         unregisterOnDestroy_(false) {}
   ~CodeBlock();
 
-  bool initialized() const { return !!code; }
+  bool initialized() const {
+    if (code) {
+      // Initialize should have given us an index too.
+      MOZ_ASSERT(codeBlockIndex != (size_t)-1);
+      return true;
+    }
+    return false;
+  }
 
-  bool initialize(const Code& code);
+  bool initialize(const Code& code, size_t codeBlockIndex);
 
   // Gets the tier for this code block. Only valid for non-lazy stub code.
   Tier tier() const {
@@ -446,6 +458,12 @@ class CodeBlock {
       default:
         MOZ_CRASH();
     }
+  }
+
+  // Returns whether this code block should be considered for serialization.
+  bool isSerializable() const {
+    return kind == CodeBlockKind::SharedStubs ||
+           kind == CodeBlockKind::OptimizedTier;
   }
 
   const uint8_t* base() const { return codeBase; }
@@ -698,8 +716,8 @@ class JumpTables {
       "SelfHostedLazyScript");
 
  public:
-  bool initialize(CompileMode mode, const CodeBlock& sharedStubs,
-                  const CodeBlock& tier1);
+  bool initialize(CompileMode mode, const CodeMetadata& codeMeta,
+                  const CodeBlock& sharedStubs, const CodeBlock& tier1);
 
   void setJitEntry(size_t i, void* target) const {
     // Make sure that write is atomic; see comment in wasm::Module::finishTier2
@@ -755,8 +773,17 @@ using MetadataAnalysisHashMap =
 
 class Code : public ShareableBase<Code> {
   struct ProtectedData {
-    UniqueCodeBlockVector blocks;
+    // A vector of all of the code blocks owned by this code. Each code block
+    // is immutable once added to the vector, but this vector may grow.
+    UniqueConstCodeBlockVector blocks;
+    // A vector of link data paired 1:1 with `blocks`. Entries may be null if
+    // the code block is not serializable. This is separate from CodeBlock so
+    // that we may clear it out after serialization has happened.
+    UniqueLinkDataVector blocksLinkData;
+
+    // A vector of code segments that we can allocate lazy segments into
     SharedCodeSegmentVector lazySegments;
+    // A sorted vector of LazyFuncExport
     LazyFuncExportVector lazyExports;
   };
   using ReadGuard = RWExclusiveData<ProtectedData>::ReadGuard;
@@ -817,14 +844,18 @@ class Code : public ShareableBase<Code> {
   // The bytecode for a module. Only available for debuggable modules, or if
   // doing lazy tiering.
   const SharedBytes bytecode_;
-  const SharedCompileArgs compileArgs_;
 
   // Methods for getting complete tiers, private while we're moving to partial
   // tiering.
   Tiers completeTiers() const;
 
+  [[nodiscard]] bool addCodeBlock(const WriteGuard& guard,
+                                  UniqueCodeBlock block,
+                                  UniqueLinkData maybeLinkData) const;
+
   [[nodiscard]] const LazyFuncExport* lookupLazyFuncExport(
       const WriteGuard& guard, uint32_t funcIndex) const;
+
   // Returns a pointer to the raw interpreter entry of a given function for
   // which stubs have been lazily generated.
   [[nodiscard]] void* lookupLazyInterpEntry(const WriteGuard& guard,
@@ -851,24 +882,21 @@ class Code : public ShareableBase<Code> {
  public:
   Code(CompileMode mode, const CodeMetadata& codeMeta,
        const CodeMetadataForAsmJS* codeMetaForAsmJS,
-       const ShareableBytes* maybeBytecode,
-       const CompileArgs* maybeCompileArgs);
-  bool initialized() const {
-    return !!completeTier1_ && completeTier1_->initialized();
-  }
+       const ShareableBytes* maybeBytecode);
 
   [[nodiscard]] bool initialize(FuncImportVector&& funcImports,
                                 UniqueCodeBlock sharedStubs,
-                                const LinkData& sharedStubsLinkData,
-                                UniqueCodeBlock tier1CodeBlock);
-  [[nodiscard]] bool finishTier2(const LinkData& linkData,
-                                 UniqueCodeBlock tier2Code) const;
+                                UniqueLinkData sharedStubsLinkData,
+                                UniqueCodeBlock tier1CodeBlock,
+                                UniqueLinkData tier1LinkData);
+  [[nodiscard]] bool finishTier2(UniqueCodeBlock tier2CodeBlock,
+                                 UniqueLinkData tier2LinkData) const;
 
   [[nodiscard]] bool getOrCreateInterpEntry(uint32_t funcIndex,
                                             const FuncExport** funcExport,
                                             void** interpEntry) const;
 
-  bool requestTierUp(uint32_t funcIndex, uint32_t funcBytecodeOffset) const;
+  bool requestTierUp(uint32_t funcIndex) const;
 
   CompileMode mode() const { return mode_; }
 
@@ -927,24 +955,8 @@ class Code : public ShareableBase<Code> {
     return funcCodeBlock(funcIndex).tier() == tier;
   }
 
-  // Function type lookup:
-  const TypeDef& getFuncImportTypeDef(uint32_t funcIndex) const {
-    return codeMeta().types->type(funcImports_[funcIndex].typeIndex());
-  }
-  const FuncType& getFuncImportType(uint32_t funcIndex) const {
-    return getFuncImportTypeDef(funcIndex).funcType();
-  }
-  const FuncType& getFuncExportType(FuncExport funcExport) const {
-    return codeMeta().types->type(funcExport.typeIndex()).funcType();
-  }
-  const TypeDef& getFuncExportTypeDef(uint32_t funcIndex) const {
-    const CodeBlock& code = funcCodeBlock(funcIndex);
-    const FuncExport& funcExport = code.lookupFuncExport(funcIndex);
-    return codeMeta().types->type(funcExport.typeIndex());
-  }
-  const FuncType& getFuncExportType(uint32_t funcIndex) const {
-    return getFuncExportTypeDef(funcIndex).funcType();
-  }
+  const LinkData* codeBlockLinkData(const CodeBlock& block) const;
+  void clearLinkData() const;
 
   // Code metadata lookup:
   const CallSite* lookupCallSite(void* pc) const {
