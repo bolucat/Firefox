@@ -2912,7 +2912,7 @@
 #ifdef MOZ_ENABLE_FORKSERVER
 - name: dom.ipc.forkserver.enable
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: false
   mirror: once
 #endif
 
@@ -3054,6 +3054,14 @@
 - name: dom.forms.fieldset_disable_only_descendants.enabled
   type: bool
   value: @IS_EARLY_BETA_OR_EARLIER@
+  mirror: always
+
+# Does mousewheel-scrolling over a focused <input type="number"> or
+# <input type="range"> field cause the value to increase/decrease (rather
+# than scrolling the page)?
+- name: dom.input.number_and_range_modified_by_mousewheel
+  type: RelaxedAtomicBool
+  value: false
   mirror: always
 
 # Whether to allow or disallow web apps to cancel `beforeinput` events caused
@@ -11031,30 +11039,12 @@
 # AV1
 - name: media.av1.enabled
   type: RelaxedAtomicBool
-#if defined(XP_WIN) && !defined(_ARM64_)
   value: true
-#elif defined(XP_MACOSX)
-  value: true
-#elif defined(MOZ_WIDGET_ANDROID)
-  value: true
-#elif defined(XP_UNIX)
-  value: true
-#else
-  value: false
-#endif
   mirror: always
 
 - name: media.av1.use-dav1d
   type: RelaxedAtomicBool
-#if defined(XP_WIN) && !defined(_ARM64_)
   value: true
-#elif defined(XP_MACOSX)
-  value: true
-#elif defined(XP_UNIX)
-  value: true
-#else
-  value: false
-#endif
   mirror: always
 
 - name: media.av1.new-thread-count-strategy
@@ -17013,6 +17003,14 @@
 - name: widget.windows.sync-clipboard-flush
   type: uint32_t
   value: 2
+  mirror: always
+
+# Whether to allow dragging and dropping tabs onto another application. This is
+# disallowed by default because most applications that say they can handle
+# Firefox tabs are lying (bug 1598915).
+- name: widget.windows.allow-external-tab-drag
+  type: bool
+  value: false
   mirror: always
 
 # Whether to apply a hack (adjusting the window height by -1px and back again)

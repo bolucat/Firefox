@@ -4,7 +4,6 @@ import { NON_SPLIT_ENGINE_IDS } from "resource://gre/modules/SearchService.sys.m
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
-  AddonManager: "resource://gre/modules/AddonManager.sys.mjs",
   AddonTestUtils: "resource://testing-common/AddonTestUtils.sys.mjs",
   ExtensionTestUtils:
     "resource://testing-common/ExtensionXPCShellUtils.sys.mjs",
@@ -13,22 +12,38 @@ ChromeUtils.defineESModuleGetters(lazy, {
   sinon: "resource://testing-common/Sinon.sys.mjs",
 });
 
-var gTestScope;
+/**
+ * A class containing useful testing functions for Search based tests.
+ */
+class _SearchTestUtils {
+  /**
+   * The test scope that the test is running in.
+   *
+   * @type {object}
+   */
+  #testScope = null;
 
-export var SearchTestUtils = {
+  /**
+   * True if we are in a mochitest scope, false for xpcshell-tests.
+   *
+   * @type {boolean?}
+   */
+  #isMochitest = null;
+
+  /**
+   * Initialises the test utils, setting up the scope and working out if these
+   * are mochitest or xpcshell-test.
+   *
+   * @param {object} testScope
+   *   The global scope for the test.
+   */
   init(testScope) {
-    gTestScope = testScope;
-    this._isMochitest = !Services.env.exists("XPCSHELL_TEST_PROFILE_DIR");
-    if (this._isMochitest) {
-      this._isMochitest = true;
+    this.#testScope = testScope;
+    this.#isMochitest = !Services.env.exists("XPCSHELL_TEST_PROFILE_DIR");
+    if (this.#isMochitest) {
       lazy.AddonTestUtils.initMochitest(testScope);
-    } else {
-      this._isMochitest = false;
-      // This handles xpcshell-tests.
-      gTestScope.ExtensionTestUtils = lazy.ExtensionTestUtils;
-      this.initXPCShellAddonManager(testScope);
     }
-  },
+  }
 
   /**
    * Adds an OpenSearch based engine to the search service. It will remove
@@ -74,7 +89,7 @@ export var SearchTestUtils = {
         Ci.nsISearchService.CHANGE_REASON_UNKNOWN
       );
     }
-    gTestScope.registerCleanupFunction(async () => {
+    this.#testScope.registerCleanupFunction(async () => {
       if (setAsDefault && !skipReset) {
         await Services.search.setDefault(
           previousEngine,
@@ -94,7 +109,7 @@ export var SearchTestUtils = {
       }
     });
     return engine;
-  },
+  }
 
   /**
    * Returns a promise that is resolved when an observer notification from the
@@ -121,7 +136,7 @@ export var SearchTestUtils = {
         Services.tm.dispatchToMainThread(() => resolve(aSubject));
       }, topic);
     });
-  },
+  }
 
   /**
    * For xpcshell tests, configures loading engines from test data located in
@@ -155,7 +170,7 @@ export var SearchTestUtils = {
     let response = await fetch(configFileName);
     let json = await response.json();
     return lazy.sinon.stub(settings, "get").returns(json.data);
-  },
+  }
 
   /**
    * For mochitests, configures loading engines from test data located in
@@ -177,10 +192,10 @@ export var SearchTestUtils = {
       "search-extensions",
       Services.io.newURI("file://" + testDir.path)
     );
-    gTestScope.registerCleanupFunction(() => {
+    this.#testScope.registerCleanupFunction(() => {
       resProt.setSubstitution("search-extensions", originalSubstitution);
     });
-  },
+  }
 
   /**
    * Convert a list of engine configurations into engine objects.
@@ -218,33 +233,30 @@ export var SearchTestUtils = {
       engines.push(engine);
     }
     return engines;
-  },
+  }
 
   /**
-   * Provides various setup for xpcshell-tests installing WebExtensions. Should
-   * be called from the global scope of the test.
-   *
-   * @param {object} scope
-   *  The global scope of the test being run.
-   * @param {*} usePrivilegedSignatures
-   *  How to sign created addons.
+   * Sets up the add-on manager so that it is ready for loading WebExtension
+   * in xpcshell-tests.
    */
-  initXPCShellAddonManager(scope, usePrivilegedSignatures = false) {
-    let scopes =
-      lazy.AddonManager.SCOPE_PROFILE | lazy.AddonManager.SCOPE_APPLICATION;
-    Services.prefs.setIntPref("extensions.enabledScopes", scopes);
-    // Only do this once.
-    try {
-      gTestScope.ExtensionTestUtils.init(scope);
-    } catch (ex) {
-      // This can happen if init is called twice.
-      if (ex.result != Cr.NS_ERROR_FILE_ALREADY_EXISTS) {
-        throw ex;
-      }
+  async initXPCShellAddonManager() {
+    this.#testScope.ExtensionTestUtils = lazy.ExtensionTestUtils;
+
+    if (
+      lazy.ExtensionTestUtils.addonManagerStarted ||
+      lazy.AddonTestUtils.addonIntegrationService
+    ) {
+      // We have already started the add-on manager, and the following functions
+      // may throw if they are called twice.
+      return;
     }
-    lazy.AddonTestUtils.usePrivilegedSignatures = usePrivilegedSignatures;
+
+    lazy.ExtensionTestUtils.init(this.#testScope);
     lazy.AddonTestUtils.overrideCertDB();
-  },
+    lazy.AddonTestUtils.init(this.#testScope, false);
+
+    await lazy.ExtensionTestUtils.startAddonManager();
+  }
 
   /**
    * Add a search engine as a WebExtension.
@@ -284,6 +296,10 @@ export var SearchTestUtils = {
     } = {},
     files = {}
   ) {
+    if (!this.#isMochitest) {
+      await this.initXPCShellAddonManager();
+    }
+
     await Services.search.init();
 
     let extensionInfo = {
@@ -315,11 +331,11 @@ export var SearchTestUtils = {
 
     // Cleanup must be registered before loading the extension to avoid
     // failures for mochitests.
-    if (!skipUnload && this._isMochitest) {
-      gTestScope.registerCleanupFunction(cleanup);
+    if (!skipUnload && this.#isMochitest) {
+      this.#testScope.registerCleanupFunction(cleanup);
     }
 
-    extension = gTestScope.ExtensionTestUtils.loadExtension(extensionInfo);
+    extension = this.#testScope.ExtensionTestUtils.loadExtension(extensionInfo);
     await extension.startup();
     await lazy.AddonTestUtils.waitForSearchProviderStartup(extension);
     let engine = Services.search.getEngineByName(manifest.name);
@@ -339,45 +355,12 @@ export var SearchTestUtils = {
 
     // For xpcshell-tests we must register the unload after adding the extension.
     // See bug 1694409 for why this is.
-    if (!skipUnload && !this._isMochitest) {
-      gTestScope.registerCleanupFunction(cleanup);
+    if (!skipUnload && !this.#isMochitest) {
+      this.#testScope.registerCleanupFunction(cleanup);
     }
 
     return extension;
-  },
-
-  /**
-   * Install a search engine as a system extension to simulate
-   * Normandy updates. For xpcshell-tests only.
-   *
-   * @param {object} [options]
-   *   See {@link createEngineManifest}
-   */
-  async installSystemSearchExtension(options = {}) {
-    options.id = (options.id ?? "example") + "@search.mozilla.org";
-    let xpi = await lazy.AddonTestUtils.createTempWebExtensionFile({
-      manifest: this.createEngineManifest(options),
-      background() {
-        // eslint-disable-next-line no-undef
-        browser.test.sendMessage("started");
-      },
-    });
-    let wrapper = gTestScope.ExtensionTestUtils.expectExtension(options.id);
-
-    const install = await lazy.AddonManager.getInstallForURL(
-      `file://${xpi.path}`,
-      {
-        useSystemLocation: true,
-      }
-    );
-
-    install.install();
-
-    await wrapper.awaitStartup();
-    await wrapper.awaitMessage("started");
-
-    return wrapper;
-  },
+  }
 
   /**
    * Create a search engine extension manifest.
@@ -392,6 +375,9 @@ export var SearchTestUtils = {
    *   The display name to use for the WebExtension.
    * @param {string} [options.version]
    *   The version to use for the WebExtension.
+   * @param {boolean} [options.is_default]
+   *   Whether or not to ask for the search engine in the WebExtension to be
+   *   attempted to set as default.
    * @param {string} [options.favicon_url]
    *   The favicon to use for the search engine in the WebExtension.
    * @param {string} [options.keyword]
@@ -428,6 +414,7 @@ export var SearchTestUtils = {
       chrome_settings_overrides: {
         search_provider: {
           name: options.name,
+          is_default: !!options.is_default,
           search_url: options.search_url ?? "https://example.com/",
         },
       },
@@ -474,13 +461,13 @@ export var SearchTestUtils = {
         options.favicon_url;
     }
     return manifest;
-  },
+  }
 
   /**
    * A mock idleService that allows us to simulate RemoteSettings
    * configuration updates.
    */
-  idleService: {
+  idleService = {
     _observers: new Set(),
 
     _reset() {
@@ -503,7 +490,7 @@ export var SearchTestUtils = {
     removeIdleObserver(observer) {
       this._observers.delete(observer);
     },
-  },
+  };
 
   /**
    * Register the mock idleSerice.
@@ -511,12 +498,12 @@ export var SearchTestUtils = {
   useMockIdleService() {
     let fakeIdleService = MockRegistrar.register(
       "@mozilla.org/widget/useridleservice;1",
-      SearchTestUtils.idleService
+      this.idleService
     );
-    gTestScope.registerCleanupFunction(() => {
+    this.#testScope.registerCleanupFunction(() => {
       MockRegistrar.unregister(fakeIdleService);
     });
-  },
+  }
 
   /**
    * Simulates an update to the RemoteSettings configuration.
@@ -539,8 +526,7 @@ export var SearchTestUtils = {
       );
       overridesConfig = await settings.get();
     }
-    const reloadObserved =
-      SearchTestUtils.promiseSearchNotification("engines-reloaded");
+    const reloadObserved = this.promiseSearchNotification("engines-reloaded");
     await lazy.RemoteSettings(lazy.SearchUtils.SETTINGS_KEY).emit("sync", {
       data: { current: config },
     });
@@ -552,5 +538,7 @@ export var SearchTestUtils = {
 
     this.idleService._fireObservers("idle");
     await reloadObserved;
-  },
-};
+  }
+}
+
+export const SearchTestUtils = new _SearchTestUtils();
