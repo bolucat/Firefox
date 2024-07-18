@@ -621,7 +621,7 @@ static Result<CombinedBufferLayout, MediaResult> ParseVideoFrameCopyToOptions(
     format = VideoFrame::Format(aOptions.mFormat.Value());
   }
 
-  return ComputeLayoutAndAllocationSize(parsedRect, aFormat, optLayout);
+  return ComputeLayoutAndAllocationSize(parsedRect, format, optLayout);
 }
 
 static bool IsYUVFormat(const VideoPixelFormat& aFormat) {
@@ -1251,8 +1251,7 @@ static Result<RefPtr<layers::Image>, MediaResult> ConvertToRGBAImage(
   gfx::SurfaceFormat surfaceFormat = format.ToSurfaceFormat();
 
   nsresult r =
-      ConvertToRGBA(aImage.get(), surfaceFormat, buffer.get(), stride.value(),
-                    aImage->GetSize().Width(), aImage->GetSize().Height());
+      ConvertToRGBA(aImage.get(), surfaceFormat, buffer.get(), stride.value());
   if (NS_FAILED(r)) {
     return Err(
         MediaResult(r, nsPrintfCString("Failed to convert into %s image",

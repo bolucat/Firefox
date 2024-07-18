@@ -204,7 +204,7 @@ class ExternalAppBrowserFragment : BaseBrowserFragment() {
                             }
                         }
                     } else {
-                        val bottomToolbarHeight = settings.getBottomToolbarHeight()
+                        val bottomToolbarHeight = settings.getBottomToolbarHeight(requireContext())
                         val topToolbarHeight = settings.getTopToolbarHeight(false)
                         binding.engineView.setDynamicToolbarMaxHeight(topToolbarHeight + bottomToolbarHeight)
                         val isToolbarDynamic = !settings.shouldUseFixedTopToolbar && settings.isDynamicToolbarEnabled
@@ -223,7 +223,7 @@ class ExternalAppBrowserFragment : BaseBrowserFragment() {
                     }
                 },
                 owner = this,
-                view = browserToolbarView.view,
+                view = view,
             )
         }
 

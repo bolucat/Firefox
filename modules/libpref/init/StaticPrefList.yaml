@@ -698,11 +698,7 @@
 
 - name: apz.overscroll.enabled
   type: RelaxedAtomicBool
-#if defined(XP_MACOSX) || defined(XP_WIN)
   value: true
-#else
-  value: @IS_NIGHTLY_BUILD@
-#endif
   mirror: always
 
 # The "test async scroll offset" (used via reftest-async-scroll
@@ -9182,7 +9178,7 @@
 # Is support for -moz-prefixed transform properties enabled?
 - name: layout.css.prefixes.transforms
   type: bool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Is support for -moz-prefixed transition properties enabled?
@@ -11871,7 +11867,7 @@
 # whether to redirect the channel for auth redirects. See Bug 1820807
 - name: network.auth.use_redirect_for_retries
   type: RelaxedAtomicBool
-  value: true
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # When true, authentication challenges will be sorted even if

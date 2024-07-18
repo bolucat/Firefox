@@ -21,7 +21,7 @@ import org.mozilla.fenix.browser.browsingmode.BrowsingMode
 import org.mozilla.fenix.helpers.FenixRobolectricTestRunner
 
 @RunWith(FenixRobolectricTestRunner::class)
-class TabCounterMenuTest {
+class FenixTabCounterMenuTest {
 
     private lateinit var context: Context
     private lateinit var onItemTapped: (TabCounterMenu.Item) -> Unit
@@ -59,8 +59,54 @@ class TabCounterMenuTest {
     }
 
     @Test
-    fun `return two new tab items and a close button`() {
-        val (newTab, newPrivateTab, divider, closeTab) = menu.menuItems(ToolbarPosition.TOP)
+    fun `WHEN menu items getter is called THEN return the new tab and private tab menu item`() {
+        val items = menu.menuItems()
+        val newTab = items[0] as TextMenuCandidate
+        val newPrivateTab = items[1] as TextMenuCandidate
+
+        assertEquals(2, items.size)
+        assertEquals("New tab", newTab.text)
+        assertEquals("New private tab", newPrivateTab.text)
+
+        newTab.onClick()
+        verify { onItemTapped(TabCounterMenu.Item.NewTab) }
+
+        newPrivateTab.onClick()
+        verify { onItemTapped(TabCounterMenu.Item.NewPrivateTab) }
+    }
+
+    @Test
+    fun `GIVEN top toolbar position WHEN menu items getter is called THEN return two new tab items and a close button`() {
+        val (newTab, newPrivateTab, divider, closeTab) = menu.menuItems(
+            toolbarPosition = ToolbarPosition.TOP,
+            isNavBarEnabled = false,
+        )
+
+        assertEquals("New tab", (newTab as TextMenuCandidate).text)
+        assertEquals("New private tab", (newPrivateTab as TextMenuCandidate).text)
+        assertEquals("Close tab", (closeTab as TextMenuCandidate).text)
+        assertEquals(DividerMenuCandidate(), divider)
+    }
+
+    @Test
+    fun `GIVEN bottom toolbar position WHEN menu items getter is called THEN return two new tab items and a close button`() {
+        val (closeTab, divider, newPrivateTab, newTab) = menu.menuItems(
+            toolbarPosition = ToolbarPosition.BOTTOM,
+            isNavBarEnabled = false,
+        )
+
+        assertEquals("New tab", (newTab as TextMenuCandidate).text)
+        assertEquals("New private tab", (newPrivateTab as TextMenuCandidate).text)
+        assertEquals("Close tab", (closeTab as TextMenuCandidate).text)
+        assertEquals(DividerMenuCandidate(), divider)
+    }
+
+    @Test
+    fun `GIVEN navigation bar is enabled WHEN menu items getter is called THEN return two new tab items and a close button`() {
+        val (newTab, newPrivateTab, divider, closeTab) = menu.menuItems(
+            toolbarPosition = ToolbarPosition.BOTTOM,
+            isNavBarEnabled = true,
+        )
 
         assertEquals("New tab", (newTab as TextMenuCandidate).text)
         assertEquals("New private tab", (newPrivateTab as TextMenuCandidate).text)

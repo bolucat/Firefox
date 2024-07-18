@@ -8,7 +8,7 @@
 # documentation and how to modify this file.
 repo: mozilla-central
 created_at: '2021-10-14T12:50:40.073465'
-updated_at: '2024-07-16T22:24:33.200389+00:00'
+updated_at: '2024-07-17T21:03:09.494953+00:00'
 export:
   path: ./docs/mots/index.rst
   format: rst
@@ -43,6 +43,10 @@ people:
     bmo_id: 382067
     name: Andrew Halberstadt
     nick: ahal
+  - &ahochheiden
+    bmo_id: 693303
+    name: Alex Hochheiden
+    nick: ahochheiden
   - &allstarschh
     bmo_id: 434670
     name: Yoshi Cheng-Hao Huang
@@ -1272,6 +1276,7 @@ modules:
       - *glandium
     peers:
       - *andi
+      - *ahochheiden
     submodules:
 
       - name: 'Core: Build Config - Fennec'
@@ -1645,6 +1650,7 @@ modules:
       - *ahal
     peers:
       - *Sylvestre
+      - *marco
     meta:
       components:
         - Developer Infrastructure::Source Documentation
@@ -4364,5 +4370,5 @@ modules:
         - Ryan Tilder
       group: dev-platform
 hashes:
-  config: e9c9decfa7bea769115e4df4b352a8abc2d2229b
-  export: c649371ba13fe3db312f0d7c7059ec4523407cd6
+  config: 187a4e4a0c5adf8570e13897bef499cbcdb1e7a1
+  export: 6064ddc38a4879a50650a77a62d5d88fc4916b48
