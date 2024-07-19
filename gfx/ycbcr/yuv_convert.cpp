@@ -19,13 +19,13 @@
 
 #include "yuv_convert.h"
 
-#include "mozilla/StaticPrefs_gfx.h"
 #include "libyuv.h"
+#include "mozilla/IntegerRange.h"
+#include "mozilla/SSE.h"
+#include "mozilla/StaticPrefs_gfx.h"
 #include "scale_yuv_argb.h"
 // Header for low level row functions.
 #include "yuv_row.h"
-#include "mozilla/SSE.h"
-#include "mozilla/IntegerRange.h"
 
 namespace mozilla {
 
@@ -37,6 +37,19 @@ const int kFractionMax = 1 << kFractionBits;
 const int kFractionMask = ((1 << kFractionBits) - 1);
 
 // clang-format off
+
+nsresult ToNSResult(int aLibyuvResult) {
+  // Docs for libyuv::ConvertToI420 say:
+  // Returns 0 for successful; -1 for invalid parameter. Non-zero for failure.
+  switch (aLibyuvResult) {
+    case 0:
+      return NS_OK;
+    case -1:
+      return NS_ERROR_INVALID_ARG;
+    default:
+      return NS_ERROR_FAILURE;
+  }
+}
 
 libyuv::FourCC FourCCFromYUVType(YUVType aYUVType) {
   switch (aYUVType) {
@@ -67,12 +80,22 @@ int GBRPlanarToARGB(const uint8_t* src_y, int y_pitch,
 }
 
 // Convert a frame of YUV to 32 bit ARGB or ABGR.
-void ConvertYCbCrToRGB32(const uint8_t* y_buf, const uint8_t* u_buf,
-                         const uint8_t* v_buf, uint8_t* rgb_buf, int pic_x,
-                         int pic_y, int pic_width, int pic_height, int y_pitch,
-                         int uv_pitch, int rgb_pitch, YUVType yuv_type,
-                         YUVColorSpace yuv_color_space,
-                         ColorRange color_range, RGB32Type rgb32_type) {
+nsresult
+ConvertYCbCrToRGB32(const uint8_t* y_buf,
+                    const uint8_t* u_buf,
+                    const uint8_t* v_buf,
+                    uint8_t* rgb_buf,
+                    int pic_x,
+                    int pic_y,
+                    int pic_width,
+                    int pic_height,
+                    int y_pitch,
+                    int uv_pitch,
+                    int rgb_pitch,
+                    YUVType yuv_type,
+                    YUVColorSpace yuv_color_space,
+                    ColorRange color_range,
+                    RGB32Type rgb32_type) {
   // Deprecated function's conversion is accurate.
   // libyuv converion is a bit inaccurate to get performance. It dynamically
   // calculates RGB from YUV to use simd. In it, signed byte is used for
@@ -91,10 +114,9 @@ void ConvertYCbCrToRGB32(const uint8_t* y_buf, const uint8_t* u_buf,
     use_deprecated = false;
   }
   if (use_deprecated) {
-    ConvertYCbCrToRGB32_deprecated(y_buf, u_buf, v_buf, rgb_buf, pic_x, pic_y,
-                                   pic_width, pic_height, y_pitch, uv_pitch,
-                                   rgb_pitch, yuv_type, rgb32_type);
-    return;
+    return ConvertYCbCrToRGB32_deprecated(
+        y_buf, u_buf, v_buf, rgb_buf, pic_x, pic_y, pic_width, pic_height,
+        y_pitch, uv_pitch, rgb_pitch, yuv_type, rgb32_type);
   }
 
   decltype(libyuv::I420ToARGBMatrix)* fConvertYUVToARGB = nullptr;
@@ -116,11 +138,12 @@ void ConvertYCbCrToRGB32(const uint8_t* y_buf, const uint8_t* u_buf,
         : swap_uv? &libyuv::kYvuF709Constants : &libyuv::kYuvF709Constants;
       break;
     case YUVColorSpace::Identity:
-      MOZ_ASSERT(yuv_type == YV24, "Identity (aka RGB) with chroma subsampling is unsupported");
       if (yuv_type == YV24) {
         break;
       }
-      [[fallthrough]]; // Assuming BT601 for unsupported input is better than crashing
+      NS_WARNING("Identity (aka RGB) with chroma subsampling is unsupported");
+      return NS_ERROR_NOT_IMPLEMENTED;
+      // TODO: Consider using BT601 for unsupported input?
     default:
       MOZ_FALLTHROUGH_ASSERT("Unsupported YUVColorSpace");
     case YUVColorSpace::BT601:
@@ -140,11 +163,8 @@ void ConvertYCbCrToRGB32(const uint8_t* y_buf, const uint8_t* u_buf,
         const uint8_t* u_channel = swap_uv? src_v : src_u;
         const uint8_t* v_channel = swap_uv? src_u : src_v;
         // Special case for RGB image
-        DebugOnly<int> err =
-          GBRPlanarToARGB(src_y, y_pitch, u_channel, uv_pitch, v_channel,
-                          uv_pitch, rgb_buf, rgb_pitch, pic_width, pic_height);
-        MOZ_ASSERT(!err);
-        return;
+        return ToNSResult(GBRPlanarToARGB(src_y, y_pitch, u_channel, uv_pitch, v_channel,
+                          uv_pitch, rgb_buf, rgb_pitch, pic_width, pic_height));
       }
 
       fConvertYUVToARGB = libyuv::I444ToARGBMatrix;
@@ -172,45 +192,39 @@ void ConvertYCbCrToRGB32(const uint8_t* y_buf, const uint8_t* u_buf,
       MOZ_ASSERT(v_buf == nullptr);
 
       if (color_range == ColorRange::LIMITED) {
-        DebugOnly<int> err =
-            libyuv::I400ToARGB(src_y, y_pitch, rgb_buf, rgb_pitch, pic_width,
-                              pic_height);
-        MOZ_ASSERT(!err);
-      } else {
-        DebugOnly<int> err =
-            libyuv::J400ToARGB(src_y, y_pitch, rgb_buf, rgb_pitch, pic_width,
-                              pic_height);
-        MOZ_ASSERT(!err);
+        return ToNSResult(libyuv::I400ToARGB(src_y, y_pitch, rgb_buf, rgb_pitch,
+                                             pic_width, pic_height));
       }
-
-      return;
+      return ToNSResult(libyuv::J400ToARGB(src_y, y_pitch, rgb_buf, rgb_pitch,
+                                           pic_width, pic_height));
     }
     default:
       MOZ_ASSERT_UNREACHABLE("Unsupported YUV type");
+      return NS_ERROR_NOT_IMPLEMENTED;
   }
 
   const uint8_t* u_channel = swap_uv? src_v : src_u;
   const uint8_t* v_channel = swap_uv? src_u : src_v;
-  DebugOnly<int> err =
-    fConvertYUVToARGB(src_y, y_pitch, u_channel, uv_pitch, v_channel, uv_pitch,
-                      rgb_buf, rgb_pitch, yuv_constant, pic_width, pic_height);
-  MOZ_ASSERT(!err);
+  return ToNSResult(fConvertYUVToARGB(src_y, y_pitch, u_channel, uv_pitch,
+                                      v_channel, uv_pitch, rgb_buf, rgb_pitch,
+                                      yuv_constant, pic_width, pic_height));
 }
 
 // Convert a frame of YUV to 32 bit ARGB or ABGR.
-void ConvertYCbCrToRGB32_deprecated(const uint8_t* y_buf,
-                                    const uint8_t* u_buf,
-                                    const uint8_t* v_buf,
-                                    uint8_t* rgb_buf,
-                                    int pic_x,
-                                    int pic_y,
-                                    int pic_width,
-                                    int pic_height,
-                                    int y_pitch,
-                                    int uv_pitch,
-                                    int rgb_pitch,
-                                    YUVType yuv_type,
-                                    RGB32Type rgb32_type) {
+nsresult
+ConvertYCbCrToRGB32_deprecated(const uint8_t* y_buf,
+                               const uint8_t* u_buf,
+                               const uint8_t* v_buf,
+                               uint8_t* rgb_buf,
+                               int pic_x,
+                               int pic_y,
+                               int pic_width,
+                               int pic_height,
+                               int y_pitch,
+                               int uv_pitch,
+                               int rgb_pitch,
+                               YUVType yuv_type,
+                               RGB32Type rgb32_type) {
   unsigned int y_shift = yuv_type == YV12 ? 1 : 0;
   unsigned int x_shift = yuv_type == YV24 ? 0 : 1;
   // Test for SSE because the optimized code uses movntq, which is not part of MMX.
@@ -262,6 +276,8 @@ void ConvertYCbCrToRGB32_deprecated(const uint8_t* y_buf,
   // MMX used for FastConvertYUVToRGB32Row requires emms instruction.
   if (has_sse)
     EMMS();
+
+  return NS_OK;
 }
 
 // C version does 8 at a time to mimic MMX code
@@ -317,20 +333,21 @@ static inline void FilterRows(uint8_t* ybuf, const uint8_t* y0_ptr,
 
 
 // Scale a frame of YUV to 32 bit ARGB.
-void ScaleYCbCrToRGB32(const uint8_t* y_buf,
-                       const uint8_t* u_buf,
-                       const uint8_t* v_buf,
-                       uint8_t* rgb_buf,
-                       int source_width,
-                       int source_height,
-                       int width,
-                       int height,
-                       int y_pitch,
-                       int uv_pitch,
-                       int rgb_pitch,
-                       YUVType yuv_type,
-                       YUVColorSpace yuv_color_space,
-                       ScaleFilter filter) {
+nsresult
+ScaleYCbCrToRGB32(const uint8_t* y_buf,
+                  const uint8_t* u_buf,
+                  const uint8_t* v_buf,
+                  uint8_t* rgb_buf,
+                  int source_width,
+                  int source_height,
+                  int width,
+                  int height,
+                  int y_pitch,
+                  int uv_pitch,
+                  int rgb_pitch,
+                  YUVType yuv_type,
+                  YUVColorSpace yuv_color_space,
+                  ScaleFilter filter) {
   bool use_deprecated =
       StaticPrefs::gfx_ycbcr_accurate_conversion() ||
 #if defined(XP_WIN) && defined(_M_X64)
@@ -344,47 +361,33 @@ void ScaleYCbCrToRGB32(const uint8_t* y_buf,
     use_deprecated = false;
   }
   if (use_deprecated) {
-    ScaleYCbCrToRGB32_deprecated(y_buf, u_buf, v_buf,
-                                 rgb_buf,
-                                 source_width, source_height,
-                                 width, height,
-                                 y_pitch, uv_pitch,
-                                 rgb_pitch,
-                                 yuv_type,
-                                 ROTATE_0,
-                                 filter);
-    return;
+    return ScaleYCbCrToRGB32_deprecated(
+        y_buf, u_buf, v_buf, rgb_buf, source_width, source_height, width,
+        height, y_pitch, uv_pitch, rgb_pitch, yuv_type, ROTATE_0, filter);
   }
 
-  DebugOnly<int> err =
-    libyuv::YUVToARGBScale(y_buf, y_pitch,
-                           u_buf, uv_pitch,
-                           v_buf, uv_pitch,
-                           FourCCFromYUVType(yuv_type),
-                           yuv_color_space,
-                           source_width, source_height,
-                           rgb_buf, rgb_pitch,
-                           width, height,
-                           libyuv::kFilterBilinear);
-  MOZ_ASSERT(!err);
-  return;
+  return ToNSResult(libyuv::YUVToARGBScale(
+      y_buf, y_pitch, u_buf, uv_pitch, v_buf, uv_pitch,
+      FourCCFromYUVType(yuv_type), yuv_color_space, source_width, source_height,
+      rgb_buf, rgb_pitch, width, height, libyuv::kFilterBilinear));
 }
 
 // Scale a frame of YUV to 32 bit ARGB.
-void ScaleYCbCrToRGB32_deprecated(const uint8_t* y_buf,
-                                  const uint8_t* u_buf,
-                                  const uint8_t* v_buf,
-                                  uint8_t* rgb_buf,
-                                  int source_width,
-                                  int source_height,
-                                  int width,
-                                  int height,
-                                  int y_pitch,
-                                  int uv_pitch,
-                                  int rgb_pitch,
-                                  YUVType yuv_type,
-                                  Rotate view_rotate,
-                                  ScaleFilter filter) {
+nsresult
+ScaleYCbCrToRGB32_deprecated(const uint8_t* y_buf,
+                             const uint8_t* u_buf,
+                             const uint8_t* v_buf,
+                             uint8_t* rgb_buf,
+                             int source_width,
+                             int source_height,
+                             int width,
+                             int height,
+                             int y_pitch,
+                             int uv_pitch,
+                             int rgb_pitch,
+                             YUVType yuv_type,
+                             Rotate view_rotate,
+                             ScaleFilter filter) {
   bool has_mmx = supports_mmx();
 
   // 4096 allows 3 buffers to fit in 12k.
@@ -428,7 +431,7 @@ void ScaleYCbCrToRGB32_deprecated(const uint8_t* y_buf,
 
   // Handle zero sized destination.
   if (width == 0 || height == 0)
-    return;
+    return NS_ERROR_INVALID_ARG;
   int source_dx = source_width * kFractionMax / width;
   int source_dy = source_height * kFractionMax / height;
   int source_dx_uv = source_dx;
@@ -559,27 +562,27 @@ void ScaleYCbCrToRGB32_deprecated(const uint8_t* y_buf,
   // MMX used for FastConvertYUVToRGB32Row and FilterRows requires emms.
   if (has_mmx)
     EMMS();
+
+  return NS_OK;
 }
-void ConvertI420AlphaToARGB32(const uint8_t* y_buf,
-                              const uint8_t* u_buf,
-                              const uint8_t* v_buf,
-                              const uint8_t* a_buf,
-                              uint8_t* argb_buf,
-                              int pic_width,
-                              int pic_height,
-                              int ya_pitch,
-                              int uv_pitch,
-                              int argb_pitch) {
+
+nsresult
+ConvertI420AlphaToARGB32(const uint8_t* y_buf,
+                         const uint8_t* u_buf,
+                         const uint8_t* v_buf,
+                         const uint8_t* a_buf,
+                         uint8_t* argb_buf,
+                         int pic_width,
+                         int pic_height,
+                         int ya_pitch,
+                         int uv_pitch,
+                         int argb_pitch) {
 
   // The downstream graphics stack expects an attenuated input, hence why the
   // attenuation parameter is set.
-  DebugOnly<int> err = libyuv::I420AlphaToARGB(y_buf, ya_pitch,
-                                               u_buf, uv_pitch,
-                                               v_buf, uv_pitch,
-                                               a_buf, ya_pitch,
-                                               argb_buf, argb_pitch,
-                                               pic_width, pic_height, 1);
-  MOZ_ASSERT(!err);
+  return ToNSResult(libyuv::I420AlphaToARGB(
+      y_buf, ya_pitch, u_buf, uv_pitch, v_buf, uv_pitch, a_buf, ya_pitch,
+      argb_buf, argb_pitch, pic_width, pic_height, 1));
 }
 
 } // namespace gfx

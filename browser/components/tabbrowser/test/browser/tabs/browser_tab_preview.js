@@ -450,15 +450,20 @@ add_task(async function panelSuppressionOnContextMenuTests() {
   const previewComponent = gBrowser.tabContainer.previewPanel;
   sinon.spy(previewComponent, "activate");
 
-  const newTabMenu = document.getElementById("new-tab-button-popup");
-  const newTabButton = document.getElementById("tabs-newtab-button");
-  let newTabMenuShown = BrowserTestUtils.waitForPopupEvent(newTabMenu, "shown");
+  const contentAreaContextMenu = document.getElementById(
+    "contentAreaContextMenu"
+  );
+  const contextMenuShown = BrowserTestUtils.waitForPopupEvent(
+    contentAreaContextMenu,
+    "shown"
+  );
+
   EventUtils.synthesizeMouseAtCenter(
-    newTabButton,
+    document.documentElement,
     { type: "contextmenu" },
     window
   );
-  await newTabMenuShown;
+  await contextMenuShown;
 
   EventUtils.synthesizeMouseAtCenter(tab, { type: "mouseover" }, window);
 
@@ -467,7 +472,7 @@ add_task(async function panelSuppressionOnContextMenuTests() {
   });
   Assert.equal(previewComponent._panel.state, "closed", "");
 
-  newTabMenu.hidePopup();
+  contentAreaContextMenu.hidePopup();
   BrowserTestUtils.removeTab(tab);
   sinon.restore();
 
@@ -569,6 +574,38 @@ add_task(async function urlBarInputTests() {
   Assert.equal(previewElement.state, "closed", "Preview is closed");
 
   BrowserTestUtils.removeTab(tab1);
+});
+
+/**
+ * Quickly moving the mouse off and back on to the tab strip should
+ * not reset the delay
+ */
+add_task(async function zeroDelayTests() {
+  await SpecialPowers.pushPrefEnv({
+    set: [["ui.tooltip.delay_ms", 1000]],
+  });
+
+  const tabUrl =
+    "data:text/html,<html><head><title>First New Tab</title></head><body>Hello</body></html>";
+  const tab = await BrowserTestUtils.openNewForegroundTab(gBrowser, tabUrl);
+
+  await openPreview(tab);
+  await closePreviews();
+
+  let resolved = false;
+  let openPreviewPromise = openPreview(tab).then(() => {
+    resolved = true;
+  });
+  // eslint-disable-next-line mozilla/no-arbitrary-setTimeout
+  let timeoutPromise = new Promise(resolve => setTimeout(resolve, 300));
+  await Promise.race([openPreviewPromise, timeoutPromise]);
+
+  Assert.ok(resolved, "Zero delay is set immediately after leaving tab strip");
+
+  await closePreviews();
+  BrowserTestUtils.removeTab(tab);
+
+  await SpecialPowers.popPrefEnv();
 });
 
 /**
