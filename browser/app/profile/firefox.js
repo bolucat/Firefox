@@ -655,7 +655,11 @@ pref("browser.urlbar.fakespot.featureGate", false);
 
 // The minimum prefix length of a Fakespot keyword the user must type to trigger
 // the suggestion. 0 means the min length should be taken from Nimbus.
-pref("browser.urlbar.fakespot.minKeywordLength", 0);
+pref("browser.urlbar.fakespot.minKeywordLength", 4);
+
+// The index of Fakespot results within the Firefox Suggest section. A negative
+// index is relative to the end of the section.
+pref("browser.urlbar.fakespot.suggestedIndex", -1);
 
 // If `browser.urlbar.fakespot.featureGate` is true, this controls whether
 // Fakespot suggestions are turned on.
@@ -738,9 +742,6 @@ pref("browser.search.openintab", false);
 
 // context menu searches open in the foreground
 pref("browser.search.context.loadInBackground", false);
-
-// Mirrors whether the search-container widget is in the navigation toolbar.
-pref("browser.search.widget.inNavBar", false);
 
 // Enables display of the options for the user using a separate default search
 // engine in private browsing mode.
@@ -1727,18 +1728,11 @@ pref("browser.newtabpage.activity-stream.weather.query", "");
 pref("browser.newtabpage.activity-stream.weather.display", "simple");
 
 // enable location search for newtab weather widget
-#ifdef NIGHTLY_BUILD
-  pref("browser.newtabpage.activity-stream.weather.locationSearchEnabled", true);
-#else
-  pref("browser.newtabpage.activity-stream.weather.locationSearchEnabled", true);
-#endif
+pref("browser.newtabpage.activity-stream.weather.locationSearchEnabled", true);
 
 // List of regions that get weather by default.
-#ifdef NIGHTLY_BUILD
-  pref("browser.newtabpage.activity-stream.discoverystream.region-weather-config", "US,CA");
-#else
-  pref("browser.newtabpage.activity-stream.discoverystream.region-weather-config", "");
-#endif
+pref("browser.newtabpage.activity-stream.discoverystream.region-weather-config", "US,CA");
+
 // List of locales that weather widget supports.
 pref("browser.newtabpage.activity-stream.discoverystream.locale-weather-config", "en-US,en-GB,en-CA");
 

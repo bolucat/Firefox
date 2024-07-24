@@ -7742,16 +7742,15 @@ template <bool ZeroFields>
 bool BaseCompiler::emitArrayAllocFixed(uint32_t typeIndex, RegRef object,
                                        uint32_t numElements,
                                        uint32_t elemSize) {
-  // The maximum number of elements for array.new_fixed enforced in validation
-  // should always prevent overflow here.
-  MOZ_ASSERT(WasmArrayObject::calcStorageBytesChecked(elemSize, numElements)
-                 .isValid());
-
   SymbolicAddressSignature fun =
       ZeroFields ? SASigArrayNew_true : SASigArrayNew_false;
 
+  // The maximum number of elements for array.new_fixed enforced in validation
+  // should always prevent overflow here.
+  static_assert(MaxArrayNewFixedElements * sizeof(wasm::LitVal) <
+                MaxArrayPayloadBytes);
   uint32_t storageBytes =
-      WasmArrayObject::calcStorageBytes(elemSize, numElements);
+      WasmArrayObject::calcStorageBytesUnchecked(elemSize, numElements);
   if (storageBytes > WasmArrayObject_MaxInlineBytes) {
     RegPtr typeDefData = loadTypeDefInstanceData(typeIndex);
     freeRef(object);
@@ -12125,11 +12124,18 @@ bool js::wasm::BaselineCompileFunctions(const CodeMetadata& codeMeta,
     FuncOffsets offsets(f.finish());
     bool hasUnwindInfo =
         unwindInfoBefore != masm.codeRangeUnwindInfos().length();
+
+    // Record this function's code range
     if (!code->codeRanges.emplaceBack(func.index, offsets, hasUnwindInfo)) {
       return false;
     }
 
-    // Record observed feature usage
+    // Record this function's specific feature usage
+    if (!code->funcs.emplaceBack(func.index, f.iter_.featureUsage())) {
+      return false;
+    }
+
+    // Accumulate observed feature usage
     code->featureUsage |= f.iter_.featureUsage();
   }
 

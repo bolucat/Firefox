@@ -2444,7 +2444,8 @@ class Document : public nsINode,
 
   LinkedList<MediaQueryList>& MediaQueryLists() { return mDOMMediaQueryLists; }
 
-  nsTHashtable<LCPEntryHashEntry>& ContentIdentifiersForLCP() {
+  nsTHashMap<const Element*, nsTArray<WeakPtr<PreloaderBase>>>&
+  ContentIdentifiersForLCP() {
     return mContentIdentifiersForLCP;
   }
 
@@ -3040,15 +3041,15 @@ class Document : public nsINode,
   SVGSVGElement* GetSVGRootElement() const;
 
   nsresult ScheduleFrameRequestCallback(FrameRequestCallback& aCallback,
-                                        int32_t* aHandle);
-  void CancelFrameRequestCallback(int32_t aHandle);
+                                        uint32_t* aHandle);
+  void CancelFrameRequestCallback(uint32_t aHandle);
 
   /**
    * Returns true if the handle refers to a callback that was canceled that
    * we did not find in our list of callbacks (e.g. because it is one of those
    * in the set of callbacks currently queued to be run).
    */
-  bool IsCanceledFrameRequestCallback(int32_t aHandle) const;
+  bool IsCanceledFrameRequestCallback(uint32_t aHandle) const;
 
   /**
    * Put this document's frame request callbacks into the provided
@@ -5104,10 +5105,14 @@ class Document : public nsINode,
   // Our live MediaQueryLists
   LinkedList<MediaQueryList> mDOMMediaQueryLists;
 
-  // A hashset to keep track of which {element, imgRequestProxy}
+  // A hashmap to keep track of which {element, imgRequestProxy}
   // combination has been processed to avoid considering the same
   // element twice for LargestContentfulPaint.
-  nsTHashtable<LCPEntryHashEntry> mContentIdentifiersForLCP;
+  //
+  // We really would like at least a 1-element AutoTArray here, but we can't
+  // because of bug 1909538.
+  nsTHashMap<const Element*, nsTArray<WeakPtr<PreloaderBase>>>
+      mContentIdentifiersForLCP;
 
   // Array of observers
   nsTObserverArray<nsIDocumentObserver*> mObservers;

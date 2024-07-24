@@ -425,6 +425,7 @@
 #include "nsStringIterator.h"
 #include "nsStyleSheetService.h"
 #include "nsStyleStruct.h"
+#include "nsTextControlFrame.h"
 #include "nsTextNode.h"
 #include "nsUnicharUtils.h"
 #include "nsWrapperCache.h"
@@ -13683,7 +13684,7 @@ void Document::UnlinkOriginalDocumentIfStatic() {
 }
 
 nsresult Document::ScheduleFrameRequestCallback(FrameRequestCallback& aCallback,
-                                                int32_t* aHandle) {
+                                                uint32_t* aHandle) {
   nsresult rv = mFrameRequestManager.Schedule(aCallback, aHandle);
   if (NS_FAILED(rv)) {
     return rv;
@@ -13693,13 +13694,13 @@ nsresult Document::ScheduleFrameRequestCallback(FrameRequestCallback& aCallback,
   return NS_OK;
 }
 
-void Document::CancelFrameRequestCallback(int32_t aHandle) {
+void Document::CancelFrameRequestCallback(uint32_t aHandle) {
   if (mFrameRequestManager.Cancel(aHandle)) {
     UpdateFrameRequestCallbackSchedulingState();
   }
 }
 
-bool Document::IsCanceledFrameRequestCallback(int32_t aHandle) const {
+bool Document::IsCanceledFrameRequestCallback(uint32_t aHandle) const {
   return mFrameRequestManager.IsCanceled(aHandle);
 }
 
@@ -13971,9 +13972,8 @@ already_AddRefed<nsDOMCaretPosition> Document::CaretPositionFromPoint(
     nsINode* nonChrome =
         node->AsContent()->FindFirstNonChromeOnlyAccessContent();
     HTMLTextAreaElement* textArea = HTMLTextAreaElement::FromNode(nonChrome);
-    nsITextControlFrame* textFrame =
+    nsTextControlFrame* textFrame =
         do_QueryFrame(nonChrome->AsContent()->GetPrimaryFrame());
-
     if (!textFrame) {
       return nullptr;
     }

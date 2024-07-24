@@ -2359,7 +2359,7 @@
 
 - name: dom.details_group.enabled
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Only propagate the open window click permission if the setTimeout() is equal
@@ -3149,6 +3149,12 @@
   value: @IS_NIGHTLY_BUILD@
   mirror: always
 
+# WebCodecs API - Image decoder
+- name: dom.media.webcodecs.image-decoder.enabled
+  type: RelaxedAtomicBool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+
 # Number of seconds of very quiet or silent audio before considering the audio
 # inaudible.
 - name: dom.media.silence_duration_for_audibility
@@ -3221,6 +3227,13 @@
   type: bool
   value: false
   mirror: always
+
+# Whether the navigation API will be exposed.
+- name: dom.navigation.webidl.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+  do_not_use_directly: true
 
 # Network Information API
 # This feature is not available on Firefox desktop. It exposes too much
@@ -7946,6 +7959,13 @@
     mirror: always
     set_spidermonkey_pref: startup
 
+  # Experimental support for Pattern Modifiers in JavaScript.
+-   name: javascript.options.experimental.regexp_modifiers
+    type: bool
+    value: false
+    mirror: always
+    set_spidermonkey_pref: startup
+
   # Experimental support for Import Assertions in JavaScript.
 -   name: javascript.options.experimental.import_attributes
     type: bool
@@ -8173,6 +8193,18 @@
     value: false
     mirror: always
     set_spidermonkey_pref: startup
+
+- name: javascript.options.wasm_experimental_inline_depth_limit
+  type: uint32_t
+  value: 2
+  mirror: always
+  set_spidermonkey_pref: always
+
+- name: javascript.options.wasm_experimental_inline_size_limit
+  type: uint32_t
+  value: 256
+  mirror: always
+  set_spidermonkey_pref: always
 
 # Support for pretenuring allocations based on their allocation site.
 - name: javascript.options.site_based_pretenuring
@@ -10319,6 +10351,8 @@
   value: true
 #elif defined(XP_OPENBSD)
   value: true
+#elif defined(XP_SOLARIS)
+  value: true
 #else
   value: false
 #endif
@@ -10361,6 +10395,8 @@
   value: true
 #elif defined(XP_OPENBSD)
   value: true
+#elif defined(XP_SOLARIS)
+  value: true
 #else
   value: false
 #endif
@@ -10392,6 +10428,8 @@
   value: true
 #elif defined(XP_OPENBSD)
   value: true
+#elif defined(XP_SOLARIS)
+  value: true
 #else
   value: false
 #endif
@@ -10408,6 +10446,8 @@
 #elif defined(XP_FREEBSD)
   value: true
 #elif defined(XP_OPENBSD)
+  value: true
+#elif defined(XP_SOLARIS)
   value: true
 #else
   value: false
@@ -10426,6 +10466,8 @@
   value: true
 #elif defined(XP_OPENBSD)
   value: true
+#elif defined(XP_SOLARIS)
+  value: true
 #else
   value: false
 #endif
@@ -10442,6 +10484,8 @@
 #elif defined(XP_FREEBSD)
   value: true
 #elif defined(XP_OPENBSD)
+  value: true
+#elif defined(XP_SOLARIS)
   value: true
 #else
   value: false
@@ -10471,6 +10515,8 @@
 #elif defined(XP_FREEBSD)
   value: true
 #elif defined(XP_OPENBSD)
+  value: true
+#elif defined(XP_SOLARIS)
   value: true
 #else
   value: false

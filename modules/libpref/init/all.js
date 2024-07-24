@@ -240,6 +240,7 @@ pref("media.videocontrols.keyboard-tab-to-all-controls", true);
   pref("media.navigator.video.use_transport_cc", true);
   pref("media.peerconnection.video.use_rtx", true);
   pref("media.peerconnection.video.use_rtx.blocklist", "doxy.me,*.doxy.me");
+  pref("media.peerconnection.sdp.quirk.duplicate_fingerprint.allowlist", "");
   pref("media.navigator.video.use_tmmbr", false);
   pref("media.navigator.audio.use_fec", true);
   pref("media.navigator.video.offer_rtcp_rsize", true);
@@ -2505,9 +2506,9 @@ pref("font.size.monospace.x-math", 13);
   pref("font.name-list.cursive.x-cyrillic", "Geneva");
   pref("font.name-list.fantasy.x-cyrillic", "Charcoal CY");
 
-  pref("font.name-list.serif.x-devanagari", "Devanagari MT");
-  pref("font.name-list.sans-serif.x-devanagari", "Devanagari Sangam MN, Devanagari MT");
-  pref("font.name-list.monospace.x-devanagari", "Menlo, Devanagari Sangam MN, Devanagari MT");
+  pref("font.name-list.serif.x-devanagari", "ITF Devanagari, Devanagari MT");
+  pref("font.name-list.sans-serif.x-devanagari", "Kohinoor Devanagari, Devanagari Sangam MN, Devanagari MT");
+  pref("font.name-list.monospace.x-devanagari", "Menlo, Kohinoor Devanagari, Devanagari Sangam MN, Devanagari MT");
 
   // Abyssinica SIL http://scripts.sil.org/AbyssinicaSIL_Download
   pref("font.name-list.serif.x-ethi", "Kefa, Abyssinica SIL");
@@ -2691,9 +2692,9 @@ pref("font.size.monospace.x-math", 13);
   pref("font.name-list.sans-serif.x-cyrillic", "Arial");
   pref("font.name-list.monospace.x-cyrillic", "Menlo");
 
-  pref("font.name-list.serif.x-devanagari", "Devanagari Sangam MN");
-  pref("font.name-list.sans-serif.x-devanagari", "Devanagari Sangam MN");
-  pref("font.name-list.monospace.x-devanagari", "Menlo, Devanagari Sangam MN");
+  pref("font.name-list.serif.x-devanagari", "Kohinoor Devanagari, Devanagari Sangam MN");
+  pref("font.name-list.sans-serif.x-devanagari", "Kohinoor Devanagari, Devanagari Sangam MN");
+  pref("font.name-list.monospace.x-devanagari", "Menlo, Kohinoor Devanagari, Devanagari Sangam MN");
 
   pref("font.name-list.serif.x-ethi", "Kefa");
   pref("font.name-list.sans-serif.x-ethi", "Kefa");
