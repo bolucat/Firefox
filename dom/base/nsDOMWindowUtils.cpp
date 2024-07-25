@@ -3078,12 +3078,7 @@ nsDOMWindowUtils::ZoomToFocusedInput() {
     return NS_OK;
   }
 
-  nsFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (!fm) {
-    return NS_OK;
-  }
-
-  RefPtr<Element> element = fm->GetFocusedElement();
+  const RefPtr<Element> element = nsFocusManager::GetFocusedElementStatic();
   if (!element) {
     return NS_OK;
   }
@@ -4793,7 +4788,7 @@ nsDOMWindowUtils::GetEffectivelyThrottlesFrameRequests(bool* aResult) {
   if (!doc) {
     return NS_ERROR_FAILURE;
   }
-  *aResult = !doc->WouldScheduleFrameRequestCallbacks() ||
+  *aResult = !doc->ShouldFireFrameRequestCallbacks() ||
              doc->ShouldThrottleFrameRequests();
   return NS_OK;
 }

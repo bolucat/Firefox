@@ -1347,7 +1347,6 @@ Document::Document(const char* aContentType)
       mHasDisplayDocument(false),
       mFontFaceSetDirty(true),
       mDidFireDOMContentLoaded(true),
-      mFrameRequestCallbacksScheduled(false),
       mIsTopLevelContentDocument(false),
       mIsContentDocument(false),
       mDidCallBeginLoad(false),
@@ -1618,6 +1617,33 @@ void Document::ReloadWithHttpsOnlyException() {
   }
 }
 
+// Given an nsresult that is assumed to be synthesized by PSM and describes a
+// certificate or TLS error, attempts to convert it into a string
+// representation of the underlying NSS error.
+// `aErrorCodeString` will be an empty string if `aResult` is not an error from
+// PSM or it does not represent a valid NSS error.
+void GetErrorCodeStringFromNSResult(nsresult aResult,
+                                    nsAString& aErrorCodeString) {
+  aErrorCodeString.Truncate();
+
+  if (NS_ERROR_GET_MODULE(aResult) != NS_ERROR_MODULE_SECURITY ||
+      NS_ERROR_GET_SEVERITY(aResult) != NS_ERROR_SEVERITY_ERROR) {
+    return;
+  }
+
+  PRErrorCode errorCode = -1 * NS_ERROR_GET_CODE(aResult);
+  if (!mozilla::psm::IsNSSErrorCode(errorCode)) {
+    return;
+  }
+
+  const char* errorCodeString = PR_ErrorToName(errorCode);
+  if (!errorCodeString) {
+    return;
+  }
+
+  aErrorCodeString.AssignASCII(errorCodeString);
+}
+
 void Document::GetNetErrorInfo(NetErrorInfo& aInfo, ErrorResult& aRv) {
   nsresult rv = NS_OK;
   if (NS_WARN_IF(!mFailedChannel)) {
@@ -1636,14 +1662,6 @@ void Document::GetNetErrorInfo(NetErrorInfo& aInfo, ErrorResult& aRv) {
     return;
   }
 
-  nsAutoString errorCodeString;
-  rv = tsi->GetErrorCodeString(errorCodeString);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    aRv.Throw(rv);
-    return;
-  }
-  aInfo.mErrorCodeString.Assign(errorCodeString);
-
   nsresult channelStatus;
   rv = mFailedChannel->GetStatus(&channelStatus);
   if (NS_WARN_IF(NS_FAILED(rv))) {
@@ -1651,6 +1669,12 @@ void Document::GetNetErrorInfo(NetErrorInfo& aInfo, ErrorResult& aRv) {
     return;
   }
   aInfo.mChannelStatus = static_cast<uint32_t>(channelStatus);
+
+  // TransportSecurityInfo::GetErrorCodeString always returns NS_OK
+  (void)tsi->GetErrorCodeString(aInfo.mErrorCodeString);
+  if (aInfo.mErrorCodeString.IsEmpty()) {
+    GetErrorCodeStringFromNSResult(channelStatus, aInfo.mErrorCodeString);
+  }
 }
 
 bool Document::CallerIsTrustedAboutCertError(JSContext* aCx,
@@ -1714,14 +1738,6 @@ void Document::GetFailedCertSecurityInfo(FailedCertSecurityInfo& aInfo,
     return;
   }
 
-  nsAutoString errorCodeString;
-  rv = tsi->GetErrorCodeString(errorCodeString);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    aRv.Throw(rv);
-    return;
-  }
-  aInfo.mErrorCodeString.Assign(errorCodeString);
-
   nsresult channelStatus;
   rv = mFailedChannel->GetStatus(&channelStatus);
   if (NS_WARN_IF(NS_FAILED(rv))) {
@@ -1729,6 +1745,12 @@ void Document::GetFailedCertSecurityInfo(FailedCertSecurityInfo& aInfo,
     return;
   }
   aInfo.mChannelStatus = static_cast<uint32_t>(channelStatus);
+
+  // TransportSecurityInfo::GetErrorCodeString always returns NS_OK
+  (void)tsi->GetErrorCodeString(aInfo.mErrorCodeString);
+  if (aInfo.mErrorCodeString.IsEmpty()) {
+    GetErrorCodeStringFromNSResult(channelStatus, aInfo.mErrorCodeString);
+  }
 
   nsITransportSecurityInfo::OverridableErrorCategory errorCategory;
   rv = tsi->GetOverridableErrorCategory(&errorCategory);
@@ -2770,9 +2792,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(Document)
   tmp->mSubDocuments = nullptr;
 
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mFrameRequestManager)
-  MOZ_RELEASE_ASSERT(!tmp->mFrameRequestCallbacksScheduled,
-                     "How did we get here without our presshell going away "
-                     "first?");
 
   DocumentOrShadowRoot::Unlink(tmp);
 
@@ -6068,12 +6087,11 @@ nsresult Document::TurnEditingOff() {
 
   // Editor resets selection since it is being destroyed.  But if focus is
   // still into editable control, we have to initialize selection again.
-  if (nsFocusManager* fm = nsFocusManager::GetFocusManager()) {
-    if (RefPtr<TextControlElement> textControlElement =
-            TextControlElement::FromNodeOrNull(fm->GetFocusedElement())) {
-      if (RefPtr<TextEditor> textEditor = textControlElement->GetTextEditor()) {
-        textEditor->ReinitializeSelection(*textControlElement);
-      }
+  if (RefPtr<TextControlElement> textControlElement =
+          TextControlElement::FromNodeOrNull(
+              nsFocusManager::GetFocusedElementStatic())) {
+    if (RefPtr<TextEditor> textEditor = textControlElement->GetTextEditor()) {
+      textEditor->ReinitializeSelection(*textControlElement);
     }
   }
 
@@ -6138,10 +6156,7 @@ nsresult Document::EditingStateChanged() {
     // Note that even if focusedElement is an editable text control element,
     // it becomes not editable from HTMLEditor point of view since text
     // control elements are manged by TextEditor.
-    RefPtr<Element> focusedElement =
-        nsFocusManager::GetFocusManager()
-            ? nsFocusManager::GetFocusManager()->GetFocusedElement()
-            : nullptr;
+    RefPtr<Element> focusedElement = nsFocusManager::GetFocusedElementStatic();
     DebugOnly<nsresult> rvIgnored =
         HTMLEditor::FocusedElementOrDocumentBecomesNotEditable(
             htmlEditor, *this, focusedElement);
@@ -6425,9 +6440,8 @@ void Document::ChangeContentEditableCount(Element* aElement, int32_t aChange) {
 }
 
 void Document::DeferredContentEditableCountChange(Element* aElement) {
-  const RefPtr<nsFocusManager> fm = nsFocusManager::GetFocusManager();
   const bool elementHasFocus =
-      aElement && fm && fm->GetFocusedElement() == aElement;
+      aElement && nsFocusManager::GetFocusedElementStatic() == aElement;
   if (elementHasFocus) {
     MOZ_ASSERT(nsContentUtils::IsSafeToRunScript());
     // When contenteditable of aElement is changed and HTMLEditor works with it
@@ -6503,7 +6517,7 @@ void Document::DeferredContentEditableCountChange(Element* aElement) {
   // having focus, the HTMLEditor won't receive `focus` event.  Therefore, we
   // need to notify HTMLEditor of it becomes editable.
   if (elementHasFocus && aElement->HasFlag(NODE_IS_EDITABLE) &&
-      fm->GetFocusedElement() == aElement) {
+      nsFocusManager::GetFocusedElementStatic() == aElement) {
     if (RefPtr<HTMLEditor> htmlEditor = GetHTMLEditor()) {
       DebugOnly<nsresult> rvIgnored =
           htmlEditor->FocusedElementOrDocumentBecomesEditable(*this, aElement);
@@ -7110,7 +7124,7 @@ already_AddRefed<PresShell> Document::CreatePresShell(
 
   mExternalResourceMap.ShowViewers();
 
-  UpdateFrameRequestCallbackSchedulingState();
+  MaybeScheduleFrameRequestCallbacks();
 
   if (mDocumentL10n) {
     // In case we already accumulated mutations,
@@ -7136,39 +7150,18 @@ already_AddRefed<PresShell> Document::CreatePresShell(
   return presShell.forget();
 }
 
-void Document::UpdateFrameRequestCallbackSchedulingState(
-    PresShell* aOldPresShell) {
-  // If this condition changes to depend on some other variable, make sure to
-  // call UpdateFrameRequestCallbackSchedulingState() calls to the places where
-  // that variable can change. Also consider if you should change
-  // WouldScheduleFrameRequestCallbacks() instead of adding more stuff to this
-  // condition.
-  bool shouldBeScheduled =
-      WouldScheduleFrameRequestCallbacks() && !mFrameRequestManager.IsEmpty();
-  if (shouldBeScheduled == mFrameRequestCallbacksScheduled) {
-    // nothing to do
+void Document::MaybeScheduleFrameRequestCallbacks() {
+  if (!HasFrameRequestCallbacks() || !ShouldFireFrameRequestCallbacks()) {
     return;
   }
-
-  PresShell* presShell = aOldPresShell ? aOldPresShell : mPresShell;
-  MOZ_RELEASE_ASSERT(presShell);
-
-  nsRefreshDriver* rd = presShell->GetPresContext()->RefreshDriver();
-  if (shouldBeScheduled) {
-    rd->ScheduleFrameRequestCallbacks(this);
-  } else {
-    rd->RevokeFrameRequestCallbacks(this);
-  }
-
-  mFrameRequestCallbacksScheduled = shouldBeScheduled;
+  MOZ_ASSERT(mPresShell);
+  nsRefreshDriver* rd = mPresShell->GetPresContext()->RefreshDriver();
+  rd->EnsureFrameRequestCallbacksHappen();
 }
 
 void Document::TakeFrameRequestCallbacks(nsTArray<FrameRequest>& aCallbacks) {
   MOZ_ASSERT(aCallbacks.IsEmpty());
   mFrameRequestManager.Take(aCallbacks);
-  // No need to manually remove ourselves from the refresh driver; it will
-  // handle that part.  But we do have to update our state.
-  mFrameRequestCallbacksScheduled = false;
 }
 
 bool Document::ShouldThrottleFrameRequests() const {
@@ -7251,9 +7244,7 @@ void Document::DeletePresShell() {
     TurnEditingOff();
   }
 
-  PresShell* oldPresShell = mPresShell;
   mPresShell = nullptr;
-  UpdateFrameRequestCallbackSchedulingState(oldPresShell);
 
   ClearStaleServoData();
   AssertNoStaleServoDataIn(*this);
@@ -7931,7 +7922,8 @@ void Document::SetScriptGlobalObject(
     EnsureOnloadBlocker();
   }
 
-  UpdateFrameRequestCallbackSchedulingState();
+  // FIXME(emilio): is this really needed?
+  MaybeScheduleFrameRequestCallbacks();
 
   if (aScriptGlobalObject) {
     // Go back to using the docshell for the layout history state
@@ -12434,7 +12426,6 @@ void Document::SuppressEventHandling(uint32_t aIncrease) {
       wgc->BlockBFCacheFor(BFCacheStatus::EVENT_HANDLING_SUPPRESSED);
     }
   }
-  UpdateFrameRequestCallbackSchedulingState();
   for (uint32_t i = 0; i < aIncrease; ++i) {
     ScriptLoader()->AddExecuteBlocker();
   }
@@ -13685,19 +13676,16 @@ void Document::UnlinkOriginalDocumentIfStatic() {
 
 nsresult Document::ScheduleFrameRequestCallback(FrameRequestCallback& aCallback,
                                                 uint32_t* aHandle) {
-  nsresult rv = mFrameRequestManager.Schedule(aCallback, aHandle);
-  if (NS_FAILED(rv)) {
-    return rv;
+  const bool wasEmpty = mFrameRequestManager.IsEmpty();
+  MOZ_TRY(mFrameRequestManager.Schedule(aCallback, aHandle));
+  if (wasEmpty) {
+    MaybeScheduleFrameRequestCallbacks();
   }
-
-  UpdateFrameRequestCallbackSchedulingState();
   return NS_OK;
 }
 
 void Document::CancelFrameRequestCallback(uint32_t aHandle) {
-  if (mFrameRequestManager.Cancel(aHandle)) {
-    UpdateFrameRequestCallbackSchedulingState();
-  }
+  mFrameRequestManager.Cancel(aHandle);
 }
 
 bool Document::IsCanceledFrameRequestCallback(uint32_t aHandle) const {

@@ -41,6 +41,8 @@ const FEED_URL =
 const PREF_CONFIG = "discoverystream.config";
 const PREF_ENDPOINTS = "discoverystream.endpoints";
 const PREF_IMPRESSION_ID = "browser.newtabpage.activity-stream.impressionId";
+const PREF_MERINO_FEED_EXPERIMENT =
+  "browser.newtabpage.activity-stream.discoverystream.merino-feed-experiment";
 const PREF_ENABLED = "discoverystream.enabled";
 const PREF_HARDCODED_BASIC_LAYOUT = "discoverystream.hardcoded-basic-layout";
 const PREF_SPOCS_ENDPOINT = "discoverystream.spocs-endpoint";
@@ -1393,6 +1395,28 @@ export class DiscoveryStreamFeed {
     );
   }
 
+  getExperimentInfo() {
+    const pocketNewtabExperiment = lazy.ExperimentAPI.getExperimentMetaData({
+      featureId: "pocketNewtab",
+    });
+
+    const pocketNewtabRollout = lazy.ExperimentAPI.getRolloutMetaData({
+      featureId: "pocketNewtab",
+    });
+
+    // We want to know if the user is in an experiment or rollout,
+    // but we prioritize experiments over rollouts.
+    const experimentMetaData = pocketNewtabExperiment || pocketNewtabRollout;
+
+    let experimentName = experimentMetaData?.slug || "";
+    let experimentBranch = experimentMetaData?.branch?.slug || "";
+
+    return {
+      experimentName,
+      experimentBranch,
+    };
+  }
+
   async getComponentFeed(feedUrl, isStartup) {
     const cachedData = (await this.cache.get()) || {};
     const { feeds } = cachedData;
@@ -1412,11 +1436,18 @@ export class DiscoveryStreamFeed {
               .map(s => s.trim())
               .filter(item => item)
           : [];
+
+        // Should we pass the experiment branch and slug to the Merino feed request.
+        const prefMerinoFeedExperiment = Services.prefs.getBoolPref(
+          PREF_MERINO_FEED_EXPERIMENT
+        );
+
         headers.append("content-type", "application/json");
         options = {
           method: "POST",
           headers,
           body: JSON.stringify({
+            ...(prefMerinoFeedExperiment ? this.getExperimentInfo() : {}),
             locale: this.locale,
             region: this.region,
             topics,
@@ -1946,6 +1977,17 @@ export class DiscoveryStreamFeed {
         // we want to be able to expire just content to trigger the earlier expire times.
         await this.resetContentCache();
         break;
+      case at.DISCOVERY_STREAM_DEV_SHOW_PLACEHOLDER: {
+        // We want to display the loading state permanently, for dev purposes.
+        // We do this by resetting everything, loading the layout, and nothing else.
+        // This essentially hangs because we never triggered the content load.
+        await this.reset();
+        this.loadLayout(
+          a => this.store.dispatch(ac.BroadcastToContent(a)),
+          false
+        );
+        break;
+      }
       case at.DISCOVERY_STREAM_CONFIG_SET_VALUE:
         // Use the original string pref to then set a value instead of
         // this.config which has some modifications
