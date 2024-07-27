@@ -1956,6 +1956,8 @@ pref("browser.ml.chat.prompts.0", '{"label":"Summarize","value":"Please summariz
 pref("browser.ml.chat.prompts.1", '{"label":"Simplify Language","value":"Please rewrite the selection in plain, clear language suitable for a general audience without specialized knowledge. Use all of the following tactics: simple vocabulary; short sentences; active voice; headers and bulleted lists for scannability. Maintain meaning and factual accuracy.","id":"simplify"}');
 pref("browser.ml.chat.prompts.2", '{"label":"Quiz Me","value":"Please quiz me on this selection. Ask me a variety of types of questions, for example multiple choice, true or false, and short answer. Wait for my response before moving on to the next question.","id":"quiz","targeting":"!provider|regExpMatch(\'gemini\')"}');
 pref("browser.ml.chat.provider", "");
+pref("browser.ml.chat.shortcuts", false);
+pref("browser.ml.chat.shortcuts.custom", false);
 pref("browser.ml.chat.sidebar", true);
 
 pref("security.protectionspopup.recordEventTelemetry", true);
@@ -3049,7 +3051,11 @@ pref("browser.firefox-view.feature-tour", "{\"screen\":\"FIREFOX_VIEW_SPOTLIGHT\
 // Number of times the user visited about:firefoxview
 pref("browser.firefox-view.view-count", 0);
 // Maximum number of rows to show on the "History" page.
-pref("browser.firefox-view.max-history-rows", 300);
+#ifdef NIGHTLY_BUILD
+  pref("browser.firefox-view.max-history-rows", 0);
+#else
+  pref("browser.firefox-view.max-history-rows", 300);
+#endif
 // Enables virtual list functionality in Firefox View.
 pref("browser.firefox-view.virtual-list.enabled", true);
 

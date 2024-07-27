@@ -630,6 +630,23 @@ let JSWINDOWACTORS = {
     allFrames: true,
   },
 
+  GenAI: {
+    parent: {
+      esModuleURI: "resource:///actors/GenAIParent.sys.mjs",
+    },
+    child: {
+      esModuleURI: "resource:///actors/GenAIChild.sys.mjs",
+      events: {
+        DOMContentLoaded: {},
+        mousemove: {},
+        resize: {},
+        scroll: {},
+      },
+    },
+    allFrames: true,
+    enablePreference: "browser.ml.chat.enabled",
+  },
+
   LightweightTheme: {
     child: {
       esModuleURI: "resource:///actors/LightweightThemeChild.sys.mjs",
@@ -5071,17 +5088,26 @@ BrowserGlue.prototype = {
         console.error(ex);
       }
     });
-    for (let win of lazy.BrowserWindowTracker.orderedWindows) {
-      // Ensure we're operating on fully opened browser windows
-      if (!win.gBrowser) {
-        continue;
-      }
-      urisToClose = await win.gBrowser.closeTabsByURI(urisToClose);
-      // If we've successfully closed all the tabs, break early
-      if (!urisToClose.length) {
-        break;
+    // We want to keep track of the tabs we closed for the notification
+    // given that there could be duplicates we also closed
+    let totalClosedTabs = 0;
+    const windows = lazy.BrowserWindowTracker.orderedWindows;
+
+    async function closeTabsInWindows() {
+      for (const win of windows) {
+        if (!win.gBrowser) {
+          continue;
+        }
+        try {
+          const closedInWindow = await win.gBrowser.closeTabsByURI(urisToClose);
+          totalClosedTabs += closedInWindow;
+        } catch (ex) {
+          this.log.error("Error closing tabs in window:", ex);
+        }
       }
     }
+
+    await closeTabsInWindows();
 
     let clickCallback = async (subject, topic) => {
       if (topic == "alertshow") {
@@ -5118,7 +5144,7 @@ BrowserGlue.prototype = {
     if (!lazy.CloseRemoteTab.hasPendingCloseTabNotification) {
       lazy.CloseRemoteTab.closeTabNotificationCount = 0;
     }
-    lazy.CloseRemoteTab.closeTabNotificationCount += urls.length;
+    lazy.CloseRemoteTab.closeTabNotificationCount += totalClosedTabs;
     const [title, body] = await lazy.accountsL10n.formatValues([
       {
         id: "account-tabs-closed-remotely",

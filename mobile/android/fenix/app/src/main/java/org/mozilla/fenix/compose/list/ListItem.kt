@@ -37,9 +37,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -68,6 +68,7 @@ private val TOAST_LENGTH = Toast.LENGTH_SHORT
  * @param maxLabelLines An optional maximum number of lines for the label text to span.
  * @param description An optional description text below the label.
  * @param maxDescriptionLines An optional maximum number of lines for the description text to span.
+ * @param minHeight An optional minimum height for the list item.
  * @param onClick Called when the user clicks on the item.
  * @param iconPainter [Painter] used to display an icon after the list item.
  * @param iconDescription Content description of the icon.
@@ -82,6 +83,7 @@ fun TextListItem(
     maxLabelLines: Int = 1,
     description: String? = null,
     maxDescriptionLines: Int = 1,
+    minHeight: Dp = LIST_ITEM_HEIGHT,
     onClick: (() -> Unit)? = null,
     iconPainter: Painter? = null,
     iconDescription: String? = null,
@@ -94,6 +96,7 @@ fun TextListItem(
         modifier = modifier,
         description = description,
         maxDescriptionLines = maxDescriptionLines,
+        minHeight = minHeight,
         onClick = onClick,
     ) {
         if (iconPainter != null && onIconClick != null) {
@@ -329,14 +332,9 @@ fun RadioButtonListItem(
     ListItem(
         label = label,
         modifier = modifier
-            .clearAndSetSemantics {
+            .semantics(mergeDescendants = true) {
                 this.selected = selected
                 role = Role.RadioButton
-                contentDescription = if (description != null) {
-                    "$label.$description"
-                } else {
-                    label
-                }
             },
         maxLabelLines = maxLabelLines,
         description = description,

@@ -14,8 +14,5 @@ async function clearCredential(origin, id) {
   let win = window.open(`${origin}/_mozilla/credential-management/support/identity.provider-delete.sub.html?id=${id}`, "_blank");
   await deletePromise;
   win.close();
+  await navigator.credentials.preventSilentAccess();
 }
-
-const ccs = SpecialPowers.Cc[
-  "@mozilla.org/browser/credentialchooserservice;1"
-].getService(SpecialPowers.Ci.nsICredentialChooserService);

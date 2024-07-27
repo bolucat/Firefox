@@ -209,6 +209,8 @@ impl Size {
             Self::MaxContent |
             Self::FitContent |
             Self::MozAvailable |
+            Self::WebkitFillAvailable |
+            Self::Stretch |
             Self::FitContentFunction(_) => false,
         }
     }

@@ -76,6 +76,7 @@ export default class BackupSettings extends MozLitElement {
       scheduledBackupsEnabled: false,
       lastBackupDate: null,
       lastBackupFileName: "",
+      supportBaseLink: "",
     };
     this.recoveryInProgress = false;
     this.recoveryErrorCode = 0;
@@ -270,11 +271,15 @@ export default class BackupSettings extends MozLitElement {
 
   turnOnScheduledBackupsDialogTemplate() {
     let { fileName, path, iconURL } = this.backupServiceState.defaultParent;
-    return html`<dialog id="turn-on-scheduled-backups-dialog">
+    return html`<dialog
+      id="turn-on-scheduled-backups-dialog"
+      class="backup-dialog"
+    >
       <turn-on-scheduled-backups
         defaultlabel=${fileName}
         defaultpath=${path}
         defaulticonurl=${iconURL}
+        .supportBaseLink=${this.backupServiceState.supportBaseLink}
       ></turn-on-scheduled-backups>
     </dialog>`;
   }
@@ -308,7 +313,7 @@ export default class BackupSettings extends MozLitElement {
       ? "settings-data-backup-scheduled-backups-on-restore-choose"
       : "settings-data-backup-scheduled-backups-off-restore-choose";
 
-    return html`<section id="restore-from-backup"">
+    return html`<section id="restore-from-backup">
       ${this.restoreFromBackupDialogTemplate()}
       <div class="backups-control">
         <span
@@ -352,9 +357,13 @@ export default class BackupSettings extends MozLitElement {
   }
 
   enableBackupEncryptionDialogTemplate() {
-    return html`<dialog id="enable-backup-encryption-dialog">
+    return html`<dialog
+      id="enable-backup-encryption-dialog"
+      class="backup-dialog"
+    >
       <enable-backup-encryption
         type=${this._enableEncryptionTypeAttr}
+        .supportBaseLink=${this.backupServiceState.supportBaseLink}
       ></enable-backup-encryption>
     </dialog>`;
   }
