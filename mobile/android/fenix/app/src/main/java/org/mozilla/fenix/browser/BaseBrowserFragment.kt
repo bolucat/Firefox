@@ -510,13 +510,13 @@ abstract class BaseBrowserFragment :
         val browserToolbarMenuController = DefaultBrowserToolbarMenuController(
             fragment = this,
             store = store,
+            appStore = requireComponents.appStore,
             activity = activity,
             navController = findNavController(),
             settings = context.settings(),
             readerModeController = readerMenuController,
             sessionFeature = sessionFeature,
             findInPageLauncher = { findInPageIntegration.withFeature { it.launch() } },
-            snackbarParent = binding.dynamicSnackbarContainer,
             browserAnimator = browserAnimator,
             customTabSessionId = customTabSessionId,
             openInFenixIntent = openInFenixIntent,
@@ -541,6 +541,7 @@ abstract class BaseBrowserFragment :
         _browserToolbarView = BrowserToolbarView(
             context = context,
             container = binding.browserLayout,
+            snackbarParent = binding.dynamicSnackbarContainer,
             settings = context.settings(),
             interactor = browserToolbarInteractor,
             customTabSession = customTabSessionId?.let { store.state.findCustomTab(it) },
@@ -1182,7 +1183,6 @@ abstract class BaseBrowserFragment :
             {
                 requireComponents.useCases.tabsUseCases.undo.invoke()
             },
-            paddedForBottomToolbar = true,
             operation = { },
         )
     }
@@ -2132,7 +2132,6 @@ abstract class BaseBrowserFragment :
                         FenixSnackbar.make(
                             view = binding.dynamicSnackbarContainer,
                             duration = FenixSnackbar.LENGTH_LONG,
-                            isDisplayedWithBrowserToolbar = true,
                         )
                             .setText(getString(R.string.bookmark_saved_snackbar))
                             .setAction(getString(R.string.edit_bookmark_snackbar_action)) {
@@ -2159,7 +2158,6 @@ abstract class BaseBrowserFragment :
                         FenixSnackbar.make(
                             view = binding.dynamicSnackbarContainer,
                             duration = FenixSnackbar.LENGTH_LONG,
-                            isDisplayedWithBrowserToolbar = true,
                         )
                             .setText(getString(R.string.bookmark_invalid_url_error))
                             .show()
@@ -2355,7 +2353,6 @@ abstract class BaseBrowserFragment :
         FenixSnackbar.make(
             view = container,
             duration = Snackbar.LENGTH_SHORT,
-            isDisplayedWithBrowserToolbar = true,
         ).setText(DynamicDownloadDialog.getCannotOpenFileErrorMessage(context, downloadState))
             .show()
     }

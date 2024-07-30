@@ -164,14 +164,14 @@ fun FaviconListItem(
                     painter = faviconPainter,
                     contentDescription = null,
                     modifier = Modifier
-                        .padding(horizontal = 16.dp)
+                        .padding(start = 16.dp)
                         .size(ICON_SIZE),
                 )
             } else {
                 Favicon(
                     url = url,
                     size = ICON_SIZE,
-                    modifier = Modifier.padding(horizontal = 16.dp),
+                    modifier = Modifier.padding(start = 16.dp),
                 )
             }
         },
@@ -182,7 +182,7 @@ fun FaviconListItem(
                         modifier = Modifier
                             .padding(vertical = 12.dp)
                             .fillMaxHeight()
-                            .width(2.dp),
+                            .width(1.dp),
                         color = FirefoxTheme.colors.borderSecondary,
                     )
 
@@ -262,7 +262,7 @@ fun IconListItem(
             Icon(
                 painter = beforeIconPainter,
                 contentDescription = beforeIconDescription,
-                modifier = Modifier.padding(horizontal = 16.dp),
+                modifier = Modifier.padding(start = 16.dp),
                 tint = if (enabled) beforeIconTint else FirefoxTheme.colors.iconDisabled,
             )
         },
@@ -275,7 +275,7 @@ fun IconListItem(
                         modifier = Modifier
                             .padding(vertical = 12.dp)
                             .fillMaxHeight()
-                            .width(2.dp),
+                            .width(1.dp),
                         color = FirefoxTheme.colors.borderSecondary,
                     )
 

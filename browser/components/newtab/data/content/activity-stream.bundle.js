@@ -3260,8 +3260,9 @@ class _DSCard extends (external_React_default()).PureComponent {
       className: `ds-card ${compactImagesClassName} ${imageGradientClassName} ${titleLinesName} ${descLinesClassName} ${ctaButtonClassName} ${ctaButtonVariantClassName}`,
       ref: this.setContextMenuButtonHostRef
     }, this.props.showTopics && this.props.topic && /*#__PURE__*/external_React_default().createElement("span", {
-      className: "ds-card-topic"
-    }, this.props.topic), /*#__PURE__*/external_React_default().createElement("div", {
+      className: "ds-card-topic",
+      "data-l10n-id": `newtab-topic-label-${this.props.topic}`
+    }), /*#__PURE__*/external_React_default().createElement("div", {
       className: "img-wrapper"
     }, /*#__PURE__*/external_React_default().createElement(DSImage, {
       extraClassNames: "img",
@@ -3630,6 +3631,7 @@ const PREF_THUMBS_UP_DOWN_ENABLED = "discoverystream.thumbsUpDown.enabled";
 const PREF_TOPICS_ENABLED = "discoverystream.topicLabels.enabled";
 const PREF_TOPICS_SELECTED = "discoverystream.topicSelection.selectedTopics";
 const PREF_TOPICS_AVAILABLE = "discoverystream.topicSelection.topics";
+const PREF_SPOCS_STARTUPCACHE_ENABLED = "discoverystream.spocs.startupCache.enabled";
 const CardGrid_INTERSECTION_RATIO = 0.5;
 const CardGrid_VISIBLE = "visible";
 const CardGrid_VISIBILITY_CHANGE_EVENT = "visibilitychange";
@@ -3906,13 +3908,14 @@ class _CardGrid extends (external_React_default()).PureComponent {
     const showTopics = prefs[PREF_TOPICS_ENABLED];
     const selectedTopics = prefs[PREF_TOPICS_SELECTED];
     const availableTopics = prefs[PREF_TOPICS_AVAILABLE];
+    const spocsStartupCacheEnabled = prefs[PREF_SPOCS_STARTUPCACHE_ENABLED];
     const recs = this.props.data.recommendations.slice(0, items);
     const cards = [];
     let essentialReadsCards = [];
     let editorsPicksCards = [];
     for (let index = 0; index < items; index++) {
       const rec = recs[index];
-      cards.push(!rec || rec.placeholder ? /*#__PURE__*/external_React_default().createElement(PlaceholderDSCard, {
+      cards.push(!rec || rec.placeholder || rec.flight_id && !spocsStartupCacheEnabled && this.props.App.isForStartupCache ? /*#__PURE__*/external_React_default().createElement(PlaceholderDSCard, {
         key: `dscard-${index}`
       }) : /*#__PURE__*/external_React_default().createElement(DSCard, {
         key: `dscard-${rec.id}`,
@@ -4062,6 +4065,7 @@ _CardGrid.defaultProps = {
 };
 const CardGrid = (0,external_ReactRedux_namespaceObject.connect)(state => ({
   Prefs: state.Prefs,
+  App: state.App,
   DiscoveryStream: state.DiscoveryStream
 }))(_CardGrid);
 ;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/CollectionCardGrid/CollectionCardGrid.jsx
@@ -5936,6 +5940,12 @@ function App(prevState = INITIAL_STATE.App, action) {
     case actionTypes.TOP_SITES_UPDATED:
       // Toggle `isForStartupCache` when receiving the `TOP_SITES_UPDATE` action
       // so that sponsored tiles can be rendered as usual. See Bug 1826360.
+      return Object.assign({}, prevState, action.data || {}, {
+        isForStartupCache: false,
+      });
+    case actionTypes.DISCOVERY_STREAM_SPOCS_UPDATE:
+      // Toggle `isForStartupCache` when receiving the `DISCOVERY_STREAM_SPOCS_UPDATE_STARTUPCACHE` action
+      // so that spoc cards can be rendered as usual.
       return Object.assign({}, prevState, action.data || {}, {
         isForStartupCache: false,
       });

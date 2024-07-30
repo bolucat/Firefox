@@ -198,6 +198,7 @@ export class Tracer extends Component {
       // Lookup for the first top trace after the start index
       let topTracesStartIndex = 0;
       if (startIndex != 0) {
+        topTracesStartIndex = -1;
         for (let i = 0; i < topTraces.length; i++) {
           const traceIndex = topTraces[i];
           if (traceIndex >= startIndex) {
@@ -219,7 +220,13 @@ export class Tracer extends Component {
         }
       }
 
-      topTraces = topTraces.slice(topTracesStartIndex, topTracesEndIndex);
+      if (topTracesStartIndex == -1) {
+        // When none of the top traces are within the selected range, pick the start index of top trace.
+        // This happens when we zoom on the last call tree at the end of the record.
+        topTraces = [Math.floor(startIndex)];
+      } else {
+        topTraces = topTraces.slice(topTracesStartIndex, topTracesEndIndex);
+      }
 
       // When the top trace isn't the top most one (`!0`) and isn't a top trace (`!topTraces[0]`),
       // We need to add the current start trace as a top trace, as well as all its following siblings
@@ -231,7 +238,12 @@ export class Tracer extends Component {
         const results = [];
         // indexes are floating number, so convert it to a decimal number as index in the trace array
         results.push(Math.floor(startIndex));
-        collectAllSiblings(traceParents, traceChildren, startIndex, results);
+        collectAllSiblings(
+          traceParents,
+          traceChildren,
+          Math.floor(startIndex),
+          results
+        );
         topTraces.unshift(...results);
       }
     }
@@ -274,7 +286,7 @@ export class Tracer extends Component {
         // we may need to remove children that are outside of the viewport.
         if (endIndex != -1) {
           return traceChildren[traceIndex].filter(index => {
-            return index <= endIndex;
+            return index < endIndex;
           });
         }
         return traceChildren[traceIndex];
@@ -483,6 +495,9 @@ export class Tracer extends Component {
     // Normalize the computed indexes.
     // start can't be lower than zero
     startIndex = Math.max(0, startIndex);
+    // start can't be greater than the trace count
+    startIndex = Math.min(startIndex, this.props.traceCount - 1);
+
     if (endIndex != -1) {
       // end can't be lower than start + 1
       endIndex = Math.max(startIndex + 1, endIndex);

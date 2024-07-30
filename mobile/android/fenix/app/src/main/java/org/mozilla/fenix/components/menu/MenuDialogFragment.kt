@@ -18,6 +18,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.net.toUri
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -124,7 +126,11 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                         components.useCases.sessionUseCases.requestDesktopSite
                     val saveToPdfUseCase = components.useCases.sessionUseCases.saveToPdf
                     val selectedTab = browserStore.state.selectedTab
-                    val isTranslationSupported = browserStore.state.translationEngine.isEngineSupported ?: false
+                    val isTranslationEngineSupported =
+                        browserStore.state.translationEngine.isEngineSupported ?: false
+                    val isTranslationSupported =
+                        isTranslationEngineSupported &&
+                            FxNimbus.features.translations.value().mainFlowBrowserMenuEnabled
                     val isReaderable = selectedTab?.readerState?.readerable ?: false
                     val settings = components.settings
                     val supportedLanguages = components.core.store.state.translationEngine.supportedLanguages
@@ -164,8 +170,11 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                     onDeleteAndQuit = {
                                         deleteAndQuit(
                                             activity = activity as HomeActivity,
-                                            coroutineScope = coroutineScope,
-                                            snackbar = null,
+                                            // This menu's coroutineScope would cancel all in progress operations
+                                            // when the dialog is closed.
+                                            // Need to use a scope that will ensure the background operation
+                                            // will continue even if the dialog is closed.
+                                            coroutineScope = (activity as LifecycleOwner).lifecycleScope,
                                         )
                                     },
                                     onDismiss = {
@@ -235,6 +244,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                 accountState = accountState,
                                 isPrivate = browsingModeManager.mode.isPrivate,
                                 isDesktopMode = isDesktopMode,
+                                isTranslationSupported = isTranslationSupported,
                                 showQuitMenu = settings.shouldDeleteBrowsingDataOnQuit,
                                 onMozillaAccountButtonClick = {
                                     store.dispatch(
@@ -312,8 +322,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                 hasExternalApp = appLinksRedirect?.hasExternalApp() ?: false,
                                 externalAppName = appLinksRedirect?.appName ?: "",
                                 isTranslated = selectedTab?.translationsState?.isTranslated ?: false,
-                                isTranslationSupported = isTranslationSupported &&
-                                    FxNimbus.features.translations.value().mainFlowBrowserMenuEnabled,
+                                isTranslationSupported = isTranslationSupported,
                                 translatedLanguage = if (translateLanguageCode != null && supportedLanguages != null) {
                                     TranslationSupport(
                                         fromLanguages = supportedLanguages.fromLanguages,
