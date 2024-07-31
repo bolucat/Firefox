@@ -52,7 +52,7 @@ export class _CollapsibleSection extends React.PureComponent {
   handleTopicSelectionButtonClick() {
     this.props.dispatch(ac.OnlyToMain({ type: at.TOPIC_SELECTION_USER_OPEN }));
     this.props.dispatch(
-      ac.AlsoToMain({ type: at.TOPIC_SELECTION_SPOTLIGHT_TOGGLE })
+      ac.BroadcastToContent({ type: at.TOPIC_SELECTION_SPOTLIGHT_OPEN })
     );
   }
 
@@ -66,6 +66,7 @@ export class _CollapsibleSection extends React.PureComponent {
       title,
       subTitle,
       mayHaveSponsoredStories,
+      mayHaveTopicsSelection,
     } = this.props;
     const active = menuButtonHover || showContextMenu;
     let bodyStyle;
@@ -79,8 +80,6 @@ export class _CollapsibleSection extends React.PureComponent {
       titleStyle = { visibility: "hidden" };
     }
     const hasSubtitleClassName = subTitle ? `has-subtitle` : ``;
-    const topicSelectionEnabled =
-      this.props.Prefs.values["discoverystream.topicSelection.enabled"];
     return (
       <section
         className={`collapsible-section ${this.props.className}${
@@ -119,7 +118,7 @@ export class _CollapsibleSection extends React.PureComponent {
                 />
               )}
           </h3>
-          {topicSelectionEnabled && (
+          {mayHaveTopicsSelection && (
             <moz-button
               label="Personalize my feed"
               type="primary"

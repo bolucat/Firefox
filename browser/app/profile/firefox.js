@@ -1738,13 +1738,8 @@ pref("browser.newtabpage.activity-stream.discoverystream.region-weather-config",
 pref("browser.newtabpage.activity-stream.discoverystream.locale-weather-config", "en-US,en-GB,en-CA");
 
 // Preference to enable wallpaper selection in the Customize Menu of new tab page
-#ifdef NIGHTLY_BUILD
-  pref("browser.newtabpage.activity-stream.newtabWallpapers.enabled", true);
-  pref("browser.newtabpage.activity-stream.newtabWallpapers.v2.enabled", true);
-#else
-  pref("browser.newtabpage.activity-stream.newtabWallpapers.v2.enabled", false);
-  pref("browser.newtabpage.activity-stream.newtabWallpapers.enabled", false);
-#endif
+pref("browser.newtabpage.activity-stream.newtabWallpapers.enabled", true);
+pref("browser.newtabpage.activity-stream.newtabWallpapers.v2.enabled", true);
 
 // Current new tab page background images.
 pref("browser.newtabpage.activity-stream.newtabWallpapers.wallpaper-light", "");
@@ -1875,7 +1870,7 @@ pref("browser.newtabpage.activity-stream.discoverystream.topicSelection.region-t
 // List of locales that get topics selection by default.
 pref("browser.newtabpage.activity-stream.discoverystream.topicSelection.locale-topics-config", "en-US, en-GB, en-CA");
 // System pref to enable topic labels on Pocket cards
-pref("browser.newtabpage.activity-stream.discoverystream.topicLabels.enabled", false);
+pref("browser.newtabpage.activity-stream.discoverystream.topicLabels.enabled", true);
 
 // Flip this once the user has dismissed the Pocket onboarding experience,
 pref("browser.newtabpage.activity-stream.discoverystream.onboardingExperience.dismissed", false);
