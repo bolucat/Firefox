@@ -7,21 +7,6 @@ import { useDispatch, useSelector } from "react-redux";
 import { ModalOverlayWrapper } from "content-src/components/ModalOverlay/ModalOverlay";
 import { actionCreators as ac, actionTypes as at } from "common/Actions.mjs";
 
-// TODO: move strings to newtab.ftl once strings have been approved
-const TOPIC_LABELS = {
-  "newtab-topic-business": "Business",
-  "newtab-topic-arts": "Entertainment",
-  "newtab-topic-food": "Food",
-  "newtab-topic-health": "Health",
-  "newtab-topic-finance": "Money",
-  "newtab-topic-government": "Politics",
-  "newtab-topic-sports": "Sports",
-  "newtab-topic-tech": "Tech",
-  "newtab-topic-travel": "Travel",
-  "newtab-topic-education": "Science",
-  "newtab-topic-society": "Life Hacks",
-};
-
 const EMOJI_LABELS = {
   business: "💼",
   arts: "🎭",
@@ -51,6 +36,7 @@ function TopicSelection() {
   const topicsHaveBeenPreviouslySet =
     prefs["discoverystream.topicSelection.hasBeenUpdatedPreviously"];
   const [isFirstRun] = useState(displayCount === 0);
+  const displayCountRef = useRef(displayCount);
   const preselectedTopics = () => {
     if (selectedTopics) {
       return selectedTopics.split(", ");
@@ -104,25 +90,40 @@ function TopicSelection() {
     handleModalClose();
   }
 
+  // By doing this, the useEffect that sets up the IntersectionObserver
+  // will not re-run every time displayCount changes,
+  // but the observer callback will always have access
+  // to the latest displayCount value through the ref.
+  useEffect(() => {
+    displayCountRef.current = displayCount;
+  }, [displayCount]);
+
   useEffect(() => {
     const { current } = modalRef;
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) {
-        observer.unobserve(modalRef.current);
-        dispatch(
-          ac.SetPref(
-            "discoverystream.topicSelection.onboarding.maybeDisplay",
-            false
-          )
-        );
-        dispatch(
-          ac.AlsoToMain({
-            type: at.TOPIC_SELECTION_IMPRESSION,
-          })
-        );
-      }
-    });
-    observer.observe(current);
+    let observer;
+    if (current) {
+      observer = new IntersectionObserver(([entry]) => {
+        if (entry.isIntersecting) {
+          // if the user has seen the modal more than 3 times,
+          // automatically remove them from onboarding
+          if (displayCountRef.current > 3) {
+            dispatch(
+              ac.SetPref(
+                "discoverystream.topicSelection.onboarding.maybeDisplay",
+                false
+              )
+            );
+          }
+          observer.unobserve(modalRef.current);
+          dispatch(
+            ac.AlsoToMain({
+              type: at.TOPIC_SELECTION_IMPRESSION,
+            })
+          );
+        }
+      });
+      observer.observe(current);
+    }
 
     return () => {
       if (current) {
@@ -242,11 +243,11 @@ function TopicSelection() {
           title="dismiss"
           onClick={handleUserClose}
         />
-        <h1 className="title">Select topics you care about</h1>
-        <p className="subtitle">
-          Tell us what you are interested in and we’ll recommend you great
-          stories!
-        </p>
+        <h1 className="title" data-l10n-id="newtab-topic-selection-title" />
+        <p
+          className="subtitle"
+          data-l10n-id="newtab-topic-selection-subtitle"
+        />
         <div className="topic-list" ref={checkboxWrapperRef}>
           {topics.map((topic, i) => {
             const checked = topicsToSelect.includes(topic);
@@ -266,17 +267,19 @@ function TopicSelection() {
                   <span className="topic-icon">{EMOJI_LABELS[`${topic}`]}</span>
                   <span className="topic-checked" />
                 </div>
-                <span className="topic-item-label">
-                  {TOPIC_LABELS[`newtab-topic-${topic}`]}
-                </span>
+                <span
+                  className="topic-item-label"
+                  data-l10n-id={`newtab-topic-label-${topic}`}
+                />
               </label>
             );
           })}
         </div>
         <div className="modal-footer">
-          <a href="https://support.mozilla.org/en-US/kb/pocket-recommendations-firefox-new-tab">
-            How we protect your data and privacy
-          </a>
+          <a
+            href="https://support.mozilla.org/en-US/kb/pocket-recommendations-firefox-new-tab"
+            data-l10n-id="newtab-topic-selection-privacy-link"
+          />
           <moz-button-group className="button-group">
             <moz-button
               id={isFirstRun ? "first-run" : ""}
@@ -285,6 +288,11 @@ function TopicSelection() {
             />
             <moz-button
               label={isFirstRun ? "Save topics" : "Save"}
+              data-l10n-id="newtab-topic-selection-cancel-button"
+              onClick={handleModalClose}
+            />
+            <moz-button
+              data-l10n-id="newtab-topic-selection-save-button"
               type="primary"
               onClick={handleSubmit}
             />

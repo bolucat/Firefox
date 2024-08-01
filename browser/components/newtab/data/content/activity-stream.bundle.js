@@ -2970,7 +2970,8 @@ class _DSCard extends (external_React_default()).PureComponent {
           recommended_at: this.props.recommended_at,
           received_rank: this.props.received_rank,
           topic: this.props.topic,
-          matches_selected_topic: matchesSelectedTopic
+          matches_selected_topic: matchesSelectedTopic,
+          selected_topics: this.props.selectedTopics
         }
       }));
       this.props.dispatch(actionCreators.ImpressionStats({
@@ -2986,7 +2987,8 @@ class _DSCard extends (external_React_default()).PureComponent {
           } : {}),
           type: this.props.flightId ? "spoc" : "organic",
           recommendation_id: this.props.recommendation_id,
-          topic: this.props.topic
+          topic: this.props.topic,
+          selected_topics: this.props.selectedTopics
         }]
       }));
     }
@@ -3020,7 +3022,8 @@ class _DSCard extends (external_React_default()).PureComponent {
           recommended_at: this.props.recommended_at,
           received_rank: this.props.received_rank,
           topic: this.props.topic,
-          matches_selected_topic: matchesSelectedTopic
+          matches_selected_topic: matchesSelectedTopic,
+          selected_topics: this.props.selectedTopics
         }
       }));
       this.props.dispatch(actionCreators.ImpressionStats({
@@ -3033,7 +3036,8 @@ class _DSCard extends (external_React_default()).PureComponent {
             shim: this.props.shim.save
           } : {}),
           recommendation_id: this.props.recommendation_id,
-          topic: this.props.topic
+          topic: this.props.topic,
+          selected_topics: this.props.selectedTopics
         }]
       }));
     }
@@ -4358,9 +4362,14 @@ class _CollapsibleSection extends (external_React_default()).PureComponent {
     });
   }
   handleTopicSelectionButtonClick() {
+    const maybeDisplay = this.props.Prefs.values["discoverystream.topicSelection.onboarding.maybeDisplay"];
     this.props.dispatch(actionCreators.OnlyToMain({
       type: actionTypes.TOPIC_SELECTION_USER_OPEN
     }));
+    if (maybeDisplay) {
+      // if still part of onboarding, remove user from onboarding flow
+      this.props.dispatch(actionCreators.SetPref("discoverystream.topicSelection.onboarding.maybeDisplay", false));
+    }
     this.props.dispatch(actionCreators.BroadcastToContent({
       type: actionTypes.TOPIC_SELECTION_SPOTLIGHT_OPEN
     }));
@@ -4399,6 +4408,7 @@ class _CollapsibleSection extends (external_React_default()).PureComponent {
       };
     }
     const hasSubtitleClassName = subTitle ? `has-subtitle` : ``;
+    const topicsHaveBeenPreviouslySet = this.props.Prefs.values["discoverystream.topicSelection.hasBeenUpdatedPreviously"];
     return /*#__PURE__*/external_React_default().createElement("section", {
       className: `collapsible-section ${this.props.className}${active ? " active" : ""}`
       // Note: data-section-id is used for web extension api tests in mozilla central
@@ -4428,11 +4438,13 @@ class _CollapsibleSection extends (external_React_default()).PureComponent {
     })), mayHaveSponsoredStories && this.props.spocMessageVariant === "variant-a" && /*#__PURE__*/external_React_default().createElement(SponsoredContentHighlight, {
       position: "inset-block-start inset-inline-start",
       dispatch: this.props.dispatch
-    })), mayHaveTopicsSelection && /*#__PURE__*/external_React_default().createElement("moz-button", {
-      label: "Personalize my feed",
-      type: "primary",
+    })), mayHaveTopicsSelection && /*#__PURE__*/external_React_default().createElement("div", {
+      className: "button-topic-selection"
+    }, /*#__PURE__*/external_React_default().createElement("moz-button", {
+      "data-l10n-id": topicsHaveBeenPreviouslySet ? "newtab-topic-selection-button-update-interests" : "newtab-topic-selection-button-pick-interests",
+      type: topicsHaveBeenPreviouslySet ? "default" : "primary",
       onClick: this.handleTopicSelectionButtonClick
-    })), /*#__PURE__*/external_React_default().createElement(ErrorBoundary, {
+    }))), /*#__PURE__*/external_React_default().createElement(ErrorBoundary, {
       className: "section-body-fallback"
     }, /*#__PURE__*/external_React_default().createElement("div", {
       ref: this.onBodyMount,
@@ -10640,21 +10652,6 @@ function Notifications_Notifications({
 
 
 
-
-// TODO: move strings to newtab.ftl once strings have been approved
-const TOPIC_LABELS = {
-  "newtab-topic-business": "Business",
-  "newtab-topic-arts": "Entertainment",
-  "newtab-topic-food": "Food",
-  "newtab-topic-health": "Health",
-  "newtab-topic-finance": "Money",
-  "newtab-topic-government": "Politics",
-  "newtab-topic-sports": "Sports",
-  "newtab-topic-tech": "Tech",
-  "newtab-topic-travel": "Travel",
-  "newtab-topic-education": "Science",
-  "newtab-topic-society": "Life Hacks"
-};
 const EMOJI_LABELS = {
   business: "💼",
   arts: "🎭",
@@ -10680,6 +10677,7 @@ function TopicSelection() {
   const displayCount = prefs["discoverystream.topicSelection.onboarding.displayCount"];
   const topicsHaveBeenPreviouslySet = prefs["discoverystream.topicSelection.hasBeenUpdatedPreviously"];
   const [isFirstRun] = (0,external_React_namespaceObject.useState)(displayCount === 0);
+  const displayCountRef = (0,external_React_namespaceObject.useRef)(displayCount);
   const preselectedTopics = () => {
     if (selectedTopics) {
       return selectedTopics.split(", ");
@@ -10716,20 +10714,35 @@ function TopicSelection() {
     }
     handleModalClose();
   }
+
+  // By doing this, the useEffect that sets up the IntersectionObserver
+  // will not re-run every time displayCount changes,
+  // but the observer callback will always have access
+  // to the latest displayCount value through the ref.
+  (0,external_React_namespaceObject.useEffect)(() => {
+    displayCountRef.current = displayCount;
+  }, [displayCount]);
   (0,external_React_namespaceObject.useEffect)(() => {
     const {
       current
     } = modalRef;
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) {
-        observer.unobserve(modalRef.current);
-        dispatch(actionCreators.SetPref("discoverystream.topicSelection.onboarding.maybeDisplay", false));
-        dispatch(actionCreators.AlsoToMain({
-          type: actionTypes.TOPIC_SELECTION_IMPRESSION
-        }));
-      }
-    });
-    observer.observe(current);
+    let observer;
+    if (current) {
+      observer = new IntersectionObserver(([entry]) => {
+        if (entry.isIntersecting) {
+          // if the user has seen the modal more than 3 times,
+          // automatically remove them from onboarding
+          if (displayCountRef.current > 3) {
+            dispatch(actionCreators.SetPref("discoverystream.topicSelection.onboarding.maybeDisplay", false));
+          }
+          observer.unobserve(modalRef.current);
+          dispatch(actionCreators.AlsoToMain({
+            type: actionTypes.TOPIC_SELECTION_IMPRESSION
+          }));
+        }
+      });
+      observer.observe(current);
+    }
     return () => {
       if (current) {
         observer.unobserve(current);
@@ -10818,10 +10831,12 @@ function TopicSelection() {
     title: "dismiss",
     onClick: handleUserClose
   }), /*#__PURE__*/external_React_default().createElement("h1", {
-    className: "title"
-  }, "Select topics you care about"), /*#__PURE__*/external_React_default().createElement("p", {
-    className: "subtitle"
-  }, "Tell us what you are interested in and we\u2019ll recommend you great stories!"), /*#__PURE__*/external_React_default().createElement("div", {
+    className: "title",
+    "data-l10n-id": "newtab-topic-selection-title"
+  }), /*#__PURE__*/external_React_default().createElement("p", {
+    className: "subtitle",
+    "data-l10n-id": "newtab-topic-selection-subtitle"
+  }), /*#__PURE__*/external_React_default().createElement("div", {
     className: "topic-list",
     ref: checkboxWrapperRef
   }, topics.map((topic, i) => {
@@ -10845,13 +10860,15 @@ function TopicSelection() {
     }, EMOJI_LABELS[`${topic}`]), /*#__PURE__*/external_React_default().createElement("span", {
       className: "topic-checked"
     })), /*#__PURE__*/external_React_default().createElement("span", {
-      className: "topic-item-label"
-    }, TOPIC_LABELS[`newtab-topic-${topic}`]));
+      className: "topic-item-label",
+      "data-l10n-id": `newtab-topic-label-${topic}`
+    }));
   })), /*#__PURE__*/external_React_default().createElement("div", {
     className: "modal-footer"
   }, /*#__PURE__*/external_React_default().createElement("a", {
-    href: "https://support.mozilla.org/en-US/kb/pocket-recommendations-firefox-new-tab"
-  }, "How we protect your data and privacy"), /*#__PURE__*/external_React_default().createElement("moz-button-group", {
+    href: "https://support.mozilla.org/en-US/kb/pocket-recommendations-firefox-new-tab",
+    "data-l10n-id": "newtab-topic-selection-privacy-link"
+  }), /*#__PURE__*/external_React_default().createElement("moz-button-group", {
     className: "button-group"
   }, /*#__PURE__*/external_React_default().createElement("moz-button", {
     id: isFirstRun ? "first-run" : "",
@@ -10859,6 +10876,10 @@ function TopicSelection() {
     onClick: handleUserClose
   }), /*#__PURE__*/external_React_default().createElement("moz-button", {
     label: isFirstRun ? "Save topics" : "Save",
+    "data-l10n-id": "newtab-topic-selection-cancel-button",
+    onClick: handleModalClose
+  }), /*#__PURE__*/external_React_default().createElement("moz-button", {
+    "data-l10n-id": "newtab-topic-selection-save-button",
     type: "primary",
     onClick: handleSubmit
   })))));
@@ -11332,11 +11353,13 @@ class BaseContent extends (external_React_default()).PureComponent {
   }
   shouldDisplayTopicSelectionModal() {
     const prefs = this.props.Prefs.values;
+    const pocketEnabled = prefs["feeds.section.topstories"] && prefs["feeds.system.topstories"];
+    const topicSelectionOnboardingEnabled = prefs["discoverystream.topicSelection.onboarding.enabled"] && pocketEnabled;
     const maybeShowModal = prefs["discoverystream.topicSelection.onboarding.maybeDisplay"];
     const displayTimeout = prefs["discoverystream.topicSelection.onboarding.displayTimeout"];
     const lastDisplayed = prefs["discoverystream.topicSelection.onboarding.lastDisplayed"];
     const displayCount = prefs["discoverystream.topicSelection.onboarding.displayCount"];
-    if (!maybeShowModal || !prefs["discoverystream.topicSelection.enabled"]) {
+    if (!maybeShowModal || !prefs["discoverystream.topicSelection.enabled"] || !topicSelectionOnboardingEnabled) {
       return;
     }
     const day = 24 * 60 * 60 * 1000;
@@ -11451,7 +11474,7 @@ class BaseContent extends (external_React_default()).PureComponent {
       firstVisibleTimestamp: this.state.firstVisibleTimestamp
     })) : /*#__PURE__*/external_React_default().createElement(Sections_Sections, null)), /*#__PURE__*/external_React_default().createElement(ConfirmDialog, null), wallpapersEnabled && this.renderWallpaperAttribution()), /*#__PURE__*/external_React_default().createElement("aside", null, this.props.Notifications?.showNotifications && /*#__PURE__*/external_React_default().createElement(ErrorBoundary, null, /*#__PURE__*/external_React_default().createElement(Notifications_Notifications, {
       dispatch: this.props.dispatch
-    }))), mayShowTopicSelection && this.props?.document?.visibilityState === Base_VISIBLE && /*#__PURE__*/external_React_default().createElement(TopicSelection, null)));
+    }))), mayShowTopicSelection && pocketEnabled && /*#__PURE__*/external_React_default().createElement(TopicSelection, null)));
   }
 }
 BaseContent.defaultProps = {

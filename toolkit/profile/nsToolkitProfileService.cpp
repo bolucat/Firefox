@@ -234,10 +234,14 @@ void RemoveProfileFiles(nsIToolkitProfile* aProfile, bool aInBackground) {
 }
 
 nsToolkitProfile::nsToolkitProfile(const nsACString& aName, nsIFile* aRootDir,
-                                   nsIFile* aLocalDir, bool aFromDB)
+                                   nsIFile* aLocalDir, bool aFromDB,
+                                   const nsACString& aStoreID = VoidCString(),
+                                   bool aShowProfileSelector = false)
     : mName(aName),
       mRootDir(aRootDir),
       mLocalDir(aLocalDir),
+      mStoreID(aStoreID),
+      mShowProfileSelector(aShowProfileSelector),
       mLock(nullptr),
       mIndex(0),
       mSection("Profile") {
@@ -264,6 +268,12 @@ nsToolkitProfile::nsToolkitProfile(const nsACString& aName, nsIFile* aRootDir,
 
     db->SetString(mSection.get(), "IsRelative", isRelative ? "1" : "0");
     db->SetString(mSection.get(), "Path", descriptor.get());
+    if (!mStoreID.IsVoid()) {
+      db->SetString(mSection.get(), "StoreID",
+                    PromiseFlatCString(mStoreID).get());
+      db->SetString(mSection.get(), "ShowSelector",
+                    aShowProfileSelector ? "1" : "0");
+    }
   }
 }
 
@@ -329,6 +339,56 @@ nsToolkitProfile::SetRootDir(nsIFile* aRootDir) {
 }
 
 NS_IMETHODIMP
+nsToolkitProfile::GetStoreID(nsACString& aResult) {
+  aResult = mStoreID;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsToolkitProfile::SetStoreID(const nsACString& aStoreID) {
+#ifdef MOZ_SELECTABLE_PROFILES
+  NS_ASSERTION(nsToolkitProfileService::gService, "Where did my service go?");
+
+  // If the new value is the same as the old value, there's nothing to do.
+  if (mStoreID.Equals(aStoreID)) {
+    return NS_OK;
+  }
+
+  // Update the database with the new value, or delete the storeID altogether
+  // if the new value is null.
+  nsresult rv;
+  if (!aStoreID.IsVoid()) {
+    rv = nsToolkitProfileService::gService->mProfileDB.SetString(
+        mSection.get(), "StoreID", PromiseFlatCString(aStoreID).get());
+  } else {
+    rv = nsToolkitProfileService::gService->mProfileDB.DeleteString(
+        mSection.get(), "StoreID");
+
+    // If the string was not present in the ini file, just ignore the error.
+    if (rv == NS_ERROR_FAILURE) {
+      rv = NS_OK;
+    }
+
+    // We need a StoreID to show the profile selector, so if StoreID has been
+    // removed, then remove ShowSelector also.
+    mShowProfileSelector = false;
+    rv = nsToolkitProfileService::gService->mProfileDB.DeleteString(
+        mSection.get(), "ShowSelector");
+    if (rv == NS_ERROR_FAILURE) {
+      rv = NS_OK;
+    }
+  }
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mStoreID = aStoreID;
+
+  return NS_OK;
+#else
+  return NS_ERROR_FAILURE;
+#endif
+}
+
+NS_IMETHODIMP
 nsToolkitProfile::GetLocalDir(nsIFile** aResult) {
   NS_ADDREF(*aResult = mLocalDir);
   return NS_OK;
@@ -369,6 +429,41 @@ nsToolkitProfile::SetName(const nsACString& aName) {
   }
 
   return NS_OK;
+}
+
+NS_IMETHODIMP
+nsToolkitProfile::GetShowProfileSelector(bool* aShowProfileSelector) {
+#ifdef MOZ_SELECTABLE_PROFILES
+  *aShowProfileSelector = mShowProfileSelector;
+#else
+  *aShowProfileSelector = false;
+#endif
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsToolkitProfile::SetShowProfileSelector(bool aShowProfileSelector) {
+#ifdef MOZ_SELECTABLE_PROFILES
+  NS_ASSERTION(nsToolkitProfileService::gService, "Where did my service go?");
+
+  // We need a StoreID to show the profile selector; bail out if it's missing.
+  if (mStoreID.IsVoid()) {
+    return NS_ERROR_FAILURE;
+  }
+
+  if (mShowProfileSelector == aShowProfileSelector) {
+    return NS_OK;
+  }
+
+  nsresult rv = nsToolkitProfileService::gService->mProfileDB.SetString(
+      mSection.get(), "ShowSelector", aShowProfileSelector ? "1" : "0");
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mShowProfileSelector = aShowProfileSelector;
+  return NS_OK;
+#else
+  return NS_ERROR_FAILURE;
+#endif
 }
 
 nsresult nsToolkitProfile::RemoveInternal(bool aRemoveFiles,
@@ -1045,7 +1140,26 @@ nsresult nsToolkitProfileService::Init() {
       localDir = rootDir;
     }
 
-    currentProfile = new nsToolkitProfile(name, rootDir, localDir, true);
+    nsCString storeID;
+    bool showProfileSelector = false;
+
+    rv = mProfileDB.GetString(profileID.get(), "StoreID", storeID);
+
+    // If the StoreID was not found, just set it to an empty string.
+    if (NS_FAILED(rv) && rv == NS_ERROR_FAILURE) {
+      storeID = VoidCString();
+    }
+
+    // Only get the ShowSelector value if StoreID is nonempty.
+    if (!storeID.IsVoid()) {
+      rv = mProfileDB.GetString(profileID.get(), "ShowSelector", buffer);
+      if (NS_SUCCEEDED(rv)) {
+        showProfileSelector = buffer.EqualsLiteral("1");
+      }
+    }
+
+    currentProfile = new nsToolkitProfile(name, rootDir, localDir, true,
+                                          storeID, showProfileSelector);
 
     // If a user has modified the ini file path it may make for a valid profile
     // path but not match what we would have serialised and so may not match
