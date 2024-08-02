@@ -9,6 +9,7 @@ import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
 const lazy = {};
 ChromeUtils.defineESModuleGetters(lazy, {
   ASRouterTargeting: "resource:///modules/asrouter/ASRouterTargeting.sys.mjs",
+  EveryWindow: "resource:///modules/EveryWindow.sys.mjs",
   ExperimentAPI: "resource://nimbus/ExperimentAPI.sys.mjs",
   NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
   PrefUtils: "resource://normandy/lib/PrefUtils.sys.mjs",
@@ -23,7 +24,9 @@ XPCOMUtils.defineLazyPreferenceGetter(
 XPCOMUtils.defineLazyPreferenceGetter(
   lazy,
   "chatHideLocalhost",
-  "browser.ml.chat.hideLocalhost"
+  "browser.ml.chat.hideLocalhost",
+  null,
+  reorderChatProviders
 );
 XPCOMUtils.defineLazyPreferenceGetter(
   lazy,
@@ -47,6 +50,13 @@ XPCOMUtils.defineLazyPreferenceGetter(
   "browser.ml.chat.provider",
   null,
   (_pref, _old, val) => onChatProviderChange(val)
+);
+XPCOMUtils.defineLazyPreferenceGetter(
+  lazy,
+  "chatProviders",
+  "browser.ml.chat.providers",
+  "claude,chatgpt,gemini,huggingchat,lechat",
+  reorderChatProviders
 );
 XPCOMUtils.defineLazyPreferenceGetter(
   lazy,
@@ -74,7 +84,6 @@ export const GenAI = {
   // Any chat provider can be used and those that match the URLs in this object
   // will allow for additional UI shown such as populating dropdown with a name,
   // showing links, and other special behaviors needed for individual providers.
-  // The ordering of this list affects UI and currently alphabetical by name.
   chatProviders: new Map([
     // Until bug 1903900 to better handle max length issues, track in comments
     // ~14k max length uri before 431
@@ -107,7 +116,6 @@ export const GenAI = {
     [
       "https://www.bing.com/chat?sendquery=1",
       {
-        hidden: true,
         id: "copilot",
         link1: "https://www.bing.com/new/termsofuse",
         link2: "https://go.microsoft.com/fwlink/?LinkId=521839",
@@ -155,9 +163,6 @@ export const GenAI = {
     [
       "http://localhost:8080",
       {
-        get hidden() {
-          return lazy.chatHideLocalhost;
-        },
         id: "localhost",
         link1: "https://llamafile.ai",
         linksId: "genai-settings-chat-localhost-links",
@@ -174,11 +179,13 @@ export const GenAI = {
     Glean.genaiChatbot.provider.set(this.getProviderId());
     Glean.genaiChatbot.sidebar.set(lazy.chatSidebar);
 
-    // Access this getter for its side effect of observing provider pref change
+    // Access getters for side effects of observing pref changes
+    lazy.chatHideLocalhost;
     lazy.chatProvider;
+    lazy.chatProviders;
 
-    // Detect about:preferences to add controls
-    Services.obs.addObserver(this, "experimental-pane-loaded");
+    // Apply initial ordering of providers
+    reorderChatProviders();
 
     // Handle nimbus feature pref setting
     const featureId = "chatbot";
@@ -203,6 +210,16 @@ export const GenAI = {
       Object.entries(
         lazy.NimbusFeatures[featureId].getVariable("prefs")
       ).forEach(setPref);
+    });
+
+    // Detect about:preferences to add controls
+    Services.obs.addObserver(this, "experimental-pane-loaded");
+    // Check existing windows that might have preferences before init
+    lazy.EveryWindow.readyWindows.forEach(window => {
+      const content = window.gBrowser.selectedBrowser.contentWindow;
+      if (content?.location.href.startsWith("about:preferences")) {
+        this.buildPreferences(content);
+      }
     });
   },
 
@@ -300,6 +317,7 @@ export const GenAI = {
                     document.createXULElement("toolbarbutton")
                   );
                   button.className = "subviewbutton";
+                  button.setAttribute("tabindex", "0");
                   button.textContent = promptObj.label;
                   return button;
                 },
@@ -588,4 +606,34 @@ function onChatProviderChange(value) {
       .getMostRecentWindow("navigator:browser")
       ?.SidebarController.show("viewGenaiChatSidebar");
   }
+}
+
+/**
+ * Update the ordering of chat providers Map.
+ */
+function reorderChatProviders() {
+  // Figure out which providers to include in order
+  const ordered = lazy.chatProviders.split(",");
+  if (!lazy.chatHideLocalhost) {
+    ordered.push("localhost");
+  }
+
+  // Convert the url keys to lookup by id
+  const idToKey = new Map([...GenAI.chatProviders].map(([k, v]) => [v.id, k]));
+
+  // Remove providers in the desired order and make them shown
+  const toSet = [];
+  ordered.forEach(id => {
+    const key = idToKey.get(id);
+    const val = GenAI.chatProviders.get(key);
+    if (val) {
+      val.hidden = false;
+      toSet.push([key, val]);
+      GenAI.chatProviders.delete(key);
+    }
+  });
+
+  // Hide unremoved providers before re-adding visible ones in order
+  GenAI.chatProviders.forEach(val => (val.hidden = true));
+  toSet.forEach(args => GenAI.chatProviders.set(...args));
 }

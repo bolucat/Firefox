@@ -21,7 +21,7 @@ const EMOJI_LABELS = {
   society: "💡",
 };
 
-function TopicSelection() {
+function TopicSelection({ supportUrl }) {
   const dispatch = useDispatch();
   const inputRef = useRef(null);
   const modalRef = useRef(null);
@@ -277,19 +277,18 @@ function TopicSelection() {
         </div>
         <div className="modal-footer">
           <a
-            href="https://support.mozilla.org/en-US/kb/pocket-recommendations-firefox-new-tab"
+            href={supportUrl}
             data-l10n-id="newtab-topic-selection-privacy-link"
           />
           <moz-button-group className="button-group">
             <moz-button
               id={isFirstRun ? "first-run" : ""}
-              label={isFirstRun ? "Maybe later" : "Cancel"}
+              data-l10n-id={
+                isFirstRun
+                  ? "newtab-topic-selection-button-maybe-later"
+                  : "newtab-topic-selection-cancel-button"
+              }
               onClick={handleUserClose}
-            />
-            <moz-button
-              label={isFirstRun ? "Save topics" : "Save"}
-              data-l10n-id="newtab-topic-selection-cancel-button"
-              onClick={handleModalClose}
             />
             <moz-button
               data-l10n-id="newtab-topic-selection-save-button"

@@ -149,6 +149,7 @@ for (const type of [
   "DISCOVERY_STREAM_SPOCS_UPDATE",
   "DISCOVERY_STREAM_SPOC_BLOCKED",
   "DISCOVERY_STREAM_SPOC_IMPRESSION",
+  "DISCOVERY_STREAM_TOPICS_LOADING",
   "DISCOVERY_STREAM_USER_EVENT",
   "DOWNLOAD_CHANGED",
   "FAKE_FOCUS_SEARCH",
@@ -3915,7 +3916,8 @@ class _CardGrid extends (external_React_default()).PureComponent {
       DiscoveryStream
     } = this.props;
     const {
-      saveToPocketCard
+      saveToPocketCard,
+      topicsLoading
     } = DiscoveryStream;
     const showRecentSaves = prefs.showRecentSaves && recentSavesEnabled;
     const isOnboardingExperienceDismissed = prefs[PREF_ONBOARDING_EXPERIENCE_DISMISSED];
@@ -3930,7 +3932,7 @@ class _CardGrid extends (external_React_default()).PureComponent {
     let editorsPicksCards = [];
     for (let index = 0; index < items; index++) {
       const rec = recs[index];
-      cards.push(!rec || rec.placeholder || rec.flight_id && !spocsStartupCacheEnabled && this.props.App.isForStartupCache ? /*#__PURE__*/external_React_default().createElement(PlaceholderDSCard, {
+      cards.push(topicsLoading || !rec || rec.placeholder || rec.flight_id && !spocsStartupCacheEnabled && this.props.App.isForStartupCache ? /*#__PURE__*/external_React_default().createElement(PlaceholderDSCard, {
         key: `dscard-${index}`
       }) : /*#__PURE__*/external_React_default().createElement(DSCard, {
         key: `dscard-${rec.id}`,
@@ -4384,7 +4386,6 @@ class _CollapsibleSection extends (external_React_default()).PureComponent {
     const {
       id,
       collapsed,
-      learnMore,
       title,
       subTitle,
       mayHaveSponsoredStories,
@@ -4423,15 +4424,7 @@ class _CollapsibleSection extends (external_React_default()).PureComponent {
       className: "section-title"
     }, /*#__PURE__*/external_React_default().createElement(FluentOrText, {
       message: title
-    })), /*#__PURE__*/external_React_default().createElement("span", {
-      className: "learn-more-link-wrapper"
-    }, learnMore && /*#__PURE__*/external_React_default().createElement("span", {
-      className: "learn-more-link"
-    }, /*#__PURE__*/external_React_default().createElement(FluentOrText, {
-      message: learnMore.link.message
-    }, /*#__PURE__*/external_React_default().createElement("a", {
-      href: learnMore.link.href
-    })))), subTitle && /*#__PURE__*/external_React_default().createElement("span", {
+    })), subTitle && /*#__PURE__*/external_React_default().createElement("span", {
       className: "section-sub-title"
     }, /*#__PURE__*/external_React_default().createElement(FluentOrText, {
       message: subTitle
@@ -5883,6 +5876,7 @@ const INITIAL_STATE = {
     layout: [],
     isPrivacyInfoModalVisible: false,
     isCollectionDismissible: false,
+    topicsLoading: false,
     feeds: {
       data: {
         // "https://foo.com/feed1": {lastUpdated: 123, data: [], personalized: false}
@@ -6493,6 +6487,11 @@ function DiscoveryStream(prevState = INITIAL_STATE.DiscoveryStream, action) {
       return {
         ...prevState,
         isCollectionDismissible: action.data.value,
+      };
+    case actionTypes.DISCOVERY_STREAM_TOPICS_LOADING:
+      return {
+        ...prevState,
+        topicsLoading: action.data,
       };
     case actionTypes.DISCOVERY_STREAM_PREFS_SETUP:
       return {
@@ -10665,7 +10664,9 @@ const EMOJI_LABELS = {
   education: "🧪",
   society: "💡"
 };
-function TopicSelection() {
+function TopicSelection({
+  supportUrl
+}) {
   const dispatch = (0,external_ReactRedux_namespaceObject.useDispatch)();
   const inputRef = (0,external_React_namespaceObject.useRef)(null);
   const modalRef = (0,external_React_namespaceObject.useRef)(null);
@@ -10866,18 +10867,14 @@ function TopicSelection() {
   })), /*#__PURE__*/external_React_default().createElement("div", {
     className: "modal-footer"
   }, /*#__PURE__*/external_React_default().createElement("a", {
-    href: "https://support.mozilla.org/en-US/kb/pocket-recommendations-firefox-new-tab",
+    href: supportUrl,
     "data-l10n-id": "newtab-topic-selection-privacy-link"
   }), /*#__PURE__*/external_React_default().createElement("moz-button-group", {
     className: "button-group"
   }, /*#__PURE__*/external_React_default().createElement("moz-button", {
     id: isFirstRun ? "first-run" : "",
-    label: isFirstRun ? "Maybe later" : "Cancel",
+    "data-l10n-id": isFirstRun ? "newtab-topic-selection-button-maybe-later" : "newtab-topic-selection-cancel-button",
     onClick: handleUserClose
-  }), /*#__PURE__*/external_React_default().createElement("moz-button", {
-    label: isFirstRun ? "Save topics" : "Save",
-    "data-l10n-id": "newtab-topic-selection-cancel-button",
-    onClick: handleModalClose
   }), /*#__PURE__*/external_React_default().createElement("moz-button", {
     "data-l10n-id": "newtab-topic-selection-save-button",
     type: "primary",
@@ -11423,6 +11420,7 @@ class BaseContent extends (external_React_default()).PureComponent {
     const {
       mayHaveSponsoredTopSites
     } = prefs;
+    const supportUrl = prefs["support.url"];
     const hasThumbsUpDownLayout = prefs["discoverystream.thumbsUpDown.searchTopsitesCompact"];
     const hasThumbsUpDown = prefs["discoverystream.thumbsUpDown.enabled"];
     const featureClassName = [weatherEnabled && mayHaveWeather && "has-weather",
@@ -11474,7 +11472,9 @@ class BaseContent extends (external_React_default()).PureComponent {
       firstVisibleTimestamp: this.state.firstVisibleTimestamp
     })) : /*#__PURE__*/external_React_default().createElement(Sections_Sections, null)), /*#__PURE__*/external_React_default().createElement(ConfirmDialog, null), wallpapersEnabled && this.renderWallpaperAttribution()), /*#__PURE__*/external_React_default().createElement("aside", null, this.props.Notifications?.showNotifications && /*#__PURE__*/external_React_default().createElement(ErrorBoundary, null, /*#__PURE__*/external_React_default().createElement(Notifications_Notifications, {
       dispatch: this.props.dispatch
-    }))), mayShowTopicSelection && pocketEnabled && /*#__PURE__*/external_React_default().createElement(TopicSelection, null)));
+    }))), mayShowTopicSelection && pocketEnabled && /*#__PURE__*/external_React_default().createElement(TopicSelection, {
+      supportUrl: supportUrl
+    })));
   }
 }
 BaseContent.defaultProps = {
