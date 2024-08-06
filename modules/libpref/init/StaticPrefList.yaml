@@ -2914,7 +2914,11 @@
 #ifdef MOZ_ENABLE_FORKSERVER
 - name: dom.ipc.forkserver.enable
   type: bool
+#if defined(MOZ_CODE_COVERAGE) || defined(MOZ_ASAN) || defined(MOZ_TSAN) || defined(MOZ_MSAN) || defined(MOZ_UBSAN) || defined(MOZ_PROFILE_GENERATE)
   value: false
+#else
+  value: @IS_NIGHTLY_BUILD@
+#endif
   mirror: once
 #endif
 
@@ -3341,12 +3345,6 @@
 
 # Is support for PerformanceTiming.timeToContentfulPaint enabled?
 - name: dom.performance.time_to_contentful_paint.enabled
-  type: bool
-  value: false
-  mirror: always
-
-# Is support for PerformanceTiming.timeToDOMContentFlushed enabled?
-- name: dom.performance.time_to_dom_content_flushed.enabled
   type: bool
   value: false
   mirror: always
@@ -9885,13 +9883,13 @@
 # Enable/disable overflow/underflow events in content
 - name: layout.overflow-underflow.content.enabled
   type: bool
-  value: @IS_NOT_EARLY_BETA_OR_EARLIER@
+  value: false
   mirror: always
 
 # Enable/disable overflow/underflow events in addon content
 - name: layout.overflow-underflow.content.enabled_in_addons
   type: bool
-  value: true
+  value: false
   mirror: always
 
 - name: layout.visibility.min-recompute-interval-ms
@@ -13565,6 +13563,11 @@
 # by quinn-udp, are disallowed by seccomp. Future fix and further details
 # tracked in https://github.com/quinn-rs/quinn/issues/1947.
 #if defined(ANDROID) && !defined(HAVE_64BIT_BUILD)
+  value: true
+# Always use NSPR on Windows. Windows is failing with a zero-size read. Future
+# fix and further details tracked in
+# https://bugzilla.mozilla.org/show_bug.cgi?id=1911658.
+#elif defined(XP_WIN)
   value: true
 #else
   value: @IS_NOT_NIGHTLY_BUILD@
