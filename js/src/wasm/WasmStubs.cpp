@@ -844,6 +844,8 @@ static void GenerateJitEntryLoadInstance(MacroAssembler& masm) {
 
 // Creates a JS fake exit frame for wasm, so the frame iterators just use
 // JSJit frame iteration.
+//
+// Note: the caller must ensure InstanceReg is valid.
 static void GenerateJitEntryThrow(MacroAssembler& masm, unsigned frameSize) {
   AssertExpectedSP(masm);
 
@@ -851,8 +853,6 @@ static void GenerateJitEntryThrow(MacroAssembler& masm, unsigned frameSize) {
 
   masm.freeStack(frameSize);
   MoveSPForJitABI(masm);
-
-  GenerateJitEntryLoadInstance(masm);
 
   masm.loadPtr(Address(InstanceReg, Instance::offsetOfCx()), ScratchIonEntry);
   masm.enterFakeExitFrameForWasm(ScratchIonEntry, ScratchIonEntry,
@@ -1203,8 +1203,7 @@ static bool GenerateJitEntry(MacroAssembler& masm, size_t funcExportIndex,
   masm.storePtr(InstanceReg, Address(masm.getStackPointer(),
                                      WasmCalleeInstanceOffsetBeforeCall));
 
-  // Call into the real function. Note that, due to the throw stub, instance
-  // and pinned registers may be clobbered.
+  // Call into the real function.
   masm.assertStackAlignment(WasmStackAlignment);
   CallFuncExport(masm, fe, funcPtr);
   masm.assertStackAlignment(WasmStackAlignment);
@@ -1253,9 +1252,6 @@ static bool GenerateJitEntry(MacroAssembler& masm, size_t funcExportIndex,
         MOZ_CRASH("unexpected return type when calling from ion to wasm");
       }
       case ValType::Ref: {
-        // Per comment above, the call may have clobbered the instance
-        // register, so reload since unboxing will need it.
-        GenerateJitEntryLoadInstance(masm);
         GenPrintPtr(DebugChannel::Import, masm, ReturnReg);
         masm.convertWasmAnyRefToValue(InstanceReg, ReturnReg, JSReturnOperand,
                                       WasmJitEntryReturnScratch);
@@ -2934,7 +2930,7 @@ static bool GenerateRequestTierUpStub(MacroAssembler& masm,
 bool wasm::GenerateEntryStubs(const CodeMetadata& codeMeta,
                               const FuncExportVector& exports,
                               CompiledCode* code) {
-  LifoAlloc lifo(STUBS_LIFO_DEFAULT_CHUNK_SIZE);
+  LifoAlloc lifo(STUBS_LIFO_DEFAULT_CHUNK_SIZE, js::MallocArena);
   TempAllocator alloc(&lifo);
   JitContext jcx;
   WasmMacroAssembler masm(alloc);
@@ -3038,7 +3034,7 @@ bool wasm::GenerateProvisionalLazyJitEntryStub(MacroAssembler& masm,
 bool wasm::GenerateStubs(const CodeMetadata& codeMeta,
                          const FuncImportVector& imports,
                          const FuncExportVector& exports, CompiledCode* code) {
-  LifoAlloc lifo(STUBS_LIFO_DEFAULT_CHUNK_SIZE);
+  LifoAlloc lifo(STUBS_LIFO_DEFAULT_CHUNK_SIZE, js::MallocArena);
   TempAllocator alloc(&lifo);
   JitContext jcx;
   WasmMacroAssembler masm(alloc);
