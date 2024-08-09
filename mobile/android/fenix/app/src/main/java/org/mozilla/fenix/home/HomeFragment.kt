@@ -443,8 +443,9 @@ class HomeFragment : Fragment() {
                 tabCollectionStorage = components.core.tabCollectionStorage,
                 addTabUseCase = components.useCases.tabsUseCases.addTab,
                 restoreUseCase = components.useCases.tabsUseCases.restore,
-                reloadUrlUseCase = components.useCases.sessionUseCases.reload,
                 selectTabUseCase = components.useCases.tabsUseCases.selectTab,
+                reloadUrlUseCase = components.useCases.sessionUseCases.reload,
+                topSitesUseCases = components.useCases.topSitesUseCase,
                 appStore = components.appStore,
                 navController = findNavController(),
                 viewLifecycleScope = viewLifecycleOwner.lifecycleScope,
@@ -707,11 +708,8 @@ class HomeFragment : Fragment() {
                                 }
                             },
                         ) {
-                            HomeNavBar(
-                                isPrivateMode = activity.browsingModeManager.mode.isPrivate,
-                                browserStore = context.components.core.store,
-                                menuButton = menuButton,
-                                tabsCounterMenu = FenixTabCounterMenu(
+                            val tabCounterMenu = lazy {
+                                FenixTabCounterMenu(
                                     context = context,
                                     onItemTapped = { item ->
                                         if (item is TabCounterMenu.Item.NewTab) {
@@ -727,7 +725,14 @@ class HomeFragment : Fragment() {
                                     },
                                 ).also {
                                     it.updateMenu()
-                                },
+                                }
+                            }
+
+                            HomeNavBar(
+                                isPrivateMode = activity.browsingModeManager.mode.isPrivate,
+                                browserStore = context.components.core.store,
+                                menuButton = menuButton,
+                                tabsCounterMenu = tabCounterMenu,
                                 onSearchButtonClick = {
                                     NavigationBar.homeSearchTapped.record(NoExtras())
                                     val directions =
