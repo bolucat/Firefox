@@ -3378,12 +3378,6 @@
   value: false
   mirror: always
 
-# Is support for Permissions.revoke enabled?
-- name: dom.permissions.revoke.enable
-  type: bool
-  value: false
-  mirror: always
-
 # Is support for Element.requestPointerLock enabled?
 # This is added for accessibility purpose. When user has no way to exit
 # pointer lock (e.g. no keyboard available), they can use this pref to
@@ -10952,11 +10946,7 @@
 # 0 : disabled, 1 : enabled allowed list, 2 : enabled blocked list
 -   name: media.eme.mfcdm.origin-filter.enabled
     type: RelaxedAtomicUint32
-#if defined(NIGHTLY_BUILD)
     value: 0
-#else
-    value: 1
-#endif
     mirror: always
 
 #endif  # MOZ_WMF
@@ -14507,16 +14497,6 @@
 # of FPP overrides
 - name: privacy.fingerprintingProtection.remoteOverrides.enabled
   type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
-# We automatically decline canvas permission requests if they are not initiated
-# from user input. Just in case that breaks something, we allow the user to
-# revert this behavior with this obscure pref. We do not intend to support this
-# long term. If you do set it, to work around some broken website, please file
-# a bug with information so we can understand why it is needed.
-- name: privacy.resistFingerprinting.autoDeclineNoUserInputCanvasPrompts
-  type: bool
   value: true
   mirror: always
 
