@@ -5713,12 +5713,11 @@ RefPtr<OriginUsageMetadataArrayPromise> QuotaManager::GetUsage(
 }
 
 RefPtr<UsageInfoPromise> QuotaManager::GetOriginUsage(
-    const PrincipalInfo& aPrincipalInfo, bool aFromMemory,
-    RefPtr<BoolPromise> aOnCancelPromise) {
+    const PrincipalInfo& aPrincipalInfo, RefPtr<BoolPromise> aOnCancelPromise) {
   AssertIsOnOwningThread();
 
-  auto getOriginUsageOp = CreateGetOriginUsageOp(
-      WrapMovingNotNullUnchecked(this), aPrincipalInfo, aFromMemory);
+  auto getOriginUsageOp =
+      CreateGetOriginUsageOp(WrapMovingNotNullUnchecked(this), aPrincipalInfo);
 
   RegisterNormalOriginOp(*getOriginUsageOp);
 
@@ -5741,6 +5740,20 @@ RefPtr<UsageInfoPromise> QuotaManager::GetOriginUsage(
   }
 
   return getOriginUsageOp->OnResults();
+}
+
+RefPtr<UInt64Promise> QuotaManager::GetCachedOriginUsage(
+    const PrincipalInfo& aPrincipalInfo) {
+  AssertIsOnOwningThread();
+
+  auto getCachedOriginUsageOp = CreateGetCachedOriginUsageOp(
+      WrapMovingNotNullUnchecked(this), aPrincipalInfo);
+
+  RegisterNormalOriginOp(*getCachedOriginUsageOp);
+
+  getCachedOriginUsageOp->RunImmediately();
+
+  return getCachedOriginUsageOp->OnResults();
 }
 
 RefPtr<BoolPromise> QuotaManager::ClearStoragesForOrigin(

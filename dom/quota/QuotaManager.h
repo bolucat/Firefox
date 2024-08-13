@@ -422,8 +422,11 @@ class QuotaManager final : public BackgroundThreadObject {
       bool aGetAll, RefPtr<BoolPromise> aOnCancelPromise = nullptr);
 
   RefPtr<UsageInfoPromise> GetOriginUsage(
-      const PrincipalInfo& aPrincipalInfo, bool aFromMemory,
+      const PrincipalInfo& aPrincipalInfo,
       RefPtr<BoolPromise> aOnCancelPromise = nullptr);
+
+  RefPtr<UInt64Promise> GetCachedOriginUsage(
+      const PrincipalInfo& aPrincipalInfo);
 
   RefPtr<BoolPromise> ClearStoragesForOrigin(
       const Maybe<PersistenceType>& aPersistenceType,
