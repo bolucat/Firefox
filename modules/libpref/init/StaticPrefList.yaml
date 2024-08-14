@@ -8883,12 +8883,6 @@
   value: true
   mirror: always
 
-# Whether we cache inline styles in a document unconditionally or not.
-- name: layout.css.inline-style-caching.always-enabled
-  type: bool
-  value: true
-  mirror: always
-
 # Whether computed local-fragment-only image urls serialize using the same
 # rules as filter/mask/etc (not resolving the URL for local refs).
 #
@@ -12393,14 +12387,6 @@
 - name: network.http.max_response_header_size
   type: RelaxedAtomicUint32
   value: 393216
-  mirror: always
-
-# This preference, if true, causes all UTF-8 domain names to be normalized to
-# punycode.  The intention is to allow UTF-8 domain names as input, but never
-# generate them from punycode.
-- name: network.IDN_show_punycode
-  type: RelaxedAtomicBool
-  value: false
   mirror: always
 
 # If set to true, IOService.offline depends on IOService.connectivity.
