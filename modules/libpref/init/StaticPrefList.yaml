@@ -2319,6 +2319,12 @@
   value: 5
   mirror: once
 
+# Skip the security checks for document.cookie.
+- name: dom.cookie.testing.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 # Disable custom highlight API; implementation pending.
 - name: dom.customHighlightAPI.enabled
   type: RelaxedAtomicBool
@@ -8167,7 +8173,7 @@
 
 -   name: javascript.options.wasm_exnref
     type: bool
-    value: @IS_EARLY_BETA_OR_EARLIER@
+    value: true
     mirror: always
     set_spidermonkey_pref: startup
 
@@ -12023,15 +12029,6 @@
   value: false
   mirror: always
 
-# Whether to allow truncated brotli with empty output. This also fixes
-# throwing an erroring when receiving highly compressed brotli files when
-# no content type is specified (Bug 1715401). This pref can be removed after
-# some time (Bug 1841061)
-- name: network.compress.allow_truncated_empty_brotli
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 # See the full list of values in nsICookieService.idl.
 - name: network.cookie.cookieBehavior
   type: RelaxedAtomicInt32
@@ -12392,6 +12389,13 @@
 - name: network.http.max_response_header_size
   type: RelaxedAtomicUint32
   value: 393216
+  mirror: always
+
+# Treat all Unicode labels as confusable/unsafe so that they show up
+# as Punycode in the UI.
+- name: network.IDN_show_punycode
+  type: RelaxedAtomicBool
+  value: false
   mirror: always
 
 # If set to true, IOService.offline depends on IOService.connectivity.
