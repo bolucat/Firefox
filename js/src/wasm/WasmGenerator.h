@@ -177,6 +177,8 @@ struct CompileTask : public HelperThreadTask {
 
   void runHelperThreadTask(AutoLockHelperThreadState& locked) override;
   ThreadType threadType() override;
+
+  const char* getName() override { return "WasmCompileTask"; }
 };
 
 // A ModuleGenerator encapsulates the creation of a wasm module. During the
@@ -324,9 +326,9 @@ class MOZ_STACK_CLASS ModuleGenerator {
   // it; if that in future gets cleaned up, the parameter should be changed
   // to being SharedModuleMetadata.
 
-  SharedModule finishModule(const ShareableBytes& bytecode,
-                            MutableModuleMetadata moduleMeta,
-                            JS::OptimizedEncodingListener* maybeTier2Listener);
+  SharedModule finishModule(
+      const ShareableBytes& bytecode, MutableModuleMetadata moduleMeta,
+      JS::OptimizedEncodingListener* maybeCompleteTier2Listener);
   [[nodiscard]] bool finishTier2(const Module& module);
   [[nodiscard]] bool finishPartialTier2();
 };

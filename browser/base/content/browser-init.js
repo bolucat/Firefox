@@ -372,7 +372,7 @@ var gBrowserInit = {
     CanvasPermissionPromptHelper.init();
     WebAuthnPromptHelper.init();
 
-    XPCOMUtils.callModulesFromCategory(
+    BrowserUtils.callModulesFromCategory(
       "browser-window-delayed-startup",
       window
     );
@@ -608,6 +608,8 @@ var gBrowserInit = {
     CaptivePortalWatcher.delayedStartup();
 
     ShoppingSidebarManager.ensureInitialized();
+
+    SelectableProfileService?.init();
 
     SessionStore.promiseAllWindowsRestored.then(() => {
       this._schedulePerWindowIdleTasks();
@@ -1020,8 +1022,6 @@ var gBrowserInit = {
 
     TabletModeUpdater.uninit();
 
-    gTabletModePageCounter.finish();
-
     CaptivePortalWatcher.uninit();
 
     SidebarController.uninit();
@@ -1037,6 +1037,8 @@ var gBrowserInit = {
     NewTabPagePreloading.removePreloadedBrowser(window);
 
     FirefoxViewHandler.uninit();
+
+    SelectableProfileService?.uninit();
 
     // Now either cancel delayedStartup, or clean up the services initialized from
     // it.

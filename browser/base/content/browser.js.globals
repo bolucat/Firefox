@@ -68,7 +68,6 @@
   "setToolbarVisibility",
   "updateToggleControlLabel",
   "TabletModeUpdater",
-  "gTabletModePageCounter",
   "displaySecurityInfo",
   "gUIDensity",
   "nodeToTooltipMap",
@@ -273,5 +272,6 @@
   "gFindBarInitialized",
   "gFindBarPromise",
   "BrowserSearch",
-  "PBMExitStatus"
+  "PBMExitStatus",
+  "SelectableProfileService"
 ]

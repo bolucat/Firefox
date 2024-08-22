@@ -16,6 +16,7 @@
 #include <ctime>
 #include "nsHostResolver.h"
 #include "nsError.h"
+#include "nsIOService.h"
 #include "nsISupports.h"
 #include "nsISupportsUtils.h"
 #include "nsIThreadManager.h"
@@ -959,6 +960,10 @@ bool nsHostResolver::TRRServiceEnabledForRecord(nsHostRecord* aRec) {
     return true;
   }
 
+  if (gIOService->InSleepMode()) {
+    aRec->RecordReason(TRRSkippedReason::TRR_SYSTEM_SLEEP_MODE);
+    return false;
+  }
   if (NS_IsOffline()) {
     // If we are in the NOT_CONFIRMED state _because_ we lack connectivity,
     // then we should report that the browser is offline instead.
@@ -2030,20 +2035,13 @@ void nsHostResolver::GetDNSCacheEntries(nsTArray<DNSCacheEntries>* args) {
       continue;
     }
 
-    // For now we only show A/AAAA records.
-    if (!rec->IsAddrRecord()) {
-      continue;
-    }
-
-    RefPtr<AddrHostRecord> addrRec = do_QueryObject(rec);
-    MOZ_ASSERT(addrRec);
-    if (!addrRec || !addrRec->addr_info) {
-      continue;
-    }
-
     DNSCacheEntries info;
+    info.resolveType = rec->type;
     info.hostname = rec->host;
     info.family = rec->af;
+    if (rec->mValidEnd.IsNull()) {
+      continue;
+    }
     info.expiration =
         (int64_t)(rec->mValidEnd - TimeStamp::NowLoRes()).ToSeconds();
     if (info.expiration <= 0) {
@@ -2051,7 +2049,12 @@ void nsHostResolver::GetDNSCacheEntries(nsTArray<DNSCacheEntries>* args) {
       continue;
     }
 
-    {
+    info.originAttributesSuffix = recordEntry.GetKey().originSuffix;
+    info.flags = nsPrintfCString("%u|0x%x|%u|%d|%s", rec->type, rec->flags,
+                                 rec->af, rec->pb, rec->mTrrServer.get());
+
+    RefPtr<AddrHostRecord> addrRec = do_QueryObject(rec);
+    if (addrRec && addrRec->addr_info) {
       MutexAutoLock lock(addrRec->addr_info_lock);
       for (const auto& addr : addrRec->addr_info->Addresses()) {
         char buf[kIPv6CStrBufSize];
@@ -2061,10 +2064,6 @@ void nsHostResolver::GetDNSCacheEntries(nsTArray<DNSCacheEntries>* args) {
       }
       info.TRR = addrRec->addr_info->IsTRR();
     }
-
-    info.originAttributesSuffix = recordEntry.GetKey().originSuffix;
-    info.flags = nsPrintfCString("%u|0x%x|%u|%d|%s", rec->type, rec->flags,
-                                 rec->af, rec->pb, rec->mTrrServer.get());
 
     args->AppendElement(std::move(info));
   }
