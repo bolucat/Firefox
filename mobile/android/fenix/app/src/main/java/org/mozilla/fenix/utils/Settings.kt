@@ -1762,7 +1762,6 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         key = appContext.getPreferenceKey(R.string.pref_key_should_enable_felt_privacy),
         featureFlag = true,
         default = {
-            FxNimbus.features.privateBrowsing.recordExposure()
             FxNimbus.features.privateBrowsing.value().feltPrivacyEnabled
         },
     )
@@ -2179,6 +2178,6 @@ class Settings(private val appContext: Context) : PreferencesHolder {
      */
     var setAsDefaultBrowserPromptForExistingUsersEnabled by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_set_as_default_browser_prompt_enabled),
-        default = false,
+        default = FxNimbus.features.setAsDefaultPrompt.value().enabled,
     )
 }
