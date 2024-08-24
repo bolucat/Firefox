@@ -210,6 +210,8 @@ class nsHttpChannel final : public HttpBaseChannel,
       WebTransportSessionEventListener* aListener) override;
   NS_IMETHOD SetResponseOverride(
       nsIReplacedHttpResponse* aReplacedHttpResponse) override;
+  NS_IMETHOD SetResponseStatus(uint32_t aStatus,
+                               const nsACString& aStatusText) override;
 
   void SetWarningReporter(HttpChannelSecurityWarningReporter* aReporter);
   HttpChannelSecurityWarningReporter* GetWarningReporter();
@@ -485,10 +487,8 @@ class nsHttpChannel final : public HttpBaseChannel,
            rv == NS_ERROR_PORT_ACCESS_NOT_ALLOWED;
   }
 
-  // Report net vs cache time telemetry
-  void ReportNetVSCacheTelemetry();
-  int64_t ComputeTelemetryBucketNumber(int64_t difftime_ms);
-
+  // Report telemetry for system principal request success rate
+  void ReportSystemChannelTelemetry(nsresult status);
   // Report telemetry and stats to about:networking
   void ReportRcwnStats(bool isFromNet);
 

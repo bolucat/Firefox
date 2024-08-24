@@ -8268,8 +8268,6 @@ nsHttpChannel::OnStopRequest(nsIRequest* request, nsresult status) {
 
   if (LoadTimingEnabled() && request == mCachePump) {
     mCacheReadEnd = TimeStamp::Now();
-
-    ReportNetVSCacheTelemetry();
   }
 
   // allow content to be cached if it was loaded successfully (bug #482935)
@@ -8278,6 +8276,10 @@ nsHttpChannel::OnStopRequest(nsIRequest* request, nsresult status) {
   // honor the cancelation status even if the underlying transaction
   // completed.
   if (mCanceled || NS_FAILED(mStatus)) status = mStatus;
+
+  if (mLoadInfo->TriggeringPrincipal()->IsSystemPrincipal()) {
+    ReportSystemChannelTelemetry(status);
+  }
 
   if (LoadCachedContentIsPartial()) {
     if (NS_SUCCEEDED(status)) {
@@ -10219,142 +10221,95 @@ void nsHttpChannel::ReportRcwnStats(bool isFromNet) {
   gIOService->IncrementRequestNumber();
 }
 
-static const size_t kPositiveBucketNumbers = 34;
-static const int64_t kPositiveBucketLevels[kPositiveBucketNumbers] = {
-    0,    10,   20,   30,   40,    50,    60,    70,    80,    90,   100,  200,
-    300,  400,  500,  600,  700,   800,   900,   1000,  2000,  3000, 4000, 5000,
-    6000, 7000, 8000, 9000, 10000, 20000, 30000, 40000, 50000, 60000};
+void nsHttpChannel::ReportSystemChannelTelemetry(nsresult status) {
+  // Use status and httpStatus to determine
+  // if it was successful, and if we had connectivity / offline in this time
+  nsAutoCString domain;
+  mOriginalURI->GetHost(domain);
 
-/**
- * For space efficiency, we collect finer resolution for small difference
- * between net and cache time, coarser for larger.
- * Bucket #40 for a tie.
- * #41 to #50 indicates cache wins by 1ms to 100ms, split equally.
- * #51 to #59 indicates cache wins by 101ms to 1000ms.
- * #60 to #68 indicates cache wins by 1s to 10s.
- * #69 to #73 indicates cache wins by 11s to 60s.
- * #74 indicates cache wins by more than 1 minute.
- *
- * #39 to #30 indicates network wins by 1ms to 100ms, split equally.
- * #29 to #21 indicates network wins by 101ms to 1000ms.
- * #20 to #12 indicates network wins by 1s to 10s.
- * #11 to #7 indicates network wins by 11s to 60s.
- * #6 indicates network wins by more than 1 minute.
- *
- * Other bucket numbers are reserved.
- */
-inline int64_t nsHttpChannel::ComputeTelemetryBucketNumber(
-    int64_t difftime_ms) {
-  int64_t absBucketIndex =
-      std::lower_bound(kPositiveBucketLevels,
-                       kPositiveBucketLevels + kPositiveBucketNumbers,
-                       static_cast<int64_t>(mozilla::Abs(difftime_ms))) -
-      kPositiveBucketLevels;
-
-  return difftime_ms >= 0 ? 40 + absBucketIndex : 40 - absBucketIndex;
-}
-
-void nsHttpChannel::ReportNetVSCacheTelemetry() {
-  nsresult rv;
-  if (!mCacheEntry) {
+  if (!LoadUsedNetwork()) {
+    // We're not really interested in any cached requests.
     return;
   }
 
-  // We only report telemetry if the entry is persistent (on disk)
-  bool persistent;
-  rv = mCacheEntry->GetPersistent(&persistent);
-  if (NS_FAILED(rv) || !persistent) {
+  if (!StringEndsWith(domain, ".mozilla.org"_ns) &&
+      !StringEndsWith(domain, ".mozilla.com"_ns)) {
     return;
   }
 
-  uint64_t onStartNetTime = 0;
-  if (NS_FAILED(mCacheEntry->GetOnStartTime(&onStartNetTime))) {
-    return;
-  }
-
-  uint64_t onStopNetTime = 0;
-  if (NS_FAILED(mCacheEntry->GetOnStopTime(&onStopNetTime))) {
-    return;
-  }
-
-  uint64_t onStartCacheTime =
-      (mOnStartRequestTimestamp - mAsyncOpenTime).ToMilliseconds();
-  int64_t onStartDiff = onStartNetTime - onStartCacheTime;
-  onStartDiff = ComputeTelemetryBucketNumber(onStartDiff);
-
-  uint64_t onStopCacheTime = (mCacheReadEnd - mAsyncOpenTime).ToMilliseconds();
-  int64_t onStopDiff = onStopNetTime - onStopCacheTime;
-  onStopDiff = ComputeTelemetryBucketNumber(onStopDiff);
-
-  if (mDidReval) {
-    Telemetry::Accumulate(Telemetry::HTTP_NET_VS_CACHE_ONSTART_REVALIDATED_V2,
-                          onStartDiff);
-    Telemetry::Accumulate(Telemetry::HTTP_NET_VS_CACHE_ONSTOP_REVALIDATED_V2,
-                          onStopDiff);
-  } else {
-    Telemetry::Accumulate(
-        Telemetry::HTTP_NET_VS_CACHE_ONSTART_NOTREVALIDATED_V2, onStartDiff);
-    Telemetry::Accumulate(Telemetry::HTTP_NET_VS_CACHE_ONSTOP_NOTREVALIDATED_V2,
-                          onStopDiff);
-  }
-
-  if (mDidReval) {
-    // We don't report revalidated probes as the data would be skewed.
-    return;
-  }
-
-  if (mCacheOpenWithPriority) {
-    if (mCacheQueueSizeWhenOpen < 5) {
-      Telemetry::Accumulate(
-          Telemetry::HTTP_NET_VS_CACHE_ONSTART_QSMALL_HIGHPRI_V2, onStartDiff);
-      Telemetry::Accumulate(
-          Telemetry::HTTP_NET_VS_CACHE_ONSTOP_QSMALL_HIGHPRI_V2, onStopDiff);
-    } else if (mCacheQueueSizeWhenOpen < 10) {
-      Telemetry::Accumulate(
-          Telemetry::HTTP_NET_VS_CACHE_ONSTART_QMED_HIGHPRI_V2, onStartDiff);
-      Telemetry::Accumulate(Telemetry::HTTP_NET_VS_CACHE_ONSTOP_QMED_HIGHPRI_V2,
-                            onStopDiff);
-    } else {
-      Telemetry::Accumulate(
-          Telemetry::HTTP_NET_VS_CACHE_ONSTART_QBIG_HIGHPRI_V2, onStartDiff);
-      Telemetry::Accumulate(Telemetry::HTTP_NET_VS_CACHE_ONSTOP_QBIG_HIGHPRI_V2,
-                            onStopDiff);
+  auto hasConnectivity = []() -> bool {
+    if (RefPtr<NetworkConnectivityService> ncs =
+            NetworkConnectivityService::GetSingleton()) {
+      nsINetworkConnectivityService::ConnectivityState state;
+      if (NS_SUCCEEDED(ncs->GetIPv4(&state)) &&
+          state == nsINetworkConnectivityService::NOT_AVAILABLE &&
+          NS_SUCCEEDED(ncs->GetIPv6(&state)) &&
+          state == nsINetworkConnectivityService::NOT_AVAILABLE) {
+        return false;
+      }
     }
-  } else {  // The limits are higher for normal priority cache queues
-    if (mCacheQueueSizeWhenOpen < 10) {
-      Telemetry::Accumulate(
-          Telemetry::HTTP_NET_VS_CACHE_ONSTART_QSMALL_NORMALPRI_V2,
-          onStartDiff);
-      Telemetry::Accumulate(
-          Telemetry::HTTP_NET_VS_CACHE_ONSTOP_QSMALL_NORMALPRI_V2, onStopDiff);
-    } else if (mCacheQueueSizeWhenOpen < 50) {
-      Telemetry::Accumulate(
-          Telemetry::HTTP_NET_VS_CACHE_ONSTART_QMED_NORMALPRI_V2, onStartDiff);
-      Telemetry::Accumulate(
-          Telemetry::HTTP_NET_VS_CACHE_ONSTOP_QMED_NORMALPRI_V2, onStopDiff);
+
+    return true;
+  };
+
+  nsAutoCString label("ok"_ns);
+  if (NS_FAILED(status)) {
+    if (mCanceled) {
+      // The request was cancelled.
+      label = "cancel"_ns;
+    } else if (NS_IsOffline()) {
+      // The error occured while all interfaces are offline
+      label = "offline"_ns;
+    } else if (!hasConnectivity()) {
+      // The error occured while the browser didn't have connectivity
+      label = "connectivity"_ns;
+    } else if (status == NS_ERROR_UNKNOWN_HOST) {
+      // The failure was a DNS error
+      label = "dns"_ns;
+    } else if (NS_ERROR_GET_MODULE(status) == NS_ERROR_MODULE_SECURITY) {
+      // The error was due to TLS
+      label = "tls_fail"_ns;
+    } else if (status == NS_ERROR_NET_RESET) {
+      label = "reset"_ns;
+    } else if (status == NS_ERROR_NET_TIMEOUT) {
+      label = "timeout"_ns;
+    } else if (status == NS_ERROR_CONNECTION_REFUSED) {
+      label = "refused"_ns;
+    } else if (status == NS_ERROR_NET_PARTIAL_TRANSFER) {
+      label = "partial"_ns;
     } else {
-      Telemetry::Accumulate(
-          Telemetry::HTTP_NET_VS_CACHE_ONSTART_QBIG_NORMALPRI_V2, onStartDiff);
-      Telemetry::Accumulate(
-          Telemetry::HTTP_NET_VS_CACHE_ONSTOP_QBIG_NORMALPRI_V2, onStopDiff);
+      // Unspecified error. If this bucket is too big we might add other labels.
+      label = "other"_ns;
     }
+  } else if (mResponseHead && mResponseHead->Status() / 100 != 2) {
+    // There was no channel error, but the server responded with a non-2XX
+    // status code.
+    label = "http_status";
   }
 
-  uint32_t diskStorageSizeK = 0;
-  rv = mCacheEntry->GetDiskStorageSizeInKB(&diskStorageSizeK);
-  if (NS_FAILED(rv)) {
+  if (StringEndsWith(domain, ".addons.mozilla.org"_ns)) {
+    mozilla::glean::network::system_channel_addon_status.Get(label).Add(1);
     return;
   }
 
-  // No significant difference was observed between different sizes for
-  // |onStartDiff|
-  if (diskStorageSizeK < 256) {
-    Telemetry::Accumulate(Telemetry::HTTP_NET_VS_CACHE_ONSTOP_SMALL_V2,
-                          onStopDiff);
-  } else {
-    Telemetry::Accumulate(Telemetry::HTTP_NET_VS_CACHE_ONSTOP_LARGE_V2,
-                          onStopDiff);
+  if (domain == "aus5.mozilla.org"_ns) {
+    mozilla::glean::network::system_channel_update_status.Get(label).Add(1);
+    return;
   }
+
+  if (domain == "firefox.settings.services.mozilla.com"_ns) {
+    mozilla::glean::network::system_channel_remote_settings_status.Get(label)
+        .Add(1);
+    return;
+  }
+
+  if (domain == "incoming.telemetry.mozilla.com"_ns) {
+    mozilla::glean::network::system_channel_telemetry_status.Get(label).Add(1);
+    return;
+  }
+
+  // Not one of the probes we recorded earlier.
+  mozilla::glean::network::system_channel_other_status.Get(label).Add(1);
 }
 
 NS_IMETHODIMP
@@ -11019,6 +10974,23 @@ NS_IMETHODIMP nsHttpChannel::SetResponseOverride(
   mOverrideResponse = new nsMainThreadPtrHolder<nsIReplacedHttpResponse>(
       "nsIReplacedHttpResponse", aReplacedHttpResponse);
   return NS_OK;
+}
+
+NS_IMETHODIMP nsHttpChannel::SetResponseStatus(uint32_t aStatus,
+                                               const nsACString& aStatusText) {
+  if (!mResponseHead) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
+  nsAutoCString statusText(aStatusText);
+  nsAutoCString protocolVersion(
+      nsHttp::GetProtocolVersion(mResponseHead->Version()));
+  ToUpperCase(protocolVersion);
+
+  nsPrintfCString line("%s %u %s", protocolVersion.get(), aStatus,
+                       statusText.get());
+
+  return mResponseHead->ParseStatusLine(line);
 }
 
 NS_IMETHODIMP nsHttpChannel::SetWebTransportSessionEventListener(

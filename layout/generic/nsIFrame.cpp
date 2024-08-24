@@ -609,7 +609,7 @@ void nsIFrame::Init(nsIContent* aContent, nsContainerFrame* aParent,
 
   mContent = aContent;
   mParent = aParent;
-  MOZ_DIAGNOSTIC_ASSERT(!mParent || PresShell() == mParent->PresShell());
+  MOZ_ASSERT(!mParent || PresShell() == mParent->PresShell());
 
   if (aPrevInFlow) {
     mWritingMode = aPrevInFlow->GetWritingMode();
@@ -6493,8 +6493,8 @@ nsIFrame::SizeComputationResult nsIFrame::ComputeSize(
                              aWM, aCBSize, boxSizingAdjust,
                              maxBSizeCoord.AsLengthPercentage(), aspectRatio);
 
-    result.ISize(aWM) = NS_CSS_MINMAX(result.ISize(aWM), transferredMinISize,
-                                      transferredMaxISize);
+    result.ISize(aWM) =
+        CSSMinMax(result.ISize(aWM), transferredMinISize, transferredMaxISize);
   }
 
   // Flex items ignore their min & max sizing properties in their
@@ -11096,7 +11096,7 @@ void nsIFrame::SetParent(nsContainerFrame* aParent) {
 
   // Note that the current mParent may already be destroyed at this point.
   mParent = aParent;
-  MOZ_DIAGNOSTIC_ASSERT(!mParent || PresShell() == mParent->PresShell());
+  MOZ_ASSERT(!mParent || PresShell() == mParent->PresShell());
 
   if (HasAnyStateBits(NS_FRAME_HAS_VIEW | NS_FRAME_HAS_CHILD_WITH_VIEW)) {
     for (nsIFrame* f = aParent;
