@@ -2923,6 +2923,11 @@
   value: 8
   mirror: always
 
+- name: dom.interactive_widget_default_resizes_visual
+  type: bool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+
 # How often to check for CPOW timeouts (ms). CPOWs are only timed
 # out by the hang monitor.
 - name: dom.ipc.cpow.timeout
@@ -4297,7 +4302,7 @@
 
 - name: dom.text_fragments.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
   rust: true
 
@@ -12085,7 +12090,7 @@
 # Whether to support CHIPS(Cookies Having Independent Partitioned State).
 - name: network.cookie.CHIPS.enabled
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Stale threshold for cookies in seconds.
