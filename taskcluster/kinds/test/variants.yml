@@ -119,7 +119,7 @@ geckoview-fission-isolate-high-value:
 no-fission:
     description: "{description} without fission enabled"
     component: "Core::DOM: Content Processes"
-    expiration: "2024-09-01"
+    expiration: "2025-03-01"
     suffix: "nofis"
     mozinfo: "fission"
     when:
@@ -135,7 +135,7 @@ no-fission:
 geckoview-no-fission-ship:
     description: "{description} with fission disabled and ship enabled"
     component: "GeckoView::Sandboxing"
-    expiration: "2024-09-01"
+    expiration: "2025-03-01"
     suffix: "nofis-ship"
     when:
         <<: *gv_e10s_filter
@@ -193,6 +193,21 @@ conditioned_profile:
                 - "--conditioned-profile"
     replace:
         chunks: 8
+
+cm6:
+    description: "{description} with codemirror 6 enabled"
+    component: "DevTools::Framework"
+    expiration: "2025-03-01"
+    suffix: "cm6"
+    mozinfo: "cm6"
+    replace:
+        tier: 3
+    when:
+        $eval: '"mochitest-devtools-chrome" == task["try-name"]'
+    merge:
+        mozharness:
+            extra-options:
+                - "--setpref=devtools.debugger.features.codemirror-next=true"
 
 socketprocess:
     description: "{description} with socket process enabled"

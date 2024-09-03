@@ -262,6 +262,9 @@ var SidebarController = {
   },
 
   async init() {
+    // Initialize with side effects
+    this.SidebarManager;
+
     this._box = document.getElementById("sidebar-box");
     this._splitter = document.getElementById("sidebar-splitter");
     this._reversePositionButton = document.getElementById(
@@ -528,14 +531,14 @@ var SidebarController = {
     let sidebarContainer = document.getElementById("sidebar-main");
     let sidebarMain = document.querySelector("sidebar-main");
     if (!this._positionStart) {
-      // DOM ordering is:     sidebar-main |  sidebar-box  | splitter |   appcontent  |
-      // Want to display as:  |   appcontent  | splitter |  sidebar-box  | sidebar-main
-      // So we just swap box and appcontent ordering and move sidebar-main to the end
-      let appcontent = document.getElementById("appcontent");
+      // DOM ordering is:     sidebar-main |  sidebar-box  | splitter | tabbrowser-tabbox |
+      // Want to display as:  |   tabbrowser-tabbox  | splitter |  sidebar-box  | sidebar-main
+      // So we just swap box and tabbrowser-tabbox ordering and move sidebar-main to the end
+      let tabbox = document.getElementById("tabbrowser-tabbox");
       let boxOrdinal = this._box.style.order;
-      this._box.style.order = appcontent.style.order;
+      this._box.style.order = tabbox.style.order;
 
-      appcontent.style.order = boxOrdinal;
+      tabbox.style.order = boxOrdinal;
       // the launcher should be on the right of the sidebar-box
       sidebarContainer.style.order = parseInt(this._box.style.order) + 1;
       // Indicate we've switched ordering to the box
@@ -1549,6 +1552,10 @@ var SidebarController = {
     verticalTabs.toggleAttribute("visible", this.sidebarVerticalTabsEnabled);
   },
 };
+
+ChromeUtils.defineESModuleGetters(SidebarController, {
+  SidebarManager: "resource:///modules/SidebarManager.sys.mjs",
+});
 
 // Add getters related to the position here, since we will want them
 // available for both startDelayedLoad and init.

@@ -5205,6 +5205,10 @@ bool nsContentUtils::HasNonEmptyAttr(const nsIContent* aContent,
 bool nsContentUtils::WantMutationEvents(nsINode* aNode, uint32_t aType,
                                         nsINode* aTargetForSubtreeModified) {
   Document* doc = aNode->OwnerDoc();
+  if (!doc->MutationEventsEnabled()) {
+    return false;
+  }
+
   if (!doc->FireMutationEvents()) {
     return false;
   }
@@ -8036,6 +8040,20 @@ bool nsContentUtils::IsJavascriptMIMEType(const nsACString& aMIMEType) {
     }
   }
   return false;
+}
+
+bool nsContentUtils::IsJsonMimeType(const nsAString& aMimeType) {
+  // Table ordered from most to least likely JSON MIME types.
+  static constexpr std::string_view jsonTypes[] = {"application/json",
+                                                   "text/json"};
+
+  for (std::string_view type : jsonTypes) {
+    if (aMimeType.LowerCaseEqualsASCII(type.data(), type.length())) {
+      return true;
+    }
+  }
+
+  return StringEndsWith(aMimeType, u"+json"_ns);
 }
 
 bool nsContentUtils::PrefetchPreloadEnabled(nsIDocShell* aDocShell) {
@@ -11283,13 +11301,13 @@ bool nsContentUtils::IsURIInList(nsIURI* aURI, const nsCString& aList) {
     return false;
   }
 
-  nsAutoCString scheme;
-  aURI->GetScheme(scheme);
-  if (!scheme.EqualsLiteral("http") && !scheme.EqualsLiteral("https")) {
+  if (aList.IsEmpty()) {
     return false;
   }
 
-  if (aList.IsEmpty()) {
+  nsAutoCString scheme;
+  aURI->GetScheme(scheme);
+  if (!scheme.EqualsLiteral("http") && !scheme.EqualsLiteral("https")) {
     return false;
   }
 
