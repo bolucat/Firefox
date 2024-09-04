@@ -21913,8 +21913,8 @@ void CodeGenerator::visitMapObjectGetBigInt(LMapObjectGetBigInt* ins) {
 }
 
 void CodeGenerator::visitMapObjectGetValue(LMapObjectGetValue* ins) {
-  Register mapObj = ToRegister(ins->mapObject());
-  ValueOperand input = ToValue(ins, LMapObjectGetValue::InputIndex);
+  Register mapObj = ToRegister(ins->map());
+  ValueOperand input = ToValue(ins, LMapObjectGetValue::ValueIndex);
   Register hash = ToRegister(ins->hash());
   Register temp0 = ToRegister(ins->temp0());
   Register temp1 = ToRegister(ins->temp1());
@@ -22159,6 +22159,49 @@ void CodeGenerator::visitWasmI31RefGet(LWasmI31RefGet* lir) {
     masm.convertWasmI31RefTo32Unsigned(value, output);
   }
 }
+
+#ifdef ENABLE_EXPLICIT_RESOURCE_MANAGEMENT
+void CodeGenerator::visitAddDisposableResource(LAddDisposableResource* lir) {
+  Register environment = ToRegister(lir->environment());
+  ValueOperand resource = ToValue(lir, LAddDisposableResource::ResourceIndex);
+  ValueOperand method = ToValue(lir, LAddDisposableResource::MethodIndex);
+  Register needsClosure = ToRegister(lir->needsClosure());
+  uint8_t hint = lir->hint();
+
+  pushArg(Imm32(hint));
+  pushArg(needsClosure);
+  pushArg(method);
+  pushArg(resource);
+  pushArg(environment);
+
+  using Fn = bool (*)(JSContext*, JS::Handle<JSObject*>, JS::Handle<JS::Value>,
+                      JS::Handle<JS::Value>, bool, UsingHint);
+  callVM<Fn, js::AddDisposableResourceToCapability>(lir);
+}
+
+void CodeGenerator::visitTakeDisposeCapability(LTakeDisposeCapability* lir) {
+  Register environment = ToRegister(lir->environment());
+  ValueOperand output = ToOutValue(lir);
+
+  Address capabilityAddr(
+      environment, DisposableEnvironmentObject::offsetOfDisposeCapability());
+  masm.loadValue(capabilityAddr, output);
+  masm.storeValue(JS::UndefinedValue(), capabilityAddr);
+}
+
+void CodeGenerator::visitCreateSuppressedError(LCreateSuppressedError* lir) {
+  ValueOperand error = ToValue(lir, LCreateSuppressedError::ErrorIndex);
+  ValueOperand suppressed =
+      ToValue(lir, LCreateSuppressedError::SuppressedIndex);
+
+  pushArg(suppressed);
+  pushArg(error);
+
+  using Fn = ErrorObject* (*)(JSContext*, JS::Handle<JS::Value>,
+                              JS::Handle<JS::Value>);
+  callVM<Fn, js::CreateSuppressedError>(lir);
+}
+#endif
 
 #ifdef FUZZING_JS_FUZZILLI
 void CodeGenerator::emitFuzzilliHashObject(LInstruction* lir, Register obj,

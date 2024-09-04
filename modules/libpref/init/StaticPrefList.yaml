@@ -329,7 +329,7 @@
 
 -   name: android.touch_resampling.enabled
     type: RelaxedAtomicBool
-    value: true
+    value: false
     mirror: always
 
 #endif
@@ -4458,6 +4458,7 @@
   type: RelaxedAtomicBool
   value: false
   mirror: always
+  rust: true
 
 # Is support for WebVR APIs enabled?
 # Disabled everywhere, but not removed.
@@ -8073,13 +8074,11 @@
     set_spidermonkey_pref: startup
 #endif  // NIGHTLY_BUILD
 
-#ifdef ENABLE_JSON_PARSE_WITH_SOURCE
 -   name: javascript.options.experimental.json_parse_with_source
     type: bool
-    value: false
+    value: true
     mirror: always
     set_spidermonkey_pref: always
-#endif  // ENABLE_JSON_PARSE_WITH_SOURCE
 
 - name: javascript.options.wasm_caching
   type: bool
@@ -15473,7 +15472,11 @@
 # 1: Only collect telemetry. CT qualification checks are not performed.
 - name: security.pki.certificate_transparency.mode
   type: RelaxedAtomicUint32
+#ifdef NIGHTLY_BUILD
+  value: 1
+#else
   value: 0
+#endif
   mirror: always
 
 # 0: Disable CRLite entirely.
@@ -16484,9 +16487,9 @@
   value: true
   mirror: always
 
-- name: webgl.colorspaces.prototype
+- name: webgl.drawing_buffer_color_space
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 - name: webgl.debug.incomplete-tex-color
