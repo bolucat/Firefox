@@ -4460,6 +4460,14 @@
   mirror: always
   rust: true
 
+# Timeout for view transitions.
+# TODO(emilio): Figure out the right time-out, Blink uses between 4 and 15
+# seconds.
+- name: dom.viewTransitions.timeout-ms
+  type: uint32_t
+  value: 10000
+  mirror: always
+
 # Is support for WebVR APIs enabled?
 # Disabled everywhere, but not removed.
 - name: dom.vr.enabled
@@ -12252,7 +12260,7 @@
 # false=allow onion referer, true=hide onion referer (use empty referer).
 - name: network.http.referer.hideOnionSource
   type: bool
-  value: false
+  value: true
   mirror: always
 
 # Include an origin header on non-GET and non-HEAD requests regardless of CORS.
@@ -12406,22 +12414,6 @@
 - name: network.http.network_error_logging.enabled
   type: RelaxedAtomicBool
   value: false
-  mirror: always
-
-# Hard code the User-Agent string's CPU architecture. This pref can be removed
-# after we're confident there are no webcompat problems.
-#
-# Enable for:
-# * Android (any architecture)
-# * Linux (any architecture)
-# * Other Unix-like platforms except macOS (any architecture)
-- name: network.http.useragent.freezeCpu
-  type: bool
-#if defined(XP_UNIX) && !defined(XP_MACOSX)
-  value: true
-#else
-  value: false
-#endif
   mirror: always
 
 # Whether or not we use Windows for SSO to Microsoft sites.

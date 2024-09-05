@@ -65,7 +65,6 @@ class TenuredChunk;
   _("smallHeapIncrementalLimit", JSGC_SMALL_HEAP_INCREMENTAL_LIMIT, true)   \
   _("largeHeapIncrementalLimit", JSGC_LARGE_HEAP_INCREMENTAL_LIMIT, true)   \
   _("minEmptyChunkCount", JSGC_MIN_EMPTY_CHUNK_COUNT, true)                 \
-  _("maxEmptyChunkCount", JSGC_MAX_EMPTY_CHUNK_COUNT, true)                 \
   _("compactingEnabled", JSGC_COMPACTING_ENABLED, true)                     \
   _("nurseryEnabled", JSGC_NURSERY_ENABLED, true)                           \
   _("parallelMarkingEnabled", JSGC_PARALLEL_MARKING_ENABLED, true)          \
@@ -88,7 +87,8 @@ class TenuredChunk;
   _("markingThreadCount", JSGC_MARKING_THREAD_COUNT, false)                 \
   _("systemPageSizeKB", JSGC_SYSTEM_PAGE_SIZE_KB, false)                    \
   _("semispaceNurseryEnabled", JSGC_SEMISPACE_NURSERY_ENABLED, true)        \
-  _("generateMissingAllocSites", JSGC_GENERATE_MISSING_ALLOC_SITES, true)
+  _("generateMissingAllocSites", JSGC_GENERATE_MISSING_ALLOC_SITES, true)   \
+  _("highFrequencyMode", JSGC_HIGH_FREQUENCY_MODE, false)
 
 // Get the key and writability give a GC parameter name.
 extern bool GetGCParameterInfo(const char* name, JSGCParamKey* keyOut,

@@ -4461,15 +4461,6 @@ void CodeGenerator::visitGuardShape(LGuardShape* guard) {
 
 void CodeGenerator::visitGuardFuse(LGuardFuse* guard) {
   auto fuseIndex = guard->mir()->fuseIndex();
-  switch (fuseIndex) {
-    case RealmFuses::FuseIndex::OptimizeGetIteratorFuse:
-      addOptimizeGetIteratorFuseDependency();
-      return;
-    default:
-      // validateAndRegisterFuseDependencies doesn't have
-      // handling for this yet, actively check fuse instead.
-      break;
-  }
 
   Register temp = ToRegister(guard->temp0());
   Label bail;
@@ -9670,7 +9661,8 @@ void CodeGenerator::visitWasmCall(LWasmCall* lir) {
 
   // Note the assembler offset and framePushed for use by the adjunct
   // LSafePoint, see visitor for LWasmCallIndirectAdjunctSafepoint below.
-  if (callee.which() == wasm::CalleeDesc::WasmTable) {
+  if (callee.which() == wasm::CalleeDesc::WasmTable ||
+      callee.which() == wasm::CalleeDesc::FuncRef) {
     lir->adjunctSafepoint()->recordSafepointInfo(secondRetOffset,
                                                  framePushedAtStackMapBase);
   }
@@ -16736,63 +16728,35 @@ static bool AddInlinedCompilations(JSContext* cx, HandleScript script,
   return true;
 }
 
-void CodeGenerator::validateAndRegisterFuseDependencies(JSContext* cx,
-                                                        HandleScript script,
-                                                        bool* isValid) {
-  // No need to validate as we will toss this compilation anyhow.
-  if (!*isValid) {
-    return;
+struct EmulatesUndefinedDependency final : public CompilationDependency {
+  CompileRuntime* runtime;
+  explicit EmulatesUndefinedDependency(CompileRuntime* runtime)
+      : CompilationDependency(CompilationDependency::Type::EmulatesUndefined),
+        runtime(runtime) {};
+
+  virtual bool operator==(CompilationDependency& dep) {
+    // Since the emulates undefined fuse is runtime wide, they are all equal
+    return dep.type == type;
   }
 
-  for (auto dependency : fuseDependencies) {
-    switch (dependency) {
-      case FuseDependencyKind::HasSeenObjectEmulateUndefinedFuse: {
-        auto& hasSeenObjectEmulateUndefinedFuse =
-            cx->runtime()->hasSeenObjectEmulateUndefinedFuse.ref();
-
-        if (!hasSeenObjectEmulateUndefinedFuse.intact()) {
-          JitSpew(JitSpew_Codegen,
-                  "tossing compilation; hasSeenObjectEmulateUndefinedFuse fuse "
-                  "dependency no longer valid\n");
-          *isValid = false;
-          return;
-        }
-
-        if (!hasSeenObjectEmulateUndefinedFuse.addFuseDependency(cx, script)) {
-          JitSpew(JitSpew_Codegen,
-                  "tossing compilation; failed to register "
-                  "hasSeenObjectEmulateUndefinedFuse script dependency\n");
-          *isValid = false;
-          return;
-        }
-        break;
-      }
-
-      case FuseDependencyKind::OptimizeGetIteratorFuse: {
-        auto& optimizeGetIteratorFuse =
-            cx->realm()->realmFuses.optimizeGetIteratorFuse;
-        if (!optimizeGetIteratorFuse.intact()) {
-          JitSpew(JitSpew_Codegen,
-                  "tossing compilation; optimizeGetIteratorFuse fuse "
-                  "dependency no longer valid\n");
-          *isValid = false;
-          return;
-        }
-
-        if (!optimizeGetIteratorFuse.addFuseDependency(cx, script)) {
-          JitSpew(JitSpew_Codegen,
-                  "tossing compilation; failed to register "
-                  "optimizeGetIteratorFuse script dependency\n");
-          *isValid = false;
-          return;
-        }
-        break;
-      }
-
-      default:
-        MOZ_CRASH("Unknown Dependency Kind");
-    }
+  virtual bool checkDependency() {
+    return runtime->hasSeenObjectEmulateUndefinedFuseIntact();
   }
+
+  virtual bool registerDependency(JSContext* cx, HandleScript script) {
+    return cx->runtime()
+        ->hasSeenObjectEmulateUndefinedFuse.ref()
+        .addFuseDependency(cx, script);
+  }
+
+  virtual UniquePtr<CompilationDependency> clone() {
+    return MakeUnique<EmulatesUndefinedDependency>(runtime);
+  }
+};
+
+bool CodeGenerator::addHasSeenObjectEmulateUndefinedFuseDependency() {
+  EmulatesUndefinedDependency dep(gen->runtime);
+  return mirGen().tracker.addDependency(dep);
 }
 
 bool CodeGenerator::link(JSContext* cx, const WarpSnapshot* snapshot) {
@@ -16833,18 +16797,22 @@ bool CodeGenerator::link(JSContext* cx, const WarpSnapshot* snapshot) {
     return false;
   }
 
-  // Validate fuse dependencies here; if a fuse has popped since we registered a
-  // dependency then we need to toss this compilation as it assumes things which
-  // are not valid.
-  //
-  // Eagerly register a fuse dependency here too; this way if we OOM we can
-  // instead simply remove the compilation and move on with our lives.
-  validateAndRegisterFuseDependencies(cx, script, &isValid);
-
   // This compilation is no longer valid; don't proceed, but return true as this
   // isn't an error case either.
   if (!isValid) {
     return true;
+  }
+
+  CompilationDependencyTracker& tracker = mirGen().tracker;
+  if (!tracker.checkDependencies()) {
+    return true;
+  }
+
+  for (auto& dep : tracker.dependencies) {
+    if (!dep->registerDependency(cx, script)) {
+      return false;  // Should we make sure we only return false on OOM and then
+                     // eat the OOM here?
+    }
   }
 
   uint32_t argumentSlots = (gen->outerInfo().nargs() + 1) * sizeof(Value);

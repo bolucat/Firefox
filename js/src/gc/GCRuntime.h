@@ -543,9 +543,6 @@ class GCRuntime {
   double computeHeapGrowthFactor(size_t lastBytes);
   size_t computeTriggerBytes(double growthFactor, size_t lastBytes);
 
-  inline void updateOnFreeArenaAlloc(const TenuredChunkInfo& info);
-  void updateOnArenaFree() { ++numArenasFreeCommitted; }
-
   ChunkPool& fullChunks(const AutoLockGC& lock) { return fullChunks_.ref(); }
   ChunkPool& availableChunks(const AutoLockGC& lock) {
     return availableChunks_.ref();
@@ -566,9 +563,6 @@ class GCRuntime {
   }
   uint32_t minEmptyChunkCount(const AutoLockGC& lock) const {
     return minEmptyChunkCount_;
-  }
-  uint32_t maxEmptyChunkCount(const AutoLockGC& lock) const {
-    return maxEmptyChunkCount_;
   }
 #ifdef DEBUG
   void verifyAllChunks();
@@ -712,7 +706,6 @@ class GCRuntime {
   void freeEmptyChunks(const AutoLockGC& lock);
   void prepareToFreeChunk(TenuredChunkInfo& info);
   void setMinEmptyChunkCount(uint32_t value, const AutoLockGC& lock);
-  void setMaxEmptyChunkCount(uint32_t value, const AutoLockGC& lock);
 
   friend class BackgroundAllocTask;
   bool wantBackgroundAllocation(const AutoLockGC& lock) const;
@@ -1091,7 +1084,6 @@ class GCRuntime {
 
   /*
    * JSGC_MIN_EMPTY_CHUNK_COUNT
-   * JSGC_MAX_EMPTY_CHUNK_COUNT
    *
    * Controls the number of empty chunks reserved for future allocation.
    *
@@ -1099,17 +1091,12 @@ class GCRuntime {
    * background decommit task.
    */
   GCLockData<uint32_t> minEmptyChunkCount_;
-  GCLockData<uint32_t> maxEmptyChunkCount_;
 
   MainThreadData<RootedValueMap> rootsHash;
 
   // An incrementing id used to assign unique ids to cells that require one.
   MainThreadData<uint64_t> nextCellUniqueId_;
 
-  /*
-   * Number of the committed arenas in all GC chunks including empty chunks.
-   */
-  mozilla::Atomic<uint32_t, mozilla::ReleaseAcquire> numArenasFreeCommitted;
   MainThreadData<VerifyPreTracer*> verifyPreData;
 
   MainThreadData<mozilla::TimeStamp> lastGCStartTime_;
