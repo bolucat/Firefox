@@ -353,6 +353,8 @@ export var PlacesUIUtils = {
 
   lastContextMenuTriggerNode: null,
 
+  lastContextMenuCommand: null,
+
   // This allows to await for all the relevant bookmark changes to be applied
   // when a bookmark dialog is closed. It is resolved to the bookmark guid,
   // if a bookmark was created or modified.
@@ -561,6 +563,7 @@ export var PlacesUIUtils = {
   doCommand(win, command) {
     let controller = this.getControllerForCommand(win, command);
     if (controller && controller.isCommandEnabled(command)) {
+      PlacesUIUtils.lastContextMenuCommand = command;
       controller.doCommand(command);
     }
   },
@@ -1405,6 +1408,7 @@ export var PlacesUIUtils = {
 
     if (menupopup.id == "placesContext") {
       PlacesUIUtils.lastContextMenuTriggerNode = null;
+      PlacesUIUtils.lastContextMenuCommand = null;
     }
   },
 
@@ -1414,6 +1418,7 @@ export var PlacesUIUtils = {
   },
 
   openInContainerTab(event) {
+    PlacesUIUtils.lastContextMenuCommand = "placesCmd_open:newcontainertab";
     let userContextId = parseInt(
       event.target.getAttribute("data-usercontextid")
     );
@@ -1628,6 +1633,25 @@ export var PlacesUIUtils = {
       );
     } catch (ex) {
       // Can't setup speculative connection for this url, just ignore it.
+    }
+  },
+
+  /**
+   * Sets up a speculative connection to the target of a
+   * clicked places DOM node on left and middle click.
+   *
+   * @param {event} event the mousedown event.
+   */
+  maybeSpeculativeConnectOnMouseDown(event) {
+    if (
+      event.type == "mousedown" &&
+      event.target._placesNode?.uri &&
+      event.button != 2
+    ) {
+      PlacesUIUtils.setupSpeculativeConnection(
+        event.target._placesNode.uri,
+        event.target.ownerGlobal
+      );
     }
   },
 

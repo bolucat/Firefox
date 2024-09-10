@@ -712,6 +712,10 @@ tab-group {
     border-bottom: .5px solid transparent;
   }
 
+  &[orient="horizontal"] {
+    min-width: 1px;
+  }
+
   &:not([scrolledtostart])::part(overflow-start-indicator) {
     margin-inline: -.5px -6.5px;
   }
@@ -776,7 +780,7 @@ tab-group {
 /* Vertical tabs styling */
 
 #tabbrowser-arrowscrollbox[orient="vertical"] {
-  overflow-y: auto;
+  min-height: 1px;
 
   &::part(scrollbutton-up),
   &::part(scrollbutton-down) {
@@ -990,7 +994,12 @@ toolbar:not(#TabsToolbar) #firefox-view-button {
 /* All tabs button and menupopup */
 
 #alltabs-button {
-  list-style-image: url(chrome://global/skin/icons/arrow-down.svg);
+  list-style-image: url("chrome://browser/content/firefoxview/view-opentabs.svg");
+
+  > .toolbarbutton-badge-stack > .toolbarbutton-icon {
+    width: 20px;
+    margin: -2px;
+  }
 
   #tabbrowser-tabs[hiddensoundplaying] ~ & > .toolbarbutton-badge-stack > .toolbarbutton-badge {
     background: transparent url(chrome://browser/skin/tabbrowser/tab-audio-playing-small.svg);
