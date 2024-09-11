@@ -964,7 +964,9 @@ def validate_tar_member(member, path):
 
 
 class TarFile(tarfile.TarFile):
-    def extract(self, member, path="", set_attrs=True, numeric_owner=False, **kwargs):
+    def _tooltool_do_extract(
+        self, extract, member, path="", set_attrs=True, numeric_owner=False, **kwargs
+    ):
         deferred_links = getattr(self, "_deferred_links", None)
         if not isinstance(member, tarfile.TarInfo):
             member = self.getmember(member)
@@ -993,14 +995,20 @@ class TarFile(tarfile.TarFile):
                     )
             return
 
-        super(TarFile, self).extract(
-            member, path, set_attrs, numeric_owner=numeric_owner, **kwargs
-        )
+        extract(member, path, set_attrs, numeric_owner=numeric_owner, **kwargs)
         if deferred_links is not None:
             for tarinfo, linkpath, numeric_owner in deferred_links.pop(targetpath, []):
                 shutil.copy(targetpath, linkpath)
                 self.chown(tarinfo, linkpath, numeric_owner)
             self._extracted_members.add(targetpath)
+
+    def extract(self, *args, **kwargs):
+        self._tooltool_do_extract(super(TarFile, self).extract, *args, **kwargs)
+
+    # extractall in versions for cpython that implement PEP 706 call _extract_one
+    # instead of extract.
+    def _extract_one(self, *args, **kwargs):
+        self._tooltool_do_extract(super(TarFile, self)._extract_one, *args, **kwargs)
 
     def extractall(self, *args, **kwargs):
         self._deferred_links = {}

@@ -214,7 +214,7 @@ class JSObject
   // declarations (i.e., those defined with "var") are kept.
   //
   // Conceptually, when a var binding is defined, it is defined on the
-  // innermost qualified varobj on the scope chain.
+  // innermost qualified varobj on the environment chain.
   //
   // Function scopes (CallObjects) are qualified varobjs, and there can be
   // no other qualified varobj that is more inner for var bindings in that
@@ -240,7 +240,7 @@ class JSObject
 
   // An "unqualified" varobj is the object on which "unqualified"
   // assignments (i.e., bareword assignments for which the LHS does not
-  // exist on the scope chain) are kept.
+  // exist on the environment chain) are kept.
   inline bool isUnqualifiedVarObj() const;
 
   // Once the "invalidated teleporting" flag is set for an object, it is never
@@ -856,13 +856,13 @@ extern bool ReadPropertyDescriptors(
     JSContext* cx, HandleObject props, bool checkAccessors,
     MutableHandleIdVector ids, MutableHandle<PropertyDescriptorVector> descs);
 
-/* Read the name using a dynamic lookup on the scopeChain. */
+/* Read the name using a dynamic lookup on the envChain. */
 extern bool LookupName(JSContext* cx, Handle<PropertyName*> name,
-                       HandleObject scopeChain, MutableHandleObject objp,
+                       HandleObject envChain, MutableHandleObject objp,
                        MutableHandleObject pobjp, PropertyResult* propp);
 
 extern bool LookupNameNoGC(JSContext* cx, PropertyName* name,
-                           JSObject* scopeChain, JSObject** objp,
+                           JSObject* envChain, JSObject** objp,
                            NativeObject** pobjp, PropertyResult* propp);
 
 /*
@@ -872,22 +872,21 @@ extern bool LookupNameNoGC(JSContext* cx, PropertyName* name,
  * Additionally, pobjp and propp are not needed by callers so they are not
  * returned.
  */
-extern bool LookupNameWithGlobalDefault(JSContext* cx,
-                                        Handle<PropertyName*> name,
-                                        HandleObject scopeChain,
-                                        MutableHandleObject objp);
+extern JSObject* LookupNameWithGlobalDefault(JSContext* cx,
+                                             Handle<PropertyName*> name,
+                                             HandleObject envChain);
 
 /*
  * Like LookupName except returns the unqualified var object if 'name' is not
  * found in any preceding scope. Normally the unqualified var object is the
- * global. If the value for the name in the looked-up scope is an
- * uninitialized lexical, an UninitializedLexicalObject is returned.
+ * global. If the value for the name in the looked-up scope is an uninitialized
+ * lexical, a RuntimeLexicalErrorObject is returned.
  *
  * Additionally, pobjp is not needed by callers so it is not returned.
  */
-extern bool LookupNameUnqualified(JSContext* cx, Handle<PropertyName*> name,
-                                  HandleObject scopeChain,
-                                  MutableHandleObject objp);
+extern JSObject* LookupNameUnqualified(JSContext* cx,
+                                       Handle<PropertyName*> name,
+                                       HandleObject envChain);
 
 }  // namespace js
 

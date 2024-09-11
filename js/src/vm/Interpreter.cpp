@@ -2721,8 +2721,8 @@ bool MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER js::Interpret(JSContext* cx,
       ReservedRooted<PropertyName*> name(&rootName0, script->getName(REGS.pc));
 
       // Assigning to an undeclared name adds a property to the global object.
-      ReservedRooted<JSObject*> env(&rootObject1);
-      if (!LookupNameUnqualified(cx, name, envChain, &env)) {
+      JSObject* env = LookupNameUnqualified(cx, name, envChain);
+      if (!env) {
         goto error;
       }
 
@@ -3007,12 +3007,11 @@ bool MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER js::Interpret(JSContext* cx,
 
     CASE(DelName) {
       ReservedRooted<PropertyName*> name(&rootName0, script->getName(REGS.pc));
-      ReservedRooted<JSObject*> envObj(&rootObject0,
-                                       REGS.fp()->environmentChain());
+      HandleObject envChain = REGS.fp()->environmentChain();
 
       PUSH_BOOLEAN(true);
       MutableHandleValue res = REGS.stackHandleAt(-1);
-      if (!DeleteNameOperation(cx, name, envObj, res)) {
+      if (!DeleteNameOperation(cx, name, envChain, res)) {
         goto error;
       }
     }
@@ -3604,10 +3603,9 @@ bool MOZ_NEVER_INLINE JS_HAZ_JSNATIVE_CALLER js::Interpret(JSContext* cx,
 
     CASE(ImplicitThis) {
       ReservedRooted<PropertyName*> name(&rootName0, script->getName(REGS.pc));
-      ReservedRooted<JSObject*> envObj(&rootObject0,
-                                       REGS.fp()->environmentChain());
-      ReservedRooted<JSObject*> env(&rootObject1);
-      if (!LookupNameWithGlobalDefault(cx, name, envObj, &env)) {
+      HandleObject envChain = REGS.fp()->environmentChain();
+      JSObject* env = LookupNameWithGlobalDefault(cx, name, envChain);
+      if (!env) {
         goto error;
       }
 
@@ -5166,14 +5164,14 @@ bool js::GreaterThanOrEqual(JSContext* cx, MutableHandleValue lhs,
 }
 
 bool js::DeleteNameOperation(JSContext* cx, Handle<PropertyName*> name,
-                             HandleObject scopeObj, MutableHandleValue res) {
-  RootedObject scope(cx), pobj(cx);
+                             HandleObject envChain, MutableHandleValue res) {
+  RootedObject env(cx), pobj(cx);
   PropertyResult prop;
-  if (!LookupName(cx, name, scopeObj, &scope, &pobj, &prop)) {
+  if (!LookupName(cx, name, envChain, &env, &pobj, &prop)) {
     return false;
   }
 
-  if (!scope) {
+  if (!env) {
     // Return true for non-existent names.
     res.setBoolean(true);
     return true;
@@ -5181,7 +5179,7 @@ bool js::DeleteNameOperation(JSContext* cx, Handle<PropertyName*> name,
 
   ObjectOpResult result;
   RootedId id(cx, NameToId(name));
-  if (!DeleteProperty(cx, scope, id, result)) {
+  if (!DeleteProperty(cx, env, id, result)) {
     return false;
   }
 
@@ -5191,8 +5189,8 @@ bool js::DeleteNameOperation(JSContext* cx, Handle<PropertyName*> name,
 #ifndef NIGHTLY_BUILD
   if (status) {
     // Deleting a name from the global object removes it from [[VarNames]].
-    if (pobj == scope && scope->is<GlobalObject>()) {
-      scope->as<GlobalObject>().removeFromVarNames(name);
+    if (pobj == env && env->is<GlobalObject>()) {
+      env->as<GlobalObject>().removeFromVarNames(name);
     }
   }
 #endif
@@ -5200,15 +5198,15 @@ bool js::DeleteNameOperation(JSContext* cx, Handle<PropertyName*> name,
   return true;
 }
 
-bool js::ImplicitThisOperation(JSContext* cx, HandleObject scopeObj,
+bool js::ImplicitThisOperation(JSContext* cx, HandleObject envChain,
                                Handle<PropertyName*> name,
                                MutableHandleValue res) {
-  RootedObject obj(cx);
-  if (!LookupNameWithGlobalDefault(cx, name, scopeObj, &obj)) {
+  JSObject* env = LookupNameWithGlobalDefault(cx, name, envChain);
+  if (!env) {
     return false;
   }
 
-  res.set(ComputeImplicitThis(obj));
+  res.set(ComputeImplicitThis(env));
   return true;
 }
 
