@@ -500,12 +500,15 @@ pref("browser.urlbar.quicksuggest.contextualOptIn.topPosition", true);
 // Whether the quick suggest feature in the urlbar is enabled.
 pref("browser.urlbar.quicksuggest.enabled", false);
 
+// Whether Suggest should be hidden in the settings UI even when enabled.
+pref("browser.urlbar.quicksuggest.hideSettingsUI", false);
+
 // Whether Firefox Suggest will use the new Rust backend instead of the original
 // JS backend.
 pref("browser.urlbar.quicksuggest.rustEnabled", true);
 
 // Whether to show the QuickSuggest onboarding dialog.
-pref("browser.urlbar.quicksuggest.shouldShowOnboardingDialog", true);
+pref("browser.urlbar.quicksuggest.shouldShowOnboardingDialog", false);
 
 // Show QuickSuggest onboarding dialog on the nth browser restarts.
 pref("browser.urlbar.quicksuggest.showOnboardingDialogAfterNRestarts", 0);
@@ -850,9 +853,9 @@ pref("browser.shopping.experience2023.integratedSidebar", false);
 // Spin the cursor while the page is loading
 pref("browser.spin_cursor_while_busy", false);
 
-// Enable display of megalist option in browser sidebar
+// Enable display of contextual-password-manager option in browser sidebar
 // Keep it hidden from about:config for now.
-// pref("browser.megalist.enabled", false);
+// pref("browser.contextual-password-manager.enabled", false);
 
 // Enables the display of the Mozilla VPN banner in private browsing windows
 pref("browser.privatebrowsing.vpnpromourl", "https://vpn.mozilla.org/?utm_source=firefox-browser&utm_medium=firefox-%CHANNEL%-browser&utm_campaign=private-browsing-vpn-link");
@@ -1546,13 +1549,6 @@ pref("browser.bookmarks.editDialog.maxRecentFolders", 7);
 
 #if defined(XP_OPENBSD) && defined(MOZ_SANDBOX)
   pref("security.sandbox.content.level", 1);
-#endif
-
-#if defined(MOZ_CONTENT_TEMP_DIR)
-  // ID (a UUID when set by gecko) that is used to form the name of a
-  // sandbox-writable temporary directory to be used by content processes
-  // when a temporary writable file is required.
-  pref("security.sandbox.content.tempDirSuffix", "");
 #endif
 
 #ifdef XP_WIN

@@ -249,6 +249,9 @@ const PREF_URLBAR_DEFAULTS = new Map([
   // Comma-separated list of Suggest exposure suggestion types to enable.
   ["quicksuggest.exposureSuggestionTypes", ""],
 
+  // Whether Suggest should be hidden in the settings UI even when enabled.
+  ["quicksuggest.hideSettingsUI", false],
+
   // Whether non-sponsored quick suggest results are subject to impression
   // frequency caps. This pref is a fallback for the Nimbus variable
   // `quickSuggestImpressionCapsNonSponsoredEnabled`.
@@ -308,7 +311,7 @@ const PREF_URLBAR_DEFAULTS = new Map([
   ["quicksuggest.seenRestarts", 0],
 
   // Whether to show the quick suggest onboarding dialog.
-  ["quicksuggest.shouldShowOnboardingDialog", true],
+  ["quicksuggest.shouldShowOnboardingDialog", false],
 
   // Whether the user has seen the onboarding dialog.
   ["quicksuggest.showedOnboardingDialog", false],
@@ -327,6 +330,10 @@ const PREF_URLBAR_DEFAULTS = new Map([
 
   // The maximum number of recent searches we will show.
   ["recentsearches.maxResults", 5],
+
+  // Whether keyword exposures should be recorded for results with an
+  // `exposureTelemetry` value other than `NONE`.
+  ["recordKeywordExposures", false],
 
   // When true, URLs in the user's history that look like search result pages
   // are styled to look like search engine results instead of the usual history
@@ -1104,6 +1111,10 @@ class Preferences {
     return {
       history: {
         "quicksuggest.enabled": false,
+        "quicksuggest.dataCollection.enabled": false,
+        "quicksuggest.shouldShowOnboardingDialog": false,
+        "suggest.quicksuggest.nonsponsored": false,
+        "suggest.quicksuggest.sponsored": false,
       },
       offline: {
         "quicksuggest.enabled": true,
@@ -1572,21 +1583,6 @@ class Preferences {
         return nimbusValue === undefined
           ? this.get("autoFill.adaptiveHistory.useCountThreshold")
           : parseFloat(nimbusValue);
-      }
-      case "potentialExposureKeywords": {
-        // Get the keywords array from Nimbus or prefs and convert it to a Set.
-        // If the value comes from Nimbus, it will already be an array. If it
-        // comes from prefs, it should be a stringified array.
-        let value = this._readPref(pref);
-        if (typeof value == "string") {
-          try {
-            value = JSON.parse(value);
-          } catch (e) {}
-        }
-        if (!Array.isArray(value)) {
-          value = null;
-        }
-        return new Set(value);
       }
       case "exposureResults":
       case "quicksuggest.exposureSuggestionTypes":
