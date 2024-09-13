@@ -296,23 +296,9 @@ void nsMathMLmencloseFrame::BuildDisplayList(nsDisplayListBuilder* aBuilder,
 }
 
 /* virtual */
-nsresult nsMathMLmencloseFrame::MeasureForWidth(DrawTarget* aDrawTarget,
-                                                ReflowOutput& aDesiredSize) {
-  PlaceFlags flags(PlaceFlag::IntrinsicSize, PlaceFlag::MeasureOnly);
-  return PlaceInternal(aDrawTarget, flags, aDesiredSize);
-}
-
-/* virtual */
 nsresult nsMathMLmencloseFrame::Place(DrawTarget* aDrawTarget,
                                       const PlaceFlags& aFlags,
                                       ReflowOutput& aDesiredSize) {
-  return PlaceInternal(aDrawTarget, aFlags, aDesiredSize);
-}
-
-/* virtual */
-nsresult nsMathMLmencloseFrame::PlaceInternal(DrawTarget* aDrawTarget,
-                                              const PlaceFlags& aFlags,
-                                              ReflowOutput& aDesiredSize) {
   ///////////////
   // Measure the size of our content using the base class to format like an
   // inferred mrow, without border/padding.
@@ -683,8 +669,13 @@ nscoord nsMathMLmencloseFrame::FixInterFrameSpacing(
 nsresult nsMathMLmencloseFrame::AttributeChanged(int32_t aNameSpaceID,
                                                  nsAtom* aAttribute,
                                                  int32_t aModType) {
-  if (aAttribute == nsGkAtoms::notation_) {
+  if (aNameSpaceID == kNameSpaceID_None && aAttribute == nsGkAtoms::notation_) {
     InitNotations();
+    // TODO(bug 1918308): This was copied from nsMathMLContainerFrame and seems
+    // necessary for some invalidation tests, but we can probably do less.
+    PresShell()->FrameNeedsReflow(
+        this, IntrinsicDirty::FrameAncestorsAndDescendants, NS_FRAME_IS_DIRTY);
+    return NS_OK;
   }
 
   return nsMathMLContainerFrame::AttributeChanged(aNameSpaceID, aAttribute,

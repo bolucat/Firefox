@@ -48,6 +48,7 @@ import org.mozilla.fenix.customtabs.ExternalAppBrowserActivity
 import org.mozilla.fenix.helpers.Constants.PackageName.PIXEL_LAUNCHER
 import org.mozilla.fenix.helpers.Constants.PackageName.YOUTUBE_APP
 import org.mozilla.fenix.helpers.Constants.TAG
+import org.mozilla.fenix.helpers.MatcherHelper.itemWithResId
 import org.mozilla.fenix.helpers.MatcherHelper.itemWithResIdContainingText
 import org.mozilla.fenix.helpers.TestAssetHelper.waitingTime
 import org.mozilla.fenix.helpers.TestAssetHelper.waitingTimeShort
@@ -440,12 +441,12 @@ object AppAndSystemHelper {
 
     // Permission deny dialogs differ on various Android APIs
     fun denyPermission() {
-        Log.i(TAG, "denyPermission: Waiting $waitingTime ms for the \"Deny\" button to exist.")
-        mDevice.findObject(UiSelector().textContains("Deny")).waitForExists(waitingTime)
-        Log.i(TAG, "denyPermission: Waited for $waitingTime ms for the \"Deny\" button to exist.")
-        Log.i(TAG, "denyPermission: Trying to click the \"Deny\" button.")
-        mDevice.findObject(UiSelector().textContains("Deny")).click()
-        Log.i(TAG, "denyPermission: Clicked the \"Deny\" button.")
+        Log.i(TAG, "denyPermission: Waiting $waitingTime ms for the negative camera system permission button to exist.")
+        itemWithResId("com.android.permissioncontroller:id/permission_deny_button").waitForExists(waitingTime)
+        Log.i(TAG, "denyPermission: Waited for $waitingTime ms for the negative camera system permission button to exist.")
+        Log.i(TAG, "denyPermission: Trying to click the negative camera system permission button.")
+        itemWithResId("com.android.permissioncontroller:id/permission_deny_button").click()
+        Log.i(TAG, "denyPermission: Clicked the negative camera system permission button.")
     }
 
     fun isTestLab(): Boolean {
@@ -619,6 +620,20 @@ object AppAndSystemHelper {
             Log.i(TAG, "dismissSetAsDefaulltBrowserOnboardingDialog: Trying to click the \"Cancel\" dialog button.")
             itemWithResIdContainingText("android:id/button2", "Cancel").click()
             Log.i(TAG, "dismissSetAsDefaulltBrowserOnboardingDialog: Clicked the \"Cancel\" dialog button.")
+        }
+    }
+
+    // Prevent or allow the System UI from reading the clipboard content
+    // By preventing, the quick share or nearby share dialog will not be displayed
+    fun allowOrPreventSystemUIFromReadingTheClipboard(allowToReadClipboard: Boolean) {
+        if (allowToReadClipboard) {
+            Log.i(TAG, "allowOrPreventSystemUIFromReadingTheClipboard: Trying to allow the System UI from reading the clipboard content")
+            mDevice.executeShellCommand("appops set com.android.systemui READ_CLIPBOARD allow")
+            Log.i(TAG, "TestSetup: Successfully allowed the System UI from reading the clipboard content")
+        } else {
+            Log.i(TAG, "allowOrPreventSystemUIFromReadingTheClipboard: Trying to prevent the System UI from reading the clipboard content")
+            mDevice.executeShellCommand("appops set com.android.systemui READ_CLIPBOARD deny")
+            Log.i(TAG, "TestSetup: Successfully prevented the System UI from reading the clipboard content")
         }
     }
 
