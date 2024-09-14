@@ -26,6 +26,7 @@ import {
 import AccessibleImage from "../shared/AccessibleImage";
 
 const classnames = require("resource://devtools/client/shared/classnames.js");
+const isOSX = Services.appinfo.OS == "Darwin";
 
 class EventListeners extends Component {
   state = {
@@ -34,6 +35,7 @@ class EventListeners extends Component {
 
   static get propTypes() {
     return {
+      panelKey: PropTypes.string.isRequired,
       activeEventListeners: PropTypes.array.isRequired,
       addEventListenerExpanded: PropTypes.func.isRequired,
       addEventListeners: PropTypes.func.isRequired,
@@ -79,9 +81,9 @@ class EventListeners extends Component {
     } = this.props;
 
     if (expandedCategories.includes(category)) {
-      removeEventListenerExpanded(category);
+      removeEventListenerExpanded(this.props.panelKey, category);
     } else {
-      addEventListenerExpanded(category);
+      addEventListenerExpanded(this.props.panelKey, category);
     }
   }
 
@@ -90,18 +92,76 @@ class EventListeners extends Component {
     const eventsIds = category.events.map(event => event.id);
 
     if (isChecked) {
-      addEventListeners(eventsIds);
+      addEventListeners(this.props.panelKey, eventsIds);
     } else {
-      removeEventListeners(eventsIds);
+      removeEventListeners(this.props.panelKey, eventsIds);
+    }
+  }
+
+  async onCategoryCtrlClick(category) {
+    const {
+      categories,
+      activeEventListeners,
+      addEventListeners,
+      removeEventListeners,
+    } = this.props;
+
+    const eventsIdsToAdd = category.events
+      .map(event => event.id)
+      .filter(id => !activeEventListeners.includes(id));
+    if (eventsIdsToAdd.length) {
+      await addEventListeners(this.props.panelKey, eventsIdsToAdd);
+    }
+
+    const eventsIdsToRemove = [];
+    for (const cat of categories) {
+      if (cat == category) {
+        continue;
+      }
+      for (const event of cat.events) {
+        if (activeEventListeners.includes(event.id)) {
+          eventsIdsToRemove.push(event.id);
+        }
+      }
+    }
+
+    if (eventsIdsToRemove.length) {
+      await removeEventListeners(this.props.panelKey, eventsIdsToRemove);
     }
   }
 
   onEventTypeClick(eventId, isChecked) {
     const { addEventListeners, removeEventListeners } = this.props;
     if (isChecked) {
-      addEventListeners([eventId]);
+      addEventListeners(this.props.panelKey, [eventId]);
     } else {
-      removeEventListeners([eventId]);
+      removeEventListeners(this.props.panelKey, [eventId]);
+    }
+  }
+
+  async onEventTypeCtrlClick(eventId) {
+    const {
+      categories,
+      activeEventListeners,
+      addEventListeners,
+      removeEventListeners,
+    } = this.props;
+
+    if (!activeEventListeners.includes(eventId)) {
+      await addEventListeners(this.props.panelKey, [eventId]);
+    }
+
+    const eventsIdsToRemove = [];
+    for (const cat of categories) {
+      for (const event of cat.events) {
+        if (event.id != eventId && activeEventListeners.includes(event.id)) {
+          eventsIdsToRemove.push(event.id);
+        }
+      }
+    }
+
+    if (eventsIdsToRemove.length) {
+      await removeEventListeners(this.props.panelKey, eventsIdsToRemove);
     }
   }
 
@@ -193,6 +253,15 @@ class EventListeners extends Component {
     return div(
       {
         className: "event-listener-header",
+        onMouseOver: () => {
+          this.props.highlightEventListeners(
+            this.props.panelKey,
+            category.events.map(e => e.id)
+          );
+        },
+        onMouseOut: () => {
+          this.props.highlightEventListeners(this.props.panelKey, []);
+        },
       },
       button(
         {
@@ -208,11 +277,29 @@ class EventListeners extends Component {
       label(
         {
           className: "event-listener-label",
+          onMouseDown: e => {
+            const isAccelKey = (isOSX && e.metaKey) || (!isOSX && e.ctrlKey);
+            if (isAccelKey) {
+              // Hack a non-sense of React.
+              // Even if we prevent default and stop propagation,
+              // React will still trigger the `onChange` handler with the `checked` attribute set to false
+              // which would lead to disable the category we are willing to enable here
+              e.target.ignoreNextChange = true;
+
+              this.onCategoryCtrlClick(category);
+              e.preventDefault();
+              e.stopPropagation();
+            }
+          },
         },
         input({
           type: "checkbox",
           value: category.name,
           onChange: e => {
+            if (e.target.ignoreNextChange) {
+              delete e.target.ignoreNextChange;
+              return;
+            }
             this.onCategoryClick(
               category,
               // Clicking an indeterminate checkbox should always have the
@@ -265,15 +352,40 @@ class EventListeners extends Component {
       {
         className: "event-listener-event",
         key: event.id,
+        onMouseOver: () => {
+          this.props.highlightEventListeners(this.props.panelKey, [event.id]);
+        },
+        onMouseOut: () => {
+          this.props.highlightEventListeners(this.props.panelKey, []);
+        },
       },
       label(
         {
           className: "event-listener-label",
+          onMouseDown: e => {
+            const isAccelKey = (isOSX && e.metaKey) || (!isOSX && e.ctrlKey);
+            if (isAccelKey) {
+              // Hack a non-sense of React.
+              // Even if we prevent default and stop propagation,
+              // React will still trigger the `onChange` handler with the `checked` attribute set to false
+              // which would lead to disable the category we are willing to enable here
+              e.target.ignoreNextChange = true;
+              this.onEventTypeCtrlClick(event.id);
+              e.preventDefault();
+              e.stopPropagation();
+            }
+          },
         },
         input({
           type: "checkbox",
           value: event.id,
-          onChange: e => this.onEventTypeClick(event.id, e.target.checked),
+          onChange: e => {
+            if (e.target.ignoreNextChange) {
+              delete e.target.ignoreNextChange;
+              return;
+            }
+            this.onEventTypeClick(event.id, e.target.checked);
+          },
           checked: activeEventListeners.includes(event.id),
         }),
         span(
@@ -312,10 +424,10 @@ class EventListeners extends Component {
   }
 }
 
-const mapStateToProps = state => ({
-  activeEventListeners: getActiveEventListeners(state),
-  categories: getEventListenerBreakpointTypes(state),
-  expandedCategories: getEventListenerExpanded(state),
+const mapStateToProps = (state, props) => ({
+  categories: getEventListenerBreakpointTypes(state, props.panelKey),
+  activeEventListeners: getActiveEventListeners(state, props.panelKey),
+  expandedCategories: getEventListenerExpanded(state, props.panelKey),
 });
 
 export default connect(mapStateToProps, {
@@ -323,4 +435,5 @@ export default connect(mapStateToProps, {
   removeEventListeners: actions.removeEventListenerBreakpoints,
   addEventListenerExpanded: actions.addEventListenerExpanded,
   removeEventListenerExpanded: actions.removeEventListenerExpanded,
+  highlightEventListeners: actions.highlightEventListeners,
 })(EventListeners);

@@ -17,11 +17,11 @@ GLEAN_EVENT_TEMPLATE = """
     type: event
     description: >
 {multiline_description}
-    bugs: {bugs_alias}{bugs_list}
-    data_reviews: {data_alias}{bugs_list}
-    notification_emails: {emails_alias}{emails_list}
+    bugs:{bugs_alias}{bugs_list}
+    data_reviews:{data_alias}{bugs_list}
+    notification_emails:{emails_alias}{emails_list}
     expires: {expiry}
-    extra_keys: {extra_alias}{extra_keys}
+    extra_keys:{extra_alias}{extra_keys}
     telemetry_mirror: {legacy_enum}
 """.strip(
     "\n"
@@ -54,6 +54,11 @@ def mach_gifft(command_context, telemetry_probe_name):
         command_context.topsrcdir, "toolkit", "components", "telemetry"
     )
 
+    import re
+
+    def to_snake_case(camel):
+        return re.sub("([A-Z]+)", r"_\1", camel).lower().replace("__", "_").strip("_")
+
     import itertools
     import sys
 
@@ -73,7 +78,7 @@ def mach_gifft(command_context, telemetry_probe_name):
             # and object.
             category = e.category
             emails_alias = bugs_alias = data_alias = extra_alias = ""
-            print(f"{category}:")
+            print(f"{to_snake_case(category)}:")
             for m, o in itertools.product(e.methods, e.objects):
                 legacy_name = category + "." + m + "#" + o
                 name = m + "_" + o
@@ -92,11 +97,12 @@ def mach_gifft(command_context, telemetry_probe_name):
                     subsequent_indent=DESCRIPTION_INDENT,
                 )
 
+                alias_prefix = category.replace(".", "_") + f"_{m}_"
                 if bugs_alias:
                     bugs_list = ""
                 else:
-                    bugs_alias = f"{category}_{m}_bugs"
-                    data_alias = f"{category}_{m}_data_reviews"
+                    bugs_alias = f"{alias_prefix}bugs"
+                    data_alias = f"{alias_prefix}data_reviews"
                     bugs_list = "\n" + textwrap.indent(
                         "\n".join(
                             map(
@@ -109,7 +115,7 @@ def mach_gifft(command_context, telemetry_probe_name):
                 if emails_alias:
                     emails_list = ""
                 else:
-                    emails_alias = f"{category}_{m}_emails"
+                    emails_alias = f"{alias_prefix}emails"
                     emails_list = "\n" + textwrap.indent(
                         "\n".join(e._definition.get("notification_emails", [])),
                         LIST_INDENT,
@@ -122,7 +128,7 @@ def mach_gifft(command_context, telemetry_probe_name):
                 if extra_alias:
                     extra_keys = ""
                 else:
-                    extra_alias = f"{category}_{m}_extra"
+                    extra_alias = f"{alias_prefix}extra"
                     multiline_extra_description = textwrap.fill(
                         VALUE_EXTRA_DESCRIPTION,
                         width=80 - len(EXTRA_KEY_DESCRIPTION_INDENT),
@@ -153,13 +159,13 @@ def mach_gifft(command_context, telemetry_probe_name):
                     if len(e.methods) == 1 and len(e.objects) == 1:
                         return ""
                     if list:
-                        return f"&{alias}"
+                        return f" &{alias}"
                     else:
-                        return f"*{alias}"
+                        return f" *{alias}"
 
                 print(
                     GLEAN_EVENT_TEMPLATE.format(
-                        name=name,
+                        name=to_snake_case(name),
                         multiline_description=multiline_description,
                         bugs_alias=generate_alias(bugs_list, bugs_alias),
                         bugs_list=bugs_list,

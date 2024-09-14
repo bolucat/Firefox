@@ -1682,6 +1682,9 @@ void nsFlexContainerFrame::ResolveAutoFlexBasisAndMinSize(
         const nscoord availISize = 0;  // for min-content size
         StyleSizeOverrides sizeOverrides;
         sizeOverrides.mStyleISize.emplace(StyleSize::Auto());
+        if (aFlexItem.IsStretched()) {
+          sizeOverrides.mStyleBSize.emplace(aFlexItem.StyleCrossSize());
+        }
         const auto sizeInItemWM = aFlexItem.Frame()->ComputeSize(
             aItemReflowInput.mRenderingContext, itemWM,
             aItemReflowInput.mContainingBlockSize, availISize,
@@ -2078,11 +2081,6 @@ nscoord nsFlexContainerFrame::MeasureFlexItemContentBSize(
   StyleSizeOverrides sizeOverrides;
   if (aFlexItem.IsStretched()) {
     sizeOverrides.mStyleISize.emplace(aFlexItem.StyleCrossSize());
-    // Suppress any AspectRatio that we might have to prevent ComputeSize() from
-    // transferring our inline-size override through the aspect-ratio to set the
-    // block-size, because that would prevent us from measuring the content
-    // block-size.
-    sizeOverrides.mAspectRatio.emplace(AspectRatio());
     FLEX_LOGV("Cross size override: %d", aFlexItem.CrossSize());
   }
   sizeOverrides.mStyleBSize.emplace(StyleSize::Auto());
