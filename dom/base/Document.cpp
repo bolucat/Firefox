@@ -16810,7 +16810,8 @@ void Document::UpdateIntersections(TimeStamp aNowTime) {
 
 static void UpdateEffectsOnBrowsingContext(BrowsingContext* aBc,
                                            const IntersectionInput& aInput,
-                                           bool aIsHidden) {
+                                           bool aIsHidden,
+                                           bool aIncludeInactive) {
   Element* el = aBc->GetEmbedderElement();
   if (!el) {
     return;
@@ -16819,9 +16820,10 @@ static void UpdateEffectsOnBrowsingContext(BrowsingContext* aBc,
   if (!rb) {
     return;
   }
+  const bool isInactiveTop = aBc->IsTop() && !aBc->IsActive();
   nsSubDocumentFrame* subDocFrame = do_QueryFrame(el->GetPrimaryFrame());
   rb->UpdateEffects([&] {
-    if (aIsHidden || (aBc->IsTop() && !aBc->IsActive())) {
+    if (aIsHidden || isInactiveTop) {
       // Fully hidden if in the background.
       return EffectsInfo::FullyHidden();
     }
@@ -16857,39 +16859,44 @@ static void UpdateEffectsOnBrowsingContext(BrowsingContext* aBc,
     return EffectsInfo::VisibleWithinRect(visibleRect, rasterScale,
                                           transformToAncestorScale);
   }());
-  if (subDocFrame) {
+  if (subDocFrame && (!isInactiveTop || aIncludeInactive)) {
     if (nsFrameLoader* fl = subDocFrame->FrameLoader()) {
-      // TODO(emilio): Consider not doing this for inactive tops? It'd make
-      // janking the browser harder.
       fl->UpdatePositionAndSize(subDocFrame);
     }
   }
 }
 
-void Document::UpdateRemoteFrameEffects() {
+void Document::UpdateRemoteFrameEffects(bool aIncludeInactive) {
   auto margin = DOMIntersectionObserver::LazyLoadingRootMargin();
   const IntersectionInput input = DOMIntersectionObserver::ComputeInput(
       *this, /* aRoot = */ nullptr, &margin);
   const bool hidden = Hidden();
   if (auto* wc = GetWindowContext()) {
     for (const RefPtr<BrowsingContext>& child : wc->Children()) {
-      UpdateEffectsOnBrowsingContext(child, input, hidden);
+      UpdateEffectsOnBrowsingContext(child, input, hidden, aIncludeInactive);
     }
   }
   if (XRE_IsParentProcess()) {
     if (auto* bc = GetBrowsingContext(); bc && bc->IsTop()) {
       bc->Canonical()->CallOnAllTopDescendants(
           [&](CanonicalBrowsingContext* aDescendant) {
-            UpdateEffectsOnBrowsingContext(aDescendant, input, hidden);
+            UpdateEffectsOnBrowsingContext(aDescendant, input, hidden,
+                                           aIncludeInactive);
             return CallState::Continue;
           },
           /* aIncludeNestedBrowsers = */ false);
     }
   }
-  EnumerateSubDocuments([](Document& aDoc) {
-    aDoc.UpdateRemoteFrameEffects();
+  EnumerateSubDocuments([aIncludeInactive](Document& aDoc) {
+    aDoc.UpdateRemoteFrameEffects(aIncludeInactive);
     return CallState::Continue;
   });
+}
+
+void Document::SynchronouslyUpdateRemoteBrowserDimensions(
+    bool aIncludeInactive) {
+  FlushPendingNotifications(FlushType::Layout);
+  UpdateRemoteFrameEffects(aIncludeInactive);
 }
 
 void Document::NotifyIntersectionObservers() {

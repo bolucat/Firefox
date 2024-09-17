@@ -2751,7 +2751,8 @@
       let animate =
         !skipAnimation &&
         !pinned &&
-        this.tabContainer.getAttribute("overflow") != "true" &&
+        !this.tabContainer.verticalMode &&
+        !this.tabContainer.overflowing &&
         !gReduceMotion;
 
       let uriInfo = this._determineURIToLoad(uriString, createLazyBrowser);
@@ -3137,10 +3138,6 @@
         remoteType,
         usingPreloadedContent,
       };
-
-      if (BookmarkingUI.isOnNewTabPage(uri)) {
-        this.getPanel(b).classList.add("newTabBrowserPanel");
-      }
 
       // Hack to ensure that the about:newtab, and about:welcome favicon is loaded
       // instantaneously, to avoid flickering and improve perceived performance.
@@ -4164,6 +4161,7 @@
       }
 
       let lockTabSizing =
+        !this.tabContainer.verticalMode &&
         !aTab.pinned &&
         !aTab.hidden &&
         aTab._fullyOpen &&
@@ -4181,6 +4179,7 @@
         isLastTab ||
         aTab.pinned ||
         aTab.hidden ||
+        this.tabContainer.verticalMode ||
         this._removingTabs.size >
           3 /* don't want lots of concurrent animations */ ||
         !aTab.hasAttribute(
@@ -7232,13 +7231,6 @@
           if (this.mTab.hasAttribute("muted")) {
             this.mTab.linkedBrowser.mute();
           }
-
-          gBrowser
-            .getPanel(this.mBrowser)
-            .classList.toggle(
-              "newTabBrowserPanel",
-              BookmarkingUI.isOnNewTabPage(aLocation)
-            );
 
           if (gBrowser.isFindBarInitialized(this.mTab)) {
             let findBar = gBrowser.getCachedFindBar(this.mTab);
