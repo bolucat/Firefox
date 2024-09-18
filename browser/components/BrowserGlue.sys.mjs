@@ -761,8 +761,11 @@ let JSWINDOWACTORS = {
     },
     child: {
       esModuleURI: "resource:///actors/ProfilesChild.sys.mjs",
+      events: {
+        DOMDocElementInserted: { wantUntrusted: true },
+      },
     },
-    matches: ["about:profilemanager"],
+    matches: ["about:editprofile"],
     enablePreference: "browser.profiles.enabled",
   },
 
@@ -3308,6 +3311,13 @@ BrowserGlue.prototype = {
         condition: Services.prefs.getBoolPref("browser.backup.enabled", false),
         task: () => {
           lazy.BackupService.init();
+        },
+      },
+
+      {
+        name: "SSLKEYLOGFILE telemetry",
+        task: () => {
+          Glean.sslkeylogging.enabled.set(Services.env.exists("SSLKEYLOGFILE"));
         },
       },
 
