@@ -1129,15 +1129,6 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     }
 
     /**
-     * Indicates if the jump back in CRF should be shown.
-     */
-    var shouldShowJumpBackInCFR by lazyFeatureFlagPreference(
-        appContext.getPreferenceKey(R.string.pref_key_should_show_jump_back_in_tabs_popup),
-        featureFlag = true,
-        default = { mr2022Sections[Mr2022Section.JUMP_BACK_IN_CFR] == true },
-    )
-
-    /**
      *  Returns a sitePermissions action for the provided [feature].
      */
     fun getSitePermissionsPhoneFeatureAction(
@@ -1786,14 +1777,6 @@ class Settings(private val appContext: Context) : PreferencesHolder {
      */
     var shouldShowNavigationButtonsCFR by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_toolbar_navigation_cfr),
-        default = true,
-    )
-
-    /**
-     * Indicates if Tablet's navigation address bar buttons CFR should be displayed to the user.
-     */
-    var shouldShowTabletNavigationCFR by booleanPreference(
-        key = appContext.getPreferenceKey(R.string.pref_key_tablet_toolbar_navigation_cfr),
         default = true,
     )
 
