@@ -11,6 +11,7 @@ import "chrome://global/content/elements/moz-radio-group.mjs";
 
 const l10nMap = new Map([
   ["viewGenaiChatSidebar", "sidebar-menu-genai-chat-label"],
+  ["viewReviewCheckerSidebar", "sidebar-menu-review-checker-label"],
   ["viewHistorySidebar", "sidebar-menu-history-label"],
   ["viewTabsSidebar", "sidebar-menu-synced-tabs-label"],
   ["viewBookmarksSidebar", "sidebar-menu-bookmarks-label"],
@@ -129,11 +130,11 @@ export class SidebarCustomize extends SidebarPage {
 
   handleKeydown(e) {
     if (e.code == "ArrowUp") {
-      if (this.activeExtIndex >= 0) {
+      if (this.activeExtIndex > 0) {
         this.focusIndex(this.activeExtIndex - 1);
       }
     } else if (e.code == "ArrowDown") {
-      if (this.activeExtIndex < this.extensionLinks.length) {
+      if (this.activeExtIndex < this.extensionLinks.length - 1) {
         this.focusIndex(this.activeExtIndex + 1);
       }
     } else if (
@@ -164,16 +165,15 @@ export class SidebarCustomize extends SidebarPage {
     return html` <div class="extension-item">
       <img src=${extension.iconUrl} class="icon" role="presentation" />
       <div
-        class="extension-link"
         extensionId=${extension.extensionId}
-        tabindex=${index === this.activeExtIndex ? 0 : -1}
-        role="list-item"
+        role="listitem"
         @click=${() => this.manageAddon(extension.extensionId)}
         @keydown=${this.handleKeydown}
       >
         <a
           href="about:addons"
-          tabindex="-1"
+          class="extension-link"
+          tabindex=${index === this.activeExtIndex ? 0 : -1}
           target="_blank"
           @click=${e => e.preventDefault()}
           >${extension.tooltiptext}

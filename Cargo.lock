@@ -1375,17 +1375,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "derive_common"
-version = "0.0.1"
-dependencies = [
- "darling",
- "proc-macro2",
- "quote",
- "syn",
- "synstructure",
-]
-
-[[package]]
 name = "derive_more"
 version = "0.99.999"
 dependencies = [
@@ -2271,6 +2260,7 @@ dependencies = [
  "fog-gtest",
  "gecko-fuzz-targets",
  "gkrust-shared",
+ "kvstore-gtest",
  "l10nregistry-ffi-gtest",
  "lmdb-rkv-sys",
  "moz_task-gtest",
@@ -3290,6 +3280,7 @@ name = "kvstore"
 version = "0.1.0"
 dependencies = [
  "atomic_refcell",
+ "chrono",
  "crossbeam-utils",
  "cstr",
  "futures",
@@ -3309,6 +3300,16 @@ dependencies = [
  "thin-vec",
  "thiserror",
  "xpcom",
+]
+
+[[package]]
+name = "kvstore-gtest"
+version = "0.1.0"
+dependencies = [
+ "kvstore",
+ "moz_task",
+ "rusqlite",
+ "tempfile",
 ]
 
 [[package]]
@@ -4050,7 +4051,7 @@ checksum = "a2983372caf4480544083767bf2d27defafe32af49ab4df3a0b7fc90793a3664"
 [[package]]
 name = "naga"
 version = "22.0.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=c8beade1877251c494036fc3661b04ec6aad63a9#c8beade1877251c494036fc3661b04ec6aad63a9"
+source = "git+https://github.com/gfx-rs/wgpu?rev=3fda684eb9e69c78b16312a3e927e3ea82e853d1#3fda684eb9e69c78b16312a3e927e3ea82e853d1"
 dependencies = [
  "arrayvec",
  "bit-set",
@@ -5251,7 +5252,7 @@ dependencies = [
 
 [[package]]
 name = "selectors"
-version = "0.22.0"
+version = "0.25.0"
 dependencies = [
  "bitflags 2.6.0",
  "cssparser",
@@ -5402,7 +5403,7 @@ dependencies = [
 
 [[package]]
 name = "servo_arc"
-version = "0.1.1"
+version = "0.4.0"
 dependencies = [
  "stable_deref_trait",
 ]
@@ -5679,7 +5680,6 @@ name = "style_derive"
 version = "0.0.1"
 dependencies = [
  "darling",
- "derive_common",
  "proc-macro2",
  "quote",
  "syn",
@@ -5971,7 +5971,7 @@ dependencies = [
 
 [[package]]
 name = "to_shmem"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "cssparser",
  "servo_arc",
@@ -5982,10 +5982,9 @@ dependencies = [
 
 [[package]]
 name = "to_shmem_derive"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "darling",
- "derive_common",
  "proc-macro2",
  "quote",
  "syn",
@@ -6822,7 +6821,7 @@ dependencies = [
 [[package]]
 name = "wgpu-core"
 version = "22.0.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=c8beade1877251c494036fc3661b04ec6aad63a9#c8beade1877251c494036fc3661b04ec6aad63a9"
+source = "git+https://github.com/gfx-rs/wgpu?rev=3fda684eb9e69c78b16312a3e927e3ea82e853d1#3fda684eb9e69c78b16312a3e927e3ea82e853d1"
 dependencies = [
  "arrayvec",
  "bit-vec",
@@ -6847,7 +6846,7 @@ dependencies = [
 [[package]]
 name = "wgpu-hal"
 version = "22.0.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=c8beade1877251c494036fc3661b04ec6aad63a9#c8beade1877251c494036fc3661b04ec6aad63a9"
+source = "git+https://github.com/gfx-rs/wgpu?rev=3fda684eb9e69c78b16312a3e927e3ea82e853d1#3fda684eb9e69c78b16312a3e927e3ea82e853d1"
 dependencies = [
  "android_system_properties",
  "arrayvec",
@@ -6886,7 +6885,7 @@ dependencies = [
 [[package]]
 name = "wgpu-types"
 version = "22.0.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=c8beade1877251c494036fc3661b04ec6aad63a9#c8beade1877251c494036fc3661b04ec6aad63a9"
+source = "git+https://github.com/gfx-rs/wgpu?rev=3fda684eb9e69c78b16312a3e927e3ea82e853d1#3fda684eb9e69c78b16312a3e927e3ea82e853d1"
 dependencies = [
  "bitflags 2.6.0",
  "js-sys",

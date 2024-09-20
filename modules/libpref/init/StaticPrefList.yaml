@@ -3273,13 +3273,13 @@
 
 # Limit of location change caused by content scripts in a time span per
 # BrowsingContext. This includes calls to History and Location APIs.
-- name: dom.navigation.locationChangeRateLimit.count
+- name: dom.navigation.navigationRateLimit.count
   type: uint32_t
   value: 200
   mirror: always
 
 # Time span in seconds for location change rate limit.
-- name: dom.navigation.locationChangeRateLimit.timespan
+- name: dom.navigation.navigationRateLimit.timespan
   type: uint32_t
   value: 10
   mirror: always
@@ -8319,21 +8319,39 @@
     mirror: always
     set_spidermonkey_pref: startup
 
-- name: javascript.options.wasm_experimental_inline_depth_limit
-  type: uint32_t
-  value: 2
-  mirror: always
-  set_spidermonkey_pref: always
-
-- name: javascript.options.wasm_experimental_inline_size_limit
-  type: uint32_t
-  value: 256
-  mirror: always
-  set_spidermonkey_pref: always
-
 - name: javascript.options.wasm_experimental_inline_call_ref_threshold
   type: uint32_t
   value: 1
+  mirror: always
+  set_spidermonkey_pref: always
+
+# Aggressiveness of lazy tiering, allowable: 1 .. 9
+# 1 = min (almost never, set tiering threshold to max possible, == 2^31-1)
+# 9 = max (request tier up at first call, set tiering threshold to zero)
+- name: javascript.options.wasm_experimental_tiering_level
+  type: uint32_t
+  value: 5
+  mirror: always
+  set_spidermonkey_pref: always
+
+# Aggressiveness of inlining (regardless of call kind), allowable: 1 .. 9
+- name: javascript.options.wasm_experimental_inlining_level
+  type: uint32_t
+  value: 5
+  mirror: always
+  set_spidermonkey_pref: always
+
+# Are wasm direct calls (within same Instance) candidates for inlining?
+- name: javascript.options.wasm_experimental_direct_inlining
+  type: bool
+  value: true
+  mirror: always
+  set_spidermonkey_pref: always
+
+# Are wasm callRef calls (within same Instance) candidates for inlining?
+- name: javascript.options.wasm_experimental_callRef_inlining
+  type: bool
+  value: true
   mirror: always
   set_spidermonkey_pref: always
 
@@ -10875,11 +10893,7 @@
 # 2 : enable for encrypted only, 3 : enable for clear only
 -   name: media.wmf.media-engine.enabled
     type: RelaxedAtomicUint32
-#if defined(MOZ_DEV_EDITION) || defined(EARLY_BETA_OR_EARLIER)
     value: 2
-#else
-    value: 0
-#endif
     mirror: always
 
 # Testing purpose, enable media engine on channel decoder as well.
@@ -10929,11 +10943,7 @@
 # Enable PlayReady DRM for EME
 -   name: media.eme.playready.enabled
     type: RelaxedAtomicBool
-#if defined(MOZ_WMF_CDM)
-    value: @IS_DEV_EDITION_OR_EARLY_BETA_OR_EARLIER@
-#else
-    value: false
-#endif
+    value: true
     mirror: always
 
 # Use IsTypeSupportedEx for PlayReady
@@ -10949,10 +10959,8 @@
     type: RelaxedAtomicUint32
 #if defined(NIGHTLY_BUILD)
     value: 1
-#elif defined(MOZ_DEV_EDITION) || defined(EARLY_BETA_OR_EARLIER)
-    value: 2
 #else
-    value: 0
+    value: 2
 #endif
     mirror: always
 
@@ -10966,10 +10974,10 @@
 # 0 : disabled, 1 : enabled allowed list, 2 : enabled blocked list
 -   name: media.eme.mfcdm.origin-filter.enabled
     type: RelaxedAtomicUint32
-#if IS_DEV_EDITION_OR_EARLY_BETA_OR_EARLIER
-    value: 1
-#else
+#if defined(NIGHTLY_BUILD)
     value: 0
+#else
+    value: 1
 #endif
     mirror: always
 
@@ -13165,6 +13173,37 @@
   value: true
   mirror: always
 
+# Priority urgency of tailed request. Default to 6, which is a very low priority
+- name: network.http.tailing.urgency
+  type: RelaxedAtomicUint32
+  value: 6
+  mirror: always
+
+# Tailing: When the page load has not yet reached DOMContentLoaded point, tail requestes are delayed
+# by (non-tailed requests count + 1) * delay-quantum milliseconds.
+- name: network.http.tailing.delay-quantum
+  type: int32_t
+  value: 600
+  mirror: always
+
+# Tailing: The same as above, but applied after the document load reached DOMContentLoaded event.
+- name: network.http.tailing.delay-quantum-after-domcontentloaded
+  type: int32_t
+  value: 100
+  mirror: always
+
+# Tailing: Upper limit for the calculated delay, prevents long standing and comet-like requests tail forever.  This is in milliseconds as well.
+- name: network.http.tailing.delay-max
+  type: int32_t
+  value: 6000
+  mirror: always
+
+# Tailing: Total limit we delay tailed requests since a page load beginning.
+- name: network.http.tailing.total-max
+  type: int32_t
+  value: 45000
+  mirror: always
+
 # When true, the default Accept request header will include the supported mime
 # types for images.
 - name: network.http.accept_include_images
@@ -13647,6 +13686,14 @@
   mirror: always
 
 - name: network.http.http2.allow-push
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# When true, Firefox will send a SETTINGS_MAX_CONCURRENT_STREAMS
+# parameter when push is disabled. Chrome doesn't send this,
+# so some servers misbehave when we do. See Bug 1919750.
+- name: network.http.http2.send-push-max-concurrent-frame
   type: RelaxedAtomicBool
   value: false
   mirror: always
