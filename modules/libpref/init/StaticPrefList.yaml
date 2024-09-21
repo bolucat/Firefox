@@ -4939,11 +4939,6 @@
   value: Error
   mirror: never
 
-- name: dom.window.clientinformation.enabled
-  type: bool
-  value: true
-  mirror: always
-
 - name: dom.worker.canceling.timeoutMilliseconds
   type: RelaxedAtomicUint32
   value: 30000    # 30 seconds
@@ -5051,12 +5046,6 @@
 - name: dom.resize_observer.support_fragments
   type: bool
   value: false
-  mirror: always
-
-# <iframe loading="lazy">
-- name: dom.iframe_lazy_loading.enabled
-  type: RelaxedAtomicBool
-  value: true
   mirror: always
 
 # Whether allowing using <tab> to move focus to root elements
@@ -10975,7 +10964,7 @@
 -   name: media.eme.mfcdm.origin-filter.enabled
     type: RelaxedAtomicUint32
 #if defined(NIGHTLY_BUILD)
-    value: 0
+    value: 2
 #else
     value: 1
 #endif
