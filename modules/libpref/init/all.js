@@ -435,6 +435,7 @@ pref("gfx.webrender.debug.echo-driver-messages", false);
 pref("gfx.webrender.debug.show-overdraw", false);
 pref("gfx.webrender.debug.slow-frame-indicator", false);
 pref("gfx.webrender.debug.picture-caching", false);
+pref("gfx.webrender.debug.picture-borders", false);
 pref("gfx.webrender.debug.force-picture-invalidation", false);
 pref("gfx.webrender.debug.primitives", false);
 pref("gfx.webrender.debug.small-screen", false);
@@ -4180,3 +4181,6 @@ pref("privacy.query_stripping.strip_on_share.enableTestMode", false);
   pref("toolkit.backgroundtasks.tests.geckoPrefsInherited", 17);
   pref("toolkit.backgroundtasks.tests.geckoPrefsOverriden", 18);
 #endif
+
+// To disable the Strip on Share context menu option if nothing can be stripped
+pref("privacy.query_stripping.strip_on_share.canDisable", true);

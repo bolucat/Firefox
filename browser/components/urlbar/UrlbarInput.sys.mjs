@@ -60,6 +60,13 @@ XPCOMUtils.defineLazyPreferenceGetter(
   false
 );
 
+XPCOMUtils.defineLazyPreferenceGetter(
+  lazy,
+  "STRIP_ON_SHARE_CAN_DISABLE",
+  "privacy.query_stripping.strip_on_share.canDisable",
+  false
+);
+
 const DEFAULT_FORM_HISTORY_NAME = "searchbar-history";
 const SEARCH_BUTTON_CLASS = "urlbar-search-button";
 
@@ -551,22 +558,21 @@ export class UrlbarInput {
     // Otherwise, if the URI is valid, exit search mode.  This must happen
     // after setting proxystate above because search mode depends on it.
     if (
-      uri &&
+      this.window.gBrowser.selectedBrowser.searchTerms &&
       !isSameDocument &&
-      !dueToTabSwitch &&
-      this.window.gBrowser.selectedBrowser.searchTerms
+      !dueToTabSwitch
     ) {
-      let result = this.#searchModeForUrl(uri.spec);
-      if (
-        result &&
-        !result.isDefaultEngine &&
-        this.searchMode?.name != result.engineName
-      ) {
-        this.searchMode = {
-          engineName: result.engineName,
-          source: lazy.UrlbarUtils.RESULT_SOURCE.SEARCH,
-          isPreview: false,
-        };
+      let result = this.#searchModeForUrl(uri?.spec);
+      if (result && this.searchMode?.name != result.engineName) {
+        if (result.isDefaultEngine) {
+          this.searchMode = null;
+        } else {
+          this.searchMode = {
+            engineName: result.engineName,
+            source: lazy.UrlbarUtils.RESULT_SOURCE.SEARCH,
+            isPreview: false,
+          };
+        }
       }
     } else if (dueToTabSwitch && !valid) {
       this.restoreSearchModeState();
@@ -1328,6 +1334,15 @@ export class UrlbarInput {
       }
       case lazy.UrlbarUtils.RESULT_TYPE.RESTRICT: {
         this.handleRevert();
+        this.controller.engagementEvent.record(event, {
+          result,
+          element,
+          searchString: this._lastSearchString,
+          selType: this.controller.engagementEvent.typeFromElement(
+            result,
+            element
+          ),
+        });
         this.maybeConfirmSearchModeFromResult({
           result,
           checkValue: false,
@@ -3331,6 +3346,26 @@ export class UrlbarInput {
   }
 
   /**
+   * Checks if there is a query parameter that can be stripped
+   *
+   * @returns {true|false}
+   */
+  #canStrip() {
+    let copyString = this._getSelectedValueForClipboard();
+    if (!copyString) {
+      return false;
+    }
+    // throws if the selected string is not a valid URI
+    try {
+      let uri = Services.io.newURI(copyString);
+      return lazy.QueryStringStripper.canStripForShare(uri);
+    } catch (e) {
+      console.warn("canStrip failed!", e);
+      return false;
+    }
+  }
+
+  /**
    * Restores the untrimmed value in the urlbar.
    *
    * @param {object} [options]
@@ -3460,7 +3495,15 @@ export class UrlbarInput {
         stripOnShare.setAttribute("hidden", true);
         return;
       }
-      stripOnShare.setAttribute("hidden", false);
+      if (lazy.STRIP_ON_SHARE_CAN_DISABLE) {
+        if (!this.#canStrip()) {
+          stripOnShare.removeAttribute("hidden");
+          stripOnShare.setAttribute("disabled", true);
+          return;
+        }
+      }
+      stripOnShare.removeAttribute("hidden");
+      stripOnShare.removeAttribute("disabled");
     });
   }
 
