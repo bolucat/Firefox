@@ -76,17 +76,20 @@ internal class BookmarksMiddleware(
                 when {
                     // non-list screen cases need to come first, since we presume if all subscreen
                     // state is null then we are on the list screen
+                    preReductionState.bookmarksSelectFolderState != null -> {
+                        navController.popBackStack()
+                    }
                     preReductionState.bookmarksAddFolderState != null -> {
                         navController.popBackStack()
                         scope.launch(ioDispatcher) {
                             val newFolderTitle = preReductionState.bookmarksAddFolderState.folderBeingAddedTitle
                             if (newFolderTitle.isNotEmpty()) {
                                 bookmarksStorage.addFolder(
-                                    parentGuid = preReductionState.folderGuid,
+                                    parentGuid = preReductionState.currentFolder.guid,
                                     title = newFolderTitle,
                                 )
                             }
-                            context.store.tryDispatchLoadFor(preReductionState.folderGuid)
+                            context.store.tryDispatchLoadFor(preReductionState.currentFolder.guid)
                         }
                     }
                     preReductionState.bookmarksEditBookmarkState != null -> {
@@ -98,15 +101,15 @@ internal class BookmarksMiddleware(
                                     info = it,
                                 )
                             }
-                            context.store.tryDispatchLoadFor(preReductionState.folderGuid)
+                            context.store.tryDispatchLoadFor(preReductionState.currentFolder.guid)
                         }
                     }
                     // list screen cases
-                    preReductionState.folderGuid != BookmarkRoot.Mobile.id -> {
+                    preReductionState.currentFolder.guid != BookmarkRoot.Mobile.id -> {
                         scope.launch {
                             val parentFolderGuid = withContext(ioDispatcher) {
                                 bookmarksStorage
-                                    .getBookmark(preReductionState.folderGuid)
+                                    .getBookmark(preReductionState.currentFolder.guid)
                                     ?.parentGuid ?: BookmarkRoot.Mobile.id
                             }
                             context.store.tryDispatchLoadFor(parentFolderGuid)
@@ -119,7 +122,9 @@ internal class BookmarksMiddleware(
                     }
                 }
             }
-            EditBookmarkAction.FolderClicked -> { /* Navigate to folder picker */ }
+            EditBookmarkAction.FolderClicked -> {
+                navController.navigate(BookmarksDestinations.SELECT_FOLDER)
+            }
             EditBookmarkAction.DeleteClicked -> {
                 // Bug 1919949 — Add undo snackbar to delete action.
                 navController.popBackStack()
@@ -127,21 +132,32 @@ internal class BookmarksMiddleware(
                     preReductionState.bookmarksEditBookmarkState?.also {
                         bookmarksStorage.deleteNode(it.bookmark.guid)
                     }
-                    context.store.tryDispatchLoadFor(preReductionState.folderGuid)
+                    context.store.tryDispatchLoadFor(preReductionState.currentFolder.guid)
                 }
             }
             AddFolderAction.ParentFolderClicked -> {
-                // TODO this will navigate to the select folder screen
+                navController.navigate(BookmarksDestinations.SELECT_FOLDER)
             }
+            SelectFolderAction.ViewAppeared -> context.store.loadFolders(BookmarkRoot.Mobile.id)
             is EditBookmarkAction.TitleChanged,
             is EditBookmarkAction.URLChanged,
             is BookmarkLongClicked,
             is FolderLongClicked,
             is BookmarksLoaded,
             is AddFolderAction.TitleChanged,
+            is SelectFolderAction.FoldersLoaded,
+            is SelectFolderAction.ItemClicked,
             -> Unit
         }
     }
+
+    private fun Store<BookmarksState, BookmarksAction>.loadFolders(guid: String) =
+        scope.launch {
+            bookmarksStorage.getTree(guid, recursive = true)?.let { rootNode ->
+                val folders = collectFolders(rootNode)
+                dispatch(SelectFolderAction.FoldersLoaded(folders))
+            }
+        }
 
     private fun Store<BookmarksState, BookmarksAction>.tryDispatchLoadFor(guid: String) =
         scope.launch {
@@ -150,8 +166,10 @@ internal class BookmarksMiddleware(
                 val items = rootNode.childItems()
                 dispatch(
                     BookmarksLoaded(
-                        folderTitle = folderTitle,
-                        folderGuid = guid,
+                        folder = BookmarkItem.Folder(
+                            guid = guid,
+                            title = folderTitle,
+                        ),
                         bookmarkItems = items,
                     ),
                 )
@@ -178,6 +196,30 @@ internal class BookmarksMiddleware(
 
     private fun NavController.previousDestinationWasHome(): Boolean =
         previousBackStackEntry?.destination?.id == R.id.homeFragment
+
+    private fun collectFolders(
+        node: BookmarkNode,
+        indentation: Int = 0,
+        folders: MutableList<SelectFolderItem> = mutableListOf(),
+    ): List<SelectFolderItem> {
+        if (node.type == BookmarkNodeType.FOLDER) {
+            folders.add(
+                SelectFolderItem(
+                    indentation = indentation,
+                    folder = BookmarkItem.Folder(
+                        guid = node.guid,
+                        title = resolveFolderTitle(node),
+                    ),
+                ),
+            )
+
+            node.children?.forEach { child ->
+                folders.addAll(collectFolders(child, indentation + 1))
+            }
+        }
+
+        return folders
+    }
 }
 
 @VisibleForTesting(otherwise = PRIVATE)

@@ -212,7 +212,7 @@ class BookmarksMiddlewareTest {
         )
         store.dispatch(FolderClicked(BookmarkItem.Folder(folderNode.title!!, folderNode.guid)))
 
-        assertEquals(folderNode.title, store.state.folderTitle)
+        assertEquals(folderNode.title, store.state.currentFolder.title)
         assertEquals(5, store.state.bookmarkItems.size)
     }
 
@@ -237,6 +237,26 @@ class BookmarksMiddlewareTest {
     }
 
     @Test
+    fun `GIVEN current screen is add folder WHEN parent folder is clicked THEN navigate to folder selection screen`() {
+        val middleware = buildMiddleware()
+        val store = middleware.makeStore()
+
+        store.dispatch(AddFolderAction.ParentFolderClicked)
+
+        verify(navController).navigate(BookmarksDestinations.SELECT_FOLDER)
+    }
+
+    @Test
+    fun `GIVEN current screen is edit bookmark WHEN folder is clicked THEN navigate to folder selection screen`() {
+        val middleware = buildMiddleware()
+        val store = middleware.makeStore()
+
+        store.dispatch(EditBookmarkAction.FolderClicked)
+
+        verify(navController).navigate(BookmarksDestinations.SELECT_FOLDER)
+    }
+
+    @Test
     fun `GIVEN current screen is add folder and new folder title is nonempty WHEN back is clicked THEN navigate back, save the new folder, and load the updated tree`() = runTest {
         `when`(bookmarksStorage.getTree(BookmarkRoot.Mobile.id)).thenReturn(generateBookmarkTree())
         val middleware = buildMiddleware()
@@ -250,7 +270,7 @@ class BookmarksMiddlewareTest {
 
         store.dispatch(BackClicked)
 
-        verify(bookmarksStorage).addFolder(store.state.folderGuid, title = newFolderTitle)
+        verify(bookmarksStorage).addFolder(store.state.currentFolder.guid, title = newFolderTitle)
         verify(bookmarksStorage, times(2)).getTree(BookmarkRoot.Mobile.id)
         verify(navController).popBackStack()
         assertNull(store.state.bookmarksAddFolderState)
@@ -269,7 +289,7 @@ class BookmarksMiddlewareTest {
         store.dispatch(BackClicked)
         this.advanceUntilIdle()
 
-        verify(bookmarksStorage, never()).addFolder(parentGuid = store.state.folderGuid, title = "")
+        verify(bookmarksStorage, never()).addFolder(parentGuid = store.state.currentFolder.guid, title = "")
         verify(navController).popBackStack()
         assertNull(store.state.bookmarksAddFolderState)
     }
@@ -339,11 +359,40 @@ class BookmarksMiddlewareTest {
         val store = middleware.makeStore()
 
         store.dispatch(FolderClicked(BookmarkItem.Folder(title = firstFolderNode.title!!, guid = firstFolderNode.guid)))
-        assertEquals(firstFolderNode.guid, store.state.folderGuid)
+
+        assertEquals(firstFolderNode.guid, store.state.currentFolder.guid)
         store.dispatch(BackClicked)
 
-        assertEquals(BookmarkRoot.Mobile.id, store.state.folderGuid)
+        assertEquals(BookmarkRoot.Mobile.id, store.state.currentFolder.guid)
         assertEquals(tree.children!!.size, store.state.bookmarkItems.size)
+    }
+
+    @Test
+    fun `GIVEN bookmarks in storage WHEN select folder sub screen view is loaded THEN load folders into sub screen state`() = runTestOnMain {
+        `when`(bookmarksStorage.getTree(BookmarkRoot.Mobile.id, recursive = true)).thenReturn(generateBookmarkTree())
+        val middleware = buildMiddleware()
+        val store = middleware.makeStore(
+            initialState = BookmarksState.default.copy(
+                bookmarksSelectFolderState = BookmarksSelectFolderState(),
+            ),
+        )
+
+        store.dispatch(SelectFolderAction.ViewAppeared)
+
+        assertEquals(6, store.state.bookmarksSelectFolderState?.folders?.count())
+    }
+
+    @Test
+    fun `GIVEN current screen select folder WHEN back is clicked THEN pop the backstack`() = runTestOnMain {
+        val middleware = buildMiddleware()
+        val store = middleware.makeStore(
+            initialState = BookmarksState.default.copy(
+                bookmarksSelectFolderState = BookmarksSelectFolderState(),
+            ),
+        )
+
+        store.dispatch(BackClicked)
+        verify(navController).popBackStack()
     }
 
     private fun buildMiddleware() = BookmarksMiddleware(

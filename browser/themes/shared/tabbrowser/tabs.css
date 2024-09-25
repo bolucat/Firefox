@@ -18,6 +18,8 @@
   --tab-shadow-max-size: 6px;
   --tab-block-margin: 4px;
   --tab-icon-end-margin: 5.5px;
+  --tab-icon-overlay-fill: light-dark(black, white);
+  --tab-icon-overlay-stroke: light-dark(white, black);
   --tab-loading-fill: #0A84FF;
   --tab-hover-background-color: color-mix(in srgb, currentColor 11%, transparent);
   --tab-selected-textcolor: var(--toolbar-color);
@@ -435,17 +437,13 @@
     }
 
     &:is([soundplaying], [muted], [activemedia-blocked]) {
-      background-color: var(--tab-icon-overlay-stroke, light-dark(white, black));
+      background-color: var(--tab-icon-overlay-stroke);
       background-position: center;
       background-repeat: no-repeat;
-      border: 0.5px solid var(--border-color-interactive);
+      border: 0.5px solid var(--tab-icon-overlay-fill);
       border-radius: 10px;
       -moz-context-properties: fill;
-      fill: var(--tab-icon-overlay-fill, light-dark(black, white));
-
-      &:hover {
-        border-color: var(--tab-icon-overlay-fill, light-dark(black, white));
-      }
+      fill: var(--tab-icon-overlay-fill);
     }
   }
 
@@ -672,7 +670,7 @@ tab-group {
   .tab-group-line {
     background-color: var(--tab-group-color);
     height: 2px;
-    margin: 0 calc(-1 * var(--tab-overflow-clip-margin)) -2px;
+    margin: 0 calc(-1 * var(--tab-overflow-clip-margin)) calc(-1 * var(--tab-block-margin));
   }
 
   &[collapsed] > .tabbrowser-tab {
@@ -685,7 +683,16 @@ tab-group {
 
 .tab-group-label-container {
   /* Provide some space between tab group label and the first tab in the tab group */
-  margin-inline-end: var(--tab-overflow-clip-margin);
+  padding-inline-end: var(--tab-overflow-clip-margin);
+  position: relative;
+
+  tab-group:not([collapsed]) > &::after {
+    content: "";
+    background-color: var(--tab-group-color);
+    height: 2px;
+    position: absolute;
+    inset: auto 0 0;
+  }
 }
 
 .tab-group-label {
@@ -887,7 +894,7 @@ tab-group {
   .tab-background {
     border-radius: var(--border-radius-medium);
 
-    &:not([selected], [multiselected]) {
+    .tabbrowser-tab:not(:hover) > .tab-stack > &:not([selected], [multiselected]) {
       background-color: color-mix(in srgb, currentColor 7%, transparent);
     }
   }

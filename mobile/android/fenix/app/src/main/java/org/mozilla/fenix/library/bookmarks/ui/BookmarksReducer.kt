@@ -9,9 +9,8 @@ package org.mozilla.fenix.library.bookmarks.ui
  */
 internal fun bookmarksReducer(state: BookmarksState, action: BookmarksAction) = when (action) {
     is BookmarksLoaded -> state.copy(
-        folderTitle = action.folderTitle,
+        currentFolder = action.folder,
         bookmarkItems = action.bookmarkItems,
-        folderGuid = action.folderGuid,
     )
     is BookmarkLongClicked -> state.toggleSelectionOf(action.item)
     is FolderLongClicked -> state.toggleSelectionOf(action.item)
@@ -23,7 +22,7 @@ internal fun bookmarksReducer(state: BookmarksState, action: BookmarksAction) = 
     is EditBookmarkClicked -> state.copy(
         bookmarksEditBookmarkState = BookmarksEditBookmarkState(
             bookmark = action.bookmark,
-            folder = BookmarkItem.Folder(title = state.folderTitle, guid = state.folderGuid),
+            folder = BookmarkItem.Folder(title = state.currentFolder.title, guid = state.currentFolder.guid),
         ),
     )
     is BookmarkClicked -> if (state.selectedItems.isNotEmpty()) {
@@ -32,7 +31,7 @@ internal fun bookmarksReducer(state: BookmarksState, action: BookmarksAction) = 
         state
     }
     is AddFolderAction.TitleChanged -> state.copy(
-        bookmarksAddFolderState = BookmarksAddFolderState(
+        bookmarksAddFolderState = state.bookmarksAddFolderState?.copy(
             folderBeingAddedTitle = action.updatedText,
         ),
     )
@@ -50,15 +49,51 @@ internal fun bookmarksReducer(state: BookmarksState, action: BookmarksAction) = 
             )
         },
     )
+    is SelectFolderAction.FoldersLoaded -> state.copy(
+        bookmarksSelectFolderState = state.bookmarksSelectFolderState?.copy(
+            folders = action.folders,
+        ),
+    )
+    AddFolderClicked -> state.copy(
+        bookmarksAddFolderState = BookmarksAddFolderState(
+            parent = state.currentFolder,
+            folderBeingAddedTitle = "",
+        ),
+    )
+    is SelectFolderAction.ItemClicked -> state.updateSelectedFolder(action.folder)
     EditBookmarkAction.DeleteClicked -> state.copy(bookmarksEditBookmarkState = null)
     BackClicked -> state.respondToBackClick()
-    EditBookmarkAction.FolderClicked,
-    AddFolderAction.ParentFolderClicked,
+    EditBookmarkAction.FolderClicked -> state.copy(
+        bookmarksSelectFolderState = BookmarksSelectFolderState(
+            selectionGuid = state.bookmarksEditBookmarkState?.folder?.guid ?: state.currentFolder.guid,
+        ),
+    )
+    AddFolderAction.ParentFolderClicked -> state.copy(
+        bookmarksSelectFolderState = BookmarksSelectFolderState(
+            addFolderSelectionGuid = state.bookmarksAddFolderState?.parent?.guid ?: state.currentFolder.guid,
+        ),
+    )
+    SelectFolderAction.ViewAppeared,
     SearchClicked,
-    AddFolderClicked,
     SignIntoSyncClicked,
     Init,
     -> state
+}
+
+private fun BookmarksState.updateSelectedFolder(folder: SelectFolderItem): BookmarksState = when {
+    bookmarksSelectFolderState?.addFolderSelectionGuid != null -> {
+        copy(
+            bookmarksAddFolderState = bookmarksAddFolderState?.copy(parent = folder.folder),
+            bookmarksSelectFolderState = bookmarksSelectFolderState.copy(addFolderSelectionGuid = folder.guid),
+        )
+    }
+    bookmarksSelectFolderState?.selectionGuid != null -> {
+        copy(
+            bookmarksEditBookmarkState = bookmarksEditBookmarkState?.copy(folder = folder.folder),
+            bookmarksSelectFolderState = bookmarksSelectFolderState.copy(selectionGuid = folder.guid),
+        )
+    }
+    else -> this
 }
 
 private fun BookmarksState.toggleSelectionOf(item: BookmarkItem): BookmarksState =
@@ -68,7 +103,15 @@ private fun BookmarksState.toggleSelectionOf(item: BookmarkItem): BookmarksState
         copy(selectedItems = selectedItems + item)
     }
 
+private fun BookmarksSelectFolderState.respondToBackClick(): BookmarksSelectFolderState? = when {
+    selectionGuid != null && addFolderSelectionGuid != null -> copy(addFolderSelectionGuid = null)
+    else -> null
+}
+
 private fun BookmarksState.respondToBackClick(): BookmarksState = when {
+    bookmarksSelectFolderState != null -> copy(
+        bookmarksSelectFolderState = bookmarksSelectFolderState.respondToBackClick(),
+    )
     bookmarksAddFolderState != null -> copy(bookmarksAddFolderState = null)
     bookmarksEditBookmarkState != null -> copy(bookmarksEditBookmarkState = null)
     else -> this

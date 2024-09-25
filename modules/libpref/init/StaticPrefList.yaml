@@ -2701,20 +2701,19 @@
 
 - name: dom.fetchKeepalive.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
-
 
 # The maximum number of pending fetch keepalive requests per browser instance
 - name: dom.fetchKeepalive.total_request_limit
   type: RelaxedAtomicUint32
-  value: 30
+  value: 100
   mirror: always
 
 # The maximum number of pending fetch keepalive requests per origin
 - name: dom.fetchKeepalive.request_limit_per_origin
   type: RelaxedAtomicUint32
-  value: 10
+  value: 30
   mirror: always
 
 - name: dom.fetchObserver.enabled
@@ -4121,24 +4120,12 @@
   value: true
   mirror: always
 
-# ReadableStream.from(asyncIterable)
-- name: dom.streams.from.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 - name: dom.workers.pFetch.enabled
   type: RelaxedAtomicBool
   value: true
   mirror: always
 
 - name: dom.workers.importScripts.enforceStrictMimeType
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
-# Is support for modules (new Worker(..., {type: "module"})) enabled for workers?
-- name: dom.workers.modules.enabled
   type: RelaxedAtomicBool
   value: true
   mirror: always
@@ -8066,13 +8053,6 @@
 
   # Experimental support for Import Assertions in JavaScript.
 -   name: javascript.options.experimental.import_attributes
-    type: bool
-    value: false
-    mirror: always
-  # Import attributes were developed under the 'assert' keyword.
-  # We have that keyword under a pref, as we'd rather not ship it if we
-  # can avoid it, but in the case we can't, we'd like access to it quickly.
--   name: javascript.options.experimental.import_attributes.assert_syntax
     type: bool
     value: false
     mirror: always
@@ -14725,13 +14705,13 @@
 # Enable the heuristic to allow storage access for windows opened using window.open()
 - name: privacy.restrict3rdpartystorage.heuristic.window_open
   type: bool
-  value: true
+  value: @IS_NOT_NIGHTLY_BUILD@
   mirror: always
 
 # Enable the heuristic to allow storage access for windows opened using window.open()
 - name: privacy.restrict3rdpartystorage.heuristic.redirect
   type: bool
-  value: @IS_NOT_NIGHTLY_BUILD@
+  value: false
   mirror: always
 
 # Anti-tracking permission expiration.
