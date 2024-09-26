@@ -875,6 +875,16 @@ const MultiStageProtonScreen = props => {
     }
     return () => {};
   }, [autoAdvance, handleAction, order]);
+
+  // Set narrow on an outer element to allow for use of SCSS outer selector and
+  // consolidation of styles for small screen widths with those for messages
+  // configured to always be narrow
+  if (props.content.narrow) {
+    document.querySelector("#multi-stage-message-root")?.setAttribute("narrow", "");
+  } else {
+    // Clear narrow attribute in case it was set by a previous screen
+    document.querySelector("#multi-stage-message-root")?.removeAttribute("narrow");
+  }
   return /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement(ProtonScreen, {
     content: props.content,
     id: props.id,
@@ -1565,6 +1575,10 @@ const SingleSelect = ({
     flair
   }) => {
     const value = id || theme;
+    let inputName = "select-item";
+    if (!isSingleSelect) {
+      inputName = category === "theme" ? "theme" : id; // unique names per item are currently used in the wallpaper picker
+    }
     const selected = theme && theme === activeTheme || isSingleSelect && activeSingleSelect === value;
     const valOrObj = val => typeof val === "object" ? val : {};
     const handleClick = evt => {
@@ -1596,7 +1610,7 @@ const SingleSelect = ({
     }, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("input", {
       type: "radio",
       value: value,
-      name: category === "theme" ? "theme" : id,
+      name: inputName,
       checked: selected,
       className: "sr-only input",
       onClick: e => handleClick(e)

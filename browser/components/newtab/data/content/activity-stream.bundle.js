@@ -2219,7 +2219,8 @@ class ImpressionStats_ImpressionStats extends (external_React_default()).PureCom
           scheduled_corpus_item_id: link.scheduled_corpus_item_id,
           recommended_at: link.recommended_at,
           received_rank: link.received_rank,
-          topic: link.topic
+          topic: link.topic,
+          is_list_card: link.is_list_card
         })),
         firstVisibleTimestamp: this.props.firstVisibleTimestamp
       }));
@@ -2855,6 +2856,7 @@ const DefaultMeta = ({
   mayHaveThumbsUpDown,
   onThumbsUpClick,
   onThumbsDownClick,
+  isListCard,
   state
 }) => /*#__PURE__*/external_React_default().createElement("div", {
   className: "meta"
@@ -2871,7 +2873,7 @@ const DefaultMeta = ({
   className: "title clamp"
 }, title), excerpt && /*#__PURE__*/external_React_default().createElement("p", {
   className: "excerpt clamp"
-}, excerpt)), mayHaveThumbsUpDown && /*#__PURE__*/external_React_default().createElement(DSThumbsUpDownButtons, {
+}, excerpt)), !isListCard && mayHaveThumbsUpDown && /*#__PURE__*/external_React_default().createElement(DSThumbsUpDownButtons, {
   onThumbsDownClick: onThumbsDownClick,
   onThumbsUpClick: onThumbsUpClick,
   sponsor: sponsor,
@@ -2986,7 +2988,8 @@ class _DSCard extends (external_React_default()).PureComponent {
           received_rank: this.props.received_rank,
           topic: this.props.topic,
           matches_selected_topic: matchesSelectedTopic,
-          selected_topics: this.props.selectedTopics
+          selected_topics: this.props.selectedTopics,
+          is_list_card: this.props.isListCard
         }
       }));
       this.props.dispatch(actionCreators.ImpressionStats({
@@ -3003,7 +3006,8 @@ class _DSCard extends (external_React_default()).PureComponent {
           type: this.props.flightId ? "spoc" : "organic",
           recommendation_id: this.props.recommendation_id,
           topic: this.props.topic,
-          selected_topics: this.props.selectedTopics
+          selected_topics: this.props.selectedTopics,
+          is_list_card: this.props.isListCard
         }]
       }));
     }
@@ -3038,7 +3042,8 @@ class _DSCard extends (external_React_default()).PureComponent {
           received_rank: this.props.received_rank,
           topic: this.props.topic,
           matches_selected_topic: matchesSelectedTopic,
-          selected_topics: this.props.selectedTopics
+          selected_topics: this.props.selectedTopics,
+          is_list_card: this.props.isListCard
         }
       }));
       this.props.dispatch(actionCreators.ImpressionStats({
@@ -3052,7 +3057,8 @@ class _DSCard extends (external_React_default()).PureComponent {
           } : {}),
           recommendation_id: this.props.recommendation_id,
           topic: this.props.topic,
-          selected_topics: this.props.selectedTopics
+          selected_topics: this.props.selectedTopics,
+          is_list_card: this.props.isListCard
         }]
       }));
     }
@@ -3670,7 +3676,7 @@ function ListFeed({
   } = listFeedRecs;
   // determine if the list should take up all availible height or not
   const fullList = listLength >= 5;
-  return /*#__PURE__*/external_React_default().createElement("div", {
+  return listLength > 0 && /*#__PURE__*/external_React_default().createElement("div", {
     className: `list-feed ${fullList ? "full-height" : ""} ${listLength > 2 ? "span-2" : "span-1"}`
   }, /*#__PURE__*/external_React_default().createElement("div", {
     className: "list-feed-inner-wrapper"
@@ -3678,7 +3684,7 @@ function ListFeed({
     className: "list-feed-title",
     id: "list-feed-title"
   }, /*#__PURE__*/external_React_default().createElement("span", {
-    className: "icon icon-trending"
+    className: "icon icon-newsfeed"
   }), listFeedTitle), /*#__PURE__*/external_React_default().createElement("div", {
     className: "list-feed-content",
     role: "menu",
@@ -3692,7 +3698,7 @@ function ListFeed({
       });
     }
     return /*#__PURE__*/external_React_default().createElement(DSCard, {
-      key: `list-card-${rec.id}`,
+      key: `list-card-${index}`,
       pos: rec.pos,
       flightId: rec.flight_id,
       image_src: rec.image_src,

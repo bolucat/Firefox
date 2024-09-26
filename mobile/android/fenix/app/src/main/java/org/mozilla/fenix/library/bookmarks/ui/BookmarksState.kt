@@ -4,6 +4,7 @@
 
 package org.mozilla.fenix.library.bookmarks.ui
 
+import mozilla.appservices.places.BookmarkRoot
 import mozilla.components.lib.state.State
 
 /**
@@ -58,6 +59,9 @@ internal data class SelectFolderItem(
 
     val title: String
         get() = folder.title
+
+    val isDesktopRoot: Boolean
+        get() = guid == BookmarkRoot.Root.id
 }
 
 internal data class BookmarksSelectFolderState(
@@ -67,4 +71,20 @@ internal data class BookmarksSelectFolderState(
 ) {
     val showNewFolderButton: Boolean
         get() = addFolderSelectionGuid == null
+
+    val selectedGuid: String?
+        get() = addFolderSelectionGuid ?: selectionGuid
 }
+
+internal val BookmarkItem.Folder.isDesktopFolder: Boolean
+    get() = when (guid) {
+        BookmarkRoot.Root.id,
+        BookmarkRoot.Menu.id,
+        BookmarkRoot.Toolbar.id,
+        BookmarkRoot.Unfiled.id,
+        -> true
+        else -> false
+    }
+
+internal val BookmarkItem.Folder.isDesktopRoot: Boolean
+    get() = guid == BookmarkRoot.Root.id

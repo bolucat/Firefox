@@ -3981,6 +3981,10 @@ pref("services.common.log.logger.tokenserverclient", "Debug");
   // Sets recommended automation preferences when Remote Agent or Marionette is
   // started.
   pref("remote.prefs.recommended", true);
+
+  // Enable retrying to execute commands in the child process in case the
+  // JSWindowActor gets destroyed.
+  pref("remote.retry-on-abort", true);
 #endif
 
 // Enable the JSON View tool (an inspector for application/json documents).
@@ -4118,7 +4122,7 @@ pref("extensions.formautofill.loglevel", "Warn");
 pref("extensions.formautofill.heuristics.captureOnFormRemoval", true);
 pref("extensions.formautofill.heuristics.captureOnPageNavigation", true);
 
-pref("extensions.formautofill.heuristics.autofillSameOriginWithTop", false);
+pref("extensions.formautofill.heuristics.autofillSameOriginWithTop", true);
 
 pref("toolkit.osKeyStore.loglevel", "Warn");
 
