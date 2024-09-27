@@ -1231,6 +1231,12 @@
     <string name="bookmark_deletion_multiple_snackbar_message_3">Deleting selected folders</string>
     <!-- Bookmark undo button for deletion snackbar action -->
     <string name="bookmark_undo_deletion">UNDO</string>
+    <!-- Bookmark snackbar message for deleting a single item. Parameter is the title of the item being deleted -->
+    <string name="bookmark_delete_single_item">Deleted %s</string>
+    <!-- Bookmark snackbar message for deleting multiple items. Parameter is the number of items being deleted -->
+    <string name="bookmark_delete_multiple_items">Deleted %s items</string>
+    <!-- Bookmark folder deletion dialog title. Parameter is the number of items being deleted -->
+    <string name="bookmark_delete_folder_dialog_title">Are you sure you want to delete %s items?</string>
     <!-- Text for the button to search all bookmarks -->
     <string name="bookmark_search">Enter search terms</string>
     <!-- Content description for the bookmark navigation bar back button -->
@@ -1255,6 +1261,8 @@
     <string name ="bookmark_empty_list_authenticated_description">Save sites as you browse. We’ll also grab bookmarks from other synced devices.</string>
     <!-- Description for the bookmark list empty state when you're in an empty folder. -->
     <string name ="bookmark_empty_list_folder_description">Add bookmarks as you browse so you can find your favorite sites later.</string>
+    <!-- Description for the add new folder button when selecting a folder. -->
+    <string name="bookmark_select_folder_new_folder_button_title">New folder</string>
 
     <!-- Site Permissions -->
     <!-- Button label that take the user to the Android App setting -->

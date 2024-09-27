@@ -44,7 +44,7 @@ def get_test_tags(config, env):
     return list(set(tags))
 
 
-def guess_mozinfo_from_task(task, repo="", test_tags=[]):
+def guess_mozinfo_from_task(task, repo="", app_version="", test_tags=[]):
     """Attempt to build a mozinfo dict from a task definition.
 
     This won't be perfect and many values used in the manifests will be missing. But
@@ -69,11 +69,12 @@ def guess_mozinfo_from_task(task, repo="", test_tags=[]):
         "debug": setting["build"]["type"] in ("debug", "debug-isolated-process"),
         "tsan": setting["build"].get("tsan", False),
         "mingwclang": setting["build"].get("mingwclang", False),
-        "nightly_build": repo in ["mozilla-central", "autoland", "try", ""],  # trunk
+        "nightly_build": "a1"
+        in app_version,  # https://searchfox.org/mozilla-central/source/build/moz.configure/init.configure#1101
+        "release_or_beta": "a" not in app_version,
         "repo": repo,
     }
     # the following are used to evaluate reftest skip-if
-    info["release_or_beta"] = not info["nightly_build"]  # TO BE VALIDATED
     info["webrtc"] = not info["mingwclang"]
     info["opt"] = (
         not info["debug"] and not info["asan"] and not info["tsan"] and not info["ccov"]
@@ -93,6 +94,7 @@ def guess_mozinfo_from_task(task, repo="", test_tags=[]):
         info["crashreporter"] = True
 
     info["appname"] = "fennec" if info["os"] == "android" else "firefox"
+    info["buildapp"] = "browser"
 
     # guess processor
     if arch == "aarch64":
@@ -198,7 +200,7 @@ def chunk_manifests(suite, platform, chunks, manifests):
     """
     ini_manifests = set([x.replace(".toml", ".ini") for x in manifests])
 
-    if "web-platform-tests" not in suite:
+    if "web-platform-tests" not in suite and "marionette" not in suite:
         runtimes = {
             k: v for k, v in get_runtimes(platform, suite).items() if k in ini_manifests
         }

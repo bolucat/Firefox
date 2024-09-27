@@ -27,6 +27,10 @@ internal data class BookmarksLoaded(
     val bookmarkItems: List<BookmarkItem>,
 ) : BookmarksAction
 
+internal data class RecursiveSelectionCountLoaded(
+    val count: Int,
+) : BookmarksAction
+
 internal sealed class BookmarksListMenuAction : BookmarksAction {
     internal sealed class Bookmark : BookmarksListMenuAction() {
         data class EditClicked(val bookmark: BookmarkItem.Bookmark) : Bookmark()
@@ -70,6 +74,14 @@ internal sealed class AddFolderAction {
     data object ParentFolderClicked : BookmarksAction
 }
 
+/**
+ * Actions specific to the Edit Folder screen.
+ */
+internal sealed class EditFolderAction {
+    data class TitleChanged(val updatedText: String) : BookmarksAction
+    data object ParentFolderClicked : BookmarksAction
+}
+
 internal sealed class EditBookmarkAction {
     data class TitleChanged(val title: String) : BookmarksAction
     data class URLChanged(val url: String) : BookmarksAction
@@ -81,4 +93,25 @@ internal sealed class SelectFolderAction {
     data object ViewAppeared : BookmarksAction
     data class FoldersLoaded(val folders: List<SelectFolderItem>) : BookmarksAction
     data class ItemClicked(val folder: SelectFolderItem) : BookmarksAction
+}
+
+internal sealed class OpenTabsConfirmationDialogAction {
+    data class Present(
+        val guid: String,
+        val count: Int,
+        val isPrivate: Boolean,
+    ) : BookmarksAction
+    data object ConfirmTapped : BookmarksAction
+    data object CancelTapped : BookmarksAction
+}
+
+internal sealed class DeletionDialogAction {
+    data class CountLoaded(val count: Int) : BookmarksAction
+    data object CancelTapped : BookmarksAction
+    data object DeleteTapped : BookmarksAction
+}
+
+internal sealed class SnackbarAction {
+    data object Undo : BookmarksAction
+    data object Dismissed : BookmarksAction
 }

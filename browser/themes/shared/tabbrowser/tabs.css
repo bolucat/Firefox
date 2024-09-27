@@ -698,7 +698,6 @@ tab-group {
 .tab-group-label {
   align-items: center;
 
-  font: message-box;
   font-weight: var(--font-weight-bold);
 
   /* Copied .tab-label settings */
@@ -830,7 +829,6 @@ tab-group {
 #tabbrowser-arrowscrollbox[orient="vertical"] > #tabbrowser-arrowscrollbox-periphery > #tabs-newtab-button,
 #vertical-tabs-newtab-button {
   appearance: none;
-  font: message-box; /* match .tabbrowser-tab on macOS */
   min-height: var(--tab-min-height);
   border-radius: var(--border-radius-medium);
   padding: 0 var(--tab-inline-padding);
@@ -918,10 +916,6 @@ tab-group {
     flex: none;
   }
 
-  .tab-close-button {
-    display: none;
-  }
-
   .tab-content {
     /* Prevents the tab content in the vertical-pinned-tabs-container
     from becoming misaligned when in the expanded state. */
@@ -937,7 +931,8 @@ tab-group {
       width: var(--tab-collapsed-width);
     }
 
-    .tab-label-container {
+    .tab-label-container,
+    .tab-close-button {
       display: none;
     }
   }
@@ -948,8 +943,8 @@ tab-group {
     .tabbrowser-tab {
       max-width: none;
 
-      &:is(:hover, [selected]):not([pinned]) .tab-close-button {
-        display: flex;
+      &:not(:hover) .tab-close-button:not([selected]) {
+        display: none;
       }
     }
   }

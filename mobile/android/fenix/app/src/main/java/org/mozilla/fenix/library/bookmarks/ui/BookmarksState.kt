@@ -6,38 +6,123 @@ package org.mozilla.fenix.library.bookmarks.ui
 
 import mozilla.appservices.places.BookmarkRoot
 import mozilla.components.lib.state.State
+import org.mozilla.fenix.R
 
 /**
  * Represents the state of the Bookmarks list screen and its various subscreens.
  *
  * @property bookmarkItems Bookmark items to be displayed in the current list screen.
  * @property selectedItems The bookmark items that are currently selected by the user for bulk actions.
+ * @property recursiveSelectedCount the total number of children of the [selectedItems] found in bookmark storage.
  * @property currentFolder the [BookmarkItem.Folder] that is currently being displayed.
  * @property isSignedIntoSync State representing if the user is currently signed into sync.
+ * @property openTabsConfirmationDialog State representing the confirmation dialog state.
+ * @property bookmarksDeletionDialogState State representing the deletion dialog state.
+ * @property bookmarksSnackbarState State representing which snackbar to show.
  * @property bookmarksAddFolderState State representing the add folder subscreen, if visible.
  * @property bookmarksEditBookmarkState State representing the edit bookmark subscreen, if visible.
  * @property bookmarksSelectFolderState State representing the select folder subscreen, if visible.
+ * @property bookmarksEditFolderState State representing the edit folder subscreen, if visible.
+ * @property bookmarksMultiselectMoveState State representing multi-select moving.
  */
 internal data class BookmarksState(
     val bookmarkItems: List<BookmarkItem>,
     val selectedItems: List<BookmarkItem>,
+    val recursiveSelectedCount: Int?,
     val currentFolder: BookmarkItem.Folder,
     val isSignedIntoSync: Boolean,
+    val openTabsConfirmationDialog: OpenTabsConfirmationDialog,
+    val bookmarksDeletionDialogState: DeletionDialogState,
+    val bookmarksSnackbarState: BookmarksSnackbarState,
     val bookmarksAddFolderState: BookmarksAddFolderState?,
     val bookmarksEditBookmarkState: BookmarksEditBookmarkState?,
     val bookmarksSelectFolderState: BookmarksSelectFolderState?,
+    val bookmarksEditFolderState: BookmarksEditFolderState?,
+    val bookmarksMultiselectMoveState: MultiselectMoveState?,
 ) : State {
     companion object {
         val default: BookmarksState = BookmarksState(
             bookmarkItems = listOf(),
             selectedItems = listOf(),
+            recursiveSelectedCount = null,
             currentFolder = BookmarkItem.Folder("", ""),
             isSignedIntoSync = false,
+            openTabsConfirmationDialog = OpenTabsConfirmationDialog.None,
+            bookmarksSnackbarState = BookmarksSnackbarState.None,
+            bookmarksDeletionDialogState = DeletionDialogState.None,
             bookmarksAddFolderState = null,
             bookmarksEditBookmarkState = null,
             bookmarksSelectFolderState = null,
+            bookmarksEditFolderState = null,
+            bookmarksMultiselectMoveState = null,
         )
     }
+}
+
+internal val BookmarkItem.title: String
+    get() = when (this) {
+        is BookmarkItem.Folder -> this.title
+        is BookmarkItem.Bookmark -> this.title
+    }
+
+internal fun BookmarksState.undoSnackbarText(): Pair<Int, String> = bookmarksSnackbarState.let { state ->
+    when {
+        state is BookmarksSnackbarState.UndoDeletion && state.guidsToDelete.size == 1 -> {
+            val stringId = R.string.bookmark_delete_single_item
+            val title = this.bookmarkItems.first { it.guid == state.guidsToDelete.first() }.title
+            stringId to title
+        }
+        state is BookmarksSnackbarState.UndoDeletion -> {
+            val stringId = R.string.bookmark_delete_multiple_items
+            val numberOfBookmarks = "${state.guidsToDelete.size}"
+            stringId to numberOfBookmarks
+        }
+        else -> 0 to ""
+    }
+}
+
+internal fun BookmarksState.isGuidMarkedForDeletion(guid: String): Boolean = when (bookmarksSnackbarState) {
+    is BookmarksSnackbarState.UndoDeletion -> bookmarksSnackbarState.guidsToDelete.contains(guid)
+    else -> false
+}
+
+internal data class MultiselectMoveState(
+    val guidsToMove: List<String>,
+    val destination: String,
+)
+
+internal sealed class DeletionDialogState {
+    data object None : DeletionDialogState()
+    data class LoadingCount(val guidsToDelete: List<String>) : DeletionDialogState()
+    data class Presenting(
+        val guidsToDelete: List<String>,
+        val recursiveCount: Int,
+    ) : DeletionDialogState()
+}
+
+internal sealed class OpenTabsConfirmationDialog {
+    data object None : OpenTabsConfirmationDialog()
+    data class Presenting(
+        val guidToOpen: String,
+        val numberOfTabs: Int,
+        val isPrivate: Boolean,
+    ) : OpenTabsConfirmationDialog()
+}
+
+internal val DeletionDialogState.Presenting.count
+    get() = guidsToDelete.size + recursiveCount
+
+internal val DeletionDialogState.guidsToDelete: List<String>
+    get() = when (this) {
+        DeletionDialogState.None -> listOf()
+        is DeletionDialogState.LoadingCount -> guidsToDelete
+        is DeletionDialogState.Presenting -> guidsToDelete
+    }
+
+internal sealed class BookmarksSnackbarState {
+    data object None : BookmarksSnackbarState()
+    data object CantEditDesktopFolders : BookmarksSnackbarState()
+    data class UndoDeletion(val guidsToDelete: List<String>) : BookmarksSnackbarState()
 }
 
 internal data class BookmarksEditBookmarkState(
@@ -48,6 +133,11 @@ internal data class BookmarksEditBookmarkState(
 internal data class BookmarksAddFolderState(
     val parent: BookmarkItem.Folder,
     val folderBeingAddedTitle: String,
+)
+
+internal data class BookmarksEditFolderState(
+    val parent: BookmarkItem.Folder,
+    val folder: BookmarkItem.Folder,
 )
 
 internal data class SelectFolderItem(
@@ -66,14 +156,14 @@ internal data class SelectFolderItem(
 
 internal data class BookmarksSelectFolderState(
     val selectionGuid: String? = null,
-    val addFolderSelectionGuid: String? = null,
+    val folderSelectionGuid: String? = null,
     val folders: List<SelectFolderItem> = listOf(),
 ) {
     val showNewFolderButton: Boolean
-        get() = addFolderSelectionGuid == null
+        get() = folderSelectionGuid == null
 
     val selectedGuid: String?
-        get() = addFolderSelectionGuid ?: selectionGuid
+        get() = folderSelectionGuid ?: selectionGuid
 }
 
 internal val BookmarkItem.Folder.isDesktopFolder: Boolean
