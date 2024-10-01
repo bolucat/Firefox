@@ -83,6 +83,7 @@ RenderThread::RenderThread(RefPtr<nsIThread> aThread)
     : mThread(std::move(aThread)),
       mThreadPool(false),
       mThreadPoolLP(true),
+      mChunkPool(wr_chunk_pool_new()),
       mGlyphRasterThread(USE_DEDICATED_GLYPH_RASTER_THREAD),
       mSingletonGLIsForHardwareWebRender(true),
       mBatteryInfo("RenderThread.mBatteryInfo"),
@@ -92,7 +93,10 @@ RenderThread::RenderThread(RefPtr<nsIThread> aThread)
       mHandlingDeviceReset(false),
       mHandlingWebRenderError(false) {}
 
-RenderThread::~RenderThread() { MOZ_ASSERT(mRenderTexturesDeferred.empty()); }
+RenderThread::~RenderThread() {
+  MOZ_ASSERT(mRenderTexturesDeferred.empty());
+  wr_chunk_pool_delete(mChunkPool);
+}
 
 // static
 RenderThread* RenderThread::Get() { return sRenderThread; }
@@ -908,6 +912,17 @@ bool RenderThread::Resume(wr::WindowId aWindowId) {
   UpdateActiveRendererCount();
 
   return resumed;
+}
+
+void RenderThread::NotifyIdle() {
+  if (!IsInRenderThread()) {
+    PostRunnable(NewRunnableMethod("RenderThread::NotifyIdle", this,
+                                   &RenderThread::NotifyIdle));
+
+    return;
+  }
+
+  wr_chunk_pool_purge(mChunkPool);
 }
 
 bool RenderThread::TooManyPendingFrames(wr::WindowId aWindowId) {
