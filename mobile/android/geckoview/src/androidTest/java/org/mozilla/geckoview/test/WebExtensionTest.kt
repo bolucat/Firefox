@@ -592,8 +592,10 @@ class WebExtensionTest : BaseSessionTest() {
         blocklistDisabled: Boolean = false,
         signatureDisabled: Boolean = false,
         appVersionDisabled: Boolean = false,
+        softBlocklistDisabled: Boolean = false,
     ) {
-        val enabled = !userDisabled && !appDisabled && !blocklistDisabled && !signatureDisabled && !appVersionDisabled
+        val enabled =
+            !userDisabled && !appDisabled && !blocklistDisabled && !signatureDisabled && !appVersionDisabled && !softBlocklistDisabled
 
         mainSession.reload()
         sessionRule.waitForPageStop()
@@ -634,6 +636,11 @@ class WebExtensionTest : BaseSessionTest() {
             "appVersionDisabled should match",
             extension.metaData.disabledFlags and DisabledFlags.APP_VERSION > 0,
             equalTo(appVersionDisabled),
+        )
+        assertThat(
+            "softBlocklistDisabled should match",
+            extension.metaData.disabledFlags and DisabledFlags.SOFT_BLOCKLIST > 0,
+            equalTo(softBlocklistDisabled),
         )
     }
 
@@ -698,6 +705,7 @@ class WebExtensionTest : BaseSessionTest() {
 
         sessionRule.delegateDuringNextWait(object : WebExtensionController.PromptDelegate {
             @AssertCalled
+            @Deprecated("Update to the new API when addressing https://bugzilla.mozilla.org/show_bug.cgi?id=1919374")
             override fun onInstallPrompt(
                 extension: WebExtension,
                 permissions: Array<String>,
@@ -777,7 +785,7 @@ class WebExtensionTest : BaseSessionTest() {
     }
 
     @Test
-    fun installWebExtension() {
+    fun installWebExtensionOnInstallPrompt() {
         mainSession.loadUri("https://example.com")
         sessionRule.waitForPageStop()
 
@@ -787,6 +795,7 @@ class WebExtensionTest : BaseSessionTest() {
 
         sessionRule.delegateDuringNextWait(object : WebExtensionController.PromptDelegate {
             @AssertCalled
+            @Deprecated("Remove test when addressing https://bugzilla.mozilla.org/show_bug.cgi?id=1919374")
             override fun onInstallPrompt(
                 extension: WebExtension,
                 permissions: Array<String>,
@@ -847,6 +856,159 @@ class WebExtensionTest : BaseSessionTest() {
     }
 
     @Test
+    fun installWebExtension() {
+        mainSession.loadUri("https://example.com")
+        sessionRule.waitForPageStop()
+
+        // First let's check that the color of the border is empty before loading
+        // the WebExtension
+        assertBodyBorderEqualTo("")
+
+        sessionRule.delegateDuringNextWait(object : WebExtensionController.PromptDelegate {
+            @AssertCalled
+            override fun onInstallPromptRequest(
+                extension: WebExtension,
+                permissions: Array<out String>,
+                origins: Array<out String>,
+            ): GeckoResult<PermissionPromptResponse>? {
+                assertEquals(
+                    extension.metaData.description,
+                    "Adds a red border to all webpages matching example.com.",
+                )
+                assertEquals(extension.metaData.name, "Borderify")
+                assertEquals(extension.metaData.version, "1.0")
+                assertEquals(extension.isBuiltIn, false)
+                assertEquals(extension.metaData.enabled, false)
+                assertEquals(
+                    extension.metaData.signedState,
+                    WebExtension.SignedStateFlags.SIGNED,
+                )
+                assertEquals(
+                    extension.metaData.blocklistState,
+                    WebExtension.BlocklistStateFlags.NOT_BLOCKED,
+                )
+                assertEquals(extension.metaData.incognito, "spanning")
+                return GeckoResult.fromValue(
+                    PermissionPromptResponse(
+                        true, // isPermissionsGranted
+                        false, // isPrivateModeGranted
+                    ),
+                )
+            }
+        })
+
+        val borderify = sessionRule.waitForResult(
+            controller.install(
+                "resource://android/assets/web_extensions/borderify.xpi",
+                null,
+            ),
+        )
+
+        mainSession.reload()
+        sessionRule.waitForPageStop()
+
+        // Check that the WebExtension was applied by checking the border color
+        assertBodyBorderEqualTo("red")
+        assertFalse(borderify.metaData.allowedInPrivateBrowsing)
+
+        var list = extensionsMap(sessionRule.waitForResult(controller.list()))
+        assertEquals(list.size, 2)
+        assertTrue(list.containsKey(borderify.id))
+        assertTrue(list.containsKey(RuntimeCreator.TEST_SUPPORT_EXTENSION_ID))
+
+        // Uninstall WebExtension and check again
+        sessionRule.waitForResult(controller.uninstall(borderify))
+
+        list = extensionsMap(sessionRule.waitForResult(controller.list()))
+        assertEquals(list.size, 1)
+        assertTrue(list.containsKey(RuntimeCreator.TEST_SUPPORT_EXTENSION_ID))
+
+        mainSession.reload()
+        sessionRule.waitForPageStop()
+
+        // Check that the WebExtension was not applied after being uninstalled
+        assertBodyBorderEqualTo("")
+    }
+
+    @Test
+    @Setting.List(Setting(key = Setting.Key.USE_PRIVATE_MODE, value = "true"))
+    fun installWebExtensionAllowInPrivateMode() {
+        mainSession.loadUri("https://example.com")
+        sessionRule.waitForPageStop()
+
+        // First let's check that the color of the border is empty before loading
+        // the WebExtension
+        assertBodyBorderEqualTo("")
+
+        sessionRule.delegateDuringNextWait(object : WebExtensionController.PromptDelegate {
+            @AssertCalled
+            override fun onInstallPromptRequest(
+                extension: WebExtension,
+                permissions: Array<out String>,
+                origins: Array<out String>,
+            ): GeckoResult<PermissionPromptResponse>? {
+                assertEquals(
+                    extension.metaData.description,
+                    "Adds a red border to all webpages matching example.com.",
+                )
+                assertEquals(extension.metaData.name, "Borderify")
+                assertEquals(extension.metaData.version, "1.0")
+                assertEquals(extension.isBuiltIn, false)
+                assertEquals(extension.metaData.enabled, false)
+                assertEquals(
+                    extension.metaData.signedState,
+                    WebExtension.SignedStateFlags.SIGNED,
+                )
+                assertEquals(
+                    extension.metaData.blocklistState,
+                    WebExtension.BlocklistStateFlags.NOT_BLOCKED,
+                )
+                assertEquals(extension.metaData.incognito, "spanning")
+
+                return GeckoResult.fromValue(
+                    PermissionPromptResponse(
+                        true, // isPermissionsGranted
+                        true, // isPrivateModeGranted
+                    ),
+                )
+            }
+        })
+
+        val borderify = sessionRule.waitForResult(
+            controller.install(
+                "resource://android/assets/web_extensions/borderify.xpi",
+                null,
+            ),
+        )
+
+        mainSession.reload()
+        sessionRule.waitForPageStop()
+
+        // Check that the WebExtension was applied by checking the border color
+        assertBodyBorderEqualTo("red")
+        assertTrue(mainSession.settings.usePrivateMode)
+        assertTrue(borderify.metaData.allowedInPrivateBrowsing)
+
+        var list = extensionsMap(sessionRule.waitForResult(controller.list()))
+        assertEquals(list.size, 2)
+        assertTrue(list.containsKey(borderify.id))
+        assertTrue(list.containsKey(RuntimeCreator.TEST_SUPPORT_EXTENSION_ID))
+
+        // Uninstall WebExtension and check again
+        sessionRule.waitForResult(controller.uninstall(borderify))
+
+        list = extensionsMap(sessionRule.waitForResult(controller.list()))
+        assertEquals(list.size, 1)
+        assertTrue(list.containsKey(RuntimeCreator.TEST_SUPPORT_EXTENSION_ID))
+
+        mainSession.reload()
+        sessionRule.waitForPageStop()
+
+        // Check that the WebExtension was not applied after being uninstalled
+        assertBodyBorderEqualTo("")
+    }
+
+    @Test
     @Setting.List(Setting(key = Setting.Key.USE_PRIVATE_MODE, value = "true"))
     fun runInPrivateBrowsing() {
         mainSession.loadUri("https://example.com")
@@ -857,6 +1019,7 @@ class WebExtensionTest : BaseSessionTest() {
 
         sessionRule.delegateDuringNextWait(object : WebExtensionController.PromptDelegate {
             @AssertCalled(count = 1)
+            @Deprecated("Update to the new API when addressing https://bugzilla.mozilla.org/show_bug.cgi?id=1919374")
             override fun onInstallPrompt(
                 extension: WebExtension,
                 permissions: Array<String>,
@@ -940,6 +1103,7 @@ class WebExtensionTest : BaseSessionTest() {
 
         sessionRule.delegateDuringNextWait(object : WebExtensionController.PromptDelegate {
             @AssertCalled(count = 1)
+            @Deprecated("Update to the new API when addressing https://bugzilla.mozilla.org/show_bug.cgi?id=1919374")
             override fun onInstallPrompt(
                 extension: WebExtension,
                 permissions: Array<String>,
@@ -1015,6 +1179,7 @@ class WebExtensionTest : BaseSessionTest() {
 
         sessionRule.delegateDuringNextWait(object : WebExtensionController.PromptDelegate {
             @AssertCalled(count = 2)
+            @Deprecated("Update to the new API when addressing https://bugzilla.mozilla.org/show_bug.cgi?id=1919374")
             override fun onInstallPrompt(
                 extension: WebExtension,
                 permissions: Array<String>,
@@ -1070,6 +1235,7 @@ class WebExtensionTest : BaseSessionTest() {
     ) {
         sessionRule.delegateDuringNextWait(object : WebExtensionController.PromptDelegate {
             @AssertCalled(count = 0)
+            @Deprecated("Update to the new API when addressing https://bugzilla.mozilla.org/show_bug.cgi?id=1919374")
             override fun onInstallPrompt(
                 extension: WebExtension,
                 permissions: Array<String>,
@@ -1130,6 +1296,7 @@ class WebExtensionTest : BaseSessionTest() {
         )
 
         sessionRule.delegateDuringNextWait(object : WebExtensionController.PromptDelegate {
+            @Deprecated("Update to the new API when addressing https://bugzilla.mozilla.org/show_bug.cgi?id=1919374")
             override fun onInstallPrompt(
                 extension: WebExtension,
                 permissions: Array<String>,
@@ -1228,6 +1395,7 @@ class WebExtensionTest : BaseSessionTest() {
     fun corruptFileErrorWillNotReturnAnWebExtensionWithoutId() {
         sessionRule.delegateDuringNextWait(object : WebExtensionController.PromptDelegate {
             @AssertCalled(count = 0)
+            @Deprecated("Update to the new API when addressing https://bugzilla.mozilla.org/show_bug.cgi?id=1919374")
             override fun onInstallPrompt(
                 extension: WebExtension,
                 permissions: Array<String>,
@@ -1292,6 +1460,7 @@ class WebExtensionTest : BaseSessionTest() {
 
         sessionRule.delegateDuringNextWait(object : WebExtensionController.PromptDelegate {
             @AssertCalled(count = 1)
+            @Deprecated("Update to the new API when addressing https://bugzilla.mozilla.org/show_bug.cgi?id=1919374")
             override fun onInstallPrompt(
                 extension: WebExtension,
                 permissions: Array<String>,
@@ -1902,6 +2071,7 @@ class WebExtensionTest : BaseSessionTest() {
         )
 
         sessionRule.delegateDuringNextWait(object : WebExtensionController.PromptDelegate {
+            @Deprecated("Update to the new API when addressing https://bugzilla.mozilla.org/show_bug.cgi?id=1919374")
             override fun onInstallPrompt(
                 extension: WebExtension,
                 permissions: Array<String>,
@@ -1980,6 +2150,7 @@ class WebExtensionTest : BaseSessionTest() {
 
         sessionRule.delegateDuringNextWait(object : WebExtensionController.PromptDelegate {
             @AssertCalled
+            @Deprecated("Update to the new API when addressing https://bugzilla.mozilla.org/show_bug.cgi?id=1919374")
             override fun onInstallPrompt(
                 extension: WebExtension,
                 permissions: Array<String>,
@@ -1994,6 +2165,7 @@ class WebExtensionTest : BaseSessionTest() {
 
         sessionRule.delegateDuringNextWait(object : WebExtensionController.PromptDelegate {
             @AssertCalled
+            @Deprecated("Update to the new API when addressing https://bugzilla.mozilla.org/show_bug.cgi?id=1919374")
             override fun onInstallPrompt(
                 extension: WebExtension,
                 permissions: Array<String>,
@@ -2909,6 +3081,7 @@ class WebExtensionTest : BaseSessionTest() {
 
         sessionRule.delegateDuringNextWait(object : WebExtensionController.PromptDelegate {
             @AssertCalled
+            @Deprecated("Update to the new API when addressing https://bugzilla.mozilla.org/show_bug.cgi?id=1919374")
             override fun onInstallPrompt(
                 extension: WebExtension,
                 permissions: Array<String>,
@@ -2970,6 +3143,7 @@ class WebExtensionTest : BaseSessionTest() {
 
         sessionRule.delegateDuringNextWait(object : WebExtensionController.PromptDelegate {
             @AssertCalled(count = 1)
+            @Deprecated("Update to the new API when addressing https://bugzilla.mozilla.org/show_bug.cgi?id=1919374")
             override fun onInstallPrompt(
                 extension: WebExtension,
                 permissions: Array<String>,
@@ -3011,6 +3185,7 @@ class WebExtensionTest : BaseSessionTest() {
 
         sessionRule.delegateDuringNextWait(object : WebExtensionController.PromptDelegate {
             @AssertCalled
+            @Deprecated("Update to the new API when addressing https://bugzilla.mozilla.org/show_bug.cgi?id=1919374")
             override fun onInstallPrompt(
                 extension: WebExtension,
                 permissions: Array<String>,
@@ -3059,6 +3234,7 @@ class WebExtensionTest : BaseSessionTest() {
 
         sessionRule.delegateDuringNextWait(object : WebExtensionController.PromptDelegate {
             @AssertCalled
+            @Deprecated("Update to the new API when addressing https://bugzilla.mozilla.org/show_bug.cgi?id=1919374")
             override fun onInstallPrompt(
                 extension: WebExtension,
                 permissions: Array<String>,
@@ -3134,6 +3310,7 @@ class WebExtensionTest : BaseSessionTest() {
 
         sessionRule.delegateDuringNextWait(object : WebExtensionController.PromptDelegate {
             @AssertCalled
+            @Deprecated("Update to the new API when addressing https://bugzilla.mozilla.org/show_bug.cgi?id=1919374")
             override fun onInstallPrompt(
                 extension: WebExtension,
                 permissions: Array<String>,
@@ -3191,6 +3368,7 @@ class WebExtensionTest : BaseSessionTest() {
 
         sessionRule.delegateDuringNextWait(object : WebExtensionController.PromptDelegate {
             @AssertCalled
+            @Deprecated("Update to the new API when addressing https://bugzilla.mozilla.org/show_bug.cgi?id=1919374")
             override fun onInstallPrompt(
                 extension: WebExtension,
                 permissions: Array<String>,
@@ -3267,6 +3445,7 @@ class WebExtensionTest : BaseSessionTest() {
     fun cancelInstallFailsAfterInstalled() {
         sessionRule.delegateDuringNextWait(object : WebExtensionController.PromptDelegate {
             @AssertCalled
+            @Deprecated("Update to the new API when addressing https://bugzilla.mozilla.org/show_bug.cgi?id=1919374")
             override fun onInstallPrompt(
                 extension: WebExtension,
                 permissions: Array<String>,
@@ -3308,6 +3487,7 @@ class WebExtensionTest : BaseSessionTest() {
 
         sessionRule.delegateDuringNextWait(object : WebExtensionController.PromptDelegate {
             @AssertCalled
+            @Deprecated("Update to the new API when addressing https://bugzilla.mozilla.org/show_bug.cgi?id=1919374")
             override fun onInstallPrompt(
                 extension: WebExtension,
                 permissions: Array<String>,
@@ -3370,6 +3550,7 @@ class WebExtensionTest : BaseSessionTest() {
 
         sessionRule.delegateDuringNextWait(object : WebExtensionController.PromptDelegate {
             @AssertCalled
+            @Deprecated("Update to the new API when addressing https://bugzilla.mozilla.org/show_bug.cgi?id=1919374")
             override fun onInstallPrompt(
                 extension: WebExtension,
                 permissions: Array<String>,
@@ -3529,6 +3710,7 @@ class WebExtensionTest : BaseSessionTest() {
 
         sessionRule.delegateDuringNextWait(object : WebExtensionController.PromptDelegate {
             @AssertCalled
+            @Deprecated("Update to the new API when addressing https://bugzilla.mozilla.org/show_bug.cgi?id=1919374")
             override fun onInstallPrompt(
                 extension: WebExtension,
                 permissions: Array<String>,
@@ -3608,6 +3790,7 @@ class WebExtensionTest : BaseSessionTest() {
 
         sessionRule.delegateDuringNextWait(object : WebExtensionController.PromptDelegate {
             @AssertCalled
+            @Deprecated("Update to the new API when addressing https://bugzilla.mozilla.org/show_bug.cgi?id=1919374")
             override fun onInstallPrompt(
                 extension: WebExtension,
                 permissions: Array<String>,
@@ -3901,6 +4084,7 @@ class WebExtensionTest : BaseSessionTest() {
         var addonId = ""
         sessionRule.delegateDuringNextWait(object : WebExtensionController.PromptDelegate {
             @AssertCalled
+            @Deprecated("Update to the new API when addressing https://bugzilla.mozilla.org/show_bug.cgi?id=1919374")
             override fun onInstallPrompt(
                 extension: WebExtension,
                 permissions: Array<String>,
@@ -4041,6 +4225,7 @@ class WebExtensionTest : BaseSessionTest() {
 
         sessionRule.delegateDuringNextWait(object : WebExtensionController.PromptDelegate {
             @AssertCalled(count = 1)
+            @Deprecated("Update to the new API when addressing https://bugzilla.mozilla.org/show_bug.cgi?id=1919374")
             override fun onInstallPrompt(
                 extension: WebExtension,
                 permissions: Array<String>,

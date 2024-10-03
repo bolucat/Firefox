@@ -40,13 +40,11 @@ import org.mozilla.fenix.compose.list.TextListItem
 import org.mozilla.fenix.theme.FirefoxTheme
 import org.mozilla.fenix.theme.Theme
 
-internal const val EXTENSIONS_MENU_ROUTE = "extensions_menu"
-
 @Suppress("LongParameterList")
 @Composable
 internal fun ExtensionsSubmenu(
     recommendedAddons: List<Addon>,
-    webExtensionMenuItems: List<WebExtensionMenuItem>,
+    webExtensionMenuItems: List<WebExtensionMenuItem.WebExtensionBrowserMenuItem>,
     showExtensionsOnboarding: Boolean,
     addonInstallationInProgress: Addon?,
     onBackButtonClick: () -> Unit,
@@ -85,11 +83,9 @@ internal fun ExtensionsSubmenu(
                 for (webExtensionMenuItem in webExtensionMenuItems) {
                     WebExtensionMenuItem(
                         label = webExtensionMenuItem.label,
-                        iconPainter = if (webExtensionMenuItem.icon != null) {
-                            BitmapPainter(image = webExtensionMenuItem.icon.asImageBitmap())
-                        } else {
-                            painterResource(R.drawable.mozac_ic_web_extension_default_icon)
-                        },
+                        iconPainter = webExtensionMenuItem.icon?.let { icon ->
+                            BitmapPainter(image = icon.asImageBitmap())
+                        } ?: painterResource(R.drawable.mozac_ic_web_extension_default_icon),
                         enabled = webExtensionMenuItem.enabled,
                         badgeText = webExtensionMenuItem.badgeText,
                         badgeTextColor = webExtensionMenuItem.badgeTextColor,
@@ -205,7 +201,7 @@ private fun ExtensionsSubmenuPreview() {
                     translatableSummary = mapOf(Addon.DEFAULT_LOCALE to "summary"),
                 ),
                 webExtensionMenuItems = listOf(
-                    WebExtensionMenuItem(
+                    WebExtensionMenuItem.WebExtensionBrowserMenuItem(
                         label = "label",
                         enabled = true,
                         icon = BitmapFactory.decodeResource(
@@ -253,7 +249,7 @@ private fun ExtensionsSubmenuPrivatePreview() {
                     ),
                 ),
                 webExtensionMenuItems = listOf(
-                    WebExtensionMenuItem(
+                    WebExtensionMenuItem.WebExtensionBrowserMenuItem(
                         label = "label",
                         enabled = true,
                         icon = BitmapFactory.decodeResource(

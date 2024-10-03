@@ -12835,6 +12835,18 @@ bool SetGlobalOptionsPreJSInit(const OptionParser& op) {
 #if defined(JS_CODEGEN_X86) || defined(JS_CODEGEN_X64)
   MOZ_ASSERT(!js::jit::CPUFlagsHaveBeenComputed());
 
+  if (op.getBoolOption("no-avx")) {
+    js::jit::CPUInfo::SetAVXDisabled();
+    if (!sCompilerProcessFlags.append("--no-avx")) {
+      return false;
+    }
+  }
+  if (op.getBoolOption("enable-avx")) {
+    js::jit::CPUInfo::SetAVXEnabled();
+    if (!sCompilerProcessFlags.append("--enable-avx")) {
+      return false;
+    }
+  }
   if (op.getBoolOption("no-sse3")) {
     js::jit::CPUInfo::SetSSE3Disabled();
     if (!sCompilerProcessFlags.append("--no-sse3")) {
@@ -12856,18 +12868,6 @@ bool SetGlobalOptionsPreJSInit(const OptionParser& op) {
   if (op.getBoolOption("no-sse42")) {
     js::jit::CPUInfo::SetSSE42Disabled();
     if (!sCompilerProcessFlags.append("--no-sse42")) {
-      return false;
-    }
-  }
-  if (op.getBoolOption("no-avx")) {
-    js::jit::CPUInfo::SetAVXDisabled();
-    if (!sCompilerProcessFlags.append("--no-avx")) {
-      return false;
-    }
-  }
-  if (op.getBoolOption("enable-avx")) {
-    js::jit::CPUInfo::SetAVXEnabled();
-    if (!sCompilerProcessFlags.append("--enable-avx")) {
       return false;
     }
   }
@@ -13006,9 +13006,6 @@ bool SetContextOptions(JSContext* cx, const OptionParser& op) {
   enableDisassemblyDumps = op.getBoolOption('D');
   cx->runtime()->profilingScripts =
       enableCodeCoverage || enableDisassemblyDumps;
-
-  // For now enable some assertions only in the JS shell.
-  cx->setShouldAssertExceptionOnFalseReturn();
 
 #ifdef JS_ENABLE_SMOOSH
   if (op.getBoolOption("smoosh")) {

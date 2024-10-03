@@ -198,6 +198,11 @@ data class Addon(
          * The [Addon] was disabled because it isn't compatible with the application version.
          */
         INCOMPATIBLE,
+
+        /**
+         * The [Addon] was disabled because it is soft-blocked.
+         */
+        SOFT_BLOCKED,
     }
 
     /**
@@ -264,6 +269,12 @@ data class Addon(
      * the blocklist. This is based on the installed extension state in the engine.
      */
     fun isDisabledAsBlocklisted() = installedState?.disabledReason == DisabledReason.BLOCKLISTED
+
+    /**
+     * Returns whether this [Addon] is currently soft-blocked. While we're cheking the
+     * disabled reason, the user still has the opportunity to re-enable the [Addon].
+     */
+    fun isSoftBlocked() = installedState?.disabledReason == DisabledReason.SOFT_BLOCKED
 
     /**
      * Returns whether this [Addon] is currently disabled because it isn't correctly signed.
