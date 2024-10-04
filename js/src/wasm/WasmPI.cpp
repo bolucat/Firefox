@@ -19,6 +19,8 @@
 #include "wasm/WasmPI.h"
 
 #include "builtin/Promise.h"
+#include "debugger/DebugAPI.h"
+#include "debugger/Debugger.h"
 #include "jit/arm/Simulator-arm.h"
 #include "jit/MIRGenerator.h"
 #include "js/CallAndConstruct.h"
@@ -31,6 +33,7 @@
 #include "wasm/WasmContext.h"
 #include "wasm/WasmFeatures.h"
 #include "wasm/WasmGenerator.h"
+#include "wasm/WasmIonCompile.h"  // IonPlatformSupport
 #include "wasm/WasmValidate.h"
 
 #include "vm/JSObject-inl.h"
@@ -402,6 +405,20 @@ void SuspenderObject::suspend(JSContext* cx) {
   cx->wasm().promiseIntegration.suspendedStacks_.pushFront(data());
   data()->setSuspendedBy(&cx->wasm().promiseIntegration);
   cx->wasm().promiseIntegration.setActiveSuspender(nullptr);
+
+  if (cx->realm()->isDebuggee()) {
+    WasmFrameIter iter(cx->activation()->asJit());
+    while (true) {
+      MOZ_ASSERT(!iter.done());
+      if (iter.debugEnabled()) {
+        DebugAPI::onSuspendWasmFrame(cx, iter.debugFrame());
+      }
+      ++iter;
+      if (iter.stackSwitched()) {
+        break;
+      }
+    }
+  }
 }
 
 void SuspenderObject::resume(JSContext* cx) {
@@ -410,6 +427,21 @@ void SuspenderObject::resume(JSContext* cx) {
   setActive(cx);
   data()->setSuspendedBy(nullptr);
   cx->wasm().promiseIntegration.suspendedStacks_.remove(data());
+
+  if (cx->realm()->isDebuggee()) {
+    for (FrameIter iter(cx);; ++iter) {
+      MOZ_RELEASE_ASSERT(!iter.done(), "expecting stackSwitched()");
+      if (iter.isWasm()) {
+        WasmFrameIter& wasmIter = iter.wasmFrame();
+        if (wasmIter.stackSwitched()) {
+          break;
+        }
+        if (wasmIter.debugEnabled()) {
+          DebugAPI::onResumeWasmFrame(cx, iter);
+        }
+      }
+    }
+  }
 }
 
 void SuspenderObject::leave(JSContext* cx) {
@@ -456,20 +488,7 @@ bool ParseSuspendingPromisingString(JSContext* cx, HandleValue val,
   return true;
 }
 
-using CallImportData = Instance::WasmJSPICallImportData;
-
-/*static*/
-bool CallImportData::Call(CallImportData* data) {
-  Instance* instance = data->instance;
-  JSContext* cx = instance->cx();
-  return instance->callImport(cx, data->funcImportIndex, data->argc,
-                              data->argv);
-}
-
-bool CallImportOnMainThread(JSContext* cx, Instance* instance,
-                            int32_t funcImportIndex, int32_t argc,
-                            uint64_t* argv) {
-  CallImportData data = {instance, funcImportIndex, argc, argv};
+bool CallOnMainStack(JSContext* cx, CallOnMainStackFn fn, void* data) {
   Rooted<SuspenderObject*> suspender(
       cx, cx->wasm().promiseIntegration.activeSuspender());
   SuspenderObjectData* stacks = suspender->data();
@@ -484,7 +503,7 @@ bool CallImportOnMainThread(JSContext* cx, Instance* instance,
   // The simulator is using its own stack, however switching is needed for
   // virtual registers.
   stacks->switchSimulatorToMain();
-  bool res = CallImportData::Call(&data);
+  bool res = fn(data);
   stacks->switchSimulatorToSuspendable();
 #    else
 #      error "not supported"
@@ -556,7 +575,7 @@ bool CallImportOnMainThread(JSContext* cx, Instance* instance,
           "\n   mov     sp, x27 "                                         \
           "\n   mov     %0, x0"                                           \
           : "=r"(res)                                                     \
-          : "r"(stacks), "r"(CallImportData::Call), "r"(&data)            \
+          : "r"(stacks), "r"(fn), "r"(data)                               \
           : "x0", "x3", "x27", CALLER_SAVED_REGS, "cc", "memory")
   INLINED_ASM(24, 32, 40, 48);
 
@@ -587,8 +606,8 @@ bool CallImportOnMainThread(JSContext* cx, Instance* instance,
                                                                           \
           "\n   movq     %%rax, %0"                                       \
           : "=r"(res)                                                     \
-          : "r"(stacks), "r"(CallImportData::Call), "r"(&data)         \
-          : "rcx", "rax")
+          : "r"(stacks), "r"(fn), "r"(data)                               \
+          : "rcx", "rax", "cc", "memory")
   INLINED_ASM(24, 32, 40, 48);
 
 #  elif defined(__x86_64__)
@@ -618,8 +637,8 @@ bool CallImportOnMainThread(JSContext* cx, Instance* instance,
                                                                           \
           "\n   movq     %%rax, %0"                                       \
           : "=r"(res)                                                     \
-          : "r"(stacks), "r"(CallImportData::Call), "r"(&data)         \
-          : "rdi", "rax")
+          : "r"(stacks), "r"(fn), "r"(data)                               \
+          : "rdi", "rax", "cc", "memory")
   INLINED_ASM(24, 32, 40, 48);
 #  elif defined(__i386__) || defined(_M_IX86)
 #    define CALLER_SAVED_REGS "eax", "ecx", "edx"
@@ -645,10 +664,10 @@ bool CallImportOnMainThread(JSContext* cx, Instance* instance,
           "\n   mov     " #SUSPENDABLE_FP "(%%edx), %%ebp"                \
           "\n   mov     " #SUSPENDABLE_SP "(%%edx), %%esp"                \
                                                                           \
-          "\n   mov     %%eax, %0"                                       \
+          "\n   mov     %%eax, %0"                                        \
           : "=r"(res)                                                     \
-          : "r"(stacks), "r"(CallImportData::Call), "r"(&data)            \
-          : CALLER_SAVED_REGS)
+          : "r"(stacks), "r"(fn), "r"(data)                               \
+          : CALLER_SAVED_REGS, "cc", "memory")
   INLINED_ASM(12, 16, 20, 24);
 
 #  elif defined(__arm__)
@@ -679,8 +698,8 @@ bool CallImportOnMainThread(JSContext* cx, Instance* instance,
           "\n   mov     sp, r1"                                           \
           "\n   mov     %0, r0"                                           \
           : "=r"(res)                                                     \
-          : "r"(stacks), "r"(CallImportData::Call), "r"(&data)            \
-          : "r0", "r1", "r2")
+          : "r"(stacks), "r"(fn), "r"(data)                               \
+          : "r0", "r1", "r2", "r3", "cc", "memory")
   INLINED_ASM(12, 16, 20, 24);
 
 #  else
@@ -968,7 +987,7 @@ class SuspendingFunctionModuleFactory {
     }
     MutableCodeMetadata codeMeta = moduleMeta->codeMeta;
 
-    MOZ_ASSERT(IonAvailable(cx));
+    MOZ_ASSERT(IonPlatformSupport());
     CompilerEnvironment compilerEnv(CompileMode::Once, Tier::Optimized,
                                     DebugEnabled::False);
     compilerEnv.computeParameters();
@@ -1479,7 +1498,7 @@ class PromisingFunctionModuleFactory {
     }
     MutableCodeMetadata codeMeta = moduleMeta->codeMeta;
 
-    MOZ_ASSERT(IonAvailable(cx));
+    MOZ_ASSERT(IonPlatformSupport());
     CompilerEnvironment compilerEnv(CompileMode::Once, Tier::Optimized,
                                     DebugEnabled::False);
     compilerEnv.computeParameters();

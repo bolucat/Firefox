@@ -5238,11 +5238,14 @@ static bool StackDump(JSContext* cx, unsigned argc, Value* vp) {
 }
 #endif
 
-static bool StackPointerInfo(JSContext* cx, unsigned argc, Value* vp) {
+MOZ_ASAN_IGNORE static bool StackPointerInfo(JSContext* cx, unsigned argc,
+                                             Value* vp) {
   CallArgs args = CallArgsFromVp(argc, vp);
 
   // Copy the truncated stack pointer to the result.  This value is not used
   // as a pointer but as a way to measure frame-size from JS.
+  // The ASAN must be disabled for this function -- it may allocate `args`
+  // not on the stack.
   args.rval().setInt32(int32_t(reinterpret_cast<size_t>(&args) & 0xfffffff));
   return true;
 }
@@ -12681,7 +12684,9 @@ bool InitOptionParser(OptionParser& op) {
                         "Enable WebAssembly tail-calls proposal.") ||
       !op.addBoolOption('\0', "wasm-js-string-builtins",
                         "Enable WebAssembly js-string-builtins proposal.") ||
-      !op.addBoolOption('\0', "enable-promise-try", "Enable Promise.try")) {
+      !op.addBoolOption('\0', "enable-promise-try", "Enable Promise.try") ||
+      !op.addBoolOption('\0', "enable-math-sumprecise",
+                        "Enable Math.sumPrecise")) {
     return false;
   }
 
@@ -12759,6 +12764,9 @@ bool SetGlobalOptionsPreJSInit(const OptionParser& op) {
   }
   if (op.getBoolOption("enable-promise-try")) {
     JS::Prefs::setAtStartup_experimental_promise_try(true);
+  }
+  if (op.getBoolOption("enable-math-sumprecise")) {
+    JS::Prefs::setAtStartup_experimental_math_sumprecise(true);
   }
 #endif
   if (op.getBoolOption("enable-json-parse-with-source")) {

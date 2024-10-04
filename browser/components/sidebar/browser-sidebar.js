@@ -596,13 +596,17 @@ var SidebarController = {
       // the launcher should be on the right of the sidebar-box
       sidebarContainer.style.order = parseInt(this._box.style.order) + 1;
       // Indicate we've switched ordering to the box
-      this._box.setAttribute("positionend", true);
-      sidebarMain.setAttribute("positionend", true);
-      sidebarContainer.setAttribute("positionend", true);
+      this._box.toggleAttribute("positionend", true);
+      sidebarMain.toggleAttribute("positionend", true);
+      sidebarContainer.toggleAttribute("positionend", true);
+      this.toolbarButton &&
+        this.toolbarButton.toggleAttribute("positionend", true);
     } else {
-      this._box.removeAttribute("positionend");
-      sidebarMain.removeAttribute("positionend");
-      sidebarContainer.removeAttribute("positionend");
+      this._box.toggleAttribute("positionend", false);
+      sidebarMain.toggleAttribute("positionend", false);
+      sidebarContainer.toggleAttribute("positionend", false);
+      this.toolbarButton &&
+        this.toolbarButton.toggleAttribute("positionend", false);
     }
 
     this.hideSwitcherPanel();
@@ -684,9 +688,8 @@ var SidebarController = {
     // revamped sidebar.
     if (this.sidebarRevampEnabled && sourceController.revampComponentsLoaded) {
       this.promiseInitialized.then(() => {
-        this.toggleExpanded(sourceController.sidebarMain.expanded);
         this.sidebarContainer.hidden = sourceController.sidebarContainer.hidden;
-        this.updateToolbarButton();
+        this.toggleExpanded(sourceController.sidebarMain.expanded);
       });
     }
 
@@ -982,10 +985,9 @@ var SidebarController = {
         if (!isHidden && this.isOpen) {
           // Sidebar is currently visible, but now we want to hide it.
           this.hide();
-        } else if (isHidden) {
-          // Sidebar is currently hidden, but now we want to show it.
-          this.toggleExpanded(true);
         }
+        // Sidebar is currently hidden, but now we want to show it.
+        this.toggleExpanded(isHidden);
         this.sidebarContainer.hidden = !isHidden;
         this.updateToolbarButton();
         break;
@@ -1001,6 +1003,7 @@ var SidebarController = {
       // For the non-revamped sidebar, this is handled by CustomizableWidgets.
       return;
     }
+    this.toolbarButton.toggleAttribute("expanded", this.sidebarMain.expanded);
     switch (this.sidebarRevampVisibility) {
       case "always-show":
         // Toolbar button controls expanded state.
@@ -1026,8 +1029,8 @@ var SidebarController = {
    */
   toggleExpanded(force) {
     const expanded =
-      typeof force == "boolean" ? force : !this._sidebarMain.expanded;
-    this._sidebarMain.expanded = expanded;
+      typeof force == "boolean" ? force : !this.sidebarMain.expanded;
+    this.sidebarMain.expanded = expanded;
     if (expanded) {
       Glean.sidebar.expand.record();
     }
@@ -1035,7 +1038,7 @@ var SidebarController = {
     // and selectors considerably.
     gBrowser.tabContainer.toggleAttribute(
       "expanded",
-      this._sidebarMain.expanded
+      this.sidebarMain.expanded
     );
     this.updateToolbarButton();
   },
@@ -1567,7 +1570,7 @@ var SidebarController = {
     }
 
     if (toVerticalTabs) {
-      this.toggleExpanded(this._sidebarMain.expanded);
+      this.toggleExpanded(this.sidebarMain.expanded);
       arrowScrollbox.setAttribute("orient", "vertical");
       tabStrip.setAttribute("orient", "vertical");
     } else {

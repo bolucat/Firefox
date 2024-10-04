@@ -2284,7 +2284,7 @@
 # limit.
 - name: dom.popup_maximum
   type: int32_t
-  value: 20
+  value: -1
   mirror: always
 
 # Enable experimental popup blocker changes.
@@ -4244,6 +4244,18 @@
   value: true
   mirror: always
 
+# A pref that is used to enable testing features.
+- name: dom.fs.testing
+  type: SequentiallyConsistentAtomicBool
+  value: false
+  mirror: always
+
+# A pref that is used to slow down database initialization for testing purposes.
+- name: dom.fs.databaseInitialization.pauseOnIOThreadMs
+  type: RelaxedAtomicUint32
+  value: 0
+  mirror: always
+
 # LocalStorage data limit as determined by summing up the lengths of all string
 # keys and values. This is consistent with the legacy implementation and other
 # browser engines. This value should really only ever change in unit testing
@@ -4322,6 +4334,12 @@
 
 # A pref that is used to slow down database initialization for testing purposes.
 - name: dom.storage.databaseInitialization.pauseOnIOThreadMs
+  type: RelaxedAtomicUint32
+  value: 0
+  mirror: always
+
+# A pref that is used to slow down request finalization for testing purposes.
+- name: dom.storage.requestFinalization.pauseOnDOMFileThreadMs
   type: RelaxedAtomicUint32
   value: 0
   mirror: always
@@ -8102,6 +8120,13 @@
     mirror: always
     set_spidermonkey_pref: startup
 
+  # Experimental support for Math.sumPrecise in JavaScript.
+-   name: javascript.options.experimental.math_sumprecise
+    type: bool
+    value: false
+    mirror: always
+    set_spidermonkey_pref: startup
+
 #endif  // NIGHTLY_BUILD
 
 -   name: javascript.options.experimental.json_parse_with_source
@@ -11022,6 +11047,12 @@
   value: true
   mirror: always
 
+# The delay time (ms) before releasing an audio wakelock.
+-   name: media.wakelock.audio.delay-releasing.ms
+    type: RelaxedAtomicUint32
+    value: 10000
+    mirror: always
+
 # When video continues later than the current media time for this period of
 # time, then it will trigger skip-to-next-keyframe mechanism. As this aims to
 # solve the drop frames issue where video decoding too slow for high
@@ -11471,6 +11502,14 @@
   type: bool
   value: false
   mirror: always
+
+# Turns on legacy (non-spec) exposure of camera and microphone information
+# from enumerateDevices and devicechange ahead of successful getUserMedia
+# calls only for certain domains (ignored if above pref is true).
+- name: media.devices.enumerate.legacy.allowlist
+  type: String
+  value: "slack.com,*.slack.com"
+  mirror: never
 
 # WebRTC prefs follow
 
