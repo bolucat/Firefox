@@ -22,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
@@ -127,7 +128,28 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
 
         setContent {
             FirefoxTheme {
-                MenuDialogBottomSheet(onRequestDismiss = { dismiss() }) {
+                val context = LocalContext.current
+
+                var handlebarContentDescription by remember {
+                    mutableStateOf(
+                        if (args.accesspoint == MenuAccessPoint.External) {
+                            context.getString(
+                                R.string.browser_menu_handlebar_content_description,
+                                context.getString(R.string.browser_custom_tab_menu_handlebar_content_description),
+                            )
+                        } else {
+                            context.getString(
+                                R.string.browser_menu_handlebar_content_description,
+                                context.getString(R.string.browser_main_menu_handlebar_content_description),
+                            )
+                        },
+                    )
+                }
+
+                MenuDialogBottomSheet(
+                    handlebarContentDescription = handlebarContentDescription,
+                    onRequestDismiss = { dismiss() },
+                ) {
                     val appStore = components.appStore
                     val browserStore = components.core.store
                     val syncStore = components.backgroundServices.syncStore
@@ -277,6 +299,10 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                         state.toolsMenuState.pageWebExtensionMenuItem
                     }
 
+                    val showExtensionsOnboarding by store.observeAsState(initialValue = false) { state ->
+                        state.extensionMenuState.showExtensionsOnboarding
+                    }
+
                     val initRoute = when (args.accesspoint) {
                         MenuAccessPoint.Browser,
                         MenuAccessPoint.Home,
@@ -323,6 +349,11 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                     ) { route ->
                         when (route) {
                             Route.MainMenu -> {
+                                handlebarContentDescription = context.getString(
+                                    R.string.browser_menu_handlebar_content_description,
+                                    context.getString(R.string.browser_main_menu_handlebar_content_description),
+                                )
+
                                 if (settings.shouldShowMenuCFR) {
                                     MainMenuWithCFR(
                                         accessPoint = args.accesspoint,
@@ -369,6 +400,11 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                             }
 
                             Route.CustomTabMenu -> {
+                                handlebarContentDescription = context.getString(
+                                    R.string.browser_menu_handlebar_content_description,
+                                    context.getString(R.string.browser_custom_tab_menu_handlebar_content_description),
+                                )
+
                                 CustomTabMenu(
                                     isDesktopMode = isDesktopMode,
                                     customTabMenuItems = customTab?.config?.menuItems,
@@ -402,6 +438,11 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                 } else {
                                     null
                                 }
+
+                                handlebarContentDescription = context.getString(
+                                    R.string.browser_menu_handlebar_content_description,
+                                    context.getString(R.string.browser_tools_menu_handlebar_content_description),
+                                )
 
                                 ToolsSubmenu(
                                     isPdf = isPdf,
@@ -454,6 +495,11 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                             }
 
                             Route.SaveMenu -> {
+                                handlebarContentDescription = context.getString(
+                                    R.string.browser_menu_handlebar_content_description,
+                                    context.getString(R.string.browser_save_menu_handlebar_content_description),
+                                )
+
                                 SaveSubmenu(
                                     isBookmarked = isBookmarked,
                                     isPinned = isPinned,
@@ -491,10 +537,15 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                             }
 
                             Route.ExtensionsMenu -> {
+                                handlebarContentDescription = context.getString(
+                                    R.string.browser_menu_handlebar_content_description,
+                                    context.getString(R.string.browser_extensions_menu_handlebar_content_description),
+                                )
+
                                 ExtensionsSubmenu(
                                     recommendedAddons = recommendedAddons,
                                     addonInstallationInProgress = addonInstallationInProgress,
-                                    showExtensionsOnboarding = recommendedAddons.isNotEmpty(),
+                                    showExtensionsOnboarding = showExtensionsOnboarding,
                                     webExtensionMenuItems = browserWebExtensionMenuItem,
                                     onBackButtonClick = {
                                         contentState = Route.MainMenu

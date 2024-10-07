@@ -79,6 +79,7 @@ class OpenStorageDirectoryHelper : public Base {
       const PersistenceScope& aPersistenceScope,
       const OriginScope& aOriginScope,
       const Nullable<Client::Type>& aClientType, bool aExclusive,
+      bool aInitializeOrigins = false,
       DirectoryLockCategory aCategory = DirectoryLockCategory::None);
 
   RefPtr<UniversalDirectoryLock> mDirectoryLock;
@@ -954,10 +955,10 @@ template <class Base>
 RefPtr<BoolPromise> OpenStorageDirectoryHelper<Base>::OpenStorageDirectory(
     const PersistenceScope& aPersistenceScope, const OriginScope& aOriginScope,
     const Nullable<Client::Type>& aClientType, bool aExclusive,
-    const DirectoryLockCategory aCategory) {
+    bool aInitializeOrigins, const DirectoryLockCategory aCategory) {
   return Base::mQuotaManager
       ->OpenStorageDirectory(aPersistenceScope, aOriginScope, aClientType,
-                             aExclusive, aCategory)
+                             aExclusive, aInitializeOrigins, aCategory)
       ->Then(GetCurrentSerialEventTarget(), __func__,
              [self = RefPtr(this)](
                  UniversalDirectoryLockPromise::ResolveOrRejectValue&& aValue) {
@@ -1930,7 +1931,8 @@ RefPtr<BoolPromise> GetFullOriginMetadataOp::OpenDirectory() {
       PersistenceScope::CreateFromValue(mOriginMetadata.mPersistenceType),
       OriginScope::FromOrigin(mOriginMetadata.mOrigin),
       Nullable<Client::Type>(),
-      /* aExclusive */ false);
+      /* aExclusive */ false,
+      /* aInitializeOrigins */ true);
 }
 
 nsresult GetFullOriginMetadataOp::DoDirectoryWork(QuotaManager& aQuotaManager) {
@@ -1938,12 +1940,6 @@ nsresult GetFullOriginMetadataOp::DoDirectoryWork(QuotaManager& aQuotaManager) {
   aQuotaManager.AssertStorageIsInitializedInternal();
 
   AUTO_PROFILER_LABEL("GetFullOriginMetadataOp::DoDirectoryWork", OTHER);
-
-  // Ensure temporary storage is initialized. If temporary storage hasn't
-  // been initialized yet, the method will initialize it by traversing the
-  // repositories for temporary and default storage (including our origin).
-  QM_TRY(MOZ_TO_RESULT(
-      aQuotaManager.EnsureTemporaryStorageIsInitializedInternal()));
 
   // Get metadata cached in memory (the method doesn't have to stat any
   // files).
@@ -2093,6 +2089,7 @@ RefPtr<BoolPromise> ClearStorageOp::OpenDirectory() {
   return OpenStorageDirectory(PersistenceScope::CreateFromNull(),
                               OriginScope::FromNull(), Nullable<Client::Type>(),
                               /* aExclusive */ true,
+                              /* aInitializeOrigins */ false,
                               DirectoryLockCategory::UninitStorage);
 }
 
@@ -2779,7 +2776,8 @@ RefPtr<BoolPromise> EstimateOp::OpenDirectory() {
                                       PERSISTENCE_TYPE_PRIVATE),
       OriginScope::FromOrigin(mOriginMetadata.mOrigin),
       Nullable<Client::Type>(),
-      /* aExclusive */ false);
+      /* aExclusive */ false,
+      /* aInitializeOrigins */ true);
 }
 
 nsresult EstimateOp::DoDirectoryWork(QuotaManager& aQuotaManager) {
@@ -2787,13 +2785,6 @@ nsresult EstimateOp::DoDirectoryWork(QuotaManager& aQuotaManager) {
   aQuotaManager.AssertStorageIsInitializedInternal();
 
   AUTO_PROFILER_LABEL("EstimateOp::DoDirectoryWork", OTHER);
-
-  // Ensure temporary storage is initialized. If temporary storage hasn't been
-  // initialized yet, the method will initialize it by traversing the
-  // repositories for temporary and default storage (including origins
-  // belonging to our group).
-  QM_TRY(MOZ_TO_RESULT(
-      aQuotaManager.EnsureTemporaryStorageIsInitializedInternal()));
 
   // Get cached usage (the method doesn't have to stat any files).
   mUsageAndLimit = aQuotaManager.GetUsageAndLimitForEstimate(mOriginMetadata);
