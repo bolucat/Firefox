@@ -2290,7 +2290,13 @@ class PrepareDatastoreOp
   Maybe<DirectoryLock&> MaybeDirectoryLockRef() const {
     AssertIsOnBackgroundThread();
 
-    return ToMaybeRef(mDirectoryLock.get());
+    if (mDirectoryLock) {
+      return SomeRef(*mDirectoryLock);
+    }
+    if (mExtraDirectoryLock) {
+      return SomeRef(*mExtraDirectoryLock);
+    }
+    return Nothing();
   }
 
   bool OriginIsKnown() const {
@@ -6571,7 +6577,8 @@ PrepareDatastoreOp::PrepareDatastoreOp(
 }
 
 PrepareDatastoreOp::~PrepareDatastoreOp() {
-  MOZ_ASSERT(!mDirectoryLock);
+  MOZ_DIAGNOSTIC_ASSERT(!mDirectoryLock);
+  MOZ_DIAGNOSTIC_ASSERT(!mExtraDirectoryLock);
   MOZ_ASSERT_IF(MayProceedOnNonOwningThread(),
                 mState == State::Initial || mState == State::Completed);
   MOZ_ASSERT(!mLoadDataOp);
@@ -6909,6 +6916,8 @@ nsresult PrepareDatastoreOp::BeginDatastorePreparationInternal() {
 
   if ((mDatastore = GetDatastore(Origin()))) {
     MOZ_ASSERT(!mDatastore->IsClosed());
+
+    mExtraDirectoryLock = std::move(mDirectoryLock);
 
     mDatastore->NoteLivePrepareDatastoreOp(this);
 
@@ -7460,9 +7469,7 @@ void PrepareDatastoreOp::GetResponse(LSRequestResponse& aResponse) {
     return;
   }
 
-  if (mDatastore) {
-    mExtraDirectoryLock = std::move(mDirectoryLock);
-  } else {
+  if (!mDatastore) {
     MOZ_ASSERT(mUsage == mDEBUGUsage);
 
     RefPtr<QuotaObject> quotaObject;

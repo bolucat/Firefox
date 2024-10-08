@@ -2707,7 +2707,7 @@
 
 - name: dom.fetchKeepalive.enabled
   type: RelaxedAtomicBool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 # The maximum number of pending fetch keepalive requests per browser instance
@@ -5096,13 +5096,6 @@
   type: String
   value: "#FFFFFF"
   mirror: never
-
-# Whether HTMLEditor consides block or inline element with computed style or
-# only with the default style of HTML definition.
-- name: editor.block_inline_check.use_computed_style
-  type: bool
-  value: true
-  mirror: always
 
 # Delay to mask last input character in password fields.
 # If negative value, to use platform's default behavior.
@@ -8122,6 +8115,20 @@
 
   # Experimental support for Math.sumPrecise in JavaScript.
 -   name: javascript.options.experimental.math_sumprecise
+    type: bool
+    value: false
+    mirror: always
+    set_spidermonkey_pref: startup
+
+  # Experimental support for Iterator.range in JavaScript.
+-   name: javascript.options.experimental.iterator_range
+    type: bool
+    value: false
+    mirror: always
+    set_spidermonkey_pref: startup
+
+  # Experimental support for Joint Iteration in JavaScript.
+-   name: javascript.options.experimental.joint_iteration
     type: bool
     value: false
     mirror: always
@@ -14001,6 +14008,13 @@
 # Whether to use HTTPS RR and ignore NS_HTTP_DISALLOW_HTTPS_RR
 # This pref is only set when running tests
 - name: network.dns.force_use_https_rr
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# When true, we check if the cname is the same as the target name of the record.
+# If not, the record will not be used.
+- name: network.dns.https_rr.check_record_with_cname
   type: RelaxedAtomicBool
   value: false
   mirror: always

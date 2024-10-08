@@ -12686,7 +12686,11 @@ bool InitOptionParser(OptionParser& op) {
                         "Enable WebAssembly js-string-builtins proposal.") ||
       !op.addBoolOption('\0', "enable-promise-try", "Enable Promise.try") ||
       !op.addBoolOption('\0', "enable-math-sumprecise",
-                        "Enable Math.sumPrecise")) {
+                        "Enable Math.sumPrecise") ||
+      !op.addBoolOption('\0', "enable-iterator-range",
+                        "Enable Iterator.range") ||
+      !op.addBoolOption('\0', "enable-joint-iteration",
+                        "Enable Joint Iteration")) {
     return false;
   }
 
@@ -12767,6 +12771,12 @@ bool SetGlobalOptionsPreJSInit(const OptionParser& op) {
   }
   if (op.getBoolOption("enable-math-sumprecise")) {
     JS::Prefs::setAtStartup_experimental_math_sumprecise(true);
+  }
+  if (op.getBoolOption("enable-iterator-range")) {
+    JS::Prefs::setAtStartup_experimental_iterator_range(true);
+  }
+  if (op.getBoolOption("enable-joint-iteration")) {
+    JS::Prefs::setAtStartup_experimental_joint_iteration(true);
   }
 #endif
   if (op.getBoolOption("enable-json-parse-with-source")) {
