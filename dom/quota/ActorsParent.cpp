@@ -1510,8 +1510,6 @@ QuotaManager::Observer::Observe(nsISupports* aSubject, const char* aTopic,
       return NS_OK;
     }
 
-    Telemetry::SetEventRecordingEnabled("dom.quota.try"_ns, true);
-
     gBasePath = new nsString();
 
     nsCOMPtr<nsIFile> baseDir;
@@ -1597,8 +1595,6 @@ QuotaManager::Observer::Observe(nsISupports* aSubject, const char* aTopic,
     gStorageName = nullptr;
 
     gBuildId = nullptr;
-
-    Telemetry::SetEventRecordingEnabled("dom.quota.try"_ns, false);
 
     return NS_OK;
   }
@@ -5838,19 +5834,33 @@ RefPtr<UInt64Promise> QuotaManager::GetCachedOriginUsage(
 
 RefPtr<BoolPromise> QuotaManager::ClearStoragesForOrigin(
     const Maybe<PersistenceType>& aPersistenceType,
-    const PrincipalInfo& aPrincipalInfo,
-    const Maybe<Client::Type>& aClientType) {
+    const PrincipalInfo& aPrincipalInfo) {
   AssertIsOnOwningThread();
 
-  auto clearOriginOp =
-      CreateClearOriginOp(WrapMovingNotNullUnchecked(this), aPersistenceType,
-                          aPrincipalInfo, aClientType);
+  auto clearOriginOp = CreateClearOriginOp(WrapMovingNotNullUnchecked(this),
+                                           aPersistenceType, aPrincipalInfo);
 
   RegisterNormalOriginOp(*clearOriginOp);
 
   clearOriginOp->RunImmediately();
 
   return clearOriginOp->OnResults();
+}
+
+RefPtr<BoolPromise> QuotaManager::ClearStoragesForClient(
+    Maybe<PersistenceType> aPersistenceType,
+    const PrincipalInfo& aPrincipalInfo, Client::Type aClientType) {
+  AssertIsOnOwningThread();
+
+  auto clearClientOp =
+      CreateClearClientOp(WrapMovingNotNullUnchecked(this), aPersistenceType,
+                          aPrincipalInfo, aClientType);
+
+  RegisterNormalOriginOp(*clearClientOp);
+
+  clearClientOp->RunImmediately();
+
+  return clearClientOp->OnResults();
 }
 
 RefPtr<BoolPromise> QuotaManager::ClearStoragesForOriginPrefix(
