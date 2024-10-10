@@ -247,6 +247,14 @@
   value: @IS_NIGHTLY_BUILD@
   mirror: always
 
+# Whether to enable all accessibility cache domains on startup.
+#  * false: enable domains as needed
+#  * true:  enable all domains regardless of need (cache everything)
+- name: accessibility.enable_all_cache_domains
+  type: bool
+  value: false
+  mirror: once
+
 # Whether form controls and images should be focusable with mouse, in content
 # documents.
 #
@@ -15729,17 +15737,17 @@
 
 - name: security.tls.enable_certificate_compression_zlib
   type: RelaxedAtomicBool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 - name: security.tls.enable_certificate_compression_brotli
   type: RelaxedAtomicBool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 - name: security.tls.enable_certificate_compression_zstd
   type: RelaxedAtomicBool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 - name: security.ssl.treat_unsafe_negotiation_as_broken

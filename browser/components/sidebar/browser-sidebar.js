@@ -308,10 +308,14 @@ var SidebarController = {
     }
 
     const menubar = document.getElementById("viewSidebarMenu");
+    const currentMenuItems = new Set(
+      Array.from(menubar.childNodes, item => item.id)
+    );
     for (const [commandID, sidebar] of this.sidebars.entries()) {
       if (
         !Object.hasOwn(sidebar, "extensionId") &&
-        commandID !== "viewCustomizeSidebar"
+        commandID !== "viewCustomizeSidebar" &&
+        !currentMenuItems.has(sidebar.menuId)
       ) {
         // registerExtension() already creates menu items for extensions.
         const menuitem = this.createMenuItem(commandID, sidebar);
@@ -365,6 +369,10 @@ var SidebarController = {
         };
         this.browser.addEventListener("resize", this._browserResizeObserver);
       }
+      // Record Glean metrics.
+      this.recordVisibilitySetting();
+      this.recordPositionSetting();
+      this.recordTabsLayoutSetting();
     } else {
       this._switcherCloseButton = document.getElementById("sidebar-close");
       if (!this._switcherListenersAdded) {
@@ -1589,6 +1597,35 @@ var SidebarController = {
     // for proper keyboard navigation for Tools
     this.sidebarMain.requestUpdate();
   },
+
+  /**
+   * Report visibility preference to Glean.
+   *
+   * @param {string} [value] - The preference value.
+   */
+  recordVisibilitySetting(value = this.sidebarRevampVisibility) {
+    Glean.sidebar.displaySettings.set(
+      value === "always-show" ? "always" : "hide"
+    );
+  },
+
+  /**
+   * Report position preference to Glean.
+   *
+   * @param {boolean} [value] - The preference value.
+   */
+  recordPositionSetting(value = this._positionStart) {
+    Glean.sidebar.positionSettings.set(value !== RTL_UI ? "left" : "right");
+  },
+
+  /**
+   * Report tabs layout preference to Glean.
+   *
+   * @param {boolean} [value] - The preference value.
+   */
+  recordTabsLayoutSetting(value = this.sidebarVerticalTabsEnabled) {
+    Glean.sidebar.tabsLayout.set(value ? "vertical" : "horizontal");
+  },
 };
 
 ChromeUtils.defineESModuleGetters(SidebarController, {
@@ -1602,9 +1639,10 @@ XPCOMUtils.defineLazyPreferenceGetter(
   "_positionStart",
   SidebarController.POSITION_START_PREF,
   true,
-  () => {
+  (_aPreference, _previousValue, newValue) => {
     if (!SidebarController.uninitializing) {
       SidebarController.setPosition();
+      SidebarController.recordPositionSetting(newValue);
     }
   }
 );
@@ -1647,9 +1685,10 @@ XPCOMUtils.defineLazyPreferenceGetter(
   "sidebarRevampVisibility",
   "sidebar.visibility",
   "always-show",
-  () => {
+  (_aPreference, _previousValue, newValue) => {
     if (!SidebarController.uninitializing) {
       SidebarController.updateToolbarButton();
+      SidebarController.recordVisibilitySetting(newValue);
     }
   }
 );
@@ -1657,5 +1696,10 @@ XPCOMUtils.defineLazyPreferenceGetter(
   SidebarController,
   "sidebarVerticalTabsEnabled",
   "sidebar.verticalTabs",
-  false
+  false,
+  (_aPreference, _previousValue, newValue) => {
+    if (!SidebarController.uninitializing) {
+      SidebarController.recordTabsLayoutSetting(newValue);
+    }
+  }
 );
