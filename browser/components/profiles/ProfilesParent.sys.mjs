@@ -57,7 +57,7 @@ export class ProfilesParent extends JSWindowActorParent {
         let name = SelectableProfileService.currentProfile.name;
         let windowCount = lazy.EveryWindow.readyWindows.length;
         let tabCount = lazy.EveryWindow.readyWindows
-          .flatMap(win => win.gBrowser.visibleTabs.length)
+          .flatMap(win => win.gBrowser.openTabCount)
           .reduce((total, current) => total + current);
         let loginCount = (await lazy.LoginHelper.getAllUserFacingLogins())
           .length;
@@ -87,6 +87,11 @@ export class ProfilesParent extends JSWindowActorParent {
           autofillCount,
           loginCount,
         };
+      }
+      case "Profiles:UpdateProfileAvatar": {
+        let profileObj = message.data;
+        SelectableProfileService.currentProfile.avatar = profileObj.avatar;
+        break;
       }
     }
     return null;

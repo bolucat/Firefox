@@ -60,6 +60,34 @@ add_task(async function test_getTabGroups() {
   );
 });
 
+/**
+ * Tests that creating a group without specifying a color will select a
+ * unique color.
+ */
+add_task(async function test_tabGroupUniqueColors() {
+  let initialTab = BrowserTestUtils.addTab(gBrowser, "about:blank", {
+    skipAnimation: true,
+  });
+  let initialGroup = gBrowser.addTabGroup(null, null, [initialTab]);
+  let existingGroups = [initialGroup];
+
+  for (let i = 2; i <= 9; i++) {
+    let newTab = BrowserTestUtils.addTab(gBrowser, "about:blank", {
+      skipAnimation: true,
+    });
+    let newGroup = gBrowser.addTabGroup(null, null, [newTab]);
+    Assert.ok(
+      !existingGroups.find(grp => grp.color == newGroup.color),
+      `Group ${i} has a distinct color`
+    );
+    existingGroups.push(newGroup);
+  }
+
+  for (let group of existingGroups) {
+    await removeTabGroup(group);
+  }
+});
+
 add_task(async function test_tabGroupCollapseAndExpand() {
   let tab1 = BrowserTestUtils.addTab(gBrowser, "about:blank");
   let group = gBrowser.addTabGroup("blue", "test", [tab1]);
@@ -674,8 +702,16 @@ add_task(async function test_tabGroupContextMenuMoveTabToGroupBasics() {
         "group2 menu item has correct label"
       );
       Assert.ok(
-        group2Item.getAttribute("image").includes('fill="blue"'),
+        group2Item.style
+          .getPropertyValue("--tab-group-color")
+          .includes("--tab-group-color-blue"),
         "group2 menu item chicklet has correct color"
+      );
+      Assert.ok(
+        group2Item.style
+          .getPropertyValue("--tab-group-color-invert")
+          .includes("--tab-group-color-blue-invert"),
+        "group2 menu item chicklet has correct inverted color"
       );
 
       const group1Item = submenu[2];
@@ -690,8 +726,16 @@ add_task(async function test_tabGroupContextMenuMoveTabToGroupBasics() {
         "group1 menu item has correct label"
       );
       Assert.ok(
-        group1Item.getAttribute("image").includes('fill="red"'),
+        group1Item.style
+          .getPropertyValue("--tab-group-color")
+          .includes("--tab-group-color-red"),
         "group1 menu item chicklet has correct color"
+      );
+      Assert.ok(
+        group1Item.style
+          .getPropertyValue("--tab-group-color-invert")
+          .includes("--tab-group-color-red-invert"),
+        "group1 menu item chicklet has correct inverted color"
       );
     }
   );

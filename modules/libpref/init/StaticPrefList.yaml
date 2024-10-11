@@ -8142,6 +8142,13 @@
     mirror: always
     set_spidermonkey_pref: startup
 
+  # Experimental support for Atomics.pause in JavaScript.
+-   name: javascript.options.experimental.atomics_pause
+    type: bool
+    value: false
+    mirror: always
+    set_spidermonkey_pref: startup
+
 #endif  // NIGHTLY_BUILD
 
 -   name: javascript.options.experimental.json_parse_with_source
@@ -8603,6 +8610,8 @@
   type: bool
 #if defined(XP_WIN) || defined(MOZ_WIDGET_ANDROID)
   value: true
+#elif defined(MOZ_X11)
+  value: @IS_NIGHTLY_BUILD@
 #else
   value: false
 #endif

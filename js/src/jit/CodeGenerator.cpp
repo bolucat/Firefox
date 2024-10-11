@@ -16530,6 +16530,15 @@ bool CodeGenerator::generate() {
     return false;
   }
 
+  size_t maxSafepointIndices =
+      graph.numSafepoints() + graph.extraSafepointUses();
+  if (!safepointIndices_.reserve(maxSafepointIndices)) {
+    return false;
+  }
+  if (!osiIndices_.reserve(graph.numSafepoints())) {
+    return false;
+  }
+
   perfSpewer_.recordOffset(masm, "Prologue");
   if (!generatePrologue()) {
     return false;
@@ -16581,6 +16590,34 @@ bool CodeGenerator::generate() {
   if (!encodeSafepoints()) {
     return false;
   }
+
+  // If this assertion trips, then you have multiple things to do:
+  //
+  // This assertion will report if a safepoint is used multiple times for the
+  // same instruction. To fix this assertion make sure to call
+  // `lirGraph_.addExtraSafepointUses(..);` in the Lowering phase.
+  //
+  // However, this non-worrying issue might hide a more dramatic security issue,
+  // which is that having multiple encoding of a safepoint in a single LIR
+  // instruction is not safe, unless:
+  //
+  //   - The multiple uses of the safepoints are in different code path. i-e
+  //     there should be not single execution trace making use of multiple
+  //     calls within a single instruction.
+  //
+  //   - There is enough space to encode data in-place of the call instruction.
+  //     Such that a patched-call site does not corrupt the code path on another
+  //     execution trace.
+  //
+  // This issue is caused by the way invalidation works, to keep the code alive
+  // when invalidated code is only referenced by the stack. This works by
+  // storing data in-place of the calling code, which thus becomes unsafe to
+  // execute.
+  MOZ_ASSERT(safepointIndices_.length() <= maxSafepointIndices);
+
+  // For each instruction with a safepoint, we have an OSI point inserted after
+  // which handles bailouts in case of invalidation of the code.
+  MOZ_ASSERT(osiIndices_.length() == graph.numSafepoints());
 
   return !masm.oom();
 }
