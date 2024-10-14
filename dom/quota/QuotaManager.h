@@ -298,7 +298,7 @@ class QuotaManager final : public BackgroundThreadObject {
   // must be always done explicitly before the lock object is destroyed (when
   // the last strong reference is removed).
   RefPtr<ClientDirectoryLockPromise> OpenClientDirectory(
-      const ClientMetadata& aClientMetadata,
+      const ClientMetadata& aClientMetadata, bool aCreateIfNonExistent = true,
       Maybe<RefPtr<ClientDirectoryLock>&> aPendingDirectoryLockOut = Nothing());
 
   RefPtr<ClientDirectoryLock> CreateDirectoryLock(
@@ -588,6 +588,9 @@ class QuotaManager final : public BackgroundThreadObject {
 
   Result<PrincipalMetadata, nsresult> GetInfoFromValidatedPrincipalInfo(
       const PrincipalInfo& aPrincipalInfo);
+
+  static Result<PrincipalInfo, nsresult> PrincipalMetadataToPrincipalInfo(
+      const PrincipalMetadata& aPrincipalMetadata);
 
   static nsAutoCString GetOriginFromValidatedPrincipalInfo(
       const PrincipalInfo& aPrincipalInfo);
