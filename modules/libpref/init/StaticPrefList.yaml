@@ -2445,6 +2445,13 @@
   value: @IS_NIGHTLY_BUILD@
   mirror: always
 
+# Whether Dialog elements emit beforetoggle and toggle events during opening and closing.
+# See https://github.com/whatwg/html/pull/10091
+- name: dom.element.dialog.toggle_events.enabled
+  type: bool
+  value: true
+  mirror: always
+
 - name: dom.element.transform-getters.enabled
   type: bool
   value: false
@@ -2721,13 +2728,13 @@
 # The maximum number of pending fetch keepalive requests per browser instance
 - name: dom.fetchKeepalive.total_request_limit
   type: RelaxedAtomicUint32
-  value: 100
+  value: 500
   mirror: always
 
 # The maximum number of pending fetch keepalive requests per origin
 - name: dom.fetchKeepalive.request_limit_per_origin
   type: RelaxedAtomicUint32
-  value: 30
+  value: 250
   mirror: always
 
 - name: dom.fetchObserver.enabled
@@ -4404,39 +4411,39 @@
 
 # Time (in ms) that it takes to regenerate 1ms.
 - name: dom.timeout.background_budget_regeneration_rate
-  type: int32_t
+  type: RelaxedAtomicInt32
   value: 100
   mirror: always
 
 # Time (in ms) that it takes to regenerate 1ms.
 - name: dom.timeout.foreground_budget_regeneration_rate
-  type: int32_t
+  type: RelaxedAtomicInt32
   value: 1
   mirror: always
 
 # Maximum value (in ms) for the background budget. Only valid for
 # values greater than 0.
 - name: dom.timeout.background_throttling_max_budget
-  type: int32_t
+  type: RelaxedAtomicInt32
   value: 50
   mirror: always
 
 # Maximum value (in ms) for the foreground budget. Only valid for
 # values greater than 0.
 - name: dom.timeout.foreground_throttling_max_budget
-  type: int32_t
+  type: RelaxedAtomicInt32
   value: -1
   mirror: always
 
 # The maximum amount a timeout can be delayed by budget throttling.
 - name: dom.timeout.budget_throttling_max_delay
-  type: int32_t
+  type: RelaxedAtomicInt32
   value: 15000
   mirror: always
 
 # Turn on budget throttling by default.
 - name: dom.timeout.enable_budget_timer_throttling
-  type: bool
+  type: RelaxedAtomicBool
   value: true
   mirror: always
 
@@ -4450,7 +4457,7 @@
 # Maximum amount of time in milliseconds consecutive setTimeout()/setInterval()
 # callback are allowed to run before yielding the event loop.
 - name: dom.timeout.max_consecutive_callbacks_ms
-  type: uint32_t
+  type: RelaxedAtomicUint32
   value: 4
   mirror: always
 
@@ -4462,7 +4469,7 @@
 
 # Delay in ms from document load until we start throttling background timeouts.
 - name: dom.timeout.throttling_delay
-  type: int32_t
+  type: RelaxedAtomicInt32
   value: 30000
   mirror: always
 
@@ -8361,13 +8368,23 @@
     mirror: always
     set_spidermonkey_pref: always
 
--   name: javascript.options.wasm_experimental_compile_pipeline
+# Enables lazy tiering for wasm modules that have a GC type defined in them.
+# Use wasm_lazy_tiering to enable it for any module.
+-   name: javascript.options.wasm_lazy_tiering_for_gc
     type: bool
     value: false
     mirror: always
-    set_spidermonkey_pref: startup
+    set_spidermonkey_pref: always
 
-- name: javascript.options.wasm_experimental_inline_call_ref_threshold
+# Enables lazy tiering for all modules. Use wasm_lazy_tiering_for_gc to only
+# enable this for GC modules.
+-   name: javascript.options.wasm_lazy_tiering
+    type: bool
+    value: false
+    mirror: always
+    set_spidermonkey_pref: always
+
+- name: javascript.options.wasm_inline_call_ref_threshold
   type: uint32_t
   value: 1
   mirror: always
@@ -8376,28 +8393,36 @@
 # Aggressiveness of lazy tiering, allowable: 1 .. 9
 # 1 = min (almost never, set tiering threshold to max possible, == 2^31-1)
 # 9 = max (request tier up at first call, set tiering threshold to zero)
-- name: javascript.options.wasm_experimental_tiering_level
+- name: javascript.options.wasm_lazy_tiering_level
   type: uint32_t
   value: 5
   mirror: always
   set_spidermonkey_pref: always
 
+# Forces lazy tiering to synchronously compile instead of using a background
+# thread.
+- name: javascript.options.wasm_lazy_tiering_synchronous
+  type: bool
+  value: false
+  mirror: always
+  set_spidermonkey_pref: always
+
 # Aggressiveness of inlining (regardless of call kind), allowable: 1 .. 9
-- name: javascript.options.wasm_experimental_inlining_level
+- name: javascript.options.wasm_inlining_level
   type: uint32_t
   value: 5
   mirror: always
   set_spidermonkey_pref: always
 
 # Are wasm direct calls (within same Instance) candidates for inlining?
-- name: javascript.options.wasm_experimental_direct_inlining
+- name: javascript.options.wasm_direct_inlining
   type: bool
   value: true
   mirror: always
   set_spidermonkey_pref: always
 
-# Are wasm callRef calls (within same Instance) candidates for inlining?
-- name: javascript.options.wasm_experimental_callRef_inlining
+# Are wasm call_ref calls (within same Instance) candidates for inlining?
+- name: javascript.options.wasm_call_ref_inlining
   type: bool
   value: true
   mirror: always
@@ -13163,6 +13188,14 @@
   value: true
   mirror: always
 
+# When true, DNS resolutions will downgrade DNS
+# from AF_UNSPEC to AF_INET when no non-local IPv6 addresses are
+# available.
+- name: network.dns.skip_ipv6_when_no_addresses
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 # The proxy type. See nsIProtocolProxyService.idl
 #     PROXYCONFIG_DIRECT   = 0
 #     PROXYCONFIG_MANUAL   = 1
@@ -17485,6 +17518,12 @@
   type: RelaxedAtomicInt32
   value: 2
   mirror: always
+
+# Whether we use the mica backdrop. Off by default for now.
+- name: widget.windows.mica
+  type: bool
+  value: false
+  mirror: once
 #endif
 
 # Whether to disable SwipeTracker (e.g. swipe-to-nav).
