@@ -245,6 +245,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                         }
                                     },
                                     scope = coroutineScope,
+                                    customTab = customTab,
                                 ),
                                 MenuTelemetryMiddleware(
                                     accessPoint = args.accesspoint,
@@ -301,6 +302,10 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
 
                     val showExtensionsOnboarding by store.observeAsState(initialValue = false) { state ->
                         state.extensionMenuState.showExtensionsOnboarding
+                    }
+
+                    val showDisabledExtensionsOnboarding by store.observeAsState(initialValue = false) { state ->
+                        state.extensionMenuState.showDisabledExtensionsOnboarding
                     }
 
                     val initRoute = when (args.accesspoint) {
@@ -435,6 +440,9 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                     onOpenInFirefoxMenuClick = {
                                         store.dispatch(MenuAction.OpenInFirefox)
                                     },
+                                    onShareMenuClick = {
+                                        store.dispatch(MenuAction.Navigate.Share)
+                                    },
                                 )
                             }
 
@@ -546,6 +554,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                     recommendedAddons = recommendedAddons,
                                     addonInstallationInProgress = addonInstallationInProgress,
                                     showExtensionsOnboarding = showExtensionsOnboarding,
+                                    showDisabledExtensionsOnboarding = showDisabledExtensionsOnboarding,
                                     showManageExtensions = updateManageExtensionsMenuItemVisibility,
                                     webExtensionMenuItems = browserWebExtensionMenuItem,
                                     onBackButtonClick = {

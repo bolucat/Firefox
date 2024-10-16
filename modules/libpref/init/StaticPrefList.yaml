@@ -2298,7 +2298,7 @@
 # Enable experimental popup blocker changes.
 - name: dom.popup.experimental
   type: bool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
   # Enable CacheAPI in private browsing mode with encryption
@@ -8069,14 +8069,6 @@
   mirror: always
   set_spidermonkey_pref: startup
 
-
-# Experimental support for Iterator Helpers in JavaScript.
-- name: javascript.options.experimental.iterator_helpers
-  type: bool
-  value: true
-  mirror: always
-  set_spidermonkey_pref: startup
-
 # Experimental support for Pattern Modifiers in JavaScript.
 - name: javascript.options.experimental.regexp_modifiers
   type: bool
@@ -8653,6 +8645,11 @@
 - name: layers.gpu-process.ipc_reply_timeout_ms
   type: int32_t
   value: 10000
+  mirror: once
+
+- name: layers.gpu-process.extend_ipc_reply_timeout_ms
+  type: int32_t
+  value: 20000
   mirror: once
 
 # How many unstable GPU process restarts we allow for a given configuration.
@@ -12231,7 +12228,7 @@
 # Whether to support CHIPS(Cookies Having Independent Partitioned State).
 - name: network.cookie.CHIPS.enabled
   type: RelaxedAtomicBool
-  value: true
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Stale threshold for cookies in seconds.
@@ -15650,9 +15647,12 @@
 # Configures Certificate Transparency support mode:
 # 0: Fully disabled.
 # 1: Only collect telemetry. CT qualification checks are not performed.
+# 2: Enforce CT.
 - name: security.pki.certificate_transparency.mode
   type: RelaxedAtomicUint32
-#ifdef EARLY_BETA_OR_EARLIER
+#if defined(NIGHTLY_BUILD)
+  value: 2
+#elif defined(EARLY_BETA_OR_EARLIER)
   value: 1
 #else
   value: 0
