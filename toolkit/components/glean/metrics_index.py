@@ -15,6 +15,7 @@
 # (Firefox Desktop, Firefox for Android, Focus for Android, etc.).
 # Order is lexicographical, enforced by t/c/glean/tests/pytest/test_yaml_indices.py
 gecko_metrics = [
+    "accessible/metrics.yaml",
     "browser/base/content/metrics.yaml",
     "devtools/client/shared/metrics.yaml",
     "docshell/base/metrics.yaml",
@@ -76,11 +77,13 @@ gecko_metrics = [
 firefox_desktop_metrics = [
     "browser/components/backup/metrics.yaml",
     "browser/components/doh/metrics.yaml",
+    "browser/components/downloads/metrics.yaml",
     "browser/components/firefoxview/metrics.yaml",
     "browser/components/genai/metrics.yaml",
     "browser/components/metrics.yaml",
     "browser/components/migration/metrics.yaml",
     "browser/components/newtab/metrics.yaml",
+    "browser/components/places/metrics.yaml",
     "browser/components/pocket/metrics.yaml",
     "browser/components/preferences/metrics.yaml",
     "browser/components/privatebrowsing/metrics.yaml",
@@ -129,6 +132,7 @@ background_tasks_metrics = [
 # Order is lexicographical, enforced by t/c/glean/tests/pytest/test_yaml_indices.py
 test_metrics = [
     "toolkit/components/glean/tests/test_metrics.yaml",
+    "toolkit/components/telemetry/tests/test_metrics.yaml",
 ]
 
 # The list of all Glean metrics.yaml files, relative to the top src dir.

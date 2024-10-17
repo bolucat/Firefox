@@ -75,9 +75,6 @@
 #    include "WinUtils.h"
 #    include "mozilla/Preferences.h"
 #    include "mozilla/sandboxing/sandboxLogging.h"
-#    if defined(_ARM64_)
-#      include "mozilla/remoteSandboxBroker.h"
-#    endif
 #  endif
 
 #  include "mozilla/NativeNt.h"
@@ -138,7 +135,7 @@ struct LaunchResults {
   UniqueBEProcessCapabilityGrant mForegroundCapabilityGrant;
 #endif
 #if defined(XP_WIN) && defined(MOZ_SANDBOX)
-  RefPtr<AbstractSandboxBroker> mSandboxBroker;
+  UniquePtr<SandboxBroker> mSandboxBroker;
 #endif
 };
 typedef mozilla::MozPromise<LaunchResults, LaunchError, true>
@@ -460,13 +457,6 @@ GeckoChildProcessHost::~GeckoChildProcessHost() {
       mChildProcessHandle = 0;
     }
   }
-
-#if defined(MOZ_SANDBOX) && defined(XP_WIN)
-  if (mSandboxBroker) {
-    mSandboxBroker->Shutdown();
-    mSandboxBroker = nullptr;
-  }
-#endif
 }
 
 base::ProcessHandle GeckoChildProcessHost::GetChildProcessHandle() {
@@ -1499,39 +1489,12 @@ Result<Ok, LaunchError> MacProcessLauncher::DoFinishLaunch() {
 
   MOZ_ASSERT(mParentRecvPort, "should have been configured during DoSetup()");
 
-  // Wait for the child process to send us its 'task_t' data.
+  // Wait for the child process to send us its 'task_t' data, then send it the
+  // mach send/receive rights which are being passed on the commandline.
   const int kTimeoutMs = 10000;
-
-  mozilla::UniqueMachSendRight child_task;
-  audit_token_t audit_token{};
-  kern_return_t kr = MachReceivePortSendRight(
-      mParentRecvPort, mozilla::Some(kTimeoutMs), &child_task, &audit_token);
-  if (kr != KERN_SUCCESS) {
-    std::string errString = StringPrintf("0x%x %s", kr, mach_error_string(kr));
-    CHROMIUM_LOG(ERROR) << "parent MachReceivePortSendRight failed: "
-                        << errString;
-    return Err(LaunchError("MachReceivePortSendRight", kr));
-  }
-
-  // Ensure the message was sent by the newly spawned child process.
-  if (audit_token_to_pid(audit_token) != base::GetProcId(mResults.mHandle)) {
-    CHROMIUM_LOG(ERROR) << "task_t was not sent by child process";
-    return Err(LaunchError("audit_token_to_pid"));
-  }
-
-  // Ensure the task_t corresponds to the newly spawned child process.
-  pid_t task_pid = -1;
-  kr = pid_for_task(child_task.get(), &task_pid);
-  if (kr != KERN_SUCCESS) {
-    CHROMIUM_LOG(ERROR) << "pid_for_task failed: " << mach_error_string(kr);
-    return Err(LaunchError("pid_for_task", kr));
-  }
-  if (task_pid != base::GetProcId(mResults.mHandle)) {
-    CHROMIUM_LOG(ERROR) << "task_t is not for child process";
-    return Err(LaunchError("task_pid"));
-  }
-
-  mResults.mChildTask = child_task.release();
+  MOZ_TRY(MachHandleProcessCheckIn(
+      mParentRecvPort.get(), base::GetProcId(mResults.mHandle), kTimeoutMs,
+      mChildArgs.mSendRights, &mResults.mChildTask));
 
   return Ok();
 }
@@ -1550,19 +1513,7 @@ Result<Ok, LaunchError> WindowsProcessLauncher::DoSetup() {
 #  if defined(MOZ_SANDBOX) || defined(_ARM64_)
   const bool isGMP = mProcessType == GeckoProcessType_GMPlugin;
   const bool isWidevine = isGMP && Contains(mChildArgs, "gmp-widevinecdm");
-#    if defined(_ARM64_)
-  bool useRemoteSandboxBroker = false;
-  if (mLaunchArch & (base::PROCESS_ARCH_I386 | base::PROCESS_ARCH_X86_64)) {
-    // On Windows on ARM64 for ClearKey and Widevine, and for the sandbox
-    // launcher process, we want to run the x86 plugin-container.exe in
-    // the "i686" subdirectory, instead of the aarch64 plugin-container.exe.
-    // So insert "i686" into the exePath.
-    exePath = exePath.DirName().AppendASCII("i686").Append(exePath.BaseName());
-    useRemoteSandboxBroker =
-        mProcessType != GeckoProcessType_RemoteSandboxBroker;
-  }
-#    endif  // if defined(_ARM64_)
-#  endif    // defined(MOZ_SANDBOX) || defined(_ARM64_)
+#  endif  // defined(MOZ_SANDBOX) || defined(_ARM64_)
 
   mCmdLine.emplace(exePath.ToWStringHack());
 
@@ -1585,12 +1536,7 @@ Result<Ok, LaunchError> WindowsProcessLauncher::DoSetup() {
   }
 
 #  if defined(MOZ_SANDBOX)
-#    if defined(_ARM64_)
-  if (useRemoteSandboxBroker)
-    mResults.mSandboxBroker = new RemoteSandboxBroker(mLaunchArch);
-  else
-#    endif  // if defined(_ARM64_)
-    mResults.mSandboxBroker = new SandboxBroker();
+  mResults.mSandboxBroker = MakeUnique<SandboxBroker>();
 
   // XXX: Bug 1124167: We should get rid of the process specific logic for
   // sandboxing in this class at some point. Unfortunately it will take a bit
@@ -1665,9 +1611,6 @@ Result<Ok, LaunchError> WindowsProcessLauncher::DoSetup() {
         }
         mUseSandbox = true;
       }
-      break;
-    case GeckoProcessType_RemoteSandboxBroker:
-      // We don't sandbox the sandbox launcher...
       break;
     case GeckoProcessType_Default:
     default:
