@@ -5893,6 +5893,8 @@
   value: true
 #elif defined(MOZ_WIDGET_ANDROID)
   value: true
+#elif defined(XP_WIN)
+  value: true
 #else
   value: false
 #endif
@@ -6257,7 +6259,7 @@
 # Whether to disable the automatic detection and use of direct2d.
 - name: gfx.direct2d.disabled
   type: bool
-  value: false
+  value: true
   mirror: once
 
 # Whether to attempt to enable Direct2D regardless of automatic detection or
@@ -8158,6 +8160,14 @@
     value: false
     mirror: always
     set_spidermonkey_pref: startup
+
+  # Experimental support for Iterator Sequencing in JavaScript.
+-   name: javascript.options.experimental.iterator_sequencing
+    type: bool
+    value: false
+    mirror: always
+    set_spidermonkey_pref: startup
+
 
 #endif  // NIGHTLY_BUILD
 
@@ -13992,19 +14002,6 @@
   value: false
   mirror: always
   rust: true
-
-# When true, HTTP/3 will be disabled when third party roots are found.
-- name: network.http.http3.disable_when_third_party_roots_found
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
-# Only used for testing purposes. In automation, this value is used to override
-# the result of third party roots check.
-- name: network.http.http3.has_third_party_roots_found_in_automation
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
 
 # When true, a http request will be upgraded to https when HTTPS RR is
 # available.

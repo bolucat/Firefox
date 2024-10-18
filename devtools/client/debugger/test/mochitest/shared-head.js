@@ -607,7 +607,7 @@ function waitForResumed(dbg) {
 }
 
 function waitForInlinePreviews(dbg) {
-  return waitForState(dbg, () => dbg.selectors.getSelectedInlinePreviews());
+  return waitForState(dbg, () => dbg.selectors.getInlinePreviews());
 }
 
 function waitForCondition(dbg, condition) {
@@ -655,11 +655,7 @@ function isSelectedFrameSelected(dbg) {
 function isFrameSelected(dbg, index, title) {
   const $frame = findElement(dbg, "frame", index);
 
-  const {
-    selectors: { getSelectedFrame, getCurrentThread },
-  } = dbg;
-
-  const frame = getSelectedFrame(getCurrentThread());
+  const frame = dbg.selectors.getSelectedFrame();
 
   const elSelected = $frame.classList.contains("selected");
   const titleSelected = frame.displayName == title;

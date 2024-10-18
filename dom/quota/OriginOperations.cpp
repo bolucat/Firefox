@@ -29,6 +29,7 @@
 #include "mozilla/dom/quota/DirectoryLock.h"
 #include "mozilla/dom/quota/DirectoryLockInlines.h"
 #include "mozilla/dom/quota/PersistenceType.h"
+#include "mozilla/dom/quota/PrincipalUtils.h"
 #include "mozilla/dom/quota/PQuota.h"
 #include "mozilla/dom/quota/PQuotaRequest.h"
 #include "mozilla/dom/quota/PQuotaUsageRequest.h"
@@ -367,6 +368,31 @@ class TemporaryStorageInitializedOp final : public InitializedRequestBase {
   bool GetResolveValue() override;
 };
 
+class TemporaryGroupInitializedOp final
+    : public ResolvableNormalOriginOp<bool> {
+  const PrincipalInfo mPrincipalInfo;
+  PrincipalMetadata mPrincipalMetadata;
+  bool mInitialized;
+
+ public:
+  explicit TemporaryGroupInitializedOp(
+      MovingNotNull<RefPtr<QuotaManager>> aQuotaManager,
+      const PrincipalInfo& aPrincipalInfo);
+
+ private:
+  ~TemporaryGroupInitializedOp() = default;
+
+  nsresult DoInit(QuotaManager& aQuotaManager) override;
+
+  RefPtr<BoolPromise> OpenDirectory() override;
+
+  nsresult DoDirectoryWork(QuotaManager& aQuotaManager) override;
+
+  bool GetResolveValue() override;
+
+  void CloseDirectory() override;
+};
+
 class InitializedOriginRequestBase : public ResolvableNormalOriginOp<bool> {
  protected:
   const PrincipalInfo mPrincipalInfo;
@@ -465,6 +491,30 @@ class InitTemporaryStorageOp final : public ResolvableNormalOriginOp<bool> {
 
  private:
   ~InitTemporaryStorageOp() = default;
+
+  RefPtr<BoolPromise> OpenDirectory() override;
+
+  nsresult DoDirectoryWork(QuotaManager& aQuotaManager) override;
+
+  bool GetResolveValue() override;
+
+  void CloseDirectory() override;
+};
+
+class InitializeTemporaryGroupOp final : public ResolvableNormalOriginOp<bool> {
+  const PrincipalInfo mPrincipalInfo;
+  PrincipalMetadata mPrincipalMetadata;
+  RefPtr<UniversalDirectoryLock> mDirectoryLock;
+
+ public:
+  InitializeTemporaryGroupOp(MovingNotNull<RefPtr<QuotaManager>> aQuotaManager,
+                             const PrincipalInfo& aPrincipalInfo,
+                             RefPtr<UniversalDirectoryLock> aDirectoryLock);
+
+ private:
+  ~InitializeTemporaryGroupOp() = default;
+
+  nsresult DoInit(QuotaManager& aQuotaManager) override;
 
   RefPtr<BoolPromise> OpenDirectory() override;
 
@@ -990,6 +1040,13 @@ RefPtr<ResolvableNormalOriginOp<bool>> CreateTemporaryStorageInitializedOp(
   return MakeRefPtr<TemporaryStorageInitializedOp>(std::move(aQuotaManager));
 }
 
+RefPtr<ResolvableNormalOriginOp<bool>> CreateTemporaryGroupInitializedOp(
+    MovingNotNull<RefPtr<QuotaManager>> aQuotaManager,
+    const mozilla::ipc::PrincipalInfo& aPrincipalInfo) {
+  return MakeRefPtr<TemporaryGroupInitializedOp>(std::move(aQuotaManager),
+                                                 aPrincipalInfo);
+}
+
 RefPtr<ResolvableNormalOriginOp<bool>> CreatePersistentOriginInitializedOp(
     MovingNotNull<RefPtr<QuotaManager>> aQuotaManager,
     const mozilla::ipc::PrincipalInfo& aPrincipalInfo) {
@@ -1024,6 +1081,14 @@ RefPtr<ResolvableNormalOriginOp<bool>> CreateInitTemporaryStorageOp(
     RefPtr<UniversalDirectoryLock> aDirectoryLock) {
   return MakeRefPtr<InitTemporaryStorageOp>(std::move(aQuotaManager),
                                             std::move(aDirectoryLock));
+}
+
+RefPtr<ResolvableNormalOriginOp<bool>> CreateInitializeTemporaryGroupOp(
+    MovingNotNull<RefPtr<QuotaManager>> aQuotaManager,
+    const PrincipalInfo& aPrincipalInfo,
+    RefPtr<UniversalDirectoryLock> aDirectoryLock) {
+  return MakeRefPtr<InitializeTemporaryGroupOp>(
+      std::move(aQuotaManager), aPrincipalInfo, std::move(aDirectoryLock));
 }
 
 RefPtr<ResolvableNormalOriginOp<bool>> CreateInitializePersistentOriginOp(
@@ -1661,9 +1726,8 @@ GetOriginUsageOp::GetOriginUsageOp(
 nsresult GetOriginUsageOp::DoInit(QuotaManager& aQuotaManager) {
   AssertIsOnOwningThread();
 
-  QM_TRY_UNWRAP(
-      mPrincipalMetadata,
-      aQuotaManager.GetInfoFromValidatedPrincipalInfo(mPrincipalInfo));
+  QM_TRY_UNWRAP(mPrincipalMetadata, GetInfoFromValidatedPrincipalInfo(
+                                        aQuotaManager, mPrincipalInfo));
 
   mPrincipalMetadata.AssertInvariants();
 
@@ -1819,6 +1883,53 @@ bool TemporaryStorageInitializedOp::GetResolveValue() {
   return mInitialized;
 }
 
+TemporaryGroupInitializedOp::TemporaryGroupInitializedOp(
+    MovingNotNull<RefPtr<QuotaManager>> aQuotaManager,
+    const PrincipalInfo& aPrincipalInfo)
+    : ResolvableNormalOriginOp(std::move(aQuotaManager),
+                               "dom::quota::TemporaryGroupInitializedOp"),
+      mPrincipalInfo(aPrincipalInfo),
+      mInitialized(false) {
+  AssertIsOnOwningThread();
+}
+
+nsresult TemporaryGroupInitializedOp::DoInit(QuotaManager& aQuotaManager) {
+  AssertIsOnOwningThread();
+
+  QM_TRY_UNWRAP(mPrincipalMetadata, GetInfoFromValidatedPrincipalInfo(
+                                        aQuotaManager, mPrincipalInfo));
+
+  mPrincipalMetadata.AssertInvariants();
+
+  return NS_OK;
+}
+
+RefPtr<BoolPromise> TemporaryGroupInitializedOp::OpenDirectory() {
+  AssertIsOnOwningThread();
+
+  return BoolPromise::CreateAndResolve(true, __func__);
+}
+
+nsresult TemporaryGroupInitializedOp::DoDirectoryWork(
+    QuotaManager& aQuotaManager) {
+  AssertIsOnIOThread();
+
+  AUTO_PROFILER_LABEL("TemporaryGroupInitializedOp::DoDirectoryWork", OTHER);
+
+  mInitialized =
+      aQuotaManager.IsTemporaryGroupInitializedInternal(mPrincipalMetadata);
+
+  return NS_OK;
+}
+
+bool TemporaryGroupInitializedOp::GetResolveValue() {
+  AssertIsOnOwningThread();
+
+  return mInitialized;
+}
+
+void TemporaryGroupInitializedOp::CloseDirectory() { AssertIsOnOwningThread(); }
+
 InitializedOriginRequestBase::InitializedOriginRequestBase(
     MovingNotNull<RefPtr<QuotaManager>> aQuotaManager, const char* aName,
     const PrincipalInfo& aPrincipalInfo)
@@ -1831,9 +1942,8 @@ InitializedOriginRequestBase::InitializedOriginRequestBase(
 nsresult InitializedOriginRequestBase::DoInit(QuotaManager& aQuotaManager) {
   AssertIsOnOwningThread();
 
-  QM_TRY_UNWRAP(
-      mPrincipalMetadata,
-      aQuotaManager.GetInfoFromValidatedPrincipalInfo(mPrincipalInfo));
+  QM_TRY_UNWRAP(mPrincipalMetadata, GetInfoFromValidatedPrincipalInfo(
+                                        aQuotaManager, mPrincipalInfo));
 
   mPrincipalMetadata.AssertInvariants();
 
@@ -2023,6 +2133,65 @@ void InitTemporaryStorageOp::CloseDirectory() {
   DropDirectoryLock(mDirectoryLock);
 }
 
+InitializeTemporaryGroupOp::InitializeTemporaryGroupOp(
+    MovingNotNull<RefPtr<QuotaManager>> aQuotaManager,
+    const PrincipalInfo& aPrincipalInfo,
+    RefPtr<UniversalDirectoryLock> aDirectoryLock)
+    : ResolvableNormalOriginOp(std::move(aQuotaManager),
+                               "dom::quota::InitializeTemporaryGroupOp"),
+      mPrincipalInfo(aPrincipalInfo),
+      mDirectoryLock(std::move(aDirectoryLock)) {
+  AssertIsOnOwningThread();
+}
+
+nsresult InitializeTemporaryGroupOp::DoInit(QuotaManager& aQuotaManager) {
+  AssertIsOnOwningThread();
+
+  QM_TRY_UNWRAP(mPrincipalMetadata, GetInfoFromValidatedPrincipalInfo(
+                                        aQuotaManager, mPrincipalInfo));
+
+  mPrincipalMetadata.AssertInvariants();
+
+  return NS_OK;
+}
+
+RefPtr<BoolPromise> InitializeTemporaryGroupOp::OpenDirectory() {
+  AssertIsOnOwningThread();
+  MOZ_ASSERT(mDirectoryLock);
+
+  return BoolPromise::CreateAndResolve(true, __func__);
+}
+
+nsresult InitializeTemporaryGroupOp::DoDirectoryWork(
+    QuotaManager& aQuotaManager) {
+  AssertIsOnIOThread();
+
+  AUTO_PROFILER_LABEL("InitializeTemporaryGroupOp::DoDirectoryWork", OTHER);
+
+  QM_TRY(OkIf(aQuotaManager.IsStorageInitializedInternal()),
+         NS_ERROR_NOT_INITIALIZED);
+
+  QM_TRY(OkIf(aQuotaManager.IsTemporaryStorageInitializedInternal()),
+         NS_ERROR_NOT_INITIALIZED);
+
+  QM_TRY(aQuotaManager.EnsureTemporaryGroupIsInitializedInternal(
+      mPrincipalMetadata));
+
+  return NS_OK;
+}
+
+bool InitializeTemporaryGroupOp::GetResolveValue() {
+  AssertIsOnOwningThread();
+
+  return true;
+}
+
+void InitializeTemporaryGroupOp::CloseDirectory() {
+  AssertIsOnOwningThread();
+
+  DropDirectoryLock(mDirectoryLock);
+}
+
 InitializeOriginRequestBase::InitializeOriginRequestBase(
     MovingNotNull<RefPtr<QuotaManager>> aQuotaManager, const char* aName,
     const PrincipalInfo& aPrincipalInfo,
@@ -2037,9 +2206,8 @@ InitializeOriginRequestBase::InitializeOriginRequestBase(
 nsresult InitializeOriginRequestBase::DoInit(QuotaManager& aQuotaManager) {
   AssertIsOnOwningThread();
 
-  QM_TRY_UNWRAP(
-      mPrincipalMetadata,
-      aQuotaManager.GetInfoFromValidatedPrincipalInfo(mPrincipalInfo));
+  QM_TRY_UNWRAP(mPrincipalMetadata, GetInfoFromValidatedPrincipalInfo(
+                                        aQuotaManager, mPrincipalInfo));
 
   mPrincipalMetadata.AssertInvariants();
 
@@ -2151,7 +2319,7 @@ nsresult InitializeClientBase::DoInit(QuotaManager& aQuotaManager) {
 
   QM_TRY_UNWRAP(
       PrincipalMetadata principalMetadata,
-      aQuotaManager.GetInfoFromValidatedPrincipalInfo(mPrincipalInfo));
+      GetInfoFromValidatedPrincipalInfo(aQuotaManager, mPrincipalInfo));
 
   principalMetadata.AssertInvariants();
 
@@ -2267,9 +2435,9 @@ GetFullOriginMetadataOp::GetFullOriginMetadataOp(
 nsresult GetFullOriginMetadataOp::DoInit(QuotaManager& aQuotaManager) {
   AssertIsOnOwningThread();
 
-  QM_TRY_UNWRAP(
-      PrincipalMetadata principalMetadata,
-      aQuotaManager.GetInfoFromValidatedPrincipalInfo(mParams.principalInfo()));
+  QM_TRY_UNWRAP(PrincipalMetadata principalMetadata,
+                GetInfoFromValidatedPrincipalInfo(aQuotaManager,
+                                                  mParams.principalInfo()));
 
   principalMetadata.AssertInvariants();
 
@@ -2329,9 +2497,8 @@ GetCachedOriginUsageOp::GetCachedOriginUsageOp(
 nsresult GetCachedOriginUsageOp::DoInit(QuotaManager& aQuotaManager) {
   AssertIsOnOwningThread();
 
-  QM_TRY_UNWRAP(
-      mPrincipalMetadata,
-      aQuotaManager.GetInfoFromValidatedPrincipalInfo(mPrincipalInfo));
+  QM_TRY_UNWRAP(mPrincipalMetadata, GetInfoFromValidatedPrincipalInfo(
+                                        aQuotaManager, mPrincipalInfo));
 
   mPrincipalMetadata.AssertInvariants();
 
@@ -2748,9 +2915,8 @@ ClearOriginOp::ClearOriginOp(
 nsresult ClearOriginOp::DoInit(QuotaManager& aQuotaManager) {
   AssertIsOnOwningThread();
 
-  QM_TRY_UNWRAP(
-      mPrincipalMetadata,
-      aQuotaManager.GetInfoFromValidatedPrincipalInfo(mPrincipalInfo));
+  QM_TRY_UNWRAP(mPrincipalMetadata, GetInfoFromValidatedPrincipalInfo(
+                                        aQuotaManager, mPrincipalInfo));
 
   mPrincipalMetadata.AssertInvariants();
 
@@ -2815,9 +2981,8 @@ ClearClientOp::ClearClientOp(MovingNotNull<RefPtr<QuotaManager>> aQuotaManager,
 nsresult ClearClientOp::DoInit(QuotaManager& aQuotaManager) {
   AssertIsOnOwningThread();
 
-  QM_TRY_UNWRAP(
-      mPrincipalMetadata,
-      aQuotaManager.GetInfoFromValidatedPrincipalInfo(mPrincipalInfo));
+  QM_TRY_UNWRAP(mPrincipalMetadata, GetInfoFromValidatedPrincipalInfo(
+                                        aQuotaManager, mPrincipalInfo));
 
   mPrincipalMetadata.AssertInvariants();
 
@@ -2926,9 +3091,8 @@ ClearStoragesForOriginPrefixOp::ClearStoragesForOriginPrefixOp(
 nsresult ClearStoragesForOriginPrefixOp::DoInit(QuotaManager& aQuotaManager) {
   AssertIsOnOwningThread();
 
-  QM_TRY_UNWRAP(
-      mPrincipalMetadata,
-      aQuotaManager.GetInfoFromValidatedPrincipalInfo(mPrincipalInfo));
+  QM_TRY_UNWRAP(mPrincipalMetadata, GetInfoFromValidatedPrincipalInfo(
+                                        aQuotaManager, mPrincipalInfo));
 
   mPrincipalMetadata.AssertInvariants();
 
@@ -3031,9 +3195,8 @@ ShutdownOriginOp::ShutdownOriginOp(
 nsresult ShutdownOriginOp::DoInit(QuotaManager& aQuotaManager) {
   AssertIsOnOwningThread();
 
-  QM_TRY_UNWRAP(
-      mPrincipalMetadata,
-      aQuotaManager.GetInfoFromValidatedPrincipalInfo(mPrincipalInfo));
+  QM_TRY_UNWRAP(mPrincipalMetadata, GetInfoFromValidatedPrincipalInfo(
+                                        aQuotaManager, mPrincipalInfo));
 
   mPrincipalMetadata.AssertInvariants();
 
@@ -3120,9 +3283,8 @@ ShutdownClientOp::ShutdownClientOp(
 nsresult ShutdownClientOp::DoInit(QuotaManager& aQuotaManager) {
   AssertIsOnOwningThread();
 
-  QM_TRY_UNWRAP(
-      mPrincipalMetadata,
-      aQuotaManager.GetInfoFromValidatedPrincipalInfo(mPrincipalInfo));
+  QM_TRY_UNWRAP(mPrincipalMetadata, GetInfoFromValidatedPrincipalInfo(
+                                        aQuotaManager, mPrincipalInfo));
 
   mPrincipalMetadata.AssertInvariants();
 
@@ -3176,9 +3338,8 @@ nsresult PersistRequestBase::DoInit(QuotaManager& aQuotaManager) {
   AssertIsOnOwningThread();
 
   // Figure out which origin we're dealing with.
-  QM_TRY_UNWRAP(
-      mPrincipalMetadata,
-      aQuotaManager.GetInfoFromValidatedPrincipalInfo(mPrincipalInfo));
+  QM_TRY_UNWRAP(mPrincipalMetadata, GetInfoFromValidatedPrincipalInfo(
+                                        aQuotaManager, mPrincipalInfo));
 
   mPrincipalMetadata.AssertInvariants();
 
@@ -3402,9 +3563,9 @@ EstimateOp::EstimateOp(MovingNotNull<RefPtr<QuotaManager>> aQuotaManager,
 nsresult EstimateOp::DoInit(QuotaManager& aQuotaManager) {
   AssertIsOnOwningThread();
 
-  QM_TRY_UNWRAP(
-      PrincipalMetadata principalMetadata,
-      aQuotaManager.GetInfoFromValidatedPrincipalInfo(mParams.principalInfo()));
+  QM_TRY_UNWRAP(PrincipalMetadata principalMetadata,
+                GetInfoFromValidatedPrincipalInfo(aQuotaManager,
+                                                  mParams.principalInfo()));
 
   principalMetadata.AssertInvariants();
 
@@ -3416,12 +3577,11 @@ nsresult EstimateOp::DoInit(QuotaManager& aQuotaManager) {
 RefPtr<BoolPromise> EstimateOp::OpenDirectory() {
   AssertIsOnOwningThread();
 
-  // XXX In theory, we should be locking entire group, not just one origin.
   return OpenStorageDirectory(
       PersistenceScope::CreateFromSet(PERSISTENCE_TYPE_TEMPORARY,
                                       PERSISTENCE_TYPE_DEFAULT,
                                       PERSISTENCE_TYPE_PRIVATE),
-      OriginScope::FromOrigin(mOriginMetadata), Nullable<Client::Type>(),
+      OriginScope::FromGroup(mOriginMetadata.mGroup), Nullable<Client::Type>(),
       /* aExclusive */ false,
       /* aInitializeOrigins */ true);
 }
