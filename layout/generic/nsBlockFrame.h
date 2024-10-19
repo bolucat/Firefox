@@ -236,16 +236,18 @@ class nsBlockFrame : public nsContainerFrame {
   bool MarkerIsEmpty() const;
 
   // Return true if this frame has a ::marker frame.
-  bool HasMarker() const { return HasOutsideMarker() || HasInsideMarker(); }
+  bool HasMarker() const { return HasAnyStateBits(NS_BLOCK_HAS_MARKER); }
 
   // Return true if this frame has an inside ::marker frame.
   bool HasInsideMarker() const {
-    return HasAnyStateBits(NS_BLOCK_HAS_INSIDE_MARKER);
+    return HasMarker() && StyleList()->mListStylePosition ==
+                              mozilla::StyleListStylePosition::Inside;
   }
 
   // Return true if this frame has an outside ::marker frame.
   bool HasOutsideMarker() const {
-    return HasAnyStateBits(NS_BLOCK_HAS_OUTSIDE_MARKER);
+    return HasMarker() && StyleList()->mListStylePosition ==
+                              mozilla::StyleListStylePosition::Outside;
   }
 
   /**
@@ -672,7 +674,7 @@ class nsBlockFrame : public nsContainerFrame {
    * whether this block is in a block formatting-context whose root block has
    * -webkit-line-clamp: <n>.
    */
-  bool IsInLineClampContext() const;
+  bool IsInLineClampContext() const { return !!GetLineClampRoot(); }
 
   /**
    * @return false iff this block does not have a float on any child list.
@@ -681,6 +683,9 @@ class nsBlockFrame : public nsContainerFrame {
   bool MaybeHasFloats() const;
 
  protected:
+  nsBlockFrame* GetLineClampRoot() const;
+  nscoord ApplyLineClamp(nscoord aContentBlockEndEdge);
+
   /** grab overflow lines from this block's prevInFlow, and make them
    * part of this block's mLines list.
    * @return true if any lines were drained.

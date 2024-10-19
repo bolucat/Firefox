@@ -11,7 +11,8 @@
   &[uidensity=touch] {
     --tab-min-height: 41px;
   }
-  --tab-collapsed-background-width: 36px;
+  /* Collapsed tabs should be square, so set width to match the min height */
+  --tab-collapsed-background-width: var(--tab-min-height);
   --tab-collapsed-width: calc(var(--tab-collapsed-background-width) + 2 * var(--tab-inner-inline-margin));
   --tab-inner-inline-margin: var(--space-medium);
   --tab-inline-padding: var(--space-medium);
@@ -38,11 +39,12 @@
   &[lwt-tab-selected="dark"] {
     --tab-selected-color-scheme: dark;
   }
+  --tab-selected-shadow: 0 0 4px rgba(0,0,0,.4);
   --tab-outline: 1px solid var(--tab-outline-color);
   --tab-outline-color: transparent;
   --tab-selected-outline-color: transparent;
   --tab-hover-outline-color: transparent;
-  --tab-outline-offset: var(--toolbarbutton-outline-offset);
+  --tab-outline-offset: -1px;
   @media (prefers-contrast) {
     --tab-selected-outline-color: currentColor;
     --tab-hover-outline-color: currentColor;
@@ -56,6 +58,11 @@
   }
   &[lwtheme] {
     --tab-selected-outline-color: var(--lwt-tab-line-color, currentColor);
+  }
+
+  --vertical-tabs-scrollbar-color: auto;
+  @media (-moz-platform: macos) {
+    --vertical-tabs-scrollbar-color: color-mix(in srgb, currentColor 26%, transparent) transparent;
   }
 
   /* TAB GROUP COLORS
@@ -91,6 +98,14 @@
   --tab-group-color-gray-pale: #F2F9FF;
 }
 
+/* stylelint-disable-next-line media-query-no-invalid */
+@media (-moz-bool-pref: "sidebar.verticalTabs") {
+  :root {
+    --tab-min-height: 32px;
+    --tab-block-margin: 2px;
+  }
+}
+
 #tabbrowser-tabs {
   /* Use a bigger flex value than the searchbar to prevent it from
    * taking all the toolbar space. */
@@ -118,6 +133,10 @@
       padding-bottom: 15px;
       margin-bottom: -15px;
     }
+  }
+
+  &[noshadowfortests] {
+    --tab-selected-shadow: none;
   }
 }
 
@@ -198,6 +217,11 @@
 
   &[tab-grouping][multiselected]:not([selected]) {
     z-index: 2;
+  }
+
+  &:is([visuallyselected], [multiselected]) {
+    color: var(--tab-selected-textcolor);
+    color-scheme: var(--tab-selected-color-scheme);
   }
 }
 
@@ -624,43 +648,41 @@
   min-height: var(--tab-min-height);
   outline: var(--tab-outline);
   outline-offset: var(--tab-outline-offset);
-}
 
-/* Selected tab and tab hover */
-
-.tabbrowser-tab:hover > .tab-stack > .tab-background:not([selected], [multiselected]) {
-  background-color: var(--tab-hover-background-color);
-  outline-color: var(--tab-hover-outline-color);
-}
-
-#TabsToolbar #firefox-view-button[open] > .toolbarbutton-icon,
-.tab-background:is([selected], [multiselected]) {
-  background-color: var(--tab-selected-bgcolor);
-  background-origin: border-box;
-  background-repeat: repeat-x;
-  box-shadow: 0 0 4px rgba(0,0,0,.4);
-  outline-color: var(--tab-selected-outline-color);
-
-  #tabbrowser-tabs[noshadowfortests] & {
-    box-shadow: none;
+  .tabbrowser-tab:hover > .tab-stack > &:not([selected], [multiselected]) {
+    background-color: var(--tab-hover-background-color);
+    outline-color: var(--tab-hover-outline-color);
   }
-}
 
-#TabsToolbar #firefox-view-button[open] > .toolbarbutton-icon,
-.tabbrowser-tab:is([visuallyselected], [multiselected]) {
-  color: var(--tab-selected-textcolor);
-  color-scheme: var(--tab-selected-color-scheme);
-}
+  &:is([selected], [multiselected]) {
+    background-color: var(--tab-selected-bgcolor);
+    box-shadow: var(--tab-selected-shadow);
+    outline-color: var(--tab-selected-outline-color);
+  }
 
-/* Add a focus outline on top of the multiselected tabs, with the currently selected
-   tab getting a slightly thicker outline. */
-.tab-background[multiselected] {
-  outline: 1px solid var(--focus-outline-color);
-  outline-offset: -1px;
+  &[multiselected] {
+    outline-color: var(--focus-outline-color);
 
-  &[selected] {
-    outline-width: 2px;
-    outline-offset: -2px;
+    &[selected] {
+      outline-width: 2px;
+      outline-offset: -2px;
+    }
+  }
+
+  #tabbrowser-tabs[movingtab-createGroup] & {
+    transition: background-color 300ms ease, color 300ms ease, outline-color 300ms ease;
+
+    &[dragover-createGroup] {
+      background-color: light-dark(var(--dragover-tab-group-color-pale), var(--dragover-tab-group-color));
+      color: light-dark(var(--dragover-tab-group-color), var(--dragover-tab-group-color-pale));
+      outline-color: light-dark(var(--dragover-tab-group-color), var(--dragover-tab-group-color-pale));
+    }
+
+    &:is([selected], [multiselected]) {
+      outline-color: var(--dragover-tab-group-color);
+      outline-width: 2px;
+      outline-offset: -2px;
+    }
   }
 }
 
@@ -960,6 +982,7 @@ tab-group {
 
   &::part(scrollbox) {
     scrollbar-width: thin;
+    scrollbar-color: var(--vertical-tabs-scrollbar-color);
     overflow-y: auto;
   }
 }
@@ -1019,8 +1042,9 @@ tab-group {
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: thin;
+  scrollbar-color: var(--vertical-tabs-scrollbar-color);
   /* Fit slightly more than 5 tabs + padding before overflowing */
-  max-height: 244px;
+  max-height: calc(5 * (var(--tab-min-height) + 2 * var(--tab-block-margin)) + var(--space-large));
 
   .tab-content {
     justify-content: center;
@@ -1123,6 +1147,10 @@ tab-group {
     .tabbrowser-tab {
       max-width: none;
 
+      .tab-close-button {
+        margin-inline-end: calc(-1 * var(--tab-close-button-padding));
+      }
+
       &:not(:hover) .tab-close-button:not([selected]) {
         display: none;
       }
@@ -1161,6 +1189,14 @@ tab-group {
 }
 
 /* Firefox View button and menu item */
+
+#TabsToolbar #firefox-view-button[open] > .toolbarbutton-icon {
+  background-color: var(--tab-selected-bgcolor);
+  box-shadow: var(--tab-selected-shadow);
+  outline-color: var(--tab-selected-outline-color);
+  color: var(--tab-selected-textcolor);
+  color-scheme: var(--tab-selected-color-scheme);
+}
 
 :root:not([privatebrowsingmode], [firefoxviewhidden]) :is(toolbarbutton, toolbarpaletteitem) ~ #tabbrowser-tabs,
 :root[privatebrowsingmode]:not([firefoxviewhidden]) :is(

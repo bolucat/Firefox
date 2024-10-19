@@ -50,8 +50,10 @@ gecko_metrics = [
     "services/common/metrics.yaml",
     "services/sync/modules/metrics.yaml",
     "toolkit/components/antitracking/bouncetrackingprotection/metrics.yaml",
+    "toolkit/components/antitracking/metrics.yaml",
     "toolkit/components/cookiebanners/metrics.yaml",
     "toolkit/components/downloads/metrics.yaml",
+    "toolkit/components/enterprisepolicies/metrics.yaml",
     "toolkit/components/extensions/metrics.yaml",
     "toolkit/components/formautofill/metrics.yaml",
     "toolkit/components/glean/metrics.yaml",
@@ -59,6 +61,7 @@ gecko_metrics = [
     "toolkit/components/normandy/metrics.yaml",
     "toolkit/components/passwordmgr/metrics.yaml",
     "toolkit/components/pdfjs/metrics.yaml",
+    "toolkit/components/printing/metrics.yaml",
     "toolkit/components/processtools/metrics.yaml",
     "toolkit/components/reader/metrics.yaml",
     "toolkit/components/reportbrokensite/metrics.yaml",
@@ -69,6 +72,8 @@ gecko_metrics = [
     "toolkit/mozapps/extensions/metrics_legacy.yaml",
     "toolkit/mozapps/handling/metrics.yaml",
     "toolkit/xre/metrics.yaml",
+    "widget/gtk/metrics.yaml",
+    "widget/metrics.yaml",
     "xpcom/metrics.yaml",
 ]
 

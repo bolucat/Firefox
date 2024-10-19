@@ -93,6 +93,7 @@ class QuotaManager final : public BackgroundThreadObject {
   friend class InitializeTemporaryOriginOp;
   friend class InitTemporaryStorageOp;
   friend class OriginInfo;
+  friend class PersistOp;
   friend class ShutdownStorageOp;
 
   friend Result<PrincipalMetadata, nsresult> GetInfoFromValidatedPrincipalInfo(
@@ -543,8 +544,7 @@ class QuotaManager final : public BackgroundThreadObject {
                                const OriginScope& aOriginScope,
                                const Nullable<Client::Type>& aClientType);
 
-  void OriginClearCompleted(PersistenceType aPersistenceType,
-                            const nsACString& aOrigin,
+  void OriginClearCompleted(const OriginMetadata& aOriginMetadata,
                             const Nullable<Client::Type>& aClientType);
 
   void RepositoryClearCompleted(PersistenceType aPersistenceType);
@@ -779,6 +779,14 @@ class QuotaManager final : public BackgroundThreadObject {
 
   void ClearDirectoryLockTables();
 
+  void AddTemporaryOrigin(const FullOriginMetadata& aFullOriginMetadata);
+
+  void RemoveTemporaryOrigin(const OriginMetadata& aOriginMetadata);
+
+  void RemoveTemporaryOrigins(PersistenceType aPersistenceType);
+
+  void RemoveTemporaryOrigins();
+
   void NoteInitializedOrigin(PersistenceType aPersistenceType,
                              const nsACString& aOrigin);
 
@@ -884,6 +892,13 @@ class QuotaManager final : public BackgroundThreadObject {
   using BoolArray = AutoTArray<bool, PERSISTENCE_TYPE_INVALID>;
   nsTHashMap<nsCStringHashKeyWithDisabledMemmove, BoolArray>
       mInitializedOrigins;
+
+  // Things touched on the IO thread only.
+  struct IOThreadAccessible {
+    nsTHashMap<nsCStringHashKey, nsTArray<FullOriginMetadata>>
+        mAllTemporaryOrigins;
+  };
+  ThreadBound<IOThreadAccessible> mIOThreadAccessible;
 
   // A list of all successfully initialized persistent origins. This list isn't
   // protected by any mutex but it is only ever touched on the IO thread.

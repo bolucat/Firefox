@@ -3957,7 +3957,7 @@
 # downgraded again if the request failed.
 - name: dom.security.https_first
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # If true, HTTPS-First will upgrade non-default ports
@@ -8173,7 +8173,7 @@
 
 -   name: javascript.options.experimental.json_parse_with_source
     type: bool
-    value: true
+    value: false
     mirror: always
     set_spidermonkey_pref: always
 
@@ -8648,6 +8648,8 @@
   type: bool
 #if defined(XP_WIN) || defined(MOZ_WIDGET_ANDROID)
   value: true
+#elif defined(MOZ_X11)
+  value: @IS_NIGHTLY_BUILD@
 #else
   value: false
 #endif
@@ -11853,6 +11855,11 @@
   value: true
   mirror: always
 
+- name: media.webrtc.disallow_HTTPS_upgrade_for_TURN
+  type: bool
+  value: true
+  mirror: always
+
  # If true, then we require explicit approval from the embedding app (ex. Fenix)
  # on GeckoView to know if we can allow audible, inaudible media or both kinds
  # of media to autoplay.
@@ -14002,6 +14009,23 @@
   value: false
   mirror: always
   rust: true
+
+# When true, HTTP/3 will be disabled when third party roots are found.
+- name: network.http.http3.disable_when_third_party_roots_found
+  type: RelaxedAtomicBool
+#if defined(ANDROID)
+  value: false
+#else
+  value: true
+#endif
+  mirror: always
+
+# Only used for testing purposes. In automation, this value is used to override
+# the result of third party roots check.
+- name: network.http.http3.has_third_party_roots_found_in_automation
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
 
 # When true, a http request will be upgraded to https when HTTPS RR is
 # available.

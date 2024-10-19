@@ -483,8 +483,8 @@ void nsBlockFrame::Destroy(DestroyContext& aContext) {
 
   if (HasOutsideMarker()) {
     SafelyDestroyFrameListProp(aContext, presShell, OutsideMarkerProperty());
-    RemoveStateBits(NS_BLOCK_HAS_OUTSIDE_MARKER);
   }
+  RemoveStateBits(NS_BLOCK_HAS_MARKER);
 
   nsContainerFrame::Destroy(aContext);
 }
@@ -1224,21 +1224,21 @@ static bool IsLineClampRoot(const nsBlockFrame* aFrame) {
   return origDisplay.Inside() == StyleDisplayInside::WebkitBox;
 }
 
-bool nsBlockFrame::IsInLineClampContext() const {
+nsBlockFrame* nsBlockFrame::GetLineClampRoot() const {
   if (IsLineClampRoot(this)) {
-    return true;
+    return const_cast<nsBlockFrame*>(this);
   }
   const nsBlockFrame* cur = this;
   while (GetAsLineClampDescendant(cur)) {
     cur = do_QueryFrame(cur->GetParent());
     if (!cur) {
-      return false;
+      break;
     }
     if (IsLineClampRoot(cur)) {
-      return true;
+      return const_cast<nsBlockFrame*>(cur);
     }
   }
-  return false;
+  return nullptr;
 }
 
 bool nsBlockFrame::MaybeHasFloats() const {
@@ -1259,10 +1259,11 @@ bool nsBlockFrame::MaybeHasFloats() const {
  */
 class MOZ_RAII LineClampLineIterator {
  public:
-  explicit LineClampLineIterator(nsBlockFrame* aFrame)
+  LineClampLineIterator(nsBlockFrame* aFrame, nsBlockFrame* aStopAtFrame)
       : mCur(aFrame->LinesBegin()),
         mEnd(aFrame->LinesEnd()),
-        mCurrentFrame(mCur == mEnd ? nullptr : aFrame) {
+        mCurrentFrame(mCur == mEnd ? nullptr : aFrame),
+        mStopAtFrame(aStopAtFrame) {
     if (mCur != mEnd && !mCur->IsInline()) {
       Advance();
     }
@@ -1292,6 +1293,12 @@ class MOZ_RAII LineClampLineIterator {
           mCurrentFrame = nullptr;
           break;
         }
+        if (mCurrentFrame == mStopAtFrame) {
+          mStack.Clear();
+          mCurrentFrame = nullptr;
+          break;
+        }
+
         auto entry = mStack.PopLastElement();
         mCurrentFrame = entry.first;
         mCur = entry.second;
@@ -1326,6 +1333,9 @@ class MOZ_RAII LineClampLineIterator {
 
   // The current block.
   nsBlockFrame* mCurrentFrame;
+
+  // The block past which we can't look at line-clamp.
+  const nsBlockFrame* mStopAtFrame;
 
   // Stack of mCurrentFrame and mEnd values that we push and pop as we enter and
   // exist blocks.
@@ -1671,8 +1681,7 @@ void nsBlockFrame::Reflow(nsPresContext* aPresContext, ReflowOutput& aMetrics,
           ConsiderChildOverflow(trialState.mFcBounds, f);
         }
       }
-      nsFrameList* markerList = GetOutsideMarkerList();
-      if (markerList) {
+      if (nsFrameList* markerList = GetOutsideMarkerList()) {
         for (nsIFrame* f : *markerList) {
           f->MovePositionBy(physicalDelta);
         }
@@ -2040,6 +2049,7 @@ bool nsBlockFrame::CheckForCollapsedBEndMarginFromClearanceLine() {
 }
 
 static nsLineBox* FindLineClampTarget(nsBlockFrame*& aFrame,
+                                      nsBlockFrame* aStopAtFrame,
                                       StyleLineClamp aLineNumber) {
   MOZ_ASSERT(aLineNumber > 0);
   MOZ_ASSERT(!aFrame->HasAnyStateBits(NS_BLOCK_HAS_LINE_CLAMP_ELLIPSIS),
@@ -2049,15 +2059,9 @@ static nsLineBox* FindLineClampTarget(nsBlockFrame*& aFrame,
   nsBlockFrame* targetFrame = nullptr;
   bool foundFollowingLine = false;
 
-  LineClampLineIterator iter(aFrame);
+  LineClampLineIterator iter(aFrame, aStopAtFrame);
 
   while (nsLineBox* line = iter.GetCurrentLine()) {
-    MOZ_ASSERT(!line->HasLineClampEllipsis(),
-               "Should have been removed earlier in nsBlockFrame::Reflow");
-    MOZ_ASSERT(!iter.GetCurrentFrame()->HasAnyStateBits(
-                   NS_BLOCK_HAS_LINE_CLAMP_ELLIPSIS),
-               "Should have been removed earlier in nsBlockReflow::Reflow");
-
     // Don't count a line that only has collapsible white space (as might exist
     // after calling e.g. getBoxQuads).
     if (line->IsEmpty()) {
@@ -2094,15 +2098,15 @@ static nsLineBox* FindLineClampTarget(nsBlockFrame*& aFrame,
   return target;
 }
 
-static nscoord ApplyLineClamp(const ReflowInput& aReflowInput,
-                              nsBlockFrame* aFrame,
-                              nscoord aContentBlockEndEdge) {
-  if (!IsLineClampRoot(aFrame)) {
+nscoord nsBlockFrame::ApplyLineClamp(nscoord aContentBlockEndEdge) {
+  auto* root = GetLineClampRoot();
+  if (!root) {
     return aContentBlockEndEdge;
   }
-  auto lineClamp = aReflowInput.mStyleDisplay->mWebkitLineClamp;
-  nsBlockFrame* frame = aFrame;
-  nsLineBox* line = FindLineClampTarget(frame, lineClamp);
+
+  auto lineClamp = root->StyleDisplay()->mWebkitLineClamp;
+  nsBlockFrame* target = root;
+  nsLineBox* line = FindLineClampTarget(target, this, lineClamp);
   if (!line) {
     // The number of lines did not exceed the -webkit-line-clamp value.
     return aContentBlockEndEdge;
@@ -2110,13 +2114,21 @@ static nscoord ApplyLineClamp(const ReflowInput& aReflowInput,
 
   // Mark the line as having an ellipsis so that TextOverflow will render it.
   line->SetHasLineClampEllipsis();
-  frame->AddStateBits(NS_BLOCK_HAS_LINE_CLAMP_ELLIPSIS);
+  target->AddStateBits(NS_BLOCK_HAS_LINE_CLAMP_ELLIPSIS);
 
   // Translate the b-end edge of the line up to aFrame's space.
   nscoord edge = line->BEnd();
-  for (nsIFrame* f = frame; f != aFrame; f = f->GetParent()) {
-    edge +=
-        f->GetLogicalPosition(f->GetParent()->GetSize()).B(f->GetWritingMode());
+  for (nsIFrame* f = target; f; f = f->GetParent()) {
+    if (f == this) {
+      break;
+    }
+    if (f == root) {
+      // The clamped line is not in our subtree.
+      return aContentBlockEndEdge;
+    }
+    const auto wm = f->GetWritingMode();
+    const nsSize parentSize = f->GetParent()->GetSize();
+    edge = f->GetLogicalRect(parentSize).BEnd(wm);
   }
 
   return edge;
@@ -2206,7 +2218,7 @@ nscoord nsBlockFrame::ComputeFinalSize(const ReflowInput& aReflowInput,
     // We don't care about ApplyLineClamp's return value (the line-clamped
     // content BSize) in this explicit-BSize codepath, but we do still need to
     // call ApplyLineClamp for ellipsis markers to be placed as-needed.
-    ApplyLineClamp(aState.mReflowInput, this, contentBSizeWithBStartBP);
+    ApplyLineClamp(contentBSizeWithBStartBP);
 
     finalSize.BSize(wm) = ComputeFinalBSize(aState, contentBSizeWithBStartBP);
 
@@ -2252,7 +2264,7 @@ nscoord nsBlockFrame::ComputeFinalSize(const ReflowInput& aReflowInput,
     finalSize.BSize(wm) = aReflowInput.AvailableBSize();
   } else if (aState.mReflowStatus.IsComplete()) {
     const nscoord lineClampedContentBlockEndEdge =
-        ApplyLineClamp(aReflowInput, this, blockEndEdgeOfChildren);
+        ApplyLineClamp(blockEndEdgeOfChildren);
 
     const nscoord bpBStart = borderPadding.BStart(wm);
     const nscoord contentBSize = blockEndEdgeOfChildren - bpBStart;
@@ -8038,14 +8050,12 @@ void nsBlockFrame::Init(nsIContent* aContent, nsContainerFrame* aParent,
   // NS_BLOCK_FLAGS_NON_INHERITED_MASK bits below.
   constexpr nsFrameState NS_BLOCK_FLAGS_MASK =
       NS_BLOCK_BFC | NS_BLOCK_HAS_FIRST_LETTER_STYLE |
-      NS_BLOCK_HAS_FIRST_LETTER_CHILD | NS_BLOCK_HAS_OUTSIDE_MARKER |
-      NS_BLOCK_HAS_INSIDE_MARKER;
+      NS_BLOCK_HAS_FIRST_LETTER_CHILD | NS_BLOCK_HAS_MARKER;
 
   // This is the subset of NS_BLOCK_FLAGS_MASK that is NOT inherited
   // by default.  They should only be set on the first-in-flow.
   constexpr nsFrameState NS_BLOCK_FLAGS_NON_INHERITED_MASK =
-      NS_BLOCK_HAS_FIRST_LETTER_CHILD | NS_BLOCK_HAS_OUTSIDE_MARKER |
-      NS_BLOCK_HAS_INSIDE_MARKER;
+      NS_BLOCK_HAS_FIRST_LETTER_CHILD | NS_BLOCK_HAS_MARKER;
 
   if (aPrevInFlow) {
     // Copy over the inherited block frame bits from the prev-in-flow.
@@ -8116,12 +8126,11 @@ void nsBlockFrame::SetMarkerFrameForListItem(nsIFrame* aMarkerFrame) {
 
   if (StyleList()->mListStylePosition == StyleListStylePosition::Inside) {
     SetProperty(InsideMarkerProperty(), aMarkerFrame);
-    AddStateBits(NS_BLOCK_HAS_INSIDE_MARKER);
   } else {
     SetProperty(OutsideMarkerProperty(),
                 new (PresShell()) nsFrameList(aMarkerFrame, aMarkerFrame));
-    AddStateBits(NS_BLOCK_HAS_OUTSIDE_MARKER);
   }
+  AddStateBits(NS_BLOCK_HAS_MARKER);
 }
 
 bool nsBlockFrame::MarkerIsEmpty() const {

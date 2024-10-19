@@ -1248,8 +1248,8 @@ nsresult FinalizeOriginEvictionOp::DoDirectoryWork(
   AUTO_PROFILER_LABEL("FinalizeOriginEvictionOp::DoDirectoryWork", OTHER);
 
   for (const auto& lock : mLocks) {
-    aQuotaManager.OriginClearCompleted(
-        lock->GetPersistenceType(), lock->Origin(), Nullable<Client::Type>());
+    aQuotaManager.OriginClearCompleted(lock->OriginMetadata(),
+                                       Nullable<Client::Type>());
   }
 
   return NS_OK;
@@ -2802,8 +2802,8 @@ void ClearRequestBase::DeleteFilesInternal(
               aQuotaManager.RemoveQuotaForOrigin(aPersistenceType, metadata);
             }
 
-            aQuotaManager.OriginClearCompleted(
-                aPersistenceType, metadata.mOrigin, Nullable<Client::Type>());
+            aQuotaManager.OriginClearCompleted(metadata,
+                                               Nullable<Client::Type>());
 
             break;
           }
@@ -2840,8 +2840,8 @@ void ClearRequestBase::DeleteFilesInternal(
 
             aQuotaManager.RemoveQuotaForOrigin(aPersistenceType, metadata);
 
-            aQuotaManager.OriginClearCompleted(
-                aPersistenceType, metadata.mOrigin, Nullable<Client::Type>());
+            aQuotaManager.OriginClearCompleted(metadata,
+                                               Nullable<Client::Type>());
 
             break;
           }
@@ -3036,8 +3036,7 @@ void ClearClientOp::DeleteFiles(const ClientMetadata& aClientMetadata) {
     mQuotaManager->ResetUsageForClient(aClientMetadata);
   }
 
-  mQuotaManager->OriginClearCompleted(aClientMetadata.mPersistenceType,
-                                      aClientMetadata.mOrigin,
+  mQuotaManager->OriginClearCompleted(aClientMetadata,
                                       Nullable(aClientMetadata.mClientType));
 }
 
@@ -3478,6 +3477,11 @@ nsresult PersistOp::DoDirectoryWork(QuotaManager& aQuotaManager) {
     // Update or create OriginInfo too if temporary storage was already
     // initialized.
     if (aQuotaManager.IsTemporaryStorageInitializedInternal()) {
+      FullOriginMetadata fullOriginMetadata =
+          FullOriginMetadata{originMetadata, /* aPersisted */ true, timestamp};
+
+      aQuotaManager.AddTemporaryOrigin(fullOriginMetadata);
+
       if (aQuotaManager.IsTemporaryOriginInitializedInternal(originMetadata)) {
         // In this case, we have a temporary origin which has been initialized
         // without ensuring respective origin directory. So OriginInfo already
@@ -3490,10 +3494,8 @@ nsresult PersistOp::DoDirectoryWork(QuotaManager& aQuotaManager) {
         // initialized yet. So OriginInfo needs to be created because the
         // origin directory has been just created.
 
-        aQuotaManager.InitQuotaForOrigin(
-            FullOriginMetadata{originMetadata, /* aPersisted */ true,
-                               timestamp},
-            ClientUsageArray(), /* aUsageBytes */ 0);
+        aQuotaManager.InitQuotaForOrigin(fullOriginMetadata, ClientUsageArray(),
+                                         /* aUsageBytes */ 0);
       }
     }
   } else {
