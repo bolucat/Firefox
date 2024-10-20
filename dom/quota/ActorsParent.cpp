@@ -105,6 +105,7 @@
 #include "mozilla/dom/quota/ResultExtensions.h"
 #include "mozilla/dom/quota/ScopedLogExtraInfo.h"
 #include "mozilla/dom/quota/StreamUtils.h"
+#include "mozilla/dom/quota/ThreadUtils.h"
 #include "mozilla/dom/simpledb/ActorsParent.h"
 #include "mozilla/fallible.h"
 #include "mozilla/ipc/BackgroundChild.h"
@@ -1544,6 +1545,8 @@ QuotaManager::Observer::Observe(nsISupports* aSubject, const char* aTopic,
         isNetworkPath);
 #endif
 
+    QM_LOG(("Base path: %s", NS_ConvertUTF16toUTF8(*gBasePath).get()));
+
     gStorageName = new nsString();
 
     rv = Preferences::GetString("dom.quotaManager.storageName", *gStorageName);
@@ -2614,6 +2617,8 @@ void QuotaManager::RemoveQuota() {
   MOZ_ASSERT(mTemporaryStorageUsage == 0, "Should be zero!");
 }
 
+// XXX Rename this method because the method doesn't load full quota
+// information if origin initialization is done lazily.
 nsresult QuotaManager::LoadQuota() {
   AssertIsOnIOThread();
   MOZ_ASSERT(mStorageConnection);
@@ -3240,6 +3245,7 @@ QuotaManager::GetOrCreateTemporaryOriginDirectory(
   MOZ_ASSERT(aOriginMetadata.mPersistenceType != PERSISTENCE_TYPE_PERSISTENT);
   MOZ_DIAGNOSTIC_ASSERT(IsStorageInitializedInternal());
   MOZ_DIAGNOSTIC_ASSERT(IsTemporaryStorageInitializedInternal());
+  MOZ_ASSERT(IsTemporaryGroupInitializedInternal(aOriginMetadata));
   MOZ_ASSERT(IsTemporaryOriginInitializedInternal(aOriginMetadata));
 
   QM_TRY_UNWRAP(auto directory, GetOriginDirectory(aOriginMetadata));
@@ -3839,7 +3845,10 @@ nsresult QuotaManager::InitializeRepository(PersistenceType aPersistenceType,
 nsresult QuotaManager::InitializeOrigin(PersistenceType aPersistenceType,
                                         const OriginMetadata& aOriginMetadata,
                                         int64_t aAccessTime, bool aPersisted,
-                                        nsIFile* aDirectory) {
+                                        nsIFile* aDirectory, bool aForGroup) {
+  QM_LOG(("Starting origin initialization for: %s",
+          aOriginMetadata.mOrigin.get()));
+
   AssertIsOnIOThread();
 
   // The ScopedLogExtraInfo is not set here on purpose, so the callers can
@@ -3847,6 +3856,15 @@ nsresult QuotaManager::InitializeOrigin(PersistenceType aPersistenceType,
   // as well.
 
   const bool trackQuota = aPersistenceType != PERSISTENCE_TYPE_PERSISTENT;
+
+  if (trackQuota && !aForGroup &&
+      StaticPrefs::
+          dom_quotaManager_temporaryStorage_lazyOriginInitialization()) {
+    QM_LOG(("Skipping origin initialization for: %s (it will be done lazily)",
+            aOriginMetadata.mOrigin.get()));
+
+    return NS_OK;
+  }
 
   // We need to initialize directories of all clients if they exists and also
   // get the total usage to initialize the quota.
@@ -4002,6 +4020,12 @@ nsresult QuotaManager::InitializeOrigin(PersistenceType aPersistenceType,
         FullOriginMetadata{aOriginMetadata, aPersisted, aAccessTime},
         clientUsages, usage.value());
   }
+
+  SleepIfEnabled(
+      StaticPrefs::dom_quotaManager_originInitialization_pauseOnIOThreadMs());
+
+  QM_LOG(
+      ("Ending origin initialization for: %s", aOriginMetadata.mOrigin.get()));
 
   return NS_OK;
 }
@@ -5310,12 +5334,24 @@ RefPtr<ClientDirectoryLockPromise> QuotaManager::OpenClientDirectory(
 
   RefPtr<UniversalDirectoryLock> temporaryStorageDirectoryLock;
 
+  RefPtr<UniversalDirectoryLock> groupDirectoryLock;
+
   if (IsBestEffortPersistenceType(persistenceType)) {
     temporaryStorageDirectoryLock = CreateDirectoryLockForInitialization(
         *this,
         PersistenceScope::CreateFromSet(PERSISTENCE_TYPE_TEMPORARY,
                                         PERSISTENCE_TYPE_DEFAULT),
         OriginScope::FromNull(), mTemporaryStorageInitialized,
+        IsDirectoryLockBlockedByUninitStorageOperation,
+        MakeBackInserter(promises));
+
+    const bool groupInitialized = IsTemporaryGroupInitialized(principalInfo);
+
+    groupDirectoryLock = CreateDirectoryLockForInitialization(
+        *this,
+        PersistenceScope::CreateFromSet(PERSISTENCE_TYPE_TEMPORARY,
+                                        PERSISTENCE_TYPE_DEFAULT),
+        OriginScope::FromGroup(aClientMetadata.mGroup), groupInitialized,
         IsDirectoryLockBlockedByUninitStorageOperation,
         MakeBackInserter(promises));
   }
@@ -5358,10 +5394,18 @@ RefPtr<ClientDirectoryLockPromise> QuotaManager::OpenClientDirectory(
                  MaybeInitialize(std::move(temporaryStorageDirectoryLock), this,
                                  &QuotaManager::InitializeTemporaryStorage))
           ->Then(GetCurrentSerialEventTarget(), __func__,
+                 MaybeInitialize(std::move(groupDirectoryLock),
+                                 [self = RefPtr(this), principalInfo](
+                                     RefPtr<UniversalDirectoryLock>
+                                         groupDirectoryLock) mutable {
+                                   return self->InitializeTemporaryGroup(
+                                       principalInfo,
+                                       std::move(groupDirectoryLock));
+                                 }))
+          ->Then(GetCurrentSerialEventTarget(), __func__,
                  MaybeInitialize(
                      std::move(originDirectoryLock),
-                     [self = RefPtr(this), persistenceType,
-                      principalInfo = std::move(principalInfo),
+                     [self = RefPtr(this), persistenceType, principalInfo,
                       aCreateIfNonExistent](RefPtr<UniversalDirectoryLock>
                                                 originDirectoryLock) mutable {
                        if (persistenceType == PERSISTENCE_TYPE_PERSISTENT) {
@@ -5642,11 +5686,37 @@ Result<Ok, nsresult> QuotaManager::EnsureTemporaryGroupIsInitializedInternal(
   MOZ_DIAGNOSTIC_ASSERT(mStorageConnection);
   MOZ_DIAGNOSTIC_ASSERT(mTemporaryStorageInitializedInternal);
 
-  const auto innerFunc = [](const auto&) -> mozilla::Result<Ok, nsresult> {
-    // XXX For now, we don't need to do any temporary origin initialization
-    // here because temporary storage initialization still initializes all
-    // temporary origins. This will change with the planned asynchronous
+  const auto innerFunc = [&aPrincipalMetadata,
+                          this](const auto&) -> mozilla::Result<Ok, nsresult> {
+    const auto& array =
+        mIOThreadAccessible.Access()->mAllTemporaryOrigins.Lookup(
+            aPrincipalMetadata.mGroup);
+    if (!array) {
+      return Ok{};
+    }
+
+    // XXX At the moment, the loop skips all elements in the array because
+    // temporary storage initialization still initializes all temporary
+    // origins. This is going to change soon with the planned asynchronous
     // temporary origin initialization done in the background.
+    for (const auto& originMetadata : *array) {
+      if (IsTemporaryOriginInitializedInternal(originMetadata)) {
+        continue;
+      }
+
+      QM_TRY_UNWRAP(auto directory, GetOriginDirectory(originMetadata));
+
+      QM_TRY_INSPECT(const auto& metadata,
+                     LoadFullOriginMetadataWithRestore(directory));
+
+      // XXX Check corruption here!
+      QM_TRY(MOZ_TO_RESULT(InitializeOrigin(metadata.mPersistenceType, metadata,
+                                            metadata.mLastAccessTime,
+                                            metadata.mPersisted, directory,
+                                            /* aForGroup */ true)));
+    }
+
+    // XXX Evict origins that exceed their group limit here.
 
     return Ok{};
   };
@@ -6180,7 +6250,15 @@ nsresult QuotaManager::EnsureTemporaryStorageIsInitializedInternal() {
 
     mTemporaryStorageInitializedInternal = true;
 
-    CleanupTemporaryStorage();
+    // If origin initialization is done lazily, then there's either no quota
+    // information at this point (if the cache couldn't be used) or only
+    // partial quota information (origins accessed in a previous session
+    // require full initialization). Given that, the cleanup can't be done
+    // at this point yet.
+    if (!StaticPrefs::
+            dom_quotaManager_temporaryStorage_lazyOriginInitialization()) {
+      CleanupTemporaryStorage();
+    }
 
     if (mCacheUsable) {
       QM_TRY(InvalidateCache(*mStorageConnection));
