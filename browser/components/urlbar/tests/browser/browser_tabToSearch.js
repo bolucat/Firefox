@@ -25,6 +25,7 @@ add_setup(async function () {
       // Disable onboarding results for general tests. They are enabled in tests
       // that specifically address onboarding.
       ["browser.urlbar.tabToSearch.onboard.interactionsLeft", 0],
+      ["browser.urlbar.scotchBonnet.enableOverride", false],
     ],
   });
 
@@ -644,4 +645,28 @@ add_task(async function onboard_multipleEnginesForHostname() {
   UrlbarPrefs.set("tabToSearch.onboard.interactionsLeft", 3);
   delete UrlbarProviderTabToSearch.onboardingInteractionAtTime;
   await SpecialPowers.popPrefEnv();
+});
+
+add_task(async function scotchBonnet_enabled() {
+  await SpecialPowers.pushPrefEnv({
+    set: [["browser.urlbar.scotchBonnet.enableOverride", true]],
+  });
+  await UrlbarTestUtils.promiseAutocompleteResultPopup({
+    window,
+    value: TEST_ENGINE_DOMAIN.slice(0, 4),
+    fireInputEvent: true,
+  });
+  Assert.equal(
+    UrlbarTestUtils.getResultCount(window),
+    1,
+    "Only one result, no tab-to-search result."
+  );
+  let result = (await UrlbarTestUtils.waitForAutocompleteResultAt(window, 0))
+    .result;
+  Assert.notEqual(
+    result.providerName,
+    "TabToSearch",
+    "The second result is a not a tab-to-search result."
+  );
+  await UrlbarTestUtils.promisePopupClose(window, () => gURLBar.blur());
 });
