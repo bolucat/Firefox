@@ -8656,7 +8656,7 @@
 
 - name: layers.force-synchronous-resize
   type: RelaxedAtomicBool
-#if defined(MOZ_WAYLAND) || defined(XP_WIN)
+#ifdef MOZ_WAYLAND
   # We want to control it by nsWindow::SynchronouslyRepaintOnResize() on Linux/Wayland.
   value: false
 #else
@@ -9038,14 +9038,26 @@
   value: 3
   mirror: always
 
-# The minimum contrast ratio between the accent color foreground and background
-# colors.
+# The minimum contrast ratio between the accent color background and white.
 #
 # We don't use this for text, so we need a contrast of at least AA (for user
-# interface components and graphical objects), which per WCAG is 3:1
+# interface components and graphical objects), which per WCAG is 3:1.
+#
+# However that causes some colors that are realistically fine to get darkened,
+# so we lower it a little bit. Eventually we should maybe use something like
+# APCA or so perhaps, see:
+#
+#  * https://ruitina.com/apca-accessible-colour-contrast/
+#  * https://github.com/w3c/csswg-drafts/issues/7937
+#
+# See also:
+#
+#  * https://accent-color.glitch.me/
+#
+# For testing this.
 - name: layout.css.accent-color.min-contrast-ratio
   type: AtomicFloat
-  value: 3.0
+  value: 2.4
   mirror: always
 
 # The target contrast ratio between the accent color foreground and background
@@ -15770,6 +15782,14 @@
 - name: security.pki.sct_signature_cache_size
   type: RelaxedAtomicUint32
   value: 256
+  mirror: always
+
+# The number of entries in the certificate trust cache.
+# A higher number increases memory usage, but should increase the cache hit rate.
+# Each entry is approximately 65 bytes, and the maximum number of entries is 65535.
+- name: security.pki.cert_trust_cache_size
+  type: RelaxedAtomicUint32
+  value: 128
   mirror: always
 
 - name: security.tls.version.min

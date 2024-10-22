@@ -80,25 +80,26 @@ bool DirectoryLockImpl::MustWait() const {
 nsTArray<RefPtr<DirectoryLockImpl>> DirectoryLockImpl::LocksMustWaitFor()
     const {
   AssertIsOnOwningThread();
-  MOZ_ASSERT(!mRegistered);
 
-  nsTArray<RefPtr<DirectoryLockImpl>> locks;
+  return LocksMustWaitForInternal<RefPtr<DirectoryLockImpl>>();
+}
 
-  for (DirectoryLockImpl* const existingLock : mQuotaManager->mDirectoryLocks) {
-    if (MustWaitFor(*existingLock)) {
-      locks.AppendElement(existingLock);
-    }
-  }
-
-  return locks;
+DirectoryLockImpl::PrepareInfo DirectoryLockImpl::Prepare() const {
+  return PrepareInfo{*this};
 }
 
 RefPtr<BoolPromise> DirectoryLockImpl::Acquire() {
+  auto prepareInfo = Prepare();
+
+  return Acquire(std::move(prepareInfo));
+}
+
+RefPtr<BoolPromise> DirectoryLockImpl::Acquire(PrepareInfo&& aPrepareInfo) {
   AssertIsOnOwningThread();
 
   RefPtr<BoolPromise> result = mAcquirePromiseHolder.Ensure(__func__);
 
-  AcquireInternal();
+  AcquireInternal(std::move(aPrepareInfo));
 
   return result;
 }
@@ -296,30 +297,53 @@ void DirectoryLockImpl::NotifyOpenListener() {
   }
 }
 
-void DirectoryLockImpl::AcquireInternal() {
+template <typename T>
+nsTArray<T> DirectoryLockImpl::LocksMustWaitForInternal() const {
   AssertIsOnOwningThread();
+  MOZ_ASSERT(!mRegistered);
 
-  mQuotaManager->AddPendingDirectoryLock(*this);
-
-  // See if this lock needs to wait.
-  bool blocked = false;
+  nsTArray<T> locks;
 
   // XXX It is probably unnecessary to iterate this in reverse order.
   for (DirectoryLockImpl* const existingLock :
        Reversed(mQuotaManager->mDirectoryLocks)) {
     if (MustWaitFor(*existingLock)) {
-      existingLock->AddBlockingLock(*this);
-      AddBlockedOnLock(*existingLock);
-      blocked = true;
+      if constexpr (std::is_same_v<T, NotNull<DirectoryLockImpl*>>) {
+        locks.AppendElement(WrapNotNull(existingLock));
+      } else {
+        locks.AppendElement(existingLock);
+      }
     }
   }
 
+  return locks;
+}
+
+void DirectoryLockImpl::AcquireInternal(PrepareInfo&& aPrepareInfo) {
+  AssertIsOnOwningThread();
+
+  mQuotaManager->AddPendingDirectoryLock(*this);
+
+  // See if this lock needs to wait. This has to be done before the lock is
+  // registered, we would be comparing the lock against itself otherwise.
+  mBlockedOn = std::move(aPrepareInfo.mBlockedOn);
+
+  // After the traversal of existing locks is done, this lock can be
+  // registered and will become an existing lock as well.
   mQuotaManager->RegisterDirectoryLock(*this);
 
-  // Otherwise, notify the open listener immediately.
-  if (!blocked) {
+  // If this lock is not blocked by some other existing lock, notify the open
+  // listener immediately and return.
+  if (mBlockedOn.IsEmpty()) {
     NotifyOpenListener();
     return;
+  }
+
+  // Add this lock as a blocking lock to all locks which block it, so the
+  // locks can update this lock when they are unregistered and eventually
+  // unblock this lock.
+  for (auto& blockedOnLock : mBlockedOn) {
+    blockedOnLock->AddBlockingLock(*this);
   }
 
   mAcquireTimer = NS_NewTimer();

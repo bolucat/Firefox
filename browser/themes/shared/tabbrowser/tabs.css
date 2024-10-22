@@ -11,6 +11,7 @@
   &[uidensity=touch] {
     --tab-min-height: 41px;
   }
+  --tab-group-label-height: max(1.5em, var(--tab-min-height) - 14px);
   /* Collapsed tabs should be square, so set width to match the min height */
   --tab-collapsed-background-width: var(--tab-min-height);
   --tab-collapsed-width: calc(var(--tab-collapsed-background-width) + 2 * var(--tab-inner-inline-margin));
@@ -756,15 +757,14 @@ tab-group {
 
 .tab-group-label-container {
   /*
-   * Provide some empty space to either side of the tab group label
+   * Provide some empty space to either side of the tab group label.
    * Use margin on the left because the ::after underline should not extend
-   * to the left beyond the tab group label. Left margin should be larger in
-   * order to make the tab group look more separated from other tabs.
+   * to the left beyond the tab group label.
    * Use padding on the right because the ::after underline should extend
    * to the right to connect to the underline of the first tab in the group.
    */
-  margin-inline-start: calc(var(--tab-overflow-clip-margin) + var(--tab-block-margin));
-  padding-inline-end: var(--tab-overflow-clip-margin);
+  margin-inline-start: 3px;
+  padding-inline-end: 3px;
 
   position: relative;
 
@@ -778,18 +778,15 @@ tab-group {
 }
 
 .tab-group-label {
-  align-items: center;
-
+  text-align: center;
   font-weight: var(--font-weight-bold);
-
-  /* Copied .tab-label settings */
-  margin-inline: 0;
-  line-height: 1.7;  /* override 'normal' in case of fallback math fonts with huge metrics */
+  text-overflow: ellipsis;
   white-space: nowrap;
-
+  overflow: hidden;
   border-radius: var(--tab-border-radius);
-  min-height: 2em;
-  min-width: 2em;
+  line-height: calc(var(--tab-group-label-height) - 2px);
+  min-height: var(--tab-group-label-height);
+  min-width: var(--tab-group-label-height);
   max-width: 10em;
   padding-inline: 4px;
   color: light-dark(var(--tab-group-color-pale), ButtonText);
@@ -799,7 +796,7 @@ tab-group {
   tab-group[collapsed] > .tab-group-label-container > & {
     background-color: light-dark(var(--tab-group-color-pale), var(--tab-group-color));
     color: light-dark(var(--tab-group-color), var(--tab-group-color-pale));
-    outline: 1px solid light-dark(var(--tab-group-color), var(--tab-group-color-pale));
+    border: 1px solid light-dark(var(--tab-group-color), var(--tab-group-color-pale));
   }
 }
 

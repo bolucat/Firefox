@@ -163,7 +163,8 @@
                    removable="false"
                    overflows="false">
         <toolbartabstop/>
-        <hbox id="urlbar" flex="1"
+        <html:div id="urlbar"
+              popover="manual"
               context=""
               focused="true"
               pageproxystate="invalid">
@@ -182,7 +183,6 @@
                  code fires onmousedown, and hence eats our favicon drag events. -->
             <box id="tracking-protection-icon-container" align="center"
                  role="button"
-                 onmouseover="gProtectionsHandler.onTrackingProtectionIconHoveredOrFocused();"
                  tooltip="tracking-protection-icon-tooltip">
               <box id="tracking-protection-icon-box">
                 <image id="tracking-protection-icon"/>
@@ -416,7 +416,7 @@
               </hbox>
             </hbox>
           </hbox>
-        </hbox>
+        </html:div>
         <toolbartabstop/>
       </toolbaritem>
 
@@ -524,7 +524,6 @@
       <hbox flex="1"
             id="PlacesToolbar"
             context="placesContext"
-            onmouseup="BookmarksEventHandler.onMouseUp(event);"
             tooltip="bhTooltip"
             popupsinherittooltip="true">
         <hbox id="PlacesToolbarDropIndicatorHolder" align="center" collapsed="true">
@@ -585,7 +584,6 @@
                  context="placesContext"
                  openInTabs="children"
                  side="top"
-                 onmouseup="BookmarksEventHandler.onMouseUp(event);"
                  tooltip="bhTooltip" popupsinherittooltip="true">
         <menuitem id="BMB_viewBookmarksSidebar"
                   data-l10n-id="bookmarks-tools-sidebar-visibility"
