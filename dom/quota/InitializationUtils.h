@@ -29,13 +29,15 @@ RefPtr<UniversalDirectoryLock> CreateDirectoryLockForInitialization(
                                                 Nullable<Client::Type>(),
                                                 /* aExclusive */ false);
 
+  auto prepareInfo = directoryLock->Prepare();
+
   if (aAlreadyInitialized &&
-      !std::forward<UninitChecker>(aUninitChecker)(directoryLock)) {
+      !std::forward<UninitChecker>(aUninitChecker)(prepareInfo)) {
     return nullptr;
   }
 
   auto iter = std::forward<PromiseArrayIter>(aPromiseArrayIter);
-  *iter = directoryLock->Acquire();
+  *iter = directoryLock->Acquire(std::move(prepareInfo));
   ++iter;
 
   return directoryLock;

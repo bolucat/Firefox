@@ -1298,25 +1298,20 @@ static nsresult GetNSSProfilePath(nsAutoCString& aProfilePath) {
 // logic of the calling code.
 // |profilePath| is encoded in UTF-8.
 static nsresult AttemptToRenamePKCS11ModuleDB(const nsACString& profilePath) {
-  nsCOMPtr<nsIFile> profileDir = do_CreateInstance("@mozilla.org/file/local;1");
-  if (!profileDir) {
-    return NS_ERROR_FAILURE;
-  }
-#  ifdef XP_WIN
+  nsCOMPtr<nsIFile> profileDir;
+#ifdef XP_WIN
   // |profilePath| is encoded in UTF-8 because SQLite always takes UTF-8 file
   // paths regardless of the current system code page.
-  nsresult rv = profileDir->InitWithPath(NS_ConvertUTF8toUTF16(profilePath));
-#  else
-  nsresult rv = profileDir->InitWithNativePath(profilePath);
-#  endif
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
+  MOZ_TRY(NS_NewLocalFile(u""_ns, getter_AddRefs(profileDir)));
+  MOZ_TRY(profileDir->InitWithPath(NS_ConvertUTF8toUTF16(profilePath)));
+#else
+  MOZ_TRY(NS_NewNativeLocalFile(profilePath, getter_AddRefs(profileDir)));
+#endif
   const char* moduleDBFilename = "pkcs11.txt";
   nsAutoCString destModuleDBFilename(moduleDBFilename);
   destModuleDBFilename.Append(".fips");
   nsCOMPtr<nsIFile> dbFile;
-  rv = profileDir->Clone(getter_AddRefs(dbFile));
+  nsresult rv = profileDir->Clone(getter_AddRefs(dbFile));
   if (NS_FAILED(rv) || !dbFile) {
     return NS_ERROR_FAILURE;
   }

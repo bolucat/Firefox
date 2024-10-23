@@ -370,6 +370,36 @@ TEST_SUITES = {
         "kwargs": {"test_file": "all"},
         "task_regex": ["xpcshell($|.*(-1|[^0-9])$)", "test-verify($|.*(-1|[^0-9])$)"],
     },
+    "fenix": {
+        "aliases": ("f",),
+        "build_flavor": "fenix",
+        "mach_command": "android-test",
+        "kwargs": {"subproject": "fenix"},
+    },
+    "focus": {
+        "aliases": ("f",),
+        "build_flavor": "focus",
+        "mach_command": "android-test",
+        "kwargs": {"subproject": "focus"},
+    },
+    "android-components": {
+        "aliases": ("ac",),
+        "build_flavor": "android-components",
+        "mach_command": "android-test",
+        "kwargs": {"subproject": "android-components"},
+    },
+    "geckoview": {
+        "aliases": ("gv",),
+        "build_flavor": "geckoview",
+        "mach_command": "geckoview-junit",
+        "kwargs": {"no_install": "false", "mach_test": "true"},
+    },
+    "junit": {
+        "aliases": ("j",),
+        "build_flavor": "geckoview",
+        "mach_command": "geckoview-junit",
+        "kwargs": {"no_install": "false", "mach_test": "true"},
+    },
 }
 """Definitions of all test suites and the metadata needed to run and process
 them. Each test suite definition can contain the following keys.
@@ -420,6 +450,10 @@ _test_flavors = {
     "telemetry-tests-client": "telemetry-tests-client",
     "web-platform-tests": "web-platform-tests",
     "xpcshell": "xpcshell",
+    "fenix": "fenix",
+    "focus": "focus",
+    "android-components": "android-components",
+    "geckoview": "geckoview",
 }
 
 _test_subsuites = {
@@ -631,6 +665,10 @@ class TestResolver(MozbuildObject):
 
         # These suites aren't registered in moz.build so require special handling.
         self._puppeteer_loaded = False
+        self._fenix_loaded = False
+        self._ac_loaded = False
+        self._focus_loaded = False
+        self._geckoview_junit_loaded = False
         self._tests_loaded = False
         self._wpt_loaded = False
         self.meta_tags = {}
@@ -800,6 +838,26 @@ class TestResolver(MozbuildObject):
         ):
             self.add_wpt_manifest_data()
 
+        if flavor in ("", "fenix", None) and (
+            any(self.is_fenix_path(p) for p in paths) or paths == [None]
+        ):
+            self.add_fenix_manifest_data()
+
+        if flavor in ("", "focus", None) and (
+            any(self.is_focus_path(p) for p in paths) or paths == [None]
+        ):
+            self.add_focus_manifest_data()
+
+        if flavor in ("", "android-components", None) and (
+            any(self.is_ac_path(p) for p in paths) or paths == [None]
+        ):
+            self.add_ac_manifest_data()
+
+        if flavor in ("", "geckoview", "junit", None) and (
+            any(self.is_geckoview_junit_path(p) for p in paths) or paths == [None]
+        ):
+            self.add_geckoview_junit_manifest_data()
+
         candidate_paths = set()
 
         for path in sorted(paths):
@@ -844,6 +902,26 @@ class TestResolver(MozbuildObject):
             return True
         return mozpath.match(path, "remote/test/puppeteer/test/**")
 
+    def is_fenix_path(self, path):
+        if path is None:
+            return True
+        return mozpath.match(path, "mobile/android/fenix/**")
+
+    def is_focus_path(self, path):
+        if path is None:
+            return True
+        return mozpath.match(path, "mobile/android/focus-android/**")
+
+    def is_ac_path(self, path):
+        if path is None:
+            return True
+        return mozpath.match(path, "mobile/android/android-components/**")
+
+    def is_geckoview_junit_path(self, path):
+        if path is None:
+            return True
+        return mozpath.match(path, "mobile/android/geckoview/**")
+
     def add_puppeteer_manifest_data(self):
         if self._puppeteer_loaded:
             return
@@ -871,6 +949,145 @@ class TestResolver(MozbuildObject):
                 )
 
         self._puppeteer_loaded = True
+
+    def add_fenix_manifest_data(self):
+        if self._fenix_loaded:
+            return
+
+        self._reset_state()
+
+        test_path = os.path.join(
+            self.topsrcdir, "mobile", "android", "fenix", "app", "src", "test", "java"
+        )
+        for root, dirs, paths in os.walk(test_path):
+            if "test" in root:
+                for filename in fnmatch.filter(paths, "*.kt"):
+                    path = os.path.join(root, filename)
+                    self._tests.append(
+                        {
+                            "path": os.path.abspath(path),
+                            "flavor": "fenix",
+                            "here": os.path.dirname(path),
+                            "manifest": None,
+                            "name": path,
+                            "file_relpath": path,
+                            "head": "",
+                            "support-files": "",
+                            "subsuite": "",
+                            "dir_relpath": os.path.dirname(path),
+                            "srcdir_relpath": path,
+                        }
+                    )
+
+        self._fenix_loaded = True
+
+    def add_focus_manifest_data(self):
+        if self._focus_loaded:
+            return
+
+        self._reset_state()
+
+        test_path = os.path.join(
+            self.topsrcdir,
+            "mobile",
+            "android",
+            "focus-android",
+            "app",
+            "src",
+            "test",
+            "java",
+        )
+        for root, dirs, paths in os.walk(test_path):
+            if "test" in root:
+                for filename in fnmatch.filter(paths, "*.kt"):
+                    path = os.path.join(root, filename)
+                    self._tests.append(
+                        {
+                            "path": os.path.abspath(path),
+                            "flavor": "focus",
+                            "here": os.path.dirname(path),
+                            "manifest": None,
+                            "name": path,
+                            "file_relpath": path,
+                            "head": "",
+                            "support-files": "",
+                            "subsuite": "",
+                            "dir_relpath": os.path.dirname(path),
+                            "srcdir_relpath": path,
+                        }
+                    )
+
+        self._focus_loaded = True
+
+    def add_ac_manifest_data(self):
+        if self._ac_loaded:
+            return
+
+        self._reset_state()
+
+        test_path = os.path.join(
+            self.topsrcdir, "mobile", "android", "android-components"
+        )
+
+        test_subdir_path = os.path.join("src", "test", "java")
+        for root, dirs, paths in os.walk(test_path):
+            if test_subdir_path in root:
+                for filename in fnmatch.filter(paths, "*.kt"):
+                    path = os.path.join(root, filename)
+                    self._tests.append(
+                        {
+                            "path": os.path.abspath(path),
+                            "flavor": "android-components",
+                            "here": os.path.dirname(path),
+                            "manifest": None,
+                            "name": path,
+                            "file_relpath": path,
+                            "head": "",
+                            "support-files": "",
+                            "subsuite": "",
+                            "dir_relpath": os.path.dirname(path),
+                            "srcdir_relpath": path,
+                        }
+                    )
+
+        self._ac_loaded = True
+
+    def add_geckoview_junit_manifest_data(self):
+        if self._geckoview_junit_loaded:
+            return
+
+        self._reset_state()
+
+        test_path = os.path.join(
+            self.topsrcdir,
+            "mobile",
+            "android",
+            "geckoview",
+            "src",
+            "androidTest",
+            "java",
+        )
+        for root, dirs, paths in os.walk(test_path):
+            if "test" in root:
+                for filename in fnmatch.filter(paths, "*.kt"):
+                    path = os.path.join(root, filename)
+                    self._tests.append(
+                        {
+                            "path": os.path.abspath(path),
+                            "flavor": "geckoview",
+                            "here": os.path.dirname(path),
+                            "manifest": None,
+                            "name": path,
+                            "file_relpath": path,
+                            "head": "",
+                            "support-files": "",
+                            "subsuite": "",
+                            "dir_relpath": os.path.dirname(path),
+                            "srcdir_relpath": path,
+                        }
+                    )
+
+        self._geckooview_junit_loaded = True
 
     def is_wpt_path(self, path):
         """Checks if path forms part of the known web-platform-test paths.
