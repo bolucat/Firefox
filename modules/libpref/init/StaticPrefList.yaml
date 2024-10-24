@@ -1559,7 +1559,7 @@
 
 - name: browser.navigation.requireUserInteraction
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Indicates if about:newtab shows content (enabled) or just blank.
@@ -4018,6 +4018,11 @@
   value: true
   mirror: always
 
+- name: dom.security.https_first_exception_lifetime
+  type: uint32_t
+  value: 7*24*60*60*1000 # 7 days in milliseconds
+  mirror: always
+
 - name: dom.security.unexpected_system_load_telemetry_enabled
   type: bool
   value: true
@@ -4335,6 +4340,12 @@
   value: false
   mirror: always
   do_not_use_directly: true
+
+# Whether the migration from unsupported legacy implementation is enabled.
+- name: dom.storage.enable_migration_from_unsupported_legacy_implementation
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
 
 # The amount of snapshot peak usage which is attempted to be pre-incremented
 # during snapshot creation.
@@ -5286,7 +5297,7 @@
 # is not controlled by this pref, only the extension code ability to use
 # navigator.serviceWorker.register is locked behind this pref.
 - name: extensions.serviceWorkerRegister.allowed
-  type: bool
+  type: RelaxedAtomicBool
   value: false
   mirror: always
 
@@ -8421,12 +8432,6 @@
     mirror: always
     set_spidermonkey_pref: always
 
-- name: javascript.options.wasm_inline_call_ref_threshold
-  type: uint32_t
-  value: 1
-  mirror: always
-  set_spidermonkey_pref: always
-
 # Aggressiveness of lazy tiering, allowable: 1 .. 9
 # 1 = min (almost never, set tiering threshold to max possible, == 2^31-1)
 # 9 = max (request tier up at first call, set tiering threshold to zero)
@@ -8462,6 +8467,17 @@
 - name: javascript.options.wasm_call_ref_inlining
   type: bool
   value: true
+  mirror: always
+  set_spidermonkey_pref: always
+
+# When selecting a call_ref target for speculative inlining, this is the minimum
+# percentage of the total number of calls from the call site that a candidate
+# must have in order to be elegible for inlining.  Allowable: 10 .. 100 (%).
+# Setting it (eg) 75 means the hottest target must be 75% of all observed calls
+# to be considered for inlining.  Probably unwise to let this be much below 50.
+- name: javascript.options.wasm_call_ref_inlining_percent
+  type: uint32_t
+  value: 50
   mirror: always
   set_spidermonkey_pref: always
 
@@ -13746,18 +13762,18 @@
 # Whether to use the rust implemented DefaultURI for unknown scheme types
 - name: network.url.useDefaultURI
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 # Allows use of a protocol exception list that will bypass defaultURI parser
-- name: network.url.some_schemes_bypass_defaultURI_fallback
+- name: network.url.simple_uri_unknown_schemes_enabled
   type: RelaxedAtomicBool
   value: true
   mirror: always
 
 # A list of schemes to allow for bypassing defaultURI as default
-# This is only used when network.url.some_schemes_bypass_defaultURI_fallback is true
-- name: network.url.simple_uri_schemes
+# This is only used when network.url.simple_uri_unknown_schemes_enabled is true
+- name: network.url.simple_uri_unknown_schemes
   type: String
   value: ""
   mirror: never
@@ -15003,12 +15019,12 @@
 
 - name: privacy.window.maxInnerWidth
   type: int32_t
-  value: 1000
+  value: 1400
   mirror: always
 
 - name: privacy.window.maxInnerHeight
   type: int32_t
-  value: 1000
+  value: 900
   mirror: always
 
 - name: privacy.sanitize.useOldClearHistoryDialog
@@ -15760,6 +15776,14 @@
   value: "all"
 #endif
   mirror: never
+
+# The number of SCTs that must be "covered" by a CRLite filter before
+# we will enforce a result from that filter.
+- name: security.pki.crlite_timestamps_for_coverage
+  type: RelaxedAtomicUint32
+  value: 1
+  mirror: always
+  rust: true
 
 - name: security.pki.use_modern_crypto_with_pkcs12
   type: RelaxedAtomicBool

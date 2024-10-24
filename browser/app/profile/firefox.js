@@ -402,6 +402,9 @@ pref("browser.urlbar.autoFill.adaptiveHistory.enabled", false);
 // autofill.
 pref("browser.urlbar.autoFill.adaptiveHistory.minCharsThreshold", 0);
 
+// Set default NER threshold value of 0.5
+pref("browser.urlbar.nerThreshold", "0.5");
+
 // Whether to warm up network connections for autofill or search results.
 pref("browser.urlbar.speculativeConnect.enabled", true);
 
@@ -1483,7 +1486,7 @@ pref("browser.bookmarks.editDialog.maxRecentFolders", 7);
   // On windows these levels are:
   // See - security/sandbox/win/src/sandboxbroker/sandboxBroker.cpp
   // SetSecurityLevelForContentProcess() for what the different settings mean.
-  #if defined(NIGHTLY_BUILD)
+  #if defined(EARLY_BETA_OR_EARLIER)
     pref("security.sandbox.content.level", 8);
   #else
     pref("security.sandbox.content.level", 7);
@@ -2651,6 +2654,7 @@ pref("browser.toolbars.bookmarks.showOtherBookmarks", true);
 
 // Felt Privacy pref to control simplified private browsing UI
 pref("browser.privatebrowsing.felt-privacy-v1", false);
+pref("security.certerrors.felt-privacy-v1", false);
 
 // Prefs to control the Firefox Account toolbar menu.
 // This pref will surface existing Firefox Account information

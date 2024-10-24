@@ -9,16 +9,17 @@
 const HISTOGRAM_LATENCY = "FX_URLBAR_MERINO_LATENCY_WEATHER_MS";
 const HISTOGRAM_RESPONSE = "FX_URLBAR_MERINO_RESPONSE_WEATHER";
 
-const { WEATHER_RS_DATA, WEATHER_SUGGESTION } = MerinoTestUtils;
+const { WEATHER_SUGGESTION } = MerinoTestUtils;
 
 add_setup(async () => {
   await QuickSuggestTestUtils.ensureQuickSuggestInit({
-    prefs: [["suggest.quicksuggest.nonsponsored", true]],
+    prefs: [
+      ["suggest.quicksuggest.nonsponsored", true],
+      ["weather.featureGate", true],
+    ],
     remoteSettingsRecords: [
-      {
-        type: "weather",
-        weather: WEATHER_RS_DATA,
-      },
+      QuickSuggestTestUtils.weatherRecord(),
+      QuickSuggestTestUtils.geonamesRecord(),
     ],
   });
 
@@ -47,7 +48,7 @@ async function doBasicDisableAndEnableTest(pref) {
   });
 
   // No suggestion should be returned for a search.
-  let context = createContext(MerinoTestUtils.WEATHER_KEYWORD, {
+  let context = createContext("weather", {
     providers: [UrlbarProviderQuickSuggest.name],
     isPrivate: false,
   });
@@ -66,7 +67,7 @@ async function doBasicDisableAndEnableTest(pref) {
   UrlbarPrefs.set(pref, true);
 
   // The suggestion should be returned for a search.
-  context = createContext(MerinoTestUtils.WEATHER_KEYWORD, {
+  context = createContext("weather", {
     providers: [UrlbarProviderQuickSuggest.name],
     isPrivate: false,
   });
@@ -93,7 +94,7 @@ add_task(async function noSuggestion() {
   let { suggestions } = MerinoTestUtils.server.response.body;
   MerinoTestUtils.server.response.body.suggestions = [];
 
-  let context = createContext(MerinoTestUtils.WEATHER_KEYWORD, {
+  let context = createContext("weather", {
     providers: [UrlbarProviderQuickSuggest.name],
     isPrivate: false,
   });
@@ -127,7 +128,7 @@ add_task(async function networkError() {
   });
 
   await MerinoTestUtils.server.withNetworkError(async () => {
-    let context = createContext(MerinoTestUtils.WEATHER_KEYWORD, {
+    let context = createContext("weather", {
       providers: [UrlbarProviderQuickSuggest.name],
       isPrivate: false,
     });
@@ -154,7 +155,7 @@ add_task(async function httpError() {
 
   MerinoTestUtils.server.response = { status: 500 };
 
-  let context = createContext(MerinoTestUtils.WEATHER_KEYWORD, {
+  let context = createContext("weather", {
     providers: [UrlbarProviderQuickSuggest.name],
     isPrivate: false,
   });
@@ -192,7 +193,7 @@ add_task(async function clientTimeout() {
   // response.
   let responsePromise = QuickSuggest.weather._test_merino.waitForNextResponse();
 
-  let context = createContext(MerinoTestUtils.WEATHER_KEYWORD, {
+  let context = createContext("weather", {
     providers: [UrlbarProviderQuickSuggest.name],
     isPrivate: false,
   });
@@ -325,7 +326,7 @@ async function doLocaleTest({ shouldRunTask, osUnit, unitsByLocale }) {
       callback: async () => {
         info("Checking locale: " + locale);
         await check_results({
-          context: createContext(MerinoTestUtils.WEATHER_KEYWORD, {
+          context: createContext("weather", {
             providers: [UrlbarProviderQuickSuggest.name],
             isPrivate: false,
           }),
@@ -337,7 +338,7 @@ async function doLocaleTest({ shouldRunTask, osUnit, unitsByLocale }) {
         );
         Services.prefs.setBoolPref("intl.regional_prefs.use_os_locales", true);
         await check_results({
-          context: createContext(MerinoTestUtils.WEATHER_KEYWORD, {
+          context: createContext("weather", {
             providers: [UrlbarProviderQuickSuggest.name],
             isPrivate: false,
           }),
@@ -360,7 +361,7 @@ add_task(async function block() {
   );
 
   // Do a search so we can get an actual result.
-  let context = createContext(MerinoTestUtils.WEATHER_KEYWORD, {
+  let context = createContext("weather", {
     providers: [UrlbarProviderQuickSuggest.name],
     isPrivate: false,
   });
@@ -394,7 +395,7 @@ add_task(async function block() {
   );
 
   // Do a second search. Nothing should be returned.
-  context = createContext(MerinoTestUtils.WEATHER_KEYWORD, {
+  context = createContext("weather", {
     providers: [UrlbarProviderQuickSuggest.name],
     isPrivate: false,
   });
@@ -417,7 +418,7 @@ add_task(async function nimbusOverride() {
   // Verify a search works as expected with the default remote settings weather
   // record (which was added in the init task).
   await check_results({
-    context: createContext(MerinoTestUtils.WEATHER_KEYWORD, {
+    context: createContext("weather", {
       providers: [UrlbarProviderQuickSuggest.name],
       isPrivate: false,
     }),
@@ -431,7 +432,7 @@ add_task(async function nimbusOverride() {
 
   // The suggestion shouldn't be returned anymore.
   await check_results({
-    context: createContext(MerinoTestUtils.WEATHER_KEYWORD, {
+    context: createContext("weather", {
       providers: [UrlbarProviderQuickSuggest.name],
       isPrivate: false,
     }),
@@ -443,13 +444,120 @@ add_task(async function nimbusOverride() {
 
   // The suggestion should be returned again.
   await check_results({
-    context: createContext(MerinoTestUtils.WEATHER_KEYWORD, {
+    context: createContext("weather", {
       providers: [UrlbarProviderQuickSuggest.name],
       isPrivate: false,
     }),
     matches: [defaultResult],
   });
 });
+
+// Does a query that contains a city but no region.
+//
+// Note that the Rust component handles city/region parsing and has extensive
+// tests for that. Here we only need to make sure that Merino is called with the
+// city/region parsed by Rust and that the urlbar result has the correct city.
+add_task(async function cityWithoutRegion() {
+  // "waterloo" matches both Waterloo, IA and Waterloo, AL. The Rust component
+  // will return an array containing suggestions for both, and the suggestions
+  // will have the same score. We should make a urlbar result for the first
+  // suggestion in the array, which will be Waterloo, IA since it has a larger
+  // population.
+  await doCityTest({
+    query: "waterloo",
+    city: "Waterloo",
+    region: "IA",
+  });
+});
+
+// Does a query that contains a city and a region.
+add_task(async function cityWithRegion() {
+  await doCityTest({
+    query: "waterloo al",
+    city: "Waterloo",
+    region: "AL",
+  });
+});
+
+// When the query doesn't have a city, no location params should be passed to
+// Merino.
+add_task(async function noCity() {
+  await doCityTest({
+    query: "weather",
+    city: null,
+    region: null,
+    country: null,
+    expectedResultCity: WEATHER_SUGGESTION.city_name,
+  });
+});
+
+async function doCityTest({
+  query,
+  city,
+  region,
+  country = "US",
+  expectedResultCity = city,
+}) {
+  let expectedParams = {
+    q: "",
+    city,
+    region,
+    country,
+  };
+
+  let merinoCallCount = 0;
+
+  MerinoTestUtils.server.requestHandler = req => {
+    merinoCallCount++;
+    // If this fails, the Rust component returned multiple suggestions, which is
+    // fine and expected when a query matches multiple cities, but we should
+    // only ever make a urlbar result for the first one.
+    Assert.equal(merinoCallCount, 1, "Merino should be called only once");
+
+    let params = new URLSearchParams(req.queryString);
+    for (let [key, value] of Object.entries(expectedParams)) {
+      Assert.strictEqual(
+        params.get(key),
+        value,
+        "Param should be correct: " + key
+      );
+    }
+
+    let suggestion = { ...WEATHER_SUGGESTION };
+    if (city) {
+      suggestion = {
+        ...suggestion,
+        title: "Weather for " + city,
+        city_name: city,
+      };
+    }
+
+    return {
+      body: {
+        request_id: "request_id",
+        suggestions: [suggestion],
+      },
+    };
+  };
+
+  let context = createContext(query, {
+    providers: [UrlbarProviderQuickSuggest.name],
+    isPrivate: false,
+  });
+  await check_results({
+    context,
+    matches: [
+      QuickSuggestTestUtils.weatherResult({ city: expectedResultCity }),
+    ],
+  });
+
+  Assert.equal(
+    merinoCallCount,
+    1,
+    "Merino should have beeen called exactly once"
+  );
+  MerinoTestUtils.server.requestHandler = null;
+}
 
 function assertDisabled({ message }) {
   info("Asserting feature is disabled");

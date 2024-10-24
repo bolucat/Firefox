@@ -642,9 +642,12 @@ urlbar-result-action-calculator-result = = { $result }
 # Searchmode Switcher button
 # Variables:
 #   $engine (String): the current default search engine.
-urlbar-searchmode-button =
-    .label = { $engine }, Pick a Search Engine
-    .tooltiptext = { $engine }, Pick a Search Engine
+urlbar-searchmode-button2 =
+    .label = { $engine }, pick a search engine
+    .tooltiptext = { $engine }, pick a search engine
+urlbar-searchmode-button-no-engine =
+    .label = No shortcut selected, pick a shortcut
+    .tooltiptext = No shortcut selected, pick a shortcut
 urlbar-searchmode-dropmarker =
     .tooltiptext = Pick a Search Engine
 urlbar-searchmode-bookmarks =
@@ -1025,6 +1028,10 @@ data-reporting-notification-button =
 
 # Label for the indicator shown in the private browsing window titlebar.
 private-browsing-indicator-label = Private browsing
+
+# Tooltip for the indicator shown in the private browsing window titlebar.
+private-browsing-indicator-tooltip =
+    .tooltiptext = Private browsing
 
 # Tooltip for the indicator shown in the window titlebar when content analysis is active.
 # Variables:

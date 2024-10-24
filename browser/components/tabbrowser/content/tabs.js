@@ -552,11 +552,20 @@
         }
         this.#maxTabsPerRow = tabsPerRow;
       }
-      let selectedTabs = gBrowser.selectedTabs;
-      let otherSelectedTabs = selectedTabs.filter(
-        selectedTab => selectedTab != tab
-      );
-      let dataTransferOrderedTabs = [tab].concat(otherSelectedTabs);
+
+      let dataTransferOrderedTabs;
+      if (!fromTabList) {
+        let selectedTabs = gBrowser.selectedTabs;
+        let otherSelectedTabs = selectedTabs.filter(
+          selectedTab => selectedTab != tab
+        );
+        dataTransferOrderedTabs = [tab].concat(otherSelectedTabs);
+      } else {
+        // Dragging an item in the tabs list doesn't change the currently
+        // selected tabs, and it's not possible to select multiple tabs from
+        // the list, thus handle only the dragged tab in this case.
+        dataTransferOrderedTabs = [tab];
+      }
 
       let dt = event.dataTransfer;
       for (let i = 0; i < dataTransferOrderedTabs.length; i++) {
@@ -2085,23 +2094,16 @@
             "dragover-createGroup",
             true
           );
-
-          let groupColorCode = gBrowser.tabGroupMenu.nextUnusedColor;
-          this.style.setProperty(
-            "--dragover-tab-group-color",
-            `var(--tab-group-color-${groupColorCode})`
-          );
-          this.style.setProperty(
-            "--dragover-tab-group-color-invert",
-            `var(--tab-group-color-${groupColorCode}-invert)`
-          );
-          this.style.setProperty(
-            "--dragover-tab-group-color-pale",
-            `var(--tab-group-color-${groupColorCode}-pale)`
-          );
+          this.#setDragOverGroupColor(gBrowser.tabGroupMenu.nextUnusedColor);
         } else {
           this.removeAttribute("movingtab-createGroup");
         }
+      }
+
+      if (gBrowser._tabGroupsEnabled && !("groupDropIndex" in dragData)) {
+        this.#setDragOverGroupColor(
+          this.allTabs[dragData.animDropIndex].group?.color
+        );
       }
 
       if (newIndex == oldIndex) {
@@ -2119,6 +2121,27 @@
       }
     }
 
+    #setDragOverGroupColor(groupColorCode) {
+      if (!groupColorCode) {
+        this.style.removeProperty("--dragover-tab-group-color");
+        this.style.removeProperty("--dragover-tab-group-color-invert");
+        this.style.removeProperty("--dragover-tab-group-color-pale");
+        return;
+      }
+      this.style.setProperty(
+        "--dragover-tab-group-color",
+        `var(--tab-group-color-${groupColorCode})`
+      );
+      this.style.setProperty(
+        "--dragover-tab-group-color-invert",
+        `var(--tab-group-color-${groupColorCode}-invert)`
+      );
+      this.style.setProperty(
+        "--dragover-tab-group-color-pale",
+        `var(--tab-group-color-${groupColorCode}-pale)`
+      );
+    }
+
     _finishAnimateTabMove() {
       if (!this.hasAttribute("movingtab")) {
         return;
@@ -2131,6 +2154,7 @@
 
       this.removeAttribute("movingtab");
       this.removeAttribute("movingtab-createGroup");
+      this.#setDragOverGroupColor(null);
       gNavToolbox.removeAttribute("movingtab");
 
       this._handleTabSelect();
