@@ -553,6 +553,9 @@ pref("browser.urlbar.quicksuggest.ampTopPickCharThreshold", 0);
 // Comma-separated list of Suggest exposure suggestion types to enable.
 pref("browser.urlbar.quicksuggest.exposureSuggestionTypes", "");
 
+// Whether Suggest will use the ML backend in addition to Rust.
+pref("browser.urlbar.quicksuggest.mlEnabled", false);
+
 // Whether unit conversion is enabled.
 #ifdef NIGHTLY_BUILD
 pref("browser.urlbar.unitConversion.enabled", true);
@@ -676,6 +679,10 @@ pref("browser.urlbar.yelp.minKeywordLength", 4);
 
 // Whether Yelp suggestions should be shown as top picks.
 pref("browser.urlbar.yelp.priority", false);
+
+// Whether Yelp suggestions will be served from the Suggest ML backend instead
+// of Rust.
+pref("browser.urlbar.yelp.mlEnabled", false);
 
 // If `browser.urlbar.yelp.featureGate` is true, this controls whether
 // Yelp suggestions are turned on.
@@ -1784,6 +1791,10 @@ pref("browser.newtabpage.activity-stream.newNewtabExperience.colors", "#0090ED,#
 // Default layout experimentation
 pref("browser.newtabpage.activity-stream.newtabLayouts.variant-a", false);
 pref("browser.newtabpage.activity-stream.newtabLayouts.variant-b", false);
+
+// Discovery stream ad size experiment
+pref("browser.newtabpage.activity-stream.newtabAdSize.variant-a", false);
+pref("browser.newtabpage.activity-stream.newtabAdSize.variant-b", false);
 
 // Activity Stream prefs that control to which page to redirect
 #ifndef RELEASE_OR_BETA
@@ -3224,6 +3235,7 @@ pref("browser.backup.template.fallback-download.esr", "https://www.mozilla.org/f
 
 // Pref to enable the new profiles
 pref("browser.profiles.enabled", false);
+pref("browser.profiles.profile-name.updated", false);
 
 pref("startup.homepage_override_url_nimbus", "");
 // These prefs are referring to the Fx update version

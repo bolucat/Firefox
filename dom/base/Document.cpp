@@ -2377,7 +2377,7 @@ Document::~Document() {
     // don't report for about: pages
     if (!IsAboutPage()) {
       if (MOZ_UNLIKELY(mMathMLEnabled)) {
-        ScalarAdd(Telemetry::ScalarID::MATHML_DOC_COUNT, 1);
+        glean::mathml::doc_count.Add(1);
       }
     }
   }
@@ -2533,7 +2533,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(Document)
     static const char* kNSURIs[] = {"([none])", "(xmlns)", "(xml)",
                                     "(xhtml)",  "(XLink)", "(XSLT)",
                                     "(MathML)", "(RDF)",   "(XUL)"};
-    if (nsid < ArrayLength(kNSURIs)) {
+    if (nsid < std::size(kNSURIs)) {
       SprintfLiteral(name, "Document %s %s %s", loadedAsData.get(),
                      kNSURIs[nsid], uri.get());
     } else {

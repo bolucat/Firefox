@@ -1,5 +1,6 @@
 // META: script=/resources/testdriver.js
 // META: script=/resources/testdriver-vendor.js
+// META: script=/storage-access-api/helpers.js
 
 'use strict';
 
@@ -33,12 +34,15 @@ async_test(t => {
       case 'popin-read':
         // Step 8
         // We want to see the same behavior a cross-site iframe would have, only SameSite=None available, with the ability to set additional cookies in the popin.
-        assert_equals(e.data.message, "ReadOnLoad:FirstPartyNone-ThirdPartyNone-,ReadOnFetch:FirstPartyNone-ThirdPartyNone-FirstPartyNonePopin-ThirdPartyNonePopin-,ReadOnDocument:FirstPartyNone-ThirdPartyNone-FirstPartyNonePopin-ThirdPartyNonePopin-");
+        // TODO(crbug.com/340606651): Once RSA is implemented we should see first-party cookies after the call.
+        assert_equals(e.data.message, "ReadOnLoad:ThirdPartyNone-,ReadOnFetch:ThirdPartyNone-ThirdPartyNonePopin-,ReadOnDocument:ThirdPartyNone-ThirdPartyNonePopin-,ReadOnFetchAfterRSA:ThirdPartyNone-ThirdPartyNonePopin-ThirdPartyNonePopinAfterRSA-,ReadOnDocumentAfterRSA:ThirdPartyNone-ThirdPartyNonePopin-ThirdPartyNonePopinAfterRSA-");
         t.done();
         break;
     }
   }));
 
-  // Step 2
-  window.open("https://{{hosts[alt][]}}:{{ports[https][0]}}/partitioned-popins/resources/partitioned-popins.cookies-window.html?id="+id, '_blank', 'popup');
-}, "Verify Partitioned Popins only have access to third-party cookies");
+  MaybeSetStorageAccess("*", "*", "blocked").then(() => {
+    // Step 2
+    window.open("https://{{hosts[alt][]}}:{{ports[https][0]}}/partitioned-popins/resources/partitioned-popins.cookies-window.html?id="+id, '_blank', 'popup');
+  });
+}, "Verify Partitioned Popins cookie access when third-party cookie access blocked");

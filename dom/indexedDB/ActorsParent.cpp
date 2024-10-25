@@ -13234,7 +13234,7 @@ nsresult Maintenance::DirectoryWork() {
       PERSISTENCE_TYPE_TEMPORARY, PERSISTENCE_TYPE_PRIVATE};
 
   static_assert(
-      ArrayLength(kPersistenceTypes) == size_t(PERSISTENCE_TYPE_INVALID),
+      std::size(kPersistenceTypes) == size_t(PERSISTENCE_TYPE_INVALID),
       "Something changed with available persistence types!");
 
   constexpr auto idbDirName =
@@ -16977,7 +16977,11 @@ void GetDatabasesOp::SendResults() {
   NoteActorDestroyed();
 #endif
 
-  mResolver(mDatabaseMetadataArray);
+  if (HasFailed()) {
+    mResolver(ClampResultCode(ResultCode()));
+  } else {
+    mResolver(mDatabaseMetadataArray);
+  }
 
   SafeDropDirectoryLock(mDirectoryLock);
 
