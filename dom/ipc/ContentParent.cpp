@@ -1598,7 +1598,7 @@ void ContentParent::Init() {
 
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
   if (obs) {
-    size_t length = ArrayLength(sObserverTopics);
+    size_t length = std::size(sObserverTopics);
     for (size_t i = 0; i < length; ++i) {
       obs->AddObserver(this, sObserverTopics[i], false);
     }
@@ -1963,7 +1963,7 @@ void ContentParent::ActorDestroy(ActorDestroyReason why) {
 
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
   if (obs) {
-    size_t length = ArrayLength(sObserverTopics);
+    size_t length = std::size(sObserverTopics);
     for (size_t i = 0; i < length; ++i) {
       obs->RemoveObserver(static_cast<nsIObserver*>(this), sObserverTopics[i]);
     }
@@ -6368,14 +6368,13 @@ mozilla::ipc::IPCResult ContentParent::RecvRecordPageLoadEvent(
 
   // Send the PageLoadPing after every 30 page loads, or on startup.
   if (++sPageLoadEventCounter >= 30) {
-    NS_SUCCEEDED(NS_DispatchToMainThreadQueue(
+    Unused << NS_WARN_IF(NS_FAILED(NS_DispatchToMainThreadQueue(
         NS_NewRunnableFunction(
             "PageLoadPingIdleTask",
             [] { mozilla::glean_pings::Pageload.Submit("threshold"_ns); }),
-        EventQueuePriority::Idle));
+        EventQueuePriority::Idle)));
     sPageLoadEventCounter = 0;
   }
-
   return IPC_OK();
 }
 
