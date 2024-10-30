@@ -209,16 +209,6 @@ FeatureArgs FeatureArgs::build(JSContext* cx, const FeatureOptions& options) {
     features.builtinModules.jsStringConstantsNamespace =
         options.jsStringConstantsNamespace;
   }
-#ifdef ENABLE_WASM_GC
-  if (options.requireGC) {
-    features.gc = true;
-  }
-#endif
-#ifdef ENABLE_WASM_TAIL_CALLS
-  if (options.requireTailCalls) {
-    features.tailCalls = true;
-  }
-#endif
   if (options.requireExnref) {
     features.exnref = true;
   }

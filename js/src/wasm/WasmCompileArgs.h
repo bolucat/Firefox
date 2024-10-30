@@ -103,17 +103,7 @@ struct FeatureOptions {
       : isBuiltinModule(false),
         jsStringBuiltins(false),
         jsStringConstants(false),
-        requireExnref(false)
-#ifdef ENABLE_WASM_GC
-        ,
-        requireGC(false)
-#endif
-#ifdef ENABLE_WASM_TAIL_CALLS
-        ,
-        requireTailCalls(false)
-#endif
-  {
-  }
+        requireExnref(false) {}
 
   // Enables builtin module opcodes, only set in WasmBuiltinModule.cpp.
   bool isBuiltinModule;
@@ -127,14 +117,6 @@ struct FeatureOptions {
 
   // Enable exnref support.
   bool requireExnref;
-#ifdef ENABLE_WASM_GC
-  // Enable GC support.
-  bool requireGC;
-#endif
-#ifdef ENABLE_WASM_TAIL_CALLS
-  // Enable tail-calls support.
-  bool requireTailCalls;
-#endif
 
   // Parse the compile options bag.
   [[nodiscard]] bool init(JSContext* cx, HandleValue val);

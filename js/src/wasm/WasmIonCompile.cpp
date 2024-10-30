@@ -1164,7 +1164,6 @@ class FunctionCompiler {
     return true;
   }
 
-#ifdef ENABLE_WASM_GC
   [[nodiscard]] bool brOnNull(uint32_t relativeDepth, const DefVector& values,
                               const ResultType& type, MDefinition* condition) {
     if (inDeadCode()) {
@@ -1227,9 +1226,6 @@ class FunctionCompiler {
     return true;
   }
 
-#endif  // ENABLE_WASM_GC
-
-#ifdef ENABLE_WASM_GC
   MDefinition* refI31(MDefinition* input) {
     auto* ins = MWasmNewI31Ref::New(alloc(), input);
     curBlock_->add(ins);
@@ -1241,7 +1237,6 @@ class FunctionCompiler {
     curBlock_->add(ins);
     return ins;
   }
-#endif  // ENABLE_WASM_GC
 
 #ifdef ENABLE_WASM_SIMD
   // About Wasm SIMD as supported by Ion:
@@ -3110,7 +3105,6 @@ class FunctionCompiler {
     return ins;
   }
 
-#ifdef ENABLE_WASM_GC
   [[nodiscard]]
   bool callRef(const FuncType& funcType, MDefinition* ref,
                uint32_t lineOrBytecode, const DefVector& args,
@@ -3128,7 +3122,6 @@ class FunctionCompiler {
            collectCallResults(resultType, callState.stackResultArea, results);
   }
 
-#  ifdef ENABLE_WASM_TAIL_CALLS
   [[nodiscard]]
   bool returnCallRef(const FuncType& funcType, MDefinition* ref,
                      uint32_t lineOrBytecode, const DefVector& args,
@@ -3154,10 +3147,6 @@ class FunctionCompiler {
     curBlock_ = nullptr;
     return true;
   }
-
-#  endif  // ENABLE_WASM_TAIL_CALLS
-
-#endif  // ENABLE_WASM_GC
 
   [[nodiscard]] MDefinition* stringCast(MDefinition* string) {
     auto* ins = MWasmTrapIfAnyRefIsNotJSString::New(
@@ -6154,7 +6143,6 @@ static bool EmitStackSwitch(FunctionCompiler& f) {
 }
 #endif
 
-#ifdef ENABLE_WASM_TAIL_CALLS
 static bool EmitReturnCall(FunctionCompiler& f) {
   uint32_t lineOrBytecode = f.readCallSiteLineOrBytecode();
 
@@ -6207,9 +6195,7 @@ static bool EmitReturnCallIndirect(FunctionCompiler& f) {
   return f.returnCallIndirect(funcTypeIndex, tableIndex, callee, lineOrBytecode,
                               args, &results);
 }
-#endif
 
-#if defined(ENABLE_WASM_TAIL_CALLS) && defined(ENABLE_WASM_GC)
 static bool EmitReturnCallRef(FunctionCompiler& f) {
   uint32_t lineOrBytecode = f.readCallSiteLineOrBytecode();
 
@@ -6228,7 +6214,6 @@ static bool EmitReturnCallRef(FunctionCompiler& f) {
   DefVector results;
   return f.returnCallRef(*funcType, callee, lineOrBytecode, args, &results);
 }
-#endif
 
 static bool EmitGetLocal(FunctionCompiler& f) {
   uint32_t id;
@@ -8002,7 +7987,6 @@ static bool EmitStoreLaneSimd128(FunctionCompiler& f, uint32_t laneSize) {
 
 #endif  // ENABLE_WASM_SIMD
 
-#ifdef ENABLE_WASM_GC
 static bool EmitRefAsNonNull(FunctionCompiler& f) {
   MDefinition* ref;
   if (!f.iter().readRefAsNonNull(&ref)) {
@@ -8157,10 +8141,6 @@ static bool EmitCallRef(FunctionCompiler& f) {
   f.iter().setResults(results.length(), results);
   return true;
 }
-
-#endif  // ENABLE_WASM_GC
-
-#ifdef ENABLE_WASM_GC
 
 static bool EmitStructNew(FunctionCompiler& f) {
   uint32_t lineOrBytecode = f.readCallSiteLineOrBytecode();
@@ -8832,8 +8812,6 @@ static bool EmitExternConvertAny(FunctionCompiler& f) {
   return true;
 }
 
-#endif  // ENABLE_WASM_GC
-
 static bool EmitCallBuiltinModuleFunc(FunctionCompiler& f) {
   const BuiltinModuleFunc* builtinModuleFunc;
 
@@ -9306,14 +9284,9 @@ bool EmitBodyExprs(FunctionCompiler& f) {
       case uint16_t(Op::F64ReinterpretI64):
         CHECK(EmitReinterpret(f, ValType::F64, ValType::I64, MIRType::Double));
 
-#ifdef ENABLE_WASM_GC
       case uint16_t(Op::RefEq):
-        if (!f.codeMeta().gcEnabled()) {
-          return f.iter().unrecognizedOpcode(&op);
-        }
         CHECK(EmitComparison(f, RefType::eq(), JSOp::Eq,
                              MCompare::Compare_WasmAnyRef));
-#endif
       case uint16_t(Op::RefFunc):
         CHECK(EmitRefFunc(f));
       case uint16_t(Op::RefNull):
@@ -9333,62 +9306,31 @@ bool EmitBodyExprs(FunctionCompiler& f) {
       case uint16_t(Op::I64Extend32S):
         CHECK(EmitSignExtend(f, 4, 8));
 
-#ifdef ENABLE_WASM_TAIL_CALLS
       case uint16_t(Op::ReturnCall): {
-        if (!f.codeMeta().tailCallsEnabled()) {
-          return f.iter().unrecognizedOpcode(&op);
-        }
         CHECK(EmitReturnCall(f));
       }
       case uint16_t(Op::ReturnCallIndirect): {
-        if (!f.codeMeta().tailCallsEnabled()) {
-          return f.iter().unrecognizedOpcode(&op);
-        }
         CHECK(EmitReturnCallIndirect(f));
       }
-#endif
 
-#ifdef ENABLE_WASM_GC
       case uint16_t(Op::RefAsNonNull):
-        if (!f.codeMeta().gcEnabled()) {
-          return f.iter().unrecognizedOpcode(&op);
-        }
         CHECK(EmitRefAsNonNull(f));
       case uint16_t(Op::BrOnNull): {
-        if (!f.codeMeta().gcEnabled()) {
-          return f.iter().unrecognizedOpcode(&op);
-        }
         CHECK(EmitBrOnNull(f));
       }
       case uint16_t(Op::BrOnNonNull): {
-        if (!f.codeMeta().gcEnabled()) {
-          return f.iter().unrecognizedOpcode(&op);
-        }
         CHECK(EmitBrOnNonNull(f));
       }
       case uint16_t(Op::CallRef): {
-        if (!f.codeMeta().gcEnabled()) {
-          return f.iter().unrecognizedOpcode(&op);
-        }
         CHECK(EmitCallRef(f));
       }
-#endif
 
-#if defined(ENABLE_WASM_TAIL_CALLS) && defined(ENABLE_WASM_GC)
       case uint16_t(Op::ReturnCallRef): {
-        if (!f.codeMeta().gcEnabled() || !f.codeMeta().tailCallsEnabled()) {
-          return f.iter().unrecognizedOpcode(&op);
-        }
         CHECK(EmitReturnCallRef(f));
       }
-#endif
 
       // Gc operations
-#ifdef ENABLE_WASM_GC
       case uint16_t(Op::GcPrefix): {
-        if (!f.codeMeta().gcEnabled()) {
-          return f.iter().unrecognizedOpcode(&op);
-        }
         switch (op.b1) {
           case uint32_t(GcOp::StructNew):
             CHECK(EmitStructNew(f));
@@ -9457,7 +9399,6 @@ bool EmitBodyExprs(FunctionCompiler& f) {
         }  // switch (op.b1)
         break;
       }
-#endif
 
       // SIMD operations
 #ifdef ENABLE_WASM_SIMD

@@ -464,8 +464,8 @@ static const double MAX_TIMEOUT_SECONDS = 1800.0;
 // Fuzzing support for JS runtime fuzzing
 #ifdef FUZZING_INTERFACES
 #  include "shell/jsrtfuzzing/jsrtfuzzing.h"
-static bool fuzzDoDebug = !!getenv("MOZ_FUZZ_DEBUG");
-static bool fuzzHaveModule = !!getenv("FUZZER");
+MOZ_RUNINIT static bool fuzzDoDebug = !!getenv("MOZ_FUZZ_DEBUG");
+MOZ_RUNINIT static bool fuzzHaveModule = !!getenv("FUZZER");
 #endif  // FUZZING_INTERFACES
 
 // Code to support GCOV code coverage measurements on standalone shell
@@ -860,7 +860,7 @@ bool shell::dumpEntrainedVariables = false;
 bool shell::OOM_printAllocationCount = false;
 #endif
 
-UniqueChars shell::processWideModuleLoadPath;
+MOZ_RUNINIT UniqueChars shell::processWideModuleLoadPath;
 
 static bool SetTimeoutValue(JSContext* cx, double t);
 
@@ -959,7 +959,7 @@ JSSecurityCallbacks ShellPrincipals::securityCallbacks = {
     subsumes};
 
 // The fully-trusted principal subsumes all other principals.
-ShellPrincipals ShellPrincipals::fullyTrusted(-1, 1);
+MOZ_RUNINIT ShellPrincipals ShellPrincipals::fullyTrusted(-1, 1);
 
 #ifdef EDITLINE
 extern "C" {
@@ -1581,7 +1581,8 @@ class MOZ_RAII AutoLockTelemetry : public LockGuard<Mutex> {
 
 using TelemetryData = uint32_t;
 using TelemetryVec = Vector<TelemetryData, 0, SystemAllocPolicy>;
-static mozilla::Array<TelemetryVec, size_t(JSMetric::Count)> telemetryResults;
+MOZ_RUNINIT static mozilla::Array<TelemetryVec, size_t(JSMetric::Count)>
+    telemetryResults;
 static void AccumulateTelemetryDataCallback(JSMetric id, uint32_t sample) {
   AutoLockTelemetry alt;
   // We ignore OOMs while writting teleemtry data.
@@ -1621,7 +1622,7 @@ static void WriteTelemetryDataToDisk(const char* dir) {
 #undef MAP_TELEMETRY
 
 // Use Counter introspection
-static Mutex useCounterLock(mutexid::ShellUseCounters);
+MOZ_RUNINIT static Mutex useCounterLock(mutexid::ShellUseCounters);
 class MOZ_RAII AutoLockUseCounters : public LockGuard<Mutex> {
   using Base = LockGuard<Mutex>;
 
@@ -4580,7 +4581,8 @@ static void WorkerMain(UniquePtr<WorkerInput> input) {
 
 // Workers can spawn other workers, so we need a lock to access workerThreads.
 static Mutex* workerThreadsLock = nullptr;
-static Vector<UniquePtr<js::Thread>, 0, SystemAllocPolicy> workerThreads;
+MOZ_RUNINIT static Vector<UniquePtr<js::Thread>, 0, SystemAllocPolicy>
+    workerThreads;
 
 class MOZ_RAII AutoLockWorkerThreads : public LockGuard<Mutex> {
   using Base = LockGuard<Mutex>;
@@ -6695,7 +6697,8 @@ char** shell::sArgv;
 #ifndef __wasi__
 static const char sWasmCompileAndSerializeFlag[] =
     "--wasm-compile-and-serialize";
-static Vector<const char*, 5, js::SystemAllocPolicy> sCompilerProcessFlags;
+MOZ_RUNINIT static Vector<const char*, 5, js::SystemAllocPolicy>
+    sCompilerProcessFlags;
 
 static bool CompileAndSerializeInSeparateProcess(JSContext* cx,
                                                  const uint8_t* bytecode,
@@ -9532,6 +9535,12 @@ static bool GetExecutionTrace(JSContext* cx, unsigned argc, JS::Value* vp) {
   JS::Rooted<JS::PropertyKey> scriptId(cx, NameToId(cx->names().script));
   JS::Rooted<JS::PropertyKey> nameId(cx, NameToId(cx->names().name));
   JS::Rooted<JS::PropertyKey> labelId(cx, NameToId(cx->names().label));
+  JS::Rooted<JSString*> realmIDStr(cx, JS_AtomizeString(cx, "realmID"));
+  if (!realmIDStr) {
+    return false;
+  }
+  JS::Rooted<JS::PropertyKey> realmIDId(
+      cx, JS::PropertyKey::NonIntAtom(realmIDStr));
 
   JS::Rooted<JSObject*> contextObj(cx);
   JS::Rooted<ArrayObject*> eventsArray(cx);
@@ -9637,6 +9646,16 @@ static bool GetExecutionTrace(JSContext* cx, unsigned argc, JS::Value* vp) {
                                      JSPROP_ENUMERATE)) {
             return false;
           }
+        }
+
+        if (!JS_DefinePropertyById(
+                cx, eventObj, realmIDId,
+                // We are converting a uint64_t into double which is lossy. But
+                // this is okay because Firefox makes sure to only use 53 bits
+                // so it can be converted to and from a JS value without loss of
+                // precision. Additionally we don't set the realmID in JS shell.
+                double(event.functionEvent.realmID), JSPROP_ENUMERATE)) {
+          return false;
         }
 
         if (auto p = context.atoms.lookup(event.functionEvent.functionNameId)) {

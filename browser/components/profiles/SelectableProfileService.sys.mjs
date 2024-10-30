@@ -15,7 +15,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
 });
 
 ChromeUtils.defineLazyGetter(lazy, "profilesLocalization", () => {
-  return new Localization(["preview/profiles.ftl"], true);
+  return new Localization(["browser/profiles.ftl"], true);
 });
 
 const PROFILES_CRYPTO_SALT_LENGTH_BYTES = 16;
@@ -151,6 +151,7 @@ class SelectableProfileServiceClass {
       );
     this.#groupToolkitProfile =
       this.#profileService.currentProfile ?? this.#profileService.groupProfile;
+    this.#storeID = this.#groupToolkitProfile?.storeID;
     await this.init();
   }
 
@@ -267,13 +268,15 @@ class SelectableProfileServiceClass {
 
     await this.initConnection();
 
-    // Get the SelectableProfile by the profile directory
-    let currentProfile = this.#profileService.currentProfile;
-    if (currentProfile) {
+    // When we launch into the startup window, the `ProfD` is not defined so
+    // getting the directory will throw. Leaving the `currentProfile` as null
+    // is fine for the startup window.
+    try {
+      // Get the SelectableProfile by the profile directory
       this.#currentProfile = await this.getProfileByPath(
-        currentProfile.rootDir
+        SelectableProfileServiceClass.getDirectory("ProfD")
       );
-    }
+    } catch {}
 
     this.setSharedPrefs();
 

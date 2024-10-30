@@ -56,7 +56,7 @@ using namespace mozilla::widget;
 template <typename Res>
 using FDPromise = filedialog::Promise<Res>;
 
-UniquePtr<char16_t[], nsFilePicker::FreeDeleter>
+MOZ_RUNINIT UniquePtr<char16_t[], nsFilePicker::FreeDeleter>
     nsFilePicker::sLastUsedUnicodeDirectory;
 
 #define MAX_EXTENSION_LENGTH 10
@@ -789,7 +789,9 @@ nsFilePicker::CheckContentAnalysisService() {
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return nsFilePicker::ContentAnalysisResponse::CreateAndReject(rv, __func__);
   }
-  if (!contentAnalysisIsActive) {
+  if (!contentAnalysisIsActive ||
+      !mozilla::StaticPrefs::
+          browser_contentanalysis_interception_point_file_upload_enabled()) {
     return nsFilePicker::ContentAnalysisResponse::CreateAndResolve(true,
                                                                    __func__);
   }
