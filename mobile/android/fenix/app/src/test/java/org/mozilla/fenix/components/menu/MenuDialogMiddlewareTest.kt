@@ -677,26 +677,6 @@ class MenuDialogMiddlewareTest {
     }
 
     @Test
-    fun `WHEN delete browsing data and quit action is dispatched THEN onDeleteAndQuit is invoked`() = runTestOnMain {
-        var dismissWasCalled = false
-
-        val appStore = spy(AppStore())
-        val store = createStore(
-            appStore = appStore,
-            menuState = MenuState(
-                browserMenuState = null,
-            ),
-            onDismiss = { dismissWasCalled = true },
-        )
-
-        store.dispatch(MenuAction.DeleteBrowsingDataAndQuit).join()
-        store.waitUntilIdle()
-
-        verify(onDeleteAndQuit).invoke()
-        assertTrue(dismissWasCalled)
-    }
-
-    @Test
     fun `GIVEN selected tab has external app WHEN open in app action is dispatched THEN the site is opened in app`() = runTestOnMain {
         val url = "https://www.mozilla.org"
         val title = "Mozilla"
