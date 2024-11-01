@@ -11317,6 +11317,12 @@
   value: false
   mirror: always
 
+# This pref disables using PQ crypto for WebRTC DTLS code.
+- name: media.webrtc.enable_pq_dtls
+  type: RelaxedAtomicBool
+  value: @IS_EARLY_BETA_OR_EARLIER@
+  mirror: always
+
 # This pref controls whether dispatch testing-only events.
 - name: media.webvtt.testing.events
   type: bool
@@ -13988,13 +13994,7 @@
 # Use NSPR for HTTP3 UDP IO
 - name: network.http.http3.use_nspr_for_io
   type: RelaxedAtomicBool
-# Always use NSPR on Android x86 until
-# https://bugzilla.mozilla.org/show_bug.cgi?id=1916412 is fixed.
-#if defined(ANDROID) && !defined(HAVE_64BIT_BUILD)
-  value: true
-#else
   value: @IS_NOT_NIGHTLY_BUILD@
-#endif
   mirror: always
 
 # Send and receive IP ECN marks. Noop if network.http.http3.use_nspr_for_io is
