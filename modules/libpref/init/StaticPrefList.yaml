@@ -3013,7 +3013,7 @@
 #ifdef MOZ_ENABLE_FORKSERVER
 - name: dom.ipc.forkserver.enable
   type: bool
-#if defined(MOZ_CODE_COVERAGE) || defined(MOZ_ASAN) || defined(MOZ_TSAN) || defined(MOZ_MSAN) || defined(MOZ_UBSAN) || defined(MOZ_PROFILE_GENERATE)
+#if defined(MOZ_CODE_COVERAGE) || defined(MOZ_ASAN) || defined(MOZ_TSAN) || defined(MOZ_MSAN) || defined(MOZ_UBSAN)
   value: false
 #else
   value: @IS_NIGHTLY_BUILD@
@@ -14103,23 +14103,30 @@
 # Has no effect unless security.tls.enable_kyber is true.
 - name: network.http.http3.enable_kyber
   type: RelaxedAtomicBool
+#ifdef EARLY_BETA_OR_EARLIER
+  value: @IS_NOT_ANDROID@
+#else
   value: false
+#endif
   mirror: always
   rust: true
 
 # When true, HTTP/3 will be disabled when third party roots are found.
 - name: network.http.http3.disable_when_third_party_roots_found
   type: RelaxedAtomicBool
-#if defined(ANDROID)
   value: false
-#else
-  value: true
-#endif
   mirror: always
 
 # Only used for testing purposes. In automation, this value is used to override
 # the result of third party roots check.
 - name: network.http.http3.has_third_party_roots_found_in_automation
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# When network.http.http3.alt-svc-mapping-for-testing is set, only use
+# HTTP/3 to connect.
+- name: network.http.http3.force-use-alt-svc-mapping-for-testing
   type: RelaxedAtomicBool
   value: false
   mirror: always
@@ -17607,6 +17614,17 @@
 - name: widget.windows.window_occlusion_tracking_session_lock.enabled
   type: bool
   value: true
+  mirror: always
+
+# Whether this device is capable of entering tablet mode. (Win11+ only.)
+#
+# Valid values:
+#  * -1: assume this device is tablet-mode-incapable
+#  *  0: rely on heuristics
+#  *  1: assume this device is tablet-mode-capable
+- name: widget.windows.tablet_detection_override
+  type: RelaxedAtomicInt32
+  value: 0
   mirror: always
 
 # Whether to give explorer.exe a delated nudge to recalculate the fullscreenness

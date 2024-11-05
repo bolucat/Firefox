@@ -1833,7 +1833,7 @@ export class UrlbarInput {
         "search-mode-switcher"
       ).uri.spec;
     } else {
-      url = searchEngine.wrappedJSObject.searchForm;
+      url = searchEngine.searchForm;
     }
 
     this._lastSearchString = "";
@@ -2328,22 +2328,6 @@ export class UrlbarInput {
     return "urlbar";
   }
 
-  /**
-   * Move the urlbar by a given amount of pixels vertically. Intended mostly as
-   * a stop-gap solution for the macOS full-screen animation until we can make
-   * it use anchor positioning.
-   *
-   * @param {number} delta
-   *   The amount of CSS pixels to shift by.
-   */
-  shiftTextboxBy(delta) {
-    if (!this.textbox.style.top) {
-      return;
-    }
-    let cur = parseFloat(this.textbox.style.top, 10);
-    this.textbox.style.top = px(cur + delta);
-  }
-
   // Private methods below.
 
   _addObservers() {
@@ -2408,14 +2392,15 @@ export class UrlbarInput {
   }
 
   #updateTextboxPosition() {
-    if (!this.hasAttribute("breakout")) {
+    if (!this.view.isOpen) {
       this.textbox.style.top = "";
       return;
     }
-    // We want to align to the urlbar border box if open, or content box if not.
-    let box = this.view.isOpen ? "border" : "content";
     this.textbox.style.top = px(
-      this.textbox.parentNode.getBoxQuads({ box, flush: false })[0].p1.y
+      this.textbox.parentNode.getBoxQuads({
+        ignoreTransforms: true,
+        flush: false,
+      })[0].p1.y
     );
   }
 
@@ -3551,11 +3536,6 @@ export class UrlbarInput {
   _initStripOnShare() {
     let contextMenu = this.querySelector("moz-input-box").menupopup;
     let insertLocation = this.#findMenuItemLocation("cmd_copy");
-    // FIXME(bug 1927220): This check is wrong, !getAttribute() is a
-    // boolean.
-    if (!insertLocation.getAttribute("cmd") == "cmd_copy") {
-      return;
-    }
     // set up the menu item
     let stripOnShare = this.document.createXULElement("menuitem");
     this.document.l10n.setAttributes(
