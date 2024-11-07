@@ -1018,7 +1018,7 @@ class SettingsTest {
 
         val bottomToolbarContainerHeight = settings.getBottomToolbarContainerHeight()
 
-        assertEquals(49, bottomToolbarContainerHeight)
+        assertEquals(48, bottomToolbarContainerHeight)
     }
 
     @Test
@@ -1050,7 +1050,7 @@ class SettingsTest {
         every { settings.toolbarPosition } returns ToolbarPosition.BOTTOM
 
         mockkStatic(Context::shouldAddNavigationBar) {
-            every { any<Context>().shouldAddNavigationBar() } returns true
+            every { any<Context>().shouldAddNavigationBar(true) } returns true
 
             val bottomToolbarHeight = settings.getBottomToolbarHeight(testContext)
 
@@ -1065,7 +1065,7 @@ class SettingsTest {
         every { settings.toolbarPosition } returns ToolbarPosition.TOP
 
         mockkStatic(Context::shouldAddNavigationBar) {
-            every { any<Context>().shouldAddNavigationBar() } returns true
+            every { any<Context>().shouldAddNavigationBar(true) } returns true
 
             val bottomToolbarHeight = settings.getBottomToolbarHeight(testContext)
 
@@ -1080,7 +1080,7 @@ class SettingsTest {
         every { settings.toolbarPosition } returns ToolbarPosition.BOTTOM
 
         mockkStatic(Context::shouldAddNavigationBar) {
-            every { any<Context>().shouldAddNavigationBar() } returns true
+            every { any<Context>().shouldAddNavigationBar(true) } returns true
 
             val bottomToolbarHeight = settings.getBottomToolbarHeight(testContext)
 
@@ -1095,7 +1095,7 @@ class SettingsTest {
         every { settings.toolbarPosition } returns ToolbarPosition.BOTTOM
 
         mockkStatic(Context::shouldAddNavigationBar) {
-            every { any<Context>().shouldAddNavigationBar() } returns false
+            every { any<Context>().shouldAddNavigationBar(true) } returns false
 
             val bottomToolbarHeight = settings.getBottomToolbarHeight(testContext)
 
@@ -1110,11 +1110,11 @@ class SettingsTest {
         every { settings.toolbarPosition } returns ToolbarPosition.TOP
 
         mockkStatic(Context::shouldAddNavigationBar) {
-            every { any<Context>().shouldAddNavigationBar() } returns true
+            every { any<Context>().shouldAddNavigationBar(true) } returns true
 
             val bottomToolbarHeight = settings.getBottomToolbarHeight(testContext)
 
-            assertEquals(49, bottomToolbarHeight)
+            assertEquals(48, bottomToolbarHeight)
         }
     }
 
@@ -1125,7 +1125,7 @@ class SettingsTest {
         every { settings.toolbarPosition } returns ToolbarPosition.TOP
 
         mockkStatic(Context::shouldAddNavigationBar) {
-            every { any<Context>().shouldAddNavigationBar() } returns false
+            every { any<Context>().shouldAddNavigationBar(true) } returns false
 
             val bottomToolbarHeight = settings.getBottomToolbarHeight(testContext)
 
@@ -1140,7 +1140,7 @@ class SettingsTest {
         every { settings.toolbarPosition } returns ToolbarPosition.BOTTOM
 
         mockkStatic(Context::shouldAddNavigationBar) {
-            every { any<Context>().shouldAddNavigationBar() } returns false
+            every { any<Context>().shouldAddNavigationBar(true) } returns false
 
             val bottomToolbarHeight = settings.getBottomToolbarHeight(testContext)
 

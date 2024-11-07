@@ -4001,11 +4001,13 @@ int XREMain::XRE_mainInit(bool* aExitFlag) {
     gKioskMonitor = atoi(kioskMonitorNumber);
   }
 
+#if defined(NIGHTLY_BUILD)
   if (XRE_IsParentProcess()) {
     gAllowContentAnalysisArgPresent =
         CheckArg("allow-content-analysis", nullptr, CheckArgFlag::None) ==
         ARG_FOUND;
   }
+#endif
 
   nsresult rv;
   ArgResult ar;
@@ -5955,10 +5957,15 @@ int XREMain::XRE_main(int argc, char* argv[], const BootstrapConfig& aConfig) {
   }
 #  endif  // _M_IX86 || _M_X64
 
+  // Bug 1924623: Detouring VariantClear resulted in a huge crash spike for
+  //              Thunderbird, so let's only do that for Firefox.
+#  ifdef MOZ_BUILD_APP_IS_BROWSER
   {
     DebugOnly<bool> result = WindowsOleAut32Initialization();
     MOZ_ASSERT(result);
   }
+#  endif  // MOZ_BUILD_APP_IS_BROWSER
+
 #endif  // defined(XP_WIN)
 
   // Once we unset the exception handler, we lose the ability to properly

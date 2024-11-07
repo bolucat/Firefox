@@ -671,6 +671,9 @@ void Theme::PaintCircleShadow(DrawTarget& aDrawTarget,
   Point destinationPointOfSourceRect = inflatedRect.TopLeft() + offset;
 
   IntSize dtSize = RoundedToInt(aBoxRect.Size().ToUnknownSize());
+  if (dtSize.IsEmpty()) {
+    return;
+  }
   RefPtr<DrawTarget> ellipseDT = aDrawTarget.CreateSimilarDrawTargetForFilter(
       dtSize, SurfaceFormat::A8, blurFilter, blurFilter,
       sourceRectInFilterSpace, destinationPointOfSourceRect);
@@ -719,7 +722,8 @@ void Theme::PaintRadioControl(PaintBackendData& aPaintData,
   }
 
   if (aState.HasState(ElementState::FOCUSRING)) {
-    PaintRoundedFocusRect(aPaintData, aRect, aColors, aDpiRatio, 5.0f, 1.0f);
+    auto radius = LayoutDeviceCoord(aRect.Size().width) / aDpiRatio;
+    PaintRoundedFocusRect(aPaintData, aRect, aColors, aDpiRatio, radius, 1.0f);
   }
 }
 

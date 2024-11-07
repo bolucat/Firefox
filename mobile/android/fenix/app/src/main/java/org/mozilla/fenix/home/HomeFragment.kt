@@ -563,7 +563,12 @@ class HomeFragment : Fragment() {
                 reinitializeNavBar = ::reinitializeNavBar,
                 reinitializeMicrosurveyPrompt = { initializeMicrosurveyPrompt() },
             )
-            toolbarView?.updateButtonVisibility(requireComponents.core.store.state)
+            context?.shouldAddNavigationBar()?.let {
+                toolbarView?.updateButtonVisibility(
+                    requireComponents.core.store.state,
+                    it,
+                )
+            }
         }
 
         // If the microsurvey feature is visible, we should update it's state.
@@ -620,10 +625,12 @@ class HomeFragment : Fragment() {
                         val shouldShowNavBarCFR =
                             context.shouldAddNavigationBar() && context.settings().shouldShowNavigationBarCFR
                         val shouldShowMicrosurveyPrompt = !activity.isMicrosurveyPromptDismissed.value
+                        var isMicrosurveyShown = false
 
                         if (shouldShowMicrosurveyPrompt && !shouldShowNavBarCFR) {
                             currentMicrosurvey
                                 ?.let {
+                                    isMicrosurveyShown = true
                                     if (isToolbarAtBottom) {
                                         updateToolbarViewUIForMicrosurveyPrompt()
                                     }
@@ -660,11 +667,6 @@ class HomeFragment : Fragment() {
 
                         if (isToolbarAtBottom) {
                             AndroidView(factory = { _ -> binding.toolbarLayout })
-                        } else if (
-                            currentMicrosurvey == null ||
-                            (shouldShowMicrosurveyPrompt && !shouldShowNavBarCFR)
-                        ) {
-                            Divider()
                         }
 
                         val showCFR =
@@ -748,6 +750,7 @@ class HomeFragment : Fragment() {
 
                             HomeNavBar(
                                 isPrivateMode = activity.browsingModeManager.mode.isPrivate,
+                                showDivider = !isMicrosurveyShown,
                                 browserStore = context.components.core.store,
                                 menuButton = menuButton,
                                 tabsCounterMenu = tabCounterMenu,
@@ -887,11 +890,6 @@ class HomeFragment : Fragment() {
 
                         if (isToolbarAtTheBottom) {
                             AndroidView(factory = { _ -> binding.toolbarLayout })
-                        } else if (
-                            currentMicrosurvey == null ||
-                            (shouldShowMicrosurveyPrompt && !shouldShowNavBarCFR)
-                        ) {
-                            Divider()
                         }
                     }
                 }
