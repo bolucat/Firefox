@@ -848,8 +848,9 @@ AsyncPanZoomController::GetAxisLockMode() {
 }
 
 bool AsyncPanZoomController::UsingStatefulAxisLock() const {
-  return (GetAxisLockMode() == STANDARD || GetAxisLockMode() == STICKY ||
-          GetAxisLockMode() == BREAKABLE);
+  return (GetAxisLockMode() == AxisLockMode::STANDARD ||
+          GetAxisLockMode() == AxisLockMode::STICKY ||
+          GetAxisLockMode() == AxisLockMode::BREAKABLE);
 }
 
 /* static */ AsyncPanZoomController::PinchLockMode
@@ -2646,7 +2647,8 @@ nsEventStatus AsyncPanZoomController::OnPanMayBegin(
 
   StartTouch(aEvent.mLocalPanStartPoint, aEvent.mTimeStamp);
   MOZ_ASSERT(GetCurrentPanGestureBlock());
-  GetCurrentPanGestureBlock()->GetOverscrollHandoffChain()->CancelAnimations();
+  GetCurrentPanGestureBlock()->GetOverscrollHandoffChain()->CancelAnimations(
+      ExcludeOverscroll);
 
   return nsEventStatus_eConsumeNoDefault;
 }
@@ -2658,6 +2660,11 @@ nsEventStatus AsyncPanZoomController::OnPanCancelled(
 
   mX.CancelGesture();
   mY.CancelGesture();
+
+  MOZ_ASSERT(GetCurrentPanGestureBlock());
+  GetCurrentPanGestureBlock()
+      ->GetOverscrollHandoffChain()
+      ->SnapBackOverscrolledApzc(this);
 
   return nsEventStatus_eConsumeNoDefault;
 }
@@ -2761,7 +2768,7 @@ AsyncPanZoomController::GetDisplacementsForPanGesture(
       logicalPanDisplacement,
       GetCurrentPanGestureBlock()->GetAllowedScrollDirections());
 
-  if (GetAxisLockMode() == DOMINANT_AXIS) {
+  if (GetAxisLockMode() == AxisLockMode::DOMINANT_AXIS) {
     // Given a pan gesture and both directions have a delta, implement
     // dominant axis scrolling and only use the delta for the larger
     // axis.
@@ -3499,7 +3506,8 @@ void AsyncPanZoomController::HandlePanning(double aAngle) {
 void AsyncPanZoomController::HandlePanningUpdate(
     const ScreenPoint& aPanDistance) {
   // If we're axis-locked, check if the user is trying to break the lock
-  if ((GetAxisLockMode() == STICKY || GetAxisLockMode() == BREAKABLE) &&
+  if ((GetAxisLockMode() == AxisLockMode::STICKY ||
+       GetAxisLockMode() == AxisLockMode::BREAKABLE) &&
       !mPanDirRestricted) {
     ParentLayerPoint vector =
         ToParentLayerCoordinates(aPanDistance, mStartTouch);
@@ -3521,7 +3529,7 @@ void AsyncPanZoomController::HandlePanningUpdate(
             // lock onto the Y axis. BREAKABLE should not re-acquire the lock.
             if (apz::IsCloseToVertical(
                     angle, StaticPrefs::apz_axis_lock_lock_angle()) &&
-                GetAxisLockMode() != BREAKABLE) {
+                GetAxisLockMode() != AxisLockMode::BREAKABLE) {
               mX.SetAxisLocked(true);
               SetState(PANNING_LOCKED_Y);
             } else {
@@ -3538,7 +3546,7 @@ void AsyncPanZoomController::HandlePanningUpdate(
             // lock onto the X axis. BREAKABLE should not re-acquire the lock.
             if (apz::IsCloseToHorizontal(
                     angle, StaticPrefs::apz_axis_lock_lock_angle()) &&
-                GetAxisLockMode() != BREAKABLE) {
+                GetAxisLockMode() != AxisLockMode::BREAKABLE) {
               mY.SetAxisLocked(true);
               SetState(PANNING_LOCKED_X);
             } else {
@@ -3550,7 +3558,7 @@ void AsyncPanZoomController::HandlePanningUpdate(
         case PANNING:
           // `HandlePanning` can re-acquire the axis lock, which we don't want
           // to do if the lock is BREAKABLE
-          if (GetAxisLockMode() != BREAKABLE) {
+          if (GetAxisLockMode() != AxisLockMode::BREAKABLE) {
             HandlePanning(angle);
           }
           break;

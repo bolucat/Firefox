@@ -23,6 +23,9 @@ ChromeUtils.defineLazyGetter(lazy, "profilesLocalization", () => {
 const PROFILES_CRYPTO_SALT_LENGTH_BYTES = 16;
 const NOTIFY_TIMEOUT = 200;
 
+const COMMAND_LINE_UPDATE = "profiles-updated";
+const COMMAND_LINE_ACTIVATE = "profiles-activate";
+
 function loadImage(url) {
   return new Promise((resolve, reject) => {
     let imageTools = Cc["@mozilla.org/image/tools;1"].getService(Ci.imgITools);
@@ -359,10 +362,12 @@ class SelectableProfileServiceClass {
 
     lazy.EveryWindow.unregisterCallback(this.#everyWindowCallbackId);
 
-    Services.obs.removeObserver(
-      this.themeObserver,
-      "lightweight-theme-styling-update"
-    );
+    try {
+      Services.obs.removeObserver(
+        this.themeObserver,
+        "lightweight-theme-styling-update"
+      );
+    } catch (e) {}
 
     // During shutdown we don't need to notify ourselves, just other instances
     // so rather than finalizing the task just disarm it and do the notification
@@ -571,6 +576,8 @@ class SelectableProfileServiceClass {
     }
     if (url) {
       args.push("-url", url);
+    } else {
+      args.push(`--${COMMAND_LINE_ACTIVATE}`);
     }
     process.runw(false, args, args.length);
   }
@@ -595,7 +602,7 @@ class SelectableProfileServiceClass {
       try {
         remoteService.sendCommandLine(
           profile.path,
-          ["--profiles-updated"],
+          [`--${COMMAND_LINE_UPDATE}`],
           false
         );
       } catch (e) {
@@ -1327,13 +1334,26 @@ export class CommandLineHandler {
   QueryInterface = ChromeUtils.generateQI([Ci.nsICommandLineHandler]);
 
   handle(cmdLine) {
-    if (!AppConstants.MOZ_SELECTABLE_PROFILES) {
+    // This is only ever sent when the application is already running.
+    if (cmdLine.handleFlag(COMMAND_LINE_UPDATE, true)) {
+      SelectableProfileService.databaseChanged("remote").catch(console.error);
+      cmdLine.preventDefault = true;
       return;
     }
 
-    if (cmdLine.handleFlag("profiles-updated", true)) {
-      SelectableProfileService.databaseChanged("remote").catch(console.error);
-      cmdLine.preventDefault = true;
+    // Sent from the profiles UI to launch a profile if it doesn't exist or bring it to the front
+    // if it is already running. In the case where this instance is already running we want to block
+    // the normal action of opening a new empty window and instead raise the application to the
+    // front manually.
+    if (
+      cmdLine.handleFlag(COMMAND_LINE_ACTIVATE, true) &&
+      cmdLine.state != Ci.nsICommandLine.STATE_INITIAL_LAUNCH
+    ) {
+      let win = Services.wm.getMostRecentWindow(null);
+      if (win) {
+        win.focus();
+        cmdLine.preventDefault = true;
+      }
     }
   }
 }
