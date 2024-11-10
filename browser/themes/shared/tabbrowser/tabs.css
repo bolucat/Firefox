@@ -47,6 +47,7 @@
   --tab-selected-outline-color: transparent;
   --tab-hover-outline-color: transparent;
   --tab-outline-offset: -1px;
+  --tabstrip-min-height: calc(var(--tab-min-height) + 2 * var(--tab-block-margin));
   @media (prefers-contrast) {
     --tab-selected-outline-color: currentColor;
     --tab-hover-outline-color: currentColor;
@@ -116,6 +117,7 @@
   &[orient="horizontal"] {
     --tab-overflow-pinned-tabs-width: 0px;
     padding-inline: var(--tab-overflow-pinned-tabs-width) 0;
+    min-height: var(--tabstrip-min-height);
 
     --tab-min-width: 76px;
     :root[uidensity="touch"] & {
@@ -757,7 +759,7 @@
  */
 .tab-group-line {
   display: none;
-  background-color: var(--tab-group-color, var(--dragover-tab-group-color));
+  background-color: var(--tab-group-color);
   height: 2px;
   margin: 0 calc(-1 * var(--tab-overflow-clip-margin)) calc(-1 * var(--tab-block-margin));
 
@@ -765,9 +767,17 @@
     margin-inline-end: 0;
   }
 
-  tab-group &,
-  #tabbrowser-tabs[movingtab]:not([movingtab-createGroup]) &:is([selected],[multiselected]) {
+  tab-group & {
     display: flex;
+  }
+
+  #tabbrowser-tabs[movingtab] &:is([selected],[multiselected]) {
+    display: flex;
+    background-color: var(--dragover-tab-group-color);
+  }
+
+  #tabbrowser-tabs:is([movingtab-createGroup],[movingtab-ungroup]) &:is([selected],[multiselected]) {
+    display: none;
   }
 }
 
@@ -971,7 +981,8 @@ tab-group {
       background-image: linear-gradient(
         to top,
         transparent 0%,
-        var(--toolbar-bgcolor));
+        var(--toolbox-bgcolor)
+      );
       background-repeat: no-repeat;
       pointer-events: none;
 
@@ -1117,7 +1128,7 @@ tab-group {
   scrollbar-width: thin;
   scrollbar-color: var(--vertical-tabs-scrollbar-color);
   /* Fit slightly more than 5 tabs + padding before overflowing */
-  max-height: calc(5 * (var(--tab-min-height) + 2 * var(--tab-block-margin)) + var(--space-large));
+  max-height: calc(5 * var(--tabstrip-min-height) + var(--space-large));
 
   .tab-content {
     justify-content: center;
