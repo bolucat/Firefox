@@ -11,6 +11,7 @@
 #include "mozilla/GlobalFreezeObserver.h"
 #include "mozilla/UniquePtr.h"
 #include "mozilla/dom/NotificationBinding.h"
+#include "mozilla/dom/notification/NotificationChild.h"
 #include "mozilla/dom/WorkerPrivate.h"
 #include "mozilla/dom/quota/QuotaCommon.h"
 
@@ -225,9 +226,6 @@ class Notification : public DOMEventTargetHelper, public GlobalFreezeObserver {
 
   bool DispatchClickEvent();
 
-  static nsresult RemovePermission(nsIPrincipal* aPrincipal);
-  static nsresult OpenSettings(nsIPrincipal* aPrincipal);
-
   nsresult DispatchToMainThread(already_AddRefed<nsIRunnable>&& aRunnable);
 
  protected:
@@ -256,8 +254,6 @@ class Notification : public DOMEventTargetHelper, public GlobalFreezeObserver {
       nsPIDOMWindowInner* aWindow,
       notification::PermissionCheckPurpose aPurpose, ErrorResult& rv);
 
-  static nsresult GetOrigin(nsIPrincipal* aPrincipal, nsString& aOrigin);
-
   void GetAlertName(nsAString& aRetval) {
     AssertIsOnMainThread();
     if (mAlertName.IsEmpty()) {
@@ -272,6 +268,8 @@ class Notification : public DOMEventTargetHelper, public GlobalFreezeObserver {
     MOZ_ASSERT(mScope.IsEmpty());
     mScope = aScope;
   }
+
+  WeakPtr<notification::NotificationChild> mActor;
 
   const nsString mID;
   const nsString mTitle;
@@ -313,15 +311,19 @@ class Notification : public DOMEventTargetHelper, public GlobalFreezeObserver {
   //
   // Note that aCx may not be in the compartment of aGlobal, but aOptions will
   // have its JS things in the compartment of aCx.
-  static already_AddRefed<Notification> CreateAndShow(
+  static already_AddRefed<Notification> Create(
       JSContext* aCx, nsIGlobalObject* aGlobal, const nsAString& aTitle,
       const NotificationOptions& aOptions, const nsAString& aScope,
       ErrorResult& aRv);
+  void ShowOnMainThread(ErrorResult& aRv);
+
+  bool CreateActor(Promise* aPromise);
+  bool SendShow(Promise* aPromise);
 
   nsIPrincipal* GetPrincipal();
 
-  nsresult PersistNotification();
-  void UnpersistNotification();
+  nsresult Persist();
+  void Unpersist();
 
   void SetAlertName();
 
