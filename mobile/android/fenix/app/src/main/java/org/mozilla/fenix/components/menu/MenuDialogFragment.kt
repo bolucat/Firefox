@@ -332,8 +332,8 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                         state.extensionMenuState.showDisabledExtensionsOnboarding
                     }
 
-                    val installedAddons by store.observeAsState(initialValue = emptyList()) { state ->
-                        state.extensionMenuState.installedAddons
+                    val availableAddons by store.observeAsState(initialValue = emptyList()) { state ->
+                        state.extensionMenuState.availableAddons
                     }
 
                     val initRoute = when (args.accesspoint) {
@@ -411,7 +411,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                     accessPoint = args.accesspoint,
                                     account = account,
                                     accountState = accountState,
-                                    installedAddons = installedAddons,
+                                    availableAddons = availableAddons,
                                     isPrivate = browsingModeManager.mode.isPrivate,
                                     isDesktopMode = isDesktopMode,
                                     showQuitMenu = settings.shouldDeleteBrowsingDataOnQuit,
@@ -466,7 +466,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                         contentState = Route.SaveMenu
                                     },
                                     onExtensionsMenuClick = {
-                                        if (args.accesspoint == MenuAccessPoint.Home) {
+                                        if (args.accesspoint == MenuAccessPoint.Home || isExtensionsProcessDisabled) {
                                             store.dispatch(MenuAction.Navigate.ManageExtensions)
                                         } else {
                                             contentState = Route.ExtensionsMenu
@@ -514,6 +514,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                     context.getString(R.string.browser_custom_tab_menu_handlebar_content_description)
 
                                 CustomTabMenu(
+                                    isPdf = customTab?.content?.isPdf == true,
                                     isDesktopMode = isDesktopMode,
                                     customTabMenuItems = customTab?.config?.menuItems,
                                     onCustomMenuItemClick = { intent: PendingIntent ->
