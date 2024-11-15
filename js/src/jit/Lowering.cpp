@@ -251,6 +251,18 @@ void LIRGenerator::visitNewCallObject(MNewCallObject* ins) {
   assignSafepoint(lir, ins);
 }
 
+void LIRGenerator::visitNewMapObject(MNewMapObject* ins) {
+  auto* lir = new (alloc()) LNewMapObject(temp());
+  define(lir, ins);
+  assignSafepoint(lir, ins);
+}
+
+void LIRGenerator::visitNewSetObject(MNewSetObject* ins) {
+  auto* lir = new (alloc()) LNewSetObject(temp());
+  define(lir, ins);
+  assignSafepoint(lir, ins);
+}
+
 void LIRGenerator::visitNewStringObject(MNewStringObject* ins) {
   MOZ_ASSERT(ins->input()->type() == MIRType::String);
 
@@ -7127,6 +7139,10 @@ void LIRGenerator::visitDebugger(MDebugger* ins) {
 
 void LIRGenerator::visitAtomicIsLockFree(MAtomicIsLockFree* ins) {
   define(new (alloc()) LAtomicIsLockFree(useRegister(ins->input())), ins);
+}
+
+void LIRGenerator::visitAtomicPause(MAtomicPause* ins) {
+  add(new (alloc()) LAtomicPause());
 }
 
 void LIRGenerator::visitCheckReturn(MCheckReturn* ins) {

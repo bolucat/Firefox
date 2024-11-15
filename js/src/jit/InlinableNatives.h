@@ -42,6 +42,7 @@
   _(AtomicsOr)                                     \
   _(AtomicsXor)                                    \
   _(AtomicsIsLockFree)                             \
+  _(AtomicsPause)                                  \
                                                    \
   _(BigInt)                                        \
   _(BigIntAsIntN)                                  \
@@ -94,6 +95,7 @@
   _(IntlGuardToSegments)                           \
   _(IntlGuardToSegmentIterator)                    \
                                                    \
+  _(MapConstructor)                                \
   _(MapGet)                                        \
   _(MapHas)                                        \
                                                    \
@@ -150,6 +152,7 @@
   _(RegExpInstanceOptimizable)                     \
   _(GetFirstDollarIndex)                           \
                                                    \
+  _(SetConstructor)                                \
   _(SetHas)                                        \
   _(SetSize)                                       \
                                                    \

@@ -13,6 +13,8 @@
 
 namespace mozilla::dom::notification {
 
+enum class CloseMode;
+
 class NotificationParent final : public PNotificationParent,
                                  public nsIObserver {
   using IPCResult = mozilla::ipc::IPCResult;
@@ -32,11 +34,10 @@ class NotificationParent final : public PNotificationParent,
         mIsSecureContext(aIsSecureContext),
         mId(aId),
         mScope(aScope),
-        mOptions(aOptions) {
-    MOZ_ASSERT(!mScope.IsEmpty(), "Only for persistent notifications for now");
-  };
+        mOptions(aOptions) {};
 
   IPCResult RecvShow(ShowResolver&& aResolver);
+  IPCResult RecvClose();
 
   nsresult BindToMainThread(
       Endpoint<PNotificationParent>&& aParentEndpoint,
@@ -50,6 +51,8 @@ class NotificationParent final : public PNotificationParent,
   nsresult Show();
   nsresult FireClickEvent();
   nsresult FireCloseEvent();
+
+  void Unregister(CloseMode aCloseMode);
 
   void GetAlertName(nsAString& aRetval) {
     if (mAlertName.IsEmpty()) {

@@ -48,20 +48,21 @@ NotificationParent::Observe(nsISupports* aSubject, const char* aTopic,
     return NS_OK;
   }
   if (!strcmp("alertfinished", aTopic)) {
+    // XXX: QM_TRY?
     (void)NS_WARN_IF(NS_FAILED(
         AdjustPushQuota(mPrincipal, NotificationStatusChange::Closed)));
+    (void)NS_WARN_IF(NS_FAILED(UnpersistNotification(mPrincipal, mId)));
+
     if (mResolver) {
-      // alertshow happens first before alertfinished, and it should have If
-      // not it means it failed to show and is bailing out.
+      // alertshow happens first before alertfinished, and it should have
+      // nullified mResolver. If not it means it failed to show and is bailing
+      // out.
       // XXX: Apparently XUL manual do not disturb mode does this without firing
       // alertshow at all.
       mResolver.take().value()(CopyableErrorResult(NS_ERROR_FAILURE));
-      return NS_OK;
+    } else {
+      (void)NS_WARN_IF(NS_FAILED(FireCloseEvent()));
     }
-
-    // XXX: QM_TRY?
-    (void)NS_WARN_IF(NS_FAILED(UnpersistNotification(mPrincipal, mId)));
-    (void)NS_WARN_IF(NS_FAILED(FireCloseEvent()));
 
     // Unpersisted already and being unregistered already by nsIAlertsService
     mDangling = true;
@@ -76,6 +77,13 @@ NotificationParent::Observe(nsISupports* aSubject, const char* aTopic,
 }
 
 nsresult NotificationParent::FireClickEvent() {
+  if (mScope.IsEmpty()) {
+    if (SendNotifyClick()) {
+      return NS_OK;
+    }
+    return NS_ERROR_FAILURE;
+  }
+
   // This needs to be done here rather than in the child actor's
   // RecvNotifyClick because the caller might not be in the service worker
   // context but in the window context
@@ -207,6 +215,22 @@ nsresult NotificationParent::Show() {
   return NS_OK;
 }
 
+mozilla::ipc::IPCResult NotificationParent::RecvClose() {
+  Unregister(CloseMode::CloseMethod);
+  return IPC_OK();
+}
+
+void NotificationParent::Unregister(CloseMode aCloseMode) {
+  if (mDangling) {
+    // We had no permission, so nothing to clean up.
+    return;
+  }
+
+  nsAutoString alertName;
+  GetAlertName(alertName);
+  UnregisterNotification(mPrincipal, mId, alertName, aCloseMode);
+}
+
 nsresult NotificationParent::BindToMainThread(
     Endpoint<PNotificationParent>&& aParentEndpoint,
     PBackgroundParent::CreateNotificationParentResolver&& aResolver) {
@@ -226,14 +250,7 @@ nsresult NotificationParent::BindToMainThread(
 }
 
 void NotificationParent::ActorDestroy(ActorDestroyReason aWhy) {
-  if (mDangling) {
-    // We had no permission, so nothing to clean up.
-    return;
-  }
-
-  nsAutoString alertName;
-  GetAlertName(alertName);
-  UnregisterNotification(mPrincipal, mId, alertName, CloseMode::InactiveGlobal);
+  Unregister(CloseMode::InactiveGlobal);
 }
 
 void NotificationParent::MaybeInitAlertName() {

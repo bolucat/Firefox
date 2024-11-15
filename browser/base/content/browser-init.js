@@ -132,8 +132,7 @@ var gBrowserInit = {
       .getInterface(Ci.nsIAppWindow).XULBrowserWindow = window.XULBrowserWindow;
     window.browserDOMWindow = new nsBrowserAccess();
 
-    gBrowser = window._gBrowser;
-    delete window._gBrowser;
+    gBrowser = new window.Tabbrowser();
     gBrowser.init();
 
     BrowserWindowTracker.track(window);
@@ -282,7 +281,7 @@ var gBrowserInit = {
 
     // Misc. inits.
     gUIDensity.init();
-    TabletModeUpdater.init();
+    Win10TabletModeUpdater.init();
     CombinedStopReload.ensureInitialized();
     gPrivateBrowsingUI.init();
     BrowserSearch.init();
@@ -1061,7 +1060,7 @@ var gBrowserInit = {
 
     BookmarkingUI.uninit();
 
-    TabletModeUpdater.uninit();
+    Win10TabletModeUpdater.uninit();
 
     CaptivePortalWatcher.uninit();
 

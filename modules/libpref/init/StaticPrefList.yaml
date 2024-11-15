@@ -2963,7 +2963,7 @@
 # [1]: https://github.com/w3c/csswg-drafts/issues/5260
 - name: dom.innerSize.rounding
   type: uint32_t
-  value: 2
+  value: 1
   mirror: always
 
 # Whether we conform to Input Events Level 1 or Input Events Level 2.
@@ -8199,11 +8199,18 @@
   set_spidermonkey_pref: startup
 
 # Experimental support for Uint8Array base64/hex in JavaScript.
--   name: javascript.options.experimental.uint8array_base64
-    type: bool
-    value: true
-    mirror: always
-    set_spidermonkey_pref: startup
+- name: javascript.options.experimental.uint8array_base64
+  type: bool
+  value: true
+  mirror: always
+  set_spidermonkey_pref: startup
+
+# Experimental support for Promise.try in JavaScript.
+- name: javascript.options.experimental.promise_try
+  type: bool
+  value: true
+  mirror: always
+  set_spidermonkey_pref: startup
 
 #ifdef NIGHTLY_BUILD
   # Experimental support for Async Iterator Helpers in JavaScript.
@@ -8228,13 +8235,6 @@
 
   # Experimental support for RegExp.escape in JavaScript.
 -   name: javascript.options.experimental.regexp_escape
-    type: bool
-    value: false
-    mirror: always
-    set_spidermonkey_pref: startup
-
-  # Experimental support for Promise.try in JavaScript.
--   name: javascript.options.experimental.promise_try
     type: bool
     value: false
     mirror: always
@@ -8663,7 +8663,11 @@
 # anyway.
 - name: javascript.options.use_fdlibm_for_sin_cos_tan
   type: bool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+#if defined(XP_WIN)
+  value: false
+#else
+  value: true
+#endif
   mirror: always
   set_spidermonkey_pref: always
 
@@ -12397,6 +12401,20 @@
   value: @IS_NIGHTLY_BUILD@
   mirror: always
 
+# Updated to match the target count when we migrate the unpartitioned CHIPS
+# cookies to their first-party partition.
+- name: network.cookie.CHIPS.lastMigrateDatabase
+  type: RelaxedAtomicUint32
+  value: 0
+  mirror: always
+
+# Used to increase the number of times we want to have migrated the database.
+# This lets us remotely perform a database migration with Nimbus.
+- name: network.cookie.CHIPS.migrateDatabaseTarget
+  type: RelaxedAtomicUint32
+  value: 1
+  mirror: always
+
 # Stale threshold for cookies in seconds.
 - name: network.cookie.staleThreshold
   type: uint32_t
@@ -12523,6 +12541,13 @@
 - name: network.http.rcwn.max_wait_before_racing_ms
   type: uint32_t
   value: 500
+  mirror: always
+
+  # Whether to send the Referer header in response to a meta refresh, or
+  # in response to a Refresh header.
+- name: network.http.referer.sendFromRefresh
+  type: bool
+  value: false
   mirror: always
 
 # false=real referer, true=spoof referer (use target URI as referer).

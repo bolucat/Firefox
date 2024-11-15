@@ -7,17 +7,39 @@
 #ifndef DOM_NOTIFICATION_NOTIFICATIONCHILD_H_
 #define DOM_NOTIFICATION_NOTIFICATIONCHILD_H_
 
+#include "mozilla/GlobalFreezeObserver.h"
 #include "mozilla/WeakPtr.h"
 #include "mozilla/dom/notification/PNotificationChild.h"
+#include "nsISupportsImpl.h"
+
+namespace mozilla::dom {
+class Notification;
+class WindowGlobalChild;
+}  // namespace mozilla::dom
 
 namespace mozilla::dom::notification {
 
 class NotificationChild final : public PNotificationChild,
+                                public GlobalFreezeObserver,
                                 public SupportsWeakPtr {
-  NS_INLINE_DECL_REFCOUNTING(NotificationChild)
+  using IPCResult = mozilla::ipc::IPCResult;
+
+  NS_DECL_ISUPPORTS
+
+ public:
+  explicit NotificationChild(Notification* aNonPersistentNotification,
+                             WindowGlobalChild* aWindow);
+
+  IPCResult RecvNotifyClick();
+
+  void ActorDestroy(ActorDestroyReason aWhy) override;
+  void FrozenCallback(nsIGlobalObject* aOwner) override;
 
  private:
   ~NotificationChild() = default;
+
+  WeakPtr<Notification> mNonPersistentNotification;
+  WeakPtr<WindowGlobalChild> mWindow;
 };
 
 }  // namespace mozilla::dom::notification

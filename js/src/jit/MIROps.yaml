@@ -303,6 +303,18 @@
   guard: true
   possibly_calls: true
 
+- name: NewMapObject
+  arguments:
+    templateObject: JSObject*
+  result_type: Object
+  possibly_calls: true
+
+- name: NewSetObject
+  arguments:
+    templateObject: JSObject*
+  result_type: Object
+  possibly_calls: true
+
 - name: NewObject
   gen_boilerplate: false
 
@@ -2822,6 +2834,12 @@
 
 - name: AtomicIsLockFree
   gen_boilerplate: false
+
+- name: AtomicPause
+  guard: true
+  movable: false
+  alias_set: none
+  generate_lir: true
 
 - name: CompareExchangeTypedArrayElement
   gen_boilerplate: false

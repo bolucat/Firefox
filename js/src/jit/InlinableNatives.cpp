@@ -271,6 +271,7 @@ bool js::jit::CanInlineNativeCrossRealm(InlinableNative native) {
     case InlinableNative::AtomicsOr:
     case InlinableNative::AtomicsXor:
     case InlinableNative::AtomicsIsLockFree:
+    case InlinableNative::AtomicsPause:
     case InlinableNative::BigInt:
     case InlinableNative::BigIntAsIntN:
     case InlinableNative::BigIntAsUintN:
@@ -305,12 +306,14 @@ bool js::jit::CanInlineNativeCrossRealm(InlinableNative native) {
     case InlinableNative::DateGetMinutes:
     case InlinableNative::DateGetSeconds:
     case InlinableNative::FunctionBind:
+    case InlinableNative::MapConstructor:
     case InlinableNative::MapGet:
     case InlinableNative::MapHas:
     case InlinableNative::Number:
     case InlinableNative::NumberParseInt:
     case InlinableNative::NumberToString:
     case InlinableNative::ReflectGetPrototypeOf:
+    case InlinableNative::SetConstructor:
     case InlinableNative::SetHas:
     case InlinableNative::SetSize:
     case InlinableNative::String:
