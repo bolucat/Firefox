@@ -2568,11 +2568,11 @@ static void AccumulateTelemetryCallback(JSMetric id, uint32_t sample) {
       Telemetry::Accumulate(Telemetry::NAME, sample); \
       break;
 
-    FOR_EACH_JS_METRIC(CASE_ACCUMULATE)
+    FOR_EACH_JS_LEGACY_METRIC(CASE_ACCUMULATE)
 #undef CASE_ACCUMULATE
 
     default:
-      MOZ_CRASH("Bad metric id");
+      break;
   }
   // clang-format on
 
@@ -2622,6 +2622,10 @@ static void AccumulateTelemetryCallback(JSMetric id, uint32_t sample) {
     case JSMetric::GC_SLICE_MS:
       glean::javascript_gc::slice_time.AccumulateRawDuration(
           TimeDuration::FromMilliseconds(sample));
+      break;
+    case JSMetric::ION_COMPILE_TIME:
+      glean::javascript_ion::compile_time.AccumulateRawDuration(
+          TimeDuration::FromMicroseconds(sample));
       break;
     default:
       // The rest aren't relayed to Glean.
