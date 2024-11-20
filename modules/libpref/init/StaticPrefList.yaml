@@ -8478,7 +8478,7 @@
 
 -   name: javascript.options.wasm_js_string_builtins
     type: bool
-    value: false
+    value: true
     mirror: always
     set_spidermonkey_pref: always
 
@@ -9111,13 +9111,6 @@
 #
 # Only for testing purposes.
 - name: layout.css.moz-control-character-visibility.enabled
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-  rust: true
-
-# Whether the `-moz-user-modify` property is exposed to content.
-- name: layout.css.moz-user-modify.enabled
   type: RelaxedAtomicBool
   value: false
   mirror: always
@@ -15036,6 +15029,11 @@
   value: false
   mirror: always
 
+# Control whether we use the SipHash to generate the canvas random key.
+- name:  privacy.resistFingerprinting.randomization.canvas.use_siphash
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
 
 # Anti-tracking permission expiration.
 - name: privacy.restrict3rdpartystorage.expiration

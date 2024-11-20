@@ -7,6 +7,8 @@ prefs = ["browser.download.useDownloadDir=true"]
 
 ["test_ChannelWrapper.js"]
 
+["test_ExtensionTaskScheduler.js"]
+
 ["test_QuarantinedDomains.js"]
 
 ["test_change_backgroundServiceWorker_enabled_pref_false.js"]
@@ -374,9 +376,6 @@ skip-if = [
 skip-if = ["appname == 'thunderbird'"]
 
 ["test_ext_notifications_unsupported.js"]
-
-["test_ext_onmessage_removelistener.js"]
-skip-if = ["true"] # This test no longer tests what it is meant to test.
 
 ["test_ext_optional_host_permissions.js"]
 

@@ -530,13 +530,13 @@ add_task(async function test_suggestions_after_no_search_mode() {
 });
 
 add_task(async function open_engine_page_directly() {
-  await SearchTestUtils.installSearchExtension(
+  let searchExtension = await SearchTestUtils.installSearchExtension(
     {
       name: "MozSearch",
       search_url: "https://example.com/",
       favicon_url: "https://example.com/favicon.ico",
     },
-    { setAsDefault: true }
+    { setAsDefault: true, skipUnload: true }
   );
 
   const TEST_DATA = [
@@ -602,18 +602,13 @@ add_task(async function open_engine_page_directly() {
     await pageLoaded;
     Assert.ok(true, "The popup was hidden and expected page was loaded");
 
-    info("Search mode also be changed");
-    await UrlbarTestUtils.assertSearchMode(newWin, {
-      engineName: "MozSearch",
-      isGeneralPurposeEngine: false,
-      isPreview: true,
-      entry: "searchbutton",
-    });
+    await UrlbarTestUtils.assertSearchMode(newWin, null);
 
     // Cleanup.
     await PlacesUtils.history.clear();
     await BrowserTestUtils.closeWindow(newWin);
   }
+  await searchExtension.unload();
 });
 
 add_task(async function test_enter_searchmode_by_key_if_single_result() {
@@ -761,62 +756,56 @@ add_task(async function test_open_state() {
 });
 
 add_task(async function test_focus_on_switcher_by_tab() {
-  for (const input of ["", "abc"]) {
-    info(`Open urlbar view with query [${input}]`);
-    await UrlbarTestUtils.promiseAutocompleteResultPopup({
-      window,
-      value: input,
-    });
+  const input = "abc";
+  info(`Open urlbar view with query [${input}]`);
+  await UrlbarTestUtils.promiseAutocompleteResultPopup({
+    window,
+    value: input,
+  });
 
-    if (input) {
-      info("Focus on input field by tab");
-      EventUtils.synthesizeKey("KEY_Tab", { shiftKey: true });
-    }
+  info("Focus on Dedicated Search by tab");
+  EventUtils.synthesizeKey("KEY_Tab", { shiftKey: true });
 
-    info("Focus on Dedicated Search by tab");
-    EventUtils.synthesizeKey("KEY_Tab", { shiftKey: true });
+  await TestUtils.waitForCondition(
+    () => document.activeElement.id == "urlbar-searchmode-switcher"
+  );
+  Assert.ok(true, "Dedicated Search button gets the focus");
+  let popup = UrlbarTestUtils.searchModeSwitcherPopup(window);
+  Assert.equal(popup.state, "closed", "Switcher popup should not be opened");
+  Assert.ok(gURLBar.view.isOpen, "Urlbar view panel has been opening");
+  Assert.equal(gURLBar.value, input, "Inputted value still be on urlbar");
 
-    await TestUtils.waitForCondition(
-      () => document.activeElement.id == "urlbar-searchmode-switcher"
-    );
-    Assert.ok(true, "Dedicated Search button gets the focus");
-    let popup = UrlbarTestUtils.searchModeSwitcherPopup(window);
-    Assert.equal(popup.state, "closed", "Switcher popup should not be opened");
-    Assert.ok(gURLBar.view.isOpen, "Urlbar view panel has been opening");
-    Assert.equal(gURLBar.value, input, "Inputted value still be on urlbar");
+  info("Open the switcher popup by key");
+  let promiseMenuOpen = BrowserTestUtils.waitForEvent(popup, "popupshown");
+  EventUtils.synthesizeKey("KEY_Enter");
+  await promiseMenuOpen;
+  Assert.notEqual(
+    document.activeElement.id,
+    "urlbar-searchmode-switcher",
+    "Dedicated Search button loses the focus"
+  );
+  Assert.equal(
+    gURLBar.view.panel.hasAttribute("hide-temporarily"),
+    true,
+    "Urlbar view panel is closed"
+  );
+  Assert.equal(gURLBar.value, input, "Inputted value still be on urlbar");
 
-    info("Open the switcher popup by key");
-    let promiseMenuOpen = BrowserTestUtils.waitForEvent(popup, "popupshown");
-    EventUtils.synthesizeKey("KEY_Enter");
-    await promiseMenuOpen;
-    Assert.notEqual(
-      document.activeElement.id,
-      "urlbar-searchmode-switcher",
-      "Dedicated Search button loses the focus"
-    );
-    Assert.equal(
-      gURLBar.view.panel.hasAttribute("hide-temporarily"),
-      true,
-      "Urlbar view panel is closed"
-    );
-    Assert.equal(gURLBar.value, input, "Inputted value still be on urlbar");
-
-    info("Close the switcher popup by Escape");
-    let promiseMenuClose = BrowserTestUtils.waitForEvent(popup, "popuphidden");
-    EventUtils.synthesizeKey("KEY_Escape");
-    await promiseMenuClose;
-    Assert.equal(
-      document.activeElement.id,
-      "urlbar-input",
-      "Urlbar gets the focus"
-    );
-    Assert.equal(
-      gURLBar.view.panel.hasAttribute("hide-temporarily"),
-      false,
-      "Urlbar view panel is opened"
-    );
-    Assert.equal(gURLBar.value, input, "Inputted value still be on urlbar");
-  }
+  info("Close the switcher popup by Escape");
+  let promiseMenuClose = BrowserTestUtils.waitForEvent(popup, "popuphidden");
+  EventUtils.synthesizeKey("KEY_Escape");
+  await promiseMenuClose;
+  Assert.equal(
+    document.activeElement.id,
+    "urlbar-input",
+    "Urlbar gets the focus"
+  );
+  Assert.equal(
+    gURLBar.view.panel.hasAttribute("hide-temporarily"),
+    false,
+    "Urlbar view panel is opened"
+  );
+  Assert.equal(gURLBar.value, input, "Inputted value still be on urlbar");
 });
 
 add_task(async function test_focus_order_by_tab() {
@@ -836,7 +825,6 @@ add_task(async function test_focus_order_by_tab() {
         document.activeElement,
         document.getElementById("urlbar-searchmode-switcher")
       ),
-    () => Assert.equal(document.activeElement, gURLBar.inputField),
     () =>
       Assert.equal(
         gURLBar.view.selectedElement,
@@ -852,7 +840,6 @@ add_task(async function test_focus_order_by_tab() {
         document.activeElement,
         document.getElementById("urlbar-searchmode-switcher")
       ),
-    () => Assert.equal(document.activeElement, gURLBar.inputField),
   ];
 
   for (const shiftKey of [false, true]) {
@@ -867,8 +854,10 @@ add_task(async function test_focus_order_by_tab() {
       gURLBar.view.getFirstSelectableElement()
     );
 
-    let resultCount = UrlbarTestUtils.getResultCount(window);
-    Assert.equal(resultCount, 2, "This test needs exact 2 results");
+    await BrowserTestUtils.waitForCondition(
+      () => UrlbarTestUtils.getResultCount(window) == 2
+    );
+    Assert.ok(true, "This test needs exact 2 results");
 
     for (const assert of shiftKey
       ? [...FOCUS_ORDER_ASSERTIONS].reverse()
@@ -876,12 +865,10 @@ add_task(async function test_focus_order_by_tab() {
       EventUtils.synthesizeKey("KEY_Tab", { shiftKey });
       assert();
     }
+
+    gURLBar.handleRevert();
   }
 
-  await UrlbarTestUtils.promisePopupClose(window, () => {
-    EventUtils.synthesizeKey("KEY_Escape");
-  });
-  gURLBar.handleRevert();
   await PlacesUtils.bookmarks.eraseEverything();
 });
 
@@ -940,6 +927,34 @@ async function test_focus_order_with_no_results({ input, shiftKey }) {
   info("Clean up");
   gURLBar.searchMode = null;
 }
+
+add_task(async function test_focus_order_by_tab_with_no_selected_element() {
+  for (const shiftKey of [false, true]) {
+    info(`Test for shifrKey:${shiftKey}`);
+
+    info("Open urlbar results");
+    await UrlbarTestUtils.promiseAutocompleteResultPopup({
+      window,
+      value: "",
+    });
+    Assert.equal(document.activeElement.id, "urlbar-input");
+    Assert.ok(gURLBar.view.isOpen);
+    Assert.ok(!gURLBar.view.selectedElement);
+
+    let ok = false;
+    for (let i = 0; i < 10; i++) {
+      EventUtils.synthesizeKey("KEY_Tab", { shiftKey });
+
+      ok =
+        document.activeElement.id != "urlbar-input" &&
+        document.activeElement.id != "urlbar-searchmode-switcher";
+      if (ok) {
+        break;
+      }
+    }
+    Assert.ok(ok, "Focus was moved to a component other than the urlbar");
+  }
+});
 
 add_task(async function nimbusScotchBonnetEnableOverride() {
   info("Setup initial local pref");
@@ -1137,4 +1152,30 @@ add_task(async function test_search_mode_switcher_engine_no_icon() {
   await UrlbarTestUtils.assertSearchMode(window, null);
 
   await searchExtension.unload();
+});
+
+add_task(async function test_search_mode_app_provided_engines() {
+  let cleanup = await installPersistTestEngines();
+
+  let popup = await UrlbarTestUtils.openSearchModeSwitcher(window);
+
+  info("Press on the example menu button and enter search mode");
+  let popupHidden = UrlbarTestUtils.searchModeSwitcherPopupClosed(window);
+  popup.querySelector("toolbarbutton[label=Example]").click();
+
+  await popupHidden;
+
+  info("Search mode also be changed");
+  await UrlbarTestUtils.assertSearchMode(window, {
+    engineName: "Example",
+    entry: "searchbutton",
+    source: 3,
+  });
+
+  info("Press the close button and escape search mode");
+  window.document.querySelector("#searchmode-switcher-close").click();
+  await UrlbarTestUtils.assertSearchMode(window, null);
+
+  cleanup();
+  await resetApplicationProvidedEngines();
 });
