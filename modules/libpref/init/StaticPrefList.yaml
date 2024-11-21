@@ -4970,7 +4970,7 @@
 # https://drafts.csswg.org/cssom-view/#dom-document-caretpositionfrompoint
 - name: dom.shadowdom.new_caretPositionFromPoint_behavior.enabled
   type: bool
-  value: true
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # NOTE: This preference is used in unit tests. If it is removed or its default
@@ -10985,6 +10985,12 @@
   value: true
   mirror: always
 
+# Disable falling back to software decoders in case of frame drop
+- name: media.ffmpeg.disable-software-fallback
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 #ifdef MOZ_FFMPEG
 -   name: media.ffmpeg.enabled
     type: RelaxedAtomicBool
@@ -12386,6 +12392,13 @@
 - name: network.cookie.cookieBehavior.optInPartitioning.pbmode
   type: bool
   value: @IS_NIGHTLY_BUILD@
+  mirror: always
+
+# Whether to block third-party tracker cookie and storage access when
+# cookieBehavior=5.
+- name: network.cookie.cookieBehavior.trackerCookieBlocking
+  type: bool
+  value: true
   mirror: always
 
 # Whether to support CHIPS(Cookies Having Independent Partitioned State).
@@ -15864,6 +15877,25 @@
   value: 0
 #endif
   mirror: always
+
+# A comma-separated list of host names to not enforce certificate transparency
+# for. Entries of the form 'example.com' apply to the host 'example.com' and
+# all subdomains (e.g. 'sub.example.com', 'sub.www.example.com', etc.).
+# Entries of the form '.example.com' only apply to the host 'example.com'.
+# Entries may also be IP addresses.
+- name: security.pki.certificate_transparency.disable_for_hosts
+  type: String
+  value: ""
+  mirror: never
+
+# A comma-separated list of base64-encoded sha256 hashes of subject public key
+# infos to not enforce certificate transparency for. If a verified certificate
+# chain contains a certificate with a SPKI hash in this list, certificate
+# transparency will not be enforced for that connection.
+- name: security.pki.certificate_transparency.disable_for_spki_hashes
+  type: String
+  value: ""
+  mirror: never
 
 # 0: Disable CRLite entirely.
 # 1: Consult CRLite but only collect telemetry.
