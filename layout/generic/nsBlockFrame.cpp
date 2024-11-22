@@ -765,8 +765,7 @@ static bool RemoveFirstLine(nsLineList& aFromLines, nsFrameList& aFromFrames,
 /* virtual */
 void nsBlockFrame::MarkIntrinsicISizesDirty() {
   nsBlockFrame* dirtyBlock = static_cast<nsBlockFrame*>(FirstContinuation());
-  dirtyBlock->mCachedMinISize = NS_INTRINSIC_ISIZE_UNKNOWN;
-  dirtyBlock->mCachedPrefISize = NS_INTRINSIC_ISIZE_UNKNOWN;
+  dirtyBlock->mCachedIntrinsics.Clear();
   if (!HasAnyStateBits(NS_BLOCK_NEEDS_BIDI_RESOLUTION)) {
     for (nsIFrame* frame = dirtyBlock; frame;
          frame = frame->GetNextContinuation()) {
@@ -784,8 +783,7 @@ void nsBlockFrame::CheckIntrinsicCacheAgainstShrinkWrapState() {
   }
   bool inflationEnabled = !presContext->mInflationDisabledForShrinkWrap;
   if (inflationEnabled != HasAnyStateBits(NS_BLOCK_INTRINSICS_INFLATED)) {
-    mCachedMinISize = NS_INTRINSIC_ISIZE_UNKNOWN;
-    mCachedPrefISize = NS_INTRINSIC_ISIZE_UNKNOWN;
+    mCachedIntrinsics.Clear();
     AddOrRemoveStateBits(NS_BLOCK_INTRINSICS_INFLATED, inflationEnabled);
   }
 }
@@ -823,17 +821,10 @@ nscoord nsBlockFrame::IntrinsicISize(const IntrinsicSizeInput& aInput,
 
   CheckIntrinsicCacheAgainstShrinkWrapState();
 
-  if (aType == IntrinsicISizeType::MinISize) {
-    if (mCachedMinISize == NS_INTRINSIC_ISIZE_UNKNOWN) {
-      mCachedMinISize = MinISize(aInput);
-    }
-    return mCachedMinISize;
-  }
-
-  if (mCachedPrefISize == NS_INTRINSIC_ISIZE_UNKNOWN) {
-    mCachedPrefISize = PrefISize(aInput);
-  }
-  return mCachedPrefISize;
+  return mCachedIntrinsics.GetOrSet(*this, aType, aInput, [&] {
+    return aType == IntrinsicISizeType::MinISize ? MinISize(aInput)
+                                                 : PrefISize(aInput);
+  });
 }
 
 /* virtual */
@@ -4988,13 +4979,27 @@ void nsBlockFrame::DoReflowInlineFrames(
   // because it might get disabled there
   aLine->EnableResizeReflowOptimization();
 
-  aLineLayout.BeginLineReflow(
-      iStart, aState.mBCoord, availISize, availBSize,
-      aFloatAvailableSpace.HasFloats(), false /*XXX isTopOfPage*/,
-      HasOutsideMarker() || Style()->IsAnonBox()
+  // We want to be able to collapse the height of empty inline elements in empty
+  // lines in general - See [1]. Two exceptions:
+  // 1. There is an outside ::marker frame, which is physical on this line, but
+  //    is not part of the line layout.
+  // 2. The line is inside an anonymous box, like `<input type=button>`. A
+  //    scrolled block frame internally has an anonymous box of the scrolled
+  //    content, which we still want to carry out the collapsing for.
+  //
+  // [1]: https://drafts.csswg.org/css-inline-3/#invisible-line-boxes
+  auto collapseEmptyInlineFramesInLine =
+      HasOutsideMarker() ||
+              (Style()->IsAnonBox() &&
+               Style()->GetPseudoType() != PseudoStyleType::scrolledContent)
           ? CollapseEmptyInlineFramesInLine::Preserve
-          : CollapseEmptyInlineFramesInLine::Collapse,
-      lineWM, aState.mContainerSize, aState.mInsetForBalance);
+          : CollapseEmptyInlineFramesInLine::Collapse;
+
+  aLineLayout.BeginLineReflow(iStart, aState.mBCoord, availISize, availBSize,
+                              aFloatAvailableSpace.HasFloats(),
+                              false /*XXX isTopOfPage*/,
+                              collapseEmptyInlineFramesInLine, lineWM,
+                              aState.mContainerSize, aState.mInsetForBalance);
 
   aState.mFlags.mIsLineLayoutEmpty = false;
 
