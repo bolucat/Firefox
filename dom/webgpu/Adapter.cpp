@@ -130,25 +130,6 @@ static Maybe<ffi::WGPUFeatures> ToWGPUFeatures(
   MOZ_CRASH("Bad GPUFeatureName.");
 }
 
-static Maybe<ffi::WGPUFeatures> MakeFeatureBits(
-    const dom::Sequence<dom::GPUFeatureName>& aFeatures) {
-  ffi::WGPUFeatures bits = 0;
-  for (const auto& feature : aFeatures) {
-    const auto bit = ToWGPUFeatures(feature);
-    if (!bit) {
-      const auto featureStr = dom::GetEnumString(feature);
-      (void)featureStr;
-      NS_WARNING(
-          nsPrintfCString("Requested feature bit for '%s' is not implemented.",
-                          featureStr.get())
-              .get());
-      return Nothing();
-    }
-    bits |= *bit;
-  }
-  return Some(bits);
-}
-
 Adapter::Adapter(Instance* const aParent, WebGPUChild* const aBridge,
                  const std::shared_ptr<ffi::WGPUAdapterInformation>& aInfo)
     : ChildOf(aParent),
@@ -359,14 +340,28 @@ already_AddRefed<dom::Promise> Adapter::RequestDevice(
     // -
     // Validate Features
 
+    ffi::WGPUFeatures featureBits = 0;
     for (const auto requested : aDesc.mRequiredFeatures) {
-      const bool supported = mFeatures->Features().count(requested);
-      if (!supported) {
+      const auto bit = ToWGPUFeatures(requested);
+      if (!bit) {
+        const auto featureStr = dom::GetEnumString(requested);
+        (void)featureStr;
+        nsPrintfCString msg(
+            "`GPUAdapter.requestDevice`: '%s' was requested in "
+            "`requiredFeatures`, but it is not supported by Firefox.",
+            featureStr.get());
+        promise->MaybeRejectWithTypeError(msg);
+        return;
+      }
+      featureBits |= *bit;
+
+      const bool supportedByAdapter = mFeatures->Features().count(requested);
+      if (!supportedByAdapter) {
         const auto fstr = dom::GetEnumString(requested);
         const auto astr = this->LabelOrId();
         nsPrintfCString msg(
-            "requestDevice: Feature '%s' requested must be supported by "
-            "adapter %s",
+            "`GPUAdapter.requestDevice`: '%s' was requested in "
+            "`requiredFeatures`, but it is not supported by adapter %s.",
             fstr.get(), astr.get());
         promise->MaybeRejectWithTypeError(msg);
         return;
@@ -447,7 +442,7 @@ already_AddRefed<dom::Promise> Adapter::RequestDevice(
     // -
 
     ffi::WGPUFfiDeviceDescriptor ffiDesc = {};
-    ffiDesc.required_features = *MakeFeatureBits(aDesc.mRequiredFeatures);
+    ffiDesc.required_features = featureBits;
     ffiDesc.required_limits = deviceLimits;
     auto request = mBridge->AdapterRequestDevice(mId, ffiDesc);
     if (!request) {
