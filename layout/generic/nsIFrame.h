@@ -773,9 +773,6 @@ class nsIFrame : public nsQueryFrame {
    * If the frame is a continuing frame, then aPrevInFlow indicates the previous
    * frame (the frame that was split).
    *
-   * Each subclass that need a view should override this method and call
-   * CreateView() after calling its base class Init().
-   *
    * @param   aContent the content object associated with the frame
    * @param   aParent the parent frame
    * @param   aPrevInFlow the prev-in-flow frame
@@ -3287,12 +3284,6 @@ class nsIFrame : public nsQueryFrame {
     return IsIntrinsicKeyword(bSize);
   }
 
-  /**
-   * Helper method to create a view for a frame.  Only used by a few sub-classes
-   * that need a view.
-   */
-  void CreateView();
-
  protected:
   virtual nsView* GetViewInternal() const {
     MOZ_ASSERT_UNREACHABLE("method should have been overridden by subclass");
@@ -3319,11 +3310,6 @@ class nsIFrame : public nsQueryFrame {
    * from the returned view.
    */
   nsView* GetClosestView(nsPoint* aOffset = nullptr) const;
-
-  /**
-   * Find the closest ancestor (excluding |this| !) that has a view
-   */
-  nsIFrame* GetAncestorWithView() const;
 
   /**
    * Sets the view's attributes from the frame style.
