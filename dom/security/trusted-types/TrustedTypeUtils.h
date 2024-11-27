@@ -28,14 +28,29 @@ class Maybe;
 namespace dom {
 
 class TrustedHTMLOrString;
-class TrustedHTMLOrNullIsEmptyString;
+class TrustedScript;
+class TrustedScriptOrString;
+class TrustedScriptOrNullIsEmptyString;
+class TrustedScriptURL;
+class TrustedScriptURLOrString;
 
 namespace TrustedTypeUtils {
 
+template <typename T>
+nsString GetTrustedTypeName() {
+  if constexpr (std::is_same_v<T, TrustedHTML>) {
+    return u"TrustedHTML"_ns;
+  }
+  if constexpr (std::is_same_v<T, TrustedScript>) {
+    return u"TrustedScript"_ns;
+  }
+  MOZ_ASSERT((std::is_same_v<T, TrustedScriptURL>));
+  return u"TrustedScriptURL"_ns;
+}
+
 // https://w3c.github.io/trusted-types/dist/spec/#get-trusted-type-compliant-string-algorithm
-// specialized for TrustedHTML.
 //
-// May only run script if aInput is not TrustedHTML and if the trusted types
+// May only run script if aInput is not a trusted type and if the trusted types
 // pref is set to `true`. If this changes, callees might require adjusting.
 //
 // @param aResultHolder Keeps the compliant string alive when necessary.
@@ -48,12 +63,24 @@ MOZ_CAN_RUN_SCRIPT const nsAString* GetTrustedTypesCompliantString(
     const TrustedHTMLOrNullIsEmptyString& aInput, const nsAString& aSink,
     const nsAString& aSinkGroup, const nsINode& aNode,
     Maybe<nsAutoString>& aResultHolder, ErrorResult& aError);
+MOZ_CAN_RUN_SCRIPT const nsAString* GetTrustedTypesCompliantString(
+    const TrustedScriptOrString& aInput, const nsAString& aSink,
+    const nsAString& aSinkGroup, const nsINode& aNode,
+    Maybe<nsAutoString>& aResultHolder, ErrorResult& aError);
+MOZ_CAN_RUN_SCRIPT const nsAString* GetTrustedTypesCompliantString(
+    const TrustedScriptOrNullIsEmptyString& aInput, const nsAString& aSink,
+    const nsAString& aSinkGroup, const nsINode& aNode,
+    Maybe<nsAutoString>& aResultHolder, ErrorResult& aError);
+MOZ_CAN_RUN_SCRIPT const nsAString* GetTrustedTypesCompliantString(
+    const TrustedScriptURLOrString& aInput, const nsAString& aSink,
+    const nsAString& aSinkGroup, const nsINode& aNode,
+    Maybe<nsAutoString>& aResultHolder, ErrorResult& aError);
 
 // https://w3c.github.io/trusted-types/dist/spec/#abstract-opdef-process-value-with-a-default-policy
-// specialized for `TrustedHTML`.
+template <typename ExpectedType>
 MOZ_CAN_RUN_SCRIPT void ProcessValueWithADefaultPolicy(
     const Document& aDocument, const nsAString& aInput, const nsAString& aSink,
-    TrustedHTML** aResult, ErrorResult& aError);
+    ExpectedType** aResult, ErrorResult& aError);
 
 }  // namespace TrustedTypeUtils
 
@@ -85,12 +112,15 @@ MOZ_CAN_RUN_SCRIPT void ProcessValueWithADefaultPolicy(
     const nsString mData;                                              \
                                                                        \
    private:                                                            \
+    template <typename T, typename... Args>                            \
+    friend RefPtr<T> mozilla::MakeRefPtr(Args&&... aArgs);             \
     friend mozilla::dom::TrustedTypePolicy;                            \
     friend mozilla::dom::TrustedTypePolicyFactory;                     \
+    template <typename ExpectedType>                                   \
     friend void                                                        \
     mozilla::dom::TrustedTypeUtils::ProcessValueWithADefaultPolicy(    \
         const Document& aDocument, const nsAString&, const nsAString&, \
-        TrustedHTML**, ErrorResult&);                                  \
+        ExpectedType**, ErrorResult&);                                 \
                                                                        \
     explicit _class(const nsAString& aData) : mData{aData} {           \
       MOZ_ASSERT(!aData.IsVoid());                                     \

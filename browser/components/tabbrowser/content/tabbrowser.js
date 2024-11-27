@@ -393,20 +393,19 @@
       return this.tabpanels.dispatchEvent(...args);
     }
 
-    get visibleTabs() {
-      return this.tabContainer.visibleTabs;
+    /**
+     * Returns all tabs in the current window, including hidden tabs and tabs
+     * in collapsed groups, but excluding closing tabs and the Firefox View tab.
+     */
+    get openTabs() {
+      return this.tabContainer.openTabs;
     }
 
     /**
-     * Returns the number of tabs in the current window, including hidden tabs
-     * and tabs in collapsed groups, but excluding the Firefox View tab.
+     * Same as `openTabs` but excluding hidden tabs and tabs in collapsed groups.
      */
-    get openTabCount() {
-      let count = this.tabs.length - this._removingTabs.size;
-      if (FirefoxViewHandler.tab) {
-        count--;
-      }
-      return count;
+    get visibleTabs() {
+      return this.tabContainer.visibleTabs;
     }
 
     get pinnedTabCount() {
@@ -2673,12 +2672,6 @@
       // If we're opening a foreground tab, set the owner by default.
       ownerTab ??= inBackground ? null : this.selectedTab;
 
-      // Don't use document.l10n.setAttributes because the FTL file is loaded
-      // lazily and we won't be able to resolve the string.
-      document
-        .getElementById("History:UndoCloseTab")
-        .setAttribute("data-l10n-args", JSON.stringify({ tabCount: 1 }));
-
       // if we're adding tabs, we're past interrupt mode, ditch the owner
       if (this.selectedTab.owner) {
         this.selectedTab.owner = null;
@@ -4348,14 +4341,6 @@
 
       this._clearMultiSelectionLocked = false;
       this._avoidSingleSelectedTab();
-      // Don't use document.l10n.setAttributes because the FTL file is loaded
-      // lazily and we won't be able to resolve the string.
-      document.getElementById("History:UndoCloseTab").setAttribute(
-        "data-l10n-args",
-        JSON.stringify({
-          tabCount: SessionStore.getLastClosedTabCount(window),
-        })
-      );
     }
 
     removeCurrentTab(aParams) {
@@ -5676,6 +5661,7 @@
       }
 
       this._handleTabMove(aTab, () => aGroup.appendChild(aTab));
+      this.removeFromMultiSelectedTabs(aTab);
     }
 
     /**
@@ -5689,8 +5675,8 @@
 
       moveActionCallback();
 
-      // We want to clear _allTabs after moving nodes because the order of
-      // vertical tabs may have changed.
+      // Clear tabs cache after moving nodes because the order of tabs may have
+      // changed.
       this.tabContainer._invalidateCachedTabs();
 
       this._updateTabsAfterInsert();
@@ -8208,8 +8194,13 @@ var TabContextMenu = {
     );
 
     // Session store
-    document.getElementById("context_undoCloseTab").disabled =
-      SessionStore.getClosedTabCount() == 0;
+    let closedCount = SessionStore.getLastClosedTabCount(window);
+    document
+      .getElementById("History:UndoCloseTab")
+      .setAttribute("disabled", closedCount == 0);
+    document.l10n.setArgs(document.getElementById("context_undoCloseTab"), {
+      tabCount: closedCount,
+    });
 
     // Show/hide fullscreen context menu items and set the
     // autohide item's checked state to mirror the autohide pref.
