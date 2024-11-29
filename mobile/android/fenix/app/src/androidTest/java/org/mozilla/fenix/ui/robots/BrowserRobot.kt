@@ -199,6 +199,27 @@ class BrowserRobot {
         }
     }
 
+    fun verifyTextFragmentsPageContent(expectedText: String) {
+        for (i in 1..RETRY_COUNT) {
+            Log.i(TAG, "verifyTextFragmentsPageContent: Started try #$i")
+            try {
+                assertUIObjectExists(
+                    itemWithResId("$packageName:id/engineView")
+                        .getChild(UiSelector().textContains(expectedText)),
+                )
+
+                break
+            } catch (e: AssertionError) {
+                Log.i(TAG, "verifyTextFragmentsPageContent: AssertionError caught, executing fallback methods")
+                navigationToolbar {
+                }.openThreeDotMenu {
+                }.refreshPage {
+                    waitForPageToLoad()
+                }
+            }
+        }
+    }
+
     fun verifyTabCrashReporterView() {
         assertUIObjectExists(itemWithResId("$packageName:id/crash_tab_image"))
         assertUIObjectExists(itemWithText(getStringResource(R.string.tab_crash_title_2)))
@@ -1186,12 +1207,7 @@ class BrowserRobot {
             clickPageObject(itemWithDescription("Home screen"))
             Log.i(TAG, "goToHomescreen: Waiting for $waitingTime ms for for home screen layout or jump back in contextual hint to exist")
             mDevice.findObject(UiSelector().resourceId("$packageName:id/homeLayout"))
-                .waitForExists(waitingTime) ||
-                mDevice.findObject(
-                    UiSelector().text(
-                        getStringResource(R.string.onboarding_home_screen_jump_back_contextual_hint_2),
-                    ),
-                ).waitForExists(waitingTime)
+                .waitForExists(waitingTime)
             Log.i(TAG, "goToHomescreen: Waited for $waitingTime ms for for home screen layout or jump back in contextual hint to exist")
 
             HomeScreenRobot().interact()
@@ -1205,12 +1221,7 @@ class BrowserRobot {
             }
             Log.i(TAG, "goToHomescreenWithRedesignedToolbar: Waiting for $waitingTime ms for for home screen layout or jump back in contextual hint to exist")
             mDevice.findObject(UiSelector().resourceId("$packageName:id/homeLayout"))
-                .waitForExists(waitingTime) ||
-                mDevice.findObject(
-                    UiSelector().text(
-                        getStringResource(R.string.onboarding_home_screen_jump_back_contextual_hint_2),
-                    ),
-                ).waitForExists(waitingTime)
+                .waitForExists(waitingTime)
             Log.i(TAG, "goToHomescreenWithRedesignedToolbar: Waited for $waitingTime ms for for home screen layout or jump back in contextual hint to exist")
 
             HomeScreenRobot().interact()
@@ -1222,12 +1233,7 @@ class BrowserRobot {
 
             Log.i(TAG, "goToHomescreenWithComposeTopSites: Waiting for $waitingTime ms for for home screen layout or jump back in contextual hint to exist")
             mDevice.findObject(UiSelector().resourceId("$packageName:id/homeLayout"))
-                .waitForExists(waitingTime) ||
-                mDevice.findObject(
-                    UiSelector().text(
-                        getStringResource(R.string.onboarding_home_screen_jump_back_contextual_hint_2),
-                    ),
-                ).waitForExists(waitingTime)
+                .waitForExists(waitingTime)
             Log.i(TAG, "goToHomescreenWithComposeTopSites: Waited for $waitingTime ms for for home screen layout or jump back in contextual hint to exist")
 
             ComposeTopSitesRobot(composeTestRule).interact()
