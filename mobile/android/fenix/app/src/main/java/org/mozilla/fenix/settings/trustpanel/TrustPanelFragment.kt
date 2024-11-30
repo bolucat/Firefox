@@ -9,6 +9,9 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.content.ContextCompat
@@ -18,10 +21,19 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.fragment.navArgs
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+import mozilla.components.browser.state.selector.findTabOrCustomTab
+import mozilla.components.lib.state.ext.observeAsState
 import mozilla.components.support.ktx.android.view.setNavigationBarColorCompat
 import org.mozilla.fenix.HomeActivity
 import org.mozilla.fenix.R
+import org.mozilla.fenix.components.components
 import org.mozilla.fenix.components.menu.compose.MenuDialogBottomSheet
+import org.mozilla.fenix.settings.trustpanel.middleware.TrustPanelMiddleware
+import org.mozilla.fenix.settings.trustpanel.middleware.TrustPanelNavigationMiddleware
+import org.mozilla.fenix.settings.trustpanel.middleware.TrustPanelTelemetryMiddleware
+import org.mozilla.fenix.settings.trustpanel.store.TrustPanelAction
+import org.mozilla.fenix.settings.trustpanel.store.TrustPanelState
+import org.mozilla.fenix.settings.trustpanel.store.TrustPanelStore
 import org.mozilla.fenix.settings.trustpanel.ui.PROTECTION_PANEL_ROUTE
 import org.mozilla.fenix.settings.trustpanel.ui.ProtectionPanel
 import org.mozilla.fenix.settings.trustpanel.ui.TRACKERS_PANEL_ROUTE
@@ -71,7 +83,34 @@ class TrustPanelFragment : BottomSheetDialogFragment() {
                     onRequestDismiss = ::dismiss,
                     handlebarContentDescription = "",
                 ) {
+                    val components = components
+
                     val navHostController = rememberNavController()
+                    val coroutineScope = rememberCoroutineScope()
+                    val store = remember {
+                        TrustPanelStore(
+                            initialState = TrustPanelState(
+                                isTrackingProtectionEnabled = args.isTrackingProtectionEnabled,
+                                sessionState = components.core.store.state.findTabOrCustomTab(args.sessionId),
+                            ),
+                            middleware = listOf(
+                                TrustPanelMiddleware(
+                                    sessionUseCases = components.useCases.sessionUseCases,
+                                    trackingProtectionUseCases = components.useCases.trackingProtectionUseCases,
+                                    scope = coroutineScope,
+                                ),
+                                TrustPanelNavigationMiddleware(
+                                    navHostController = navHostController,
+                                    scope = coroutineScope,
+                                ),
+                                TrustPanelTelemetryMiddleware(),
+                            ),
+                        )
+                    }
+
+                    val isTrackingProtectionEnabled by store.observeAsState(initialValue = false) { state ->
+                        state.isTrackingProtectionEnabled
+                    }
 
                     NavHost(
                         navController = navHostController,
@@ -82,8 +121,12 @@ class TrustPanelFragment : BottomSheetDialogFragment() {
                                 url = args.url,
                                 title = args.title,
                                 isSecured = args.isSecured,
+                                isTrackingProtectionEnabled = isTrackingProtectionEnabled,
                                 onTrackerBlockedMenuClick = {
-                                    navHostController.navigate(route = TRACKERS_PANEL_ROUTE)
+                                    store.dispatch(TrustPanelAction.Navigate.TrackersPanel)
+                                },
+                                onTrackingProtectionToggleClick = {
+                                    store.dispatch(TrustPanelAction.ToggleTrackingProtection)
                                 },
                                 onClearSiteDataMenuClick = {},
                             )
@@ -93,7 +136,7 @@ class TrustPanelFragment : BottomSheetDialogFragment() {
                             TrackersBlockedPanel(
                                 title = args.title,
                                 onBackButtonClick = {
-                                    navHostController.navigate(route = PROTECTION_PANEL_ROUTE)
+                                    store.dispatch(TrustPanelAction.Navigate.Back)
                                 },
                             )
                         }

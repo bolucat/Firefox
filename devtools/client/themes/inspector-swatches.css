@@ -149,25 +149,43 @@
   -moz-context-properties: stroke, fill;
   fill: #fff;
   stroke: #808080;
-
-  :root[forced-colors-active] & {
-    fill: ButtonFace;
-    stroke: var(--theme-icon-color);
-
-    &:hover {
-      stroke: var(--theme-icon-hover-color);
-    }
-  }
 }
 
 .inspector-filterswatch {
   background-image: url("chrome://devtools/skin/images/filter-swatch.svg");
+  -moz-context-properties: stroke, fill;
+  fill: #fff;
+  stroke: #aeb0b1;
 }
 
 .inspector-angleswatch {
   background-image: url("chrome://devtools/skin/images/angle-swatch.svg");
+  -moz-context-properties: stroke, fill;
+  fill: #fff;
+  stroke: #aeb0b1;
 }
 
 .inspector-lineareasingswatch {
   background-image: url("chrome://devtools/skin/images/linear-easing-swatch.svg");
+  -moz-context-properties: stroke, fill;
+  fill: #fff;
+  stroke: #808080;
+}
+
+:root[forced-colors-active] :is(
+  .inspector-bezierswatch,
+  .inspector-lineareasingswatch,
+  .inspector-filterswatch,
+  .inspector-angleswatch
+) {
+  fill: ButtonFace;
+  stroke: var(--theme-icon-color);
+  /* For some icons, the outline can conflate with the background image in a weird way
+     on low-dpi screens. Adjust the offset a bit so there's a clear separation between
+     the icon and the outline for a cleaner look */
+  outline-offset: 1px;
+
+  &:hover {
+    stroke: var(--theme-icon-hover-color);
+  }
 }
