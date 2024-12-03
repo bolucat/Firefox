@@ -8,12 +8,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
-import mozilla.components.feature.addons.Addon
-import mozilla.components.feature.addons.ui.displayName
 import mozilla.components.service.fxa.manager.AccountState
 import mozilla.components.service.fxa.manager.AccountState.NotAuthenticated
 import mozilla.components.service.fxa.store.Account
@@ -31,15 +28,15 @@ import org.mozilla.fenix.theme.Theme
  * @param accessPoint The [MenuAccessPoint] that was used to navigate to the menu dialog.
  * @param account [Account] information available for a synced account.
  * @param accountState The [AccountState] of a Mozilla account.
- * @param availableAddons A list of installed and enabled [Addon]s to be shown.
  * @param showQuitMenu Whether or not the button to delete browsing data and quit
  * should be visible.
  * @param isPrivate Whether or not the browsing mode is in private mode.
  * @param isDesktopMode Whether or not the desktop mode is enabled.
  * @param isPdf Whether or not the current tab is a PDF.
  * @param isTranslationSupported Whether or not translation is supported.
+ * @param isWebCompatReporterSupported Whether or not the report broken site feature is supported.
  * @param isExtensionsProcessDisabled Whether or not the extensions process is disabled due to extension errors.
- * @param reportSiteIssueLabel The label of report site issue web extension menu item.
+ * @param extensionsMenuItemDescription The label of extensions menu item description.
  * @param onMozillaAccountButtonClick Invoked when the user clicks on Mozilla account button.
  * @param onHelpButtonClick Invoked when the user clicks on the help button.
  * @param onSettingsButtonClick Invoked when the user clicks on the settings button.
@@ -66,14 +63,14 @@ fun MainMenu(
     accessPoint: MenuAccessPoint,
     account: Account?,
     accountState: AccountState,
-    availableAddons: List<Addon>,
     showQuitMenu: Boolean,
     isPrivate: Boolean,
     isDesktopMode: Boolean,
     isPdf: Boolean,
     isTranslationSupported: Boolean,
+    isWebCompatReporterSupported: Boolean,
     isExtensionsProcessDisabled: Boolean,
-    reportSiteIssueLabel: String?,
+    extensionsMenuItemDescription: String,
     onMozillaAccountButtonClick: () -> Unit,
     onHelpButtonClick: () -> Unit,
     onSettingsButtonClick: () -> Unit,
@@ -112,12 +109,12 @@ fun MainMenu(
 
         ToolsAndActionsMenuGroup(
             accessPoint = accessPoint,
-            availableAddons = availableAddons,
             isDesktopMode = isDesktopMode,
             isPdf = isPdf,
             isTranslationSupported = isTranslationSupported,
+            isWebCompatReporterSupported = isWebCompatReporterSupported,
             isExtensionsProcessDisabled = isExtensionsProcessDisabled,
-            reportSiteIssueLabel = reportSiteIssueLabel,
+            extensionsMenuItemDescription = extensionsMenuItemDescription,
             onSwitchToDesktopSiteMenuClick = onSwitchToDesktopSiteMenuClick,
             onFindInPageMenuClick = onFindInPageMenuClick,
             onToolsMenuClick = onToolsMenuClick,
@@ -211,12 +208,12 @@ private fun NewTabsMenuGroup(
 @Composable
 private fun ToolsAndActionsMenuGroup(
     accessPoint: MenuAccessPoint,
-    availableAddons: List<Addon>,
     isDesktopMode: Boolean,
     isPdf: Boolean,
     isTranslationSupported: Boolean,
+    isWebCompatReporterSupported: Boolean,
     isExtensionsProcessDisabled: Boolean,
-    reportSiteIssueLabel: String?,
+    extensionsMenuItemDescription: String,
     onSwitchToDesktopSiteMenuClick: () -> Unit,
     onFindInPageMenuClick: () -> Unit,
     onToolsMenuClick: () -> Unit,
@@ -260,16 +257,14 @@ private fun ToolsAndActionsMenuGroup(
                 label = stringResource(id = R.string.browser_menu_tools),
                 beforeIconPainter = painterResource(id = R.drawable.mozac_ic_tool_24),
                 description = when {
-                    isTranslationSupported && reportSiteIssueLabel != null -> stringResource(
-                        R.string.browser_menu_tools_description_with_translate_with_report_site,
-                        reportSiteIssueLabel,
+                    isTranslationSupported && isWebCompatReporterSupported -> stringResource(
+                        R.string.browser_menu_tools_description_with_translate_with_report_site_2,
                     )
                     isTranslationSupported -> stringResource(
                         R.string.browser_menu_tools_description_with_translate_without_report_site,
                     )
-                    reportSiteIssueLabel != null -> stringResource(
-                        R.string.browser_menu_tools_description_with_report_site,
-                        reportSiteIssueLabel,
+                    isWebCompatReporterSupported -> stringResource(
+                        R.string.browser_menu_tools_description_with_report_site_2,
                     )
                     else -> stringResource(
                         R.string.browser_menu_tools_description_without_report_site,
@@ -294,16 +289,7 @@ private fun ToolsAndActionsMenuGroup(
 
         MenuItem(
             label = stringResource(id = R.string.browser_menu_extensions),
-            description = if (isExtensionsProcessDisabled) {
-                stringResource(R.string.browser_menu_extensions_disabled_description)
-            } else {
-                if (availableAddons.isEmpty()) {
-                    stringResource(R.string.browser_menu_no_extensions_installed_description)
-                } else {
-                    val context = LocalContext.current
-                    availableAddons.joinToString(separator = ", ") { it.displayName(context) }
-                }
-            },
+            description = extensionsMenuItemDescription,
             descriptionState = if (isExtensionsProcessDisabled) {
                 MenuItemState.WARNING
             } else {
@@ -397,14 +383,14 @@ private fun MenuDialogPreview() {
                 accessPoint = MenuAccessPoint.Browser,
                 account = null,
                 accountState = NotAuthenticated,
-                availableAddons = emptyList(),
                 isPrivate = false,
                 isDesktopMode = false,
                 isPdf = false,
                 isTranslationSupported = true,
+                isWebCompatReporterSupported = true,
                 showQuitMenu = true,
                 isExtensionsProcessDisabled = true,
-                reportSiteIssueLabel = "Report Site Issue",
+                extensionsMenuItemDescription = "No extensions enabled",
                 onMozillaAccountButtonClick = {},
                 onHelpButtonClick = {},
                 onSettingsButtonClick = {},
@@ -439,14 +425,14 @@ private fun MenuDialogPrivatePreview() {
                 accessPoint = MenuAccessPoint.Home,
                 account = null,
                 accountState = NotAuthenticated,
-                availableAddons = emptyList(),
                 isPrivate = false,
                 isDesktopMode = false,
                 isPdf = false,
                 isTranslationSupported = true,
+                isWebCompatReporterSupported = true,
                 showQuitMenu = true,
                 isExtensionsProcessDisabled = false,
-                reportSiteIssueLabel = "Report Site Issue",
+                extensionsMenuItemDescription = "No extensions enabled",
                 onMozillaAccountButtonClick = {},
                 onHelpButtonClick = {},
                 onSettingsButtonClick = {},
