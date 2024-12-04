@@ -12496,6 +12496,11 @@
   value: false
   mirror: always
 
+- name: network.cookie.sameSite.laxByDefaultWarningsForBeta
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 # lax-by-default 2 minutes tollerance for unsafe methods. The value is in seconds.
 - name: network.cookie.sameSite.laxPlusPOST.timeout
   type: uint32_t
@@ -13990,7 +13995,7 @@
 # PRIORITY_UPDATE frames.
 - name: network.http.http2.priority_updates
   type: RelaxedAtomicBool
-  value: true
+  value: false
   mirror: always
 
 # This pref controls whether to send the
@@ -14360,6 +14365,13 @@
   type: String
   value: ""
   mirror: never
+
+# This is only used for testing. When true, nsHttpChannel::mPeerAddr will be
+# overridden with the address provided by DNS prefetch.
+- name: network.dns.use_override_as_peer_address
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
 
 # Whether to add additional record IPs to the cache
 - name: network.trr.add_additional_records
