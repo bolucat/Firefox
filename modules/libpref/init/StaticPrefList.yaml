@@ -8323,7 +8323,7 @@
 
 -   name: javascript.options.experimental.json_parse_with_source
     type: bool
-    value: false
+    value: true
     mirror: always
     set_spidermonkey_pref: always
 
@@ -9139,6 +9139,13 @@
 #
 # Only for testing purposes.
 - name: layout.css.moz-control-character-visibility.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+  rust: true
+
+# Whether the `-moz-user-input` property is exposed to content.
+- name: layout.css.moz-user-input.enabled
   type: RelaxedAtomicBool
   value: false
   mirror: always
@@ -14657,6 +14664,13 @@
 - name: permissions.media.query.enabled
   type: RelaxedAtomicBool
   value: true
+  mirror: always
+
+# Whether default permissions should be imported from remote settings in
+# addition to importing them from browser/app/permissions.
+- name: permissions.manager.remote.enabled
+  type: bool
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 #---------------------------------------------------------------------------

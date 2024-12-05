@@ -33,6 +33,7 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/BrowsingContextGroup.h"
+#include "mozilla/dom/BrowserParent.h"
 #include "mozilla/dom/CanonicalBrowsingContext.h"
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/Element.h"
@@ -1281,11 +1282,11 @@ static void FinishRestore(CanonicalBrowsingContext* aBrowsingContext,
       }
     }
 
-    if (aBrowsingContext->IsActive()) {
-      loadingBC->PreOrderWalk([&](BrowsingContext* aContext) {
-        if (BrowserParent* bp = aContext->Canonical()->GetBrowserParent()) {
-          ProcessPriorityManager::BrowserPriorityChanged(bp, true);
-        }
+    // Ensure browser priority to matches `IsPriorityActive` after restoring.
+    if (BrowserParent* bp = loadingBC->GetBrowserParent()) {
+      bp->VisitAll([&](BrowserParent* aBp) {
+        ProcessPriorityManager::BrowserPriorityChanged(
+            aBp, aBrowsingContext->IsPriorityActive());
       });
     }
 
@@ -2058,6 +2059,24 @@ nsSHistory::HasUserInteractionAtIndex(int32_t aIndex) {
     return false;
   }
   return entry->GetHasUserInteraction();
+}
+
+NS_IMETHODIMP
+nsSHistory::CanGoBackFromEntryAtIndex(int32_t aIndex, bool* aCanGoBack) {
+  *aCanGoBack = false;
+  if (!StaticPrefs::browser_navigation_requireUserInteraction()) {
+    *aCanGoBack = aIndex > 0;
+    return NS_OK;
+  }
+
+  for (int32_t i = aIndex - 1; i >= 0; i--) {
+    if (HasUserInteractionAtIndex(i)) {
+      *aCanGoBack = true;
+      break;
+    }
+  }
+
+  return NS_OK;
 }
 
 nsresult nsSHistory::LoadNextPossibleEntry(
