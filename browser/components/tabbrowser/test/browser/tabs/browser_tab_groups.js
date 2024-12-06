@@ -237,6 +237,37 @@ add_task(async function test_tabGroupCollapseCreatesNewTabIfAllTabsInGroup() {
   await BrowserTestUtils.closeWindow(fgWindow);
 });
 
+add_task(async function test_collapseAllGroups() {
+  // When collapsing a group and no tabs exist outside of collapsed groups, a
+  // new tab should be opened.
+  let fgWindow = await BrowserTestUtils.openNewBrowserWindow();
+
+  Assert.equal(fgWindow.gBrowser.tabs.length, 1, "only one tab exists");
+  let [tab1] = fgWindow.gBrowser.tabs;
+  let tab2 = BrowserTestUtils.addTab(fgWindow.gBrowser, "about:blank", {
+    skipAnimation: true,
+  });
+  let group1 = fgWindow.gBrowser.addTabGroup([tab1]);
+  let group2 = fgWindow.gBrowser.addTabGroup([tab2]);
+
+  Assert.ok(tab1.selected, "tab1 is selected initially");
+  group1.collapsed = true;
+  Assert.ok(tab2.selected, "tab2 is selected after collapsing group1");
+
+  let newTabPromise = BrowserTestUtils.waitForEvent(fgWindow, "TabOpen");
+  group2.collapsed = true;
+  info("Waiting for new tab to open");
+  let { target: newTab } = await newTabPromise;
+  Assert.ok(group2.collapsed, "successfully collapsed group2");
+  Assert.ok(group1.collapsed, "group1 is still collapsed");
+  Assert.ok(
+    newTab.selected,
+    "opened a new tab and selected it after collapsing group2"
+  );
+
+  await BrowserTestUtils.closeWindow(fgWindow);
+});
+
 add_task(async function test_closingLastTabBeforeCollapsedTabGroup() {
   // If there is one standalone tab that's active and there is a collapsed
   // tab group, and the user closes the standalone tab, the first tab of
@@ -1714,4 +1745,49 @@ add_task(async function test_saveAndCloseGroup() {
   Assert.ok(savedGroupMatch, "Group is in savedGroups");
 
   BrowserTestUtils.removeTab(tab);
+});
+
+add_task(async function test_pinningInteractionsWithTabGroups() {
+  const tabs = createManyTabs(3);
+  let group = gBrowser.addTabGroup(tabs, { insertBefore: gBrowser.tabs[0] });
+  const workingTab = tabs[1];
+
+  Assert.equal(workingTab.group, group, "tab is in group");
+  gBrowser.pinTab(workingTab);
+  Assert.ok(!workingTab.group, "pinned tab is no longer in the tab group");
+  Assert.equal(
+    group.previousElementSibling,
+    workingTab,
+    "pinned tab should be before the tab group"
+  );
+
+  gBrowser.unpinTab(workingTab);
+  Assert.ok(!workingTab.group, "unpinned tab is still not in the tab group");
+  Assert.equal(
+    group.previousElementSibling,
+    workingTab,
+    "unpinned tab is still before before the tab group"
+  );
+
+  const moreTabs = createManyTabs(5);
+  moreTabs.forEach(tab => gBrowser.pinTab(tab));
+  Assert.ok(
+    !moreTabs.some(tab => !!tab.group),
+    "none of the new pinned tabs are in the tab group"
+  );
+
+  const firstPinnedTabToUnpin = gBrowser.tabs[0];
+  const lastPinnedTab = gBrowser.tabs[gBrowser.pinnedTabCount - 1];
+  gBrowser.unpinTab(firstPinnedTabToUnpin);
+  Assert.ok(
+    !firstPinnedTabToUnpin.group,
+    "unpinned tab is not in the tab group"
+  );
+  Assert.equal(
+    lastPinnedTab.nextElementSibling,
+    firstPinnedTabToUnpin,
+    "unpinned tab is the first tab after all of the pinned tabs"
+  );
+
+  moreTabs.concat(tabs).forEach(tab => BrowserTestUtils.removeTab(tab));
 });
