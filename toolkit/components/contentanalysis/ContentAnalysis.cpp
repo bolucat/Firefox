@@ -2151,7 +2151,8 @@ class AggregatedClipboardCACallback final : public nsIContentAnalysisCallback {
       mRemainingCallbackRequestTokens.Remove(requestToken);
       if (!result->GetShouldAllowContent()) {
         SendFinalResult(nsIContentAnalysisResponse::Action::eBlock);
-      } else if (mRemainingCallbackRequestTokens.IsEmpty()) {
+      } else if (mRemainingCallbackRequestTokens.IsEmpty() &&
+                 mFinishedSendingRequests) {
         SendFinalResult(nsIContentAnalysisResponse::Action::eAllow);
       }
     }
@@ -2238,10 +2239,17 @@ class AggregatedClipboardCACallback final : public nsIContentAnalysisCallback {
       }
     }
 
-    if (mRemainingCallbackRequestTokens.IsEmpty()) {
+    mFinishedSendingRequests = true;
+
+    if (!mSentAnyRequests) {
       // Couldn't get any data from this
       caResult = NoContentAnalysisResult::ALLOW_DUE_TO_COULD_NOT_GET_DATA;
       return;
+    }
+    if (mRemainingCallbackRequestTokens.IsEmpty() && !mResponseSent) {
+      // All requests were handled synchronously, and we haven't sent a response
+      // so all results must have been allow.
+      SendFinalResult(nsIContentAnalysisResponse::Action::eAllow);
     }
 
     // The method succeeded, so release the scoped exit
@@ -2254,6 +2262,7 @@ class AggregatedClipboardCACallback final : public nsIContentAnalysisCallback {
     DebugOnly<nsresult> rv = aRequest->GetRequestToken(requestToken);
     MOZ_ASSERT(NS_SUCCEEDED(rv));
     mRemainingCallbackRequestTokens.Insert(requestToken);
+    mSentAnyRequests = true;
   }
   void CancelActiveRequests() {
     RefPtr<ContentAnalysis> contentAnalysis =
@@ -2319,12 +2328,14 @@ class AggregatedClipboardCACallback final : public nsIContentAnalysisCallback {
             nsIContentAnalysisRequest::Reason::eClipboardPaste,
             std::move(aText), false, EmptyCString(), mURI,
             nsIContentAnalysisRequest::OperationType::eClipboard, window);
+    // Call RequestSent() first in case AnalyzeContentRequestCallback() returns
+    // synchronously (because of an error or it hits a URL filter)
+    RequestSent(contentAnalysisRequest);
     nsresult rv = aContentAnalysis->AnalyzeContentRequestCallback(
         contentAnalysisRequest, /* aAutoAcknowledge */ true, this);
     if (NS_FAILED(rv)) {
       return mozilla::Err(NoContentAnalysisResult::DENY_DUE_TO_OTHER_ERROR);
     }
-    RequestSent(contentAnalysisRequest);
     return Ok();
   }
 
@@ -2432,6 +2443,9 @@ class AggregatedClipboardCACallback final : public nsIContentAnalysisCallback {
             std::move(filePath), true, EmptyCString(), mURI,
             nsIContentAnalysisRequest::OperationType::eCustomDisplayString,
             window);
+    // Call RequestSent() first in case AnalyzeContentRequestCallback() returns
+    // synchronously (because of an error or it hits a URL filter)
+    RequestSent(contentAnalysisRequest);
     rv = aContentAnalysis->AnalyzeContentRequestCallback(
         contentAnalysisRequest,
         /* aAutoAcknowledge */ true, this);
@@ -2439,7 +2453,6 @@ class AggregatedClipboardCACallback final : public nsIContentAnalysisCallback {
       return mozilla::Err(NoContentAnalysisResult::DENY_DUE_TO_OTHER_ERROR);
     }
 
-    RequestSent(contentAnalysisRequest);
     return Ok();
   }
 
@@ -2451,6 +2464,8 @@ class AggregatedClipboardCACallback final : public nsIContentAnalysisCallback {
   nsCOMPtr<nsIURI> mURI;
   bool mStoreInCache;
   nsTArray<nsCString> mFlavors;
+  bool mFinishedSendingRequests = false;
+  bool mSentAnyRequests = false;
 };
 
 NS_IMPL_ISUPPORTS(ContentAnalysis::SafeContentAnalysisResultCallback,
@@ -2544,7 +2559,10 @@ void ContentAnalysis::CheckClipboardContentAnalysis(
         NoContentAnalysisResult::ALLOW_DUE_TO_SAME_TAB_SOURCE));
     return;
   }
-  if (maybeSequenceNumber.isSome()) {
+  // Don't use the cache if this is for a full clipboard check, which
+  // is an indication that this is a separate operation from the previous
+  // one.
+  if (!aForFullClipboard && maybeSequenceNumber.isSome()) {
     bool isValid = false;
     nsIContentAnalysisResponse::Action action =
         nsIContentAnalysisResponse::Action::eUnspecified;
@@ -2552,29 +2570,6 @@ void ContentAnalysis::CheckClipboardContentAnalysis(
                                        flavors, &action, &isValid);
     if (isValid) {
       LOGD("Content analysis returning cached clipboard response %d", action);
-      if (aForFullClipboard) {
-        // The user is pasting the exact same clipboard contents again. If
-        // we blocked it the first time let the JS code know so it can show
-        // a block dialog again.
-        if (action == nsIContentAnalysisResponse::Action::eBlock) {
-          nsCOMPtr<nsIObserverService> obsServ =
-              mozilla::services::GetObserverService();
-          // Create a fake request that just has enough info for the JS code
-          // to keep track of it.
-          auto fakeRequest = MakeRefPtr<ContentAnalysisRequest>(
-              ContentAnalysisRequest::AnalysisType::eBulkDataEntry,
-              ContentAnalysisRequest::Reason::eClipboardPaste, u""_ns, false,
-              ""_ns, currentURI,
-              ContentAnalysisRequest::OperationType::eClipboard, aWindow);
-          obsServ->NotifyObservers(fakeRequest, "dlp-request-made", nullptr);
-          nsCString requestToken;
-          DebugOnly<nsresult> rv = fakeRequest->GetRequestToken(requestToken);
-          MOZ_ASSERT(NS_SUCCEEDED(rv));
-          RefPtr<ContentAnalysisResponse> fakeResponse =
-              ContentAnalysisResponse::FromAction(action, requestToken);
-          obsServ->NotifyObservers(fakeResponse, "dlp-response", nullptr);
-        }
-      }
       aResolver->Callback(ContentAnalysisResult::FromAction(action));
       return;
     }
