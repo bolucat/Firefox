@@ -53,17 +53,18 @@ import org.mozilla.fenix.theme.FirefoxTheme
  * @param pageState The page content that's displayed.
  * @param onThemeSelectionClicked Callback for when a theme selection is clicked.
  */
+@Suppress("LongMethod")
 @Composable
 fun ThemeOnboardingPage(
     onboardingStore: OnboardingStore,
     pageState: OnboardingPageState,
     onThemeSelectionClicked: (ThemeOptionType) -> Unit,
 ) {
-    // Base
+    //  Base
     Column(
         modifier = Modifier
             .background(FirefoxTheme.colors.layer1)
-            .padding(horizontal = 16.dp, vertical = 32.dp)
+            .padding(horizontal = 16.dp, vertical = 24.dp)
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.SpaceBetween,
@@ -75,7 +76,9 @@ fun ThemeOnboardingPage(
                 Spacer(Modifier.height(18.dp))
                 Image(
                     painter = painterResource(id = imageRes),
-                    contentDescription = null,
+                    contentDescription = stringResource(
+                        R.string.onboarding_customize_theme_main_image_content_description,
+                    ),
                     modifier = Modifier.width(263.dp),
                 )
 
@@ -102,11 +105,13 @@ fun ThemeOnboardingPage(
                 val state by onboardingStore.observeAsState(initialValue = onboardingStore.state) { state -> state }
 
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                    ThemeOptions(
-                        options = themeOptions!!,
-                        selectedOption = state.themeOptionSelected,
-                        onClick = onThemeSelectionClicked,
-                    )
+                    themeOptions?.let {
+                        ThemeOptions(
+                            options = it,
+                            selectedOption = state.themeOptionSelected,
+                            onClick = onThemeSelectionClicked,
+                        )
+                    }
                 }
             }
 
@@ -212,7 +217,10 @@ private fun SelectableImageItem(
     ) {
         Image(
             painter = painterResource(id = themeOption.imageRes),
-            contentDescription = "",
+            contentDescription = stringResource(
+                R.string.onboarding_customize_theme_content_description,
+                themeOption.label,
+            ),
             modifier = if (isSelectedOption) {
                 Modifier.border(2.dp, FirefoxTheme.colors.actionPrimary, RoundedCornerShape(10.dp))
             } else {
@@ -239,7 +247,7 @@ private fun SelectableImageItem(
             ) {
                 Icon(
                     painter = painterResource(id = R.drawable.mozac_ic_checkmark_24),
-                    contentDescription = null,
+                    contentDescription = null, // decorative only.
                     modifier = Modifier.size(12.dp),
                     tint = PhotonColors.White,
                 )
