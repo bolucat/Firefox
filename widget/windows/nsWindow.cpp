@@ -877,9 +877,6 @@ nsresult nsWindow::Create(nsIWidget* aParent, const LayoutDeviceIntRect& aRect,
 
   BaseCreate(aParent, aInitData);
 
-  HWND parent =
-      aParent ? (HWND)aParent->GetNativeData(NS_NATIVE_WINDOW) : nullptr;
-
   mIsRTL = aInitData->mRTL;
   mOpeningAnimationSuppressed = aInitData->mIsAnimationSuppressed;
   mAlwaysOnTop = aInitData->mAlwaysOnTop;
@@ -891,7 +888,12 @@ nsresult nsWindow::Create(nsIWidget* aParent, const LayoutDeviceIntRect& aRect,
       .ex = static_cast<LONG_PTR>(WindowExStyle()),
   };
 
+  // Per Windows docs, parent is optional for popup / overlapped windows, and
+  // it can cause issues when we reparent widgets, see bug 1936164.
+  HWND parent = nullptr;
   if (mWindowType != WindowType::Popup) {
+    parent = aParent ? (HWND)aParent->GetNativeData(NS_NATIVE_WINDOW) : nullptr;
+
     // See if the caller wants to explicitly set clip children and clip siblings
     if (aInitData->mClipChildren) {
       desiredStyles.style |= WS_CLIPCHILDREN;
@@ -3886,7 +3888,15 @@ uint32_t nsWindow::GetMaxTouchPoints() const {
 }
 
 void nsWindow::SetIsEarlyBlankWindow(bool aIsEarlyBlankWindow) {
+  if (mIsEarlyBlankWindow == aIsEarlyBlankWindow) {
+    return;
+  }
   mIsEarlyBlankWindow = aIsEarlyBlankWindow;
+  if (!aIsEarlyBlankWindow && mNeedsNCAreaClear) {
+    // We skip processing WM_PAINT messages while we're the blank window;
+    // ensure we get one to do any work we might have missed.
+    ::RedrawWindow(mWnd, nullptr, nullptr, RDW_INVALIDATE | RDW_INTERNALPAINT);
+  }
 }
 
 /**************************************************************
@@ -7210,7 +7220,7 @@ void nsWindow::UpdateOpaqueRegionInternal() {
   DwmExtendFrameIntoClientArea(mWnd, &margins);
   if (mTransparencyMode == TransparencyMode::Transparent) {
     mNeedsNCAreaClear = true;
-    Invalidate();
+    ::RedrawWindow(mWnd, nullptr, nullptr, RDW_INVALIDATE | RDW_INTERNALPAINT);
   }
 }
 

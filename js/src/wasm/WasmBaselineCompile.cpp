@@ -11702,7 +11702,7 @@ bool BaseCompiler::emitBody() {
                                       ValType::F32, ValType::I32));
           case uint32_t(MiscOp::I32TruncSatF32U):
             CHECK_NEXT(dispatchConversionOOM(
-                emitTruncateF32ToI32<TRUNC_UNSIGNED | TRUNC_SATURATING>,
+                emitTruncateF32ToI32 < TRUNC_UNSIGNED | TRUNC_SATURATING >,
                 ValType::F32, ValType::I32));
           case uint32_t(MiscOp::I32TruncSatF64S):
             CHECK_NEXT(
@@ -11710,7 +11710,7 @@ bool BaseCompiler::emitBody() {
                                       ValType::F64, ValType::I32));
           case uint32_t(MiscOp::I32TruncSatF64U):
             CHECK_NEXT(dispatchConversionOOM(
-                emitTruncateF64ToI32<TRUNC_UNSIGNED | TRUNC_SATURATING>,
+                emitTruncateF64ToI32 < TRUNC_UNSIGNED | TRUNC_SATURATING >,
                 ValType::F64, ValType::I32));
           case uint32_t(MiscOp::I64TruncSatF32S):
 #ifdef RABALDR_FLOAT_TO_I64_CALLOUT
@@ -11731,7 +11731,7 @@ bool BaseCompiler::emitBody() {
                 ValType::I64));
 #else
             CHECK_NEXT(dispatchConversionOOM(
-                emitTruncateF32ToI64<TRUNC_UNSIGNED | TRUNC_SATURATING>,
+                emitTruncateF32ToI64 < TRUNC_UNSIGNED | TRUNC_SATURATING >,
                 ValType::F32, ValType::I64));
 #endif
           case uint32_t(MiscOp::I64TruncSatF64S):
@@ -11753,7 +11753,7 @@ bool BaseCompiler::emitBody() {
                 ValType::I64));
 #else
             CHECK_NEXT(dispatchConversionOOM(
-                emitTruncateF64ToI64<TRUNC_UNSIGNED | TRUNC_SATURATING>,
+                emitTruncateF64ToI64 < TRUNC_UNSIGNED | TRUNC_SATURATING >,
                 ValType::F64, ValType::I64));
 #endif
           case uint32_t(MiscOp::MemoryCopy):

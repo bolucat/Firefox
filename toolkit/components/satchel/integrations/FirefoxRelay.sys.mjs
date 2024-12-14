@@ -606,7 +606,7 @@ class RelayOffered {
       nimbusRelayAutocompleteFeature.getVariable("firstOfferVersion");
     const enableButtonId =
       treatment === "control"
-        ? "firefox-relay-and-fxa-opt-in-confirmation-enable-button"
+        ? "firefox-relay-and-fxa-opt-in-confirmation-enable-button-sign-up"
         : `firefox-relay-and-fxa-opt-in-confirmation-enable-button-${treatment}`;
     const [enableStrings, disableStrings, postponeStrings] =
       await formatMessages(
@@ -697,6 +697,12 @@ class RelayOffered {
             "relay_integration",
             {
               service: "relay",
+              entrypoint_experiment: "first_offer_version",
+              entrypoint_variation: treatment,
+              utm_source: "relay-integration",
+              utm_medium: "firefox-desktop",
+              utm_campaign: "first_offer_version",
+              utm_content: treatment,
             }
           );
         browser.ownerGlobal.openWebLinkIn(fxaUrl, "tab");

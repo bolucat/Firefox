@@ -132,14 +132,14 @@ add_task(
           "Clicking on Relay auto-complete item should open the FXA + Relay opt-in prompt"
         );
         const relayTermsLink = fxaRelayOptInPrompt.querySelector(
-          "#firefox-fxa-and-relay-offer-tos-url"
+          ".firefox-fxa-and-relay-offer-tos-url"
         );
         Assert.ok(
           relayTermsLink,
           "Relay opt-in prompt includes link to terms of service."
         );
         const relayPrivacyLink = fxaRelayOptInPrompt.querySelector(
-          "#firefox-fxa-and-relay-offer-privacy-url"
+          ".firefox-fxa-and-relay-offer-privacy-url"
         );
         Assert.ok(
           relayPrivacyLink,
@@ -349,11 +349,19 @@ add_task(
 add_task(
   async function test_unauthenticated_browser_use_email_mask_opens_fxa_signin() {
     // We need the configured signup url to set up a mock server to respond to
-    // the proper path value.
+    // the proper path value. Note: this test is effectively hard-coded to the "control" variation
     const fxaSigninUrlString =
       await gFxAccounts.constructor.config.promiseConnectAccountURI(
         "relay_integration",
-        { service: "relay" }
+        {
+          service: "relay",
+          entrypoint_experiment: "first_offer_version",
+          entrypoint_variation: "control",
+          utm_source: "relay-integration",
+          utm_medium: "firefox-desktop",
+          utm_campaign: "first_offer_version",
+          utm_content: "control",
+        }
       );
     const fxaSigninURL = new URL(fxaSigninUrlString);
     // Now that we have a URL object, we can use its components
