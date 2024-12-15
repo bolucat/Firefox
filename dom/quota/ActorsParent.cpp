@@ -6548,6 +6548,18 @@ RefPtr<UInt64Promise> QuotaManager::GetCachedOriginUsage(
   return getCachedOriginUsageOp->OnResults();
 }
 
+RefPtr<CStringArrayPromise> QuotaManager::ListOrigins() {
+  AssertIsOnOwningThread();
+
+  auto listOriginsOp = CreateListOriginsOp(WrapMovingNotNullUnchecked(this));
+
+  RegisterNormalOriginOp(*listOriginsOp);
+
+  listOriginsOp->RunImmediately();
+
+  return listOriginsOp->OnResults();
+}
+
 RefPtr<CStringArrayPromise> QuotaManager::ListCachedOrigins() {
   AssertIsOnOwningThread();
 
@@ -6968,6 +6980,12 @@ Maybe<FullOriginMetadata> QuotaManager::GetFullOriginMetadata(
   }
 
   return Nothing();
+}
+
+uint64_t QuotaManager::TotalDirectoryIterations() const {
+  AssertIsOnIOThread();
+
+  return mIOThreadAccessible.Access()->mTotalDirectoryIterations;
 }
 
 // static
@@ -7820,6 +7838,15 @@ auto QuotaManager::ExecuteOriginInitialization(
       mInitializationInfo.MutableOriginInitializationInfoRef(
           aOrigin, CreateIfNonExistent{}),
       aInitialization, aContext, std::forward<Func>(aFunc));
+}
+
+void QuotaManager::IncreaseTotalDirectoryIterations() {
+  AssertIsOnIOThread();
+
+  auto ioThreadData = mIOThreadAccessible.Access();
+
+  AssertNoOverflow(ioThreadData->mTotalDirectoryIterations, 1);
+  ioThreadData->mTotalDirectoryIterations++;
 }
 
 /*******************************************************************************
