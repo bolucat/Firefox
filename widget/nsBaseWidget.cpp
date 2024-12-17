@@ -426,22 +426,20 @@ void nsBaseWidget::BaseCreate(nsIWidget* aParent, widget::InitData* aInitData) {
   }
 }
 
-void nsIWidget::SetParent(nsIWidget* aNewParent) {
+void nsIWidget::ClearParent() {
+  if (!mParent) {
+    return;
+  }
   nsCOMPtr<nsIWidget> kungFuDeathGrip = this;
   nsCOMPtr<nsIWidget> oldParent = mParent;
-  if (mParent) {
-    mParent->RemoveFromChildList(this);
-  }
-  mParent = aNewParent;
-  if (mParent) {
-    mParent->AddToChildList(this);
-  }
-  DidChangeParent(oldParent);
+  oldParent->RemoveFromChildList(this);
+  mParent = nullptr;
+  DidClearParent(oldParent);
 }
 
 void nsIWidget::RemoveAllChildren() {
   while (nsCOMPtr<nsIWidget> kid = mLastChild) {
-    kid->SetParent(nullptr);
+    kid->ClearParent();
     MOZ_ASSERT(kid != mLastChild);
   }
 }
@@ -946,13 +944,18 @@ bool nsBaseWidget::ComputeShouldAccelerate() {
           StaticPrefs::gfx_webrender_unaccelerated_widget_force());
 }
 
-bool nsBaseWidget::UseAPZ() {
+bool nsBaseWidget::UseAPZ() const {
   return (gfxPlatform::AsyncPanZoomEnabled() &&
           (mWindowType == WindowType::TopLevel ||
            mWindowType == WindowType::Child ||
-           ((mWindowType == WindowType::Popup ||
-             mWindowType == WindowType::Dialog) &&
-            HasRemoteContent() && StaticPrefs::apz_popups_enabled())));
+           (StaticPrefs::apz_popups_enabled() &&
+            ((mWindowType == WindowType::Dialog && HasRemoteContent()) ||
+             UseAPZForPopup()))));
+}
+
+bool nsBaseWidget::UseAPZForPopup() const {
+  MOZ_ASSERT(gfxPlatform::AsyncPanZoomEnabled());
+  return mWindowType == WindowType::Popup && mPopupType != PopupType::Tooltip;
 }
 
 void nsBaseWidget::CreateCompositor() {

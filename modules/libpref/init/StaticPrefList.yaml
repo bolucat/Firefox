@@ -8554,7 +8554,7 @@
 # Use wasm_lazy_tiering to enable it for any module.
 -   name: javascript.options.wasm_lazy_tiering_for_gc
     type: bool
-    value: false
+    value: true
     mirror: always
     set_spidermonkey_pref: always
 
@@ -9886,12 +9886,6 @@
 - name: layout.forms.reveal-password-button.enabled
   type: bool
   value: false
-  mirror: always
-
-# Enables the Reveal Password context-menu entry.
-- name: layout.forms.reveal-password-context-menu.enabled
-  type: bool
-  value: true
   mirror: always
 
 # If enabled, textareas won't include 'overflow:auto' scrollbars in their
@@ -13477,7 +13471,11 @@
 # every page reload.
 - name: network.dns.only_refresh_on_fresh_connection
   type: RelaxedAtomicBool
+#ifdef EARLY_BETA_OR_EARLIER
+  value: false
+#else
   value: true
+#endif
   mirror: always
 
 # When true, DNS resolutions will downgrade DNS
@@ -17696,6 +17694,12 @@
   type: bool
   value: false
   mirror: always
+
+# Use SW emulation of frame callback, for testing only
+- name: widget.wayland.emulate-frame-callback
+  type: bool
+  value: false
+  mirror: once
 #endif
 
 #ifdef MOZ_WIDGET_GTK
