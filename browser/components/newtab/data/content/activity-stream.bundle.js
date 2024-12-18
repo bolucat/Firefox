@@ -161,6 +161,7 @@ for (const type of [
   "FAKESPOT_DISMISS",
   "FAKE_FOCUS_SEARCH",
   "FILL_SEARCH_TERM",
+  "FOLLOW_SECTION",
   "HANDOFF_SEARCH_TO_AWESOMEBAR",
   "HIDE_PERSONALIZE",
   "HIDE_PRIVACY_INFO",
@@ -1688,6 +1689,13 @@ const LinkMenuOptions = {
         typedBonus: site.typedBonus,
         url: site.url,
         sponsored_tile_id: site.sponsored_tile_id,
+        ...(site.section
+          ? {
+              section: site.section,
+              section_position: site.section_position,
+              is_secton_followed: site.is_secton_followed,
+            }
+          : {}),
       },
     }),
     userEvent: "OPEN_NEW_WINDOW",
@@ -1740,6 +1748,7 @@ const LinkMenuOptions = {
           ? {
               section: site.section,
               section_position: site.section_position,
+              is_secton_followed: site.is_secton_followed,
             }
           : {}),
       })),
@@ -2026,15 +2035,25 @@ const LinkMenuOptions = {
       type: actionTypes.OPEN_ABOUT_FAKESPOT,
     }),
   }),
-  SectionBlock: () => ({
+  SectionBlock: ({ section, sectionPosition }) => ({
     id: "newtab-menu-section-block",
-    // Note: action TBA. It will send a list of blocked sections back to the API.
-    action: null,
-    impression: actionCreators.OnlyToMain({
+    // Note: Action TBA. It will send a list of blocked sections back to the API.
+    // TODO: Move current action (at.BLOCK_SECTION) to impression event when action is no longer TBA
+    action: actionCreators.OnlyToMain({
       type: actionTypes.BLOCK_SECTION,
+      data: {
+        section,
+        section_position: sectionPosition,
+        event_source: "CONTEXT_MENU",
+      },
     }),
   }),
-  SectionUnfollow: ({ followedSections, sectionKey }) => ({
+  SectionUnfollow: ({
+    followedSections,
+    section,
+    sectionKey,
+    sectionPosition,
+  }) => ({
     id: "newtab-menu-section-unfollow",
     action: actionCreators.OnlyToMain({
       type: actionTypes.SET_PREF,
@@ -2047,6 +2066,11 @@ const LinkMenuOptions = {
     }),
     impression: actionCreators.OnlyToMain({
       type: actionTypes.UNFOLLOW_SECTION,
+      data: {
+        section,
+        section_position: sectionPosition,
+        event_source: "CONTEXT_MENU",
+      },
     }),
   }),
 };
@@ -2284,7 +2308,8 @@ class DSLinkMenu extends (external_React_default()).PureComponent {
         } : {}),
         ...(this.props.section ? {
           section: this.props.section,
-          section_position: this.props.section_position
+          section_position: this.props.section_position,
+          is_secton_followed: this.props.is_secton_followed
         } : {})
       }
     })));
@@ -2450,7 +2475,8 @@ class ImpressionStats_ImpressionStats extends (external_React_default()).PureCom
             } : {}),
             ...(link.section ? {
               section: link.section,
-              section_position: link.section_position
+              section_position: link.section_position,
+              is_secton_followed: link.is_secton_followed
             } : {})
           })),
           firstVisibleTimestamp: this.props.firstVisibleTimestamp
@@ -3098,57 +3124,61 @@ const DefaultMeta = ({
   topic,
   isSectionsCard,
   showTopics
-}) => /*#__PURE__*/external_React_default().createElement("div", {
-  className: "meta"
-}, /*#__PURE__*/external_React_default().createElement("div", {
-  className: "info-wrap"
-}, ctaButtonVariant !== "variant-b" && format !== "rectangle" && /*#__PURE__*/external_React_default().createElement(DSSource, {
-  source: source,
-  timeToRead: timeToRead,
-  newSponsoredLabel: newSponsoredLabel,
-  context: context,
-  sponsor: sponsor,
-  sponsored_by_override: sponsored_by_override
-}), format !== "rectangle" && /*#__PURE__*/external_React_default().createElement((external_React_default()).Fragment, null, /*#__PURE__*/external_React_default().createElement("h3", {
-  className: "title clamp"
-}, title), excerpt && /*#__PURE__*/external_React_default().createElement("p", {
-  className: "excerpt clamp"
-}, excerpt)), format === "rectangle" && /*#__PURE__*/external_React_default().createElement((external_React_default()).Fragment, null, /*#__PURE__*/external_React_default().createElement("h3", {
-  className: "title clamp"
-}, "Sponsored"), /*#__PURE__*/external_React_default().createElement("p", {
-  className: "excerpt clamp"
-}, "Sponsored content supports our mission to build a better web."))), !isListCard && format !== "rectangle" && !mayHaveSectionsCards && mayHaveThumbsUpDown && /*#__PURE__*/external_React_default().createElement(DSThumbsUpDownButtons, {
-  onThumbsDownClick: onThumbsDownClick,
-  onThumbsUpClick: onThumbsUpClick,
-  sponsor: sponsor,
-  isThumbsDownActive: state.isThumbsDownActive,
-  isThumbsUpActive: state.isThumbsUpActive
-}), isSectionsCard && /*#__PURE__*/external_React_default().createElement("div", {
-  className: "sections-card-footer"
-}, !isListCard && format !== "rectangle" && mayHaveSectionsCards && mayHaveThumbsUpDown && /*#__PURE__*/external_React_default().createElement(DSThumbsUpDownButtons, {
-  onThumbsDownClick: onThumbsDownClick,
-  onThumbsUpClick: onThumbsUpClick,
-  sponsor: sponsor,
-  isThumbsDownActive: state.isThumbsDownActive,
-  isThumbsUpActive: state.isThumbsUpActive
-}), showTopics && /*#__PURE__*/external_React_default().createElement("span", {
-  className: "ds-card-topic",
-  "data-l10n-id": `newtab-topic-label-${topic}`
-})), !newSponsoredLabel && /*#__PURE__*/external_React_default().createElement(DSContextFooter, {
-  context_type: context_type,
-  context: context,
-  sponsor: sponsor,
-  sponsored_by_override: sponsored_by_override,
-  cta_button_variant: ctaButtonVariant,
-  source: source,
-  dispatch: dispatch,
-  spocMessageVariant: spocMessageVariant,
-  mayHaveSectionsCards: mayHaveSectionsCards
-}), newSponsoredLabel && /*#__PURE__*/external_React_default().createElement(DSMessageFooter, {
-  context_type: context_type,
-  context: null,
-  saveToPocketCard: saveToPocketCard
-}));
+}) => {
+  const shouldHaveThumbs = !isListCard && format !== "rectangle" && mayHaveSectionsCards && mayHaveThumbsUpDown;
+  const shouldHaveFooterSection = isSectionsCard && (shouldHaveThumbs || showTopics);
+  return /*#__PURE__*/external_React_default().createElement("div", {
+    className: "meta"
+  }, /*#__PURE__*/external_React_default().createElement("div", {
+    className: "info-wrap"
+  }, ctaButtonVariant !== "variant-b" && format !== "rectangle" && /*#__PURE__*/external_React_default().createElement(DSSource, {
+    source: source,
+    timeToRead: timeToRead,
+    newSponsoredLabel: newSponsoredLabel,
+    context: context,
+    sponsor: sponsor,
+    sponsored_by_override: sponsored_by_override
+  }), format !== "rectangle" && /*#__PURE__*/external_React_default().createElement((external_React_default()).Fragment, null, /*#__PURE__*/external_React_default().createElement("h3", {
+    className: "title clamp"
+  }, title), excerpt && /*#__PURE__*/external_React_default().createElement("p", {
+    className: "excerpt clamp"
+  }, excerpt)), format === "rectangle" && /*#__PURE__*/external_React_default().createElement((external_React_default()).Fragment, null, /*#__PURE__*/external_React_default().createElement("h3", {
+    className: "title clamp"
+  }, "Sponsored"), /*#__PURE__*/external_React_default().createElement("p", {
+    className: "excerpt clamp"
+  }, "Sponsored content supports our mission to build a better web."))), !isListCard && format !== "rectangle" && !mayHaveSectionsCards && mayHaveThumbsUpDown && /*#__PURE__*/external_React_default().createElement(DSThumbsUpDownButtons, {
+    onThumbsDownClick: onThumbsDownClick,
+    onThumbsUpClick: onThumbsUpClick,
+    sponsor: sponsor,
+    isThumbsDownActive: state.isThumbsDownActive,
+    isThumbsUpActive: state.isThumbsUpActive
+  }), shouldHaveFooterSection && /*#__PURE__*/external_React_default().createElement("div", {
+    className: "sections-card-footer"
+  }, shouldHaveThumbs && /*#__PURE__*/external_React_default().createElement(DSThumbsUpDownButtons, {
+    onThumbsDownClick: onThumbsDownClick,
+    onThumbsUpClick: onThumbsUpClick,
+    sponsor: sponsor,
+    isThumbsDownActive: state.isThumbsDownActive,
+    isThumbsUpActive: state.isThumbsUpActive
+  }), showTopics && /*#__PURE__*/external_React_default().createElement("span", {
+    className: "ds-card-topic",
+    "data-l10n-id": `newtab-topic-label-${topic}`
+  })), !newSponsoredLabel && /*#__PURE__*/external_React_default().createElement(DSContextFooter, {
+    context_type: context_type,
+    context: context,
+    sponsor: sponsor,
+    sponsored_by_override: sponsored_by_override,
+    cta_button_variant: ctaButtonVariant,
+    source: source,
+    dispatch: dispatch,
+    spocMessageVariant: spocMessageVariant,
+    mayHaveSectionsCards: mayHaveSectionsCards
+  }), newSponsoredLabel && /*#__PURE__*/external_React_default().createElement(DSMessageFooter, {
+    context_type: context_type,
+    context: null,
+    saveToPocketCard: saveToPocketCard
+  }));
+};
 class _DSCard extends (external_React_default()).PureComponent {
   constructor(props) {
     super(props);
@@ -3274,7 +3304,8 @@ class _DSCard extends (external_React_default()).PureComponent {
             } : {}),
             ...(this.props.section ? {
               section: this.props.section,
-              section_position: this.props.sectionPosition
+              section_position: this.props.sectionPosition,
+              is_secton_followed: this.props.sectionFollowed
             } : {})
           }
         }));
@@ -3299,7 +3330,8 @@ class _DSCard extends (external_React_default()).PureComponent {
             } : {}),
             ...(this.props.section ? {
               section: this.props.section,
-              section_position: this.props.sectionPosition
+              section_position: this.props.sectionPosition,
+              is_secton_followed: this.props.sectionFollowed
             } : {})
           }]
         }));
@@ -3344,7 +3376,8 @@ class _DSCard extends (external_React_default()).PureComponent {
           } : {}),
           ...(this.props.section ? {
             section: this.props.section,
-            section_position: this.props.sectionPosition
+            section_position: this.props.sectionPosition,
+            is_secton_followed: this.props.sectionFollowed
           } : {})
         }
       }));
@@ -3366,7 +3399,8 @@ class _DSCard extends (external_React_default()).PureComponent {
           } : {}),
           ...(this.props.section ? {
             section: this.props.section,
-            section_position: this.props.sectionPosition
+            section_position: this.props.sectionPosition,
+            is_secton_followed: this.props.sectionFollowed
           } : {})
         }]
       }));
@@ -3397,7 +3431,12 @@ class _DSCard extends (external_React_default()).PureComponent {
         received_rank: this.props.received_rank,
         thumbs_up: true,
         thumbs_down: false,
-        topic: this.props.topic
+        topic: this.props.topic,
+        ...(this.props.section ? {
+          section: this.props.section,
+          section_position: this.props.sectionPosition,
+          is_secton_followed: this.props.sectionFollowed
+        } : {})
       }
     }));
 
@@ -3464,7 +3503,12 @@ class _DSCard extends (external_React_default()).PureComponent {
           received_rank: this.props.received_rank,
           thumbs_up: false,
           thumbs_down: true,
-          topic: this.props.topic
+          topic: this.props.topic,
+          ...(this.props.section ? {
+            section: this.props.section,
+            section_position: this.props.sectionPosition,
+            is_secton_followed: this.props.sectionFollowed
+          } : {})
         }
       }));
 
@@ -3681,7 +3725,8 @@ class _DSCard extends (external_React_default()).PureComponent {
         category: this.props.category,
         ...(this.props.section ? {
           section: this.props.section,
-          section_position: this.props.sectionPosition
+          section_position: this.props.sectionPosition,
+          is_secton_followed: this.props.sectionFollowed
         } : {})
       }],
       dispatch: this.props.dispatch,
@@ -3753,6 +3798,7 @@ class _DSCard extends (external_React_default()).PureComponent {
       is_list_card: this.props.isListCard,
       section: this.props.section,
       section_position: this.props.sectionPosition,
+      is_secton_followed: this.props.sectionFollowed,
       format: format,
       isSectionsCard: this.props.mayHaveSectionsCards
     }))));
@@ -4169,7 +4215,6 @@ function ListFeed({
 }
 
 ;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/AdBanner/AdBanner.jsx
-/* eslint-disable no-console */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -9853,7 +9898,9 @@ function SectionContextMenu({
   dispatch,
   sectionKey,
   following,
-  followedSections
+  followedSections,
+  section,
+  sectionPosition
 }) {
   // Initial context menu options: block this section only.
   const SECTIONS_CONTEXT_MENU_OPTIONS = ["SectionBlock"];
@@ -9882,10 +9929,12 @@ function SectionContextMenu({
     index: index,
     source: type.toUpperCase(),
     options: SECTIONS_CONTEXT_MENU_OPTIONS,
-    shouldSendImpressionStats: false,
+    shouldSendImpressionStats: true,
     site: {
+      followedSections,
+      section,
       sectionKey,
-      followedSections
+      sectionPosition
     }
   }));
 }
@@ -9988,10 +10037,28 @@ function CardSection({
   const mayHaveCombinedThumbsUpDown = mayHaveSectionsCardsThumbsUpDown && mayHaveThumbsUpDown;
   const onFollowClick = (0,external_React_namespaceObject.useCallback)(() => {
     dispatch(actionCreators.SetPref(PREF_FOLLOWED_SECTIONS, [...followedSections, sectionKey].join(", ")));
-  }, [dispatch, sectionKey, followedSections]);
+    // Telemetry Event Dispatch
+    dispatch(actionCreators.OnlyToMain({
+      type: "FOLLOW_SECTION",
+      data: {
+        section: sectionKey,
+        section_position: sectionPosition,
+        event_source: "MOZ_BUTTON"
+      }
+    }));
+  }, [dispatch, followedSections, sectionKey, sectionPosition]);
   const onUnfollowClick = (0,external_React_namespaceObject.useCallback)(() => {
     dispatch(actionCreators.SetPref(PREF_FOLLOWED_SECTIONS, [...followedSections.filter(item => item !== sectionKey)].join(", ")));
-  }, [dispatch, sectionKey, followedSections]);
+    // Telemetry Event Dispatch
+    dispatch(actionCreators.OnlyToMain({
+      type: "UNFOLLOW_SECTION",
+      data: {
+        section: sectionKey,
+        section_position: sectionPosition,
+        event_source: "MOZ_BUTTON"
+      }
+    }));
+  }, [dispatch, followedSections, sectionKey, sectionPosition]);
   const {
     maxTile
   } = getMaxTiles(responsiveLayouts);
@@ -10007,7 +10074,9 @@ function CardSection({
     className: following ? "section-follow following" : "section-follow"
   }, /*#__PURE__*/external_React_default().createElement("moz-button", {
     onClick: following ? onUnfollowClick : onFollowClick,
-    type: following ? "destructive" : "default"
+    type: following ? "destructive" : "default",
+    index: sectionPosition,
+    section: sectionKey
   }, /*#__PURE__*/external_React_default().createElement("span", {
     className: "section-button-follow-text",
     "data-l10n-id": "newtab-section-follow-button"
@@ -10024,7 +10093,9 @@ function CardSection({
     followedSections: followedSections,
     sectionKey: sectionKey,
     title: title,
-    type: type
+    type: type,
+    section: sectionKey,
+    sectionPosition: sectionPosition
   }));
   return /*#__PURE__*/external_React_default().createElement("section", {
     className: "ds-section",
@@ -10095,7 +10166,8 @@ function CardSection({
       spocMessageVariant: spocMessageVariant,
       sectionsClassNames: classNames.join(" "),
       section: sectionKey,
-      sectionPosition: sectionPosition
+      sectionPosition: sectionPosition,
+      sectionFollowed: following
     });
   })));
 }

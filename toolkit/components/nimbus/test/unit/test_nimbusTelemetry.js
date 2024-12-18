@@ -6,12 +6,29 @@ const { ExperimentAPI } = ChromeUtils.importESModule(
   "resource://nimbus/ExperimentAPI.sys.mjs"
 );
 
+const { recordTargetingContext } = ChromeUtils.importESModule(
+  "resource://nimbus/lib/TargetingContextRecorder.sys.mjs"
+);
+
+const { JsonSchema } = ChromeUtils.importESModule(
+  "resource://gre/modules/JsonSchema.sys.mjs"
+);
+
 add_setup(function setup() {
   do_get_profile();
   Services.fog.initializeFOG();
 });
 
-add_task(async function test_enrollAndUnenroll() {
+const SCHEMAS = {
+  get nimbusTelemetry() {
+    return fetch(
+      "resource://nimbus/schemas/NimbusTelemetryFeature.schema.json",
+      { credentials: "omit" }
+    ).then(rsp => rsp.json());
+  },
+};
+
+add_task(async function test_enrollAndUnenroll_gleanMetricConfiguration() {
   const experiment = ExperimentFakes.recipe("experiment", {
     bucketConfig: {
       ...ExperimentFakes.recipe.bucketConfig,
@@ -171,4 +188,140 @@ add_task(async function test_enrollAndUnenroll() {
   manager.store._deleteForTests("rollout");
 
   await assertEmptyStore(manager.store);
+});
+
+add_task(async function test_featureConfigSchema_gleanMetricConfiguration() {
+  function metricConfig(metric, value) {
+    return {
+      gleanMetricConfiguration: {
+        metrics_enabled: {
+          [metric]: value,
+        },
+      },
+    };
+  }
+
+  const validator = new JsonSchema.Validator(await SCHEMAS.nimbusTelemetry);
+
+  const ALLOWED = [
+    "nimbus_targeting_environment.targeting_context_value",
+    "nimbus_targeting_environment.pref_type_errors",
+    "nimbus_targeting_environment.attr_eval_errors",
+    "nimbus_targeting_environment.user_set_prefs",
+    "nimbus_targeting_environment.pref_values",
+    "nimbus_targeting_context.active_experiments",
+    "nimbus_targeting_context.active_rollouts",
+    "nimbus_targeting_context.addresses_saved",
+    "nimbus_events.enrollment",
+    "nimbus_events.is_ready",
+    "nimbus_events.enrollment_status",
+  ];
+
+  for (const metric of ALLOWED) {
+    for (const value of [true, false]) {
+      Assert.ok(
+        validator.validate(metricConfig(metric, value)).valid,
+        `Can control ${metric} with nimbusTelemetry`
+      );
+    }
+  }
+
+  Assert.ok(
+    !validator.validate(metricConfig("nimbus_events.enrollment", "true")).valid,
+    "Schema enforces boolean values"
+  );
+
+  Assert.ok(
+    !validator.validate(metricConfig("bogus", true)).valid,
+    "Schema restricts metrics to nimbus metrics"
+  );
+});
+
+add_task(async function test_featureConfigSchema_nimbusTargetingEnvironment() {
+  const validator = new JsonSchema.Validator(await SCHEMAS.nimbusTelemetry);
+
+  Assert.ok(
+    validator.validate({
+      nimbusTargetingEnvironment: {
+        recordAttrs: ["activeExperiments"],
+      },
+    }).valid,
+    "Schema validates"
+  );
+
+  Assert.ok(
+    !validator.validate({
+      nimbusTargetingEnvironment: {
+        recordAttrs: "activeExperiments",
+      },
+    }).valid,
+    "Schema enforces types for recordAttrs"
+  );
+});
+
+add_task(async function test_nimbusTargetingEnvironment_recordAttrs() {
+  const sandbox = sinon.createSandbox();
+  const manager = ExperimentFakes.manager();
+
+  sandbox.stub(ExperimentAPI, "_manager").get(() => manager);
+  sandbox.stub(ExperimentAPI, "_store").get(() => manager.store);
+
+  await manager.onStartup();
+  await manager.store.ready();
+
+  const cleanup = await ExperimentFakes.enrollWithFeatureConfig(
+    {
+      featureId: "nimbusTelemetry",
+      value: {
+        gleanMetricConfiguration: {
+          metrics_enabled: {
+            "nimbus_targeting_environment.targeting_context_value": true,
+          },
+        },
+        nimbusTargetingEnvironment: {
+          recordAttrs: [
+            "activeExperiments",
+            "activeRollouts",
+            "enrollmentsMap",
+          ],
+        },
+      },
+    },
+    {
+      manager,
+      source: "test",
+      slug: "config",
+    }
+  );
+
+  Assert.equal(
+    Glean.nimbusTargetingEnvironment.targetingContextValue.testGetValue(),
+    null,
+    "The targetingContextValue metric has not been recorded yet."
+  );
+
+  GleanPings.nimbusTargetingContext.testBeforeNextSubmit(() => {
+    Assert.deepEqual(
+      JSON.parse(
+        Glean.nimbusTargetingEnvironment.targetingContextValue.testGetValue()
+      ),
+      {
+        activeExperiments: ["config"],
+        activeRollouts: [],
+        enrollmentsMap: [
+          {
+            experimentSlug: "config",
+            branchSlug: "control",
+          },
+        ],
+      }
+    );
+  });
+  await recordTargetingContext();
+
+  await cleanup();
+  await assertEmptyStore(manager.store);
+  await sandbox.restore();
+
+  Services.fog.testResetFOG();
 });

@@ -405,8 +405,8 @@ bool BackgroundParentImpl::DeallocPBackgroundLocalStorageCacheParent(
 }
 
 auto BackgroundParentImpl::AllocPBackgroundStorageParent(
-    const nsAString& aProfilePath,
-    const uint32_t& aPrivateBrowsingId) -> PBackgroundStorageParent* {
+    const nsAString& aProfilePath, const uint32_t& aPrivateBrowsingId)
+    -> PBackgroundStorageParent* {
   AssertIsInMainProcess();
   AssertIsOnBackgroundThread();
 
@@ -660,8 +660,8 @@ bool BackgroundParentImpl::DeallocPCamerasParent(
 }
 
 auto BackgroundParentImpl::AllocPUDPSocketParent(
-    const Maybe<PrincipalInfo>& /* unused */,
-    const nsACString& /* unused */) -> PUDPSocketParent* {
+    const Maybe<PrincipalInfo>& /* unused */, const nsACString& /* unused */)
+    -> PUDPSocketParent* {
   RefPtr<UDPSocketParent> p = new UDPSocketParent(this);
 
   return p.forget().take();

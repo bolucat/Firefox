@@ -55,12 +55,8 @@ using DNSPromise = MozPromise<nsCOMPtr<nsIDNSRecord>, nsresult, false>;
 //-----------------------------------------------------------------------------
 
 // Use to support QI nsIChannel to nsHttpChannel
-#define NS_HTTPCHANNEL_IID                           \
-  {                                                  \
-    0x301bf95b, 0x7bb3, 0x4ae1, {                    \
-      0xa9, 0x71, 0x40, 0xbc, 0xfa, 0x81, 0xde, 0x12 \
-    }                                                \
-  }
+#define NS_HTTPCHANNEL_IID \
+  {0x301bf95b, 0x7bb3, 0x4ae1, {0xa9, 0x71, 0x40, 0xbc, 0xfa, 0x81, 0xde, 0x12}}
 
 class nsHttpChannel final : public HttpBaseChannel,
                             public HttpAsyncAborter<nsHttpChannel>,
