@@ -1467,15 +1467,10 @@ pref("network.auth.private-browsing-sso", false);
 // This feature is occasionally causing visible regressions (download too slow for
 // too long time, jitter in video/audio in background tabs...)
 pref("network.http.throttle.enable", false);
-pref("network.http.throttle.version", 1);
 
 // V1 prefs
 pref("network.http.throttle.suspend-for", 900);
 pref("network.http.throttle.resume-for", 100);
-
-// V2 prefs
-pref("network.http.throttle.read-limit-bytes", 8000);
-pref("network.http.throttle.read-interval-ms", 500);
 
 // Common prefs
 // Delay we resume throttled background responses after the last unthrottled
@@ -4186,3 +4181,6 @@ pref("privacy.query_stripping.strip_on_share.enableTestMode", false);
 
 // To disable the Strip on Share context menu option if nothing can be stripped
 pref("privacy.query_stripping.strip_on_share.canDisable", true);
+
+// Captcha Detection
+pref("captchadetection.loglevel", "Warn");

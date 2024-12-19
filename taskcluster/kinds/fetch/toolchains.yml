@@ -355,11 +355,11 @@ clang-14:
         revision: 4bc1d0b51c8e488d78ab69c8b19cfbcd1f7db6a4
 
 clang-19:
-    description: clang 19.1.4 source code
+    description: clang 19.1.6 source code
     fetch:
         type: git
         repo: https://github.com/llvm/llvm-project
-        revision: aadaa00de76ed0c4987b97450dd638f63a385bed
+        revision: e21dc4bd5474d04b8e62d7331362edcc5648d7e5
 
 clang-trunk:
     description: clang main branch source code
@@ -726,3 +726,10 @@ chromium-depot-tools:
         revision: 5304f2bbb31bad413e029a660097d1da1552e6f4
         artifact-name: chromium-depot-tools.tar.zst
         include-dot-git: true
+
+uv:
+    description: uv 0.5.9 source code
+    fetch:
+        type: git
+        repo: https://github.com/astral-sh/uv
+        revision: 0652800cb018eb086fbbf220a1f73af7e320be54

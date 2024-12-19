@@ -28,6 +28,8 @@ ChromeUtils.defineESModuleGetters(lazy, {
   BrowserUsageTelemetry: "resource:///modules/BrowserUsageTelemetry.sys.mjs",
   BrowserWindowTracker: "resource:///modules/BrowserWindowTracker.sys.mjs",
   BuiltInThemes: "resource:///modules/BuiltInThemes.sys.mjs",
+  CaptchaDetectionPingUtils:
+    "resource://gre/modules/CaptchaDetectionPingUtils.sys.mjs",
   ClientID: "resource://gre/modules/ClientID.sys.mjs",
   CloseRemoteTab: "resource://gre/modules/FxAccountsCommands.sys.mjs",
   CommonDialog: "resource://gre/modules/CommonDialog.sys.mjs",
@@ -813,6 +815,7 @@ let JSWINDOWACTORS = {
         AdClicked: { wantUntrusted: true },
         AdImpression: { wantUntrusted: true },
         DisableShopping: { wantUntrusted: true },
+        CloseShoppingSidebar: { wantUntrusted: true },
       },
     },
     matches: ["about:shoppingsidebar"],
@@ -2056,6 +2059,8 @@ BrowserGlue.prototype = {
       "browser.contentblocking.features.strict",
       this._setPrefExpectationsAndUpdate
     );
+
+    lazy.CaptchaDetectionPingUtils.init();
 
     this._verifySandboxUserNamespaces(aWindow);
   },
@@ -4731,8 +4736,10 @@ BrowserGlue.prototype = {
           template: "multistage",
           id: data?.id || "ABOUT_WELCOME_MODAL",
           backdrop: data?.backdrop,
-          screens: data?.screens,
+          screens: data?.modalScreens || data?.screens,
           UTMTerm: data?.UTMTerm,
+          disableEscClose: data?.requireAction,
+          // displayed as a window modal by default
         },
       },
     };

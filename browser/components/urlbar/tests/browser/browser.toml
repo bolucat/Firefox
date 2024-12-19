@@ -459,6 +459,8 @@ support-files = ["has-a-link.html"]
 
 ["browser_searchModeSwitcher_opensearchInstall.js"]
 
+["browser_searchModeSwitcher_telemetry.js"]
+
 ["browser_searchMode_alias_replacement.js"]
 support-files = [
   "searchSuggestionEngine.xml",
@@ -701,6 +703,9 @@ tags = "search-telemetry"
 
 ["browser_urlbar_telemetry_persisted.js"]
 tags = "search-telemetry"
+skip-if = [
+  "os == 'linux' && os_version == '18.04' && processor == 'x86_64'",
+] # bug 1934362
 
 ["browser_urlbar_telemetry_places.js"]
 https_first_disabled = true

@@ -2082,6 +2082,10 @@ class MOZ_STACK_CLASS ModuleValidator : public ModuleValidatorShared {
   }
   bool declareImport(TaggedParserAtomIndex name, FuncType&& sig,
                      unsigned ffiIndex, uint32_t* importIndex) {
+    if (sig.args().length() > MaxParams) {
+      return failCurrentOffset("too many parameters");
+    }
+
     FuncImportMap::AddPtr p =
         funcImportMap_.lookupForAdd(NamedSig::Lookup(name, sig));
     if (p) {
@@ -2704,6 +2708,9 @@ class MOZ_STACK_CLASS FunctionValidator : public FunctionValidatorShared {
     const TokenStreamAnyChars& anyChars = m().tokenStream().anyCharsAccess();
     auto lineToken = anyChars.lineToken(node->pn_pos.begin);
     uint32_t lineNumber = anyChars.lineNumber(lineToken);
+    if (lineNumber > CallSiteDesc::MAX_LINE_OR_BYTECODE_VALUE) {
+      return fail(node, "line number exceeding implementation limits");
+    }
     return callSiteLineNums_.append(lineNumber);
   }
 };

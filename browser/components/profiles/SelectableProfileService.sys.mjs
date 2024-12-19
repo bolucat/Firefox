@@ -180,7 +180,7 @@ class SelectableProfileServiceClass {
       await this.#profileService.asyncFlush();
     } catch (e) {
       try {
-        await this.#profileService.asyncFlushCurrentProfile();
+        await this.#profileService.asyncFlushGroupProfile();
       } catch (ex) {
         console.error(
           `Failed to flush changes to the profiles database: ${ex}`
@@ -841,6 +841,7 @@ class SelectableProfileServiceClass {
     }
     this.#groupToolkitProfile.rootDir = await aProfile.rootDir;
     await this.#attemptFlushProfileService();
+    Glean.profilesDefault.updated.record();
   }
 
   /**
@@ -1066,6 +1067,9 @@ class SelectableProfileServiceClass {
     if (!this.#currentProfile) {
       let path = this.#profileService.currentProfile.rootDir;
       this.#currentProfile = await this.#createProfile(path);
+
+      // And also set the profile selector window to show at startup (bug 1933911).
+      this.showProfileSelectorWindow(true);
     }
   }
 
