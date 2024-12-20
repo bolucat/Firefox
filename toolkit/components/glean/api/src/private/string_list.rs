@@ -10,11 +10,6 @@ use glean::traits::StringList;
 
 use crate::ipc::{need_ipc, with_ipc_payload};
 
-#[cfg(feature = "with_gecko")]
-use super::profiler_utils::StringLikeMetricMarker;
-#[cfg(feature = "with_gecko")]
-use gecko_profiler::gecko_profiler_category;
-
 /// A string list metric.
 ///
 /// This allows appending a string value with arbitrary content to a list.
@@ -72,14 +67,11 @@ impl StringList for StringListMetric {
             StringListMetric::Parent { id, inner } => {
                 let value = value.into();
                 #[cfg(feature = "with_gecko")]
-                if gecko_profiler::can_accept_markers() {
-                    gecko_profiler::add_marker(
-                        "StringList::add",
-                        gecko_profiler_category!(Telemetry),
-                        Default::default(),
-                        StringLikeMetricMarker::new(*id, &value),
-                    );
-                }
+                gecko_profiler::lazy_add_marker!(
+                    "StringList::add",
+                    super::profiler_utils::TelemetryProfilerCategory,
+                    super::profiler_utils::StringLikeMetricMarker::new(*id, &value)
+                );
                 inner.add(value);
             }
             StringListMetric::Child(c) => {
@@ -111,17 +103,14 @@ impl StringList for StringListMetric {
             #[allow(unused)]
             StringListMetric::Parent { id, inner } => {
                 #[cfg(feature = "with_gecko")]
-                if gecko_profiler::can_accept_markers() {
-                    gecko_profiler::add_marker(
-                        "StringList::set",
-                        gecko_profiler_category!(Telemetry),
-                        Default::default(),
-                        StringLikeMetricMarker::new_owned(
-                            *id,
-                            format!("[{}]", value.clone().join(",")),
-                        ),
-                    );
-                }
+                gecko_profiler::lazy_add_marker!(
+                    "StringList::set",
+                    super::profiler_utils::TelemetryProfilerCategory,
+                    super::profiler_utils::StringLikeMetricMarker::new_owned(
+                        *id,
+                        format!("[{}]", value.clone().join(","))
+                    )
+                );
                 inner.set(value);
             }
             StringListMetric::Child(c) => {

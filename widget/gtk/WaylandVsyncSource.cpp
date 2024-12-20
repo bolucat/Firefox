@@ -101,7 +101,7 @@ void WaylandVsyncSource::Init() {
         // So always set up hidden window callback to catch it up.
         SetHiddenWindowVSync();
       },
-      /* aEmulateFrameCallback */ false);
+      /* aEmulateFrameCallback */ true);
 }
 
 WaylandVsyncSource::WaylandVsyncSource(nsWindow* aWindow)
@@ -113,9 +113,7 @@ WaylandVsyncSource::WaylandVsyncSource(nsWindow* aWindow)
       mHiddenWindowTimeout(1000 / StaticPrefs::layout_throttled_frame_rate()) {
   MOZ_ASSERT(NS_IsMainThread());
   gWaylandVsyncSources.AppendElement(this);
-
   LOG("WaylandVsyncSource::WaylandVsyncSource()");
-  Init();
 }
 
 WaylandVsyncSource::~WaylandVsyncSource() {

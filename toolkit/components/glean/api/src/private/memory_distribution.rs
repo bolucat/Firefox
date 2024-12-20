@@ -15,10 +15,8 @@ use crate::ipc::{need_ipc, with_ipc_payload};
 #[cfg(feature = "with_gecko")]
 use super::profiler_utils::{
     truncate_vector_for_marker, DistributionMetricMarker, DistributionValues,
+    TelemetryProfilerCategory,
 };
-
-#[cfg(feature = "with_gecko")]
-use gecko_profiler::{gecko_profiler_category, MarkerOptions};
 
 /// A memory distribution metric.
 ///
@@ -93,18 +91,11 @@ impl MemoryDistributionMetric {
             }
         };
         #[cfg(feature = "with_gecko")]
-        if gecko_profiler::can_accept_markers() {
-            gecko_profiler::add_marker(
-                "MemoryDistribution::accumulate",
-                gecko_profiler_category!(Telemetry),
-                MarkerOptions::default(),
-                DistributionMetricMarker::new(
-                    id,
-                    None,
-                    DistributionValues::Samples(marker_samples),
-                ),
-            );
-        }
+        gecko_profiler::lazy_add_marker!(
+            "MemoryDistribution::accumulate",
+            TelemetryProfilerCategory,
+            DistributionMetricMarker::new(id, None, DistributionValues::Samples(marker_samples))
+        );
     }
 
     pub fn start_buffer(&self) -> LocalMemoryDistribution<'_> {
@@ -180,14 +171,11 @@ impl MemoryDistribution for MemoryDistributionMetric {
             }
         };
         #[cfg(feature = "with_gecko")]
-        if gecko_profiler::can_accept_markers() {
-            gecko_profiler::add_marker(
-                "MemoryDistribution::accumulate",
-                gecko_profiler_category!(Telemetry),
-                MarkerOptions::default(),
-                DistributionMetricMarker::new(id, None, DistributionValues::Sample(sample)),
-            );
-        }
+        gecko_profiler::lazy_add_marker!(
+            "MemoryDistribution::accumulate",
+            TelemetryProfilerCategory,
+            DistributionMetricMarker::new(id, None, DistributionValues::Sample(sample))
+        );
     }
 
     /// **Test-only API.**

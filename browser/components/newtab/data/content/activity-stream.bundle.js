@@ -113,6 +113,7 @@ for (const type of [
   "DELETE_FROM_POCKET",
   "DELETE_HISTORY_URL",
   "DIALOG_CANCEL",
+  "DIALOG_CLOSE",
   "DIALOG_OPEN",
   "DISABLE_SEARCH",
   "DISCOVERY_STREAM_COLLECTION_DISMISSIBLE_TOGGLE",
@@ -1798,6 +1799,11 @@ const LinkMenuOptions = {
               siteInfo
             )
           ),
+          // Also broadcast that this url has been deleted so that
+          // the confirmation dialog knows it needs to disappear now.
+          actionCreators.AlsoToMain({
+            type: actionTypes.DIALOG_CLOSE,
+          }),
         ],
         eventSource,
         body_string_id: [
@@ -2035,27 +2041,53 @@ const LinkMenuOptions = {
       type: actionTypes.OPEN_ABOUT_FAKESPOT,
     }),
   }),
-  SectionBlock: ({ section, sectionPosition }) => ({
+  SectionBlock: ({ blockedSections, sectionKey, sectionPosition }) => ({
     id: "newtab-menu-section-block",
-    // Note: Action TBA. It will send a list of blocked sections back to the API.
-    // TODO: Move current action (at.BLOCK_SECTION) to impression event when action is no longer TBA
-    action: actionCreators.OnlyToMain({
-      type: actionTypes.BLOCK_SECTION,
+    icon: "delete",
+    action: {
+      // Open the confirmation dialog to block a section.
+      type: actionTypes.DIALOG_OPEN,
       data: {
-        section,
-        section_position: sectionPosition,
-        event_source: "CONTEXT_MENU",
+        onConfirm: [
+          // Once the user confirmed their intention to block this section,
+          // update their preferences.
+          actionCreators.AlsoToMain({
+            type: actionTypes.SET_PREF,
+            data: {
+              name: "discoverystream.sections.blocked",
+              value: [...blockedSections, sectionKey].join(", "),
+            },
+          }),
+          // Telemetry
+          actionCreators.OnlyToMain({
+            type: actionTypes.BLOCK_SECTION,
+            data: {
+              section: sectionKey,
+              section_position: sectionPosition,
+              event_source: "CONTEXT_MENU",
+            },
+          }),
+          // Also broadcast that this section has been blocked so that
+          // the confirmation dialog knows it needs to disappear now.
+          actionCreators.AlsoToMain({
+            type: actionTypes.DIALOG_CLOSE,
+          }),
+        ],
+        // Pass Fluent strings to ConfirmDialog component for the copy
+        // of the prompt to block sections.
+        body_string_id: [
+          "newtab-section-confirm-block-section-p1",
+          "newtab-section-confirm-block-section-p2",
+        ],
+        confirm_button_string_id: "newtab-section-block-section-button",
+        cancel_button_string_id: "newtab-section-cancel-button",
       },
-    }),
+    },
+    userEvent: "DIALOG_OPEN",
   }),
-  SectionUnfollow: ({
-    followedSections,
-    section,
-    sectionKey,
-    sectionPosition,
-  }) => ({
+  SectionUnfollow: ({ followedSections, sectionKey, sectionPosition }) => ({
     id: "newtab-menu-section-unfollow",
-    action: actionCreators.OnlyToMain({
+    action: actionCreators.AlsoToMain({
       type: actionTypes.SET_PREF,
       data: {
         name: "discoverystream.sections.following",
@@ -2067,7 +2099,7 @@ const LinkMenuOptions = {
     impression: actionCreators.OnlyToMain({
       type: actionTypes.UNFOLLOW_SECTION,
       data: {
-        section,
+        section: sectionKey,
         section_position: sectionPosition,
         event_source: "CONTEXT_MENU",
       },
@@ -4233,7 +4265,8 @@ const AdBanner = ({
   spoc,
   dispatch,
   firstVisibleTimestamp,
-  row
+  row,
+  type
 }) => {
   const getDimensions = format => {
     switch (format) {
@@ -4267,8 +4300,9 @@ const AdBanner = ({
         flight_id: spoc.flight_id,
         format: spoc.format,
         id: spoc.id,
-        is_pocket_card: spoc.is_pocket_card,
-        position: spoc.pos,
+        card_type: "spoc",
+        is_pocket_card: true,
+        position: row,
         sponsor: spoc.sponsor,
         title: spoc.title,
         url: spoc.url || spoc.shim.url,
@@ -4277,6 +4311,24 @@ const AdBanner = ({
         score: spoc.score,
         alt_text: spoc.alt_text
       }]
+    }));
+  };
+  const onLinkCLick = () => {
+    dispatch(actionCreators.DiscoveryStreamUserEvent({
+      event: "CLICK",
+      source: type.toUpperCase(),
+      // Banner ads dont have a position, but a row number
+      action_position: row,
+      value: {
+        card_type: "spoc",
+        tile_id: spoc.id,
+        ...(spoc.shim?.click ? {
+          shim: spoc.shim.click
+        } : {}),
+        fetchTimestamp: spoc.fetchTimestamp,
+        firstVisibleTimestamp,
+        format: spoc.format
+      }
     }));
   };
 
@@ -4299,16 +4351,18 @@ const AdBanner = ({
   })), /*#__PURE__*/external_React_default().createElement(SafeAnchor, {
     className: "ad-banner-link",
     url: spoc.url,
-    title: spoc.title
+    title: spoc.title,
+    onLinkClick: onLinkCLick,
+    dispatch: dispatch
   }, /*#__PURE__*/external_React_default().createElement(ImpressionStats_ImpressionStats, {
     flightId: spoc.flight_id,
     rows: [{
       id: spoc.id,
-      pos: spoc.pos,
-      corpus_item_id: spoc.corpus_item_id,
-      scheduled_corpus_item_id: spoc.scheduled_corpus_item_id,
+      card_type: "spoc",
+      pos: row,
       recommended_at: spoc.recommended_at,
-      received_rank: spoc.received_rank
+      received_rank: spoc.received_rank,
+      format: spoc.format
     }],
     dispatch: dispatch,
     firstVisibleTimestamp: firstVisibleTimestamp
@@ -4355,7 +4409,7 @@ const PREF_LIST_FEED_SELECTED_FEED = "discoverystream.contextualContent.selected
 const PREF_FAKESPOT_ENABLED = "discoverystream.contextualContent.fakespot.enabled";
 const PREF_BILLBOARD_ENABLED = "newtabAdSize.billboard";
 const PREF_LEADERBOARD_ENABLED = "newtabAdSize.leaderboard";
-const PREF_LEADERBOARD_POSITION = "newtabAdSize.billboard.position";
+const PREF_LEADERBOARD_POSITION = "newtabAdSize.leaderboard.position";
 const PREF_BILLBOARD_POSITION = "newtabAdSize.billboard.position";
 const CardGrid_INTERSECTION_RATIO = 0.5;
 const CardGrid_VISIBLE = "visible";
@@ -6916,7 +6970,8 @@ function Dialog(prevState = INITIAL_STATE.Dialog, action) {
       return Object.assign({}, prevState, { visible: true, data: action.data });
     case actionTypes.DIALOG_CANCEL:
       return Object.assign({}, prevState, { visible: false });
-    case actionTypes.DELETE_HISTORY_URL:
+    case actionTypes.DIALOG_CLOSE:
+      // Reset and hide the confirmation dialog once the action is complete.
       return Object.assign({}, INITIAL_STATE.Dialog);
     default:
       return prevState;
@@ -7461,6 +7516,12 @@ function DiscoveryStream(prevState = INITIAL_STATE.DiscoveryStream, action) {
       return {
         ...prevState,
         showTopicSelection: false,
+      };
+    case actionTypes.SECTION_BLOCKED:
+      return {
+        ...prevState,
+        showBlockSectionConfirmation: true,
+        sectionData: action.data,
       };
     default:
       return prevState;
@@ -8570,9 +8631,11 @@ class _TopSiteList extends (external_React_default()).PureComponent {
       }
       topSitesUI.push(topSiteLink);
     }
-    return /*#__PURE__*/external_React_default().createElement("ul", {
+    return /*#__PURE__*/external_React_default().createElement("div", {
+      className: "top-sites-list-wrapper"
+    }, /*#__PURE__*/external_React_default().createElement("ul", {
       className: `top-sites-list${this.state.draggedSite ? " dnd-active" : ""}`
-    }, topSitesUI);
+    }, topSitesUI));
   }
 }
 const TopSiteList = (0,external_ReactRedux_namespaceObject.connect)(state => ({
@@ -9909,7 +9972,7 @@ function SectionContextMenu({
   sectionKey,
   following,
   followedSections,
-  section,
+  blockedSections,
   sectionPosition
 }) {
   // Initial context menu options: block this section only.
@@ -9942,7 +10005,7 @@ function SectionContextMenu({
     shouldSendImpressionStats: true,
     site: {
       followedSections,
-      section,
+      blockedSections,
       sectionKey,
       sectionPosition
     }
@@ -9968,6 +10031,7 @@ const PREF_SECTIONS_PERSONALIZATION_ENABLED = "discoverystream.sections.personal
 const CardSections_PREF_TOPICS_ENABLED = "discoverystream.topicLabels.enabled";
 const CardSections_PREF_TOPICS_SELECTED = "discoverystream.topicSelection.selectedTopics";
 const PREF_FOLLOWED_SECTIONS = "discoverystream.sections.following";
+const PREF_BLOCKED_SECTIONS = "discoverystream.sections.blocked";
 const CardSections_PREF_TOPICS_AVAILABLE = "discoverystream.topicSelection.topics";
 const CardSections_PREF_THUMBS_UP_DOWN_ENABLED = "discoverystream.thumbsUpDown.enabled";
 function getLayoutData(responsiveLayouts, index) {
@@ -9997,6 +10061,17 @@ function getMaxTiles(responsiveLayouts) {
     return acc;
   }, {});
 }
+
+/**
+ * Transforms a comma-separated string of topics in user preferences
+ * into a cleaned-up array.
+ *
+ * @param pref
+ * @returns string[]
+ */
+const getTopics = pref => {
+  return pref.split(",").map(item => item.trim()).filter(item => item);
+};
 function CardSection({
   sectionPosition,
   section,
@@ -10016,6 +10091,7 @@ function CardSection({
   const selectedTopics = prefs[CardSections_PREF_TOPICS_SELECTED];
   const availableTopics = prefs[CardSections_PREF_TOPICS_AVAILABLE];
   const followedSectionsPref = prefs[PREF_FOLLOWED_SECTIONS] || "";
+  const blockedSectionsPref = prefs[PREF_BLOCKED_SECTIONS] || "";
   const {
     saveToPocketCard
   } = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.DiscoveryStream);
@@ -10028,8 +10104,9 @@ function CardSection({
   const {
     responsiveLayouts
   } = section.layout;
-  const followedSections = followedSectionsPref.split(",").map(s => s.trim()).filter(item => item);
+  const followedSections = getTopics(followedSectionsPref);
   const following = followedSections.includes(sectionKey);
+  const blockedSections = getTopics(blockedSectionsPref);
   const handleIntersection = (0,external_React_namespaceObject.useCallback)(() => {
     dispatch(actionCreators.AlsoToMain({
       type: actionTypes.CARD_SECTION_IMPRESSION,
@@ -10102,10 +10179,10 @@ function CardSection({
     index: sectionPosition,
     following: following,
     followedSections: followedSections,
+    blockedSections: blockedSections,
     sectionKey: sectionKey,
     title: title,
     type: type,
-    section: sectionKey,
     sectionPosition: sectionPosition
   }));
   return /*#__PURE__*/external_React_default().createElement("section", {
@@ -10193,13 +10270,18 @@ function CardSections({
   ctaButtonVariant,
   ctaButtonSponsors
 }) {
+  const prefs = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Prefs.values);
+
   // Handle a render before feed has been fetched by displaying nothing
   if (!data) {
     return null;
   }
-  const {
-    sections
-  } = data;
+
+  // Retrieve blocked sections
+  const blockedSections = getTopics(prefs[PREF_BLOCKED_SECTIONS] || "");
+
+  // Only show sections that haven't been blocked by the user
+  const sections = data.sections.filter(section => !blockedSections.includes(section.sectionKey));
   const isEmpty = sections.length === 0;
   return isEmpty ? /*#__PURE__*/external_React_default().createElement("div", {
     className: "ds-card-grid empty"

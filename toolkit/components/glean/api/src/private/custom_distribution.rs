@@ -14,9 +14,8 @@ use glean::traits::CustomDistribution;
 #[cfg(feature = "with_gecko")]
 use super::profiler_utils::{
     truncate_vector_for_marker, DistributionMetricMarker, DistributionValues,
+    TelemetryProfilerCategory,
 };
-#[cfg(feature = "with_gecko")]
-use gecko_profiler::{gecko_profiler_category, MarkerOptions};
 
 /// A custom distribution metric.
 ///
@@ -138,18 +137,11 @@ impl CustomDistribution for CustomDistributionMetric {
         };
 
         #[cfg(feature = "with_gecko")]
-        if gecko_profiler::can_accept_markers() {
-            gecko_profiler::add_marker(
-                "CustomDistribution::accumulate",
-                gecko_profiler_category!(Telemetry),
-                MarkerOptions::default(),
-                DistributionMetricMarker::new(
-                    id,
-                    None,
-                    DistributionValues::Samples(marker_samples),
-                ),
-            );
-        }
+        gecko_profiler::lazy_add_marker!(
+            "CustomDistribution::accumulate",
+            TelemetryProfilerCategory,
+            DistributionMetricMarker::new(id, None, DistributionValues::Samples(marker_samples),)
+        );
     }
 
     pub fn accumulate_single_sample_signed(&self, sample: i64) {
@@ -171,14 +163,11 @@ impl CustomDistribution for CustomDistributionMetric {
             }
         };
         #[cfg(feature = "with_gecko")]
-        if gecko_profiler::can_accept_markers() {
-            gecko_profiler::add_marker(
-                "CustomDistribution::accumulate",
-                gecko_profiler_category!(Telemetry),
-                MarkerOptions::default(),
-                DistributionMetricMarker::new(id, None, DistributionValues::Sample(sample)),
-            );
-        }
+        gecko_profiler::lazy_add_marker!(
+            "CustomDistribution::accumulate",
+            TelemetryProfilerCategory,
+            DistributionMetricMarker::new(id, None, DistributionValues::Sample(sample))
+        );
     }
 
     pub fn test_get_value<'a, S: Into<Option<&'a str>>>(
