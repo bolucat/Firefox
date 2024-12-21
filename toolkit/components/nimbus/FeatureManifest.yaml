@@ -2316,6 +2316,18 @@ networking:
       setPref:
         branch: default
         pref: "network.cookie.chips.partitionLimitByteCapacity"
+    dnsGracePeriod:
+      description: The grace period allows the DNS cache to use expired entries, while kicking off a revalidation in the background.
+      type: int
+      setPref:
+        branch: default
+        pref: "network.dnsCacheExpirationGracePeriod"
+    maxDnsCacheEntries:
+      description: This is the number of dns cache entries allowed
+      type: int
+      setPref:
+        branch: default
+        pref: "network.dnsCacheEntries"
 
 disableHttp3:
   description: "Whether HTTP/3 is disabled"
@@ -2827,6 +2839,16 @@ fxaButtonVisibility:
       setPref:
         branch: user
         pref: identity.fxaccounts.toolbar.pxiToolbarEnabled.vpnEnabled
+    avatarIconVariant:
+      description: >-
+        Controls the icon that appears in the toolbar button when in the
+        signed-out state.
+
+        One of the following values:
+          - control
+          - human-circle
+          - fox-circle
+      type: string
 
 syncSetupFlow:
   description: Prefs to control the updated Mozilla account panel flow for users without sync enabled.
