@@ -2484,7 +2484,7 @@
 # Enable/disable contenteditable="plaintext-only".
 - name: dom.element.contenteditable.plaintext-only.enabled
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # Whether Dialog elements emit beforetoggle and toggle events during opening and closing.
@@ -2642,7 +2642,7 @@
 # and `contextmenu`)
 - name: dom.event.pointer.fractional_coordinates.enabled
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Whether wheel event target's should be grouped. When enabled, all wheel
@@ -2691,7 +2691,7 @@
 # target is removed from the DOM tree.
 - name: dom.events.mouse-pointer-boundary.keep-enter-targets-after-over-target-removed
   type: bool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 # Whether .offset{X,Y} for events targeted at SVG nodes returns bounds relative
