@@ -426,6 +426,8 @@ https_first_disabled = true
 
 ["browser_restrict_keywords_autofill.js"]
 
+["browser_restrict_keywords_autofill_locales.js"]
+
 ["browser_resultSpan.js"]
 
 ["browser_result_menu.js"]
@@ -454,6 +456,8 @@ tags = "persisted-search"
 
 ["browser_searchModeSwitcher_dynamicUnifiedSearchButton.js"]
 support-files = ["has-a-link.html"]
+
+["browser_searchModeSwitcher_emptyInput.js"]
 
 ["browser_searchModeSwitcher_keyNavigation.js"]
 
