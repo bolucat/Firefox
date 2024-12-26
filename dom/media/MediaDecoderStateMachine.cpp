@@ -666,9 +666,9 @@ class MediaDecoderStateMachine::DecodingState
   }
 
   void HandlePlayStateChanged(MediaDecoder::PlayState aPlayState) override {
+    // Schedule Step() to check if we can start or stop playback.
+    mMaster->ScheduleStateMachine();
     if (aPlayState == MediaDecoder::PLAY_STATE_PLAYING) {
-      // Schedule Step() to check if we can start playback.
-      mMaster->ScheduleStateMachine();
       // Try to dispatch decoding tasks for mMinimizePreroll might be reset.
       DispatchDecodeTasksIfNeeded();
     }
@@ -2626,6 +2626,18 @@ class MediaDecoderStateMachine::BufferingState
     }
 
     mBufferingStart = TimeStamp::Now();
+    // Playback is now stopped, so there is no need to connect to the queues'
+    // PopFrontEvent()s, but frames may have been recently popped before the
+    // transition from DECODING.
+    if (mMaster->IsAudioDecoding() && !mMaster->HaveEnoughDecodedAudio() &&
+        !mMaster->IsRequestingAudioData() && !mMaster->IsWaitingAudioData()) {
+      mMaster->RequestAudioData();
+    }
+    if (mMaster->IsVideoDecoding() && !mMaster->HaveEnoughDecodedVideo() &&
+        !mMaster->IsRequestingVideoData() && !mMaster->IsWaitingVideoData()) {
+      mMaster->RequestVideoData(TimeUnit());
+    }
+
     mMaster->ScheduleStateMachineIn(TimeUnit::FromMicroseconds(USECS_PER_S));
     mMaster->mOnNextFrameStatus.Notify(
         MediaDecoderOwner::NEXT_FRAME_UNAVAILABLE_BUFFERING);
