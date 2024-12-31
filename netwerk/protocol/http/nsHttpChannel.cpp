@@ -72,7 +72,6 @@
 #include "nsContentUtils.h"
 #include "nsContentSecurityManager.h"
 #include "nsIClassOfService.h"
-#include "CookieService.h"
 #include "nsIPrincipal.h"
 #include "nsIScriptError.h"
 #include "nsIScriptSecurityManager.h"
@@ -257,25 +256,6 @@ nsresult Hash(const char* buf, nsACString& hash) {
   return NS_OK;
 }
 
-class CookieVisitor final {
- public:
-  explicit CookieVisitor(nsHttpResponseHead* aResponseHead) {
-    nsAutoCString cookieHeader;
-    if (NS_SUCCEEDED(
-            aResponseHead->GetHeader(nsHttp::Set_Cookie, cookieHeader))) {
-      for (const auto& cookie : cookieHeader.Split('\n')) {
-        mCookieHeaders.AppendElement(cookie);
-      }
-    }
-  }
-
-  ~CookieVisitor() = default;
-
-  const nsTArray<nsCString>& CookieHeaders() const { return mCookieHeaders; }
-
- private:
-  nsTArray<nsCString> mCookieHeaders;
-};
 }  // unnamed namespace
 
 // We only treat 3xx responses as redirects if they have a Location header and
@@ -1062,12 +1042,14 @@ nsresult nsHttpChannel::HandleOverrideResponse() {
   }
 
   // Handle Set-Cookie headers as if the response was from networking.
-  CookieVisitor cookieVisitor(mResponseHead.get());
-  SetCookieHeaders(cookieVisitor.CookieHeaders());
-  nsCOMPtr<nsIParentChannel> parentChannel;
-  NS_QueryNotificationCallbacks(this, parentChannel);
-  if (RefPtr<HttpChannelParent> httpParent = do_QueryObject(parentChannel)) {
-    httpParent->SetCookieHeaders(cookieVisitor.CookieHeaders());
+  if (nsAutoCString cookie;
+      NS_SUCCEEDED(mResponseHead->GetHeader(nsHttp::Set_Cookie, cookie))) {
+    SetCookie(cookie);
+    nsCOMPtr<nsIParentChannel> parentChannel;
+    NS_QueryNotificationCallbacks(this, parentChannel);
+    if (RefPtr<HttpChannelParent> httpParent = do_QueryObject(parentChannel)) {
+      httpParent->SetCookie(std::move(cookie));
+    }
   }
 
   rv = ProcessSecurityHeaders();
@@ -2729,12 +2711,15 @@ nsresult nsHttpChannel::ContinueProcessResponse1() {
   // for Strict-Transport-Security.
   if (!(mTransaction && mTransaction->ProxyConnectFailed()) &&
       (httpStatus != 407)) {
-    CookieVisitor cookieVisitor(mResponseHead.get());
-    SetCookieHeaders(cookieVisitor.CookieHeaders());
-    nsCOMPtr<nsIParentChannel> parentChannel;
-    NS_QueryNotificationCallbacks(this, parentChannel);
-    if (RefPtr<HttpChannelParent> httpParent = do_QueryObject(parentChannel)) {
-      httpParent->SetCookieHeaders(cookieVisitor.CookieHeaders());
+    if (nsAutoCString cookie;
+        NS_SUCCEEDED(mResponseHead->GetHeader(nsHttp::Set_Cookie, cookie))) {
+      SetCookie(cookie);
+      nsCOMPtr<nsIParentChannel> parentChannel;
+      NS_QueryNotificationCallbacks(this, parentChannel);
+      if (RefPtr<HttpChannelParent> httpParent =
+              do_QueryObject(parentChannel)) {
+        httpParent->SetCookie(std::move(cookie));
+      }
     }
 
     // Given a successful connection, process any STS or PKP data that's
@@ -7173,10 +7158,6 @@ nsresult nsHttpChannel::BeginConnect() {
   }
 
   MaybeStartDNSPrefetch();
-
-  // Update whether the channel is on the third-party cookie blocking exception
-  // list.
-  CookieService::Update3PCBExceptionInfo(this);
 
   rv = CallOrWaitForResume(
       [](nsHttpChannel* self) { return self->PrepareToConnect(); });
