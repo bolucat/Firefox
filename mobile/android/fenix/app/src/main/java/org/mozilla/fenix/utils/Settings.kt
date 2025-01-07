@@ -1775,6 +1775,14 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     )
 
     /**
+     * Indicates if the search bar CFR should be displayed to the user.
+     */
+    var shouldShowSearchBarCFR by booleanPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_should_searchbar_cfr),
+        default = false,
+    )
+
+    /**
      * Indicates Navigation Bar's Navigation buttons CFR should be displayed to the user.
      */
     var shouldShowNavigationButtonsCFR by booleanPreference(
@@ -2162,6 +2170,14 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     var numberOfSetAsDefaultPromptShownTimes by intPreference(
         appContext.getPreferenceKey(R.string.pref_key_number_of_set_as_default_prompt_shown_times),
         default = 0,
+    )
+
+    /**
+     * Indicates if the Set as default Browser prompt was displayed while onboarding.
+     */
+    var promptToSetAsDefaultBrowserDisplayedInOnboarding by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_app_is_onboarding_set_as_default_displayed),
+        default = false,
     )
 
     /**
