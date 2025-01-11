@@ -2439,7 +2439,8 @@ void MediaFormatReader::Update(TrackType aTrack) {
           mimeType.get());
       decoder.RejectPromise(decoder.mError.ref(), __func__);
       return;
-    } else if (decoder.HasCompletedDrain()) {
+    } else if (decoder.HasCompletedDrain() ||
+               decoder.HasInternalSeekWaiting()) {
       if (decoder.mDemuxEOS) {
         LOG("Rejecting %s promise: EOS", TrackTypeToStr(aTrack));
         if (aTrack == TrackInfo::kVideoTrack) {
@@ -2469,8 +2470,10 @@ void MediaFormatReader::Update(TrackType aTrack) {
       // Now that draining has completed, we check if we have received
       // new data again as the result may now be different from the earlier
       // run.
-      if (UpdateReceivedNewData(aTrack) || decoder.mSeekRequest.Exists()) {
-        LOGV("Nothing more to do");
+      if (UpdateReceivedNewData(aTrack) || decoder.HasInternalSeekPending()) {
+        LOGV("%s: Nothing more to do", decoder.HasInternalSeekWaiting()
+                                           ? "Waiting during internal seek"
+                                           : "Completed drain");
         return;
       }
     } else if (decoder.mDemuxEOS && !decoder.HasPendingDrain() &&
@@ -2629,8 +2632,7 @@ void MediaFormatReader::Update(TrackType aTrack) {
     return;
   }
 
-  if ((decoder.IsWaitingForData() &&
-       (!decoder.mTimeThreshold || decoder.mTimeThreshold.ref().mWaiting)) ||
+  if ((decoder.IsWaitingForData() && !decoder.mTimeThreshold) ||
       (decoder.IsWaitingForKey())) {
     // Nothing more we can do at present.
     LOGV("Still waiting for data or key. data(%d)/key(%d)",

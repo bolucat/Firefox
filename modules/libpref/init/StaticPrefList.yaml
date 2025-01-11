@@ -2203,6 +2203,7 @@
 # Prefs starting with "datareporting."
 #---------------------------------------------------------------------------
 
+# Do note that the toggle on Fenix and Focus does NOT reflect to this pref.
 - name: datareporting.healthreport.uploadEnabled
   type: RelaxedAtomicBool
   value: false
@@ -4508,6 +4509,12 @@
   value: 0
   mirror: always
 
+# This enables the SVGPathSegment APIs
+- name: dom.svg.pathSegment.enabled
+  type: bool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+
 # For area and anchor elements with target=_blank and no rel set to
 # opener/noopener.
 - name: dom.targetBlankNoOpener.enabled
@@ -5024,7 +5031,7 @@
 # Is support for the Web GPU API enabled on DOM workers?
 - name: dom.webgpu.workers.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Are WebGPU indirect draws enabled?
@@ -13442,11 +13449,7 @@
 # Use platform DNS APIs (where available) to resolve HTTPS queries
 - name: network.dns.native_https_query
   type: RelaxedAtomicBool
-#if !defined(XP_MACOSX)
   value: true
-#else
-  value: false
-#endif
   mirror: always
 
 # DnsQuery_A is broken for HTTPS queries on Windows 10.
@@ -16531,6 +16534,12 @@
 - name: svg.SVGAElement.text.enabled
   type: bool
   value: false
+  mirror: always
+
+# This enables discard processing
+- name: svg.discard.enabled
+  type: bool
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Tweak which elements are allowed in <svg:use> subtrees, and in which
