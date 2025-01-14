@@ -101,13 +101,10 @@ class OnboardingFragment : Fragment() {
         LocalBroadcastManager.getInstance(context)
             .registerReceiver(pinAppWidgetReceiver, filter)
 
-        if (isNotDefaultBrowser(context) &&
-            activity?.isDefaultBrowserPromptSupported() == true &&
-            !requireContext().settings().promptToSetAsDefaultBrowserDisplayedInOnboarding
-        ) {
-            requireComponents.strictMode.resetAfter(StrictMode.allowThreadDiskReads()) {
-                promptToSetAsDefaultBrowser()
-            }
+        // We want the prompt to be displayed once per onboarding opening.
+        // In case the host got recreated, we don't reset the flag.
+        if (savedInstanceState == null) {
+            requireContext().settings().promptToSetAsDefaultBrowserDisplayedInOnboarding = false
         }
 
         telemetryRecorder.onOnboardingStarted()
@@ -124,8 +121,6 @@ class OnboardingFragment : Fragment() {
                 ScreenContent()
             }
         }
-
-        requireContext().settings().promptToSetAsDefaultBrowserDisplayedInOnboarding = false
     }
 
     override fun onResume() {
@@ -219,6 +214,11 @@ class OnboardingFragment : Fragment() {
                     pageType = it.type,
                     sequencePosition = pagesToDisplay.sequencePosition(it.type),
                 )
+
+                maybePromptToSetAsDefaultBrowser(
+                    pagesToDisplay = pagesToDisplay,
+                    currentCard = it,
+                )
             },
             onboardingStore = onboardingStore,
             onInstallAddOnButtonClick = { installUrl -> installAddon(installUrl) },
@@ -233,23 +233,9 @@ class OnboardingFragment : Fragment() {
                     onboardingStore.state.toolbarOptionSelected.id,
                 )
             },
-            onSkipCustomizeToolbarClick = {
-                telemetryRecorder.onSkipToolbarPlacementClick(
-                    pagesToDisplay.telemetrySequenceId(),
-                    pagesToDisplay.sequencePosition(OnboardingPageUiData.Type.TOOLBAR_PLACEMENT),
-                )
-            },
-
             onCustomizeThemeClick = {
                 telemetryRecorder.onSelectThemeClick(
                     onboardingStore.state.themeOptionSelected.id,
-                    pagesToDisplay.telemetrySequenceId(),
-                    pagesToDisplay.sequencePosition(OnboardingPageUiData.Type.THEME_SELECTION),
-                )
-            },
-
-            onCustomizeThemeSkip = {
-                telemetryRecorder.onSkipThemeClick(
                     pagesToDisplay.telemetrySequenceId(),
                     pagesToDisplay.sequencePosition(OnboardingPageUiData.Type.THEME_SELECTION),
                 )
@@ -332,8 +318,7 @@ class OnboardingFragment : Fragment() {
         requireContext().settings().shouldShowSearchBarCFR = FxNimbus.features.encourageSearchCfr.value().enabled
     }
 
-    // Marked as internal since it is used in unit tests
-    internal fun isNotDefaultBrowser(context: Context) =
+    private fun isNotDefaultBrowser(context: Context) =
         !BrowsersCache.all(context.applicationContext).isDefaultBrowser
 
     private fun canShowNotificationPage(context: Context) =
@@ -375,6 +360,31 @@ class OnboardingFragment : Fragment() {
                 showAddWidgetPage,
                 jexlConditions,
             ) { condition -> jexlHelper.evalJexlSafe(condition) }
+        }
+    }
+
+    private fun maybePromptToSetAsDefaultBrowser(
+        pagesToDisplay: List<OnboardingPageUiData>,
+        currentCard: OnboardingPageUiData,
+    ) {
+        val shouldWaitForTOSToBeAccepted = pagesToDisplay.find {
+            it.type == OnboardingPageUiData.Type.TERMS_OF_SERVICE
+        }?.let { tosCard ->
+            val tosPosition = pagesToDisplay.indexOfFirst { it.type == tosCard.type }
+            val currentPosition = pagesToDisplay.indexOfFirst { it.type == currentCard.type }
+            tosPosition >= currentPosition
+        } ?: false
+
+        val shouldPromptToSetAsDefaultBrowser = isNotDefaultBrowser(requireContext()) &&
+            activity?.isDefaultBrowserPromptSupported() == true &&
+            !shouldWaitForTOSToBeAccepted &&
+            !requireContext().settings().promptToSetAsDefaultBrowserDisplayedInOnboarding
+
+        if (shouldPromptToSetAsDefaultBrowser) {
+            requireComponents.strictMode.resetAfter(StrictMode.allowThreadDiskReads()) {
+                promptToSetAsDefaultBrowser()
+                requireContext().settings().promptToSetAsDefaultBrowserDisplayedInOnboarding = true
+            }
         }
     }
 

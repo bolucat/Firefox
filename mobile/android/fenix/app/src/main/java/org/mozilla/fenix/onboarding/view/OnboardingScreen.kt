@@ -66,9 +66,7 @@ import org.mozilla.fenix.theme.FirefoxTheme
  * @param onInstallAddOnButtonClick Invoked when a button for installing an add-on is clicked.
  * @param termsOfServiceEventHandler Invoked when the primary button on the terms of service page is clicked.
  * @param onCustomizeToolbarClick Invoked when positive button customize toolbar page is clicked.
- * @param onSkipCustomizeToolbarClick Invoked when negative button on customize toolbar page is clicked.
  * @param onCustomizeThemeClick Invoked when the primary button on the theme selection page is clicked.
- * @param onCustomizeThemeSkip Invoked when the skip button on the theme selection page is clicked.
  * @param onFinish Invoked when the onboarding is completed.
  * @param onImpression Invoked when a page in the pager is displayed.
  */
@@ -89,9 +87,7 @@ fun OnboardingScreen(
     onInstallAddOnButtonClick: (AddOn) -> Unit,
     termsOfServiceEventHandler: OnboardingTermsOfServiceEventHandler,
     onCustomizeToolbarClick: () -> Unit,
-    onSkipCustomizeToolbarClick: () -> Unit,
     onCustomizeThemeClick: () -> Unit,
-    onCustomizeThemeSkip: () -> Unit,
     onFinish: (pageType: OnboardingPageUiData) -> Unit,
     onImpression: (pageType: OnboardingPageUiData) -> Unit,
 ) {
@@ -180,17 +176,9 @@ fun OnboardingScreen(
             scrollToNextPageOrDismiss()
             onCustomizeToolbarClick()
         },
-        onCustomizeToolbarSkipClick = {
-            scrollToNextPageOrDismiss()
-            onSkipCustomizeToolbarClick()
-        },
         onCustomizeThemeButtonClick = {
             scrollToNextPageOrDismiss()
             onCustomizeThemeClick()
-        },
-        onCustomizeThemeButtonSkip = {
-            scrollToNextPageOrDismiss()
-            onCustomizeThemeSkip()
         },
         termsOfServiceEventHandler = termsOfServiceEventHandler,
         onAgreeAndConfirmTermsOfService = {
@@ -218,9 +206,7 @@ private fun OnboardingContent(
     onAddOnsButtonClick: () -> Unit,
     onInstallAddOnButtonClick: (AddOn) -> Unit,
     onCustomizeToolbarButtonClick: () -> Unit,
-    onCustomizeToolbarSkipClick: () -> Unit,
     onCustomizeThemeButtonClick: () -> Unit,
-    onCustomizeThemeButtonSkip: () -> Unit,
     termsOfServiceEventHandler: OnboardingTermsOfServiceEventHandler,
     onAgreeAndConfirmTermsOfService: () -> Unit,
 ) {
@@ -252,9 +238,7 @@ private fun OnboardingContent(
                 onAddFirefoxWidgetSkipClick = onSkipFirefoxWidgetClick,
                 onAddOnsButtonClick = onAddOnsButtonClick,
                 onCustomizeToolbarButtonClick = onCustomizeToolbarButtonClick,
-                onCustomizeToolbarSkipClick = onCustomizeToolbarSkipClick,
                 onCustomizeThemeClick = onCustomizeThemeButtonClick,
-                onCustomizeThemeSkip = onCustomizeThemeButtonSkip,
                 onTermsOfServiceButtonClick = onAgreeAndConfirmTermsOfService,
             )
             OnboardingPageForType(
@@ -372,9 +356,7 @@ private fun OnboardingScreenPreview() {
             onAddOnsButtonClick = {},
             onInstallAddOnButtonClick = {},
             onCustomizeToolbarButtonClick = {},
-            onCustomizeToolbarSkipClick = {},
             onCustomizeThemeButtonClick = {},
-            onCustomizeThemeButtonSkip = {},
             onAgreeAndConfirmTermsOfService = {},
             termsOfServiceEventHandler = object : OnboardingTermsOfServiceEventHandler {},
         )

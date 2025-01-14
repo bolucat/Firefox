@@ -4688,6 +4688,12 @@ main section {
   align-items: center;
   column-gap: var(--space-small);
 }
+.lightWallpaper .ds-section-wrapper .section-context-wrapper {
+  color-scheme: light;
+}
+.darkWallpaper .ds-section-wrapper .section-context-wrapper {
+  color-scheme: dark;
+}
 .ds-section-wrapper .section-follow .section-button-following-text {
   display: none;
 }
@@ -7784,4 +7790,15 @@ main section {
   text-transform: uppercase;
   font-size: var(--font-size-small);
   color: var(--newtab-contextual-text-secondary-color);
+}
+
+.section-context-menu {
+  position: relative;
+}
+.section-context-menu .context-menu {
+  /* Fix the context menu width */
+  width: calc(4 * var(--size-item-large));
+  /* Position the context menu on top of the card grid, below the menu button. */
+  top: calc(2.5 * var(--size-item-small));
+  inset-inline-start: calc(-6.25 * var(--size-item-small));
 }

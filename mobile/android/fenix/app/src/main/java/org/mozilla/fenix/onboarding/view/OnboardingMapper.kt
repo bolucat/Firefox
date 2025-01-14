@@ -203,9 +203,7 @@ internal fun mapToOnboardingPageState(
     onAddFirefoxWidgetSkipClick: () -> Unit,
     onAddOnsButtonClick: () -> Unit,
     onCustomizeToolbarButtonClick: () -> Unit,
-    onCustomizeToolbarSkipClick: () -> Unit,
     onCustomizeThemeClick: () -> Unit,
-    onCustomizeThemeSkip: () -> Unit,
     onTermsOfServiceButtonClick: () -> Unit,
 ): OnboardingPageState = when (onboardingPageUiData.type) {
     OnboardingPageUiData.Type.DEFAULT_BROWSER -> createOnboardingPageState(
@@ -241,13 +239,13 @@ internal fun mapToOnboardingPageState(
     OnboardingPageUiData.Type.TOOLBAR_PLACEMENT -> createOnboardingPageState(
         onboardingPageUiData = onboardingPageUiData,
         onPositiveButtonClick = onCustomizeToolbarButtonClick,
-        onNegativeButtonClick = onCustomizeToolbarSkipClick,
+        onNegativeButtonClick = {}, // No negative button option for toolbar placement.
     )
 
     OnboardingPageUiData.Type.THEME_SELECTION -> createOnboardingPageState(
         onboardingPageUiData = onboardingPageUiData,
         onPositiveButtonClick = onCustomizeThemeClick,
-        onNegativeButtonClick = onCustomizeThemeSkip,
+        onNegativeButtonClick = {}, // No negative button option for theme selection.
     )
 
     OnboardingPageUiData.Type.TERMS_OF_SERVICE -> createOnboardingPageState(

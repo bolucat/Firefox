@@ -9,6 +9,7 @@
 
 #include "mozilla/DebugOnly.h"
 #include "mozilla/IntegerPrintfMacros.h"
+#include "mozilla/Maybe.h"
 #include "mozilla/ScopeExit.h"
 #include "mozilla/Sprintf.h"
 #include "mozilla/TimeStamp.h"
@@ -1632,8 +1633,11 @@ js::Nursery::CollectionResult js::Nursery::doCollection(AutoGCSession& session,
   clearMapAndSetNurseryIterators();
 
   sweepTask->join();
-  for (ZonesIter zone(runtime(), WithAtoms); !zone.done(); zone.next()) {
-    zone->bufferAllocator.startMinorCollection();
+  {
+    BufferAllocator::MaybeLock lock;
+    for (ZonesIter zone(runtime(), WithAtoms); !zone.done(); zone.next()) {
+      zone->bufferAllocator.startMinorCollection(lock);
+    }
   }
 
   // Move objects pointed to by roots from the nursery to the major heap.
@@ -1897,14 +1901,16 @@ void js::Nursery::registerBuffer(void* buffer, size_t nbytes) {
  *  - memory accounting for the buffer needs to be updated
  */
 Nursery::WasBufferMoved js::Nursery::maybeMoveRawBufferOnPromotion(
-    void** bufferp, gc::Cell* owner, size_t nbytes, MemoryUse use,
-    arena_id_t arena) {
+    void** bufferp, gc::Cell* owner, size_t bytesUsed, size_t bytesCapacity,
+    MemoryUse use, arena_id_t arena) {
+  MOZ_ASSERT(bytesUsed <= bytesCapacity);
+
   void* buffer = *bufferp;
   if (!isInside(buffer)) {
     // This is a malloced buffer. Remove it from the nursery's previous list of
     // buffers so we don't free it.
     removeMallocedBufferDuringMinorGC(buffer);
-    trackMallocedBufferOnPromotion(buffer, owner, nbytes, use);
+    trackMallocedBufferOnPromotion(buffer, owner, bytesCapacity, use);
     return BufferNotMoved;
   }
 
@@ -1912,14 +1918,14 @@ Nursery::WasBufferMoved js::Nursery::maybeMoveRawBufferOnPromotion(
 
   AutoEnterOOMUnsafeRegion oomUnsafe;
   Zone* zone = owner->zone();
-  void* movedBuffer = zone->pod_arena_malloc<uint8_t>(arena, nbytes);
+  void* movedBuffer = zone->pod_arena_malloc<uint8_t>(arena, bytesCapacity);
   if (!movedBuffer) {
     oomUnsafe.crash("Nursery::maybeMoveRawNurseryOrMallocBufferOnPromotion");
   }
 
-  memcpy(movedBuffer, buffer, nbytes);
+  memcpy(movedBuffer, buffer, bytesUsed);
 
-  trackMallocedBufferOnPromotion(movedBuffer, owner, nbytes, use);
+  trackMallocedBufferOnPromotion(movedBuffer, owner, bytesCapacity, use);
 
   *bufferp = movedBuffer;
   return BufferMoved;

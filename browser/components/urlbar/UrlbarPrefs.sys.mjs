@@ -536,7 +536,7 @@ const PREF_URLBAR_DEFAULTS = new Map([
   ["trending.requireSearchMode", false],
 
   // Remove 'https://' from url when urlbar is focused.
-  ["trimHttps", true],
+  ["trimHttps", false],
 
   // Remove redundant portions from URLs.
   ["trimURLs", true],
@@ -592,7 +592,7 @@ const PREF_OTHER_DEFAULTS = new Map([
   ["browser.search.suggest.enabled", true],
   ["browser.search.suggest.enabled.private", false],
   ["keyword.enabled", true],
-  ["security.insecure_connection_text.enabled", false],
+  ["security.insecure_connection_text.enabled", true],
   ["ui.popup.disable_autohide", false],
 ]);
 

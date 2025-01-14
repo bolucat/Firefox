@@ -42,9 +42,7 @@ class OnboardingMapperTest {
             onAddFirefoxWidgetSkipClick = {},
             onAddOnsButtonClick = {},
             onCustomizeToolbarButtonClick = {},
-            onCustomizeToolbarSkipClick = {},
             onCustomizeThemeClick = {},
-            onCustomizeThemeSkip = {},
             onTermsOfServiceButtonClick = {},
         )
 
@@ -82,9 +80,7 @@ class OnboardingMapperTest {
             onAddFirefoxWidgetSkipClick = {},
             onAddOnsButtonClick = {},
             onCustomizeToolbarButtonClick = {},
-            onCustomizeToolbarSkipClick = {},
             onCustomizeThemeClick = {},
-            onCustomizeThemeSkip = {},
             onTermsOfServiceButtonClick = {},
         )
 
@@ -122,9 +118,7 @@ class OnboardingMapperTest {
             onAddFirefoxWidgetSkipClick = {},
             onAddOnsButtonClick = {},
             onCustomizeToolbarButtonClick = {},
-            onCustomizeToolbarSkipClick = {},
             onCustomizeThemeClick = {},
-            onCustomizeThemeSkip = {},
             onTermsOfServiceButtonClick = {},
         )
 
@@ -162,9 +156,7 @@ class OnboardingMapperTest {
             onAddFirefoxWidgetSkipClick = unitLambda,
             onAddOnsButtonClick = {},
             onCustomizeToolbarButtonClick = {},
-            onCustomizeToolbarSkipClick = {},
             onCustomizeThemeClick = {},
-            onCustomizeThemeSkip = {},
             onTermsOfServiceButtonClick = {},
         )
 
@@ -234,9 +226,7 @@ class OnboardingMapperTest {
             onAddFirefoxWidgetSkipClick = {},
             onAddOnsButtonClick = unitLambda,
             onCustomizeToolbarButtonClick = {},
-            onCustomizeToolbarSkipClick = {},
             onCustomizeThemeClick = {},
-            onCustomizeThemeSkip = {},
             onTermsOfServiceButtonClick = {},
         )
 
@@ -263,7 +253,6 @@ class OnboardingMapperTest {
             title = "Pick a toolbar placement",
             description = "Keep searches within reach",
             primaryButton = Action("Save and continue", unitLambda),
-            secondaryButton = Action("Skip", unitLambda),
             toolbarOptions = toolbarOptions,
         )
 
@@ -273,7 +262,6 @@ class OnboardingMapperTest {
             title = "Pick a toolbar placement",
             description = "Keep searches within reach",
             primaryButtonLabel = "Save and continue",
-            secondaryButtonLabel = "Skip",
             toolbarOptions = toolbarOptions,
         )
 
@@ -289,9 +277,7 @@ class OnboardingMapperTest {
             onAddFirefoxWidgetSkipClick = {},
             onAddOnsButtonClick = {},
             onCustomizeToolbarButtonClick = unitLambda,
-            onCustomizeToolbarSkipClick = unitLambda,
             onCustomizeThemeClick = {},
-            onCustomizeThemeSkip = {},
             onTermsOfServiceButtonClick = {},
         )
 
@@ -305,7 +291,6 @@ class OnboardingMapperTest {
         val title = "Pick a theme"
         val description = "See the web in the best light."
         val primaryButtonLabel = "Save and continue"
-        val secondaryButtonLabel = "Skip"
 
         // Theming options
         val themeOptionSystem = ThemeOption(
@@ -331,7 +316,6 @@ class OnboardingMapperTest {
             title = title,
             description = description,
             primaryButtonLabel = primaryButtonLabel,
-            secondaryButtonLabel = secondaryButtonLabel,
             themeOptions = themeOptions,
         )
 
@@ -340,7 +324,6 @@ class OnboardingMapperTest {
             title = title,
             description = description,
             primaryButton = Action(primaryButtonLabel, unitLambda),
-            secondaryButton = Action(secondaryButtonLabel, unitLambda),
             themeOptions = themeOptions,
         )
 
@@ -356,9 +339,7 @@ class OnboardingMapperTest {
             onAddFirefoxWidgetSkipClick = {},
             onAddOnsButtonClick = {},
             onCustomizeToolbarButtonClick = {},
-            onCustomizeToolbarSkipClick = {},
             onCustomizeThemeClick = unitLambda,
-            onCustomizeThemeSkip = unitLambda,
             onTermsOfServiceButtonClick = {},
         )
 
