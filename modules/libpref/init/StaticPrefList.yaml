@@ -2414,7 +2414,7 @@
 # Disable cookie-store API
 - name: dom.cookieStore.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # Is support for CSSPseudoElement enabled?
@@ -14394,11 +14394,7 @@
 # Has no effect unless security.tls.enable_kyber is true.
 - name: network.http.http3.enable_kyber
   type: RelaxedAtomicBool
-#ifdef EARLY_BETA_OR_EARLIER
   value: @IS_NOT_ANDROID@
-#else
-  value: false
-#endif
   mirror: always
   rust: true
 
@@ -16649,7 +16645,11 @@
 # If the service is available, set threads to low-power mode when in the background.
 - name: threads.use_low_power.enabled
   type: RelaxedAtomicBool
+#ifdef XP_MACOSX
+  value: true
+#else
   value: @IS_NIGHTLY_BUILD@
+#endif
   mirror: always
 
 
@@ -16657,7 +16657,11 @@
 # Currently off by default.
 - name: threads.lower_mainthread_priority_in_background.enabled
   type: bool
+#ifdef XP_MACOSX
+  value: true
+#else
   value: @IS_NIGHTLY_BUILD@
+#endif
   mirror: always
 
 #---------------------------------------------------------------------------
