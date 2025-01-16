@@ -2007,14 +2007,6 @@ bool WasmInstanceObject::getExportedFunction(
   return instance.getExportedFunction(cx, funcIndex, fun);
 }
 
-void WasmInstanceObject::getExportedFunctionCodeRange(
-    JSFunction* fun, const wasm::CodeRange** range, uint8_t** codeBase) {
-  uint32_t funcIndex = wasm::ExportedFunctionToFuncIndex(fun);
-  const CodeBlock& code = instance().code().funcCodeBlock(funcIndex);
-  *range = &code.codeRanges[code.funcToCodeRange[funcIndex]];
-  *codeBase = code.segment->base();
-}
-
 /* static */
 WasmInstanceScope* WasmInstanceObject::getScope(
     JSContext* cx, Handle<WasmInstanceObject*> instanceObj) {
@@ -2063,26 +2055,6 @@ WasmFunctionScope* WasmInstanceObject::getFunctionScope(
   }
 
   return funcScope;
-}
-
-bool wasm::IsWasmExportedFunction(JSFunction* fun) {
-  return fun->kind() == FunctionFlags::Wasm;
-}
-
-Instance& wasm::ExportedFunctionToInstance(JSFunction* fun) {
-  return fun->wasmInstance();
-}
-
-WasmInstanceObject* wasm::ExportedFunctionToInstanceObject(JSFunction* fun) {
-  return fun->wasmInstance().object();
-}
-
-uint32_t wasm::ExportedFunctionToFuncIndex(JSFunction* fun) {
-  return fun->wasmInstance().code().getFuncIndex(fun);
-}
-
-const wasm::TypeDef& wasm::ExportedFunctionToTypeDef(JSFunction* fun) {
-  return *fun->wasmTypeDef();
 }
 
 // ============================================================================
@@ -3958,10 +3930,7 @@ static JSObject* CreateWasmFunctionPrototype(JSContext* cx, JSProtoKey key) {
 
 bool WasmFunctionTypeImpl(JSContext* cx, const CallArgs& args) {
   RootedFunction function(cx, &args.thisv().toObject().as<JSFunction>());
-  Rooted<WasmInstanceObject*> instanceObj(
-      cx, ExportedFunctionToInstanceObject(function));
-  const TypeDef& funcTypeDef = ExportedFunctionToTypeDef(function);
-  const FuncType& funcType = funcTypeDef.funcType();
+  const FuncType& funcType = function->wasmTypeDef()->funcType();
   RootedObject typeObj(cx, FuncTypeToObject(cx, funcType));
   if (!typeObj) {
     return false;
@@ -3980,8 +3949,6 @@ static JSFunction* WasmFunctionCreate(JSContext* cx, HandleObject func,
                                       wasm::ValTypeVector&& results,
                                       HandleObject proto) {
   MOZ_ASSERT(IsCallableNonCCW(ObjectValue(*func)));
-  MOZ_RELEASE_ASSERT(!func->is<JSFunction>() ||
-                     !IsWasmExportedFunction(&func->as<JSFunction>()));
 
   // We want to import the function to a wasm module and then export it again so
   // that it behaves exactly like a normal wasm function and can be used like
@@ -4015,6 +3982,7 @@ static JSFunction* WasmFunctionCreate(JSContext* cx, HandleObject func,
     return nullptr;
   }
   codeMeta->numFuncImports = 1;
+  codeMeta->funcImportsAreJS = true;
 
   // Add an (export (func 0))
   codeMeta->funcs[0].declareFuncExported(/* eager */ true,
@@ -4112,7 +4080,7 @@ bool WasmFunctionConstruct(JSContext* cx, unsigned argc, Value* vp) {
 
   // Get the target function
 
-  if (!IsCallableNonCCW(args[1]) || IsWasmFunction(args[1])) {
+  if (!IsCallableNonCCW(args[1])) {
     JS_ReportErrorNumberUTF8(cx, GetErrorMessage, nullptr,
                              JSMSG_WASM_BAD_FUNCTION_VALUE);
     return false;

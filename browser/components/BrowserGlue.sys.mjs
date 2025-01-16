@@ -29,7 +29,6 @@ ChromeUtils.defineESModuleGetters(lazy, {
   BuiltInThemes: "resource:///modules/BuiltInThemes.sys.mjs",
   CaptchaDetectionPingUtils:
     "resource://gre/modules/CaptchaDetectionPingUtils.sys.mjs",
-  ClientID: "resource://gre/modules/ClientID.sys.mjs",
   CommonDialog: "resource://gre/modules/CommonDialog.sys.mjs",
   ContentRelevancyManager:
     "resource://gre/modules/ContentRelevancyManager.sys.mjs",
@@ -105,10 +104,10 @@ ChromeUtils.defineESModuleGetters(lazy, {
   TRRRacer: "resource:///modules/TRRPerformance.sys.mjs",
   TabCrashHandler: "resource:///modules/ContentCrashHandlers.sys.mjs",
   TabUnloader: "resource:///modules/TabUnloader.sys.mjs",
-  TelemetryUtils: "resource://gre/modules/TelemetryUtils.sys.mjs",
   UrlbarPrefs: "resource:///modules/UrlbarPrefs.sys.mjs",
   UrlbarSearchTermsPersistence:
     "resource:///modules/UrlbarSearchTermsPersistence.sys.mjs",
+  UsageReporting: "resource://gre/modules/UsageReporting.sys.mjs",
   WebChannel: "resource://gre/modules/WebChannel.sys.mjs",
   WebProtocolHandlerRegistrar:
     "resource:///modules/WebProtocolHandlerRegistrar.sys.mjs",
@@ -2915,24 +2914,11 @@ BrowserGlue.prototype = {
       {
         name: "initializeFOG",
         task: async () => {
-          // Handle Usage Profile ID.
-          // Similar logic to what's happening in `TelemetryControllerParent` for the client ID.
-          let profileID = await lazy.ClientID.getUsageProfileID();
-          const uploadEnabled = Services.prefs.getBoolPref(
-            lazy.TelemetryUtils.Preferences.FhrUploadEnabled,
-            false
-          );
-          if (
-            uploadEnabled &&
-            profileID == lazy.TelemetryUtils.knownUsageProfileID
-          ) {
-            await lazy.ClientID.resetUsageProfileIdentifier();
-          } else if (
-            !uploadEnabled &&
-            profileID != lazy.TelemetryUtils.knownUsageProfileID
-          ) {
-            await lazy.ClientID.setCanaryUsageProfileIdentifier();
-          }
+          // Handle Usage Profile ID.  Similar logic to what's happening in
+          // `TelemetryControllerParent` for the client ID.  Must be done before
+          // initializing FOG so that ping enabled/disabled states are correct
+          // before Glean takes actions.
+          await lazy.UsageReporting.ensureInitialized();
 
           Services.fog.initializeFOG();
 
@@ -3157,6 +3143,21 @@ BrowserGlue.prototype = {
         name: "SSLKEYLOGFILE telemetry",
         task: () => {
           Glean.sslkeylogging.enabled.set(Services.env.exists("SSLKEYLOGFILE"));
+        },
+      },
+
+      {
+        name: "OS Authentication telemetry",
+        task: () => {
+          const osAuthForCc = lazy.FormAutofillUtils.getOSAuthEnabled(
+            lazy.FormAutofillUtils.AUTOFILL_CREDITCARDS_REAUTH_PREF
+          );
+          const osAuthForPw = lazy.LoginHelper.getOSAuthEnabled(
+            lazy.LoginHelper.OS_AUTH_FOR_PASSWORDS_PREF
+          );
+
+          Glean.formautofill.osAuthEnabled.set(osAuthForCc);
+          Glean.pwmgr.osAuthEnabled.set(osAuthForPw);
         },
       },
 
@@ -3808,7 +3809,7 @@ BrowserGlue.prototype = {
   _migrateUI() {
     // Use an increasing number to keep track of the current migration state.
     // Completely unrelated to the current Firefox release number.
-    const UI_VERSION = 150;
+    const UI_VERSION = 151;
     const BROWSER_DOCURL = AppConstants.BROWSER_CHROME_URL;
 
     if (!Services.prefs.prefHasUserValue("browser.migration.version")) {
@@ -4592,6 +4593,12 @@ BrowserGlue.prototype = {
 
     if (currentUIVersion < 150) {
       Services.prefs.clearUserPref("toolkit.telemetry.pioneerId");
+    }
+
+    if (currentUIVersion < 151) {
+      // Existing Firefox users should have the usage reporting upload
+      // preference "inherit" the general data reporting preference.
+      lazy.UsageReporting.adoptDataReportingPreference();
     }
 
     // Update the migration version.

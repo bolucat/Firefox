@@ -11377,6 +11377,8 @@ static bool InstanceClassHasProtoAtDepth(const JSClass* clasp, uint32_t protoID,
   return clasp == GetDomClass();
 }
 
+static bool InstanceClassIsError(const JSClass* clasp) { return false; }
+
 static bool ShellBuildId(JS::BuildIdCharVector* buildId) {
   // The browser embeds the date into the buildid and the buildid is embedded
   // in the binary, so every 'make' necessarily builds a new firefox binary.
@@ -11515,7 +11517,8 @@ static JSObject* NewGlobalObject(JSContext* cx, JS::RealmOptions& options,
     }
 
     /* Initialize FakeDOMObject. */
-    static const js::DOMCallbacks DOMcallbacks = {InstanceClassHasProtoAtDepth};
+    static const js::DOMCallbacks DOMcallbacks = {InstanceClassHasProtoAtDepth,
+                                                  InstanceClassIsError};
     SetDOMCallbacks(cx, &DOMcallbacks);
 
     RootedObject domProto(
@@ -12994,7 +12997,7 @@ bool SetGlobalOptionsPreJSInit(const OptionParser& op) {
     JS::Prefs::setAtStartup_experimental_symbols_as_weakmap_keys(true);
   }
   if (op.getBoolOption("enable-error-iserror")) {
-    JS::Prefs::setAtStartup_experimental_error_iserror(true);
+    JS::Prefs::set_experimental_error_iserror(true);
   }
   if (op.getBoolOption("enable-iterator-sequencing")) {
     JS::Prefs::setAtStartup_experimental_iterator_sequencing(true);
