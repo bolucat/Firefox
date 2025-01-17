@@ -4142,7 +4142,7 @@
 
 - name: dom.security.unexpected_system_load_telemetry_enabled
   type: bool
-  value: true
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # pref controls `Sanitizer` API being exposed
@@ -8380,11 +8380,17 @@
     set_spidermonkey_pref: always
 #endif  // ENABLE_EXPLICIT_RESOURCE_MANAGEMENT
 
--   name: javascript.options.experimental.json_parse_with_source
-    type: bool
-    value: true
-    mirror: always
-    set_spidermonkey_pref: always
+- name: javascript.options.experimental.error_capture_stack_trace
+  type: bool
+  value: false
+  mirror: always
+  set_spidermonkey_pref: always
+
+- name: javascript.options.experimental.json_parse_with_source
+  type: bool
+  value: true
+  mirror: always
+  set_spidermonkey_pref: always
 
 - name: javascript.options.wasm_caching
   type: bool

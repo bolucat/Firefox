@@ -19507,9 +19507,19 @@ nsIPrincipal* Document::EffectiveStoragePrincipal() const {
     return mActiveStoragePrincipal = NodePrincipal();
   }
 
-  StorageAccess storageAccess = StorageAllowedForDocument(this);
-  if (!ShouldPartitionStorage(storageAccess) ||
-      !StoragePartitioningEnabled(storageAccess, cookieJarSettings)) {
+  // We use the lower-level ContentBlocking API here to ensure this
+  // check doesn't send notifications.
+  uint32_t rejectedReason = 0;
+  if (ShouldAllowAccessFor(inner, GetDocumentURI(), false, &rejectedReason)) {
+    return mActiveStoragePrincipal = NodePrincipal();
+  }
+
+  // Let's use the storage principal only if we need to partition the cookie
+  // jar. When the permission is granted, access will be different and the
+  // normal principal will be used.
+  if (ShouldPartitionStorage(rejectedReason) &&
+      !StoragePartitioningEnabled(
+          rejectedReason, const_cast<Document*>(this)->CookieJarSettings())) {
     return mActiveStoragePrincipal = NodePrincipal();
   }
 
@@ -19548,7 +19558,7 @@ nsIPrincipal* Document::EffectiveCookiePrincipal() const {
   // We use the lower-level ContentBlocking API here to ensure this
   // check doesn't send notifications.
   uint32_t rejectedReason = 0;
-  if (ShouldAllowAccessFor(inner, GetDocumentURI(), &rejectedReason)) {
+  if (ShouldAllowAccessFor(inner, GetDocumentURI(), true, &rejectedReason)) {
     return mActiveCookiePrincipal = NodePrincipal();
   }
 
@@ -19897,7 +19907,9 @@ already_AddRefed<Document> Document::ParseHTMLUnsafe(
   }
 
   nsCOMPtr<Document> doc;
-  aError = NS_NewHTMLDocument(getter_AddRefs(doc), nullptr, nullptr);
+  aError =
+      NS_NewHTMLDocument(getter_AddRefs(doc), aGlobal.GetSubjectPrincipal(),
+                         aGlobal.GetSubjectPrincipal());
   if (aError.Failed()) {
     return nullptr;
   }
