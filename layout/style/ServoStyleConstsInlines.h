@@ -442,11 +442,11 @@ inline bool StyleComputedUrl::HasRef() const {
   return false;
 }
 
-inline bool StyleComputedImageUrl::IsImageResolved() const {
+inline bool StyleComputedUrl::IsImageResolved() const {
   return bool(LoadData().flags & StyleLoadDataFlags::TRIED_TO_RESOLVE_IMAGE);
 }
 
-inline imgRequestProxy* StyleComputedImageUrl::GetImage() const {
+inline imgRequestProxy* StyleComputedUrl::GetImage() const {
   MOZ_ASSERT(IsImageResolved());
   return LoadData().resolved_image;
 }
@@ -815,6 +815,16 @@ inline bool StyleInset::IsAnchorPositioningFunction() const {
   return IsAnchorFunction() || IsAnchorSizeFunction();
 }
 
+template <>
+inline bool StyleInset::MaybeAuto() const {
+  return IsAuto() || IsAnchorPositioningFunction();
+}
+
+template <>
+inline bool StyleInset::MaybePercentageAware() const {
+  return HasPercent() || IsAnchorPositioningFunction();
+}
+
 #undef IMPL_LENGTHPERCENTAGE_FORWARDS
 
 template <>
@@ -1005,8 +1015,7 @@ inline bool StyleImage::IsImageRequestType() const {
 }
 
 template <>
-inline const StyleComputedImageUrl* StyleImage::GetImageRequestURLValue()
-    const {
+inline const StyleComputedUrl* StyleImage::GetImageRequestURLValue() const {
   const auto& finalImage = FinalImage();
   if (finalImage.IsUrl()) {
     return &finalImage.AsUrl();

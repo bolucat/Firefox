@@ -4131,6 +4131,18 @@
   value: false
   mirror: always
 
+# If true, HTTPS-First will upgrade local addresses
+- name: dom.security.https_first_for_local_addresses
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# If true, HTTPS-First will upgrade unknown suffixes
+- name: dom.security.https_first_for_unknown_suffixes
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 # If true, top-level requests in Private Browsing Mode will get
 # upgraded to HTTPS. (If dom.security.https_first
 # is set to true then this pref has no effect)
@@ -9303,16 +9315,6 @@
   value: true
   mirror: always
 
-# Whether computed local-fragment-only image urls serialize using the same
-# rules as filter/mask/etc (not resolving the URL for local refs).
-#
-# See https://github.com/w3c/csswg-drafts/issues/3195
-- name: layout.css.computed-style.dont-resolve-image-local-refs
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
 # Are implicit tracks in computed grid templates serialized?
 - name: layout.css.serialize-grid-implicit-tracks
   type: RelaxedAtomicBool
@@ -9516,7 +9518,7 @@
 # Whether the `:has-slotted` pseudo class is enabled
 - name: layout.css.has-slotted-selector.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
   rust: true
 
@@ -16183,10 +16185,10 @@
 # 2: Enforce CT.
 - name: security.pki.certificate_transparency.mode
   type: RelaxedAtomicUint32
-#ifdef EARLY_BETA_OR_EARLIER
-  value: 2
-#else
+#if defined(ANDROID) && !defined(EARLY_BETA_OR_EARLIER)
   value: 0
+#else
+  value: 2
 #endif
   mirror: always
 

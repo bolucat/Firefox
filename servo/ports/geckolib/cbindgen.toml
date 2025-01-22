@@ -257,7 +257,6 @@ include = [
   "Translate",
   "BorderImageWidth",
   "ComputedUrl",
-  "ComputedImageUrl",
   "UrlOrNone",
   "Filter",
   "Gradient",
@@ -326,6 +325,8 @@ include = [
   "AnchorFunction",
   "AnchorSizeFunction",
   "Margin",
+  "PositionProperty",
+  "PhysicalSide",
 ]
 item_types = [
   "enums",
@@ -946,7 +947,7 @@ renaming_overrides_prefixing = true
   bool IsImageRequestType() const;
 
   // Gets the image request URL.
-  const StyleComputedImageUrl* GetImageRequestURLValue() const;
+  const StyleComputedUrl* GetImageRequestURLValue() const;
 
   // Gets the image data of this image if it has any image request.
   imgRequestProxy* GetImageRequest() const;
@@ -1153,6 +1154,8 @@ renaming_overrides_prefixing = true
   inline nscoord ToLength() const;
   inline bool ConvertsToPercentage() const;
   inline float ToPercentage() const;
+  inline bool MaybeAuto() const;
+  inline bool MaybePercentageAware() const;
 """
 
 "GenericMargin" = """
