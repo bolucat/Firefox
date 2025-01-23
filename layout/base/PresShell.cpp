@@ -7155,7 +7155,7 @@ nsresult PresShell::EventHandler::HandleEvent(nsIFrame* aFrameForPresShell,
   // the next transasction that gets sent to the compositor will carry this over
   if (mPresShell->mAPZFocusSequenceNumber < aGUIEvent->mFocusSequenceNumber) {
     mPresShell->mAPZFocusSequenceNumber = aGUIEvent->mFocusSequenceNumber;
-    if (aFrameForPresShell) {
+    if (aFrameForPresShell && StaticPrefs::apz_keyboard_focus_optimization()) {
       aFrameForPresShell->SchedulePaint(nsIFrame::PAINT_COMPOSITE_ONLY);
     }
   }
@@ -11346,7 +11346,7 @@ void PresShell::SetIsActive(bool aIsActive) {
   }
 }
 
-RefPtr<MobileViewportManager> PresShell::GetMobileViewportManager() const {
+MobileViewportManager* PresShell::GetMobileViewportManager() const {
   return mMobileViewportManager;
 }
 
@@ -11418,7 +11418,12 @@ void PresShell::MaybeRecreateMobileViewportManager(bool aAfterInitialization) {
           ("Created MVM %p (type %d) for URI %s", mMobileViewportManager.get(),
            (int)*mvmType, uri ? uri->GetSpecOrDefault().get() : "(null)"));
     }
+    if (BrowserChild* browserChild = BrowserChild::GetFrom(this)) {
+      mMobileViewportManager->UpdateKeyboardHeight(
+          browserChild->GetKeyboardHeight());
+    }
   }
+
   if (aAfterInitialization) {
     // Setting the initial viewport will trigger a reflow.
     if (mMobileViewportManager) {

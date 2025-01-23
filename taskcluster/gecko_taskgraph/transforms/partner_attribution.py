@@ -11,6 +11,7 @@ import logging
 from collections import defaultdict
 
 from taskgraph.transforms.base import TransformSequence
+from taskgraph.util.taskcluster import get_artifact_prefix
 
 from gecko_taskgraph.util.partners import (
     apply_partner_priority,
@@ -52,38 +53,36 @@ def add_command_arguments(config, tasks):
                 if platform not in task_platforms:
                     continue
 
-                stage_platform = platform.replace("-shippable", "")
                 for locale in partner_config["locales"]:
-                    upstream_label, upstream_artifact = (
-                        _get_upstream_task_label_and_artifact(platform, locale)
-                    )
-                    if upstream_label not in config.kind_dependencies_tasks:
-                        raise Exception(
-                            f"Can't find upstream task for {platform} {locale}"
+                    for (
+                        attributed_build_config
+                    ) in _get_all_attributed_builds_configuration(
+                        task, partner_config, platform, locale
+                    ):
+                        upstream_label = attributed_build_config["upstream_label"]
+                        if upstream_label not in config.kind_dependencies_tasks:
+                            raise Exception(
+                                f"Can't find upstream task for {platform} {locale}"
+                            )
+                        upstream = config.kind_dependencies_tasks[upstream_label]
+
+                        # set the dependencies to just what we need rather than all of l10n
+                        dependencies.update({upstream.label: upstream.label})
+
+                        fetches[upstream_label].add(
+                            attributed_build_config["fetch_config"]
                         )
-                    upstream = config.kind_dependencies_tasks[upstream_label]
 
-                    # set the dependencies to just what we need rather than all of l10n
-                    dependencies.update({upstream.label: upstream.label})
-
-                    fetches[upstream_label].add(
-                        (upstream_artifact, stage_platform, locale)
-                    )
-
-                    output_artifact = _get_output_path(partner_config, platform, locale)
-                    # config for script
-                    # TODO - generalise input & output ??
-                    #  add releng/partner prefix via get_artifact_prefix..()
-                    attributions.append(
-                        {
-                            "input": _get_input_path(stage_platform, platform, locale),
-                            "output": "/builds/worker/artifacts/{}".format(
-                                output_artifact
-                            ),
-                            "attribution": attribution_code,
-                        }
-                    )
-                    release_artifacts.append(output_artifact)
+                        attributions.append(
+                            {
+                                "input": attributed_build_config["input_path"],
+                                "output": attributed_build_config["output_path"],
+                                "attribution": attribution_code,
+                            }
+                        )
+                        release_artifacts.append(
+                            attributed_build_config["release_artifact"]
+                        )
 
         if attributions:
             worker = task.get("worker", {})
@@ -110,65 +109,105 @@ def add_command_arguments(config, tasks):
             yield task
 
 
-def _get_input_path(stage_platform, platform, locale):
+def _get_all_attributed_builds_configuration(task, partner_config, platform, locale):
+    all_attributed_builds_configuration = []
+    for artifact_file_name in _get_artifact_file_names(platform):
+        all_attributed_builds_configuration.append(
+            _get_attributed_build_configuration(
+                task, partner_config, platform, locale, artifact_file_name
+            )
+        )
+    return all_attributed_builds_configuration
+
+
+def _get_attributed_build_configuration(
+    task, partner_config, platform, locale, artifact_file_name
+):
+    stage_platform = platform.replace("-shippable", "")
+    output_artifact = _get_output_path(
+        get_artifact_prefix(task), partner_config, platform, locale, artifact_file_name
+    )
+    return {
+        "fetch_config": (
+            _get_upstream_artifact_path(artifact_file_name, locale),
+            stage_platform,
+            locale,
+        ),
+        "input_path": _get_input_path(stage_platform, locale, artifact_file_name),
+        "output_path": "/builds/worker/artifacts/{}".format(output_artifact),
+        "release_artifact": output_artifact,
+        "upstream_label": _get_upstream_task_label(platform, locale),
+    }
+
+
+def _get_input_path(stage_platform, locale, artifact_file_name):
     return (
         "/builds/worker/fetches/{stage_platform}/{locale}/{artifact_file_name}".format(
             stage_platform=stage_platform,
             locale=locale,
-            artifact_file_name=_get_artifact_file_name(platform),
+            artifact_file_name=artifact_file_name,
         )
     )
 
 
-def _get_output_path(partner_config, platform, locale):
-    return "releng/partner/{partner}/{sub_partner}/{ftp_platform}/{locale}/{artifact_file_name}".format(
+def _get_output_path(
+    artifact_prefix, partner_config, platform, locale, artifact_file_name
+):
+    return "{artifact_prefix}/{partner}/{sub_partner}/{ftp_platform}/{locale}/{artifact_file_name}".format(
+        artifact_prefix=artifact_prefix,
         partner=partner_config["campaign"],
         sub_partner=partner_config["content"],
         ftp_platform=get_ftp_platform(platform),
         locale=locale,
-        artifact_file_name=_get_artifact_file_name(platform),
+        artifact_file_name=artifact_file_name,
     )
 
 
-def _get_artifact_file_name(platform):
+def _get_artifact_file_names(platform):
     if platform.startswith("win"):
-        return "target.installer.exe"
+        file_names = ["target.installer.exe"]
+        if platform.startswith("win32"):
+            file_names.append("target.stub-installer.exe")
+        return tuple(file_names)
     elif platform.startswith("macos"):
-        return "target.dmg"
+        return ("target.dmg",)
     else:
         raise NotImplementedError(
             'Case for platform "{}" is not implemented'.format(platform)
         )
 
 
-def _get_upstream_task_label_and_artifact(platform, locale):
-    # find the upstream, throw away locales we don't have, somehow. Skip ?
+def _get_upstream_task_label(platform, locale):
     if platform.startswith("win"):
         if locale == "en-US":
             upstream_label = "repackage-signing-{platform}/opt".format(
                 platform=platform
             )
-            upstream_artifact = "target.installer.exe"
         else:
             upstream_label = "repackage-signing-l10n-{locale}-{platform}/opt".format(
                 locale=locale, platform=platform
             )
-            upstream_artifact = "{locale}/target.installer.exe".format(locale=locale)
     elif platform.startswith("macos"):
         if locale == "en-US":
             upstream_label = "repackage-{platform}/opt".format(platform=platform)
-            upstream_artifact = "target.dmg"
         else:
             upstream_label = "repackage-l10n-{locale}-{platform}/opt".format(
                 locale=locale, platform=platform
             )
-            upstream_artifact = "{locale}/target.dmg".format(locale=locale)
     else:
         raise NotImplementedError(
             'Case for platform "{}" is not implemented'.format(platform)
         )
 
-    return upstream_label, upstream_artifact
+    return upstream_label
+
+
+def _get_upstream_artifact_path(artifact_file_name, locale):
+    return (
+        artifact_file_name
+        if locale == "en-US"
+        else "{}/{}".format(locale, artifact_file_name)
+    )
 
 
 def _build_attribution_config(task, task_platforms, attributions):

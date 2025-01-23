@@ -22,6 +22,13 @@ const HEADER_STYLES = [
   "height",
 ];
 
+const TILE_STYLES = [
+  "marginBlock",
+  "marginInline",
+  "paddingBlock",
+  "paddingInline",
+];
+
 export const ContentTiles = props => {
   const { content } = props;
   const [expandedTileIndex, setExpandedTileIndex] = useState(null);
@@ -41,7 +48,11 @@ export const ContentTiles = props => {
     const { header } = tile;
 
     return (
-      <div key={index} className={`content-tile ${header ? "has-header" : ""}`}>
+      <div
+        key={index}
+        className={`content-tile ${header ? "has-header" : ""}`}
+        style={AboutWelcomeUtils.getValidStyle(tile.style, TILE_STYLES)}
+      >
         {header?.title && (
           <button
             className="tile-header"
@@ -51,14 +62,14 @@ export const ContentTiles = props => {
             style={AboutWelcomeUtils.getValidStyle(header.style, HEADER_STYLES)}
           >
             <div className="header-text-container">
-              <Localized text={header}>
-                <span className="header-title">{header.title}</span>
+              <Localized text={header.title}>
+                <span className="header-title" />
               </Localized>
-              <Localized text={header}>
-                {header.subtitle && (
-                  <span className="header-subtitle">{header.subtitle}</span>
-                )}
-              </Localized>
+              {header.subtitle && (
+                <Localized text={header.subtitle}>
+                  <span className="header-subtitle" />
+                </Localized>
+              )}
             </div>
             <div className="arrow-icon"></div>
           </button>

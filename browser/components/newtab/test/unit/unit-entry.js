@@ -137,13 +137,9 @@ const TEST_GLOBAL = {
     defineLazyGetter(object, name, f) {
       updateGlobalOrObject(object)[name] = f();
     },
-    defineModuleGetter: updateGlobalOrObject,
     defineESModuleGetters: updateGlobalOrObject,
     generateQI() {
       return {};
-    },
-    import() {
-      return global;
     },
     importESModule() {
       return global;
@@ -469,7 +465,6 @@ const TEST_GLOBAL = {
   },
   XPCOMUtils: {
     defineLazyGlobalGetters: updateGlobalOrObject,
-    defineLazyModuleGetters: updateGlobalOrObject,
     defineLazyServiceGetter: updateGlobalOrObject,
     defineLazyServiceGetters: updateGlobalOrObject,
     defineLazyPreferenceGetter(object, name) {
