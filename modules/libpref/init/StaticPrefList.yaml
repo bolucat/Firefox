@@ -3040,6 +3040,15 @@
   value: false
   mirror: always
 
+# Whether dispatch a redundant `input` event before `compositionend`.
+# Its `.isComposing` is `true`, but it might be useful to store the latest
+# composition string before `compositionend` event listeners (although,
+# `.data` of `compositionend` event contains the value.
+- name: dom.input_events.dispatch_before_compositionend
+  type: bool
+  value: true
+  mirror: always
+
 # The minimum number of ticks after page navigation
 # that need to occur before user input events are allowed to be handled.
 - name: dom.input_events.security.minNumTicks
@@ -4593,6 +4602,11 @@
   value: true
   mirror: always
   rust: true
+
+- name: dom.text_fragments.create_text_fragment.enabled
+  type: bool
+  value: false
+  mirror: always
 
 - name: dom.textMetrics.actualBoundingBox.enabled
   type: RelaxedAtomicBool
@@ -9727,7 +9741,7 @@
 # also include animation-timeline property.
 - name: layout.css.scroll-driven-animations.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
   rust: true
 
@@ -14180,11 +14194,11 @@
   value: ""
   mirror: never
 
-# The maximum allowed length for a URL - 32MB default.
+# The maximum allowed length for a URL - 512MB default.
 # If 0 that means no limit.
 - name: network.url.max-length
   type: RelaxedAtomicUint32
-  value: 32 * 1024 * 1024
+  value: 512 * 1024 * 1024
   mirror: always
 
 # When true, if all the cyrillic characters in a label
@@ -15291,7 +15305,7 @@
 
 - name: privacy.fingerprintingProtection.pbmode
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
   do_not_use_directly: true
 

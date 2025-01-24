@@ -210,7 +210,6 @@ for (const type of [
   "SECTION_DEREGISTER",
   "SECTION_DISABLE",
   "SECTION_ENABLE",
-  "SECTION_MOVE",
   "SECTION_OPTIONS_CHANGED",
   "SECTION_REGISTER",
   "SECTION_UPDATE",
@@ -256,7 +255,6 @@ for (const type of [
   "UNINIT",
   "UPDATE_PINNED_SEARCH_SHORTCUTS",
   "UPDATE_SEARCH_SHORTCUTS",
-  "UPDATE_SECTION_PREFS",
   "WALLPAPERS_CATEGORY_SET",
   "WALLPAPERS_FEATURE_HIGHLIGHT_COUNTER_INCREMENT",
   "WALLPAPERS_FEATURE_HIGHLIGHT_CTA_CLICKED",
@@ -8121,7 +8119,8 @@ class TopSiteLink extends (external_React_default()).PureComponent {
       onKeyPress: this.onKeyPress,
       onClick: onClick,
       draggable: true,
-      "data-is-sponsored-link": !!link.sponsored_tile_id
+      "data-is-sponsored-link": !!link.sponsored_tile_id,
+      title: title
     }, /*#__PURE__*/external_React_default().createElement("div", {
       className: "tile",
       "aria-hidden": true
@@ -8143,6 +8142,7 @@ class TopSiteLink extends (external_React_default()).PureComponent {
     })), /*#__PURE__*/external_React_default().createElement("div", {
       className: `title${link.isPinned ? " has-icon pinned" : ""}${link.type === SPOC_TYPE || link.show_sponsored_label ? " sponsored" : ""}`
     }, /*#__PURE__*/external_React_default().createElement("span", TopSite_extends({
+      className: "title-label",
       dir: "auto"
     }, isAddButton && {
       ...addButtonl10n
@@ -8321,7 +8321,7 @@ class TopSite extends (external_React_default()).PureComponent {
       link
     } = props;
     const isContextMenuOpen = props.activeIndex === props.index;
-    const title = link.label || link.hostname;
+    const title = link.label || link.title || link.hostname;
     let menuOptions;
     if (link.sponsored_position) {
       menuOptions = TOP_SITES_SPONSORED_POSITION_CONTEXT_MENU_OPTIONS;
@@ -10006,6 +10006,14 @@ function getLayoutData(responsiveLayouts, index) {
       if (tile.position === index) {
         layoutData.classNames.push(`col-${layout.columnCount}-${tile.size}`);
         layoutData.classNames.push(`col-${layout.columnCount}-position-${tileIndex}`);
+
+        // The API tells us whether the tile should show the excerpt or not.
+        // Apply extra styles accordingly.
+        if (tile.hasExcerpt) {
+          layoutData.classNames.push(`col-${layout.columnCount}-show-excerpt`);
+        } else {
+          layoutData.classNames.push(`col-${layout.columnCount}-hide-excerpt`);
+        }
       }
     });
   });
