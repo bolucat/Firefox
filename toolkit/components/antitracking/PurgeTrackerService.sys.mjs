@@ -160,10 +160,11 @@ PurgeTrackerService.prototype = {
       let timeRemaining = Math.floor(
         (expireTimeMs - Date.now()) / 1000 / 60 / 60 / 24
       );
-      let permissionAgeHistogram = Services.telemetry.getHistogramById(
-        "COOKIE_PURGING_TRACKERS_USER_INTERACTION_REMAINING_DAYS"
-      );
-      permissionAgeHistogram.add(timeRemaining);
+      Services.telemetry
+        .getHistogramById(
+          "COOKIE_PURGING_TRACKERS_USER_INTERACTION_REMAINING_DAYS"
+        )
+        .add(timeRemaining);
 
       this._telemetryData.notPurged.add(principal.baseDomain);
 
@@ -228,36 +229,28 @@ PurgeTrackerService.prototype = {
     let lastPurge = Number(
       Services.prefs.getStringPref("privacy.purge_trackers.last_purge", now)
     );
-
-    let intervalHistogram = Services.telemetry.getHistogramById(
-      "COOKIE_PURGING_INTERVAL_HOURS"
-    );
     let hoursBetween = Math.floor((now - lastPurge) / 1000 / 60 / 60);
-    intervalHistogram.add(hoursBetween);
+    Services.telemetry
+      .getHistogramById("COOKIE_PURGING_INTERVAL_HOURS")
+      .add(hoursBetween);
 
     Services.prefs.setStringPref(
       "privacy.purge_trackers.last_purge",
       now.toString()
     );
-
-    let purgedHistogram = Services.telemetry.getHistogramById(
-      "COOKIE_PURGING_ORIGINS_PURGED"
-    );
-    purgedHistogram.add(purged.size);
-
-    let notPurgedHistogram = Services.telemetry.getHistogramById(
-      "COOKIE_PURGING_TRACKERS_WITH_USER_INTERACTION"
-    );
-    notPurgedHistogram.add(notPurged.size);
+    Services.telemetry
+      .getHistogramById("COOKIE_PURGING_ORIGINS_PURGED")
+      .add(purged.size);
+    Services.telemetry
+      .getHistogramById("COOKIE_PURGING_TRACKERS_WITH_USER_INTERACTION")
+      .add(notPurged.size);
 
     let duration = durationIntervals
       .map(([start, end]) => end - start)
       .reduce((acc, cur) => acc + cur, 0);
-
-    let durationHistogram = Services.telemetry.getHistogramById(
-      "COOKIE_PURGING_DURATION_MS"
-    );
-    durationHistogram.add(duration);
+    Services.telemetry
+      .getHistogramById("COOKIE_PURGING_DURATION_MS")
+      .add(duration);
   },
 
   /*
