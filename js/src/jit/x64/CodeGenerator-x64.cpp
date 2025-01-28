@@ -328,7 +328,7 @@ void CodeGenerator::visitAtomicTypedArrayElementBinop64(
 
   Register elements = ToRegister(lir->elements());
   Register64 value = ToRegister64(lir->value());
-  Register64 temp = ToTempRegister64OrInvalid(lir->temp());
+  Register64 temp = ToTempRegister64OrInvalid(lir->temp0());
   Register64 out = ToOutRegister64(lir);
 
   Scalar::Type arrayType = lir->mir()->arrayType();
@@ -633,8 +633,7 @@ void CodeGenerator::visitWasmAtomicBinopHeap(LWasmAtomicBinopHeap* ins) {
   Register ptr = ToRegister(ins->ptr());
   Register memoryBase = ToRegister(ins->memoryBase());
   const LAllocation* value = ins->value();
-  Register temp =
-      ins->temp()->isBogusTemp() ? InvalidReg : ToRegister(ins->temp());
+  Register temp = ToTempRegisterOrInvalid(ins->temp());
   Register output = ToRegister(ins->output());
   MOZ_ASSERT(ins->addrTemp()->isBogusTemp());
 

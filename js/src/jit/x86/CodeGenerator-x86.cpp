@@ -108,7 +108,7 @@ void CodeGenerator::visitAtomicLoad64(LAtomicLoad64* lir) {
   Register elements = ToRegister(lir->elements());
 
   MOZ_ASSERT(ToOutRegister64(lir) == Register64(edx, eax));
-  MOZ_ASSERT(ToRegister64(lir->temp64()) == Register64(ecx, ebx));
+  MOZ_ASSERT(ToRegister64(lir->temp0()) == Register64(ecx, ebx));
 
   const MLoadUnboxedScalar* mir = lir->mir();
 
@@ -130,7 +130,7 @@ void CodeGenerator::visitAtomicLoad64(LAtomicLoad64* lir) {
 void CodeGenerator::visitAtomicStore64(LAtomicStore64* lir) {
   Register elements = ToRegister(lir->elements());
   Register64 value = ToRegister64(lir->value());
-  Register64 temp = ToRegister64(lir->temp());
+  Register64 temp = ToRegister64(lir->temp0());
 
   MOZ_ASSERT(value == Register64(ecx, ebx));
   MOZ_ASSERT(temp == Register64(edx, eax));
@@ -230,7 +230,7 @@ void CodeGenerator::visitAtomicTypedArrayElementBinopForEffect64(
 
   Register elements = ToRegister(lir->elements());
   Register64 value = ToRegister64(lir->value());
-  Register64 temp = ToRegister64(lir->temp());
+  Register64 temp = ToRegister64(lir->temp0());
 
   MOZ_ASSERT(value == Register64(ecx, ebx));
   MOZ_ASSERT(temp == Register64(edx, eax));
@@ -387,8 +387,7 @@ void CodeGenerator::visitWasmAtomicBinopHeap(LWasmAtomicBinopHeap* ins) {
   MWasmAtomicBinopHeap* mir = ins->mir();
 
   Register ptrReg = ToRegister(ins->ptr());
-  Register temp =
-      ins->temp()->isBogusTemp() ? InvalidReg : ToRegister(ins->temp());
+  Register temp = ToTempRegisterOrInvalid(ins->temp());
   Register addrTemp = ToRegister(ins->addrTemp());
   Register out = ToRegister(ins->output());
   const LAllocation* value = ins->value();
@@ -1160,8 +1159,7 @@ void CodeGenerator::visitWasmTruncateToInt64(LWasmTruncateToInt64* lir) {
 void CodeGenerator::visitInt64ToFloatingPoint(LInt64ToFloatingPoint* lir) {
   Register64 input = ToRegister64(lir->getInt64Operand(0));
   FloatRegister output = ToFloatRegister(lir->output());
-  Register temp =
-      lir->temp()->isBogusTemp() ? InvalidReg : ToRegister(lir->temp());
+  Register temp = ToTempRegisterOrInvalid(lir->temp());
 
   MIRType outputType = lir->mir()->type();
   MOZ_ASSERT(outputType == MIRType::Double || outputType == MIRType::Float32);

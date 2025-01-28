@@ -63,6 +63,9 @@ class WaylandSurface final {
       const std::function<void(wl_callback*, uint32_t)>& aFrameCallbackHandler,
       bool aEmulateFrameCallback = false);
 
+  // Enable/Disable any frame callback emission (includes emulated ones).
+  void SetFrameCallbackState(bool aEnabled);
+
   // Create and resize EGL window.
   // GetEGLWindow() takes unscaled window size as we derive size from GdkWindow.
   // It's scaled internally by WaylandSurface fractional scale.
@@ -87,7 +90,9 @@ class WaylandSurface final {
 
   bool IsOpaqueSurfaceHandlerSet() const { return mIsOpaqueSurfaceHandlerSet; }
 
-  bool HasBufferAttached() const { return mBufferAttached; }
+  bool HasBufferAttachedLocked(const WaylandSurfaceLock& aProofOfLock) const {
+    return mBufferAttached;
+  }
 
   // Mapped as direct surface of MozContainer
   bool MapLocked(const WaylandSurfaceLock& aProofOfLock,
@@ -98,7 +103,7 @@ class WaylandSurface final {
                  WaylandSurfaceLock* aParentWaylandSurfaceLock,
                  gfx::IntPoint aSubsurfacePosition);
   // Unmap surface which hides it
-  void UnmapLocked(WaylandSurfaceLock& aSurfaceLock);
+  void UnmapLocked(const WaylandSurfaceLock& aProofOfLock);
 
   // Clean up Gdk resources, on main thread only
   void GdkCleanUpLocked(const WaylandSurfaceLock& aProofOfLock);
@@ -122,16 +127,18 @@ class WaylandSurface final {
 
   // Attach WaylandBuffer which shows WaylandBuffer content
   // on screen.
-  bool AttachLocked(WaylandSurfaceLock& aSurfaceLock,
+  bool AttachLocked(const WaylandSurfaceLock& aProofOfLock,
                     RefPtr<WaylandBuffer> aWaylandBuffer);
 
-  void UntrackWaylandBufferLocked(const WaylandSurfaceLock& aProofOfLock,
-                                  WaylandBuffer* aWaylandBuffer);
+  // Notify WaylandSurface that WaylandBuffer was released by Wayland
+  // compositor.
+  void DetachedByWaylandCompositorLocked(const WaylandSurfaceLock& aProofOfLock,
+                                         RefPtr<WaylandBuffer> aWaylandBuffer);
 
   // If there's any WaylandBuffer recently attached, detach it.
   // It makes the WaylandSurface invisible and it doesn't have any
   // content.
-  void RemoveAttachedBufferLocked(WaylandSurfaceLock& aProofOfLock);
+  void RemoveAttachedBufferLocked(const WaylandSurfaceLock& aProofOfLock);
 
   // CommitLocked() is needed to call after some of *Locked() method
   // to submit the action to Wayland compositor by wl_surface_commit().
@@ -263,7 +270,9 @@ class WaylandSurface final {
   void Commit(WaylandSurfaceLock* aProofOfLock, bool aForceCommit,
               bool aForceDisplayFlush);
 
-  void ReleaseAllWaylandBuffersLocked(WaylandSurfaceLock& aSurfaceLock);
+  bool UntrackWaylandBufferLocked(const WaylandSurfaceLock& aProofOfLock,
+                                  WaylandBuffer* aWaylandBuffer, bool aRemove);
+  void ReleaseAllWaylandBuffersLocked(const WaylandSurfaceLock& aProofOfLock);
 
   void RequestFrameCallbackLocked(const WaylandSurfaceLock& aProofOfLock,
                                   bool aRequestEmulated);
@@ -319,22 +328,18 @@ class WaylandSurface final {
   wl_subsurface* mSubsurface = nullptr;
   gfx::IntPoint mSubsurfacePosition{-1, -1};
 
-  // Recently attached Wayland buffer
-  RefPtr<WaylandBuffer> mAttachedBuffer;
-
-  // Wayland buffers recently attached to this surface or held by
-  // Wayland compositor.
+  // Wayland buffers attached to this surface AND held by Wayland compositor.
   // There may be more than one buffer attached, for instance if
   // previous buffer is hold by compositor. We need to keep
   // there buffers live until compositor notify us that we
   // can release them.
-  AutoTArray<RefPtr<WaylandBuffer>, 3> mTrackedBuffers;
+  AutoTArray<RefPtr<WaylandBuffer>, 3> mAttachedBuffers;
 
   // Indicates mSurface has buffer attached so we can attach subsurface
   // to it and expect to get frame callbacks from Wayland compositor.
   // We set it at AttachLocked() or when we get first frame callback
   // (when EGL is used).
-  mozilla::Atomic<bool, mozilla::Relaxed> mBufferAttached{false};
+  bool mBufferAttached = false;
 
   // It's kind of special case here where mSurface equal to mParentSurface
   // so we directly paint to parent surface without subsurface.
@@ -373,6 +378,7 @@ class WaylandSurface final {
     bool mEmulated = false;
   };
 
+  bool mFrameCallbackEnabled = true;
   // Frame callback handlers called every frame
   std::vector<FrameCallback> mPersistentFrameCallbackHandlers;
   // Frame callback handlers called only once

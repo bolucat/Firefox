@@ -192,10 +192,7 @@ void CodeGeneratorLOONG64::emitWasmLoad(T* lir) {
 
   Register memoryBase = ToRegister(lir->memoryBase());
   Register ptr = ToRegister(lir->ptr());
-  Register ptrScratch = InvalidReg;
-  if (!lir->ptrCopy()->isBogusTemp()) {
-    ptrScratch = ToRegister(lir->ptrCopy());
-  }
+  Register ptrScratch = ToTempRegisterOrInvalid(lir->ptrCopy());
 
   if (mir->base()->type() == MIRType::Int32) {
     masm.move32To64ZeroExtend(ptr, Register64(scratch2));
@@ -216,10 +213,7 @@ void CodeGeneratorLOONG64::emitWasmStore(T* lir) {
 
   Register memoryBase = ToRegister(lir->memoryBase());
   Register ptr = ToRegister(lir->ptr());
-  Register ptrScratch = InvalidReg;
-  if (!lir->ptrCopy()->isBogusTemp()) {
-    ptrScratch = ToRegister(lir->ptrCopy());
-  }
+  Register ptrScratch = ToTempRegisterOrInvalid(lir->ptrCopy());
 
   if (mir->base()->type() == MIRType::Int32) {
     masm.move32To64ZeroExtend(ptr, Register64(scratch2));
@@ -488,10 +482,7 @@ void CodeGenerator::visitWasmLoadI64(LWasmLoadI64* lir) {
   const MWasmLoad* mir = lir->mir();
 
   Register memoryBase = ToRegister(lir->memoryBase());
-  Register ptrScratch = InvalidReg;
-  if (!lir->ptrCopy()->isBogusTemp()) {
-    ptrScratch = ToRegister(lir->ptrCopy());
-  }
+  Register ptrScratch = ToTempRegisterOrInvalid(lir->ptrCopy());
 
   Register ptrReg = ToRegister(lir->ptr());
   if (mir->base()->type() == MIRType::Int32) {
@@ -507,10 +498,7 @@ void CodeGenerator::visitWasmStoreI64(LWasmStoreI64* lir) {
   const MWasmStore* mir = lir->mir();
 
   Register memoryBase = ToRegister(lir->memoryBase());
-  Register ptrScratch = InvalidReg;
-  if (!lir->ptrCopy()->isBogusTemp()) {
-    ptrScratch = ToRegister(lir->ptrCopy());
-  }
+  Register ptrScratch = ToTempRegisterOrInvalid(lir->ptrCopy());
 
   Register ptrReg = ToRegister(lir->ptr());
   if (mir->base()->type() == MIRType::Int32) {
@@ -2112,10 +2100,10 @@ void CodeGenerator::visitAtomicTypedArrayElementBinop(
 
   AnyRegister output = ToAnyRegister(lir->output());
   Register elements = ToRegister(lir->elements());
-  Register outTemp = ToTempRegisterOrInvalid(lir->temp2());
-  Register valueTemp = ToTempRegisterOrInvalid(lir->valueTemp());
-  Register offsetTemp = ToTempRegisterOrInvalid(lir->offsetTemp());
-  Register maskTemp = ToTempRegisterOrInvalid(lir->maskTemp());
+  Register outTemp = ToTempRegisterOrInvalid(lir->temp0());
+  Register valueTemp = ToTempRegisterOrInvalid(lir->temp1());
+  Register offsetTemp = ToTempRegisterOrInvalid(lir->temp2());
+  Register maskTemp = ToTempRegisterOrInvalid(lir->temp3());
   Register value = ToRegister(lir->value());
   Scalar::Type arrayType = lir->mir()->arrayType();
 
@@ -2138,9 +2126,9 @@ void CodeGenerator::visitAtomicTypedArrayElementBinopForEffect(
   MOZ_ASSERT(lir->mir()->isForEffect());
 
   Register elements = ToRegister(lir->elements());
-  Register valueTemp = ToTempRegisterOrInvalid(lir->valueTemp());
-  Register offsetTemp = ToTempRegisterOrInvalid(lir->offsetTemp());
-  Register maskTemp = ToTempRegisterOrInvalid(lir->maskTemp());
+  Register valueTemp = ToTempRegisterOrInvalid(lir->temp0());
+  Register offsetTemp = ToTempRegisterOrInvalid(lir->temp1());
+  Register maskTemp = ToTempRegisterOrInvalid(lir->temp2());
   Register value = ToRegister(lir->value());
   Scalar::Type arrayType = lir->mir()->arrayType();
 
@@ -2162,13 +2150,13 @@ void CodeGenerator::visitCompareExchangeTypedArrayElement(
     LCompareExchangeTypedArrayElement* lir) {
   Register elements = ToRegister(lir->elements());
   AnyRegister output = ToAnyRegister(lir->output());
-  Register outTemp = ToTempRegisterOrInvalid(lir->temp());
+  Register outTemp = ToTempRegisterOrInvalid(lir->temp0());
 
   Register oldval = ToRegister(lir->oldval());
   Register newval = ToRegister(lir->newval());
-  Register valueTemp = ToTempRegisterOrInvalid(lir->valueTemp());
-  Register offsetTemp = ToTempRegisterOrInvalid(lir->offsetTemp());
-  Register maskTemp = ToTempRegisterOrInvalid(lir->maskTemp());
+  Register valueTemp = ToTempRegisterOrInvalid(lir->temp1());
+  Register offsetTemp = ToTempRegisterOrInvalid(lir->temp2());
+  Register maskTemp = ToTempRegisterOrInvalid(lir->temp3());
   Scalar::Type arrayType = lir->mir()->arrayType();
 
   if (lir->index()->isConstant()) {
@@ -2189,12 +2177,12 @@ void CodeGenerator::visitAtomicExchangeTypedArrayElement(
     LAtomicExchangeTypedArrayElement* lir) {
   Register elements = ToRegister(lir->elements());
   AnyRegister output = ToAnyRegister(lir->output());
-  Register outTemp = ToTempRegisterOrInvalid(lir->temp());
+  Register outTemp = ToTempRegisterOrInvalid(lir->temp0());
 
   Register value = ToRegister(lir->value());
-  Register valueTemp = ToTempRegisterOrInvalid(lir->valueTemp());
-  Register offsetTemp = ToTempRegisterOrInvalid(lir->offsetTemp());
-  Register maskTemp = ToTempRegisterOrInvalid(lir->maskTemp());
+  Register valueTemp = ToTempRegisterOrInvalid(lir->temp1());
+  Register offsetTemp = ToTempRegisterOrInvalid(lir->temp2());
+  Register maskTemp = ToTempRegisterOrInvalid(lir->temp3());
   Scalar::Type arrayType = lir->mir()->arrayType();
 
   if (lir->index()->isConstant()) {
@@ -2250,7 +2238,7 @@ void CodeGenerator::visitAtomicTypedArrayElementBinop64(
 
   Register elements = ToRegister(lir->elements());
   Register64 value = ToRegister64(lir->value());
-  Register64 temp = ToRegister64(lir->temp());
+  Register64 temp = ToRegister64(lir->temp0());
   Register64 out = ToOutRegister64(lir);
 
   Scalar::Type arrayType = lir->mir()->arrayType();
@@ -2274,7 +2262,7 @@ void CodeGenerator::visitAtomicTypedArrayElementBinopForEffect64(
 
   Register elements = ToRegister(lir->elements());
   Register64 value = ToRegister64(lir->value());
-  Register64 temp = ToRegister64(lir->temp());
+  Register64 temp = ToRegister64(lir->temp0());
 
   Scalar::Type arrayType = lir->mir()->arrayType();
   AtomicOp atomicOp = lir->mir()->operation();

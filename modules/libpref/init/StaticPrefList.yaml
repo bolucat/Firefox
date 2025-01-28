@@ -711,7 +711,7 @@
 
 - name: apz.mousemove_hittest_optimization.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 - name: apz.one_touch_pinch.enabled
@@ -1582,6 +1582,15 @@
 - name: browser.history.collectWireframes
   type: bool
   value: false
+  mirror: always
+
+# If false, show internal error page for HTTP responses with error
+# codes (4xx, 5xx) and "Content-Length": 0 instead of blank page
+# See https://bugzilla.mozilla.org/show_bug.cgi?id=1325876#c32 for why this
+# is disabled on Android.
+- name: browser.http.blank_page_with_error_response.enabled
+  type: bool
+  value: true
   mirror: always
 
 # The minimum area for a rect to be included in a wireframe, in CSS pixels.
@@ -4407,6 +4416,11 @@
   mirror: always
 
 - name: dom.workers.throttling.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+- name: dom.workers.timeoutmanager
   type: RelaxedAtomicBool
   value: false
   mirror: always
@@ -10140,6 +10154,16 @@
   value: true
   mirror: always
 
+# This will automatically enable inline spellchecking (if it is available) for
+# editable elements in HTML.
+# 0 = spellcheck nothing
+# 1 = check multi-line controls [default]
+# 2 = check multi/single line controls
+- name: layout.spellcheckDefault
+  type: int32_t
+  value: 1
+  mirror: always
+
 # Treat top level pages as always-active for the purpose of refresh driver
 # throttling and such.
 #
@@ -12810,7 +12834,7 @@
   # in response to a Refresh header.
 - name: network.http.referer.sendFromRefresh
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # false=real referer, true=spoof referer (use target URI as referer).
@@ -14771,6 +14795,11 @@
 - name: network.http.retry_with_another_half_open
   type: RelaxedAtomicBool
   value: @IS_EARLY_BETA_OR_EARLIER@
+  mirror: always
+
+- name: network.http.basic_http_auth.enabled
+  type: RelaxedAtomicBool
+  value: true
   mirror: always
 
   # If true, HTTP response content-type headers will be parsed using the standards-compliant MimeType parser
