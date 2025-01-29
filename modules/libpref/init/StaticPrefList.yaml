@@ -2458,7 +2458,7 @@
 # Disable cookie-store API
 - name: dom.cookieStore.enabled
   type: RelaxedAtomicBool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 # Is support for CSSPseudoElement enabled?
@@ -2529,7 +2529,7 @@
 # Enable/disable contenteditable="plaintext-only".
 - name: dom.element.contenteditable.plaintext-only.enabled
   type: bool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 # Whether Dialog elements emit beforetoggle and toggle events during opening and closing.
@@ -4186,7 +4186,7 @@
 # downgraded again if the request failed.
 - name: dom.security.https_first
   type: RelaxedAtomicBool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 # If true, HTTPS-First will upgrade non-default ports
@@ -7720,12 +7720,6 @@
   value: true
   mirror: always
 
-# Whether we use EXIF metadata for image density.
-- name: image.exif-density-correction.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 # Whether EXIF density metadata is sanity checked against PixelXDimension and PixelYDimension
 - name: image.exif-density-correction.sanity-check.enabled
   type: RelaxedAtomicBool
@@ -8460,6 +8454,13 @@
 
   # Experimental support for Iterator Sequencing in JavaScript.
 -   name: javascript.options.experimental.iterator_sequencing
+    type: bool
+    value: false
+    mirror: always
+    set_spidermonkey_pref: startup
+
+  # Experimental support for upsert in JavaScript.
+-   name: javascript.options.experimental.upsert
     type: bool
     value: false
     mirror: always
@@ -12248,9 +12249,19 @@
   value: false
   mirror: always
 
+- name: media.webrtc.simulcast.av1.enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+- name: media.webrtc.simulcast.h264.enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 - name: media.webrtc.simulcast.vp9.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 - name: media.webrtc.tls_tunnel_for_all_proxy
@@ -14982,7 +14993,7 @@
 # addition to importing them from browser/app/permissions.
 - name: permissions.manager.remote.enabled
   type: bool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 #---------------------------------------------------------------------------
