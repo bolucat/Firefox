@@ -251,6 +251,21 @@ settings-tabs-show-image-in-preview =
     .label = Show an image preview when you hover on a tab
     .accessKey = h
 
+
+browser-layout-header = Browser Layout
+
+browser-layout-horizontal-tabs =
+    .label = Horizontal tabs
+browser-layout-horizontal-tabs-desc = Display at top of browser
+
+browser-layout-vertical-tabs =
+    .label = Vertical tabs
+browser-layout-vertical-tabs-desc = Display on the side, in the sidebar
+
+browser-layout-show-sidebar =
+    .label = Show sidebar
+browser-layout-show-sidebar-desc = Quickly access bookmarks, tabs from your phone, AI chatbots, and more without leaving your main view.
+
 ## General Section - Language & Appearance
 
 language-and-appearance-header = Language and Appearance
@@ -1431,8 +1446,8 @@ permissions-addon-exceptions =
 collection-header2 = { -brand-short-name } Data Collection and Use
     .searchkeywords = telemetry
 
-collection-description = We strive to provide you with choices and collect only what we need to provide and improve { -brand-short-name } for everyone. We always ask permission before receiving personal information.
-collection-privacy-notice = Privacy Notice
+preferences-collection-description = We strive to provide you with choices and collect only the minimal data necessary to improve { -brand-product-name } for everyone.
+preferences-collection-privacy-notice = View Privacy Notice
 
 collection-health-report-telemetry-disabled = You’re no longer allowing { -vendor-short-name } to capture technical and interaction data. All past data will be deleted within 30 days.
 collection-health-report-telemetry-disabled-link = Learn more

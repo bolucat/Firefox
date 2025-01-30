@@ -174,6 +174,7 @@ export class UserCharacteristicsPageService {
       ],
       [this.populateCanvasData, []],
       [this.populateWebGPUProperties, [browser.ownerGlobal]],
+      [this.populateUserAgent, [browser.ownerGlobal]],
     ];
     // Bind them to the class and run them in parallel.
     // Timeout if any of them takes too long (5 minutes).
@@ -503,7 +504,7 @@ export class UserCharacteristicsPageService {
   }
 
   async populateWebGPUProperties(window) {
-    const adapter = await window.navigator.gpu.requestAdapter();
+    const adapter = await window.navigator.gpu?.requestAdapter();
     if (!adapter) {
       return;
     }
@@ -600,6 +601,10 @@ export class UserCharacteristicsPageService {
     Glean.characteristics.wgpuMaxcomputeworkgroupsperdimension.set(
       adapter.limits.maxComputeWorkgroupsPerDimension
     );
+  }
+
+  async populateUserAgent(window) {
+    Glean.characteristics.userAgent.set(window.navigator.userAgent);
   }
 
   async populateMappableData(data) {

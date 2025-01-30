@@ -302,6 +302,11 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         default = false,
     )
 
+    var privateBrowsingBiometricsEnabled by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_private_browsing_biometrics_enabled),
+        default = false,
+    )
+
     var shouldReturnToBrowser by booleanPreference(
         appContext.getString(R.string.pref_key_return_to_browser),
         false,
@@ -351,6 +356,11 @@ class Settings(private val appContext: Context) : PreferencesHolder {
 
     var hasMadeMarketingTelemetrySelection by booleanPreference(
         appContext.getPreferenceKey(R.string.pref_key_marketing_telemetry_selection_made),
+        default = false,
+    )
+
+    var hasAcceptedTermsOfService by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_terms_accepted),
         default = false,
     )
 
