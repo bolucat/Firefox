@@ -9941,7 +9941,7 @@ nsIHTMLCollection* Document::Anchors() {
 }
 
 mozilla::dom::Nullable<mozilla::dom::WindowProxyHolder> Document::Open(
-    const nsAString& aURL, const nsAString& aName, const nsAString& aFeatures,
+    const nsACString& aURL, const nsAString& aName, const nsAString& aFeatures,
     ErrorResult& rv) {
   MOZ_ASSERT(nsContentUtils::CanCallerAccess(this),
              "XOW should have caught this!");
@@ -9959,8 +9959,7 @@ mozilla::dom::Nullable<mozilla::dom::WindowProxyHolder> Document::Open(
   }
   RefPtr<nsGlobalWindowOuter> win = nsGlobalWindowOuter::Cast(outer);
   RefPtr<BrowsingContext> newBC;
-  rv = win->OpenJS(NS_ConvertUTF16toUTF8(aURL), aName, aFeatures,
-                   getter_AddRefs(newBC));
+  rv = win->OpenJS(aURL, aName, aFeatures, getter_AddRefs(newBC));
   if (!newBC) {
     return nullptr;
   }
@@ -10311,6 +10310,20 @@ void Document::WriteCommon(const nsAString& aText, bool aNewlineTerminate,
     return;
   }
 
+  Maybe<nsAutoString> compliantStringHolder;
+  const nsAString* compliantString = &aText;
+  if (!aIsTrusted) {
+    constexpr nsLiteralString sinkWrite = u"Document write"_ns;
+    constexpr nsLiteralString sinkWriteLn = u"Document writeln"_ns;
+    compliantString =
+        TrustedTypeUtils::GetTrustedTypesCompliantStringForTrustedHTML(
+            aText, aNewlineTerminate ? sinkWriteLn : sinkWrite,
+            kTrustedTypesOnlySinkGroup, *this, compliantStringHolder, aRv);
+    if (aRv.Failed()) {
+      return;
+    }
+  }
+
   if (!IsHTMLDocument() || mDisableDocWrite) {
     // No calling document.write*() on XHTML!
 
@@ -10377,36 +10390,17 @@ void Document::WriteCommon(const nsAString& aText, bool aNewlineTerminate,
 
   ++mWriteLevel;
 
-  auto parseString =
-      [this, &aNewlineTerminate, &aRv, &key](const nsAString& aString)
-          MOZ_CAN_RUN_SCRIPT_FOR_DEFINITION -> void {
-    // This could be done with less code, but for performance reasons it
-    // makes sense to have the code for two separate Parse() calls here
-    // since the concatenation of strings costs more than we like. And
-    // why pay that price when we don't need to?
-    if (aNewlineTerminate) {
-      aRv = (static_cast<nsHtml5Parser*>(mParser.get()))
-                ->Parse(aString + new_line, key, false);
-    } else {
-      aRv = (static_cast<nsHtml5Parser*>(mParser.get()))
-                ->Parse(aString, key, false);
-    }
-  };
-
-  if (aIsTrusted) {
-    parseString(aText);
+  // This could be done with less code, but for performance reasons it
+  // makes sense to have the code for two separate Parse() calls here
+  // since the concatenation of strings costs more than we like. And
+  // why pay that price when we don't need to?
+  if (aNewlineTerminate) {
+    aRv = (static_cast<nsHtml5Parser*>(mParser.get()))
+              ->Parse(*compliantString + new_line, key, false);
   } else {
-    constexpr nsLiteralString sinkWrite = u"Document write"_ns;
-    constexpr nsLiteralString sinkWriteLn = u"Document writeln"_ns;
-    Maybe<nsAutoString> compliantStringHolder;
-    const nsAString* compliantString =
-        TrustedTypeUtils::GetTrustedTypesCompliantStringForTrustedHTML(
-            aText, aNewlineTerminate ? sinkWriteLn : sinkWrite,
-            kTrustedTypesOnlySinkGroup, *this, compliantStringHolder, aRv);
-    if (!aRv.Failed()) {
-      parseString(*compliantString);
-    }
-  }
+    aRv = (static_cast<nsHtml5Parser*>(mParser.get()))
+              ->Parse(*compliantString, key, false);
+  };
 
   --mWriteLevel;
 
@@ -18017,11 +18011,8 @@ already_AddRefed<ViewTransition> Document::StartViewTransition(
   // Step 6: Set document's active view transition to transition.
   mActiveViewTransition = transition;
 
-  if (mPresShell) {
-    if (nsRefreshDriver* rd = mPresShell->GetRefreshDriver()) {
-      rd->EnsureViewTransitionOperationsHappen();
-    }
-  }
+  EnsureViewTransitionOperationsHappen();
+
   // Step 7: return transition
   return transition.forget();
 }
@@ -18036,6 +18027,18 @@ void Document::PerformPendingViewTransitionOperations() {
     aDoc.PerformPendingViewTransitionOperations();
     return CallState::Continue;
   });
+}
+
+void Document::EnsureViewTransitionOperationsHappen() {
+  if (!mPresShell) {
+    return;
+  }
+
+  nsRefreshDriver* rd = mPresShell->GetRefreshDriver();
+  if (!rd) {
+    return;
+  }
+  rd->EnsureViewTransitionOperationsHappen();
 }
 
 Selection* Document::GetSelection(ErrorResult& aRv) {

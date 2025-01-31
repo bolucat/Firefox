@@ -5140,6 +5140,13 @@
   value: true
   mirror: always
 
+# Is the constructed flag error check disabled during adoptedStyleSheets setter?
+# https://github.com/w3c/csswg-drafts/issues/10013
+- name: dom.webcomponents.lift-adoptedstylesheets-restriction.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 # Is support for the Web GPU API enabled?
 - name: dom.webgpu.enabled
   type: RelaxedAtomicBool
@@ -13683,11 +13690,7 @@
 # every page reload.
 - name: network.dns.only_refresh_on_fresh_connection
   type: RelaxedAtomicBool
-#ifdef EARLY_BETA_OR_EARLIER
-  value: false
-#else
   value: true
-#endif
   mirror: always
 
 # When true, DNS resolutions will downgrade DNS
@@ -18184,6 +18187,13 @@
 - name: widget.windows.uwp-system-colors.enabled
   type: bool
   value: true
+  mirror: always
+
+# Whether PiP windows have window decorations (borders and shadows).
+# Off for now while we fix bug 1934760 and related issues.
+- name: widget.windows.pip-decorations.enabled
+  type: bool
+  value: false
   mirror: always
 
 # Whether we use the accent color for highlight as some other UWP apps do.

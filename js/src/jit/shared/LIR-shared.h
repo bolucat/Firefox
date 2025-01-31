@@ -19,21 +19,6 @@ namespace jit {
 
 LIR_OPCODE_CLASS_GENERATED
 
-class LBox : public LInstructionHelper<BOX_PIECES, 1, 0> {
-  MIRType type_;
-
- public:
-  LIR_HEADER(Box);
-
-  LBox(const LAllocation& payload, MIRType type)
-      : LInstructionHelper(classOpcode), type_(type) {
-    setOperand(0, payload);
-  }
-
-  MIRType type() const { return type_; }
-  const char* extraName() const { return StringFromMIRType(type_); }
-};
-
 template <size_t Temps, size_t ExtraUses = 0>
 class LBinaryMath : public LInstructionHelper<1, 2 + ExtraUses, Temps> {
  protected:
@@ -135,82 +120,6 @@ class LValue : public LInstructionHelper<BOX_PIECES, 0, 0> {
   explicit LValue(const Value& v) : LInstructionHelper(classOpcode), v_(v) {}
 
   Value value() const { return v_; }
-};
-
-class LNewArray : public LInstructionHelper<1, 0, 1> {
- public:
-  LIR_HEADER(NewArray)
-
-  explicit LNewArray(const LDefinition& temp)
-      : LInstructionHelper(classOpcode) {
-    setTemp(0, temp);
-  }
-
-  const char* extraName() const {
-    return mir()->isVMCall() ? "VMCall" : nullptr;
-  }
-
-  const LDefinition* temp() { return getTemp(0); }
-
-  MNewArray* mir() const { return mir_->toNewArray(); }
-};
-
-class LNewObject : public LInstructionHelper<1, 0, 1> {
- public:
-  LIR_HEADER(NewObject)
-
-  explicit LNewObject(const LDefinition& temp)
-      : LInstructionHelper(classOpcode) {
-    setTemp(0, temp);
-  }
-
-  const char* extraName() const {
-    return mir()->isVMCall() ? "VMCall" : nullptr;
-  }
-
-  const LDefinition* temp() { return getTemp(0); }
-
-  MNewObject* mir() const { return mir_->toNewObject(); }
-};
-
-namespace details {
-template <size_t Defs, size_t Ops, size_t Temps>
-class RotateBase : public LInstructionHelper<Defs, Ops, Temps> {
-  using Base = LInstructionHelper<Defs, Ops, Temps>;
-
- protected:
-  explicit RotateBase(LNode::Opcode opcode) : Base(opcode) {}
-
- public:
-  MRotate* mir() { return Base::mir_->toRotate(); }
-};
-}  // namespace details
-
-class LRotate : public details::RotateBase<1, 2, 0> {
- public:
-  LIR_HEADER(Rotate);
-
-  LRotate() : RotateBase(classOpcode) {}
-
-  const LAllocation* input() { return getOperand(0); }
-  LAllocation* count() { return getOperand(1); }
-};
-
-class LRotateI64
-    : public details::RotateBase<INT64_PIECES, INT64_PIECES + 1, 1> {
- public:
-  LIR_HEADER(RotateI64);
-
-  LRotateI64() : RotateBase(classOpcode) {
-    setTemp(0, LDefinition::BogusTemp());
-  }
-
-  static const size_t Input = 0;
-  static const size_t Count = INT64_PIECES;
-
-  const LInt64Allocation input() { return getInt64Operand(Input); }
-  const LDefinition* temp() { return getTemp(0); }
-  LAllocation* count() { return getOperand(Count); }
 };
 
 // Allocate a new arguments object for an inlined frame.
@@ -471,6 +380,7 @@ class LApplyArgsGeneric
   const LAllocation* getFunction() { return getOperand(0); }
   const LAllocation* getArgc() { return getOperand(1); }
   static const size_t ThisIndex = 2;
+  LBoxAllocation thisValue() const { return getBoxOperand(ThisIndex); }
 
   const LDefinition* getTempObject() { return getTemp(0); }
   const LDefinition* getTempForArgCopy() { return getTemp(1); }
@@ -502,6 +412,7 @@ class LApplyArgsObj
   // All registers are calltemps. argc is mapped to the same register as
   // ArgsObj. argc becomes live as ArgsObj is dying.
   const LAllocation* getArgc() { return getOperand(1); }
+  LBoxAllocation thisValue() const { return getBoxOperand(ThisIndex); }
   static const size_t ThisIndex = 2;
 
   const LDefinition* getTempObject() { return getTemp(0); }
@@ -534,6 +445,7 @@ class LApplyArrayGeneric
   // argc is mapped to the same register as elements: argc becomes
   // live as elements is dying, all registers are calltemps.
   const LAllocation* getArgc() { return getOperand(1); }
+  LBoxAllocation thisValue() const { return getBoxOperand(ThisIndex); }
   static const size_t ThisIndex = 2;
 
   const LDefinition* getTempObject() { return getTemp(0); }
@@ -567,6 +479,7 @@ class LConstructArgsGeneric
   const LAllocation* getFunction() { return getOperand(0); }
   const LAllocation* getArgc() { return getOperand(1); }
   const LAllocation* getNewTarget() { return getOperand(2); }
+  LBoxAllocation thisValue() const { return getBoxOperand(ThisIndex); }
 
   static const size_t ThisIndex = 3;
 
@@ -603,6 +516,7 @@ class LConstructArrayGeneric
   const LAllocation* getFunction() { return getOperand(0); }
   const LAllocation* getElements() { return getOperand(1); }
   const LAllocation* getNewTarget() { return getOperand(2); }
+  LBoxAllocation thisValue() const { return getBoxOperand(ThisIndex); }
 
   static const size_t ThisIndex = 3;
 
@@ -641,6 +555,7 @@ class LApplyArgsNative
   uint32_t numExtraFormals() const { return mir()->numExtraFormals(); }
 
   const LAllocation* getArgc() { return getOperand(0); }
+  LBoxAllocation thisValue() const { return getBoxOperand(ThisIndex); }
 
   static const size_t ThisIndex = 1;
 
@@ -670,6 +585,7 @@ class LApplyArgsObjNative
   MApplyArgsObj* mir() const { return mir_->toApplyArgsObj(); }
 
   const LAllocation* getArgsObj() { return getOperand(0); }
+  LBoxAllocation thisValue() const { return getBoxOperand(ThisIndex); }
 
   static const size_t ThisIndex = 1;
 
@@ -703,6 +619,7 @@ class LApplyArrayNative
   MApplyArray* mir() const { return mir_->toApplyArray(); }
 
   const LAllocation* getElements() { return getOperand(0); }
+  LBoxAllocation thisValue() const { return getBoxOperand(ThisIndex); }
 
   static const size_t ThisIndex = 1;
 
@@ -776,229 +693,6 @@ class LConstructArrayNative : public LCallInstructionHelper<BOX_PIECES, 2, 3> {
   const LAllocation* getArgc() { return getOperand(0); }
 };
 
-// Compares two integral values of the same JS type, either integer or object.
-// For objects, both operands are in registers.
-class LCompare : public LInstructionHelper<1, 2, 0> {
-  JSOp jsop_;
-
- public:
-  LIR_HEADER(Compare)
-  LCompare(JSOp jsop, const LAllocation& left, const LAllocation& right)
-      : LInstructionHelper(classOpcode), jsop_(jsop) {
-    setOperand(0, left);
-    setOperand(1, right);
-  }
-
-  JSOp jsop() const { return jsop_; }
-  const LAllocation* left() { return getOperand(0); }
-  const LAllocation* right() { return getOperand(1); }
-  MCompare* mir() { return mir_->toCompare(); }
-  const char* extraName() const { return CodeName(jsop_); }
-};
-
-class LCompareI64 : public LInstructionHelper<1, 2 * INT64_PIECES, 0> {
-  JSOp jsop_;
-
- public:
-  LIR_HEADER(CompareI64)
-
-  static const size_t Lhs = 0;
-  static const size_t Rhs = INT64_PIECES;
-
-  LCompareI64(JSOp jsop, const LInt64Allocation& left,
-              const LInt64Allocation& right)
-      : LInstructionHelper(classOpcode), jsop_(jsop) {
-    setInt64Operand(Lhs, left);
-    setInt64Operand(Rhs, right);
-  }
-
-  JSOp jsop() const { return jsop_; }
-  LInt64Allocation left() const { return getInt64Operand(LCompareI64::Lhs); }
-  LInt64Allocation right() const { return getInt64Operand(LCompareI64::Rhs); }
-  MCompare* mir() { return mir_->toCompare(); }
-  const char* extraName() const { return CodeName(jsop_); }
-};
-
-class LCompareI64AndBranch
-    : public LControlInstructionHelper<2, 2 * INT64_PIECES, 0> {
-  MCompare* cmpMir_;
-  JSOp jsop_;
-
- public:
-  LIR_HEADER(CompareI64AndBranch)
-
-  static const size_t Lhs = 0;
-  static const size_t Rhs = INT64_PIECES;
-
-  LCompareI64AndBranch(MCompare* cmpMir, JSOp jsop,
-                       const LInt64Allocation& left,
-                       const LInt64Allocation& right, MBasicBlock* ifTrue,
-                       MBasicBlock* ifFalse)
-      : LControlInstructionHelper(classOpcode), cmpMir_(cmpMir), jsop_(jsop) {
-    setInt64Operand(Lhs, left);
-    setInt64Operand(Rhs, right);
-    setSuccessor(0, ifTrue);
-    setSuccessor(1, ifFalse);
-  }
-
-  JSOp jsop() const { return jsop_; }
-  MBasicBlock* ifTrue() const { return getSuccessor(0); }
-  MBasicBlock* ifFalse() const { return getSuccessor(1); }
-  LInt64Allocation left() const {
-    return getInt64Operand(LCompareI64AndBranch::Lhs);
-  }
-  LInt64Allocation right() const {
-    return getInt64Operand(LCompareI64AndBranch::Rhs);
-  }
-  MTest* mir() const { return mir_->toTest(); }
-  MCompare* cmpMir() const { return cmpMir_; }
-  const char* extraName() const { return CodeName(jsop_); }
-};
-
-// Compares two integral values of the same JS type, either integer or object.
-// For objects, both operands are in registers.
-class LCompareAndBranch : public LControlInstructionHelper<2, 2, 0> {
-  MCompare* cmpMir_;
-  JSOp jsop_;
-
- public:
-  LIR_HEADER(CompareAndBranch)
-  LCompareAndBranch(MCompare* cmpMir, JSOp jsop, const LAllocation& left,
-                    const LAllocation& right, MBasicBlock* ifTrue,
-                    MBasicBlock* ifFalse)
-      : LControlInstructionHelper(classOpcode), cmpMir_(cmpMir), jsop_(jsop) {
-    setOperand(0, left);
-    setOperand(1, right);
-    setSuccessor(0, ifTrue);
-    setSuccessor(1, ifFalse);
-  }
-
-  JSOp jsop() const { return jsop_; }
-  MBasicBlock* ifTrue() const { return getSuccessor(0); }
-  MBasicBlock* ifFalse() const { return getSuccessor(1); }
-  const LAllocation* left() { return getOperand(0); }
-  const LAllocation* right() { return getOperand(1); }
-  MTest* mir() const { return mir_->toTest(); }
-  MCompare* cmpMir() const { return cmpMir_; }
-  const char* extraName() const { return CodeName(jsop_); }
-};
-
-// Bitwise not operation, takes a 32-bit integer as input and returning
-// a 32-bit integer result as an output.
-class LBitNotI : public LInstructionHelper<1, 1, 0> {
- public:
-  LIR_HEADER(BitNotI)
-
-  LBitNotI() : LInstructionHelper(classOpcode) {}
-};
-
-class LBitNotI64 : public LInstructionHelper<INT64_PIECES, INT64_PIECES, 0> {
- public:
-  LIR_HEADER(BitNotI64)
-
-  LBitNotI64() : LInstructionHelper(classOpcode) {}
-};
-
-// Binary bitwise operation, taking two 32-bit integers as inputs and returning
-// a 32-bit integer result as an output.
-class LBitOpI : public LInstructionHelper<1, 2, 0> {
-  JSOp op_;
-
- public:
-  LIR_HEADER(BitOpI)
-
-  explicit LBitOpI(JSOp op) : LInstructionHelper(classOpcode), op_(op) {}
-
-  const char* extraName() const {
-    if (bitop() == JSOp::Ursh && mir_->toUrsh()->bailoutsDisabled()) {
-      return "ursh:BailoutsDisabled";
-    }
-    return CodeName(op_);
-  }
-
-  JSOp bitop() const { return op_; }
-};
-
-class LBitOpI64 : public LInstructionHelper<INT64_PIECES, 2 * INT64_PIECES, 0> {
-  JSOp op_;
-
- public:
-  LIR_HEADER(BitOpI64)
-
-  static const size_t Lhs = 0;
-  static const size_t Rhs = INT64_PIECES;
-
-  explicit LBitOpI64(JSOp op) : LInstructionHelper(classOpcode), op_(op) {}
-
-  const char* extraName() const { return CodeName(op_); }
-
-  JSOp bitop() const { return op_; }
-};
-
-// Shift operation, taking two 32-bit integers as inputs and returning
-// a 32-bit integer result as an output.
-class LShiftI : public LBinaryMath<0> {
-  JSOp op_;
-
- public:
-  LIR_HEADER(ShiftI)
-
-  explicit LShiftI(JSOp op) : LBinaryMath(classOpcode), op_(op) {}
-
-  JSOp bitop() { return op_; }
-
-  MInstruction* mir() { return mir_->toInstruction(); }
-
-  const char* extraName() const { return CodeName(op_); }
-};
-
-class LShiftI64 : public LInstructionHelper<INT64_PIECES, INT64_PIECES + 1, 0> {
-  JSOp op_;
-
- public:
-  LIR_HEADER(ShiftI64)
-
-  explicit LShiftI64(JSOp op) : LInstructionHelper(classOpcode), op_(op) {}
-
-  static const size_t Lhs = 0;
-  static const size_t Rhs = INT64_PIECES;
-
-  JSOp bitop() { return op_; }
-
-  MInstruction* mir() { return mir_->toInstruction(); }
-
-  const char* extraName() const { return CodeName(op_); }
-};
-
-class LSignExtendInt64
-    : public LInstructionHelper<INT64_PIECES, INT64_PIECES, 0> {
- public:
-  LIR_HEADER(SignExtendInt64)
-
-  explicit LSignExtendInt64(const LInt64Allocation& input)
-      : LInstructionHelper(classOpcode) {
-    setInt64Operand(0, input);
-  }
-
-  const MSignExtendInt64* mir() const { return mir_->toSignExtendInt64(); }
-
-  MSignExtendInt64::Mode mode() const { return mir()->mode(); }
-};
-
-class LUrshD : public LBinaryMath<1> {
- public:
-  LIR_HEADER(UrshD)
-
-  LUrshD(const LAllocation& lhs, const LAllocation& rhs,
-         const LDefinition& temp)
-      : LBinaryMath(classOpcode) {
-    setOperand(0, lhs);
-    setOperand(1, rhs);
-    setTemp(0, temp);
-  }
-  const LDefinition* temp() { return getTemp(0); }
-};
-
 // Returns from the function being compiled (not used in inlined frames). The
 // input must be a box.
 class LReturn : public LInstructionHelper<0, BOX_PIECES, 0> {
@@ -1011,98 +705,6 @@ class LReturn : public LInstructionHelper<0, BOX_PIECES, 0> {
       : LInstructionHelper(classOpcode), isGenerator_(isGenerator) {}
 
   bool isGenerator() { return isGenerator_; }
-};
-
-class LMinMaxBase : public LInstructionHelper<1, 2, 0> {
- protected:
-  LMinMaxBase(LNode::Opcode opcode, const LAllocation& first,
-              const LAllocation& second)
-      : LInstructionHelper(opcode) {
-    setOperand(0, first);
-    setOperand(1, second);
-  }
-
- public:
-  const LAllocation* first() { return this->getOperand(0); }
-  const LAllocation* second() { return this->getOperand(1); }
-  const LDefinition* output() { return this->getDef(0); }
-  MMinMax* mir() const { return mir_->toMinMax(); }
-  const char* extraName() const { return mir()->isMax() ? "Max" : "Min"; }
-};
-
-class LMinMaxI : public LMinMaxBase {
- public:
-  LIR_HEADER(MinMaxI)
-  LMinMaxI(const LAllocation& first, const LAllocation& second)
-      : LMinMaxBase(classOpcode, first, second) {}
-};
-
-class LMinMaxD : public LMinMaxBase {
- public:
-  LIR_HEADER(MinMaxD)
-  LMinMaxD(const LAllocation& first, const LAllocation& second)
-      : LMinMaxBase(classOpcode, first, second) {}
-};
-
-class LMinMaxF : public LMinMaxBase {
- public:
-  LIR_HEADER(MinMaxF)
-  LMinMaxF(const LAllocation& first, const LAllocation& second)
-      : LMinMaxBase(classOpcode, first, second) {}
-};
-
-class LMinMaxArrayI : public LInstructionHelper<1, 1, 3> {
- public:
-  LIR_HEADER(MinMaxArrayI);
-  LMinMaxArrayI(const LAllocation& array, const LDefinition& temp0,
-                const LDefinition& temp1, const LDefinition& temp2)
-      : LInstructionHelper(classOpcode) {
-    setOperand(0, array);
-    setTemp(0, temp0);
-    setTemp(1, temp1);
-    setTemp(2, temp2);
-  }
-
-  const LAllocation* array() { return getOperand(0); }
-  const LDefinition* temp1() { return getTemp(0); }
-  const LDefinition* temp2() { return getTemp(1); }
-  const LDefinition* temp3() { return getTemp(2); }
-
-  bool isMax() const { return mir_->toMinMaxArray()->isMax(); }
-};
-
-class LMinMaxArrayD : public LInstructionHelper<1, 1, 3> {
- public:
-  LIR_HEADER(MinMaxArrayD);
-  LMinMaxArrayD(const LAllocation& array, const LDefinition& floatTemp,
-                const LDefinition& temp1, const LDefinition& temp2)
-      : LInstructionHelper(classOpcode) {
-    setOperand(0, array);
-    setTemp(0, floatTemp);
-    setTemp(1, temp1);
-    setTemp(2, temp2);
-  }
-
-  const LAllocation* array() { return getOperand(0); }
-  const LDefinition* floatTemp() { return getTemp(0); }
-  const LDefinition* temp1() { return getTemp(1); }
-  const LDefinition* temp2() { return getTemp(2); }
-
-  bool isMax() const { return mir_->toMinMaxArray()->isMax(); }
-};
-
-// Copysign for doubles.
-class LCopySignD : public LInstructionHelper<1, 2, 2> {
- public:
-  LIR_HEADER(CopySignD)
-  explicit LCopySignD() : LInstructionHelper(classOpcode) {}
-};
-
-// Copysign for float32.
-class LCopySignF : public LInstructionHelper<1, 2, 2> {
- public:
-  LIR_HEADER(CopySignF)
-  explicit LCopySignF() : LInstructionHelper(classOpcode) {}
 };
 
 class LHypot : public LCallInstructionHelper<1, 4, 0> {
@@ -1137,36 +739,6 @@ class LHypot : public LCallInstructionHelper<1, 4, 0> {
   const LAllocation* x() { return getOperand(0); }
 
   const LAllocation* y() { return getOperand(1); }
-
-  const LDefinition* output() { return getDef(0); }
-};
-
-class LMathFunctionD : public LCallInstructionHelper<1, 1, 0> {
- public:
-  LIR_HEADER(MathFunctionD)
-  explicit LMathFunctionD(const LAllocation& input)
-      : LCallInstructionHelper(classOpcode) {
-    setOperand(0, input);
-  }
-
-  MMathFunction* mir() const { return mir_->toMathFunction(); }
-  const char* extraName() const {
-    return MMathFunction::FunctionName(mir()->function());
-  }
-};
-
-class LMathFunctionF : public LCallInstructionHelper<1, 1, 0> {
- public:
-  LIR_HEADER(MathFunctionF)
-  explicit LMathFunctionF(const LAllocation& input)
-      : LCallInstructionHelper(classOpcode) {
-    setOperand(0, input);
-  }
-
-  MMathFunction* mir() const { return mir_->toMathFunction(); }
-  const char* extraName() const {
-    return MMathFunction::FunctionName(mir()->function());
-  }
 };
 
 // Adds two integers, returning an integer value.
@@ -1186,16 +758,6 @@ class LAddI : public LBinaryMath<0> {
   void setRecoversInput() { recoversInput_ = true; }
 
   MAdd* mir() const { return mir_->toAdd(); }
-};
-
-class LAddI64 : public LInstructionHelper<INT64_PIECES, 2 * INT64_PIECES, 0> {
- public:
-  LIR_HEADER(AddI64)
-
-  LAddI64() : LInstructionHelper(classOpcode) {}
-
-  static const size_t Lhs = 0;
-  static const size_t Rhs = INT64_PIECES;
 };
 
 // Subtracts two integers, returning an integer value.
@@ -1227,71 +789,6 @@ inline bool LNode::recoversInput() const {
   }
 }
 
-class LSubI64 : public LInstructionHelper<INT64_PIECES, 2 * INT64_PIECES, 0> {
- public:
-  LIR_HEADER(SubI64)
-
-  static const size_t Lhs = 0;
-  static const size_t Rhs = INT64_PIECES;
-
-  LSubI64() : LInstructionHelper(classOpcode) {}
-};
-
-class LMulI64 : public LInstructionHelper<INT64_PIECES, 2 * INT64_PIECES, 1> {
- public:
-  LIR_HEADER(MulI64)
-
-  explicit LMulI64() : LInstructionHelper(classOpcode) {
-    setTemp(0, LDefinition());
-  }
-
-  const LDefinition* temp() { return getTemp(0); }
-
-  static const size_t Lhs = 0;
-  static const size_t Rhs = INT64_PIECES;
-};
-
-// Performs an add, sub, mul, or div on two double values.
-class LMathD : public LBinaryMath<0> {
-  JSOp jsop_;
-
- public:
-  LIR_HEADER(MathD)
-
-  explicit LMathD(JSOp jsop) : LBinaryMath(classOpcode), jsop_(jsop) {}
-
-  JSOp jsop() const { return jsop_; }
-
-  const char* extraName() const { return CodeName(jsop_); }
-};
-
-// Performs an add, sub, mul, or div on two double values.
-class LMathF : public LBinaryMath<0> {
-  JSOp jsop_;
-
- public:
-  LIR_HEADER(MathF)
-
-  explicit LMathF(JSOp jsop) : LBinaryMath(classOpcode), jsop_(jsop) {}
-
-  JSOp jsop() const { return jsop_; }
-
-  const char* extraName() const { return CodeName(jsop_); }
-};
-
-class LModD : public LBinaryMath<1> {
- public:
-  LIR_HEADER(ModD)
-
-  LModD(const LAllocation& lhs, const LAllocation& rhs)
-      : LBinaryMath(classOpcode) {
-    setOperand(0, lhs);
-    setOperand(1, rhs);
-    setIsCall();
-  }
-  MMod* mir() const { return mir_->toMod(); }
-};
-
 // Passed the BaselineFrame address in the OsrFrameReg via the IonOsrTempData
 // populated by PrepareOsrTempData.
 //
@@ -1313,78 +810,6 @@ class LOsrEntry : public LInstructionHelper<1, 0, 1> {
   uint32_t getFrameDepth() { return frameDepth_; }
   Label* label() { return &label_; }
   const LDefinition* temp() { return getTemp(0); }
-};
-
-// Store a boxed value to a dense array's element vector.
-class LStoreElementV : public LInstructionHelper<0, 2 + BOX_PIECES, 0> {
- public:
-  LIR_HEADER(StoreElementV)
-
-  LStoreElementV(const LAllocation& elements, const LAllocation& index,
-                 const LBoxAllocation& value)
-      : LInstructionHelper(classOpcode) {
-    setOperand(0, elements);
-    setOperand(1, index);
-    setBoxOperand(Value, value);
-  }
-
-  const char* extraName() const {
-    return mir()->needsHoleCheck() ? "HoleCheck" : nullptr;
-  }
-
-  static const size_t Value = 2;
-
-  const MStoreElement* mir() const { return mir_->toStoreElement(); }
-  const LAllocation* elements() { return getOperand(0); }
-  const LAllocation* index() { return getOperand(1); }
-};
-
-// Store a typed value to a dense array's elements vector. Compared to
-// LStoreElementV, this instruction can store doubles and constants directly,
-// and does not store the type tag if the array is monomorphic and known to
-// be packed.
-class LStoreElementT : public LInstructionHelper<0, 3, 0> {
- public:
-  LIR_HEADER(StoreElementT)
-
-  LStoreElementT(const LAllocation& elements, const LAllocation& index,
-                 const LAllocation& value)
-      : LInstructionHelper(classOpcode) {
-    setOperand(0, elements);
-    setOperand(1, index);
-    setOperand(2, value);
-  }
-
-  const char* extraName() const {
-    return mir()->needsHoleCheck() ? "HoleCheck" : nullptr;
-  }
-
-  const MStoreElement* mir() const { return mir_->toStoreElement(); }
-  const LAllocation* elements() { return getOperand(0); }
-  const LAllocation* index() { return getOperand(1); }
-  const LAllocation* value() { return getOperand(2); }
-};
-
-class LArrayPopShift : public LInstructionHelper<BOX_PIECES, 1, 2> {
- public:
-  LIR_HEADER(ArrayPopShift)
-
-  LArrayPopShift(const LAllocation& object, const LDefinition& temp0,
-                 const LDefinition& temp1)
-      : LInstructionHelper(classOpcode) {
-    setOperand(0, object);
-    setTemp(0, temp0);
-    setTemp(1, temp1);
-  }
-
-  const char* extraName() const {
-    return mir()->mode() == MArrayPopShift::Pop ? "Pop" : "Shift";
-  }
-
-  const MArrayPopShift* mir() const { return mir_->toArrayPopShift(); }
-  const LAllocation* object() { return getOperand(0); }
-  const LDefinition* temp0() { return getTemp(0); }
-  const LDefinition* temp1() { return getTemp(1); }
 };
 
 template <size_t Defs, size_t Ops>
@@ -1436,8 +861,8 @@ class LWasmSelectI64
     setOperand(CondIndex, cond);
   }
 
-  const LInt64Allocation trueExpr() { return getInt64Operand(TrueExprIndex); }
-  const LInt64Allocation falseExpr() { return getInt64Operand(FalseExprIndex); }
+  LInt64Allocation trueExpr() { return getInt64Operand(TrueExprIndex); }
+  LInt64Allocation falseExpr() { return getInt64Operand(FalseExprIndex); }
   const LAllocation* condExpr() { return getOperand(CondIndex); }
 };
 
@@ -1578,7 +1003,7 @@ class LWasmStoreI64 : public LInstructionHelper<0, INT64_PIECES + 2, 1> {
   const LAllocation* ptr() { return getOperand(PtrIndex); }
   const LAllocation* memoryBase() { return getOperand(MemoryBaseIndex); }
   const LDefinition* ptrCopy() { return getTemp(0); }
-  const LInt64Allocation value() { return getInt64Operand(ValueIndex); }
+  LInt64Allocation value() { return getInt64Operand(ValueIndex); }
 };
 
 class LWasmCompareExchangeHeap : public LInstructionHelper<1, 4, 4> {
@@ -2327,8 +1752,7 @@ class LWasmReplaceInt64LaneSimd128
 
   const LAllocation* lhs() { return getOperand(Lhs); }
   const LAllocation* lhsDest() { return getOperand(LhsDest); }
-  const LInt64Allocation rhs() { return getInt64Operand(Rhs); }
-  const LDefinition* output() { return this->getDef(0); }
+  LInt64Allocation rhs() { return getInt64Operand(Rhs); }
   uint32_t laneIndex() const {
     return mir_->toWasmReplaceLaneSimd128()->laneIndex();
   }
@@ -2367,7 +1791,7 @@ class LWasmInt64ToSimd128 : public LInstructionHelper<1, INT64_PIECES, 0> {
     setInt64Operand(Src, src);
   }
 
-  const LInt64Allocation src() { return getInt64Operand(Src); }
+  LInt64Allocation src() { return getInt64Operand(Src); }
   wasm::SimdOp simdOp() const {
     return mir_->toWasmScalarToSimd128()->simdOp();
   }
@@ -2490,6 +1914,104 @@ class LWasmStoreLaneSimd128 : public LInstructionHelper<1, 3, 1> {
 // End Wasm SIMD
 
 // End Wasm Exception Handling
+
+// Definitions for `extraName` methods of generated LIR instructions.
+
+#ifdef JS_JITSPEW
+const char* LBox::extraName() const { return StringFromMIRType(type_); }
+
+const char* LNewArray::extraName() const {
+  return mir()->isVMCall() ? "VMCall" : nullptr;
+}
+
+const char* LNewObject::extraName() const {
+  return mir()->isVMCall() ? "VMCall" : nullptr;
+}
+
+const char* LCompare::extraName() const { return CodeName(jsop_); }
+
+const char* LCompareI64::extraName() const { return CodeName(jsop_); }
+
+const char* LCompareI64AndBranch::extraName() const { return CodeName(jsop_); }
+
+const char* LCompareAndBranch::extraName() const { return CodeName(jsop_); }
+
+const char* LMathFunctionD::extraName() const {
+  return MMathFunction::FunctionName(mir()->function());
+}
+
+const char* LMathFunctionF::extraName() const {
+  return MMathFunction::FunctionName(mir()->function());
+}
+
+const char* LStoreElementV::extraName() const {
+  return mir()->needsHoleCheck() ? "HoleCheck" : nullptr;
+}
+
+const char* LStoreElementT::extraName() const {
+  return mir()->needsHoleCheck() ? "HoleCheck" : nullptr;
+}
+
+const char* LArrayPopShift::extraName() const {
+  return mir()->mode() == MArrayPopShift::Pop ? "Pop" : "Shift";
+}
+
+const char* LMinMaxI::extraName() const {
+  return mir()->isMax() ? "Max" : "Min";
+}
+
+const char* LMinMaxD::extraName() const {
+  return mir()->isMax() ? "Max" : "Min";
+}
+
+const char* LMinMaxF::extraName() const {
+  return mir()->isMax() ? "Max" : "Min";
+}
+
+const char* LMulI::extraName() const {
+  return (mir()->mode() == MMul::Integer)
+             ? "Integer"
+             : (mir()->canBeNegativeZero() ? "CanBeNegativeZero" : nullptr);
+}
+
+const char* LDivI::extraName() const {
+  if (mir()->isTruncated()) {
+    if (mir()->canBeNegativeZero()) {
+      return mir()->canBeNegativeOverflow()
+                 ? "Truncate_NegativeZero_NegativeOverflow"
+                 : "Truncate_NegativeZero";
+    }
+    return mir()->canBeNegativeOverflow() ? "Truncate_NegativeOverflow"
+                                          : "Truncate";
+  }
+  if (mir()->canBeNegativeZero()) {
+    return mir()->canBeNegativeOverflow() ? "NegativeZero_NegativeOverflow"
+                                          : "NegativeZero";
+  }
+  return mir()->canBeNegativeOverflow() ? "NegativeOverflow" : nullptr;
+}
+
+const char* LModI::extraName() const {
+  return mir()->isTruncated() ? "Truncated" : nullptr;
+}
+
+const char* LBitOpI::extraName() const {
+  if (bitop() == JSOp::Ursh && mir_->toUrsh()->bailoutsDisabled()) {
+    return "ursh:BailoutsDisabled";
+  }
+  return CodeName(bitop_);
+}
+
+const char* LBitOpI64::extraName() const { return CodeName(bitop_); }
+
+const char* LShiftI::extraName() const { return CodeName(bitop_); }
+
+const char* LShiftI64::extraName() const { return CodeName(bitop_); }
+
+const char* LMathD::extraName() const { return CodeName(jsop_); }
+
+const char* LMathF::extraName() const { return CodeName(jsop_); }
+#endif
 
 }  // namespace jit
 }  // namespace js

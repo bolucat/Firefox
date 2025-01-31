@@ -215,11 +215,10 @@ void LIRGeneratorX86::lowerForMulInt64(LMulI64* ins, MMul* mir,
   }
 
   // MulI64 on x86 needs output to be in edx, eax;
-  ins->setInt64Operand(
-      0, useInt64Fixed(lhs, Register64(edx, eax), /*useAtStart = */ true));
-  ins->setInt64Operand(INT64_PIECES, useInt64OrConstant(rhs));
+  ins->setLhs(useInt64Fixed(lhs, Register64(edx, eax), /*useAtStart = */ true));
+  ins->setRhs(useInt64OrConstant(rhs));
   if (needsTemp) {
-    ins->setTemp(0, temp());
+    ins->setTemp0(temp());
   }
 
   defineInt64Fixed(ins, mir,
@@ -381,7 +380,7 @@ void LIRGenerator::visitWasmLoad(MWasmLoad* ins) {
   if (ins->access().type() == Scalar::Int64 && ins->access().isAtomic()) {
     auto* lir = new (alloc())
         LWasmAtomicLoadI64(useRegister(memoryBase), useRegister(base),
-                           tempFixed(ecx), tempFixed(ebx));
+                           tempInt64Fixed(Register64(ecx, ebx)));
     defineInt64Fixed(lir, ins,
                      LInt64Allocation(LAllocation(AnyRegister(edx)),
                                       LAllocation(AnyRegister(eax))));
@@ -431,7 +430,7 @@ void LIRGenerator::visitWasmStore(MWasmStore* ins) {
     auto* lir = new (alloc())
         LWasmAtomicStoreI64(useRegister(memoryBase), useRegister(base),
                             useInt64Fixed(ins->value(), Register64(ecx, ebx)),
-                            tempFixed(edx), tempFixed(eax));
+                            tempInt64Fixed(Register64(edx, eax)));
     add(lir, ins);
     return;
   }

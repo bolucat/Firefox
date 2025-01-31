@@ -61,10 +61,10 @@ void LIRGeneratorX64::lowerForALUInt64(
 void LIRGeneratorX64::lowerForMulInt64(LMulI64* ins, MMul* mir,
                                        MDefinition* lhs, MDefinition* rhs) {
   // X64 doesn't need a temp for 64bit multiplication.
-  ins->setInt64Operand(0, useInt64RegisterAtStart(lhs));
-  ins->setInt64Operand(INT64_PIECES, willHaveDifferentLIRNodes(lhs, rhs)
-                                         ? useInt64OrConstant(rhs)
-                                         : useInt64OrConstantAtStart(rhs));
+  ins->setLhs(useInt64RegisterAtStart(lhs));
+  ins->setRhs(willHaveDifferentLIRNodes(lhs, rhs)
+                  ? useInt64OrConstant(rhs)
+                  : useInt64OrConstantAtStart(rhs));
   defineInt64ReuseInput(ins, mir, 0);
 }
 
@@ -90,10 +90,10 @@ void LIRGenerator::visitUnbox(MUnbox* unbox) {
   MDefinition* box = unbox->getOperand(0);
   MOZ_ASSERT(box->type() == MIRType::Value);
 
-  LUnboxBase* lir;
+  LInstructionHelper<1, BOX_PIECES, 0>* lir;
   if (IsFloatingPointType(unbox->type())) {
     MOZ_ASSERT(unbox->type() == MIRType::Double);
-    lir = new (alloc()) LUnboxFloatingPoint(useRegisterAtStart(box));
+    lir = new (alloc()) LUnboxFloatingPoint(useBoxAtStart(box));
   } else if (unbox->fallible()) {
     // If the unbox is fallible, load the Value in a register first to
     // avoid multiple loads.
