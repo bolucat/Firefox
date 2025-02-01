@@ -221,7 +221,7 @@ void LIRGeneratorLOONG64::lowerDivI(MDiv* div) {
     int32_t shift = FloorLog2(rhs);
     if (rhs > 0 && 1 << shift == rhs) {
       LDivPowTwoI* lir =
-          new (alloc()) LDivPowTwoI(useRegister(div->lhs()), shift, temp());
+          new (alloc()) LDivPowTwoI(useRegister(div->lhs()), temp(), shift);
       if (div->fallible()) {
         assignSnapshot(lir, div->bailoutKind());
       }
@@ -437,8 +437,8 @@ void LIRGeneratorShared::lowerWasmCompareAndSelect(MWasmSelect* ins,
                                                    JSOp jsop) {
   MOZ_ASSERT(canSpecializeWasmCompareAndSelect(compTy, ins->type()));
   auto* lir = new (alloc()) LWasmCompareAndSelect(
-      useRegister(lhs), useRegister(rhs), compTy, jsop,
-      useRegisterAtStart(ins->trueExpr()), useRegister(ins->falseExpr()));
+      useRegister(lhs), useRegister(rhs), useRegisterAtStart(ins->trueExpr()),
+      useRegister(ins->falseExpr()), compTy, jsop);
   defineReuseInput(lir, ins, LWasmCompareAndSelect::IfTrueExprIndex);
 }
 
@@ -823,24 +823,20 @@ void LIRGenerator::visitWasmLoad(MWasmLoad* ins) {
       ins->hasMemoryBase() ? LAllocation(useRegisterAtStart(ins->memoryBase()))
                            : LGeneralReg(HeapReg);
 
-  LAllocation ptr;
-  ptr = useRegisterAtStart(base);
+  LAllocation ptr = useRegisterAtStart(base);
+
+  LDefinition ptrCopy = LDefinition::BogusTemp();
+  if (ins->access().offset32()) {
+    ptrCopy = tempCopy(base, 0);
+  }
 
   if (ins->type() == MIRType::Int64) {
-    auto* lir = new (alloc()) LWasmLoadI64(ptr, memoryBase);
-    if (ins->access().offset32()) {
-      lir->setTemp(0, tempCopy(base, 0));
-    }
-
+    auto* lir = new (alloc()) LWasmLoadI64(ptr, memoryBase, ptrCopy);
     defineInt64(lir, ins);
     return;
   }
 
-  auto* lir = new (alloc()) LWasmLoad(ptr, memoryBase);
-  if (ins->access().offset32()) {
-    lir->setTemp(0, tempCopy(base, 0));
-  }
-
+  auto* lir = new (alloc()) LWasmLoad(ptr, memoryBase, ptrCopy);
   define(lir, ins);
 }
 
@@ -854,25 +850,24 @@ void LIRGenerator::visitWasmStore(MWasmStore* ins) {
       ins->hasMemoryBase() ? LAllocation(useRegisterAtStart(ins->memoryBase()))
                            : LGeneralReg(HeapReg);
 
-  if (ins->access().type() == Scalar::Int64) {
-    LAllocation baseAlloc = useRegisterAtStart(base);
-    LInt64Allocation valueAlloc = useInt64RegisterAtStart(value);
-    auto* lir = new (alloc()) LWasmStoreI64(baseAlloc, valueAlloc, memoryBase);
-    if (ins->access().offset32()) {
-      lir->setTemp(0, tempCopy(base, 0));
-    }
+  LAllocation baseAlloc = useRegisterAtStart(base);
 
+  LDefinition ptrCopy = LDefinition::BogusTemp();
+  if (ins->access().offset32()) {
+    ptrCopy = tempCopy(base, 0);
+  }
+
+  if (ins->access().type() == Scalar::Int64) {
+    LInt64Allocation valueAlloc = useInt64RegisterAtStart(value);
+    auto* lir =
+        new (alloc()) LWasmStoreI64(baseAlloc, valueAlloc, memoryBase, ptrCopy);
     add(lir, ins);
     return;
   }
 
-  LAllocation baseAlloc = useRegisterAtStart(base);
   LAllocation valueAlloc = useRegisterAtStart(value);
-  auto* lir = new (alloc()) LWasmStore(baseAlloc, valueAlloc, memoryBase);
-  if (ins->access().offset32()) {
-    lir->setTemp(0, tempCopy(base, 0));
-  }
-
+  auto* lir =
+      new (alloc()) LWasmStore(baseAlloc, valueAlloc, memoryBase, ptrCopy);
   add(lir, ins);
 }
 
@@ -934,10 +929,10 @@ void LIRGenerator::visitWasmCompareExchangeHeap(MWasmCompareExchangeHeap* ins) {
     maskTemp = temp();
   }
 
-  LWasmCompareExchangeHeap* lir = new (alloc())
+  auto* lir = new (alloc())
       LWasmCompareExchangeHeap(useRegister(base), useRegister(ins->oldValue()),
-                               useRegister(ins->newValue()), valueTemp,
-                               offsetTemp, maskTemp, memoryBase);
+                               useRegister(ins->newValue()), memoryBase,
+                               valueTemp, offsetTemp, maskTemp);
 
   define(lir, ins);
 }
@@ -967,9 +962,9 @@ void LIRGenerator::visitWasmAtomicExchangeHeap(MWasmAtomicExchangeHeap* ins) {
     maskTemp = temp();
   }
 
-  LWasmAtomicExchangeHeap* lir = new (alloc())
+  auto* lir = new (alloc())
       LWasmAtomicExchangeHeap(useRegister(base), useRegister(ins->value()),
-                              valueTemp, offsetTemp, maskTemp, memoryBase);
+                              memoryBase, valueTemp, offsetTemp, maskTemp);
   define(lir, ins);
 }
 
@@ -1002,15 +997,15 @@ void LIRGenerator::visitWasmAtomicBinopHeap(MWasmAtomicBinopHeap* ins) {
   if (!ins->hasUses()) {
     LWasmAtomicBinopHeapForEffect* lir = new (alloc())
         LWasmAtomicBinopHeapForEffect(useRegister(base),
-                                      useRegister(ins->value()), valueTemp,
-                                      offsetTemp, maskTemp, memoryBase);
+                                      useRegister(ins->value()), memoryBase,
+                                      valueTemp, offsetTemp, maskTemp);
     add(lir, ins);
     return;
   }
 
-  LWasmAtomicBinopHeap* lir = new (alloc())
+  auto* lir = new (alloc())
       LWasmAtomicBinopHeap(useRegister(base), useRegister(ins->value()),
-                           valueTemp, offsetTemp, maskTemp, memoryBase);
+                           memoryBase, valueTemp, offsetTemp, maskTemp);
 
   define(lir, ins);
 }

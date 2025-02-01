@@ -135,10 +135,12 @@ def gen_operands(operands, defer_init):
             params.append(f"const {operand_types[op_type]}& {operand}")
 
     # First initialize all word-sized operands.
-    for index_value, operand in enumerate(reg_operands):
+    for index, operand in enumerate(reg_operands):
         cap_operand = operand[0].upper() + operand[1:]
+        index_value = cap_operand + "Index"
         init_expr = f"setOperand({index_value}, {operand});"
 
+        indices.append(f"static constexpr size_t {index_value} = {index};")
         if not defer_init:
             initializers.append(init_expr)
         else:
@@ -153,11 +155,11 @@ def gen_operands(operands, defer_init):
     for box_index, operand in enumerate(value_operands):
         cap_operand = operand[0].upper() + operand[1:]
         index_value = cap_operand + "Index"
+        init_expr = f"setBoxOperand({index_value}, {operand});"
+
         indices.append(
             f"static constexpr size_t {index_value} = {make_boxed_index(box_index, reg_operands)};"
         )
-        init_expr = f"setBoxOperand({index_value}, {operand});"
-
         if not defer_init:
             initializers.append(init_expr)
         else:
@@ -172,11 +174,11 @@ def gen_operands(operands, defer_init):
     for int64_index, operand in enumerate(int64_operands):
         cap_operand = operand[0].upper() + operand[1:]
         index_value = cap_operand + "Index"
+        init_expr = f"setInt64Operand({index_value}, {operand});"
+
         indices.append(
             f"static constexpr size_t {index_value} = {make_int64_index(int64_index, reg_operands, value_operands)};"
         )
-        init_expr = f"setInt64Operand({index_value}, {operand});"
-
         if not defer_init:
             initializers.append(init_expr)
         else:
@@ -287,7 +289,7 @@ def gen_successors(successors):
     # Getter definitions.
     getters = []
 
-    for index, successor in enumerate(successors):
+    for index, successor in enumerate(successors or []):
         params.append(f"MBasicBlock* {successor}")
         initializers.append(f"setSuccessor({index}, {successor});")
         getters.append(
@@ -332,7 +334,7 @@ def gen_lir_class(
 
     succ_params, succ_initializers, succ_getters = gen_successors(successors)
 
-    if successors:
+    if successors is not None:
         if result_type:
             raise Exception("Control instructions don't return a result")
         num_defs = len(successors)
@@ -414,8 +416,8 @@ def generate_lir_header(c_out, yaml_path, mir_yaml_path):
             result_type = op.get("result_type", None)
             assert result_type is None or result_type in result_types
 
-            successors = op.get("successors", [])
-            assert isinstance(successors, list)
+            successors = op.get("successors", None)
+            assert successors is None or isinstance(successors, list)
 
             operands = op.get("operands") or {}
             assert isinstance(operands, dict)
@@ -479,7 +481,7 @@ def generate_lir_header(c_out, yaml_path, mir_yaml_path):
                 result_type = mir_type_to_lir_type(result_type)
                 assert result_type in result_types
 
-            successors = []
+            successors = None
 
             operands_raw = op.get("operands", {})
             assert isinstance(operands_raw, dict)

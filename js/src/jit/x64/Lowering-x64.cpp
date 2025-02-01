@@ -395,9 +395,8 @@ void LIRGenerator::visitWasmAtomicBinopHeap(MWasmAtomicBinopHeap* ins) {
   if (!ins->hasUses()) {
     LAllocation value = canTakeConstant ? useRegisterOrConstant(ins->value())
                                         : useRegister(ins->value());
-    LWasmAtomicBinopHeapForEffect* lir =
-        new (alloc()) LWasmAtomicBinopHeapForEffect(
-            useRegister(base), value, LDefinition::BogusTemp(), memoryBase);
+    auto* lir = new (alloc())
+        LWasmAtomicBinopHeapForEffect(useRegister(base), value, memoryBase);
     add(lir, ins);
     return;
   }
@@ -438,12 +437,12 @@ void LIRGenerator::visitWasmAtomicBinopHeap(MWasmAtomicBinopHeap* ins) {
     value = useRegisterAtStart(ins->value());
   }
 
-  auto* lir = new (alloc()) LWasmAtomicBinopHeap(
-      useRegister(base), value, bitOp ? temp() : LDefinition::BogusTemp(),
-      LDefinition::BogusTemp(), memoryBase);
+  auto* lir = new (alloc())
+      LWasmAtomicBinopHeap(useRegister(base), value, memoryBase,
+                           bitOp ? temp() : LDefinition::BogusTemp());
 
   if (reuseInput) {
-    defineReuseInput(lir, ins, LWasmAtomicBinopHeap::valueOp);
+    defineReuseInput(lir, ins, LWasmAtomicBinopHeap::ValueIndex);
   } else if (bitOp) {
     defineFixed(lir, ins, LAllocation(AnyRegister(rax)));
   } else {
@@ -610,7 +609,7 @@ void LIRGeneratorShared::lowerWasmCompareAndSelect(MWasmSelect* ins,
                                                    JSOp jsop) {
   MOZ_ASSERT(canSpecializeWasmCompareAndSelect(compTy, ins->type()));
   auto* lir = new (alloc()) LWasmCompareAndSelect(
-      useRegister(lhs), useAny(rhs), compTy, jsop,
-      useRegisterAtStart(ins->trueExpr()), useAny(ins->falseExpr()));
+      useRegister(lhs), useAny(rhs), useRegisterAtStart(ins->trueExpr()),
+      useAny(ins->falseExpr()), compTy, jsop);
   defineReuseInput(lir, ins, LWasmCompareAndSelect::IfTrueExprIndex);
 }

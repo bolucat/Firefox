@@ -725,9 +725,7 @@ void LIRGeneratorX86Shared::lowerAtomicTypedArrayElementBinop(
   if (fixedOutput) {
     defineFixed(lir, ins, LAllocation(AnyRegister(eax)));
   } else if (reuseInput) {
-    constexpr size_t valueOp = 2;
-    MOZ_ASSERT(*lir->getOperand(valueOp) == value);
-    defineReuseInput(lir, ins, valueOp);
+    defineReuseInput(lir, ins, LAtomicTypedArrayElementBinop::ValueIndex);
   } else {
     define(lir, ins);
   }
@@ -782,26 +780,28 @@ void LIRGenerator::visitWasmTernarySimd128(MWasmTernarySimd128* ins) {
       // usRegisterAtStart(control) and tempCopy()), but the register allocator
       // ignores those constraints at present.
       auto* lir = new (alloc()) LWasmTernarySimd128(
-          ins->simdOp(), useRegisterAtStart(ins->v0()), useRegister(ins->v1()),
-          useRegister(ins->v2()), tempSimd128());
-      defineReuseInput(lir, ins, LWasmTernarySimd128::V0);
+          useRegisterAtStart(ins->v0()), useRegister(ins->v1()),
+          useRegister(ins->v2()), tempSimd128(), ins->simdOp());
+      defineReuseInput(lir, ins, LWasmTernarySimd128::V0Index);
       break;
     }
     case wasm::SimdOp::F32x4RelaxedMadd:
     case wasm::SimdOp::F32x4RelaxedNmadd:
     case wasm::SimdOp::F64x2RelaxedMadd:
     case wasm::SimdOp::F64x2RelaxedNmadd: {
-      auto* lir = new (alloc()) LWasmTernarySimd128(
-          ins->simdOp(), useRegister(ins->v0()), useRegister(ins->v1()),
-          useRegisterAtStart(ins->v2()));
-      defineReuseInput(lir, ins, LWasmTernarySimd128::V2);
+      auto* lir = new (alloc())
+          LWasmTernarySimd128(useRegister(ins->v0()), useRegister(ins->v1()),
+                              useRegisterAtStart(ins->v2()),
+                              LDefinition::BogusTemp(), ins->simdOp());
+      defineReuseInput(lir, ins, LWasmTernarySimd128::V2Index);
       break;
     }
     case wasm::SimdOp::I32x4DotI8x16I7x16AddS: {
-      auto* lir = new (alloc()) LWasmTernarySimd128(
-          ins->simdOp(), useRegister(ins->v0()), useRegister(ins->v1()),
-          useRegisterAtStart(ins->v2()));
-      defineReuseInput(lir, ins, LWasmTernarySimd128::V2);
+      auto* lir = new (alloc())
+          LWasmTernarySimd128(useRegister(ins->v0()), useRegister(ins->v1()),
+                              useRegisterAtStart(ins->v2()),
+                              LDefinition::BogusTemp(), ins->simdOp());
+      defineReuseInput(lir, ins, LWasmTernarySimd128::V2Index);
       break;
     }
     case wasm::SimdOp::I8x16RelaxedLaneSelect:
@@ -810,14 +810,15 @@ void LIRGenerator::visitWasmTernarySimd128(MWasmTernarySimd128* ins) {
     case wasm::SimdOp::I64x2RelaxedLaneSelect: {
       if (Assembler::HasAVX()) {
         auto* lir = new (alloc()) LWasmTernarySimd128(
-            ins->simdOp(), useRegisterAtStart(ins->v0()),
-            useRegisterAtStart(ins->v1()), useRegisterAtStart(ins->v2()));
+            useRegisterAtStart(ins->v0()), useRegisterAtStart(ins->v1()),
+            useRegisterAtStart(ins->v2()), LDefinition::BogusTemp(),
+            ins->simdOp());
         define(lir, ins);
       } else {
         auto* lir = new (alloc()) LWasmTernarySimd128(
-            ins->simdOp(), useRegister(ins->v0()),
-            useRegisterAtStart(ins->v1()), useFixed(ins->v2(), vmm0));
-        defineReuseInput(lir, ins, LWasmTernarySimd128::V1);
+            useRegister(ins->v0()), useRegisterAtStart(ins->v1()),
+            useFixed(ins->v2(), vmm0), LDefinition::BogusTemp(), ins->simdOp());
+        defineReuseInput(lir, ins, LWasmTernarySimd128::V1Index);
       }
       break;
     }
@@ -1075,8 +1076,8 @@ void LIRGenerator::visitWasmBinarySimd128(MWasmBinarySimd128* ins) {
     case wasm::SimdOp::MozPMADDUBSW:
       if (isThreeOpAllowed()) {
         auto* lir = new (alloc())
-            LWasmBinarySimd128(op, useRegisterAtStart(lhs),
-                               useRegisterAtStart(rhs), tempReg0, tempReg1);
+            LWasmBinarySimd128(useRegisterAtStart(lhs), useRegisterAtStart(rhs),
+                               tempReg0, tempReg1, op);
         define(lir, ins);
         break;
       }
@@ -1087,8 +1088,8 @@ void LIRGenerator::visitWasmBinarySimd128(MWasmBinarySimd128* ins) {
                                  ? useRegister(rhs)
                                  : useRegisterAtStart(rhs);
       auto* lir = new (alloc())
-          LWasmBinarySimd128(op, lhsDestAlloc, rhsAlloc, tempReg0, tempReg1);
-      defineReuseInput(lir, ins, LWasmBinarySimd128::LhsDest);
+          LWasmBinarySimd128(lhsDestAlloc, rhsAlloc, tempReg0, tempReg1, op);
+      defineReuseInput(lir, ins, LWasmBinarySimd128::LhsIndex);
       break;
     }
   }
@@ -1304,15 +1305,15 @@ void LIRGenerator::visitWasmBinarySimd128WithConstant(
     // when AVX is enabled.
     LAllocation lhsAlloc = useRegisterAtStart(lhs);
     auto* lir = new (alloc())
-        LWasmBinarySimd128WithConstant(lhsAlloc, ins->rhs(), tempReg);
+        LWasmBinarySimd128WithConstant(lhsAlloc, tempReg, ins->rhs());
     define(lir, ins);
   } else {
     // Always beneficial to reuse the lhs register here, see discussion in
     // visitWasmBinarySimd128() and also code in specializeForConstantRhs().
     LAllocation lhsDestAlloc = useRegisterAtStart(lhs);
     auto* lir = new (alloc())
-        LWasmBinarySimd128WithConstant(lhsDestAlloc, ins->rhs(), tempReg);
-    defineReuseInput(lir, ins, LWasmBinarySimd128WithConstant::LhsDest);
+        LWasmBinarySimd128WithConstant(lhsDestAlloc, tempReg, ins->rhs());
+    defineReuseInput(lir, ins, LWasmBinarySimd128WithConstant::LhsIndex);
   }
 #else
   MOZ_CRASH("No SIMD");
@@ -1375,7 +1376,7 @@ void LIRGenerator::visitWasmShiftSimd128(MWasmShiftSimd128* ins) {
             define(lir, ins);
           } else {
             // For non-AVX, it is always beneficial to reuse the input.
-            defineReuseInput(lir, ins, LWasmConstantShiftSimd128::Src);
+            defineReuseInput(lir, ins, LWasmSignReplicationSimd128::SrcIndex);
           }
           return;
         }
@@ -1393,7 +1394,7 @@ void LIRGenerator::visitWasmShiftSimd128(MWasmShiftSimd128* ins) {
       define(lir, ins);
     } else {
       // For non-AVX, it is always beneficial to reuse the input.
-      defineReuseInput(lir, ins, LWasmConstantShiftSimd128::Src);
+      defineReuseInput(lir, ins, LWasmConstantShiftSimd128::SrcIndex);
     }
     return;
   }
@@ -1419,7 +1420,7 @@ void LIRGenerator::visitWasmShiftSimd128(MWasmShiftSimd128* ins) {
   LAllocation rhsAlloc = useRegisterAtStart(rhs);
   auto* lir =
       new (alloc()) LWasmVariableShiftSimd128(lhsDestAlloc, rhsAlloc, tempReg);
-  defineReuseInput(lir, ins, LWasmVariableShiftSimd128::LhsDest);
+  defineReuseInput(lir, ins, LWasmVariableShiftSimd128::LhsIndex);
 #else
   MOZ_CRASH("No SIMD");
 #endif
@@ -1472,7 +1473,7 @@ void LIRGenerator::visitWasmShuffleSimd128(MWasmShuffleSimd128* ins) {
       auto* lir =
           new (alloc()) LWasmPermuteSimd128(src, *s.permuteOp, s.control);
       if (reuse) {
-        defineReuseInput(lir, ins, LWasmPermuteSimd128::Src);
+        defineReuseInput(lir, ins, LWasmPermuteSimd128::SrcIndex);
       } else {
         define(lir, ins);
       }
@@ -1513,7 +1514,7 @@ void LIRGenerator::visitWasmShuffleSimd128(MWasmShuffleSimd128* ins) {
         }
         auto* lir = new (alloc())
             LWasmShuffleSimd128(lhs, rhs, temp, *s.shuffleOp, s.control);
-        defineReuseInput(lir, ins, LWasmShuffleSimd128::LhsDest);
+        defineReuseInput(lir, ins, LWasmShuffleSimd128::LhsIndex);
       }
       break;
     }
@@ -1542,7 +1543,7 @@ void LIRGenerator::visitWasmReplaceLaneSimd128(MWasmReplaceLaneSimd128* ins) {
     } else {
       auto* lir = new (alloc()) LWasmReplaceInt64LaneSimd128(
           useRegisterAtStart(ins->lhs()), useInt64Register(ins->rhs()));
-      defineReuseInput(lir, ins, LWasmReplaceInt64LaneSimd128::LhsDest);
+      defineReuseInput(lir, ins, LWasmReplaceInt64LaneSimd128::LhsIndex);
     }
   } else {
     if (isThreeOpAllowed()) {
@@ -1552,7 +1553,7 @@ void LIRGenerator::visitWasmReplaceLaneSimd128(MWasmReplaceLaneSimd128* ins) {
     } else {
       auto* lir = new (alloc()) LWasmReplaceLaneSimd128(
           useRegisterAtStart(ins->lhs()), useRegister(ins->rhs()));
-      defineReuseInput(lir, ins, LWasmReplaceLaneSimd128::LhsDest);
+      defineReuseInput(lir, ins, LWasmReplaceLaneSimd128::LhsIndex);
     }
   }
 #else
@@ -1688,7 +1689,7 @@ void LIRGenerator::visitWasmUnarySimd128(MWasmUnarySimd128* ins) {
       useAtStart ? useRegisterAtStart(ins->input()) : useRegister(ins->input());
   LWasmUnarySimd128* lir = new (alloc()) LWasmUnarySimd128(inputUse, tempReg);
   if (reuseInput) {
-    defineReuseInput(lir, ins, LWasmUnarySimd128::Src);
+    defineReuseInput(lir, ins, LWasmUnarySimd128::SrcIndex);
   } else {
     define(lir, ins);
   }
@@ -1711,9 +1712,8 @@ void LIRGenerator::visitWasmLoadLaneSimd128(MWasmLoadLaneSimd128* ins) {
   LAllocation memoryBase = ins->hasMemoryBase()
                                ? useRegisterAtStart(ins->memoryBase())
                                : LAllocation();
-  LWasmLoadLaneSimd128* lir = new (alloc()) LWasmLoadLaneSimd128(
-      base, inputUse, LDefinition::BogusTemp(), memoryBase);
-  defineReuseInput(lir, ins, LWasmLoadLaneSimd128::Src);
+  auto* lir = new (alloc()) LWasmLoadLaneSimd128(base, inputUse, memoryBase);
+  defineReuseInput(lir, ins, LWasmLoadLaneSimd128::SrcIndex);
 #else
   MOZ_CRASH("No SIMD");
 #endif
@@ -1730,8 +1730,7 @@ void LIRGenerator::visitWasmStoreLaneSimd128(MWasmStoreLaneSimd128* ins) {
   LAllocation memoryBase = ins->hasMemoryBase()
                                ? useRegisterAtStart(ins->memoryBase())
                                : LAllocation();
-  LWasmStoreLaneSimd128* lir = new (alloc())
-      LWasmStoreLaneSimd128(base, input, LDefinition::BogusTemp(), memoryBase);
+  auto* lir = new (alloc()) LWasmStoreLaneSimd128(base, input, memoryBase);
   add(lir, ins);
 #else
   MOZ_CRASH("No SIMD");
@@ -1811,8 +1810,8 @@ void LIRGenerator::visitWasmReduceSimd128(MWasmReduceSimd128* ins) {
     // Ideally we would reuse the input register for floating extract_lane if
     // the lane is zero, but constraints in the register allocator require the
     // input and output register types to be the same.
-    auto* lir = new (alloc()) LWasmReduceSimd128(
-        useRegisterAtStart(ins->input()), LDefinition::BogusTemp());
+    auto* lir =
+        new (alloc()) LWasmReduceSimd128(useRegisterAtStart(ins->input()));
     define(lir, ins);
   }
 #else

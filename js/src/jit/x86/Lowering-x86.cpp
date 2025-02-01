@@ -523,10 +523,8 @@ void LIRGenerator::visitWasmCompareExchangeHeap(MWasmCompareExchangeHeap* ins) {
   const LAllocation newval =
       byteArray ? useFixed(ins->newValue(), ebx) : useRegister(ins->newValue());
 
-  LWasmCompareExchangeHeap* lir = new (alloc()) LWasmCompareExchangeHeap(
-      useRegister(base), oldval, newval, useRegister(memoryBase));
-
-  lir->setAddrTemp(temp());
+  auto* lir = new (alloc()) LWasmCompareExchangeHeap(
+      useRegister(base), oldval, newval, useRegister(memoryBase), temp());
   defineFixed(lir, ins, LAllocation(AnyRegister(eax)));
 }
 
@@ -548,10 +546,9 @@ void LIRGenerator::visitWasmAtomicExchangeHeap(MWasmAtomicExchangeHeap* ins) {
   const LAllocation base = useRegister(ins->base());
   const LAllocation value = useRegister(ins->value());
 
-  LWasmAtomicExchangeHeap* lir = new (alloc())
-      LWasmAtomicExchangeHeap(base, value, useRegister(memoryBase));
+  auto* lir = new (alloc())
+      LWasmAtomicExchangeHeap(base, value, useRegister(memoryBase), temp());
 
-  lir->setAddrTemp(temp());
   if (byteSize(ins->access().type()) == 1) {
     defineFixed(lir, ins, LAllocation(AnyRegister(eax)));
   } else {
@@ -593,11 +590,8 @@ void LIRGenerator::visitWasmAtomicBinopHeap(MWasmAtomicBinopHeap* ins) {
     } else {
       value = useRegisterOrConstant(ins->value());
     }
-    LWasmAtomicBinopHeapForEffect* lir =
-        new (alloc()) LWasmAtomicBinopHeapForEffect(useRegister(base), value,
-                                                    LDefinition::BogusTemp(),
-                                                    useRegister(memoryBase));
-    lir->setAddrTemp(temp());
+    auto* lir = new (alloc()) LWasmAtomicBinopHeapForEffect(
+        useRegister(base), value, useRegister(memoryBase), temp());
     add(lir, ins);
     return;
   }
@@ -654,17 +648,14 @@ void LIRGenerator::visitWasmAtomicBinopHeap(MWasmAtomicBinopHeap* ins) {
     value = useRegisterAtStart(ins->value());
   }
 
-  LWasmAtomicBinopHeap* lir = new (alloc())
-      LWasmAtomicBinopHeap(useRegister(base), value, tempDef,
-                           LDefinition::BogusTemp(), useRegister(memoryBase));
-
-  lir->setAddrTemp(temp());
+  auto* lir = new (alloc()) LWasmAtomicBinopHeap(
+      useRegister(base), value, useRegister(memoryBase), tempDef, temp());
   if (byteArray || bitOp) {
     defineFixed(lir, ins, LAllocation(AnyRegister(eax)));
   } else if (ins->value()->isConstant()) {
     define(lir, ins);
   } else {
-    defineReuseInput(lir, ins, LWasmAtomicBinopHeap::valueOp);
+    defineReuseInput(lir, ins, LWasmAtomicBinopHeap::ValueIndex);
   }
 }
 
@@ -872,7 +863,7 @@ void LIRGeneratorShared::lowerWasmCompareAndSelect(MWasmSelect* ins,
                                                    JSOp jsop) {
   MOZ_ASSERT(canSpecializeWasmCompareAndSelect(compTy, ins->type()));
   auto* lir = new (alloc()) LWasmCompareAndSelect(
-      useRegister(lhs), useAny(rhs), compTy, jsop,
-      useRegisterAtStart(ins->trueExpr()), useAny(ins->falseExpr()));
+      useRegister(lhs), useAny(rhs), useRegisterAtStart(ins->trueExpr()),
+      useAny(ins->falseExpr()), compTy, jsop);
   defineReuseInput(lir, ins, LWasmCompareAndSelect::IfTrueExprIndex);
 }
