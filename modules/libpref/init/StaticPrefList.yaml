@@ -4625,7 +4625,7 @@
 # This enables the SVGPathSegment APIs
 - name: dom.svg.pathSegment.enabled
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # For area and anchor elements with target=_blank and no rel set to
@@ -4661,6 +4661,11 @@
 - name: dom.text_fragments.create_text_fragment.enabled
   type: bool
   value: false
+  mirror: always
+
+- name: dom.text_fragments.create_text_fragment.timeout_seconds
+  type: uint32_t
+  value: 5
   mirror: always
 
 - name: dom.textMetrics.actualBoundingBox.enabled
@@ -5046,7 +5051,7 @@
   # Control consuming WM_POINTER for touch pointers instead of WM_TOUCH
 -   name: dom.w3c_pointer_events.dispatch_by_pointer_messages.touch
     type: bool
-    value: @IS_NIGHTLY_BUILD@
+    value: false
     mirror: always
 
   # Control whether to fire WidgetTouchEvent from pen pointers for APZ to handle scrolling.
@@ -16746,7 +16751,7 @@
 # This enables discard processing
 - name: svg.discard.enabled
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Tweak which elements are allowed in <svg:use> subtrees, and in which

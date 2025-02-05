@@ -156,6 +156,12 @@
         "browser.tabs.unloadTabInContextMenu",
         false
       );
+      XPCOMUtils.defineLazyPreferenceGetter(
+        this,
+        "_notificationEnableDelay",
+        "security.notification_enable_delay",
+        500
+      );
 
       if (AppConstants.MOZ_CRASHREPORTER) {
         ChromeUtils.defineESModuleGetters(this, {
@@ -908,7 +914,7 @@
           if (browser == this.selectedBrowser) {
             this._updateVisibleNotificationBox(browser);
           }
-        });
+        }, this._notificationEnableDelay);
       }
       return browser._notificationBox;
     }
@@ -3693,6 +3699,9 @@
           let lastRelatedTab =
             openerTab && this._lastRelatedTabMap.get(openerTab);
           let previousTab = lastRelatedTab || openerTab || this.selectedTab;
+          if (!tabGroup) {
+            tabGroup = previousTab.group;
+          }
           if (
             Services.prefs.getBoolPref(
               "browser.tabs.insertAfterCurrentExceptPinned"
@@ -5781,6 +5790,10 @@
         initialBrowsingContextGroupId: linkedBrowser.browsingContext?.group.id,
         skipAnimation: true,
         index: aIndex,
+        tabGroup:
+          typeof aIndex == "number" && aIndex > -1
+            ? this.tabs.at(aIndex)?.group
+            : null,
         createLazyBrowser,
       };
 

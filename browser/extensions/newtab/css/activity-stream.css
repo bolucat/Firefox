@@ -712,7 +712,7 @@ main section {
 }
 
 .april-fools .logo.april-fools {
-  background-image: url("chrome://activity-stream/content/data/content/assets/derp-fox.png");
+  background-image: url("chrome://activity-stream/content/data/content/assets/april-fools-fox.png");
   background-size: 64px;
   width: 64px;
   height: 64px;
@@ -1450,7 +1450,7 @@ main section {
 .top-sites-list .top-site-outer:hover .title:not(.sponsored) .title-label, .top-sites-list .top-site-outer:focus-within .title:not(.sponsored) .title-label {
   -webkit-line-clamp: 2;
   white-space: wrap;
-  word-break: break-all;
+  word-break: break-word;
 }
 
 @keyframes fade-up-tt {
@@ -3075,7 +3075,10 @@ main section {
 }
 
 .weatherCity {
+  -webkit-line-clamp: 1;
   text-overflow: ellipsis;
+  overflow: hidden;
+  word-break: break-word;
   font-size: var(--font-size-small);
 }
 
