@@ -2490,6 +2490,7 @@ name = "gkrust-uniffi-components"
 version = "0.1.0"
 dependencies = [
  "relevancy",
+ "search",
  "suggest",
  "tabs",
  "uniffi",
@@ -4435,7 +4436,7 @@ dependencies = [
 [[package]]
 name = "mp4parse"
 version = "0.17.0"
-source = "git+https://github.com/mozilla/mp4parse-rust?rev=a138e40ec1c603615873e524b5b22e11c0ec4820#a138e40ec1c603615873e524b5b22e11c0ec4820"
+source = "git+https://github.com/mozilla/mp4parse-rust?rev=e64650a686e5c5732395cd059e17cfd3b1e5b63b#e64650a686e5c5732395cd059e17cfd3b1e5b63b"
 dependencies = [
  "bitreader",
  "byteorder",
@@ -4452,7 +4453,7 @@ version = "0.1.0"
 [[package]]
 name = "mp4parse_capi"
 version = "0.17.0"
-source = "git+https://github.com/mozilla/mp4parse-rust?rev=a138e40ec1c603615873e524b5b22e11c0ec4820#a138e40ec1c603615873e524b5b22e11c0ec4820"
+source = "git+https://github.com/mozilla/mp4parse-rust?rev=e64650a686e5c5732395cd059e17cfd3b1e5b63b#e64650a686e5c5732395cd059e17cfd3b1e5b63b"
 dependencies = [
  "byteorder",
  "fallible_collections",
@@ -5702,6 +5703,20 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "search"
+version = "0.1.0"
+source = "git+https://github.com/mozilla/application-services?rev=25934715ecc08fc922c80797c637dea64ee742d1#25934715ecc08fc922c80797c637dea64ee742d1"
+dependencies = [
+ "error-support",
+ "firefox-versioning",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "thiserror 1.999.999",
+ "uniffi",
 ]
 
 [[package]]
