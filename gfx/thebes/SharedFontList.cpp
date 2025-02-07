@@ -24,7 +24,9 @@ namespace fontlist {
 
 static double WSSDistance(const Face* aFace, const gfxFontStyle& aStyle) {
   double stretchDist = StretchDistance(aFace->mStretch, aStyle.stretch);
-  double styleDist = StyleDistance(aFace->mStyle, aStyle.style);
+  double styleDist = StyleDistance(
+      aFace->mStyle, aStyle.style,
+      aStyle.synthesisStyle != StyleFontSynthesisStyle::ObliqueOnly);
   double weightDist = WeightDistance(aFace->mWeight, aStyle.weight);
 
   // Sanity-check that the distances are within the expected range
@@ -233,7 +235,7 @@ void Family::AddFaces(FontList* aList, const nsTArray<Face::InitData>& aFaces) {
       if (f.mWeight.Min().IsBold()) {
         slot |= kBoldMask;
       }
-      if (f.mStyle.Min().IsItalic() || f.mStyle.Min().IsOblique()) {
+      if (!f.mStyle.Min().IsNormal()) {
         slot |= kItalicMask;
       }
       if (slots[slot]) {
@@ -604,7 +606,7 @@ void Family::SetFacePtrs(FontList* aList, nsTArray<Pointer>& aFaces) {
       if (f->mWeight.Min().IsBold()) {
         slot |= kBoldMask;
       }
-      if (f->mStyle.Min().IsItalic() || f->mStyle.Min().IsOblique()) {
+      if (!f->mStyle.Min().IsNormal()) {
         slot |= kItalicMask;
       }
       if (!slots[slot].IsNull()) {

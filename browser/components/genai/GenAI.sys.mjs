@@ -450,8 +450,7 @@ export const GenAI = {
 
     const aiActionButton =
       selectionShortcutActionPanel.querySelector("#ai-action-button");
-    aiActionButton.iconSrc =
-      "chrome://mozapps/skin/extensions/category-discover.svg";
+    aiActionButton.iconSrc = "chrome://global/skin/icons/highlights.svg";
     const buttonActiveState = "icon";
     const buttonDefaultState = "icon ghost";
 
@@ -657,7 +656,8 @@ export const GenAI = {
       return;
     }
     const provider = this.chatProviders.get(lazy.chatProvider)?.name;
-    menu.ownerDocument.l10n.setAttributes(
+    const doc = menu.ownerDocument;
+    doc.l10n.setAttributes(
       menu,
       provider ? "genai-menu-ask-provider" : "genai-menu-ask-generic",
       { provider }
@@ -669,7 +669,26 @@ export const GenAI = {
       promptObj => menu.appendItem(promptObj.label),
       "menu"
     );
-    nsContextMenu.showItem(menu, menu.itemCount > 0);
+
+    // Add separator and remove provider option
+    const hasPrompts = menu.itemCount > 0;
+    if (hasPrompts) {
+      menu.menupopup.appendChild(doc.createXULElement("menuseparator"));
+      const removeItem = menu.appendItem("");
+      doc.l10n.setAttributes(
+        removeItem,
+        provider ? "genai-menu-remove-provider" : "genai-menu-remove-generic",
+        { provider }
+      );
+      removeItem.addEventListener("command", () => {
+        Glean.genaiChatbot.contextmenuRemove.record({
+          provider: this.getProviderId(),
+        });
+        Services.prefs.clearUserPref("browser.ml.chat.provider");
+      });
+    }
+
+    nsContextMenu.showItem(menu, hasPrompts);
   },
 
   /**

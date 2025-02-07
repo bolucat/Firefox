@@ -1224,9 +1224,10 @@ constexpr double kStretchFactor = 1.0e8;
 constexpr double kStyleFactor = 1.0e4;
 constexpr double kWeightFactor = 1.0e0;
 
-// style distance ==> [0,500]
+// style distance ==> [0,900]
 static inline double StyleDistance(const mozilla::SlantStyleRange& aRange,
-                                   mozilla::FontSlantStyle aTargetStyle) {
+                                   mozilla::FontSlantStyle aTargetStyle,
+                                   bool aItalicToObliqueFallback) {
   const mozilla::FontSlantStyle minStyle = aRange.Min();
   if (aTargetStyle == minStyle) {
     return 0.0;  // styles match exactly ==> 0
@@ -1240,143 +1241,141 @@ static inline double StyleDistance(const mozilla::SlantStyleRange& aRange,
   // vice versa
   const double kNegate = 200.0;
 
+  // bias added for oblique faces when italic is requested, and only-oblique
+  // font-synthesis-style is in effect
+  const double kBadFallback = 400.0;
+
   if (aTargetStyle.IsNormal()) {
-    if (minStyle.IsOblique()) {
-      // to distinguish oblique 0deg from normal, we add 1.0 to the angle
-      const double minAngle = minStyle.ObliqueAngle();
-      if (minAngle >= 0.0) {
-        return 1.0 + minAngle;
-      }
-      const mozilla::FontSlantStyle maxStyle = aRange.Max();
-      const double maxAngle = maxStyle.ObliqueAngle();
-      if (maxAngle >= 0.0) {
-        // [min,max] range includes 0.0, so just return our minimum
-        return 1.0;
-      }
-      // negative oblique is even worse than italic
-      return kNegate - maxAngle;
+    if (minStyle.IsItalic()) {
+      // italic is worse than any non-negative oblique;
+      // treat as a match in the wrong search direction
+      return kReverse;
     }
-    // must be italic, which is worse than any non-negative oblique;
-    // treat as a match in the wrong search direction
-    MOZ_ASSERT(minStyle.IsItalic());
-    return kReverse;
+    const double minAngle = minStyle.ObliqueAngle();
+    if (minAngle >= 0.0) {
+      return minAngle;
+    }
+    const mozilla::FontSlantStyle maxStyle = aRange.Max();
+    const double maxAngle = maxStyle.ObliqueAngle();
+    if (maxAngle >= 0.0) {
+      // [min,max] range includes 0.0, so it's a perfect match
+      return 0.0;
+    }
+    // negative oblique is even worse than italic
+    return kNegate - maxAngle;
   }
 
   const double kDefaultAngle = mozilla::FontSlantStyle::DEFAULT_OBLIQUE_DEGREES;
 
   if (aTargetStyle.IsItalic()) {
-    if (minStyle.IsOblique()) {
-      const double minAngle = minStyle.ObliqueAngle();
-      if (minAngle >= kDefaultAngle) {
-        return 1.0 + (minAngle - kDefaultAngle);
-      }
-      const mozilla::FontSlantStyle maxStyle = aRange.Max();
-      const double maxAngle = maxStyle.ObliqueAngle();
-      if (maxAngle >= kDefaultAngle) {
-        return 1.0;
-      }
-      if (maxAngle > 0.0) {
-        // wrong direction but still > 0, add bias of 100
-        return kReverse + (kDefaultAngle - maxAngle);
-      }
-      // negative oblique angle, add bias of 300
-      return kReverse + kNegate + (kDefaultAngle - maxAngle);
+    MOZ_ASSERT(!minStyle.IsItalic());  // we checked for equality above
+    const mozilla::FontSlantStyle maxStyle = aRange.Max();
+    if (maxStyle.IsItalic()) {
+      // Must be a font with an 'ital' axis, so consider this a match.
+      return 0.0;
     }
-    // normal is worse than oblique > 0, but better than oblique <= 0
-    MOZ_ASSERT(minStyle.IsNormal());
-    return kNegate;
+    double targetAngle = kDefaultAngle;
+    double fallbackBias = 0.0;
+    if (!aItalicToObliqueFallback) {
+      // If 'font-style-synthesis: oblique-only' is applied, we should not use
+      // oblique as a fallback for italic, so we add a large "fallback bias" to
+      // all results here, and prefer an angle as close to zero as possible.
+      targetAngle = 0.0;
+      fallbackBias = kBadFallback;
+    }
+    const double minAngle = minStyle.ObliqueAngle();
+    if (minAngle >= targetAngle) {
+      // Add 1.0 to ensure italic vs non-italic never returns 0.0, even if the
+      // angle matches.
+      return fallbackBias + minAngle - targetAngle + 1.0;
+    }
+    const double maxAngle = maxStyle.ObliqueAngle();
+    if (maxAngle >= targetAngle) {
+      return fallbackBias + 1.0;
+    }
+    if (maxAngle > 0.0) {
+      // wrong direction but still > 0, add bias of 100
+      return fallbackBias + kReverse + (targetAngle - maxAngle);
+    }
+    // negative oblique angle, add bias of 300
+    return fallbackBias + kReverse + kNegate + (targetAngle - maxAngle);
   }
 
   // target is oblique <angle>: four different cases depending on
   // the value of the <angle>, which determines the preferred direction
   // of search
   const double targetAngle = aTargetStyle.ObliqueAngle();
+  const mozilla::FontSlantStyle maxStyle = aRange.Max();
   if (targetAngle >= kDefaultAngle) {
-    if (minStyle.IsOblique()) {
-      const double minAngle = minStyle.ObliqueAngle();
-      if (minAngle >= targetAngle) {
-        return minAngle - targetAngle;
-      }
-      const mozilla::FontSlantStyle maxStyle = aRange.Max();
-      const double maxAngle = maxStyle.ObliqueAngle();
-      if (maxAngle >= targetAngle) {
-        return 0.0;
-      }
-      if (maxAngle > 0.0) {
-        return kReverse + (targetAngle - maxAngle);
-      }
-      return kReverse + kNegate + (targetAngle - maxAngle);
-    }
-    if (minStyle.IsItalic()) {
+    if (minStyle.IsItalic() || maxStyle.IsItalic()) {
       return kReverse + kNegate;
     }
-    return kReverse + kNegate + 1.0;
+    const double minAngle = minStyle.ObliqueAngle();
+    if (minAngle >= targetAngle) {
+      return minAngle - targetAngle;
+    }
+    const double maxAngle = maxStyle.ObliqueAngle();
+    if (maxAngle >= targetAngle) {
+      return 0.0;
+    }
+    if (maxAngle > 0.0) {
+      return kReverse + (targetAngle - maxAngle);
+    }
+    return kReverse + kNegate + (targetAngle - maxAngle);
   }
 
   if (targetAngle <= -kDefaultAngle) {
-    if (minStyle.IsOblique()) {
-      const mozilla::FontSlantStyle maxStyle = aRange.Max();
-      const double maxAngle = maxStyle.ObliqueAngle();
-      if (maxAngle <= targetAngle) {
-        return targetAngle - maxAngle;
-      }
-      const double minAngle = minStyle.ObliqueAngle();
-      if (minAngle <= targetAngle) {
-        return 0.0;
-      }
-      if (minAngle < 0.0) {
-        return kReverse + (minAngle - targetAngle);
-      }
-      return kReverse + kNegate + (minAngle - targetAngle);
-    }
-    if (minStyle.IsItalic()) {
+    if (minStyle.IsItalic() || maxStyle.IsItalic()) {
       return kReverse + kNegate;
     }
-    return kReverse + kNegate + 1.0;
-  }
-
-  if (targetAngle >= 0.0) {
-    if (minStyle.IsOblique()) {
-      const double minAngle = minStyle.ObliqueAngle();
-      if (minAngle > targetAngle) {
-        return kReverse + (minAngle - targetAngle);
-      }
-      const mozilla::FontSlantStyle maxStyle = aRange.Max();
-      const double maxAngle = maxStyle.ObliqueAngle();
-      if (maxAngle >= targetAngle) {
-        return 0.0;
-      }
-      if (maxAngle > 0.0) {
-        return targetAngle - maxAngle;
-      }
-      return kReverse + kNegate + (targetAngle - maxAngle);
-    }
-    if (minStyle.IsItalic()) {
-      return kReverse + kNegate - 2.0;
-    }
-    return kReverse + kNegate - 1.0;
-  }
-
-  // last case: (targetAngle < 0.0 && targetAngle > kDefaultAngle)
-  if (minStyle.IsOblique()) {
-    const mozilla::FontSlantStyle maxStyle = aRange.Max();
     const double maxAngle = maxStyle.ObliqueAngle();
-    if (maxAngle < targetAngle) {
-      return kReverse + (targetAngle - maxAngle);
+    if (maxAngle <= targetAngle) {
+      return targetAngle - maxAngle;
     }
     const double minAngle = minStyle.ObliqueAngle();
     if (minAngle <= targetAngle) {
       return 0.0;
     }
     if (minAngle < 0.0) {
-      return minAngle - targetAngle;
+      return kReverse + (minAngle - targetAngle);
     }
     return kReverse + kNegate + (minAngle - targetAngle);
   }
-  if (minStyle.IsItalic()) {
-    return kReverse + kNegate - 2.0;
+
+  if (targetAngle >= 0.0) {
+    if (minStyle.IsItalic() || maxStyle.IsItalic()) {
+      return kReverse + kNegate - 1.0;
+    }
+    const double minAngle = minStyle.ObliqueAngle();
+    if (minAngle > targetAngle) {
+      return kReverse + (minAngle - targetAngle);
+    }
+    const double maxAngle = maxStyle.ObliqueAngle();
+    if (maxAngle >= targetAngle) {
+      return 0.0;
+    }
+    if (maxAngle > 0.0) {
+      return targetAngle - maxAngle;
+    }
+    return kReverse + kNegate + (targetAngle - maxAngle);
   }
-  return kReverse + kNegate - 1.0;
+
+  // last case: (targetAngle < 0.0 && targetAngle > kDefaultAngle)
+  if (minStyle.IsItalic() || maxStyle.IsItalic()) {
+    return kReverse + kNegate - 1.0;
+  }
+  const double maxAngle = maxStyle.ObliqueAngle();
+  if (maxAngle < targetAngle) {
+    return kReverse + (targetAngle - maxAngle);
+  }
+  const double minAngle = minStyle.ObliqueAngle();
+  if (minAngle <= targetAngle) {
+    return 0.0;
+  }
+  if (minAngle < 0.0) {
+    return minAngle - targetAngle;
+  }
+  return kReverse + kNegate + (minAngle - targetAngle);
 }
 
 // stretch distance ==> [0,2000]
