@@ -1811,6 +1811,8 @@ pref("browser.newtabpage.activity-stream.showWeather", true);
 pref("browser.newtabpage.activity-stream.weather.query", "");
 pref("browser.newtabpage.activity-stream.weather.display", "simple");
 
+pref("browser.newtabpage.activity-stream.images.smart", true);
+
 // enable location search for newtab weather widget
 pref("browser.newtabpage.activity-stream.weather.locationSearchEnabled", true);
 
@@ -2027,7 +2029,6 @@ pref("browser.aboutwelcome.screens", "");
 // Experiment Manager
 // See Console.sys.mjs LOG_LEVELS for all possible values
 pref("messaging-system.log", "warn");
-pref("messaging-system.rsexperimentloader.enabled", true);
 pref("messaging-system.rsexperimentloader.collection_id", "nimbus-desktop-experiments");
 pref("nimbus.debug", false);
 pref("nimbus.validation.enabled", true);
