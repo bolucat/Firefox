@@ -7155,6 +7155,20 @@
   value: false
   mirror: always
 
+# When true, missing stacking context snapshots will crash the GPU or Parent
+# process.
+- name: gfx.webrender.debug.missing-snapshot-panic
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# When true, missing stacking context snapshots will render as an opaque
+# pink image.
+- name: gfx.webrender.debug.missing-snapshot-pink
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 #ifdef MOZ_WIDGET_GTK
 - name: gfx.webrender.reject-software-driver
   type: bool
@@ -8517,6 +8531,13 @@
   mirror: always
   set_spidermonkey_pref: always
 
+# Dictionary Teleporting
+- name: javascript.options.experimental.dictionary_teleporting
+  type: bool
+  value: true
+  mirror: always
+  set_spidermonkey_pref: always
+
 - name: javascript.options.wasm_caching
   type: bool
   value: true
@@ -9633,7 +9654,7 @@
 # Is support for CSS hyphenate-limit-chars enabled?
 - name: layout.css.hyphenate-limit-chars.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Is support for CSS initial-letter property enabled?
