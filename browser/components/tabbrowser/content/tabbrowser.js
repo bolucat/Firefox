@@ -2995,9 +2995,14 @@
       );
     }
 
+    /**
+     * @param {MozTabbrowserTabGroup} group
+     * @param {number} index
+     * @returns {MozTabbrowserTabGroup}
+     */
     adoptTabGroup(group, index) {
       if (group.ownerDocument == document) {
-        return;
+        return group;
       }
 
       let newTabs = [];
@@ -3005,7 +3010,7 @@
         newTabs.push(this.adoptTab(tab, index));
       }
 
-      this.addTabGroup(newTabs, {
+      return this.addTabGroup(newTabs, {
         id: group.id,
         label: group.label,
         color: group.color,
@@ -5690,8 +5695,6 @@
         return;
       }
 
-      this._lastRelatedTabMap = new WeakMap();
-
       this._handleTabMove(aTab, () => {
         let neighbor = this.tabs[aIndex];
         if (forceStandaloneTab && neighbor.group) {
@@ -5760,6 +5763,8 @@
       // Clear tabs cache after moving nodes because the order of tabs may have
       // changed.
       this.tabContainer._invalidateCachedTabs();
+
+      this._lastRelatedTabMap = new WeakMap();
 
       this._updateTabsAfterInsert();
 

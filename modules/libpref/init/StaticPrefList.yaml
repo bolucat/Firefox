@@ -14223,18 +14223,6 @@
   value: "https://firefox-source-docs.mozilla.org/networking/dns/trr-skip-reasons.html#"
   mirror: never
 
-# If true, display a warning before fallback to native
-- name: network.trr.display_fallback_warning
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
-# Heuristics in this list will trigger the fallback to native warning
-- name: network.trr.fallback_warning_heuristic_list
-  type: String
-  value: "canary"
-  mirror: never
-
 # Use Oblivious HTTP when making TRR requests.
 - name: network.trr.use_ohttp
   type: RelaxedAtomicBool
@@ -16441,16 +16429,11 @@
   mirror: always
 
 # The CRLite filter channel to which the user is subscribed.
-# - "all" => bloom-filter cascades that contain all revocations. Stash based delta updates.
-# - "experimental" => clubcards that contain all revocations. Stash based delta updates.
-# - "experimental+deltas" => clubcards that contain all revocations. Clubcard based delta updates.
+# - "default" => clubcards that contain all revocations
+# - "compat" => clubcards that contain priority revocations
 - name: security.pki.crlite_channel
   type: String
-#ifdef NIGHTLY_BUILD
-  value: "experimental+deltas"
-#else
-  value: "all"
-#endif
+  value: "default"
   mirror: never
 
 # The number of SCTs that must be "covered" by a CRLite filter before

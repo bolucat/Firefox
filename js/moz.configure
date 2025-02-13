@@ -38,26 +38,6 @@ def moz_app_name(value, js_standalone, moz_app_basename):
 
 set_config("MOZ_APP_NAME", moz_app_name)
 
-# SmooshMonkey (new frontend)
-# ==================================================
-
-# Define here in order to use the option from bindgen.configure.
-option(
-    "--enable-smoosh",
-    default=False,
-    help="Enable SmooshMonkey (new JS engine frontend)",
-)
-
-
-@depends("--enable-smoosh")
-def enable_smoosh(value):
-    if value:
-        return True
-
-
-set_config("JS_ENABLE_SMOOSH", enable_smoosh)
-set_define("JS_ENABLE_SMOOSH", enable_smoosh)
-
 include("../build/moz.configure/nspr.configure", when="--enable-compile-environment")
 include("../build/moz.configure/rust.configure", when="--enable-compile-environment")
 include("../build/moz.configure/bindgen.configure", when="--enable-compile-environment")
@@ -135,25 +115,6 @@ def static_js(value):
 
 
 set_define("MOZ_STATIC_JS", static_js)
-
-
-# Enable records and tuples
-# ===================================================
-option(
-    "--enable-record-tuple",
-    default=False,
-    help="Enable records and tuples (and disables JIT)",
-)
-
-
-@depends("--enable-record-tuple")
-def enable_record_tuple(value):
-    if value:
-        return True
-
-
-set_config("ENABLE_RECORD_TUPLE", enable_record_tuple)
-set_define("ENABLE_RECORD_TUPLE", enable_record_tuple)
 
 # Enable decorators
 # ===================================================
@@ -275,10 +236,8 @@ set_config(
 
 # JIT support
 # =======================================================
-@depends(target, "--enable-record-tuple", "--enable-portable-baseline-interp")
-def jit_default(target, enable_record_tuple, enable_portable_baseline_interp):
-    if enable_record_tuple:
-        return False
+@depends(target, "--enable-portable-baseline-interp")
+def jit_default(target, enable_portable_baseline_interp):
     if enable_portable_baseline_interp:
         return False
     if target.cpu in (

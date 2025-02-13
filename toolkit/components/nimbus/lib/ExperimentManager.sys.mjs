@@ -479,23 +479,28 @@ export class _ExperimentManager {
 
     // RemoteSettingsExperimentLoader could be in a middle of updating recipes
     // so let's wait for the update to finish and this promise to resolve.
-    await lazy.RemoteSettingsExperimentLoader.updatingRecipes();
+    await lazy.RemoteSettingsExperimentLoader.finishedUpdating();
 
-    // At this point in the execution of this function,
-    // RemoteSettingsExperimentLoader should've finished updating recipes at least once.
-    const optInRecipesWithTargetingMatch = [];
+    // RemoteSettingsExperimentLoader should have finished updating at least
+    // once. Prevent concurrent updates while we filter through the list of
+    // available opt-in recipes.
+    return locks.request(
+      lazy.RemoteSettingsExperimentLoader.LOCK_ID,
+      async () => {
+        const filtered = [];
 
-    for (const recipe of this.optInRecipes) {
-      // check if the opt in recipe matches targeting and bucketing.
-      if (
-        (await enrollmentsCtx.checkTargeting(recipe)) &&
-        (await this.isInBucketAllocation(recipe.bucketConfig))
-      ) {
-        optInRecipesWithTargetingMatch.push(recipe);
+        for (const recipe of this.optInRecipes) {
+          if (
+            (await enrollmentsCtx.checkTargeting(recipe)) &&
+            (await this.isInBucketAllocation(recipe.bucketConfig))
+          ) {
+            filtered.push(recipe);
+          }
+        }
+
+        return filtered;
       }
-    }
-
-    return optInRecipesWithTargetingMatch;
+    );
   }
 
   /**
@@ -510,8 +515,9 @@ export class _ExperimentManager {
 
     // RemoteSettingsExperimentLoader could be in a middle of updating recipes
     // so let's wait for the update to finish and this promise to resolve.
-    await lazy.RemoteSettingsExperimentLoader.updatingRecipes();
+    await lazy.RemoteSettingsExperimentLoader.finishedUpdating();
 
+    // We don't need to hold the RSEL lock here because we are not doing any async work.
     return this.optInRecipes.find(recipe => recipe.slug === slug);
   }
 

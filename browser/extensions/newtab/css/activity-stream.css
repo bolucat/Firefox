@@ -922,6 +922,7 @@ main section {
 }
 .top-site-outer:is(:hover) .context-menu-button {
   opacity: 1;
+  transition: opacity 200ms;
 }
 .lightWallpaper .top-site-outer:not(:hover, :active, .active) {
   color-scheme: light;
@@ -947,7 +948,6 @@ main section {
   opacity: 0;
   position: absolute;
   top: -20px;
-  transition: opacity 200ms;
 }
 .lightWallpaper .top-site-outer .context-menu-button {
   color-scheme: light;
@@ -1098,6 +1098,7 @@ main section {
 .shortcuts-refresh .top-site-outer {
   width: 120px;
   margin-block-end: 0;
+  border-radius: var(--border-radius-large);
 }
 .shortcuts-refresh .top-site-outer:hover {
   background: var(--newtab-background-card);
@@ -1112,7 +1113,7 @@ main section {
   background-color: var(--newtab-background-color-secondary);
 }
 .shortcuts-refresh .top-site-outer .top-site-button {
-  padding: 12px 16px 6px;
+  padding: 20px 16px 6px;
 }
 .shortcuts-refresh .top-site-outer .top-site-button:focus + div .context-menu-button {
   opacity: 1;
@@ -2602,10 +2603,6 @@ main section {
 }
 .wallpaper-input.light-sky {
   background-image: url("chrome://newtab/content/data/content/assets/wallpapers/light-sky.avif");
-}
-.wallpaper-input.theme-solid-color-picker.active, .wallpaper-input:checked {
-  outline-color: var(--color-accent-primary-active);
-  padding: 2px;
 }
 .wallpaper-input:focus-visible {
   outline-color: var(--newtab-primary-action-background);

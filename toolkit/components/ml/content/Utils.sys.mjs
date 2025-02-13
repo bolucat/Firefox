@@ -359,8 +359,7 @@ export async function getDirectoryHandleFromOPFS(
 ) {
   let currentNavigator = globalThis.navigator;
   if (!currentNavigator) {
-    currentNavigator =
-      Services.wm.getMostRecentWindow("navigator:browser").navigator;
+    currentNavigator = Services.wm.getMostRecentBrowserWindow().navigator;
   }
   let directoryHandle = await currentNavigator.storage.getDirectory();
 
@@ -605,4 +604,14 @@ export class URLChecker {
     // If no matches, return a default rejectionType
     return { allowed: false, rejectionType: RejectionType.DISALLOWED };
   }
+}
+
+/**
+ * Returns the optimal CPU concurrency for ML
+ *
+ * @returns {number} The number of threads we should be using
+ */
+export function getOptimalCPUConcurrency() {
+  let mlUtils = Cc["@mozilla.org/ml-utils;1"].createInstance(Ci.nsIMLUtils);
+  return mlUtils.getOptimalCPUConcurrency();
 }
