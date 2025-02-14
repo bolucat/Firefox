@@ -1157,9 +1157,9 @@ class ContentParent final : public PContentParent,
   mozilla::ipc::IPCResult RecvNotifyPushSubscriptionModifiedObservers(
       const nsACString& aScope, nsIPrincipal* aPrincipal);
 
-  mozilla::ipc::IPCResult RecvGetFilesRequest(const nsID& aID,
-                                              const nsAString& aDirectoryPath,
-                                              const bool& aRecursiveFlag);
+  mozilla::ipc::IPCResult RecvGetFilesRequest(
+      const nsID& aID, nsTArray<nsString>&& aDirectoryPaths,
+      const bool& aRecursiveFlag);
 
   mozilla::ipc::IPCResult RecvDeleteGetFilesRequest(const nsID& aID);
 

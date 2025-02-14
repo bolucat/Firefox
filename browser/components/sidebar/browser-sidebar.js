@@ -182,6 +182,7 @@ var SidebarController = {
           menuId: "menu_megalistSidebar",
           menuL10nId: "menu-view-megalist-sidebar",
           revampL10nId: "sidebar-menu-megalist",
+          gleanEvent: Glean.contextualManager.sidebarToggle,
         }
       );
     } else {
@@ -2007,7 +2008,11 @@ XPCOMUtils.defineLazyPreferenceGetter(
       SidebarController.toggleExpandOnHover(newValue === "expand-on-hover");
       SidebarController.recordVisibilitySetting(newValue);
       if (SidebarController._state) {
-        const isVerticalTabs = SidebarController.sidebarVerticalTabsEnabled;
+        // we need to use the pref rather than SidebarController's getter here
+        // as the getter might not have the new value yet
+        const isVerticalTabs = Services.prefs.getBoolPref(
+          "sidebar.verticalTabs"
+        );
         SidebarController._state.revampVisibility = newValue;
         if (
           SidebarController._animationEnabled &&
@@ -2016,11 +2021,12 @@ XPCOMUtils.defineLazyPreferenceGetter(
         ) {
           SidebarController._animateSidebarMain();
         }
+        const forceExpand = isVerticalTabs && newValue === "always-show";
         SidebarController._state.updateVisibility(
           (newValue != "hide-sidebar" && isVerticalTabs) || !isVerticalTabs,
           false,
           false,
-          newValue !== "expand-on-hover"
+          forceExpand
         );
       }
       SidebarController.updateToolbarButton();

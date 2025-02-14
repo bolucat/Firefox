@@ -1261,9 +1261,10 @@
   mirror: always
 
 # Time (secs) after which content analysis operations are considered timed-out
+# A non-positive value indicates a timeout of 25ms, which is used for testing.
 - name: browser.contentanalysis.agent_timeout
-  type: uint32_t
-  value: 30
+  type: int32_t
+  value: 300
   mirror: always
 
 # Should Firefox show a notification or dialog when content analysis blocks
@@ -1324,6 +1325,18 @@
 - name: browser.contentblocking.originlog.length
   type: uint32_t
   value: 32
+  mirror: always
+
+# Whether memorytesting is enabled when crash reporter client is launched
+- name: browser.crashReporter.memtest
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# Space-separated list of prioritized memory test kinds
+- name: browser.crashReporter.memtestKinds
+  type: DataMutexString
+  value: ""
   mirror: always
 
 # Min font device pixel size at which to turn on high quality.
@@ -8444,12 +8457,6 @@
     mirror: always
     set_spidermonkey_pref: startup
 
-  # Experimental support for Import Assertions in JavaScript.
--   name: javascript.options.experimental.import_attributes
-    type: bool
-    value: false
-    mirror: always
-
   # Experimental support for Error.isError in JavaScript.
 -   name: javascript.options.experimental.error_iserror
     type: bool
@@ -8535,6 +8542,12 @@
 - name: javascript.options.experimental.dictionary_teleporting
   type: bool
   value: true
+  mirror: always
+  set_spidermonkey_pref: always
+
+- name: javascript.options.experimental.import_attributes
+  type: bool
+  value: false
   mirror: always
   set_spidermonkey_pref: always
 

@@ -4302,7 +4302,10 @@ const AdBanner = ({
       pos: row,
       recommended_at: spoc.recommended_at,
       received_rank: spoc.received_rank,
-      format: spoc.format
+      format: spoc.format,
+      ...(spoc.shim?.impression ? {
+        shim: spoc.shim.impression
+      } : {})
     }],
     dispatch: dispatch,
     firstVisibleTimestamp: firstVisibleTimestamp
@@ -11222,6 +11225,7 @@ class _WallpaperCategories extends (external_React_default()).PureComponent {
     this.handleChange = this.handleChange.bind(this);
     this.handleReset = this.handleReset.bind(this);
     this.handleCategory = this.handleCategory.bind(this);
+    this.handleUpload = this.handleUpload.bind(this);
     this.handleBack = this.handleBack.bind(this);
     this.getRGBColors = this.getRGBColors.bind(this);
     this.prefersHighContrastQuery = null;
@@ -11341,11 +11345,14 @@ class _WallpaperCategories extends (external_React_default()).PureComponent {
     this.handleUserEvent(actionTypes.WALLPAPER_CATEGORY_CLICK, event.target.id);
     let fluent_id;
     switch (event.target.id) {
-      case "photographs":
-        fluent_id = "newtab-wallpaper-category-title-photographs";
-        break;
       case "abstracts":
         fluent_id = "newtab-wallpaper-category-title-abstract";
+        break;
+      case "celestial":
+        fluent_id = "newtab-wallpaper-category-title-celestial";
+        break;
+      case "photographs":
+        fluent_id = "newtab-wallpaper-category-title-photographs";
         break;
       case "solid-colors":
         fluent_id = "newtab-wallpaper-category-title-colors";
@@ -11354,6 +11361,11 @@ class _WallpaperCategories extends (external_React_default()).PureComponent {
       activeCategoryFluentID: fluent_id
     });
   };
+  handleUpload() {
+    // TODO: Bug 1947645: Add custom image upload functionality
+    // TODO: Bug 1943663: Add telemetry
+    // TODO: Bug 1947813: Add image upload error states/UI
+  }
   handleBack() {
     this.setState({
       activeCategory: null
@@ -11462,11 +11474,17 @@ class _WallpaperCategories extends (external_React_default()).PureComponent {
       const thumbnail = activeWallpaperObj || filteredList[0];
       let fluent_id;
       switch (category) {
-        case "photographs":
-          fluent_id = "newtab-wallpaper-category-title-photographs";
-          break;
         case "abstracts":
           fluent_id = "newtab-wallpaper-category-title-abstract";
+          break;
+        case "celestial":
+          fluent_id = "newtab-wallpaper-category-title-celestial";
+          break;
+        case "custom-wallpaper":
+          fluent_id = "newtab-wallpaper-upload-image";
+          break;
+        case "photographs":
+          fluent_id = "newtab-wallpaper-category-title-photographs";
           break;
         case "solid-colors":
           fluent_id = "newtab-wallpaper-category-title-colors";
@@ -11488,9 +11506,11 @@ class _WallpaperCategories extends (external_React_default()).PureComponent {
         id: category,
         style: style,
         type: "radio",
-        onClick: this.handleCategory,
-        onKeyDown: e => this.handleCategoryKeyDown(e, category),
-        className: "wallpaper-input",
+        onKeyDown: e => this.handleCategoryKeyDown(e, category)
+        // Add overrides for custom wallpaper upload UI
+        ,
+        onClick: category !== "custom-wallpaper" ? this.handleCategory : this.handleUpload,
+        className: category !== "custom-wallpaper" ? `wallpaper-input` : `wallpaper-input theme-custom-wallpaper`,
         tabIndex: index === 0 ? 0 : -1
       }), /*#__PURE__*/external_React_default().createElement("label", {
         htmlFor: category,
@@ -11673,11 +11693,14 @@ class ContentSection extends (external_React_default()).PureComponent {
     }, /*#__PURE__*/external_React_default().createElement(WallpapersSection, {
       setPref: setPref,
       activeWallpaper: activeWallpaper
-    })), wallpapersV2Enabled && /*#__PURE__*/external_React_default().createElement("div", {
+    })), wallpapersV2Enabled && /*#__PURE__*/external_React_default().createElement((external_React_default()).Fragment, null, /*#__PURE__*/external_React_default().createElement("div", {
       className: "wallpapers-section"
     }, /*#__PURE__*/external_React_default().createElement(WallpaperCategories, {
       setPref: setPref,
       activeWallpaper: activeWallpaper
+    })), /*#__PURE__*/external_React_default().createElement("span", {
+      className: "divider",
+      role: "separator"
     })), /*#__PURE__*/external_React_default().createElement("div", {
       className: "settings-toggles"
     }, /*#__PURE__*/external_React_default().createElement("div", {

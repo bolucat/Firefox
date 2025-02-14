@@ -3004,6 +3004,7 @@
       if (group.ownerDocument == document) {
         return group;
       }
+      group.saveOnWindowClose = false;
 
       let newTabs = [];
       for (let tab of group.tabs) {
@@ -3018,14 +3019,18 @@
     }
 
     getAllTabGroups() {
-      return BrowserWindowTracker.orderedWindows.reduce(
-        (acc, window) => acc.concat(window.gBrowser.tabGroups),
+      return BrowserWindowTracker.getOrderedWindows({
+        private: PrivateBrowsingUtils.isWindowPrivate(window),
+      }).reduce(
+        (acc, thisWindow) => acc.concat(thisWindow.gBrowser.tabGroups),
         []
       );
     }
 
     getTabGroupById(id) {
-      for (const win of BrowserWindowTracker.orderedWindows) {
+      for (const win of BrowserWindowTracker.getOrderedWindows({
+        private: PrivateBrowsingUtils.isWindowPrivate(window),
+      })) {
         for (const group of win.gBrowser.tabGroups) {
           if (group.id === id) {
             return group;
@@ -8491,17 +8496,6 @@ var TabContextMenu = {
       gBrowser.tabContainer?.verticalMode
         ? "close-tabs-to-the-end-vertical"
         : "close-tabs-to-the-end"
-    );
-
-    // Update context menu item for "Turn (on/off) Vertical Tabs".
-    const toggleVerticalTabsItem = document.getElementById(
-      "context_toggleVerticalTabs"
-    );
-    document.l10n.setAttributes(
-      toggleVerticalTabsItem,
-      gBrowser.tabContainer?.verticalMode
-        ? "tab-context-disable-vertical-tabs"
-        : "tab-context-enable-vertical-tabs"
     );
 
     // Disable "Close Tabs to the Left/Right" if there are no tabs
