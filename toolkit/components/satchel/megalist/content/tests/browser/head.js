@@ -127,7 +127,7 @@ async function addBreach() {
 
 async function openPasswordsSidebar() {
   info("Open Passwords sidebar");
-  await SidebarController.show("viewMegalistSidebar");
+  await SidebarController.show("viewCPMSidebar");
   const sidebar = document.getElementById("sidebar");
   const megalist =
     sidebar.contentDocument.querySelector("megalist-alpha").shadowRoot;
@@ -236,7 +236,7 @@ function assertCPMGleanEvent(actualEvent, expectedEvent) {
     Assert.equal(
       actualEvent.extra[key],
       expectedEvent[key],
-      `${actualEvent.extra[key]} is the recorded trigger.
+      `${actualEvent.extra[key]} is the recorded ${key}.
         Expected: '${expectedEvent[key]}'.`
     );
   }
