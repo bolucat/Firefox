@@ -544,7 +544,9 @@ class WinUtils {
 
   static bool GetClassName(HWND aHwnd, nsAString& aName);
 
+  static bool MicaAvailable();
   static bool MicaEnabled();
+  static bool MicaPopupsEnabled();
 
   static void EnableWindowOcclusion(const bool aEnable);
 

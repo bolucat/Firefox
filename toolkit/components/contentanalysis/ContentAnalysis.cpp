@@ -1009,12 +1009,15 @@ static bool ShouldAllowAction(
          aResponseCode == nsIContentAnalysisResponse::Action::eWarn;
 }
 
-static DefaultResult GetDefaultResultFromPref() {
-  uint32_t value = StaticPrefs::browser_contentanalysis_default_result();
+static DefaultResult GetDefaultResultFromPref(bool isTimeout) {
+  uint32_t value = isTimeout
+                       ? StaticPrefs::browser_contentanalysis_timeout_result()
+                       : StaticPrefs::browser_contentanalysis_default_result();
   if (value > static_cast<uint32_t>(DefaultResult::eLastValue)) {
     LOGE(
-        "Invalid value for browser.contentanalysis.default_result pref "
-        "value");
+        "Invalid value for browser.contentanalysis.%s pref "
+        "value",
+        isTimeout ? "default_timeout_result" : "default_result");
     return DefaultResult::eBlock;
   }
   return static_cast<DefaultResult>(value);
@@ -1035,7 +1038,10 @@ NS_IMETHODIMP ContentAnalysisActionResult::GetShouldAllowContent(
 
 NS_IMETHODIMP ContentAnalysisNoResult::GetShouldAllowContent(
     bool* aShouldAllowContent) {
-  if (GetDefaultResultFromPref() == DefaultResult::eAllow) {
+  // Make sure to use the non-timeout pref here, because timeouts won't
+  // go through this code path.
+  if (GetDefaultResultFromPref(/* isTimeout */ false) ==
+      DefaultResult::eAllow) {
     *aShouldAllowContent =
         mValue != NoContentAnalysisResult::DENY_DUE_TO_CANCELED;
   } else {
@@ -1335,6 +1341,20 @@ void ContentAnalysis::CachedClipboardResponse::SetCachedResponse(
         "CachedClipboardResponse caching new URI for existing cached clipboard "
         "seqno");
   }
+
+  // Update the cached action for this URI if it already exists in the cache,
+  // otherwise add a new cache entry for this URI.
+  for (auto& entry : mData) {
+    bool uriEquals = false;
+    // URI will not be set for some chrome contexts
+    if ((!aURI && !entry.first) ||
+        (aURI && NS_SUCCEEDED(aURI->Equals(entry.first, &uriEquals)) &&
+         uriEquals)) {
+      entry.second = aAction;
+      return;
+    }
+  }
+
   mData.AppendElement(std::make_pair(aURI, aAction));
 }
 
@@ -1376,8 +1396,6 @@ void ContentAnalysis::CancelWithError(nsCString&& aUserActionId,
   }
   AssertIsOnMainThread();
 
-  SetLastResult(aResult);
-
   // We clear the tokens array since we cancel all of them.
   nsTHashSet<nsCString> tokens;
   RefPtr<nsIContentAnalysisCallback> callback;
@@ -1418,6 +1436,7 @@ void ContentAnalysis::CancelWithError(nsCString&& aUserActionId,
 
   bool isShutdown = aResult == NS_ERROR_ILLEGAL_DURING_SHUTDOWN;
   bool isCancel = aResult == NS_ERROR_ABORT;
+  bool isTimeout = aResult == NS_ERROR_DOM_TIMEOUT_ERR;
 
   // Propagate shutdown error to the callback as that same error.  All other
   // cases use the default response, except user cancel, which always uses
@@ -1429,7 +1448,7 @@ void ContentAnalysis::CancelWithError(nsCString&& aUserActionId,
   nsIContentAnalysisResponse::Action action =
       nsIContentAnalysisResponse::Action::eCanceled;
   if (!isShutdown && !isCancel) {
-    DefaultResult defaultResponse = GetDefaultResultFromPref();
+    DefaultResult defaultResponse = GetDefaultResultFromPref(isTimeout);
     switch (defaultResponse) {
       case DefaultResult::eAllow:
         action = nsIContentAnalysisResponse::Action::eAllow;
@@ -1811,6 +1830,17 @@ void ContentAnalysis::NotifyResponseObservers(
     // IssueResponse with the result.
     nsCString requestToken;
     MOZ_ALWAYS_SUCCEEDS(aResponse->GetRequestToken(requestToken));
+
+    // We have our response.  Cancelling the timeout timer is normally
+    // done when we issue the response but we don't care how long the user
+    // takes to respond to a warn dialog, so stop it now.
+    if (auto entry = mUserActionMap.Lookup(aUserActionId)) {
+      if (entry->mTimeoutRunnable && !entry->mIsHandlingTimeout) {
+        entry->mTimeoutRunnable->Cancel();
+        entry->mTimeoutRunnable = nullptr;
+      }
+    }
+
     mWarnResponseDataMap.InsertOrUpdate(
         requestToken, WarnResponseData{aResponse, std::move(aUserActionId),
                                        aAutoAcknowledge});
@@ -1890,9 +1920,6 @@ void ContentAnalysis::IssueResponse(ContentAnalysisResponse* aResponse,
 void ContentAnalysis::NotifyObserversAndMaybeIssueResponse(
     ContentAnalysisResponse* aResponse, nsCString&& aUserActionId,
     bool aAutoAcknowledge) {
-  // Successfully made a request to the agent, so mark that we succeeded
-  mLastResult = NS_OK;
-
   NotifyResponseObservers(aResponse, nsCString(aUserActionId),
                           aAutoAcknowledge);
 
@@ -3410,12 +3437,6 @@ nsresult ContentAnalysis::RunAcknowledgeTask(
   return NS_OK;
 }
 
-bool ContentAnalysis::LastRequestSucceeded() {
-  return mLastResult != NS_ERROR_NOT_AVAILABLE &&
-         mLastResult != NS_ERROR_INVALID_SIGNATURE &&
-         mLastResult != NS_ERROR_FAILURE;
-}
-
 NS_IMETHODIMP
 ContentAnalysis::GetDiagnosticInfo(JSContext* aCx, dom::Promise** aPromise) {
   RefPtr<dom::Promise> promise;
@@ -3446,8 +3467,10 @@ ContentAnalysis::GetDiagnosticInfo(JSContext* aCx, dom::Promise** aPromise) {
                 return;
               }
               nsString agentWidePath = NS_ConvertUTF8toUTF16(agentPath);
+              // Note that if we made it here, we have successfully connected to
+              // the agent.
               auto info = MakeRefPtr<ContentAnalysisDiagnosticInfo>(
-                  self->LastRequestSucceeded(), std::move(agentWidePath), false,
+                  /* mConnectedToAgent */ true, std::move(agentWidePath), false,
                   self ? self->mRequestCount : 0);
               promiseHolder->MaybeResolve(info);
             }));

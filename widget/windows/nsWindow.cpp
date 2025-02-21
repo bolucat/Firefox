@@ -668,6 +668,7 @@ nsWindow::nsWindow(bool aIsChildWindow)
       mFrameState(std::in_place, this),
       mIsChildWindow(aIsChildWindow),
       mPIPWindow(false),
+      mMicaBackdrop(false),
       mLastPaintEndTime(TimeStamp::Now()),
       mCachedHitTestTime(TimeStamp::Now()),
       mSizeConstraintsScale(GetDefaultScale().scale),
@@ -2524,14 +2525,44 @@ void nsWindow::SetColorScheme(const Maybe<ColorScheme>& aScheme) {
 }
 
 void nsWindow::SetMicaBackdrop(bool aEnabled) {
-  if (!WinUtils::MicaEnabled()) {
+  if (aEnabled == mMicaBackdrop) {
     return;
   }
 
-  // Enable Mica Alt Material if available.
-  const DWM_SYSTEMBACKDROP_TYPE type =
-      aEnabled ? DWMSBT_TABBEDWINDOW : DWMSBT_AUTO;
-  DwmSetWindowAttribute(mWnd, DWMWA_SYSTEMBACKDROP_TYPE, &type, sizeof type);
+  mMicaBackdrop = aEnabled;
+  UpdateMicaBackdrop();
+}
+
+void nsWindow::UpdateMicaBackdrop(bool aForce) {
+  const bool micaEnabled =
+      IsPopup() ? WinUtils::MicaPopupsEnabled() : WinUtils::MicaEnabled();
+  if (!micaEnabled && !aForce) {
+    return;
+  }
+
+  const bool useBackdrop = mMicaBackdrop && micaEnabled;
+
+  const DWM_SYSTEMBACKDROP_TYPE backdrop = [&] {
+    if (!useBackdrop) {
+      return DWMSBT_AUTO;
+    }
+    return IsPopup() ? DWMSBT_TRANSIENTWINDOW : DWMSBT_TABBEDWINDOW;
+  }();
+  ::DwmSetWindowAttribute(mWnd, DWMWA_SYSTEMBACKDROP_TYPE, &backdrop,
+                          sizeof backdrop);
+  if (IsPopup()) {
+    // For popups, we need a couple extra tweaks:
+    //  * We want the native rounded corners and borders (as otherwise we can't
+    //    clip the backdrop).
+    //  * We want to draw as if the window was active all the time (as
+    //    otherwise it'd draw the inactive window backdrop rather than
+    //    acrylic). See also the WM_NCACTIVATE implementation.
+    const DWM_WINDOW_CORNER_PREFERENCE corner =
+        useBackdrop ? DWMWCP_ROUND : DWMWCP_DEFAULT;
+    ::DwmSetWindowAttribute(mWnd, DWMWA_WINDOW_CORNER_PREFERENCE, &corner,
+                            sizeof corner);
+    ::PostMessageW(mWnd, WM_NCACTIVATE, TRUE, -1);
+  }
 }
 
 LayoutDeviceIntMargin nsWindow::NormalWindowNonClientOffset() const {
