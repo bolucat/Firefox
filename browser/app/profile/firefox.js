@@ -1044,16 +1044,15 @@ pref("browser.tabs.tooltipsShowPidAndActiveness", false);
 pref("browser.tabs.hoverPreview.enabled", true);
 pref("browser.tabs.hoverPreview.showThumbnails", true);
 
-#ifdef NIGHTLY_BUILD
+#ifdef EARLY_BETA_OR_EARLIER
 pref("browser.tabs.groups.enabled", true);
 #else
 pref("browser.tabs.groups.enabled", false);
 #endif
 pref("browser.tabs.groups.smart.enabled", false);
 
-pref("browser.tabs.groups.dragOverThresholdPercent", 20);
-pref("browser.tabs.groups.dragOverDelayMS", 120);
-pref("browser.tabs.dragdrop.moveOverThresholdPercent", 70);
+pref("browser.tabs.groups.dragOverDelayMS", 240);
+pref("browser.tabs.dragdrop.moveOverThresholdPercent", 80);
 
 pref("browser.tabs.firefox-view.logLevel", "Warn");
 
