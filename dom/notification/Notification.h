@@ -90,6 +90,13 @@ class Notification : public DOMEventTargetHelper, public SupportsWeakPtr {
       const nsAString& aTag, const nsAString& aIcon, const nsAString& aData,
       const nsAString& aServiceWorkerRegistrationScope);
 
+  /**
+   * Used when retrieving notification objects from the parent process.
+   */
+  static Result<already_AddRefed<Notification>, QMResult> ConstructFromIPC(
+      nsIGlobalObject* aGlobal, const IPCNotification& aIPCNotification,
+      const nsAString& aServiceWorkerRegistrationScope);
+
   void GetID(nsAString& aRetval) { aRetval = mID; }
 
   void GetTitle(nsAString& aRetval) { aRetval = mTitle; }

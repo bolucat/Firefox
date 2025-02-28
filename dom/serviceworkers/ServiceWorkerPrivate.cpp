@@ -114,14 +114,6 @@ uint32_t ServiceWorkerPrivate::sRunningServiceWorkersFetch = 0;
 uint32_t ServiceWorkerPrivate::sRunningServiceWorkersMax = 0;
 uint32_t ServiceWorkerPrivate::sRunningServiceWorkersFetchMax = 0;
 
-// Tracks the "dom.serviceWorkers.disable_open_click_delay" preference. Modified
-// on main thread, read on worker threads.
-// It is updated every time a "notificationclick" event is dispatched. While
-// this is done without synchronization, at the worst, the thread will just get
-// an older value within which a popup is allowed to be displayed, which will
-// still be a valid value since it was set prior to dispatching the runnable.
-Atomic<uint32_t> gDOMDisableOpenClickDelay(0);
-
 /**
  * KeepAliveToken
  */
@@ -648,7 +640,6 @@ nsresult ServiceWorkerPrivate::Initialize() {
     }
   }
 
-  // Firefox doesn't support service workers in PBM.
   bool isPBM = principal->GetIsInPrivateBrowsing();
   if (ContentBlockingAllowList::Check(principal, isPBM)) {
     net::CookieJarSettings::Cast(cookieJarSettings)
@@ -993,32 +984,19 @@ nsresult ServiceWorkerPrivate::SendPushSubscriptionChangeEvent(
 }
 
 nsresult ServiceWorkerPrivate::SendNotificationEvent(
-    const nsAString& aEventName, const nsAString& aID, const nsAString& aTitle,
-    const nsAString& aDir, const nsAString& aLang, const nsAString& aBody,
-    const nsAString& aTag, const nsAString& aIcon, const nsAString& aData,
-    const nsAString& aScope) {
+    const nsAString& aEventName, const nsAString& aScope, const nsAString& aId,
+    const IPCNotificationOptions& aOptions) {
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (aEventName.EqualsLiteral(NOTIFICATION_CLICK_EVENT_NAME)) {
-    gDOMDisableOpenClickDelay =
-        Preferences::GetInt("dom.serviceWorkers.disable_open_click_delay");
-  } else if (!aEventName.EqualsLiteral(NOTIFICATION_CLOSE_EVENT_NAME)) {
+  if (!aEventName.EqualsLiteral(NOTIFICATION_CLICK_EVENT_NAME) &&
+      !aEventName.EqualsLiteral(NOTIFICATION_CLOSE_EVENT_NAME)) {
     MOZ_ASSERT_UNREACHABLE("Invalid notification event name");
     return NS_ERROR_FAILURE;
   }
 
   ServiceWorkerNotificationEventOpArgs args;
   args.eventName() = nsString(aEventName);
-  args.id() = nsString(aID);
-  args.title() = nsString(aTitle);
-  args.dir() = nsString(aDir);
-  args.lang() = nsString(aLang);
-  args.body() = nsString(aBody);
-  args.tag() = nsString(aTag);
-  args.icon() = nsString(aIcon);
-  args.data() = nsString(aData);
-  args.scope() = nsString(aScope);
-  args.disableOpenClickDelay() = gDOMDisableOpenClickDelay;
+  args.notification() = IPCNotification(nsString(aId), aOptions);
 
   return ExecServiceWorkerOp(
       std::move(args), ServiceWorkerLifetimeExtension(FullLifetimeExtension{}),
