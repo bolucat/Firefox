@@ -8,7 +8,7 @@
 # documentation and how to modify this file.
 repo: mozilla-central
 created_at: '2021-10-14T12:50:40.073465'
-updated_at: '2025-02-21T14:10:00.703387+00:00'
+updated_at: '2025-02-28T14:45:57.795264+00:00'
 export:
   path: ./docs/mots/index.rst
   format: rst
@@ -3403,6 +3403,7 @@ modules:
             - Robert Strong
             - Andrew Swan
             - Kris Maglione
+          review_group: extension-reviewers
         owners:
           - *scaraveo
           - *rpl
@@ -3421,6 +3422,7 @@ modules:
           owners_emeritus:
             - Robert Strong
             - Andrew Swan
+          review_group: extension-reviewers
         owners:
           - *scaraveo
           - *mstriemer
@@ -4267,14 +4269,15 @@ modules:
       - *jmaher
     peers:
       - *ahal
-      - *ato
-      - *bc
       - *jgraham
       - *whimboo
     meta:
       components:
         - 'Testing :: Mozbase'
         - 'Testing :: Mozbase Rust'
+      peers_emeritus:
+        - *ato
+        - *bc
   - machine_name: testing_performance_testing
     name: Performance Testing
     description: >
@@ -4479,7 +4482,7 @@ modules:
           peers_emeritus:
             - Andrew Swan
             - Kris Maglione
-          review_group: extensions-reviewers
+          review_group: extension-reviewers
         owners:
           - *scaraveo
           - *zombie
@@ -4559,5 +4562,5 @@ modules:
         - Ryan Tilder
       group: dev-platform
 hashes:
-  config: d10cebf1e6370a4fc7b9a3b838cb0014b36bc54a
-  export: bf264580f2d6a069bd9e825c6e7b4c5cf2aa0b7d
+  config: 32176ba85f50c207367d5bba928627f0d05cbae5
+  export: 9960fb38fd7ce09737a754985ddbeb3080831001

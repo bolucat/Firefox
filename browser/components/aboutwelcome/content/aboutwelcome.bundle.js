@@ -1137,10 +1137,11 @@ class ProtonScreen extends (react__WEBPACK_IMPORTED_MODULE_0___default().PureCom
       size,
       marginBlock,
       marginInline,
-      label
+      label,
+      background
     } = this.props.content.dismiss_button;
     return /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("button", {
-      className: "dismiss-button",
+      className: `dismiss-button ${background ? "with-background" : ""}`,
       onClick: this.props.handleAction,
       value: "dismiss_button",
       "data-l10n-id": label?.string_id || "spotlight-dialog-close-button",
@@ -2063,7 +2064,9 @@ const ContentTiles = props => {
   const renderContentTile = (tile, index = 0) => {
     const isExpanded = expandedTileIndex === index;
     const {
-      header
+      header,
+      title,
+      subtitle
     } = tile;
     return /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("div", {
       key: index,
@@ -2087,7 +2090,19 @@ const ContentTiles = props => {
       className: "header-subtitle"
     }))), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("div", {
       className: "arrow-icon"
-    })), isExpanded || !header ? /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("div", {
+    })), (title || subtitle) && /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("div", {
+      className: "tile-title-container",
+      id: `tile-title-container-${index}`
+    }, title && /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement(_MSLocalized__WEBPACK_IMPORTED_MODULE_1__.Localized, {
+      text: title
+    }, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("h1", {
+      className: "tile-title",
+      id: `content-tile-title-${index}`
+    })), subtitle && /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement(_MSLocalized__WEBPACK_IMPORTED_MODULE_1__.Localized, {
+      text: subtitle
+    }, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("p", {
+      className: "tile-subtitle"
+    }))), isExpanded || !header ? /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("div", {
       className: "tile-content",
       id: `tile-content-${index}`
     }, tile.type === "addons-picker" && tile.data && /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement(_AddonsPicker__WEBPACK_IMPORTED_MODULE_2__.AddonsPicker, {
