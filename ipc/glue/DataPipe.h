@@ -78,12 +78,8 @@ bool DataPipeRead(IPC::MessageReader* aReader, RefPtr<T>* aResult);
 class DataPipeSender;
 class DataPipeReceiver;
 
-#define NS_DATAPIPESENDER_IID                        \
-  {                                                  \
-    0x6698ed77, 0x9fff, 0x425d, {                    \
-      0xb0, 0xa6, 0x1d, 0x30, 0x66, 0xee, 0xb8, 0x16 \
-    }                                                \
-  }
+#define NS_DATAPIPESENDER_IID \
+  {0x6698ed77, 0x9fff, 0x425d, {0xb0, 0xa6, 0x1d, 0x30, 0x66, 0xee, 0xb8, 0x16}}
 
 // Helper class for streaming data to another process.
 class DataPipeSender final : public nsIAsyncOutputStream,
@@ -116,12 +112,8 @@ class DataPipeSender final : public nsIAsyncOutputStream,
 
 NS_DEFINE_STATIC_IID_ACCESSOR(DataPipeSender, NS_DATAPIPESENDER_IID)
 
-#define NS_DATAPIPERECEIVER_IID                      \
-  {                                                  \
-    0x0a185f83, 0x499e, 0x450c, {                    \
-      0x95, 0x82, 0x27, 0x67, 0xad, 0x6d, 0x64, 0xb5 \
-    }                                                \
-  }
+#define NS_DATAPIPERECEIVER_IID \
+  {0x0a185f83, 0x499e, 0x450c, {0x95, 0x82, 0x27, 0x67, 0xad, 0x6d, 0x64, 0xb5}}
 
 // Helper class for streaming data from another process.
 class DataPipeReceiver final : public nsIAsyncInputStream,

@@ -15,34 +15,36 @@ buildscript {
     }
 
     ext {
-        detekt_plugin = Versions.detekt
-        python_envs_plugin = Versions.python_envs_plugin
-        ksp_plugin = Versions.ksp_plugin
+        detekt_plugin = libs.versions.detekt.get()
+        python_envs_plugin = libs.versions.python.envs.plugin.get()
+        ksp_plugin = libs.versions.ksp.plugin.get()
 
         // Used in mobile/android/fenix/app/build.gradle
-        protobuf_plugin = Versions.protobuf_plugin
+        protobuf_plugin = libs.versions.protobuf.plugin.get()
     }
 
     dependencies {
         classpath 'org.mozilla.apilint:apilint:0.5.3'
-        classpath ComponentsDependencies.tools_androidgradle
+        classpath libs.tools.androidgradle
         classpath 'org.apache.commons:commons-exec:1.3'
         classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.25.0'
         classpath 'org.tomlj:tomlj:1.1.0'
-        classpath ComponentsDependencies.tools_kotlingradle
+        classpath libs.tools.kotlingradle
 
         // Used in mobile/android/fenix/app/build.gradle
-        classpath ComponentsDependencies.androidx_navigation_safeargs
-        classpath ComponentsDependencies.osslicenses_plugin
-        classpath ComponentsDependencies.tools_benchmarkgradle
-        classpath "org.mozilla.telemetry:glean-gradle-plugin:${Versions.mozilla_glean}"
+        classpath libs.androidx.navigation.safeargs
+        classpath libs.osslicenses.plugin
+        classpath libs.tools.benchmarkgradle
+        classpath libs.glean.gradle.plugin
         classpath "${ApplicationServicesConfig.groupId}:tooling-nimbus-gradle:${ApplicationServicesConfig.version}"
     }
 }
 
 plugins {
-    id("io.gitlab.arturbosch.detekt").version("$detekt_plugin")
-    id("com.google.devtools.ksp").version("$ksp_plugin")
+    id 'ApkSizePlugin'
+    id "mozac.ConfigPlugin"
+    alias(libs.plugins.detekt)
+    alias(libs.plugins.ksp)
 }
 
 def tryInt = { string ->
@@ -60,7 +62,7 @@ abstract class VerifyGleanVersionTask extends DefaultTask {
     final RegularFileProperty source = project.objects.fileProperty().convention(project.layout.projectDirectory.file("Cargo.lock"))
 
     @Input
-    String expectedVersion = Versions.mozilla_glean
+    String expectedVersion = project.ext.gleanVersion
 
     @OutputFiles
     FileCollection outputFiles = project.objects.fileCollection()
@@ -103,7 +105,7 @@ allprojects {
         topsrcdir = gradle.mozconfig.topsrcdir
         topobjdir = gradle.mozconfig.topobjdir
 
-        gleanVersion = Versions.mozilla_glean // Verification done in verifyGleanVersion task
+        gleanVersion = libs.versions.mozilla.glean.get() // Verification done in verifyGleanVersion task
 
         artifactSuffix = getArtifactSuffix()
         versionName = getVersionName()
@@ -226,37 +228,19 @@ class TaggedLogOutputStream extends org.apache.commons.exec.LogOutputStream {
     }
 }
 
-ext.geckoBinariesOnlyIf = { task ->
-    // Never when Gradle was invoked within `mach build`.
-    if ('1' == System.env.GRADLE_INVOKED_WITHIN_MACH_BUILD) {
-        rootProject.logger.lifecycle("Skipping task ${task.path} because: within `mach build`")
-        return false
+
+import  org.gradle.api.services.BuildServiceParameters
+abstract class MozconfigService implements BuildService<MozconfigService.Params>, AutoCloseable {
+    interface Params extends BuildServiceParameters {
+        MapProperty<String, Object> getMozconfigParam()
     }
 
-    // Never for official builds.
-    if (mozconfig.substs.MOZILLA_OFFICIAL) {
-        rootProject.logger.lifecycle("Skipping task ${task.path} because: MOZILLA_OFFICIAL")
-        return false
+    void close() {
     }
 
-    // Multi-l10n builds set `AB_CD=multi`, which isn't a valid locale, and
-    // `MOZ_CHROME_MULTILOCALE`.  To avoid failures, if Gradle is invoked with
-    // either, we don't invoke Make at all; this allows a multi-locale omnijar
-    // to be consumed without modification.
-    if ('multi' == System.env.AB_CD || System.env.MOZ_CHROME_MULTILOCALE) {
-        rootProject.logger.lifecycle("Skipping task ${task.path} because: AB_CD=multi")
-        return false
+    Object getMozconfig() {
+        return parameters.mozconfigParam.get()
     }
-
-    // Single-locale l10n repacks set `IS_LANGUAGE_REPACK=1` and handle resource
-    // and code generation themselves.
-    if ('1' == System.env.IS_LANGUAGE_REPACK) {
-        rootProject.logger.lifecycle("Skipping task ${task.path} because: IS_LANGUAGE_REPACK")
-        return false
-    }
-
-    rootProject.logger.lifecycle("Executing task ${task.path}")
-    return true
 }
 
 // Non-official versions are like "61.0a1" or "61.0b1", where "a1" and "b1"
@@ -340,10 +324,47 @@ class MachExec extends Exec {
         environment project.ext.mozconfig.orig_mozconfig.env.unmodified
         environment 'MOZCONFIG', project.ext.mozconfig.substs.MOZCONFIG
     }
+
+    static def geckoBinariesOnlyIf(task, mozconfig) {
+        // Never when Gradle was invoked within `mach build`.
+        if ('1' == System.env.GRADLE_INVOKED_WITHIN_MACH_BUILD) {
+            task.logger.lifecycle("Skipping task ${task.path} because: within `mach build`")
+            return false
+        }
+
+        // Never for official builds.
+        if (mozconfig.substs.MOZILLA_OFFICIAL) {
+            task.logger.lifecycle("Skipping task ${task.path} because: MOZILLA_OFFICIAL")
+            return false
+        }
+
+        // Multi-l10n builds set `AB_CD=multi`, which isn't a valid locale, and
+        // `MOZ_CHROME_MULTILOCALE`.  To avoid failures, if Gradle is invoked with
+        // either, we don't invoke Make at all; this allows a multi-locale omnijar
+        // to be consumed without modification.
+        if ('multi' == System.env.AB_CD || System.env.MOZ_CHROME_MULTILOCALE) {
+            task.logger.lifecycle("Skipping task ${task.path} because: AB_CD=multi")
+            return false
+        }
+
+        // Single-locale l10n repacks set `IS_LANGUAGE_REPACK=1` and handle resource
+        // and code generation themselves.
+        if ('1' == System.env.IS_LANGUAGE_REPACK) {
+            task.logger.lifecycle("Skipping task ${task.path} because: IS_LANGUAGE_REPACK")
+            return false
+        }
+
+        task.logger.lifecycle("Executing task ${task.path}")
+        return true
+    }
 }
 
 task machBuildFaster(type: MachExec) {
-    onlyIf rootProject.ext.geckoBinariesOnlyIf
+    def mozconfigProvider = gradle.sharedServices.registerIfAbsent("mozconfig", MozconfigService) {
+        parameters.mozconfigParam.set(project.ext.mozconfig)
+    }
+    usesService(mozconfigProvider)
+    onlyIf { task -> MachExec.geckoBinariesOnlyIf(task, mozconfigProvider.get().getMozconfig()) }
 
     workingDir "${topsrcdir}"
 
@@ -363,8 +384,11 @@ task machBuildFaster(type: MachExec) {
 }
 
 task machStagePackage(type: MachExec) {
-    onlyIf rootProject.ext.geckoBinariesOnlyIf
-
+    def mozconfigProvider = gradle.sharedServices.registerIfAbsent("mozconfig", MozconfigService) {
+        parameters.mozconfigParam.set(project.ext.mozconfig)
+    }
+    usesService(mozconfigProvider)
+    onlyIf { task -> MachExec.geckoBinariesOnlyIf(task, mozconfigProvider.get().getMozconfig()) }
     dependsOn rootProject.machBuildFaster
 
     workingDir "${topobjdir}"
@@ -426,13 +450,13 @@ afterEvaluate {
                 if (details.requested.group == 'org.mozilla.telemetry'
                         && details.requested.name.contains('glean') ) {
                     def requested = details.requested.version.tokenize(".")
-                        def defined = Versions.mozilla_glean.tokenize(".")
+                        def defined = libs.versions.mozilla.glean.get().tokenize(".")
                         // Check the major version
                         if (requested[0] != defined[0]) {
-                            throw new AssertionError("Cannot resolve to a single Glean version. Requested: ${details.requested.version}, A-C uses: ${Versions.mozilla_glean}")
+                            throw new AssertionError("Cannot resolve to a single Glean version. Requested: ${details.requested.version}, A-C uses: ${libs.mozilla.glean}")
                         } else {
                             // Enforce that all (transitive) dependencies are using the defined Glean version
-                            details.useVersion Versions.mozilla_glean
+                            details.useVersion libs.versions.mozilla.glean.get()
                         }
                 }
             }

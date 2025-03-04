@@ -2536,6 +2536,13 @@
   value: false
   mirror: always
 
+# Compression Streams (zstd) (CompressionStream/DecompressionStream)
+# Whether or not "zstd" is a supported format for these streams.
+- name: dom.compression_streams.zstd.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 # Disable cookie-store API
 - name: dom.cookieStore.enabled
   type: RelaxedAtomicBool
@@ -5490,6 +5497,19 @@
 - name: dom.disable_tab_focus_to_root_element
   type: bool
   value: true
+  mirror: always
+
+# Whether or not the `Origin-Agent-Cluster` HTTP header is enabled.
+- name: dom.origin_agent_cluster.enabled
+  type: bool
+  value: true
+  mirror: always
+
+# Whether or not agent clusters are origin-keyed by default, blocking the use of
+# `document.domain`.
+- name: dom.origin_agent_cluster.default
+  type: bool
+  value: false
   mirror: always
 
 #---------------------------------------------------------------------------
@@ -8549,7 +8569,7 @@
 
 - name: javascript.options.experimental.error_capture_stack_trace
   type: bool
-  value: false
+  value: true
   mirror: always
   set_spidermonkey_pref: always
 
@@ -8568,7 +8588,7 @@
 
 - name: javascript.options.experimental.import_attributes
   type: bool
-  value: false
+  value: true
   mirror: always
   set_spidermonkey_pref: always
 
@@ -15167,7 +15187,7 @@
 # Max difference allowed between a visit and an interaction.
 - name: places.frecency.pages.alternative.interactions.maxVisitGapSeconds
   type: uint32_t
-  value: 20 * 60
+  value: 2 * 60
   mirror: once
 
 # Minimum time required to upgrade a visit score.

@@ -101,6 +101,17 @@ var gBrowserInit = {
       );
       toolbarMenubar.setAttribute("data-l10n-attrs", "toolbarname");
     }
+    // If opening a Taskbar Tab window, add an attribute to the top-level element
+    // to inform window styling.
+    if (window.arguments && window.arguments[1]) {
+      let extraOptions = window.arguments[1];
+      if (
+        extraOptions instanceof Ci.nsIWritablePropertyBag2 &&
+        extraOptions.hasKey("taskbartab")
+      ) {
+        window.document.documentElement.setAttribute("taskbartab", "");
+      }
+    }
 
     // Run menubar initialization first, to avoid CustomTitlebar code picking
     // up mutations from it and causing a reflow.
@@ -221,7 +232,10 @@ var gBrowserInit = {
     // have been initialized.
     Services.obs.notifyObservers(window, "browser-window-before-show");
 
-    if (!window.toolbar.visible) {
+    if (
+      !window.toolbar.visible ||
+      window.document.documentElement.hasAttribute("taskbartab")
+    ) {
       // adjust browser UI for popups
       gURLBar.readOnly = true;
     }
@@ -231,6 +245,7 @@ var gBrowserInit = {
     Win10TabletModeUpdater.init();
     CombinedStopReload.ensureInitialized();
     gPrivateBrowsingUI.init();
+    TaskbarTabUI.init(window);
     BrowserPageActions.init();
     if (gToolbarKeyNavEnabled) {
       ToolbarKeyboardNavigator.init();

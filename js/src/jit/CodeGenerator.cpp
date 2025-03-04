@@ -16284,8 +16284,7 @@ bool CodeGenerator::generateWasm(wasm::CallIndirectId callIndirectId,
     MOZ_ASSERT(functionEntryStackMap);
 
     if (functionEntryStackMap &&
-        !stackMaps->add((uint8_t*)(uintptr_t)trapInsnOffset.offset(),
-                        functionEntryStackMap)) {
+        !stackMaps->add(trapInsnOffset.offset(), functionEntryStackMap)) {
       functionEntryStackMap->destroy();
       return false;
     }
@@ -16339,7 +16338,7 @@ bool CodeGenerator::generateWasm(wasm::CallIndirectId callIndirectId,
       continue;
     }
 
-    if (!stackMaps->add((uint8_t*)(uintptr_t)index.displacement(), stackMap)) {
+    if (!stackMaps->add(index.displacement(), stackMap)) {
       stackMap->destroy();
       return false;
     }
@@ -16505,23 +16504,23 @@ struct EmulatesUndefinedDependency final : public CompilationDependency {
       : CompilationDependency(CompilationDependency::Type::EmulatesUndefined) {
         };
 
-  virtual bool operator==(CompilationDependency& dep) {
+  virtual bool operator==(const CompilationDependency& dep) const override {
     // Since the emulates undefined fuse is runtime wide, they are all equal
     return dep.type == type;
   }
 
-  virtual bool checkDependency(JSContext* cx) {
+  virtual bool checkDependency(JSContext* cx) override {
     return cx->runtime()->hasSeenObjectEmulateUndefinedFuse.ref().intact();
   }
 
-  virtual bool registerDependency(JSContext* cx, HandleScript script) {
+  virtual bool registerDependency(JSContext* cx, HandleScript script) override {
     MOZ_ASSERT(checkDependency(cx));
     return cx->runtime()
         ->hasSeenObjectEmulateUndefinedFuse.ref()
         .addFuseDependency(cx, script);
   }
 
-  virtual UniquePtr<CompilationDependency> clone() {
+  virtual UniquePtr<CompilationDependency> clone() const override {
     return MakeUnique<EmulatesUndefinedDependency>();
   }
 };
@@ -19482,6 +19481,17 @@ void CodeGenerator::visitHasClass(LHasClass* ins) {
 
   masm.loadObjClassUnsafe(lhs, output);
   masm.cmpPtrSet(Assembler::Equal, output, ImmPtr(ins->mir()->getClass()),
+                 output);
+}
+
+void CodeGenerator::visitHasShape(LHasShape* ins) {
+  Register obj = ToRegister(ins->object());
+  Register output = ToRegister(ins->output());
+
+  // Note: no Spectre mitigations are needed here because this shape check only
+  // affects correctness.
+  masm.loadObjShapeUnsafe(obj, output);
+  masm.cmpPtrSet(Assembler::Equal, output, ImmGCPtr(ins->mir()->shape()),
                  output);
 }
 

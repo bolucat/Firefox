@@ -1516,7 +1516,8 @@ void wasm::GenerateDirectCallFromJit(MacroAssembler& masm, const FuncExport& fe,
   // Actual call.
   const CodeBlock& codeBlock = inst.code().funcCodeBlock(fe.funcIndex());
   const CodeRange& codeRange = codeBlock.codeRange(fe);
-  void* callee = codeBlock.segment->base() + codeRange.funcUncheckedCallEntry();
+  void* callee = const_cast<uint8_t*>(codeBlock.base()) +
+                 codeRange.funcUncheckedCallEntry();
 
   masm.assertStackAlignment(WasmStackAlignment);
   MoveSPForJitABI(masm);
@@ -1891,8 +1892,7 @@ static bool AddStackCheckForImportFunctionEntry(jit::MacroAssembler& masm,
   // In debug builds, we'll always have a stack map, even if there are no
   // refs to track.
   MOZ_ASSERT(stackMap);
-  if (stackMap &&
-      !stackMaps->add((uint8_t*)(uintptr_t)trapInsnOffset.offset(), stackMap)) {
+  if (stackMap && !stackMaps->add(trapInsnOffset.offset(), stackMap)) {
     stackMap->destroy();
     return false;
   }

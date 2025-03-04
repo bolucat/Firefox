@@ -93,12 +93,8 @@ static bool IsContentBundle(const nsCString& aUrl) {
 
 namespace {
 
-#define STRINGBUNDLEPROXY_IID                        \
-  {                                                  \
-    0x537cf21b, 0x99fc, 0x4002, {                    \
-      0x9e, 0xec, 0x97, 0xbe, 0x4d, 0xe0, 0xb3, 0xdc \
-    }                                                \
-  }
+#define STRINGBUNDLEPROXY_IID \
+  {0x537cf21b, 0x99fc, 0x4002, {0x9e, 0xec, 0x97, 0xbe, 0x4d, 0xe0, 0xb3, 0xdc}}
 
 /**
  * A simple proxy class for a string bundle instance which will be replaced by
@@ -186,12 +182,8 @@ NS_DEFINE_STATIC_IID_ACCESSOR(StringBundleProxy, STRINGBUNDLEPROXY_IID)
 
 NS_IMPL_ISUPPORTS(StringBundleProxy, nsIStringBundle, StringBundleProxy)
 
-#define SHAREDSTRINGBUNDLE_IID                       \
-  {                                                  \
-    0x7a8df5f7, 0x9e50, 0x44f6, {                    \
-      0xbf, 0x89, 0xc7, 0xad, 0x6c, 0x17, 0xf8, 0x5f \
-    }                                                \
-  }
+#define SHAREDSTRINGBUNDLE_IID \
+  {0x7a8df5f7, 0x9e50, 0x44f6, {0xbf, 0x89, 0xc7, 0xad, 0x6c, 0x17, 0xf8, 0x5f}}
 
 /**
  * A string bundle backed by a read-only, shared memory buffer. This should

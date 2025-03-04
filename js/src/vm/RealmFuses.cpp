@@ -11,6 +11,8 @@
 #include "vm/Realm.h"
 #include "vm/SelfHosting.h"
 
+using namespace js;
+
 void js::InvalidatingRealmFuse::popFuse(JSContext* cx, RealmFuses& realmFuses) {
   InvalidatingFuse::popFuse(cx);
 
@@ -115,6 +117,30 @@ bool js::OptimizeArrayIteratorPrototypeFuse::checkInvariant(JSContext* cx) {
          realmFuses.objectPrototypeHasNoReturnProperty.intact();
 }
 
+static bool ObjectHasDataProperty(NativeObject* obj, PropertyKey key,
+                                  Value* val) {
+  mozilla::Maybe<PropertyInfo> prop = obj->lookupPure(key);
+  if (prop.isNothing() || !prop->isDataProperty()) {
+    return false;
+  }
+  *val = obj->getSlot(prop->slot());
+  return true;
+}
+
+static bool ObjectHasGetterProperty(NativeObject* obj, PropertyKey key,
+                                    JSFunction** getter) {
+  mozilla::Maybe<PropertyInfo> prop = obj->lookupPure(key);
+  if (prop.isNothing() || !prop->isAccessorProperty()) {
+    return false;
+  }
+  JSObject* getterObject = obj->getGetter(*prop);
+  if (!getterObject || !getterObject->is<JSFunction>()) {
+    return false;
+  }
+  *getter = &getterObject->as<JSFunction>();
+  return true;
+}
+
 bool js::ArrayPrototypeIteratorFuse::checkInvariant(JSContext* cx) {
   // Prototype must be Array.prototype.
   auto* proto = cx->global()->maybeGetArrayPrototype();
@@ -127,19 +153,11 @@ bool js::ArrayPrototypeIteratorFuse::checkInvariant(JSContext* cx) {
       PropertyKey::Symbol(cx->wellKnownSymbols().iterator);
 
   // Ensure that Array.prototype's @@iterator slot is unchanged.
-  mozilla::Maybe<PropertyInfo> prop = proto->lookupPure(iteratorKey);
-  if (prop.isNothing() || !prop->isDataProperty()) {
+  Value v;
+  if (!ObjectHasDataProperty(proto, iteratorKey, &v)) {
     return false;
   }
-
-  auto slot = prop->slot();
-  const Value& iterVal = proto->getSlot(slot);
-  if (!iterVal.isObject() || !iterVal.toObject().is<JSFunction>()) {
-    return false;
-  }
-
-  auto* iterFun = &iterVal.toObject().as<JSFunction>();
-  return IsSelfHostedFunctionWithName(iterFun, cx->names().dollar_ArrayValues_);
+  return IsSelfHostedFunctionWithName(v, cx->names().dollar_ArrayValues_);
 }
 
 /* static */
@@ -152,22 +170,11 @@ bool js::ArrayPrototypeIteratorNextFuse::checkInvariant(JSContext* cx) {
   }
 
   // Ensure that %ArrayIteratorPrototype%'s "next" slot is unchanged.
-  mozilla::Maybe<PropertyInfo> prop = proto->lookupPure(cx->names().next);
-  if (prop.isNothing() || !prop->isDataProperty()) {
-    // Next property has been modified, return false, invariant no longer holds.
+  Value v;
+  if (!ObjectHasDataProperty(proto, NameToId(cx->names().next), &v)) {
     return false;
   }
-
-  auto slot = prop->slot();
-
-  const Value& nextVal = proto->getSlot(slot);
-  if (!nextVal.isObject() || !nextVal.toObject().is<JSFunction>()) {
-    // Next property has been modified, return false, invariant no longer holds.
-    return false;
-  }
-
-  auto* nextFun = &nextVal.toObject().as<JSFunction>();
-  return IsSelfHostedFunctionWithName(nextFun, cx->names().ArrayIteratorNext);
+  return IsSelfHostedFunctionWithName(v, cx->names().ArrayIteratorNext);
 }
 
 static bool HasNoReturnName(JSContext* cx, JS::HandleObject proto) {
@@ -248,4 +255,42 @@ bool js::IteratorPrototypeHasObjectProto::checkInvariant(JSContext* cx) {
 bool js::ObjectPrototypeHasNoReturnProperty::checkInvariant(JSContext* cx) {
   RootedObject proto(cx, &cx->global()->getObjectPrototype());
   return HasNoReturnName(cx, proto);
+}
+
+void js::OptimizeArraySpeciesFuse::popFuse(JSContext* cx,
+                                           RealmFuses& realmFuses) {
+  InvalidatingRealmFuse::popFuse(cx, realmFuses);
+  MOZ_ASSERT(cx->global());
+  cx->runtime()->setUseCounter(cx->global(),
+                               JSUseCounter::OPTIMIZE_ARRAY_SPECIES_FUSE);
+}
+
+bool js::OptimizeArraySpeciesFuse::checkInvariant(JSContext* cx) {
+  // Prototype must be Array.prototype.
+  auto* proto = cx->global()->maybeGetArrayPrototype();
+  if (!proto) {
+    // No proto, invariant still holds
+    return true;
+  }
+
+  auto* ctor = cx->global()->maybeGetConstructor(JSProto_Array);
+  MOZ_ASSERT(ctor);
+
+  // Ensure Array.prototype's `constructor` slot is the `Array` constructor.
+  Value v;
+  if (!ObjectHasDataProperty(proto, NameToId(cx->names().constructor), &v)) {
+    return false;
+  }
+  if (v != ObjectValue(*ctor)) {
+    return false;
+  }
+
+  // Ensure Array's `@@species` slot is the $ArraySpecies getter.
+  PropertyKey speciesKey = PropertyKey::Symbol(cx->wellKnownSymbols().species);
+  JSFunction* getter = nullptr;
+  if (!ObjectHasGetterProperty(&ctor->as<NativeObject>(), speciesKey,
+                               &getter)) {
+    return false;
+  }
+  return IsSelfHostedFunctionWithName(getter, cx->names().dollar_ArraySpecies_);
 }

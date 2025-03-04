@@ -50,9 +50,13 @@ void TestUnsafeSharedMemoryHandle(size_t aSize) {
 }
 
 TEST(UnsafeSharedMemoryHandle, Empty)
-{ TestUnsafeSharedMemoryHandle(0); }
+{
+  TestUnsafeSharedMemoryHandle(0);
+}
 
 TEST(UnsafeSharedMemoryHandle, SmallSize)
-{ TestUnsafeSharedMemoryHandle(2048); }
+{
+  TestUnsafeSharedMemoryHandle(2048);
+}
 
 }  // namespace mozilla::ipc
