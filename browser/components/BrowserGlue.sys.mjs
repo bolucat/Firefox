@@ -21,7 +21,8 @@ ChromeUtils.defineESModuleGetters(lazy, {
   BackupService: "resource:///modules/backup/BackupService.sys.mjs",
   BookmarkHTMLUtils: "resource://gre/modules/BookmarkHTMLUtils.sys.mjs",
   BookmarkJSONUtils: "resource://gre/modules/BookmarkJSONUtils.sys.mjs",
-  BrowserSearchTelemetry: "resource:///modules/BrowserSearchTelemetry.sys.mjs",
+  BrowserSearchTelemetry:
+    "moz-src:///browser/components/search/BrowserSearchTelemetry.sys.mjs",
   BrowserUtils: "resource://gre/modules/BrowserUtils.sys.mjs",
   BrowserUsageTelemetry: "resource:///modules/BrowserUsageTelemetry.sys.mjs",
   BrowserWindowTracker: "resource:///modules/BrowserWindowTracker.sys.mjs",
@@ -74,7 +75,8 @@ ChromeUtils.defineESModuleGetters(lazy, {
   Sanitizer: "resource:///modules/Sanitizer.sys.mjs",
   SandboxUtils: "resource://gre/modules/SandboxUtils.sys.mjs",
   ScreenshotsUtils: "resource:///modules/ScreenshotsUtils.sys.mjs",
-  SearchSERPTelemetry: "resource:///modules/SearchSERPTelemetry.sys.mjs",
+  SearchSERPTelemetry:
+    "moz-src:///browser/components/search/SearchSERPTelemetry.sys.mjs",
   SelectableProfileService:
     "resource:///modules/profiles/SelectableProfileService.sys.mjs",
   SessionStartup: "resource:///modules/sessionstore/SessionStartup.sys.mjs",
@@ -2271,25 +2273,6 @@ BrowserGlue.prototype = {
     });
   },
 
-  async _setupSearchDetection() {
-    // There is no pref for this add-on because it shouldn't be disabled.
-    const ID = "addons-search-detection@mozilla.com";
-
-    let addon = await lazy.AddonManager.getAddonByID(ID);
-
-    // first time install of addon and install on firefox update
-    addon =
-      (await lazy.AddonManager.maybeInstallBuiltinAddon(
-        ID,
-        "2.0.0",
-        "resource://builtin-addons/search-detection/"
-      )) || addon;
-
-    if (!addon.isActive) {
-      addon.enable();
-    }
-  },
-
   _monitorHTTPSOnlyPref() {
     const PREF_ENABLED = "dom.security.https_only_mode";
     const PREF_WAS_ENABLED = "dom.security.https_only_mode_ever_enabled";
@@ -2434,7 +2417,6 @@ BrowserGlue.prototype = {
 
     this._monitorWebcompatReporterPref();
     this._monitorHTTPSOnlyPref();
-    this._setupSearchDetection();
 
     this._monitorGPCPref();
 
@@ -3802,11 +3784,7 @@ BrowserGlue.prototype = {
             "resource://devtools/client/performance-new/popup/menu-button.sys.mjs"
           );
           if (!ProfilerMenuButton.isInNavbar()) {
-            // The profiler menu button is not enabled. Turn it on now.
-            const win = lazy.BrowserWindowTracker.getTopWindow();
-            if (win && win.document) {
-              ProfilerMenuButton.addToNavbar(win.document);
-            }
+            ProfilerMenuButton.addToNavbar();
           }
         }
       }

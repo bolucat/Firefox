@@ -8,7 +8,7 @@
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
-  SearchUIUtils: "resource:///modules/SearchUIUtils.sys.mjs",
+  SearchUIUtils: "moz-src:///browser/components/search/SearchUIUtils.sys.mjs",
   SearchUtils: "resource://gre/modules/SearchUtils.sys.mjs",
   CustomizableUI: "resource:///modules/CustomizableUI.sys.mjs",
 });
@@ -1022,10 +1022,9 @@ class EngineView {
             Services.search.removeEngine(this.selectedEngine.originalEngine);
             break;
           case "addEngineButton":
-            gSubDialog.open(
-              "chrome://browser/content/preferences/dialogs/addEngine.xhtml",
-              { features: "resizable=no, modal=yes" }
-            );
+            gSubDialog.open("chrome://browser/content/search/addEngine.xhtml", {
+              features: "resizable=no, modal=yes",
+            });
             break;
         }
         break;

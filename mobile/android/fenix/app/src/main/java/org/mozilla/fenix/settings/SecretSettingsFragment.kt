@@ -89,6 +89,12 @@ class SecretSettingsFragment : PreferenceFragmentCompat() {
             onPreferenceChangeListener = SharedPreferenceUpdater()
         }
 
+        requirePreference<SwitchPreference>(R.string.pref_key_enable_homepage_searchbar).apply {
+            isVisible = Config.channel.isNightlyOrDebug
+            isChecked = context.settings().enableHomepageSearchBar
+            onPreferenceChangeListener = SharedPreferenceUpdater()
+        }
+
         requirePreference<SwitchPreference>(R.string.pref_key_enable_homepage_as_new_tab).apply {
             isVisible = Config.channel.isNightlyOrDebug
             isChecked = context.settings().enableHomepageAsNewTab
@@ -124,6 +130,12 @@ class SecretSettingsFragment : PreferenceFragmentCompat() {
         requirePreference<SwitchPreference>(R.string.pref_key_enable_trending_searches).apply {
             isVisible = Config.channel.isNightlyOrDebug
             isChecked = context.settings().isTrendingSearchesVisible
+            onPreferenceChangeListener = SharedPreferenceUpdater()
+        }
+
+        requirePreference<SwitchPreference>(R.string.pref_key_enable_recent_searches).apply {
+            isVisible = Config.channel.isNightlyOrDebug
+            isChecked = context.settings().isRecentSearchesVisible
             onPreferenceChangeListener = SharedPreferenceUpdater()
         }
 

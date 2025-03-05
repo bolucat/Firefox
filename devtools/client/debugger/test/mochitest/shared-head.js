@@ -2397,12 +2397,13 @@ function setEditorCursorAt(dbg, line, column) {
  * @param {*} dbg
  * @param {Number} line
  * @param {Number} column
+ * @param {String|null} yAlign
  * @returns
  */
-async function scrollEditorIntoView(dbg, line, column) {
+async function scrollEditorIntoView(dbg, line, column, yAlign) {
   const onScrolled = waitForScrolling(dbg);
   line = isCm6Enabled ? line + 1 : line;
-  getCMEditor(dbg).scrollTo(line, column);
+  getCMEditor(dbg).scrollTo(line, column, yAlign);
   // Ensure the line is visible with margin because the bar at the bottom of
   // the editor overlaps into what the editor thinks is its own space, blocking
   // the click event below.
@@ -2413,12 +2414,13 @@ async function scrollEditorIntoView(dbg, line, column) {
  * Wrapper around source editor api to check if a scrolled position is visible
  *
  * @param {*} dbg
- * @param {Number} line
+ * @param {Number} line 1-based
  * @param {Number} column
  * @returns
  */
 function isScrolledPositionVisible(dbg, line, column = 0) {
-  line = isCm6Enabled ? line + 1 : line;
+  // CodeMirror 6 uses 1-based lines whereas 5 uses 0-based.
+  line = isCm6Enabled ? line : line - 1;
   return getCMEditor(dbg).isPositionVisible(line, column);
 }
 
@@ -2448,9 +2450,9 @@ function getCoordsFromPosition(dbg, line, ch) {
 
 async function getTokenFromPosition(dbg, { line, column = 0 }) {
   info(`Get token at ${line}:${column}`);
+  await scrollEditorIntoView(dbg, line, column);
   line = isCm6Enabled ? line : line - 1;
   column = isCm6Enabled ? column : column - 1;
-  await scrollEditorIntoView(dbg, line, column);
 
   if (isCm6Enabled) {
     return getCMEditor(dbg).getElementAtPos(line, column);
@@ -2495,8 +2497,8 @@ async function waitForScrolling(dbg, { useTimeoutFallback = true } = {}) {
 async function codeMirrorGutterElement(dbg, line) {
   info(`CodeMirror line ${line}`);
 
-  line = isCm6Enabled ? line : line - 1;
   await scrollEditorIntoView(dbg, line, 0);
+  line = isCm6Enabled ? line : line - 1;
 
   const coords = getCoordsFromPosition(dbg, line);
 

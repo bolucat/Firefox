@@ -243,10 +243,6 @@ class WaylandSurface final {
       const WaylandSurfaceLock& aProofOfLock,
       const std::function<void(void)>& aGdkCommitCB);
   void ClearGdkCommitCallbackLocked(const WaylandSurfaceLock& aProofOfLock);
-  void RequestFrameCallbackForceCommitLocked(
-      const WaylandSurfaceLock& aProofOfLock) {
-    mFrameCallbackForceCommit = true;
-  }
 
   RefPtr<DMABufFormats> GetDMABufFormats() const { return mFormats; }
 
@@ -289,10 +285,9 @@ class WaylandSurface final {
   // delete with wayland compostor.
   void ReleaseAllWaylandBuffersLocked(WaylandSurfaceLock& aSurfaceLock);
 
-  void RequestFrameCallbackLocked(const WaylandSurfaceLock& aProofOfLock,
-                                  bool aRequestEmulated);
+  void RequestFrameCallbackLocked(const WaylandSurfaceLock& aProofOfLock);
   void ClearFrameCallbackLocked(const WaylandSurfaceLock& aProofOfLock);
-  bool IsEmulatedFrameCallbackPendingLocked(
+  bool HasEmulatedFrameCallbackLocked(
       const WaylandSurfaceLock& aProofOfLock) const;
 
   void ClearReadyToDrawCallbacksLocked(const WaylandSurfaceLock& aProofOfLock);
@@ -375,10 +370,6 @@ class WaylandSurface final {
 
   // Frame callbacks of this surface
   wl_callback* mFrameCallback = nullptr;
-
-  // Request force commit at end of frame callback handler.
-  // That's useful for synced subsurfaces to perform all changes once.
-  bool mFrameCallbackForceCommit = false;
 
   struct FrameCallback {
     std::function<void(wl_callback*, uint32_t)> mCb;

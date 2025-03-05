@@ -3518,7 +3518,7 @@
 # Whether to dispatch mutation events.
 - name: dom.mutation_events.enabled
   type: bool
-  value: true
+  value: @IS_NOT_NIGHTLY_BUILD@
   mirror: always
 
 # Limit of location change caused by content scripts in a time span per
@@ -4509,7 +4509,7 @@
 
 - name: dom.workers.timeoutmanager
   type: bool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: once
 
 - name: dom.workers.serialized-sab-access
@@ -4551,6 +4551,12 @@
 - name: dom.storage_access.auto_grants.delayed
   type: bool
   value: true
+  mirror: always
+
+# Whether to exclude third-party trackers from Storage Access API auto grants.
+- name: dom.storage_access.auto_grants.exclude_third_party_trackers
+  type: bool
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Storage-access API.
@@ -4913,6 +4919,12 @@
 
 # Whether view transitions remain active indefinitely. Useful for debugging.
 - name: dom.viewTransitions.remain-active
+  type: bool
+  value: false
+  mirror: always
+
+# Whether view transitions use webrender for live-capture
+- name: dom.viewTransitions.live-capture
   type: bool
   value: false
   mirror: always
@@ -5368,6 +5380,11 @@
 - name: dom.webnotifications.vibrate.enabled
   type: RelaxedAtomicBool
   value: false
+  mirror: always
+
+- name: dom.webnotifications.actions.enabled
+  type: RelaxedAtomicBool
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Setting log level for notification modules.
@@ -11954,6 +11971,12 @@
   value: true
   mirror: always
 
+# Expose the deprecated method navigator.mozGetUserMedia().
+- name: media.navigator.mozgetusermedia.enabled
+  type: bool
+  value: true
+  mirror: always
+
 # This pref turns off window-focus checks on the navigator.mediaDevices methods,
 # for partner testing frameworks.
 # Prefer "focusmanager.testmode", which is already set by default for
@@ -15179,11 +15202,6 @@
   value: 10
   mirror: once
 
-- name: places.frecency.pages.alternative.interactions.numInteractions
-  type: uint32_t
-  value: 20
-  mirror: once
-
 # Max difference allowed between a visit and an interaction.
 - name: places.frecency.pages.alternative.interactions.maxVisitGapSeconds
   type: uint32_t
@@ -15731,7 +15749,7 @@
   value: 600    # 10 minutes
   mirror: always
 
-# Whether to exclude third-party trackers from the storage accessheuristic.
+# Whether to exclude third-party trackers from the storage access heuristics.
 - name: privacy.restrict3rdpartystorage.heuristic.exclude_third_party_trackers
   type: bool
   value: @IS_NIGHTLY_BUILD@

@@ -8,6 +8,7 @@
 
 #include "nsThreadUtils.h"
 #include "NotificationUtils.h"
+#include "mozilla/AlertNotification.h"
 #include "mozilla/StaticPrefs_dom.h"
 #include "mozilla/ipc/Endpoint.h"
 #include "mozilla/Components.h"
@@ -46,7 +47,8 @@ NotificationParent::Observe(nsISupports* aSubject, const char* aTopic,
     (void)NS_WARN_IF(NS_FAILED(
         AdjustPushQuota(mPrincipal, NotificationStatusChange::Shown)));
     // XXX(krosylight): Non-persistent notifications probably don't need this
-    nsresult rv = PersistNotification(mPrincipal, mId, mOptions, mScope);
+    nsresult rv =
+        PersistNotification(mPrincipal, IPCNotification(mId, mOptions), mScope);
     if (NS_FAILED(rv)) {
       NS_WARNING("Could not persist Notification");
     }
@@ -96,11 +98,8 @@ nsresult NotificationParent::FireClickEvent() {
           mozilla::components::ServiceWorkerManager::Service()) {
     nsAutoCString originSuffix;
     MOZ_TRY(mPrincipal->GetOriginSuffix(originSuffix));
-    MOZ_TRY(swm->SendNotificationClickEvent(
-        originSuffix, mScope, mId, mOptions.title(),
-        NS_ConvertASCIItoUTF16(GetEnumString(mOptions.dir())), mOptions.lang(),
-        mOptions.body(), mOptions.tag(), mOptions.icon(),
-        mOptions.dataSerialized()));
+    MOZ_TRY(swm->SendNotificationClickEvent(originSuffix, mScope,
+                                            IPCNotification(mId, mOptions)));
 
     return NS_OK;
   }
@@ -116,11 +115,8 @@ nsresult NotificationParent::FireCloseEvent() {
           mozilla::components::ServiceWorkerManager::Service()) {
     nsAutoCString originSuffix;
     MOZ_TRY(mPrincipal->GetOriginSuffix(originSuffix));
-    MOZ_TRY(swm->SendNotificationCloseEvent(
-        originSuffix, mScope, mId, mOptions.title(),
-        NS_ConvertASCIItoUTF16(GetEnumString(mOptions.dir())), mOptions.lang(),
-        mOptions.body(), mOptions.tag(), mOptions.icon(),
-        mOptions.dataSerialized()));
+    MOZ_TRY(swm->SendNotificationCloseEvent(originSuffix, mScope,
+                                            IPCNotification(mId, mOptions)));
     return NS_OK;
   }
   return NS_ERROR_FAILURE;
@@ -192,6 +188,14 @@ nsresult NotificationParent::Show() {
                       mPrincipal->GetIsInPrivateBrowsing(), requireInteraction,
                       mOptions.silent(), mOptions.vibrate()));
 
+  nsTArray<RefPtr<nsIAlertAction>> actions;
+  MOZ_ASSERT(mOptions.actions().Length() <= kMaxActions);
+  for (const auto& action : mOptions.actions()) {
+    actions.AppendElement(new AlertAction(action.name(), action.title()));
+  }
+
+  alert->SetActions(actions);
+
   MOZ_TRY(alert->GetId(mId));
 
   nsCOMPtr<nsIAlertsService> alertService = components::Alerts::Service();
@@ -227,6 +231,10 @@ void NotificationParent::Unregister(CloseMode aCloseMode) {
 nsresult NotificationParent::BindToMainThread(
     Endpoint<PNotificationParent>&& aParentEndpoint,
     PBackgroundParent::CreateNotificationParentResolver&& aResolver) {
+  if (mOptions.actions().Length() > kMaxActions) {
+    return NS_ERROR_INVALID_ARG;
+  }
+
   nsCOMPtr<nsIThread> thread = NS_GetCurrentThread();
 
   NS_DispatchToMainThread(NS_NewRunnableFunction(

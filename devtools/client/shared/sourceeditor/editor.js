@@ -3293,23 +3293,17 @@ class Editor extends EventEmitter {
       if (pos == null) {
         return false;
       }
+      // `coordsAtPos` returns the absolute position of the line/column location
+      // so that we have to ensure comparing with same absolute position for
+      // CodeMirror DOM Element.
       const coords = cm.coordsAtPos(pos);
       if (!coords) {
         return false;
       }
-      const { scrollTop, scrollLeft, clientHeight, clientWidth } = cm.scrollDOM;
+      const { x, y, width, height } = cm.dom.getBoundingClientRect();
 
-      // Note: cm.coordsAtPos does not take scrolling into consideration
-      inXView = withinBounds(
-        coords.left + scrollLeft,
-        scrollLeft,
-        scrollLeft + clientWidth
-      );
-      inYView = withinBounds(
-        coords.top + scrollTop,
-        scrollTop,
-        scrollTop + clientHeight
-      );
+      inXView = withinBounds(coords.left - x, 0, width);
+      inYView = coords.top > y && coords.bottom < y + height;
     } else {
       const { top, left } = cm.charCoords({ line, ch: column }, "local");
       const scrollArea = cm.getScrollInfo();
@@ -3412,8 +3406,9 @@ class Editor extends EventEmitter {
    * Scrolls the editor to the specified line and column
    * @param {Number} line - The line in the source
    * @param {Number} column - The column in the source
+   * @param {String|null} yAlign - Optional value for position of the line after the line is scrolled.
    */
-  async scrollTo(line, column) {
+  async scrollTo(line, column, yAlign) {
     if (this.isDestroyed()) {
       return null;
     }
@@ -3431,7 +3426,7 @@ class Editor extends EventEmitter {
         return cm.dispatch({
           effects: EditorView.scrollIntoView(offset, {
             x: "nearest",
-            y: "center",
+            y: yAlign || "center",
           }),
         });
       }

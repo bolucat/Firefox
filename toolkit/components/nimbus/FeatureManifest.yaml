@@ -607,13 +607,6 @@ urlbar:
       setPref:
         branch: user
         pref: "places.frecency.pages.alternative.interactions.maxVisitGapSeconds"
-    pagesNumInteractions:
-      description: >-
-        The number of recent interactions that should be examined.
-      type: int
-      setPref:
-        branch: user
-        pref: "places.frecency.pages.alternative.interactions.numInteractions"
     pagesViewTimeSeconds:
       description: >-
         The minimum allowed time (in seconds) a page was viewed before upgrading
@@ -4458,3 +4451,15 @@ css-masonry:
       setPref:
         branch: user
         pref: "layout.css.grid-template-masonry-value.enabled"
+
+contextual-password-manager:
+  description: Enabling the contextual password manager feature
+  owner: issozi@mozilla.com
+  hasExposure: false
+  variables:
+    enabled:
+      type: boolean
+      setPref:
+        branch: user
+        pref: browser.contextual-password-manager.enabled
+      description: If true, we will allow user to add the contextual password manager feature to the sidebar.

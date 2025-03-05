@@ -1154,8 +1154,9 @@
               : [dropElement, ...movingTabs];
             gBrowser.addTabGroup(tabsInGroup, {
               insertBefore: dropElement,
-              showCreateUI: true,
+              isUserCreated: true,
               color: draggedTab._dragData.tabGroupCreationColor,
+              telemetryUserCreateSource: "drag",
             });
           } else {
             moveTabs();
@@ -2241,7 +2242,11 @@
         newIndex++;
       }
 
-      if (newIndex < 0 || newIndex == oldIndex) {
+      if (newIndex < 0) {
+        newIndex = oldIndex;
+      }
+
+      if (newIndex == dragData.animDropIndex) {
         return;
       }
       dragData.animDropIndex = newIndex;
