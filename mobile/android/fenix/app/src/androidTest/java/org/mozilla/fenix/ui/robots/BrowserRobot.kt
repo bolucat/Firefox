@@ -166,10 +166,14 @@ class BrowserRobot {
     }
 
     fun verifyETPLearnMoreURL() {
+        // Get and log the URL in case there are failures in the future
+        Log.i(TAG, "verifyETPLearnMoreURL: ETP learn more URL = ${itemWithResId("$packageName:id/mozac_browser_toolbar_url_view").text}")
         try {
+            verifyUrl("support.mozilla.org/en-US/kb/tracking-protection-firefox-android")
+        } catch (e: AssertionError) {
+            Log.i(TAG, "verifyETPLearnMoreURL: AssertionError caught, checking redirect URL")
             verifyUrl("support.mozilla.org/en-US/kb/enhanced-tracking-protection-firefox-android")
         } catch (e: AssertionError) {
-            Log.i(TAG, "verifyETPURL: AssertionError caught, checking redirect URL")
             verifyUrl(
                 SupportUtils.getSumoURLForTopic(appContext, SupportUtils.SumoTopic.TOTAL_COOKIE_PROTECTION).replace("https://", ""),
             )
@@ -1250,6 +1254,17 @@ class BrowserRobot {
         assertUIObjectIsGone(itemWithDescription(getStringResource(R.string.browser_extensions_menu_handlebar_content_description)))
     }
 
+    fun verifyExtensionsPromotionBannerLearnMoreLinkURL() {
+        try {
+            verifyUrl("support.mozilla.org/en-US/kb/find-and-install-add-ons-firefox-android")
+        } catch (e: AssertionError) {
+            Log.i(TAG, "verifyExtensionsPromotionBannerLearnMoreLinkURL: AssertionError caught, checking redirect URL")
+            verifyUrl(
+                SupportUtils.getSumoURLForTopic(appContext, SupportUtils.SumoTopic.FIND_INSTALL_ADDONS).replace("https://", ""),
+            )
+        }
+    }
+
     class Transition {
         fun openThreeDotMenu(interact: ThreeDotMenuMainRobot.() -> Unit): ThreeDotMenuMainRobot.Transition {
             Log.i(TAG, "openThreeDotMenu: Waiting for device to be idle for $waitingTime ms")
@@ -1522,10 +1537,10 @@ class BrowserRobot {
 
         fun openSiteSecuritySheet(interact: SiteSecurityRobot.() -> Unit): SiteSecurityRobot.Transition {
             Log.i(TAG, "openSiteSecuritySheet: Waiting for $waitingTime ms for site security toolbar button to exist")
-            siteSecurityToolbarButton().waitForExists(waitingTime)
+            siteInfoToolbarButton().waitForExists(waitingTime)
             Log.i(TAG, "openSiteSecuritySheet: Waited for $waitingTime ms for site security toolbar button to exist")
             Log.i(TAG, "openSiteSecuritySheet: Trying to click the site security toolbar button and wait for $waitingTime ms for a new window")
-            siteSecurityToolbarButton().clickAndWaitForNewWindow(waitingTime)
+            siteInfoToolbarButton().clickAndWaitForNewWindow(waitingTime)
             Log.i(TAG, "openSiteSecuritySheet: Clicked the site security toolbar button and waited for $waitingTime ms for a new window")
 
             SiteSecurityRobot().interact()
@@ -1620,8 +1635,8 @@ private fun suggestedLogins() = itemWithResId("$packageName:id/loginSelectBar")
 private fun selectAddressButton() = itemWithResId("$packageName:id/select_address_header")
 private fun selectCreditCardButton() = itemWithResId("$packageName:id/select_credit_card_header")
 
-private fun siteSecurityToolbarButton() =
-    itemWithResId("$packageName:id/mozac_browser_toolbar_security_indicator")
+private fun siteInfoToolbarButton() =
+    itemWithResId("$packageName:id/mozac_browser_toolbar_site_info_indicator")
 
 fun clickPageObject(item: UiObject) {
     for (i in 1..RETRY_COUNT) {

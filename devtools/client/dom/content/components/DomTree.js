@@ -18,13 +18,14 @@ const {
 } = require("resource://devtools/client/shared/vendor/react-redux.js");
 
 const TreeView = createFactory(
-  require("resource://devtools/client/shared/components/tree/TreeView.js")
+  ChromeUtils.importESModule(
+    "resource://devtools/client/shared/components/tree/TreeView.mjs"
+  ).default
 );
 // Reps
-const {
-  REPS,
-  MODE,
-} = require("resource://devtools/client/shared/components/reps/index.js");
+const { REPS, MODE } = ChromeUtils.importESModule(
+  "resource://devtools/client/shared/components/reps/index.mjs"
+);
 const { Rep } = REPS;
 
 const Grip = REPS.Grip;
@@ -54,6 +55,7 @@ class DomTree extends Component {
   constructor(props) {
     super(props);
     this.onFilter = this.onFilter.bind(this);
+    this.expandedNodes = new Set();
   }
 
   /**
@@ -126,6 +128,10 @@ class DomTree extends Component {
       openLink,
       provider: new GripProvider(grips, dispatch),
       renderValue,
+      // Ensure passing a stable expanded Set,
+      // so that TreeView doesn't reset to default prop's Set
+      // on each new received props.
+      expandedNodes: this.expandedNodes,
     });
   }
 }

@@ -18,7 +18,10 @@ const {
   connect,
 } = require("resource://devtools/client/shared/vendor/react-redux.js");
 
-const TreeRow = require("resource://devtools/client/shared/components/tree/TreeRow.js");
+const TreeRow = ChromeUtils.importESModule(
+  "resource://devtools/client/shared/components/tree/TreeRow.mjs",
+  { global: "current" }
+).default;
 const AuditFilter = createFactory(
   require("resource://devtools/client/accessibility/components/AuditFilter.js")
 );
@@ -63,9 +66,9 @@ loader.lazyRequireGetter(
   "resource://devtools/client/framework/menu-item.js"
 );
 
-const {
-  scrollIntoView,
-} = require("resource://devtools/client/shared/scroll.js");
+const { scrollIntoView } = ChromeUtils.importESModule(
+  "resource://devtools/client/shared/scroll.mjs"
+);
 
 const JSON_URL_PREFIX = "data:application/json;charset=UTF-8,";
 

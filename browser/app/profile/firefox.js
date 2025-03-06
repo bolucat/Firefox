@@ -1969,6 +1969,7 @@ pref("browser.newtabpage.activity-stream.discoverystream.sections.region-content
 
 pref("browser.newtabpage.activity-stream.discoverystream.sections.cards.enabled", true);
 pref("browser.newtabpage.activity-stream.discoverystream.sections.personalization.inferred.enabled", false);
+pref("browser.newtabpage.activity-stream.discoverystream.sections.personalization.inferred.user.enabled", true);
 
 pref("browser.newtabpage.activity-stream.discoverystream.sections.interestPicker.enabled", false);
 pref("browser.newtabpage.activity-stream.discoverystream.sections.interestPicker.visibleSections", "");
@@ -2112,6 +2113,9 @@ pref("browser.ml.chat.shortcuts", true);
 pref("browser.ml.chat.shortcuts.custom", true);
 pref("browser.ml.chat.shortcuts.longPress", 60000);
 pref("browser.ml.chat.sidebar", true);
+
+// Whether link preview feature should be active
+pref("browser.ml.linkPreview.enabled", false);
 
 // Block insecure active content on https pages
 pref("security.mixed_content.block_active_content", true);
@@ -2526,6 +2530,10 @@ pref("browser.tabs.unloadTabInContextMenu", false);
 // Whether unloaded tabs (either from session restore or because
 // they are explicitly unloaded) are faded out in the tab bar
 pref("browser.tabs.fadeOutUnloadedTabs", false);
+
+// Whether unloaded tabs (either from session restore or because
+// they are explicitly unloaded) have grayscale favicons in the tab bar
+pref("browser.tabs.grayscaleUnloadedTabs", false);
 
 // If true, unprivileged extensions may use experimental APIs on
 // nightly and developer edition.

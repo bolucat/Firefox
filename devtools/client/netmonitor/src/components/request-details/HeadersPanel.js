@@ -64,16 +64,21 @@ loader.lazyGetter(this, "MDNLink", function () {
   );
 });
 loader.lazyGetter(this, "Rep", function () {
-  return require("resource://devtools/client/shared/components/reps/index.js")
-    .REPS.Rep;
+  return ChromeUtils.importESModule(
+    "resource://devtools/client/shared/components/reps/index.mjs"
+  ).REPS.Rep;
 });
 loader.lazyGetter(this, "MODE", function () {
-  return require("resource://devtools/client/shared/components/reps/index.js")
-    .MODE;
+  return ChromeUtils.importESModule(
+    "resource://devtools/client/shared/components/reps/index.mjs"
+  ).MODE;
 });
 loader.lazyGetter(this, "TreeRow", function () {
   return createFactory(
-    require("resource://devtools/client/shared/components/tree/TreeRow.js")
+    ChromeUtils.importESModule(
+      "resource://devtools/client/shared/components/tree/TreeRow.mjs",
+      { global: "current" }
+    ).default
   );
 });
 loader.lazyRequireGetter(
