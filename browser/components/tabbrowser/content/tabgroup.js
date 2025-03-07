@@ -57,18 +57,21 @@
       this.initializeAttributeInheritance();
 
       this.#labelElement = this.querySelector(".tab-group-label");
+      // Mirroring MozTabbrowserTab
+      this.#labelElement.container = gBrowser.tabContainer;
+      this.#labelElement.group = this;
+
       this.#labelElement.addEventListener("click", this);
-
-      this.#updateLabelAriaAttributes();
-      this.#updateCollapsedAriaAttributes();
-
-      this.addEventListener("TabSelect", this);
-
       this.#labelElement.addEventListener("contextmenu", e => {
         e.preventDefault();
         gBrowser.tabGroupMenu.openEditModal(this);
         return false;
       });
+
+      this.#updateLabelAriaAttributes();
+      this.#updateCollapsedAriaAttributes();
+
+      this.addEventListener("TabSelect", this);
     }
 
     disconnectedCallback() {
@@ -174,6 +177,12 @@
       if (!!val == this.collapsed) {
         return;
       }
+      if (val) {
+        for (let tab of this.tabs) {
+          // Unlock tab sizes.
+          tab.style.maxWidth = "";
+        }
+      }
       this.toggleAttribute("collapsed", val);
       this.#updateCollapsedAriaAttributes();
       const eventName = val ? "TabGroupCollapse" : "TabGroupExpand";
@@ -257,6 +266,12 @@
      */
     save() {
       SessionStore.addSavedTabGroup(this);
+      this.dispatchEvent(new CustomEvent("TabGroupSaved", { bubbles: true }));
+    }
+
+    saveAndClose() {
+      this.save();
+      gBrowser.removeTabGroup(this);
     }
 
     /**

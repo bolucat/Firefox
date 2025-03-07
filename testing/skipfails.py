@@ -214,8 +214,11 @@ class Skipfails(object):
                     Dict[
                         str,  # Processor
                         Dict[
-                            str,  # Variant
-                            Dict[str, int],  # pass: X, fail: Y
+                            str,  # Build type
+                            Dict[
+                                str,  # Test Variant
+                                Dict[str, int],  # {'pass': x, 'fail': y}
+                            ],
                         ],
                     ],
                 ],
@@ -1317,7 +1320,14 @@ class Skipfails(object):
 
         processor = extra.arch
         if skip_if is not None and kind != Kind.LIST:
-            if processor is not None:
+            # Rosetta specific hack for macos 11.20
+            if (
+                extra.os == "mac"
+                and extra.os_version == "11.20"
+                and processor == "aarch64"
+            ):
+                skip_if += aa + "arch" + eq + qq + processor + qq
+            elif processor is not None:
                 skip_if += aa + "processor" + eq + qq + processor + qq
 
             failure_key = os + os_version + processor + manifest + file_path
@@ -1330,18 +1340,13 @@ class Skipfails(object):
                     .get(os_version, {})
                     .get(processor, None)
                 )
-                # Pushes to try made with --full may schedule tests not handled here. We ignore those
-                if permutations is not None:
-                    self.failed_platforms[failure_key] = FailedPlatform(
-                        self.platform_permutations[manifest][os][os_version][processor]
-                    )
+
+                self.failed_platforms[failure_key] = FailedPlatform(permutations)
 
             build_types = extra.build_type
-            failed_platform = self.failed_platforms.get(failure_key, None)
-            if failed_platform is not None:
-                skip_if += failed_platform.get_skip_string(
-                    aa, build_types, extra.test_variant
-                )
+            skip_if += self.failed_platforms[failure_key].get_skip_string(
+                aa, build_types, extra.test_variant
+            )
         return skip_if
 
     def get_file_info(self, path, product="Testing", component="General"):

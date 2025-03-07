@@ -385,19 +385,19 @@
       document
         .getElementById("tabGroupEditor_ungroupTabs")
         .addEventListener("command", () => {
-          this.#handleUngroup();
+          this.activeGroup.ungroupTabs();
         });
 
       document
         .getElementById("tabGroupEditor_saveAndCloseGroup")
         .addEventListener("command", () => {
-          this.#handleSaveAndClose();
+          this.activeGroup.saveAndClose();
         });
 
       document
         .getElementById("tabGroupEditor_deleteGroup")
         .addEventListener("command", () => {
-          this.#handleDelete();
+          gBrowser.removeTabGroup(this.activeGroup);
         });
 
       this.panel.addEventListener("popupshown", this);
@@ -588,6 +588,38 @@
       return "bottomleft topleft";
     }
 
+    #initMlGroupLabel() {
+      if (!this.smartTabGroupsEnabled) {
+        return;
+      }
+      gBrowser.getGroupTitleForTabs(this.activeGroup.tabs).then(newLabel => {
+        this.#setMlGroupLabel(newLabel);
+      });
+    }
+
+    /**
+     * Check if the label should be updated with the suggested label
+     * @returns {boolean}
+     */
+    #shouldUpdateLabelWithMlLabel() {
+      return !this.#nameField.value && this.panel.state !== "closed";
+    }
+
+    /**
+     * Attempt to set the label of the group to the suggested label
+     * @param {MozTabbrowserTabGroup} group
+     * @param {string} newLabel
+     * @returns
+     */
+    #setMlGroupLabel(newLabel) {
+      if (!this.#shouldUpdateLabelWithMlLabel()) {
+        return;
+      }
+      this.#activeGroup.label = newLabel;
+      this.#nameField.value = newLabel;
+      this.#suggestedMlLabel = newLabel;
+    }
+
     openCreateModal(group) {
       this.activeGroup = group;
       this.createMode = true;
@@ -598,10 +630,11 @@
       this.#panel.openPopup(group.firstChild, {
         position: this.#panelPosition,
       });
+      this.#initMlGroupLabel();
     }
 
     /*
-     * set the ml generated label
+     * Set the ml generated label - used for testing
      */
     set mlLabel(label) {
       this.#suggestedMlLabel = label;
@@ -722,22 +755,6 @@
       };
       window.addEventListener("TabOpen", onTabOpened);
       gBrowser.addAdjacentNewTab(lastTab);
-    }
-
-    #handleUngroup() {
-      this.activeGroup?.ungroupTabs();
-    }
-
-    #handleSaveAndClose() {
-      this.activeGroup.save();
-      this.activeGroup.dispatchEvent(
-        new CustomEvent("TabGroupSaved", { bubbles: true })
-      );
-      gBrowser.removeTabGroup(this.activeGroup);
-    }
-
-    #handleDelete() {
-      gBrowser.removeTabGroup(this.activeGroup);
     }
 
     /**

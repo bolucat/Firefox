@@ -17,7 +17,6 @@ buildscript {
     ext {
         detekt_plugin = libs.versions.detekt.get()
         python_envs_plugin = libs.versions.python.envs.plugin.get()
-        ksp_plugin = libs.versions.ksp.plugin.get()
 
         // Used in mobile/android/fenix/app/build.gradle
         protobuf_plugin = libs.versions.protobuf.plugin.get()
@@ -29,7 +28,6 @@ buildscript {
         classpath 'org.apache.commons:commons-exec:1.3'
         classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.25.0'
         classpath 'org.tomlj:tomlj:1.1.0'
-        classpath libs.tools.kotlingradle
 
         // Used in mobile/android/fenix/app/build.gradle
         classpath libs.androidx.navigation.safeargs
@@ -44,6 +42,8 @@ plugins {
     id 'ApkSizePlugin'
     id "mozac.ConfigPlugin"
     alias(libs.plugins.detekt)
+    alias(libs.plugins.kotlin.android) apply false
+    alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.ksp)
 }
 
@@ -147,10 +147,10 @@ allprojects {
     }
 
     // Use the semanticdb-javac and semanticdb-kotlinc plugins to generate semanticdb files for Searchfox
+    // NOTE: Kotlin code indexing is currently removed due to lack of Kotlin 2.x support (see bug 1938622)
     if (mozconfig.substs.ENABLE_MOZSEARCH_PLUGIN || mozconfig.substs.DOWNLOAD_ALL_GRADLE_DEPENDENCIES) {
         def targetRoot = new File(topobjdir, "mozsearch_java_index")
         def semanticdbJavacVersion = "com.sourcegraph:semanticdb-javac:0.10.3"
-        def semanticdbKotlincVersion = "com.sourcegraph:semanticdb-kotlinc:0.4.0"
 
         afterEvaluate {
             def addDependencyToConfigurationIfExists = { configurationName, dependency ->
@@ -163,20 +163,12 @@ allprojects {
             addDependencyToConfigurationIfExists("compileOnly", semanticdbJavacVersion)
             addDependencyToConfigurationIfExists("testCompileOnly", semanticdbJavacVersion)
             addDependencyToConfigurationIfExists("androidTestCompileOnly", semanticdbJavacVersion)
-            addDependencyToConfigurationIfExists("kotlinCompilerPluginClasspath", semanticdbKotlincVersion)
         }
 
         tasks.withType(JavaCompile) {
             options.compilerArgs += [
                 "-Xplugin:semanticdb -sourceroot:${topsrcdir} -targetroot:${targetRoot}",
             ]
-        }
-
-        tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile) {
-            compilerOptions.freeCompilerArgs.addAll([
-                "-P", "plugin:semanticdb-kotlinc:sourceroot=${topsrcdir}",
-                "-P", "plugin:semanticdb-kotlinc:targetroot=${targetRoot}",
-            ])
         }
     }
 

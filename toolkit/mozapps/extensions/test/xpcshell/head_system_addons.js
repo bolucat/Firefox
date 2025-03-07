@@ -131,8 +131,9 @@ function getSystemAddonXPI(num, version) {
   return _systemXPIs.get(key);
 }
 
-async function getSystemBuiltin(num, version, res_url) {
+async function getSystemBuiltin(num, addon_version, res_url) {
   const id = `system${num}@tests.mozilla.org`;
+  const version = addon_version ?? "1.0";
   const addon_res_url_path = res_url ?? `builtin-system${num}`;
   await setupBuiltinExtension(
     {
@@ -303,7 +304,7 @@ async function checkInstalledSystemAddons(conditions, distroDir) {
       }
 
       let asBuiltin = conditions[i].asBuiltin;
-      if (asBuiltin) {
+      if (asBuiltin && !isUpgrade) {
         Assert.equal(uri.spec, `resource://test-builtin-ext${i + 1}/`);
       } else {
         Assert.ok(uri instanceof Ci.nsIFileURL);
@@ -419,6 +420,9 @@ async function setupSystemAddonConditions(setup, distroDir) {
     startupPromises.push(promiseWebExtensionStartup(id));
   }
 
+  info(
+    `setupSystemAddonConditions overriddenBuiltIns: ${JSON.stringify(overriddenBuiltInsData, null, 2)}\n`
+  );
   await overrideBuiltIns(overriddenBuiltInsData);
 
   await Promise.all([promiseStartupManager(), ...startupPromises]);

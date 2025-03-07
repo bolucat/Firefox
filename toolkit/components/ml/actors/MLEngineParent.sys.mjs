@@ -84,7 +84,15 @@ export class MLEngineParent extends JSProcessActorParent {
    * Since SIMD is supported by all major JavaScript engines, non-SIMD build is no longer provided.
    * We also serve the threaded build since we can simply set numThreads to 1 to disable multi-threading.
    */
-  static WASM_FILENAME = "ort-wasm-simd-threaded.jsep.wasm";
+  static WASM_FILENAME = {
+    onnx: "ort-wasm-simd-threaded.jsep.wasm",
+    wllama: "wllama.wasm",
+  };
+
+  /**
+   * This default backend to use when none is specified.
+   */
+  static DEFAULT_BACKEND = "onnx";
 
   /**
    * The modelhub used to retrieve files.
@@ -169,7 +177,6 @@ export class MLEngineParent extends JSProcessActorParent {
 
       if (currentEngine) {
         if (currentEngine.pipelineOptions.equals(pipelineOptions)) {
-          lazy.console.debug("Returning existing engine", engineId);
           return currentEngine;
         }
         await MLEngine.removeInstance(
@@ -179,12 +186,19 @@ export class MLEngineParent extends JSProcessActorParent {
         );
       }
 
-      lazy.console.debug("Creating a new engine");
-      const engine = await MLEngine.initialize({
+      var engine;
+      const start = Cu.now();
+
+      engine = await MLEngine.initialize({
         mlEngineParent: this,
         pipelineOptions,
         notificationsCallback,
       });
+      const creationTime = Cu.now() - start;
+
+      Glean.firefoxAiRuntime.engineCreationSuccess[
+        engine.getGleanLabel()
+      ].accumulateSingleSample(creationTime);
 
       // TODO - What happens if the engine is already killed here?
       return engine;
@@ -218,7 +232,7 @@ export class MLEngineParent extends JSProcessActorParent {
   async receiveMessage(message) {
     switch (message.name) {
       case "MLEngine:GetWasmArrayBuffer":
-        return MLEngineParent.getWasmArrayBuffer();
+        return MLEngineParent.getWasmArrayBuffer(message.data);
 
       case "MLEngine:GetModelFile":
         return this.getModelFile(message.data);
@@ -360,12 +374,17 @@ export class MLEngineParent extends JSProcessActorParent {
   /** Gets the wasm file from remote settings.
    *
    * @param {RemoteSettingsClient} client
+   * @param {string} backend - The ML engine for which the WASM buffer is requested.
    */
-  static async #getWasmArrayRecord(client) {
+  static async #getWasmArrayRecord(client, backend) {
     /** @type {WasmRecord[]} */
     const wasmRecords =
       await lazy.TranslationsParent.getMaxSupportedVersionRecords(client, {
-        filters: { name: MLEngineParent.WASM_FILENAME },
+        filters: {
+          name: MLEngineParent.WASM_FILENAME[
+            backend || MLEngineParent.DEFAULT_BACKEND
+          ],
+        },
         minSupportedMajorVersion: MLEngineParent.WASM_MAJOR_VERSION,
         maxSupportedMajorVersion: MLEngineParent.WASM_MAJOR_VERSION,
       });
@@ -435,7 +454,8 @@ export class MLEngineParent extends JSProcessActorParent {
     // if the task name is not in our settings, we just set the onnx runtime filename.
     if (records.length === 0) {
       return {
-        runtimeFilename: MLEngineParent.WASM_FILENAME,
+        runtimeFilename:
+          MLEngineParent.WASM_FILENAME[MLEngineParent.DEFAULT_BACKEND],
       };
     }
     const options = records[0];
@@ -448,21 +468,28 @@ export class MLEngineParent extends JSProcessActorParent {
       processorId: options.processorId,
       dtype: options.dtype,
       numThreads: options.numThreads,
-      runtimeFilename: MLEngineParent.WASM_FILENAME,
+      runtimeFilename:
+        MLEngineParent.WASM_FILENAME[
+          options.backend || MLEngineParent.DEFAULT_BACKEND
+        ],
     };
   }
 
   /**
    * Download the wasm for the ML inference engine.
    *
+   * @param {string} backend - The ML engine for which the WASM buffer is requested.
    * @returns {Promise<ArrayBuffer>}
    */
-  static async getWasmArrayBuffer() {
+  static async getWasmArrayBuffer(backend) {
     const client = MLEngineParent.#getRemoteClient(RS_RUNTIME_COLLECTION);
 
     if (!MLEngineParent.#wasmRecord) {
       // Place the records into a promise to prevent any races.
-      MLEngineParent.#wasmRecord = MLEngineParent.#getWasmArrayRecord(client);
+      MLEngineParent.#wasmRecord = MLEngineParent.#getWasmArrayRecord(
+        client,
+        backend
+      );
     }
 
     let wasmRecord;
@@ -702,6 +729,18 @@ class MLEngine {
   notificationsCallback = null;
 
   /**
+   * Returns the label used in telemetry for that engine id
+   *
+   * @returns {string}
+   */
+  getGleanLabel() {
+    if (this.engineId.startsWith("ML-ENGINE-")) {
+      return "webextension";
+    }
+    return this.engineId;
+  }
+
+  /**
    * Removes an instance of the MLEngine with the given engineId.
    *
    * @param {string} engineId - The ID of the engine instance to be removed.
@@ -902,7 +941,19 @@ class MLEngine {
         const { response, error, requestId } = data;
         const request = this.#requests.get(requestId);
         if (request) {
+          if (error) {
+            Glean.firefoxAiRuntime.runInferenceFailure.record({
+              engineId: this.engineId,
+              modelId: this.pipelineOptions.modelId,
+              featureId: this.pipelineOptions.featureId,
+            });
+          }
           if (response) {
+            const totalTime =
+              response.metrics.tokenizingTime + response.metrics.inferenceTime;
+            Glean.firefoxAiRuntime.runInferenceSuccess[
+              this.getGleanLabel()
+            ].accumulateSingleSample(totalTime);
             request.resolve(response);
           } else {
             request.reject(error);
@@ -913,6 +964,7 @@ class MLEngine {
             data
           );
         }
+
         this.#requests.delete(requestId);
         break;
       }
@@ -1027,7 +1079,6 @@ class MLEngine {
     const resolvers = Promise.withResolvers();
     const requestId = this.#nextRequestId++;
     this.#requests.set(requestId, resolvers);
-
     let transferables = [];
     if (request.data instanceof ArrayBuffer) {
       transferables.push(request.data);

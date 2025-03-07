@@ -1147,7 +1147,7 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         isTrendingSuggestionSupported: Boolean,
     ) =
         trendingSearchSuggestionsEnabled && isTrendingSearchesVisible && isTrendingSuggestionSupported &&
-            (!browsingMode.isPrivate || shouldShowSearchSuggestionsInPrivate)
+            shouldShowSearchSuggestions && (!browsingMode.isPrivate || shouldShowSearchSuggestionsInPrivate)
 
     /**
      * Indicates if the user have enabled recent search in the search suggestions setting preference.
@@ -2389,6 +2389,14 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     var lastSavedInFolderGuid by stringPreference(
         key = appContext.getPreferenceKey(R.string.pref_last_folder_saved_in),
         default = "",
+    )
+
+    /**
+     * Indicates whether or not we should use the new compose logins UI
+     */
+    var enableComposeLogins by booleanPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_enable_compose_logins),
+        default = false,
     )
 
     /**

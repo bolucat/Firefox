@@ -5,6 +5,7 @@
 package org.mozilla.fenix.ui
 
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
+import androidx.core.net.toUri
 import org.junit.Rule
 import org.junit.Test
 import org.mozilla.fenix.customannotations.SmokeTest
@@ -119,7 +120,7 @@ class TranslationsTest : TestSetup() {
     @Test
     fun verifyTheTranslationIsDisplayedAutomaticallyTest() {
         val firstTestPage = TestAssetHelper.getFirstForeignWebPageAsset(mockWebServer)
-        val secondTestPage = "https://support.mozilla.org/de/"
+        val secondTestPage = "https://mozilla-mobile.github.io/testapp/v2.0/germanForeignWebPage.html"
 
         navigationToolbar {
         }.enterURL(firstTestPage.url) {
@@ -131,8 +132,10 @@ class TranslationsTest : TestSetup() {
         browserScreen {
         }.openTabDrawer(composeTestRule) {
         }.openNewTab {
-        }.submitQuery(secondTestPage) {
-            waitForPageToLoad(pageLoadWaitingTime = waitingTimeLong)
+        }.dismissSearchBar {
+        }
+        navigationToolbar {
+        }.enterURL(secondTestPage.toUri()) {
         }
         translationsRobot(composeTestRule) {
             verifyTranslationSheetIsDisplayed(isDisplayed = true)
