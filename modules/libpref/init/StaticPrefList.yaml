@@ -4918,7 +4918,7 @@
 # Whether view transitions use webrender for live-capture
 - name: dom.viewTransitions.live-capture
   type: bool
-  value: false
+  value: true
   mirror: always
 
 # Is support for WebVR APIs enabled?
@@ -14062,6 +14062,12 @@
   value: 1048576
   mirror: always
 
+# If true, use the HSTS preload list.
+- name: network.stricttransportsecurity.preloadlist
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 # DNS Trusted Recursive Resolver
 # 0 - default off, 1 - reserved/off, 2 - TRR first, 3 - TRR only,
 # 4 - reserved/off, 5 off by choice
@@ -15017,6 +15023,12 @@
 - name: network.wifi.scanning_period
   type: RelaxedAtomicUint32
   value: 60000
+  mirror: always
+
+# Block synchronous XMLHttpRequests coming from system requests
+- name: network.xhr.block_sync_system_requests
+  type: bool
+  value: true
   mirror: always
 
 # When the Access-Control-Allow-Headers is wildcard (*), whether to allow
@@ -16152,13 +16164,13 @@
   # Whether win32k is disabled for compatible plugins.
 -   name: security.sandbox.gmp.win32k-disable
     type: RelaxedAtomicBool
-    value: @IS_NIGHTLY_BUILD@
+    value: true
     mirror: always
 
   # Whether ACG is enabled (dynamic code blocked) for compatible plugins.
 -   name: security.sandbox.gmp.acg.enabled
     type: RelaxedAtomicBool
-    value: @IS_NIGHTLY_BUILD@
+    value: true
     mirror: always
 
   # Whether win32k is disabled for socket processes.
@@ -17011,6 +17023,13 @@
 #---------------------------------------------------------------------------
 # Prefs starting with "test."
 #---------------------------------------------------------------------------
+
+# A mechanism to make the current time seem later than it is for specific
+# operations. Currently used to test expiration of the HSTS preload list.
+- name: test.currentTimeOffsetSeconds
+  type: RelaxedAtomicUint32
+  value: 0
+  mirror: always
 
 - name: test.events.async.enabled
   type: RelaxedAtomicBool

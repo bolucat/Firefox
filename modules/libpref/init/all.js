@@ -1474,9 +1474,6 @@ pref("network.proxy.autoconfig_retry_interval_min", 5);    // 5 seconds
 pref("network.proxy.autoconfig_retry_interval_max", 300);  // 5 minutes
 pref("network.proxy.enable_wpad_over_dhcp", true);
 
-// Use the HSTS preload list by default
-pref("network.stricttransportsecurity.preloadlist", true);
-
 pref("converter.html2txt.structs",          true); // Output structured phrases (strong, em, code, sub, sup, b, i, u)
 pref("converter.html2txt.header_strategy",  1); // 0 = no indention; 1 = indention, increased with header level; 2 = numbering and slight indention
 
@@ -3438,6 +3435,9 @@ pref("browser.search.suggest.enabled.private", false);
 pref("browser.search.separatePrivateDefault", true);
 pref("browser.search.separatePrivateDefault.ui.enabled", false);
 pref("browser.search.removeEngineInfobar.enabled", true);
+// Temporary preference to allow switching between the Rust based search engine
+// selector and the JavaScript one (bug 1914143).
+pref("browser.search.rustSelector.featureGate", false);
 
 // GMPInstallManager prefs
 
