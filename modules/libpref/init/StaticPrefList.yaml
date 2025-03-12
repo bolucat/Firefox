@@ -1805,7 +1805,7 @@
 # Whether to only classify top-level channels for safe browsing.
 - name: browser.safebrowsing.only_top_level
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # SessionStore prefs
@@ -16033,6 +16033,13 @@
 - name: security.browser_xhtml_csp.enabled
   type: bool
   value: true
+  mirror: always
+
+# Whether to treat the CSP in browser.xhtml as "Report-Only".
+# This allows us to collect telemetry information about potential issues.
+- name: security.browser_xhtml_csp.report-only
+  type: bool
+  value: @IS_NOT_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # Allowed by default so it doesn't affect Thunderbird/SeaMonkey, but

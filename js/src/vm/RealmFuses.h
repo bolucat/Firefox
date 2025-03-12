@@ -150,6 +150,70 @@ struct OptimizeArraySpeciesFuse final : public InvalidatingRealmFuse {
   virtual void popFuse(JSContext* cx, RealmFuses& realmFuses) override;
 };
 
+// Guard used to optimize iterating over Map objects. If this fuse is intact,
+// the following invariants must hold:
+//
+// - The builtin `Map.prototype` object has a `Symbol.iterator` property that's
+//   the original `%Map.prototype.entries%` function.
+// - The builtin `%MapIteratorPrototype%` object has a `next` property that's
+//   the original `MapIteratorNext` self-hosted function.
+//
+// Note: because this doesn't guard against `return` properties on the iterator
+// prototype, this should only be used in places where we don't have to call
+// `IteratorClose`.
+struct OptimizeMapObjectIteratorFuse final : public RealmFuse {
+  virtual const char* name() override {
+    return "OptimizeMapObjectIteratorFuse";
+  }
+  virtual bool checkInvariant(JSContext* cx) override;
+};
+
+// Guard used to optimize iterating over Set objects. If this fuse is intact,
+// the following invariants must hold:
+//
+// - The builtin `Set.prototype` object has a `Symbol.iterator` property that's
+//   the original `%Set.prototype.values%` function.
+// - The builtin `%SetIteratorPrototype%` object has a `next` property that's
+//   the original `SetIteratorNext` self-hosted function.
+//
+// Note: because this doesn't guard against `return` properties on the iterator
+// prototype, this should only be used in places where we don't have to call
+// `IteratorClose`.
+struct OptimizeSetObjectIteratorFuse final : public RealmFuse {
+  virtual const char* name() override {
+    return "OptimizeSetObjectIteratorFuse";
+  }
+  virtual bool checkInvariant(JSContext* cx) override;
+};
+
+// This fuse is popped when the `Map.prototype.set` property is mutated.
+struct OptimizeMapPrototypeSetFuse final : public RealmFuse {
+  virtual const char* name() override { return "OptimizeMapPrototypeSetFuse"; }
+  virtual bool checkInvariant(JSContext* cx) override;
+};
+
+// This fuse is popped when the `Set.prototype.add` property is mutated.
+struct OptimizeSetPrototypeAddFuse final : public RealmFuse {
+  virtual const char* name() override { return "OptimizeSetPrototypeAddFuse"; }
+  virtual bool checkInvariant(JSContext* cx) override;
+};
+
+// This fuse is popped when the `WeakMap.prototype.set` property is mutated.
+struct OptimizeWeakMapPrototypeSetFuse final : public RealmFuse {
+  virtual const char* name() override {
+    return "OptimizeWeakMapPrototypeSetFuse";
+  }
+  virtual bool checkInvariant(JSContext* cx) override;
+};
+
+// This fuse is popped when the `WeakSet.prototype.add` property is mutated.
+struct OptimizeWeakSetPrototypeAddFuse final : public RealmFuse {
+  virtual const char* name() override {
+    return "OptimizeWeakSetPrototypeAddFuse";
+  }
+  virtual bool checkInvariant(JSContext* cx) override;
+};
+
 #define FOR_EACH_REALM_FUSE(FUSE)                                              \
   FUSE(OptimizeGetIteratorFuse, optimizeGetIteratorFuse)                       \
   FUSE(OptimizeArrayIteratorPrototypeFuse, optimizeArrayIteratorPrototypeFuse) \
@@ -163,7 +227,13 @@ struct OptimizeArraySpeciesFuse final : public InvalidatingRealmFuse {
        arrayIteratorPrototypeHasIteratorProto)                                 \
   FUSE(IteratorPrototypeHasObjectProto, iteratorPrototypeHasObjectProto)       \
   FUSE(ObjectPrototypeHasNoReturnProperty, objectPrototypeHasNoReturnProperty) \
-  FUSE(OptimizeArraySpeciesFuse, optimizeArraySpeciesFuse)
+  FUSE(OptimizeArraySpeciesFuse, optimizeArraySpeciesFuse)                     \
+  FUSE(OptimizeMapObjectIteratorFuse, optimizeMapObjectIteratorFuse)           \
+  FUSE(OptimizeSetObjectIteratorFuse, optimizeSetObjectIteratorFuse)           \
+  FUSE(OptimizeMapPrototypeSetFuse, optimizeMapPrototypeSetFuse)               \
+  FUSE(OptimizeSetPrototypeAddFuse, optimizeSetPrototypeAddFuse)               \
+  FUSE(OptimizeWeakMapPrototypeSetFuse, optimizeWeakMapPrototypeSetFuse)       \
+  FUSE(OptimizeWeakSetPrototypeAddFuse, optimizeWeakSetPrototypeAddFuse)
 
 struct RealmFuses {
   RealmFuses() = default;

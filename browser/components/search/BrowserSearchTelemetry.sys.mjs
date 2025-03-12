@@ -195,7 +195,6 @@ class BrowserSearchTelemetryHandler {
 
       const countIdPrefix = `${engine.telemetryId}.`;
       const countIdSource = countIdPrefix + source;
-      let histogram = Services.telemetry.getKeyedHistogramById("SEARCH_COUNTS");
 
       if (
         details.alias &&
@@ -204,10 +203,22 @@ class BrowserSearchTelemetryHandler {
       ) {
         // This is a keyword search using an AppProvided engine.
         // Record the source as "alias", not "urlbar".
-        histogram.add(countIdPrefix + "alias");
+        Glean.sap.deprecatedCounts[countIdPrefix + "alias"].add();
       } else {
-        histogram.add(countIdSource);
+        Glean.sap.deprecatedCounts[countIdSource].add();
       }
+
+      Glean.sap.counts.record({
+        source,
+        provider_id: engine.isAppProvided ? engine.id : "other",
+        provider_name: engine.name,
+        // If the partner code is an empty string (not specified), then we
+        // simply pass undefined, because this field will then not be reported in
+        // Glean. Unfortunately the XPCOM interfaces force us to have an empty
+        // string rather than undefined.
+        partner_code:
+          engine.partnerCode === "" ? undefined : engine.partnerCode,
+      });
 
       // Dispatch the search signal to other handlers.
       switch (source) {

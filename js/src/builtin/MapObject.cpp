@@ -176,6 +176,9 @@ bool GlobalObject::initMapIteratorProto(JSContext* cx,
       !DefineToStringTag(cx, proto, cx->names().Map_Iterator_)) {
     return false;
   }
+  if (!JSObject::setHasFuseProperty(cx, proto)) {
+    return false;
+  }
   global->initBuiltinProto(ProtoKind::MapIteratorProto, proto);
   return true;
 }
@@ -419,7 +422,11 @@ const JSFunctionSpec MapObject::staticMethods[] = {
   // The initial value of the @@iterator property is the same function object
   // as the initial value of the "entries" property.
   RootedId iteratorId(cx, PropertyKey::Symbol(cx->wellKnownSymbols().iterator));
-  return NativeDefineDataProperty(cx, nativeProto, iteratorId, entriesFn, 0);
+  if (!NativeDefineDataProperty(cx, nativeProto, iteratorId, entriesFn, 0)) {
+    return false;
+  }
+
+  return JSObject::setHasFuseProperty(cx, nativeProto);
 }
 
 void MapObject::trace(JSTracer* trc, JSObject* obj) {
@@ -702,6 +709,63 @@ MapObject* MapObject::sweepAfterMinorGC(JS::GCContext* gcx, MapObject* mapobj) {
   return hasNurseryIterators ? mapobj : nullptr;
 }
 
+bool MapObject::tryOptimizeCtorWithIterable(JSContext* cx,
+                                            const Value& iterableVal,
+                                            bool* optimized) {
+  MOZ_ASSERT(!iterableVal.isNullOrUndefined());
+  MOZ_ASSERT(!*optimized);
+
+  if (!CanOptimizeMapOrSetCtorWithIterable<JSProto_Map>(MapObject::set, this,
+                                                        cx)) {
+    return true;
+  }
+
+  if (!iterableVal.isObject()) {
+    return true;
+  }
+  JSObject* iterable = &iterableVal.toObject();
+
+  // Fast path for `new Map(array)`.
+  if (IsOptimizableArrayForMapOrSetCtor<MapOrSet::Map>(iterable, cx)) {
+    ArrayObject* array = &iterable->as<ArrayObject>();
+    uint32_t len = array->getDenseInitializedLength();
+
+    for (uint32_t index = 0; index < len; index++) {
+      Value element = array->getDenseElement(index);
+      MOZ_ASSERT(IsPackedArray(&element.toObject()));
+
+      auto* elementArray = &element.toObject().as<ArrayObject>();
+      Value key = elementArray->getDenseElement(0);
+      Value value = elementArray->getDenseElement(1);
+
+      MOZ_ASSERT(!key.isMagic(JS_ELEMENTS_HOLE));
+      MOZ_ASSERT(!value.isMagic(JS_ELEMENTS_HOLE));
+
+      if (!set(cx, key, value)) {
+        return false;
+      }
+    }
+
+    *optimized = true;
+    return true;
+  }
+
+  // Fast path for `new Map(map)`.
+  if (IsMapObjectWithDefaultIterator(iterable, cx)) {
+    auto* iterableMap = &iterable->as<MapObject>();
+    auto addEntry = [cx, this](auto& entry) {
+      return setWithHashableKey(cx, entry.key, entry.value);
+    };
+    if (!Table(iterableMap).forEachEntry(addEntry)) {
+      return false;
+    }
+    *optimized = true;
+    return true;
+  }
+
+  return true;
+}
+
 // static
 MapObject* MapObject::createFromIterable(JSContext* cx, Handle<JSObject*> proto,
                                          Handle<Value> iterable,
@@ -719,27 +783,11 @@ MapObject* MapObject::createFromIterable(JSContext* cx, Handle<JSObject*> proto,
   }
 
   if (!iterable.isNullOrUndefined()) {
-    bool optimized = IsOptimizableInitForMapOrSet<JSProto_Map>(
-        MapObject::set, obj, iterable, cx);
-    if (optimized) {
-      ArrayObject* array = &iterable.toObject().as<ArrayObject>();
-      uint32_t len = array->getDenseInitializedLength();
-      for (uint32_t index = 0; index < len; index++) {
-        Value element = array->getDenseElement(index);
-        MOZ_ASSERT(IsPackedArray(&element.toObject()));
-
-        auto* elementArray = &element.toObject().as<ArrayObject>();
-        Value key = elementArray->getDenseElement(0);
-        Value value = elementArray->getDenseElement(1);
-
-        MOZ_ASSERT(!key.isMagic(JS_ELEMENTS_HOLE));
-        MOZ_ASSERT(!value.isMagic(JS_ELEMENTS_HOLE));
-
-        if (!obj->set(cx, key, value)) {
-          return nullptr;
-        }
-      }
-    } else {
+    bool optimized = false;
+    if (!obj->tryOptimizeCtorWithIterable(cx, iterable, &optimized)) {
+      return nullptr;
+    }
+    if (!optimized) {
       FixedInvokeArgs<1> args(cx);
       args[0].set(iterable);
 
@@ -1024,6 +1072,9 @@ bool GlobalObject::initSetIteratorProto(JSContext* cx,
       !DefineToStringTag(cx, proto, cx->names().Set_Iterator_)) {
     return false;
   }
+  if (!JSObject::setHasFuseProperty(cx, proto)) {
+    return false;
+  }
   global->initBuiltinProto(ProtoKind::SetIteratorProto, proto);
   return true;
 }
@@ -1229,7 +1280,11 @@ const JSPropertySpec SetObject::staticProperties[] = {
   // 23.2.3.11 Set.prototype[@@iterator]()
   // See above.
   RootedId iteratorId(cx, PropertyKey::Symbol(cx->wellKnownSymbols().iterator));
-  return NativeDefineDataProperty(cx, nativeProto, iteratorId, valuesFn, 0);
+  if (!NativeDefineDataProperty(cx, nativeProto, iteratorId, valuesFn, 0)) {
+    return false;
+  }
+
+  return JSObject::setHasFuseProperty(cx, nativeProto);
 }
 
 bool SetObject::keys(JS::MutableHandle<GCVector<JS::Value>> keys) {
@@ -1393,6 +1448,58 @@ SetObject* SetObject::sweepAfterMinorGC(JS::GCContext* gcx, SetObject* setobj) {
   return hasNurseryIterators ? setobj : nullptr;
 }
 
+bool SetObject::tryOptimizeCtorWithIterable(JSContext* cx,
+                                            const Value& iterableVal,
+                                            bool* optimized) {
+  MOZ_ASSERT(!iterableVal.isNullOrUndefined());
+  MOZ_ASSERT(!*optimized);
+
+  if (!CanOptimizeMapOrSetCtorWithIterable<JSProto_Set>(SetObject::add, this,
+                                                        cx)) {
+    return true;
+  }
+
+  if (!iterableVal.isObject()) {
+    return true;
+  }
+  JSObject* iterable = &iterableVal.toObject();
+
+  // Fast path for `new Set(array)`.
+  if (IsOptimizableArrayForMapOrSetCtor<MapOrSet::Set>(iterable, cx)) {
+    ArrayObject* array = &iterable->as<ArrayObject>();
+    uint32_t len = array->getDenseInitializedLength();
+
+    for (uint32_t index = 0; index < len; index++) {
+      Value keyVal = array->getDenseElement(index);
+      MOZ_ASSERT(!keyVal.isMagic(JS_ELEMENTS_HOLE));
+      if (!add(cx, keyVal)) {
+        return false;
+      }
+    }
+
+    *optimized = true;
+    return true;
+  }
+
+  // Fast path for `new Set(set)`.
+  if (IsSetObjectWithDefaultIterator(iterable, cx)) {
+    auto* iterableSet = &iterable->as<SetObject>();
+    if (!IsSetObjectWithDefaultIterator(iterableSet, cx)) {
+      return true;
+    }
+    auto addEntry = [cx, this](auto& entry) {
+      return addHashableValue(cx, entry);
+    };
+    if (!Table(iterableSet).forEachEntry(addEntry)) {
+      return false;
+    }
+    *optimized = true;
+    return true;
+  }
+
+  return true;
+}
+
 // static
 SetObject* SetObject::createFromIterable(JSContext* cx, Handle<JSObject*> proto,
                                          Handle<Value> iterable,
@@ -1410,19 +1517,11 @@ SetObject* SetObject::createFromIterable(JSContext* cx, Handle<JSObject*> proto,
   }
 
   if (!iterable.isNullOrUndefined()) {
-    bool optimized = IsOptimizableInitForMapOrSet<JSProto_Set>(
-        SetObject::add, obj, iterable, cx);
-    if (optimized) {
-      ArrayObject* array = &iterable.toObject().as<ArrayObject>();
-      uint32_t len = array->getDenseInitializedLength();
-      for (uint32_t index = 0; index < len; index++) {
-        Value keyVal = array->getDenseElement(index);
-        MOZ_ASSERT(!keyVal.isMagic(JS_ELEMENTS_HOLE));
-        if (!obj->add(cx, keyVal)) {
-          return nullptr;
-        }
-      }
-    } else {
+    bool optimized = false;
+    if (!obj->tryOptimizeCtorWithIterable(cx, iterable, &optimized)) {
+      return nullptr;
+    }
+    if (!optimized) {
       FixedInvokeArgs<1> args(cx);
       args[0].set(iterable);
 

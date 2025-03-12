@@ -771,6 +771,9 @@ void ViewTransition::SetupTransitionPseudoElements() {
     mViewTransitionRoot = nullptr;
     return;
   }
+  if (mDocument->DevToolsAnonymousAndShadowEventsEnabled()) {
+    mViewTransitionRoot->QueueDevtoolsAnonymousEvent(/* aIsRemove = */ false);
+  }
   if (PresShell* ps = mDocument->GetPresShell()) {
     ps->ContentAppended(mViewTransitionRoot);
   }
@@ -857,8 +860,7 @@ void ViewTransition::Activate() {
     return;
   }
 
-  // TODO(emilio): Step 2: Set rendering suppression for view transitions to
-  // false.
+  mDocument->SetRenderingSuppressedForViewTransitions(false);
 
   // Step 3: If transition's initial snapshot containing block size is not
   // equal to the snapshot containing block size, then skip the view transition
@@ -1059,8 +1061,7 @@ static nsAtom* DocumentScopedTransitionNameFor(nsIFrame* aFrame) {
 
 // https://drafts.csswg.org/css-view-transitions/#capture-the-old-state
 Maybe<SkipTransitionReason> ViewTransition::CaptureOldState() {
-  // TODO(emilio): Seems this should hold but intermittently fails in some
-  // tests: MOZ_ASSERT(mNamedElements.IsEmpty());
+  MOZ_ASSERT(mNamedElements.IsEmpty());
 
   // Steps 1/2 are variable declarations.
   // Step 3: Let usedTransitionNames be a new set of strings.
@@ -1173,8 +1174,7 @@ void ViewTransition::Setup() {
     return SkipTransition(*skipReason);
   }
 
-  // TODO Step 3: Set document's rendering suppression for view transitions to
-  // true.
+  mDocument->SetRenderingSuppressedForViewTransitions(true);
 
   // Step 4: Queue a global task on the DOM manipulation task source, given
   // transition's relevant global object, to perform the following steps:
@@ -1362,13 +1362,16 @@ void ViewTransition::ClearActiveTransition(bool aIsDocumentHidden) {
   // see SetupTransitionPseudoElements).
   if (mViewTransitionRoot) {
     nsAutoScriptBlocker scriptBlocker;
+    if (mDocument->DevToolsAnonymousAndShadowEventsEnabled()) {
+      mViewTransitionRoot->QueueDevtoolsAnonymousEvent(/* aIsRemove = */ true);
+    }
     if (PresShell* ps = mDocument->GetPresShell()) {
       ps->ContentWillBeRemoved(mViewTransitionRoot, nullptr);
     }
     mViewTransitionRoot->UnbindFromTree();
     mViewTransitionRoot = nullptr;
 
-    // If the doucment is being destroyed, we cannot get the animation data
+    // If the document is being destroyed, we cannot get the animation data
     // (e.g. it may crash when using nsINode::GetBoolFlag()), so we have to skip
     // this case. It's fine because those animations should still be stopped and
     // removed if no frame there.
@@ -1409,7 +1412,7 @@ void ViewTransition::SkipTransition(
   }
 
   // Step 4: Set rendering suppression for view transitions to false.
-  // TODO(emilio): We don't have that flag yet.
+  mDocument->SetRenderingSuppressedForViewTransitions(false);
 
   // Step 5: If document's active view transition is transition, Clear view
   // transition transition.

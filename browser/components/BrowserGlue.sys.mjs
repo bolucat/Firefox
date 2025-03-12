@@ -37,7 +37,6 @@ ChromeUtils.defineESModuleGetters(lazy, {
   DownloadsViewableInternally:
     "resource:///modules/DownloadsViewableInternally.sys.mjs",
   ExtensionsUI: "resource:///modules/ExtensionsUI.sys.mjs",
-  FeatureGate: "resource://featuregates/FeatureGate.sys.mjs",
   FirefoxBridgeExtensionUtils:
     "resource:///modules/FirefoxBridgeExtensionUtils.sys.mjs",
   // FilePickerCrashed is used by the `listeners` object below.
@@ -174,7 +173,7 @@ let JSPROCESSACTORS = {
     },
 
     enablePreference: "accessibility.blockautorefresh",
-    onPreferenceChanged: (prefName, prevValue, isEnabled) => {
+    onPreferenceChanged: isEnabled => {
       lazy.BrowserWindowTracker.orderedWindows.forEach(win => {
         for (let browser of win.gBrowser.browsers) {
           try {
@@ -572,26 +571,23 @@ let JSWINDOWACTORS = {
     },
     allFrames: true,
     onAddActor(register, unregister) {
+      let isRegistered = false;
+
       // Register the actor if we have a provider set and not yet registered
-      const maybeRegister = (val, prev) => {
-        if (val) {
-          if (!prev) {
+      const maybeRegister = () => {
+        if (Services.prefs.getCharPref("browser.ml.chat.provider", "")) {
+          if (!isRegistered) {
             register();
+            isRegistered = true;
           }
-        } else {
+        } else if (isRegistered) {
           unregister();
+          isRegistered = false;
         }
       };
 
-      // Detect pref changes and handle initial value
-      XPCOMUtils.defineLazyPreferenceGetter(
-        this,
-        "_pref",
-        "browser.ml.chat.provider",
-        "",
-        (_pref, prev, val) => maybeRegister(val, prev)
-      );
-      maybeRegister(this._pref);
+      Services.prefs.addObserver("browser.ml.chat.provider", maybeRegister);
+      maybeRegister();
     },
   },
 
@@ -638,6 +634,17 @@ let JSWINDOWACTORS = {
     },
 
     messageManagerGroups: ["browsers"],
+  },
+
+  LinkPreview: {
+    parent: {
+      esModuleURI: "resource:///actors/LinkPreviewParent.sys.mjs",
+    },
+    child: {
+      esModuleURI: "resource:///actors/LinkPreviewChild.sys.mjs",
+    },
+    includeChrome: true,
+    enablePreference: "browser.ml.linkPreview.enabled",
   },
 
   PageInfo: {
@@ -2376,8 +2383,6 @@ BrowserGlue.prototype = {
     if (AppConstants.MOZ_CRASHREPORTER) {
       lazy.UnsubmittedCrashHandler.init();
       lazy.UnsubmittedCrashHandler.scheduleCheckForUnsubmittedCrashReports();
-      lazy.FeatureGate.annotateCrashReporter();
-      lazy.FeatureGate.observePrefChangesForCrashReportAnnotation();
     }
 
     if (AppConstants.ASAN_REPORTER) {
@@ -3052,11 +3057,19 @@ BrowserGlue.prototype = {
       {
         name: "OS Authentication telemetry",
         task: () => {
-          const osAuthForCc = lazy.FormAutofillUtils.getOSAuthEnabled(
-            lazy.FormAutofillUtils.AUTOFILL_CREDITCARDS_REAUTH_PREF
+          // Manually read these prefs. This treats any non-empty-string
+          // value as "turned off", irrespective of whether it correctly
+          // decrypts to the correct value, because we cannot do the
+          // decryption if the primary password has not yet been provided,
+          // and for telemetry treating that situation as "turned off"
+          // seems reasonable.
+          const osAuthForCc = !Services.prefs.getStringPref(
+            lazy.FormAutofillUtils.AUTOFILL_CREDITCARDS_REAUTH_PREF,
+            ""
           );
-          const osAuthForPw = lazy.LoginHelper.getOSAuthEnabled(
-            lazy.LoginHelper.OS_AUTH_FOR_PASSWORDS_PREF
+          const osAuthForPw = !Services.prefs.getStringPref(
+            lazy.LoginHelper.OS_AUTH_FOR_PASSWORDS_PREF,
+            ""
           );
 
           Glean.formautofill.osAuthEnabled.set(osAuthForCc);

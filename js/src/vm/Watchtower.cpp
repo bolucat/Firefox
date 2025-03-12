@@ -307,13 +307,109 @@ static void MaybePopArrayIteratorPrototypeFuses(JSContext* cx,
   }
 }
 
+static void MaybePopMapPrototypeFuses(JSContext* cx, NativeObject* obj,
+                                      jsid id) {
+  if (obj != obj->global().maybeGetPrototype(JSProto_Map)) {
+    return;
+  }
+  if (id.isWellKnownSymbol(JS::SymbolCode::iterator)) {
+    obj->realm()->realmFuses.optimizeMapObjectIteratorFuse.popFuse(
+        cx, obj->realm()->realmFuses);
+  }
+  if (id.isAtom(cx->names().set)) {
+    obj->realm()->realmFuses.optimizeMapPrototypeSetFuse.popFuse(
+        cx, obj->realm()->realmFuses);
+  }
+}
+
+static void MaybePopMapIteratorPrototypeFuses(JSContext* cx, NativeObject* obj,
+                                              jsid id) {
+  if (obj != obj->global().maybeBuiltinProto(
+                 GlobalObject::ProtoKind::MapIteratorProto)) {
+    return;
+  }
+  if (id.isAtom(cx->names().next)) {
+    obj->realm()->realmFuses.optimizeMapObjectIteratorFuse.popFuse(
+        cx, obj->realm()->realmFuses);
+  }
+}
+
+static void MaybePopSetPrototypeFuses(JSContext* cx, NativeObject* obj,
+                                      jsid id) {
+  if (obj != obj->global().maybeGetPrototype(JSProto_Set)) {
+    return;
+  }
+  if (id.isWellKnownSymbol(JS::SymbolCode::iterator)) {
+    obj->realm()->realmFuses.optimizeSetObjectIteratorFuse.popFuse(
+        cx, obj->realm()->realmFuses);
+  }
+  if (id.isAtom(cx->names().add)) {
+    obj->realm()->realmFuses.optimizeSetPrototypeAddFuse.popFuse(
+        cx, obj->realm()->realmFuses);
+  }
+}
+
+static void MaybePopSetIteratorPrototypeFuses(JSContext* cx, NativeObject* obj,
+                                              jsid id) {
+  if (obj != obj->global().maybeBuiltinProto(
+                 GlobalObject::ProtoKind::SetIteratorProto)) {
+    return;
+  }
+  if (id.isAtom(cx->names().next)) {
+    obj->realm()->realmFuses.optimizeSetObjectIteratorFuse.popFuse(
+        cx, obj->realm()->realmFuses);
+  }
+}
+
+static void MaybePopWeakMapPrototypeFuses(JSContext* cx, NativeObject* obj,
+                                          jsid id) {
+  if (obj != obj->global().maybeGetPrototype(JSProto_WeakMap)) {
+    return;
+  }
+  if (id.isAtom(cx->names().set)) {
+    obj->realm()->realmFuses.optimizeWeakMapPrototypeSetFuse.popFuse(
+        cx, obj->realm()->realmFuses);
+  }
+}
+
+static void MaybePopWeakSetPrototypeFuses(JSContext* cx, NativeObject* obj,
+                                          jsid id) {
+  if (obj != obj->global().maybeGetPrototype(JSProto_WeakSet)) {
+    return;
+  }
+  if (id.isAtom(cx->names().add)) {
+    obj->realm()->realmFuses.optimizeWeakSetPrototypeAddFuse.popFuse(
+        cx, obj->realm()->realmFuses);
+  }
+}
+
 static void MaybePopFuses(JSContext* cx, NativeObject* obj, jsid id) {
   // Handle writes to Array constructor fuse properties.
   MaybePopArrayConstructorFuses(cx, obj, id);
+
   // Handle writes to Array.prototype fuse properties.
   MaybePopArrayPrototypeFuses(cx, obj, id);
+
   // Handle writes to %ArrayIteratorPrototype% fuse properties.
   MaybePopArrayIteratorPrototypeFuses(cx, obj, id);
+
+  // Handle writes to Map.prototype fuse properties.
+  MaybePopMapPrototypeFuses(cx, obj, id);
+
+  // Handle writes to %MapIteratorPrototype% fuse properties.
+  MaybePopMapIteratorPrototypeFuses(cx, obj, id);
+
+  // Handle writes to Set.prototype fuse properties.
+  MaybePopSetPrototypeFuses(cx, obj, id);
+
+  // Handle writes to %SetIteratorPrototype% fuse properties.
+  MaybePopSetIteratorPrototypeFuses(cx, obj, id);
+
+  // Handle writes to WeakMap.prototype fuse properties.
+  MaybePopWeakMapPrototypeFuses(cx, obj, id);
+
+  // Handle writes to WeakSet.prototype fuse properties.
+  MaybePopWeakSetPrototypeFuses(cx, obj, id);
 }
 
 // static
