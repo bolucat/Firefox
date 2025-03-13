@@ -1165,64 +1165,6 @@ class SettingsTest {
     }
 
     @Test
-    fun `GIVEN trending searches is enabled, visible and search engine supports it THEN should show trending searches`() {
-        val settings = spyk(settings)
-        every { settings.trendingSearchSuggestionsEnabled } returns true
-        every { settings.isTrendingSearchesVisible } returns true
-        every { settings.shouldShowSearchSuggestionsInPrivate } returns true
-
-        assertTrue(settings.shouldShowTrendingSearchSuggestions(BrowsingMode.Private, true))
-        assertTrue(settings.shouldShowTrendingSearchSuggestions(BrowsingMode.Normal, true))
-
-        every { settings.trendingSearchSuggestionsEnabled } returns false
-        every { settings.isTrendingSearchesVisible } returns true
-        every { settings.shouldShowSearchSuggestionsInPrivate } returns true
-
-        assertFalse(settings.shouldShowTrendingSearchSuggestions(BrowsingMode.Private, true))
-        assertFalse(settings.shouldShowTrendingSearchSuggestions(BrowsingMode.Normal, true))
-
-        every { settings.trendingSearchSuggestionsEnabled } returns true
-        every { settings.isTrendingSearchesVisible } returns false
-        every { settings.shouldShowSearchSuggestionsInPrivate } returns true
-
-        assertFalse(settings.shouldShowTrendingSearchSuggestions(BrowsingMode.Private, true))
-        assertFalse(settings.shouldShowTrendingSearchSuggestions(BrowsingMode.Normal, true))
-
-        every { settings.trendingSearchSuggestionsEnabled } returns false
-        every { settings.isTrendingSearchesVisible } returns false
-        every { settings.shouldShowSearchSuggestionsInPrivate } returns true
-
-        assertFalse(settings.shouldShowTrendingSearchSuggestions(BrowsingMode.Private, true))
-        assertFalse(settings.shouldShowTrendingSearchSuggestions(BrowsingMode.Normal, true))
-    }
-
-    @Test
-    fun `GIVEN search engine does not supports trending search THEN should not show trending searches`() {
-        val settings = spyk(settings)
-        every { settings.trendingSearchSuggestionsEnabled } returns true
-        every { settings.isTrendingSearchesVisible } returns true
-        every { settings.shouldShowSearchSuggestionsInPrivate } returns true
-
-        assertFalse(settings.shouldShowTrendingSearchSuggestions(BrowsingMode.Private, false))
-        assertFalse(settings.shouldShowTrendingSearchSuggestions(BrowsingMode.Normal, false))
-    }
-
-    @Test
-    fun `GIVEN is private tab THEN should show trending searches only if allowed`() {
-        val settings = spyk(settings)
-        every { settings.trendingSearchSuggestionsEnabled } returns true
-        every { settings.isTrendingSearchesVisible } returns true
-        every { settings.shouldShowSearchSuggestionsInPrivate } returns true
-
-        assertTrue(settings.shouldShowTrendingSearchSuggestions(BrowsingMode.Private, true))
-        assertTrue(settings.shouldShowTrendingSearchSuggestions(BrowsingMode.Normal, true))
-
-        every { settings.shouldShowSearchSuggestionsInPrivate } returns false
-        assertFalse(settings.shouldShowTrendingSearchSuggestions(BrowsingMode.Private, true))
-        assertTrue(settings.shouldShowTrendingSearchSuggestions(BrowsingMode.Normal, true))
-    }
-
-    @Test
     fun `GIVEN recent search is enable THEN should show recent searches only if recent search is visible`() {
         val settings = spyk(settings)
         every { settings.recentSearchSuggestionsEnabled } returns true
@@ -1253,5 +1195,55 @@ class SettingsTest {
         every { settings.shortcutSuggestionsEnabled } returns false
         every { settings.isShortcutSuggestionsVisible } returns true
         assertFalse(settings.shouldShowShortcutSuggestions)
+    }
+
+    @Test
+    fun `GIVEN the conditions to show a prompt are not met WHEN shouldShowSetAsDefaultPrompt is checked THEN shouldShowSetAsDefaultPrompt is false`() {
+        settings.setAsDefaultBrowserPromptForExistingUsersEnabled = false
+        settings.numberOfSetAsDefaultPromptShownTimes = 0
+        settings.lastSetAsDefaultPromptShownTimeInMillis = System.currentTimeMillis()
+        settings.coldStartsBetweenSetAsDefaultPrompts = 5
+
+        assertFalse(settings.shouldShowSetAsDefaultPrompt)
+    }
+
+    @Test
+    fun `GIVEN the prompt has been shown maximum times WHEN shouldShowSetAsDefaultPrompt is checked THEN shouldShowSetAsDefaultPrompt is false`() {
+        settings.setAsDefaultBrowserPromptForExistingUsersEnabled = true
+        settings.numberOfSetAsDefaultPromptShownTimes = 3 // Maximum number of times the prompt can be shown based on the design criteria
+        settings.lastSetAsDefaultPromptShownTimeInMillis = 0L
+        settings.coldStartsBetweenSetAsDefaultPrompts = 5
+
+        assertFalse(settings.shouldShowSetAsDefaultPrompt)
+    }
+
+    @Test
+    fun `GIVEN the time since last prompt is too short WHEN shouldShowSetAsDefaultPrompt is checked THEN shouldShowSetAsDefaultPrompt is false`() {
+        settings.setAsDefaultBrowserPromptForExistingUsersEnabled = true
+        settings.numberOfSetAsDefaultPromptShownTimes = 1
+        settings.lastSetAsDefaultPromptShownTimeInMillis = System.currentTimeMillis() - 1000
+        settings.coldStartsBetweenSetAsDefaultPrompts = 5
+
+        assertFalse(settings.shouldShowSetAsDefaultPrompt)
+    }
+
+    @Test
+    fun `GIVEN not enough cold starts WHEN shouldShowSetAsDefaultPrompt is checked THEN shouldShowSetAsDefaultPrompt is false`() {
+        settings.setAsDefaultBrowserPromptForExistingUsersEnabled = true
+        settings.numberOfSetAsDefaultPromptShownTimes = 1
+        settings.lastSetAsDefaultPromptShownTimeInMillis = 0L
+        settings.coldStartsBetweenSetAsDefaultPrompts = 1
+
+        assertFalse(settings.shouldShowSetAsDefaultPrompt)
+    }
+
+    @Test
+    fun `GIVEN enough cold starts and conditions met WHEN shouldShowSetAsDefaultPrompt is checked THEN shouldShowSetAsDefaultPrompt is true`() {
+        settings.setAsDefaultBrowserPromptForExistingUsersEnabled = true
+        settings.numberOfSetAsDefaultPromptShownTimes = 1
+        settings.lastSetAsDefaultPromptShownTimeInMillis = 0L
+        settings.coldStartsBetweenSetAsDefaultPrompts = 5 // More than required cold starts
+
+        assertTrue(settings.shouldShowSetAsDefaultPrompt)
     }
 }

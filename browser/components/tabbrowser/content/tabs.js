@@ -14,12 +14,8 @@
   const DIRECTION_BACKWARD = -1;
   const DIRECTION_FORWARD = 1;
 
-  /**
-   * @param {MozTabbrowserTab|MozTabbrowserTabGroup} element
-   * @returns {boolean}
-   *   `true` if element is a `<tab>`
-   */
-  const isTab = element => !!(element?.tagName == "tab");
+  const isTab = element => gBrowser.isTab(element);
+  const isTabGroupLabel = element => gBrowser.isTabGroupLabel(element);
 
   /**
    * @param {MozTabbrowserTab|MozTabbrowserTabGroup} element
@@ -27,14 +23,6 @@
    *   `true` if element is a `<tab-group>`
    */
   const isTabGroup = element => !!(element?.tagName == "tab-group");
-
-  /**
-   * @param {MozTabbrowserTab|MozTextLabel} element
-   * @returns {boolean}
-   *   `true` if element is the `<label>` in a `<tab-group>`
-   */
-  const isTabGroupLabel = element =>
-    !!element?.classList?.contains("tab-group-label");
 
   class MozTabbrowserTabs extends MozElements.TabsBase {
     static observedAttributes = ["orient"];
@@ -298,7 +286,10 @@
       // the tab. If no tabs exist outside the group, create a new one and
       // select it.
       const group = event.target;
-      if (gBrowser.selectedTab.group === group) {
+      if (
+        gBrowser.selectedTab.group === group &&
+        !this.hasAttribute("movingtab")
+      ) {
         gBrowser.selectedTab =
           gBrowser._findTabToBlurTo(
             gBrowser.selectedTab,
@@ -714,6 +705,14 @@
         this.#maxTabsPerRow = tabsPerRow;
       }
 
+      if (tab.multiselected) {
+        for (let multiselectedTab of gBrowser.selectedTabs.filter(
+          t => t.pinned != tab.pinned
+        )) {
+          gBrowser.removeFromMultiSelectedTabs(multiselectedTab);
+        }
+      }
+
       let dataTransferOrderedTabs;
       if (fromTabList || isTabGroupLabel(tab)) {
         // Dragging a group label or an item in the all tabs menu doesn't
@@ -754,19 +753,18 @@
       // node to deliver the `dragend` event.  See bug 1345473.
       dt.addElement(tab);
 
-      let expandedTabGroups;
-      if (tab.multiselected) {
-        this.#moveTogetherSelectedTabs(tab);
-      } else if (isTabGroupLabel(tab)) {
-        expandedTabGroups = gBrowser.tabGroups.filter(
-          group => !group.collapsed
-        );
-        if (expandedTabGroups.length) {
+      let expandGroupOnDrop;
+      if (!fromTabList) {
+        this.toggleAttribute("movingtab", true);
+        gNavToolbox.toggleAttribute("movingtab", true);
+
+        if (tab.multiselected) {
+          this.#moveTogetherSelectedTabs(tab);
+        } else if (isTabGroupLabel(tab) && !tab.group.collapsed) {
           this._lockTabSizing();
           this.#keepTabSizeLocked = true;
-        }
-        for (let group of expandedTabGroups) {
-          group.collapsed = true;
+          tab.group.collapsed = true;
+          expandGroupOnDrop = true;
         }
       }
 
@@ -866,12 +864,10 @@
             : this.arrowScrollbox.scrollPosition,
         screenX: event.screenX,
         screenY: event.screenY,
-        movingTabs: (tab.multiselected ? gBrowser.selectedTabs : [tab]).filter(
-          t => t.pinned == tab.pinned
-        ),
+        movingTabs: tab.multiselected ? gBrowser.selectedTabs : [tab],
         fromTabList,
         tabGroupCreationColor: gBrowser.tabGroupMenu.nextUnusedColor,
-        expandedTabGroups,
+        expandGroupOnDrop,
       };
 
       event.stopPropagation();
@@ -1008,6 +1004,17 @@
       ind.style.transform = this.verticalMode
         ? "translateY(" + Math.round(newMargin) + "px)"
         : "translateX(" + Math.round(newMargin) + "px)";
+    }
+
+    #expandGroupOnDrop(draggedTab) {
+      if (
+        isTabGroupLabel(draggedTab) &&
+        draggedTab._dragData?.expandGroupOnDrop
+      ) {
+        draggedTab.group.collapsed = false;
+        this.#keepTabSizeLocked = false;
+        this._unlockTabSizing();
+      }
     }
 
     // eslint-disable-next-line complexity
@@ -1191,6 +1198,8 @@
             moveTabs();
           }
         }
+      } else if (isTabGroupLabel(draggedTab)) {
+        gBrowser.adoptTabGroup(draggedTab.group, this._getDropIndex(event));
       } else if (draggedTab) {
         // Move the tabs into this window. To avoid multiple tab-switches in
         // the original window, the selected tab should be adopted last.
@@ -1282,13 +1291,7 @@
       }
 
       if (draggedTab) {
-        if (draggedTab._dragData.expandedTabGroups?.length) {
-          for (let group of draggedTab._dragData.expandedTabGroups) {
-            group.collapsed = false;
-          }
-          this.#keepTabSizeLocked = false;
-          this._unlockTabSizing();
-        }
+        this.#expandGroupOnDrop(draggedTab);
         delete draggedTab._dragData;
       }
     }
@@ -1306,6 +1309,7 @@
 
       this._finishMoveTogetherSelectedTabs(draggedTab);
       this._finishAnimateTabMove();
+      this.#expandGroupOnDrop(draggedTab);
 
       if (
         dt.mozUserCancelled ||
@@ -2121,14 +2125,6 @@
       let dragData = draggedTab._dragData;
       let movingTabs = dragData.movingTabs;
 
-      if (!this.hasAttribute("movingtab")) {
-        this.toggleAttribute("movingtab", true);
-        gNavToolbox.toggleAttribute("movingtab", true);
-        if (!draggedTab.multiselected) {
-          this.selectedItem = draggedTab;
-        }
-      }
-
       dragData.animLastScreenX ??= dragData.screenX;
       dragData.animLastScreenY ??= dragData.screenY;
 
@@ -2312,14 +2308,6 @@
       let draggedTab = event.dataTransfer.mozGetDataAt(TAB_DROP_TYPE, 0);
       let dragData = draggedTab._dragData;
       let movingTabs = dragData.movingTabs;
-
-      if (!this.hasAttribute("movingtab")) {
-        this.toggleAttribute("movingtab", true);
-        gNavToolbox.toggleAttribute("movingtab", true);
-        if (!draggedTab.multiselected) {
-          this.selectedItem = draggedTab;
-        }
-      }
 
       dragData.animLastScreenPos ??= this.verticalMode
         ? dragData.screenY
@@ -2767,6 +2755,11 @@
     #moveTogetherSelectedTabs(tab) {
       let draggedTabIndex = tab.elementIndex;
       let selectedTabs = gBrowser.selectedTabs;
+      if (selectedTabs.some(t => t.pinned != tab.pinned)) {
+        throw new Error(
+          "Cannot move together a mix of pinned and unpinned tabs."
+        );
+      }
       let animate = !gReduceMotion;
 
       tab._moveTogetherSelectedTabsData = {

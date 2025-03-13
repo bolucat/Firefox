@@ -612,6 +612,16 @@ function _extends() { _extends = Object.assign ? Object.assign.bind() : function
 
 
 
+
+// Pref Constants
+const PREF_AD_SIZE_MEDIUM_RECTANGLE = "newtabAdSize.mediumRectangle";
+const PREF_AD_SIZE_BILLBOARD = "newtabAdSize.billboard";
+const PREF_AD_SIZE_LEADERBOARD = "newtabAdSize.leaderboard";
+const PREF_CONTEXTUAL_CONTENT_SELECTED_FEED = "discoverystream.contextualContent.selectedFeed";
+const PREF_CONTEXTUAL_CONTENT_FEEDS = "discoverystream.contextualContent.feeds";
+const PREF_SECTIONS_ENABLED = "discoverystream.sections.enabled";
+const PREF_SPOC_PLACEMENTS = "discoverystream.placements.spocs";
+const PREF_SPOC_COUNTS = "discoverystream.placements.spocs.counts";
 const Row = props => /*#__PURE__*/external_React_default().createElement("tr", _extends({
   className: "message-item"
 }, props), props.children);
@@ -763,7 +773,7 @@ class DiscoveryStreamAdminUI extends (external_React_default()).PureComponent {
   }
   toggleTBRFeed(e) {
     const feed = e.target.value;
-    const selectedFeed = "discoverystream.contextualContent.selectedFeed";
+    const selectedFeed = PREF_CONTEXTUAL_CONTENT_SELECTED_FEED;
     this.props.dispatch(actionCreators.SetPref(selectedFeed, feed));
   }
   idleDaily() {
@@ -789,37 +799,72 @@ class DiscoveryStreamAdminUI extends (external_React_default()).PureComponent {
       pressed,
       id
     } = e.target;
-    const billboardEnabled = this.props.otherPrefs["newtabAdSize.billboard"];
-    const leaderboardEnabled = this.props.otherPrefs["newtabAdSize.leaderboard"];
-    let spocValue;
-    let spocCount;
-    if (id === "billboard") {
-      this.props.dispatch(actionCreators.SetPref("newtabAdSize.billboard", pressed));
-      if (pressed) {
-        spocValue = `newtab_spocs, newtab_billboard${leaderboardEnabled ? ", newtab_leaderboard" : ""}`;
-        spocCount = `6,1${leaderboardEnabled ? ",1" : ""}`;
-      } else {
-        spocValue = `newtab_spocs${leaderboardEnabled ? ", newtab_leaderboard" : ""}`;
-        spocCount = `6${leaderboardEnabled ? ",1" : ""}`;
-      }
-    } else if (id === "leaderboard") {
-      this.props.dispatch(actionCreators.SetPref("newtabAdSize.leaderboard", pressed));
-      if (pressed) {
-        spocValue = `newtab_spocs, newtab_leaderboard${billboardEnabled ? ", newtab_billboard" : ""}`;
-        spocCount = `6,1${billboardEnabled ? ",1" : ""}`;
-      } else {
-        spocValue = `newtab_spocs${billboardEnabled ? ", newtab_billboard" : ""}`;
-        spocCount = `6${billboardEnabled ? ",1" : ""}`;
-      }
+
+    // Set the active pref to true/false
+    switch (id) {
+      case "newtab_billboard":
+        // Update boolean pref for billboard ad size
+        this.props.dispatch(actionCreators.SetPref(PREF_AD_SIZE_BILLBOARD, pressed));
+        break;
+      case "newtab_leaderboard":
+        // Update boolean pref for billboard ad size
+        this.props.dispatch(actionCreators.SetPref(PREF_AD_SIZE_LEADERBOARD, pressed));
+        break;
+      case "newtab_rectangle":
+        // Update boolean pref for mediumRectangle (MREC) ad size
+        this.props.dispatch(actionCreators.SetPref(PREF_AD_SIZE_MEDIUM_RECTANGLE, pressed));
+        break;
     }
-    this.props.dispatch(actionCreators.SetPref("discoverystream.placements.spocs", spocValue));
-    this.props.dispatch(actionCreators.SetPref("discoverystream.placements.spocs.counts", spocCount));
+
+    // Note: The counts array is passively updated whenever the placements array is updated.
+    // The default pref values for each are:
+    // PREF_SPOC_PLACEMENTS: "newtab_spocs"
+    // PREF_SPOC_COUNTS: "6"
+    const generateSpocPrefValues = () => {
+      const placements = this.props.otherPrefs[PREF_SPOC_PLACEMENTS]?.split(",").map(item => item.trim()).filter(item => item) || [];
+      const counts = this.props.otherPrefs[PREF_SPOC_COUNTS]?.split(",").map(item => item.trim()).filter(item => item) || [];
+
+      // Confirm that the IAB type will have a count value of "1"
+      const supportIABAdTypes = ["newtab_leaderboard", "newtab_rectangle", "newtab_billboard"];
+      let countValue;
+      if (supportIABAdTypes.includes(id)) {
+        countValue = "1"; // Default count value for all IAB ad types
+      } else {
+        throw new Error("IAB ad type not supported");
+      }
+      if (pressed) {
+        // If pressed is true, add the id to the placements array
+        if (!placements.includes(id)) {
+          placements.push(id);
+          counts.push(countValue);
+        }
+      } else {
+        // If pressed is false, remove the id from the placements array
+        const index = placements.indexOf(id);
+        if (index !== -1) {
+          placements.splice(index, 1);
+          counts.splice(index, 1);
+        }
+      }
+      return {
+        placements: placements.join(", "),
+        counts: counts.join(", ")
+      };
+    };
+    const {
+      placements,
+      counts
+    } = generateSpocPrefValues();
+
+    // Update prefs with new values
+    this.props.dispatch(actionCreators.SetPref(PREF_SPOC_PLACEMENTS, placements));
+    this.props.dispatch(actionCreators.SetPref(PREF_SPOC_COUNTS, counts));
   }
   handleSectionsToggle(e) {
     const {
       pressed
     } = e.target;
-    this.props.dispatch(actionCreators.SetPref("discoverystream.sections.enabled", pressed));
+    this.props.dispatch(actionCreators.SetPref(PREF_SECTIONS_ENABLED, pressed));
     this.props.dispatch(actionCreators.SetPref("discoverystream.sections.cards.enabled", pressed));
     this.props.dispatch(actionCreators.SetPref("discoverystream.sections.cards.thumbsUpDown.enabled", pressed));
   }
@@ -966,14 +1011,16 @@ class DiscoveryStreamAdminUI extends (external_React_default()).PureComponent {
       layout
     } = this.props.state.DiscoveryStream;
     const personalized = this.props.otherPrefs["discoverystream.personalization.enabled"];
-    const selectedFeed = this.props.otherPrefs["discoverystream.contextualContent.selectedFeed"];
-    const sectionsEnabled = this.props.otherPrefs["discoverystream.sections.enabled"];
-    const TBRFeeds = this.props.otherPrefs["discoverystream.contextualContent.feeds"].split(",").map(s => s.trim()).filter(item => item);
+    const selectedFeed = this.props.otherPrefs[PREF_CONTEXTUAL_CONTENT_SELECTED_FEED];
+    const sectionsEnabled = this.props.otherPrefs[PREF_SECTIONS_ENABLED];
+    const TBRFeeds = this.props.otherPrefs[PREF_CONTEXTUAL_CONTENT_FEEDS].split(",").map(s => s.trim()).filter(item => item);
 
     // Prefs for IAB Banners
-    const billboardsEnabled = this.props.otherPrefs["newtabAdSize.billboard"];
-    const leaderboardEnabled = this.props.otherPrefs["newtabAdSize.leaderboard"];
-    const spocPlacements = this.props.otherPrefs["discoverystream.placements.spocs"];
+    const mediumRectangleEnabled = this.props.otherPrefs[PREF_AD_SIZE_MEDIUM_RECTANGLE];
+    const billboardsEnabled = this.props.otherPrefs[PREF_AD_SIZE_BILLBOARD];
+    const leaderboardEnabled = this.props.otherPrefs[PREF_AD_SIZE_LEADERBOARD];
+    const spocPlacements = this.props.otherPrefs[PREF_SPOC_PLACEMENTS];
+    const mediumRectangleEnabledPressed = mediumRectangleEnabled && spocPlacements.includes("newtab_rectangle");
     const billboardPressed = billboardsEnabled && spocPlacements.includes("newtab_billboard");
     const leaderboardPressed = leaderboardEnabled && spocPlacements.includes("newtab_leaderboard");
     return /*#__PURE__*/external_React_default().createElement("div", null, /*#__PURE__*/external_React_default().createElement("button", {
@@ -1019,17 +1066,24 @@ class DiscoveryStreamAdminUI extends (external_React_default()).PureComponent {
     }, /*#__PURE__*/external_React_default().createElement("summary", null, "IAB Banner Ad Sizes"), /*#__PURE__*/external_React_default().createElement("div", {
       className: "toggle-wrapper"
     }, /*#__PURE__*/external_React_default().createElement("moz-toggle", {
-      id: "leaderboard",
+      id: "newtab_leaderboard",
       pressed: leaderboardPressed || null,
       onToggle: this.toggleIABBanners,
       label: "Enable IAB Leaderboard"
     })), /*#__PURE__*/external_React_default().createElement("div", {
       className: "toggle-wrapper"
     }, /*#__PURE__*/external_React_default().createElement("moz-toggle", {
-      id: "billboard",
+      id: "newtab_billboard",
       pressed: billboardPressed || null,
       onToggle: this.toggleIABBanners,
       label: "Enable IAB Billboard"
+    })), /*#__PURE__*/external_React_default().createElement("div", {
+      className: "toggle-wrapper"
+    }, /*#__PURE__*/external_React_default().createElement("moz-toggle", {
+      id: "newtab_rectangle",
+      pressed: mediumRectangleEnabledPressed || null,
+      onToggle: this.toggleIABBanners,
+      label: "Enable IAB Medium Rectangle (MREC)"
     }))), /*#__PURE__*/external_React_default().createElement("table", null, /*#__PURE__*/external_React_default().createElement("tbody", null, prefToggles.map(pref => /*#__PURE__*/external_React_default().createElement(Row, {
       key: pref
     }, /*#__PURE__*/external_React_default().createElement("td", null, /*#__PURE__*/external_React_default().createElement(TogglePrefCheckbox, {
@@ -2112,6 +2166,19 @@ const LinkMenuOptions = {
       },
     }),
   }),
+  ManageSponsoredContent: () => ({
+    id: "newtab-menu-manage-sponsored-content",
+    action: actionCreators.OnlyToMain({ type: actionTypes.SETTINGS_OPEN }),
+  }),
+  OurSponsorsAndYourPrivacy: () => ({
+    id: "newtab-menu-our-sponsors-and-your-privacy",
+    action: actionCreators.OnlyToMain({
+      type: actionTypes.OPEN_LINK,
+      data: {
+        url: "https://support.mozilla.org/kb/pocket-sponsored-stories-new-tabs",
+      },
+    }),
+  }),
 };
 
 ;// CONCATENATED MODULE: ./content-src/components/LinkMenu/LinkMenu.jsx
@@ -2137,12 +2204,15 @@ class _LinkMenu extends (external_React_default()).PureComponent {
       isPrivateBrowsingEnabled,
       siteInfo,
       platform,
+      dispatch,
+      options,
+      shouldSendImpressionStats,
       userEvent = actionCreators.UserEvent
     } = props;
 
     // Handle special case of default site
-    const propOptions = site.isDefault && !site.searchTopSite && !site.sponsored_position ? DEFAULT_SITE_MENU_OPTIONS : props.options;
-    const options = propOptions.map(o => LinkMenuOptions[o](site, index, source, isPrivateBrowsingEnabled, siteInfo, platform)).map(option => {
+    const propOptions = site.isDefault && !site.searchTopSite && !site.sponsored_position ? DEFAULT_SITE_MENU_OPTIONS : options;
+    const linkMenuOptions = propOptions.map(o => LinkMenuOptions[o](site, index, source, isPrivateBrowsingEnabled, siteInfo, platform)).map(option => {
       const {
         action,
         impression,
@@ -2169,7 +2239,7 @@ class _LinkMenu extends (external_React_default()).PureComponent {
               }
             }, action.data);
           }
-          props.dispatch(action);
+          dispatch(action);
           if (eventName) {
             const userEventData = Object.assign({
               event: eventName,
@@ -2179,10 +2249,10 @@ class _LinkMenu extends (external_React_default()).PureComponent {
                 card_type: site.flight_id ? "spoc" : "organic"
               }
             }, siteInfo);
-            props.dispatch(userEvent(userEventData));
+            dispatch(userEvent(userEventData));
           }
-          if (impression && props.shouldSendImpressionStats) {
-            props.dispatch(impression);
+          if (impression && shouldSendImpressionStats) {
+            dispatch(impression);
           }
         };
       }
@@ -2192,9 +2262,9 @@ class _LinkMenu extends (external_React_default()).PureComponent {
     // This is for accessibility to support making each item tabbable.
     // We want to know which item is the first and which item
     // is the last, so we can close the context menu accordingly.
-    options[0].first = true;
-    options[options.length - 1].last = true;
-    return options;
+    linkMenuOptions[0].first = true;
+    linkMenuOptions[linkMenuOptions.length - 1].last = true;
+    return linkMenuOptions;
   }
   render() {
     return /*#__PURE__*/external_React_default().createElement(ContextMenu, {
@@ -2296,15 +2366,16 @@ class DSLinkMenu extends (external_React_default()).PureComponent {
       index,
       dispatch
     } = this.props;
-    let pocketMenuOptions = [];
-    let TOP_STORIES_CONTEXT_MENU_OPTIONS = ["OpenInNewWindow", "OpenInPrivateWindow"];
-    if (!this.props.isRecentSave) {
-      // Show Pocket context menu options if applicable.
-      // Additionally, show these menu options for all section cards.
-      if (this.props.pocket_button_enabled && (this.props.saveToPocketCard || this.props.isSectionsCard) && this.props.card_type !== "spoc") {
-        pocketMenuOptions = ["CheckSavedToPocket"];
-      }
-      TOP_STORIES_CONTEXT_MENU_OPTIONS = ["CheckBookmark", "CheckArchiveFromPocket", ...pocketMenuOptions, "Separator", "OpenInNewWindow", "OpenInPrivateWindow", "Separator", "BlockUrl", ...(this.props.showPrivacyInfo ? ["ShowPrivacyInfo"] : [])];
+    let TOP_STORIES_CONTEXT_MENU_OPTIONS;
+
+    // Sponsored stories have their own context menu options.
+    if (this.props.card_type === "spoc") {
+      TOP_STORIES_CONTEXT_MENU_OPTIONS = ["BlockUrl", "ManageSponsoredContent", "OurSponsorsAndYourPrivacy"];
+      // Recommended stories have a different context menu.
+    } else {
+      // If Pocket is enabled, insert extra menu options after the bookmark.
+      const saveToPocketOptions = this.props.pocket_button_enabled ? ["CheckArchiveFromPocket", "CheckSavedToPocket"] : [];
+      TOP_STORIES_CONTEXT_MENU_OPTIONS = ["CheckBookmark", ...saveToPocketOptions, "Separator", "OpenInNewWindow", "OpenInPrivateWindow", "Separator", "BlockUrl"];
     }
     const type = this.props.type || "DISCOVERY_STREAM";
     const title = this.props.title || this.props.source;
@@ -4084,7 +4155,7 @@ const PREF_FAKESPOT_CATEGROY = "discoverystream.contextualContent.fakespot.defau
 const PREF_FAKESPOT_FOOTER = "discoverystream.contextualContent.fakespot.footerCopy";
 const PREF_FAKESPOT_CTA_COPY = "discoverystream.contextualContent.fakespot.ctaCopy";
 const PREF_FAKESPOT_CTA_URL = "discoverystream.contextualContent.fakespot.ctaUrl";
-const PREF_CONTEXTUAL_CONTENT_SELECTED_FEED = "discoverystream.contextualContent.selectedFeed";
+const ListFeed_PREF_CONTEXTUAL_CONTENT_SELECTED_FEED = "discoverystream.contextualContent.selectedFeed";
 function ListFeed({
   type,
   firstVisibleTimestamp,
@@ -4099,7 +4170,7 @@ function ListFeed({
   const footerCopy = prefs[PREF_FAKESPOT_FOOTER];
   const ctaCopy = prefs[PREF_FAKESPOT_CTA_COPY];
   const ctaUrl = prefs[PREF_FAKESPOT_CTA_URL];
-  const isFakespot = prefs[PREF_CONTEXTUAL_CONTENT_SELECTED_FEED] === "fakespot";
+  const isFakespot = prefs[ListFeed_PREF_CONTEXTUAL_CONTENT_SELECTED_FEED] === "fakespot";
   // Todo: need to remove ads while using default recommendations, remove this line once API has been updated.
   let listFeedRecs = selectedFakespotFeed ? recs.filter(rec => rec.category === selectedFakespotFeed) : recs;
   function handleCtaClick() {
@@ -12409,8 +12480,33 @@ function LocationSearch({
 
 
 
+
 const Weather_VISIBLE = "visible";
 const Weather_VISIBILITY_CHANGE_EVENT = "visibilitychange";
+function WeatherPlaceholder() {
+  const [isSeen, setIsSeen] = (0,external_React_namespaceObject.useState)(false);
+
+  // We are setting up a visibility and intersection event
+  // so animations don't happen with headless automation.
+  // The animations causes tests to fail beause they never stop,
+  // and many tests wait until everything has stopped before passing.
+  const ref = useIntersectionObserver(() => setIsSeen(true), 1);
+  const isSeenClassName = isSeen ? `placeholder-seen` : ``;
+  return /*#__PURE__*/external_React_default().createElement("div", {
+    className: `weather weather-placeholder ${isSeenClassName}`,
+    ref: el => {
+      ref.current = [el];
+    }
+  }, /*#__PURE__*/external_React_default().createElement("div", {
+    className: "placeholder-image placeholder-fill"
+  }), /*#__PURE__*/external_React_default().createElement("div", {
+    className: "placeholder-context"
+  }, /*#__PURE__*/external_React_default().createElement("div", {
+    className: "placeholder-header placeholder-fill"
+  }), /*#__PURE__*/external_React_default().createElement("div", {
+    className: "placeholder-description placeholder-fill"
+  })));
+}
 class _Weather extends (external_React_default()).PureComponent {
   constructor(props) {
     super(props);
@@ -12554,8 +12650,11 @@ class _Weather extends (external_React_default()).PureComponent {
   render() {
     // Check if weather should be rendered
     const isWeatherEnabled = this.props.Prefs.values["system.showWeather"];
-    if (!isWeatherEnabled || !this.props.Weather.initialized) {
+    if (!isWeatherEnabled) {
       return false;
+    }
+    if (!this.props.Weather.initialized) {
+      return /*#__PURE__*/external_React_default().createElement(WeatherPlaceholder, null);
     }
     const {
       showContextMenu
@@ -12564,22 +12663,17 @@ class _Weather extends (external_React_default()).PureComponent {
       props
     } = this;
     const {
-      className,
-      index,
       dispatch,
-      eventSource,
-      shouldSendImpressionStats,
       Prefs,
       Weather
     } = props;
     const WEATHER_SUGGESTION = Weather.suggestions?.[0];
-    const isContextMenuOpen = this.state.activeCard === index;
-    const outerClassName = ["weather", className, isContextMenuOpen && !Weather.searchActive && "active", props.placeholder && "placeholder", Weather.searchActive && "search"].filter(v => v).join(" ");
+    const outerClassName = ["weather", Weather.searchActive && "search"].filter(v => v).join(" ");
     const showDetailedView = Prefs.values["weather.display"] === "detailed";
 
     // Note: The temperature units/display options will become secondary menu items
-    const WEATHER_SOURCE_CONTEXT_MENU_OPTIONS = [...(this.props.Prefs.values["weather.locationSearchEnabled"] ? ["ChangeWeatherLocation"] : []), ...(this.props.Prefs.values["weather.temperatureUnits"] === "f" ? ["ChangeTempUnitCelsius"] : ["ChangeTempUnitFahrenheit"]), ...(this.props.Prefs.values["weather.display"] === "simple" ? ["ChangeWeatherDisplayDetailed"] : ["ChangeWeatherDisplaySimple"]), "HideWeather", "OpenLearnMoreURL"];
-    const WEATHER_SOURCE_ERROR_CONTEXT_MENU_OPTIONS = [...(this.props.Prefs.values["weather.locationSearchEnabled"] ? ["ChangeWeatherLocation"] : []), "HideWeather", "OpenLearnMoreURL"];
+    const WEATHER_SOURCE_CONTEXT_MENU_OPTIONS = [...(Prefs.values["weather.locationSearchEnabled"] ? ["ChangeWeatherLocation"] : []), ...(Prefs.values["weather.temperatureUnits"] === "f" ? ["ChangeTempUnitCelsius"] : ["ChangeTempUnitFahrenheit"]), ...(Prefs.values["weather.display"] === "simple" ? ["ChangeWeatherDisplayDetailed"] : ["ChangeWeatherDisplaySimple"]), "HideWeather", "OpenLearnMoreURL"];
+    const WEATHER_SOURCE_ERROR_CONTEXT_MENU_OPTIONS = [...(Prefs.values["weather.locationSearchEnabled"] ? ["ChangeWeatherLocation"] : []), "HideWeather", "OpenLearnMoreURL"];
     const contextMenu = contextOpts => /*#__PURE__*/external_React_default().createElement("div", {
       className: "weatherButtonContextMenuWrapper"
     }, /*#__PURE__*/external_React_default().createElement("button", {
@@ -12590,15 +12684,15 @@ class _Weather extends (external_React_default()).PureComponent {
       className: "weatherButtonContextMenu"
     }, showContextMenu ? /*#__PURE__*/external_React_default().createElement(LinkMenu, {
       dispatch: dispatch,
-      index: index,
-      source: eventSource,
+      index: 0,
+      source: "WEATHER",
       onUpdate: this.onUpdate,
       options: contextOpts,
       site: {
         url: "https://support.mozilla.org/kb/customize-items-on-firefox-new-tab-page"
       },
       link: "https://support.mozilla.org/kb/customize-items-on-firefox-new-tab-page",
-      shouldSendImpressionStats: shouldSendImpressionStats
+      shouldSendImpressionStats: false
     }) : null));
     if (Weather.searchActive) {
       return /*#__PURE__*/external_React_default().createElement(LocationSearch, {
@@ -12626,7 +12720,7 @@ class _Weather extends (external_React_default()).PureComponent {
         className: "weatherForecastRow"
       }, /*#__PURE__*/external_React_default().createElement("span", {
         className: "weatherTemperature"
-      }, WEATHER_SUGGESTION.current_conditions.temperature[this.props.Prefs.values["weather.temperatureUnits"]], "\xB0", this.props.Prefs.values["weather.temperatureUnits"])), /*#__PURE__*/external_React_default().createElement("div", {
+      }, WEATHER_SUGGESTION.current_conditions.temperature[Prefs.values["weather.temperatureUnits"]], "\xB0", Prefs.values["weather.temperatureUnits"])), /*#__PURE__*/external_React_default().createElement("div", {
         className: "weatherCityRow"
       }, /*#__PURE__*/external_React_default().createElement("span", {
         className: "weatherCity"
@@ -12634,7 +12728,7 @@ class _Weather extends (external_React_default()).PureComponent {
         className: "weatherDetailedSummaryRow"
       }, /*#__PURE__*/external_React_default().createElement("div", {
         className: "weatherHighLowTemps"
-      }, /*#__PURE__*/external_React_default().createElement("span", null, WEATHER_SUGGESTION.forecast.high[this.props.Prefs.values["weather.temperatureUnits"]], "\xB0", this.props.Prefs.values["weather.temperatureUnits"]), /*#__PURE__*/external_React_default().createElement("span", null, "\u2022"), /*#__PURE__*/external_React_default().createElement("span", null, WEATHER_SUGGESTION.forecast.low[this.props.Prefs.values["weather.temperatureUnits"]], "\xB0", this.props.Prefs.values["weather.temperatureUnits"])), /*#__PURE__*/external_React_default().createElement("span", {
+      }, /*#__PURE__*/external_React_default().createElement("span", null, WEATHER_SUGGESTION.forecast.high[Prefs.values["weather.temperatureUnits"]], "\xB0", Prefs.values["weather.temperatureUnits"]), /*#__PURE__*/external_React_default().createElement("span", null, "\u2022"), /*#__PURE__*/external_React_default().createElement("span", null, WEATHER_SUGGESTION.forecast.low[Prefs.values["weather.temperatureUnits"]], "\xB0", Prefs.values["weather.temperatureUnits"])), /*#__PURE__*/external_React_default().createElement("span", {
         className: "weatherTextSummary"
       }, WEATHER_SUGGESTION.current_conditions.summary)) : null)), contextMenu(WEATHER_SOURCE_CONTEXT_MENU_OPTIONS)), /*#__PURE__*/external_React_default().createElement("span", {
         className: "weatherSponsorText"
