@@ -161,7 +161,7 @@ skip-if = ["os == 'win'"]
 skip-if = ["os == 'win'"]
 
 ["browser_dbg-preview-switch.js"]
-fail-if = ["a11y_checks"] # Bug 1849028 Node is not focusable via the accessibility API
+skip-if = ["a11y_checks"] # Bug 1849028 .theme-twisty is inconsistently not accessible
 
 ["browser_dbg-preview-wrapped-lines.js"]
 fail-if = ["a11y_checks"] # Bug 1860733 splitter element is not focusable
@@ -289,6 +289,9 @@ fail-if = ["a11y_checks"] # Bug 1849028 clicked element may not be focusable and
 ["browser_dbg-sources-project-search.js"]
 
 ["browser_dbg-state-based-panels.js"]
+skip-if = [
+ "os == 'mac' && os_version == '14.70' && processor == 'x86_64' && opt", # Bug 1783639
+]
 
 ["browser_dbg-step-in-navigate.js"]
 
