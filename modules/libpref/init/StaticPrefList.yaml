@@ -14588,7 +14588,7 @@
 # true.
 - name: network.http.http3.ecn
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
   rust: true
 
@@ -16020,6 +16020,14 @@
   type: uint32_t
   value: 2
   mirror: always
+
+#ifdef DEBUG
+# Crash on CSP violations on internal pages (i.e. chrome:)
+- name: security.csp.testing.allow_internal_csp_violation
+  type: bool
+  value: false
+  mirror: always
+#endif
 
 # If true, all toplevel data: URI navigations will be blocked.
 # Please note that manually entering a data: URI in the

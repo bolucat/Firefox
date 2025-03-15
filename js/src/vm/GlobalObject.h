@@ -381,10 +381,22 @@ class GlobalObject : public NativeObject {
     return data().builtinConstructors[protoKey].constructor;
   }
 
+  template <typename T>
+  T* maybeGetConstructor(JSProtoKey protoKey) const {
+    JSObject* ctor = maybeGetConstructor(protoKey);
+    return ctor ? &ctor->as<T>() : nullptr;
+  }
+
   JSObject* maybeGetPrototype(JSProtoKey protoKey) const {
     MOZ_ASSERT(JSProto_Null < protoKey);
     MOZ_ASSERT(protoKey < JSProto_LIMIT);
     return data().builtinConstructors[protoKey].prototype;
+  }
+
+  template <typename T>
+  T* maybeGetPrototype(JSProtoKey protoKey) const {
+    JSObject* proto = maybeGetPrototype(protoKey);
+    return proto ? &proto->as<T>() : nullptr;
   }
 
   static bool maybeResolveGlobalThis(JSContext* cx,
@@ -1172,9 +1184,21 @@ JSObject* GenericCreatePrototype(JSContext* cx, JSProtoKey key) {
   return GlobalObject::createBlankPrototype(cx, cx->global(), &T::protoClass_);
 }
 
-inline bool GenericFinishInitWithPrototypeFuseProperty(JSContext* cx,
-                                                       HandleObject ctor,
-                                                       HandleObject proto) {
+// Which object(s) should be marked as having a fuse property in
+// GenericFinishInit.
+enum class WhichHasFuseProperty {
+  Proto,
+  ProtoAndCtor,
+};
+
+template <WhichHasFuseProperty FuseProperty>
+inline bool GenericFinishInit(JSContext* cx, HandleObject ctor,
+                              HandleObject proto) {
+  if constexpr (FuseProperty == WhichHasFuseProperty::ProtoAndCtor) {
+    if (!JSObject::setHasFuseProperty(cx, ctor)) {
+      return false;
+    }
+  }
   return JSObject::setHasFuseProperty(cx, proto);
 }
 

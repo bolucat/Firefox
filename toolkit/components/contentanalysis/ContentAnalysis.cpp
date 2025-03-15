@@ -24,6 +24,7 @@
 #include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/dom/WindowGlobalParent.h"
 #include "mozilla/Logging.h"
+#include "mozilla/media/MediaUtils.h"
 #include "mozilla/ScopeExit.h"
 #include "mozilla/Services.h"
 #include "mozilla/SpinEventLoopUntil.h"
@@ -332,6 +333,19 @@ ContentAnalysisRequest::GetDataTransfer(
   return NS_OK;
 }
 
+NS_IMETHODIMP
+ContentAnalysisRequest::GetTimeoutMultiplier(uint32_t* aTimeoutMultiplier) {
+  NS_ENSURE_ARG_POINTER(aTimeoutMultiplier);
+  *aTimeoutMultiplier = mTimeoutMultiplier;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+ContentAnalysisRequest::SetTimeoutMultiplier(uint32_t aTimeoutMultiplier) {
+  mTimeoutMultiplier = aTimeoutMultiplier;
+  return NS_OK;
+}
+
 nsresult ContentAnalysis::CreateContentAnalysisClient(
     nsCString&& aPipePathName, nsString&& aClientSignatureSetting,
     bool aIsPerUser) {
@@ -597,7 +611,16 @@ static nsresult ConvertToProtobuf(
   // Non-positive timeout values indicate testing, and the test agent does not
   // care about this value.
   timeout = std::max(timeout, 1);
-  aOut->set_expires_at(time(nullptr) + timeout * userActionRequestsCount);
+  uint32_t timeoutMultiplier;
+  rv = aIn->GetTimeoutMultiplier(&timeoutMultiplier);
+  NS_ENSURE_SUCCESS(rv, rv);
+  timeoutMultiplier = std::max(timeoutMultiplier, static_cast<uint32_t>(1));
+  auto checkedTimeout = CheckedInt64(time(nullptr)) +
+                        timeout * userActionRequestsCount * timeoutMultiplier;
+  if (!checkedTimeout.isValid()) {
+    return NS_ERROR_FAILURE;
+  }
+  aOut->set_expires_at(checkedTimeout.value());
 
   const std::string tag = "dlp";  // TODO:
   *aOut->add_tags() = tag;
@@ -1207,7 +1230,9 @@ NS_IMPL_ISUPPORTS(ContentAnalysisDiagnosticInfo,
 NS_IMPL_ISUPPORTS(ContentAnalysis, nsIContentAnalysis, ContentAnalysis);
 
 ContentAnalysis::ContentAnalysis()
-    : mCaClientPromise(
+    : mRequestTokenToUserActionIdMap(
+          "ContentAnalysis::mRequestTokenToUserActionIdMap"),
+      mCaClientPromise(
           new ClientPromise::Private("ContentAnalysis::ContentAnalysis")),
       mSetByEnterprise(false) {}
 
@@ -1775,7 +1800,7 @@ nsresult ContentAnalysis::RunAnalyzeRequestTask(
       })
       ->Then(
           GetMainThreadSerialEventTarget(), __func__,
-          [userActionId, aAutoAcknowledge](
+          [aAutoAcknowledge](
               std::shared_ptr<content_analysis::sdk::ContentAnalysisResponse>
                   aResponse) mutable {
             AssertIsOnMainThread();
@@ -1790,6 +1815,24 @@ nsresult ContentAnalysis::RunAnalyzeRequestTask(
               // May be shutting down
               return;
             }
+
+            // Note that the response we got may be for a different request, so
+            // look up the user action id again.
+            Maybe<nsCString> maybeUserActionId;
+            {
+              auto map = owner->mRequestTokenToUserActionIdMap.Lock();
+              maybeUserActionId =
+                  map->Extract(nsCString(aResponse->request_token()));
+            }
+            if (maybeUserActionId.isNothing()) {
+              LOGE(
+                  "RunAnalyzeRequestTask could not find userActionId for "
+                  "request token %s",
+                  aResponse->request_token().c_str());
+              // We have no hope of doing anything useful, so just early return.
+              return;
+            }
+            nsCString userActionId = maybeUserActionId.valueOr(nsCString());
 
             RefPtr<ContentAnalysisResponse> response =
                 ContentAnalysisResponse::FromProtobuf(std::move(*aResponse),
@@ -1813,7 +1856,10 @@ nsresult ContentAnalysis::RunAnalyzeRequestTask(
                 response, std::move(userActionId), aAutoAcknowledge);
           },
           [userActionId, requestToken](nsresult rv) mutable {
-            LOGD("RunAnalyzeRequestTask failed to get client a second time");
+            LOGD(
+                "RunAnalyzeRequestTask failed to get client a second time for "
+                "requestToken=%s, userActionId=%s",
+                requestToken.get(), userActionId.get());
             RefPtr<ContentAnalysis> owner = GetContentAnalysisFromService();
             if (!owner) {
               // May be shutting down
@@ -1864,8 +1910,21 @@ ContentAnalysis::DoAnalyzeRequest(
   // Run request, then dispatch back to main thread to resolve
   // aCallback
   content_analysis::sdk::ContentAnalysisResponse pbResponse;
+  {
+    // Insert this into the map before calling Send() because another thread
+    // calling Send() may get a response before our Send() call finishes.
+    auto map = owner->mRequestTokenToUserActionIdMap.Lock();
+    map->InsertOrUpdate(nsCString(aRequest.request_token()), aUserActionId);
+  }
   int err = aClient->Send(aRequest, &pbResponse);
   if (err != 0) {
+    LOGE("DoAnalyzeRequest got err=%d for request_token=%s, user_action_id=%s",
+         err, aRequest.request_token().c_str(), aUserActionId.get());
+    {
+      auto map = owner->mRequestTokenToUserActionIdMap.Lock();
+      map->Remove(nsCString(aRequest.request_token()));
+    }
+
     return Err(NS_ERROR_FAILURE);
   }
   return std::make_shared<content_analysis::sdk::ContentAnalysisResponse>(
@@ -2302,7 +2361,7 @@ void ContentAnalysis::MultipartRequestCallback::Initialize(
             RefPtr result = MakeRefPtr<ContentAnalysisActionResult>(
                 nsIContentAnalysisResponse::Action::eCanceled);
             mCallback->ContentResult(result);
-
+            mResponded = true;
             return;
           }
         }
@@ -2890,6 +2949,11 @@ ContentAnalysis::AnalyzeContentRequestsCallback(
         }
         RefPtr<MultipartRequestCallback> mpcb =
             MultipartRequestCallback::Create(weakThis, aRequests, safeCallback);
+        if (mpcb->HasResponded()) {
+          // Already responded because the request has been canceled already
+          // (or some other error)
+          return;
+        }
 
         for (const auto& requests : aRequests) {
           for (const auto& request : requests) {
@@ -3427,6 +3491,143 @@ bool ContentAnalysis::CheckClipboardContentAnalysisSync(
   mozilla::SpinEventLoopUntil("CheckClipboardContentAnalysisSync"_ns,
                               [&requestDone]() -> bool { return requestDone; });
   return result;
+}
+
+RefPtr<ContentAnalysis::FilesAllowedPromise>
+ContentAnalysis::CheckFilesInBatchMode(
+    nsCOMArray<nsIFile>&& aFiles, mozilla::dom::WindowGlobalParent* aWindow,
+    nsIContentAnalysisRequest::Reason aReason, nsIURI* aURI /* = nullptr */) {
+  nsresult rv;
+  nsCOMPtr<nsIContentAnalysis> contentAnalysis =
+      mozilla::components::nsIContentAnalysis::Service(&rv);
+  // Ideally the caller would check all of this before going through the work
+  // of building up aFiles, but we'll double-check here.
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return FilesAllowedPromise::CreateAndReject(rv, __func__);
+  }
+  bool contentAnalysisIsActive = false;
+  rv = contentAnalysis->GetIsActive(&contentAnalysisIsActive);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return FilesAllowedPromise::CreateAndReject(rv, __func__);
+  }
+  if (!contentAnalysisIsActive) {
+    return FilesAllowedPromise::CreateAndResolve(std::move(aFiles), __func__);
+  }
+
+  auto numberOfRequestsLeft = std::make_shared<size_t>(aFiles.Length());
+  auto allowedFiles = MakeRefPtr<media::Refcountable<nsCOMArray<nsIFile>>>();
+  auto userActionIds = MakeRefPtr<media::Refcountable<nsTArray<nsCString>>>();
+  auto promise = MakeRefPtr<FilesAllowedPromise::Private>(__func__);
+  nsCOMPtr<nsIURI> uri;
+  if (aWindow) {
+    uri = aWindow->GetDocumentURI();
+    // Clients should only pass aURI if they're not passing aWindow.
+    MOZ_ASSERT(!aURI);
+  } else {
+    // Should only be used in tests
+    uri = aURI;
+  }
+  for (auto* file : aFiles) {
+#ifdef XP_WIN
+    nsString pathString(file->NativePath());
+#else
+    nsString pathString = NS_ConvertUTF8toUTF16(file->NativePath());
+#endif
+
+    RefPtr<nsIContentAnalysisRequest> request =
+        new mozilla::contentanalysis::ContentAnalysisRequest(
+            nsIContentAnalysisRequest::AnalysisType::eFileAttached, aReason,
+            pathString, true /* aStringIsFilePath */, EmptyCString(), uri,
+            nsIContentAnalysisRequest::OperationType::eCustomDisplayString,
+            aWindow);
+    nsCString userActionId = GenerateUUID();
+    MOZ_ALWAYS_SUCCEEDS(request->SetUserActionId(userActionId));
+    userActionIds->AppendElement(userActionId);
+
+    // For requests with the same userActionId, we multiply the timeout by the
+    // number of requests to make sure the agent has enough time to handle all
+    // of them. However, in this case we're using separate userActionIds for
+    // each of these files to get the batch mode behavior, so set a timeout
+    // multiplier to get the correct timeout.
+    //
+    // Note that this could theoretically be wrong, because if one of these
+    // files is actually a folder this could expand into many more requests, and
+    // using aFiles.Count() will undercount the total number of requests. But in
+    // practice, from the Windows file dialog users can only select multiple
+    // individual files that are not folders, or one single folder.
+    request->SetTimeoutMultiplier(static_cast<uint32_t>(aFiles.Count()));
+    nsTArray<RefPtr<nsIContentAnalysisRequest>> singleRequest{
+        std::move(request)};
+    auto callback =
+        mozilla::MakeRefPtr<mozilla::contentanalysis::ContentAnalysisCallback>(
+            // Note that this gets coerced to a std::function<>, which means it
+            // has to be copyable, so everything captured here must be copyable,
+            // which is why allowedFiles needs to be wrapped in a RefPtr and not
+            // simply std::move()d.
+            [promise, allowedFiles, numberOfRequestsLeft, userActionIds,
+             file = RefPtr{file}](nsIContentAnalysisResult* aResult) {
+              // Since we're on the main thread, don't need to synchronize
+              // access to allowedFiles or numberOfRequestsLeft
+              AssertIsOnMainThread();
+              nsCOMPtr<nsIContentAnalysisResponse> response =
+                  do_QueryInterface(aResult);
+              LOGD(
+                  "Processing callback for batched file request, "
+                  "numberOfRequestsLeft=%zu",
+                  *(numberOfRequestsLeft.get()));
+              if (response && response->GetAction() ==
+                                  nsIContentAnalysisResponse::eCanceled) {
+                // This was cancelled, so even if some other files have been
+                // allowed we want to return an empty result.
+                LOGD("Batched file request got cancel response");
+                RefPtr<ContentAnalysis> owner = GetContentAnalysisFromService();
+                if (owner) {
+                  // Some of these may have finished already, but that's OK.
+                  // Clear the userActionIds array so we only cancel these once.
+                  nsTArray<nsCString> localUserActionIds;
+                  userActionIds->SwapElements(localUserActionIds);
+                  for (const nsCString& userActionId : localUserActionIds) {
+                    owner->CancelRequestsByUserAction(userActionId);
+                  }
+                }
+                nsCOMArray<nsIFile> emptyFiles;
+                // Note that Resolve() will do nothing if the promise has
+                // already been resolved.
+                promise->Resolve(std::move(emptyFiles), __func__);
+              }
+              if (aResult->GetShouldAllowContent()) {
+                allowedFiles->AppendElement(file);
+              }
+              (*numberOfRequestsLeft)--;
+              if (*numberOfRequestsLeft == 0) {
+                promise->Resolve(std::move(*allowedFiles), __func__);
+              }
+            },
+            [promise, userActionIds](nsresult aError) {
+              // cancel all requests
+              AssertIsOnMainThread();
+              LOGE("Batched file request got error %s",
+                   SafeGetStaticErrorName(aError));
+              RefPtr<ContentAnalysis> owner = GetContentAnalysisFromService();
+              if (owner) {
+                // Some of these may have finished already, but that's OK.
+                // Clear the userActionIds array so we only cancel these once.
+                nsTArray<nsCString> localUserActionIds;
+                userActionIds->SwapElements(localUserActionIds);
+                for (const nsCString& userActionId : localUserActionIds) {
+                  owner->CancelRequestsByUserAction(userActionId);
+                }
+              }
+              nsCOMArray<nsIFile> emptyFiles;
+              // Note that Resolve() will do nothing if the promise has already
+              // been resolved.
+              promise->Resolve(std::move(emptyFiles), __func__);
+            });
+    contentAnalysis->AnalyzeContentRequestsCallback(singleRequest, true,
+                                                    callback);
+  }
+
+  return promise;
 }
 
 NS_IMETHODIMP

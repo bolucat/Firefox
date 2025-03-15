@@ -918,6 +918,20 @@ const AVAILABLE_SHIMS = [
     onlyIfDFPIActive: true,
   },
   {
+    id: "StackOverflowLogin",
+    platform: "all",
+    name: "StackOverflow Login",
+    bug: "1949491",
+    contentScripts: [
+      {
+        js: "stackoverflow-login.js",
+        matches: ["*://stackoverflow.com/*"],
+        runAt: "document_start",
+      },
+    ],
+    onlyIfDFPIActive: true,
+  },
+  {
     id: "emeraude.my.salesforce.com",
     platform: "all",
     name: "Salesforce IndexedDB Script Access",
@@ -988,6 +1002,28 @@ const AVAILABLE_SHIMS = [
     file: "botd.mjs",
     matches: ["*://openfpcdn.io/botd/v1"],
     onlyIfBlockedByETP: true,
+  },
+  {
+    id: "SteamLogin",
+    platform: "all",
+    name: "Steam Login Shim",
+    bug: "1938299",
+    requestStorageAccessForRedirect: [
+      // allow cookies for *.steampowered.com <-> steamcommunity.com
+      ["*://store.steampowered.com/*", "*://steamcommunity.com/*"],
+      ["*://steamcommunity.com/*", "*://store.steampowered.com/*"],
+      ["*://help.steampowered.com/*", "*://steamcommunity.com/*"],
+      ["*://steamcommunity.com/*", "*://help.steampowered.com/*"],
+      ["*://checkout.steampowered.com/*", "*://steamcommunity.com/*"],
+      ["*://steamcommunity.com/*", "*://checkout.steampowered.com/*"],
+      // allow cookies for *.steampowered.com <-> steam.tv
+      ["*://store.steampowered.com/*", "*://steam.tv/*"],
+      ["*://steam.tv/*", "*://store.steampowered.com/*"],
+      ["*://help.steampowered.com/*", "*://steam.tv/*"],
+      ["*://steam.tv/*", "*://help.steampowered.com/*"],
+      ["*://checkout.steampowered.com/*", "*://steam.tv/*"],
+      ["*://steam.tv/*", "*://checkout.steampowered.com/*"],
+    ],
   },
 ];
 
