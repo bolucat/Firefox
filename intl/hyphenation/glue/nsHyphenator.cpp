@@ -10,6 +10,7 @@
 #include "mozilla/ipc/SharedMemoryHandle.h"
 #include "mozilla/ipc/SharedMemoryMapping.h"
 #include "nsContentUtils.h"
+#include "nsEscape.h"
 #include "nsIChannel.h"
 #include "nsIFile.h"
 #include "nsIFileURL.h"
@@ -274,6 +275,9 @@ nsHyphenator::nsHyphenator(nsIURI* aURI, bool aHyphenateCapitalized)
       path.Cut(0, 1);
     }
 #endif
+    // In case of %-escaped spaces or other "special" chars in the path,
+    // we need the unescaped version to pass to mapped_hyph_load_dictionary.
+    NS_UnescapeURL(path);
     if (precompiled) {
       // If the file is compiled, we can just map it directly.
       UniquePtr<const HyphDic> dic(mapped_hyph_load_dictionary(path.get()));
@@ -310,7 +314,7 @@ nsHyphenator::nsHyphenator(nsIURI* aURI, bool aHyphenateCapitalized)
 
 bool nsHyphenator::IsValid() {
   return mDict.match(
-      [](Span<const uint8_t>& span) { return span.data() != nullptr; },
+      [](Span<const uint8_t>& span) { return !span.IsEmpty(); },
       [](ipc::ReadOnlySharedMemoryHandle& shm) { return shm.IsValid(); },
       [](ipc::ReadOnlySharedMemoryMapping& shm) { return shm.IsValid(); },
       [](UniquePtr<const HyphDic>& hyph) { return hyph != nullptr; });

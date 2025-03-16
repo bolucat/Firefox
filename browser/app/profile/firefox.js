@@ -1841,6 +1841,10 @@ pref("browser.newtabpage.activity-stream.newtabWallpapers.v2.enabled", true);
 pref("browser.newtabpage.activity-stream.newtabWallpapers.customColor.enabled", false);
 pref("browser.newtabpage.activity-stream.newtabWallpapers.customWallpaper.enabled", false);
 
+// Utility preferences for custom wallpaper upload
+pref("browser.newtabpage.activity-stream.newtabWallpapers.customWallpaper.uuid", "");
+pref("browser.newtabpage.activity-stream.newtabWallpapers.customWallpaper.fileSize", 0);
+
 // Current new tab page background images.
 pref("browser.newtabpage.activity-stream.newtabWallpapers.wallpaper", "");
 
@@ -2125,6 +2129,7 @@ pref("browser.ml.chat.sidebar", true);
 
 // Whether link preview feature should be active
 pref("browser.ml.linkPreview.enabled", false);
+pref("browser.ml.linkPreview.outputSentences", 3);
 
 // Block insecure active content on https pages
 pref("security.mixed_content.block_active_content", true);
@@ -2537,8 +2542,12 @@ pref("browser.tabs.unloadTabInContextMenu", false);
 #endif
 
 // Whether unloaded tabs (either from session restore or because
-// they are explicitly unloaded) are faded out in the tab bar
+// they are explicitly unloaded) are faded out in the tab bar.
 pref("browser.tabs.fadeOutUnloadedTabs", false);
+
+// Whether tabs that have been explicitly unloaded
+// are faded out in the tab bar.
+pref("browser.tabs.fadeOutExplicitlyUnloadedTabs", false);
 
 // If true, unprivileged extensions may use experimental APIs on
 // nightly and developer edition.

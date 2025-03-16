@@ -5850,6 +5850,8 @@ Result<Ok, nsresult> QuotaManager::EnsureTemporaryGroupIsInitializedInternal(
 
   const auto innerFunc = [&aPrincipalMetadata,
                           this](const auto&) -> mozilla::Result<Ok, nsresult> {
+    NotifyGroupInitializationStarted(*this);
+
     const auto& array =
         mIOThreadAccessible.Access()->mAllTemporaryOrigins.Lookup(
             aPrincipalMetadata.mGroup);
@@ -5883,6 +5885,9 @@ Result<Ok, nsresult> QuotaManager::EnsureTemporaryGroupIsInitializedInternal(
     }
 
     // XXX Evict origins that exceed their group limit here.
+
+    SleepIfEnabled(
+        StaticPrefs::dom_quotaManager_groupInitialization_pauseOnIOThreadMs());
 
     return Ok{};
   };

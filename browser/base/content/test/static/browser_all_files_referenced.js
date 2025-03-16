@@ -109,7 +109,11 @@ var gExceptionPaths = [
   // The picture-in-picture add-on.
   "resource://builtin-addons/pictureinpicture/",
 
+  // The formautofill add-on.
+  "resource://builtin-addons/formautofill/",
+
   // The newtab add-on
+  "resource://builtin-addons/newtab/",
   "resource://newtab/",
   "chrome://newtab/",
 ];

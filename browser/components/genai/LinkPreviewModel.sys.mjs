@@ -13,7 +13,6 @@ const CHARACTERS_PER_TOKEN = 3.5;
 // robustness and handle edge cases, we use a more conservative factor of 0.69.
 const CONTEXT_SIZE_MULTIPLIER = 0.69;
 const DEFAULT_INPUT_SENTENCES = 6;
-const DEFAULT_OUTPUT_SENTENCES = 3;
 const MIN_SENTENCE_LENGTH = 14;
 const MIN_WORD_COUNT = 5;
 
@@ -36,14 +35,13 @@ XPCOMUtils.defineLazyPreferenceGetter(
 XPCOMUtils.defineLazyPreferenceGetter(
   lazy,
   "outputSentences",
-  "browser.ml.linkPreview.outputSentences",
-  DEFAULT_OUTPUT_SENTENCES
+  "browser.ml.linkPreview.outputSentences"
 );
 XPCOMUtils.defineLazyPreferenceGetter(
   lazy,
   "prompt",
   "browser.ml.linkPreview.prompt",
-  "You're an AI assistant for text re-writing. Rephrase concisely using your own words while preserving its core meaning."
+  "Provide a concise, objective summary of the input text in up to three sentences, focusing on key actions and intentions without using second or third person pronouns."
 );
 
 export const LinkPreviewModel = {
@@ -202,7 +200,22 @@ export const LinkPreviewModel = {
   preprocessText(text) {
     return (
       this.getSentences(text)
-        .map(s => s.trim())
+        .map(s =>
+          // trim and replace consecutive blank by a single one.
+          s.trim().replace(
+            /(\s*\n\s*)|\s{2,}/g,
+            // (\s*\n\s*)  -> Matches a newline (`\n`) surrounded by optional whitespace.
+            // \s{2,}      -> Matches two or more consecutive spaces.
+            // g           -> Global flag to replace all occurrences in the string.
+
+            (_, newline) => (newline ? "\n" : " ")
+            // Callback function:
+            // `_`         -> First argument (full match) is ignored.
+            // `newline`   -> If the first capturing group (\s*\n\s*) matched, `newline` is truthy.
+            // If `newline` exists, it replaces the match with a single newline ("\n").
+            // Otherwise, it replaces the match (extra spaces) with a single space (" ").
+          )
+        )
         // Remove sentences that are too short without punctuation.
         .filter(
           s =>
