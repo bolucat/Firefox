@@ -726,7 +726,7 @@ class HTMLEditor final : public EditorBase,
    * NotifyEditingHostMaybeChanged() is called when new element becomes
    * contenteditable when the document already had contenteditable elements.
    */
-  void NotifyEditingHostMaybeChanged();
+  MOZ_CAN_RUN_SCRIPT void NotifyEditingHostMaybeChanged();
 
   /** Insert a string as quoted text
    * (whose representation is dependant on the editor type),
@@ -1713,10 +1713,9 @@ class HTMLEditor final : public EditorBase,
                                  const Element& aEditingHost);
 
   [[nodiscard]] MOZ_CAN_RUN_SCRIPT Result<CaretPoint, nsresult>
-  DeleteRangesWithTransaction(
-      nsIEditor::EDirection aDirectionAndAmount,
-      nsIEditor::EStripWrappers aStripWrappers,
-      const AutoClonedRangeArray& aRangesToDelete) override;
+  DeleteRangesWithTransaction(nsIEditor::EDirection aDirectionAndAmount,
+                              nsIEditor::EStripWrappers aStripWrappers,
+                              AutoClonedRangeArray& aRangesToDelete) override;
 
   /**
    * SplitParagraphWithTransaction() splits the parent block, aParentDivOrP, at

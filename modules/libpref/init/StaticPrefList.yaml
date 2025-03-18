@@ -5231,6 +5231,12 @@
   value: @IS_NIGHTLY_BUILD@
   mirror: always
 
+# Mimic Chrome's window.getSelection().toString() behaviour
+- name: dom.selection.mimic_chrome_tostring.enabled
+  type: bool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+
 # When this pref is enabled:
 #  - Shadow DOM is not pierced by default anymore
 #  - The method accepts optional CaretPositionFromPointOptions to allow piercing
@@ -10444,6 +10450,13 @@
   value: false
   mirror: always
 
+# Is support for the ::details-content pseudo-element enabled?
+- name: layout.css.details-content.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+  rust: true
+
 # Is 'content:none' supported on (non-pseudo) elements?
 - name: layout.css.element-content-none.enabled
   type: RelaxedAtomicBool
@@ -13833,7 +13846,7 @@
 # This is the number of dns cache entries allowed
 - name: network.dnsCacheEntries
   type: RelaxedAtomicUint32
-  value: 400
+  value: 800
   mirror: always
 
 # In the absence of OS TTLs, the DNS cache TTL value

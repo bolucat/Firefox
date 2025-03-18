@@ -31,7 +31,7 @@ object SupportUtils {
     const val RATE_APP_URL = "market://details?id=" + BuildConfig.APPLICATION_ID
     const val DEFAULT_BROWSER_URL = "https://support.mozilla.org/kb/set-firefox-focus-default-browser-android"
     const val PRIVACY_NOTICE_URL = "https://www.mozilla.org/privacy/firefox-focus/"
-    const val PRIVACY_NOTICE_KLAR_URL = "https://www.mozilla.org/de/privacy/firefox-klar/"
+    const val TERMS_OF_USE_URL = "https://www.mozilla.org/about/legal/terms/firefox-focus/"
 
     const val OPEN_WITH_DEFAULT_BROWSER_URL = "https://www.mozilla.org/openGeneralSettings" // Fake URL
     val manifestoURL: String
@@ -44,8 +44,8 @@ object SupportUtils {
      * Paths for specific pages on the Mozilla website.
      */
     enum class MozillaPage(internal val path: String) {
-        PRIVATE_NOTICE("privacy/firefox/"),
-        TERMS_OF_SERVICE("about/legal/terms/services/"),
+        PRIVATE_NOTICE("privacy/firefox-focus/"),
+        TERMS_OF_SERVICE("about/legal/terms/firefox-focus/"),
     }
 
     /**

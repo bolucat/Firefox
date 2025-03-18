@@ -4158,18 +4158,20 @@ HTMLEditor::DeleteEmptyInclusiveAncestorInlineElements(
 
   const nsCOMPtr<nsIContent> nextSibling = content->GetNextSibling();
   const nsCOMPtr<nsINode> parentNode = content->GetParentNode();
+  MOZ_ASSERT(parentNode);
   nsresult rv = DeleteNodeWithTransaction(content);
   if (NS_FAILED(rv)) {
     NS_WARNING("EditorBase::DeleteNodeWithTransaction() failed");
     return Err(rv);
   }
-  if (NS_WARN_IF(nextSibling && nextSibling->GetParentNode() != parentNode)) {
+  if (NS_WARN_IF(nextSibling && nextSibling->GetParentNode() != parentNode) ||
+      NS_WARN_IF(!HTMLEditUtils::IsSimplyEditableNode(*parentNode))) {
     return Err(NS_ERROR_EDITOR_UNEXPECTED_DOM_TREE);
   }
-  return CaretPoint(nextSibling &&
-                            HTMLEditUtils::IsSimplyEditableNode(*nextSibling)
-                        ? EditorDOMPoint(nextSibling)
-                        : EditorDOMPoint::AtEndOf(*parentNode));
+  // Note that even if nextSibling is not editable, we can put caret before it
+  // unless parentNode is not editable.
+  return CaretPoint(nextSibling ? EditorDOMPoint(nextSibling)
+                                : EditorDOMPoint::AtEndOf(*parentNode));
 }
 
 nsresult HTMLEditor::DeleteAllChildrenWithTransaction(Element& aElement) {
@@ -5325,22 +5327,13 @@ nsresult HTMLEditor::SelectAllInternal() {
       return bodyOrDocumentElement;
     }();
 
-    // If the element to be selected is <input type="text"> or <textarea>,
-    // GetSelectionRootContent() returns its anonymous <div> element, but we
-    // want to select all of the document or selection limiter.  Therefore,
-    // we should use its parent to compute the selection root.
-    if (elementToBeSelected->HasIndependentSelection()) {
-      Element* parentElement = elementToBeSelected->GetParentElement();
-      if (MOZ_LIKELY(parentElement)) {
-        elementToBeSelected = parentElement;
-      }
-    }
-
     // Then, compute the selection root content to select all including
     // elementToBeSelected.
     RefPtr<PresShell> presShell = GetPresShell();
     nsIContent* computedSelectionRootContent =
-        elementToBeSelected->GetSelectionRootContent(presShell);
+        elementToBeSelected->GetSelectionRootContent(
+            presShell, nsINode::IgnoreOwnIndependentSelection::Yes,
+            nsINode::AllowCrossShadowBoundary::No);
     if (NS_WARN_IF(!computedSelectionRootContent)) {
       return nullptr;
     }
@@ -7531,10 +7524,12 @@ Element* HTMLEditor::ComputeEditingHostInternal(
     }
     if (Element* focusedElementInWindow = innerWindow->GetFocusedElement()) {
       if (focusedElementInWindow->ChromeOnlyAccess()) {
-        focusedElementInWindow =
-            Element::FromNodeOrNull(const_cast<nsIContent*>(
-                focusedElementInWindow
-                    ->GetChromeOnlyAccessSubtreeRootParent()));
+        focusedElementInWindow = Element::FromNodeOrNull(
+            // XXX Should we use
+            // nsIContent::FindFirstNonChromeOnlyAccessContent() instead of
+            // nsINode::GetClosestNativeAnonymousSubtreeRootParentOrHost()?
+            focusedElementInWindow
+                ->GetClosestNativeAnonymousSubtreeRootParentOrHost());
       }
       if (focusedElementInWindow) {
         return focusedElementInWindow->IsEditable() ? focusedElementInWindow

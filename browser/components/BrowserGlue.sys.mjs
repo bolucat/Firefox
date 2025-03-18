@@ -924,15 +924,16 @@ let JSWINDOWACTORS = {
 
   UITour: {
     parent: {
-      esModuleURI: "resource:///modules/UITourParent.sys.mjs",
+      esModuleURI: "moz-src:///browser/components/uitour/UITourParent.sys.mjs",
     },
     child: {
-      esModuleURI: "resource:///modules/UITourChild.sys.mjs",
+      esModuleURI: "moz-src:///browser/components/uitour/UITourChild.sys.mjs",
       events: {
         mozUITour: { wantUntrusted: true },
       },
     },
 
+    enablePreference: "browser.uitour.enabled",
     messageManagerGroups: ["browsers"],
   },
 

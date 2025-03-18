@@ -773,6 +773,7 @@ bool PresShell::AccessibleCaretEnabled(nsIDocShell* aDocShell) {
 PresShell::PresShell(Document* aDocument)
     : mDocument(aDocument),
       mViewManager(nullptr),
+      mLastSelectionForToString(nullptr),
       mAutoWeakFrames(nullptr),
 #ifdef ACCESSIBILITY
       mDocAccessible(nullptr),
@@ -1539,7 +1540,8 @@ bool PresShell::FixUpFocus() {
 
 void PresShell::SelectionWillTakeFocus() {
   if (mSelection) {
-    FrameSelectionWillTakeFocus(*mSelection);
+    FrameSelectionWillTakeFocus(*mSelection,
+                                CanMoveLastSelectionForToString::No);
   }
 }
 
@@ -1584,11 +1586,20 @@ void PresShell::FrameSelectionWillLoseFocus(nsFrameSelection& aFrameSelection) {
   }
 
   if (mSelection) {
-    FrameSelectionWillTakeFocus(*mSelection);
+    FrameSelectionWillTakeFocus(*mSelection,
+                                CanMoveLastSelectionForToString::No);
   }
 }
 
-void PresShell::FrameSelectionWillTakeFocus(nsFrameSelection& aFrameSelection) {
+void PresShell::FrameSelectionWillTakeFocus(
+    nsFrameSelection& aFrameSelection,
+    CanMoveLastSelectionForToString aCanMoveLastSelectionForToString) {
+  if (StaticPrefs::dom_selection_mimic_chrome_tostring_enabled()) {
+    if (aCanMoveLastSelectionForToString ==
+        CanMoveLastSelectionForToString::Yes) {
+      UpdateLastSelectionForToString(&aFrameSelection);
+    }
+  }
   if (mFocusedFrameSelection == &aFrameSelection) {
 #ifdef XP_MACOSX
     // FIXME: Mac needs to update the global selection cache, even if the
@@ -1613,6 +1624,14 @@ void PresShell::FrameSelectionWillTakeFocus(nsFrameSelection& aFrameSelection) {
       nsISelectionController::SELECTION_ON) {
     aFrameSelection.SetDisplaySelection(nsISelectionController::SELECTION_ON);
     RepaintNormalSelectionWhenSafe(aFrameSelection);
+  }
+}
+
+void PresShell::UpdateLastSelectionForToString(
+    const nsFrameSelection* aFrameSelection) {
+  MOZ_ASSERT(StaticPrefs::dom_selection_mimic_chrome_tostring_enabled());
+  if (mLastSelectionForToString != aFrameSelection) {
+    mLastSelectionForToString = aFrameSelection;
   }
 }
 
@@ -3727,8 +3746,11 @@ static nsMargin GetScrollMargin(const nsIFrame* aFrame) {
   // TODO: This is also a bit of an issue for delegated focus, see
   // https://github.com/whatwg/html/issues/7033.
   if (aFrame->GetContent() && aFrame->GetContent()->ChromeOnlyAccess()) {
+    // XXX Should we use nsIContent::FindFirstNonChromeOnlyAccessContent()
+    // instead of nsINode::GetClosestNativeAnonymousSubtreeRootParentOrHost()?
     if (const nsIContent* userContent =
-            aFrame->GetContent()->GetChromeOnlyAccessSubtreeRootParent()) {
+            aFrame->GetContent()
+                ->GetClosestNativeAnonymousSubtreeRootParentOrHost()) {
       if (const nsIFrame* frame = userContent->GetPrimaryFrame()) {
         return frame->StyleMargin()->GetScrollMargin();
       }

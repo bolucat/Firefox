@@ -817,12 +817,30 @@ class APZCTreeManager : public IAPZCTreeManager, public APZInputBridge {
   /**
    * Compute the translation that should be applied to a layer that's fixed
    * at |eFixedSides|, to respect the fixed layer margins
-   * |aCompositorFixedLayerMargins|, given that the most recent main thread
+   * |mCompositorFixedLayerMargins|, given that the most recent main thread
    * paint has taken into account |aGeckoFixedLayerMargins|.
    */
   ScreenPoint ComputeFixedMarginsOffset(
-      const ScreenMargin& aCompositorFixedLayerMargins, SideBits aFixedSides,
+      const MutexAutoLock& aProofOfMapLock, SideBits aFixedSides,
       const ScreenMargin& aGeckoFixedLayerMargins) const;
+
+  // Accessors for mIsSoftwareKeyboardVisible and mInteractiveWidget which
+  // ensure that we are holding the map lock.
+  bool IsSoftwareKeyboardVisible(const MutexAutoLock& aProofOfMapLock) const {
+    return mIsSoftwareKeyboardVisible;
+  }
+  void SetIsSoftwareKeyboardVisible(bool aIsSoftwareKeyboardVisible,
+                                    const MutexAutoLock& aProofOfMapLock) {
+    mIsSoftwareKeyboardVisible = aIsSoftwareKeyboardVisible;
+  }
+  dom::InteractiveWidget InteractiveWidgetMode(
+      const MutexAutoLock& aProofOfMapLock) const {
+    return mInteractiveWidget;
+  }
+  void SetInteractiveWidgetMode(dom::InteractiveWidget aInteractiveWidgetMode,
+                                const MutexAutoLock& aProofOfMapLock) {
+    mInteractiveWidget = aInteractiveWidgetMode;
+  }
 
  protected:
   /* The input queue where input events are held until we know enough to
@@ -1104,9 +1122,11 @@ class APZCTreeManager : public IAPZCTreeManager, public APZInputBridge {
 
   // The interactive-widget of the top level content document.
   // https://drafts.csswg.org/css-viewport/#interactive-widget-section
+  // Acquire mMapLock before accessing this.
   dom::InteractiveWidget mInteractiveWidget;
 
   // Whether the software keyboard is visible or not.
+  // Acquire mMapLock before accessing this.
   bool mIsSoftwareKeyboardVisible;
 
   // Whether there's any OOP iframe in this tree.

@@ -574,11 +574,16 @@ class PresShell final : public nsStubDocumentObserver,
 
   void ClearFrameRefs(nsIFrame* aFrame);
 
+  enum class CanMoveLastSelectionForToString { No, Yes };
   // Clears the selection of the older focused frame selection if any.
-  void FrameSelectionWillTakeFocus(nsFrameSelection&);
+  void FrameSelectionWillTakeFocus(nsFrameSelection&,
+                                   CanMoveLastSelectionForToString);
 
   // Clears and repaint mFocusedFrameSelection if it matches the argument.
   void FrameSelectionWillLoseFocus(nsFrameSelection&);
+
+  // Update mLastSelectionForToString to the given frame selection.
+  void UpdateLastSelectionForToString(const nsFrameSelection*);
 
   /**
    * Get a reference rendering context. This is a context that should not
@@ -651,6 +656,10 @@ class PresShell final : public nsStubDocumentObserver,
    * the frame selection that's visible to the user.
    */
   nsFrameSelection* GetLastFocusedFrameSelection();
+
+  const nsFrameSelection* GetLastSelectionForToString() const {
+    return mLastSelectionForToString;
+  }
 
   /**
    * Interface to dispatch events via the presshell
@@ -1260,9 +1269,9 @@ class PresShell final : public nsStubDocumentObserver,
 
   NS_IMETHOD SetDisplaySelection(int16_t aToggle) override;
   NS_IMETHOD GetDisplaySelection(int16_t* aToggle) override;
-  NS_IMETHOD ScrollSelectionIntoView(RawSelectionType aRawSelectionType,
-                                     SelectionRegion aRegion,
-                                     ControllerScrollFlags aFlags) override;
+  MOZ_CAN_RUN_SCRIPT NS_IMETHOD ScrollSelectionIntoView(
+      RawSelectionType aRawSelectionType, SelectionRegion aRegion,
+      ControllerScrollFlags aFlags) override;
   using nsISelectionController::ScrollSelectionIntoView;
   NS_IMETHOD RepaintSelection(RawSelectionType aRawSelectionType) override;
   void SelectionWillTakeFocus() override;
@@ -1360,16 +1369,16 @@ class PresShell final : public nsStubDocumentObserver,
 
   // nsISelectionController
 
-  NS_IMETHOD PhysicalMove(int16_t aDirection, int16_t aAmount,
-                          bool aExtend) override;
-  NS_IMETHOD CharacterMove(bool aForward, bool aExtend) override;
-  MOZ_CAN_RUN_SCRIPT_BOUNDARY NS_IMETHOD WordMove(bool aForward,
-                                                  bool aExtend) override;
-  MOZ_CAN_RUN_SCRIPT_BOUNDARY NS_IMETHOD LineMove(bool aForward,
-                                                  bool aExtend) override;
-  NS_IMETHOD IntraLineMove(bool aForward, bool aExtend) override;
-  MOZ_CAN_RUN_SCRIPT
-  NS_IMETHOD PageMove(bool aForward, bool aExtend) override;
+  MOZ_CAN_RUN_SCRIPT NS_IMETHOD PhysicalMove(int16_t aDirection,
+                                             int16_t aAmount,
+                                             bool aExtend) override;
+  MOZ_CAN_RUN_SCRIPT NS_IMETHOD CharacterMove(bool aForward,
+                                              bool aExtend) override;
+  MOZ_CAN_RUN_SCRIPT NS_IMETHOD WordMove(bool aForward, bool aExtend) override;
+  MOZ_CAN_RUN_SCRIPT NS_IMETHOD LineMove(bool aForward, bool aExtend) override;
+  MOZ_CAN_RUN_SCRIPT NS_IMETHOD IntraLineMove(bool aForward,
+                                              bool aExtend) override;
+  MOZ_CAN_RUN_SCRIPT NS_IMETHOD PageMove(bool aForward, bool aExtend) override;
   NS_IMETHOD ScrollPage(bool aForward) override;
   NS_IMETHOD ScrollLine(bool aForward) override;
   NS_IMETHOD ScrollCharacter(bool aRight) override;
@@ -2999,6 +3008,11 @@ class PresShell final : public nsStubDocumentObserver,
   // hide if we focus another selection. May or may not be the same as
   // `mSelection`.
   RefPtr<nsFrameSelection> mFocusedFrameSelection;
+
+  // This the frame selection that will be used when getSelection().toString()
+  // is called. See nsIContent::CanStartSelection for its reasoning.
+  RefPtr<const nsFrameSelection> mLastSelectionForToString;
+
   RefPtr<nsCaret> mCaret;
   RefPtr<nsCaret> mOriginalCaret;
   RefPtr<AccessibleCaretEventHub> mAccessibleCaretEventHub;

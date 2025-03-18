@@ -20,11 +20,19 @@ PLACES_AUTOCOMPLETE_1ST_RESULT_TIME_MS
   This probe tracks the amount of time it takes to get the first result.
   It is an exponential histogram with values between 5 and 100.
 
+  Changelog
+    Firefox 138
+      Mirrored from Glean (urlbar.autocomplete_first_result_time) . (See bug 1938938)
+
 PLACES_AUTOCOMPLETE_6_FIRST_RESULTS_TIME_MS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   This probe tracks the amount of time it takes to get the first six results.
   It is an exponential histogram with values between 50 and 1000.
+
+  Changelog
+    Firefox 138
+      Mirrored from Glean (urlbar.autocomplete_sixth_result_time). (See bug 1938938)
 
 FX_URLBAR_SELECTED_RESULT_METHOD
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -68,6 +76,10 @@ FX_URLBAR_ZERO_PREFIX_DWELL_TIME_MS
   sites. This is an exponential histogram whose values range from 0 to 60,000
   with 50 buckets. Values are in milliseconds. This histogram was introduced in
   Firefox 110.0 in bug 1806765.
+
+  Changelog
+    Firefox 138
+      Removed completely. (See bug 1938938)
 
 PLACES_FRECENCY_RECALC_CHUNK_TIME_MS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

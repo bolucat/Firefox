@@ -20,8 +20,12 @@ class SessionManager:
         self.should_refresh_end_session = False
         self.authorization_value = None
         self.send_challenge_early = False
-        self.cookie_has_no_attributes = False
+        self.cookie_attributes = None
         self.scope_origin = None
+        self.registration_sends_challenge = False
+        self.cookie_name_and_value = "auth_cookie=abcdef0123"
+        self.has_called_refresh = False
+        self.scope_specification_items = []
 
     def create_new_session(self):
         session_id = str(len(self.session_to_key_map))
@@ -53,13 +57,25 @@ class SessionManager:
         if send_challenge_early is not None:
             self.send_challenge_early = send_challenge_early
 
-        cookie_has_no_attributes = configuration.get("cookieHasNoAttributes")
-        if cookie_has_no_attributes is not None:
-            self.cookie_has_no_attributes = cookie_has_no_attributes
+        cookie_attributes = configuration.get("cookieAttributes")
+        if cookie_attributes is not None:
+            self.cookie_attributes = cookie_attributes
 
         scope_origin = configuration.get("scopeOrigin")
         if scope_origin is not None:
             self.scope_origin = scope_origin
+
+        registration_sends_challenge = configuration.get("registrationSendsChallenge")
+        if registration_sends_challenge is not None:
+            self.registration_sends_challenge = registration_sends_challenge
+
+        cookie_name_and_value = configuration.get("cookieNameAndValue")
+        if cookie_name_and_value is not None:
+            self.cookie_name_and_value = cookie_name_and_value
+
+        scope_specification_items = configuration.get("scopeSpecificationItems")
+        if scope_specification_items is not None:
+            self.scope_specification_items = scope_specification_items
 
     def get_should_refresh_end_session(self):
         return self.should_refresh_end_session
@@ -70,12 +86,26 @@ class SessionManager:
     def get_send_challenge_early(self):
         return self.send_challenge_early
 
+    def get_registration_sends_challenge(self):
+        return self.registration_sends_challenge
+
+    def reset_registration_sends_challenge(self):
+        self.registration_sends_challenge = False
+
+    def set_has_called_refresh(self, has_called_refresh):
+        self.has_called_refresh = has_called_refresh
+
+    def pull_server_state(self):
+        return {
+            "hasCalledRefresh": self.has_called_refresh
+        }
+
     def get_session_instructions_response(self, session_id, request):
-        cookie_parts = ["auth_cookie=abcdef0123"]
-        cookie_attributes = ""
-        if not self.cookie_has_no_attributes:
+        cookie_parts = [self.cookie_name_and_value]
+        cookie_attributes = self.cookie_attributes
+        if cookie_attributes is None:
             cookie_attributes = "Domain=" + request.url_parts.hostname + "; Path=/device-bound-session-credentials"
-            cookie_parts.append(cookie_attributes)
+        cookie_parts.append(cookie_attributes)
         value_of_set_cookie = "; ".join(cookie_parts)
 
         scope_origin = ""
@@ -88,14 +118,16 @@ class SessionManager:
             "scope": {
                 "origin": scope_origin,
                 "include_site": True,
-                "scope_specification" : [
+                "scope_specification" : self.scope_specification_items + [
                     { "type": "exclude", "domain": request.url_parts.hostname, "path": "/device-bound-session-credentials/request_early_challenge.py" },
                     { "type": "exclude", "domain": request.url_parts.hostname, "path": "/device-bound-session-credentials/end_session_via_clear_site_data.py" },
+                    { "type": "exclude", "domain": request.url_parts.hostname, "path": "/device-bound-session-credentials/pull_server_state.py" },
+                    { "type": "exclude", "domain": request.url_parts.hostname, "path": "/device-bound-session-credentials/set_cookie.py" },
                 ]
             },
             "credentials": [{
                 "type": "cookie",
-                "name": "auth_cookie",
+                "name": self.cookie_name_and_value.split("=")[0],
                 "attributes": cookie_attributes
             }]
         }
@@ -104,4 +136,5 @@ class SessionManager:
             ("Cache-Control", "no-store"),
             ("Set-Cookie", value_of_set_cookie)
         ]
+
         return (200, headers, json.dumps(response_body))

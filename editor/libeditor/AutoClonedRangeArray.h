@@ -407,6 +407,16 @@ class MOZ_STACK_CLASS AutoClonedRangeArray {
 
   [[nodiscard]] virtual bool HasSavedRanges() const { return false; }
 
+  /**
+   * Extend all ranges to contain surrounding invisible white-spaces if there
+   * are.
+   *
+   * @param aStripWrappers      nsIEditor::eStrip if the caller wants to delete
+   *                            inline ancestors too.
+   */
+  void ExtendRangeToContainSurroundingInvisibleWhiteSpaces(
+      nsIEditor::EStripWrappers aStripWrappers);
+
  protected:
   AutoClonedRangeArray() = default;
 
@@ -523,11 +533,11 @@ class MOZ_STACK_CLASS AutoClonedSelectionRangeArray final
   }
 
   /**
-   * Equivalent to nsFrameSelection::GetLimiter().
+   * Equivalent to nsFrameSelection::GetIndependentSelectionRootElement().
    * NOTE: This should be called only when IsForSelection() returns true.
    */
-  [[nodiscard]] dom::Element* GetLimiter() const {
-    return mLimitersAndCaretData.mLimiter;
+  [[nodiscard]] dom::Element* GetIndependentSelectionRootElement() const {
+    return mLimitersAndCaretData.mIndependentSelectionRootElement;
   }
   /**
    * Equivalent to nsFrameSelection::GetAncestorLimiter()
