@@ -19,16 +19,24 @@ class SessionManager:
         self.session_to_key_map = {}
         self.should_refresh_end_session = False
         self.authorization_value = None
-        self.send_challenge_early = False
         self.cookie_attributes = None
         self.scope_origin = None
         self.registration_sends_challenge = False
         self.cookie_name_and_value = "auth_cookie=abcdef0123"
+        self.session_to_cookie_name_and_value_map = {}
+        self.session_to_early_challenge_map = {}
         self.has_called_refresh = False
         self.scope_specification_items = []
+        self.refresh_sends_challenge = True
+        self.refresh_url = "/device-bound-session-credentials/refresh_session.py"
+
+    def next_session_id_value(self):
+        return len(self.session_to_key_map)
+    def next_session_id(self):
+        return str(self.next_session_id_value())
 
     def create_new_session(self):
-        session_id = str(len(self.session_to_key_map))
+        session_id = self.next_session_id()
         self.session_to_key_map[session_id] = None
         return session_id
 
@@ -53,10 +61,6 @@ class SessionManager:
         if authorization_value is not None:
             self.authorization_value = authorization_value
 
-        send_challenge_early = configuration.get("sendChallengeEarly")
-        if send_challenge_early is not None:
-            self.send_challenge_early = send_challenge_early
-
         cookie_attributes = configuration.get("cookieAttributes")
         if cookie_attributes is not None:
             self.cookie_attributes = cookie_attributes
@@ -73,9 +77,28 @@ class SessionManager:
         if cookie_name_and_value is not None:
             self.cookie_name_and_value = cookie_name_and_value
 
+        next_sessions_cookie_names_and_values = configuration.get("cookieNamesAndValuesForNextRegisteredSessions")
+        if next_sessions_cookie_names_and_values is not None:
+            next_session_id_value = self.next_session_id_value()
+            for cookie_name_and_value in next_sessions_cookie_names_and_values:
+                self.session_to_cookie_name_and_value_map[str(next_session_id_value)] = cookie_name_and_value
+                next_session_id_value += 1
+
+        next_session_early_challenge = configuration.get("earlyChallengeForNextRegisteredSession")
+        if next_session_early_challenge is not None:
+            self.session_to_early_challenge_map[self.next_session_id()] = next_session_early_challenge
+
         scope_specification_items = configuration.get("scopeSpecificationItems")
         if scope_specification_items is not None:
             self.scope_specification_items = scope_specification_items
+
+        refresh_sends_challenge = configuration.get("refreshSendsChallenge")
+        if refresh_sends_challenge is not None:
+            self.refresh_sends_challenge = refresh_sends_challenge
+
+        refresh_url = configuration.get("refreshUrl")
+        if refresh_url is not None:
+            self.refresh_url = refresh_url
 
     def get_should_refresh_end_session(self):
         return self.should_refresh_end_session
@@ -83,14 +106,14 @@ class SessionManager:
     def get_authorization_value(self):
         return self.authorization_value
 
-    def get_send_challenge_early(self):
-        return self.send_challenge_early
-
     def get_registration_sends_challenge(self):
         return self.registration_sends_challenge
 
     def reset_registration_sends_challenge(self):
         self.registration_sends_challenge = False
+
+    def get_refresh_sends_challenge(self):
+        return self.refresh_sends_challenge
 
     def set_has_called_refresh(self, has_called_refresh):
         self.has_called_refresh = has_called_refresh
@@ -100,8 +123,18 @@ class SessionManager:
             "hasCalledRefresh": self.has_called_refresh
         }
 
+    def get_cookie_name_and_value(self, session_id):
+        # Try to use the session-specific override first.
+        if self.session_to_cookie_name_and_value_map.get(session_id) is not None:
+            return self.session_to_cookie_name_and_value_map[session_id]
+        # If there isn't any, use the general override.
+        return self.cookie_name_and_value
+
+    def get_early_challenge(self, session_id):
+        return self.session_to_early_challenge_map.get(session_id)
+
     def get_session_instructions_response(self, session_id, request):
-        cookie_parts = [self.cookie_name_and_value]
+        cookie_parts = [self.get_cookie_name_and_value(session_id)]
         cookie_attributes = self.cookie_attributes
         if cookie_attributes is None:
             cookie_attributes = "Domain=" + request.url_parts.hostname + "; Path=/device-bound-session-credentials"
@@ -114,7 +147,7 @@ class SessionManager:
 
         response_body = {
             "session_identifier": session_id,
-            "refresh_url": "/device-bound-session-credentials/refresh_session.py",
+            "refresh_url": self.refresh_url,
             "scope": {
                 "origin": scope_origin,
                 "include_site": True,
@@ -127,7 +160,7 @@ class SessionManager:
             },
             "credentials": [{
                 "type": "cookie",
-                "name": self.cookie_name_and_value.split("=")[0],
+                "name": self.get_cookie_name_and_value(session_id).split("=")[0],
                 "attributes": cookie_attributes
             }]
         }

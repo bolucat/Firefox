@@ -43,6 +43,8 @@ skip-if = [
 
 ["browser_sidebar_context_menu.js"]
 
+["browser_sidebar_expand_on_hover.js"]
+
 ["browser_sidebar_macmenu.js"]
 run-if = ["os == 'mac'"] # Mac only feature
 
@@ -72,6 +74,8 @@ skip-if = [
   "os == 'mac' && os_version == '11.20' && arch == 'aarch64' && opt", # Bug 1898739
   "os == 'win' && os_version == '11.26100' && opt", # Bug 1898739
 ]
+
+["browser_tools_migration.js"]
 
 ["browser_tools_overflow.js"]
 

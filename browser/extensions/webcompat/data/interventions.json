@@ -1,19 +1,4 @@
 {
-  "969844": {
-    "label": "mobile.de",
-    "bugs": {
-      "969844": {
-        "issue": "desktop-layout-not-mobile",
-        "matches": ["*://*.mobile.de/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["android"],
-        "ua_string": ["add_Chrome"]
-      }
-    ]
-  },
   "1385206": {
     "label": "rakuten.co.jp",
     "bugs": {
@@ -531,10 +516,13 @@
     },
     "interventions": [
       {
-        "platforms": ["android"],
+        "platforms": ["linux", "android"],
         "content_scripts": {
           "all_frames": true,
-          "js": ["bug1724868-news.yahoo.co.jp-ua-override.js"]
+          "js": [
+            "lib/ua_helpers.js",
+            "bug1724868-news.yahoo.co.jp-ua-override.js"
+          ]
         }
       }
     ]
@@ -1936,23 +1924,6 @@
       }
     ]
   },
-  "1881922": {
-    "label": "helpdeskgeek.com",
-    "bugs": {
-      "1881922": {
-        "issue": "slow-performance",
-        "matches": ["*://helpdeskgeek.com/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "content_scripts": {
-          "js": ["bug1881922-disable-legacy-mutation-events.js"]
-        }
-      }
-    ]
-  },
   "1884779": {
     "label": "memurlar.net",
     "bugs": {
@@ -2097,6 +2068,23 @@
         "platforms": ["android"],
         "content_scripts": {
           "js": ["bug1889505-bankmandiri.co.id-window.chrome.js"]
+        }
+      }
+    ]
+  },
+  "1892898": {
+    "label": "investopedia.com",
+    "bugs": {
+      "1892898": {
+        "issue": "broken-layout",
+        "matches": ["*://*.investopedia.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
+        "content_scripts": {
+          "css": ["bug1892898-investopedia.com-fix-card-height.css"]
         }
       }
     ]
@@ -2546,7 +2534,7 @@
       {
         "platforms": ["all"],
         "content_scripts": {
-          "js": ["bug1881922-disable-legacy-mutation-events.js"]
+          "js": ["bug1901780-disable-legacy-mutation-events.js"]
         }
       }
     ]
@@ -2735,6 +2723,24 @@
       }
     ]
   },
+  "1911253": {
+    "label": "qq.com",
+    "bugs": {
+      "1911253": {
+        "issue": "broken-interactive-elements",
+        "matches": ["*://*.qq.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
+        "content_scripts": {
+          "all_frames": true,
+          "css": ["bug1911253-qq.com-unhide-checkboxes.css"]
+        }
+      }
+    ]
+  },
   "1912923": {
     "label": "class.com",
     "bugs": {
@@ -2792,6 +2798,22 @@
       {
         "platforms": ["android"],
         "ua_string": ["Chrome"]
+      }
+    ]
+  },
+  "1918609": {
+    "label": "www.zara.com",
+    "bugs": {
+      "1918609": {
+        "issue": "broken-layout",
+        "matches": ["*://www.zara.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
+        "only_channels": ["nightly"],
+        "ua_string": ["reduce_firefox_version_by_one"]
       }
     ]
   },
@@ -2954,7 +2976,10 @@
     "interventions": [
       {
         "platforms": ["desktop"],
-        "ua_string": ["add_Chrome"]
+        "content_scripts": {
+          "js": ["bug1928941-oasis.decart.ai-window-chrome-shim.js"]
+        },
+        "ua_string": ["Chrome", "add_Firefox_as_Gecko"]
       }
     ]
   },
@@ -3088,6 +3113,23 @@
       }
     ]
   },
+  "1939248": {
+    "label": "rosasthai.com",
+    "bugs": {
+      "1939248": {
+        "issue": "broken-interactive-elements",
+        "matches": ["*://rosasthai.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "content_scripts": {
+          "js": ["bug1939248-rosasthai.com-load-event-helper.js"]
+        }
+      }
+    ]
+  },
   "1943920": {
     "label": "add.org",
     "bugs": {
@@ -3183,6 +3225,23 @@
       {
         "platforms": ["mac"],
         "ua_string": ["add_Chrome"]
+      }
+    ]
+  },
+  "1944725": {
+    "label": "homedepot.com",
+    "bugs": {
+      "1944725": {
+        "issue": "broken-layout",
+        "matches": ["*://*.homedepot.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "content_scripts": {
+          "js": ["bug1944725-homedepot.com-innerWidth-fix.js"]
+        }
       }
     ]
   },

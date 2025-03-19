@@ -3077,6 +3077,11 @@ who = "Erich Gubler <erichdongubler@gmail.com>"
 criteria = "safe-to-deploy"
 delta = "0.7.4 -> 0.8.3"
 
+[[audits.libloading]]
+who = "Erich Gubler <erichdongubler@gmail.com>"
+criteria = "safe-to-deploy"
+delta = "0.8.3 -> 0.8.6"
+
 [[audits.libm]]
 who = "Makoto Kato <m_kato@ga2.so-net.ne.jp>"
 criteria = "safe-to-deploy"
@@ -4057,6 +4062,11 @@ who = "Nicolas Silva <nical@fastmail.com>"
 criteria = "safe-to-deploy"
 version = "0.18.0"
 notes = "Mozilla-developed package, no unsafe code, no access to file system, network or other far reaching APIs."
+
+[[audits.plist]]
+who = "Erich Gubler <erichdongubler@gmail.com>"
+criteria = "safe-to-deploy"
+delta = "1.3.1 -> 1.7.0"
 
 [[audits.powerfmt]]
 who = "Alex Franchuk <afranchuk@mozilla.com>"

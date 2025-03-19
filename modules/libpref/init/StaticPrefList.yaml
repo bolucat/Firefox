@@ -5605,7 +5605,7 @@
 # Gecko's traditional white-space normalizer.
 - name: editor.white_space_normalization.blink_compatible
   type: bool
-  value: false
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # General prefs for editor, indicating whether Gecko-specific editing UI is
@@ -6517,7 +6517,7 @@
 
 - name: gfx.canvas.remote.use-draw-image-fast-path-d3d
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 - name: gfx.canvas.remote.recycle-used-data-surface
@@ -8512,11 +8512,18 @@
   set_spidermonkey_pref: startup
 
   # Experimental support for Atomics.pause in JavaScript.
--   name: javascript.options.experimental.atomics_pause
-    type: bool
-    value: true
-    mirror: always
-    set_spidermonkey_pref: startup
+- name: javascript.options.experimental.atomics_pause
+  type: bool
+  value: true
+  mirror: always
+  set_spidermonkey_pref: startup
+
+  # Experimental support for Error.isError in JavaScript.
+- name: javascript.options.experimental.error_iserror
+  type: bool
+  value: true
+  mirror: always
+  set_spidermonkey_pref: always
 
 #ifdef NIGHTLY_BUILD
   # Experimental support for Async Iterator Helpers in JavaScript.
@@ -8532,13 +8539,6 @@
     value: false
     mirror: always
     set_spidermonkey_pref: startup
-
-  # Experimental support for Error.isError in JavaScript.
--   name: javascript.options.experimental.error_iserror
-    type: bool
-    value: false
-    mirror: always
-    set_spidermonkey_pref: always
 
   # Experimental support for Iterator.range in JavaScript.
 -   name: javascript.options.experimental.iterator_range

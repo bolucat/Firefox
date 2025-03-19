@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "Web Compatibility Interventions",
   "description": "Urgent post-release fixes for web compatibility.",
-  "version": "138.1.0",
+  "version": "138.2.0",
   "browser_specific_settings": {
     "gecko": {
       "id": "webcompat@mozilla.org",
@@ -89,7 +89,6 @@
 
   "background": {
     "scripts": [
-      "lib/module_shim.js",
       "lib/messaging_helper.js",
       "lib/ua_helpers.js",
       "lib/intervention_helpers.js",

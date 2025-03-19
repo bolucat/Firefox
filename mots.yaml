@@ -8,7 +8,7 @@
 # documentation and how to modify this file.
 repo: mozilla-central
 created_at: '2021-10-14T12:50:40.073465'
-updated_at: '2025-03-17T19:10:18.549535+00:00'
+updated_at: '2025-03-19T07:56:58.149299+00:00'
 export:
   path: ./docs/mots/index.rst
   format: rst
@@ -970,6 +970,10 @@ people:
     bmo_id: 430165
     name: Sam Foster
     nick: sfoster
+  - &sfriedberger
+    bmo_id: 704251
+    name: Simon Friedberger
+    nick: sfriedberger
   - &shravanrn
     bmo_id: 639827
     name: Shravan Narayan
@@ -1088,10 +1092,6 @@ people:
     bmo_id: 415378
     name: Valentin Gosu
     nick: valentin
-  - &wchen
-    bmo_id: 414438
-    name: William Chen
-    nick: wchen
   - &whimboo
     bmo_id: 76551
     name: Henrik Skupin
@@ -1433,6 +1433,7 @@ modules:
       - *dveditz
       - *freddy
       - *tschuster
+      - *sfriedberger
     machine_name: core_content_security
 
   - name: 'Core: Cookies'
@@ -1885,10 +1886,10 @@ modules:
       url: http://about.validator.nu/
       components:
         - 'Core::DOM: HTML Parser'
+      peers_emeritus:
+        - William Chen
     owners:
       - *hsivonen
-    peers:
-      - *wchen
     machine_name: core_html_parser
 
   - name: 'Core: I18N Library'
@@ -1992,7 +1993,9 @@ modules:
   - name: 'Core: JavaScript'
     description: JavaScript engine (SpiderMonkey)
     includes:
-      - js/src/**/*
+      - js/**/*
+    excludes:
+      - js/xpconnect/**/*
     meta:
       owners_emeritus:
         - Brendan Eich
@@ -2002,6 +2005,7 @@ modules:
       peers_emeritus:
         - Andreas Gal
         - Ashley Hauck
+        - Benjamin Bouvier
         - Bill McCloskey
         - Blake Kaplan
         - Brian Hackett
@@ -2017,11 +2021,13 @@ modules:
         - Nicholas Nethercote
         - Nick Fitzgerald
         - Niko Matsakis
+        - Sean Stangl
         - Shu-yu Guo
         - Till Schneidereit
       url: https://spidermonkey.dev/
       components:
         - Core::JavaScript Engine
+        - 'Core::JavaScript Engine: JIT'
         - 'Core::JavaScript: GC'
         - 'Core::JavaScript: Internationalization API'
         - 'Core::JavaScript: Standard Library'
@@ -2049,35 +2055,6 @@ modules:
       - *yulia
       - *yury
     machine_name: core_javascript
-
-  - name: 'Core: JavaScript JIT'
-    description: JavaScript engine's JIT compilers (IonMonkey, Baseline)
-    includes:
-      - js/src/jit/**/*
-    meta:
-      peers_emeritus:
-        - Benjamin Bouvier
-        - Brian Hackett
-        - Caroline Cullen
-        - David Anderson
-        - Hannes Verschore
-        - Kannan Vijayan
-        - Luke Wagner
-        - Shu-yu Guo
-        - Sean Stangl
-      url: https://spidermonkey.dev/
-      components:
-        - 'Core::JavaScript Engine: JIT'
-    owners:
-      - *jandem
-    peers:
-      - *anba
-      - *tcampbell
-      - *mgaudet
-      - *iain
-      - *nbp
-      - *evilpie
-    machine_name: core_javascript_jit
 
   - name: 'Core: Layout Engine'
     description: rendering tree construction, layout (reflow), etc.
@@ -4565,5 +4542,5 @@ modules:
         - Ryan Tilder
       group: dev-platform
 hashes:
-  config: 9a5ef9c8662bd9369804ff9bac39709b0938de4b
-  export: 594741fdafe612ab8a111fe46007acd7dc738e83
+  config: 71718137950a6523389a2ba3ad76f1fa9369c535
+  export: 07c82b47983559d1c5021f15255f6c7478c2d882
