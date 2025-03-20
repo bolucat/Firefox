@@ -84,6 +84,8 @@ import mozilla.components.compose.cfr.CFRPopupProperties
 import mozilla.components.concept.base.crash.Breadcrumb
 import mozilla.components.concept.engine.permission.SitePermissions
 import mozilla.components.concept.engine.prompt.ShareData
+import mozilla.components.concept.storage.Address
+import mozilla.components.concept.storage.CreditCardEntry
 import mozilla.components.concept.storage.Login
 import mozilla.components.concept.storage.LoginEntry
 import mozilla.components.feature.accounts.push.SendTabUseCases
@@ -100,8 +102,10 @@ import mozilla.components.feature.privatemode.feature.SecureWindowFeature
 import mozilla.components.feature.prompts.PromptFeature
 import mozilla.components.feature.prompts.PromptFeature.Companion.PIN_REQUEST
 import mozilla.components.feature.prompts.address.AddressDelegate
+import mozilla.components.feature.prompts.address.AddressSelectBar
 import mozilla.components.feature.prompts.concept.AutocompletePrompt
 import mozilla.components.feature.prompts.creditcard.CreditCardDelegate
+import mozilla.components.feature.prompts.creditcard.CreditCardSelectBar
 import mozilla.components.feature.prompts.dialog.FullScreenNotificationToast
 import mozilla.components.feature.prompts.dialog.GestureNavUtils
 import mozilla.components.feature.prompts.file.AndroidPhotoPicker
@@ -178,6 +182,7 @@ import org.mozilla.fenix.components.toolbar.BottomToolbarContainerIntegration
 import org.mozilla.fenix.components.toolbar.BottomToolbarContainerView
 import org.mozilla.fenix.components.toolbar.BrowserFragmentState
 import org.mozilla.fenix.components.toolbar.BrowserFragmentStore
+import org.mozilla.fenix.components.toolbar.BrowserToolbarMenuController
 import org.mozilla.fenix.components.toolbar.BrowserToolbarView
 import org.mozilla.fenix.components.toolbar.DefaultBrowserToolbarController
 import org.mozilla.fenix.components.toolbar.DefaultBrowserToolbarMenuController
@@ -265,7 +270,9 @@ abstract class BaseBrowserFragment :
     private var _binding: FragmentBrowserBinding? = null
     internal val binding get() = _binding!!
 
-    lateinit var loginSelectBar: AutocompletePrompt<Login>
+    private var loginSelectBar: AutocompletePrompt<Login>? = null
+    private var addressSelectBar: AutocompletePrompt<Address>? = null
+    private var creditCardSelectBar: AutocompletePrompt<CreditCardEntry>? = null
 
     private lateinit var browserFragmentStore: BrowserFragmentStore
     private lateinit var browserAnimator: BrowserAnimator
@@ -290,6 +297,14 @@ abstract class BaseBrowserFragment :
     internal var _bottomToolbarContainerView: BottomToolbarContainerView? = null
     protected val bottomToolbarContainerView: BottomToolbarContainerView
         get() = _bottomToolbarContainerView!!
+
+    private var _findInPageLauncher: (() -> Unit)? = null
+    private val findInPageLauncher: () -> Unit
+        get() = _findInPageLauncher!!
+
+    private var _browserToolbarMenuController: BrowserToolbarMenuController? = null
+    private val browserToolbarMenuController: BrowserToolbarMenuController
+        get() = _browserToolbarMenuController!!
 
     @Suppress("VariableNaming")
     @VisibleForTesting
@@ -528,7 +543,11 @@ abstract class BaseBrowserFragment :
                 showUndoSnackbar(context.tabClosedUndoMessage(closedTab.content.private))
             },
         )
-        val browserToolbarMenuController = DefaultBrowserToolbarMenuController(
+
+        _findInPageLauncher = {
+            launchFindInPageFeature(view, store)
+        }
+        _browserToolbarMenuController = DefaultBrowserToolbarMenuController(
             fragment = this,
             store = store,
             appStore = requireComponents.appStore,
@@ -537,9 +556,7 @@ abstract class BaseBrowserFragment :
             settings = context.settings(),
             readerModeController = readerMenuController,
             sessionFeature = sessionFeature,
-            findInPageLauncher = {
-                launchFindInPageFeature(view, store)
-            },
+            findInPageLauncher = findInPageLauncher,
             browserAnimator = browserAnimator,
             customTabSessionId = customTabSessionId,
             openInFenixIntent = openInFenixIntent,
@@ -607,8 +624,6 @@ abstract class BaseBrowserFragment :
 
         autofillBarsIntegration = AutofillBarsIntegration(
             passwordBar = binding.suggestStrongPasswordBar,
-            addressBar = binding.addressSelectBar,
-            creditCardBar = binding.creditCardSelectBar,
             settings = requireContext().settings(),
             onAutofillBarShown = {
                 removeBottomToolbarDivider(browserToolbarView.view)
@@ -643,9 +658,7 @@ abstract class BaseBrowserFragment :
         findInPageBinding.set(
             feature = FindInPageBinding(
                 appStore = context.components.appStore,
-                onFindInPageLaunch = {
-                    launchFindInPageFeature(view = view, store = store)
-                },
+                onFindInPageLaunch = findInPageLauncher,
             ),
             owner = this,
             view = view,
@@ -928,6 +941,30 @@ abstract class BaseBrowserFragment :
             onHide = ::onAutocompleteBarHide,
         )
 
+        addressSelectBar = FenixAutocompletePrompt(
+            viewProvider = {
+                view.findViewById(R.id.addressSelectBar)
+                    ?: binding.addressSelectBarStub.inflate() as AddressSelectBar
+            },
+            toolbarPositionProvider = {
+                requireContext().settings().toolbarPosition
+            },
+            onShow = ::onAutocompleteBarShow,
+            onHide = ::onAutocompleteBarHide,
+        )
+
+        creditCardSelectBar = FenixAutocompletePrompt(
+            viewProvider = {
+                view.findViewById(R.id.creditCardSelectBar)
+                    ?: binding.creditCardSelectBarStub.inflate() as CreditCardSelectBar
+            },
+            toolbarPositionProvider = {
+                requireContext().settings().toolbarPosition
+            },
+            onShow = ::onAutocompleteBarShow,
+            onHide = ::onAutocompleteBarHide,
+        )
+
         promptsFeature.set(
             feature = PromptFeature(
                 activity = activity,
@@ -1015,7 +1052,7 @@ abstract class BaseBrowserFragment :
                 removeLastSavedGeneratedPassword = { removeLastSavedGeneratedPassword() },
                 creditCardDelegate = object : CreditCardDelegate {
                     override val creditCardPickerView
-                        get() = binding.creditCardSelectBar
+                        get() = creditCardSelectBar
                     override val onManageCreditCards = {
                         val directions =
                             NavGraphDirections.actionGlobalAutofillSettingFragment()
@@ -1027,7 +1064,7 @@ abstract class BaseBrowserFragment :
                 },
                 addressDelegate = object : AddressDelegate {
                     override val addressPickerView
-                        get() = binding.addressSelectBar
+                        get() = addressSelectBar
                     override val onManageAddresses = {
                         val directions = NavGraphDirections.actionGlobalAutofillSettingFragment()
                         findNavController().navigate(directions)
@@ -2563,6 +2600,15 @@ abstract class BaseBrowserFragment :
 
         binding.engineView.setActivityContext(null)
         requireContext().accessibilityManager.removeAccessibilityStateChangeListener(this)
+
+        loginSelectBar = null
+        addressSelectBar = null
+        creditCardSelectBar = null
+
+        _findInPageLauncher = null
+        _browserToolbarMenuController = null
+
+        _menuButtonView = null
 
         _bottomToolbarContainerView = null
         _browserToolbarView = null

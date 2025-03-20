@@ -1162,9 +1162,7 @@ void nsINode::LookupPrefix(const nsAString& aNamespaceURI, nsAString& aPrefix) {
   SetDOMStringToNull(aPrefix);
 }
 
-uint16_t nsINode::CompareDocumentPosition(nsINode& aOtherNode,
-                                          Maybe<uint32_t>* aThisIndex,
-                                          Maybe<uint32_t>* aOtherIndex) const {
+uint16_t nsINode::CompareDocumentPosition(const nsINode& aOtherNode) const {
   if (this == &aOtherNode) {
     return 0;
   }
@@ -1263,38 +1261,11 @@ uint16_t nsINode::CompareDocumentPosition(nsINode& aOtherNode,
       // child1 or child2 can be an attribute here. This will work fine since
       // ComputeIndexOf will return Nothing for the attribute making the
       // attribute be considered before any child.
-      Maybe<uint32_t> child1Index;
-      bool cachedChild1Index = false;
-      if (&aOtherNode == child1 && aOtherIndex) {
-        cachedChild1Index = true;
-        child1Index = aOtherIndex->isSome() ? *aOtherIndex
-                                            : parent->ComputeIndexOf(child1);
-      } else {
-        child1Index = parent->ComputeIndexOf(child1);
-      }
-
-      Maybe<uint32_t> child2Index;
-      bool cachedChild2Index = false;
-      if (this == child2 && aThisIndex) {
-        cachedChild2Index = true;
-        child2Index =
-            aThisIndex->isSome() ? *aThisIndex : parent->ComputeIndexOf(child2);
-      } else {
-        child2Index = parent->ComputeIndexOf(child2);
-      }
-
-      uint16_t retVal = child1Index < child2Index
-                            ? Node_Binding::DOCUMENT_POSITION_PRECEDING
-                            : Node_Binding::DOCUMENT_POSITION_FOLLOWING;
-
-      if (cachedChild1Index) {
-        *aOtherIndex = child1Index;
-      }
-      if (cachedChild2Index) {
-        *aThisIndex = child2Index;
-      }
-
-      return retVal;
+      Maybe<uint32_t> child1Index = parent->ComputeIndexOf(child1);
+      Maybe<uint32_t> child2Index = parent->ComputeIndexOf(child2);
+      return child1Index < child2Index
+                 ? Node_Binding::DOCUMENT_POSITION_PRECEDING
+                 : Node_Binding::DOCUMENT_POSITION_FOLLOWING;
     }
     parent = child1;
   }
@@ -2017,43 +1988,13 @@ bool nsINode::MaybeParentCachesComputedIndex() const {
   return parent && parent->MaybeCachesComputedIndex();
 }
 
-static Maybe<uint32_t> DoComputeFlatTreeIndexOf(FlattenedChildIterator& aIter,
-                                                const nsINode* aPossibleChild) {
-  if (aPossibleChild->GetFlattenedTreeParentNode() != aIter.Parent()) {
-    return Nothing();
-  }
-
-  uint32_t index = 0u;
-  for (nsIContent* child = aIter.GetNextChild(); child;
-       child = aIter.GetNextChild()) {
-    if (child == aPossibleChild) {
-      return Some(index);
-    }
-
-    ++index;
-  }
-
-  return Nothing();
+uint32_t nsINode::GetFlatTreeChildCount() const {
+  return FlattenedChildIterator::GetLength(this);
 }
 
 Maybe<uint32_t> nsINode::ComputeFlatTreeIndexOf(
     const nsINode* aPossibleChild) const {
-  if (!aPossibleChild) {
-    return Nothing();
-  }
-
-  if (!IsContent()) {
-    return ComputeIndexOf(aPossibleChild);
-  }
-
-  FlattenedChildIterator iter(AsContent());
-  if (!iter.ShadowDOMInvolved()) {
-    auto index = ComputeIndexOf(aPossibleChild);
-    MOZ_ASSERT(DoComputeFlatTreeIndexOf(iter, aPossibleChild) == index);
-    return index;
-  }
-
-  return DoComputeFlatTreeIndexOf(iter, aPossibleChild);
+  return FlattenedChildIterator::GetIndexOf(this, aPossibleChild);
 }
 
 static already_AddRefed<nsINode> GetNodeFromNodeOrString(

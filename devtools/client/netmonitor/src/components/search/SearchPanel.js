@@ -8,14 +8,14 @@ const {
   Component,
   createRef,
   createFactory,
-} = require("resource://devtools/client/shared/vendor/react.js");
+} = require("resource://devtools/client/shared/vendor/react.mjs");
 const dom = require("resource://devtools/client/shared/vendor/react-dom-factories.js");
 const { div, span } = dom;
 const Actions = require("resource://devtools/client/netmonitor/src/actions/index.js");
 const {
   PANELS,
 } = require("resource://devtools/client/netmonitor/src/constants.js");
-const PropTypes = require("resource://devtools/client/shared/vendor/react-prop-types.js");
+const PropTypes = require("resource://devtools/client/shared/vendor/react-prop-types.mjs");
 const {
   connect,
 } = require("resource://devtools/client/shared/vendor/react-redux.js");

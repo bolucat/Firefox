@@ -56,7 +56,6 @@ const REACT_ESM_MODULES = new Set([
   VENDOR_URI + "react-prop-types-dev.js",
   VENDOR_URI + "react-prop-types.js",
   VENDOR_URI + "react-test-renderer.js",
-  VENDOR_URI + "react-test-renderer-shallow.js",
 ]);
 
 // Any directory that matches the following regular expression
@@ -177,6 +176,10 @@ function BrowserLoaderBuilder({
       // but executed from the Loader global scope. `syncImport` does that.
       if (REACT_ESM_MODULES.has(uri)) {
         uri = uri.replace(/.js$/, ".mjs");
+        const moduleExports = syncImport(uri);
+        return moduleExports.default || moduleExports;
+      }
+      if (uri.endsWith(".mjs")) {
         const moduleExports = syncImport(uri);
         return moduleExports.default || moduleExports;
       }

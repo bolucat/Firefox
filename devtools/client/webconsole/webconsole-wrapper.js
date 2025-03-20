@@ -6,8 +6,8 @@
 const {
   createElement,
   createFactory,
-} = require("resource://devtools/client/shared/vendor/react.js");
-const ReactDOM = require("resource://devtools/client/shared/vendor/react-dom.js");
+} = require("resource://devtools/client/shared/vendor/react.mjs");
+const ReactDOM = require("resource://devtools/client/shared/vendor/react-dom.mjs");
 const {
   Provider,
   createProvider,

@@ -1273,6 +1273,7 @@ static nsLiteralCString sStyleSrcUnsafeInlineAllowList[] = {
     "chrome://devtools/content/inspector/index.xhtml"_ns,
     "chrome://devtools/content/inspector/markup/markup.xhtml"_ns,
     "chrome://devtools/content/memory/index.xhtml"_ns,
+    "chrome://devtools/content/shared/sourceeditor/codemirror/cmiframe.html"_ns,
     "chrome://formautofill/content/manageAddresses.xhtml"_ns,
     "chrome://formautofill/content/manageCreditCards.xhtml"_ns,
     "chrome://gfxsanity/content/sanityparent.html"_ns,
@@ -1288,6 +1289,9 @@ static nsLiteralCString sStyleSrcUnsafeInlineAllowList[] = {
     "chrome://mozapps/content/update/history.xhtml"_ns,
     "chrome://mozapps/content/update/updateElevation.xhtml"_ns,
     "chrome://pippki/content/certManager.xhtml"_ns,
+    "chrome://pippki/content/deletecert.xhtml"_ns,
+    "chrome://pippki/content/device_manager.xhtml"_ns,
+    "chrome://pippki/content/downloadcert.xhtml"_ns,
 };
 // img-src data: blob:
 static nsLiteralCString sImgSrcDataBlobAllowList[] = {
@@ -1326,6 +1330,7 @@ static nsLiteralCString sImgSrcDataBlobAllowList[] = {
     "chrome://devtools/content/inspector/markup/markup.xhtml"_ns,
     "chrome://devtools/content/netmonitor/index.html"_ns,
     "chrome://devtools/content/responsive/toolbar.xhtml"_ns,
+    "chrome://devtools/content/shared/sourceeditor/codemirror/cmiframe.html"_ns,
     "chrome://devtools/content/webconsole/index.html"_ns,
     "chrome://global/content/print.html"_ns,
 };
@@ -1917,7 +1922,6 @@ void nsContentSecurityUtils::AssertChromePageHasCSP(Document* aDocument) {
       "chrome://devtools/content/framework/browser-toolbox/window.html"_ns,
       "chrome://devtools/content/framework/toolbox-options.html"_ns,
       "chrome://devtools/content/framework/toolbox-window.xhtml"_ns,
-      "chrome://devtools/content/shared/sourceeditor/codemirror/cmiframe.html"_ns,
       "chrome://devtools/content/shared/webextension-fallback.html"_ns,
       "chrome://devtools/skin/images/alert.svg"_ns,
       "chrome://extensions/content/dummy.xhtml"_ns,
@@ -1930,9 +1934,6 @@ void nsContentSecurityUtils::AssertChromePageHasCSP(Document* aDocument) {
       "chrome://global/content/win.xhtml"_ns,
       "chrome://global/skin/in-content/info-pages.css"_ns,
       "chrome://layoutdebug/content/layoutdebug.xhtml"_ns,
-      "chrome://pippki/content/deletecert.xhtml"_ns,
-      "chrome://pippki/content/device_manager.xhtml"_ns,
-      "chrome://pippki/content/downloadcert.xhtml"_ns,
       "chrome://pippki/content/editcacert.xhtml"_ns,
       "chrome://pippki/content/exceptionDialog.xhtml"_ns,
       "chrome://pippki/content/load_device.xhtml"_ns,

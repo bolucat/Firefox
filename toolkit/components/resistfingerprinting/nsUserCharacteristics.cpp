@@ -50,6 +50,7 @@
 #include "nsThreadUtils.h"
 #include "mozilla/dom/Navigator.h"
 #include "nsIGSettingsService.h"
+#include "nsIPropertyBag2.h"
 #include "nsITimer.h"
 #include "gfxConfig.h"
 
@@ -650,6 +651,33 @@ already_AddRefed<PopulatePromise> PopulateTimeZone() {
   return populatePromise.forget();
 }
 
+void PopulateModelName() {
+  nsCString modelName("null");
+
+  nsCOMPtr<nsIPropertyBag2> sysInfo =
+      do_GetService("@mozilla.org/system-info;1");
+  NS_ENSURE_TRUE_VOID(sysInfo);
+
+#if defined(XP_MACOSX)
+  sysInfo->GetPropertyAsACString(u"appleModelId"_ns, modelName);
+#elif defined(MOZ_WIDGET_ANDROID)
+  sysInfo->GetPropertyAsACString(u"manufacturer"_ns, modelName);
+  modelName.AppendLiteral(" ");
+  nsCString temp;
+  sysInfo->GetPropertyAsACString(u"device"_ns, temp);
+  modelName.Append(temp);
+#elif defined(XP_WIN)
+  sysInfo->GetPropertyAsACString(u"winModelId"_ns, modelName);
+#elif defined(XP_LINUX)
+  sysInfo->GetPropertyAsACString(u"linuxProductSku"_ns, modelName);
+  if (modelName.IsEmpty()) {
+    sysInfo->GetPropertyAsACString(u"linuxProductName"_ns, modelName);
+  }
+#endif
+
+  glean::characteristics::machine_model_name.Set(modelName);
+}
+
 const RefPtr<PopulatePromise>& TimoutPromise(
     const RefPtr<PopulatePromise>& promise, uint32_t delay,
     const nsCString& funcName) {
@@ -681,7 +709,7 @@ const RefPtr<PopulatePromise>& TimoutPromise(
 // metric is set, this variable should be incremented. It'll be a lot. It's
 // okay. We're going to need it to know (including during development) what is
 // the source of the data we are looking at.
-const int kSubmissionSchema = 22;
+const int kSubmissionSchema = 23;
 
 const auto* const kUUIDPref =
     "toolkit.telemetry.user_characteristics_ping.uuid";
@@ -885,6 +913,7 @@ void nsUserCharacteristics::PopulateDataAndEventuallySubmit(
     PopulateLanguages();
     PopulateTextAntiAliasing();
     PopulateProcessorCount();
+    PopulateModelName();
     PopulateMisc(false);
   }
 

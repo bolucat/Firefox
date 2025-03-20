@@ -6,7 +6,6 @@ package org.mozilla.fenix.checklist
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,7 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.Icon
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
@@ -28,6 +27,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import mozilla.components.compose.base.Divider
 import mozilla.components.compose.base.annotation.FlexibleWindowLightDarkPreview
 import mozilla.components.compose.base.theme.AcornTheme
 import org.mozilla.fenix.R
@@ -47,9 +47,15 @@ fun CheckListView(
     onChecklistItemClicked: (ChecklistItem) -> Unit,
 ) {
     LazyColumn {
-        items(checkListItems) { item ->
+        itemsIndexed(checkListItems) { index, item ->
             when (item) {
-                is ChecklistItem.Group -> GroupWithTasks(item, onChecklistItemClicked)
+                is ChecklistItem.Group -> GroupWithTasks(
+                    group = item,
+                    onChecklistItemClicked = onChecklistItemClicked,
+                    // No divider for the last group, in case it is the last element
+                    // in the parent composable.
+                    addDivider = index != checkListItems.size - 1,
+                )
                 is ChecklistItem.Task -> Task(item, onChecklistItemClicked)
             }
         }
@@ -84,7 +90,7 @@ private fun Task(
             modifier = Modifier
                 .weight(1f)
                 .semantics { heading() },
-            style = FirefoxTheme.typography.headline7,
+            style = FirefoxTheme.typography.subtitle1,
             color = FirefoxTheme.colors.textPrimary,
         )
 
@@ -101,12 +107,17 @@ private fun Task(
 private fun GroupWithTasks(
     group: ChecklistItem.Group,
     onChecklistItemClicked: (ChecklistItem) -> Unit,
+    addDivider: Boolean,
 ) {
     Column {
         Group(group, onChecklistItemClicked)
 
         if (group.isExpanded) {
             group.tasks.forEach { task -> Task(task, onChecklistItemClicked) }
+        }
+
+        if (addDivider) {
+            Divider()
         }
     }
 }
@@ -119,22 +130,20 @@ private fun Group(
 ) {
     Row(
         modifier = Modifier
-            .padding(
-                horizontal = 16.dp,
-                vertical = 8.dp,
-            )
             .fillMaxWidth()
+            .height(56.dp)
             .clickable { onChecklistItemClicked(group) },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.Center,
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 16.dp),
             horizontalAlignment = Alignment.Start,
         ) {
             Text(
                 text = group.title,
-                style = FirefoxTheme.typography.headline7,
+                style = FirefoxTheme.typography.subtitle1,
                 color = FirefoxTheme.colors.textPrimary,
                 modifier = Modifier.semantics { heading() },
             )
@@ -148,12 +157,11 @@ private fun Group(
 
         Icon(
             painter = painterResource(id = R.drawable.ic_arrowhead_down),
-            tint = FirefoxTheme.colors.textPrimary,
             contentDescription = "",
             modifier = Modifier
-                .size(26.dp)
-                .padding(1.dp)
+                .padding(16.dp)
                 .rotate(if (group.isExpanded) ROTATE_180 else 0f),
+            tint = FirefoxTheme.colors.iconPrimary,
         )
     }
 }
