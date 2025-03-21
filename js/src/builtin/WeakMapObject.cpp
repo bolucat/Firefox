@@ -118,14 +118,20 @@ bool WeakMapObject::delete_(JSContext* cx, unsigned argc, Value* vp) {
       cx, args);
 }
 
-static bool SetWeakMapEntryImpl(JSContext* cx, Handle<WeakMapObject*> mapObj,
-                                Handle<Value> keyVal, Handle<Value> value) {
+static bool EnsureValidWeakMapKey(JSContext* cx, Handle<Value> keyVal) {
   if (MOZ_UNLIKELY(!CanBeHeldWeakly(cx, keyVal))) {
     unsigned errorNum = GetErrorNumber(true);
     ReportValueError(cx, errorNum, JSDVG_IGNORE_STACK, keyVal, nullptr);
     return false;
   }
+  return true;
+}
 
+static bool SetWeakMapEntryImpl(JSContext* cx, Handle<WeakMapObject*> mapObj,
+                                Handle<Value> keyVal, Handle<Value> value) {
+  if (!EnsureValidWeakMapKey(cx, keyVal)) {
+    return false;
+  }
   return WeakCollectionPutEntryInternal(cx, mapObj, keyVal, value);
 }
 
@@ -150,49 +156,23 @@ bool WeakMapObject::set(JSContext* cx, unsigned argc, Value* vp) {
 }
 
 #ifdef NIGHTLY_BUILD
-static bool getOrAddWeakMapEntry(JSContext* cx, Handle<WeakMapObject*> mapObj,
+static bool GetOrAddWeakMapEntry(JSContext* cx, Handle<WeakMapObject*> mapObj,
                                  Handle<Value> key, Handle<Value> value,
                                  MutableHandleValue rval) {
-  if (MOZ_UNLIKELY(!CanBeHeldWeakly(cx, key))) {
-    unsigned errorNum = GetErrorNumber(true);
-    ReportValueError(cx, errorNum, JSDVG_IGNORE_STACK, key, nullptr);
+  if (!EnsureValidWeakMapKey(cx, key)) {
+    return false;
+  }
+
+  if (!EnsureObjectHasWeakMap(cx, mapObj)) {
     return false;
   }
 
   ValueValueWeakMap* map = mapObj->getMap();
-  if (!map) {
-    auto newMap = cx->make_unique<ValueValueWeakMap>(cx, mapObj.get());
-    if (!newMap) {
-      return false;
-    }
-    map = newMap.release();
-    InitReservedSlot(mapObj, WeakCollectionObject::DataSlot, map,
-                     MemoryUse::WeakMapObject);
-  }
-
   ValueValueWeakMap::AddPtr addPtr = map->lookupForAdd(key);
   if (!addPtr) {
-    if (key.isObject()) {
-      RootedObject keyObj(cx, &key.toObject());
-
-      // Preserve wrapped native keys to prevent wrapper optimization.
-      if (!TryPreserveReflector(cx, keyObj)) {
-        return false;
-      }
-
-      RootedObject delegate(cx, UncheckedUnwrapWithoutExpose(keyObj));
-      if (delegate && !TryPreserveReflector(cx, delegate)) {
-        return false;
-      }
+    if (!PreserveReflectorAndAssertValidEntry(cx, mapObj, key, value)) {
+      return false;
     }
-    MOZ_ASSERT_IF(key.isObject(),
-                  key.toObject().compartment() == mapObj->compartment());
-    MOZ_ASSERT_IF(
-        value.isGCThing(),
-        gc::ToMarkable(value)->zoneFromAnyThread() == mapObj->zone() ||
-            gc::ToMarkable(value)->zoneFromAnyThread()->isAtomsZone());
-    MOZ_ASSERT_IF(value.isObject(),
-                  value.toObject().compartment() == mapObj->compartment());
     if (!map->add(addPtr, key, value)) {
       JS_ReportOutOfMemory(cx);
       return false;
@@ -207,7 +187,7 @@ static bool getOrAddWeakMapEntry(JSContext* cx, Handle<WeakMapObject*> mapObj,
   MOZ_ASSERT(WeakMapObject::is(args.thisv()));
 
   Rooted<WeakMapObject*> map(cx, &args.thisv().toObject().as<WeakMapObject>());
-  return getOrAddWeakMapEntry(cx, map, args.get(0), args.get(1), args.rval());
+  return GetOrAddWeakMapEntry(cx, map, args.get(0), args.get(1), args.rval());
 }
 
 /* static */
@@ -233,8 +213,7 @@ bool WeakCollectionObject::nondeterministicGetKeys(
   if (ValueValueWeakMap* map = obj->getMap()) {
     // Prevent GC from mutating the weakmap while iterating.
     gc::AutoSuppressGC suppress(cx);
-    for (ValueValueWeakMap::Base::Range r = map->all(); !r.empty();
-         r.popFront()) {
+    for (ValueValueWeakMap::Range r = map->all(); !r.empty(); r.popFront()) {
       const auto& key = r.front().key();
       MOZ_ASSERT(key.isObject() || key.isSymbol());
       JS::ExposeValueToActiveJS(key);
@@ -300,9 +279,6 @@ JS_PUBLIC_API bool JS::GetWeakMapEntry(JSContext* cx, HandleObject mapObj,
   }
 
   if (ValueValueWeakMap::Ptr ptr = map->lookup(key)) {
-    // Read barrier to prevent an incorrectly gray value from escaping the
-    // weak map. See the comment before UnmarkGrayChildren in gc/Marking.cpp
-    ExposeValueToActiveJS(ptr->value().get());
     rval.set(ptr->value());
   }
   return true;

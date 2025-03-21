@@ -1406,6 +1406,12 @@ class Document : public nsINode,
   // Returns the cookie jar settings for this and sub contexts.
   nsICookieJarSettings* CookieJarSettings();
 
+  // Set the cookieJarSettings to the document.
+  void SetCookieJarSettings(nsICookieJarSettings* aCookieJarSettings) {
+    MOZ_ASSERT(aCookieJarSettings);
+    mCookieJarSettings = aCookieJarSettings;
+  }
+
   // Returns whether this document is using unpartitioned cookies
   bool UsingStorageAccess();
 
@@ -1814,6 +1820,9 @@ class Document : public nsINode,
   void RemoveFromIdTable(Element* aElement, nsAtom* aId);
   void AddToNameTable(Element* aElement, nsAtom* aName);
   void RemoveFromNameTable(Element* aElement, nsAtom* aName);
+  void AddToDocumentNameTable(nsGenericHTMLElement* aElement, nsAtom* aName);
+  void RemoveFromDocumentNameTable(nsGenericHTMLElement* aElement,
+                                   nsAtom* aName);
 
   /**
    * Returns all elements in the top layer in the insertion order.

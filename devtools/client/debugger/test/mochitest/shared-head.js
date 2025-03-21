@@ -584,7 +584,10 @@ function assertPaused(dbg, msg = "client is paused") {
 async function waitForPaused(
   dbg,
   url,
-  options = { shouldWaitForLoadedScopes: true }
+  options = {
+    shouldWaitForLoadedScopes: true,
+    shouldWaitForInlinePreviews: true,
+  }
 ) {
   info("Waiting for the debugger to pause");
   const { getSelectedScope, getCurrentThread, getCurrentThreadFrames } =
@@ -592,7 +595,7 @@ async function waitForPaused(
 
   await waitForState(
     dbg,
-    () => isPaused(dbg) && !!getSelectedScope(getCurrentThread()),
+    () => isPaused(dbg) && !!getSelectedScope(),
     "paused"
   );
 
@@ -605,6 +608,10 @@ async function waitForPaused(
   // Note that this will wait for symbols (when CM5 is enabled),
   // which are fetched on pause
   await waitForSelectedSource(dbg, url);
+
+  if (options.shouldWaitForInlinePreviews) {
+    await waitForInlinePreviews(dbg);
+  }
 }
 
 /**

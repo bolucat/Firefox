@@ -1,4 +1,8 @@
 [versions]
+# AGP
+android-gradle-plugin = "8.9.0" # Keep lint version in sync
+lint = "31.9.0"
+
 python-envs-plugin = "0.0.31"
 mozilla-glean = "63.1.0"
 maven-ant-tasks = "2.1.3"
@@ -6,8 +10,6 @@ jacoco = "0.8.12"
 okhttp = "4.12.0"
 okio = "3.10.1"
 androidsvg = "1.4"
-android-gradle-plugin = "8.8.2"
-lint = "31.8.1"
 detekt = "1.23.8"
 ktlint = "0.49.1"
 zxing = "3.5.3"
@@ -60,11 +62,12 @@ material = "1.12.0"
 osslicenses-plugin = "0.10.6"
 play-review = "2.0.2"
 play-services-ads-id = "18.1.0"
-play-services-base = "18.5.0"
+play-services-base = "18.6.0"
 play-services-fido = "21.1.0"
 protobuf = "4.29.0" # Keep Protobuf in sync with the version used by AppServices.
 
 # Gradle plugins
+kotlin-dsl = "5.2.0"
 protobuf-plugin = "0.9.4"
 scip-java = "0.10.4"
 
@@ -89,7 +92,7 @@ robolectric = "4.14.1"
 
 # Third party library versions
 adjust = "5.1.0"
-sentry = "8.4.0"
+sentry = "8.5.0"
 
 [libraries]
 
@@ -239,6 +242,7 @@ adjust = { group = "com.adjust.sdk", name = "adjust-android", version.ref = "adj
 
 [plugins]
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin"}
-kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin"}
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+kotlin-dsl = { id = "org.gradle.kotlin.kotlin-dsl", version.ref = "kotlin-dsl" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp-plugin" }

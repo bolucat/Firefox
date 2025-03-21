@@ -332,7 +332,7 @@ version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "82d71e457dc518a15eecc90d3b0660dee4b51623b34ac4262c9326e0d7e0f8e2"
 dependencies = [
- "base64 0.21.3",
+ "base64 0.21.999",
  "bitflags 1.999.999",
  "cfg-if",
  "core-foundation 0.9.999",
@@ -358,7 +358,7 @@ name = "authrs_bridge"
 version = "0.1.0"
 dependencies = [
  "authenticator",
- "base64 0.21.3",
+ "base64 0.22.1",
  "cstr",
  "log",
  "moz_task",
@@ -385,14 +385,21 @@ version = "0.3.999"
 name = "base64"
 version = "0.13.999"
 dependencies = [
- "base64 0.21.3",
+ "base64 0.22.1",
 ]
 
 [[package]]
 name = "base64"
-version = "0.21.3"
+version = "0.21.999"
+dependencies = [
+ "base64 0.22.1",
+]
+
+[[package]]
+name = "base64"
+version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "414dcefbc63d77c526a76b3afcf6fbb9b5e2791c19c3aa2297733208750c6e53"
+checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
 name = "basic-toml"
@@ -727,7 +734,7 @@ dependencies = [
 name = "cert_storage"
 version = "0.0.1"
 dependencies = [
- "base64 0.21.3",
+ "base64 0.22.1",
  "byteorder",
  "clubcard",
  "clubcard-crlite",
@@ -899,7 +906,7 @@ version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd2c6f668aeaab6cf4c9637400ce5bc1f7ab1cf9b424dd0125273f16bd26ca25"
 dependencies = [
- "base64 0.21.3",
+ "base64 0.21.999",
  "bincode",
  "clubcard",
  "serde",
@@ -1214,7 +1221,7 @@ dependencies = [
 name = "crypto_hash"
 version = "0.1.0"
 dependencies = [
- "base64 0.21.3",
+ "base64 0.22.1",
  "digest",
  "libc",
  "md-5",
@@ -2297,7 +2304,7 @@ name = "geckodriver"
 version = "0.36.0"
 dependencies = [
  "anyhow",
- "base64 0.21.3",
+ "base64 0.22.1",
  "chrono",
  "clap",
  "flate2",
@@ -2824,7 +2831,7 @@ version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06683b93020a07e3dbcf5f8c0f6d40080d725bea7936fc01ad345c01b97dc270"
 dependencies = [
- "base64 0.21.3",
+ "base64 0.21.999",
  "bytes",
  "headers-core",
  "http",
@@ -2893,7 +2900,7 @@ dependencies = [
 name = "http3server"
 version = "0.1.1"
 dependencies = [
- "base64 0.21.3",
+ "base64 0.22.1",
  "bindgen 0.69.4",
  "cfg-if",
  "http",
@@ -4817,9 +4824,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.20.3"
+version = "1.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "945462a4b81e43c4e3ba96bd7b49d834c6f61198356aa858733bc4acf3cbe62e"
+checksum = "d75b0bedcc4fe52caa0e03d9f1151a323e4aa5e2d78ba3580400cd3c9e2bc4bc"
 
 [[package]]
 name = "ordered-float"
@@ -5419,7 +5426,7 @@ version = "0.1.0"
 source = "git+https://github.com/mozilla/application-services?rev=d773da92641d92930b7308300e9fc2746a05ce6a#d773da92641d92930b7308300e9fc2746a05ce6a"
 dependencies = [
  "anyhow",
- "base64 0.21.3",
+ "base64 0.21.999",
  "error-support",
  "interrupt-support",
  "log",
@@ -5537,7 +5544,7 @@ version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b91f7eff05f748767f183df4320a63d6936e9c6107d97c9e6bdd9784f4289c94"
 dependencies = [
- "base64 0.21.3",
+ "base64 0.21.999",
  "bitflags 2.9.0",
  "serde",
  "serde_derive",
@@ -5772,9 +5779,9 @@ dependencies = [
 
 [[package]]
 name = "serde"
-version = "1.0.218"
+version = "1.0.219"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8dfc9d19bdbf6d17e22319da49161d5d0108e4188e8b680aef6299eed22df60"
+checksum = "5f0e2c6ed6606019b4e29e69dbaba95b11854410e5347d525002456dbbb786b6"
 dependencies = [
  "serde_derive",
 ]
@@ -5800,9 +5807,9 @@ dependencies = [
 
 [[package]]
 name = "serde_derive"
-version = "1.0.218"
+version = "1.0.219"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f09503e191f4e797cb8aac08e9a4a4695c5edf6a2e70e376d961ddd5c969f82b"
+checksum = "5b0276cf7f2c73365f7157c8123c21cd9a50fbbd844757af28ca1f5925fc2a00"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6267,7 +6274,7 @@ name = "sync-guid"
 version = "0.1.0"
 source = "git+https://github.com/mozilla/application-services?rev=d773da92641d92930b7308300e9fc2746a05ce6a#d773da92641d92930b7308300e9fc2746a05ce6a"
 dependencies = [
- "base64 0.21.3",
+ "base64 0.21.999",
  "rand",
  "rusqlite",
  "serde",
@@ -7190,7 +7197,7 @@ version = "0.3.100"
 name = "webdriver"
 version = "0.52.0"
 dependencies = [
- "base64 0.21.3",
+ "base64 0.22.1",
  "bytes",
  "cookie",
  "http",
