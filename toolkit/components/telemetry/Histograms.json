@@ -6677,19 +6677,6 @@
     "releaseChannelCollection": "opt-out",
     "description": "Firefox: If the spinner interstitial displays during tab switching, records the time in ms the graphic is visible"
   },
-  "FX_TAB_SWITCH_SPINNER_VISIBLE_LONG_MS": {
-    "record_in_processes": ["main"],
-    "products": ["firefox"],
-    "alert_emails": ["mconley@mozilla.com", "dothayer@mozilla.com"],
-    "expires_in_version": "never",
-    "kind": "exponential",
-    "low": 1000,
-    "high": 64000,
-    "n_buckets": 7,
-    "bug_numbers": [1301104],
-    "releaseChannelCollection": "opt-out",
-    "description": "Firefox: If the spinner interstitial displays during tab switching, records the time in ms the graphic is visible. This probe is similar to FX_TAB_SWITCH_SPINNER_VISIBLE_MS, but is for truly degenerate cases."
-  },
   "FX_TAB_SWITCH_SPINNER_VISIBLE_TRIGGER": {
     "record_in_processes": ["main"],
     "products": ["firefox"],
@@ -11239,18 +11226,6 @@
     "high": 30000,
     "n_buckets": 20,
     "description": "Sanitize: Time it takes to sanitize the open windows list (ms). On Android, this is the time it takes to close all open tabs (ms)."
-  },
-  "PWMGR_FORM_AUTOFILL_RESULT": {
-    "record_in_processes": ["content"],
-    "products": ["firefox", "fennec"],
-    "alert_emails": ["seceng-telemetry@mozilla.com", "loines@mozilla.com"],
-    "bug_numbers": [1340021, 1545172],
-    "releaseChannelCollection": "opt-out",
-    "expires_in_version": "never",
-    "kind": "enumerated",
-    "n_values": 20,
-    "description": "The result of auto-filling a login form. See http://mzl.la/1Mbs6jL for bucket descriptions.",
-    "record_into_store": ["main"]
   },
   "PWMGR_LOGIN_PAGE_SAFETY": {
     "record_in_processes": ["content"],

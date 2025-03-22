@@ -12,7 +12,6 @@ import android.content.Intent
 import android.content.Intent.ACTION_MAIN
 import android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
 import android.content.res.Configuration
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.StrictMode
@@ -35,6 +34,7 @@ import androidx.appcompat.app.ActionBar
 import androidx.appcompat.widget.Toolbar
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.doOnAttach
 import androidx.lifecycle.lifecycleScope
@@ -791,7 +791,7 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
     override fun onProvideAssistContent(outContent: AssistContent?) {
         super.onProvideAssistContent(outContent)
         val currentTabUrl = components.core.store.state.selectedTab?.content?.url
-        outContent?.webUri = currentTabUrl?.let { Uri.parse(it) }
+        outContent?.webUri = currentTabUrl?.let { it.toUri() }
     }
 
     @CallSuper
@@ -1269,12 +1269,7 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
         additionalHeaders: Map<String, String>? = null,
     ) {
         val startTime = components.core.engine.profiler?.getProfilerTime()
-        val mode = browsingModeManager.mode
-
-        val private = when (mode) {
-            BrowsingMode.Private -> true
-            BrowsingMode.Normal -> false
-        }
+        val private = browsingModeManager.mode.isPrivate
 
         // In situations where we want to perform a search but have no search engine (e.g. the user
         // has removed all of them, or we couldn't load any) we will pass searchTermOrURL to Gecko
@@ -1297,7 +1292,7 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
             }
         } else {
             if (newTab) {
-                val searchUseCase = if (mode.isPrivate) {
+                val searchUseCase = if (private) {
                     components.useCases.searchUseCases.newPrivateTabSearch
                 } else {
                     components.useCases.searchUseCases.newTabSearch

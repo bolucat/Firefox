@@ -13,6 +13,7 @@ import android.os.Build
 import android.view.accessibility.AccessibilityManager
 import androidx.annotation.VisibleForTesting
 import androidx.annotation.VisibleForTesting.Companion.PRIVATE
+import androidx.core.content.edit
 import androidx.lifecycle.LifecycleOwner
 import mozilla.components.concept.engine.Engine
 import mozilla.components.concept.engine.Engine.HttpsOnlyMode
@@ -406,6 +407,12 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         default = false,
     )
 
+    /**
+     * The daily usage ping is not normally tied to normal telemetry.  We set the default value to
+     * [isTelemetryEnabled] because this setting was added in early 2025 and we want to make
+     * sure that users who upgrade and had telemetry disabled don't start sending the
+     * daily usage ping telemetry.
+     */
     var isDailyUsagePingEnabled by booleanPreference(
         appContext.getPreferenceKey(R.string.pref_key_daily_usage_ping),
         default = isTelemetryEnabled,
@@ -791,7 +798,7 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         val isDefaultBrowserNow = isDefaultBrowserBlocking()
         val wasDefaultBrowserOnLastResume =
             this.preferences.getBoolean(prefKey, isDefaultBrowserNow)
-        this.preferences.edit().putBoolean(prefKey, isDefaultBrowserNow).apply()
+        this.preferences.edit { putBoolean(prefKey, isDefaultBrowserNow) }
         return isDefaultBrowserNow && !wasDefaultBrowserOnLastResume
     }
 
@@ -861,14 +868,18 @@ class Settings(private val appContext: Context) : PreferencesHolder {
 
     @VisibleForTesting(otherwise = PRIVATE)
     fun setStrictETP() {
-        preferences.edit().putBoolean(
-            appContext.getPreferenceKey(R.string.pref_key_tracking_protection_strict_default),
-            true,
-        ).apply()
-        preferences.edit().putBoolean(
-            appContext.getPreferenceKey(R.string.pref_key_tracking_protection_standard_option),
-            false,
-        ).apply()
+        preferences.edit {
+            putBoolean(
+                appContext.getPreferenceKey(R.string.pref_key_tracking_protection_strict_default),
+                true,
+            )
+        }
+        preferences.edit {
+            putBoolean(
+                appContext.getPreferenceKey(R.string.pref_key_tracking_protection_standard_option),
+                false,
+            )
+        }
         appContext.components.let {
             val policy = it.core.trackingProtectionPolicyFactory
                 .createTrackingProtectionPolicy()
@@ -1004,12 +1015,12 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         set(value) {
             val lastKnownModeWasPrivate = (value == BrowsingMode.Private)
 
-            preferences.edit()
-                .putBoolean(
+            preferences.edit {
+                putBoolean(
                     appContext.getPreferenceKey(R.string.pref_key_last_known_mode_private),
                     lastKnownModeWasPrivate,
                 )
-                .apply()
+            }
 
             field = value
         }
@@ -1100,7 +1111,7 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         preferences.getBoolean(type.getPreferenceKey(appContext), false)
 
     fun setDeleteDataOnQuit(type: DeleteBrowsingDataOnQuitType, value: Boolean) {
-        preferences.edit().putBoolean(type.getPreferenceKey(appContext), value).apply()
+        preferences.edit { putBoolean(type.getPreferenceKey(appContext), value) }
     }
 
     fun shouldDeleteAnyDataOnQuit() =
@@ -1111,10 +1122,12 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         false,
     )
 
-    fun recordPasswordsEncryptionKeyGenerated() = preferences.edit().putBoolean(
-        appContext.getPreferenceKey(R.string.pref_key_encryption_key_generated),
-        true,
-    ).apply()
+    fun recordPasswordsEncryptionKeyGenerated() = preferences.edit {
+        putBoolean(
+            appContext.getPreferenceKey(R.string.pref_key_encryption_key_generated),
+            true,
+        )
+    }
 
     @VisibleForTesting(otherwise = PRIVATE)
     internal val loginsSecureWarningSyncCount = counterPreference(
@@ -1274,7 +1287,7 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     fun setAutoplayUserSetting(
         autoplaySetting: Int,
     ) {
-        preferences.edit().putInt(AUTOPLAY_USER_SETTING, autoplaySetting).apply()
+        preferences.edit { putInt(AUTOPLAY_USER_SETTING, autoplaySetting) }
     }
 
     /**
@@ -1300,7 +1313,7 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         feature: PhoneFeature,
         value: Action,
     ) {
-        preferences.edit().putInt(feature.getPreferenceKey(appContext), value.toInt()).apply()
+        preferences.edit { putInt(feature.getPreferenceKey(appContext), value.toInt()) }
     }
 
     fun getSitePermissionsCustomSettingsRules(): SitePermissionsRules {
@@ -1380,9 +1393,7 @@ class Settings(private val appContext: Context) : PreferencesHolder {
      */
     fun setSearchWidgetInstalled(installed: Boolean) {
         val key = appContext.getPreferenceKey(R.string.pref_key_search_widget_installed_2)
-        preferences.edit()
-            .putBoolean(key, installed)
-            .apply()
+        preferences.edit { putBoolean(key, installed) }
     }
 
     /**
@@ -1401,8 +1412,7 @@ class Settings(private val appContext: Context) : PreferencesHolder {
 
         if (installedCount > 0) {
             setSearchWidgetInstalled(true)
-            preferences.edit()
-                .remove(oldKey).apply()
+            preferences.edit { remove(oldKey) }
         }
     }
 
@@ -2363,6 +2373,11 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         key = appContext.getPreferenceKey(R.string.pref_key_use_new_bookmarks_ui),
         default = { FxNimbus.features.bookmarks.value().newComposeUi },
         featureFlag = true,
+    )
+
+    var bookmarkListSortOrder by stringPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_bookmark_list_sort_order),
+        default = "",
     )
 
     var lastSavedInFolderGuid by stringPreference(

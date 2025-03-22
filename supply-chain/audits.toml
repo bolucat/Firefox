@@ -1403,6 +1403,11 @@ criteria = "safe-to-deploy"
 delta = "0.8.19 -> 0.8.20"
 notes = "Minor changes."
 
+[[audits.crunchy]]
+who = "Erich Gubler <erichdongubler@gmail.com>"
+criteria = "safe-to-deploy"
+version = "0.2.3"
+
 [[audits.crypto-common]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
@@ -2605,6 +2610,16 @@ format. I've reviewed these and found no issues. There are no uses of ambient
 capabilities.
 """
 
+[[audits.half]]
+who = "Erich Gubler <erichdongubler@gmail.com>"
+criteria = "safe-to-deploy"
+delta = "1.8.2 -> 1.8.3"
+
+[[audits.half]]
+who = "Erich Gubler <erichdongubler@gmail.com>"
+criteria = "safe-to-deploy"
+delta = "1.8.3 -> 2.5.0"
+
 [[audits.hashbrown]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
@@ -3657,7 +3672,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "24.0.0 -> 24.0.0@git:dc02f91ffe1feab8c35d3fdf41f61a62a5004d2c"
+delta = "24.0.0 -> 24.0.0@git:c6286791febc64cf8ef054b5356c2669327ef51c"
 importable = false
 
 [[audits.net2]]
@@ -5891,7 +5906,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "24.0.0 -> 24.0.0@git:dc02f91ffe1feab8c35d3fdf41f61a62a5004d2c"
+delta = "24.0.0 -> 24.0.0@git:c6286791febc64cf8ef054b5356c2669327ef51c"
 importable = false
 
 [[audits.wgpu-hal]]
@@ -5978,7 +5993,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "24.0.0 -> 24.0.0@git:dc02f91ffe1feab8c35d3fdf41f61a62a5004d2c"
+delta = "24.0.0 -> 24.0.0@git:c6286791febc64cf8ef054b5356c2669327ef51c"
 importable = false
 
 [[audits.wgpu-types]]
@@ -6060,7 +6075,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "24.0.0 -> 24.0.0@git:dc02f91ffe1feab8c35d3fdf41f61a62a5004d2c"
+delta = "24.0.0 -> 24.0.0@git:c6286791febc64cf8ef054b5356c2669327ef51c"
 importable = false
 
 [[audits.whatsys]]

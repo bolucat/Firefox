@@ -1011,6 +1011,7 @@ static void LogAcknowledgement(
     ss << "<none>"                  \
        << "\n";
 
+  ADD_FIELD(aPbAck, "Request Token", request_token);
   ADD_FIELD(aPbAck, "Status", status);
   ADD_FIELD(aPbAck, "Final Action", final_action);
 
@@ -1573,7 +1574,7 @@ void ContentAnalysis::CancelWithError(nsCString&& aUserActionId,
     // Alert the UI and (if action is not warn) the callback.  We aren't
     // handling an actual response so we have nothing to acknowledge.
     NotifyResponseObservers(response, nsCString(aUserActionId),
-                            false /* autoAcknowledge */);
+                            false /* autoAcknowledge */, isTimeout);
     if (action != nsIContentAnalysisResponse::Action::eWarn) {
       if (callback) {
         if (isShutdown) {
@@ -1843,6 +1844,26 @@ nsresult ContentAnalysis::RunAnalyzeRequestTask(
               return;
             }
 
+            nsCOMPtr<nsIObserverService> obsServ =
+                mozilla::services::GetObserverService();
+            // This message is only used for testing purposes, so avoid
+            // serializing the string here if no one is observing this message.
+            // This message is only really useful if we're in a timeout
+            // situation, otherwise dlp-response is fine.
+            if (obsServ->HasObservers("dlp-response-received-raw")) {
+              std::string responseString = aResponse->SerializeAsString();
+              nsTArray<char16_t> responseArray;
+              responseArray.SetLength(responseString.size() + 1);
+              for (size_t i = 0; i < responseString.size(); ++i) {
+                // Since NotifyObservers() expects a null-terminated string,
+                // make sure none of these values are 0.
+                responseArray[i] = responseString[i] + 0xFF00;
+              }
+              responseArray[responseString.size()] = 0;
+              obsServ->NotifyObservers(owner, "dlp-response-received-raw",
+                                       responseArray.Elements());
+            }
+
             // Note that the response we got may be for a different request, so
             // look up the user action id again.
             Maybe<nsCString> maybeUserActionId;
@@ -1960,7 +1981,7 @@ ContentAnalysis::DoAnalyzeRequest(
 
 void ContentAnalysis::NotifyResponseObservers(
     ContentAnalysisResponse* aResponse, nsCString&& aUserActionId,
-    bool aAutoAcknowledge) {
+    bool aAutoAcknowledge, bool aIsTimeout) {
   MOZ_ASSERT(NS_IsMainThread());
   aResponse->SetOwner(this);
 
@@ -1972,7 +1993,7 @@ void ContentAnalysis::NotifyResponseObservers(
 
     mWarnResponseDataMap.InsertOrUpdate(
         requestToken, WarnResponseData{aResponse, std::move(aUserActionId),
-                                       aAutoAcknowledge});
+                                       aAutoAcknowledge, aIsTimeout});
   }
 
   nsCOMPtr<nsIObserverService> obsServ =
@@ -2014,6 +2035,17 @@ void ContentAnalysis::IssueResponse(ContentAnalysisResponse* aResponse,
                 canceledResponseEntry.Remove();
               }
             } else {
+              if (mWarnResponseDataMap.Contains(token)) {
+                // We got a response from the agent but we're still waiting
+                // for a warn response from the user. This can basically only
+                // happen if the request timed out but TimeoutResult=1 (i.e.
+                // warn) is set.
+                LOGD(
+                    "Got response from agent for token %s but user hasn't "
+                    "replied to warn dialog yet",
+                    token.get());
+                return;
+              }
               MOZ_ASSERT_UNREACHABLE("missing canceled response action");
               action =
                   nsIContentAnalysisAcknowledgement::FinalAction::eUnspecified;
@@ -2049,8 +2081,8 @@ void ContentAnalysis::IssueResponse(ContentAnalysisResponse* aResponse,
 void ContentAnalysis::NotifyObserversAndMaybeIssueResponse(
     ContentAnalysisResponse* aResponse, nsCString&& aUserActionId,
     bool aAutoAcknowledge) {
-  NotifyResponseObservers(aResponse, nsCString(aUserActionId),
-                          aAutoAcknowledge);
+  NotifyResponseObservers(aResponse, nsCString(aUserActionId), aAutoAcknowledge,
+                          false /* isTimeout */);
 
   // For warn responses, IssueResponse will be called later by
   // RespondToWarnDialog, with the action replaced with the user's selection.
@@ -3129,6 +3161,22 @@ ContentAnalysis::RespondToWarnDialog(const nsACString& aRequestToken,
   }
 
   entry->mResponse->ResolveWarnAction(aAllowContent);
+  if (entry->mWasTimeout) {
+    LOGD(
+        "Warn response was for a previous timeout, inserting into "
+        "mUserActionIdToCanceledResponseMap for "
+        "userActionId %s",
+        entry->mUserActionId.get());
+    size_t count = 1;
+    if (auto maybeData =
+            mUserActionIdToCanceledResponseMap.Lookup(entry->mUserActionId)) {
+      count += maybeData->mNumExpectedResponses;
+    }
+
+    mUserActionIdToCanceledResponseMap.InsertOrUpdate(
+        entry->mUserActionId,
+        CanceledResponse{ConvertResult(entry->mResponse->GetAction()), count});
+  }
   IssueResponse(entry->mResponse, nsCString(entry->mUserActionId),
                 entry->mAutoAcknowledge);
   return NS_OK;

@@ -136,9 +136,12 @@ class QATests(SnapTestsBase):
         self._driver.execute_script(
             "arguments[0].volume = arguments[1]", video, ref_volume * 0.25
         )
+        new_volume = video.get_property("volume")
         assert (
-            video.get_property("volume") == ref_volume * 0.25
-        ), "<video> sound volume increased"
+            new_volume == ref_volume * 0.25
+        ), "<video> sound volume increased from {} to {} but got {}".format(
+            ref_volume, ref_volume * 0.25, new_volume
+        )
 
         self._logger.info("find video: done")
 
@@ -417,11 +420,19 @@ class QATests(SnapTestsBase):
             self._logger.info("click button for {}".format(menu_id))
             button_to_test.click()
 
-            # rotation does not close the menu?:
-            if self.is_esr_128() and menu_id in ("pageRotateCw", "pageRotateCcw"):
-                secondary_menu.click()
-
-            time.sleep(0.75)
+            try:
+                self._wait.until(
+                    EC.invisibility_of_element_located((By.ID, "secondaryToolbar"))
+                )
+            except TimeoutException:
+                # Menu does not close itself on those??
+                if menu_id in ("pageRotateCw", "pageRotateCcw"):
+                    self._logger.info("force close menu for {}".format(menu_id))
+                    secondary_menu.click()
+                    self._logger.info("wait menu disappear for {}".format(menu_id))
+                    self._wait.until(
+                        EC.invisibility_of_element_located((By.ID, "secondaryToolbar"))
+                    )
 
             self._logger.info("assert {}".format(menu_id))
             self.assert_rendering(exp[menu_id], self._driver)
