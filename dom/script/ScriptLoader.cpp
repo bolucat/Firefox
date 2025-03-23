@@ -215,7 +215,13 @@ ScriptLoader::ScriptLoader(Document* aDocument)
       dom_script_loader_external_scripts_speculative_omt_parse_enabled();
 
 #ifdef NIGHTLY_BUILD
-  if (StaticPrefs::dom_script_loader_navigation_cache()) {
+  // NOTE: The loader for the system principal aren't supposed to
+  //       load remote contents, and it doesn't have to use the in-memory cache.
+  //       A non-system-principal document can also load internal resources,
+  //       and those cases should be filtered out by
+  //       ScriptLoader::GetCacheBehavior.
+  if (!LoaderPrincipal()->IsSystemPrincipal() &&
+      StaticPrefs::dom_script_loader_navigation_cache()) {
     mCache = SharedScriptCache::Get();
     RegisterToCache();
   }
@@ -458,25 +464,26 @@ nsContentPolicyType ScriptLoadRequestToContentPolicyType(
   return nsIContentPolicy::TYPE_INTERNAL_SCRIPT;
 }
 
-nsresult ScriptLoader::CheckContentPolicy(Document* aDocument,
-                                          nsIScriptElement* aElement,
+nsresult ScriptLoader::CheckContentPolicy(nsIScriptElement* aElement,
                                           const nsAString& aNonce,
                                           ScriptLoadRequest* aRequest) {
-  MOZ_ASSERT(aDocument);
-  MOZ_ASSERT(aElement);
   MOZ_ASSERT(aRequest);
 
   nsContentPolicyType contentPolicyType =
       ScriptLoadRequestToContentPolicyType(aRequest);
 
-  nsCOMPtr<nsINode> requestingNode = do_QueryInterface(aElement);
+  nsCOMPtr<nsINode> requestingNode;
+  if (aElement) {
+    requestingNode = do_QueryInterface(aElement);
+  }
   nsCOMPtr<nsILoadInfo> secCheckLoadInfo = new net::LoadInfo(
-      aDocument->NodePrincipal(),  // loading principal
-      aDocument->NodePrincipal(),  // triggering principal
+      mDocument->NodePrincipal(),  // loading principal
+      mDocument->NodePrincipal(),  // triggering principal
       requestingNode, nsILoadInfo::SEC_ONLY_FOR_EXPLICIT_CONTENTSEC_CHECK,
       contentPolicyType);
-  secCheckLoadInfo->SetParserCreatedScript(aElement->GetParserCreated() !=
-                                           mozilla::dom::NOT_FROM_PARSER);
+  secCheckLoadInfo->SetParserCreatedScript(aElement &&
+                                           aElement->GetParserCreated() !=
+                                               mozilla::dom::NOT_FROM_PARSER);
   // Use nonce of the current element, instead of the preload, because those
   // are allowed to differ.
   secCheckLoadInfo->SetCspNonce(aNonce);
@@ -619,6 +626,11 @@ static nsSecurityFlags CORSModeToSecurityFlags(CORSMode aCORSMode) {
 nsresult ScriptLoader::StartClassicLoad(
     ScriptLoadRequest* aRequest,
     const Maybe<nsAutoString>& aCharsetForPreload) {
+  if (aRequest->IsStencil()) {
+    EmulateNetworkEvents(aRequest);
+    return NS_OK;
+  }
+
   MOZ_ASSERT(aRequest->IsFetching());
   NS_ENSURE_TRUE(mDocument, NS_ERROR_NULL_POINTER);
   aRequest->SetUnknownDataType();
@@ -1102,75 +1114,96 @@ already_AddRefed<ScriptLoadRequest> ScriptLoader::CreateLoadRequest(
     nsIPrincipal* aTriggeringPrincipal, CORSMode aCORSMode,
     const nsAString& aNonce, RequestPriority aRequestPriority,
     const SRIMetadata& aIntegrity, ReferrerPolicy aReferrerPolicy,
-    ParserMetadata aParserMetadata, RequestType requestType) {
+    ParserMetadata aParserMetadata, ScriptLoadRequestType aRequestType) {
   nsIURI* referrer = mDocument->GetDocumentURIAsReferrer();
   RefPtr<ScriptFetchOptions> fetchOptions =
       new ScriptFetchOptions(aCORSMode, aNonce, aRequestPriority,
                              aParserMetadata, aTriggeringPrincipal);
   RefPtr<ScriptLoadContext> context = new ScriptLoadContext(aElement);
 
-  if (aKind == ScriptKind::eClassic || aKind == ScriptKind::eImportMap) {
-    RefPtr<ScriptLoadRequest> aRequest =
-        new ScriptLoadRequest(aKind, aURI, aReferrerPolicy, fetchOptions,
-                              aIntegrity, referrer, context);
-    if ((requestType == RequestType::External ||
-         requestType == RequestType::Preload) &&
-        mCache) {
-      ScriptHashKey key(this, aRequest);
-      auto cacheResult = mCache->Lookup(*this, key,
-                                        /* aSyncLoad = */ true);
-      if (cacheResult.mState == CachedSubResourceState::Complete) {
-        if (requestType == RequestType::External) {
-          // NOTE: The preload case checks the same after the
-          //       LookupPreloadRequest call.
-          if (NS_FAILED(
-                  CheckContentPolicy(mDocument, aElement, aNonce, aRequest))) {
-            aRequest->NoCacheEntryFound();
-            return aRequest.forget();
-          }
-        }
-
-        nsCOMPtr<nsINode> context;
-        if (aElement) {
-          context = do_QueryInterface(aElement);
-        } else {
-          context = mDocument;
-        }
-
-        NotifyObserversForCachedScript(aURI, context, aTriggeringPrincipal,
-                                       CORSModeToSecurityFlags(aCORSMode),
-                                       nsIContentPolicy::TYPE_INTERNAL_SCRIPT,
-                                       cacheResult.mNetworkMetadata);
-
-        {
-          nsAutoCString name;
-          nsString entryName;
-          aURI->GetSpec(name);
-          CopyUTF8toUTF16(name, entryName);
-
-          auto now = TimeStamp::Now();
-
-          SharedSubResourceCacheUtils::AddPerformanceEntryForCache(
-              entryName, GetInitiatorType(aRequest),
-              cacheResult.mNetworkMetadata, now, now, mDocument);
-        }
-
-        aRequest->CacheEntryFound(cacheResult.mCompleteValue);
-        return aRequest.forget();
-      }
-
-      aRequest->NoCacheEntryFound();
-      return aRequest.forget();
-    }
-
-    aRequest->NoCacheEntryFound();
-    return aRequest.forget();
+  if (aKind == ScriptKind::eModule) {
+    RefPtr<ModuleLoadRequest> request = mModuleLoader->CreateTopLevel(
+        aURI, aReferrerPolicy, fetchOptions, aIntegrity, referrer, context);
+    return request.forget();
   }
 
-  MOZ_ASSERT(aKind == ScriptKind::eModule);
-  RefPtr<ModuleLoadRequest> aRequest = mModuleLoader->CreateTopLevel(
-      aURI, aReferrerPolicy, fetchOptions, aIntegrity, referrer, context);
-  return aRequest.forget();
+  MOZ_ASSERT(aKind == ScriptKind::eClassic || aKind == ScriptKind::eImportMap);
+
+  RefPtr<ScriptLoadRequest> request =
+      new ScriptLoadRequest(aKind, aURI, aReferrerPolicy, fetchOptions,
+                            aIntegrity, referrer, context);
+
+  TryUseCache(request, aElement, aNonce, aRequestType);
+
+  return request.forget();
+}
+
+void ScriptLoader::TryUseCache(ScriptLoadRequest* aRequest,
+                               nsIScriptElement* aElement,
+                               const nsAString& aNonce,
+                               ScriptLoadRequestType aRequestType) {
+  if (aRequestType == ScriptLoadRequestType::Inline) {
+    aRequest->NoCacheEntryFound();
+    return;
+  }
+
+  if (!mCache) {
+    aRequest->NoCacheEntryFound();
+    return;
+  }
+
+  ScriptHashKey key(this, aRequest);
+  auto cacheResult = mCache->Lookup(*this, key, /* aSyncLoad = */ true);
+  if (cacheResult.mState != CachedSubResourceState::Complete) {
+    aRequest->NoCacheEntryFound();
+    return;
+  }
+
+  if (aRequestType == ScriptLoadRequestType::External) {
+    // NOTE: The preload case checks the same after the
+    //       LookupPreloadRequest call.
+    if (NS_FAILED(CheckContentPolicy(aElement, aNonce, aRequest))) {
+      aRequest->NoCacheEntryFound();
+      return;
+    }
+  }
+
+  aRequest->mNetworkMetadata = cacheResult.mNetworkMetadata;
+
+  aRequest->CacheEntryFound(cacheResult.mCompleteValue);
+  return;
+}
+
+void ScriptLoader::EmulateNetworkEvents(ScriptLoadRequest* aRequest) {
+  MOZ_ASSERT(aRequest->IsStencil());
+  MOZ_ASSERT(aRequest->mNetworkMetadata);
+
+  nsIScriptElement* element = aRequest->GetScriptLoadContext()->mScriptElement;
+
+  nsCOMPtr<nsINode> context;
+  if (element) {
+    context = do_QueryInterface(element);
+  } else {
+    context = mDocument;
+  }
+
+  NotifyObserversForCachedScript(
+      aRequest->mURI, context, aRequest->mFetchOptions->mTriggeringPrincipal,
+      CORSModeToSecurityFlags(aRequest->mFetchOptions->mCORSMode),
+      nsIContentPolicy::TYPE_INTERNAL_SCRIPT, aRequest->mNetworkMetadata);
+
+  {
+    nsAutoCString name;
+    nsString entryName;
+    aRequest->mURI->GetSpec(name);
+    CopyUTF8toUTF16(name, entryName);
+
+    auto now = TimeStamp::Now();
+
+    SharedSubResourceCacheUtils::AddPerformanceEntryForCache(
+        entryName, GetInitiatorType(aRequest), aRequest->mNetworkMetadata, now,
+        now, mDocument);
+  }
 }
 
 bool ScriptLoader::ProcessScriptElement(nsIScriptElement* aElement) {
@@ -1274,7 +1307,7 @@ bool ScriptLoader::ProcessExternalScript(nsIScriptElement* aElement,
   RefPtr<ScriptLoadRequest> request =
       LookupPreloadRequest(aElement, aScriptKind, sriMetadata);
   if (request) {
-    if (NS_FAILED(CheckContentPolicy(mDocument, aElement, nonce, request))) {
+    if (NS_FAILED(CheckContentPolicy(aElement, nonce, request))) {
       LOG(("ScriptLoader (%p): content policy check failed for preload", this));
 
       // Probably plans have changed; even though the preload was allowed seems
@@ -1323,7 +1356,7 @@ bool ScriptLoader::ProcessExternalScript(nsIScriptElement* aElement,
     request = CreateLoadRequest(
         aScriptKind, scriptURI, aElement, principal, ourCORSMode, nonce,
         FetchPriorityToRequestPriority(fetchPriority), sriMetadata,
-        referrerPolicy, parserMetadata, RequestType::External);
+        referrerPolicy, parserMetadata, ScriptLoadRequestType::External);
     request->GetScriptLoadContext()->mIsInline = false;
     request->GetScriptLoadContext()->SetScriptMode(
         aElement->GetScriptDeferred(), aElement->GetScriptAsync(), false);
@@ -1334,23 +1367,23 @@ bool ScriptLoader::ProcessExternalScript(nsIScriptElement* aElement,
     LOG(("ScriptLoadRequest (%p): Created request for external script",
          request.get()));
 
-    if (!request->IsStencil()) {
-      nsresult rv = StartLoad(request, Nothing());
-      if (NS_FAILED(rv)) {
-        ReportErrorToConsole(request, rv);
+    nsresult rv = StartLoad(request, Nothing());
+    if (NS_FAILED(rv)) {
+      ReportErrorToConsole(request, rv);
 
-        // Asynchronously report the load failure
-        nsCOMPtr<nsIRunnable> runnable =
-            NewRunnableMethod("nsIScriptElement::FireErrorEvent", aElement,
-                              &nsIScriptElement::FireErrorEvent);
-        if (mDocument) {
-          mDocument->Dispatch(runnable.forget());
-        } else {
-          NS_DispatchToCurrentThread(runnable.forget());
-        }
-        return false;
+      // Asynchronously report the load failure
+      nsCOMPtr<nsIRunnable> runnable =
+          NewRunnableMethod("nsIScriptElement::FireErrorEvent", aElement,
+                            &nsIScriptElement::FireErrorEvent);
+      if (mDocument) {
+        mDocument->Dispatch(runnable.forget());
+      } else {
+        NS_DispatchToCurrentThread(runnable.forget());
       }
-    } else {
+      return false;
+    }
+
+    if (request->IsStencil()) {
       // https://html.spec.whatwg.org/#prepare-the-script-element
       //
       // Step 33. If el's type is "classic" and el has a src attribute, or el's
@@ -1538,12 +1571,12 @@ bool ScriptLoader::ProcessInlineScript(nsIScriptElement* aElement,
 
   // NOTE: The `nonce` as specified here is significant, because it's inherited
   // by other scripts (e.g. modules created via dynamic imports).
-  RefPtr<ScriptLoadRequest> request =
-      CreateLoadRequest(aScriptKind, mDocument->GetDocumentURI(), aElement,
-                        mDocument->NodePrincipal(), corsMode, nonce,
-                        FetchPriorityToRequestPriority(fetchPriority),
-                        SRIMetadata(),  // SRI doesn't apply
-                        referrerPolicy, parserMetadata, RequestType::Inline);
+  RefPtr<ScriptLoadRequest> request = CreateLoadRequest(
+      aScriptKind, mDocument->GetDocumentURI(), aElement,
+      mDocument->NodePrincipal(), corsMode, nonce,
+      FetchPriorityToRequestPriority(fetchPriority),
+      SRIMetadata(),  // SRI doesn't apply
+      referrerPolicy, parserMetadata, ScriptLoadRequestType::Inline);
   request->GetScriptLoadContext()->mIsInline = true;
   request->GetScriptLoadContext()->mLineNo = aElement->GetScriptLineNumber();
   request->GetScriptLoadContext()->mColumnNo =
@@ -2996,12 +3029,6 @@ void ScriptLoader::InstantiateClassicScriptFromCachedStencil(
   }
 }
 
-enum class CacheBehavior : uint8_t {
-  DoNothing,
-  Insert,
-  Evict,
-};
-
 void ScriptLoader::InstantiateClassicScriptFromAny(
     JSContext* aCx, JS::CompileOptions& aCompileOptions,
     ScriptLoadRequest* aRequest, JS::MutableHandle<JSScript*> aScript,
@@ -3015,56 +3042,86 @@ void ScriptLoader::InstantiateClassicScriptFromAny(
     return;
   }
 
-  CacheBehavior cacheBehavior = CacheBehavior::DoNothing;
-  if (mCache) {
-    // NOTE: A new response may arrive even if the exiting cache is still valid,
-    // for example when the request is performed with bypassing the cache.
-    //
-    // If the response is cacheable, it should overwrite the existing cache
-    // if any.  If the response is not cacheable, that should just evict the
-    // existing cache if any, so that the next request will also reach the
-    // server.
-    if (aRequest->IsCacheable()) {
-      if (ShouldBypassCache()) {
-        // If the request bypasses the cache, the response should always
-        // overwrite the cache, regardless of the content.
-        cacheBehavior = CacheBehavior::Insert;
-      } else {
-        ScriptHashKey key(this, aRequest);
-        auto cacheResult = mCache->Lookup(*this, key,
-                                          /* aSyncLoad = */ true);
-        if (cacheResult.mState != CachedSubResourceState::Complete) {
-          cacheBehavior = CacheBehavior::Insert;
-        }
-      }
-    } else {
-      cacheBehavior = CacheBehavior::Evict;
-    }
-  }
-
   RefPtr<JS::Stencil> stencil;
   InstantiateClassicScriptFromMaybeEncodedSource(
       aCx, aCompileOptions, aRequest, aScript, stencil, aDebuggerPrivateValue,
       aDebuggerIntroductionScript, aRv);
-  if (!aRv.Failed() && cacheBehavior != CacheBehavior::DoNothing) {
-    MOZ_ASSERT(mCache);
-    MOZ_ASSERT(stencil);
+  if (aRv.Failed()) {
+    return;
+  }
 
-    if (!JS::IsStencilCacheable(stencil)) {
-      // If the stencil is not compatible with the cache (e.g. contains asm.js),
-      // this should also evict any the existing cache if any.
-      cacheBehavior = CacheBehavior::Evict;
-    }
+  TryCacheRequest(aRequest, stencil);
+}
 
-    aRequest->SetStencil(stencil.forget());
-    if (cacheBehavior == CacheBehavior::Insert) {
-      auto loadData = MakeRefPtr<ScriptLoadData>(this, aRequest);
-      mCache->Insert(*loadData);
-    } else {
-      MOZ_ASSERT(cacheBehavior == CacheBehavior::Evict);
-      ScriptHashKey key(this, aRequest);
-      mCache->Evict(key);
-    }
+ScriptLoader::CacheBehavior ScriptLoader::GetCacheBehavior(
+    ScriptLoadRequest* aRequest) {
+  if (!mCache) {
+    return CacheBehavior::DoNothing;
+  }
+
+  if (aRequest->GetScriptLoadContext()->mIsInline) {
+    return CacheBehavior::DoNothing;
+  }
+
+  if (!aRequest->mURI->SchemeIs("http") && !aRequest->mURI->SchemeIs("https")) {
+    // Internal resources can be exposed to the web content, but they don't
+    // have to be cached.
+    return CacheBehavior::DoNothing;
+  }
+
+  if (!aRequest->IsCacheable()) {
+    return CacheBehavior::Evict;
+  }
+
+  // NOTE: A new response may arrive even if the exiting cache is still valid,
+  // for example when the request is performed with bypassing the cache.
+  //
+  // If the response is cacheable, it should overwrite the existing cache
+  // if any.  If the response is not cacheable, that should just evict the
+  // existing cache if any, so that the next request will also reach the
+  // server.
+  if (ShouldBypassCache()) {
+    // If the request bypasses the cache, the response should always
+    // overwrite the cache, regardless of the content.
+    return CacheBehavior::Insert;
+  }
+
+  ScriptHashKey key(this, aRequest);
+  auto cacheResult = mCache->Lookup(*this, key,
+                                    /* aSyncLoad = */ true);
+  if (cacheResult.mState == CachedSubResourceState::Complete) {
+    return CacheBehavior::DoNothing;
+  }
+
+  return CacheBehavior::Insert;
+}
+
+void ScriptLoader::TryCacheRequest(ScriptLoadRequest* aRequest,
+                                   RefPtr<JS::Stencil>& aStencil) {
+  CacheBehavior cacheBehavior = GetCacheBehavior(aRequest);
+
+  if (cacheBehavior == CacheBehavior::DoNothing) {
+    return;
+  }
+
+  MOZ_ASSERT(mCache);
+  MOZ_ASSERT(aStencil);
+
+  if (!JS::IsStencilCacheable(aStencil)) {
+    // If the stencil is not compatible with the cache (e.g. contains asm.js),
+    // this should also evict any the existing cache if any.
+    cacheBehavior = CacheBehavior::Evict;
+  }
+
+  aRequest->SetStencil(aStencil.forget());
+
+  if (cacheBehavior == CacheBehavior::Insert) {
+    auto loadData = MakeRefPtr<ScriptLoadData>(this, aRequest);
+    mCache->Insert(*loadData);
+  } else {
+    MOZ_ASSERT(cacheBehavior == CacheBehavior::Evict);
+    ScriptHashKey key(this, aRequest);
+    mCache->Evict(key);
   }
 }
 
@@ -4457,7 +4514,7 @@ void ScriptLoader::PreloadURI(
                         requestPriority, sriMetadata, aReferrerPolicy,
                         aLinkPreload ? ParserMetadata::NotParserInserted
                                      : ParserMetadata::ParserInserted,
-                        RequestType::Preload);
+                        ScriptLoadRequestType::Preload);
   request->GetScriptLoadContext()->mIsInline = false;
   request->GetScriptLoadContext()->mScriptFromHead = aScriptFromHead;
   request->GetScriptLoadContext()->SetScriptMode(aDefer, aAsync, aLinkPreload);
@@ -4471,12 +4528,10 @@ void ScriptLoader::PreloadURI(
          request.get(), url.get()));
   }
 
-  if (!request->IsStencil()) {
-    nsAutoString charset(aCharset);
-    nsresult rv = StartLoad(request, Some(charset));
-    if (NS_FAILED(rv)) {
-      return;
-    }
+  nsAutoString charset(aCharset);
+  nsresult rv = StartLoad(request, Some(charset));
+  if (NS_FAILED(rv)) {
+    return;
   }
 
   PreloadInfo* pi = mPreloads.AppendElement();

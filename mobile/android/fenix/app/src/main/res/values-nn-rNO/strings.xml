@@ -91,11 +91,11 @@
 
     Text for the Private mode shortcut CFR message for adding a private mode shortcut to open private tabs from the Home screen
   -->
-  <string name="private_mode_cfr_message_2">Opne neste private fane med eitt trykk.</string>
+  <string name="private_mode_cfr_message_2" moz:removedIn="138" tools:ignore="UnusedResources">Opne neste private fane med eitt trykk.</string>
   <!-- Text for the positive button to accept adding a Private Browsing shortcut to the Home screen -->
-  <string name="private_mode_cfr_pos_button_text">Legg til på startskjermen</string>
+  <string name="private_mode_cfr_pos_button_text" moz:removedIn="138" tools:ignore="UnusedResources">Legg til på startskjermen</string>
   <!-- Text for the negative button to decline adding a Private Browsing shortcut to the Home screen -->
-  <string name="cfr_neg_button_text">Nei takk</string>
+  <string name="cfr_neg_button_text" moz:removedIn="138" tools:ignore="UnusedResources">Nei takk</string>
   <!--
     Open in App "contextual feature recommendation" (CFR)
 
@@ -358,6 +358,8 @@
   <string name="browser_save_menu_handlebar_content_description">Lat att menyen lagre</string>
   <!-- Content description (not visible, for screen readers etc.) for bottom sheet handlebar tools menu. -->
   <string name="browser_tools_menu_handlebar_content_description">Lat att verktøymenyen</string>
+  <!-- Content description (not visible, for screen readers etc.) for bottom sheet handlebar custom tab menu. -->
+  <string name="browser_custom_tab_menu_handlebar_content_description">Latatt menyen tilpassa faner</string>
   <!-- Browser menu description that describes the various tools related menu items inside of the tools sub-menu when the "Report broken site" feature is available -->
   <string name="browser_menu_tools_description_with_translate_with_report_site_2">Lesevising, Omset, Rapporter øydelagd nettstad, Skriv ut, Del, Opne app</string>
   <!-- Browser menu description that describes the various tools related menu items inside of the tools sub-menu -->
@@ -3544,4 +3546,6 @@
     Accessibility description for a check mark on a completed task
   -->
   <string name="a11y_completed_task_description">Fullført oppgåve</string>
+  <!-- Accessibility description for the task icon -->
+  <string name="a11y_task_icon_description">Oppgåve-ikon</string>
 </resources>
