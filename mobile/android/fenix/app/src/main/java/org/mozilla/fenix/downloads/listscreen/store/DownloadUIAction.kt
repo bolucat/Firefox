@@ -55,4 +55,14 @@ sealed interface DownloadUIAction : Action {
      */
     data class ContentTypeSelected(val contentTypeFilter: FileItem.ContentTypeFilter) :
         DownloadUIAction
+
+    /**
+     * [DownloadUIAction] to share the URL of a [FileItem].
+     */
+    data class ShareUrlClicked(val url: String) : DownloadUIAction
+
+    /**
+     * [DownloadUIAction] to share the file of a [FileItem].
+     */
+    data class ShareFileClicked(val filePath: String, val contentType: String?) : DownloadUIAction
 }

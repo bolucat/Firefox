@@ -39,7 +39,6 @@ static nsIPrincipal* GetPartitionPrincipal(Document* aDocument) {
 }
 
 ImageCacheKey::ImageCacheKey(nsIURI* aURI, CORSMode aCORSMode,
-                             const OriginAttributes& aAttrs,
                              Document* aDocument)
     : mURI(aURI),
       mControlledDocument(GetSpecialCaseDocumentToken(aDocument)),
@@ -82,10 +81,12 @@ bool ImageCacheKey::operator==(const ImageCacheKey& aOther) const {
 void ImageCacheKey::EnsureHash() const {
   MOZ_ASSERT(mHash.isNothing());
 
+  // NOTE(emilio): Not adding the partition principal to the hash, since it
+  // can mutate (see bug 1955775).
   nsAutoCString spec;
   Unused << mURI->GetSpec(spec);
-  mHash.emplace(AddToHash(mPartitionPrincipal->GetHashValue(), HashString(spec),
-                          mControlledDocument, mAppType, mCORSMode));
+  mHash.emplace(
+      AddToHash(HashString(spec), mControlledDocument, mAppType, mCORSMode));
 }
 
 /* static */

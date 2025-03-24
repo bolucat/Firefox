@@ -26,6 +26,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.ChipDefaults
 import androidx.compose.material.ExperimentalMaterialApi
@@ -34,6 +35,7 @@ import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,6 +57,7 @@ import mozilla.components.compose.base.annotation.FlexibleWindowLightDarkPreview
 import mozilla.components.lib.state.ext.observeAsState
 import mozilla.components.ui.colors.PhotonColors
 import org.mozilla.fenix.R
+import org.mozilla.fenix.compose.ext.isItemPartiallyVisible
 import org.mozilla.fenix.compose.list.ExpandableListHeader
 import org.mozilla.fenix.compose.list.SelectableListItem
 import org.mozilla.fenix.compose.menu.DropdownMenu
@@ -120,6 +123,15 @@ fun DownloadsScreen(
                     }
                 },
                 onDeleteClick = onItemDeleteClick,
+                onShareUrlClick = { downloadsStore.dispatch(DownloadUIAction.ShareUrlClicked(it.url)) },
+                onShareFileClick = {
+                    downloadsStore.dispatch(
+                        DownloadUIAction.ShareFileClicked(
+                            it.filePath,
+                            it.contentType,
+                        ),
+                    )
+                },
                 modifier = Modifier.fillMaxHeight(),
             )
         }
@@ -134,6 +146,8 @@ private fun DownloadsContent(
     onClick: (FileItem) -> Unit,
     onSelectionChange: (FileItem, Boolean) -> Unit,
     onDeleteClick: (FileItem) -> Unit,
+    onShareUrlClick: (FileItem) -> Unit,
+    onShareFileClick: (FileItem) -> Unit,
 ) {
     val haptics = LocalHapticFeedback.current
 
@@ -164,6 +178,8 @@ private fun DownloadsContent(
                         isSelected = state.mode.selectedItems.contains(listItem),
                         isMenuIconVisible = state.isNormalMode,
                         onDeleteClick = onDeleteClick,
+                        onShareUrlClick = onShareUrlClick,
+                        onShareFileClick = onShareFileClick,
                         modifier = modifier
                             .animateItem()
                             .combinedClickable(
@@ -203,6 +219,8 @@ private fun FileListItem(
     isMenuIconVisible: Boolean,
     modifier: Modifier = Modifier,
     onDeleteClick: (FileItem) -> Unit,
+    onShareUrlClick: (FileItem) -> Unit,
+    onShareFileClick: (FileItem) -> Unit,
 ) {
     SelectableListItem(
         label = fileItem.fileName ?: fileItem.url,
@@ -233,6 +251,16 @@ private fun FileListItem(
 
                     DropdownMenu(
                         menuItems = listOf(
+                            MenuItem.TextItem(
+                                text = Text.Resource(R.string.download_share_url),
+                                onClick = { onShareUrlClick(fileItem) },
+                                level = MenuItem.FixedItem.Level.Default,
+                            ),
+                            MenuItem.TextItem(
+                                text = Text.Resource(R.string.download_share_file),
+                                onClick = { onShareFileClick(fileItem) },
+                                level = MenuItem.FixedItem.Level.Default,
+                            ),
                             MenuItem.TextItem(
                                 text = Text.Resource(R.string.download_delete_item_1),
                                 onClick = { onDeleteClick(fileItem) },
@@ -268,8 +296,10 @@ private fun Filters(
     modifier: Modifier = Modifier,
     onContentTypeSelected: (FileItem.ContentTypeFilter) -> Unit,
 ) {
+    val listState = rememberLazyListState()
     LazyRow(
         modifier = modifier,
+        state = listState,
         horizontalArrangement = Arrangement.spacedBy(FirefoxTheme.layout.space.static100),
         contentPadding = PaddingValues(horizontal = FirefoxTheme.layout.space.static200),
     ) {
@@ -282,6 +312,15 @@ private fun Filters(
                 contentTypeFilter = contentTypeParam,
                 onContentTypeSelected = onContentTypeSelected,
             )
+        }
+    }
+
+    LaunchedEffect(selectedContentTypeFilter) {
+        val selectedItemInfo =
+            listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == selectedContentTypeFilter }
+
+        if (selectedItemInfo == null || listState.isItemPartiallyVisible(selectedItemInfo)) {
+            listState.animateScrollToItem(contentTypeFilters.indexOf(selectedContentTypeFilter))
         }
     }
 }
