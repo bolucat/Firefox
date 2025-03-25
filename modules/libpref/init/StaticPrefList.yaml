@@ -2469,13 +2469,7 @@
   value: -1
   mirror: always
 
-# Enable experimental popup blocker changes.
-- name: dom.popup.experimental
-  type: bool
-  value: true
-  mirror: always
-
-  # Enable CacheAPI in private browsing mode with encryption
+# Enable CacheAPI in private browsing mode with encryption
 - name: dom.cache.privateBrowsing.enabled
   type: RelaxedAtomicBool
   value: true
@@ -3660,6 +3654,12 @@
 # Is support for PerformanceTiming.timeToNonBlankPaint enabled?
 - name: dom.performance.time_to_non_blank_paint.enabled
   type: bool
+  value: false
+  mirror: always
+
+# Whether the interactionId will be computed and returned by performance observer*
+- name: dom.performance.event_timing.enable_interactionid
+  type: RelaxedAtomicBool
   value: false
   mirror: always
 
@@ -18571,6 +18571,20 @@
   type: RelaxedAtomicBool
   value: true
   mirror: always
+
+# What mica backdrop do we use for toplevels. See [1] for the meaning.
+#
+#  * 0 or other values: auto
+#  * 1: MAINWINDOW
+#  * 2: TRANSIENTWINDOW
+#  * 3: TABBEDWINDOW
+#
+# [1]: https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwm_systembackdrop_type#constants
+- name: widget.windows.mica.toplevel-backdrop
+  type: RelaxedAtomicInt32
+  value: 0
+  mirror: always
+
 
 # Whether we expand the client area into the taskbar hidden edge on maximized
 # windows.

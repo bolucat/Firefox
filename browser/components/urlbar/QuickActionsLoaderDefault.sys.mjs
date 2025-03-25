@@ -61,7 +61,14 @@ let currentTab = () =>
   lazy.BrowserWindowTracker.getTopWindow()?.gBrowser.selectedTab;
 
 ChromeUtils.defineLazyGetter(lazy, "gFluentStrings", function () {
-  return new Localization(["branding/brand.ftl", "browser/browser.ftl"], true);
+  return new Localization(
+    [
+      "branding/brand.ftl",
+      "browser/browser.ftl",
+      "toolkit/branding/brandings.ftl",
+    ],
+    true
+  );
 });
 
 const DEFAULT_ACTIONS = {
@@ -83,10 +90,10 @@ const DEFAULT_ACTIONS = {
   },
   clear: {
     l10nCommands: [
-      "quickactions-cmd-clearhistory",
-      "quickactions-clearhistory",
+      "quickactions-cmd-clearrecenthistory",
+      "quickactions-clearrecenthistory",
     ],
-    label: "quickactions-clearhistory",
+    label: "quickactions-clearrecenthistory",
     onPick: () => {
       lazy.BrowserWindowTracker.getTopWindow()
         .document.getElementById("Tools:Sanitize")
@@ -104,6 +111,22 @@ const DEFAULT_ACTIONS = {
     icon: "chrome://mozapps/skin/extensions/category-extensions.svg",
     label: "quickactions-extensions",
     onPick: openAddonsUrl("addons://list/extension"),
+  },
+  help: {
+    l10nCommands: ["quickactions-cmd-help"],
+    icon: "chrome://global/skin/icons/help.svg",
+    label: "quickactions-help",
+    onPick: openUrlFun(
+      "https://support.mozilla.org/products/firefox?as=u&utm_source=inproduct"
+    ),
+  },
+  firefoxview: {
+    l10nCommands: ["quickactions-cmd-firefoxview"],
+    icon: "chrome://browser/skin/firefox-view.svg",
+    label: "quickactions-firefoxview",
+    onPick: () => {
+      lazy.BrowserWindowTracker.getTopWindow().FirefoxViewHandler.openTab();
+    },
   },
   inspect: {
     l10nCommands: ["quickactions-cmd-inspector"],

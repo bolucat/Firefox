@@ -31,13 +31,13 @@ sealed class ChecklistItem(open val title: String) {
         /**
          * A check list task type.
          */
-        enum class Type {
-            SET_AS_DEFAULT,
-            SIGN_IN,
-            SELECT_THEME,
-            CHANGE_TOOLBAR_PLACEMENT,
-            INSTALL_SEARCH_WIDGET,
-            EXPLORE_EXTENSION,
+        enum class Type(val telemetryName: String) {
+            SET_AS_DEFAULT("default-browser"),
+            SIGN_IN("sign-in"),
+            SELECT_THEME("theme-selection"),
+            CHANGE_TOOLBAR_PLACEMENT("toolbar-selection"),
+            INSTALL_SEARCH_WIDGET("search-widget"),
+            EXPLORE_EXTENSION("extensions"),
         }
     }
 
@@ -52,5 +52,41 @@ sealed class ChecklistItem(open val title: String) {
         override val title: String,
         val tasks: List<Task>,
         val isExpanded: Boolean,
-    ) : ChecklistItem(title)
+    ) : ChecklistItem(title) {
+        val progress: Progress = tasks.getTaskProgress()
+    }
+}
+
+/**
+ * A data class representing the task progress.
+ *
+ * @property totalTasks The total number of tasks in the checklist.
+ * @property completedTasks The number of completed tasks.
+ */
+data class Progress(
+    var totalTasks: Int = 0,
+    var completedTasks: Int = 0,
+) {
+
+    /**
+     * Checks if all tasks in the checklist are completed.
+     */
+    fun allTasksCompleted() = totalTasks == completedTasks
+}
+
+/**
+ * Calculates the completion progress of a set of [ChecklistItem].
+ */
+fun List<ChecklistItem>.getTaskProgress(): Progress {
+    val tasks = flatMap { item ->
+        when (item) {
+            is ChecklistItem.Task -> listOf(item)
+            is ChecklistItem.Group -> item.tasks
+        }
+    }
+
+    return Progress(
+        totalTasks = tasks.size,
+        completedTasks = tasks.count { it.isCompleted },
+    )
 }

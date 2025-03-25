@@ -1017,8 +1017,29 @@
     }
 
     #setMovingTabMode(movingTab) {
+      if (movingTab == this.#isMovingTab()) {
+        return;
+      }
+
       this.toggleAttribute("movingtab", movingTab);
       gNavToolbox.toggleAttribute("movingtab", movingTab);
+
+      if (movingTab) {
+        // This is a bit of an escape hatch in case a tab drag & drop session
+        // wasn't ended properly, leaving behind the movingtab attribute, which
+        // may break the UI (bug 1954163). We don't get mousemove events while
+        // dragging tabs, so at that point it should be safe to assume that we
+        // should not be in drag and drop mode, and clean things up if needed.
+        requestAnimationFrame(() => {
+          this.addEventListener(
+            "mousemove",
+            () => {
+              this.finishAnimateTabMove();
+            },
+            { once: true }
+          );
+        });
+      }
     }
 
     #isMovingTab() {
@@ -1137,7 +1158,10 @@
           }
         }
 
-        let shouldTranslate = !gReduceMotion && !shouldCreateGroupOnDrop;
+        let shouldTranslate =
+          !gReduceMotion &&
+          !shouldCreateGroupOnDrop &&
+          !isTabGroupLabel(draggedTab);
         if (this.#isContainerVerticalPinnedExpanded(draggedTab)) {
           shouldTranslate &&=
             (oldTranslateX && oldTranslateX != newTranslateX) ||
@@ -1161,6 +1185,7 @@
           } else {
             gBrowser.moveTabsAfter(movingTabs, dropElement);
           }
+          this.#expandGroupOnDrop(draggedTab);
         };
 
         if (shouldTranslate) {
@@ -1313,7 +1338,6 @@
       }
 
       if (draggedTab) {
-        this.#expandGroupOnDrop(draggedTab);
         delete draggedTab._dragData;
       }
     }
@@ -1336,14 +1360,10 @@
       if (
         dt.mozUserCancelled ||
         dt.dropEffect != "none" ||
+        !Services.prefs.getBoolPref("browser.tabs.allowTabDetach") ||
         this._isCustomizing
       ) {
         delete draggedTab._dragData;
-        return;
-      }
-
-      // Check if tab detaching is enabled
-      if (!Services.prefs.getBoolPref("browser.tabs.allowTabDetach")) {
         return;
       }
 

@@ -289,16 +289,17 @@ Element* nsCanvasFrame::GetDefaultTooltip() { return mTooltipContent; }
 
 void nsDisplayCanvasBackgroundColor::Paint(nsDisplayListBuilder* aBuilder,
                                            gfxContext* aCtx) {
-  nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
+  if (!NS_GET_A(mColor)) {
+    return;
+  }
+  auto* frame = static_cast<nsCanvasFrame*>(mFrame);
   nsPoint offset = ToReferenceFrame();
   nsRect bgClipRect = frame->CanvasArea() + offset;
-  if (NS_GET_A(mColor) > 0) {
-    DrawTarget* drawTarget = aCtx->GetDrawTarget();
-    int32_t appUnitsPerDevPixel = mFrame->PresContext()->AppUnitsPerDevPixel();
-    Rect devPxRect =
-        NSRectToSnappedRect(bgClipRect, appUnitsPerDevPixel, *drawTarget);
-    drawTarget->FillRect(devPxRect, ColorPattern(ToDeviceColor(mColor)));
-  }
+  DrawTarget* drawTarget = aCtx->GetDrawTarget();
+  int32_t appUnitsPerDevPixel = mFrame->PresContext()->AppUnitsPerDevPixel();
+  Rect devPxRect =
+      NSRectToSnappedRect(bgClipRect, appUnitsPerDevPixel, *drawTarget);
+  drawTarget->FillRect(devPxRect, ColorPattern(ToDeviceColor(mColor)));
 }
 
 bool nsDisplayCanvasBackgroundColor::CreateWebRenderCommands(
@@ -306,14 +307,14 @@ bool nsDisplayCanvasBackgroundColor::CreateWebRenderCommands(
     mozilla::wr::IpcResourceUpdateQueue& aResources,
     const StackingContextHelper& aSc, RenderRootStateManager* aManager,
     nsDisplayListBuilder* aDisplayListBuilder) {
-  nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
+  if (!NS_GET_A(mColor)) {
+    return true;
+  }
+  auto* frame = static_cast<nsCanvasFrame*>(mFrame);
   nsPoint offset = ToReferenceFrame();
   nsRect bgClipRect = frame->CanvasArea() + offset;
   int32_t appUnitsPerDevPixel = mFrame->PresContext()->AppUnitsPerDevPixel();
-
-  LayoutDeviceRect rect =
-      LayoutDeviceRect::FromAppUnits(bgClipRect, appUnitsPerDevPixel);
-
+  auto rect = LayoutDeviceRect::FromAppUnits(bgClipRect, appUnitsPerDevPixel);
   wr::LayoutRect r = wr::ToLayoutRect(rect);
   aBuilder.PushRect(r, r, !BackfaceIsHidden(), false, false,
                     wr::ToColorF(ToDeviceColor(mColor)));
@@ -329,7 +330,7 @@ void nsDisplayCanvasBackgroundColor::WriteDebugInfo(
 
 void nsDisplayCanvasBackgroundImage::Paint(nsDisplayListBuilder* aBuilder,
                                            gfxContext* aCtx) {
-  nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
+  auto* frame = static_cast<nsCanvasFrame*>(mFrame);
   nsPoint offset = ToReferenceFrame();
   nsRect bgClipRect = frame->CanvasArea() + offset;
 
@@ -374,7 +375,7 @@ bool nsDisplayCanvasBackgroundImage::IsSingleFixedPositionImage(
 
 void nsDisplayCanvasThemedBackground::Paint(nsDisplayListBuilder* aBuilder,
                                             gfxContext* aCtx) {
-  nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
+  auto* frame = static_cast<nsCanvasFrame*>(mFrame);
   nsPoint offset = ToReferenceFrame();
   nsRect bgClipRect = frame->CanvasArea() + offset;
 
@@ -395,17 +396,15 @@ class nsDisplayCanvasFocus final : public nsPaintedDisplayItem {
 
   MOZ_COUNTED_DTOR_FINAL(nsDisplayCanvasFocus)
 
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder,
-                           bool* aSnap) const override {
+  nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) const override {
     *aSnap = false;
     // This is an overestimate, but that's not a problem.
-    nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
+    auto* frame = static_cast<nsCanvasFrame*>(mFrame);
     return frame->CanvasArea() + ToReferenceFrame();
   }
 
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     gfxContext* aCtx) override {
-    nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
+  void Paint(nsDisplayListBuilder* aBuilder, gfxContext* aCtx) override {
+    auto* frame = static_cast<nsCanvasFrame*>(mFrame);
     frame->PaintFocus(aCtx->GetDrawTarget(), ToReferenceFrame());
   }
 
@@ -414,6 +413,9 @@ class nsDisplayCanvasFocus final : public nsPaintedDisplayItem {
 
 void nsCanvasFrame::BuildDisplayList(nsDisplayListBuilder* aBuilder,
                                      const nsDisplayListSet& aLists) {
+  MOZ_ASSERT(IsVisibleForPainting(),
+             "::-moz-{scrolled-,}canvas doesn't inherit from anything that can "
+             "be invisible, and we don't specify visibility in UA sheets");
   if (GetPrevInFlow()) {
     DisplayOverflowContainers(aBuilder, aLists);
   }
@@ -425,174 +427,164 @@ void nsCanvasFrame::BuildDisplayList(nsDisplayListBuilder* aBuilder,
   // We don't have any border or outline, and our background draws over
   // the overflow area, so just add nsDisplayCanvasBackground instead of
   // calling DisplayBorderBackgroundOutline.
-  if (IsVisibleForPainting()) {
-    ComputedStyle* bg = nullptr;
-    nsIFrame* dependentFrame = nullptr;
-    bool isThemed = IsThemed();
-    if (!isThemed) {
-      dependentFrame = nsCSSRendering::FindBackgroundFrame(this);
-      if (dependentFrame) {
-        bg = dependentFrame->Style();
-        if (dependentFrame == this) {
-          dependentFrame = nullptr;
-        }
+  ComputedStyle* bg = nullptr;
+  nsIFrame* dependentFrame = nullptr;
+  bool isThemed = IsThemed();
+  if (!isThemed) {
+    dependentFrame = nsCSSRendering::FindBackgroundFrame(this);
+    if (dependentFrame) {
+      bg = dependentFrame->Style();
+      if (dependentFrame == this) {
+        dependentFrame = nullptr;
       }
     }
+  }
 
-    if (isThemed) {
-      aLists.BorderBackground()
-          ->AppendNewToTop<nsDisplayCanvasThemedBackground>(aBuilder, this);
-      return;
+  if (isThemed) {
+    aLists.BorderBackground()->AppendNewToTop<nsDisplayCanvasThemedBackground>(
+        aBuilder, this);
+    return;
+  }
+
+  if (!bg) {
+    return;
+  }
+
+  const ActiveScrolledRoot* asr = aBuilder->CurrentActiveScrolledRoot();
+
+  bool needBlendContainer = false;
+  nsDisplayListBuilder::AutoContainerASRTracker contASRTracker(aBuilder);
+
+  const bool suppressBackgroundImage = [&] {
+    // Handle print settings.
+    if (!ComputeShouldPaintBackground().mImage) {
+      return true;
+    }
+    // In high-contrast-mode, we suppress background-image on the canvas frame
+    // (even when backplating), because users expect site backgrounds to
+    // conform to their HCM background color when a solid color is rendered,
+    // and some websites use solid-color images instead of an overwritable
+    // background color.
+    if (PresContext()->ForcingColors() &&
+        StaticPrefs::
+            browser_display_suppress_canvas_background_image_on_forced_colors()) {
+      return true;
+    }
+    return false;
+  }();
+
+  nsDisplayList layerItems(aBuilder);
+
+  // Create separate items for each background layer.
+  const nsStyleImageLayers& layers = bg->StyleBackground()->mImage;
+  NS_FOR_VISIBLE_IMAGE_LAYERS_BACK_TO_FRONT(i, layers) {
+    if (layers.mLayers[i].mImage.IsNone() || suppressBackgroundImage) {
+      continue;
+    }
+    if (layers.mLayers[i].mBlendMode != StyleBlend::Normal) {
+      needBlendContainer = true;
     }
 
-    if (!bg) {
-      return;
-    }
+    nsRect bgRect = GetRectRelativeToSelf() + aBuilder->ToReferenceFrame(this);
 
-    const ActiveScrolledRoot* asr = aBuilder->CurrentActiveScrolledRoot();
+    const ActiveScrolledRoot* thisItemASR = asr;
+    nsDisplayList thisItemList(aBuilder);
+    nsDisplayBackgroundImage::InitData bgData =
+        nsDisplayBackgroundImage::GetInitData(aBuilder, this, i, bgRect, bg);
 
-    bool needBlendContainer = false;
-    nsDisplayListBuilder::AutoContainerASRTracker contASRTracker(aBuilder);
+    if (bgData.shouldFixToViewport) {
+      auto* displayData = aBuilder->GetCurrentFixedBackgroundDisplayData();
+      nsDisplayListBuilder::AutoBuildingDisplayList buildingDisplayList(
+          aBuilder, this, aBuilder->GetVisibleRect(), aBuilder->GetDirtyRect());
 
-    const bool suppressBackgroundImage = [&] {
-      // Handle print settings.
-      if (!ComputeShouldPaintBackground().mImage) {
-        return true;
+      DisplayListClipState::AutoSaveRestore clipState(aBuilder);
+      nsDisplayListBuilder::AutoCurrentActiveScrolledRootSetter asrSetter(
+          aBuilder);
+      if (displayData) {
+        const nsPoint offset = GetOffsetTo(PresShell()->GetRootFrame());
+        aBuilder->SetVisibleRect(displayData->mVisibleRect + offset);
+        aBuilder->SetDirtyRect(displayData->mDirtyRect + offset);
+
+        clipState.SetClipChainForContainingBlockDescendants(
+            displayData->mContainingBlockClipChain);
+        asrSetter.SetCurrentActiveScrolledRoot(
+            displayData->mContainingBlockActiveScrolledRoot);
+        asrSetter.SetCurrentScrollParentId(displayData->mScrollParentId);
+        thisItemASR = displayData->mContainingBlockActiveScrolledRoot;
       }
-      // In high-contrast-mode, we suppress background-image on the canvas frame
-      // (even when backplating), because users expect site backgrounds to
-      // conform to their HCM background color when a solid color is rendered,
-      // and some websites use solid-color images instead of an overwritable
-      // background color.
-      if (PresContext()->ForcingColors() &&
-          StaticPrefs::
-              browser_display_suppress_canvas_background_image_on_forced_colors()) {
-        return true;
-      }
-      return false;
-    }();
-
-    nsDisplayList layerItems(aBuilder);
-
-    // Create separate items for each background layer.
-    const nsStyleImageLayers& layers = bg->StyleBackground()->mImage;
-    NS_FOR_VISIBLE_IMAGE_LAYERS_BACK_TO_FRONT(i, layers) {
-      if (layers.mLayers[i].mImage.IsNone() || suppressBackgroundImage) {
-        continue;
-      }
-      if (layers.mLayers[i].mBlendMode != StyleBlend::Normal) {
-        needBlendContainer = true;
-      }
-
-      nsRect bgRect =
-          GetRectRelativeToSelf() + aBuilder->ToReferenceFrame(this);
-
-      const ActiveScrolledRoot* thisItemASR = asr;
-      nsDisplayList thisItemList(aBuilder);
-      nsDisplayBackgroundImage::InitData bgData =
-          nsDisplayBackgroundImage::GetInitData(aBuilder, this, i, bgRect, bg);
-
-      if (bgData.shouldFixToViewport) {
-        auto* displayData = aBuilder->GetCurrentFixedBackgroundDisplayData();
-        nsDisplayListBuilder::AutoBuildingDisplayList buildingDisplayList(
-            aBuilder, this, aBuilder->GetVisibleRect(),
-            aBuilder->GetDirtyRect());
-
-        DisplayListClipState::AutoSaveRestore clipState(aBuilder);
-        nsDisplayListBuilder::AutoCurrentActiveScrolledRootSetter asrSetter(
-            aBuilder);
-        if (displayData) {
-          const nsPoint offset = GetOffsetTo(PresShell()->GetRootFrame());
-          aBuilder->SetVisibleRect(displayData->mVisibleRect + offset);
-          aBuilder->SetDirtyRect(displayData->mDirtyRect + offset);
-
-          clipState.SetClipChainForContainingBlockDescendants(
-              displayData->mContainingBlockClipChain);
-          asrSetter.SetCurrentActiveScrolledRoot(
-              displayData->mContainingBlockActiveScrolledRoot);
-          asrSetter.SetCurrentScrollParentId(displayData->mScrollParentId);
-          thisItemASR = displayData->mContainingBlockActiveScrolledRoot;
-        }
-        nsDisplayCanvasBackgroundImage* bgItem = nullptr;
-        {
-          DisplayListClipState::AutoSaveRestore bgImageClip(aBuilder);
-          bgImageClip.Clear();
-          bgItem = MakeDisplayItemWithIndex<nsDisplayCanvasBackgroundImage>(
-              aBuilder, this, /* aIndex = */ i, bgData);
-          if (bgItem) {
-            bgItem->SetDependentFrame(aBuilder, dependentFrame);
-          }
-        }
-        if (bgItem) {
-          thisItemList.AppendToTop(
-              nsDisplayFixedPosition::CreateForFixedBackground(
-                  aBuilder, this, nullptr, bgItem, i, asr));
-        }
-
-      } else {
-        nsDisplayCanvasBackgroundImage* bgItem =
-            MakeDisplayItemWithIndex<nsDisplayCanvasBackgroundImage>(
-                aBuilder, this, /* aIndex = */ i, bgData);
+      nsDisplayCanvasBackgroundImage* bgItem = nullptr;
+      {
+        DisplayListClipState::AutoSaveRestore bgImageClip(aBuilder);
+        bgImageClip.Clear();
+        bgItem = MakeDisplayItemWithIndex<nsDisplayCanvasBackgroundImage>(
+            aBuilder, this, /* aIndex = */ i, bgData);
         if (bgItem) {
           bgItem->SetDependentFrame(aBuilder, dependentFrame);
-          thisItemList.AppendToTop(bgItem);
         }
       }
-
-      if (layers.mLayers[i].mBlendMode != StyleBlend::Normal) {
-        DisplayListClipState::AutoSaveRestore blendClip(aBuilder);
-        thisItemList.AppendNewToTopWithIndex<nsDisplayBlendMode>(
-            aBuilder, this, i + 1, &thisItemList, layers.mLayers[i].mBlendMode,
-            thisItemASR, true);
+      if (bgItem) {
+        thisItemList.AppendToTop(
+            nsDisplayFixedPosition::CreateForFixedBackground(
+                aBuilder, this, nullptr, bgItem, i, asr));
       }
-      layerItems.AppendToTop(&thisItemList);
+
+    } else {
+      nsDisplayCanvasBackgroundImage* bgItem =
+          MakeDisplayItemWithIndex<nsDisplayCanvasBackgroundImage>(
+              aBuilder, this, /* aIndex = */ i, bgData);
+      if (bgItem) {
+        bgItem->SetDependentFrame(aBuilder, dependentFrame);
+        thisItemList.AppendToTop(bgItem);
+      }
     }
 
-    bool hasFixedBottomLayer =
-        layers.mImageCount > 0 &&
-        layers.mLayers[0].mAttachment == StyleImageLayerAttachment::Fixed;
-
-    nsDisplayList list(aBuilder);
-
-    if (!hasFixedBottomLayer || needBlendContainer) {
-      // Put a scrolled background color item in place, at the bottom of the
-      // list. The color of this item will be filled in during
-      // PresShell::AddCanvasBackgroundColorItem.
-      // Do not add this item if there's a fixed background image at the bottom
-      // (unless we have to, for correct blending); with a fixed background,
-      // it's better to allow the fixed background image to combine itself with
-      // a non-scrolled background color directly underneath, rather than
-      // interleaving the two with a scrolled background color.
-      // PresShell::AddCanvasBackgroundColorItem makes sure there always is a
-      // non-scrolled background color item at the bottom.
-      list.AppendNewToTop<nsDisplayCanvasBackgroundColor>(aBuilder, this);
+    if (layers.mLayers[i].mBlendMode != StyleBlend::Normal) {
+      DisplayListClipState::AutoSaveRestore blendClip(aBuilder);
+      thisItemList.AppendNewToTopWithIndex<nsDisplayBlendMode>(
+          aBuilder, this, i + 1, &thisItemList, layers.mLayers[i].mBlendMode,
+          thisItemASR, true);
     }
-
-    list.AppendToTop(&layerItems);
-
-    if (needBlendContainer) {
-      const ActiveScrolledRoot* containerASR = contASRTracker.GetContainerASR();
-      DisplayListClipState::AutoSaveRestore blendContainerClip(aBuilder);
-      list.AppendToTop(nsDisplayBlendContainer::CreateForBackgroundBlendMode(
-          aBuilder, this, nullptr, &list, containerASR));
-    }
-    aLists.BorderBackground()->AppendToTop(&list);
+    layerItems.AppendToTop(&thisItemList);
   }
+
+  bool hasFixedBottomLayer =
+      layers.mImageCount > 0 &&
+      layers.mLayers[0].mAttachment == StyleImageLayerAttachment::Fixed;
+
+  nsDisplayList list(aBuilder);
+
+  if (!hasFixedBottomLayer || needBlendContainer) {
+    // Put a scrolled background color item in place, at the bottom of the
+    // list. The color of this item will be filled in during
+    // PresShell::AddCanvasBackgroundColorItem.
+    // Do not add this item if there's a fixed background image at the bottom
+    // (unless we have to, for correct blending); with a fixed background,
+    // it's better to allow the fixed background image to combine itself with
+    // a non-scrolled background color directly underneath, rather than
+    // interleaving the two with a scrolled background color.
+    // PresShell::AddCanvasBackgroundColorItem makes sure there always is a
+    // non-scrolled background color item at the bottom.
+    list.AppendNewToTop<nsDisplayCanvasBackgroundColor>(aBuilder, this);
+  }
+
+  list.AppendToTop(&layerItems);
+
+  if (needBlendContainer) {
+    const ActiveScrolledRoot* containerASR = contASRTracker.GetContainerASR();
+    DisplayListClipState::AutoSaveRestore blendContainerClip(aBuilder);
+    list.AppendToTop(nsDisplayBlendContainer::CreateForBackgroundBlendMode(
+        aBuilder, this, nullptr, &list, containerASR));
+  }
+  aLists.BorderBackground()->AppendToTop(&list);
 
   for (nsIFrame* kid : PrincipalChildList()) {
     // Put our child into its own pseudo-stack.
     BuildDisplayListForChild(aBuilder, kid, aLists);
   }
 
-  if (!mDoPaintFocus) {
-    return;
+  if (mDoPaintFocus) {
+    aLists.Outlines()->AppendNewToTop<nsDisplayCanvasFocus>(aBuilder, this);
   }
-  // Only paint the focus if we're visible
-  if (!StyleVisibility()->IsVisible()) {
-    return;
-  }
-
-  aLists.Outlines()->AppendNewToTop<nsDisplayCanvasFocus>(aBuilder, this);
 }
 
 void nsCanvasFrame::PaintFocus(DrawTarget* aDrawTarget, nsPoint aPt) {
@@ -629,7 +621,7 @@ void nsCanvasFrame::Reflow(nsPresContext* aPresContext,
   MOZ_ASSERT(aStatus.IsEmpty(), "Caller should pass a fresh reflow status!");
   NS_FRAME_TRACE_REFLOW_IN("nsCanvasFrame::Reflow");
 
-  nsCanvasFrame* prevCanvasFrame = static_cast<nsCanvasFrame*>(GetPrevInFlow());
+  auto* prevCanvasFrame = static_cast<nsCanvasFrame*>(GetPrevInFlow());
   if (prevCanvasFrame) {
     AutoFrameListPtr overflow(aPresContext,
                               prevCanvasFrame->StealOverflowFrames());

@@ -21,6 +21,18 @@ namespace mozilla::webgpu {
 GPU_IMPL_CYCLE_COLLECTION(AdapterInfo, mParent)
 GPU_IMPL_JS_WRAP(AdapterInfo)
 
+bool AdapterInfo::IsFallbackAdapter() const {
+  if (GetParentObject()->ShouldResistFingerprinting(
+          RFPTarget::WebGPUIsFallbackAdapter)) {
+    // Always report hardware support for WebGPU.
+    // This behaviour matches with media capabilities API.
+    return false;
+  }
+
+  return mAboutSupportInfo->device_type ==
+         ffi::WGPUDeviceType::WGPUDeviceType_Cpu;
+}
+
 void AdapterInfo::GetWgpuName(nsString& s) const {
   s = mAboutSupportInfo->name;
 }
@@ -148,9 +160,7 @@ struct FeatureImplementationStatus {
         return implemented(WGPUWEBGPU_FEATURE_INDIRECT_FIRST_INSTANCE);
 
       case dom::GPUFeatureName::Shader_f16:
-        // return implemented(WGPUWEBGPU_FEATURE_SHADER_F16);
-        return unimplemented(
-            "https://bugzilla.mozilla.org/show_bug.cgi?id=1891593");
+        return implemented(WGPUWEBGPU_FEATURE_SHADER_F16);
 
       case dom::GPUFeatureName::Rg11b10ufloat_renderable:
         return implemented(WGPUWEBGPU_FEATURE_RG11B10UFLOAT_RENDERABLE);

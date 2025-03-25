@@ -465,8 +465,22 @@ export const PREFS_CONFIG = new Map([
     "newtabWallpapers.customWallpaper.uploadedPreviously",
     {
       title:
-        "Boolean flag to track if a user has previously uploaded a custom wallpaper",
+        "Boolean flag used for telemetry to track if a user has previously uploaded a custom wallpaper",
       value: false,
+    },
+  ],
+  [
+    "newtabWallpapers.customWallpaper.fileSize.enabled",
+    {
+      title: "Boolean flag to enforce a maximum file size for uploaded images",
+      value: false,
+    },
+  ],
+  [
+    "newtabWallpapers.customWallpaper.fileSize",
+    {
+      title: "Number pref of maximum file size (in MB) a user can upload",
+      value: 0,
     },
   ],
   [

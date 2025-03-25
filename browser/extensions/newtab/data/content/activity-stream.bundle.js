@@ -1828,6 +1828,28 @@ const LinkMenuOptions = {
     userEvent: "BLOCK",
   }),
 
+  // This is the "Dismiss" action for leaderboard/billboard ads.
+  BlockAdUrl: (site, pos, eventSource) => ({
+    id: "newtab-menu-dismiss",
+    icon: "dismiss",
+    action: actionCreators.AlsoToMain({
+      type: actionTypes.BLOCK_URL,
+      data: [site],
+    }),
+    impression: actionCreators.ImpressionStats({
+      source: eventSource,
+      block: 0,
+      tiles: [
+        {
+          id: site.guid,
+          pos,
+          ...(site.shim && site.shim.save ? { shim: site.shim.save } : {}),
+        },
+      ],
+    }),
+    userEvent: "BLOCK",
+  }),
+
   // This is an option for web extentions which will result in remove items from
   // memory and notify the web extenion, rather than using the built-in block list.
   WebExtDismiss: (site, index, eventSource) => ({
@@ -4284,6 +4306,84 @@ function ListFeed({
   }, ctaCopy)))));
 }
 
+;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/AdBannerContextMenu/AdBannerContextMenu.jsx
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
+
+
+
+
+/**
+ * A context menu for IAB banners (e.g. billboard, leaderboard).
+ *
+ * Note: MREC ad formats and sponsored stories share the context menu with
+ * other cards: make sure you also look at DSLinkMenu component
+ * to keep any updates to ad-related context menu items in sync.
+ *
+ * @param dispatch
+ * @param spoc
+ * @param position
+ * @param type
+ * @returns {Element}
+ * @constructor
+ */
+function AdBannerContextMenu({
+  dispatch,
+  spoc,
+  position,
+  type
+}) {
+  const ADBANNER_CONTEXT_MENU_OPTIONS = ["BlockAdUrl", "ManageSponsoredContent", "OurSponsorsAndYourPrivacy"];
+  const [showContextMenu, setShowContextMenu] = (0,external_React_namespaceObject.useState)(false);
+  const onClick = e => {
+    e.preventDefault();
+    setShowContextMenu(!showContextMenu);
+  };
+  const onUpdate = () => {
+    setShowContextMenu(!showContextMenu);
+  };
+  return /*#__PURE__*/external_React_default().createElement("div", {
+    className: "ads-context-menu-wrapper"
+  }, /*#__PURE__*/external_React_default().createElement("div", {
+    className: "ads-context-menu"
+  }, /*#__PURE__*/external_React_default().createElement("moz-button", {
+    type: "icon",
+    size: "default",
+    iconsrc: "chrome://global/skin/icons/more.svg",
+    onClick: onClick
+  }), showContextMenu && /*#__PURE__*/external_React_default().createElement(LinkMenu, {
+    onUpdate: onUpdate,
+    dispatch: dispatch,
+    options: ADBANNER_CONTEXT_MENU_OPTIONS,
+    shouldSendImpressionStats: true,
+    userEvent: actionCreators.DiscoveryStreamUserEvent,
+    site: {
+      // Props we want to pass on for new ad types that come from Unified Ads API
+      block_key: spoc.block_key,
+      fetchTimestamp: spoc.fetchTimestamp,
+      flight_id: spoc.flight_id,
+      format: spoc.format,
+      id: spoc.id,
+      guid: spoc.guid,
+      card_type: "spoc",
+      // required to record telemetry for an action, see handleBlockUrl in TelemetryFeed.sys.mjs
+      is_pocket_card: true,
+      position,
+      sponsor: spoc.sponsor,
+      title: spoc.title,
+      url: spoc.url || spoc.shim.url,
+      personalization_models: spoc.personalization_models,
+      priority: spoc.priority,
+      score: spoc.score,
+      alt_text: spoc.alt_text,
+      shim: spoc.shim
+    },
+    index: position,
+    source: type.toUpperCase()
+  })));
+}
 ;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/AdBanner/AdBanner.jsx
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
@@ -4293,6 +4393,20 @@ function ListFeed({
 
 
 
+
+
+/**
+ * A new banner ad that appears between rows of stories: leaderboard or billboard size.
+ *
+ * @param spoc
+ * @param dispatch
+ * @param firstVisibleTimestamp
+ * @param row
+ * @param type
+ * @param prefs
+ * @returns {Element}
+ * @constructor
+ */
 const AdBanner = ({
   spoc,
   dispatch,
@@ -4325,33 +4439,11 @@ const AdBanner = ({
     width: imgWidth,
     height: imgHeight
   } = getDimensions(spoc.format);
-  const handleDismissClick = () => {
-    dispatch(actionCreators.AlsoToMain({
-      type: actionTypes.BLOCK_URL,
-      data: [{
-        block_key: spoc.block_key,
-        fetchTimestamp: spoc.fetchTimestamp,
-        flight_id: spoc.flight_id,
-        format: spoc.format,
-        id: spoc.id,
-        card_type: "spoc",
-        is_pocket_card: true,
-        position: row,
-        sponsor: spoc.sponsor,
-        title: spoc.title,
-        url: spoc.url || spoc.shim.url,
-        personalization_models: spoc.personalization_models,
-        priority: spoc.priority,
-        score: spoc.score,
-        alt_text: spoc.alt_text
-      }]
-    }));
-  };
   const onLinkClick = () => {
     dispatch(actionCreators.DiscoveryStreamUserEvent({
       event: "CLICK",
       source: type.toUpperCase(),
-      // Banner ads dont have a position, but a row number
+      // Banner ads don't have a position, but a row number
       action_position: row,
       value: {
         card_type: "spoc",
@@ -4380,13 +4472,12 @@ const AdBanner = ({
     }
   }, /*#__PURE__*/external_React_default().createElement("div", {
     className: `ad-banner-inner ${spoc.format}`
-  }, /*#__PURE__*/external_React_default().createElement("div", {
-    className: "ad-banner-dismiss"
-  }, /*#__PURE__*/external_React_default().createElement("button", {
-    className: "icon icon-dismiss",
-    onClick: handleDismissClick,
-    "data-l10n-id": "newtab-toast-dismiss-button"
-  })), /*#__PURE__*/external_React_default().createElement(SafeAnchor, {
+  }, /*#__PURE__*/external_React_default().createElement(AdBannerContextMenu, {
+    dispatch: dispatch,
+    spoc: spoc,
+    position: row,
+    type: type
+  }), /*#__PURE__*/external_React_default().createElement(SafeAnchor, {
     className: "ad-banner-link",
     url: spoc.url,
     title: spoc.title,
@@ -11351,6 +11442,7 @@ const WallpapersSection = (0,external_ReactRedux_namespaceObject.connect)(state 
   };
 })(_WallpapersSection);
 ;// CONCATENATED MODULE: ./content-src/components/WallpapersSection/WallpaperCategories.jsx
+function WallpaperCategories_extends() { WallpaperCategories_extends = Object.assign ? Object.assign.bind() : function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return WallpaperCategories_extends.apply(this, arguments); }
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -11361,6 +11453,8 @@ const WallpapersSection = (0,external_ReactRedux_namespaceObject.connect)(state 
 // eslint-disable-next-line no-shadow
 
 const PREF_WALLPAPER_UPLOADED_PREVIOUSLY = "newtabWallpapers.customWallpaper.uploadedPreviously";
+const PREF_WALLPAPER_UPLOAD_MAX_FILE_SIZE = "newtabWallpapers.customWallpaper.fileSize";
+const PREF_WALLPAPER_UPLOAD_MAX_FILE_SIZE_ENABLED = "newtabWallpapers.customWallpaper.fileSize.enabled";
 
 // Returns a function will not be continuously triggered when called. The
 // function will be triggered if called again after `wait` milliseconds.
@@ -11399,7 +11493,8 @@ class _WallpaperCategories extends (external_React_default()).PureComponent {
       activeCategoryFluentID: null,
       showColorPicker: false,
       inputType: "radio",
-      activeId: null
+      activeId: null,
+      isCustomWallpaperError: false
     };
   }
   componentDidMount() {
@@ -11456,9 +11551,11 @@ class _WallpaperCategories extends (external_React_default()).PureComponent {
       id = `solid-color-picker-${event.target.value}`;
     }
     this.props.setPref("newtabWallpapers.wallpaper", id);
+    const uploadedPreviously = this.props.Prefs.values[PREF_WALLPAPER_UPLOADED_PREVIOUSLY];
     this.handleUserEvent(actionTypes.WALLPAPER_CLICK, {
       selected_wallpaper: id,
-      had_previous_wallpaper: !!this.props.activeWallpaper
+      had_previous_wallpaper: !!this.props.activeWallpaper,
+      had_uploaded_previously: !!uploadedPreviously
     });
   }
 
@@ -11525,17 +11622,24 @@ class _WallpaperCategories extends (external_React_default()).PureComponent {
     this.wallpaperRef[nextIndex].click();
   }
   handleReset() {
-    this.props.setPref("newtabWallpapers.wallpaper", "");
     const uploadedPreviously = this.props.Prefs.values[PREF_WALLPAPER_UPLOADED_PREVIOUSLY];
-    if (uploadedPreviously) {
-      this.props.setPref(PREF_WALLPAPER_UPLOADED_PREVIOUSLY, false);
+    const selectedWallpaper = this.props.Prefs.values["newtabWallpapers.wallpaper"];
+
+    // If a custom wallpaper is set, remove it
+    if (selectedWallpaper === "custom") {
       this.props.dispatch(actionCreators.OnlyToMain({
         type: actionTypes.WALLPAPER_REMOVE_UPLOAD
       }));
     }
+
+    // Reset active wallpaper
+    this.props.setPref("newtabWallpapers.wallpaper", "");
+
+    // Fire WALLPAPER_CLICK telemetry event
     this.handleUserEvent(actionTypes.WALLPAPER_CLICK, {
       selected_wallpaper: "none",
-      had_previous_wallpaper: !!this.props.activeWallpaper
+      had_previous_wallpaper: !!this.props.activeWallpaper,
+      had_uploaded_previously: !!uploadedPreviously
     });
   }
   handleCategory = event => {
@@ -11564,32 +11668,59 @@ class _WallpaperCategories extends (external_React_default()).PureComponent {
 
   // Custom wallpaper image upload
   async handleUpload() {
-    // TODO: Bug 1943663: Add telemetry
-
-    // TODO: Bug 1947813: Add image upload error states/UI
-
-    // TODO: Once Bug 1947813 has landed, we may need a separate event
-    // for selecting previously uploaded wallpaper, rather than uploading a new one.
-    // The plan would be to reuse at.WALLPAPER_CLICK for this use case
+    const wallpaperUploadMaxFileSizeEnabled = this.props.Prefs.values[PREF_WALLPAPER_UPLOAD_MAX_FILE_SIZE_ENABLED];
+    const wallpaperUploadMaxFileSize = this.props.Prefs.values[PREF_WALLPAPER_UPLOAD_MAX_FILE_SIZE];
     const uploadedPreviously = this.props.Prefs.values[PREF_WALLPAPER_UPLOADED_PREVIOUSLY];
-    this.handleUserEvent(actionTypes.WALLPAPER_UPLOAD, {
-      had_uploaded_previously: !!uploadedPreviously,
-      had_previous_wallpaper: !!this.props.activeWallpaper
-    });
-    this.props.setPref(PREF_WALLPAPER_UPLOADED_PREVIOUSLY, true);
 
     // Create a file input since category buttons are radio inputs
     const fileInput = document.createElement("input");
     fileInput.type = "file";
     fileInput.accept = "image/*"; // only allow image files
 
+    // Catch cancel events
+    fileInput.oncancel = async () => {
+      this.setState({
+        isCustomWallpaperError: false
+      });
+    };
+
+    // Reset error state when user begins file selection
+    this.setState({
+      isCustomWallpaperError: false
+    });
+
+    // Fire when user selects a file
     fileInput.onchange = async event => {
       const [file] = event.target.files;
+
+      // Limit image uploaded to a maximum file size if enabled
+      // Note: The max file size pref (customWallpaper.fileSize) is converted to megabytes (MB)
+      // Example: if pref value is 5, max file size is 5 MB
+      const maxSize = wallpaperUploadMaxFileSize * 1024 * 1024;
+      if (wallpaperUploadMaxFileSizeEnabled && file && file.size > maxSize) {
+        console.error("File size exceeds limit");
+        this.setState({
+          isCustomWallpaperError: true
+        });
+        return;
+      }
       if (file) {
         this.props.dispatch(actionCreators.OnlyToMain({
           type: actionTypes.WALLPAPER_UPLOAD,
           data: file
         }));
+
+        // Set active wallpaper ID to "custom"
+        this.props.setPref("newtabWallpapers.wallpaper", "custom");
+
+        // Update the uploadedPreviously pref to TRUE
+        // Note: this pref used for telemetry. Do not reset to false.
+        this.props.setPref(PREF_WALLPAPER_UPLOADED_PREVIOUSLY, true);
+        this.handleUserEvent(actionTypes.WALLPAPER_CLICK, {
+          selected_wallpaper: "custom",
+          had_previous_wallpaper: !!this.props.activeWallpaper,
+          had_uploaded_previously: !!uploadedPreviously
+        });
       }
     };
     fileInput.click();
@@ -11642,6 +11773,7 @@ class _WallpaperCategories extends (external_React_default()).PureComponent {
       activeCategoryFluentID
     } = this.state;
     let filteredWallpapers = wallpaperList.filter(wallpaper => wallpaper.category === activeCategory);
+    const wallpaperUploadMaxFileSize = this.props.Prefs.values[PREF_WALLPAPER_UPLOAD_MAX_FILE_SIZE];
     function reduceColorsToFitCustomColorInput(arr) {
       // Reduce the amount of custom colors to make space for the custom color picker
       while (arr.length % 3 !== 2) {
@@ -11755,7 +11887,7 @@ class _WallpaperCategories extends (external_React_default()).PureComponent {
       }
       return /*#__PURE__*/external_React_default().createElement("div", {
         key: category
-      }, /*#__PURE__*/external_React_default().createElement("input", {
+      }, /*#__PURE__*/external_React_default().createElement("input", WallpaperCategories_extends({
         ref: el => {
           if (el) {
             this.categoryRef[index] = el;
@@ -11770,10 +11902,20 @@ class _WallpaperCategories extends (external_React_default()).PureComponent {
         onClick: category !== "custom-wallpaper" ? this.handleCategory : this.handleUpload,
         className: category !== "custom-wallpaper" ? `wallpaper-input` : `wallpaper-input theme-custom-wallpaper`,
         tabIndex: index === 0 ? 0 : -1
-      }), /*#__PURE__*/external_React_default().createElement("label", {
+      }, category === "custom-wallpaper" ? {
+        "aria-errormessage": "customWallpaperError"
+      } : {})), /*#__PURE__*/external_React_default().createElement("label", {
         htmlFor: category,
         "data-l10n-id": fluent_id
       }, fluent_id));
+    })), this.state.isCustomWallpaperError && /*#__PURE__*/external_React_default().createElement("div", {
+      className: "custom-wallpaper-error",
+      id: "customWallpaperError"
+    }, /*#__PURE__*/external_React_default().createElement("span", {
+      className: "icon icon-info"
+    }), /*#__PURE__*/external_React_default().createElement("span", {
+      "data-l10n-id": "newtab-wallpaper-error-max-file-size",
+      "data-l10n-args": `{"file_size": ${wallpaperUploadMaxFileSize}}`
     }))), /*#__PURE__*/external_React_default().createElement(external_ReactTransitionGroup_namespaceObject.CSSTransition, {
       in: !!activeCategory,
       timeout: 300,
@@ -11847,7 +11989,6 @@ const WallpaperCategories = (0,external_ReactRedux_namespaceObject.connect)(stat
 
 
 
-
 class ContentSection extends (external_React_default()).PureComponent {
   constructor(props) {
     super(props);
@@ -11868,7 +12009,7 @@ class ContentSection extends (external_React_default()).PureComponent {
     }));
   }
   onPreferenceSelect(e) {
-    // eventSource: TOP_SITES | TOP_STORIES | HIGHLIGHTS | WEATHER
+    // eventSource: WEATHER | TOP_SITES | TOP_STORIES
     const {
       preference,
       eventSource
@@ -11913,21 +12054,18 @@ class ContentSection extends (external_React_default()).PureComponent {
       if (isOpen) {
         drawerRef.style.marginTop = "var(--space-large)";
       } else {
-        drawerRef.style.marginTop = `-${drawerHeight}px`;
+        drawerRef.style.marginTop = `-${drawerHeight + 3}px`;
       }
     }
   }
   render() {
     const {
       enabledSections,
-      mayHaveSponsoredTopSites,
       pocketRegion,
-      mayHaveSponsoredStories,
       mayHaveInferredPersonalization,
       mayHaveRecentSaves,
       mayHaveWeather,
       openPreferences,
-      spocMessageVariant,
       wallpapersEnabled,
       wallpapersV2Enabled,
       activeWallpaper,
@@ -11938,10 +12076,7 @@ class ContentSection extends (external_React_default()).PureComponent {
     const {
       topSitesEnabled,
       pocketEnabled,
-      highlightsEnabled,
       weatherEnabled,
-      showSponsoredTopSitesEnabled,
-      showSponsoredPocketEnabled,
       showInferredPersonalizationEnabled,
       showRecentSavesEnabled,
       topSitesRowsCount
@@ -11964,7 +12099,17 @@ class ContentSection extends (external_React_default()).PureComponent {
       role: "separator"
     })), /*#__PURE__*/external_React_default().createElement("div", {
       className: "settings-toggles"
-    }, /*#__PURE__*/external_React_default().createElement("div", {
+    }, mayHaveWeather && /*#__PURE__*/external_React_default().createElement("div", {
+      id: "weather-section",
+      className: "section"
+    }, /*#__PURE__*/external_React_default().createElement("moz-toggle", {
+      id: "weather-toggle",
+      pressed: weatherEnabled || null,
+      onToggle: this.onPreferenceSelect,
+      "data-preference": "showWeather",
+      "data-eventSource": "WEATHER",
+      "data-l10n-id": "newtab-custom-weather-toggle"
+    })), /*#__PURE__*/external_React_default().createElement("div", {
       id: "shortcuts-section",
       className: "section"
     }, /*#__PURE__*/external_React_default().createElement("moz-toggle", {
@@ -12006,22 +12151,6 @@ class ContentSection extends (external_React_default()).PureComponent {
       value: "4",
       "data-l10n-id": "newtab-custom-row-selector",
       "data-l10n-args": "{\"num\": 4}"
-    })), mayHaveSponsoredTopSites && /*#__PURE__*/external_React_default().createElement("div", {
-      className: "check-wrapper",
-      role: "presentation"
-    }, /*#__PURE__*/external_React_default().createElement("input", {
-      id: "sponsored-shortcuts",
-      className: "customize-menu-checkbox",
-      disabled: !topSitesEnabled,
-      checked: showSponsoredTopSitesEnabled,
-      type: "checkbox",
-      onChange: this.onPreferenceSelect,
-      "data-preference": "showSponsoredTopSites",
-      "data-eventSource": "SPONSORED_TOP_SITES"
-    }), /*#__PURE__*/external_React_default().createElement("label", {
-      className: "customize-menu-checkbox-label",
-      htmlFor: "sponsored-shortcuts",
-      "data-l10n-id": "newtab-custom-sponsored-sites"
     }))))))), pocketRegion && /*#__PURE__*/external_React_default().createElement("div", {
       id: "pocket-section",
       className: "section"
@@ -12035,28 +12164,12 @@ class ContentSection extends (external_React_default()).PureComponent {
       "data-l10n-id": "newtab-custom-stories-toggle"
     }, /*#__PURE__*/external_React_default().createElement("div", {
       slot: "nested"
-    }, (mayHaveSponsoredStories || mayHaveRecentSaves) && /*#__PURE__*/external_React_default().createElement("div", {
+    }, (mayHaveRecentSaves || mayHaveInferredPersonalization || mayHaveTopicSections) && /*#__PURE__*/external_React_default().createElement("div", {
       className: "more-info-pocket-wrapper"
     }, /*#__PURE__*/external_React_default().createElement("div", {
       className: "more-information",
       ref: this.pocketDrawerRef
-    }, mayHaveSponsoredStories && /*#__PURE__*/external_React_default().createElement("div", {
-      className: "check-wrapper",
-      role: "presentation"
-    }, /*#__PURE__*/external_React_default().createElement("input", {
-      id: "sponsored-pocket",
-      className: "customize-menu-checkbox",
-      disabled: !pocketEnabled,
-      checked: showSponsoredPocketEnabled,
-      type: "checkbox",
-      onChange: this.onPreferenceSelect,
-      "data-preference": "showSponsored",
-      "data-eventSource": "POCKET_SPOCS"
-    }), /*#__PURE__*/external_React_default().createElement("label", {
-      className: "customize-menu-checkbox-label",
-      htmlFor: "sponsored-pocket",
-      "data-l10n-id": "newtab-custom-pocket-sponsored"
-    })), mayHaveInferredPersonalization && /*#__PURE__*/external_React_default().createElement("div", {
+    }, mayHaveInferredPersonalization && /*#__PURE__*/external_React_default().createElement("div", {
       className: "check-wrapper",
       role: "presentation"
     }, /*#__PURE__*/external_React_default().createElement("input", {
@@ -12089,34 +12202,7 @@ class ContentSection extends (external_React_default()).PureComponent {
       className: "customize-menu-checkbox-label",
       htmlFor: "recent-saves-pocket",
       "data-l10n-id": "newtab-custom-pocket-show-recent-saves"
-    }))))))), /*#__PURE__*/external_React_default().createElement("div", {
-      id: "recent-section",
-      className: "section"
-    }, /*#__PURE__*/external_React_default().createElement("moz-toggle", {
-      id: "highlights-toggle",
-      pressed: highlightsEnabled || null,
-      onToggle: this.onPreferenceSelect,
-      "data-preference": "feeds.section.highlights",
-      "data-eventSource": "HIGHLIGHTS",
-      "data-l10n-id": "newtab-custom-recent-toggle"
-    })), mayHaveWeather && /*#__PURE__*/external_React_default().createElement("div", {
-      id: "weather-section",
-      className: "section"
-    }, /*#__PURE__*/external_React_default().createElement("moz-toggle", {
-      id: "weather-toggle",
-      pressed: weatherEnabled || null,
-      onToggle: this.onPreferenceSelect,
-      "data-preference": "showWeather",
-      "data-eventSource": "WEATHER",
-      "data-l10n-id": "newtab-custom-weather-toggle"
-    })), pocketRegion && mayHaveSponsoredStories && spocMessageVariant === "variant-c" && /*#__PURE__*/external_React_default().createElement("div", {
-      className: "sponsored-content-info"
-    }, /*#__PURE__*/external_React_default().createElement("div", {
-      className: "icon icon-help"
-    }), /*#__PURE__*/external_React_default().createElement("div", null, "Sponsored content supports our mission to build a better web.", " ", /*#__PURE__*/external_React_default().createElement(SafeAnchor, {
-      dispatch: this.props.dispatch,
-      url: "https://support.mozilla.org/kb/pocket-sponsored-stories-new-tabs"
-    }, "Find out how")))), /*#__PURE__*/external_React_default().createElement("span", {
+    })))))))), /*#__PURE__*/external_React_default().createElement("span", {
       className: "divider",
       role: "separator"
     }), /*#__PURE__*/external_React_default().createElement("div", null, /*#__PURE__*/external_React_default().createElement("button", {
@@ -12205,12 +12291,9 @@ class _CustomizeMenu extends (external_React_default()).PureComponent {
       activeWallpaper: this.props.activeWallpaper,
       pocketRegion: this.props.pocketRegion,
       mayHaveTopicSections: this.props.mayHaveTopicSections,
-      mayHaveSponsoredTopSites: this.props.mayHaveSponsoredTopSites,
-      mayHaveSponsoredStories: this.props.mayHaveSponsoredStories,
       mayHaveInferredPersonalization: this.props.mayHaveInferredPersonalization,
       mayHaveRecentSaves: this.props.DiscoveryStream.recentSavesEnabled,
       mayHaveWeather: this.props.mayHaveWeather,
-      spocMessageVariant: this.props.spocMessageVariant,
       dispatch: this.props.dispatch,
       exitEventFired: this.state.exitEventFired
     }))));
@@ -13825,9 +13908,6 @@ class BaseContent extends (external_React_default()).PureComponent {
     const enabledSections = {
       topSitesEnabled: prefs["feeds.topsites"],
       pocketEnabled: prefs["feeds.section.topstories"],
-      highlightsEnabled: prefs["feeds.section.highlights"],
-      showSponsoredTopSitesEnabled: prefs.showSponsoredTopSites,
-      showSponsoredPocketEnabled: prefs.showSponsored,
       showInferredPersonalizationEnabled: prefs[PREF_INFERRED_PERSONALIZATION_USER],
       showRecentSavesEnabled: prefs.showRecentSaves,
       topSitesRowsCount: prefs.topSitesRows,

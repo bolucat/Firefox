@@ -11,6 +11,12 @@ import { CSSTransition } from "react-transition-group";
 const PREF_WALLPAPER_UPLOADED_PREVIOUSLY =
   "newtabWallpapers.customWallpaper.uploadedPreviously";
 
+const PREF_WALLPAPER_UPLOAD_MAX_FILE_SIZE =
+  "newtabWallpapers.customWallpaper.fileSize";
+
+const PREF_WALLPAPER_UPLOAD_MAX_FILE_SIZE_ENABLED =
+  "newtabWallpapers.customWallpaper.fileSize.enabled";
+
 // Returns a function will not be continuously triggered when called. The
 // function will be triggered if called again after `wait` milliseconds.
 function debounce(func, wait) {
@@ -52,6 +58,7 @@ export class _WallpaperCategories extends React.PureComponent {
       showColorPicker: false,
       inputType: "radio",
       activeId: null,
+      isCustomWallpaperError: false,
     };
   }
 
@@ -121,9 +128,13 @@ export class _WallpaperCategories extends React.PureComponent {
 
     this.props.setPref("newtabWallpapers.wallpaper", id);
 
+    const uploadedPreviously =
+      this.props.Prefs.values[PREF_WALLPAPER_UPLOADED_PREVIOUSLY];
+
     this.handleUserEvent(at.WALLPAPER_CLICK, {
       selected_wallpaper: id,
       had_previous_wallpaper: !!this.props.activeWallpaper,
+      had_uploaded_previously: !!uploadedPreviously,
     });
   }
 
@@ -210,13 +221,14 @@ export class _WallpaperCategories extends React.PureComponent {
   }
 
   handleReset() {
-    this.props.setPref("newtabWallpapers.wallpaper", "");
-
     const uploadedPreviously =
       this.props.Prefs.values[PREF_WALLPAPER_UPLOADED_PREVIOUSLY];
 
-    if (uploadedPreviously) {
-      this.props.setPref(PREF_WALLPAPER_UPLOADED_PREVIOUSLY, false);
+    const selectedWallpaper =
+      this.props.Prefs.values["newtabWallpapers.wallpaper"];
+
+    // If a custom wallpaper is set, remove it
+    if (selectedWallpaper === "custom") {
       this.props.dispatch(
         ac.OnlyToMain({
           type: at.WALLPAPER_REMOVE_UPLOAD,
@@ -224,9 +236,14 @@ export class _WallpaperCategories extends React.PureComponent {
       );
     }
 
+    // Reset active wallpaper
+    this.props.setPref("newtabWallpapers.wallpaper", "");
+
+    // Fire WALLPAPER_CLICK telemetry event
     this.handleUserEvent(at.WALLPAPER_CLICK, {
       selected_wallpaper: "none",
       had_previous_wallpaper: !!this.props.activeWallpaper,
+      had_uploaded_previously: !!uploadedPreviously,
     });
   }
 
@@ -255,30 +272,41 @@ export class _WallpaperCategories extends React.PureComponent {
 
   // Custom wallpaper image upload
   async handleUpload() {
-    // TODO: Bug 1943663: Add telemetry
+    const wallpaperUploadMaxFileSizeEnabled =
+      this.props.Prefs.values[PREF_WALLPAPER_UPLOAD_MAX_FILE_SIZE_ENABLED];
 
-    // TODO: Bug 1947813: Add image upload error states/UI
+    const wallpaperUploadMaxFileSize =
+      this.props.Prefs.values[PREF_WALLPAPER_UPLOAD_MAX_FILE_SIZE];
 
-    // TODO: Once Bug 1947813 has landed, we may need a separate event
-    // for selecting previously uploaded wallpaper, rather than uploading a new one.
-    // The plan would be to reuse at.WALLPAPER_CLICK for this use case
     const uploadedPreviously =
       this.props.Prefs.values[PREF_WALLPAPER_UPLOADED_PREVIOUSLY];
-
-    this.handleUserEvent(at.WALLPAPER_UPLOAD, {
-      had_uploaded_previously: !!uploadedPreviously,
-      had_previous_wallpaper: !!this.props.activeWallpaper,
-    });
-
-    this.props.setPref(PREF_WALLPAPER_UPLOADED_PREVIOUSLY, true);
 
     // Create a file input since category buttons are radio inputs
     const fileInput = document.createElement("input");
     fileInput.type = "file";
     fileInput.accept = "image/*"; // only allow image files
 
+    // Catch cancel events
+    fileInput.oncancel = async () => {
+      this.setState({ isCustomWallpaperError: false });
+    };
+
+    // Reset error state when user begins file selection
+    this.setState({ isCustomWallpaperError: false });
+
+    // Fire when user selects a file
     fileInput.onchange = async event => {
       const [file] = event.target.files;
+
+      // Limit image uploaded to a maximum file size if enabled
+      // Note: The max file size pref (customWallpaper.fileSize) is converted to megabytes (MB)
+      // Example: if pref value is 5, max file size is 5 MB
+      const maxSize = wallpaperUploadMaxFileSize * 1024 * 1024;
+      if (wallpaperUploadMaxFileSizeEnabled && file && file.size > maxSize) {
+        console.error("File size exceeds limit");
+        this.setState({ isCustomWallpaperError: true });
+        return;
+      }
 
       if (file) {
         this.props.dispatch(
@@ -287,6 +315,19 @@ export class _WallpaperCategories extends React.PureComponent {
             data: file,
           })
         );
+
+        // Set active wallpaper ID to "custom"
+        this.props.setPref("newtabWallpapers.wallpaper", "custom");
+
+        // Update the uploadedPreviously pref to TRUE
+        // Note: this pref used for telemetry. Do not reset to false.
+        this.props.setPref(PREF_WALLPAPER_UPLOADED_PREVIOUSLY, true);
+
+        this.handleUserEvent(at.WALLPAPER_CLICK, {
+          selected_wallpaper: "custom",
+          had_previous_wallpaper: !!this.props.activeWallpaper,
+          had_uploaded_previously: !!uploadedPreviously,
+        });
       }
     };
 
@@ -332,6 +373,8 @@ export class _WallpaperCategories extends React.PureComponent {
     let filteredWallpapers = wallpaperList.filter(
       wallpaper => wallpaper.category === activeCategory
     );
+    const wallpaperUploadMaxFileSize =
+      this.props.Prefs.values[PREF_WALLPAPER_UPLOAD_MAX_FILE_SIZE];
 
     function reduceColorsToFitCustomColorInput(arr) {
       // Reduce the amount of custom colors to make space for the custom color picker
@@ -491,6 +534,9 @@ export class _WallpaperCategories extends React.PureComponent {
                         : `wallpaper-input theme-custom-wallpaper`
                     }
                     tabIndex={index === 0 ? 0 : -1}
+                    {...(category === "custom-wallpaper"
+                      ? { "aria-errormessage": "customWallpaperError" }
+                      : {})}
                   />
                   <label htmlFor={category} data-l10n-id={fluent_id}>
                     {fluent_id}
@@ -499,6 +545,15 @@ export class _WallpaperCategories extends React.PureComponent {
               );
             })}
           </fieldset>
+          {this.state.isCustomWallpaperError && (
+            <div className="custom-wallpaper-error" id="customWallpaperError">
+              <span className="icon icon-info"></span>
+              <span
+                data-l10n-id="newtab-wallpaper-error-max-file-size"
+                data-l10n-args={`{"file_size": ${wallpaperUploadMaxFileSize}}`}
+              ></span>
+            </div>
+          )}
         </div>
 
         <CSSTransition
