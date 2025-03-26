@@ -122,6 +122,7 @@
 #include "mozilla/dom/Permissions.h"
 #include "mozilla/dom/ProcessMessageManager.h"
 #include "mozilla/dom/PushNotifier.h"
+#include "mozilla/dom/RemoteWorkerDebuggerManagerParent.h"
 #include "mozilla/dom/RemoteWorkerServiceParent.h"
 #include "mozilla/dom/ServiceWorkerManager.h"
 #include "mozilla/dom/ServiceWorkerRegistrar.h"
@@ -1341,31 +1342,44 @@ bool ContentParent::ValidatePrincipal(
     return true;
   }
 
-  if (!mRemoteTypeIsolationPrincipal ||
-      RemoteTypePrefix(mRemoteType) != FISSION_WEB_REMOTE_TYPE) {
+  // Web content can contain extension content frames, so any content process
+  // may send us an extension's principal.
+  // NOTE: We don't check AddonPolicy here, as that could disappear if the
+  // add-on is disabled or uninstalled. As this is a lax check, looking at the
+  // scheme should be sufficient.
+  if (aPrincipal->SchemeIs("moz-extension")) {
     return true;
   }
 
-  // Web content can contain extension content frames, so a content process may
-  // send us an extension's principal.
-  auto* addonPolicy = BasePrincipal::Cast(aPrincipal)->AddonPolicy();
-  if (addonPolicy) {
+  // If the remote type doesn't have an origin suffix, we can do no further
+  // principal validation with it.
+  int32_t equalIdx = mRemoteType.FindChar('=');
+  if (equalIdx == kNotFound) {
     return true;
   }
 
-  // Ensure that the expected site-origin matches the one specified by our
-  // mRemoteTypeIsolationPrincipal.
+  // Split out the remote type prefix and the origin suffix.
+  nsDependentCSubstring typePrefix(mRemoteType, 0, equalIdx);
+  nsDependentCSubstring typeOrigin(mRemoteType, equalIdx + 1);
+
+  // Only validate webIsolated remote types for now. This should be expanded in
+  // the future.
+  if (typePrefix != FISSION_WEB_REMOTE_TYPE) {
+    return true;
+  }
+
+  // Trim any OriginAttributes from the origin, as those will not be validated.
+  int32_t suffixIdx = typeOrigin.RFindChar('^');
+  nsDependentCSubstring typeOriginNoSuffix(typeOrigin, 0, suffixIdx);
+
+  // NOTE: Currently every webIsolated remote type is site-origin keyed, meaning
+  // we can unconditionally compare site origins. If this changes in the future,
+  // this logic will need to be updated to reflect that.
   nsAutoCString siteOriginNoSuffix;
   if (NS_FAILED(aPrincipal->GetSiteOriginNoSuffix(siteOriginNoSuffix))) {
     return false;
   }
-  nsAutoCString remoteTypeSiteOriginNoSuffix;
-  if (NS_FAILED(mRemoteTypeIsolationPrincipal->GetSiteOriginNoSuffix(
-          remoteTypeSiteOriginNoSuffix))) {
-    return false;
-  }
-
-  return remoteTypeSiteOriginNoSuffix.Equals(siteOriginNoSuffix);
+  return siteOriginNoSuffix == typeOriginNoSuffix;
 }
 
 /*static*/
@@ -7852,8 +7866,14 @@ void ContentParent::StartRemoteWorkerService() {
   Endpoint<PRemoteWorkerServiceChild> childEp;
   mRemoteWorkerServiceActor =
       RemoteWorkerServiceParent::CreateForProcess(this, &childEp);
+
+  Endpoint<PRemoteWorkerDebuggerManagerChild> remoteDebuggerChildEp;
+  mRemoteWorkerDebuggerManagerActor =
+      RemoteWorkerDebuggerManagerParent::CreateForProcess(
+          &remoteDebuggerChildEp);
   if (mRemoteWorkerServiceActor) {
-    Unused << SendInitRemoteWorkerService(std::move(childEp));
+    Unused << SendInitRemoteWorkerService(std::move(childEp),
+                                          std::move(remoteDebuggerChildEp));
   }
 }
 

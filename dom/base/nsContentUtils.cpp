@@ -1308,15 +1308,20 @@ nsresult nsContentUtils::Atob(const nsAString& aAsciiBase64String,
   return rv;
 }
 
-bool nsContentUtils::IsAutocompleteEnabled(
-    mozilla::dom::HTMLInputElement* aInput) {
-  MOZ_ASSERT(aInput, "aInput should not be null!");
+bool nsContentUtils::IsAutocompleteEnabled(mozilla::dom::Element* aElement) {
+  MOZ_ASSERT(aElement, "aElement should not be null!");
 
   nsAutoString autocomplete;
-  aInput->GetAutocomplete(autocomplete);
+
+  if (auto* input = HTMLInputElement::FromNodeOrNull(aElement)) {
+    input->GetAutocomplete(autocomplete);
+  } else if (auto* textarea = HTMLTextAreaElement::FromNodeOrNull(aElement)) {
+    textarea->GetAutocomplete(autocomplete);
+  }
 
   if (autocomplete.IsEmpty()) {
-    auto* form = aInput->GetForm();
+    auto* control = nsGenericHTMLFormControlElement::FromNode(aElement);
+    auto* form = control->GetForm();
     if (!form) {
       return true;
     }
@@ -3254,8 +3259,8 @@ Maybe<int32_t> nsContentUtils::CompareChildNodes(
     Maybe<int32_t> child1Index;
     Maybe<int32_t> child2Index;
     if (aIndexCache) {
-      aIndexCache->ComputeIndicesOf(&commonParentNode, aChild1, aChild2,
-                                    child1Index, child2Index);
+      aIndexCache->ComputeIndicesOf<TreeKind::DOM>(
+          &commonParentNode, aChild1, aChild2, child1Index, child2Index);
     } else {
       child1Index = commonParentNode.ComputeIndexOf(aChild1);
       child2Index = commonParentNode.ComputeIndexOf(aChild2);
@@ -3358,8 +3363,9 @@ Maybe<int32_t> nsContentUtils::CompareChildOffsetAndChildNode(
     return Some(aOffset1 == parentNode.GetChildCount() - 1 ? 0 : -1);
   }
   const Maybe<int32_t> child2Index =
-      aIndexCache ? aIndexCache->ComputeIndexOf(&parentNode, &aChild2)
-                  : GetIndexInParent<TreeKind::DOM>(&parentNode, &aChild2);
+      aIndexCache
+          ? aIndexCache->ComputeIndexOf<TreeKind::DOM>(&parentNode, &aChild2)
+          : GetIndexInParent<TreeKind::DOM>(&parentNode, &aChild2);
   if (NS_WARN_IF(child2Index.isNothing())) {
     return Some(1);
   }
@@ -11875,16 +11881,19 @@ template <TreeKind aKind>
 MOZ_ALWAYS_INLINE const nsINode* GetParent(const nsINode* aNode) {
   if constexpr (aKind == TreeKind::DOM) {
     return aNode->GetParentNode();
-  } else {
-    return aNode->GetFlattenedTreeParentNode();
   }
+  if constexpr (aKind == TreeKind::ShadowIncludingDOM) {
+    return aNode->GetParentOrShadowHostNode();
+  }
+  return aNode->GetFlattenedTreeParentNode();
 }
 
 template <TreeKind aKind>
 Maybe<int32_t> nsContentUtils::GetIndexInParent(const nsINode* aParent,
                                                 const nsINode* aNode) {
   Maybe<uint32_t> idx;
-  if constexpr (aKind == TreeKind::DOM) {
+  if constexpr (aKind == TreeKind::DOM ||
+                aKind == TreeKind::ShadowIncludingDOM) {
     idx = aParent->ComputeIndexOf(aNode);
   } else {
     idx = aParent->ComputeFlatTreeIndexOf(aNode);
@@ -11892,6 +11901,12 @@ Maybe<int32_t> nsContentUtils::GetIndexInParent(const nsINode* aParent,
 
   if (idx) {
     return idx.map([](auto i) { return AssertedCast<int32_t>(i); });
+  }
+
+  if constexpr (aKind == TreeKind::ShadowIncludingDOM) {
+    if (const auto* sr = ShadowRoot::FromNode(aNode)) {
+      return sr->GetHost() == aParent ? Some(-1) : Nothing();
+    }
   }
 
   // Handle pseudo-element and anonymous node ordering:
@@ -11908,11 +11923,11 @@ Maybe<int32_t> nsContentUtils::GetIndexInParent(const nsINode* aParent,
   }
 
   if (aNode->IsGeneratedContentContainerForMarker()) {
-    return Some(-2);
+    return Some(-3);
   }
 
   if (aNode->IsGeneratedContentContainerForBefore()) {
-    return Some(-1);
+    return Some(-2);
   }
 
   AutoTArray<nsIContent*, 8> anonKids;
@@ -11940,10 +11955,10 @@ Maybe<int32_t> nsContentUtils::GetIndexInParent(const nsINode* aParent,
 }
 
 template <TreeKind aTreeKind>
-int32_t nsContentUtils::CompareTreePosition(
-    const nsINode* aNode1, const nsINode* aNode2,
-    const nsINode* aCommonAncestor,
-    ResizableNodeIndexCache<aTreeKind>* aCache) {
+int32_t nsContentUtils::CompareTreePosition(const nsINode* aNode1,
+                                            const nsINode* aNode2,
+                                            const nsINode* aCommonAncestor,
+                                            NodeIndexCache* aCache) {
   MOZ_ASSERT(aNode1, "aNode1 must not be null");
   MOZ_ASSERT(aNode2, "aNode2 must not be null");
 
@@ -11952,7 +11967,8 @@ int32_t nsContentUtils::CompareTreePosition(
   }
 
   // TODO: Maybe handle flat tree too or other common cases?
-  if constexpr (aTreeKind == TreeKind::DOM) {
+  if constexpr (aTreeKind == TreeKind::DOM ||
+                aTreeKind == TreeKind::ShadowIncludingDOM) {
     if (aNode1->GetNextSibling() == aNode2) {
       return -1;
     }
@@ -12018,8 +12034,8 @@ int32_t nsContentUtils::CompareTreePosition(
   Maybe<int32_t> index1;
   Maybe<int32_t> index2;
   if (aCache) {
-    aCache->ComputeIndicesOf(parent, node1Ancestor, node2Ancestor, index1,
-                             index2);
+    aCache->ComputeIndicesOf<aTreeKind>(parent, node1Ancestor, node2Ancestor,
+                                        index1, index2);
   } else {
     index1 = GetIndexInParent<aTreeKind>(parent, node1Ancestor);
     index2 = GetIndexInParent<aTreeKind>(parent, node2Ancestor);
@@ -12063,5 +12079,7 @@ nsIContent* nsContentUtils::AttachDeclarativeShadowRoot(nsIContent* aHost,
 template int32_t nsContentUtils::CompareTreePosition<TreeKind::DOM>(
     const nsINode*, const nsINode*, const nsINode*, NodeIndexCache*);
 template int32_t nsContentUtils::CompareTreePosition<TreeKind::Flat>(
-    const nsINode*, const nsINode*, const nsINode*,
-    ResizableNodeIndexCache<TreeKind::Flat>*);
+    const nsINode*, const nsINode*, const nsINode*, NodeIndexCache*);
+template int32_t
+nsContentUtils::CompareTreePosition<TreeKind::ShadowIncludingDOM>(
+    const nsINode*, const nsINode*, const nsINode*, NodeIndexCache*);

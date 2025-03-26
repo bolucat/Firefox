@@ -36,10 +36,13 @@ dependencies {
     implementation project(":compose-base")
     implementation project(":concept-engine")
     implementation project(":concept-menu")
+    implementation project(":browser-menu2")
     implementation project(":browser-state")
     implementation project(":feature-session")
     implementation project(":lib-state")
     implementation project(":ui-icons")
+    implementation project(":ui-tabcounter")
+    implementation project(":support-ktx")
     implementation libs.androidx.compose.ui
     implementation libs.androidx.compose.ui.tooling.preview
     implementation libs.androidx.compose.foundation

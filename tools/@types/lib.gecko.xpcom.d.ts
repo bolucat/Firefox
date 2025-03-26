@@ -233,6 +233,7 @@ interface nsIAccessibleDocument extends nsISupports {
   readonly parentDocument: nsIAccessibleDocument;
   readonly childDocumentCount: u32;
   getChildDocumentAt(index: u32): nsIAccessibleDocument;
+  readonly browsingContext: BrowsingContext;
 }
 
 // https://searchfox.org/mozilla-central/source/accessible/interfaces/nsIAccessibleEditableText.idl
@@ -833,6 +834,8 @@ interface nsIAlertsService extends nsISupports {
   showAlert(aAlert: nsIAlertNotification, aAlertListener?: nsIObserver): void;
   showAlertNotification(aImageURL: string, aTitle: string, aText: string, aTextClickable?: boolean, aCookie?: string, aAlertListener?: nsIObserver, aName?: string, aDir?: string, aLang?: string, aData?: string, aPrincipal?: nsIPrincipal, aInPrivateBrowsing?: boolean, aRequireInteraction?: boolean): void;
   closeAlert(aName?: string, aContextClosed?: boolean): void;
+  teardown(): void;
+  pbmTeardown(): void;
 }
 
 interface nsIAlertsDoNotDisturb extends nsISupports {
@@ -3122,6 +3125,7 @@ interface nsICredentialChooserService extends nsISupports {
   fetchConfig(uri: nsIURI, triggeringPrincipal: nsIPrincipal): Promise<any>;
   fetchAccounts(uri: nsIURI, triggeringPrincipal: nsIPrincipal): Promise<any>;
   fetchToken(uri: nsIURI, body: string, triggeringPrincipal: nsIPrincipal): Promise<any>;
+  fetchDisconnect(uri: nsIURI, body: string, triggeringPrincipal: nsIPrincipal): Promise<any>;
 }
 
 // https://searchfox.org/mozilla-central/source/toolkit/components/credentialmanagement/nsICredentialChosenCallback.idl
@@ -3145,6 +3149,8 @@ interface nsIIdentityCredentialStorageService extends nsISupports {
   setState(rpPrincipal: nsIPrincipal, idpPrincipal: nsIPrincipal, credentialID: string, registered: boolean, allowLogout: boolean): void;
   getState(rpPrincipal: nsIPrincipal, idpPrincipal: nsIPrincipal, credentialID: string, registered: OutParam<boolean>, allowLogout: OutParam<boolean>): void;
   delete(rpPrincipal: nsIPrincipal, idpPrincipal: nsIPrincipal, credentialID: string): void;
+  connected(rpPrincipal: nsIPrincipal, idpPrincipal: nsIPrincipal, connected: OutParam<boolean>): void;
+  disconnect(rpPrincipal: nsIPrincipal, idpPrincipal: nsIPrincipal): void;
   clear(): void;
   deleteFromBaseDomain(baseDomain: string): void;
   deleteFromPrincipal(rpPrincipal: nsIPrincipal): void;
@@ -9626,16 +9632,30 @@ interface mozISyncedBookmarksMirrorLogger extends nsISupports {
   trace(message: string): void;
 }
 
-interface mozISyncedBookmarksMerger extends nsISupports {
-  readonly KIND_BOOKMARK?: 1;
-  readonly KIND_QUERY?: 2;
-  readonly KIND_FOLDER?: 3;
-  readonly KIND_LIVEMARK?: 4;
-  readonly KIND_SEPARATOR?: 5;
-  readonly VALIDITY_VALID?: 1;
-  readonly VALIDITY_REUPLOAD?: 2;
-  readonly VALIDITY_REPLACE?: 3;
+}  // global
 
+declare enum mozISyncedBookmarksMerger_SyncedItemKinds {
+  KIND_BOOKMARK = 1,
+  KIND_QUERY = 2,
+  KIND_FOLDER = 3,
+  KIND_LIVEMARK = 4,
+  KIND_SEPARATOR = 5,
+}
+
+declare enum mozISyncedBookmarksMerger_SyncedItemValidity {
+  VALIDITY_VALID = 1,
+  VALIDITY_REUPLOAD = 2,
+  VALIDITY_REPLACE = 3,
+}
+
+declare global {
+
+namespace mozISyncedBookmarksMerger {
+  type SyncedItemKinds = mozISyncedBookmarksMerger_SyncedItemKinds;
+  type SyncedItemValidity = mozISyncedBookmarksMerger_SyncedItemValidity;
+}
+
+interface mozISyncedBookmarksMerger extends nsISupports, Enums<typeof mozISyncedBookmarksMerger_SyncedItemKinds & typeof mozISyncedBookmarksMerger_SyncedItemValidity> {
   db: mozIStorageConnection;
   logger: mozIServicesLogSink;
   merge(localTimeSeconds: i64, remoteTimeSeconds: i64, callback: mozISyncedBookmarksMirrorCallback): mozIPlacesPendingOperation;
@@ -10907,6 +10927,7 @@ interface nsIAsyncShutdownService extends nsISupports {
   makeBarrier(aName: string): nsIAsyncShutdownBarrier;
   readonly profileBeforeChange: nsIAsyncShutdownClient;
   readonly profileChangeTeardown: nsIAsyncShutdownClient;
+  readonly appShutdownConfirmed: nsIAsyncShutdownClient;
   readonly quitApplicationGranted: nsIAsyncShutdownClient;
   readonly sendTelemetry: nsIAsyncShutdownClient;
   readonly webWorkersShutdown: nsIAsyncShutdownClient;
@@ -11386,6 +11407,7 @@ interface nsISearchEngine extends nsISupports {
   readonly identifier: string;
   readonly isAppProvided: boolean;
   readonly inMemory: boolean;
+  readonly overriddenById: string;
   readonly isGeneralPurposeEngine: boolean;
   readonly searchUrlDomain: string;
   readonly clickUrl: string;
@@ -15875,7 +15897,7 @@ interface nsIXPCComponents_Interfaces {
   mozISyncedBookmarksMirrorProgressListener: nsJSIID<mozISyncedBookmarksMirrorProgressListener>;
   mozISyncedBookmarksMirrorCallback: nsJSIID<mozISyncedBookmarksMirrorCallback>;
   mozISyncedBookmarksMirrorLogger: nsJSIID<mozISyncedBookmarksMirrorLogger>;
-  mozISyncedBookmarksMerger: nsJSIID<mozISyncedBookmarksMerger>;
+  mozISyncedBookmarksMerger: nsJSIID<mozISyncedBookmarksMerger, typeof mozISyncedBookmarksMerger_SyncedItemKinds & typeof mozISyncedBookmarksMerger_SyncedItemValidity>;
   nsIFaviconService: nsJSIID<nsIFaviconService>;
   nsIFaviconDataCallback: nsJSIID<nsIFaviconDataCallback>;
   nsINavBookmarksService: nsJSIID<nsINavBookmarksService>;

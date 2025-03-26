@@ -203,32 +203,40 @@ void PopulateCSSProperties() {
 }
 
 void PopulateScreenProperties() {
+  nsCString screensMetrics = "["_ns;
+
   auto& screenManager = widget::ScreenManager::GetSingleton();
-  RefPtr<widget::Screen> screen = screenManager.GetPrimaryScreen();
-  MOZ_ASSERT(screen);
+  const auto& screens = screenManager.CurrentScreenList();
+  for (const auto& screen : screens) {
+    int32_t left, top, width, height;
 
-  dom::ScreenColorGamut colorGamut;
-  screen->GetColorGamut(&colorGamut);
-  glean::characteristics::color_gamut.Set((int)colorGamut);
+    screen->GetRect(&left, &top, &width, &height);
+    screensMetrics.AppendPrintf(R"({"rect":[%d,%d,%d,%d],)", left, top, width,
+                                height);
 
-  int32_t colorDepth;
-  screen->GetColorDepth(&colorDepth);
-  glean::characteristics::color_depth.Set(colorDepth);
-  glean::characteristics::pixel_depth.Set(screen->GetPixelDepth());
+    screen->GetAvailRect(&left, &top, &width, &height);
+    screensMetrics.AppendPrintf(R"("availRect":[%d,%d,%d,%d],)", left, top,
+                                width, height);
 
-  glean::characteristics::orientation_angle.Set(screen->GetOrientationAngle());
-  glean::characteristics::video_dynamic_range.Set(screen->GetIsHDR());
+    screensMetrics.AppendPrintf(R"("colorDepth":%d,)", screen->GetColorDepth());
+    screensMetrics.AppendPrintf(R"("pixelDepth":%d,)", screen->GetPixelDepth());
+    screensMetrics.AppendPrintf(R"("oAngle":%d,)",
+                                screen->GetOrientationAngle());
+    screensMetrics.AppendPrintf(
+        R"("oType":%d,)", static_cast<uint32_t>(screen->GetOrientationType()));
+    screensMetrics.AppendPrintf(R"("hdr":%d,)", screen->GetIsHDR());
+    screensMetrics.AppendPrintf(R"("scaleFactor":%f})",
+                                screen->GetContentsScaleFactor());
 
-  glean::characteristics::color_gamut.Set((int)colorGamut);
-  glean::characteristics::color_depth.Set(colorDepth);
-  const LayoutDeviceIntRect rect = screen->GetRect();
-  glean::characteristics::screen_height.Set(rect.Height());
-  glean::characteristics::screen_width.Set(rect.Width());
-  glean::characteristics::posx.Set(rect.X());
-  glean::characteristics::posy.Set(rect.Y());
+    if (&screen != &screens.LastElement()) {
+      screensMetrics.Append(",");
+    }
+  }
 
-  glean::characteristics::screen_orientation.Set(
-      (int)screen->GetOrientationType());
+  screensMetrics.Append("]");
+
+  glean::characteristics::screens.Set(screensMetrics);
+
   glean::characteristics::target_frame_rate.Set(gfxPlatform::TargetFrameRate());
 
   nsCOMPtr<nsPIDOMWindowInner> innerWindow =
@@ -517,25 +525,6 @@ void PopulateFontPrefs() {
       Preferences::HasUserValue("font.name-list.emoji"));
 }
 
-void PopulateScaling() {
-  nsCString output = "["_ns;
-
-  auto& screenManager = widget::ScreenManager::GetSingleton();
-  const auto& screens = screenManager.CurrentScreenList();
-  for (const auto& screen : screens) {
-    // Technically, not the same as (display resolution / shown resolution), but
-    // this is the value the fingerprinters can access/compute.
-    output.Append(std::to_string(screen->GetContentsScaleFactor()));
-    if (&screen != &screens.LastElement()) {
-      output.Append(",");
-    }
-  }
-
-  output.Append("]");
-
-  glean::characteristics::scalings.Set(output);
-}
-
 already_AddRefed<PopulatePromise> PopulateMediaDevices() {
   RefPtr<PopulatePromise> populatePromise = new PopulatePromise(__func__);
   MediaManager::Get()->GetPhysicalDevices()->Then(
@@ -807,7 +796,7 @@ const RefPtr<PopulatePromise>& TimoutPromise(
 // metric is set, this variable should be incremented. It'll be a lot. It's
 // okay. We're going to need it to know (including during development) what is
 // the source of the data we are looking at.
-const int kSubmissionSchema = 24;
+const int kSubmissionSchema = 25;
 
 const auto* const kUUIDPref =
     "toolkit.telemetry.user_characteristics_ping.uuid";
@@ -1007,7 +996,6 @@ void nsUserCharacteristics::PopulateDataAndEventuallySubmit(
     PopulateScreenProperties();
     PopulatePrefs();
     PopulateFontPrefs();
-    PopulateScaling();
     PopulateKeyboardLayout();
     PopulateLanguages();
     PopulateTextAntiAliasing();

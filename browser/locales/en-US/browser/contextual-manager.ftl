@@ -113,23 +113,6 @@ contextual-manager-passwords-export-file-picker-csv-filter-title =
      *[other] CSV File
   }
 
-# Variables
-#   $count (number) - Number of passwords
-contextual-manager-passwords-count =
-  { $count ->
-      [one] { $count } password
-     *[other] { $count } passwords
-  }
-
-# Variables
-#   $count (number) - Number of filtered passwords
-#   $total (number) - Total number of passwords
-contextual-manager-passwords-filtered-count =
-  { $total ->
-      [one] { $count } of { $total } password
-     *[other] { $count } of { $total } passwords
-  }
-
 # Confirm the removal of all saved passwords
 #   $total (number) - Total number of passwords
 contextual-manager-passwords-remove-all-title =
@@ -270,7 +253,9 @@ contextual-manager-website-icon =
   .alt = Website Icon
 contextual-manager-copy-icon =
   .alt = Copy
-contextual-manager-check-icon =
+contextual-manager-check-icon-username =
+  .alt = Copied
+contextual-manager-check-icon-password =
   .alt = Copied
 contextual-manager-alert-icon =
   .alt = Warning

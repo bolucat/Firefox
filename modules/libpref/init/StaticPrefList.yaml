@@ -1305,6 +1305,13 @@
   value: false
   mirror: always
 
+# Max number of concurrent connections to the DLP agent.  For stability
+# reasons, values exceeding 256 will be ignored.
+- name: browser.contentanalysis.max_connections
+  type: uint32_t
+  value: 32
+  mirror: always
+
 # Should Firefox use content analysis for clipboard operations?
 # Note that this has no effect unless browser.contentanalysis.enabled
 # is true.
@@ -2541,6 +2548,12 @@
 - name: dom.cookieStore.enabled
   type: RelaxedAtomicBool
   value: @IS_NIGHTLY_BUILD@
+  mirror: always
+
+# Disable cookie-store manager API
+- name: dom.cookieStore.manager.enabled
+  type: RelaxedAtomicBool
+  value: false
   mirror: always
 
 # Is support for CSSPseudoElement enabled?
@@ -4470,6 +4483,15 @@
   value: 400 * 1024
   mirror: always
 
+# Enable ServiceWorkers in Private Browsing Mode (PBM).  This requires
+# dom.cache.privateBrowsing.enabled to be enabled as well.  Registrations are
+# not persisted to disk; installed scripts are stored in Cache API storage which
+# is encrypted in PBM.
+- name: dom.serviceWorkers.privateBrowsing.enabled
+  type: RelaxedAtomicBool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+
 - name: dom.serviceWorkers.testing.enabled
   type: RelaxedAtomicBool
   value: false
@@ -4826,6 +4848,17 @@
   value: true
   mirror: always
 
+# Sites we shouldn't defer timeouts and intervals while loading a page.
+# comma-separated list, see IsURIInPrefList() for format details
+- name: dom.timeout.defer_during_load.force-disable
+  type: String
+  value: >-
+    *.usps.com,
+    *.nvidia.com,
+    *.fedex.com,
+    *.msci.com
+  mirror: never
+
 # Maximum amount of time in milliseconds consecutive setTimeout()/setInterval()
 # callback are allowed to run before yielding the event loop.
 - name: dom.timeout.max_consecutive_callbacks_ms
@@ -4919,6 +4952,12 @@
 
 # Whether view transitions remain active indefinitely. Useful for debugging.
 - name: dom.viewTransitions.remain-active
+  type: bool
+  value: false
+  mirror: always
+
+# Whether view transitions use webrender for old-capture
+- name: dom.viewTransitions.wr-old-capture
   type: bool
   value: false
   mirror: always
@@ -6538,16 +6577,6 @@
   value: true
   mirror: once
 
-- name: gfx.canvas.willreadfrequently.enabled
-  type: bool
-#if defined(XP_WIN)
-  value: false
-#else
-  value: true
-#endif
-  mirror: once
-
-
 - name: gfx.color_management.display_profile
   type: DataMutexString
   value: ""
@@ -7376,6 +7405,13 @@
 - name: gfx.webrender.layer-compositor
   type: bool
   value: false
+  mirror: once
+#endif
+
+#ifdef XP_WIN
+- name: gfx.webrender.layer-compositor-use-composition-surface
+  type: bool
+  value: true
   mirror: once
 #endif
 
@@ -15439,7 +15475,7 @@
 # header values of "cache" and "*" will clear cached data from the site
 - name: privacy.clearSiteDataHeader.cache.enabled
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # First Party Isolation (double keying), disabled by default.
@@ -15529,6 +15565,25 @@
 - name: privacy.trackingprotection.testing.report_blocked_node
   type: RelaxedAtomicBool
   value: false
+  mirror: always
+
+# Annotate channels based on the consent manager list
+# Note: consent manager annotations will be disabled if tracking protection is disabled
+- name: privacy.trackingprotection.consentmanager.annotate_channels
+  type: bool
+  value: true
+  mirror: always
+
+# Skip blocking for consentmanager resources in all modes.
+- name: privacy.trackingprotection.consentmanager.skip.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# Skip blocking for consentmanager resources in Private Browsing mode.
+- name: privacy.trackingprotection.consentmanager.skip.pbmode.enabled
+  type: RelaxedAtomicBool
+  value: true
   mirror: always
 
 # Whether to spoof user locale to English (used as part of Resist
@@ -18302,6 +18357,12 @@
 # Keep those pref hidden on non-nightly builds to avoid people accidentally
 # turning it on.
 
+# Override FEATURE_DMABUF_SURFACE_EXPORT for testing
+- name: widget.dmabuf-export.force-enabled
+  type: bool
+  value: false
+  mirror: once
+
 # Use DMABuf for content textures.
 # For testing purposes only.
 - name: widget.dmabuf-textures.enabled
@@ -18567,9 +18628,12 @@
   mirror: always
 
 # Whether we use the mica backdrop for popups when available.
+#  * 0: never
+#  * 1: always
+#  * 2 or others: auto
 - name: widget.windows.mica.popups
-  type: RelaxedAtomicBool
-  value: true
+  type: RelaxedAtomicInt32
+  value: 2
   mirror: always
 
 # What mica backdrop do we use for toplevels. See [1] for the meaning.

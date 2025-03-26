@@ -887,7 +887,10 @@ export class SearchEngine {
         extension.manifest.chrome_settings_overrides.search_provider
       );
     }
-    lazy.SearchUtils.notifyAction(this, lazy.SearchUtils.MODIFIED_TYPE.CHANGED);
+
+    if (this.searchURLWithNoTerms.spec != this.getAttr("overriddenURL")) {
+      this.setAttr("overriddenURL", this.searchURLWithNoTerms.spec, true);
+    }
   }
 
   /**
@@ -907,6 +910,7 @@ export class SearchEngine {
         );
       }
       this.clearAttr("overriddenBy");
+      this.clearAttr("overriddenURL");
       lazy.SearchUtils.notifyAction(
         this,
         lazy.SearchUtils.MODIFIED_TYPE.CHANGED
@@ -998,8 +1002,17 @@ export class SearchEngine {
     return json;
   }
 
-  setAttr(name, val) {
+  setAttr(name, val, sendNotification = false) {
+    // Cache whether the attribute actually changes so we don't lose that info
+    // when updating `_metaData`.
+    let hasChangedAttr = val != this[name];
     this._metaData[name] = val;
+    if (hasChangedAttr && sendNotification) {
+      lazy.SearchUtils.notifyAction(
+        this,
+        lazy.SearchUtils.MODIFIED_TYPE.CHANGED
+      );
+    }
   }
 
   getAttr(name) {
@@ -1061,13 +1074,7 @@ export class SearchEngine {
 
   set alias(val) {
     var value = val ? val.trim() : "";
-    if (value != this.alias) {
-      this.setAttr("alias", value);
-      lazy.SearchUtils.notifyAction(
-        this,
-        lazy.SearchUtils.MODIFIED_TYPE.CHANGED
-      );
-    }
+    this.setAttr("alias", value, true);
   }
 
   /**
@@ -1119,13 +1126,7 @@ export class SearchEngine {
 
   set hidden(val) {
     var value = !!val;
-    if (value != this.hidden) {
-      this.setAttr("hidden", value);
-      lazy.SearchUtils.notifyAction(
-        this,
-        lazy.SearchUtils.MODIFIED_TYPE.CHANGED
-      );
-    }
+    this.setAttr("hidden", value, true);
   }
 
   get hideOneOffButton() {
@@ -1133,13 +1134,7 @@ export class SearchEngine {
   }
   set hideOneOffButton(val) {
     const value = !!val;
-    if (value != this.hideOneOffButton) {
-      this.setAttr("hideOneOffButton", value);
-      lazy.SearchUtils.notifyAction(
-        this,
-        lazy.SearchUtils.MODIFIED_TYPE.CHANGED
-      );
-    }
+    this.setAttr("hideOneOffButton", value, true);
   }
 
   /**
@@ -1168,6 +1163,16 @@ export class SearchEngine {
    */
   get inMemory() {
     return false;
+  }
+
+  /**
+   * If this engine has been overridden by a third-party engine, the id returned
+   * will be the engine it was overriden by. Otherwise this will return null.
+   *
+   * @returns {?string}
+   */
+  get overriddenById() {
+    return this.getAttr("overriddenBy");
   }
 
   get isGeneralPurposeEngine() {

@@ -89,6 +89,7 @@
 #include "mozilla/gfx/gfxVars.h"
 #include "ActiveLayerTracker.h"
 #include "nsEscape.h"
+#include "nsPresContextInlines.h"
 #include "nsPrintfCString.h"
 #include "UnitTransforms.h"
 #include "LayerAnimationInfo.h"
@@ -1140,7 +1141,6 @@ static bool DisplayListIsNonBlank(nsDisplayList* aList) {
   for (nsDisplayItem* i : *aList) {
     switch (i->GetType()) {
       case DisplayItemType::TYPE_COMPOSITOR_HITTEST_INFO:
-      case DisplayItemType::TYPE_CANVAS_BACKGROUND_COLOR:
       case DisplayItemType::TYPE_CANVAS_BACKGROUND_IMAGE:
         continue;
       case DisplayItemType::TYPE_SOLID_COLOR:
@@ -2300,7 +2300,8 @@ void nsDisplayList::PaintRoot(nsDisplayListBuilder* aBuilder, gfxContext* aCtx,
 
       wrManager->EndTransactionWithoutLayer(this, aBuilder,
                                             std::move(wrFilters), nullptr,
-                                            aDisplayListBuildTime.valueOr(0.0));
+                                            aDisplayListBuildTime.valueOr(0.0),
+                                            aFlags & PAINT_COMPOSITE_OFFSCREEN);
     }
 
     if (presContext->RefreshDriver()->HasScheduleFlush()) {
@@ -5209,7 +5210,6 @@ bool nsDisplayOwnLayer::CreateWebRenderCommands(
     const StackingContextHelper& aSc, RenderRootStateManager* aManager,
     nsDisplayListBuilder* aDisplayListBuilder) {
   Maybe<wr::WrAnimationProperty> prop;
-  Maybe<wr::SnapshotInfo> snapshot;
   const bool needsProp = aManager->LayerManager()->AsyncPanZoomEnabled() &&
                          (IsScrollThumbLayer() || IsZoomingLayer() ||
                           ShouldGetFixedAnimationId() ||
@@ -5238,28 +5238,6 @@ bool nsDisplayOwnLayer::CreateWebRenderCommands(
   const bool rootScrollbarContainer = IsRootScrollbarContainer();
   if (rootScrollbarContainer) {
     params.prim_flags |= wr::PrimitiveFlags::IS_SCROLLBAR_CONTAINER;
-  }
-  if (mFrame->HasAnyStateBits(NS_FRAME_CAPTURED_IN_VIEW_TRANSITION)) {
-    auto key = [&]() -> Maybe<wr::SnapshotImageKey> {
-      auto* vt = mFrame->PresContext()->Document()->GetActiveViewTransition();
-      if (NS_WARN_IF(!vt)) {
-        return Nothing();
-      }
-      const auto* key =
-          vt->GetImageKeyForCapturedFrame(mFrame, aManager, aResources);
-      return key ? Some(wr::SnapshotImageKey{*key}) : Nothing();
-    }();
-    if (key) {
-      float auPerDevPixel = mFrame->PresContext()->AppUnitsPerDevPixel();
-      snapshot.emplace(wr::SnapshotInfo{
-          .key = *key,
-          .area = wr::ToLayoutRect(LayoutDeviceRect::FromAppUnits(
-              mFrame->InkOverflowRectRelativeToSelf() + ToReferenceFrame(),
-              auPerDevPixel)),
-          .detached = true,
-      });
-      params.snapshot = snapshot.ptr();
-    }
   }
   if (IsZoomingLayer() || ShouldGetFixedAnimationId() ||
       (rootScrollbarContainer && HasDynamicToolbar())) {
@@ -5329,6 +5307,48 @@ void nsDisplayOwnLayer::WriteDebugInfo(std::stringstream& aStream) {
   aStream << nsPrintfCString(" (flags 0x%x) (scrolltarget %" PRIu64 ")",
                              (int)mFlags, mScrollbarData.mTargetViewId)
                  .get();
+}
+
+bool nsDisplayViewTransitionCapture::CreateWebRenderCommands(
+    wr::DisplayListBuilder& aBuilder, wr::IpcResourceUpdateQueue& aResources,
+    const StackingContextHelper& aSc, RenderRootStateManager* aManager,
+    nsDisplayListBuilder* aDisplayListBuilder) {
+  Maybe<wr::SnapshotInfo> si;
+  nsPresContext* pc = mFrame->PresContext();
+  nsIFrame* capturedFrame =
+      mIsRoot ? pc->FrameConstructor()->GetRootElementStyleFrame() : mFrame;
+  const auto captureRect = mIsRoot
+                               ? ViewTransition::SnapshotContainingBlockRect(pc)
+                               : mFrame->InkOverflowRectRelativeToSelf();
+  auto key = [&]() -> Maybe<wr::SnapshotImageKey> {
+    auto* vt = pc->Document()->GetActiveViewTransition();
+    if (NS_WARN_IF(!vt)) {
+      return Nothing();
+    }
+    const auto* key =
+        vt->GetImageKeyForCapturedFrame(capturedFrame, aManager, aResources);
+    return key ? Some(wr::SnapshotImageKey{*key}) : Nothing();
+  }();
+  VT_LOG_DEBUG(
+      "nsDisplayViewTransitionCapture::CreateWebrenderCommands(%s, key=%s)",
+      capturedFrame->ListTag().get(), ToString(key).c_str());
+  wr::StackingContextParams params;
+  params.clip =
+      wr::WrStackingContextClip::ClipChain(aBuilder.CurrentClipChainId());
+  if (key) {
+    si.emplace(wr::SnapshotInfo{
+        .key = *key,
+        .area = wr::ToLayoutRect(LayoutDeviceRect::FromAppUnits(
+            captureRect + ToReferenceFrame(), pc->AppUnitsPerDevPixel())),
+        .detached = true,
+    });
+    params.snapshot = si.ptr();
+  }
+  StackingContextHelper sc(aSc, GetActiveScrolledRoot(), mFrame, this, aBuilder,
+                           params);
+  nsDisplayWrapList::CreateWebRenderCommands(aBuilder, aResources, sc, aManager,
+                                             aDisplayListBuilder);
+  return true;
 }
 
 nsDisplaySubDocument::nsDisplaySubDocument(nsDisplayListBuilder* aBuilder,
@@ -7165,8 +7185,7 @@ void nsDisplayTransform::HitTest(nsDisplayListBuilder* aBuilder,
 
   GetChildren()->HitTest(aBuilder, resultingRect, aState, aOutFrames);
 
-  if (aState->mHitOccludingItem && !testingPoint &&
-      !mBounds.Contains(aRect)) {
+  if (aState->mHitOccludingItem && !testingPoint && !mBounds.Contains(aRect)) {
     MOZ_ASSERT(aBuilder->HitTestIsForVisibility());
     // We're hit-testing a rect that's bigger than our child bounds, but
     // resultingRect is clipped by our bounds (in ProjectRectBounds above), so

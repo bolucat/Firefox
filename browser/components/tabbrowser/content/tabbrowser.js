@@ -110,6 +110,8 @@
         PictureInPicture: "resource://gre/modules/PictureInPicture.sys.mjs",
         SmartTabGroupingManager:
           "moz-src:///browser/components/tabbrowser/SmartTabGrouping.sys.mjs",
+        TabGroupMetrics:
+          "moz-src:///browser/components/tabbrowser/TabGroupMetrics.sys.mjs",
         UrlbarProviderOpenTabs:
           "resource:///modules/UrlbarProviderOpenTabs.sys.mjs",
       });
@@ -1813,8 +1815,10 @@
         allowThirdPartyFixup,
         inBackground,
         newIndex,
+        elementIndex,
         postDatas,
         replace,
+        tabGroup,
         targetTab,
         triggeringPrincipal,
         csp,
@@ -1842,6 +1846,9 @@
       var firstTabAdded = null;
       var targetTabIndex = -1;
 
+      if (typeof elementIndex == "number") {
+        newIndex = this.#elementIndexToTabIndex(elementIndex);
+      }
       if (typeof newIndex != "number") {
         newIndex = -1;
       }
@@ -1858,6 +1865,11 @@
       }
 
       if (replace) {
+        if (this.isTabGroupLabel(targetTab)) {
+          throw new Error(
+            "Replacing a tab group label with a tab is not supported"
+          );
+        }
         let browser;
         if (targetTab) {
           browser = this.getBrowserForTab(targetTab);
@@ -1900,6 +1912,7 @@
           bulkOrderedOpen: multiple,
           csp,
           fromExternal,
+          tabGroup,
         };
         if (newIndex > -1) {
           params.index = newIndex;
@@ -1922,6 +1935,7 @@
           bulkOrderedOpen: true,
           csp,
           fromExternal,
+          tabGroup,
         };
         if (targetTabIndex > -1) {
           params.index = ++tabNum;
@@ -2952,7 +2966,9 @@
      *   switches windows).
      *   Causes the group create UI to be displayed and telemetry events to be fired.
      * @param {string} [options.telemetryUserCreateSource]
-     *   The means by which the tab group was created. Defaults to "unknown".
+     *   The means by which the tab group was created.
+     *   @see TabGroupMetrics.METRIC_SOURCE for possible values.
+     *   Defaults to "unknown".
      */
     addTabGroup(
       tabs,
@@ -3011,8 +3027,23 @@
      *   The tab group to remove.
      * @param {object} [options]
      *   Options to use when removing tabs. @see removeTabs for more info.
+     * @param {boolean} [options.isUserTriggered=false]
+     *   Should be true if this group is being removed by an explicit
+     *   request from the user (as opposed to a group being removed
+     *   for technical reasons, such as when an already existing group
+     *   switches windows). This causes telemetry events to fire.
+     * @param {string} [options.telemetrySource="unknown"]
+     *   The means by which the tab group was removed.
+     *   @see TabGroupMetrics.METRIC_SOURCE for possible values.
+     *   Defaults to "unknown".
      */
-    async removeTabGroup(group, options = {}) {
+    async removeTabGroup(
+      group,
+      options = {
+        isUserTriggered: false,
+        telemetrySource: this.TabGroupMetrics.METRIC_SOURCE.UNKNOWN,
+      }
+    ) {
       if (this.tabGroupMenu.panel.state != "closed") {
         this.tabGroupMenu.panel.hidePopup(options.animate);
       }
@@ -3046,6 +3077,8 @@
           bubbles: true,
           detail: {
             skipSessionStore: options.skipSessionStore,
+            isUserTriggered: options.isUserTriggered,
+            telemetrySource: options.telemetrySource,
           },
         })
       );
@@ -5883,21 +5916,28 @@
       if (typeof elementIndex == "number") {
         tabIndex = this.#elementIndexToTabIndex(elementIndex);
       }
-      if (this.isTab(aTab)) {
-        // Don't allow mixing pinned and unpinned tabs.
-        if (aTab.pinned) {
-          tabIndex = Math.min(tabIndex, this.pinnedTabCount - 1);
-        } else {
-          tabIndex = Math.max(tabIndex, this.pinnedTabCount);
-        }
-        if (aTab._tPos == tabIndex && !(aTab.group && forceUngrouped)) {
-          return;
-        }
+
+      // Don't allow mixing pinned and unpinned tabs.
+      if (this.isTab(aTab) && aTab.pinned) {
+        tabIndex = Math.min(tabIndex, this.pinnedTabCount - 1);
       } else {
+        tabIndex = Math.max(tabIndex, this.pinnedTabCount);
+      }
+
+      // Return early if the tab is already in the right spot.
+      if (
+        this.isTab(aTab) &&
+        aTab._tPos == tabIndex &&
+        !(aTab.group && forceUngrouped)
+      ) {
+        return;
+      }
+
+      // When asked to move a tab group label, we need to move the whole group
+      // instead.
+      if (this.isTabGroupLabel(aTab)) {
         forceUngrouped = true;
-        if (this.isTabGroupLabel(aTab)) {
-          aTab = aTab.group;
-        }
+        aTab = aTab.group;
       }
 
       this.#handleTabMove(aTab, () => {
@@ -5967,14 +6007,13 @@
         }
       }
 
-      /**
-       * Bug 1955388 - prevent pinned tabs from commingling with non-pinned tabs
-       * when there are hidden tabs present
-       */
+      // Don't allow mixing pinned and unpinned tabs.
       if (tab.pinned && !targetElement?.pinned) {
-        // prevent pinned tab from being dragged past a non-pinned tab
         targetElement = this.tabs[this.pinnedTabCount - 1];
         moveBefore = false;
+      } else if (!tab.pinned && targetElement && targetElement.pinned) {
+        targetElement = this.tabs[this.pinnedTabCount];
+        moveBefore = true;
       }
 
       let getContainer = () => {
