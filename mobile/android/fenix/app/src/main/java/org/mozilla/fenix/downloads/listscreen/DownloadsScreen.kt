@@ -55,7 +55,6 @@ import kotlinx.coroutines.launch
 import mozilla.components.browser.state.state.content.DownloadState
 import mozilla.components.compose.base.annotation.FlexibleWindowLightDarkPreview
 import mozilla.components.lib.state.ext.observeAsState
-import mozilla.components.ui.colors.PhotonColors
 import org.mozilla.fenix.R
 import org.mozilla.fenix.compose.ext.isItemPartiallyVisible
 import org.mozilla.fenix.compose.list.ExpandableListHeader
@@ -224,11 +223,7 @@ private fun FileListItem(
 ) {
     SelectableListItem(
         label = fileItem.fileName ?: fileItem.url,
-        description = stringResource(
-            R.string.download_item_description,
-            fileItem.formattedSize,
-            fileItem.displayedShortUrl,
-        ),
+        description = fileItem.description,
         isSelected = isSelected,
         icon = fileItem.icon,
         afterListAction = {
@@ -343,9 +338,8 @@ private fun DownloadChip(
             BorderStroke(1.dp, FirefoxTheme.colors.borderPrimary)
         },
         colors = ChipDefaults.filterChipColors(
-            // Update to use token when available in design system
-            selectedBackgroundColor = PhotonColors.Violet05,
-            selectedContentColor = FirefoxTheme.colors.actionPrimary,
+            selectedBackgroundColor = FirefoxTheme.colors.layerAccentNonOpaque,
+            selectedContentColor = FirefoxTheme.colors.textPrimary,
             backgroundColor = FirefoxTheme.colors.layer1,
             contentColor = FirefoxTheme.colors.textPrimary,
         ),
@@ -361,7 +355,7 @@ private fun DownloadChip(
                 Icon(
                     painter = painterResource(id = R.drawable.mozac_ic_checkmark_24),
                     contentDescription = null,
-                    tint = FirefoxTheme.colors.actionPrimary,
+                    tint = FirefoxTheme.colors.iconPrimary,
                     modifier = Modifier.size(16.dp),
                 )
             }
@@ -412,9 +406,9 @@ private class DownloadsScreenPreviewModelParameterProvider :
                         fileName = "File 1",
                         url = "https://example.com/file1",
                         formattedSize = "1.2 MB",
+                        displayedShortUrl = "example.com",
                         contentType = "application/pdf",
                         status = DownloadState.Status.COMPLETED,
-                        displayedShortUrl = "example.com",
                         filePath = "/path/to/file1",
                         createdTime = CreatedTime.TODAY,
                     ),
@@ -423,9 +417,9 @@ private class DownloadsScreenPreviewModelParameterProvider :
                         fileName = "File 2",
                         url = "https://example.com/file2",
                         formattedSize = "2.3 MB",
+                        displayedShortUrl = "example.com",
                         contentType = "image/png",
                         status = DownloadState.Status.COMPLETED,
-                        displayedShortUrl = "example.com",
                         filePath = "/path/to/file1",
                         createdTime = CreatedTime.TODAY,
                     ),
@@ -434,9 +428,9 @@ private class DownloadsScreenPreviewModelParameterProvider :
                         fileName = "File 3",
                         url = "https://example.com/file3",
                         formattedSize = "3.4 MB",
+                        displayedShortUrl = "example.com",
                         contentType = "application/zip",
                         status = DownloadState.Status.COMPLETED,
-                        displayedShortUrl = "example.com",
                         filePath = "/path/to/file1",
                         createdTime = CreatedTime.OLDER,
                     ),

@@ -34,6 +34,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.style.TextAlign
@@ -213,14 +216,20 @@ private fun SelectableImageItem(
     }
 
     Column(
-        modifier = Modifier.clickable(
-            onClick = {
-                // Only call action if option selected is different.
-                if (!isSelectedOption) {
-                    onClick(toolbarOption.toolbarType)
-                }
+        modifier = Modifier
+            .clickable(
+                onClickLabel = stringResource(R.string.onboarding_customize_toolbar_a11y_action_label_select),
+                onClick = {
+                    // Only call action if option selected is different.
+                    if (!isSelectedOption) {
+                        onClick(toolbarOption.toolbarType)
+                    }
+                },
+            )
+            .semantics {
+                selected = isSelectedOption
+                role = Role.RadioButton
             },
-        ),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Image(

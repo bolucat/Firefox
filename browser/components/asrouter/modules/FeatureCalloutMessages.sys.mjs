@@ -1771,7 +1771,7 @@ const MESSAGES = () => {
             anchors: [
               {
                 selector:
-                  "#sidebar-main:not([positionend]) > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
+                  "#sidebar-main:not([sidebar-positionend]) > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
                 panel_position: {
                   anchor_attachment: "rightcenter",
                   callout_attachment: "topleft",
@@ -1780,7 +1780,7 @@ const MESSAGES = () => {
               },
               {
                 selector:
-                  "#sidebar-main[positionend] > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
+                  "#sidebar-main[sidebar-positionend] > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
                 panel_position: {
                   anchor_attachment: "leftcenter",
                   callout_attachment: "topright",
@@ -1792,7 +1792,7 @@ const MESSAGES = () => {
               position: "callout",
               width: "401px",
               title: {
-                string_id: "shopping-opt-in-integrated-headline",
+                string_id: "shopping-callout-opt-in-integrated-headline",
                 fontSize: "20px",
                 letterSpacing: "0",
               },
@@ -2021,7 +2021,25 @@ const MESSAGES = () => {
             anchors: [
               {
                 selector:
-                  "#sidebar-main:not([positionend]) > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
+                  "#sidebar-main:not([sidebar-positionend]) > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar'].tools-overflow",
+                panel_position: {
+                  anchor_attachment: "topcenter",
+                  callout_attachment: "bottomleft",
+                },
+                no_open_on_anchor: true,
+              },
+              {
+                selector:
+                  "#sidebar-main[sidebar-positionend] > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar'].tools-overflow",
+                panel_position: {
+                  anchor_attachment: "topcenter",
+                  callout_attachment: "bottomright",
+                },
+                no_open_on_anchor: true,
+              },
+              {
+                selector:
+                  "#sidebar-main:not([sidebar-positionend]) > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
                 panel_position: {
                   anchor_attachment: "rightcenter",
                   callout_attachment: "bottomleft",
@@ -2030,7 +2048,7 @@ const MESSAGES = () => {
               },
               {
                 selector:
-                  "#sidebar-main[positionend] > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
+                  "#sidebar-main[sidebar-positionend] > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
                 panel_position: {
                   anchor_attachment: "leftcenter",
                   callout_attachment: "bottomright",
@@ -2042,7 +2060,7 @@ const MESSAGES = () => {
               position: "callout",
               width: "401px",
               title: {
-                string_id: "shopping-opt-in-integrated-headline",
+                string_id: "shopping-callout-opt-in-integrated-headline",
                 fontSize: "20px",
                 letterSpacing: "0",
               },
@@ -2500,7 +2518,7 @@ const MESSAGES = () => {
             anchors: [
               {
                 selector:
-                  "#sidebar-main:not([positionend]) > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
+                  "#sidebar-main:not([sidebar-positionend]) > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
                 panel_position: {
                   anchor_attachment: "rightcenter",
                   callout_attachment: "topleft",
@@ -2509,7 +2527,7 @@ const MESSAGES = () => {
               },
               {
                 selector:
-                  "#sidebar-main[positionend] > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
+                  "#sidebar-main[sidebar-positionend] > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
                 panel_position: {
                   anchor_attachment: "leftcenter",
                   callout_attachment: "topright",
@@ -2521,12 +2539,11 @@ const MESSAGES = () => {
               position: "callout",
               width: "401px",
               title: {
-                string_id:
-                  "shopping-integrated-callout-disabled-auto-open-title",
+                string_id: "shopping-integrated-callout-sidebar-closed-title",
               },
               subtitle: {
                 string_id:
-                  "shopping-integrated-callout-disabled-auto-open-subtitle",
+                  "shopping-integrated-callout-sidebar-closed-subtitle",
                 letterSpacing: "0",
               },
               logo: {
@@ -2572,7 +2589,25 @@ const MESSAGES = () => {
             anchors: [
               {
                 selector:
-                  "#sidebar-main:not([positionend]) > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
+                  "#sidebar-main:not([sidebar-positionend]) > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar'].tools-overflow",
+                panel_position: {
+                  anchor_attachment: "topcenter",
+                  callout_attachment: "bottomleft",
+                },
+                no_open_on_anchor: true,
+              },
+              {
+                selector:
+                  "#sidebar-main[sidebar-positionend] > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar'].tools-overflow",
+                panel_position: {
+                  anchor_attachment: "topcenter",
+                  callout_attachment: "bottomright",
+                },
+                no_open_on_anchor: true,
+              },
+              {
+                selector:
+                  "#sidebar-main:not([sidebar-positionend]) > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
                 panel_position: {
                   anchor_attachment: "rightcenter",
                   callout_attachment: "bottomleft",
@@ -2581,7 +2616,7 @@ const MESSAGES = () => {
               },
               {
                 selector:
-                  "#sidebar-main[positionend] > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
+                  "#sidebar-main[sidebar-positionend] > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
                 panel_position: {
                   anchor_attachment: "leftcenter",
                   callout_attachment: "bottomright",
@@ -2593,12 +2628,11 @@ const MESSAGES = () => {
               position: "callout",
               width: "401px",
               title: {
-                string_id:
-                  "shopping-integrated-callout-disabled-auto-open-title",
+                string_id: "shopping-integrated-callout-sidebar-closed-title",
               },
               subtitle: {
                 string_id:
-                  "shopping-integrated-callout-disabled-auto-open-subtitle",
+                  "shopping-integrated-callout-sidebar-closed-subtitle",
                 letterSpacing: "0",
               },
               logo: {
@@ -2654,12 +2688,11 @@ const MESSAGES = () => {
               position: "callout",
               width: "401px",
               title: {
-                string_id:
-                  "shopping-integrated-callout-disabled-auto-open-title",
+                string_id: "shopping-integrated-callout-sidebar-closed-title",
               },
               subtitle: {
                 string_id:
-                  "shopping-integrated-callout-no-logo-disabled-auto-open-subtitle",
+                  "shopping-integrated-callout-no-logo-sidebar-closed-subtitle",
                 letterSpacing: "0",
               },
               dismiss_button: {
@@ -2698,7 +2731,7 @@ const MESSAGES = () => {
             anchors: [
               {
                 selector:
-                  "#sidebar-main:not([positionend]) > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
+                  "#sidebar-main:not([sidebar-positionend]) > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
                 panel_position: {
                   anchor_attachment: "rightcenter",
                   callout_attachment: "topleft",
@@ -2707,7 +2740,7 @@ const MESSAGES = () => {
               },
               {
                 selector:
-                  "#sidebar-main[positionend] > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
+                  "#sidebar-main[sidebar-positionend] > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
                 panel_position: {
                   anchor_attachment: "leftcenter",
                   callout_attachment: "topright",
@@ -2770,7 +2803,25 @@ const MESSAGES = () => {
             anchors: [
               {
                 selector:
-                  "#sidebar-main:not([positionend]) > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
+                  "#sidebar-main:not([sidebar-positionend]) > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar'].tools-overflow",
+                panel_position: {
+                  anchor_attachment: "topcenter",
+                  callout_attachment: "bottomleft",
+                },
+                no_open_on_anchor: true,
+              },
+              {
+                selector:
+                  "#sidebar-main[sidebar-positionend] > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar'].tools-overflow",
+                panel_position: {
+                  anchor_attachment: "topcenter",
+                  callout_attachment: "bottomright",
+                },
+                no_open_on_anchor: true,
+              },
+              {
+                selector:
+                  "#sidebar-main:not([sidebar-positionend]) > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
                 panel_position: {
                   anchor_attachment: "rightcenter",
                   callout_attachment: "bottomleft",
@@ -2779,7 +2830,7 @@ const MESSAGES = () => {
               },
               {
                 selector:
-                  "#sidebar-main[positionend] > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
+                  "#sidebar-main[sidebar-positionend] > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
                 panel_position: {
                   anchor_attachment: "leftcenter",
                   callout_attachment: "bottomright",
@@ -2842,7 +2893,7 @@ const MESSAGES = () => {
             anchors: [
               {
                 selector:
-                  "#sidebar-main:not([positionend]) > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
+                  "#sidebar-main:not([sidebar-positionend]) > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
                 panel_position: {
                   anchor_attachment: "rightcenter",
                   callout_attachment: "topleft",
@@ -2851,7 +2902,7 @@ const MESSAGES = () => {
               },
               {
                 selector:
-                  "#sidebar-main[positionend] > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
+                  "#sidebar-main[sidebar-positionend] > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
                 panel_position: {
                   anchor_attachment: "leftcenter",
                   callout_attachment: "topright",
@@ -2914,7 +2965,25 @@ const MESSAGES = () => {
             anchors: [
               {
                 selector:
-                  "#sidebar-main:not([positionend]) > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
+                  "#sidebar-main:not([sidebar-positionend]) > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar'].tools-overflow",
+                panel_position: {
+                  anchor_attachment: "topcenter",
+                  callout_attachment: "bottomleft",
+                },
+                no_open_on_anchor: true,
+              },
+              {
+                selector:
+                  "#sidebar-main[sidebar-positionend] > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar'].tools-overflow",
+                panel_position: {
+                  anchor_attachment: "topcenter",
+                  callout_attachment: "bottomright",
+                },
+                no_open_on_anchor: true,
+              },
+              {
+                selector:
+                  "#sidebar-main:not([sidebar-positionend]) > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
                 panel_position: {
                   anchor_attachment: "rightcenter",
                   callout_attachment: "bottomleft",
@@ -2923,7 +2992,7 @@ const MESSAGES = () => {
               },
               {
                 selector:
-                  "#sidebar-main[positionend] > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
+                  "#sidebar-main[sidebar-positionend] > sidebar-main::%shadow% .tools-and-extensions::%shadow% moz-button[view='viewReviewCheckerSidebar']",
                 panel_position: {
                   anchor_attachment: "leftcenter",
                   callout_attachment: "bottomright",

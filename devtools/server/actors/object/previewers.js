@@ -988,7 +988,8 @@ function GenericObject(objectActor, grip, depth) {
 
 // Preview functions that do not rely on the object class.
 previewers.Object = [
-  function TypedArray({ obj }, grip, depth) {
+  function TypedArray(objectActor, grip, depth) {
+    const { obj } = objectActor;
     if (!ObjectUtils.isTypedArray(obj)) {
       return false;
     }
@@ -1012,7 +1013,7 @@ previewers.Object = [
       if (!desc) {
         break;
       }
-      grip.preview.items.push(desc.value);
+      grip.preview.items.push(objectActor.createValueGrip(desc.value, depth));
     }
 
     return true;
@@ -1224,6 +1225,16 @@ previewers.Object = [
       preview.attributesLength = safeRawObj.attributes.length;
       for (const attr of safeRawObj.attributes) {
         preview.attributes[attr.nodeName] = objectActor.createValueGrip(attr.value, depth);
+      }
+      
+      // Custom elements may have private properties. Ensure that we provide
+      // enough information for ObjectInspector to know it should check for
+      // them.
+      const privatePropertiesSymbols = ObjectUtils.getSafePrivatePropertiesSymbols(
+        obj
+      );
+      if (privatePropertiesSymbols.length > 0) {
+        preview.privatePropertiesLength = privatePropertiesSymbols.length;
       }
     } else if (className == "Attr") {
       preview.value = objectActor.createValueGrip(safeRawObj.value, depth);
