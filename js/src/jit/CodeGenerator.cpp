@@ -61,6 +61,7 @@
 #include "proxy/DOMProxy.h"
 #include "proxy/ScriptedProxyHandler.h"
 #include "util/CheckedArithmetic.h"
+#include "util/DifferentialTesting.h"
 #include "util/Unicode.h"
 #include "vm/ArrayBufferViewObject.h"
 #include "vm/AsyncFunction.h"
@@ -18486,19 +18487,16 @@ void CodeGenerator::visitStoreDataViewElement(LStoreDataViewElement* lir) {
       break;
     case Scalar::Float16: {
       FloatRegister fvalue = ToFloatRegister(value);
-      masm.canonicalizeFloatIfDeterministic(fvalue);
       masm.moveFloat16ToGPR(fvalue, temp, volatileRegs);
       break;
     }
     case Scalar::Float32: {
       FloatRegister fvalue = ToFloatRegister(value);
-      masm.canonicalizeFloatIfDeterministic(fvalue);
       masm.moveFloat32ToGPR(fvalue, temp);
       break;
     }
     case Scalar::Float64: {
       FloatRegister fvalue = ToFloatRegister(value);
-      masm.canonicalizeDoubleIfDeterministic(fvalue);
       masm.moveDoubleToGPR64(fvalue, temp64);
       break;
     }
@@ -21360,6 +21358,20 @@ void CodeGenerator::visitDateSecondsFromSecondsIntoYear(
   Register temp1 = ToRegister(ins->temp1());
 
   masm.dateSecondsFromSecondsIntoYear(secondsIntoYear, output, temp0, temp1);
+}
+
+void CodeGenerator::visitCanonicalizeNaND(LCanonicalizeNaND* ins) {
+  auto output = ToFloatRegister(ins->output());
+  MOZ_ASSERT(output == ToFloatRegister(ins->input()));
+
+  masm.canonicalizeDouble(output);
+}
+
+void CodeGenerator::visitCanonicalizeNaNF(LCanonicalizeNaNF* ins) {
+  auto output = ToFloatRegister(ins->output());
+  MOZ_ASSERT(output == ToFloatRegister(ins->input()));
+
+  masm.canonicalizeFloat(output);
 }
 
 template <size_t NumDefs>

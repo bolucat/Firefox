@@ -375,21 +375,12 @@ nsXPLookAndFeel* nsXPLookAndFeel::GetInstance() {
   if (XRE_IsParentProcess()) {
     nsLayoutUtils::RecomputeSmoothScrollDefault();
   }
+  PreferenceSheet::Refresh();
   return sInstance;
 }
 
 void nsXPLookAndFeel::FillStores(nsXPLookAndFeel* aInst) {
   MOZ_RELEASE_ASSERT(NS_IsMainThread());
-  for (auto scheme : {ColorScheme::Light, ColorScheme::Dark}) {
-    for (auto standins : {UseStandins::Yes, UseStandins::No}) {
-      auto& store = sColorStores.Get(scheme, standins);
-      for (ColorID id : MakeEnumeratedRange(ColorID(0), ColorID::End)) {
-        auto uncached = aInst->GetUncachedColor(id, scheme, standins);
-        MOZ_ASSERT_IF(uncached, uncached.value() != kNoColor);
-        store[id] = uncached.valueOr(kNoColor);
-      }
-    }
-  }
   for (IntID id : MakeEnumeratedRange(IntID(0), IntID::End)) {
     int32_t value = 0;
     nsresult rv = aInst->GetIntValue(id, value);
@@ -405,6 +396,20 @@ void nsXPLookAndFeel::FillStores(nsXPLookAndFeel* aInst) {
     sFloatStore[id] = NS_SUCCEEDED(rv) ? repr : kNoFloat;
   }
 
+  for (auto scheme : {ColorScheme::Light, ColorScheme::Dark}) {
+    for (auto standins : {UseStandins::Yes, UseStandins::No}) {
+      auto& store = sColorStores.Get(scheme, standins);
+      for (ColorID id : MakeEnumeratedRange(ColorID(0), ColorID::End)) {
+        auto uncached = aInst->GetUncachedColor(id, scheme, standins);
+        MOZ_ASSERT_IF(uncached, uncached.value() != kNoColor);
+        store[id] = uncached.valueOr(kNoColor);
+      }
+    }
+  }
+
+  // NOTE(emilio): As of right now we depend on this being last, as fonts
+  // depend on things like GetTextScaleFactor(). This is not great but it's
+  // tested in test_textScaleFactor_system_font.html.
   StaticAutoWriteLock guard(sFontStoreLock);
   for (FontID id : MakeEnumeratedRange(FontID(0), FontID::End)) {
     sFontStore[id] = aInst->GetFontValue(id);
@@ -522,6 +527,24 @@ static constexpr struct {
     // need to re-layout.
     {"browser.theme.toolbar-theme"_ns, widget::ThemeChangeKind::AllBits},
     {"browser.theme.content-theme"_ns},
+    // Affects PreferenceSheet, and thus styling.
+    {"browser.anchor_color"_ns, widget::ThemeChangeKind::Style},
+    {"browser.anchor_color.dark"_ns, widget::ThemeChangeKind::Style},
+    {"browser.active_color"_ns, widget::ThemeChangeKind::Style},
+    {"browser.active_color.dark"_ns, widget::ThemeChangeKind::Style},
+    {"browser.visited_color"_ns, widget::ThemeChangeKind::Style},
+    {"browser.visited_color.dark"_ns, widget::ThemeChangeKind::Style},
+    {"browser.display.background_color"_ns, widget::ThemeChangeKind::Style},
+    {"browser.display.background_color.dark"_ns,
+     widget::ThemeChangeKind::Style},
+    {"browser.display.foreground_color"_ns, widget::ThemeChangeKind::Style},
+    {"browser.display.foreground_color.dark"_ns,
+     widget::ThemeChangeKind::Style},
+    {"browser.display.document_color_use"_ns, widget::ThemeChangeKind::Style},
+    {"browser.display.permit_backplate"_ns, widget::ThemeChangeKind::Style},
+    {"ui.use_standins_for_native_colors"_ns, widget::ThemeChangeKind::Style},
+    {"privacy.resistFingerprinting"_ns, widget::ThemeChangeKind::Style},
+    // End of PreferenceSheet prefs.
 };
 
 // Read values from the user's preferences.
@@ -1154,10 +1177,6 @@ void LookAndFeel::DoHandleGlobalThemeChange() {
   // Clear all cached LookAndFeel colors.
   LookAndFeel::Refresh();
 
-  // Reset default background and foreground colors for the document since they
-  // may be using system colors, color scheme, etc.
-  PreferenceSheet::Refresh();
-
   // Vector images (SVG) may be using theme colors so we discard all cached
   // surfaces. (We could add a vector image only version of DiscardAll, but
   // in bug 940625 we decided theme changes are rare enough not to bother.)
@@ -1235,7 +1254,8 @@ static bool ShouldUseStandinsForNativeColorForNonNativeTheme(
   }();
 
   return shouldUseStandinsForColor && aDoc.ShouldAvoidNativeTheme() &&
-         !aPrefs.NonNativeThemeShouldBeHighContrast();
+         aPrefs.mUseDocumentColors &&
+         !StaticPrefs::widget_non_native_theme_always_high_contrast();
 }
 
 bool LookAndFeel::IsDarkColor(nscolor aColor) {
@@ -1473,6 +1493,9 @@ void LookAndFeel::Refresh() {
     widget::RemoteLookAndFeel::ClearCachedData();
   }
   widget::Theme::LookAndFeelChanged();
+  // Reset default background and foreground colors for the document since they
+  // may be using system colors, color scheme, etc.
+  PreferenceSheet::Refresh();
 }
 
 // static

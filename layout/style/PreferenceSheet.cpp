@@ -128,14 +128,6 @@ void PreferenceSheet::Prefs::LoadColors(bool aIsLight) {
       NS_ComposeColors(NS_RGB(0xFF, 0xFF, 0xFF), colors.mDefaultBackground);
 }
 
-bool PreferenceSheet::Prefs::NonNativeThemeShouldBeHighContrast() const {
-  // We only do that if we are overriding the document colors. Otherwise it
-  // causes issues when pages only override some of the system colors,
-  // specially in dark themes mode.
-  return StaticPrefs::widget_non_native_theme_always_high_contrast() ||
-         !mUseDocumentColors;
-}
-
 auto PreferenceSheet::ColorSchemeSettingForChrome()
     -> ChromeColorSchemeSetting {
   switch (StaticPrefs::browser_theme_toolbar_theme()) {
@@ -302,28 +294,6 @@ void PreferenceSheet::Initialize() {
   glean::a11y::backplate.Set(StaticPrefs::browser_display_permit_backplate());
   glean::a11y::always_underline_links.Set(
       StaticPrefs::layout_css_always_underline_links());
-}
-
-bool PreferenceSheet::AffectedByPref(const nsACString& aPref) {
-  const char* prefNames[] = {
-      StaticPrefs::GetPrefName_privacy_resistFingerprinting(),
-      StaticPrefs::GetPrefName_ui_use_standins_for_native_colors(),
-      "browser.anchor_color",
-      "browser.active_color",
-      "browser.visited_color",
-  };
-
-  if (StringBeginsWith(aPref, "browser.display."_ns)) {
-    return true;
-  }
-
-  for (const char* pref : prefNames) {
-    if (aPref.Equals(pref)) {
-      return true;
-    }
-  }
-
-  return false;
 }
 
 }  // namespace mozilla
