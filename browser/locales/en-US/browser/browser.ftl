@@ -314,15 +314,11 @@ quickactions-cmd-help = help, support
 
 # Opens the devtools web inspector
 quickactions-inspector2 = Open Developer Tools
-quickactions-cmd-inspector = inspector, devtools
+quickactions-cmd-inspector2 = inspector, devtools, dev tools
 
 # Opens about:logins
 quickactions-logins2 = Manage passwords
 quickactions-cmd-logins = logins, passwords
-
-# Opens about:addons page in the plugins section
-quickactions-plugins = Manage plugins
-quickactions-cmd-plugins = plugins
 
 # Opens the print dialog
 quickactions-print2 = Print page
@@ -346,7 +342,7 @@ quickactions-cmd-restart = restart
 
 # Opens the screenshot tool
 quickactions-screenshot3 = Take a screenshot
-quickactions-cmd-screenshot = screenshot
+quickactions-cmd-screenshot2 = screenshot, take a screenshot
 
 # Opens about:preferences
 quickactions-settings2 = Manage settings
@@ -361,8 +357,8 @@ quickactions-update = Update { -brand-short-name }
 quickactions-cmd-update = update
 
 # Opens the view-source UI with current pages source
-quickactions-viewsource2 = View Page Source
-quickactions-cmd-viewsource = view source, source
+quickactions-viewsource2 = View page source
+quickactions-cmd-viewsource2 = view source, source, page source
 
 # Tooltip text for the help button shown in the result.
 quickactions-learn-more =

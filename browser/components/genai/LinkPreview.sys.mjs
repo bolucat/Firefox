@@ -12,6 +12,11 @@ ChromeUtils.defineESModuleGetters(lazy, {
 });
 XPCOMUtils.defineLazyPreferenceGetter(
   lazy,
+  "allowedLanguages",
+  "browser.ml.linkPreview.allowedLanguages"
+);
+XPCOMUtils.defineLazyPreferenceGetter(
+  lazy,
   "gLinkPreviewEnabled",
   "browser.ml.linkPreview.enabled",
   false,
@@ -108,10 +113,8 @@ export const LinkPreview = {
   handleEvent(event) {
     switch (event.type) {
       case "keydown":
-        this._onKeyDown(event);
-        break;
       case "keyup":
-        this._onKeyUp(event);
+        this._onKeyEvent(event);
         break;
       case "OverLink":
         this._onLinkPreview(event);
@@ -122,34 +125,18 @@ export const LinkPreview = {
   },
 
   /**
-   * Handles "keydown" events.
+   * Handles "keydown" and "keyup" events.
    *
    * @param {KeyboardEvent} event - The keyboard event to be processed.
    */
-  _onKeyDown(event) {
+  _onKeyEvent(event) {
     const win = event.currentTarget;
-    if (event.altKey) {
-      if (!this.keyboardComboActive) {
-        this.keyboardComboActive = true;
-        this._maybeLinkPreview(win);
-      }
-    }
-  },
-
-  /**
-   * Handles "keyup" events.
-   *
-   * @param {KeyboardEvent} event - The keyboard event to be processed.
-   */
-  _onKeyUp(event) {
-    const win = event.currentTarget;
-    // Clear the flag when the Alt key is released.
-    if (!event.altKey) {
-      if (this.keyboardComboActive) {
-        this.keyboardComboActive = false;
-        this._maybeLinkPreview(win);
-      }
-    }
+    // Save the last state of the keyboard with both alt and shift pressed
+    // without other modifiers.
+    this.keyboardComboActive =
+      event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey;
+    // New presses or releases can result in desired combo for previewing.
+    this._maybeLinkPreview(win);
   },
 
   /**
@@ -190,7 +177,14 @@ export const LinkPreview = {
     // Assume we need to wait if another generate is downloading.
     ogCard.showWait = this.downloadingModel;
 
-    if (pageData.article.textContent) {
+    // Generate key points if we have content, language and configured for any
+    // language or restricted.
+    if (
+      pageData.article.textContent &&
+      pageData.article.language &&
+      (!lazy.allowedLanguages ||
+        lazy.allowedLanguages.split(",").includes(pageData.article.language))
+    ) {
       this.generateKeyPoints(ogCard);
     }
     return ogCard;

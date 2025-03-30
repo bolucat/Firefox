@@ -408,8 +408,7 @@ TEST(CSPParser, Paths)
     { "script-src http://www.example.com:88/.js",
       "script-src http://www.example.com:88/.js" },
     { "script-src https://foo.com/_abc/abc_/_/_a_b_c_",
-      "script-src https://foo.com/_abc/abc_/_/_a_b_c_" }
-      // clang-format on
+      "script-src https://foo.com/_abc/abc_/_/_a_b_c_" }  // clang-format on
   };
 
   uint32_t policyCount = sizeof(policies) / sizeof(PolicyTest);

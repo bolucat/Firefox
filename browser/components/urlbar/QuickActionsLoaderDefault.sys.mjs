@@ -129,7 +129,7 @@ const DEFAULT_ACTIONS = {
     },
   },
   inspect: {
-    l10nCommands: ["quickactions-cmd-inspector"],
+    l10nCommands: ["quickactions-cmd-inspector2"],
     icon: "chrome://devtools/skin/images/open-inspector.svg",
     label: "quickactions-inspector2",
     isVisible: () => {
@@ -153,12 +153,6 @@ const DEFAULT_ACTIONS = {
     l10nCommands: ["quickactions-cmd-logins"],
     label: "quickactions-logins2",
     onPick: openUrlFun("about:logins"),
-  },
-  plugins: {
-    l10nCommands: ["quickactions-cmd-plugins"],
-    icon: "chrome://mozapps/skin/extensions/category-extensions.svg",
-    label: "quickactions-plugins",
-    onPick: openAddonsUrl("addons://list/plugin"),
   },
   print: {
     l10nCommands: ["quickactions-cmd-print"],
@@ -215,7 +209,7 @@ const DEFAULT_ACTIONS = {
     },
   },
   screenshot: {
-    l10nCommands: ["quickactions-cmd-screenshot"],
+    l10nCommands: ["quickactions-cmd-screenshot2"],
     label: "quickactions-screenshot3",
     icon: "chrome://browser/skin/screenshot.svg",
     isVisible: () => {
@@ -264,7 +258,7 @@ const DEFAULT_ACTIONS = {
     onPick: restartBrowser,
   },
   viewsource: {
-    l10nCommands: ["quickactions-cmd-viewsource"],
+    l10nCommands: ["quickactions-cmd-viewsource2"],
     icon: "chrome://global/skin/icons/settings.svg",
     label: "quickactions-viewsource2",
     isVisible: () => currentBrowser()?.currentURI.scheme !== "view-source",
