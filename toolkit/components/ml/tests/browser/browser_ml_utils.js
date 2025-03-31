@@ -12,6 +12,8 @@ const {
   URLChecker,
   removeFromOPFS,
   RejectionType,
+  BlockListManager,
+  RemoteSettingsManager,
 } = ChromeUtils.importESModule("chrome://global/content/ml/Utils.sys.mjs");
 
 /**
@@ -640,4 +642,466 @@ add_task(async function testURLChecker() {
       )}: ${description}`
     );
   }
+});
+
+/**
+ * Test the Block List Manager with a single blocked n-grams at word boundaries
+ *
+ */
+add_task(async function testBlockListManager_single_blocked_word() {
+  const manager = new BlockListManager({
+    blockNgrams: [BlockListManager.encodeBase64("would like")],
+  });
+
+  Assert.equal(
+    manager.blockNgramSet.values().next().value,
+    "would like",
+    "decoded blocked n-grams should match the original value"
+  );
+
+  Assert.equal(
+    BlockListManager.decodeBase64(BlockListManager.encodeBase64("would like")),
+    "would like",
+    "round trip encode/decode should give original input"
+  );
+
+  Assert.equal(
+    manager.matchAtWordBoundary({ text: "People are here" }),
+    false,
+    "should have no match if blocked n-gram not in input"
+  );
+
+  Assert.equal(
+    manager.matchAtWordBoundary({ text: "People would likes" }),
+    false,
+    "should have no match even if only part of blocked n-gram in input"
+  );
+
+  Assert.equal(
+    manager.matchAtWordBoundary({ text: "People would do like" }),
+    false,
+    "should have no match if they are other words separating a blocked  2-grams"
+  );
+  Assert.equal(
+    manager.matchAtWordBoundary({ text: "People wouldlike" }),
+    false,
+    "should have no match if text contains blocked n-grams but without the spaces"
+  );
+  Assert.equal(
+    manager.matchAtWordBoundary({ text: "People would_like" }),
+    false,
+    "should have no match text contain special characters between a blocked 2-grams"
+  );
+  Assert.equal(
+    manager.matchAtWordBoundary({ text: "People would liketo " }),
+    false,
+    "should have no match if the blocked 2-grams is not at word boundary"
+  );
+
+  Assert.equal(
+    manager.matchAtWordBoundary({ text: "People are here and would like go" }),
+    true,
+    "should match if blocked 2-grams in input"
+  );
+
+  Assert.equal(
+    manager.matchAtWordBoundary({ text: "would like to do it" }),
+    true,
+    "should match if blocked 2-grams is at the beginning of input"
+  );
+
+  Assert.equal(
+    manager.matchAtWordBoundary({ text: "I need to would like." }),
+    true,
+    "should match if blocked 2-grams is at end of input even with punctuation"
+  );
+
+  Assert.equal(
+    manager.matchAtWordBoundary({ text: "I need to would like" }),
+    true,
+    "should match if blocked 2-grams is at end of input"
+  );
+
+  Assert.equal(
+    manager.matchAtWordBoundary({ text: "I need to would like  " }),
+    true,
+    "should match even if blocked 2-grams has extra spaces after it"
+  );
+});
+
+/**
+ * Test the Block List Manager with multiple blocked n-grams at word boundaries
+ *
+ */
+add_task(async function testBlockListManager_multiple_blocked_ngrams() {
+  const manager = new BlockListManager({
+    blockNgrams: [
+      BlockListManager.encodeBase64("would like"),
+      BlockListManager.encodeBase64("vast"),
+
+      BlockListManager.encodeBase64("blocked"),
+    ],
+  });
+
+  Assert.equal(
+    manager.matchAtWordBoundary({ text: "People are here" }),
+    false,
+    "should have no match if blocked n-grams are not present"
+  );
+  Assert.equal(
+    manager.matchAtWordBoundary({ text: "People wouldlike iblocked" }),
+    false,
+    "should have no match if blocked n-grams are not at words boundary"
+  );
+
+  Assert.equal(
+    manager.matchAtWordBoundary({ text: "People are here and blocked" }),
+    true,
+    "should match if blocked n-grams are at word boundary"
+  );
+
+  Assert.equal(
+    manager.matchAtWordBoundary({ text: "would like to do it" }),
+    true,
+    "should match for all blocked n-grams in the list"
+  );
+
+  Assert.equal(
+    manager.matchAtWordBoundary({ text: "I need to would like blocked." }),
+    true,
+    "should match for all blocked n-grams in the list"
+  );
+  Assert.equal(
+    manager.matchAtWordBoundary({ text: "I have a vast amount." }),
+    true,
+    "should match for all blocked n-grams in the list"
+  );
+});
+
+/**
+ * Test the Block List Manager with multiple blocked n-grams anywhere
+ *
+ */
+add_task(async function testBlockListManager_anywhere() {
+  const manager = new BlockListManager({
+    blockNgrams: [
+      BlockListManager.encodeBase64("would like"),
+      BlockListManager.encodeBase64("vast"),
+
+      BlockListManager.encodeBase64("blocked"),
+    ],
+  });
+
+  Assert.equal(
+    manager.matchAnywhere({ text: "People are here" }),
+    false,
+    "should have no match if blocked n-grams are not present"
+  );
+  Assert.equal(
+    manager.matchAnywhere({ text: "People wouldlike iblocked" }),
+    true,
+    "should match even if blocked n-grams are not at word boundary"
+  );
+
+  Assert.equal(
+    manager.matchAnywhere({ text: "People are here and blocked" }),
+    true,
+    "should match for all blocked n-grams"
+  );
+
+  Assert.equal(
+    manager.matchAnywhere({ text: "would like to do it" }),
+    true,
+    "should match for all blocked n-grams"
+  );
+
+  Assert.equal(
+    manager.matchAnywhere({ text: "I need to would like blocked." }),
+    true,
+    "should match for all blocked n-grams"
+  );
+  Assert.equal(
+    manager.matchAnywhere({ text: "I have a vast amount." }),
+    true,
+    "should match for all blocked n-grams"
+  );
+  Assert.equal(
+    manager.matchAnywhere({ text: "I have avast amount." }),
+    true,
+    "should match for all blocked n-grams even if not at word boundary"
+  );
+});
+
+/**
+ * Get test data for remote settings manager test.
+ *
+ */
+async function getMockedRemoteSettingsClients() {
+  const client1 = await createRemoteClient({
+    collectionName: "test-block-list",
+    records: [
+      {
+        version: "1.0.0",
+        name: "test-link-preview-en",
+        blockList: ["cGVyc29u"], // person
+        language: "en",
+        id: "1",
+      },
+      {
+        version: "1.0.0",
+        name: "test-link-preview-fr",
+        blockList: ["bW9p"], // moi
+        language: "fr",
+        id: "2",
+      },
+      {
+        version: "1.0.0",
+        name: "base-fr",
+        blockList: [],
+        language: "fr",
+        id: "3",
+      },
+      {
+        version: "2.0.0",
+        name: "test-link-preview-en",
+        blockList: ["b25l"], // one
+        language: "en",
+        id: "4",
+      },
+
+      {
+        version: "1.1.0",
+        name: "test-link-preview-en",
+        blockList: ["dHdv"], // two
+        language: "en",
+        id: "5",
+      },
+    ],
+  });
+
+  const client2 = await createRemoteClient({
+    collectionName: "test-request-options",
+    records: [
+      {
+        version: "1.0.0",
+        featureId: "test-link-preview",
+        options: JSON.stringify({ param1: "value1", number: 2 }),
+        id: "10",
+      },
+      {
+        version: "1.0.0",
+        featureId: "test-ml-suggest",
+        options: JSON.stringify({ suggest: "val" }),
+        id: "11",
+      },
+      {
+        version: "1.0.0",
+        featureId: "ml-i2t",
+        options: JSON.stringify({ size: 2 }),
+        id: "12",
+      },
+      {
+        version: "2.0.0",
+        featureId: "test-link-preview",
+        options: JSON.stringify({ param2: "value2", number2: 20 }),
+        id: "13",
+      },
+
+      {
+        version: "1.1.0",
+        featureId: "test-link-preview",
+        options: JSON.stringify({ param1: "value2", number: 3 }),
+        id: "14",
+      },
+    ],
+  });
+
+  const client3 = await createRemoteClient({
+    collectionName: "test-inference-options",
+    records: [
+      {
+        featureId: "test-link-preview",
+        id: "20",
+      },
+      {
+        featureId: "test-ml-suggest",
+        id: "21",
+      },
+    ],
+  });
+
+  return {
+    "test-block-list": client1,
+    "test-request-options": client2,
+    "test-inference-options": client3,
+  };
+}
+
+/**
+ * Test the Remote Settings Manager
+ *
+ */
+add_task(async function testRemoteSettingsManager() {
+  RemoteSettingsManager.mockRemoteSettings(
+    await getMockedRemoteSettingsClients()
+  );
+
+  let data = await RemoteSettingsManager.getRemoteData({
+    collectionName: "test-block-list",
+    filters: {
+      name: "test-link-preview-en",
+    },
+    majorVersion: 1,
+  });
+
+  Assert.deepEqual(
+    data,
+    {
+      version: "1.1.0",
+      name: "test-link-preview-en",
+      blockList: ["dHdv"],
+      language: "en",
+      id: "5",
+    },
+    "should retrieve the latest revision ignoring previous one"
+  );
+
+  data = await RemoteSettingsManager.getRemoteData({
+    collectionName: "test-block-list",
+    filters: {
+      name: "test-link-preview-en",
+      language: "en",
+    },
+    majorVersion: 2,
+  });
+
+  Assert.deepEqual(
+    data,
+    {
+      version: "2.0.0",
+      name: "test-link-preview-en",
+      blockList: ["b25l"],
+      language: "en",
+      id: "4",
+    },
+    "should retrieve the exact revision"
+  );
+
+  data = await RemoteSettingsManager.getRemoteData({
+    collectionName: "test-request-options",
+    filters: {
+      featureId: "test-link-preview",
+    },
+    majorVersion: 1,
+    lookupKey: record => record.featureId,
+  });
+
+  Assert.deepEqual(
+    data,
+    {
+      version: "1.1.0",
+      featureId: "test-link-preview",
+      options: JSON.stringify({ param1: "value2", number: 3 }),
+      id: "14",
+    },
+    "should retrieve from the correct collection even in presence of multiple"
+  );
+
+  data = await RemoteSettingsManager.getRemoteData({
+    collectionName: "test-inference-options",
+    filters: {
+      featureId: "test-link-preview",
+    },
+  });
+
+  Assert.deepEqual(
+    data,
+    {
+      featureId: "test-link-preview",
+      id: "20",
+    },
+    "should retrieve from the correct collection even in presence of multiple"
+  );
+
+  data = await RemoteSettingsManager.getRemoteData(
+    {
+      collectionName: "test-request-options",
+      filters: {
+        featureId: "test-link-previewP",
+      },
+      majorVersion: 1,
+      lookupKey: record => record.featureId,
+    },
+    "should work with lookupKey"
+  );
+
+  Assert.equal(data, null);
+
+  RemoteSettingsManager.removeMocks();
+});
+
+/**
+ * Test the Remote data Manager
+ *
+ */
+add_task(async function testBlockListManagerWithRS() {
+  RemoteSettingsManager.mockRemoteSettings(
+    await getMockedRemoteSettingsClients()
+  );
+
+  let manager = await BlockListManager.initializeFromRemoteSettings({
+    blockListName: "test-link-preview-en",
+    language: "en",
+    fallbackToDefault: false,
+    majorVersion: 1,
+    collectionName: "test-block-list",
+  });
+
+  Assert.equal(
+    manager.matchAtWordBoundary({ text: "two guy is here" }),
+    true,
+    "should retrieve the correct list and match <two> for the blocked word"
+  );
+
+  Assert.equal(
+    manager.matchAtWordBoundary({ text: "one person is here, moi" }),
+    false,
+    "should retrieve the correct list and match nothing"
+  );
+
+  await Assert.rejects(
+    BlockListManager.initializeFromRemoteSettings({
+      blockListName: "test-link-preview-en-non-existing",
+      language: "en",
+      fallbackToDefault: false,
+      majorVersion: 1,
+      collectionName: "test-block-list",
+    }),
+    /./,
+    "should fails since the block list does not exist"
+  );
+
+  manager = await BlockListManager.initializeFromRemoteSettings({
+    blockListName: "test-link-preview-en-non-existing",
+    language: "en",
+    fallbackToDefault: true,
+    majorVersion: 1,
+    collectionName: "test-block-list",
+  });
+
+  Assert.equal(
+    manager.matchAtWordBoundary({
+      text: "the bells are ringing, ding dong ...",
+    }),
+    true,
+    "should not fail but fallback to default list with a match for dong"
+  );
+
+  Assert.equal(
+    manager.matchAtWordBoundary({ text: "two person is here, moi" }),
+    false,
+    "should not fail but fallback to default list with no matches found"
+  );
+
+  RemoteSettingsManager.removeMocks();
 });
