@@ -106,6 +106,7 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/PresShell.h"
 #include "mozilla/ProfilerRunnable.h"
+#include "mozilla/FlowMarkers.h"
 #include "mozilla/RangeBoundary.h"
 #include "mozilla/RefPtr.h"
 #include "mozilla/Result.h"
@@ -5136,12 +5137,13 @@ static already_AddRefed<Event> GetEventWithTarget(
 nsresult nsContentUtils::DispatchTrustedEvent(
     Document* aDoc, EventTarget* aTarget, const nsAString& aEventName,
     CanBubble aCanBubble, Cancelable aCancelable, Composed aComposed,
-    bool* aDefaultAction) {
+    bool* aDefaultAction, SystemGroupOnly aSystemGroupOnly) {
   MOZ_ASSERT(!aEventName.EqualsLiteral("input") &&
                  !aEventName.EqualsLiteral("beforeinput"),
              "Use DispatchInputEvent() instead");
   return DispatchEvent(aDoc, aTarget, aEventName, aCanBubble, aCancelable,
-                       aComposed, Trusted::eYes, aDefaultAction);
+                       aComposed, Trusted::eYes, aDefaultAction,
+                       ChromeOnlyDispatch::eNo, aSystemGroupOnly);
 }
 
 // static
@@ -5153,13 +5155,11 @@ nsresult nsContentUtils::DispatchUntrustedEvent(
 }
 
 // static
-nsresult nsContentUtils::DispatchEvent(Document* aDoc, EventTarget* aTarget,
-                                       const nsAString& aEventName,
-                                       CanBubble aCanBubble,
-                                       Cancelable aCancelable,
-                                       Composed aComposed, Trusted aTrusted,
-                                       bool* aDefaultAction,
-                                       ChromeOnlyDispatch aOnlyChromeDispatch) {
+nsresult nsContentUtils::DispatchEvent(
+    Document* aDoc, EventTarget* aTarget, const nsAString& aEventName,
+    CanBubble aCanBubble, Cancelable aCancelable, Composed aComposed,
+    Trusted aTrusted, bool* aDefaultAction,
+    ChromeOnlyDispatch aOnlyChromeDispatch, SystemGroupOnly aSystemGroupOnly) {
   if (!aDoc || !aTarget) {
     return NS_ERROR_INVALID_ARG;
   }
@@ -5173,6 +5173,8 @@ nsresult nsContentUtils::DispatchEvent(Document* aDoc, EventTarget* aTarget,
   }
   event->WidgetEventPtr()->mFlags.mOnlyChromeDispatch =
       aOnlyChromeDispatch == ChromeOnlyDispatch::eYes;
+  event->WidgetEventPtr()->mFlags.mOnlySystemGroupDispatch =
+      aSystemGroupOnly == SystemGroupOnly::eYes;
 
   bool doDefault = aTarget->DispatchEvent(*event, CallerType::System, err);
   if (aDefaultAction) {
@@ -6631,6 +6633,8 @@ void nsContentUtils::AddScriptRunner(already_AddRefed<nsIRunnable> aRunnable) {
   }
 
   if (sScriptBlockerCount) {
+    PROFILER_MARKER("nsContentUtils::AddScriptRunner", OTHER, {},
+                    FlowMarker, Flow::FromPointer(runnable.get()));
     sBlockedScriptRunners->AppendElement(runnable.forget());
     return;
   }
@@ -7113,8 +7117,8 @@ nsresult nsContentUtils::GetWebExposedOriginSerialization(nsIURI* aURI,
 
     if (
         // Schemes in spec. https://url.spec.whatwg.org/#origin
-        !uri->SchemeIs("http") && !uri->SchemeIs("https") &&
-        !uri->SchemeIs("file") && !uri->SchemeIs("resource") &&
+        !net::SchemeIsHttpOrHttps(uri) && !uri->SchemeIs("file") &&
+        !uri->SchemeIs("resource") &&
         // Our own schemes.
         !uri->SchemeIs("moz-extension")) {
       aOrigin.AssignLiteral("null");

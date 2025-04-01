@@ -308,6 +308,18 @@ static bool intrinsic_SubstringKernel(JSContext* cx, unsigned argc, Value* vp) {
   return true;
 }
 
+static bool intrinsic_CanOptimizeStringProtoSymbolLookup(JSContext* cx,
+                                                         unsigned argc,
+                                                         Value* vp) {
+  CallArgs args = CallArgsFromVp(argc, vp);
+  MOZ_ASSERT(args.length() == 0);
+
+  bool optimizable =
+      cx->realm()->realmFuses.optimizeStringPrototypeSymbolsFuse.intact();
+  args.rval().setBoolean(optimizable);
+  return true;
+}
+
 static void ThrowErrorWithType(JSContext* cx, JSExnType type,
                                const CallArgs& args) {
   MOZ_RELEASE_ASSERT(args[0].isInt32());
@@ -592,21 +604,6 @@ static bool intrinsic_DefineProperty(JSContext* cx, unsigned argc, Value* vp) {
   }
 
   args.rval().setBoolean(result.ok());
-  return true;
-}
-
-static bool intrinsic_ObjectHasPrototype(JSContext* cx, unsigned argc,
-                                         Value* vp) {
-  CallArgs args = CallArgsFromVp(argc, vp);
-  MOZ_ASSERT(args.length() == 2);
-
-  // Self-hosted code calls this intrinsic with builtin prototypes. These are
-  // always native objects.
-  auto* obj = &args[0].toObject().as<NativeObject>();
-  auto* proto = &args[1].toObject().as<NativeObject>();
-
-  JSObject* actualProto = obj->staticPrototype();
-  args.rval().setBoolean(actualProto == proto);
   return true;
 }
 
@@ -2038,6 +2035,9 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_INLINABLE_FN("CanOptimizeArraySpecies",
                     intrinsic_CanOptimizeArraySpecies, 1, 0,
                     IntrinsicCanOptimizeArraySpecies),
+    JS_INLINABLE_FN("CanOptimizeStringProtoSymbolLookup",
+                    intrinsic_CanOptimizeStringProtoSymbolLookup, 0, 0,
+                    IntrinsicCanOptimizeStringProtoSymbolLookup),
     JS_FN("ConstructFunction", intrinsic_ConstructFunction, 2, 0),
     JS_FN("ConstructorForTypedArray", intrinsic_ConstructorForTypedArray, 1, 0),
     JS_FN("CopyDataPropertiesOrGetOwnKeys",
@@ -2142,6 +2142,8 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("IsGeneratorObject", intrinsic_IsInstanceOfBuiltin<GeneratorObject>,
           1, 0),
     JS_INLINABLE_FN("IsObject", intrinsic_IsObject, 1, 0, IntrinsicIsObject),
+    JS_INLINABLE_FN("IsOptimizableRegExpObject", IsOptimizableRegExpObject, 1,
+                    0, IsOptimizableRegExpObject),
     JS_INLINABLE_FN("IsPackedArray", intrinsic_IsPackedArray, 1, 0,
                     IntrinsicIsPackedArray),
     JS_INLINABLE_FN("IsPossiblyWrappedRegExpObject",
@@ -2154,6 +2156,9 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_INLINABLE_FN("IsRegExpObject",
                     intrinsic_IsInstanceOfBuiltin<RegExpObject>, 1, 0,
                     IsRegExpObject),
+    JS_INLINABLE_FN("IsRegExpPrototypeOptimizable",
+                    IsRegExpPrototypeOptimizable, 0, 0,
+                    IsRegExpPrototypeOptimizable),
     JS_INLINABLE_FN("IsSuspendedGenerator", intrinsic_IsSuspendedGenerator, 1,
                     0, IntrinsicIsSuspendedGenerator),
     JS_INLINABLE_FN("IsTypedArray",
@@ -2181,8 +2186,6 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("NewWrapForValidIterator", intrinsic_NewWrapForValidIterator, 0, 0),
     JS_FN("NoPrivateGetter", intrinsic_NoPrivateGetter, 1, 0),
     JS_FN("NumberToBigInt", intrinsic_NumberToBigInt, 1, 0),
-    JS_INLINABLE_FN("ObjectHasPrototype", intrinsic_ObjectHasPrototype, 2, 0,
-                    IntrinsicObjectHasPrototype),
     JS_INLINABLE_FN(
         "PossiblyWrappedArrayBufferByteLength",
         intrinsic_PossiblyWrappedArrayBufferByteLength<ArrayBufferObject>, 1, 0,
@@ -2211,11 +2214,7 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("RegExpGetSubstitution", intrinsic_RegExpGetSubstitution, 5, 0),
     JS_INLINABLE_FN("RegExpHasCaptureGroups", intrinsic_RegExpHasCaptureGroups,
                     2, 0, RegExpHasCaptureGroups),
-    JS_INLINABLE_FN("RegExpInstanceOptimizable", RegExpInstanceOptimizable, 1,
-                    0, RegExpInstanceOptimizable),
     JS_INLINABLE_FN("RegExpMatcher", RegExpMatcher, 3, 0, RegExpMatcher),
-    JS_INLINABLE_FN("RegExpPrototypeOptimizable", RegExpPrototypeOptimizable, 1,
-                    0, RegExpPrototypeOptimizable),
     JS_INLINABLE_FN("RegExpSearcher", RegExpSearcher, 3, 0, RegExpSearcher),
     JS_INLINABLE_FN("RegExpSearcherLastLimit", RegExpSearcherLastLimit, 0, 0,
                     RegExpSearcherLastLimit),

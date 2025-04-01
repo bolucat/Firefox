@@ -3444,7 +3444,11 @@ pref("browser.search.separatePrivateDefault.ui.enabled", false);
 pref("browser.search.removeEngineInfobar.enabled", true);
 // Temporary preference to allow switching between the Rust based search engine
 // selector and the JavaScript one (bug 1914143).
-pref("browser.search.rustSelector.featureGate", false);
+#ifdef EARLY_BETA_OR_EARLIER
+  pref("browser.search.rustSelector.featureGate", true);
+#else
+  pref("browser.search.rustSelector.featureGate", false);
+#endif
 
 // GMPInstallManager prefs
 
@@ -3659,11 +3663,7 @@ pref("browser.translations.chaos.errors", false);
 pref("browser.translations.chaos.timeoutMS", 0);
 
 // Enable the experimental machine learning inference engine.
-#ifdef NIGHTLY_BUILD
-  pref("browser.ml.enable", true);
-#else
-  pref("browser.ml.enable", false);
-#endif
+pref("browser.ml.enable", true);
 // Set to "All" to see all logs, which are useful for debugging.
 pref("browser.ml.logLevel", "Error");
 // Model hub root URL used to download models.

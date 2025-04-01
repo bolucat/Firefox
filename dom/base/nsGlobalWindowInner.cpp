@@ -1400,6 +1400,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsGlobalWindowInner)
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mWebTaskScheduler)
 
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mWebTaskSchedulingState)
+
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTrustedTypePolicyFactory)
 
 #ifdef MOZ_WEBSPEECH
@@ -1510,6 +1512,8 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGlobalWindowInner)
     tmp->mWebTaskScheduler->Disconnect();
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mWebTaskScheduler)
   }
+
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mWebTaskSchedulingState)
 
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mTrustedTypePolicyFactory)
 
@@ -1827,6 +1831,7 @@ void nsGlobalWindowInner::InitDocumentDependentState(JSContext* aCx) {
   if (mWebTaskScheduler) {
     mWebTaskScheduler->Disconnect();
     mWebTaskScheduler = nullptr;
+    mWebTaskSchedulingState = nullptr;
   }
 
   // This must be called after nullifying the internal objects because here we
@@ -2900,6 +2905,10 @@ bool nsPIDOMWindowInner::IsCurrentInnerWindow() const {
 
   nsPIDOMWindowOuter* outer = mBrowsingContext->GetDOMWindow();
   return outer && outer->GetCurrentInnerWindow() == this;
+}
+
+bool nsGlobalWindowInner::HasScheduledNormalOrHighPriorityWebTasks() const {
+  return gNumNormalOrHighPriorityQueuesHaveTaskScheduledMainThread > 0;
 }
 
 bool nsPIDOMWindowInner::IsFullyActive() const {
@@ -4100,6 +4109,11 @@ WebTaskScheduler* nsGlobalWindowInner::Scheduler() {
   }
   MOZ_ASSERT(mWebTaskScheduler);
   return mWebTaskScheduler;
+}
+
+inline void nsGlobalWindowInner::SetWebTaskSchedulingState(
+    WebTaskSchedulingState* aState) {
+  mWebTaskSchedulingState = aState;
 }
 
 bool nsGlobalWindowInner::Find(const nsAString& aString, bool aCaseSensitive,

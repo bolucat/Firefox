@@ -726,9 +726,15 @@ nsWindow::~nsWindow() {
 
   // Global shutdown
   if (sInstanceCount == 0) {
-    IMEHandler::Terminate();
     sCurrentCursor = {};
     if (sIsOleInitialized) {
+      // When we reach here, IMEHandler::Terminate() should've already been
+      // called because it causes releasing the last nsWindow instance.
+      // However, it **could** occur that we are shutting down without giving
+      // IME focus, but we need to release TSF objects before the following
+      // ::OleUninitialize() call.  Fortunately, it's fine to call the method
+      // twice so that we can always call it here.
+      IMEHandler::Terminate();
       ::OleFlushClipboard();
       ::OleUninitialize();
       sIsOleInitialized = false;
@@ -2144,9 +2150,14 @@ void nsWindow::AsyncUpdateWorkspaceID(Desktop& aDesktop) {
           mSelf(aSelf) {}
 
     TaskResult Run() override {
-      auto desktop = mSelf->mDesktopId.Lock();
+      RefPtr<nsWindow> self(mSelf);
+      // If the window is not alive anymore, no need to do anything
+      if (!self) {
+        return TaskResult::Complete;
+      }
+      auto desktop = self->mDesktopId.Lock();
       if (desktop->mUpdateIsQueued) {
-        DoGetWorkspaceID(mSelf->mWnd, &desktop->mID);
+        DoGetWorkspaceID(self->mWnd, &desktop->mID);
         desktop->mUpdateIsQueued = false;
       }
       return TaskResult::Complete;
@@ -2159,7 +2170,9 @@ void nsWindow::AsyncUpdateWorkspaceID(Desktop& aDesktop) {
     }
 #endif
 
-    RefPtr<nsWindow> mSelf;
+    // Only hold a weak pointer so this structure can't keep the window alive
+    // and possibly Release() it on the wrong thread (bug 1824697)
+    ThreadSafeWeakPtr<nsWindow> mSelf;
   };
 
   if (aDesktop.mUpdateIsQueued) {
@@ -3452,13 +3465,8 @@ void* nsWindow::GetNativeData(uint32_t aDataType) {
       if (pseudoIMEContext) {
         return pseudoIMEContext;
       }
-      [[fallthrough]];
-    }
-    case NS_NATIVE_TSF_THREAD_MGR:
-    case NS_NATIVE_TSF_CATEGORY_MGR:
-    case NS_NATIVE_TSF_DISPLAY_ATTR_MGR:
       return IMEHandler::GetNativeData(this, aDataType);
-
+    }
     default:
       break;
   }

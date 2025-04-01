@@ -371,24 +371,24 @@ void MediaDecoder::OnPlaybackEvent(MediaPlaybackEvent&& aEvent) {
       Invalidate();
       break;
     case MediaPlaybackEvent::EnterVideoSuspend:
-      GetOwner()->DispatchAsyncEvent(u"mozentervideosuspend"_ns);
+      GetOwner()->QueueEvent(u"mozentervideosuspend"_ns);
       mIsVideoDecodingSuspended = true;
       break;
     case MediaPlaybackEvent::ExitVideoSuspend:
-      GetOwner()->DispatchAsyncEvent(u"mozexitvideosuspend"_ns);
+      GetOwner()->QueueEvent(u"mozexitvideosuspend"_ns);
       mIsVideoDecodingSuspended = false;
       break;
     case MediaPlaybackEvent::StartVideoSuspendTimer:
-      GetOwner()->DispatchAsyncEvent(u"mozstartvideosuspendtimer"_ns);
+      GetOwner()->QueueEvent(u"mozstartvideosuspendtimer"_ns);
       break;
     case MediaPlaybackEvent::CancelVideoSuspendTimer:
-      GetOwner()->DispatchAsyncEvent(u"mozcancelvideosuspendtimer"_ns);
+      GetOwner()->QueueEvent(u"mozcancelvideosuspendtimer"_ns);
       break;
     case MediaPlaybackEvent::VideoOnlySeekBegin:
-      GetOwner()->DispatchAsyncEvent(u"mozvideoonlyseekbegin"_ns);
+      GetOwner()->QueueEvent(u"mozvideoonlyseekbegin"_ns);
       break;
     case MediaPlaybackEvent::VideoOnlySeekCompleted:
-      GetOwner()->DispatchAsyncEvent(u"mozvideoonlyseekcompleted"_ns);
+      GetOwner()->QueueEvent(u"mozvideoonlyseekcompleted"_ns);
       break;
     default:
       break;
@@ -401,15 +401,20 @@ bool MediaDecoder::IsVideoDecodingSuspended() const {
 
 void MediaDecoder::OnPlaybackErrorEvent(const MediaResult& aError) {
   MOZ_ASSERT(NS_IsMainThread());
-#ifndef MOZ_WMF_MEDIA_ENGINE
-  DecodeError(aError);
-#else
-  if (aError != NS_ERROR_DOM_MEDIA_EXTERNAL_ENGINE_NOT_SUPPORTED_ERR &&
-      aError != NS_ERROR_DOM_MEDIA_CDM_PROXY_NOT_SUPPORTED_ERR) {
-    DecodeError(aError);
+#ifdef MOZ_WMF_MEDIA_ENGINE
+  if (aError == NS_ERROR_DOM_MEDIA_EXTERNAL_ENGINE_NOT_SUPPORTED_ERR ||
+      aError == NS_ERROR_DOM_MEDIA_CDM_PROXY_NOT_SUPPORTED_ERR) {
+    SwitchStateMachine(aError);
     return;
   }
+#endif
+  DecodeError(aError);
+}
 
+#ifdef MOZ_WMF_MEDIA_ENGINE
+void MediaDecoder::SwitchStateMachine(const MediaResult& aError) {
+  MOZ_ASSERT(aError == NS_ERROR_DOM_MEDIA_EXTERNAL_ENGINE_NOT_SUPPORTED_ERR ||
+             aError == NS_ERROR_DOM_MEDIA_CDM_PROXY_NOT_SUPPORTED_ERR);
   // Already in shutting down decoder, no need to create another state machine.
   if (mPlayState == PLAY_STATE_SHUTDOWN) {
     return;
@@ -491,8 +496,8 @@ void MediaDecoder::OnPlaybackErrorEvent(const MediaResult& aError) {
 
   discardStateMachine->BeginShutdown()->Then(
       AbstractThread::MainThread(), __func__, [discardStateMachine] {});
-#endif
 }
+#endif
 
 void MediaDecoder::OnDecoderDoctorEvent(DecoderDoctorEvent aEvent) {
   MOZ_ASSERT(NS_IsMainThread());
@@ -1147,7 +1152,7 @@ void MediaDecoder::DurationChanged() {
   if (mFiredMetadataLoaded &&
       (!std::isinf(mDuration.match(DurationToDouble())) ||
        mExplicitDuration.isSome())) {
-    GetOwner()->DispatchAsyncEvent(u"durationchange"_ns);
+    GetOwner()->QueueEvent(u"durationchange"_ns);
   }
 
   if (CurrentPosition().ToSeconds() > mDuration.match(DurationToDouble())) {
@@ -1548,7 +1553,7 @@ RefPtr<SetCDMPromise> MediaDecoder::SetCDMProxy(CDMProxy* aProxy) {
   // given CDM proxy.
   if (aProxy && !GetStateMachine()->IsCDMProxySupported(aProxy)) {
     LOG("CDM proxy not supported! Switch to another state machine.");
-    OnPlaybackErrorEvent(
+    SwitchStateMachine(
         MediaResult{NS_ERROR_DOM_MEDIA_CDM_PROXY_NOT_SUPPORTED_ERR, aProxy});
   }
 #endif

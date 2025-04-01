@@ -130,6 +130,7 @@ class Selection;
 struct SizeToContentConstraints;
 class WebTaskScheduler;
 class WebTaskSchedulerMainThread;
+class WebTaskSchedulingState;
 class SpeechSynthesis;
 class Timeout;
 class TrustedTypePolicyFactory;
@@ -337,6 +338,7 @@ class nsGlobalWindowInner final : public mozilla::dom::EventTarget,
   virtual bool HasActiveIndexedDBDatabases() override;
   virtual bool HasActivePeerConnections() override;
   virtual bool HasOpenWebSockets() const override;
+  virtual bool HasScheduledNormalOrHighPriorityWebTasks() const override;
   void SyncStateFromParentWindow();
 
   // Called on the current inner window of a browsing context when its
@@ -963,6 +965,12 @@ class nsGlobalWindowInner final : public mozilla::dom::EventTarget,
   bool OriginAgentCluster() const;
 
   mozilla::dom::WebTaskScheduler* Scheduler();
+  void SetWebTaskSchedulingState(
+      mozilla::dom::WebTaskSchedulingState* aState) override;
+  mozilla::dom::WebTaskSchedulingState* GetWebTaskSchedulingState()
+      const override {
+    return mWebTaskSchedulingState;
+  }
 
  protected:
   // Web IDL helpers
@@ -1279,6 +1287,7 @@ class nsGlobalWindowInner final : public mozilla::dom::EventTarget,
   RefPtr<mozilla::dom::ContentMediaController> mContentMediaController;
 
   RefPtr<mozilla::dom::WebTaskSchedulerMainThread> mWebTaskScheduler;
+  RefPtr<mozilla::dom::WebTaskSchedulingState> mWebTaskSchedulingState;
 
   RefPtr<mozilla::dom::TrustedTypePolicyFactory> mTrustedTypePolicyFactory;
 

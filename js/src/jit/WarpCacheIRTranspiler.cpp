@@ -521,6 +521,18 @@ bool WarpCacheIRTranspiler::emitGuardFuse(RealmFuses::FuseIndex fuseIndex) {
                               CompilationDependency::Type::ArraySpecies>;
       return mirGen().tracker.addDependency(Dependency());
     }
+    case RealmFuses::FuseIndex::OptimizeRegExpPrototypeFuse: {
+      using Dependency =
+          RealmFuseDependency<&RealmFuses::optimizeRegExpPrototypeFuse,
+                              CompilationDependency::Type::RegExpPrototype>;
+      return mirGen().tracker.addDependency(Dependency());
+    }
+    case RealmFuses::FuseIndex::OptimizeStringPrototypeSymbolsFuse: {
+      using Dependency = RealmFuseDependency<
+          &RealmFuses::optimizeStringPrototypeSymbolsFuse,
+          CompilationDependency::Type::StringPrototypeSymbols>;
+      return mirGen().tracker.addDependency(Dependency());
+    }
     default:
       MOZ_ASSERT(!RealmFuses::isInvalidatingFuse(fuseIndex));
       auto* ins = MGuardFuse::New(alloc(), fuseIndex);
@@ -4363,29 +4375,6 @@ bool WarpCacheIRTranspiler::emitStringSplitStringResult(
   add(split);
 
   pushResult(split);
-  return true;
-}
-
-bool WarpCacheIRTranspiler::emitRegExpPrototypeOptimizableResult(
-    ObjOperandId protoId) {
-  MDefinition* proto = getOperand(protoId);
-
-  auto* optimizable = MRegExpPrototypeOptimizable::New(alloc(), proto);
-  add(optimizable);
-
-  pushResult(optimizable);
-  return true;
-}
-
-bool WarpCacheIRTranspiler::emitRegExpInstanceOptimizableResult(
-    ObjOperandId regexpId, ObjOperandId protoId) {
-  MDefinition* regexp = getOperand(regexpId);
-  MDefinition* proto = getOperand(protoId);
-
-  auto* optimizable = MRegExpInstanceOptimizable::New(alloc(), regexp, proto);
-  add(optimizable);
-
-  pushResult(optimizable);
   return true;
 }
 
