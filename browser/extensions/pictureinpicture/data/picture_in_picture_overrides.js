@@ -212,9 +212,27 @@ let AVAILABLE_PIP_OVERRIDES;
       },
     },
 
+    iq: {
+      "https://*.iq.com/play/*": {
+        videoWrapperScriptPath: "video-wrappers/iq.js",
+      },
+    },
+
     kick: {
       "https://*.kick.com/*": {
         visibilityThreshold: 0.7,
+      },
+    },
+
+    joyn: {
+      "https://www.joyn.de/play/*": {
+        videoWrapperScriptPath: "video-wrappers/joyn.js",
+      },
+      "https://www.joyn.at/play/*": {
+        videoWrapperScriptPath: "video-wrappers/joyn.js",
+      },
+      "https://www.joyn.ch/play/*": {
+        videoWrapperScriptPath: "video-wrappers/joyn.js",
       },
     },
 

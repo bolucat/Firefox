@@ -3683,7 +3683,7 @@
 # Whether the interactionId will be computed and returned by performance observer*
 - name: dom.performance.event_timing.enable_interactionid
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Is support for Element.requestPointerLock enabled?
@@ -4539,7 +4539,7 @@
 
 - name: dom.workers.timeoutmanager
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: once
 
 - name: dom.workers.serialized-sab-access
@@ -4772,6 +4772,11 @@
 # To enable TestUtils interface on WPT
 - name: dom.testing.testutils.enabled
   type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+- name: dom.hidden_until_found.enabled
+  type: bool
   value: false
   mirror: always
 
@@ -12926,7 +12931,7 @@
 # but still checks for capacity overflow and reports telemetry
 - name: network.cookie.chips.partitionLimitDryRun
   type: bool
-  value: @IS_NOT_NIGHTLY_BUILD@
+  value: false
   mirror: always
 
 # The actual CHIPS parition limit in bytes
@@ -14591,11 +14596,6 @@
   value: 0
   mirror: always
 
-- name: network.http.http2.allow-push
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
 # When true, Firefox will send a SETTINGS_MAX_CONCURRENT_STREAMS
 # parameter when push is disabled. Chrome doesn't send this,
 # so some servers misbehave when we do. See Bug 1919750.
@@ -16092,6 +16092,19 @@
 - name: security.bad_cert_domain_error.url_fix_enabled
   type: bool
   value: true
+  mirror: always
+
+# When a TLS server asks for a client authentication certificate, the platform
+# will ask the user to select one or opt to not send one. At the same time, the
+# platform will offer a few options for how long to remember the decision at
+# hand. The value of this preference determines which of these three options is
+# selected by default.
+# 0 selects "do not remember the decision"
+# 1 selects "remember the decision permanently"
+# 2 selects "remember the decision for the rest of the session"
+- name: security.client_auth_certificate_default_remember_setting
+  type: uint32_t
+  value: 2
   mirror: always
 
 - name: security.csp.reporting.script-sample.max-length
@@ -17773,6 +17786,16 @@
   value: false
   mirror: always
 
+- name: webgl.porting.strict_readpixels_formats
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+- name: webgl.porting.strict_readpixels_formats.non_es
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 - name: webgl.dxgl.enabled
   type: RelaxedAtomicBool
 #ifdef XP_WIN
@@ -18665,20 +18688,6 @@
 - name: widget.windows.mica.toplevel-backdrop
   type: RelaxedAtomicInt32
   value: 0
-  mirror: always
-
-
-# Whether we expand the client area into the taskbar hidden edge on maximized
-# windows.
-- name: widget.windows.hidden-taskbar-hack.size
-  type: bool
-  value: false
-  mirror: always
-
-# Whether we paint the bottom taskbar edge on maximized windows.
-- name: widget.windows.hidden-taskbar-hack.paint
-  type: bool
-  value: false
   mirror: always
 #endif
 

@@ -27,6 +27,7 @@
 #include "mozilla/dom/DocumentInlines.h"
 #include "mozilla/dom/AncestorIterator.h"
 #include "mozilla/dom/ElementInlines.h"
+#include "mozilla/dom/HTMLDetailsElement.h"
 #include "mozilla/dom/ImageTracker.h"
 #include "mozilla/dom/Selection.h"
 #include "mozilla/gfx/2D.h"
@@ -3575,14 +3576,6 @@ void nsIFrame::BuildDisplayListForStackingContext(
     createdContainer = true;
   }
 
-  // FIXME: Ensure this is the right place to do this.
-  if (HasAnyStateBits(NS_FRAME_CAPTURED_IN_VIEW_TRANSITION) &&
-      StaticPrefs::dom_viewTransitions_live_capture()) {
-    resultList.AppendNewToTop<nsDisplayViewTransitionCapture>(
-        aBuilder, this, &resultList, containerItemASR, /* aIsRoot = */ false);
-    createdContainer = true;
-  }
-
   // If there are any SVG effects, wrap the list up in an SVG effects item
   // (which also handles CSS group opacity). Note that we create an SVG effects
   // item even if resultList is empty, since a filter can produce graphical
@@ -3642,6 +3635,14 @@ void nsIFrame::BuildDisplayListForStackingContext(
     resultList.AppendNewToTop<nsDisplayOpacity>(
         aBuilder, this, &resultList, containerItemASR, opacityItemForEventsOnly,
         needsActiveOpacityLayer, usingBackdropFilter);
+    createdContainer = true;
+  }
+
+  // FIXME: Ensure this is the right place to do this.
+  if (HasAnyStateBits(NS_FRAME_CAPTURED_IN_VIEW_TRANSITION) &&
+      StaticPrefs::dom_viewTransitions_live_capture()) {
+    resultList.AppendNewToTop<nsDisplayViewTransitionCapture>(
+        aBuilder, this, &resultList, containerItemASR, /* aIsRoot = */ false);
     createdContainer = true;
   }
 
@@ -7415,6 +7416,31 @@ nsIFrame* nsIFrame::GetClosestContentVisibilityAncestor(
   }
 
   return nullptr;
+}
+
+static bool IsClosedDetailsSlot(const Element* aElement) {
+  const auto* slot = HTMLSlotElement::FromNodeOrNull(aElement);
+  if (!slot || slot->HasName()) {
+    return false;
+  }
+  const auto* details =
+      HTMLDetailsElement::FromNodeOrNull(slot->GetContainingShadowHost());
+  return details && !details->GetBoolAttr(nsGkAtoms::open);
+}
+
+bool nsIFrame::IsHiddenUntilFoundOrClosedDetails() const {
+  for (const auto* f = this; f; f = f->GetInFlowParent()) {
+    if (f->HidesContent(nsIFrame::IncludeContentVisibility::Hidden)) {
+      if (const auto* element = Element::FromNode(f->GetContent());
+          element &&
+          !element->AttrValueIs(kNameSpaceID_None, nsGkAtoms::hidden,
+                                nsGkAtoms::untilFound, eIgnoreCase) &&
+          !IsClosedDetailsSlot(element)) {
+        return false;
+      }
+    }
+  }
+  return true;
 }
 
 bool nsIFrame::IsHiddenByContentVisibilityOnAnyAncestor(

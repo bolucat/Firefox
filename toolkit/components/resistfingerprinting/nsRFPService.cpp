@@ -32,6 +32,7 @@
 #include "mozilla/HelperMacros.h"
 #include "mozilla/Likely.h"
 #include "mozilla/Logging.h"
+#include "mozilla/LookAndFeel.h"
 #include "mozilla/MacroForEach.h"
 #include "mozilla/OriginAttributes.h"
 #include "mozilla/Preferences.h"
@@ -388,6 +389,9 @@ nsRFPService::Observe(nsISupports* aObject, const char* aTopic,
 
   if (bitsetForUserCharacteristics == 0b111) {
     nsUserCharacteristics::MaybeSubmitPing();
+    // Set 4th bit to 1 to make sure bitset is never 0b111 again.
+    // This is to ensure that we only submit the ping once.
+    bitsetForUserCharacteristics |= 1 << 3;
   }
 
   if (!strcmp(USER_CHARACTERISTICS_TEST_REQUEST, aTopic) &&
@@ -923,7 +927,7 @@ void nsRFPService::GetSpoofedUserAgent(nsACString& userAgent) {
   // used as fingerprinting sources to identify individuals.
   // Reference of the format of User Agent:
   // https://developer.mozilla.org/en-US/docs/Web/API/NavigatorID/userAgent
-  // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/User-Agent
+  // https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/User-Agent
 
   // These magic numbers are the lengths of the UA string literals below.
   // Assume three-digit Firefox version numbers so we have room to grow.
@@ -2470,6 +2474,12 @@ float nsRFPService::GetDefaultPixelDensity() { return 2.0f; }
 
 /* static */
 double nsRFPService::GetDevicePixelRatioAtZoom(float aZoom) {
+  // nsPresContext includes system zoom settings into its zoom factor.
+  // Even at 100% zoom shown in the UI, aZoom is not 1.0f, it is 1.0f *
+  // SystemZoom See
+  // https://searchfox.org/mozilla-central/rev/5bea6ede57be43d450ecc24af7a535288c9a9f7d/layout/base/nsPresContext.cpp#994
+  aZoom /= LookAndFeel::SystemZoomSettings().mFullZoom;
+
   // Use the same logic as UpdateAppUnitsForFullZoom and ApplyFullZoom from
   // nsDeviceContext.cpp.
   int32_t unzoomedAppUnits =

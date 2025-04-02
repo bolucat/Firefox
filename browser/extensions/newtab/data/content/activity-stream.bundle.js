@@ -1763,7 +1763,7 @@ const LinkMenuOptions = {
           ? {
               section: site.section,
               section_position: site.section_position,
-              is_secton_followed: site.is_secton_followed,
+              is_section_followed: site.is_section_followed,
             }
           : {}),
       },
@@ -1818,7 +1818,7 @@ const LinkMenuOptions = {
           ? {
               section: site.section,
               section_position: site.section_position,
-              is_secton_followed: site.is_secton_followed,
+              is_section_followed: site.is_section_followed,
             }
           : {}),
       })),
@@ -2458,7 +2458,7 @@ class _DSLinkMenu extends (external_React_default()).PureComponent {
         ...(this.props.section ? {
           section: this.props.section,
           section_position: this.props.section_position,
-          is_secton_followed: this.props.is_secton_followed
+          is_section_followed: this.props.is_section_followed
         } : {})
       }
     })));
@@ -2628,7 +2628,7 @@ class ImpressionStats_ImpressionStats extends (external_React_default()).PureCom
             ...(link.section ? {
               section: link.section,
               section_position: link.section_position,
-              is_secton_followed: link.is_secton_followed
+              is_section_followed: link.is_section_followed
             } : {})
           })),
           firstVisibleTimestamp: this.props.firstVisibleTimestamp
@@ -3251,14 +3251,16 @@ const DSSource = ({
   }
 
   // Otherwise display a default source.
-  return /*#__PURE__*/external_React_default().createElement("p", {
-    className: "source clamp"
+  return /*#__PURE__*/external_React_default().createElement("div", {
+    className: "source-wrapper"
   }, icon_src && /*#__PURE__*/external_React_default().createElement("img", {
     src: icon_src,
     height: "16",
     width: "16",
     alt: ""
-  }), source);
+  }), /*#__PURE__*/external_React_default().createElement("p", {
+    className: "source clamp"
+  }, source));
 };
 const DefaultMeta = ({
   source,
@@ -3486,7 +3488,7 @@ class _DSCard extends (external_React_default()).PureComponent {
             ...(this.props.section ? {
               section: this.props.section,
               section_position: this.props.sectionPosition,
-              is_secton_followed: this.props.sectionFollowed
+              is_section_followed: this.props.sectionFollowed
             } : {})
           }
         }));
@@ -3512,7 +3514,7 @@ class _DSCard extends (external_React_default()).PureComponent {
             ...(this.props.section ? {
               section: this.props.section,
               section_position: this.props.sectionPosition,
-              is_secton_followed: this.props.sectionFollowed
+              is_section_followed: this.props.sectionFollowed
             } : {})
           }]
         }));
@@ -3551,7 +3553,7 @@ class _DSCard extends (external_React_default()).PureComponent {
         ...(this.props.section ? {
           section: this.props.section,
           section_position: this.props.sectionPosition,
-          is_secton_followed: this.props.sectionFollowed
+          is_section_followed: this.props.sectionFollowed
         } : {})
       }
     }));
@@ -3626,7 +3628,7 @@ class _DSCard extends (external_React_default()).PureComponent {
           ...(this.props.section ? {
             section: this.props.section,
             section_position: this.props.sectionPosition,
-            is_secton_followed: this.props.sectionFollowed
+            is_section_followed: this.props.sectionFollowed
           } : {})
         }
       }));
@@ -3837,7 +3839,7 @@ class _DSCard extends (external_React_default()).PureComponent {
         ...(this.props.section ? {
           section: this.props.section,
           section_position: this.props.sectionPosition,
-          is_secton_followed: this.props.sectionFollowed
+          is_section_followed: this.props.sectionFollowed
         } : {})
       }],
       dispatch: this.props.dispatch,
@@ -3910,7 +3912,7 @@ class _DSCard extends (external_React_default()).PureComponent {
       is_list_card: this.props.isListCard,
       section: this.props.section,
       section_position: this.props.sectionPosition,
-      is_secton_followed: this.props.sectionFollowed,
+      is_section_followed: this.props.sectionFollowed,
       format: format,
       isSectionsCard: this.props.mayHaveSectionsCards
     }))));
@@ -10680,7 +10682,7 @@ function CardSection({
       data: {
         section: sectionKey,
         section_position: sectionPosition,
-        is_secton_followed: following
+        is_section_followed: following
       }
     }));
   }, [dispatch, sectionKey, sectionPosition, following]);

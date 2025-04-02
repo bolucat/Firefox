@@ -71,10 +71,10 @@ export const DSSource = ({
 
   // Otherwise display a default source.
   return (
-    <p className="source clamp">
+    <div className="source-wrapper">
       {icon_src && <img src={icon_src} height="16" width="16" alt="" />}
-      {source}
-    </p>
+      <p className="source clamp">{source}</p>
+    </div>
   );
 };
 
@@ -370,7 +370,7 @@ export class _DSCard extends React.PureComponent {
                 ? {
                     section: this.props.section,
                     section_position: this.props.sectionPosition,
-                    is_secton_followed: this.props.sectionFollowed,
+                    is_section_followed: this.props.sectionFollowed,
                   }
                 : {}),
             },
@@ -399,7 +399,7 @@ export class _DSCard extends React.PureComponent {
                   ? {
                       section: this.props.section,
                       section_position: this.props.sectionPosition,
-                      is_secton_followed: this.props.sectionFollowed,
+                      is_section_followed: this.props.sectionFollowed,
                     }
                   : {}),
               },
@@ -443,7 +443,7 @@ export class _DSCard extends React.PureComponent {
             ? {
                 section: this.props.section,
                 section_position: this.props.sectionPosition,
-                is_secton_followed: this.props.sectionFollowed,
+                is_section_followed: this.props.sectionFollowed,
               }
             : {}),
         },
@@ -533,7 +533,7 @@ export class _DSCard extends React.PureComponent {
               ? {
                   section: this.props.section,
                   section_position: this.props.sectionPosition,
-                  is_secton_followed: this.props.sectionFollowed,
+                  is_section_followed: this.props.sectionFollowed,
                 }
               : {}),
           },
@@ -797,7 +797,7 @@ export class _DSCard extends React.PureComponent {
                   ? {
                       section: this.props.section,
                       section_position: this.props.sectionPosition,
-                      is_secton_followed: this.props.sectionFollowed,
+                      is_section_followed: this.props.sectionFollowed,
                     }
                   : {}),
               },
@@ -884,7 +884,7 @@ export class _DSCard extends React.PureComponent {
                 is_list_card={this.props.isListCard}
                 section={this.props.section}
                 section_position={this.props.sectionPosition}
-                is_secton_followed={this.props.sectionFollowed}
+                is_section_followed={this.props.sectionFollowed}
                 format={format}
                 isSectionsCard={this.props.mayHaveSectionsCards}
               />
