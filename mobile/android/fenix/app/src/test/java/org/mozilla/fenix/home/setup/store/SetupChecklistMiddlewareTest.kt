@@ -12,14 +12,14 @@ import org.mockito.Mock
 import org.mockito.junit.MockitoJUnitRunner
 import org.mozilla.fenix.R
 import org.mozilla.fenix.components.appstate.AppAction
+import org.mozilla.fenix.components.appstate.AppState
 import org.mozilla.fenix.components.appstate.setup.checklist.ChecklistItem
-import org.mozilla.fenix.components.appstate.setup.checklist.SetupChecklistState
 
 @RunWith(MockitoJUnitRunner::class)
 class SetupChecklistMiddlewareTest {
 
     @Mock
-    private lateinit var context: MiddlewareContext<SetupChecklistState, AppAction.SetupChecklistAction>
+    private lateinit var context: MiddlewareContext<AppState, AppAction>
 
     @Test
     fun `GIVEN click action contains a sign in task WHEN middleware is invoked THEN navigate to sign in callback is invoked`() {
@@ -117,7 +117,7 @@ class SetupChecklistMiddlewareTest {
         type: ChecklistItem.Task.Type,
     ) = ChecklistItem.Task(
         type = type,
-        title = "A cool task",
+        title = R.string.setup_checklist_task_default_browser,
         icon = R.drawable.ic_addons_extensions,
         isCompleted = true,
     )

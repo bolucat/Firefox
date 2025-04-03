@@ -67,7 +67,9 @@ class AppleVTEncoder final : public MediaDataEncoder {
   RefPtr<EncodePromise> ProcessDrain();
   RefPtr<ShutdownPromise> ProcessShutdown();
 
-  CFDictionaryRef BuildSourceImageBufferAttributes();
+  void InvalidateSessionIfNeeded();
+  MediaResult InitSession();
+  CFDictionaryRef BuildSourceImageBufferAttributes(OSType aPixelFormat);
   CVPixelBufferRef CreateCVPixelBuffer(layers::Image* aSource);
   bool WriteExtraData(MediaRawData* aDst, CMSampleBufferRef aSrc,
                       const bool aAsAnnexB);
@@ -87,8 +89,6 @@ class AppleVTEncoder final : public MediaDataEncoder {
   VTCompressionSessionRef mSession;
   // Can be accessed on any thread, but only written on during init.
   Atomic<bool> mIsHardwareAccelerated;
-  // Written during init and shutdown.
-  Atomic<bool> mInited;
   // Accessed only in mTaskQueue. Used for for OS versions < 11.
   nsCOMPtr<nsITimer> mTimer;
 };

@@ -324,6 +324,7 @@
     #smartTabGroupingManager;
     #suggestionsOptinContainer;
     #suggestionsOptin;
+    #suggestionsRunToken;
 
     constructor() {
       super();
@@ -370,6 +371,11 @@
       );
       this.#panel = this.querySelector("panel");
       this.#nameField = this.querySelector("#tab-group-name");
+      this.#panel.addEventListener("click", e => {
+        if (e.target !== this.#nameField) {
+          this.#nameField.blur();
+        }
+      });
       this.#swatchesContainer = this.querySelector(
         ".tab-group-editor-swatches"
       );
@@ -500,12 +506,26 @@
       this.#suggestionsOptin.addEventListener(
         "MlModelOptinCancelDownload",
         () => {
+          this.#suggestionsRunToken = null;
           this.#handleMLOptinTelemetry("step2-optin-cancel-download");
           this.#smartTabGroupingManager.terminateProcess();
           this.suggestionState = this.createMode
             ? MozTabbrowserTabGroupMenu.State.CREATE_AI_INITIAL
             : MozTabbrowserTabGroupMenu.State.EDIT_AI_INITIAL;
           this.#setFormToDisabled(false);
+        }
+      );
+
+      // On Message link click
+      this.#suggestionsOptin.addEventListener(
+        "MlModelOptinMessageLinkClick",
+        () => {
+          this.#handleMLOptinTelemetry("step0-optin-link-click");
+          openTrustedLinkIn(
+            // this is a placeholder link, it should be replaced with the actual link
+            "https://support.mozilla.org",
+            "tab"
+          );
         }
       );
 
@@ -582,6 +602,7 @@
       );
       this.#cancelSuggestionsButton.addEventListener("click", () => {
         this.#handleMlTelemetry("cancel");
+        this.#suggestionsRunToken = null;
         this.close();
       });
       this.#suggestionsSeparator = this.querySelector(
@@ -602,6 +623,7 @@
         "#tab-group-suggestions-load-cancel"
       );
       this.#suggestionsLoadCancel.addEventListener("click", () => {
+        this.#suggestionsRunToken = null;
         this.#handleLoadSuggestionsCancel();
       });
     }
@@ -733,6 +755,7 @@
       }
       this.#activeGroup.label = newLabel;
       this.#nameField.value = newLabel;
+      this.#nameField.select();
       this.#suggestedMlLabel = newLabel;
     }
 
@@ -895,7 +918,8 @@
     }
 
     #handleLoadSuggestionsCancel() {
-      // TODO look into actually canceling any processes
+      this.#suggestionsRunToken = null;
+
       this.suggestionState = this.createMode
         ? MozTabbrowserTabGroupMenu.State.CREATE_AI_INITIAL
         : MozTabbrowserTabGroupMenu.State.EDIT_AI_INITIAL;
@@ -951,14 +975,20 @@
 
       // Init progress with value to show determiniate progress
       this.#suggestionsOptin.progressStatus = 0;
+      const runToken = Date.now();
+      this.#suggestionsRunToken = runToken;
       await this.#smartTabGroupingManager.preloadAllModels(prog => {
         this.#suggestionsOptin.progressStatus = prog.percentage;
       });
-
       // Clean up optin UI
       this.#setFormToDisabled(false);
       this.#suggestionsOptin.isHidden = true;
       this.#suggestionsOptin.isLoading = false;
+
+      if (runToken !== this.#suggestionsRunToken) {
+        // User has canceled
+        return;
+      }
 
       // Continue on with the suggest flow
       this.#handleMLOptinTelemetry("step3-optin-completed");
@@ -968,12 +998,18 @@
 
     async #handleSmartSuggest() {
       // Loading
+      const runToken = Date.now();
+      this.#suggestionsRunToken = runToken;
+
       this.suggestionState = MozTabbrowserTabGroupMenu.State.LOADING;
       const tabs = await this.#smartTabGroupingManager.smartTabGroupingForGroup(
         this.activeGroup,
         gBrowser.tabs
       );
-
+      if (this.#suggestionsRunToken != runToken) {
+        // User has canceled
+        return;
+      }
       if (!tabs.length) {
         // No un-grouped tabs found
         this.suggestionState = this.#createMode

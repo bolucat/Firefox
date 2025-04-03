@@ -414,7 +414,6 @@ renaming_overrides_prefixing = true
   inline CSSCoord ResolveToCSSPixels(CSSCoord aBasis) const;
   template<typename Rounder>
   inline nscoord Resolve(nscoord aBasis, Rounder) const;
-  inline nscoord ResolveWithAnchor(nscoord aBasis, mozilla::StylePhysicalAxis aAxis, mozilla::StylePositionProperty aProp) const;
 """
 
 "GenericCalcNode" = """
@@ -481,7 +480,6 @@ renaming_overrides_prefixing = true
   inline nscoord Resolve(nscoord aPercentageBasis, Rounder) const;
   template<typename T> inline nscoord Resolve(T aPercentageGetter) const;
   inline nscoord Resolve(nscoord aPercentageBasis) const;
-  inline nscoord ResolveWithAnchor(nscoord aPercentageBasis, mozilla::StylePhysicalAxis aAxis, mozilla::StylePositionProperty aProp) const;
 """
 
 "GenericLengthPercentageOrAuto" = """
@@ -510,6 +508,7 @@ renaming_overrides_prefixing = true
   inline bool BehavesLikeStretchOnBlockAxis() const;
   inline bool BehavesLikeInitialValueOnBlockAxis() const;
   inline bool BehavesLikeInitialValue(LogicalAxis) const;
+  inline bool HasAnchorPositioningFunction() const;
 """
 
 "GenericFlexBasis" = """
@@ -527,6 +526,7 @@ renaming_overrides_prefixing = true
   inline bool BehavesLikeStretchOnBlockAxis() const;
   inline bool BehavesLikeInitialValueOnBlockAxis() const;
   inline bool BehavesLikeInitialValue(LogicalAxis) const;
+  inline bool HasAnchorPositioningFunction() const;
 """
 
 "GenericPosition" = """
@@ -890,8 +890,6 @@ renaming_overrides_prefixing = true
   inline bool IsLocalRef() const;
   inline bool HasRef() const;
   inline StyleCorsMode CorsMode() const;
-  already_AddRefed<nsIURI> ResolveLocalRef(nsIURI* aBase) const;
-  already_AddRefed<nsIURI> ResolveLocalRef(const nsIContent* aContent) const;
 
   // Only relevant for images.
   inline bool IsImageResolved() const;
@@ -1173,7 +1171,7 @@ renaming_overrides_prefixing = true
   inline bool HasPercent() const;
   inline bool ConvertsToLength() const;
   inline bool HasLengthAndPercentage() const;
-  inline bool IsAnchorPositioningFunction() const;
+  inline bool HasAnchorPositioningFunction() const;
   inline nscoord ToLength() const;
   inline bool ConvertsToPercentage() const;
   inline float ToPercentage() const;
@@ -1186,4 +1184,5 @@ renaming_overrides_prefixing = true
   inline nscoord ToLength() const;
   inline bool ConvertsToPercentage() const;
   inline float ToPercentage() const;
+  inline bool HasAnchorPositioningFunction() const;
 """

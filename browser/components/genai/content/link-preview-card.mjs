@@ -30,14 +30,13 @@ class LinkPreviewCard extends MozLitElement {
     generating: { type: Number }, // 0 = off, 1-4 = generating & dots state
     keyPoints: { type: Array },
     pageData: { type: Object },
-    showWait: { type: Boolean },
-    progressPercentage: { type: Number },
+    progress: { type: Number }, // -1 = off, 0-100 = download progress
   };
 
   constructor() {
     super();
     this.keyPoints = [];
-    this.progress = 0;
+    this.progress = -1;
   }
 
   addKeyPoint(text) {
@@ -66,7 +65,11 @@ class LinkPreviewCard extends MozLitElement {
     const where = lazy.BrowserUtils.whereToOpenLink(event, false, true);
     win.openLinkIn(url, where, params);
 
-    this.dispatchEvent(new CustomEvent("LinkPreviewCard:dismiss"));
+    this.dispatchEvent(
+      new CustomEvent("LinkPreviewCard:dismiss", {
+        detail: event.target.dataset.source ?? "error",
+      })
+    );
   }
 
   updated(properties) {
@@ -85,66 +88,24 @@ class LinkPreviewCard extends MozLitElement {
   }
 
   /**
-   * Extracts and validates essential metadata for link preview.
-   *
-   * This utility function processes the metadata object to extract the title and
-   * description from various potential sources (Open Graph, Twitter, HTML).
-   * It also determines if there's sufficient metadata to generate a meaningful preview.
-   *
-   * @param {object} metaData - The metadata object containing page information
-   * @returns {object} An object containing:
-   *  - isMissingMetadata {boolean} - True if either title or description is missing
-   *  - title {string} - The extracted page title or empty string if none found
-   *  - description {string} - The extracted page description or empty string if none found
-   */
-  extractMetadataContent(metaData = {}) {
-    const title =
-      metaData["og:title"] ||
-      metaData["twitter:title"] ||
-      metaData["html:title"] ||
-      "";
-
-    const description =
-      metaData["og:description"] ||
-      metaData["twitter:description"] ||
-      metaData.description ||
-      "";
-
-    const isMissingMetadata = !title || !description;
-
-    return {
-      isMissingMetadata,
-      title,
-      description,
-    };
-  }
-
-  /**
    * Renders the link preview element.
    *
    * @returns {import('lit').TemplateResult} The rendered HTML template.
    */
   render() {
     const articleData = this.pageData?.article || {};
-    const metaData = this.pageData?.metaInfo || {};
     const pageUrl = this.pageData?.url || "about:blank";
     const siteName = articleData.siteName || "";
 
-    const { isMissingMetadata, title, description } =
-      this.extractMetadataContent(metaData);
+    const { title, description, imageUrl } = this.pageData.meta;
 
-    let imageUrl = metaData["og:image"] || metaData["twitter:image:src"] || "";
-    if (!imageUrl.startsWith("https://")) {
-      imageUrl = "";
-    }
     const readingTimeMinsFast = articleData.readingTimeMinsFast || "";
     const readingTimeMinsSlow = articleData.readingTimeMinsSlow || "";
 
-    let displayProgressPercentage = this.progressPercentage;
-    // Handle non-finite values (NaN, Infinity) by defaulting to 100%
-    if (!Number.isFinite(displayProgressPercentage)) {
-      displayProgressPercentage = 100;
-    }
+    // Check if both metadata and article text content are missing
+    const isMissingAllContent = !description && !articleData.textContent;
+
+    const filename = this.pageData?.urlComponents?.filename;
 
     // Error Link Preview card UI: A simplified version of the preview card showing only an error message
     // and a link to visit the URL. This is a fallback UI for cases when we don't have
@@ -170,7 +131,7 @@ class LinkPreviewCard extends MozLitElement {
     const normalCard = html`
       <div class="og-card">
         <div class="og-card-content">
-          ${imageUrl
+          ${imageUrl.startsWith("https://")
             ? html` <img class="og-card-img" src=${imageUrl} alt=${title} /> `
             : ""}
           ${siteName
@@ -180,13 +141,11 @@ class LinkPreviewCard extends MozLitElement {
                 </div>
               `
             : ""}
-          ${title
-            ? html`
-                <h2 class="og-card-title">
-                  <a @click=${this.handleLink} href=${pageUrl}>${title}</a>
-                </h2>
-              `
-            : ""}
+          <h2 class="og-card-title">
+            <a @click=${this.handleLink} data-source="title" href=${pageUrl}
+              >${title || filename}</a
+            >
+          </h2>
           ${description
             ? html`<p class="og-card-description">${description}</p>`
             : ""}
@@ -209,29 +168,31 @@ class LinkPreviewCard extends MozLitElement {
                 <ul>
                   ${this.keyPoints.map(item => html`<li>${item}</li>`)}
                 </ul>
-                <hr />
-                ${this.showWait
+                ${this.progress >= 0
                   ? html`
                       <p>
-                        ${this.progressPercentage > 0
-                          ? html`Preparing Firefox •
-                              <strong>${displayProgressPercentage}%</strong>`
-                          : ""}
+                        First-time setup • <strong>${this.progress}%</strong>
                       </p>
-                      <p>
-                        This may take a moment the first time you preview a
-                        link. Key points should appear more quickly next time.
-                      </p>
+                      <p>You'll see key points more quickly next time.</p>
                     `
                   : ""}
+                <hr />
                 <p>
                   Key points are AI-generated and may have mistakes.
-                  <a @click=${this.handleLink} href=${FEEDBACK_LINK}>
+                  <a
+                    @click=${this.handleLink}
+                    data-source="feedback"
+                    href=${FEEDBACK_LINK}
+                  >
                     Share feedback
                   </a>
                 </p>
                 <p>
-                  <a @click=${this.handleLink} href=${pageUrl}>
+                  <a
+                    @click=${this.handleLink}
+                    data-source="visit"
+                    href=${pageUrl}
+                  >
                     Visit original page
                   </a>
                 </p>
@@ -246,7 +207,7 @@ class LinkPreviewCard extends MozLitElement {
         rel="stylesheet"
         href="chrome://browser/content/genai/content/link-preview-card.css"
       />
-      ${isMissingMetadata ? errorCard : normalCard}
+      ${isMissingAllContent ? errorCard : normalCard}
     `;
   }
 }

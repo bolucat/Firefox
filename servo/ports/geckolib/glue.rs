@@ -8428,38 +8428,42 @@ pub extern "C" fn Servo_ResolveCalcLengthPercentage(
     calc: &computed::length_percentage::CalcLengthPercentage,
     basis: f32,
 ) -> f32 {
-    calc.resolve(computed::Length::new(basis), None)
-        .unwrap()
-        .result
-        .px()
+    calc.resolve(computed::Length::new(basis)).px()
+}
+
+/// Result of resolving a math function node potentially containing
+/// anchor positioning function.
+#[repr(u8)]
+pub enum CalcAnchorPositioningFunctionResolution {
+    /// Anchor positioning function is used, but at least one of them
+    /// did not resolve to a valid reference - Property using this
+    /// expression is now invalid at computed time.
+    Invalid,
+    /// Anchor positioning function is used, and all of them resolved
+    /// to valid references, or specified a fallback.
+    Valid(computed::LengthPercentage),
 }
 
 #[no_mangle]
-pub extern "C" fn Servo_ResolveCalcLengthPercentageWithAnchorFunctions(
+pub extern "C" fn Servo_ResolveAnchorFunctionsInCalcPercentage(
     calc: &computed::length_percentage::CalcLengthPercentage,
-    basis: f32,
     axis: PhysicalAxis,
     position_property: PositionProperty,
-    result: &mut f32,
-    percentage_used: &mut bool,
-) -> bool {
-    let resolved = calc.resolve(
-        computed::Length::new(basis),
-        Some(CalcAnchorFunctionResolutionInfo {
-            axis,
-            position_property,
-        }),
-    );
+    out: &mut CalcAnchorPositioningFunctionResolution,
+) {
+    let resolved = calc.resolve_anchor(CalcAnchorFunctionResolutionInfo {
+        axis: axis,
+        position_property,
+    });
 
-    let resolved = match resolved {
-        None => return false,
-        Some(v) => v,
+    match resolved {
+        Err(()) => *out = CalcAnchorPositioningFunctionResolution::Invalid,
+        Ok((node, clamping_mode)) => {
+            *out = CalcAnchorPositioningFunctionResolution::Valid(
+                computed::LengthPercentage::new_calc(node, clamping_mode),
+            )
+        },
     };
-
-    *result = resolved.result.px();
-    *percentage_used = resolved.percentage_used;
-
-    true
 }
 
 #[no_mangle]

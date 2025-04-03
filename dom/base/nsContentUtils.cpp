@@ -6633,8 +6633,8 @@ void nsContentUtils::AddScriptRunner(already_AddRefed<nsIRunnable> aRunnable) {
   }
 
   if (sScriptBlockerCount) {
-    PROFILER_MARKER("nsContentUtils::AddScriptRunner", OTHER, {},
-                    FlowMarker, Flow::FromPointer(runnable.get()));
+    PROFILER_MARKER("nsContentUtils::AddScriptRunner", OTHER, {}, FlowMarker,
+                    Flow::FromPointer(runnable.get()));
     sBlockedScriptRunners->AppendElement(runnable.forget());
     return;
   }

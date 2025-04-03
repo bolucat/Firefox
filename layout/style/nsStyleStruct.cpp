@@ -90,28 +90,6 @@ bool StyleCssUrlData::operator==(const StyleCssUrlData& aOther) const {
 
 StyleLoadData::~StyleLoadData() { Gecko_LoadData_Drop(this); }
 
-already_AddRefed<nsIURI> StyleComputedUrl::ResolveLocalRef(
-    nsIURI* aBase) const {
-  nsCOMPtr<nsIURI> result = GetURI();
-  if (result && IsLocalRef()) {
-    nsCString ref;
-    result->GetRef(ref);
-
-    nsresult rv = NS_MutateURI(aBase).SetRef(ref).Finalize(result);
-
-    if (NS_FAILED(rv)) {
-      // If setting the ref failed, just return the original URI.
-      result = aBase;
-    }
-  }
-  return result.forget();
-}
-
-already_AddRefed<nsIURI> StyleComputedUrl::ResolveLocalRef(
-    const nsIContent* aContent) const {
-  return ResolveLocalRef(aContent->GetBaseURI());
-}
-
 void StyleComputedUrl::ResolveImage(Document& aDocument,
                                     const StyleComputedUrl* aOldImage) {
   MOZ_DIAGNOSTIC_ASSERT(NS_IsMainThread());
@@ -1311,7 +1289,7 @@ nsChangeHint nsStylePosition::CalcDifference(
     if (IsEqualInsetType(mOffset, aNewData.mOffset) &&
         aNewData.mOffset.All([](const StyleInset& aInset) {
           // Err on the side of triggering reflow for anchor positioning.
-          return !aInset.IsAnchorPositioningFunction();
+          return !aInset.HasAnchorPositioningFunction();
         })) {
       hint |=
           nsChangeHint_RecomputePosition | nsChangeHint_UpdateParentOverflow;
@@ -1406,29 +1384,20 @@ AnchorResolved<mozilla::StyleInset> AnchorResolvedInset::FromUnresolved(
   static_assert(static_cast<uint8_t>(mozilla::PhysicalAxis::Horizontal) ==
                     static_cast<uint8_t>(StylePhysicalAxis::Horizontal),
                 "Horizontal axis doesn't match");
+  if (!aValue.HasAnchorPositioningFunction()) {
+    return AnchorResolved::Unchanged(aValue);
+  }
   switch (aValue.tag) {
-    case StyleInset::Tag::Auto:
-      return AnchorResolved::Unchanged(aValue);
-    case StyleInset::Tag::LengthPercentage: {
-      const auto& lp = aValue.AsLengthPercentage();
-      if (lp.IsCalc()) {
-        const auto& c = lp.AsCalc();
-        float result{};
-        bool percentageUsed{};
-        if (!Servo_ResolveCalcLengthPercentageWithAnchorFunctions(
-                &c, 0.0, aAxis, aPosition, &result, &percentageUsed)) {
-          return Invalid();
-        }
-        if (percentageUsed) {
-          // We just resolved to a wrong value, will need to re-resolve - keep
-          // the original data. This ensures that `HasPercent()` calls to it
-          // makes sense as well.
-          return Unchanged(aValue);
-        }
-        // Guaranteed to not contain any percentage value.
-        return Evaluated(StyleLengthPercentage::FromPixels(result));
+    case StyleInset::Tag::AnchorContainingCalcFunction: {
+      const auto& lp = aValue.AsAnchorContainingCalcFunction();
+      const auto& c = lp.AsCalc();
+      auto result = StyleCalcAnchorPositioningFunctionResolution::Invalid();
+      Servo_ResolveAnchorFunctionsInCalcPercentage(&c, aAxis, aPosition,
+                                                   &result);
+      if (result.IsInvalid()) {
+        return Invalid();
       }
-      return Unchanged(aValue);
+      return Evaluated(result.AsValid());
     }
     case StyleInset::Tag::AnchorFunction: {
       auto resolved = StyleAnchorPositioningFunctionResolution::Invalid();
