@@ -918,17 +918,10 @@ bool nsWindow::DrawsToCSDTitlebar() const {
          mGtkWindowDecoration == GTK_DECORATION_CLIENT && mDrawInTitlebar;
 }
 
-#ifdef MOZ_WAYLAND
-bool nsWindow::GetCSDDecorationOffset(int* aDx, int* aDy) {
-  if (!DrawsToCSDTitlebar()) {
-    return false;
-  }
-  GtkBorder decorationSize = GetTopLevelCSDDecorationSize();
-  *aDx = decorationSize.left;
-  *aDy = decorationSize.top;
-  return true;
+GdkPoint nsWindow::GetCsdOffsetInGdkCoords() {
+  return DevicePixelsToGdkPointRoundDown(
+      LayoutDeviceIntPoint(mCsdMargin.top, mCsdMargin.left));
 }
-#endif
 
 void nsWindow::ApplySizeConstraints() {
   if (!mShell) {
@@ -3316,15 +3309,6 @@ void nsWindow::RecomputeBounds(MayChangeCsdMargin aMayChangeCsdMargin) {
                gdkWindowBounds;
       }
     }
-    if (mSizeMode == nsSizeMode_Normal && !mIsTiled &&
-        mCsdMargin == kCsdMarginUnknown) {
-      // Try to estimate the margin using our decoration size.
-      auto decorationRect = GetTopLevelCSDDecorationSize();
-      if (!mDrawInTitlebar) {
-        decorationRect.top += moz_gtk_get_titlebar_preferred_height();
-      }
-      return GtkBorderToDevicePixels(decorationRect);
-    }
     // Don't change it. It might have not changed at all, or if it has, we'll
     // get a better margin once we get relevant size-allocate callbacks.
     return mCsdMargin;
@@ -3335,10 +3319,7 @@ void nsWindow::RecomputeBounds(MayChangeCsdMargin aMayChangeCsdMargin) {
       return LayoutDeviceIntMargin{};
     }
     const auto systemMargin = mBounds - toplevelBounds;
-    if (mCsdMargin != kCsdMarginUnknown) {
-      return systemMargin + mCsdMargin;
-    }
-    return systemMargin;
+    return systemMargin + mCsdMargin;
   }();
   mClientMargin.EnsureAtLeast(LayoutDeviceIntMargin());
 
@@ -5406,9 +5387,6 @@ void nsWindow::OnWindowStateEvent(GtkWidget* aWidget,
     return result;
   }();
 
-  if (mSizeMode != oldSizeMode) {
-    mCsdMargin = kCsdMarginUnknown;
-  }
   if (mSizeMode != oldSizeMode || mIsTiled != oldIsTiled) {
     RecomputeBounds(MayChangeCsdMargin::No);
   }

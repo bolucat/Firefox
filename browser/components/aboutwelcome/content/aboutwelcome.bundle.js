@@ -627,9 +627,12 @@ class WelcomeScreen extends (react__WEBPACK_IMPORTED_MODULE_0___default().PureCo
     }
     let actionResult;
     if (["OPEN_URL", "SHOW_FIREFOX_ACCOUNTS"].includes(action.type)) {
-      actionResult = this.handleOpenURL(action, props.flowParams, props.UTMTerm);
+      this.handleOpenURL(action, props.flowParams, props.UTMTerm);
     } else if (action.type) {
-      actionResult = action.needsAwait ? await _lib_aboutwelcome_utils_mjs__WEBPACK_IMPORTED_MODULE_2__.AboutWelcomeUtils.handleUserAction(action) : _lib_aboutwelcome_utils_mjs__WEBPACK_IMPORTED_MODULE_2__.AboutWelcomeUtils.handleUserAction(action);
+      let actionPromise = _lib_aboutwelcome_utils_mjs__WEBPACK_IMPORTED_MODULE_2__.AboutWelcomeUtils.handleUserAction(action);
+      if (action.needsAwait) {
+        actionResult = await actionPromise;
+      }
       if (action.type === "FXA_SIGNIN_FLOW") {
         _lib_aboutwelcome_utils_mjs__WEBPACK_IMPORTED_MODULE_2__.AboutWelcomeUtils.sendActionTelemetry(props.messageId, actionResult ? "sign_in" : "sign_in_cancel", "FXA_SIGNIN_FLOW");
       }
@@ -677,6 +680,15 @@ class WelcomeScreen extends (react__WEBPACK_IMPORTED_MODULE_0___default().PureCo
     };
     if (shouldDoBehavior(action.navigate)) {
       props.navigate();
+    }
+
+    // Used by FeatureCallout to advance screens by re-rendering the whole
+    // wrapper, updating anchor, page_event_listeners, etc. `navigate` only
+    // updates the inner content. Only implemented by FeatureCallout.
+    if (action.advance_screens) {
+      if (shouldDoBehavior(action.advance_screens.behavior ?? true)) {
+        window.AWAdvanceScreens?.(action.advance_screens);
+      }
     }
     if (shouldDoBehavior(action.dismiss)) {
       window.AWFinish();
@@ -1350,6 +1362,7 @@ class ProtonScreen extends (react__WEBPACK_IMPORTED_MODULE_0___default().PureCom
         justifyContent: content.split_content_justify_content
       }
     }, content.logo && content.fullscreen ? this.renderPicture(content.logo) : null, content.title || content.subtitle ? /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("div", {
+      id: "multi-stage-message-welcome-text",
       className: `welcome-text ${content.title_style || ""}`
     }, content.title ? this.renderTitle(content) : null, content.subtitle ? /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement(_MSLocalized__WEBPACK_IMPORTED_MODULE_1__.Localized, {
       text: content.subtitle
@@ -1376,7 +1389,11 @@ class ProtonScreen extends (react__WEBPACK_IMPORTED_MODULE_0___default().PureCom
       addonName: this.props.addonName,
       handleAction: this.props.handleAction,
       activeMultiSelect: this.props.activeMultiSelect
-    })), !hideStepsIndicator && !aboveButtonStepsIndicator ? this.renderStepsIndicator() : null)), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement(_MSLocalized__WEBPACK_IMPORTED_MODULE_1__.Localized, {
+    }),
+    /* Fullscreen dot-style step indicator should sit inside the
+    main inner content to share its padding, which will be
+    configurable with Bug 1956042 */
+    !hideStepsIndicator && !aboveButtonStepsIndicator && !content.progress_bar && content.fullscreen ? this.renderStepsIndicator() : null), !hideStepsIndicator && !aboveButtonStepsIndicator && !(content.fullscreen && !content.progress_bar) ? this.renderStepsIndicator() : null)), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement(_MSLocalized__WEBPACK_IMPORTED_MODULE_1__.Localized, {
       text: content.info_text
     }, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("span", {
       className: "info-text"
@@ -2661,8 +2678,10 @@ const MultiSelect = ({
   multiSelectId
 }) => {
   const {
-    data
+    data,
+    multiSelectItemDesign
   } = content.tiles;
+  const isPicker = multiSelectItemDesign === "picker";
   const refs = (0,react__WEBPACK_IMPORTED_MODULE_0__.useRef)({});
   const handleChange = (0,react__WEBPACK_IMPORTED_MODULE_0__.useCallback)(() => {
     const newActiveMultiSelect = [];
@@ -2691,6 +2710,47 @@ const MultiSelect = ({
   }, [] // eslint-disable-line react-hooks/exhaustive-deps
   );
   const containerStyle = (0,react__WEBPACK_IMPORTED_MODULE_0__.useMemo)(() => _lib_aboutwelcome_utils_mjs__WEBPACK_IMPORTED_MODULE_2__.AboutWelcomeUtils.getValidStyle(content.tiles.style, MULTI_SELECT_STYLES, true), [content.tiles.style]);
+  const PickerIcon = ({
+    emoji,
+    bgColor,
+    isChecked
+  }) => {
+    return /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("span", {
+      className: `picker-icon ${isChecked ? "picker-checked" : ""}`,
+      style: {
+        ...(!isChecked && bgColor && {
+          backgroundColor: bgColor
+        })
+      }
+    }, !isChecked && emoji ? emoji : "");
+  };
+
+  // This handles interaction for when the user is clicking on or keyboard-interacting
+  // with the container element when using the picker design. It is required
+  // for appropriate accessibility.
+  const handleCheckboxContainerInteraction = e => {
+    if (!isPicker) {
+      return;
+    }
+    if (e.type === "keydown") {
+      // Prevent scroll on space presses
+      if (e.key === " ") {
+        e.preventDefault();
+      }
+
+      // Only handle space and enter keypresses
+      if (e.key !== " " && e.key !== "Enter") {
+        return;
+      }
+    }
+    const container = e.currentTarget;
+    // Manually flip the hidden checkbox since handleChange relies on it
+    const checkbox = container.querySelector('input[type="checkbox"]');
+    checkbox.checked = !checkbox.checked;
+
+    // Manually call handleChange to update the multiselect state
+    handleChange();
+  };
 
   // When screen renders for first time, update state
   // with checkbox ids that has defaultvalue true
@@ -2710,7 +2770,7 @@ const MultiSelect = ({
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("div", {
-    className: "multi-select-container",
+    className: `multi-select-container ${multiSelectItemDesign || ""}`,
     style: containerStyle,
     role: items.some(({
       type,
@@ -2728,11 +2788,18 @@ const MultiSelect = ({
     icon,
     type = "checkbox",
     group,
-    style
+    style,
+    pickerEmoji,
+    pickerEmojiBackgroundColor
   }) => /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("div", {
     key: id + label,
     className: "checkbox-container multi-select-item",
-    style: _lib_aboutwelcome_utils_mjs__WEBPACK_IMPORTED_MODULE_2__.AboutWelcomeUtils.getValidStyle(style, MULTI_SELECT_STYLES)
+    style: _lib_aboutwelcome_utils_mjs__WEBPACK_IMPORTED_MODULE_2__.AboutWelcomeUtils.getValidStyle(style, MULTI_SELECT_STYLES),
+    tabIndex: isPicker ? "0" : null,
+    onClick: isPicker ? handleCheckboxContainerInteraction : null,
+    onKeyDown: isPicker ? handleCheckboxContainerInteraction : null,
+    role: isPicker ? "checkbox" : null,
+    "aria-checked": isPicker ? activeMultiSelect?.includes(id) : null
   }, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("input", {
     type: type // checkbox or radio
     ,
@@ -2743,7 +2810,12 @@ const MultiSelect = ({
     style: _lib_aboutwelcome_utils_mjs__WEBPACK_IMPORTED_MODULE_2__.AboutWelcomeUtils.getValidStyle(icon?.style, MULTI_SELECT_ICON_STYLES),
     onChange: handleChange,
     ref: el => refs.current[id] = el,
-    "aria-describedby": description ? `${id}-description` : null
+    "aria-describedby": description ? `${id}-description` : null,
+    tabIndex: isPicker ? "-1" : "0"
+  }), isPicker && /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement(PickerIcon, {
+    emoji: pickerEmoji,
+    bgColor: pickerEmojiBackgroundColor,
+    isChecked: activeMultiSelect?.includes(id)
   }), label ? /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement(_MSLocalized__WEBPACK_IMPORTED_MODULE_1__.Localized, {
     text: label
   }, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_0___default().createElement("label", {

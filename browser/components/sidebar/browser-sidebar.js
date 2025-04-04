@@ -570,6 +570,9 @@ var SidebarController = {
     await this._state.loadInitialState(state);
     await this.waitUntilStable(); // Finish newly scheduled tasks.
     this.updateToolbarButton();
+    if (this.sidebarRevampVisibility === "expand-on-hover") {
+      await this.toggleExpandOnHover(true);
+    }
     this.uiStateInitialized = true;
   },
 
@@ -792,7 +795,9 @@ var SidebarController = {
         Services.prefs.setBoolPref("sidebar.verticalTabs", false);
       }
     } else {
-      this._state.launcherVisible = true;
+      // initial launcher visibleness with sidebar.revamp is is one of the
+      // default properties managed by SidebarState
+      this._state.launcherVisible = this._state.defaultLauncherVisible;
     }
     if (!this._sidebars.get(this.lastOpenedId)) {
       this.lastOpenedId = this.DEFAULT_SIDEBAR_ID;
@@ -1939,6 +1944,10 @@ var SidebarController = {
 
   async setLauncherCollapsedWidth() {
     let browserEl = document.getElementById("browser");
+    if (this.getUIState().launcherExpanded) {
+      this._state.launcherExpanded = false;
+    }
+    await this.waitUntilStable();
     let collapsedWidth = await new Promise(resolve => {
       requestAnimationFrame(() => {
         resolve(this._getRects([this.sidebarMain])[0][1].width);
@@ -1975,9 +1984,6 @@ var SidebarController = {
     if (isEnabled) {
       if (!this._state) {
         this._state = new this.SidebarState(this);
-      }
-      if (this.getUIState().launcherExpanded && !isDragEnded) {
-        this._state.launcherExpanded = false;
       }
       await this.waitUntilStable();
       MousePosTracker.addListener(this);
@@ -2153,6 +2159,21 @@ XPCOMUtils.defineLazyPreferenceGetter(
       !SidebarController.inSingleTabWindow
     ) {
       SidebarController.recordTabsLayoutSetting(newValue);
+    }
+  }
+);
+
+XPCOMUtils.defineLazyPreferenceGetter(
+  SidebarController,
+  "revampDefaultLauncherVisible",
+  "sidebar.revamp.defaultLauncherVisible",
+  false,
+  (_aPreference, _previousValue, _newValue) => {
+    if (
+      !SidebarController.uninitializing &&
+      !SidebarController.inSingleTabWindow
+    ) {
+      SidebarController._state.updateVisibility();
     }
   }
 );

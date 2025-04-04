@@ -45,7 +45,7 @@
 
 #include "HTMLDataListElement.h"
 #include "HTMLFormSubmissionConstants.h"
-#include "mozilla/Telemetry.h"
+#include "mozilla/glean/DomMetrics.h"
 #include "nsBaseCommandController.h"
 #include "nsIStringBundle.h"
 #include "nsFocusManager.h"
@@ -1246,7 +1246,9 @@ void HTMLInputElement::BeforeSetAttr(int32_t aNameSpaceID, nsAtom* aName,
     }
 
     if (aName == nsGkAtoms::webkitdirectory) {
-      Telemetry::Accumulate(Telemetry::WEBKIT_DIRECTORY_USED, true);
+      glean::dom::webkit_directory_used
+          .EnumGet(glean::dom::WebkitDirectoryUsedLabel::eTrue)
+          .Add();
     }
   }
 
@@ -3347,8 +3349,10 @@ void HTMLInputElement::LegacyPreActivationBehavior(
     aVisitor.mItemFlags |= NS_ORIGINAL_CHECKED_VALUE;
   }
 
-  // out-of-spec legacy pre-activation behavior needed because of bug 1803805
-  if (mForm) {
+  // out-of-spec legacy pre-activation behavior needed because of bug 1803805.
+  // XXXedgar: We exclude the radio type because `mItemData` is already used to
+  // store the originally selected radio button above.
+  if (mForm && mType != FormControlType::InputRadio) {
     aVisitor.mItemFlags |= NS_IN_SUBMIT_CLICK;
     aVisitor.mItemData = static_cast<Element*>(mForm);
     // tell the form that we are about to enter a click handler.
@@ -7502,7 +7506,9 @@ void HTMLInputElement::GetWebkitEntries(
     return;
   }
 
-  Telemetry::Accumulate(Telemetry::BLINK_FILESYSTEM_USED, true);
+  glean::dom::blink_filesystem_used
+      .EnumGet(glean::dom::BlinkFilesystemUsedLabel::eTrue)
+      .Add();
   aSequence.AppendElements(mFileData->mEntries);
 }
 

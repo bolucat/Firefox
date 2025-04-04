@@ -84,7 +84,7 @@
 #include "nsISimpleEnumerator.h"
 #include "nsJSEnvironment.h"
 #include "mozilla/ScopeExit.h"
-#include "mozilla/Telemetry.h"
+#include "mozilla/glean/LayoutMetrics.h"
 
 #include "mozilla/ipc/BackgroundChild.h"
 #include "mozilla/ipc/PBackgroundChild.h"
@@ -764,9 +764,8 @@ class VsyncRefreshDriverTimer : public RefreshDriverTimer {
 #ifndef ANDROID /* bug 1142079 */
     if (XRE_IsParentProcess()) {
       TimeDuration vsyncLatency = TimeStamp::Now() - aVsyncTimestamp;
-      uint32_t sample = (uint32_t)vsyncLatency.ToMilliseconds();
-      Telemetry::Accumulate(Telemetry::FX_REFRESH_DRIVER_CHROME_FRAME_DELAY_MS,
-                            sample);
+      glean::layout::refresh_driver_chrome_frame_delay.AccumulateRawDuration(
+          vsyncLatency);
     } else if (mVsyncRate != TimeDuration::Forever()) {
       TimeDuration contentDelay =
           (TimeStamp::Now() - mLastTickStart) - mVsyncRate;
@@ -776,9 +775,8 @@ class VsyncRefreshDriverTimer : public RefreshDriverTimer {
         // delay.
         contentDelay = TimeDuration::FromMilliseconds(0);
       }
-      uint32_t sample = (uint32_t)contentDelay.ToMilliseconds();
-      Telemetry::Accumulate(Telemetry::FX_REFRESH_DRIVER_CONTENT_FRAME_DELAY_MS,
-                            sample);
+      glean::layout::refresh_driver_content_frame_delay.AccumulateRawDuration(
+          contentDelay);
     } else {
       // Request the vsync rate which VsyncChild stored the last time it got a
       // vsync notification.
@@ -1517,47 +1515,12 @@ void nsRefreshDriver::PostScrollEvent(mozilla::Runnable* aScrollEvent,
   }
 }
 
-void nsRefreshDriver::PostScrollEndEvent(mozilla::Runnable* aScrollEndEvent,
-                                         bool aDelayed) {
-  if (aDelayed) {
-    mDelayedScrollEndEvents.AppendElement(aScrollEndEvent);
-  } else {
-    mScrollEndEvents.AppendElement(aScrollEndEvent);
-    EnsureTimerStarted();
-  }
-}
-
 void nsRefreshDriver::DispatchScrollEvents() {
   // Scroll events are one-shot, so after running them we can drop them.
   // However, dispatching a scroll event can potentially cause more scroll
   // events to be posted, so we move the initial set into a temporary array
   // first. (Newly posted scroll events will be dispatched on the next tick.)
   ScrollEventArray events = std::move(mScrollEvents);
-  for (auto& event : events) {
-    event->Run();
-  }
-}
-
-void nsRefreshDriver::DispatchScrollEndEvents() {
-  ScrollEventArray events = std::move(mScrollEndEvents);
-  for (auto& event : events) {
-    event->Run();
-  }
-}
-
-void nsRefreshDriver::PostVisualViewportScrollEvent(
-    VVPScrollEvent* aScrollEvent) {
-  mVisualViewportScrollEvents.AppendElement(aScrollEvent);
-  EnsureTimerStarted();
-}
-
-void nsRefreshDriver::DispatchVisualViewportScrollEvents() {
-  // Scroll events are one-shot, so after running them we can drop them.
-  // However, dispatching a scroll event can potentially cause more scroll
-  // events to be posted, so we move the initial set into a temporary array
-  // first. (Newly posted scroll events will be dispatched on the next tick.)
-  VisualViewportScrollEventArray events =
-      std::move(mVisualViewportScrollEvents);
   for (auto& event : events) {
     event->Run();
   }
@@ -1663,9 +1626,6 @@ void nsRefreshDriver::RunDelayedEventsSoon() {
 
   mScrollEvents.AppendElements(mDelayedScrollEvents);
   mDelayedScrollEvents.Clear();
-
-  mScrollEndEvents.AppendElements(mDelayedScrollEvents);
-  mDelayedScrollEndEvents.Clear();
 
   mResizeEventFlushObservers.AppendElements(mDelayedResizeEventFlushObservers);
   mDelayedResizeEventFlushObservers.Clear();
@@ -1991,11 +1951,8 @@ auto nsRefreshDriver::GetReasonsToTick() const -> TickReasons {
   if (!mVisualViewportResizeEvents.IsEmpty()) {
     reasons |= TickReasons::eHasVisualViewportResizeEvents;
   }
-  if (!mScrollEvents.IsEmpty() || !mScrollEndEvents.IsEmpty()) {
+  if (!mScrollEvents.IsEmpty()) {
     reasons |= TickReasons::eHasScrollEvents;
-  }
-  if (!mVisualViewportScrollEvents.IsEmpty()) {
-    reasons |= TickReasons::eHasVisualViewportScrollEvents;
   }
   if (mPresContext && mPresContext->IsRoot() &&
       mPresContext->NeedsMoreTicksForUserInput()) {
@@ -2045,9 +2002,6 @@ void nsRefreshDriver::AppendTickReasonsToString(TickReasons aReasons,
   }
   if (aReasons & TickReasons::eHasScrollEvents) {
     aStr.AppendLiteral(" HasScrollEvents");
-  }
-  if (aReasons & TickReasons::eHasVisualViewportScrollEvents) {
-    aStr.AppendLiteral(" HasVisualViewportScrollEvents");
   }
   if (aReasons & TickReasons::eRootNeedsMoreTicksForUserInput) {
     aStr.AppendLiteral(" RootNeedsMoreTicksForUserInput");
@@ -2745,8 +2699,6 @@ void nsRefreshDriver::Tick(VsyncId aId, TimeStamp aNowTime,
 
   // Step 9. For each doc of docs, run the scroll steps for doc.
   DispatchScrollEvents();
-  DispatchVisualViewportScrollEvents();
-  DispatchScrollEndEvents();
 
   // Step 10. For each doc of docs, evaluate media queries and report changes
   // for doc.
@@ -2898,9 +2850,8 @@ void nsRefreshDriver::Tick(VsyncId aId, TimeStamp aNowTime,
   UpdateRemoteFrameEffects();
 
 #ifndef ANDROID /* bug 1142079 */
-  double totalMs = (TimeStamp::Now() - mTickStart).ToMilliseconds();
-  mozilla::Telemetry::Accumulate(mozilla::Telemetry::REFRESH_DRIVER_TICK,
-                                 static_cast<uint32_t>(totalMs));
+  mozilla::glean::layout::refresh_driver_tick.AccumulateRawDuration(
+      TimeStamp::Now() - mTickStart);
 #endif
 
   for (nsAPostRefreshObserver* observer :

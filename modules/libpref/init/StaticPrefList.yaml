@@ -2449,6 +2449,12 @@
   value: true
   mirror: always
 
+# Should CommitStyles use the end-point inclusive timing?
+- name: dom.animations.commit-styles-endpoint-inclusive
+  type: bool
+  value: false
+  mirror: always
+
 # Is support for Navigator.getBattery enabled?
 - name: dom.battery.enabled
   type: bool
@@ -5290,7 +5296,7 @@
 # Mimic Chrome's window.getSelection().toString() behaviour
 - name: dom.selection.mimic_chrome_tostring.enabled
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # When this pref is enabled:
@@ -13331,6 +13337,13 @@
   value: false
   mirror: always
 
+# The timeout used when calling DhcpRequestParams. The call may sometimes hang
+# after resuming from suspend.
+- name: network.proxy.dhcp_wpad_timeout_sec
+  type: AtomicFloat
+  value: 5.0
+  mirror: always
+
 # Allow CookieJarSettings to be unblocked for channels without a document.
 # This is for testing only.
 - name: network.cookieJarSettings.unblocked_for_testing
@@ -15705,6 +15718,18 @@
   type: RelaxedAtomicBool
   value: true
   mirror: always
+
+# Enable/Disable fingerprinting protections that are enabled in
+# Enhanced Tracking Protection Standard mode.
+# bFPP cannot be enabled in only PBM, it is either enabled
+# browser-wide or disabled browser-wide. If FPP is enabled
+# in the same context as bFPP, FPP takes precedence. If
+# RFP is enabled in the same context as FPP, then RFP takes precedence
+- name: privacy.baselineFingerprintingProtection
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+  do_not_use_directly: true
 
 # This pref can be used to disable mozAddonManager entirely for fingerprinting
 # reasons. Someone like Tor browser will use this pref.

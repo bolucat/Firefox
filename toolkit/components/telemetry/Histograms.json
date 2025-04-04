@@ -1749,14 +1749,6 @@
     "n_buckets": 20,
     "description": "System font fallback, first call (ms)"
   },
-  "SYSTEM_FONT_FALLBACK_SCRIPT": {
-    "record_in_processes": ["main", "content"],
-    "products": ["firefox", "fennec"],
-    "expires_in_version": "never",
-    "kind": "enumerated",
-    "n_values": 110,
-    "description": "System font fallback script"
-  },
   "FONT_CACHE_HIT": {
     "record_in_processes": ["main", "content"],
     "products": ["firefox", "fennec"],
@@ -5370,17 +5362,6 @@
     "bug_numbers": [1053467],
     "description": "The width dimension of the 'sizes' attribute for <link rel=icon>."
   },
-  "PAGE_METADATA_SIZE": {
-    "record_in_processes": ["main", "content"],
-    "products": ["firefox", "fennec"],
-    "expires_in_version": "never",
-    "kind": "linear",
-    "high": 500,
-    "n_buckets": 10,
-    "alert_emails": ["najiang@mozilla.com", "activity-stream@mozilla.com"],
-    "bug_numbers": [1399880],
-    "description": "The size of the description and preview image url for page metadata (Bytes)"
-  },
   "PLACES_SORTED_BOOKMARKS_PERC": {
     "record_in_processes": ["main", "content"],
     "products": ["firefox", "fennec", "thunderbird"],
@@ -8439,22 +8420,6 @@
     "n_buckets": 100,
     "description": "Time taken (in ms) to update the inspector during a page reload, starting from new-root event."
   },
-  "MEDIA_GMP_UPDATE_XML_FETCH_RESULT": {
-    "record_in_processes": ["main"],
-    "products": ["firefox"],
-    "alert_emails": ["media-alerts@mozilla.com"],
-    "expires_in_version": "never",
-    "releaseChannelCollection": "opt-out",
-    "kind": "categorical",
-    "labels": [
-      "cert_pinning_ok",
-      "cert_pinning_fail",
-      "content_sig_ok",
-      "content_sig_fail"
-    ],
-    "description": "Reports if a Firefox succeeded or failed in fetching the GMP update.xml from balrog, and which method was used to verify the download.",
-    "bug_numbers": [1714621]
-  },
   "MEDIA_MP4_PARSE_SAMPLE_DESCRIPTION_ENTRIES_HAVE_MULTIPLE_CODECS": {
     "record_in_processes": ["main", "content"],
     "products": ["firefox", "fennec"],
@@ -10419,24 +10384,6 @@
     "n_values": 4,
     "description": "Does enforcing a larger minimum RSA key size cause verification failures? 1 = no, 2 = yes, 3 = another error prevented finding a verified chain"
   },
-  "WEAVE_START_COUNT": {
-    "record_in_processes": ["main", "content"],
-    "products": ["firefox", "fennec"],
-    "expires_in_version": "default",
-    "kind": "exponential",
-    "high": 1000,
-    "n_buckets": 10,
-    "description": "The number of times a sync started in this session"
-  },
-  "WEAVE_COMPLETE_SUCCESS_COUNT": {
-    "record_in_processes": ["main", "content"],
-    "products": ["firefox", "fennec"],
-    "expires_in_version": "default",
-    "kind": "exponential",
-    "high": 1000,
-    "n_buckets": 10,
-    "description": "The number of times a sync successfully completed in this session"
-  },
   "WEBCRYPTO_EXTRACTABLE_IMPORT": {
     "record_in_processes": ["main", "content"],
     "products": ["firefox", "fennec"],
@@ -11928,28 +11875,6 @@
     "high": 5000,
     "n_buckets": 50,
     "description": "The time, in percentage of a vsync interval, spent from beginning a paint in the content process until that frame is presented in the compositor by WebRender, excluding time spent uploading any content"
-  },
-  "CONTENT_FRAME_TIME_REASON": {
-    "record_in_processes": ["main", "gpu"],
-    "products": ["firefox"],
-    "alert_emails": [
-      "gfx-telemetry-alerts@mozilla.com",
-      "mwoodrow@mozilla.com"
-    ],
-    "bug_numbers": [1510853, 1584109],
-    "expires_in_version": "never",
-    "kind": "categorical",
-    "description": "The reason that CONTENT_FRAME_TIME recorded a slow (>200) result, if any.",
-    "labels": [
-      "OnTime",
-      "NoVsync",
-      "MissedComposite",
-      "SlowComposite",
-      "MissedCompositeMid",
-      "MissedCompositeLong",
-      "MissedCompositeLow",
-      "NoVsyncNoId"
-    ]
   },
   "CONTENT_SMALL_PAINT_PHASE_WEIGHT_PARTIAL": {
     "record_in_processes": ["main", "content"],

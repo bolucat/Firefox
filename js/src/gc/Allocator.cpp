@@ -367,41 +367,57 @@ void* ArenaLists::refillFreeListAndAllocate(
     StallAndRetry stallAndRetry) {
   MOZ_ASSERT(freeLists().isEmpty(thingKind));
 
-  JSRuntime* rt = runtimeFromAnyThread();
+  GCRuntime* gc = &runtimeFromAnyThread()->gc;
 
-  mozilla::Maybe<AutoLockGCBgAlloc> maybeLock;
-
-  // See if we can proceed without taking the GC lock.
-  if (concurrentUse(thingKind) != ConcurrentUse::None) {
-    maybeLock.emplace(rt);
-  }
-
+retry_loop:
   Arena* arena = arenaList(thingKind).takeInitialNonFullArena();
   if (arena) {
     // Empty arenas should be immediately freed.
     MOZ_ASSERT(!arena->isEmpty());
-
     return freeLists().setArenaAndAllocate(arena, thingKind);
   }
 
-  // Parallel threads have their own ArenaLists, but chunks are shared;
-  // if we haven't already, take the GC lock now to avoid racing.
-  if (maybeLock.isNothing()) {
-    maybeLock.emplace(rt);
+  // If we have just finished background sweep then merge the swept arenas in
+  // and retry.
+  if (MOZ_UNLIKELY(concurrentUse(thingKind) ==
+                   ConcurrentUse::BackgroundFinalizeFinished)) {
+    ArenaList sweptArenas;
+    {
+      AutoLockGC lock(gc);
+      sweptArenas = std::move(collectingArenaList(thingKind));
+    }
+    mergeSweptArenas(thingKind, sweptArenas);
+    concurrentUse(thingKind) = ConcurrentUse::None;
+    goto retry_loop;
   }
 
-  ArenaChunk* chunk = rt->gc.pickChunk(stallAndRetry, maybeLock.ref());
+  // Use the current chunk if set.
+  ArenaChunk* chunk = gc->currentChunk_;
+  MOZ_ASSERT_IF(chunk, gc->isCurrentChunk(chunk));
+
   if (!chunk) {
-    return nullptr;
+    // The chunk lists can be accessed by background sweeping and background
+    // chunk allocation. Take the GC lock to synchronize access.
+    AutoLockGCBgAlloc lock(gc);
+
+    chunk = gc->pickChunk(stallAndRetry, lock);
+    if (!chunk) {
+      return nullptr;
+    }
+
+    gc->setCurrentChunk(chunk, lock);
   }
+
+  MOZ_ASSERT(gc->isCurrentChunk(chunk));
 
   // Although our chunk should definitely have enough space for another arena,
   // there are other valid reasons why ArenaChunk::allocateArena() may fail.
-  arena = rt->gc.allocateArena(chunk, zone_, thingKind, checkThresholds,
-                               maybeLock.ref());
+  arena = gc->allocateArena(chunk, zone_, thingKind, checkThresholds);
   if (!arena) {
     return nullptr;
   }
+
+  arena->init(gc, zone_, thingKind);
 
   ArenaList& al = arenaList(thingKind);
   MOZ_ASSERT(!al.hasNonFullArenas());
@@ -455,10 +471,10 @@ bool GCRuntime::wantBackgroundAllocation(const AutoLockGC& lock) const {
          (fullChunks(lock).count() + availableChunks(lock).count()) >= 4;
 }
 
+// Allocate a new arena but don't initialize it.
 Arena* GCRuntime::allocateArena(ArenaChunk* chunk, Zone* zone,
                                 AllocKind thingKind,
-                                ShouldCheckThresholds checkThresholds,
-                                const AutoLockGC& lock) {
+                                ShouldCheckThresholds checkThresholds) {
   MOZ_ASSERT(chunk->hasAvailableArenas());
 
   // Fail the allocation if we are over our heap size limits.
@@ -467,12 +483,12 @@ Arena* GCRuntime::allocateArena(ArenaChunk* chunk, Zone* zone,
     return nullptr;
   }
 
-  Arena* arena = chunk->allocateArena(this, zone, thingKind, lock);
+  Arena* arena = chunk->allocateArena(this, zone, thingKind);
 
   if (IsBufferAllocKind(thingKind)) {
     // Try to keep GC scheduling the same to minimize benchmark noise.
     // Keep this in sync with Arena::release.
-    size_t usableSize = ArenaSize - arena->getFirstThingOffset();
+    size_t usableSize = ArenaSize - Arena::firstThingOffset(thingKind);
     zone->mallocHeapSize.addBytes(usableSize);
   } else {
     zone->gcHeapSize.addGCArena(heapSize);
@@ -486,8 +502,11 @@ Arena* GCRuntime::allocateArena(ArenaChunk* chunk, Zone* zone,
   return arena;
 }
 
-Arena* ArenaChunk::allocateArena(GCRuntime* gc, Zone* zone, AllocKind thingKind,
-                                 const AutoLockGC& lock) {
+Arena* ArenaChunk::allocateArena(GCRuntime* gc, Zone* zone,
+                                 AllocKind thingKind) {
+  MOZ_ASSERT(info.isCurrentChunk);
+  MOZ_ASSERT(hasAvailableArenas());
+
   if (info.numArenasFreeCommitted == 0) {
     commitOnePage(gc);
     MOZ_ASSERT(info.numArenasFreeCommitted == ArenasPerPage);
@@ -496,8 +515,7 @@ Arena* ArenaChunk::allocateArena(GCRuntime* gc, Zone* zone, AllocKind thingKind,
   MOZ_ASSERT(info.numArenasFreeCommitted > 0);
   Arena* arena = fetchNextFreeArena(gc);
 
-  arena->init(gc, zone, thingKind, lock);
-  updateFreeCountsAfterAlloc(gc, 1, lock);
+  updateCurrentChunkAfterAlloc(gc);
 
   verify();
 
@@ -585,6 +603,7 @@ ArenaChunk* GCRuntime::getOrAllocChunk(StallAndRetry stallAndRetry,
 void GCRuntime::recycleChunk(ArenaChunk* chunk, const AutoLockGC& lock) {
 #ifdef DEBUG
   MOZ_ASSERT(chunk->isEmpty());
+  MOZ_ASSERT(!chunk->info.isCurrentChunk);
   chunk->verify();
 #endif
 
@@ -598,10 +617,12 @@ void GCRuntime::recycleChunk(ArenaChunk* chunk, const AutoLockGC& lock) {
 ArenaChunk* GCRuntime::pickChunk(StallAndRetry stallAndRetry,
                                  AutoLockGCBgAlloc& lock) {
   if (availableChunks(lock).count()) {
-    return availableChunks(lock).head();
+    ArenaChunk* chunk = availableChunks(lock).head();
+    availableChunks(lock).remove(chunk);
+    return chunk;
   }
 
-  ArenaChunk* chunk = getOrAllocChunk(stallAndRetry, lock);
+  ArenaChunk* chunk = takeOrAllocChunk(stallAndRetry, lock);
   if (!chunk) {
     return nullptr;
   }
@@ -609,7 +630,6 @@ ArenaChunk* GCRuntime::pickChunk(StallAndRetry stallAndRetry,
 #ifdef DEBUG
   chunk->verify();
   MOZ_ASSERT(chunk->isEmpty());
-  MOZ_ASSERT(emptyChunks(lock).contains(chunk));
 #endif
 
   return chunk;

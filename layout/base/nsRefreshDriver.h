@@ -110,13 +110,7 @@ class nsRefreshDriver final : public mozilla::layers::TransactionIdAllocator,
   void DispatchVisualViewportResizeEvents();
 
   void PostScrollEvent(mozilla::Runnable* aScrollEvent, bool aDelayed = false);
-  void PostScrollEndEvent(mozilla::Runnable* aScrollEndEvent,
-                          bool aDelayed = false);
   void DispatchScrollEvents();
-  void DispatchScrollEndEvents();
-
-  void PostVisualViewportScrollEvent(VVPScrollEvent* aScrollEvent);
-  void DispatchVisualViewportScrollEvents();
 
   MOZ_CAN_RUN_SCRIPT void DispatchResizeEvents();
   MOZ_CAN_RUN_SCRIPT void FlushLayoutOnPendingDocsAndFixUpFocus();
@@ -441,7 +435,6 @@ class nsRefreshDriver final : public mozilla::layers::TransactionIdAllocator,
     eNeedsToUpdateContentRelevancy = 1 << 3,
     eHasVisualViewportResizeEvents = 1 << 4,
     eHasScrollEvents = 1 << 5,
-    eHasVisualViewportScrollEvents = 1 << 6,
     eHasPendingMediaQueryListeners = 1 << 7,
     eNeedsToNotifyResizeObservers = 1 << 8,
     eRootNeedsMoreTicksForUserInput = 1 << 9,
@@ -460,9 +453,8 @@ class nsRefreshDriver final : public mozilla::layers::TransactionIdAllocator,
   void CancelFlushAutoFocus(Document* aDocument);
 
  private:
-  typedef nsTArray<RefPtr<VVPResizeEvent>> VisualViewportResizeEventArray;
-  typedef nsTArray<RefPtr<mozilla::Runnable>> ScrollEventArray;
-  typedef nsTArray<RefPtr<VVPScrollEvent>> VisualViewportScrollEventArray;
+  using VisualViewportResizeEventArray = nsTArray<RefPtr<VVPResizeEvent>>;
+  using ScrollEventArray = nsTArray<RefPtr<mozilla::Runnable>>;
   using RequestTable = nsTHashSet<RefPtr<imgIRequest>>;
   struct ImageStartData {
     ImageStartData() = default;
@@ -470,7 +462,7 @@ class nsRefreshDriver final : public mozilla::layers::TransactionIdAllocator,
     mozilla::Maybe<mozilla::TimeStamp> mStartTime;
     RequestTable mEntries;
   };
-  typedef nsClassHashtable<nsUint32HashKey, ImageStartData> ImageStartTable;
+  using ImageStartTable = nsClassHashtable<nsUint32HashKey, ImageStartData>;
 
   struct ObserverData {
     nsARefreshObserver* mObserver;
@@ -694,13 +686,10 @@ class nsRefreshDriver final : public mozilla::layers::TransactionIdAllocator,
   ImageStartTable mStartTable;
   AutoTArray<nsCOMPtr<nsIRunnable>, 16> mEarlyRunners;
   VisualViewportResizeEventArray mVisualViewportResizeEvents;
-  ScrollEventArray mScrollEvents;
-  ScrollEventArray mScrollEndEvents;
-  VisualViewportScrollEventArray mVisualViewportScrollEvents;
 
+  ScrollEventArray mScrollEvents;
   // Scroll events on documents that might have events suppressed.
   ScrollEventArray mDelayedScrollEvents;
-  ScrollEventArray mDelayedScrollEndEvents;
 
   AutoTArray<mozilla::PresShell*, 16> mResizeEventFlushObservers;
   AutoTArray<mozilla::PresShell*, 16> mDelayedResizeEventFlushObservers;

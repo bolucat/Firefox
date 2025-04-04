@@ -558,9 +558,9 @@ void nsImageFrame::DeinitOwnedRequest() {
 void nsImageFrame::DidSetComputedStyle(ComputedStyle* aOldStyle) {
   nsAtomicContainerFrame::DidSetComputedStyle(aOldStyle);
 
-  // A ::marker's default size is calculated from the font's em-size.
-  if (IsForMarkerPseudo()) {
-    mIntrinsicSize = IntrinsicSize(0, 0);
+  // A list-style-image ::marker default size is calculated from the font's
+  // em-size, which might have changed here.
+  if (mKind == Kind::ListStyleImage) {
     UpdateIntrinsicSize();
   }
 
@@ -1474,15 +1474,7 @@ nsRect nsImageFrame::GetDestRect(const nsRect& aFrameContentBox,
                                               aAnchorPoint);
 }
 
-bool nsImageFrame::IsForMarkerPseudo() const {
-  if (mKind == Kind::ImageLoadingContent) {
-    return false;
-  }
-  auto* subtreeRoot = GetContent()->GetClosestNativeAnonymousSubtreeRoot();
-  return subtreeRoot && subtreeRoot->IsGeneratedContentContainerForMarker();
-}
-
-void nsImageFrame::EnsureIntrinsicSizeAndRatio() {
+void nsImageFrame::EnsureIntrinsicSizeAndRatio(bool aConsiderIntrinsicsDirty) {
   const auto containAxes = GetContainSizeAxes();
   if (containAxes.IsBoth()) {
     // If we have 'contain:size', then we have no intrinsic aspect ratio,
@@ -1493,10 +1485,17 @@ void nsImageFrame::EnsureIntrinsicSizeAndRatio() {
     return;
   }
 
-  // If mIntrinsicSize.width and height are 0, then we need to update from the
-  // image container.  Note that we handle ::marker intrinsic size/ratio in
-  // DidSetComputedStyle.
-  if (mIntrinsicSize != IntrinsicSize(0, 0) && !IsForMarkerPseudo()) {
+  // If mIntrinsicSize is set (i.e. anything besides (0,0)), then we assume that
+  // our intrinsic size/ratio have been already computed and don't need
+  // recomputing, *unless* the aConsiderIntrinsicsDirty param is set to true
+  // (in which case our intrinsic size/ratio might be invalid).
+  //
+  // The fallback list-style-image marker size might have been set in
+  // DidSetComputedStyle, and it might have changed since then.
+  // TODO(emilio): We should remove that special case and add missing
+  // invalidation if/where needed.
+  if (!aConsiderIntrinsicsDirty && mIntrinsicSize != IntrinsicSize(0, 0) &&
+      mKind != Kind::ListStyleImage) {
     return;
   }
 
@@ -2892,6 +2891,21 @@ void nsImageFrame::OnVisibilityChange(
   }
 
   nsAtomicContainerFrame::OnVisibilityChange(aNewVisibility, aNonvisibleAction);
+}
+
+void nsImageFrame::MarkIntrinsicISizesDirty() {
+  // Recompute our intrinsic size and ratio. It's important that we pass 'true'
+  // here -- that makes us recompute the intrinsic size *and* ratio, regardless
+  // of their current value. Without that, EnsureIntrinsicSizeAndRatio assumes
+  // the intrinsic ratio can't have changed in some cases; but if we're a
+  // "content-visibility:auto" image that's being scrolled back into view, our
+  // ratio may have changed from not-existing to existing, per spec text[1]
+  // about suppressing the natural aspect ratio when size-contained.
+  // [1] https://drafts.csswg.org/css-contain-2/#containment-size
+  EnsureIntrinsicSizeAndRatio(true);
+
+  // Call superclass method:
+  nsAtomicContainerFrame::MarkIntrinsicISizesDirty();
 }
 
 #ifdef DEBUG_FRAME_DUMP

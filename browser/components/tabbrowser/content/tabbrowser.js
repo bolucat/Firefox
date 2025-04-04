@@ -110,6 +110,8 @@
         PictureInPicture: "resource://gre/modules/PictureInPicture.sys.mjs",
         SmartTabGroupingManager:
           "moz-src:///browser/components/tabbrowser/SmartTabGrouping.sys.mjs",
+        TabGroupMetrics:
+          "moz-src:///browser/components/tabbrowser/TabGroupMetrics.sys.mjs",
         TabStateFlusher:
           "resource:///modules/sessionstore/TabStateFlusher.sys.mjs",
         UrlbarProviderOpenTabs:
@@ -2218,20 +2220,6 @@
       browserSidebarContainer.className = "browserSidebarContainer";
       browserSidebarContainer.appendChild(browserContainer);
 
-      if (!isPreloadBrowser) {
-        let visibility = Services.prefs.getStringPref(
-          "sidebar.visibility",
-          "always-show"
-        );
-        let expandOnHover = Services.prefs.getBoolPref(
-          "sidebar.expandOnHover",
-          false
-        );
-        if (visibility === "expand-on-hover" && expandOnHover) {
-          SidebarController.toggleExpandOnHover(true);
-        }
-      }
-
       // Prevent the superfluous initial load of a blank document
       // if we're going to load something other than about:blank.
       if (!uriIsAboutBlank || skipLoad) {
@@ -2969,7 +2957,9 @@
      *   switches windows).
      *   Causes the group create UI to be displayed and telemetry events to be fired.
      * @param {string} [options.telemetryUserCreateSource]
-     *   The means by which the tab group was created. Defaults to "unknown".
+     *   The means by which the tab group was created.
+     *   @see TabGroupMetrics.METRIC_SOURCE for possible values.
+     *   Defaults to "unknown".
      */
     addTabGroup(
       tabs,
@@ -3038,8 +3028,23 @@
      *   The tab group to remove.
      * @param {object} [options]
      *   Options to use when removing tabs. @see removeTabs for more info.
+     * @param {boolean} [options.isUserTriggered=false]
+     *   Should be true if this group is being removed by an explicit
+     *   request from the user (as opposed to a group being removed
+     *   for technical reasons, such as when an already existing group
+     *   switches windows). This causes telemetry events to fire.
+     * @param {string} [options.telemetrySource="unknown"]
+     *   The means by which the tab group was removed.
+     *   @see TabGroupMetrics.METRIC_SOURCE for possible values.
+     *   Defaults to "unknown".
      */
-    async removeTabGroup(group, options = {}) {
+    async removeTabGroup(
+      group,
+      options = {
+        isUserTriggered: false,
+        telemetrySource: this.TabGroupMetrics.METRIC_SOURCE.UNKNOWN,
+      }
+    ) {
       if (this.tabGroupMenu.panel.state != "closed") {
         this.tabGroupMenu.panel.hidePopup(options.animate);
       }
@@ -3073,6 +3078,8 @@
           bubbles: true,
           detail: {
             skipSessionStore: options.skipSessionStore,
+            isUserTriggered: options.isUserTriggered,
+            telemetrySource: options.telemetrySource,
           },
         })
       );

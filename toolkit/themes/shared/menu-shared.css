@@ -154,11 +154,12 @@ menubar {
   font: menu;
 }
 
-menubar  > menu {
+menubar > menu {
   @media (-moz-platform: linux) {
     color: inherit;
     background-color: transparent;
     border-radius: 0;
+    padding: 4px 6px;
     padding-bottom: 1px;
     border-bottom: 3px solid transparent;
 
@@ -183,7 +184,7 @@ menubar  > menu {
     }
   }
   @media (-moz-platform: windows) {
-    padding: 0;
+    padding: 1px 6px 2px;
 
     &:-moz-window-inactive {
       color: ThreeDShadow;
@@ -204,6 +205,10 @@ menubar  > menu {
       }
     }
   }
+}
+
+.menubar-text {
+  margin: 0;
 }
 
 menu,
@@ -264,14 +269,33 @@ menucaption {
   @media (-moz-platform: macos) {
     margin-inline: 22px -3px;
   }
+}
 
+.menu-text,
+.menu-iconic-text,
+.menu-accel,
+.menu-iconic-accel {
+  margin: 0;
   @media (-moz-platform: windows) {
-    margin-inline-end: 1em;
+    padding: 1px 0;
+  }
+  @media (-moz-platform: linux) {
+    margin-inline: 0 2px;
   }
 }
 
-@media (-moz-platform: macos) {
-  :is(.menu-accel, .menu-iconic-accel)[value] {
-    margin-inline-start: 25px;
+.menu-accel,
+.menu-iconic-accel {
+  margin-inline: 0.74em 0.35em;
+  @media (-moz-platform: macos) {
+    margin-inline: 0 25px;
   }
+  @media (-moz-platform: linux) {
+    margin-inline: 0 7px;
+  }
+}
+
+.menu-iconic-icon {
+  width: 16px;
+  height: 16px;
 }

@@ -64,6 +64,7 @@
 #include "mozilla/Maybe.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/NotNull.h"
+#include "mozilla/Now.h"
 #include "mozilla/OriginAttributes.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/RefPtr.h"
@@ -1839,7 +1840,31 @@ void QuotaManager::ShutdownInstance() {
 
     recordTimeDeltaHelper->Start();
 
+    // Glean SDK recommends using its own timing APIs where possible. In this
+    // case, we use NowExcludingSuspendMs() directly to manually calculate a
+    // duration that excludes suspend time. This is a valid exception because
+    // our use case is sensitive to suspend, and we need full control over the
+    // timing logic.
+    //
+    // We are currently recording both this and the older helper-based
+    // measurement. The results are not directly comparable, since the new API
+    // uses monotonic time. If this approach proves more reliable, we'll retire
+    // the old telemetry, change the expiration of the new metric to never,
+    // and add a matching "including suspend" version.
+
+    const auto startExcludingSuspendMs = NowExcludingSuspendMs();
+
     gInstance->Shutdown();
+
+    const auto endExcludingSuspendMs = NowExcludingSuspendMs();
+
+    if (startExcludingSuspendMs && endExcludingSuspendMs) {
+      const auto duration = TimeDuration::FromMilliseconds(
+          *endExcludingSuspendMs - *startExcludingSuspendMs);
+
+      glean::quotamanager_shutdown::total_time_excluding_suspend
+          .AccumulateRawDuration(duration);
+    }
 
     recordTimeDeltaHelper->End();
 
@@ -6426,6 +6451,42 @@ RefPtr<BoolPromise> QuotaManager::InitializeTemporaryStorage(
       });
 }
 
+nsresult QuotaManager::InitializeTemporaryStorageInternal() {
+  AssertIsOnIOThread();
+  MOZ_DIAGNOSTIC_ASSERT(mStorageConnection);
+  MOZ_DIAGNOSTIC_ASSERT(!mTemporaryStorageInitializedInternal);
+
+  nsCOMPtr<nsIFile> storageDir;
+  QM_TRY(MOZ_TO_RESULT(
+      NS_NewLocalFile(GetStoragePath(), getter_AddRefs(storageDir))));
+
+  // The storage directory must exist before calling GetTemporaryStorageLimit.
+  QM_TRY_INSPECT(const bool& created, EnsureDirectory(*storageDir));
+
+  Unused << created;
+
+  QM_TRY_UNWRAP(mTemporaryStorageLimit, GetTemporaryStorageLimit(*storageDir));
+
+  QM_TRY(MOZ_TO_RESULT(LoadQuota()));
+
+  mTemporaryStorageInitializedInternal = true;
+
+  // If origin initialization is done lazily, then there's either no quota
+  // information at this point (if the cache couldn't be used) or only
+  // partial quota information (origins accessed in a previous session
+  // require full initialization). Given that, the cleanup can't be done
+  // at this point yet.
+  if (!QuotaPrefs::LazyOriginInitializationEnabled()) {
+    CleanupTemporaryStorage();
+  }
+
+  if (mCacheUsable) {
+    QM_TRY(InvalidateCache(*mStorageConnection));
+  }
+
+  return NS_OK;
+}
+
 nsresult QuotaManager::EnsureTemporaryStorageIsInitializedInternal() {
   AssertIsOnIOThread();
   MOZ_DIAGNOSTIC_ASSERT(mStorageConnection);
@@ -6437,33 +6498,24 @@ nsresult QuotaManager::EnsureTemporaryStorageIsInitializedInternal() {
       return NS_OK;
     }
 
-    nsCOMPtr<nsIFile> storageDir;
-    QM_TRY(MOZ_TO_RESULT(
-        NS_NewLocalFile(GetStoragePath(), getter_AddRefs(storageDir))));
+    // Glean SDK recommends using its own timing APIs where possible. In this
+    // case, we use NowExcludingSuspendMs() directly to manually calculate a
+    // duration that excludes suspend time. This is a valid exception because
+    // our use case is sensitive to suspend, and we need full control over the
+    // timing logic.
 
-    // The storage directory must exist before calling GetTemporaryStorageLimit.
-    QM_TRY_INSPECT(const bool& created, EnsureDirectory(*storageDir));
+    const auto startExcludingSuspendMs = NowExcludingSuspendMs();
 
-    Unused << created;
+    QM_TRY(MOZ_TO_RESULT(InitializeTemporaryStorageInternal()));
 
-    QM_TRY_UNWRAP(mTemporaryStorageLimit,
-                  GetTemporaryStorageLimit(*storageDir));
+    const auto endExcludingSuspendMs = NowExcludingSuspendMs();
 
-    QM_TRY(MOZ_TO_RESULT(LoadQuota()));
+    if (startExcludingSuspendMs && endExcludingSuspendMs) {
+      const auto duration = TimeDuration::FromMilliseconds(
+          *endExcludingSuspendMs - *startExcludingSuspendMs);
 
-    mTemporaryStorageInitializedInternal = true;
-
-    // If origin initialization is done lazily, then there's either no quota
-    // information at this point (if the cache couldn't be used) or only
-    // partial quota information (origins accessed in a previous session
-    // require full initialization). Given that, the cleanup can't be done
-    // at this point yet.
-    if (!QuotaPrefs::LazyOriginInitializationEnabled()) {
-      CleanupTemporaryStorage();
-    }
-
-    if (mCacheUsable) {
-      QM_TRY(InvalidateCache(*mStorageConnection));
+      glean::quotamanager_initialize_temporarystorage::
+          total_time_excluding_suspend.AccumulateRawDuration(duration);
     }
 
     return NS_OK;

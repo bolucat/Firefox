@@ -211,6 +211,7 @@ class nsWindow final : public nsBaseWidget {
   LayoutDeviceIntPoint GetClientOffset() override {
     return LayoutDeviceIntPoint(mClientMargin.left, mClientMargin.top);
   }
+  GdkPoint GetCsdOffsetInGdkCoords();
   LayoutDeviceIntPoint GetScreenEdgeSlop() override;
   nsresult GetRestoredBounds(LayoutDeviceIntRect&) override;
   bool PersistClientBounds() const override { return true; }
@@ -464,7 +465,6 @@ class nsWindow final : public nsBaseWidget {
   static void TransferFocusToWaylandWindow(nsWindow* aWindow);
   void FocusWaylandWindow(const char* aTokenID);
 
-  bool GetCSDDecorationOffset(int* aDx, int* aDy);
   bool SetEGLNativeWindowSize(const LayoutDeviceIntSize& aEGLWindowSize);
   void WaylandDragWorkaround(GdkEventButton* aEvent);
 
@@ -614,9 +614,7 @@ class nsWindow final : public nsBaseWidget {
   // Margin from outer bounds to inner bounds _including CSD decorations_.
   LayoutDeviceIntMargin mClientMargin;
   // The part of mClientMargin that comes from our CSD decorations.
-  static constexpr auto kCsdMarginUnknown =
-      LayoutDeviceIntMargin{-1, -1, -1, -1};
-  LayoutDeviceIntMargin mCsdMargin = kCsdMarginUnknown;
+  LayoutDeviceIntMargin mCsdMargin;
 
   // This field omits duplicate scroll events caused by GNOME bug 726878.
   guint32 mLastScrollEventTime = GDK_CURRENT_TIME;
