@@ -1176,6 +1176,11 @@ nsresult nsLookAndFeel::NativeGetInt(IntID aID, int32_t& aResult) {
       // No GTK API for checking if inverted colors is enabled
       aResult = 0;
       break;
+    case IntID::TooltipRadius: {
+      EnsureInit();
+      aResult = EffectiveTheme().mTooltipRadius;
+      break;
+    }
     case IntID::TitlebarRadius: {
       EnsureInit();
       aResult = EffectiveTheme().mTitlebarRadius;
@@ -1800,8 +1805,6 @@ void nsLookAndFeel::InitializeGlobalSettings() {
 }
 
 void nsLookAndFeel::ConfigureFinalEffectiveTheme() {
-  MOZ_ASSERT(mSystemThemeOverridden,
-             "By this point, the alt theme should be configured");
   const bool shouldUseSystemTheme = [&] {
     using ChromeSetting = PreferenceSheet::ChromeColorSchemeSetting;
     // NOTE: We can't call ColorSchemeForChrome directly because this might run
@@ -1824,6 +1827,10 @@ void nsLookAndFeel::ConfigureFinalEffectiveTheme() {
   const bool usingSystem = !mSystemThemeOverridden;
   LOGLNF("OverrideSystemThemeIfNeeded(matchesSystem=%d, usingSystem=%d)\n",
          shouldUseSystemTheme, usingSystem);
+
+  if (shouldUseSystemTheme == usingSystem) {
+    return;
+  }
 
   if (shouldUseSystemTheme) {
     RestoreSystemTheme();
@@ -2100,6 +2107,7 @@ void nsLookAndFeel::PerThemeData::Init() {
   mInfo.mFg = GetTextColor(style);
   style = GetStyleContext(MOZ_GTK_TOOLTIP);
   mInfo.mBg = GetBackgroundColor(style, mInfo.mFg);
+  mTooltipRadius = GetBorderRadius(style);
 
   style = GetStyleContext(MOZ_GTK_MENUITEM);
   {

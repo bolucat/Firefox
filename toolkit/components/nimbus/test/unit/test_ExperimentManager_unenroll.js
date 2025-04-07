@@ -32,13 +32,15 @@ add_task(async function test_set_inactive() {
   await manager.onStartup();
   await manager.store.addEnrollment(ExperimentFakes.experiment("foo"));
 
-  manager.unenroll("foo", "some-reason");
+  manager.unenroll("foo");
 
   Assert.equal(
     manager.store.get("foo").active,
     false,
     "should set .active to false"
   );
+
+  assertEmptyStore(manager.store);
 });
 
 add_task(async function test_unenroll_opt_out() {
@@ -106,6 +108,8 @@ add_task(async function test_unenroll_opt_out() {
     unenrollmentEvents[0].extra.reason,
     "Glean.nimbusEvents.unenrollment recorded with correct reason"
   );
+
+  assertEmptyStore(manager.store);
 
   // reset pref
   Services.prefs.clearUserPref(STUDIES_OPT_OUT_PREF);
@@ -178,6 +182,8 @@ add_task(async function test_unenroll_rollout_opt_out() {
     "Glean.nimbusEvents.unenrollment recorded with correct reason"
   );
 
+  assertEmptyStore(manager.store);
+
   // reset pref
   Services.prefs.clearUserPref(STUDIES_OPT_OUT_PREF);
   sandbox.restore();
@@ -203,6 +209,9 @@ add_task(async function test_unenroll_uploadPref() {
     false,
     "Should set .active to false"
   );
+
+  assertEmptyStore(manager.store);
+
   Services.prefs.clearUserPref(UPLOAD_ENABLED_PREF);
 });
 
@@ -231,7 +240,7 @@ add_task(async function test_setExperimentInactive_called() {
     "experiment should be active before unenroll"
   );
 
-  manager.unenroll("foo", "some-reason");
+  manager.unenroll("foo");
 
   Assert.ok(
     TelemetryEnvironment.setExperimentInactive.calledWith("foo"),
@@ -244,6 +253,8 @@ add_task(async function test_setExperimentInactive_called() {
     Services.fog.testGetExperimentData(experiment.slug),
     "experiment should be inactive after unenroll"
   );
+
+  assertEmptyStore(manager.store);
 
   sandbox.restore();
 });
@@ -270,7 +281,7 @@ add_task(async function test_send_unenroll_event() {
     "no Glean unenrollment events before unenrollment"
   );
 
-  manager.unenroll("foo", "some-reason");
+  manager.unenroll("foo", { reason: "some-reason" });
 
   Assert.ok(TelemetryEvents.sendEvent.calledOnce);
   Assert.deepEqual(
@@ -307,6 +318,8 @@ add_task(async function test_send_unenroll_event() {
     unenrollmentEvents[0].extra.reason,
     "Glean.nimbusEvents.unenrollment recorded with correct reason"
   );
+
+  assertEmptyStore(manager.store);
 
   sandbox.restore();
 });
@@ -349,6 +362,8 @@ add_task(async function test_undefined_reason() {
     "Glean.nimbusEvents.unenrollment recorded with correct (unknown) reason"
   );
 
+  assertEmptyStore(manager.store);
+
   sandbox.restore();
 });
 
@@ -369,7 +384,7 @@ add_task(async function test_remove_rollouts() {
 
   await manager.onStartup();
 
-  manager.unenroll("foo", "some-reason");
+  manager.unenroll("foo", { reason: "some-reason" });
 
   Assert.ok(
     manager.store.updateExperiment.calledOnce,
@@ -381,5 +396,49 @@ add_task(async function test_remove_rollouts() {
       unenrollReason: "some-reason",
     }),
     "Called with expected parameters"
+  );
+
+  assertEmptyStore(manager.store);
+});
+
+add_task(async function test_unenroll_individualOptOut_statusTelemetry() {
+  Services.fog.testResetFOG();
+
+  const manager = ExperimentFakes.manager();
+
+  await manager.onStartup();
+
+  await manager.enroll(
+    ExperimentFakes.recipe("foo", {
+      bucketConfig: {
+        ...ExperimentFakes.recipe.bucketConfig,
+        count: 1000,
+      },
+      branches: [ExperimentFakes.recipe.branches[0]],
+    })
+  );
+
+  Services.fog.applyServerKnobsConfig(
+    JSON.stringify({
+      metrics_enabled: {
+        "nimbus_events.enrollment_status": true,
+      },
+    })
+  );
+
+  manager.unenroll("foo", { reason: "individual-opt-out" });
+
+  Assert.deepEqual(
+    Glean.nimbusEvents.enrollmentStatus
+      .testGetValue("events")
+      ?.map(ev => ev.extra),
+    [
+      {
+        slug: "foo",
+        branch: "control",
+        status: "Disqualified",
+        reason: "OptOut",
+      },
+    ]
   );
 });

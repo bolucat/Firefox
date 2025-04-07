@@ -23,6 +23,9 @@ const { TelemetryEnvironment } = ChromeUtils.importESModule(
 const { TelemetryTestUtils } = ChromeUtils.importESModule(
   "resource://testing-common/TelemetryTestUtils.sys.mjs"
 );
+const { UnenrollmentCause } = ChromeUtils.importESModule(
+  "resource://nimbus/lib/ExperimentManager.sys.mjs"
+);
 
 function assertEnrollments(store, expectedActive, expectedInactive) {
   for (const slug of expectedActive) {
@@ -1299,7 +1302,12 @@ add_task(async function test_rollout_reenroll_optout() {
     "Should enroll in rollout"
   );
 
-  manager.unenroll(rollout.slug, "individual-opt-out");
+  manager.unenroll(
+    rollout.slug,
+    UnenrollmentCause.fromReason(
+      NimbusTelemetry.UnenrollReason.INDIVIDUAL_OPT_OUT
+    )
+  );
 
   await loader.updateRecipes();
 
@@ -1438,8 +1446,8 @@ add_task(async function test_active_and_past_experiment_targeting() {
     ["experiment-a", "experiment-b", "rollout-a", "rollout-b"]
   );
 
-  manager.unenroll("experiment-c", "test");
-  manager.unenroll("rollout-c", "test");
+  manager.unenroll("experiment-c");
+  manager.unenroll("rollout-c");
 
   assertEmptyStore(manager.store);
   cleanupFeatures();
@@ -2316,11 +2324,141 @@ add_task(async function test_updateRecipes_enrollmentStatus_telemetry() {
     },
   ]);
 
-  manager.unenroll("stays-enrolled", "test");
-  manager.unenroll("enrolls", "test");
+  manager.unenroll("stays-enrolled");
+  manager.unenroll("enrolls");
   assertEmptyStore(manager.store);
 
   Services.fog.testResetFOG();
+  cleanupFeatures();
+});
+
+add_task(async function test_updateRecipes_enrollmentStatus_notEnrolled() {
+  const loader = ExperimentFakes.rsLoader();
+  const manager = loader.manager;
+
+  await manager.onStartup();
+  await loader.enable();
+
+  const features = [
+    new ExperimentFeature("test-feature-0", { variables: {} }),
+    new ExperimentFeature("test-feature-1", { variables: {} }),
+    new ExperimentFeature("test-feature-2", { variables: {} }),
+    new ExperimentFeature("test-feature-3", { variables: {} }),
+    new ExperimentFeature("test-feature-4", { variables: {} }),
+    new ExperimentFeature("test-feature-5", { variables: {} }),
+    new ExperimentFeature("test-feature-6", { variables: {} }),
+    new ExperimentFeature("test-feature-7", { variables: {} }),
+    new ExperimentFeature("test-feature-8", { variables: {} }),
+  ];
+
+  const cleanupFeatures = ExperimentTestUtils.addTestFeatures(...features);
+
+  function recipe(slug, featureId) {
+    return ExperimentFakes.recipe(slug, {
+      bucketConfig: {
+        ...ExperimentFakes.recipe.bucketConfig,
+        count: 1000,
+      },
+      branches: [
+        {
+          ratio: 1,
+          slug: "control",
+          features: [
+            {
+              featureId,
+              value: {},
+            },
+          ],
+        },
+      ],
+    });
+  }
+
+  const recipes = [
+    {
+      ...recipe("enrollment-paused", "test-feature-0"),
+      isEnrollmentPaused: true,
+    },
+    {
+      ...recipe("no-match", "test-feature-1"),
+      targeting: "false",
+    },
+    {
+      ...recipe("targeting-only", "test-feature-2"),
+      bucketConfig: {
+        ...ExperimentFakes.recipe.bucketConfig,
+        count: 0,
+      },
+    },
+    {
+      ...recipe("already-enrolled-rollout", "test-feature-3"),
+      isRollout: true,
+    },
+    recipe("already-enrolled-experiment", "test-feature-3"),
+  ];
+
+  await manager.enroll(
+    { ...recipe("enrolled-rollout", "test-feature-3"), isRollout: true },
+    "force-enrollment"
+  );
+  await manager.enroll(
+    recipe("enrolled-experiment", "test-feature-3"),
+    "force-enrollment"
+  );
+
+  sinon.stub(loader.remoteSettingsClients.experiments, "get").resolves(recipes);
+
+  Services.fog.applyServerKnobsConfig(
+    JSON.stringify({
+      metrics_enabled: {
+        "nimbus_events.enrollment_status": true,
+      },
+    })
+  );
+
+  await loader.updateRecipes("timer");
+
+  Assert.deepEqual(
+    Glean.nimbusEvents.enrollmentStatus
+      .testGetValue("events")
+      ?.map(ev => ev.extra),
+    [
+      {
+        slug: "enrollment-paused",
+        status: "NotEnrolled",
+        reason: "EnrollmentsPaused",
+      },
+      {
+        slug: "no-match",
+        status: "NotEnrolled",
+        reason: "NotTargeted",
+      },
+      {
+        slug: "targeting-only",
+        status: "NotEnrolled",
+        reason: "NotSelected",
+      },
+      {
+        slug: "already-enrolled-rollout",
+        status: "NotEnrolled",
+        reason: "FeatureConflict",
+        conflict_slug: "enrolled-rollout",
+      },
+      {
+        slug: "already-enrolled-experiment",
+        status: "NotEnrolled",
+        reason: "FeatureConflict",
+        conflict_slug: "enrolled-experiment",
+      },
+    ]
+  );
+
+  manager.unenroll("enrolled-experiment");
+  manager.unenroll("enrolled-rollout");
+
+  assertEmptyStore(manager.store);
+  Services.fog.testResetFOG();
+
   cleanupFeatures();
 });
 
@@ -2344,19 +2482,19 @@ add_task(async function test_updateRecipesWithPausedEnrollment() {
     .resolves([recipe]);
 
   sinon.spy(manager, "onRecipe");
-  sinon.spy(manager, "enroll");
+  sinon.spy(manager, "_enroll");
 
   await loader.updateRecipes("test");
 
   Assert.ok(
     manager.onRecipe.calledOnceWith(recipe, "rs-loader", {
       ok: true,
-      status: MatchStatus.TARGETING_ONLY,
+      status: MatchStatus.ENROLLMENT_PAUSED,
     }),
-    "Should call onRecipe with targeting match"
+    "Should call onRecipe with enrollments paused"
   );
   Assert.ok(
-    manager.enroll.notCalled,
+    manager._enroll.notCalled,
     "Should not call enroll for paused recipe"
   );
 
@@ -2561,8 +2699,8 @@ add_task(async function testUnenrollsFirst() {
   await loader.updateRecipes("timer");
   assertEnrollments(manager.store, ["e3", "r3"], ["e1", "e2", "r1", "r2"]);
 
-  manager.unenroll("e3", "test");
-  manager.unenroll("r3", "test");
+  manager.unenroll("e3");
+  manager.unenroll("r3");
 
   assertEmptyStore(manager.store);
 });

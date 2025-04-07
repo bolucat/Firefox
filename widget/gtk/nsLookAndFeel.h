@@ -58,6 +58,12 @@ class nsLookAndFeel final : public nsXPLookAndFeel {
   char16_t GetPasswordCharacterImpl() override;
   bool GetEchoPasswordImpl() override;
 
+  void RefreshImpl() override {
+    // When calling Refresh(), we don't need to reload all our GTK theme info,
+    // but we might need to change our effective theme.
+    RecordChange(NativeChangeKind::OtherSettings);
+  }
+
   bool GetDefaultDrawInTitlebar() override;
 
   nsXPLookAndFeel::TitlebarAction GetTitlebarAction(
@@ -167,6 +173,7 @@ class nsLookAndFeel final : public nsXPLookAndFeel {
 
     float mCaretRatio = 0.0f;
     int32_t mTitlebarRadius = 0;
+    int32_t mTooltipRadius = 0;
     int32_t mTitlebarButtonSpacing = 0;
     char16_t mInvisibleCharacter = 0;
     bool mMenuSupportsDrag = false;
