@@ -13,13 +13,13 @@ on:
 name: firefox
 jobs:
   sync:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     env:
       TZ: Europe/Busingen
     steps:
       
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         
       - name: Initialize Environment
         run: |
@@ -57,13 +57,13 @@ jobs:
           free -m
         
   push:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     env:
       TZ: Europe/Busingen
     steps:
       
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         
       - name: Set variables
         run: |
@@ -124,10 +124,8 @@ jobs:
             ./release/*
             
       - name: Delete Older Release
-        uses: dev-drprasad/delete-older-releases@v0.2.0
+        uses: ophub/delete-releases-workflows@main
         with:
-          repo: bolucat/Firefox
-          keep_latest: 1
-          delete_tags: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          delete_releases: true
+          releases_keep_latest: 1
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
