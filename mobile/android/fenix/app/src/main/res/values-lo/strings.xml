@@ -1469,6 +1469,8 @@
   <string name="download_empty_message_1" moz:removedIn="138" tools:ignore="UnusedResources">ບໍ່ມີໄຟລທີ່ໄດ້ດາວໂຫລດມາ</string>
   <!-- Text shown when no download exists -->
   <string name="download_empty_message_2">ບໍ່ມີການດາວໂຫຼດເທື່ອ</string>
+  <!-- Text description shown when no download exists -->
+  <string name="download_empty_description">ໄຟລ໌ທີ່ທ່ານດາວໂຫຼດຈະປາກົດຢູ່ບ່ອນນີ້.</string>
   <!--
     History multi select title in app bar
     %1$d is the number of downloads selected
@@ -1476,6 +1478,20 @@
   <string name="download_multi_select_title">ເລືອກ %1$d ແລ້ວ</string>
   <!-- Text for the button to remove a single download item -->
   <string name="download_delete_item_1" moz:removedIn="138" tools:ignore="UnusedResources">ລຶບ</string>
+  <!-- Text for the button to delete a single downloaded file item -->
+  <string name="download_delete_item">ລຶບ</string>
+  <!-- Text for the button to share the download URL -->
+  <string name="download_share_url">ແບ່ງປັນ URL</string>
+  <!-- Text for the button to share the download file -->
+  <string name="download_share_file">ແບ່ງປັນໄຟລ໌</string>
+  <!-- Alert dialog confirmation before deleting multiple download items, this is the title. -->
+  <string name="download_delete_multi_select_dialog_confirmation" tools:ignore="UnusedResources">ທ່ານແນ່ໃຈບໍ່ວ່າຕ້ອງການລຶບລາຍການທີ່ເລືອກ?</string>
+  <!-- Alert dialog confirmation before deleting multiple download items, this is the positive action. -->
+  <string name="download_delete_multi_select_dialog_confirm" tools:ignore="UnusedResources">ລົບ</string>
+  <!-- Alert dialog confirmation before deleting multiple download items, this is the negative action. -->
+  <string name="download_delete_multi_select_dialog_cancel" tools:ignore="UnusedResources">ຍົກເລີກ</string>
+  <!-- Text for the header of in progress downloads -->
+  <string name="download_header_in_progress" tools:ignore="UnusedResources">ກຳລັງດຳເນີນການຢູ່</string>
   <!--
     Time period headers for downloads
 
@@ -1491,11 +1507,38 @@
   <!-- Text for the header that groups the downloads older than other groups -->
   <string name="download_time_period_older">ເກົ່າກວ່າ</string>
   <!--
+    Description of an in progress download item, displayed in the downloads list.
+    %1$s is the current file size that has been downloaded.
+    %2$s is the total size of the downloaded file.
+    %3$s is the amount of time remaining to complete the download.
+  -->
+  <string name="download_item_in_progress_description" tools:ignore="UnusedResources">%1$s / %2$s • ຍັງເຫຼືອ %3$s</string>
+  <!-- Text to indicate that an in progress download is paused. -->
+  <string name="download_item_status_paused" tools:ignore="UnusedResources">ຢຸດຊົ່ວຄາວ</string>
+  <!-- Text to indicate that the download speed of an in progress download is being calculated. -->
+  <string name="download_item_download_speed_pending" tools:ignore="UnusedResources">ລໍຖ້າຢູ່</string>
+  <!-- Text to indicate that a download has failed to download. -->
+  <string name="download_item_status_failed" tools:ignore="UnusedResources">ການດາວໂຫຼດລົ້ມເຫລວ</string>
+  <!--
     Downloads Content Type Filters
 
     Text for the filter button to show all files in the downloads list
   -->
   <string name="download_content_type_filter_all">ທັງໝົດ</string>
+  <!-- Text for the filter button to show only images in the downloads list -->
+  <string name="download_content_type_filter_image">ຮູບພາບ</string>
+  <!-- Text for the filter button to show only video files in the downloads list -->
+  <string name="download_content_type_filter_video">ວີດີໂອ</string>
+  <!-- Text for the filter button to show only documents in the downloads list -->
+  <string name="download_content_type_filter_document">ເອກະສານ</string>
+  <!-- Text for the filter button to show all other file types in the downloads list -->
+  <string name="download_content_type_filter_other" moz:removedIn="138" tools:ignore="UnusedResources">ອື່ນໆ</string>
+  <!--
+    Description of a downloaded item, displayed in the downloads list.
+    %1$s: The size of the downloaded file.
+    %2$s: The URL of the downloaded file.
+  -->
+  <string name="download_item_description" moz:removedIn="138" tools:ignore="UnusedResources">%1$s • %2$s</string>
   <!--
     WebCompat Reporter
 

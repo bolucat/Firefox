@@ -172,11 +172,19 @@ class ContentAnalysisRequest final : public nsIContentAnalysisRequest {
   // requests with multiple userActionIds that are logically grouped together.
   uint32_t mTimeoutMultiplier = 1;
 
+  // Submit request to agent, even if it was already canceled.  Always false
+  // if not in tests.
+  bool mTestOnlyAlwaysSubmitToAgent = false;
+
   friend class ::ContentAnalysisTest;
 };
 
-#define CONTENTANALYSIS_IID \
-  {0xa37bed74, 0x4b50, 0x443a, {0xbf, 0x58, 0xf4, 0xeb, 0xbd, 0x30, 0x67, 0xb4}}
+#define CONTENTANALYSIS_IID                          \
+  {                                                  \
+    0xa37bed74, 0x4b50, 0x443a, {                    \
+      0xbf, 0x58, 0xf4, 0xeb, 0xbd, 0x30, 0x67, 0xb4 \
+    }                                                \
+  }
 
 class ContentAnalysisResponse;
 class ContentAnalysis final : public nsIContentAnalysis,
@@ -303,7 +311,9 @@ class ContentAnalysis final : public nsIContentAnalysis,
       nsCString&& aUserActionId,
       content_analysis::sdk::ContentAnalysisRequest&& aRequest,
       bool aAutoAcknowledge,
-      const std::shared_ptr<content_analysis::sdk::Client>& aClient);
+      const std::shared_ptr<content_analysis::sdk::Client>& aClient,
+      bool aTestOnlyIgnoreCanceled = false);
+
   static void HandleResponseFromAgent(
       content_analysis::sdk::ContentAnalysisResponse&& aResponse);
 
@@ -313,6 +323,7 @@ class ContentAnalysis final : public nsIContentAnalysis,
   };
   DataMutex<nsTHashMap<nsCString, UserActionIdAndAutoAcknowledge>>
       mRequestTokenToUserActionIdMap;
+
   void IssueResponse(ContentAnalysisResponse* response,
                      nsCString&& aUserActionId, bool aAcknowledge,
                      bool aIsTooLate);
@@ -443,7 +454,9 @@ class ContentAnalysis final : public nsIContentAnalysis,
   };
   using UserActionIdToCanceledResponseMap =
       nsTHashMap<nsCString, CanceledResponse>;
-  UserActionIdToCanceledResponseMap mUserActionIdToCanceledResponseMap;
+  DataMutex<UserActionIdToCanceledResponseMap>
+      mUserActionIdToCanceledResponseMap{
+          "ContentAnalysis::UserActionIdToCanceledResponseMap"};
 
   class CachedClipboardResponse {
    public:

@@ -1,8 +1,5 @@
 "use strict";
 
-const { AppConstants } = ChromeUtils.importESModule(
-  "resource://gre/modules/AppConstants.sys.mjs"
-);
 const { HttpServer } = ChromeUtils.importESModule(
   "resource://testing-common/httpd.sys.mjs"
 );
@@ -14,6 +11,9 @@ const { setTimeout } = ChromeUtils.importESModule(
 );
 const { TestUtils } = ChromeUtils.importESModule(
   "resource://testing-common/TestUtils.sys.mjs"
+);
+const { sinon } = ChromeUtils.importESModule(
+  "resource://testing-common/Sinon.sys.mjs"
 );
 
 ChromeUtils.defineESModuleGetters(this, {
@@ -29,7 +29,7 @@ const histogram = Services.telemetry.getHistogramById(
   "SEARCH_SERVICE_COUNTRY_FETCH_RESULT"
 );
 
-// Region.sys.mjs will call init() on startup and sent a background
+// Region.sys.mjs will call init() on being loaded and set a background
 // task to fetch the region, ensure we have completed this before
 // running the rest of the tests.
 add_task(async function test_startup() {
@@ -39,6 +39,8 @@ add_task(async function test_startup() {
 });
 
 add_task(async function test_basic() {
+  Services.fog.testResetFOG();
+
   let srv = useHttpServer(RegionTestUtils.REGION_URL_PREF);
   srv.registerPathHandler("/", (req, res) => {
     res.setStatusLine("1.1", 200, "OK");
@@ -56,6 +58,8 @@ add_task(async function test_basic() {
     Region.home,
     "Notification should be sent with the correct region"
   );
+
+  assertStoredResultTelemetry({ restOfWorld: 1 });
 
   await cleanup(srv);
 });
@@ -103,33 +107,6 @@ add_task(async function test_timeout() {
   await cleanup(srv);
 });
 
-add_task(async function test_mismatched_probe() {
-  let probeDetails = await getExpectedHistogramDetails();
-  let probeHistogram;
-  if (probeDetails) {
-    probeHistogram = Services.telemetry.getHistogramById(probeDetails.probeId);
-    probeHistogram.clear();
-  }
-  histogram.clear();
-  Region._home = null;
-
-  RegionTestUtils.setNetworkRegion("AU");
-  await Region._fetchRegion();
-  Assert.equal(Region.home, "AU", "Should have correct region");
-  await checkTelemetry(Region.TELEMETRY.SUCCESS);
-
-  // We dont store probes for linux and on treeherder +
-  // Mac there is no plaform countryCode so in these cases
-  // skip the rest of the checks.
-  if (!probeDetails) {
-    return;
-  }
-  let snapshot = probeHistogram.snapshot();
-  deepEqual(snapshot.values, probeDetails.expectedResult);
-
-  await cleanup();
-});
-
 add_task(async function test_location() {
   let location = { location: { lat: -1, lng: 1 }, accuracy: 100 };
   let srv = useHttpServer("geo.provider.network.url");
@@ -165,6 +142,32 @@ add_task(async function test_update() {
   Assert.equal(Region.home, "DE", "Should have updated now");
 
   await cleanup();
+});
+
+add_task(async function test_update_us() {
+  Services.fog.testResetFOG();
+
+  // Setting the region to US whilst within a US timezone should work.
+  let stub = sinon.stub(Region, "_isUSTimezone").returns(true);
+  Region._home = null;
+  RegionTestUtils.setNetworkRegion("US");
+  await Region._fetchRegion();
+
+  assertStoredResultTelemetry({ unitedStates: 1 });
+  Assert.equal(Region.home, "US", "Should have correct region");
+
+  Services.fog.testResetFOG();
+
+  // Setting the region to US whilst not within a US timezone should not work.
+  stub.returns(false);
+  Region._home = null;
+  RegionTestUtils.setNetworkRegion("US");
+  await Region._fetchRegion();
+
+  assertStoredResultTelemetry({ ignoredUnitedStates: 1 });
+  Assert.equal(Region.home, null, "Should have not set the region");
+
+  sinon.restore();
 });
 
 add_task(async function test_max_retry() {
@@ -280,54 +283,24 @@ async function checkTelemetry(aExpectedValue) {
   Assert.equal(snapshot.values[aExpectedValue], 1);
 }
 
-// Define some checks for our platform-specific telemetry.
-// We can't influence what they return (as we can't
-// influence the countryCode the platform thinks we
-// are in), but we can check the values are
-// correct given reality.
-async function getExpectedHistogramDetails() {
-  let probeUSMismatched, probeNonUSMismatched;
-  switch (AppConstants.platform) {
-    case "macosx":
-      probeUSMismatched = "SEARCH_SERVICE_US_COUNTRY_MISMATCHED_PLATFORM_OSX";
-      probeNonUSMismatched =
-        "SEARCH_SERVICE_NONUS_COUNTRY_MISMATCHED_PLATFORM_OSX";
-      break;
-    case "win":
-      probeUSMismatched = "SEARCH_SERVICE_US_COUNTRY_MISMATCHED_PLATFORM_WIN";
-      probeNonUSMismatched =
-        "SEARCH_SERVICE_NONUS_COUNTRY_MISMATCHED_PLATFORM_WIN";
-      break;
-    default:
-      break;
-  }
-
-  if (probeUSMismatched && probeNonUSMismatched) {
-    let countryCode = await Services.sysinfo.countryCode;
-    print("Platform says the country-code is", countryCode);
-    if (!countryCode) {
-      // On treeherder for Mac the countryCode is null, so the probes won't be
-      // recorded.
-      // We still let the test run for Mac, as a developer would likely
-      // eventually pick up on the issue.
-      info("No country code set on this machine, skipping rest of test");
-      return false;
-    }
-
-    if (countryCode == "US") {
-      // boolean probe so 3 buckets, expect 1 result for |1|.
-      return {
-        probeId: probeUSMismatched,
-        expectedResult: { 0: 0, 1: 1, 2: 0 },
-      };
-    }
-    // We are expecting probeNonUSMismatched with false if the platform
-    // says AU (not a mismatch) and true otherwise.
-    return {
-      probeId: probeNonUSMismatched,
-      expectedResult:
-        countryCode == "AU" ? { 0: 1, 1: 0 } : { 0: 0, 1: 1, 2: 0 },
-    };
-  }
-  return false;
+function assertStoredResultTelemetry({
+  restOfWorld = null,
+  unitedStates = null,
+  ignoredUnitedStates = null,
+}) {
+  Assert.equal(
+    Glean.region.storeRegionResult.ignoredUnitedStatesIncorrectTimezone.testGetValue(),
+    ignoredUnitedStates,
+    "Should have the expected count for ignoring setting the region when US but not in the correct timezone"
+  );
+  Assert.equal(
+    Glean.region.storeRegionResult.setForUnitedStates.testGetValue(),
+    unitedStates,
+    "Should have the expected count for setting the region for the US"
+  );
+  Assert.equal(
+    Glean.region.storeRegionResult.setForRestOfWorld.testGetValue(),
+    restOfWorld,
+    "Should have the expected count for setting the region for the rest of the world"
+  );
 }

@@ -27,6 +27,7 @@
 #include "mozilla/layers/APZInputBridge.h"
 #include "mozilla/layers/AsyncDragMetrics.h"
 #include "mozilla/layers/CompositorOptions.h"
+#include "mozilla/layers/CompositorScrollUpdate.h"
 #include "mozilla/layers/CompositorTypes.h"
 #include "mozilla/layers/FocusTarget.h"
 #include "mozilla/layers/GeckoContentControllerTypes.h"
@@ -1176,6 +1177,30 @@ struct ParamTraits<mozilla::layers::DoubleTapToZoomMetrics> {
     return (ReadParam(aReader, &aResult->mVisualViewport) &&
             ReadParam(aReader, &aResult->mRootScrollableRect) &&
             ReadParam(aReader, &aResult->mTransformMatrix));
+  }
+};
+
+template <>
+struct ParamTraits<mozilla::layers::CompositorScrollUpdate::Source>
+    : public ContiguousEnumSerializerInclusive<
+          mozilla::layers::CompositorScrollUpdate::Source,
+          mozilla::layers::CompositorScrollUpdate::Source::UserInteraction,
+          mozilla::layers::CompositorScrollUpdate::Source::Other> {};
+
+template <>
+struct ParamTraits<mozilla::layers::CompositorScrollUpdate> {
+  typedef mozilla::layers::CompositorScrollUpdate paramType;
+
+  static void Write(MessageWriter* aWriter, const paramType& aParam) {
+    WriteParam(aWriter, aParam.mVisualScrollOffset);
+    WriteParam(aWriter, aParam.mZoom);
+    WriteParam(aWriter, aParam.mSource);
+  }
+
+  static bool Read(MessageReader* aReader, paramType* aResult) {
+    return (ReadParam(aReader, &aResult->mVisualScrollOffset) &&
+            ReadParam(aReader, &aResult->mZoom) &&
+            ReadParam(aReader, &aResult->mSource));
   }
 };
 

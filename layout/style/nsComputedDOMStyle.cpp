@@ -948,8 +948,10 @@ bool nsComputedDOMStyle::NeedsToFlushLayout(nsCSSPropertyID aPropID) const {
     case eCSSProperty_margin_left: {
       // NOTE(emilio): This is dubious, but matches other browsers.
       // See https://github.com/w3c/csswg-drafts/issues/2328
+      // NOTE(dshin): Raw margin value access since we want to flush
+      // anchor-dependent values here.
       Side side = SideForPaddingOrMarginOrInsetProperty(aPropID);
-      return !style->StyleMargin()->GetMargin(side).ConvertsToLength();
+      return !style->StyleMargin()->mMargin.Get(side).ConvertsToLength();
     }
     default:
       return false;
@@ -1770,7 +1772,7 @@ already_AddRefed<CSSValue> nsComputedDOMStyle::DoGetHeight() {
                               adjustedValues.TopBottom());
   }
   auto val = MakeRefPtr<nsROCSSPrimitiveValue>();
-  SetValueToSize(val, StylePosition()->GetHeight());
+  SetValueToSize(val, StylePosition()->GetHeight(StyleDisplay()->mPosition));
   return val.forget();
 }
 
@@ -1782,19 +1784,21 @@ already_AddRefed<CSSValue> nsComputedDOMStyle::DoGetWidth() {
                               adjustedValues.LeftRight());
   }
   auto val = MakeRefPtr<nsROCSSPrimitiveValue>();
-  SetValueToSize(val, StylePosition()->GetWidth());
+  SetValueToSize(val, StylePosition()->GetWidth(StyleDisplay()->mPosition));
   return val.forget();
 }
 
 already_AddRefed<CSSValue> nsComputedDOMStyle::DoGetMaxHeight() {
   auto val = MakeRefPtr<nsROCSSPrimitiveValue>();
-  SetValueToMaxSize(val, StylePosition()->GetMaxHeight());
+  SetValueToMaxSize(val,
+                    StylePosition()->GetMaxHeight(StyleDisplay()->mPosition));
   return val.forget();
 }
 
 already_AddRefed<CSSValue> nsComputedDOMStyle::DoGetMaxWidth() {
   auto val = MakeRefPtr<nsROCSSPrimitiveValue>();
-  SetValueToMaxSize(val, StylePosition()->GetMaxWidth());
+  SetValueToMaxSize(val,
+                    StylePosition()->GetMaxWidth(StyleDisplay()->mPosition));
   return val.forget();
 }
 
@@ -1836,11 +1840,11 @@ bool nsComputedDOMStyle::ShouldHonorMinSizeAutoInAxis(PhysicalAxis aAxis) {
 
 already_AddRefed<CSSValue> nsComputedDOMStyle::DoGetMinHeight() {
   auto val = MakeRefPtr<nsROCSSPrimitiveValue>();
-  StyleSize minHeight = StylePosition()->GetMinHeight();
+  auto minHeight = StylePosition()->GetMinHeight(StyleDisplay()->mPosition);
 
-  if (minHeight.IsAuto() &&
+  if (minHeight->IsAuto() &&
       !ShouldHonorMinSizeAutoInAxis(PhysicalAxis::Vertical)) {
-    minHeight = StyleSize::LengthPercentage(LengthPercentage::Zero());
+    minHeight = AnchorResolvedSizeHelper::Zero();
   }
 
   SetValueToSize(val, minHeight);
@@ -1850,11 +1854,11 @@ already_AddRefed<CSSValue> nsComputedDOMStyle::DoGetMinHeight() {
 already_AddRefed<CSSValue> nsComputedDOMStyle::DoGetMinWidth() {
   auto val = MakeRefPtr<nsROCSSPrimitiveValue>();
 
-  StyleSize minWidth = StylePosition()->GetMinWidth();
+  auto minWidth = StylePosition()->GetMinWidth(StyleDisplay()->mPosition);
 
-  if (minWidth.IsAuto() &&
+  if (minWidth->IsAuto() &&
       !ShouldHonorMinSizeAutoInAxis(PhysicalAxis::Horizontal)) {
-    minWidth = StyleSize::LengthPercentage(LengthPercentage::Zero());
+    minWidth = AnchorResolvedSizeHelper::Zero();
   }
 
   SetValueToSize(val, minWidth);
@@ -2062,7 +2066,9 @@ already_AddRefed<CSSValue> nsComputedDOMStyle::GetBorderWidthFor(
 }
 
 already_AddRefed<CSSValue> nsComputedDOMStyle::GetMarginFor(Side aSide) {
-  const auto& margin = StyleMargin()->GetMargin(aSide);
+  // Use raw margin here, layout-dependent margins should be stored in used
+  // margin.
+  const auto& margin = StyleMargin()->mMargin.Get(aSide);
   if (!mInnerFrame || margin.ConvertsToLength()) {
     auto val = MakeRefPtr<nsROCSSPrimitiveValue>();
     SetValueToMargin(val, margin);
@@ -2120,33 +2126,35 @@ void nsComputedDOMStyle::SetValueFromFitContentFunction(
 }
 
 void nsComputedDOMStyle::SetValueToSize(nsROCSSPrimitiveValue* aValue,
-                                        const StyleSize& aSize) {
-  if (aSize.IsAuto()) {
+                                        const AnchorResolvedSize& aSize) {
+  if (aSize->IsAuto()) {
     return aValue->SetString("auto");
   }
-  if (aSize.IsFitContentFunction()) {
-    return SetValueFromFitContentFunction(aValue, aSize.AsFitContentFunction());
+  if (aSize->IsFitContentFunction()) {
+    return SetValueFromFitContentFunction(aValue,
+                                          aSize->AsFitContentFunction());
   }
-  if (auto length = nsIFrame::ToExtremumLength(aSize)) {
+  if (auto length = nsIFrame::ToExtremumLength(*aSize)) {
     return SetValueToExtremumLength(aValue, *length);
   }
-  MOZ_ASSERT(aSize.IsLengthPercentage());
-  SetValueToLengthPercentage(aValue, aSize.AsLengthPercentage(), true);
+  MOZ_ASSERT(aSize->IsLengthPercentage());
+  SetValueToLengthPercentage(aValue, aSize->AsLengthPercentage(), true);
 }
 
 void nsComputedDOMStyle::SetValueToMaxSize(nsROCSSPrimitiveValue* aValue,
-                                           const StyleMaxSize& aSize) {
-  if (aSize.IsNone()) {
+                                           const AnchorResolvedMaxSize& aSize) {
+  if (aSize->IsNone()) {
     return aValue->SetString("none");
   }
-  if (aSize.IsFitContentFunction()) {
-    return SetValueFromFitContentFunction(aValue, aSize.AsFitContentFunction());
+  if (aSize->IsFitContentFunction()) {
+    return SetValueFromFitContentFunction(aValue,
+                                          aSize->AsFitContentFunction());
   }
-  if (auto length = nsIFrame::ToExtremumLength(aSize)) {
+  if (auto length = nsIFrame::ToExtremumLength(*aSize)) {
     return SetValueToExtremumLength(aValue, *length);
   }
-  MOZ_ASSERT(aSize.IsLengthPercentage());
-  SetValueToLengthPercentage(aValue, aSize.AsLengthPercentage(), true);
+  MOZ_ASSERT(aSize->IsLengthPercentage());
+  SetValueToLengthPercentage(aValue, aSize->AsLengthPercentage(), true);
 }
 
 void nsComputedDOMStyle::SetValueToLengthPercentageOrAuto(

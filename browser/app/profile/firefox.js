@@ -19,7 +19,9 @@
   #endif
 #endif
 
-pref("browser.hiddenWindowChromeURL", "chrome://browser/content/hiddenWindowMac.xhtml");
+#ifdef XP_MACOSX
+  pref("browser.hiddenWindowChromeURL", "chrome://browser/content/hiddenWindowMac.xhtml");
+#endif
 
 // Set add-ons abuse report related prefs specific to Firefox Desktop.
 pref("extensions.abuseReport.enabled", true);
@@ -382,8 +384,6 @@ pref("browser.taskbarTabs.enabled", false);
 pref("browser.theme.colorway-closet", true);
 
 #if defined(MOZ_WIDGET_GTK)
-  pref("browser.theme.native-theme", true);
-#elif defined(XP_MACOSX) && defined(NIGHTLY_BUILD)
   pref("browser.theme.native-theme", true);
 #else
   pref("browser.theme.native-theme", false);
@@ -1059,7 +1059,13 @@ pref("browser.tabs.groups.enabled", true);
 #else
 pref("browser.tabs.groups.enabled", false);
 #endif
+
+#ifdef NIGHTLY_BUILD
+pref("browser.tabs.groups.smart.enabled", true);
+#else
 pref("browser.tabs.groups.smart.enabled", false);
+#endif
+
 pref("browser.tabs.groups.smart.optin", false);
 
 pref("browser.tabs.dragDrop.createGroup.delayMS", 240);

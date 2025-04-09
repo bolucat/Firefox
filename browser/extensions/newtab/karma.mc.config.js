@@ -174,6 +174,12 @@ module.exports = function (config) {
                 functions: 0,
                 branches: 0,
               },
+            "content-src/components/DiscoveryStreamComponents/FeatureHighlight/FeatureHighlight.jsx":
+              {
+                statements: 88,
+                lines: 88,
+                functions: 80,
+              },
             "content-src/components/DiscoveryStreamComponents/ReportContent/ReportContent.jsx":
               {
                 statements: 0,
@@ -228,10 +234,10 @@ module.exports = function (config) {
               },
             "content-src/components/DiscoveryStreamComponents/AdBannerContextMenu/AdBannerContextMenu.jsx":
               {
-                statements: 87.5,
-                lines: 87.5,
-                functions: 66.67,
-                branches: 0,
+                statements: 80,
+                lines: 80,
+                functions: 75,
+                branches: 75,
               },
             "content-src/components/DiscoveryStreamComponents/**/*.jsx": {
               statements: 90.48,

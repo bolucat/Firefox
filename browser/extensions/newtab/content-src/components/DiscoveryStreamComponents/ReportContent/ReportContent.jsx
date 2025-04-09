@@ -100,6 +100,19 @@ export const ReportContent = spocs => {
         data: [{ ...report }],
       })
     );
+
+    dispatch(
+      ac.OnlyToOneContent(
+        {
+          type: at.SHOW_TOAST_MESSAGE,
+          data: {
+            toastId: "reportSuccessToast",
+            showNotifications: true,
+          },
+        },
+        "ActivityStream:Content"
+      )
+    );
   }, [dispatch, selectedReason, report, spocData]);
 
   // Opens and closes the modal based on user interaction
@@ -188,16 +201,16 @@ export const ReportContent = spocs => {
               data-l10n-id="newtab-report-content-why-reporting"
             >
               <moz-radio
-                value="Unsafe content"
+                value="unsafe_content"
                 data-l10n-id="newtab-report-ads-reason-unsafe"
               ></moz-radio>
               <moz-radio
                 data-l10n-id="newtab-report-ads-reason-inappropriate"
-                value="Inappropriate content"
+                value="inappropriate_content"
               ></moz-radio>
               <moz-radio
                 data-l10n-id="newtab-report-ads-reason-seen-it-too-many-times"
-                value="Seen too many times"
+                value="seen_too_many_times"
               ></moz-radio>
             </moz-radio-group>
           </>

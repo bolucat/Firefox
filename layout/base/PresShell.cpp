@@ -3856,23 +3856,42 @@ void PresShell::ScrollFrameIntoVisualViewport(Maybe<nsPoint>& aDestination,
 
     const nsSize visualViewportSize =
         rootScrollContainer->GetVisualViewportSize();
+
+    const nsSize layoutViewportSize = root->GetLayoutViewportSize();
+    const nsRect layoutViewport = nsRect(nsPoint(), layoutViewportSize);
+    // `positon:fixed` element are attached/fixed to the ViewportFrame, which is
+    // the parent of the root scroll container frame, thus what we need here is
+    // the visible area of the position:fixed element inside the root scroll
+    // container frame.
+    // For example, if the top left position of the fixed element is (-100,
+    // -100), it's outside of the scrollable range either in the layout viewport
+    // or the visual viewport. Likewise, if the right bottom position of the
+    // fixed element is (110vw, 110vh), it's also outside of the scrollable
+    // range.
+    const nsRect clampedPositionFixedRect =
+        aPositionFixedRect.MoveInsideAndClamp(layoutViewport);
     // If the position:fixed element is already inside the visual viewport, we
     // don't need to scroll visually.
-    if (aPositionFixedRect.y >= 0 &&
-        aPositionFixedRect.YMost() <= visualViewportSize.height &&
-        aPositionFixedRect.x >= 0 &&
-        aPositionFixedRect.XMost() <= visualViewportSize.width) {
+    if (clampedPositionFixedRect.y >= 0 &&
+        clampedPositionFixedRect.YMost() <= visualViewportSize.height &&
+        clampedPositionFixedRect.x >= 0 &&
+        clampedPositionFixedRect.XMost() <= visualViewportSize.width) {
       return;
     }
 
     // If the position:fixed element is totally outside of the the layout
     // viewport, it will never be in the viewport.
-    const nsSize layoutViewportSize = root->GetLayoutViewportSize();
     if (!NeedToVisuallyScroll(layoutViewportSize, aPositionFixedRect)) {
       return;
     }
-
-    aDestination = Some(aPositionFixedRect.TopLeft());
+    // Offset the position:fixed element position by the layout scroll
+    // position because the position:fixed origin (0, 0) is the layout scroll
+    // position. Otherwise if we've already scrolled, this scrollIntoView
+    // operaiton will jump back to near (0, 0) position.
+    // Bug 1947470: We need to calculate the destination with `WhereToScroll`
+    // options.
+    const nsPoint layoutOffset = rootScrollContainer->GetScrollPosition();
+    aDestination = Some(aPositionFixedRect.TopLeft() + layoutOffset);
   }
 
   // NOTE: It seems chrome doesn't respect the root element's
@@ -12119,17 +12138,22 @@ PresShell::WindowSizeConstraints PresShell::GetWindowSizeConstraints() {
     return {minSize, maxSize};
   }
   const auto* pos = rootFrame->StylePosition();
-  if (pos->GetMinWidth().ConvertsToLength()) {
-    minSize.width = pos->GetMinWidth().ToLength();
+  const auto positionProperty = rootFrame->StyleDisplay()->mPosition;
+  if (const auto styleMinWidth = pos->GetMinWidth(positionProperty);
+      styleMinWidth->ConvertsToLength()) {
+    minSize.width = styleMinWidth->ToLength();
   }
-  if (pos->GetMinHeight().ConvertsToLength()) {
-    minSize.height = pos->GetMinHeight().ToLength();
+  if (const auto styleMinHeight = pos->GetMinHeight(positionProperty);
+      styleMinHeight->ConvertsToLength()) {
+    minSize.height = styleMinHeight->ToLength();
   }
-  if (pos->GetMaxWidth().ConvertsToLength()) {
-    maxSize.width = pos->GetMaxWidth().ToLength();
+  if (const auto maxWidth = pos->GetMaxWidth(positionProperty);
+      maxWidth->ConvertsToLength()) {
+    maxSize.width = maxWidth->ToLength();
   }
-  if (pos->GetMaxHeight().ConvertsToLength()) {
-    maxSize.height = pos->GetMaxHeight().ToLength();
+  if (const auto maxHeight = pos->GetMaxHeight(positionProperty);
+      maxHeight->ConvertsToLength()) {
+    maxSize.height = maxHeight->ToLength();
   }
   return {minSize, maxSize};
 }

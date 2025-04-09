@@ -173,6 +173,7 @@ for (const type of [
   "INIT",
   "INLINE_SELECTION_CLICK",
   "INLINE_SELECTION_IMPRESSION",
+  "MESSAGE_BLOCK",
   "MESSAGE_CLICK",
   "MESSAGE_DISMISS",
   "MESSAGE_IMPRESSION",
@@ -3039,9 +3040,16 @@ function FeatureHighlight({
         outsideClickCallback();
       }
     };
+    const handleKeyDown = e => {
+      if (e.key === "Escape") {
+        outsideClickCallback();
+      }
+    };
     windowObj.document.addEventListener("click", handleOutsideClick);
+    windowObj.document.addEventListener("keydown", handleKeyDown);
     return () => {
       windowObj.document.removeEventListener("click", handleOutsideClick);
+      windowObj.document.removeEventListener("keydown", handleKeyDown);
     };
   }, [windowObj, outsideClickCallback]);
   const onToggleClick = (0,external_React_namespaceObject.useCallback)(() => {
@@ -4533,17 +4541,35 @@ function AdBannerContextMenu({
 }) {
   const ADBANNER_CONTEXT_MENU_OPTIONS = ["BlockAdUrl", ...(showAdReporting ? ["ReportAd"] : []), "ManageSponsoredContent", "OurSponsorsAndYourPrivacy"];
   const [showContextMenu, setShowContextMenu] = (0,external_React_namespaceObject.useState)(false);
+  const [contextMenuClassNames, setContextMenuClassNames] = (0,external_React_namespaceObject.useState)("ads-context-menu");
+
+  /**
+   * Toggles the style fix for context menu hover/active styles.
+   * This allows us to have unobtrusive, transparent button background by default,
+   * yet flip it over to semi-transparent grey when the menu is visible.
+   *
+   * @param contextMenuOpen
+   */
+  const toggleContextMenuStyleSwitch = contextMenuOpen => {
+    if (contextMenuOpen) {
+      setContextMenuClassNames("ads-context-menu context-menu-open");
+    } else {
+      setContextMenuClassNames("ads-context-menu");
+    }
+  };
   const onClick = e => {
     e.preventDefault();
+    toggleContextMenuStyleSwitch(!showContextMenu);
     setShowContextMenu(!showContextMenu);
   };
   const onUpdate = () => {
+    toggleContextMenuStyleSwitch(!showContextMenu);
     setShowContextMenu(!showContextMenu);
   };
   return /*#__PURE__*/external_React_default().createElement("div", {
     className: "ads-context-menu-wrapper"
   }, /*#__PURE__*/external_React_default().createElement("div", {
-    className: "ads-context-menu"
+    className: contextMenuClassNames
   }, /*#__PURE__*/external_React_default().createElement("moz-button", {
     type: "icon",
     size: "default",
@@ -5890,6 +5916,13 @@ const ReportContent = spocs => {
         ...report
       }]
     }));
+    dispatch(actionCreators.OnlyToOneContent({
+      type: actionTypes.SHOW_TOAST_MESSAGE,
+      data: {
+        toastId: "reportSuccessToast",
+        showNotifications: true
+      }
+    }, "ActivityStream:Content"));
   }, [dispatch, selectedReason, report, spocData]);
 
   // Opens and closes the modal based on user interaction
@@ -5960,14 +5993,14 @@ const ReportContent = spocs => {
     id: "report-group",
     "data-l10n-id": "newtab-report-content-why-reporting"
   }, /*#__PURE__*/external_React_default().createElement("moz-radio", {
-    value: "Unsafe content",
+    value: "unsafe_content",
     "data-l10n-id": "newtab-report-ads-reason-unsafe"
   }), /*#__PURE__*/external_React_default().createElement("moz-radio", {
     "data-l10n-id": "newtab-report-ads-reason-inappropriate",
-    value: "Inappropriate content"
+    value: "inappropriate_content"
   }), /*#__PURE__*/external_React_default().createElement("moz-radio", {
     "data-l10n-id": "newtab-report-ads-reason-seen-it-too-many-times",
-    value: "Seen too many times"
+    value: "seen_too_many_times"
   }))), /*#__PURE__*/external_React_default().createElement("moz-button-group", null, /*#__PURE__*/external_React_default().createElement("moz-button", {
     "data-l10n-id": "newtab-topic-selection-cancel-button",
     onClick: handleCancel
@@ -13377,10 +13410,43 @@ function ThumbUpThumbDownToast({
   });
 }
 
+;// CONCATENATED MODULE: ./content-src/components/Notifications/Toasts/ReportContentToast.jsx
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function ReportContentToast({
+  onDismissClick,
+  onAnimationEnd
+}) {
+  const mozMessageBarRef = (0,external_React_namespaceObject.useRef)(null);
+  (0,external_React_namespaceObject.useEffect)(() => {
+    const {
+      current: mozMessageBarElement
+    } = mozMessageBarRef;
+    mozMessageBarElement.addEventListener("message-bar:user-dismissed", onDismissClick, {
+      once: true
+    });
+    return () => {
+      mozMessageBarElement.removeEventListener("message-bar:user-dismissed", onDismissClick);
+    };
+  }, [onDismissClick]);
+  return /*#__PURE__*/external_React_default().createElement("moz-message-bar", {
+    type: "success",
+    class: "notification-feed-item",
+    dismissable: true,
+    "data-l10n-id": "newtab-toast-thanks-for-feedback",
+    ref: mozMessageBarRef,
+    onAnimationEnd: onAnimationEnd
+  });
+}
+
 ;// CONCATENATED MODULE: ./content-src/components/Notifications/Notifications.jsx
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 
 
 
@@ -13416,11 +13482,23 @@ function Notifications_Notifications({
     if (!latestToastItem) {
       throw new Error("No toast found");
     }
-    return /*#__PURE__*/external_React_default().createElement(ThumbUpThumbDownToast, {
-      onDismissClick: syncHiddenToastData,
-      onAnimationEnd: syncHiddenToastData,
-      key: toastCounter
-    });
+    switch (latestToastItem) {
+      case "reportSuccessToast":
+        return /*#__PURE__*/external_React_default().createElement(ReportContentToast, {
+          onDismissClick: syncHiddenToastData,
+          onAnimationEnd: syncHiddenToastData,
+          key: toastCounter
+        });
+      case "thumbsUpToast":
+      case "thumbsDownToast":
+        return /*#__PURE__*/external_React_default().createElement(ThumbUpThumbDownToast, {
+          onDismissClick: syncHiddenToastData,
+          onAnimationEnd: syncHiddenToastData,
+          key: toastCounter
+        });
+      default:
+        throw new Error(`Unexpected toast type: ${latestToastItem}`);
+    }
   }, [syncHiddenToastData, toastCounter, toastQueue]);
   (0,external_React_namespaceObject.useEffect)(() => {
     getToast();
@@ -13684,9 +13762,13 @@ function WallpaperFeatureHighlight({
   position,
   dispatch,
   handleDismiss,
-  handleClose,
-  handleClick
+  handleClick,
+  handleBlock
 }) {
+  const onDismiss = (0,external_React_namespaceObject.useCallback)(() => {
+    handleDismiss();
+    handleBlock();
+  }, [handleDismiss, handleBlock]);
   const onToggleClick = (0,external_React_namespaceObject.useCallback)(elementId => {
     dispatch({
       type: actionTypes.SHOW_PERSONALIZE
@@ -13695,8 +13777,8 @@ function WallpaperFeatureHighlight({
       event: "SHOW_PERSONALIZE"
     }));
     handleClick(elementId);
-    handleDismiss();
-  }, [dispatch, handleDismiss, handleClick]);
+    onDismiss();
+  }, [dispatch, onDismiss, handleClick]);
   return /*#__PURE__*/external_React_default().createElement("div", {
     className: "wallpaper-feature-highlight"
   }, /*#__PURE__*/external_React_default().createElement(FeatureHighlight, {
@@ -13729,8 +13811,8 @@ function WallpaperFeatureHighlight({
     }),
     openedOverride: true,
     showButtonIcon: false,
-    dismissCallback: handleDismiss,
-    outsideClickCallback: handleClose
+    dismissCallback: onDismiss,
+    outsideClickCallback: handleDismiss
   }));
 }
 ;// CONCATENATED MODULE: ./content-src/components/MessageWrapper/MessageWrapper.jsx
@@ -13798,6 +13880,17 @@ function MessageWrapper({
     }
     handleClose();
   }
+  function handleBlock() {
+    const {
+      id
+    } = message.messageData;
+    if (id) {
+      dispatch(actionCreators.OnlyToMain({
+        type: actionTypes.MESSAGE_BLOCK,
+        data: id
+      }));
+    }
+  }
   function handleClick(elementId) {
     const {
       id
@@ -13822,8 +13915,9 @@ function MessageWrapper({
   }, /*#__PURE__*/external_React_default().cloneElement(children, {
     isIntersecting,
     handleDismiss,
-    handleClose,
-    handleClick
+    handleClick,
+    handleBlock,
+    handleClose
   }));
 }
 

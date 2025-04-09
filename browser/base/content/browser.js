@@ -341,6 +341,10 @@ if (AppConstants.ENABLE_WEBDRIVER) {
 ChromeUtils.defineLazyGetter(this, "RTL_UI", () => {
   return Services.locale.isAppLocaleRTL;
 });
+function gLocaleChangeObserver() {
+  delete window.RTL_UI;
+  window.RTL_UI = Services.locale.isAppLocaleRTL;
+}
 
 ChromeUtils.defineLazyGetter(this, "gBrandBundle", () => {
   return Services.strings.createBundle(
@@ -1248,11 +1252,15 @@ var gKeywordURIFixup = {
       },
     };
 
-    Services.uriFixup.checkHost(
-      fixedURI,
-      onLookupCompleteListener,
-      contentPrincipal.originAttributes
-    );
+    try {
+      Services.uriFixup.checkHost(
+        fixedURI,
+        onLookupCompleteListener,
+        contentPrincipal.originAttributes
+      );
+    } catch (ex) {
+      // Ignore errors.
+    }
   },
 
   observe(fixupInfo) {

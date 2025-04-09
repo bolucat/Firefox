@@ -23,7 +23,6 @@
 #include "mozilla/ProfilerMarkers.h"
 #include "mozilla/ProfilerRunnable.h"
 #include "mozilla/Sprintf.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/Unused.h"
 #include "mozilla/dom/DOMException.h"
 #include "mozilla/dom/DOMJSClass.h"
@@ -204,11 +203,6 @@ class PromiseJobRunnable final : public MicroTaskRunnable {
         callback ? xpc::NativeGlobal(callback) : nullptr;
     if (global && !global->IsDying()) {
       // Propagate the user input event handling bit if needed.
-      nsPIDOMWindowInner* win = global->GetAsInnerWindow();
-      RefPtr<Document> doc;
-      if (win) {
-        doc = win->GetExtantDoc();
-      }
       AutoHandlingUserInputStatePusher userInpStatePusher(
           mPropagateUserInputEventHandling);
 

@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <X11/Xlib.h>
 #include <dlfcn.h>
 #include <gdk/gdkkeysyms.h>
 #include <wchar.h>
@@ -3243,6 +3244,18 @@ LayoutDeviceIntMargin nsWindow::NormalSizeModeClientToWindowMargin() {
   return {};
 }
 
+#ifdef MOZ_X11
+LayoutDeviceIntCoord GetXWindowBorder(GdkWindow* aWin) {
+  Display* display = GDK_DISPLAY_XDISPLAY(gdk_window_get_display(aWin));
+  auto xid = gdk_x11_window_get_xid(aWin);
+  Window root;
+  int wx, wy;
+  unsigned ww, wh, wb = 0, wd;
+  XGetGeometry(display, xid, &root, &wx, &wy, &ww, &wh, &wb, &wd);
+  return wb;
+}
+#endif
+
 void nsWindow::RecomputeBounds(MayChangeCsdMargin aMayChangeCsdMargin) {
   const bool mayChangeCsdMargin =
       aMayChangeCsdMargin == MayChangeCsdMargin::Yes;
@@ -3258,14 +3271,30 @@ void nsWindow::RecomputeBounds(MayChangeCsdMargin aMayChangeCsdMargin) {
   auto GetFrameBounds = [&](GdkWindow* aWin) {
     GdkRectangle b{0};
     gdk_window_get_frame_extents(aWin, &b);
-    // Workaround for https://gitlab.gnome.org/GNOME/gtk/-/merge_requests/4820
-    // Bug 1775017 Gtk < 3.24.35 returns scaled values for
-    // override redirected window on X11.
-    if (!gtk_check_version(3, 24, 35) && GdkIsX11Display() &&
+#ifdef MOZ_X11
+    const bool isX11 = GdkIsX11Display();
+    if (isX11 && !gtk_check_version(3, 24, 35) &&
         gdk_window_get_window_type(aWin) == GDK_WINDOW_TEMP) {
+      // Workaround for https://gitlab.gnome.org/GNOME/gtk/-/merge_requests/4820
+      // Bug 1775017 Gtk < 3.24.35 returns scaled values for
+      // override redirected window on X11.
       return LayoutDeviceIntRect(b.x, b.y, b.width, b.height);
     }
-    return GdkRectToDevicePixels(b);
+#endif
+    auto result = GdkRectToDevicePixels(b);
+#ifdef MOZ_X11
+    if (isX11) {
+      if (auto border = GetXWindowBorder(aWin)) {
+        // Workaround for
+        // https://gitlab.gnome.org/GNOME/gtk/-/merge_requests/8423
+        // Bug 1958174 Gtk doesn't account for window border sizes on X11.
+        // TODO(emilio): Add GTK version check once that is merged.
+        result.width += 2 * border;
+        result.height += 2 * border;
+      }
+    }
+#endif
+    return result;
   };
 
   auto GetBounds = [&](GdkWindow* aWin) {
@@ -3989,8 +4018,7 @@ gboolean nsWindow::OnExposeEvent(cairo_t* cr) {
     return TRUE;
   }
 
-  BufferMode layerBuffering = BufferMode::BUFFERED;
-  RefPtr<DrawTarget> dt = StartRemoteDrawingInRegion(region, &layerBuffering);
+  RefPtr<DrawTarget> dt = StartRemoteDrawingInRegion(region);
   if (!dt || !dt->IsValid()) {
     return FALSE;
   }
@@ -4022,14 +4050,13 @@ gboolean nsWindow::OnExposeEvent(cairo_t* cr) {
   {
     if (renderer->GetBackendType() == LayersBackend::LAYERS_NONE) {
       if (GetTransparencyMode() == TransparencyMode::Transparent &&
-          layerBuffering == BufferMode::BUFFER_NONE && mHasAlphaVisual) {
+          mHasAlphaVisual) {
         // If our draw target is unbuffered and we use an alpha channel,
         // clear the image beforehand to ensure we don't get artifacts from a
         // reused SHM image. See bug 1258086.
         dt->ClearRect(Rect(boundsRect));
       }
-      AutoLayerManagerSetup setupLayerManager(
-          this, ctx.isNothing() ? nullptr : &ctx.ref(), layerBuffering);
+      AutoLayerManagerSetup setupLayerManager(this, ctx.ptrOr(nullptr));
       listener->PaintWindow(this, region);
 
       // Re-get the listener since the will paint notification might have
@@ -8679,9 +8706,8 @@ bool nsWindow::GetEditCommands(NativeKeyBindingsType aType,
 }
 
 already_AddRefed<DrawTarget> nsWindow::StartRemoteDrawingInRegion(
-    const LayoutDeviceIntRegion& aInvalidRegion, BufferMode* aBufferMode) {
-  return mSurfaceProvider.StartRemoteDrawingInRegion(aInvalidRegion,
-                                                     aBufferMode);
+    const LayoutDeviceIntRegion& aInvalidRegion) {
+  return mSurfaceProvider.StartRemoteDrawingInRegion(aInvalidRegion);
 }
 
 void nsWindow::EndRemoteDrawingInRegion(

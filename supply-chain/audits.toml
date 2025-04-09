@@ -531,6 +531,13 @@ start = "2023-06-21"
 end = "2026-02-01"
 notes = "Maintained by the Glean and Application Services teams"
 
+[[wildcard-audits.uniffi_internal_macros]]
+who = "Jan-Erik Rediger <jrediger@mozilla.com>"
+criteria = "safe-to-deploy"
+user-id = 111105 # Mark Hammond (mhammond)
+start = "2025-03-18"
+end = "2026-03-25"
+
 [[wildcard-audits.uniffi_macros]]
 who = "Ben Dean-Kawamura <bdk@mozilla.com>"
 criteria = "safe-to-deploy"
@@ -6326,12 +6333,6 @@ non-1-byte-aligned type, however right now that is not the case
 (submitted https://github.com/zip-rs/zip2/issues/198).
 """
 
-[[audits.zlib-rs]]
-who = "Mike Hommey <mh+mozilla@glandium.org>"
-criteria = "safe-to-deploy"
-delta = "0.2.1 -> 0.2.1@git:4aa430ccb77537d0d60dab8db993ca51bb1194c5"
-importable = false
-
 [[trusted.aho-corasick]]
 criteria = "safe-to-deploy"
 user-id = 189 # Andrew Gallant (BurntSushi)
@@ -6406,7 +6407,7 @@ end = "2024-04-25"
 
 [[trusted.equivalent]]
 criteria = "safe-to-deploy"
-user-id = 539 # Josh Stone (cuviper)
+user-id = 539
 start = "2023-02-05"
 end = "2024-07-17"
 
@@ -6448,7 +6449,7 @@ end = "2024-04-25"
 
 [[trusted.indexmap]]
 criteria = "safe-to-deploy"
-user-id = 539 # Josh Stone (cuviper)
+user-id = 539
 start = "2020-01-15"
 end = "2024-05-05"
 
