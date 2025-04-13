@@ -2524,6 +2524,7 @@ dependencies = [
 name = "gkrust-uniffi-components"
 version = "0.1.0"
 dependencies = [
+ "hashbrown 0.15.2",
  "relevancy",
  "search",
  "suggest",
@@ -2794,7 +2795,6 @@ version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7db2ff139bba50379da6aa0766b52fdcb62cb5b263009b09ed58ba604e14bbd1"
 dependencies = [
- "arbitrary",
  "cfg-if",
  "crunchy",
  "num-traits",
@@ -4498,7 +4498,7 @@ checksum = "a2983372caf4480544083767bf2d27defafe32af49ab4df3a0b7fc90793a3664"
 [[package]]
 name = "naga"
 version = "24.0.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=c7c79a0dc9356081a884b5518d1c08ce7a09c7c5#c7c79a0dc9356081a884b5518d1c08ce7a09c7c5"
+source = "git+https://github.com/gfx-rs/wgpu?rev=a0dbe5ebc6fa24422fb84b2e0fea1cc94dee5109#a0dbe5ebc6fa24422fb84b2e0fea1cc94dee5109"
 dependencies = [
  "arrayvec",
  "bit-set",
@@ -4506,7 +4506,7 @@ dependencies = [
  "cfg_aliases",
  "codespan-reporting",
  "half 2.5.0",
- "hashbrown 0.14.999",
+ "hashbrown 0.15.2",
  "hexf-parse",
  "indexmap",
  "log",
@@ -5931,19 +5931,20 @@ dependencies = [
 
 [[package]]
 name = "serde_with"
-version = "3.0.0"
+version = "3.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f02d8aa6e3c385bf084924f660ce2a3a6bd333ba55b35e8590b321f35d88513"
+checksum = "d6b6f7f2fcb69f747921f79f3926bd1e203fce4fef62c268dd3abfb6d86029aa"
 dependencies = [
  "serde",
+ "serde_derive",
  "serde_with_macros",
 ]
 
 [[package]]
 name = "serde_with_macros"
-version = "3.0.0"
+version = "3.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "edc7d5d3932fb12ce722ee5e64dd38c504efba37567f0c402f6ca728c3b8b070"
+checksum = "8d00caa5193a3c8362ac2b73be6b9e768aa5a4b2f721d8f4b339600c3cb51f8e"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -7266,7 +7267,7 @@ version = "0.3.100"
 
 [[package]]
 name = "webdriver"
-version = "0.52.1"
+version = "0.53.0"
 dependencies = [
  "base64 0.22.1",
  "bytes",
@@ -7427,7 +7428,7 @@ dependencies = [
 [[package]]
 name = "wgpu-core"
 version = "24.0.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=c7c79a0dc9356081a884b5518d1c08ce7a09c7c5#c7c79a0dc9356081a884b5518d1c08ce7a09c7c5"
+source = "git+https://github.com/gfx-rs/wgpu?rev=a0dbe5ebc6fa24422fb84b2e0fea1cc94dee5109#a0dbe5ebc6fa24422fb84b2e0fea1cc94dee5109"
 dependencies = [
  "arrayvec",
  "bit-set",
@@ -7436,7 +7437,7 @@ dependencies = [
  "bytemuck",
  "cfg_aliases",
  "document-features",
- "hashbrown 0.14.999",
+ "hashbrown 0.15.2",
  "indexmap",
  "log",
  "naga",
@@ -7457,7 +7458,7 @@ dependencies = [
 [[package]]
 name = "wgpu-core-deps-apple"
 version = "24.0.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=c7c79a0dc9356081a884b5518d1c08ce7a09c7c5#c7c79a0dc9356081a884b5518d1c08ce7a09c7c5"
+source = "git+https://github.com/gfx-rs/wgpu?rev=a0dbe5ebc6fa24422fb84b2e0fea1cc94dee5109#a0dbe5ebc6fa24422fb84b2e0fea1cc94dee5109"
 dependencies = [
  "wgpu-hal",
 ]
@@ -7465,7 +7466,7 @@ dependencies = [
 [[package]]
 name = "wgpu-core-deps-windows-linux-android"
 version = "24.0.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=c7c79a0dc9356081a884b5518d1c08ce7a09c7c5#c7c79a0dc9356081a884b5518d1c08ce7a09c7c5"
+source = "git+https://github.com/gfx-rs/wgpu?rev=a0dbe5ebc6fa24422fb84b2e0fea1cc94dee5109#a0dbe5ebc6fa24422fb84b2e0fea1cc94dee5109"
 dependencies = [
  "wgpu-hal",
 ]
@@ -7473,7 +7474,7 @@ dependencies = [
 [[package]]
 name = "wgpu-hal"
 version = "24.0.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=c7c79a0dc9356081a884b5518d1c08ce7a09c7c5#c7c79a0dc9356081a884b5518d1c08ce7a09c7c5"
+source = "git+https://github.com/gfx-rs/wgpu?rev=a0dbe5ebc6fa24422fb84b2e0fea1cc94dee5109#a0dbe5ebc6fa24422fb84b2e0fea1cc94dee5109"
 dependencies = [
  "android_system_properties",
  "arrayvec",
@@ -7487,7 +7488,7 @@ dependencies = [
  "gpu-alloc",
  "gpu-allocator",
  "gpu-descriptor",
- "hashbrown 0.14.999",
+ "hashbrown 0.15.2",
  "libc",
  "libloading",
  "log",
@@ -7509,7 +7510,7 @@ dependencies = [
 [[package]]
 name = "wgpu-types"
 version = "24.0.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=c7c79a0dc9356081a884b5518d1c08ce7a09c7c5#c7c79a0dc9356081a884b5518d1c08ce7a09c7c5"
+source = "git+https://github.com/gfx-rs/wgpu?rev=a0dbe5ebc6fa24422fb84b2e0fea1cc94dee5109#a0dbe5ebc6fa24422fb84b2e0fea1cc94dee5109"
 dependencies = [
  "bitflags 2.9.0",
  "bytemuck",
@@ -7723,7 +7724,7 @@ dependencies = [
 
 [[package]]
 name = "wr_malloc_size_of"
-version = "0.0.2"
+version = "0.2.0"
 dependencies = [
  "app_units",
  "euclid",

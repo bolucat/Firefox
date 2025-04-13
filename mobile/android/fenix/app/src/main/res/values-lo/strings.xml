@@ -1383,6 +1383,8 @@
   <string name="tab_tray_multiselect_share_content_description">ແບ່ງປັນແທັບທີ່ເລືອກໄວ້</string>
   <!-- Content description for tabs tray multiselect menu -->
   <string name="tab_tray_multiselect_menu_content_description">ເລືອກເມນູແທັບແລ້ວ</string>
+  <!-- Title text displayed for a homepage tab in the tabs tray. -->
+  <string name="tab_tray_homepage_tab">ຫນ້າທຳອິດ</string>
   <!-- Content description (not visible, for screen readers etc.): Removes tab from collection button. Removes the selected tab from collection when pressed -->
   <string name="remove_tab_from_collection">ລຶບແຖບອອກຈາກບ່ອນເກັບສະສົມ</string>
   <!-- Text for button to enter multiselect mode in tabs tray -->
@@ -1519,6 +1521,13 @@
   <string name="download_item_download_speed_pending" tools:ignore="UnusedResources">ລໍຖ້າຢູ່</string>
   <!-- Text to indicate that a download has failed to download. -->
   <string name="download_item_status_failed" tools:ignore="UnusedResources">ການດາວໂຫຼດລົ້ມເຫລວ</string>
+  <!-- Placeholder text to indicate that users can use the search bar to search for a download. -->
+  <string name="download_search_placeholder" tools:ignore="UnusedResources">ຄົ້ນຫາການດາວໂຫຼດ</string>
+  <!-- Text to indicate that no downloads match the search query. -->
+  <string name="download_search_no_results_found" tools:ignore="UnusedResources">ບໍ່ພົບຜົນການຄົ້ນຫາ
+</string>
+  <!-- Text for the "Select all" button, which selects all downloaded items in the downloads list. -->
+  <string name="download_select_all_items">ເລືອກ​ທັງ​ຫມົດ</string>
   <!--
     Downloads Content Type Filters
 
@@ -1533,6 +1542,8 @@
   <string name="download_content_type_filter_document">ເອກະສານ</string>
   <!-- Text for the filter button to show all other file types in the downloads list -->
   <string name="download_content_type_filter_other" moz:removedIn="138" tools:ignore="UnusedResources">ອື່ນໆ</string>
+  <!-- Text for the filter button to show all other file types in the downloads list -->
+  <string name="download_content_type_filter_other_1">ອື່ນໆ</string>
   <!--
     Description of a downloaded item, displayed in the downloads list.
     %1$s: The size of the downloaded file.
@@ -1643,6 +1654,14 @@
   <string name="bookmark_menu_delete_button">ລຶບ</string>
   <!-- Bookmark overflow menu save button -->
   <string name="bookmark_menu_save_button">ບັນທຶກ</string>
+  <!-- Label for button to sort bookmarks by newest in the bookmark sorting overflow menu. -->
+  <string name="bookmark_sort_menu_newest">ຈັດຮຽງຕາມອັນໃໝ່ສຸດ</string>
+  <!-- Label for button to sort bookmarks by oldest in the bookmark sorting overflow menu. -->
+  <string name="bookmark_sort_menu_oldest">ຈັດຮຽງຕາມທີ່ເກົ່າທີ່ສຸດ</string>
+  <!-- Label for button to sort bookmarks in alphabetical order in the bookmark sorting overflow menu. -->
+  <string name="bookmark_sort_menu_a_to_z">ຈັດຮຽງຕາມ A ຫາ Z</string>
+  <!-- Label for button to sort bookmarks in reverse alphabetical order in the bookmark sorting overflow menu. -->
+  <string name="bookmark_sort_menu_z_to_a">ຈັດຮຽງຕາມ Z ຫາ A</string>
   <!--
     Bookmark multi select title in app bar
     %1$d is the number of bookmarks selected
@@ -1705,6 +1724,8 @@
   <string name="bookmark_item_menu_button_content_description">ເມນູລາຍການສຳລັບ %s</string>
   <!-- Title for the bookmark list empty state -->
   <string name="bookmark_empty_list_title">ບໍ່ທັນມີບຸກມາກເທື່ອ</string>
+  <!-- Description for the bookmark list empty state when you're not signed into sync. -->
+  <string name="bookmark_empty_list_guest_description">ບັນທຶກເວັບໄຊໃນຂະນະທີ່ທ່ານທ່ອງເວັບ. ເຂົ້າສູ່ລະບົບເພື່ອເອົາບຸກມາກຈາກອຸປະກອນອື່ນທີ່ຊິ້ງແລ້ວ.</string>
   <!-- Text for the button to navigate to sync authentication -->
   <string name="bookmark_empty_list_guest_cta">ເຂົ້າສູ່ລະບົບເພື່ອ Sync</string>
   <!-- Description for the bookmark list empty state when you're signed into sync. -->
@@ -1803,6 +1824,8 @@
   <string name="preferences_category_permissions">ການອະນຸຍາດ</string>
   <!-- Category header of a preference that allows a user to alter settings related to web content. -->
   <string name="preferences_category_content">ເນື້ອຫາ</string>
+  <!-- Preference for altering the default browsing mode. When enabled, the desktop site will always be requested. -->
+  <string name="preference_feature_desktop_mode_default">ຮ້ອງຂໍເວັບໄຊທ໌ desktop ສະເຫມີ</string>
   <!--
     Collections
 
@@ -1872,6 +1895,8 @@
   <string name="unable_to_save_to_pdf_error">ບໍ່ສາມາດສ້າງ PDF ໄດ້</string>
   <!-- Text for standard error snackbar dismiss button. -->
   <string name="standard_snackbar_error_dismiss">ປິດ</string>
+  <!-- Text for error message when printing a page and it fails. -->
+  <string name="unable_to_print_page_error">ບໍ່ສາມາດພິມໜ້ານີ້ໄດ້</string>
   <!-- Text for the print feature in the share and browser menu -->
   <string name="menu_print">ພິມ</string>
   <!-- Sub-header in the dialog to share a link to another sync device -->
@@ -1916,6 +1941,9 @@
     Text shown in the notification that pops up to remind the user that a private browsing session is active.
   -->
   <string name="notification_pbm_delete_text_2">ປິດແທັບສ່ວນຕົວ</string>
+  <!-- Text shown in the notification that pops up to remind the user that a private browsing session is active for Android 14+ -->
+  <string name="notification_erase_title_android_14">ປິດແຖບສ່ວນຕົວບໍ?</string>
+  <string name="notification_erase_text_android_14">ແຕະ ຫຼື ປັດການແຈ້ງເຕືອນນີ້ເພື່ອປິດແຖບສ່ວນຕົວ.</string>
   <!-- Name of the marketing notification channel. Displayed in the "App notifications" system settings for the app -->
   <string name="notification_marketing_channel_name">ການຕະຫຼາດ</string>
   <!--
@@ -1971,12 +1999,16 @@
   <string name="snackbar_tabs_closed">ປິດແທັບແລ້ວ</string>
   <!-- Text shown in snackbar when user closes multiple inactive tabs. %1$s will be replaced with the number of tabs closed. -->
   <string name="snackbar_num_tabs_closed">ປິດແຖບ: %1$s</string>
+  <!-- Text shown in snackbar when user bookmarks a list of tabs. %s is the name of the folder the bookmark was saved into. -->
+  <string name="snackbar_message_bookmarks_saved_in">ບັນທຶກບຸກມາກໄວ້ໃນ “%s”!</string>
   <!-- Text shown in snackbar when user adds a site to shortcuts -->
   <string name="snackbar_added_to_shortcuts">ເພີ່ມໃສ່ທາງລັດແລ້ວ!</string>
   <!-- Text shown in snackbar when user closes a private tab -->
   <string name="snackbar_private_tab_closed">ປິດແທັບສ່ວນໂຕແລ້ວ</string>
   <!-- Text shown in snackbar when user closes all private tabs -->
   <string name="snackbar_private_tabs_closed">ປິດແທັບສ່ວນໂຕແລ້ວ</string>
+  <!-- Text shown in snackbar when user erases their private browsing data -->
+  <string name="snackbar_private_data_deleted">ລຶບຂໍ້ມູນການຊອກຫາສ່ວນຕົວແລ້ວ</string>
   <!-- Text shown in snackbar to undo deleting a tab, top site or collection -->
   <string name="snackbar_deleted_undo">ເອົາກັບຄືນ</string>
   <!-- Text shown in snackbar when user removes a top site -->
@@ -2235,6 +2267,12 @@
   <string name="preference_doh_summary">ລະບົບ Domain Name (DNS) ຜ່ານ HTTPS ສົ່ງຄໍາຮ້ອງຂໍຂອງທ່ານສໍາລັບຊື່ໂດເມນໂດຍຜ່ານການເຊື່ອມຕໍ່ທີ່ຖືກເຂົ້າລະຫັດ, ສະຫນອງ DNS ທີ່ປອດໄພແລະເຮັດໃຫ້ມັນຍາກສໍາລັບຜູ້ອື່ນທີ່ຈະເບິ່ງວ່າເວັບໄຊທ໌ໃດທີ່ທ່ານກໍາລັງຈະເຂົ້າຫາ. %1$s</string>
   <!-- Used as text for the link in `preference_doh_title`, points to documentation about "DNS over HTTPS" -->
   <string name="preference_doh_learn_more">ຮຽນຮູ້ເພີ່ມເຕີມ</string>
+  <!-- Content description for the "Info" button -->
+  <string name="preference_doh_info_description">ຂໍ້ມູນ</string>
+  <!-- Content description for the "Add Site" button -->
+  <string name="preference_doh_add_site_description">ເພີ່ມເວັບໄຊ</string>
+  <!-- Title displayed for "Default Protection" option under "DNS over HTTPS" -->
+  <string name="preference_doh_default_protection">ການປົກປ້ອງເລີ່ມຕົ້ນ</string>
   <!-- Bullet point 2 for "Default Protection" information page under "DNS over HTTPS" -->
   <string name="preference_doh_default_protection_info_2">ໃຊ້ຕົວແກ້ໄຂ DNS ເລີ່ມຕົ້ນຂອງທ່ານຖ້າມີບັນຫາກັບຜູ້ໃຫ້ບໍລິການ DNS ທີ່ປອດໄພ</string>
   <!-- Title displayed for "Max Protection" option under "DNS over HTTPS" -->
@@ -2287,6 +2325,8 @@
   <string name="add_to_homescreen_description_2">ທ່ານສາມາດເພີ່ມເວັບໄຊທ໌ນີ້ໃສ່ໜ້າຈໍຫຼັກຂອງອຸປະກອນທ່ານໄດ້ຢ່າງງ່າຍດາຍເພື່ອໃຫ້ເຂົ້າເຖິງທັນທີ ແລະທ່ອງເວັບໄວຂຶ້ນດ້ວຍປະສົບການທີ່ຄ້າຍຄືກັບແອັບ.</string>
   <!-- Preference for managing the settings for logins and passwords in Fenix -->
   <string name="preferences_passwords_logins_and_passwords_2">ລະຫັດຜ່ານ</string>
+  <!-- Preference for managing the saving of logins and passwords in Fenix -->
+  <string name="preferences_passwords_save_logins_2">ບັນທຶກລະຫັດຜ່ານ</string>
   <!-- Preference option for asking to save passwords in Fenix -->
   <string name="preferences_passwords_save_logins_ask_to_save">ຖາມເພື່ອບັນທຶກ</string>
   <!-- Preference option for never saving passwords in Fenix -->
@@ -2299,6 +2339,10 @@
   <string name="preferences_android_autofill">ຕື່ມຂໍ້ມູນອັດຕະໂນມັດໃນແອັບຯອື່ນ</string>
   <!-- Description for the preference for autofilling logins from Fenix in other apps (e.g. autofilling the Twitter app) -->
   <string name="preferences_android_autofill_description">ຕື່ມຂໍ້ມູນຊື່ຜູ້ໃຊ້ ແລະ ລະຫັດຜ່ານໃນແອັບຯອື່ນໃນອຸປະກອນຂອງທ່ານ.</string>
+  <!-- Preference option for adding a password -->
+  <string name="preferences_logins_add_login_2">ເພີ່ມລະຫັດຜ່ານ</string>
+  <!-- Preference for syncing saved passwords in Fenix -->
+  <string name="preferences_passwords_sync_logins_2">ຊິ້ງຂໍ້ມູນລະຫັດຜ່ານ</string>
   <!-- Description of empty list of saved passwords. %s is the name of the app (for example "Firefox"). -->
   <string name="preferences_passwords_saved_logins_description_empty_text_2">ລະ​ຫັດ​ຜ່ານ​ທີ່​ທ່ານ​ບັນ​ທຶກ​ ຫຼື sync ກັບ %s ຈະ​ມີ​ລາຍ​ການ​ຢູ່​ທີ່​ນີ້​. ລະຫັດຜ່ານທັງໝົດທີ່ທ່ານບັນທຶກໄວ້ແມ່ນຖືກເຂົ້າລະຫັດໄວ້.</string>
   <!-- Clickable text for opening an external link for more information about Sync. -->

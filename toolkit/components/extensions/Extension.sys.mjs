@@ -1304,6 +1304,8 @@ export class ExtensionData {
    * Returns additional permissions that extensions is requesting based on its
    * manifest. For now, this is host_permissions (and content scripts) in mv3,
    * and the "technicalAndInteraction" optional data collection permission.
+   *
+   * @returns {null | Permissions}
    */
   getRequestedPermissions() {
     if (this.type !== "extension") {
@@ -1336,7 +1338,9 @@ export class ExtensionData {
 
   /**
    * Returns optional permissions from the manifest, including host permissions
-   * if originControls is true.
+   * if originControls is true, and optional data collection (if enabled).
+   *
+   * @returns {null | Permissions}
    */
   get manifestOptionalPermissions() {
     if (this.type !== "extension") {
@@ -1353,11 +1357,14 @@ export class ExtensionData {
       }
     }
 
-    // TODO: Bug 1955990 - add support for data collection permissions.
+    const data_collection = lazy.dataCollectionPermissionsEnabled
+      ? this.getDataCollectionPermissions().optional
+      : [];
 
     return {
       permissions: Array.from(permissions),
       origins: Array.from(origins),
+      data_collection,
     };
   }
 
@@ -1379,6 +1386,10 @@ export class ExtensionData {
         .filter(pattern => !pattern.startsWith("moz-extension:")),
       apis: [...this.apiNames],
     };
+
+    if (lazy.dataCollectionPermissionsEnabled) {
+      result.data_collection = Array.from(this.dataCollectionPermissions);
+    }
 
     const EXP_PATTERN = /^experiments\.\w+/;
     result.permissions = [...this.permissions].filter(
@@ -1409,6 +1420,9 @@ export class ExtensionData {
       permissions: newPermissions.permissions.filter(
         perm => !oldPermissions.permissions.includes(perm)
       ),
+      data_collection: newPermissions.data_collection.filter(
+        perm => newPermissions.data_collection.includes(perm) && perm !== "none"
+      ),
     };
   }
 
@@ -1426,6 +1440,9 @@ export class ExtensionData {
       ),
       permissions: oldPermissions.permissions.filter(perm =>
         newPermissions.permissions.includes(perm)
+      ),
+      data_collection: oldPermissions.data_collection.filter(
+        perm => newPermissions.data_collection.includes(perm) && perm !== "none"
       ),
     };
   }
@@ -2010,7 +2027,7 @@ export class ExtensionData {
       if (lazy.dataCollectionPermissionsEnabled) {
         const { required } = this.getDataCollectionPermissions(manifest);
 
-        for (const permission of required) {
+        for (const permission of required.filter(perm => perm !== "none")) {
           dataCollectionPermissions.add(permission);
         }
       }
@@ -2031,6 +2048,9 @@ export class ExtensionData {
         }
         for (let origin of perms.origins) {
           originPermissions.add(origin);
+        }
+        for (let perm of perms.data_collection) {
+          dataCollectionPermissions.add(perm);
         }
       }
 
@@ -2601,6 +2621,7 @@ export class ExtensionData {
    * @typedef {object} Permissions
    * @property {Array<string>} origins Origin permissions.
    * @property {Array<string>} permissions Regular (non-origin) permissions.
+   * @property {Array<string>} data_collection Data collection permissions.
    */
 
   /**
@@ -2634,14 +2655,16 @@ export class ExtensionData {
    *                   and it has the string "<>" as a placeholder for the
    *                   addon name.
    *
-   *                   "object.msgs" is an array of localized strings describing required permissions
+   *                   "object.msgs" is an array of localized strings
+   *                   describing required permissions
    *
-   *                   "object.optionalPermissions" is a map of permission name to localized
-   *                   strings describing the permission.
+   *                   "object.optionalPermissions" is a map of permission name
+   *                   to localized strings describing the permission.
    *
-   *                   "object.optionalOrigins" is a map of a host permission to localized strings
-   *                   describing the host permission, where appropriate.  Currently only
-   *                   all url style permissions are included.
+   *                   "object.optionalOrigins" is a map of a host permission
+   *                   to localized strings describing the host permission,
+   *                   where appropriate.  Currently only all url style
+   *                   permissions are included.
    *
    *                   "object.fullDomainsList" is an object with a Set of the
    *                   full domains list (with the property name "domainsSet")
@@ -2650,6 +2673,12 @@ export class ExtensionData {
    *                   expected to be set only if "options.fullDomainsList" is
    *                   passed as true and the extension doesn't include
    *                   allUrls origin permissions.
+   *
+   *                   "object.dataCollectionPermissions" is an object
+   *                   containing information about data permissions to be
+   *                   displayed. It contains a message string, and whether the
+   *                   extension collects technical and interaction data, which
+   *                   needs to be handled differently.
    */
   static formatPermissionStrings(
     {
@@ -2676,6 +2705,7 @@ export class ExtensionData {
       optionalOrigins: {},
       text: "",
       listIntro: "",
+      dataCollectionPermissions: {},
     };
 
     // To keep the label & accesskey in sync for localizations,
@@ -2833,6 +2863,7 @@ export class ExtensionData {
         }
         return a < b ? -1 : 1;
       });
+
       for (let permission of permissionsSorted) {
         const l10nId = lazy.permissionToL10nId(permission);
         // We deliberately do not include all permissions in the prompt.
@@ -2840,6 +2871,17 @@ export class ExtensionData {
         if (l10nId) {
           msgIds.push(l10nId);
         }
+      }
+
+      if (
+        lazy.dataCollectionPermissionsEnabled &&
+        permissions.data_collection?.length
+      ) {
+        result.dataCollectionPermissions =
+          this._formatDataCollectionPermissions(
+            permissions.data_collection,
+            type
+          );
       }
     }
 
@@ -2902,6 +2944,11 @@ export class ExtensionData {
       }
     }
 
+    const hasDataCollectionOnly =
+      lazy.dataCollectionPermissionsEnabled &&
+      msgIds.length === 0 &&
+      result.dataCollectionPermissions.msg;
+
     let headerId;
     switch (type) {
       case "sideload":
@@ -2914,10 +2961,17 @@ export class ExtensionData {
             : "webext-perms-sideload-text-no-perms"
         );
         break;
-      case "update":
-        headerId = "webext-perms-update-text";
+      case "update": {
+        if (!lazy.dataCollectionPermissionsEnabled) {
+          headerId = "webext-perms-update-text";
+        } else {
+          headerId = hasDataCollectionOnly
+            ? "webext-perms-update-data-collection-only-text"
+            : "webext-perms-update-data-collection-text";
+        }
         acceptId = "webext-perms-update-accept";
         break;
+      }
       case "optional":
         headerId = "webext-perms-optional-perms-header";
         acceptId = "webext-perms-optional-perms-allow";
@@ -2927,7 +2981,7 @@ export class ExtensionData {
         );
         break;
       default:
-        if (msgIds.length) {
+        if (msgIds.length && !hasDataCollectionOnly) {
           headerId = unsigned
             ? "webext-perms-header-unsigned-with-perms"
             : "webext-perms-header-with-perms";
@@ -2942,6 +2996,68 @@ export class ExtensionData {
     result.msgs = l10n.formatValuesSync(msgIds);
     setAcceptCancel(acceptId, cancelId);
     return result;
+  }
+
+  /**
+   * @param {Array<string>} dataPermissions An array of data collection permissions.
+   *
+   * @returns {{msg: string, collectsTechnicalAndInteractionData: boolean}} An
+   * object with information about data collection permissions for the UI.
+   */
+  static _formatDataCollectionPermissions(dataPermissions, type) {
+    const dataCollectionPermissions = {};
+    const permissions = new Set(dataPermissions);
+
+    // This data permission is opt-in by default, but users can opt-out, making
+    // it special compared to the other permissions.
+    if (permissions.delete("technicalAndInteraction")) {
+      dataCollectionPermissions.collectsTechnicalAndInteractionData = true;
+    }
+
+    if (permissions.has("none")) {
+      const [localizedMsg] = lazy.PERMISSION_L10N.formatValuesSync([
+        "webext-perms-description-data-none",
+      ]);
+      dataCollectionPermissions.msg = localizedMsg;
+    } else if (permissions.size) {
+      // When we have data collection permissions and it isn't the "no data
+      // collected" one, we build a list of localized permission strings that
+      // we can format with `Intl.ListFormat()` and append to a localized
+      // message.
+      const dataMsgIds = [];
+      for (const permission of permissions) {
+        const l10nId = lazy.permissionToL10nId(permission, /* short */ true);
+        // We deliberately do not include all permissions in the prompt. So
+        // if we don't find one then just skip it.
+        if (l10nId) {
+          dataMsgIds.push(l10nId);
+        }
+      }
+
+      let id;
+      switch (type) {
+        case "update":
+          id = "webext-perms-description-data-some-update";
+          break;
+        default:
+          id = "webext-perms-description-data-some";
+      }
+
+      const fluentIdAndArgs = {
+        id,
+        args: {
+          permissions: new Intl.ListFormat(undefined, {
+            style: "narrow",
+          }).format(lazy.PERMISSION_L10N.formatValuesSync(dataMsgIds)),
+        },
+      };
+      const [localizedMsg] = lazy.PERMISSION_L10N.formatValuesSync([
+        fluentIdAndArgs,
+      ]);
+      dataCollectionPermissions.msg = localizedMsg;
+    }
+
+    return dataCollectionPermissions;
   }
 }
 
@@ -3195,6 +3311,9 @@ export class Extension extends ExtensionData {
       for (let perm of permissions.permissions) {
         this.permissions.add(perm);
       }
+      for (let perm of permissions.data_collection) {
+        this.dataCollectionPermissions.add(perm);
+      }
       this.policy.permissions = Array.from(this.permissions);
 
       updateAllowedOrigins(this.policy, permissions.origins, /* isAdd */ true);
@@ -3218,6 +3337,9 @@ export class Extension extends ExtensionData {
     this.on("remove-permissions", (ignoreEvent, permissions) => {
       for (let perm of permissions.permissions) {
         this.permissions.delete(perm);
+      }
+      for (let perm of permissions.data_collection) {
+        this.dataCollectionPermissions.delete(perm);
       }
       this.policy.permissions = Array.from(this.permissions);
 
@@ -3401,6 +3523,7 @@ export class Extension extends ExtensionData {
       pat => pat.pattern
     );
     manifestData.permissions = this.permissions;
+    manifestData.dataCollectionPermissions = this.dataCollectionPermissions;
     return StartupCache.manifests.set(this.manifestCacheKey, manifestData);
   }
 

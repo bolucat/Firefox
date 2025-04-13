@@ -8392,19 +8392,24 @@ void LIRGenerator::visitWasmRefIsSubtypeOfConcrete(
          ins);
 }
 
+void LIRGenerator::visitWasmRefConvertAnyExtern(MWasmRefConvertAnyExtern* ins) {
+  // Because any and extern have the same representation, this is a no-op.
+  return redefine(ins, ins->ref());
+}
+
 void LIRGenerator::visitWasmNewStructObject(MWasmNewStructObject* ins) {
-  LWasmNewStructObject* lir = new (alloc()) LWasmNewStructObject(
-      useFixed(ins->instance(), InstanceReg), useRegister(ins->allocSite()),
-      temp(), ins->typeDefIndex());
+  LWasmNewStructObject* lir =
+      new (alloc()) LWasmNewStructObject(useFixed(ins->instance(), InstanceReg),
+                                         useRegister(ins->allocSite()), temp());
   define(lir, ins);
   assignWasmSafepoint(lir);
 }
 
 void LIRGenerator::visitWasmNewArrayObject(MWasmNewArrayObject* ins) {
-  LWasmNewArrayObject* lir = new (alloc()) LWasmNewArrayObject(
-      useFixed(ins->instance(), InstanceReg),
-      useRegisterOrConstant(ins->numElements()), useRegister(ins->allocSite()),
-      temp(), temp(), ins->typeDefIndex());
+  LWasmNewArrayObject* lir = new (alloc())
+      LWasmNewArrayObject(useFixed(ins->instance(), InstanceReg),
+                          useRegisterOrConstant(ins->numElements()),
+                          useRegister(ins->allocSite()), temp(), temp());
   define(lir, ins);
   assignWasmSafepoint(lir);
 }

@@ -813,7 +813,8 @@ nsDOMWindowUtils::SendWheelEvent(float aX, float aY, double aDeltaX,
   wheelEvent.mRefPoint =
       nsContentUtils::ToWidgetPoint(CSSPoint(aX, aY), offset, presContext);
 
-  if (StaticPrefs::test_events_async_enabled()) {
+  if ((aOptions & WHEEL_EVENT_ASYNC_ENABLED) ||
+      StaticPrefs::test_events_async_enabled()) {
     widget->DispatchInputEvent(&wheelEvent);
   } else {
     nsEventStatus status = nsEventStatus_eIgnore;
@@ -3686,7 +3687,7 @@ static void PrepareForFullscreenChange(nsIDocShell* aDocShell,
     // Since we are suppressing the resize reflow which would originally
     // be triggered by view manager, we need to ensure that the refresh
     // driver actually schedules a flush, otherwise it may get stuck.
-    rd->ScheduleViewManagerFlush();
+    rd->SchedulePaint();
   }
   if (!aSize.IsEmpty()) {
     nsCOMPtr<nsIDocumentViewer> viewer;
@@ -4862,7 +4863,7 @@ nsDOMWindowUtils::GetEffectivelyThrottlesFrameRequests(bool* aResult) {
   if (!doc) {
     return NS_ERROR_FAILURE;
   }
-  *aResult = !doc->ShouldFireFrameRequestCallbacks() ||
+  *aResult = doc->IsRenderingSuppressed() ||
              doc->ShouldThrottleFrameRequests();
   return NS_OK;
 }

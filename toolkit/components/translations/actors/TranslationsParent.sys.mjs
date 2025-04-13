@@ -1079,6 +1079,15 @@ export class TranslationsParent extends JSWindowActorParent {
   }
 
   /**
+   * Returns true if the active user has ever triggered a translation request, otherwise false.
+   *
+   * @returns {boolean}
+   */
+  static hasUserEverTranslated() {
+    return !!TranslationsParent.#getMostRecentTargetLanguages().length;
+  }
+
+  /**
    * Retrieves the user's preferred languages from the settings based on:
    *
    *   1. Web requested languages
@@ -1743,7 +1752,7 @@ export class TranslationsParent extends JSWindowActorParent {
     fallback = "code",
     languageDisplay = "standard",
   } = {}) {
-    return new Services.intl.DisplayNames(undefined, {
+    return new Services.intl.DisplayNames(Services.locale.appLocaleAsBCP47, {
       type: "language",
       languageDisplay,
       fallback,

@@ -5,7 +5,6 @@ lint = "31.9.1"
 
 python-envs-plugin = "0.0.31"
 maven-ant-tasks = "2.1.3"
-jacoco = "0.8.12"
 okhttp = "4.12.0"
 okio = "3.10.1"
 androidsvg = "1.4"
@@ -45,7 +44,7 @@ palette = "1.0.0"
 preferences = "1.2.1"
 profileinstaller = "1.4.0"
 recyclerview = "1.4.0"
-room = "2.6.1"
+room = "2.7.0"
 savedstate = "1.2.1"
 swiperefreshlayout = "1.1.0"
 transition = "1.5.1"
@@ -65,7 +64,11 @@ play-services-base = "18.6.0"
 play-services-fido = "21.2.0"
 protobuf = "4.30.2" # Keep Protobuf in sync with the version used by AppServices.
 
+# JNA
+jna = "5.17.0"
+
 # Gradle plugins
+jacoco = "0.8.13"
 kotlin-dsl = "5.2.0"
 protobuf-plugin = "0.9.5"
 scip-java = "0.10.4"
@@ -73,7 +76,7 @@ scip-java = "0.10.4"
 # Kotlin versions
 coroutines = "1.10.2"
 kotlin = "2.1.20" # remember to change ksp-plugin
-ksp-plugin = "2.1.20-1.0.32"
+ksp-plugin = "2.1.20-2.0.0"
 serialization = "1.8.1"
 
 # Mozilla versions
@@ -90,7 +93,7 @@ androidx-test-runner = "1.6.1"
 androidx-test-uiautomator = "2.3.0"
 junit = "5.11.4"
 mockito = "5.17.0"
-mockk = "1.13.17"
+mockk = "1.14.0"
 robolectric = "4.14.1"
 
 # Third party library versions
@@ -236,6 +239,9 @@ play-services-base = { group = "com.google.android.gms", name = "play-services-b
 play-services-fido = { group = "com.google.android.gms", name = "play-services-fido", version.ref = "play-services-fido" }
 protobuf-compiler = { group = "com.google.protobuf", name = "protoc", version.ref = "protobuf" }
 protobuf-javalite = { group = "com.google.protobuf", name = "protobuf-javalite", version.ref = "protobuf" }
+
+# JNA for app-services.
+jna = { group = "net.java.dev.jna", name = "jna", version.ref = "jna" }
 
 # Gradle plugins
 semanticdb-java = { group = "com.sourcegraph", name = "semanticdb-javac", version.ref = "scip-java" }

@@ -659,6 +659,22 @@ interface GPUCompilationInfo {
     readonly attribute sequence<GPUCompilationMessage> messages;
 };
 
+[Func="mozilla::webgpu::Instance::PrefEnabled",
+ Exposed=(Window, Worker), SecureContext]
+interface GPUPipelineError : DOMException {
+    constructor(optional DOMString message = "", GPUPipelineErrorInit options);
+    readonly attribute GPUPipelineErrorReason reason;
+};
+
+dictionary GPUPipelineErrorInit {
+    required GPUPipelineErrorReason reason;
+};
+
+enum GPUPipelineErrorReason {
+    "validation",
+    "internal",
+};
+
 enum GPUAutoLayoutMode {
     "auto",
 };
@@ -1144,9 +1160,7 @@ interface mixin GPURenderCommandsMixin {
         optional GPUSignedOffset32 baseVertex = 0,
         optional GPUSize32 firstInstance = 0);
 
-    [Pref="dom.webgpu.indirect-draw.enabled"]
     undefined drawIndirect(GPUBuffer indirectBuffer, GPUSize64 indirectOffset);
-    [Pref="dom.webgpu.indirect-draw.enabled"]
     undefined drawIndexedIndirect(GPUBuffer indirectBuffer, GPUSize64 indirectOffset);
 };
 
@@ -1181,10 +1195,6 @@ dictionary GPUQueueDescriptor
          : GPUObjectDescriptorBase {
 };
 
-//TODO: use [AllowShared] on BufferSource
-// https://bugzilla.mozilla.org/show_bug.cgi?id=1696216
-// https://github.com/heycam/webidl/issues/961
-
 [Func="mozilla::webgpu::Instance::PrefEnabled",
  Exposed=(Window, Worker), SecureContext]
 interface GPUQueue {
@@ -1197,14 +1207,14 @@ interface GPUQueue {
     undefined writeBuffer(
         GPUBuffer buffer,
         GPUSize64 bufferOffset,
-        BufferSource data,
+        AllowSharedBufferSource data,
         optional GPUSize64 dataOffset = 0,
         optional GPUSize64 size);
 
     [Throws]
     undefined writeTexture(
         GPUTexelCopyTextureInfo destination,
-        BufferSource data,
+        AllowSharedBufferSource data,
         GPUTexelCopyBufferLayout dataLayout,
         GPUExtent3D size);
 

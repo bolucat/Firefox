@@ -8028,7 +8028,7 @@ static void SchedulePaintInternal(
     return;
   }
 
-  pres->PresShell()->ScheduleViewManagerFlush();
+  pres->PresShell()->SchedulePaint();
 
   if (aType == nsIFrame::PAINT_DEFAULT) {
     aDisplayRoot->AddStateBits(NS_FRAME_UPDATE_LAYER_TREE);
@@ -8954,12 +8954,18 @@ nsresult nsIFrame::MakeFrameName(const nsAString& aType,
   return NS_OK;
 }
 
+void nsIFrame::DumpFrameTree() const { DumpFrameTree(false); }
+
 void nsIFrame::DumpFrameTree(bool aListOnlyDeterministic) const {
   ListFlags flags;
   if (aListOnlyDeterministic) {
     flags += ListFlag::OnlyListDeterministicInfo;
   }
   PresShell()->GetRootFrame()->List(stderr, "", flags);
+}
+
+void nsIFrame::DumpFrameTreeInCSSPixels() const {
+  DumpFrameTreeInCSSPixels(false);
 }
 
 void nsIFrame::DumpFrameTreeInCSSPixels(bool aListOnlyDeterministic) const {

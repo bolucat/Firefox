@@ -48,11 +48,11 @@ Looks like you have the Android SDK installed at:
 We will install all required Android packages.
 """
 
-ANDROID_SDK_TOO_OLD = """
+ANDROID_SDK_TOO_OLD_UPDATE_IN_PLACE = """
 Looks like you have an outdated Android SDK installed at:
 %s
-I can't update outdated Android SDKs to have the required 'sdkmanager'
-tool.  Move it out of the way (or remove it entirely) and then run
+I can update outdated Android SDKs to have the required 'sdkmanager' tool. If
+this fails, move it out of the way (or remove it entirely) and then run
 bootstrap again.
 """
 
@@ -310,6 +310,14 @@ def ensure_android(
 
     `os_name` can be 'linux', 'macosx' or 'windows'.
     """
+
+    if os_name == "windows" and os_arch == "ARM64":
+        raise NotImplementedError(
+            "Building for Android is not supported on ARM64 Windows because "
+            "Google does not distribute emulator binary for ARM64 Windows. "
+            "See also https://issuetracker.google.com/issues/264614669."
+        )
+
     # The user may have an external Android SDK (in which case we
     # save them a lengthy download), or they may have already
     # completed the download. We unpack to
@@ -429,9 +437,9 @@ def ensure_android_sdk_and_ndk(
     # the user may have already installed.
     if sdkmanager_tool(sdk_path).is_file():
         print(ANDROID_SDK_EXISTS % sdk_path)
-    elif sdk_path.is_dir():
-        raise NotImplementedError(ANDROID_SDK_TOO_OLD % sdk_path)
     else:
+        if sdk_path.is_dir():
+            print(ANDROID_SDK_TOO_OLD_UPDATE_IN_PLACE % sdk_path)
         # The SDK archive used to include a top-level
         # android-sdk-$OS_NAME directory; it no longer does so.  We
         # preserve the old convention to smooth detecting existing SDK
@@ -789,7 +797,7 @@ def main(argv):
     return 0
 
 
-def ensure_java(os_name, os_arch):
+def ensure_java(os_name: str, os_arch: str):
     mozbuild_path, _, _, _ = get_paths(os_name)
 
     if os_name == "macosx":
@@ -799,7 +807,7 @@ def ensure_java(os_name, os_arch):
 
     if os_arch == "x86_64":
         arch = "x64"
-    elif os_arch == "arm64":
+    elif os_arch.lower() == "arm64":
         arch = "aarch64"
     else:
         arch = os_arch

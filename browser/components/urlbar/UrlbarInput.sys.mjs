@@ -101,6 +101,7 @@ export class UrlbarInput {
     this.textbox.appendChild(
       this.window.MozXULElement.parseXULToFragment(`
         <vbox class="urlbarView"
+              context=""
               role="group"
               tooltip="aHTMLTooltip">
           <html:div class="urlbarView-body-outer">
@@ -213,7 +214,11 @@ export class UrlbarInput {
     // If the toolbar is not visible in this window or the urlbar is readonly,
     // we'll stop here, so that most properties of the input object are valid,
     // but we won't handle events.
-    if (!this.window.toolbar.visible || this.readOnly) {
+    if (
+      !this.window.toolbar.visible ||
+      this.window.document.documentElement.hasAttribute("taskbartab") ||
+      this.readOnly
+    ) {
       return;
     }
 
@@ -594,7 +599,13 @@ export class UrlbarInput {
 
     // The proxystate must be set before setting search mode below because
     // search mode depends on it.
-    this.setPageProxyState(valid ? "valid" : "invalid", dueToTabSwitch);
+    this.setPageProxyState(
+      valid ? "valid" : "invalid",
+      dueToTabSwitch,
+      dueToTabSwitch &&
+        this.getBrowserState(this.window.gBrowser.selectedBrowser)
+          .isUnifiedSearchButtonAvailable
+    );
 
     if (
       state.persist?.shouldPersist &&
@@ -2181,14 +2192,24 @@ export class UrlbarInput {
    *        Indicates whether we should update the PopupNotifications
    *        visibility due to this change, otherwise avoid doing so as it is
    *        being handled somewhere else.
+   * @param {boolean} [forceUnifiedSearchButtonAvailable]
+   *        If this parameter is true, force to make Unified Search Button available.
+   *        Otherwise, the availability will be depedent on the proxy state.
+   *        Default value is false.
    */
-  setPageProxyState(state, updatePopupNotifications) {
+  setPageProxyState(
+    state,
+    updatePopupNotifications,
+    forceUnifiedSearchButtonAvailable = false
+  ) {
     let prevState = this.getAttribute("pageproxystate");
 
     this.setAttribute("pageproxystate", state);
     this._inputContainer.setAttribute("pageproxystate", state);
     this._identityBox?.setAttribute("pageproxystate", state);
-    this.toggleAttribute("unifiedsearchbutton-available", state == "invalid");
+    this.setUnifiedSearchButtonAvailability(
+      forceUnifiedSearchButtonAvailable || state == "invalid"
+    );
 
     if (state == "valid") {
       this._lastValidURLStr = this.value;
@@ -3878,6 +3899,18 @@ export class UrlbarInput {
     );
 
     this._addObservers();
+  }
+
+  /**
+   * Set Unified Search Button availability.
+   *
+   * @param {boolean} available If true Unified Search Button will be available.
+   */
+  setUnifiedSearchButtonAvailability(available) {
+    this.toggleAttribute("unifiedsearchbutton-available", available);
+    this.getBrowserState(
+      this.window.gBrowser.selectedBrowser
+    ).isUnifiedSearchButtonAvailable = available;
   }
 
   /**

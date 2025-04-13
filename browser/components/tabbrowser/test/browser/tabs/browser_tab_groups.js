@@ -580,6 +580,22 @@ add_task(async function test_TabGroupEvents() {
   tabGroupCollapsedTrigger.uninit();
 });
 
+add_task(async function test_moveTabGroup() {
+  let tab1 = BrowserTestUtils.addTab(gBrowser, "about:blank");
+  let tab2 = BrowserTestUtils.addTab(gBrowser, "about:blank");
+  let group = gBrowser.addTabGroup([tab1, tab2]);
+
+  let tabMoveEvents = Promise.all([
+    BrowserTestUtils.waitForEvent(tab1, "TabMove"),
+    BrowserTestUtils.waitForEvent(tab2, "TabMove"),
+  ]);
+  info("moving tab group and awaiting TabMove events");
+  gBrowser.moveTabToStart(group);
+  await tabMoveEvents;
+
+  await removeTabGroup(group);
+});
+
 add_task(async function test_moveTabBetweenGroups() {
   let tab1 = BrowserTestUtils.addTab(gBrowser, "about:blank");
   let tab2 = BrowserTestUtils.addTab(gBrowser, "about:blank");
@@ -1686,19 +1702,19 @@ add_task(async function test_tabGroupCreatePanel() {
   let tabgroupPanel = tabgroupEditor.panel;
   let nameField = tabgroupPanel.querySelector("#tab-group-name");
   let tab = BrowserTestUtils.addTab(gBrowser, "about:blank");
-  let group;
 
   let openCreatePanel = async () => {
     let panelShown = BrowserTestUtils.waitForPopupEvent(tabgroupPanel, "shown");
-    group = gBrowser.addTabGroup([tab], {
+    let group = gBrowser.addTabGroup([tab], {
       color: "cyan",
       label: "Food",
       isUserTriggered: true,
     });
     await panelShown;
+    return group;
   };
 
-  await openCreatePanel();
+  let group = await openCreatePanel();
   Assert.equal(tabgroupPanel.state, "open", "Create panel is visible");
   Assert.ok(tabgroupEditor.createMode, "Group editor is in create mode");
   // Edit panel should be populated with correct group details
@@ -1725,14 +1741,14 @@ add_task(async function test_tabGroupCreatePanel() {
   Assert.ok(!tab.group, "Tab is ungrouped after hitting Cancel");
 
   info("New group should be removed after hitting Esc");
-  await openCreatePanel();
+  group = await openCreatePanel();
   panelHidden = BrowserTestUtils.waitForPopupEvent(tabgroupPanel, "hidden");
   EventUtils.synthesizeKey("KEY_Escape");
   await panelHidden;
   Assert.ok(!tab.group, "Tab is ungrouped after hitting Esc");
 
   info("New group should remain when dismissing panel");
-  await openCreatePanel();
+  group = await openCreatePanel();
   panelHidden = BrowserTestUtils.waitForPopupEvent(tabgroupPanel, "hidden");
   tabgroupPanel.hidePopup();
   await panelHidden;
@@ -1742,7 +1758,7 @@ add_task(async function test_tabGroupCreatePanel() {
   group.ungroupTabs();
 
   info("Panel inputs should work correctly");
-  await openCreatePanel();
+  group = await openCreatePanel();
   nameField.focus();
   nameField.value = "";
   EventUtils.sendString("Shopping");
@@ -1819,7 +1835,7 @@ add_task(async function test_tabGroupCreatePanel() {
   tabGroupCreatedTrigger.uninit();
 });
 
-async function createTabGroupAndOpenEditPanel(tabs = []) {
+async function createTabGroupAndOpenEditPanel(tabs = [], label = "") {
   let tabgroupEditor = document.getElementById("tab-group-editor");
   let tabgroupPanel = tabgroupEditor.panel;
   if (!tabs.length) {
@@ -1828,7 +1844,7 @@ async function createTabGroupAndOpenEditPanel(tabs = []) {
     });
     tabs = [tab];
   }
-  let group = gBrowser.addTabGroup(tabs, { color: "cyan", label: "Food" });
+  let group = gBrowser.addTabGroup(tabs, { color: "cyan", label });
 
   let panelShown = BrowserTestUtils.waitForPopupEvent(tabgroupPanel, "shown");
   EventUtils.synthesizeMouseAtCenter(
@@ -1844,7 +1860,10 @@ async function createTabGroupAndOpenEditPanel(tabs = []) {
 }
 
 add_task(async function test_tabGroupPanelAddTab() {
-  let { tabgroupEditor, group } = await createTabGroupAndOpenEditPanel();
+  let { tabgroupEditor, group } = await createTabGroupAndOpenEditPanel(
+    [],
+    "test_tabGroupPanelAddTab"
+  );
   let tabgroupPanel = tabgroupEditor.panel;
 
   let addNewTabButton = tabgroupPanel.querySelector(
@@ -1858,13 +1877,14 @@ add_task(async function test_tabGroupPanelAddTab() {
   Assert.ok(tabgroupPanel.state === "closed", "Group editor is closed");
   Assert.equal(group.tabs.length, 2, "Group has 2 tabs");
 
-  for (let tab of group.tabs) {
-    BrowserTestUtils.removeTab(tab);
-  }
+  await removeTabGroup(group);
 });
 
 add_task(async function test_tabGroupPanelUngroupTabs() {
-  let { tabgroupEditor, group } = await createTabGroupAndOpenEditPanel();
+  let { tabgroupEditor, group } = await createTabGroupAndOpenEditPanel(
+    [],
+    "test_tabGroupPanelAddTab"
+  );
   let tabgroupPanel = tabgroupEditor.panel;
   let tab = group.tabs[0];
   let ungroupTabsButton = tabgroupPanel.querySelector(
@@ -1914,7 +1934,10 @@ add_task(async function test_moveGroupToNewWindow() {
       "about:mozilla is third"
     );
   };
-  let { group } = await createTabGroupAndOpenEditPanel(tabs);
+  let { group } = await createTabGroupAndOpenEditPanel(
+    tabs,
+    "test_moveGroupToNewWindow"
+  );
 
   let newWindowOpened = BrowserTestUtils.waitForNewWindow();
   document.getElementById("tabGroupEditor_moveGroupToNewWindow").click();
@@ -1964,7 +1987,7 @@ add_task(async function test_moveGroupToNewWindow() {
     !moveGroupButton.disabled,
     "Button is enabled again when additional tab present"
   );
-
+  await removeTabGroup(movedGroup);
   await BrowserTestUtils.closeWindow(newWin, { animate: false });
 });
 
@@ -1973,7 +1996,10 @@ add_task(async function test_moveGroupToNewWindow() {
  * group is not saveable.
  */
 add_task(async function test_saveDisabledForUnimportantGroup() {
-  let { tabgroupEditor, group } = await createTabGroupAndOpenEditPanel();
+  let { tabgroupEditor, group } = await createTabGroupAndOpenEditPanel(
+    [],
+    "test_saveDisabledForUnimportantGroups"
+  );
   let saveAndCloseGroupButton = tabgroupEditor.panel.querySelector(
     "#tabGroupEditor_saveAndCloseGroup"
   );
@@ -1987,7 +2013,7 @@ add_task(async function test_saveDisabledForUnimportantGroup() {
   );
   tabgroupEditor.panel.hidePopup();
   await panelHidden;
-  await gBrowser.removeTabGroup(group);
+  await removeTabGroup(group);
 });
 
 add_task(async function test_saveAndCloseGroup() {
@@ -1997,7 +2023,10 @@ add_task(async function test_saveAndCloseGroup() {
   tabGroupSavedTrigger.init(triggerHandler);
 
   let tab = await addTab("about:mozilla");
-  let { tabgroupEditor, group } = await createTabGroupAndOpenEditPanel([tab]);
+  let { tabgroupEditor, group } = await createTabGroupAndOpenEditPanel(
+    [tab],
+    "test_saveAndCloseGroup"
+  );
   let tabgroupPanel = tabgroupEditor.panel;
   await TabStateFlusher.flush(tab.linkedBrowser);
   let saveAndCloseGroupButton = tabgroupPanel.querySelector(
@@ -2093,6 +2122,7 @@ add_task(async function test_pinningInteractionsWithTabGroups() {
   );
 
   moreTabs.concat(tabs).forEach(tab => BrowserTestUtils.removeTab(tab));
+  await removeTabGroup(group);
 });
 
 add_task(async function test_pinFirstGroupedTab() {
@@ -2120,6 +2150,7 @@ add_task(async function test_adoptTab() {
   Assert.equal(adoptedTab._tPos, 1, "tab adopted into expected position");
   Assert.equal(adoptedTab.group, group, "tab adopted into tab group");
 
+  await removeTabGroup(group);
   await BrowserTestUtils.closeWindow(newWin, { animate: false });
 });
 
@@ -2226,6 +2257,36 @@ add_task(async function test_bug1957723_addTabsByIndex() {
     "Tab added at index just after end of tab group is not in group"
   );
   gBrowser.removeTab(tab3);
+
+  gBrowser.removeAllTabsBut(initialTab);
+});
+
+add_task(async function test_bug1959438_duplicateTabJustBeforeGroup() {
+  let initialTab = gBrowser.tabs[0];
+  let triggeringPrincipal = Services.scriptSecurityManager.getSystemPrincipal();
+  const tabs = createManyTabs(3);
+
+  gBrowser.addTabGroup(tabs);
+
+  Assert.equal(gBrowser.tabs.length, 4, "Tab strip starts with four tabs");
+
+  gBrowser.selectTabAtIndex(0);
+
+  // Simulate an addTab call similar to what would be called when a tab is
+  // duplicated. This produces a situation where addTab has no index, but knows
+  // it needs to create one next to the currently selected tab, and guesses for
+  // itself.
+  // If this happens next to a tab group, the resulting element index will
+  // point to the tab group label.
+  gBrowser.addTab("https://example.com", {
+    index: undefined,
+    relatedToCurrent: true,
+    ownerTab: gBrowser.selectedTab,
+    triggeringPrincipal,
+  });
+
+  // This will fail if the tab ends up merged with the tab label.
+  Assert.equal(gBrowser.tabs.length, 5, "A new tab was added to the tab strip");
 
   gBrowser.removeAllTabsBut(initialTab);
 });

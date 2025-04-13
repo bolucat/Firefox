@@ -67,18 +67,57 @@ export const ContentAnalysis = {
 
   isInitialized: false,
 
-  // Maps string UserActionId to { userActionId, requestTokenSet, timer } or
-  // { userActionId, requestTokenSet, notification }
+  /**
+   * @typedef {object} NotificationInfo - information about the busy dialog itself that is showing
+   * @property {*} [close] - Method to close the native notification
+   * @property {BrowsingContext} [dialogBrowsingContext] - browsing context where the
+   *                                                       confirm() dialog is shown
+   */
+
+  /**
+   * @typedef {object} BusyDialogInfo - information about a busy dialog that is either showing or will
+   *                                    will be shown after a delay.
+   * @property {string} userActionId - The userActionId of the request
+   * @property {Set<string>} requestTokenSet - The set of requestTokens associated with the userActionId
+   * @property {*} [timer] - Result of a setTimeout() call that can be used to cancel the showing of the busy
+   *                         dialog if it has not been displayed yet.
+   * @property {NotificationInfo} [notification] - Information about the busy dialog that is being shown.
+   */
+
+  /**
+   * @type {Map<string, BusyDialogInfo>}
+   *
+   * Maps string UserActionId to info about the busy dialog.
+   */
   userActionToBusyDialogMap: new Map(),
 
   /**
-   * @type {Map<string, {browsingContext: BrowsingContext, resourceNameOrOperationType: object}>}
+   * @typedef {object} ResourceNameOrOperationType
+   * @property {string} [name] - the name of the resource
+   * @property {number} [operationType] - the type of operation
+   */
+
+  /**
+   * @typedef {object} RequestInfo
+   * @property {BrowsingContext} browsingContext - browsing context where the request was sent from
+   * @property {ResourceNameOrOperationType} resourceNameOrOperationType - name of the operation
+   */
+
+  /**
+   * @type {Map<string, RequestInfo>}
    */
   requestTokenToRequestInfo: new Map(),
 
   /**
+   * @type {Set<string>}
+   */
+  warnDialogRequestTokens: new Set(),
+
+  /**
    * Registers for various messages/events that will indicate the
    * need for communicating something to the user.
+   *
+   * @param {Window} window - The window to monitor
    */
   initialize(window) {
     if (!lazy.gContentAnalysis.isActive) {
@@ -180,6 +219,17 @@ export const ContentAnalysis = {
         break;
       }
       case "quit-application": {
+        // We're quitting, so respond false to all WARN dialogs.
+        let requestTokensToCancel = this.warnDialogRequestTokens;
+        // Clear this first so the handler showing the dialog will know not
+        // to call respondToWarnDialog() again.
+        this.warnDialogRequestTokens = new Set();
+        for (let warnDialogRequestToken of requestTokensToCancel) {
+          lazy.gContentAnalysis.respondToWarnDialog(
+            warnDialogRequestToken,
+            false
+          );
+        }
         this.uninitialize();
         break;
       }
@@ -256,6 +306,12 @@ export const ContentAnalysis = {
     }
   },
 
+  /**
+   * Shows the panel that indicates that DLP is active.
+   *
+   * @param {Element} element The toolbarbutton the user has clicked on
+   * @param {panelUI} panelUI Maintains state for the main menu panel
+   */
   async showPanel(element, panelUI) {
     element.ownerDocument.l10n.setAttributes(
       lazy.PanelMultiView.getViewNode(
@@ -268,6 +324,11 @@ export const ContentAnalysis = {
     panelUI.showSubView("content-analysis-panel", element);
   },
 
+  /**
+   * Closes a busy dialog
+   *
+   * @param {BusyDialogInfo?} caView - the busy dialog to close
+   */
   _disconnectFromView(caView) {
     if (!caView) {
       return;
@@ -301,6 +362,16 @@ export const ContentAnalysis = {
     }
   },
 
+  /**
+   * Shows either a dialog or native notification or both, depending on the values of
+   * _SHOW_DIALOGS and _SHOW_NOTIFICATIONS.
+   *
+   * @param {string} aMessage - Message to show
+   * @param {BrowsingContext} aBrowsingContext - BrowsingContext to show the dialog in.
+   * @param {number} aTimeout - timeout for closing the native notification. 0 indicates it is
+   *                            not automatically closed.
+   * @returns {NotificationInfo?} - information about the native notification, if it has been shown.
+   */
   _showMessage(aMessage, aBrowsingContext, aTimeout = 0) {
     if (this._SHOW_DIALOGS) {
       Services.prompt.asyncAlert(
@@ -331,6 +402,12 @@ export const ContentAnalysis = {
     return null;
   },
 
+  /**
+   * Whether the notification should block browser interaction.
+   *
+   * @param {number} aAnalysisType The type of DLP analysis being done.
+   * @returns {boolean}
+   */
   _shouldShowBlockingNotification(aAnalysisType) {
     return !(
       aAnalysisType == Ci.nsIContentAnalysisRequest.eFileDownloaded ||
@@ -338,8 +415,13 @@ export const ContentAnalysis = {
     );
   },
 
-  // This function also transforms the nameOrOperationType so we won't have to
-  // look it up again.
+  /**
+   * This function also transforms the nameOrOperationType so we won't have to
+   * look it up again.
+   *
+   * @param {ResourceNameOrOperationType} nameOrOperationType
+   * @returns {string}
+   */
   _getResourceNameFromNameOrOperationType(nameOrOperationType) {
     if (!nameOrOperationType.name) {
       let l10nId = undefined;
@@ -374,8 +456,7 @@ export const ContentAnalysis = {
    *                              line. This is used to add more context to the message
    *                              if a file is being uploaded rather than just the name
    *                              of the file.
-   * @returns {object} An object with either a name property that can be used as-is, or
-   *                   an operationType property.
+   * @returns {ResourceNameOrOperationType}
    */
   _getResourceNameOrOperationTypeFromRequest(aRequest, aStandalone) {
     if (
@@ -395,6 +476,14 @@ export const ContentAnalysis = {
     return { operationType: aRequest.operationTypeForDisplay };
   },
 
+  /**
+   * Sets up an "operation is in progress" dialog to be shown after a delay,
+   * unless one is already showing for this userActionId.
+   *
+   * @param {nsIContentAnalysisRequest} aRequest
+   * @param {ResourceNameOrOperationType} aResourceNameOrOperationType
+   * @param {BrowsingContext} aBrowsingContext
+   */
   _queueSlowCAMessage(
     aRequest,
     aResourceNameOrOperationType,
@@ -433,6 +522,12 @@ export const ContentAnalysis = {
     }, slowTimeoutMs);
   },
 
+  /**
+   * Removes the Slow CA message, if it is showing
+   *
+   * @param {string} aUserActionId The user action ID to remove
+   * @param {string} aRequestToken The request token to remove
+   */
   _removeSlowCAMessage(aUserActionId, aRequestToken) {
     let entry = this.userActionToBusyDialogMap.get(aUserActionId);
     if (!entry) {
@@ -456,8 +551,9 @@ export const ContentAnalysis = {
   },
 
   /**
+   * Gets all the requests that are still in progress.
    *
-   * @returns {Iterable<{browsingContext: BrowsingContext, resourceNameOrOperationType: object}>} Information about the requests that are still in progress
+   * @returns {Iterable<RequestInfo>} Information about the requests that are still in progress
    */
   _getAllSlowCARequestInfos() {
     return this.userActionToBusyDialogMap
@@ -469,6 +565,11 @@ export const ContentAnalysis = {
   /**
    * Show a message to the user to indicate that a CA request is taking
    * a long time.
+   *
+   * @param {string} aOperation Name of the operation
+   * @param {nsIContentAnalysisRequest} aRequest The request that is taking a long time
+   * @param {string} aBodyMessage Message to show in the body of the alert
+   * @param {BrowsingContext} aBrowsingContext BrowsingContext to show the alert in
    */
   _showSlowCAMessage(aOperation, aRequest, aBodyMessage, aBrowsingContext) {
     if (!this._shouldShowBlockingNotification(aOperation)) {
@@ -489,6 +590,13 @@ export const ContentAnalysis = {
     );
   },
 
+  /**
+   * Gets the dialog message to show for the Slow CA dialog.
+   *
+   * @param {ResourceNameOrOperationType} aResourceNameOrOperationType
+   * @param {number} aNumRequests
+   * @returns {string}
+   */
   _getSlowDialogMessage(aResourceNameOrOperationType, aNumRequests) {
     if (aResourceNameOrOperationType.name) {
       let label =
@@ -524,6 +632,12 @@ export const ContentAnalysis = {
     return this.l10n.formatValueSync(l10nId, { agent: lazy.agentName });
   },
 
+  /**
+   * Gets the dialog message to show when the request has an error.
+   *
+   * @param {ResourceNameOrOperationType} aResourceNameOrOperationType
+   * @returns {string}
+   */
   _getErrorDialogMessage(aResourceNameOrOperationType) {
     if (aResourceNameOrOperationType.name) {
       return this.l10n.formatValueSync(
@@ -552,6 +666,16 @@ export const ContentAnalysis = {
     }
     return this.l10n.formatValueSync(l10nId);
   },
+
+  /**
+   * Show the Slow CA blocking dialog.
+   *
+   * @param {BrowsingContext} aBrowsingContext
+   * @param {string} aUserActionId
+   * @param {string} aRequestToken
+   * @param {string} aBodyMessage
+   * @returns {NotificationInfo}
+   */
   _showSlowCABlockingMessage(
     aBrowsingContext,
     aUserActionId,
@@ -589,12 +713,12 @@ export const ContentAnalysis = {
         // in which case we need to cancel the request.
         if (this.requestTokenToRequestInfo.delete(aRequestToken)) {
           // TODO: Is this useful?  I think no.
+          this._removeSlowCAMessage({}, aRequestToken);
           this._removeSlowCAMessage(aUserActionId, aRequestToken);
           lazy.gContentAnalysis.cancelRequestsByRequestToken(aRequestToken);
         }
       });
     return {
-      requestToken: aRequestToken,
       dialogBrowsingContext: aBrowsingContext,
     };
   },
@@ -602,7 +726,14 @@ export const ContentAnalysis = {
   /**
    * Show a message to the user to indicate the result of a CA request.
    *
-   * @returns {object} a notification object (if shown)
+   * @param {object} aResourceNameOrOperationType
+   * @param {BrowsingContext} aBrowsingContext
+   * @param {string} aRequestToken
+   * @param {string} aUserActionId
+   * @param {number} aCAResult
+   * @param {bool} aIsAgentResponse
+   * @param {number} aRequestCancelError
+   * @returns {NotificationInfo?} a notification object (if shown)
    */
   async _showCAResult(
     aResourceNameOrOperationType,
@@ -635,6 +766,7 @@ export const ContentAnalysis = {
       case Ci.nsIContentAnalysisResponse.eWarn: {
         let allow = false;
         try {
+          this.warnDialogRequestTokens.add(aRequestToken);
           const result = await Services.prompt.asyncConfirmEx(
             aBrowsingContext,
             Ci.nsIPromptService.MODAL_TYPE_TAB,
@@ -664,7 +796,13 @@ export const ContentAnalysis = {
           // the request is still active.
           allow = false;
         }
-        lazy.gContentAnalysis.respondToWarnDialog(aRequestToken, allow);
+        // Note that the shutdown code in the "quit-application" handler
+        // may have cleared out warnDialogRequestTokens and responded
+        // to the request already, so don't call respondToWarnDialog()
+        // if aRequestToken is not in warnDialogRequestTokens.
+        if (this.warnDialogRequestTokens.delete(aRequestToken)) {
+          lazy.gContentAnalysis.respondToWarnDialog(aRequestToken, allow);
+        }
         return null;
       }
       case Ci.nsIContentAnalysisResponse.eBlock: {
@@ -832,6 +970,8 @@ export const ContentAnalysis = {
 
   /**
    * Returns the correct text for warn dialog contents.
+   *
+   * @param {ResourceNameOrOperationType} aResourceNameOrOperationType
    */
   async _warnDialogText(aResourceNameOrOperationType) {
     const caInfo = await lazy.gContentAnalysis.getDiagnosticInfo();

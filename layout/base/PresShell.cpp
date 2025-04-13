@@ -18,6 +18,7 @@
 #include "gfxUtils.h"
 #include "MobileViewportManager.h"
 #include "mozilla/AccessibleCaretEventHub.h"
+#include "mozilla/AnimationEventDispatcher.h"
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
@@ -815,6 +816,7 @@ PresShell::PresShell(Document* aDocument)
       mWasLastReflowInterrupted(false),
       mObservingStyleFlushes(false),
       mResizeEventPending(false),
+      mVisualViewportResizeEventPending(false),
       mFontSizeInflationForceEnabled(false),
       mFontSizeInflationDisabledInMasterProcess(false),
       mFontSizeInflationEnabled(false),
@@ -1348,7 +1350,7 @@ void PresShell::Destroy() {
   }
 
   if (mPresContext) {
-    rd->CancelPendingAnimationEvents(mPresContext->AnimationEventDispatcher());
+    mPresContext->AnimationEventDispatcher()->ClearEventQueue();
   }
 
   // Revoke any pending events.  We need to do this and cancel pending reflows
@@ -1357,11 +1359,6 @@ void PresShell::Destroy() {
   // XXXmats is this still needed now that plugins are gone?
   StopObservingRefreshDriver();
   mObservingStyleFlushes = false;
-
-  if (rd->GetPresContext() == GetPresContext()) {
-    rd->RevokeViewManagerFlush();
-    rd->ClearHasScheduleFlush();
-  }
 
   CancelAllPendingReflows();
   CancelPostedReflowCallbacks();
@@ -1400,19 +1397,16 @@ void PresShell::Destroy() {
 }
 
 void PresShell::StopObservingRefreshDriver() {
-  nsRefreshDriver* rd = mPresContext->RefreshDriver();
-  if (mResizeEventPending) {
-    rd->RemoveResizeEventFlushObserver(this);
-  }
   if (mObservingStyleFlushes) {
+    nsRefreshDriver* rd = mPresContext->RefreshDriver();
     rd->RemoveStyleFlushObserver(this);
   }
 }
 
 void PresShell::StartObservingRefreshDriver() {
   nsRefreshDriver* rd = mPresContext->RefreshDriver();
-  if (mResizeEventPending) {
-    rd->AddResizeEventFlushObserver(this);
+  if (mResizeEventPending || mVisualViewportResizeEventPending) {
+    rd->ScheduleRenderingPhase(mozilla::RenderingPhase::ResizeSteps);
   }
   if (mObservingStyleFlushes) {
     rd->AddStyleFlushObserver(this);
@@ -1829,9 +1823,7 @@ nsresult PresShell::Initialize() {
     NS_ENSURE_STATE(!mHaveShutDown);
   }
 
-  if (mDocument->HasAutoFocusCandidates()) {
-    mDocument->ScheduleFlushAutoFocusCandidates();
-  }
+  mDocument->MaybeScheduleRendering();
 
   NS_ASSERTION(rootFrame, "How did that happen?");
 
@@ -2001,12 +1993,31 @@ bool PresShell::CanHandleUserInputEvents(WidgetGUIEvent* aGUIEvent) {
   return true;
 }
 
-void PresShell::AddResizeEventFlushObserverIfNeeded() {
-  if (!mIsDestroying && !mResizeEventPending &&
-      MOZ_LIKELY(!mDocument->GetBFCacheEntry())) {
-    mResizeEventPending = true;
-    mPresContext->RefreshDriver()->AddResizeEventFlushObserver(this);
+void PresShell::PostScrollEvent(Runnable* aEvent) {
+  MOZ_ASSERT(aEvent);
+  const bool hadEvents = !mPendingScrollEvents.IsEmpty();
+  mPendingScrollEvents.AppendElement(aEvent);
+  if (!hadEvents) {
+    mPresContext->RefreshDriver()->ScheduleRenderingPhase(
+        RenderingPhase::ScrollSteps);
   }
+}
+
+void PresShell::ScheduleResizeEventIfNeeded(ResizeEventKind aKind) {
+  if (mIsDestroying) {
+    return;
+  }
+  if (MOZ_UNLIKELY(mDocument->GetBFCacheEntry())) {
+    return;
+  }
+  if (aKind == ResizeEventKind::Regular) {
+    mResizeEventPending = true;
+  } else {
+    MOZ_ASSERT(aKind == ResizeEventKind::Visual);
+    mVisualViewportResizeEventPending = true;
+  }
+  mPresContext->RefreshDriver()->ScheduleRenderingPhase(
+      RenderingPhase::ResizeSteps);
 }
 
 bool PresShell::ResizeReflowIgnoreOverride(nscoord aWidth, nscoord aHeight,
@@ -2020,7 +2031,7 @@ bool PresShell::ResizeReflowIgnoreOverride(nscoord aWidth, nscoord aHeight,
 
   auto postResizeEventIfNeeded = [this, initialized]() {
     if (initialized) {
-      AddResizeEventFlushObserverIfNeeded();
+      ScheduleResizeEventIfNeeded(ResizeEventKind::Regular);
     }
   };
 
@@ -2125,40 +2136,51 @@ bool PresShell::ResizeReflowIgnoreOverride(nscoord aWidth, nscoord aHeight,
   return true;
 }
 
-void PresShell::FireResizeEvent() {
+// https://drafts.csswg.org/cssom-view/#document-run-the-resize-steps
+void PresShell::RunResizeSteps() {
+  if (!mResizeEventPending && !mVisualViewportResizeEventPending) {
+    return;
+  }
   if (mIsDocumentGone) {
     return;
   }
 
-  // If event handling is suppressed, repost the resize event to the refresh
-  // driver. The event is marked as delayed so that the refresh driver does not
-  // continue ticking.
-  if (mDocument->EventHandlingSuppressed()) {
-    if (MOZ_LIKELY(!mDocument->GetBFCacheEntry())) {
-      mDocument->SetHasDelayedRefreshEvent();
-      mPresContext->RefreshDriver()->AddResizeEventFlushObserver(
-          this, /* aDelayed = */ true);
-    }
+  RefPtr window = nsGlobalWindowInner::Cast(mDocument->GetInnerWindow());
+  if (!window) {
     return;
   }
 
-  mResizeEventPending = false;
-  FireResizeEventSync();
+  if (mResizeEventPending) {
+    // Clear it before firing, just in case the event triggers another resize
+    // event. Such event will fire next tick.
+    mResizeEventPending = false;
+    WidgetEvent event(true, mozilla::eResize);
+    nsEventStatus status = nsEventStatus_eIgnore;
+
+    if (RefPtr<nsPIDOMWindowOuter> outer = window->GetOuterWindow()) {
+      // MOZ_KnownLive due to bug 1506441
+      EventDispatcher::Dispatch(MOZ_KnownLive(nsGlobalWindowOuter::Cast(outer)),
+                                mPresContext, &event, nullptr, &status);
+    }
+  }
+
+  if (mVisualViewportResizeEventPending) {
+    mVisualViewportResizeEventPending = false;
+    RefPtr vv = window->VisualViewport();
+    vv->FireResizeEvent();
+  }
 }
 
-void PresShell::FireResizeEventSync() {
-  if (mIsDocumentGone) {
-    return;
-  }
-
-  // Send resize event from here.
-  WidgetEvent event(true, mozilla::eResize);
-  nsEventStatus status = nsEventStatus_eIgnore;
-
-  if (RefPtr<nsPIDOMWindowOuter> window = mDocument->GetWindow()) {
-    // MOZ_KnownLive due to bug 1506441
-    EventDispatcher::Dispatch(MOZ_KnownLive(nsGlobalWindowOuter::Cast(window)),
-                              mPresContext, &event, nullptr, &status);
+// https://drafts.csswg.org/cssom-view/#document-run-the-scroll-steps
+// But note: https://github.com/w3c/csswg-drafts/issues/11164
+void PresShell::RunScrollSteps() {
+  // Scroll events are one-shot, so after running them we can drop them.
+  // However, dispatching a scroll event can potentially cause more scroll
+  // events to be posted, so we move the initial set into a temporary array
+  // first. (Newly posted scroll events will be dispatched on the next tick.)
+  auto events = std::move(mPendingScrollEvents);
+  for (auto& event : events) {
+    event->Run();
   }
 }
 
@@ -3221,7 +3243,7 @@ nsresult PresShell::GoToAnchor(const nsAString& aAnchorName,
     // https://html.spec.whatwg.org/#ancestor-hidden-until-found-revealing-algorithm
     ErrorResult rv;
     target->RevealAncestorHiddenUntilFoundAndFireBeforematchEvent(rv);
-    if(MOZ_UNLIKELY(rv.Failed())) {
+    if (MOZ_UNLIKELY(rv.Failed())) {
       return rv.StealNSResult();
     }
 
@@ -4145,13 +4167,12 @@ bool PresShell::ScrollFrameIntoView(
   return didScroll;
 }
 
-void PresShell::ScheduleViewManagerFlush() {
+void PresShell::SchedulePaint() {
   if (MOZ_UNLIKELY(mIsDestroying)) {
     return;
   }
-
   if (nsPresContext* presContext = GetPresContext()) {
-    presContext->RefreshDriver()->ScheduleViewManagerFlush();
+    presContext->RefreshDriver()->SchedulePaint();
   }
 }
 

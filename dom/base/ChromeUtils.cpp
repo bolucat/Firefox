@@ -88,6 +88,10 @@
 #  include "mozilla/MFCDMParent.h"
 #endif
 
+#ifdef MOZ_WIDGET_ANDROID
+#  include "mozilla/java/GeckoAppShellWrappers.h"
+#endif
+
 namespace mozilla::dom {
 
 // Setup logging
@@ -2479,6 +2483,9 @@ bool ChromeUtils::ShouldResistFingerprinting(
     case JSRFPTarget::CSSPrefersColorScheme:
       target = RFPTarget::CSSPrefersColorScheme;
       break;
+    case JSRFPTarget::JSLocalePrompt:
+      target = RFPTarget::JSLocalePrompt;
+      break;
     default:
       MOZ_CRASH("Unhandled JSRFPTarget enum value");
   }
@@ -2569,6 +2576,13 @@ already_AddRefed<Promise> ChromeUtils::GetGMPContentDecryptionModuleInformation(
   MOZ_ASSERT(domPromise);
   KeySystemConfig::GetGMPKeySystemConfigs(domPromise);
   return domPromise.forget();
+}
+
+void ChromeUtils::AndroidMoveTaskToBack(GlobalObject& aGlobal) {
+#ifdef MOZ_WIDGET_ANDROID
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
+  java::GeckoAppShell::MoveTaskToBack();
+#endif
 }
 
 }  // namespace mozilla::dom

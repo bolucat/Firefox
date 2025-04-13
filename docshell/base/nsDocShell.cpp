@@ -8548,13 +8548,18 @@ bool nsDocShell::IsSameDocumentNavigation(nsDocShellLoadState* aLoadState,
       if (!aState.mSameExceptHashes) {
         if (nsCOMPtr<nsIChannel> docChannel = GetCurrentDocChannel()) {
           nsCOMPtr<nsILoadInfo> docLoadInfo = docChannel->LoadInfo();
+          nsHTTPSOnlyUtils::UpgradeMode upgradeMode =
+              nsHTTPSOnlyUtils::GetUpgradeMode(docLoadInfo);
           if (!docLoadInfo->GetLoadErrorPage() &&
-              nsHTTPSOnlyUtils::ShouldUpgradeConnection(docLoadInfo) &&
+              (upgradeMode == nsHTTPSOnlyUtils::HTTPS_ONLY_MODE ||
+               upgradeMode == nsHTTPSOnlyUtils::HTTPS_FIRST_MODE) &&
               nsHTTPSOnlyUtils::IsHttpDowngrade(currentExposableURI,
                                                 aLoadState->URI())) {
             uint32_t status = docLoadInfo->GetHttpsOnlyStatus();
-            if (status & (nsILoadInfo::HTTPS_ONLY_UPGRADED_LISTENER_REGISTERED |
-                          nsILoadInfo::HTTPS_ONLY_UPGRADED_HTTPS_FIRST)) {
+            if ((status &
+                 (nsILoadInfo::HTTPS_ONLY_UPGRADED_LISTENER_REGISTERED |
+                  nsILoadInfo::HTTPS_ONLY_UPGRADED_HTTPS_FIRST)) &&
+                !(status & nsILoadInfo::HTTPS_ONLY_EXEMPT)) {
               // At this point the requested URI is for sure a fragment
               // navigation via HTTP and HTTPS-Only mode or HTTPS-First is
               // enabled. Also it is not interfering the upgrade order of
@@ -9390,7 +9395,8 @@ nsresult nsDocShell::InternalLoad(nsDocShellLoadState* aLoadState,
     // unload and just unload.
     bool okToUnload;
     if (!isHistoryOrReload && aLoadState->IsExemptFromHTTPSFirstMode() &&
-        nsHTTPSOnlyUtils::IsHttpsFirstModeEnabled(isPrivateWin)) {
+        nsHTTPSOnlyUtils::GetUpgradeMode(isPrivateWin) ==
+            nsHTTPSOnlyUtils::HTTPS_FIRST_MODE) {
       rv = mDocumentViewer->PermitUnload(
           nsIDocumentViewer::PermitUnloadAction::eDontPromptAndUnload,
           &okToUnload);
@@ -11357,7 +11363,8 @@ nsDocShell::AddState(JS::Handle<JS::Value> aData, const nsAString& aTitle,
     if (RefPtr<Navigation> navigation = window->Navigation();
         navigation &&
         navigation->FirePushReplaceReloadNavigateEvent(
-            aReplace ? NavigationType::Replace : NavigationType::Push, newURI,
+            aCx, aReplace ? NavigationType::Replace : NavigationType::Push,
+            newURI,
             /* aIsSameDocument */ true, /* aUserInvolvement */ Nothing(),
             /* aSourceElement */ nullptr, /* aFormDataEntryList */ Nothing(),
             /* aNavigationAPIState */ nullptr, scContainer)) {

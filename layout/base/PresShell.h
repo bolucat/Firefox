@@ -357,11 +357,11 @@ class PresShell final : public nsStubDocumentObserver,
       ResizeReflowOptions = ResizeReflowOptions::NoOption);
   MOZ_CAN_RUN_SCRIPT void ForceResizeReflowWithCurrentDimensions();
 
-  /**
-   * Add this pres shell to the refresh driver to be observed for resize
-   * event if applicable.
-   */
-  void AddResizeEventFlushObserverIfNeeded();
+  /** Schedule a resize event if applicable. */
+  enum class ResizeEventKind : uint8_t { Regular, Visual };
+  void ScheduleResizeEventIfNeeded(ResizeEventKind = ResizeEventKind::Regular);
+
+  void PostScrollEvent(mozilla::Runnable*);
 
   /**
    * Returns true if the document hosted by this presShell is in a devtools
@@ -1176,8 +1176,8 @@ class PresShell final : public nsStubDocumentObserver,
    */
   bool HasHandledUserInput() const { return mHasHandledUserInput; }
 
-  MOZ_CAN_RUN_SCRIPT void FireResizeEvent();
-  MOZ_CAN_RUN_SCRIPT void FireResizeEventSync();
+  MOZ_CAN_RUN_SCRIPT void RunResizeSteps();
+  MOZ_CAN_RUN_SCRIPT void RunScrollSteps();
 
   void NativeAnonymousContentWillBeRemoved(nsIContent* aAnonContent);
 
@@ -1344,12 +1344,7 @@ class PresShell final : public nsStubDocumentObserver,
    * widget geometry.
    */
   MOZ_CAN_RUN_SCRIPT void WillPaint();
-
-  /**
-   * Ensures that the refresh driver is running, and schedules a view
-   * manager flush on the next tick.
-   */
-  void ScheduleViewManagerFlush();
+  void SchedulePaint();
 
   // caret handling
   NS_IMETHOD SetCaretEnabled(bool aInEnable) override;
@@ -3104,6 +3099,8 @@ class PresShell final : public nsStubDocumentObserver,
   nsTHashSet<ScrollContainerFrame*> mPendingScrollAnchorSelection;
   nsTHashSet<ScrollContainerFrame*> mPendingScrollAnchorAdjustment;
   nsTHashSet<ScrollContainerFrame*> mPendingScrollResnap;
+  // Pending list of scroll/scrollend/etc events.
+  nsTArray<RefPtr<Runnable>> mPendingScrollEvents;
 
   nsTHashSet<nsIContent*> mHiddenContentInForcedLayout;
 
@@ -3245,6 +3242,7 @@ class PresShell final : public nsStubDocumentObserver,
   bool mObservingStyleFlushes : 1;
 
   bool mResizeEventPending : 1;
+  bool mVisualViewportResizeEventPending : 1;
 
   bool mFontSizeInflationForceEnabled : 1;
   bool mFontSizeInflationDisabledInMasterProcess : 1;

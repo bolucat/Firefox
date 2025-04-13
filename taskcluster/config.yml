@@ -120,6 +120,7 @@ treeherder:
         'Ub22': 'Packages for Ubuntu 22.04'
         'Ub22a64': 'AArch64 packages for Ubuntu 22.04'
         'Ub24': 'Packages for Ubuntu 24.04'
+        'Ub24a64': 'AArch64 packages for Ubuntu 24.04'
         'I': 'Docker Image Builds'
         'TA': 'Toolchain builds for Android'
         'TL': 'Toolchain builds for Linux 64-bits'
@@ -854,6 +855,11 @@ workers:
             implementation: generic-worker
             os: linux
             worker-type: 't-linux-2404-wayland-snap'
+        t-linux-arm64-docker:
+            provisioner: '{trust-domain}-t'
+            implementation: docker-worker
+            os: linux
+            worker-type: '{alias}'
         t-osx-1015-r8:
             provisioner: releng-hardware
             implementation: generic-worker

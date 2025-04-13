@@ -340,7 +340,6 @@ void DMABufSurface::ReleaseDMABuf() {
 DMABufSurface::DMABufSurface(SurfaceType aSurfaceType)
     : mSurfaceType(aSurfaceType),
       mBufferPlaneCount(0),
-      mDrmFormats(),
       mStrides(),
       mOffsets(),
       mGbmBufferObject(),
@@ -828,8 +827,8 @@ bool DMABufSurfaceRGBA::CreateExport(mozilla::gl::GLContext* aGLContext,
     return false;
   }
 
-  if (!egl->fExportDMABUFImageQuery(mEGLImage, mDrmFormats, &mBufferPlaneCount,
-                                    &mBufferModifier)) {
+  if (!egl->fExportDMABUFImageQuery(mEGLImage, &mFOURCCFormat,
+                                    &mBufferPlaneCount, &mBufferModifier)) {
     LOGDMABUF("  ExportDMABUFImageQueryMESA failed, quit\n");
     return false;
   }
@@ -859,8 +858,6 @@ bool DMABufSurfaceRGBA::CreateExport(mozilla::gl::GLContext* aGLContext,
       return false;
     }
   }
-  // TODO: remove mDrmFormats array from RGBA
-  mFOURCCFormat = mDrmFormats[0];
 
   if (GetFormat() == gfx::SurfaceFormat::UNKNOWN) {
     LOGDMABUF("  failed, unsupported drm format %x", mFOURCCFormat);
@@ -929,7 +926,6 @@ bool DMABufSurfaceRGBA::ImportSurfaceDescriptor(
     mDmabufFds[i] = desc.fds()[i];
     mStrides[i] = desc.strides()[i];
     mOffsets[i] = desc.offsets()[i];
-    mDrmFormats[i] = desc.format()[i];
   }
 
   if (desc.fence().Length() > 0) {
@@ -957,7 +953,6 @@ bool DMABufSurfaceRGBA::Serialize(
     mozilla::layers::SurfaceDescriptor& aOutDescriptor) {
   AutoTArray<uint32_t, DMABUF_BUFFER_PLANES> width;
   AutoTArray<uint32_t, DMABUF_BUFFER_PLANES> height;
-  AutoTArray<uint32_t, DMABUF_BUFFER_PLANES> format;
   AutoTArray<NotNull<RefPtr<gfx::FileHandleWrapper>>, DMABUF_BUFFER_PLANES> fds;
   AutoTArray<uint32_t, DMABUF_BUFFER_PLANES> strides;
   AutoTArray<uint32_t, DMABUF_BUFFER_PLANES> offsets;
@@ -980,7 +975,6 @@ bool DMABufSurfaceRGBA::Serialize(
     fds.AppendElement(WrapNotNull(mDmabufFds[i]));
     strides.AppendElement(mStrides[i]);
     offsets.AppendElement(mOffsets[i]);
-    format.AppendElement(mDrmFormats[i]);
   }
 
   CloseFileDescriptors(lockFD);
@@ -993,9 +987,11 @@ bool DMABufSurfaceRGBA::Serialize(
     refCountFDs.AppendElement(ipc::FileDescriptor(GlobalRefCountExport()));
   }
 
+  // GCC needs it (Bug 1959653).
+  AutoTArray<uint32_t, 1> tmp;
   aOutDescriptor = SurfaceDescriptorDMABuf(
       mSurfaceType, mFOURCCFormat, modifiers, mGbmBufferFlags, fds, width,
-      height, width, height, format, strides, offsets, GetYUVColorSpace(),
+      height, width, height, tmp, strides, offsets, GetYUVColorSpace(),
       mColorRange, mozilla::gfx::ColorSpace2::UNKNOWN,
       mozilla::gfx::TransferFunction::Default, fenceFDs, mUID, refCountFDs,
       /* semaphoreFd */ nullptr);
@@ -1429,6 +1425,7 @@ DMABufSurfaceYUV::DMABufSurfaceYUV()
       mHeight(),
       mWidthAligned(),
       mHeightAligned(),
+      mDrmFormats(),
       mTexture() {
   for (int i = 0; i < DMABUF_BUFFER_PLANES; i++) {
     mEGLImage[i] = LOCAL_EGL_NO_IMAGE;
@@ -1547,7 +1544,7 @@ bool DMABufSurfaceYUV::CreateYUVPlaneGBM(int aPlane) {
   MOZ_DIAGNOSTIC_ASSERT(mGbmBufferObject[aPlane] == nullptr);
   bool useModifiers = (mBufferModifiers[aPlane] != DRM_FORMAT_MOD_INVALID);
   if (useModifiers) {
-    LOGDMABUF("    Creating with modifiers");
+    LOGDMABUF("    Creating with modifier %" PRIx64, mBufferModifiers[aPlane]);
     mGbmBufferObject[aPlane] = GbmLib::CreateWithModifiers2(
         GetDMABufDevice()->GetGbmDevice(), mWidth[aPlane], mHeight[aPlane],
         mDrmFormats[aPlane], mBufferModifiers + aPlane, 1,
@@ -1663,7 +1660,7 @@ bool DMABufSurfaceYUV::CreateYUVPlaneExport(GLContext* aGLContext, int aPlane) {
     return false;
   }
 
-  LOGDMABUF("  imported size %d x %d format %x planes %d modifiers %" PRIx64,
+  LOGDMABUF("  imported size %d x %d format %x planes %d modifier %" PRIx64,
             mWidth[aPlane], mHeight[aPlane], mFOURCCFormat, mBufferPlaneCount,
             mBufferModifiers[aPlane]);
 
@@ -1740,10 +1737,6 @@ bool DMABufSurfaceYUV::UpdateYUVData(
     ReturnSnapshotGLContext(context);
   });
 
-  // Use LINEAR modifiers
-  // TODO: Load modifiers from DMABuf
-  mBufferModifiers[0] = mBufferModifiers[1] = 0;
-
   gfx::IntSize size = aData.YPictureSize();
 
   mWidthAligned[0] = mWidth[0] = size.width;
@@ -1767,6 +1760,10 @@ bool DMABufSurfaceYUV::UpdateYUVData(
       MOZ_DIAGNOSTIC_CRASH("Unsupported target format!");
       return false;
   }
+
+  RefPtr<DRMFormat> format = GetDMABufDevice()->GetDRMFormat(mFOURCCFormat);
+  mBufferModifiers[0] = mBufferModifiers[1] =
+      format ? format->GetModifier() : DRM_FORMAT_MOD_INVALID;
 
   for (int i = 0; i < mBufferPlaneCount; i++) {
     if (!CreateYUVPlane(context, i)) {
@@ -1808,9 +1805,9 @@ bool DMABufSurfaceYUV::ImportSurfaceDescriptor(
     mStrides[i] = aDesc.strides()[i];
     mOffsets[i] = aDesc.offsets()[i];
     mBufferModifiers[i] = aDesc.modifier()[i];
-    LOGDMABUF("    plane %d fd %d size %d x %d format %x", i,
-              mDmabufFds[i]->GetHandle(), mWidth[i], mHeight[i],
-              mDrmFormats[i]);
+    LOGDMABUF("    plane %d fd %d size %d x %d format %x modifier %" PRIx64, i,
+              mDmabufFds[i]->GetHandle(), mWidth[i], mHeight[i], mDrmFormats[i],
+              mBufferModifiers[i]);
   }
 
   if (aDesc.fence().Length() > 0) {

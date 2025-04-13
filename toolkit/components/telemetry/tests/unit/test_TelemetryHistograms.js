@@ -86,7 +86,6 @@ add_task(async function test_parameterCounts() {
   let histogramIds = [
     "TELEMETRY_TEST_EXPONENTIAL",
     "TELEMETRY_TEST_LINEAR",
-    "TELEMETRY_TEST_FLAG",
     "TELEMETRY_TEST_CATEGORICAL",
     "TELEMETRY_TEST_BOOLEAN",
   ];
@@ -106,7 +105,6 @@ add_task(async function test_parameterCounts() {
 
 add_task(async function test_parameterCountsKeyed() {
   let histogramIds = [
-    "TELEMETRY_TEST_KEYED_FLAG",
     "TELEMETRY_TEST_KEYED_BOOLEAN",
     "TELEMETRY_TEST_KEYED_EXPONENTIAL",
     "TELEMETRY_TEST_KEYED_LINEAR",
@@ -152,31 +150,6 @@ add_task(async function test_boolean_histogram() {
   // last bucket should always be 0 since .add parameters are normalized to either 0 or 1
   Assert.deepEqual(s.values, { 0: 2, 1: 3, 2: 0 });
   Assert.equal(s.sum, 3);
-});
-
-add_task(async function test_flag_histogram() {
-  var h = Telemetry.getHistogramById("TELEMETRY_TEST_FLAG");
-  var r = h.snapshot().range;
-  // Flag histograms ignore numeric parameters.
-  Assert.deepEqual(r, [1, 2]);
-  // Should already have a 0 counted.
-  var v = h.snapshot().values;
-  var s = h.snapshot().sum;
-  Assert.deepEqual(v, { 0: 1, 1: 0 });
-  Assert.equal(s, 0);
-  // Should switch counts.
-  h.add(1);
-  var v2 = h.snapshot().values;
-  var s2 = h.snapshot().sum;
-  Assert.deepEqual(v2, { 0: 0, 1: 1, 2: 0 });
-  Assert.equal(s2, 1);
-  // Should only switch counts once.
-  h.add(1);
-  var v3 = h.snapshot().values;
-  var s3 = h.snapshot().sum;
-  Assert.deepEqual(v3, { 0: 0, 1: 1, 2: 0 });
-  Assert.equal(s3, 1);
-  Assert.equal(h.snapshot().histogram_type, Telemetry.HISTOGRAM_FLAG);
 });
 
 add_task(async function test_count_histogram() {
@@ -274,14 +247,12 @@ add_task(async function test_getCategoricalLabels() {
 
 add_task(async function test_add_error_behaviour() {
   const PLAIN_HISTOGRAMS_TO_TEST = [
-    "TELEMETRY_TEST_FLAG",
     "TELEMETRY_TEST_EXPONENTIAL",
     "TELEMETRY_TEST_LINEAR",
     "TELEMETRY_TEST_BOOLEAN",
   ];
 
   const KEYED_HISTOGRAMS_TO_TEST = [
-    "TELEMETRY_TEST_KEYED_FLAG",
     "TELEMETRY_TEST_KEYED_COUNT",
     "TELEMETRY_TEST_KEYED_BOOLEAN",
   ];
@@ -360,78 +331,6 @@ add_task(async function test_privateMode() {
   Telemetry.canRecordExtended = true;
   h.add(1);
   Assert.notDeepEqual(orig, h.snapshot());
-});
-
-// Check that telemetry records only when it is suppose to.
-add_task(async function test_histogramRecording() {
-  // Check that no histogram is recorded if both base and extended recording are off.
-  Telemetry.canRecordBase = false;
-  Telemetry.canRecordExtended = false;
-
-  let h = Telemetry.getHistogramById("TELEMETRY_TEST_RELEASE_OPTOUT");
-  h.clear();
-  let orig = h.snapshot();
-  h.add(1);
-  Assert.equal(orig.sum, h.snapshot().sum);
-
-  // Check that only base histograms are recorded.
-  Telemetry.canRecordBase = true;
-  h.add(1);
-  Assert.equal(
-    orig.sum + 1,
-    h.snapshot().sum,
-    "Histogram value should have incremented by 1 due to recording."
-  );
-
-  // Extended histograms should not be recorded.
-  h = Telemetry.getHistogramById("TELEMETRY_TEST_RELEASE_OPTIN");
-  orig = h.snapshot();
-  h.add(1);
-  Assert.equal(
-    orig.sum,
-    h.snapshot().sum,
-    "Histograms should be equal after recording."
-  );
-
-  // Runtime created histograms should not be recorded.
-  h = Telemetry.getHistogramById("TELEMETRY_TEST_BOOLEAN");
-  orig = h.snapshot();
-  h.add(1);
-  Assert.equal(
-    orig.sum,
-    h.snapshot().sum,
-    "Histograms should be equal after recording."
-  );
-
-  // Check that extended histograms are recorded when required.
-  Telemetry.canRecordExtended = true;
-
-  h.add(1);
-  Assert.equal(
-    orig.sum + 1,
-    h.snapshot().sum,
-    "Runtime histogram value should have incremented by 1 due to recording."
-  );
-
-  h = Telemetry.getHistogramById("TELEMETRY_TEST_RELEASE_OPTIN");
-  orig = h.snapshot();
-  h.add(1);
-  Assert.equal(
-    orig.sum + 1,
-    h.snapshot().sum,
-    "Histogram value should have incremented by 1 due to recording."
-  );
-
-  // Check that base histograms are still being recorded.
-  h = Telemetry.getHistogramById("TELEMETRY_TEST_RELEASE_OPTOUT");
-  h.clear();
-  orig = h.snapshot();
-  h.add(1);
-  Assert.equal(
-    orig.sum + 1,
-    h.snapshot().sum,
-    "Histogram value should have incremented by 1 due to recording."
-  );
 });
 
 add_task(async function test_expired_histogram() {
@@ -647,93 +546,6 @@ add_task(async function test_keyed_categorical_histogram() {
   }
 });
 
-add_task(async function test_keyed_flag_histogram() {
-  const KEYED_ID = "TELEMETRY_TEST_KEYED_FLAG";
-  let h = Telemetry.getKeyedHistogramById(KEYED_ID);
-
-  const KEY = "default";
-  h.add(KEY, true);
-
-  let testSnapshot = {};
-  testSnapshot[KEY] = {
-    range: [1, 2],
-    bucket_count: 3,
-    histogram_type: 3,
-    sum: 1,
-    values: { 0: 0, 1: 1, 2: 0 },
-  };
-
-  Assert.deepEqual(h.keys().sort(), [KEY]);
-  Assert.deepEqual(h.snapshot(), testSnapshot);
-
-  let parentHgrams = Telemetry.getSnapshotForKeyedHistograms(
-    "main",
-    false /* clear */
-  ).parent;
-  Assert.deepEqual(parentHgrams[KEYED_ID], testSnapshot);
-
-  h.clear();
-  Assert.deepEqual(h.keys(), []);
-  Assert.deepEqual(h.snapshot(), {});
-});
-
-add_task(async function test_keyed_histogram_recording() {
-  // Check that no histogram is recorded if both base and extended recording are off.
-  Telemetry.canRecordBase = false;
-  Telemetry.canRecordExtended = false;
-
-  const TEST_KEY = "record_foo";
-  let h = Telemetry.getKeyedHistogramById(
-    "TELEMETRY_TEST_KEYED_RELEASE_OPTOUT"
-  );
-  h.clear();
-  h.add(TEST_KEY, 1);
-  Assert.ok(!(TEST_KEY in h.snapshot()));
-
-  // Check that only base histograms are recorded.
-  Telemetry.canRecordBase = true;
-  h.add(TEST_KEY, 1);
-  Assert.equal(
-    h.snapshot()[TEST_KEY].sum,
-    1,
-    "The keyed histogram should record the correct value."
-  );
-
-  // Extended set keyed histograms should not be recorded.
-  h = Telemetry.getKeyedHistogramById("TELEMETRY_TEST_KEYED_RELEASE_OPTIN");
-  h.clear();
-  h.add(TEST_KEY, 1);
-  Assert.ok(
-    !(TEST_KEY in h.snapshot()),
-    "The keyed histograms should not record any data."
-  );
-
-  // Check that extended histograms are recorded when required.
-  Telemetry.canRecordExtended = true;
-
-  h.add(TEST_KEY, 1);
-  Assert.equal(
-    h.snapshot()[TEST_KEY].sum,
-    1,
-    "The runtime keyed histogram should record the correct value."
-  );
-
-  h = Telemetry.getKeyedHistogramById("TELEMETRY_TEST_KEYED_RELEASE_OPTIN");
-  h.clear();
-  h.add(TEST_KEY, 1);
-  Assert.equal(
-    h.snapshot()[TEST_KEY].sum,
-    1,
-    "The keyed histogram should record the correct value."
-  );
-
-  // Check that base histograms are still being recorded.
-  h = Telemetry.getKeyedHistogramById("TELEMETRY_TEST_KEYED_RELEASE_OPTOUT");
-  h.clear();
-  h.add(TEST_KEY, 1);
-  Assert.equal(h.snapshot()[TEST_KEY].sum, 1);
-});
-
 add_task(async function test_histogramSnapshots() {
   let keyed = Telemetry.getKeyedHistogramById("TELEMETRY_TEST_KEYED_COUNT");
   keyed.add("a", 1);
@@ -744,67 +556,6 @@ add_task(async function test_histogramSnapshots() {
     false /* clear */
   ).parent;
   Assert.ok(!("TELEMETRY_TEST_KEYED_COUNT" in parentHgrams));
-});
-
-add_task(async function test_datasets() {
-  // Check that datasets work as expected.
-
-  const currentRecordExtended = Telemetry.canRecordExtended;
-
-  // Clear everything out
-  Telemetry.getSnapshotForHistograms("main", true /* clear */);
-  Telemetry.getSnapshotForKeyedHistograms("main", true /* clear */);
-
-  // Empty histograms are filtered. Let's record what we check below.
-  Telemetry.getHistogramById("TELEMETRY_TEST_RELEASE_OPTIN").add(1);
-  Telemetry.getHistogramById("TELEMETRY_TEST_RELEASE_OPTOUT").add(1);
-  // Keyed flag histograms are skipped if empty, let's add data
-  Telemetry.getKeyedHistogramById("TELEMETRY_TEST_KEYED_FLAG").add("a", 1);
-  Telemetry.getKeyedHistogramById("TELEMETRY_TEST_KEYED_RELEASE_OPTIN").add(
-    "a",
-    1
-  );
-  Telemetry.getKeyedHistogramById("TELEMETRY_TEST_KEYED_RELEASE_OPTOUT").add(
-    "a",
-    1
-  );
-
-  // Check that registeredHistogram works properly
-  Telemetry.canRecordExtended = true;
-  let registered = Telemetry.getSnapshotForHistograms(
-    "main",
-    false /* clear */
-  );
-  registered = new Set(Object.keys(registered.parent));
-  Assert.ok(registered.has("TELEMETRY_TEST_FLAG"));
-  Assert.ok(registered.has("TELEMETRY_TEST_RELEASE_OPTIN"));
-  Assert.ok(registered.has("TELEMETRY_TEST_RELEASE_OPTOUT"));
-  Telemetry.canRecordExtended = false;
-  registered = Telemetry.getSnapshotForHistograms("main", false /* clear */);
-  registered = new Set(Object.keys(registered.parent));
-  Assert.ok(!registered.has("TELEMETRY_TEST_FLAG"));
-  Assert.ok(!registered.has("TELEMETRY_TEST_RELEASE_OPTIN"));
-  Assert.ok(registered.has("TELEMETRY_TEST_RELEASE_OPTOUT"));
-
-  // Check that registeredKeyedHistograms works properly
-  Telemetry.canRecordExtended = true;
-  registered = Telemetry.getSnapshotForKeyedHistograms(
-    "main",
-    false /* clear */
-  );
-  registered = new Set(Object.keys(registered.parent));
-  Assert.ok(registered.has("TELEMETRY_TEST_KEYED_FLAG"));
-  Assert.ok(registered.has("TELEMETRY_TEST_KEYED_RELEASE_OPTOUT"));
-  Telemetry.canRecordExtended = false;
-  registered = Telemetry.getSnapshotForKeyedHistograms(
-    "main",
-    false /* clear */
-  );
-  registered = new Set(Object.keys(registered.parent));
-  Assert.ok(!registered.has("TELEMETRY_TEST_KEYED_FLAG"));
-  Assert.ok(registered.has("TELEMETRY_TEST_KEYED_RELEASE_OPTOUT"));
-
-  Telemetry.canRecordExtended = currentRecordExtended;
 });
 
 add_task(async function test_keyed_keys() {
@@ -1852,7 +1603,6 @@ add_task(function test_knows_its_name() {
 
   // Plain histograms
   const histNames = [
-    "TELEMETRY_TEST_FLAG",
     "TELEMETRY_TEST_COUNT",
     "TELEMETRY_TEST_CATEGORICAL",
     "TELEMETRY_TEST_EXPIRED",

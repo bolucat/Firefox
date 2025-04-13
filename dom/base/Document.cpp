@@ -106,6 +106,7 @@
 #include "mozilla/SMILAnimationController.h"
 #include "mozilla/SMILTimeContainer.h"
 #include "mozilla/ScopeExit.h"
+#include "mozilla/ScrollContainerFrame.h"
 #include "mozilla/Components.h"
 #include "mozilla/SVGUtils.h"
 #include "mozilla/ServoStyleConsts.h"
@@ -1424,7 +1425,6 @@ Document::Document(const char* aContentType)
       mParserAborted(false),
       mReportedDocumentUseCounters(false),
       mHasReportedShadowDOMUsage(false),
-      mHasDelayedRefreshEvent(false),
       mLoadEventFiring(false),
       mSkipLoadEventAfterClose(false),
       mDisableCookieAccess(false),
@@ -1761,7 +1761,8 @@ bool Document::CallerIsTrustedAboutCertError(JSContext* aCx,
 #endif
 }
 
-bool Document::CallerCanAccessPrivilegeSSA(JSContext* aCx, JSObject* aObject) {
+bool Document::CallerIsSystemPrincipalOrWebCompatAddon(JSContext* aCx,
+                                                       JSObject* aObject) {
   RefPtr<BasePrincipal> principal =
       BasePrincipal::Cast(nsContentUtils::SubjectPrincipal(aCx));
 
@@ -1769,13 +1770,12 @@ bool Document::CallerCanAccessPrivilegeSSA(JSContext* aCx, JSObject* aObject) {
     return false;
   }
 
-  // We allow the privilege SSA to be called from system principal.
+  // We allow the privileged APIs to be called from system principal.
   if (principal->IsSystemPrincipal()) {
     return true;
   }
 
-  // We only allow calling the privilege SSA from the content script of the
-  // webcompat extension.
+  // We only allow calling privileged APIs from the webcompat extension.
   if (auto* policy = principal->ContentScriptAddonPolicy()) {
     nsAutoString addonID;
     policy->GetId(addonID);
@@ -2640,6 +2640,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(Document)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDocumentL10n)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mFragmentDirective)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mHighlightRegistry)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPendingFullscreenEvents)
 
   // Traverse all Document nsCOMPtrs.
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mParser)
@@ -2791,6 +2792,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(Document)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mDocumentL10n)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mFragmentDirective)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mHighlightRegistry)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mPendingFullscreenEvents)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mParser)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mOnloadBlocker)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mDOMImplementation)
@@ -4245,6 +4247,9 @@ void Document::SetDocumentURI(nsIURI* aURI) {
   nsTArray<TextDirective> textDirectives;
   FragmentDirective::ParseAndRemoveFragmentDirectiveFromFragment(
       mDocumentURI, &textDirectives);
+  if (!textDirectives.IsEmpty()) {
+    SetUseCounter(eUseCounter_custom_TextDirectivePages);
+  }
   FragmentDirective()->SetTextDirectives(std::move(textDirectives));
 
   nsIURI* newBase = GetDocBaseURI();
@@ -7370,17 +7375,12 @@ already_AddRefed<PresShell> Document::CreatePresShell(
 
   mExternalResourceMap.ShowViewers();
 
-  MaybeScheduleFrameRequestCallbacks();
-
   if (mDocumentL10n) {
     // In case we already accumulated mutations,
     // we'll trigger the refresh driver now.
     mDocumentL10n->OnCreatePresShell();
   }
 
-  if (HasAutoFocusCandidates()) {
-    ScheduleFlushAutoFocusCandidates();
-  }
   // Now that we have a shell, we might have @font-face rules (the presence of a
   // shell may change which rules apply to us). We don't need to do anything
   // like EnsureStyleFlush or such, there's nothing to update yet and when stuff
@@ -7396,13 +7396,45 @@ already_AddRefed<PresShell> Document::CreatePresShell(
   return presShell.forget();
 }
 
-void Document::MaybeScheduleFrameRequestCallbacks() {
-  if (!HasFrameRequestCallbacks() || !ShouldFireFrameRequestCallbacks()) {
+// This roughly matches https://html.spec.whatwg.org/#update-the-rendering
+// step 3:
+//
+//     Remove from docs any Document object doc for which any of the
+//     following are true.
+//
+// If this function changes make sure to call MaybeScheduleRendering at the
+// right places.
+bool Document::IsRenderingSuppressed() const {
+  // TODO(emilio): Per spec we should suppress when doc's visibility state is
+  // "hidden", but tests rely on throttling at least (otherwise webdriver tests
+  // that test minimized windows and so on time out). Maybe we can do it only in
+  // content or something along those lines?
+  // if (Hidden()) {
+  //   return true;
+  // }
+
+  // doc's rendering is suppressed for view transitions
+  if (mRenderingSuppressedForViewTransitions) {
+    return true;
+  }
+  // The user agent believes that updating the rendering of doc's node navigable
+  // would have no visible effect.
+  if (!IsEventHandlingEnabled() && !IsBeingUsedAsImage()) {
+    return true;
+  }
+  if (!mPresShell || !mPresShell->DidInitialize()) {
+    return true;
+  }
+  return false;
+}
+
+void Document::MaybeScheduleRenderingPhases(RenderingPhases aPhases) {
+  if (IsRenderingSuppressed()) {
     return;
   }
   MOZ_ASSERT(mPresShell);
   nsRefreshDriver* rd = mPresShell->GetPresContext()->RefreshDriver();
-  rd->EnsureFrameRequestCallbacksHappen();
+  rd->ScheduleRenderingPhases(aPhases);
 }
 
 void Document::TakeVideoFrameRequestCallbacks(
@@ -7477,10 +7509,7 @@ bool Document::ShouldThrottleFrameRequests() const {
 
 void Document::DeletePresShell() {
   mExternalResourceMap.HideViewers();
-  if (nsPresContext* presContext = mPresShell->GetPresContext()) {
-    presContext->RefreshDriver()->CancelPendingFullscreenEvents(this);
-    presContext->RefreshDriver()->CancelFlushAutoFocus(this);
-  }
+  mPendingFullscreenEvents.Clear();
 
   // When our shell goes away, request that all our images be immediately
   // discarded, so we don't carry around decoded image data for a document we
@@ -12336,12 +12365,8 @@ void Document::OnPageShow(bool aPersisted, EventTarget* aDispatchStartTarget,
 }
 
 static void DispatchFullscreenChange(Document& aDocument, nsINode* aTarget) {
-  if (nsPresContext* presContext = aDocument.GetPresContext()) {
-    auto pendingEvent = MakeUnique<PendingFullscreenEvent>(
-        FullscreenEventType::Change, &aDocument, aTarget);
-    presContext->RefreshDriver()->ScheduleFullscreenEvent(
-        std::move(pendingEvent));
-  }
+  aDocument.AddPendingFullscreenEvent(
+      MakeUnique<PendingFullscreenEvent>(FullscreenEventType::Change, aTarget));
 }
 
 void Document::OnPageHide(bool aPersisted, EventTarget* aDispatchStartTarget,
@@ -13190,19 +13215,6 @@ void Document::UnsuppressEventHandlingAndFireEvents(bool aFireEvents) {
       for (net::ChannelEventQueue* queue : queues) {
         queue->Resume();
       }
-
-      // If there have been any events driven by the refresh driver which were
-      // delayed due to events being suppressed in this document, make sure
-      // there is a refresh scheduled soon so the events will run.
-      if (doc->mHasDelayedRefreshEvent) {
-        doc->mHasDelayedRefreshEvent = false;
-
-        if (doc->mPresShell) {
-          nsRefreshDriver* rd =
-              doc->mPresShell->GetPresContext()->RefreshDriver();
-          rd->RunDelayedEventsSoon();
-        }
-      }
     }
   }
 
@@ -13258,6 +13270,18 @@ void Document::SetSuppressedEventListener(EventListener* aListener) {
 bool Document::IsActive() const {
   return mDocumentContainer && !mRemovedFromDocShell && GetBrowsingContext() &&
          !GetBrowsingContext()->IsInBFCache();
+}
+
+bool Document::HasBeenScrolled() const {
+  nsGlobalWindowInner* window = nsGlobalWindowInner::Cast(GetInnerWindow());
+  if (!window) {
+    return false;
+  }
+  if (ScrollContainerFrame* frame = window->GetScrollContainerFrame()) {
+    return frame->HasBeenScrolled();
+  }
+
+  return false;
 }
 
 nsISupports* Document::GetCurrentContentSink() {
@@ -13357,11 +13381,8 @@ void Document::ElementWithAutoFocusInserted(Element* aAutoFocusCandidate) {
 }
 
 void Document::ScheduleFlushAutoFocusCandidates() {
-  MOZ_ASSERT(mPresShell && mPresShell->DidInitialize());
-  MOZ_ASSERT(GetBrowsingContext()->IsTop());
-  if (nsRefreshDriver* rd = mPresShell->GetRefreshDriver()) {
-    rd->ScheduleAutoFocusFlush(this);
-  }
+  MOZ_ASSERT(HasAutoFocusCandidates());
+  MaybeScheduleRenderingPhases({RenderingPhase::FlushAutoFocusCandidates});
 }
 
 void Document::AppendAutoFocusCandidateToTopDocument(
@@ -13371,16 +13392,13 @@ void Document::AppendAutoFocusCandidateToTopDocument(
     return;
   }
 
-  if (!HasAutoFocusCandidates()) {
-    // PresShell may be initialized later
-    if (mPresShell && mPresShell->DidInitialize()) {
-      ScheduleFlushAutoFocusCandidates();
-    }
-  }
-
+  const bool hadCandidates = HasAutoFocusCandidates();
   nsWeakPtr element = do_GetWeakReference(aAutoFocusCandidate);
   mAutoFocusCandidates.RemoveElement(element);
   mAutoFocusCandidates.AppendElement(element);
+  if (!hadCandidates) {
+    ScheduleFlushAutoFocusCandidates();
+  }
 }
 
 void Document::SetAutoFocusFired() {
@@ -14668,7 +14686,7 @@ void Document::SetDevToolsWatchingDOMMutations(bool aValue) {
 }
 
 void EvaluateMediaQueryLists(nsTArray<RefPtr<MediaQueryList>>& aListsToNotify,
-                             Document& aDocument, bool aRecurse) {
+                             Document& aDocument) {
   if (nsPresContext* pc = aDocument.GetPresContext()) {
     pc->FlushPendingMediaFeatureValuesChanged();
   }
@@ -14678,18 +14696,11 @@ void EvaluateMediaQueryLists(nsTArray<RefPtr<MediaQueryList>>& aListsToNotify,
       aListsToNotify.AppendElement(mql);
     }
   }
-  if (!aRecurse) {
-    return;
-  }
-  aDocument.EnumerateSubDocuments([&](Document& aSubDoc) {
-    EvaluateMediaQueryLists(aListsToNotify, aSubDoc, true);
-    return CallState::Continue;
-  });
 }
 
-void Document::EvaluateMediaQueriesAndReportChanges(bool aRecurse) {
+void Document::EvaluateMediaQueriesAndReportChanges() {
   AutoTArray<RefPtr<MediaQueryList>, 32> mqls;
-  EvaluateMediaQueryLists(mqls, *this, aRecurse);
+  EvaluateMediaQueryLists(mqls, *this);
   for (auto& mql : mqls) {
     mql->FireChangeEvent();
   }
@@ -16089,6 +16100,23 @@ void Document::ClearPendingFullscreenRequests(Document* aDoc) {
   }
 }
 
+void Document::AddPendingFullscreenEvent(
+    UniquePtr<PendingFullscreenEvent> aPendingEvent) {
+  const bool wasEmpty = mPendingFullscreenEvents.IsEmpty();
+  mPendingFullscreenEvents.AppendElement(std::move(aPendingEvent));
+  if (wasEmpty) {
+    MaybeScheduleRenderingPhases({RenderingPhase::FullscreenSteps});
+  }
+}
+
+// https://fullscreen.spec.whatwg.org/#run-the-fullscreen-steps
+void Document::RunFullscreenSteps() {
+  auto events = std::move(mPendingFullscreenEvents);
+  for (auto& event : events) {
+    event->Dispatch(this);
+  }
+}
+
 bool Document::HasPendingFullscreenRequests() {
   PendingFullscreenChangeList::Iterator<FullscreenRequest> iter(
       this, PendingFullscreenChangeList::eDocumentsWithSameRoot);
@@ -16307,6 +16335,7 @@ void Document::UpdateVisibilityState(DispatchVisibilityChange aDispatchEvent) {
 
   NotifyActivityChanged();
   if (visible) {
+    MaybeScheduleRendering();
     MaybeActiveMediaComponents();
   }
 
@@ -17075,8 +17104,7 @@ WindowContext* Document::GetWindowContextForPageUseCounters() const {
 }
 
 void Document::UpdateIntersections(TimeStamp aNowTime) {
-  if (!mIntersectionObservers.IsEmpty() &&
-      !RenderingSuppressedForViewTransitions()) {
+  if (!mIntersectionObservers.IsEmpty()) {
     DOMHighResTimeStamp time = 0;
     if (nsPIDOMWindowInner* win = GetInnerWindow()) {
       if (Performance* perf = win->GetPerformance()) {
@@ -17089,10 +17117,6 @@ void Document::UpdateIntersections(TimeStamp aNowTime) {
     Dispatch(NewRunnableMethod("Document::NotifyIntersectionObservers", this,
                                &Document::NotifyIntersectionObservers));
   }
-  EnumerateSubDocuments([aNowTime](Document& aDoc) {
-    aDoc.UpdateIntersections(aNowTime);
-    return CallState::Continue;
-  });
 }
 
 static void UpdateEffectsOnBrowsingContext(BrowsingContext* aBc,
@@ -17361,6 +17385,7 @@ nsAutoSyncOperation::nsAutoSyncOperation(Document* aDoc,
   if (CycleCollectedJSContext* ccjs = CycleCollectedJSContext::Get()) {
     mMicroTaskLevel = ccjs->MicroTaskLevel();
     ccjs->SetMicroTaskLevel(0);
+    ccjs->EnterSyncOperation();
   }
   if (aDoc) {
     mBrowsingContext = aDoc->GetBrowsingContext();
@@ -17400,6 +17425,7 @@ nsAutoSyncOperation::~nsAutoSyncOperation() {
   CycleCollectedJSContext* ccjs = CycleCollectedJSContext::Get();
   if (ccjs) {
     ccjs->SetMicroTaskLevel(mMicroTaskLevel);
+    ccjs->LeaveSyncOperation();
   }
   if (mBrowsingContext &&
       mSyncBehavior == SyncOperationBehavior::eSuspendInput &&
@@ -17983,13 +18009,8 @@ PermissionDelegateHandler* Document::GetPermissionDelegateHandler() {
   return mPermissionDelegateHandler;
 }
 
-void Document::ScheduleResizeObserversNotification() const {
-  if (!mPresShell) {
-    return;
-  }
-  if (nsRefreshDriver* rd = mPresShell->GetRefreshDriver()) {
-    rd->EnsureResizeObserverUpdateHappens();
-  }
+void Document::ScheduleResizeObserversNotification() {
+  MaybeScheduleRenderingPhases({RenderingPhase::ResizeObservers});
 }
 
 static void FlushLayoutForWholeBrowsingContextTree(Document& aDoc) {
@@ -18186,8 +18207,8 @@ void Document::SetRenderingSuppressedForViewTransitions(bool aValue) {
   if (aValue) {
     return;
   }
-  MaybeScheduleFrameRequestCallbacks();
-  EnsureViewTransitionOperationsHappen();
+  // We might have missed virtually all rendering steps, ensure we run them.
+  MaybeScheduleRendering();
 }
 
 void Document::PerformPendingViewTransitionOperations() {
@@ -18204,15 +18225,7 @@ void Document::PerformPendingViewTransitionOperations() {
 }
 
 void Document::EnsureViewTransitionOperationsHappen() {
-  if (!mPresShell) {
-    return;
-  }
-
-  nsRefreshDriver* rd = mPresShell->GetRefreshDriver();
-  if (!rd) {
-    return;
-  }
-  rd->EnsureViewTransitionOperationsHappen();
+  MaybeScheduleRenderingPhases({RenderingPhase::ViewTransitionOperations});
 }
 
 Selection* Document::GetSelection(ErrorResult& aRv) {
@@ -19621,6 +19634,11 @@ bool Document::HasStorageAccessPermissionGrantedByAllowList() {
   nsCOMPtr<nsILoadInfo> loadInfo = mChannel->LoadInfo();
   return loadInfo->GetStoragePermission() ==
          nsILoadInfo::StoragePermissionAllowListed;
+}
+
+bool Document::InAndroidPipMode() const {
+  auto* bc = BrowserChild::GetFrom(GetDocShell());
+  return bc && bc->InAndroidPipMode();
 }
 
 nsIPrincipal* Document::EffectiveStoragePrincipal() const {

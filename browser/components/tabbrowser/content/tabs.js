@@ -9,20 +9,19 @@
 // This is loaded into all browser windows. Wrap in a block to prevent
 // leaking to window scope.
 {
+  const lazy = {};
+  ChromeUtils.defineESModuleGetters(lazy, {
+    TabMetrics: "moz-src:///browser/components/tabbrowser/TabMetrics.sys.mjs",
+  });
+
   const TAB_PREVIEW_PREF = "browser.tabs.hoverPreview.enabled";
 
   const DIRECTION_BACKWARD = -1;
   const DIRECTION_FORWARD = 1;
 
   const isTab = element => gBrowser.isTab(element);
+  const isTabGroup = element => gBrowser.isTabGroup(element);
   const isTabGroupLabel = element => gBrowser.isTabGroupLabel(element);
-
-  /**
-   * @param {MozTabbrowserTab|MozTabbrowserTabGroup} element
-   * @returns {boolean}
-   *   `true` if element is a `<tab-group>`
-   */
-  const isTabGroup = element => !!(element?.tagName == "tab-group");
 
   class MozTabbrowserTabs extends MozElements.TabsBase {
     static observedAttributes = ["orient"];
@@ -1060,6 +1059,10 @@
       var dropEffect = dt.dropEffect;
       var draggedTab;
       let movingTabs;
+      /** @type {TabMetricsContext} */
+      const dropMetricsContext = lazy.TabMetrics.userTriggeredContext(
+        lazy.TabMetrics.METRIC_SOURCE.DRAG_AND_DROP
+      );
       if (dt.mozTypesAt(0)[0] == TAB_DROP_TYPE) {
         // tab copy or move
         draggedTab = dt.mozGetDataAt(TAB_DROP_TYPE, 0);
@@ -1084,7 +1087,7 @@
             duplicatedDraggedTab = duplicatedTab;
           }
         }
-        gBrowser.moveTabsBefore(duplicatedTabs, dropTarget);
+        gBrowser.moveTabsBefore(duplicatedTabs, dropTarget, dropMetricsContext);
         if (draggedTab.container != this || event.shiftKey) {
           this.selectedItem = duplicatedDraggedTab;
         }
@@ -1172,15 +1175,23 @@
         let moveTabs = () => {
           if (dropIndex !== undefined) {
             for (let tab of movingTabs) {
-              gBrowser.moveTabTo(tab, { elementIndex: dropIndex });
+              gBrowser.moveTabTo(
+                tab,
+                { elementIndex: dropIndex },
+                dropMetricsContext
+              );
               if (!directionForward) {
                 dropIndex++;
               }
             }
           } else if (dropBefore) {
-            gBrowser.moveTabsBefore(movingTabs, dropElement);
+            gBrowser.moveTabsBefore(
+              movingTabs,
+              dropElement,
+              dropMetricsContext
+            );
           } else {
-            gBrowser.moveTabsAfter(movingTabs, dropElement);
+            gBrowser.moveTabsAfter(movingTabs, dropElement, dropMetricsContext);
           }
           this.#expandGroupOnDrop(draggedTab);
         };

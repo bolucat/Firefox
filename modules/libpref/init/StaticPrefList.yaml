@@ -5338,12 +5338,6 @@
   value: @IS_NIGHTLY_BUILD@
   mirror: always
 
-# Are WebGPU indirect draws enabled?
-- name: dom.webgpu.indirect-draw.enabled
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
 # Comma-separated list of wgpu backend names to permit in WebGPU adapters.
 #
 # If non-empty, this is parsed by `wgpu_core::instance::parse_backends_from_comma_list` to
@@ -8623,7 +8617,7 @@
   # Experimental support for Temporal in JavaScript.
 - name: javascript.options.experimental.temporal
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
   set_spidermonkey_pref: startup
 #endif  // JS_HAS_TEMPORAL_API
@@ -9762,7 +9756,7 @@
 # span more than one track.
 - name: layout.css.grid-flex-spanning-items-intrinsic-sizing.enabled
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Is support for :has() enabled?
@@ -11304,16 +11298,13 @@
 # using the IPC actor within the Utility process rather than the RDD process.
 # When it is set to true, then the utility process will take precedence over RDD
 # to perform audio decoding.
-# TODO: Enabling for Isolated Processes builds on Android
 - name: media.utility-process.enabled
   type: RelaxedAtomicBool
 #if defined(XP_WIN)
   value: true
 #elif defined(XP_MACOSX)
   value: true
-#elif defined(XP_LINUX) && !defined(ANDROID)
-  value: true
-#elif defined(ANDROID) && !defined(MOZ_ANDROID_CONTENT_SERVICE_ISOLATED_PROCESS)
+#elif defined(XP_LINUX) || defined(ANDROID)
   value: true
 #elif defined(XP_FREEBSD)
   value: true
@@ -11648,7 +11639,11 @@
 # 0 : disabled, 1 : enabled allowed list, 2 : enabled blocked list
 -   name: media.eme.mfcdm.origin-filter.enabled
     type: RelaxedAtomicUint32
+#if defined(MOZ_DEV_EDITION) || defined(EARLY_BETA_OR_EARLIER)
     value: 2
+#else
+    value: 1
+#endif
     mirror: always
 
 #endif  # MOZ_WMF
@@ -16174,6 +16169,14 @@
   value: false
   mirror: always
 
+# Allow unsafe eval usage with high privileges to. This should
+# not be activated without a very good reason.
+# This pref has to be set before starting Firefox!
+- name: security.allow_unsafe_dangerous_privileged_evil_eval
+  type: bool
+  value: false
+  mirror: once
+
 # Allowed by default so it doesn't affect Thunderbird/SeaMonkey, but
 # not allowed for Firefox Desktop in firefox.js
 - name: security.allow_parent_unrestricted_js_loads
@@ -18426,6 +18429,13 @@
   type: RelaxedAtomicBool
   value: false
   mirror: always
+
+# Get DMABuf format feedback from compositor.
+# For testing only
+- name: widget.dmabuf-feedback.enabled
+  type: bool
+  value: true
+  mirror: once
 #endif
 
 # Use DMABuf backend for WebGL.

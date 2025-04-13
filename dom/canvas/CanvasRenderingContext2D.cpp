@@ -1475,7 +1475,7 @@ void CanvasRenderingContext2D::RestoreClipsAndTransformToTarget() {
   for (auto& style : mStyleStack) {
     for (auto& clipOrTransform : style.clipsAndTransforms) {
       if (clipOrTransform.IsClip()) {
-        if (mClipsNeedConverting) {
+        if (clipOrTransform.clip->GetBackendType() != mPathType) {
           // We have possibly changed backends, so we need to convert the clips
           // in case they are no longer compatible with mTarget.
           RefPtr<PathBuilder> pathBuilder = mTarget->CreatePathBuilder();
@@ -1488,8 +1488,6 @@ void CanvasRenderingContext2D::RestoreClipsAndTransformToTarget() {
       }
     }
   }
-
-  mClipsNeedConverting = false;
 }
 
 bool CanvasRenderingContext2D::BorrowTarget(const IntRect& aPersistedRect,
@@ -1629,7 +1627,7 @@ bool CanvasRenderingContext2D::EnsureTarget(ErrorResult& aError,
   bool canDiscardContent =
       aCoveredRect &&
       (aSkipTransform ? *aCoveredRect
-                      : CurrentState().transform.TransformBounds(*aCoveredRect))
+                      : GetCurrentTransform().TransformBounds(*aCoveredRect))
           .Contains(canvasRect) &&
       !HasAnyClips();
 
@@ -1684,7 +1682,7 @@ bool CanvasRenderingContext2D::EnsureTarget(ErrorResult& aError,
 
   // Ensure any Path state is compatible with the type of DrawTarget used. This
   // may require making a copy with the correct type if they (rarely) mismatch.
-  mPathType = newTarget->GetBackendType();
+  mPathType = newTarget->GetPathType();
   MOZ_ASSERT(mPathType != BackendType::NONE);
   if (mPathBuilder && mPathBuilder->GetBackendType() != mPathType) {
     RefPtr<Path> path = mPathBuilder->Finish();
@@ -1732,7 +1730,7 @@ void CanvasRenderingContext2D::SetInitialState() {
   mPathTransformDirty = false;
   mPathType =
       (mTarget ? mTarget : gfxPlatform::ThreadLocalScreenReferenceDrawTarget())
-          ->GetBackendType();
+          ->GetPathType();
   MOZ_ASSERT(mPathType != BackendType::NONE);
 
   mStyleStack.Clear();
@@ -1846,7 +1844,6 @@ bool CanvasRenderingContext2D::TrySharedTarget(
     // we are already using a shared buffer provider, we are allocating a new
     // one because the current one failed so let's just fall back to the basic
     // provider.
-    mClipsNeedConverting = true;
     return false;
   }
 
@@ -7084,13 +7081,10 @@ void CanvasPath::AddPath(CanvasPath& aCanvasPath, const DOMMatrix2DInit& aInit,
   RefPtr<gfx::Path> tempPath =
       aCanvasPath.GetPath(CanvasWindingRule::Nonzero, drawTarget.get());
 
-  RefPtr<DOMMatrixReadOnly> matrix =
-      DOMMatrixReadOnly::FromMatrix(GetParentObject(), aInit, aError);
+  Matrix transform(DOMMatrixReadOnly::ToValidatedMatrixDouble(aInit, aError));
   if (aError.Failed()) {
     return;
   }
-
-  Matrix transform(*(matrix->GetInternal2D()));
 
   if (!transform.IsFinite()) {
     return;

@@ -210,6 +210,9 @@ bool CSP_ShouldResponseInheritCSP(nsIChannel* aChannel);
 void CSP_ApplyMetaCSPToDoc(mozilla::dom::Document& aDoc,
                            const nsAString& aPolicyStr);
 
+// Checks if the URI is "chrome://browser/content/browser.xhtml"
+bool CSP_IsBrowserXHTML(nsIURI* aURI);
+
 /* =============== nsCSPSrc ================== */
 
 class nsCSPBaseSrc {
@@ -483,19 +486,11 @@ class nsCSPDirective {
                       const nsAString& aHashOrNonce) const;
   bool allowsAllInlineBehavior(CSPDirective aDir) const;
 
-  void getTrustedTypesDirectiveExpressions(
-      nsTArray<nsString>& outExpressions) const;
-
   // Implements step 2.1 to 2.7 of
   // <https://w3c.github.io/trusted-types/dist/spec/#should-block-create-policy>.
   bool ShouldCreateViolationForNewTrustedTypesPolicy(
       const nsAString& aPolicyName,
       const nsTArray<nsString>& aCreatedPolicyNames) const;
-
-  static bool ShouldCreateViolationForNewTrustedTypesPolicy(
-      const nsTArray<nsString>& aTrustedTypesDirectiveExpressions,
-      const nsAString& aPolicyName,
-      const nsTArray<nsString>& aCreatedPolicyNames);
 
   // Implements step 2.1 to 2.4 of
   // <https://w3c.github.io/trusted-types/dist/spec/#abstract-opdef-does-sink-type-require-trusted-types>.
@@ -761,9 +756,6 @@ class nsCSPPolicy {
   bool visitDirectiveSrcs(CSPDirective aDir, nsCSPSrcVisitor* aVisitor) const;
 
   bool allowsAllInlineBehavior(CSPDirective aDir) const;
-
-  void getTrustedTypesDirectiveExpressions(
-      nsTArray<nsString>& outExpressions) const;
 
   /*
    * Implements step 2.1 to 2.7 of
