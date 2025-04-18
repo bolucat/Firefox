@@ -30,6 +30,7 @@ import kotlinx.coroutines.launch
 import mozilla.appservices.Megazord
 import mozilla.appservices.autofill.AutofillApiException
 import mozilla.components.browser.state.action.SystemAction
+import mozilla.components.browser.state.action.TranslationsAction
 import mozilla.components.browser.state.selector.selectedTab
 import mozilla.components.browser.state.state.searchEngines
 import mozilla.components.browser.state.state.selectedOrDefaultSearchEngine
@@ -63,6 +64,7 @@ import mozilla.components.support.ktx.android.arch.lifecycle.addObservers
 import mozilla.components.support.ktx.android.content.isMainProcess
 import mozilla.components.support.ktx.android.content.runOnlyInMainProcess
 import mozilla.components.support.locale.LocaleAwareApplication
+import mozilla.components.support.remotesettings.GlobalRemoteSettingsDependencyProvider
 import mozilla.components.support.rusterrors.initializeRustErrors
 import mozilla.components.support.rusthttp.RustHttpConfig
 import mozilla.components.support.rustlog.RustLog
@@ -240,6 +242,8 @@ open class FenixApplication : LocaleAwareApplication(), Provider {
 
             GlobalSyncedTabsCommandsProvider.initialize(lazy { components.backgroundServices.syncedTabsCommands })
 
+            initializeRemoteSettingsSupport()
+
             restoreBrowserState()
             restoreDownloads()
             restoreMessaging()
@@ -332,11 +336,15 @@ open class FenixApplication : LocaleAwareApplication(), Provider {
                         // we can prevent with this.
                         components.core.topSitesStorage.getTopSites(
                             totalSites = components.settings.topSitesMaxLimit,
-                            frecencyConfig = TopSitesFrecencyConfig(
-                                FrecencyThresholdOption.SKIP_ONE_TIME_PAGES,
-                            ) {
-                                !it.url.toUri()
-                                    .containsQueryParameters(components.settings.frecencyFilterQuery)
+                            frecencyConfig = if (FxNimbus.features.homepageHideFrecentTopSites.value().enabled) {
+                                null
+                            } else {
+                                TopSitesFrecencyConfig(
+                                    frecencyTresholdOption = FrecencyThresholdOption.SKIP_ONE_TIME_PAGES,
+                                ) {
+                                    !it.url.toUri()
+                                        .containsQueryParameters(components.settings.frecencyFilterQuery)
+                                }
                             },
                             providerConfig = TopSitesProviderConfig(
                                 showProviderTopSites = components.settings.showContileFeature,
@@ -423,6 +431,12 @@ open class FenixApplication : LocaleAwareApplication(), Provider {
             }
         }
 
+        fun queueInitializingTranslations() {
+            queue.runIfReadyOrQueue {
+                components.core.store.dispatch(TranslationsAction.InitTranslationsBrowserState)
+            }
+        }
+
         @OptIn(DelicateCoroutinesApi::class) // GlobalScope usage
         fun queueSuggestIngest() {
             queue.runIfReadyOrQueue {
@@ -442,6 +456,7 @@ open class FenixApplication : LocaleAwareApplication(), Provider {
         queueRestoreLocale()
         queueStorageMaintenance()
         queueNimbusFetchInForeground()
+        queueInitializingTranslations()
         if (settings().enableFxSuggest) {
             queueSuggestIngest()
         }
@@ -636,6 +651,11 @@ open class FenixApplication : LocaleAwareApplication(), Provider {
         GlobalScope.launch(Dispatchers.Default) {
             BrowsersCache.all(this@FenixApplication)
         }
+    }
+
+    private fun initializeRemoteSettingsSupport() {
+        GlobalRemoteSettingsDependencyProvider.initialize(components.remoteSettingsService.value)
+        components.remoteSettingsSyncScheduler.registerForSync()
     }
 
     @Suppress("ForbiddenComment")

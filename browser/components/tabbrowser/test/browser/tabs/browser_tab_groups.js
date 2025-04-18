@@ -843,6 +843,11 @@ add_task(async function test_tabGroupContextMenuMoveTabToNewGroup() {
 
   Assert.ok(tab.group, "tab is in group");
   Assert.equal(tab.group.label, "", "tab group label is empty");
+  Assert.equal(
+    gBrowser.selectedTab.group?.id,
+    tab.group.id,
+    "A tab in the group is selected"
+  );
 
   await removeTabGroup(tab.group);
 });
@@ -1736,7 +1741,15 @@ add_task(async function test_tabGroupCreatePanel() {
 
   info("New group should be removed after hitting Cancel");
   let panelHidden = BrowserTestUtils.waitForPopupEvent(tabgroupPanel, "hidden");
-  tabgroupPanel.querySelector("#tab-group-editor-button-cancel").click();
+  let cancelButton = tabgroupPanel.querySelector(
+    "#tab-group-editor-button-cancel"
+  );
+  if (AppConstants.platform == "macosx") {
+    cancelButton.click();
+  } else {
+    cancelButton.focus();
+    EventUtils.synthesizeKey("VK_RETURN");
+  }
   await panelHidden;
   Assert.ok(!tab.group, "Tab is ungrouped after hitting Cancel");
 
@@ -1830,7 +1843,13 @@ add_task(async function test_tabGroupCreatePanel() {
   info("Removing group via delete button");
   panelHidden = BrowserTestUtils.waitForPopupEvent(tabgroupPanel, "hidden");
   let removePromise = BrowserTestUtils.waitForEvent(group, "TabGroupRemoved");
-  tabgroupPanel.querySelector("#tabGroupEditor_deleteGroup").click();
+  let deleteButton = tabgroupPanel.querySelector("#tabGroupEditor_deleteGroup");
+  if (AppConstants.platform == "macosx") {
+    deleteButton.click();
+  } else {
+    deleteButton.focus();
+    EventUtils.synthesizeKey("VK_RETURN");
+  }
   await Promise.all([panelHidden, removePromise]);
   tabGroupCreatedTrigger.uninit();
 });

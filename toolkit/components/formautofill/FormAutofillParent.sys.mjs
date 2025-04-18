@@ -1006,6 +1006,11 @@ export class FormAutofillParent extends JSWindowActorParent {
       return null;
     }
 
+    const fieldDetail = section.getFieldDetailByElementId(elementId);
+    if (!section.shouldAutofillField(fieldDetail)) {
+      return null;
+    }
+
     const relayPromise = lazy.FirefoxRelay.autocompleteItemsAsync({
       origin: this.formOrigin,
       scenarioName,
@@ -1151,12 +1156,12 @@ export class FormAutofillParent extends JSWindowActorParent {
       entries.push(entry);
     }
 
-    for (const [bcId, fieldDetails] of entries) {
+    for (const [bcId, bcFieldDetails] of entries) {
       const bc = BrowsingContext.get(bcId);
 
       // For sensitive fields, we ONLY fill them when they are same-origin with
       // the triggered frame.
-      const ids = fieldDetails
+      const ids = bcFieldDetails
         .filter(detail => this.shouldAutofill(bc, detail))
         .map(detail => detail.elementId);
 
@@ -1226,6 +1231,8 @@ export class FormAutofillParent extends JSWindowActorParent {
     const section = this.getSectionByElementId(elementId);
     if (!(await section.prepareFillingProfile(profile))) {
       lazy.log.debug("profile cannot be filled");
+      // For testing only
+      Services.obs.notifyObservers(null, "formautofill-autofill-complete");
       return;
     }
 

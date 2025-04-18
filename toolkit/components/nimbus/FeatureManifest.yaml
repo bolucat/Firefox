@@ -854,6 +854,39 @@ newtab:
       type: boolean
       description: Allow Contile to use additonal sponsored top sites
 
+newtabMobileDownloadPromotion:
+  description: Cross-sell promotion to download Firefox for mobile
+  owner: mcrawford@mozilla.com
+  hasExposure: false
+  variables:
+    showModal:
+      type: boolean
+      description: Display mobile download modal to users until dismissed
+      setPref:
+        branch: user
+        pref: browser.newtabpage.activity-stream.mobileDownloadModal.enabled
+    variantA:
+      type: boolean
+      setPref:
+        branch: user
+        pref: browser.newtabpage.activity-stream.mobileDownloadModal.variant-a
+      description: >-
+        Variant A modal message and QR code.
+    variantB:
+      type: boolean
+      setPref:
+        branch: user
+        pref: browser.newtabpage.activity-stream.mobileDownloadModal.variant-b
+      description: >-
+        Variant B modal message and QR code.
+    variantC:
+      type: boolean
+      setPref:
+        branch: user
+        pref: browser.newtabpage.activity-stream.mobileDownloadModal.variant-c
+      description: >-
+        Variant C modal message and QR code.
+
 newtabUnifiedAds:
   description: Mozilla Ad Routing Service (MARS) unified ads service
   owner: mcrawford@mozilla.com, sdowne@mozilla.com
@@ -893,7 +926,6 @@ newtabUnifiedAds:
       setPref:
         branch: user
         pref: browser.newtabpage.activity-stream.unifiedAds.adsFeed.tiles.enabled
-
 
 newtabSpocsCache:
   description: The about:newtab sponsored content cache.
@@ -984,7 +1016,6 @@ newtabInlineTopicSelection:
         pref: browser.newtabpage.activity-stream.discoverystream.sections.interestPicker.enabled
       description: >-
         Enables inline topic selection
-
 
 newtabLayoutExperiment:
   description: >-
@@ -1232,6 +1263,20 @@ newTabSectionsExperiment:
         pref:  browser.newtabpage.activity-stream.discoverystream.sections.personalization.inferred.enabled
       description: >-
         Enable the inferred personalization for topics
+    personalizationInferredPosition:
+      type: string
+      setPref:
+        branch: user
+        pref:  browser.newtabpage.activity-stream.discoverystream.sections.personalization.inferred.position
+      description: >-
+        Inferred personalization card position.
+    personalizationInferredBlocked:
+      type: string
+      setPref:
+        branch: user
+        pref:  browser.newtabpage.activity-stream.discoverystream.sections.personalization.inferred.blocked
+      description: >-
+        Inferred personalization card displayed or blocked on the page.
     localeSectionstConfig:
       type: string
       setPref:
@@ -1260,6 +1305,19 @@ newTabSectionsExperiment:
         pref: browser.newtabpage.activity-stream.discoverystream.sections.customizeMenuPanel.enabled
       description: >-
         Enable personalized sections menu panel. Allow users to follow/unfollow topic sections.
+
+newtabPrivatePing:
+  description: The newtab-content ping, sent through OHTTP
+  owner: nbarrett@mozilla.com
+  hasExposure: false
+  variables:
+    privatePingEnabled:
+      type: string
+      setPref:
+        branch: user
+        pref: browser.newtabpage.activity-stream.telemetry.privatePing.enabled
+      description: >-
+        Enables the private newtab-content ping sent through OHTTP
 
 pocketNewtab:
   description: The Pocket section in newtab
@@ -3054,22 +3112,6 @@ fxaButtonVisibility:
           - fox-circle
       type: string
 
-syncSetupFlow:
-  description: Prefs to control the updated Mozilla account panel flow for users without sync enabled.
-  owner: skhamis@mozilla.com
-  hasExposure: true
-  exposureDescription: >-
-    Exposure is recorded when the user is enrolled in an experiment using this
-    feature and the avatar menu or app (hamburger) menu -> account on Firefox Desktop is opened
-  variables:
-    enabled:
-      description: True if we should show the user the updated sync set-up UI
-      type: boolean
-      setPref:
-        branch: user
-        pref: identity.fxaccounts.toolbar.syncSetup.enabled
-
-
 fxaClientAssociation:
   description: Prefs to control the client association ping.
   owner: mconley@mozilla.com
@@ -3637,7 +3679,9 @@ shopping2023:
     enabled:
       description: True if the shopping sidebar is enabled (experimental treatment group)
       type: boolean
-      fallbackPref: browser.shopping.experience2023.enabled
+      setPref:
+        branch: default
+        pref: browser.shopping.experience2023.enabled
     control:
       description: True if the experiment is enabled but experience is disabled (experimental control group)
       type: boolean
@@ -3645,7 +3689,9 @@ shopping2023:
     integratedSidebar:
       description: True if the integrated sidebar is enabled.
       type: boolean
-      fallbackPref: browser.shopping.experience2023.integratedSidebar
+      setPref:
+        branch: default
+        pref: browser.shopping.experience2023.integratedSidebar
     adsEnabled:
       description: True if showing recommended products is enabled
       type: boolean
@@ -4628,3 +4674,31 @@ h1-in-section-styles:
       setPref:
         branch: user
         pref: layout.css.h1-in-section-ua-styles.enabled
+
+windowsUIAutomation:
+  description: Support for the Windows UI Automation API
+  owner: jteh@mozilla.com
+  hasExposure: false
+  variables:
+    enabled:
+      type: int
+      description: 0 to disable UIA, 2 to enable UIA.
+      enum:
+        - 0
+        - 2
+      setPref:
+        branch: user
+        pref: "accessibility.uia.enable"
+
+expandSignInButton:
+  description: "Add text next to the FxA avatar toolbar icon"
+  owner: skhamis@mozilla.com
+  hasExposure: false
+  variables:
+    ctaCopyVariant:
+      description: >-
+        One of the following values:
+          - fxa-avatar-sign-in
+          - fxa-avatar-sign-up
+        empty will be assumed default experience
+      type: string

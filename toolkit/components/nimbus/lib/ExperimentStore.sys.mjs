@@ -198,18 +198,6 @@ ChromeUtils.defineLazyGetter(lazy, "syncDataStore", () => {
 
 const DEFAULT_STORE_ID = "ExperimentStoreData";
 
-/**
- * Returns all feature ids associated with the branch provided.
- * Fallback for when `featureIds` was not persisted to disk. Can be removed
- * after bug 1725240 has reached release.
- *
- * @param {Branch} branch
- * @returns {string[]}
- */
-function getAllBranchFeatureIds(branch) {
-  return featuresCompat(branch).map(f => f.featureId);
-}
-
 function featuresCompat(branch) {
   if (!branch || (!branch.feature && !branch.features)) {
     return [];
@@ -234,16 +222,17 @@ export class ExperimentStore extends SharedDataMap {
   async init() {
     await super.init();
 
-    this.getAllActiveExperiments().forEach(({ branch, featureIds }) => {
-      (featureIds || getAllBranchFeatureIds(branch)).forEach(featureId =>
-        this._emitFeatureUpdate(featureId, "feature-experiment-loaded")
-      );
-    });
-    this.getAllActiveRollouts().forEach(({ featureIds }) => {
-      featureIds.forEach(featureId =>
-        this._emitFeatureUpdate(featureId, "feature-rollout-loaded")
-      );
-    });
+    for (const { featureIds } of this.getAllActiveExperiments()) {
+      for (const featureId of featureIds) {
+        this._emitFeatureUpdate(featureId, "feature-experiment-loaded");
+      }
+    }
+
+    for (const { featureIds } of this.getAllActiveRollouts()) {
+      for (const featureId of featureIds) {
+        this._emitFeatureUpdate(featureId, "feature-rollout-loaded");
+      }
+    }
 
     Services.tm.idleDispatchToMainThread(() => this._cleanupOldRecipes());
   }
@@ -258,15 +247,17 @@ export class ExperimentStore extends SharedDataMap {
    * @memberof ExperimentStore
    */
   getExperimentForFeature(featureId) {
-    return (
-      this.getAllActiveExperiments().find(
-        experiment =>
-          experiment.featureIds?.includes(featureId) ||
-          // Supports <v1.3.0, which was when .featureIds was added
-          getAllBranchFeatureIds(experiment.branch).includes(featureId)
-        // Default to the pref store if data is not yet ready
-      ) || lazy.syncDataStore.get(featureId)
-    );
+    if (this._isReady) {
+      return this.getAllActiveExperiments().find(experiment =>
+        experiment.featureIds.includes(featureId)
+      );
+    }
+
+    if (lazy.FeatureManifest[featureId].isEarlyStartup) {
+      return lazy.syncDataStore.get(featureId);
+    }
+
+    return undefined;
   }
 
   /**
@@ -324,10 +315,17 @@ export class ExperimentStore extends SharedDataMap {
    * @returns {{Rollout}|undefined} Remote defaults if available
    */
   getRolloutForFeature(featureId) {
-    return (
-      this.getAllActiveRollouts().find(r => r.featureIds.includes(featureId)) ||
-      lazy.syncDataStore.getDefault(featureId)
-    );
+    if (this._isReady) {
+      return this.getAllActiveRollouts().find(rollout =>
+        rollout.featureIds.includes(featureId)
+      );
+    }
+
+    if (lazy.FeatureManifest[featureId].isEarlyStartup) {
+      return lazy.syncDataStore.getDefault(featureId);
+    }
+
+    return undefined;
   }
 
   /**
@@ -367,13 +365,11 @@ export class ExperimentStore extends SharedDataMap {
       updateEvent.unenrollReason = enrollment.unenrollReason;
     }
     this.emit("update", updateEvent);
-    const featureIds =
-      enrollment.featureIds || getAllBranchFeatureIds(enrollment.branch);
     const reason = enrollment.isRollout
       ? "rollout-updated"
       : "experiment-updated";
 
-    for (const featureId of featureIds) {
+    for (const featureId of enrollment.featureIds) {
       this._emitFeatureUpdate(featureId, reason);
     }
   }
@@ -407,10 +403,7 @@ export class ExperimentStore extends SharedDataMap {
   _updateSyncStore(enrollment) {
     let features = featuresCompat(enrollment.branch);
     for (let feature of features) {
-      if (
-        lazy.FeatureManifest[feature.featureId]?.isEarlyStartup ||
-        feature.isEarlyStartup
-      ) {
+      if (lazy.FeatureManifest[feature.featureId]?.isEarlyStartup) {
         if (!enrollment.active) {
           // Remove experiments on un-enroll, no need to check if it exists
           if (enrollment.isRollout) {

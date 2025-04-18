@@ -30,6 +30,7 @@ addons_manager:
       - https://bugzilla.mozilla.org/1817100
       - https://bugzilla.mozilla.org/1820153
       - https://bugzilla.mozilla.org/1912166
+      - https://bugzilla.mozilla.org/1958151
     data_reviews:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1433335#c8
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1820153#c3
@@ -106,7 +107,7 @@ addons_manager:
           site_warning, site_blocked,install_disabled_warning,
           download_started, download_completed, download_failed
         type: string
-    expires: 140
+    expires: 147
 
   update: *install_update_event
 
@@ -183,6 +184,7 @@ addons_manager:
       - https://bugzilla.mozilla.org/1820153
       - https://bugzilla.mozilla.org/1912166
       - https://bugzilla.mozilla.org/1917859
+      - https://bugzilla.mozilla.org/1958149
     data_reviews:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1433335#c8
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1820153#c3
@@ -224,7 +226,7 @@ addons_manager:
           The add-on blocklistState (0 not-blocked, 1 soft-blocked, 2
           hard-blocked) at the time the manage event was being collected.
         type: string
-    expires: 140
+    expires: 147
 
   report_suspicious_site:
     type: event
@@ -236,6 +238,7 @@ addons_manager:
       - https://bugzilla.mozilla.org/1817100
       - https://bugzilla.mozilla.org/1820153
       - https://bugzilla.mozilla.org/1912166
+      - https://bugzilla.mozilla.org/1958151
     data_reviews:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1806056#c3
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1820153#c3
@@ -247,7 +250,22 @@ addons_manager:
       suspicious_site:
         description: The domain of the site that was reported.
         type: string
-    expires: 140
+    expires: 147
+
+  compatibility_check_enabled:
+    type: boolean
+    lifetime: application
+    description: |
+      Whether application compatibility is enforced for add-ons.
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1950389
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1950389
+    data_sensitivity:
+      - technical
+    notification_emails:
+      - addons-dev-internal@mozilla.com
+    expires: never
 
 blocklist:
   last_modified_rs_addons_mblf:
@@ -547,4 +565,20 @@ blocklist:
     notification_emails:
       - addons-dev-internal@mozilla.com
       - rwu@mozilla.com
+    expires: never
+
+  enabled:
+    type: boolean
+    lifetime: application
+    description: |
+      Whether the extension blocklist is enabled.
+      Corresponds to the `extensions.blocklist.enabled` pref.
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1950389
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1950389
+    data_sensitivity:
+      - technical
+    notification_emails:
+      - addons-dev-internal@mozilla.com
     expires: never

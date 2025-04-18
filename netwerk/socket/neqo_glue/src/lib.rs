@@ -69,6 +69,34 @@ const AF_INET6_U16: u16 = AF_INET6 as u16;
 static_assertions::const_assert_eq!(AF_INET6_U16 as c_int, AF_INET6);
 
 #[repr(C)]
+pub struct WouldBlockCounter {
+    rx: usize,
+    tx: usize,
+}
+
+impl WouldBlockCounter {
+    pub fn new() -> Self {
+        Self { rx: 0, tx: 0 }
+    }
+
+    pub fn increment_rx(&mut self) {
+        self.rx += 1;
+    }
+
+    pub fn increment_tx(&mut self) {
+        self.tx += 1;
+    }
+
+    pub fn rx_count(&self) -> usize {
+        self.rx
+    }
+
+    pub fn tx_count(&self) -> usize {
+        self.tx
+    }
+}
+
+#[repr(C)]
 pub struct NeqoHttp3Conn {
     conn: Http3Client,
     local_addr: SocketAddr,
@@ -91,6 +119,7 @@ pub struct NeqoHttp3Conn {
     datagram_segment_size_received: LocalMemoryDistribution<'static>,
     datagram_size_received: LocalMemoryDistribution<'static>,
     datagram_segments_received: LocalCustomDistribution<'static>,
+    would_block_counter: WouldBlockCounter,
 }
 
 impl Drop for NeqoHttp3Conn {
@@ -261,7 +290,10 @@ impl NeqoHttp3Conn {
             .max_stream_data(StreamType::BiDi, false, max_stream_data)
             .grease(static_prefs::pref!("security.tls.grease_http3_enable"))
             .sni_slicing(static_prefs::pref!("network.http.http3.sni-slicing"))
-            .idle_timeout(Duration::from_secs(idle_timeout.into()));
+            .idle_timeout(Duration::from_secs(idle_timeout.into()))
+            // Disabled on OpenBSD. See <https://bugzilla.mozilla.org/show_bug.cgi?id=1952304>.
+            .pmtud_iface_mtu(cfg!(not(target_os = "openbsd")))
+            .mlkem(false);
 
         // Set a short timeout when fuzzing.
         #[cfg(feature = "fuzzing")]
@@ -360,6 +392,7 @@ impl NeqoHttp3Conn {
             datagram_segments_received: networking::http_3_udp_datagram_segments_received
                 .start_buffer(),
             buffered_outbound_datagram: None,
+            would_block_counter: WouldBlockCounter::new(),
         }));
         unsafe { RefPtr::from_raw(conn).ok_or(NS_ERROR_NOT_CONNECTED) }
     }
@@ -417,10 +450,10 @@ impl NeqoHttp3Conn {
         }
 
         if static_prefs::pref!("network.http.http3.ecn") && stats.frame_rx.handshake_done != 0 {
-            if stats.ecn_tx[IpTosEcn::Ect0] > 0 {
-                if let Ok(ratio) = i64::try_from(
-                    (stats.ecn_tx[IpTosEcn::Ce] * PRECISION_FACTOR) / stats.ecn_tx[IpTosEcn::Ect0],
-                ) {
+            let tx_ect0_sum: u64 = stats.ecn_tx.into_values().map(|v| v[IpTosEcn::Ect0]).sum();
+            let tx_ce_sum: u64 = stats.ecn_tx.into_values().map(|v| v[IpTosEcn::Ce]).sum();
+            if tx_ect0_sum > 0 {
+                if let Ok(ratio) = i64::try_from((tx_ce_sum * PRECISION_FACTOR) / tx_ect0_sum) {
                     glean::http_3_ecn_ce_ect0_ratio_sent.accumulate_single_sample_signed(ratio);
                 } else {
                     let msg = "Failed to convert ratio to i64 for use with glean";
@@ -428,10 +461,10 @@ impl NeqoHttp3Conn {
                     debug_assert!(false, "{msg}");
                 }
             }
-            if stats.ecn_rx[IpTosEcn::Ect0] > 0 {
-                if let Ok(ratio) = i64::try_from(
-                    (stats.ecn_rx[IpTosEcn::Ce] * PRECISION_FACTOR) / stats.ecn_rx[IpTosEcn::Ect0],
-                ) {
+            let rx_ect0_sum: u64 = stats.ecn_rx.into_values().map(|v| v[IpTosEcn::Ect0]).sum();
+            let rx_ce_sum: u64 = stats.ecn_rx.into_values().map(|v| v[IpTosEcn::Ce]).sum();
+            if rx_ect0_sum > 0 {
+                if let Ok(ratio) = i64::try_from((rx_ce_sum * PRECISION_FACTOR) / rx_ect0_sum) {
                     glean::http_3_ecn_ce_ect0_ratio_received.accumulate_single_sample_signed(ratio);
                 } else {
                     let msg = "Failed to convert ratio to i64 for use with glean";
@@ -490,6 +523,22 @@ impl NeqoHttp3Conn {
     // - <https://bugzilla.mozilla.org/show_bug.cgi?id=1906664>
     #[cfg(target_os = "android")]
     fn record_stats_in_glean(&self) {}
+
+    fn increment_would_block_rx(&mut self) {
+        self.would_block_counter.increment_rx();
+    }
+
+    fn would_block_rx_count(&self) -> usize {
+        self.would_block_counter.rx_count()
+    }
+
+    fn increment_would_block_tx(&mut self) {
+        self.would_block_counter.increment_tx();
+    }
+
+    fn would_block_tx_count(&self) -> usize {
+        self.would_block_counter.tx_count()
+    }
 }
 
 /// # Safety
@@ -677,6 +726,7 @@ pub unsafe extern "C" fn neqo_http3conn_process_input(
             {
                 Ok(dgrams) => dgrams,
                 Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
+                    conn.increment_would_block_rx();
                     break;
                 }
                 Err(e) => {
@@ -871,6 +921,7 @@ pub extern "C" fn neqo_http3conn_process_output_and_send(
                 match conn.socket.as_mut().expect("non NSPR IO").send(&dg) {
                     Ok(()) => {}
                     Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
+                        conn.increment_would_block_tx();
                         if static_prefs::pref!("network.http.http3.pr_poll_write") {
                             qdebug!("Buffer outbound datagram to be sent once UDP socket has write-availability.");
                             conn.buffered_outbound_datagram = Some(dg);
@@ -1159,7 +1210,6 @@ impl From<TransportError> for CloseError {
             TransportError::ConnectionIdLimitExceeded => Self::TransportInternalErrorOther(1),
             TransportError::ConnectionIdsExhausted => Self::TransportInternalErrorOther(2),
             TransportError::ConnectionState => Self::TransportInternalErrorOther(3),
-            TransportError::DecodingFrame => Self::TransportInternalErrorOther(4),
             TransportError::DecryptError => Self::TransportInternalErrorOther(5),
             TransportError::IntegerOverflow => Self::TransportInternalErrorOther(7),
             TransportError::InvalidInput => Self::TransportInternalErrorOther(8),
@@ -1184,6 +1234,7 @@ impl From<TransportError> for CloseError {
             TransportError::QlogError => Self::TransportInternalErrorOther(27),
             TransportError::NotAvailable => Self::TransportInternalErrorOther(28),
             TransportError::DisabledVersion => Self::TransportInternalErrorOther(29),
+            TransportError::UnknownTransportParameter => Self::TransportInternalErrorOther(30),
         }
     }
 }
@@ -1213,7 +1264,6 @@ const fn transport_error_to_glean_label(error: &TransportError) -> &'static str 
         TransportError::ConnectionIdLimitExceeded => "ConnectionIdLimitExceeded",
         TransportError::ConnectionIdsExhausted => "ConnectionIdsExhausted",
         TransportError::ConnectionState => "ConnectionState",
-        TransportError::DecodingFrame => "DecodingFrame",
         TransportError::DecryptError => "DecryptError",
         TransportError::DisabledVersion => "DisabledVersion",
         TransportError::IdleTimeout => "IdleTimeout",
@@ -1242,6 +1292,7 @@ const fn transport_error_to_glean_label(error: &TransportError) -> &'static str 
         TransportError::UnknownFrameType => "UnknownFrameType",
         TransportError::VersionNegotiation => "VersionNegotiation",
         TransportError::WrongRole => "WrongRole",
+        TransportError::UnknownTransportParameter => "UnknownTransportParameter",
     }
 }
 
@@ -1865,6 +1916,10 @@ pub struct Http3Stats {
     /// Count PTOs. Single PTOs, 2 PTOs in a row, 3 PTOs in row, etc. are counted
     /// separately.
     pub pto_counts: [usize; 16],
+    /// The count of WouldBlock errors encountered during receive operations on the UDP socket.
+    pub would_block_rx: usize,
+    /// The count of WouldBlock errors encountered during transmit operations on the UDP socket.
+    pub would_block_tx: usize,
 }
 
 #[no_mangle]
@@ -1879,6 +1934,8 @@ pub extern "C" fn neqo_http3conn_get_stats(conn: &mut NeqoHttp3Conn, stats: &mut
     stats.late_ack = t_stats.late_ack;
     stats.pto_ack = t_stats.pto_ack;
     stats.pto_counts = t_stats.pto_counts;
+    stats.would_block_rx = conn.would_block_rx_count();
+    stats.would_block_tx = conn.would_block_tx_count();
 }
 
 #[no_mangle]

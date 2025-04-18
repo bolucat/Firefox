@@ -8,9 +8,9 @@
 #ifndef __MOZ_DMABUF_LIB_WRAPPER_H__
 #define __MOZ_DMABUF_LIB_WRAPPER_H__
 
-#include "gbm/gbm.h"
 #include "mozilla/StaticMutex.h"
 #include "mozilla/widget/DMABufFormats.h"
+#include <gbm.h>
 #include <mutex>
 
 #undef LOGDMABUF
@@ -207,8 +207,6 @@ class DMABufDevice {
 
   bool IsEnabled(nsACString& aFailureId);
 
-  // Use dmabuf for WebRender general web content
-  static bool IsDMABufTexturesEnabled();
   // Use dmabuf for WebGL content
   static bool IsDMABufWebGLEnabled();
   static void DisableDMABufWebGL();

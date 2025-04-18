@@ -200,7 +200,7 @@
     static markup = /*html*/ `
     <panel
         type="arrow"
-        class="panel tab-group-editor-panel"
+        class="tab-group-editor-panel"
         orient="vertical"
         role="dialog"
         ignorekeys="true"
@@ -297,6 +297,7 @@
     #tabGroupMain;
     #activeGroup;
     #cancelButton;
+    #commandButtons;
     #createButton;
     #createMode;
     #keepNewlyCreatedGroup;
@@ -421,40 +422,47 @@
         return show;
       };
 
-      document
-        .getElementById("tabGroupEditor_addNewTabInGroup")
-        .addEventListener("command", () => {
-          this.#handleNewTabInGroup();
-        });
+      this.#commandButtons = {
+        addNewTabInGroup: document.getElementById(
+          "tabGroupEditor_addNewTabInGroup"
+        ),
+        moveGroupToNewWindow: document.getElementById(
+          "tabGroupEditor_moveGroupToNewWindow"
+        ),
+        ungroupTabs: document.getElementById("tabGroupEditor_ungroupTabs"),
+        saveAndCloseGroup: document.getElementById(
+          "tabGroupEditor_saveAndCloseGroup"
+        ),
+        deleteGroup: document.getElementById("tabGroupEditor_deleteGroup"),
+      };
 
-      document
-        .getElementById("tabGroupEditor_moveGroupToNewWindow")
-        .addEventListener("command", () => {
+      this.#commandButtons.addNewTabInGroup.addEventListener("command", () => {
+        this.#handleNewTabInGroup();
+      });
+
+      this.#commandButtons.moveGroupToNewWindow.addEventListener(
+        "command",
+        () => {
           gBrowser.replaceGroupWithWindow(this.activeGroup);
-        });
+        }
+      );
 
-      document
-        .getElementById("tabGroupEditor_ungroupTabs")
-        .addEventListener("command", () => {
-          this.activeGroup.ungroupTabs();
-        });
+      this.#commandButtons.ungroupTabs.addEventListener("command", () => {
+        this.activeGroup.ungroupTabs();
+      });
 
-      document
-        .getElementById("tabGroupEditor_saveAndCloseGroup")
-        .addEventListener("command", () => {
-          this.activeGroup.saveAndClose({ isUserTriggered: true });
-        });
+      this.#commandButtons.saveAndCloseGroup.addEventListener("command", () => {
+        this.activeGroup.saveAndClose({ isUserTriggered: true });
+      });
 
-      document
-        .getElementById("tabGroupEditor_deleteGroup")
-        .addEventListener("command", () => {
-          gBrowser.removeTabGroup(
-            this.activeGroup,
-            TabMetrics.userTriggeredContext(
-              TabMetrics.METRIC_SOURCE.TAB_GROUP_MENU
-            )
-          );
-        });
+      this.#commandButtons.deleteGroup.addEventListener("command", () => {
+        gBrowser.removeTabGroup(
+          this.activeGroup,
+          TabMetrics.userTriggeredContext(
+            TabMetrics.METRIC_SOURCE.TAB_GROUP_MENU
+          )
+        );
+      });
 
       this.panel.addEventListener("popupshown", this);
       this.panel.addEventListener("popuphidden", this);
@@ -850,6 +858,10 @@
         this.#keepNewlyCreatedGroup = true;
       }
       this.#nameField.focus();
+
+      for (const button of Object.values(this.#commandButtons)) {
+        button.tooltipText = button.label;
+      }
     }
 
     on_popuphidden() {
@@ -860,6 +872,7 @@
           );
           if (
             this.smartTabGroupsEnabled &&
+            this.smartTabGroupsOptin &&
             (this.#suggestedMlLabel !== null || this.#hasSuggestedMlTabs)
           ) {
             this.#handleMlTelemetry("save-popup-hidden");
@@ -886,7 +899,14 @@
           this.close(false);
           break;
         case KeyEvent.DOM_VK_RETURN:
-          this.close();
+          // When focus is on a button, we need to let that handle the Enter key,
+          // which should ultimately close the panel as well.
+          if (
+            event.target.localName != "toolbarbutton" &&
+            event.target.localName != "moz-button"
+          ) {
+            this.close();
+          }
           break;
       }
     }
@@ -1051,7 +1071,7 @@
      * @param {string} action "save", "save-popup-hidden" or "cancel"
      */
     #handleMlTelemetry(action) {
-      if (!this.smartTabGroupsEnabled) {
+      if (!this.smartTabGroupsEnabled || !this.smartTabGroupsOptin) {
         return;
       }
       if (this.#suggestedMlLabel !== null) {

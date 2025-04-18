@@ -116,13 +116,13 @@ def get_full_group_name(test):
         ancestor_manifest = normsep(test["ancestor_manifest"])
         # Only change the group id if ancestor is not the generated root manifest.
         if "/" in ancestor_manifest:
-            group = "{}:{}".format(ancestor_manifest, group)
+            group = f"{ancestor_manifest}:{group}"
     return group
 
 
 def _cleanup_encoding_repl(m):
     c = m.group(0)
-    return "\\\\" if c == "\\" else "\\x{0:02X}".format(ord(c))
+    return "\\\\" if c == "\\" else f"\\x{ord(c):02X}"
 
 
 def cleanup_encoding(s):
@@ -131,12 +131,12 @@ def cleanup_encoding(s):
     points, etc.  If it is a byte string, it is assumed to be
     UTF-8, but it may not be *correct* UTF-8.  Return a
     sanitized unicode object."""
-    if not isinstance(s, six.string_types):
-        if isinstance(s, six.binary_type):
+    if not isinstance(s, (str,)):
+        if isinstance(s, bytes):
             return six.ensure_str(s)
         else:
-            return six.text_type(s)
-    if isinstance(s, six.binary_type):
+            return str(s)
+    if isinstance(s, bytes):
         s = s.decode("utf-8", "replace")
     # Replace all C0 and C1 control characters with \xNN escapes.
     return _cleanup_encoding_re.sub(_cleanup_encoding_repl, s)
@@ -178,7 +178,7 @@ class XPCShellTestThread(Thread):
         verbose=False,
         usingTSan=False,
         usingCrashReporter=False,
-        **kwargs
+        **kwargs,
     ):
         Thread.__init__(self)
         self.daemon = True
@@ -376,8 +376,8 @@ class XPCShellTestThread(Thread):
         self.log.info("%s | current directory: %r" % (name, testdir))
         # Show only those environment variables that are changed from
         # the ambient environment.
-        changedEnv = set("%s=%s" % i for i in six.iteritems(self.env)) - set(
-            "%s=%s" % i for i in six.iteritems(os.environ)
+        changedEnv = set("%s=%s" % i for i in self.env.items()) - set(
+            "%s=%s" % i for i in os.environ.items()
         )
         self.log.info("%s | environment: %s" % (name, list(changedEnv)))
         shell_command_tokens = [
@@ -711,7 +711,7 @@ class XPCShellTestThread(Thread):
     def log_line(self, line):
         """Log a line of output (either a parser json object or text output from
         the test process"""
-        if isinstance(line, six.string_types) or isinstance(line, bytes):
+        if isinstance(line, (str,)) or isinstance(line, bytes):
             line = self.fix_text_output(line).rstrip("\r\n")
             self.log.process_output(self.proc_ident, line, command=self.command)
         else:
@@ -1076,7 +1076,7 @@ class XPCShellTestThread(Thread):
         self.keep_going = True
 
 
-class XPCShellTests(object):
+class XPCShellTests:
     def __init__(self, log=None):
         """Initializes node status and logger."""
         self.log = log
@@ -1206,7 +1206,7 @@ class XPCShellTests(object):
             else:
                 self.log.error(
                     "no tests to run using specified "
-                    "combination of filters: {}".format(mp.fmt_filters())
+                    f"combination of filters: {mp.fmt_filters()}"
                 )
                 sys.exit(1)
 
@@ -1274,7 +1274,7 @@ class XPCShellTests(object):
             if os.path.isdir(path):
                 profile_data_dir = path
 
-        with open(os.path.join(profile_data_dir, "profiles.json"), "r") as fh:
+        with open(os.path.join(profile_data_dir, "profiles.json")) as fh:
             base_profiles = json.load(fh)["xpcshell"]
 
         # values to use when interpolating preferences
@@ -1376,8 +1376,8 @@ class XPCShellTests(object):
                     self.env["ASAN_SYMBOLIZER_PATH"] = llvmsym
                 else:
                     oldTSanOptions = self.env.get("TSAN_OPTIONS", "")
-                    self.env["TSAN_OPTIONS"] = "external_symbolizer_path={} {}".format(
-                        llvmsym, oldTSanOptions
+                    self.env["TSAN_OPTIONS"] = (
+                        f"external_symbolizer_path={llvmsym} {oldTSanOptions}"
                     )
                 self.log.info("runxpcshelltests.py | using symbolizer at %s" % llvmsym)
             else:
@@ -1443,7 +1443,7 @@ class XPCShellTests(object):
         if not os.path.exists(nodeBin) or not os.path.isfile(nodeBin):
             error = "node not found at MOZ_NODE_PATH %s" % (nodeBin)
             self.log.error(error)
-            raise IOError(error)
+            raise OSError(error)
 
         self.log.info("Found node at %s" % (nodeBin,))
 
@@ -1456,7 +1456,7 @@ class XPCShellTests(object):
             if not os.path.exists(serverJs):
                 error = "%s not found at %s" % (name, serverJs)
                 self.log.error(error)
-                raise IOError(error)
+                raise OSError(error)
 
             # OK, we found our server, let's try to get it running
             self.log.info("Found %s at %s" % (name, serverJs))
@@ -1510,7 +1510,7 @@ class XPCShellTests(object):
         """
         Shut down our node process, if it exists
         """
-        for name, proc in six.iteritems(self.nodeProc):
+        for name, proc in self.nodeProc.items():
             self.log.info("Node %s server shutting down ..." % name)
             if proc.poll() is not None:
                 self.log.info("Node server %s already dead %s" % (name, proc.poll()))
@@ -1674,9 +1674,7 @@ class XPCShellTests(object):
         # create a temp file to help ensure uniqueness
         temp_download_dir = tempfile.mkdtemp()
         self.log.info(
-            "Making temp_download_dir from inside get_conditioned_profile {}".format(
-                temp_download_dir
-            )
+            f"Making temp_download_dir from inside get_conditioned_profile {temp_download_dir}"
         )
         # call condprof's client API to yield our platform-specific
         # conditioned-profile binary
@@ -1723,17 +1721,13 @@ class XPCShellTests(object):
         )
         if not os.path.exists(cond_prof_target_dir):
             self.log.critical(
-                "Can't find target_dir {}, from get_profile()"
-                "temp_download_dir {}, platform {}, scenario {}".format(
-                    cond_prof_target_dir, temp_download_dir, platform, profile_scenario
-                )
+                f"Can't find target_dir {cond_prof_target_dir}, from get_profile()"
+                f"temp_download_dir {temp_download_dir}, platform {platform}, scenario {profile_scenario}"
             )
             raise OSError
 
         self.log.info(
-            "Original self.conditioned_profile_dir is now set: {}".format(
-                self.conditioned_profile_dir
-            )
+            f"Original self.conditioned_profile_dir is now set: {self.conditioned_profile_dir}"
         )
         return self.conditioned_profile_copy
 
@@ -1897,7 +1891,7 @@ class XPCShellTests(object):
             "can be used to skip tests conditionally:"
         )
         for info in sorted(self.mozInfo.items(), key=lambda item: item[0]):
-            self.log.info("    {key}: {value}".format(key=info[0], value=info[1]))
+            self.log.info(f"    {info[0]}: {info[1]}")
 
         if options.get("self_test"):
             if not self.runSelfTest():

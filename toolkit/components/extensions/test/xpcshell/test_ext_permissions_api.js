@@ -20,6 +20,13 @@ AddonTestUtils.createAppInfo(
   "42"
 );
 
+// TODO: Bug 1960273 - Update this test and remove this pref set when we enable
+// the data collection permissions on all channels.
+Services.prefs.setBoolPref(
+  "extensions.dataCollectionPermissions.enabled",
+  false
+);
+
 let OptionalPermissions;
 
 add_setup(async () => {
@@ -711,6 +718,284 @@ add_task(
       },
       "expected permissions with newly added data collection"
     );
+
+    await extension.unload();
+  }
+);
+
+add_task(
+  { pref_set: [["extensions.dataCollectionPermissions.enabled", true]] },
+  async function test_request_with_data_collection() {
+    async function background() {
+      browser.test.onMessage.addListener(async msg => {
+        if (msg === "request-good") {
+          await browser.permissions.request({
+            data_collection: ["technicalAndInteraction"],
+          });
+
+          const permissions = await browser.permissions.getAll();
+          browser.test.sendMessage(`${msg}:done`, permissions);
+          return;
+        }
+
+        if (msg === "request-invalid") {
+          try {
+            browser.permissions.request({
+              data_collection: ["invalid-permission"],
+            });
+            browser.test.fail("expected error");
+          } catch (err) {
+            browser.test.assertTrue(
+              /Error processing data_collection.0: Value "invalid-permission" must either:/.test(
+                err.message
+              ),
+              "expected error"
+            );
+          }
+          browser.test.sendMessage(`${msg}:done`);
+          return;
+        }
+
+        if (msg === "request-bad") {
+          await browser.test.assertRejects(
+            browser.permissions.request({
+              data_collection: ["healthInfo"],
+            }),
+            /Cannot request data collection permission healthInfo since it was not declared in data_collection_permissions.optional/,
+            "Expected rejection"
+          );
+          browser.test.sendMessage(`${msg}:done`);
+          return;
+        }
+
+        browser.test.fail(`Got unexpected msg "${msg}"`);
+      });
+
+      browser.test.sendMessage("ready");
+    }
+
+    const extension = ExtensionTestUtils.loadExtension({
+      manifest: {
+        manifest_version: 2,
+        browser_specific_settings: {
+          gecko: {
+            data_collection_permissions: {
+              optional: ["technicalAndInteraction", "locationInfo"],
+            },
+          },
+        },
+      },
+      background,
+    });
+    await extension.startup();
+    await extension.awaitMessage("ready");
+
+    await withHandlingUserInput(extension, async () => {
+      extension.sendMessage("request-bad");
+      await extension.awaitMessage("request-bad:done");
+    });
+
+    await withHandlingUserInput(extension, async () => {
+      extension.sendMessage("request-invalid");
+      await extension.awaitMessage("request-invalid:done");
+    });
+
+    let permissions;
+    await withHandlingUserInput(extension, async () => {
+      extension.sendMessage("request-good");
+      permissions = await extension.awaitMessage("request-good:done");
+    });
+    Assert.deepEqual(
+      permissions,
+      {
+        permissions: [],
+        origins: [],
+        data_collection: ["technicalAndInteraction"],
+      },
+      "expected permissions with data collection"
+    );
+
+    // Reequest the same permission again, which should be already granted.
+    await withHandlingUserInput(extension, async () => {
+      extension.sendMessage("request-good");
+      permissions = await extension.awaitMessage("request-good:done");
+    });
+    Assert.deepEqual(
+      permissions,
+      {
+        permissions: [],
+        origins: [],
+        data_collection: ["technicalAndInteraction"],
+      },
+      "expected permissions with data collection"
+    );
+
+    await extension.unload();
+  }
+);
+
+add_task(
+  { pref_set: [["extensions.dataCollectionPermissions.enabled", true]] },
+  async function test_contains_data_collection() {
+    async function background() {
+      browser.test.onMessage.addListener(async (msg, arg) => {
+        if (msg === "contains") {
+          const result = await browser.permissions.contains(arg);
+          browser.test.sendMessage(`${msg}:done`, result);
+          return;
+        }
+
+        if (msg === "request") {
+          await browser.permissions.request(arg);
+          browser.test.sendMessage(`${msg}:done`);
+          return;
+        }
+
+        if (msg === "remove") {
+          await browser.permissions.remove(arg);
+          browser.test.sendMessage(`${msg}:done`);
+          return;
+        }
+
+        browser.test.fail(`Got unexpected msg "${msg}"`);
+      });
+
+      browser.test.sendMessage("ready");
+    }
+
+    const extension = ExtensionTestUtils.loadExtension({
+      manifest: {
+        manifest_version: 2,
+        optional_permissions: ["bookmarks", "http://*.mozilla.org/*"],
+        browser_specific_settings: {
+          gecko: {
+            data_collection_permissions: {
+              optional: ["technicalAndInteraction", "locationInfo"],
+            },
+          },
+        },
+      },
+      background,
+    });
+    await extension.startup();
+    await extension.awaitMessage("ready");
+
+    // A list of permission objects with various combination of api/data
+    // collection permissions and origins. This will be used in different
+    // assertions below.
+    const PERMS = [
+      { permissions: ["bookmarks"] },
+      { origins: ["http://*.mozilla.org/*"] },
+      { permissions: ["bookmarks"], origins: ["http://*.mozilla.org/*"] },
+      { data_collection: ["technicalAndInteraction"] },
+      { data_collection: ["locationInfo"] },
+      { data_collection: ["technicalAndInteraction", "locationInfo"] },
+      {
+        permissions: ["bookmarks"],
+        data_collection: ["technicalAndInteraction", "locationInfo"],
+      },
+      {
+        permissions: ["bookmarks"],
+        data_collection: ["locationInfo"],
+      },
+      {
+        permissions: ["bookmarks"],
+        origins: ["http://*.mozilla.org/*"],
+        data_collection: ["technicalAndInteraction", "locationInfo"],
+      },
+    ];
+
+    let result;
+    for (const perms of PERMS) {
+      extension.sendMessage("contains", perms);
+      result = await extension.awaitMessage("contains:done");
+      ok(!result, "Expected permission to not be granted");
+    }
+
+    info("request a single data collection permission");
+    await withHandlingUserInput(extension, async () => {
+      extension.sendMessage("request", {
+        data_collection: ["technicalAndInteraction"],
+      });
+      await extension.awaitMessage("request:done");
+    });
+
+    extension.sendMessage("contains", {
+      data_collection: ["technicalAndInteraction"],
+    });
+    result = await extension.awaitMessage("contains:done");
+    ok(result, "Expected permission to be granted");
+
+    extension.sendMessage("contains", {
+      permissions: ["bookmarks"],
+      data_collection: ["technicalAndInteraction"],
+    });
+    result = await extension.awaitMessage("contains:done");
+    ok(!result, "Expected false because bookmarks isn't granted");
+
+    info("request an API permission");
+    await withHandlingUserInput(extension, async () => {
+      extension.sendMessage("request", {
+        permissions: ["bookmarks"],
+      });
+      await extension.awaitMessage("request:done");
+    });
+
+    extension.sendMessage("contains", {
+      permissions: ["bookmarks"],
+      data_collection: ["technicalAndInteraction"],
+    });
+    result = await extension.awaitMessage("contains:done");
+    ok(result, "Expected permissions to be granted");
+
+    extension.sendMessage("contains", {
+      origins: ["http://*.mozilla.org/*"],
+      data_collection: ["technicalAndInteraction"],
+    });
+    result = await extension.awaitMessage("contains:done");
+    ok(!result, "Expected false because origin isn't granted");
+
+    info("remove data collection permission");
+    extension.sendMessage("remove", {
+      data_collection: ["technicalAndInteraction"],
+    });
+    await extension.awaitMessage("remove:done");
+
+    extension.sendMessage("contains", {
+      data_collection: ["technicalAndInteraction"],
+    });
+    result = await extension.awaitMessage("contains:done");
+    ok(!result, "Expected permission to not be granted");
+
+    info("request all optional permissions");
+    await withHandlingUserInput(extension, async () => {
+      extension.sendMessage("request", {
+        permissions: ["bookmarks"],
+        origins: ["http://*.mozilla.org/*"],
+        data_collection: ["technicalAndInteraction", "locationInfo"],
+      });
+      await extension.awaitMessage("request:done");
+    });
+
+    for (const perms of PERMS) {
+      extension.sendMessage("contains", perms);
+      result = await extension.awaitMessage("contains:done");
+      ok(result, "Expected permission to be granted");
+    }
+
+    info("remove all");
+    extension.sendMessage("remove", {
+      permissions: ["bookmarks"],
+      origins: ["http://*.mozilla.org/*"],
+      data_collection: ["technicalAndInteraction", "locationInfo"],
+    });
+    await extension.awaitMessage("remove:done");
+
+    for (const perms of PERMS) {
+      extension.sendMessage("contains", perms);
+      result = await extension.awaitMessage("contains:done");
+      ok(!result, "Expected permission to not be granted");
+    }
 
     await extension.unload();
   }

@@ -244,7 +244,10 @@ class HomeFragment : Fragment() {
     private var sessionControlView: SessionControlView? = null
 
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    internal lateinit var toolbarView: FenixHomeToolbar
+    internal var nullableToolbarView: FenixHomeToolbar? = null
+
+    private val toolbarView: FenixHomeToolbar
+        get() = nullableToolbarView!!
 
     private var lastAppliedWallpaperName: String = Wallpaper.defaultName
 
@@ -509,15 +512,18 @@ class HomeFragment : Fragment() {
                 appStore = components.appStore,
             ),
             bookmarksController = DefaultBookmarksController(
-                activity = activity,
                 navController = findNavController(),
                 appStore = components.appStore,
                 browserStore = components.core.store,
+                settings = components.settings,
+                fenixBrowserUseCases = requireComponents.useCases.fenixBrowserUseCases,
                 selectTabUseCase = components.useCases.tabsUseCases.selectTab,
             ),
             recentVisitsController = DefaultRecentVisitsController(
                 navController = findNavController(),
                 appStore = components.appStore,
+                settings = components.settings,
+                fenixBrowserUseCases = requireComponents.useCases.fenixBrowserUseCases,
                 selectOrAddTabUseCase = components.useCases.tabsUseCases.selectOrAddTab,
                 storage = components.core.historyStorage,
                 scope = viewLifecycleOwner.lifecycleScope,
@@ -546,7 +552,7 @@ class HomeFragment : Fragment() {
             ),
         )
 
-        toolbarView = buildToolbar(activity)
+        nullableToolbarView = buildToolbar(activity)
 
         if (requireContext().settings().microsurveyFeatureEnabled) {
             listenForMicrosurveyMessage(requireContext())
@@ -1057,9 +1063,13 @@ class HomeFragment : Fragment() {
         val settings = requireContext().settings()
         return TopSitesConfig(
             totalSites = settings.topSitesMaxLimit,
-            frecencyConfig = TopSitesFrecencyConfig(
-                FrecencyThresholdOption.SKIP_ONE_TIME_PAGES,
-            ) { !it.url.toUri().containsQueryParameters(settings.frecencyFilterQuery) },
+            frecencyConfig = if (FxNimbus.features.homepageHideFrecentTopSites.value().enabled) {
+                null
+            } else {
+                TopSitesFrecencyConfig(
+                    frecencyTresholdOption = FrecencyThresholdOption.SKIP_ONE_TIME_PAGES,
+                ) { !it.url.toUri().containsQueryParameters(settings.frecencyFilterQuery) }
+            },
             providerConfig = TopSitesProviderConfig(
                 showProviderTopSites = settings.showContileFeature,
                 limit = TOP_SITES_PROVIDER_LIMIT,
@@ -1387,6 +1397,8 @@ class HomeFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
+
+        nullableToolbarView = null
 
         _sessionControlInteractor = null
         sessionControlView = null

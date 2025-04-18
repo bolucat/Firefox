@@ -134,7 +134,7 @@ var gBrowserInit = {
 
     // Call this after we set attributes that might change toolbars' computed
     // text color.
-    ToolbarIconColor.init();
+    ToolbarIconColor.init(window);
   },
 
   onDOMContentLoaded() {
@@ -274,6 +274,9 @@ var gBrowserInit = {
           gBrowser.adoptTabGroup(tabToAdopt.group, 0);
           gBrowser.removeTab(gBrowser.selectedTab);
         } else {
+          if (tabToAdopt.group) {
+            Glean.tabgroup.tabInteractions.remove_new_window.add();
+          }
           gBrowser.swapBrowsersAndCloseOther(gBrowser.selectedTab, tabToAdopt);
         }
 
@@ -1000,7 +1003,7 @@ var gBrowserInit = {
 
     CustomTitlebar.uninit();
 
-    ToolbarIconColor.uninit();
+    ToolbarIconColor.uninit(window);
 
     // In certain scenarios it's possible for unload to be fired before onload,
     // (e.g. if the window is being closed after browser.js loads but before the

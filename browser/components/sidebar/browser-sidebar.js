@@ -203,13 +203,15 @@ var SidebarController = {
       }
     );
 
-    this._sidebars.set("viewCustomizeSidebar", {
-      url: "chrome://browser/content/sidebar/sidebar-customize.html",
-      revampL10nId: "sidebar-menu-customize-label",
-      iconUrl: "chrome://global/skin/icons/settings.svg",
-      gleanEvent: Glean.sidebarCustomize.panelToggle,
-      visible: false,
-    });
+    if (this.sidebarRevampEnabled) {
+      this._sidebars.set("viewCustomizeSidebar", {
+        url: "chrome://browser/content/sidebar/sidebar-customize.html",
+        revampL10nId: "sidebar-menu-customize-label",
+        iconUrl: "chrome://global/skin/icons/settings.svg",
+        gleanEvent: Glean.sidebarCustomize.panelToggle,
+        visible: false,
+      });
+    }
 
     return this._sidebars;
   },
@@ -625,7 +627,8 @@ var SidebarController = {
     let observer = this._observer;
     if (!observer) {
       observer = new MutationObserver(() => {
-        this.title = this.sidebars.get(this.lastOpenedId).title;
+        // it's possible for lastOpenedId to be null here
+        this.title = this.sidebars.get(this.lastOpenedId)?.title;
       });
       // Re-use the observer.
       this._observer = observer;
@@ -801,10 +804,16 @@ var SidebarController = {
     }
     if (!this._sidebars.get(this.lastOpenedId)) {
       this.lastOpenedId = this.DEFAULT_SIDEBAR_ID;
+      wasOpen = false;
     }
     this.updateToolbarButton();
     this._inited = false;
     this.init();
+
+    // Reopen the panel in the new or old sidebar now that we've inited
+    if (wasOpen) {
+      this.toggle();
+    }
   },
 
   /**

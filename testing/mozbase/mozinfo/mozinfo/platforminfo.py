@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-"
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -144,7 +143,7 @@ class PlatformInfo:
         filename = (
             os.environ.get("GECKO_PATH", ".") + "/taskcluster/kinds/test/variants.yml"
         )
-        with open(filename, "r") as f:
+        with open(filename) as f:
             PlatformInfo.variant_data = yaml.safe_load(f.read())
 
         return PlatformInfo.variant_data

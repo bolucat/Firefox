@@ -272,6 +272,75 @@ add_task(async function test_tabGroupTelemetrySaveGroup() {
   );
 });
 
+function forgetSavedTabGroups() {
+  let tabGroups = SessionStore.getSavedTabGroups();
+  tabGroups.forEach(tabGroup => SessionStore.forgetSavedTabGroup(tabGroup.id));
+}
+
+add_task(async function test_tabGroupTelemetry_savedGroupMetrics() {
+  forgetSavedTabGroups();
+  await resetTelemetry();
+
+  let group1Tabs = Array.from({ length: 3 }).map(() =>
+    BrowserTestUtils.addTab(win.gBrowser, "https://example.com")
+  );
+  await Promise.all(
+    group1Tabs.map(tab => BrowserTestUtils.browserLoaded(tab.linkedBrowser))
+  );
+
+  let group2Tabs = Array.from({ length: 5 }).map(() =>
+    BrowserTestUtils.addTab(win.gBrowser, "https://example.com")
+  );
+  await Promise.all(
+    group2Tabs.map(tab => BrowserTestUtils.browserLoaded(tab.linkedBrowser))
+  );
+
+  let group1 = win.gBrowser.addTabGroup(group1Tabs);
+  let group2 = win.gBrowser.addTabGroup(group2Tabs);
+  await TabStateFlusher.flushWindow(win);
+  await saveAndCloseGroup(group1);
+  await saveAndCloseGroup(group2);
+
+  await BrowserTestUtils.waitForCondition(() => {
+    return [
+      Glean.tabgroup.savedGroups,
+      Glean.tabgroup.tabsPerSavedGroup.max,
+      Glean.tabgroup.tabsPerSavedGroup.min,
+      Glean.tabgroup.tabsPerSavedGroup.median,
+      Glean.tabgroup.tabsPerSavedGroup.average,
+    ].every(metric => metric.testGetValue());
+  }, "Wait for saved tab group metrics to populate");
+
+  Assert.equal(
+    Glean.tabgroup.savedGroups.testGetValue(),
+    2,
+    "should count 2 saved tab groups"
+  );
+  Assert.equal(
+    Glean.tabgroup.tabsPerSavedGroup.max.testGetValue(),
+    5,
+    "should count 5 tabs as minimum number of tabs"
+  );
+  Assert.equal(
+    Glean.tabgroup.tabsPerSavedGroup.min.testGetValue(),
+    3,
+    "should count 3 tabs as minimum number of tabs"
+  );
+  Assert.equal(
+    Glean.tabgroup.tabsPerSavedGroup.median.testGetValue(),
+    4,
+    "should count 4 tabs as median number of tabs"
+  );
+  Assert.equal(
+    Glean.tabgroup.tabsPerSavedGroup.average.testGetValue(),
+    4,
+    "should count 4 tabs as average number of tabs"
+  );
+
+  forgetSavedTabGroups();
+  await resetTelemetry();
+});
+
 /**
  * @param {MozTabbrowserTabGroup} tabGroup
  * @returns {Promise<MozPanel>}
@@ -628,5 +697,127 @@ add_task(async function test_tabContextMenu_addTabsToGroup() {
   }
   await removeTabGroup(group);
 
+  await resetTelemetry();
+});
+
+add_task(async function test_tabInteractions() {
+  let assertMetricEmpty = async metricName => {
+    Assert.equal(
+      Glean.tabgroup.tabInteractions[metricName].testGetValue(),
+      null,
+      `tab_interactions.${metricName} starts empty`
+    );
+  };
+
+  let assertOneMetricFoundFor = async metricName => {
+    await BrowserTestUtils.waitForCondition(() => {
+      return Glean.tabgroup.tabInteractions[metricName].testGetValue() !== null;
+    }, `Wait for tab_interactions.${metricName} to be recorded`);
+    Assert.equal(
+      Glean.tabgroup.tabInteractions[metricName].testGetValue(),
+      1,
+      `tab_interactions.${metricName} was recorded`
+    );
+  };
+
+  let initialTab = win.gBrowser.tabs[0];
+
+  await resetTelemetry();
+  let group = await makeTabGroup();
+
+  info(
+    "Test that selecting a tab in a group records tab_interactions.activate"
+  );
+  await assertMetricEmpty("activate");
+  const tabSelectEvent = BrowserTestUtils.waitForEvent(win, "TabSelect");
+  win.gBrowser.selectTabAtIndex(1);
+  await tabSelectEvent;
+  await assertOneMetricFoundFor("activate");
+
+  info(
+    "Test that moving an existing tab into a tab group records tab_interactions.add"
+  );
+  let tab1 = BrowserTestUtils.addTab(win.gBrowser, "https://example.com");
+  await assertMetricEmpty("add");
+  win.gBrowser.moveTabToGroup(tab1, group, { isUserTriggered: true });
+  await assertOneMetricFoundFor("add");
+
+  info(
+    "Test that adding a new tab to a tab group records tab_interactions.new"
+  );
+  await assertMetricEmpty("new");
+  BrowserTestUtils.addTab(win.gBrowser, "https://example.com", {
+    tabGroup: group,
+  });
+  await assertOneMetricFoundFor("new");
+
+  info("Test that moving a tab within a group calls tab_interactions.reorder");
+  await assertMetricEmpty("reorder");
+  win.gBrowser.moveTabTo(group.tabs[0], { tabIndex: 3, isUserTriggered: true });
+  await assertOneMetricFoundFor("reorder");
+
+  info(
+    "Test that duplicating a tab within a group calls tab_interactions.duplicate"
+  );
+  await assertMetricEmpty("duplicate");
+  win.gBrowser.duplicateTab(group.tabs[0], true, { index: 2 });
+  await assertOneMetricFoundFor("duplicate");
+
+  info(
+    "Test that closing a tab using the tab's close button calls tab_interactions.close_tabstrip"
+  );
+  await assertMetricEmpty("close_tabstrip");
+  group.tabs.at(-1).querySelector(".tab-close-button").click();
+  await assertOneMetricFoundFor("close_tabstrip");
+
+  info(
+    "Test that closing a tab from the tab overflow menu calls tab_interactions.close_tabmenu"
+  );
+  await openTabsMenu();
+  await assertMetricEmpty("close_tabmenu");
+  win.document
+    .querySelector(".all-tabs-item.grouped .all-tabs-close-button")
+    .click();
+  await assertOneMetricFoundFor("close_tabmenu");
+  await closeTabsMenu();
+
+  info(
+    "Test that moving a tab out of a tab group calls tab_interactions.remove_same_window"
+  );
+  await assertMetricEmpty("remove_same_window");
+  win.gBrowser.moveTabTo(group.tabs[0], { tabIndex: 0, isUserTriggered: true });
+  await assertOneMetricFoundFor("remove_same_window");
+
+  info(
+    "Test that moving a tab out of a tab group and into a different (existing) window calls tab_interactions.remove_other_window"
+  );
+  await assertMetricEmpty("remove_other_window");
+  let tab2 = BrowserTestUtils.addTab(win.gBrowser, "https://example.com");
+  win.gBrowser.moveTabToGroup(tab2, group, { isUserTriggered: true });
+  let newWin = await BrowserTestUtils.openNewBrowserWindow();
+  newWin.gBrowser.adoptTab(tab2);
+  await assertOneMetricFoundFor("remove_other_window");
+  await BrowserTestUtils.closeWindow(newWin);
+
+  info(
+    "Test that moving a tab out of a tab group and into a different (new) window calls tab_interactions.remove_new_window"
+  );
+  await assertMetricEmpty("remove_new_window");
+  let newWindowPromise = BrowserTestUtils.waitForNewWindow();
+  await EventUtils.synthesizePlainDragAndDrop({
+    srcElement: group.tabs[0],
+    srcWindow: win,
+    destElement: null,
+    // don't move horizontally because that could cause a tab move
+    // animation, and there's code to prevent a tab detaching if
+    // the dragged tab is released while the animation is running.
+    stepX: 0,
+    stepY: 100,
+  });
+  newWin = await newWindowPromise;
+  await assertOneMetricFoundFor("remove_new_window");
+  await BrowserTestUtils.closeWindow(newWin);
+
+  win.gBrowser.removeAllTabsBut(initialTab);
   await resetTelemetry();
 });

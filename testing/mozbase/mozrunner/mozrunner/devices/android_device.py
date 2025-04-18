@@ -89,7 +89,7 @@ class UninstallIntent(Enum):
     NO = 2
 
 
-class AvdInfo(object):
+class AvdInfo:
     """
     Simple class to contain an AVD description.
     """
@@ -260,7 +260,7 @@ def _maybe_update_host_utils(build_obj):
         #     "filename": "host-utils-58.0a1.en-US-linux-x86_64.tar.gz",
         path = os.path.join(build_obj.topsrcdir, MANIFEST_PATH)
         manifest_path = os.path.join(path, host_platform, "hostutils.manifest")
-        with open(manifest_path, "r") as f:
+        with open(manifest_path) as f:
             for line in f.readlines():
                 m = re.search('.*"(host-utils-.*)"', line)
                 if m:
@@ -665,7 +665,7 @@ def grant_runtime_permissions(build_obj, app, device_serial=None):
     device.grant_runtime_permissions(app)
 
 
-class AndroidEmulator(object):
+class AndroidEmulator:
     """
     Support running the Android emulator with an AVD from Mozilla
     test automation.
@@ -898,7 +898,7 @@ class AndroidEmulator(object):
 
     def _update_avd_paths(self):
         ini_path = os.path.join(EMULATOR_HOME_DIR, "avd", "%s.ini" % self.avd_info.name)
-        with open(ini_path, "r") as f:
+        with open(ini_path) as f:
             lines = f.readlines()
         with open(ini_path, "w") as f:
             for line in lines:
@@ -910,12 +910,12 @@ class AndroidEmulator(object):
                     f.write(line)
 
     def _telnet_read_until(self, telnet, expected, timeout):
-        if six.PY3 and isinstance(expected, six.text_type):
+        if six.PY3 and isinstance(expected, str):
             expected = expected.encode("ascii")
         return telnet.read_until(expected, timeout)
 
     def _telnet_write(self, telnet, command):
-        if six.PY3 and isinstance(command, six.text_type):
+        if six.PY3 and isinstance(command, str):
             command = command.encode("ascii")
         telnet.write(command)
 
@@ -1040,7 +1040,7 @@ def _find_sdk_exe(substs, exe, tools):
 
         prop_path = os.path.join(os.path.dirname(exe_path), "source.properties")
         if os.path.exists(prop_path):
-            with open(prop_path, "r") as f:
+            with open(prop_path) as f:
                 for line in f.readlines():
                     if line.startswith("Pkg.Revision"):
                         line = line.strip()
@@ -1144,7 +1144,7 @@ def _verify_kvm(substs):
     command = [emulator_path, "-accel-check"]
     try:
         out = subprocess.check_output(command)
-        if six.PY3 and not isinstance(out, six.text_type):
+        if six.PY3 and not isinstance(out, str):
             out = out.decode("utf-8")
         if "is installed and usable" in "".join(out):
             return

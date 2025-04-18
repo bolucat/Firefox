@@ -18,6 +18,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
     "moz-src:///browser/components/search/SearchSERPTelemetry.sys.mjs",
   SearchSERPTelemetryUtils:
     "moz-src:///browser/components/search/SearchSERPTelemetry.sys.mjs",
+  SessionStore: "resource:///modules/sessionstore/SessionStore.sys.mjs",
   TabMetrics: "moz-src:///browser/components/tabbrowser/TabMetrics.sys.mjs",
   WindowsInstallsInfo:
     "resource://gre/modules/components-utils/WindowsInstallsInfo.sys.mjs",
@@ -62,6 +63,8 @@ const TAB_RESTORING_TOPIC = "SSTabRestoring";
 const TELEMETRY_SUBSESSIONSPLIT_TOPIC =
   "internal-telemetry-after-subsession-split";
 const DOMWINDOW_OPENED_TOPIC = "domwindowopened";
+const SESSION_STORE_SAVED_TAB_GROUPS_TOPIC =
+  "sessionstore-saved-tab-groups-changed";
 
 export const MINIMUM_TAB_COUNT_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes, in ms
 
@@ -508,6 +511,12 @@ export let BrowserUsageTelemetry = {
       () => this._doOnTabGroupExpandOrCollapse(),
       0
     );
+
+    this._onSavedTabGroupsChangedTask = new lazy.DeferredTask(
+      () => this._doOnSavedTabGroupsChange(),
+      0
+    );
+    this._onSavedTabGroupsChangedTask.arm();
   },
 
   maxWindowCount: 0,
@@ -563,6 +572,7 @@ export let BrowserUsageTelemetry = {
     }
     Services.obs.removeObserver(this, DOMWINDOW_OPENED_TOPIC);
     Services.obs.removeObserver(this, TELEMETRY_SUBSESSIONSPLIT_TOPIC);
+    Services.obs.removeObserver(this, SESSION_STORE_SAVED_TAB_GROUPS_TOPIC);
   },
 
   observe(subject, topic, data) {
@@ -572,6 +582,9 @@ export let BrowserUsageTelemetry = {
         break;
       case TELEMETRY_SUBSESSIONSPLIT_TOPIC:
         this.afterSubsessionSplit();
+        break;
+      case SESSION_STORE_SAVED_TAB_GROUPS_TOPIC:
+        this._onSavedTabGroupsChange();
         break;
       case "nsPref:changed":
         switch (data) {
@@ -595,7 +608,10 @@ export let BrowserUsageTelemetry = {
   handleEvent(event) {
     switch (event.type) {
       case "TabOpen":
-        this._onTabOpen();
+        this._onTabOpen(event);
+        break;
+      case "TabClose":
+        this._onTabClosed(event);
         break;
       case "TabPinned":
         this._onTabPinned();
@@ -614,12 +630,16 @@ export let BrowserUsageTelemetry = {
       case "TabMove":
         this._onTabMove(event);
         break;
+      case "TabSelect":
+        this._onTabSelect(event);
+        break;
       case "TabGroupRemoveRequested":
         this._onTabGroupRemoveRequested(event);
         break;
       case "TabGroupSaved":
         this._onTabGroupSave(event);
         break;
+
       case "unload":
         this._unregisterWindow(event.target);
         break;
@@ -653,6 +673,7 @@ export let BrowserUsageTelemetry = {
     // Make sure to catch new chrome windows and subsession splits.
     Services.obs.addObserver(this, DOMWINDOW_OPENED_TOPIC, true);
     Services.obs.addObserver(this, TELEMETRY_SUBSESSIONSPLIT_TOPIC, true);
+    Services.obs.addObserver(this, SESSION_STORE_SAVED_TAB_GROUPS_TOPIC, true);
 
     // Attach the tabopen handlers to the existing Windows.
     for (let win of Services.wm.getEnumerator("navigator:browser")) {
@@ -1167,7 +1188,9 @@ export let BrowserUsageTelemetry = {
     win.addEventListener("unload", this);
     win.addEventListener("TabMove", this);
     win.addEventListener("TabOpen", this, true);
+    win.addEventListener("TabClose", this, true);
     win.addEventListener("TabPinned", this, true);
+    win.addEventListener("TabSelect", this);
     win.addEventListener("TabGroupCreate", this);
     win.addEventListener("TabGroupRemoveRequested", this);
     win.addEventListener("TabGrouped", this);
@@ -1187,7 +1210,9 @@ export let BrowserUsageTelemetry = {
     win.removeEventListener("unload", this);
     win.removeEventListener("TabMove", this);
     win.removeEventListener("TabOpen", this, true);
+    win.removeEventListener("TabClose", this, true);
     win.removeEventListener("TabPinned", this, true);
+    win.removeEventListener("TabSelect", this);
     win.removeEventListener("TabGroupCreate", this);
     win.removeEventListener("TabGroupRemoveRequested", this);
     win.removeEventListener("TabGrouped", this);
@@ -1206,12 +1231,16 @@ export let BrowserUsageTelemetry = {
   /**
    * Updates the tab counts.
    */
-  _onTabOpen() {
+  _onTabOpen(event) {
     // Update the "tab opened" count and its maximum.
     if (lazy.sidebarVerticalTabs) {
       Glean.browserEngagement.verticalTabOpenEventCount.add(1);
     } else {
       Glean.browserEngagement.tabOpenEventCount.add(1);
+    }
+
+    if (event?.target?.group) {
+      Glean.tabgroup.tabInteractions.new.add();
     }
 
     // In the case of opening multiple tabs at once, avoid enumerating all open
@@ -1231,6 +1260,19 @@ export let BrowserUsageTelemetry = {
     }
 
     this._recordTabCounts({ tabCount, loadedTabCount });
+  },
+
+  _onTabClosed(event) {
+    const group = event.target?.group;
+    const source = event.detail?.telemetrySource;
+
+    if (group) {
+      if (source == lazy.TabMetrics.METRIC_SOURCE.TAB_STRIP) {
+        Glean.tabgroup.tabInteractions.close_tabstrip.add();
+      } else if (source == lazy.TabMetrics.METRIC_SOURCE.TAB_OVERFLOW_MENU) {
+        Glean.tabgroup.tabInteractions.close_tabmenu.add();
+      }
+    }
   },
 
   _onTabPinned() {
@@ -1274,13 +1316,31 @@ export let BrowserUsageTelemetry = {
     this._onTabGroupChangeTask.arm();
   },
 
+  /**
+   * Returns summary statistics of a set of numbers.
+   *
+   * @param {number[]} data
+   * @returns {{max: number, min: number, median: number, average: number}}
+   */
+  _getSummaryStats(data) {
+    let count = data.length;
+    data.sort((a, b) => a - b);
+    let middleIndex = Math.floor(count / 2);
+
+    return {
+      max: data.at(-1),
+      min: data.at(0),
+      median:
+        count % 2 == 0
+          ? (data[middleIndex - 1] + data[middleIndex]) / 2
+          : data[middleIndex],
+      average: data.reduce((a, b) => a + b, 0) / count,
+    };
+  },
+
   _doOnTabGroupChange() {
     let totalTabs = 0;
     let totalTabsInGroups = 0;
-    let max = 0;
-    let min = 0;
-    let average = 0;
-    let median = 0;
 
     // Used for calculation of average and median
     let tabGroupLengths = [];
@@ -1293,20 +1353,7 @@ export let BrowserUsageTelemetry = {
       }
     }
 
-    const tabGroupCount = tabGroupLengths.length;
-    if (tabGroupCount) {
-      tabGroupLengths.sort((a, b) => a - b);
-      const middleIndex = Math.floor(tabGroupCount / 2);
-
-      max = Math.max(...tabGroupLengths);
-      min = Math.min(...tabGroupLengths);
-      median =
-        tabGroupCount % 2 == 0
-          ? (tabGroupLengths[middleIndex - 1] + tabGroupLengths[middleIndex]) /
-            2
-          : tabGroupLengths[middleIndex];
-      average = tabGroupLengths.reduce((a, b) => a + b, 0) / tabGroupCount;
-    }
+    let { max, min, median, average } = this._getSummaryStats(tabGroupLengths);
 
     Glean.tabgroup.tabCountInGroups.inside.set(totalTabsInGroups);
     Glean.tabgroup.tabCountInGroups.outside.set(totalTabs - totalTabsInGroups);
@@ -1315,6 +1362,24 @@ export let BrowserUsageTelemetry = {
     Glean.tabgroup.tabsPerActiveGroup.average.set(average);
     Glean.tabgroup.tabsPerActiveGroup.max.set(max);
     Glean.tabgroup.tabsPerActiveGroup.min.set(min);
+  },
+
+  _onSavedTabGroupsChange() {
+    this._onSavedTabGroupsChangedTask.disarm();
+    this._onSavedTabGroupsChangedTask.arm();
+  },
+
+  _doOnSavedTabGroupsChange() {
+    let savedGroups = lazy.SessionStore.getSavedTabGroups();
+    let tabCounts = savedGroups.map(group => group.tabs.length);
+    let { max, min, median, average } = this._getSummaryStats(tabCounts);
+
+    Glean.tabgroup.savedGroups.set(savedGroups.length);
+
+    Glean.tabgroup.tabsPerSavedGroup.median.set(median);
+    Glean.tabgroup.tabsPerSavedGroup.average.set(average);
+    Glean.tabgroup.tabsPerSavedGroup.max.set(max);
+    Glean.tabgroup.tabsPerSavedGroup.min.set(min);
   },
 
   _onTabGroupExpandOrCollapse() {
@@ -1406,7 +1471,26 @@ export let BrowserUsageTelemetry = {
     let { previousTabState, currentTabState } = event.detail;
 
     if (!previousTabState.tabGroupId && currentTabState.tabGroupId) {
+      Glean.tabgroup.tabInteractions.add.add();
       record.numberAddedToTabGroup += 1;
+    }
+
+    if (
+      previousTabState.tabGroupId &&
+      previousTabState.tabGroupId == currentTabState.tabGroupId &&
+      previousTabState.tabIndex != currentTabState.tabIndex
+    ) {
+      Glean.tabgroup.tabInteractions.reorder.add();
+    }
+
+    if (previousTabState.tabGroupId && !currentTabState.tabGroupId) {
+      Glean.tabgroup.tabInteractions.remove_same_window.add();
+    }
+  },
+
+  _onTabSelect(event) {
+    if (event.target.group) {
+      Glean.tabgroup.tabInteractions.activate.add();
     }
   },
 
@@ -1443,7 +1527,7 @@ export let BrowserUsageTelemetry = {
 
       // We won't receive the "TabOpen" event for the first tab within a new window.
       // Account for that.
-      this._onTabOpen(counts);
+      this._onTabOpen();
     };
     win.addEventListener("load", onLoad);
   },
@@ -1502,17 +1586,7 @@ export let BrowserUsageTelemetry = {
 
   // Reports the number of Firefox profiles on this machine to telemetry.
   async reportProfileCount() {
-    if (
-      AppConstants.platform != "win" ||
-      !AppConstants.MOZ_TELEMETRY_REPORTING
-    ) {
-      // This is currently a windows-only feature.
-      // Also, this function writes directly to disk, without using the usual
-      // telemetry recording functions. So we excplicitly check if telemetry
-      // reporting was disabled at compile time, and we do not do anything in
-      // case.
-      return;
-    }
+    // Note: this is currently a windows-only feature.
 
     // To report only as much data as we need, we will bucket our values.
     // Rather than the raw value, we will report the greatest value in the list

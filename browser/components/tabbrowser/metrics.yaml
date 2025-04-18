@@ -263,6 +263,41 @@ tabgroup:
       - average
       - min
 
+  saved_groups:
+    type: quantity
+    description: >
+      Records the number of saved tab groups present in the user's session
+    notification_emails:
+      - dao@mozilla.com
+      - jswinarton@mozilla.com
+      - sthompson@mozilla.com
+    bugs:
+      - https://bugzil.la/1938398
+    data_reviews:
+      - https://bugzil.la/1938398
+    expires: never
+    unit: tab groups
+
+  tabs_per_saved_group:
+    type: labeled_quantity
+    description: >
+      Records statistics about the number of tabs per saved tab group: max, median, average and min.
+    notification_emails:
+      - dao@mozilla.com
+      - jswinarton@mozilla.com
+      - sthompson@mozilla.com
+    bugs:
+      - https://bugzil.la/1938398
+    data_reviews:
+      - https://bugzil.la/1938398
+    expires: never
+    unit: tabs
+    labels:
+      - max
+      - median
+      - average
+      - min
+
   tab_count_in_groups:
     type: labeled_quantity
     description: >
@@ -326,6 +361,37 @@ tabgroup:
       id:
         description: Tab group ID of the tab group being deleted. Tab group IDs are derived from their creation timestamps and have no other relationship to any tab group metadata.
         type: string
+    expires: never
+
+  tab_interactions:
+    type: labeled_counter
+    description: >
+      Records interactions with tabs related to a group: open, add tab to
+      group, duplicate, create a new tab, close a tab, reorder, and remove from
+      group
+    notification_emails:
+      - dao@mozilla.com
+      - jswinarton@mozilla.com
+      - sthompson@mozilla.com
+    bugs:
+      - https://bugzil.la/1938405
+      - https://bugzil.la/1960360
+    data_reviews:
+      - https://bugzil.la/1938405
+      - https://bugzil.la/1960360
+    data_sensitivity:
+      - interaction
+    labels:
+      - activate
+      - add
+      - duplicate
+      - new
+      - close_tabstrip
+      - close_tabmenu
+      - reorder
+      - remove_same_window
+      - remove_other_window
+      - remove_new_window
     expires: never
 
   smart_tab_optin:

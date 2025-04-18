@@ -648,8 +648,10 @@ bool nsContentSecurityUtils::IsEvalAllowed(JSContext* cx,
 
   if (StaticPrefs::
           security_allow_unsafe_dangerous_privileged_evil_eval_AtStartup()) {
-    MOZ_LOG(sCSMLog, LogLevel::Debug,
-            ("Allowing eval() because security.allow_unsafe_dangerous_priviliged_evil_eval is enabled."));
+    MOZ_LOG(
+        sCSMLog, LogLevel::Debug,
+        ("Allowing eval() because "
+         "security.allow_unsafe_dangerous_priviliged_evil_eval is enabled."));
     return true;
   }
 
@@ -1296,12 +1298,14 @@ static nsLiteralCString sStyleSrcUnsafeInlineAllowList[] = {
     "chrome://mozapps/content/downloads/unknownContentType.xhtml"_ns,
     "chrome://mozapps/content/handling/appChooser.xhtml"_ns,
     "chrome://mozapps/content/preferences/changemp.xhtml"_ns,
+    "chrome://mozapps/content/preferences/removemp.xhtml"_ns,
     "chrome://mozapps/content/profile/profileDowngrade.xhtml"_ns,
     "chrome://mozapps/content/profile/profileSelection.xhtml"_ns,
     "chrome://mozapps/content/profile/createProfileWizard.xhtml"_ns,
     "chrome://mozapps/content/update/history.xhtml"_ns,
     "chrome://mozapps/content/update/updateElevation.xhtml"_ns,
     "chrome://pippki/content/certManager.xhtml"_ns,
+    "chrome://pippki/content/changepassword.xhtml"_ns,
     "chrome://pippki/content/deletecert.xhtml"_ns,
     "chrome://pippki/content/device_manager.xhtml"_ns,
     "chrome://pippki/content/downloadcert.xhtml"_ns,
@@ -1965,9 +1969,6 @@ void nsContentSecurityUtils::AssertChromePageHasCSP(Document* aDocument) {
   }
 
   static nsLiteralCString sAllowedChromePagesWithNoCSP[] = {
-      "chrome://browser/content/shopping/review-checker.xhtml"_ns,
-      "chrome://geckoview/content/geckoview.xhtml"_ns,
-      "chrome://global/content/appPicker.xhtml"_ns,
       // Test files
       "chrome://mochikit/"_ns,
       "chrome://mochitests/"_ns,

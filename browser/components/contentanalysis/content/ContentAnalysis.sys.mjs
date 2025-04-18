@@ -3,6 +3,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+// @ts-check
 
 /**
  * Contains elements of the Content Analysis UI, which are integrated into
@@ -99,7 +100,7 @@ export const ContentAnalysis = {
 
   /**
    * @typedef {object} RequestInfo
-   * @property {BrowsingContext} browsingContext - browsing context where the request was sent from
+   * @property {CanonicalBrowsingContext} browsingContext - browsing context where the request was sent from
    * @property {ResourceNameOrOperationType} resourceNameOrOperationType - name of the operation
    */
 
@@ -162,6 +163,7 @@ export const ContentAnalysis = {
     Services.obs.addObserver(this, "dlp-request-made");
     Services.obs.addObserver(this, "dlp-response");
     Services.obs.addObserver(this, "quit-application");
+    Services.obs.addObserver(this, "quit-application-granted");
     Services.obs.addObserver(this, "quit-application-requested");
   },
 
@@ -204,7 +206,7 @@ export const ContentAnalysis = {
           null,
           null,
           null,
-          { value: 0 }
+          { value: false }
         );
         if (buttonSelected === 1) {
           // Cancel the quit operation
@@ -218,7 +220,10 @@ export const ContentAnalysis = {
         }
         break;
       }
-      case "quit-application": {
+      // Note that we do this in quit-application-granted instead of quit-application
+      // because otherwise we can get a shutdownhang if WARN dialogs are showing and
+      // the user quits via keyboard or the hamburger menu (bug 1959966)
+      case "quit-application-granted": {
         // We're quitting, so respond false to all WARN dialogs.
         let requestTokensToCancel = this.warnDialogRequestTokens;
         // Clear this first so the handler showing the dialog will know not
@@ -230,6 +235,9 @@ export const ContentAnalysis = {
             false
           );
         }
+        break;
+      }
+      case "quit-application": {
         this.uninitialize();
         break;
       }
@@ -310,7 +318,7 @@ export const ContentAnalysis = {
    * Shows the panel that indicates that DLP is active.
    *
    * @param {Element} element The toolbarbutton the user has clicked on
-   * @param {panelUI} panelUI Maintains state for the main menu panel
+   * @param {*} panelUI Maintains state for the main menu panel
    */
   async showPanel(element, panelUI) {
     element.ownerDocument.l10n.setAttributes(
@@ -367,7 +375,7 @@ export const ContentAnalysis = {
    * _SHOW_DIALOGS and _SHOW_NOTIFICATIONS.
    *
    * @param {string} aMessage - Message to show
-   * @param {BrowsingContext} aBrowsingContext - BrowsingContext to show the dialog in.
+   * @param {CanonicalBrowsingContext} aBrowsingContext - BrowsingContext to show the dialog in.
    * @param {number} aTimeout - timeout for closing the native notification. 0 indicates it is
    *                            not automatically closed.
    * @returns {NotificationInfo?} - information about the native notification, if it has been shown.
@@ -405,7 +413,7 @@ export const ContentAnalysis = {
   /**
    * Whether the notification should block browser interaction.
    *
-   * @param {number} aAnalysisType The type of DLP analysis being done.
+   * @param {nsIContentAnalysisRequest.AnalysisType} aAnalysisType The type of DLP analysis being done.
    * @returns {boolean}
    */
   _shouldShowBlockingNotification(aAnalysisType) {
@@ -451,7 +459,7 @@ export const ContentAnalysis = {
   /**
    * Gets a name or operation type from a request
    *
-   * @param {object} aRequest The nsIContentAnalysisRequest
+   * @param {nsIContentAnalysisRequest} aRequest The nsIContentAnalysisRequest
    * @param {boolean} aStandalone Whether the message is going to be used on its own
    *                              line. This is used to add more context to the message
    *                              if a file is being uploaded rather than just the name
@@ -482,7 +490,7 @@ export const ContentAnalysis = {
    *
    * @param {nsIContentAnalysisRequest} aRequest
    * @param {ResourceNameOrOperationType} aResourceNameOrOperationType
-   * @param {BrowsingContext} aBrowsingContext
+   * @param {CanonicalBrowsingContext} aBrowsingContext
    */
   _queueSlowCAMessage(
     aRequest,
@@ -553,7 +561,7 @@ export const ContentAnalysis = {
   /**
    * Gets all the requests that are still in progress.
    *
-   * @returns {Iterable<RequestInfo>} Information about the requests that are still in progress
+   * @returns {IteratorObject<RequestInfo>} Information about the requests that are still in progress
    */
   _getAllSlowCARequestInfos() {
     return this.userActionToBusyDialogMap
@@ -566,10 +574,10 @@ export const ContentAnalysis = {
    * Show a message to the user to indicate that a CA request is taking
    * a long time.
    *
-   * @param {string} aOperation Name of the operation
+   * @param {nsIContentAnalysisRequest.AnalysisType} aOperation The operation
    * @param {nsIContentAnalysisRequest} aRequest The request that is taking a long time
    * @param {string} aBodyMessage Message to show in the body of the alert
-   * @param {BrowsingContext} aBrowsingContext BrowsingContext to show the alert in
+   * @param {CanonicalBrowsingContext} aBrowsingContext BrowsingContext to show the alert in
    */
   _showSlowCAMessage(aOperation, aRequest, aBodyMessage, aBrowsingContext) {
     if (!this._shouldShowBlockingNotification(aOperation)) {
@@ -712,8 +720,6 @@ export const ContentAnalysis = {
         // This is also be called if the tab/window is closed while a request is in progress,
         // in which case we need to cancel the request.
         if (this.requestTokenToRequestInfo.delete(aRequestToken)) {
-          // TODO: Is this useful?  I think no.
-          this._removeSlowCAMessage({}, aRequestToken);
           this._removeSlowCAMessage(aUserActionId, aRequestToken);
           lazy.gContentAnalysis.cancelRequestsByRequestToken(aRequestToken);
         }
@@ -726,14 +732,14 @@ export const ContentAnalysis = {
   /**
    * Show a message to the user to indicate the result of a CA request.
    *
-   * @param {object} aResourceNameOrOperationType
-   * @param {BrowsingContext} aBrowsingContext
+   * @param {ResourceNameOrOperationType} aResourceNameOrOperationType
+   * @param {CanonicalBrowsingContext} aBrowsingContext
    * @param {string} aRequestToken
    * @param {string} aUserActionId
    * @param {number} aCAResult
-   * @param {bool} aIsAgentResponse
+   * @param {boolean} aIsAgentResponse
    * @param {number} aRequestCancelError
-   * @returns {NotificationInfo?} a notification object (if shown)
+   * @returns {Promise<NotificationInfo?>} a notification object (if shown)
    */
   async _showCAResult(
     aResourceNameOrOperationType,
@@ -785,7 +791,7 @@ export const ContentAnalysis = {
             ),
             null,
             null,
-            {}
+            false
           );
           allow = result.get("buttonNumClicked") === 0;
         } catch {

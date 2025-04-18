@@ -1763,6 +1763,9 @@ const LinkMenuOptions = {
         typedBonus: site.typedBonus,
         url: site.url,
         sponsored_tile_id: site.sponsored_tile_id,
+        title: site.title,
+        publisher: site.publisher,
+        time_sensitive: site.time_sensitive,
         ...(site.section
           ? {
               section: site.section,
@@ -1817,6 +1820,9 @@ const LinkMenuOptions = {
         ...(site.sponsored_tile_id ? { tile_id: site.sponsored_tile_id } : {}),
         is_pocket_card: site.type === "CardGrid",
         is_list_card: site.is_list_card,
+        title: site.title,
+        publisher: site.publisher,
+        time_sensitive: site.time_sensitive,
         ...(site.format ? { format: site.format } : {}),
         ...(site.section
           ? {
@@ -2775,6 +2781,10 @@ class ImpressionStats_ImpressionStats extends (external_React_default()).PureCom
             received_rank: link.received_rank,
             topic: link.topic,
             is_list_card: link.is_list_card,
+            url: link.url,
+            title: link.title,
+            publisher: link.publisher,
+            time_sensitive: link.time_sensitive,
             ...(link.format ? {
               format: link.format
             } : {
@@ -3645,6 +3655,10 @@ class _DSCard extends (external_React_default()).PureComponent {
             matches_selected_topic: matchesSelectedTopic,
             selected_topics: this.props.selectedTopics,
             is_list_card: this.props.isListCard,
+            title: this.props.title,
+            url: this.props.url,
+            publisher: this.props.publisher,
+            time_sensitive: this.props.isTimeSensitive,
             ...(this.props.format ? {
               format: this.props.format
             } : {
@@ -3673,6 +3687,10 @@ class _DSCard extends (external_React_default()).PureComponent {
             topic: this.props.topic,
             selected_topics: this.props.selectedTopics,
             is_list_card: this.props.isListCard,
+            title: this.props.title,
+            url: this.props.url,
+            publisher: this.props.publisher,
+            time_sensitive: this.props.isTimeSensitive,
             ...(this.props.format ? {
               format: this.props.format
             } : {
@@ -3717,6 +3735,10 @@ class _DSCard extends (external_React_default()).PureComponent {
         thumbs_up: true,
         thumbs_down: false,
         topic: this.props.topic,
+        title: this.props.title,
+        url: this.props.url,
+        publisher: this.props.publisher,
+        time_sensitive: this.props.isTimeSensitive,
         format: getActiveCardSize(window.innerWidth, this.props.sectionsClassNames, this.props.section, false // (thumbs up/down only exist on organic content)
         ),
         ...(this.props.section ? {
@@ -3794,6 +3816,10 @@ class _DSCard extends (external_React_default()).PureComponent {
           thumbs_up: false,
           thumbs_down: true,
           topic: this.props.topic,
+          title: this.props.title,
+          url: this.props.url,
+          publisher: this.props.publisher,
+          time_sensitive: this.props.isTimeSensitive,
           format: getActiveCardSize(window.innerWidth, this.props.sectionsClassNames, this.props.section, false // (thumbs up/down only exist on organic content)
           ),
           ...(this.props.section ? {
@@ -4092,7 +4118,9 @@ class _DSCard extends (external_React_default()).PureComponent {
       format: format,
       isSectionsCard: this.props.mayHaveSectionsCards,
       topic: this.props.topic,
-      selected_topics: this.props.selected_topics
+      selected_topics: this.props.selected_topics,
+      time_sensitive: this.props.isTimeSensitive,
+      publisher: this.props.publisher
     }))));
   }
 }
@@ -5102,7 +5130,8 @@ class _CardGrid extends (external_React_default()).PureComponent {
         recommended_at: rec.recommended_at,
         received_rank: rec.received_rank,
         format: rec.format,
-        alt_text: rec.alt_text
+        alt_text: rec.alt_text,
+        isTimeSensitive: rec.isTimeSensitive
       }));
     }
     if (widgets?.positions?.length && widgets?.data?.length) {
@@ -5992,19 +6021,22 @@ const ReportContent = spocs => {
     name: "report",
     ref: radioGroupRef,
     id: "report-group",
-    "data-l10n-id": "newtab-report-content-why-reporting",
+    "data-l10n-id": "newtab-report-content-why-reporting-this",
     className: "report-content-options"
   }, /*#__PURE__*/external_React_default().createElement("moz-radio", {
-    "data-l10n-id": "newtab-report-ads-reason-unsafe",
-    value: "unsafe_content"
+    "data-l10n-id": "newtab-report-content-wrong-category",
+    value: "wrong_category"
   }), /*#__PURE__*/external_React_default().createElement("moz-radio", {
-    "data-l10n-id": "newtab-report-ads-reason-inappropriate",
-    value: "inappropriate_content"
+    "data-l10n-id": "newtab-report-content-outdated",
+    value: "outdated"
   }), /*#__PURE__*/external_React_default().createElement("moz-radio", {
-    "data-l10n-id": "newtab-report-ads-reason-seen-it-too-many-times",
-    value: "seen_too_many_times"
+    "data-l10n-id": "newtab-report-content-inappropriate-offensive",
+    value: "inappropriate_or_offensive"
+  }), /*#__PURE__*/external_React_default().createElement("moz-radio", {
+    "data-l10n-id": "newtab-report-content-spam-misleading",
+    value: "spam_or_misleading"
   }))), /*#__PURE__*/external_React_default().createElement("moz-button-group", null, /*#__PURE__*/external_React_default().createElement("moz-button", {
-    "data-l10n-id": "newtab-topic-selection-cancel-button",
+    "data-l10n-id": "newtab-report-cancel",
     onClick: handleCancel,
     className: "cancel-report-btn"
   }), /*#__PURE__*/external_React_default().createElement("moz-button", {
@@ -10835,10 +10867,43 @@ function InterestPicker({
   })));
 }
 
+;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/PersonalizedCard/PersonalizedCard.jsx
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+const PersonalizedCard = ({
+  onDismiss
+}) => {
+  const wavingFox = "chrome://newtab/content/data/content/assets/waving-fox.svg";
+  return /*#__PURE__*/external_React_default().createElement("aside", {
+    className: "personalized-card-wrapper"
+  }, /*#__PURE__*/external_React_default().createElement("div", {
+    className: "personalized-card-dismiss"
+  }, /*#__PURE__*/external_React_default().createElement("moz-button", {
+    type: "icon ghost",
+    iconSrc: "chrome://global/skin/icons/close.svg",
+    onClick: onDismiss,
+    "data-l10n-id": "newtab-toast-dismiss-button"
+  })), /*#__PURE__*/external_React_default().createElement("div", {
+    className: "personalized-card-inner"
+  }, /*#__PURE__*/external_React_default().createElement("img", {
+    src: wavingFox,
+    alt: ""
+  }), /*#__PURE__*/external_React_default().createElement("h2", null, "Personalized Just for You"), /*#__PURE__*/external_React_default().createElement("p", null, "We\u2019re customizing your feed to show content that matters to you, while ensuring your privacy is always respected."), /*#__PURE__*/external_React_default().createElement("moz-button", {
+    type: "primary",
+    class: "personalized-card-cta"
+  }, "Manage your settings"), /*#__PURE__*/external_React_default().createElement("a", {
+    href: "https://www.mozilla.org/en-US/privacy/firefox/#notice"
+  }, "Learn how we protect and manage data")));
+};
 ;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/CardSections/CardSections.jsx
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
+
 
 
 
@@ -10866,6 +10931,10 @@ const CardSections_PREF_BILLBOARD_ENABLED = "newtabAdSize.billboard";
 const CardSections_PREF_LEADERBOARD_ENABLED = "newtabAdSize.leaderboard";
 const CardSections_PREF_LEADERBOARD_POSITION = "newtabAdSize.leaderboard.position";
 const CardSections_PREF_BILLBOARD_POSITION = "newtabAdSize.billboard.position";
+const PREF_INFERRED_PERSONALIZATION_ENABLED = "discoverystream.sections.personalization.inferred.enabled";
+const PREF_INFERRED_PERSONALIZATION_USER_ENABLED = "discoverystream.sections.personalization.inferred.user.enabled";
+const PREF_INFERRED_PERSONALIZATION_POSITION = "discoverystream.sections.personalization.inferred.position";
+const PREF_INFERRED_PERSONALIZATION_BLOCKED = "discoverystream.sections.personalization.inferred.blocked";
 function getLayoutData(responsiveLayouts, index) {
   let layoutData = {
     classNames: [],
@@ -11108,7 +11177,8 @@ function CardSection({
       sectionsCardImageSizes: imageSizes,
       section: sectionKey,
       sectionPosition: sectionPosition,
-      sectionFollowed: following
+      sectionFollowed: following,
+      isTimeSensitive: rec.isTimeSensitive
     });
   })));
 }
@@ -11201,6 +11271,22 @@ function CardSections({
       receivedFeedRank: interestPicker.receivedFeedRank
     }));
   }
+  const handleDismissP13nCard = () => {
+    dispatch(actionCreators.SetPref(PREF_INFERRED_PERSONALIZATION_BLOCKED, true));
+  };
+  function displayP13nCard() {
+    const row = prefs[PREF_INFERRED_PERSONALIZATION_POSITION];
+    const cardBlocked = prefs[PREF_INFERRED_PERSONALIZATION_BLOCKED];
+    const cardEnabled = prefs[PREF_INFERRED_PERSONALIZATION_ENABLED];
+    const userEnabled = prefs[PREF_INFERRED_PERSONALIZATION_USER_ENABLED];
+    if (!cardBlocked && cardEnabled && userEnabled) {
+      sectionsToRender.splice(row, 0, /*#__PURE__*/external_React_default().createElement(PersonalizedCard, {
+        row: row,
+        onDismiss: handleDismissP13nCard
+      }));
+    }
+  }
+  displayP13nCard();
   const isEmpty = sectionsToRender.length === 0;
   return isEmpty ? /*#__PURE__*/external_React_default().createElement("div", {
     className: "ds-card-grid empty"
@@ -12337,7 +12423,7 @@ class _WallpaperCategories extends (external_React_default()).PureComponent {
       }
       return /*#__PURE__*/external_React_default().createElement("div", {
         key: category
-      }, /*#__PURE__*/external_React_default().createElement("input", WallpaperCategories_extends({
+      }, /*#__PURE__*/external_React_default().createElement("button", WallpaperCategories_extends({
         ref: el => {
           if (el) {
             this.categoryRef[index] = el;
@@ -12345,7 +12431,6 @@ class _WallpaperCategories extends (external_React_default()).PureComponent {
         },
         id: category,
         style: style,
-        type: "button",
         onKeyDown: e => this.handleCategoryKeyDown(e, category)
         // Add overrides for custom wallpaper upload UI
         ,
@@ -13381,6 +13466,23 @@ const Weather_Weather = (0,external_ReactRedux_namespaceObject.connect)(state =>
   IntersectionObserver: globalThis.IntersectionObserver,
   document: globalThis.document
 }))(_Weather);
+;// CONCATENATED MODULE: ./content-src/components/DownloadModalToggle/DownloadModalToggle.jsx
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function DownloadModalToggle({
+  onClick
+}) {
+  return /*#__PURE__*/external_React_default().createElement("button", {
+    className: "mobile-download-promo",
+    onClick: onClick
+  }, /*#__PURE__*/external_React_default().createElement("div", {
+    className: "icon icon-device-phone"
+  }));
+}
+
 ;// CONCATENATED MODULE: ./content-src/components/Notifications/Toasts/ThumbUpThumbDownToast.jsx
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
@@ -13753,6 +13855,96 @@ function TopicSelection({
   })))));
 }
 
+;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/FeatureHighlight/DownloadMobilePromoHighlight.jsx
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+
+
+const PREF_MOBILE_DOWNLOAD_HIGHLIGHT_VARIANT_A = "mobileDownloadModal.variant-a";
+const PREF_MOBILE_DOWNLOAD_HIGHLIGHT_VARIANT_B = "mobileDownloadModal.variant-b";
+const PREF_MOBILE_DOWNLOAD_HIGHLIGHT_VARIANT_C = "mobileDownloadModal.variant-c";
+function DownloadMobilePromoHighlight({
+  position,
+  dispatch,
+  handleDismiss,
+  handleBlock
+}) {
+  const onDismiss = (0,external_React_namespaceObject.useCallback)(() => {
+    handleDismiss();
+    handleBlock();
+  }, [handleDismiss, handleBlock]);
+  const prefs = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Prefs.values);
+  const mobileDownloadPromoVarA = prefs[PREF_MOBILE_DOWNLOAD_HIGHLIGHT_VARIANT_A];
+  const mobileDownloadPromoVarB = prefs[PREF_MOBILE_DOWNLOAD_HIGHLIGHT_VARIANT_B];
+  const mobileDownloadPromoVarC = prefs[PREF_MOBILE_DOWNLOAD_HIGHLIGHT_VARIANT_C];
+  function getActiveVariant() {
+    if (mobileDownloadPromoVarA) {
+      return "A";
+    }
+    if (mobileDownloadPromoVarB) {
+      return "B";
+    }
+    if (mobileDownloadPromoVarC) {
+      return "C";
+    }
+    return null;
+  }
+  function getVariantQRCodeImg() {
+    const variant = getActiveVariant();
+    switch (variant) {
+      case "A":
+        return "chrome://newtab/content/data/content/assets/download-qr-code-var-a.png";
+      case "B":
+        return "chrome://newtab/content/data/content/assets/download-qr-code-var-b.png";
+      case "C":
+        return "chrome://newtab/content/data/content/assets/download-qr-code-var-c.png";
+      default:
+        return null;
+    }
+  }
+  function getVariantCopy() {
+    const variant = getActiveVariant();
+    switch (variant) {
+      case "A":
+        return "newtab-download-mobile-highlight-body-variant-a";
+      case "B":
+        return "newtab-download-mobile-highlight-body-variant-b";
+      case "C":
+        return "newtab-download-mobile-highlight-body-variant-c";
+      default:
+        return null;
+    }
+  }
+  return /*#__PURE__*/external_React_default().createElement("div", {
+    className: "download-firefox-feature-highlight"
+  }, /*#__PURE__*/external_React_default().createElement(FeatureHighlight, {
+    position: position,
+    feature: "FEATURE_DOWNLOAD_MOBILE_PROMO",
+    dispatch: dispatch,
+    message: /*#__PURE__*/external_React_default().createElement("div", {
+      className: "download-firefox-feature-highlight-content"
+    }, /*#__PURE__*/external_React_default().createElement("img", {
+      src: getVariantQRCodeImg(),
+      "data-l10n-id": "newtab-download-mobile-highlight-image",
+      width: "120",
+      height: "191",
+      alt: ""
+    }), /*#__PURE__*/external_React_default().createElement("p", {
+      className: "title",
+      "data-l10n-id": "newtab-download-mobile-highlight-title"
+    }), /*#__PURE__*/external_React_default().createElement("p", {
+      className: "subtitle",
+      "data-l10n-id": getVariantCopy()
+    })),
+    openedOverride: true,
+    showButtonIcon: false,
+    dismissCallback: onDismiss,
+    outsideClickCallback: handleDismiss
+  }));
+}
 ;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/FeatureHighlight/WallpaperFeatureHighlight.jsx
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
@@ -13829,7 +14021,9 @@ function WallpaperFeatureHighlight({
 
 function MessageWrapper({
   children,
-  dispatch
+  dispatch,
+  hiddenOverride,
+  onDismiss
 }) {
   const message = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Messages);
   const [isIntersecting, setIsIntersecting] = (0,external_React_namespaceObject.useState)(false);
@@ -13868,7 +14062,8 @@ function MessageWrapper({
     } else {
       dispatch(actionCreators.AlsoToMain(action));
     }
-  }, [dispatch, message]);
+    onDismiss();
+  }, [dispatch, message, onDismiss]);
   function handleDismiss() {
     const {
       id
@@ -13910,7 +14105,7 @@ function MessageWrapper({
   }
 
   // only display the message if `isHidden` is false
-  return !message.isHidden && /*#__PURE__*/external_React_default().createElement("div", {
+  return (!message.isHidden || hiddenOverride) && /*#__PURE__*/external_React_default().createElement("div", {
     ref: el => {
       ref.current = [el];
     },
@@ -13929,6 +14124,8 @@ function Base_extends() { Base_extends = Object.assign ? Object.assign.bind() : 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
 
 
 
@@ -14031,16 +14228,20 @@ class BaseContent extends (external_React_default()).PureComponent {
     this.handleOnKeyDown = this.handleOnKeyDown.bind(this);
     this.onWindowScroll = Base_debounce(this.onWindowScroll.bind(this), 5);
     this.setPref = this.setPref.bind(this);
-    this.shouldShowWallpapersHighlight = this.shouldShowWallpapersHighlight.bind(this);
+    this.shouldShowOMCHighlight = this.shouldShowOMCHighlight.bind(this);
     this.updateWallpaper = this.updateWallpaper.bind(this);
     this.prefersDarkQuery = null;
     this.handleColorModeChange = this.handleColorModeChange.bind(this);
     this.shouldDisplayTopicSelectionModal = this.shouldDisplayTopicSelectionModal.bind(this);
+    this.toggleDownloadHighlight = this.toggleDownloadHighlight.bind(this);
+    this.handleDismissDownloadHighlight = this.handleDismissDownloadHighlight.bind(this);
     this.state = {
       fixedSearch: false,
       firstVisibleTimestamp: null,
       colorMode: "",
-      fixedNavStyle: {}
+      fixedNavStyle: {},
+      wallpaperTheme: "",
+      showDownloadHighlight: this.shouldShowOMCHighlight("DownloadMobilePromoHighlight")
     };
   }
   setFirstVisibleTimestamp() {
@@ -14053,6 +14254,8 @@ class BaseContent extends (external_React_default()).PureComponent {
   componentDidMount() {
     __webpack_require__.g.addEventListener("scroll", this.onWindowScroll);
     __webpack_require__.g.addEventListener("keydown", this.handleOnKeyDown);
+    const prefs = this.props.Prefs.values;
+    const wallpapersV2Enabled = prefs["newtabWallpapers.v2.enabled"];
     if (this.props.document.visibilityState === Base_VISIBLE) {
       this.setFirstVisibleTimestamp();
       this.shouldDisplayTopicSelectionModal();
@@ -14071,40 +14274,43 @@ class BaseContent extends (external_React_default()).PureComponent {
     this.prefersDarkQuery = globalThis.matchMedia("(prefers-color-scheme: dark)");
     this.prefersDarkQuery.addEventListener("change", this.handleColorModeChange);
     this.handleColorModeChange();
-    this.updateWallpaper();
+    if (wallpapersV2Enabled) {
+      this.updateWallpaper();
+    }
   }
   componentDidUpdate(prevProps) {
-    // destructure current and previous props with fallbacks
-    // (preventing undefined errors)
-    const {
-      Wallpapers: {
-        uploadedWallpaper = null,
-        wallpaperList = null
-      } = {},
-      Prefs: {
-        values: currentPrefs = {}
-      } = {}
-    } = this.props;
-    const {
-      Wallpapers: {
-        uploadedWallpaper: prevUploadedWallpaper = null,
-        wallpaperList: prevWallpaperList = null
-      } = {},
-      Prefs: {
-        values: prevPrefs = {}
-      } = {}
-    } = prevProps;
-    const selectedWallpaper = currentPrefs["newtabWallpapers.wallpaper"];
-    const prevSelectedWallpaper = prevPrefs["newtabWallpapers.wallpaper"];
+    const prefs = this.props.Prefs.values;
+    const wallpapersV2Enabled = prefs["newtabWallpapers.v2.enabled"];
+    if (wallpapersV2Enabled) {
+      // destructure current and previous props with fallbacks
+      // (preventing undefined errors)
+      const {
+        Wallpapers: {
+          uploadedWallpaper = null,
+          wallpaperList = null
+        } = {}
+      } = this.props;
+      const {
+        Wallpapers: {
+          uploadedWallpaper: prevUploadedWallpaper = null,
+          wallpaperList: prevWallpaperList = null
+        } = {},
+        Prefs: {
+          values: prevPrefs = {}
+        } = {}
+      } = prevProps;
+      const selectedWallpaper = prefs["newtabWallpapers.wallpaper"];
+      const prevSelectedWallpaper = prevPrefs["newtabWallpapers.wallpaper"];
 
-    // don't update wallpaper unless the wallpaper is being changed.
-    if (selectedWallpaper !== prevSelectedWallpaper ||
-    // selecting a new wallpaper
-    uploadedWallpaper !== prevUploadedWallpaper ||
-    // uploading a new wallpaper
-    wallpaperList !== prevWallpaperList // remote settings wallpaper list updates
-    ) {
-      this.updateWallpaper();
+      // don't update wallpaper unless the wallpaper is being changed.
+      if (selectedWallpaper !== prevSelectedWallpaper ||
+      // selecting a new wallpaper
+      uploadedWallpaper !== prevUploadedWallpaper ||
+      // uploading a new wallpaper
+      wallpaperList !== prevWallpaperList // remote settings wallpaper list updates
+      ) {
+        this.updateWallpaper();
+      }
     }
   }
   handleColorModeChange() {
@@ -14300,6 +14506,8 @@ class BaseContent extends (external_React_default()).PureComponent {
       wallpaperList,
       uploadedWallpaper
     } = this.props.Wallpapers;
+    let lightWallpaper = {};
+    let darkWallpaper = {};
     if (selectedWallpaper === "custom" && uploadedWallpaper) {
       // revoke ObjectURL to prevent memory leaks
       if (this.uploadedWallpaperUrl) {
@@ -14312,9 +14520,7 @@ class BaseContent extends (external_React_default()).PureComponent {
     }
     if (wallpaperList) {
       let wallpaper = wallpaperList.find(wp => wp.title === selectedWallpaper);
-      let lightWallpaper = {};
-      let darkWallpaper = {};
-      if (selectedWallpaper) {
+      if (selectedWallpaper && wallpaper) {
         // if selectedWallpaper exists - we override what light and dark prefs are to match that
         lightWallpaper = wallpaper;
         darkWallpaper = wallpaper;
@@ -14351,26 +14557,27 @@ class BaseContent extends (external_React_default()).PureComponent {
           wallpaperTheme = theme;
         }
       }
-
-      // Add helper class to body if user has a wallpaper selected
-      if (wallpaperTheme === "light") {
-        __webpack_require__.g.document?.body.classList.add("lightWallpaper");
-        __webpack_require__.g.document?.body.classList.remove("darkWallpaper");
-      }
-      if (wallpaperTheme === "dark") {
-        __webpack_require__.g.document?.body.classList.add("darkWallpaper");
-        __webpack_require__.g.document?.body.classList.remove("lightWallpaper");
-      }
+      this.setState({
+        wallpaperTheme
+      });
     }
   }
-  shouldShowWallpapersHighlight() {
-    if (!this.props.Messages?.messageData) {
+  shouldShowOMCHighlight(componentId) {
+    const messageData = this.props.Messages?.messageData;
+    if (!messageData || Object.keys(messageData).length === 0) {
       return false;
     }
-    const {
-      messageData
-    } = this.props.Messages;
-    return messageData?.content?.messageType === "CustomWallpaperHighlight";
+    return messageData?.content?.messageType === componentId;
+  }
+  toggleDownloadHighlight() {
+    this.setState(prevState => ({
+      showDownloadHighlight: !prevState.showDownloadHighlight
+    }));
+  }
+  handleDismissDownloadHighlight() {
+    this.setState({
+      showDownloadHighlight: false
+    });
   }
   getRGBColors(input) {
     if (input.length !== 7) {
@@ -14407,6 +14614,8 @@ class BaseContent extends (external_React_default()).PureComponent {
       }
     }
   }
+
+  // eslint-disable-next-line max-statements
   render() {
     const {
       props
@@ -14459,6 +14668,14 @@ class BaseContent extends (external_React_default()).PureComponent {
       mayHaveSponsoredTopSites
     } = prefs;
     const supportUrl = prefs["support.url"];
+
+    // Mobile Download Promo Pref Checks
+    const mobileDownloadPromoEnabled = prefs["mobileDownloadModal.enabled"];
+    const mobileDownloadPromoVariantAEnabled = prefs["mobileDownloadModal.variant-a"];
+    const mobileDownloadPromoVariantBEnabled = prefs["mobileDownloadModal.variant-b"];
+    const mobileDownloadPromoVariantCEnabled = prefs["mobileDownloadModal.variant-c"];
+    const mobileDownloadPromoVariantABorC = mobileDownloadPromoVariantAEnabled || mobileDownloadPromoVariantBEnabled || mobileDownloadPromoVariantCEnabled;
+    const mobileDownloadPromoWrapperHeightModifier = prefs["weather.display"] === "detailed" && weatherEnabled && mayHaveWeather ? "is-tall" : "";
     const hasThumbsUpDownLayout = prefs["discoverystream.thumbsUpDown.searchTopsitesCompact"];
     const hasThumbsUpDown = prefs["discoverystream.thumbsUpDown.enabled"];
     const sectionsEnabled = prefs["discoverystream.sections.enabled"];
@@ -14466,8 +14683,10 @@ class BaseContent extends (external_React_default()).PureComponent {
     const sectionsCustomizeMenuPanelEnabled = prefs["discoverystream.sections.customizeMenuPanel.enabled"];
     // Logic to show follow/block topic mgmt panel in Customize panel
     const mayHaveTopicSections = topicLabelsEnabled && sectionsEnabled && sectionsCustomizeMenuPanelEnabled && DiscoveryStream.feeds.loaded;
-    const featureClassName = [weatherEnabled && mayHaveWeather && "has-weather",
-    // Show is weather is enabled/visible
+    const featureClassName = [mobileDownloadPromoEnabled && mobileDownloadPromoVariantABorC && "has-mobile-download-promo",
+    // Mobile download promo modal is enabled/visible
+    weatherEnabled && mayHaveWeather && "has-weather",
+    // Weather widget is enabled/visible
     prefs.showSearch ? "has-search" : "no-search", layoutsVariantAEnabled ? "layout-variant-a" : "",
     // Layout experiment variant A
     layoutsVariantBEnabled ? "layout-variant-b" : "",
@@ -14476,6 +14695,17 @@ class BaseContent extends (external_React_default()).PureComponent {
     // Shortcuts refresh experiment
     pocketEnabled ? "has-recommended-stories" : "no-recommended-stories", sectionsEnabled ? "has-sections-grid" : ""].filter(v => v).join(" ");
     const outerClassName = ["outer-wrapper", isDiscoveryStream && pocketEnabled && "ds-outer-wrapper-search-alignment", isDiscoveryStream && "ds-outer-wrapper-breakpoint-override", prefs.showSearch && this.state.fixedSearch && !noSectionsEnabled && "fixed-search", prefs.showSearch && noSectionsEnabled && "only-search", prefs["feeds.topsites"] && !pocketEnabled && !prefs.showSearch && "only-topsites", noSectionsEnabled && "no-sections", prefs["logowordmark.alwaysVisible"] && "visible-logo", hasThumbsUpDownLayout && hasThumbsUpDown && "thumbs-ui-compact"].filter(v => v).join(" ");
+    if (wallpapersV2Enabled) {
+      // Add helper class to body if user has a wallpaper selected
+      if (this.state.wallpaperTheme === "light") {
+        __webpack_require__.g.document?.body.classList.add("lightWallpaper");
+        __webpack_require__.g.document?.body.classList.remove("darkWallpaper");
+      }
+      if (this.state.wallpaperTheme === "dark") {
+        __webpack_require__.g.document?.body.classList.add("darkWallpaper");
+        __webpack_require__.g.document?.body.classList.remove("lightWallpaper");
+      }
+    }
     return /*#__PURE__*/external_React_default().createElement("div", {
       className: featureClassName
     }, /*#__PURE__*/external_React_default().createElement("menu", {
@@ -14496,7 +14726,7 @@ class BaseContent extends (external_React_default()).PureComponent {
       mayHaveWeather: mayHaveWeather,
       spocMessageVariant: spocMessageVariant,
       showing: customizeMenuVisible
-    }), this.shouldShowWallpapersHighlight() && /*#__PURE__*/external_React_default().createElement(MessageWrapper, {
+    }), this.shouldShowOMCHighlight("CustomWallpaperHighlight") && /*#__PURE__*/external_React_default().createElement(MessageWrapper, {
       dispatch: this.props.dispatch
     }, /*#__PURE__*/external_React_default().createElement(WallpaperFeatureHighlight, {
       position: "inset-block-start inset-inline-start",
@@ -14504,6 +14734,17 @@ class BaseContent extends (external_React_default()).PureComponent {
     }))), /*#__PURE__*/external_React_default().createElement("div", {
       className: "weatherWrapper"
     }, weatherEnabled && /*#__PURE__*/external_React_default().createElement(ErrorBoundary, null, /*#__PURE__*/external_React_default().createElement(Weather_Weather, null))), /*#__PURE__*/external_React_default().createElement("div", {
+      className: `mobileDownloadPromoWrapper ${mobileDownloadPromoWrapperHeightModifier}`
+    }, mobileDownloadPromoEnabled && mobileDownloadPromoVariantABorC && /*#__PURE__*/external_React_default().createElement(ErrorBoundary, null, /*#__PURE__*/external_React_default().createElement(DownloadModalToggle, {
+      onClick: this.toggleDownloadHighlight
+    }), this.state.showDownloadHighlight && /*#__PURE__*/external_React_default().createElement(MessageWrapper, {
+      hiddenOverride: this.state.showDownloadHighlight,
+      onDismiss: this.handleDismissDownloadHighlight,
+      dispatch: this.props.dispatch
+    }, /*#__PURE__*/external_React_default().createElement(DownloadMobilePromoHighlight, {
+      position: "inset-block-end inset-inline-start",
+      dispatch: this.props.dispatch
+    })))), /*#__PURE__*/external_React_default().createElement("div", {
       className: outerClassName,
       onClick: this.closeCustomizationMenu
     }, /*#__PURE__*/external_React_default().createElement("main", {

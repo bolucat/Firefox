@@ -14,8 +14,10 @@ import { Search } from "content-src/components/Search/Search";
 import { Sections } from "content-src/components/Sections/Sections";
 import { Logo } from "content-src/components/Logo/Logo";
 import { Weather } from "content-src/components/Weather/Weather";
+import { DownloadModalToggle } from "content-src/components/DownloadModalToggle/DownloadModalToggle";
 import { Notifications } from "content-src/components/Notifications/Notifications";
 import { TopicSelection } from "content-src/components/DiscoveryStreamComponents/TopicSelection/TopicSelection";
+import { DownloadMobilePromoHighlight } from "../DiscoveryStreamComponents/FeatureHighlight/DownloadMobilePromoHighlight";
 import { WallpaperFeatureHighlight } from "../DiscoveryStreamComponents/FeatureHighlight/WallpaperFeatureHighlight";
 import { MessageWrapper } from "content-src/components/MessageWrapper/MessageWrapper";
 
@@ -123,18 +125,24 @@ export class BaseContent extends React.PureComponent {
     this.handleOnKeyDown = this.handleOnKeyDown.bind(this);
     this.onWindowScroll = debounce(this.onWindowScroll.bind(this), 5);
     this.setPref = this.setPref.bind(this);
-    this.shouldShowWallpapersHighlight =
-      this.shouldShowWallpapersHighlight.bind(this);
+    this.shouldShowOMCHighlight = this.shouldShowOMCHighlight.bind(this);
     this.updateWallpaper = this.updateWallpaper.bind(this);
     this.prefersDarkQuery = null;
     this.handleColorModeChange = this.handleColorModeChange.bind(this);
     this.shouldDisplayTopicSelectionModal =
       this.shouldDisplayTopicSelectionModal.bind(this);
+    this.toggleDownloadHighlight = this.toggleDownloadHighlight.bind(this);
+    this.handleDismissDownloadHighlight =
+      this.handleDismissDownloadHighlight.bind(this);
     this.state = {
       fixedSearch: false,
       firstVisibleTimestamp: null,
       colorMode: "",
       fixedNavStyle: {},
+      wallpaperTheme: "",
+      showDownloadHighlight: this.shouldShowOMCHighlight(
+        "DownloadMobilePromoHighlight"
+      ),
     };
   }
 
@@ -149,6 +157,8 @@ export class BaseContent extends React.PureComponent {
   componentDidMount() {
     global.addEventListener("scroll", this.onWindowScroll);
     global.addEventListener("keydown", this.handleOnKeyDown);
+    const prefs = this.props.Prefs.values;
+    const wallpapersV2Enabled = prefs["newtabWallpapers.v2.enabled"];
     if (this.props.document.visibilityState === VISIBLE) {
       this.setFirstVisibleTimestamp();
       this.shouldDisplayTopicSelectionModal();
@@ -179,35 +189,40 @@ export class BaseContent extends React.PureComponent {
       this.handleColorModeChange
     );
     this.handleColorModeChange();
-    this.updateWallpaper();
+    if (wallpapersV2Enabled) {
+      this.updateWallpaper();
+    }
   }
 
   componentDidUpdate(prevProps) {
-    // destructure current and previous props with fallbacks
-    // (preventing undefined errors)
-    const {
-      Wallpapers: { uploadedWallpaper = null, wallpaperList = null } = {},
-      Prefs: { values: currentPrefs = {} } = {},
-    } = this.props;
+    const prefs = this.props.Prefs.values;
+    const wallpapersV2Enabled = prefs["newtabWallpapers.v2.enabled"];
+    if (wallpapersV2Enabled) {
+      // destructure current and previous props with fallbacks
+      // (preventing undefined errors)
+      const {
+        Wallpapers: { uploadedWallpaper = null, wallpaperList = null } = {},
+      } = this.props;
 
-    const {
-      Wallpapers: {
-        uploadedWallpaper: prevUploadedWallpaper = null,
-        wallpaperList: prevWallpaperList = null,
-      } = {},
-      Prefs: { values: prevPrefs = {} } = {},
-    } = prevProps;
+      const {
+        Wallpapers: {
+          uploadedWallpaper: prevUploadedWallpaper = null,
+          wallpaperList: prevWallpaperList = null,
+        } = {},
+        Prefs: { values: prevPrefs = {} } = {},
+      } = prevProps;
 
-    const selectedWallpaper = currentPrefs["newtabWallpapers.wallpaper"];
-    const prevSelectedWallpaper = prevPrefs["newtabWallpapers.wallpaper"];
+      const selectedWallpaper = prefs["newtabWallpapers.wallpaper"];
+      const prevSelectedWallpaper = prevPrefs["newtabWallpapers.wallpaper"];
 
-    // don't update wallpaper unless the wallpaper is being changed.
-    if (
-      selectedWallpaper !== prevSelectedWallpaper || // selecting a new wallpaper
-      uploadedWallpaper !== prevUploadedWallpaper || // uploading a new wallpaper
-      wallpaperList !== prevWallpaperList // remote settings wallpaper list updates
-    ) {
-      this.updateWallpaper();
+      // don't update wallpaper unless the wallpaper is being changed.
+      if (
+        selectedWallpaper !== prevSelectedWallpaper || // selecting a new wallpaper
+        uploadedWallpaper !== prevUploadedWallpaper || // uploading a new wallpaper
+        wallpaperList !== prevWallpaperList // remote settings wallpaper list updates
+      ) {
+        this.updateWallpaper();
+      }
     }
   }
 
@@ -413,6 +428,8 @@ export class BaseContent extends React.PureComponent {
     const prefs = this.props.Prefs.values;
     const selectedWallpaper = prefs["newtabWallpapers.wallpaper"];
     const { wallpaperList, uploadedWallpaper } = this.props.Wallpapers;
+    let lightWallpaper = {};
+    let darkWallpaper = {};
 
     if (selectedWallpaper === "custom" && uploadedWallpaper) {
       // revoke ObjectURL to prevent memory leaks
@@ -437,10 +454,7 @@ export class BaseContent extends React.PureComponent {
 
     if (wallpaperList) {
       let wallpaper = wallpaperList.find(wp => wp.title === selectedWallpaper);
-
-      let lightWallpaper = {};
-      let darkWallpaper = {};
-      if (selectedWallpaper) {
+      if (selectedWallpaper && wallpaper) {
         // if selectedWallpaper exists - we override what light and dark prefs are to match that
         lightWallpaper = wallpaper;
         darkWallpaper = wallpaper;
@@ -488,25 +502,28 @@ export class BaseContent extends React.PureComponent {
         }
       }
 
-      // Add helper class to body if user has a wallpaper selected
-      if (wallpaperTheme === "light") {
-        global.document?.body.classList.add("lightWallpaper");
-        global.document?.body.classList.remove("darkWallpaper");
-      }
-
-      if (wallpaperTheme === "dark") {
-        global.document?.body.classList.add("darkWallpaper");
-        global.document?.body.classList.remove("lightWallpaper");
-      }
+      this.setState({ wallpaperTheme });
     }
   }
 
-  shouldShowWallpapersHighlight() {
-    if (!this.props.Messages?.messageData) {
+  shouldShowOMCHighlight(componentId) {
+    const messageData = this.props.Messages?.messageData;
+
+    if (!messageData || Object.keys(messageData).length === 0) {
       return false;
     }
-    const { messageData } = this.props.Messages;
-    return messageData?.content?.messageType === "CustomWallpaperHighlight";
+
+    return messageData?.content?.messageType === componentId;
+  }
+
+  toggleDownloadHighlight() {
+    this.setState(prevState => ({
+      showDownloadHighlight: !prevState.showDownloadHighlight,
+    }));
+  }
+
+  handleDismissDownloadHighlight() {
+    this.setState({ showDownloadHighlight: false });
   }
 
   getRGBColors(input) {
@@ -566,6 +583,7 @@ export class BaseContent extends React.PureComponent {
     }
   }
 
+  // eslint-disable-next-line max-statements
   render() {
     const { props } = this;
     const { App, DiscoveryStream } = props;
@@ -625,6 +643,25 @@ export class BaseContent extends React.PureComponent {
     const { mayHaveSponsoredTopSites } = prefs;
     const supportUrl = prefs["support.url"];
 
+    // Mobile Download Promo Pref Checks
+    const mobileDownloadPromoEnabled = prefs["mobileDownloadModal.enabled"];
+    const mobileDownloadPromoVariantAEnabled =
+      prefs["mobileDownloadModal.variant-a"];
+    const mobileDownloadPromoVariantBEnabled =
+      prefs["mobileDownloadModal.variant-b"];
+    const mobileDownloadPromoVariantCEnabled =
+      prefs["mobileDownloadModal.variant-c"];
+    const mobileDownloadPromoVariantABorC =
+      mobileDownloadPromoVariantAEnabled ||
+      mobileDownloadPromoVariantBEnabled ||
+      mobileDownloadPromoVariantCEnabled;
+    const mobileDownloadPromoWrapperHeightModifier =
+      prefs["weather.display"] === "detailed" &&
+      weatherEnabled &&
+      mayHaveWeather
+        ? "is-tall"
+        : "";
+
     const hasThumbsUpDownLayout =
       prefs["discoverystream.thumbsUpDown.searchTopsitesCompact"];
     const hasThumbsUpDown = prefs["discoverystream.thumbsUpDown.enabled"];
@@ -640,7 +677,10 @@ export class BaseContent extends React.PureComponent {
       DiscoveryStream.feeds.loaded;
 
     const featureClassName = [
-      weatherEnabled && mayHaveWeather && "has-weather", // Show is weather is enabled/visible
+      mobileDownloadPromoEnabled &&
+        mobileDownloadPromoVariantABorC &&
+        "has-mobile-download-promo", // Mobile download promo modal is enabled/visible
+      weatherEnabled && mayHaveWeather && "has-weather", // Weather widget is enabled/visible
       prefs.showSearch ? "has-search" : "no-search",
       layoutsVariantAEnabled ? "layout-variant-a" : "", // Layout experiment variant A
       layoutsVariantBEnabled ? "layout-variant-b" : "", // Layout experiment variant B
@@ -670,6 +710,18 @@ export class BaseContent extends React.PureComponent {
     ]
       .filter(v => v)
       .join(" ");
+    if (wallpapersV2Enabled) {
+      // Add helper class to body if user has a wallpaper selected
+      if (this.state.wallpaperTheme === "light") {
+        global.document?.body.classList.add("lightWallpaper");
+        global.document?.body.classList.remove("darkWallpaper");
+      }
+
+      if (this.state.wallpaperTheme === "dark") {
+        global.document?.body.classList.add("darkWallpaper");
+        global.document?.body.classList.remove("lightWallpaper");
+      }
+    }
 
     return (
       <div className={featureClassName}>
@@ -692,7 +744,7 @@ export class BaseContent extends React.PureComponent {
             spocMessageVariant={spocMessageVariant}
             showing={customizeMenuVisible}
           />
-          {this.shouldShowWallpapersHighlight() && (
+          {this.shouldShowOMCHighlight("CustomWallpaperHighlight") && (
             <MessageWrapper dispatch={this.props.dispatch}>
               <WallpaperFeatureHighlight
                 position="inset-block-start inset-inline-start"
@@ -708,6 +760,28 @@ export class BaseContent extends React.PureComponent {
             </ErrorBoundary>
           )}
         </div>
+        <div
+          className={`mobileDownloadPromoWrapper ${mobileDownloadPromoWrapperHeightModifier}`}
+        >
+          {mobileDownloadPromoEnabled && mobileDownloadPromoVariantABorC && (
+            <ErrorBoundary>
+              <DownloadModalToggle onClick={this.toggleDownloadHighlight} />
+              {this.state.showDownloadHighlight && (
+                <MessageWrapper
+                  hiddenOverride={this.state.showDownloadHighlight}
+                  onDismiss={this.handleDismissDownloadHighlight}
+                  dispatch={this.props.dispatch}
+                >
+                  <DownloadMobilePromoHighlight
+                    position="inset-block-end inset-inline-start"
+                    dispatch={this.props.dispatch}
+                  />
+                </MessageWrapper>
+              )}
+            </ErrorBoundary>
+          )}
+        </div>
+
         {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions*/}
         <div className={outerClassName} onClick={this.closeCustomizationMenu}>
           <main className="newtab-main" style={this.state.fixedNavStyle}>

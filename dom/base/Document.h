@@ -325,6 +325,7 @@ enum BFCacheStatus {
   BEFOREUNLOAD_LISTENER = 1 << 15,       // Status 15
   ACTIVE_LOCK = 1 << 16,                 // Status 16
   ACTIVE_WEBTRANSPORT = 1 << 17,         // Status 17
+  PAGE_LOADING = 1 << 18,                // Status 18
 };
 
 }  // namespace dom
@@ -999,8 +1000,6 @@ class Document : public nsINode,
    * the document no longer contains bidi data.
    */
   void SetBidiEnabled() { mBidiEnabled = true; }
-
-  void SetMathMLEnabled() { mMathMLEnabled = true; }
 
   /**
    * Ask this document whether it's the initial document in its window.
@@ -2695,6 +2694,12 @@ class Document : public nsINode,
     nsPIDOMWindowInner* inner = GetInnerWindow();
     return inner && inner->IsCurrentInnerWindow() && inner->GetDoc() == this;
   }
+
+  /*
+   * Return true if the documents current url can be re-written to `aTargetURL`.
+   * This implements https://html.spec.whatwg.org/#can-have-its-url-rewritten.
+   */
+  bool CanRewriteURL(nsIURI* aTargetURL) const;
 
   /**
    * Return true if this document is fully active as described by spec.
@@ -4744,8 +4749,6 @@ class Document : public nsINode,
   bool mBidiEnabled : 1;
   // True if we may need to recompute the language prefs for this document.
   bool mMayNeedFontPrefsUpdate : 1;
-  // True if a MathML element has ever been owned by this document.
-  bool mMathMLEnabled : 1;
 
   // True if this document is the initial document for a window.  This should
   // basically be true only for documents that exist in newly-opened windows or
@@ -5570,6 +5573,11 @@ class Document : public nsINode,
   MOZ_CAN_RUN_SCRIPT static already_AddRefed<Document> ParseHTMLUnsafe(
       GlobalObject& aGlobal, const TrustedHTMLOrString& aHTML,
       ErrorResult& aError);
+
+  static already_AddRefed<Document> ParseHTML(GlobalObject& aGlobal,
+                                              const nsAString& aHTML,
+                                              const SetHTMLOptions& aOptions,
+                                              ErrorResult& aError);
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(Document, NS_IDOCUMENT_IID)
@@ -5709,12 +5717,12 @@ nsresult NS_NewVideoDocument(mozilla::dom::Document** aInstancePtrResult,
                              nsIPrincipal* aPartitionedPrincipal);
 
 // Enum for requesting a particular type of document when creating a doc
-enum DocumentFlavor {
-  DocumentFlavorLegacyGuess,  // compat with old code until made HTML5-compliant
-  DocumentFlavorHTML,         // HTMLDocument with HTMLness bit set to true
-  DocumentFlavorSVG,          // SVGDocument
-  DocumentFlavorXML,          // XMLDocument
-  DocumentFlavorPlain,        // Just a Document
+enum class DocumentFlavor : uint8_t {
+  LegacyGuess,  // compat with old code until made HTML5-compliant
+  HTML,         // HTMLDocument with HTMLness bit set to true
+  SVG,          // SVGDocument
+  XML,          // XMLDocument
+  Plain,        // Just a Document
 };
 
 // Note: it's the caller's responsibility to create or get aPrincipal as needed

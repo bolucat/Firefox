@@ -29,6 +29,7 @@ const NOTIFY_RESTORING_ON_STARTUP = "sessionstore-restoring-on-startup";
 const NOTIFY_INITIATING_MANUAL_RESTORE =
   "sessionstore-initiating-manual-restore";
 const NOTIFY_CLOSED_OBJECTS_CHANGED = "sessionstore-closed-objects-changed";
+const NOTIFY_SAVED_TAB_GROUPS_CHANGED = "sessionstore-saved-tab-groups-changed";
 
 const NOTIFY_TAB_RESTORED = "sessionstore-debug-tab-restored"; // WARNING: debug-only
 const NOTIFY_DOMWINDOWCLOSED_HANDLED =
@@ -1100,7 +1101,7 @@ var SessionStoreInternal = {
 
   _log: null,
 
-  // When starting Firefox with a single private window, this is the place
+  // When starting Firefox with a single private window or web app window, this is the place
   // where we keep the session we actually wanted to restore in case the user
   // decides to later open a non-private window as well.
   _deferredInitialState: null,
@@ -2015,9 +2016,9 @@ var SessionStoreInternal = {
         // to disk to NOW() to enforce a full interval before the next write.
         lazy.SessionSaver.updateLastSaveTime();
 
-        if (isPrivateWindow) {
+        if (isPrivateWindow || isTaskbarTab) {
           this._log.debug(
-            "initializeWindow, the window is private. Saving SessionStartup.state for possibly restoring later"
+            "initializeWindow, the window is private or a web app. Saving SessionStartup.state for possibly restoring later"
           );
           // We're starting with a single private window. Save the state we
           // actually wanted to restore so that we can do it later in case
@@ -2062,14 +2063,10 @@ var SessionStoreInternal = {
       // We want to restore windows after all windows have opened (since bug
       // 1034036), so bail out here.
       return;
-      // The user opened another, non-private window after starting up with
-      // a single private one. Let's restore the session we actually wanted to
-      // restore at startup.
-    } else if (
-      this._deferredInitialState &&
-      !isPrivateWindow &&
-      aWindow.toolbar.visible
-    ) {
+      // The user opened another window that is not a popup, private window, or web app,
+      // after starting up with a single private or web app window.
+      // Let's restore the session we actually wanted to restore at startup.
+    } else if (this._deferredInitialState && isRegularWindow) {
       // global data must be restored before restoreWindow is called so that
       // it happens before observers are notified
       this._globalState.setFromState(this._deferredInitialState);
@@ -4570,6 +4567,7 @@ var SessionStoreInternal = {
       this.removeClosedTabData({}, savedGroup.tabs, i);
     }
     this._savedGroups.splice(savedGroupIndex, 1);
+    this._notifyOfSavedTabGroupsChange();
 
     // Notify of changes to closed objects.
     this._closedObjectsChanged = true;
@@ -6679,6 +6677,16 @@ var SessionStoreInternal = {
   },
 
   /**
+   * Notifies observers that the list of saved tab groups has changed.
+   * Waits a tick to allow SessionStorage a chance to register the change.
+   */
+  _notifyOfSavedTabGroupsChange() {
+    lazy.setTimeout(() => {
+      Services.obs.notifyObservers(null, NOTIFY_SAVED_TAB_GROUPS_CHANGED);
+    }, 0);
+  },
+
+  /**
    * Update the session start time and send a telemetry measurement
    * for the number of days elapsed since the session was started.
    *
@@ -8055,6 +8063,7 @@ var SessionStoreInternal = {
       return;
     }
     this._savedGroups.push(savedTabGroupState);
+    this._notifyOfSavedTabGroupsChange();
   },
 
   /**

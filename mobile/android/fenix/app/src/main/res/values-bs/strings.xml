@@ -124,9 +124,11 @@
 
     Text for the title displayed in the contextual feature recommendation popup promoting swipe of address bar.
   -->
-  <string name="address_bar_swipe_cfr_title">Prevucite traku s alatima da promijenite tabove</string>
+  <string name="address_bar_swipe_cfr_title" tools:ignore="UnusedResources" moz:removedIn="139">Prevucite traku s alatima da promijenite tabove</string>
   <!-- Text for the message displayed in the contextual feature recommendation popup promoting swipe of address bar. -->
-  <string name="address_bar_swipe_cfr_message">Prevucite lijevo ili desno za prebacivanje. Prevucite ulijevo na posljednji tab da otvorite novi tab.</string>
+  <string name="address_bar_swipe_cfr_message" tools:ignore="UnusedResources" moz:removedIn="139">Prevucite lijevo ili desno za prebacivanje. Prevucite ulijevo na posljednji tab da otvorite novi tab.</string>
+  <!-- Text for the message displayed in the contextual feature recommendation popup promoting swipe of address bar. -->
+  <string name="address_bar_swipe_cfr_message_2">Prevucite traku s alatima ulijevo ili udesno za prijelaz između tabova.</string>
   <!-- Text for the info dialog when camera permissions have been denied but user tries to access a camera feature. -->
   <string name="camera_permissions_needed_message">Potreban pristup kameri. Idite na Android postavke, dodirnite dozvole i dodirnite dozvoli.</string>
   <!-- Text for the positive action button to go to Android Settings to grant permissions. -->
@@ -1382,6 +1384,8 @@
   <string name="tab_tray_multiselect_share_content_description">Podijeli odabrane tabove</string>
   <!-- Content description for tabs tray multiselect menu -->
   <string name="tab_tray_multiselect_menu_content_description">Meni odabranih tabova</string>
+  <!-- Title text displayed for a homepage tab in the tabs tray. -->
+  <string name="tab_tray_homepage_tab">Početna stranica</string>
   <!-- Content description (not visible, for screen readers etc.): Removes tab from collection button. Removes the selected tab from collection when pressed -->
   <string name="remove_tab_from_collection">Ukloni tab iz kolekcije</string>
   <!-- Text for button to enter multiselect mode in tabs tray -->
@@ -1479,16 +1483,20 @@
   <string name="download_delete_item_1" moz:removedIn="138" tools:ignore="UnusedResources">Ukloni</string>
   <!-- Text for the button to delete a single downloaded file item -->
   <string name="download_delete_item">Izbriši</string>
+  <!-- Content description for the toolbar "Navigate back" button -->
+  <string name="download_navigate_back_description">Idite nazad</string>
+  <!-- Content description for the toolbar "Navigate up" button -->
+  <string name="download_navigate_up_description">Idi prema gore</string>
   <!-- Text for the button to share the download URL -->
   <string name="download_share_url">Dijeli URL</string>
   <!-- Text for the button to share the download file -->
   <string name="download_share_file">Dijeli fajl</string>
   <!-- Alert dialog confirmation before deleting multiple download items, this is the title. -->
-  <string name="download_delete_multi_select_dialog_confirmation" tools:ignore="UnusedResources">Jeste li sigurni da želite izbrisati odabrane stavke?</string>
+  <string name="download_delete_multi_select_dialog_confirmation">Jeste li sigurni da želite izbrisati odabrane stavke?</string>
   <!-- Alert dialog confirmation before deleting multiple download items, this is the positive action. -->
-  <string name="download_delete_multi_select_dialog_confirm" tools:ignore="UnusedResources">Izbriši</string>
+  <string name="download_delete_multi_select_dialog_confirm">Izbriši</string>
   <!-- Alert dialog confirmation before deleting multiple download items, this is the negative action. -->
-  <string name="download_delete_multi_select_dialog_cancel" tools:ignore="UnusedResources">Otkaži</string>
+  <string name="download_delete_multi_select_dialog_cancel">Otkaži</string>
   <!-- Text for the header of in progress downloads -->
   <string name="download_header_in_progress" tools:ignore="UnusedResources">U procesu</string>
   <!--
@@ -1522,6 +1530,8 @@
   <string name="download_search_placeholder" tools:ignore="UnusedResources">Traži preuzimanja</string>
   <!-- Text to indicate that no downloads match the search query. -->
   <string name="download_search_no_results_found" tools:ignore="UnusedResources">Nema pronađenih rezultata</string>
+  <!-- Text for the "Select all" button, which selects all downloaded items in the downloads list. -->
+  <string name="download_select_all_items">Označi sve</string>
   <!--
     Downloads Content Type Filters
 
@@ -3373,6 +3383,26 @@
   -->
   <string name="glean_debug_tools_title">Glean alati za otklanjanje grešaka</string>
   <!--
+    Debug drawer region tools
+
+    Title of the Region tools in the Debug Drawer.
+    This tool allows temporarily overriding the home region (user's default locale)
+    and the current region (device's detected location) for testing purposes.
+  -->
+  <string name="debug_drawer_region_tools_title">Alati regije</string>
+  <!-- The description of the Region tools in the Debug Drawer -->
+  <string name="debug_drawer_regin_tools_description">Privremeno nadjačava početnu i trenutnu vrijednost regije za testiranje.</string>
+  <!-- The text label for displaying home region. -->
+  <string name="debug_drawer_home_region_label">Matična regija</string>
+  <!-- The text label for displaying current region. -->
+  <string name="debug_drawer_current_region_label">Trenutna regija</string>
+  <!-- The text field label for overriding home region. -->
+  <string name="debug_drawer_override_home_region_label">Poništi matičnu regiju</string>
+  <!-- The text field label for overriding current region. -->
+  <string name="debug_drawer_override_current_region_label">Poništi trenutnu regiju</string>
+  <!-- The title of the button for overriding home and current region. -->
+  <string name="debug_drawer_override_region">Poništi matičnu i trenutnu regiju</string>
+  <!--
     Messages explaining how to exit fullscreen mode
 
     Message shown to explain how to exit fullscreen mode when gesture navigation is enabled.
@@ -3435,6 +3465,46 @@
   <!-- The default content description for the cross trailing icon button in TextField -->
   <string name="text_field_cross_trailing_icon_default_content_description" moz:removedIn="139" tools:ignore="UnusedResources">Obriši tekst</string>
   <!--
+    Setup checklist feature
+
+    ===== Setup checklist feature: Title =====
+
+    Title for the setup checklist feature when the state is 'incomplete'. %1$s is the name of the app (for example "Firefox").
+  -->
+  <string name="setup_checklist_title_state_incomplete">Završite %1$s postavljanje</string>
+  <!-- Title for the setup checklist feature when the state is 'completed' -->
+  <string name="setup_checklist_title_state_completed">Čestitamo!</string>
+  <!--
+    ===== Setup checklist feature: Subtitles for 3 steps =====
+
+    Subtitle for a setup checklist with 3 steps initial step. %1$s is the name of the app (for example "Firefox").
+  -->
+  <string name="setup_checklist_subtitle_3_steps_initial_state">Dovršite ova 3 koraka da postavite %1$s za najbolje iskustvo pregledavanja.</string>
+  <!-- Subtitle for a setup checklist with 3 steps when the first task is completed. -->
+  <string name="setup_checklist_subtitle_3_steps_first_step">Odličan početak! Završili ste 1 od 3 koraka.</string>
+  <!-- Subtitle for a setup checklist with 3 steps when two of the tasks are completed. -->
+  <string name="setup_checklist_subtitle_3_steps_second_step">Pri kraju smo! Dva koraka su završena, još 1 preostao.</string>
+  <!-- Subtitle for a setup checklist with 3 steps completed state. %1$s is the name of the app (for example "Firefox"). -->
+  <string name="setup_checklist_subtitle_3_steps_completed_state">Završili ste sva 3 koraka. Uživajte u %1$s brzini, privatnosti i sigurnosti.</string>
+  <!--
+    ===== Setup checklist feature: Subtitles for 6 steps =====
+
+    Subtitle for a setup checklist with 6 steps initial state. %1$s is the name of the app (for example "Firefox").
+  -->
+  <string name="setup_checklist_subtitle_6_steps_initial_state">Dovršite svih 6 koraka da postavite %1$s za najbolje iskustvo pregledavanja.</string>
+  <!-- Subtitle for a setup checklist with 6 steps when the first task is completed. -->
+  <string name="setup_checklist_subtitle_6_steps_first_step">Odličan početak! Završili ste 1 od 6 koraka.</string>
+  <!-- Subtitle for the setup checklist when the second task is completed. -->
+  <string name="setup_checklist_subtitle_6_steps_second_step">Završili ste 2 od 6 koraka. Veliki napredak!</string>
+  <!-- Subtitle for a setup checklist with 6 steps when three of the tasks are completed. -->
+  <string name="setup_checklist_subtitle_6_steps_third_step">Na pola ste puta! Završena tri koraka, preostalo je još 3.</string>
+  <!-- Subtitle for a setup checklist with 6 steps when the fourth task is completed. -->
+  <string name="setup_checklist_subtitle_6_steps_fourth_step">Završeno je 4 koraka. Još samo 2 do kraja!</string>
+  <!-- Subtitle for a setup checklist with 6 steps when the fifth task is completed. -->
+  <string name="setup_checklist_subtitle_6_steps_fifth_step">Pri kraju smo! Nalazite se samo 1 korak od cilja.</string>
+  <!-- Subtitle for a setup checklist with 6 steps completed state. %1$s is the name of the app (for example "Firefox"). -->
+  <string name="setup_checklist_subtitle_6_steps_completed_state">Završili ste svih 6 koraka podešavanja. Uživajte u %1$s brzini, privatnosti i sigurnosti.</string>
+  <!--
     ===== Setup checklist feature: Task titles =====
 
     The title of the default browser task for the setup checklist
@@ -3460,6 +3530,12 @@
   <string name="setup_checklist_group_customize">Prilagodite svoj %1$s</string>
   <!-- The title of the 'helpful tools' group in the setup checklist -->
   <string name="setup_checklist_group_helpful_tools">Korisni alati</string>
+  <!--
+    ===== Setup checklist feature: Button =====
+
+    Text for the 'remove' button for the setup checklist
+  -->
+  <string name="setup_checklist_button_remove">Ukloni kontrolnu listu</string>
   <!--
     ===== Setup checklist feature: Accessibility =====
 

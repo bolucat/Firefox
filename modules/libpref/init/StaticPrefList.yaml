@@ -2631,12 +2631,6 @@
   value: false
   mirror: always
 
-# Enable/disable contenteditable="plaintext-only".
-- name: dom.element.contenteditable.plaintext-only.enabled
-  type: bool
-  value: true
-  mirror: always
-
 # Whether Dialog elements emit beforetoggle and toggle events during opening and closing.
 # See https://github.com/whatwg/html/pull/10091
 - name: dom.element.dialog.toggle_events.enabled
@@ -3805,6 +3799,19 @@
 - name: dom.quotaManager.temporaryStorage.fixedLimit
   type: RelaxedAtomicInt32
   value: -1
+  mirror: always
+
+# Controls whether the quota manager updates the last access time for origins
+# in temporary storage. When enabled, the access time is updated only when an
+# origin is accessed by a quota client for the first time during a session or
+# when the last quota client stops accessing the origin. This allows eviction
+# based on the LRU policy. When disabled, the access time is stored only once
+# when the corresponding origin directory is created for the first time.
+#
+# This setting is currently intended for manual testing purposes only.
+- name: dom.quotaManager.temporaryStorage.updateOriginAccessTime
+  type: RelaxedAtomicBool
+  value: true
   mirror: always
 
 # Should we do lazy initialization of origins ?
@@ -5329,13 +5336,13 @@
 # Is support for the Web GPU API enabled?
 - name: dom.webgpu.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # Is support for the Web GPU API enabled on DOM workers?
 - name: dom.webgpu.workers.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # Comma-separated list of wgpu backend names to permit in WebGPU adapters.
@@ -5663,7 +5670,7 @@
 # Gecko's traditional white-space normalizer.
 - name: editor.white_space_normalization.blink_compatible
   type: bool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 # General prefs for editor, indicating whether Gecko-specific editing UI is
@@ -8613,14 +8620,12 @@
 
 #endif  // NIGHTLY_BUILD
 
-#ifdef JS_HAS_TEMPORAL_API
   # Experimental support for Temporal in JavaScript.
 - name: javascript.options.experimental.temporal
   type: bool
   value: true
   mirror: always
   set_spidermonkey_pref: startup
-#endif  // JS_HAS_TEMPORAL_API
 
 #ifdef ENABLE_EXPLICIT_RESOURCE_MANAGEMENT
   # Experimental support for Explicit Resource Management in JavaScript.
@@ -9759,6 +9764,17 @@
   value: true
   mirror: always
 
+# Enable the new multi-pass grid track sizing algorithm.
+# This features implements two aspects from the CSS Grid Level 2 spec:
+# 1. Percent-valued row track size re-resolution:
+#    https://drafts.csswg.org/css-grid-2/#track-sizes
+# 2. Multi-pass grid sizing algorithm:
+#    https://drafts.csswg.org/css-grid-2/#algo-grid-sizing
+- name: layout.css.grid-multi-pass-track-sizing.enabled
+  type: bool
+  value: false
+  mirror: always
+
 # Is support for :has() enabled?
 - name: layout.css.has-selector.enabled
   type: RelaxedAtomicBool
@@ -10381,13 +10397,6 @@
 
 # Pref to control enabling scroll anchoring.
 - name: layout.css.scroll-anchoring.enabled
-  type: bool
-  value: true
-  mirror: always
-
-# Pref to control whether to suspend also RefreshDriver::Tick when the page
-# itself is suspended because of some synchronous operation, like sync XHR.
-- name: layout.skip_ticks_while_page_suspended
   type: bool
   value: true
   mirror: always
@@ -13970,13 +13979,6 @@
   value: 60
   mirror: always
 
-# When true, the DNS code will always set the AI_CANONNAME
-# when calling getaddrinfo
-- name: network.dns.always_ai_canonname
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 # The proxy type. See nsIProtocolProxyService.idl
 #     PROXYCONFIG_DIRECT   = 0
 #     PROXYCONFIG_MANUAL   = 1
@@ -15840,6 +15842,12 @@
   value: false
   mirror: always
 
+  # Full isolation (referrer, cookie jar, etc) of resources injected by content-scripts.
+- name: privacy.antitracking.isolateContentScriptResources
+  type: bool
+  value: false
+  mirror: always
+
 # Controls the anti-tracking webcompat features. This includes:
 # - All URL-Classifier and state partitioning skip lists (prefs and remote
 #   settings)
@@ -16054,7 +16062,7 @@
 # Whether only bounces that access storage should be considered trackers.
 - name: privacy.bounceTrackingProtection.requireStatefulBounces
   type: bool
-  value: true
+  value: @IS_NOT_NIGHTLY_BUILD@
   mirror: always
 
 # To be used in automated test environments to enable observer messages.
@@ -16619,18 +16627,6 @@
   type: RelaxedAtomicBool
   value: true
   mirror: always
-
-# If true, assume tokens accessed via osclientcerts implement RSA-PSS. If a
-# given token does not support RSA-PSS, users may see the error
-# 'SEC_ERROR_PKCS11_GENERAL_ERROR' if a server indicates it will accept an
-# RSA-PSS signature in the client's certificate verify message.
-# Setting this to false may allow such connections to succeed, if the server
-# also accepts RSA-PKCS1 signatures.
-- name: security.osclientcerts.assume_rsa_pss_support
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
 
 - name: security.pki.cert_short_lifetime_in_days
   type: RelaxedAtomicUint32
@@ -17589,6 +17585,13 @@
 #endif
   mirror: always
 
+# If this pref and ui.touch.radious.enabled are both true, clickable content is
+# also treated as touchable content if and only if a sigle touch.
+- name: ui.touch.radius.single_touch.treat_clickable_as_touchable
+  type: bool
+  value: true
+  mirror: always
+
 - name: ui.touch.radius.visitedWeight
   type: uint32_t
   value: 120
@@ -18422,13 +18425,6 @@
   type: bool
   value: false
   mirror: once
-
-# Use DMABuf for content textures.
-# For testing purposes only.
-- name: widget.dmabuf-textures.enabled
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
 
 # Get DMABuf format feedback from compositor.
 # For testing only

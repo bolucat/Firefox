@@ -722,7 +722,7 @@ class CommandSiteManager:
             pip_command(python_executable=self.python_path, subcommand="check"),
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            universal_newlines=True,
+            text=True,
         )
 
         if not check_result.returncode:
@@ -781,7 +781,7 @@ class CommandSiteManager:
             pip_command(python_executable=self.python_path, subcommand="check"),
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            universal_newlines=True,
+            text=True,
         )
 
         if check_result.returncode:
@@ -1013,7 +1013,7 @@ class PythonVirtualenv:
         # thereby causing a build failure. To avoid this, we explicitly influence the
         # build to only target a single architecture - our current architecture.
         kwargs.setdefault("env", os.environ.copy()).setdefault(
-            "ARCHFLAGS", "-arch {}".format(platform.machine())
+            "ARCHFLAGS", f"-arch {platform.machine()}"
         )
         kwargs.setdefault("check", True)
         kwargs.setdefault("stdout", None if show_pip_output() else subprocess.PIPE)
@@ -1265,9 +1265,8 @@ def _resolve_installed_packages(python_executable):
             args=["--format", "json"],
             non_uv_args=["--disable-pip-version-check"],
         ),
-        universal_newlines=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        text=True,
+        capture_output=True,
         check=True,
     )
 
@@ -1334,8 +1333,7 @@ def _assert_pip_check(pthfile_lines, virtualenv_name, requirements):
         # changes recently).
         process = subprocess.run(
             [sys.executable, "-m", "venv", "--without-pip", check_env_path],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             encoding="UTF-8",
         )
 
@@ -1383,7 +1381,7 @@ def _assert_pip_check(pthfile_lines, virtualenv_name, requirements):
             pip + ["check"],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            universal_newlines=True,
+            text=True,
         )
         if check_result.returncode:
             subprocess.check_call(pip + ["list", "-v"], stdout=sys.stderr)
@@ -1446,8 +1444,7 @@ def _create_venv_with_pthfile(
 
     process = subprocess.run(
         [sys.executable, "-m", "venv", "--without-pip", virtualenv_root],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         encoding="UTF-8",
     )
 

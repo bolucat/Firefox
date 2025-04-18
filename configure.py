@@ -3,7 +3,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import codecs
-import io
 import itertools
 import logging
 import os
@@ -46,7 +45,7 @@ else:
 
 def main(argv):
     # Check for CRLF line endings.
-    with open(__file__, "r") as fh:
+    with open(__file__) as fh:
         data = fh.read()
         if "\r" in data:
             print(
@@ -276,7 +275,7 @@ def config_status(config, execute=True):
 
     # Write out a file so the build backend knows to re-run configure when
     # relevant Python changes.
-    with io.open("config_status_deps.in", "w", encoding="utf-8", newline="\n") as fh:
+    with open("config_status_deps.in", "w", encoding="utf-8", newline="\n") as fh:
         for f in sorted(
             itertools.chain(
                 config["CONFIG_STATUS_DEPS"],

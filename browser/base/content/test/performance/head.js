@@ -35,7 +35,7 @@ function dirtyFrame(win) {
  * @param win (browser window, optional)
  *        The browser window to monitor. Defaults to the current window.
  *
- * @return An array of reflow stacks
+ * @return An array of reflow stacks and paths
  */
 async function recordReflows(testPromise, win = window) {
   // Collect all reflow stacks, we'll process them later.
@@ -44,7 +44,33 @@ async function recordReflows(testPromise, win = window) {
   let observer = {
     reflow() {
       // Gather information about the current code path.
-      reflows.push(new Error().stack);
+      let stack = new Error().stack;
+      let path = stack
+        .trim()
+        .split("\n")
+        .slice(1) // the first frame which is our test code.
+        .map(line => line.replace(/:\d+:\d+$/, "")); // strip line numbers.
+
+      // Stack trace is empty. Reflow was triggered by native code, which
+      // we ignore.
+      if (path.length === 0) {
+        ChromeUtils.addProfilerMarker(
+          "ignoredNativeReflow",
+          { category: "Test" },
+          "Intentionally ignoring reflow without JS stack"
+        );
+        return;
+      }
+
+      if (
+        path[0] ===
+        "forceRefreshDriverTick@chrome://mochikit/content/tests/SimpleTest/AccessibilityUtils.js"
+      ) {
+        // a11y-checks fake a refresh driver tick.
+        return;
+      }
+
+      reflows.push({ stack, path: path.join("|") });
 
       // Just in case, dirty the frame now that we've reflowed. This will
       // allow us to detect additional reflows that occur in this same tick
@@ -59,8 +85,8 @@ async function recordReflows(testPromise, win = window) {
     },
 
     reflowInterruptible() {
-      // Interruptible reflows are the reflows caused by the refresh
-      // driver ticking. These are fine.
+      // Interruptible reflows are always triggered by native code, like the
+      // refresh driver. These are fine.
     },
 
     QueryInterface: ChromeUtils.generateQI([
@@ -152,19 +178,7 @@ function reportUnexpectedReflows(reflows, expectedReflows = []) {
     );
   }
 
-  for (let stack of reflows) {
-    let path = stack
-      .split("\n")
-      .slice(1) // the first frame which is our test code.
-      .map(line => line.replace(/:\d+:\d+$/, "")) // strip line numbers.
-      .join("|");
-
-    // Stack trace is empty. Reflow was triggered by native code, which
-    // we ignore.
-    if (path === "") {
-      continue;
-    }
-
+  for (let { stack, path } of reflows) {
     // Functions from EventUtils.js calculate coordinates and
     // dimensions, causing us to reflow. That's the test
     // harness and we don't care about that, so we'll filter that out.

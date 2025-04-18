@@ -1474,7 +1474,7 @@ pref("network.cookie.sameSite.laxByDefault.disabledHosts", "");
 pref("network.cookie.maxNumber", 3000);
 pref("network.cookie.maxPerHost", 180);
 // Cookies quota for each host. If cookies exceed the limit maxPerHost,
-// (maxPerHost - quotaPerHost) cookies will be evicted.
+// we evict cookies until we have the quota amount.
 pref("network.cookie.quotaPerHost", 150);
 
 // The PAC file to load.  Ignored unless network.proxy.type is 2.
@@ -3892,10 +3892,6 @@ pref("services.common.log.logger.tokenserverclient", "Debug");
   // 2: CDP (Chrome DevTools Protocol)
   // 3: WebDriver BiDi + CDP
   pref("remote.active-protocols", 1);
-
-  // Enable processing and dispatching of actions from the
-  // parent process (bug 1773393).
-  pref("remote.events.async.enabled", true);
 
   // Enable WebDriver BiDi experimental commands and events.
   #if defined(NIGHTLY_BUILD)

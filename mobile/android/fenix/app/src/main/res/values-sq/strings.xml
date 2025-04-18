@@ -126,9 +126,9 @@
 
     Text for the title displayed in the contextual feature recommendation popup promoting swipe of address bar.
   -->
-  <string name="address_bar_swipe_cfr_title">Që të ndërroni skeda, fërkoni panelin</string>
+  <string name="address_bar_swipe_cfr_title" tools:ignore="UnusedResources" moz:removedIn="139">Që të ndërroni skeda, fërkoni panelin</string>
   <!-- Text for the message displayed in the contextual feature recommendation popup promoting swipe of address bar. -->
-  <string name="address_bar_swipe_cfr_message">Fërkojeni për majtas, ose djathtas, që të ndërroni. Që të hapni një skedë të re, fërkojeni majtas mbi skedën tuaj të fundit.</string>
+  <string name="address_bar_swipe_cfr_message" tools:ignore="UnusedResources" moz:removedIn="139">Fërkojeni për majtas, ose djathtas, që të ndërroni. Që të hapni një skedë të re, fërkojeni majtas mbi skedën tuaj të fundit.</string>
   <!-- Text for the info dialog when camera permissions have been denied but user tries to access a camera feature. -->
   <string name="camera_permissions_needed_message">Lypset hyrje në kamera. Kaloni te rregullimet e Android-it, prekni mbi Leje dhe prekni Lejoje.</string>
   <!-- Text for the positive action button to go to Android Settings to grant permissions. -->
@@ -1486,11 +1486,11 @@
   <!-- Text for the button to share the download file -->
   <string name="download_share_file">Ndani kartelën me të tjerë</string>
   <!-- Alert dialog confirmation before deleting multiple download items, this is the title. -->
-  <string name="download_delete_multi_select_dialog_confirmation" tools:ignore="UnusedResources">Jeni i sigurt se doni të fshihen objektet e përzgjedhur?</string>
+  <string name="download_delete_multi_select_dialog_confirmation">Jeni i sigurt se doni të fshihen objektet e përzgjedhur?</string>
   <!-- Alert dialog confirmation before deleting multiple download items, this is the positive action. -->
-  <string name="download_delete_multi_select_dialog_confirm" tools:ignore="UnusedResources">Fshije</string>
+  <string name="download_delete_multi_select_dialog_confirm">Fshije</string>
   <!-- Alert dialog confirmation before deleting multiple download items, this is the negative action. -->
-  <string name="download_delete_multi_select_dialog_cancel" tools:ignore="UnusedResources">Anuloje</string>
+  <string name="download_delete_multi_select_dialog_cancel">Anuloje</string>
   <!-- Text for the header of in progress downloads -->
   <string name="download_header_in_progress" tools:ignore="UnusedResources">Në punë e sipër</string>
   <!--
