@@ -583,7 +583,7 @@ export class BaseContent extends React.PureComponent {
     }
   }
 
-  // eslint-disable-next-line max-statements
+  // eslint-disable-next-line max-statements, complexity
   render() {
     const { props } = this;
     const { App, DiscoveryStream } = props;
@@ -765,7 +765,10 @@ export class BaseContent extends React.PureComponent {
         >
           {mobileDownloadPromoEnabled && mobileDownloadPromoVariantABorC && (
             <ErrorBoundary>
-              <DownloadModalToggle onClick={this.toggleDownloadHighlight} />
+              <DownloadModalToggle
+                isActive={this.state.showDownloadHighlight}
+                onClick={this.toggleDownloadHighlight}
+              />
               {this.state.showDownloadHighlight && (
                 <MessageWrapper
                   hiddenOverride={this.state.showDownloadHighlight}
@@ -773,7 +776,8 @@ export class BaseContent extends React.PureComponent {
                   dispatch={this.props.dispatch}
                 >
                   <DownloadMobilePromoHighlight
-                    position="inset-block-end inset-inline-start"
+                    // Var B layout has the weather right-aligned
+                    position={`${layoutsVariantBEnabled ? "inset-inline-start" : "inset-inline-end"} inset-block-end`}
                     dispatch={this.props.dispatch}
                   />
                 </MessageWrapper>

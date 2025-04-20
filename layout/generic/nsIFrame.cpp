@@ -4428,12 +4428,20 @@ void nsIFrame::MarkAbsoluteFramesForDisplayList(
   }
 }
 
-nsresult nsIFrame::GetContentForEvent(const WidgetEvent* aEvent,
-                                      nsIContent** aContent) {
-  nsIFrame* f = nsLayoutUtils::GetNonGeneratedAncestor(this);
-  *aContent = f->GetContent();
-  NS_IF_ADDREF(*aContent);
-  return NS_OK;
+nsIContent* nsIFrame::GetContentForEvent(const WidgetEvent* aEvent) const {
+  if (!IsGeneratedContentFrame()) {
+    return GetContent();
+  }
+  const nsIFrame* generatedRoot = this;
+  while (true) {
+    auto* parent = nsLayoutUtils::GetParentOrPlaceholderFor(generatedRoot);
+    if (!parent || !parent->IsGeneratedContentFrame()) {
+      break;
+    }
+    generatedRoot = parent;
+  }
+  // Return the non-generated ancestor.
+  return generatedRoot->GetContent()->GetParent();
 }
 
 void nsIFrame::FireDOMEvent(const nsAString& aDOMEventName,
@@ -6099,11 +6107,13 @@ void nsIFrame::MarkIntrinsicISizesDirty() {
     nsFlexContainerFrame::MarkCachedFlexMeasurementsDirty(this);
   }
 
+  if (IsGridItem()) {
+    nsGridContainerFrame::MarkCachedGridMeasurementsDirty(this);
+  }
+
   if (HasAnyStateBits(NS_FRAME_FONT_INFLATION_FLOW_ROOT)) {
     nsFontInflationData::MarkFontInflationDataTextDirty(this);
   }
-
-  RemoveProperty(nsGridContainerFrame::CachedBAxisMeasurement::Prop());
 }
 
 void nsIFrame::MarkSubtreeDirty() {
@@ -9243,9 +9253,10 @@ static nsresult GetNextPrevLineFromBlockFrame(PeekOffsetStruct* aPos,
       if (!aPos->FrameContentIsInAncestorLimiter(resultFrame)) {
         return NS_ERROR_FAILURE;
       }
-      // check to see if this is ANOTHER blockframe inside the other one if so
-      // then call into its lines
-      if (resultFrame->CanProvideLineIterator()) {
+      // Check to see if this is ANOTHER blockframe inside the other one that
+      // we should look inside.
+      if (resultFrame->CanProvideLineIterator() &&
+          IsRelevantBlockFrame(resultFrame)) {
         aPos->mResultFrame = resultFrame;
         return NS_OK;
       }

@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, BTreeSet},
     env::set_current_dir,
     path::PathBuf,
@@ -208,7 +209,7 @@ fn run(args: CliArgs) -> miette::Result<()> {
                 "<meta name=variant content='",
                 r"\?",
                 r"(:?worker=(?P<worker_type>\w+)&)?",
-                r"q=(?P<test_path>[^']*?):\*",
+                r"q=(?P<test_path>[^']*?:\*)",
                 "'>",
                 "$"
             ))
@@ -264,52 +265,51 @@ fn run(args: CliArgs) -> miette::Result<()> {
         let mut failed_writing = false;
         let mut cts_cases_by_spec_file_dir = BTreeMap::<_, BTreeMap<_, BTreeSet<_>>>::new();
         for (path, worker_type, meta) in cts_cases {
-            let case_dir = {
-                // Context: We want to mirror CTS upstream's `src/webgpu/**/*.spec.ts` paths as
-                // entire WPT tests, with each subtest being a WPT variant. Here's a diagram of
-                // a CTS path to explain why the logic below is correct:
-                //
-                // ```sh
-                // webgpu:this,is,the,spec.ts,file,path:subtest_in_file:…
-                // \____/ \___________________________/^\_____________/
-                //  test      `*.spec.ts` file path    |       |
-                // \__________________________________/|       |
-                //                   |                 |       |
-                //              We want this…          | …but not this. CTS upstream generates
-                //                                     | this too, but we don't want to divide
-                //         second ':' character here---/ here (yet).
-                // ```
-                let subtest_and_later_start_idx =
-                    match path.match_indices(':').nth(1).map(|(idx, _s)| idx) {
-                        Some(some) => some,
-                        None => {
-                            failed_writing = true;
-                            log::error!(
-                                concat!(
-                                    "failed to split suite and test path segments ",
-                                    "from CTS path `{}`"
-                                ),
-                                path
-                            );
-                            continue;
-                        }
-                    };
-                let slashed = path[..subtest_and_later_start_idx].replace([':', ','], "/");
-                cts_tests_dir.child(slashed)
-            };
-            if !cts_cases_by_spec_file_dir
-                .entry(case_dir)
-                .or_default()
-                .entry(worker_type)
-                .or_default()
-                .insert(meta)
-            {
-                log::warn!("duplicate entry {meta:?} detected")
+            macro_rules! insert {
+                ($path:expr, $meta:expr $(,)?) => {{
+                    let dir = cts_tests_dir.child($path);
+                    if !cts_cases_by_spec_file_dir
+                        .entry(dir)
+                        .or_default()
+                        .entry(worker_type)
+                        .or_default()
+                        .insert($meta)
+                    {
+                        log::warn!("duplicate entry {meta:?} detected")
+                    }
+                }};
             }
+
+            // Context: We want to mirror CTS upstream's `src/webgpu/**/*.spec.ts` paths as
+            // entire WPT tests, with each subtest being a WPT variant. Here's a diagram of
+            // a CTS path to explain why the logic below is correct:
+            //
+            // ```sh
+            // webgpu:this,is,the,spec.ts,file,path:test_in_file:…
+            // \____/ \___________________________/^\__________/
+            //  test      `*.spec.ts` file path    |       |
+            // \__________________________________/|       |
+            //                   |                 |       |
+            //              We want this…          | …but not this. CTS upstream generates
+            //                                     | this too, but we don't want to divide
+            //         second ':' character here---/ here (yet).
+            // ```
+            let (test_path, _cases) = match split_at_nth_colon(2, &path) {
+                Ok(ok) => ok,
+                Err(e) => {
+                    failed_writing = true;
+                    log::error!("{e}");
+                    continue;
+                }
+            };
+            let (test_group_path, _test_name) = test_path.rsplit_once(':').unwrap();
+
+            let slashed = test_group_path.replace([':', ','], "/");
+            insert!(&slashed, meta.into());
         }
 
         struct WptEntry<'a> {
-            cases: BTreeSet<&'a str>,
+            cases: BTreeSet<Cow<'a, str>>,
             timeout_length: TimeoutLength,
         }
         #[derive(Clone, Copy, Debug)]
@@ -322,7 +322,7 @@ fn run(args: CliArgs) -> miette::Result<()> {
             fn insert_with_default_name<'a>(
                 split_cases: &mut BTreeMap<fs::Child<'a>, WptEntry<'a>>,
                 spec_file_dir: fs::Child<'a>,
-                cases: BTreeMap<Option<WorkerType>, BTreeSet<&'a str>>,
+                cases: BTreeMap<Option<WorkerType>, BTreeSet<Cow<'a, str>>>,
                 timeout_length: TimeoutLength,
             ) {
                 for (worker_type, cases) in cases {
@@ -457,4 +457,13 @@ fn run(args: CliArgs) -> miette::Result<()> {
     log::info!("All done! Now get your CTS _ON_! :)");
 
     Ok(())
+}
+
+fn split_at_nth_colon(nth: usize, path: &str) -> miette::Result<(&str, &str)> {
+    path.match_indices(':')
+        .nth(nth)
+        .map(|(idx, s)| (&path[..idx], &path[idx + s.len()..]))
+        .ok_or_else(move || {
+            miette::diagnostic!("failed to split at colon {nth} from CTS path `{path}`").into()
+        })
 }
