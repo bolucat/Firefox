@@ -74,6 +74,7 @@ gecko_metrics = [
     "toolkit/components/backgroundhangmonitor/metrics.yaml",
     "toolkit/components/captchadetection/metrics.yaml",
     "toolkit/components/cookiebanners/metrics.yaml",
+    "toolkit/components/doh/metrics.yaml",
     "toolkit/components/downloads/metrics.yaml",
     "toolkit/components/enterprisepolicies/metrics.yaml",
     "toolkit/components/extensions/metrics.yaml",
@@ -112,8 +113,8 @@ gecko_metrics = [
 firefox_desktop_metrics = [
     "browser/actors/metrics.yaml",
     "browser/components/asrouter/metrics.yaml",
+    "browser/components/attribution/metrics.yaml",
     "browser/components/backup/metrics.yaml",
-    "browser/components/doh/metrics.yaml",
     "browser/components/downloads/metrics.yaml",
     "browser/components/firefoxview/metrics.yaml",
     "browser/components/genai/metrics.yaml",

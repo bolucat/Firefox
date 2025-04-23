@@ -184,6 +184,20 @@ class SetupChecklistPreferencesMiddlewareTest {
         )
     }
 
+    @Test
+    fun `GIVEN ShowSetupChecklist preference WHEN mapping to store action THEN returns the close action`() {
+        val preferenceUpdate = SetupChecklistRepository.SetupChecklistPreferenceUpdate(
+            SetupChecklistPreference.ShowSetupChecklist,
+            true,
+        )
+        val result = mapRepoUpdateToStoreAction(preferenceUpdate)
+
+        assertEquals(
+            AppAction.SetupChecklistAction.Closed,
+            result,
+        )
+    }
+
     private fun buildGroup() = ChecklistItem.Group(
         title = 0,
         tasks = emptyList(),
@@ -206,9 +220,9 @@ private class FakeRepository : SetupChecklistRepository {
         initInvoked = true
     }
 
-    override fun setPreference(type: SetupChecklistPreference, hasCompleted: Boolean) {
-        // Ensure the passed hasCompleted value is true.
-        if (hasCompleted) {
+    override fun setPreference(type: SetupChecklistPreference, value: Boolean) {
+        // Ensure the passed value is true.
+        if (value) {
             setPreferenceInvoked = true
         }
     }

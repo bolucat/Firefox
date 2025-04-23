@@ -33,9 +33,9 @@ interface SetupChecklistRepository {
      * Updates a specific preference.
      *
      * @param type The type of preference to modify.
-     * @param hasCompleted The new 'completed' state of the preference.
+     * @param value The value to update the preference value to.
      */
-    fun setPreference(type: SetupChecklistPreference, hasCompleted: Boolean)
+    fun setPreference(type: SetupChecklistPreference, value: Boolean)
 
     /**
      * A [Flow] of [SetupChecklistPreferenceUpdate]s.
@@ -60,6 +60,7 @@ enum class SetupChecklistPreference(@StringRes val preferenceKey: Int) {
     ToolbarComplete(R.string.pref_key_setup_step_toolbar),
     ExtensionsComplete(R.string.pref_key_setup_step_extensions),
     InstallSearchWidget(R.string.pref_key_search_widget_installed_2),
+    ShowSetupChecklist(R.string.pref_key_setup_checklist_complete),
 }
 
 /**
@@ -83,28 +84,19 @@ class DefaultSetupChecklistRepository(
         settings.preferences.registerOnSharedPreferenceChangeListener(onPreferenceChange)
     }
 
-    @VisibleForTesting
-    internal fun getPreference(type: SetupChecklistPreference): Boolean {
-        return when (type) {
-            SetupChecklistPreference.SetToDefault -> settings.isDefaultBrowser
-            SetupChecklistPreference.SignIn -> settings.signedInFxaAccount
-            SetupChecklistPreference.ThemeComplete -> settings.hasCompletedSetupStepTheme
-            SetupChecklistPreference.ToolbarComplete -> settings.hasCompletedSetupStepToolbar
-            SetupChecklistPreference.ExtensionsComplete -> settings.hasCompletedSetupStepExtensions
-            SetupChecklistPreference.InstallSearchWidget -> settings.searchWidgetInstalled
-        }
-    }
-
-    override fun setPreference(type: SetupChecklistPreference, hasCompleted: Boolean) {
+    override fun setPreference(type: SetupChecklistPreference, value: Boolean) {
         when (type) {
             SetupChecklistPreference.ToolbarComplete ->
-                settings.hasCompletedSetupStepToolbar = hasCompleted
+                settings.hasCompletedSetupStepToolbar = value
 
             SetupChecklistPreference.ThemeComplete ->
-                settings.hasCompletedSetupStepTheme = hasCompleted
+                settings.hasCompletedSetupStepTheme = value
 
             SetupChecklistPreference.ExtensionsComplete ->
-                settings.hasCompletedSetupStepExtensions = hasCompleted
+                settings.hasCompletedSetupStepExtensions = value
+
+            SetupChecklistPreference.ShowSetupChecklist ->
+                settings.showSetupChecklist = value
 
             // no-ops
             // these preferences are handled elsewhere outside of the setup checklist feature.

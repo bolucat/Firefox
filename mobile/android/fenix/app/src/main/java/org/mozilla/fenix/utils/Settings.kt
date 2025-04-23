@@ -1465,11 +1465,6 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         },
     )
 
-    var allowDomesticChinaFxaServer by booleanPreference(
-        appContext.getPreferenceKey(R.string.pref_key_allow_domestic_china_fxa_server),
-        default = true,
-    )
-
     var overrideFxAServer by stringPreference(
         appContext.getPreferenceKey(R.string.pref_key_override_fxa_server),
         default = "",
@@ -2522,6 +2517,8 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     /**
      * Indicates whether or not to show the checklist feature.
      */
-    val showSetupChecklist: Boolean
-        get() = FxNimbus.features.setupChecklist.value().enabled
+    var showSetupChecklist by booleanPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_setup_checklist_complete),
+        default = FxNimbus.features.setupChecklist.value().enabled,
+    )
 }

@@ -744,10 +744,8 @@ TimerThread::Run() {
   // TODO: Make mAllowedEarlyFiringMicroseconds const and initialize it in the
   // constructor.
   mAllowedEarlyFiringMicroseconds = 250;
-  const TimeDuration allowedEarlyFiring =
+  const TimeDuration normalAllowedEarlyFiring =
       TimeDuration::FromMicroseconds(mAllowedEarlyFiringMicroseconds);
-
-  bool forceRunNextTimer = false;
 
   // Queue for tracking of how many timers are fired on each wake-up. We need to
   // buffer these locally and only send off to glean occasionally to avoid
@@ -778,10 +776,11 @@ TimerThread::Run() {
 
   uint64_t timersFiredThisWakeup = 0;
   while (!mShutdown) {
+    const bool chaosModeActive =
+        ChaosMode::isActive(ChaosFeature::TimerScheduling);
+
     // Have to use PRIntervalTime here, since PR_WaitCondVar takes it
     TimeDuration waitFor;
-    bool forceRunThisTimer = forceRunNextTimer;
-    forceRunNextTimer = false;
 
 #ifdef DEBUG
     VerifyTimerListConsistency();
@@ -790,11 +789,19 @@ TimerThread::Run() {
     if (mSleeping) {
       // Sleep for 0.1 seconds while not firing timers.
       uint32_t milliseconds = 100;
-      if (ChaosMode::isActive(ChaosFeature::TimerScheduling)) {
+      if (chaosModeActive) {
         milliseconds = ChaosMode::randomUint32LessThan(200);
       }
       waitFor = TimeDuration::FromMilliseconds(milliseconds);
     } else {
+      // Determine how early we are going to allow timers to fire. In chaos mode
+      // we mess with this a little bit.
+      const TimeDuration allowedEarlyFiring =
+          !chaosModeActive
+              ? normalAllowedEarlyFiring
+              : TimeDuration::FromMicroseconds(ChaosMode::randomUint32LessThan(
+                    4 * mAllowedEarlyFiringMicroseconds));
+
       waitFor = TimeDuration::Forever();
       TimeStamp now = TimeStamp::Now();
 
@@ -824,8 +831,7 @@ TimerThread::Run() {
       RemoveLeadingCanceledTimersInternal();
 
       if (!mTimers.IsEmpty()) {
-        if (now + allowedEarlyFiring >= mTimers[0].Value()->mTimeout ||
-            forceRunThisTimer) {
+        if (now + allowedEarlyFiring >= mTimers[0].Value()->mTimeout) {
         next:
           // NB: AddRef before the Release under RemoveTimerInternal to avoid
           // mRefCnt passing through zero, in case all other refs than the one
@@ -870,21 +876,9 @@ TimerThread::Run() {
         // resolution. We use mAllowedEarlyFiringMicroseconds, calculated
         // before, to do the optimal rounding (i.e., of how to decide what
         // interval is so small we should not wait at all).
-        double microseconds = (timeout - now).ToMicroseconds();
+        const TimeDuration timeToNextTimer = timeout - now;
 
-        // The mean value of sFractions must be 1 to ensure that the average of
-        // a long sequence of timeouts converges to the actual sum of their
-        // times.
-        static constexpr double sChaosFractions[] = {0.0, 0.25, 0.5, 0.75,
-                                                     1.0, 1.75, 2.75};
-        if (ChaosMode::isActive(ChaosFeature::TimerScheduling)) {
-          microseconds *= sChaosFractions[ChaosMode::randomUint32LessThan(
-              std::size(sChaosFractions))];
-          forceRunNextTimer = true;
-        }
-
-        if (microseconds < mAllowedEarlyFiringMicroseconds) {
-          forceRunNextTimer = false;
+        if (timeToNextTimer < allowedEarlyFiring) {
           goto next;  // round down; execute event now
         }
 
@@ -904,16 +898,14 @@ TimerThread::Run() {
         // should have fired.
         MOZ_ASSERT(!waitFor.IsZero());
 
-        if (ChaosMode::isActive(ChaosFeature::TimerScheduling)) {
-          // If chaos mode is active then mess with the amount of time that we
-          // request to sleep (without changing what we record as our expected
-          // wake-up time). This will simulate unintended early/late wake-ups.
-          const double waitInMs = waitFor.ToMilliseconds();
-          const double chaosWaitInMs =
-              waitInMs * sChaosFractions[ChaosMode::randomUint32LessThan(
-                             std::size(sChaosFractions))];
-          waitFor = TimeDuration::FromMilliseconds(chaosWaitInMs);
-        }
+        // If chaos mode is active then we will add a random amount to the
+        // calculated wait (sleep) time to simulate early/late wake-ups.
+        const TimeDuration chaosWaitDelay =
+            !chaosModeActive
+                ? TimeDuration::Zero()
+                : TimeDuration::FromMicroseconds(
+                      ChaosMode::randomInt32InRange(-10000, 10000));
+        waitFor = std::max(TimeDuration::Zero(), waitFor + chaosWaitDelay);
 
         mIntendedWakeupTime = wakeupTime;
       } else {
@@ -971,9 +963,6 @@ TimerThread::Run() {
     {
       AUTO_PROFILER_TRACING_MARKER("TimerThread", "Wait", OTHER);
       mMonitor.Wait(waitFor);
-    }
-    if (mNotified) {
-      forceRunNextTimer = false;
     }
     mWaiting = false;
   }

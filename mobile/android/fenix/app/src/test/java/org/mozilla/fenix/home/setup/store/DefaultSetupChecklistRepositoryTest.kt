@@ -40,6 +40,7 @@ class DefaultSetupChecklistRepositoryTest {
         assertEquals(R.string.pref_key_setup_step_toolbar, preferenceKeys[3].preferenceKey)
         assertEquals(R.string.pref_key_setup_step_extensions, preferenceKeys[4].preferenceKey)
         assertEquals(R.string.pref_key_search_widget_installed_2, preferenceKeys[5].preferenceKey)
+        assertEquals(R.string.pref_key_setup_checklist_complete, preferenceKeys[6].preferenceKey)
     }
 
     @Test
@@ -100,6 +101,16 @@ class DefaultSetupChecklistRepositoryTest {
         repository.setPreference(SetupChecklistPreference.SetToDefault, true)
 
         assertFalse(settings.searchWidgetInstalled)
+    }
+
+    @Test
+    fun `WHEN show checklist preference THEN setPreference updates the preference value`() {
+        assertFalse(settings.showSetupChecklist)
+
+        val repository = DefaultSetupChecklistRepository(context = testContext)
+        repository.setPreference(SetupChecklistPreference.ShowSetupChecklist, true)
+
+        assertTrue(settings.showSetupChecklist)
     }
 
     @Test
@@ -209,82 +220,4 @@ class DefaultSetupChecklistRepositoryTest {
             )
             assertEquals(expected, result)
         }
-
-    @Test
-    fun `WHEN getPreference is called for the set to default step THEN the proper value is returned`() {
-        val repository = DefaultSetupChecklistRepository(testContext)
-
-        assertFalse(repository.getPreference(SetupChecklistPreference.SetToDefault))
-
-        settings.isDefaultBrowser = true
-        assertTrue(repository.getPreference(SetupChecklistPreference.SetToDefault))
-
-        settings.isDefaultBrowser = false
-        assertFalse(repository.getPreference(SetupChecklistPreference.SetToDefault))
-    }
-
-    @Test
-    fun `WHEN getPreference is called for the sign in step THEN the proper value is returned`() {
-        val repository = DefaultSetupChecklistRepository(testContext)
-
-        assertFalse(repository.getPreference(SetupChecklistPreference.SignIn))
-
-        settings.signedInFxaAccount = true
-        assertTrue(repository.getPreference(SetupChecklistPreference.SignIn))
-
-        settings.signedInFxaAccount = false
-        assertFalse(repository.getPreference(SetupChecklistPreference.SignIn))
-    }
-
-    @Test
-    fun `WHEN getPreference is called for the install search widget step THEN the proper value is returned`() {
-        val repository = DefaultSetupChecklistRepository(testContext)
-
-        assertFalse(repository.getPreference(SetupChecklistPreference.InstallSearchWidget))
-
-        settings.setSearchWidgetInstalled(true)
-        assertTrue(repository.getPreference(SetupChecklistPreference.InstallSearchWidget))
-
-        settings.setSearchWidgetInstalled(false)
-        assertFalse(repository.getPreference(SetupChecklistPreference.InstallSearchWidget))
-    }
-
-    @Test
-    fun `WHEN getPreference is called for the toolbar step THEN the proper value is returned`() {
-        val repository = DefaultSetupChecklistRepository(testContext)
-
-        assertFalse(repository.getPreference(SetupChecklistPreference.ToolbarComplete))
-
-        settings.hasCompletedSetupStepToolbar = true
-        assertTrue(repository.getPreference(SetupChecklistPreference.ToolbarComplete))
-
-        settings.hasCompletedSetupStepToolbar = false
-        assertFalse(repository.getPreference(SetupChecklistPreference.ToolbarComplete))
-    }
-
-    @Test
-    fun `WHEN getPreference is called for the theme step THEN the proper value is returned`() {
-        val repository = DefaultSetupChecklistRepository(testContext)
-
-        assertFalse(repository.getPreference(SetupChecklistPreference.ThemeComplete))
-
-        settings.hasCompletedSetupStepTheme = true
-        assertTrue(repository.getPreference(SetupChecklistPreference.ThemeComplete))
-
-        settings.hasCompletedSetupStepTheme = false
-        assertFalse(repository.getPreference(SetupChecklistPreference.ThemeComplete))
-    }
-
-    @Test
-    fun `WHEN getPreference is called for the extensions step THEN the proper value is returned`() {
-        val repository = DefaultSetupChecklistRepository(testContext)
-
-        assertFalse(repository.getPreference(SetupChecklistPreference.ExtensionsComplete))
-
-        settings.hasCompletedSetupStepExtensions = true
-        assertTrue(repository.getPreference(SetupChecklistPreference.ExtensionsComplete))
-
-        settings.hasCompletedSetupStepExtensions = false
-        assertFalse(repository.getPreference(SetupChecklistPreference.ExtensionsComplete))
-    }
 }
