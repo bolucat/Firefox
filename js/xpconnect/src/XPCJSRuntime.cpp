@@ -754,10 +754,7 @@ void XPCJSRuntime::UnmarkSkippableJSHolders() {
 }
 
 void XPCJSRuntime::PrepareForForgetSkippable() {
-  nsCOMPtr<nsIObserverService> obs = xpc::GetObserverService();
-  if (obs) {
-    obs->NotifyObservers(nullptr, "cycle-collector-forget-skippable", nullptr);
-  }
+  nsCCUncollectableMarker::CleanupForForgetSkippable();
 }
 
 void XPCJSRuntime::BeginCycleCollectionCallback(CCReason aReason) {
@@ -2959,6 +2956,10 @@ static void SetUseCounterCallback(JSObject* obj, JSUseCounter counter) {
       return;
     case JSUseCounter::DATEPARSE_IMPL_DEF:
       SetUseCounter(obj, eUseCounter_custom_JS_dateparse_impl_def);
+      return;
+    case JSUseCounter::REGEXP_SYMBOL_PROTOCOL_ON_PRIMITIVE:
+      SetUseCounter(obj,
+                    eUseCounter_custom_JS_regexp_symbol_protocol_on_primitive);
       return;
     case JSUseCounter::COUNT:
       break;

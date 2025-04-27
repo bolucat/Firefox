@@ -53,8 +53,26 @@ class JujutsuRepository(Repository):
 
         self._git._env["GIT_DIR"] = str(git_dir.resolve())
 
+    def _run_read_only(self, *args, **kwargs):
+        """_run_read_only() should be used instead of _run() for read-only jj commands.
+
+        It will avoid locking the working copy and can prevent potential concurrency issues.
+        """
+        return super()._run("--ignore-working-copy", *args, **kwargs)
+
+    def _snapshot(self):
+        """_snapshot() can be used to update the repository after changing files in the working
+        directory. Normally jj commands will do this automatically, but we often run jj commands
+        using `_run_read_only` which passes `--ignore-working-copy` to jj.
+        See bug 1962245 and bug 1962389.
+
+        An alternative option would be to add an extra argument to methods such as
+        `get_branch_nodes`.
+        """
+        self._run("log", "-n0")
+
     def resolve_to_change(self, revset: str) -> Optional[str]:
-        change_id = self._run(
+        change_id = self._run_read_only(
             "log", "--no-graph", "-n1", "-r", revset, "-T", "change_id.short()"
         ).rstrip()
         return change_id if change_id != "" else None
@@ -77,14 +95,14 @@ class JujutsuRepository(Repository):
         ref = self.resolve_to_change("latest(roots(::@ & mutable())-)")
         return ref if ref else self.head_ref
 
-    def convert_change_to_commit(self, change_id):
-        commit = self._run(
-            "log", "--no-graph", "-r", f"latest({change_id})", "-T", "commit_id"
+    def resolve_to_commit(self, revset):
+        commit = self._run_read_only(
+            "log", "--no-graph", "-r", f"latest({revset})", "-T", "commit_id"
         ).rstrip()
         return commit
 
     def base_ref_as_hg(self):
-        base_ref = self.convert_change_to_commit(self.base_ref)
+        base_ref = self.resolve_to_commit(self.base_ref)
         try:
             return self._git._run("cinnabar", "git2hg", base_ref).strip()
         except subprocess.CalledProcessError:
@@ -92,12 +110,9 @@ class JujutsuRepository(Repository):
 
     @property
     def branch(self):
-        # jj does not have an "active branch" concept. Invent something similar,
-        # the latest bookmark in the descendants of @.
-        bookmark = self._run(
-            "log", "--no-graph", "-r", "latest(::@ & bookmarks())", "-T", "bookmarks"
-        )
-        return bookmark or None
+        # jj does not have an "active branch" concept. The lone caller will fall
+        # back to self.head_ref.
+        return None
 
     @property
     def has_git_cinnabar(self):
@@ -105,16 +120,16 @@ class JujutsuRepository(Repository):
 
     def get_commit_time(self):
         return int(
-            self._run(
+            self._run_read_only(
                 "log", "-n1", "--no-graph", "-T", 'committer.timestamp().format("%s")'
             ).strip()
         )
 
     def sparse_checkout_present(self):
-        return self._run("sparse", "list").rstrip() != "."
+        return self._run_read_only("sparse", "list").rstrip() != "."
 
     def get_user_email(self):
-        email = self._run("config", "get", "user.email", return_codes=[0, 1])
+        email = self._run_read_only("config", "get", "user.email", return_codes=[0, 1])
         if not email:
             return None
         return email.strip()
@@ -122,7 +137,7 @@ class JujutsuRepository(Repository):
     def get_changed_files(self, diff_filter="ADM", mode="(ignored)", rev="@"):
         assert all(f.lower() in self._valid_diff_filter for f in diff_filter)
 
-        out = self._run(
+        out = self._run_read_only(
             "log",
             "-r",
             rev,
@@ -155,13 +170,21 @@ class JujutsuRepository(Repository):
 
         return changed
 
+    def diff_stream(self, rev=None, extensions=(), exclude_file=None, context=8):
+        if rev is None:
+            rev = "latest((@ | @-) ~ empty())"
+        rev = self.resolve_to_commit(rev)
+        return self._git.diff_stream(
+            rev=rev, extensions=extensions, exclude_file=exclude_file, context=context
+        )
+
     def get_outgoing_files(self, diff_filter="ADM", upstream=None):
         assert all(f.lower() in self._valid_diff_filter for f in diff_filter)
 
         if upstream is None:
             upstream = self.base_ref
 
-        lines = self._run(
+        lines = self._run_read_only(
             "diff",
             "--from",
             upstream,
@@ -191,7 +214,7 @@ class JujutsuRepository(Repository):
 
         paths = [str(path) for path in paths]
 
-        self._run("file", "untrack", *paths)
+        self._run_read_only("file", "untrack", *paths)
 
     def get_tracked_files_finder(self, path=None):
         files = [mozpath.normsep(p) for p in self._run("file", "list").splitlines()]
@@ -238,7 +261,10 @@ class JujutsuRepository(Repository):
             raise MissingVCSExtension("cinnabar")
 
         with self.try_commit(message, changed_files) as head:
-            self._run("git", "remote", "remove", "mach_tryserver", return_codes=[0, 1])
+            if "mach_tryserver" in self._git._run("remote"):
+                self._run(
+                    "git", "remote", "remove", "mach_tryserver", return_codes=[0, 1]
+                )
             # `jj git remote add` would barf on the cinnabar syntax here.
             self._git._run(
                 "remote", "add", "mach_tryserver", "hg::ssh://hg.mozilla.org/try"
@@ -271,14 +297,14 @@ class JujutsuRepository(Repository):
         self._run("git", "remote", "remove", "mach_tryserver", return_codes=[0, 1])
 
     def set_config(self, name, value):
-        self._run("config", name, value)
+        self._run_read_only("config", name, value)
 
     def get_branch_nodes(self, head: Optional[str] = "@") -> List[str]:
         """Return a list of commit SHAs for nodes on the current branch, in order that they should be applied."""
         # Note: lando gets grumpy if you try to push empty commits.
         return list(
             reversed(
-                self._run(
+                self._run_read_only(
                     "log",
                     "--no-graph",
                     "-r",
@@ -300,7 +326,7 @@ class JujutsuRepository(Repository):
         # Warning: tests, at least, may call this with change ids rather than
         # commit ids.
         nodes = [
-            id if self.looks_like_commit_id(id) else self.convert_change_to_commit(id)
+            id if self.looks_like_commit_id(id) else self.resolve_to_commit(id)
             for id in nodes
         ]
         return [
@@ -322,7 +348,7 @@ class JujutsuRepository(Repository):
         `changed_files` may contain a dict of file paths and their contents,
         see `stage_changes`.
         """
-        opid = self._run(
+        opid = self._run_read_only(
             "operation", "log", "-n1", "--no-graph", "-T", "id.short(16)"
         ).rstrip()
         try:
@@ -331,13 +357,15 @@ class JujutsuRepository(Repository):
                 p = self.path / Path(path)
                 p.parent.mkdir(parents=True, exist_ok=True)
                 p.write_text(content)
+            # Update the jj commit with the changes we just made.
+            self._snapshot()
             yield self.resolve_to_change("@")
         finally:
             self._run("operation", "restore", opid)
 
     def get_last_modified_time_for_file(self, path: Path) -> datetime:
         """Return last modified in VCS time for the specified file."""
-        date = self._run(
+        date = self._run_read_only(
             "log",
             "--no-graph",
             "-n1",

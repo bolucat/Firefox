@@ -208,19 +208,6 @@ pref("app.update.langpack.enabled", true);
   pref("app.update.noWindowAutoRestart.delayMs", 300000);
 #endif
 
-// The Multi Session Install Lockout prevents updates from being installed at
-// startup when they normally would be if there are other instances using the
-// installation. We only do this for a limited amount of time before we go ahead
-// and apply the update anyways.
-// Hopefully, at some point, updating Firefox while it is running will not break
-// things and this mechanism can be removed.
-// Note that these prefs are bit dangerous because having different values in
-// different profiles could cause erratic behavior.
-// This feature is also affected by
-// `app.update.multiSessionInstallLockout.timeoutMs`, which is in the branding
-// section.
-pref("app.update.multiSessionInstallLockout.enabled", false);
-
 #if defined(MOZ_BACKGROUNDTASKS)
   // The amount of time, in seconds, before background tasks time out and exit.
   // Tasks can override this default (10 minutes).
@@ -388,20 +375,11 @@ pref("browser.overlink-delay", 80);
 
 pref("browser.taskbarTabs.enabled", false);
 
-pref("browser.theme.colorway-closet", true);
-
 #if defined(MOZ_WIDGET_GTK)
   pref("browser.theme.native-theme", true);
 #else
   pref("browser.theme.native-theme", false);
 #endif
-
-// Whether expired built-in colorways themes that are active or retained
-// should be allowed to check for updates and be updated to an AMO hosted
-// theme with the same id (as part of preparing to remove from mozilla-central
-// all the expired built-in colorways themes, after existing users have been
-// migrated to colorways themes hosted on AMO).
-pref("browser.theme.colorway-migration", true);
 
 // Whether using `ctrl` when hitting return/enter in the URL bar
 // (or clicking 'go') should prefix 'www.' and suffix
@@ -1062,6 +1040,9 @@ pref("browser.tabs.groups.smart.enabled", true);
 #else
 pref("browser.tabs.groups.smart.enabled", false);
 #endif
+
+// KMEANS_WITH_ANCHOR or NEAREST_NEIGHBOR
+pref("browser.tabs.groups.smart.suggestOtherTabsMethod", "NEAREST_NEIGHBOR");
 
 pref("browser.tabs.groups.smart.optin", false);
 
@@ -1869,8 +1850,7 @@ pref("browser.newtabpage.activity-stream.newNewtabExperience.colors", "#004CA4,#
 pref("browser.newtabpage.activity-stream.newtabLayouts.variant-a", false);
 pref("browser.newtabpage.activity-stream.newtabLayouts.variant-b", true);
 
-// Shortcuts experiment
-pref("browser.newtabpage.activity-stream.newtabShortcuts.refresh", false);
+pref("browser.newtabpage.activity-stream.newtabShortcuts.refresh", true);
 
 // Discovery stream ad size experiment
 pref("browser.newtabpage.activity-stream.newtabAdSize.variant-a", false);
@@ -1991,7 +1971,12 @@ pref("browser.newtabpage.activity-stream.discoverystream.sections.locale-content
 pref("browser.newtabpage.activity-stream.discoverystream.sections.region-content-config", "");
 
 pref("browser.newtabpage.activity-stream.discoverystream.sections.cards.enabled", true);
-pref("browser.newtabpage.activity-stream.discoverystream.sections.personalization.inferred.enabled", false);
+
+// List of regions that use inferred personalization.
+pref("browser.newtabpage.activity-stream.discoverystream.sections.personalization.inferred.region-config", "");
+// List of locales that use inferred personalization.
+pref("browser.newtabpage.activity-stream.discoverystream.sections.personalization.inferred.locale-config", "en-US,en-GB,en-CA");
+
 pref("browser.newtabpage.activity-stream.discoverystream.sections.personalization.inferred.user.enabled", true);
 pref("browser.newtabpage.activity-stream.discoverystream.sections.personalization.inferred.blocked", false);
 
@@ -2152,6 +2137,7 @@ pref("browser.ml.linkPreview.allowedLanguages", "en");
 pref("browser.ml.linkPreview.enabled", false);
 pref("browser.ml.linkPreview.outputSentences", 3);
 pref("browser.ml.linkPreview.blockListEnabled", true);
+pref("browser.ml.linkPreview.noKeyPointsRegions", "AD,AT,BE,BG,CH,CY,CZ,DE,DK,EE,ES,FI,FR,GR,HR,HU,IE,IS,IT,LI,LT,LU,LV,MT,NL,NO,PL,PT,RO,SE,SI,SK");
 
 // Block insecure active content on https pages
 pref("security.mixed_content.block_active_content", true);

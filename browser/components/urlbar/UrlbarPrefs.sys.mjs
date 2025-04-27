@@ -90,11 +90,6 @@ const PREF_URLBAR_DEFAULTS = new Map([
   // "heuristic" result).  We fetch it as fast as possible.
   ["delay", 50],
 
-  // Some performance tests disable this because extending the urlbar needs
-  // layout information that we can't get before the first paint. (Or we could
-  // but this would mean flushing layout.)
-  ["disableExtendForTests", false],
-
   // Ensure we use trailing dots for DNS lookups for single words that could
   // be hosts.
   ["dnsResolveFullyQualifiedNames", true],
@@ -233,9 +228,6 @@ const PREF_URLBAR_DEFAULTS = new Map([
   // a keyword at least this many characters long, it will be shown as a top
   // pick.
   ["quicksuggest.ampTopPickCharThreshold", 5],
-
-  // JSON'ed array of blocked quick suggest URL digests.
-  ["quicksuggest.blockedDigests", ""],
 
   // Whether the Firefox Suggest data collection opt-in result is enabled.
   ["quicksuggest.contextualOptIn", false],

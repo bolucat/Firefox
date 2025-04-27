@@ -5,30 +5,27 @@
 package mozilla.components.compose.browser.toolbar
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.LocalTextStyle
-import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
 import mozilla.components.compose.base.progressbar.AnimatedProgressBar
 import mozilla.components.compose.base.theme.AcornTheme
 import mozilla.components.compose.browser.toolbar.concept.Action
+import mozilla.components.compose.browser.toolbar.concept.PageOrigin
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarInteraction.BrowserToolbarEvent
 import mozilla.components.compose.browser.toolbar.store.ProgressBarConfig
 import mozilla.components.compose.browser.toolbar.store.ProgressBarGravity.Bottom
 import mozilla.components.compose.browser.toolbar.store.ProgressBarGravity.Top
+import mozilla.components.compose.browser.toolbar.ui.Origin
 
 private val ROUNDED_CORNER_SHAPE = RoundedCornerShape(8.dp)
 
@@ -36,32 +33,37 @@ private val ROUNDED_CORNER_SHAPE = RoundedCornerShape(8.dp)
  * Sub-component of the [BrowserToolbar] responsible for displaying the URL and related
  * controls ("display mode").
  *
- * @param url The URL to be displayed.
+ * @param pageOrigin Details about the website origin.
  * @param colors The color scheme to use in the browser display toolbar.
  * @param progressBarConfig [ProgressBarConfig] configuration for the progress bar.
  * If `null` a progress bar will not be displayed.
- * @param textStyle [TextStyle] configuration for the URL text.
- * @param navigationActions List of navigation [Action]s to be displayed on left side of the
- * display toolbar (outside of the URL bounding box).
- * @param pageActions List of page [Action]s to be displayed to the right side of the URL of the
- * display toolbar. Also see:
- * [MDN docs](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/pageAction)
- * @param browserActions List of browser [Action]s to be displayed on the right side of the
- * display toolbar (outside of the URL bounding box). Also see:
- * [MDN docs](https://developer.mozilla.org/en-US/Add-ons/WebExtensions/user_interface/Browser_action)
- * @param onUrlClicked Will be called when the user clicks on the URL.
+ * @param browserActionsStart List of browser [Action]s to be displayed at the start of the
+ * toolbar, outside of the URL bounding box.
+ * These should be actions relevant to the browser as a whole.
+ * See [MDN docs](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/browserAction).
+ * @param pageActionsStart List of navigation [Action]s to be displayed between [browserActionsStart]
+ * and [pageOrigin], inside of the URL bounding box.
+ * These should be actions relevant to specific webpages as opposed to [browserActionsStart].
+ * See [MDN docs](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/pageAction).
+ * @param pageActionsEnd List of page [Action]s to be displayed between [pageOrigin] and [browserActionsEnd],
+ * inside of the URL bounding box.
+ * These should be actions relevant to specific webpages as opposed to [browserActionsStart].
+ * See [MDN docs](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/pageAction).
+ * @param browserActionsEnd List of browser [Action]s to be displayed at the end of the toolbar,
+ * outside of the URL bounding box.
+ * These should be actions relevant to the browser as a whole.
+ * See [MDN docs](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/browserAction).
  * @param onInteraction Callback for handling [BrowserToolbarEvent]s on user interactions.
  */
 @Composable
 fun BrowserDisplayToolbar(
-    url: String,
+    pageOrigin: PageOrigin,
     colors: BrowserDisplayToolbarColors,
     progressBarConfig: ProgressBarConfig?,
-    textStyle: TextStyle = LocalTextStyle.current,
-    navigationActions: List<Action> = emptyList(),
-    pageActions: List<Action> = emptyList(),
-    browserActions: List<Action> = emptyList(),
-    onUrlClicked: () -> Unit = {},
+    browserActionsStart: List<Action> = emptyList(),
+    pageActionsStart: List<Action> = emptyList(),
+    pageActionsEnd: List<Action> = emptyList(),
+    browserActionsEnd: List<Action> = emptyList(),
     onInteraction: (BrowserToolbarEvent) -> Unit,
 ) {
     Box(
@@ -72,13 +74,11 @@ fun BrowserDisplayToolbar(
         Row(
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (navigationActions.isNotEmpty()) {
+            if (browserActionsStart.isNotEmpty()) {
                 ActionContainer(
-                    actions = navigationActions,
+                    actions = browserActionsStart,
                     onInteraction = onInteraction,
                 )
-            } else {
-                Spacer(modifier = Modifier.width(8.dp))
             }
 
             Row(
@@ -91,30 +91,40 @@ fun BrowserDisplayToolbar(
                     .weight(1f),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    url,
-                    color = colors.text,
+                if (pageActionsStart.isNotEmpty()) {
+                    ActionContainer(
+                        actions = pageActionsStart,
+                        onInteraction = onInteraction,
+                    )
+                }
+
+                Origin(
+                    hint = pageOrigin.hint,
                     modifier = Modifier
-                        .clickable { onUrlClicked() }
-                        .padding(8.dp)
+                        .height(48.dp)
                         .weight(1f),
-                    maxLines = 1,
-                    style = textStyle,
+                    url = pageOrigin.url,
+                    title = pageOrigin.title,
+                    onClick = pageOrigin.onClick,
+                    onLongClick = pageOrigin.onLongClick,
+                    onInteraction = onInteraction,
+                    fadeDirection = pageOrigin.fadeDirection,
+                    textGravity = pageOrigin.textGravity,
                 )
 
-                ActionContainer(
-                    actions = pageActions,
-                    onInteraction = onInteraction,
-                )
+                if (pageActionsEnd.isNotEmpty()) {
+                    ActionContainer(
+                        actions = pageActionsEnd,
+                        onInteraction = onInteraction,
+                    )
+                }
             }
 
-            if (browserActions.isNotEmpty()) {
+            if (browserActionsEnd.isNotEmpty()) {
                 ActionContainer(
-                    actions = browserActions,
+                    actions = browserActionsEnd,
                     onInteraction = onInteraction,
                 )
-            } else {
-                Spacer(modifier = Modifier.width(8.dp))
             }
         }
 
@@ -136,7 +146,12 @@ fun BrowserDisplayToolbar(
 private fun BrowserDisplayToolbarPreview() {
     AcornTheme {
         BrowserDisplayToolbar(
-            url = "http://www.mozilla.org",
+            pageOrigin = PageOrigin(
+                hint = R.string.mozac_browser_toolbar_search_hint,
+                title = null,
+                url = null,
+                onClick = object : BrowserToolbarEvent {},
+            ),
             colors = BrowserDisplayToolbarColors(
                 background = AcornTheme.colors.layer1,
                 urlBackground = AcornTheme.colors.layer3,
@@ -146,7 +161,7 @@ private fun BrowserDisplayToolbarPreview() {
                 progress = 66,
                 gravity = Top,
             ),
-            navigationActions = listOf(
+            browserActionsStart = listOf(
                 Action.ActionButton(
                     icon = mozilla.components.ui.icons.R.drawable.mozac_ic_home_24,
                     contentDescription = android.R.string.untitled,
@@ -154,7 +169,7 @@ private fun BrowserDisplayToolbarPreview() {
                     onClick = object : BrowserToolbarEvent {},
                 ),
             ),
-            pageActions = listOf(
+            pageActionsEnd = listOf(
                 Action.ActionButton(
                     icon = mozilla.components.ui.icons.R.drawable.mozac_ic_arrow_clockwise_24,
                     contentDescription = android.R.string.untitled,
@@ -162,7 +177,7 @@ private fun BrowserDisplayToolbarPreview() {
                     onClick = object : BrowserToolbarEvent {},
                 ),
             ),
-            browserActions = listOf(
+            browserActionsEnd = listOf(
                 Action.ActionButton(
                     icon = mozilla.components.ui.icons.R.drawable.mozac_ic_ellipsis_vertical_24,
                     contentDescription = android.R.string.untitled,

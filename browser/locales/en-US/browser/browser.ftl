@@ -345,7 +345,7 @@ quickactions-cmd-print = print
 
 # Opens the print dialog at the save to PDF option
 quickactions-savepdf = Save page as PDF
-quickactions-cmd-savepdf = pdf
+quickactions-cmd-savepdf2 = pdf, save page
 
 # Opens a new private browsing window
 quickactions-private2 = Open private window
@@ -365,7 +365,8 @@ quickactions-cmd-screenshot2 = screenshot, take a screenshot
 
 # Opens about:preferences
 quickactions-settings2 = Manage settings
-quickactions-cmd-settings = settings, preferences, options
+# "manage" should match the corresponding command, which is “Manage settings” in English.
+quickactions-cmd-settings2 = settings, preferences, options, manage
 
 # Opens about:addons page in the themes section
 quickactions-themes = Manage themes
@@ -1225,3 +1226,7 @@ file-picker-crashed-save-nowhere = The Windows file-dialog has crashed. No defau
 file-picker-crashed-show-in-folder =
     .label = Show in Folder
     .accessKey = F
+
+## Onboarding Finish Setup checklist
+
+onboarding-checklist-button-label = Finish setup

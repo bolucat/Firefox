@@ -463,6 +463,125 @@ add_task(async function test_history_keyboard_navigation() {
     () => EventUtils.synthesizeKey("KEY_Enter", {}, contentWindow),
     URLs[1]
   );
+
+  info("Sort history by date and site.");
+  const {
+    menuButton,
+    _menu: menu,
+    _menuSortByDate: sortByDateButton,
+    _menuSortByDateSite: sortByDateSiteButton,
+    _menuSortByLastVisited: sortByLastVisitedButton,
+  } = component;
+  let promiseMenuShown = BrowserTestUtils.waitForEvent(menu, "popupshown");
+  EventUtils.synthesizeMouseAtCenter(menuButton, {}, contentWindow);
+  await promiseMenuShown;
+  menu.activateItem(sortByDateSiteButton);
+
+  // Wait for nested cards to appear.
+  await BrowserTestUtils.waitForMutationCondition(
+    component.shadowRoot,
+    { childList: true, subtree: true },
+    () => component.shadowRoot.querySelector(".nested-card")
+  );
+
+  info("Focus the first date.");
+  const firstDateCard = cards[0];
+  firstDateCard.summaryEl.focus();
+
+  info("Collapse and expand the card using arrow keys.");
+  EventUtils.synthesizeKey("KEY_ArrowLeft", {}, contentWindow);
+  await BrowserTestUtils.waitForMutationCondition(
+    firstDateCard,
+    { attributeFilter: ["expanded"] },
+    () => !firstDateCard.expanded
+  );
+  EventUtils.synthesizeKey("KEY_ArrowRight", {}, contentWindow);
+  await BrowserTestUtils.waitForMutationCondition(
+    firstDateCard,
+    { attributeFilter: ["expanded"] },
+    () => firstDateCard.expanded
+  );
+
+  info("Move down to the first site.");
+  const firstSiteCard = firstDateCard.querySelector(".nested-card");
+  focused = BrowserTestUtils.waitForEvent(
+    firstSiteCard.summaryEl,
+    "focus",
+    contentWindow
+  );
+  EventUtils.synthesizeKey("KEY_ArrowDown", {}, contentWindow);
+  await focused;
+
+  info("Move back up to the date header.");
+  focused = BrowserTestUtils.waitForEvent(
+    firstDateCard.summaryEl,
+    "focus",
+    contentWindow
+  );
+  EventUtils.synthesizeKey("KEY_ArrowUp", {}, contentWindow);
+  await focused;
+
+  info("Focus the last site, then move down to the second date.");
+  const lastSiteCard = firstDateCard.querySelector(".last-card");
+  lastSiteCard.summaryEl.focus();
+  const secondDateCard = component.shadowRoot.querySelectorAll(".date-card")[1];
+  focused = BrowserTestUtils.waitForEvent(
+    secondDateCard.summaryEl,
+    "focus",
+    contentWindow
+  );
+  EventUtils.synthesizeKey("KEY_ArrowDown", {}, contentWindow);
+  await focused;
+
+  info("Move back up to the site header.");
+  focused = BrowserTestUtils.waitForEvent(
+    lastSiteCard.summaryEl,
+    "focus",
+    contentWindow
+  );
+  EventUtils.synthesizeKey("KEY_ArrowUp", {}, contentWindow);
+  await focused;
+
+  info("Sort history by last visited.");
+  promiseMenuShown = BrowserTestUtils.waitForEvent(menu, "popupshown");
+  EventUtils.synthesizeMouseAtCenter(menuButton, {}, contentWindow);
+  await promiseMenuShown;
+  menu.activateItem(sortByLastVisitedButton);
+
+  // No containers when sorting by last visited.
+  // Wait until we have a single card and a single list.
+  await BrowserTestUtils.waitForMutationCondition(
+    component.shadowRoot,
+    { childList: true, subtree: true },
+    () => component.cards.length === 1 && component.lists.length === 1
+  );
+
+  info("Focus the first row and open the focused link.");
+  const tabList = component.lists[0];
+  await BrowserTestUtils.waitForMutationCondition(
+    tabList.shadowRoot,
+    { childList: true, subtree: true },
+    () => tabList.rowEls.length === URLs.length
+  );
+  tabList.rowEls[0].focus();
+  await waitForPageLoadTask(
+    () => EventUtils.synthesizeKey("KEY_Enter", {}, contentWindow),
+    URLs[1]
+  );
+
+  info("Revert back to sort by date.");
+  promiseMenuShown = BrowserTestUtils.waitForEvent(menu, "popupshown");
+  EventUtils.synthesizeMouseAtCenter(menuButton, {}, contentWindow);
+  await promiseMenuShown;
+  menu.activateItem(sortByDateButton);
+
+  // Wait for date cards to appear.
+  await BrowserTestUtils.waitForMutationCondition(
+    component.shadowRoot,
+    { childList: true, subtree: true },
+    () => component.shadowRoot.querySelector(".date-card")
+  );
+
   window.SidebarController.hide();
 });
 
@@ -483,10 +602,17 @@ add_task(async function test_history_hover_buttons() {
   const rows = lists[0].rowEls;
 
   info("Open the first link.");
+  // We intentionally turn off this a11y check, because the following click is purposefully targeting a not
+  // focusable link within a history item row which are following list-style keyboard navigation pattern.
+  // This pattern is tested above. A keyboard-only user could focus these links using arrow navigation, but
+  // a mouse user would not need these links to become focusable, therefore this rule check shall be ignored
+  // by a11y_checks suite. Bug 1961686 is a follow up update a helper so we can later remove this.
+  AccessibilityUtils.setEnv({ focusableRule: false });
   await waitForPageLoadTask(
     () => EventUtils.synthesizeMouseAtCenter(rows[0].mainEl, {}, contentWindow),
     URLs[1]
   );
+  AccessibilityUtils.resetEnv();
 
   info("Remove the first entry.");
   const promiseRemoved = PlacesTestUtils.waitForNotification("page-removed");

@@ -48,7 +48,6 @@
 #include "mozilla/AutoRestore.h"
 #include "mozilla/ClipboardContentAnalysisParent.h"
 #include "mozilla/BasePrincipal.h"
-#include "mozilla/BenchmarkStorageParent.h"
 #include "mozilla/Casting.h"
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/ClipboardReadRequestParent.h"
@@ -327,9 +326,6 @@
 #  include "nsIMarionette.h"
 #  include "nsIRemoteAgent.h"
 #endif
-
-// For VP9Benchmark::sBenchmarkFpsPref
-#include "Benchmark.h"
 
 #include "mozilla/RemoteDecodeUtils.h"
 #include "nsIToolkitProfileService.h"
@@ -4445,16 +4441,6 @@ bool ContentParent::DeallocPMediaParent(media::PMediaParent* aActor) {
   return media::DeallocPMediaParent(aActor);
 }
 
-PBenchmarkStorageParent* ContentParent::AllocPBenchmarkStorageParent() {
-  return new BenchmarkStorageParent;
-}
-
-bool ContentParent::DeallocPBenchmarkStorageParent(
-    PBenchmarkStorageParent* aActor) {
-  delete aActor;
-  return true;
-}
-
 #ifdef MOZ_WEBSPEECH
 already_AddRefed<PSpeechSynthesisParent>
 ContentParent::AllocPSpeechSynthesisParent() {
@@ -5621,18 +5607,6 @@ mozilla::ipc::IPCResult ContentParent::RecvEndDriverCrashGuard(
   return IPC_OK();
 }
 
-mozilla::ipc::IPCResult ContentParent::RecvNotifyBenchmarkResult(
-    const nsAString& aCodecName, const uint32_t& aDecodeFPS)
-
-{
-  if (aCodecName.EqualsLiteral("VP9")) {
-    Preferences::SetUint(VP9Benchmark::sBenchmarkFpsPref, aDecodeFPS);
-    Preferences::SetUint(VP9Benchmark::sBenchmarkFpsVersionCheck,
-                         VP9Benchmark::sBenchmarkVersionID);
-  }
-  return IPC_OK();
-}
-
 mozilla::ipc::IPCResult ContentParent::RecvNotifyPushObservers(
     const nsACString& aScope, nsIPrincipal* aPrincipal,
     const nsAString& aMessageId) {
@@ -6197,6 +6171,22 @@ mozilla::ipc::IPCResult ContentParent::RecvRecordPageLoadEvent(
     mozilla::glean::perf::PageLoadExtra&& aPageLoadEventExtra) {
   // Check whether a webdriver is running.
   aPageLoadEventExtra.usingWebdriver = mozilla::Some(WebdriverRunning());
+
+#if defined(XP_WIN)
+  // The "hasSSD" property is only set on Windows during the first
+  // call to nsISystemInfo.diskInfo - which is done before
+  // browser-startup-idle-tasks-finished
+  // Other platforms do not compute hasSSD, so there's no reason to
+  // query this on other platforms.
+  nsresult rv;
+  nsCOMPtr<nsIPropertyBag2> infoService =
+      mozilla::components::SystemInfo::Service();
+  bool hasSSD;
+  rv = infoService->GetPropertyAsBool(u"hasSSD"_ns, &hasSSD);
+  if (NS_SUCCEEDED(rv)) {
+    aPageLoadEventExtra.hasSsd = Some(hasSSD);
+  }
+#endif
   mozilla::glean::perf::page_load.Record(mozilla::Some(aPageLoadEventExtra));
 
   // Send the PageLoadPing after every 30 page loads, or on startup.

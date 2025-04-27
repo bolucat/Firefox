@@ -497,6 +497,7 @@ const AVAILABLE_SHIMS = [
       "fox11online.com",
       "cbs6albany.com",
       "okcfox.co",
+      "turnto10.com",
     ],
     matches: [
       "*://www.googletagservices.com/tag/js/gpt.js*",
@@ -986,7 +987,7 @@ const AVAILABLE_SHIMS = [
     contentScripts: [
       {
         js: "zendesk-asana-support.js",
-        matches: ["*://*.zendesk.com/agent/filters/*"],
+        matches: ["*://*.zendesk.com/*"],
         runAt: "document_start",
       },
     ],

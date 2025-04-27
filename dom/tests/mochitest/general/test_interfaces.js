@@ -1483,6 +1483,8 @@ let interfaceNamesInGlobalScope = [
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "VideoPlaybackQuality", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
+  { name: "ViewTransition", insecureContext: true, nightly: true },
+  // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "VisualViewport", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "VTTCue", insecureContext: true },
@@ -1703,7 +1705,7 @@ let interfaceNamesInGlobalScope = [
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "onbeforeinput", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
-  { name: "onbeforematch", insecureContext: true, nightly: true },
+  { name: "onbeforematch", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "onbeforeprint", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!

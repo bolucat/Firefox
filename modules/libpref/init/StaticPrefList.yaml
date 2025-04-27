@@ -2452,7 +2452,7 @@
 # Should CommitStyles use the end-point inclusive timing?
 - name: dom.animations.commit-styles-endpoint-inclusive
   type: bool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Is support for Navigator.getBattery enabled?
@@ -2634,6 +2634,13 @@
 # Whether Dialog elements emit beforetoggle and toggle events during opening and closing.
 # See https://github.com/whatwg/html/pull/10091
 - name: dom.element.dialog.toggle_events.enabled
+  type: bool
+  value: true
+  mirror: always
+
+# HTMLDialogElement.prototype.requestClose
+# See https://html.spec.whatwg.org/#dom-dialog-requestclose
+- name: dom.element.dialog.request_close.enabled
   type: bool
   value: true
   mirror: always
@@ -4222,6 +4229,13 @@
   value: false
   mirror: always
 
+
+# Serialize < as &lt; and > as &gt; in attribute values for getHTML, innerHTML etc.
+- name: dom.security.html_serialization_escape_lt_gt
+  type: RelaxedAtomicBool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+
 # For testing purposes only; Flipping this pref to true allows
 # to skip the assertion that remote scripts can not be loaded
 # in system privileged contexts.
@@ -4512,7 +4526,7 @@
 # is encrypted in PBM.
 - name: dom.serviceWorkers.privateBrowsing.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 - name: dom.serviceWorkers.testing.enabled
@@ -4790,7 +4804,7 @@
 
 - name: dom.hidden_until_found.enabled
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 - name: dom.text_fragments.enabled
@@ -4966,7 +4980,7 @@
 # Is support for View Transitions Level 1 enabled?
 - name: dom.viewTransitions.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
   rust: true
 
@@ -8932,6 +8946,24 @@
   mirror: always
   set_spidermonkey_pref: always
 
+# Support for wasm loop unrolling and peeling in wasm-via-Ion.  This enables
+# both unrolling and peeling.
+- name: javascript.options.wasm_unroll_loops
+  type: bool
+  value: false
+  mirror: always
+  set_spidermonkey_pref: always
+
+# The number of times a loop is unrolled, not counting the peeled iteration.
+# Minimum is 2 -- otherwise we're not unrolling at all.  From testing with
+# JetStream3 (wasm tests), it's hard to get consistently better performance
+# than simply by unrolling by 3, regardless of loop size.
+- name: javascript.options.wasm_unroll_factor
+  type: uint32_t
+  value: 3
+  mirror: always
+  set_spidermonkey_pref: always
+
 # Support for pretenuring allocations based on their allocation site.
 - name: javascript.options.site_based_pretenuring
   type: bool
@@ -9866,19 +9898,6 @@
   value: true
   mirror: always
 
-# Enables support for the page-orientation  property inside of CSS @page rules.
-- name: layout.css.page-orientation.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
-# Enables support for different CSS page sizes on each page when printing.
-- name: layout.css.allow-mixed-page-sizes
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 # Enables support for @margin rules.
 - name: layout.css.margin-rules.enabled
   type: RelaxedAtomicBool
@@ -10552,7 +10571,7 @@
 # Is matching video-dynamic-range: high allowed?
 - name: layout.css.video-dynamic-range.allows-high
   type: RelaxedAtomicBool
-#if defined(XP_MACOSX) || defined(MOZ_WAYLAND)
+#if defined(XP_MACOSX)
   value: true
 #else
   value: false
@@ -16046,7 +16065,7 @@
 # Whether only bounces that access storage should be considered trackers.
 - name: privacy.bounceTrackingProtection.requireStatefulBounces
   type: bool
-  value: @IS_NOT_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # To be used in automated test environments to enable observer messages.
@@ -16218,25 +16237,25 @@
 
 # Prerequisite pref for mixed display content upgrading (images, audio, video).
 - name: security.mixed_content.upgrade_display_content
-  type: bool
+  type: RelaxedAtomicBool
   value: true
   mirror: always
 
 # Upgrade images when the upgrading is enabled.
 - name: security.mixed_content.upgrade_display_content.image
-  type: bool
+  type: RelaxedAtomicBool
   value: true
   mirror: always
 
 # Upgrade audio when the upgrading is enabled.
 - name: security.mixed_content.upgrade_display_content.audio
-  type: bool
+  type: RelaxedAtomicBool
   value: true
   mirror: always
 
 # Upgrade videos when the upgrading is enabled.
 - name: security.mixed_content.upgrade_display_content.video
-  type: bool
+  type: RelaxedAtomicBool
   value: true
   mirror: always
 

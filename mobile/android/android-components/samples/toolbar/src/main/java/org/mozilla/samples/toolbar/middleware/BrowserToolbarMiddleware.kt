@@ -14,9 +14,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import mozilla.components.compose.browser.toolbar.concept.Action
+import mozilla.components.compose.browser.toolbar.concept.Action.ActionButton
 import mozilla.components.compose.browser.toolbar.concept.Action.DropdownAction
 import mozilla.components.compose.browser.toolbar.concept.Action.TabCounterAction
-import mozilla.components.compose.browser.toolbar.store.BrowserDisplayToolbarAction
+import mozilla.components.compose.browser.toolbar.concept.PageOrigin
+import mozilla.components.compose.browser.toolbar.store.BrowserDisplayToolbarAction.BrowserActionsEndUpdated
 import mozilla.components.compose.browser.toolbar.store.BrowserDisplayToolbarAction.UpdateProgressBarConfig
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarAction
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarInteraction.BrowserToolbarEvent
@@ -32,10 +34,15 @@ import mozilla.components.compose.browser.toolbar.store.ProgressBarGravity.Botto
 import mozilla.components.lib.state.Middleware
 import mozilla.components.lib.state.MiddlewareContext
 import org.mozilla.samples.toolbar.R
+import org.mozilla.samples.toolbar.middleware.PageActionsEndInteractions.RefreshClicked
+import org.mozilla.samples.toolbar.middleware.PageOriginInteractions.CopyOptionClicked
+import org.mozilla.samples.toolbar.middleware.PageOriginInteractions.PageOriginClicked
 import org.mozilla.samples.toolbar.middleware.SearchSelectorInteractions.BookmarksClicked
 import org.mozilla.samples.toolbar.middleware.SearchSelectorInteractions.HistoryClicked
 import org.mozilla.samples.toolbar.middleware.SearchSelectorInteractions.SettingsClicked
 import org.mozilla.samples.toolbar.middleware.SearchSelectorInteractions.TabsClicked
+import org.mozilla.samples.toolbar.middleware.StartBrowserInteractions.HomeClicked
+import org.mozilla.samples.toolbar.middleware.StartPageInteractions.SecurityIndicatorClicked
 import org.mozilla.samples.toolbar.middleware.TabCounterInteractions.Add10TabsClicked
 import org.mozilla.samples.toolbar.middleware.TabCounterInteractions.Remove10TabsClicked
 import org.mozilla.samples.toolbar.middleware.TabCounterInteractions.TabCounterClicked
@@ -46,6 +53,23 @@ private sealed class SearchSelectorInteractions : BrowserToolbarEvent {
     data object TabsClicked : SearchSelectorInteractions()
     data object HistoryClicked : SearchSelectorInteractions()
     data object SettingsClicked : SearchSelectorInteractions()
+}
+
+private sealed class StartBrowserInteractions : BrowserToolbarEvent {
+    data object HomeClicked : StartBrowserInteractions()
+}
+
+private sealed class StartPageInteractions : BrowserToolbarEvent {
+    data object SecurityIndicatorClicked : StartBrowserInteractions()
+}
+
+private sealed class PageOriginInteractions : BrowserToolbarEvent {
+    data object PageOriginClicked : PageOriginInteractions()
+    data object CopyOptionClicked : PageOriginInteractions()
+}
+
+private sealed class PageActionsEndInteractions : BrowserToolbarEvent {
+    data object RefreshClicked : PageOriginInteractions()
 }
 
 private sealed class TabCounterInteractions : BrowserToolbarEvent {
@@ -80,19 +104,11 @@ internal class BrowserToolbarMiddleware(
                     BrowserToolbarAction.Init(
                         mode = Mode.DISPLAY,
                         displayState = DisplayState(
-                            hint = "Search or enter address",
-                            pageActions = listOf(
-                                Action.ActionButton(
-                                    icon = iconsR.drawable.mozac_ic_arrow_clockwise_24,
-                                    contentDescription = R.string.page_action_refresh_description,
-                                    tint = ContextCompat.getColor(
-                                        dependencies.context,
-                                        R.color.generic_button_tint,
-                                    ),
-                                    onClick = object : BrowserToolbarEvent {},
-                                ),
-                            ),
-                            browserActions = buildDisplayBrowserActions(),
+                            browserActionsStart = buildStartBrowserActions(),
+                            pageActionsStart = buildStartPageActions(),
+                            pageOrigin = buildPageOrigin(),
+                            pageActionsEnd = buildPageActionsEnd(),
+                            browserActionsEnd = buildDisplayBrowserActions(),
                             progressBarConfig = buildProgressBar(),
                         ),
                         editState = EditState(
@@ -106,23 +122,26 @@ internal class BrowserToolbarMiddleware(
                 simulateReload()
             }
 
-            is SearchSelectorInteractions -> {
-                Toast.makeText(dependencies.context, action.javaClass.simpleName, Toast.LENGTH_SHORT).show()
-            }
+            is SearchSelectorInteractions,
+            is StartBrowserInteractions,
+            is StartPageInteractions,
+            is PageOriginInteractions,
+            is PageActionsEndInteractions,
+            -> Toast.makeText(dependencies.context, action.javaClass.simpleName, Toast.LENGTH_SHORT).show()
 
             is TabCounterClicked -> {
                 currentTabsNumber += 1
-                next(BrowserDisplayToolbarAction.UpdateBrowserActions(buildDisplayBrowserActions()))
+                next(BrowserActionsEndUpdated(buildDisplayBrowserActions()))
             }
 
             is Add10TabsClicked -> {
                 currentTabsNumber += BATCH_TAB_COUNTER_UPDATES_NUMBER
-                next(BrowserDisplayToolbarAction.UpdateBrowserActions(buildDisplayBrowserActions()))
+                next(BrowserActionsEndUpdated(buildDisplayBrowserActions()))
             }
 
             is Remove10TabsClicked -> {
                 currentTabsNumber -= BATCH_TAB_COUNTER_UPDATES_NUMBER
-                next(BrowserDisplayToolbarAction.UpdateBrowserActions(buildDisplayBrowserActions()))
+                next(BrowserActionsEndUpdated(buildDisplayBrowserActions()))
             }
 
             else -> {
@@ -130,6 +149,59 @@ internal class BrowserToolbarMiddleware(
             }
         }
     }
+
+    private fun buildStartBrowserActions() = listOf(
+        ActionButton(
+            icon = iconsR.drawable.mozac_ic_home_24,
+            contentDescription = R.string.browser_action_home_button_description,
+            tint = ContextCompat.getColor(
+                dependencies.context,
+                R.color.generic_button_tint,
+            ),
+            onClick = HomeClicked,
+        ),
+    )
+
+    private fun buildStartPageActions() = listOf(
+        ActionButton(
+            icon = iconsR.drawable.mozac_ic_lock_24,
+            contentDescription = R.string.browser_action_security_lock_description,
+            tint = ContextCompat.getColor(
+                dependencies.context,
+                R.color.generic_button_tint,
+            ),
+            onClick = SecurityIndicatorClicked,
+        ),
+    )
+
+    private fun buildPageOrigin() = PageOrigin(
+        hint = R.string.toolbar_search_hint,
+        title = null,
+        url = null,
+        onClick = PageOriginClicked,
+        onLongClick = BrowserToolbarMenu {
+            listOf(
+                BrowserToolbarMenuButton(
+                    iconResource = iconsR.drawable.mozac_ic_copy_24,
+                    text = R.string.copy_url_button,
+                    contentDescription = R.string.copy_url_button_description,
+                    onClick = CopyOptionClicked,
+                ),
+            )
+        },
+    )
+
+    private fun buildPageActionsEnd() = listOf(
+        ActionButton(
+            icon = iconsR.drawable.mozac_ic_arrow_clockwise_24,
+            contentDescription = R.string.page_action_refresh_description,
+            tint = ContextCompat.getColor(
+                dependencies.context,
+                R.color.generic_button_tint,
+            ),
+            onClick = RefreshClicked,
+        ),
+    )
 
     private fun buildDisplayBrowserActions() = listOf(
         TabCounterAction(

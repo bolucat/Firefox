@@ -24,14 +24,12 @@ import mozilla.components.lib.state.ext.observeAsState
  * @param onTextEdit Invoked when the user edits the text in the toolbar in "edit" mode.
  * @param onTextCommit Invoked when the user has finished editing the URL and wants
  * to commit the entered text.
- * @param onDisplayToolbarClick Invoked when the user clicks on the URL in "display" mode.
  * @param colors The color scheme the browser toolbar will use for the UI.
  */
 @Suppress("MagicNumber")
 @Composable
 fun BrowserToolbar(
     store: BrowserToolbarStore,
-    onDisplayToolbarClick: () -> Unit,
     onTextEdit: (String) -> Unit,
     onTextCommit: (String) -> Unit,
     colors: BrowserToolbarColors = BrowserToolbarDefaults.colors(),
@@ -57,15 +55,13 @@ fun BrowserToolbar(
         )
     } else {
         BrowserDisplayToolbar(
-            url = url.takeIf { it.isNotEmpty() } ?: uiState.displayState.hint,
+            pageOrigin = uiState.displayState.pageOrigin,
             colors = colors.displayToolbarColors,
             progressBarConfig = progressBarConfig,
-            navigationActions = uiState.displayState.navigationActions,
-            pageActions = uiState.displayState.pageActions,
-            browserActions = uiState.displayState.browserActions,
-            onUrlClicked = {
-                onDisplayToolbarClick()
-            },
+            browserActionsStart = uiState.displayState.browserActionsStart,
+            pageActionsStart = uiState.displayState.pageActionsStart,
+            pageActionsEnd = uiState.displayState.pageActionsEnd,
+            browserActionsEnd = uiState.displayState.browserActionsEnd,
             onInteraction = { store.dispatch(it) },
         )
     }

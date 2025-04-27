@@ -5,8 +5,6 @@ lint = "31.9.2"
 
 python-envs-plugin = "0.0.31"
 maven-ant-tasks = "2.1.3"
-okhttp = "4.12.0"
-okio = "3.10.1"
 androidsvg = "1.4"
 detekt = "1.23.8"
 ktlint = "0.49.1"
@@ -59,7 +57,7 @@ installreferrer = "2.2"
 material = "1.12.0"
 osslicenses-plugin = "0.10.6"
 play-review = "2.0.2"
-play-services-ads-id = "18.1.0"
+play-services-ads-id = "18.2.0"
 play-services-base = "18.7.0"
 play-services-fido = "21.2.0"
 protobuf = "4.30.2" # Keep Protobuf in sync with the version used by AppServices.
@@ -98,7 +96,9 @@ robolectric = "4.14.1"
 
 # Third party library versions
 adjust = "5.3.0"
-sentry = "8.8.0"
+okhttp = "4.12.0"
+okio = "3.11.0"
+sentry = "8.9.0"
 
 commons-exec = "1.3"
 spotless = "7.0.2"

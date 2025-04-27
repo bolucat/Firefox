@@ -481,6 +481,14 @@ skip-if = ["true"] # Bug 1575369
 ["browser_ext_slow_script.js"]
 https_first_disabled = true
 
+["browser_ext_tabGroups.js"]
+
+["browser_ext_tabGroups_move_event_order.js"]
+
+["browser_ext_tabGroups_move_onMoved.js"]
+
+["browser_ext_tabGroups_query.js"]
+
 ["browser_ext_tab_runtimeConnect.js"]
 
 ["browser_ext_tabs_attention.js"]
@@ -545,6 +553,8 @@ https_first_disabled = true
 ["browser_ext_tabs_groupId.js"]
 
 ["browser_ext_tabs_group_ungroup.js"]
+
+["browser_ext_tabs_group_windowId.js"]
 
 ["browser_ext_tabs_hide.js"]
 https_first_disabled = true

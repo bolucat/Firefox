@@ -345,8 +345,13 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         default = false,
     )
 
-    var privateBrowsingBiometricsEnabled by booleanPreference(
-        appContext.getPreferenceKey(R.string.pref_key_private_browsing_biometrics_enabled),
+    var privateBrowsingLockedEnabled by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_private_browsing_locked_enabled),
+        default = false,
+    )
+
+    var isPrivateScreenBlocked by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_private_screen_locked),
         default = false,
     )
 
@@ -484,9 +489,10 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     /**
      * Returns true if shortcut suggestions feature should be shown to the user.
      */
-    val isShortcutSuggestionsVisible by booleanPreference(
-        appContext.getPreferenceKey(R.string.pref_key_enable_shortcuts_suggestions),
-        default = FxNimbus.features.topSitesSuggestions.value().enabled,
+    var isShortcutSuggestionsVisible by lazyFeatureFlagPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_enable_shortcuts_suggestions),
+        default = { FxNimbus.features.topSitesSuggestions.value().enabled },
+        featureFlag = true,
     )
 
     /**
@@ -2056,17 +2062,19 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     /**
      * Indicates if Trending Search Suggestions are enabled.
      */
-    var isTrendingSearchesVisible by booleanPreference(
+    var isTrendingSearchesVisible by lazyFeatureFlagPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_enable_trending_searches),
-        default = FxNimbus.features.trendingSearches.value().enabled,
+        default = { FxNimbus.features.trendingSearches.value().enabled },
+        featureFlag = true,
     )
 
     /**
      * Indicates if Recent Search Suggestions are enabled.
      */
-    var isRecentSearchesVisible by booleanPreference(
+    var isRecentSearchesVisible by lazyFeatureFlagPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_enable_recent_searches),
-        default = FxNimbus.features.recentSearches.value().enabled,
+        default = { FxNimbus.features.recentSearches.value().enabled },
+        featureFlag = true,
     )
 
     /**
@@ -2472,15 +2480,6 @@ class Settings(private val appContext: Context) : PreferencesHolder {
             Engine.DohSettingsMode.OFF -> DOH_SETTINGS_OFF
         }
     }
-
-    /**
-     * Indicates whether or not to show the tab strip.
-     */
-    var tabStripEnabled by lazyFeatureFlagPreference(
-        key = appContext.getPreferenceKey(R.string.pref_key_tab_strip),
-        default = { FxNimbus.features.tabStrip.value().enabled },
-        featureFlag = true,
-    )
 
     /**
      * Indicates if the user has completed the setup step for choosing the toolbar location

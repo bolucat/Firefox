@@ -6,9 +6,11 @@ package org.mozilla.gecko.crashhelper;
 
 import android.app.Service;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.Binder;
+import android.os.DeadObjectException;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.Process;
@@ -88,6 +90,11 @@ public final class CrashHelper extends Service {
         final ICrashHelper helper = ICrashHelper.Stub.asInterface(service);
         try {
           helper.start(Process.myPid(), mBreakpadFd, mMinidumpPath, mListenFd, mServerFd);
+        } catch (final DeadObjectException e) {
+          // The crash helper process died before we could start it, presumably
+          // because of an out-of-memory condition. We don't attempt to restart
+          // it as the required IPC would be too complex.
+          Log.e(LOGTAG, "The crash helper process died before we could start the service");
         } catch (final RemoteException e) {
           throw new RuntimeException(e);
         }
@@ -123,7 +130,13 @@ public final class CrashHelper extends Service {
         throws IOException {
       mBreakpadClient = ParcelFileDescriptor.dup(breakpadClientFd);
       mBreakpadServer = ParcelFileDescriptor.dup(breakpadServerFd);
+      if (!CrashHelper.set_breakpad_opts(mBreakpadServer.getFd())) {
+        throw new IOException("Could not set the proper options on the Breakpad socket");
+      }
       mListener = ParcelFileDescriptor.dup(listenerFd);
+      if (!CrashHelper.bind_and_listen(mListener.getFd())) {
+        throw new IOException("Could not listen on incoming connections");
+      }
       mClient = ParcelFileDescriptor.dup(clientFd);
       mServer = ParcelFileDescriptor.dup(serverFd);
     }
@@ -135,14 +148,13 @@ public final class CrashHelper extends Service {
   // google_breakpad::CrashGenerationServer::CreateReportChannel(), so we can
   // use them Breakpad's crash generation server & clients. The rest are
   // specific to the crash helper process.
-  public static Pipes createCrashHelperPipes() {
-    // Ideally we'd set all the required options for the server socket, by using
-    // Os.setsockoptInt() to enable the SO_PASSCRED socket option and then a
-    // couple of calls to Os.fcntlInt() to read the socket file flags and then
-    // set it in non-blocking mode by setting O_NONBLOCK. Unfortunately both
-    // calls require Android API version more recent than we support, so this
-    // job is delegated to crashhelper_android.cpp after receiving the socket.
+  public static Pipes createCrashHelperPipes(final Context context) {
     try {
+      // We can't set the required socket options for the Breakpad server socket
+      // or our own listener from here, so we delegate those parts to native
+      // functions in crashhelper_android.cpp.
+      GeckoLoader.doLoadLibrary(null, "crashhelper");
+
       final FileDescriptor breakpad_client_fd = new FileDescriptor();
       final FileDescriptor breakpad_server_fd = new FileDescriptor();
       Os.socketpair(
@@ -170,7 +182,7 @@ public final class CrashHelper extends Service {
       Os.close(client_fd);
       Os.close(server_fd);
       return pipes;
-    } catch (final ErrnoException | IOException e) {
+    } catch (final ErrnoException | IOException | RuntimeException e) {
       Log.e(LOGTAG, "Could not create the crash helper pipes: " + e.toString());
       return null;
     }
@@ -182,4 +194,8 @@ public final class CrashHelper extends Service {
 
   protected static native void crash_generator(
       int clientPid, int breakpadFd, String minidumpPath, int listenFd, int serverFd);
+
+  protected static native boolean set_breakpad_opts(int breakpadFd);
+
+  protected static native boolean bind_and_listen(int listenFd);
 }

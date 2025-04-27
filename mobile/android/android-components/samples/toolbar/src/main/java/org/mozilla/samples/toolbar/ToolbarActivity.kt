@@ -515,9 +515,6 @@ class ToolbarActivity : AppCompatActivity() {
             AcornTheme {
                 BrowserToolbar(
                     store = store,
-                    onDisplayToolbarClick = {
-                        store.dispatch(BrowserToolbarAction.ToggleEditMode(editMode = true))
-                    },
                     onTextEdit = { text ->
                         store.dispatch(BrowserEditToolbarAction.UpdateEditText(text = text))
                     },
@@ -542,7 +539,7 @@ class ToolbarActivity : AppCompatActivity() {
                         initialState = BrowserToolbarState(
                             mode = Mode.DISPLAY,
                             displayState = DisplayState(
-                                navigationActions = listOf(
+                                browserActionsStart = listOf(
                                     ActionButton(
                                         icon = iconsR.drawable.mozac_ic_cross_24,
                                         contentDescription = R.string.page_action_clear_input_description,
@@ -550,7 +547,7 @@ class ToolbarActivity : AppCompatActivity() {
                                         onClick = object : BrowserToolbarEvent {},
                                     ),
                                 ),
-                                browserActions = listOf(
+                                browserActionsEnd = listOf(
                                     ActionButton(
                                         icon = iconsR.drawable.mozac_ic_arrow_clockwise_24,
                                         contentDescription = R.string.page_action_refresh_description,
@@ -565,7 +562,6 @@ class ToolbarActivity : AppCompatActivity() {
 
                 BrowserToolbar(
                     store = store,
-                    onDisplayToolbarClick = {},
                     onTextEdit = {},
                     onTextCommit = {},
                     colors = BrowserToolbarDefaults.colors(),
