@@ -1463,6 +1463,11 @@ nsIOService::SetConnectivity(bool aConnectivity) {
   return SetConnectivityInternal(aConnectivity);
 }
 
+NS_IMETHODIMP
+nsIOService::SetConnectivityForTesting(bool aConnectivity) {
+  return SetConnectivityInternal(aConnectivity);
+}
+
 nsresult nsIOService::SetConnectivityInternal(bool aConnectivity) {
   LOG(("nsIOService::SetConnectivityInternal aConnectivity=%d\n",
        aConnectivity));
@@ -2189,6 +2194,20 @@ nsresult nsIOService::SpeculativeConnectInternal(
     channel->GetLoadFlags(&loadFlags);
     loadFlags |= nsIRequest::LOAD_ANONYMOUS;
     channel->SetLoadFlags(loadFlags);
+  }
+
+  if (!aCallbacks) {
+    // Proxy filters are registered, but no callbacks were provided.
+    // When proxyDNS is true, this speculative connection would likely leak a
+    // DNS lookup, so we should return early to avoid that.
+    bool hasProxyFilterRegistered = false;
+    Unused << pps->GetHasProxyFilterRegistered(&hasProxyFilterRegistered);
+    if (hasProxyFilterRegistered) {
+      return NS_ERROR_FAILURE;
+    }
+  } else {
+    rv = channel->SetNotificationCallbacks(aCallbacks);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   nsCOMPtr<nsICancelable> cancelable;

@@ -10,7 +10,7 @@
 #include <algorithm>
 #include <cstdint>
 #ifdef MOZ_X11
-#include <X11/Xlib.h>
+#  include <X11/Xlib.h>
 #endif
 #include <dlfcn.h>
 #include <gdk/gdkkeysyms.h>
@@ -145,7 +145,7 @@ using mozilla::gl::GLContextGLX;
 // out to the bounding-box if there are more
 #define MAX_RECTS_IN_REGION 100
 
-#if !GTK_CHECK_VERSION(3, 22, 0)
+#if !GTK_CHECK_VERSION(3, 22, 23)
 
 constexpr gint GDK_WINDOW_STATE_TOP_TILED = 1 << 9;
 constexpr gint GDK_WINDOW_STATE_TOP_RESIZABLE = 1 << 10;
@@ -467,7 +467,6 @@ nsWindow::nsWindow()
       mConfiguredClearColor(false),
       mGotNonBlankPaint(false),
       mNeedsToRetryCapturingMouse(false) {
-  mWindowType = WindowType::Child;
   mSizeConstraints.mMaxSize = GetSafeWindowSize(mSizeConstraints.mMaxSize);
 
   if (!gGlobalsInitialized) {
@@ -6015,8 +6014,6 @@ nsresult nsWindow::Create(nsIWidget* aParent, const LayoutDeviceIntRect& aRect,
   // Figure out our parent window.
   auto* parentnsWindow = static_cast<nsWindow*>(aParent);
   LOG("  parent window [%p]", parentnsWindow);
-
-  MOZ_DIAGNOSTIC_ASSERT(mWindowType != WindowType::Child);
 
   MOZ_ASSERT_IF(mWindowType == WindowType::Popup, parentnsWindow);
 

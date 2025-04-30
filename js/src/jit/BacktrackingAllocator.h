@@ -667,6 +667,11 @@ using SplitPositionVector =
 class BacktrackingAllocator : protected RegisterAllocator {
   friend class JSONSpewer;
 
+  // Computed data
+  InstructionDataMap insData;
+  Vector<CodePosition, 12, SystemAllocPolicy> entryPositions;
+  Vector<CodePosition, 12, SystemAllocPolicy> exitPositions;
+
   // This flag is set when testing new allocator modifications.
   bool testbed;
 
@@ -676,6 +681,14 @@ class BacktrackingAllocator : protected RegisterAllocator {
 
   // Allocation state.
   StackSlotAllocator stackSlotAllocator;
+
+  // List of all instructions with a safepoint. The order is the same as the
+  // order of the instructions in the LIR graph.
+  Vector<LInstruction*, 0, JitAllocPolicy> safepoints_;
+
+  // List of all non-call instructions with a safepoint. The order is the same
+  // as the order of the instructions in the LIR graph.
+  Vector<LInstruction*, 0, JitAllocPolicy> nonCallSafepoints_;
 
   // Priority queue element: a bundle and the associated priority.
   struct QueueItem {
@@ -752,6 +765,16 @@ class BacktrackingAllocator : protected RegisterAllocator {
   }
 
   uint32_t getNextBundleId() { return nextBundleId_++; }
+
+  CodePosition entryOf(const LBlock* block) {
+    return entryPositions[block->mir()->id()];
+  }
+  CodePosition exitOf(const LBlock* block) {
+    return exitPositions[block->mir()->id()];
+  }
+
+  // Atomic group helper.  See comments in BacktrackingAllocator.cpp.
+  CodePosition minimalDefEnd(LNode* ins) const;
 
   // Helpers for creating and adding MoveGroups
   [[nodiscard]] bool addMove(LMoveGroup* moves, LiveRange* from, LiveRange* to,
@@ -921,7 +944,9 @@ class BacktrackingAllocator : protected RegisterAllocator {
       : RegisterAllocator(mir, lir, graph),
         testbed(testbed),
         liveIn(mir->alloc()),
-        vregs(mir->alloc()) {}
+        vregs(mir->alloc()),
+        safepoints_(mir->alloc()),
+        nonCallSafepoints_(mir->alloc()) {}
 
   [[nodiscard]] bool go();
 };

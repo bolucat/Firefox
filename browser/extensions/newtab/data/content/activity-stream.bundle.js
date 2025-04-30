@@ -1701,7 +1701,11 @@ const _OpenInPrivateWindow = site => ({
   icon: "new-window-private",
   action: actionCreators.OnlyToMain({
     type: actionTypes.OPEN_PRIVATE_WINDOW,
-    data: { url: site.url, referrer: site.referrer },
+    data: {
+      url: site.url,
+      referrer: site.referrer,
+      event_source: "CONTEXT_MENU",
+    },
   }),
   userEvent: "OPEN_PRIVATE_WINDOW",
 });
@@ -1760,10 +1764,24 @@ const LinkMenuOptions = {
     action: actionCreators.AlsoToMain({
       type: actionTypes.OPEN_NEW_WINDOW,
       data: {
+        card_type: site.card_type,
         referrer: site.referrer,
         typedBonus: site.typedBonus,
         url: site.url,
         sponsored_tile_id: site.sponsored_tile_id,
+        event_source: "CONTEXT_MENU",
+        topic: site.topic,
+        firstVisibleTimestamp: site.firstVisibleTimestamp,
+        tile_id: site.tile_id,
+        recommendation_id: site.recommendation_id,
+        scheduled_corpus_item_id: site.scheduled_corpus_item_id,
+        corpus_item_id: site.corpus_item_id,
+        received_rank: site.received_rank,
+        recommended_at: site.recommended_at,
+        format: site.format,
+        ...(site.flight_id ? { flight_id: site.flight_id } : {}),
+        is_pocket_card: site.type === "CardGrid",
+        is_list_card: site.is_list_card,
         ...(site.section
           ? {
               section: site.section,
@@ -1775,6 +1793,7 @@ const LinkMenuOptions = {
     }),
     userEvent: "OPEN_NEW_WINDOW",
   }),
+
   // This blocks the url for regular stories,
   // but also sends a message to DiscoveryStream with flight_id.
   // If DiscoveryStream sees this message for a flight_id
@@ -2323,18 +2342,64 @@ class _LinkMenu extends (external_React_default()).PureComponent {
           }
           dispatch(action);
           if (eventName) {
+            let value;
+            // Bug 1958135: Pass additional info to ac.OPEN_NEW_WINDOW event
+            if (action.type === "OPEN_NEW_WINDOW") {
+              const {
+                card_type,
+                corpus_item_id,
+                event_source,
+                fetchTimestamp,
+                firstVisibleTimestamp,
+                format,
+                is_list_card,
+                is_section_followed,
+                received_rank,
+                recommendation_id,
+                recommended_at,
+                scheduled_corpus_item_id,
+                section_position,
+                section,
+                selected_topics,
+                tile_id,
+                topic
+              } = action.data;
+              value = {
+                card_type,
+                corpus_item_id,
+                event_source,
+                fetchTimestamp,
+                firstVisibleTimestamp,
+                format,
+                is_list_card,
+                received_rank,
+                recommendation_id,
+                recommended_at,
+                scheduled_corpus_item_id,
+                ...(section ? {
+                  is_section_followed,
+                  section_position,
+                  section
+                } : {}),
+                selected_topics: selected_topics ? selected_topics : "",
+                tile_id,
+                topic
+              };
+            } else {
+              value = {
+                card_type: site.flight_id ? "spoc" : "organic"
+              };
+            }
             const userEventData = Object.assign({
               event: eventName,
               source,
               action_position: index,
-              value: {
-                card_type: site.flight_id ? "spoc" : "organic"
-              }
+              value
             }, siteInfo);
             dispatch(userEvent(userEventData));
-          }
-          if (impression && shouldSendImpressionStats) {
-            dispatch(impression);
+            if (impression && shouldSendImpressionStats) {
+              dispatch(impression);
+            }
           }
         };
       }
@@ -2493,6 +2558,7 @@ class _DSLinkMenu extends (external_React_default()).PureComponent {
         recommendation_id: this.props.recommendation_id,
         corpus_item_id: this.props.corpus_item_id,
         scheduled_corpus_item_id: this.props.scheduled_corpus_item_id,
+        firstVisibleTimestamp: this.props.firstVisibleTimestamp,
         recommended_at: this.props.recommended_at,
         received_rank: this.props.received_rank,
         topic: this.props.topic,
@@ -3639,6 +3705,7 @@ class _DSCard extends (external_React_default()).PureComponent {
           source: this.props.type.toUpperCase(),
           action_position: this.props.pos,
           value: {
+            event_source: "card",
             card_type: this.props.flightId ? "spoc" : "organic",
             recommendation_id: this.props.recommendation_id,
             tile_id: this.props.id,
@@ -4099,7 +4166,9 @@ class _DSCard extends (external_React_default()).PureComponent {
       section: this.props.section,
       section_position: this.props.sectionPosition,
       is_section_followed: this.props.sectionFollowed,
-      format: format,
+      fetchTimestamp: this.props.fetchTimestamp,
+      firstVisibleTimestamp: this.props.firstVisibleTimestamp,
+      format: format ? format : getActiveCardSize(window.innerWidth, this.props.sectionsClassNames, this.props.section, this.props.flightId),
       isSectionsCard: this.props.mayHaveSectionsCards,
       topic: this.props.topic,
       selected_topics: this.props.selected_topics
@@ -4604,6 +4673,10 @@ function AdBannerContextMenu({
   }, /*#__PURE__*/external_React_default().createElement("moz-button", {
     type: "icon",
     size: "default",
+    "data-l10n-id": "newtab-menu-content-tooltip",
+    "data-l10n-args": JSON.stringify({
+      title: spoc.title || spoc.sponsor || spoc.alt_text
+    }),
     iconsrc: "chrome://global/skin/icons/more.svg",
     onClick: onClick,
     onKeyDown: onKeyDown
@@ -4737,7 +4810,7 @@ const AdBanner = ({
   }), /*#__PURE__*/external_React_default().createElement(SafeAnchor, {
     className: "ad-banner-link",
     url: spoc.url,
-    title: spoc.title,
+    title: spoc.title || spoc.sponsor || spoc.alt_text,
     onLinkClick: onLinkClick,
     dispatch: dispatch
   }, /*#__PURE__*/external_React_default().createElement(ImpressionStats_ImpressionStats, {
@@ -10889,10 +10962,29 @@ function InterestPicker({
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
+
+
 const PersonalizedCard = ({
-  onDismiss
+  dispatch,
+  handleDismiss,
+  handleClick,
+  handleBlock,
+  messageData
 }) => {
   const wavingFox = "chrome://newtab/content/data/content/assets/waving-fox.svg";
+  const onDismiss = (0,external_React_namespaceObject.useCallback)(() => {
+    handleDismiss();
+    handleBlock();
+  }, [handleDismiss, handleBlock]);
+  const onToggleClick = (0,external_React_namespaceObject.useCallback)(elementId => {
+    dispatch({
+      type: actionTypes.SHOW_PERSONALIZE
+    });
+    dispatch(actionCreators.UserEvent({
+      event: "SHOW_PERSONALIZE"
+    }));
+    handleClick(elementId);
+  }, [dispatch, handleClick]);
   return /*#__PURE__*/external_React_default().createElement("aside", {
     className: "personalized-card-wrapper"
   }, /*#__PURE__*/external_React_default().createElement("div", {
@@ -10907,17 +10999,136 @@ const PersonalizedCard = ({
   }, /*#__PURE__*/external_React_default().createElement("img", {
     src: wavingFox,
     alt: ""
-  }), /*#__PURE__*/external_React_default().createElement("h2", null, "Personalized Just for You"), /*#__PURE__*/external_React_default().createElement("p", null, "We\u2019re customizing your feed to show content that matters to you, while ensuring your privacy is always respected."), /*#__PURE__*/external_React_default().createElement("moz-button", {
+  }), /*#__PURE__*/external_React_default().createElement("h2", null, messageData.content.cardTitle), /*#__PURE__*/external_React_default().createElement("p", null, messageData.content.cardMessage), /*#__PURE__*/external_React_default().createElement("moz-button", {
     type: "primary",
-    class: "personalized-card-cta"
-  }, "Manage your settings"), /*#__PURE__*/external_React_default().createElement("a", {
-    href: "https://www.mozilla.org/en-US/privacy/firefox/#notice"
-  }, "Learn how we protect and manage data")));
+    class: "personalized-card-cta",
+    onClick: () => onToggleClick("open-personalization-panel")
+  }, messageData.content.ctaText), /*#__PURE__*/external_React_default().createElement(SafeAnchor, {
+    className: "personalized-card-link",
+    dispatch: dispatch,
+    url: "https://www.mozilla.org/en-US/privacy/firefox/#notice",
+    onLinkClick: () => {
+      handleClick("link-click");
+    }
+  }, messageData.content.linkText)));
 };
+;// CONCATENATED MODULE: ./content-src/components/MessageWrapper/MessageWrapper.jsx
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+
+
+
+function MessageWrapper({
+  children,
+  dispatch,
+  hiddenOverride,
+  onDismiss
+}) {
+  const message = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Messages);
+  const [isIntersecting, setIsIntersecting] = (0,external_React_namespaceObject.useState)(false);
+  const [hasRun, setHasRun] = (0,external_React_namespaceObject.useState)();
+  const handleIntersection = (0,external_React_namespaceObject.useCallback)(() => {
+    setIsIntersecting(true);
+    const isVisible = document?.visibilityState && document.visibilityState === "visible";
+    // only send impression if messageId is defined and tab is visible
+    if (isVisible && message.messageData.id) {
+      setHasRun(true);
+      dispatch(actionCreators.AlsoToMain({
+        type: actionTypes.MESSAGE_IMPRESSION,
+        data: message.messageData
+      }));
+    }
+  }, [dispatch, message]);
+  (0,external_React_namespaceObject.useEffect)(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && !hasRun) {
+        handleIntersection();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [handleIntersection, hasRun]);
+  const ref = useIntersectionObserver(handleIntersection);
+  const handleClose = (0,external_React_namespaceObject.useCallback)(() => {
+    const action = {
+      type: actionTypes.MESSAGE_TOGGLE_VISIBILITY,
+      data: true
+    };
+    if (message.portID) {
+      dispatch(actionCreators.OnlyToOneContent(action, message.portID));
+    } else {
+      dispatch(actionCreators.AlsoToMain(action));
+    }
+    onDismiss?.();
+  }, [dispatch, message, onDismiss]);
+  function handleDismiss() {
+    const {
+      id
+    } = message.messageData;
+    if (id) {
+      dispatch(actionCreators.OnlyToMain({
+        type: actionTypes.MESSAGE_DISMISS,
+        data: {
+          message: message.messageData
+        }
+      }));
+    }
+    handleClose();
+  }
+  function handleBlock() {
+    const {
+      id
+    } = message.messageData;
+    if (id) {
+      dispatch(actionCreators.OnlyToMain({
+        type: actionTypes.MESSAGE_BLOCK,
+        data: id
+      }));
+    }
+  }
+  function handleClick(elementId) {
+    const {
+      id
+    } = message.messageData;
+    if (id) {
+      dispatch(actionCreators.OnlyToMain({
+        type: actionTypes.MESSAGE_CLICK,
+        data: {
+          message: message.messageData,
+          source: elementId || ""
+        }
+      }));
+    }
+  }
+  if (!message || !hiddenOverride && message.isHidden) {
+    return null;
+  }
+
+  // only display the message if `isHidden` is false
+  return /*#__PURE__*/external_React_default().createElement("div", {
+    ref: el => {
+      ref.current = [el];
+    },
+    className: "message-wrapper"
+  }, /*#__PURE__*/external_React_default().cloneElement(children, {
+    isIntersecting,
+    handleDismiss,
+    handleClick,
+    handleBlock,
+    handleClose
+  }));
+}
+
 ;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/CardSections/CardSections.jsx
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
 
 
 
@@ -10945,10 +11156,6 @@ const CardSections_PREF_BILLBOARD_ENABLED = "newtabAdSize.billboard";
 const CardSections_PREF_LEADERBOARD_ENABLED = "newtabAdSize.leaderboard";
 const CardSections_PREF_LEADERBOARD_POSITION = "newtabAdSize.leaderboard.position";
 const CardSections_PREF_BILLBOARD_POSITION = "newtabAdSize.billboard.position";
-const PREF_INFERRED_PERSONALIZATION_ENABLED = "discoverystream.sections.personalization.inferred.enabled";
-const PREF_INFERRED_PERSONALIZATION_USER_ENABLED = "discoverystream.sections.personalization.inferred.user.enabled";
-const PREF_INFERRED_PERSONALIZATION_POSITION = "discoverystream.sections.personalization.inferred.position";
-const PREF_INFERRED_PERSONALIZATION_BLOCKED = "discoverystream.sections.personalization.inferred.blocked";
 function getLayoutData(responsiveLayouts, index) {
   let layoutData = {
     classNames: [],
@@ -11229,6 +11436,9 @@ function CardSections({
     spocs,
     sectionPersonalization
   } = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.DiscoveryStream);
+  const {
+    messageData
+  } = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Messages);
   const personalizationEnabled = prefs[PREF_SECTIONS_PERSONALIZATION_ENABLED];
   const interestPickerEnabled = prefs[PREF_INTEREST_PICKER_ENABLED];
 
@@ -11302,19 +11512,19 @@ function CardSections({
       receivedFeedRank: interestPicker.receivedFeedRank
     }));
   }
-  const handleDismissP13nCard = () => {
-    dispatch(actionCreators.SetPref(PREF_INFERRED_PERSONALIZATION_BLOCKED, true));
-  };
   function displayP13nCard() {
-    const row = prefs[PREF_INFERRED_PERSONALIZATION_POSITION];
-    const cardBlocked = prefs[PREF_INFERRED_PERSONALIZATION_BLOCKED];
-    const cardEnabled = prefs[PREF_INFERRED_PERSONALIZATION_ENABLED];
-    const userEnabled = prefs[PREF_INFERRED_PERSONALIZATION_USER_ENABLED];
-    if (!cardBlocked && cardEnabled && userEnabled) {
-      sectionsToRender.splice(row, 0, /*#__PURE__*/external_React_default().createElement(PersonalizedCard, {
-        row: row,
-        onDismiss: handleDismissP13nCard
-      }));
+    if (messageData && Object.keys(messageData).length >= 1) {
+      if (messageData?.content?.messageType === "PersonalizedCard") {
+        const row = messageData.content.position;
+        sectionsToRender.splice(row, 0, /*#__PURE__*/external_React_default().createElement(MessageWrapper, {
+          dispatch: dispatch,
+          onDismiss: () => {}
+        }, /*#__PURE__*/external_React_default().createElement(PersonalizedCard, {
+          position: row,
+          dispatch: dispatch,
+          messageData: messageData
+        })));
+      }
     }
   }
   displayP13nCard();
@@ -14057,115 +14267,6 @@ function WallpaperFeatureHighlight({
     outsideClickCallback: handleDismiss
   }));
 }
-;// CONCATENATED MODULE: ./content-src/components/MessageWrapper/MessageWrapper.jsx
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-
-
-
-
-function MessageWrapper({
-  children,
-  dispatch,
-  hiddenOverride,
-  onDismiss
-}) {
-  const message = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Messages);
-  const [isIntersecting, setIsIntersecting] = (0,external_React_namespaceObject.useState)(false);
-  const [hasRun, setHasRun] = (0,external_React_namespaceObject.useState)();
-  const handleIntersection = (0,external_React_namespaceObject.useCallback)(() => {
-    setIsIntersecting(true);
-    const isVisible = document?.visibilityState && document.visibilityState === "visible";
-    // only send impression if messageId is defined and tab is visible
-    if (isVisible && message.messageData.id) {
-      setHasRun(true);
-      dispatch(actionCreators.AlsoToMain({
-        type: actionTypes.MESSAGE_IMPRESSION,
-        data: message.messageData
-      }));
-    }
-  }, [dispatch, message]);
-  (0,external_React_namespaceObject.useEffect)(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible" && !hasRun) {
-        handleIntersection();
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, [handleIntersection, hasRun]);
-  const ref = useIntersectionObserver(handleIntersection);
-  const handleClose = (0,external_React_namespaceObject.useCallback)(() => {
-    const action = {
-      type: actionTypes.MESSAGE_TOGGLE_VISIBILITY,
-      data: true
-    };
-    if (message.portID) {
-      dispatch(actionCreators.OnlyToOneContent(action, message.portID));
-    } else {
-      dispatch(actionCreators.AlsoToMain(action));
-    }
-    onDismiss();
-  }, [dispatch, message, onDismiss]);
-  function handleDismiss() {
-    const {
-      id
-    } = message.messageData;
-    if (id) {
-      dispatch(actionCreators.OnlyToMain({
-        type: actionTypes.MESSAGE_DISMISS,
-        data: {
-          message: message.messageData
-        }
-      }));
-    }
-    handleClose();
-  }
-  function handleBlock() {
-    const {
-      id
-    } = message.messageData;
-    if (id) {
-      dispatch(actionCreators.OnlyToMain({
-        type: actionTypes.MESSAGE_BLOCK,
-        data: id
-      }));
-    }
-  }
-  function handleClick(elementId) {
-    const {
-      id
-    } = message.messageData;
-    if (id) {
-      dispatch(actionCreators.OnlyToMain({
-        type: actionTypes.MESSAGE_CLICK,
-        data: {
-          message: message.messageData,
-          source: elementId || ""
-        }
-      }));
-    }
-  }
-
-  // only display the message if `isHidden` is false
-  return (!message.isHidden || hiddenOverride) && /*#__PURE__*/external_React_default().createElement("div", {
-    ref: el => {
-      ref.current = [el];
-    },
-    className: "message-wrapper"
-  }, /*#__PURE__*/external_React_default().cloneElement(children, {
-    isIntersecting,
-    handleDismiss,
-    handleClick,
-    handleBlock,
-    handleClose
-  }));
-}
-
 ;// CONCATENATED MODULE: ./content-src/components/Base/Base.jsx
 function Base_extends() { Base_extends = Object.assign ? Object.assign.bind() : function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return Base_extends.apply(this, arguments); }
 /* This Source Code Form is subject to the terms of the Mozilla Public

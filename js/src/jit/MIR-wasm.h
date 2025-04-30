@@ -1306,11 +1306,11 @@ class MWasmLoadInstanceDataField : public MUnaryInstruction,
 class MWasmLoadGlobalCell : public MUnaryInstruction,
                             public NoTypePolicy::Data {
   MWasmLoadGlobalCell(MIRType type, MDefinition* cellPtr,
-                      wasm::MaybeRefType maybeRefType = wasm::MaybeRefType())
+                      wasm::ValType globalType)
       : MUnaryInstruction(classOpcode, cellPtr) {
     setResultType(type);
     setMovable();
-    initWasmRefType(maybeRefType);
+    initWasmRefType(globalType.toMaybeRefType());
   }
 
  public:
@@ -1541,38 +1541,33 @@ class MWasmStoreRef : public MAryInstruction<3>, public NoTypePolicy::Data {
 
 // Given a value being written to another object, update the generational store
 // buffer if the value is in the nursery and object is in the tenured heap.
-class MWasmPostWriteBarrierImmediate : public MQuaternaryInstruction,
+class MWasmPostWriteBarrierWholeCell : public MTernaryInstruction,
                                        public NoTypePolicy::Data {
-  uint32_t valueOffset_;
-
-  MWasmPostWriteBarrierImmediate(MDefinition* instance, MDefinition* object,
-                                 MDefinition* valueBase, uint32_t valueOffset,
+  MWasmPostWriteBarrierWholeCell(MDefinition* instance, MDefinition* object,
                                  MDefinition* value)
-      : MQuaternaryInstruction(classOpcode, instance, object, valueBase, value),
-        valueOffset_(valueOffset) {
+      : MTernaryInstruction(classOpcode, instance, object, value) {
     setGuard();
   }
 
  public:
-  INSTRUCTION_HEADER(WasmPostWriteBarrierImmediate)
+  INSTRUCTION_HEADER(WasmPostWriteBarrierWholeCell)
   TRIVIAL_NEW_WRAPPERS
-  NAMED_OPERANDS((0, instance), (1, object), (2, valueBase), (3, value))
+  NAMED_OPERANDS((0, instance), (1, object), (2, value))
 
   AliasSet getAliasSet() const override { return AliasSet::None(); }
-  uint32_t valueOffset() const { return valueOffset_; }
 
-  ALLOW_CLONE(MWasmPostWriteBarrierImmediate)
+  ALLOW_CLONE(MWasmPostWriteBarrierWholeCell)
 };
 
 // Given a value being written to another object, update the generational store
 // buffer if the value is in the nursery and object is in the tenured heap.
-class MWasmPostWriteBarrierIndex : public MAryInstruction<5>,
-                                   public NoTypePolicy::Data {
+class MWasmPostWriteBarrierEdgeAtIndex : public MAryInstruction<5>,
+                                         public NoTypePolicy::Data {
   uint32_t elemSize_;
 
-  MWasmPostWriteBarrierIndex(MDefinition* instance, MDefinition* object,
-                             MDefinition* valueBase, MDefinition* index,
-                             uint32_t scale, MDefinition* value)
+  MWasmPostWriteBarrierEdgeAtIndex(MDefinition* instance, MDefinition* object,
+                                   MDefinition* valueBase, MDefinition* index,
+                                   uint32_t scale, MDefinition* value)
       : MAryInstruction<5>(classOpcode), elemSize_(scale) {
     initOperand(0, instance);
     initOperand(1, object);
@@ -1583,7 +1578,7 @@ class MWasmPostWriteBarrierIndex : public MAryInstruction<5>,
   }
 
  public:
-  INSTRUCTION_HEADER(WasmPostWriteBarrierIndex)
+  INSTRUCTION_HEADER(WasmPostWriteBarrierEdgeAtIndex)
   TRIVIAL_NEW_WRAPPERS
   NAMED_OPERANDS((0, instance), (1, object), (2, valueBase), (3, index),
                  (4, value))
@@ -1591,7 +1586,7 @@ class MWasmPostWriteBarrierIndex : public MAryInstruction<5>,
   AliasSet getAliasSet() const override { return AliasSet::None(); }
   uint32_t elemSize() const { return elemSize_; }
 
-  ALLOW_CLONE(MWasmPostWriteBarrierIndex)
+  ALLOW_CLONE(MWasmPostWriteBarrierEdgeAtIndex)
 };
 
 class MWasmParameter : public MNullaryInstruction {
@@ -2530,11 +2525,6 @@ class MWasmLoadField : public MBinaryInstruction, public NoTypePolicy::Data {
   wasm::MaybeTrapSiteDesc maybeTrap() const { return maybeTrap_; }
 
   bool congruentTo(const MDefinition* ins) const override {
-    // In the limited case where this insn is used to read
-    // WasmStructObject::outlineData_ (the field itself, not what it points
-    // at), we allow commoning up to happen.  This is OK because
-    // WasmStructObject::outlineData_ is readonly for the life of the
-    // WasmStructObject.
     if (!ins->isWasmLoadField()) {
       return false;
     }
@@ -2543,7 +2533,8 @@ class MWasmLoadField : public MBinaryInstruction, public NoTypePolicy::Data {
            offset() == other->offset() &&
            structFieldIndex() == other->structFieldIndex() &&
            wideningOp() == other->wideningOp() &&
-           getAliasSet().flags() == other->getAliasSet().flags();
+           getAliasSet().flags() == other->getAliasSet().flags() &&
+           wasmRefType() == other->wasmRefType();
   }
 
 #ifdef JS_JITSPEW

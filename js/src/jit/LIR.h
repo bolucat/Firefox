@@ -36,6 +36,7 @@ class LStackArea;
 class LArgument;
 class LConstantIndex;
 class LInstruction;
+class LNode;
 class LDefinition;
 class MBasicBlock;
 class MIRGenerator;
@@ -405,12 +406,32 @@ class LStackSlot : public LAllocation {
     QuadWord,
   };
 
+  class SlotAndWidth {
+    uint32_t data_;
+
+    explicit SlotAndWidth(uint32_t data) : data_(data) {}
+
+   public:
+    static SlotAndWidth fromData(uint32_t data) { return SlotAndWidth(data); }
+
+    explicit SlotAndWidth(uint32_t slot, Width width) {
+      MOZ_ASSERT(slot % SLOT_ALIGNMENT == 0);
+      MOZ_ASSERT(uint32_t(width) < SLOT_ALIGNMENT);
+      data_ = slot | uint32_t(width);
+    }
+    uint32_t data() const { return data_; }
+    uint32_t slot() const { return data_ & SLOT_MASK; }
+    Width width() const { return Width(data_ & WIDTH_MASK); }
+  };
+
+  explicit LStackSlot(SlotAndWidth slotAndWidth)
+      : LAllocation(STACK_SLOT, slotAndWidth.data()) {}
+
   LStackSlot(uint32_t slot, Width width)
-      : LAllocation(STACK_SLOT, slotAndWidth(slot, width)) {}
+      : LStackSlot(SlotAndWidth(slot, width)) {}
 
-  uint32_t slot() const { return data() & SLOT_MASK; }
-
-  Width width() const { return Width(data() & WIDTH_MASK); }
+  uint32_t slot() const { return SlotAndWidth::fromData(data()).slot(); }
+  Width width() const { return SlotAndWidth::fromData(data()).width(); }
 
   // |Type| is LDefinition::Type, but can't forward declare a nested definition.
   template <typename Type>
@@ -426,13 +447,6 @@ class LStackSlot : public LAllocation {
         return 16;
     }
     MOZ_CRASH("invalid width");
-  }
-
- private:
-  static uint32_t slotAndWidth(uint32_t slot, Width width) {
-    MOZ_ASSERT(slot % SLOT_ALIGNMENT == 0);
-    MOZ_ASSERT(uint32_t(width) < SLOT_ALIGNMENT);
-    return slot | uint32_t(width);
   }
 };
 
@@ -659,6 +673,11 @@ class LDefinition {
     MOZ_ASSERT(policy() == LDefinition::MUST_REUSE_INPUT);
     return output_.toConstantIndex()->index();
   }
+
+  // Returns true if this definition should be added to safepoints for GC
+  // tracing. This includes Value type tags on 32-bit and slots/elements
+  // pointers.
+  inline bool isSafepointGCType(LNode* ins) const;
 
   static inline Type TypeFrom(MIRType type) {
     switch (type) {
@@ -971,6 +990,19 @@ class LInstruction : public LNode,
     MOZ_ASSERT(nonPhiOperandsOffset_ == offset, "offset must fit in bitfield");
   }
 
+  void changePolicyOfReusedInputToAny(LDefinition* def) {
+    // MUST_REUSE_INPUT is implemented by allocating an output register and
+    // moving the input to it. Register hints are used to avoid unnecessary
+    // moves. We give the input an LUse::ANY policy to avoid requiring a
+    // register for the input.
+    MOZ_ASSERT(def->policy() == LDefinition::MUST_REUSE_INPUT);
+    LUse* inputUse = getOperand(def->getReusedInput())->toUse();
+    MOZ_ASSERT(inputUse->policy() == LUse::REGISTER);
+    MOZ_ASSERT(inputUse->usedAtStart());
+    *inputUse = LUse(inputUse->virtualRegister(), LUse::ANY,
+                     /* usedAtStart = */ true);
+  }
+
   // Returns information about temporary registers needed. Each temporary
   // register is an LDefinition with a fixed or virtual register and
   // either GENERAL, FLOAT32, or DOUBLE type.
@@ -989,7 +1021,23 @@ class LInstruction : public LNode,
   void assignSnapshot(LSnapshot* snapshot);
   void initSafepoint(TempAllocator& alloc);
 
-  class InputIterator;
+  // InputIter iterates over all operands including snapshot inputs.
+  // NonSnapshotInputIter does not include snapshot inputs.
+  //
+  // There can be many snapshot inputs and these are always KEEPALIVE uses or
+  // constants. NonSnapshotInputIter can be used in places where we're not
+  // interested in those.
+  template <bool WithSnapshotUses>
+  class InputIterImpl;
+  using InputIter = InputIterImpl<true>;
+  using NonSnapshotInputIter = InputIterImpl<false>;
+
+  // Iterators for an instruction's outputs and temps. These skip BogusTemp
+  // definitions.
+  template <bool Temps>
+  class DefIterImpl;
+  using TempIter = DefIterImpl<true>;
+  using OutputIter = DefIterImpl<false>;
 };
 
 LInstruction* LNode::toInstruction() {
@@ -1899,6 +1947,9 @@ class LSafepoint : public TempObject {
 
 #endif  // JS_PUNBOX64
 
+  [[nodiscard]] bool addGCAllocation(uint32_t vregId, LDefinition* def,
+                                     LAllocation a);
+
   bool encoded() const { return safepointOffset_ != INVALID_SAFEPOINT_OFFSET; }
   uint32_t offset() const {
     MOZ_ASSERT(encoded());
@@ -1938,34 +1989,34 @@ struct WasmRefIsSubtypeDefs {
   LDefinition scratch2;
 };
 
-class LInstruction::InputIterator {
+template <bool WithSnapshotUses>
+class LInstruction::InputIterImpl {
  private:
   LInstruction& ins_;
-  size_t idx_;
-  bool snapshot_;
+  size_t idx_ = 0;
+  bool snapshot_ = false;
 
   void handleOperandsEnd() {
     // Iterate on the snapshot when iteration over all operands is done.
-    if (!snapshot_ && idx_ == ins_.numOperands() && ins_.snapshot()) {
-      idx_ = 0;
-      snapshot_ = true;
+    if constexpr (WithSnapshotUses) {
+      if (!snapshot_ && idx_ == ins_.numOperands() && ins_.snapshot()) {
+        idx_ = 0;
+        snapshot_ = true;
+      }
     }
   }
 
  public:
-  explicit InputIterator(LInstruction& ins)
-      : ins_(ins), idx_(0), snapshot_(false) {
-    handleOperandsEnd();
-  }
+  explicit InputIterImpl(LInstruction& ins) : ins_(ins) { handleOperandsEnd(); }
 
   bool more() const {
-    if (snapshot_) {
+    if (WithSnapshotUses && snapshot_) {
       return idx_ < ins_.snapshot()->numEntries();
     }
     if (idx_ < ins_.numOperands()) {
       return true;
     }
-    if (ins_.snapshot() && ins_.snapshot()->numEntries()) {
+    if (WithSnapshotUses && ins_.snapshot() && ins_.snapshot()->numEntries()) {
       return true;
     }
     return false;
@@ -1980,7 +2031,7 @@ class LInstruction::InputIterator {
   }
 
   void replace(const LAllocation& alloc) {
-    if (snapshot_) {
+    if (WithSnapshotUses && snapshot_) {
       ins_.snapshot()->setEntry(idx_, alloc);
     } else {
       ins_.setOperand(idx_, alloc);
@@ -1988,7 +2039,7 @@ class LInstruction::InputIterator {
   }
 
   LAllocation* operator*() const {
-    if (snapshot_) {
+    if (WithSnapshotUses && snapshot_) {
       return ins_.snapshot()->getEntry(idx_);
     }
     return ins_.getOperand(idx_);
@@ -1996,6 +2047,79 @@ class LInstruction::InputIterator {
 
   LAllocation* operator->() const { return **this; }
 };
+
+// Iterator for instruction outputs or temps. Skips BogusTemp definitions.
+template <bool Temps>
+class LInstruction::DefIterImpl {
+ private:
+  LInstruction* ins_;
+  size_t idx_ = 0;
+  const size_t len_;
+
+ public:
+  explicit DefIterImpl(LInstruction* ins)
+      : ins_(ins), len_(Temps ? ins->numTemps() : ins->numDefs()) {
+    settle();
+  }
+  bool done() const {
+    MOZ_ASSERT(idx_ <= len_);
+    return idx_ == len_;
+  }
+  void operator++(int) {
+    MOZ_ASSERT(!done());
+    idx_++;
+    settle();
+  }
+  void settle() {
+    while (!done() && get()->isBogusTemp()) {
+      idx_++;
+    }
+  }
+  size_t index() const {
+    MOZ_ASSERT(!done());
+    return idx_;
+  }
+  LDefinition* get() const {
+    MOZ_ASSERT(!done());
+    if constexpr (Temps) {
+      return ins_->getTemp(idx_);
+    }
+    return ins_->getDef(idx_);
+  }
+  LDefinition* operator*() const { return get(); }
+  LDefinition* operator->() const { return **this; }
+};
+
+bool LDefinition::isSafepointGCType(LNode* ins) const {
+  switch (type()) {
+    case LDefinition::OBJECT:
+    case LDefinition::SLOTS:
+    case LDefinition::WASM_ANYREF:
+#ifdef JS_NUNBOX32
+    case LDefinition::TYPE:
+    case LDefinition::PAYLOAD:
+#else
+    case LDefinition::BOX:
+#endif
+      return true;
+    case LDefinition::STACKRESULTS: {
+      LStackArea alloc(ins->toInstruction());
+      for (auto iter = alloc.results(); iter; iter.next()) {
+        if (iter.isWasmAnyRef()) {
+          return true;
+        }
+      }
+      return false;
+    }
+    case LDefinition::GENERAL:
+    case LDefinition::INT32:
+    case LDefinition::FLOAT32:
+    case LDefinition::DOUBLE:
+    case LDefinition::SIMD128:
+      return false;
+  }
+  MOZ_CRASH("invalid type");
+}
 
 class LIRGraph {
   struct ValueHasher {
@@ -2013,10 +2137,13 @@ class LIRGraph {
   mozilla::Vector<Value, 0, JitAllocPolicy> constantPool_;
   using ConstantPoolMap = HashMap<Value, uint32_t, ValueHasher, JitAllocPolicy>;
   ConstantPoolMap constantPoolMap_;
-  Vector<LInstruction*, 0, JitAllocPolicy> safepoints_;
-  Vector<LInstruction*, 0, JitAllocPolicy> nonCallSafepoints_;
   uint32_t numVirtualRegisters_;
   uint32_t numInstructions_;
+
+  // Number of instructions with a safepoint.
+  uint32_t numSafepoints_ = 0;
+  // Number of non-call instructions with a safepoint.
+  uint32_t numNonCallSafepoints_ = 0;
 
   // Number of call-instructions in this LIR graph.
   uint32_t numCallInstructions_ = 0;
@@ -2074,13 +2201,15 @@ class LIRGraph {
   size_t numConstants() const { return constantPool_.length(); }
   Value* constantPool() { return &constantPool_[0]; }
 
-  bool noteNeedsSafepoint(LInstruction* ins);
-  size_t numNonCallSafepoints() const { return nonCallSafepoints_.length(); }
-  LInstruction* getNonCallSafepoint(size_t i) const {
-    return nonCallSafepoints_[i];
+  void noteNeedsSafepoint(LInstruction* ins) {
+    numSafepoints_++;
+    if (!ins->isCall()) {
+      numNonCallSafepoints_++;
+    }
   }
-  size_t numSafepoints() const { return safepoints_.length(); }
-  LInstruction* getSafepoint(size_t i) const { return safepoints_[i]; }
+
+  size_t numNonCallSafepoints() const { return numNonCallSafepoints_; }
+  size_t numSafepoints() const { return numSafepoints_; }
 
 #ifdef JS_JITSPEW
   void dump(GenericPrinter& out);

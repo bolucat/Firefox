@@ -2405,33 +2405,10 @@ nsRect nsLayoutUtils::TransformFrameRectToAncestor(
       NSFloatPixelsToAppUnits(float(result.height), destAppUnitsPerDevPixel));
 }
 
-static LayoutDeviceIntPoint GetWidgetOffset(nsIWidget* aWidget,
-                                            nsIWidget*& aRootWidget) {
-  LayoutDeviceIntPoint offset(0, 0);
-  while (aWidget->GetWindowType() == widget::WindowType::Child) {
-    nsIWidget* parent = aWidget->GetParent();
-    if (!parent) {
-      break;
-    }
-    LayoutDeviceIntRect bounds = aWidget->GetBounds();
-    offset += bounds.TopLeft();
-    aWidget = parent;
-  }
-  aRootWidget = aWidget;
-  return offset;
-}
-
 LayoutDeviceIntPoint nsLayoutUtils::WidgetToWidgetOffset(nsIWidget* aFrom,
                                                          nsIWidget* aTo) {
-  nsIWidget* fromRoot;
-  LayoutDeviceIntPoint fromOffset = GetWidgetOffset(aFrom, fromRoot);
-  nsIWidget* toRoot;
-  LayoutDeviceIntPoint toOffset = GetWidgetOffset(aTo, toRoot);
-
-  if (fromRoot != toRoot) {
-    fromOffset = aFrom->WidgetToScreenOffset();
-    toOffset = aTo->WidgetToScreenOffset();
-  }
+  auto fromOffset = aFrom->WidgetToScreenOffset();
+  auto toOffset = aTo->WidgetToScreenOffset();
   return fromOffset - toOffset;
 }
 
@@ -4494,8 +4471,13 @@ static nscoord AddIntrinsicSizeOffset(
   }
 
   // Compute size.
-  if (aType == IntrinsicISizeType::MinISize &&
+  const bool isInlineAxis =
+      aAxis == aFrame->GetWritingMode().PhysicalAxis(LogicalAxis::Inline);
+  if (aType == IntrinsicISizeType::MinISize && isInlineAxis &&
       aFrame->IsPercentageResolvedAgainstZero(aStyleSize, aStyleMaxSize)) {
+    // Apply the compressible min-content contribution rule only in aFrame's
+    // *inline* axis, to maintain web-compatibility with Chrome and Safari.
+    // https://drafts.csswg.org/css-sizing-3/#min-content-zero
     // XXX bug 1463700: this doesn't handle calc() according to spec
     result = 0;
   } else if (Maybe<nscoord> size =

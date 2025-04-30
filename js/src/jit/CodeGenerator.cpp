@@ -9334,8 +9334,19 @@ void CodeGenerator::visitArrayLength(LArrayLength* lir) {
   Address length(elements, ObjectElements::offsetOfLength());
   masm.load32(length, output);
 
-  // Bail out if the length doesn't fit in int32.
-  bailoutTest32(Assembler::Signed, output, output, lir->snapshot());
+  bool intact = hasSeenArrayExceedsInt32LengthFuseIntactAndDependencyNoted();
+
+  if (intact) {
+#ifdef DEBUG
+    Label done;
+    masm.branchTest32(Assembler::NotSigned, output, output, &done);
+    masm.assumeUnreachable("Unexpected array with length > INT32_MAX");
+    masm.bind(&done);
+#endif
+  } else {
+    // Bail out if the length doesn't fit in int32.
+    bailoutTest32(Assembler::Signed, output, output, lir->snapshot());
+  }
 }
 
 static void SetLengthFromIndex(MacroAssembler& masm, const LAllocation* index,
@@ -10426,8 +10437,8 @@ void EmitSignalNullCheckTrapSite(MacroAssembler& masm,
   if (!ins->maybeTrap()) {
     return;
   }
-  masm.append(wasm::Trap::NullPointerDereference,
-              wasm::TrapSite(tmi, fco, *ins->maybeTrap()));
+  masm.append(wasm::Trap::NullPointerDereference, tmi, fco.get(),
+              *ins->maybeTrap());
 }
 
 template <typename InstructionWithMaybeTrapSite, class AddressOrBaseIndex>
@@ -10697,29 +10708,30 @@ void CodeGenerator::visitWasmStoreElementRef(LWasmStoreElementRef* ins) {
   // The postbarrier is handled separately.
 }
 
-void CodeGenerator::visitWasmPostWriteBarrierImmediate(
-    LWasmPostWriteBarrierImmediate* lir) {
+void CodeGenerator::visitWasmPostWriteBarrierWholeCell(
+    LWasmPostWriteBarrierWholeCell* lir) {
   Register object = ToRegister(lir->object());
   Register value = ToRegister(lir->value());
-  Register valueBase = ToRegister(lir->valueBase());
   Register temp = ToRegister(lir->temp0());
   MOZ_ASSERT(ToRegister(lir->instance()) == InstanceReg);
   auto* ool = new (alloc()) LambdaOutOfLineCode([=](OutOfLineCode& ool) {
+    // Skip the barrier if this object was previously added to the store buffer.
+    // We perform this check out of line because in practice the prior guards
+    // eliminate most calls to the barrier.
+    wasm::CheckWholeCellLastElementCache(masm, InstanceReg, object, temp,
+                                         ool.rejoin());
+
     saveLiveVolatile(lir);
     masm.Push(InstanceReg);
     int32_t framePushedAfterInstance = masm.framePushed();
 
-    // Fold the value offset into the value base
-    Register valueAddr = valueBase;
-    masm.computeEffectiveAddress(Address(valueAddr, lir->valueOffset()), temp);
-
-    // Call Instance::postBarrier
+    // Call Instance::postBarrierWholeCell
     masm.setupWasmABICall();
     masm.passABIArg(InstanceReg);
-    masm.passABIArg(temp);
+    masm.passABIArg(object);
     int32_t instanceOffset = masm.framePushed() - framePushedAfterInstance;
     masm.callWithABI(wasm::BytecodeOffset(0),
-                     wasm::SymbolicAddress::PostBarrier,
+                     wasm::SymbolicAddress::PostBarrierWholeCell,
                      mozilla::Some(instanceOffset), ABIType::General);
 
     masm.Pop(InstanceReg);
@@ -10735,8 +10747,8 @@ void CodeGenerator::visitWasmPostWriteBarrierImmediate(
   masm.bind(ool->rejoin());
 }
 
-void CodeGenerator::visitWasmPostWriteBarrierIndex(
-    LWasmPostWriteBarrierIndex* lir) {
+void CodeGenerator::visitWasmPostWriteBarrierEdgeAtIndex(
+    LWasmPostWriteBarrierEdgeAtIndex* lir) {
   Register object = ToRegister(lir->object());
   Register value = ToRegister(lir->value());
   Register valueBase = ToRegister(lir->valueBase());
@@ -10764,7 +10776,7 @@ void CodeGenerator::visitWasmPostWriteBarrierIndex(
     masm.passABIArg(temp);
     int32_t instanceOffset = masm.framePushed() - framePushedAfterInstance;
     masm.callWithABI(wasm::BytecodeOffset(0),
-                     wasm::SymbolicAddress::PostBarrier,
+                     wasm::SymbolicAddress::PostBarrierEdge,
                      mozilla::Some(instanceOffset), ABIType::General);
 
     masm.Pop(InstanceReg);
@@ -16566,8 +16578,38 @@ struct EmulatesUndefinedDependency final : public CompilationDependency {
   }
 };
 
+struct ArrayExceedsInt32LengthDependency final : public CompilationDependency {
+  explicit ArrayExceedsInt32LengthDependency()
+      : CompilationDependency(
+            CompilationDependency::Type::ArrayExceedsInt32Length) {};
+
+  virtual bool operator==(const CompilationDependency& dep) const override {
+    return dep.type == type;
+  }
+
+  virtual bool checkDependency(JSContext* cx) override {
+    return cx->runtime()->hasSeenArrayExceedsInt32LengthFuse.ref().intact();
+  }
+
+  virtual bool registerDependency(JSContext* cx, HandleScript script) override {
+    MOZ_ASSERT(checkDependency(cx));
+    return cx->runtime()
+        ->hasSeenArrayExceedsInt32LengthFuse.ref()
+        .addFuseDependency(cx, script);
+  }
+
+  virtual UniquePtr<CompilationDependency> clone() const override {
+    return MakeUnique<ArrayExceedsInt32LengthDependency>();
+  }
+};
+
 bool CodeGenerator::addHasSeenObjectEmulateUndefinedFuseDependency() {
   EmulatesUndefinedDependency dep;
+  return mirGen().tracker.addDependency(dep);
+}
+
+bool CodeGenerator::addHasSeenArrayExceedsInt32LengthFuseDependency() {
+  ArrayExceedsInt32LengthDependency dep;
   return mirGen().tracker.addDependency(dep);
 }
 

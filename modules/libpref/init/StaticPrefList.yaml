@@ -294,7 +294,11 @@
 # * 2: Enable unless incompatible accessibility clients are detected.
 - name: accessibility.uia.enable
   type: uint32_t
+#ifdef NIGHTLY_BUILD
+  value: 2
+#else
   value: 0
+#endif
   mirror: always
   do_not_use_directly: true
 
@@ -3534,7 +3538,7 @@
 # Whether to dispatch mutation events.
 - name: dom.mutation_events.enabled
   type: bool
-  value: @IS_NOT_NIGHTLY_BUILD@
+  value: false
   mirror: always
 
 # Limit of location change caused by content scripts in a time span per
@@ -5461,7 +5465,11 @@
 
 - name: dom.webnotifications.actions.enabled
   type: RelaxedAtomicBool
+#if defined(ANDROID)
+  value: false
+#else
   value: @IS_NIGHTLY_BUILD@
+#endif
   mirror: always
 
 # Setting log level for notification modules.
@@ -8491,6 +8499,20 @@
   value: true
   mirror: always
 
+# Determines which register allocator will be used by the Ion backend for JS and
+# Wasm code. Possible values:
+#
+#  0: default register allocator (currently always the Backtracking allocator)
+#  1: always use the Backtracking allocator
+#  2: always use the Simple allocator
+#  3: always use the Backtracking Testbed allocator
+#  other values: same as 0
+- name: javascript.options.ion.regalloc
+  type: uint32_t
+  value: 0
+  mirror: always
+  set_spidermonkey_pref: startup
+
 # No-op pref for testing the SpiderMonkey pref system.
 - name: javascript.options.tests.uint32-pref
   type: uint32_t
@@ -10150,6 +10172,12 @@
 - name: layout.css.h1-in-section-ua-styles.enabled
   type: RelaxedAtomicBool
   value: @IS_NOT_NIGHTLY_BUILD@
+  mirror: always
+
+# CSS for android picture-in-picture. See bug 1940052.
+- name: layout.css.android-pip.enabled
+  type: RelaxedAtomicBool
+  value: true
   mirror: always
 
 # The maximum width or height of the cursor we should allow when intersecting
@@ -15848,7 +15876,7 @@
   # Full isolation (referrer, cookie jar, etc) of resources injected by content-scripts.
 - name: privacy.antitracking.isolateContentScriptResources
   type: bool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Controls the anti-tracking webcompat features. This includes:
@@ -16834,16 +16862,19 @@
   type: RelaxedAtomicBool
   value: true
   mirror: always
+  rust: true
 
 - name: security.tls.enable_certificate_compression_brotli
   type: RelaxedAtomicBool
   value: true
   mirror: always
+  rust: true
 
 - name: security.tls.enable_certificate_compression_zstd
   type: RelaxedAtomicBool
   value: true
   mirror: always
+  rust: true
 
 - name: security.ssl.treat_unsafe_negotiation_as_broken
   type: RelaxedAtomicBool
@@ -18371,6 +18402,12 @@
 - name: widget.gtk.legacy-cursors.enabled
   type: bool
   value: false
+  mirror: always
+
+# Gtk clipboard timeout
+- name: widget.gtk.clipboard_timeout_ms
+  type: RelaxedAtomicUint32
+  value: 1000
   mirror: always
 
 # Whether to use gtk high contrast themes to disable content styling like on

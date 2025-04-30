@@ -120,7 +120,6 @@
     .info-wrap {
       .title {
         -webkit-line-clamp: 3;
-        font-size: var(--font-size-root);
         margin-block: 0 var(--space-small);
       }
 
@@ -176,7 +175,6 @@
 
         .excerpt {
           -webkit-line-clamp: 4;
-          font-size: var(--font-size-root);
         }
       }
 
@@ -302,6 +300,7 @@
 
 .ds-section-wrapper {
   padding-inline: 0;
+  position: relative;
 
   .ds-section {
     padding-block-end: var(--space-medium);
@@ -336,10 +335,6 @@
       color: var(--newtab-contextual-text-primary-color);
       margin-block: var(--space-xsmall) 0;
       font-size: var(--font-size-root);
-
-      @media (min-width: $break-point-widest) {
-        font-size: 1rem // 16px
-      }
     }
   }
 

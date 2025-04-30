@@ -70,8 +70,11 @@ class nsGeolocationService final : public nsIGeolocationUpdate,
   nsresult Init();
 
   // Management of the Geolocation objects
-  void AddLocator(mozilla::dom::Geolocation* locator);
-  void RemoveLocator(mozilla::dom::Geolocation* locator);
+  void AddLocator(mozilla::dom::Geolocation* aLocator);
+  void RemoveLocator(mozilla::dom::Geolocation* aLocator);
+
+  // Move locators from service override to the original service.
+  void MoveLocators(nsGeolocationService* aService);
 
   void SetCachedPosition(nsIDOMGeoPosition* aPosition);
   CachedPositionAndAccuracy GetCachedPosition();
@@ -110,6 +113,11 @@ class nsGeolocationService final : public nsIGeolocationUpdate,
 
   // Current state of requests for higher accuracy
   bool mHigherAccuracy = false;
+
+  // Whether the geolocation device is starting.
+  // Nothing() if not being started, or a boolean reflecting the requested
+  // accuracy.
+  mozilla::Maybe<bool> mStarting;
 };
 
 namespace mozilla::dom {

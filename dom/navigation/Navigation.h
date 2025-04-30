@@ -66,8 +66,10 @@ class Navigation final : public DOMEventTargetHelper {
   void Navigate(JSContext* aCx, const nsAString& aUrl,
                 const NavigationNavigateOptions& aOptions,
                 NavigationResult& aResult) {}
-  void Reload(JSContext* aCx, const NavigationReloadOptions& aOptions,
-              NavigationResult& aResult) {}
+
+  MOZ_CAN_RUN_SCRIPT void Reload(JSContext* aCx,
+                                 const NavigationReloadOptions& aOptions,
+                                 NavigationResult& aResult);
 
   void TraverseTo(JSContext* aCx, const nsAString& aKey,
                   const NavigationOptions& aOptions,
@@ -167,10 +169,24 @@ class Navigation final : public DOMEventTargetHelper {
   RefPtr<NavigationAPIMethodTracker> AddUpcomingTraverseAPIMethodTracker(
       const nsID& aKey, JS::Handle<JS::Value> aInfo);
 
+  void SetEarlyErrorResult(NavigationResult& aResult, ErrorResult&& aRv) const;
+
+  bool CheckIfDocumentIsFullyActiveAndMaybeSetEarlyErrorResult(
+      const Document* aDocument, NavigationResult& aResult) const;
+
+  bool CheckDocumentUnloadCounterAndMaybeSetEarlyErrorResult(
+      const Document* aDocument, NavigationResult& aResult) const;
+
+  already_AddRefed<nsIStructuredCloneContainer>
+  CreateSerializedStateAndMaybeSetEarlyErrorResult(
+      JSContext* aCx, const JS::Value& aState, NavigationResult& aResult) const;
+
   static void CleanUp(NavigationAPIMethodTracker* aNavigationAPIMethodTracker);
 
   void AbortOngoingNavigation(
       JSContext* aCx, JS::Handle<JS::Value> aError = JS::UndefinedHandleValue);
+
+  Document* GetAssociatedDocument() const;
 
   void LogHistory() const;
 

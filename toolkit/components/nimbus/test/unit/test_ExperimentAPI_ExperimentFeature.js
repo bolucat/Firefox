@@ -70,17 +70,19 @@ add_task(async function test_ExperimentFeature_test_helper_ready() {
 add_task(async function test_record_exposure_event() {
   Services.fog.testResetFOG();
 
+  const featureInstance = new ExperimentFeature("foo", FAKE_FEATURE_MANIFEST);
+  const cleanupFeature = NimbusTestUtils.addTestFeatures(featureInstance);
+
   const { sandbox, manager, cleanup } = await setupTest();
 
-  const featureInstance = new ExperimentFeature("foo", FAKE_FEATURE_MANIFEST);
-  const exposureSpy = sandbox.spy(NimbusTelemetry, "recordExposure");
-  const getExperimentSpy = sandbox.spy(ExperimentAPI, "getExperimentMetaData");
+  sandbox.spy(NimbusTelemetry, "recordExposure");
+  sandbox.spy(NimbusFeatures.foo, "getEnrollmentMetadata");
 
   NimbusTestUtils.assert.storeIsEmpty(manager.store);
   featureInstance.recordExposureEvent();
 
   Assert.ok(
-    exposureSpy.notCalled,
+    NimbusTelemetry.recordExposure.notCalled,
     "should not emit an exposure event when no experiment is active"
   );
 
@@ -92,28 +94,35 @@ add_task(async function test_record_exposure_event() {
     "no Glean exposure events before exposure"
   );
 
-  await manager.store.addEnrollment(
-    ExperimentFakes.experiment("blah", {
-      branch: {
-        slug: "treatment",
-        ratio: 1,
-        features: [
-          {
-            featureId: "foo",
-            value: { enabled: false },
-          },
-        ],
-      },
-    })
+  await manager.enroll(
+    NimbusTestUtils.factories.recipe("blah", {
+      branches: [
+        {
+          slug: "treatment",
+          ratio: 1,
+          features: [
+            {
+              featureId: "foo",
+              value: { enabled: false },
+            },
+          ],
+        },
+      ],
+    }),
+    "test"
   );
 
   featureInstance.recordExposureEvent();
 
   Assert.ok(
-    exposureSpy.calledOnce,
+    NimbusTelemetry.recordExposure.calledOnce,
     "should emit an exposure event when there is an experiment"
   );
-  Assert.equal(getExperimentSpy.callCount, 2, "Should be called every time");
+  Assert.equal(
+    NimbusFeatures.foo.getEnrollmentMetadata.callCount,
+    2,
+    "Should be called every time"
+  );
 
   // Check that the Glean exposure event was recorded.
   exposureEvents = Glean.nimbusEvents.exposure.testGetValue("events");
@@ -140,6 +149,7 @@ add_task(async function test_record_exposure_event() {
 
   manager.unenroll("blah");
   cleanup();
+  cleanupFeature();
 });
 
 add_task(async function test_record_exposure_event_once() {
@@ -148,19 +158,13 @@ add_task(async function test_record_exposure_event_once() {
   const featureInstance = new ExperimentFeature("foo", FAKE_FEATURE_MANIFEST);
   const exposureSpy = sandbox.spy(NimbusTelemetry, "recordExposure");
 
-  await manager.store.addEnrollment(
-    ExperimentFakes.experiment("blah", {
-      branch: {
-        slug: "treatment",
-        ratio: 1,
-        features: [
-          {
-            featureId: "foo",
-            value: { enabled: false },
-          },
-        ],
-      },
-    })
+  await manager.enroll(
+    NimbusTestUtils.factories.recipe.withFeatureConfig("blah", {
+      branchSlug: "treatment",
+      featureId: "foo",
+      value: { enabled: false },
+    }),
+    "test"
   );
 
   featureInstance.recordExposureEvent({ once: true });

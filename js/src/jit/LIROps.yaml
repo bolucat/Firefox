@@ -4382,19 +4382,16 @@
   mir_op: true
 
 # Generational write barrier used when writing an object to another object.
-- name: WasmPostWriteBarrierImmediate
+- name: WasmPostWriteBarrierWholeCell
   operands:
     instance: WordSized
     object: WordSized
-    valueBase: WordSized
     value: WordSized
-  arguments:
-    valueOffset: uint32_t
   num_temps: 1
   mir_op: true
 
 # Ditto, but with a scaled index instead of a constant offset.
-- name: WasmPostWriteBarrierIndex
+- name: WasmPostWriteBarrierEdgeAtIndex
   operands:
     instance: WordSized
     object: WordSized
