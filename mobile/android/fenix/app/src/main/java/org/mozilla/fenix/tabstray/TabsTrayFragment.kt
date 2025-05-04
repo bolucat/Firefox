@@ -60,7 +60,8 @@ import org.mozilla.fenix.ext.requireComponents
 import org.mozilla.fenix.ext.runIfFragmentIsAttached
 import org.mozilla.fenix.ext.settings
 import org.mozilla.fenix.home.HomeScreenViewModel
-import org.mozilla.fenix.settings.biometric.bindBiometricsCredentialsPromptOrShowWarning
+import org.mozilla.fenix.settings.biometric.BiometricUtils
+import org.mozilla.fenix.settings.biometric.DefaultBiometricUtils
 import org.mozilla.fenix.share.ShareFragment
 import org.mozilla.fenix.tabstray.browser.TabSorter
 import org.mozilla.fenix.tabstray.syncedtabs.SyncedTabsIntegration
@@ -238,9 +239,15 @@ class TabsTrayFragment : AppCompatDialogFragment() {
                         requireComponents.settings.showSecretDebugMenuThisSession,
                     shouldShowTabAutoCloseBanner = requireContext().settings().shouldShowAutoCloseTabsBanner &&
                         requireContext().settings().canShowCfr,
+                    shouldShowLockPbmBanner = !requireContext().settings().privateBrowsingLockedEnabled,
                     shouldShowInactiveTabsAutoCloseDialog =
                     requireContext().settings()::shouldShowInactiveTabsAutoCloseDialog,
-                    onTabPageClick = { page -> onTabPageClick(page) },
+                    onTabPageClick = { page ->
+                        onTabPageClick(
+                            tabsTrayInteractor = tabsTrayInteractor,
+                            page = page,
+                        )
+                    },
                     onTabClose = { tab ->
                         tabsTrayInteractor.onTabClosed(tab, TABS_TRAY_FEATURE_NAME)
                     },
@@ -317,6 +324,9 @@ class TabsTrayFragment : AppCompatDialogFragment() {
                     onBookmarkSelectedTabsClick = tabsTrayInteractor::onBookmarkSelectedTabsClicked,
                     onForceSelectedTabsAsInactiveClick = tabsTrayInteractor::onForceSelectedTabsAsInactiveClicked,
                     onTabsTrayDismiss = ::onTabsTrayDismissed,
+                    onTabsTrayPbmLockedClick = {
+                        requireContext().settings().privateBrowsingLockedEnabled = true
+                    },
                     onTabAutoCloseBannerViewOptionsClick = {
                         navigationInteractor.onTabSettingsClicked()
                         requireContext().settings().shouldShowAutoCloseTabsBanner = false
@@ -726,31 +736,34 @@ class TabsTrayFragment : AppCompatDialogFragment() {
         dismissAllowingStateLoss()
     }
 
-    private fun onTabPageClick(page: Page) {
+    @VisibleForTesting
+    internal fun onTabPageClick(
+        biometricAuthenticationNeededInfo: BiometricAuthenticationNeededInfo =
+            BiometricAuthenticationManager.biometricAuthenticationNeededInfo,
+        biometricUtils: BiometricUtils = DefaultBiometricUtils,
+        tabsTrayInteractor: TabsTrayInteractor,
+        page: Page,
+    ) {
         val isPrivateTabPage = page == Page.PrivateTabs
 
-        if (shouldShowPrompt(
-                BiometricAuthenticationManager.biometricAuthenticationNeededInfo,
-                isPrivateTabPage,
-            )
-        ) {
-            BiometricAuthenticationManager.biometricAuthenticationNeededInfo.authenticationStatus =
+        if (shouldShowPrompt(biometricAuthenticationNeededInfo, isPrivateTabPage)) {
+            biometricAuthenticationNeededInfo.authenticationStatus =
                 AuthenticationStatus.AUTHENTICATION_IN_PROGRESS
 
-            bindBiometricsCredentialsPromptOrShowWarning(
+            biometricUtils.bindBiometricsCredentialsPromptOrShowWarning(
                 view = requireView(),
                 onShowPinVerification = { intent -> startForResult.launch(intent) },
                 onAuthSuccess = {
-                    BiometricAuthenticationManager.biometricAuthenticationNeededInfo.apply {
+                    biometricAuthenticationNeededInfo.apply {
                         authenticationStatus = AuthenticationStatus.AUTHENTICATED
                     }
 
                     tabsTrayInteractor.onTrayPositionSelected(page.ordinal, false)
 
-                    requireContext().settings().isPrivateScreenBlocked = false
+                    requireContext().settings().isPrivateScreenLocked = false
                 },
                 onAuthFailure = {
-                    BiometricAuthenticationManager.biometricAuthenticationNeededInfo.apply {
+                    biometricAuthenticationNeededInfo.apply {
                         authenticationStatus = AuthenticationStatus.NOT_AUTHENTICATED
                     }
                 },
@@ -759,7 +772,7 @@ class TabsTrayFragment : AppCompatDialogFragment() {
         } else {
             // Reset authentication state when leaving PBM
             if (!isPrivateTabPage) {
-                BiometricAuthenticationManager.biometricAuthenticationNeededInfo.apply {
+                biometricAuthenticationNeededInfo.apply {
                     authenticationStatus = AuthenticationStatus.NOT_AUTHENTICATED
                 }
             }

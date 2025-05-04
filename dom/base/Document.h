@@ -1910,8 +1910,25 @@ class Document : public nsINode,
    */
   MOZ_CAN_RUN_SCRIPT void ProcessCloseRequest();
 
+  /**
+   * When pointer events on the document occur, close the top-most
+   * light-dismiss dialog as mLastDialogPointerdownTarget.
+   */
+  MOZ_CAN_RUN_SCRIPT void HandleLightDismissOpenDialogs(WidgetEvent*);
+
   void AddModalDialog(HTMLDialogElement&);
   void RemoveModalDialog(HTMLDialogElement&);
+  void AddOpenDialog(HTMLDialogElement&);
+  void RemoveOpenDialog(HTMLDialogElement&);
+  bool HasOpenDialogs() const;
+  HTMLDialogElement* GetTopMostOpenDialog();
+  bool DialogIsInOpenDialogsList(HTMLDialogElement&);
+
+  void SetLastDialogPointerdownTarget(HTMLDialogElement&);
+  void ClearLastDialogPointerdownTarget() {
+    mLastDialogPointerdownTarget = nullptr;
+  }
+  HTMLDialogElement* GetLastDialogPointerdownTarget();
 
   /**
    * Called when a frame in a child process has entered fullscreen or when a
@@ -4499,6 +4516,7 @@ class Document : public nsINode,
    *                            execCommand().
    * @param aValue              The value which is set to the 3rd parameter
    *                            of execCommand().
+   * @param aSubjectPrincipal   Principal used for execCommand().
    * @param aRv                 ErrorResult used for Trusted Type conversion.
    * @param aAdjustedValue      [out] Must be empty string if set non-nullptr.
    *                            Will be set to adjusted value for executing
@@ -4514,7 +4532,8 @@ class Document : public nsINode,
    */
   MOZ_CAN_RUN_SCRIPT InternalCommandData ConvertToInternalCommand(
       const nsAString& aHTMLCommandName,
-      const TrustedHTMLOrString* aValue = nullptr, ErrorResult* aRv = nullptr,
+      const TrustedHTMLOrString* aValue = nullptr,
+      nsIPrincipal* aSubjectPrincipal = nullptr, ErrorResult* aRv = nullptr,
       nsAString* aAdjustedValue = nullptr);
 
   /**
@@ -5362,6 +5381,14 @@ class Document : public nsINode,
   // Stack of top layer elements.
   nsTArray<nsWeakPtr> mTopLayer;
 
+  // Stack of open dialogs
+  // https://html.spec.whatwg.org/#open-dialogs-list
+  nsTArray<HTMLDialogElement*> mOpenDialogs;
+
+  // The last dialog pointer-down target
+  // https://html.spec.whatwg.org/#dialog-pointerdown-target
+  nsWeakPtr mLastDialogPointerdownTarget;
+
   // The root of the doc tree in which this document is in. This is only
   // non-null when this document is in fullscreen mode.
   WeakPtr<Document> mFullscreenRoot;
@@ -5583,7 +5610,7 @@ class Document : public nsINode,
 
   MOZ_CAN_RUN_SCRIPT static already_AddRefed<Document> ParseHTMLUnsafe(
       GlobalObject& aGlobal, const TrustedHTMLOrString& aHTML,
-      ErrorResult& aError);
+      nsIPrincipal* aSubjectPrincipal, ErrorResult& aError);
 
   static already_AddRefed<Document> ParseHTML(GlobalObject& aGlobal,
                                               const nsAString& aHTML,

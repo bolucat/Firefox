@@ -731,17 +731,19 @@ abstract class AbstractFetchDownloadService : Service() {
 
     @Suppress("ComplexCondition", "ComplexMethod")
     internal fun performDownload(currentDownloadJobState: DownloadJobState, useHttpClient: Boolean = false) {
-        if (currentDownloadJobState.currentBytesCopied == currentDownloadJobState.state.contentLength) {
-            verifyDownload(currentDownloadJobState)
-            return
-        }
-
         val download = currentDownloadJobState.state
         val isResumingDownload = currentDownloadJobState.currentBytesCopied > 0L
         val headers = MutableHeaders()
 
         if (isResumingDownload) {
-            headers.append(RANGE, "bytes=${currentDownloadJobState.currentBytesCopied}-")
+            logger.debug("Resuming download")
+            if (currentDownloadJobState.currentBytesCopied == download.contentLength) {
+                logger.debug("Already at 100%, verifying download")
+                verifyDownload(currentDownloadJobState)
+                return
+            } else {
+                headers.append(RANGE, "bytes=${currentDownloadJobState.currentBytesCopied}-")
+            }
         }
 
         var isUsingHttpClient = false

@@ -2534,6 +2534,12 @@
   value: false
   mirror: always
 
+# https://github.com/whatwg/html/pull/10737
+- name: dom.dialog.light-dismiss.enabled
+  type: bool
+  value: false
+  mirror: always
+
 # Disable custom highlight API; implementation pending.
 - name: dom.customHighlightAPI.enabled
   type: RelaxedAtomicBool
@@ -2561,13 +2567,13 @@
 # Disable cookie-store API
 - name: dom.cookieStore.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Disable cookie-store manager API
 - name: dom.cookieStore.manager.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 # Is support for CSSPseudoElement enabled?
@@ -5336,12 +5342,6 @@
 - name: dom.webcomponents.shadowdom.report_usage
   type: bool
   value: false
-  mirror: always
-
-# Is support for Declarative ShadowDOM enabled?
-- name: dom.webcomponents.shadowdom.declarative.enabled
-  type: bool
-  value: true
   mirror: always
 
 # Is the constructed flag error check disabled during adoptedStyleSheets setter?
@@ -8914,7 +8914,7 @@
 # enable this for GC modules.
 -   name: javascript.options.wasm_lazy_tiering
     type: bool
-    value: false
+    value: true
     mirror: always
     set_spidermonkey_pref: always
 
