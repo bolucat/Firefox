@@ -14,3 +14,5 @@
 interface PerformancePaintTiming : PerformanceEntry
 {
 };
+
+PerformancePaintTiming includes PaintTimingMixin;

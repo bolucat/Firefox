@@ -135,13 +135,11 @@ void HTMLDialogElement::Close(
     return;
   }
 
-  if (StaticPrefs::dom_element_dialog_toggle_events_enabled()) {
-    FireToggleEvent(u"open"_ns, u"closed"_ns, u"beforetoggle"_ns);
-    if (!Open()) {
-      return;
-    }
-    QueueToggleEventTask();
+  FireToggleEvent(u"open"_ns, u"closed"_ns, u"beforetoggle"_ns);
+  if (!Open()) {
+    return;
   }
+  QueueToggleEventTask();
 
   if (aReturnValue.WasPassed()) {
     SetReturnValue(aReturnValue.Value());
@@ -229,19 +227,17 @@ void HTMLDialogElement::Show(ErrorResult& aError) {
   // with the cancelable attribute initialized to true, the oldState attribute
   // initialized to "closed", and the newState attribute initialized to "open"
   // at this is false, then return.
-  if (StaticPrefs::dom_element_dialog_toggle_events_enabled()) {
-    if (FireToggleEvent(u"closed"_ns, u"open"_ns, u"beforetoggle"_ns)) {
-      return;
-    }
-
-    // 4. If this has an open attribute, then return.
-    if (Open()) {
-      return;
-    }
-
-    // 5. Queue a dialog toggle event task given this, "closed", and "open".
-    QueueToggleEventTask();
+  if (FireToggleEvent(u"closed"_ns, u"open"_ns, u"beforetoggle"_ns)) {
+    return;
   }
+
+  // 4. If this has an open attribute, then return.
+  if (Open()) {
+    return;
+  }
+
+  // 5. Queue a dialog toggle event task given this, "closed", and "open".
+  QueueToggleEventTask();
 
   // 6. Add an open attribute to this, whose value is the empty string.
   SetOpen(true, IgnoreErrors());
@@ -281,6 +277,11 @@ void HTMLDialogElement::Show(ErrorResult& aError) {
 
   // 15. Run the dialog focusing steps given this.
   FocusDialog();
+}
+
+bool HTMLDialogElement::Open() const {
+  MOZ_ASSERT(GetBoolAttr(nsGkAtoms::open) == State().HasState(ElementState::OPEN));
+  return State().HasState(ElementState::OPEN);
 }
 
 bool HTMLDialogElement::IsInTopLayer() const {
@@ -365,6 +366,10 @@ void HTMLDialogElement::ShowModal(ErrorResult& aError) {
 
   // 3. If subject's node document is not fully active, then throw an
   // "InvalidStateError" DOMException.
+  if (!OwnerDoc()->IsFullyActive()) {
+    return aError.ThrowInvalidStateError("The owner document is not fully active");
+  }
+
   // 4. If subject is not connected, then throw an "InvalidStateError"
   // DOMException.
   if (!IsInComposedDoc()) {
@@ -378,30 +383,28 @@ void HTMLDialogElement::ShowModal(ErrorResult& aError) {
         "Dialog element is already an open popover.");
   }
 
-  if (StaticPrefs::dom_element_dialog_toggle_events_enabled()) {
-    // 6. If the result of firing an event named beforetoggle, using
-    // ToggleEvent, with the cancelable attribute initialized to true, the
-    // oldState attribute initialized to "closed", and the newState attribute
-    // initialized to "open" at subject is false, then return.
-    if (FireToggleEvent(u"closed"_ns, u"open"_ns, u"beforetoggle"_ns)) {
-      return;
-    }
-
-    // 7. If subject has an open attribute, then return.
-    // 8. If subject is not connected, then return.
-    // 9. If subject is in the popover showing state, then return.
-    if (Open() || !IsInComposedDoc() || IsPopoverOpen()) {
-      return;
-    }
-
-    // 10. Queue a dialog toggle event task given subject, "closed", and "open".
-    QueueToggleEventTask();
+  // 6. If the result of firing an event named beforetoggle, using
+  // ToggleEvent, with the cancelable attribute initialized to true, the
+  // oldState attribute initialized to "closed", and the newState attribute
+  // initialized to "open" at subject is false, then return.
+  if (FireToggleEvent(u"closed"_ns, u"open"_ns, u"beforetoggle"_ns)) {
+    return;
   }
 
-  // 12. Set is modal of subject to true.
+  // 7. If subject has an open attribute, then return.
+  // 8. If subject is not connected, then return.
+  // 9. If subject is in the popover showing state, then return.
+  if (Open() || !IsInComposedDoc() || IsPopoverOpen()) {
+    return;
+  }
+
+  // 10. Queue a dialog toggle event task given subject, "closed", and "open".
+  QueueToggleEventTask();
 
   // 11. Add an open attribute to subject, whose value is the empty string.
   SetOpen(true, aError);
+
+  // 12. Set is modal of subject to true.
 
   // 13. Assert: subject's node document's open dialogs list does not contain
   // subject.
@@ -456,7 +459,6 @@ void HTMLDialogElement::AfterSetAttr(int32_t aNameSpaceID, nsAtom* aName,
                                      bool aNotify) {
   nsGenericHTMLElement::AfterSetAttr(aNameSpaceID, aName, aValue, aOldValue,
                                      aMaybeScriptedPrincipal, aNotify);
-
   // XXX: https://github.com/whatwg/html/pull/10954
   // Attribute change Steps for HTMLDialogElement
   // 1. If namespace is not null, then return.
@@ -486,7 +488,7 @@ void HTMLDialogElement::AfterSetAttr(int32_t aNameSpaceID, nsAtom* aName,
   bool wasOpen = !!aOldValue;
   bool isOpen = !!aValue;
 
-  MOZ_ASSERT(Open() == isOpen);
+  MOZ_ASSERT(GetBoolAttr(nsGkAtoms::open) == isOpen);
   SetStates(ElementState::OPEN, isOpen);
 
   // 3. If value is null, and oldValue is not null, then run the dialog

@@ -607,6 +607,9 @@ def enable_code_coverage(config, tasks):
             task["instance-size"] = "xlarge-noscratch"
             if "jittest" in task["test-name"]:
                 task["instance-size"] = "xlarge"
+            elif task["suite"] == "xpcshell" and "linux" in task["build-platform"]:
+                # TODO figure out OOM/timeout issues on d2g (bug 1962414)
+                task["instance-size"] = "large-dw"
 
             # Temporarily disable Mac tests on mozilla-central
             if "mac" in task["build-platform"]:
@@ -1089,8 +1092,7 @@ def set_retry_exit_status(config, tasks):
     """Set the retry exit status to TBPL_RETRY, the value returned by mozharness
     scripts to indicate a transient failure that should be retried."""
     for task in tasks:
-        # add in 137 as it is an error with GCP workers
-        task["retry-exit-status"] = [4, 137]
+        task["retry-exit-status"] = [4]
         yield task
 
 
