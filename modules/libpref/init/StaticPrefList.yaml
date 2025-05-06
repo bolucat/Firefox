@@ -2543,7 +2543,7 @@
 # Disable custom highlight API; implementation pending.
 - name: dom.customHighlightAPI.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
   rust: true
 
@@ -5003,12 +5003,6 @@
 
 # Whether view transitions use webrender for old-capture
 - name: dom.viewTransitions.wr-old-capture
-  type: bool
-  value: true
-  mirror: always
-
-# Whether view transitions use webrender for live-capture
-- name: dom.viewTransitions.live-capture
   type: bool
   value: true
   mirror: always
@@ -12897,7 +12891,7 @@
 # Maximum client-side cookie life-time cap. Measured in seconds, set to 0 to
 # disable.
 - name: network.cookie.maxageCap
-  type: uint32_t
+  type: RelaxedAtomicUint32
   value: 34560000
   mirror: always
 
@@ -14696,12 +14690,21 @@
   type: RelaxedAtomicBool
   value: @IS_NOT_EARLY_BETA_OR_EARLIER@
   mirror: always
+  rust: true
 
-# Send and receive IP ECN marks. Noop if network.http.http3.use_nspr_for_io is
-# true.
-- name: network.http.http3.ecn
+# Set IP ECN marks on HTTP3/QUIC UDP datagrams. Noop if
+# network.http.http3.use_nspr_for_io is true.
+- name: network.http.http3.ecn_mark
   type: RelaxedAtomicBool
   value: @IS_EARLY_BETA_OR_EARLIER@
+  mirror: always
+  rust: true
+
+# Report IP ECN marks from HTTP3/QUIC UDP datagrams via QUIC ACKs back to the
+# sender. Noop if network.http.http3.use_nspr_for_io is true.
+- name: network.http.http3.ecn_report
+  type: RelaxedAtomicBool
+  value: true
   mirror: always
   rust: true
 
@@ -17096,12 +17099,6 @@
 
 # Whether SVGAElement.text is enabled.
 - name: svg.SVGAElement.text.enabled
-  type: bool
-  value: false
-  mirror: always
-
-# This enables discard processing
-- name: svg.discard.enabled
   type: bool
   value: false
   mirror: always

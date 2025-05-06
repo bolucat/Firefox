@@ -3947,6 +3947,7 @@ nsresult Document::InitCSP(nsIChannel* aChannel) {
 
   // Check if this is a document from a WebExtension.
   nsCOMPtr<nsIPrincipal> principal = NodePrincipal();
+  MOZ_ASSERT(!BasePrincipal::Cast(principal)->Is<ExpandedPrincipal>());
   auto addonPolicy = BasePrincipal::Cast(principal)->AddonPolicy();
 
   // If there's no CSP to apply, go ahead and return early
@@ -3972,14 +3973,6 @@ nsresult Document::InitCSP(nsIChannel* aChannel) {
     mCSP->AppendPolicy(addonPolicy->BaseCSP(), false, false);
 
     mCSP->AppendPolicy(addonPolicy->ExtensionPageCSP(), false, false);
-    // Bug 1548468: Move CSP off ExpandedPrincipal
-    // Currently the LoadInfo holds the source of truth for every resource load
-    // because LoadInfo::GetCsp() queries the CSP from an ExpandedPrincipal
-    // (and not from the Client) if the load was triggered by an extension.
-    auto* basePrin = BasePrincipal::Cast(principal);
-    if (basePrin->Is<ExpandedPrincipal>()) {
-      basePrin->As<ExpandedPrincipal>()->SetCsp(mCSP);
-    }
   }
 
   // ----- if there's a full-strength CSP header, apply it.
@@ -7733,6 +7726,14 @@ void Document::RemoveChildNode(nsIContent* aKid, bool aNotify,
     updateBatch.emplace(this, aNotify);
     // Destroy the link map up front before we mess with the child list.
     DestroyElementMaps();
+
+    // Skip any active view transition, since the view transition pseudo-element
+    // tree is attached to our root element. This is not in the spec (yet), but
+    // prevents the view transition pseudo tree from being in an inconsistent
+    // state. See https://github.com/w3c/csswg-drafts/issues/12149
+    if (RefPtr transition = mActiveViewTransition) {
+      transition->SkipTransition(SkipTransitionReason::RootRemoved);
+    }
 
     // Notify early so that we can clear the cached element after notifying,
     // without having to slow down nsINode::RemoveChildNode.

@@ -187,6 +187,8 @@ class LAllocation {
 
   HashNumber hash() const { return bits_; }
 
+  uintptr_t asRawBits() const { return bits_; }
+
   bool aliases(const LAllocation& other) const;
 
 #ifdef JS_JITSPEW
@@ -1547,14 +1549,23 @@ struct SafepointSlotEntry {
       : stack(a->isStackSlot()), slot(a->memorySlot()) {}
 };
 
-struct SafepointNunboxEntry {
-  uint32_t typeVreg;
-  LAllocation type;
-  LAllocation payload;
+// Used for the type or payload half of a JS Value on 32-bit platforms.
+class SafepointNunboxEntry {
+  static constexpr size_t VregBits = 31;
+  uint32_t isType_ : 1;
+  uint32_t vreg_ : VregBits;
+  LAllocation alloc_;
 
-  SafepointNunboxEntry() : typeVreg(0) {}
-  SafepointNunboxEntry(uint32_t typeVreg, LAllocation type, LAllocation payload)
-      : typeVreg(typeVreg), type(type), payload(payload) {}
+  static_assert(MAX_VIRTUAL_REGISTERS <= (uint32_t(1) << VregBits) - 1);
+
+ public:
+  SafepointNunboxEntry(bool isType, uint32_t vreg, LAllocation alloc)
+      : isType_(isType), vreg_(vreg), alloc_(alloc) {
+    MOZ_ASSERT(alloc.isGeneralReg() || alloc.isMemory());
+  }
+  bool isType() const { return isType_; }
+  uint32_t vreg() const { return vreg_; }
+  LAllocation alloc() const { return alloc_; }
 };
 
 enum class WasmSafepointKind : uint8_t {
@@ -1691,10 +1702,6 @@ class LSafepoint : public TempObject {
   }
   const LiveRegisterSet& clobberedRegs() const { return clobberedRegs_; }
 #endif
-  void addGcRegister(Register reg) {
-    gcRegs_.addUnchecked(reg);
-    assertInvariants();
-  }
   LiveGeneralRegisterSet gcRegs() const { return gcRegs_; }
   [[nodiscard]] bool addGcSlot(bool stack, uint32_t slot) {
     bool result = gcSlots_.append(SlotEntry(stack, slot));
@@ -1709,10 +1716,6 @@ class LSafepoint : public TempObject {
   LiveGeneralRegisterSet slotsOrElementsRegs() const {
     return slotsOrElementsRegs_;
   }
-  void addSlotsOrElementsRegister(Register reg) {
-    slotsOrElementsRegs_.addUnchecked(reg);
-    assertInvariants();
-  }
   [[nodiscard]] bool addSlotsOrElementsSlot(bool stack, uint32_t slot) {
     bool result = slotsOrElementsSlots_.append(SlotEntry(stack, slot));
     if (result) {
@@ -1725,7 +1728,7 @@ class LSafepoint : public TempObject {
       return addSlotsOrElementsSlot(alloc.isStackSlot(), alloc.memorySlot());
     }
     MOZ_ASSERT(alloc.isGeneralReg());
-    addSlotsOrElementsRegister(alloc.toGeneralReg()->reg());
+    slotsOrElementsRegs_.addUnchecked(alloc.toGeneralReg()->reg());
     assertInvariants();
     return true;
   }
@@ -1747,9 +1750,8 @@ class LSafepoint : public TempObject {
     if (alloc.isMemory()) {
       return addGcSlot(alloc.isStackSlot(), alloc.memorySlot());
     }
-    if (alloc.isGeneralReg()) {
-      addGcRegister(alloc.toGeneralReg()->reg());
-    }
+    MOZ_ASSERT(alloc.isGeneralReg());
+    gcRegs_.addUnchecked(alloc.toGeneralReg()->reg());
     assertInvariants();
     return true;
   }
@@ -1768,10 +1770,6 @@ class LSafepoint : public TempObject {
     return false;
   }
 
-  void addWasmAnyRefReg(Register reg) {
-    wasmAnyRefRegs_.addUnchecked(reg);
-    assertInvariants();
-  }
   LiveGeneralRegisterSet wasmAnyRefRegs() const { return wasmAnyRefRegs_; }
 
   [[nodiscard]] bool addWasmAnyRefSlot(bool stack, uint32_t slot) {
@@ -1787,9 +1785,8 @@ class LSafepoint : public TempObject {
     if (alloc.isMemory()) {
       return addWasmAnyRefSlot(alloc.isStackSlot(), alloc.memorySlot());
     }
-    if (alloc.isGeneralReg()) {
-      addWasmAnyRefReg(alloc.toGeneralReg()->reg());
-    }
+    MOZ_ASSERT(alloc.isGeneralReg());
+    wasmAnyRefRegs_.addUnchecked(alloc.toGeneralReg()->reg());
     assertInvariants();
     return true;
   }
@@ -1820,76 +1817,19 @@ class LSafepoint : public TempObject {
   }
 
 #ifdef JS_NUNBOX32
-  [[nodiscard]] bool addNunboxParts(uint32_t typeVreg, LAllocation type,
-                                    LAllocation payload) {
-    bool result = nunboxParts_.append(NunboxEntry(typeVreg, type, payload));
+  [[nodiscard]] bool addNunboxPart(bool isType, uint32_t vreg,
+                                   LAllocation alloc) {
+    bool result = nunboxParts_.emplaceBack(isType, vreg, alloc);
     if (result) {
       assertInvariants();
     }
     return result;
-  }
-
-  [[nodiscard]] bool addNunboxType(uint32_t typeVreg, LAllocation type) {
-    for (size_t i = 0; i < nunboxParts_.length(); i++) {
-      if (nunboxParts_[i].type == type) {
-        return true;
-      }
-      if (nunboxParts_[i].type == LUse(typeVreg, LUse::ANY)) {
-        nunboxParts_[i].type = type;
-        return true;
-      }
-    }
-
-    // vregs for nunbox pairs are adjacent, with the type coming first.
-    uint32_t payloadVreg = typeVreg + 1;
-    bool result = nunboxParts_.append(
-        NunboxEntry(typeVreg, type, LUse(payloadVreg, LUse::ANY)));
-    if (result) {
-      assertInvariants();
-    }
-    return result;
-  }
-
-  [[nodiscard]] bool addNunboxPayload(uint32_t payloadVreg,
-                                      LAllocation payload) {
-    for (size_t i = 0; i < nunboxParts_.length(); i++) {
-      if (nunboxParts_[i].payload == payload) {
-        return true;
-      }
-      if (nunboxParts_[i].payload == LUse(payloadVreg, LUse::ANY)) {
-        nunboxParts_[i].payload = payload;
-        return true;
-      }
-    }
-
-    // vregs for nunbox pairs are adjacent, with the type coming first.
-    uint32_t typeVreg = payloadVreg - 1;
-    bool result = nunboxParts_.append(
-        NunboxEntry(typeVreg, LUse(typeVreg, LUse::ANY), payload));
-    if (result) {
-      assertInvariants();
-    }
-    return result;
-  }
-
-  LAllocation findTypeAllocation(uint32_t typeVreg) {
-    // Look for some allocation for the specified type vreg, to go with a
-    // partial nunbox entry for the payload. Note that we don't need to
-    // look at the value slots in the safepoint, as these aren't used by
-    // register allocators which add partial nunbox entries.
-    for (size_t i = 0; i < nunboxParts_.length(); i++) {
-      if (nunboxParts_[i].typeVreg == typeVreg &&
-          !nunboxParts_[i].type.isUse()) {
-        return nunboxParts_[i].type;
-      }
-    }
-    return LUse(typeVreg, LUse::ANY);
   }
 
 #  ifdef DEBUG
-  bool hasNunboxPayload(LAllocation payload) const {
-    for (size_t i = 0; i < nunboxParts_.length(); i++) {
-      if (nunboxParts_[i].payload == payload) {
+  bool hasNunboxPart(bool isType, LAllocation alloc) const {
+    for (auto entry : nunboxParts_) {
+      if (entry.alloc() == alloc && entry.isType() == isType) {
         return true;
       }
     }
@@ -1918,24 +1858,16 @@ class LSafepoint : public TempObject {
     return false;
   }
 
-  void addValueRegister(Register reg) {
-    valueRegs_.add(reg);
-    assertInvariants();
-  }
   LiveGeneralRegisterSet valueRegs() const { return valueRegs_; }
 
   [[nodiscard]] bool addBoxedValue(LAllocation alloc) {
-    if (alloc.isGeneralReg()) {
-      Register reg = alloc.toGeneralReg()->reg();
-      if (!valueRegs().has(reg)) {
-        addValueRegister(reg);
-      }
-      return true;
+    if (alloc.isMemory()) {
+      return addValueSlot(alloc.isStackSlot(), alloc.memorySlot());
     }
-    if (hasValueSlot(alloc.isStackSlot(), alloc.memorySlot())) {
-      return true;
-    }
-    return addValueSlot(alloc.isStackSlot(), alloc.memorySlot());
+    MOZ_ASSERT(alloc.isGeneralReg());
+    valueRegs_.addUnchecked(alloc.toGeneralReg()->reg());
+    assertInvariants();
+    return true;
   }
 
   bool hasBoxedValue(LAllocation alloc) const {

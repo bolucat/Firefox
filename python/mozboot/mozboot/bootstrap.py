@@ -106,9 +106,6 @@ Would you like to run a configuration wizard to ensure Mercurial is
 optimally configured? (This will also ensure 'version-control-tools' is up-to-date)"""
 
 CONFIGURE_GIT = """
-Mozilla recommends using git-cinnabar to work with mozilla-central (or
-mozilla-unified).
-
 Would you like to run a few configuration steps to ensure Git is
 optimally configured?"""
 
@@ -444,6 +441,7 @@ class Bootstrapper:
 
         if sys.platform.startswith("win"):
             self._check_for_dev_drive(checkout_root)
+            self._add_microsoft_defender_antivirus_exclusions(checkout_root, state_dir)
 
         if self.instance.no_system_changes:
             self.maybe_install_private_packages_or_exit(application, checkout_type)
@@ -574,6 +572,69 @@ class Bootstrapper:
                 DEV_DRIVE_DETECTION_ERROR.format(f"CalledProcessError: {error.stderr}")
             )
             pass
+
+    def _add_microsoft_defender_antivirus_exclusions(
+        self, topsrcdir: Path, state_dir: Path
+    ):
+        if self.no_system_changes:
+            return
+
+        if os.environ.get("MOZ_AUTOMATION"):
+            return
+
+        # This will trigger a UAC prompt, and since it really only needs to be done
+        # once, we can put a flag_file in the state_dir once we've done it and check
+        # for its existence to prevent us from doing it again.
+        flag_file = state_dir / ".ANTIVIRUS_EXCLUSIONS_DONE"
+        if flag_file.exists():
+            return
+
+        powershell_exe = which("powershell")
+
+        if not powershell_exe:
+            return
+
+        import ctypes
+
+        powershell_exe = str(powershell_exe)
+        paths = []
+
+        # checkout root
+        paths.append(topsrcdir)
+
+        # MOZILLABUILD
+        mozillabuild_dir = os.getenv("MOZILLABUILD")
+        if mozillabuild_dir:
+            paths.append(mozillabuild_dir)
+
+        # .mozbuild
+        paths.append(state_dir)
+
+        joined_paths = "\n".join(f" '{p}'" for p in paths)
+        print(
+            "Attempting to add exclusion paths to Microsoft Defender Antivirus for:\n"
+            f"{joined_paths}"
+        )
+        print(
+            "Note: This will trigger a UAC prompt. If you decline, no exclusions will be added."
+        )
+        print(
+            f"This step will not run again unless you delete the following file: '{flag_file}'\n"
+        )
+
+        args = ";".join(f"Add-MpPreference -ExclusionPath '{path}'" for path in paths)
+        command = f'-Command "{args}"'
+
+        # This will attempt to run as administrator by triggering a UAC prompt
+        # for admin credentials. If "No" is selected, no exclusions are added.
+        ctypes.windll.shell32.ShellExecuteW(
+            None, "runas", powershell_exe, command, None, 0
+        )
+
+        try:
+            flag_file.touch(exist_ok=True)
+        except OSError as e:
+            print(f"Could not write flag_file '{flag_file}': {e}")
 
     def _default_mozconfig_path(self):
         return Path(self.mach_context.topdir) / "mozconfig"
@@ -896,8 +957,16 @@ def ensure_watchman(topsrcdir: Path, git_str: str):
 
     print("Ensuring watchman is properly configured...")
 
-    watchman_config = topsrcdir / ".git/hooks/query-watchman"
-    watchman_sample = topsrcdir / ".git/hooks/fsmonitor-watchman.sample"
+    hooks = Path(
+        subprocess.check_output(
+            [git_str, "rev-parse", "--git-path", "hooks"],
+            cwd=str(topsrcdir),
+            universal_newlines=True,
+        ).strip()
+    )
+
+    watchman_config = hooks / "query-watchman"
+    watchman_sample = hooks / "fsmonitor-watchman.sample"
 
     if not watchman_sample.exists():
         print(
@@ -910,15 +979,13 @@ def ensure_watchman(topsrcdir: Path, git_str: str):
     if not watchman_config.exists():
         copy_cmd = [
             "cp",
-            ".git/hooks/fsmonitor-watchman.sample",
-            ".git/hooks/query-watchman",
+            watchman_sample,
+            watchman_config,
         ]
         print(f"Copying {watchman_sample} to {watchman_config}")
         subprocess.check_call(copy_cmd, cwd=str(topsrcdir))
 
-    set_git_config(
-        git_str, topsrcdir, key="core.fsmonitor", value=".git/hooks/query-watchman"
-    )
+    set_git_config(git_str, topsrcdir, key="core.fsmonitor", value=watchman_config)
 
 
 def configure_git(

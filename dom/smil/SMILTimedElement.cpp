@@ -192,15 +192,6 @@ void SMILTimedElement::RemoveInstanceTimes(InstanceTimeList& aArray,
 //----------------------------------------------------------------------
 // Static members
 
-const nsAttrValue::EnumTable SMILTimedElement::sFillModeTable[] = {
-    {"remove", FILL_REMOVE}, {"freeze", FILL_FREEZE}, {nullptr, 0}};
-
-const nsAttrValue::EnumTable SMILTimedElement::sRestartModeTable[] = {
-    {"always", RESTART_ALWAYS},
-    {"whenNotActive", RESTART_WHENNOTACTIVE},
-    {"never", RESTART_NEVER},
-    {nullptr, 0}};
-
 // The thresholds at which point we start filtering intervals and instance times
 // indiscriminately.
 // See FilterIntervals and FilterInstanceTimes.
@@ -461,18 +452,16 @@ void SMILTimedElement::SetTimeClient(SMILAnimationFunction* aClient) {
   mClient = aClient;
 }
 
-void SMILTimedElement::SampleAt(SMILTime aContainerTime,
-                                DiscardArray& aDiscards) {
+void SMILTimedElement::SampleAt(SMILTime aContainerTime) {
   if (mIsDisabled) return;
 
   // Milestones are cleared before a sample
   mPrevRegisteredMilestone = sMaxMilestone;
 
-  DoSampleAt(aContainerTime, aDiscards, false);
+  DoSampleAt(aContainerTime, false);
 }
 
-void SMILTimedElement::SampleEndAt(SMILTime aContainerTime,
-                                   DiscardArray& aDiscards) {
+void SMILTimedElement::SampleEndAt(SMILTime aContainerTime) {
   if (mIsDisabled) return;
 
   // Milestones are cleared before a sample
@@ -488,7 +477,7 @@ void SMILTimedElement::SampleEndAt(SMILTime aContainerTime,
   // initial interval. Therefore an end sample from the startup state is also
   // acceptable.
   if (mElementState == STATE_ACTIVE || mElementState == STATE_STARTUP) {
-    DoSampleAt(aContainerTime, aDiscards, true);  // End sample
+    DoSampleAt(aContainerTime, true);  // End sample
   } else {
     // Even if this was an unnecessary milestone sample we want to be sure that
     // our next real milestone is registered.
@@ -496,8 +485,7 @@ void SMILTimedElement::SampleEndAt(SMILTime aContainerTime,
   }
 }
 
-void SMILTimedElement::DoSampleAt(SMILTime aContainerTime,
-                                  DiscardArray& aDiscards, bool aEndOnly) {
+void SMILTimedElement::DoSampleAt(SMILTime aContainerTime, bool aEndOnly) {
   MOZ_ASSERT(mAnimationElement,
              "Got sample before being registered with an animation element");
   MOZ_ASSERT(GetTimeContainer(),
@@ -586,7 +574,6 @@ void SMILTimedElement::DoSampleAt(SMILTime aContainerTime,
             // after this.
             UpdateCurrentInterval();
           }
-          mAnimationElement->AddDiscards(aDiscards);
           stateChanged = true;
         }
       } break;

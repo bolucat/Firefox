@@ -329,10 +329,6 @@ const wr::ImageKey* ViewTransition::GetImageKeyForCapturedFrame(
   MOZ_ASSERT(aFrame);
   MOZ_ASSERT(aFrame->HasAnyStateBits(NS_FRAME_CAPTURED_IN_VIEW_TRANSITION));
 
-  if (!StaticPrefs::dom_viewTransitions_live_capture()) {
-    return nullptr;
-  }
-
   nsAtom* name = aFrame->StyleUIReset()->mViewTransitionName._0.AsAtom();
   if (NS_WARN_IF(name->IsEmpty())) {
     return nullptr;
@@ -1553,6 +1549,10 @@ void ViewTransition::SkipTransition(
       case SkipTransitionReason::DuplicateTransitionNameCapturingNewState:
         readyPromise->MaybeRejectWithInvalidStateError(
             "Duplicate view-transition-name value while capturing new state");
+        break;
+      case SkipTransitionReason::RootRemoved:
+        readyPromise->MaybeRejectWithInvalidStateError(
+            "Skipped view transition due to root element going away");
         break;
       case SkipTransitionReason::Resize:
         readyPromise->MaybeRejectWithInvalidStateError(
