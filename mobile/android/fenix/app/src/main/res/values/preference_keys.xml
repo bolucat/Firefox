@@ -158,13 +158,8 @@
     <!-- Toolbar Settings -->
     <string name="pref_key_toolbar_top" translatable="false">pref_key_toolbar_top</string>
     <string name="pref_key_toolbar_bottom" translatable="false">pref_key_toolbar_bottom</string>
-    <string name="pref_key_should_navbar_cfr">pref_key_should_show_navbar_cfr</string>
     <string name="pref_key_toolbar_tab_swipe_cfr">pref_key_should_show_tab_swipe_cfr</string>
     <string name="pref_key_toolbar_has_shown_tab_swipe_cfr">pref_key_has_shown_tab_swipe_cfr</string>
-
-    <!-- Navigation Toolbar -->
-    <string name="pref_key_toolbar_show_navigation_toolbar" translatable="false">pref_key_toolbar_use_redesign_incomplete</string>
-    <string name="pref_key_toolbar_navigation_cfr" translatable="false">pref_key_toolbar_navigation_cfr</string>
 
     <!-- Menu -->
     <string name="pref_key_menu_cfr" translatable="false">pref_key_menu_cfr</string>
@@ -263,7 +258,6 @@
     <string name="pref_key_allow_screenshots_in_private_mode" translatable="false">pref_key_allow_screenshots_in_private_mode</string>
     <string name="pref_key_private_browsing_locked_enabled" translatable="false">pref_key_private_browsing_locked_enabled</string>
     <string name="pref_key_privacy_enable_global_privacy_control" translatable="false">pref_key_privacy_enable_global_privacy_control</string>
-    <string name="pref_key_private_screen_locked" translatable="false">pref_key_private_screen_locked</string>
 
     <string name="pref_key_adjust_campaign" translatable="false">pref_key_adjust_campaign</string>
     <string name="pref_key_adjust_network" translatable="false">pref_key_adjust_network</string>

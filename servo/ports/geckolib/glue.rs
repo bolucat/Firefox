@@ -103,7 +103,7 @@ use style::invalidation::element::relative_selector::{
 };
 use style::invalidation::element::restyle_hints::RestyleHint;
 use style::invalidation::stylesheets::RuleChangeKind;
-use style::logical_geometry::PhysicalAxis;
+use style::logical_geometry::PhysicalSide;
 use style::media_queries::MediaList;
 use style::parser::{Parse, ParserContext};
 #[cfg(feature = "gecko_debug")]
@@ -3249,6 +3249,21 @@ pub unsafe extern "C" fn Servo_FontFaceRule_Clone(
 ) -> Strong<LockedFontFaceRule> {
     let clone = read_locked_arc_worker(rule, |rule: &FontFaceRule| rule.clone());
     with_maybe_worker_shared_lock(|lock| Arc::new(lock.wrap(clone)).into())
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn Servo_FontFaceRule_Equals(
+    a: &LockedFontFaceRule,
+    b: &LockedFontFaceRule,
+) -> bool {
+    if a as *const _ == b as *const _ {
+        return true;
+    }
+    read_locked_arc_worker(a, |a: &FontFaceRule| {
+        read_locked_arc_worker(b, |b: &FontFaceRule| {
+            a == b
+        })
+    })
 }
 
 #[no_mangle]
@@ -8447,12 +8462,12 @@ pub enum CalcAnchorPositioningFunctionResolution {
 #[no_mangle]
 pub extern "C" fn Servo_ResolveAnchorFunctionsInCalcPercentage(
     calc: &computed::length_percentage::CalcLengthPercentage,
-    axis: Option<&PhysicalAxis>,
+    side: Option<&PhysicalSide>,
     position_property: PositionProperty,
     out: &mut CalcAnchorPositioningFunctionResolution,
 ) {
     let resolved = calc.resolve_anchor(CalcAnchorFunctionResolutionInfo {
-        axis: axis.copied(),
+        side: side.copied(),
         position_property,
     });
 
@@ -9869,11 +9884,11 @@ impl AnchorPositioningFunctionResolution {
 #[no_mangle]
 pub extern "C" fn Servo_ResolveAnchorFunction(
     func: &AnchorFunction,
-    axis: PhysicalAxis,
+    side: PhysicalSide,
     prop: PositionProperty,
     out: &mut AnchorPositioningFunctionResolution,
 ) {
-    *out = AnchorPositioningFunctionResolution::new(func.resolve(axis, prop));
+    *out = AnchorPositioningFunctionResolution::new(func.resolve(side, prop));
 }
 
 #[no_mangle]

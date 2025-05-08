@@ -34,12 +34,21 @@ internal sealed class BookmarksListSortOrder {
             }
     }
 
+    data object Positional : BookmarksListSortOrder() {
+        override val asString: String
+            get() = "positional"
+
+        override val comparator: Comparator<BookmarkItem>
+            get() = compareBy<BookmarkItem> { it.position }
+    }
+
     companion object {
         val default: BookmarksListSortOrder
             get() = Alphabetical(true)
 
         fun fromString(value: String, default: BookmarksListSortOrder = Alphabetical(true)): BookmarksListSortOrder {
             return when (value) {
+                "positional" -> Positional
                 "created-true" -> Created(true)
                 "created-false" -> Created(false)
                 "alphabetical-true" -> Alphabetical(true)
@@ -97,7 +106,7 @@ internal data class BookmarksState(
             sortMenuShown = false,
             sortOrder = BookmarksListSortOrder.default,
             recursiveSelectedCount = null,
-            currentFolder = BookmarkItem.Folder("", ""),
+            currentFolder = BookmarkItem.Folder("", "", null),
             isSignedIntoSync = false,
             openTabsConfirmationDialog = OpenTabsConfirmationDialog.None,
             bookmarksSnackbarState = BookmarksSnackbarState.None,

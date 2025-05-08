@@ -15,10 +15,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import mozilla.appservices.search.SearchApplicationName
-import mozilla.appservices.search.SearchDeviceType
-import mozilla.appservices.search.SearchEngineSelector
-import mozilla.appservices.search.SearchUpdateChannel
 import mozilla.components.browser.domains.autocomplete.BaseDomainAutocompleteProvider
 import mozilla.components.browser.domains.autocomplete.ShippedDomainsProvider
 import mozilla.components.browser.engine.gecko.GeckoEngine
@@ -64,6 +60,10 @@ import mozilla.components.feature.pwa.WebAppShortcutManager
 import mozilla.components.feature.readerview.ReaderViewMiddleware
 import mozilla.components.feature.recentlyclosed.RecentlyClosedMiddleware
 import mozilla.components.feature.recentlyclosed.RecentlyClosedTabsStorage
+import mozilla.components.feature.search.SearchApplicationName
+import mozilla.components.feature.search.SearchDeviceType
+import mozilla.components.feature.search.SearchEngineSelector
+import mozilla.components.feature.search.SearchUpdateChannel
 import mozilla.components.feature.search.middleware.AdsTelemetryMiddleware
 import mozilla.components.feature.search.middleware.SearchExtraParams
 import mozilla.components.feature.search.middleware.SearchMiddleware
@@ -340,6 +340,10 @@ class Core(
                 // we start this process. For details, see:
                 // https://bugzilla.mozilla.org/show_bug.cgi?id=1958042
                 TranslationsMiddleware(engine, MainScope(), false),
+                StartupMiddleware(
+                    applicationContext = context,
+                    repository = DefaultHomepageAsANewTabPreferenceRepository(context.settings()),
+                ),
             )
 
         BrowserStore(

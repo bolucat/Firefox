@@ -67,22 +67,31 @@ add_task(async function test_tabGroupCreateAndAddTabAtPosition() {
 
 add_task(async function test_pinned() {
   let tab1 = BrowserTestUtils.addTab(gBrowser, "about:blank");
-  gBrowser.pinTab(tab1);
-  let group = gBrowser.addTabGroup([tab1]);
-  Assert.ok(
-    !group,
-    "addTabGroup shouldn't create a group when only supplied with pinned tabs"
-  );
-
   let tab2 = BrowserTestUtils.addTab(gBrowser, "about:blank");
+  gBrowser.pinTab(tab1);
+  gBrowser.pinTab(tab2);
+  Assert.ok(tab1.pinned, "Tab1 is pinned");
+  Assert.ok(tab2.pinned, "Tab2 is pinned");
+  let group = gBrowser.addTabGroup([tab1, tab2]);
+  Assert.equal(
+    group.tabs.length,
+    2,
+    "addTabGroup creates a group when only supplied with pinned tabs"
+  );
+  Assert.ok(!tab1.pinned, "Tab1 is no longer pinned");
+  Assert.ok(!tab2.pinned, "Tab2 is no longer pinned");
+  group.ungroupTabs();
+  gBrowser.pinTab(tab1);
+  Assert.ok(tab1.pinned, "Tab1 is pinned again");
+
   group = gBrowser.addTabGroup([tab1, tab2]);
   Assert.ok(
     group,
     "addTabGroup should create a group when supplied with both pinned and non-pinned tabs"
   );
 
-  Assert.equal(group.tabs.length, 1, "group has only the non-pinned tab");
-  Assert.equal(group.tabs[0], tab2, "tab2 is in group");
+  Assert.equal(group.tabs.length, 2, "group contains both tabs");
+  Assert.ok(!tab1.pinned, "tab1 is no longer pinned");
 
   BrowserTestUtils.removeTab(tab1);
   await removeTabGroup(group);
@@ -553,14 +562,17 @@ add_task(async function test_TabGroupEvents() {
   );
 
   let groupedGroupId = null;
-  let tabGrouped = BrowserTestUtils.waitForEvent(tab2, "TabGrouped").then(
+  let groupedTab = null;
+  let tabGrouped = BrowserTestUtils.waitForEvent(group, "TabGrouped").then(
     event => {
-      groupedGroupId = event.detail.id;
+      groupedGroupId = event.target.id;
+      groupedTab = event.detail;
     }
   );
   group.addTabs([tab2]);
   await tabGrouped;
   Assert.equal(groupedGroupId, group.id, "TabGrouped fired with correct group");
+  Assert.equal(groupedTab, tab2, "TabGrouped fired with correct tab");
 
   let groupCollapsed = BrowserTestUtils.waitForEvent(group, "TabGroupCollapse");
   group.collapsed = true;
@@ -572,9 +584,11 @@ add_task(async function test_TabGroupEvents() {
   await groupExpanded;
 
   let ungroupedGroupId = null;
-  let tabUngrouped = BrowserTestUtils.waitForEvent(tab2, "TabUngrouped").then(
+  let ungroupedTab = null;
+  let tabUngrouped = BrowserTestUtils.waitForEvent(group, "TabUngrouped").then(
     event => {
-      ungroupedGroupId = event.detail.id;
+      ungroupedGroupId = event.target.id;
+      ungroupedTab = event.detail;
     }
   );
   gBrowser.moveTabToStart(tab2);
@@ -584,6 +598,7 @@ add_task(async function test_TabGroupEvents() {
     group.id,
     "TabUngrouped fired with correct group"
   );
+  Assert.equal(ungroupedTab, tab2, "TabUngrouped fired with correct tab");
 
   let tabGroupRemoved = BrowserTestUtils.waitForEvent(group, "TabGroupRemoved");
   await removeTabGroup(group);
@@ -614,22 +629,26 @@ add_task(async function test_moveTabBetweenGroups() {
   let tab1 = BrowserTestUtils.addTab(gBrowser, "about:blank");
   let tab2 = BrowserTestUtils.addTab(gBrowser, "about:blank");
 
-  let tab1Added = BrowserTestUtils.waitForEvent(tab1, "TabGrouped");
-  let tab2Added = BrowserTestUtils.waitForEvent(tab2, "TabGrouped");
+  let tab1Added = BrowserTestUtils.waitForEvent(window, "TabGrouped");
+  let tab2Added = BrowserTestUtils.waitForEvent(window, "TabGrouped");
   let group1 = gBrowser.addTabGroup([tab1]);
   let group2 = gBrowser.addTabGroup([tab2]);
   await Promise.allSettled([tab1Added, tab2Added]);
 
   let ungroupedGroupId = null;
-  let tabUngrouped = BrowserTestUtils.waitForEvent(tab1, "TabUngrouped").then(
+  let ungroupedTab = null;
+  let tabUngrouped = BrowserTestUtils.waitForEvent(window, "TabUngrouped").then(
     event => {
-      ungroupedGroupId = event.detail.id;
+      ungroupedGroupId = event.target.id;
+      ungroupedTab = event.detail;
     }
   );
   let groupedGroupId = null;
-  let tabGrouped = BrowserTestUtils.waitForEvent(tab1, "TabGrouped").then(
+  let groupedTab = null;
+  let tabGrouped = BrowserTestUtils.waitForEvent(window, "TabGrouped").then(
     event => {
-      groupedGroupId = event.detail.id;
+      groupedGroupId = event.target.id;
+      groupedTab = event.detail;
       Assert.ok(ungroupedGroupId, "TabUngrouped fires before TabGrouped");
     }
   );
@@ -637,7 +656,9 @@ add_task(async function test_moveTabBetweenGroups() {
   group2.addTabs([tab1]);
   await Promise.allSettled([tabUngrouped, tabGrouped]);
   Assert.equal(ungroupedGroupId, group1.id, "TabUngrouped fired with group1");
+  Assert.equal(ungroupedTab, tab1, "TabUngrouped fired with tab1");
   Assert.equal(groupedGroupId, group2.id, "TabGrouped fired with group2");
+  Assert.equal(groupedTab, tab1, "TabUngrouped fired with tab1");
 
   Assert.ok(
     !group1.parent,
@@ -721,8 +742,20 @@ add_task(async function test_tabGroupSelect() {
   let tab1 = BrowserTestUtils.addTab(gBrowser, "about:blank");
   let tab2 = BrowserTestUtils.addTab(gBrowser, "about:blank");
   let tab3 = BrowserTestUtils.addTab(gBrowser, "about:blank");
-  let tab1Added = BrowserTestUtils.waitForEvent(tab1, "TabGrouped");
-  let tab2Added = BrowserTestUtils.waitForEvent(tab2, "TabGrouped");
+
+  let tab1Added = BrowserTestUtils.waitForEvent(
+    window,
+    "TabGrouped",
+    false,
+    ev => ev.detail == tab1
+  );
+  let tab2Added = BrowserTestUtils.waitForEvent(
+    window,
+    "TabGrouped",
+    false,
+    ev => ev.detail == tab2
+  );
+
   let group = gBrowser.addTabGroup([tab1, tab2]);
   await Promise.allSettled([tab1Added, tab2Added]);
   gBrowser.selectTabAtIndex(tab3._tPos);

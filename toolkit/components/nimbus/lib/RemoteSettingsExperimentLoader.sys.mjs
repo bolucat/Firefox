@@ -56,6 +56,9 @@ const SECURE_EXPERIMENTS_COLLECTION_ID = "nimbus-secure-experiments";
 const EXPERIMENTS_COLLECTION = "experiments";
 const SECURE_EXPERIMENTS_COLLECTION = "secureExperiments";
 
+const IS_MAIN_PROCESS =
+  Services.appinfo.processType === Services.appinfo.PROCESS_TYPE_DEFAULT;
+
 const RS_COLLECTION_OPTIONS = {
   [EXPERIMENTS_COLLECTION]: {
     disallowedFeatureIds: ["prefFlips"],
@@ -232,8 +235,12 @@ export class _RemoteSettingsExperimentLoader {
    * @return {Promise}                  which resolves after initialization and recipes
    *                                    are updated.
    */
-  async enable(options = {}) {
-    const { forceSync = false } = options;
+  async enable({ forceSync = false } = {}) {
+    if (!IS_MAIN_PROCESS) {
+      throw new Error(
+        "RemoteSettingsExperimentLoader.enable() can only be called from the main process"
+      );
+    }
 
     if (this._enabled) {
       return;
@@ -1038,16 +1045,10 @@ export class EnrollmentsContext {
     }
 
     if (invalidFeatureIds.size) {
-      for (const featureId of invalidFeatureIds) {
-        lazy.NimbusTelemetry.recordValidationFailure(
-          slug,
-          lazy.NimbusTelemetry.ValidationFailureReason.INVALID_FEATURE,
-          {
-            feature: featureId,
-          }
-        );
-      }
-
+      // Do not record invalid feature telemetry. In practice this only happens
+      // due to long-lived recipes referencing features that were removed in a
+      // prior version. Reporting these errors results in an inordinate amount
+      // of telemetry being submitted.
       return CheckRecipeResult.InvalidFeatures(Array.from(invalidFeatureIds));
     }
 

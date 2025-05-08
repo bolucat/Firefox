@@ -57,10 +57,16 @@ interface ShadowRoot : DocumentFragment
   boolean isUAWidget();
 };
 
+// Sanitizer API, https://wicg.github.io/sanitizer-api/
+partial interface ShadowRoot {
+  [Throws, Pref="dom.security.sanitizer.enabled"]
+  undefined setHTML(DOMString aInnerHTML, optional SetHTMLOptions options = {});
+};
+
 partial interface ShadowRoot {
   // https://html.spec.whatwg.org/#dom-shadowroot-sethtmlunsafe
   [NeedsSubjectPrincipal=NonSystem, Throws]
-  undefined setHTMLUnsafe((TrustedHTML or DOMString) html);
+  undefined setHTMLUnsafe((TrustedHTML or DOMString) html, optional SetHTMLUnsafeOptions options = {});
   DOMString getHTML(optional GetHTMLOptions options = {});
 };
 

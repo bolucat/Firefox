@@ -108,8 +108,12 @@ fun DownloadsScreen(
     val context = LocalContext.current
     val toolbarConfig = getToolbarConfig(mode = uiState.mode)
 
-    BackHandler(uiState.isSearchFieldVisible) {
-        downloadsStore.dispatch(DownloadUIAction.SearchBarDismissRequest)
+    BackHandler(uiState.isBackHandlerEnabled) {
+        if (uiState.mode is Mode.Editing) {
+            downloadsStore.dispatch(DownloadUIAction.ExitEditMode)
+        } else if (uiState.isSearchFieldVisible) {
+            downloadsStore.dispatch(DownloadUIAction.SearchBarDismissRequest)
+        }
     }
 
     if (uiState.isDeleteDialogVisible) {
@@ -169,10 +173,8 @@ fun DownloadsScreen(
                     if (!uiState.isSearchFieldVisible) {
                         IconButton(onClick = onNavigationIconClick) {
                             Icon(
-                                painter =
-                                painterResource(R.drawable.mozac_ic_back_24),
-                                contentDescription =
-                                stringResource(R.string.download_navigate_back_description),
+                                painter = painterResource(R.drawable.mozac_ic_back_24),
+                                contentDescription = stringResource(R.string.download_navigate_back_description),
                                 tint = toolbarConfig.iconColor,
                             )
                         }
@@ -217,7 +219,12 @@ fun DownloadsScreen(
             }
         },
         backgroundColor = FirefoxTheme.colors.layer1,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            SnackbarHost(
+                snackbarHostState = snackbarHostState,
+                modifier = Modifier.imePadding(),
+            )
+        },
     ) { paddingValues ->
         DownloadsScreenContent(
             uiState = uiState,
@@ -343,7 +350,8 @@ private fun DownloadsScreenContent(
             .fillMaxSize()
             .background(FirefoxTheme.colors.layer1)
             .widthIn(max = FirefoxTheme.layout.size.containerMaxWidth)
-            .padding(paddingValues),
+            .padding(paddingValues)
+            .imePadding(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         if (uiState.filtersToDisplay.isNotEmpty()) {
@@ -360,9 +368,7 @@ private fun DownloadsScreenContent(
         when (uiState.itemsState) {
             is DownloadUIState.ItemsState.NoItems -> EmptyState(modifier = Modifier.fillMaxSize())
             is DownloadUIState.ItemsState.NoSearchResults -> NoSearchResults(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .imePadding(),
+                modifier = Modifier.fillMaxSize(),
             )
 
             is DownloadUIState.ItemsState.Items -> DownloadsContent(

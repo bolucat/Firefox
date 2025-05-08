@@ -867,6 +867,10 @@
       "1818818": {
         "issue": "broken-interactive-elements",
         "matches": ["*://*.wellcare.com/*"]
+      },
+      "1953730": {
+        "issue": "broken-interactive-elements",
+        "matches": ["*://jobs.jobvite.com/*"]
       }
     },
     "interventions": [
@@ -1438,16 +1442,20 @@
     ]
   },
   "1842437": {
-    "label": "www.youtube.com",
+    "label": "YouTube back/forward fix",
     "bugs": {
       "1842437": {
         "issue": "user-interface-frustration",
         "matches": ["*://www.youtube.com/*"]
+      },
+      "1964603": {
+        "issue": "user-interface-frustration",
+        "matches": ["*://m.youtube.com/*"]
       }
     },
     "interventions": [
       {
-        "platforms": ["desktop"],
+        "platforms": ["all"],
         "content_scripts": {
           "js": ["bug1842437-www.youtube.com-performance-now-precision.js"]
         }
@@ -1486,6 +1494,23 @@
         "platforms": ["desktop"],
         "content_scripts": {
           "js": ["bug1846742-microsoft.com-search-key-fix.js"]
+        }
+      }
+    ]
+  },
+  "1847971": {
+    "label": "ebay.com",
+    "bugs": {
+      "1847971": {
+        "issue": "blocked-content",
+        "matches": ["*://www.ebay.com/sl/prelist/suggest*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "content_scripts": {
+          "js": ["bug1847971-ebay.com-barcode-scanner.js"]
         }
       }
     ]
@@ -1681,30 +1706,6 @@
       {
         "platforms": ["android"],
         "ua_string": ["Chrome"]
-      }
-    ]
-  },
-  "1868345": {
-    "label": "tvmovie.de, www.goodcarbadcar.net",
-    "bugs": {
-      "1840166": {
-        "issue": "broken-scrolling",
-        "matches": [
-          "*://www.tvmovie.de/tv/fernsehprogramm",
-          "*://www.tvmovie.de/tv/fernsehprogramm*"
-        ]
-      },
-      "1897392": {
-        "issue": "broken-scrolling",
-        "matches": ["*://www.goodcarbadcar.net/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "content_scripts": {
-          "css": ["bug1868345-tvmovie.de-scroll-fix.css"]
-        }
       }
     ]
   },
@@ -1980,6 +1981,7 @@
     "interventions": [
       {
         "platforms": ["desktop"],
+        "pref_check": { "layout.css.prefixes.transforms": false },
         "content_scripts": {
           "all_frames": true,
           "js": ["bug1897120-turnjs-zoom-fix.js"]
@@ -1999,21 +2001,6 @@
       {
         "platforms": ["all"],
         "ua_string": ["Chrome"]
-      }
-    ]
-  },
-  "1898531": {
-    "label": "cwb.digital",
-    "bugs": {
-      "1898531": {
-        "issue": "broken-login",
-        "matches": ["*://*.cwb.digital/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "ua_string": ["add_Chrome"]
       }
     ]
   },
@@ -2631,6 +2618,23 @@
       }
     ]
   },
+  "1919263": {
+    "label": "www.nbcsports.com",
+    "bugs": {
+      "1919263": {
+        "issue": "broken-layout",
+        "matches": ["*://www.nbcsports.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "content_scripts": {
+          "js": ["bug1919263-nbcsports.com-getCurrentUser-script-error-fix.js"]
+        }
+      }
+    ]
+  },
   "1919698": {
     "label": "anecdotes.ai",
     "bugs": {
@@ -2658,23 +2662,6 @@
       {
         "platforms": ["linux"],
         "ua_string": ["change_OS_to_Windows"]
-      }
-    ]
-  },
-  "1923286": {
-    "label": "bing.com",
-    "bugs": {
-      "1923286": {
-        "issue": "broken-interactive-elements",
-        "matches": ["*://www.bing.com/images/search*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["desktop"],
-        "content_scripts": {
-          "js": ["bug1923286-bing.com-image-click-fix.js"]
-        }
       }
     ]
   },
@@ -2762,23 +2749,6 @@
       }
     ]
   },
-  "1928216": {
-    "label": "voice.google.com",
-    "bugs": {
-      "1928216": {
-        "issue": "broken-meetings",
-        "matches": ["*://voice.google.com/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["desktop"],
-        "content_scripts": {
-          "js": ["bug1928216-voice.google.com-permissions.query.js"]
-        }
-      }
-    ]
-  },
   "1928941": {
     "label": "oasis.decart.ai",
     "bugs": {
@@ -2794,6 +2764,23 @@
           "js": ["bug1928941-oasis.decart.ai-window-chrome-shim.js"]
         },
         "ua_string": ["Chrome", "add_Firefox_as_Gecko"]
+      }
+    ]
+  },
+  "1928954": {
+    "label": "publix.com",
+    "bugs": {
+      "1928954": {
+        "issue": "broken-interactive-elements",
+        "matches": ["*://*.publix.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "content_scripts": {
+          "js": ["bug1928954-publix.com-prevent-nav-on-javascript-url-click.js"]
+        }
       }
     ]
   },
@@ -2909,6 +2896,38 @@
         "content_scripts": {
           "css": ["bug1934567-www.port8.fi-scrolling-fix.css"]
         }
+      }
+    ]
+  },
+  "1918604": {
+    "label": "g1.globo.com Caça Palavras",
+    "bugs": {
+      "1918604": {
+        "issue": "broken-layout",
+        "matches": ["*://g1.globo.com/jogos/caca-palavras/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "content_scripts": {
+          "css": ["bug1918604-g1.globo.com-fix-clipped-buttons.css"]
+        }
+      }
+    ]
+  },
+  "1935598": {
+    "label": "testbook.com",
+    "bugs": {
+      "1935598": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://testbook.com/*/lesson/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "ua_string": ["add_Chrome"]
       }
     ]
   },
@@ -3042,23 +3061,6 @@
       }
     ]
   },
-  "1944725": {
-    "label": "homedepot.com",
-    "bugs": {
-      "1944725": {
-        "issue": "broken-layout",
-        "matches": ["*://*.homedepot.com/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["android"],
-        "content_scripts": {
-          "js": ["bug1944725-homedepot.com-innerWidth-fix.js"]
-        }
-      }
-    ]
-  },
   "1944727": {
     "label": "linkedin.com",
     "bugs": {
@@ -3092,6 +3094,21 @@
             "bug1945019-order.mealkeyway.com-prevent-unsupported-message.js"
           ]
         }
+      }
+    ]
+  },
+  "1946443": {
+    "label": "aliexpress.com bundle deals pages",
+    "bugs": {
+      "1946443": {
+        "issue": "broken-layout",
+        "matches": ["*://www.aliexpress.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "ua_string": ["add_Chrome"]
       }
     ]
   },
@@ -3159,6 +3176,23 @@
         "platforms": ["desktop"],
         "content_scripts": {
           "css": ["bug1947979-shazam.com-hide-extra-scrollbars.css"]
+        }
+      }
+    ]
+  },
+  "1949466": {
+    "label": "lapalabradeldia.com",
+    "bugs": {
+      "1949466": {
+        "issue": "broken-interactive-elements",
+        "matches": ["*://lapalabradeldia.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
+        "content_scripts": {
+          "css": ["bug1949466-lapalabradeldia.com-fix-vanishing-letters.css"]
         }
       }
     ]
@@ -3233,6 +3267,23 @@
       }
     ]
   },
+  "1953077": {
+    "label": "Nintendo movie guidebook",
+    "bugs": {
+      "1953077": {
+        "issue": "broken-layout",
+        "matches": ["*://*.nintendo.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "content_scripts": {
+          "css": ["bug1953077-nintendo.com-fix-blank-movie-guidebook.css"]
+        }
+      }
+    ]
+  },
   "1956165": {
     "label": "m.youtube.com picture-in-picture fix",
     "bugs": {
@@ -3247,6 +3298,21 @@
         "content_scripts": {
           "js": ["bug1956165-www.youtube.com-picture-in-picture-fix.js"]
         }
+      }
+    ]
+  },
+  "1960316": {
+    "label": "wms.sso.biglobe.ne.jp",
+    "bugs": {
+      "1960316": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://wms.sso.biglobe.ne.jp/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
+        "ua_string": ["add_Chrome"]
       }
     ]
   },
@@ -3278,6 +3344,23 @@
             "replacement": "filename=\"$1\""
           }
         ]
+      }
+    ]
+  },
+  "1963302": {
+    "label": "lefties.com",
+    "bugs": {
+      "1963302": {
+        "issue": "broken-scrolling",
+        "matches": ["*://www.lefties.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "content_scripts": {
+          "css": ["bug1963302-lefties.com-fix-jittery-scrolling.css"]
+        }
       }
     ]
   }

@@ -452,6 +452,11 @@ pref("browser.urlbar.scotchBonnet.enableOverride", true);
 pref("browser.urlbar.scotchBonnet.enableOverride", false);
 #endif
 
+// Once Perplexity has entered search mode at least once,
+// we no longer show the Perplexity onboarding callout.
+// This pref will be set to true when perplexity search mode is detected.
+pref("browser.urlbar.perplexity.hasBeenInSearchMode", false);
+
 // Whether or not Unified Search Button is shown always.
 pref("browser.urlbar.unifiedSearchButton.always", false);
 
@@ -1799,6 +1804,11 @@ pref("browser.partnerlink.campaign.topsites", "amzn_2020_a1");
 // Activates preloading of the new tab url.
 pref("browser.newtab.preload", true);
 
+// Do not enable the preonboarding experience on Linux
+#ifdef XP_LINUX
+  pref("browser.preonboarding.enabled", false);
+#endif
+
 // Show "Download Firefox for mobile" QR code modal on newtab
 pref("browser.newtabpage.activity-stream.mobileDownloadModal.enabled", false);
 pref("browser.newtabpage.activity-stream.mobileDownloadModal.variant-a", false);
@@ -1811,6 +1821,7 @@ pref("browser.newtabpage.activity-stream.unifiedAds.spocs.enabled", true);
 pref("browser.newtabpage.activity-stream.unifiedAds.endpoint", "https://ads.mozilla.org/");
 pref("browser.newtabpage.activity-stream.unifiedAds.adsFeed.enabled", false);
 pref("browser.newtabpage.activity-stream.unifiedAds.adsFeed.tiles.enabled", false);
+pref("browser.newtabpage.activity-stream.unifiedAds.ohttp.enabled", false);
 
 // Weather widget for newtab
 pref("browser.newtabpage.activity-stream.showWeather", true);
@@ -1984,7 +1995,6 @@ pref("browser.newtabpage.activity-stream.discoverystream.sections.personalizatio
 pref("browser.newtabpage.activity-stream.discoverystream.sections.personalization.inferred.locale-config", "en-US,en-GB,en-CA");
 
 pref("browser.newtabpage.activity-stream.discoverystream.sections.personalization.inferred.user.enabled", true);
-pref("browser.newtabpage.activity-stream.discoverystream.sections.personalization.inferred.blocked", false);
 
 pref("browser.newtabpage.activity-stream.discoverystream.sections.interestPicker.enabled", false);
 pref("browser.newtabpage.activity-stream.discoverystream.sections.interestPicker.visibleSections", "");
@@ -1992,6 +2002,10 @@ pref("browser.newtabpage.activity-stream.discoverystream.sections.interestPicker
 
 
 pref("browser.newtabpage.activity-stream.discoverystream.merino-provider.endpoint", "merino.services.mozilla.com");
+pref("browser.newtabpage.activity-stream.discoverystream.merino-provider.ohttp.enabled", false);
+pref("browser.newtabpage.activity-stream.discoverystream.ohttp.relayURL", "https://mozilla-ohttp.fastly-edge.com/");
+pref("browser.newtabpage.activity-stream.discoverystream.ohttp.configURL", "https://prod.ohttp-gateway.prod.webservices.mozgcp.net/ohttp-configs");
+
 // List of regions that get spocs by default.
 pref("browser.newtabpage.activity-stream.discoverystream.region-spocs-config", "US,CA,DE,GB,FR,IT,ES");
 // List of regions that don't get the 7 row layout.

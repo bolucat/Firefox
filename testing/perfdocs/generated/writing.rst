@@ -108,12 +108,38 @@ If everything is setup correctly, running a performance test locally will be as 
 
     ./mach perftest <path/to/my/mochitest-test.html>
 
+Mochitest Android Tests
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Running Android tests through Mochitest is the same as desktop, except the ``--android`` option, and the ``--app`` option to specify the app need to provided.
+
+Either a local android build is expected, or a preinstalled application on the device being used. To ensure that the logs for performance metrics get through, **you need to run** ``SimpleTest.requestCompleteLog()`` at the start of your test. Otherwise, the performance metrics may be buffered and destroyed before the test completes.
+
+Only the GeckoView Test Runner, and GeckoView Example are currently supported in Mochitest (see `bug 1902535 <https://bugzilla.mozilla.org/show_bug.cgi?id=1902535>`_ for progress on using Fenix).
+
 Mochitest Tests in CI
 ^^^^^^^^^^^^^^^^^^^^^
 
 To run your test in CI, you may need to modify the ``_TRY_MAPPING`` variable `found here <https://searchfox.org/mozilla-central/rev/7d1b5c88343879056168aa710a9ee743392604c0/python/mozperftest/mozperftest/utils.py#299>`_. This will allow us to find your test file in CI, and is needed because the file mappings differ from local runs. The mapping maps the top-level folder of the test to it's location in CI. To find this location/mapping, download the ``target.mochitest.tests.tar.gz`` archive from the build task and search for your test file in it.
 
 The Mochitest test that is written can also be run as a unit test, however, if this is not desired, set the `disabled = reason` flag in the test TOML file to prevent it from running there. `See here for an example <https://searchfox.org/mozilla-central/rev/7d1b5c88343879056168aa710a9ee743392604c0/toolkit/components/ml/tests/browser/perftest.toml#7>`_.
+
+Mochitest Android Tests in CI
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For Mochitest Android tests in CI, everything that applies to desktop tests also applies here. When writing a new task in the ``android.yml``, ensure that there are the following fetches applied to the task::
+
+  build:
+      - artifact: geckoview_example.apk
+        extract: false
+      - artifact: en-US/target.perftests.tests.tar.gz
+      - artifact: en-US/target.condprof.tests.tar.gz
+      - artifact: en-US/target.common.tests.tar.gz
+      - artifact: en-US/target.mochitest.tests.tar.gz
+  toolchain:
+      - linux64-hostutils
+
+Ensure that the ``runner.py`` script is also running from ``MOZ_FETCHES_DIR`` instead of the ``GECKO_PATH`` like other android MozPerftest tests. Everything else is the same as other android mozperftest tests. Note that ``--android-install-apk`` needs to be specified to point to the ``geckoview_example.apk`` that was obtained from the build task. Fenix is not currently supported in CI for Mochitest (see `bug 1902535 <https://bugzilla.mozilla.org/show_bug.cgi?id=1902535>`_).
 
 Custom Script
 -------------

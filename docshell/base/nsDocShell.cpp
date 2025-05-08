@@ -8770,7 +8770,17 @@ nsresult nsDocShell::HandleSameDocumentNavigation(
   // Reset mLoadType to its original value once we exit this block, because this
   // same document navigation might have started after a normal, network load,
   // and we don't want to clobber its load type. See bug 737307.
-  AutoRestore<uint32_t> loadTypeResetter(mLoadType);
+  Maybe<AutoRestore<uint32_t>> loadTypeResetter;
+  if (StaticPrefs::
+          docshell_shistory_sameDocumentNavigationOverridesLoadType() &&
+      !doc->NodePrincipal()->IsURIInPrefList(
+          "docshell.shistory.sameDocumentNavigationOverridesLoadType."
+          "forceDisable")) {
+    loadTypeResetter.emplace(mLoadType);
+  }
+  if (JustStartedNetworkLoad() && !loadTypeResetter.isSome()) {
+    loadTypeResetter.emplace(mLoadType);
+  }
 
   // If a non-same-document-navigation (i.e., a network load) is pending, make
   // this a replacement load, so that we don't add a SHEntry here and the
@@ -11282,18 +11292,28 @@ nsDocShell::AddState(JS::Handle<JS::Value> aData, const nsAString& aTitle,
 
   nsresult rv;
 
+  RefPtr<Document> document = GetDocument();
+  NS_ENSURE_TRUE(document, NS_ERROR_FAILURE);
+
   // Don't clobber the load type of an existing network load.
-  AutoRestore<uint32_t> loadTypeResetter(mLoadType);
+  Maybe<AutoRestore<uint32_t>> loadTypeResetter;
+  if (StaticPrefs::
+          docshell_shistory_sameDocumentNavigationOverridesLoadType() &&
+      !document->NodePrincipal()->IsURIInPrefList(
+          "docshell.shistory.sameDocumentNavigationOverridesLoadType."
+          "forceDisable")) {
+    loadTypeResetter.emplace(mLoadType);
+  }
 
   // pushState effectively becomes replaceState when we've started a network
   // load but haven't adopted its document yet.  This mirrors what we do with
   // changes to the hash at this stage of the game.
   if (JustStartedNetworkLoad()) {
+    if (!loadTypeResetter.isSome()) {
+      loadTypeResetter.emplace(mLoadType);
+    }
     aReplace = true;
   }
-
-  RefPtr<Document> document = GetDocument();
-  NS_ENSURE_TRUE(document, NS_ERROR_FAILURE);
 
   // Step A: Serialize aData using structured clone.
   // https://html.spec.whatwg.org/multipage/history.html#dom-history-pushstate
@@ -11385,19 +11405,23 @@ nsDocShell::AddState(JS::Handle<JS::Value> aData, const nsAString& aTitle,
   // https://html.spec.whatwg.org/#shared-history-push/replace-state-steps
   // Step 8
   if (nsCOMPtr<nsPIDOMWindowInner> window = document->GetInnerWindow()) {
-    if (RefPtr<Navigation> navigation = window->Navigation();
-        navigation &&
-        navigation->FirePushReplaceReloadNavigateEvent(
-            aCx, aReplace ? NavigationType::Replace : NavigationType::Push,
-            newURI,
-            /* aIsSameDocument */ true, /* aUserInvolvement */ Nothing(),
-            /* aSourceElement */ nullptr, /* aFormDataEntryList */ Nothing(),
-            /* aNavigationAPIState */ nullptr, scContainer)) {
-      return NS_OK;
+    if (RefPtr<Navigation> navigation = window->Navigation()) {
+      bool shouldContinue = navigation->FirePushReplaceReloadNavigateEvent(
+          aCx, aReplace ? NavigationType::Replace : NavigationType::Push,
+          newURI,
+          /* aIsSameDocument */ true, /* aUserInvolvement */ Nothing(),
+          /* aSourceElement */ nullptr, /* aFormDataEntryList */ Nothing(),
+          /* aNavigationAPIState */ nullptr, scContainer);
+
+      // Step 9
+      if (!shouldContinue) {
+        return NS_OK;
+      }
     }
   }
 
-  // Step 8: call "URL and history update steps"
+  // Step 10
+  // Run #url-and-history-update-steps
   rv = UpdateURLAndHistory(document, newURI, scContainer,
                            aReplace ? NavigationHistoryBehavior::Replace
                                     : NavigationHistoryBehavior::Push,
@@ -12872,6 +12896,7 @@ nsresult nsDocShell::OnLinkClick(
     nsIContent* aContent, nsIURI* aURI, const nsAString& aTargetSpec,
     const nsAString& aFileName, nsIInputStream* aPostDataStream,
     nsIInputStream* aHeadersDataStream, bool aIsUserTriggered,
+    UserNavigationInvolvement aUserInvolvement,
     nsIPrincipal* aTriggeringPrincipal, nsIContentSecurityPolicy* aCsp) {
 #ifndef ANDROID
   MOZ_ASSERT(aTriggeringPrincipal, "Need a valid triggeringPrincipal");
@@ -12908,6 +12933,31 @@ nsresult nsDocShell::OnLinkClick(
     target = u"_blank";
     if (!aTargetSpec.Equals(target)) {
       noOpenerImplied = true;
+    }
+  }
+
+  // https://html.spec.whatwg.org/#downloading-hyperlinks
+  // Step 6, step 6.1, step 6.2
+  // aFileName not being void implies a download attribute, since we've already
+  // checked if the attribute is present in `nsContentUtils::TriggerLinkClick`
+  // and made it void otherwise.
+  if (!aFileName.IsVoid() &&
+      aUserInvolvement != UserNavigationInvolvement::BrowserUI) {
+    if (nsCOMPtr<nsPIDOMWindowInner> window = ownerDoc->GetInnerWindow()) {
+      if (RefPtr<Navigation> navigation = window->Navigation()) {
+        AutoJSAPI jsapi;
+        if (jsapi.Init(window)) {
+          RefPtr element = aContent->AsElement();
+          // Step 6.4
+          bool shouldContinue = navigation->FireDownloadRequestNavigateEvent(
+              jsapi.cx(), aURI, aUserInvolvement, element, aFileName);
+
+          // Step 6.5
+          if (!shouldContinue) {
+            return NS_OK;
+          }
+        }
+      }
     }
   }
 
@@ -13913,4 +13963,37 @@ void nsDocShell::MaybeDisconnectChildListenersOnPageHide() {
 bool nsDocShell::IsSameDocumentAsActiveEntry(
     const mozilla::dom::SessionHistoryInfo& aSHInfo) {
   return mActiveEntry ? mActiveEntry->SharesDocumentWith(aSHInfo) : false;
+}
+
+// https://html.spec.whatwg.org/#nav-window
+nsPIDOMWindowInner* nsDocShell::GetActiveWindow() {
+  nsPIDOMWindowOuter* outer = GetWindow();
+  return outer ? outer->GetCurrentInnerWindow() : nullptr;
+}
+
+// https://html.spec.whatwg.org/#inform-the-navigation-api-about-aborting-navigation
+void nsDocShell::InformNavigationAPIAboutAbortingNavigation(JSContext* aCx) {
+  // Step 1
+  // This becomes an assert since we have a common event loop.
+  MOZ_DIAGNOSTIC_ASSERT(NS_IsMainThread());
+
+  // No ongoing navigations if we don't have a window.
+  RefPtr<nsPIDOMWindowInner> window = GetActiveWindow();
+  if (!window) {
+    return;
+  }
+
+  // Step 2
+  RefPtr<Navigation> navigation = window->Navigation();
+  if (!navigation) {
+    return;
+  }
+
+  // Step 3
+  if (!navigation->HasOngoingNavigateEvent()) {
+    return;
+  }
+
+  // Step 4
+  navigation->AbortOngoingNavigation(aCx);
 }

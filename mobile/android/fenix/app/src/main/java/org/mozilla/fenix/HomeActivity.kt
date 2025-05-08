@@ -53,7 +53,6 @@ import mozilla.components.browser.state.action.MediaSessionAction
 import mozilla.components.browser.state.action.SearchAction
 import mozilla.components.browser.state.search.SearchEngine
 import mozilla.components.browser.state.selector.getNormalOrPrivateTabs
-import mozilla.components.browser.state.selector.privateTabs
 import mozilla.components.browser.state.selector.selectedTab
 import mozilla.components.browser.state.state.WebExtensionState
 import mozilla.components.concept.engine.EngineSession
@@ -503,6 +502,7 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
                     components.core.contileTopSitesProvider
                 },
             ),
+            components.privateBrowsingLockFeature,
         )
 
         if (!isCustomTabIntent(intent)) {
@@ -688,26 +688,6 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
         // and the user changes the system language
         // More details here: https://github.com/mozilla-mobile/fenix/pull/27793#discussion_r1029892536
         components.core.store.dispatch(SearchAction.RefreshSearchEnginesAction)
-    }
-
-    /**
-     * We verify if all conditions are met to display the unlock private mode screen
-     */
-    fun shouldShowUnlockScreen(): Boolean {
-        val hasPrivateTabs = components.core.store.state.privateTabs.isNotEmpty()
-        val biometricLockEnabled = settings().privateBrowsingLockedEnabled
-        val isPrivateMode = browsingModeManager.mode.isPrivate
-        val isPrivateScreenLocked = settings().isPrivateScreenLocked
-
-        return isPrivateMode && hasPrivateTabs && biometricLockEnabled && isPrivateScreenLocked
-    }
-
-    override fun onRestart() {
-        super.onRestart()
-
-        if (browsingModeManager.mode.isPrivate && components.core.store.state.privateTabs.isNotEmpty()) {
-            settings().isPrivateScreenLocked = true
-        }
     }
 
     final override fun onStart() {

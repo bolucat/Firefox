@@ -37,9 +37,11 @@ import mozilla.components.feature.accounts.push.CloseTabsUseCases
 import mozilla.components.feature.downloads.ui.DownloadCancelDialogFragment
 import mozilla.components.feature.tabs.tabstray.TabsFeature
 import mozilla.components.support.base.feature.ViewBoundFeatureWrapper
+import mozilla.components.support.ktx.android.arch.lifecycle.addObservers
 import mozilla.telemetry.glean.private.NoExtras
 import org.mozilla.fenix.Config
 import org.mozilla.fenix.FeatureFlags
+import org.mozilla.fenix.GleanMetrics.PrivateBrowsingLocked
 import org.mozilla.fenix.GleanMetrics.TabsTray
 import org.mozilla.fenix.HomeActivity
 import org.mozilla.fenix.NavGraphDirections
@@ -49,6 +51,7 @@ import org.mozilla.fenix.biometricauthentication.BiometricAuthenticationManager
 import org.mozilla.fenix.biometricauthentication.BiometricAuthenticationNeededInfo
 import org.mozilla.fenix.browser.tabstrip.isTabStripEnabled
 import org.mozilla.fenix.components.StoreProvider
+import org.mozilla.fenix.components.appstate.AppAction.PrivateBrowsingLockAction
 import org.mozilla.fenix.compose.core.Action
 import org.mozilla.fenix.compose.snackbar.Snackbar
 import org.mozilla.fenix.compose.snackbar.SnackbarState
@@ -84,12 +87,13 @@ enum class TabsTrayAccessPoint {
 @Suppress("TooManyFunctions", "LargeClass")
 class TabsTrayFragment : AppCompatDialogFragment() {
 
-    private lateinit var tabsTrayStore: TabsTrayStore
     private lateinit var tabsTrayDialog: TabsTrayDialog
     private lateinit var tabsTrayInteractor: TabsTrayInteractor
     private lateinit var tabsTrayController: DefaultTabsTrayController
     private lateinit var navigationInteractor: DefaultNavigationInteractor
     private lateinit var startForResult: ActivityResultLauncher<Intent>
+
+    @VisibleForTesting internal lateinit var tabsTrayStore: TabsTrayStore
 
     @VisibleForTesting internal lateinit var trayBehaviorManager: TabSheetBehaviorManager
 
@@ -117,6 +121,7 @@ class TabsTrayFragment : AppCompatDialogFragment() {
             Breadcrumb("TabsTrayFragment dismissTabsTray"),
         )
         setStyle(STYLE_NO_TITLE, R.style.TabTrayDialogStyle)
+        lifecycle.addObservers(requireComponents.privateBrowsingLockFeature)
     }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
@@ -248,6 +253,7 @@ class TabsTrayFragment : AppCompatDialogFragment() {
                         onTabPageClick(
                             tabsTrayInteractor = tabsTrayInteractor,
                             page = page,
+                            isInPrivateMode = (activity as HomeActivity).browsingModeManager.mode.isPrivate,
                         )
                     },
                     onTabClose = { tab ->
@@ -745,10 +751,11 @@ class TabsTrayFragment : AppCompatDialogFragment() {
         biometricUtils: BiometricUtils = DefaultBiometricUtils,
         tabsTrayInteractor: TabsTrayInteractor,
         page: Page,
+        isInPrivateMode: Boolean,
     ) {
         val isPrivateTabPage = page == Page.PrivateTabs
 
-        if (shouldShowPrompt(biometricAuthenticationNeededInfo, isPrivateTabPage)) {
+        if (shouldShowPrompt(biometricAuthenticationNeededInfo, isPrivateTabPage, isInPrivateMode)) {
             biometricAuthenticationNeededInfo.authenticationStatus =
                 AuthenticationStatus.AUTHENTICATION_IN_PROGRESS
 
@@ -756,18 +763,16 @@ class TabsTrayFragment : AppCompatDialogFragment() {
                 view = requireView(),
                 onShowPinVerification = { intent -> startForResult.launch(intent) },
                 onAuthSuccess = {
-                    biometricAuthenticationNeededInfo.apply {
-                        authenticationStatus = AuthenticationStatus.AUTHENTICATED
-                    }
+                    PrivateBrowsingLocked.authSuccess.record()
 
                     tabsTrayInteractor.onTrayPositionSelected(page.ordinal, false)
 
-                    requireContext().settings().isPrivateScreenLocked = false
+                    requireComponents.appStore.dispatch(
+                        PrivateBrowsingLockAction.UpdatePrivateBrowsingLock(isLocked = false),
+                    )
                 },
                 onAuthFailure = {
-                    biometricAuthenticationNeededInfo.apply {
-                        authenticationStatus = AuthenticationStatus.NOT_AUTHENTICATED
-                    }
+                    PrivateBrowsingLocked.authFailure.record()
                 },
                 titleRes = R.string.pbm_authentication_unlock_private_tabs,
             )
@@ -786,13 +791,16 @@ class TabsTrayFragment : AppCompatDialogFragment() {
     internal fun shouldShowPrompt(
         biometricAuthenticationNeededInfo: BiometricAuthenticationNeededInfo,
         isPrivateTabPage: Boolean,
+        isInPrivateMode: Boolean,
     ): Boolean {
         val hasPrivateTabs = requireComponents.core.store.state.privateTabs.isNotEmpty()
         val biometricLockEnabled = requireContext().settings().privateBrowsingLockedEnabled
         val shouldShowAuthenticationPrompt =
             biometricAuthenticationNeededInfo.shouldShowAuthenticationPrompt
+        val isNotOnPrivateTabsPage = tabsTrayStore.state.selectedPage != Page.PrivateTabs
 
-        return isPrivateTabPage && hasPrivateTabs && biometricLockEnabled && shouldShowAuthenticationPrompt
+        return isPrivateTabPage && hasPrivateTabs && biometricLockEnabled &&
+            shouldShowAuthenticationPrompt && isNotOnPrivateTabsPage && !isInPrivateMode
     }
 
     companion object {

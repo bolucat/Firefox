@@ -17,7 +17,8 @@ import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
 import org.mozilla.fenix.GleanMetrics.PrivateBrowsingLocked
 import org.mozilla.fenix.R
-import org.mozilla.fenix.ext.settings
+import org.mozilla.fenix.components.appstate.AppAction.PrivateBrowsingLockAction
+import org.mozilla.fenix.ext.requireComponents
 import org.mozilla.fenix.home.HomeFragmentDirections
 import org.mozilla.fenix.tabstray.Page
 import org.mozilla.fenix.theme.FirefoxTheme
@@ -93,20 +94,16 @@ class UnlockPrivateTabsFragment : Fragment() {
     private fun onAuthSuccess() {
         PrivateBrowsingLocked.authSuccess.record()
 
-        requireContext().settings().isPrivateScreenLocked = false
-
-        BiometricAuthenticationManager.biometricAuthenticationNeededInfo.apply {
-            authenticationStatus = AuthenticationStatus.AUTHENTICATED
-        }
+        requireComponents.appStore.dispatch(
+            PrivateBrowsingLockAction.UpdatePrivateBrowsingLock(
+                isLocked = false,
+            ),
+        )
 
         findNavController().popBackStack()
     }
 
     private fun onAuthFailure() {
         PrivateBrowsingLocked.authFailure.record()
-
-        BiometricAuthenticationManager.biometricAuthenticationNeededInfo.apply {
-            authenticationStatus = AuthenticationStatus.NOT_AUTHENTICATED
-        }
     }
 }

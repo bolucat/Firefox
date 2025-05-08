@@ -123,16 +123,10 @@ skip-if = [
 ]
 
 ["test_ext_contentscript_context.js"]
-skip-if = [
-  "tsan", # Bug 1683730
-  "sessionHistoryInParent", # Bug 1762638
-]
+skip-if = ["tsan"] # Bug 1683730
 
 ["test_ext_contentscript_context_isolation.js"]
-skip-if = [
-  "tsan", # Bug 1683730
-  "sessionHistoryInParent", # Bug 1762638
-]
+skip-if = ["tsan"] # Bug 1683730
 
 ["test_ext_contentscript_create_iframe.js"]
 
@@ -717,3 +711,7 @@ skip-if = ["appname == 'thunderbird'"]
 ["test_webRequest_cookies.js"]
 
 ["test_webRequest_filtering.js"]
+
+["test_wpt_test_onMessage.js"]
+prefs = ["extensions.wpt.enabled=true"]
+skip-if = ["!nightly_build"]
