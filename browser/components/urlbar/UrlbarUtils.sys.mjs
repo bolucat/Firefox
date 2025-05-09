@@ -47,7 +47,7 @@ export var UrlbarUtils = {
   // result groups may require adding UI migrations to BrowserGlue.  Be careful
   // about making trivial changes to existing groups, like renaming them,
   // because we don't want to make downgrades unnecessarily hard.
-  RESULT_GROUP: {
+  RESULT_GROUP: Object.freeze({
     ABOUT_PAGES: "aboutPages",
     GENERAL: "general",
     GENERAL_PARENT: "generalParent",
@@ -72,7 +72,7 @@ export var UrlbarUtils = {
     RESTRICT_SEARCH_KEYWORD: "restrictSearchKeyword",
     SUGGESTED_INDEX: "suggestedIndex",
     TAIL_SUGGESTION: "tailSuggestion",
-  },
+  }),
 
   // Defines provider types.
   PROVIDER_TYPE: {
@@ -172,11 +172,11 @@ export var UrlbarUtils = {
 
   // Whether a result should be highlighted up to the point the user has typed
   // or after that point.
-  HIGHLIGHT: {
+  HIGHLIGHT: Object.freeze({
     NONE: 0,
     TYPED: 1,
     SUGGESTED: 2,
-  },
+  }),
 
   // UrlbarProviderPlaces's autocomplete results store their titles and tags
   // together in their comments.  This separator is used to separate them.
@@ -230,7 +230,7 @@ export var UrlbarUtils = {
   get LOCAL_SEARCH_MODES() {
     return [
       {
-        source: UrlbarUtils.RESULT_SOURCE.BOOKMARKS,
+        source: this.RESULT_SOURCE.BOOKMARKS,
         restrict: lazy.UrlbarTokenizer.RESTRICT.BOOKMARK,
         icon: "chrome://browser/skin/bookmark.svg",
         pref: "shortcuts.bookmarks",
@@ -238,7 +238,7 @@ export var UrlbarUtils = {
         uiLabel: "urlbar-searchmode-bookmarks",
       },
       {
-        source: UrlbarUtils.RESULT_SOURCE.TABS,
+        source: this.RESULT_SOURCE.TABS,
         restrict: lazy.UrlbarTokenizer.RESTRICT.OPENPAGE,
         icon: "chrome://browser/skin/tabs.svg",
         pref: "shortcuts.tabs",
@@ -246,7 +246,7 @@ export var UrlbarUtils = {
         uiLabel: "urlbar-searchmode-tabs",
       },
       {
-        source: UrlbarUtils.RESULT_SOURCE.HISTORY,
+        source: this.RESULT_SOURCE.HISTORY,
         restrict: lazy.UrlbarTokenizer.RESTRICT.HISTORY,
         icon: "chrome://browser/skin/history.svg",
         pref: "shortcuts.history",
@@ -254,7 +254,7 @@ export var UrlbarUtils = {
         uiLabel: "urlbar-searchmode-history",
       },
       {
-        source: UrlbarUtils.RESULT_SOURCE.ACTIONS,
+        source: this.RESULT_SOURCE.ACTIONS,
         restrict: lazy.UrlbarTokenizer.RESTRICT.ACTION,
         icon: "chrome://browser/skin/quickactions.svg",
         pref: "shortcuts.actions",
@@ -267,11 +267,11 @@ export var UrlbarUtils = {
   /**
    * Returns the payload schema for the given type of result.
    *
-   * @param {number} type One of the UrlbarUtils.RESULT_TYPE values.
+   * @param {Values<typeof this.RESULT_TYPE>} type
    * @returns {object} The schema for the given type.
    */
   getPayloadSchema(type) {
-    return UrlbarUtils.RESULT_PAYLOAD_SCHEMA[type];
+    return this.RESULT_PAYLOAD_SCHEMA[type];
   },
 
   /**
@@ -279,7 +279,7 @@ export var UrlbarUtils = {
    * and it is valid.
    *
    * @param {string} url The url to add to history.
-   * @param {nsIDomWindow} window The window from where the url is being added.
+   * @param {nsIDOMWindow} window The window from where the url is being added.
    */
   addToUrlbarHistory(url, window) {
     if (
@@ -391,7 +391,7 @@ export var UrlbarUtils = {
    *
    * @param {Array} tokens The tokens to search for.
    * @param {string} str The string to match against.
-   * @param {boolean} highlightType
+   * @param {Values<typeof this.HIGHLIGHT>} highlightType
    *   One of the HIGHLIGHT values:
    *     TYPED: match ranges matching the tokens; or
    *     SUGGESTED: match ranges for words not matching the tokens and the
@@ -408,7 +408,7 @@ export var UrlbarUtils = {
     // Only search a portion of the string, because not more than a certain
     // amount of characters are visible in the UI, matching over what is visible
     // would be expensive and pointless.
-    str = str.substring(0, UrlbarUtils.MAX_TEXT_LENGTH).toLocaleLowerCase();
+    str = str.substring(0, this.MAX_TEXT_LENGTH).toLocaleLowerCase();
     // To generate non-overlapping ranges, we start from a 0-filled array with
     // the same length of the string, and use it as a collision marker, setting
     // 1 where the text should be highlighted.
@@ -433,7 +433,7 @@ export var UrlbarUtils = {
           break;
         }
 
-        if (highlightType == UrlbarUtils.HIGHLIGHT.SUGGESTED) {
+        if (highlightType == this.HIGHLIGHT.SUGGESTED) {
           // We de-emphasize the match only if it's preceded by a space, thus
           // it's a perfect match or the beginning of a longer word.
           let previousSpaceIndex = str.lastIndexOf(" ", index) + 1;
@@ -473,7 +473,7 @@ export var UrlbarUtils = {
         while (index < str.length) {
           let hay = str.substr(index, needle.length);
           if (compareIgnoringDiacritics(needle, hay) === 0) {
-            if (highlightType == UrlbarUtils.HIGHLIGHT.SUGGESTED) {
+            if (highlightType == this.HIGHLIGHT.SUGGESTED) {
               let previousSpaceIndex = str.lastIndexOf(" ", index) + 1;
               if (index != previousSpaceIndex) {
                 index += needle.length;
@@ -493,7 +493,7 @@ export var UrlbarUtils = {
       }
 
       totalTokensLength += needle.length;
-      if (totalTokensLength > UrlbarUtils.MAX_TEXT_LENGTH) {
+      if (totalTokensLength > this.MAX_TEXT_LENGTH) {
         // Limit the number of tokens to reduce calculate time.
         break;
       }
@@ -517,88 +517,89 @@ export var UrlbarUtils = {
    *
    * @param {UrlbarResult} result
    *   The result.
-   * @returns {UrlbarUtils.RESULT_GROUP}
-   *   The reuslt's group.
+   * @returns {Values<typeof this.RESULT_GROUP>}
+   *   The result's group.
    */
   getResultGroup(result) {
+    // Used for test_suggestedIndexRelativeToGroup.js to make it simpler
     if (result.group) {
       return result.group;
     }
 
     if (result.hasSuggestedIndex && !result.isSuggestedIndexRelativeToGroup) {
-      return UrlbarUtils.RESULT_GROUP.SUGGESTED_INDEX;
+      return this.RESULT_GROUP.SUGGESTED_INDEX;
     }
     if (result.heuristic) {
       switch (result.providerName) {
         case "AliasEngines":
-          return UrlbarUtils.RESULT_GROUP.HEURISTIC_ENGINE_ALIAS;
+          return this.RESULT_GROUP.HEURISTIC_ENGINE_ALIAS;
         case "Autofill":
-          return UrlbarUtils.RESULT_GROUP.HEURISTIC_AUTOFILL;
+          return this.RESULT_GROUP.HEURISTIC_AUTOFILL;
         case "BookmarkKeywords":
-          return UrlbarUtils.RESULT_GROUP.HEURISTIC_BOOKMARK_KEYWORD;
+          return this.RESULT_GROUP.HEURISTIC_BOOKMARK_KEYWORD;
         case "HeuristicFallback":
-          return UrlbarUtils.RESULT_GROUP.HEURISTIC_FALLBACK;
+          return this.RESULT_GROUP.HEURISTIC_FALLBACK;
         case "Omnibox":
-          return UrlbarUtils.RESULT_GROUP.HEURISTIC_OMNIBOX;
+          return this.RESULT_GROUP.HEURISTIC_OMNIBOX;
         case "RestrictKeywordsAutofill":
-          return UrlbarUtils.RESULT_GROUP.HEURISTIC_RESTRICT_KEYWORD_AUTOFILL;
+          return this.RESULT_GROUP.HEURISTIC_RESTRICT_KEYWORD_AUTOFILL;
         case "TokenAliasEngines":
-          return UrlbarUtils.RESULT_GROUP.HEURISTIC_TOKEN_ALIAS_ENGINE;
+          return this.RESULT_GROUP.HEURISTIC_TOKEN_ALIAS_ENGINE;
         case "UrlbarProviderSearchTips":
-          return UrlbarUtils.RESULT_GROUP.HEURISTIC_SEARCH_TIP;
+          return this.RESULT_GROUP.HEURISTIC_SEARCH_TIP;
         case "HistoryUrlHeuristic":
-          return UrlbarUtils.RESULT_GROUP.HEURISTIC_HISTORY_URL;
+          return this.RESULT_GROUP.HEURISTIC_HISTORY_URL;
         default:
           if (result.providerName.startsWith("TestProvider")) {
-            return UrlbarUtils.RESULT_GROUP.HEURISTIC_TEST;
+            return this.RESULT_GROUP.HEURISTIC_TEST;
           }
           break;
       }
-      if (result.providerType == UrlbarUtils.PROVIDER_TYPE.EXTENSION) {
-        return UrlbarUtils.RESULT_GROUP.HEURISTIC_EXTENSION;
+      if (result.providerType == this.PROVIDER_TYPE.EXTENSION) {
+        return this.RESULT_GROUP.HEURISTIC_EXTENSION;
       }
       console.error(
         "Returning HEURISTIC_FALLBACK for unrecognized heuristic result: ",
         result
       );
-      return UrlbarUtils.RESULT_GROUP.HEURISTIC_FALLBACK;
+      return this.RESULT_GROUP.HEURISTIC_FALLBACK;
     }
 
     switch (result.providerName) {
       case "AboutPages":
-        return UrlbarUtils.RESULT_GROUP.ABOUT_PAGES;
+        return this.RESULT_GROUP.ABOUT_PAGES;
       case "InputHistory":
-        return UrlbarUtils.RESULT_GROUP.INPUT_HISTORY;
+        return this.RESULT_GROUP.INPUT_HISTORY;
       case "SemanticHistorySearch":
-        return UrlbarUtils.RESULT_GROUP.HISTORY_SEMANTIC;
+        return this.RESULT_GROUP.HISTORY_SEMANTIC;
       case "UrlbarProviderQuickSuggest":
-        return UrlbarUtils.RESULT_GROUP.GENERAL_PARENT;
+        return this.RESULT_GROUP.GENERAL_PARENT;
       default:
         break;
     }
 
     switch (result.type) {
-      case UrlbarUtils.RESULT_TYPE.SEARCH:
-        if (result.source == UrlbarUtils.RESULT_SOURCE.HISTORY) {
+      case this.RESULT_TYPE.SEARCH:
+        if (result.source == this.RESULT_SOURCE.HISTORY) {
           return result.providerName == "RecentSearches"
-            ? UrlbarUtils.RESULT_GROUP.RECENT_SEARCH
-            : UrlbarUtils.RESULT_GROUP.FORM_HISTORY;
+            ? this.RESULT_GROUP.RECENT_SEARCH
+            : this.RESULT_GROUP.FORM_HISTORY;
         }
         if (result.payload.tail && !result.isRichSuggestion) {
-          return UrlbarUtils.RESULT_GROUP.TAIL_SUGGESTION;
+          return this.RESULT_GROUP.TAIL_SUGGESTION;
         }
         if (result.payload.suggestion) {
-          return UrlbarUtils.RESULT_GROUP.REMOTE_SUGGESTION;
+          return this.RESULT_GROUP.REMOTE_SUGGESTION;
         }
         break;
-      case UrlbarUtils.RESULT_TYPE.OMNIBOX:
-        return UrlbarUtils.RESULT_GROUP.OMNIBOX;
-      case UrlbarUtils.RESULT_TYPE.REMOTE_TAB:
-        return UrlbarUtils.RESULT_GROUP.REMOTE_TAB;
-      case UrlbarUtils.RESULT_TYPE.RESTRICT:
-        return UrlbarUtils.RESULT_GROUP.RESTRICT_SEARCH_KEYWORD;
+      case this.RESULT_TYPE.OMNIBOX:
+        return this.RESULT_GROUP.OMNIBOX;
+      case this.RESULT_TYPE.REMOTE_TAB:
+        return this.RESULT_GROUP.REMOTE_TAB;
+      case this.RESULT_TYPE.RESTRICT:
+        return this.RESULT_GROUP.RESTRICT_SEARCH_KEYWORD;
     }
-    return UrlbarUtils.RESULT_GROUP.GENERAL;
+    return this.RESULT_GROUP.GENERAL;
   },
 
   /**
@@ -612,10 +613,7 @@ export var UrlbarUtils = {
    *   null if the result doesn't have post data.
    */
   getUrlFromResult(result) {
-    if (
-      result.type == UrlbarUtils.RESULT_TYPE.SEARCH &&
-      result.payload.engine
-    ) {
+    if (result.type == this.RESULT_TYPE.SEARCH && result.payload.engine) {
       const engine = Services.search.getEngineByName(result.payload.engine);
       let [url, postData] = this.getSearchQueryUrl(
         engine,
@@ -648,10 +646,14 @@ export var UrlbarUtils = {
     return [submission.uri.spec, submission.postData];
   },
 
-  // Ranks a URL prefix from 3 - 0 with the following preferences:
-  // https:// > https://www. > http:// > http://www.
-  // Higher is better for the purposes of deduping URLs.
-  // Returns -1 if the prefix does not match any of the above.
+  /**
+   * Ranks a URL prefix from 3 - 0 with the following preferences:
+   * https:// > https://www. > http:// > http://www.
+   * Higher is better for the purposes of deduping URLs.
+   * Returns -1 if the prefix does not match any of the above.
+   *
+   * @param {string} prefix
+   */
   getPrefixRank(prefix) {
     return ["http://www.", "http://", "https://www.", "https://"].indexOf(
       prefix
@@ -663,7 +665,8 @@ export var UrlbarUtils = {
    *
    * @param {UrlbarResult} result
    *   The result.
-   * @param {bool} includeHiddenExposures
+   * @param {object} [options]
+   * @param {boolean} [options.includeHiddenExposures]
    *   Whether a span should be returned if the result is a hidden exposure. If
    *   false and `result.isHiddenExposure` is true, zero will be returned since
    *   the result should be hidden and not take up any rows at all. Otherwise
@@ -681,15 +684,15 @@ export var UrlbarUtils = {
     }
 
     switch (result.type) {
-      case UrlbarUtils.RESULT_TYPE.URL:
-      case UrlbarUtils.RESULT_TYPE.BOOKMARKS:
-      case UrlbarUtils.RESULT_TYPE.REMOTE_TAB:
-      case UrlbarUtils.RESULT_TYPE.TAB_SWITCH:
-      case UrlbarUtils.RESULT_TYPE.KEYWORD:
-      case UrlbarUtils.RESULT_TYPE.SEARCH:
-      case UrlbarUtils.RESULT_TYPE.OMNIBOX:
+      case this.RESULT_TYPE.URL:
+      case this.RESULT_TYPE.BOOKMARKS:
+      case this.RESULT_TYPE.REMOTE_TAB:
+      case this.RESULT_TYPE.TAB_SWITCH:
+      case this.RESULT_TYPE.KEYWORD:
+      case this.RESULT_TYPE.SEARCH:
+      case this.RESULT_TYPE.OMNIBOX:
         return 1;
-      case UrlbarUtils.RESULT_TYPE.TIP:
+      case this.RESULT_TYPE.TIP:
         return 3;
     }
     return 1;
@@ -698,30 +701,30 @@ export var UrlbarUtils = {
   /**
    * Gets a default icon for a URL.
    *
-   * @param {string} url
+   * @param {string|URL} url
    *   The URL to get the icon for.
    * @returns {string} A URI pointing to an icon for `url`.
    */
   getIconForUrl(url) {
     if (typeof url == "string") {
-      return UrlbarUtils.PROTOCOLS_WITH_ICONS.some(p => url.startsWith(p))
+      return this.PROTOCOLS_WITH_ICONS.some(p => url.startsWith(p))
         ? "page-icon:" + url
-        : UrlbarUtils.ICON.DEFAULT;
+        : this.ICON.DEFAULT;
     }
     if (
       URL.isInstance(url) &&
-      UrlbarUtils.PROTOCOLS_WITH_ICONS.includes(url.protocol)
+      this.PROTOCOLS_WITH_ICONS.includes(url.protocol)
     ) {
       return "page-icon:" + url.href;
     }
-    return UrlbarUtils.ICON.DEFAULT;
+    return this.ICON.DEFAULT;
   },
 
   /**
    * Returns a search mode object if a token should enter search mode when
    * typed. This does not handle engine aliases.
    *
-   * @param {UrlbarUtils.RESTRICT} token
+   * @param {Values<typeof lazy.UrlbarTokenizer.RESTRICT>} token
    *   A restriction token to convert to search mode.
    * @returns {object}
    *   A search mode object. Null if search mode should not be entered. See
@@ -735,7 +738,7 @@ export var UrlbarUtils = {
       };
     }
 
-    let mode = UrlbarUtils.LOCAL_SEARCH_MODES.find(m => m.restrict == token);
+    let mode = this.LOCAL_SEARCH_MODES.find(m => m.restrict == token);
     if (!mode) {
       return null;
     }
@@ -815,19 +818,19 @@ export var UrlbarUtils = {
    *        The text to modify.
    * @param {object} [options]
    *        The options object.
-   * @param {boolean} options.stripHttp
+   * @param {boolean} [options.stripHttp]
    *        Whether to strip http.
-   * @param {boolean} options.stripHttps
+   * @param {boolean} [options.stripHttps]
    *        Whether to strip https.
-   * @param {boolean} options.stripWww
+   * @param {boolean} [options.stripWww]
    *        Whether to strip `www.`.
-   * @param {boolean} options.trimSlash
+   * @param {boolean} [options.trimSlash]
    *        Whether to trim the trailing slash.
-   * @param {boolean} options.trimEmptyQuery
+   * @param {boolean} [options.trimEmptyQuery]
    *        Whether to trim a trailing `?`.
-   * @param {boolean} options.trimEmptyHash
+   * @param {boolean} [options.trimEmptyHash]
    *        Whether to trim a trailing `#`.
-   * @param {boolean} options.trimTrailingDot
+   * @param {boolean} [options.trimTrailingDot]
    *        Whether to trim a trailing '.'.
    * @returns {string[]} [modified, prefix, suffix]
    *          modified: {string} The modified spec.
@@ -964,7 +967,7 @@ export var UrlbarUtils = {
   /**
    * Whether the passed-in input event is paste event.
    *
-   * @param {DOMEvent} event an input DOM event.
+   * @param {InputEvent} event an input DOM event.
    * @returns {boolean} Whether the event is a paste event.
    */
   isPasteEvent(event) {
@@ -1048,7 +1051,7 @@ export var UrlbarUtils = {
     }
     if (
       prefix.endsWith(":") &&
-      !UrlbarUtils.PROTOCOLS_WITHOUT_AUTHORITY.includes(prefix.toLowerCase())
+      !this.PROTOCOLS_WITHOUT_AUTHORITY.includes(prefix.toLowerCase())
     ) {
       // Something that looks like a URI scheme but we won't treat as one:
       // e.g. "localhost:8888"
@@ -1062,7 +1065,7 @@ export var UrlbarUtils = {
    *
    * @param {string} searchString The string to search for.
    * @param {nsIDOMWindow} window The window requesting it.
-   * @returns {UrlbarResult} an heuristic result.
+   * @returns {Promise<UrlbarResult>} an heuristic result.
    */
   async getHeuristicResultFor(searchString, window) {
     if (!searchString) {
@@ -1123,7 +1126,7 @@ export var UrlbarUtils = {
    * Returns the name of a result source.  The name is the lowercase name of the
    * corresponding property in the RESULT_SOURCE object.
    *
-   * @param {string} source A UrlbarUtils.RESULT_SOURCE value.
+   * @param {keyof typeof this.RESULT_SOURCE} source A UrlbarUtils.RESULT_SOURCE value.
    * @returns {string} The token's name, a lowercased name in the RESULT_SOURCE
    *   object.
    */
@@ -1145,7 +1148,7 @@ export var UrlbarUtils = {
    * @param {string} value The value to add.
    * @param {string} [source] The source of the addition, usually
    *        the name of the engine the search was made with.
-   * @returns {Promise} resolved once the operation is complete
+   * @returns {Promise<void>} resolved once the operation is complete
    */
   addToFormHistory(input, value, source) {
     // If the user types a search engine alias without a search string,
@@ -1178,7 +1181,7 @@ export var UrlbarUtils = {
    *                 The URL to test
    * @param {string} candidate
    *                 The candidate string to test against
-   * @param {string} checkFragmentOnly
+   * @param {boolean} [checkFragmentOnly]
    *                 If want to check the fragment only, pass true.
    *                 Otherwise, check whole url.
    * @returns {boolean} true: can autofill
@@ -1247,13 +1250,13 @@ export var UrlbarUtils = {
       return "unknown";
     }
     switch (result.type) {
-      case UrlbarUtils.RESULT_TYPE.TAB_SWITCH:
+      case this.RESULT_TYPE.TAB_SWITCH:
         return "switchtab";
-      case UrlbarUtils.RESULT_TYPE.SEARCH:
+      case this.RESULT_TYPE.SEARCH:
         if (result.providerName == "RecentSearches") {
           return "recent_search";
         }
-        if (result.source == UrlbarUtils.RESULT_SOURCE.HISTORY) {
+        if (result.source == this.RESULT_SOURCE.HISTORY) {
           return "formhistory";
         }
         if (result.providerName == "TabToSearch") {
@@ -1267,7 +1270,7 @@ export var UrlbarUtils = {
           return type;
         }
         return "searchengine";
-      case UrlbarUtils.RESULT_TYPE.URL:
+      case this.RESULT_TYPE.URL:
         if (result.autofill) {
           let { type } = result.autofill;
           if (!type) {
@@ -1281,7 +1284,7 @@ export var UrlbarUtils = {
           return `autofill_${type}`;
         }
         if (
-          result.source == UrlbarUtils.RESULT_SOURCE.OTHER_LOCAL &&
+          result.source == this.RESULT_SOURCE.OTHER_LOCAL &&
           result.heuristic
         ) {
           return "visiturl";
@@ -1294,7 +1297,7 @@ export var UrlbarUtils = {
         }
         {
           let type =
-            result.source == UrlbarUtils.RESULT_SOURCE.BOOKMARKS
+            result.source == this.RESULT_SOURCE.BOOKMARKS
               ? "bookmark"
               : "history";
           if (result.providerName == "InputHistory") {
@@ -1302,21 +1305,21 @@ export var UrlbarUtils = {
           }
           return type;
         }
-      case UrlbarUtils.RESULT_TYPE.KEYWORD:
+      case this.RESULT_TYPE.KEYWORD:
         return "keyword";
-      case UrlbarUtils.RESULT_TYPE.OMNIBOX:
+      case this.RESULT_TYPE.OMNIBOX:
         return "extension";
-      case UrlbarUtils.RESULT_TYPE.REMOTE_TAB:
+      case this.RESULT_TYPE.REMOTE_TAB:
         return "remotetab";
-      case UrlbarUtils.RESULT_TYPE.TIP:
+      case this.RESULT_TYPE.TIP:
         return "tip";
-      case UrlbarUtils.RESULT_TYPE.DYNAMIC:
+      case this.RESULT_TYPE.DYNAMIC:
         if (result.providerName == "TabToSearch") {
           // This is the onboarding result.
           return "tabtosearch";
         }
         return "dynamic";
-      case UrlbarUtils.RESULT_TYPE.RESTRICT:
+      case this.RESULT_TYPE.RESTRICT:
         if (result.payload.keyword === lazy.UrlbarTokenizer.RESTRICT.BOOKMARK) {
           return "restrict_keyword_bookmarks";
         }
@@ -1342,7 +1345,7 @@ export var UrlbarUtils = {
    * @returns {string} Unescaped uri.
    */
   unEscapeURIForUI(uri) {
-    return uri.length > UrlbarUtils.MAX_TEXT_LENGTH
+    return uri.length > this.MAX_TEXT_LENGTH
       ? uri
       : Services.textToSubURI.unEscapeURIForUI(uri);
   },
@@ -1380,7 +1383,7 @@ export var UrlbarUtils = {
 
     if (url) {
       if (schemeless) {
-        url = UrlbarUtils.stripPrefixAndTrim(url, {
+        url = this.stripPrefixAndTrim(url, {
           stripHttp: true,
           stripHttps: true,
         })[0];
@@ -1416,17 +1419,17 @@ export var UrlbarUtils = {
     }
 
     switch (this.getResultGroup(result)) {
-      case UrlbarUtils.RESULT_GROUP.INPUT_HISTORY: {
+      case this.RESULT_GROUP.INPUT_HISTORY: {
         return "adaptive_history";
       }
-      case UrlbarUtils.RESULT_GROUP.RECENT_SEARCH: {
+      case this.RESULT_GROUP.RECENT_SEARCH: {
         return "recent_search";
       }
-      case UrlbarUtils.RESULT_GROUP.FORM_HISTORY: {
+      case this.RESULT_GROUP.FORM_HISTORY: {
         return "search_history";
       }
-      case UrlbarUtils.RESULT_GROUP.TAIL_SUGGESTION:
-      case UrlbarUtils.RESULT_GROUP.REMOTE_SUGGESTION: {
+      case this.RESULT_GROUP.TAIL_SUGGESTION:
+      case this.RESULT_GROUP.REMOTE_SUGGESTION: {
         let group = result.payload.trending
           ? "trending_search"
           : "search_suggest";
@@ -1435,28 +1438,28 @@ export var UrlbarUtils = {
         }
         return group;
       }
-      case UrlbarUtils.RESULT_GROUP.REMOTE_TAB: {
+      case this.RESULT_GROUP.REMOTE_TAB: {
         return "remote_tab";
       }
-      case UrlbarUtils.RESULT_GROUP.HEURISTIC_EXTENSION:
-      case UrlbarUtils.RESULT_GROUP.HEURISTIC_OMNIBOX:
-      case UrlbarUtils.RESULT_GROUP.OMNIBOX: {
+      case this.RESULT_GROUP.HEURISTIC_EXTENSION:
+      case this.RESULT_GROUP.HEURISTIC_OMNIBOX:
+      case this.RESULT_GROUP.OMNIBOX: {
         return "addon";
       }
-      case UrlbarUtils.RESULT_GROUP.GENERAL: {
+      case this.RESULT_GROUP.GENERAL: {
         return "general";
       }
       // Group of UrlbarProviderQuickSuggest is GENERAL_PARENT.
-      case UrlbarUtils.RESULT_GROUP.GENERAL_PARENT: {
+      case this.RESULT_GROUP.GENERAL_PARENT: {
         return "suggest";
       }
-      case UrlbarUtils.RESULT_GROUP.ABOUT_PAGES: {
+      case this.RESULT_GROUP.ABOUT_PAGES: {
         return "about_page";
       }
-      case UrlbarUtils.RESULT_GROUP.SUGGESTED_INDEX: {
+      case this.RESULT_GROUP.SUGGESTED_INDEX: {
         return "suggested_index";
       }
-      case UrlbarUtils.RESULT_GROUP.RESTRICT_SEARCH_KEYWORD: {
+      case this.RESULT_GROUP.RESTRICT_SEARCH_KEYWORD: {
         return "restrict_keyword";
       }
     }
@@ -1468,7 +1471,7 @@ export var UrlbarUtils = {
    * Extracts a type for search engagement telemetry from a result.
    *
    * @param {UrlbarResult} result The result to analyze.
-   * @param {string} selType An optional parameter for the selected type.
+   * @param {string} [selType] An optional parameter for the selected type.
    * @returns {string} Type as string.
    */
   searchEngagementTelemetryType(result, selType = null) {
@@ -1479,14 +1482,14 @@ export var UrlbarUtils = {
     // While product doesn't use experimental addons anymore, tests may still do
     // for testing purposes.
     if (
-      result.providerType === UrlbarUtils.PROVIDER_TYPE.EXTENSION &&
+      result.providerType === this.PROVIDER_TYPE.EXTENSION &&
       result.providerName != "Omnibox"
     ) {
       return "experimental_addon";
     }
 
     switch (result.type) {
-      case UrlbarUtils.RESULT_TYPE.DYNAMIC:
+      case this.RESULT_TYPE.DYNAMIC:
         switch (result.providerName) {
           case "calculator":
             return "calc";
@@ -1503,17 +1506,17 @@ export var UrlbarUtils = {
             return "action";
         }
         break;
-      case UrlbarUtils.RESULT_TYPE.KEYWORD:
+      case this.RESULT_TYPE.KEYWORD:
         return "keyword";
-      case UrlbarUtils.RESULT_TYPE.OMNIBOX:
+      case this.RESULT_TYPE.OMNIBOX:
         return "addon";
-      case UrlbarUtils.RESULT_TYPE.REMOTE_TAB:
+      case this.RESULT_TYPE.REMOTE_TAB:
         return "remote_tab";
-      case UrlbarUtils.RESULT_TYPE.SEARCH:
+      case this.RESULT_TYPE.SEARCH:
         if (result.providerName === "TabToSearch") {
           return "tab_to_search";
         }
-        if (result.source == UrlbarUtils.RESULT_SOURCE.HISTORY) {
+        if (result.source == this.RESULT_SOURCE.HISTORY) {
           return result.providerName == "RecentSearches"
             ? "recent_search"
             : "search_history";
@@ -1528,9 +1531,9 @@ export var UrlbarUtils = {
           return type;
         }
         return "search_engine";
-      case UrlbarUtils.RESULT_TYPE.TAB_SWITCH:
+      case this.RESULT_TYPE.TAB_SWITCH:
         return "tab";
-      case UrlbarUtils.RESULT_TYPE.TIP:
+      case this.RESULT_TYPE.TIP:
         if (result.providerName === "UrlbarProviderInterventions") {
           switch (result.payload.type) {
             case lazy.UrlbarProviderInterventions.TIP_TYPE.CLEAR:
@@ -1558,9 +1561,9 @@ export var UrlbarUtils = {
           default:
             return "tip_unknown";
         }
-      case UrlbarUtils.RESULT_TYPE.URL:
+      case this.RESULT_TYPE.URL:
         if (
-          result.source === UrlbarUtils.RESULT_SOURCE.OTHER_LOCAL &&
+          result.source === this.RESULT_SOURCE.OTHER_LOCAL &&
           result.heuristic
         ) {
           return "url";
@@ -1577,10 +1580,10 @@ export var UrlbarUtils = {
         if (result.providerName === "UrlbarProviderClipboard") {
           return "clipboard";
         }
-        return result.source === UrlbarUtils.RESULT_SOURCE.BOOKMARKS
+        return result.source === this.RESULT_SOURCE.BOOKMARKS
           ? "bookmark"
           : "history";
-      case UrlbarUtils.RESULT_TYPE.RESTRICT:
+      case this.RESULT_TYPE.RESTRICT:
         if (result.payload.keyword === lazy.UrlbarTokenizer.RESTRICT.BOOKMARK) {
           return "restrict_keyword_bookmarks";
         }
@@ -1633,7 +1636,7 @@ export var UrlbarUtils = {
    *
    * @param {object} obj
    *   The object to modify.
-   * @param {boolean} overwrite
+   * @param {boolean} [overwrite]
    *   Controls what happens when a camelCase key is already defined for a
    *   snake_case key (excluding keys that don't have underscores). If true the
    *   existing key will be overwritten. If false an error will be thrown.
@@ -2165,7 +2168,7 @@ export class UrlbarQueryContext {
    *   The maximum number of results that will be displayed for this query.
    * @param {boolean} options.allowAutofill
    *   Whether or not to allow providers to include autofill results.
-   * @param {number} options.userContextId
+   * @param {number} [options.userContextId]
    *   The container id where this context was generated, if any.
    * @param {Array} [options.sources]
    *   A list of acceptable UrlbarUtils.RESULT_SOURCE for the context.
@@ -2180,7 +2183,7 @@ export class UrlbarQueryContext {
    * @param {string} [options.formHistoryName]
    *   The name under which the local form history is registered.
    */
-  constructor(options = {}) {
+  constructor(options) {
     this._checkRequiredOptions(options, [
       "allowAutofill",
       "isPrivate",
@@ -2747,13 +2750,13 @@ export class SkippableTimer {
   /**
    * Creates a skippable timer for the given callback and time.
    *
-   * @param {object} options An object that configures the timer
-   * @param {string} options.name The name of the timer, logged when necessary
-   * @param {Function} options.callback To be invoked when requested
-   * @param {number} options.time A delay in milliseconds to wait for
-   * @param {boolean} options.reportErrorOnTimeout If true and the timer times
+   * @param {object} [options] An object that configures the timer
+   * @param {string} [options.name] The name of the timer, logged when necessary
+   * @param {Function} [options.callback] To be invoked when requested
+   * @param {number} [options.time] A delay in milliseconds to wait for
+   * @param {boolean} [options.reportErrorOnTimeout] If true and the timer times
    *                  out, an error will be logged with Cu.reportError
-   * @param {logger} options.logger An optional logger
+   * @param {Console} [options.logger] An optional logger
    */
   constructor({
     name = "<anonymous timer>",
@@ -2862,9 +2865,9 @@ export class L10nCache {
    *   Options
    * @param {string} options.id
    *   The string's Fluent ID.
-   * @param {object} options.args
+   * @param {object} [options.args]
    *   The Fluent arguments as passed to `l10n.setAttributes`.
-   * @param {boolean} options.excludeArgsFromCacheKey
+   * @param {boolean} [options.excludeArgsFromCacheKey]
    *   Pass true if the string was cached using a key that excluded arguments.
    * @returns {object}
    *   The message object or undefined if it's not cached. The message object is
@@ -2908,9 +2911,9 @@ export class L10nCache {
    *   Options
    * @param {string} options.id
    *   The string's Fluent ID.
-   * @param {object} options.args
+   * @param {object} [options.args]
    *   The Fluent arguments as passed to `l10n.setAttributes`.
-   * @param {boolean} options.excludeArgsFromCacheKey
+   * @param {boolean} [options.excludeArgsFromCacheKey]
    *   Pass true to cache the string using a key that excludes the arguments.
    *   The string will be cached only by its ID. This is useful if the string is
    *   used only once in the UI, its arguments vary, and it's acceptable to
@@ -2957,9 +2960,9 @@ export class L10nCache {
    *   Options
    * @param {string} options.id
    *   The string's Fluent ID.
-   * @param {object} options.args
+   * @param {object} [options.args]
    *   The Fluent arguments as passed to `l10n.setAttributes`.
-   * @param {boolean} options.excludeArgsFromCacheKey
+   * @param {boolean} [options.excludeArgsFromCacheKey]
    *   Pass true to cache the string using a key that excludes the arguments.
    *   The string will be cached only by its ID. See `add()` for more.
    */
@@ -2974,7 +2977,7 @@ export class L10nCache {
   /**
    * Fetches and caches strings that aren't already cached.
    *
-   * @param {Array} objects
+   * @param {object[]} objects
    *   An array of objects as passed to `ensure()`.
    */
   async ensureAll(objects) {
@@ -2992,9 +2995,9 @@ export class L10nCache {
    *   Options
    * @param {string} options.id
    *   The string's Fluent ID.
-   * @param {object} options.args
+   * @param {object} [options.args]
    *   The Fluent arguments as passed to `l10n.setAttributes`.
-   * @param {boolean} options.excludeArgsFromCacheKey
+   * @param {boolean} [options.excludeArgsFromCacheKey]
    *   Pass true if the string was cached using a key that excludes the
    *   arguments. If true, `args` is ignored.
    */
@@ -3037,24 +3040,24 @@ export class L10nCache {
    *   Options object.
    * @param {string} options.id
    *   The l10n string ID.
-   * @param {object} options.args
+   * @param {object} [options.args]
    *   The l10n string arguments.
-   * @param {string} options.attribute
+   * @param {string} [options.attribute]
    *   If the string applies to an attribute on the element, pass the name of
    *   the attribute. The string in the Fluent file should define a value for
    *   the attribute, like ".foo = My value". If the string applies to the
    *   element's content, leave this undefined.
-   * @param {boolean} options.parseMarkup
+   * @param {boolean} [options.parseMarkup]
    *   This controls whether the cached string is applied to the element's
    *   `textContent` or its `innerHTML`. It's not relevant if the string is
    *   applied to an attribute. Typically it should be set to true when the
    *   string is expected to contain markup. When true, the cached string is
    *   essentially assigned to the element's `innerHTML`. When false, it's
    *   assigned to the element's `textContent`.
-   * @param {boolean} options.cacheable
+   * @param {boolean} [options.cacheable]
    *   Whether the string should be cached in addition to applying it to the
    *   given element.
-   * @param {boolean} options.excludeArgsFromCacheKey
+   * @param {boolean} [options.excludeArgsFromCacheKey]
    *   This affects how the string is stored in and fetched from the cache and
    *   is only relevant if the string has arguments. When true, all formatted
    *   values of the string share the same cache entry regardless of the
@@ -3145,9 +3148,9 @@ export class L10nCache {
    *
    * @param {Element} element
    *   The content and attributes will be removed from this element.
-   * @param {object} options
+   * @param {object} [options]
    *   Options object.
-   * @param {string} options.attribute
+   * @param {string} [options.attribute]
    *   If you passed an attribute to `setElementL10n()`, pass it here too.
    */
   removeElementL10n(element, { attribute = undefined } = {}) {

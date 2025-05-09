@@ -169,7 +169,7 @@ class PresShell final : public nsStubDocumentObserver,
   // nsISupports
   NS_DECL_ISUPPORTS
 
-  NS_DECLARE_STATIC_IID_ACCESSOR(NS_PRESSHELL_IID)
+  NS_INLINE_DECL_STATIC_IID(NS_PRESSHELL_IID)
 
   static bool AccessibleCaretEnabled(nsIDocShell* aDocShell);
 
@@ -739,7 +739,7 @@ class PresShell final : public nsStubDocumentObserver,
   nsIFrame* GetAbsoluteContainingBlock(nsIFrame* aFrame);
 
   // https://drafts.csswg.org/css-anchor-position-1/#target
-  nsIFrame* GetAnchorPosAnchor(const nsAtom* aName);
+  nsIFrame* GetAnchorPosAnchor(const nsAtom* aName) const;
   void AddAnchorPosAnchor(const nsAtom* aName, nsIFrame* aFrame);
   void RemoveAnchorPosAnchor(const nsAtom* aName, nsIFrame* aFrame);
 
@@ -3319,8 +3319,6 @@ class PresShell final : public nsStubDocumentObserver,
 
   static bool sProcessInteractable;
 };
-
-NS_DEFINE_STATIC_IID_ACCESSOR(PresShell, NS_PRESSHELL_IID)
 
 }  // namespace mozilla
 

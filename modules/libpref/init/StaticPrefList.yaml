@@ -2943,7 +2943,7 @@
 # Whether to dispatch `beforescriptexecute` and `afterscriptexecute` event.
 - name: dom.events.script_execute.enabled
   type: bool
-  value: @IS_NOT_NIGHTLY_BUILD@
+  value: @IS_NOT_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # Whether to expose test interfaces of various sorts
@@ -8096,6 +8096,14 @@
   value: -1
   mirror: always
 
+# If true, then the HTMLImageElement naturalWidth and naturalHeight APIs will
+# fall back to the default concrete object size (300x150) for images that lack
+# a natural width and/or height.
+- name: image.natural-size-fallback.enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 # Whether we record SVG images as blobs or not.
 - name: image.svg.blob-image
   type: RelaxedAtomicBool
@@ -11694,13 +11702,15 @@
     mirror: always
 
 # Enable origin filter for MFCDM support
-# 0 : disabled, 1 : enabled allowed list, 2 : enabled blocked list
+# 0 : disabled, 1 : enabled allowed list, 2 : enabled blocked list,
+# 3 : enabled allowed by default via Remote Settings
+# 4 : enabled blocked by default via Remote Settings
 -   name: media.eme.mfcdm.origin-filter.enabled
     type: RelaxedAtomicUint32
-#if defined(MOZ_DEV_EDITION) || defined(EARLY_BETA_OR_EARLIER)
-    value: 2
+#ifdef NIGHTLY_BUILD
+    value: 3
 #else
-    value: 1
+    value: 4
 #endif
     mirror: always
 
@@ -13379,6 +13389,12 @@
 - name: network.proxy.dhcp_wpad_timeout_sec
   type: AtomicFloat
   value: 5.0
+  mirror: always
+
+# When true, we only allow one outstanding GetPacFromDHCP runnable
+- name: network.proxy.dhcp_wpad_only_one_outstanding
+  type: RelaxedAtomicBool
+  value: true
   mirror: always
 
 # Allow CookieJarSettings to be unblocked for channels without a document.

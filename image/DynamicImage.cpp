@@ -98,7 +98,17 @@ nsresult DynamicImage::GetNativeSizes(nsTArray<IntSize>&) {
 size_t DynamicImage::GetNativeSizesLength() { return 0; }
 
 NS_IMETHODIMP
-DynamicImage::GetIntrinsicSize(nsSize* aSize) {
+DynamicImage::GetIntrinsicSize(ImageIntrinsicSize* aIntrinsicSize) {
+  IntSize intSize(mDrawable->Size());
+  aIntrinsicSize->mWidth = Some(intSize.width);
+  aIntrinsicSize->mHeight = Some(intSize.height);
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+DynamicImage::GetIntrinsicSizeInAppUnits(nsSize* aSize) {
+  // XXXdholbert This probably needs to be scaled; see bug 1965106.
   IntSize intSize(mDrawable->Size());
   *aSize = nsSize(intSize.width, intSize.height);
   return NS_OK;

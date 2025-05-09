@@ -11499,7 +11499,7 @@ nsIFrame* PresShell::GetAbsoluteContainingBlock(nsIFrame* aFrame) {
       aFrame, nsCSSFrameConstructor::ABS_POS);
 }
 
-nsIFrame* PresShell::GetAnchorPosAnchor(const nsAtom* aName) {
+nsIFrame* PresShell::GetAnchorPosAnchor(const nsAtom* aName) const {
   MOZ_ASSERT(aName);
   if (auto entry = mAnchorPosAnchors.Lookup(aName)) {
     return entry.Data();

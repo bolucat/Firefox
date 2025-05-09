@@ -55,6 +55,11 @@ class QuotaManagerDependencyFixture : public testing::Test {
       const OriginMetadata& aOriginMetadata);
   static void AssertTemporaryOriginNotInitialized(
       const OriginMetadata& aOriginMetadata);
+
+  // For more complex testing, use of this helper is optional.
+  static void SaveOriginAccessTime(const OriginMetadata& aOriginMetadata,
+                                   int64_t aTimestamp);
+
   static void GetOriginUsage(const OriginMetadata& aOriginMetadata,
                              UsageInfo* aResult);
   static void GetCachedOriginUsage(const OriginMetadata& aOriginMetadata,
@@ -70,6 +75,9 @@ class QuotaManagerDependencyFixture : public testing::Test {
       const nsAString& aPattern);
 
   static uint64_t TotalDirectoryIterations();
+
+  static uint64_t SaveOriginAccessTimeCount();
+  static uint64_t SaveOriginAccessTimeCountInternal();
 
   /* Convenience method for tasks which must be called on PBackground thread */
   template <class Invokable, class... Args>

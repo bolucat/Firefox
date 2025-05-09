@@ -202,9 +202,6 @@ open class DefaultToolbarMenu(
     @VisibleForTesting(otherwise = PRIVATE)
     fun shouldShowTranslations(): Boolean {
         val isEngineSupported = store.state.translationEngine.isEngineSupported
-        if (isEngineSupported == true) {
-            FxNimbus.features.translations.recordExposure()
-        }
         return selectedSession?.let {
             isEngineSupported == true &&
                 FxNimbus.features.translations.value().mainFlowBrowserMenuEnabled
@@ -446,7 +443,7 @@ open class DefaultToolbarMenu(
                 BrowserMenuDivider(),
                 findInPageItem,
                 translationsItem.apply { visible = ::shouldShowTranslations },
-                desktopSiteItem,
+                desktopSiteItem.apply { visible = { store.state.selectedTab?.content?.isPdf == false } },
                 openInRegularTabItem.apply { visible = ::shouldShowOpenInRegularTab },
                 customizeReaderView.apply { visible = ::shouldShowReaderViewCustomization },
                 openInApp.apply { visible = ::shouldShowOpenInApp },
