@@ -310,17 +310,26 @@ static const nsINode* GetClosestCommonInclusiveAncestorForRangeInSelection(
     const nsINode* aNode) {
   while (aNode &&
          !aNode->IsClosestCommonInclusiveAncestorForRangeInSelection()) {
-    const bool isNodeInShadowTree =
+    const bool isNodeInFlattenedShadowTree =
         StaticPrefs::dom_shadowdom_selection_across_boundary_enabled() &&
-        aNode->IsInShadowTree();
+        (aNode->IsInShadowTree() ||
+         (aNode->IsContent() && aNode->AsContent()->GetAssignedSlot()));
+
     if (!aNode
              ->IsDescendantOfClosestCommonInclusiveAncestorForRangeInSelection() &&
-        !isNodeInShadowTree) {
+        !isNodeInFlattenedShadowTree) {
       return nullptr;
     }
-    aNode = StaticPrefs::dom_shadowdom_selection_across_boundary_enabled()
-                ? aNode->GetParentOrShadowHostNode()
-                : aNode->GetParentNode();
+
+    if (StaticPrefs::dom_shadowdom_selection_across_boundary_enabled()) {
+      if (aNode->IsContent() && aNode->AsContent()->GetAssignedSlot()) {
+        aNode = aNode->AsContent()->GetAssignedSlot();
+      } else {
+        aNode = aNode->GetParentOrShadowHostNode();
+      }
+      continue;
+    }
+    aNode = aNode->GetParentNode();
   }
   return aNode;
 }
@@ -343,16 +352,28 @@ class IsItemInRangeComparator {
   }
 
   int operator()(const AbstractRange* const aRange) const {
-    Maybe<int32_t> cmp = nsContentUtils::ComparePoints(
-        ConstRawRangeBoundary(&mNode, mEndOffset,
-                              RangeBoundaryIsMutationObserved::No),
-        aRange->MayCrossShadowBoundaryStartRef(), mCache);
-    if (cmp.valueOr(1) == 1) {
-      cmp = nsContentUtils::ComparePoints(
-          ConstRawRangeBoundary(&mNode, mStartOffset,
-                                RangeBoundaryIsMutationObserved::No),
-          aRange->MayCrossShadowBoundaryEndRef(), mCache);
-      if (cmp.valueOr(1) == -1) {
+    auto ComparePoints = [](const nsINode* aNode1, const uint32_t aOffset1,
+                            const nsINode* aNode2, const uint32_t aOffset2,
+                            nsContentUtils::NodeIndexCache* aCache) {
+      if (StaticPrefs::dom_shadowdom_selection_across_boundary_enabled()) {
+        return nsContentUtils::ComparePointsWithIndices<TreeKind::Flat>(
+            aNode1, aOffset1, aNode2, aOffset2, aCache);
+      }
+      return nsContentUtils::ComparePointsWithIndices<
+          TreeKind::ShadowIncludingDOM>(aNode1, aOffset1, aNode2, aOffset2,
+                                        aCache);
+    };
+
+    Maybe<int32_t> cmp = ComparePoints(
+        &mNode, mEndOffset, aRange->GetMayCrossShadowBoundaryStartContainer(),
+        aRange->MayCrossShadowBoundaryStartOffset(), mCache);
+    MOZ_ASSERT(cmp.isSome());  // Should always be connected at this point.
+    if (cmp.value() == 1) {
+      cmp = ComparePoints(&mNode, mStartOffset,
+                          aRange->GetMayCrossShadowBoundaryEndContainer(),
+                          aRange->MayCrossShadowBoundaryEndOffset(), mCache);
+      MOZ_ASSERT(cmp.isSome());
+      if (cmp.value() == -1) {
         return 0;
       }
       return 1;

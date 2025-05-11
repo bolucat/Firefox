@@ -3,7 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
-import { ReviewCheckerManager } from "resource:///modules/ReviewCheckerManager.sys.mjs";
 
 const lazy = {};
 
@@ -12,7 +11,6 @@ ChromeUtils.defineESModuleGetters(lazy, {
   isProductURL: "chrome://global/content/shopping/ShoppingProduct.mjs",
   getProductIdFromURL: "chrome://global/content/shopping/ShoppingProduct.mjs",
   setTimeout: "resource://gre/modules/Timer.sys.mjs",
-  EveryWindow: "resource:///modules/EveryWindow.sys.mjs",
 });
 
 const OPTED_IN_PREF = "browser.shopping.experience2023.optedIn";
@@ -33,25 +31,16 @@ const CFR_FEATURES_PREF =
   "browser.newtabpage.activity-stream.asrouter.userprefs.cfr.features";
 
 const ENABLED_PREF = "browser.shopping.experience2023.enabled";
-const INTEGRATED_SIDEBAR_PREF =
-  "browser.shopping.experience2023.integratedSidebar";
 
 export const ShoppingUtils = {
   initialized: false,
   registered: false,
   handledAutoActivate: false,
   enabled: false,
-  integratedSidebar: false,
   everyWindowCallbackId: `shoppingutils-${Services.uuid.generateUUID()}`,
-  managers: new WeakMap(),
 
   _updatePrefVariables() {
-    this.integratedSidebar = Services.prefs.getBoolPref(
-      INTEGRATED_SIDEBAR_PREF,
-      false
-    );
-    this.enabled =
-      this.integratedSidebar || Services.prefs.getBoolPref(ENABLED_PREF, false);
+    this.enabled = Services.prefs.getBoolPref(ENABLED_PREF, false);
   },
 
   onPrefUpdate(_subject, topic) {
@@ -79,8 +68,6 @@ export const ShoppingUtils = {
     }
     this.onPrefUpdate = this.onPrefUpdate.bind(this);
     this.onActiveUpdate = this.onActiveUpdate.bind(this);
-    this._addManagerForWindow = this._addManagerForWindow.bind(this);
-    this._removeManagerForWindow = this._removeManagerForWindow.bind(this);
 
     if (!this.registered) {
       // Note (bug 1855545): we must set `this.registered` before calling
@@ -88,7 +75,6 @@ export const ShoppingUtils = {
       // which in turn calls `ShoppingUtils.init`, creating an infinite loop.
       this.registered = true;
       Services.prefs.addObserver(ENABLED_PREF, this.onPrefUpdate);
-      Services.prefs.addObserver(INTEGRATED_SIDEBAR_PREF, this.onPrefUpdate);
       this._updatePrefVariables();
     }
 
@@ -103,14 +89,10 @@ export const ShoppingUtils = {
     this.recordUserAdsPreference();
     this.recordUserAutoOpenPreference();
 
-    if (this.integratedSidebar) {
-      this._addReviewCheckerManagers();
-    } else {
-      if (this.isAutoOpenEligible()) {
-        Services.prefs.setBoolPref(ACTIVE_PREF, true);
-      }
-      Services.prefs.addObserver(ACTIVE_PREF, this.onActiveUpdate);
+    if (this.isAutoOpenEligible()) {
+      Services.prefs.setBoolPref(ACTIVE_PREF, true);
     }
+    Services.prefs.addObserver(ACTIVE_PREF, this.onActiveUpdate);
 
     Services.prefs.setIntPref(SIDEBAR_CLOSED_COUNT_PREF, 0);
 
@@ -119,7 +101,7 @@ export const ShoppingUtils = {
 
   /**
    * Runs when:
-   * - the shopping2023 enabled or integratedSidebar prefs are changed,
+   * - the shopping2023 enabled pref is changed,
    * - the user is unenrolled from the Nimbus experiment,
    * - or at shutdown, after quit-application-granted.
    *
@@ -140,11 +122,6 @@ export const ShoppingUtils = {
     if (!soft) {
       this.registered = false;
       Services.prefs.removeObserver(ENABLED_PREF, this.onPrefUpdate);
-      Services.prefs.removeObserver(INTEGRATED_SIDEBAR_PREF, this.onPrefUpdate);
-    }
-
-    if (this.managers.size) {
-      this._removeReviewCheckerManagers();
     }
 
     this.initialized = false;
@@ -271,7 +248,13 @@ export const ShoppingUtils = {
    */
   handleAutoActivateOnProduct() {
     let shouldAutoActivate = false;
-    if (!this.handledAutoActivate && !this.optedIn && this.cfrFeatures) {
+
+    if (
+      !this.handledAutoActivate &&
+      !this.optedIn &&
+      this.cfrFeatures &&
+      this.autoOpenEnabled
+    ) {
       let autoActivateCount = Services.prefs.getIntPref(
         AUTO_ACTIVATE_COUNT_PREF,
         0
@@ -348,7 +331,6 @@ export const ShoppingUtils = {
     }
 
     if (
-      !this.integratedSidebar &&
       this.isAutoOpenEligible() &&
       this.resetActiveOnNextProductPage &&
       isProductPageNavigation
@@ -389,18 +371,6 @@ export const ShoppingUtils = {
   },
 
   /**
-   * Removes browser `reviewCheckerWasClosed` flag that indicates the
-   * Review Checker sidebar was closed by a user action.
-   *
-   * @param {browser} browser
-   */
-  clearWasClosedFlag(browser) {
-    if (browser.reviewCheckerWasClosed) {
-      delete browser.reviewCheckerWasClosed;
-    }
-  },
-
-  /**
    * Removes browser `isDistinctProductPageVisit` flag that indicates
    * a tab has an unhandled product navigation.
    *
@@ -410,33 +380,6 @@ export const ShoppingUtils = {
     if (browser.isDistinctProductPageVisit) {
       delete browser.isDistinctProductPageVisit;
     }
-  },
-
-  _addManagerForWindow(window) {
-    let manager = new ReviewCheckerManager(window);
-    this.managers.set(window, manager);
-  },
-
-  _removeManagerForWindow(window) {
-    let manager = this.managers.get(window);
-    if (manager) {
-      manager.uninit();
-      this.managers.delete(manager);
-    }
-  },
-
-  _addReviewCheckerManagers() {
-    lazy.EveryWindow.registerCallback(
-      this.everyWindowCallbackId,
-      this._addManagerForWindow,
-      this._removeManagerForWindow
-    );
-  },
-
-  _removeReviewCheckerManagers() {
-    lazy.EveryWindow.unregisterCallback(this.everyWindowCallbackId);
-    // Clear incase we missed unregistering any managers.
-    this.managers.clear();
   },
 };
 

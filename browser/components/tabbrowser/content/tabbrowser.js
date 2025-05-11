@@ -5396,10 +5396,6 @@
         ourBrowser.isDistinctProductPageVisit = true;
       }
 
-      if (otherBrowser.reviewCheckerWasClosed) {
-        ourBrowser.reviewCheckerWasClosed = true;
-      }
-
       SitePermissions.copyTemporaryPermissions(otherBrowser, ourBrowser);
 
       // If the other tab is pending (i.e. has not been restored, yet)
@@ -9261,8 +9257,12 @@ var TabContextMenu = {
   },
 
   moveTabsToNewGroup() {
+    let insertBefore = this.contextTab;
+    if (insertBefore._tPos < gBrowser.pinnedTabCount) {
+      insertBefore = gBrowser.tabs[gBrowser.pinnedTabCount];
+    }
     gBrowser.addTabGroup(this.contextTabs, {
-      insertBefore: this.contextTab,
+      insertBefore,
       isUserTriggered: true,
       telemetryUserCreateSource: "tab_menu",
     });

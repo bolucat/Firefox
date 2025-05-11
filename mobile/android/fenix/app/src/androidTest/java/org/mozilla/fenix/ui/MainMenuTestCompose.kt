@@ -67,7 +67,7 @@ class MainMenuTestCompose : TestSetup() {
             ),
         ) { it.activity }
 
-    @get: Rule
+    @get:Rule
     val intentReceiverActivityTestRule = ActivityTestRule(
         IntentReceiverActivity::class.java,
         true,
@@ -361,7 +361,7 @@ class MainMenuTestCompose : TestSetup() {
         }.enterURLAndEnterToBrowser(genericURL.url) {
         }.openThreeDotMenuFromRedesignedToolbar(composeTestRule) {
             expandMainMenu()
-        }.openExtensionsFromMainMenu() {
+        }.openExtensionsFromMainMenu {
             clickManageExtensionsButtonFromRedesignedMainMenu(composeTestRule)
         }.openDetailedMenuForAddon(addonName) {
         }.removeAddon(composeTestRule.activityRule) {
@@ -461,7 +461,7 @@ class MainMenuTestCompose : TestSetup() {
         }.openThreeDotMenuFromRedesignedToolbar(composeTestRule) {
             expandMainMenu()
             clickSaveButton()
-        }.clickAddToShortcutsButton() {
+        }.clickAddToShortcutsButton {
             verifySnackBarText(getStringResource(R.string.snackbar_added_to_shortcuts))
         }.goToHomescreenWithRedesignedToolbar {
             verifyExistingTopSitesTabs(composeTestRule, testPage.title)
@@ -770,7 +770,7 @@ class MainMenuTestCompose : TestSetup() {
         }.enterURLAndEnterToBrowser(genericURL.url) {
         }.openThreeDotMenuFromRedesignedToolbar(composeTestRule) {
             expandMainMenu()
-        }.openExtensionsFromMainMenu() {
+        }.openExtensionsFromMainMenu {
             clickManageExtensionsButtonFromRedesignedMainMenu(composeTestRule)
         }.openDetailedMenuForAddon(addonName) {
             disableExtension()

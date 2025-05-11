@@ -44,7 +44,13 @@ function fetchSchemaSync(uri) {
 
 ChromeUtils.defineLazyGetter(lazy, "enrollmentSchema", () => {
   return fetchSchemaSync(
-    "resource://nimbus/schemas/NimbusEnrollment.schema.json"
+    "resource://testing-common/nimbus/schemas/NimbusEnrollment.schema.json"
+  );
+});
+
+ChromeUtils.defineLazyGetter(lazy, "featureSchema", () => {
+  return fetchSchemaSync(
+    "resource://testing-common/nimbus/schemas/ExperimentFeature.schema.json"
   );
 });
 
@@ -59,10 +65,13 @@ async function fetchSchema(url) {
   return schema;
 }
 
-function validateSchema(schema, value, errorMsg) {
-  const result = lazy.JsonSchema.validate(value, schema, {
-    shortCircuit: false,
-  });
+function validateSchema(schemaOrValidator, value, errorMsg) {
+  const validator =
+    schemaOrValidator instanceof lazy.JsonSchema.Validator
+      ? schemaOrValidator
+      : new lazy.JsonSchema.Validator(schemaOrValidator);
+
+  const result = validator.validate(value, { shortCircuit: false });
   if (result.errors.length) {
     throw new Error(
       `${errorMsg}: ${JSON.stringify(result.errors, undefined, 2)}`
@@ -424,14 +433,39 @@ export const NimbusTestUtils = {
    *          A cleanup function to remove the features once the test has completed.
    */
   addTestFeatures(...features) {
+    const validator = new lazy.JsonSchema.Validator(lazy.featureSchema);
+
     for (const feature of features) {
       if (Object.hasOwn(NimbusFeatures, feature.featureId)) {
         throw new Error(
           `Cannot add feature ${feature.featureId} -- a feature with this ID already exists!`
         );
       }
+
+      // Stub out metadata-only properties.
+      feature.manifest.owner ??= "owner@example.com";
+      feature.manifest.description ??= `${feature.featureId} description`;
+      feature.manifest.hasExposure ??= false;
+      feature.manifest.exposureDescription ??= `${feature.featureId} exposure description`;
+
+      feature.manifest.variables ??= {};
+      for (const [name, variable] of Object.entries(
+        feature.manifest?.variables
+      )) {
+        variable.description ??= `${name} variable`;
+      }
+
+      validateSchema(
+        validator,
+        feature.manifest,
+        `Could not validate feature ${feature.featureId}`
+      );
+    }
+
+    for (const feature of features) {
       NimbusFeatures[feature.featureId] = feature;
     }
+
     return () => {
       for (const { featureId } of features) {
         delete NimbusFeatures[featureId];
@@ -451,7 +485,7 @@ export const NimbusTestUtils = {
    *         The ExperimentManager to clean up. Defaults to the global
    *         ExperimentManager.
    */
-  cleanupManager(slugs, { manager = ExperimentAPI._manager } = {}) {
+  cleanupManager(slugs, { manager = ExperimentAPI.manager } = {}) {
     for (const slug of slugs) {
       manager.unenroll(slug);
     }
@@ -494,7 +528,7 @@ export const NimbusTestUtils = {
    */
   async enroll(
     recipe,
-    { manager = ExperimentAPI._manager, source = "nimbus-test-utils" } = {}
+    { manager = ExperimentAPI.manager, source = "nimbus-test-utils" } = {}
   ) {
     if (!recipe?.slug) {
       throw new Error("Experiment with slug is required");
@@ -547,7 +581,7 @@ export const NimbusTestUtils = {
   async enrollWithFeatureConfig(
     featureConfig,
     {
-      manager = ExperimentAPI._manager,
+      manager = ExperimentAPI.manager,
       source,
       slug,
       branchSlug = "control",
@@ -643,7 +677,7 @@ export const NimbusTestUtils = {
    *           A RemoteSettingsExperimentLoader instance that has stubbed
    *           RemoteSettings clients.
    *
-   * @property {_ExperimentManager} maanger
+   * @property {_ExperimentManager} manager
    *           An ExperimentManager instance that will validate all enrollments
    *           added to its store.
    *
@@ -692,8 +726,14 @@ export const NimbusTestUtils = {
     experiments,
     secureExperiments,
     clearTelemetry = false,
+    features,
   } = {}) {
     const sandbox = lazy.sinon.createSandbox();
+
+    let cleanupFeatures = null;
+    if (Array.isArray(features)) {
+      cleanupFeatures = NimbusTestUtils.addTestFeatures(...features);
+    }
 
     const store = NimbusTestUtils.stubs.store(storePath);
     const manager = NimbusTestUtils.stubs.manager(store);
@@ -716,6 +756,10 @@ export const NimbusTestUtils = {
         NimbusTestUtils.assert.storeIsEmpty(manager.store);
         ExperimentAPI._resetForTests();
         sandbox.restore();
+
+        if (cleanupFeatures) {
+          cleanupFeatures();
+        }
 
         if (clearTelemetry) {
           Services.fog.testResetFOG();

@@ -51,7 +51,7 @@ import org.mozilla.fenix.biometricauthentication.BiometricAuthenticationManager
 import org.mozilla.fenix.biometricauthentication.BiometricAuthenticationNeededInfo
 import org.mozilla.fenix.browser.tabstrip.isTabStripEnabled
 import org.mozilla.fenix.components.StoreProvider
-import org.mozilla.fenix.components.appstate.AppAction.PrivateBrowsingLockAction
+import org.mozilla.fenix.components.components
 import org.mozilla.fenix.compose.core.Action
 import org.mozilla.fenix.compose.snackbar.Snackbar
 import org.mozilla.fenix.compose.snackbar.SnackbarState
@@ -347,6 +347,12 @@ class TabsTrayFragment : AppCompatDialogFragment() {
                     onTabsTrayDismiss = ::onTabsTrayDismissed,
                     onTabsTrayPbmLockedClick = {
                         requireContext().settings().privateBrowsingLockedEnabled = true
+                        requireContext().settings().shouldShowLockPbmBanner = false
+                        PrivateBrowsingLocked.bannerPositiveClicked.record()
+                    },
+                    onTabsTrayPbmLockedDismiss = {
+                        requireContext().settings().shouldShowLockPbmBanner = false
+                        PrivateBrowsingLocked.bannerNegativeClicked.record()
                     },
                     onTabAutoCloseBannerViewOptionsClick = {
                         navigationInteractor.onTabSettingsClicked()
@@ -780,9 +786,7 @@ class TabsTrayFragment : AppCompatDialogFragment() {
 
                     tabsTrayInteractor.onTrayPositionSelected(page.ordinal, false)
 
-                    requireComponents.appStore.dispatch(
-                        PrivateBrowsingLockAction.UpdatePrivateBrowsingLock(isLocked = false),
-                    )
+                    requireComponents.privateBrowsingLockFeature.onSuccessfulAuthentication()
                 },
                 onAuthFailure = {
                     PrivateBrowsingLocked.authFailure.record()

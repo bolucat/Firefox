@@ -95,7 +95,7 @@ class Settings(private val appContext: Context) : PreferencesHolder {
          * The minimum number a search groups should contain.
          */
         @VisibleForTesting
-        internal var SEARCH_GROUP_MINIMUM_SITES: Int = 2
+        internal var searchGroupMinimumSites: Int = 2
 
         /**
          * Minimum number of days between Set as default Browser prompt displays in home page.
@@ -1228,6 +1228,12 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         default = true,
     )
 
+    var shouldShowLockPbmBanner by lazyFeatureFlagPreference(
+        appContext.getPreferenceKey(R.string.pref_key_should_show_lock_pbm_banner),
+        featureFlag = FeatureFlags.privateBrowsingLock,
+        default = { true },
+    )
+
     var shouldShowInactiveTabsOnboardingPopup by booleanPreference(
         appContext.getPreferenceKey(R.string.pref_key_should_show_inactive_tabs_popup),
         default = true,
@@ -1426,7 +1432,7 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         return when (openLinksInExternalApp) {
             appContext.getString(R.string.pref_key_open_links_in_apps_always) -> true
             appContext.getString(R.string.pref_key_open_links_in_apps_ask) -> true
-            /* Some applications will not work if custom tab never open links in apps, return true if it's custom tab */
+            // Some applications will not work if custom tab never open links in apps, return true if it's custom tab
             appContext.getString(R.string.pref_key_open_links_in_apps_never) -> isCustomTab
             else -> false
         }
