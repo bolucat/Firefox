@@ -1807,6 +1807,7 @@ const LinkMenuOptions = {
     icon: "dismiss",
     action: actionCreators.AlsoToMain({
       type: actionTypes.BLOCK_URL,
+      source: eventSource,
       data: tiles.map(site => ({
         url: site.original_url || site.open_url || site.url,
         // pocket_id is only for pocket stories being in highlights, and then dismissed.
@@ -6036,6 +6037,19 @@ const ReportContent = spocs => {
   (0,external_React_namespaceObject.useEffect)(() => {
     if (report.visible && modal?.current) {
       modal.current.showModal();
+
+      // Clear any previously selected radio button
+      const radioGroup = radioGroupRef.current;
+      if (radioGroup) {
+        const selectedRadioButton = radioGroup.querySelector("moz-radio[checked]");
+        if (selectedRadioButton) {
+          selectedRadioButton.removeAttribute("checked");
+        }
+      }
+
+      // Clear out the states
+      setValueSelected(false);
+      setSelectedReason(null);
     } else if (!report.visible && modal?.current?.open) {
       modal.current.close();
     }

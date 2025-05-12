@@ -12,9 +12,14 @@
 // - `title` [optional] - Whether to display a title in the window element.
 // - all arguments required by the constructor of the dialog class
 
+/**
+ * @import {UserSearchEngine} from "../../../../toolkit/components/search/UserSearchEngine.sys.mjs"
+ */
+
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
+  PlacesUtils: "resource://gre/modules/PlacesUtils.sys.mjs",
   SearchUtils: "resource://gre/modules/SearchUtils.sys.mjs",
 });
 
@@ -273,18 +278,24 @@ class NewEngineDialog extends EngineDialog {
     this.validateAll();
   }
 
-  onAccept() {
+  async onAccept() {
     let params = new URLSearchParams(
       this._postData.value.trim().replace(/%s/, "{searchTerms}")
+    );
+    let url = this._url.value.trim().replace(/%s/, "{searchTerms}");
+
+    let favicon = await lazy.PlacesUtils.favicons.getFaviconForPage(
+      Services.io.newURI(new URL(url).origin)
     );
 
     Services.search.addUserEngine({
       name: this._name.value.trim(),
-      url: this._url.value.trim().replace(/%s/, "{searchTerms}"),
+      url,
       method: params.size ? "POST" : "GET",
       params,
       suggestUrl: this._suggestUrl.value.trim().replace(/%s/, "{searchTerms}"),
       alias: this._alias.value.trim(),
+      icon: favicon?.dataURI.spec,
     });
   }
 }
@@ -299,7 +310,7 @@ class EditEngineDialog extends EngineDialog {
    *
    * @param {object} args
    *   The arguments.
-   * @param {nsISearchEngine} args.engine
+   * @param {UserSearchEngine} args.engine
    *   The search engine to edit. Must be a UserSearchEngine.
    */
   constructor({ engine }) {
@@ -329,7 +340,7 @@ class EditEngineDialog extends EngineDialog {
   }
 
   onAccept() {
-    this.#engine.wrappedJSObject.rename(this._name.value.trim());
+    this.#engine.rename(this._name.value.trim());
     this.#engine.alias = this._alias.value.trim();
 
     let newURL = this._url.value.trim();
@@ -340,7 +351,7 @@ class EditEngineDialog extends EngineDialog {
       lazy.SearchUtils.URL_TYPE.SEARCH
     );
     if (newURL != prevURL || prevPostData != newPostData) {
-      this.#engine.wrappedJSObject.changeUrl(
+      this.#engine.changeUrl(
         lazy.SearchUtils.URL_TYPE.SEARCH,
         newURL.replace(/%s/, "{searchTerms}"),
         newPostData?.replace(/%s/, "{searchTerms}")
@@ -352,12 +363,26 @@ class EditEngineDialog extends EngineDialog {
       lazy.SearchUtils.URL_TYPE.SUGGEST_JSON
     );
     if (newSuggestURL != prevSuggestUrl) {
-      this.#engine.wrappedJSObject.changeUrl(
+      this.#engine.changeUrl(
         lazy.SearchUtils.URL_TYPE.SUGGEST_JSON,
         newSuggestURL.replace(/%s/, "{searchTerms}"),
         null
       );
     }
+
+    lazy.PlacesUtils.favicons
+      .getFaviconForPage(Services.io.newURI(new URL(newURL).origin))
+      .then(iconURL => {
+        if (iconURL) {
+          this.#engine.changeIcon(iconURL.dataURI.spec);
+        }
+      })
+      .catch(e =>
+        console.warn(
+          `Unable to change icon of engine ${this.#engine.name}:`,
+          e.message
+        )
+      );
   }
 
   get allowedAliases() {

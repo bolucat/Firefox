@@ -138,51 +138,62 @@ export const ExperimentAPI = {
    * @param {boolean?} options.forceSync
    *        Force the RemoteSettingsExperimentLoader to trigger a RemoteSettings
    *        sync before updating recipes for the first time.
+   *
+   * @returns {boolean}
+   *          Whether or not the ExperimentAPI was initialized.
    */
   async init({ extraContext, forceSync = false } = {}) {
-    if (!initialized) {
-      initialized = true;
-
-      const studiesEnabled = this.studiesEnabled;
-
-      try {
-        await this.manager.onStartup(extraContext);
-      } catch (e) {
-        lazy.log.error("Failed to initialize ExperimentManager:", e);
-      }
-
-      try {
-        await this._rsLoader.enable({ forceSync });
-      } catch (e) {
-        lazy.log.error("Failed to enable RemoteSettingsExperimentLoader:", e);
-      }
-
-      try {
-        await lazy.NimbusMigrations.applyMigrations();
-      } catch (e) {
-        lazy.log.error("Failed to apply migrations", e);
-      }
-
-      if (CRASHREPORTER_ENABLED) {
-        this.manager.store.on("update", this._annotateCrashReport);
-        this._annotateCrashReport();
-      }
-
-      Services.prefs.addObserver(
-        UPLOAD_ENABLED_PREF,
-        this._onStudiesEnabledChanged
-      );
-      Services.prefs.addObserver(
-        STUDIES_OPT_OUT_PREF,
-        this._onStudiesEnabledChanged
-      );
-
-      // If Nimbus was disabled between the start of this function and
-      // registering the pref observers we have not handled it yet.
-      if (studiesEnabled !== this.studiesEnabled) {
-        this._onStudiesEnabledChanged();
-      }
+    if (initialized) {
+      return false;
     }
+
+    initialized = true;
+
+    const studiesEnabled = this.studiesEnabled;
+
+    try {
+      await this.manager.onStartup(extraContext);
+    } catch (e) {
+      lazy.log.error("Failed to initialize ExperimentManager:", e);
+    }
+
+    try {
+      await this._rsLoader.enable({ forceSync });
+    } catch (e) {
+      lazy.log.error("Failed to enable RemoteSettingsExperimentLoader:", e);
+    }
+
+    try {
+      await lazy.NimbusMigrations.applyMigrations();
+    } catch (e) {
+      lazy.log.error("Failed to apply migrations", e);
+    }
+
+    if (CRASHREPORTER_ENABLED) {
+      this.manager.store.on("update", this._annotateCrashReport);
+      this._annotateCrashReport();
+
+      lazy.CleanupManager.addCleanupHandler(
+        ExperimentAPI._removeCrashReportAnnotator
+      );
+    }
+
+    Services.prefs.addObserver(
+      UPLOAD_ENABLED_PREF,
+      this._onStudiesEnabledChanged
+    );
+    Services.prefs.addObserver(
+      STUDIES_OPT_OUT_PREF,
+      this._onStudiesEnabledChanged
+    );
+
+    // If Nimbus was disabled between the start of this function and registering
+    // the pref observers we have not handled it yet.
+    if (studiesEnabled !== this.studiesEnabled) {
+      this._onStudiesEnabledChanged();
+    }
+
+    return true;
   },
 
   /**
@@ -195,6 +206,9 @@ export const ExperimentAPI = {
   _resetForTests() {
     this._rsLoader.disable();
     this.manager.store.off("update", this._annotateCrashReport);
+    lazy.CleanupManager.removeCleanupHandler(
+      ExperimentAPI._removeCrashReportAnnotator
+    );
     initialized = false;
   },
 
@@ -239,6 +253,12 @@ export const ExperimentAPI = {
       "NimbusEnrollments",
       activeEnrollments
     );
+  },
+
+  _removeCrashReportAnnotator() {
+    if (initialized) {
+      this.manager.store.off("update", this._annotateCrashReport);
+    }
   },
 
   _onStudiesEnabledChanged() {
@@ -778,17 +798,8 @@ ExperimentAPI._annotateCrashReport =
   ExperimentAPI._annotateCrashReport.bind(ExperimentAPI);
 ExperimentAPI._onStudiesEnabledChanged =
   ExperimentAPI._onStudiesEnabledChanged.bind(ExperimentAPI);
-
-if (CRASHREPORTER_ENABLED) {
-  lazy.CleanupManager.addCleanupHandler(() => {
-    if (initialized) {
-      ExperimentAPI.manager.store.off(
-        "update",
-        ExperimentAPI._annotateCrashReport
-      );
-    }
-  });
-}
+ExperimentAPI._removeCrashReportAnnotator =
+  ExperimentAPI._removeCrashReportAnnotator.bind(ExperimentAPI);
 
 ChromeUtils.defineLazyGetter(ExperimentAPI, "_manager", function () {
   return lazy.ExperimentManager;
