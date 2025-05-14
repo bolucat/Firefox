@@ -184,6 +184,8 @@ for (const type of [
   "NEW_TAB_LOAD",
   "NEW_TAB_REHYDRATED",
   "NEW_TAB_STATE_REQUEST",
+  "NEW_TAB_STATE_REQUEST_STARTUPCACHE",
+  "NEW_TAB_STATE_REQUEST_WITHOUT_STARTUPCACHE",
   "NEW_TAB_UNLOAD",
   "OPEN_ABOUT_FAKESPOT",
   "OPEN_DOWNLOAD_FILE",
@@ -3606,7 +3608,7 @@ class _DSCard extends (external_React_default()).PureComponent {
 
     // If this is for the about:home startup cache, then we always want
     // to render the DSCard, regardless of whether or not its been seen.
-    if (props.App.isForStartupCache) {
+    if (props.App.isForStartupCache.App) {
       this.state.isSeen = true;
     }
 
@@ -5164,7 +5166,7 @@ class _CardGrid extends (external_React_default()).PureComponent {
     let editorsPicksCards = [];
     for (let index = 0; index < items; index++) {
       const rec = recs[index];
-      cards.push(topicsLoading || !rec || rec.placeholder || rec.flight_id && !spocsStartupCacheEnabled && this.props.App.isForStartupCache ? /*#__PURE__*/external_React_default().createElement(PlaceholderDSCard, {
+      cards.push(topicsLoading || !rec || rec.placeholder || rec.flight_id && !spocsStartupCacheEnabled && this.props.App.isForStartupCache.App ? /*#__PURE__*/external_React_default().createElement(PlaceholderDSCard, {
         key: `dscard-${index}`
       }) : /*#__PURE__*/external_React_default().createElement(DSCard, {
         key: `dscard-${rec.id}`,
@@ -7349,7 +7351,10 @@ const INITIAL_STATE = {
     // Have we received real data from the app yet?
     initialized: false,
     locale: "",
-    isForStartupCache: false,
+    isForStartupCache: {
+      App: false,
+      Wallpaper: false,
+    },
     customizeMenuVisible: false,
   },
   Ads: {
@@ -7500,15 +7505,24 @@ function App(prevState = INITIAL_STATE.App, action) {
     case actionTypes.TOP_SITES_UPDATED:
       // Toggle `isForStartupCache` when receiving the `TOP_SITES_UPDATE` action
       // so that sponsored tiles can be rendered as usual. See Bug 1826360.
-      return Object.assign({}, prevState, action.data || {}, {
-        isForStartupCache: false,
-      });
+      return {
+        ...prevState,
+        isForStartupCache: { ...prevState.isForStartupCache, App: false },
+      };
     case actionTypes.DISCOVERY_STREAM_SPOCS_UPDATE:
       // Toggle `isForStartupCache` when receiving the `DISCOVERY_STREAM_SPOCS_UPDATE_STARTUPCACHE` action
       // so that spoc cards can be rendered as usual.
-      return Object.assign({}, prevState, action.data || {}, {
-        isForStartupCache: false,
-      });
+      return {
+        ...prevState,
+        isForStartupCache: { ...prevState.isForStartupCache, App: false },
+      };
+    case actionTypes.WALLPAPERS_CUSTOM_SET:
+      // Toggle `isForStartupCache.Wallpaper` when receiving the `WALLPAPERS_CUSTOM_SET` action
+      // so that custom wallpaper can be rendered as usual.
+      return {
+        ...prevState,
+        isForStartupCache: { ...prevState.isForStartupCache, Wallpaper: false },
+      };
     case actionTypes.SHOW_PERSONALIZE:
       return Object.assign({}, prevState, {
         customizeMenuVisible: true,
@@ -9442,7 +9456,7 @@ class _TopSiteList extends (external_React_default()).PureComponent {
       let topSiteLink;
       // Use a placeholder if the link is empty or it's rendering a sponsored
       // tile for the about:home startup cache.
-      if (!link || props.App.isForStartupCache && isSponsored(link) || topSites[i]?.isAddButton) {
+      if (!link || props.App.isForStartupCache.App && isSponsored(link) || topSites[i]?.isAddButton) {
         if (link) {
           topSiteLink = /*#__PURE__*/external_React_default().createElement(TopSitePlaceholder, TopSite_extends({}, slotProps, commonProps, {
             isAddButton: topSites[i] && topSites[i].isAddButton,
@@ -12150,103 +12164,6 @@ function SectionsMgmtPanel({
   }))));
 }
 
-;// CONCATENATED MODULE: ./content-src/components/WallpapersSection/WallpapersSection.jsx
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-
-
-
-class _WallpapersSection extends (external_React_default()).PureComponent {
-  constructor(props) {
-    super(props);
-    this.handleChange = this.handleChange.bind(this);
-    this.handleReset = this.handleReset.bind(this);
-    this.prefersHighContrastQuery = null;
-    this.prefersDarkQuery = null;
-  }
-  componentDidMount() {
-    this.prefersDarkQuery = globalThis.matchMedia("(prefers-color-scheme: dark)");
-  }
-  handleChange(event) {
-    const {
-      id
-    } = event.target;
-    const prefs = this.props.Prefs.values;
-    if (prefs["newtabWallpapers.v2.enabled"]) {
-      // If we don't care about color mode, set both to the same wallpaper.
-      this.props.setPref(`newtabWallpapers.wallpaper`, id);
-    }
-    this.handleUserEvent({
-      selected_wallpaper: id,
-      hadPreviousWallpaper: !!this.props.activeWallpaper
-    });
-  }
-  handleReset() {
-    const prefs = this.props.Prefs.values;
-    if (prefs["newtabWallpapers.v2.enabled"]) {
-      this.props.setPref("newtabWallpapers.wallpaper", "");
-    }
-    this.handleUserEvent({
-      selected_wallpaper: "none",
-      hadPreviousWallpaper: !!this.props.activeWallpaper
-    });
-  }
-
-  // Record user interaction when changing wallpaper and reseting wallpaper to default
-  handleUserEvent(data) {
-    this.props.dispatch(actionCreators.OnlyToMain({
-      type: actionTypes.WALLPAPER_CLICK,
-      data
-    }));
-  }
-  render() {
-    const {
-      wallpaperList
-    } = this.props.Wallpapers;
-    const {
-      activeWallpaper
-    } = this.props;
-    const prefs = this.props.Prefs.values;
-    let fieldsetClassname = `wallpaper-list`;
-    if (prefs["newtabWallpapers.v2.enabled"]) {
-      fieldsetClassname += " ignore-color-mode";
-    }
-    return /*#__PURE__*/external_React_default().createElement("div", null, /*#__PURE__*/external_React_default().createElement("fieldset", {
-      className: fieldsetClassname
-    }, wallpaperList.map(({
-      title,
-      theme,
-      fluent_id
-    }) => {
-      return /*#__PURE__*/external_React_default().createElement((external_React_default()).Fragment, null, /*#__PURE__*/external_React_default().createElement("input", {
-        onChange: this.handleChange,
-        type: "radio",
-        name: `wallpaper-${title}`,
-        id: title,
-        value: title,
-        checked: title === activeWallpaper,
-        "aria-checked": title === activeWallpaper,
-        className: `wallpaper-input theme-${theme} ${title}`
-      }), /*#__PURE__*/external_React_default().createElement("label", {
-        htmlFor: title,
-        className: "sr-only",
-        "data-l10n-id": fluent_id
-      }, fluent_id));
-    })), /*#__PURE__*/external_React_default().createElement("button", {
-      className: "wallpapers-reset",
-      onClick: this.handleReset,
-      "data-l10n-id": "newtab-wallpaper-reset"
-    }));
-  }
-}
-const WallpapersSection = (0,external_ReactRedux_namespaceObject.connect)(state => {
-  return {
-    Wallpapers: state.Wallpapers,
-    Prefs: state.Prefs
-  };
-})(_WallpapersSection);
 ;// CONCATENATED MODULE: ./content-src/components/WallpapersSection/WallpaperCategories.jsx
 function WallpaperCategories_extends() { WallpaperCategories_extends = Object.assign ? Object.assign.bind() : function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return WallpaperCategories_extends.apply(this, arguments); }
 /* This Source Code Form is subject to the terms of the Mozilla Public
@@ -12587,10 +12504,6 @@ class _WallpaperCategories extends (external_React_default()).PureComponent {
       }
       return arr;
     }
-    let categorySectionClassname = "category wallpaper-list";
-    if (prefs["newtabWallpapers.v2.enabled"]) {
-      categorySectionClassname += " ignore-color-mode";
-    }
     let wallpaperCustomSolidColorHex = null;
     const selectedWallpaper = prefs["newtabWallpapers.wallpaper"];
 
@@ -12727,7 +12640,7 @@ class _WallpaperCategories extends (external_React_default()).PureComponent {
       classNames: "wallpaper-list",
       unmountOnExit: true
     }, /*#__PURE__*/external_React_default().createElement("section", {
-      className: categorySectionClassname
+      className: "category wallpaper-list ignore-color-mode"
     }, /*#__PURE__*/external_React_default().createElement("button", {
       className: "arrow-button",
       "data-l10n-id": activeCategoryFluentID,
@@ -12788,7 +12701,6 @@ const WallpaperCategories = (0,external_ReactRedux_namespaceObject.connect)(stat
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 
 
 
@@ -12872,7 +12784,6 @@ class ContentSection extends (external_React_default()).PureComponent {
       mayHaveWeather,
       openPreferences,
       wallpapersEnabled,
-      wallpapersV2Enabled,
       activeWallpaper,
       setPref,
       mayHaveTopicSections,
@@ -12888,12 +12799,7 @@ class ContentSection extends (external_React_default()).PureComponent {
     } = enabledSections;
     return /*#__PURE__*/external_React_default().createElement("div", {
       className: "home-section"
-    }, !wallpapersV2Enabled && wallpapersEnabled && /*#__PURE__*/external_React_default().createElement("div", {
-      className: "wallpapers-section"
-    }, /*#__PURE__*/external_React_default().createElement(WallpapersSection, {
-      setPref: setPref,
-      activeWallpaper: activeWallpaper
-    })), wallpapersV2Enabled && /*#__PURE__*/external_React_default().createElement((external_React_default()).Fragment, null, /*#__PURE__*/external_React_default().createElement("div", {
+    }, wallpapersEnabled && /*#__PURE__*/external_React_default().createElement((external_React_default()).Fragment, null, /*#__PURE__*/external_React_default().createElement("div", {
       className: "wallpapers-section"
     }, /*#__PURE__*/external_React_default().createElement(WallpaperCategories, {
       setPref: setPref,
@@ -13092,7 +12998,6 @@ class _CustomizeMenu extends (external_React_default()).PureComponent {
       setPref: this.props.setPref,
       enabledSections: this.props.enabledSections,
       wallpapersEnabled: this.props.wallpapersEnabled,
-      wallpapersV2Enabled: this.props.wallpapersV2Enabled,
       activeWallpaper: this.props.activeWallpaper,
       pocketRegion: this.props.pocketRegion,
       mayHaveTopicSections: this.props.mayHaveTopicSections,
@@ -14417,7 +14322,7 @@ class BaseContent extends (external_React_default()).PureComponent {
     __webpack_require__.g.addEventListener("scroll", this.onWindowScroll);
     __webpack_require__.g.addEventListener("keydown", this.handleOnKeyDown);
     const prefs = this.props.Prefs.values;
-    const wallpapersV2Enabled = prefs["newtabWallpapers.v2.enabled"];
+    const wallpapersEnabled = prefs["newtabWallpapers.enabled"];
     if (this.props.document.visibilityState === Base_VISIBLE) {
       this.setFirstVisibleTimestamp();
       this.shouldDisplayTopicSelectionModal();
@@ -14436,14 +14341,14 @@ class BaseContent extends (external_React_default()).PureComponent {
     this.prefersDarkQuery = globalThis.matchMedia("(prefers-color-scheme: dark)");
     this.prefersDarkQuery.addEventListener("change", this.handleColorModeChange);
     this.handleColorModeChange();
-    if (wallpapersV2Enabled) {
+    if (wallpapersEnabled) {
       this.updateWallpaper();
     }
   }
   componentDidUpdate(prevProps) {
     const prefs = this.props.Prefs.values;
-    const wallpapersV2Enabled = prefs["newtabWallpapers.v2.enabled"];
-    if (wallpapersV2Enabled) {
+    const wallpapersEnabled = prefs["newtabWallpapers.enabled"];
+    if (wallpapersEnabled) {
       // destructure current and previous props with fallbacks
       // (preventing undefined errors)
       const {
@@ -14469,7 +14374,9 @@ class BaseContent extends (external_React_default()).PureComponent {
       // selecting a new wallpaper
       uploadedWallpaper !== prevUploadedWallpaper ||
       // uploading a new wallpaper
-      wallpaperList !== prevWallpaperList // remote settings wallpaper list updates
+      wallpaperList !== prevWallpaperList ||
+      // remote settings wallpaper list updates
+      this.props.App.isForStartupCache.Wallpaper !== prevProps.App.isForStartupCache.Wallpaper // Startup cached page wallpaper is updating
       ) {
         this.updateWallpaper();
       }
@@ -14675,9 +14582,11 @@ class BaseContent extends (external_React_default()).PureComponent {
       if (this.uploadedWallpaperUrl) {
         URL.revokeObjectURL(this.uploadedWallpaperUrl);
       }
-      const uploadedWallpaperUrl = URL.createObjectURL(uploadedWallpaper);
-      __webpack_require__.g.document?.body.style.setProperty("--newtab-wallpaper", `url(${uploadedWallpaperUrl})`);
-      __webpack_require__.g.document?.body.style.setProperty("--newtab-wallpaper-color", "transparent");
+      try {
+        const uploadedWallpaperUrl = URL.createObjectURL(uploadedWallpaper);
+        __webpack_require__.g.document?.body.style.setProperty("--newtab-wallpaper", `url(${uploadedWallpaperUrl})`);
+        __webpack_require__.g.document?.body.style.setProperty("--newtab-wallpaper-color", "transparent");
+      } catch (e) {}
       return;
     }
     if (wallpaperList) {
@@ -14796,7 +14705,7 @@ class BaseContent extends (external_React_default()).PureComponent {
     const shortcutsRefresh = prefs["newtabShortcuts.refresh"];
     const layoutsVariantAorB = layoutsVariantAEnabled || layoutsVariantBEnabled;
     const activeWallpaper = prefs[`newtabWallpapers.wallpaper`];
-    const wallpapersV2Enabled = prefs["newtabWallpapers.v2.enabled"];
+    const wallpapersEnabled = prefs["newtabWallpapers.enabled"];
     const weatherEnabled = prefs.showWeather;
     const {
       showTopicSelection
@@ -14858,7 +14767,7 @@ class BaseContent extends (external_React_default()).PureComponent {
     // Shortcuts refresh experiment
     pocketEnabled ? "has-recommended-stories" : "no-recommended-stories", sectionsEnabled ? "has-sections-grid" : ""].filter(v => v).join(" ");
     const outerClassName = ["outer-wrapper", isDiscoveryStream && pocketEnabled && "ds-outer-wrapper-search-alignment", isDiscoveryStream && "ds-outer-wrapper-breakpoint-override", prefs.showSearch && this.state.fixedSearch && !noSectionsEnabled && "fixed-search", prefs.showSearch && noSectionsEnabled && "only-search", prefs["feeds.topsites"] && !pocketEnabled && !prefs.showSearch && "only-topsites", noSectionsEnabled && "no-sections", prefs["logowordmark.alwaysVisible"] && "visible-logo", hasThumbsUpDownLayout && hasThumbsUpDown && "thumbs-ui-compact"].filter(v => v).join(" ");
-    if (wallpapersV2Enabled) {
+    if (wallpapersEnabled) {
       // Add helper class to body if user has a wallpaper selected
       if (this.state.wallpaperTheme === "light") {
         __webpack_require__.g.document?.body.classList.add("lightWallpaper");
@@ -14879,7 +14788,7 @@ class BaseContent extends (external_React_default()).PureComponent {
       openPreferences: this.openPreferences,
       setPref: this.setPref,
       enabledSections: enabledSections,
-      wallpapersV2Enabled: wallpapersV2Enabled,
+      wallpapersEnabled: wallpapersEnabled,
       activeWallpaper: activeWallpaper,
       pocketRegion: pocketRegion,
       mayHaveTopicSections: mayHavePersonalizedTopicSections,
@@ -14929,7 +14838,7 @@ class BaseContent extends (external_React_default()).PureComponent {
       locale: props.App.locale,
       mayHaveSponsoredStories: mayHaveSponsoredStories,
       firstVisibleTimestamp: this.state.firstVisibleTimestamp
-    })) : /*#__PURE__*/external_React_default().createElement(Sections_Sections, null)), /*#__PURE__*/external_React_default().createElement(ConfirmDialog, null), wallpapersV2Enabled && this.renderWallpaperAttribution()), /*#__PURE__*/external_React_default().createElement("aside", null, this.props.Notifications?.showNotifications && /*#__PURE__*/external_React_default().createElement(ErrorBoundary, null, /*#__PURE__*/external_React_default().createElement(Notifications_Notifications, {
+    })) : /*#__PURE__*/external_React_default().createElement(Sections_Sections, null)), /*#__PURE__*/external_React_default().createElement(ConfirmDialog, null), wallpapersEnabled && this.renderWallpaperAttribution()), /*#__PURE__*/external_React_default().createElement("aside", null, this.props.Notifications?.showNotifications && /*#__PURE__*/external_React_default().createElement(ErrorBoundary, null, /*#__PURE__*/external_React_default().createElement(Notifications_Notifications, {
       dispatch: this.props.dispatch
     }))), mayShowTopicSelection && pocketEnabled && /*#__PURE__*/external_React_default().createElement(TopicSelection, {
       supportUrl: supportUrl
@@ -15199,34 +15108,46 @@ const NewTab = ({
 }) => /*#__PURE__*/external_React_default().createElement(external_ReactRedux_namespaceObject.Provider, {
   store: store
 }, /*#__PURE__*/external_React_default().createElement(Base, null));
+function doRequestWhenReady() {
+  // If this document has already gone into the background by the time we've reached
+  // here, we can deprioritize the request until the event loop
+  // frees up. If, however, the visibility changes, we then send the request.
+  const doRequestPromise = new Promise(resolve => {
+    let didRequest = false;
+    let requestIdleCallbackId = 0;
+    function doRequest() {
+      if (!didRequest) {
+        if (requestIdleCallbackId) {
+          cancelIdleCallback(requestIdleCallbackId);
+        }
+        didRequest = true;
+        resolve();
+      }
+    }
+    if (document.hidden) {
+      requestIdleCallbackId = requestIdleCallback(doRequest);
+      addEventListener("visibilitychange", doRequest, {
+        once: true
+      });
+    } else {
+      resolve();
+    }
+  });
+  return doRequestPromise;
+}
 function renderWithoutState() {
   const store = initStore(reducers);
   new DetectUserSessionStart(store).sendEventOrAddListener();
-
-  // If this document has already gone into the background by the time we've reached
-  // here, we can deprioritize requesting the initial state until the event loop
-  // frees up. If, however, the visibility changes, we then send the request.
-  let didRequest = false;
-  let requestIdleCallbackId = 0;
-  function doRequest() {
-    if (!didRequest) {
-      if (requestIdleCallbackId) {
-        cancelIdleCallback(requestIdleCallbackId);
-      }
-      didRequest = true;
-      store.dispatch(actionCreators.AlsoToMain({
-        type: actionTypes.NEW_TAB_STATE_REQUEST
-      }));
-    }
-  }
-  if (document.hidden) {
-    requestIdleCallbackId = requestIdleCallback(doRequest);
-    addEventListener("visibilitychange", doRequest, {
-      once: true
-    });
-  } else {
-    doRequest();
-  }
+  doRequestWhenReady().then(() => {
+    // If state events happened before we got here, we can request state again.
+    store.dispatch(actionCreators.AlsoToMain({
+      type: actionTypes.NEW_TAB_STATE_REQUEST
+    }));
+    // If we rendered without state, we don't need the startup cache.
+    store.dispatch(actionCreators.OnlyToMain({
+      type: actionTypes.NEW_TAB_STATE_REQUEST_WITHOUT_STARTUPCACHE
+    }));
+  });
   external_ReactDOM_default().hydrate( /*#__PURE__*/external_React_default().createElement(NewTab, {
     store: store
   }), document.getElementById("root"));
@@ -15234,6 +15155,14 @@ function renderWithoutState() {
 function renderCache(initialState) {
   const store = initStore(reducers, initialState);
   new DetectUserSessionStart(store).sendEventOrAddListener();
+  doRequestWhenReady().then(() => {
+    // If state events happened before we got here,
+    // we can notify main that we need updates.
+    // The individual feeds know what state is not cached.
+    store.dispatch(actionCreators.OnlyToMain({
+      type: actionTypes.NEW_TAB_STATE_REQUEST_STARTUPCACHE
+    }));
+  });
   external_ReactDOM_default().hydrate( /*#__PURE__*/external_React_default().createElement(NewTab, {
     store: store
   }), document.getElementById("root"));

@@ -368,8 +368,15 @@ static inline void TraceWholeCell(TenuringTracer& mover, JSObject* object) {
 }
 
 void JSDependentString::setBase(JSLinearString* newBase) {
-  MOZ_ASSERT(newBase->canOwnDependentChars());
-  d.s.u3.base = newBase;
+  // This compiles down to a single assignment, with no type test.
+  if (isAtomRef()) {
+    MOZ_ASSERT(newBase->isAtom());
+    d.s.u3.atom = &newBase->asAtom();
+  } else {
+    MOZ_ASSERT(newBase->canOwnDependentChars());
+    d.s.u3.base = newBase;
+  }
+
   if (isTenured() && !newBase->isTenured()) {
     MOZ_ASSERT(!InCollectedNurseryRegion(newBase));
     newBase->storeBuffer()->putWholeCell(this);
@@ -377,7 +384,7 @@ void JSDependentString::setBase(JSLinearString* newBase) {
 }
 
 static void TraceWholeCell(TenuringTracer& mover, JSString* str) {
-  if (str->isDependent()) {
+  if (str->isDependent() && !str->isAtomRef()) {
     // For tenured dependent strings -> nursery base string edges, promote the
     // base immediately and then use its old chars pointer to find the offset
     // needed to update the dependent string's pointer if the base string moves
@@ -477,8 +484,6 @@ void js::gc::StoreBuffer::WholeCellBuffer::trace(TenuringTracer& mover,
 template <typename CharT>
 void JSDependentString::updateToPromotedBaseImpl(JSLinearString* base) {
   MOZ_ASSERT(!InCollectedNurseryRegion(this));
-  MOZ_ASSERT(IsInsideNursery(nurseryBaseOrRelocOverlay()));
-
   MOZ_ASSERT(IsInsideNursery(base));
   MOZ_ASSERT(!Forwarded(base)->hasBase(), "base chain should be collapsed");
   MOZ_ASSERT(base->isForwarded(), "root base should be kept alive");

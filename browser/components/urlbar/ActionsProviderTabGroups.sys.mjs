@@ -49,7 +49,9 @@ class ProviderTabGroups extends ActionsProvider {
     let results = [];
     let i = 0;
 
-    for (let group of window.gBrowser.getAllTabGroups()) {
+    for (let group of window.gBrowser.getAllTabGroups({
+      sortByLastSeenActive: true,
+    })) {
       if (this.#matches(group.label, queryContext)) {
         results.push(
           this.#makeResult({
@@ -63,6 +65,11 @@ class ProviderTabGroups extends ActionsProvider {
           })
         );
       }
+    }
+
+    if (queryContext.isPrivate) {
+      // Tab groups can't be saved or reopened in private windows.
+      return results;
     }
 
     for (let savedGroup of lazy.SessionStore.getSavedTabGroups()) {

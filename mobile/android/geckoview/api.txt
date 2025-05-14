@@ -91,6 +91,7 @@ import org.mozilla.geckoview.CrashHandler;
 import org.mozilla.geckoview.DeprecationSchedule;
 import org.mozilla.geckoview.ExperimentDelegate;
 import org.mozilla.geckoview.GeckoDisplay;
+import org.mozilla.geckoview.GeckoPreferenceController;
 import org.mozilla.geckoview.GeckoResult;
 import org.mozilla.geckoview.GeckoRuntime;
 import org.mozilla.geckoview.GeckoRuntimeSettings;
@@ -758,6 +759,45 @@ package org.mozilla.geckoview {
     method @NonNull @UiThread public GeckoDisplay.SurfaceInfo.Builder surfaceControl(@Nullable SurfaceControl);
   }
 
+  public class GeckoPreferenceController {
+    ctor public GeckoPreferenceController();
+    method @AnyThread @NonNull public static GeckoResult<GeckoPreferenceController.GeckoPreference<?>> getGeckoPref(@NonNull String);
+    method @AnyThread @NonNull public static GeckoResult<Void> setGeckoPref(@NonNull String, @NonNull String, int);
+    method @AnyThread @NonNull public static GeckoResult<Void> setGeckoPref(@NonNull String, @NonNull Integer, int);
+    method @AnyThread @NonNull public static GeckoResult<Void> setGeckoPref(@NonNull String, @NonNull Boolean, int);
+    field public static final int PREF_BRANCH_DEFAULT = 1;
+    field public static final int PREF_BRANCH_USER = 0;
+    field public static final int PREF_TYPE_BOOL = 128;
+    field public static final int PREF_TYPE_INT = 64;
+    field public static final int PREF_TYPE_INVALID = 0;
+    field public static final int PREF_TYPE_STRING = 32;
+  }
+
+  public static class GeckoPreferenceController.GeckoPreference<T> {
+    method @AnyThread public boolean getHasUserChangedValue();
+    method @AnyThread @Nullable public T getValue();
+    field @Nullable public final T defaultValue;
+    field @NonNull public final String pref;
+    field public final int type;
+    field @Nullable public final T userValue;
+  }
+
+  public static final class GeckoPreferenceController.Observer {
+    ctor public Observer();
+    method @AnyThread @NonNull public static GeckoResult<Void> registerPreference(@NonNull String);
+    method @NonNull @UiThread public static GeckoResult<Void> unregisterPreference(@NonNull String);
+  }
+
+  public static interface GeckoPreferenceController.Observer.Delegate {
+    method @AnyThread default public void onGeckoPreferenceChange(@NonNull GeckoPreferenceController.GeckoPreference<?>);
+  }
+
+  @Retention(value=RetentionPolicy.SOURCE) public static interface GeckoPreferenceController.PrefBranch {
+  }
+
+  @Retention(value=RetentionPolicy.SOURCE) public static interface GeckoPreferenceController.PrefType {
+  }
+
   @AnyThread public class GeckoResult<T> {
     ctor public GeckoResult();
     ctor public GeckoResult(Handler);
@@ -827,6 +867,7 @@ package org.mozilla.geckoview {
     method @NonNull @UiThread public static synchronized GeckoRuntime getDefault(@NonNull Context);
     method @Nullable @UiThread public GeckoRuntime.Delegate getDelegate();
     method @NonNull @UiThread public OrientationController getOrientationController();
+    method @AnyThread @Nullable public GeckoPreferenceController.Observer.Delegate getPreferencesObserverDelegate();
     method @NonNull @UiThread public ProfilerController getProfilerController();
     method @Nullable @UiThread public GeckoRuntime.ServiceWorkerDelegate getServiceWorkerDelegate();
     method @AnyThread @NonNull public GeckoRuntimeSettings getSettings();
@@ -841,6 +882,7 @@ package org.mozilla.geckoview {
     method @UiThread public void setActivityDelegate(@Nullable GeckoRuntime.ActivityDelegate);
     method @UiThread public void setAutocompleteStorageDelegate(@Nullable Autocomplete.StorageDelegate);
     method @UiThread public void setDelegate(@Nullable GeckoRuntime.Delegate);
+    method @AnyThread public void setPreferencesObserverDelegate(@Nullable GeckoPreferenceController.Observer.Delegate);
     method @UiThread public void setServiceWorkerDelegate(@Nullable GeckoRuntime.ServiceWorkerDelegate);
     method @UiThread public void setWebNotificationDelegate(@Nullable WebNotificationDelegate);
     method @AnyThread public void shutdown();

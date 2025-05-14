@@ -8630,6 +8630,13 @@
   mirror: always
   set_spidermonkey_pref: always
 
+# Support for Atomics.waitAsync in JavaScript.
+- name: javascript.options.atomics_wait_async
+  type: bool
+  value: false
+  mirror: always
+  set_spidermonkey_pref: startup
+
 #ifdef NIGHTLY_BUILD
   # Experimental support for Async Iterator Helpers in JavaScript.
 -   name: javascript.options.experimental.async_iterator_helpers
@@ -8991,7 +8998,7 @@
 # both unrolling and peeling.
 - name: javascript.options.wasm_unroll_loops
   type: bool
-  value: false
+  value: true
   mirror: always
   set_spidermonkey_pref: always
 
@@ -12939,14 +12946,14 @@
 # Changes cookieBehavior=5 to block third-party cookies by default
 - name: network.cookie.cookieBehavior.optInPartitioning
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: false
   mirror: always
 
 # Changes cookieBehavior=5 to block third-party cookies in the private browsing
 # mode.
 - name: network.cookie.cookieBehavior.optInPartitioning.pbmode
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: false
   mirror: always
 
 # Whether to block third-party tracker cookie and storage access when
@@ -13362,6 +13369,14 @@
 
 # If set to true, disallow localhost connections when offline.
 - name: network.disable-localhost-when-offline
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# If set to true, Firefox will use the file extension of a URL
+# to sniff its content type. When false, nsUnknownDecoder will
+# use the file extension only for file URLs
+- name: network.sniff.use_extension
   type: RelaxedAtomicBool
   value: false
   mirror: always

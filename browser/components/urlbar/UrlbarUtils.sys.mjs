@@ -7,6 +7,10 @@
  * helper functions that are useful to all components of the urlbar.
  */
 
+/**
+ * @typedef {import("UrlbarProvidersManager.sys.mjs").Query} Query
+ */
+
 import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
 
 const lazy = {};
@@ -75,7 +79,7 @@ export var UrlbarUtils = {
   }),
 
   // Defines provider types.
-  PROVIDER_TYPE: {
+  PROVIDER_TYPE: Object.freeze({
     // Should be executed immediately, because it returns heuristic results
     // that must be handed to the user asap.
     // WARNING: these providers must be extremely fast, because the urlbar will
@@ -88,7 +92,7 @@ export var UrlbarUtils = {
     NETWORK: 3,
     // Can be delayed, contains results coming from unknown sources.
     EXTENSION: 4,
-  },
+  }),
 
   // Defines UrlbarResult types.
   RESULT_TYPE: {
@@ -122,7 +126,7 @@ export var UrlbarUtils = {
   // results can be returned.
   // If you add new source types, consider checking if consumers of
   // "urlbar-user-start-navigation" need update as well.
-  RESULT_SOURCE: {
+  RESULT_SOURCE: Object.freeze({
     BOOKMARKS: 1,
     HISTORY: 2,
     SEARCH: 3,
@@ -131,7 +135,7 @@ export var UrlbarUtils = {
     OTHER_NETWORK: 6,
     ADDON: 7,
     ACTIONS: 8,
-  },
+  }),
 
   // Per-result exposure telemetry.
   EXPOSURE_TELEMETRY: {
@@ -642,7 +646,7 @@ export var UrlbarUtils = {
    *    post data (object).
    */
   getSearchQueryUrl(engine, query) {
-    let submission = engine.getSubmission(query, null, "keyword");
+    let submission = engine.getSubmission(query);
     return [submission.uri.spec, submission.postData];
   },
 
@@ -1177,37 +1181,39 @@ export var UrlbarUtils = {
    * function is specifically designed for origin and up-to-the-next-slash URL
    * autofill. It should not be used for other types of autofill.
    *
-   * @param {string} url
+   * @param {string} urlString
    *                 The URL to test
-   * @param {string} candidate
+   * @param {string} candidateString
    *                 The candidate string to test against
    * @param {boolean} [checkFragmentOnly]
    *                 If want to check the fragment only, pass true.
    *                 Otherwise, check whole url.
    * @returns {boolean} true: can autofill
    */
-  canAutofillURL(url, candidate, checkFragmentOnly = false) {
+  canAutofillURL(urlString, candidateString, checkFragmentOnly = false) {
     // If the URL does not start with the candidate, it can't be autofilled.
     // The length check is an optimization to short-circuit the `startsWith()`.
     if (
       !checkFragmentOnly &&
-      (url.length <= candidate.length ||
-        !url.toLocaleLowerCase().startsWith(candidate.toLocaleLowerCase()))
+      (urlString.length <= candidateString.length ||
+        !urlString
+          .toLocaleLowerCase()
+          .startsWith(candidateString.toLocaleLowerCase()))
     ) {
       return false;
     }
 
     // Create `URL` objects to make the logic below easier. The strings must
     // include schemes for this to work.
-    if (!lazy.UrlbarTokenizer.REGEXP_PREFIX.test(url)) {
-      url = "http://" + url;
+    if (!lazy.UrlbarTokenizer.REGEXP_PREFIX.test(urlString)) {
+      urlString = "http://" + urlString;
     }
-    if (!lazy.UrlbarTokenizer.REGEXP_PREFIX.test(candidate)) {
-      candidate = "http://" + candidate;
+    if (!lazy.UrlbarTokenizer.REGEXP_PREFIX.test(candidateString)) {
+      candidateString = "http://" + candidateString;
     }
 
-    url = URL.parse(url);
-    candidate = URL.parse(candidate);
+    let url = URL.parse(urlString);
+    let candidate = URL.parse(candidateString);
     if (!url || !candidate) {
       return false;
     }
@@ -2149,6 +2155,24 @@ UrlbarUtils.RESULT_PAYLOAD_SCHEMA = {
 };
 
 /**
+ * @typedef UrlbarSearchModeData
+ * @property {Values<typeof UrlbarUtils.RESULT_SOURCE>} source
+ *   The source from which search mode was entered.
+ * @property {string} [engineName]
+ *   The search engine name associated with the search mode.
+ */
+
+/**
+ * @typedef UrlbarSearchStringTokenData
+ * @property {Values<typeof lazy.UrlbarTokenizer.TYPE>} type
+ *   The type of the token.
+ * @property {string} value
+ *   The value of the token.
+ * @property {string} lowerCaseValue
+ *   The lower case version of the value.
+ */
+
+/**
  * UrlbarQueryContext defines a user's autocomplete input from within the urlbar.
  * It supplements it with details of how the search results should be obtained
  * and what they consist of.
@@ -2191,22 +2215,26 @@ export class UrlbarQueryContext {
       "searchString",
     ]);
 
-    if (isNaN(parseInt(options.maxResults))) {
+    if (isNaN(options.maxResults)) {
       throw new Error(
         `Invalid maxResults property provided to UrlbarQueryContext`
       );
     }
 
-    // Manage optional properties of options.
-    for (let [prop, checkFn, defaultValue] of [
+    /**
+     * @type {[string, (any) => boolean, any?][]}
+     */
+    const optionalProperties = [
       ["currentPage", v => typeof v == "string" && !!v.length],
       ["formHistoryName", v => typeof v == "string" && !!v.length],
       ["prohibitRemoteResults", () => true, false],
-      ["providers", v => Array.isArray(v) && v.length],
+      ["providers", v => Array.isArray(v) && !!v.length],
       ["searchMode", v => v && typeof v == "object"],
-      ["sources", v => Array.isArray(v) && v.length],
-      ["view", () => true],
-    ]) {
+      ["sources", v => Array.isArray(v) && !!v.length],
+    ];
+
+    // Manage optional properties of options.
+    for (let [prop, checkFn, defaultValue] of optionalProperties) {
       if (prop in options) {
         if (!checkFn(options[prop])) {
           throw new Error(`Invalid value for option "${prop}"`);
@@ -2237,6 +2265,109 @@ export class UrlbarQueryContext {
   }
 
   /**
+   * @type {boolean}
+   *   Whether or not to allow providers to include autofill results.
+   */
+  allowAutofill;
+
+  /**
+   * @type {string}
+   *   URL of the page that was loaded when the search began.
+   */
+  currentPage;
+
+  /**
+   * @type {UrlbarResult}
+   *   The current firstResult.
+   */
+  firstResult;
+
+  /**
+   * @type {boolean}
+   *   Indicates if the first result has been changed changed.
+   */
+  firstResultChanged = false;
+
+  /**
+   * @type {string}
+   *   The form history name to use when saving search history.
+   */
+  formHistoryName;
+
+  /**
+   * @type {UrlbarResult}
+   *   The heuristic result associated with the context.
+   */
+  heuristicResult;
+
+  /**
+   * @type {boolean}
+   *   True if this query was started from a private browsing window.
+   */
+  isPrivate;
+
+  /**
+   * @type {number}
+   *   The maximum number of results that will be displayed for this query.
+   */
+  maxResults;
+
+  /**
+   * @type {boolean}
+   *   Whether or not to prohibit remote results.
+   */
+  prohibitRemoteResults;
+
+  /**
+   * @type {string[]}
+   *   List of registered provider names. Providers can be registered through
+   *   the UrlbarProvidersManager.
+   */
+  providers;
+
+  /**
+   * @type {?Values<typeof UrlbarUtils.RESULT_SOURCE>}
+   *   Set if this context is restricted to a single source.
+   */
+  restrictSource;
+
+  /**
+   * @type {UrlbarSearchStringTokenData}
+   *   The restriction token used to restrict the sources for this search.
+   */
+  restrictToken;
+
+  /**
+   * @type {UrlbarResult[]}
+   *   The results associated with this context.
+   */
+  results;
+
+  /**
+   * @type {UrlbarSearchModeData}
+   *   Details about the search mode associated with this context.
+   */
+  searchMode;
+
+  /**
+   * @type {string}
+   *   The string the user entered in autocomplete.
+   */
+  searchString;
+
+  /**
+   * @type {Values<typeof UrlbarUtils.RESULT_SOURCE>[]}
+   *   The possible sources of results for this context.
+   */
+  sources;
+
+  /**
+   * @type {UrlbarSearchStringTokenData[]}
+   *   A list of tokens extracted from the search string.
+   */
+  tokens;
+
+  /**
    * Checks the required options, saving them as it goes.
    *
    * @param {object} options The options object to check.
@@ -2259,8 +2390,6 @@ export class UrlbarQueryContext {
    * Only returns a subset of the properties from URIFixup. This is both to
    * reduce the memory footprint of UrlbarQueryContexts and to keep them
    * serializable so they can be sent to extensions.
-   *
-   * @returns {{ href: string; isSearch: boolean; }?}
    */
   get fixupInfo() {
     if (!this._fixupError && !this._fixupInfo && this.trimmedSearchString) {
@@ -2402,11 +2531,28 @@ export class UrlbarProvider {
   /**
    * The type of the provider, must be one of UrlbarUtils.PROVIDER_TYPE.
    *
+   * @returns {Values<typeof UrlbarUtils.PROVIDER_TYPE>}
    * @abstract
    */
   get type() {
     throw new Error("Trying to access the base class, must be overridden");
   }
+
+  /**
+   * @type {Query}
+   *   This can be used by the provider to check the query is still running
+   *   after executing async tasks:
+   *
+   * ```
+   *   let instance = this.queryInstance;
+   *   await ...
+   *   if (instance != this.queryInstance) {
+   *     // Query was canceled or a new one started.
+   *     return;
+   *   }
+   * ```
+   */
+  queryInstance;
 
   /**
    * Calls a method on the provider in a try-catch block and reports any error.
@@ -2831,6 +2977,32 @@ export class SkippableTimer {
 }
 
 /**
+ * @typedef L10nCachedMessage
+ *   A cached L10n message object is similar to `L10nMessage` (defined in
+ *   Localization.webidl) but its attributes are stored differently for
+ *   convenience.
+ *
+ *   For example, if we cache these strings from an ftl file:
+ *
+ *     foo = Foo's value
+ *     bar =
+ *       .label = Bar's label value
+ *
+ *   Then:
+ *
+ *     cache.get("foo")
+ *     // => { value: "Foo's value", attributes: null }
+ *     cache.get("bar")
+ *     // => { value: null, attributes: { label: "Bar's label value" }}
+ * @property {string} [value]
+ *   The bare value of the string. If the string does not have a bare value
+ *   (i.e., it has only attributes), this will be null.
+ * @property {{[key: string]: string}|null} [attributes]
+ *   A mapping from attribute names to their values. If the string doesn't have
+ *   any attributes, this will be null.
+ */
+
+/**
  * This class implements a cache for l10n strings. Cached strings can be
  * accessed synchronously, avoiding the asynchronicity of `data-l10n-id` and
  * `document.l10n.setAttributes`, which can lead to text pop-in and flickering
@@ -2869,38 +3041,10 @@ export class L10nCache {
    *   The Fluent arguments as passed to `l10n.setAttributes`.
    * @param {boolean} [options.excludeArgsFromCacheKey]
    *   Pass true if the string was cached using a key that excluded arguments.
-   * @returns {object}
-   *   The message object or undefined if it's not cached. The message object is
-   *   similar to `L10nMessage` (defined in Localization.webidl) but its
-   *   attributes are stored differently for convenience. It looks like this:
-   *
-   *     { value, attributes }
-   *
-   *   The properties are:
-   *
-   *     {string} value
-   *       The bare value of the string. If the string does not have a bare
-   *       value (i.e., it has only attributes), this will be null.
-   *     {object} attributes
-   *       A mapping from attribute names to their values. If the string doesn't
-   *       have any attributes, this will be null.
-   *
-   *   For example, if we cache these strings from an ftl file:
-   *
-   *     foo = Foo's value
-   *     bar =
-   *       .label = Bar's label value
-   *
-   *   Then:
-   *
-   *     cache.get("foo")
-   *     // => { value: "Foo's value", attributes: null }
-   *     cache.get("bar")
-   *     // => { value: null, attributes: { label: "Bar's label value" }}
    */
   get({ id, args = undefined, excludeArgsFromCacheKey = false }) {
-    return this._messagesByKey.get(
-      this._key({ id, args, excludeArgsFromCacheKey })
+    return this.#messagesByKey.get(
+      this.#key({ id, args, excludeArgsFromCacheKey })
     );
   }
 
@@ -2933,11 +3077,13 @@ export class L10nCache {
       );
       return;
     }
-    let message = messages[0];
-    if (message.attributes) {
+
+    /** @type {L10nCachedMessage} */
+    let message = { value: messages[0].value, attributes: null };
+    if (messages[0].attributes) {
       // Convert `attributes` from an array of `{ name, value }` objects to one
       // object mapping names to values.
-      message.attributes = message.attributes.reduce(
+      message.attributes = messages[0].attributes.reduce(
         (valuesByName, { name, value }) => {
           valuesByName[name] = value;
           return valuesByName;
@@ -2945,8 +3091,8 @@ export class L10nCache {
         {}
       );
     }
-    this._messagesByKey.set(
-      this._key({ id, args, excludeArgsFromCacheKey }),
+    this.#messagesByKey.set(
+      this.#key({ id, args, excludeArgsFromCacheKey }),
       message
     );
   }
@@ -3002,8 +3148,8 @@ export class L10nCache {
    *   arguments. If true, `args` is ignored.
    */
   delete({ id, args = undefined, excludeArgsFromCacheKey = false }) {
-    this._messagesByKey.delete(
-      this._key({ id, args, excludeArgsFromCacheKey })
+    this.#messagesByKey.delete(
+      this.#key({ id, args, excludeArgsFromCacheKey })
     );
   }
 
@@ -3011,16 +3157,14 @@ export class L10nCache {
    * Removes all cached strings.
    */
   clear() {
-    this._messagesByKey.clear();
+    this.#messagesByKey.clear();
   }
 
   /**
    * Returns the number of cached messages.
-   *
-   * @returns {number}
    */
   size() {
-    return this._messagesByKey.size;
+    return this.#messagesByKey.size;
   }
 
   /**
@@ -3175,7 +3319,6 @@ export class L10nCache {
   async observe(subject, topic) {
     switch (topic) {
       case "intl:app-locales-changed": {
-        await this.l10n.ready;
         this.clear();
         break;
       }
@@ -3184,11 +3327,13 @@ export class L10nCache {
 
   /**
    * Cache keys => cached message objects
+   *
+   * @type {Map<string, L10nCachedMessage>}
    */
-  _messagesByKey = new Map();
+  #messagesByKey = new Map();
 
   /**
-   * Returns a cache key for a string in `_messagesByKey`.
+   * Returns a cache key for a string in `#messagesByKey`.
    *
    * @param {object} options
    *   Options
@@ -3201,7 +3346,7 @@ export class L10nCache {
    * @returns {string}
    *   The cache key.
    */
-  _key({ id, args, excludeArgsFromCacheKey }) {
+  #key({ id, args, excludeArgsFromCacheKey }) {
     // Keys are `id` plus JSON'ed `args` values. `JSON.stringify` doesn't
     // guarantee a particular ordering of object properties, so instead of
     // stringifying `args` as is, sort its entries by key and then pull out the

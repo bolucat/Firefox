@@ -37,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.testTag
@@ -55,7 +56,7 @@ import mozilla.components.browser.state.state.TabSessionState
 import mozilla.components.browser.state.state.createTab
 import mozilla.components.compose.base.Divider
 import mozilla.components.compose.base.annotation.LightDarkPreview
-import mozilla.components.support.ktx.kotlin.MAX_URI_LENGTH
+import mozilla.components.support.base.utils.MAX_URI_LENGTH
 import mozilla.components.ui.colors.PhotonColors
 import org.mozilla.fenix.FeatureFlags
 import org.mozilla.fenix.R
@@ -207,6 +208,7 @@ private fun TabContent(
                 .padding(4.dp)
                 .then(tabBorderModifier)
                 .padding(4.dp)
+                .clip(RoundedCornerShape(dimensionResource(id = R.dimen.tab_tray_grid_item_border_radius)))
                 .then(clickableModifier)
                 .semantics {
                     selected = isSelected

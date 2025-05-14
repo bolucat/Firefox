@@ -1188,11 +1188,13 @@ class IndexedDBCache {
 
     const models = [];
     // Process each key entry.
-    for (const { key } of modelRevisions) {
-      const model = key[0];
-      const revision = key[1];
+    for (const { primaryKey } of modelRevisions) {
+      const taskName = primaryKey[0];
+      const model = primaryKey[1];
+      const revision = primaryKey[2];
 
       models.push({
+        taskName,
         name: model,
         revision,
       });
@@ -1249,7 +1251,15 @@ export class ModelHub {
     if (result && !result.allowed) {
       throw new ForbiddenURLError(url, result.rejectionType);
     }
-    return fetch(url, options);
+    const response = await fetch(url, options);
+
+    if (!response.ok) {
+      throw new Error(
+        `HTTP error! Status: ${response.status} ${response.statusText}`
+      );
+    }
+
+    return response;
   }
 
   /**
@@ -1585,6 +1595,10 @@ export class ModelHub {
    * @param {string} config.modelHubRootUrl - root url of the model hub
    * @param {string} config.modelHubUrlTemplate - url template of the model hub
    * @param {?function(ProgressAndStatusCallbackParams):void} config.progressCallback A function to call to indicate progress status.
+   * @param {string} config.featureId - feature id for the model
+   * @param {string} config.modelId - model id str
+   * @param {string} config.modelRevision - revision for the model
+   * @param {string} config.sessionId - shared across the same session
    * @returns {Promise<[string, headers]>} The local path to the file content and headers.
    */
   async getModelDataAsFile({
@@ -1596,6 +1610,10 @@ export class ModelHub {
     modelHubRootUrl,
     modelHubUrlTemplate,
     progressCallback,
+    featureId,
+    modelId,
+    modelRevision,
+    sessionId,
   }) {
     // Make sure inputs are clean. We don't sanitize them but throw an exception
     let checkError = this.#checkInput(model, revision, file);
@@ -1723,9 +1741,25 @@ export class ModelHub {
       })
     );
 
+    const start = Date.now();
+    Glean.firefoxAiRuntime.modelDownload.record({
+      modelDownloadId: sessionId,
+      featureId,
+      engineId,
+      modelId,
+      step: "start",
+      when: Math.floor(start),
+      duration: 0,
+      modelRevision,
+      error: "",
+    });
+
     lazy.console.debug(`Fetching ${url}`);
+    let caughtError;
     try {
-      let response = await this.#fetch(url);
+      const response = await this.#fetch(url);
+      // After above call, we are sure the response was ok & no errors was thrown
+
       let isFirstCall = true;
 
       const fileHandle = await lazy.OPFS.getFileHandle(localFilePath, {
@@ -1755,41 +1789,65 @@ export class ModelHub {
         }
       );
 
-      if (response.ok) {
-        const headers = {
-          // We don't store the boundary or the charset, just the content type,
-          // so we drop what's after the semicolon.
-          "Content-Type": response.headers.get("Content-Type").split(";")[0],
-          "Content-Length": response.headers.get("Content-Length"),
-          ETag: response.headers.get("ETag"),
-          fileSize: (await fileHandle.getFile()).size,
-        };
+      const end = Date.now();
+      const duration = Math.floor(end - start);
+      Glean.firefoxAiRuntime.modelDownload.record({
+        modelDownloadId: sessionId,
+        featureId,
+        engineId,
+        modelId,
+        step: "complete",
+        when: Math.floor(end),
+        duration,
+        modelRevision,
+        error: "",
+      });
 
-        await this.cache.put({
-          engineId,
-          taskName,
-          model: modelWithHostname,
-          revision,
-          file,
-          data: localFilePath,
-          headers,
-        });
+      const headers = {
+        // We don't store the boundary or the charset, just the content type,
+        // so we drop what's after the semicolon.
+        "Content-Type": response.headers.get("Content-Type").split(";")[0],
+        "Content-Length": response.headers.get("Content-Length"),
+        ETag: response.headers.get("ETag"),
+        fileSize: (await fileHandle.getFile()).size,
+      };
 
-        progressCallback?.(
-          new lazy.Progress.ProgressAndStatusCallbackParams({
-            ...statusInfo,
-            ...progressInfo,
-            type: lazy.Progress.ProgressType.DOWNLOAD,
-            statusText: lazy.Progress.ProgressStatusText.DONE,
-          })
-        );
+      await this.cache.put({
+        engineId,
+        taskName,
+        model: modelWithHostname,
+        revision,
+        file,
+        data: localFilePath,
+        headers,
+      });
 
-        return [localFilePath, headers];
-      }
+      progressCallback?.(
+        new lazy.Progress.ProgressAndStatusCallbackParams({
+          ...statusInfo,
+          ...progressInfo,
+          type: lazy.Progress.ProgressType.DOWNLOAD,
+          statusText: lazy.Progress.ProgressStatusText.DONE,
+        })
+      );
+
+      return [localFilePath, headers];
     } catch (error) {
-      if (error instanceof ForbiddenURLError) {
-        throw error;
-      }
+      caughtError = error;
+      const end = Date.now();
+      const duration = Math.floor(end - start);
+      Glean.firefoxAiRuntime.modelDownload.record({
+        modelDownloadId: sessionId,
+        featureId,
+        engineId,
+        modelId,
+        step: "error",
+        when: Math.floor(end),
+        duration,
+        modelRevision,
+        error: error.constructor.name,
+      });
+
       lazy.console.error(`Failed to fetch ${url}:`, error);
     }
 
@@ -1804,7 +1862,12 @@ export class ModelHub {
       })
     );
 
-    throw new Error(`Failed to fetch the model file: ${url}`);
+    throw new Error(
+      `Failed to fetch the model file: ${url}. Reason: ${caughtError.message} ${caughtError.stack}`,
+      {
+        cause: caughtError,
+      }
+    );
   }
 
   /**

@@ -3319,13 +3319,6 @@ void Document::ResetStylesheetsToURI(nsIURI* aURI) {
   }
 }
 
-static void AppendSheetsToStyleSet(
-    ServoStyleSet* aStyleSet, const nsTArray<RefPtr<StyleSheet>>& aSheets) {
-  for (StyleSheet* sheet : Reversed(aSheets)) {
-    aStyleSet->AppendStyleSheet(*sheet);
-  }
-}
-
 void Document::FillStyleSetUserAndUASheets() {
   // Make sure this does the same thing as PresShell::Add{User,Agent}Sheet wrt
   // ordering.
@@ -3421,9 +3414,11 @@ void Document::FillStyleSetDocumentSheets() {
     styleSet.AppendStyleSheet(*sheet);
   }
 
-  AppendSheetsToStyleSet(&styleSet, mAdditionalSheets[eAgentSheet]);
-  AppendSheetsToStyleSet(&styleSet, mAdditionalSheets[eUserSheet]);
-  AppendSheetsToStyleSet(&styleSet, mAdditionalSheets[eAuthorSheet]);
+  for (auto& sheets : mAdditionalSheets) {
+    for (StyleSheet* sheet : sheets) {
+      styleSet.AppendStyleSheet(*sheet);
+    }
+  }
 }
 
 void Document::CompatibilityModeChanged() {
@@ -20337,16 +20332,13 @@ already_AddRefed<Document> Document::ParseHTMLUnsafe(
     nsCOMPtr<nsIGlobalObject> global =
         do_QueryInterface(aGlobal.GetAsSupports());
     RefPtr<Sanitizer> sanitizer = Sanitizer::GetInstance(
-        global, aOptions.mSanitizer.Value(), true, aError);
+        global, aOptions.mSanitizer.Value(), /* aSafe */ false, aError);
     if (aError.Failed()) {
       return nullptr;
     }
 
-    // Step 6. Call sanitize on document’s root node with sanitizer and false.
-    nsCOMPtr<nsINode> root = doc->GetRootElement();
-    MOZ_DIAGNOSTIC_ASSERT(root,
-                          "HTML parser should have create the <html> root");
-    sanitizer->Sanitize(root, /* aSafe */ true, aError);
+    // Step 6. Call sanitize on document with sanitizer and false.
+    sanitizer->Sanitize(doc, /* aSafe */ false, aError);
     if (aError.Failed()) {
       return nullptr;
     }
@@ -20383,15 +20375,13 @@ already_AddRefed<Document> Document::ParseHTML(GlobalObject& aGlobal,
   // from options with options and true.
   nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(aGlobal.GetAsSupports());
   RefPtr<Sanitizer> sanitizer =
-      Sanitizer::GetInstance(global, aOptions.mSanitizer, true, aError);
+      Sanitizer::GetInstance(global, aOptions.mSanitizer, /* aSafe */ true, aError);
   if (aError.Failed()) {
     return nullptr;
   }
 
-  // Step 5. Call sanitize on document’s root node with sanitizer and true.
-  nsCOMPtr<nsINode> root = doc->GetRootElement();
-  MOZ_DIAGNOSTIC_ASSERT(root, "HTML parser should have create the <html> root");
-  sanitizer->Sanitize(root, /* aSafe */ true, aError);
+  // Step 5. Call sanitize on document with sanitizer and true.
+  sanitizer->Sanitize(doc, /* aSafe */ true, aError);
   if (aError.Failed()) {
     return nullptr;
   }

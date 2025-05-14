@@ -158,7 +158,7 @@ export class BaseContent extends React.PureComponent {
     global.addEventListener("scroll", this.onWindowScroll);
     global.addEventListener("keydown", this.handleOnKeyDown);
     const prefs = this.props.Prefs.values;
-    const wallpapersV2Enabled = prefs["newtabWallpapers.v2.enabled"];
+    const wallpapersEnabled = prefs["newtabWallpapers.enabled"];
     if (this.props.document.visibilityState === VISIBLE) {
       this.setFirstVisibleTimestamp();
       this.shouldDisplayTopicSelectionModal();
@@ -189,15 +189,15 @@ export class BaseContent extends React.PureComponent {
       this.handleColorModeChange
     );
     this.handleColorModeChange();
-    if (wallpapersV2Enabled) {
+    if (wallpapersEnabled) {
       this.updateWallpaper();
     }
   }
 
   componentDidUpdate(prevProps) {
     const prefs = this.props.Prefs.values;
-    const wallpapersV2Enabled = prefs["newtabWallpapers.v2.enabled"];
-    if (wallpapersV2Enabled) {
+    const wallpapersEnabled = prefs["newtabWallpapers.enabled"];
+    if (wallpapersEnabled) {
       // destructure current and previous props with fallbacks
       // (preventing undefined errors)
       const {
@@ -219,7 +219,9 @@ export class BaseContent extends React.PureComponent {
       if (
         selectedWallpaper !== prevSelectedWallpaper || // selecting a new wallpaper
         uploadedWallpaper !== prevUploadedWallpaper || // uploading a new wallpaper
-        wallpaperList !== prevWallpaperList // remote settings wallpaper list updates
+        wallpaperList !== prevWallpaperList || // remote settings wallpaper list updates
+        this.props.App.isForStartupCache.Wallpaper !==
+          prevProps.App.isForStartupCache.Wallpaper // Startup cached page wallpaper is updating
       ) {
         this.updateWallpaper();
       }
@@ -437,17 +439,19 @@ export class BaseContent extends React.PureComponent {
         URL.revokeObjectURL(this.uploadedWallpaperUrl);
       }
 
-      const uploadedWallpaperUrl = URL.createObjectURL(uploadedWallpaper);
+      try {
+        const uploadedWallpaperUrl = URL.createObjectURL(uploadedWallpaper);
 
-      global.document?.body.style.setProperty(
-        "--newtab-wallpaper",
-        `url(${uploadedWallpaperUrl})`
-      );
+        global.document?.body.style.setProperty(
+          "--newtab-wallpaper",
+          `url(${uploadedWallpaperUrl})`
+        );
 
-      global.document?.body.style.setProperty(
-        "--newtab-wallpaper-color",
-        "transparent"
-      );
+        global.document?.body.style.setProperty(
+          "--newtab-wallpaper-color",
+          "transparent"
+        );
+      } catch (e) {}
 
       return;
     }
@@ -596,7 +600,7 @@ export class BaseContent extends React.PureComponent {
     const layoutsVariantAorB = layoutsVariantAEnabled || layoutsVariantBEnabled;
 
     const activeWallpaper = prefs[`newtabWallpapers.wallpaper`];
-    const wallpapersV2Enabled = prefs["newtabWallpapers.v2.enabled"];
+    const wallpapersEnabled = prefs["newtabWallpapers.enabled"];
     const weatherEnabled = prefs.showWeather;
     const { showTopicSelection } = DiscoveryStream;
     const mayShowTopicSelection =
@@ -713,7 +717,7 @@ export class BaseContent extends React.PureComponent {
     ]
       .filter(v => v)
       .join(" ");
-    if (wallpapersV2Enabled) {
+    if (wallpapersEnabled) {
       // Add helper class to body if user has a wallpaper selected
       if (this.state.wallpaperTheme === "light") {
         global.document?.body.classList.add("lightWallpaper");
@@ -736,7 +740,7 @@ export class BaseContent extends React.PureComponent {
             openPreferences={this.openPreferences}
             setPref={this.setPref}
             enabledSections={enabledSections}
-            wallpapersV2Enabled={wallpapersV2Enabled}
+            wallpapersEnabled={wallpapersEnabled}
             activeWallpaper={activeWallpaper}
             pocketRegion={pocketRegion}
             mayHaveTopicSections={mayHavePersonalizedTopicSections}
@@ -823,7 +827,7 @@ export class BaseContent extends React.PureComponent {
               )}
             </div>
             <ConfirmDialog />
-            {wallpapersV2Enabled && this.renderWallpaperAttribution()}
+            {wallpapersEnabled && this.renderWallpaperAttribution()}
           </main>
           <aside>
             {this.props.Notifications?.showNotifications && (

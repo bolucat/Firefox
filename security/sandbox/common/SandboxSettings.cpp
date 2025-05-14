@@ -57,9 +57,6 @@ const char* ContentWin32kLockdownStateToString(
     case nsIXULRuntime::ContentWin32kLockdownState::DisabledByEnvVar:
       return "Win32k Lockdown disabled -- MOZ_ENABLE_WIN32K is set";
 
-    case nsIXULRuntime::ContentWin32kLockdownState::DisabledBySafeMode:
-      return "Win32k Lockdown disabled -- Running in Safe Mode";
-
     case nsIXULRuntime::ContentWin32kLockdownState::DisabledByE10S:
       return "Win32k Lockdown disabled -- E10S is disabled";
 
@@ -179,10 +176,8 @@ int GetEffectiveContentSandboxLevel() {
 #if defined(XP_WIN)
   // Sandbox level 8, which uses a USER_RESTRICTED access token level, breaks if
   // prefs moving processing out of the content process are not the default.
-  // We are also disabling for safe mode initially.
   if (level >= 8 &&
-      (gSafeMode || !IsWebglOutOfProcessEnabled() ||
-       !PDMFactory::AllDecodersAreRemote() ||
+      (!IsWebglOutOfProcessEnabled() || !PDMFactory::AllDecodersAreRemote() ||
        !StaticPrefs::network_process_enabled() ||
        !Preferences::GetBool("media.peerconnection.mtransport_process"))) {
     level = 7;

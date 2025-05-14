@@ -20,7 +20,6 @@ import org.mozilla.fenix.browser.StandardSnackbarError
 import org.mozilla.fenix.browser.browsingmode.BrowsingMode
 import org.mozilla.fenix.components.AppStore
 import org.mozilla.fenix.components.appstate.setup.checklist.ChecklistItem
-import org.mozilla.fenix.components.appstate.shopping.ShoppingState
 import org.mozilla.fenix.components.appstate.webcompat.WebCompatState
 import org.mozilla.fenix.home.bookmarks.Bookmark
 import org.mozilla.fenix.home.pocket.PocketImpression
@@ -152,6 +151,11 @@ sealed class AppAction : Action {
     data class CurrentTabClosed(
         val isPrivate: Boolean,
     ) : AppAction()
+
+    /**
+     * Action dispatched when an URL has been copied to the clipboard.
+     */
+    data object URLCopiedToClipboard : AppAction()
 
     /**
      * Action dispatched when open in firefox action is selected from custom tab.
@@ -300,48 +304,6 @@ sealed class AppAction : Action {
     data class UpdateStandardSnackbarErrorAction(
         val standardSnackbarError: StandardSnackbarError?,
     ) : AppAction()
-
-    /**
-     * [AppAction]s related to shopping sheet state.
-     */
-    sealed class ShoppingAction : AppAction() {
-
-        /**
-         * [ShoppingAction] used to update the expansion state of the shopping sheet.
-         */
-        data class ShoppingSheetStateUpdated(val expanded: Boolean) : ShoppingAction()
-
-        /**
-         * [ShoppingAction] used to update the expansion state of the highlights card.
-         */
-        data class HighlightsCardExpanded(
-            val productPageUrl: String,
-            val expanded: Boolean,
-        ) : ShoppingAction()
-
-        /**
-         * [ShoppingAction] used to update the expansion state of the info card.
-         */
-        data class InfoCardExpanded(
-            val productPageUrl: String,
-            val expanded: Boolean,
-        ) : ShoppingAction()
-
-        /**
-         * [ShoppingAction] used to update the expansion state of the settings card.
-         */
-        data class SettingsCardExpanded(
-            val productPageUrl: String,
-            val expanded: Boolean,
-        ) : ShoppingAction()
-
-        /**
-         * [ShoppingAction] used to update the recorded product recommendation impressions set.
-         */
-        data class ProductRecommendationImpression(
-            val key: ShoppingState.ProductRecommendationImpressionKey,
-        ) : ShoppingAction()
-    }
 
     /**
      * [AppAction]s related to the tab strip.

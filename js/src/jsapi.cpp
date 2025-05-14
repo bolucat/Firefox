@@ -3099,6 +3099,28 @@ JS_PUBLIC_API bool JS::SetPromiseUserInputEventHandlingState(
   return true;
 }
 
+/* static */
+void JS::Dispatchable::Run(JSContext* cx,
+                           js::UniquePtr<JS::Dispatchable>&& task,
+                           MaybeShuttingDown maybeShuttingDown) {
+  // Release the uniquePtr so that we don't have a double delete.
+  JS::Dispatchable* rawTaskPtr = task.release();
+  // Execute run. This will result in the task being deleted.
+  rawTaskPtr->run(cx, maybeShuttingDown);
+}
+
+/* static */
+void JS::Dispatchable::ReleaseFailedTask(
+    js::UniquePtr<JS::Dispatchable>&& task) {
+  // release the task from the uniquePtr so that it does not delete.
+  JS::Dispatchable* rawTaskPtr = task.release();
+  // We've attempted to transfer to the embedding, but this has failed.
+  // Transfer the task back to the runtime, as defined by the subclass of
+  // JS::Dispatchable. The Runtime will delete the task once we are sure
+  // we are once more executing on the main thread.
+  rawTaskPtr->transferToRuntime();
+}
+
 /**
  * Unforgeable version of Promise.all for internal use.
  *
@@ -3117,9 +3139,11 @@ JS_PUBLIC_API JSObject* JS::GetWaitForAllPromise(
   return js::GetWaitForAllPromise(cx, promises);
 }
 
-JS_PUBLIC_API void JS::InitDispatchToEventLoop(
-    JSContext* cx, JS::DispatchToEventLoopCallback callback, void* closure) {
-  cx->runtime()->offThreadPromiseState.ref().init(callback, closure);
+JS_PUBLIC_API void JS::InitDispatchsToEventLoop(
+    JSContext* cx, JS::DispatchToEventLoopCallback callback,
+    JS::DelayedDispatchToEventLoopCallback delayCallback, void* closure) {
+  cx->runtime()->offThreadPromiseState.ref().init(callback, delayCallback,
+                                                  closure);
 }
 
 JS_PUBLIC_API void JS::ShutdownAsyncTasks(JSContext* cx) {
