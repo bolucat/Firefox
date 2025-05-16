@@ -15,7 +15,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
   FeatureManifest: "resource://nimbus/FeatureManifest.sys.mjs",
   JsonSchema: "resource://gre/modules/JsonSchema.sys.mjs",
   NetUtil: "resource://gre/modules/NetUtil.sys.mjs",
-  _ExperimentManager: "resource://nimbus/lib/ExperimentManager.sys.mjs",
+  ExperimentManager: "resource://nimbus/lib/ExperimentManager.sys.mjs",
   _RemoteSettingsExperimentLoader:
     "resource://nimbus/lib/RemoteSettingsExperimentLoader.sys.mjs",
   sinon: "resource://testing-common/Sinon.sys.mjs",
@@ -266,7 +266,7 @@ export const NimbusTestUtils = {
     },
 
     manager(store) {
-      const manager = new lazy._ExperimentManager({
+      const manager = new lazy.ExperimentManager({
         store: store ?? NimbusTestUtils.stubs.store(),
       });
       const addEnrollment = manager.store.addEnrollment.bind(manager.store);
@@ -371,12 +371,14 @@ export const NimbusTestUtils = {
    *         The ExperimentManager to clean up. Defaults to the global
    *         ExperimentManager.
    */
-  cleanupManager(slugs, { manager = ExperimentAPI.manager } = {}) {
+  cleanupManager(slugs, { manager } = {}) {
+    const experimentManager = manager ?? ExperimentAPI.manager;
+
     for (const slug of slugs) {
-      manager.unenroll(slug);
+      experimentManager.unenroll(slug);
     }
 
-    NimbusTestUtils.assert.storeIsEmpty(manager.store);
+    NimbusTestUtils.assert.storeIsEmpty(experimentManager.store);
   },
 
   /**
@@ -411,21 +413,38 @@ export const NimbusTestUtils = {
    * @returns {Promise<function(): void>}
    *          A cleanup function that will unenroll from the enrolled recipe and
    *          remove it from the store.
+   *
+   * @throws {Error} If the recipe references a feature that does not exist or
+   *                 if the recipe fails to enroll.
    */
-  async enroll(
-    recipe,
-    { manager = ExperimentAPI.manager, source = "nimbus-test-utils" } = {}
-  ) {
+  async enroll(recipe, { manager, source = "nimbus-test-utils" } = {}) {
+    const experimentManager = manager ?? ExperimentAPI.manager;
+
     if (!recipe?.slug) {
       throw new Error("Experiment with slug is required");
     }
 
-    const enrollment = await manager.enroll(recipe, source);
-    manager.store._syncToChildren({ flush: true });
+    for (const featureId of recipe.featureIds) {
+      if (!Object.hasOwn(NimbusFeatures, featureId)) {
+        throw new Error(
+          `Refusing to enroll in ${recipe.slug}: feature ${featureId} does not exist`
+        );
+      }
+    }
+
+    await experimentManager.store.ready();
+
+    const enrollment = await experimentManager.enroll(recipe, source);
+
+    if (!enrollment) {
+      throw new Error(`Failed to enroll in ${recipe}`);
+    }
+
+    experimentManager.store._syncToChildren({ flush: true });
 
     return function doEnrollmentCleanup() {
-      manager.unenroll(enrollment.slug);
-      manager.store._deleteForTests(enrollment.slug);
+      experimentManager.unenroll(enrollment.slug);
+      experimentManager.store._deleteForTests(enrollment.slug);
     };
   },
 
@@ -463,24 +482,19 @@ export const NimbusTestUtils = {
    * @returns {Promise<function(): void>}
    *          A cleanup function that will unenroll from the enrolled recipe and
    *          remove it from the store.
+   *
+   * @throws {Error} If the feature does not exist.
    */
   async enrollWithFeatureConfig(
-    featureConfig,
-    {
-      manager = ExperimentAPI.manager,
-      source,
-      slug,
-      branchSlug = "control",
-      isRollout = false,
-    } = {}
+    { featureId, value = {} },
+    { manager, source, slug, branchSlug = "control", isRollout = false } = {}
   ) {
-    await manager.store.ready();
+    const experimentManager = manager ?? ExperimentAPI.manager;
+    await experimentManager.store.ready();
 
+    const experimentType = isRollout ? "rollout" : "experiment";
     const experimentId =
-      slug ??
-      `${featureConfig.featureId}-${
-        isRollout ? "rollout" : "experiment"
-      }-${Math.random()}`;
+      slug ?? `${featureId}-${experimentType}-${Math.random()}`;
 
     const recipe = NimbusTestUtils.factories.recipe(experimentId, {
       bucketConfig: {
@@ -491,14 +505,14 @@ export const NimbusTestUtils = {
         {
           slug: branchSlug,
           ratio: 1,
-          features: [featureConfig],
+          features: [{ featureId, value }],
         },
       ],
       isRollout,
     });
 
     return NimbusTestUtils.enroll(recipe, {
-      manager,
+      manager: experimentManager,
       source,
     });
   },
@@ -563,7 +577,7 @@ export const NimbusTestUtils = {
    *           A RemoteSettingsExperimentLoader instance that has stubbed
    *           RemoteSettings clients.
    *
-   * @property {_ExperimentManager} manager
+   * @property {ExperimentManager} manager
    *           An ExperimentManager instance that will validate all enrollments
    *           added to its store.
    *
@@ -575,13 +589,7 @@ export const NimbusTestUtils = {
    */
 
   /**
-   * Set a Nimbus testing environment.
-   *
-   * This is intended to be used inside xpcshell tests -- browser mochitests
-   * already have a Nimbus environment.
-   *
    * @param {object?} options
-   *
    * @param {boolean?} options.init
    *        Initialize the Experiment API.
    *
@@ -626,7 +634,7 @@ export const NimbusTestUtils = {
     const loader = NimbusTestUtils.stubs.rsLoader(manager);
 
     sandbox.stub(ExperimentAPI, "_rsLoader").get(() => loader);
-    sandbox.stub(ExperimentAPI, "_manager").get(() => manager);
+    sandbox.stub(ExperimentAPI, "manager").get(() => manager);
     sandbox
       .stub(loader.remoteSettingsClients.experiments, "get")
       .resolves(Array.isArray(experiments) ? experiments : []);

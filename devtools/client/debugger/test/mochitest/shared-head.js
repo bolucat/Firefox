@@ -207,8 +207,10 @@ function waitForSelectedLocation(dbg, line, column) {
     const location = dbg.selectors.getSelectedLocation();
     return (
       location &&
-      (line ? location.line == line : true) &&
-      (column ? location.column == column : true)
+      location.line == line &&
+      // location's column is 0-based, while all line and columns mentioned in tests
+      // are 1-based.
+      (typeof column == "number" ? location.column + 1 == column : true)
     );
   });
 }
@@ -3283,15 +3285,6 @@ async function findConsoleMessage({ toolbox }, query) {
   // There are console messages which might not have a link e.g Error messages
   const link = message.querySelector(".frame-link-source")?.innerText;
   return { value, link };
-}
-
-async function findConsoleMessages(toolbox, query) {
-  const webConsole = await toolbox.getPanel("webconsole");
-  const win = webConsole._frameWindow;
-  return Array.prototype.filter.call(
-    win.document.querySelectorAll(".message"),
-    e => e.innerText.includes(query)
-  );
 }
 
 async function hasConsoleMessage({ toolbox }, msg) {

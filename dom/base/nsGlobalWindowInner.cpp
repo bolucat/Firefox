@@ -963,6 +963,7 @@ nsGlobalWindowInner::nsGlobalWindowInner(nsGlobalWindowOuter* aOuterWindow,
     os->AddObserver(mObserver, MEMORY_PRESSURE_OBSERVER_TOPIC, false);
     os->AddObserver(mObserver, PERMISSION_CHANGED_TOPIC, false);
     os->AddObserver(mObserver, "screen-information-changed", false);
+    os->AddObserver(mObserver, "audio-playback", false);
   }
 
   Preferences::AddStrongObserver(mObserver, "intl.accept_languages");
@@ -1132,6 +1133,8 @@ void nsGlobalWindowInner::FreeInnerObjects() {
   }
   StartDying();
 
+  ClearHasPointerRawUpdateEventListeners();
+
   if (mDoc && mDoc->GetWindowContext()) {
     // The document is about to lose its window, so this is a good time to send
     // our page use counters.
@@ -1253,6 +1256,7 @@ void nsGlobalWindowInner::FreeInnerObjects() {
       os->RemoveObserver(mObserver, MEMORY_PRESSURE_OBSERVER_TOPIC);
       os->RemoveObserver(mObserver, PERMISSION_CHANGED_TOPIC);
       os->RemoveObserver(mObserver, "screen-information-changed");
+      os->RemoveObserver(mObserver, "audio-playback");
     }
 
     RefPtr<StorageNotifierService> sns = StorageNotifierService::GetOrCreate();
@@ -2893,6 +2897,11 @@ bool nsGlobalWindowInner::HasOpenWebSockets() const {
 
   return mNumOfOpenWebSockets ||
          (mTopInnerWindow && mTopInnerWindow->mNumOfOpenWebSockets);
+}
+
+void nsGlobalWindowInner::AudioPlaybackChanged(bool aIsPlayingAudio) {
+  AUTO_PROFILER_MARKER_UNTYPED("AudioPlaybackChanged", DOM, {});
+  UpdateWorkersPlaybackState(*this, aIsPlayingAudio);
 }
 
 bool nsPIDOMWindowInner::IsCurrentInnerWindow() const {
@@ -5233,6 +5242,27 @@ nsGlobalWindowInner::ShowSlowScriptDialog(JSContext* aCx,
 
 nsresult nsGlobalWindowInner::Observe(nsISupports* aSubject, const char* aTopic,
                                       const char16_t* aData) {
+  if (!nsCRT::strcmp(aTopic, "audio-playback") &&
+      ToSupports(GetOuterWindow()) == aSubject) {
+    AUTO_PROFILER_MARKER_UNTYPED("audio-playback", DOM, {});
+
+    nsGlobalWindowOuter* outer =
+        nsGlobalWindowOuter::Cast(nsPIDOMWindowOuter::From(GetOuterWindow())
+                                      ->GetInProcessScriptableTop());
+    nsGlobalWindowInner* topInnerWindow =
+        outer ? nsGlobalWindowInner::Cast(outer->GetCurrentInnerWindow())
+              : nullptr;
+
+    if (topInnerWindow) {
+      const bool isPlayingAudio{IsPlayingAudio()};
+      topInnerWindow->AudioPlaybackChanged(isPlayingAudio);
+      topInnerWindow->CallOnInProcessDescendants(
+          &nsGlobalWindowInner::AudioPlaybackChanged, isPlayingAudio);
+    }
+
+    return NS_OK;
+  }
+
   if (!nsCRT::strcmp(aTopic, NS_IOSERVICE_OFFLINE_STATUS_TOPIC)) {
     if (!IsFrozen()) {
       // Fires an offline status event if the offline status has changed
@@ -7659,6 +7689,26 @@ TrustedTypePolicyFactory* nsGlobalWindowInner::TrustedTypes() {
   return mTrustedTypePolicyFactory;
 }
 
+void nsPIDOMWindowInner::MaybeSetHasPointerRawUpdateEventListeners() {
+  if (HasPointerRawUpdateEventListeners() || !IsSecureContext()) {
+    return;
+  }
+  mMayHavePointerRawUpdateEventListener = true;
+  if (BrowserChild* const browserChild = BrowserChild::GetFrom(this)) {
+    browserChild->OnPointerRawUpdateEventListenerAdded(this);
+  }
+}
+
+void nsPIDOMWindowInner::ClearHasPointerRawUpdateEventListeners() {
+  if (!HasPointerRawUpdateEventListeners()) {
+    return;
+  }
+  mMayHavePointerRawUpdateEventListener = false;
+  if (BrowserChild* const browserChild = BrowserChild::GetFrom(this)) {
+    browserChild->OnPointerRawUpdateEventListenerRemoved(this);
+  }
+}
+
 nsIURI* nsPIDOMWindowInner::GetDocumentURI() const {
   return mDoc ? mDoc->GetDocumentURI() : mDocumentURI.get();
 }
@@ -7749,29 +7799,7 @@ CloseWatcherManager* nsPIDOMWindowInner::EnsureCloseWatcherManager() {
 
 nsPIDOMWindowInner::nsPIDOMWindowInner(nsPIDOMWindowOuter* aOuterWindow,
                                        WindowGlobalChild* aActor)
-    : mMutationBits(0),
-      mIsDocumentLoaded(false),
-      mIsHandlingResizeEvent(false),
-      mMayHaveDOMActivateEventListeners(false),
-      mMayHaveTouchEventListener(false),
-      mMayHaveSelectionChangeEventListener(false),
-      mMayHaveFormSelectEventListener(false),
-      mMayHaveMouseEnterLeaveEventListener(false),
-      mMayHavePointerEnterLeaveEventListener(false),
-      mMayHaveTransitionEventListener(false),
-      mMayHaveSMILTimeEventListener(false),
-      mMayHaveBeforeInputEventListenerForTelemetry(false),
-      mMutationObserverHasObservedNodeForTelemetry(false),
-      mOuterWindow(aOuterWindow),
-      mWindowID(0),
-      mHasNotifiedGlobalCreated(false),
-      mMarkedCCGeneration(0),
-      mHasTriedToCacheTopInnerWindow(false),
-      mNumOfIndexedDBDatabases(0),
-      mNumOfOpenWebSockets(0),
-      mEvent(nullptr),
-      mWindowGlobalChild(aActor),
-      mWasSuspendedByGroup(false) {
+    : mOuterWindow(aOuterWindow), mWindowGlobalChild(aActor) {
   MOZ_ASSERT(aOuterWindow);
   mBrowsingContext = aOuterWindow->GetBrowsingContext();
 

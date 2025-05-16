@@ -35,6 +35,7 @@ ChromeUtils.defineESModuleGetters(
   {
     Progress: "chrome://global/content/ml/Utils.sys.mjs",
     generateUUID: "chrome://global/content/ml/Utils.sys.mjs",
+    setLogLevel: "chrome://global/content/ml/Utils.sys.mjs",
   },
   { global: "current" }
 );
@@ -456,14 +457,7 @@ export class ONNXPipeline {
     lazy.console.debug("Pipeline initialized");
   }
 
-  async #metricsSnapShot({ name, snapshot, collectMemory = true }) {
-    if (!snapshot) {
-      if (collectMemory) {
-        snapshot = await this.#mlEngineWorker.getInferenceProcessInfo();
-      } else {
-        snapshot = {};
-      }
-    }
+  async #metricsSnapShot({ name, snapshot = {} }) {
     if (!("when" in snapshot)) {
       snapshot.when = Date.now();
     }
@@ -484,11 +478,11 @@ export class ONNXPipeline {
   static async initialize(mlEngineWorker, runtime, options, errorFactory) {
     let snapShot = {
       when: Date.now(),
-      ...(await mlEngineWorker.getInferenceProcessInfo()),
     };
 
     if (options.logLevel) {
       _logLevel = options.logLevel;
+      lazy.setLogLevel(options.logLevel); // setting Utils log level
     }
     const taskName = options.taskName;
     lazy.console.debug(`Initializing Pipeline for task ${taskName}`);

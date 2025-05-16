@@ -3754,8 +3754,7 @@ var gMainPane = {
     }
     // note: downloadFolder.value is not read elsewhere in the code, its only purpose is to display to the user
     downloadFolder.value = folderDisplayName;
-    downloadFolder.style.backgroundImage =
-      "url(moz-icon://" + iconUrlSpec + "?size=16)";
+    downloadFolder.style.backgroundImage = `image-set("moz-icon://${iconUrlSpec}?size=16&scale=1" 1x, "moz-icon://${iconUrlSpec}?size=16&scale=2" 2x, "moz-icon://${iconUrlSpec}?size=16&scale=3" 3x)`;
   },
 
   async _getSystemDownloadFolderDetails(folderIndex) {
@@ -3969,12 +3968,11 @@ function getLocalHandlerApp(aFile) {
 let gHandlerListItemFragment = MozXULElement.parseXULToFragment(`
   <richlistitem>
     <hbox class="typeContainer" flex="1" align="center">
-      <image class="typeIcon" width="16" height="16"
-              src="moz-icon://goat?size=16"/>
+      <html:img class="typeIcon" width="16" height="16" />
       <label class="typeDescription" flex="1" crop="end"/>
     </hbox>
     <hbox class="actionContainer" flex="1" align="center">
-      <image class="actionIcon" width="16" height="16"/>
+      <html:img class="actionIcon" width="16" height="16"/>
       <label class="actionDescription" flex="1" crop="end"/>
     </hbox>
     <hbox class="actionsMenuContainer" flex="1">
@@ -4024,7 +4022,7 @@ class HandlerListItem {
     let typeDescription = this.handlerInfoWrapper.typeDescription;
     this.setOrRemoveAttributes([
       [null, "type", this.handlerInfoWrapper.type],
-      [".typeIcon", "src", this.handlerInfoWrapper.smallIcon],
+      [".typeIcon", "srcset", this.handlerInfoWrapper.iconSrcSet],
     ]);
     localizeElement(
       this.node.querySelector(".typeDescription"),
@@ -4039,8 +4037,8 @@ class HandlerListItem {
       [null, APP_ICON_ATTR_NAME, actionIconClass],
       [
         ".actionIcon",
-        "src",
-        actionIconClass ? null : this.handlerInfoWrapper.actionIcon,
+        "srcset",
+        actionIconClass ? null : this.handlerInfoWrapper.actionIconSrcset,
       ],
     ]);
     const selectedItem = this.node.querySelector("[selected=true]");
@@ -4173,6 +4171,20 @@ class HandlerInfoWrapper {
     }
 
     return "";
+  }
+
+  get actionIconSrcset() {
+    let icon = this.actionIcon;
+    if (!icon || !icon.startsWith("moz-icon:")) {
+      return icon;
+    }
+    // We rely on the icon already having the ?size= parameter.
+    let srcset = [];
+    for (let scale of [1, 2, 3]) {
+      let scaledIcon = icon + "&scale=" + scale;
+      srcset.push(`${scaledIcon} ${scale}x`);
+    }
+    return srcset.join(", ");
   }
 
   get actionIcon() {
@@ -4336,17 +4348,25 @@ class HandlerInfoWrapper {
     gHandlerService.store(this.wrappedHandlerInfo);
   }
 
-  get smallIcon() {
-    return this._getIcon(16);
+  get iconSrcSet() {
+    let srcset = [];
+    for (let scale of [1, 2]) {
+      let icon = this._getIcon(16, scale);
+      if (!icon) {
+        return null;
+      }
+      srcset.push(`${icon} ${scale}x`);
+    }
+    return srcset.join(", ");
   }
 
-  _getIcon(aSize) {
+  _getIcon(aSize, aScale = 1) {
     if (this.primaryExtension) {
-      return "moz-icon://goat." + this.primaryExtension + "?size=" + aSize;
+      return `moz-icon://goat.${this.primaryExtension}?size=${aSize}&scale=${aScale}`;
     }
 
     if (this.wrappedHandlerInfo instanceof Ci.nsIMIMEInfo) {
-      return "moz-icon://goat?size=" + aSize + "&contentType=" + this.type;
+      return `moz-icon://goat?size=${aSize}&scale=${aScale}&contentType=${this.type}`;
     }
 
     // FIXME: consider returning some generic icon when we can't get a URL for

@@ -102,7 +102,7 @@ export const UnenrollmentCause = {
  * A module for processes Experiment recipes, choosing and storing enrollment state,
  * and sending experiment-related Telemetry.
  */
-export class _ExperimentManager {
+export class ExperimentManager {
   constructor({ id = "experimentmanager", store } = {}) {
     this.id = id;
     this.store = store || new lazy.ExperimentStore();
@@ -137,7 +137,6 @@ export class _ExperimentManager {
    *      is performed during the first startup
    *
    * @returns {Object} A context object
-   * @memberof _ExperimentManager
    */
   createTargetingContext() {
     let context = {
@@ -538,7 +537,20 @@ export class _ExperimentManager {
     }
 
     for (const { featureId } of branch.features) {
-      if (lazy.NimbusFeatures[featureId]?.allowCoenrollment) {
+      const feature = lazy.NimbusFeatures[featureId];
+
+      if (!feature) {
+        // We do not submit telemetry about this because, if validation was
+        // enabled, we would have already rejected the recipe in
+        // RemoteSettingsExperimentLoader. This will likely only happen in a
+        // test where enroll is called directly.
+        lazy.log.debug(
+          `Skipping enrollment for ${slug}: no such feature ${featureId}`
+        );
+        return null;
+      }
+
+      if (feature.allowCoenrollment) {
         continue;
       }
 
@@ -983,7 +995,6 @@ export class _ExperimentManager {
    * @param {Branch[]} branches
    * @param {string} userId
    * @returns {Promise<Branch>}
-   * @memberof _ExperimentManager
    */
   async chooseBranch(slug, branches, userId = lazy.ClientEnvironment.userId) {
     const ratios = branches.map(({ ratio = 1 }) => ratio);
@@ -1208,7 +1219,7 @@ export class _ExperimentManager {
             // If we are an unenrolling from an experiment, we have a rollout that would
             // set the same pref, so we update the pref to that value instead of
             // the original value.
-            newValue = _ExperimentManager.getFeatureConfigFromBranch(
+            newValue = ExperimentManager.getFeatureConfigFromBranch(
               conflictingEnrollment.branch,
               pref.featureId
             ).value[pref.variable];
@@ -1510,7 +1521,7 @@ export class _ExperimentManager {
       }
     }
 
-    const feature = _ExperimentManager.getFeatureConfigFromBranch(
+    const feature = ExperimentManager.getFeatureConfigFromBranch(
       enrollments.at(-1).branch,
       pref.featureId
     );
@@ -1600,5 +1611,3 @@ export class _ExperimentManager {
     return branch.features.find(f => f.featureId === featureId);
   }
 }
-
-export const ExperimentManager = new _ExperimentManager();

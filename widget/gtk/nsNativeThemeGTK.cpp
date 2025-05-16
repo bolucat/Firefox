@@ -184,13 +184,6 @@ bool nsNativeThemeGTK::GetGtkWidgetAndState(StyleAppearance aAppearance,
     aState->isDefault = IsDefaultButton(aFrame);
     aState->canDefault = FALSE;  // XXX fix me
 
-    if (aAppearance == StyleAppearance::MozWindowButtonMinimize ||
-        aAppearance == StyleAppearance::MozWindowButtonRestore ||
-        aAppearance == StyleAppearance::MozWindowButtonMaximize ||
-        aAppearance == StyleAppearance::MozWindowButtonClose) {
-      aState->active &= aState->inHover;
-    }
-
     if (IsFrameContentNodeInNamespace(aFrame, kNameSpaceID_XUL)) {
       // For these widget types, some element (either a child or parent)
       // actually has element focus, so we check the focused attribute
@@ -199,20 +192,13 @@ bool nsNativeThemeGTK::GetGtkWidgetAndState(StyleAppearance aAppearance,
     }
 
     if (aAppearance == StyleAppearance::MozWindowTitlebar ||
-        aAppearance == StyleAppearance::MozWindowTitlebarMaximized ||
-        aAppearance == StyleAppearance::MozWindowButtonClose ||
-        aAppearance == StyleAppearance::MozWindowButtonMinimize ||
-        aAppearance == StyleAppearance::MozWindowButtonMaximize ||
-        aAppearance == StyleAppearance::MozWindowButtonRestore) {
+        aAppearance == StyleAppearance::MozWindowTitlebarMaximized) {
       aState->backdrop = aFrame->PresContext()->Document()->State().HasState(
           dom::DocumentState::WINDOW_INACTIVE);
     }
   }
 
   switch (aAppearance) {
-    case StyleAppearance::Listbox:
-      aGtkWidgetType = MOZ_GTK_TREEVIEW;
-      break;
     case StyleAppearance::Tabpanels:
       aGtkWidgetType = MOZ_GTK_TABPANELS;
       break;
@@ -234,26 +220,8 @@ bool nsNativeThemeGTK::GetGtkWidgetAndState(StyleAppearance aAppearance,
         if (IsFirstTab(aFrame)) *aWidgetFlags |= MOZ_GTK_TAB_FIRST;
       }
     } break;
-    case StyleAppearance::Splitter:
-      if (IsHorizontal(aFrame))
-        aGtkWidgetType = MOZ_GTK_SPLITTER_VERTICAL;
-      else
-        aGtkWidgetType = MOZ_GTK_SPLITTER_HORIZONTAL;
-      break;
     case StyleAppearance::MozWindowDecorations:
       aGtkWidgetType = MOZ_GTK_WINDOW_DECORATION;
-      break;
-    case StyleAppearance::MozWindowButtonClose:
-      aGtkWidgetType = MOZ_GTK_HEADER_BAR_BUTTON_CLOSE;
-      break;
-    case StyleAppearance::MozWindowButtonMinimize:
-      aGtkWidgetType = MOZ_GTK_HEADER_BAR_BUTTON_MINIMIZE;
-      break;
-    case StyleAppearance::MozWindowButtonMaximize:
-      aGtkWidgetType = MOZ_GTK_HEADER_BAR_BUTTON_MAXIMIZE;
-      break;
-    case StyleAppearance::MozWindowButtonRestore:
-      aGtkWidgetType = MOZ_GTK_HEADER_BAR_BUTTON_MAXIMIZE_RESTORE;
       break;
     default:
       return false;
@@ -730,10 +698,6 @@ bool nsNativeThemeGTK::GetWidgetPadding(nsDeviceContext* aContext,
   }
   switch (aAppearance) {
     case StyleAppearance::Toolbarbutton:
-    case StyleAppearance::MozWindowButtonClose:
-    case StyleAppearance::MozWindowButtonMinimize:
-    case StyleAppearance::MozWindowButtonMaximize:
-    case StyleAppearance::MozWindowButtonRestore:
       aResult->SizeTo(0, 0, 0, 0);
       return true;
     default:
@@ -788,6 +752,7 @@ bool nsNativeThemeGTK::IsWidgetAlwaysNonNative(nsIFrame* aFrame,
          aAppearance == StyleAppearance::Radio ||
          aAppearance == StyleAppearance::Button ||
          aAppearance == StyleAppearance::Toolbarbutton ||
+         aAppearance == StyleAppearance::Listbox ||
          aAppearance == StyleAppearance::Menulist ||
          aAppearance == StyleAppearance::ProgressBar ||
          aAppearance == StyleAppearance::Progresschunk ||
@@ -801,44 +766,7 @@ LayoutDeviceIntSize nsNativeThemeGTK::GetMinimumWidgetSize(
   if (IsWidgetAlwaysNonNative(aFrame, aAppearance)) {
     return Theme::GetMinimumWidgetSize(aPresContext, aFrame, aAppearance);
   }
-
-  CSSIntSize result;
-  switch (aAppearance) {
-    case StyleAppearance::Splitter: {
-      if (IsHorizontal(aFrame)) {
-        moz_gtk_splitter_get_metrics(GTK_ORIENTATION_HORIZONTAL, &result.width);
-      } else {
-        moz_gtk_splitter_get_metrics(GTK_ORIENTATION_VERTICAL, &result.height);
-      }
-    } break;
-    case StyleAppearance::MozWindowButtonClose: {
-      const ToolbarButtonGTKMetrics* metrics =
-          GetToolbarButtonMetrics(MOZ_GTK_HEADER_BAR_BUTTON_CLOSE);
-      result.width = metrics->minSizeWithBorder.width;
-      result.height = metrics->minSizeWithBorder.height;
-      break;
-    }
-    case StyleAppearance::MozWindowButtonMinimize: {
-      const ToolbarButtonGTKMetrics* metrics =
-          GetToolbarButtonMetrics(MOZ_GTK_HEADER_BAR_BUTTON_MINIMIZE);
-      result.width = metrics->minSizeWithBorder.width;
-      result.height = metrics->minSizeWithBorder.height;
-      break;
-    }
-    case StyleAppearance::MozWindowButtonMaximize:
-    case StyleAppearance::MozWindowButtonRestore: {
-      const ToolbarButtonGTKMetrics* metrics =
-          GetToolbarButtonMetrics(MOZ_GTK_HEADER_BAR_BUTTON_MAXIMIZE);
-      result.width = metrics->minSizeWithBorder.width;
-      result.height = metrics->minSizeWithBorder.height;
-      break;
-    }
-    default:
-      break;
-  }
-
-  return LayoutDeviceIntSize::Round(CSSSize(result) *
-                                    GetWidgetScaleFactor(aFrame));
+  return {};
 }
 
 bool nsNativeThemeGTK::WidgetAttributeChangeRequiresRepaint(
@@ -873,15 +801,9 @@ nsNativeThemeGTK::ThemeSupportsWidget(nsPresContext* aPresContext,
   }
 
   switch (aAppearance) {
-    case StyleAppearance::Listbox:
     case StyleAppearance::Tab:
     // case StyleAppearance::Tabpanel:
     case StyleAppearance::Tabpanels:
-    case StyleAppearance::Splitter:
-    case StyleAppearance::MozWindowButtonClose:
-    case StyleAppearance::MozWindowButtonMinimize:
-    case StyleAppearance::MozWindowButtonMaximize:
-    case StyleAppearance::MozWindowButtonRestore:
     case StyleAppearance::MozWindowTitlebar:
     case StyleAppearance::MozWindowTitlebarMaximized:
     case StyleAppearance::MozWindowDecorations:

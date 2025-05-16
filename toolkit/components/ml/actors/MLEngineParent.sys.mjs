@@ -28,7 +28,6 @@ ChromeUtils.defineESModuleGetters(lazy, {
   setTimeout: "resource://gre/modules/Timer.sys.mjs",
   clearTimeout: "resource://gre/modules/Timer.sys.mjs",
   ModelHub: "chrome://global/content/ml/ModelHub.sys.mjs",
-  getInferenceProcessInfo: "chrome://global/content/ml/Utils.sys.mjs",
   Progress: "chrome://global/content/ml/Utils.sys.mjs",
   isAddonEngineId: "chrome://global/content/ml/Utils.sys.mjs",
 });
@@ -127,12 +126,13 @@ export class MLEngineParent extends JSProcessActorParent {
    * - 2 => Transformers < 3.1
    * - 3 => Transformers < 3.4
    * - 4 => Transformers >= 3.4.0
+   * - 5 => Transformers >= 3.5.1
    *
    * wllama:
    * - 3 => wllama 2.x
    */
   static WASM_MAJOR_VERSION = {
-    onnx: 4,
+    onnx: 5,
     wllama: 3,
   };
 
@@ -304,9 +304,6 @@ export class MLEngineParent extends JSProcessActorParent {
 
       case "MLEngine:GetModelFile":
         return this.getModelFile(message.data);
-
-      case "MLEngine:GetInferenceProcessInfo":
-        return lazy.getInferenceProcessInfo();
 
       case "MLEngine:DestroyEngineProcess":
         if (this.processKeepAlive) {

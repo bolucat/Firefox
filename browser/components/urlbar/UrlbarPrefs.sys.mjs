@@ -375,6 +375,9 @@ const PREF_URLBAR_DEFAULTS = new Map([
   // Feature gate pref for secondary actions being shown in the urlbar.
   ["secondaryActions.featureGate", false],
 
+  // Maximum number of actions shown.
+  ["secondaryActions.maxActionsShown", 3],
+
   // Alternative switch to tab implementation using secondaryActions.
   ["secondaryActions.switchToTab", false],
 
@@ -483,9 +486,6 @@ const PREF_URLBAR_DEFAULTS = new Map([
 
   // How old history results have to be to be deduplicated.
   ["deduplication.thresholdDays", 0],
-
-  // Whether semanticHistory search will be enabled.
-  ["suggest.semanticHistory", false],
 
   // semanticHistory search query minLength threshold to be enabled.
   ["suggest.semanticHistory.minLength", 5],

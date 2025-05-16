@@ -143,9 +143,25 @@ class PointerEventHandler final {
    *
    * @return                     Target element for aEvent.
    */
-  static dom::Element* GetPointerCapturingElement(WidgetGUIEvent* aEvent);
+  static dom::Element* GetPointerCapturingElement(const WidgetGUIEvent* aEvent);
 
   static dom::Element* GetPointerCapturingElement(uint32_t aPointerId);
+
+  /**
+   * Return pending capture element of for the pointerId (of the event).
+   * - If the element has already overriden the pointer capture and there is no
+   * new pending capture element, the result is what captures the pointer right
+   * now.
+   * - If the element has not overriden the pointer capture, the result will
+   * start capturing the pointer once the pending pointer capture is processed
+   * at dispatching a pointer event later.
+   *
+   * So, in other words, the result is the element which will capture the next
+   * pointer event for the pointerId.
+   */
+  static dom::Element* GetPendingPointerCapturingElement(
+      const WidgetGUIEvent* aEvent);
+  static dom::Element* GetPendingPointerCapturingElement(uint32_t aPointerId);
 
   /**
    * Return an element which captured the pointer at dispatching the last
@@ -254,14 +270,16 @@ class PointerEventHandler final {
       const WidgetPointerEvent& aSourceEvent);
 
   static bool ShouldGeneratePointerEventFromMouse(WidgetGUIEvent* aEvent) {
-    return aEvent->mMessage == eMouseDown || aEvent->mMessage == eMouseUp ||
+    return aEvent->mMessage == eMouseRawUpdate ||
+           aEvent->mMessage == eMouseDown || aEvent->mMessage == eMouseUp ||
            (aEvent->mMessage == eMouseMove &&
             aEvent->AsMouseEvent()->IsReal()) ||
            aEvent->mMessage == eMouseExitFromWidget;
   }
 
   static bool ShouldGeneratePointerEventFromTouch(WidgetGUIEvent* aEvent) {
-    return aEvent->mMessage == eTouchStart || aEvent->mMessage == eTouchMove ||
+    return aEvent->mMessage == eTouchRawUpdate ||
+           aEvent->mMessage == eTouchStart || aEvent->mMessage == eTouchMove ||
            aEvent->mMessage == eTouchEnd || aEvent->mMessage == eTouchCancel ||
            aEvent->mMessage == eTouchPointerCancel;
   }
@@ -274,11 +292,18 @@ class PointerEventHandler final {
 
   static bool IsDragAndDropEnabled(WidgetMouseEvent& aEvent);
 
- private:
   // Get proper pointer event message for a mouse or touch event.
-  static EventMessage ToPointerEventMessage(
+  [[nodiscard]] static EventMessage ToPointerEventMessage(
       const WidgetGUIEvent* aMouseOrTouchEvent);
 
+  /**
+   * Return true if the window containing aDocument has had a
+   * `pointerrawupdate` event listener.
+   */
+  [[nodiscard]] static bool NeedToDispatchPointerRawUpdate(
+      const dom::Document* aDocument);
+
+ private:
   // Set pointer capture of the specified pointer by the element.
   static void SetPointerCaptureById(uint32_t aPointerId,
                                     dom::Element* aElement);
@@ -300,6 +325,10 @@ class PointerEventHandler final {
   static void DispatchGotOrLostPointerCaptureEvent(
       bool aIsGotCapture, const WidgetPointerEvent* aPointerEvent,
       dom::Element* aCaptureTarget);
+
+  enum class CapturingState { Pending, Override };
+  static dom::Element* GetPointerCapturingElementInternal(
+      CapturingState aCapturingState, const WidgetGUIEvent* aEvent);
 
   // The cached spoofed pointer ID for fingerprinting resistance. We will use a
   // mouse pointer id for desktop. For mobile, we should use the touch pointer

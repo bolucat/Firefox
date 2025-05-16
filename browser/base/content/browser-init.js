@@ -271,7 +271,7 @@ var gBrowserInit = {
 
       let swapBrowsers = () => {
         if (gBrowser.isTabGroupLabel(tabToAdopt)) {
-          gBrowser.adoptTabGroup(tabToAdopt.group, 0);
+          gBrowser.adoptTabGroup(tabToAdopt.group, { elementIndex: 0 });
           gBrowser.removeTab(gBrowser.selectedTab);
         } else {
           if (tabToAdopt.group) {
@@ -466,7 +466,6 @@ var gBrowserInit = {
     }
 
     FullScreen.init();
-    MenuTouchModeObserver.init();
 
     if (AppConstants.MOZ_DATA_REPORTING) {
       gDataNotificationInfoBar.init();
@@ -1105,7 +1104,6 @@ var gBrowserInit = {
         "intl:app-locales-changed"
       );
 
-      MenuTouchModeObserver.uninit();
       BrowserOffline.uninit();
       CanvasPermissionPromptHelper.uninit();
       WebAuthnPromptHelper.uninit();

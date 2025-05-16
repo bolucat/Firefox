@@ -19,6 +19,12 @@ const lazy = {};
 ChromeUtils.defineESModuleGetters(lazy, {
   UrlbarResult: "resource:///modules/UrlbarResult.sys.mjs",
   UrlbarPrefs: "resource:///modules/UrlbarPrefs.sys.mjs",
+  NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
+  EnrollmentType: "resource://nimbus/ExperimentAPI.sys.mjs",
+});
+
+ChromeUtils.defineLazyGetter(lazy, "logger", function () {
+  return UrlbarUtils.getLogger({ prefix: "SemanticHistorySearch" });
 });
 
 /**
@@ -33,6 +39,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
  */
 class ProviderSemanticHistorySearch extends UrlbarProvider {
   #semanticManager;
+  #exposureRecorded;
 
   /**
    * Lazily creates (on first call) and returns the
@@ -79,19 +86,27 @@ class ProviderSemanticHistorySearch extends UrlbarProvider {
    *
    * @param {object} queryContext
    *   The context of the query, including the search string.
-   * @returns {boolean}
-   *   `true` if the provider is active; `false` otherwise.
    */
-  isActive(queryContext) {
-    const semanticHistoryFlag = lazy.UrlbarPrefs.get("suggest.semanticHistory");
+  async isActive(queryContext) {
     const minSearchStringLength = lazy.UrlbarPrefs.get(
       "suggest.semanticHistory.minLength"
     );
     if (
-      semanticHistoryFlag &&
-      queryContext.searchString.length >= minSearchStringLength
+      lazy.UrlbarPrefs.get("suggest.history") &&
+      queryContext.searchString.length >= minSearchStringLength &&
+      (!queryContext.searchMode ||
+        queryContext.searchMode.source == UrlbarUtils.RESULT_SOURCE.HISTORY)
     ) {
       const semanticManager = this.ensureSemanticManagerInitialized();
+
+      // Proceed only if a sufficient number of history entries have embeddings calculated.
+      const enoughEntries =
+        await semanticManager.hasSufficientEntriesForSearching();
+      if (!enoughEntries) {
+        return false;
+      }
+
+      // check the detailed prefs
       return semanticManager?.canUseSemanticSearch ?? false;
     }
     return false;
@@ -114,6 +129,7 @@ class ProviderSemanticHistorySearch extends UrlbarProvider {
     }
 
     let resultObject = await this.#semanticManager.infer(queryContext);
+    this.#maybeRecordExposure();
     let results = resultObject.results;
     if (!results || instance != this.queryInstance) {
       return;
@@ -130,6 +146,44 @@ class ProviderSemanticHistorySearch extends UrlbarProvider {
       );
       result.resultGroup = UrlbarUtils.RESULT_GROUP.HISTORY_SEMANTIC;
       addCallback(this, result);
+    }
+  }
+
+  /**
+   * Records an exposure event for the semantic-history feature-gate, but
+   * **only once per profile**.  Subsequent calls are ignored.
+   */
+  #maybeRecordExposure() {
+    // Skip if we already recorded or if the gate is manually turned off.
+    if (this.#exposureRecorded) {
+      return;
+    }
+
+    // Look up our enrollment (experiment or rollout). If no slug, we’re not enrolled.
+    let metadata =
+      lazy.NimbusFeatures.urlbar.getEnrollmentMetadata(
+        lazy.EnrollmentType.EXPERIMENT
+      ) ||
+      lazy.NimbusFeatures.urlbar.getEnrollmentMetadata(
+        lazy.EnrollmentType.ROLLOUT
+      );
+    if (!metadata?.slug) {
+      // Not part of any semantic-history experiment/rollout → nothing to record
+      return;
+    }
+
+    try {
+      // Actually send it once with the slug.
+      lazy.NimbusFeatures.urlbar.recordExposureEvent({
+        once: true,
+        slug: metadata.slug,
+      });
+      this.#exposureRecorded = true;
+      lazy.logger.debug(
+        `Nimbus exposure event sent (semanticHistory: ${metadata.slug}).`
+      );
+    } catch (ex) {
+      lazy.logger.warn("Unable to record semantic-history exposure event:", ex);
     }
   }
 

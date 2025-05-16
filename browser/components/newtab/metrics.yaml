@@ -1025,6 +1025,23 @@ newtab:
       - mconley@mozilla.com
     expires: never
 
+  activity_stream_ctor_success:
+    type: boolean
+    description: >
+      Records technical data about whether Activity Stream
+      construction completed successfully
+    bugs:
+      - https://bugzil.la/1965278
+    data_reviews:
+      - https://bugzil.la/1965278
+    data_sensitivity:
+      - technical
+    notification_emails:
+      - pdahiya@mozilla.com
+      - mconley@mozilla.com
+    expires: never
+
+
 newtab.search:
   enabled:
     lifetime: application
@@ -2036,7 +2053,6 @@ newtab_content:
       - sdowne@mozilla.com
     expires: never
     extra_keys:
-      newtab_visit_id: *newtab_visit_id
       is_sponsored: *is_sponsored_pocket
       format: *format
       position: *pocket_position
@@ -2088,7 +2104,6 @@ newtab_content:
       - mcrawford@mozilla.cocm
     expires: never
     extra_keys:
-      newtab_visit_id: *newtab_visit_id
       is_sponsored: *is_sponsored_pocket
       format: *format
       position: *pocket_position
@@ -2145,7 +2160,6 @@ newtab_content:
       - mcrawford@mozilla.com
     expires: never
     extra_keys:
-      newtab_visit_id: *newtab_visit_id
       is_sponsored: *is_sponsored_pocket
       format: *format
       position: *pocket_position
@@ -2187,7 +2201,6 @@ newtab_content:
       - mcrawford@mozilla.com
     expires: never
     extra_keys:
-      newtab_visit_id: *newtab_visit_id
       recommendation_id: *recommendation_id
       tile_id: *pocket_tile_id
       thumbs_up:
@@ -2240,7 +2253,6 @@ newtab_content:
       - mcrawford@mozilla.com
     expires: never
     extra_keys:
-      newtab_visit_id: *newtab_visit_id
       section:
         description: >
           section that had impression event
@@ -2270,7 +2282,6 @@ newtab_content:
       - mcrawford@mozilla.com
     expires: never
     extra_keys:
-      newtab_visit_id: *newtab_visit_id
       section:
         description: >
           section that had impression event
@@ -2297,7 +2308,6 @@ newtab_content:
       - mcrawford@mozilla.com
     expires: never
     extra_keys:
-      newtab_visit_id: *newtab_visit_id
       section:
         description: >
           section that had impression event
@@ -2324,7 +2334,6 @@ newtab_content:
       - mcrawford@mozilla.com
     expires: never
     extra_keys:
-      newtab_visit_id: *newtab_visit_id
       section:
         description: >
           section that had impression event
@@ -2351,7 +2360,6 @@ newtab_content:
       - mcrawford@mozilla.com
     expires: never
     extra_keys:
-      newtab_visit_id: *newtab_visit_id
       section:
         description: >
           section that had unblock event

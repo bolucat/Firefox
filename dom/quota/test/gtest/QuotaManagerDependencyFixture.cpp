@@ -348,19 +348,13 @@ void QuotaManagerDependencyFixture::ClearStoragesForOrigin(
 
 // static
 void QuotaManagerDependencyFixture::InitializeTemporaryClient(
-    const ClientMetadata& aClientMetadata) {
-  mozilla::ipc::PrincipalInfo principalInfo;
-  ASSERT_NO_FATAL_FAILURE(
-      CreateContentPrincipalInfo(aClientMetadata.mOrigin, principalInfo));
-
-  PerformOnBackgroundThread([persistenceType = aClientMetadata.mPersistenceType,
-                             principalInfo = std::move(principalInfo),
-                             clientType = aClientMetadata.mClientType]() {
+    const ClientMetadata& aClientMetadata, bool aCreateIfNonExistent) {
+  PerformOnBackgroundThread([aClientMetadata, aCreateIfNonExistent]() {
     QuotaManager* quotaManager = QuotaManager::Get();
     ASSERT_TRUE(quotaManager);
 
-    Await(quotaManager->InitializeTemporaryClient(persistenceType,
-                                                  principalInfo, clientType));
+    Await(quotaManager->InitializeTemporaryClient(aClientMetadata,
+                                                  aCreateIfNonExistent));
   });
 }
 

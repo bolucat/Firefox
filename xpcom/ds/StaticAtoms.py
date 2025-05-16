@@ -630,6 +630,7 @@ STATIC_ATOMS = [
     Atom("listitem", "listitem"),
     Atom("load", "load"),
     Atom("loading", "loading"),
+    Atom("touchmode", "touchmode"),
     Atom("triggeringprincipal", "triggeringprincipal"),
     Atom("localedir", "localedir"),
     Atom("localName", "local-name"),
@@ -1954,6 +1955,7 @@ STATIC_ATOMS = [
     Atom("onpointerout", "onpointerout"),
     Atom("onpointerenter", "onpointerenter"),
     Atom("onpointerleave", "onpointerleave"),
+    Atom("onpointerrawupdate", "onpointerrawupdate"),
     Atom("ongotpointercapture", "ongotpointercapture"),
     Atom("onlostpointercapture", "onlostpointercapture"),
     # orientation support

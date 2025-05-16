@@ -2815,6 +2815,12 @@
   value: true
   mirror: always
 
+# Whether pointerrawupdate event is enabled or disabled.
+- name: dom.event.pointer.rawupdate.enabled
+  type: bool
+  value: true
+  mirror: always
+
 # Whether wheel event target's should be grouped. When enabled, all wheel
 # events that occur in a given wheel transaction have the same event target.
 - name: dom.event.wheel-event-groups.enabled
@@ -8805,6 +8811,12 @@
 #endif
   mirror: always
 
+- name: javascript.options.wasm_trace_api
+  type: bool
+  value: false
+  mirror: always
+  set_spidermonkey_pref: always
+
 - name: javascript.options.wasm_disable_huge_memory
   type: bool
   value: false
@@ -9131,6 +9143,13 @@
   type: bool
   value: false
   mirror: always
+
+# Whether to show a warning if asm.js is used.
+- name: javascript.options.warn_asmjs_deprecation
+  type: bool
+  value: true
+  mirror: always
+  set_spidermonkey_pref: always
 
 # Whether to disable the jit within the main process
 - name: javascript.options.main_process_disable_jit
@@ -13950,6 +13969,13 @@
   value: 20000
   mirror: always
 
+# When resolving a native HTTPS query with native APIs
+# the MacOS implementation has a max timeout
+- name: network.dns.native_https_timeout_mac
+  type: RelaxedAtomicInt32
+  value: 5000
+  mirror: always
+
 # When this pref is true, we copy the host name to a fresh string before
 # calling into getaddrinfo.
 - name: network.dns.copy_string_before_call
@@ -14859,7 +14885,11 @@
 # Has no effect unless security.tls.enable_kyber is true.
 - name: network.http.http3.enable_kyber
   type: RelaxedAtomicBool
-  value: @IS_NOT_ANDROID@
+#ifdef ANDROID
+  value: @IS_NIGHTLY_BUILD@
+#else
+  value: true
+#endif
   mirror: always
   rust: true
 
@@ -15932,9 +15962,10 @@
   mirror: always
 
   # Full isolation (referrer, cookie jar, etc) of resources injected by content-scripts.
+  # This feature is currently disabled (see bug 1965552).
 - name: privacy.antitracking.isolateContentScriptResources
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: false
   mirror: always
 
 # Controls the anti-tracking webcompat features. This includes:
@@ -16237,6 +16268,12 @@
   value: 2
   mirror: always
 
+# Enable/disable CSP reporting (report-uri and report-to)
+- name: security.csp.reporting.enabled
+  type: bool
+  value: true
+  mirror: always
+
 #ifdef DEBUG
 # Crash on CSP violations on internal pages (i.e. chrome:)
 - name: security.csp.testing.allow_internal_csp_violation
@@ -16374,7 +16411,11 @@
 - name: security.sandbox.gpu.level
   type: int32_t
 #if defined(XP_WIN)
+#if defined(NIGHTLY_BUILD)
+  value: 2
+#else
   value: 1
+#endif
 #else
   value: 0
 #endif
@@ -16906,7 +16947,11 @@
 
 - name: security.tls.enable_kyber
   type: RelaxedAtomicBool
-  value: @IS_NOT_ANDROID@
+#ifdef ANDROID
+  value: @IS_NIGHTLY_BUILD@
+#else
+  value: true
+#endif
   mirror: always
   rust: true
 
@@ -17779,6 +17824,11 @@
   value: 90000
   mirror: always
 
+# Whether to delay the CRC32 check of prefix files until the update.
+- name: urlclassifier.delay_prefixes_crc32_check
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
 #---------------------------------------------------------------------------
 # Prefs starting with "view_source."
 #---------------------------------------------------------------------------

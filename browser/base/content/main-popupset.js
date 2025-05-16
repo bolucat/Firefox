@@ -121,10 +121,9 @@ document.addEventListener(
           {
             let { tabGroupId } = event.target.parentElement.triggerNode.dataset;
             let otherTabGroup = gBrowser.getTabGroupById(tabGroupId);
-            let adoptedTabGroup = gBrowser.adoptTabGroup(
-              otherTabGroup,
-              gBrowser.tabs.length
-            );
+            let adoptedTabGroup = gBrowser.adoptTabGroup(otherTabGroup, {
+              tabIndex: gBrowser.tabs.length,
+            });
             adoptedTabGroup.select();
           }
           break;
@@ -224,6 +223,12 @@ document.addEventListener(
           ToolbarContextMenu.onDownloadsAutoHideChange(event);
           break;
         case "toolbar-context-remove-from-toolbar":
+          if (
+            event.target.parentNode.triggerNode === gUnifiedExtensions.button
+          ) {
+            gUnifiedExtensions.hideExtensionsButtonFromToolbar();
+            break;
+          }
           gCustomizeMode.removeFromArea(
             event.target.parentNode.triggerNode,
             "toolbar-context-menu"
@@ -467,7 +472,8 @@ document.addEventListener(
           );
           ToolbarContextMenu.updateDownloadsAutoHide(event.target);
           ToolbarContextMenu.updateDownloadsAlwaysOpenPanel(event.target);
-          ToolbarContextMenu.updateExtension(event.target, event);
+          ToolbarContextMenu.updateExtensionsButtonContextMenu(event.target);
+          ToolbarContextMenu.updateExtension(event.target);
           break;
         case "pageActionContextMenu":
           BrowserPageActions.onContextMenuShowing(event, event.target);

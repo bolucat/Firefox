@@ -153,17 +153,6 @@ void moz_gtk_refresh() {
   ResetWidgetCache();
 }
 
-gint moz_gtk_splitter_get_metrics(gint orientation, gint* size) {
-  GtkStyleContext* style;
-  if (orientation == GTK_ORIENTATION_HORIZONTAL) {
-    style = GetStyleContext(MOZ_GTK_SPLITTER_HORIZONTAL);
-  } else {
-    style = GetStyleContext(MOZ_GTK_SPLITTER_VERTICAL);
-  }
-  gtk_style_context_get_style(style, "handle_size", size, NULL);
-  return MOZ_GTK_SUCCESS;
-}
-
 static void CalculateToolbarButtonMetrics(WidgetNodeType aAppearance,
                                           ToolbarButtonGTKMetrics* aMetrics,
                                           gint* aMaxInlineMargin) {
@@ -323,205 +312,6 @@ static gint moz_gtk_window_decoration_paint(cairo_t* cr,
                         rect->height);
   gtk_render_frame(decorationStyle, cr, rect->x, rect->y, rect->width,
                    rect->height);
-  return MOZ_GTK_SUCCESS;
-}
-
-gint moz_gtk_button_get_default_overflow(gint* border_top, gint* border_left,
-                                         gint* border_bottom,
-                                         gint* border_right) {
-  GtkBorder* default_outside_border;
-
-  GtkStyleContext* style = GetStyleContext(MOZ_GTK_BUTTON);
-  gtk_style_context_get_style(style, "default-outside-border",
-                              &default_outside_border, NULL);
-
-  if (default_outside_border) {
-    *border_top = default_outside_border->top;
-    *border_left = default_outside_border->left;
-    *border_bottom = default_outside_border->bottom;
-    *border_right = default_outside_border->right;
-    gtk_border_free(default_outside_border);
-  } else {
-    *border_top = *border_left = *border_bottom = *border_right = 0;
-  }
-  return MOZ_GTK_SUCCESS;
-}
-
-static gint moz_gtk_button_get_default_border(gint* border_top,
-                                              gint* border_left,
-                                              gint* border_bottom,
-                                              gint* border_right) {
-  GtkBorder* default_border;
-
-  GtkStyleContext* style = GetStyleContext(MOZ_GTK_BUTTON);
-  gtk_style_context_get_style(style, "default-border", &default_border, NULL);
-
-  if (default_border) {
-    *border_top = default_border->top;
-    *border_left = default_border->left;
-    *border_bottom = default_border->bottom;
-    *border_right = default_border->right;
-    gtk_border_free(default_border);
-  } else {
-    /* see gtkbutton.c */
-    *border_top = *border_left = *border_bottom = *border_right = 1;
-  }
-  return MOZ_GTK_SUCCESS;
-}
-
-static gint moz_gtk_button_paint(cairo_t* cr, const GdkRectangle* rect,
-                                 GtkWidgetState* state, GtkReliefStyle relief,
-                                 GtkWidget* widget,
-                                 GtkTextDirection direction) {
-  if (!widget) {
-    return MOZ_GTK_UNKNOWN_WIDGET;
-  }
-
-  GtkStateFlags state_flags = GetStateFlagsFromGtkWidgetState(state);
-  GtkStyleContext* style = gtk_widget_get_style_context(widget);
-  gint x = rect->x, y = rect->y, width = rect->width, height = rect->height;
-
-  gtk_widget_set_direction(widget, direction);
-
-  gtk_style_context_save(style);
-  StyleContextSetScale(style, state->image_scale);
-  gtk_style_context_set_state(style, state_flags);
-
-  if (state->isDefault && relief == GTK_RELIEF_NORMAL && !state->focused &&
-      !(state_flags & GTK_STATE_FLAG_PRELIGHT)) {
-    /* handle default borders both outside and inside the button */
-    gint default_top, default_left, default_bottom, default_right;
-    moz_gtk_button_get_default_overflow(&default_top, &default_left,
-                                        &default_bottom, &default_right);
-    x -= default_left;
-    y -= default_top;
-    width += default_left + default_right;
-    height += default_top + default_bottom;
-    gtk_render_background(style, cr, x, y, width, height);
-    gtk_render_frame(style, cr, x, y, width, height);
-    moz_gtk_button_get_default_border(&default_top, &default_left,
-                                      &default_bottom, &default_right);
-    x += default_left;
-    y += default_top;
-    width -= (default_left + default_right);
-    height -= (default_top + default_bottom);
-  } else if (relief != GTK_RELIEF_NONE || state->depressed ||
-             (state_flags & GTK_STATE_FLAG_PRELIGHT)) {
-    /* the following line can trigger an assertion (Crux theme)
-       file ../../gdk/gdkwindow.c: line 1846 (gdk_window_clear_area):
-       assertion `GDK_IS_WINDOW (window)' failed */
-    gtk_render_background(style, cr, x, y, width, height);
-    gtk_render_frame(style, cr, x, y, width, height);
-  }
-
-  if (state->focused) {
-    GtkBorder border;
-    gtk_style_context_get_border(style, state_flags, &border);
-    x += border.left;
-    y += border.top;
-    width -= (border.left + border.right);
-    height -= (border.top + border.bottom);
-    gtk_render_focus(style, cr, x, y, width, height);
-  }
-  gtk_style_context_restore(style);
-  return MOZ_GTK_SUCCESS;
-}
-
-static gint moz_gtk_header_bar_button_paint(cairo_t* cr, GdkRectangle* aRect,
-                                            GtkWidgetState* state,
-                                            GtkReliefStyle relief,
-                                            WidgetNodeType aIconWidgetType,
-                                            GtkTextDirection direction) {
-  GtkWidget* buttonWidget = GetWidget(aIconWidgetType);
-  if (!buttonWidget) {
-    return MOZ_GTK_UNKNOWN_WIDGET;
-  }
-
-  const ToolbarButtonGTKMetrics* metrics = GetToolbarButtonMetrics(
-      aIconWidgetType == MOZ_GTK_HEADER_BAR_BUTTON_MAXIMIZE_RESTORE
-          ? MOZ_GTK_HEADER_BAR_BUTTON_MAXIMIZE
-          : aIconWidgetType);
-  // Vertically center and clamp the rect to the desired size.
-  if (aRect->height > metrics->minSizeWithBorder.height) {
-    gint diff = aRect->height - metrics->minSizeWithBorder.height;
-    aRect->y += diff / 2;
-    aRect->height = metrics->minSizeWithBorder.height;
-  }
-  moz_gtk_button_paint(cr, aRect, state, relief, buttonWidget, direction);
-
-  GtkWidget* iconWidget =
-      gtk_bin_get_child(GTK_BIN(GetWidget(aIconWidgetType)));
-  if (!iconWidget) {
-    return MOZ_GTK_UNKNOWN_WIDGET;
-  }
-  cairo_surface_t* surface =
-      GetWidgetIconSurface(iconWidget, state->image_scale);
-
-  if (surface) {
-    GtkStyleContext* style = gtk_widget_get_style_context(buttonWidget);
-    GtkStateFlags state_flags = GetStateFlagsFromGtkWidgetState(state);
-
-    gtk_style_context_save(style);
-    StyleContextSetScale(style, state->image_scale);
-    gtk_style_context_set_state(style, state_flags);
-
-    /* This is available since Gtk+ 3.10 as well as GtkHeaderBar */
-    gtk_render_icon_surface(style, cr, surface,
-                            aRect->x + metrics->iconXPosition,
-                            aRect->y + metrics->iconYPosition);
-    gtk_style_context_restore(style);
-  }
-
-  return MOZ_GTK_SUCCESS;
-}
-
-static gint moz_gtk_hpaned_paint(cairo_t* cr, GdkRectangle* rect,
-                                 GtkWidgetState* state) {
-  GtkStyleContext* style =
-      GetStyleContext(MOZ_GTK_SPLITTER_SEPARATOR_HORIZONTAL, state->image_scale,
-                      GTK_TEXT_DIR_LTR, GetStateFlagsFromGtkWidgetState(state));
-  gtk_render_handle(style, cr, rect->x, rect->y, rect->width, rect->height);
-  return MOZ_GTK_SUCCESS;
-}
-
-static gint moz_gtk_vpaned_paint(cairo_t* cr, GdkRectangle* rect,
-                                 GtkWidgetState* state) {
-  GtkStyleContext* style =
-      GetStyleContext(MOZ_GTK_SPLITTER_SEPARATOR_VERTICAL, state->image_scale,
-                      GTK_TEXT_DIR_LTR, GetStateFlagsFromGtkWidgetState(state));
-  gtk_render_handle(style, cr, rect->x, rect->y, rect->width, rect->height);
-  return MOZ_GTK_SUCCESS;
-}
-
-static gint moz_gtk_treeview_paint(cairo_t* cr, GdkRectangle* rect,
-                                   GtkWidgetState* state,
-                                   GtkTextDirection direction) {
-  gint xthickness, ythickness;
-  GtkStyleContext* style;
-  GtkStyleContext* style_tree;
-  GtkStateFlags state_flags;
-  GtkBorder border;
-
-  /* only handle disabled and normal states, otherwise the whole background
-   * area will be painted differently with other states */
-  state_flags =
-      state->disabled ? GTK_STATE_FLAG_INSENSITIVE : GTK_STATE_FLAG_NORMAL;
-
-  style =
-      GetStyleContext(MOZ_GTK_SCROLLED_WINDOW, state->image_scale, direction);
-  gtk_style_context_get_border(style, state_flags, &border);
-  xthickness = border.left;
-  ythickness = border.top;
-
-  style_tree =
-      GetStyleContext(MOZ_GTK_TREEVIEW_VIEW, state->image_scale, direction);
-  gtk_render_background(style_tree, cr, rect->x + xthickness,
-                        rect->y + ythickness, rect->width - 2 * xthickness,
-                        rect->height - 2 * ythickness);
-
-  style =
-      GetStyleContext(MOZ_GTK_SCROLLED_WINDOW, state->image_scale, direction);
-  gtk_render_frame(style, cr, rect->x, rect->y, rect->width, rect->height);
   return MOZ_GTK_SUCCESS;
 }
 
@@ -793,16 +583,10 @@ gint moz_gtk_get_widget_border(WidgetNodeType widget, gint* left, gint* top,
                                // NOTE: callers depend on direction being used
                                // only for MOZ_GTK_DROPDOWN widgets.
                                GtkTextDirection direction) {
-  GtkWidget* w;
-  GtkStyleContext* style;
+  GtkWidget* w = nullptr;
   *left = *top = *right = *bottom = 0;
 
   switch (widget) {
-    case MOZ_GTK_TREEVIEW: {
-      style = GetStyleContext(MOZ_GTK_SCROLLED_WINDOW);
-      moz_gtk_add_style_border(style, left, top, right, bottom);
-      return MOZ_GTK_SUCCESS;
-    }
     case MOZ_GTK_TABPANELS:
       w = GetWidget(MOZ_GTK_TABPANELS);
       break;
@@ -810,14 +594,8 @@ gint moz_gtk_get_widget_border(WidgetNodeType widget, gint* left, gint* top,
       w = GetWidget(MOZ_GTK_FRAME);
       break;
     /* These widgets have no borders, since they are not containers. */
-    case MOZ_GTK_SPLITTER_HORIZONTAL:
-    case MOZ_GTK_SPLITTER_VERTICAL:
     case MOZ_GTK_HEADER_BAR:
     case MOZ_GTK_HEADER_BAR_MAXIMIZED:
-    case MOZ_GTK_HEADER_BAR_BUTTON_CLOSE:
-    case MOZ_GTK_HEADER_BAR_BUTTON_MINIMIZE:
-    case MOZ_GTK_HEADER_BAR_BUTTON_MAXIMIZE:
-    case MOZ_GTK_HEADER_BAR_BUTTON_MAXIMIZE_RESTORE:
     /* These widgets have no borders.*/
     case MOZ_GTK_WINDOW_DECORATION:
     case MOZ_GTK_WINDOW_DECORATION_SOLID:
@@ -901,14 +679,6 @@ gint moz_gtk_widget_paint(WidgetNodeType widget, cairo_t* cr,
   cairo_new_path(cr);
 
   switch (widget) {
-    case MOZ_GTK_HEADER_BAR_BUTTON_CLOSE:
-    case MOZ_GTK_HEADER_BAR_BUTTON_MINIMIZE:
-    case MOZ_GTK_HEADER_BAR_BUTTON_MAXIMIZE:
-    case MOZ_GTK_HEADER_BAR_BUTTON_MAXIMIZE_RESTORE:
-      return moz_gtk_header_bar_button_paint(
-          cr, rect, state, (GtkReliefStyle)flags, widget, direction);
-    case MOZ_GTK_TREEVIEW:
-      return moz_gtk_treeview_paint(cr, rect, state, direction);
     case MOZ_GTK_FRAME:
       return moz_gtk_frame_paint(cr, rect, state, direction);
     case MOZ_GTK_RESIZER:
@@ -919,10 +689,6 @@ gint moz_gtk_widget_paint(WidgetNodeType widget, cairo_t* cr,
                                widget);
     case MOZ_GTK_TABPANELS:
       return moz_gtk_tabpanels_paint(cr, rect, state, direction);
-    case MOZ_GTK_SPLITTER_HORIZONTAL:
-      return moz_gtk_vpaned_paint(cr, rect, state);
-    case MOZ_GTK_SPLITTER_VERTICAL:
-      return moz_gtk_hpaned_paint(cr, rect, state);
     case MOZ_GTK_WINDOW_DECORATION:
       return moz_gtk_window_decoration_paint(cr, rect, state, direction);
     default:

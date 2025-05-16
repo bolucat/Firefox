@@ -907,11 +907,11 @@ void KeymapWrapper::KeyboardHandlerForWayland(uint32_t aSerial,
     // This runnable will be run after GDK's key event.
     //
     // Next key press of GDK will be after repeat's delay ms.
-    // But event time in next key press wonn't updated.
+    // But event time in next key press won't updated.
     //
     // The delay's default is 400ms in GTK/wayland. Even if we can get this
     // information from repeat_info, if we wait for this time, it is too late.
-    // We guess that 10ms will be enough durration to set repeat state.
+    // We guess that 10ms will be enough duration to set repeat state.
 
     NS_DelayedDispatchToCurrentThread(
         NS_NewRunnableFunction(
@@ -1811,7 +1811,7 @@ guint KeymapWrapper::GetModifierState(GdkEventKey* aGdkKeyEvent,
   }
 #endif
 #ifdef MOZ_WAYLAND
-  int mask = 0;
+  guint mask = 0;
   switch (aGdkKeyEvent->keyval) {
     case GDK_Shift_L:
     case GDK_Shift_R:
@@ -1836,6 +1836,13 @@ guint KeymapWrapper::GetModifierState(GdkEventKey* aGdkKeyEvent,
     case GDK_Meta_L:
     case GDK_Meta_R:
       mask = aWrapper->GetGdkModifierMask(META);
+      break;
+    case GDK_ISO_Level3_Shift:
+    case GDK_Mode_switch:
+      mask = aWrapper->GetGdkModifierMask(LEVEL3);
+      break;
+    case GDK_ISO_Level5_Shift:
+      mask = aWrapper->GetGdkModifierMask(LEVEL5);
       break;
     default:
       break;
@@ -1964,13 +1971,13 @@ void KeymapWrapper::InitKeyEvent(WidgetKeyboardEvent& aKeyEvent,
       gKeyLog, LogLevel::Info,
       ("%p InitKeyEvent, modifierState=0x%08X "
        "aKeyEvent={ mMessage=%s, isShift=%s, isControl=%s, "
-       "isAlt=%s, isMeta=%s , mKeyCode=0x%02X, mCharCode=%s, "
+       "isAlt=%s, isMeta=%s, isAltGraph=%s mKeyCode=0x%02X, mCharCode=%s, "
        "mKeyNameIndex=%s, mKeyValue=%s, mCodeNameIndex=%s, mCodeValue=%s, "
        "mLocation=%s, mIsRepeat=%s }",
        keymapWrapper, modifierState, ToChar(aKeyEvent.mMessage),
        GetBoolName(aKeyEvent.IsShift()), GetBoolName(aKeyEvent.IsControl()),
        GetBoolName(aKeyEvent.IsAlt()), GetBoolName(aKeyEvent.IsMeta()),
-       aKeyEvent.mKeyCode,
+       GetBoolName(aKeyEvent.IsAltGraph()), aKeyEvent.mKeyCode,
        GetCharacterCodeName(static_cast<char16_t>(aKeyEvent.mCharCode)).get(),
        ToString(aKeyEvent.mKeyNameIndex).get(),
        GetCharacterCodeNames(aKeyEvent.mKeyValue).get(),

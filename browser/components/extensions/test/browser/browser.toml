@@ -483,6 +483,10 @@ https_first_disabled = true
 
 ["browser_ext_tabGroups.js"]
 
+["browser_ext_tabGroups_collapsed.js"]
+
+["browser_ext_tabGroups_move.js"]
+
 ["browser_ext_tabGroups_move_event_order.js"]
 
 ["browser_ext_tabGroups_move_onMoved.js"]
@@ -743,6 +747,10 @@ skip-if = [
 ["browser_unified_extensions.js"]
 
 ["browser_unified_extensions_accessibility.js"]
+
+["browser_unified_extensions_button_visibility.js"]
+
+["browser_unified_extensions_button_visibility_browserAction.js"]
 
 ["browser_unified_extensions_context_menu.js"]
 

@@ -8,15 +8,39 @@ const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
   sinon: "resource://testing-common/Sinon.sys.mjs",
+  NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
+  EnrollmentType: "resource://nimbus/ExperimentAPI.sys.mjs",
 });
 
 const { UrlbarProviderSemanticHistorySearch } = ChromeUtils.importESModule(
   "resource:///modules/UrlbarProviderSemanticHistorySearch.sys.mjs"
 );
-let sandbox;
 
 add_task(async function setup() {
-  sandbox = lazy.sinon.createSandbox();
+  const { PlacesSemanticHistoryManager } = ChromeUtils.importESModule(
+    "resource://gre/modules/PlacesSemanticHistoryManager.sys.mjs"
+  );
+
+  lazy.sinon
+    .stub(
+      PlacesSemanticHistoryManager.prototype,
+      "hasSufficientEntriesForSearching"
+    )
+    .returns(true);
+  registerCleanupFunction(() => {
+    lazy.sinon.restore();
+  });
+
+  // stub getEnrollmentMetadata once, then configure for both cases:
+  const getEnrollmentStub = lazy.sinon.stub(
+    lazy.NimbusFeatures.urlbar,
+    "getEnrollmentMetadata"
+  );
+  getEnrollmentStub
+    .withArgs(lazy.EnrollmentType.EXPERIMENT)
+    .returns({ slug: "test-slug", branch: "control" });
+  getEnrollmentStub.withArgs(lazy.EnrollmentType.ROLLOUT).returns(null);
+  lazy.sinon.stub(lazy.NimbusFeatures.urlbar, "recordExposureEvent");
 });
 
 add_task(async function test_startQuery_adds_results() {
@@ -25,7 +49,7 @@ add_task(async function test_startQuery_adds_results() {
   // Set required prefs
   Services.prefs.setBoolPref("browser.ml.enable", true);
   Services.prefs.setBoolPref("places.semanticHistory.featureGate", true);
-  Services.prefs.setBoolPref("browser.urlbar.suggest.semanticHistory", true);
+  Services.prefs.setBoolPref("browser.urlbar.suggest.history", true);
   Services.prefs
     .getDefaultBranch("")
     .setIntPref("browser.urlbar.suggest.semanticHistory.minLength", 5);
@@ -33,13 +57,13 @@ add_task(async function test_startQuery_adds_results() {
   const queryContext = { searchString: "test page" };
 
   // Trigger isActive() to initialize the semantic manager
-  Assert.ok(provider.isActive(queryContext), "Provider should be active");
+  Assert.ok(await provider.isActive(queryContext), "Provider should be active");
 
   const semanticManager = provider.ensureSemanticManagerInitialized();
 
   // Stub and simulate inference
-  sandbox.stub(semanticManager.embedder, "ensureEngine").callsFake(() => {});
-  sandbox.stub(semanticManager, "infer").resolves({
+  lazy.sinon.stub(semanticManager.embedder, "ensureEngine").callsFake(() => {});
+  lazy.sinon.stub(semanticManager, "infer").resolves({
     results: [
       {
         id: 1,
@@ -68,10 +92,10 @@ add_task(async function test_isActive_conditions() {
   const semanticManager = provider.ensureSemanticManagerInitialized();
 
   // Stub canUseSemanticSearch to control the return value
-  const canUseStub = sandbox.stub(semanticManager, "canUseSemanticSearch");
+  const canUseStub = lazy.sinon.stub(semanticManager, "canUseSemanticSearch");
 
   // Default settings
-  Services.prefs.setBoolPref("browser.urlbar.suggest.semanticHistory", true);
+  Services.prefs.setBoolPref("browser.urlbar.suggest.history", true);
   Services.prefs.setIntPref(
     "browser.urlbar.suggest.semanticHistory.minLength",
     5
@@ -81,16 +105,16 @@ add_task(async function test_isActive_conditions() {
   const validQuery = { searchString: "hello world" };
 
   // Pref is disabled
-  Services.prefs.setBoolPref("browser.urlbar.suggest.semanticHistory", false);
+  Services.prefs.setBoolPref("browser.urlbar.suggest.history", false);
   Assert.ok(
-    !provider.isActive(validQuery),
+    !(await provider.isActive(validQuery)),
     "Should be inactive when pref is disabled"
   );
 
   // Pref enabled, but string too short
-  Services.prefs.setBoolPref("browser.urlbar.suggest.semanticHistory", true);
+  Services.prefs.setBoolPref("browser.urlbar.suggest.history", true);
   Assert.ok(
-    !provider.isActive(shortQuery),
+    !(await provider.isActive(shortQuery)),
     "Should be inactive for short search strings"
   );
 
@@ -101,18 +125,30 @@ add_task(async function test_isActive_conditions() {
   );
   canUseStub.get(() => false);
   Assert.ok(
-    !provider.isActive(validQuery),
+    !(await provider.isActive(validQuery)),
     "Should be inactive if canUseSemanticSearch returns false"
   );
 
   // All conditions met
   canUseStub.get(() => true);
   Assert.ok(
-    provider.isActive(validQuery),
+    await provider.isActive(validQuery),
     "Should be active when all conditions are met"
   );
-});
 
-add_task(function cleanup() {
-  sandbox.restore();
+  const engineSearchMode = createContext("hello world", {
+    searchMode: { engineName: "testEngine" },
+  });
+  Assert.ok(
+    !(await provider.isActive(engineSearchMode)),
+    "Should not be active when in search engine mode"
+  );
+
+  const historySearchMode = createContext("hello world", {
+    searchMode: { source: UrlbarUtils.RESULT_SOURCE.HISTORY },
+  });
+  Assert.ok(
+    await provider.isActive(historySearchMode),
+    "Should be active when in history search mode"
+  );
 });

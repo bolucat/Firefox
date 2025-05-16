@@ -16,6 +16,7 @@
 #include "gfxPlatform.h"
 #include "gfxUserFontSet.h"
 #include "gfxUtils.h"
+#include "js/GCAPI.h"
 #include "MobileViewportManager.h"
 #include "mozilla/AccessibleCaretEventHub.h"
 #include "mozilla/AnimationEventDispatcher.h"
@@ -7068,6 +7069,8 @@ void PresShell::RecordPointerLocation(WidgetGUIEvent* aEvent) {
       break;
     }
     case ePointerMove:
+    case ePointerRawUpdate:
+    case eMouseRawUpdate:
       if (!aEvent->AsMouseEvent()->IsReal()) {
         break;
       }
@@ -7152,6 +7155,7 @@ PresShell* PresShell::GetShellForEventTarget(nsIFrame* aFrame,
 PresShell* PresShell::GetShellForTouchEvent(WidgetGUIEvent* aEvent) {
   switch (aEvent->mMessage) {
     case eTouchMove:
+    case eTouchRawUpdate:
     case eTouchCancel:
     case eTouchEnd: {
       // get the correct shell to dispatch to
@@ -7303,6 +7307,7 @@ nsresult PresShell::HandleEvent(nsIFrame* aFrameForPresShell,
   if (mPresContext) {
     switch (aGUIEvent->mMessage) {
       case eMouseMove:
+      case eMouseRawUpdate:
         if (!aGUIEvent->AsMouseEvent()->IsReal()) {
           break;
         }
@@ -7347,9 +7352,122 @@ nsresult PresShell::HandleEvent(nsIFrame* aFrameForPresShell,
     }
   }
 
+  // If the event may cause ePointerMove, we need to dispatch ePointerRawUpdate
+  // before that if and only if there are some `pointerrawupdate` event
+  // listeners.  Note that if a `pointerrawupdate` event listener destroys its
+  // document/window, we need to dispatch the following pointer event (e.g.,
+  // ePointerMove) in the parent document/window with the parent PresShell.
+  // Therefore, we need to consider the target PresShell for each event
+  // (ePointerRawUpdate and the following pointer event) in
+  // EventHandler::HandleEvent().  Thus, we need to dispatch the internal event
+  // for ePointerRawUpdate before calling EventHandler::HandleEvent() below.
+  if (!aDontRetargetEvents &&
+      StaticPrefs::dom_event_pointer_rawupdate_enabled()) {
+    nsresult rv = EnsurePrecedingPointerRawUpdate(
+        weakFrameForPresShell, *aGUIEvent, aDontRetargetEvents);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+    if (!CanHandleUserInputEvents(aGUIEvent)) {
+      return NS_OK;
+    }
+  }
+
   EventHandler eventHandler(*this);
   return eventHandler.HandleEvent(weakFrameForPresShell, aGUIEvent,
                                   aDontRetargetEvents, aEventStatus);
+}
+
+nsresult PresShell::EnsurePrecedingPointerRawUpdate(
+    AutoWeakFrame& aWeakFrameForPresShell, const WidgetGUIEvent& aSourceEvent,
+    bool aDontRetargetEvents) {
+  MOZ_ASSERT(StaticPrefs::dom_event_pointer_rawupdate_enabled());
+  if (PointerEventHandler::ToPointerEventMessage(&aSourceEvent) !=
+      ePointerMove) {
+    return NS_OK;
+  }
+
+  // We should not dispatch ePointerRawUpdate directly because dispatching
+  // it requires some steps which are defined by "fire a pointer event" section
+  // in the spec.  https://w3c.github.io/pointerevents/#dfn-fire-a-pointer-event
+  // We handle the steps when we call DispatchPrecedingPointerEvent().
+  // Therefore, this method dispatches eMouseRawUpdate or eTouchRawUpdate event
+  // if the event should follow a ePointerRawUpdate.  Then,
+  // HandleEventUsingCoordinates() will stop handling the internal events after
+  // calling DispatchPrecedingPointerEvent().
+
+  MOZ_ASSERT(aSourceEvent.mMessage != eMouseRawUpdate);
+  MOZ_ASSERT(aSourceEvent.mMessage != eTouchRawUpdate);
+
+  // If no window in the browser child has `pointerrawupdate` event listener,
+  // we should do nothing.
+  if (auto* const browserChild = BrowserChild::GetFrom(this)) {
+    if (!browserChild->HasPointerRawUpdateEventListeners()) {
+      return NS_OK;
+    }
+  }
+
+#ifdef MOZ_DIAGNOSTIC_ASSERT_ENABLED
+  static bool sDispatchingRawUpdateEventFromHere = false;
+  MOZ_DIAGNOSTIC_ASSERT(
+      !sDispatchingRawUpdateEventFromHere,
+      "Dispatching ePointerRawUpdate should not be done recursively");
+  AutoRestore<bool> restoreDispathingFlag(sDispatchingRawUpdateEventFromHere);
+  sDispatchingRawUpdateEventFromHere = true;
+#endif  // #ifdef MOZ_DIAGNOSTIC_ASSERT_ENABLED
+
+  if (const WidgetMouseEvent* const mouseEvent = aSourceEvent.AsMouseEvent()) {
+    // If `convertToPointer` is `false`, it means that we've already handled the
+    // event to dispatch a preceding pointer event.  Therefore, its preceding
+    // event should've already been handled.
+    // If `convertToPointerRawUpdate` is `false`, it means that the event was in
+    // the queue in BrowserChild and BrowserChild has already dispatched
+    // `eMouseRawUpdate`. Therefore, we don't need to dispatch it again here.
+    if (mouseEvent->IsSynthesized() || !mouseEvent->convertToPointer ||
+        !mouseEvent->convertToPointerRawUpdate) {
+      return NS_OK;
+    }
+    WidgetMouseEvent mouseRawUpdateEvent(*mouseEvent);
+    mouseRawUpdateEvent.mMessage = eMouseRawUpdate;
+    mouseRawUpdateEvent.mCoalescedWidgetEvents = nullptr;
+    nsEventStatus rawUpdateStatus = nsEventStatus_eIgnore;
+    EventHandler eventHandler(*this);
+    return eventHandler.HandleEvent(aWeakFrameForPresShell,
+                                    &mouseRawUpdateEvent, aDontRetargetEvents,
+                                    &rawUpdateStatus);
+  }
+  if (const WidgetTouchEvent* const touchEvent = aSourceEvent.AsTouchEvent()) {
+    WidgetTouchEvent touchRawUpdate(*touchEvent,
+                                    WidgetTouchEvent::CloneTouches::No);
+    touchRawUpdate.mMessage = eTouchRawUpdate;
+    touchRawUpdate.mTouches.Clear();
+    for (const RefPtr<Touch>& touch : touchEvent->mTouches) {
+      // If `convertToPointer` is `false`, it means that we've already handled
+      // the event to dispatch a preceding pointer event.  Therefore, its
+      // preceding event should've already been handled.
+      // If ShouldConvertTouchToPointer() returns `false`, the touch is not an
+      // active pointer or the touch hasn't been changed from the previous
+      // state.  Therefore, we don't need to dispatch ePointerRawUpdate for the
+      // touch.
+      if (!touch->convertToPointerRawUpdate ||
+          !TouchManager::ShouldConvertTouchToPointer(touch, &touchRawUpdate)) {
+        continue;
+      }
+      RefPtr<Touch> newTouch = new Touch(*touch);
+      newTouch->mMessage = eTouchRawUpdate;
+      newTouch->mCoalescedWidgetEvents = nullptr;
+      touchRawUpdate.mTouches.AppendElement(std::move(newTouch));
+    }
+    nsEventStatus rawUpdateStatus = nsEventStatus_eIgnore;
+    if (touchRawUpdate.mTouches.IsEmpty()) {
+      return NS_OK;
+    }
+    EventHandler eventHandler(*this);
+    return eventHandler.HandleEvent(aWeakFrameForPresShell, &touchRawUpdate,
+                                    aDontRetargetEvents, &rawUpdateStatus);
+  }
+  MOZ_ASSERT_UNREACHABLE("Handle the event to dispatch ePointerRawUpdate");
+  return NS_OK;
 }
 
 bool PresShell::EventHandler::UpdateFocusSequenceNumber(
@@ -7475,12 +7593,6 @@ nsresult PresShell::EventHandler::HandleEventUsingCoordinates(
   MOZ_ASSERT(aGUIEvent->IsUsingCoordinates());
   MOZ_ASSERT(aEventStatus);
 
-  // The given frame has already been reframed.  Then, we don't need to handle
-  // the event.
-  if (MOZ_UNLIKELY(!aWeakFrameForPresShell.IsAlive())) {
-    return NS_OK;
-  }
-
   // Flush pending notifications to handle the event with the latest layout.
   // But if it causes destroying the frame for mPresShell, stop handling the
   // event. (why?)
@@ -7490,98 +7602,43 @@ nsresult PresShell::EventHandler::HandleEventUsingCoordinates(
     return NS_OK;
   }
 
-  // XXX Retrieving capturing content here.  However, some of the following
-  //     methods allow to run script.  So, isn't it possible the capturing
-  //     content outdated?
-  nsCOMPtr<nsIContent> capturingContent =
-      EventHandler::GetCapturingContentFor(aGUIEvent);
-  if (GetDocument() && aGUIEvent->mClass == eTouchEventClass) {
-    PointerLockManager::Unlock("TouchEvent");
-  }
-
-  MaybeFlushThrottledStyles(aWeakFrameForPresShell);
-  if (MOZ_UNLIKELY(!aWeakFrameForPresShell.IsAlive())) {
-    return NS_OK;
-  }
-
-  bool isCapturingContentIgnored = false;
-  bool isCaptureRetargeted = false;
-  AutoWeakFrame weakRootFrameToHandleEvent(ComputeRootFrameToHandleEvent(
-      aWeakFrameForPresShell.GetFrame(), aGUIEvent, capturingContent,
-      &isCapturingContentIgnored, &isCaptureRetargeted));
-  if (isCapturingContentIgnored) {
-    capturingContent = nullptr;
-  }
-
-  // The order to generate pointer event is
-  // 1. check pending pointer capture.
-  // 2. check if there is a capturing content.
-  // 3. hit test
-  // 4. dispatch pointer events
-  // 5. check whether the targets of all Touch instances are in the same
-  //    document and suppress invalid instances.
-  // 6. dispatch mouse or touch events.
-
-  // Try to keep frame for following check, because frame can be damaged
-  // during MaybeProcessPointerCapture.
-  PointerEventHandler::MaybeProcessPointerCapture(aGUIEvent);
-  // Prevent application crashes, in case damaged frame.
-  if (MOZ_UNLIKELY(!weakRootFrameToHandleEvent.IsAlive())) {
-    NS_WARNING("Nothing to handle this event!");
-    return NS_OK;
-  }
-
-  // Only capture mouse events and pointer events.
-  const RefPtr<Element> pointerCapturingElement =
-      PointerEventHandler::GetPointerCapturingElement(aGUIEvent);
-
-  if (pointerCapturingElement) {
-    weakRootFrameToHandleEvent = pointerCapturingElement->GetPrimaryFrame();
-    if (!weakRootFrameToHandleEvent.IsAlive()) {
-      return HandleEventWithPointerCapturingContentWithoutItsFrame(
-          aWeakFrameForPresShell, aGUIEvent, pointerCapturingElement,
-          aEventStatus);
-    }
-  }
-
-  WidgetMouseEvent* mouseEvent = aGUIEvent->AsMouseEvent();
-  bool isWindowLevelMouseExit =
-      (aGUIEvent->mMessage == eMouseExitFromWidget) &&
-      (mouseEvent &&
-       (mouseEvent->mExitFrom.value() == WidgetMouseEvent::ePlatformTopLevel ||
-        mouseEvent->mExitFrom.value() == WidgetMouseEvent::ePuppet));
-
-  // Get the frame at the event point. However, don't do this if we're
-  // capturing and retargeting the event because the captured frame will
-  // be used instead below. Also keep using the root frame if we're dealing
-  // with a window-level mouse exit event since we want to start sending
-  // mouse out events at the root EventStateManager.
-  EventTargetData eventTargetData(weakRootFrameToHandleEvent.GetFrame());
-  if (!isCaptureRetargeted && !isWindowLevelMouseExit &&
-      !pointerCapturingElement) {
-    if (!ComputeEventTargetFrameAndPresShellAtEventPoint(
-            weakRootFrameToHandleEvent, aGUIEvent, &eventTargetData)) {
-      *aEventStatus = nsEventStatus_eIgnore;
+  // If we are trying to dispatch an ePointerRawUpdate but it's not allowed in
+  // the (maybe retargetted) document, we should not flush the capture state
+  // below.
+  if (aGUIEvent->mMessage == eMouseRawUpdate ||
+      aGUIEvent->mMessage == eTouchRawUpdate) {
+    EventTargetDataWithCapture eventTargetData =
+        EventTargetDataWithCapture::QueryEventTargetUsingCoordinates(
+            *this, aWeakFrameForPresShell,
+            EventTargetDataWithCapture::Query::PendingState, aGUIEvent);
+    if (!PointerEventHandler::NeedToDispatchPointerRawUpdate(
+            eventTargetData.GetDocument())) {
       return NS_OK;
     }
+    // Then, we need to recompute the target with processing the pending pointer
+    // capture.  Note that the result may be differnet since `gotpointercapture`
+    // event listener does something tricky things.
   }
 
-  // if a node is capturing the mouse, check if the event needs to be
-  // retargeted at the capturing content instead. This will be the case when
-  // capture retargeting is being used, no frame was found or the frame's
-  // content is not a descendant of the capturing content.
-  if (capturingContent && !pointerCapturingElement &&
-      (PresShell::sCapturingContentInfo.mRetargetToElement ||
-       !eventTargetData.GetFrameContent() ||
-       !nsContentUtils::ContentIsCrossDocDescendantOf(
-           eventTargetData.GetFrameContent(), capturingContent))) {
-    nsIFrame* capturingFrame = capturingContent->GetPrimaryFrame();
-    if (capturingFrame) {
-      eventTargetData.SetFrameAndComputePresShell(capturingFrame);
+  EventTargetDataWithCapture eventTargetData =
+      EventTargetDataWithCapture::QueryEventTargetUsingCoordinates(
+          *this, aWeakFrameForPresShell,
+          EventTargetDataWithCapture::Query::LatestState, aGUIEvent,
+          aEventStatus);
+  if (MOZ_UNLIKELY(!eventTargetData.CanHandleEvent())) {
+    // We cannot handle the event within the PresShell anymore.  Let's stop
+    // handling the event without returning error since it's not illegal
+    // case.
+    return NS_OK;
+  }
+  if (MOZ_UNLIKELY(!eventTargetData.GetFrame())) {
+    if (eventTargetData.mPointerCapturingElement &&
+        aWeakFrameForPresShell.IsAlive()) {
+      return HandleEventWithPointerCapturingContentWithoutItsFrame(
+          aWeakFrameForPresShell, aGUIEvent,
+          MOZ_KnownLive(eventTargetData.mPointerCapturingElement),
+          aEventStatus);
     }
-  }
-
-  if (NS_WARN_IF(!eventTargetData.GetFrame())) {
     return NS_OK;
   }
 
@@ -7616,7 +7673,8 @@ nsresult PresShell::EventHandler::HandleEventUsingCoordinates(
   // pointer event listeners change the layout, eventTargetData is
   // automatically updated.
   if (!DispatchPrecedingPointerEvent(
-          aWeakFrameForPresShell, aGUIEvent, pointerCapturingElement,
+          aWeakFrameForPresShell, aGUIEvent,
+          MOZ_KnownLive(eventTargetData.mPointerCapturingElement),
           aDontRetargetEvents, &eventTargetData, aEventStatus)) {
     return NS_OK;
   }
@@ -7645,6 +7703,162 @@ nsresult PresShell::EventHandler::HandleEventUsingCoordinates(
   }
 
   return NS_OK;
+}
+
+// static
+PresShell::EventHandler::EventTargetDataWithCapture::EventTargetDataWithCapture(
+    EventHandler& aEventHandler, AutoWeakFrame& aWeakFrameForPresShell,
+    Query aQueryState, WidgetGUIEvent* aGUIEvent,
+    nsEventStatus* aEventStatus /* = nullptr*/)
+    : EventTargetData(aWeakFrameForPresShell.GetFrame()) {
+  MOZ_ASSERT(aGUIEvent);
+  MOZ_ASSERT(aGUIEvent->IsUsingCoordinates());
+  // EventHandler::GetFrameToHandleNonTouchEvent() may need to flush pending
+  // notifications of the target child document if eMouseDown or eMouseUp.
+  // Currently, this class does not support the case with Query::PendingState.
+  MOZ_ASSERT_IF(aQueryState == Query::PendingState,
+                aGUIEvent->mMessage != eMouseDown);
+  MOZ_ASSERT_IF(aQueryState == Query::PendingState,
+                aGUIEvent->mMessage != eMouseUp);
+
+  const bool queryLatestState = aQueryState == Query::LatestState;
+
+#ifdef MOZ_DIAGNOSTIC_ASSERT_ENABLED
+  nsMutationGuard mutationGuard;
+  const auto assertMutation = MakeScopeExit([&]() {
+    if (!queryLatestState) {
+      MOZ_DIAGNOSTIC_ASSERT(!mutationGuard.Mutated(0));
+    }
+  });
+  Maybe<JS::AutoAssertNoGC> assertNoGC;
+  if (!queryLatestState) {
+    assertNoGC.emplace();
+  }
+#endif  // #ifdef MOZ_DIAGNOSTIC_ASSERT_ENABLED
+
+  // XXX Retrieving capturing content here.  However, some of the following
+  //     methods allow to run script.  So, isn't it possible the capturing
+  //     content outdated?
+  mCapturingContent = EventHandler::GetCapturingContentFor(aGUIEvent);
+  if (queryLatestState) {
+    if (GetDocument() && aGUIEvent->mClass == eTouchEventClass) {
+      PointerLockManager::Unlock("TouchEvent");
+    }
+    // XXX If aGUIEvent is eMouseRawUpdate or eTouchRawUpdate and it's
+    // dispatched by BrowserChild, i.e., the event won't cause ePointerMove
+    // immediately after ePointerRawUpdate, should we skip fluhsing pending
+    // animations here? Doing this could cause different animation result while
+    // the user moves mouse cursor during a long animation whether there is a
+    // `pointerrawupdate` event listener or not.
+    aEventHandler.MaybeFlushThrottledStyles(aWeakFrameForPresShell);
+    // Previously, MaybeFlushThrottledStyles() recomputed the closest ancestor
+    // frame for view of mPresShell if it's reframed.  Therefore, we should keep
+    // computing it here.
+    // FIXME: GetFrame() may be target content's frame if aGUIEvent is a touch
+    // event.  So, we need to use different computation for such cases.
+    if (MOZ_UNLIKELY(!aWeakFrameForPresShell.IsAlive())) {
+      Clear();
+      MOZ_ASSERT(!CanHandleEvent());
+      return;
+    }
+  }
+
+  AutoWeakFrame weakRootFrameToHandleEvent =
+      aEventHandler.ComputeRootFrameToHandleEvent(
+          aWeakFrameForPresShell.GetFrame(), aGUIEvent, mCapturingContent,
+          &mCapturingContentIgnored, &mCaptureRetargeted);
+  if (mCapturingContentIgnored) {
+    mCapturingContent = nullptr;
+  }
+
+  // The order to generate pointer event is
+  // 1. check pending pointer capture.
+  // 2. check if there is a capturing content.
+  // 3. hit test
+  // 4. dispatch pointer events
+  // 5. check whether the targets of all Touch instances are in the same
+  //    document and suppress invalid instances.
+  // 6. dispatch mouse or touch events.
+
+  // Try to keep frame for following check, because frame can be damaged
+  // during MaybeProcessPointerCapture.
+  if (queryLatestState) {
+    PointerEventHandler::MaybeProcessPointerCapture(aGUIEvent);
+    // Prevent application crashes, in case damaged frame.
+    if (NS_WARN_IF(!weakRootFrameToHandleEvent.IsAlive())) {
+      Clear();
+      MOZ_ASSERT(!CanHandleEvent());
+      return;
+    }
+  }
+
+  // We want to query the pointer capture element which **will** capture the
+  // following pointer event.  If we've already processed the pointer capture
+  // above, current override element is it.  Otherwise, we will process the
+  // pending pointer capture before dispatching a pointer event.  Therefore,
+  // the pending pointer capture element will be the next override element
+  // if and only if they are different.  (If they are the same element, the
+  // element will keep capturing the pointer.  So, referring to the pending
+  // element is also fine in the case.)
+  mPointerCapturingElement =
+      queryLatestState
+          ? PointerEventHandler::GetPointerCapturingElement(aGUIEvent)
+          : PointerEventHandler::GetPendingPointerCapturingElement(aGUIEvent);
+
+  if (mPointerCapturingElement) {
+    weakRootFrameToHandleEvent = mPointerCapturingElement->GetPrimaryFrame();
+    if (!weakRootFrameToHandleEvent.IsAlive()) {
+      // The caller should not keep handling the event with the frame stored by
+      // the super class.  Therefore, we need to clear the frame.
+      ClearFrameToHandleEvent();
+      // Although the pointer capturing element does not have a frame, the event
+      // should be handled on the element.
+      MOZ_ASSERT(CanHandleEvent());
+      return;
+    }
+  }
+
+  const WidgetMouseEvent* mouseEvent = aGUIEvent->AsMouseEvent();
+  const bool isWindowLevelMouseExit =
+      (aGUIEvent->mMessage == eMouseExitFromWidget) &&
+      (mouseEvent &&
+       (mouseEvent->mExitFrom.value() == WidgetMouseEvent::ePlatformTopLevel ||
+        mouseEvent->mExitFrom.value() == WidgetMouseEvent::ePuppet));
+
+  // Get the frame at the event point. However, don't do this if we're
+  // capturing and retargeting the event because the captured frame will
+  // be used instead below. Also keep using the root frame if we're dealing
+  // with a window-level mouse exit event since we want to start sending
+  // mouse out events at the root EventStateManager.
+  SetFrameAndComputePresShell(weakRootFrameToHandleEvent.GetFrame());
+  if (!mCaptureRetargeted && !isWindowLevelMouseExit &&
+      !mPointerCapturingElement) {
+    if (!aEventHandler.ComputeEventTargetFrameAndPresShellAtEventPoint(
+            weakRootFrameToHandleEvent, aGUIEvent, this)) {
+      Clear();
+      MOZ_ASSERT(!CanHandleEvent());
+      if (aEventStatus) {
+        *aEventStatus = nsEventStatus_eIgnore;
+      }
+      return;
+    }
+  }
+
+  // if a node is capturing the mouse, check if the event needs to be
+  // retargeted at the capturing content instead. This will be the case when
+  // capture retargeting is being used, no frame was found or the frame's
+  // content is not a descendant of the capturing content.
+  if (mCapturingContent && !mPointerCapturingElement &&
+      (PresShell::sCapturingContentInfo.mRetargetToElement ||
+       !GetFrameContent() ||
+       !nsContentUtils::ContentIsCrossDocDescendantOf(GetFrameContent(),
+                                                      mCapturingContent))) {
+    if (nsIFrame* const capturingFrame = mCapturingContent->GetPrimaryFrame()) {
+      SetFrameAndComputePresShell(capturingFrame);
+    }
+  }
+
+  MOZ_ASSERT(CanHandleEvent());
 }
 
 bool PresShell::EventHandler::MaybeFlushPendingNotifications(
@@ -7841,11 +8055,15 @@ bool PresShell::EventHandler::DispatchPrecedingPointerEvent(
       aPointerCapturingElement, aGUIEvent, aDontRetargetEvents, aEventStatus,
       getter_AddRefs(mouseOrTouchEventTargetContent));
 
+  const bool maybeCallerCanHandleEvent =
+      aGUIEvent->mMessage != eMouseRawUpdate &&
+      aGUIEvent->mMessage != eTouchRawUpdate;
+
   // If the target frame is alive, the caller should keep handling the event
   // unless event target frame is destroyed.
   if (weakTargetFrame.IsAlive() && weakFrame.IsAlive()) {
     aEventTargetData->UpdateTouchEventTarget(aGUIEvent);
-    return true;
+    return maybeCallerCanHandleEvent;
   }
 
   presShell->FlushPendingNotifications(FlushType::Layout);
@@ -7883,7 +8101,7 @@ bool PresShell::EventHandler::DispatchPrecedingPointerEvent(
   }
 
   aEventTargetData->UpdateTouchEventTarget(aGUIEvent);
-  return true;
+  return maybeCallerCanHandleEvent;
 }
 
 /**
@@ -8251,7 +8469,7 @@ bool PresShell::EventHandler::MaybeHandleEventWithAnotherPresShell(
   if (!frame) {
     // Nobody can handle this event.  So, treat as handled by somebody to make
     // caller do nothing anymore.
-    // NOTE: If aWeakFrameForPresShell does not refer a frame (i.e., it's
+    // NOTE: If aWeakFrameForPresShell does not refer to a frame (i.e., it's
     // already been reframed) and aGUIEvent needs to be handled in mPresShell,
     // we are here because GetFrameForHandlingEventWith() returns
     // aWeakFrameForPresShell.GetFrame() as-is. In the case, we don't need to
@@ -8302,6 +8520,16 @@ bool PresShell::EventHandler::MaybeDiscardOrDelayMouseEvent(
     nsIFrame* aFrameToHandleEvent, WidgetGUIEvent* aGUIEvent) {
   MOZ_ASSERT(aFrameToHandleEvent);
   MOZ_ASSERT(aGUIEvent);
+
+  // We must not need to let suspend listeners know ePointerRawUpdate events.
+  // And also the delayed events will be dispatched via widget.  Therefore,
+  // ePointerRawUpdate event will be dispatched by PresShell::HandleEvent()
+  // again.
+  if (aGUIEvent->mMessage == eMouseRawUpdate ||
+      aGUIEvent->mMessage == eTouchRawUpdate ||
+      aGUIEvent->mMessage == ePointerRawUpdate) {
+    return false;
+  }
 
   if (!aGUIEvent->IsMouseEventClassOrHasClickRelatedPointerEvent()) {
     return false;
@@ -8702,12 +8930,6 @@ nsresult PresShell::EventHandler::HandleEventWithFrameForPresShell(
   MOZ_ASSERT(!aGUIEvent->IsTargetedAtFocusedContent());
   MOZ_ASSERT(aEventStatus);
 
-  // If aWeakFrameForPresShell has already been reframed before this is called,
-  // we don't need to handle the event.
-  if (MOZ_UNLIKELY(!aWeakFrameForPresShell.IsAlive())) {
-    return NS_OK;
-  }
-
   AutoCurrentEventInfoSetter eventInfoSetter(
       *this, EventTargetInfo(aGUIEvent->mMessage,
                              aWeakFrameForPresShell.GetFrame(), nullptr));
@@ -9010,6 +9232,11 @@ bool PresShell::EventHandler::PrepareToDispatchEvent(
       MaybeHandleKeyboardEventBeforeDispatch(keyboardEvent);
       return true;
     }
+    case eMouseRawUpdate:
+      MOZ_ASSERT_UNREACHABLE(
+          "eMouseRawUpdate shouldn't be handled as a DOM event");
+      return false;
+
     case eMouseMove: {
       bool allowCapture = EventStateManager::GetActiveEventStateManager() &&
                           GetPresContext() &&
@@ -9064,6 +9291,10 @@ bool PresShell::EventHandler::PrepareToDispatchEvent(
       return mPresShell->mTouchManager.PreHandleEvent(
           aEvent, aEventStatus, *aTouchIsNew,
           mPresShell->mCurrentEventTarget.mContent);
+    case eTouchRawUpdate:
+      MOZ_ASSERT_UNREACHABLE(
+          "eTouchRawUpdate shouldn't be handled as a DOM event");
+      return false;
     default:
       return true;
   }
@@ -9105,6 +9336,10 @@ void PresShell::EventHandler::FinalizeHandlingEvent(
       // reset the capturing content now that the mouse button is up
       PresShell::ReleaseCapturingContent();
       break;
+    case eMouseRawUpdate:
+      MOZ_ASSERT_UNREACHABLE(
+          "eMouseRawUpdate shouldn't be handled as a DOM event");
+      break;
     case eMouseMove:
       PresShell::AllowMouseCapture(false);
       break;
@@ -9134,6 +9369,10 @@ void PresShell::EventHandler::FinalizeHandlingEvent(
       mPresShell->mTouchManager.PostHandleEvent(aEvent, aStatus);
       break;
     }
+    case eTouchRawUpdate:
+      MOZ_ASSERT_UNREACHABLE(
+          "eTouchRawUpdate shouldn't be handled as a DOM event");
+      break;
     default:
       break;
   }
@@ -9246,6 +9485,10 @@ void PresShell::EventHandler::RecordEventPreparationPerformance(
           nsPresContext::InteractionType::ClickInteraction, aEvent->mTimeStamp);
       return;
 
+    case eMouseRawUpdate:
+      MOZ_ASSERT_UNREACHABLE(
+          "eMouseRawUpdate shouldn't be handled as a DOM event");
+      break;
     case eMouseMove:
       GetPresContext()->RecordInteractionTime(
           nsPresContext::InteractionType::MouseMoveInteraction,
@@ -9426,6 +9669,7 @@ nsresult PresShell::EventHandler::DispatchEventToDOM(
 void PresShell::EventHandler::DispatchTouchEventToDOM(
     WidgetEvent* aEvent, nsEventStatus* aEventStatus,
     nsPresShellEventCB* aEventCB, bool aTouchIsNew) {
+  MOZ_ASSERT(aEvent->mMessage != eTouchRawUpdate);
   // calling preventDefault on touchstart or the first touchmove for a
   // point prevents mouse events. calling it on the touchend should
   // prevent click dispatching.
