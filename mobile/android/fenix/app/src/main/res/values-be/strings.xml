@@ -62,7 +62,7 @@
     Explanation for private browsing displayed to users on home view when they first enable private mode.
     %1$s is the name of the app (for example "Firefox").
   -->
-  <string name="private_browsing_placeholder_description_2">        %1$s выдаляе гісторыю пошуку і аглядання з прыватных картак, калі вы закрываеце іх ці выходзіце з праграмы. Гэта не робіць вас ананімным для вэб-сайтаў ці вашага правайдара, але дазваляе трымаць у сакрэце вашу сеціўную дзейнасць ад кагосьці, хто карыстаецца вашай прыладай.</string>
+  <string name="private_browsing_placeholder_description_2">%1$s выдаляе гісторыю пошуку і аглядання з прыватных картак, калі вы закрываеце іх ці выходзіце з праграмы. Гэта не робіць вас ананімным для вэб-сайтаў ці вашага правайдара, але дазваляе трымаць у сакрэце вашу сеціўную дзейнасць ад кагосьці, хто карыстаецца вашай прыладай.</string>
   <string name="private_browsing_common_myths">Шырокавядомыя забабоны пра прыватнае агляданне</string>
   <!--
     True Private Browsing Mode
@@ -114,7 +114,7 @@
 
     Text for the title displayed in the contextual feature recommendation popup promoting the navigation bar.
   -->
-  <string name="navbar_cfr_title" moz:removedIn="140" tools:ignore="UnusedResources">Аглядайце хутчэй з новай навігацыяй</string>
+  <string name="navbar_cfr_title" moz:removedIn="140" tools:ignore="UnusedResources">Аглядайце хутчэй з новай навігацыяй</string>
   <!--
     Address bar swipe "contextual feature recommendation" (CFR)
 
@@ -122,7 +122,7 @@
   -->
   <string name="address_bar_swipe_cfr_title" tools:ignore="UnusedResources" moz:removedIn="139">Правядзіце пальцам па панэлі інструментаў, каб пераключыць укладкі</string>
   <!-- Text for the info dialog when camera permissions have been denied but user tries to access a camera feature. -->
-  <string name="camera_permissions_needed_message">Патрабуецца доступ да камеры. Перайдзіце ў налады Android, націсніце "Дазволы", і затым "Дазволіць".</string>
+  <string name="camera_permissions_needed_message">Патрабуецца доступ да камеры. Перайдзіце ў налады Android, націсніце \"Дазволы\", і затым \"Дазволіць\".</string>
   <!-- Text for the positive action button to go to Android Settings to grant permissions. -->
   <string name="camera_permissions_needed_positive_button_text">Перайсці ў налады</string>
   <!-- Text for the negative action button to dismiss the dialog. -->
@@ -423,13 +423,13 @@
 
     Home onboarding dialog welcome screen title text.
   -->
-  <string name="onboarding_home_welcome_title_2">Сардэчна запрашаем у больш асабісты Інтэрнэт</string>
+  <string name="onboarding_home_welcome_title_2">Сардэчна запрашаем у больш асабісты Інтэрнэт</string>
   <!-- Home onboarding dialog welcome screen description text. -->
   <string name="onboarding_home_welcome_description">Больш колераў. Лепшая прыватнасць. Тая ж адданасць людзям, а не прыбытку.</string>
   <!-- Home onboarding dialog sign into sync screen title text. -->
   <string name="onboarding_home_sync_title_3">Пераключаць экраны цяпер прасцей, чым калі-небудзь</string>
   <!-- Home onboarding dialog sign into sync screen description text. -->
-  <string name="onboarding_home_sync_description">Працягвайце з таго месца, дзе спыніліся, з дапамогай картак з іншых прылад, якія зараз знаходзяцца на вашай хатняй старонцы.</string>
+  <string name="onboarding_home_sync_description">Працягвайце з таго месца, дзе спыніліся, з дапамогай картак з іншых прылад, якія зараз знаходзяцца на вашай хатняй старонцы.</string>
   <!-- Text for the button to continue the onboarding on the home onboarding dialog. -->
   <string name="onboarding_home_get_started_button">Пачаць</string>
   <!-- Text for the button to navigate to the sync sign in screen on the home onboarding dialog. -->
@@ -437,7 +437,7 @@
   <!-- Text for the button to skip the onboarding on the home onboarding dialog. -->
   <string name="onboarding_home_skip_button">Прапусціць</string>
   <!-- Onboarding home screen sync popup dialog message, shown on top of Recent Synced Tabs in the Jump back in section. -->
-  <string name="sync_cfr_message">Вашыя карткі сінхранізуюцца! Працягвайце з таго месца, дзе спыніліся на іншай прыладзе.</string>
+  <string name="sync_cfr_message">Вашыя карткі сінхранізуюцца! Працягвайце з таго месца, дзе спыніліся на іншай прыладзе.</string>
   <!-- Content description (not visible, for screen readers etc.): Close button for the home onboarding dialog -->
   <string name="onboarding_home_content_description_close_button">Закрыць</string>
   <!--
@@ -503,21 +503,21 @@
   <!-- Text for the button to dismiss the screen and move on with the flow -->
   <string name="juno_onboarding_add_search_widget_negative_button" tools:ignore="UnusedResources">Не зараз</string>
   <!-- Onboarding add-ons card, for checking more add-ons on, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_explore_more_extensions_2">Знайдзіце больш пашырэнняў</string>
+  <string name="onboarding_add_on_explore_more_extensions_2" moz:removedIn="140" tools:ignore="UnusedResources">Знайдзіце больш пашырэнняў</string>
   <!-- Onboarding add-ons card, button for start browsing, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_start_browsing_button_2">Пачаць агляданне</string>
+  <string name="onboarding_add_on_start_browsing_button_2" moz:removedIn="140" tools:ignore="UnusedResources">Пачаць агляданне</string>
   <!-- Ublock name for the onboarding add-ons card, used by Nimbus experiments. Note: The word "Ublock Origin" is a brand name should NOT be translated -->
-  <string name="onboarding_add_on_ublock_name" tools:ignore="UnusedResources">uBlock Origin</string>
+  <string name="onboarding_add_on_ublock_name" moz:removedIn="140" tools:ignore="UnusedResources">uBlock Origin</string>
   <!-- Privacy Badger name for the onboarding add-ons card, used by Nimbus experiments. Note: The word "Privacy Badger" is a brand name should NOT be translated -->
-  <string name="onboarding_add_on_privacy_badger_name" tools:ignore="UnusedResources">Privacy Badger</string>
+  <string name="onboarding_add_on_privacy_badger_name" moz:removedIn="140" tools:ignore="UnusedResources">Privacy Badger</string>
   <!-- Search by Image name for the onboarding add-ons card, used by Nimbus experiments. Note: The word "Search by Image" is a brand name should NOT be translated -->
-  <string name="onboarding_add_on_search_by_image_name" tools:ignore="UnusedResources">Search by Image</string>
+  <string name="onboarding_add_on_search_by_image_name" moz:removedIn="140" tools:ignore="UnusedResources">Search by Image</string>
   <!-- Label for the number of reviews for an add-on. %1$s is the formatted number of reviews e.g. "1,234", "12,345", "123,456". -->
-  <string name="onboarding_add_on_reviews_label">Водгукі: %1$s</string>
+  <string name="onboarding_add_on_reviews_label" moz:removedIn="140" tools:ignore="UnusedResources">Водгукі: %1$s</string>
   <!-- Title for the crash reporting option in the privacy preferences dialog shown during onboarding. -->
   <string name="onboarding_preferences_dialog_crash_reporting_title">Аўтаматычна адпраўляць справаздачы аб збоях</string>
   <!-- Description for the crash reporting option in the privacy preferences dialog shown during onboarding. -->
-  <string name="onboarding_preferences_dialog_crash_reporting_description">Справаздачы аб збоях дазваляюць нам дыягнаставаць і выпраўляць праблемы з браўзерам. Справаздачы могуць уключаць асабістыя або канфідэнцыяльныя звесткі.</string>
+  <string name="onboarding_preferences_dialog_crash_reporting_description">Справаздачы аб збоях дазваляюць нам дыягнаставаць і выпраўляць праблемы з браўзерам. Справаздачы могуць уключаць асабістыя або канфідэнцыяльныя звесткі.</string>
   <!-- Learn more link for the crash reporting option in the privacy preferences dialog shown during onboarding. -->
   <string name="onboarding_preferences_dialog_crash_reporting_learn_more_2">Падрабязней</string>
   <string name="onboarding_preferences_dialog_usage_data_learn_more_2">Падрабязней</string>
@@ -645,7 +645,7 @@
   <!-- Title text for a detail explanation indicating cookie banner reducer didn't work for the current site, this is shown as part of the cookie banner panel in the toolbar. %1$s is the name of the app (for example "Firefox"). -->
   <string name="reduce_cookie_banner_details_panel_title_unsupported_site_request_2">%1$s не можа аўтаматычна адхіляць запыты кукаў на гэтым сайце. Вы можаце адправіць запыт на падтрымку гэтага сайта ў будучыні.</string>
   <!-- Long text for a detail explanation indicating what will happen if cookie banner handling is off for a site, this is shown as part of the cookie banner panel in the toolbar. %1$s is the name of the app (for example "Firefox"). -->
-  <string name="reduce_cookie_banner_details_panel_description_off_for_site_1">Выключыць, і %1$s выдаліць файлы кукі і перазагрузіць гэты сайт.  Гэта можа прывесці да выхаду з уліковага запісу або ачышчэння кошыка.</string>
+  <string name="reduce_cookie_banner_details_panel_description_off_for_site_1">Выключыць, і %1$s выдаліць файлы кукі і перазагрузіць гэты сайт. Гэта можа прывесці да выхаду з уліковага запісу або ачышчэння кошыка.</string>
   <!-- Long text for a detail explanation indicating what will happen if cookie banner handling is on for a site, this is shown as part of the cookie banner panel in the toolbar. %1$s is the name of the app (for example "Firefox"). -->
   <string name="reduce_cookie_banner_details_panel_description_on_for_site_3">Уключыце, і %1$s паспрабуе аўтаматычна адхіляць банеры кукі на гэтым сайце.</string>
   <!-- Title for the cookie banner re-engagement CFR, the placeholder is replaced with app name. %1$s is the name of the app (for example "Firefox"). -->
@@ -691,7 +691,7 @@
   <!-- Preference for settings related to visual options -->
   <string name="preferences_customize">Уладкаванне</string>
   <!-- Preference description for banner about signing in -->
-  <string name="preferences_sign_in_description_2">Увайсці, каб сінхранізаваць карткі, закладкі, паролі і іншае.</string>
+  <string name="preferences_sign_in_description_2">Увайсці, каб сінхранізаваць карткі, закладкі, паролі і іншае.</string>
   <!-- Preference shown instead of account display name while account profile information isn't available yet. -->
   <string name="preferences_account_default_name_2">Уліковы запіс Mozilla</string>
   <!-- Preference text for account title when there was an error syncing FxA -->
@@ -800,9 +800,9 @@
   -->
   <string name="customize_toggle_recently_visited">Нядаўна наведаныя</string>
   <!-- Title for the customize home screen section with Pocket. -->
-  <string name="customize_toggle_pocket_2">Гісторыі, якія прымушаюць задумацца</string>
+  <string name="customize_toggle_pocket_2" tools:ignore="UnusedResources" moz:removedIn="140">Гісторыі, якія прымушаюць задумацца</string>
   <!-- Summary for the customize home screen section with Pocket. %s is "Pocket". -->
-  <string name="customize_toggle_pocket_summary">Артыкулы ад %s</string>
+  <string name="customize_toggle_pocket_summary" tools:ignore="UnusedResources" moz:removedIn="140">Артыкулы ад %s</string>
   <!-- Title for the customize home screen section with sponsored Pocket stories. -->
   <string name="customize_toggle_pocket_sponsored">Артыкулы ад спонсараў</string>
   <!-- Title for the opening wallpaper settings screen -->
@@ -952,7 +952,7 @@
 
     Header of the Sync and save your data preference view
   -->
-  <string name="preferences_sync_2">Сінхранізацыя і захаванне вашых дадзеных</string>
+  <string name="preferences_sync_2">Сінхранізацыя і захаванне вашых дадзеных</string>
   <!-- Preference for reconnecting to FxA sync -->
   <string name="preferences_sync_sign_in_to_reconnect">Увайдзіце, каб злучыцца зноў</string>
   <!-- Preference for removing FxA account -->
@@ -962,7 +962,7 @@
 
     Instructions on how to access pairing
   -->
-  <string name="pair_instructions_2">Адскануйце QR-код на &lt;b&gt;firefox.com/pair&lt;/b&gt;</string>
+  <string name="pair_instructions_2"><![CDATA[Адскануйце QR-код на <b>firefox.com/pair</b>]]></string>
   <!--
     Toolbar Preferences
 
@@ -1256,15 +1256,15 @@
 
     Broken site reason text for site slow or not working
   -->
-  <string name="webcompat_reporter_reason_slow">Сайт марудны або не працуе</string>
+  <string name="webcompat_reporter_reason_slow" moz:removedIn="140" tools:ignore="UnusedResources">Сайт марудны або не працуе</string>
   <!-- Broken site reason text for images or videos -->
-  <string name="webcompat_reporter_reason_media">Выявы або відэа</string>
+  <string name="webcompat_reporter_reason_media" moz:removedIn="140" tools:ignore="UnusedResources">Выявы або відэа</string>
   <!-- Broken site reason text for buttons, links, and other content -->
-  <string name="webcompat_reporter_reason_content">Кнопкі, спасылкі і іншае змесціва</string>
+  <string name="webcompat_reporter_reason_content" moz:removedIn="140" tools:ignore="UnusedResources">Кнопкі, спасылкі і іншае змесціва</string>
   <!-- Broken site reason text for sign in or sign out -->
-  <string name="webcompat_reporter_reason_account">Уваход або выхад</string>
+  <string name="webcompat_reporter_reason_account" moz:removedIn="140" tools:ignore="UnusedResources">Уваход або выхад</string>
   <!-- Broken site reason text for ad blocker -->
-  <string name="webcompat_reporter_reason_ad_blocker">Блакавальнік рэкламы</string>
+  <string name="webcompat_reporter_reason_ad_blocker" moz:removedIn="140" tools:ignore="UnusedResources">Блакавальнік рэкламы</string>
   <!-- Broken site reason text for something else -->
   <string name="webcompat_reporter_reason_other">Нешта іншае</string>
   <!--
@@ -1718,7 +1718,7 @@
   <!-- Radio button in the delete browsing data dialog to delete history items for the last hour. -->
   <string name="delete_history_prompt_button_last_hour">Апошняя гадзіна</string>
   <!-- Radio button in the delete browsing data dialog to delete history items for today and yesterday. -->
-  <string name="delete_history_prompt_button_today_and_yesterday">За сёння і ўчора</string>
+  <string name="delete_history_prompt_button_today_and_yesterday">За сёння і ўчора</string>
   <!-- Radio button in the delete browsing data dialog to delete all history. -->
   <string name="delete_history_prompt_button_everything">Усё</string>
   <!-- Dialog message to the user asking to delete browsing data. %s is the name of the app (for example "Firefox"). -->
@@ -1732,7 +1732,7 @@
   <!-- Text for the snackbar to show the user that the deletion of browsing data is in progress -->
   <string name="deleting_browsing_data_in_progress">Выдаленне дадзеныя аглядання…</string>
   <!-- Dialog message to the user asking to delete all history items inside the opened group. %s is a history group name. -->
-  <string name="delete_all_history_group_prompt_message">Выдаліць усе сайты ў “%s”</string>
+  <string name="delete_all_history_group_prompt_message">Выдаліць усе сайты ў “%s”</string>
   <!-- Text for the cancel button for the history group deletion dialog -->
   <string name="delete_history_group_prompt_cancel">Скасаваць</string>
   <!-- Text for the allow button for the history group dialog -->
@@ -1760,7 +1760,7 @@
   <!-- Title of QR Pairing Fragment -->
   <string name="sync_scan_code">Скануйце код</string>
   <!-- Instructions on how to access pairing -->
-  <string name="sign_in_instructions" tools:ignore="BrandUsage">Адкрыйце Firefox на сваім камп’ютары і перайдзіце на &lt;b&gt;https://firefox.com/pair&lt;/b&gt;</string>
+  <string name="sign_in_instructions" tools:ignore="BrandUsage"><![CDATA[Адкрыйце Firefox на сваім камп’ютары і перайдзіце на <b>https://firefox.com/pair</b>]]></string>
   <!-- Text shown for sign in pairing when ready -->
   <string name="sign_in_ready_for_scan">Гатовы да сканавання</string>
   <!-- Text shown for settings option for sign with pairing -->
@@ -1768,7 +1768,7 @@
   <!-- Text shown for settings option for sign with email -->
   <string name="sign_in_with_email">Выкарыстаць электронную пошту</string>
   <!-- Text shown for settings option for create new account text.'Firefox' intentionally hardcoded here. -->
-  <string name="sign_in_create_account_text" tools:ignore="BrandUsage">Не маеце ўліковага запісу? &lt;u&gt; Стварыце яго, &lt;/u&gt; каб сінхранізаваць Firefox паміж прыладамі.</string>
+  <string name="sign_in_create_account_text" tools:ignore="BrandUsage"><![CDATA[Не маеце ўліковага запісу? <u> Стварыце яго, </u> каб сінхранізаваць Firefox паміж прыладамі.]]></string>
   <!-- Text shown in confirmation dialog to sign out of account. %s is the name of the app (for example "Firefox"). -->
   <string name="sign_out_confirmation_message_2">%s спыніць сінхранізацыю з вашым уліковым запісам, але не выдаліць дадзеныя аглядання на гэтай прыладзе.</string>
   <!-- Option to continue signing out of account shown in confirmation dialog to sign out of account -->
@@ -2168,7 +2168,7 @@
   <!-- Text shown when a user leaves out the required template string -->
   <string name="search_add_custom_engine_error_missing_template">Пераканайцеся, што пошукавы запыт адпавядае Ўзорнаму фармату</string>
   <!-- Text shown when we aren't able to validate the custom search query. %s is the url of the custom search engine. -->
-  <string name="search_add_custom_engine_error_cannot_reach">Памылка злучэння з “%s”</string>
+  <string name="search_add_custom_engine_error_cannot_reach" moz:removedIn="140" tools:ignore="UnusedResources">Памылка злучэння з “%s”</string>
   <!-- Text shown when a user creates a new search engine. %s is the url of the custom search engine. -->
   <string name="search_add_custom_engine_success_message">Пашукавік %s створаны</string>
   <!-- Text shown when a user successfully edits a custom search engine. %s is the url of the custom search engine. -->
@@ -2180,9 +2180,9 @@
   <!-- First step for the allowing a permission -->
   <string name="phone_feature_blocked_step_settings">1. Перайдзіце ў налады Android</string>
   <!-- Second step for the allowing a permission -->
-  <string name="phone_feature_blocked_step_permissions">2. Націсніце &lt;b&gt;Дазволы&lt;/b&gt;</string>
+  <string name="phone_feature_blocked_step_permissions"><![CDATA[2. Націсніце <b>Дазволы</b>]]></string>
   <!-- Third step for the allowing a permission (%1$s is the permission name, for example "Camera"). -->
-  <string name="phone_feature_blocked_step_feature">3. Пераключыце &lt;b&gt;%1$s&lt;/b&gt; на УКЛ</string>
+  <string name="phone_feature_blocked_step_feature"><![CDATA[3. Пераключыце <b>%1$s</b> на УКЛ]]></string>
   <!-- Label that indicates a site is using a secure connection -->
   <string name="quick_settings_sheet_secure_connection_2">Злучэнне абаронена</string>
   <!-- Label that indicates a site is using a insecure connection -->
@@ -2190,7 +2190,7 @@
   <!-- Label to clear site data -->
   <string name="clear_site_data">Выдаліць кукі і дадзеныя сайтаў</string>
   <!-- Confirmation message for a dialog confirming if the user wants to delete all data for current site. %s is the domain of the site. -->
-  <string name="confirm_clear_site_data">Ці ўпэўнены, што хочаце ачысціць усе кукі і дадзеныя сайта &lt;b&gt;%s&lt;/b&gt;?</string>
+  <string name="confirm_clear_site_data"><![CDATA[Ці ўпэўнены, што хочаце ачысціць усе кукі і дадзеныя сайта <b>%s</b>?]]></string>
   <!-- Confirmation message for a dialog confirming if the user wants to delete all the permissions for all sites -->
   <string name="confirm_clear_permissions_on_all_sites">Ці ўпэўнены Вы, што хочаце выдаліць усе дазволы на ўсіх сайтах?</string>
   <!-- Confirmation message for a dialog confirming if the user wants to delete all the permissions for a site -->
@@ -2251,7 +2251,7 @@
   <!-- This is the hint text that is shown inline on the hostname field of the create new login page. 'https://www.example.com' intentionally hardcoded here -->
   <string name="add_login_hostname_hint_text">https://www.example.com</string>
   <!-- This is an error message shown below the hostname field of the add login page when a hostname does not contain http or https. -->
-  <string name="add_login_hostname_invalid_text_3">Вэб-адрас мусіць утрымліваць "https://" або "http://"</string>
+  <string name="add_login_hostname_invalid_text_3">Вэб-адрас мусіць утрымліваць \"https://\" або \"http://\"</string>
   <!-- This is an error message shown below the hostname field of the add login page when a hostname is invalid. -->
   <string name="add_login_hostname_invalid_text_2">Патрэбна сапраўднае імя хоста</string>
   <!--
@@ -2283,7 +2283,7 @@
   -->
   <string name="shortcut_max_limit_title">Дасягнуты ліміт цэтлікаў</string>
   <!-- Content description text displayed in the dialog when shortcut limit is reached. -->
-  <string name="shortcut_max_limit_content">Каб дадаць новы цэтлік, выдаліце якісь іншы. Націсніце  на сайт і ўтрымлівайце, пасля абярыце "Выдаліць".</string>
+  <string name="shortcut_max_limit_content">Каб дадаць новы цэтлік, выдаліце якісь іншы. Націсніце на сайт і ўтрымлівайце, пасля абярыце \"Выдаліць\".</string>
   <!-- Confirmation dialog button text when top sites limit is reached. -->
   <string name="top_sites_max_limit_confirmation_button">OK, зразумела</string>
   <!-- Label for the preference to show the shortcuts for the most visited top sites on the homepage -->
@@ -2357,17 +2357,17 @@
 
     Header text for a section on the home screen.
   -->
-  <string name="pocket_stories_header_1">Гісторыі, якія прымушаюць задумацца</string>
+  <string name="pocket_stories_header_1" tools:ignore="UnusedResources" moz:removedIn="140">Гісторыі, якія прымушаюць задумацца</string>
   <!-- Header text for a section on the home screen. -->
   <string name="pocket_stories_categories_header">Гісторыі па тэмах</string>
   <!-- Text of a button allowing users to access an external url for more Pocket recommendations. -->
   <string name="pocket_stories_placeholder_text">Даведайцеся больш</string>
   <!-- Title of an app feature. Smaller than a heading. %s is "Pocket". -->
-  <string name="pocket_stories_feature_title_2">Пры падтрымцы %s.</string>
+  <string name="pocket_stories_feature_title_2" moz:removedIn="140" tools:ignore="UnusedResources">Пры падтрымцы %s.</string>
   <!-- Caption for describing a certain feature. %s is a link using pocket_stories_feature_learn_more as text, which will load an url in a new tab when clicked. -->
-  <string name="pocket_stories_feature_caption" tools:ignore="BrandUsage">Частка сямейства Firefox. %s</string>
+  <string name="pocket_stories_feature_caption" moz:removedIn="140" tools:ignore="BrandUsage,UnusedResources">Частка сямейства Firefox. %s</string>
   <!-- Clickable text for opening an external link for more information about Pocket. -->
-  <string name="pocket_stories_feature_learn_more">Даведацца больш</string>
+  <string name="pocket_stories_feature_learn_more" moz:removedIn="140" tools:ignore="UnusedResources">Даведацца больш</string>
   <!-- Text indicating that the Pocket story that also displays this text is a sponsored story by other 3rd party entity. -->
   <string name="pocket_stories_sponsor_indication">Спонсарскі</string>
   <!-- Snackbar message for enrolling in a Nimbus experiment from the secret settings when Studies preference is Off. -->
@@ -2379,11 +2379,11 @@
 
     Paragraph explaining the grading system we use to classify the reliability of a product's reviews.
   -->
-  <string name="review_quality_check_info_review_grade_header" moz:removedIn="136" tools:ignore="UnusedResources">Кожнаму водгуку на прадукт мы прысвойваем &lt;b&gt;літарную адзнаку&lt;/b&gt; ад A да F.</string>
+  <string name="review_quality_check_info_review_grade_header" moz:removedIn="136" tools:ignore="UnusedResources"><![CDATA[Кожнаму водгуку на прадукт мы прысвойваем <b>літарную адзнаку</b> ад A да F.]]></string>
   <!-- Paragraph explaining how a product's adjusted grading is calculated. -->
-  <string name="review_quality_check_explanation_body_adjusted_grading" moz:removedIn="136" tools:ignore="UnusedResources">&lt;b&gt;Скарэкціраваны рэйтынг&lt;/b&gt; заснаваны толькі на водгуках, якія мы лічым надзейнымі.</string>
+  <string name="review_quality_check_explanation_body_adjusted_grading" moz:removedIn="136" tools:ignore="UnusedResources"><![CDATA[<b>Скарэкціраваны рэйтынг</b> заснаваны толькі на водгуках, якія мы лічым надзейнымі.]]></string>
   <!-- Paragraph explaining product review highlights. %s is the name of the retailer (e.g. Amazon). -->
-  <string name="review_quality_check_explanation_body_highlights" moz:removedIn="136" tools:ignore="UnusedResources">&lt;b&gt;Асноўныя моманты&lt;/b&gt; з водгукаў пра %s за апошнія 80 дзён, якія мы лічым надзейнымі.</string>
+  <string name="review_quality_check_explanation_body_highlights" moz:removedIn="136" tools:ignore="UnusedResources"><![CDATA[<b>Асноўныя моманты</b> з водгукаў пра %s за апошнія 80 дзён, якія мы лічым надзейнымі.]]></string>
   <!--
     Accessibility services actions labels. These will be appended to accessibility actions like "Double tap to.." but not by or applications but by services like Talkback.
 
@@ -2401,7 +2401,7 @@
   <!-- Action label for links that point to an article. Talkback will append this to say "Double tap to read the article". -->
   <string name="a11y_action_label_read_article">прачытаць артыкул</string>
   <!-- Action label for links to the Firefox Pocket website. Talkback will append this to say "Double tap to open link to learn more". -->
-  <string name="a11y_action_label_pocket_learn_more">адкрыйце спасылку, каб даведацца больш</string>
+  <string name="a11y_action_label_pocket_learn_more" moz:removedIn="140" tools:ignore="UnusedResources">адкрыйце спасылку, каб даведацца больш</string>
   <!-- Content description for headings announced by accessibility service. %s is the text of the heading. Talkback will announce the text and then speak the word "Heading" indicating to the user that this text is a heading for a section. -->
   <string name="a11y_heading">%s, загаловак</string>
   <!-- Title for dialog displayed when trying to access links present in a text. -->

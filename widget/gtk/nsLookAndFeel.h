@@ -45,9 +45,7 @@ class nsLookAndFeel final : public nsXPLookAndFeel {
   nsLookAndFeel();
   virtual ~nsLookAndFeel();
 
-  void RecordChange(NativeChangeKind aKind) {
-    mPendingChanges |= aKind;
-  }
+  void RecordChange(NativeChangeKind aKind) { mPendingChanges |= aKind; }
   void NativeInit() final;
   nsresult NativeGetInt(IntID aID, int32_t& aResult) override;
   nsresult NativeGetFloat(FloatID aID, float& aResult) override;
@@ -135,8 +133,7 @@ class nsLookAndFeel final : public nsXPLookAndFeel {
     ColorPair mButtonHover;
     ColorPair mButtonActive;
     nscolor mButtonBorder = kBlack;
-    nscolor mThreeDHighlight = kBlack;
-    nscolor mThreeDShadow = kBlack;
+    nscolor mFrameBorder = kBlack;
     nscolor mNativeHyperLinkText = kBlack;
     nscolor mNativeVisitedHyperLinkText = kBlack;
     ColorPair mField;
@@ -176,7 +173,8 @@ class nsLookAndFeel final : public nsXPLookAndFeel {
 
     void Init();
     nsresult GetColor(ColorID, nscolor&) const;
-    bool GetFont(FontID, nsString& aFontName, gfxFontStyle&) const;
+    bool GetFont(FontID, nsString& aFontName, gfxFontStyle&,
+                 float aTextScaleFactor) const;
     void InitCellHighlightColors();
   };
 
@@ -230,6 +228,7 @@ class nsLookAndFeel final : public nsXPLookAndFeel {
   int32_t mCSDCloseButtonPosition = 0;
   TitlebarAction mDoubleClickAction = TitlebarAction::None;
   TitlebarAction mMiddleClickAction = TitlebarAction::None;
+  float mTextScaleFactor = 1.0f;
 
   RefPtr<GtkCssProvider> mRoundedCornerProvider;
   void UpdateRoundedBottomCornerStyles();

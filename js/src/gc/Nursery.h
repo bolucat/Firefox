@@ -370,7 +370,7 @@ class Nursery {
 
   bool shouldTenureEverything(JS::GCReason reason);
 
-  inline bool inCollectedRegion(gc::Cell* cell) const;
+  inline bool inCollectedRegion(const gc::Cell* cell) const;
   inline bool inCollectedRegion(void* ptr) const;
 
   void trackMallocedBufferOnPromotion(void* buffer, gc::Cell* owner,
@@ -387,6 +387,8 @@ class Nursery {
   size_t sizeOfMallocedBlockCache(mozilla::MallocSizeOf mallocSizeOf) const {
     return mallocedBlockCache_.sizeOfExcludingThis(mallocSizeOf);
   }
+
+  inline void addMallocedBufferBytes(size_t nbytes);
 
   mozilla::TimeStamp lastCollectionEndTime() const;
 
@@ -435,8 +437,6 @@ class Nursery {
     return (currentEnd() - position()) +
            (maxChunkCount() - currentChunk() - 1) * gc::ChunkSize;
   }
-
-  inline void addMallocedBufferBytes(size_t nbytes);
 
   // Calculate the promotion rate of the most recent minor GC.
   // The valid_for_tenuring parameter is used to return whether this
@@ -553,6 +553,9 @@ class Nursery {
   // vector. Shrinks the vector but does not update maxChunkCount().
   void freeChunksFrom(Space& space, unsigned firstFreeChunk);
 
+  // During a semispace nursery collection, return whether a cell in fromspace
+  // was in the tospace of the previous collection, meaning that it should be
+  // tenured in this collection.
   inline bool shouldTenure(gc::Cell* cell);
 
   void sendTelemetry(JS::GCReason reason, mozilla::TimeDuration totalTime,

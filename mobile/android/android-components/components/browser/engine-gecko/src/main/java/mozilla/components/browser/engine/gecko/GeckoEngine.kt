@@ -144,6 +144,16 @@ class GeckoEngine(
     }
 
     /**
+     * Notifies Gecko observers of "mobile-telemetry-pref-changed".
+     * The data is "enabled" or "disabled" based on [enabled]
+     *
+     * @param enabled Whether the user enabled or disabled telemetry
+     */
+    override fun notifyTelemetryPrefChanged(enabled: Boolean) {
+        runtime.notifyTelemetryPrefChanged(enabled)
+    }
+
+    /**
      * Fetch a list of trackers logged for a given [session] .
      *
      * @param session the session where the trackers were logged.
@@ -1073,7 +1083,7 @@ class GeckoEngine(
     /**
      * See [Engine.profiler].
      */
-    override val profiler: Profiler? = Profiler(runtime)
+    override val profiler: Profiler = Profiler()
 
     override fun name(): String = "Gecko"
 
@@ -1475,6 +1485,14 @@ class GeckoEngine(
         override var postQuantumKeyExchangeEnabled: Boolean?
             get() = runtime.settings.postQuantumKeyExchangeEnabled.or(false)
             set(value) { value?.let { runtime.settings.setPostQuantumKeyExchangeEnabled(value) } }
+
+        override var dohAutoselectEnabled: Boolean
+            get() = runtime.settings.dohAutoselectEnabled
+            set(value) { runtime.settings.setDohAutoselectEnabled(value) }
+
+        override var bannedPorts: String
+            get() = runtime.settings.bannedPorts
+            set(value) { runtime.settings.setBannedPorts(value) }
     }.apply {
         defaultSettings?.let {
             this.javascriptEnabled = it.javascriptEnabled
@@ -1517,6 +1535,8 @@ class GeckoEngine(
             this.cookieBehaviorOptInPartitioningPBM = it.cookieBehaviorOptInPartitioningPBM
             this.certificateTransparencyMode = it.certificateTransparencyMode
             this.postQuantumKeyExchangeEnabled = it.postQuantumKeyExchangeEnabled
+            this.dohAutoselectEnabled = it.dohAutoselectEnabled
+            this.bannedPorts = it.bannedPorts
         }
     }
 

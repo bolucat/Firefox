@@ -160,7 +160,9 @@ class Interventions {
     const skipped = [];
 
     const channel = await browser.appConstants.getEffectiveUpdateChannel();
-    const { version } = await browser.runtime.getBrowserInfo();
+    const version =
+      this.versionForTesting ??
+      (await browser.runtime.getBrowserInfo()).version;
     const cleanVersion = parseFloat(version.match(/\d+(\.\d+)?/)[0]);
 
     const { os } = await browser.runtime.getPlatformInfo();
@@ -246,6 +248,10 @@ class Interventions {
       .filter(v => v !== undefined);
 
     for (const intervention of config.interventions) {
+      if (!intervention.enabled) {
+        continue;
+      }
+
       await this._changeCustomFuncs("enable", label, intervention, config);
       if (intervention.content_scripts) {
         await this._enableContentScripts(
@@ -287,6 +293,10 @@ class Interventions {
     }
 
     for (const intervention of interventions) {
+      if (!intervention.enabled) {
+        continue;
+      }
+
       await this._changeCustomFuncs("disable", label, intervention, config);
       if (intervention.content_scripts) {
         await this._disableContentScripts(label, intervention);
@@ -461,7 +471,7 @@ class Interventions {
 
   _buildContentScriptRegistrations(label, intervention, matches) {
     const registration = {
-      id: `webcompat intervention for ${label}`,
+      id: `webcompat intervention for ${label}: ${JSON.stringify(intervention.content_scripts)}`,
       matches,
       persistAcrossSessions: false,
     };

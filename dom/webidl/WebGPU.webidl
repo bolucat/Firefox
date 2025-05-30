@@ -988,10 +988,14 @@ interface GPUCommandEncoder {
 
     undefined copyBufferToBuffer(
         GPUBuffer source,
+        GPUBuffer destination,
+        optional GPUSize64 size);
+    undefined copyBufferToBuffer(
+        GPUBuffer source,
         GPUSize64 sourceOffset,
         GPUBuffer destination,
         GPUSize64 destinationOffset,
-        GPUSize64 size);
+        optional GPUSize64 size);
 
     undefined copyBufferToTexture(
         GPUTexelCopyBufferInfo source,
@@ -1257,9 +1261,11 @@ enum GPUQueryType {
 interface GPUCanvasContext {
     readonly attribute (HTMLCanvasElement or OffscreenCanvas) canvas;
 
+    [Throws]
     undefined configure(GPUCanvasConfiguration configuration);
     undefined unconfigure();
 
+    GPUCanvasConfiguration? getConfiguration();
     [Throws]
     GPUTexture getCurrentTexture();
 };
@@ -1274,7 +1280,8 @@ dictionary GPUCanvasConfiguration {
     required GPUTextureFormat format;
     GPUTextureUsageFlags usage = 0x10;  // GPUTextureUsage.RENDER_ATTACHMENT
     sequence<GPUTextureFormat> viewFormats = [];
-    //GPUPredefinedColorSpace colorSpace = "srgb"; //TODO
+    //GPUPredefinedColorSpace colorSpace = "srgb"; //TODO bug 1834395
+    //GPUCanvasToneMapping toneMapping = {}; //TODO bug 1834395
     GPUCanvasAlphaMode alphaMode = "opaque";
 };
 

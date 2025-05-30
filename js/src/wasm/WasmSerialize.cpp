@@ -1277,8 +1277,7 @@ CoderResult CodeModuleMetadata(Coder<mode>& coder,
   if constexpr (mode == MODE_DECODE) {
     if (item->codeMeta->nameSection) {
       item->codeTailMeta->nameSectionPayload =
-          item->customSections[item->codeMeta->nameSection
-                                  ->customSectionIndex]
+          item->customSections[item->codeMeta->nameSection->customSectionIndex]
               .payload;
     }
   }
@@ -1372,7 +1371,7 @@ CoderResult CodeCodeBlock(Coder<mode>& coder,
 
 CoderResult CodeSharedCode(Coder<MODE_DECODE>& coder, wasm::SharedCode* item,
                            const wasm::ModuleMetadata& moduleMeta) {
-  WASM_VERIFY_SERIALIZATION_FOR_SIZE(wasm::Code, 960);
+  WASM_VERIFY_SERIALIZATION_FOR_SIZE(wasm::Code, 976);
 
   FuncImportVector funcImports;
   MOZ_TRY(CodePodVector(coder, &funcImports));
@@ -1382,8 +1381,8 @@ CoderResult CodeSharedCode(Coder<MODE_DECODE>& coder, wasm::SharedCode* item,
   MOZ_TRY((CodeUniquePtr<MODE_DECODE, LinkData, CodeLinkData>(
       coder, &sharedStubsLinkData)));
   MOZ_TRY(CodeCodeBlock(coder, &sharedStubs, *sharedStubsLinkData));
-  sharedStubs->sendToProfiler(*moduleMeta.codeMeta, *moduleMeta.codeTailMeta, nullptr,
-                              FuncIonPerfSpewerSpan(),
+  sharedStubs->sendToProfiler(*moduleMeta.codeMeta, *moduleMeta.codeTailMeta,
+                              nullptr, FuncIonPerfSpewerSpan(),
                               FuncBaselinePerfSpewerSpan());
 
   UniqueLinkData optimizedCodeLinkData;
@@ -1391,14 +1390,14 @@ CoderResult CodeSharedCode(Coder<MODE_DECODE>& coder, wasm::SharedCode* item,
   MOZ_TRY((CodeUniquePtr<MODE_DECODE, LinkData, CodeLinkData>(
       coder, &optimizedCodeLinkData)));
   MOZ_TRY(CodeCodeBlock(coder, &optimizedCode, *optimizedCodeLinkData));
-  optimizedCode->sendToProfiler(*moduleMeta.codeMeta, *moduleMeta.codeTailMeta, nullptr,
-                                FuncIonPerfSpewerSpan(),
+  optimizedCode->sendToProfiler(*moduleMeta.codeMeta, *moduleMeta.codeTailMeta,
+                                nullptr, FuncIonPerfSpewerSpan(),
                                 FuncBaselinePerfSpewerSpan());
 
   // Create and initialize the code
-  MutableCode code =
-      js_new<Code>(CompileMode::Once, *moduleMeta.codeMeta, *moduleMeta.codeTailMeta,
-                   /*codeMetaForAsmJS=*/nullptr);
+  MutableCode code = js_new<Code>(CompileMode::Once, *moduleMeta.codeMeta,
+                                  *moduleMeta.codeTailMeta,
+                                  /*codeMetaForAsmJS=*/nullptr);
   if (!code || !code->initialize(
                    std::move(funcImports), std::move(sharedStubs),
                    std::move(sharedStubsLinkData), std::move(optimizedCode),
@@ -1423,7 +1422,7 @@ CoderResult CodeSharedCode(Coder<MODE_DECODE>& coder, wasm::SharedCode* item,
 template <CoderMode mode>
 CoderResult CodeSharedCode(Coder<mode>& coder,
                            CoderArg<mode, wasm::SharedCode> item) {
-  WASM_VERIFY_SERIALIZATION_FOR_SIZE(wasm::Code, 960);
+  WASM_VERIFY_SERIALIZATION_FOR_SIZE(wasm::Code, 976);
   STATIC_ASSERT_ENCODING_OR_SIZING;
   // Don't encode the CodeMetadata or CodeTailMetadata, that is handled by
   // wasm::ModuleMetadata.

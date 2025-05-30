@@ -47,14 +47,28 @@ internal sealed class HomepageState {
     abstract val bottomSpacerHeight: Dp
 
     /**
+     * Whether to show the private browsing button.
+     */
+    abstract val showPrivateBrowsingButton: Boolean
+
+    /**
+     * Flag indicating whether the first frame of the homescreen has been drawn.
+     */
+    abstract val firstFrameDrawn: Boolean
+
+    /**
      * State type corresponding with private browsing mode.
      *
      * @property feltPrivateBrowsingEnabled Whether felt private browsing is enabled.
+     * @property showPrivateBrowsingButton Whether to show the private browsing button.
+     * @property firstFrameDrawn Flag indicating whether the first frame of the homescreen has been drawn.
      * @property bottomSpacerHeight Height in [Dp] for the bottom of the scrollable view, based on
      * what's currently visible on the screen.
      */
     internal data class Private(
         val feltPrivateBrowsingEnabled: Boolean,
+        override val showPrivateBrowsingButton: Boolean,
+        override val firstFrameDrawn: Boolean = false,
         override val bottomSpacerHeight: Dp,
     ) : HomepageState()
 
@@ -75,8 +89,10 @@ internal sealed class HomepageState {
      * @property showBookmarks Whether to show bookmarks.
      * @property showRecentlyVisited Whether to show recent history section.
      * @property showPocketStories Whether to show the pocket stories section.
+     * @property showPrivateBrowsingButton Whether to show the private browsing button.
      * @property showSearchBar Whether to show the middle search bar.
      * @property searchBarEnabled Whether the middle search bar is enabled or not.
+     * @property firstFrameDrawn Flag indicating whether the first frame of the homescreen has been drawn.
      * @property setupChecklistState Optional state of the setup checklist feature.
      * @property topSiteColors The color set defined by [TopSiteColors] used to style a top site.
      * @property cardBackgroundColor Background color for card items.
@@ -101,8 +117,10 @@ internal sealed class HomepageState {
         val showBookmarks: Boolean,
         val showRecentlyVisited: Boolean,
         val showPocketStories: Boolean,
+        override val showPrivateBrowsingButton: Boolean,
         val showSearchBar: Boolean,
         val searchBarEnabled: Boolean,
+        override val firstFrameDrawn: Boolean = false,
         val setupChecklistState: SetupChecklistState?,
         val topSiteColors: TopSiteColors,
         val cardBackgroundColor: Color,
@@ -143,7 +161,9 @@ internal sealed class HomepageState {
             return with(appState) {
                 if (browsingModeManager.mode.isPrivate) {
                     Private(
+                        showPrivateBrowsingButton = !settings.enableHomepageAsNewTab,
                         feltPrivateBrowsingEnabled = settings.feltPrivateBrowsingEnabled,
+                        firstFrameDrawn = appState.firstFrameDrawn,
                         bottomSpacerHeight = getBottomSpace(),
                     )
                 } else {
@@ -173,9 +193,11 @@ internal sealed class HomepageState {
                         showRecentlyVisited = settings.historyMetadataUIFeature && recentHistory.isNotEmpty(),
                         showPocketStories = settings.showPocketRecommendationsFeature &&
                             recommendationState.pocketStories.isNotEmpty() && firstFrameDrawn,
+                        showPrivateBrowsingButton = !settings.enableHomepageAsNewTab,
                         showSearchBar = shouldShowSearchBar(appState = appState),
                         searchBarEnabled = settings.enableHomepageSearchBar &&
                             settings.toolbarPosition == ToolbarPosition.TOP,
+                        firstFrameDrawn = appState.firstFrameDrawn,
                         setupChecklistState = setupChecklistState,
                         topSiteColors = TopSiteColors.colors(wallpaperState = wallpaperState),
                         cardBackgroundColor = wallpaperState.cardBackgroundColor,

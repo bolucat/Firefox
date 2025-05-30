@@ -5,6 +5,7 @@
 package org.mozilla.fenix.utils
 
 import android.accessibilityservice.AccessibilityServiceInfo.CAPABILITY_CAN_PERFORM_GESTURES
+import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Context.MODE_PRIVATE
 import android.content.SharedPreferences
@@ -43,6 +44,7 @@ import org.mozilla.fenix.components.toolbar.ToolbarPosition
 import org.mozilla.fenix.debugsettings.addresses.SharedPrefsAddressesDebugLocalesRepository
 import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.getPreferenceKey
+import org.mozilla.fenix.home.pocket.ContentRecommendationsFeatureHelper
 import org.mozilla.fenix.home.topsites.TopSitesConfigConstants.TOP_SITES_MAX_COUNT
 import org.mozilla.fenix.nimbus.CookieBannersSection
 import org.mozilla.fenix.nimbus.FxNimbus
@@ -332,7 +334,7 @@ class Settings(private val appContext: Context) : PreferencesHolder {
 
     var privateBrowsingLockedEnabled by lazyFeatureFlagPreference(
         appContext.getPreferenceKey(R.string.pref_key_private_browsing_locked_enabled),
-        featureFlag = FeatureFlags.privateBrowsingLock,
+        featureFlag = FxNimbus.features.privateBrowsingLock.value().enabled,
         default = { false },
     )
 
@@ -1230,7 +1232,7 @@ class Settings(private val appContext: Context) : PreferencesHolder {
 
     var shouldShowLockPbmBanner by lazyFeatureFlagPreference(
         appContext.getPreferenceKey(R.string.pref_key_should_show_lock_pbm_banner),
-        featureFlag = FeatureFlags.privateBrowsingLock,
+        featureFlag = FxNimbus.features.privateBrowsingLock.value().enabled,
         default = { true },
     )
 
@@ -1728,7 +1730,7 @@ class Settings(private val appContext: Context) : PreferencesHolder {
      */
     var showPocketRecommendationsFeature by lazyFeatureFlagPreference(
         appContext.getPreferenceKey(R.string.pref_key_pocket_homescreen_recommendations),
-        featureFlag = FeatureFlags.isPocketRecommendationsFeatureEnabled(appContext),
+        featureFlag = ContentRecommendationsFeatureHelper.isPocketRecommendationsFeatureEnabled(appContext),
         default = { homescreenSections[HomeScreenSection.POCKET] == true },
     )
 
@@ -1738,7 +1740,7 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     val showPocketSponsoredStories by lazyFeatureFlagPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_pocket_sponsored_stories),
         default = { homescreenSections[HomeScreenSection.POCKET_SPONSORED_STORIES] == true },
-        featureFlag = FeatureFlags.isPocketSponsoredStoriesFeatureEnabled(appContext),
+        featureFlag = ContentRecommendationsFeatureHelper.isPocketSponsoredStoriesFeatureEnabled(appContext),
     )
 
     /**
@@ -1765,7 +1767,7 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     var showContentRecommendations by lazyFeatureFlagPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_pocket_content_recommendations),
         default = { FxNimbus.features.merinoRecommendations.value().enabled },
-        featureFlag = true,
+        featureFlag = ContentRecommendationsFeatureHelper.isContentRecommendationsFeatureEnabled(appContext),
     )
 
     /**
@@ -1889,9 +1891,10 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     /**
      * Indicates whether or not to use remote server search configuration.
      */
-    var useRemoteSearchConfiguration by booleanPreference(
+    var useRemoteSearchConfiguration by lazyFeatureFlagPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_use_remote_search_configuration),
-        default = FxNimbus.features.remoteSearchConfiguration.value().enabled,
+        default = { FxNimbus.features.remoteSearchConfiguration.value().enabled },
+        featureFlag = true,
     )
 
     /**
@@ -1977,14 +1980,6 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     var uriLoadGrowthLastSent by longPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_growth_uri_load_last_sent),
         default = 0,
-    )
-
-    /**
-     * Indicates if the Compose Top Sites are enabled.
-     */
-    var enableComposeTopSites by booleanPreference(
-        key = appContext.getPreferenceKey(R.string.pref_key_enable_compose_top_sites),
-        default = FeatureFlags.COMPOSE_TOP_SITES,
     )
 
     /**
@@ -2355,12 +2350,18 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         default = false,
     )
 
+    var loginsListSortOrder by stringPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_logins_list_sort_order),
+        default = "",
+    )
+
     /**
      * Indicates whether or not to show the entry point for the DNS over HTTPS settings
      */
-    val showDohEntryPoint by booleanPreference(
+    val showDohEntryPoint by lazyFeatureFlagPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_doh_settings_enabled),
-        default = false,
+        default = { FxNimbus.features.doh.value().showUi },
+        featureFlag = true,
     )
 
     /**
@@ -2463,7 +2464,10 @@ class Settings(private val appContext: Context) : PreferencesHolder {
      */
     var showSetupChecklist by lazyFeatureFlagPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_setup_checklist_complete),
-        default = { FxNimbus.features.setupChecklist.value().enabled },
+        default = {
+            FxNimbus.features.setupChecklist.value().enabled &&
+                    canShowAddSearchWidgetPrompt(AppWidgetManager.getInstance(appContext))
+        },
         featureFlag = true,
     )
 }

@@ -517,8 +517,8 @@ already_AddRefed<nsIWidget> nsBaseWidget::CreateChild(
 // Attach a view to our widget which we'll send events to.
 void nsBaseWidget::AttachViewToTopLevel(bool aUseAttachedEvents) {
   NS_ASSERTION(mWindowType == WindowType::TopLevel ||
-                mWindowType == WindowType::Dialog ||
-                mWindowType == WindowType::Invisible,
+                   mWindowType == WindowType::Dialog ||
+                   mWindowType == WindowType::Invisible,
                "Can't attach to window of that type");
 
   mUseAttachedEvents = aUseAttachedEvents;
@@ -2218,23 +2218,6 @@ float nsIWidget::GetFallbackDPI() {
 CSSToLayoutDeviceScale nsIWidget::GetFallbackDefaultScale() {
   RefPtr<const Screen> s = ScreenManager::GetSingleton().GetPrimaryScreen();
   return s->GetCSSToLayoutDeviceScale(Screen::IncludeOSZoom::No);
-}
-
-nsresult nsIWidget::ClearNativeTouchSequence(nsIObserver* aObserver) {
-  AutoObserverNotifier notifier(aObserver, "cleartouch");
-
-  // XXX This is odd.  This is called by the constructor of nsIWidget.  However,
-  //     at that point, nsIWidget::mLongTapTimer must be nullptr.  Therefore,
-  //     this must do nothing at initializing the instance.
-  if (!mLongTapTimer) {
-    return NS_OK;
-  }
-  mLongTapTimer->Cancel();
-  mLongTapTimer = nullptr;
-  SynthesizeNativeTouchPoint(mLongTapTouchPoint->mPointerId, TOUCH_CANCEL,
-                             mLongTapTouchPoint->mPosition, 0, 0, nullptr);
-  mLongTapTouchPoint = nullptr;
-  return NS_OK;
 }
 
 MultiTouchInput nsBaseWidget::UpdateSynthesizedTouchState(

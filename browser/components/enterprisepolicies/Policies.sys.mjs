@@ -808,9 +808,23 @@ export var Policies = {
 
   DisableBuiltinPDFViewer: {
     onBeforeAddons(manager, param) {
-      if (param) {
-        setAndLockPref("pdfjs.disabled", true);
+      let policies = Services.policies.getActivePolicies();
+      if (
+        policies.Handlers?.mimeTypes?.["application/pdf"] ||
+        policies.Handlers?.extensions?.pdf
+      ) {
+        // If there is an existing Handlers policy modifying PDF behavior,
+        // don't do anything.
+        return;
       }
+      let pdfMIMEInfo = lazy.gMIMEService.getFromTypeAndExtension(
+        "application/pdf",
+        "pdf"
+      );
+      let mimeInfo = {
+        action: param ? "useSystemDefault" : "handleInternally",
+      };
+      processMIMEInfo(mimeInfo, pdfMIMEInfo);
     },
   },
 
@@ -908,9 +922,9 @@ export var Policies = {
   },
 
   DisableFirefoxScreenshots: {
-    onBeforeAddons(manager, param) {
+    onBeforeUIStartup(manager, param) {
       if (param) {
-        setAndLockPref("extensions.screenshots.disabled", true);
+        setAndLockPref("screenshots.browser.component.enabled", false);
       }
     },
   },
@@ -1327,7 +1341,7 @@ export var Policies = {
           setAndLockPref("extensions.getAddons.showPane", false);
           // Turn off recommendations
           setAndLockPref(
-            "extensions.htmlaboutaddons.recommendations.enable",
+            "extensions.htmlaboutaddons.recommendations.enabled",
             false
           );
           manager.disallowFeature("installTemporaryAddon");
@@ -2403,7 +2417,10 @@ export var Policies = {
                 let engine = Services.search.getEngineByName(engineName);
                 if (engine) {
                   try {
-                    await Services.search.removeEngine(engine);
+                    await Services.search.removeEngine(
+                      engine,
+                      Ci.nsISearchService.CHANGE_REASON_ENTERPRISE
+                    );
                   } catch (ex) {
                     lazy.log.error("Unable to remove the search engine", ex);
                   }

@@ -193,8 +193,8 @@ class MainMenuTestCompose : TestSetup() {
         }.enterURLAndEnterToBrowser(testPage.url) {
         }.openThreeDotMenuFromRedesignedToolbar(composeTestRule) {
             expandMainMenu()
-        }.openBookmarks {
-            verifyBookmarksMenuView()
+        }.openBookmarks(composeTestRule) {
+            verifyEmptyBookmarksMenuView()
         }.goBackToBrowserScreen {
             verifyPageContent(testPage.content)
         }
@@ -436,10 +436,9 @@ class MainMenuTestCompose : TestSetup() {
         }.openThreeDotMenuFromRedesignedToolbar(composeTestRule) {
             expandMainMenu()
             clickSaveButton()
-        }.clickEditBookmarkButton {
+        }.clickEditBookmarkButton(composeTestRule) {
             verifyEditBookmarksView()
-            clickDeleteInEditModeButton()
-            confirmDeletion()
+            clickDeleteBookmarkButtonInEditMode()
         }
         browserScreen {
         }.openThreeDotMenuFromRedesignedToolbar(composeTestRule) {
@@ -1195,7 +1194,7 @@ class MainMenuTestCompose : TestSetup() {
                 verifyWhatIsBrokenField(composeTestRule)
                 verifySendButtonIsEnabled(composeTestRule, isEnabled = false)
                 clickChooseReasonField(composeTestRule)
-                clickSiteSlowOrNotWorkingReason(composeTestRule)
+                clickSiteDoesNotLoadReason(composeTestRule)
                 verifyChooseReasonErrorMessageIsNotDisplayed(composeTestRule)
                 verifySendButtonIsEnabled(composeTestRule, isEnabled = true)
             }
@@ -1218,7 +1217,7 @@ class MainMenuTestCompose : TestSetup() {
             }.openReportBrokenSite {
                 verifyWebCompatReporterViewItems(composeTestRule, defaultWebPage.url.toString())
                 clickChooseReasonField(composeTestRule)
-                clickSiteSlowOrNotWorkingReason(composeTestRule)
+                clickSiteDoesNotLoadReason(composeTestRule)
                 clickBrokenSiteFormCancelButton(composeTestRule)
             }.openThreeDotMenuFromRedesignedToolbar(composeTestRule) {
                 openToolsMenu()
@@ -1244,7 +1243,7 @@ class MainMenuTestCompose : TestSetup() {
             }.openReportBrokenSite {
                 verifyWebCompatReporterViewItems(composeTestRule, defaultWebPage.url.toString())
                 clickChooseReasonField(composeTestRule)
-                clickSiteSlowOrNotWorkingReason(composeTestRule)
+                clickSiteDoesNotLoadReason(composeTestRule)
                 describeBrokenSiteProblem(composeTestRule, problemDescription = "Prolonged page loading time")
                 clickBrokenSiteFormSendButton(composeTestRule)
             }
@@ -1275,7 +1274,7 @@ class MainMenuTestCompose : TestSetup() {
             }.openReportBrokenSite {
                 verifyWebCompatReporterViewItems(composeTestRule, defaultWebPage.url.toString())
                 clickChooseReasonField(composeTestRule)
-                clickSiteSlowOrNotWorkingReason(composeTestRule)
+                clickSiteDoesNotLoadReason(composeTestRule)
                 describeBrokenSiteProblem(composeTestRule, problemDescription = "Prolonged page loading time")
             }.closeWebCompatReporter {
             }.openThreeDotMenuFromRedesignedToolbar(composeTestRule) {
@@ -1303,7 +1302,7 @@ class MainMenuTestCompose : TestSetup() {
             }.openReportBrokenSite {
                 verifyWebCompatReporterViewItems(composeTestRule, firstWebPage.url.toString())
                 clickChooseReasonField(composeTestRule)
-                clickSiteSlowOrNotWorkingReason(composeTestRule)
+                clickSiteDoesNotLoadReason(composeTestRule)
                 describeBrokenSiteProblem(composeTestRule, problemDescription = "Prolonged page loading time")
             }.closeWebCompatReporter {
             }.openTabDrawer(composeTestRule) {
@@ -1334,7 +1333,7 @@ class MainMenuTestCompose : TestSetup() {
             }.openReportBrokenSite {
                 verifyWebCompatReporterViewItems(composeTestRule, defaultWebPage.url.toString())
                 clickChooseReasonField(composeTestRule)
-                clickSiteSlowOrNotWorkingReason(composeTestRule)
+                clickSiteDoesNotLoadReason(composeTestRule)
                 describeBrokenSiteProblem(composeTestRule, problemDescription = "Prolonged page loading time")
             }
             closeApp(composeTestRule.activityRule)

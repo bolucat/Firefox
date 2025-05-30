@@ -7,8 +7,8 @@
 #ifndef jit_ABIFunctionList_inl_h
 #define jit_ABIFunctionList_inl_h
 
-#include "mozilla/MacroArgs.h" // MOZ_CONCAT
-#include "mozilla/SIMD.h"  // mozilla::SIMD::memchr{,2x}{8,16}
+#include "mozilla/MacroArgs.h"  // MOZ_CONCAT
+#include "mozilla/SIMD.h"       // mozilla::SIMD::memchr{,2x}{8,16}
 
 #include "jslibmath.h"  // js::NumberMod
 #include "jsmath.h"     // js::ecmaPow, js::ecmaHypot, js::hypot3, js::hypot4,
@@ -138,7 +138,6 @@ namespace jit {
   _(js::jit::AtomicsStore64)                                                   \
   _(js::jit::AtomizeStringNoGC)                                                \
   _(js::jit::Bailout)                                                          \
-  _(js::jit::BaselineScript::OSREntryForFrame)                                 \
   _(js::jit::BigIntNumberEqual<js::jit::EqualityKind::Equal>)                  \
   _(js::jit::BigIntNumberEqual<js::jit::EqualityKind::NotEqual>)               \
   _(js::jit::BigIntNumberCompare<js::jit::ComparisonKind::LessThan>)           \
@@ -250,10 +249,10 @@ namespace jit {
 ABIFUNCTION_LIST(DEF_TEMPLATE)
 #undef DEF_TEMPLATE
 
-#define DEF_TEMPLATE(fp, ...)                 \
-  template <>                                 \
-  struct ABIFunctionData<__VA_ARGS__, fp> { \
-    static constexpr bool registered = true;  \
+#define DEF_TEMPLATE(fp, ...)                \
+  template <>                                \
+  struct ABIFunctionData<__VA_ARGS__, fp> {  \
+    static constexpr bool registered = true; \
   };
 ABIFUNCTION_AND_TYPE_LIST(DEF_TEMPLATE)
 #undef DEF_TEMPLATE
@@ -284,8 +283,9 @@ ABIFUNCTIONSIG_LIST(DEF_TEMPLATE)
 // `::(foo)` is invalid; and (2) that would only check the function name itself,
 // not eg template parameters.
 namespace check_fully_qualified {
-#define CHECK_NS_VISIBILITY(fp) \
-  [[maybe_unused]] static constexpr decltype(&fp) MOZ_CONCAT(fp_, __COUNTER__) = nullptr;
+#define CHECK_NS_VISIBILITY(fp)                               \
+  [[maybe_unused]] static constexpr decltype(&fp) MOZ_CONCAT( \
+      fp_, __COUNTER__) = nullptr;
 ABIFUNCTION_LIST(CHECK_NS_VISIBILITY)
 #undef CHECK_NS_VISIBILITY
 }  // namespace check_fully_qualified

@@ -21,6 +21,9 @@ export const INITIAL_STATE = {
     locale: "",
     isForStartupCache: {
       App: false,
+      TopSites: false,
+      DiscoveryStream: false,
+      Weather: false,
       Wallpaper: false,
     },
     customizeMenuVisible: false,
@@ -132,6 +135,13 @@ export const INITIAL_STATE = {
     lastUpdated: null,
     initialized: false,
   },
+  InferredPersonalization: {
+    initialized: false,
+    lastUpdated: null,
+    inferredIntrests: {},
+    coarseInferredInterests: {},
+    coarsePrivateInferredInterests: {},
+  },
   Search: {
     // When search hand-off is enabled, we render a big button that is styled to
     // look like a search textbox. If the button is clicked, we style
@@ -171,18 +181,28 @@ function App(prevState = INITIAL_STATE.App, action) {
         initialized: true,
       });
     case at.TOP_SITES_UPDATED:
-      // Toggle `isForStartupCache` when receiving the `TOP_SITES_UPDATE` action
+      // Toggle `isForStartupCache.TopSites` when receiving the `TOP_SITES_UPDATE` action
       // so that sponsored tiles can be rendered as usual. See Bug 1826360.
       return {
         ...prevState,
-        isForStartupCache: { ...prevState.isForStartupCache, App: false },
+        isForStartupCache: { ...prevState.isForStartupCache, TopSites: false },
       };
     case at.DISCOVERY_STREAM_SPOCS_UPDATE:
-      // Toggle `isForStartupCache` when receiving the `DISCOVERY_STREAM_SPOCS_UPDATE_STARTUPCACHE` action
+      // Toggle `isForStartupCache.DiscoveryStream` when receiving the `DISCOVERY_STREAM_SPOCS_UPDATE` action
       // so that spoc cards can be rendered as usual.
       return {
         ...prevState,
-        isForStartupCache: { ...prevState.isForStartupCache, App: false },
+        isForStartupCache: {
+          ...prevState.isForStartupCache,
+          DiscoveryStream: false,
+        },
+      };
+    case at.WEATHER_UPDATE:
+      // Toggle `isForStartupCache.Weather` when receiving the `WEATHER_UPDATE` action
+      // so that weather can be rendered as usual.
+      return {
+        ...prevState,
+        isForStartupCache: { ...prevState.isForStartupCache, Weather: false },
       };
     case at.WALLPAPERS_CUSTOM_SET:
       // Toggle `isForStartupCache.Wallpaper` when receiving the `WALLPAPERS_CUSTOM_SET` action
@@ -613,6 +633,28 @@ function Personalization(prevState = INITIAL_STATE.Personalization, action) {
       };
     case at.DISCOVERY_STREAM_PERSONALIZATION_RESET:
       return { ...INITIAL_STATE.Personalization };
+    default:
+      return prevState;
+  }
+}
+
+function InferredPersonalization(
+  prevState = INITIAL_STATE.InferredPersonalization,
+  action
+) {
+  switch (action.type) {
+    case at.INFERRED_PERSONALIZATION_UPDATE:
+      return {
+        ...prevState,
+        initialized: true,
+        inferredInterests: action.data.inferredInterests,
+        coarseInferredInterests: action.data.coarseInferredInterests,
+        coarsePrivateInferredInterests:
+          action.data.coarsePrivateInferredInterests,
+        lastUpdated: action.data.lastUpdated,
+      };
+    case at.INFERRED_PERSONALIZATION_RESET:
+      return { ...INITIAL_STATE.InferredPersonalization };
     default:
       return prevState;
   }
@@ -1071,6 +1113,7 @@ export const reducers = {
   Notifications,
   Pocket,
   Personalization,
+  InferredPersonalization,
   DiscoveryStream,
   Search,
   Wallpapers,

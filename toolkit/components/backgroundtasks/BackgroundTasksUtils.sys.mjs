@@ -37,9 +37,6 @@ ChromeUtils.defineESModuleGetters(lazy, {
     "resource:///modules/asrouter/ASRouterDefaultConfig.sys.mjs",
 
   ExperimentAPI: "resource://nimbus/ExperimentAPI.sys.mjs",
-
-  RemoteSettingsExperimentLoader:
-    "resource://nimbus/lib/RemoteSettingsExperimentLoader.sys.mjs",
 });
 
 class CannotLockProfileError extends Error {
@@ -326,7 +323,7 @@ export var BackgroundTasksUtils = {
           branch: params.get("optin_branch"),
           collection: params.get("optin_collection"),
         };
-        await lazy.RemoteSettingsExperimentLoader.optInToExperiment(data);
+        await lazy.ExperimentAPI.optInToExperiment(data);
         lazy.log.info(`Opted in to experiment: ${JSON.stringify(data)}`);
       } else if (uri.schemeIs("file")) {
         let branchSlug = params.get("optin_branch");
@@ -340,7 +337,7 @@ export var BackgroundTasksUtils = {
         }
         let branch = recipe.branches.find(b => b.slug == branchSlug);
 
-        lazy.ExperimentAPI.manager.forceEnroll(recipe, branch);
+        await lazy.ExperimentAPI.manager.forceEnroll(recipe, branch);
         lazy.log.info(`Forced enrollment into: ${path}, branch: ${branchSlug}`);
       }
     }

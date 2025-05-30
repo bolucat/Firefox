@@ -53,7 +53,6 @@ import kotlinx.coroutines.withContext
 import mozilla.appservices.places.BookmarkRoot
 import mozilla.appservices.places.uniffi.PlacesApiException
 import mozilla.components.browser.menu.view.MenuButton
-import mozilla.components.browser.state.action.ContentAction
 import mozilla.components.browser.state.selector.findCustomTab
 import mozilla.components.browser.state.selector.findCustomTabOrSelectedTab
 import mozilla.components.browser.state.selector.findTab
@@ -141,7 +140,6 @@ import mozilla.telemetry.glean.private.NoExtras
 import org.mozilla.fenix.BuildConfig
 import org.mozilla.fenix.FeatureFlags
 import org.mozilla.fenix.GleanMetrics.Events
-import org.mozilla.fenix.GleanMetrics.Logins
 import org.mozilla.fenix.GleanMetrics.MediaState
 import org.mozilla.fenix.GleanMetrics.PullToRefreshInBrowser
 import org.mozilla.fenix.HomeActivity
@@ -193,7 +191,6 @@ import org.mozilla.fenix.crashes.CrashContentView
 import org.mozilla.fenix.customtabs.ExternalAppBrowserActivity
 import org.mozilla.fenix.databinding.FragmentBrowserBinding
 import org.mozilla.fenix.downloads.DownloadService
-import org.mozilla.fenix.downloads.dialog.DynamicDownloadDialog
 import org.mozilla.fenix.downloads.dialog.StartDownloadDialog
 import org.mozilla.fenix.downloads.dialog.ThirdPartyDownloadDialog
 import org.mozilla.fenix.ext.accessibilityManager
@@ -212,7 +209,6 @@ import org.mozilla.fenix.ext.settings
 import org.mozilla.fenix.ext.tabClosedUndoMessage
 import org.mozilla.fenix.ext.updateMicrosurveyPromptForConfigurationChange
 import org.mozilla.fenix.home.HomeScreenViewModel
-import org.mozilla.fenix.home.SharedViewModel
 import org.mozilla.fenix.library.bookmarks.friendlyRootTitle
 import org.mozilla.fenix.lifecycle.observePrivateModeLock
 import org.mozilla.fenix.messaging.FenixMessageSurfaceId
@@ -343,13 +339,10 @@ abstract class BaseBrowserFragment :
     internal var webAppToolbarShouldBeVisible = true
 
     private lateinit var browserScreenStore: BrowserScreenStore
-    internal val sharedViewModel: SharedViewModel by activityViewModels()
     private val homeViewModel: HomeScreenViewModel by activityViewModels()
 
     private var currentStartDownloadDialog: StartDownloadDialog? = null
     private var firstPartyDownloadDialog: AlertDialog? = null
-
-    private lateinit var savedLoginsLauncher: ActivityResultLauncher<Intent>
 
     private var lastSavedGeneratedPassword: String? = null
 
@@ -369,7 +362,6 @@ abstract class BaseBrowserFragment :
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        savedLoginsLauncher = registerForActivityResult { navigateToSavedLoginsFragment() }
     }
 
     private fun getFragment(): Fragment {
@@ -447,7 +439,7 @@ abstract class BaseBrowserFragment :
             scope = viewLifecycleOwner.lifecycleScope,
             appStore = requireComponents.appStore,
             onPrivateModeLocked = {
-                findNavController().navigate(R.id.unlockPrivateTabsFragment)
+                findNavController().navigate(NavGraphDirections.actionGlobalUnlockPrivateTabsFragment())
             },
         )
 
@@ -491,6 +483,8 @@ abstract class BaseBrowserFragment :
         val context = requireContext()
         val store = context.components.core.store
         val activity = requireActivity() as HomeActivity
+
+        context.components.appStore.dispatch(AppAction.ModeChange(activity.browsingModeManager.mode))
 
         browserAnimator = BrowserAnimator(
             fragment = WeakReference(this),
@@ -725,6 +719,13 @@ abstract class BaseBrowserFragment :
                 ),
                 positiveButtonRadius = (resources.getDimensionPixelSize(R.dimen.tab_corner_radius)).toFloat(),
             ),
+            onDownloadStartedListener = {
+                context.components.appStore.dispatch(
+                    AppAction.DownloadAction.DownloadInProgress(
+                        getCurrentTab()?.id,
+                    ),
+                )
+            },
             onNeedToRequestPermissions = { permissions ->
                 requestPermissions(permissions, REQUEST_CODE_DOWNLOAD_PERMISSIONS)
             },
@@ -826,21 +827,15 @@ abstract class BaseBrowserFragment :
 
         downloadFeature.onDownloadStopped = { downloadState, _, downloadJobStatus ->
             handleOnDownloadFinished(
+                appStore = requireComponents.appStore,
                 downloadState = downloadState,
                 downloadJobStatus = downloadJobStatus,
-                tryAgain = downloadFeature::tryAgain,
                 browserToolbars = listOfNotNull(
                     browserToolbarView,
                     _bottomToolbarContainerView?.toolbarContainerView,
                 ),
             )
         }
-
-        resumeDownloadDialogState(
-            getCurrentTab()?.id,
-            store,
-            context,
-        )
 
         this.shareResourceFeature.set(
             shareResourceFeature,
@@ -1304,7 +1299,7 @@ abstract class BaseBrowserFragment :
             browserScreenStore = browserScreenStore,
             browserStore = store,
             browsingModeManager = activity.browsingModeManager,
-            tabsUseCases = activity.components.useCases.tabsUseCases,
+            browserAnimator = browserAnimator,
             thumbnailsFeature = thumbnailsFeature.get(),
             settings = activity.settings(),
             customTabSession = customTabSessionId?.let { store.state.findCustomTab(it) },
@@ -1492,73 +1487,6 @@ abstract class BaseBrowserFragment :
         }
     }
 
-    /**
-     * Preserves current state of the [DynamicDownloadDialog] to persist through tab changes and
-     * other fragments navigation.
-     * */
-    internal fun saveDownloadDialogState(
-        sessionId: String?,
-        downloadState: DownloadState,
-        downloadJobStatus: DownloadState.Status,
-    ) {
-        sessionId?.let { id ->
-            sharedViewModel.downloadDialogState[id] = Pair(
-                downloadState,
-                downloadJobStatus == DownloadState.Status.FAILED,
-            )
-        }
-    }
-
-    /**
-     * Re-initializes [DynamicDownloadDialog] if the user hasn't dismissed the dialog
-     * before navigating away from it's original tab.
-     * onTryAgain it will use [ContentAction.UpdateDownloadAction] to re-enqueue the former failed
-     * download, because [DownloadsFeature] clears any queued downloads onStop.
-     * */
-    @VisibleForTesting
-    internal fun resumeDownloadDialogState(
-        sessionId: String?,
-        store: BrowserStore,
-        context: Context,
-    ) {
-        val savedDownloadState =
-            sharedViewModel.downloadDialogState[sessionId]
-
-        if (savedDownloadState == null || sessionId == null) {
-            binding.viewDynamicDownloadDialog.root.visibility = View.GONE
-            return
-        }
-
-        val onTryAgain: (String) -> Unit = {
-            savedDownloadState.first?.let { dlState ->
-                store.dispatch(
-                    ContentAction.UpdateDownloadAction(
-                        sessionId,
-                        dlState.copy(skipConfirmation = true),
-                    ),
-                )
-            }
-        }
-
-        val onDismiss: () -> Unit =
-            { sharedViewModel.downloadDialogState.remove(sessionId) }
-
-        DynamicDownloadDialog(
-            context = context,
-            fileSizeFormatter = requireComponents.core.fileSizeFormatter,
-            downloadState = savedDownloadState.first,
-            didFail = savedDownloadState.second,
-            tryAgain = onTryAgain,
-            onCannotOpenFile = {
-                showCannotOpenFileError(binding.dynamicSnackbarContainer, context, it)
-            },
-            binding = binding.viewDynamicDownloadDialog,
-            onDismiss = onDismiss,
-        ).show()
-
-        browserToolbarView.expand()
-    }
-
     @VisibleForTesting
     internal fun shouldPullToRefreshBeEnabled(inFullScreen: Boolean): Boolean {
         return FeatureFlags.PULL_TO_REFRESH_ENABLED &&
@@ -1702,12 +1630,6 @@ abstract class BaseBrowserFragment :
 
                                         context.settings().shouldShowMicrosurveyPrompt = false
                                         activity.isMicrosurveyPromptDismissed.value = true
-
-                                        resumeDownloadDialogState(
-                                            getCurrentTab()?.id,
-                                            context.components.core.store,
-                                            context,
-                                        )
                                     },
                                 )
                             }
@@ -1861,8 +1783,6 @@ abstract class BaseBrowserFragment :
                 fullScreenChanged(false)
                 browserToolbarView.expand()
 
-                val context = requireContext()
-                resumeDownloadDialogState(selectedTab.id, context.components.core.store, context)
                 @Suppress("DEPRECATION")
                 it.announceForAccessibility(selectedTab.toDisplayTitle())
             }
@@ -2380,19 +2300,6 @@ abstract class BaseBrowserFragment :
         )
     }
 
-    internal fun showCannotOpenFileError(
-        container: ViewGroup,
-        context: Context,
-        downloadState: DownloadState,
-    ) {
-        Snackbar.make(
-            snackBarParentView = container,
-            snackbarState = SnackbarState(
-                message = DynamicDownloadDialog.getCannotOpenFileErrorMessage(context, downloadState),
-            ),
-        ).show()
-    }
-
     companion object {
         private const val KEY_CUSTOM_TAB_SESSION_ID = "custom_tab_session_id"
         private const val REQUEST_CODE_DOWNLOAD_PERMISSIONS = 1
@@ -2506,15 +2413,6 @@ abstract class BaseBrowserFragment :
 
     private fun removeLastSavedGeneratedPassword() {
         lastSavedGeneratedPassword = null
-    }
-
-    private fun navigateToSavedLoginsFragment() {
-        val navController = findNavController()
-        if (navController.currentDestination?.id == R.id.browserFragment) {
-            Logins.openLogins.record(NoExtras())
-            val directions = BrowserFragmentDirections.actionLoginsListFragment()
-            navController.navigate(directions)
-        }
     }
 
     private fun launchFindInPageFeature(view: View, store: BrowserStore) {

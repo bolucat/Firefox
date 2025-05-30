@@ -2070,6 +2070,8 @@ const JSClass* js::jit::ClassFor(GuardClassKind kind) {
       return &PlainObject::class_;
     case GuardClassKind::FixedLengthArrayBuffer:
       return &FixedLengthArrayBufferObject::class_;
+    case GuardClassKind::ImmutableArrayBuffer:
+      return &ImmutableArrayBufferObject::class_;
     case GuardClassKind::ResizableArrayBuffer:
       return &ResizableArrayBufferObject::class_;
     case GuardClassKind::FixedLengthSharedArrayBuffer:
@@ -2078,6 +2080,8 @@ const JSClass* js::jit::ClassFor(GuardClassKind kind) {
       return &GrowableSharedArrayBufferObject::class_;
     case GuardClassKind::FixedLengthDataView:
       return &FixedLengthDataViewObject::class_;
+    case GuardClassKind::ImmutableDataView:
+      return &ImmutableDataViewObject::class_;
     case GuardClassKind::ResizableDataView:
       return &ResizableDataViewObject::class_;
     case GuardClassKind::MappedArguments:
@@ -2114,10 +2118,12 @@ void IRGenerator::emitOptimisticClassGuard(ObjOperandId objId, JSObject* obj,
     case GuardClassKind::Array:
     case GuardClassKind::PlainObject:
     case GuardClassKind::FixedLengthArrayBuffer:
+    case GuardClassKind::ImmutableArrayBuffer:
     case GuardClassKind::ResizableArrayBuffer:
     case GuardClassKind::FixedLengthSharedArrayBuffer:
     case GuardClassKind::GrowableSharedArrayBuffer:
     case GuardClassKind::FixedLengthDataView:
+    case GuardClassKind::ImmutableDataView:
     case GuardClassKind::ResizableDataView:
     case GuardClassKind::Set:
     case GuardClassKind::Map:
@@ -2248,7 +2254,7 @@ AttachDecision GetPropIRGenerator::tryAttachTypedArray(HandleObject obj,
   EmitCallGetterResultGuards(writer, tarr, holder, id, *prop, objId, mode_);
   if (isLength) {
     size_t length = tarr->length().valueOr(0);
-    if (tarr->is<FixedLengthTypedArrayObject>()) {
+    if (!tarr->is<ResizableTypedArrayObject>()) {
       if (length <= INT32_MAX) {
         writer.loadArrayBufferViewLengthInt32Result(objId);
       } else {
@@ -2274,7 +2280,7 @@ AttachDecision GetPropIRGenerator::tryAttachTypedArray(HandleObject obj,
     trackAttached("GetProp.TypedArrayByteOffset");
   } else {
     size_t byteLength = tarr->byteLength().valueOr(0);
-    if (tarr->is<FixedLengthTypedArrayObject>()) {
+    if (!tarr->is<ResizableTypedArrayObject>()) {
       if (byteLength <= INT32_MAX) {
         writer.typedArrayByteLengthInt32Result(objId);
       } else {
@@ -2318,6 +2324,10 @@ AttachDecision GetPropIRGenerator::tryAttachDataView(HandleObject obj,
 
   // byteOffset and byteLength both throw when the ArrayBuffer is detached.
   if (dv->hasDetachedBuffer()) {
+    // The has-attached-arraybuffer guard is elided for immutable views. Assert
+    // we never see an immutable view with a detached buffer.
+    MOZ_ASSERT(!dv->is<ImmutableDataViewObject>(),
+               "immutable data views can't have their buffer detached");
     return AttachDecision::NoAction;
   }
 
@@ -2350,13 +2360,26 @@ AttachDecision GetPropIRGenerator::tryAttachDataView(HandleObject obj,
   // Emit all the normal guards for calling this native, but specialize
   // callNativeGetterResult.
   EmitCallGetterResultGuards(writer, dv, holder, id, *prop, objId, mode_);
-  writer.guardHasAttachedArrayBuffer(objId);
+
+  // Immutable array buffers can never get detached.
+  if (!dv->is<ImmutableDataViewObject>()) {
+    writer.guardHasAttachedArrayBuffer(objId);
+  } else {
+#ifdef DEBUG
+    // Add a guard in debug-mode, so if the buffer unexpectedly got detached,
+    // we bail out and rely on the above assertion to fire.
+    writer.guardHasAttachedArrayBuffer(objId);
+#endif
+  }
+
+  // Resizable array buffers can get out-of-bounds when shrunk.
   if (dv->is<ResizableDataViewObject>()) {
     writer.guardResizableArrayBufferViewInBounds(objId);
   }
+
   if (isByteOffset) {
-    // byteOffset doesn't need to use different code paths for fixed-length and
-    // resizable DataViews.
+    // byteOffset doesn't need to use different code paths for fixed-length,
+    // resizable, or immutable DataViews.
     size_t byteOffset = dv->byteOffset().valueOr(0);
     if (byteOffset <= INT32_MAX) {
       writer.arrayBufferViewByteOffsetInt32Result(objId);
@@ -2366,7 +2389,7 @@ AttachDecision GetPropIRGenerator::tryAttachDataView(HandleObject obj,
     trackAttached("GetProp.DataViewByteOffset");
   } else {
     size_t byteLength = dv->byteLength().valueOr(0);
-    if (dv->is<FixedLengthDataViewObject>()) {
+    if (!dv->is<ResizableDataViewObject>()) {
       if (byteLength <= INT32_MAX) {
         writer.loadArrayBufferViewLengthInt32Result(objId);
       } else {
@@ -3238,6 +3261,10 @@ static ArrayBufferViewKind ToArrayBufferViewKind(const TypedArrayObject* obj) {
     return ArrayBufferViewKind::FixedLength;
   }
 
+  if (obj->is<ImmutableTypedArrayObject>()) {
+    return ArrayBufferViewKind::Immutable;
+  }
+
   MOZ_ASSERT(obj->is<ResizableTypedArrayObject>());
   return ArrayBufferViewKind::Resizable;
 }
@@ -3245,6 +3272,10 @@ static ArrayBufferViewKind ToArrayBufferViewKind(const TypedArrayObject* obj) {
 static ArrayBufferViewKind ToArrayBufferViewKind(const DataViewObject* obj) {
   if (obj->is<FixedLengthDataViewObject>()) {
     return ArrayBufferViewKind::FixedLength;
+  }
+
+  if (obj->is<ImmutableDataViewObject>()) {
+    return ArrayBufferViewKind::Immutable;
   }
 
   MOZ_ASSERT(obj->is<ResizableDataViewObject>());
@@ -4185,8 +4216,8 @@ AttachDecision HasPropIRGenerator::tryAttachNative(NativeObject* obj,
 
 static void EmitGuardTypedArray(CacheIRWriter& writer, TypedArrayObject* obj,
                                 ObjOperandId objId) {
-  if (obj->is<FixedLengthTypedArrayObject>()) {
-    writer.guardIsFixedLengthTypedArray(objId);
+  if (!obj->is<ResizableTypedArrayObject>()) {
+    writer.guardIsNonResizableTypedArray(objId);
   } else {
     writer.guardIsResizableTypedArray(objId);
   }
@@ -4963,7 +4994,8 @@ static bool CanAttachAddElement(NativeObject* obj, bool isInit,
     const JSClass* clasp = obj->getClass();
     if (clasp != &ArrayObject::class_ &&
         (clasp->getAddProperty() || clasp->getResolve() ||
-         clasp->getOpsLookupProperty() || clasp->getOpsSetProperty())) {
+         clasp->getOpsLookupProperty() || clasp->getOpsSetProperty() ||
+         obj->hasUnpreservedWrapper())) {
       return false;
     }
 
@@ -5191,6 +5223,11 @@ AttachDecision SetPropIRGenerator::tryAttachSetTypedArrayElement(
 
   auto* tarr = &obj->as<TypedArrayObject>();
   Scalar::Type elementType = tarr->type();
+
+  // Immutable TypedArrays can't be modified.
+  if (tarr->is<ImmutableTypedArrayObject>()) {
+    return AttachDecision::NoAction;
+  }
 
   // Don't attach if the input type doesn't match the guard added below.
   if (!ValueCanConvertToNumeric(elementType, rhsVal_)) {
@@ -5735,7 +5772,10 @@ AttachDecision SetPropIRGenerator::tryAttachAddSlotStub(
   DebugOnly<uint32_t> index;
   MOZ_ASSERT_IF(obj->is<ArrayObject>(), !IdIsIndex(id, &index));
   bool mustCallAddPropertyHook =
-      obj->getClass()->getAddProperty() && !obj->is<ArrayObject>();
+      !obj->is<ArrayObject>() &&
+      (obj->getClass()->getAddProperty() ||
+       (obj->getClass()->preservesWrapper() &&
+        !oldShape->hasObjectFlag(ObjectFlag::HasPreservedWrapper)));
 
   if (mustCallAddPropertyHook) {
     writer.addSlotAndCallAddPropHook(objId, rhsValId, newShape);
@@ -7018,6 +7058,9 @@ AttachDecision InlinableNativeIRGenerator::tryAttachDataViewGet(
   if (dv->is<FixedLengthDataViewObject>()) {
     emitOptimisticClassGuard(objId, &thisval_.toObject(),
                              GuardClassKind::FixedLengthDataView);
+  } else if (dv->is<ImmutableDataViewObject>()) {
+    emitOptimisticClassGuard(objId, &thisval_.toObject(),
+                             GuardClassKind::ImmutableDataView);
   } else {
     emitOptimisticClassGuard(objId, &thisval_.toObject(),
                              GuardClassKind::ResizableDataView);
@@ -7069,6 +7112,11 @@ AttachDecision InlinableNativeIRGenerator::tryAttachDataViewSet(
   }
 
   auto* dv = &thisval_.toObject().as<DataViewObject>();
+
+  // Immutable DataViews can't be modified.
+  if (dv->is<ImmutableDataViewObject>()) {
+    return AttachDecision::NoAction;
+  }
 
   // Bounds check the offset.
   size_t byteLength = dv->byteLength().valueOr(0);
@@ -7545,20 +7593,13 @@ AttachDecision InlinableNativeIRGenerator::tryAttachGuardToClass(
   return AttachDecision::Attach;
 }
 
-AttachDecision InlinableNativeIRGenerator::tryAttachGuardToEitherClass(
-    GuardClassKind kind1, GuardClassKind kind2) {
-  MOZ_ASSERT(kind1 != kind2,
-             "prefer tryAttachGuardToClass for the same class case");
-
+AttachDecision InlinableNativeIRGenerator::tryAttachGuardToArrayBuffer() {
   // Self-hosted code calls this with an object argument.
   MOZ_ASSERT(args_.length() == 1);
   MOZ_ASSERT(args_[0].isObject());
 
   // Class must match.
-  const JSClass* clasp1 = ClassFor(kind1);
-  const JSClass* clasp2 = ClassFor(kind2);
-  const JSClass* objClass = args_[0].toObject().getClass();
-  if (objClass != clasp1 && objClass != clasp2) {
+  if (!args_[0].toObject().is<ArrayBufferObject>()) {
     return AttachDecision::NoAction;
   }
 
@@ -7572,25 +7613,44 @@ AttachDecision InlinableNativeIRGenerator::tryAttachGuardToEitherClass(
   ObjOperandId objId = writer.guardToObject(argId);
 
   // Guard that the object has the correct class.
-  writer.guardEitherClass(objId, kind1, kind2);
+  writer.guardToArrayBuffer(objId);
 
   // Return the object.
   writer.loadObjectResult(objId);
   writer.returnFromIC();
 
-  trackAttached("GuardToEitherClass");
+  trackAttached("GuardToArrayBuffer");
   return AttachDecision::Attach;
 }
 
-AttachDecision InlinableNativeIRGenerator::tryAttachGuardToArrayBuffer() {
-  return tryAttachGuardToEitherClass(GuardClassKind::FixedLengthArrayBuffer,
-                                     GuardClassKind::ResizableArrayBuffer);
-}
-
 AttachDecision InlinableNativeIRGenerator::tryAttachGuardToSharedArrayBuffer() {
-  return tryAttachGuardToEitherClass(
-      GuardClassKind::FixedLengthSharedArrayBuffer,
-      GuardClassKind::GrowableSharedArrayBuffer);
+  // Self-hosted code calls this with an object argument.
+  MOZ_ASSERT(args_.length() == 1);
+  MOZ_ASSERT(args_[0].isObject());
+
+  // Class must match.
+  if (!args_[0].toObject().is<SharedArrayBufferObject>()) {
+    return AttachDecision::NoAction;
+  }
+
+  // Initialize the input operand.
+  initializeInputOperand();
+
+  // Note: we don't need to call emitNativeCalleeGuard for intrinsics.
+
+  // Guard that the argument is an object.
+  ValOperandId argId = loadArgumentIntrinsic(ArgumentKind::Arg0);
+  ObjOperandId objId = writer.guardToObject(argId);
+
+  // Guard that the object has the correct class.
+  writer.guardToSharedArrayBuffer(objId);
+
+  // Return the object.
+  writer.loadObjectResult(objId);
+  writer.returnFromIC();
+
+  trackAttached("GuardToSharedArrayBuffer");
+  return AttachDecision::Attach;
 }
 
 AttachDecision InlinableNativeIRGenerator::tryAttachHasClass(
@@ -9489,8 +9549,16 @@ AttachDecision InlinableNativeIRGenerator::tryAttachReflectGetPrototypeOf() {
   return AttachDecision::Attach;
 }
 
+enum class AtomicAccess { Read, Write };
+
 static bool AtomicsMeetsPreconditions(TypedArrayObject* typedArray,
-                                      const Value& index) {
+                                      const Value& index, AtomicAccess access) {
+  // Can't write into immutable TypedArrays.
+  if (access == AtomicAccess::Write &&
+      typedArray->is<ImmutableTypedArrayObject>()) {
+    return false;
+  }
+
   switch (typedArray->type()) {
     case Scalar::Int8:
     case Scalar::Uint8:
@@ -9547,7 +9615,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachAtomicsCompareExchange() {
   }
 
   auto* typedArray = &args_[0].toObject().as<TypedArrayObject>();
-  if (!AtomicsMeetsPreconditions(typedArray, args_[1])) {
+  if (!AtomicsMeetsPreconditions(typedArray, args_[1], AtomicAccess::Write)) {
     return AttachDecision::NoAction;
   }
 
@@ -9613,7 +9681,7 @@ bool InlinableNativeIRGenerator::canAttachAtomicsReadWriteModify() {
   }
 
   auto* typedArray = &args_[0].toObject().as<TypedArrayObject>();
-  if (!AtomicsMeetsPreconditions(typedArray, args_[1])) {
+  if (!AtomicsMeetsPreconditions(typedArray, args_[1], AtomicAccess::Write)) {
     return false;
   }
   if (!ValueCanConvertToNumeric(typedArray->type(), args_[2])) {
@@ -9789,7 +9857,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachAtomicsLoad() {
   }
 
   auto* typedArray = &args_[0].toObject().as<TypedArrayObject>();
-  if (!AtomicsMeetsPreconditions(typedArray, args_[1])) {
+  if (!AtomicsMeetsPreconditions(typedArray, args_[1], AtomicAccess::Read)) {
     return AttachDecision::NoAction;
   }
 
@@ -9844,7 +9912,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachAtomicsStore() {
   }
 
   auto* typedArray = &args_[0].toObject().as<TypedArrayObject>();
-  if (!AtomicsMeetsPreconditions(typedArray, args_[1])) {
+  if (!AtomicsMeetsPreconditions(typedArray, args_[1], AtomicAccess::Write)) {
     return AttachDecision::NoAction;
   }
 
@@ -10740,33 +10808,22 @@ AttachDecision InlinableNativeIRGenerator::tryAttachMapSet() {
   return AttachDecision::Attach;
 }
 
-AttachDecision InlinableNativeIRGenerator::tryAttachDateGetTime(
-    InlinableNative native) {
+AttachDecision InlinableNativeIRGenerator::tryAttachDateGetTime() {
   // Ensure |this| is a DateObject.
   if (!thisval_.isObject() || !thisval_.toObject().is<DateObject>()) {
     return AttachDecision::NoAction;
   }
 
-  if (native == InlinableNative::DateGetTime) {
-    // Expecting no arguments.
-    if (args_.length() != 0) {
-      return AttachDecision::NoAction;
-    }
-  } else {
-    MOZ_ASSERT(args_.length() == 1 && args_[0].isInt32());
+  // Expecting no arguments.
+  if (args_.length() != 0) {
+    return AttachDecision::NoAction;
   }
 
   // Initialize the input operand.
   Int32OperandId argcId = initializeInputOperand();
 
-  ObjOperandId calleeId;
-  if (native == InlinableNative::DateGetTime) {
-    // Guard callee is the 'getTime' (or 'valueOf') native function.
-    calleeId = emitNativeCalleeGuard(argcId);
-  } else {
-    // Note: we don't need to call emitNativeCalleeGuard for intrinsics.
-    MOZ_ASSERT(native == InlinableNative::IntrinsicThisTimeValue);
-  }
+  // Guard callee is the 'getTime' (or 'valueOf') native function.
+  ObjOperandId calleeId = emitNativeCalleeGuard(argcId);
 
   // Guard |this| is a DateObject.
   ValOperandId thisValId = loadThis(calleeId);
@@ -10778,8 +10835,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachDateGetTime(
 
   writer.returnFromIC();
 
-  trackAttached(native == InlinableNative::DateGetTime ? "DateGetTime"
-                                                       : "ThisTimeValue");
+  trackAttached("DateGetTime");
   return AttachDecision::Attach;
 }
 
@@ -11016,7 +11072,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachTypedArrayByteOffset() {
   EmitGuardTypedArray(writer, tarr, objArgId);
 
   size_t byteOffset = tarr->byteOffsetMaybeOutOfBounds();
-  if (tarr->is<FixedLengthTypedArrayObject>()) {
+  if (!tarr->is<ResizableTypedArrayObject>()) {
     if (byteOffset <= INT32_MAX) {
       writer.arrayBufferViewByteOffsetInt32Result(objArgId);
     } else {
@@ -11099,7 +11155,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachTypedArrayLength(
 
   EmitGuardTypedArray(writer, tarr, objArgId);
 
-  if (tarr->is<FixedLengthTypedArrayObject>()) {
+  if (!tarr->is<ResizableTypedArrayObject>()) {
     if (length.valueOr(0) <= INT32_MAX) {
       writer.loadArrayBufferViewLengthInt32Result(objArgId);
     } else {
@@ -11485,9 +11541,11 @@ AttachDecision InlinableNativeIRGenerator::tryAttachTypedArrayConstructor() {
         writer.guardClass(objId, GuardClassKind::FixedLengthSharedArrayBuffer);
       } else if (obj->is<ResizableArrayBufferObject>()) {
         writer.guardClass(objId, GuardClassKind::ResizableArrayBuffer);
-      } else {
-        MOZ_ASSERT(obj->is<GrowableSharedArrayBufferObject>());
+      } else if (obj->is<GrowableSharedArrayBufferObject>()) {
         writer.guardClass(objId, GuardClassKind::GrowableSharedArrayBuffer);
+      } else {
+        MOZ_ASSERT(obj->is<ImmutableArrayBufferObject>());
+        writer.guardClass(objId, GuardClassKind::ImmutableArrayBuffer);
       }
       ValOperandId byteOffsetId;
       if (args_.length() > 1) {
@@ -11969,7 +12027,7 @@ AttachDecision CallIRGenerator::tryAttachWasmCall(HandleFunction calleeFunc) {
 #else
   constexpr bool optimizeWithI64 = false;
 #endif
-  ABIArgGenerator abi;
+  ABIArgGenerator abi(ABIKind::Wasm);
   for (const auto& valType : sig.args()) {
     MIRType mirType = valType.toMIRType();
     ABIArg abiArg = abi.next(mirType);
@@ -12561,8 +12619,7 @@ AttachDecision InlinableNativeIRGenerator::tryAttachStub() {
 
     // Date natives and intrinsics.
     case InlinableNative::DateGetTime:
-    case InlinableNative::IntrinsicThisTimeValue:
-      return tryAttachDateGetTime(native);
+      return tryAttachDateGetTime();
     case InlinableNative::DateGetFullYear:
       return tryAttachDateGet(DateComponent::FullYear);
     case InlinableNative::DateGetMonth:

@@ -35,7 +35,7 @@ def get_commits(logger, repo_root):
         logger.warning("No VCS found for path %s" % repo_root)
         return []
 
-    return repo.get_branch_nodes(
+    return repo.get_commits(
         limit=50,
         follow=[
             "testing/web-platform/tests",
@@ -67,6 +67,7 @@ def taskcluster_url(logger, commits):
         "integration/autoland": "autoland",
         "releases/mozilla-esr115": "mozilla-esr115",
         "releases/mozilla-esr128": "mozilla-esr128",
+        "releases/mozilla-esr140": "mozilla-esr140",
     }
     cset_url = (
         "https://hg.mozilla.org/{repo}/json-pushes?"

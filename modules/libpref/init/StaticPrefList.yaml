@@ -1764,6 +1764,12 @@
   value: false
   mirror: always
 
+# Disable state restoration, allowing the kiosk desktop environment to manage state and position.
+- name: browser.restoreWindowState.disabled
+  type: bool
+  value: false
+  mirror: always
+
 # Communicates the toolbar color to platform (for e.g., prefers-color-scheme).
 #
 # Returns whether the toolbar is dark (0), light (1), or system (2). The
@@ -2528,9 +2534,9 @@
 # HTML specification says the level should be 5
 # https://html.spec.whatwg.org/#timer-initialisation-steps
 - name: dom.clamp.timeout.nesting.level
-  type: uint32_t
+  type: RelaxedAtomicUint32
   value: 5
-  mirror: once
+  mirror: always
 
 # Skip the security checks for document.cookie.
 - name: dom.cookie.testing.enabled
@@ -2541,7 +2547,11 @@
 # https://whatpr.org/html/10168/interaction.html#closewatcher
 - name: dom.closewatcher.enabled
   type: bool
+#if defined(ANDROID)
   value: false
+#else
+  value: @IS_NIGHTLY_BUILD@
+#endif
   mirror: always
 
 # https://github.com/whatwg/html/pull/10737
@@ -2676,13 +2686,6 @@
   value: false
   mirror: always
 
-# Whether CustomStateSet is enabled
-- name: dom.element.customstateset.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
 # Whether the invoketarget attribute implementation is enabled
 - name: dom.element.invokers.enabled
   type: bool
@@ -2727,6 +2730,11 @@
 
 # Whether the LargestContentfulPaint API will be gathered and returned by performance observer*
 - name: dom.enable_largest_contentful_paint
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+- name: dom.performance.largest_contentful_paint.coarsened_rendertime_enabled
   type: RelaxedAtomicBool
   value: true
   mirror: always
@@ -2785,6 +2793,13 @@
   value: @IS_NOT_EARLY_BETA_OR_EARLIER@
   mirror: always
 
+# Make EventStateManager restore the last "mouseover" target when it's
+# reconnected immediately.  The behavior is similar to Safari and old Chrome.
+- name: dom.event.mouse.boundary.restore_last_over_target_from_temporary_removal
+  type: bool
+  value: false
+  mirror: always
+
 # Whether the result of screenX, screenY, clientX, clientY, offsetX, offsetY,
 # x and y of trusted MouseEvent and subclasses may be fractional values.
 # Enabling this may cause backward compatibility issues.
@@ -2805,6 +2820,13 @@
 - name: dom.event.mouse.fractional_coordinates.untrusted.enabled
   type: bool
   value: false
+  mirror: always
+
+# Whether pointer boundary events should be dispatched after the element is
+# changed by a layout change or something without pointer move.
+- name: dom.event.pointer.boundary.dispatch_when_layout_change
+  type: bool
+  value: true
   mirror: always
 
 # Whether the result of screenX, screenY, clientX, clientY, offsetX, offsetY,
@@ -3540,13 +3562,13 @@
 
 # Timeout clamp in ms for background windows.
 - name: dom.min_background_timeout_value
-  type: int32_t
+  type: RelaxedAtomicInt32
   value: 1000
   mirror: always
 
 # Timeout clamp in ms for background windows when throttling isn't enabled.
 - name: dom.min_background_timeout_value_without_budget_throttling
-  type: int32_t
+  type: RelaxedAtomicInt32
   value: 1000
   mirror: always
 
@@ -4258,7 +4280,7 @@
 # Serialize < as &lt; and > as &gt; in attribute values for getHTML, innerHTML etc.
 - name: dom.security.html_serialization_escape_lt_gt
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # For testing purposes only; Flipping this pref to true allows
@@ -4848,6 +4870,11 @@
   value: 5
   mirror: always
 
+- name: dom.text_fragments.create_text_fragment.exact_match_max_length
+  type: uint32_t
+  value: 200
+  mirror: always
+
 - name: dom.textMetrics.actualBoundingBox.enabled
   type: RelaxedAtomicBool
   value: true
@@ -5294,6 +5321,13 @@
 # Pointer Events.  Set this to true if we should conform to it.  Otherwise,
 # consider the target from the pointer position, set this to false.
 - name: dom.w3c_pointer_events.dispatch_click_on_pointer_capturing_element
+  type: bool
+  value: true
+  mirror: always
+
+# If `click` event is caused by a tap, the target should not be the target of
+# the preceding `pointerup`.  This is compatible with Chrome 136.
+- name: dom.w3c_pointer_events.dispatch_click_on_pointer_capturing_element.except_touch
   type: bool
   value: true
   mirror: always
@@ -5863,7 +5897,7 @@
 # over IPC from the child processes.
 - name: fission.disableSessionHistoryInParent
   type: bool
-  value: @IS_ANDROID@
+  value: false
   mirror: once
   do_not_use_directly: true
 
@@ -7380,6 +7414,11 @@
   value: false
   mirror: always
 
+- name: gfx.webrender.debug.highlight-backdrop-filters
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 # When true, we output warning messages when rejecting surface promotion
 # when it has been requested. This is important for color correctness of
 # wide color videos, as well as for GPU performance for all videos.
@@ -8116,7 +8155,7 @@
 # a natural width and/or height.
 - name: image.natural-size-fallback.enabled
   type: RelaxedAtomicBool
-  value: true
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Whether we record SVG images as blobs or not.
@@ -8566,7 +8605,7 @@
 # Use better error message when accessing property of null or undefined.
 - name: javascript.options.property_error_message_fix
   type: bool
-  value: @IS_NIGHTLY_OR_DEV_EDITION@
+  value: true
   mirror: always
   set_spidermonkey_pref: startup
 
@@ -8686,7 +8725,22 @@
     mirror: always
     set_spidermonkey_pref: startup
 
+  # Experimental support for immutable ArrayBuffers in JavaScript.
+-   name: javascript.options.experimental.arraybuffer_immutable
+    type: bool
+    value: false
+    mirror: always
+    set_spidermonkey_pref: startup
+
 #endif  // NIGHTLY_BUILD
+
+# Whether to Baseline-compile self-hosted functions the first time they are
+# used and cache the result.
+- name: javascript.options.experimental.self_hosted_cache
+  type: bool
+  value: false
+  mirror: always
+  set_spidermonkey_pref: startup
 
   # Experimental support for Temporal in JavaScript.
 - name: javascript.options.experimental.temporal
@@ -9751,10 +9805,10 @@
   mirror: always
   rust: true
 
-# Is support for light-dark() on content enabled?
-- name: layout.css.light-dark.enabled
+# Is support for light-dark() on images in content enabled?
+- name: layout.css.light-dark.images.enabled
   type: RelaxedAtomicBool
-  value: true
+  value: false
   mirror: always
   rust: true
 
@@ -10644,7 +10698,7 @@
 # Is matching video-dynamic-range: high allowed?
 - name: layout.css.video-dynamic-range.allows-high
   type: RelaxedAtomicBool
-#if defined(XP_MACOSX)
+#if defined(XP_MACOSX) || defined(MOZ_WAYLAND)
   value: true
 #else
   value: false
@@ -13105,7 +13159,11 @@
 # If we should attempt to race the cache and network.
 - name: network.http.rcwn.enabled
   type: bool
+#if defined(ANDROID)
+  value: false
+#else
   value: true
+#endif
   mirror: always
 
 - name: network.http.rcwn.cache_queue_normal_threshold
@@ -13371,6 +13429,16 @@
 - name: network.http.max_response_header_size
   type: RelaxedAtomicUint32
   value: 393216
+  mirror: always
+
+# Whether or not we give more priority to active tab.
+- name: network.http.active_tab_priority
+  type: RelaxedAtomicBool
+#if defined(ANDROID)
+  value: false
+#else
+  value: true
+#endif
   mirror: always
 
 # Treat all Unicode labels as confusable/unsafe so that they show up
@@ -14094,6 +14162,13 @@
   value: 60
   mirror: always
 
+# When true, the DNS code will always set the AI_CANONNAME
+# when calling getaddrinfo
+- name: network.dns.always_ai_canonname
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 # The proxy type. See nsIProtocolProxyService.idl
 #     PROXYCONFIG_DIRECT   = 0
 #     PROXYCONFIG_MANUAL   = 1
@@ -14532,6 +14607,17 @@
 #else
   value: 30
 #endif
+  mirror: always
+
+# When this pref is true, GeckoViewStartup.sys.mjs will initialize the DoHController
+# and Fenix will automatically select the TRR provider when the browser is in
+# "Default protection" mode (ie network.trr.mode is 0).
+# The selected provider depends on remote settings and the user's region.
+# If a rollout hasn't started in the user's region, then Fenix will continue using
+# the system DNS settings.
+- name: network.android_doh.autoselect_enabled
+  type: RelaxedAtomicBool
+  value: false
   mirror: always
 
 # Allow the network changed event to get sent when a network topology or setup
@@ -16296,13 +16382,6 @@
   value: true
   mirror: always
 
-# Whether to treat the CSP in browser.xhtml as "Report-Only".
-# This allows us to collect telemetry information about potential issues.
-- name: security.browser_xhtml_csp.report-only
-  type: bool
-  value: false
-  mirror: always
-
 # Allow unsafe eval usage with high privileges to. This should
 # not be activated without a very good reason.
 # This pref has to be set before starting Firefox!
@@ -16344,12 +16423,6 @@
 - name: security.mixed_content.block_active_content
   type: bool
   value: @IS_ANDROID@
-  mirror: always
-
-# Pref to block sub requests that happen within an object.
-- name: security.mixed_content.block_object_subrequest
-  type: bool
-  value: false
   mirror: always
 
 # Pref for mixed display content blocking (images, audio, video).
@@ -16411,11 +16484,7 @@
 - name: security.sandbox.gpu.level
   type: int32_t
 #if defined(XP_WIN)
-#if defined(NIGHTLY_BUILD)
-  value: 2
-#else
   value: 1
-#endif
 #else
   value: 0
 #endif
@@ -16529,18 +16598,6 @@
     type: RelaxedAtomicUint32
     value: 0
     mirror: always
-#endif
-
-#if defined(XP_LINUX) && defined(MOZ_SANDBOX)
-  # Run content processes in headless mode and disallow
-  # connections to the X server.  Requires:
-  # * `webgl.out-of-process` (or else WebGL breaks)
-  # Changing it requires a restart because sandbox policy information
-  # dependent on it is cached.  See bug 1640345 for details.
-- name: security.sandbox.content.headless
-  type: bool
-  value: true
-  mirror: once
 #endif
 
 #if defined(XP_LINUX) && defined(MOZ_SANDBOX)
@@ -16811,9 +16868,15 @@
   mirror: never
 
 # 0: Disable CRLite entirely.
-# 1: Consult CRLite but only collect telemetry.
-# 2: Consult CRLite and enforce both "Revoked" and "Not Revoked" results.
-# 3: Consult CRLite and enforce "Not Revoked" results, but defer to OCSP for "Revoked".
+# 1: Enable CRLite but only to collect telemetry.
+# 2: Enable CRLite and enforce its results. Firefox will not fetch OCSP for DV
+#    certificates that chain to the Mozilla root store unless
+#    security.OCSP.require is true. Firefox will, however, fetch OCSP for EV
+#    certificates that chain to the Mozilla root store (unless
+#    security.OCSP.enable is 0).
+# 3: Enable CRLite but only enforce "Not Revoked" results. Firefox will fetch
+#    OCSP for certificates that are not covered by CRLite. Firefox will also
+#    fetch OCSP to confirm CRLite "Revoked" responses.
 - name: security.pki.crlite_mode
   type: RelaxedAtomicUint32
 #if defined(EARLY_BETA_OR_EARLIER)
@@ -16978,6 +17041,11 @@
   value: true
   mirror: always
   rust: true
+
+- name: security.tls.enable_certificate_compression_abridged
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
 
 - name: security.ssl.treat_unsafe_negotiation_as_broken
   type: RelaxedAtomicBool

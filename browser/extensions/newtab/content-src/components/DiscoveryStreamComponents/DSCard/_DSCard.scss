@@ -51,6 +51,21 @@ $ds-card-image-gradient-solid: rgba(0, 0, 0, 100%);
       margin-inline: var(--space-large);
       margin-block-end: var(--space-large);
     }
+
+    &.refined-cards {
+      .placeholder-image {
+        height: 172px;
+      }
+
+      .placeholder-description {
+        margin-block-end: var(--space-small);
+      }
+
+      .placeholder-header {
+        width: initial;
+        margin-block-end: var(--space-large);
+      }
+    }
   }
 
   &.placeholder-seen {
@@ -62,7 +77,12 @@ $ds-card-image-gradient-solid: rgba(0, 0, 0, 100%);
       inset-inline-start: -100%;
       height: 100%;
       width: 100%;
-      background: linear-gradient(90deg, rgba(255, 255, 255, 0%) 0%, var(--newtab-background-color-secondary) 50%, rgba(255, 255, 255, 0%) 100%);
+      background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0%) 0%,
+        var(--newtab-background-color-secondary) 50%,
+        rgba(255, 255, 255, 0%) 100%
+      );
       z-index: 2;
 
       @media (prefers-reduced-motion: no-preference) {
@@ -76,7 +96,8 @@ $ds-card-image-gradient-solid: rgba(0, 0, 0, 100%);
       }
 
       // We apply the same frame from 50-100% to account for a delay in a repeating animation.
-      50%, 100% {
+      50%,
+      100% {
         inset-inline-start: 100%;
       }
     }
@@ -92,7 +113,6 @@ $ds-card-image-gradient-solid: rgba(0, 0, 0, 100%);
     width: 100%;
     position: absolute;
     top: 0;
-    height: 0;
     transition: opacity;
     transition-duration: 0s;
     padding-block-start: 50%;
@@ -103,7 +123,7 @@ $ds-card-image-gradient-solid: rgba(0, 0, 0, 100%);
     .card-stp-button-position-wrapper {
       position: absolute;
       inset-inline-end: 10px;
-      top: 10px;
+      inset-block-start: 10px;
       display: flex;
       justify-content: end;
       align-items: center;
@@ -244,11 +264,7 @@ $ds-card-image-gradient-solid: rgba(0, 0, 0, 100%);
 
     .excerpt {
       // show only 3 lines of copy
-      @include limit-visible-lines(
-        3,
-        $excerpt-line-height,
-        $excerpt-font-size
-      );
+      @include limit-visible-lines(3, $excerpt-line-height, $excerpt-font-size);
     }
 
     .source-wrapper {
@@ -304,7 +320,11 @@ $ds-card-image-gradient-solid: rgba(0, 0, 0, 100%);
 
   &.ds-card-image-gradient {
     img {
-      mask-image: linear-gradient(to top, $ds-card-image-gradient-fade, $ds-card-image-gradient-solid 40px);
+      mask-image: linear-gradient(
+        to top,
+        $ds-card-image-gradient-fade,
+        $ds-card-image-gradient-solid 40px
+      );
     }
 
     .meta {
@@ -373,79 +393,6 @@ $ds-card-image-gradient-solid: rgba(0, 0, 0, 100%);
     font-size: $excerpt-font-size;
     color: var(--newtab-text-primary-color);
     margin: 0;
-  }
-}
-
-.ds-card-grid, .ds-section-grid {
-  &.ad-sizing-variant-a .ds-card.ds-spoc-rectangle,
-  &.ad-sizing-variant-b .ds-card.ds-spoc-rectangle {
-    box-shadow: none;
-
-    .ds-image {
-      padding-block-start: 83.4%;
-    }
-
-    .card-stp-button-hover-background {
-      padding-block-start: 83.4%;
-    }
-  }
-
-  &.ad-sizing-variant-a .ds-card.ds-spoc-rectangle {
-    background: none;
-
-    .img-wrapper .ds-image img {
-      border-radius: var(--border-radius-medium);
-    }
-
-    .meta {
-      padding-inline: 0;
-      padding-block: var(--space-medium);
-
-      .title {
-        // Contrast fix for users who have wallpapers set
-        @include wallpaper-contrast-fix;
-
-        text-transform: uppercase;
-        font-size: var(--font-size-small);
-        font-weight: normal;
-        color: var(--newtab-contextual-text-secondary-color);
-      }
-
-      .excerpt {
-        display: none;
-      }
-    }
-
-    .card-stp-button-hover-background {
-      border-radius: var(--border-radius-medium);
-    }
-
-    &.sections-card-ui {
-      .img-wrapper .ds-image img {
-        border-radius: var(--border-radius-large);
-      }
-    }
-
-    &.sections-card-ui:hover {
-      box-shadow: none;
-
-      .img-wrapper .ds-image img {
-        box-shadow: 0 2px 14px 0 var(--newtab-section-card-box-shadow-color);
-      }
-    }
-  }
-
-  &.ad-sizing-variant-b .ds-card.ds-spoc-rectangle {
-    border: var(--border-width) solid var(--border-color-deemphasized);
-
-    .meta {
-      padding-block-start: var(--space-small);
-      padding-block-end: var(--space-medium);
-
-      .title {
-        text-transform: capitalize;
-      }
-    }
   }
 }
 
@@ -543,6 +490,113 @@ $ds-card-image-gradient-solid: rgba(0, 0, 0, 100%);
 
     .ds-card-link:focus {
       border-radius: var(--border-radius-large);
+    }
+  }
+}
+
+.ds-card-grid,
+.ds-section-grid {
+
+  // Intentionally duplicated classname to increase
+  // specificity to override .sections-card-ui styles
+  .ds-card.ds-spoc-rectangle.ds-spoc-rectangle {
+    box-shadow: none;
+    background: none;
+
+    .ds-image {
+      padding-block-start: 83.4%;
+    }
+
+    .card-stp-button-hover-background {
+      padding-block-start: 83.4%;
+    }
+
+    .img-wrapper .ds-image img {
+      border-radius: var(--border-radius-medium);
+    }
+
+    .meta {
+      padding-inline: 0;
+      padding-block: var(--space-medium);
+
+      .title {
+        // Contrast fix for users who have wallpapers set
+        @include wallpaper-contrast-fix;
+
+        text-transform: uppercase;
+        font-size: var(--font-size-small);
+        font-weight: normal;
+        color: var(--newtab-contextual-text-secondary-color);
+      }
+
+      .excerpt {
+        display: none;
+      }
+    }
+
+    .card-stp-button-hover-background {
+      border-radius: var(--border-radius-medium);
+    }
+
+    &.sections-card-ui {
+      .img-wrapper .ds-image img {
+        border-radius: var(--border-radius-large);
+      }
+    }
+
+    &.sections-card-ui:hover {
+      box-shadow: none;
+
+      .img-wrapper .ds-image img {
+        box-shadow: 0 2px 14px 0 var(--newtab-section-card-box-shadow-color);
+      }
+    }
+  }
+}
+
+.refined-cards {
+  .sections-card-footer {
+    display: flex;
+    justify-content: space-between;
+    pointer-events: none;
+    max-width: 230px;
+
+    .source-wrapper {
+      margin-block-end: 0;
+      margin-inline-end: var(--space-xxsmall);
+      max-width: 175px;
+    }
+
+    .card-stp-thumbs-buttons-wrapper {
+      // remove absolute positioning
+      position: static;
+      inset-block-start: 0;
+      transform: translateY(0);
+    }
+  }
+
+  .card-stp-button-hover-background {
+    height: 100%;
+    padding-block-start: 0;
+    background: linear-gradient(to bottom,
+    $black-40 0,
+    $black-40 148px,
+    transparent 148px,
+    transparent 100%);
+
+    .card-stp-button-position-wrapper {
+      inset-block-start: unset;
+      // this value needs to equal the current padding of the card
+      inset-block-end: var(--space-small);
+      inset-inline-end: var(--space-large);
+    }
+  }
+
+  &:hover {
+    .sections-card-footer {
+      .source {
+        display: block;
+      }
     }
   }
 }

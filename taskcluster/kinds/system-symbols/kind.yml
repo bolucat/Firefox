@@ -222,6 +222,8 @@ tasks:
         fetches:
             fetch:
                 - symbol-scrapers
+            toolchain:
+                - linux64-7zz
     opensuse:
         description: Extract OpenSUSE system symbols found in crashreports
         attributes:
@@ -246,6 +248,8 @@ tasks:
         fetches:
             fetch:
                 - symbol-scrapers
+            toolchain:
+                - linux64-7zz
     ubuntu:
         description: Extract Ubuntu system symbols found in crashreports
         attributes:

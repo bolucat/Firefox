@@ -18,6 +18,9 @@ skip-if = ["debug"] # disabled until bug 1961939 is fixed.
 ["browser_custom_functions.js"]
 support-files = ["download_server.sjs"]
 
+["browser_intervention_gating.js"]
+skip-if = ["debug"] # disabled until bug 1961939 is fixed.
+
 ["browser_interventions.js"]
 
 ["browser_pref_check.js"]
@@ -29,6 +32,10 @@ skip-if = ["verify"]
 ["browser_smartblockembeds.js"]
 
 ["browser_smartblockembeds_mutation.js"]
-skip-if = ["os == 'linux' && asan"] # Bug 1858919
+skip-if = [
+  "os == 'linux' && asan",
+  "os == 'linux' && debug",
+  "os == 'mac' && debug",
+] # Bug 1858919, 1960066
 
 ["browser_ua_helpers.js"]

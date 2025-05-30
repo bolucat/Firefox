@@ -3,11 +3,12 @@
 const { ExperimentStore } = ChromeUtils.importESModule(
   "resource://nimbus/lib/ExperimentStore.sys.mjs"
 );
-const { FeatureManifest } = ChromeUtils.importESModule(
-  "resource://nimbus/FeatureManifest.sys.mjs"
-);
 
 const { SYNC_DATA_PREF_BRANCH, SYNC_DEFAULTS_PREF_BRANCH } = ExperimentStore;
+
+add_setup(function () {
+  Services.fog.initializeFOG();
+});
 
 async function setupTest({ ...args } = {}) {
   const ctx = await NimbusTestUtils.setupTest({ ...args });
@@ -46,7 +47,7 @@ add_task(async function test_usageBeforeInitialization() {
 
   store.updateExperiment(experiment.slug, { active: false });
 
-  cleanup();
+  await cleanup();
 });
 
 add_task(async function test_initOnUpdateEventsFire() {
@@ -105,7 +106,7 @@ add_task(async function test_initOnUpdateEventsFire() {
     storePath = await NimbusTestUtils.saveStore(store);
   }
 
-  const { sandbox, store, initExperimentAPI, cleanup } = await setupTest({
+  const { sandbox, initExperimentAPI, cleanup } = await setupTest({
     storePath,
     init: false,
   });
@@ -139,14 +140,15 @@ add_task(async function test_initOnUpdateEventsFire() {
 
   NimbusFeatures.testFeature.offUpdate(onFeatureUpdate);
 
-  store.updateExperiment("testFeature-1", { active: false });
-  store.updateExperiment("testFeature-2", { active: false });
-  store.updateExperiment("coenroll-1", { active: false });
-  store.updateExperiment("coenroll-2", { active: false });
-  store.updateExperiment("coenroll-3", { active: false });
-  store.updateExperiment("coenroll-4", { active: false });
-
-  cleanup();
+  await NimbusTestUtils.cleanupManager([
+    "testFeature-1",
+    "testFeature-2",
+    "coenroll-1",
+    "coenroll-2",
+    "coenroll-3",
+    "coenroll-4",
+  ]);
+  await cleanup();
 });
 
 add_task(async function test_getExperimentForGroup() {
@@ -171,7 +173,7 @@ add_task(async function test_getExperimentForGroup() {
   store.updateExperiment("foo", { active: false });
   store.updateExperiment("bar", { active: false });
 
-  cleanup();
+  await cleanup();
 });
 
 add_task(async function test_hasExperimentForFeature() {
@@ -223,7 +225,7 @@ add_task(async function test_hasExperimentForFeature() {
   store.updateExperiment("foo", { active: false });
   store.updateExperiment("foo2", { active: false });
 
-  cleanup();
+  await cleanup();
 });
 
 add_task(async function test_getAll() {
@@ -273,7 +275,7 @@ add_task(async function test_getAll() {
   store.updateExperiment("qux", { active: false });
   store.updateExperiment("garply", { active: false });
 
-  cleanup();
+  await cleanup();
 });
 
 add_task(async function test_addEnrollment() {
@@ -295,7 +297,7 @@ add_task(async function test_addEnrollment() {
   store.updateExperiment("experiment", { active: false });
   store.updateExperiment("rollout", { active: false });
 
-  cleanup();
+  await cleanup();
 });
 
 add_task(async function test_updateExperiment() {
@@ -326,7 +328,7 @@ add_task(async function test_updateExperiment() {
 
   store.updateExperiment("foo", { active: false });
 
-  cleanup();
+  await cleanup();
 });
 
 add_task(async function test_sync_access_before_init() {
@@ -360,9 +362,9 @@ add_task(async function test_sync_access_before_init() {
 
   store.updateExperiment("foo", { active: false });
 
-  cleanup();
+  await cleanup();
 
-  NimbusTestUtils.assert.storeIsEmpty(newStore);
+  await NimbusTestUtils.assert.storeIsEmpty(newStore);
 });
 
 add_task(async function test_sync_access_update() {
@@ -402,9 +404,9 @@ add_task(async function test_sync_access_update() {
 
   store.updateExperiment("foo", { active: false });
 
-  cleanup();
+  await cleanup();
 
-  NimbusTestUtils.assert.storeIsEmpty(newStore);
+  await NimbusTestUtils.assert.storeIsEmpty(newStore);
 });
 
 add_task(async function test_sync_features_only() {
@@ -425,7 +427,7 @@ add_task(async function test_sync_features_only() {
 
   store.updateExperiment("foo", { active: false });
 
-  cleanup();
+  await cleanup();
 });
 
 add_task(async function test_sync_access_unenroll() {
@@ -446,7 +448,7 @@ add_task(async function test_sync_access_unenroll() {
   const newStore = NimbusTestUtils.stubs.store();
   Assert.equal(newStore.getAll().length, 0, "Unenrolled experiment is deleted");
 
-  cleanup();
+  await cleanup();
 });
 
 add_task(async function test_sync_access_unenroll_2() {
@@ -504,7 +506,7 @@ add_task(async function test_sync_access_unenroll_2() {
     "Cleared pref 2"
   );
 
-  cleanup();
+  await cleanup();
 });
 
 add_task(async function test_getRolloutForFeature_fromStore() {
@@ -522,7 +524,7 @@ add_task(async function test_getRolloutForFeature_fromStore() {
 
   store.updateExperiment("foo", { active: false });
 
-  cleanup();
+  await cleanup();
 });
 
 add_task(async function test_getRolloutForFeature_fromSyncCache() {
@@ -554,7 +556,7 @@ add_task(async function test_getRolloutForFeature_fromSyncCache() {
 
   store.updateExperiment("foo", { active: false });
 
-  cleanup();
+  await cleanup();
 });
 
 add_task(async function test_remoteRollout() {
@@ -598,7 +600,7 @@ add_task(async function test_remoteRollout() {
     "Sync cache is cleared"
   );
 
-  cleanup();
+  await cleanup();
 });
 
 add_task(async function test_syncDataStore_setDefault() {
@@ -626,7 +628,7 @@ add_task(async function test_syncDataStore_setDefault() {
 
   store.updateExperiment("foo", { active: false });
 
-  cleanup();
+  await cleanup();
 });
 
 add_task(async function test_syncDataStore_getDefault() {
@@ -653,7 +655,7 @@ add_task(async function test_syncDataStore_getDefault() {
 
   store.updateExperiment(rollout.slug, { active: false });
 
-  cleanup();
+  await cleanup();
 });
 
 add_task(async function test_addEnrollment_rollout() {
@@ -688,25 +690,27 @@ add_task(async function test_addEnrollment_rollout() {
 
   store.updateExperiment("foo", { active: false });
 
-  cleanup();
+  await cleanup();
 });
 
 add_task(async function test_storeValuePerPref_returnsSameValue_allTypes() {
+  const cleanupFeature = NimbusTestUtils.addTestFeatures(
+    new ExperimentFeature("purple", {
+      isEarlyStartup: true,
+      variables: {
+        string: { type: "string" },
+        bool: { type: "boolean" },
+        array: { type: "json" },
+        number1: { type: "int" },
+        number2: { type: "int" },
+        number3: { type: "int" },
+        json: { type: "json" },
+      },
+    })
+  );
+
   const { store, cleanup } = await setupTest();
 
-  // Add a fake feature that matches the variables we're testing
-  FeatureManifest.purple = {
-    isEarlyStartup: true,
-    variables: {
-      string: { type: "string" },
-      bool: { type: "boolean" },
-      array: { type: "json" },
-      number1: { type: "int" },
-      number2: { type: "int" },
-      number3: { type: "int" },
-      json: { type: "json" },
-    },
-  };
   const experiment = NimbusTestUtils.factories.experiment.withFeatureConfig(
     "foo",
     {
@@ -742,9 +746,8 @@ add_task(async function test_storeValuePerPref_returnsSameValue_allTypes() {
   );
   Assert.deepEqual(branch.getChildList(""), [], "Variables are also removed");
 
-  delete FeatureManifest.purple;
-
-  cleanup();
+  await cleanup();
+  cleanupFeature();
 });
 
 add_task(async function test_cleanupOldRecipes() {
@@ -837,7 +840,7 @@ add_task(async function test_cleanupOldRecipes() {
 
   store.updateExperiment("active-6hrs", { active: false });
 
-  cleanup();
+  await cleanup();
 });
 
 add_task(async function test_restore() {
@@ -859,8 +862,94 @@ add_task(async function test_restore() {
   Assert.ok(store.get("experiment"));
   Assert.ok(store.get("rollout"));
 
-  store.updateExperiment("experiment", { active: false });
-  store.updateExperiment("rollout", { active: false });
+  await NimbusTestUtils.cleanupManager(["experiment", "rollout"]);
+  await cleanup();
+});
 
-  cleanup();
+add_task(async function test_restoreDatabaseConsistency() {
+  Services.fog.testResetFOG();
+
+  let storePath;
+
+  {
+    const store = await NimbusTestUtils.stubs.store();
+    await store.init();
+
+    const experimentRecipe = NimbusTestUtils.factories.recipe.withFeatureConfig(
+      "experiment",
+      { featureId: "no-feature-firefox-desktop" }
+    );
+    const experimentEnrollment =
+      NimbusTestUtils.factories.experiment.withFeatureConfig("experiment", {
+        featureId: "no-feature-firefox-desktop",
+      });
+
+    const rolloutRecipe = NimbusTestUtils.factories.recipe.withFeatureConfig(
+      "rollout",
+      { featureId: "no-feature-firefox-desktop" },
+      { isRollout: true }
+    );
+    const rolloutEnrollment =
+      NimbusTestUtils.factories.experiment.withFeatureConfig(
+        "rollout",
+        { featureId: "no-feature-firefox-desktop" },
+        { isRollout: true }
+      );
+
+    const inactiveExperimentEnrollment =
+      NimbusTestUtils.factories.experiment.withFeatureConfig(
+        "inactive",
+        { featureId: "no-feature-firefox-desktop" },
+        { active: false }
+      );
+
+    store.addEnrollment(experimentEnrollment);
+    await store._addEnrollmentToDatabase(
+      experimentEnrollment,
+      experimentRecipe
+    );
+
+    store.addEnrollment(rolloutEnrollment);
+    await store._addEnrollmentToDatabase(rolloutEnrollment, rolloutRecipe);
+
+    store.addEnrollment(inactiveExperimentEnrollment);
+    await store._addEnrollmentToDatabase(inactiveExperimentEnrollment, null);
+
+    // We should expect to see three successful databaseWrite events.
+    const events = Glean.nimbusEvents.databaseWrite
+      .testGetValue("events")
+      .map(ev => ev.extra);
+
+    Assert.deepEqual(events, [
+      { success: "true" },
+      { success: "true" },
+      { success: "true" },
+    ]);
+
+    storePath = await NimbusTestUtils.saveStore(store);
+  }
+
+  // Initializing the store above will submit the event we care about. Disregard
+  // any metrics previously recorded.
+  Services.fog.testResetFOG();
+
+  const { cleanup } = await NimbusTestUtils.setupTest({
+    storePath,
+    clearTelemetry: true,
+  });
+
+  const events = Glean.nimbusEvents.startupDatabaseConsistency
+    .testGetValue("events")
+    .map(ev => ev.extra);
+  Assert.deepEqual(events, [
+    {
+      total_db_count: "3",
+      total_store_count: "3",
+      db_active_count: "2",
+      store_active_count: "2",
+    },
+  ]);
+
+  await NimbusTestUtils.cleanupManager(["rollout", "experiment"]);
+  await cleanup();
 });

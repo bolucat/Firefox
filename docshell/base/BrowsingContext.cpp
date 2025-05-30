@@ -474,6 +474,10 @@ already_AddRefed<BrowsingContext> BrowsingContext::CreateDetached(
   fields.Get<IDX_AllowJavascript>() =
       inherit ? inherit->GetAllowJavascript() : true;
 
+  fields.Get<IDX_IPAddressSpace>() = inherit
+                                         ? inherit->GetIPAddressSpace()
+                                         : nsILoadInfo::IPAddressSpace::Public;
+
   fields.Get<IDX_IsPopupRequested>() = aOptions.isPopupRequested;
 
   fields.Get<IDX_TopLevelCreatedByWebContent>() =
@@ -3791,7 +3795,7 @@ void BrowsingContext::SessionHistoryCommit(
     const LoadingSessionHistoryInfo& aInfo, uint32_t aLoadType,
     nsIURI* aPreviousURI, SessionHistoryInfo* aPreviousActiveEntry,
     bool aPersist, bool aCloneEntryChildren, bool aChannelExpired,
-    uint32_t aCacheKey) {
+    uint32_t aCacheKey, nsIPrincipal* aPartitionedPrincipal) {
   nsID changeID = {};
   if (XRE_IsContentProcess()) {
     RefPtr<ChildSHistory> rootSH = Top()->GetChildSessionHistory();
@@ -3830,11 +3834,11 @@ void BrowsingContext::SessionHistoryCommit(
     ContentChild* cc = ContentChild::GetSingleton();
     mozilla::Unused << cc->SendHistoryCommit(
         this, aInfo.mLoadId, changeID, aLoadType, aPersist, aCloneEntryChildren,
-        aChannelExpired, aCacheKey);
+        aChannelExpired, aCacheKey, aPartitionedPrincipal);
   } else {
-    Canonical()->SessionHistoryCommit(aInfo.mLoadId, changeID, aLoadType,
-                                      aPersist, aCloneEntryChildren,
-                                      aChannelExpired, aCacheKey);
+    Canonical()->SessionHistoryCommit(
+        aInfo.mLoadId, changeID, aLoadType, aPersist, aCloneEntryChildren,
+        aChannelExpired, aCacheKey, aPartitionedPrincipal);
   }
 }
 

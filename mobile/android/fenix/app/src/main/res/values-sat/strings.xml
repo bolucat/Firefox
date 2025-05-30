@@ -62,8 +62,7 @@
     Explanation for private browsing displayed to users on home view when they first enable private mode.
     %1$s is the name of the app (for example "Firefox").
   -->
-  <string name="private_browsing_placeholder_description_2">%1$s ᱟᱢᱟᱜ ᱥᱮᱸᱫᱽᱨᱟ ᱟᱨ ᱵᱽᱨᱟᱣᱡᱤᱝ ᱱᱟᱜᱟᱢ ᱯᱷᱟᱨᱪᱟᱭ ᱛᱟᱦᱮᱱᱟ ᱱᱤᱡᱮᱨᱟᱜ ᱴᱮᱵᱽ ᱠᱷᱚᱱ ᱡᱚᱠᱷᱚᱱ ᱟᱢ ᱚᱱᱟ ᱵᱚᱸᱫᱚᱭ ᱛᱟᱦᱮᱱᱟᱢ ᱵᱟᱝᱠᱷᱟᱱ ᱮᱯ ᱵᱟᱹᱜᱤ ᱜᱷᱟᱹᱰᱤᱠ ᱾
-ᱡᱚᱦᱚᱜᱽ ᱱᱚᱶᱟ ᱫᱚ ᱮᱱᱚᱱᱚᱢᱟᱥ ᱵᱟᱭ ᱵᱮᱱᱟᱣ ᱢᱮᱭᱟ ᱣᱮᱵᱥᱟᱭᱤᱴ ᱨᱮ ᱟᱨ ᱟᱢᱟᱜ ᱤᱱᱴᱚᱨᱱᱮᱴ ᱥᱮᱣᱟ ᱮᱢᱚᱜᱤᱪ ᱠᱷᱚᱱ, ᱱᱚᱶᱟ ᱫᱚ ᱟᱥᱟᱱ ᱵᱮᱱᱟᱣ ᱛᱟᱦᱮᱱᱟᱭ ᱟᱢᱟᱜ ᱚᱱᱞᱟᱭᱤᱱ ᱠᱟᱹᱢᱤ ᱠᱚ ᱱᱤᱡᱮᱨᱟᱜ ᱫᱚᱦᱚ ᱞᱟᱹᱜᱤᱫ ᱩᱱᱠᱩ ᱠᱷᱚᱱ ᱡᱟᱦᱟᱸᱭ ᱠᱚ ᱱᱚᱶᱟ ᱥᱟᱫᱷᱚᱱ ᱵᱮᱵᱷᱟᱨ ᱛᱟᱦᱮᱱᱼᱟ ᱾</string>
+  <string name="private_browsing_placeholder_description_2">%1$s ᱟᱢᱟᱜ ᱥᱮᱸᱫᱽᱨᱟ ᱟᱨ ᱵᱽᱨᱟᱣᱡᱤᱝ ᱱᱟᱜᱟᱢ ᱯᱷᱟᱨᱪᱟᱭ ᱛᱟᱦᱮᱱᱟ ᱱᱤᱡᱮᱨᱟᱜ ᱴᱮᱵᱽ ᱠᱷᱚᱱ ᱡᱚᱠᱷᱚᱱ ᱟᱢ ᱚᱱᱟ ᱵᱚᱸᱫᱚᱭ ᱛᱟᱦᱮᱱᱟᱢ ᱵᱟᱝᱠᱷᱟᱱ ᱮᱯ ᱵᱟᱹᱜᱤ ᱜᱷᱟᱹᱰᱤᱠ ᱾ ᱡᱚᱦᱚᱜᱽ ᱱᱚᱶᱟ ᱫᱚ ᱮᱱᱚᱱᱚᱢᱟᱥ ᱵᱟᱭ ᱵᱮᱱᱟᱣ ᱢᱮᱭᱟ ᱣᱮᱵᱥᱟᱭᱤᱴ ᱨᱮ ᱟᱨ ᱟᱢᱟᱜ ᱤᱱᱴᱚᱨᱱᱮᱴ ᱥᱮᱣᱟ ᱮᱢᱚᱜᱤᱪ ᱠᱷᱚᱱ, ᱱᱚᱶᱟ ᱫᱚ ᱟᱥᱟᱱ ᱵᱮᱱᱟᱣ ᱛᱟᱦᱮᱱᱟᱭ ᱟᱢᱟᱜ ᱚᱱᱞᱟᱭᱤᱱ ᱠᱟᱹᱢᱤ ᱠᱚ ᱱᱤᱡᱮᱨᱟᱜ ᱫᱚᱦᱚ ᱞᱟᱹᱜᱤᱫ ᱩᱱᱠᱩ ᱠᱷᱚᱱ ᱡᱟᱦᱟᱸᱭ ᱠᱚ ᱱᱚᱶᱟ ᱥᱟᱫᱷᱚᱱ ᱵᱮᱵᱷᱟᱨ ᱛᱟᱦᱮᱱᱼᱟ ᱾</string>
   <string name="private_browsing_common_myths">ᱱᱤᱡᱮᱨᱟᱜ ᱵᱽᱨᱟᱣᱡᱤᱝ ᱵᱟᱵᱚᱛ ᱥᱚᱢᱟᱱ ᱮᱰᱮ ᱠᱚ</string>
   <!--
     True Private Browsing Mode
@@ -494,7 +493,7 @@
   <!-- Home onboarding dialog sign into sync screen title text. -->
   <string name="onboarding_home_sync_title_3">ᱯᱚᱨᱫᱟ ᱵᱚᱫᱚᱞ ᱫᱚ ᱱᱤᱛᱚᱜ ᱟᱹᱰᱤ ᱤᱫᱤᱜ ᱠᱟᱱᱟ</string>
   <!-- Home onboarding dialog sign into sync screen description text. -->
-  <string name="onboarding_home_sync_description">ᱚᱲᱟᱜ ᱥᱟᱦᱴᱟ ᱨᱮ ᱱᱤᱛᱚᱜ ᱡᱟᱦᱟᱸ ᱠᱷᱚᱱ ᱮᱢ ᱟᱲᱟᱜ ᱞᱮᱜᱼᱟ ᱮᱴᱟᱜ ᱥᱟᱫᱷᱚᱱ ᱨᱮᱭᱟᱜ ᱴᱮᱵᱽ ᱠᱷᱚᱱ ᱯᱟᱧᱡᱟ ᱫᱟᱲᱮᱭᱟᱜᱼᱟᱢ ᱾ </string>
+  <string name="onboarding_home_sync_description">ᱚᱲᱟᱜ ᱥᱟᱦᱴᱟ ᱨᱮ ᱱᱤᱛᱚᱜ ᱡᱟᱦᱟᱸ ᱠᱷᱚᱱ ᱮᱢ ᱟᱲᱟᱜ ᱞᱮᱜᱼᱟ ᱮᱴᱟᱜ ᱥᱟᱫᱷᱚᱱ ᱨᱮᱭᱟᱜ ᱴᱮᱵᱽ ᱠᱷᱚᱱ ᱯᱟᱧᱡᱟ ᱫᱟᱲᱮᱭᱟᱜᱼᱟᱢ ᱾</string>
   <!-- Text for the button to continue the onboarding on the home onboarding dialog. -->
   <string name="onboarding_home_get_started_button">ᱫᱮᱞᱟ ᱮᱛᱦᱚᱵ ᱞᱮᱜᱮ ᱵᱚᱱ</string>
   <!-- Text for the button to navigate to the sync sign in screen on the home onboarding dialog. -->
@@ -576,41 +575,41 @@
     Onboarding header for the add-ons card used by Nimbus experiments. Nimbus experiments do not support string placeholders.
     Note: The word "Firefox" should NOT be translated
   -->
-  <string name="onboarding_add_on_header" tools:ignore="BrandUsage,UnusedResources">ᱮᱠᱥᱴᱮᱱᱥᱚᱱ ᱥᱟᱶ ᱟᱢᱟᱜ Firefox ᱠᱟᱥᱴᱚᱢᱟᱭᱤᱡᱽ ᱢᱮ</string>
+  <string name="onboarding_add_on_header" moz:removedIn="140" tools:ignore="BrandUsage,UnusedResources">ᱮᱠᱥᱴᱮᱱᱥᱚᱱ ᱥᱟᱶ ᱟᱢᱟᱜ Firefox ᱠᱟᱥᱴᱚᱢᱟᱭᱤᱡᱽ ᱢᱮ</string>
   <!-- Onboarding sub header for the add-ons card, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_sub_header" tools:ignore="UnusedResources">ᱟᱢᱟᱜ ᱨᱩᱠᱷᱤᱭᱟᱹ, ᱩᱛᱟᱹᱨ ᱟᱨ ᱵᱟᱹᱲᱛᱤ ᱵᱟᱹᱲᱛᱤ ᱞᱟᱹᱜᱤᱫ ᱛᱮᱥᱟᱨ ᱯᱟᱨᱴᱤ ᱮᱠᱥᱴᱮᱱᱥᱚᱱ ᱥᱮᱞᱮᱫ ᱢᱮ᱾</string>
+  <string name="onboarding_add_on_sub_header" moz:removedIn="140" tools:ignore="UnusedResources">ᱟᱢᱟᱜ ᱨᱩᱠᱷᱤᱭᱟᱹ, ᱩᱛᱟᱹᱨ ᱟᱨ ᱵᱟᱹᱲᱛᱤ ᱵᱟᱹᱲᱛᱤ ᱞᱟᱹᱜᱤᱫ ᱛᱮᱥᱟᱨ ᱯᱟᱨᱴᱤ ᱮᱠᱥᱴᱮᱱᱥᱚᱱ ᱥᱮᱞᱮᱫ ᱢᱮ᱾</string>
   <!-- Onboarding add-ons card, for checking more add-ons on, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_explore_more_extensions_2">ᱟᱨᱦᱚᱸ ᱮᱠᱥᱴᱮᱱᱥᱚᱱᱠᱚ ᱯᱟᱧᱡᱟᱭ ᱢᱮ</string>
+  <string name="onboarding_add_on_explore_more_extensions_2" moz:removedIn="140" tools:ignore="UnusedResources">ᱟᱨᱦᱚᱸ ᱮᱠᱥᱴᱮᱱᱥᱚᱱᱠᱚ ᱯᱟᱧᱡᱟᱭ ᱢᱮ</string>
   <!-- Onboarding add-ons card, button for start browsing, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_start_browsing_button_2">ᱵᱽᱨᱟᱣᱩᱡᱤᱝ ᱮᱦᱚᱵᱽ ᱢᱮ</string>
+  <string name="onboarding_add_on_start_browsing_button_2" moz:removedIn="140" tools:ignore="UnusedResources">ᱵᱽᱨᱟᱣᱩᱡᱤᱝ ᱮᱦᱚᱵᱽ ᱢᱮ</string>
   <!-- Ublock name for the onboarding add-ons card, used by Nimbus experiments. Note: The word "Ublock Origin" is a brand name should NOT be translated -->
-  <string name="onboarding_add_on_ublock_name" tools:ignore="UnusedResources">uBlock Origin</string>
+  <string name="onboarding_add_on_ublock_name" moz:removedIn="140" tools:ignore="UnusedResources">uBlock Origin</string>
   <!-- Ublock description for the onboarding add-ons card, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_ublock_description" tools:ignore="UnusedResources">ᱵᱤᱜᱽᱭᱟᱯ ᱠᱚ ᱯᱨᱚᱵᱷᱟᱣ ᱟᱨ ᱦᱩᱱᱟᱹᱨ ᱞᱮᱠᱟᱛᱮ ᱵᱞᱚᱠ ᱢᱮ ᱾</string>
+  <string name="onboarding_add_on_ublock_description" moz:removedIn="140" tools:ignore="UnusedResources">ᱵᱤᱜᱽᱭᱟᱯ ᱠᱚ ᱯᱨᱚᱵᱷᱟᱣ ᱟᱨ ᱦᱩᱱᱟᱹᱨ ᱞᱮᱠᱟᱛᱮ ᱵᱞᱚᱠ ᱢᱮ ᱾</string>
   <!-- Privacy Badger name for the onboarding add-ons card, used by Nimbus experiments. Note: The word "Privacy Badger" is a brand name should NOT be translated -->
-  <string name="onboarding_add_on_privacy_badger_name" tools:ignore="UnusedResources">Privacy Badger</string>
+  <string name="onboarding_add_on_privacy_badger_name" moz:removedIn="140" tools:ignore="UnusedResources">Privacy Badger</string>
   <!-- Privacy Badger description for the onboarding add-ons card, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_privacy_badger_description" tools:ignore="UnusedResources">ᱮᱱᱴᱤ-ᱴᱨᱮᱠᱤᱝ ᱨᱮᱢᱚ ᱾ ᱵᱟᱝ ᱧᱮᱞᱚᱜ ᱴᱨᱮᱠᱟᱨ ᱠᱚ ᱟᱨ ᱡᱟᱹᱥᱛᱤ ᱵᱤᱜᱽᱭᱟᱯ ᱠᱚ ᱵᱚᱱᱫᱚᱭ ᱢᱮ ᱾</string>
+  <string name="onboarding_add_on_privacy_badger_description" moz:removedIn="140" tools:ignore="UnusedResources">ᱮᱱᱴᱤ-ᱴᱨᱮᱠᱤᱝ ᱨᱮᱢᱚ ᱾ ᱵᱟᱝ ᱧᱮᱞᱚᱜ ᱴᱨᱮᱠᱟᱨ ᱠᱚ ᱟᱨ ᱡᱟᱹᱥᱛᱤ ᱵᱤᱜᱽᱭᱟᱯ ᱠᱚ ᱵᱚᱱᱫᱚᱭ ᱢᱮ ᱾</string>
   <!-- Search by Image name for the onboarding add-ons card, used by Nimbus experiments. Note: The word "Search by Image" is a brand name should NOT be translated -->
-  <string name="onboarding_add_on_search_by_image_name" tools:ignore="UnusedResources">ᱪᱤᱛᱟᱹᱨ ᱞᱮᱠᱟᱛᱮ ᱥᱮᱸᱫᱽᱨᱟ</string>
+  <string name="onboarding_add_on_search_by_image_name" moz:removedIn="140" tools:ignore="UnusedResources">ᱪᱤᱛᱟᱹᱨ ᱞᱮᱠᱟᱛᱮ ᱥᱮᱸᱫᱽᱨᱟ</string>
   <!-- Search by Image description for the onboarding add-ons card, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_search_by_image_description" tools:ignore="UnusedResources">ᱢᱤᱫ ᱢᱚᱡᱟᱱ ᱪᱤᱛᱟᱹᱨ ᱧᱮᱞ ᱢᱮ ᱟᱨ ᱱᱚᱶᱟ ᱵᱟᱨᱮᱛᱮ ᱵᱟᱹᱲᱛᱤ ᱵᱟᱲᱟᱭ ᱢᱮ ᱾</string>
+  <string name="onboarding_add_on_search_by_image_description" moz:removedIn="140" tools:ignore="UnusedResources">ᱢᱤᱫ ᱢᱚᱡᱟᱱ ᱪᱤᱛᱟᱹᱨ ᱧᱮᱞ ᱢᱮ ᱟᱨ ᱱᱚᱶᱟ ᱵᱟᱨᱮᱛᱮ ᱵᱟᱹᱲᱛᱤ ᱵᱟᱲᱟᱭ ᱢᱮ ᱾</string>
   <!-- Dark Reader name for the onboarding add-ons card, used by Nimbus experiments. Note: The word "Dark Reader" is a brand name should NOT be translated -->
-  <string name="onboarding_add_on_dark_reader_name" tools:ignore="UnusedResources">ᱧᱩᱛ ᱯᱟᱲᱦᱟᱣᱤᱡ</string>
+  <string name="onboarding_add_on_dark_reader_name" moz:removedIn="140" tools:ignore="UnusedResources">ᱧᱩᱛ ᱯᱟᱲᱦᱟᱣᱤᱡ</string>
   <!-- Privacy Badger description for the onboarding add-ons card, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_dark_reader_description" tools:ignore="UnusedResources">ᱢᱚᱵᱟᱭᱤᱞ ᱣᱮᱵᱽ ᱞᱟᱹᱜᱤᱫ ᱠᱟᱥᱴᱚᱢ ᱰᱟᱨᱠ ᱢᱳᱰ ᱾</string>
+  <string name="onboarding_add_on_dark_reader_description" moz:removedIn="140" tools:ignore="UnusedResources">ᱢᱚᱵᱟᱭᱤᱞ ᱣᱮᱵᱽ ᱞᱟᱹᱜᱤᱫ ᱠᱟᱥᱴᱚᱢ ᱰᱟᱨᱠ ᱢᱳᱰ ᱾</string>
   <!-- Label for the number of reviews for an add-on. %1$s is the formatted number of reviews e.g. "1,234", "12,345", "123,456". -->
-  <string name="onboarding_add_on_reviews_label">ᱨᱤᱵᱷᱤᱭᱩᱡ ᱠᱚ: %1$s</string>
+  <string name="onboarding_add_on_reviews_label" moz:removedIn="140" tools:ignore="UnusedResources">ᱨᱤᱵᱷᱤᱭᱩᱡ ᱠᱚ: %1$s</string>
   <!-- Content description for the add-on icon. -->
-  <string name="onboarding_add_on_icon_content_description">ᱮᱰ-ᱚᱱ ᱪᱤᱱᱦᱟᱹ</string>
+  <string name="onboarding_add_on_icon_content_description" moz:removedIn="140" tools:ignore="UnusedResources">ᱮᱰ-ᱚᱱ ᱪᱤᱱᱦᱟᱹ</string>
   <!-- Content description for the an installed add-on icon. -->
-  <string name="onboarding_installed_add_on_icon_content_description">ᱮᱰ-ᱚᱱ ᱪᱤᱱᱦᱟᱹ ᱵᱚᱦᱟᱞ ᱮᱱᱟ</string>
+  <string name="onboarding_installed_add_on_icon_content_description" moz:removedIn="140" tools:ignore="UnusedResources">ᱮᱰ-ᱚᱱ ᱪᱤᱱᱦᱟᱹ ᱵᱚᱦᱟᱞ ᱮᱱᱟ</string>
   <!-- Content description for the an installing add-on icon. -->
-  <string name="onboarding_installing_add_on_icon_content_description">ᱮᱰ-ᱚᱱ ᱪᱤᱱᱦᱟᱹ ᱵᱚᱦᱟᱞᱚᱜ ᱠᱟᱱᱟ</string>
+  <string name="onboarding_installing_add_on_icon_content_description" moz:removedIn="140" tools:ignore="UnusedResources">ᱮᱰ-ᱚᱱ ᱪᱤᱱᱦᱟᱹ ᱵᱚᱦᱟᱞᱚᱜ ᱠᱟᱱᱟ</string>
   <!-- Content description for the add add-on button. -->
-  <string name="onboarding_add_on_add_button_content_description">ᱮᱰ-ᱚᱱ ᱵᱩᱛᱟᱹᱢ ᱥᱮᱞᱮᱫ ᱢᱮ</string>
+  <string name="onboarding_add_on_add_button_content_description" moz:removedIn="140" tools:ignore="UnusedResources">ᱮᱰ-ᱚᱱ ᱵᱩᱛᱟᱹᱢ ᱥᱮᱞᱮᱫ ᱢᱮ</string>
   <!-- Content description for the star rating group. %1$s is the rating. -->
-  <string name="onboarding_add_on_star_rating_content_description">5 ᱠᱷᱚᱱ %1$s ᱨᱮᱴ ᱟᱠᱟᱱᱟ</string>
+  <string name="onboarding_add_on_star_rating_content_description" moz:removedIn="140" tools:ignore="UnusedResources">5 ᱠᱷᱚᱱ %1$s ᱨᱮᱴ ᱟᱠᱟᱱᱟ</string>
   <!-- Title for the privacy preferences dialog shown during onboarding. Note: The word "Firefox" should NOT be translated. -->
   <string name="onboarding_preferences_dialog_title" tools:ignore="BrandUsage">ᱯᱷᱟᱭᱟᱨᱯᱷᱚᱠᱥ ᱵᱮᱥ ᱵᱮᱱᱟᱣ ᱞᱟᱹᱜᱤᱫ ᱟᱞᱮ ᱜᱚᱲᱚ ᱞᱮᱢ</string>
   <!-- Title for the crash reporting option in the privacy preferences dialog shown during onboarding. -->
@@ -621,7 +620,7 @@
   <string name="onboarding_preferences_dialog_crash_reporting_learn_more_2">ᱰᱷᱮᱨ ᱥᱮᱬᱟᱭ ᱢᱮ</string>
   <!-- Title for the usage data option in the privacy preferences dialog shown during onboarding. Note: The word "Mozilla" should NOT be translated. -->
   <string name="onboarding_preferences_dialog_usage_data_title">Mozilla ᱨᱮ ᱴᱮᱠᱱᱤᱠᱟᱞ ᱟᱨ ᱤᱱᱴᱟᱨᱮᱠᱥᱚᱱ ᱰᱟᱴᱟ ᱵᱷᱮᱡᱟᱭ ᱢᱮ</string>
-  <string name="onboarding_preferences_dialog_usage_data_description_2" tools:ignore="BrandUsage">ᱟᱢᱟᱜ ᱰᱤᱵᱷᱟᱭᱤᱥ ᱵᱟᱵᱚᱛ ᱰᱟᱴᱟ, ᱦᱟᱰᱣᱮᱨ ᱠᱚᱱᱯᱷᱤᱜᱟᱨᱮᱥᱚᱱ, ᱟᱨ ᱟᱢ ᱪᱮᱫ ᱞᱮᱠᱟ Firefox ᱮᱢ  ᱵᱮᱵᱷᱟᱨᱮᱫᱟ ᱚᱱᱟ ᱫᱚ ᱡᱚᱛᱚ ᱦᱚᱲ ᱞᱟᱹᱜᱤᱫ ᱯᱷᱤᱪᱟᱨ, ᱠᱟᱹᱢᱤᱦᱚᱨᱟ ᱟᱨ ᱥᱴᱮᱵᱤᱞᱤᱴᱤ ᱥᱩᱫᱷᱟᱹᱨ ᱨᱮ ᱜᱚᱲᱚ ᱮᱢᱟᱭᱟ ᱾</string>
+  <string name="onboarding_preferences_dialog_usage_data_description_2" tools:ignore="BrandUsage">ᱟᱢᱟᱜ ᱰᱤᱵᱷᱟᱭᱤᱥ ᱵᱟᱵᱚᱛ ᱰᱟᱴᱟ, ᱦᱟᱰᱣᱮᱨ ᱠᱚᱱᱯᱷᱤᱜᱟᱨᱮᱥᱚᱱ, ᱟᱨ ᱟᱢ ᱪᱮᱫ ᱞᱮᱠᱟ Firefox ᱮᱢ ᱵᱮᱵᱷᱟᱨᱮᱫᱟ ᱚᱱᱟ ᱫᱚ ᱡᱚᱛᱚ ᱦᱚᱲ ᱞᱟᱹᱜᱤᱫ ᱯᱷᱤᱪᱟᱨ, ᱠᱟᱹᱢᱤᱦᱚᱨᱟ ᱟᱨ ᱥᱴᱮᱵᱤᱞᱤᱴᱤ ᱥᱩᱫᱷᱟᱹᱨ ᱨᱮ ᱜᱚᱲᱚ ᱮᱢᱟᱭᱟ ᱾</string>
   <string name="onboarding_preferences_dialog_usage_data_learn_more_2">ᱰᱷᱮᱨ ᱥᱮᱬᱟᱭ ᱢᱮ</string>
   <!-- Positive button label for the privacy preferences dialog shown during onboarding. -->
   <string name="onboarding_preferences_dialog_positive_button">ᱦᱩᱭᱮᱱᱟ</string>
@@ -774,7 +773,7 @@
   <!-- Preference title for using the screen lock to hide tabs in private browsing -->
   <string name="preferences_pbm_lock_screen_title">ᱯᱨᱟᱭᱣᱮᱴ ᱵᱽᱨᱟᱣᱩᱡᱤᱝ ᱨᱮ ᱴᱮᱵᱽ ᱩᱠᱩ ᱞᱟᱹᱜᱤᱫ ᱥᱠᱨᱤᱱ ᱞᱚᱠ ᱵᱮᱵᱷᱟᱨ ᱢᱮ</string>
   <!-- Informs the user how to access the tabs when "Use screen lock to hide tabs in private browsing" is enabled -->
-  <string name="preferences_pbm_lock_screen_summary">ᱠᱟᱹᱴᱩᱵ ᱪᱤᱛᱟᱹᱨ, ᱪᱮᱦᱨᱟ ᱠᱟᱹᱴᱷᱤ, ᱵᱟᱝᱠᱷᱟᱱ PIN ᱥᱟᱶ ᱴᱮᱵᱽ ᱧᱮᱞ ᱢᱮ ᱾</string>
+  <string name="preferences_pbm_lock_screen_summary" moz:removedIn="140" tools:ignore="UnusedResources">ᱠᱟᱹᱴᱩᱵ ᱪᱤᱛᱟᱹᱨ, ᱪᱮᱦᱨᱟ ᱠᱟᱹᱴᱷᱤ, ᱵᱟᱝᱠᱷᱟᱱ PIN ᱥᱟᱶ ᱴᱮᱵᱽ ᱧᱮᱞ ᱢᱮ ᱾</string>
   <!-- Label for cookie banner section in quick settings panel. -->
   <string name="cookie_banner_blocker">ᱠᱩᱠᱤ ᱵᱮᱱᱚᱨ ᱟᱠᱚᱴᱤᱭᱟᱹ</string>
   <!-- Preference for removing cookie/consent banners from sites automatically in private mode. See reduce_cookie_banner_summary for additional context. -->
@@ -800,8 +799,7 @@
   <!-- Title text for a detail explanation indicating cookie banner handling is off this site, this is shown as part of the cookie banner panel in the toolbar. %1$s is a shortened URL of the current site. -->
   <string name="reduce_cookie_banner_details_panel_title_off_for_site_1">%1$s ᱞᱟᱹᱜᱤᱫ ᱠᱩᱠᱤ ᱵᱮᱱᱚᱨ ᱟᱠᱚᱴᱤᱭᱟᱹ ᱵᱚᱸᱫᱚ ᱪᱷᱚᱭ ᱢᱮ?</string>
   <!-- Title text for a detail explanation indicating cookie banner reducer didn't work for the current site, this is shown as part of the cookie banner panel in the toolbar. %1$s is the name of the app (for example "Firefox"). -->
-  <string name="reduce_cookie_banner_details_panel_title_unsupported_site_request_2">ᱱᱚᱶᱟ ᱥᱟᱭᱤᱴ ᱨᱮ %1$s ᱫᱚ ᱟᱡ ᱛᱮ ᱠᱩᱠᱤ ᱱᱚᱦᱚᱨ ᱵᱟᱝ ᱢᱟᱱᱟ ᱫᱟᱲᱮᱭᱟᱜ ᱠᱟᱱᱟᱭ ᱾ ᱵᱷᱚᱵᱤᱥᱚᱛ ᱨᱮ ᱱᱚᱶᱟ ᱥᱟᱭᱤᱴ ᱜᱚᱲᱚ ᱮᱢ ᱞᱟᱹᱜᱤᱫ ᱱᱮᱦᱚᱨ ᱵᱷᱮᱡᱟ ᱫᱟᱲᱮᱭᱟᱜᱼᱟᱢ ᱾
-</string>
+  <string name="reduce_cookie_banner_details_panel_title_unsupported_site_request_2">ᱱᱚᱶᱟ ᱥᱟᱭᱤᱴ ᱨᱮ %1$s ᱫᱚ ᱟᱡ ᱛᱮ ᱠᱩᱠᱤ ᱱᱚᱦᱚᱨ ᱵᱟᱝ ᱢᱟᱱᱟ ᱫᱟᱲᱮᱭᱟᱜ ᱠᱟᱱᱟᱭ ᱾ ᱵᱷᱚᱵᱤᱥᱚᱛ ᱨᱮ ᱱᱚᱶᱟ ᱥᱟᱭᱤᱴ ᱜᱚᱲᱚ ᱮᱢ ᱞᱟᱹᱜᱤᱫ ᱱᱮᱦᱚᱨ ᱵᱷᱮᱡᱟ ᱫᱟᱲᱮᱭᱟᱜᱼᱟᱢ ᱾</string>
   <!-- Long text for a detail explanation indicating what will happen if cookie banner handling is off for a site, this is shown as part of the cookie banner panel in the toolbar. %1$s is the name of the app (for example "Firefox"). -->
   <string name="reduce_cookie_banner_details_panel_description_off_for_site_1">ᱵᱚᱸᱫᱚᱭ ᱢᱮ ᱟᱨ %1$s ᱫᱚ ᱠᱩᱠᱤ ᱠᱚ ᱢᱮᱴᱟᱣ ᱠᱟᱛᱮ ᱱᱚᱣᱟ ᱥᱟᱦᱴᱟ ᱨᱤᱞᱚᱰ ᱟ ᱾ ᱱᱚᱶᱟ ᱫᱚ ᱟᱢ ᱵᱟᱦᱨᱮ ᱩᱰᱩᱠ ᱢᱮᱭᱟᱭ ᱥᱮ ᱠᱤᱨᱤᱧ ᱠᱟᱨᱴ ᱠᱷᱟᱹᱞᱤ ᱟ ᱾</string>
   <!-- Long text for a detail explanation indicating what will happen if cookie banner handling is on for a site, this is shown as part of the cookie banner panel in the toolbar. %1$s is the name of the app (for example "Firefox"). -->
@@ -964,9 +962,9 @@
   -->
   <string name="customize_toggle_recently_visited">ᱱᱤᱛᱚᱜᱟᱜ ᱦᱤᱨᱤᱭᱟᱜ</string>
   <!-- Title for the customize home screen section with Pocket. -->
-  <string name="customize_toggle_pocket_2">ᱢᱚᱱᱮᱼᱜᱷᱟᱱᱴᱟ ᱠᱟᱹᱦᱱᱤᱠᱚ</string>
+  <string name="customize_toggle_pocket_2" tools:ignore="UnusedResources" moz:removedIn="140">ᱢᱚᱱᱮᱼᱜᱷᱟᱱᱴᱟ ᱠᱟᱹᱦᱱᱤᱠᱚ</string>
   <!-- Summary for the customize home screen section with Pocket. %s is "Pocket". -->
-  <string name="customize_toggle_pocket_summary">%s ᱫᱟᱨᱟᱭ ᱛᱮ ᱫᱟᱲᱮ ᱮᱢ ᱠᱟᱱ ᱚᱱᱚᱞᱠᱚ</string>
+  <string name="customize_toggle_pocket_summary" tools:ignore="UnusedResources" moz:removedIn="140">%s ᱫᱟᱨᱟᱭ ᱛᱮ ᱫᱟᱲᱮ ᱮᱢ ᱠᱟᱱ ᱚᱱᱚᱞᱠᱚ</string>
   <!-- Title for the customize home screen section with sponsored Pocket stories. -->
   <string name="customize_toggle_pocket_sponsored">ᱜᱟᱲᱚ ᱠᱟᱱ ᱠᱟᱹᱦᱱᱤ ᱠᱚ</string>
   <!-- Title for the opening wallpaper settings screen -->
@@ -1042,7 +1040,7 @@
   <!-- Preference for triggering sync -->
   <string name="preferences_sync_now">ᱱᱤᱛᱚᱜ ᱥᱭᱝᱠ ᱢᱮ</string>
   <!-- Preference category for sync -->
-  <string name="preferences_sync_category">ᱚᱠᱟ ᱥᱭᱝᱠ ᱨᱮᱭᱟᱜ ᱛᱟᱦᱮᱸᱱᱟ ᱵᱟᱪᱷᱟᱣ ᱢᱮ </string>
+  <string name="preferences_sync_category">ᱚᱠᱟ ᱥᱭᱝᱠ ᱨᱮᱭᱟᱜ ᱛᱟᱦᱮᱸᱱᱟ ᱵᱟᱪᱷᱟᱣ ᱢᱮ</string>
   <!-- Preference for syncing history -->
   <string name="preferences_sync_history">ᱱᱟᱜᱟᱢ</string>
   <!-- Preference for syncing bookmarks -->
@@ -1136,7 +1134,7 @@
 
     Instructions on how to access pairing
   -->
-  <string name="pair_instructions_2">QR ᱠᱳᱰ ᱥᱠᱟᱱ ᱢᱮ ᱡᱟ &lt;b&gt;firefox.com/pair&lt;/b&gt; ᱨᱮ ᱩᱫᱩᱠ ᱠᱟᱫᱟ ᱠᱚ</string>
+  <string name="pair_instructions_2"><![CDATA[QR ᱠᱳᱰ ᱥᱠᱟᱱ ᱢᱮ ᱡᱟ <b>firefox.com/pair</b> ᱨᱮ ᱩᱫᱩᱠ ᱠᱟᱫᱟ ᱠᱚ]]></string>
   <!--
     Toolbar Preferences
 
@@ -1272,8 +1270,7 @@
   <!-- Option for always opening the homepage when re-opening the app after four hours of inactivity -->
   <string name="opening_screen_after_four_hours_of_inactivity">ᱯᱩᱱ ᱴᱟᱲᱟᱝ ᱵᱤᱱᱟᱹ ᱠᱟᱹᱢᱤ ᱞᱟᱦᱟ ᱨᱮ ᱚᱲᱟᱜ ᱥᱟᱦᱴᱟ</string>
   <!-- Summary for tabs preference when auto closing tabs setting is set to manual close -->
-  <string name="close_tabs_manually_summary">ᱱᱤᱡᱮ ᱛᱮ ᱵᱚᱸᱫᱽ ᱢᱮ
-</string>
+  <string name="close_tabs_manually_summary">ᱱᱤᱡᱮ ᱛᱮ ᱵᱚᱸᱫᱽ ᱢᱮ</string>
   <!-- Summary for tabs preference when auto closing tabs setting is set to auto close tabs after one day -->
   <string name="close_tabs_after_one_day_summary">ᱢᱤᱫᱽ ᱫᱤᱱ ᱛᱟᱭᱚᱢ ᱛᱮ ᱵᱚᱸᱫᱚᱭ ᱢᱮ</string>
   <!-- Summary for tabs preference when auto closing tabs setting is set to auto close tabs after one week -->
@@ -1486,7 +1483,7 @@
   -->
   <string name="webcompat_reporter_screen_title">ᱨᱟᱹᱯᱩᱫ ᱥᱟᱭᱤᱴ ᱠᱷᱚᱵᱚᱨ ᱢᱮ</string>
   <!-- The description of the Web Compat Reporter feature. %1$s is the name of the app (for example "Firefox"). -->
-  <string name="webcompat_reporter_description">ᱡᱷᱚᱛᱚ ᱦᱚᱲ ᱞᱟᱹᱜᱤᱫ %1$s ᱵᱮᱥ ᱵᱮᱱᱟᱣ ᱜᱚᱲᱚ ᱮᱢᱚᱜ ᱢᱮ ᱾  ᱢᱚᱡᱤᱞᱟ ᱠᱟᱹᱢᱤᱭᱟᱹ ᱠᱚ ᱟᱢ ᱵᱷᱮᱡᱟ ᱟᱠᱟᱫ ᱵᱟᱯᱟᱰᱟᱭ ᱠᱚ ᱣᱮᱵᱽᱥᱟᱭᱤᱴ ᱮᱴᱠᱮᱴᱚᱬᱮ ᱠᱚ ᱥᱟᱹᱛ ᱞᱟᱹᱜᱤᱫ ᱠᱚ ᱵᱮᱵᱷᱟᱨᱟ ᱾</string>
+  <string name="webcompat_reporter_description">ᱡᱷᱚᱛᱚ ᱦᱚᱲ ᱞᱟᱹᱜᱤᱫ %1$s ᱵᱮᱥ ᱵᱮᱱᱟᱣ ᱜᱚᱲᱚ ᱮᱢᱚᱜ ᱢᱮ ᱾ ᱢᱚᱡᱤᱞᱟ ᱠᱟᱹᱢᱤᱭᱟᱹ ᱠᱚ ᱟᱢ ᱵᱷᱮᱡᱟ ᱟᱠᱟᱫ ᱵᱟᱯᱟᱰᱟᱭ ᱠᱚ ᱣᱮᱵᱽᱥᱟᱭᱤᱴ ᱮᱴᱠᱮᱴᱚᱬᱮ ᱠᱚ ᱥᱟᱹᱛ ᱞᱟᱹᱜᱤᱫ ᱠᱚ ᱵᱮᱵᱷᱟᱨᱟ ᱾</string>
   <!-- The text field label of the URL text field. This is displayed above the user-inputted URL. -->
   <string name="webcompat_reporter_label_url">URL</string>
   <!-- The error message of the URL text field when an invalid URL has been entered. -->
@@ -1506,15 +1503,15 @@
 
     Broken site reason text for site slow or not working
   -->
-  <string name="webcompat_reporter_reason_slow">ᱥᱟᱭᱤᱴ ᱫᱚ ᱵᱟᱭ ᱥᱮ ᱵᱟᱭ ᱠᱟᱹᱢᱤ ᱠᱟᱱᱟ</string>
+  <string name="webcompat_reporter_reason_slow" moz:removedIn="140" tools:ignore="UnusedResources">ᱥᱟᱭᱤᱴ ᱫᱚ ᱵᱟᱭ ᱥᱮ ᱵᱟᱭ ᱠᱟᱹᱢᱤ ᱠᱟᱱᱟ</string>
   <!-- Broken site reason text for images or videos -->
-  <string name="webcompat_reporter_reason_media">ᱪᱤᱛᱟᱹᱨ ᱥᱮ ᱣᱤᱰᱳᱭᱳᱠᱚ</string>
+  <string name="webcompat_reporter_reason_media" moz:removedIn="140" tools:ignore="UnusedResources">ᱪᱤᱛᱟᱹᱨ ᱥᱮ ᱣᱤᱰᱳᱭᱳᱠᱚ</string>
   <!-- Broken site reason text for buttons, links, and other content -->
-  <string name="webcompat_reporter_reason_content">ᱵᱩᱛᱟᱢ, ᱞᱤᱝᱠ, ᱟᱨ ᱮᱴᱟᱜ ᱡᱤᱱᱤᱥ</string>
+  <string name="webcompat_reporter_reason_content" moz:removedIn="140" tools:ignore="UnusedResources">ᱵᱩᱛᱟᱢ, ᱞᱤᱝᱠ, ᱟᱨ ᱮᱴᱟᱜ ᱡᱤᱱᱤᱥ</string>
   <!-- Broken site reason text for sign in or sign out -->
-  <string name="webcompat_reporter_reason_account">ᱥᱩᱦᱤ ᱮᱢ ᱢᱮ ᱥᱮ ᱧᱩᱛᱩᱢ ᱚᱞ ᱦᱚᱪᱚᱭ ᱢᱮ</string>
+  <string name="webcompat_reporter_reason_account" moz:removedIn="140" tools:ignore="UnusedResources">ᱥᱩᱦᱤ ᱮᱢ ᱢᱮ ᱥᱮ ᱧᱩᱛᱩᱢ ᱚᱞ ᱦᱚᱪᱚᱭ ᱢᱮ</string>
   <!-- Broken site reason text for ad blocker -->
-  <string name="webcompat_reporter_reason_ad_blocker">ᱪᱷᱟᱶᱨᱟ ᱟᱠᱚᱴ</string>
+  <string name="webcompat_reporter_reason_ad_blocker" moz:removedIn="140" tools:ignore="UnusedResources">ᱪᱷᱟᱶᱨᱟ ᱟᱠᱚᱴ</string>
   <!-- Broken site reason text for something else -->
   <string name="webcompat_reporter_reason_other">ᱡᱟᱦᱱᱟᱜ ᱮᱴᱟᱜ ᱡᱤᱱᱤᱥ</string>
   <!--
@@ -1857,7 +1854,7 @@
   <!-- Text for the button to connect another device -->
   <string name="sync_add_new_device_connect_button">ᱚᱞᱜᱟ ᱥᱟᱫᱷᱚᱱ ᱡᱩᱰᱟᱹᱣ ᱢᱮ…</string>
   <!-- A message template for the shared link with a footer. %1$s is the shared link, %2$s is the app name (e.g. Firefox) and %3$s is a download link for the app. -->
-  <string name="sent_from_firefox_template" tools:ignore="UnusedResources">%1$s\n\n %2$s ᱠᱷᱚᱱ ᱠᱩᱞ ᱟᱠᱟᱱᱟ 🦊 ᱢᱚᱵᱟᱭᱤᱞ ᱵᱽᱨᱟᱣᱡᱚᱨ ᱪᱮᱥᱴᱟᱭ ᱢᱮ: %3$s</string>
+  <string name="sent_from_firefox_template" tools:ignore="UnusedResources">%1$s\n\n%2$s ᱠᱷᱚᱱ ᱠᱩᱞ ᱟᱠᱟᱱᱟ 🦊 ᱢᱚᱵᱟᱭᱤᱞ ᱵᱽᱨᱟᱣᱡᱚᱨ ᱪᱮᱥᱴᱟᱭ ᱢᱮ: %3$s</string>
   <!-- A short message template for the shared link with a footer. %1$s is the shared link, %2$s is the app name (e.g. Firefox) and %3$s is a download link for the app. -->
   <string name="sent_from_firefox_template_short" tools:ignore="UnusedResources">%1$s\n\nᱠᱷᱚᱱ ᱵᱷᱮᱡᱟ ᱠᱟᱱᱟ %2$s 🦊 %3$s</string>
   <!--
@@ -2053,7 +2050,7 @@
   <!-- Title of QR Pairing Fragment -->
   <string name="sync_scan_code">ᱠᱳᱰ ᱥᱠᱟᱱ ᱢᱮ</string>
   <!-- Instructions on how to access pairing -->
-  <string name="sign_in_instructions" tools:ignore="BrandUsage">ᱟᱢᱟᱜ ᱠᱚᱢᱯᱤᱭᱩᱴᱟᱨ ᱨᱮ Firefox ᱡᱷᱤᱡᱽ ᱢᱮ ᱟᱨ &lt;b&gt;https://firefox.com/pair&lt;/b&gt; ᱨᱮ ᱪᱟᱞᱟᱜ ᱢᱮ</string>
+  <string name="sign_in_instructions" tools:ignore="BrandUsage"><![CDATA[ᱟᱢᱟᱜ ᱠᱚᱢᱯᱤᱭᱩᱴᱟᱨ ᱨᱮ Firefox ᱡᱷᱤᱡᱽ ᱢᱮ ᱟᱨ <b>https://firefox.com/pair</b> ᱨᱮ ᱪᱟᱞᱟᱜ ᱢᱮ]]></string>
   <!-- Text shown for sign in pairing when ready -->
   <string name="sign_in_ready_for_scan">ᱥᱠᱟᱱ ᱞᱚᱜᱤᱫᱛᱮ ᱛᱮᱭᱟᱨ ᱢᱮᱱᱟᱢᱼᱟ</string>
   <!-- Text shown for settings option for sign with pairing -->
@@ -2061,7 +2058,7 @@
   <!-- Text shown for settings option for sign with email -->
   <string name="sign_in_with_email">ᱵᱟᱹᱫᱟᱹᱞ ᱛᱮ ᱮᱢᱮᱞ ᱵᱮᱵᱷᱟᱨ ᱢᱮ</string>
   <!-- Text shown for settings option for create new account text.'Firefox' intentionally hardcoded here. -->
-  <string name="sign_in_create_account_text" tools:ignore="BrandUsage">ᱠᱷᱟᱛᱟ ᱵᱟᱹᱱᱩᱜᱼᱟ? &lt;u&gt;ᱢᱤᱫᱴᱟᱝ ᱛᱮᱭᱟᱨ ᱢᱮ&lt;/u&gt; ᱰᱥᱫᱷᱚᱱ ᱠᱚ ᱵᱷᱤᱛᱨᱤ ᱨᱮ Firefox ᱥᱭᱝᱠ ᱞᱟᱹᱜᱤᱫ ᱾</string>
+  <string name="sign_in_create_account_text" tools:ignore="BrandUsage"><![CDATA[ᱠᱷᱟᱛᱟ ᱵᱟᱹᱱᱩᱜᱼᱟ? <u>ᱢᱤᱫᱴᱟᱝ ᱛᱮᱭᱟᱨ ᱢᱮ</u> ᱰᱥᱫᱷᱚᱱ ᱠᱚ ᱵᱷᱤᱛᱨᱤ ᱨᱮ Firefox ᱥᱭᱝᱠ ᱞᱟᱹᱜᱤᱫ ᱾]]></string>
   <!-- Text shown in confirmation dialog to sign out of account. %s is the name of the app (for example "Firefox"). -->
   <string name="sign_out_confirmation_message_2">%s ᱫᱚ ᱟᱢᱟᱜ ᱠᱷᱟᱛᱟ ᱥᱟᱞᱟᱜ ᱥᱭᱝᱠ ᱵᱚᱸᱫᱽᱚᱭ ᱟ , ᱦᱮᱞᱮ ᱟᱢᱟᱜ ᱚᱠᱟ ᱵᱽᱨᱟᱣᱩᱡᱤᱸᱝ ᱰᱟᱴᱟ ᱦᱚᱸ ᱟᱢᱟᱜ ᱥᱟᱫᱷᱚᱱ ᱨᱮ ᱵᱟᱭ ᱢᱮᱴᱟᱣᱜᱼᱟ ᱾</string>
   <!-- Option to continue signing out of account shown in confirmation dialog to sign out of account -->
@@ -2101,7 +2098,7 @@
   <!-- Preference description for enhanced tracking protection for the strict protection settings -->
   <string name="preference_enhanced_tracking_protection_custom_description_2">ᱵᱟᱪᱷᱟᱣ ᱢᱮ ᱚᱠᱟ ᱯᱟᱧᱡᱟ ᱫᱟᱱᱟᱲ ᱠᱚ ᱟᱨ ᱥᱠᱨᱤᱯᱴ ᱞᱚ ᱵᱞᱚᱠ ᱠᱚᱣᱟ ᱾</string>
   <!-- Accessibility text for the Strict protection information icon -->
-  <string name="preference_enhanced_tracking_protection_custom_info_button">ᱠᱚᱥᱴᱚᱢ ᱜᱷᱮᱨ ᱮᱥᱮᱫ ᱯᱨᱚᱴᱮᱠᱥᱚᱱ ᱛᱮ ᱪᱮᱫ ᱵᱞᱚᱠ ᱟᱹᱠᱟᱱᱟ </string>
+  <string name="preference_enhanced_tracking_protection_custom_info_button">ᱠᱚᱥᱴᱚᱢ ᱜᱷᱮᱨ ᱮᱥᱮᱫ ᱯᱨᱚᱴᱮᱠᱥᱚᱱ ᱛᱮ ᱪᱮᱫ ᱵᱞᱚᱠ ᱟᱹᱠᱟᱱᱟ</string>
   <!--
     Header for categories that are being blocked by current Enhanced Tracking Protection settings
 
@@ -2139,7 +2136,7 @@
   <!-- Category of trackers (social media trackers) that can be blocked by Enhanced Tracking Protection -->
   <string name="etp_social_media_trackers_title">ᱥᱟᱸᱣᱛᱟ ᱢᱤᱰᱤᱭᱟ ᱯᱟᱧᱡᱟ ᱫᱟᱱᱟᱲ ᱠᱚ</string>
   <!-- Description of social media trackers that can be blocked by Enhanced Tracking Protection -->
-  <string name="etp_social_media_trackers_description">ᱵᱽᱨᱟᱣᱩᱡᱤᱝ ᱠᱟᱹᱢᱤ ᱠᱚ ᱮᱢᱟᱱ ᱥᱚᱥᱤᱭᱟᱹᱢ ᱢᱮᱰᱤᱭᱟ ᱱᱮᱴᱣᱟᱨᱠ ᱨᱮ ᱜᱷᱮᱨ ᱮᱥᱮᱫ ᱠᱚ ᱣᱮᱵᱽ ᱨᱮ ᱞᱤᱢᱤᱴ ᱛᱟᱢᱟᱭ ᱾ </string>
+  <string name="etp_social_media_trackers_description">ᱵᱽᱨᱟᱣᱩᱡᱤᱝ ᱠᱟᱹᱢᱤ ᱠᱚ ᱮᱢᱟᱱ ᱥᱚᱥᱤᱭᱟᱹᱢ ᱢᱮᱰᱤᱭᱟ ᱱᱮᱴᱣᱟᱨᱠ ᱨᱮ ᱜᱷᱮᱨ ᱮᱥᱮᱫ ᱠᱚ ᱣᱮᱵᱽ ᱨᱮ ᱞᱤᱢᱤᱴ ᱛᱟᱢᱟᱭ ᱾</string>
   <!-- Category of trackers (cross-site tracking cookies) that can be blocked by Enhanced Tracking Protection -->
   <string name="etp_cookies_title">ᱠᱨᱚᱥᱼᱥᱟᱭᱤᱴ ᱜᱷᱮᱨ ᱮᱥᱮᱫ ᱠᱩᱠᱤ ᱠᱚ</string>
   <!-- Category of trackers (cross-site tracking cookies) that can be blocked by Enhanced Tracking Protection -->
@@ -2208,8 +2205,6 @@
   <string name="preference_doh_summary">HTTPS ᱛᱮ Domain Name System (DNS) ᱫᱚ ᱟᱢᱟᱜ ᱰᱚᱢᱮᱱ ᱧᱩᱛᱩᱢ ᱞᱟᱹᱜᱤᱫ ᱟᱢᱟᱜ ᱟᱨᱡᱟᱣ ᱫᱚ ᱮᱱᱠᱨᱤᱯᱴ ᱠᱚᱱᱮᱠᱥᱚᱱ ᱛᱮ ᱵᱷᱮᱡᱟᱭᱟ, ᱚᱱᱟ ᱛᱮ ᱨᱟᱠᱷᱟ DNS ᱮᱢ ᱫᱟᱲᱮᱭᱟᱜ-ᱟ ᱟᱨ ᱮᱴᱟᱜ ᱠᱚ ᱞᱟᱹᱜᱤᱫ ᱟᱢ ᱚᱠᱟ ᱣᱮᱵᱽᱥᱟᱭᱤᱴ ᱮᱢ ᱥᱮᱱᱚᱜ ᱠᱟᱱᱟ ᱚᱱᱟ ᱧᱮᱞ ᱫᱚ ᱟᱹᱰᱤ ᱜᱮ ᱢᱩᱥᱠᱤᱞ ᱠᱟᱱᱟ ᱾ %1$s</string>
   <!-- Used as text for the link in `preference_doh_title`, points to documentation about "DNS over HTTPS" -->
   <string name="preference_doh_learn_more">ᱰᱷᱮᱨ ᱥᱮᱬᱟᱭ ᱢᱮ</string>
-  <!-- Content description for the toolbar "Navigate up" button -->
-  <string name="preference_doh_up_description">ᱪᱮᱛᱟᱱ ᱥᱮᱱ ᱱᱮᱣᱤᱜᱮᱴ ᱢᱮ</string>
   <!-- Content description for the "Exceptions" button -->
   <string name="preference_doh_exceptions_description">ᱪᱷᱟᱰᱟ ᱠᱚ</string>
   <!-- Content description for the "Info" button -->
@@ -2341,7 +2336,7 @@
   <!-- Title of warning dialog if users have no device authentication set up -->
   <string name="logins_warning_dialog_title_2">ᱟᱢᱟᱜ ᱫᱟᱱᱟᱝ ᱥᱟᱵᱟᱫᱽ ᱠᱚ ᱨᱩᱠᱷᱤᱭᱟᱹᱭ ᱢᱮ</string>
   <!-- Message of warning dialog if users have no device authentication set up -->
-  <string name="logins_warning_dialog_message_2">ᱥᱟᱫᱷᱚᱱ ᱠᱩᱞᱩᱯ ᱪᱤᱱᱦᱟᱹ, ᱯᱤᱱ, ᱟᱨ ᱵᱟᱝ ᱫᱟᱱᱟᱝ ᱥᱟᱵᱟᱫᱽ ᱟᱢᱟᱜ ᱥᱟᱧᱪᱟᱣ ᱫᱟᱱᱟᱝ ᱥᱟᱵᱟᱫᱽ  ᱠᱚ ᱮᱢᱟᱱ ᱨᱩᱠᱷᱭᱟ ᱞᱟᱹᱜᱤᱫ ᱡᱩᱫᱤ ᱚᱞᱜᱟ ᱦᱚᱲ ᱴᱷᱮᱱ ᱟᱢᱟᱜ ᱥᱟᱫᱷᱚᱱ ᱛᱟᱦᱮᱸᱱ ᱠᱷᱟᱱ ᱾</string>
+  <string name="logins_warning_dialog_message_2">ᱥᱟᱫᱷᱚᱱ ᱠᱩᱞᱩᱯ ᱪᱤᱱᱦᱟᱹ, ᱯᱤᱱ, ᱟᱨ ᱵᱟᱝ ᱫᱟᱱᱟᱝ ᱥᱟᱵᱟᱫᱽ ᱟᱢᱟᱜ ᱥᱟᱧᱪᱟᱣ ᱫᱟᱱᱟᱝ ᱥᱟᱵᱟᱫᱽ ᱠᱚ ᱮᱢᱟᱱ ᱨᱩᱠᱷᱭᱟ ᱞᱟᱹᱜᱤᱫ ᱡᱩᱫᱤ ᱚᱞᱜᱟ ᱦᱚᱲ ᱴᱷᱮᱱ ᱟᱢᱟᱜ ᱥᱟᱫᱷᱚᱱ ᱛᱟᱦᱮᱸᱱ ᱠᱷᱟᱱ ᱾</string>
   <!-- Negative button to ignore warning dialog if users have no device authentication set up -->
   <string name="logins_warning_dialog_later">ᱛᱟᱭᱚᱢ ᱛᱮ</string>
   <!-- Positive button to send users to set up a pin of warning dialog if users have no device authentication set up -->
@@ -2513,7 +2508,7 @@
   <!-- Text shown when a user leaves out the required template string -->
   <string name="search_add_custom_engine_error_missing_template">ᱥᱮᱸᱫᱽᱨᱟ ᱥᱴᱨᱭᱸᱜ ᱢᱮᱪ ᱠᱚ ᱨᱮᱭᱟᱜ ᱡᱮᱢᱚᱱ ᱯᱷᱚᱨᱢᱟᱴ ᱠᱚ ᱧᱮᱞ ᱵᱤᱰᱟᱹᱣ ᱢᱮ</string>
   <!-- Text shown when we aren't able to validate the custom search query. %s is the url of the custom search engine. -->
-  <string name="search_add_custom_engine_error_cannot_reach">%s ᱨᱮ ᱡᱩᱲᱟᱹᱣ ᱛᱮ ᱵᱷᱩᱞ ᱦᱩᱭᱮᱱᱟ</string>
+  <string name="search_add_custom_engine_error_cannot_reach" moz:removedIn="140" tools:ignore="UnusedResources">%s ᱨᱮ ᱡᱩᱲᱟᱹᱣ ᱛᱮ ᱵᱷᱩᱞ ᱦᱩᱭᱮᱱᱟ</string>
   <!-- Text shown when a user creates a new search engine. %s is the url of the custom search engine. -->
   <string name="search_add_custom_engine_success_message">%s ᱛᱮᱭᱟᱨᱮᱱᱟ</string>
   <!-- Text shown when a user successfully edits a custom search engine. %s is the url of the custom search engine. -->
@@ -2525,9 +2520,9 @@
   <!-- First step for the allowing a permission -->
   <string name="phone_feature_blocked_step_settings">᱑. Android ᱥᱟᱡᱟᱣ ᱠᱚ ᱨᱮ ᱪᱟᱞᱟᱜ ᱢᱮ</string>
   <!-- Second step for the allowing a permission -->
-  <string name="phone_feature_blocked_step_permissions">᱒. &lt;b&gt;ᱪᱷᱟᱹᱲ ᱠᱚ&lt;/b&gt; ᱚᱛᱟᱭ ᱢᱮ</string>
+  <string name="phone_feature_blocked_step_permissions"><![CDATA[᱒. <b>ᱪᱷᱟᱹᱲ ᱠᱚ</b> ᱚᱛᱟᱭ ᱢᱮ]]></string>
   <!-- Third step for the allowing a permission (%1$s is the permission name, for example "Camera"). -->
-  <string name="phone_feature_blocked_step_feature">᱓. &lt;b&gt;%1$s&lt;/b&gt; ᱪᱚᱞᱩᱤ ᱢᱮ</string>
+  <string name="phone_feature_blocked_step_feature"><![CDATA[᱓. <b>%1$s</b> ᱪᱚᱞᱩᱤ ᱢᱮ]]></string>
   <!-- Label that indicates a site is using a secure connection -->
   <string name="quick_settings_sheet_secure_connection_2">ᱡᱩᱲᱟᱹᱣ ᱫᱚ ᱨᱩᱠᱷᱤᱭᱟᱹ ᱜᱮᱭᱟ</string>
   <!-- Label that indicates a site is using a insecure connection -->
@@ -2535,7 +2530,7 @@
   <!-- Label to clear site data -->
   <string name="clear_site_data">ᱠᱩᱠᱤᱡᱽ ᱠᱚ ᱟᱨ ᱥᱟᱭᱤᱴ ᱰᱟᱴᱟ ᱠᱚ ᱯᱷᱟᱨᱪᱟᱭ ᱢᱮ</string>
   <!-- Confirmation message for a dialog confirming if the user wants to delete all data for current site. %s is the domain of the site. -->
-  <string name="confirm_clear_site_data">ᱟᱢ ᱪᱮᱫ ᱡᱷᱚᱛᱚ ᱞᱮᱠᱷᱟᱛᱮ ᱡᱷᱚᱛᱚ ᱠᱩᱠᱤᱡᱽ ᱠᱚ ᱟᱨ ᱰᱟᱴᱟ ᱱᱚᱶᱟ ᱥᱟᱭᱤᱴ ᱞᱟᱹᱜᱤᱫ ᱢᱮᱴᱟᱣ ᱥᱮᱱᱟᱢ ᱠᱟᱱᱟ ᱥᱮ &lt;b&gt;%s&lt;/b&gt;?</string>
+  <string name="confirm_clear_site_data"><![CDATA[ᱟᱢ ᱪᱮᱫ ᱡᱷᱚᱛᱚ ᱞᱮᱠᱷᱟᱛᱮ ᱡᱷᱚᱛᱚ ᱠᱩᱠᱤᱡᱽ ᱠᱚ ᱟᱨ ᱰᱟᱴᱟ ᱱᱚᱶᱟ ᱥᱟᱭᱤᱴ ᱞᱟᱹᱜᱤᱫ ᱢᱮᱴᱟᱣ ᱥᱮᱱᱟᱢ ᱠᱟᱱᱟ ᱥᱮ <b>%s</b>?]]></string>
   <!-- Confirmation message for a dialog confirming if the user wants to delete all the permissions for all sites -->
   <string name="confirm_clear_permissions_on_all_sites">ᱟᱢ ᱪᱮᱫ ᱡᱷᱚᱛᱚ ᱞᱮᱠᱷᱟᱛᱮ ᱡᱷᱚᱛᱚ ᱚᱱᱩᱢᱚᱛᱤ ᱡᱷᱚᱛᱚ ᱥᱟᱭᱤᱴ ᱠᱚ ᱞᱟᱹᱜᱤᱫ ᱢᱮᱴᱟᱣ ᱥᱮᱱᱟᱢ ᱠᱟᱱᱟ ᱥᱮ?</string>
   <!-- Confirmation message for a dialog confirming if the user wants to delete all the permissions for a site -->
@@ -2596,7 +2591,7 @@
   <!-- This is the hint text that is shown inline on the hostname field of the create new login page. 'https://www.example.com' intentionally hardcoded here -->
   <string name="add_login_hostname_hint_text">https://www.example.com</string>
   <!-- This is an error message shown below the hostname field of the add login page when a hostname does not contain http or https. -->
-  <string name="add_login_hostname_invalid_text_3">ᱴᱷᱤᱠᱬᱟᱹ ᱨᱮ "https://" ᱟᱨ ᱵᱟᱝ "http://" ᱱᱤᱦᱟᱹᱛᱤ ᱫᱚᱨᱠᱟᱨ ᱠᱟᱱᱟ</string>
+  <string name="add_login_hostname_invalid_text_3">ᱴᱷᱤᱠᱬᱟᱹ ᱨᱮ \"https://\" ᱟᱨ ᱵᱟᱝ \"http://\" ᱱᱤᱦᱟᱹᱛᱤ ᱫᱚᱨᱠᱟᱨ ᱠᱟᱱᱟ</string>
   <!-- This is an error message shown below the hostname field of the add login page when a hostname is invalid. -->
   <string name="add_login_hostname_invalid_text_2">ᱴᱷᱤᱠ ᱦᱚᱥᱴᱧᱩᱛᱩᱢ ᱫᱚᱨᱠᱟᱨ ᱠᱟᱱᱟ</string>
   <!--
@@ -2698,7 +2693,7 @@
   -->
   <string name="default_browser_experiment_card_title">ᱟᱢᱟᱜ ᱢᱩᱞ ᱵᱽᱨᱟᱣᱡᱚᱨ ᱛᱮ ᱩᱪᱟᱹᱲᱚᱜ ᱢᱮ</string>
   <!-- Default browser card text -->
-  <string name="default_browser_experiment_card_text" tools:ignore="BrandUsage">Firefox ᱟᱡ ᱛᱮ ᱠᱷᱩᱞᱟᱹ ᱪᱷᱚ ᱞᱟᱹᱜᱤᱫ ᱣᱮᱵᱥᱟᱭᱤᱴ, ᱤᱢᱮᱞ, ᱟᱨ ᱢᱮᱥᱮᱡᱽ ᱨᱮᱭᱟᱜ ᱞᱤᱝᱠ ᱥᱮᱴ ᱢᱮ ᱾ </string>
+  <string name="default_browser_experiment_card_text" tools:ignore="BrandUsage">Firefox ᱟᱡ ᱛᱮ ᱠᱷᱩᱞᱟᱹ ᱪᱷᱚ ᱞᱟᱹᱜᱤᱫ ᱣᱮᱵᱥᱟᱭᱤᱴ, ᱤᱢᱮᱞ, ᱟᱨ ᱢᱮᱥᱮᱡᱽ ᱨᱮᱭᱟᱜ ᱞᱤᱝᱠ ᱥᱮᱴ ᱢᱮ ᱾</string>
   <!-- Content description for close button in collection placeholder. -->
   <string name="remove_home_collection_placeholder_content_description">ᱚᱪᱟᱜ</string>
   <!-- Content description radio buttons with a link to more information -->
@@ -2712,17 +2707,17 @@
 
     Header text for a section on the home screen.
   -->
-  <string name="pocket_stories_header_1">ᱢᱚᱱᱮᱼᱜᱷᱟᱱᱴᱟ ᱠᱟᱹᱦᱱᱤ ᱠᱚ</string>
+  <string name="pocket_stories_header_1" tools:ignore="UnusedResources" moz:removedIn="140">ᱢᱚᱱᱮᱼᱜᱷᱟᱱᱴᱟ ᱠᱟᱹᱦᱱᱤ ᱠᱚ</string>
   <!-- Header text for a section on the home screen. -->
   <string name="pocket_stories_categories_header">ᱦᱟᱛᱟᱢ ᱞᱮᱠᱟᱛᱮ ᱠᱟᱹᱦᱱᱤ ᱠᱚ</string>
   <!-- Text of a button allowing users to access an external url for more Pocket recommendations. -->
   <string name="pocket_stories_placeholder_text">ᱟᱨᱦᱚᱸ ᱯᱟᱱᱛᱮ ᱧᱟᱢ ᱢᱮ</string>
   <!-- Title of an app feature. Smaller than a heading. %s is "Pocket". -->
-  <string name="pocket_stories_feature_title_2">%1$s ᱫᱟᱨᱟᱭ ᱛᱮ ᱫᱟᱲᱮ ᱮᱢ ᱾</string>
+  <string name="pocket_stories_feature_title_2" moz:removedIn="140" tools:ignore="UnusedResources">%1$s ᱫᱟᱨᱟᱭ ᱛᱮ ᱫᱟᱲᱮ ᱮᱢ ᱾</string>
   <!-- Caption for describing a certain feature. %s is a link using pocket_stories_feature_learn_more as text, which will load an url in a new tab when clicked. -->
-  <string name="pocket_stories_feature_caption" tools:ignore="BrandUsage">Firefox  ᱜᱷᱟᱨᱚᱧᱡᱽ ᱨᱤᱱᱤᱡ ᱦᱟᱹᱴᱤᱧ ᱾ %s</string>
+  <string name="pocket_stories_feature_caption" moz:removedIn="140" tools:ignore="BrandUsage,UnusedResources">Firefox ᱜᱷᱟᱨᱚᱧᱡᱽ ᱨᱤᱱᱤᱡ ᱦᱟᱹᱴᱤᱧ ᱾ %s</string>
   <!-- Clickable text for opening an external link for more information about Pocket. -->
-  <string name="pocket_stories_feature_learn_more">ᱰᱷᱮᱨ ᱥᱮᱬᱟᱭ ᱢᱮ</string>
+  <string name="pocket_stories_feature_learn_more" moz:removedIn="140" tools:ignore="UnusedResources">ᱰᱷᱮᱨ ᱥᱮᱬᱟᱭ ᱢᱮ</string>
   <!-- Text indicating that the Pocket story that also displays this text is a sponsored story by other 3rd party entity. -->
   <string name="pocket_stories_sponsor_indication">ᱠᱟᱹᱢᱤᱼᱤᱭᱟᱹ</string>
   <!-- Snackbar message for enrolling in a Nimbus experiment from the secret settings when Studies preference is Off. -->
@@ -2734,11 +2729,11 @@
 
     Paragraph explaining the grading system we use to classify the reliability of a product's reviews.
   -->
-  <string name="review_quality_check_info_review_grade_header" moz:removedIn="136" tools:ignore="UnusedResources">ᱟᱞᱮ ᱫᱚ ᱯᱨᱚᱰᱚᱠᱴ ᱨᱮᱭᱟᱜ ᱧᱮᱞ ᱵᱤᱰᱟᱣᱜ ᱫᱚ &lt;b&gt;ᱪᱤᱠᱤ ᱜᱽᱨᱮᱰ&lt;/b&gt; A ᱠᱷᱚᱱ F ᱫᱷᱟᱹᱵᱤᱡ ᱞᱮ ᱮᱢ ᱮᱫᱟ ᱾</string>
+  <string name="review_quality_check_info_review_grade_header" moz:removedIn="136" tools:ignore="UnusedResources"><![CDATA[ᱟᱞᱮ ᱫᱚ ᱯᱨᱚᱰᱚᱠᱴ ᱨᱮᱭᱟᱜ ᱧᱮᱞ ᱵᱤᱰᱟᱣᱜ ᱫᱚ <b>ᱪᱤᱠᱤ ᱜᱽᱨᱮᱰ</b> A ᱠᱷᱚᱱ F ᱫᱷᱟᱹᱵᱤᱡ ᱞᱮ ᱮᱢ ᱮᱫᱟ ᱾]]></string>
   <!-- Paragraph explaining how a product's adjusted grading is calculated. -->
-  <string name="review_quality_check_explanation_body_adjusted_grading" moz:removedIn="136" tools:ignore="UnusedResources">&lt;b&gt;ᱨᱮᱴᱤᱝ&lt;/b&gt; ᱫᱚ ᱪᱷᱚᱞ ᱜᱮᱭᱟ ᱡᱟᱦᱟᱸᱫᱚ ᱟᱞᱮ ᱵᱩᱡᱷᱟᱹᱣ ᱨᱮ ᱴᱷᱤᱠ ᱜᱮᱭᱟ ᱾</string>
+  <string name="review_quality_check_explanation_body_adjusted_grading" moz:removedIn="136" tools:ignore="UnusedResources"><![CDATA[<b>ᱨᱮᱴᱤᱝ</b> ᱫᱚ ᱪᱷᱚᱞ ᱜᱮᱭᱟ ᱡᱟᱦᱟᱸᱫᱚ ᱟᱞᱮ ᱵᱩᱡᱷᱟᱹᱣ ᱨᱮ ᱴᱷᱤᱠ ᱜᱮᱭᱟ ᱾]]></string>
   <!-- Paragraph explaining product review highlights. %s is the name of the retailer (e.g. Amazon). -->
-  <string name="review_quality_check_explanation_body_highlights" moz:removedIn="136" tools:ignore="UnusedResources">&lt;b&gt;ᱪᱤᱱᱦᱟᱹᱠᱚ&lt;/b&gt;ᱫᱚ %s ᱧᱮᱞᱯᱚᱨᱚᱠᱷ ᱠᱷᱚᱱ ᱢᱩᱪᱟᱹᱫ 80 ᱢᱟᱦᱟᱸ ᱨᱮᱭᱟᱜ ᱠᱟᱱᱟ ᱡᱟᱦᱟᱸᱭ ᱫᱚ ᱟᱞᱮ ᱦᱤᱥᱟᱹᱵᱽ ᱛᱮ ᱵᱷᱚᱨᱥᱟ ᱜᱮᱭᱟ ᱾</string>
+  <string name="review_quality_check_explanation_body_highlights" moz:removedIn="136" tools:ignore="UnusedResources"><![CDATA[<b>ᱪᱤᱱᱦᱟᱹᱠᱚ</b>ᱫᱚ %s ᱧᱮᱞᱯᱚᱨᱚᱠᱷ ᱠᱷᱚᱱ ᱢᱩᱪᱟᱹᱫ 80 ᱢᱟᱦᱟᱸ ᱨᱮᱭᱟᱜ ᱠᱟᱱᱟ ᱡᱟᱦᱟᱸᱭ ᱫᱚ ᱟᱞᱮ ᱦᱤᱥᱟᱹᱵᱽ ᱛᱮ ᱵᱷᱚᱨᱥᱟ ᱜᱮᱭᱟ ᱾]]></string>
   <!--
     Accessibility services actions labels. These will be appended to accessibility actions like "Double tap to.." but not by or applications but by services like Talkback.
 
@@ -2756,7 +2751,7 @@
   <!-- Action label for links that point to an article. Talkback will append this to say "Double tap to read the article". -->
   <string name="a11y_action_label_read_article">ᱚᱱᱚᱞ ᱯᱟᱲᱦᱟᱣ ᱢᱮ</string>
   <!-- Action label for links to the Firefox Pocket website. Talkback will append this to say "Double tap to open link to learn more". -->
-  <string name="a11y_action_label_pocket_learn_more">ᱰᱷᱮᱨ ᱵᱟᱲᱟᱭ ᱞᱟᱹᱜᱤᱫ ᱞᱤᱝᱠ ᱠᱷᱩᱞᱟᱹᱭ ᱢᱮ</string>
+  <string name="a11y_action_label_pocket_learn_more" moz:removedIn="140" tools:ignore="UnusedResources">ᱰᱷᱮᱨ ᱵᱟᱲᱟᱭ ᱞᱟᱹᱜᱤᱫ ᱞᱤᱝᱠ ᱠᱷᱩᱞᱟᱹᱭ ᱢᱮ</string>
   <!-- Content description for headings announced by accessibility service. %s is the text of the heading. Talkback will announce the text and then speak the word "Heading" indicating to the user that this text is a heading for a section. -->
   <string name="a11y_heading">%s, ᱧᱩᱛᱩᱢ</string>
   <!-- Title for dialog displayed when trying to access links present in a text. -->
@@ -2923,8 +2918,7 @@
   -->
   <string name="download_languages_translations_toolbar_title_preference">ᱯᱟᱹᱨᱥᱤᱠᱚ ᱰᱟᱣᱱᱞᱚᱰ ᱢᱮ</string>
   <!-- Screen header presenting the download language preference feature. It will appear under the toolbar. %1$s is a link using download_languages_header_learn_more_preference as text ("Learn more"). Talkback will append this to say "Double tap to open link to learn more". -->
-  <string name="download_languages_header_preference">ᱞᱚᱜᱚᱱ ᱛᱚᱨᱡᱚᱢᱟ ᱟᱨ ᱚᱯᱷᱞᱟᱭᱤᱱ ᱛᱚᱨᱡᱚᱢᱟ ᱞᱟᱹᱜᱤᱫ ᱯᱩᱨᱟᱹ ᱯᱟᱹᱨᱥᱠᱚ ᱰᱟᱣᱩᱱᱞᱚᱰ ᱢᱮ ᱾%1$s
-</string>
+  <string name="download_languages_header_preference">ᱞᱚᱜᱚᱱ ᱛᱚᱨᱡᱚᱢᱟ ᱟᱨ ᱚᱯᱷᱞᱟᱭᱤᱱ ᱛᱚᱨᱡᱚᱢᱟ ᱞᱟᱹᱜᱤᱫ ᱯᱩᱨᱟᱹ ᱯᱟᱹᱨᱥᱠᱚ ᱰᱟᱣᱩᱱᱞᱚᱰ ᱢᱮ ᱾%1$s</string>
   <!-- Clickable text from the screen header that links to a website. -->
   <string name="download_languages_header_learn_more_preference">ᱰᱷᱮᱨ ᱥᱮᱬᱟᱭ ᱢᱮ</string>
   <!-- The subhead of the download language preference screen will appear above the pivot language. -->
@@ -2952,7 +2946,7 @@
     %1$s is the language name, for example, "Spanish".
     %2$s is the language file size, for example, "(3.91 KB)".
   -->
-  <string name="download_languages_item_content_description_download_in_progress_state">%1$s ᱰᱟᱣᱱᱞᱚᱰ ᱵᱚᱸᱫᱚᱭ ᱢᱮ  (%2$s)</string>
+  <string name="download_languages_item_content_description_download_in_progress_state">%1$s ᱰᱟᱣᱱᱞᱚᱰ ᱵᱚᱸᱫᱚᱭ ᱢᱮ (%2$s)</string>
   <!-- Content description (not visible, for screen readers etc.): For a language list item that was not downloaded. -->
   <string name="download_languages_item_content_description_not_downloaded_state">ᱰᱟᱣᱱᱞᱚᱰ</string>
   <!-- The title of the warning card informs the user that an error has occurred when fetching the list of languages. -->
@@ -2961,12 +2955,12 @@
     The title of the warning card informs the user that an error has occurred at downloading a language.
     %1$s is the language name, for example, "Spanish".
   -->
-  <string name="download_languages_error_warning_text">&lt;b&gt;%1$s&lt;/b&gt; ᱰᱟᱣᱱᱞᱳᱰ ᱵᱟᱭ ᱜᱟᱱ ᱞᱮᱱᱟ ᱾ ᱫᱟᱭᱟᱠᱟᱛᱮ ᱛᱟᱭᱚᱢ ᱛᱮ ᱫᱩᱦᱲᱟᱹ ᱪᱮᱥᱴᱟᱭ ᱢᱮ ᱾</string>
+  <string name="download_languages_error_warning_text"><![CDATA[<b>%1$s</b> ᱰᱟᱣᱱᱞᱳᱰ ᱵᱟᱭ ᱜᱟᱱ ᱞᱮᱱᱟ ᱾ ᱫᱟᱭᱟᱠᱟᱛᱮ ᱛᱟᱭᱚᱢ ᱛᱮ ᱫᱩᱦᱲᱟᱹ ᱪᱮᱥᱴᱟᱭ ᱢᱮ ᱾]]></string>
   <!--
     The title of the warning card informs the user that an error has occurred at deleting a language.
     %1$s is the language name, for example, "Spanish".
   -->
-  <string name="download_languages_delete_error_warning_text">&lt;b&gt;%1$s&lt;/b&gt; ᱰᱟᱣᱱᱞᱳᱰ ᱜᱮᱫ ᱜᱤᱰᱤ ᱵᱟᱭ ᱜᱟᱱ ᱞᱮᱱᱟ ᱾ ᱫᱟᱭᱟᱠᱟᱛᱮ ᱛᱟᱭᱚᱢ ᱛᱮ ᱫᱩᱦᱲᱟᱹ ᱪᱮᱥᱴᱟᱭ ᱢᱮ ᱾</string>
+  <string name="download_languages_delete_error_warning_text"><![CDATA[<b>%1$s</b> ᱰᱟᱣᱱᱞᱳᱰ ᱜᱮᱫ ᱜᱤᱰᱤ ᱵᱟᱭ ᱜᱟᱱ ᱞᱮᱱᱟ ᱾ ᱫᱟᱭᱟᱠᱟᱛᱮ ᱛᱟᱭᱚᱢ ᱛᱮ ᱫᱩᱦᱲᱟᱹ ᱪᱮᱥᱴᱟᱭ ᱢᱮ ᱾]]></string>
   <!--
     Title for the dialog used by the translations feature to confirm deleting a language.
     The dialog will be presented when the user requests deletion of a language.
@@ -3076,7 +3070,7 @@
 
     The survey header
   -->
-  <string name="micro_survey_survey_header_2">ᱫᱟᱭᱟᱠᱟᱛᱮ  ᱱᱚᱶᱟ ᱥᱚᱨᱵᱷᱮ ᱯᱩᱨᱟᱹᱣ ᱢᱮ</string>
+  <string name="micro_survey_survey_header_2">ᱫᱟᱭᱟᱠᱟᱛᱮ ᱱᱚᱶᱟ ᱥᱚᱨᱵᱷᱮ ᱯᱩᱨᱟᱹᱣ ᱢᱮ</string>
   <!-- The privacy notice link -->
   <string name="micro_survey_privacy_notice_2">ᱱᱤᱥᱚᱱ ᱨᱮᱭᱟᱜ ᱱᱚᱴᱤᱥ</string>
   <!-- The submit button label text -->

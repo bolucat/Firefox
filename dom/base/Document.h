@@ -750,13 +750,6 @@ class Document : public nsINode,
   nsIURI* GetOriginalURI() const { return mOriginalURI; }
 
   /**
-   * Return the base domain of the document.  This has been computed using
-   * mozIThirdPartyUtil::GetBaseDomain() and can be used for third-party
-   * checks.  When the URI of the document changes, this value is recomputed.
-   */
-  nsCString GetBaseDomain() const { return mBaseDomain; }
-
-  /**
    * Set the URI for the document.  This also sets the document's original URI,
    * if it's null.
    */
@@ -1307,20 +1300,18 @@ class Document : public nsINode,
    */
   nsresult GetSrcdocData(nsAString& aSrcdocData);
 
-  already_AddRefed<AnonymousContent> InsertAnonymousContent(bool aForce,
-                                                            ErrorResult&);
+  already_AddRefed<AnonymousContent> InsertAnonymousContent(ErrorResult&);
   void RemoveAnonymousContent(AnonymousContent&);
-  /**
-   * If aNode is a descendant of anonymous content inserted by
-   * InsertAnonymousContent, this method returns the root element of the
-   * inserted anonymous content (in other words, the clone of the aElement
-   * that was passed to InsertAnonymousContent).
-   */
-  Element* GetAnonRootIfInAnonymousContentContainer(nsINode* aNode) const;
   nsTArray<RefPtr<AnonymousContent>>& GetAnonymousContents() {
     return mAnonymousContents;
   }
+  Element* GetCustomContentContainer() const { return mCustomContentContainer; }
 
+ private:
+  void CreateCustomContentContainerIfNeeded();
+  void RemoveCustomContentContainer();
+
+ public:
   TimeStamp GetPageUnloadingEventTimeStamp() const {
     if (!mParentDocument) {
       return mPageUnloadingEventTimeStamp;
@@ -1562,7 +1553,7 @@ class Document : public nsINode,
 
   // Call this before the document does something that will unbind all content.
   // That will stop us from doing a lot of work as each element is removed.
-  void DestroyElementMaps();
+  void WillRemoveRoot();
 
   Element* GetRootElementInternal() const;
 
@@ -3611,17 +3602,17 @@ class Document : public nsINode,
   void SetStyleSheetChangeEventsEnabled(bool aValue) {
     mStyleSheetChangeEventsEnabled = aValue;
   }
-
   bool StyleSheetChangeEventsEnabled() const {
     return mStyleSheetChangeEventsEnabled;
   }
-
   void SetDevToolsAnonymousAndShadowEventsEnabled(bool aValue) {
     mDevToolsAnonymousAndShadowEventsEnabled = aValue;
   }
   bool DevToolsAnonymousAndShadowEventsEnabled() const {
     return mDevToolsAnonymousAndShadowEventsEnabled;
   }
+  void SetPausedByDevTools(bool aValue) { mPausedByDevTools = aValue; }
+  bool PausedByDevTools() const { return mPausedByDevTools; }
 
   already_AddRefed<Promise> BlockParsing(Promise& aPromise,
                                          const BlockParsingOptions& aOptions,
@@ -4655,9 +4646,6 @@ class Document : public nsINode,
   nsCOMPtr<nsIURI> mDocumentBaseURI;
   nsCOMPtr<nsIURI> mChromeXHRDocBaseURI;
 
-  // The base domain of the document for third-party checks.
-  nsCString mBaseDomain;
-
   // A lazily-constructed URL data for style system to resolve URL values.
   RefPtr<URLExtraData> mCachedURLData;
   nsCOMPtr<nsIReferrerInfo> mCachedReferrerInfoForInternalCSSAndSVGResources;
@@ -4890,6 +4878,10 @@ class Document : public nsINode,
   // Whether shadowrootattached/anonymousnodecreated/anonymousnoderemoved events
   // will be dispatched for this document.
   bool mDevToolsAnonymousAndShadowEventsEnabled : 1;
+
+  // Whether DevTools is pausing the page (in which case we don't really want to
+  // stop rendering).
+  bool mPausedByDevTools : 1;
 
   // Whether the document was created by a srcdoc iframe.
   bool mIsSrcdocDocument : 1;
@@ -5267,6 +5259,10 @@ class Document : public nsINode,
   UniquePtr<dom::XPathEvaluator> mXPathEvaluator;
 
   nsTArray<RefPtr<AnonymousContent>> mAnonymousContents;
+
+  // The <div class="moz-custom-content-container"> that we use to wrap all the
+  // mAnonymousContents roots. It's a NAC root, child of the root element.
+  RefPtr<Element> mCustomContentContainer;
 
   uint32_t mBlockDOMContentLoaded;
 

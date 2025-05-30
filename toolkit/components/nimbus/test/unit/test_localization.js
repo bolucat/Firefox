@@ -4,9 +4,6 @@
 const { MatchStatus } = ChromeUtils.importESModule(
   "resource://nimbus/lib/RemoteSettingsExperimentLoader.sys.mjs"
 );
-const { TelemetryTestUtils } = ChromeUtils.importESModule(
-  "resource://testing-common/TelemetryTestUtils.sys.mjs"
-);
 
 const LOCALIZATIONS = {
   "en-US": {
@@ -213,8 +210,8 @@ add_task(async function test_getLocalizedValue() {
     "_getLocalizedValue() with a nested localization"
   );
 
-  doExperimentCleanup();
-  cleanup();
+  await doExperimentCleanup();
+  await cleanup();
 });
 
 add_task(async function test_getLocalizedValue_unenroll_missingEntry() {
@@ -246,6 +243,8 @@ add_task(async function test_getLocalizedValue_unenroll_missingEntry() {
     undefined,
     "_getLocalizedValue() with a bogus localization"
   );
+
+  await NimbusTestUtils.waitForInactiveEnrollment(enrollment.slug);
 
   Assert.equal(
     manager.store.getExperimentForFeature(FEATURE_ID),
@@ -280,14 +279,14 @@ add_task(async function test_getLocalizedValue_unenroll_missingEntry() {
     }
   );
 
-  cleanup();
+  await cleanup();
 });
 
 add_task(async function test_getLocalizedValue_unenroll_missingEntry() {
   const { manager, cleanup } = await setupTest();
 
+  await manager.store.init();
   await manager.onStartup();
-  await manager.store.ready();
 
   const experiment = NimbusTestUtils.factories.recipe.withFeatureConfig(
     "experiment",
@@ -315,6 +314,8 @@ add_task(async function test_getLocalizedValue_unenroll_missingEntry() {
     undefined,
     "_getLocalizedValue() with a bogus localization"
   );
+
+  await NimbusTestUtils.waitForInactiveEnrollment(enrollment.slug);
 
   Assert.equal(
     manager.store.getExperimentForFeature(FEATURE_ID),
@@ -349,7 +350,7 @@ add_task(async function test_getLocalizedValue_unenroll_missingEntry() {
     }
   );
 
-  cleanup();
+  await cleanup();
 });
 
 add_task(async function test_getVariables() {
@@ -393,8 +394,8 @@ add_task(async function test_getVariables() {
     "getVariable() returns substitutions inside arrays"
   );
 
-  doExperimentCleanup();
-  cleanup();
+  await doExperimentCleanup();
+  await cleanup();
 });
 
 add_task(async function test_getVariables_fallback() {
@@ -597,7 +598,7 @@ add_task(async function test_getVariables_fallback() {
   Services.prefs.clearUserPref(FEATURE.manifest.variables.foo.fallbackPref);
   Services.prefs.clearUserPref(FEATURE.manifest.variables.baz.fallbackPref);
 
-  cleanup();
+  await cleanup();
 });
 
 add_task(async function test_getVariables_fallback_unenroll() {
@@ -644,6 +645,9 @@ add_task(async function test_getVariables_fallback_unenroll() {
     baz: "fallback-baz-pref-value",
     waldo: ["fallback-waldo-pref-value"],
   });
+
+  await NimbusTestUtils.waitForInactiveEnrollment("experiment");
+  await NimbusTestUtils.waitForInactiveEnrollment("rollout");
 
   Assert.equal(
     manager.store.getExperimentForFeature(FEATURE_ID),
@@ -699,7 +703,7 @@ add_task(async function test_getVariables_fallback_unenroll() {
   Services.prefs.clearUserPref(FEATURE.manifest.variables.baz.fallbackPref);
   Services.prefs.clearUserPref(FEATURE.manifest.variables.waldo.fallbackPref);
 
-  cleanup();
+  await cleanup();
 });
 
 add_task(async function test_updateRecipes() {
@@ -724,7 +728,7 @@ add_task(async function test_updateRecipes() {
     "would enroll"
   );
 
-  cleanup();
+  await cleanup();
 });
 
 async function test_updateRecipes_missingLocale({
@@ -782,7 +786,7 @@ async function test_updateRecipes_missingLocale({
     }
   );
 
-  cleanup();
+  await cleanup();
 }
 
 add_task(test_updateRecipes_missingLocale);
@@ -860,7 +864,7 @@ add_task(async function test_updateRecipes_missingEntry() {
     }
   );
 
-  cleanup();
+  await cleanup();
 });
 
 add_task(async function test_updateRecipes_validationDisabled_pref() {
@@ -1006,7 +1010,7 @@ add_task(async function test_updateRecipes_unenroll_missingEntry() {
     }
   );
 
-  cleanup();
+  await cleanup();
 });
 
 add_task(async function test_updateRecipes_unenroll_missingLocale() {
@@ -1133,7 +1137,7 @@ add_task(async function test_updateRecipes_unenroll_missingLocale() {
     }
   );
 
-  cleanup();
+  await cleanup();
 });
 
 add_task(async function testCoenrolling() {
@@ -1178,7 +1182,8 @@ add_task(async function testCoenrolling() {
         baz: "baz",
         waldo: "waldo",
       },
-    })
+    }),
+    "test"
   );
 
   await manager.enroll(
@@ -1203,7 +1208,8 @@ add_task(async function testCoenrolling() {
       {
         localizations: LOCALIZATIONS,
       }
-    )
+    ),
+    "test"
   );
 
   await manager.enroll(
@@ -1218,7 +1224,8 @@ add_task(async function testCoenrolling() {
       {
         localizations: LOCALIZATIONS,
       }
-    )
+    ),
+    "test"
   );
 
   await manager.enroll(
@@ -1231,7 +1238,8 @@ add_task(async function testCoenrolling() {
       {
         localizations: LOCALIZATIONS,
       }
-    )
+    ),
+    "test"
   );
 
   const enrollments = NimbusFeatures[featureId]
@@ -1286,7 +1294,7 @@ add_task(async function testCoenrolling() {
     },
   ]);
 
-  NimbusTestUtils.cleanupManager([
+  await NimbusTestUtils.cleanupManager([
     "experiment-1",
     "experiment-2",
     "rollout-1",
@@ -1298,5 +1306,5 @@ add_task(async function testCoenrolling() {
   );
 
   cleanupFeature();
-  cleanup();
+  await cleanup();
 });

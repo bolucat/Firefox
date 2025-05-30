@@ -56,6 +56,11 @@ remote.jar:
   content/shared/listeners/ParentWebProgressListener.sys.mjs (shared/listeners/ParentWebProgressListener.sys.mjs)
   content/shared/listeners/PromptListener.sys.mjs (shared/listeners/PromptListener.sys.mjs)
 
+  # JSProcessActors
+  content/shared/js-process-actors/WebDriverDocumentInsertedActor.sys.mjs (shared/js-process-actors/WebDriverDocumentInsertedActor.sys.mjs)
+  content/shared/js-process-actors/WebDriverDocumentInsertedChild.sys.mjs (shared/js-process-actors/WebDriverDocumentInsertedChild.sys.mjs)
+  content/shared/js-process-actors/WebDriverDocumentInsertedParent.sys.mjs (shared/js-process-actors/WebDriverDocumentInsertedParent.sys.mjs)
+
   # JSWindowActors
   content/shared/js-window-actors/WebProgressListenerActor.sys.mjs (shared/js-window-actors/WebProgressListenerActor.sys.mjs)
   content/shared/js-window-actors/WebProgressListenerChild.sys.mjs (shared/js-window-actors/WebProgressListenerChild.sys.mjs)
@@ -84,6 +89,7 @@ remote.jar:
   content/shared/webdriver/Actions.sys.mjs (shared/webdriver/Actions.sys.mjs)
   content/shared/webdriver/Assert.sys.mjs (shared/webdriver/Assert.sys.mjs)
   content/shared/webdriver/Capabilities.sys.mjs (shared/webdriver/Capabilities.sys.mjs)
+  content/shared/webdriver/Certificates.sys.mjs (shared/webdriver/Certificates.sys.mjs)
   content/shared/webdriver/Errors.sys.mjs (shared/webdriver/Errors.sys.mjs)
   content/shared/webdriver/Event.sys.mjs (shared/webdriver/Event.sys.mjs)
   content/shared/webdriver/KeyData.sys.mjs (shared/webdriver/KeyData.sys.mjs)

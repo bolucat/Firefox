@@ -695,8 +695,6 @@ class MOZ_RAII InlinableNativeIRGenerator {
   AttachDecision tryAttachCanOptimizeStringProtoSymbolLookup();
   AttachDecision tryAttachGuardToClass(InlinableNative native);
   AttachDecision tryAttachGuardToClass(GuardClassKind kind);
-  AttachDecision tryAttachGuardToEitherClass(GuardClassKind kind1,
-                                             GuardClassKind kind2);
   AttachDecision tryAttachGuardToArrayBuffer();
   AttachDecision tryAttachGuardToSharedArrayBuffer();
   AttachDecision tryAttachHasClass(const JSClass* clasp,
@@ -801,7 +799,7 @@ class MOZ_RAII InlinableNativeIRGenerator {
   AttachDecision tryAttachMapGet();
   AttachDecision tryAttachMapDelete();
   AttachDecision tryAttachMapSet();
-  AttachDecision tryAttachDateGetTime(InlinableNative native);
+  AttachDecision tryAttachDateGetTime();
   AttachDecision tryAttachDateGet(DateComponent component);
 #ifdef FUZZING_JS_FUZZILLI
   AttachDecision tryAttachFuzzilliHash();

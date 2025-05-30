@@ -62,11 +62,8 @@
     Explanation for private browsing displayed to users on home view when they first enable private mode.
     %1$s is the name of the app (for example "Firefox").
   -->
-  <string name="private_browsing_placeholder_description_2">
-        %1$s limpa o historial de buscas e de navegación das lapelas privadas ao saír delas ou pechar a aplicación. Aínda que isto non conserva o seu anonimato en sitios web para o seu fornecedor de servizos de internet, si facilita manter en privado o que fai na rede para calquera outra persoa que utilice este ordenador.</string>
-  <string name="private_browsing_common_myths">
-       Mitos frecuentes sobre a navegación privada
-    </string>
+  <string name="private_browsing_placeholder_description_2">%1$s limpa o historial de buscas e de navegación das lapelas privadas ao saír delas ou pechar a aplicación. Aínda que isto non conserva o seu anonimato en sitios web para o seu fornecedor de servizos de internet, si facilita manter en privado o que fai na rede para calquera outra persoa que utilice este ordenador.</string>
+  <string name="private_browsing_common_myths">Mitos frecuentes sobre a navegación privada</string>
   <!--
     True Private Browsing Mode
 
@@ -578,41 +575,41 @@
     Onboarding header for the add-ons card used by Nimbus experiments. Nimbus experiments do not support string placeholders.
     Note: The word "Firefox" should NOT be translated
   -->
-  <string name="onboarding_add_on_header" tools:ignore="BrandUsage,UnusedResources">Personaliza o teu Firefox con extensións</string>
+  <string name="onboarding_add_on_header" moz:removedIn="140" tools:ignore="BrandUsage,UnusedResources">Personaliza o teu Firefox con extensións</string>
   <!-- Onboarding sub header for the add-ons card, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_sub_header" tools:ignore="UnusedResources">Engade extensións de terceiros para mellorar a túa seguridade, produtividade e moito máis.</string>
+  <string name="onboarding_add_on_sub_header" moz:removedIn="140" tools:ignore="UnusedResources">Engade extensións de terceiros para mellorar a túa seguridade, produtividade e moito máis.</string>
   <!-- Onboarding add-ons card, for checking more add-ons on, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_explore_more_extensions_2">Explora máis extensións</string>
+  <string name="onboarding_add_on_explore_more_extensions_2" moz:removedIn="140" tools:ignore="UnusedResources">Explora máis extensións</string>
   <!-- Onboarding add-ons card, button for start browsing, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_start_browsing_button_2">Iniciar a navegación</string>
+  <string name="onboarding_add_on_start_browsing_button_2" moz:removedIn="140" tools:ignore="UnusedResources">Iniciar a navegación</string>
   <!-- Ublock name for the onboarding add-ons card, used by Nimbus experiments. Note: The word "Ublock Origin" is a brand name should NOT be translated -->
-  <string name="onboarding_add_on_ublock_name" tools:ignore="UnusedResources">uBlock Origin</string>
+  <string name="onboarding_add_on_ublock_name" moz:removedIn="140" tools:ignore="UnusedResources">uBlock Origin</string>
   <!-- Ublock description for the onboarding add-ons card, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_ublock_description" tools:ignore="UnusedResources">Bloquear anuncios de forma eficaz e eficiente.</string>
+  <string name="onboarding_add_on_ublock_description" moz:removedIn="140" tools:ignore="UnusedResources">Bloquear anuncios de forma eficaz e eficiente.</string>
   <!-- Privacy Badger name for the onboarding add-ons card, used by Nimbus experiments. Note: The word "Privacy Badger" is a brand name should NOT be translated -->
-  <string name="onboarding_add_on_privacy_badger_name" tools:ignore="UnusedResources">Privacy Badger</string>
+  <string name="onboarding_add_on_privacy_badger_name" moz:removedIn="140" tools:ignore="UnusedResources">Privacy Badger</string>
   <!-- Privacy Badger description for the onboarding add-ons card, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_privacy_badger_description" tools:ignore="UnusedResources">Xoia anti-rastrexo. Detén os rastrexadores invisibles e os anuncios espía.</string>
+  <string name="onboarding_add_on_privacy_badger_description" moz:removedIn="140" tools:ignore="UnusedResources">Xoia anti-rastrexo. Detén os rastrexadores invisibles e os anuncios espía.</string>
   <!-- Search by Image name for the onboarding add-ons card, used by Nimbus experiments. Note: The word "Search by Image" is a brand name should NOT be translated -->
-  <string name="onboarding_add_on_search_by_image_name" tools:ignore="UnusedResources">Search by Image</string>
+  <string name="onboarding_add_on_search_by_image_name" moz:removedIn="140" tools:ignore="UnusedResources">Search by Image</string>
   <!-- Search by Image description for the onboarding add-ons card, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_search_by_image_description" tools:ignore="UnusedResources">Mira unha imaxe interesante e aprende máis sobre ela.</string>
+  <string name="onboarding_add_on_search_by_image_description" moz:removedIn="140" tools:ignore="UnusedResources">Mira unha imaxe interesante e aprende máis sobre ela.</string>
   <!-- Dark Reader name for the onboarding add-ons card, used by Nimbus experiments. Note: The word "Dark Reader" is a brand name should NOT be translated -->
-  <string name="onboarding_add_on_dark_reader_name" tools:ignore="UnusedResources">Dark Reader</string>
+  <string name="onboarding_add_on_dark_reader_name" moz:removedIn="140" tools:ignore="UnusedResources">Dark Reader</string>
   <!-- Privacy Badger description for the onboarding add-ons card, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_dark_reader_description" tools:ignore="UnusedResources">Modo escuro personalizado para a web móbil.</string>
+  <string name="onboarding_add_on_dark_reader_description" moz:removedIn="140" tools:ignore="UnusedResources">Modo escuro personalizado para a web móbil.</string>
   <!-- Label for the number of reviews for an add-on. %1$s is the formatted number of reviews e.g. "1,234", "12,345", "123,456". -->
-  <string name="onboarding_add_on_reviews_label">Recensións: %1$s</string>
+  <string name="onboarding_add_on_reviews_label" moz:removedIn="140" tools:ignore="UnusedResources">Recensións: %1$s</string>
   <!-- Content description for the add-on icon. -->
-  <string name="onboarding_add_on_icon_content_description">Icona de complemento</string>
+  <string name="onboarding_add_on_icon_content_description" moz:removedIn="140" tools:ignore="UnusedResources">Icona de complemento</string>
   <!-- Content description for the an installed add-on icon. -->
-  <string name="onboarding_installed_add_on_icon_content_description">Icona de complemento instalado</string>
+  <string name="onboarding_installed_add_on_icon_content_description" moz:removedIn="140" tools:ignore="UnusedResources">Icona de complemento instalado</string>
   <!-- Content description for the an installing add-on icon. -->
-  <string name="onboarding_installing_add_on_icon_content_description">Icona de complemento en proceso de instalación</string>
+  <string name="onboarding_installing_add_on_icon_content_description" moz:removedIn="140" tools:ignore="UnusedResources">Icona de complemento en proceso de instalación</string>
   <!-- Content description for the add add-on button. -->
-  <string name="onboarding_add_on_add_button_content_description">Botón para engadir complemento</string>
+  <string name="onboarding_add_on_add_button_content_description" moz:removedIn="140" tools:ignore="UnusedResources">Botón para engadir complemento</string>
   <!-- Content description for the star rating group. %1$s is the rating. -->
-  <string name="onboarding_add_on_star_rating_content_description">Valoración de %1$s sobre 5</string>
+  <string name="onboarding_add_on_star_rating_content_description" moz:removedIn="140" tools:ignore="UnusedResources">Valoración de %1$s sobre 5</string>
   <!-- Title for the privacy preferences dialog shown during onboarding. Note: The word "Firefox" should NOT be translated. -->
   <string name="onboarding_preferences_dialog_title" tools:ignore="BrandUsage">Axúdanos a mellorar Firefox</string>
   <!-- Title for the crash reporting option in the privacy preferences dialog shown during onboarding. -->
@@ -778,7 +775,9 @@
   <!-- Preference title for using the screen lock to hide tabs in private browsing -->
   <string name="preferences_pbm_lock_screen_title">Usa o bloqueo da pantalla para ocultar as pestanas na navegación privada</string>
   <!-- Informs the user how to access the tabs when "Use screen lock to hide tabs in private browsing" is enabled -->
-  <string name="preferences_pbm_lock_screen_summary">Consulta as pestanas con impresión dixital, desbloqueo facial ou PIN.</string>
+  <string name="preferences_pbm_lock_screen_summary" moz:removedIn="140" tools:ignore="UnusedResources">Consulta as pestanas con impresión dixital, desbloqueo facial ou PIN.</string>
+  <!-- Informs the user how to access the tabs when "Use screen lock to hide tabs in private browsing" is enabled -->
+  <string name="preferences_pbm_lock_screen_summary_2">Consulta as pestanas coa túa impresión dixital, PIN ou desbloqueo facial.</string>
   <!-- Label for cookie banner section in quick settings panel. -->
   <string name="cookie_banner_blocker">Bloqueador de aviso de cookies</string>
   <!-- Preference for removing cookie/consent banners from sites automatically in private mode. See reduce_cookie_banner_summary for additional context. -->
@@ -983,9 +982,11 @@
   -->
   <string name="customize_toggle_recently_visited">Visitado recentemente</string>
   <!-- Title for the customize home screen section with Pocket. -->
-  <string name="customize_toggle_pocket_2">Historias para reflexionar</string>
+  <string name="customize_toggle_pocket_2" tools:ignore="UnusedResources" moz:removedIn="140">Historias para reflexionar</string>
+  <!-- Title for the customize home screen section with Pocket. -->
+  <string name="customize_toggle_pocket_3">Historias</string>
   <!-- Summary for the customize home screen section with Pocket. %s is "Pocket". -->
-  <string name="customize_toggle_pocket_summary">Artigos impulsados por %s</string>
+  <string name="customize_toggle_pocket_summary" tools:ignore="UnusedResources" moz:removedIn="140">Artigos impulsados por %s</string>
   <!-- Title for the customize home screen section with sponsored Pocket stories. -->
   <string name="customize_toggle_pocket_sponsored">Historias patrocinadas</string>
   <!-- Title for the opening wallpaper settings screen -->
@@ -1024,6 +1025,56 @@
   <string name="wallpapers_onboarding_dialog_body_text">Escolla un fondo de pantalla que o represente.</string>
   <!-- Wallpaper onboarding dialog learn more button text. The button navigates to the wallpaper settings screen. -->
   <string name="wallpapers_onboarding_dialog_explore_more_button_text">Explorar máis fondos de pantalla</string>
+  <!--
+    Icon picker
+
+    Title for the "Default" alternative app icon variant in the icon picker screen.
+  -->
+  <string name="alternative_app_icon_option_default">Predeterminado</string>
+  <!-- Title for the "Light" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_light">Claro</string>
+  <!-- Title for the "Dark" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_dark">Escuro</string>
+  <!-- Title for the "Red" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_red">Vermello</string>
+  <!-- Title for the "Green" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_green">Verde</string>
+  <!-- Title for the "Blue" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_blue">Azul</string>
+  <!-- Title for the "Purple" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_purple">Púrpura</string>
+  <!-- Title for the "Purple Dark" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_purple_dark">Roxo Escuro</string>
+  <!-- Title for the "Sunrise" gradient alternative app icon variant in the icon picker screen. The app icon features a soft yellow-to-blue gradient background, resembling the colors of early morning light. -->
+  <string name="alternative_app_icon_option_gradient_sunrise">Amanecer</string>
+  <!-- Title for the "Golden Hour" gradient alternative app icon variant in the icon picker screen. The app icon features a warm golden-to-pink gradient background, resembling the colors of the sunlight shortly before sunset. -->
+  <string name="alternative_app_icon_option_gradient_golden_hour">Hora dourada</string>
+  <!-- Title for the "Sunset" gradient alternative app icon variant in the icon picker screen. The app icon has a rich red-to-purple gradient background, resembling the tones of a sunset sky. -->
+  <string name="alternative_app_icon_option_gradient_sunset">Solpor</string>
+  <!-- Title for the "Blue Hour" gradient alternative app icon variant in the icon picker screen. The app icon has a cool blue gradient background, resembling the sky color around the time just after sunset or before sunrise. -->
+  <string name="alternative_app_icon_option_gradient_blue_hour">Hora Azul</string>
+  <!-- Title for the "Twilight" gradient alternative app icon variant in the icon picker screen. The app icon has a purple-toned gradient background, resembling the sky color during twilight. -->
+  <string name="alternative_app_icon_option_gradient_twilight">Crepúsculo</string>
+  <!-- Title for the "Midnight" gradient alternative app icon variant in the icon picker screen. The app icon features a dark gradient background, resembling the deep tones of the night sky. -->
+  <string name="alternative_app_icon_option_gradient_midnight">Media noite</string>
+  <!-- Title for the "Northern Lights" gradient alternative app icon variant in the icon picker screen. The app icon has a dynamic green, blue, and purple gradient background, resembling the aurora borealis. -->
+  <string name="alternative_app_icon_option_gradient_northern_lights">Aurora boreal</string>
+  <!-- Title for the "Retro 2004" themed alternative app icon variant in the icon picker screen. This app icon uses the classic Firefox logo from 2004. -->
+  <string name="alternative_app_icon_option_retro_2004">Retro 2004</string>
+  <!-- Title for the "Retro 2017" themed alternative app icon variant in the icon picker screen. This app icon uses the Firefox logo from 2017, with a more modernized design. -->
+  <string name="alternative_app_icon_option_retro_2017">Retro 2017</string>
+  <!-- Title for the "Pixelated" themed alternative app icon variant in the icon picker screen. This app icon features a pixel-art style, resembling retro 8-bit graphics. -->
+  <string name="alternative_app_icon_option_pixelated">Pixelado</string>
+  <!-- Title for the "Minimal" themed alternative app icon variant in the icon picker screen. The app icon presents a simplified, flat and monochrome version of the Firefox logo. -->
+  <string name="alternative_app_icon_option_minimal">Mínimo</string>
+  <!-- Title for the "Pride" themed alternative app icon variant in the icon picker screen. The app icon incorporates a rainbow color scheme in support of the LGBTQ+ community. -->
+  <string name="alternative_app_icon_option_pride">Orgullo</string>
+  <!-- Title for the "Cute" themed alternative app icon variant in the icon picker screen. The app icon features a playful design with an adorable aesthetic. -->
+  <string name="alternative_app_icon_option_cute">bonito</string>
+  <!-- Title for the "Momo" themed alternative app icon variant in the icon picker screen. The app icon was created by artist @heyheymomodraws and features a unique hand-drawn style with a friendly fox. -->
+  <string name="alternative_app_icon_option_momo">Momo</string>
+  <!-- Subtitle for the "Momo" themed alternative app icon variant in the icon picker screen. The app icon was created by artist @heyheymomodraws and features a unique hand-drawn style with a friendly fox. -->
+  <string name="alternative_app_icon_option_momo_subtitle">Creado por @heyheymomodraws</string>
   <!--
     Add-ons general availability nimbus message
 
@@ -1176,7 +1227,7 @@
 
     Instructions on how to access pairing
   -->
-  <string name="pair_instructions_2">Escaneeo código QR que se mostra en &lt;b&gt;firefox.com/pair&lt;/b&gt;</string>
+  <string name="pair_instructions_2"><![CDATA[Escaneeo código QR que se mostra en <b>firefox.com/pair</b>]]></string>
   <!--
     Toolbar Preferences
 
@@ -1490,7 +1541,7 @@
     Message for the dialog that is shown when there is not enough storage space to download a file.
     %s is the name of the file to download.
   -->
-  <string name="download_file_has_not_enough_storage_dialog_message">Este dispositivo non ten espazo suficiente para descargar &lt;b&gt;%s&lt;/b&gt;.</string>
+  <string name="download_file_has_not_enough_storage_dialog_message"><![CDATA[Este dispositivo non ten espazo suficiente para descargar <b>%s</b>.]]></string>
   <!--
     Text for the confirm button in the dialog that is shown when there is not enough storage space to download a file.
     This button will navigate the user to the device's storage management settings.
@@ -1613,15 +1664,31 @@
 
     Broken site reason text for site slow or not working
   -->
-  <string name="webcompat_reporter_reason_slow">Sitio lento ou non funciona</string>
+  <string name="webcompat_reporter_reason_slow" moz:removedIn="140" tools:ignore="UnusedResources">Sitio lento ou non funciona</string>
+  <!-- Broken site reason text for site doesn’t load -->
+  <string name="webcompat_reporter_reason_load">O sitio non se carga</string>
+  <!-- Broken site reason text for can’t pay, check out or shop -->
+  <string name="webcompat_reporter_reason_checkout">Non se pode pagar, pagar nin mercar</string>
   <!-- Broken site reason text for images or videos -->
-  <string name="webcompat_reporter_reason_media">Imaxes ou vídeos</string>
+  <string name="webcompat_reporter_reason_media" moz:removedIn="140" tools:ignore="UnusedResources">Imaxes ou vídeos</string>
   <!-- Broken site reason text for buttons, links, and other content -->
-  <string name="webcompat_reporter_reason_content">Botóns, ligazóns e outro contido</string>
+  <string name="webcompat_reporter_reason_content" moz:removedIn="140" tools:ignore="UnusedResources">Botóns, ligazóns e outro contido</string>
   <!-- Broken site reason text for sign in or sign out -->
-  <string name="webcompat_reporter_reason_account">Iniciar sesión ou pechar sesión</string>
+  <string name="webcompat_reporter_reason_account" moz:removedIn="140" tools:ignore="UnusedResources">Iniciar sesión ou pechar sesión</string>
+  <!-- Broken site reason text for site is slow -->
+  <string name="webcompat_reporter_reason_slow2">O sitio é lento</string>
+  <!-- Broken site reason text for video isn’t playing or loading -->
+  <string name="webcompat_reporter_reason_media2">O vídeo non se está reproducindo nin cargando</string>
+  <!-- Broken site reason text for missing content -->
+  <string name="webcompat_reporter_reason_content2">Falta contido</string>
+  <!-- Broken site reason text for can’t sign in or register -->
+  <string name="webcompat_reporter_reason_account2">Non se pode iniciar sesión nin rexistrarse</string>
   <!-- Broken site reason text for ad blocker -->
-  <string name="webcompat_reporter_reason_ad_blocker">Bloqueador de anuncios</string>
+  <string name="webcompat_reporter_reason_ad_blocker" moz:removedIn="140" tools:ignore="UnusedResources">Bloqueador de anuncios</string>
+  <!-- Broken site reason text for site asked to turn off ad blocker -->
+  <string name="webcompat_reporter_reason_turn_off_adblocker">Solicitase ao sitio desactivar o bloqueador de anuncios</string>
+  <!-- Broken site reason text for browser isn’t supported or blocked -->
+  <string name="webcompat_reporter_reason_notsupported">O navegador non é compatible nin bloqueado</string>
   <!-- Broken site reason text for something else -->
   <string name="webcompat_reporter_reason_other">Algo máis</string>
   <!--
@@ -1670,6 +1737,8 @@
   <string name="bookmark_menu_copy_button">Copiar</string>
   <!-- Bookmark overflow menu share button -->
   <string name="bookmark_menu_share_button">Compartir</string>
+  <!-- Bookmark overflow menu select all bookmarks -->
+  <string name="bookmark_menu_select_all_bookmarks">Seleccionar todo</string>
   <!-- Bookmark overflow menu open in new tab button -->
   <string name="bookmark_menu_open_in_new_tab_button">Abrir nunha lapela nova</string>
   <!-- Bookmark overflow menu open in private tab button -->
@@ -2162,7 +2231,7 @@
   <!-- Title of QR Pairing Fragment -->
   <string name="sync_scan_code">Escanear o código</string>
   <!-- Instructions on how to access pairing -->
-  <string name="sign_in_instructions" tools:ignore="BrandUsage">No seu computador, abra o Firefox e vaia a &lt;b&gt;https://firefox.com/pair&lt;/b&gt;</string>
+  <string name="sign_in_instructions" tools:ignore="BrandUsage"><![CDATA[No seu computador, abra o Firefox e vaia a <b>https://firefox.com/pair</b>]]></string>
   <!-- Text shown for sign in pairing when ready -->
   <string name="sign_in_ready_for_scan">Listo para escanear</string>
   <!-- Text shown for settings option for sign with pairing -->
@@ -2170,7 +2239,7 @@
   <!-- Text shown for settings option for sign with email -->
   <string name="sign_in_with_email">Use o correo electrónico no seu lugar</string>
   <!-- Text shown for settings option for create new account text.'Firefox' intentionally hardcoded here. -->
-  <string name="sign_in_create_account_text" tools:ignore="BrandUsage">Non ten unha conta? &lt;u&gt;Cree unha&lt;/u&gt; para sincronizar o Firefox entre dispositivos.</string>
+  <string name="sign_in_create_account_text" tools:ignore="BrandUsage"><![CDATA[Non ten unha conta? <u>Cree unha</u> para sincronizar o Firefox entre dispositivos.]]></string>
   <!-- Text shown in confirmation dialog to sign out of account. %s is the name of the app (for example "Firefox"). -->
   <string name="sign_out_confirmation_message_2">%s deterá a sincronización coa súa conta, pero non eliminará ningún dos seus datos de navegación neste dispositivo.</string>
   <!-- Option to continue signing out of account shown in confirmation dialog to sign out of account -->
@@ -2317,8 +2386,6 @@
   <string name="preference_doh_summary">O sistema de nomes de dominio (DNS) a través de HTTPS envía a túa solicitude de nome de dominio a través dunha conexión cifrada, proporcionando un DNS seguro e dificultando que outros poidan ver a que sitio web estás a piques de acceder. %1$s</string>
   <!-- Used as text for the link in `preference_doh_title`, points to documentation about "DNS over HTTPS" -->
   <string name="preference_doh_learn_more">Máis información</string>
-  <!-- Content description for the toolbar "Navigate up" button -->
-  <string name="preference_doh_up_description">Navegar cara arriba</string>
   <!-- Content description for the "Exceptions" button -->
   <string name="preference_doh_exceptions_description">Excepcións</string>
   <!-- Content description for the "Info" button -->
@@ -2372,7 +2439,7 @@
   <!-- Text displayed above provider textfield under "DNS over HTTPS" -->
   <string name="preference_doh_provider_custom_dialog_textfield">Fornecedor</string>
   <!-- Error text displayed for provider textfield under "DNS over HTTPS" if the URL does not start with "https://" or its scheme is not "https" -->
-  <string name="preference_doh_provider_custom_dialog_error_https">O URL debe comezar por "https://"</string>
+  <string name="preference_doh_provider_custom_dialog_error_https">O URL debe comezar por \"https://\"</string>
   <!-- Error text displayed for provider textfield under "DNS over HTTPS" if the URL is invalid -->
   <string name="preference_doh_provider_custom_dialog_error_invalid">URL non válido</string>
   <!-- Cancel button text for provider textfield under "DNS over HTTPS" -->
@@ -2477,6 +2544,8 @@
   <string name="preferences_passwords_exceptions_remove_all">Eliminar todas as excepcións</string>
   <!-- Hint for search box in passwords list -->
   <string name="preferences_passwords_saved_logins_search_2">Buscar contrasinais</string>
+  <!-- Content description for the logins navigation bar back button -->
+  <string name="logins_navigate_back_button_content_description">Atrás</string>
   <!-- The header for the site that a login is for -->
   <string name="preferences_passwords_saved_logins_site">Sitio</string>
   <!-- The header for the username for a login -->
@@ -2680,7 +2749,7 @@
   <!-- Text shown when a user leaves out the required template string -->
   <string name="search_add_custom_engine_error_missing_template">Comprobe que a cadea de busca coincida co formato do exemplo</string>
   <!-- Text shown when we aren't able to validate the custom search query. %s is the url of the custom search engine. -->
-  <string name="search_add_custom_engine_error_cannot_reach">Erro ao conectar con «%s»</string>
+  <string name="search_add_custom_engine_error_cannot_reach" moz:removedIn="140" tools:ignore="UnusedResources">Erro ao conectar con «%s»</string>
   <!-- Text shown when a user creates a new search engine. %s is the url of the custom search engine. -->
   <string name="search_add_custom_engine_success_message">Creouse %s</string>
   <!-- Text shown when a user successfully edits a custom search engine. %s is the url of the custom search engine. -->
@@ -2692,9 +2761,9 @@
   <!-- First step for the allowing a permission -->
   <string name="phone_feature_blocked_step_settings">1. Vaia á Configuración de Android</string>
   <!-- Second step for the allowing a permission -->
-  <string name="phone_feature_blocked_step_permissions">2. Toque &lt;b&gt;Permisos&lt;/b&gt;</string>
+  <string name="phone_feature_blocked_step_permissions"><![CDATA[2. Toque <b>Permisos</b>]]></string>
   <!-- Third step for the allowing a permission (%1$s is the permission name, for example "Camera"). -->
-  <string name="phone_feature_blocked_step_feature">3. Cambie &lt;b&gt;%1$s&lt;/b&gt; a ACTIVADO</string>
+  <string name="phone_feature_blocked_step_feature"><![CDATA[3. Cambie <b>%1$s</b> a ACTIVADO]]></string>
   <!-- Label that indicates a site is using a secure connection -->
   <string name="quick_settings_sheet_secure_connection_2">A conexión é segura</string>
   <!-- Label that indicates a site is using a insecure connection -->
@@ -2704,7 +2773,7 @@
   <!-- Label to clear site data -->
   <string name="clear_site_data">Borrar as cookies e os datos do sitio</string>
   <!-- Confirmation message for a dialog confirming if the user wants to delete all data for current site. %s is the domain of the site. -->
-  <string name="confirm_clear_site_data">Seguro que quere borrar todas as cookies e os datos do sitio &lt;b&gt;%s&lt;/b&gt;?</string>
+  <string name="confirm_clear_site_data"><![CDATA[Seguro que quere borrar todas as cookies e os datos do sitio <b>%s</b>?]]></string>
   <!-- Confirmation message for a dialog confirming if the user wants to delete all the permissions for all sites -->
   <string name="confirm_clear_permissions_on_all_sites">Confirma que desexa limpar todos os permisos de todos os sitios?</string>
   <!-- Confirmation message for a dialog confirming if the user wants to delete all the permissions for a site -->
@@ -2888,17 +2957,19 @@
 
     Header text for a section on the home screen.
   -->
-  <string name="pocket_stories_header_1">Historias para reflexionar</string>
+  <string name="pocket_stories_header_1" tools:ignore="UnusedResources" moz:removedIn="140">Historias para reflexionar</string>
+  <!-- Header text for a section on the home screen. -->
+  <string name="pocket_stories_header_2">Historias</string>
   <!-- Header text for a section on the home screen. -->
   <string name="pocket_stories_categories_header">Historias por tema</string>
   <!-- Text of a button allowing users to access an external url for more Pocket recommendations. -->
   <string name="pocket_stories_placeholder_text">Descubrir máis</string>
   <!-- Title of an app feature. Smaller than a heading. %s is "Pocket". -->
-  <string name="pocket_stories_feature_title_2">Creado por %s.</string>
+  <string name="pocket_stories_feature_title_2" moz:removedIn="140" tools:ignore="UnusedResources">Creado por %s.</string>
   <!-- Caption for describing a certain feature. %s is a link using pocket_stories_feature_learn_more as text, which will load an url in a new tab when clicked. -->
-  <string name="pocket_stories_feature_caption" tools:ignore="BrandUsage">Parte da familia Firefox. %s</string>
+  <string name="pocket_stories_feature_caption" moz:removedIn="140" tools:ignore="BrandUsage,UnusedResources">Parte da familia Firefox. %s</string>
   <!-- Clickable text for opening an external link for more information about Pocket. -->
-  <string name="pocket_stories_feature_learn_more">Máis información</string>
+  <string name="pocket_stories_feature_learn_more" moz:removedIn="140" tools:ignore="UnusedResources">Máis información</string>
   <!-- Text indicating that the Pocket story that also displays this text is a sponsored story by other 3rd party entity. -->
   <string name="pocket_stories_sponsor_indication">Patrocinado</string>
   <!-- Snackbar message for enrolling in a Nimbus experiment from the secret settings when Studies preference is Off. -->
@@ -2910,11 +2981,11 @@
 
     Paragraph explaining the grading system we use to classify the reliability of a product's reviews.
   -->
-  <string name="review_quality_check_info_review_grade_header" moz:removedIn="136" tools:ignore="UnusedResources">Asignamos ás recensións de cada produto unha &lt;b&gt;nota&lt;/b&gt; de A a F.</string>
+  <string name="review_quality_check_info_review_grade_header" moz:removedIn="136" tools:ignore="UnusedResources"><![CDATA[Asignamos ás recensións de cada produto unha <b>nota</b> de A a F.]]></string>
   <!-- Paragraph explaining how a product's adjusted grading is calculated. -->
-  <string name="review_quality_check_explanation_body_adjusted_grading" moz:removedIn="136" tools:ignore="UnusedResources">A &lt;b&gt;valoración axustada&lt;/b&gt; baséase só nas recensións que consideramos fiables.</string>
+  <string name="review_quality_check_explanation_body_adjusted_grading" moz:removedIn="136" tools:ignore="UnusedResources"><![CDATA[A <b>valoración axustada</b> baséase só nas recensións que consideramos fiables.]]></string>
   <!-- Paragraph explaining product review highlights. %s is the name of the retailer (e.g. Amazon). -->
-  <string name="review_quality_check_explanation_body_highlights" moz:removedIn="136" tools:ignore="UnusedResources">Os &lt;b&gt;destacados&lt;/b&gt; son de %s recensións dos últimos 80 días que consideramos fiables.</string>
+  <string name="review_quality_check_explanation_body_highlights" moz:removedIn="136" tools:ignore="UnusedResources"><![CDATA[Os <b>destacados</b> son de %s recensións dos últimos 80 días que consideramos fiables.]]></string>
   <!--
     Accessibility services actions labels. These will be appended to accessibility actions like "Double tap to.." but not by or applications but by services like Talkback.
 
@@ -2932,7 +3003,7 @@
   <!-- Action label for links that point to an article. Talkback will append this to say "Double tap to read the article". -->
   <string name="a11y_action_label_read_article">ler o artigo</string>
   <!-- Action label for links to the Firefox Pocket website. Talkback will append this to say "Double tap to open link to learn more". -->
-  <string name="a11y_action_label_pocket_learn_more">abrir a ligazón para saber máis</string>
+  <string name="a11y_action_label_pocket_learn_more" moz:removedIn="140" tools:ignore="UnusedResources">abrir a ligazón para saber máis</string>
   <!-- Content description for headings announced by accessibility service. %s is the text of the heading. Talkback will announce the text and then speak the word "Heading" indicating to the user that this text is a heading for a section. -->
   <string name="a11y_heading">%s, Título</string>
   <!-- Title for dialog displayed when trying to access links present in a text. -->
@@ -3136,12 +3207,12 @@
     The title of the warning card informs the user that an error has occurred at downloading a language.
     %1$s is the language name, for example, "Spanish".
   -->
-  <string name="download_languages_error_warning_text">Non se puido descargar &lt;b&gt;%1$s&lt;/b&gt;. Ténteo de novo.</string>
+  <string name="download_languages_error_warning_text"><![CDATA[Non se puido descargar <b>%1$s</b>. Ténteo de novo.]]></string>
   <!--
     The title of the warning card informs the user that an error has occurred at deleting a language.
     %1$s is the language name, for example, "Spanish".
   -->
-  <string name="download_languages_delete_error_warning_text">Non se puido eliminar &lt;b&gt;%1$s&lt;/b&gt;. Ténteo de novo.</string>
+  <string name="download_languages_delete_error_warning_text"><![CDATA[Non se puido eliminar <b>%1$s</b>. Ténteo de novo.]]></string>
   <!--
     Title for the dialog used by the translations feature to confirm deleting a language.
     The dialog will be presented when the user requests deletion of a language.
@@ -3237,7 +3308,7 @@
     Description text for a dialog confirming whether the user wants to delete all data for current site.
     %s is a placeholder for the base domain of website.
   -->
-  <string name="clear_site_data_dialog_description">Se eliminas as cookies e os datos do sitio para &lt;b&gt;%s&lt;/b&gt;, é posible que peches a sesión dos sitios web e borres os carros da compra.</string>
+  <string name="clear_site_data_dialog_description"><![CDATA[Se eliminas as cookies e os datos do sitio para <b>%s</b>, é posible que peches a sesión dos sitios web e borres os carros da compra.]]></string>
   <!-- Button text on the clear site data dialog to allow users to confirm they wish to clear the site data. -->
   <string name="clear_site_data_dialog_positive_button_text">Borrar</string>
   <!-- Button text on the clear site data dialog to allow users to cancel the action and not clear the site data. -->
@@ -3601,6 +3672,8 @@
   <string name="pbm_authentication_enable_lock">Activa o bloqueo da pantalla das pestanas privadas</string>
   <!-- Authentication prompt title to disable the private tabs mode -->
   <string name="pbm_authentication_disable_lock">Desactiva o bloqueo da pantalla das pestanas privadas</string>
+  <!-- Label for a preference shown when the device supports screen lock (e.g., PIN, pattern, or password) but the user has not set one up. -->
+  <string name="pbm_authentication_lock_device_feature_disabled">Configura o bloqueo da pantalla para ocultar as pestanas</string>
   <!-- Title text for the contextual feature recommendation (CFR) suggesting the user enable a screen lock to protect private tabs -->
   <string name="private_tab_cfr_title">Usar o bloqueo da pantalla para ocultar as pestanas privadas?</string>
   <!-- Negative button text for the contextual feature recommendation (CFR) dismissing the screen lock suggestion -->

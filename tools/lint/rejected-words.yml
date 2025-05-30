@@ -29,7 +29,8 @@ avoid-blacklist-and-whitelist:
         - java
         - kt
     exclude:
-        - '**/.eslintrc-rollouts.js'
+        - eslint-rollouts.config.mjs
+        - eslint-file-globals.config.mjs
         - browser/app/profile/firefox.js
         - browser/app/winlauncher/LauncherProcessWin.cpp
         - browser/base/content/browser.js
@@ -195,7 +196,6 @@ avoid-blacklist-and-whitelist:
         - python/mozbuild/mozbuild/backend/recursivemake.py
         - python/mozbuild/mozbuild/configure/options.py
         - python/mozbuild/mozbuild/vendor/vendor_rust.py
-        - remote/cdp/Protocol.sys.mjs
         - security/manager/ssl/tests/unit/test_intermediate_preloads.js
         - security/sandbox/linux/broker/SandboxBroker.cpp
         - security/sandbox/linux/broker/SandboxBroker.h
@@ -278,7 +278,6 @@ avoid-blacklist-and-whitelist:
         - toolkit/mozapps/extensions/test/xpinstall/head.js
         - tools/fuzzing/messagemanager/MessageManagerFuzzer.cpp
         - tools/fuzzing/messagemanager/MessageManagerFuzzer.h
-        - tools/lint/eslint/eslint-plugin-mozilla/lib/rules/no-define-cc-etc.js
         - tools/lint/rejected-words.yml
         - widget/android/GfxInfo.cpp
         - widget/GfxInfoBase.cpp

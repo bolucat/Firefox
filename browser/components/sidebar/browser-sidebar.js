@@ -328,7 +328,7 @@ var SidebarController = {
     }
 
     this._pinnedTabsContainer = document.getElementById(
-      "vertical-pinned-tabs-container"
+      "pinned-tabs-container"
     );
     this._pinnedTabsItemsWrapper =
       this._pinnedTabsContainer.shadowRoot.querySelector(
@@ -2162,8 +2162,9 @@ var SidebarController = {
 };
 
 ChromeUtils.defineESModuleGetters(SidebarController, {
-  SidebarManager: "resource:///modules/SidebarManager.sys.mjs",
-  SidebarState: "resource:///modules/SidebarState.sys.mjs",
+  SidebarManager:
+    "moz-src:///browser/components/sidebar/SidebarManager.sys.mjs",
+  SidebarState: "moz-src:///browser/components/sidebar/SidebarState.sys.mjs",
 });
 
 // Add getters related to the position here, since we will want them
@@ -2293,6 +2294,7 @@ XPCOMUtils.defineLazyPreferenceGetter(
       } else {
         SidebarController._disablePinnedTabsDragging();
       }
+      SidebarController._state.updatePinnedTabsHeight();
     }
   }
 );

@@ -60,6 +60,7 @@
 #include "mozilla/DocumentStyleRootIterator.h"
 #include "mozilla/EditorBase.h"
 #include "mozilla/EditorCommands.h"
+#include "mozilla/dom/BindContext.h"
 #include "mozilla/Encoding.h"
 #include "mozilla/ErrorResult.h"
 #include "mozilla/EventDispatcher.h"
@@ -1407,6 +1408,7 @@ Document::Document(const char* aContentType)
       mHasHadDefaultView(false),
       mStyleSheetChangeEventsEnabled(false),
       mDevToolsAnonymousAndShadowEventsEnabled(false),
+      mPausedByDevTools(false),
       mIsSrcdocDocument(false),
       mHasDisplayDocument(false),
       mFontFaceSetDirty(true),
@@ -2494,9 +2496,7 @@ Document::~Document() {
 
   nsAutoScriptBlocker scriptBlocker;
 
-  // Destroy link map now so we don't waste time removing
-  // links one by one
-  DestroyElementMaps();
+  WillRemoveRoot();
 
   // Invalidate cached array of child nodes
   InvalidateChildNodes();
@@ -2648,13 +2648,12 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(Document)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mFragmentDirective)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mHighlightRegistry)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPendingFullscreenEvents)
-
-  // Traverse all Document nsCOMPtrs.
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mParser)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mScriptGlobalObject)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mListenerManager)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mStyleSheetSetList)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mScriptLoader)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mCustomContentContainer)
 
   DocumentOrShadowRoot::Traverse(tmp, cb);
 
@@ -2767,6 +2766,8 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(Document)
   tmp->mExternalResourceMap.Shutdown();
 
   nsAutoScriptBlocker scriptBlocker;
+
+  tmp->RemoveCustomContentContainer();
 
   nsINode::Unlink(tmp);
 
@@ -3035,9 +3036,7 @@ void Document::DisconnectNodeTree() {
   {  // Scope for update
     MOZ_AUTO_DOC_UPDATE(this, true);
 
-    // Destroy link map now so we don't waste time removing
-    // links one by one
-    DestroyElementMaps();
+    WillRemoveRoot();
 
     // Invalidate cached array of child nodes
     InvalidateChildNodes();
@@ -4270,13 +4269,6 @@ void Document::SetDocumentURI(nsIURI* aURI) {
   if (!equalBases) {
     mCachedURLData = nullptr;
     RefreshLinkHrefs();
-  }
-
-  // Recalculate our base domain
-  mBaseDomain.Truncate();
-  ThirdPartyUtil* thirdPartyUtil = ThirdPartyUtil::GetInstance();
-  if (thirdPartyUtil) {
-    Unused << thirdPartyUtil->GetBaseDomain(mDocumentURI, mBaseDomain);
   }
 
   // Tell our WindowGlobalParent that the document's URI has been changed.
@@ -7417,7 +7409,8 @@ bool Document::IsRenderingSuppressed() const {
   }
   // The user agent believes that updating the rendering of doc's node navigable
   // would have no visible effect.
-  if (!IsEventHandlingEnabled() && !IsBeingUsedAsImage() && !mDisplayDocument) {
+  if (!IsEventHandlingEnabled() && !IsBeingUsedAsImage() && !mDisplayDocument &&
+      !mPausedByDevTools) {
     return true;
   }
   if (!mPresShell || !mPresShell->DidInitialize()) {
@@ -7705,13 +7698,17 @@ Element* Document::GetRootElementInternal() const {
 
 void Document::InsertChildBefore(nsIContent* aKid, nsIContent* aBeforeThis,
                                  bool aNotify, ErrorResult& aRv) {
-  if (aKid->IsElement() && GetRootElement()) {
+  const bool isElementInsertion = aKid->IsElement();
+  if (isElementInsertion && GetRootElement()) {
     NS_WARNING("Inserting root element when we already have one");
     aRv.ThrowHierarchyRequestError("There is already a root element.");
     return;
   }
 
   nsINode::InsertChildBefore(aKid, aBeforeThis, aNotify, aRv);
+  if (isElementInsertion && !aRv.Failed()) {
+    CreateCustomContentContainerIfNeeded();
+  }
 }
 
 void Document::RemoveChildNode(nsIContent* aKid, bool aNotify,
@@ -7720,16 +7717,8 @@ void Document::RemoveChildNode(nsIContent* aKid, bool aNotify,
   const bool removingRoot = aKid->IsElement();
   if (removingRoot) {
     updateBatch.emplace(this, aNotify);
-    // Destroy the link map up front before we mess with the child list.
-    DestroyElementMaps();
 
-    // Skip any active view transition, since the view transition pseudo-element
-    // tree is attached to our root element. This is not in the spec (yet), but
-    // prevents the view transition pseudo tree from being in an inconsistent
-    // state. See https://github.com/w3c/csswg-drafts/issues/12149
-    if (RefPtr transition = mActiveViewTransition) {
-      transition->SkipTransition(SkipTransitionReason::RootRemoved);
-    }
+    WillRemoveRoot();
 
     // Notify early so that we can clear the cached element after notifying,
     // without having to slow down nsINode::RemoveChildNode.
@@ -8699,53 +8688,100 @@ void Document::RuleRemoved(StyleSheet& aSheet, css::Rule& aRule) {
   }
 }
 
-static Element* GetCustomContentContainer(PresShell* aPresShell) {
-  if (!aPresShell || !aPresShell->GetCanvasFrame()) {
-    return nullptr;
+static void UnbindAnonymousContent(AnonymousContent& aAnonContent) {
+  nsCOMPtr<nsINode> parent = aAnonContent.Host()->GetParentNode();
+  if (!parent) {
+    return;
   }
+  MOZ_ASSERT(parent->IsElement());
+  MOZ_ASSERT(parent->AsElement()->IsRootOfNativeAnonymousSubtree());
+  parent->RemoveChildNode(aAnonContent.Host(), true);
+}
 
-  return aPresShell->GetCanvasFrame()->GetCustomContentContainer();
+static void BindAnonymousContent(AnonymousContent& aAnonContent,
+                                 Element& aContainer) {
+  UnbindAnonymousContent(aAnonContent);
+  aContainer.AppendChildTo(aAnonContent.Host(), true, IgnoreErrors());
+}
+
+void Document::RemoveCustomContentContainer() {
+  RefPtr container = std::move(mCustomContentContainer);
+  if (!container) {
+    return;
+  }
+  nsAutoScriptBlocker scriptBlocker;
+  if (DevToolsAnonymousAndShadowEventsEnabled()) {
+    container->QueueDevtoolsAnonymousEvent(/* aIsRemove = */ true);
+  }
+  if (PresShell* ps = GetPresShell()) {
+    ps->ContentWillBeRemoved(container, nullptr);
+  }
+  container->UnbindFromTree();
+}
+
+void Document::CreateCustomContentContainerIfNeeded() {
+  if (mAnonymousContents.IsEmpty()) {
+    MOZ_ASSERT(!mCustomContentContainer);
+    return;
+  }
+  if (mCustomContentContainer) {
+    return;
+  }
+  RefPtr root = GetRootElement();
+  if (NS_WARN_IF(!root)) {
+    // We'll deal with it when we get a root element, if needed.
+    return;
+  }
+  // Create the custom content container.
+  RefPtr container = CreateHTMLElement(nsGkAtoms::div);
+#ifdef DEBUG
+  // We restyle our mCustomContentContainer, even though it's root anonymous
+  // content.  Normally that's not OK because the frame constructor doesn't know
+  // how to order the frame tree in such cases, but we make this work for this
+  // particular case, so it's OK.
+  container->SetProperty(nsGkAtoms::restylableAnonymousNode,
+                         reinterpret_cast<void*>(true));
+#endif  // DEBUG
+  container->SetProperty(nsGkAtoms::docLevelNativeAnonymousContent,
+                         reinterpret_cast<void*>(true));
+  container->SetIsNativeAnonymousRoot();
+  // Do not create an accessible object for the container.
+  container->SetAttr(kNameSpaceID_None, nsGkAtoms::role, u"presentation"_ns,
+                     false);
+  container->SetAttr(kNameSpaceID_None, nsGkAtoms::_class,
+                     u"moz-custom-content-container"_ns, false);
+  nsAutoScriptBlocker scriptBlocker;
+  BindContext context(*root, BindContext::ForNativeAnonymous);
+  if (NS_WARN_IF(NS_FAILED(container->BindToTree(context, *root)))) {
+    container->UnbindFromTree();
+    return;
+  }
+  mCustomContentContainer = container;
+  if (DevToolsAnonymousAndShadowEventsEnabled()) {
+    container->QueueDevtoolsAnonymousEvent(/* aIsRemove = */ false);
+  }
+  if (PresShell* ps = GetPresShell()) {
+    ps->ContentAppended(container);
+  }
+  for (auto& anonContent : mAnonymousContents) {
+    BindAnonymousContent(*anonContent, *container);
+  }
 }
 
 already_AddRefed<AnonymousContent> Document::InsertAnonymousContent(
-    bool aForce, ErrorResult& aRv) {
-  RefPtr<PresShell> shell = GetPresShell();
-  if (aForce && !GetCustomContentContainer(shell)) {
-    FlushPendingNotifications(FlushType::Layout);
-    shell = GetPresShell();
-  }
-
-  nsAutoScriptBlocker scriptBlocker;
-
+    ErrorResult& aRv) {
   RefPtr<AnonymousContent> anonContent = AnonymousContent::Create(*this);
   if (!anonContent) {
     aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
     return nullptr;
   }
-
   mAnonymousContents.AppendElement(anonContent);
-
-  if (RefPtr<Element> container = GetCustomContentContainer(shell)) {
-    // If the container is empty and we have other anon content we should be
-    // about to show all the other anonymous content nodes.
-    if (container->HasChildren() || mAnonymousContents.Length() == 1) {
-      container->AppendChildTo(anonContent->Host(), true, IgnoreErrors());
-      if (auto* canvasFrame = shell->GetCanvasFrame()) {
-        canvasFrame->ShowCustomContentContainer();
-      }
-    }
+  if (RefPtr container = mCustomContentContainer) {
+    BindAnonymousContent(*anonContent, *container);
+  } else {
+    CreateCustomContentContainerIfNeeded();
   }
-
   return anonContent.forget();
-}
-
-static void RemoveAnonContentFromCanvas(AnonymousContent& aAnonContent,
-                                        PresShell* aPresShell) {
-  RefPtr<Element> container = GetCustomContentContainer(aPresShell);
-  if (!container) {
-    return;
-  }
-  container->RemoveChild(*aAnonContent.Host(), IgnoreErrors());
 }
 
 void Document::RemoveAnonymousContent(AnonymousContent& aContent) {
@@ -8757,45 +8793,11 @@ void Document::RemoveAnonymousContent(AnonymousContent& aContent) {
   }
 
   mAnonymousContents.RemoveElementAt(index);
-  RemoveAnonContentFromCanvas(aContent, GetPresShell());
+  UnbindAnonymousContent(aContent);
 
-  if (mAnonymousContents.IsEmpty() &&
-      GetCustomContentContainer(GetPresShell())) {
-    GetPresShell()->GetCanvasFrame()->HideCustomContentContainer();
+  if (mAnonymousContents.IsEmpty()) {
+    RemoveCustomContentContainer();
   }
-}
-
-Element* Document::GetAnonRootIfInAnonymousContentContainer(
-    nsINode* aNode) const {
-  if (!aNode->IsInNativeAnonymousSubtree()) {
-    return nullptr;
-  }
-
-  PresShell* presShell = GetPresShell();
-  if (!presShell || !presShell->GetCanvasFrame()) {
-    return nullptr;
-  }
-
-  nsAutoScriptBlocker scriptBlocker;
-  nsCOMPtr<Element> customContainer =
-      presShell->GetCanvasFrame()->GetCustomContentContainer();
-  if (!customContainer) {
-    return nullptr;
-  }
-
-  // An arbitrary number of elements can be inserted as children of the custom
-  // container frame.  We want the one that was added that contains aNode, so
-  // we need to keep track of the last child separately using |child| here.
-  nsINode* child = aNode;
-  nsINode* parent = aNode->GetParentNode();
-  while (parent && parent->IsInNativeAnonymousSubtree()) {
-    if (parent == customContainer) {
-      return Element::FromNode(child);
-    }
-    child = parent;
-    parent = child->GetParentNode();
-  }
-  return nullptr;
 }
 
 Maybe<ClientInfo> Document::GetClientInfo() const {
@@ -12046,6 +12048,8 @@ void Document::Destroy() {
     transition->SkipTransition(SkipTransitionReason::DocumentHidden);
   }
 
+  RemoveCustomContentContainer();
+
   ReportDocumentUseCounters();
   ReportShadowedHTMLDocumentProperties();
   ReportLCP();
@@ -12555,7 +12559,7 @@ void Document::MutationEventDispatched(nsINode* aTarget) {
   }
 }
 
-void Document::DestroyElementMaps() {
+void Document::WillRemoveRoot() {
 #ifdef DEBUG
   mStyledLinksCleared = true;
 #endif
@@ -12567,6 +12571,16 @@ void Document::DestroyElementMaps() {
   mIdentifierMap.Clear();
   mComposedShadowRoots.Clear();
   mResponsiveContent.Clear();
+
+  // Skip any active view transition, since the view transition pseudo-element
+  // tree is attached to our root element. This is not in the spec (yet), but
+  // prevents the view transition pseudo tree from being in an inconsistent
+  // state. See https://github.com/w3c/csswg-drafts/issues/12149
+  if (RefPtr transition = mActiveViewTransition) {
+    transition->SkipTransition(SkipTransitionReason::RootRemoved);
+  }
+
+  RemoveCustomContentContainer();
   IncrementExpandoGeneration(*this);
 }
 
@@ -15014,8 +15028,8 @@ void Document::HandleEscKey() {
     if (RefPtr dialogElement = HTMLDialogElement::FromNodeOrNull(element)) {
       if (StaticPrefs::dom_dialog_light_dismiss_enabled()) {
         if (dialogElement->GetClosedBy() != HTMLDialogElement::ClosedBy::None) {
-            const mozilla::dom::Optional<nsAString> returnValue;
-            dialogElement->RequestClose(returnValue);
+          const mozilla::dom::Optional<nsAString> returnValue;
+          dialogElement->RequestClose(returnValue);
         }
       } else {
         dialogElement->QueueCancelDialog();
@@ -15773,36 +15787,58 @@ void Document::HideAllPopoversUntil(nsINode& aEndpoint,
   } while (repeatingHide);
 }
 
+// https://html.spec.whatwg.org/#hide-popover-algorithm
 void Document::HidePopover(Element& aPopover, bool aFocusPreviousElement,
                            bool aFireEvents, ErrorResult& aRv) {
   RefPtr<nsGenericHTMLElement> popoverHTMLEl =
       nsGenericHTMLElement::FromNode(aPopover);
   NS_ASSERTION(popoverHTMLEl, "Not a HTML element");
 
+  // 1. If the result of running check popover validity given element, true,
+  // throwExceptions, and null is false, then return.
   if (!popoverHTMLEl->CheckPopoverValidity(PopoverVisibilityState::Showing,
                                            nullptr, aRv)) {
     return;
   }
 
+  // 2. Let document be element's node document.
+
+  // 3. Let nestedHide be element's popover showing or hiding.
   bool wasShowingOrHiding =
       popoverHTMLEl->GetPopoverData()->IsShowingOrHiding();
+
+  // 4. Set element's popover showing or hiding to true.
   popoverHTMLEl->GetPopoverData()->SetIsShowingOrHiding(true);
+
+  // 5. If nestedHide is true, then set fireEvents to false.
   const bool fireEvents = aFireEvents && !wasShowingOrHiding;
+
+  // 6. Let cleanupSteps be the following steps:
   auto cleanupHidingFlag = MakeScopeExit([&]() {
     if (auto* popoverData = popoverHTMLEl->GetPopoverData()) {
+      // 6.1. If nestedHide is false, then set element's popover showing or
+      // hiding to false.
       popoverData->SetIsShowingOrHiding(wasShowingOrHiding);
-      if (auto* closeWatcher = popoverData->GetCloseWatcher()) {
-        closeWatcher->Destroy();
-      }
+      // 6.2. If element's popover close watcher is not null, then:
+      // 6.2.1. Destroy element's popover close watcher.
+      // 6.2.2. Set element's popover close watcher to null.
+      popoverData->DestroyCloseWatcher();
     }
   });
 
+  // 7. If element's opened in popover mode is "auto" or "hint", then:
   if (popoverHTMLEl->IsAutoPopover()) {
+    // 7.1. Run hide all popovers until given element, focusPreviousElement, and
+    // fireEvents.
     HideAllPopoversUntil(*popoverHTMLEl, aFocusPreviousElement, fireEvents);
+
+    // 7.2. If the result of running check popover validity given element, true,
+    // and throwExceptions is false, then run cleanupSteps and return.
     if (!popoverHTMLEl->CheckPopoverValidity(PopoverVisibilityState::Showing,
                                              nullptr, aRv)) {
       return;
     }
+
     // TODO: we can't always guarantee:
     // The last item in document's auto popover list is popoverHTMLEl.
     // See, https://github.com/whatwg/html/issues/9197
@@ -15823,40 +15859,68 @@ void Document::HidePopover(Element& aPopover, bool aFocusPreviousElement,
   MOZ_ASSERT(data, "Should have popover data");
   data->SetInvoker(nullptr);
 
+  // 9. If fireEvents is true:
   // Fire beforetoggle event and re-check popover validity.
   if (fireEvents) {
-    // Intentionally ignore the return value here as only on open event for
-    // beforetoggle the cancelable attribute is initialized to true.
+    // 9.1. Fire an event named beforetoggle, using ToggleEvent, with the
+    // oldState attribute initialized to "open" and the newState attribute
+    // initialized to "closed" at element. Intentionally ignore the return value
+    // here as only on open event for beforetoggle the cancelable attribute is
+    // initialized to true.
     popoverHTMLEl->FireToggleEvent(u"open"_ns, u"closed"_ns,
                                    u"beforetoggle"_ns);
 
-    // https://html.spec.whatwg.org/multipage/popover.html#hide-popover-algorithm
-    // step 10.2.
-    // Hide all popovers when beforetoggle shows a popover.
+    // 9.2. If autoPopoverListContainsElement is true and document's showing
+    // auto popover list's last item is not element, then run hide all popovers
+    // until given element, focusPreviousElement, and false. Hide all popovers
+    // when beforetoggle shows a popover.
     if (popoverHTMLEl->IsAutoPopover() &&
         GetTopmostAutoPopover() != popoverHTMLEl &&
         popoverHTMLEl->PopoverOpen()) {
       HideAllPopoversUntil(*popoverHTMLEl, aFocusPreviousElement, false);
     }
 
+    // 9.3. If the result of running check popover validity given element, true,
+    // throwExceptions, and null is false, then run cleanupSteps and return.
     if (!popoverHTMLEl->CheckPopoverValidity(PopoverVisibilityState::Showing,
                                              nullptr, aRv)) {
       return;
     }
+
+    // 9.4. XXX: See below
+
+    // 9.5. Set element's implicit anchor element to null.
+    // (TODO)
   }
 
+  // 9.4. Request an element to be removed from the top layer given element.
+  // 10. Otherwise, remove an element from the top layer immediately given
+  // element.
   RemovePopoverFromTopLayer(aPopover);
 
+  // 11. Set element's popover invoker to null.
+  // (TODO)
+
+  // 12. Set element's opened in popover mode to null.
+  // 13. Set element's popover visibility state to hidden.
   popoverHTMLEl->PopoverPseudoStateUpdate(false, true);
   popoverHTMLEl->GetPopoverData()->SetPopoverVisibilityState(
       PopoverVisibilityState::Hidden);
 
-  // Queue popover toggle event task.
+  // 14. If fireEvents is true, then queue a popover toggle event task given
+  // element, "open", and "closed". Queue popover toggle event task.
   if (fireEvents) {
     popoverHTMLEl->QueuePopoverEventTask(PopoverVisibilityState::Showing);
   }
 
+  // 15. Let previouslyFocusedElement be element's previously focused element.
+  // 16. If previouslyFocusedElement is not null, then:
   if (aFocusPreviousElement) {
+    // 16.1. Set element's previously focused element to null.
+    // 16.2. If focusPreviousElement is true and document's focused area of the
+    // document's DOM anchor is a shadow-including inclusive descendant of
+    // element, then run the focusing steps for previouslyFocusedElement; the
+    // viewport should not be scrolled by doing this step.
     popoverHTMLEl->FocusPreviousElementAfterHidingPopover();
   } else {
     popoverHTMLEl->ForgetPreviouslyFocusedElementAfterHidingPopover();
@@ -20258,7 +20322,6 @@ bool Document::AllowsDeclarativeShadowRoots() const {
 }
 
 static already_AddRefed<Document> CreateHTMLDocument(GlobalObject& aGlobal,
-                                                     bool aLoadedAsData,
                                                      ErrorResult& aError) {
   nsCOMPtr<nsIURI> uri;
   aError = NS_NewURI(getter_AddRefs(uri), "about:blank");
@@ -20267,9 +20330,9 @@ static already_AddRefed<Document> CreateHTMLDocument(GlobalObject& aGlobal,
   }
 
   nsCOMPtr<Document> doc;
-  aError =
-      NS_NewHTMLDocument(getter_AddRefs(doc), aGlobal.GetSubjectPrincipal(),
-                         aGlobal.GetSubjectPrincipal(), aLoadedAsData);
+  aError = NS_NewHTMLDocument(
+      getter_AddRefs(doc), aGlobal.GetSubjectPrincipal(),
+      aGlobal.GetSubjectPrincipal(), /* aLoadedAsData */ true);
   if (aError.Failed()) {
     return nullptr;
   }
@@ -20309,9 +20372,7 @@ already_AddRefed<Document> Document::ParseHTMLUnsafe(
 
   // Step 2. Let document be a new Document, whose content type is "text/html".
   // Step 3. Set document’s allow declarative shadow roots to true.
-  // TODO: Figure out if we can always loadAsData.
-  RefPtr<Document> doc =
-      CreateHTMLDocument(aGlobal, /* aLoadedAsData */ sanitize, aError);
+  RefPtr<Document> doc = CreateHTMLDocument(aGlobal, aError);
   if (aError.Failed()) {
     return nullptr;
   }
@@ -20356,8 +20417,7 @@ already_AddRefed<Document> Document::ParseHTML(GlobalObject& aGlobal,
                                                ErrorResult& aError) {
   // Step 1. Let document be a new Document, whose content type is "text/html".
   // Step 2. Set document’s allow declarative shadow roots to true.
-  RefPtr<Document> doc =
-      CreateHTMLDocument(aGlobal, /* aLoadedAsData */ true, aError);
+  RefPtr<Document> doc = CreateHTMLDocument(aGlobal, aError);
   if (aError.Failed()) {
     return nullptr;
   }
@@ -20374,8 +20434,8 @@ already_AddRefed<Document> Document::ParseHTML(GlobalObject& aGlobal,
   // Step 4. Let sanitizer be the result of calling get a sanitizer instance
   // from options with options and true.
   nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(aGlobal.GetAsSupports());
-  RefPtr<Sanitizer> sanitizer =
-      Sanitizer::GetInstance(global, aOptions.mSanitizer, /* aSafe */ true, aError);
+  RefPtr<Sanitizer> sanitizer = Sanitizer::GetInstance(
+      global, aOptions.mSanitizer, /* aSafe */ true, aError);
   if (aError.Failed()) {
     return nullptr;
   }

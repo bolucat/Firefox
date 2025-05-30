@@ -15,6 +15,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
+import io.mockk.slot
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -60,9 +61,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mozilla.fenix.NavGraphDirections
 import org.mozilla.fenix.R
+import org.mozilla.fenix.browser.BrowserAnimator
 import org.mozilla.fenix.browser.BrowserFragmentDirections
 import org.mozilla.fenix.browser.browsingmode.BrowsingMode.Normal
 import org.mozilla.fenix.browser.browsingmode.BrowsingMode.Private
+import org.mozilla.fenix.browser.browsingmode.BrowsingModeManager
 import org.mozilla.fenix.browser.browsingmode.SimpleBrowsingModeManager
 import org.mozilla.fenix.browser.store.BrowserScreenAction.ClosingLastPrivateTab
 import org.mozilla.fenix.browser.store.BrowserScreenState
@@ -77,6 +80,7 @@ import org.mozilla.fenix.components.appstate.OrientationMode.Landscape
 import org.mozilla.fenix.components.appstate.OrientationMode.Portrait
 import org.mozilla.fenix.components.menu.MenuAccessPoint
 import org.mozilla.fenix.components.toolbar.BrowserToolbarMiddleware.LifecycleDependencies
+import org.mozilla.fenix.components.toolbar.DisplayActions.HomeClicked
 import org.mozilla.fenix.components.toolbar.DisplayActions.MenuClicked
 import org.mozilla.fenix.components.toolbar.PageOriginInteractions.OriginClicked
 import org.mozilla.fenix.components.toolbar.TabCounterInteractions.AddNewPrivateTab
@@ -98,25 +102,32 @@ class BrowserToolbarMiddlewareTest {
     private val appStore = AppStore()
     private val browserScreenStore: BrowserScreenStore = mockk(relaxed = true)
     private val browserStore = BrowserStore()
+    private val clipboard: ClipboardHandler = mockk()
     private val lifecycleOwner = FakeLifecycleOwner(Lifecycle.State.RESUMED)
+    private val navController: NavController = mockk()
     private val browsingModeManager = SimpleBrowsingModeManager(Normal)
+    private val browserAnimator: BrowserAnimator = mockk()
+    private val thumbnailsFeature: BrowserThumbnails = mockk()
+    private val useCases: UseCases = mockk()
     private val settings: Settings = mockk {
         every { shouldUseBottomToolbar } returns true
     }
 
     @Test
+    fun `WHEN initializing the toolbar THEN add browser start actions`() = runTestOnMain {
+        val middleware = buildMiddleware().updateDependencies()
+
+        val toolbarStore = BrowserToolbarStore(
+            middleware = listOf(middleware),
+        )
+
+        val toolbarBrowserActions = toolbarStore.state.displayState.browserActionsStart
+        assertEquals(listOf(expectedHomeButton), toolbarBrowserActions)
+    }
+
+    @Test
     fun `WHEN initializing the toolbar THEN add browser end actions`() = runTestOnMain {
-        val middleware = BrowserToolbarMiddleware(
-            appStore = appStore,
-            browserScreenStore = browserScreenStore,
-            browserStore = browserStore,
-            tabsUseCases = mockk(),
-            clipboard = mockk(),
-            settings = settings,
-        )
-        middleware.updateLifecycleDependencies(
-            LifecycleDependencies(testContext, lifecycleOwner, mockk(), browsingModeManager, mockk(), mockk()),
-        )
+        val middleware = buildMiddleware().updateDependencies()
 
         val toolbarStore = BrowserToolbarStore(
             middleware = listOf(middleware),
@@ -138,11 +149,9 @@ class BrowserToolbarMiddlewareTest {
                 tabs = listOf(createTab("test.com", private = false)),
             ),
         )
-        val middleware = BrowserToolbarMiddleware(appStore, browserScreenStore, browserStore, mockk(), mockk(), settings).apply {
-            updateLifecycleDependencies(
-                LifecycleDependencies(testContext, lifecycleOwner, mockk(), browsingModeManager, mockk(), mockk()),
-            )
-        }
+        val middleware = buildMiddleware(browserStore = browserStore).updateDependencies(
+            browsingModeManager = browsingModeManager,
+        )
 
         val toolbarStore = BrowserToolbarStore(
             middleware = listOf(middleware),
@@ -164,18 +173,9 @@ class BrowserToolbarMiddlewareTest {
                 ),
             ),
         )
-        val middleware = BrowserToolbarMiddleware(
-            appStore = appStore,
-            browserScreenStore = browserScreenStore,
-            browserStore = browserStore,
-            tabsUseCases = mockk(),
-            clipboard = mockk(),
-            settings = settings,
-        ).apply {
-            updateLifecycleDependencies(
-                LifecycleDependencies(testContext, lifecycleOwner, mockk(), browsingModeManager, mockk(), mockk()),
-            )
-        }
+        val middleware = buildMiddleware(browserStore = browserStore).updateDependencies(
+            browsingModeManager = browsingModeManager,
+        )
 
         val toolbarStore = BrowserToolbarStore(
             middleware = listOf(middleware),
@@ -202,18 +202,7 @@ class BrowserToolbarMiddlewareTest {
             contextualMenuOptions = ContextualMenuOption.entries,
             onClick = OriginClicked,
         )
-        val middleware = BrowserToolbarMiddleware(
-            appStore = appStore,
-            browserScreenStore = browserScreenStore,
-            browserStore = browserStore,
-            tabsUseCases = mockk(),
-            clipboard = mockk(),
-            settings = settings,
-        ).apply {
-            updateLifecycleDependencies(
-                LifecycleDependencies(testContext, lifecycleOwner, mockk(), browsingModeManager, mockk(), mockk()),
-            )
-        }
+        val middleware = buildMiddleware(browserStore = browserStore).updateDependencies()
 
         val toolbarStore = BrowserToolbarStore(
             middleware = listOf(middleware),
@@ -232,18 +221,7 @@ class BrowserToolbarMiddlewareTest {
                 orientation = Portrait,
             ),
         )
-        val middleware = BrowserToolbarMiddleware(
-            appStore = appStore,
-            browserScreenStore = browserScreenStore,
-            browserStore = browserStore,
-            tabsUseCases = mockk(),
-            clipboard = mockk(),
-            settings = settings,
-        ).apply {
-            updateLifecycleDependencies(
-                LifecycleDependencies(testContext, lifecycleOwner, mockk(), browsingModeManager, mockk(), mockk()),
-            )
-        }
+        val middleware = buildMiddleware(appStore = appStore).updateDependencies()
         val toolbarStore = BrowserToolbarStore(
             middleware = listOf(middleware),
         )
@@ -271,19 +249,8 @@ class BrowserToolbarMiddlewareTest {
                 orientation = Landscape,
             ),
         )
+        val middleware = buildMiddleware(appStore = appStore).updateDependencies()
 
-        val middleware = BrowserToolbarMiddleware(
-            appStore = appStore,
-            browserScreenStore = browserScreenStore,
-            browserStore = browserStore,
-            tabsUseCases = mockk(),
-            clipboard = mockk(),
-            settings = settings,
-        ).apply {
-            updateLifecycleDependencies(
-                LifecycleDependencies(testContext, lifecycleOwner, mockk(), browsingModeManager, mockk(), mockk()),
-            )
-        }
         val toolbarStore = BrowserToolbarStore(
             middleware = listOf(middleware),
         )
@@ -308,18 +275,9 @@ class BrowserToolbarMiddlewareTest {
         Dispatchers.setMain(StandardTestDispatcher())
         val browsingModeManager = SimpleBrowsingModeManager(Normal)
         val browserStore = BrowserStore()
-        val middleware = BrowserToolbarMiddleware(
-            appStore = appStore,
-            browserScreenStore = browserScreenStore,
-            browserStore = browserStore,
-            tabsUseCases = mockk(),
-            clipboard = mockk(),
-            settings = settings,
-        ).apply {
-            updateLifecycleDependencies(
-                LifecycleDependencies(testContext, lifecycleOwner, mockk(), browsingModeManager, mockk(), mockk()),
-            )
-        }
+        val middleware = buildMiddleware(browserStore = browserStore).updateDependencies(
+            browsingModeManager = browsingModeManager,
+        )
         val toolbarStore = BrowserToolbarStore(
             middleware = listOf(middleware),
         )
@@ -352,18 +310,9 @@ class BrowserToolbarMiddlewareTest {
                 tabs = listOf(initialNormalTab, initialPrivateTab),
             ),
         )
-        val middleware = BrowserToolbarMiddleware(
-            appStore = appStore,
-            browserScreenStore = browserScreenStore,
-            browserStore = browserStore,
-            tabsUseCases = mockk(),
-            clipboard = mockk(),
-            settings = settings,
-        ).apply {
-            updateLifecycleDependencies(
-                LifecycleDependencies(testContext, lifecycleOwner, mockk(), browsingModeManager, mockk(), mockk()),
-            )
-        }
+        val middleware = buildMiddleware(browserStore = browserStore).updateDependencies(
+            browsingModeManager = browsingModeManager,
+        )
         val toolbarStore = BrowserToolbarStore(
             middleware = listOf(middleware),
         )
@@ -383,20 +332,37 @@ class BrowserToolbarMiddlewareTest {
     }
 
     @Test
+    fun `WHEN clicking the home button THEN navigate to application's home screen`() {
+        val navController: NavController = mockk(relaxed = true)
+        val browserAnimatorActionCaptor = slot<(Boolean) -> Unit>()
+        every {
+            browserAnimator.captureEngineViewAndDrawStatically(
+                any<Long>(),
+                capture(browserAnimatorActionCaptor),
+            )
+        } answers { browserAnimatorActionCaptor.captured.invoke(true) }
+        val middleware = buildMiddleware().updateDependencies(
+            navController = navController,
+        )
+        val toolbarStore = BrowserToolbarStore(
+            middleware = listOf(middleware),
+        )
+        val homeButton = toolbarStore.state.displayState.browserActionsStart[0] as ActionButton
+
+        mockkStatic(NavController::nav) {
+            toolbarStore.dispatch(homeButton.onClick as BrowserToolbarEvent)
+
+            verify { browserAnimator.captureEngineViewAndDrawStatically(any(), any()) }
+            verify { navController.navigate(BrowserFragmentDirections.actionGlobalHome()) }
+        }
+    }
+
+    @Test
     fun `WHEN clicking the menu button THEN open the menu`() {
         val navController: NavController = mockk(relaxed = true)
-        val middleware = BrowserToolbarMiddleware(
-            appStore = appStore,
-            browserScreenStore = browserScreenStore,
-            browserStore = browserStore,
-            tabsUseCases = mockk(),
-            clipboard = mockk(),
-            settings = settings,
-        ).apply {
-            updateLifecycleDependencies(
-                LifecycleDependencies(testContext, lifecycleOwner, navController, browsingModeManager, mockk(), mockk()),
-            )
-        }
+        val middleware = buildMiddleware().updateDependencies(
+            navController = navController,
+        )
         val toolbarStore = BrowserToolbarStore(
             middleware = listOf(middleware),
         )
@@ -418,28 +384,14 @@ class BrowserToolbarMiddlewareTest {
 
     @Test
     fun `GIVEN browsing in normal mode WHEN clicking the tab counter button THEN open the tabs tray in normal mode`() {
-        val browsingModeManager = SimpleBrowsingModeManager(Normal)
         val navController: NavController = mockk(relaxed = true)
+        val browsingModeManager = SimpleBrowsingModeManager(Normal)
         val thumbnailsFeature: BrowserThumbnails = mockk(relaxed = true)
-        val middleware = BrowserToolbarMiddleware(
-            appStore = appStore,
-            browserScreenStore = browserScreenStore,
-            browserStore = browserStore,
-            tabsUseCases = mockk(),
-            clipboard = mockk(),
-            settings = settings,
-        ).apply {
-            updateLifecycleDependencies(
-                LifecycleDependencies(
-                    testContext,
-                    lifecycleOwner,
-                    navController,
-                    browsingModeManager,
-                    thumbnailsFeature,
-                    mockk(),
-                ),
-            )
-        }
+        val middleware = buildMiddleware(browserStore = browserStore).updateDependencies(
+            navController = navController,
+            browsingModeManager = browsingModeManager,
+            thumbnailsFeature = thumbnailsFeature,
+        )
         val toolbarStore = BrowserToolbarStore(
             middleware = listOf(middleware),
         )
@@ -462,28 +414,14 @@ class BrowserToolbarMiddlewareTest {
 
     @Test
     fun `GIVEN browsing in private mode WHEN clicking the tab counter button THEN open the tabs tray in private mode`() {
-        val browsingModeManager = SimpleBrowsingModeManager(Private)
         val navController: NavController = mockk(relaxed = true)
+        val browsingModeManager = SimpleBrowsingModeManager(Private)
         val thumbnailsFeature: BrowserThumbnails = mockk(relaxed = true)
-        val middleware = BrowserToolbarMiddleware(
-            appStore = appStore,
-            browserScreenStore = browserScreenStore,
-            browserStore = browserStore,
-            tabsUseCases = mockk(),
-            clipboard = mockk(),
-            settings = settings,
-        ).apply {
-            updateLifecycleDependencies(
-                LifecycleDependencies(
-                    testContext,
-                    lifecycleOwner,
-                    navController,
-                    browsingModeManager,
-                    thumbnailsFeature,
-                    mockk(),
-                ),
-            )
-        }
+        val middleware = buildMiddleware(browserStore = browserStore).updateDependencies(
+            navController = navController,
+            browsingModeManager = browsingModeManager,
+            thumbnailsFeature = thumbnailsFeature,
+        )
         val toolbarStore = BrowserToolbarStore(
             middleware = listOf(middleware),
         )
@@ -506,20 +444,12 @@ class BrowserToolbarMiddlewareTest {
 
     @Test
     fun `WHEN clicking on the first option in the toolbar long click menu THEN open a new normal tab`() {
-        val browsingModeManager = SimpleBrowsingModeManager(Normal)
         val navController: NavController = mockk(relaxed = true)
-        val middleware = BrowserToolbarMiddleware(
-            appStore = appStore,
-            browserScreenStore = browserScreenStore,
-            browserStore = browserStore,
-            tabsUseCases = mockk(),
-            clipboard = mockk(),
-            settings = settings,
-        ).apply {
-            updateLifecycleDependencies(
-                LifecycleDependencies(testContext, lifecycleOwner, navController, browsingModeManager, mockk(), mockk()),
-            )
-        }
+        val browsingModeManager = SimpleBrowsingModeManager(Normal)
+        val middleware = buildMiddleware(browserStore = browserStore).updateDependencies(
+            navController = navController,
+            browsingModeManager = browsingModeManager,
+        )
         val toolbarStore = BrowserToolbarStore(
             middleware = listOf(middleware),
         )
@@ -539,20 +469,12 @@ class BrowserToolbarMiddlewareTest {
 
     @Test
     fun ` WHEN the page origin is clicked THEN enter is edit mode`() {
-        val browsingModeManager = SimpleBrowsingModeManager(Normal)
         val navController: NavController = mockk(relaxed = true)
-        val middleware = BrowserToolbarMiddleware(
-            appStore = appStore,
-            browserScreenStore = browserScreenStore,
-            browserStore = browserStore,
-            tabsUseCases = mockk(),
-            clipboard = mockk(),
-            settings = settings,
-        ).apply {
-            updateLifecycleDependencies(
-                LifecycleDependencies(testContext, lifecycleOwner, navController, browsingModeManager, mockk(), mockk()),
-            )
-        }
+        val browsingModeManager = SimpleBrowsingModeManager(Normal)
+        val middleware = buildMiddleware(browserStore = browserStore).updateDependencies(
+            navController = navController,
+            browsingModeManager = browsingModeManager,
+        )
         val toolbarStore = BrowserToolbarStore(
             middleware = listOf(middleware),
         )
@@ -566,8 +488,8 @@ class BrowserToolbarMiddlewareTest {
     @Test
     @Config(sdk = [30])
     fun `GIVEN on Android 11 WHEN choosing to copy the current URL to clipboard THEN copy to clipboard and show a snackbar`() {
-        val browsingModeManager = SimpleBrowsingModeManager(Normal)
         val navController: NavController = mockk(relaxed = true)
+        val browsingModeManager = SimpleBrowsingModeManager(Normal)
         val clipboard = ClipboardHandler(testContext)
         val currentTab = createTab("test.com")
         val browserStore = BrowserStore(
@@ -577,18 +499,14 @@ class BrowserToolbarMiddlewareTest {
             ),
         )
         val appStore: AppStore = mockk(relaxed = true)
-        val middleware = BrowserToolbarMiddleware(
+        val middleware = buildMiddleware(
             appStore = appStore,
-            browserScreenStore = browserScreenStore,
             browserStore = browserStore,
-            tabsUseCases = mockk(),
             clipboard = clipboard,
-            settings = settings,
-        ).apply {
-            updateLifecycleDependencies(
-                LifecycleDependencies(testContext, lifecycleOwner, navController, browsingModeManager, mockk(), mockk()),
-            )
-        }
+        ).updateDependencies(
+            navController = navController,
+            browsingModeManager = browsingModeManager,
+        )
         val toolbarStore = BrowserToolbarStore(
             middleware = listOf(middleware),
         )
@@ -613,18 +531,14 @@ class BrowserToolbarMiddlewareTest {
             ),
         )
         val appStore: AppStore = mockk(relaxed = true)
-        val middleware = BrowserToolbarMiddleware(
+        val middleware = buildMiddleware(
             appStore = appStore,
-            browserScreenStore = browserScreenStore,
             browserStore = browserStore,
-            tabsUseCases = mockk(),
             clipboard = clipboard,
-            settings = settings,
-        ).apply {
-            updateLifecycleDependencies(
-                LifecycleDependencies(testContext, lifecycleOwner, navController, browsingModeManager, mockk(), mockk()),
-            )
-        }
+        ).updateDependencies(
+            navController = navController,
+            browsingModeManager = browsingModeManager,
+        )
         val toolbarStore = BrowserToolbarStore(
             middleware = listOf(middleware),
         )
@@ -638,8 +552,8 @@ class BrowserToolbarMiddlewareTest {
     @Test
     @Config(sdk = [33])
     fun `GIVEN on Android 13 WHEN choosing to copy the current URL to clipboard THEN copy to clipboard and don't show a snackbar`() {
-        val browsingModeManager = SimpleBrowsingModeManager(Normal)
         val navController: NavController = mockk(relaxed = true)
+        val browsingModeManager = SimpleBrowsingModeManager(Normal)
         val clipboard = ClipboardHandler(testContext)
         val currentTab = createTab("firefox.com")
         val browserStore = BrowserStore(
@@ -649,18 +563,14 @@ class BrowserToolbarMiddlewareTest {
             ),
         )
         val appStore: AppStore = mockk(relaxed = true)
-        val middleware = BrowserToolbarMiddleware(
-            appStore,
-            browserScreenStore = browserScreenStore,
+        val middleware = buildMiddleware(
+            appStore = appStore,
             browserStore = browserStore,
-            tabsUseCases = mockk(),
             clipboard = clipboard,
-            settings = settings,
-        ).apply {
-            updateLifecycleDependencies(
-                LifecycleDependencies(testContext, lifecycleOwner, navController, browsingModeManager, mockk(), mockk()),
-            )
-        }
+        ).updateDependencies(
+            navController = navController,
+            browsingModeManager = browsingModeManager,
+        )
         val toolbarStore = BrowserToolbarStore(
             middleware = listOf(middleware),
         )
@@ -673,8 +583,8 @@ class BrowserToolbarMiddlewareTest {
 
     @Test
     fun `WHEN choosing to paste from clipboard THEN start a new search with the current clipboard text`() {
-        val browsingModeManager = SimpleBrowsingModeManager(Normal)
         val navController: NavController = mockk(relaxed = true)
+        val browsingModeManager = SimpleBrowsingModeManager(Normal)
         val clipboard = ClipboardHandler(testContext).also {
             it.text = "test"
         }
@@ -685,18 +595,13 @@ class BrowserToolbarMiddlewareTest {
                 selectedTabId = currentTab.id,
             ),
         )
-        val middleware = BrowserToolbarMiddleware(
-            appStore = appStore,
-            browserScreenStore = browserScreenStore,
+        val middleware = buildMiddleware(
             browserStore = browserStore,
-            tabsUseCases = mockk(),
             clipboard = clipboard,
-            settings = settings,
-        ).apply {
-            updateLifecycleDependencies(
-                LifecycleDependencies(testContext, lifecycleOwner, navController, browsingModeManager, mockk(), mockk()),
-            )
-        }
+        ).updateDependencies(
+            navController = navController,
+            browsingModeManager = browsingModeManager,
+        )
         val toolbarStore = BrowserToolbarStore(
             middleware = listOf(middleware),
         )
@@ -726,8 +631,8 @@ class BrowserToolbarMiddlewareTest {
 
     @Test
     fun `WHEN choosing to load URL from clipboard THEN start load the URL from clipboard in a new tab`() {
-        val browsingModeManager = SimpleBrowsingModeManager(Normal)
         val navController: NavController = mockk(relaxed = true)
+        val browsingModeManager = SimpleBrowsingModeManager(Normal)
         val clipboardUrl = "https://www.mozilla.com"
         val clipboard = ClipboardHandler(testContext).also {
             it.text = clipboardUrl
@@ -736,18 +641,14 @@ class BrowserToolbarMiddlewareTest {
         val useCases: UseCases = mockk {
             every { fenixBrowserUseCases } returns browserUseCases
         }
-        val middleware = BrowserToolbarMiddleware(
-            appStore,
-            browserScreenStore = browserScreenStore,
+        val middleware = buildMiddleware(
             browserStore = browserStore,
-            tabsUseCases = mockk(),
+            useCases = useCases,
             clipboard = clipboard,
-            settings = settings,
-        ).apply {
-            updateLifecycleDependencies(
-                LifecycleDependencies(testContext, lifecycleOwner, navController, browsingModeManager, mockk(), useCases),
-            )
-        }
+        ).updateDependencies(
+            navController = navController,
+            browsingModeManager = browsingModeManager,
+        )
         val toolbarStore = BrowserToolbarStore(
             middleware = listOf(middleware),
         )
@@ -771,20 +672,12 @@ class BrowserToolbarMiddlewareTest {
 
     @Test
     fun `WHEN clicking on the second option in the toolbar long click menu THEN open a new private tab`() {
-        val browsingModeManager = SimpleBrowsingModeManager(Normal)
         val navController: NavController = mockk(relaxed = true)
-        val middleware = BrowserToolbarMiddleware(
-            appStore = appStore,
-            browserScreenStore = browserScreenStore,
-            browserStore = browserStore,
-            tabsUseCases = mockk(),
-            clipboard = mockk(),
-            settings = settings,
-        ).apply {
-            updateLifecycleDependencies(
-                LifecycleDependencies(testContext, lifecycleOwner, navController, browsingModeManager, mockk(), mockk()),
-            )
-        }
+        val browsingModeManager = SimpleBrowsingModeManager(Normal)
+        val middleware = buildMiddleware().updateDependencies(
+            navController = navController,
+            browsingModeManager = browsingModeManager,
+        )
         val toolbarStore = BrowserToolbarStore(
             middleware = listOf(middleware),
         )
@@ -804,8 +697,8 @@ class BrowserToolbarMiddlewareTest {
 
     @Test
     fun `GIVEN multiple tabs opened WHEN clicking on the close tab item in the tab counter long click menu THEN close the current tab`() {
-        val browsingModeManager = SimpleBrowsingModeManager(Private)
         val navController: NavController = mockk(relaxed = true)
+        val browsingModeManager = SimpleBrowsingModeManager(Private)
         val appStore: AppStore = mockk(relaxed = true)
         val currentTab = createTab("test.com", private = true)
         val browserStore = BrowserStore(
@@ -815,18 +708,15 @@ class BrowserToolbarMiddlewareTest {
             ),
         )
         val tabsUseCases: TabsUseCases = mockk(relaxed = true)
-        val middleware = BrowserToolbarMiddleware(
+        every { useCases.tabsUseCases } returns tabsUseCases
+        val middleware = buildMiddleware(
             appStore = appStore,
-            browserScreenStore = browserScreenStore,
             browserStore = browserStore,
-            tabsUseCases = tabsUseCases,
-            clipboard = mockk(),
-            settings = settings,
-        ).apply {
-            updateLifecycleDependencies(
-                LifecycleDependencies(testContext, lifecycleOwner, navController, browsingModeManager, mockk(), mockk()),
-            )
-        }
+            useCases = useCases,
+        ).updateDependencies(
+            navController = navController,
+            browsingModeManager = browsingModeManager,
+        )
         val toolbarStore = BrowserToolbarStore(
             middleware = listOf(middleware),
         )
@@ -848,8 +738,8 @@ class BrowserToolbarMiddlewareTest {
 
     @Test
     fun `GIVEN on the last open normal tab WHEN clicking on the close tab item in the tab counter long click menu THEN navigate to home before closing the tab`() {
-        val browsingModeManager = SimpleBrowsingModeManager(Normal)
         val navController: NavController = mockk(relaxed = true)
+        val browsingModeManager = SimpleBrowsingModeManager(Normal)
         val appStore: AppStore = mockk(relaxed = true)
         val currentTab = createTab("test.com")
         val browserStore = BrowserStore(
@@ -859,18 +749,14 @@ class BrowserToolbarMiddlewareTest {
             ),
         )
         val tabsUseCases: TabsUseCases = mockk(relaxed = true)
-        val middleware = BrowserToolbarMiddleware(
+        val middleware = buildMiddleware(
             appStore = appStore,
-            browserScreenStore = browserScreenStore,
             browserStore = browserStore,
-            tabsUseCases = tabsUseCases,
-            clipboard = mockk(),
-            settings = settings,
-        ).apply {
-            updateLifecycleDependencies(
-                LifecycleDependencies(testContext, lifecycleOwner, navController, browsingModeManager, mockk(), mockk()),
-            )
-        }
+            useCases = useCases,
+        ).updateDependencies(
+            navController = navController,
+            browsingModeManager = browsingModeManager,
+        )
         val toolbarStore = BrowserToolbarStore(
             middleware = listOf(middleware),
         )
@@ -896,8 +782,8 @@ class BrowserToolbarMiddlewareTest {
 
     @Test
     fun `GIVEN on the last open private tab and no private downloads WHEN clicking on the close tab item THEN navigate to home before closing the tab`() {
-        val browsingModeManager = SimpleBrowsingModeManager(Private)
         val navController: NavController = mockk(relaxed = true)
+        val browsingModeManager = SimpleBrowsingModeManager(Private)
         val appStore: AppStore = mockk(relaxed = true)
         val currentTab = createTab("test.com", private = true)
         val browserStore = BrowserStore(
@@ -907,18 +793,14 @@ class BrowserToolbarMiddlewareTest {
             ),
         )
         val tabsUseCases: TabsUseCases = mockk(relaxed = true)
-        val middleware = BrowserToolbarMiddleware(
+        val middleware = buildMiddleware(
             appStore = appStore,
-            browserScreenStore = browserScreenStore,
             browserStore = browserStore,
-            tabsUseCases = tabsUseCases,
-            clipboard = mockk(),
-            settings = settings,
-        ).apply {
-            updateLifecycleDependencies(
-                LifecycleDependencies(testContext, lifecycleOwner, navController, browsingModeManager, mockk(), mockk()),
-            )
-        }
+            useCases = useCases,
+        ).updateDependencies(
+            navController = navController,
+            browsingModeManager = browsingModeManager,
+        )
         val toolbarStore = BrowserToolbarStore(
             middleware = listOf(middleware),
         )
@@ -947,8 +829,8 @@ class BrowserToolbarMiddlewareTest {
         every { browserScreenStore.state } returns BrowserScreenState(
             cancelPrivateDownloadsAccepted = false,
         )
-        val browsingModeManager = SimpleBrowsingModeManager(Private)
         val navController: NavController = mockk(relaxed = true)
+        val browsingModeManager = SimpleBrowsingModeManager(Private)
         val appStore: AppStore = mockk(relaxed = true)
         val currentTab = createTab("test.com", private = true)
         val browserStore = BrowserStore(
@@ -959,18 +841,14 @@ class BrowserToolbarMiddlewareTest {
             ),
         )
         val tabsUseCases: TabsUseCases = mockk(relaxed = true)
-        val middleware = BrowserToolbarMiddleware(
+        val middleware = buildMiddleware(
             appStore = appStore,
-            browserScreenStore = browserScreenStore,
             browserStore = browserStore,
-            tabsUseCases = tabsUseCases,
-            clipboard = mockk(),
-            settings = settings,
-        ).apply {
-            updateLifecycleDependencies(
-                LifecycleDependencies(testContext, lifecycleOwner, navController, browsingModeManager, mockk(), mockk()),
-            )
-        }
+            useCases = useCases,
+        ).updateDependencies(
+            navController = navController,
+            browsingModeManager = browsingModeManager,
+        )
         val toolbarStore = BrowserToolbarStore(
             middleware = listOf(middleware),
         )
@@ -1005,8 +883,8 @@ class BrowserToolbarMiddlewareTest {
         every { browserScreenStore.state } returns BrowserScreenState(
             cancelPrivateDownloadsAccepted = true,
         )
-        val browsingModeManager = SimpleBrowsingModeManager(Private)
         val navController: NavController = mockk(relaxed = true)
+        val browsingModeManager = SimpleBrowsingModeManager(Private)
         val appStore: AppStore = mockk(relaxed = true)
         val currentTab = createTab("test.com", private = true)
         val browserStore = BrowserStore(
@@ -1017,18 +895,14 @@ class BrowserToolbarMiddlewareTest {
             ),
         )
         val tabsUseCases: TabsUseCases = mockk(relaxed = true)
-        val middleware = BrowserToolbarMiddleware(
+        val middleware = buildMiddleware(
             appStore = appStore,
-            browserScreenStore = browserScreenStore,
             browserStore = browserStore,
-            tabsUseCases = tabsUseCases,
-            clipboard = mockk(),
-            settings = settings,
-        ).apply {
-            updateLifecycleDependencies(
-                LifecycleDependencies(testContext, lifecycleOwner, navController, browsingModeManager, mockk(), mockk()),
-            )
-        }
+            useCases = useCases,
+        ).updateDependencies(
+            navController = navController,
+            browsingModeManager = browsingModeManager,
+        )
         val toolbarStore = BrowserToolbarStore(
             middleware = listOf(middleware),
         )
@@ -1065,18 +939,10 @@ class BrowserToolbarMiddlewareTest {
             ),
         )
         val tabsUseCases: TabsUseCases = mockk(relaxed = true)
-        val middleware = BrowserToolbarMiddleware(
-            appStore = appStore,
-            browserScreenStore = browserScreenStore,
+        val middleware = buildMiddleware(
             browserStore = browserStore,
-            tabsUseCases = tabsUseCases,
-            clipboard = mockk(),
-            settings = settings,
-        ).apply {
-            updateLifecycleDependencies(
-                LifecycleDependencies(testContext, lifecycleOwner, mockk(), browsingModeManager, mockk(), mockk()),
-            )
-        }
+            useCases = useCases,
+        ).updateDependencies()
         val toolbarStore = BrowserToolbarStore(
             middleware = listOf(middleware),
         ).also {
@@ -1108,18 +974,10 @@ class BrowserToolbarMiddlewareTest {
             ),
         )
         val tabsUseCases: TabsUseCases = mockk(relaxed = true)
-        val middleware = BrowserToolbarMiddleware(
-            appStore = appStore,
-            browserScreenStore = browserScreenStore,
+        val middleware = buildMiddleware(
             browserStore = browserStore,
-            tabsUseCases = tabsUseCases,
-            clipboard = mockk(),
-            settings = settings,
-        ).apply {
-            updateLifecycleDependencies(
-                LifecycleDependencies(testContext, lifecycleOwner, mockk(), browsingModeManager, mockk(), mockk()),
-            )
-        }
+            useCases = useCases,
+        ).updateDependencies()
         val toolbarStore = BrowserToolbarStore(
             middleware = listOf(middleware),
         ).also {
@@ -1203,11 +1061,54 @@ class BrowserToolbarMiddlewareTest {
             }
         },
     )
+
+    private val expectedHomeButton = ActionButton(
+        icon = R.drawable.mozac_ic_home_24,
+        contentDescription = R.string.browser_toolbar_home,
+        onClick = HomeClicked,
+    )
+
     private val expectedMenuButton = ActionButton(
         icon = R.drawable.mozac_ic_ellipsis_vertical_24,
         contentDescription = R.string.content_description_menu,
         onClick = MenuClicked,
     )
+
+    private fun buildMiddleware(
+        appStore: AppStore = this.appStore,
+        browserScreenStore: BrowserScreenStore = this.browserScreenStore,
+        browserStore: BrowserStore = this.browserStore,
+        useCases: UseCases = this.useCases,
+        clipboard: ClipboardHandler = this.clipboard,
+        settings: Settings = this.settings,
+    ) = BrowserToolbarMiddleware(
+        appStore = appStore,
+        browserScreenStore = browserScreenStore,
+        browserStore = browserStore,
+        useCases = useCases,
+        clipboard = clipboard,
+        settings = settings,
+    )
+
+    private fun BrowserToolbarMiddleware.updateDependencies(
+        context: Context = testContext,
+        lifecycleOwner: LifecycleOwner = this@BrowserToolbarMiddlewareTest.lifecycleOwner,
+        navController: NavController = this@BrowserToolbarMiddlewareTest.navController,
+        browsingModeManager: BrowsingModeManager = this@BrowserToolbarMiddlewareTest.browsingModeManager,
+        browserAnimator: BrowserAnimator = this@BrowserToolbarMiddlewareTest.browserAnimator,
+        thumbnailsFeature: BrowserThumbnails? = this@BrowserToolbarMiddlewareTest.thumbnailsFeature,
+    ) = this.apply {
+        updateLifecycleDependencies(
+            LifecycleDependencies(
+                context = context,
+                lifecycleOwner = lifecycleOwner,
+                navController = navController,
+                browsingModeManager = browsingModeManager,
+                browserAnimator = browserAnimator,
+                thumbnailsFeature = thumbnailsFeature,
+            ),
+        )
+    }
 
     private class FakeLifecycleOwner(initialState: Lifecycle.State) : LifecycleOwner {
         override val lifecycle: Lifecycle = LifecycleRegistry(this).apply {

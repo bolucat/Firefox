@@ -4,7 +4,6 @@
 
 package org.mozilla.fenix.onboarding.view
 
-import org.mozilla.fenix.nimbus.AddOnData
 import org.mozilla.fenix.nimbus.CustomizationThemeData
 import org.mozilla.fenix.nimbus.CustomizationToolbarData
 import org.mozilla.fenix.nimbus.MarketingData
@@ -13,7 +12,6 @@ import org.mozilla.fenix.nimbus.OnboardingCardType
 import org.mozilla.fenix.nimbus.TermsOfServiceData
 import org.mozilla.fenix.nimbus.ThemeType
 import org.mozilla.fenix.nimbus.ToolbarType
-import org.mozilla.fenix.onboarding.store.OnboardingAddonStatus
 
 /**
  * Returns a list of all the required Nimbus 'cards' that have been converted to [OnboardingPageUiData].
@@ -47,7 +45,6 @@ private fun OnboardingCardData.isCardEnabled(
     OnboardingCardType.DEFAULT_BROWSER -> enabled && showDefaultBrowserPage
     OnboardingCardType.NOTIFICATION_PERMISSION -> enabled && showNotificationPage
     OnboardingCardType.ADD_SEARCH_WIDGET -> enabled && showAddWidgetPage
-    OnboardingCardType.ADD_ONS -> extraData?.addOnsData?.isNotEmpty() == true
     OnboardingCardType.TOOLBAR_PLACEMENT ->
         showToolbarPage && enabled && extraData?.customizationToolbarData?.isNotEmpty() == true
     OnboardingCardType.THEME_SELECTION -> enabled && extraData?.customizationThemeData?.isNotEmpty() == true
@@ -109,7 +106,6 @@ private fun OnboardingCardData.toPageUiData(privacyCaption: Caption?) = Onboardi
     primaryButtonLabel = primaryButtonLabel,
     secondaryButtonLabel = secondaryButtonLabel.ifEmpty { null },
     privacyCaption = privacyCaption,
-    addOns = extraData?.addOnsData?.takeIf { it.isNotEmpty() }?.toOnboardingAddOns(),
     toolbarOptions = extraData?.customizationToolbarData
         ?.takeIf { it.isNotEmpty() }
         ?.toOnboardingToolbarOptions(),
@@ -125,14 +121,11 @@ private fun OnboardingCardType.toPageUiDataType() = when (this) {
     OnboardingCardType.SYNC_SIGN_IN -> OnboardingPageUiData.Type.SYNC_SIGN_IN
     OnboardingCardType.NOTIFICATION_PERMISSION -> OnboardingPageUiData.Type.NOTIFICATION_PERMISSION
     OnboardingCardType.ADD_SEARCH_WIDGET -> OnboardingPageUiData.Type.ADD_SEARCH_WIDGET
-    OnboardingCardType.ADD_ONS -> OnboardingPageUiData.Type.ADD_ONS
     OnboardingCardType.TOOLBAR_PLACEMENT -> OnboardingPageUiData.Type.TOOLBAR_PLACEMENT
     OnboardingCardType.THEME_SELECTION -> OnboardingPageUiData.Type.THEME_SELECTION
     OnboardingCardType.TERMS_OF_SERVICE -> OnboardingPageUiData.Type.TERMS_OF_SERVICE
     OnboardingCardType.MARKETING_DATA -> OnboardingPageUiData.Type.MARKETING_DATA
 }
-
-private fun List<AddOnData>.toOnboardingAddOns() = map { it.toOnboardingAddOn() }
 
 private fun List<CustomizationToolbarData>.toOnboardingToolbarOptions() = map { it.toOnboardingCustomizeToolbar() }
 
@@ -154,19 +147,6 @@ private fun MarketingData.toOnboardingMarketingData() = OnboardingMarketingData(
     bodyOneLinkText = bodyLineOneLinkText,
     bodyTwoText = bodyLineTwoText,
 )
-
-private fun AddOnData.toOnboardingAddOn() = with(this) {
-    OnboardingAddOn(
-        id = id,
-        iconRes = iconRes.resourceId,
-        name = name,
-        description = description,
-        averageRating = averageRating,
-        reviewCount = reviewCount,
-        installUrl = installUrl,
-        status = OnboardingAddonStatus.NOT_INSTALLED,
-    )
-}
 
 private fun CustomizationToolbarData.toOnboardingCustomizeToolbar() = with(this) {
     ToolbarOption(
@@ -212,7 +192,6 @@ internal fun mapToOnboardingPageState(
     onNotificationPermissionSkipClick: () -> Unit,
     onAddFirefoxWidgetClick: () -> Unit,
     onAddFirefoxWidgetSkipClick: () -> Unit,
-    onAddOnsButtonClick: () -> Unit,
     onCustomizeToolbarButtonClick: () -> Unit,
     onCustomizeThemeClick: () -> Unit,
     onTermsOfServiceButtonClick: () -> Unit,
@@ -240,12 +219,6 @@ internal fun mapToOnboardingPageState(
         onboardingPageUiData = onboardingPageUiData,
         onPositiveButtonClick = onNotificationPermissionButtonClick,
         onNegativeButtonClick = onNotificationPermissionSkipClick,
-    )
-
-    OnboardingPageUiData.Type.ADD_ONS -> createOnboardingPageState(
-        onboardingPageUiData = onboardingPageUiData,
-        onPositiveButtonClick = onAddOnsButtonClick,
-        onNegativeButtonClick = {}, // No negative button option for add-ons.
     )
 
     OnboardingPageUiData.Type.TOOLBAR_PLACEMENT -> createOnboardingPageState(
@@ -286,7 +259,6 @@ private fun createOnboardingPageState(
         Action(it, onNegativeButtonClick)
     },
     privacyCaption = onboardingPageUiData.privacyCaption,
-    addOns = onboardingPageUiData.addOns,
     themeOptions = onboardingPageUiData.themeOptions,
     toolbarOptions = onboardingPageUiData.toolbarOptions,
     termsOfService = onboardingPageUiData.termsOfService,

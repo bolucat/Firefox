@@ -438,16 +438,33 @@
                         CSSWideKeyword::Unset |
                         % endif
                         CSSWideKeyword::Inherit => {
-                            % if property.style_struct.inherited:
-                                declaration.debug_crash("Unexpected inherit or unset for inherited property");
-                            % else:
+                            % if not property.style_struct.inherited:
                                 context.rule_cache_conditions.borrow_mut().set_uncacheable();
+                            % endif
+                            % if property.is_zoom_dependent():
+                                if !context.builder.effective_zoom_for_inheritance.is_one() {
+                                    let old_zoom = context.builder.effective_zoom;
+                                    context.builder.effective_zoom = context.builder.effective_zoom_for_inheritance;
+                                    let computed = context.builder.inherited_style.clone_${property.ident}();
+                                    let specified = ToComputedValue::from_computed_value(&computed);
+                                    % if property.boxed:
+                                    let specified = Box::new(specified);
+                                    % endif
+                                    let decl = PropertyDeclaration::${property.camel_case}(specified);
+                                    cascade_property(&decl, context);
+                                    context.builder.effective_zoom = old_zoom;
+                                    return;
+                                }
+                            % endif
+                            % if property.style_struct.inherited:
+                                declaration.debug_crash("Unexpected inherit or unset for non-zoom-dependent inherited property");
+                            % else:
                                 context.builder.inherit_${property.ident}();
                             % endif
                         }
                         CSSWideKeyword::RevertLayer |
                         CSSWideKeyword::Revert => {
-                            declaration.debug_crash("Found revert/revert-layer not deal with");
+                            declaration.debug_crash("Found revert/revert-layer not dealt with");
                         },
                     }
                     return;

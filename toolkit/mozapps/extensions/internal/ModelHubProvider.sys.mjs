@@ -11,12 +11,14 @@ ChromeUtils.defineESModuleGetters(lazy, {
   computeSha256HashAsString:
     "resource://gre/modules/addons/crypto-utils.sys.mjs",
   ModelHub: "chrome://global/content/ml/ModelHub.sys.mjs",
+  isAddonEngineId: "chrome://global/content/ml/Utils.sys.mjs",
+  engineIdToAddonId: "chrome://global/content/ml/Utils.sys.mjs",
 });
 
 XPCOMUtils.defineLazyPreferenceGetter(
   lazy,
-  "MODELHUB_PROVIDER_ENABLED",
-  "browser.ml.modelHubProvider",
+  "LOCAL_MODEL_MANAGEMENT_ENABLED",
+  "extensions.htmlaboutaddons.local_model_management",
   false,
   (_pref, _old, val) => ModelHubProvider[val ? "init" : "shutdown"]()
 );
@@ -33,6 +35,7 @@ export class ModelHubAddonWrapper {
   lastUsed;
   updateDate;
   modelIconURL;
+  engineIds;
 
   constructor(params) {
     this.#provider = params.provider;
@@ -43,15 +46,27 @@ export class ModelHubAddonWrapper {
     this.lastUsed = params.lastUsed;
     this.updateDate = params.updateDate;
     this.modelIconURL = params.modelIconURL;
+    this.engineIds = params.engineIds ?? [];
   }
 
   async uninstall() {
     await this.#provider.modelHub.deleteModels({
       model: this.model,
       revision: this.version,
+      deletedBy: "about:addons",
     });
 
     await this.#provider.onUninstalled(this);
+  }
+
+  get usedByFirefoxFeatures() {
+    return this.engineIds.filter(engineId => !lazy.isAddonEngineId(engineId));
+  }
+
+  get usedByAddonIds() {
+    return this.engineIds
+      .filter(engineId => lazy.isAddonEngineId(engineId))
+      .map(engineId => lazy.engineIdToAddonId(engineId));
   }
 
   get name() {
@@ -101,7 +116,7 @@ export const ModelHubProvider = {
   },
 
   async getAddonsByTypes(types) {
-    if (!lazy.MODELHUB_PROVIDER_ENABLED) {
+    if (!lazy.LOCAL_MODEL_MANAGEMENT_ENABLED) {
       return [];
     }
 
@@ -114,6 +129,9 @@ export const ModelHubProvider = {
   },
 
   async getAddonByID(id) {
+    if (id?.endsWith(MODELHUB_ADDON_ID_SUFFIX) && !this.cache.size) {
+      await this.refreshAddonCache();
+    }
     return this.cache.get(id);
   },
 
@@ -134,15 +152,14 @@ export const ModelHubProvider = {
     }
   },
 
-  async init() {
-    if (!lazy.MODELHUB_PROVIDER_ENABLED || this.initialized) {
+  init() {
+    if (!lazy.LOCAL_MODEL_MANAGEMENT_ENABLED || this.initialized) {
       return;
     }
 
     this.initialized = true;
     lazy.AddonManagerPrivate.registerProvider(this, [MODELHUB_ADDON_TYPE]);
     this.modelHub = new lazy.ModelHub();
-    await this.refreshAddonCache();
   },
 
   async onUninstalled(addon) {
@@ -153,7 +170,7 @@ export const ModelHubProvider = {
     lazy.AddonManagerPrivate.callAddonListeners("onUninstalled", addon);
   },
 
-  async clearAddonCache() {
+  clearAddonCache() {
     this.cache.clear();
   },
 
@@ -165,6 +182,14 @@ export const ModelHubProvider = {
   },
 
   async refreshAddonCache() {
+    // Return earlier if the model hub provider was disabled.
+    // by the time it was being called.
+    if (!lazy.LOCAL_MODEL_MANAGEMENT_ENABLED) {
+      return;
+    }
+
+    this.clearAddonCache();
+
     const models = await this.modelHub.listModels();
 
     for (const model of models) {
@@ -185,6 +210,7 @@ export const ModelHubProvider = {
         lastUsed: new Date(metadata.lastUsed),
         updateDate: new Date(metadata.updateDate),
         modelIconURL,
+        engineIds: metadata.engineIds,
       });
       this.cache.set(wrapper.id, wrapper);
     }

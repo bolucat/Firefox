@@ -16,6 +16,7 @@ use selectors::matching::{ElementSelectorFlags, MatchingForInvalidation, Selecto
 use selectors::{Element, OpaqueElement};
 use servo_arc::{Arc, ArcBorrow};
 use smallvec::SmallVec;
+use style::values::generics::Optional;
 use std::collections::BTreeSet;
 use std::fmt::Write;
 use std::iter;
@@ -66,6 +67,7 @@ use style::gecko_bindings::structs::nsCSSPropertyID;
 use style::gecko_bindings::structs::nsChangeHint;
 use style::gecko_bindings::structs::nsCompatibility;
 use style::gecko_bindings::structs::nsresult;
+use style::gecko_bindings::structs::AnchorPosResolutionParams;
 use style::gecko_bindings::structs::CallerType;
 use style::gecko_bindings::structs::CompositeOperation;
 use style::gecko_bindings::structs::DeclarationBlockMutationClosure;
@@ -151,7 +153,6 @@ use style::values::computed::font::{
     FamilyName, FontFamily, FontFamilyList, FontStretch, FontStyle, FontWeight, GenericFontFamily,
 };
 use style::values::computed::length::AnchorSizeFunction;
-use style::values::computed::length_percentage::CalcAnchorFunctionResolutionInfo;
 use style::values::computed::position::AnchorFunction;
 use style::values::computed::{self, ContentVisibility, Context, PositionProperty, ToComputedValue};
 use style::values::distance::ComputeSquaredDistance;
@@ -4796,6 +4797,35 @@ pub unsafe extern "C" fn Servo_ParseStyleAttribute(
 }
 
 #[no_mangle]
+pub extern "C" fn Servo_ParsePseudoElement(
+    data: &nsAString,
+    request: &mut structs::PseudoStyleRequest, /* output */
+) -> bool {
+    let string = data.to_string();
+    let mut input = ParserInput::new(&string);
+    let mut parser = Parser::new(&mut input);
+    // This is unspecced, but we'd like to match other browsers' behavior, so we reject the
+    // preceding whitespaces and trailing whitespaces.
+    // FIXME: Bug 1845712. Figure out if it is necessary to reject preceding and trailing
+    // whitespaces.
+    if parser.try_parse(|i| i.expect_whitespace()).is_ok() {
+        return false;
+    }
+    let Ok(pseudo) = PseudoElement::parse_ignore_enabled_state(&mut parser) else { return false };
+    // The trailing tokens are not allowed, including whitespaces.
+    if parser.next_including_whitespace().is_ok() {
+        return false;
+    }
+
+    let (pseudo_type, name) = pseudo.pseudo_type_and_argument();
+    let name_ptr = name.map_or(std::ptr::null_mut(), |name| name.0.as_ptr());
+    request.mType = pseudo_type;
+    request.mIdentifier = unsafe { RefPtr::new(name_ptr).forget() };
+
+    true
+}
+
+#[no_mangle]
 pub extern "C" fn Servo_DeclarationBlock_CreateEmpty() -> Strong<LockedDeclarationBlock> {
     let global_style_data = &*GLOBAL_STYLE_DATA;
     Arc::new(
@@ -8462,14 +8492,11 @@ pub enum CalcAnchorPositioningFunctionResolution {
 #[no_mangle]
 pub extern "C" fn Servo_ResolveAnchorFunctionsInCalcPercentage(
     calc: &computed::length_percentage::CalcLengthPercentage,
-    side: Option<&PhysicalSide>,
-    position_property: PositionProperty,
+    prop_side: Option<&PhysicalSide>,
+    params: &AnchorPosResolutionParams,
     out: &mut CalcAnchorPositioningFunctionResolution,
 ) {
-    let resolved = calc.resolve_anchor(CalcAnchorFunctionResolutionInfo {
-        side: side.copied(),
-        position_property,
-    });
+    let resolved = calc.resolve_anchor(prop_side.copied(), params);
 
     match resolved {
         Err(()) => *out = CalcAnchorPositioningFunctionResolution::Invalid,
@@ -8911,7 +8938,6 @@ pub unsafe extern "C" fn Servo_SharedMemoryBuilder_AddStylesheet(
 ) -> *const LockedCssRules {
     // Assert some things we assume when we create a style sheet from shared
     // memory.
-    debug_assert_eq!(contents.origin, Origin::UserAgent);
     debug_assert_eq!(contents.quirks_mode, QuirksMode::NoQuirks);
     debug_assert!(contents.source_map_url.read().is_none());
     debug_assert!(contents.source_url.read().is_none());
@@ -9881,14 +9907,35 @@ impl AnchorPositioningFunctionResolution {
     }
 }
 
+fn resolve_anchor_fallback(
+    fallback: &Optional<computed::LengthPercentage>
+) -> AnchorPositioningFunctionResolution {
+    fallback.as_ref().map_or(AnchorPositioningFunctionResolution::Invalid,
+        |fb| AnchorPositioningFunctionResolution::ResolvedReference(fb as *const _),
+    )
+}
+
 #[no_mangle]
 pub extern "C" fn Servo_ResolveAnchorFunction(
     func: &AnchorFunction,
-    side: PhysicalSide,
-    prop: PositionProperty,
+    params: &AnchorPosResolutionParams,
+    prop_side: PhysicalSide,
     out: &mut AnchorPositioningFunctionResolution,
 ) {
-    *out = AnchorPositioningFunctionResolution::new(func.resolve(side, prop));
+    if !func.valid_for(prop_side, params.mPosition) {
+        *out = resolve_anchor_fallback(&func.fallback);
+        return;
+    }
+    let result = AnchorFunction::resolve(
+        &func.target_element,
+        &func.side,
+        prop_side,
+        params
+    );
+    *out = match result {
+        Ok(l) => AnchorPositioningFunctionResolution::Resolved(computed::LengthPercentage::new_length(l)),
+        Err(()) => resolve_anchor_fallback(&func.fallback),
+    };
 }
 
 #[no_mangle]

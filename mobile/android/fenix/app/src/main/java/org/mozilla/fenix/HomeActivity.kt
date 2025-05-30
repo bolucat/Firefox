@@ -53,6 +53,7 @@ import mozilla.components.browser.state.action.MediaSessionAction
 import mozilla.components.browser.state.action.SearchAction
 import mozilla.components.browser.state.search.SearchEngine
 import mozilla.components.browser.state.selector.getNormalOrPrivateTabs
+import mozilla.components.browser.state.selector.privateTabs
 import mozilla.components.browser.state.selector.selectedTab
 import mozilla.components.browser.state.state.WebExtensionState
 import mozilla.components.concept.engine.EngineSession
@@ -76,7 +77,7 @@ import mozilla.components.support.ktx.android.view.setupPersistentInsets
 import mozilla.components.support.locale.LocaleAwareAppCompatActivity
 import mozilla.components.support.utils.BootUtils
 import mozilla.components.support.utils.BrowsersCache
-import mozilla.components.support.utils.ManufacturerCodes
+import mozilla.components.support.utils.BuildManufacturerChecker
 import mozilla.components.support.utils.SafeIntent
 import mozilla.components.support.utils.toSafeIntent
 import mozilla.components.support.webextensions.WebExtensionPopupObserver
@@ -977,7 +978,7 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
             Build.VERSION.SDK_INT == Build.VERSION_CODES.N || Build.VERSION.SDK_INT == Build.VERSION_CODES.N_MR1
         // Huawei devices seem to have problems with onKeyLongPress
         // See https://github.com/mozilla-mobile/fenix/issues/13498
-        return isAndroidN || ManufacturerCodes.isHuawei
+        return isAndroidN || BuildManufacturerChecker().isHuawei()
     }
 
     /**
@@ -1292,6 +1293,7 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
     private fun createBrowsingModeManager(initialMode: BrowsingMode): BrowsingModeManager {
         return DefaultBrowsingModeManager(initialMode, components.settings) { newMode ->
             updateSecureWindowFlags(newMode)
+            addPrivateHomepageTabIfNecessary(newMode)
             themeManager.currentTheme = newMode
         }.also {
             updateSecureWindowFlags(initialMode)
@@ -1303,6 +1305,22 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
             window.addFlags(FLAG_SECURE)
         } else {
             window.clearFlags(FLAG_SECURE)
+        }
+    }
+
+    /**
+     * When switching to private mode, add a private homepage tab if there are
+     * no private tabs available.
+     *
+     * @param mode The new [BrowsingMode] that is being swapped to.
+     */
+    @VisibleForTesting
+    internal fun addPrivateHomepageTabIfNecessary(mode: BrowsingMode) {
+        if (settings().enableHomepageAsNewTab &&
+            mode.isPrivate &&
+            components.core.store.state.privateTabs.isEmpty()
+        ) {
+            components.useCases.fenixBrowserUseCases.addNewHomepageTab(private = true)
         }
     }
 

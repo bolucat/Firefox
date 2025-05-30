@@ -110,39 +110,6 @@
       "chrome://browser/content/screenshots/overlayHelpers.mjs": [
         "browser/components/screenshots/overlayHelpers.mjs"
       ],
-      "chrome://browser/content/shopping/adjusted-rating.mjs": [
-        "browser/components/shopping/content/adjusted-rating.mjs"
-      ],
-      "chrome://browser/content/shopping/analysis-explainer.mjs": [
-        "browser/components/shopping/content/analysis-explainer.mjs"
-      ],
-      "chrome://browser/content/shopping/highlight-item.mjs": [
-        "browser/components/shopping/content/highlight-item.mjs"
-      ],
-      "chrome://browser/content/shopping/highlights.mjs": [
-        "browser/components/shopping/content/highlights.mjs"
-      ],
-      "chrome://browser/content/shopping/letter-grade.mjs": [
-        "browser/components/shopping/content/letter-grade.mjs"
-      ],
-      "chrome://browser/content/shopping/recommended-ad.mjs": [
-        "browser/components/shopping/content/recommended-ad.mjs"
-      ],
-      "chrome://browser/content/shopping/reliability.mjs": [
-        "browser/components/shopping/content/reliability.mjs"
-      ],
-      "chrome://browser/content/shopping/settings.mjs": [
-        "browser/components/shopping/content/settings.mjs"
-      ],
-      "chrome://browser/content/shopping/shopping-card.mjs": [
-        "browser/components/shopping/content/shopping-card.mjs"
-      ],
-      "chrome://browser/content/shopping/shopping-message-bar.mjs": [
-        "browser/components/shopping/content/shopping-message-bar.mjs"
-      ],
-      "chrome://browser/content/shopping/unanalyzed.mjs": [
-        "browser/components/shopping/content/unanalyzed.mjs"
-      ],
       "chrome://browser/content/sidebar/sidebar-main.mjs": [
         "browser/components/sidebar/sidebar-main.mjs"
       ],
@@ -266,8 +233,14 @@
       "chrome://global/content/elements/moz-toggle.mjs": [
         "toolkit/content/widgets/moz-toggle/moz-toggle.mjs"
       ],
+      "chrome://global/content/elements/moz-visual-picker.mjs": [
+        "toolkit/content/widgets/moz-visual-picker/moz-visual-picker.mjs"
+      ],
       "chrome://global/content/elements/panel-list.js": [
         "toolkit/content/widgets/panel-list/panel-list.js"
+      ],
+      "chrome://global/content/lit-select-control.mjs": [
+        "toolkit/content/widgets/lit-select-control.mjs"
       ],
       "chrome://global/content/lit-utils.mjs": [
         "toolkit/content/widgets/lit-utils.mjs"
@@ -337,15 +310,6 @@
       ],
       "chrome://global/content/reader/moz-slider.mjs": [
         "toolkit/components/reader/moz-slider.mjs"
-      ],
-      "chrome://global/content/shopping/ProductConfig.mjs": [
-        "toolkit/components/shopping/content/ProductConfig.mjs"
-      ],
-      "chrome://global/content/shopping/ProductValidator.sys.mjs": [
-        "toolkit/components/shopping/content/ProductValidator.sys.mjs"
-      ],
-      "chrome://global/content/shopping/ShoppingProduct.mjs": [
-        "toolkit/components/shopping/content/ShoppingProduct.mjs"
       ],
       "chrome://global/content/translations/TranslationsTelemetry.sys.mjs": [
         "toolkit/components/translations/TranslationsTelemetry.sys.mjs"
@@ -596,9 +560,6 @@
       "chrome://remote/content/marionette/browser.sys.mjs": [
         "remote/marionette/browser.sys.mjs"
       ],
-      "chrome://remote/content/marionette/cert.sys.mjs": [
-        "remote/marionette/cert.sys.mjs"
-      ],
       "chrome://remote/content/marionette/cookie.sys.mjs": [
         "remote/marionette/cookie.sys.mjs"
       ],
@@ -845,6 +806,9 @@
       "chrome://remote/content/shared/webdriver/Capabilities.sys.mjs": [
         "remote/shared/webdriver/Capabilities.sys.mjs"
       ],
+      "chrome://remote/content/shared/webdriver/Certificates.sys.mjs": [
+        "remote/shared/webdriver/Certificates.sys.mjs"
+      ],
       "chrome://remote/content/shared/webdriver/Errors.sys.mjs": [
         "remote/shared/webdriver/Errors.sys.mjs"
       ],
@@ -997,9 +961,6 @@
       ],
       "resource:///actors/SearchSERPTelemetryChild.sys.mjs": [
         "browser/actors/SearchSERPTelemetryChild.sys.mjs"
-      ],
-      "resource:///actors/ShoppingSidebarParent.sys.mjs": [
-        "browser/components/shopping/ShoppingSidebarParent.sys.mjs"
       ],
       "resource:///actors/WebRTCChild.sys.mjs": [
         "browser/actors/WebRTCChild.sys.mjs"
@@ -1160,12 +1121,6 @@
       "resource:///modules/InstallerPrefs.sys.mjs": [
         "browser/components/installerprefs/InstallerPrefs.sys.mjs"
       ],
-      "resource:///modules/Interactions.sys.mjs": [
-        "browser/components/places/Interactions.sys.mjs"
-      ],
-      "resource:///modules/InteractionsBlocklist.sys.mjs": [
-        "browser/components/places/InteractionsBlocklist.sys.mjs"
-      ],
       "resource:///modules/InternalTestingProfileMigrator.sys.mjs": [
         "browser/components/migration/InternalTestingProfileMigrator.sys.mjs"
       ],
@@ -1207,9 +1162,6 @@
       ],
       "resource:///modules/PermissionUI.sys.mjs": [
         "browser/modules/PermissionUI.sys.mjs"
-      ],
-      "resource:///modules/PlacesUIUtils.sys.mjs": [
-        "browser/components/places/PlacesUIUtils.sys.mjs"
       ],
       "resource:///modules/PopupBlockerObserver.sys.mjs": [
         "browser/modules/PopupBlockerObserver.sys.mjs"
@@ -1255,15 +1207,6 @@
       ],
       "resource:///modules/ShellService.sys.mjs": [
         "browser/components/shell/ShellService.sys.mjs"
-      ],
-      "resource:///modules/ShoppingUtils.sys.mjs": [
-        "browser/components/shopping/ShoppingUtils.sys.mjs"
-      ],
-      "resource:///modules/SidebarManager.sys.mjs": [
-        "browser/components/sidebar/SidebarManager.sys.mjs"
-      ],
-      "resource:///modules/SidebarState.sys.mjs": [
-        "browser/components/sidebar/SidebarState.sys.mjs"
       ],
       "resource:///modules/SiteDataManager.sys.mjs": [
         "browser/modules/SiteDataManager.sys.mjs"
@@ -1579,9 +1522,6 @@
       ],
       "resource:///modules/policies/schema.sys.mjs": [
         "tools/@types/subs/schema.sys.d.mts"
-      ],
-      "resource:///modules/profiles/ProfilesDatastoreService.sys.mjs": [
-        "browser/components/profiles/ProfilesDatastoreService.sys.mjs"
       ],
       "resource:///modules/profiles/SelectableProfile.sys.mjs": [
         "browser/components/profiles/SelectableProfile.sys.mjs"
@@ -5531,9 +5471,6 @@
       "resource://gre/modules/AddonManager.sys.mjs": [
         "toolkit/mozapps/extensions/AddonManager.sys.mjs"
       ],
-      "resource://gre/modules/AddonSearchEngine.sys.mjs": [
-        "toolkit/components/search/AddonSearchEngine.sys.mjs"
-      ],
       "resource://gre/modules/AndroidLog.sys.mjs": [
         "mobile/android/modules/geckoview/AndroidLog.sys.mjs"
       ],
@@ -5542,9 +5479,6 @@
       ],
       "resource://gre/modules/AppMenuNotifications.sys.mjs": [
         "toolkit/modules/AppMenuNotifications.sys.mjs"
-      ],
-      "resource://gre/modules/AppProvidedSearchEngine.sys.mjs": [
-        "toolkit/components/search/AppProvidedSearchEngine.sys.mjs"
       ],
       "resource://gre/modules/AppUpdater.sys.mjs": [
         "toolkit/mozapps/update/AppUpdater.sys.mjs"
@@ -5692,6 +5626,9 @@
       ],
       "resource://gre/modules/CustomElementsListener.sys.mjs": [
         "toolkit/components/processsingleton/CustomElementsListener.sys.mjs"
+      ],
+      "resource://gre/modules/DAPReportController.sys.mjs": [
+        "toolkit/components/telemetry/dap/DAPReportController.sys.mjs"
       ],
       "resource://gre/modules/DAPTelemetrySender.sys.mjs": [
         "toolkit/components/telemetry/dap/DAPTelemetrySender.sys.mjs"
@@ -6188,12 +6125,6 @@
       "resource://gre/modules/ObliviousHTTP.sys.mjs": [
         "netwerk/protocol/http/ObliviousHTTP.sys.mjs"
       ],
-      "resource://gre/modules/OpenSearchEngine.sys.mjs": [
-        "toolkit/components/search/OpenSearchEngine.sys.mjs"
-      ],
-      "resource://gre/modules/OpenSearchLoader.sys.mjs": [
-        "toolkit/components/search/OpenSearchLoader.sys.mjs"
-      ],
       "resource://gre/modules/OsEnvironment.sys.mjs": [
         "toolkit/modules/OsEnvironment.sys.mjs"
       ],
@@ -6244,9 +6175,6 @@
       ],
       "resource://gre/modules/PlacesUtils.sys.mjs": [
         "toolkit/components/places/PlacesUtils.sys.mjs"
-      ],
-      "resource://gre/modules/PolicySearchEngine.sys.mjs": [
-        "toolkit/components/search/PolicySearchEngine.sys.mjs"
       ],
       "resource://gre/modules/PopupNotifications.sys.mjs": [
         "toolkit/modules/PopupNotifications.sys.mjs"
@@ -6344,38 +6272,17 @@
       "resource://gre/modules/RustRefcounts.sys.mjs": [
         "toolkit/components/uniffi-bindgen-gecko-js/fixtures/generated/RustRefcounts.sys.mjs"
       ],
-      "resource://gre/modules/RustRelevancy.sys.mjs": [
-        "toolkit/components/uniffi-bindgen-gecko-js/components/generated/RustRelevancy.sys.mjs"
-      ],
-      "resource://gre/modules/RustRemoteSettings.sys.mjs": [
-        "toolkit/components/uniffi-bindgen-gecko-js/components/generated/RustRemoteSettings.sys.mjs"
-      ],
       "resource://gre/modules/RustRondpoint.sys.mjs": [
         "toolkit/components/uniffi-bindgen-gecko-js/fixtures/generated/RustRondpoint.sys.mjs"
       ],
-      "resource://gre/modules/RustSearch.sys.mjs": [
-        "toolkit/components/uniffi-bindgen-gecko-js/components/generated/RustSearch.sys.mjs"
-      ],
       "resource://gre/modules/RustSprites.sys.mjs": [
         "toolkit/components/uniffi-bindgen-gecko-js/fixtures/generated/RustSprites.sys.mjs"
-      ],
-      "resource://gre/modules/RustSuggest.sys.mjs": [
-        "toolkit/components/uniffi-bindgen-gecko-js/components/generated/RustSuggest.sys.mjs"
-      ],
-      "resource://gre/modules/RustSync15.sys.mjs": [
-        "toolkit/components/uniffi-bindgen-gecko-js/components/generated/RustSync15.sys.mjs"
-      ],
-      "resource://gre/modules/RustTabs.sys.mjs": [
-        "toolkit/components/uniffi-bindgen-gecko-js/components/generated/RustTabs.sys.mjs"
       ],
       "resource://gre/modules/RustTodolist.sys.mjs": [
         "toolkit/components/uniffi-bindgen-gecko-js/fixtures/generated/RustTodolist.sys.mjs"
       ],
       "resource://gre/modules/RustUniffiTraitInterfaces.sys.mjs": [
         "toolkit/components/uniffi-bindgen-gecko-js/fixtures/generated/RustUniffiTraitInterfaces.sys.mjs"
-      ],
-      "resource://gre/modules/RustWebextstorage.sys.mjs": [
-        "toolkit/components/uniffi-bindgen-gecko-js/components/generated/RustWebextstorage.sys.mjs"
       ],
       "resource://gre/modules/SafeBrowsing.sys.mjs": [
         "toolkit/components/url-classifier/SafeBrowsing.sys.mjs"
@@ -6386,29 +6293,8 @@
       "resource://gre/modules/Schemas.sys.mjs": [
         "toolkit/components/extensions/Schemas.sys.mjs"
       ],
-      "resource://gre/modules/SearchEngine.sys.mjs": [
-        "toolkit/components/search/SearchEngine.sys.mjs"
-      ],
-      "resource://gre/modules/SearchEngineSelector.sys.mjs": [
-        "toolkit/components/search/SearchEngineSelector.sys.mjs"
-      ],
       "resource://gre/modules/SearchService.sys.mjs": [
         "toolkit/components/search/SearchService.sys.mjs"
-      ],
-      "resource://gre/modules/SearchSettings.sys.mjs": [
-        "toolkit/components/search/SearchSettings.sys.mjs"
-      ],
-      "resource://gre/modules/SearchShortcuts.sys.mjs": [
-        "toolkit/components/search/SearchShortcuts.sys.mjs"
-      ],
-      "resource://gre/modules/SearchStaticData.sys.mjs": [
-        "toolkit/components/search/SearchStaticData.sys.mjs"
-      ],
-      "resource://gre/modules/SearchSuggestionController.sys.mjs": [
-        "toolkit/components/search/SearchSuggestionController.sys.mjs"
-      ],
-      "resource://gre/modules/SearchUtils.sys.mjs": [
-        "toolkit/components/search/SearchUtils.sys.mjs"
       ],
       "resource://gre/modules/SecurityInfo.sys.mjs": [
         "toolkit/components/extensions/webrequest/SecurityInfo.sys.mjs"
@@ -6532,9 +6418,6 @@
       ],
       "resource://gre/modules/UsageReporting.sys.mjs": [
         "toolkit/components/telemetry/app/UsageReporting.sys.mjs"
-      ],
-      "resource://gre/modules/UserSearchEngine.sys.mjs": [
-        "toolkit/components/search/UserSearchEngine.sys.mjs"
       ],
       "resource://gre/modules/ValueExtractor.sys.mjs": [
         "dom/manifest/ValueExtractor.sys.mjs"
@@ -6883,6 +6766,15 @@
       ],
       "resource://newtab/lib/HighlightsFeed.sys.mjs": [
         "browser/extensions/newtab/lib/HighlightsFeed.sys.mjs"
+      ],
+      "resource://newtab/lib/InferredModel/FeatureModel.sys.mjs": [
+        "browser/extensions/newtab/lib/InferredModel/FeatureModel.sys.mjs"
+      ],
+      "resource://newtab/lib/InferredModel/InferredConstants.sys.mjs": [
+        "browser/extensions/newtab/lib/InferredModel/InferredConstants.sys.mjs"
+      ],
+      "resource://newtab/lib/InferredPersonalizationFeed.sys.mjs": [
+        "browser/extensions/newtab/lib/InferredPersonalizationFeed.sys.mjs"
       ],
       "resource://newtab/lib/NewTabGleanUtils.sys.mjs": [
         "browser/extensions/newtab/lib/NewTabGleanUtils.sys.mjs"

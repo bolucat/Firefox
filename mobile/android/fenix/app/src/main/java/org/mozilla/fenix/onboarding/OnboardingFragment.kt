@@ -5,6 +5,7 @@
 package org.mozilla.fenix.onboarding
 
 import android.annotation.SuppressLint
+import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.IntentFilter
 import android.content.pm.ActivityInfo
@@ -23,7 +24,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.navigation.fragment.findNavController
 import kotlinx.coroutines.launch
-import mozilla.components.concept.engine.webextension.InstallationMethod
 import mozilla.components.service.nimbus.evalJexlSafe
 import mozilla.components.service.nimbus.messaging.use
 import mozilla.components.support.base.log.logger.Logger
@@ -48,13 +48,10 @@ import org.mozilla.fenix.ext.requireComponents
 import org.mozilla.fenix.ext.settings
 import org.mozilla.fenix.nimbus.FxNimbus
 import org.mozilla.fenix.onboarding.store.DefaultOnboardingPreferencesRepository
-import org.mozilla.fenix.onboarding.store.OnboardingAction.OnboardingAddOnsAction
-import org.mozilla.fenix.onboarding.store.OnboardingAddonStatus
 import org.mozilla.fenix.onboarding.store.OnboardingPreferencesMiddleware
 import org.mozilla.fenix.onboarding.store.OnboardingStore
 import org.mozilla.fenix.onboarding.view.Caption
 import org.mozilla.fenix.onboarding.view.ManagePrivacyPreferencesDialogFragment
-import org.mozilla.fenix.onboarding.view.OnboardingAddOn
 import org.mozilla.fenix.onboarding.view.OnboardingPageUiData
 import org.mozilla.fenix.onboarding.view.OnboardingScreen
 import org.mozilla.fenix.onboarding.view.sequencePosition
@@ -63,7 +60,7 @@ import org.mozilla.fenix.onboarding.view.toPageUiData
 import org.mozilla.fenix.settings.SupportUtils
 import org.mozilla.fenix.theme.FirefoxTheme
 import org.mozilla.fenix.utils.canShowAddSearchWidgetPrompt
-import org.mozilla.fenix.utils.showAddSearchWidgetPrompt
+import org.mozilla.fenix.utils.maybeShowAddSearchWidgetPrompt
 
 /**
  * Fragment displaying the onboarding flow.
@@ -85,7 +82,7 @@ class OnboardingFragment : Fragment() {
             pagesToDisplay(
                 showDefaultBrowserPage = isNotDefaultBrowser(this) && !isDefaultBrowserPromptSupported(),
                 showNotificationPage = canShowNotificationPage(),
-                showAddWidgetPage = canShowAddSearchWidgetPrompt(),
+                showAddWidgetPage = canShowAddSearchWidgetPrompt(AppWidgetManager.getInstance(activity)),
             ).toMutableList()
         }
     }
@@ -246,18 +243,12 @@ class OnboardingFragment : Fragment() {
                     pagesToDisplay.telemetrySequenceId(),
                     pagesToDisplay.sequencePosition(OnboardingPageUiData.Type.ADD_SEARCH_WIDGET),
                 )
-                showAddSearchWidgetPrompt(requireActivity())
+                maybeShowAddSearchWidgetPrompt(requireActivity())
             },
             onSkipFirefoxWidgetClick = {
                 telemetryRecorder.onSkipAddWidgetClick(
                     pagesToDisplay.telemetrySequenceId(),
                     pagesToDisplay.sequencePosition(OnboardingPageUiData.Type.ADD_SEARCH_WIDGET),
-                )
-            },
-            onAddOnsButtonClick = {
-                telemetryRecorder.onAddOnsButtonClick(
-                    pagesToDisplay.telemetrySequenceId(),
-                    pagesToDisplay.sequencePosition(OnboardingPageUiData.Type.ADD_ONS),
                 )
             },
             onFinish = {
@@ -277,7 +268,6 @@ class OnboardingFragment : Fragment() {
                 )
             },
             onboardingStore = onboardingStore,
-            onInstallAddOnButtonClick = { installUrl -> installAddon(installUrl) },
             termsOfServiceEventHandler = termsOfServiceEventHandler,
             onCustomizeToolbarClick = {
                 telemetryRecorder.onSelectToolbarPlacementClick(
@@ -310,38 +300,6 @@ class OnboardingFragment : Fragment() {
                     onboardingStore.state.themeOptionSelected.id,
                     pagesToDisplay.telemetrySequenceId(),
                     pagesToDisplay.sequencePosition(OnboardingPageUiData.Type.THEME_SELECTION),
-                )
-            },
-        )
-    }
-
-    private fun installAddon(addOn: OnboardingAddOn) {
-        onboardingStore.dispatch(
-            OnboardingAddOnsAction.UpdateStatus(
-                addOnId = addOn.id,
-                status = OnboardingAddonStatus.INSTALLING,
-            ),
-        )
-        requireComponents.addonManager.installAddon(
-            url = addOn.installUrl,
-            installationMethod = InstallationMethod.ONBOARDING,
-            onSuccess = { addon ->
-                logger.info("Extension installed successfully")
-                telemetryRecorder.onAddOnInstalled(addon.id)
-                onboardingStore.dispatch(
-                    OnboardingAddOnsAction.UpdateStatus(
-                        addOnId = addOn.id,
-                        status = OnboardingAddonStatus.INSTALLED,
-                    ),
-                )
-            },
-            onError = { e ->
-                logger.error("Unable to install extension", e)
-                onboardingStore.dispatch(
-                    OnboardingAddOnsAction.UpdateStatus(
-                        addOn.id,
-                        status = OnboardingAddonStatus.NOT_INSTALLED,
-                    ),
                 )
             },
         )

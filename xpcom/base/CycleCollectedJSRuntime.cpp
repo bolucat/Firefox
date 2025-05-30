@@ -1995,7 +1995,8 @@ void CycleCollectedJSRuntime::AnnotateAndSetOutOfMemory(OOMState* aStatePtr,
   enum class Size { Large, Small };
 
   Size size = aStatePtr == &mOutOfMemoryState ? Size::Small : Size::Large;
-  MOZ_ASSERT_IF(size == Size::Large, aStatePtr == &mLargeAllocationFailureState);
+  MOZ_ASSERT_IF(size == Size::Large,
+                aStatePtr == &mLargeAllocationFailureState);
 
   *aStatePtr = aNewState;
 
@@ -2007,8 +2008,14 @@ void CycleCollectedJSRuntime::AnnotateAndSetOutOfMemory(OOMState* aStatePtr,
   CrashReporter::RecordAnnotationCString(annotation,
                                          OOMStateToString(aNewState));
 
-  // Attempt to report telemetry.
-  if (JSObject* global = JS::CurrentGlobalOrNull(GetContext()->Context())) {
+  // Attempt to report telemetry; this all needs to be as robust as possible
+  // since objects can be in a variety of states when this happens.
+  //
+  // We may not always collect telemetry, and that's got to be OK :)
+  CycleCollectedJSContext* ccjsContext = GetContext();
+  JSContext* jsContext = ccjsContext ? ccjsContext->Context() : nullptr;
+  JSObject* global = jsContext ? JS::CurrentGlobalOrNull(jsContext) : nullptr;
+  if (global) {
     if (aNewState == OOMState::Recovered) {
       switch (size) {
         case Size::Large:

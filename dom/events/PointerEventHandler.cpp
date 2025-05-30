@@ -80,9 +80,30 @@ bool PointerEventHandler::IsPointerEventImplicitCaptureForTouchEnabled() {
 }
 
 /* static */
-bool PointerEventHandler::ShouldDispatchClickEventOnCapturingElement() {
-  return StaticPrefs::
-      dom_w3c_pointer_events_dispatch_click_on_pointer_capturing_element();
+bool PointerEventHandler::ShouldDispatchClickEventOnCapturingElement(
+    const WidgetGUIEvent* aSourceEvent /* = nullptr */) {
+  if (!StaticPrefs::
+          dom_w3c_pointer_events_dispatch_click_on_pointer_capturing_element()) {
+    return false;
+  }
+  if (!aSourceEvent ||
+      !StaticPrefs::
+          dom_w3c_pointer_events_dispatch_click_on_pointer_capturing_element_except_touch()) {
+    return true;
+  }
+  MOZ_ASSERT(aSourceEvent->mMessage == eMouseUp ||
+             aSourceEvent->mMessage == ePointerUp ||
+             aSourceEvent->mMessage == eTouchEnd);
+  // Pointer Events defines that `click` event's userEvent is the preceding
+  // `pointerup`.  However, Chrome does not follow treat it as so when the
+  // `click` is caused by a tap.  For the compatibility with Chrome, we should
+  // stop comforming to the spec until Chrome conforms to that.
+  if (aSourceEvent->mClass == eTouchEventClass) {
+    return false;
+  }
+  const WidgetMouseEvent* const sourceMouseEvent = aSourceEvent->AsMouseEvent();
+  return sourceMouseEvent &&
+         sourceMouseEvent->mInputSource != MouseEvent_Binding::MOZ_SOURCE_TOUCH;
 }
 
 /* static */
@@ -430,7 +451,7 @@ void PointerEventHandler::CheckPointerCaptureState(WidgetPointerEvent* aEvent) {
     return;
   }
 
-  RefPtr<Element> overrideElement = captureInfo->mOverrideElement;
+  const RefPtr<Element> overrideElement = captureInfo->mOverrideElement;
   RefPtr<Element> pendingElement = captureInfo->mPendingElement;
 
   // Update captureInfo before dispatching event since sPointerCaptureList may
@@ -438,15 +459,36 @@ void PointerEventHandler::CheckPointerCaptureState(WidgetPointerEvent* aEvent) {
   captureInfo->mOverrideElement = captureInfo->mPendingElement;
   if (captureInfo->Empty()) {
     sPointerCaptureList->Remove(aEvent->pointerId);
+    captureInfo = nullptr;
   }
 
   if (overrideElement) {
     DispatchGotOrLostPointerCaptureEvent(/* aIsGotCapture */ false, aEvent,
                                          overrideElement);
+    // A `lostpointercapture` event listener may have removed the new pointer
+    // capture element from the tree.  Then, we shouldn't dispatch
+    // `gotpointercapture` on the node.
+    if (pendingElement && !pendingElement->IsInComposedDoc()) {
+      // We won't dispatch `gotpointercapture`, so, we should never fire
+      // `lostpointercapture` on it at processing the next pending pointer
+      // capture.
+      if ((captureInfo = GetPointerCaptureInfo(aEvent->pointerId)) &&
+          captureInfo->mOverrideElement == pendingElement) {
+        captureInfo->mOverrideElement = nullptr;
+        if (captureInfo->Empty()) {
+          sPointerCaptureList->Remove(aEvent->pointerId);
+          captureInfo = nullptr;
+        }
+      }
+      pendingElement = nullptr;
+    } else {
+      captureInfo = nullptr;  // Maybe destroyed
+    }
   }
   if (pendingElement) {
     DispatchGotOrLostPointerCaptureEvent(/* aIsGotCapture */ true, aEvent,
                                          pendingElement);
+    captureInfo = nullptr;  // Maybe destroyed
   }
 
   // If nobody captures the pointer and the pointer will not be removed, we need
@@ -627,9 +669,10 @@ void PointerEventHandler::ReleasePointerCapturingElementAtLastPointerUp() {
 
 /* static */
 void PointerEventHandler::ReleaseIfCaptureByDescendant(nsIContent* aContent) {
+  MOZ_ASSERT(aContent);
   // We should check that aChild does not contain pointer capturing elements.
   // If it does we should release the pointer capture for the elements.
-  if (!sPointerCaptureList->IsEmpty()) {
+  if (!sPointerCaptureList->IsEmpty() && aContent->IsElement()) {
     for (const auto& entry : *sPointerCaptureList) {
       PointerCaptureInfo* data = entry.GetWeak();
       if (data && data->mPendingElement &&
@@ -851,10 +894,29 @@ void PointerEventHandler::DispatchPointerFromMouseOrTouch(
       return;
     }
 
-    // 1. If it is not mouse then it is likely will come as touch event
-    // 2. We don't synthesize pointer events for synthesized mouse move
-    if (!mouseEvent->convertToPointer || mouseEvent->IsSynthesized()) {
+    // If it is not mouse then it is likely will come as touch event
+    if (!mouseEvent->convertToPointer) {
       return;
+    }
+
+    // If it's a synthesized eMouseMove and the input source supports hover, we
+    // need to dispatch pointer boundary events if the element underneath the
+    // pointer has already been changed from the last `pointerover` event
+    // target.
+    if (mouseEvent->IsSynthesized()) {
+      if (!StaticPrefs::
+              dom_event_pointer_boundary_dispatch_when_layout_change() ||
+          !mouseEvent->InputSourceSupportsHover()) {
+        return;
+      }
+      // So, if the pointer is captured, we don't need to dispatch pointer
+      // boundary events since pointer boundary events should be fired before
+      // gotpointercapture.
+      PointerCaptureInfo* const captureInfo =
+          GetPointerCaptureInfo(mouseEvent->pointerId);
+      if (captureInfo && captureInfo->mOverrideElement) {
+        return;
+      }
     }
 
     pointerMessage = PointerEventHandler::ToPointerEventMessage(mouseEvent);
@@ -1079,8 +1141,12 @@ bool PointerEventHandler::HasActiveTouchPointer() {
 void PointerEventHandler::DispatchGotOrLostPointerCaptureEvent(
     bool aIsGotCapture, const WidgetPointerEvent* aPointerEvent,
     Element* aCaptureTarget) {
-  Document* targetDoc = aCaptureTarget->OwnerDoc();
-  RefPtr<PresShell> presShell = targetDoc->GetPresShell();
+  // Don't allow uncomposed element to capture a pointer.
+  if (NS_WARN_IF(aIsGotCapture && !aCaptureTarget->IsInComposedDoc())) {
+    return;
+  }
+  const OwningNonNull<Document> targetDoc = *aCaptureTarget->OwnerDoc();
+  const RefPtr<PresShell> presShell = targetDoc->GetPresShell();
   if (NS_WARN_IF(!presShell || presShell->IsDestroying())) {
     return;
   }

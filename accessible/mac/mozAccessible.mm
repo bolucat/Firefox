@@ -593,6 +593,26 @@ struct RoleDescrComparator {
   return @YES;
 }
 
+- (NSString*)moxInvalid {
+  // For controls that support text input, we will expose
+  // the string value of `aria-invalid` when it exists.
+  // See mozTextAccessible::moxInvalid for that work.
+  // Unfortunately, NSBools do not autoconvert to usable
+  // NSStrings, so we expose "true" and "false" manually.
+  return ([self stateWithMask:states::INVALID] != 0) ? @"true" : @"false";
+}
+
+- (NSArray*)moxErrorMessageElements {
+  if (![[self moxInvalid] isEqualToString:@"false"]) {
+    NSArray* relations = [self getRelationsByType:RelationType::ERRORMSG];
+    if ([relations count] > 0) {
+      return relations;
+    }
+  }
+
+  return nil;
+}
+
 - (NSNumber*)moxFocused {
   return @([self stateWithMask:states::FOCUSED] != 0);
 }
@@ -957,6 +977,7 @@ struct RoleDescrComparator {
                                inserted:(BOOL)isInserted
                             inContainer:(Accessible*)container
                                      at:(int32_t)start {
+  [self maybePostValidationErrorChanged];
 }
 
 - (void)handleAccessibleEvent:(uint32_t)eventType {
@@ -1018,6 +1039,32 @@ struct RoleDescrComparator {
       MOZ_ASSERT(mIsLiveRegion);
       [self moxPostNotification:@"AXLiveRegionChanged"];
       break;
+    case nsIAccessibleEvent::EVENT_ERRORMESSAGE_CHANGED: {
+      // aria-errormessage was changed. If aria-invalid != "true", it means that
+      // VoiceOver should (a) expose a new message or (b) remove an
+      // old message
+      if (![[self moxInvalid] isEqualToString:@"false"]) {
+        [self moxPostNotification:@"AXValidationErrorChanged"];
+      }
+
+      break;
+    }
+  }
+}
+
+- (void)maybePostValidationErrorChanged {
+  NSArray* relations =
+      [self getRelationsByType:(mozilla::a11y::RelationType::ERRORMSG_FOR)];
+  if ([relations count] > 0) {
+    // only fire AXValidationErrorChanged if related node is not
+    // `aria-invalid="false"`
+    for (uint32_t relIdx = 0; relIdx <= [relations count]; relIdx++) {
+      NSString* invalidStr = [relations[relIdx] moxInvalid];
+      if (![invalidStr isEqualToString:@"false"]) {
+        [self moxPostNotification:@"AXValidationErrorChanged"];
+        break;
+      }
+    }
   }
 }
 

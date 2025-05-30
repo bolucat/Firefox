@@ -108,6 +108,9 @@ skip-if = [
 ["test_altsvc_pref.js"]
 skip-if = ["os == 'win' && os_version == '11.26100' && processor == 'x86_64' && msix"]
 
+["test_android_content_uri.js"]
+run-if = ["os == 'android'"]
+
 ["test_anonymous-coalescing.js"]
 
 ["test_auth_dialog_permission.js"]
@@ -572,6 +575,7 @@ run-sequentially = "node server exceptions dont replay well"
 run-if = ["os != 'mac'"] # server on a local ipv6 is not started on mac
 skip-if = [
   "os == 'linux' && os_version == '18.04' && processor == 'x86_64' && socketprocess_networking", # Bug 1760106
+  "os == 'linux' && os_version == '24.04' && processor == 'x86_64' && display == 'x11' && socketprocess_networking", # Bug 1760106
   "os == 'win' && os_version == '11.26100' && processor == 'x86_64' && socketprocess_networking", # Bug 1760106
   "os == 'win' && os_version == '11.26100' && processor == 'x86' && socketprocess_networking", # Bug 1760106
 ]
@@ -911,6 +915,8 @@ run-sequentially = "node server exceptions dont replay well"
 ["test_ip_space_glean.js"]
 skip-if = ["os == 'android' && android_version == '24' && processor == 'x86_64'"]
 
+["test_ip_address_space_lna_glean.js"]
+
 ["test_large_port.js"]
 
 ["test_loadgroup_cancel.js"]
@@ -967,6 +973,7 @@ skip-if = ["os == 'android' && android_version == '24' && processor == 'x86_64'"
 ["test_node_execute_npm.js"]
 usesNPM = true
 skip-if = [
+  "os == 'linux' && os_version == '24.04' && processor == 'x86_64' && display == 'x11'", # Bug 1968696
   "os == 'mac' && os_version == '10.15' && processor == 'x86_64'",
   "os == 'mac' && os_version == '11.20' && arch == 'aarch64'",
   "os == 'mac' && os_version == '14.70' && processor == 'x86_64'",
@@ -1337,7 +1344,10 @@ run-if = ["!socketprocess_networking"]
 ["test_trr_with_proxy.js"]
 head = "head_channels.js head_cache.js head_cookies.js head_servers.js head_trr.js trr_common.js"
 run-sequentially = "node server exceptions dont replay well"
-skip-if = ["os == 'linux' && os_version == '18.04' && processor == 'x86_64' && ccov && !fission && socketprocess_networking"] # Bug 1808233
+skip-if = [
+  "os == 'linux' && os_version == '18.04' && processor == 'x86_64' && ccov && !fission && socketprocess_networking", # Bug 1808233
+  "os == 'linux' && os_version == '24.04' && processor == 'x86_64' && !fission && socketprocess_networking", # Bug 1808233
+]
 
 ["test_udp_multicast.js"]
 skip-if = ["os == 'mac' && os_version == '15.30' && arch == 'aarch64'"] # Bug 1760123
@@ -1390,3 +1400,5 @@ skip-if = [
 
 ["test_xmlhttprequest.js"]
 prefs = ["network.xhr.block_sync_system_requests=false"] # Bug 721336
+
+["test_trr_flags.js"]

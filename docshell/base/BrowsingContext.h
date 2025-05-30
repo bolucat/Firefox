@@ -276,7 +276,9 @@ struct EmbedderColorSchemes {
   FIELD(ForceOffline, bool)                                                   \
   /* Used to propagate window.top's inner size for RFPTarget::Window*         \
    * protections */                                                           \
-  FIELD(TopInnerSizeForRFP, CSSIntSize)
+  FIELD(TopInnerSizeForRFP, CSSIntSize)                                       \
+  /* Used to propagate document's IPAddressSpace  */                          \
+  FIELD(IPAddressSpace, nsILoadInfo::IPAddressSpace)
 
 // BrowsingContext, in this context, is the cross process replicated
 // environment in which information about documents is stored. In
@@ -634,6 +636,14 @@ class BrowsingContext : public nsILoadContext, public nsWrapperCache {
   bool IsActive() const;
   bool ForceOffline() const { return GetForceOffline(); }
 
+  nsILoadInfo::IPAddressSpace GetCurrentIPAddressSpace() const {
+    return GetIPAddressSpace();
+  }
+
+  void SetCurrentIPAddressSpace(nsILoadInfo::IPAddressSpace aIPAddressSpace) {
+    Unused << SetIPAddressSpace(aIPAddressSpace);
+  }
+
   bool ForceDesktopViewport() const { return GetForceDesktopViewport(); }
 
   bool AuthorStyleDisabledDefault() const {
@@ -867,7 +877,8 @@ class BrowsingContext : public nsILoadContext, public nsWrapperCache {
                             uint32_t aLoadType, nsIURI* aCurrentURI,
                             SessionHistoryInfo* aPreviousActiveEntry,
                             bool aPersist, bool aCloneEntryChildren,
-                            bool aChannelExpired, uint32_t aCacheKey);
+                            bool aChannelExpired, uint32_t aCacheKey,
+                            nsIPrincipal* aPartitionedPrincipal);
 
   // Set a new active entry on this browsing context. This is used for
   // implementing history.pushState/replaceState and same document navigations.
@@ -1307,6 +1318,11 @@ class BrowsingContext : public nsILoadContext, public nsWrapperCache {
   template <size_t I, typename T>
   bool CanSet(FieldIndex<I>, const T&, ContentParent*) {
     return true;
+  }
+
+  bool CanSet(FieldIndex<IDX_IPAddressSpace>, nsILoadInfo::IPAddressSpace,
+              ContentParent*) {
+    return XRE_IsParentProcess();
   }
 
   // Overload `DidSet` to get notifications for a particular field being set.

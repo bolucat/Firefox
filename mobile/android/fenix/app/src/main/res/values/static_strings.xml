@@ -25,7 +25,7 @@
     <!-- Application Services abbreviation used in AboutFragment -->
     <string name="app_services_abbreviation" translatable="false">AS</string>
     <!-- Name for the Pocket product -->
-    <string name="pocket_product_name" translatable="false">Pocket</string>
+    <string name="pocket_product_name" translatable="false" tools:ignore="UnusedResources" moz:removedIn="140">Pocket</string>
 
     <!-- App preference label for keeping the debug menu (secret settings, secret debug info, nimbus experiments, etc.) permanently revealed -->
     <string name="preferences_persistent_debug_menu" translatable="false">Keep Debug Menu revealed</string>
@@ -73,8 +73,6 @@
     <string name="preferences_sync_debug_temporary_auth_error_button_title">Simulate temporary account auth error</string>
     <!-- Button title for simulating an FxA permanent auth error inside the Sync Debug menu -->
     <string name="preferences_sync_debug_permanent_auth_error_button_title">Simulate permanent account auth error</string>
-    <!-- Label for enabling the Compose Top Sites -->
-    <string name="preferences_debug_settings_compose_top_sites" translatable="false">Enable Compose Top Sites</string>
     <!-- Label for enabling the Compose Homepage -->
     <string name="preferences_debug_settings_compose_homepage" translatable="false">Enable Compose Homepage</string>
     <!-- Label for enabling the Compose Bookmarks -->
@@ -129,6 +127,7 @@
     <string name="debug_info_region_current" translatable="false">Current region</string>
     <string name="debug_info_distribution_id" translatable="false">Distribution ID</string>
     <string name="debug_info_play_referrer" translatable="false">Play install referrer</string>
+    <string name="debug_info_run_query_provider_test" translatable="false">Run query provider test</string>
 
     <!-- Profiler settings -->
     <string name="preferences_start_profiler">Start Profiler</string>

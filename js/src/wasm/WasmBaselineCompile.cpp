@@ -475,7 +475,7 @@ bool BaseCompiler::beginFunction() {
   // add entries to machineStackTracker as appropriate.
 
   ArgTypeVector args(funcType());
-  size_t inboundStackArgBytes = StackArgAreaSizeUnaligned(args);
+  size_t inboundStackArgBytes = StackArgAreaSizeUnaligned(args, ABIKind::Wasm);
   MOZ_ASSERT(inboundStackArgBytes % sizeof(void*) == 0);
   stackMapGenerator_.numStackArgBytes = inboundStackArgBytes;
 
@@ -486,7 +486,7 @@ bool BaseCompiler::beginFunction() {
   }
 
   // Identify GC-managed pointers passed on the stack.
-  for (WasmABIArgIter i(args); !i.done(); i++) {
+  for (ABIArgIter i(args, ABIKind::Wasm); !i.done(); i++) {
     ABIArg argLoc = *i;
     if (argLoc.kind() == ABIArg::Stack &&
         args[i.index()] == MIRType::WasmAnyRef) {
@@ -573,7 +573,7 @@ bool BaseCompiler::beginFunction() {
   }
 
   // Copy arguments from registers to stack.
-  for (WasmABIArgIter i(args); !i.done(); i++) {
+  for (ABIArgIter i(args, ABIKind::Wasm); !i.done(); i++) {
     if (args.isSyntheticStackResultPointerArg(i.index())) {
       // If there are stack results and the pointer to stack results
       // was passed in a register, store it to the stack.
@@ -1614,29 +1614,7 @@ bool BaseCompiler::insertDebugCollapseFrame() {
 //
 // Function calls.
 
-void BaseCompiler::beginCall(
-    FunctionCall& call, UseABI useABI,
-    RestoreRegisterStateAndRealm restoreRegisterStateAndRealm) {
-  MOZ_ASSERT_IF(
-      useABI == UseABI::Builtin,
-      restoreRegisterStateAndRealm == RestoreRegisterStateAndRealm::False);
-
-  call.restoreRegisterStateAndRealm =
-      restoreRegisterStateAndRealm == RestoreRegisterStateAndRealm::True;
-  call.usesSystemAbi = useABI == UseABI::System;
-
-  if (call.usesSystemAbi) {
-    // Call-outs need to use the appropriate system ABI.
-#if defined(JS_CODEGEN_ARM)
-    call.hardFP = ARMFlags::UseHardFpABI();
-    call.abi.setUseHardFp(call.hardFP);
-#endif
-  } else {
-#if defined(JS_CODEGEN_ARM)
-    MOZ_ASSERT(call.hardFP, "All private ABIs pass FP arguments in registers");
-#endif
-  }
-
+void BaseCompiler::beginCall(FunctionCall& call) {
   // Use masm.framePushed() because the value we want here does not depend
   // on the height of the frame's stack area, but the actual size of the
   // allocated frame.
@@ -1651,19 +1629,12 @@ void BaseCompiler::endCall(FunctionCall& call, size_t stackSpace) {
   MOZ_ASSERT(stackMapGenerator_.framePushedExcludingOutboundCallArgs.isSome());
   stackMapGenerator_.framePushedExcludingOutboundCallArgs.reset();
 
-  if (call.restoreRegisterStateAndRealm) {
-    // The instance has been clobbered, so always reload
+  if (call.restoreState == RestoreState::All) {
     fr.loadInstancePtr(InstanceReg);
     masm.loadWasmPinnedRegsFromInstance(mozilla::Nothing());
     masm.switchToWasmInstanceRealm(ABINonArgReturnReg0, ABINonArgReturnReg1);
-  } else if (call.usesSystemAbi) {
-    // On x86 there are no pinned registers, so don't waste time
-    // reloading the instance.
-#ifndef JS_CODEGEN_X86
-    // The instance has been clobbered, so always reload
-    fr.loadInstancePtr(InstanceReg);
+  } else if (call.restoreState == RestoreState::PinnedRegs) {
     masm.loadWasmPinnedRegsFromInstance(mozilla::Nothing());
-#endif
   }
 }
 
@@ -1861,6 +1832,170 @@ void BaseCompiler::passArg(ValType type, const Stk& arg, FunctionCall* call) {
   }
 }
 
+template <typename T>
+bool BaseCompiler::emitCallArgs(const ValTypeVector& argTypes, T results,
+                                FunctionCall* baselineCall,
+                                CalleeOnStack calleeOnStack) {
+  MOZ_ASSERT(!deadCode_);
+
+  ArgTypeVector args(argTypes, results.stackResults());
+  uint32_t naturalArgCount = argTypes.length();
+  uint32_t abiArgCount = args.lengthWithStackResults();
+  startCallArgs(StackArgAreaSizeUnaligned(args, baselineCall->abiKind),
+                baselineCall);
+
+  // Args are deeper on the stack than the stack result area, if any.
+  size_t argsDepth = results.onStackCount();
+  // They're deeper than the callee too, for callIndirect.
+  if (calleeOnStack == CalleeOnStack::True) {
+    argsDepth++;
+  }
+
+  for (size_t i = 0; i < abiArgCount; ++i) {
+    if (args.isNaturalArg(i)) {
+      size_t naturalIndex = args.naturalIndex(i);
+      size_t stackIndex = naturalArgCount - 1 - naturalIndex + argsDepth;
+      passArg(argTypes[naturalIndex], peek(stackIndex), baselineCall);
+    } else {
+      // The synthetic stack result area pointer.
+      ABIArg argLoc = baselineCall->abi.next(MIRType::Pointer);
+      if (argLoc.kind() == ABIArg::Stack) {
+        ScratchPtr scratch(*this);
+        results.getStackResultArea(fr, scratch);
+        masm.storePtr(scratch, Address(masm.getStackPointer(),
+                                       argLoc.offsetFromArgBase()));
+      } else {
+        results.getStackResultArea(fr, RegPtr(argLoc.gpr()));
+      }
+    }
+  }
+
+#ifndef RABALDR_PIN_INSTANCE
+  fr.loadInstancePtr(InstanceReg);
+#endif
+  return true;
+}
+
+bool BaseCompiler::pushStackResultsForWasmCall(const ResultType& type,
+                                               RegPtr temp,
+                                               StackResultsLoc* loc) {
+  if (!ABIResultIter::HasStackResults(type)) {
+    return true;
+  }
+
+  // This method can increase stk_.length() by an unbounded amount, so we need
+  // to perform an allocation here to accomodate the variable number of values.
+  // There is enough headroom for any fixed number of values.  The general case
+  // is handled in emitBody.
+  if (!stk_.reserve(stk_.length() + type.length())) {
+    return false;
+  }
+
+  // Measure stack results.
+  ABIResultIter i(type);
+  size_t count = 0;
+  for (; !i.done(); i.next()) {
+    if (i.cur().onStack()) {
+      count++;
+    }
+  }
+  uint32_t bytes = i.stackBytesConsumedSoFar();
+
+  // Reserve space for the stack results.
+  StackHeight resultsBase = fr.stackHeight();
+  uint32_t height = fr.prepareStackResultArea(resultsBase, bytes);
+
+  // Push Stk values onto the value stack, and zero out Ref values.
+  for (i.switchToPrev(); !i.done(); i.prev()) {
+    const ABIResult& result = i.cur();
+    if (result.onStack()) {
+      Stk v = captureStackResult(result, resultsBase, bytes);
+      push(v);
+      if (v.kind() == Stk::MemRef) {
+        stackMapGenerator_.memRefsOnStk++;
+        fr.storeImmediatePtrToStack(intptr_t(0), v.offs(), temp);
+      }
+    }
+  }
+
+  *loc = StackResultsLoc(bytes, count, height);
+
+  return true;
+}
+
+// After a call, some results may be written to the stack result locations that
+// are pushed on the machine stack after any stack args.  If there are stack
+// args and stack results, these results need to be shuffled down, as the args
+// are "consumed" by the call.
+void BaseCompiler::popStackResultsAfterWasmCall(const StackResultsLoc& results,
+                                                uint32_t stackArgBytes) {
+  if (results.bytes() != 0) {
+    popValueStackBy(results.count());
+    if (stackArgBytes != 0) {
+      uint32_t srcHeight = results.height();
+      MOZ_ASSERT(srcHeight >= stackArgBytes + results.bytes());
+      uint32_t destHeight = srcHeight - stackArgBytes;
+
+      fr.shuffleStackResultsTowardFP(srcHeight, destHeight, results.bytes(),
+                                     ABINonArgReturnVolatileReg);
+    }
+  }
+}
+
+void BaseCompiler::pushBuiltinCallResult(const FunctionCall& call,
+                                         MIRType type) {
+  MOZ_ASSERT(call.abiKind == ABIKind::System);
+  switch (type) {
+    case MIRType::Int32: {
+      RegI32 rv = captureReturnedI32();
+      pushI32(rv);
+      break;
+    }
+    case MIRType::Int64: {
+      RegI64 rv = captureReturnedI64();
+      pushI64(rv);
+      break;
+    }
+    case MIRType::Float32: {
+      RegF32 rv = captureReturnedF32(call);
+      pushF32(rv);
+      break;
+    }
+    case MIRType::Double: {
+      RegF64 rv = captureReturnedF64(call);
+      pushF64(rv);
+      break;
+    }
+#ifdef ENABLE_WASM_SIMD
+    case MIRType::Simd128: {
+      RegV128 rv = captureReturnedV128(call);
+      pushV128(rv);
+      break;
+    }
+#endif
+    case MIRType::WasmAnyRef: {
+      RegRef rv = captureReturnedRef();
+      pushRef(rv);
+      break;
+    }
+    default:
+      // In particular, passing |type| as MIRType::Void or MIRType::Pointer to
+      // this function is an error.
+      MOZ_CRASH("Function return type");
+  }
+}
+
+bool BaseCompiler::pushWasmCallResults(const FunctionCall& call,
+                                       ResultType type,
+                                       const StackResultsLoc& loc) {
+  // pushResults currently bypasses special case code in captureReturnedFxx()
+  // that converts GPR results to FPR results for the system ABI when using
+  // softFP.  If we ever start using that combination for calls we need more
+  // code.
+  MOZ_ASSERT(call.abiKind == ABIKind::Wasm);
+  return pushResults(type, fr.stackResultsBase(loc.bytes()));
+}
+
 CodeOffset BaseCompiler::callDefinition(uint32_t funcIndex,
                                         const FunctionCall& call) {
   CallSiteDesc desc(bytecodeOffset(), CallSiteKind::Func);
@@ -1892,8 +2027,8 @@ class OutOfLineAbortingTrap : public OutOfLineCode {
 static ReturnCallAdjustmentInfo BuildReturnCallAdjustmentInfo(
     const FuncType& callerType, const FuncType& calleeType) {
   return ReturnCallAdjustmentInfo(
-      StackArgAreaSizeUnaligned(ArgTypeVector(calleeType)),
-      StackArgAreaSizeUnaligned(ArgTypeVector(callerType)));
+      StackArgAreaSizeUnaligned(ArgTypeVector(calleeType), ABIKind::Wasm),
+      StackArgAreaSizeUnaligned(ArgTypeVector(callerType), ABIKind::Wasm));
 }
 
 bool BaseCompiler::callIndirect(uint32_t funcTypeIndex, uint32_t tableIndex,
@@ -2085,20 +2220,8 @@ CodeOffset BaseCompiler::builtinInstanceMethodCall(
 #endif
   CallSiteDesc desc(bytecodeOffset(), CallSiteKind::Symbolic);
   return masm.wasmCallBuiltinInstanceMethod(desc, instanceArg, builtin.identity,
-                                            builtin.failureMode);
-}
-
-bool BaseCompiler::pushCallResults(const FunctionCall& call, ResultType type,
-                                   const StackResultsLoc& loc) {
-#if defined(JS_CODEGEN_ARM)
-  // pushResults currently bypasses special case code in captureReturnedFxx()
-  // that converts GPR results to FPR results for systemABI+softFP.  If we
-  // ever start using that combination for calls we need more code.  This
-  // assert is stronger than we need - we only care about results in return
-  // registers - but that's OK.
-  MOZ_ASSERT(!call.usesSystemAbi || call.hardFP);
-#endif
-  return pushResults(type, fr.stackResultsBase(loc.bytes()));
+                                            builtin.failureMode,
+                                            builtin.failureTrap);
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -5241,156 +5364,6 @@ bool BaseCompiler::emitReturn() {
   return true;
 }
 
-template <typename T>
-bool BaseCompiler::emitCallArgs(const ValTypeVector& argTypes, T results,
-                                FunctionCall* baselineCall,
-                                CalleeOnStack calleeOnStack) {
-  MOZ_ASSERT(!deadCode_);
-
-  ArgTypeVector args(argTypes, results.stackResults());
-  uint32_t naturalArgCount = argTypes.length();
-  uint32_t abiArgCount = args.lengthWithStackResults();
-  startCallArgs(StackArgAreaSizeUnaligned(args), baselineCall);
-
-  // Args are deeper on the stack than the stack result area, if any.
-  size_t argsDepth = results.onStackCount();
-  // They're deeper than the callee too, for callIndirect.
-  if (calleeOnStack == CalleeOnStack::True) {
-    argsDepth++;
-  }
-
-  for (size_t i = 0; i < abiArgCount; ++i) {
-    if (args.isNaturalArg(i)) {
-      size_t naturalIndex = args.naturalIndex(i);
-      size_t stackIndex = naturalArgCount - 1 - naturalIndex + argsDepth;
-      passArg(argTypes[naturalIndex], peek(stackIndex), baselineCall);
-    } else {
-      // The synthetic stack result area pointer.
-      ABIArg argLoc = baselineCall->abi.next(MIRType::Pointer);
-      if (argLoc.kind() == ABIArg::Stack) {
-        ScratchPtr scratch(*this);
-        results.getStackResultArea(fr, scratch);
-        masm.storePtr(scratch, Address(masm.getStackPointer(),
-                                       argLoc.offsetFromArgBase()));
-      } else {
-        results.getStackResultArea(fr, RegPtr(argLoc.gpr()));
-      }
-    }
-  }
-
-#ifndef RABALDR_PIN_INSTANCE
-  fr.loadInstancePtr(InstanceReg);
-#endif
-  return true;
-}
-
-void BaseCompiler::pushReturnValueOfCall(const FunctionCall& call,
-                                         MIRType type) {
-  switch (type) {
-    case MIRType::Int32: {
-      RegI32 rv = captureReturnedI32();
-      pushI32(rv);
-      break;
-    }
-    case MIRType::Int64: {
-      RegI64 rv = captureReturnedI64();
-      pushI64(rv);
-      break;
-    }
-    case MIRType::Float32: {
-      RegF32 rv = captureReturnedF32(call);
-      pushF32(rv);
-      break;
-    }
-    case MIRType::Double: {
-      RegF64 rv = captureReturnedF64(call);
-      pushF64(rv);
-      break;
-    }
-#ifdef ENABLE_WASM_SIMD
-    case MIRType::Simd128: {
-      RegV128 rv = captureReturnedV128(call);
-      pushV128(rv);
-      break;
-    }
-#endif
-    case MIRType::WasmAnyRef: {
-      RegRef rv = captureReturnedRef();
-      pushRef(rv);
-      break;
-    }
-    default:
-      // In particular, passing |type| as MIRType::Void or MIRType::Pointer to
-      // this function is an error.
-      MOZ_CRASH("Function return type");
-  }
-}
-
-bool BaseCompiler::pushStackResultsForCall(const ResultType& type, RegPtr temp,
-                                           StackResultsLoc* loc) {
-  if (!ABIResultIter::HasStackResults(type)) {
-    return true;
-  }
-
-  // This method can increase stk_.length() by an unbounded amount, so we need
-  // to perform an allocation here to accomodate the variable number of values.
-  // There is enough headroom for any fixed number of values.  The general case
-  // is handled in emitBody.
-  if (!stk_.reserve(stk_.length() + type.length())) {
-    return false;
-  }
-
-  // Measure stack results.
-  ABIResultIter i(type);
-  size_t count = 0;
-  for (; !i.done(); i.next()) {
-    if (i.cur().onStack()) {
-      count++;
-    }
-  }
-  uint32_t bytes = i.stackBytesConsumedSoFar();
-
-  // Reserve space for the stack results.
-  StackHeight resultsBase = fr.stackHeight();
-  uint32_t height = fr.prepareStackResultArea(resultsBase, bytes);
-
-  // Push Stk values onto the value stack, and zero out Ref values.
-  for (i.switchToPrev(); !i.done(); i.prev()) {
-    const ABIResult& result = i.cur();
-    if (result.onStack()) {
-      Stk v = captureStackResult(result, resultsBase, bytes);
-      push(v);
-      if (v.kind() == Stk::MemRef) {
-        stackMapGenerator_.memRefsOnStk++;
-        fr.storeImmediatePtrToStack(intptr_t(0), v.offs(), temp);
-      }
-    }
-  }
-
-  *loc = StackResultsLoc(bytes, count, height);
-
-  return true;
-}
-
-// After a call, some results may be written to the stack result locations that
-// are pushed on the machine stack after any stack args.  If there are stack
-// args and stack results, these results need to be shuffled down, as the args
-// are "consumed" by the call.
-void BaseCompiler::popStackResultsAfterCall(const StackResultsLoc& results,
-                                            uint32_t stackArgBytes) {
-  if (results.bytes() != 0) {
-    popValueStackBy(results.count());
-    if (stackArgBytes != 0) {
-      uint32_t srcHeight = results.height();
-      MOZ_ASSERT(srcHeight >= stackArgBytes + results.bytes());
-      uint32_t destHeight = srcHeight - stackArgBytes;
-
-      fr.shuffleStackResultsTowardFP(srcHeight, destHeight, results.bytes(),
-                                     ABINonArgReturnVolatileReg);
-    }
-  }
-}
-
 // For now, always sync() at the beginning of the call to easily save live
 // values.
 //
@@ -5425,14 +5398,14 @@ bool BaseCompiler::emitCall() {
 
   ResultType resultType(ResultType::Vector(funcType.results()));
   StackResultsLoc results;
-  if (!pushStackResultsForCall(resultType, RegPtr(ABINonArgReg0), &results)) {
+  if (!pushStackResultsForWasmCall(resultType, RegPtr(ABINonArgReg0),
+                                   &results)) {
     return false;
   }
 
-  FunctionCall baselineCall{};
-  beginCall(baselineCall, UseABI::Wasm,
-            import ? RestoreRegisterStateAndRealm::True
-                   : RestoreRegisterStateAndRealm::False);
+  FunctionCall baselineCall(ABIKind::Wasm,
+                            import ? RestoreState::All : RestoreState::None);
+  beginCall(baselineCall);
 
   if (!emitCallArgs(funcType.args(), NormalCallResults(results), &baselineCall,
                     CalleeOnStack::False)) {
@@ -5451,14 +5424,14 @@ bool BaseCompiler::emitCall() {
     return false;
   }
 
-  popStackResultsAfterCall(results, stackArgBytes);
+  popStackResultsAfterWasmCall(results, stackArgBytes);
 
   endCall(baselineCall, stackArgBytes);
 
   popValueStackBy(numArgs);
 
   captureCallResultRegisters(resultType);
-  return pushCallResults(baselineCall, resultType, results);
+  return pushWasmCallResults(baselineCall, resultType, results);
 }
 
 bool BaseCompiler::emitReturnCall() {
@@ -5482,10 +5455,9 @@ bool BaseCompiler::emitReturnCall() {
 
   uint32_t numArgs = funcType.args().length();
 
-  FunctionCall baselineCall{};
-  beginCall(baselineCall, UseABI::Wasm,
-            import ? RestoreRegisterStateAndRealm::True
-                   : RestoreRegisterStateAndRealm::False);
+  FunctionCall baselineCall(ABIKind::Wasm,
+                            import ? RestoreState::All : RestoreState::None);
+  beginCall(baselineCall);
 
   if (!emitCallArgs(funcType.args(), TailCallResults(funcType), &baselineCall,
                     CalleeOnStack::False)) {
@@ -5541,14 +5513,15 @@ bool BaseCompiler::emitCallIndirect() {
 
   ResultType resultType(ResultType::Vector(funcType.results()));
   StackResultsLoc results;
-  if (!pushStackResultsForCall(resultType, RegPtr(ABINonArgReg0), &results)) {
+  if (!pushStackResultsForWasmCall(resultType, RegPtr(ABINonArgReg0),
+                                   &results)) {
     return false;
   }
 
-  FunctionCall baselineCall{};
   // State and realm are restored as needed by by callIndirect (really by
   // MacroAssembler::wasmCallIndirect).
-  beginCall(baselineCall, UseABI::Wasm, RestoreRegisterStateAndRealm::False);
+  FunctionCall baselineCall(ABIKind::Wasm, RestoreState::None);
+  beginCall(baselineCall);
 
   if (!emitCallArgs(funcType.args(), NormalCallResults(results), &baselineCall,
                     CalleeOnStack::True)) {
@@ -5569,14 +5542,14 @@ bool BaseCompiler::emitCallIndirect() {
     return false;
   }
 
-  popStackResultsAfterCall(results, stackArgBytes);
+  popStackResultsAfterWasmCall(results, stackArgBytes);
 
   endCall(baselineCall, stackArgBytes);
 
   popValueStackBy(numArgs);
 
   captureCallResultRegisters(resultType);
-  return pushCallResults(baselineCall, resultType, results);
+  return pushWasmCallResults(baselineCall, resultType, results);
 }
 
 bool BaseCompiler::emitReturnCallIndirect() {
@@ -5607,10 +5580,10 @@ bool BaseCompiler::emitReturnCallIndirect() {
 
   uint32_t numArgs = funcType.args().length() + 1;
 
-  FunctionCall baselineCall{};
   // State and realm are restored as needed by by callIndirect (really by
   // MacroAssembler::wasmCallIndirect).
-  beginCall(baselineCall, UseABI::Wasm, RestoreRegisterStateAndRealm::False);
+  FunctionCall baselineCall(ABIKind::Wasm, RestoreState::None);
+  beginCall(baselineCall);
 
   if (!emitCallArgs(funcType.args(), TailCallResults(funcType), &baselineCall,
                     CalleeOnStack::True)) {
@@ -5668,14 +5641,15 @@ bool BaseCompiler::emitCallRef() {
 
   ResultType resultType(ResultType::Vector(funcType.results()));
   StackResultsLoc results;
-  if (!pushStackResultsForCall(resultType, RegPtr(ABINonArgReg0), &results)) {
+  if (!pushStackResultsForWasmCall(resultType, RegPtr(ABINonArgReg0),
+                                   &results)) {
     return false;
   }
 
-  FunctionCall baselineCall{};
   // State and realm are restored as needed by by callRef (really by
   // MacroAssembler::wasmCallRef).
-  beginCall(baselineCall, UseABI::Wasm, RestoreRegisterStateAndRealm::False);
+  FunctionCall baselineCall(ABIKind::Wasm, RestoreState::None);
+  beginCall(baselineCall);
 
   if (!emitCallArgs(funcType.args(), NormalCallResults(results), &baselineCall,
                     CalleeOnStack::True)) {
@@ -5696,14 +5670,14 @@ bool BaseCompiler::emitCallRef() {
     return false;
   }
 
-  popStackResultsAfterCall(results, stackArgBytes);
+  popStackResultsAfterWasmCall(results, stackArgBytes);
 
   endCall(baselineCall, stackArgBytes);
 
   popValueStackBy(numArgs);
 
   captureCallResultRegisters(resultType);
-  return pushCallResults(baselineCall, resultType, results);
+  return pushWasmCallResults(baselineCall, resultType, results);
 }
 
 bool BaseCompiler::emitReturnCallRef() {
@@ -5730,10 +5704,10 @@ bool BaseCompiler::emitReturnCallRef() {
 
   uint32_t numArgs = funcType.args().length() + 1;
 
-  FunctionCall baselineCall{};
   // State and realm are restored as needed by by callRef (really by
   // MacroAssembler::wasmCallRef).
-  beginCall(baselineCall, UseABI::Wasm, RestoreRegisterStateAndRealm::False);
+  FunctionCall baselineCall(ABIKind::Wasm, RestoreState::None);
+  beginCall(baselineCall);
 
   if (!emitCallArgs(funcType.args(), TailCallResults(funcType), &baselineCall,
                     CalleeOnStack::True)) {
@@ -5791,8 +5765,8 @@ bool BaseCompiler::emitUnaryMathBuiltinCall(SymbolicAddress callee,
   uint32_t numArgs = signature.length();
   size_t stackSpace = stackConsumed(numArgs);
 
-  FunctionCall baselineCall{};
-  beginCall(baselineCall, UseABI::Builtin, RestoreRegisterStateAndRealm::False);
+  FunctionCall baselineCall(ABIKind::System, RestoreState::None);
+  beginCall(baselineCall);
 
   if (!emitCallArgs(signature, NoCallResults(), &baselineCall,
                     CalleeOnStack::False)) {
@@ -5808,7 +5782,7 @@ bool BaseCompiler::emitUnaryMathBuiltinCall(SymbolicAddress callee,
 
   popValueStackBy(numArgs);
 
-  pushReturnValueOfCall(baselineCall, retType.toMIRType());
+  pushBuiltinCallResult(baselineCall, retType.toMIRType());
 
   return true;
 }
@@ -5863,7 +5837,7 @@ bool BaseCompiler::emitConvertInt64ToFloatingCallout(SymbolicAddress callee,
 
   RegI64 input = popI64();
 
-  FunctionCall call{};
+  FunctionCall call(ABIKind::Wasm, RestoreState::None);
 
   masm.setupWasmABICall();
 #  ifdef JS_PUNBOX64
@@ -5913,7 +5887,7 @@ bool BaseCompiler::emitConvertFloatingToInt64Callout(SymbolicAddress callee,
 
   sync();
 
-  FunctionCall call{};
+  FunctionCall call(ABIKind::Wasm, RestoreState::None);
 
   masm.setupWasmABICall();
   masm.passABIArg(doubleInput, ABIType::Float64);
@@ -6542,12 +6516,13 @@ bool BaseCompiler::emitInstanceCall(const SymbolicAddressSignature& builtin) {
   uint32_t numNonInstanceArgs = builtin.numArgs - 1 /* instance */;
   size_t stackSpace = stackConsumed(numNonInstanceArgs);
 
-  FunctionCall baselineCall{};
-  beginCall(baselineCall, UseABI::System, RestoreRegisterStateAndRealm::True);
+  FunctionCall baselineCall(ABIKind::System, RestoreState::PinnedRegs);
+  beginCall(baselineCall);
 
   ABIArg instanceArg = reservePointerArgument(&baselineCall);
 
-  startCallArgs(StackArgAreaSizeUnaligned(builtin), &baselineCall);
+  startCallArgs(StackArgAreaSizeUnaligned(builtin, baselineCall.abiKind),
+                &baselineCall);
   for (uint32_t i = 1; i < builtin.numArgs; i++) {
     ValType t;
     switch (argTypes[i]) {
@@ -6595,7 +6570,7 @@ bool BaseCompiler::emitInstanceCall(const SymbolicAddressSignature& builtin) {
   // call doesn't return a result, that is, returns a C/C++ "void".
 
   if (builtin.retType != MIRType::None) {
-    pushReturnValueOfCall(baselineCall, builtin.retType);
+    pushBuiltinCallResult(baselineCall, builtin.retType);
   }
   return true;
 }

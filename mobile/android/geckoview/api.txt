@@ -75,6 +75,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.security.Principal;
 import java.security.cert.X509Certificate;
 import java.util.AbstractSequentialList;
 import java.util.Collection;
@@ -786,7 +787,9 @@ package org.mozilla.geckoview {
   public static final class GeckoPreferenceController.Observer {
     ctor public Observer();
     method @AnyThread @NonNull public static GeckoResult<Void> registerPreference(@NonNull String);
+    method @AnyThread @NonNull public static GeckoResult<Void> registerPreferences(@NonNull List<String>);
     method @NonNull @UiThread public static GeckoResult<Void> unregisterPreference(@NonNull String);
+    method @NonNull @UiThread public static GeckoResult<Void> unregisterPreferences(@NonNull List<String>);
   }
 
   public static interface GeckoPreferenceController.Observer.Delegate {
@@ -869,7 +872,7 @@ package org.mozilla.geckoview {
     method @Nullable @UiThread public GeckoRuntime.Delegate getDelegate();
     method @NonNull @UiThread public OrientationController getOrientationController();
     method @AnyThread @Nullable public GeckoPreferenceController.Observer.Delegate getPreferencesObserverDelegate();
-    method @NonNull @UiThread public ProfilerController getProfilerController();
+    method @Deprecated @DeprecationSchedule(id="GeckoRuntime-getProfilerController",version=142) @NonNull @UiThread public ProfilerController getProfilerController();
     method @Nullable @UiThread public GeckoRuntime.ServiceWorkerDelegate getServiceWorkerDelegate();
     method @AnyThread @NonNull public GeckoRuntimeSettings getSettings();
     method @NonNull @UiThread public StorageController getStorageController();
@@ -877,6 +880,7 @@ package org.mozilla.geckoview {
     method @Nullable @UiThread public WebNotificationDelegate getWebNotificationDelegate();
     method @NonNull @UiThread public WebPushController getWebPushController();
     method @AnyThread public boolean isInteractiveWidgetDefaultResizesVisual();
+    method @AnyThread public void notifyTelemetryPrefChanged(boolean);
     method @UiThread public void orientationChanged();
     method @UiThread public void orientationChanged(int);
     method @AnyThread public void readFromParcel(@NonNull Parcel);
@@ -925,6 +929,7 @@ package org.mozilla.geckoview {
     method public int getAllowInsecureConnections();
     method @NonNull public String[] getArguments();
     method public boolean getAutomaticFontSizeAdjustment();
+    method @NonNull public String getBannedPorts();
     method @NonNull public int getCertificateTransparencyMode();
     method @Nullable public String getConfigFilePath();
     method public boolean getConsoleOutputEnabled();
@@ -936,6 +941,7 @@ package org.mozilla.geckoview {
     method @Nullable public Boolean getDisableShip();
     method @Nullable public Float getDisplayDensityOverride();
     method @Nullable public Integer getDisplayDpiOverride();
+    method public boolean getDohAutoselectEnabled();
     method public boolean getDoubleTapZoomingEnabled();
     method public boolean getEnterpriseRootsEnabled();
     method @AnyThread @Nullable public ExperimentDelegate getExperimentDelegate();
@@ -969,6 +975,8 @@ package org.mozilla.geckoview {
     method public int getPreferredColorScheme();
     method public boolean getRemoteDebuggingEnabled();
     method @Nullable public GeckoRuntime getRuntime();
+    method @NonNull public boolean getSameDocumentNavigationOverridesLoadType();
+    method @NonNull public String getSameDocumentNavigationOverridesLoadTypeForceDisable();
     method @Nullable public Rect getScreenSizeOverride();
     method public boolean getTranslationsOfferPopup();
     method @NonNull public List<String> getTrustedRecursiveResolverExcludedDomains();
@@ -982,11 +990,13 @@ package org.mozilla.geckoview {
     method @NonNull public GeckoRuntimeSettings setAboutConfigEnabled(boolean);
     method @NonNull public GeckoRuntimeSettings setAllowInsecureConnections(int);
     method @NonNull public GeckoRuntimeSettings setAutomaticFontSizeAdjustment(boolean);
+    method @NonNull public GeckoRuntimeSettings setBannedPorts(@NonNull String);
     method @NonNull public GeckoRuntimeSettings setCertificateTransparencyMode(int);
     method @NonNull public GeckoRuntimeSettings setConsoleOutputEnabled(boolean);
     method @NonNull public GeckoRuntimeSettings setCookieBehaviorOptInPartitioning(boolean);
     method @NonNull public GeckoRuntimeSettings setCookieBehaviorOptInPartitioningPBM(boolean);
     method @NonNull public GeckoRuntimeSettings setDefaultRecursiveResolverUri(@NonNull String);
+    method @NonNull public GeckoRuntimeSettings setDohAutoselectEnabled(boolean);
     method @NonNull public GeckoRuntimeSettings setDoubleTapZoomingEnabled(boolean);
     method @NonNull public GeckoRuntimeSettings setEnterpriseRootsEnabled(boolean);
     method @NonNull public GeckoRuntimeSettings setExtensionsProcessCrashThreshold(@NonNull Integer);
@@ -1013,6 +1023,8 @@ package org.mozilla.geckoview {
     method @NonNull public GeckoRuntimeSettings setPostQuantumKeyExchangeEnabled(boolean);
     method @NonNull public GeckoRuntimeSettings setPreferredColorScheme(int);
     method @NonNull public GeckoRuntimeSettings setRemoteDebuggingEnabled(boolean);
+    method @NonNull public GeckoRuntimeSettings setSameDocumentNavigationOverridesLoadType(boolean);
+    method @NonNull public GeckoRuntimeSettings setSameDocumentNavigationOverridesLoadTypeForceDisable(@NonNull String);
     method @NonNull public GeckoRuntimeSettings setTranslationsOfferPopup(boolean);
     method @NonNull public GeckoRuntimeSettings setTrustedRecursiveResolverExcludedDomains(@NonNull List<String>);
     method @NonNull public GeckoRuntimeSettings setTrustedRecursiveResolverMode(int);
@@ -1076,6 +1088,8 @@ package org.mozilla.geckoview {
     method @NonNull public GeckoRuntimeSettings.Builder preferredColorScheme(int);
     method @NonNull public GeckoRuntimeSettings.Builder remoteDebuggingEnabled(boolean);
     method @NonNull public GeckoRuntimeSettings.Builder screenSizeOverride(int, int);
+    method @NonNull public GeckoRuntimeSettings.Builder setSameDocumentNavigationOverridesLoadType(boolean);
+    method @NonNull public GeckoRuntimeSettings.Builder setSameDocumentNavigationOverridesLoadTypeForceDisable(@NonNull String);
     method @NonNull public GeckoRuntimeSettings.Builder translationsOfferPopup(boolean);
     method @NonNull public GeckoRuntimeSettings.Builder trustedRecursiveResolverMode(int);
     method @NonNull public GeckoRuntimeSettings.Builder trustedRecursiveResolverUri(@NonNull String);
@@ -1607,9 +1621,11 @@ package org.mozilla.geckoview {
   }
 
   public static class GeckoSession.PromptDelegate.CertificateRequest extends GeckoSession.PromptDelegate.BasePrompt {
-    ctor protected CertificateRequest(@NonNull String, GeckoSession.PromptDelegate.BasePrompt.Observer, String);
+    ctor @Deprecated @DeprecationSchedule(id="CertificateRequest-CertificateRequest",version=143) protected CertificateRequest(@NonNull String, GeckoSession.PromptDelegate.BasePrompt.Observer, String);
+    ctor protected CertificateRequest(@NonNull String, GeckoSession.PromptDelegate.BasePrompt.Observer, String, Principal[]);
     method @NonNull @UiThread public GeckoSession.PromptDelegate.PromptResponse confirm(@Nullable String);
     field @NonNull public final String host;
+    field @Nullable public final Principal[] issuers;
   }
 
   public static class GeckoSession.PromptDelegate.ChoicePrompt extends GeckoSession.PromptDelegate.BasePrompt {
@@ -2199,15 +2215,15 @@ package org.mozilla.geckoview {
 
   @UiThread public class ProfilerController {
     ctor public ProfilerController();
-    method public void addMarker(@NonNull String, @Nullable Double, @Nullable Double, @Nullable String);
-    method public void addMarker(@NonNull String, @Nullable Double, @Nullable String);
-    method public void addMarker(@NonNull String, @Nullable Double);
-    method public void addMarker(@NonNull String, @Nullable String);
-    method public void addMarker(@NonNull String);
-    method @Nullable public Double getProfilerTime();
-    method public boolean isProfilerActive();
-    method public void startProfiler(@NonNull String[], @NonNull String[]);
-    method @NonNull public GeckoResult<byte[]> stopProfiler();
+    method public static void addMarker(@NonNull String, @Nullable Double, @Nullable Double, @Nullable String);
+    method public static void addMarker(@NonNull String, @Nullable Double, @Nullable String);
+    method public static void addMarker(@NonNull String, @Nullable Double);
+    method public static void addMarker(@NonNull String, @Nullable String);
+    method public static void addMarker(@NonNull String);
+    method @Nullable public static Double getProfilerTime();
+    method public static boolean isProfilerActive();
+    method public static void startProfiler(@NonNull String[], @NonNull String[]);
+    method @NonNull public static GeckoResult<byte[]> stopProfiler();
   }
 
   public abstract class RuntimeSettings implements Parcelable {

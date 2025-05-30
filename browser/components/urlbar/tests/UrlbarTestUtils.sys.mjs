@@ -718,9 +718,9 @@ export var UrlbarTestUtils = {
     }
     this.info("Waiting for the urlbar view to open");
     await new Promise(resolve => {
-      win.gURLBar.controller.addQueryListener({
+      win.gURLBar.controller.addListener({
         onViewOpen() {
-          win.gURLBar.controller.removeQueryListener(this);
+          win.gURLBar.controller.removeListener(this);
           resolve();
         },
       });
@@ -742,9 +742,9 @@ export var UrlbarTestUtils = {
         resolve();
         return;
       }
-      win.gURLBar.controller.addQueryListener({
+      win.gURLBar.controller.addListener({
         onViewClose() {
-          win.gURLBar.controller.removeQueryListener(this);
+          win.gURLBar.controller.removeListener(this);
           resolve();
         },
       });
@@ -1283,8 +1283,8 @@ export var UrlbarTestUtils = {
 
     this.info("initNimbusFeature done");
 
-    const cleanup = () => {
-      doExperimentCleanup();
+    const cleanup = async () => {
+      await doExperimentCleanup();
       if (initializedExperimentAPI) {
         // Only reset if we're in an xpcshell-test and actually initialized the
         // ExperimentAPI.
@@ -1296,7 +1296,7 @@ export var UrlbarTestUtils = {
       // If `cleanup()` has already been called (i.e., by the caller), it will
       // throw an error here.
       try {
-        cleanup();
+        await cleanup();
       } catch (error) {}
     });
 

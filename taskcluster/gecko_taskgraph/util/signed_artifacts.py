@@ -122,7 +122,10 @@ def generate_specifications_of_artifacts_to_sign(
                 "formats": ["gcp_prod_autograph_gpg", "gcp_prod_autograph_widevine"],
             }
         ]
-        if build_platform in LANGPACK_SIGN_PLATFORMS:
+        dep_job = config.kind_dependencies_tasks[job["dependencies"][dep_kind]]
+        if build_platform in LANGPACK_SIGN_PLATFORMS and not dep_job.attributes.get(
+            "artifact-build"
+        ):
             artifacts_specifications += [
                 {
                     "artifacts": [
@@ -164,23 +167,6 @@ def _strip_widevine_for_partners(artifacts_specifications):
             spec["formats"].remove("gcp_prod_autograph_widevine")
 
     return artifacts_specifications
-
-
-def get_signed_artifacts(input, formats, behavior=None):
-    """
-    Get the list of signed artifacts for the given input and formats.
-    """
-    artifacts = set()
-    if input.endswith(".dmg"):
-        artifacts.add(input.replace(".dmg", ".tar.gz"))
-        if behavior and behavior != "mac_sign":
-            artifacts.add(input.replace(".dmg", ".pkg"))
-    else:
-        artifacts.add(input)
-    if "gcp_prod_autograph_gpg" in formats:
-        artifacts.add(f"{input}.asc")
-
-    return artifacts
 
 
 def get_geckoview_artifacts_to_sign(config, job):

@@ -39,13 +39,22 @@ export default class MozPageNav extends MozLitElement {
   }
 
   getVisibleSlottedChildren(el) {
-    return el?.assignedNodes().filter(
-      node =>
-        node?.localName === "moz-page-nav-button" &&
-        node.checkVisibility({
-          visibilityProperty: true,
-          opacityProperty: true,
-        })
+    return el
+      ?.assignedElements()
+      .filter(
+        element =>
+          element?.localName === "moz-page-nav-button" &&
+          this.checkElementVisibility(element)
+      );
+  }
+
+  checkElementVisibility(element) {
+    let computedStyles = window.getComputedStyle(element);
+    return (
+      !element.hidden &&
+      computedStyles.getPropertyValue("display") !== "none" &&
+      computedStyles.getPropertyValue("visibility") !== "hidden" &&
+      computedStyles.getPropertyValue("opacity") > 0
     );
   }
 

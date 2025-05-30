@@ -5,7 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "DMABufSurface.h"
-#include "DMABufLibWrapper.h"
+#include "DMABufDevice.h"
 #include "DMABufFormats.h"
 
 #ifdef MOZ_WAYLAND
@@ -172,12 +172,6 @@ void ReturnSnapshotGLContext(RefPtr<GLContext> aGLContext) {
   const auto& gle = gl::GLContextEGL::Cast(aGLContext);
   const auto& egl = gle->mEgl;
   egl->fMakeCurrent(EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-}
-
-void DMABufSurface::DeleteSnapshotGLContext() {
-  StaticMutexAutoLock lock(sSnapshotContextMutex);
-  sSnapshotContext = nullptr;
-  GLContextProviderEGL::Shutdown();
 }
 
 bool DMABufSurface::UseDmaBufGL(GLContext* aGLContext) {
@@ -712,7 +706,7 @@ bool DMABufSurfaceRGBA::Create(mozilla::gl::GLContext* aGLContext, int aWidth,
   if (!aFormat) {
     mFOURCCFormat = aDMABufSurfaceFlags & DMABUF_ALPHA ? GBM_FORMAT_ARGB8888
                                                        : GBM_FORMAT_XRGB8888;
-    aFormat = GetDMABufDevice()->GetDRMFormat(mFOURCCFormat);
+    aFormat = GetGlobalDMABufFormats()->GetDRMFormat(mFOURCCFormat);
     if (!aFormat) {
       LOGDMABUF("DMABufSurfaceRGBA::Create(): Missing drm format 0x%x!",
                 mFOURCCFormat);
@@ -906,10 +900,6 @@ bool DMABufSurfaceRGBA::Create(
 
   // TODO: Read Vulkan modifiers from DMABufFormats?
   mFOURCCFormat = GBM_FORMAT_ARGB8888;
-  RefPtr<DRMFormat> format = GetDMABufDevice()->GetDRMFormat(mFOURCCFormat);
-  if (!format) {
-    return false;
-  }
   mBufferPlaneCount = aDMABufInfo.plane_count;
 
   RefPtr<gfx::FileHandleWrapper> fd = std::move(aFd);
@@ -1782,8 +1772,7 @@ bool DMABufSurfaceYUV::UpdateYUVData(
       return false;
   }
 
-  RefPtr<DRMFormat> format = GetDMABufDevice()->GetDRMFormat(mFOURCCFormat);
-
+  auto format = GetGlobalDMABufFormats()->GetDRMFormat(mFOURCCFormat);
   for (int i = 0; i < mBufferPlaneCount; i++) {
     if (!CreateYUVPlane(context, i, format)) {
       return false;

@@ -17,10 +17,11 @@ import { PlacesSemanticHistoryManager } from "resource://gre/modules/PlacesSeman
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
-  UrlbarResult: "resource:///modules/UrlbarResult.sys.mjs",
-  UrlbarPrefs: "resource:///modules/UrlbarPrefs.sys.mjs",
-  NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
   EnrollmentType: "resource://nimbus/ExperimentAPI.sys.mjs",
+  NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
+  PlacesUtils: "resource://gre/modules/PlacesUtils.sys.mjs",
+  UrlbarPrefs: "resource:///modules/UrlbarPrefs.sys.mjs",
+  UrlbarResult: "resource:///modules/UrlbarResult.sys.mjs",
 });
 
 ChromeUtils.defineLazyGetter(lazy, "logger", function () {
@@ -59,12 +60,16 @@ class ProviderSemanticHistorySearch extends UrlbarProvider {
    */
   ensureSemanticManagerInitialized() {
     if (!this.#semanticManager) {
+      const distanceThreshold = Services.prefs.getFloatPref(
+        "places.semanticHistory.distanceThreshold",
+        0.75
+      );
       this.#semanticManager = new PlacesSemanticHistoryManager({
         embeddingSize: 384,
         rowLimit: 10000,
         samplingAttrib: "frecency",
         changeThresholdCount: 3,
-        distanceThreshold: 0.75,
+        distanceThreshold,
       });
     }
     return this.#semanticManager;
@@ -98,16 +103,11 @@ class ProviderSemanticHistorySearch extends UrlbarProvider {
         queryContext.searchMode.source == UrlbarUtils.RESULT_SOURCE.HISTORY)
     ) {
       const semanticManager = this.ensureSemanticManagerInitialized();
-
-      // Proceed only if a sufficient number of history entries have embeddings calculated.
-      const enoughEntries =
-        await semanticManager.hasSufficientEntriesForSearching();
-      if (!enoughEntries) {
-        return false;
+      if (semanticManager.canUseSemanticSearch) {
+        // Proceed only if a sufficient number of history entries have
+        // embeddings calculated.
+        return semanticManager.hasSufficientEntriesForSearching();
       }
-
-      // check the detailed prefs
-      return semanticManager?.canUseSemanticSearch ?? false;
     }
     return false;
   }
@@ -142,6 +142,11 @@ class ProviderSemanticHistorySearch extends UrlbarProvider {
           title: [res.title, UrlbarUtils.HIGHLIGHT.NONE],
           url: [res.url, UrlbarUtils.HIGHLIGHT.NONE],
           icon: UrlbarUtils.getIconForUrl(res.url),
+          isBlockable: true,
+          blockL10n: { id: "urlbar-result-menu-remove-from-history" },
+          helpUrl:
+            Services.urlFormatter.formatURLPref("app.support.baseURL") +
+            "awesome-bar-result-menu",
         })
       );
       result.resultGroup = UrlbarUtils.RESULT_GROUP.HISTORY_SEMANTIC;
@@ -194,6 +199,15 @@ class ProviderSemanticHistorySearch extends UrlbarProvider {
    */
   getPriority() {
     return 0;
+  }
+
+  onEngagement(queryContext, controller, details) {
+    let { result } = details;
+    if (details.selType == "dismiss") {
+      // Remove browsing history entries from Places.
+      lazy.PlacesUtils.history.remove(result.payload.url).catch(console.error);
+      controller.removeResult(result);
+    }
   }
 }
 

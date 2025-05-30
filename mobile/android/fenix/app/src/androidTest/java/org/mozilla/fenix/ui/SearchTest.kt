@@ -67,7 +67,7 @@ class SearchTest : TestSetup() {
     private lateinit var searchMockServer: MockWebServer
     private val queryString: String = "firefox"
     private val generalEnginesList = listOf("DuckDuckGo", "Google", "Bing")
-    private val topicEnginesList = listOf("Wikipedia", "eBay")
+    private val topicEnginesList = listOf("Wikipedia (en)")
     private val firefoxSuggestHeader = getStringResource(R.string.firefox_suggest_header)
 
     @get:Rule
@@ -130,7 +130,8 @@ class SearchTest : TestSetup() {
             verifySearchToolbar(isDisplayed = true)
             clickSearchSelectorButton()
             verifySearchShortcutListContains(
-                "DuckDuckGo", "Google", "Wikipedia", "Bing", "eBay",
+                *generalEnginesList.toTypedArray(),
+                *topicEnginesList.toTypedArray(),
                 "Bookmarks", "Tabs", "History", "Search settings",
             )
         }
@@ -172,8 +173,6 @@ class SearchTest : TestSetup() {
     // TestRail link: https://mozilla.testrail.io/index.php?/cases/view/2154196
     @Test
     fun verifySearchPlaceholderForTopicSpecificSearchEnginesTest() {
-        val topicEnginesList = listOf("Wikipedia", "eBay")
-
         topicEnginesList.forEach {
             homeScreen {
             }.openSearch {
@@ -248,9 +247,7 @@ class SearchTest : TestSetup() {
     @SmokeTest
     @Test
     fun searchEnginesCanBeChangedTemporarilyFromSearchSelectorMenuTest() {
-        val enginesList = listOf("DuckDuckGo", "Google", "Wikipedia", "Bing", "eBay")
-
-        enginesList.forEach {
+        (generalEnginesList + topicEnginesList).forEach {
             homeScreen {
             }.openSearch {
                 clickSearchSelectorButton()

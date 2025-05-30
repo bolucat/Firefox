@@ -30,7 +30,7 @@ import mozilla.components.feature.tab.collections.TabCollection
 import mozilla.components.feature.tabs.WindowFeature
 import mozilla.components.support.base.feature.UserInteractionHandler
 import mozilla.components.support.base.feature.ViewBoundFeatureWrapper
-import mozilla.components.support.utils.ext.isContentUrl
+import mozilla.components.support.ktx.kotlin.isContentUrl
 import mozilla.components.support.utils.ext.isLandscape
 import mozilla.telemetry.glean.private.NoExtras
 import org.mozilla.fenix.GleanMetrics.AddressToolbar
@@ -191,8 +191,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         translationsBinding.set(
             feature = TranslationsBinding(
                 browserStore = context.components.core.store,
-                onTranslationsActionUpdated = {
-                    translationsAvailable = it.isVisible
+                onTranslationStatusUpdate = {
+                    translationsAvailable = it.isTranslationPossible
 
                     translationsAction.updateView(
                         tintColorResource = if (it.isTranslated) {

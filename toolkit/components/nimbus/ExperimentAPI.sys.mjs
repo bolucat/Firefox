@@ -72,6 +72,35 @@ const experimentBranchAccessor = {
   },
 };
 
+const NIMBUS_PROFILE_ID_PREF = "nimbus.profileId";
+
+/**
+ * Ensure the Nimbus profile ID exists.
+ *
+ * @returns {string} The profile ID.
+ */
+function ensureNimbusProfileId() {
+  let profileId;
+
+  if (Services.prefs.prefIsLocked(NIMBUS_PROFILE_ID_PREF)) {
+    profileId = Services.prefs.getStringPref(NIMBUS_PROFILE_ID_PREF);
+  } else {
+    if (Services.prefs.prefHasUserValue(NIMBUS_PROFILE_ID_PREF)) {
+      profileId = Services.prefs.getStringPref(NIMBUS_PROFILE_ID_PREF);
+    } else {
+      profileId = Services.uuid.generateUUID().toString().slice(1, -1);
+      Services.prefs.setStringPref(NIMBUS_PROFILE_ID_PREF, profileId);
+    }
+
+    Services.prefs
+      .getDefaultBranch(null)
+      .setStringPref(NIMBUS_PROFILE_ID_PREF, profileId);
+    Services.prefs.lockPref(NIMBUS_PROFILE_ID_PREF);
+  }
+
+  return profileId;
+}
+
 /**
  * Metadata about an enrollment.
  *
@@ -111,6 +140,7 @@ export const EnrollmentType = Object.freeze({
 
 let initialized = false;
 let experimentManager = null;
+let experimentLoader = null;
 
 export const ExperimentAPI = {
   /**
@@ -147,9 +177,41 @@ export const ExperimentAPI = {
       return false;
     }
 
+    ensureNimbusProfileId();
+
     initialized = true;
 
     const studiesEnabled = this.studiesEnabled;
+
+    try {
+      await lazy.NimbusMigrations.applyMigrations(
+        lazy.NimbusMigrations.Phase.INIT_STARTED
+      );
+    } catch (e) {
+      lazy.log.error(
+        `Failed to apply migrations in phase ${
+          lazy.NimbusMigrations.Phase.INIT_STARTED
+        }`,
+        e
+      );
+    }
+
+    try {
+      await this.manager.store.init();
+    } catch (e) {
+      lazy.log.error("Failed to initialize ExperimentStore:", e);
+    }
+
+    try {
+      await lazy.NimbusMigrations.applyMigrations(
+        lazy.NimbusMigrations.Phase.AFTER_STORE_INITIALIZED
+      );
+    } catch (e) {
+      lazy.log.error(
+        `Failed to apply migrations in phase ${lazy.NimbusMigrations.Phase.AFTER_STORE_INITIALIZED}`,
+        e
+      );
+    }
 
     try {
       await this.manager.onStartup(extraContext);
@@ -164,9 +226,16 @@ export const ExperimentAPI = {
     }
 
     try {
-      await lazy.NimbusMigrations.applyMigrations();
+      await lazy.NimbusMigrations.applyMigrations(
+        lazy.NimbusMigrations.Phase.AFTER_REMOTE_SETTINGS_UPDATE
+      );
     } catch (e) {
-      lazy.log.error("Failed to apply migrations", e);
+      lazy.log.error(
+        `Failed to apply migrations in phase ${
+          lazy.NimbusMigrations.Phase.AFTER_REMOTE_SETTINGS_UPDATE
+        }`,
+        e
+      );
     }
 
     if (CRASHREPORTER_ENABLED) {
@@ -190,7 +259,7 @@ export const ExperimentAPI = {
     // If Nimbus was disabled between the start of this function and registering
     // the pref observers we have not handled it yet.
     if (studiesEnabled !== this.studiesEnabled) {
-      this._onStudiesEnabledChanged();
+      await this._onStudiesEnabledChanged();
     }
 
     return true;
@@ -219,13 +288,27 @@ export const ExperimentAPI = {
     return this.manager;
   },
 
+  /**
+   * Return the global RemoteSettingsExperimentLoader.
+   */
+  get _rsLoader() {
+    if (experimentLoader === null) {
+      experimentLoader = new lazy.RemoteSettingsExperimentLoader(this.manager);
+    }
+
+    return experimentLoader;
+  },
+
   _resetForTests() {
-    this._rsLoader.disable();
+    experimentLoader?.disable();
+    experimentLoader = null;
+
     lazy.CleanupManager.removeCleanupHandler(
       ExperimentAPI._removeCrashReportAnnotator
     );
     experimentManager?.store.off("update", this._annotateCrashReport);
     experimentManager = null;
+
     initialized = false;
   },
 
@@ -235,6 +318,22 @@ export const ExperimentAPI = {
       Services.prefs.getBoolPref(STUDIES_OPT_OUT_PREF, false) &&
       Services.policies.isAllowed("Shield")
     );
+  },
+
+  /**
+   * Return the profile ID.
+   *
+   * This is used to distinguish different profiles in a shared profile group
+   * apart. Each profile has a persistent and stable profile ID. It is stored as
+   * a user branch pref but is locked to prevent tampering.
+   *
+   * This is still susceptible to user.js editing, but there's nothing we can do
+   * about that.
+   *
+   * @returns {string} The profile ID.
+   */
+  get profileId() {
+    return ensureNimbusProfileId();
   },
 
   /**
@@ -278,10 +377,12 @@ export const ExperimentAPI = {
     }
   },
 
-  _onStudiesEnabledChanged() {
+  async _onStudiesEnabledChanged() {
     if (!this.studiesEnabled) {
-      this.manager._handleStudiesOptOut();
+      await this.manager._handleStudiesOptOut();
     }
+
+    await this._rsLoader.onEnabledPrefChange();
 
     Services.obs.notifyObservers(null, this.STUDIES_ENABLED_CHANGED);
   },
@@ -343,6 +444,34 @@ export const ExperimentAPI = {
     return recipe?.branches.map(
       branch => new Proxy(branch, experimentBranchAccessor)
     );
+  },
+
+  /**
+   * Opt-in to the given experiment on the given branch.
+   *
+   * @param {object} options
+   *
+   * @param {string} options.slug
+   * The slug of the experiment to enroll in.
+   *
+   * @param {string} options.branch
+   * The slug of the specific branch to enroll in.
+   *
+   * @param {string | undefined} options.collection
+   * The collection to fetch the recipe from. If not provided it will be fetched
+   * from the default experiment collection.
+   *
+   * @param {boolean | undefined} options.applyTargeting
+   * Whether or not to apply targeting. Defaults to false.
+   *
+   * @returns {Promise<void>}
+   * A promise that resolves when the enrollment is successful or rejects when
+   * it is unsuccessful.
+   *
+   * @throws {Error} If enrollment fails.
+   */
+  async optInToExperiment(options) {
+    return this._rsLoader._optInToExperiment(options);
   },
 };
 
@@ -817,10 +946,6 @@ ExperimentAPI._onStudiesEnabledChanged =
   ExperimentAPI._onStudiesEnabledChanged.bind(ExperimentAPI);
 ExperimentAPI._removeCrashReportAnnotator =
   ExperimentAPI._removeCrashReportAnnotator.bind(ExperimentAPI);
-
-ChromeUtils.defineLazyGetter(ExperimentAPI, "_rsLoader", function () {
-  return lazy.RemoteSettingsExperimentLoader;
-});
 
 ChromeUtils.defineLazyGetter(
   ExperimentAPI,

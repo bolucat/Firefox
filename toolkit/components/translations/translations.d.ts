@@ -256,7 +256,7 @@ interface TranslationsEnginePayload {
 /**
  * Nodes that are being translated are given priority according to their visibility.
  */
-export type NodeVisibility = "in-viewport" | "out-of-viewport" | "hidden";
+export type NodeVisibility = "in-viewport" | "beyond-viewport" | "hidden";
 
 /**
  * Used to decide how to translate a page for full page translations.
@@ -383,20 +383,154 @@ export type RequestTranslationsPort = (
   languagePair: LanguagePair
 ) => Promise<MessagePort>;
 
-export type TranslationsPortMessages = {
-  type: "TranslationsPort:TranslationRequest";
-  translationId: string;
-  sourceText: string;
-  isHTML: boolean;
-};
+export type TranslationsPortMessages =
+  // We have determined that the source text is already translated into the target language, so do nothing.
+  | { type: "TranslationsPort:Passthrough"; translationId: string }
+  // We found translated text for this request in our cache, so send the targetText directly without translating.
+  | {
+      type: "TranslationsPort:CachedTranslation";
+      translationId: string;
+      targetText: string;
+    }
+  // This is a new, uncached request, and it needs to be translated by the TranslationsEngine.
+  | {
+      type: "TranslationsPort:TranslationRequest";
+      translationId: string;
+      sourceText: string;
+      isHTML: boolean;
+    };
 
 export type EngineStatus = "uninitialized" | "ready" | "error" | "closed";
 
 export type PortToPage =
+  // The targetText may be null if the TranslationsEngine had an error, or if this is a response to a Passthrough.
   | {
       type: "TranslationsPort:TranslationResponse";
-      targetText: string;
+      targetText: string | null;
       translationId: number;
     }
   | { type: "TranslationsPort:GetEngineStatusResponse"; status: EngineStatus }
   | { type: "TranslationsPort:EngineTerminated" };
+
+/**
+ * The translation mode of the page.
+ *
+ * - In "lazy" mode only nodes within proximity to the viewport are translated.
+ *
+ * - In "content-eager" mode, all nodes with translatable text content will be translated,
+ *   but nodes with attribute translations will still be translated lazily.
+ */
+export type TranslationsMode = "lazy" | "content-eager";
+
+/**
+ * A hint at the user's most recent scroll direction on the page.
+ */
+export type ScrollDirection = "up" | "down";
+
+/**
+ * The location of a node with respect to the viewport.
+ */
+export type NodeViewportContext =
+  | "within"
+  | "above"
+  | "right"
+  | "below"
+  | "left";
+
+/**
+ * The spatial context of a node, which may include the top, left, and right coordinates
+ * of the node's bounding client rect, as well as the node's location with respect to the viewport.
+ */
+export interface NodeSpatialContext {
+  top?: number;
+  right?: number;
+  left?: number;
+  viewportContext?: NodeViewportContext;
+}
+
+/**
+ * The eligibility of a node to be updated with translated content when its request completes.
+ */
+export type UpdateEligibility = "stale" | "detached" | "valid";
+
+/**
+ * An element with translatable content that is sortable based on its spatial context with
+ * respect to the viewport.
+ */
+export interface SortableContentElement {
+  element: Element;
+  nodeSet: Set<Node>;
+  top?: number;
+  left?: number;
+  right?: number;
+}
+
+/**
+ * Elements that have been prioritized for content translations based on their spatial context
+ * with respect to the viewport.
+ */
+export interface PrioritizedContentElements {
+  titleElement?: Element;
+  inViewportContent: Array<SortableContentElement>;
+  aboveViewportContent: Array<SortableContentElement>;
+  belowViewportContent: Array<SortableContentElement>;
+  otherContent: Array<SortableContentElement>;
+}
+
+/**
+ * An element with translatable attributes that is sortable based on its spatial context with
+ * respect to the viewport.
+ */
+export interface SortableAttributeElement {
+  element: Element;
+  attributeSet: Set<string>;
+  top?: number;
+  left?: number;
+  right?: number;
+}
+
+/**
+ * Elements that have been prioritized for content translations based on their spatial context
+ * with respect to the viewport.
+ */
+export interface PrioritizedAttributeElements {
+  inViewportAttributes: Array<SortableAttributeElement>;
+  aboveViewportAttributes: Array<SortableAttributeElement>;
+  belowViewportAttributes: Array<SortableAttributeElement>;
+  otherAttributes: Array<SortableAttributeElement>;
+}
+
+/**
+ * These are the kinds of priorities that a translation request may be assigned.
+ * Each time requests are prioritized and sent to the scheduler, each kind of
+ * priority defined below will receive a unique number. Depending on the current
+ * context within the page, some of these priorities may be more or less important.
+ */
+export interface TranslationPriorityKinds {
+  inViewportContentPriority: number;
+  inViewportAttributePriority: number;
+  aboveViewportContentPriority: number;
+  aboveViewportAttributePriority: number;
+  belowViewportContentPriority: number;
+  belowViewportAttributePriority: number;
+  otherContentPriority: number;
+  otherAttributePriority: number;
+}
+
+/**
+ * All of the information needed to perform a translation request.
+ */
+export interface TranslationRequest {
+  node: Node;
+  sourceText: string;
+  translationId: number;
+  isHTML: boolean;
+  priority: number;
+  resolve: (translation: Promise<string> | string | null) => unknown;
+  reject: (reason: any) => unknown;
+}
+
+/**
+ * A convenience type describing a function that executes a translation.
+ */
+export type TranslationFunction = (message: string) => Promise<string>;

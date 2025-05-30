@@ -4,7 +4,25 @@ title: Changelog
 permalink: /changelog/
 ---
 
-# 140.0 (In Development)
+# 141.0 (In Development)
+* **feature-accounts**:
+  * Respond to FxA with an error response when unknown web channel messages are sent to the client.
+
+* **support-rusterrors**:
+  * ⚠️ **Breaking change**: Deprecated in place of `support-appservices`. See below.
+
+* **support-rusthttp**:
+  * ⚠️ **Breaking change**: Deprecated in place of `support-appservices`. See below.
+
+* **support-rustlog**:
+  * ⚠️ **Breaking change**: Deprecated in place of `support-appservices`. See below.
+
+* **support-appservices**:
+  * 🆕 New component that components the individual rust ones.
+  * Adds a `AppServicesInitializer.init` that preserves the sequence for individual component initialization.
+  * Namespacing has been preserved from previous components, so only the dependency package needs updating.
+
+# 140.0
 * **feature-downloads**
   * `DownloadNotification.createOngoingDownloadNotification` will now show the download time remaining instead of the percentage completed in the notification summary. [Bug 1956577](https://bugzilla.mozilla.org/show_bug.cgi?id=1956577).
   * Added `DateTimeProvider` to provide date and time information. [Bug 1956577](https://bugzilla.mozilla.org/show_bug.cgi?id=1956577).
@@ -16,6 +34,8 @@ permalink: /changelog/
   * Added `alwaysOpenCheckboxAction` parameter to `AppLinksFeature`, this was moved from `AppLinksInterceptor`.
   * ⚠️ **Breaking change**: Moved prompt functionality back to `AppLinksFeature`.
   * ⚠️ **Breaking change**: Removed `interceptLinkClicks` parameter from `AppLinksInterceptor` since no usage sets this to false.
+* **feature-accounts**:
+  * Add support for `WebChannelCommand.SYNC_PREFERENCES` web channel messages.
 
 # 139.0
 * **feature-downloads**

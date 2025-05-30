@@ -10,7 +10,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
   BrowserWindowTracker: "resource:///modules/BrowserWindowTracker.sys.mjs",
   Region: "resource://gre/modules/Region.sys.mjs",
   RemoteSettings: "resource://services-settings/remote-settings.sys.mjs",
-  SearchUtils: "resource://gre/modules/SearchUtils.sys.mjs",
+  SearchUtils: "moz-src:///toolkit/components/search/SearchUtils.sys.mjs",
   SERPCategorization:
     "moz-src:///browser/components/search/SERPCategorization.sys.mjs",
   SERPCategorizationRecorder:
@@ -86,6 +86,101 @@ const AD_COMPONENTS = [
   SearchSERPTelemetryUtils.COMPONENTS.AD_SITELINK,
   SearchSERPTelemetryUtils.COMPONENTS.AD_UNCATEGORIZED,
 ];
+
+/**
+ * @typedef {object} FollowOnCookies
+ *
+ * @property {string} codeParamName
+ *   The parameter name within the cookie.
+ * @property {string} extraCodeParamName
+ *   The query parameter name in the URL that indicates this might be a
+ *   follow-on search.
+ * @property {string[]} extraCodePrefixes
+ *   Possible values for the query parameter in the URL that indicates this
+ *   might be a follow-on search.
+ * @property {string} host
+ *   The hostname on which the cookie is stored.
+ * @property {string} name
+ *   The name of the cookie to check.
+ */
+
+/**
+ * @typedef {object} SignedInCookies
+ *
+ * @property {string} host
+ *   The host associated with a given cookie.
+ * @property {string} name
+ *   The name associated with a given cookie.
+ */
+
+/**
+ * @typedef {object} ShoppingTab
+ *
+ * @property {boolean} inspectRegexpInSERP
+ *   Whether the regexp should be used against hrefs the selector matches
+ *   against.
+ * @property {RegExp} regexp
+ *   The regular expression to match against a possible shopping tab. Must be
+ *   provided if using this feature.
+ * @property {string} selector
+ *   The elements on the page to inspect for the shopping tab. Should be anchor
+ *   elements.
+ */
+
+/**
+ * @typedef {object} ProviderInfo
+ *
+ * @property {string} codeParamName
+ *   The name of the query parameter for the partner code.
+ * @property {object[]} components
+ *   An array of components that could be on the SERP.
+ * @property {{key:string, value: string}} defaultPageQueryParam
+ *   Default page query parameter.
+ * @property {string[]} expectedOrganicCodes
+ *   An array of partner codes to match against the parameters in the url.
+ *   Matching these codes will report the SERP as organic:none which means the
+ *   user has done a search through the search engine's website rather than
+ *   through a SAP.
+ * @property {RegExp[]} extraAdServersRegexps
+ *   An array of regular expressions that match URLs of potential ad servers.
+ * @property {FollowOnCookies[]} followOnCookies
+ *   An array of cookie details that are used to identify follow-on searches.
+ * @property {string[]} followOnParamNames
+ *   An array of query parameter names that are used when a follow-on search
+ *   occurs.
+ * @property {boolean} isSPA
+ *   Whether the provider is a single page app.
+ * @property {string[]} organicCodes
+ *   An array of partner codes to match against the parameters in the url.
+ *   Matching these codes will report the SERP as organic:<partner code>, which
+ *   means the search was performed organically rather than through a SAP.
+ * @property {string[]} queryParamNames
+ *   An array of query parameters that may be used for the user's search string.
+ * @property {SignedInCookies[]} signedInCookies
+ *   An array of cookie details that are used to determine whether a client is
+ *   signed in to a provider's account.
+ * @property {ShoppingTab} shoppingTab
+ *   Shopping page parameter.
+ * @property {string[]} taggedCodes
+ *   An array of partner codes to match against the parameters in the url.
+ *   Matching one of these codes will report the SERP as tagged.
+ * @property {string} telemetryId
+ *   The telemetry identifier for the provider.
+ */
+
+/**
+ * @typedef {object} ChannelClickMetadata
+ *
+ * @property {boolean} _adClickRecorded
+ *   Whether an ad click has already been recorded for the channel.
+ * @property {boolean} _recordedClick
+ *   Whether any click has been recorded for the channel. This is distinct from
+ *   _adClickRecorded as not all clicks are ad related.
+ */
+
+/**
+ * @typedef {ChannelWrapper & ChannelClickMetadata} TrackedChannel
+ */
 
 /**
  * TelemetryHandler is the main class handling Search Engine Result Page (SERP)
@@ -807,7 +902,10 @@ class TelemetryHandler {
    * @param {nsIAppWindow} appWin The xul window that was opened.
    */
   onOpenWindow(appWin) {
-    let win = appWin.docShell.domWindow;
+    // Bug 1954851 - domWindow returns a proxy interface that references the
+    // outer window and doesn't currently expose the real API surface in
+    // Typescript.
+    let win = /** @type {ChromeWindow} */ (appWin.docShell.domWindow);
     win.addEventListener(
       "load",
       () => {
@@ -831,7 +929,10 @@ class TelemetryHandler {
    * @param {nsIAppWindow} appWin The xul window that was closed.
    */
   onCloseWindow(appWin) {
-    let win = appWin.docShell.domWindow;
+    // Bug 1954851 - domWindow returns a proxy interface that references the
+    // outer window and doesn't currently expose the real API surface in
+    // Typescript.
+    let win = /** @type {ChromeWindow} */ (appWin.docShell.domWindow);
 
     if (
       win.document.documentElement.getAttribute("windowtype") !=
@@ -888,8 +989,10 @@ class TelemetryHandler {
   /**
    * Searches for provider information for a given url.
    *
-   * @param {string} url The url to match for a provider.
-   * @returns {Array | null} Returns an array of provider name and the provider information.
+   * @param {string} url
+   *   The url to match for a provider.
+   * @returns {?ProviderInfo}
+   *   Returns a provider or undefined if no provider was found for the url.
    */
   _getProviderInfoForURL(url) {
     return this._searchProviderInfo.find(info =>
@@ -1140,6 +1243,9 @@ class TelemetryHandler {
  * when ads detected and when they are selected.
  */
 class ContentHandler {
+  /** @type {ProviderInfo[]} */
+  _searchProviderInfo = null;
+
   /**
    * Constructor.
    *
@@ -1228,7 +1334,11 @@ class ContentHandler {
       return;
     }
 
-    let wrappedChannel = ChannelWrapper.get(channel);
+    // We augment the channel wrapper with additional data specific to SERP
+    // telemetry.
+    /** @type {TrackedChannel} */
+    let wrappedChannel = /** @type {any} */ (ChannelWrapper.get(channel));
+
     // The channel we're observing might be a redirect of a channel we've
     // observed before.
     if (wrappedChannel._adClickRecorded) {
@@ -1310,7 +1420,7 @@ class ContentHandler {
    * Checks if a request should record an ad click if it can be traced to a
    * browser containing an observed SERP.
    *
-   * @param {ChannelWrapper} wrappedChannel
+   * @param {TrackedChannel} wrappedChannel
    *   The wrapped channel.
    * @param {object} item
    *   The browser item associated with the origin URL of the request.
@@ -1365,6 +1475,7 @@ class ContentHandler {
 
       // If the load is from history, don't record an event.
       if (
+        // @ts-expect-error - Bug 1957632
         browser?.browsingContext.webProgress?.loadType &
         Ci.nsIDocShell.LOAD_CMD_HISTORY
       ) {
@@ -1399,6 +1510,7 @@ class ContentHandler {
           // If the count is more than 1, then multiple open SERPs contain the
           // same search term, so try to find the specific browser that opened
           // the request.
+          // @ts-expect-error - Bug 1957632
           let tabBrowser = browser.getTabBrowser();
           let tab = tabBrowser.getTabForBrowser(browser).openerTab;
           // A tab will not always have an openerTab, as first tabs in new
@@ -1558,7 +1670,9 @@ class ContentHandler {
     // browser URI may not match a SERP. Thus, try to find a tab that contains
     // a URI matching a SERP.
     let browser = wrappedChannel.browserElement;
+    // @ts-expect-error - Bug 1957632
     if (browser?.currentURI.spec == "about:blank") {
+      // @ts-expect-error - Bug 1957632
       let tabBrowser = browser.getTabBrowser();
       let tab = tabBrowser.getTabForBrowser(browser).openerTab;
       if (tab) {
@@ -1580,6 +1694,7 @@ class ContentHandler {
       return null;
     }
 
+    // @ts-expect-error - Bug 1957632
     return browser?.currentURI.spec;
   }
 

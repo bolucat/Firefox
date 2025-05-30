@@ -2806,9 +2806,7 @@ toolbar#nav-bar {
             # Enable Marionette and allow system access to execute the mochitest
             # init script in the chrome scope of the application
             args.append("-marionette")
-            # Bug 1955535: Because the command line argument "-remote-allow-system-access"
-            # cannot be used at the moment, set the value via the env variable.
-            env["MOZ_REMOTE_ALLOW_SYSTEM_ACCESS"] = "1"
+            args.append("-remote-allow-system-access")
 
             # TODO: mozrunner should use -foreground at least for mac
             # https://bugzilla.mozilla.org/show_bug.cgi?id=916512
@@ -3519,8 +3517,7 @@ toolbar#nav-bar {
                 # overridden with --setpref).
                 "sessionHistoryInParent": not options.disable_fission
                 or not self.extraPrefs.get(
-                    "fission.disableSessionHistoryInParent",
-                    mozinfo.info["os"] == "android",
+                    "fission.disableSessionHistoryInParent", False
                 ),
                 "socketprocess_e10s": self.extraPrefs.get(
                     "network.process.enabled", False
@@ -3548,7 +3545,6 @@ toolbar#nav-bar {
                 "android_version": mozinfo.info.get("android_version", -1),
                 "android": mozinfo.info.get("android", False),
                 "is_emulator": mozinfo.info.get("is_emulator", False),
-                "cm5": mozinfo.info.get("cm5", False),
                 "coverage": mozinfo.info.get("coverage", False),
             }
         )

@@ -507,6 +507,14 @@ fn no_dump_file() {
 }
 
 #[test]
+fn dump_file_does_not_exist() {
+    let mut test = GuiTest::new();
+    test.config.dump_file = Some("does_not_exist.dmp".into());
+    test.try_run(|_interact| {})
+        .expect_err("the gui should fail with an error");
+}
+
+#[test]
 fn no_extra_file() {
     mock::builder()
         .set(
@@ -1259,10 +1267,9 @@ fn assert_mock_memtest(cmd: &Command) -> std::io::Result<Output> {
     assert_eq!(cmd.args.len(), 3);
     assert_eq!(cmd.args[0], "--memtest");
     assert!(cmd.args[1].to_string_lossy().parse::<u32>().is_ok());
-    assert!(serde_json::from_str::<memtest::MemtestRunnerArgs>(
-        cmd.args[2].to_string_lossy().borrow()
-    )
-    .is_ok());
+    assert!(
+        serde_json::from_str::<memtest::RunnerArgs>(cmd.args[2].to_string_lossy().borrow()).is_ok()
+    );
 
     let mut output = crate::std::process::success_output();
     output.stdout = "memtest output".into();

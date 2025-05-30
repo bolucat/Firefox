@@ -298,15 +298,20 @@ AnchorResolvedMargin AnchorResolvedMarginHelper::ResolveAnchor(
       return Zero();
     }
     if (resolved.IsResolvedReference()) {
-      return MakeUniqueOfUniqueOrNonOwning<const StyleMargin>(*resolved.AsResolvedReference());
+      return MakeUniqueOfUniqueOrNonOwning<const StyleMargin>(
+          *resolved.AsResolvedReference());
     }
-    return MakeUniqueOfUniqueOrNonOwning<const StyleMargin>(resolved.AsResolved());
+    return MakeUniqueOfUniqueOrNonOwning<const StyleMargin>(
+        resolved.AsResolved());
   }
 
   const auto& lp = aValue.AsAnchorContainingCalcFunction();
   const auto& c = lp.AsCalc();
   auto result = StyleCalcAnchorPositioningFunctionResolution::Invalid();
-  Servo_ResolveAnchorFunctionsInCalcPercentage(&c, nullptr, aPosition, &result);
+  // TODO(dshin, bug 1923961)
+  AnchorPosResolutionParams params =
+      AnchorPosResolutionParams::UseCBFrameSize(nullptr, aPosition);
+  Servo_ResolveAnchorFunctionsInCalcPercentage(&c, nullptr, &params, &result);
   if (result.IsInvalid()) {
     return Zero();
   }
@@ -1363,8 +1368,8 @@ StyleJustifySelf nsStylePosition::UsedJustifySelf(
 }
 
 AnchorResolvedInset AnchorResolvedInsetHelper::ResolveAnchor(
-    const StyleInset& aValue, StylePhysicalSide aSide,
-    StylePositionProperty aPosition) {
+    const mozilla::StyleInset& aValue, mozilla::StylePhysicalSide aSide,
+    const AnchorPosResolutionParams& aParams) {
   MOZ_ASSERT(aValue.HasAnchorPositioningFunction(),
              "Calling anchor resolution without using it?");
   switch (aValue.tag) {
@@ -1372,7 +1377,7 @@ AnchorResolvedInset AnchorResolvedInsetHelper::ResolveAnchor(
       const auto& lp = aValue.AsAnchorContainingCalcFunction();
       const auto& c = lp.AsCalc();
       auto result = StyleCalcAnchorPositioningFunctionResolution::Invalid();
-      Servo_ResolveAnchorFunctionsInCalcPercentage(&c, &aSide, aPosition,
+      Servo_ResolveAnchorFunctionsInCalcPercentage(&c, &aSide, &aParams,
                                                    &result);
       if (result.IsInvalid()) {
         return Auto();
@@ -1381,28 +1386,32 @@ AnchorResolvedInset AnchorResolvedInsetHelper::ResolveAnchor(
     }
     case StyleInset::Tag::AnchorFunction: {
       auto resolved = StyleAnchorPositioningFunctionResolution::Invalid();
-      Servo_ResolveAnchorFunction(&*aValue.AsAnchorFunction(), aSide, aPosition,
+      Servo_ResolveAnchorFunction(&*aValue.AsAnchorFunction(), &aParams, aSide,
                                   &resolved);
       if (resolved.IsInvalid()) {
         return Auto();
       }
       if (resolved.IsResolvedReference()) {
-        return MakeUniqueOfUniqueOrNonOwning<const StyleInset>(*resolved.AsResolvedReference());
+        return MakeUniqueOfUniqueOrNonOwning<const StyleInset>(
+            *resolved.AsResolvedReference());
       }
       return AnchorResolvedInset{
-        MakeUniqueOfUniqueOrNonOwning<const StyleInset>(resolved.AsResolved())};
+          MakeUniqueOfUniqueOrNonOwning<const StyleInset>(
+              resolved.AsResolved())};
     }
     case StyleInset::Tag::AnchorSizeFunction: {
       auto resolved = StyleAnchorPositioningFunctionResolution::Invalid();
       Servo_ResolveAnchorSizeFunction(&*aValue.AsAnchorSizeFunction(),
-                                      aPosition, &resolved);
+                                      aParams.mPosition, &resolved);
       if (resolved.IsInvalid()) {
         return Auto();
       }
       if (resolved.IsResolvedReference()) {
-        return MakeUniqueOfUniqueOrNonOwning<const StyleInset>(*resolved.AsResolvedReference());
+        return MakeUniqueOfUniqueOrNonOwning<const StyleInset>(
+            *resolved.AsResolvedReference());
       }
-      return MakeUniqueOfUniqueOrNonOwning<const StyleInset>(resolved.AsResolved());
+      return MakeUniqueOfUniqueOrNonOwning<const StyleInset>(
+          resolved.AsResolved());
     }
     default:
       MOZ_ASSERT_UNREACHABLE("Unhandled inset type");
@@ -1426,14 +1435,18 @@ AnchorResolvedSize AnchorResolvedSizeHelper::ResolveAnchor(
       return MakeUniqueOfUniqueOrNonOwning<const StyleSize>(
           *resolved.AsResolvedReference());
     }
-    return MakeUniqueOfUniqueOrNonOwning<const StyleSize>(resolved.AsResolved());
+    return MakeUniqueOfUniqueOrNonOwning<const StyleSize>(
+        resolved.AsResolved());
   }
 
   const auto& lp = aValue.AsAnchorContainingCalcFunction();
   // Follows the same reasoning as anchor resolved insets.
   const auto& c = lp.AsCalc();
   auto result = StyleCalcAnchorPositioningFunctionResolution::Invalid();
-  Servo_ResolveAnchorFunctionsInCalcPercentage(&c, nullptr, aPosition, &result);
+  // TODO(dshin, bug 1923961)
+  AnchorPosResolutionParams params =
+      AnchorPosResolutionParams::UseCBFrameSize(nullptr, aPosition);
+  Servo_ResolveAnchorFunctionsInCalcPercentage(&c, nullptr, &params, &result);
   if (result.IsInvalid()) {
     return Auto();
   }
@@ -1454,16 +1467,20 @@ AnchorResolvedMaxSize AnchorResolvedMaxSizeHelper::ResolveAnchor(
     }
     if (resolved.IsResolvedReference()) {
       return MakeUniqueOfUniqueOrNonOwning<const StyleMaxSize>(
-              *resolved.AsResolvedReference());
+          *resolved.AsResolvedReference());
     }
-    return MakeUniqueOfUniqueOrNonOwning<const StyleMaxSize>(resolved.AsResolved());
+    return MakeUniqueOfUniqueOrNonOwning<const StyleMaxSize>(
+        resolved.AsResolved());
   }
 
   const auto& lp = aValue.AsAnchorContainingCalcFunction();
   // Follows the same reasoning as anchor resolved insets.
   const auto& c = lp.AsCalc();
   auto result = StyleCalcAnchorPositioningFunctionResolution::Invalid();
-  Servo_ResolveAnchorFunctionsInCalcPercentage(&c, nullptr, aPosition, &result);
+  // TODO(dshin, bug 1923961)
+  AnchorPosResolutionParams params =
+      AnchorPosResolutionParams::UseCBFrameSize(nullptr, aPosition);
+  Servo_ResolveAnchorFunctionsInCalcPercentage(&c, nullptr, &params, &result);
   if (result.IsInvalid()) {
     return None();
   }
@@ -1615,6 +1632,9 @@ bool StyleImage::IsComplete() const {
     // Bug 546052 cross-fade not yet implemented.
     case Tag::CrossFade:
       return true;
+    case Tag::LightDark:
+      MOZ_ASSERT_UNREACHABLE("light-dark() should be computed already");
+      break;
   }
   MOZ_ASSERT_UNREACHABLE("unexpected image type");
   return false;
@@ -1643,6 +1663,9 @@ bool StyleImage::IsSizeAvailable() const {
     case Tag::CrossFade:
       // TODO: Bug 546052 cross-fade not yet implemented.
       return true;
+    case Tag::LightDark:
+      MOZ_ASSERT_UNREACHABLE("light-dark() should be computed already");
+      break;
   }
   MOZ_ASSERT_UNREACHABLE("unexpected image type");
   return false;
@@ -3278,7 +3301,8 @@ nsStyleUIReset::nsStyleUIReset(const nsStyleUIReset& aSource)
       mViewTimelineAxisCount(aSource.mViewTimelineAxisCount),
       mViewTimelineInsetCount(aSource.mViewTimelineInsetCount),
       mFieldSizing(aSource.mFieldSizing),
-      mViewTransitionName(aSource.mViewTransitionName) {
+      mViewTransitionName(aSource.mViewTransitionName),
+      mViewTransitionClass(aSource.mViewTransitionClass) {
   MOZ_COUNT_CTOR(nsStyleUIReset);
 }
 
@@ -3321,6 +3345,10 @@ nsChangeHint nsStyleUIReset::CalcDifference(
     } else {
       hint |= nsChangeHint_NeutralChange;
     }
+  }
+
+  if (mViewTransitionClass != aNewData.mViewTransitionClass) {
+    hint |= nsChangeHint_NeutralChange;
   }
 
   if (!hint &&

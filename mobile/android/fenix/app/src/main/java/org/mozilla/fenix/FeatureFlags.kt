@@ -4,10 +4,6 @@
 
 package org.mozilla.fenix
 
-import android.content.Context
-import mozilla.components.support.locale.LocaleManager
-import mozilla.components.support.locale.LocaleManager.getSystemDefault
-
 /**
  * A single source for setting feature flags that are mostly based on build type.
  */
@@ -30,27 +26,6 @@ object FeatureFlags {
      * Enables the Sync Addresses feature.
      */
     const val SYNC_ADDRESSES_FEATURE = false
-
-    /**
-     * Show Pocket recommended stories on home.
-     */
-    fun isPocketRecommendationsFeatureEnabled(context: Context): Boolean {
-        val langTag = LocaleManager.getCurrentLocale(context)
-            ?.toLanguageTag() ?: getSystemDefault().toLanguageTag()
-        return listOf("en-US", "en-CA").contains(langTag)
-    }
-
-    /**
-     * Show Pocket sponsored stories in between Pocket recommended stories on home.
-     */
-    fun isPocketSponsoredStoriesFeatureEnabled(context: Context): Boolean {
-        return isPocketRecommendationsFeatureEnabled(context)
-    }
-
-    /**
-     * Enables compose on the top sites.
-     */
-    const val COMPOSE_TOP_SITES = false
 
     /**
      * Enables new search settings UI with two extra fragments, for managing the default engine
@@ -87,7 +62,7 @@ object FeatureFlags {
     val onboardingFeatureEnabled = !Config.channel.isDebug
 
     /**
-     * Enables locking of the private mode behind an authentication screen feature.
+     * Determines whether to show live downloads in progress in the UI.
      */
-    val privateBrowsingLock = Config.channel.isDebug
+    val showLiveDownloads = Config.channel.isDebug
 }

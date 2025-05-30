@@ -7,7 +7,7 @@
 #ifndef jit_VMFunctionList_inl_h
 #define jit_VMFunctionList_inl_h
 
-#include "mozilla/MacroArgs.h" // MOZ_CONCAT
+#include "mozilla/MacroArgs.h"  // MOZ_CONCAT
 
 #include "builtin/Eval.h"
 #include "builtin/ModuleObject.h"  // js::GetOrCreateModuleMetaObject
@@ -78,6 +78,7 @@ namespace jit {
     js::jit::BaselineCompileFromBaselineInterpreter)                           \
   _(BaselineDebugPrologue, js::jit::DebugPrologue)                             \
   _(BaselineGetFunctionThis, js::jit::BaselineGetFunctionThis)                 \
+  _(BaselineScriptOSREntryForFrame, js::jit::BaselineScript::OSREntryForFrame) \
   _(BigIntAdd, JS::BigInt::add)                                                \
   _(BigIntAsIntN, js::jit::BigIntAsIntN)                                       \
   _(BigIntAsUintN, js::jit::BigIntAsUintN)                                     \
@@ -404,8 +405,9 @@ VMFUNCTION_LIST(DEF_TEMPLATE)
 // Make sure that all names are fully qualified (or at least, are resolvable
 // within the toplevel namespace).
 namespace check_fully_qualified {
-#define CHECK_NS_VISIBILITY(name, fp, ...) \
-  [[maybe_unused]] static constexpr decltype(&fp) MOZ_CONCAT(fp_, __COUNTER__) = nullptr;
+#define CHECK_NS_VISIBILITY(name, fp, ...)                    \
+  [[maybe_unused]] static constexpr decltype(&fp) MOZ_CONCAT( \
+      fp_, __COUNTER__) = nullptr;
 VMFUNCTION_LIST(CHECK_NS_VISIBILITY)
 #undef CHECK_NS_VISIBILITY
 }  // namespace check_fully_qualified

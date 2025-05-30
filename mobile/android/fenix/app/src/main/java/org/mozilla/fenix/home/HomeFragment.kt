@@ -74,6 +74,7 @@ import org.mozilla.fenix.BrowserDirection
 import org.mozilla.fenix.GleanMetrics.HomeScreen
 import org.mozilla.fenix.GleanMetrics.Homepage
 import org.mozilla.fenix.HomeActivity
+import org.mozilla.fenix.NavGraphDirections
 import org.mozilla.fenix.R
 import org.mozilla.fenix.addons.showSnackBar
 import org.mozilla.fenix.biometricauthentication.AuthenticationStatus
@@ -523,9 +524,10 @@ class HomeFragment : Fragment() {
                 viewLifecycleScope = viewLifecycleOwner.lifecycleScope,
             ),
             privateBrowsingController = DefaultPrivateBrowsingController(
-                activity = activity,
                 navController = findNavController(),
                 browsingModeManager = browsingModeManager,
+                fenixBrowserUseCases = requireComponents.useCases.fenixBrowserUseCases,
+                settings = components.settings,
             ),
             searchSelectorController = DefaultSearchSelectorController(
                 activity = activity,
@@ -847,7 +849,7 @@ class HomeFragment : Fragment() {
             scope = viewLifecycleOwner.lifecycleScope,
             appStore = requireComponents.appStore,
             onPrivateModeLocked = {
-                findNavController().navigate(R.id.unlockPrivateTabsFragment)
+                findNavController().navigate(NavGraphDirections.actionGlobalUnlockPrivateTabsFragment())
             },
         )
 
@@ -864,9 +866,13 @@ class HomeFragment : Fragment() {
             initTabStrip()
         }
 
-        PrivateBrowsingButtonView(binding.privateBrowsingButton, browsingModeManager) { newMode ->
+        PrivateBrowsingButtonView(
+            button = binding.privateBrowsingButton,
+            showPrivateBrowsingButton = !requireContext().settings().enableHomepageAsNewTab,
+            browsingModeManager = browsingModeManager,
+        ) { newMode ->
             sessionControlInteractor.onPrivateModeButtonClicked(newMode)
-            Homepage.privateModeIconTapped.record(mozilla.telemetry.glean.private.NoExtras())
+            Homepage.privateModeIconTapped.record(NoExtras())
         }
 
         consumeFrom(requireComponents.core.store) {

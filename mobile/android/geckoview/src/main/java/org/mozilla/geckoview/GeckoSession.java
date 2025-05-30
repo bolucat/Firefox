@@ -50,6 +50,7 @@ import java.io.InputStream;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.ref.WeakReference;
+import java.security.Principal;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -1509,11 +1510,10 @@ public class GeckoSession {
         final @Nullable String triggeringUri,
         final boolean hasUserGesture,
         final boolean isTopLevel) {
-      final ProfilerController profilerController = runtime.getProfilerController();
-      final Double onLoadRequestProfilerStartTime = profilerController.getProfilerTime();
+      final Double onLoadRequestProfilerStartTime = ProfilerController.getProfilerTime();
       final Runnable addMarker =
           () ->
-              profilerController.addMarker(
+              ProfilerController.addMarker(
                   "GeckoSession.onLoadRequest", onLoadRequestProfilerStartTime);
 
       final GeckoSession session = mOwner.get();
@@ -5952,10 +5952,26 @@ public class GeckoSession {
       /** The host requesting the certificate. */
       public final @NonNull String host;
 
+      /** The X.500 Distinguished Names the server specified as acceptable issuers. */
+      public final @Nullable Principal[] issuers;
+
+      @Deprecated
+      @DeprecationSchedule(id = "CertificateRequest-CertificateRequest", version = 143)
       protected CertificateRequest(
           final @NonNull String id, final Observer observer, final String host) {
         super(id, null, observer);
         this.host = host;
+        this.issuers = null;
+      }
+
+      protected CertificateRequest(
+          final @NonNull String id,
+          final Observer observer,
+          final String host,
+          final Principal[] issuers) {
+        super(id, null, observer);
+        this.host = host;
+        this.issuers = issuers;
       }
 
       /**

@@ -7,6 +7,7 @@
 add_task(async function () {
   await pushPref("dom.element.invokers.enabled", true);
   await pushPref("dom.events.textevent.enabled", true);
+  await pushPref("dom.closewatcher.enabled", true);
 
   const dbg = await initDebugger(
     "doc-event-breakpoints.html",
@@ -79,6 +80,19 @@ add_task(async function () {
   invokeOnElement("#invoker", "click");
   await waitForPaused(dbg);
   await assertPausedAtSourceAndLine(dbg, eventBreakpointsSource.id, 77);
+  await resume(dbg);
+
+  info("Enable closewatcher cancel and close events");
+  await toggleEventBreakpoint(dbg, "CloseWatcher", "event.closewatcher.cancel");
+  await toggleEventBreakpoint(dbg, "CloseWatcher", "event.closewatcher.close");
+  invokeInTab("closeWatcherRequestClose");
+  info("Wait for pause in cancel event listener");
+  await waitForPaused(dbg);
+  await assertPausedAtSourceAndLine(dbg, eventBreakpointsSource.id, 116);
+  await resume(dbg);
+  info("And wait for pause in close event listener after resuming");
+  await waitForPaused(dbg);
+  await assertPausedAtSourceAndLine(dbg, eventBreakpointsSource.id, 120);
   await resume(dbg);
 
   info("Enable beforetoggle and toggle events");
@@ -170,6 +184,24 @@ add_task(async function () {
   await waitForPaused(dbg);
   await assertPausedAtSourceAndLine(dbg, eventBreakpointsSource.id, 72);
   await resume(dbg);
+
+  info(`Check that breakpoint can be set on "pointerrawupdate"`);
+  await toggleEventBreakpoint(dbg, "Pointer", "event.pointer.pointerrawupdate");
+
+  SpecialPowers.spawn(gBrowser.selectedBrowser, [], () => {
+    // EventUtils.synthesize throws when dispatching a pointerrawupdate for some reason,
+    // let's build and dispatch the event directly
+    content.document
+      .getElementById("pointer-target")
+      .dispatchEvent(
+        new content.wrappedJSObject.PointerEvent("pointerrawupdate", {})
+      );
+  });
+
+  await waitForPaused(dbg);
+  await assertPausedAtSourceAndLine(dbg, eventBreakpointsSource.id, 107);
+  await resume(dbg);
+  await toggleEventBreakpoint(dbg, "Pointer", "event.pointer.pointerrawupdate");
 
   info("Check that the click event breakpoint is still enabled");
   invokeInTab("clickHandler");

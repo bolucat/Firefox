@@ -28,6 +28,7 @@ devtools/shared/sprintfjs/
 devtools/shared/storage/vendor/
 dom/canvas/test/webgl-conf/checkout/
 dom/imptests/
+dom/onnx/onnxruntime_c_api.h
 dom/media/gmp/rlz/
 dom/media/gmp/widevine-adapter/content_decryption_module_export.h
 dom/media/gmp/widevine-adapter/content_decryption_module_ext.h
@@ -203,6 +204,7 @@ toolkit/content/vendor/react/
 toolkit/content/widgets/vendor/lit.all.mjs
 toolkit/crashreporter/breakpad-client/
 toolkit/crashreporter/google-breakpad/
+toolkit/modules/third_party/
 tools/fuzzing/libfuzzer/
 tools/profiler/core/vtune/
 xpcom/build/mach_override.c

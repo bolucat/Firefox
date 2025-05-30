@@ -61,14 +61,14 @@ ChromeUtils.defineESModuleGetters(this, {
   PanelView: "resource:///modules/PanelMultiView.sys.mjs",
   PictureInPicture: "resource://gre/modules/PictureInPicture.sys.mjs",
   PlacesTransactions: "resource://gre/modules/PlacesTransactions.sys.mjs",
-  PlacesUIUtils: "resource:///modules/PlacesUIUtils.sys.mjs",
+  PlacesUIUtils: "moz-src:///browser/components/places/PlacesUIUtils.sys.mjs",
   PlacesUtils: "resource://gre/modules/PlacesUtils.sys.mjs",
   Pocket: "chrome://pocket/content/Pocket.sys.mjs",
   PopupBlockerObserver: "resource:///modules/PopupBlockerObserver.sys.mjs",
   PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
   ProcessHangMonitor: "resource:///modules/ProcessHangMonitor.sys.mjs",
   ProfilesDatastoreService:
-    "resource:///modules/profiles/ProfilesDatastoreService.sys.mjs",
+    "moz-src:///toolkit/profile/ProfilesDatastoreService.sys.mjs",
   PromptUtils: "resource://gre/modules/PromptUtils.sys.mjs",
   ReaderMode: "moz-src:///toolkit/components/reader/ReaderMode.sys.mjs",
   ResetPBMPanel: "resource:///modules/ResetPBMPanel.sys.mjs",
@@ -82,8 +82,6 @@ ChromeUtils.defineESModuleGetters(this, {
   SessionStartup: "resource:///modules/sessionstore/SessionStartup.sys.mjs",
   SessionStore: "resource:///modules/sessionstore/SessionStore.sys.mjs",
   SharingUtils: "resource:///modules/SharingUtils.sys.mjs",
-  ShoppingSidebarParent: "resource:///actors/ShoppingSidebarParent.sys.mjs",
-  ShoppingSidebarManager: "resource:///actors/ShoppingSidebarParent.sys.mjs",
   ShortcutUtils: "resource://gre/modules/ShortcutUtils.sys.mjs",
   SiteDataManager: "resource:///modules/SiteDataManager.sys.mjs",
   SitePermissions: "resource:///modules/SitePermissions.sys.mjs",
@@ -461,6 +459,9 @@ ChromeUtils.defineLazyGetter(this, "PopupNotifications", () => {
       // If the anchor element is present in the Urlbar,
       // ensure that both the anchor and page URL are visible.
       gURLBar.maybeHandleRevertFromPopup(anchorElement);
+      anchorElement?.dispatchEvent(
+        new CustomEvent("PopupNotificationsBeforeAnchor", { bubbles: true })
+      );
       if (anchorElement?.checkVisibility()) {
         return anchorElement;
       }
@@ -584,39 +585,11 @@ XPCOMUtils.defineLazyPreferenceGetter(
 
 XPCOMUtils.defineLazyPreferenceGetter(
   this,
-  "gScreenshotsDisabled",
-  "extensions.screenshots.disabled",
-  false,
-  () => {
-    Services.obs.notifyObservers(
-      window,
-      "toggle-screenshot-disable",
-      gScreenshots.shouldScreenshotsButtonBeDisabled()
-    );
-  }
-);
-
-XPCOMUtils.defineLazyPreferenceGetter(
-  this,
   "gPrintEnabled",
   "print.enabled",
   false,
   (aPref, aOldVal, aNewVal) => {
     updatePrintCommands(aNewVal);
-  }
-);
-
-XPCOMUtils.defineLazyPreferenceGetter(
-  this,
-  "gScreenshotsComponentEnabled",
-  "screenshots.browser.component.enabled",
-  false,
-  () => {
-    Services.obs.notifyObservers(
-      window,
-      "toggle-screenshot-disable",
-      gScreenshots.shouldScreenshotsButtonBeDisabled()
-    );
   }
 );
 
@@ -775,21 +748,6 @@ var gNavigatorBundle = {
   },
   getFormattedString(key, array) {
     return gBrowserBundle.formatStringFromName(key, array);
-  },
-};
-
-var gScreenshots = {
-  shouldScreenshotsButtonBeDisabled() {
-    // About pages other than about:reader are not currently supported by
-    // the screenshots extension (see Bug 1620992).
-    let uri = gBrowser.selectedBrowser.currentURI;
-    let shouldBeDisabled =
-      gScreenshotsDisabled ||
-      (!gScreenshotsComponentEnabled &&
-        uri.scheme === "about" &&
-        !uri.spec.startsWith("about:reader"));
-
-    return shouldBeDisabled;
   },
 };
 
@@ -2272,14 +2230,6 @@ var XULBrowserWindow = {
       closeOpenPanels("panel[locationspecific='true']");
     }
 
-    let screenshotsButtonsDisabled =
-      gScreenshots.shouldScreenshotsButtonBeDisabled();
-    Services.obs.notifyObservers(
-      window,
-      "toggle-screenshot-disable",
-      screenshotsButtonsDisabled
-    );
-
     gPermissionPanel.onLocationChange();
 
     gProtectionsHandler.onLocationChange();
@@ -2964,10 +2914,6 @@ var TabsProgressListener = {
     if (!aWebProgress.isTopLevel) {
       return;
     }
-
-    // Some shops use pushState to move between individual products, so
-    // the shopping code needs to be told about all of these.
-    ShoppingSidebarManager.onLocationChange(aBrowser, aLocationURI, aFlags);
 
     // Filter out location changes caused by anchor navigation
     // or history.push/pop/replaceState.
@@ -5171,7 +5117,9 @@ var PanicButtonNotifier = {
  */
 class TabDialogBox {
   static _containerFor(browser) {
-    return browser.closest(".browserStack, .webextension-popup-stack");
+    return browser.closest(
+      ".browserStack, .webextension-popup-stack, .sidebar-browser-stack"
+    );
   }
 
   constructor(browser) {
@@ -5220,6 +5168,8 @@ class TabDialogBox {
    * users credentials for a toplevel load of a resource from a base domain different from the base domain of the currently loaded page.
    * To avoid auth prompt spoofing (see bug 791594) we hide the current sites content
    * (among other protection mechanisms, that are not handled here, see the bug for reference).
+   * @param {nsIWebProgress} [aOptions.webProgress] - If passed, use to detect when a site is being
+   * navigated to in order to close the dialog. By default, this.browser.webProgress is used.
    * @returns {Object} [result] Returns an object { closedPromise, dialog }.
    * @returns {Promise} [result.closedPromise] Resolves once the dialog has been closed.
    * @returns {SubDialog} [result.dialog] A reference to the opened SubDialog.
@@ -5234,6 +5184,7 @@ class TabDialogBox {
       modalType = null,
       allowFocusCheckbox = false,
       hideContent = false,
+      webProgress = undefined,
     } = {},
     ...aParams
   ) {
@@ -5250,12 +5201,12 @@ class TabDialogBox {
       this._contentDialogManager?.hasDialogs;
 
     if (!hasDialogs()) {
-      this._onFirstDialogOpen();
+      this._onFirstDialogOpen(webProgress ?? this.browser.webProgress);
     }
 
     let closingCallback = event => {
       if (!hasDialogs()) {
-        this._onLastDialogClose();
+        this._onLastDialogClose(webProgress ?? this.browser.webProgress);
       }
 
       if (allowFocusCheckbox && !event.detail?.abort) {
@@ -5290,25 +5241,25 @@ class TabDialogBox {
     return { closedPromise, dialog };
   }
 
-  _onFirstDialogOpen() {
+  _onFirstDialogOpen(webProgress) {
     // Hide PopupNotifications to prevent them from covering up dialogs.
     this.browser.setAttribute("tabDialogShowing", true);
     UpdatePopupNotificationsVisibility();
 
     // Register listeners
     this._lastPrincipal = this.browser.contentPrincipal;
-    this.browser.addProgressListener(this, Ci.nsIWebProgress.NOTIFY_LOCATION);
+    webProgress.addProgressListener(this, Ci.nsIWebProgress.NOTIFY_LOCATION);
 
     this.tab?.addEventListener("TabClose", this);
   }
 
-  _onLastDialogClose() {
+  _onLastDialogClose(webProgress) {
     // Show PopupNotifications again.
     this.browser.removeAttribute("tabDialogShowing");
     UpdatePopupNotificationsVisibility();
 
     // Clean up listeners
-    this.browser.removeProgressListener(this);
+    webProgress.removeProgressListener(this);
     this._lastPrincipal = null;
 
     this.tab?.removeEventListener("TabClose", this);

@@ -17,6 +17,12 @@ const TYPES = {
   GLOBAL: "global",
 };
 
+const FTL_FILES = [
+  "browser/newtab/asrouter.ftl",
+  "browser/defaultBrowserNotification.ftl",
+  "preview/termsOfUse.ftl",
+];
+
 class InfoBarNotification {
   constructor(message, dispatch) {
     this._dispatch = dispatch;
@@ -142,7 +148,12 @@ class InfoBarNotification {
   }
 
   /**
-   * Called when one of the infobar buttons is clicked
+   * Callback fired when a button in the infobar is clicked.
+   *
+   * @param {Element} notificationBox - The `<notification-message>` element representing the infobar.
+   * @param {Object} btnDescription - An object describing the button, includes the label, the action with an optional dismiss property, and primary button styling.
+   * @param {Element} target - The <button> DOM element that was clicked.
+   * @returns {boolean} Returns `false` to dismiss the infobar or `true` to keep it open.
    */
   buttonCallback(notificationBox, btnDescription, target) {
     this.dispatchUserAction(
@@ -154,6 +165,14 @@ class InfoBarNotification {
       ? "CLICK_PRIMARY_BUTTON"
       : "CLICK_SECONDARY_BUTTON";
     this.sendUserEventTelemetry(eventName);
+
+    // Prevent dismissal if dismiss property is set to 'false'
+    if (btnDescription.action?.dismiss === false) {
+      return true;
+    }
+
+    // Default, dismisses the Infobar
+    return false;
   }
 
   dispatchUserAction(action, selectedBrowser) {
@@ -222,10 +241,7 @@ export const InfoBar = {
   },
 
   maybeInsertFTL(win) {
-    win.MozXULElement.insertFTLIfNeeded("browser/newtab/asrouter.ftl");
-    win.MozXULElement.insertFTLIfNeeded(
-      "browser/defaultBrowserNotification.ftl"
-    );
+    FTL_FILES.forEach(path => win.MozXULElement.insertFTLIfNeeded(path));
   },
 
   async showNotificationAllWindows(notification) {

@@ -766,6 +766,47 @@ BaselineScript* BaselineScript::New(JSContext* cx,
   return script;
 }
 
+BaselineScript* BaselineScript::Copy(JSContext* cx, BaselineScript* bs) {
+  BaselineScript* script = jit::BaselineScript::New(
+      cx, bs->warmUpCheckPrologueOffset_, bs->profilerEnterToggleOffset_,
+      bs->profilerExitToggleOffset_, bs->retAddrEntries().size(),
+      bs->osrEntries().size(), bs->debugTrapEntries().size(),
+      bs->resumeEntryList().size());
+  if (!script) {
+    return nullptr;
+  }
+
+  script->setMethod(bs->method());
+  script->copyRetAddrEntries(bs->retAddrEntries().data());
+  script->copyOSREntries(bs->osrEntries().data());
+  script->copyDebugTrapEntries(bs->debugTrapEntries().data());
+
+  script->flags_ = bs->flags_;
+
+  // copyResumeNativeOffsets()
+  std::copy_n(bs->resumeEntryList().begin(), script->resumeEntryList().size(),
+              script->resumeEntryList().data());
+
+  if (bs->hasDebugInstrumentation()) {
+    script->setHasDebugInstrumentation();
+  }
+  MOZ_ASSERT(script->method_ == bs->method_);
+  MOZ_ASSERT(script->pendingIonCompileTask_ == bs->pendingIonCompileTask_);
+  MOZ_ASSERT(script->warmUpCheckPrologueOffset_ ==
+             bs->warmUpCheckPrologueOffset_);
+  MOZ_ASSERT(script->profilerEnterToggleOffset_ ==
+             bs->profilerEnterToggleOffset_);
+  MOZ_ASSERT(script->profilerExitToggleOffset_ ==
+             bs->profilerExitToggleOffset_);
+  MOZ_ASSERT(script->resumeEntriesOffset_ == bs->resumeEntriesOffset_);
+  MOZ_ASSERT(script->retAddrEntriesOffset_ == bs->retAddrEntriesOffset_);
+  MOZ_ASSERT(script->osrEntriesOffset_ == bs->osrEntriesOffset_);
+  MOZ_ASSERT(script->debugTrapEntriesOffset_ == bs->debugTrapEntriesOffset_);
+  MOZ_ASSERT(script->allocBytes_ == bs->allocBytes_);
+  MOZ_ASSERT(script->flags_ == bs->flags_);
+  return script;
+}
+
 void BaselineScript::trace(JSTracer* trc) {
   TraceEdge(trc, &method_, "baseline-method");
 }
@@ -934,11 +975,10 @@ void BaselineScript::computeResumeNativeOffsets(
                  computeNative);
 }
 
-uint8_t* BaselineScript::OSREntryForFrame(BaselineFrame* frame) {
-  AutoUnsafeCallWithABI unsafe;
+bool BaselineScript::OSREntryForFrame(JSContext* cx, BaselineFrame* frame,
+                                      uint8_t** entry) {
   MOZ_ASSERT(frame->runningInInterpreter());
 
-  uint8_t* entry = nullptr;
   JSScript* script = frame->script();
   BaselineScript* baselineScript = script->baselineScript();
   jsbytecode* pc = frame->interpreterPC();
@@ -966,10 +1006,8 @@ uint8_t* BaselineScript::OSREntryForFrame(BaselineFrame* frame) {
     // baseline. Since h is already compiled in baseline, execution jumps
     // directly into baseline code. This is incorrect as h's baseline script
     // does not have debug instrumentation.
-    JSContext* cx = TlsContext.get();
-    if (!RecompileBaselineScriptForDebugMode(cx, script, DebugAPI::Observing)) {
-      cx->recoverFromOutOfMemory();
-      return nullptr;
+    if (!DebugAPI::ensureExecutionObservabilityOfOsrFrame(cx, frame)) {
+      return false;
     }
     baselineScript = script->baselineScript();
   }
@@ -977,13 +1015,13 @@ uint8_t* BaselineScript::OSREntryForFrame(BaselineFrame* frame) {
   if (JSOp(*pc) == JSOp::LoopHead) {
     MOZ_ASSERT(pc > script->code(),
                "Prologue vs OSR cases must not be ambiguous");
-    entry = baselineScript->nativeCodeForOSREntry(pcOffset);
+    *entry = baselineScript->nativeCodeForOSREntry(pcOffset);
   } else {
-    entry = baselineScript->warmUpCheckPrologueAddr();
+    *entry = baselineScript->warmUpCheckPrologueAddr();
   }
 
   frame->prepareForBaselineInterpreterToJitOSR();
-  return entry;
+  return true;
 }
 
 void BaselineScript::copyRetAddrEntries(const RetAddrEntry* entries) {

@@ -13,7 +13,6 @@ import androidx.biometric.BiometricManager
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.SwitchPreference
-import org.mozilla.fenix.Config
 import org.mozilla.fenix.GleanMetrics.PrivateBrowsingLocked
 import org.mozilla.fenix.HomeActivity
 import org.mozilla.fenix.R
@@ -21,6 +20,7 @@ import org.mozilla.fenix.components.PrivateShortcutCreateManager
 import org.mozilla.fenix.ext.registerForActivityResult
 import org.mozilla.fenix.ext.settings
 import org.mozilla.fenix.ext.showToolbar
+import org.mozilla.fenix.nimbus.FxNimbus
 import org.mozilla.fenix.settings.biometric.DefaultBiometricUtils
 import org.mozilla.fenix.settings.biometric.ext.isAuthenticatorAvailable
 import org.mozilla.fenix.settings.biometric.ext.isHardwareAvailable
@@ -85,7 +85,7 @@ class PrivateBrowsingFragment : PreferenceFragmentCompat() {
         requirePreference<SwitchPreference>(R.string.pref_key_private_browsing_locked_enabled).apply {
             isChecked = context.settings().privateBrowsingLockedEnabled &&
                 biometricManager.isAuthenticatorAvailable()
-            isVisible = deviceCapable && Config.channel.isDebug
+            isVisible = deviceCapable && FxNimbus.features.privateBrowsingLock.value().enabled
             isEnabled = userHasEnabledCapability
 
             setOnPreferenceChangeListener { preference, newValue ->
@@ -119,7 +119,8 @@ class PrivateBrowsingFragment : PreferenceFragmentCompat() {
         }
 
         requirePreference<Preference>(R.string.pref_key_private_browsing_lock_device_feature_enabled).apply {
-            isVisible = deviceCapable && !userHasEnabledCapability
+            isVisible =
+                deviceCapable && !userHasEnabledCapability && FxNimbus.features.privateBrowsingLock.value().enabled
 
             setOnPreferenceClickListener {
                 context.startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS))

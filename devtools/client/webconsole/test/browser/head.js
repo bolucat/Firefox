@@ -1,6 +1,5 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
-/* eslint no-unused-vars: [2, {"vars": "local"}] */
 
 "use strict";
 
@@ -640,10 +639,9 @@ async function checkClickOnNode(
   if (logPointExpr !== undefined && logPointExpr !== "") {
     const inputEl = dbg.panelWin.document.activeElement;
 
-    const isPanelFocused = isCm6Enabled
-      ? inputEl.classList.contains("cm-content") &&
-        inputEl.closest(".conditional-breakpoint-panel.log-point")
-      : inputEl.tagName == "TEXTAREA";
+    const isPanelFocused =
+      inputEl.classList.contains("cm-content") &&
+      inputEl.closest(".conditional-breakpoint-panel.log-point");
 
     ok(isPanelFocused, "The textarea of logpoint panel is focused");
 

@@ -7,12 +7,17 @@
     border-radius: var(--border-radius-medium);
     box-shadow: $shadow-card;
 
-    .img-wrapper .img {
-      img,
-      .placeholder-image {
-        border-radius: var(--border-radius-medium) var(--border-radius-medium) 0 0;
-      }
+    img,
+    .placeholder-image {
+      border-radius: var(--border-radius-medium) var(--border-radius-medium) 0 0;
     }
+  }
+}
+
+.ds-card.refined-cards:not(.placeholder) {
+  .img-wrapper .img {
+    height: 172px;
+    width: 100%;
   }
 }
 

@@ -1436,9 +1436,7 @@ static int32_t RoundDown(double aDouble) {
                      : static_cast<int32_t>(ceil(aDouble));
 }
 
-float nsWindow::GetDPI() {
-  return GetDefaultScaleInternal() * 96.0f;
-}
+float nsWindow::GetDPI() { return GetDefaultScaleInternal() * 96.0f; }
 
 double nsWindow::GetDefaultScaleInternal() {
   if (mDefaultScale <= 0.0) {
@@ -8415,27 +8413,6 @@ nsresult nsWindow::SynthesizeNativeTouchPoint(
                ? NS_ERROR_UNEXPECTED
                : NS_OK;
   });
-}
-
-nsresult nsWindow::ClearNativeTouchSequence(nsIObserver* aObserver) {
-  AutoObserverNotifier notifier(aObserver, "cleartouch");
-  if (!sTouchInjectInitialized) {
-    return NS_OK;
-  }
-
-  // cancel all input points
-  for (auto iter = mActivePointers.Iter(); !iter.Done(); iter.Next()) {
-    auto* info = iter.UserData();
-    if (info->mType != PointerInfo::PointerType::TOUCH) {
-      continue;
-    }
-    InjectTouchPoint(info->mPointerId, info->mPosition, POINTER_FLAG_CANCELED);
-    iter.Remove();
-  }
-
-  nsBaseWidget::ClearNativeTouchSequence(nullptr);
-
-  return NS_OK;
 }
 
 #if !defined(NTDDI_WIN10_RS5) || (NTDDI_VERSION < NTDDI_WIN10_RS5)

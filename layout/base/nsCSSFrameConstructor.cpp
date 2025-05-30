@@ -231,8 +231,7 @@ static inline bool IsAnonymousItem(const nsIFrame* aFrame) {
 // Returns true IFF the given nsIFrame is a nsFlexContainerFrame and represents
 // a -webkit-{inline-}box container.
 static inline bool IsFlexContainerForLegacyWebKitBox(const nsIFrame* aFrame) {
-  return aFrame->IsFlexContainerFrame() &&
-         aFrame->HasAnyStateBits(NS_STATE_FLEX_IS_EMULATING_LEGACY_WEBKIT_BOX);
+  return aFrame->IsFlexContainerFrame() && aFrame->IsLegacyWebkitBox();
 }
 
 #if DEBUG
@@ -1230,8 +1229,8 @@ MOZ_NEVER_INLINE void nsFrameConstructorState::ProcessFrameInsertions(
     nsIFrame* firstNewFrame = aFrameList.FirstChild();
 
     // Cache the ancestor chain so that we can reuse it if needed.
-    AutoTArray<nsIFrame*, 20> firstNewFrameAncestors;
-    nsIFrame* notCommonAncestor = nullptr;
+    AutoTArray<const nsIFrame*, 20> firstNewFrameAncestors;
+    const nsIFrame* notCommonAncestor = nullptr;
     if (lastChild) {
       notCommonAncestor = nsLayoutUtils::FillAncestors(
           firstNewFrame, containingBlock, &firstNewFrameAncestors);
@@ -2378,6 +2377,8 @@ nsIFrame* nsCSSFrameConstructor::ConstructDocElementFrame(
   }
 
   // Ensure the document element is styled at this point.
+  // FIXME(emilio, bug 1852735): This is only needed because of the sync frame
+  // construction from PresShell::Initialize.
   if (!aDocElement->HasServoData()) {
     mPresShell->StyleSet()->StyleNewSubtree(aDocElement);
   }
@@ -2627,8 +2628,8 @@ nsIFrame* nsCSSFrameConstructor::ConstructDocElementFrame(
   // changing nsCanvasFrame (and a whole lot of other potentially unknown code)
   // to look at the last child to find the root frame rather than the first
   // child.
-  ConstructAnonymousContentForCanvas(
-      state, mCanvasFrame, mRootElementFrame->GetContent(), frameList);
+  ConstructAnonymousContentForRoot(state, mCanvasFrame,
+                                   mRootElementFrame->GetContent(), frameList);
   mCanvasFrame->AppendFrames(FrameChildListID::Principal, std::move(frameList));
 
   return newFrame;
@@ -2883,23 +2884,38 @@ void nsCSSFrameConstructor::SetUpDocElementContainingBlock(
   }
 }
 
-void nsCSSFrameConstructor::ConstructAnonymousContentForCanvas(
-    nsFrameConstructorState& aState, nsContainerFrame* aFrame,
+void nsCSSFrameConstructor::ConstructAnonymousContentForRoot(
+    nsFrameConstructorState& aState, nsContainerFrame* aCanvasFrame,
     nsIContent* aDocElement, nsFrameList& aFrameList) {
-  NS_ASSERTION(aFrame->IsCanvasFrame(), "aFrame should be canvas frame!");
+  NS_ASSERTION(aCanvasFrame->IsCanvasFrame(), "aFrame should be canvas frame!");
   MOZ_ASSERT(mRootElementFrame->GetContent() == aDocElement);
 
   AutoTArray<nsIAnonymousContentCreator::ContentInfo, 4> anonymousItems;
-  GetAnonymousContent(aDocElement, aFrame, anonymousItems);
+  GetAnonymousContent(aDocElement, aCanvasFrame, anonymousItems);
+
+  // If we get here, we are rebuilding the anonymous content of the root
+  // element. In this case, we also need to deal with the custom content
+  // container.
+  if (auto* container =
+          aState.mPresContext->Document()->GetCustomContentContainer()) {
+    // FIXME(emilio, bug 1852735): This is only needed because of the sync frame
+    // construction from PresShell::Initialize. See the similar code-path in
+    // ConstructDocElementFrame.
+    if (!container->HasServoData()) {
+      mPresShell->StyleSet()->StyleNewSubtree(container);
+    }
+    anonymousItems.AppendElement(container);
+  }
+
   if (anonymousItems.IsEmpty()) {
     return;
   }
 
   AutoFrameConstructionItemList itemsToConstruct(this);
-  AutoFrameConstructionPageName pageNameTracker(aState, aFrame);
-  AddFCItemsForAnonymousContent(aState, aFrame, anonymousItems,
+  AutoFrameConstructionPageName pageNameTracker(aState, aCanvasFrame);
+  AddFCItemsForAnonymousContent(aState, aCanvasFrame, anonymousItems,
                                 itemsToConstruct, pageNameTracker);
-  ConstructFramesFromItemList(aState, itemsToConstruct, aFrame,
+  ConstructFramesFromItemList(aState, itemsToConstruct, aCanvasFrame,
                               /* aParentIsWrapperAnonBox = */ false,
                               aFrameList);
 }
@@ -8438,6 +8454,12 @@ static bool ShouldRecreateContainerForNativeAnonymousContentRoot(
     return false;
   }
   if (auto* el = Element::FromNode(aContent)) {
+    if (el->GetPseudoElementType() ==
+        PseudoStyleType::mozSnapshotContainingBlock) {
+      // Much like above, all abspos and on its own top layer so insertion order
+      // wouldn't really matter anyways.
+      return false;
+    }
     if (auto* classes = el->GetClasses()) {
       if (classes->Contains(nsGkAtoms::mozCustomContentContainer,
                             eCaseMatters)) {

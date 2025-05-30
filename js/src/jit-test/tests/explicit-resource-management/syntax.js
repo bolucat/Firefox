@@ -8,7 +8,6 @@ Reflect.parse("using x = {}", { target: "module" });
 Reflect.parse("{ using x = fn() }");
 Reflect.parse("{ using x = fn(); }");
 Reflect.parse("function f() { using x = fn(); }");
-Reflect.parse("switch (x) { case 1: using x = fn(); }");
 Reflect.parse("if (x == 1) { using x = fn(); }");
 Reflect.parse("for (let i = 0; i < 10; i++) { using x = fn(); }");
 Reflect.parse("for (const i of [1, 2, 3]) { using x = fn(); }");
@@ -22,6 +21,7 @@ Reflect.parse("{ using x = null }");
 Reflect.parse("{ using x = undefined }");
 Reflect.parse("{ for (using x of y) {} }");
 Reflect.parse("for (using x of y) {}");
+Reflect.parse("for (using x = y;;) {}");
 Reflect.parse("for await (using x of y) {}", { target: "module" });
 Reflect.parse("async function fn() { for await (using x of y) {} }");
 
@@ -51,7 +51,6 @@ assertEq(forStatement.left.declarations[0].id.name, "x");
 // Valid `await using` syntaxes
 Reflect.parse("await using x = {}", { target: "module" });
 Reflect.parse("if (x == 1) { await using x = fn(); }", { target: "module" });
-Reflect.parse("switch (x) { case 1: await using x = fn(); }", { target: "module" });
 Reflect.parse("async function fn() { await using x = {}; }");
 Reflect.parse("async function* gen() { await using x = {}; }");
 Reflect.parse("for (let i = 0; i < 10; i++) { await using x = fn(); }", { target: "module" });
@@ -104,6 +103,8 @@ assertThrowsInstanceOf(() => Reflect.parse("foo: using x = 10;"), SyntaxError);
 assertThrowsInstanceOf(() => Reflect.parse("export using x = 10", { target: "module" }), SyntaxError);
 assertThrowsInstanceOf(() => Reflect.parse("{ using a }"), SyntaxError);
 assertThrowsInstanceOf(() => Reflect.parse("{ using a, b }"), SyntaxError);
+assertThrowsInstanceOf(() => Reflect.parse("switch (x) { case 1: using x = fn(); }"), SyntaxError);
+assertThrowsInstanceOf(() => Reflect.parse("switch (x) { case 1: break; default: using x = fn(); }"), SyntaxError);
 
 // Invalid `await using` syntaxes
 assertThrowsInstanceOf(() => Reflect.parse("{ await using }"), SyntaxError);
@@ -126,6 +127,8 @@ assertThrowsInstanceOf(() => Reflect.parse("for (await using [x,y] of z) {}", { 
 assertThrowsInstanceOf(() => Reflect.parse("for (await using {x,y} of z) {}", { target: "module" }), SyntaxError);
 assertThrowsInstanceOf(() => Reflect.parse("{ await using a }", { target: "module" }), SyntaxError);
 assertThrowsInstanceOf(() => Reflect.parse("{ await using a, b }", { target: "module" }), SyntaxError);
+assertThrowsInstanceOf(() => Reflect.parse("switch (x) { case 1: await using x = fn(); }", { target: "module" }), SyntaxError);
+assertThrowsInstanceOf(() => Reflect.parse("switch (x) { case 1: break; default: await using x = fn(); }", { target: "module" }), SyntaxError);
 
 // Valid usage of `using` syntax with contextual keywords
 Reflect.parse("{ using await = {}; }");
@@ -142,6 +145,7 @@ Reflect.parse("{ using package = {}; }");
 Reflect.parse("'use strict'; { using await = {}; }");
 Reflect.parse("for (using await of y) {}");
 Reflect.parse("for (using yield of y) {}");
+Reflect.parse("for (using of = null;;) {}");
 Reflect.parse("using async = {};", { target: "module" });
 Reflect.parse("await using async = {};", { target: "module" });
 Reflect.parse("async function fn() { using async = {}; }");
@@ -159,6 +163,8 @@ Reflect.parse("async function fn() { await using package = {}; }");
 Reflect.parse("await using as = {}", { target: "module" });
 Reflect.parse("await using async = {};", { target: "module" });
 Reflect.parse("for (await using of of y) {}", { target: "module" })
+Reflect.parse("async () => { for (await using of = 0;;) {} }");
+Reflect.parse("for (await using of = 0;;) {}", { target: "module" });
 
 // Invalid usage of `using` syntax with contextual keywords.
 assertThrowsInstanceOf(() => Reflect.parse("{ using let = {} }"), SyntaxError);
@@ -178,6 +184,9 @@ assertThrowsInstanceOf(() => Reflect.parse("function* gen() { using yield = {}; 
 assertThrowsInstanceOf(() => Reflect.parse("for (using await of y) {}", { target: "module" }), SyntaxError);
 assertThrowsInstanceOf(() => Reflect.parse("async function fn() { for (using await of y) {} }"), SyntaxError);
 assertThrowsInstanceOf(() => Reflect.parse("function* gen() { for (using yield of y) {} }"), SyntaxError);
+assertThrowsInstanceOf(() => Reflect.parse("for (using of;;) {}"), SyntaxError);
+assertThrowsInstanceOf(() => Reflect.parse("for (using of = 0 in {}) {}"), SyntaxError);
+assertThrowsInstanceOf(() => Reflect.parse("for (using\nof = null;;) {}"), SyntaxError);
 
 // Invalid usage of `await using` syntax with contextual keywords.
 assertThrowsInstanceOf(() => Reflect.parse("await using yield = {};", { target: "module" }), SyntaxError);
@@ -201,6 +210,8 @@ assertThrowsInstanceOf(() => Reflect.parse("'use strict'; async function fn() { 
 assertThrowsInstanceOf(() => Reflect.parse("async function* gen() { await using yield = {}; } "), SyntaxError);
 assertThrowsInstanceOf(() => Reflect.parse("async function fn() { for (await using await of y) {} }"), SyntaxError);
 assertThrowsInstanceOf(() => Reflect.parse("async function* gen() { for (await using yield of y) {} }"), SyntaxError);
+assertThrowsInstanceOf(() => Reflect.parse("async () => { for (await using of;;) {} }"), SyntaxError);
+assertThrowsInstanceOf(() => Reflect.parse("async () => { for await (using of = 0;;) {} }"), SyntaxError);
 
 // Valid syntaxes close to `using` but not `using` declarations.
 Reflect.parse("for (using of y) {}");
@@ -232,6 +243,8 @@ Reflect.parse("{ /using/g }");
 Reflect.parse("{ using\nlet = {} }");
 Reflect.parse("export const using = 10", { target: "module" });
 Reflect.parse("import using from 'xyz'", { target: "module" });
+Reflect.parse("switch (x) { case 1: using: fn(); }");
+Reflect.parse("switch (x) { case 1: break; default: using: fn(); }");
 
 const ast4 = Reflect.parse("{ using = 10 }");
 assertEq(ast4.body[0].body[0].type, "ExpressionStatement");

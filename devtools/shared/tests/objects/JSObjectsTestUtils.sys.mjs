@@ -2,16 +2,14 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-import { TEST_PAGE_HTML, CONTEXTS, AllObjects } from "resource://testing-common/AllJavascriptTypes.mjs";
-export { CONTEXTS } from "resource://testing-common/AllJavascriptTypes.mjs";
 import { ObjectUtils } from "resource://gre/modules/ObjectUtils.sys.mjs";
+import { TEST_PAGE_HTML, CONTEXTS, AllObjects } from "resource://testing-common/AllJavascriptTypes.mjs";
+import { AddonTestUtils } from "resource://testing-common/AddonTestUtils.sys.mjs"
 
 // Name of the environment variable to set while running the test to update the expected values
 const UPDATE_SNAPSHOT_ENV = "UPDATE_SNAPSHOT";
 
-const { AddonTestUtils } = ChromeUtils.importESModule(
-  "resource://testing-common/AddonTestUtils.sys.mjs"
-);
+export { CONTEXTS } from "resource://testing-common/AllJavascriptTypes.mjs";
 
 // To avoid totally unrelated exceptions about missing appinfo when running from xpcshell tests
 const isXpcshell = Services.env.exists("XPCSHELL_TEST_PROFILE_DIR");
@@ -54,7 +52,7 @@ function init(testScope) {
   });
 
   // Lookup for all preferences to toggle in order to have all the expected objects type functional
-  let prefValues = new Map();
+  const prefValues = new Map();
   for (const { prefs } of AllObjects) {
     if (!prefs) {
       continue;
@@ -114,7 +112,6 @@ function loadExpectedValues(expectedValuesFileName) {
     gExpectedValuesFilePath = Services.io.newURI(resHandler.resolveURI(resURL)).QueryInterface(Ci.nsIFileURL).file.path;
   }
 
-  let expectedValues;
   if (!isUpdate) {
     dump(`Loading test data file: ${url}\n`);
     return ChromeUtils.importESModule(url).default;
@@ -227,7 +224,6 @@ async function runTest(expectedValuesFileName, testFunction) {
       "`More info in https://firefox-source-docs.mozilla.org/devtools/tests/js-object-tests.html\n";
 
     const isMochitest = "gTestPath" in gTestScope;
-    const isXpcshell = !isMochitest;
 
     // If we aren't in "update" mode, we are reading assertion values from $EXPECTED_VALUES_FILE
     // and will assert the current returned values against these values
@@ -238,7 +234,7 @@ async function runTest(expectedValuesFileName, testFunction) {
       } catch(e) {
         // deepEqual only throws in case of differences when running in XPCShell tests. Mochitest won't throw and keep running.
         // XPCShell will stop at the first failing assertion, so ensure showing our failure message and ok() will throw and stop the test.
-        if (isXpcshell) {
+        if (!isMochitest) {
           gTestScope.Assert.ok(false, failureMessage);
         }
         throw e;

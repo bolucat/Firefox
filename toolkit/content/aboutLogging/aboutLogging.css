@@ -10,6 +10,34 @@
   display: none !important;
 }
 
+.about-logging-title-bar {
+  display: flex;
+  align-items: center;
+  gap: 1em;
+}
+
+#copy-as-url::part(button) {
+  background-image: url("chrome://global/skin/icons/edit-copy.svg");
+}
+
+#toast-copied {
+  visibility: hidden;
+  background-color: var(--background-color-success);
+  color: var(--text-color);
+  text-align: center;
+  border-radius: var(--border-radius-small);
+  padding: var(--space-medium);
+  opacity: 0;
+  transition:
+    opacity 0.5s,
+    visibility 0.5s;
+  margin-left: auto;
+  &.show {
+    visibility: visible;
+    opacity: 1;
+  }
+}
+
 /** Content area **/
 .main-content {
   width: min(90%, 1024px);
@@ -54,7 +82,7 @@ label {
   line-height: 1.8em;
 }
 
-input[type=text] {
+input[type="text"] {
   box-sizing: border-box;
   width: 100%;
   font-family: monospace;
@@ -67,7 +95,7 @@ input[type=text] {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: .5em;
+  gap: 0.5em;
 }
 
 .button-row > button:first-of-type {
@@ -96,7 +124,7 @@ input[type=text] {
 
 .button-with-icon {
   display: flex;
-  gap: .5em;
+  gap: 0.5em;
 
   /* Make sure that the icon changes color in dark mode. */
   -moz-context-properties: fill;

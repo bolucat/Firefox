@@ -121,6 +121,7 @@ class nsPresContext;
 class nsTextFragment;
 class nsView;
 class nsWrapperCache;
+enum class WindowMediatorFilter : uint8_t;
 
 struct JSContext;
 struct nsPoint;
@@ -2297,6 +2298,11 @@ class nsContentUtils {
   // not in private browsing mode.
   static already_AddRefed<nsPIDOMWindowOuter> GetMostRecentNonPBWindow();
 
+  // Returns the browser window with the most recent time stamp, filtered by the
+  // parameter.
+  static already_AddRefed<nsPIDOMWindowOuter> GetMostRecentWindowBy(
+      WindowMediatorFilter aFilter);
+
   /**
    * Call this function if !IsSafeToRunScript() and we fail to run the script
    * (rather than using AddScriptRunner as we usually do). |aDocument| is
@@ -3665,6 +3671,9 @@ class nsContentUtils {
    * Return 1 if aChild2 is a preceding sibling of a child at aOffset1.
    * Return Nothing if aChild2 is a root of the native anonymous subtree.
    */
+  template <TreeKind aKind,
+            typename = std::enable_if_t<aKind == TreeKind::ShadowIncludingDOM ||
+                                        aKind == TreeKind::Flat>>
   static mozilla::Maybe<int32_t> CompareChildOffsetAndChildNode(
       uint32_t aOffset1, const nsINode& aChild2,
       NodeIndexCache* aIndexCache = nullptr);
@@ -3675,6 +3684,9 @@ class nsContentUtils {
    * Return 1 if aChild1 is a following sibling of a child at aOffset2.
    * Return Nothing if aChild1 is a root of the native anonymous subtree.
    */
+  template <TreeKind aKind,
+            typename = std::enable_if_t<aKind == TreeKind::ShadowIncludingDOM ||
+                                        aKind == TreeKind::Flat>>
   static mozilla::Maybe<int32_t> CompareChildNodeAndChildOffset(
       const nsINode& aChild1, uint32_t aOffset2,
       NodeIndexCache* aIndexCache = nullptr);
@@ -3828,7 +3840,6 @@ nsContentUtils::InternalContentPolicyTypeToExternal(nsContentPolicyType aType) {
     case nsIContentPolicy::TYPE_SUBDOCUMENT:
     case nsIContentPolicy::TYPE_PING:
     case nsIContentPolicy::TYPE_XMLHTTPREQUEST:
-    case nsIContentPolicy::TYPE_OBJECT_SUBREQUEST:
     case nsIContentPolicy::TYPE_DTD:
     case nsIContentPolicy::TYPE_FONT:
     case nsIContentPolicy::TYPE_MEDIA:

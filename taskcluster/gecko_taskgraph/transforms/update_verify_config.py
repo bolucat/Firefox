@@ -27,8 +27,8 @@ INCLUDE_VERSION_REGEXES = {
     "nonbeta": r"'^\d+\.\d+(\.\d+)?$'",
     # Same as nonbeta, except for the esr suffix
     "esr": r"'^\d+\.\d+(\.\d+)?esr$'",
-    # Previous esr versions, for update testing before we update users to esr128
-    "esr128-next": r"'^(52|60|68|78|91|102|115)+\.\d+(\.\d+)?esr$'",
+    # Previous esr versions, for update testing before we update users to esr140
+    "esr140-next": r"'^(52|60|68|78|91|102|115|128)+\.\d+(\.\d+)?esr$'",
 }
 
 MAR_CHANNEL_ID_OVERRIDE_REGEXES = {
@@ -112,7 +112,7 @@ def add_command(config, tasks):
         command.extend(["--repo-path", repo_path])
 
         if release_config.get("partial_versions"):
-            for partial in release_config["partial_versions"].split(","):
+            for partial in release_config["partial_versions"]:
                 command.extend(["--partial-version", partial.split("build")[0]])
 
         for arg in optional_args:

@@ -29,6 +29,7 @@
 #include "mozilla/dom/DocumentBinding.h"
 #include "mozilla/dom/DOMTypes.h"
 #include "mozilla/dom/nsCSPContext.h"
+#include "mozilla/dom/nsCSPUtils.h"
 #include "mozilla/dom/PermissionMessageUtils.h"
 #include "mozilla/dom/ReferrerInfoUtils.h"
 #include "mozilla/ipc/IPDLParamTraits.h"
@@ -224,6 +225,11 @@ nsIPrincipal* SessionHistoryInfo::GetPrincipalToInherit() const {
 
 nsIPrincipal* SessionHistoryInfo::GetPartitionedPrincipalToInherit() const {
   return mSharedState.Get()->mPartitionedPrincipalToInherit;
+}
+
+void SessionHistoryInfo::SetPartitionedPrincipalToInherit(
+    nsIPrincipal* aPartitionedPrincipal) {
+  mSharedState.Get()->mPartitionedPrincipalToInherit = aPartitionedPrincipal;
 }
 
 nsIContentSecurityPolicy* SessionHistoryInfo::GetCsp() const {
@@ -891,7 +897,10 @@ SessionHistoryEntry::GetCsp(nsIContentSecurityPolicy** aCsp) {
 
 NS_IMETHODIMP
 SessionHistoryEntry::SetCsp(nsIContentSecurityPolicy* aCsp) {
-  SharedInfo()->mCsp = aCsp;
+  nsCOMPtr<nsIURI> uri = mInfo->mURI;
+  if (CSP_ShouldURIInheritCSP(uri)) {
+    SharedInfo()->mCsp = aCsp;
+  }
   return NS_OK;
 }
 
@@ -1661,12 +1670,10 @@ bool IPDLParamTraits<dom::SessionHistoryInfo>::Read(
                          aResult->mSharedState.Get()->mPrincipalToInherit)
                    : !aResult->mSharedState.Get()->mPrincipalToInherit,
                "We don't expect this to change!");
-    MOZ_ASSERT(
-        partitionedPrincipalToInherit
-            ? partitionedPrincipalToInherit->Equals(
-                  aResult->mSharedState.Get()->mPartitionedPrincipalToInherit)
-            : !aResult->mSharedState.Get()->mPartitionedPrincipalToInherit,
-        "We don't expect this to change!");
+    MOZ_ASSERT_IF(
+        aResult->mSharedState.Get()->mPartitionedPrincipalToInherit,
+        aResult->mSharedState.Get()->mPartitionedPrincipalToInherit->Equals(
+            partitionedPrincipalToInherit));
     MOZ_ASSERT(
         csp ? nsCSPContext::Equals(csp, aResult->mSharedState.Get()->mCsp)
             : !aResult->mSharedState.Get()->mCsp,

@@ -44,6 +44,7 @@ include "mozilla/ipc/TransportSecurityInfoUtils.h";
 include "mozilla/ipc/URIUtils.h";
 
 using struct nsID from "nsID.h";
+using mozilla::contentanalysis::StringHashSet from "mozilla/contentanalysis/ContentAnalysisIPCTypes.h";
 using mozilla::gfx::Matrix4x4 from "mozilla/gfx/Matrix.h";
 using mozilla::gfx::SurfaceFormat from "mozilla/gfx/Types.h";
 using mozilla::LayoutDeviceIntPoint from "Units.h";
@@ -494,7 +495,6 @@ parent:
     async SynthesizeNativeTouchTap(LayoutDeviceIntPoint aPoint,
                                    bool aLongTap,
                                    uint64_t aObserverId);
-    async ClearNativeTouchSequence(uint64_t aObserverId);
     async SynthesizeNativePenInput(uint32_t aPointerId,
                                    TouchPointerState aPointerState,
                                    LayoutDeviceIntPoint aPoint,
@@ -532,15 +532,12 @@ parent:
                            bool aCanGoForward,
                            WebProgressLocationChangeData? aLocationChangeData);
 
-    // We only track information about total progress in the parent process.
-    // This value is throttled using nsBrowserStatusFilter, and records the full
-    // total progress for nsDocShells managed by this actor.
-    async OnProgressChange(int32_t aCurTotalProgress, int32_t aMaxTotalProgress);
+    async OnProgressChange(WebProgressData aWebProgressData, RequestData aRequestData,
+                           int32_t aCurSelfProgress, int32_t aMaxSelfProgress,
+                           int32_t aCurTotalProgress, int32_t aMaxTotalProgress);
 
-    // Calls to OnStatusChange are throttled by nsBrowserStatusFilter, meaning
-    // they are only called with a status of `NS_OK`, and with no webProgress or
-    // request.
-    async OnStatusChange(nsString aMessage);
+    async OnStatusChange(WebProgressData aWebProgressData, RequestData aRequestData,
+                         nsresult aStatus, nsString aMessage);
 
     async NotifyContentBlockingEvent(uint32_t aEvent, RequestData aRequestData,
                                      bool aBlocked, nsCString aTrackingOrigin,
@@ -1057,7 +1054,7 @@ child:
      * recorded drop target and issue any EndDragSession call that was stopped
      * by StoreDropTargetAndDelayEndDragSession (if any).
      */
-    async DispatchToDropTargetAndResumeEndDragSession(bool aShouldDrop);
+    async DispatchToDropTargetAndResumeEndDragSession(bool aShouldDrop, StringHashSet aAllowedFilePaths);
 
 parent:
     /**

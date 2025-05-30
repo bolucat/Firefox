@@ -1775,6 +1775,10 @@ class PresShell final : public nsStubDocumentObserver,
     return mSelectionNodeCache;
   }
 
+  // Record that a frame is an orthogonal flow and may need to be reflowed
+  // on resize.
+  void AddOrthogonalFlow(nsIFrame* aFrame) { mOrthogonalFlows.Insert(aFrame); }
+
  private:
   ~PresShell();
 
@@ -3154,7 +3158,7 @@ class PresShell final : public nsStubDocumentObserver,
   // A hash table of heap allocated weak frames.
   nsTHashSet<WeakFrame*> mWeakFrames;
 
-  nsTHashMap<RefPtr<const nsAtom>, nsIFrame*> mAnchorPosAnchors;
+  nsTHashMap<RefPtr<const nsAtom>, nsTArray<nsIFrame*>> mAnchorPosAnchors;
 
   // Reflow roots that need to be reflowed.
   DepthOrderedFrameList mDirtyRoots;
@@ -3218,6 +3222,10 @@ class PresShell final : public nsStubDocumentObserver,
   nsTHashSet<nsIContent*> mHiddenContentInForcedLayout;
 
   nsTHashSet<nsIFrame*> mContentVisibilityAutoFrames;
+
+  // Set of orthogonal-flow frames that need to be reflowed on a resize reflow
+  // because their layout may have been dependent on the ICB size.
+  nsTHashSet<nsIFrame*> mOrthogonalFlows;
 
   // The type of content relevancy to update the next time content relevancy
   // updates are triggered for `content-visibility: auto` frames.
@@ -3296,6 +3304,12 @@ class PresShell final : public nsStubDocumentObserver,
   // middle of frame construction and the like... it really shouldn't be
   // needed, one hopes, but it is for now.
   uint16_t mChangeNestCount;
+
+  // This is the input source which set mMouseLocation.
+  uint16_t mMouseLocationInputSource = 0;  // MOZ_SOURCE_UNKNOWN by default
+
+  // This is the pointerId which set mMouseLocation.
+  uint32_t mMouseLocationPointerId = 0;
 
   // Flags controlling how our document is rendered.  These persist
   // between paints and so are tied with retained layer pixels.

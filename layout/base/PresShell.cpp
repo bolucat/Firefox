@@ -2001,6 +2001,13 @@ bool PresShell::ResizeReflowIgnoreOverride(nscoord aWidth, nscoord aHeight,
     }
   };
 
+  // If there are orthogonal flows that were dependent on the ICB size, mark
+  // them as dirty to ensure they will be reflowed.
+  for (auto* frame : mOrthogonalFlows) {
+    FrameNeedsReflow(frame, IntrinsicDirty::None, NS_FRAME_HAS_DIRTY_CHILDREN);
+  }
+  mOrthogonalFlows.Clear();
+
   if (!(aOptions & ResizeReflowOptions::BSizeLimit)) {
     nsSize oldSize = mPresContext->GetVisibleArea().Size();
     if (oldSize == nsSize(aWidth, aHeight)) {
@@ -2240,6 +2247,7 @@ void PresShell::NotifyDestroyingFrame(nsIFrame* aFrame) {
     }
 
     mFramesToDirty.Remove(aFrame);
+    mOrthogonalFlows.Remove(aFrame);
 
     if (ScrollContainerFrame* scrollContainerFrame = do_QueryFrame(aFrame)) {
       mPendingScrollAnchorSelection.Remove(scrollContainerFrame);
@@ -3937,8 +3945,10 @@ bool PresShell::ScrollFrameIntoView(
     // scroll-padding on the direction we're stuck.
     const auto* stylePosition = aFrame->StylePosition();
     const auto positionProperty = aFrame->StyleDisplay()->mPosition;
+    const auto anchorResolutionParams =
+        AnchorPosResolutionParams::UseCBFrameSize(aFrame, positionProperty);
     for (auto side : AllPhysicalSides()) {
-      if (stylePosition->GetAnchorResolvedInset(side, positionProperty)
+      if (stylePosition->GetAnchorResolvedInset(side, anchorResolutionParams)
               ->IsAuto()) {
         continue;
       }
@@ -5541,22 +5551,14 @@ void PresShell::AddCanvasBackgroundColorItem(nsDisplayListBuilder* aBuilder,
                                              nsIFrame* aFrame,
                                              const nsRect& aBounds,
                                              nscolor aBackstopColor) {
-  if (aBounds.IsEmpty()) {
-    return;
-  }
-  const bool isViewport = aFrame->IsViewportFrame();
-  const SingleCanvasBackground* canvasBg;
-  if (isViewport) {
-    canvasBg = &mCanvasBackground.mViewport;
-  } else if (aFrame->IsPageContentFrame()) {
-    canvasBg = &mCanvasBackground.mPage;
-  } else {
+  if (aBounds.IsEmpty() || !aFrame->IsViewportFrame()) {
     // We don't want to add an item for the canvas background color if the frame
     // (sub)tree we are painting doesn't include any canvas frames.
     return;
   }
 
-  const nscolor bgcolor = NS_ComposeColors(aBackstopColor, canvasBg->mColor);
+  const SingleCanvasBackground& canvasBg = mCanvasBackground.mViewport;
+  const nscolor bgcolor = NS_ComposeColors(aBackstopColor, canvasBg.mColor);
   if (NS_GET_A(bgcolor) == 0) {
     return;
   }
@@ -5572,24 +5574,26 @@ void PresShell::AddCanvasBackgroundColorItem(nsDisplayListBuilder* aBuilder,
   // backgrounds shouldn't ever be semi-transparent.
   const bool forceUnscrolledItem =
       nsLayoutUtils::UsesAsyncScrolling(aFrame) && NS_GET_A(bgcolor) == 255;
-  if (!canvasBg->mCSSSpecified || forceUnscrolledItem) {
-    MOZ_ASSERT(NS_GET_A(bgcolor) == 255);
-    const bool isRootContentDocumentCrossProcess =
-        mPresContext->IsRootContentDocumentCrossProcess();
-    MOZ_ASSERT_IF(
-        isViewport && isRootContentDocumentCrossProcess &&
-            mPresContext->HasDynamicToolbar(),
-        aBounds.Size() ==
-            nsLayoutUtils::ExpandHeightForDynamicToolbar(
-                mPresContext, aFrame->InkOverflowRectRelativeToSelf().Size()));
-
-    nsDisplaySolidColor* item = MakeDisplayItem<nsDisplaySolidColor>(
-        aBuilder, aFrame, aBounds, bgcolor);
-    if (canvasBg->mCSSSpecified && isRootContentDocumentCrossProcess) {
-      item->SetIsCheckerboardBackground();
-    }
-    AddDisplayItemToBottom(aBuilder, aList, item);
+  if (canvasBg.mCSSSpecified && !forceUnscrolledItem) {
+    return;
   }
+
+  MOZ_ASSERT(NS_GET_A(bgcolor) == 255);
+  const bool isRootContentDocumentCrossProcess =
+      mPresContext->IsRootContentDocumentCrossProcess();
+  MOZ_ASSERT_IF(
+      !aFrame->GetParent() && isRootContentDocumentCrossProcess &&
+          mPresContext->HasDynamicToolbar(),
+      aBounds.Size() ==
+          nsLayoutUtils::ExpandHeightForDynamicToolbar(
+              mPresContext, aFrame->InkOverflowRectRelativeToSelf().Size()));
+
+  nsDisplaySolidColor* item =
+      MakeDisplayItem<nsDisplaySolidColor>(aBuilder, aFrame, aBounds, bgcolor);
+  if (canvasBg.mCSSSpecified && isRootContentDocumentCrossProcess) {
+    item->SetIsCheckerboardBackground();
+  }
+  AddDisplayItemToBottom(aBuilder, aList, item);
 }
 
 bool PresShell::IsTransparentContainerElement() const {
@@ -6093,6 +6097,8 @@ void PresShell::ProcessSynthMouseMoveEvent(bool aFromScroll) {
   event.mRefPoint =
       LayoutDeviceIntPoint::FromAppUnitsToNearest(refpoint, viewAPD);
   event.mButtons = PresShell::sMouseButtons;
+  event.mInputSource = mMouseLocationInputSource;
+  event.pointerId = mMouseLocationPointerId;
   // XXX set event.mModifiers ?
   // XXX mnakano I think that we should get the latest information from widget.
 
@@ -6997,10 +7003,6 @@ void PresShell::RecordPointerLocation(WidgetGUIEvent* aEvent) {
 
   switch (aEvent->mMessage) {
     case eMouseMove:
-      if (!aEvent->AsMouseEvent()->IsReal()) {
-        break;
-      }
-      [[fallthrough]];
     case eMouseEnterIntoWidget:
     case eMouseDown:
     case eMouseUp:
@@ -7008,12 +7010,18 @@ void PresShell::RecordPointerLocation(WidgetGUIEvent* aEvent) {
     case eDragStart:
     case eDragOver:
     case eDrop: {
-      mMouseLocation = GetEventLocation(*aEvent->AsMouseEvent());
+      WidgetMouseEvent* const mouseEvent = aEvent->AsMouseEvent();
+      if (mouseEvent->mMessage == eMouseMove && mouseEvent->IsSynthesized()) {
+        break;
+      }
+      mMouseLocation = GetEventLocation(*mouseEvent);
       mMouseEventTargetGuid = InputAPZContext::GetTargetLayerGuid();
       // FIXME: Don't trust the synthesized for tests flag of drag events.
       if (aEvent->mClass != eDragEventClass) {
+        mMouseLocationInputSource = mouseEvent->mInputSource;
+        mMouseLocationPointerId = mouseEvent->pointerId;
         mMouseLocationWasSetBySynthesizedMouseEventForTests =
-            aEvent->mFlags.mIsSynthesizedForTests;
+            mouseEvent->mFlags.mIsSynthesizedForTests;
       }
 #ifdef DEBUG
       if (MOZ_LOG_TEST(gLogMouseLocation, LogLevel::Info)) {
@@ -7059,6 +7067,8 @@ void PresShell::RecordPointerLocation(WidgetGUIEvent* aEvent) {
       // into another.
       mMouseLocation = nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
       mMouseEventTargetGuid = InputAPZContext::GetTargetLayerGuid();
+      mMouseLocationInputSource = MouseEvent_Binding::MOZ_SOURCE_UNKNOWN;
+      mMouseLocationPointerId = 0;
       mMouseLocationWasSetBySynthesizedMouseEventForTests =
           aEvent->mFlags.mIsSynthesizedForTests;
 #ifdef DEBUG
@@ -7406,15 +7416,6 @@ nsresult PresShell::EnsurePrecedingPointerRawUpdate(
       return NS_OK;
     }
   }
-
-#ifdef MOZ_DIAGNOSTIC_ASSERT_ENABLED
-  static bool sDispatchingRawUpdateEventFromHere = false;
-  MOZ_DIAGNOSTIC_ASSERT(
-      !sDispatchingRawUpdateEventFromHere,
-      "Dispatching ePointerRawUpdate should not be done recursively");
-  AutoRestore<bool> restoreDispathingFlag(sDispatchingRawUpdateEventFromHere);
-  sDispatchingRawUpdateEventFromHere = true;
-#endif  // #ifdef MOZ_DIAGNOSTIC_ASSERT_ENABLED
 
   if (const WidgetMouseEvent* const mouseEvent = aSourceEvent.AsMouseEvent()) {
     // If `convertToPointer` is `false`, it means that we've already handled the
@@ -11752,23 +11753,61 @@ nsIFrame* PresShell::GetAbsoluteContainingBlock(nsIFrame* aFrame) {
 
 nsIFrame* PresShell::GetAnchorPosAnchor(const nsAtom* aName) const {
   MOZ_ASSERT(aName);
-  if (auto entry = mAnchorPosAnchors.Lookup(aName)) {
-    return entry.Data();
+  if (const auto& entry = mAnchorPosAnchors.Lookup(aName)) {
+    return entry->SafeLastElement(nullptr);
   }
+
   return nullptr;
 }
 
 void PresShell::AddAnchorPosAnchor(const nsAtom* aName, nsIFrame* aFrame) {
   MOZ_ASSERT(aName);
-  mAnchorPosAnchors.InsertOrUpdate(aName, aFrame);
+
+  auto& entry = mAnchorPosAnchors.LookupOrInsertWith(
+      aName, []() { return nsTArray<nsIFrame*>(); });
+
+  if (entry.IsEmpty()) {
+    entry.AppendElement(aFrame);
+    return;
+  }
+
+  struct FrameTreeComparator {
+    nsIFrame* mFrame;
+
+    int32_t operator()(nsIFrame* aOther) const {
+      return nsLayoutUtils::CompareTreePosition(aOther, mFrame, nullptr);
+    }
+  };
+
+  FrameTreeComparator cmp{aFrame};
+
+  size_t matchOrInsertionIdx = entry.Length();
+  // If the same element is already in the array,
+  // someone forgot to call RemoveAnchorPosAnchor.
+  if (BinarySearchIf(entry, 0, entry.Length(), cmp, &matchOrInsertionIdx)) {
+    MOZ_ASSERT_UNREACHABLE("Anchor added already");
+    return;
+  }
+
+  *entry.InsertElementAt(matchOrInsertionIdx) = aFrame;
 }
 
 void PresShell::RemoveAnchorPosAnchor(const nsAtom* aName, nsIFrame* aFrame) {
   MOZ_ASSERT(aName);
-  if (auto entry = mAnchorPosAnchors.Lookup(aName)) {
-    if (entry.Data() == aFrame) {
-      entry.Remove();
-    }
+  auto entry = mAnchorPosAnchors.Lookup(aName);
+  if (!entry) {
+    return;  // Nothing to remove.
+  }
+
+  auto& anchorArray = entry.Data();
+
+  // XXX: Once the implementation is more complete,
+  // we should probably assert here that anchorArray
+  // is not empty and aFrame is in it.
+
+  anchorArray.RemoveElement(aFrame);
+  if (anchorArray.IsEmpty()) {
+    entry.Remove();
   }
 }
 

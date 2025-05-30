@@ -74,6 +74,8 @@ treeherder:
         'MSIs': 'Signing of Repacked installers of MSIs'
         'MSIX': 'Repack into MSIX package'
         'MSIXs': 'Signing of Repack into MSIX package'
+        'nt-trainhop': 'Desktop newtab trainhop tests'
+        'nt-trainhop-cf': 'Desktop newtab trainhop tests for confirm failure'
         'Pup': "Puppeteer tests"
         'R': 'Reftests'
         'R-ioi': 'Reftests with incremental origin initialization enabled'
@@ -310,6 +312,7 @@ treeherder:
         'service-sync-autofill': 'service-sync-autofill'
         'service-sync-logins': 'service-sync-logins'
         'support-android-test': 'support-android-test'
+        'support-appservices': 'support-appservices'
         'support-base': 'support-base'
         'support-images': 'support-images'
         'support-ktx': 'support-ktx'
@@ -465,7 +468,7 @@ release-promotion:
 
 merge-automation:
     behaviors:
-        central-to-beta:
+        main-to-beta:
             fetch-version-from: "browser/config/version.txt"
             version-files:
                 - filename: "config/milestone.txt"
@@ -536,11 +539,11 @@ merge-automation:
             replacements:
                 - - .arcconfig
                   - FIREFOXRELEASE
-                  - FIREFOXESRONETWOEIGHT
+                  - FIREFOXESRONEFOURZERO
             merge-old-head: false
             end-tag: "FIREFOX_ESR_{major_version}_BASE"
-            to-branch: 'esr128'
-        bump-central:
+            to-branch: 'esr140'
+        bump-main:
             fetch-version-from: "browser/config/version.txt"
             version-files:
                 - filename: "config/milestone.txt"
@@ -569,7 +572,7 @@ merge-automation:
             merge-old-head: false
             end-tag: 'FIREFOX_NIGHTLY_{major_version}_END'
             to-branch: 'main'
-        bump-esr128:
+        bump-esr140:
             fetch-version-from: "browser/config/version.txt"
             version-files:
                 - filename: "config/milestone.txt"
@@ -581,7 +584,7 @@ merge-automation:
                   new-suffix: "esr"
             replacements: []
             merge-old-head: false
-            to-branch: 'esr128'
+            to-branch: 'esr140'
 
 scriptworker:
     # See additional configuration in taskcluster/gecko_taskgraph/util/scriptworker.py
@@ -748,17 +751,17 @@ workers:
                     staging: '{trust-domain}-t-signing'
         mac-depsigning:
             provisioner: scriptworker-prov-v1
-            implementation: scriptworker-signing
+            implementation: iscript
             os: macosx
-            worker-type: depsigning-mac-v1
+            worker-type: dep-gecko-signing-mac14m2
         mac-signing:
             provisioner: scriptworker-prov-v1
-            implementation: scriptworker-signing
+            implementation: iscript
             os: macosx
             worker-type:
                 by-release-level:
-                    production: signing-mac-v1
-                    staging: depsigning-mac-v1
+                    production: gecko-signing-mac14m2
+                    staging: dep-gecko-signing-mac14m2
         push-apk:
             provisioner: scriptworker-k8s
             implementation: scriptworker-pushapk

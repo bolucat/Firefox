@@ -19,9 +19,10 @@ ChromeUtils.defineESModuleGetters(lazy, {
   LoginManagerContextMenu:
     "resource://gre/modules/LoginManagerContextMenu.sys.mjs",
   NetUtil: "resource://gre/modules/NetUtil.sys.mjs",
-  PlacesUIUtils: "resource:///modules/PlacesUIUtils.sys.mjs",
+  PlacesUIUtils: "moz-src:///browser/components/places/PlacesUIUtils.sys.mjs",
   PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
   ReaderMode: "moz-src:///toolkit/components/reader/ReaderMode.sys.mjs",
+  ScreenshotsUtils: "resource:///modules/ScreenshotsUtils.sys.mjs",
   ShortcutUtils: "resource://gre/modules/ShortcutUtils.sys.mjs",
   TranslationsParent: "resource://gre/actors/TranslationsParent.sys.mjs",
   WebsiteFilter: "resource:///modules/policies/WebsiteFilter.sys.mjs",
@@ -36,13 +37,6 @@ ChromeUtils.defineLazyGetter(lazy, "ReferrerInfo", () =>
     "nsIReferrerInfo",
     "init"
   )
-);
-
-XPCOMUtils.defineLazyPreferenceGetter(
-  lazy,
-  "SCREENSHOT_BROWSER_COMPONENT",
-  "screenshots.browser.component.enabled",
-  false
 );
 
 XPCOMUtils.defineLazyPreferenceGetter(
@@ -1426,7 +1420,7 @@ export class nsContextMenu {
 
   shouldShowTakeScreenshot() {
     let shouldShow =
-      !this.window.gScreenshots.shouldScreenshotsButtonBeDisabled() &&
+      lazy.ScreenshotsUtils.screenshotsEnabled &&
       this.inTabBrowser &&
       !this.onTextInput &&
       !this.onLink &&
@@ -1647,19 +1641,11 @@ export class nsContextMenu {
   }
 
   takeScreenshot() {
-    if (lazy.SCREENSHOT_BROWSER_COMPONENT) {
-      Services.obs.notifyObservers(
-        this.window,
-        "menuitem-screenshot",
-        "ContextMenu"
-      );
-    } else {
-      Services.obs.notifyObservers(
-        null,
-        "menuitem-screenshot-extension",
-        "contextMenu"
-      );
-    }
+    Services.obs.notifyObservers(
+      this.window,
+      "menuitem-screenshot",
+      "ContextMenu"
+    );
   }
 
   pdfJSCmd(aName) {
@@ -2386,7 +2372,6 @@ export class nsContextMenu {
         params: new URLSearchParams(formData),
         charset,
         method,
-        icon: this.browser.mIconURL,
       });
 
       this.window.gURLBar.search("", { searchEngine });
@@ -2549,10 +2534,13 @@ export class nsContextMenu {
   }
 
   shouldShowAddEngine() {
+    let uri = this.browser.currentURI;
+
     return (
       this.onTextInput &&
       this.onSearchField &&
       !this.isLoginForm() &&
+      (uri.schemeIs("http") || uri.schemeIs("https")) &&
       Services.prefs.getBoolPref(
         "browser.urlbar.update2.engineAliasRefresh",
         false

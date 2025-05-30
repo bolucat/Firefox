@@ -11,10 +11,10 @@
 #include "ClientUsageArray.h"
 #include "Flatten.h"
 #include "FirstInitializationAttemptsImpl.h"
-#include "InitializationUtils.h"
 #include "GroupInfo.h"
 #include "GroupInfoPair.h"
 #include "NormalOriginOperationBase.h"
+#include "OpenClientDirectoryUtils.h"
 #include "OriginOperationBase.h"
 #include "OriginOperations.h"
 #include "OriginParser.h"
@@ -1971,26 +1971,6 @@ void QuotaManager::RegisterDirectoryLock(DirectoryLockImpl& aLock) {
                                          WrapNotNullUnchecked(&aLock));
   }
 
-  if (aLock.ShouldUpdateLockTable()) {
-    DirectoryLockTable& directoryLockTable =
-        GetDirectoryLockTable(aLock.GetPersistenceType());
-
-    // XXX It seems that the contents of the array are never actually used, we
-    // just use that like an inefficient use counter. Can't we just change
-    // DirectoryLockTable to a nsTHashMap<nsCStringHashKey, uint32_t>?
-    directoryLockTable
-        .LookupOrInsertWith(
-            aLock.Origin(),
-            [this, &aLock] {
-              if (!IsShuttingDown()) {
-                UpdateOriginAccessTime(aLock.GetPersistenceType(),
-                                       aLock.OriginMetadata());
-              }
-              return MakeUnique<nsTArray<NotNull<DirectoryLockImpl*>>>();
-            })
-        ->AppendElement(WrapNotNullUnchecked(&aLock));
-  }
-
   aLock.SetRegistered(true);
 }
 
@@ -2004,24 +1984,6 @@ void QuotaManager::UnregisterDirectoryLock(DirectoryLockImpl& aLock) {
 
     MOZ_DIAGNOSTIC_ASSERT(mDirectoryLockIdTable.Contains(aLock.Id()));
     mDirectoryLockIdTable.Remove(aLock.Id());
-  }
-
-  if (aLock.ShouldUpdateLockTable()) {
-    DirectoryLockTable& directoryLockTable =
-        GetDirectoryLockTable(aLock.GetPersistenceType());
-
-    // ClearDirectoryLockTables may have been called, so the element or entire
-    // array may not exist anymre.
-    nsTArray<NotNull<DirectoryLockImpl*>>* array;
-    if (directoryLockTable.Get(aLock.Origin(), &array) &&
-        array->RemoveElement(&aLock) && array->IsEmpty()) {
-      directoryLockTable.Remove(aLock.Origin());
-
-      if (!IsShuttingDown()) {
-        UpdateOriginAccessTime(aLock.GetPersistenceType(),
-                               aLock.OriginMetadata());
-      }
-    }
   }
 
   aLock.SetRegistered(false);
@@ -2707,10 +2669,9 @@ UsageInfo QuotaManager::GetUsageForClient(PersistenceType aPersistenceType,
 }
 
 void QuotaManager::UpdateOriginAccessTime(
-    PersistenceType aPersistenceType, const OriginMetadata& aOriginMetadata) {
+    const OriginMetadata& aOriginMetadata) {
   AssertIsOnOwningThread();
-  MOZ_ASSERT(aPersistenceType != PERSISTENCE_TYPE_PERSISTENT);
-  MOZ_ASSERT(aOriginMetadata.mPersistenceType == aPersistenceType);
+  MOZ_ASSERT(aOriginMetadata.mPersistenceType != PERSISTENCE_TYPE_PERSISTENT);
   MOZ_ASSERT(!IsShuttingDown());
 
   if (!StaticPrefs::
@@ -2725,7 +2686,8 @@ void QuotaManager::UpdateOriginAccessTime(
     return;
   }
 
-  RefPtr<GroupInfo> groupInfo = pair->LockedGetGroupInfo(aPersistenceType);
+  RefPtr<GroupInfo> groupInfo =
+      pair->LockedGetGroupInfo(aOriginMetadata.mPersistenceType);
   if (!groupInfo) {
     return;
   }
@@ -5505,6 +5467,22 @@ QuotaManager::OpenClientDirectory(
     Maybe<RefPtr<ClientDirectoryLock>&> aPendingDirectoryLockOut) {
   AssertIsOnOwningThread();
 
+  RefPtr<ClientDirectoryLockHandlePromise> promise =
+      OpenClientDirectoryImpl(aClientMetadata, aInitializeOrigin,
+                              aCreateIfNonExistent, aPendingDirectoryLockOut);
+
+  NotifyClientDirectoryOpeningStarted(*this);
+
+  return promise;
+}
+
+RefPtr<QuotaManager::ClientDirectoryLockHandlePromise>
+QuotaManager::OpenClientDirectoryImpl(
+    const ClientMetadata& aClientMetadata, bool aInitializeOrigin,
+    bool aCreateIfNonExistent,
+    Maybe<RefPtr<ClientDirectoryLock>&> aPendingDirectoryLockOut) {
+  AssertIsOnOwningThread();
+
   const auto persistenceType = aClientMetadata.mPersistenceType;
 
   nsTArray<RefPtr<BoolPromise>> promises;
@@ -5558,6 +5536,15 @@ QuotaManager::OpenClientDirectory(
         MakeBackInserter(promises));
   }
 
+  RefPtr<UniversalDirectoryLock> clientInitDirectoryLock =
+      CreateDirectoryLockInternal(
+          PersistenceScope::CreateFromValue(aClientMetadata.mPersistenceType),
+          OriginScope::FromOrigin(aClientMetadata),
+          ClientStorageScope::CreateFromClient(aClientMetadata.mClientType),
+          /* aExclusive */ false);
+
+  promises.AppendElement(clientInitDirectoryLock->Acquire());
+
   RefPtr<ClientDirectoryLock> clientDirectoryLock =
       CreateDirectoryLock(aClientMetadata, /* aExclusive */ false);
 
@@ -5567,78 +5554,86 @@ QuotaManager::OpenClientDirectory(
     aPendingDirectoryLockOut.ref() = clientDirectoryLock;
   }
 
-  RefPtr<ClientDirectoryLockHandlePromise> promise =
-      BoolPromise::All(GetCurrentSerialEventTarget(), promises)
-          ->Then(
-              GetCurrentSerialEventTarget(), __func__,
-              [](const CopyableTArray<bool>& aResolveValues) {
-                return BoolPromise::CreateAndResolve(true, __func__);
-              },
-              [](nsresult aRejectValue) {
-                return BoolPromise::CreateAndReject(aRejectValue, __func__);
-              })
-          ->Then(GetCurrentSerialEventTarget(), __func__,
-                 MaybeInitialize(std::move(storageDirectoryLock), this,
-                                 &QuotaManager::InitializeStorage))
-          ->Then(GetCurrentSerialEventTarget(), __func__,
-                 MaybeInitialize(std::move(temporaryStorageDirectoryLock), this,
-                                 &QuotaManager::InitializeTemporaryStorage))
-          ->Then(GetCurrentSerialEventTarget(), __func__,
-                 MaybeInitialize(std::move(groupDirectoryLock),
-                                 [self = RefPtr(this), aClientMetadata](
-                                     RefPtr<UniversalDirectoryLock>
-                                         groupDirectoryLock) mutable {
-                                   return self->InitializeTemporaryGroup(
-                                       aClientMetadata,
-                                       std::move(groupDirectoryLock));
-                                 }))
-          ->Then(GetCurrentSerialEventTarget(), __func__,
-                 MaybeInitialize(
-                     std::move(originDirectoryLock),
-                     [self = RefPtr(this), aClientMetadata,
-                      aCreateIfNonExistent](RefPtr<UniversalDirectoryLock>
-                                                originDirectoryLock) mutable {
-                       if (aClientMetadata.mPersistenceType ==
-                           PERSISTENCE_TYPE_PERSISTENT) {
-                         return self->InitializePersistentOrigin(
-                             aClientMetadata, std::move(originDirectoryLock));
-                       }
-
-                       return self->InitializeTemporaryOrigin(
-                           aClientMetadata, aCreateIfNonExistent,
-                           std::move(originDirectoryLock));
-                     }))
-          ->Then(
-              GetCurrentSerialEventTarget(), __func__,
-              [clientDirectoryLock = std::move(clientDirectoryLock)](
-                  const BoolPromise::ResolveOrRejectValue& aValue) mutable {
-                if (aValue.IsReject()) {
-                  DropDirectoryLockIfNotDropped(clientDirectoryLock);
-
-                  return ClientDirectoryLockHandlePromise::CreateAndReject(
-                      aValue.RejectValue(), __func__);
+  return BoolPromise::All(GetCurrentSerialEventTarget(), promises)
+      ->Then(
+          GetCurrentSerialEventTarget(), __func__,
+          [](const CopyableTArray<bool>& aResolveValues) {
+            return BoolPromise::CreateAndResolve(true, __func__);
+          },
+          [](nsresult aRejectValue) {
+            return BoolPromise::CreateAndReject(aRejectValue, __func__);
+          })
+      ->Then(GetCurrentSerialEventTarget(), __func__,
+             MaybeInitialize(std::move(storageDirectoryLock), this,
+                             &QuotaManager::InitializeStorage))
+      ->Then(GetCurrentSerialEventTarget(), __func__,
+             MaybeInitialize(std::move(temporaryStorageDirectoryLock), this,
+                             &QuotaManager::InitializeTemporaryStorage))
+      ->Then(
+          GetCurrentSerialEventTarget(), __func__,
+          MaybeInitialize(
+              std::move(groupDirectoryLock),
+              [self = RefPtr(this), aClientMetadata](
+                  RefPtr<UniversalDirectoryLock> groupDirectoryLock) mutable {
+                return self->InitializeTemporaryGroup(
+                    aClientMetadata, std::move(groupDirectoryLock));
+              }))
+      ->Then(
+          GetCurrentSerialEventTarget(), __func__,
+          MaybeInitialize(
+              std::move(originDirectoryLock),
+              [self = RefPtr(this), aClientMetadata, aCreateIfNonExistent](
+                  RefPtr<UniversalDirectoryLock> originDirectoryLock) mutable {
+                if (aClientMetadata.mPersistenceType ==
+                    PERSISTENCE_TYPE_PERSISTENT) {
+                  return self->InitializePersistentOrigin(
+                      aClientMetadata, std::move(originDirectoryLock));
                 }
 
-                QM_TRY(
-                    ArtificialFailure(nsIQuotaArtificialFailure::
-                                          CATEGORY_OPEN_CLIENT_DIRECTORY),
-                    [&clientDirectoryLock](nsresult rv) {
-                      DropDirectoryLockIfNotDropped(clientDirectoryLock);
+                return self->InitializeTemporaryOrigin(
+                    aClientMetadata, aCreateIfNonExistent,
+                    std::move(originDirectoryLock));
+              }))
+      ->Then(GetCurrentSerialEventTarget(), __func__,
+             MaybeInitialize(
+                 std::move(clientInitDirectoryLock),
+                 [self = RefPtr(this), aClientMetadata,
+                  aCreateIfNonExistent](RefPtr<UniversalDirectoryLock>
+                                            clientInitDirectoryLock) mutable {
+                   if (aClientMetadata.mPersistenceType ==
+                       PERSISTENCE_TYPE_PERSISTENT) {
+                     return self->InitializePersistentClient(
+                         aClientMetadata, std::move(clientInitDirectoryLock));
+                   }
 
-                      return ClientDirectoryLockHandlePromise::CreateAndReject(
-                          rv, __func__);
-                    });
-
+                   return self->InitializeTemporaryClient(
+                       aClientMetadata, aCreateIfNonExistent,
+                       std::move(clientInitDirectoryLock));
+                 }))
+      ->Then(
+          GetCurrentSerialEventTarget(), __func__ /* clang formatting anchor */,
+          MaybeFinalize(
+              std::move(clientDirectoryLock),
+              [self = RefPtr(this), aClientMetadata](
+                  RefPtr<ClientDirectoryLock> clientDirectoryLock) mutable {
                 auto clientDirectoryLockHandle =
                     ClientDirectoryLockHandle(std::move(clientDirectoryLock));
 
+                self->RegisterClientDirectoryLockHandle(
+                    aClientMetadata, [&self = *self, &aClientMetadata]() {
+                      if (aClientMetadata.mPersistenceType !=
+                          PERSISTENCE_TYPE_PERSISTENT) {
+                        if (!IsShuttingDown()) {
+                          self.UpdateOriginAccessTime(aClientMetadata);
+                        }
+                      }
+                    });
+
+                clientDirectoryLockHandle.SetRegistered(true);
+
                 return ClientDirectoryLockHandlePromise::CreateAndResolve(
                     std::move(clientDirectoryLockHandle), __func__);
-              });
-
-  NotifyClientDirectoryOpeningStarted(*this);
-
-  return promise;
+              }));
 }
 
 RefPtr<ClientDirectoryLock> QuotaManager::CreateDirectoryLock(
@@ -7755,45 +7750,22 @@ Result<Ok, nsresult> QuotaManager::ArchiveOrigins(
   return Ok{};
 }
 
-auto QuotaManager::GetDirectoryLockTable(PersistenceType aPersistenceType)
-    -> DirectoryLockTable& {
-  switch (aPersistenceType) {
-    case PERSISTENCE_TYPE_TEMPORARY:
-      return mTemporaryDirectoryLockTable;
-    case PERSISTENCE_TYPE_DEFAULT:
-      return mDefaultDirectoryLockTable;
-    case PERSISTENCE_TYPE_PRIVATE:
-      return mPrivateDirectoryLockTable;
-
-    case PERSISTENCE_TYPE_PERSISTENT:
-    case PERSISTENCE_TYPE_INVALID:
-    default:
-      MOZ_CRASH("Bad persistence type value!");
-  }
-}
-
-void QuotaManager::ClearDirectoryLockTables() {
+void QuotaManager::ClearOpenClientDirectoryInfos() {
   AssertIsOnOwningThread();
 
-  for (const PersistenceType type : kBestEffortPersistenceTypes) {
-    DirectoryLockTable& directoryLockTable = GetDirectoryLockTable(type);
+  auto backgroundThreadData = mBackgroundThreadAccessible.Access();
 
-    if (!IsShuttingDown()) {
-      for (const auto& entry : directoryLockTable) {
-        const auto& array = entry.GetData();
-
-        // It doesn't matter which lock is used, they all have the same
-        // persistence type and origin metadata.
-        MOZ_ASSERT(!array->IsEmpty());
-        const auto& lock = array->ElementAt(0);
-
-        UpdateOriginAccessTime(lock->GetPersistenceType(),
-                               lock->OriginMetadata());
+  if (!IsShuttingDown()) {
+    for (const auto& entry : backgroundThreadData->mOpenClientDirectoryInfos) {
+      const auto& openClientDirectoryInfo = entry.GetData();
+      if (openClientDirectoryInfo.OriginMetadataRef().mPersistenceType !=
+          PERSISTENCE_TYPE_PERSISTENT) {
+        UpdateOriginAccessTime(openClientDirectoryInfo.OriginMetadataRef());
       }
     }
-
-    directoryLockTable.Clear();
   }
+
+  backgroundThreadData->mOpenClientDirectoryInfos.Clear();
 }
 
 bool QuotaManager::IsSanitizedOriginValid(const nsACString& aSanitizedOrigin) {
@@ -8113,6 +8085,84 @@ int64_t QuotaManager::GenerateDirectoryLockId() {
   //       directory lock with given id.
 
   return directorylockId;
+}
+
+template <typename UpdateCallback>
+void QuotaManager::RegisterClientDirectoryLockHandle(
+    const OriginMetadata& aOriginMetadata, UpdateCallback&& aUpdateCallback) {
+  AssertIsOnOwningThread();
+
+  auto backgroundThreadData = mBackgroundThreadAccessible.Access();
+
+  auto& openClientDirectoryInfo =
+      backgroundThreadData->mOpenClientDirectoryInfos.LookupOrInsertWith(
+          aOriginMetadata.GetCompositeKey(),
+          [&aOriginMetadata] { return aOriginMetadata; });
+
+  openClientDirectoryInfo.IncreaseClientDirectoryLockHandleCount();
+
+  bool firstHandle =
+      (openClientDirectoryInfo.ClientDirectoryLockHandleCount() == 1);
+
+  if (firstHandle) {
+    std::forward<UpdateCallback>(aUpdateCallback)();
+  }
+}
+
+template <typename UpdateCallback>
+void QuotaManager::UnregisterClientDirectoryLockHandle(
+    const OriginMetadata& aOriginMetadata, UpdateCallback&& aUpdateCallback) {
+  AssertIsOnOwningThread();
+
+  auto backgroundThreadData = mBackgroundThreadAccessible.Access();
+
+  auto entry = backgroundThreadData->mOpenClientDirectoryInfos.Lookup(
+      aOriginMetadata.GetCompositeKey());
+
+  // ClearOpenClientDirectoryInfos may have been called, so the entry may not
+  // exist anymre.
+  //
+  // XXX This can be changed to an assert once ClearOpenClientDirectoryInfos is
+  // removed.
+  if (!entry) {
+    return;
+  }
+
+  auto& openClientDirectoryInfo = entry.Data();
+
+  openClientDirectoryInfo.DecreaseClientDirectoryLockHandleCount();
+
+  bool lastHandle =
+      openClientDirectoryInfo.ClientDirectoryLockHandleCount() == 0;
+
+  if (lastHandle) {
+    std::forward<UpdateCallback>(aUpdateCallback)();
+
+    entry.Remove();
+  }
+}
+
+void QuotaManager::ClientDirectoryLockHandleDestroy(
+    ClientDirectoryLockHandle& aHandle) {
+  AssertIsOnOwningThread();
+  MOZ_ASSERT(aHandle);
+
+  if (!aHandle.IsRegistered()) {
+    return;
+  }
+
+  const OriginMetadata originMetadata = aHandle->OriginMetadata();
+
+  UnregisterClientDirectoryLockHandle(
+      originMetadata, [&self = *this, &originMetadata]() {
+        if (originMetadata.mPersistenceType != PERSISTENCE_TYPE_PERSISTENT) {
+          if (!QuotaManager::IsShuttingDown()) {
+            self.UpdateOriginAccessTime(originMetadata);
+          }
+        }
+      });
+
+  aHandle.SetRegistered(false);
 }
 
 template <typename Func>

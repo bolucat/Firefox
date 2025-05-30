@@ -62,7 +62,7 @@ mochitest-plain:
         - http3
         - http2
         - geckoview-fission-isolate-high-value
-        - geckoview-no-fission-ship
+        - geckoview-no-fission-no-ship
         - inc-origin-init
     run-on-projects:
         by-variant:
@@ -72,6 +72,7 @@ mochitest-plain:
                     .*-asan.*: []
                     .*-wayland.*: []
                     linux1804-64(-shippable)?(-qr)?/opt: ['trunk']
+                    linux2404-64(-shippable)?/opt: ['trunk']
                     windows11-64.*(-shippable)?(-qr)?/opt: []
                     default: []
             xorigin:
@@ -92,6 +93,7 @@ mochitest-plain:
                     .*-asan.*: []
                     .*-wayland.*: []
                     linux1804-64(-qr)?/debug: ['autoland', 'mozilla-central']
+                    linux2404-64/debug: ['autoland', 'mozilla-central']
                     default: []
             aab+no-fission:
                 by-test-platform:
@@ -101,6 +103,7 @@ mochitest-plain:
                 by-test-platform:
                     .*-wayland.*: []
                     linux1804-64.*: ['mozilla-central']
+                    linux2404-64.*: ['mozilla-central']
                     default: []
             no-fission:
                 by-test-platform:
@@ -109,21 +112,26 @@ mochitest-plain:
                     linux1804-64(-qr)?/debug: ['mozilla-central']
                     linux1804-64-asan(-qr)?/opt: ['mozilla-central']
                     linux1804-64(-shippable)?(-qr)?/opt: ['mozilla-central']
+                    linux2404-64/debug: ['mozilla-central']
+                    linux2404-64-asan/opt: ['mozilla-central']
+                    linux2404-64(-shippable)?/opt: ['mozilla-central']
                     default: []
             http3:
                 by-test-platform:
                     linux1804-64(-qr)?/debug: built-projects
+                    linux2404-64/debug: built-projects
                     default: []
             http2:
                 by-test-platform:
                     linux1804-64(-qr)?/debug: built-projects
+                    linux2404-64/debug: built-projects
                     default: []
             geckoview-fission-isolate-high-value:
                 by-test-platform:
                     android-em-7.0-x86_64(-qr)?/debug-isolated-process: []
                     android-em.*: built-projects
                     default: []
-            geckoview-no-fission-ship:
+            geckoview-no-fission-no-ship:
                 by-test-platform:
                     android-em-7.0-x86_64(-qr)?/debug-isolated-process: []
                     android-em.*: built-projects
@@ -468,6 +476,7 @@ mochitest-browser-screenshots:
     run-on-projects:
         by-test-platform:
             linux1804-64.*/opt: ['trunk']
+            linux2404-64.*/opt: ['trunk']
             default: []
     max-run-time: 3600
     mozharness:
@@ -522,6 +531,7 @@ mochitest-chrome:
                     .*-asan.*: []
                     .*-ccov.*: []
                     linux1804-64(-qr)?/debug: ['autoland', 'mozilla-central']
+                    linux2404-64/debug: ['autoland', 'mozilla-central']
                     default: []
             webrender-sw+1proc:
                 by-test-platform:
@@ -567,7 +577,6 @@ mochitest-devtools-chrome:
         - a11y-checks
         - socketprocess_networking
         - http3
-        - cm5
     run-on-projects:
         by-variant:
             a11y-checks:
@@ -577,16 +586,14 @@ mochitest-devtools-chrome:
             http3:
                 by-test-platform:
                     linux1804-64(-qr)?/debug: built-projects
+                    linux2404-64/debug: built-projects
                     default: []
             socketprocess_networking:
                 by-test-platform:
                     .*-asan.*: []
                     .*-ccov.*: []
                     linux1804-64(-qr)?/debug: ['autoland', 'mozilla-central']
-                    default: []
-            cm5:
-                by-test-platform:
-                    linux.*64(-shippable)?(-qr)?/opt: ['trunk']
+                    linux2404-64/debug: ['autoland', 'mozilla-central']
                     default: []
             default:
                 by-test-platform:
@@ -716,6 +723,7 @@ mochitest-plain-gpu:
                     android-em-7.0-x86_64(-qr)?/debug-isolated-process: []
                     linux.*64-ccov(-qr)?/opt: []
                     linux1804-32.*: []
+                    linux2404-32.*: []
                     .*-tsan(-qr)?/opt: []
                     .*-wayland.*: []
                     linux.*: ['mozilla-central']  # linux opt/debug/asan
@@ -818,6 +826,9 @@ mochitest-media:
                     linux1804-64(-qr)?/debug: ['mozilla-central']
                     linux1804-64(-shippable)?(-qr)?/opt: ['mozilla-central']
                     linux1804-64-asan(-qr)?/opt: ['mozilla-central']
+                    linux2404-64/debug: ['mozilla-central']
+                    linux2404-64(-shippable)/opt: ['mozilla-central']
+                    linux2404-64-asan/opt: ['mozilla-central']
                     default: []
             socketprocess:
                 by-test-platform:
@@ -840,12 +851,16 @@ mochitest-media:
                     linux1804-64(-qr)?/.*: ['mozilla-central']
                     linux1804-64-shippable(-qr)?/opt: ['mozilla-central']
                     linux1804-64-asan(-qr)?/opt: ['mozilla-central']
+                    linux2404-64/.*: ['mozilla-central']
+                    linux2404-64-shippable/opt: ['mozilla-central']
+                    linux2404-64-asan/opt: ['mozilla-central']
                     default: []
             webrender-sw:
                 by-test-platform:
                     android.*: []
                     .*hw-ref.*: []
                     linux1804-64(-qr)?/debug: ['autoland', 'mozilla-central']
+                    linux2404-64/debug: ['autoland', 'mozilla-central']
                     default: []
             no-fission:
                 by-test-platform:
@@ -857,6 +872,9 @@ mochitest-media:
                     linux1804-64(-qr)?/.*: ['mozilla-central']
                     linux1804-64-shippable(-qr)?/opt: ['mozilla-central']
                     linux1804-64-asan(-qr)?/opt: ['mozilla-central']
+                    linux2404-64/.*: ['mozilla-central']
+                    linux2404-64-shippable/opt: ['mozilla-central']
+                    linux2404-64-asan/opt: ['mozilla-central']
                     default: []
             wmf-media-engine:
                 by-test-platform:
@@ -992,6 +1010,9 @@ mochitest-webgl1-core:
                     linux1804-64(-qr)?/debug: ['trunk']
                     linux1804-64(-shippable)?(-qr)?/opt: ['trunk']
                     linux1804-64-asan(-qr)?/opt: ['trunk']
+                    linux2404-64/debug: ['trunk']
+                    linux2404-64(-shippable)?/opt: ['trunk']
+                    linux2404-64-asan/opt: ['trunk']
                     default: []
             default:
                 by-test-platform:
@@ -1033,6 +1054,9 @@ mochitest-webgl1-ext:
                     linux1804-64(-qr)?/.*: ['trunk']
                     linux1804-64-shippable(-qr)?/opt: ['trunk']
                     linux1804-64-asan(-qr)?/opt: ['trunk']
+                    linux2404-64/.*: ['trunk']
+                    linux2404-64-shippable/opt: ['trunk']
+                    linux2404-64-asan/opt: ['trunk']
                     default: []
             default:
                 by-test-platform:
@@ -1078,6 +1102,9 @@ mochitest-webgl2-core:
                     linux1804-64(-qr)?/.*: ['trunk']
                     linux1804-64-shippable(-qr)?/opt: ['trunk']
                     linux1804-64-asan(-qr)?/opt: ['trunk']
+                    linux2404-64/.*: ['trunk']
+                    linux2404-64-shippable/opt: ['trunk']
+                    linux2404-64-asan/opt: ['trunk']
                     default: []
             default:
                 by-test-platform:
@@ -1114,6 +1141,8 @@ mochitest-webgl2-ext:
                 by-test-platform:
                     linux1804-64(-qr)?/debug: ['trunk']
                     linux1804-64(-shippable|-asan)?(-qr)?/opt: ['trunk']
+                    linux2404-64/debug: ['trunk']
+                    linux2404-64(-shippable|-asan)?/opt: ['trunk']
                     android.*: built-projects
                     default: []
             default:
@@ -1196,12 +1225,16 @@ mochitest-remote:
                     .*-asan.*: []
                     .*-ccov.*: []
                     linux1804-64(-qr)?/debug: ['autoland', 'mozilla-central']
+                    linux2404-64/debug: ['autoland', 'mozilla-central']
                     default: []
             no-fission:
                 by-test-platform:
                     linux1804-64(-qr)?/.*: ['trunk']
                     linux1804-64-shippable(-qr)?/opt: ['trunk']
                     linux1804-64-asan(-qr)?/opt: ['trunk']
+                    linux2404-64/.*: ['trunk']
+                    linux2404-64-shippable/opt: ['trunk']
+                    linux2404-64-asan/opt: ['trunk']
                     default: []
             default:
                 by-test-platform:
@@ -1218,3 +1251,85 @@ mochitest-remote:
         by-test-platform:
             linux.*64-asan(-qr)?/opt: xlarge-noscratch  # runs out of memory otherwise using 8GB
             default: default
+
+mochitest-browser-newtab-trainhop-beta:
+    description: Mochitest-browser for Newtab using latest Beta builds
+    suite:
+        name: mochitest-browser-chrome
+    run-on-projects:
+        by-test-platform:
+            linux(?!.*shippable).*: []
+            macosx(?!.*shippable).*: []
+            windows(?!.*shippable).*: []
+            default: [trunk]
+    when:
+        files-changed:
+            - "browser/extensions/newtab/**"
+    treeherder-symbol: nt-trainhop(Mbc-beta)
+    tier: 3
+    loopback-video: true
+    mozharness:
+        mochitest-flavor: browser
+        chunked: false
+        extra-options:
+            - --tag=newtab
+            - --install-extension=newtab.xpi
+    instance-size: default
+    dependencies:
+        newtab-xpi-job: build-extensions-browser
+    fetches:
+        newtab-xpi-job:
+            - artifact: ../browser-extensions/newtab.xpi
+              extract: false
+    target:
+        by-test-platform:
+            linux.*:
+                index: gecko.v2.mozilla-beta.shippable.latest.firefox.linux64-opt
+                name: build/target.tar.xz
+            macosx.*:
+                index: gecko.v2.mozilla-beta.shippable.latest.firefox.macosx64-opt
+                name: build/target.dmg
+            windows.*:
+                index: gecko.v2.mozilla-beta.shippable.latest.firefox.win64-opt
+                name: build/target.zip
+
+mochitest-browser-newtab-trainhop-release:
+    description: Mochitest-browser for Newtab using latest Release builds
+    suite:
+        name: mochitest-browser-chrome
+    run-on-projects:
+        by-test-platform:
+            linux(?!.*shippable).*: []
+            macosx(?!.*shippable).*: []
+            windows(?!.*shippable).*: []
+            default: [trunk]
+    when:
+        files-changed:
+            - "browser/extensions/newtab/**"
+    treeherder-symbol: nt-trainhop(Mbc-release)
+    tier: 3
+    loopback-video: true
+    mozharness:
+        mochitest-flavor: browser
+        chunked: false
+        extra-options:
+            - --tag=newtab
+            - --install-extension=newtab.xpi
+    instance-size: default
+    dependencies:
+        newtab-xpi-job: build-extensions-browser
+    fetches:
+        newtab-xpi-job:
+            - artifact: ../browser-extensions/newtab.xpi
+              extract: false
+    target:
+        by-test-platform:
+            linux.*:
+                index: gecko.v2.mozilla-release.shippable.latest.firefox.linux64-opt
+                name: build/target.tar.xz
+            macosx.*:
+                index: gecko.v2.mozilla-release.shippable.latest.firefox.macosx64-opt
+                name: build/target.dmg
+            windows.*:
+                index: gecko.v2.mozilla-release.shippable.latest.firefox.win64-opt
+                name: build/target.zip

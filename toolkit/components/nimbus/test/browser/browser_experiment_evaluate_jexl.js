@@ -1,9 +1,8 @@
 "use strict";
 
-const { EnrollmentsContext, RemoteSettingsExperimentLoader } =
-  ChromeUtils.importESModule(
-    "resource://nimbus/lib/RemoteSettingsExperimentLoader.sys.mjs"
-  );
+const { EnrollmentsContext } = ChromeUtils.importESModule(
+  "resource://nimbus/lib/RemoteSettingsExperimentLoader.sys.mjs"
+);
 
 add_setup(async function setup() {
   await SpecialPowers.pushPrefEnv({
@@ -17,7 +16,7 @@ add_setup(async function setup() {
     await SpecialPowers.popPrefEnv();
   });
 
-  CONTEXT = new EnrollmentsContext(RemoteSettingsExperimentLoader.manager);
+  CONTEXT = new EnrollmentsContext(ExperimentAPI.manager);
 });
 
 let CONTEXT;
@@ -68,7 +67,7 @@ add_task(async function test_evaluate_active_experiments_activeExperiments() {
   // Add an experiment to active experiments
   const slug = "foo" + Math.random();
   // Init the store before we use it
-  await ExperimentAPI.manager.onStartup();
+  await ExperimentAPI.ready();
 
   let recipe = NimbusTestUtils.factories.recipe(slug);
   recipe.branches[0].slug = "mochitest-active-foo";
@@ -91,5 +90,5 @@ add_task(async function test_evaluate_active_experiments_activeExperiments() {
     "should not find an experiment that doesn't exist"
   );
 
-  doExperimentCleanup();
+  await doExperimentCleanup();
 });

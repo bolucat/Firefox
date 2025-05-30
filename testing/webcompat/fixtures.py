@@ -99,14 +99,14 @@ class FirefoxWebDriver(WebDriver):
         if "no_overlay_scrollbars" in test_config:
             prefs["widget.gtk.overlay-scrollbars.enabled"] = False
 
-        if "disable_moztransform" in test_config:
+        if "enable_moztransform" in test_config:
+            prefs["layout.css.prefixes.transforms"] = True
+        elif "disable_moztransform" in test_config:
             prefs["layout.css.prefixes.transforms"] = False
 
         # keep system addon updates off to prevent bug 1882562
         prefs[SYSTEM_ADDON_UPDATES_PREF] = False
 
-        # remote/cdp/CDP.sys.mjs sets cookieBehavior to 0,
-        # which we definitely do not want, so set it back to 5.
         cookieBehavior = 4 if test_config.get("without_tcp") else 5
         prefs[CB_PREF] = cookieBehavior
         prefs[CB_PBM_PREF] = cookieBehavior

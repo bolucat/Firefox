@@ -17,7 +17,6 @@ Additional configuration is found in the :ref:`graph config <taskgraph-graph-con
 """
 import functools
 import itertools
-import json
 import os
 from datetime import datetime
 
@@ -66,20 +65,22 @@ SIGNING_SCOPE_ALIAS_TO_PROJECT = [
             "mozilla-release",
             "mozilla-esr115",
             "mozilla-esr128",
+            "mozilla-esr140",
             "comm-beta",
             "comm-release",
             "comm-esr115",
             "comm-esr128",
+            "comm-esr140",
         },
     ],
 ]
 
 """Map the signing scope aliases to the actual scopes.
 """
-SIGNING_CERT_SCOPES = {
-    "all-release-branches": "signing:cert:release-signing",
-    "all-nightly-branches": "signing:cert:nightly-signing",
-    "default": "signing:cert:dep-signing",
+SIGNING_TYPES = {
+    "all-release-branches": "release-signing",
+    "all-nightly-branches": "nightly-signing",
+    "default": "dep-signing",
 }
 
 DEVEDITION_SIGNING_SCOPE_ALIAS_TO_PROJECT = [
@@ -91,9 +92,9 @@ DEVEDITION_SIGNING_SCOPE_ALIAS_TO_PROJECT = [
     ]
 ]
 
-DEVEDITION_SIGNING_CERT_SCOPES = {
-    "beta": "signing:cert:nightly-signing",
-    "default": "signing:cert:dep-signing",
+DEVEDITION_SIGNING_TYPES = {
+    "beta": "nightly-signing",
+    "default": "dep-signing",
 }
 
 """Map beetmover scope aliases to sets of projects.
@@ -118,10 +119,12 @@ BEETMOVER_SCOPE_ALIAS_TO_PROJECT = [
             "mozilla-release",
             "mozilla-esr115",
             "mozilla-esr128",
+            "mozilla-esr140",
             "comm-beta",
             "comm-release",
             "comm-esr115",
             "comm-esr128",
+            "comm-esr140",
         },
     ],
 ]
@@ -216,6 +219,13 @@ BALROG_SCOPE_ALIAS_TO_PROJECT = [
             "comm-esr128",
         },
     ],
+    [
+        "esr140",
+        {
+            "mozilla-esr140",
+            "comm-esr140",
+        },
+    ],
 ]
 
 """Map the balrog scope aliases to the actual scopes.
@@ -227,6 +237,7 @@ BALROG_SERVER_SCOPES = {
     "release": "balrog:server:release",
     "esr115": "balrog:server:esr",
     "esr128": "balrog:server:esr",
+    "esr140": "balrog:server:esr",
     "default": "balrog:server:dep",
 }
 
@@ -275,6 +286,26 @@ def with_scope_prefix(f):
         return add_scope_prefix(config, scope_or_scopes)
 
     return wrapper
+
+
+def get_signing_type_from_project(
+    config, alias_to_project_map, alias_to_signing_type_map
+):
+    """Determine the restricted scope from `config.params['project']`.
+
+    Args:
+        config (TransformConfig): The configuration for the kind being transformed.
+        alias_to_project_map (list of lists): each list pair contains the
+            alias and the set of projects that match.  This is ordered.
+        alias_to_signing_type_map (dict): the alias to signing type
+
+    Returns:
+        string: the scope to use.
+    """
+    for alias, projects in alias_to_project_map:
+        if config.params["project"] in projects and alias in alias_to_signing_type_map:
+            return alias_to_signing_type_map[alias]
+    return alias_to_signing_type_map["default"]
 
 
 # scope functions {{{1
@@ -334,16 +365,16 @@ def get_phase_from_target_method(config, alias_to_tasks_map, alias_to_phase_map)
     return alias_to_phase_map["default"]
 
 
-get_signing_cert_scope = functools.partial(
-    get_scope_from_project,
+get_signing_type = functools.partial(
+    get_signing_type_from_project,
     alias_to_project_map=SIGNING_SCOPE_ALIAS_TO_PROJECT,
-    alias_to_scope_map=SIGNING_CERT_SCOPES,
+    alias_to_signing_type_map=SIGNING_TYPES,
 )
 
-get_devedition_signing_cert_scope = functools.partial(
-    get_scope_from_project,
+get_devedition_signing_type = functools.partial(
+    get_signing_type_from_project,
     alias_to_project_map=DEVEDITION_SIGNING_SCOPE_ALIAS_TO_PROJECT,
-    alias_to_scope_map=DEVEDITION_SIGNING_CERT_SCOPES,
+    alias_to_signing_type_map=DEVEDITION_SIGNING_TYPES,
 )
 
 get_beetmover_bucket_scope = functools.partial(
@@ -390,10 +421,13 @@ def get_release_config(config):
         dict: containing both `build_number` and `version`.  This can be used to
             update `task.payload`.
     """
-    release_config = {}
-
-    partial_updates = os.environ.get("PARTIAL_UPDATES", "")
-    if partial_updates != "" and config.kind in (
+    release_config = {
+        "version": config.params["version"],
+        "appVersion": config.params["app_version"],
+        "next_version": config.params["next_version"],
+        "build_number": config.params["build_number"],
+    }
+    if pv := config.params.get("partial_versions") and config.kind in (
         "release-bouncer-sub",
         "release-bouncer-check",
         "release-update-verify-config",
@@ -401,30 +435,17 @@ def get_release_config(config):
         "release-balrog-submit-toplevel",
         "release-secondary-balrog-submit-toplevel",
     ):
-        partial_updates = json.loads(partial_updates)
-        release_config["partial_versions"] = ", ".join(
-            [
-                "{}build{}".format(v, info["buildNumber"])
-                for v, info in partial_updates.items()
-            ]
-        )
-        if release_config["partial_versions"] == "{}":
-            del release_config["partial_versions"]
+        release_config["partial_versions"] = pv
 
-    release_config["version"] = config.params["version"]
-    release_config["appVersion"] = config.params["app_version"]
-
-    release_config["next_version"] = config.params["next_version"]
-    release_config["build_number"] = config.params["build_number"]
     return release_config
 
 
-def get_signing_cert_scope_per_platform(build_platform, is_shippable, config):
+def get_signing_type_per_platform(build_platform, is_shippable, config):
     if "devedition" in build_platform:
-        return get_devedition_signing_cert_scope(config)
+        return get_devedition_signing_type(config)
     if is_shippable:
-        return get_signing_cert_scope(config)
-    return add_scope_prefix(config, "signing:cert:dep-signing")
+        return get_signing_type(config)
+    return "dep-signing"
 
 
 # generate_beetmover_upstream_artifacts {{{1

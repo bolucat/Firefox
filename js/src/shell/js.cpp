@@ -4656,19 +4656,21 @@ static void WorkerMain(UniquePtr<WorkerInput> input) {
         .setIsRunOnce(true)
         .setEagerDelazificationStrategy(defaultDelazificationMode);
 
-    AutoReportException are(cx);
-    JS::SourceText<char16_t> srcBuf;
-    if (!srcBuf.init(cx, input->chars.get(), input->length,
-                     JS::SourceOwnership::Borrowed)) {
-      break;
-    }
+    {
+      AutoReportException are(cx);
+      JS::SourceText<char16_t> srcBuf;
+      if (!srcBuf.init(cx, input->chars.get(), input->length,
+                       JS::SourceOwnership::Borrowed)) {
+        break;
+      }
 
-    RootedScript script(cx, JS::Compile(cx, options, srcBuf));
-    if (!script) {
-      break;
+      RootedScript script(cx, JS::Compile(cx, options, srcBuf));
+      if (!script) {
+        break;
+      }
+      RootedValue result(cx);
+      JS_ExecuteScript(cx, script, &result);
     }
-    RootedValue result(cx);
-    JS_ExecuteScript(cx, script, &result);
 
     RunShellJobs(cx);
   } while (0);
@@ -11312,11 +11314,11 @@ static const JSClassOps FakeDOMObjectClassOps = {
     nullptr,
 };
 
-static const JSClass dom_class = {"FakeDOMObject",
-                                  JSCLASS_IS_DOMJSCLASS |
-                                      JSCLASS_HAS_RESERVED_SLOTS(2) |
-                                      JSCLASS_BACKGROUND_FINALIZE,
-                                  &FakeDOMObjectClassOps};
+static const JSClass dom_class = {
+    "FakeDOMObject",
+    JSCLASS_IS_DOMJSCLASS | JSCLASS_HAS_RESERVED_SLOTS(2) |
+        JSCLASS_BACKGROUND_FINALIZE | JSCLASS_PRESERVES_WRAPPER,
+    &FakeDOMObjectClassOps};
 
 static const JSClass* GetDomClass() { return &dom_class; }
 
@@ -12956,7 +12958,9 @@ bool InitOptionParser(OptionParser& op) {
       !op.addBoolOption('\0', "disable-explicit-resource-management",
                         "Disable Explicit Resource Management") ||
       !op.addBoolOption('\0', "enable-temporal", "Enable Temporal") ||
-      !op.addBoolOption('\0', "enable-upsert", "Enable Upsert proposal")) {
+      !op.addBoolOption('\0', "enable-upsert", "Enable Upsert proposal") ||
+      !op.addBoolOption('\0', "enable-arraybuffer-immutable",
+                        "Enable immutable ArrayBuffers")) {
     return false;
   }
 
@@ -13029,6 +13033,9 @@ bool SetGlobalOptionsPreJSInit(const OptionParser& op) {
   }
   if (op.getBoolOption("enable-upsert")) {
     JS::Prefs::setAtStartup_experimental_upsert(true);
+  }
+  if (op.getBoolOption("enable-arraybuffer-immutable")) {
+    JS::Prefs::setAtStartup_experimental_arraybuffer_immutable(true);
   }
 #endif
 #ifdef ENABLE_EXPLICIT_RESOURCE_MANAGEMENT

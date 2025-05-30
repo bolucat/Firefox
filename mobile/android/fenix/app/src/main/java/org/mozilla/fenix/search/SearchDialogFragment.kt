@@ -84,6 +84,7 @@ import org.mozilla.fenix.GleanMetrics.Events
 import org.mozilla.fenix.GleanMetrics.VoiceSearch
 import org.mozilla.fenix.HomeActivity
 import org.mozilla.fenix.R
+import org.mozilla.fenix.automotive.isAndroidAutomotiveAvailable
 import org.mozilla.fenix.browser.tabstrip.isTabStripEnabled
 import org.mozilla.fenix.components.appstate.AppAction
 import org.mozilla.fenix.components.search.BOOKMARKS_SEARCH_ENGINE_ID
@@ -99,6 +100,8 @@ import org.mozilla.fenix.ext.registerForActivityResult
 import org.mozilla.fenix.ext.requireComponents
 import org.mozilla.fenix.ext.secure
 import org.mozilla.fenix.ext.settings
+import org.mozilla.fenix.navigation.DefaultNavControllerProvider
+import org.mozilla.fenix.navigation.NavControllerProvider
 import org.mozilla.fenix.nimbus.FxNimbus
 import org.mozilla.fenix.search.awesomebar.AwesomeBarView
 import org.mozilla.fenix.search.awesomebar.toSearchProviderState
@@ -249,6 +252,7 @@ class SearchDialogFragment : AppCompatDialogFragment(), UserInteractionHandler {
                 searchEngine = requireComponents.core.store.state.search.searchEngines.firstOrNull {
                     it.id == args.searchEngine
                 },
+                isAndroidAutomotiveAvailable = requireContext().isAndroidAutomotiveAvailable(),
             ),
         )
 
@@ -514,7 +518,9 @@ class SearchDialogFragment : AppCompatDialogFragment(), UserInteractionHandler {
             awesomeBarView.update(it)
 
             addSearchSelector()
-            updateQrButton(it)
+            if (it.showQrButton) {
+                updateQrButton(it)
+            }
             updateVoiceSearchButton()
         }
     }
@@ -1028,10 +1034,13 @@ class SearchDialogFragment : AppCompatDialogFragment(), UserInteractionHandler {
      */
     @VisibleForTesting
     @SuppressLint("RestrictedApi")
-    internal fun getPreviousDestination(): NavBackStackEntry? {
+    internal fun getPreviousDestination(
+        navControllerProvider: NavControllerProvider = DefaultNavControllerProvider(),
+    ): NavBackStackEntry? {
         // This duplicates the platform functionality for "previousBackStackEntry" but additionally skips this entry.
 
-        val descendingEntries = findNavController().currentBackStack.value.reversed().iterator()
+        val descendingEntries =
+            navControllerProvider.getNavController(this).currentBackStack.value.reversed().iterator()
         // Throw the topmost destination away.
         if (descendingEntries.hasNext()) {
             descendingEntries.next()

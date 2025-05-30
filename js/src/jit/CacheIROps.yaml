@@ -272,16 +272,6 @@
     obj: ObjId
     kind: GuardClassKindImm
 
-# Guard per GuardClassKind.
-- name: GuardEitherClass
-  shared: true
-  transpile: true
-  cost_estimate: 1
-  args:
-    obj: ObjId
-    kind1: GuardClassKindImm
-    kind2: GuardClassKindImm
-
 # Guard on a realm fuse.
 - name: GuardFuse
   shared: true
@@ -454,6 +444,20 @@
   args:
     obj: ObjId
 
+- name: GuardToArrayBuffer
+  shared: true
+  transpile: true
+  cost_estimate: 1
+  args:
+    obj: ObjId
+
+- name: GuardToSharedArrayBuffer
+  shared: true
+  transpile: true
+  cost_estimate: 1
+  args:
+    obj: ObjId
+
 - name: GuardIsNotArrayBufferMaybeShared
   shared: true
   transpile: true
@@ -468,7 +472,7 @@
   args:
     obj: ObjId
 
-- name: GuardIsFixedLengthTypedArray
+- name: GuardIsNonResizableTypedArray
   shared: true
   transpile: true
   cost_estimate: 1

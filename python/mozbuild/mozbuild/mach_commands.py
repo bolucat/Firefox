@@ -1687,6 +1687,8 @@ def _run_android(
     no_attach=False,
     use_existing_process=False,
 ):
+    from shlex import quote as shlex_quote
+
     from mozrunner.devices.android_device import (
         InstallIntent,
         UninstallIntent,
@@ -1694,7 +1696,6 @@ def _run_android(
         metadata_for_app,
         verify_android_device,
     )
-    from six.moves import shlex_quote
 
     metadata = metadata_for_app(app)
 
@@ -2180,7 +2181,6 @@ def _run_desktop(
         prefs = {
             "browser.aboutConfig.showWarning": False,
             "browser.shell.checkDefaultBrowser": False,
-            "general.warnOnAboutConfig": False,
         }
         prefs.update(command_context._mach_context.settings.runprefs)
         prefs.update([p.split("=", 1) for p in setpref])

@@ -61,7 +61,8 @@ add_task(async function testGetFromChildNewEnrollment() {
         enabled: true,
         testInt: 123,
       },
-    })
+    }),
+    "test"
   );
 
   // Immediately serialize sharedData and broadcast changes to the child processes.
@@ -107,7 +108,7 @@ add_task(async function testGetFromChildNewEnrollment() {
 
   childUpdated = await childSharedDataChanged(browser);
   // Unenroll from the experiment in the parent process.
-  ExperimentAPI.manager.unenroll("foo");
+  await ExperimentAPI.manager.unenroll("foo");
   // Propagate the change to child processes.
   Services.ppmm.sharedData.flush();
   await childUpdated.promise;
@@ -143,7 +144,8 @@ add_task(async function testGetFromChildExistingEnrollment() {
         enabled: false,
         testInt: 456,
       },
-    })
+    }),
+    "test"
   );
 
   // We don't have to wait for this to update in the client, but we *do* have to
@@ -187,7 +189,7 @@ add_task(async function testGetFromChildExistingEnrollment() {
     );
   });
 
-  ExperimentAPI.manager.unenroll("qux");
+  await ExperimentAPI.manager.unenroll("qux");
   ExperimentAPI.manager.store._deleteForTests("qux");
   BrowserTestUtils.removeTab(tab);
 

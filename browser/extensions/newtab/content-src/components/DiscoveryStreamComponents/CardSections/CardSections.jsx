@@ -28,13 +28,13 @@ const PREF_INTEREST_PICKER_ENABLED =
   "discoverystream.sections.interestPicker.enabled";
 const PREF_VISIBLE_SECTIONS =
   "discoverystream.sections.interestPicker.visibleSections";
-const PREF_MEDIUM_RECTANGLE_ENABLED = "newtabAdSize.mediumRectangle";
 const PREF_BILLBOARD_ENABLED = "newtabAdSize.billboard";
 const PREF_LEADERBOARD_ENABLED = "newtabAdSize.leaderboard";
 const PREF_LEADERBOARD_POSITION = "newtabAdSize.leaderboard.position";
 const PREF_BILLBOARD_POSITION = "newtabAdSize.billboard.position";
+const PREF_REFINED_CARDS_ENABLED = "discoverystream.refinedCardsLayout.enabled";
 
-function getLayoutData(responsiveLayouts, index) {
+function getLayoutData(responsiveLayouts, index, refinedCardsLayout) {
   let layoutData = {
     classNames: [],
     imageSizes: {},
@@ -52,7 +52,15 @@ function getLayoutData(responsiveLayouts, index) {
         // The API tells us whether the tile should show the excerpt or not.
         // Apply extra styles accordingly.
         if (tile.hasExcerpt) {
-          layoutData.classNames.push(`col-${layout.columnCount}-show-excerpt`);
+          if (tile.size === "medium" && refinedCardsLayout) {
+            layoutData.classNames.push(
+              `col-${layout.columnCount}-hide-excerpt`
+            );
+          } else {
+            layoutData.classNames.push(
+              `col-${layout.columnCount}-show-excerpt`
+            );
+          }
         } else {
           layoutData.classNames.push(`col-${layout.columnCount}-hide-excerpt`);
         }
@@ -115,6 +123,7 @@ function CardSection({
   const mayHaveThumbsUpDown = prefs[PREF_THUMBS_UP_DOWN_ENABLED];
   const selectedTopics = prefs[PREF_TOPICS_SELECTED];
   const availableTopics = prefs[PREF_TOPICS_AVAILABLE];
+  const refinedCardsLayout = prefs[PREF_REFINED_CARDS_ENABLED];
 
   const { saveToPocketCard } = useSelector(state => state.DiscoveryStream);
   const mayHaveSectionsPersonalization =
@@ -243,14 +252,6 @@ function CardSection({
     </div>
   );
 
-  // Determine to display first medium-sized in MREC IAB format
-  const mediumRectangleEnabled = prefs[PREF_MEDIUM_RECTANGLE_ENABLED];
-
-  let adSizingVariantClassName = "";
-  if (mediumRectangleEnabled) {
-    adSizingVariantClassName = "ad-sizing-variant-a";
-  }
-
   return (
     <section
       className="ds-section"
@@ -265,13 +266,12 @@ function CardSection({
         </div>
         {mayHaveSectionsPersonalization ? sectionContextWrapper : null}
       </div>
-      <div
-        className={`ds-section-grid ds-card-grid ${adSizingVariantClassName}`}
-      >
+      <div className={`ds-section-grid ds-card-grid`}>
         {section.data.slice(0, maxTile).map((rec, index) => {
           const { classNames, imageSizes } = getLayoutData(
             responsiveLayouts,
-            index
+            index,
+            refinedCardsLayout
           );
 
           if (!rec || rec.placeholder) {
@@ -290,6 +290,7 @@ function CardSection({
               time_to_read={rec.time_to_read}
               title={rec.title}
               topic={rec.topic}
+              features={rec.features}
               excerpt={rec.excerpt}
               url={rec.url}
               id={rec.id}

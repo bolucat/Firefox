@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -112,130 +113,133 @@ internal fun Homepage(
             .animateContentSize(),
     ) {
         HomepageHeader(
+            showPrivateBrowsingButton = state.showPrivateBrowsingButton,
             browsingMode = state.browsingMode,
             browsingModeChanged = interactor::onPrivateModeButtonClicked,
         )
 
-        with(state) {
-            when (this) {
-                is HomepageState.Private -> {
-                    Box(modifier = Modifier.padding(horizontal = horizontalMargin)) {
-                        if (feltPrivateBrowsingEnabled) {
-                            FeltPrivacyModeInfoCard(
-                                onLearnMoreClick = interactor::onLearnMoreClicked,
-                            )
-                        } else {
-                            PrivateBrowsingDescription(
-                                onLearnMoreClick = interactor::onLearnMoreClicked,
-                            )
-                        }
-                    }
-                }
-
-                is HomepageState.Normal -> {
-                    nimbusMessage?.let {
-                        NimbusMessageCardSection(
-                            nimbusMessage = nimbusMessage,
-                            interactor = interactor,
-                        )
-                    }
-
-                    if (showTopSites) {
-                        TopSites(
-                            topSites = topSites,
-                            topSiteColors = topSiteColors,
-                            interactor = interactor,
-                            onTopSitesItemBound = onTopSitesItemBound,
-                        )
-                    }
-
-                    if (searchBarEnabled) {
-                        val atTopOfList by remember {
-                            derivedStateOf {
-                                scrollState.value < MIDDLE_SEARCH_SCROLL_THRESHOLD_PX
-                            }
-                        }
-
-                        LaunchedEffect(atTopOfList) {
-                            onMiddleSearchBarVisibilityChanged(atTopOfList)
-                        }
-
-                        AnimatedVisibility(
-                            visible = showSearchBar && atTopOfList,
-                            enter = fadeIn(),
-                            exit = fadeOut(),
-                        ) {
-                            SearchBar(onClick = interactor::onNavigateSearch)
-                        }
-                    }
-
-                    MaybeAddSetupChecklist(setupChecklistState, interactor)
-
-                    if (showRecentTabs) {
-                        RecentTabsSection(
-                            interactor = interactor,
-                            cardBackgroundColor = cardBackgroundColor,
-                            recentTabs = recentTabs,
-                        )
-
-                        if (showRecentSyncedTab) {
-                            Box(
-                                modifier = Modifier.padding(
-                                    start = horizontalMargin,
-                                    end = horizontalMargin,
-                                    top = verticalMargin,
-                                ),
-                            ) {
-                                RecentSyncedTab(
-                                    tab = syncedTab,
-                                    backgroundColor = cardBackgroundColor,
-                                    buttonBackgroundColor = buttonBackgroundColor,
-                                    buttonTextColor = buttonTextColor,
-                                    onRecentSyncedTabClick = interactor::onRecentSyncedTabClicked,
-                                    onSeeAllSyncedTabsButtonClick = interactor::onSyncedTabShowAllClicked,
-                                    onRemoveSyncedTab = interactor::onRemovedRecentSyncedTab,
+        if (state.firstFrameDrawn) {
+            with(state) {
+                when (this) {
+                    is HomepageState.Private -> {
+                        Box(modifier = Modifier.padding(horizontal = horizontalMargin)) {
+                            if (feltPrivateBrowsingEnabled) {
+                                FeltPrivacyModeInfoCard(
+                                    onLearnMoreClick = interactor::onLearnMoreClicked,
+                                )
+                            } else {
+                                PrivateBrowsingDescription(
+                                    onLearnMoreClick = interactor::onLearnMoreClicked,
                                 )
                             }
                         }
                     }
 
-                    if (showBookmarks) {
-                        BookmarksSection(
-                            bookmarks = bookmarks,
-                            cardBackgroundColor = cardBackgroundColor,
+                    is HomepageState.Normal -> {
+                        nimbusMessage?.let {
+                            NimbusMessageCardSection(
+                                nimbusMessage = nimbusMessage,
+                                interactor = interactor,
+                            )
+                        }
+
+                        if (showTopSites) {
+                            TopSites(
+                                topSites = topSites,
+                                topSiteColors = topSiteColors,
+                                interactor = interactor,
+                                onTopSitesItemBound = onTopSitesItemBound,
+                            )
+                        }
+
+                        if (searchBarEnabled) {
+                            val atTopOfList by remember {
+                                derivedStateOf {
+                                    scrollState.value < MIDDLE_SEARCH_SCROLL_THRESHOLD_PX
+                                }
+                            }
+
+                            LaunchedEffect(atTopOfList) {
+                                onMiddleSearchBarVisibilityChanged(atTopOfList)
+                            }
+
+                            AnimatedVisibility(
+                                visible = showSearchBar && atTopOfList,
+                                enter = fadeIn(),
+                                exit = fadeOut(),
+                            ) {
+                                SearchBar(onClick = interactor::onNavigateSearch)
+                            }
+                        }
+
+                        MaybeAddSetupChecklist(setupChecklistState, interactor)
+
+                        if (showRecentTabs) {
+                            RecentTabsSection(
+                                interactor = interactor,
+                                cardBackgroundColor = cardBackgroundColor,
+                                recentTabs = recentTabs,
+                            )
+
+                            if (showRecentSyncedTab) {
+                                Box(
+                                    modifier = Modifier.padding(
+                                        start = horizontalMargin,
+                                        end = horizontalMargin,
+                                        top = verticalMargin,
+                                    ),
+                                ) {
+                                    RecentSyncedTab(
+                                        tab = syncedTab,
+                                        backgroundColor = cardBackgroundColor,
+                                        buttonBackgroundColor = buttonBackgroundColor,
+                                        buttonTextColor = buttonTextColor,
+                                        onRecentSyncedTabClick = interactor::onRecentSyncedTabClicked,
+                                        onSeeAllSyncedTabsButtonClick = interactor::onSyncedTabShowAllClicked,
+                                        onRemoveSyncedTab = interactor::onRemovedRecentSyncedTab,
+                                    )
+                                }
+                            }
+                        }
+
+                        if (showBookmarks) {
+                            BookmarksSection(
+                                bookmarks = bookmarks,
+                                cardBackgroundColor = cardBackgroundColor,
+                                interactor = interactor,
+                            )
+                        }
+
+                        if (showRecentlyVisited) {
+                            RecentlyVisitedSection(
+                                recentVisits = recentlyVisited,
+                                cardBackgroundColor = cardBackgroundColor,
+                                interactor = interactor,
+                            )
+                        }
+
+                        CollectionsSection(
+                            collectionsState = collectionsState,
                             interactor = interactor,
                         )
+
+                        if (showPocketStories) {
+                            PocketSection(
+                                state = pocketState,
+                                cardBackgroundColor = cardBackgroundColor,
+                                interactor = interactor,
+                            )
+                        }
+
+                        if (showCustomizeHome) {
+                            CustomizeHomeButton(
+                                buttonBackgroundColor = customizeHomeButtonBackgroundColor,
+                                interactor = interactor,
+                            )
+                        }
+
+                        Spacer(Modifier.height(bottomSpacerHeight))
                     }
-
-                    if (showRecentlyVisited) {
-                        RecentlyVisitedSection(
-                            recentVisits = recentlyVisited,
-                            cardBackgroundColor = cardBackgroundColor,
-                            interactor = interactor,
-                        )
-                    }
-
-                    CollectionsSection(
-                        collectionsState = collectionsState,
-                        interactor = interactor,
-                    )
-
-                    if (showPocketStories) {
-                        PocketSection(
-                            state = pocketState,
-                            cardBackgroundColor = cardBackgroundColor,
-                            interactor = interactor,
-                        )
-                    }
-
-                    if (showCustomizeHome) {
-                        CustomizeHomeButton(
-                            buttonBackgroundColor = customizeHomeButtonBackgroundColor,
-                            interactor = interactor,
-                        )
-                    }
-
-                    Spacer(Modifier.height(bottomSpacerHeight))
                 }
             }
         }
@@ -439,11 +443,12 @@ private fun CollectionsSection(
 
 @Composable
 private fun CustomizeHomeButton(buttonBackgroundColor: Color, interactor: CustomizeHomeIteractor) {
-    Spacer(modifier = Modifier.height(68.dp))
+    Spacer(modifier = Modifier.height(24.dp))
 
     TertiaryButton(
         text = stringResource(R.string.browser_menu_customize_home_1),
         modifier = Modifier
+            .heightIn(min = 48.dp)
             .padding(horizontal = dimensionResource(R.dimen.home_item_horizontal_margin))
             .fillMaxWidth(),
         backgroundColor = buttonBackgroundColor,
@@ -476,7 +481,9 @@ private fun HomepagePreview() {
                     showBookmarks = true,
                     showRecentlyVisited = true,
                     showPocketStories = true,
+                    showPrivateBrowsingButton = true,
                     searchBarEnabled = false,
+                    firstFrameDrawn = true,
                     showSearchBar = true,
                     setupChecklistState = null,
                     topSiteColors = TopSiteColors.colors(),
@@ -514,8 +521,10 @@ private fun HomepagePreviewCollections() {
                 showBookmarks = false,
                 showRecentlyVisited = true,
                 showPocketStories = true,
-                searchBarEnabled = false,
+                showPrivateBrowsingButton = true,
                 showSearchBar = true,
+                searchBarEnabled = false,
+                firstFrameDrawn = true,
                 setupChecklistState = null,
                 topSiteColors = TopSiteColors.colors(),
                 cardBackgroundColor = WallpaperState.default.cardBackgroundColor,
@@ -542,7 +551,9 @@ private fun PrivateHomepagePreview() {
         ) {
             Homepage(
                 HomepageState.Private(
+                    showPrivateBrowsingButton = true,
                     feltPrivateBrowsingEnabled = false,
+                    firstFrameDrawn = true,
                     bottomSpacerHeight = 188.dp,
                 ),
                 interactor = FakeHomepagePreview.homepageInteractor,

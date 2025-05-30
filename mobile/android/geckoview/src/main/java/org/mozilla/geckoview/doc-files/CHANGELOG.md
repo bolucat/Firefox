@@ -13,11 +13,31 @@ exclude: true
 
 ⚠️  breaking change and deprecation notices
 
+## v141
+- Changed the methods in [`ProfilerController`][141.1] to static.
+  ([bug 1955403]({{bugzilla}}1955403))
+- ⚠️ Deprecated [`GeckoRuntime.getProfilerController`][141.2], will now be removed in v142.
+  ([bug 1955403]({{bugzilla}}1955403))
+- Added options on [`GeckoPreferenceController`][140.1] to [`register multiple prefs`][141.3] and [`deregister multiple prefs`][141.4]
+- Added [`GeckoRuntime.notifyTelemetryPrefChanged`][141.5] to notify Gecko about telemetry preference changes.
+
+[141.1]: {{javadoc_uri}}/ProfilerController.html
+[141.2]: {{javadoc_uri}}/GeckoRuntime.html#getProfilerController()
+
+[141.3]: {{javadoc_URI}}/GeckoPreferenceController.Observer.html#registerPreferences(java.util.List)
+[141.4]: {{javadoc_URI}}/GeckoPreferenceController.Observer.html#unregisterPreferences(java.util.List)
+[141.5]: {{javadoc_URI}}/GeckoRuntime.html#notifyTelemetryPrefChanged(boolean)
+
 ## v140
 - Added a [`GeckoPreferenceController`][140.1] class to manage Gecko preferences.
 - Introduced a new [`preference observer delegate`][140.2] and a way to [`register`][140.3] preferences on the delegate.
 - Added options on [`GeckoPreferenceController`][140.1] to [`Get`][140.4] and [`Set`][140.5] Gecko preferences.
 - Added option on [`GeckoPreferenceController`][140.1] to [`Clear`][140.6] a Gecko preference.
+- Added [`setSameDocumentNavigationOverridesLoadType`][140.7] and  [`setSameDocumentNavigationOverridesLoadTypeForceDisable`][140.8] to set values on the `GeckoRuntimeSettings` builder to determine whether the same document navigation should override the load type or not.
+- Added [`getSameDocumentNavigationOverridesLoadType`][140.9], [`setSameDocumentNavigationOverridesLoadType`][140.10], [`getSameDocumentNavigationOverridesLoadTypeForceDisable`][140.11], [`setSameDocumentNavigationOverridesLoadTypeForceDisable`][140.12] to get the runtime settings for same document navigation overriding the load type.
+- ⚠️ Deprecated a [`GeckoSession.PromptDelegate.CertificateRequest`][140.13] constructor in favor of one that takes an array of acceptable issuers.
+- Added support for controlling `network.android_doh.autoselect_enabled` via [`GeckoRuntimeSettings.setDohAutoselectEnabled`][140.14]
+- Added support for controlling `network.security.ports.banned` via [`GeckoRuntimeSettings.setBannedPorts`][140.15]
 
 [140.1]: {{javadoc_uri}}/GeckoPreferenceController.html
 [140.2]: {{javadoc_uri}}/GeckoPreferenceController.Observer.Delegate.html
@@ -25,6 +45,15 @@ exclude: true
 [140.4]: {{javadoc_URI}}/GeckoPreferenceController.html#getGeckoPref(java.lang.String,int)
 [140.5]: {{javadoc_URI}}/GeckoPreferenceController.html#setGeckoPref(java.lang.String,java.lang.String,int)
 [140.6]: {{javadoc_URI}}/GeckoPreferenceController.html#clearGeckoUserPref(java.lang.String)
+[140.7]: {{javadoc_uri}}/GeckoRuntimeSettings.Builder.html#setSameDocumentNavigationOverridesLoadType(boolean)
+[140.8]: {{javadoc_uri}}/GeckoRuntimeSettings.Builder.html#setSameDocumentNavigationOverridesLoadTypeForceDisable(java.lang.String)
+[140.9]: {{javadoc_uri}}/GeckoRuntimeSettings.html#getSameDocumentNavigationOverridesLoadType()
+[140.10]: {{javadoc_uri}}/GeckoRuntimeSettings.html#setSameDocumentNavigationOverridesLoadType(boolean)
+[140.11]: {{javadoc_uri}}/GeckoRuntimeSettings.html#getSameDocumentNavigationOverridesLoadTypeForceDisable()
+[140.12]: {{javadoc_uri}}/GeckoRuntimeSettings.html#setSameDocumentNavigationOverridesLoadTypeForceDisable(java.lang.String)
+[140.13]: {{javadoc_uri}}/GeckoSession.PromptDelegate.CertificateRequest.html#<init>(java.lang.String,org.mozilla.geckoview.GeckoSession.PromptDelegate.BasePrompt.Observer,java.lang.String)
+[140.14]: {{javadoc_uri}}/GeckoRuntimeSettings.html#setDohAutoselectEnabled
+[140.15]: {{javadoc_uri}}/GeckoRuntimeSettings.html#setBannedPorts
 
 ## v139
 - ⚠️ Removed deprecated [`GeckoSession.requestAnalysis`][118.4], [`GeckoSession.requestCreateAnalysis`][122.2], [`GeckoSession.requestAnalysisStatus`][137.1], [`GeckoSession.sendPlacementAttributionEvent`][123.3], [`GeckoSession.pollForAnalysisCompleted`][137.2], [`GeckoSession.sendClickAttributionEvent`][121.4], [`GeckoSession.sendImpressionAttributionEvent`][121.5], [`GeckoSession.sendPlacementAttributionEvent`][123.3], [`GeckoSession.requestRecommendations`][118.5], [`GeckoSession.reportBackInStock`][122.1], `AnalysisStatusResponse`, [`ReviewAnalysis`][120.2] and [`Recommendation`][120.3].
@@ -1730,4 +1759,4 @@ to allow adding gecko profiler markers.
 [65.24]: {{javadoc_uri}}/CrashReporter.html#sendCrashReport(android.content.Context,android.os.Bundle,java.lang.String)
 [65.25]: {{javadoc_uri}}/GeckoResult.html
 
-[api-version]: 5605416ff124620c839deda63fdee9532cb28e7d
+[api-version]: 40efecf34c044bfe4a5bfc91cf73f25a4fd396ac

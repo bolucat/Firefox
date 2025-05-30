@@ -18,6 +18,8 @@ const lazy = {};
 ChromeUtils.defineESModuleGetters(lazy, {
   AboutPreferences: "resource://newtab/lib/AboutPreferences.sys.mjs",
   AdsFeed: "resource://newtab/lib/AdsFeed.sys.mjs",
+  InferredPersonalizationFeed:
+    "resource://newtab/lib/InferredPersonalizationFeed.sys.mjs",
   DEFAULT_SITES: "resource://newtab/lib/DefaultSites.sys.mjs",
   DefaultPrefs: "resource://newtab/lib/ActivityStreamPrefs.sys.mjs",
   DiscoveryStreamFeed: "resource://newtab/lib/DiscoveryStreamFeed.sys.mjs",
@@ -275,6 +277,14 @@ export const PREFS_CONFIG = new Map([
     },
   ],
   [
+    "discoverystream.refinedCardsLayout.enabled",
+    {
+      title:
+        "Boolean flag enable layout and styling refinements for content and ad cards across different card sizes",
+      value: false,
+    },
+  ],
+  [
     "unifiedAds.adsFeed.enabled",
     {
       title:
@@ -444,6 +454,21 @@ export const PREFS_CONFIG = new Map([
     },
   ],
   [
+    "telemetry.privatePing.redactNewtabPing.enabled",
+    {
+      title: "Redacts content interaction ids from original New Tab ping",
+      value: false,
+    },
+  ],
+  [
+    "telemetry.privatePing.inferredInterests.enabled",
+    {
+      title:
+        "Includes interest vector with private ping when user has enabeled inferred personalization",
+      value: false,
+    },
+  ],
+  [
     "section.highlights.includeVisited",
     {
       title:
@@ -548,20 +573,6 @@ export const PREFS_CONFIG = new Map([
     },
   ],
   [
-    "newtabAdSize.variant-a",
-    {
-      title: "Boolean flag to turn ad size variant A on and off",
-      value: false,
-    },
-  ],
-  [
-    "newtabAdSize.variant-b",
-    {
-      title: "Boolean flag to turn ad size variant B on and off",
-      value: false,
-    },
-  ],
-  [
     "newtabAdSize.leaderboard",
     {
       title: "Boolean flag to turn the leaderboard ad size on and off",
@@ -651,7 +662,7 @@ export const PREFS_CONFIG = new Map([
     },
   ],
   [
-    "browser.newtabpage.activity-stream.discoverystream.sections.contextualAds.enabled",
+    "discoverystream.sections.contextualAds.enabled",
     {
       title: "Boolean flag to enable contextual ads",
       getValue: useContextualAds,
@@ -670,6 +681,13 @@ export const PREFS_CONFIG = new Map([
     {
       title: "User pref to toggle inferred personalizaton",
       value: false,
+    },
+  ],
+  [
+    "discoverystream.sections.personalization.inferred.model.override",
+    {
+      title:
+        "Override inferred personalization model JSON string that typically comes from rec API. Or 'TEST' for a test model",
     },
   ],
   [
@@ -720,6 +738,20 @@ export const PREFS_CONFIG = new Map([
     {
       title: "CSV string of spoc position indexes on newtab Pocket grid",
       value: "1,5,7,11,18,20",
+    },
+  ],
+  [
+    "discoverystream.placements.contextualSpocs",
+    {
+      title:
+        "CSV string of spoc placement ids on newtab Pocket grid. A placement id tells our ad server where the ads are intended to be displayed.",
+    },
+  ],
+  [
+    "discoverystream.placements.contextualSpocs.counts",
+    {
+      title:
+        "CSV string of spoc placement counts on newtab Pocket grid. The count tells the ad server how many ads to return for this position and placement.",
     },
   ],
   [
@@ -1315,6 +1347,13 @@ const FEEDS_DATA = [
     name: "adsfeed",
     factory: () => new lazy.AdsFeed(),
     title: "Handles fetching and caching ads data",
+    value: true,
+  },
+  {
+    name: "inferredpersonalizationfeed",
+    factory: () => new lazy.InferredPersonalizationFeed(),
+    title:
+      "Handles generating and caching an interest vector for inferred personalization",
     value: true,
   },
   {

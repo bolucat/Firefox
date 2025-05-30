@@ -95,6 +95,8 @@ class DirectoryLockImpl {
 
   NS_INLINE_DECL_REFCOUNTING(DirectoryLockImpl)
 
+  QuotaManager& MutableManagerRef() const { return *mQuotaManager; }
+
   int64_t Id() const { return mId; }
 
   const PersistenceScope& PersistenceScopeRef() const {
@@ -196,11 +198,6 @@ class DirectoryLockImpl {
   // QuotaManager::mDirectoryLockIdTable. This can be improved in future after
   // some refactoring of the mutex locking.
   bool ShouldUpdateLockIdTable() const { return mShouldUpdateLockIdTable; }
-
-  bool ShouldUpdateLockTable() {
-    return !mInternal &&
-           mPersistenceScope.GetValue() != PERSISTENCE_TYPE_PERSISTENT;
-  }
 
   bool Overlaps(const DirectoryLockImpl& aLock) const;
 

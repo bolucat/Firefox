@@ -3726,6 +3726,10 @@ SimpleLinearSum jit::ExtractLinearSum(MDefinition* ins, MathSpace space,
   }
   MOZ_ASSERT(space == MathSpace::Modulo || space == MathSpace::Infinite);
 
+  if (space == MathSpace::Modulo) {
+    return SimpleLinearSum(ins, 0);
+  }
+
   MDefinition* lhs = ins->getOperand(0);
   MDefinition* rhs = ins->getOperand(1);
   if (lhs->type() != MIRType::Int32 || rhs->type() != MIRType::Int32) {
@@ -4189,8 +4193,8 @@ bool jit::EliminateRedundantGCBarriers(MIRGraph& graph) {
 
   for (ReversePostorderIterator block = graph.rpoBegin();
        block != graph.rpoEnd(); block++) {
-    for (MInstructionIterator insIter(block->begin());
-         insIter != block->end(); insIter++) {
+    for (MInstructionIterator insIter(block->begin()); insIter != block->end();
+         insIter++) {
       MInstruction* ins = *insIter;
       if (ins->isNewCallObject()) {
         MNewCallObject* allocation = ins->toNewCallObject();

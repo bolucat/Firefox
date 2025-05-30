@@ -122,6 +122,7 @@ static mozilla::LazyLogModule gTimestamps("Timestamps");
 #define FONT_LIST_INITIALIZED "font-list-initialized"
 #define USER_CHARACTERISTICS_TEST_REQUEST \
   "user-characteristics-testing-please-populate-data"
+#define MOBILE_TELEMETRY_PREF_CHANGE_TOPIC "mobile-telemetry-pref-changed"
 
 static constexpr uint32_t kVideoFramesPerSec = 30;
 static constexpr uint32_t kVideoDroppedRatio = 1;
@@ -226,6 +227,9 @@ nsresult nsRFPService::Init() {
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = obs->AddObserver(this, USER_CHARACTERISTICS_TEST_REQUEST, false);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = obs->AddObserver(this, MOBILE_TELEMETRY_PREF_CHANGE_TOPIC, false);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -405,6 +409,7 @@ void nsRFPService::StartShutdown() {
       obs->RemoveObserver(this, COMPOSITOR_CREATED);
       obs->RemoveObserver(this, FONT_LIST_INITIALIZED);
       obs->RemoveObserver(this, USER_CHARACTERISTICS_TEST_REQUEST);
+      obs->RemoveObserver(this, MOBILE_TELEMETRY_PREF_CHANGE_TOPIC);
     }
   }
 
@@ -507,6 +512,14 @@ nsRFPService::Observe(nsISupports* aObject, const char* aTopic,
 
     rv = mWebCompatService->Init();
     NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  if (!strcmp(MOBILE_TELEMETRY_PREF_CHANGE_TOPIC, aTopic) &&
+      nsDependentString(aMessage).EqualsLiteral(u"disabled")) {
+    // If the user has unset the telemetry pref, wipe out the UUID pref value
+    // (The data will also be erased server-side via the "deletion-request"
+    // ping)
+    Preferences::SetCString(USER_CHARACTERISTICS_UUID_PREF, ""_ns);
   }
 
   return NS_OK;
@@ -2653,15 +2666,16 @@ void nsRFPService::GetExemptedDomainsLowercase(nsCString& aExemptedDomains) {
 
 /* static */
 CSSIntRect nsRFPService::GetSpoofedScreenAvailSize(const nsRect& aRect,
-                                                   float aScale) {
-  int spoofedHeightOffset =
+                                                   float aScale,
+                                                   bool aIsFullscreen) {
+  int spoofedHeightOffset = aIsFullscreen ? 0 :
 #ifdef XP_WIN
-      48;
+                                          48;
 #elif defined(XP_MACOSX)
-      76;
+                                          76;
 #else
-      // Linux, Android and other platforms
-      0;
+                                          // Linux, Android and other platforms
+                                0;
 #endif
   spoofedHeightOffset =
       NS_lround(float(spoofedHeightOffset) / aScale * AppUnitsPerCSSPixel());

@@ -49,7 +49,7 @@ xpcshell:
         - socketprocess_networking
         - no-fission
         - msix
-        - geckoview-no-fission-ship
+        - geckoview-no-fission-no-ship
         - inc-origin-init
     instance-size:
         by-variant:
@@ -62,11 +62,13 @@ xpcshell:
                     .*-asan.*: []
                     .*-ccov.*: []
                     linux1804-64.*/opt: ['trunk']
+                    linux2404-64.*/opt: ['trunk']
                     windows11-64.*/opt: ['trunk']
                     default: []
             socketprocess_networking+no-fission:
                 by-test-platform:
                     linux1804-64.*: ['mozilla-central']
+                    linux2404-64.*: ['mozilla-central']
                     default: []
             socketprocess_networking:
                 by-test-platform:
@@ -80,13 +82,14 @@ xpcshell:
                     android-em-7.0-x86_64(-qr)?/debug-isolated-process: []
                     android.*: built-projects
                     linux1804-64.*: ['mozilla-central']
+                    linux2404-64.*: ['mozilla-central']
                     default: []
             msix:
                 by-test-platform:
                     windows11-64-24h2(-shippable)?/opt: built-projects
                     windows11-64-24h2/debug: built-projects
                     default: []
-            geckoview-no-fission-ship:
+            geckoview-no-fission-no-ship:
                 by-test-platform:
                     android-em-7.0-x86_64(-qr)?/debug-isolated-process: []
                     android-em.*: built-projects
@@ -117,6 +120,7 @@ xpcshell:
                     android.*/opt: 5
                     macosx.*: 2
                     linux1804-64.*/opt: 2
+                    linux2404-64.*/opt: 2
                     default: 4
     max-run-time:
         by-variant:

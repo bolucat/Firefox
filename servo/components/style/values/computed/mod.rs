@@ -43,7 +43,8 @@ pub use self::angle::Angle;
 pub use self::animation::{
     AnimationComposition, AnimationDirection, AnimationDuration, AnimationFillMode,
     AnimationIterationCount, AnimationName, AnimationPlayState, AnimationTimeline, ScrollAxis,
-    TimelineName, TransitionBehavior, TransitionProperty, ViewTimelineInset, ViewTransitionName,
+    TimelineName, TransitionBehavior, TransitionProperty, ViewTimelineInset, ViewTransitionClass,
+    ViewTransitionName,
 };
 pub use self::background::{BackgroundRepeat, BackgroundSize};
 pub use self::basic_shape::FillRule;
@@ -391,7 +392,7 @@ impl<'a> Context<'a> {
             FontMetricsOrientation::MatchContextPreferVertical => wm.is_text_vertical(),
             FontMetricsOrientation::Horizontal => false,
         };
-        if !self.in_media_or_container_query() {
+        if !self.in_media_query {
             flags |= QueryFontMetricsFlags::USE_USER_FONT_SET
         }
         self.device().query_font_metrics(

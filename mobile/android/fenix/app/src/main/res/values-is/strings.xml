@@ -62,10 +62,8 @@
     Explanation for private browsing displayed to users on home view when they first enable private mode.
     %1$s is the name of the app (for example "Firefox").
   -->
-  <string name="private_browsing_placeholder_description_2">
- · %1$s hreinsar leitar- og vafraferilinn þinn þegar þú lokar forritinu eða lokar öllum huliðsflipum og gluggum. Þó að þetta sé ekki nafnlaust gagnvart vefsíðum eða þjónustuveitanda þínum, þá gerir þetta þér auðveldara að halda því sem þú gerir á netinu huldu gagnvart öðrum þeim sem nota þetta tæki.</string>
-  <string name="private_browsing_common_myths">
-      Algengar mýtur um huliðsvafur</string>
+  <string name="private_browsing_placeholder_description_2">· %1$s hreinsar leitar- og vafraferilinn þinn þegar þú lokar forritinu eða lokar öllum huliðsflipum og gluggum. Þó að þetta sé ekki nafnlaust gagnvart vefsíðum eða þjónustuveitanda þínum, þá gerir þetta þér auðveldara að halda því sem þú gerir á netinu huldu gagnvart öðrum þeim sem nota þetta tæki.</string>
+  <string name="private_browsing_common_myths">Algengar mýtur um huliðsvafur</string>
   <!--
     True Private Browsing Mode
 
@@ -577,41 +575,41 @@
     Onboarding header for the add-ons card used by Nimbus experiments. Nimbus experiments do not support string placeholders.
     Note: The word "Firefox" should NOT be translated
   -->
-  <string name="onboarding_add_on_header" tools:ignore="BrandUsage,UnusedResources">Sérsníddu Firefox með forritsaukum</string>
+  <string name="onboarding_add_on_header" moz:removedIn="140" tools:ignore="BrandUsage,UnusedResources">Sérsníddu Firefox með forritsaukum</string>
   <!-- Onboarding sub header for the add-ons card, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_sub_header" tools:ignore="UnusedResources">Bættu við forritsaukum frá utanaðkomandi aðilum til að auka öryggi þitt, framleiðni og fleira.</string>
+  <string name="onboarding_add_on_sub_header" moz:removedIn="140" tools:ignore="UnusedResources">Bættu við forritsaukum frá utanaðkomandi aðilum til að auka öryggi þitt, framleiðni og fleira.</string>
   <!-- Onboarding add-ons card, for checking more add-ons on, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_explore_more_extensions_2">Skoða fleiri forritsauka</string>
+  <string name="onboarding_add_on_explore_more_extensions_2" moz:removedIn="140" tools:ignore="UnusedResources">Skoða fleiri forritsauka</string>
   <!-- Onboarding add-ons card, button for start browsing, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_start_browsing_button_2">Fara að vafra</string>
+  <string name="onboarding_add_on_start_browsing_button_2" moz:removedIn="140" tools:ignore="UnusedResources">Fara að vafra</string>
   <!-- Ublock name for the onboarding add-ons card, used by Nimbus experiments. Note: The word "Ublock Origin" is a brand name should NOT be translated -->
-  <string name="onboarding_add_on_ublock_name" tools:ignore="UnusedResources">uBlock Origin</string>
+  <string name="onboarding_add_on_ublock_name" moz:removedIn="140" tools:ignore="UnusedResources">uBlock Origin</string>
   <!-- Ublock description for the onboarding add-ons card, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_ublock_description" tools:ignore="UnusedResources">Lokaðu fyrir auglýsingar á áhrifaríkan og skilvirkan hátt.</string>
+  <string name="onboarding_add_on_ublock_description" moz:removedIn="140" tools:ignore="UnusedResources">Lokaðu fyrir auglýsingar á áhrifaríkan og skilvirkan hátt.</string>
   <!-- Privacy Badger name for the onboarding add-ons card, used by Nimbus experiments. Note: The word "Privacy Badger" is a brand name should NOT be translated -->
-  <string name="onboarding_add_on_privacy_badger_name" tools:ignore="UnusedResources">Privacy Badger</string>
+  <string name="onboarding_add_on_privacy_badger_name" moz:removedIn="140" tools:ignore="UnusedResources">Privacy Badger</string>
   <!-- Privacy Badger description for the onboarding add-ons card, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_privacy_badger_description" tools:ignore="UnusedResources">Gullmoli gegn rakningu. Stöðvaðu ósýnilega rekjara og auglýsingar sem njósna um þig.</string>
+  <string name="onboarding_add_on_privacy_badger_description" moz:removedIn="140" tools:ignore="UnusedResources">Gullmoli gegn rakningu. Stöðvaðu ósýnilega rekjara og auglýsingar sem njósna um þig.</string>
   <!-- Search by Image name for the onboarding add-ons card, used by Nimbus experiments. Note: The word "Search by Image" is a brand name should NOT be translated -->
-  <string name="onboarding_add_on_search_by_image_name" tools:ignore="UnusedResources">Leita eftir mynd</string>
+  <string name="onboarding_add_on_search_by_image_name" moz:removedIn="140" tools:ignore="UnusedResources">Leita eftir mynd</string>
   <!-- Search by Image description for the onboarding add-ons card, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_search_by_image_description" tools:ignore="UnusedResources">Sjáðu áhugaverða mynd og lærðu meira um hana.</string>
+  <string name="onboarding_add_on_search_by_image_description" moz:removedIn="140" tools:ignore="UnusedResources">Sjáðu áhugaverða mynd og lærðu meira um hana.</string>
   <!-- Dark Reader name for the onboarding add-ons card, used by Nimbus experiments. Note: The word "Dark Reader" is a brand name should NOT be translated -->
-  <string name="onboarding_add_on_dark_reader_name" tools:ignore="UnusedResources">Dark Reader</string>
+  <string name="onboarding_add_on_dark_reader_name" moz:removedIn="140" tools:ignore="UnusedResources">Dark Reader</string>
   <!-- Privacy Badger description for the onboarding add-ons card, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_dark_reader_description" tools:ignore="UnusedResources">Sérsniðinn dökkur hamur fyrir farsímavefi.</string>
+  <string name="onboarding_add_on_dark_reader_description" moz:removedIn="140" tools:ignore="UnusedResources">Sérsniðinn dökkur hamur fyrir farsímavefi.</string>
   <!-- Label for the number of reviews for an add-on. %1$s is the formatted number of reviews e.g. "1,234", "12,345", "123,456". -->
-  <string name="onboarding_add_on_reviews_label">Umsagnir: %1$s</string>
+  <string name="onboarding_add_on_reviews_label" moz:removedIn="140" tools:ignore="UnusedResources">Umsagnir: %1$s</string>
   <!-- Content description for the add-on icon. -->
-  <string name="onboarding_add_on_icon_content_description">Táknmynd viðbótar</string>
+  <string name="onboarding_add_on_icon_content_description" moz:removedIn="140" tools:ignore="UnusedResources">Táknmynd viðbótar</string>
   <!-- Content description for the an installed add-on icon. -->
-  <string name="onboarding_installed_add_on_icon_content_description">Tákn fyrir uppsetta viðbót</string>
+  <string name="onboarding_installed_add_on_icon_content_description" moz:removedIn="140" tools:ignore="UnusedResources">Tákn fyrir uppsetta viðbót</string>
   <!-- Content description for the an installing add-on icon. -->
-  <string name="onboarding_installing_add_on_icon_content_description">Set upp tákn fyrir viðbót</string>
+  <string name="onboarding_installing_add_on_icon_content_description" moz:removedIn="140" tools:ignore="UnusedResources">Set upp tákn fyrir viðbót</string>
   <!-- Content description for the add add-on button. -->
-  <string name="onboarding_add_on_add_button_content_description">Bæta við hnappi fyrir viðbót</string>
+  <string name="onboarding_add_on_add_button_content_description" moz:removedIn="140" tools:ignore="UnusedResources">Bæta við hnappi fyrir viðbót</string>
   <!-- Content description for the star rating group. %1$s is the rating. -->
-  <string name="onboarding_add_on_star_rating_content_description">Gefið einkunnin %1$s af 5</string>
+  <string name="onboarding_add_on_star_rating_content_description" moz:removedIn="140" tools:ignore="UnusedResources">Gefið einkunnin %1$s af 5</string>
   <!-- Title for the privacy preferences dialog shown during onboarding. Note: The word "Firefox" should NOT be translated. -->
   <string name="onboarding_preferences_dialog_title" tools:ignore="BrandUsage">Hjálpaðu okkur að gera Firefox betri</string>
   <!-- Title for the crash reporting option in the privacy preferences dialog shown during onboarding. -->
@@ -777,7 +775,9 @@
   <!-- Preference title for using the screen lock to hide tabs in private browsing -->
   <string name="preferences_pbm_lock_screen_title">Nota skjálás til að fela flipa í huliðsvafri</string>
   <!-- Informs the user how to access the tabs when "Use screen lock to hide tabs in private browsing" is enabled -->
-  <string name="preferences_pbm_lock_screen_summary">Skoða flipa með fingrafari, andlitsopnun eða PIN-númeri.</string>
+  <string name="preferences_pbm_lock_screen_summary" moz:removedIn="140" tools:ignore="UnusedResources">Skoða flipa með fingrafari, andlitsopnun eða PIN-númeri.</string>
+  <!-- Informs the user how to access the tabs when "Use screen lock to hide tabs in private browsing" is enabled -->
+  <string name="preferences_pbm_lock_screen_summary_2">Skoða flipa með fingrafari, PIN-númeri eða andlitsopnun.</string>
   <!-- Label for cookie banner section in quick settings panel. -->
   <string name="cookie_banner_blocker">Útilokun vefkökuborða</string>
   <!-- Preference for removing cookie/consent banners from sites automatically in private mode. See reduce_cookie_banner_summary for additional context. -->
@@ -982,9 +982,11 @@
   -->
   <string name="customize_toggle_recently_visited">Nýlega heimsótt</string>
   <!-- Title for the customize home screen section with Pocket. -->
-  <string name="customize_toggle_pocket_2">Umhugsunarverðar sögur</string>
+  <string name="customize_toggle_pocket_2" tools:ignore="UnusedResources" moz:removedIn="140">Umhugsunarverðar sögur</string>
+  <!-- Title for the customize home screen section with Pocket. -->
+  <string name="customize_toggle_pocket_3">Sögur</string>
   <!-- Summary for the customize home screen section with Pocket. %s is "Pocket". -->
-  <string name="customize_toggle_pocket_summary">Greinar knúnar með %s</string>
+  <string name="customize_toggle_pocket_summary" tools:ignore="UnusedResources" moz:removedIn="140">Greinar knúnar með %s</string>
   <!-- Title for the customize home screen section with sponsored Pocket stories. -->
   <string name="customize_toggle_pocket_sponsored">Kostaðar sögur</string>
   <!-- Title for the opening wallpaper settings screen -->
@@ -1023,6 +1025,56 @@
   <string name="wallpapers_onboarding_dialog_body_text">Veldu bakgrunnsmynd sem talar til þín.</string>
   <!-- Wallpaper onboarding dialog learn more button text. The button navigates to the wallpaper settings screen. -->
   <string name="wallpapers_onboarding_dialog_explore_more_button_text">Skoða fleiri bakgrunnsmyndir</string>
+  <!--
+    Icon picker
+
+    Title for the "Default" alternative app icon variant in the icon picker screen.
+  -->
+  <string name="alternative_app_icon_option_default">Sjálfgefið</string>
+  <!-- Title for the "Light" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_light">Ljóst</string>
+  <!-- Title for the "Dark" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_dark">Dökkt</string>
+  <!-- Title for the "Red" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_red">Rautt</string>
+  <!-- Title for the "Green" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_green">Grænt</string>
+  <!-- Title for the "Blue" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_blue">Blátt</string>
+  <!-- Title for the "Purple" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_purple">Fjólublátt</string>
+  <!-- Title for the "Purple Dark" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_purple_dark">Dökkfjólublátt</string>
+  <!-- Title for the "Sunrise" gradient alternative app icon variant in the icon picker screen. The app icon features a soft yellow-to-blue gradient background, resembling the colors of early morning light. -->
+  <string name="alternative_app_icon_option_gradient_sunrise">Sólarupprás</string>
+  <!-- Title for the "Golden Hour" gradient alternative app icon variant in the icon picker screen. The app icon features a warm golden-to-pink gradient background, resembling the colors of the sunlight shortly before sunset. -->
+  <string name="alternative_app_icon_option_gradient_golden_hour">Sólroði</string>
+  <!-- Title for the "Sunset" gradient alternative app icon variant in the icon picker screen. The app icon has a rich red-to-purple gradient background, resembling the tones of a sunset sky. -->
+  <string name="alternative_app_icon_option_gradient_sunset">Sólarlag</string>
+  <!-- Title for the "Blue Hour" gradient alternative app icon variant in the icon picker screen. The app icon has a cool blue gradient background, resembling the sky color around the time just after sunset or before sunrise. -->
+  <string name="alternative_app_icon_option_gradient_blue_hour">Rökkurstund</string>
+  <!-- Title for the "Twilight" gradient alternative app icon variant in the icon picker screen. The app icon has a purple-toned gradient background, resembling the sky color during twilight. -->
+  <string name="alternative_app_icon_option_gradient_twilight">Rökkur</string>
+  <!-- Title for the "Midnight" gradient alternative app icon variant in the icon picker screen. The app icon features a dark gradient background, resembling the deep tones of the night sky. -->
+  <string name="alternative_app_icon_option_gradient_midnight">Miðnætti</string>
+  <!-- Title for the "Northern Lights" gradient alternative app icon variant in the icon picker screen. The app icon has a dynamic green, blue, and purple gradient background, resembling the aurora borealis. -->
+  <string name="alternative_app_icon_option_gradient_northern_lights">Norðurljós</string>
+  <!-- Title for the "Retro 2004" themed alternative app icon variant in the icon picker screen. This app icon uses the classic Firefox logo from 2004. -->
+  <string name="alternative_app_icon_option_retro_2004">Retró 2004</string>
+  <!-- Title for the "Retro 2017" themed alternative app icon variant in the icon picker screen. This app icon uses the Firefox logo from 2017, with a more modernized design. -->
+  <string name="alternative_app_icon_option_retro_2017">Retró 2017</string>
+  <!-- Title for the "Pixelated" themed alternative app icon variant in the icon picker screen. This app icon features a pixel-art style, resembling retro 8-bit graphics. -->
+  <string name="alternative_app_icon_option_pixelated">Mynddílað</string>
+  <!-- Title for the "Minimal" themed alternative app icon variant in the icon picker screen. The app icon presents a simplified, flat and monochrome version of the Firefox logo. -->
+  <string name="alternative_app_icon_option_minimal">Lágmarks</string>
+  <!-- Title for the "Pride" themed alternative app icon variant in the icon picker screen. The app icon incorporates a rainbow color scheme in support of the LGBTQ+ community. -->
+  <string name="alternative_app_icon_option_pride">Regnbogi</string>
+  <!-- Title for the "Cute" themed alternative app icon variant in the icon picker screen. The app icon features a playful design with an adorable aesthetic. -->
+  <string name="alternative_app_icon_option_cute">Sætt</string>
+  <!-- Title for the "Momo" themed alternative app icon variant in the icon picker screen. The app icon was created by artist @heyheymomodraws and features a unique hand-drawn style with a friendly fox. -->
+  <string name="alternative_app_icon_option_momo">Mómó</string>
+  <!-- Subtitle for the "Momo" themed alternative app icon variant in the icon picker screen. The app icon was created by artist @heyheymomodraws and features a unique hand-drawn style with a friendly fox. -->
+  <string name="alternative_app_icon_option_momo_subtitle">Búið til af @heyheymomodraws</string>
   <!--
     Add-ons general availability nimbus message
 
@@ -1175,7 +1227,7 @@
 
     Instructions on how to access pairing
   -->
-  <string name="pair_instructions_2">Skannaðu QR kóðann sem sýndur er á &lt;b&gt;firefox.com/pair&lt;/b&gt;</string>
+  <string name="pair_instructions_2"><![CDATA[Skannaðu QR kóðann sem sýndur er á <b>firefox.com/pair</b>]]></string>
   <!--
     Toolbar Preferences
 
@@ -1243,7 +1295,7 @@
     Message to warn users that a large number of tabs will be opened
     %s will be replaced by app name.
   -->
-  <string name="open_all_warning_message">Að opna þetta marga flipa gæti hægt á %s á meðan síðurnar eru að hlaðast inn.  Ertu viss um að þú viljir halda áfram?</string>
+  <string name="open_all_warning_message">Að opna þetta marga flipa gæti hægt á %s á meðan síðurnar eru að hlaðast inn. Ertu viss um að þú viljir halda áfram?</string>
   <!-- Dialog button text for confirming open all tabs -->
   <string name="open_all_warning_confirm">Opna flipa</string>
   <!-- Dialog button text for canceling open all tabs -->
@@ -1489,7 +1541,7 @@
     Message for the dialog that is shown when there is not enough storage space to download a file.
     %s is the name of the file to download.
   -->
-  <string name="download_file_has_not_enough_storage_dialog_message">Þetta tæki hefur ekki nægilegt pláss til að sækja &lt;b&gt;%s&lt;/b&gt;.</string>
+  <string name="download_file_has_not_enough_storage_dialog_message"><![CDATA[Þetta tæki hefur ekki nægilegt pláss til að sækja <b>%s</b>.]]></string>
   <!--
     Text for the confirm button in the dialog that is shown when there is not enough storage space to download a file.
     This button will navigate the user to the device's storage management settings.
@@ -1612,15 +1664,31 @@
 
     Broken site reason text for site slow or not working
   -->
-  <string name="webcompat_reporter_reason_slow">Vefsvæði hægfara eða virkar ekki</string>
+  <string name="webcompat_reporter_reason_slow" moz:removedIn="140" tools:ignore="UnusedResources">Vefsvæði hægfara eða virkar ekki</string>
+  <!-- Broken site reason text for site doesn’t load -->
+  <string name="webcompat_reporter_reason_load">Vefsvæðið hleðst ekki inn</string>
+  <!-- Broken site reason text for can’t pay, check out or shop -->
+  <string name="webcompat_reporter_reason_checkout">Get ekki borgað, afgreitt eða verslað</string>
   <!-- Broken site reason text for images or videos -->
-  <string name="webcompat_reporter_reason_media">Myndir eða myndskeið</string>
+  <string name="webcompat_reporter_reason_media" moz:removedIn="140" tools:ignore="UnusedResources">Myndir eða myndskeið</string>
   <!-- Broken site reason text for buttons, links, and other content -->
-  <string name="webcompat_reporter_reason_content">Hnappar, tenglar og annað efni</string>
+  <string name="webcompat_reporter_reason_content" moz:removedIn="140" tools:ignore="UnusedResources">Hnappar, tenglar og annað efni</string>
   <!-- Broken site reason text for sign in or sign out -->
-  <string name="webcompat_reporter_reason_account">Innskráning eða útskráning</string>
+  <string name="webcompat_reporter_reason_account" moz:removedIn="140" tools:ignore="UnusedResources">Innskráning eða útskráning</string>
+  <!-- Broken site reason text for site is slow -->
+  <string name="webcompat_reporter_reason_slow2">Vefsvæðið er hægvirkt</string>
+  <!-- Broken site reason text for video isn’t playing or loading -->
+  <string name="webcompat_reporter_reason_media2">Myndskeiðið spilast ekki eða hleðst ekki inn</string>
+  <!-- Broken site reason text for missing content -->
+  <string name="webcompat_reporter_reason_content2">Vantar efni</string>
+  <!-- Broken site reason text for can’t sign in or register -->
+  <string name="webcompat_reporter_reason_account2">Get ekki skráð inn eða nýskráð</string>
   <!-- Broken site reason text for ad blocker -->
-  <string name="webcompat_reporter_reason_ad_blocker">Auglýsingabani</string>
+  <string name="webcompat_reporter_reason_ad_blocker" moz:removedIn="140" tools:ignore="UnusedResources">Auglýsingabani</string>
+  <!-- Broken site reason text for site asked to turn off ad blocker -->
+  <string name="webcompat_reporter_reason_turn_off_adblocker">Vefsívæði bað um að slökkt yrði á útilokun auglýsinga</string>
+  <!-- Broken site reason text for browser isn’t supported or blocked -->
+  <string name="webcompat_reporter_reason_notsupported">Vafrinn er ekki studdur eða lokað er á hann</string>
   <!-- Broken site reason text for something else -->
   <string name="webcompat_reporter_reason_other">Eitthvað annað</string>
   <!--
@@ -1669,6 +1737,8 @@
   <string name="bookmark_menu_copy_button">Afrita</string>
   <!-- Bookmark overflow menu share button -->
   <string name="bookmark_menu_share_button">Deila</string>
+  <!-- Bookmark overflow menu select all bookmarks -->
+  <string name="bookmark_menu_select_all_bookmarks">Velja allt</string>
   <!-- Bookmark overflow menu open in new tab button -->
   <string name="bookmark_menu_open_in_new_tab_button">Opna nýjan flipa</string>
   <!-- Bookmark overflow menu open in private tab button -->
@@ -1967,7 +2037,7 @@
   <!-- A message template for the shared link with a footer. %1$s is the shared link, %2$s is the app name (e.g. Firefox) and %3$s is a download link for the app. -->
   <string name="sent_from_firefox_template" tools:ignore="UnusedResources">%1$s\n\nSent frá %2$s 🦊 Prófaðu farsímavafrann: %3$s</string>
   <!-- A short message template for the shared link with a footer. %1$s is the shared link, %2$s is the app name (e.g. Firefox) and %3$s is a download link for the app. -->
-  <string name="sent_from_firefox_template_short" tools:ignore="UnusedResources">%1$s\n\n Sent frá %2$s 🦊 %3$s</string>
+  <string name="sent_from_firefox_template_short" tools:ignore="UnusedResources">%1$s\n\nSent frá %2$s 🦊 %3$s</string>
   <!--
     Notifications
 
@@ -2161,7 +2231,7 @@
   <!-- Title of QR Pairing Fragment -->
   <string name="sync_scan_code">Skanna QR kóða</string>
   <!-- Instructions on how to access pairing -->
-  <string name="sign_in_instructions" tools:ignore="BrandUsage">Opnaðu Firefox á tölvunni þinni og farðu inná &lt;b&gt;https://firefox.com/pair&lt;/b&gt;</string>
+  <string name="sign_in_instructions" tools:ignore="BrandUsage"><![CDATA[Opnaðu Firefox á tölvunni þinni og farðu inná <b>https://firefox.com/pair</b>]]></string>
   <!-- Text shown for sign in pairing when ready -->
   <string name="sign_in_ready_for_scan">Tilbúið til skönnunar</string>
   <!-- Text shown for settings option for sign with pairing -->
@@ -2169,7 +2239,7 @@
   <!-- Text shown for settings option for sign with email -->
   <string name="sign_in_with_email">Nota tölvupóst í staðinn</string>
   <!-- Text shown for settings option for create new account text.'Firefox' intentionally hardcoded here. -->
-  <string name="sign_in_create_account_text" tools:ignore="BrandUsage">Enginn reikningur? &lt;u&gt;Búðu til einn slíkan&lt;/u&gt; til að samstilla Firefox á milli tækja.</string>
+  <string name="sign_in_create_account_text" tools:ignore="BrandUsage"><![CDATA[Enginn reikningur? <u>Búðu til einn slíkan</u> til að samstilla Firefox á milli tækja.]]></string>
   <!-- Text shown in confirmation dialog to sign out of account. %s is the name of the app (for example "Firefox"). -->
   <string name="sign_out_confirmation_message_2">%s mun hætta að samstilla reikninginn þinn en mun ekki eyða neinum vafragögnum á þessu tæki.</string>
   <!-- Option to continue signing out of account shown in confirmation dialog to sign out of account -->
@@ -2316,8 +2386,6 @@
   <string name="preference_doh_summary">DNS yfir HTTPS (Domain Name System) sendir beiðni þína um lén í gegnum dulritaða tengingu, veitir öruggt DNS og gerir erfiðara fyrir aðra að sjá hvaða vefsvæði þú ert að fara að fara á. %1$s</string>
   <!-- Used as text for the link in `preference_doh_title`, points to documentation about "DNS over HTTPS" -->
   <string name="preference_doh_learn_more">Kanna nánar</string>
-  <!-- Content description for the toolbar "Navigate up" button -->
-  <string name="preference_doh_up_description">Flakka upp</string>
   <!-- Content description for the "Exceptions" button -->
   <string name="preference_doh_exceptions_description">Undanþágur</string>
   <!-- Content description for the "Info" button -->
@@ -2463,8 +2531,7 @@
   <!-- Preference to access list of saved passwords -->
   <string name="preferences_passwords_saved_logins_2">Vistuð lykilorð</string>
   <!-- Description of empty list of saved passwords. %s is the name of the app (for example "Firefox"). -->
-  <string name="preferences_passwords_saved_logins_description_empty_text_2">Lykilorðin sem þú vistar eða samstillir við %s verða skráð hér. Öll lykilorð sem þú vistar eru dulrituð.
-</string>
+  <string name="preferences_passwords_saved_logins_description_empty_text_2">Lykilorðin sem þú vistar eða samstillir við %s verða skráð hér. Öll lykilorð sem þú vistar eru dulrituð.</string>
   <!-- Clickable text for opening an external link for more information about Sync. -->
   <string name="preferences_passwords_saved_logins_description_empty_learn_more_link_2">Frekari upplýsingar um samstillingu</string>
   <!-- Preference to access list of login exceptions that we never save logins for -->
@@ -2477,6 +2544,8 @@
   <string name="preferences_passwords_exceptions_remove_all">Eyða öllum undantekningum</string>
   <!-- Hint for search box in passwords list -->
   <string name="preferences_passwords_saved_logins_search_2">Leita að lykilorðum</string>
+  <!-- Content description for the logins navigation bar back button -->
+  <string name="logins_navigate_back_button_content_description">Til baka</string>
   <!-- The header for the site that a login is for -->
   <string name="preferences_passwords_saved_logins_site">Vefsvæði</string>
   <!-- The header for the username for a login -->
@@ -2680,7 +2749,7 @@
   <!-- Text shown when a user leaves out the required template string -->
   <string name="search_add_custom_engine_error_missing_template">Athugaðu hvort leitarstrengurinn sé í sama sniði og dæmið</string>
   <!-- Text shown when we aren't able to validate the custom search query. %s is the url of the custom search engine. -->
-  <string name="search_add_custom_engine_error_cannot_reach">Villa við að tengjast “%s”</string>
+  <string name="search_add_custom_engine_error_cannot_reach" moz:removedIn="140" tools:ignore="UnusedResources">Villa við að tengjast “%s”</string>
   <!-- Text shown when a user creates a new search engine. %s is the url of the custom search engine. -->
   <string name="search_add_custom_engine_success_message">Stofnaði %s</string>
   <!-- Text shown when a user successfully edits a custom search engine. %s is the url of the custom search engine. -->
@@ -2692,9 +2761,9 @@
   <!-- First step for the allowing a permission -->
   <string name="phone_feature_blocked_step_settings">1. Farðu í Android stillingar</string>
   <!-- Second step for the allowing a permission -->
-  <string name="phone_feature_blocked_step_permissions">2. Snertu &lt;b&gt;Heimildir&lt;/b&gt;</string>
+  <string name="phone_feature_blocked_step_permissions"><![CDATA[2. Snertu <b>Heimildir</b>]]></string>
   <!-- Third step for the allowing a permission (%1$s is the permission name, for example "Camera"). -->
-  <string name="phone_feature_blocked_step_feature">3. Breyttu &lt;b&gt;%1$s&lt;/b&gt; yfir í VIRKT</string>
+  <string name="phone_feature_blocked_step_feature"><![CDATA[3. Breyttu <b>%1$s</b> yfir í VIRKT]]></string>
   <!-- Label that indicates a site is using a secure connection -->
   <string name="quick_settings_sheet_secure_connection_2">Tenging er örugg</string>
   <!-- Label that indicates a site is using a insecure connection -->
@@ -2704,7 +2773,7 @@
   <!-- Label to clear site data -->
   <string name="clear_site_data">Hreinsa vefkökur og gögn vefsvæðis</string>
   <!-- Confirmation message for a dialog confirming if the user wants to delete all data for current site. %s is the domain of the site. -->
-  <string name="confirm_clear_site_data">Ertu viss um að þú viljir hreinsa allar vefkökur og gögn fyrir vefsvæðið &lt;b&gt;%s&lt;/b&gt;?</string>
+  <string name="confirm_clear_site_data"><![CDATA[Ertu viss um að þú viljir hreinsa allar vefkökur og gögn fyrir vefsvæðið <b>%s</b>?]]></string>
   <!-- Confirmation message for a dialog confirming if the user wants to delete all the permissions for all sites -->
   <string name="confirm_clear_permissions_on_all_sites">Ertu viss um að þú viljir hreinsa allar heimildir á öllum vefsvæðum?</string>
   <!-- Confirmation message for a dialog confirming if the user wants to delete all the permissions for a site -->
@@ -2765,7 +2834,7 @@
   <!-- This is the hint text that is shown inline on the hostname field of the create new login page. 'https://www.example.com' intentionally hardcoded here -->
   <string name="add_login_hostname_hint_text">https://www.example.com</string>
   <!-- This is an error message shown below the hostname field of the add login page when a hostname does not contain http or https. -->
-  <string name="add_login_hostname_invalid_text_3">Veffang verður að innihalda "https://" or "http://"</string>
+  <string name="add_login_hostname_invalid_text_3">Veffang verður að innihalda \"https://\" or \"http://\"</string>
   <!-- This is an error message shown below the hostname field of the add login page when a hostname is invalid. -->
   <string name="add_login_hostname_invalid_text_2">Gilt hýsingarheiti er nauðsynlegt</string>
   <!--
@@ -2888,17 +2957,19 @@
 
     Header text for a section on the home screen.
   -->
-  <string name="pocket_stories_header_1">Umhugsunarverðar sögur</string>
+  <string name="pocket_stories_header_1" tools:ignore="UnusedResources" moz:removedIn="140">Umhugsunarverðar sögur</string>
+  <!-- Header text for a section on the home screen. -->
+  <string name="pocket_stories_header_2">Sögur</string>
   <!-- Header text for a section on the home screen. -->
   <string name="pocket_stories_categories_header">Sögur eftir efni</string>
   <!-- Text of a button allowing users to access an external url for more Pocket recommendations. -->
   <string name="pocket_stories_placeholder_text">Uppgötva meira</string>
   <!-- Title of an app feature. Smaller than a heading. %s is "Pocket". -->
-  <string name="pocket_stories_feature_title_2">Keyrt með %s.</string>
+  <string name="pocket_stories_feature_title_2" moz:removedIn="140" tools:ignore="UnusedResources">Keyrt með %s.</string>
   <!-- Caption for describing a certain feature. %s is a link using pocket_stories_feature_learn_more as text, which will load an url in a new tab when clicked. -->
-  <string name="pocket_stories_feature_caption" tools:ignore="BrandUsage">Hluti af Firefox-fjölskyldunni. %s</string>
+  <string name="pocket_stories_feature_caption" moz:removedIn="140" tools:ignore="BrandUsage,UnusedResources">Hluti af Firefox-fjölskyldunni. %s</string>
   <!-- Clickable text for opening an external link for more information about Pocket. -->
-  <string name="pocket_stories_feature_learn_more">Frekari upplýsingar</string>
+  <string name="pocket_stories_feature_learn_more" moz:removedIn="140" tools:ignore="UnusedResources">Frekari upplýsingar</string>
   <!-- Text indicating that the Pocket story that also displays this text is a sponsored story by other 3rd party entity. -->
   <string name="pocket_stories_sponsor_indication">Kostað</string>
   <!-- Snackbar message for enrolling in a Nimbus experiment from the secret settings when Studies preference is Off. -->
@@ -2910,11 +2981,11 @@
 
     Paragraph explaining the grading system we use to classify the reliability of a product's reviews.
   -->
-  <string name="review_quality_check_info_review_grade_header" moz:removedIn="136" tools:ignore="UnusedResources">Við gefum umsögnum hverrar vöru &lt;b&gt;einkunnir í bókstöfum&lt;/b&gt; frá A til F.</string>
+  <string name="review_quality_check_info_review_grade_header" moz:removedIn="136" tools:ignore="UnusedResources"><![CDATA[Við gefum umsögnum hverrar vöru <b>einkunnir í bókstöfum</b> frá A til F.]]></string>
   <!-- Paragraph explaining how a product's adjusted grading is calculated. -->
-  <string name="review_quality_check_explanation_body_adjusted_grading" moz:removedIn="136" tools:ignore="UnusedResources">&lt;b&gt;Aðlöguð einkunn&lt;/b&gt; er eingöngu byggð á umsögnum sem við teljum vera áreiðanlegar.</string>
+  <string name="review_quality_check_explanation_body_adjusted_grading" moz:removedIn="136" tools:ignore="UnusedResources"><![CDATA[<b>Aðlöguð einkunn</b> er eingöngu byggð á umsögnum sem við teljum vera áreiðanlegar.]]></string>
   <!-- Paragraph explaining product review highlights. %s is the name of the retailer (e.g. Amazon). -->
-  <string name="review_quality_check_explanation_body_highlights" moz:removedIn="136" tools:ignore="UnusedResources">&lt;b&gt;Hápunktar&lt;/b&gt; eru úr umsögnum um %s frá síðustu 80 dögum sem við teljum vera áreiðanlegar.</string>
+  <string name="review_quality_check_explanation_body_highlights" moz:removedIn="136" tools:ignore="UnusedResources"><![CDATA[<b>Hápunktar</b> eru úr umsögnum um %s frá síðustu 80 dögum sem við teljum vera áreiðanlegar.]]></string>
   <!--
     Accessibility services actions labels. These will be appended to accessibility actions like "Double tap to.." but not by or applications but by services like Talkback.
 
@@ -2932,7 +3003,7 @@
   <!-- Action label for links that point to an article. Talkback will append this to say "Double tap to read the article". -->
   <string name="a11y_action_label_read_article">lesa greinina</string>
   <!-- Action label for links to the Firefox Pocket website. Talkback will append this to say "Double tap to open link to learn more". -->
-  <string name="a11y_action_label_pocket_learn_more">opnaðu tengilinn til að fræðast nánar</string>
+  <string name="a11y_action_label_pocket_learn_more" moz:removedIn="140" tools:ignore="UnusedResources">opnaðu tengilinn til að fræðast nánar</string>
   <!-- Content description for headings announced by accessibility service. %s is the text of the heading. Talkback will announce the text and then speak the word "Heading" indicating to the user that this text is a heading for a section. -->
   <string name="a11y_heading">%s, Fyrirsögn</string>
   <!-- Title for dialog displayed when trying to access links present in a text. -->
@@ -3136,12 +3207,12 @@
     The title of the warning card informs the user that an error has occurred at downloading a language.
     %1$s is the language name, for example, "Spanish".
   -->
-  <string name="download_languages_error_warning_text">Ekki tókst að sækja &lt;b&gt;%1$s&lt;/b&gt;. Prófaðu aftur.</string>
+  <string name="download_languages_error_warning_text"><![CDATA[Ekki tókst að sækja <b>%1$s</b>. Prófaðu aftur.]]></string>
   <!--
     The title of the warning card informs the user that an error has occurred at deleting a language.
     %1$s is the language name, for example, "Spanish".
   -->
-  <string name="download_languages_delete_error_warning_text">Ekki tókst að eyða &lt;b&gt;%1$s&lt;/b&gt;. Prófaðu aftur.</string>
+  <string name="download_languages_delete_error_warning_text"><![CDATA[Ekki tókst að eyða <b>%1$s</b>. Prófaðu aftur.]]></string>
   <!--
     Title for the dialog used by the translations feature to confirm deleting a language.
     The dialog will be presented when the user requests deletion of a language.
@@ -3237,7 +3308,7 @@
     Description text for a dialog confirming whether the user wants to delete all data for current site.
     %s is a placeholder for the base domain of website.
   -->
-  <string name="clear_site_data_dialog_description">Ef þú fjarlægir vefkökur og síðugögn fyrir &lt;b&gt;%s&lt;/b&gt; gætirðu skráð þig út af vefsvæðum og hreinsað innkaupakörfur.</string>
+  <string name="clear_site_data_dialog_description"><![CDATA[Ef þú fjarlægir vefkökur og síðugögn fyrir <b>%s</b> gætirðu skráð þig út af vefsvæðum og hreinsað innkaupakörfur.]]></string>
   <!-- Button text on the clear site data dialog to allow users to confirm they wish to clear the site data. -->
   <string name="clear_site_data_dialog_positive_button_text">Hreinsa</string>
   <!-- Button text on the clear site data dialog to allow users to cancel the action and not clear the site data. -->
@@ -3601,6 +3672,8 @@
   <string name="pbm_authentication_enable_lock">Virkja skjálás fyrir huliðsflipa</string>
   <!-- Authentication prompt title to disable the private tabs mode -->
   <string name="pbm_authentication_disable_lock">Gera skjálás fyrir huliðsflipa óvirkan</string>
+  <!-- Label for a preference shown when the device supports screen lock (e.g., PIN, pattern, or password) but the user has not set one up. -->
+  <string name="pbm_authentication_lock_device_feature_disabled">Settu upp skjálás til að fela flipa</string>
   <!-- Title text for the contextual feature recommendation (CFR) suggesting the user enable a screen lock to protect private tabs -->
   <string name="private_tab_cfr_title">Nota skjálás til að fela huliðsflipa?</string>
   <!-- Negative button text for the contextual feature recommendation (CFR) dismissing the screen lock suggestion -->

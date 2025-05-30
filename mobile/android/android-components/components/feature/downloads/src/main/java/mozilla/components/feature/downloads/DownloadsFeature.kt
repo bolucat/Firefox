@@ -9,7 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.ResolveInfo
-import android.os.StatFs
 import android.widget.Toast
 import androidx.annotation.ColorRes
 import androidx.annotation.VisibleForTesting
@@ -39,6 +38,7 @@ import mozilla.components.lib.state.ext.flowScoped
 import mozilla.components.support.base.feature.LifecycleAwareFeature
 import mozilla.components.support.base.feature.OnNeedToRequestPermissions
 import mozilla.components.support.base.feature.PermissionsFeature
+import mozilla.components.support.base.log.logger.Logger
 import mozilla.components.support.ktx.android.content.appName
 import mozilla.components.support.ktx.android.content.isPermissionGranted
 import mozilla.components.support.ktx.kotlin.isSameOriginAs
@@ -95,9 +95,11 @@ value class NegativeActionCallback(val value: () -> Unit)
  * responsible for performing the downloads.
  * @property store a reference to the application's [BrowserStore].
  * @property useCases [DownloadsUseCases] instance for consuming processed downloads.
+ * @property fileSystemHelper A helper for file system operations.
  * @property fragmentManager a reference to a [FragmentManager]. If a fragment
  * manager is provided, a dialog will be shown before every download.
  * @property promptsStyling styling properties for the dialog.
+ * @property onDownloadStartedListener a callback invoked when a download is started.
  * @property shouldForwardToThirdParties Indicates if downloads should be forward to third party apps,
  * if there are multiple apps a chooser dialog will shown.
  * @property customFirstPartyDownloadDialog An optional delegate for showing a dialog for a download
@@ -112,12 +114,14 @@ class DownloadsFeature(
     private val store: BrowserStore,
     @get:VisibleForTesting(otherwise = PRIVATE)
     internal val useCases: DownloadsUseCases,
+    private val fileSystemHelper: FileSystemHelper = DefaultFileSystemHelper(),
     override var onNeedToRequestPermissions: OnNeedToRequestPermissions = { },
     onDownloadStopped: onDownloadStopped = noop,
     private val downloadManager: DownloadManager = AndroidDownloadManager(applicationContext, store),
     private val tabId: String? = null,
     private val fragmentManager: FragmentManager? = null,
     private val promptsStyling: PromptsStyling? = null,
+    private val onDownloadStartedListener: ((String?) -> Unit) = {},
     private val shouldForwardToThirdParties: () -> Boolean = { false },
     private val customFirstPartyDownloadDialog: (
         (Filename, ContentSize, PositiveActionCallback, NegativeActionCallback) -> Unit
@@ -127,6 +131,8 @@ class DownloadsFeature(
     )? = null,
     private val fileHasNotEnoughStorageDialog: ((Filename) -> Unit) = {},
 ) : LifecycleAwareFeature, PermissionsFeature {
+
+    private val logger = Logger("DownloadsFeature")
 
     var onDownloadStopped: onDownloadStopped
         get() = downloadManager.onDownloadStopped
@@ -148,7 +154,6 @@ class DownloadsFeature(
      * Starts observing downloads on the selected session and sends them to the [DownloadManager]
      * to be processed.
      */
-    @Suppress("Deprecation")
     override fun start() {
         // Dismiss the previous prompts when the user navigates to another site.
         // This prevents prompts from the previous page from covering content.
@@ -263,7 +268,9 @@ class DownloadsFeature(
 
     @VisibleForTesting
     internal fun startDownload(download: DownloadState): Boolean {
-        if (!isStorageAvailableForDownload(download)) {
+        fileSystemHelper.createDirectoryIfNotExists(download.directoryPath)
+
+        if (isDownloadBiggerThanAvailableSpace(download)) {
             fileHasNotEnoughStorageDialog.invoke(
                 Filename(download.realFilenameOrGuessed),
             )
@@ -273,6 +280,7 @@ class DownloadsFeature(
 
         val id = downloadManager.download(download)
         return if (id != null) {
+            onDownloadStartedListener.invoke(tabId)
             true
         } else {
             showDownloadNotSupportedError()
@@ -348,10 +356,18 @@ class DownloadsFeature(
     }
 
     @VisibleForTesting
-    internal fun isStorageAvailableForDownload(download: DownloadState): Boolean =
-        download.contentLength?.let {
-            it < StatFs(download.directoryPath).availableBytes
-        } ?: true
+    internal fun isDownloadBiggerThanAvailableSpace(download: DownloadState): Boolean {
+        download.contentLength?.let { downloadLength ->
+            if (fileSystemHelper.isDirectory(download.directoryPath)) {
+                try {
+                    return downloadLength > fileSystemHelper.availableBytesInDirectory(download.directoryPath)
+                } catch (e: IllegalArgumentException) {
+                    logger.error("Invalid path for StatFs: ${download.directoryPath}", e)
+                }
+            }
+        }
+        return false
+    }
 
     @VisibleForTesting
     internal fun showAppDownloaderDialog(

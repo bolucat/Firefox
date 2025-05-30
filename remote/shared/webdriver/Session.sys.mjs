@@ -7,8 +7,8 @@ const lazy = {};
 ChromeUtils.defineESModuleGetters(lazy, {
   accessibility:
     "chrome://remote/content/shared/webdriver/Accessibility.sys.mjs",
-  allowAllCerts: "chrome://remote/content/marionette/cert.sys.mjs",
   Capabilities: "chrome://remote/content/shared/webdriver/Capabilities.sys.mjs",
+  Certificates: "chrome://remote/content/shared/webdriver/Certificates.sys.mjs",
   error: "chrome://remote/content/shared/webdriver/Errors.sys.mjs",
   generateUUID: "chrome://remote/content/shared/UUID.sys.mjs",
   Log: "chrome://remote/content/shared/Log.sys.mjs",
@@ -101,9 +101,6 @@ export class WebDriverSession {
    *
    *  <dt><code>moz:accessibilityChecks</code> (boolean)
    *  <dd>(HTTP only) Run a11y checks when clicking elements.
-   *
-   *  <dt><code>moz:debuggerAddress</code> (boolean)
-   *  <dd>Indicate that the Chrome DevTools Protocol (CDP) has to be enabled.
    *
    *  <dt><code>moz:webdriverClick</code> (boolean)
    *  <dd>(HTTP only) Use a WebDriver conforming <i>WebDriver::ElementClick</i>.
@@ -244,7 +241,7 @@ export class WebDriverSession {
       lazy.logger.warn(
         "TLS certificate errors will be ignored for this session"
       );
-      lazy.allowAllCerts.enable();
+      lazy.Certificates.disableSecurityChecks();
     }
 
     // If we are testing accessibility with marionette, start a11y service in
@@ -277,7 +274,7 @@ export class WebDriverSession {
 
     this.navigableSeenNodes = null;
 
-    lazy.allowAllCerts.disable();
+    lazy.Certificates.enableSecurityChecks();
 
     // Close all open connections which unregister themselves.
     this.#connections.forEach(connection => connection.close());

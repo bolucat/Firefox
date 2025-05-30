@@ -105,6 +105,7 @@
 #include "nsIBaseWindow.h"
 #include "nsIDocShellTreeOwner.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "mozilla/CycleCollectedJSContext.h"
 #include "mozilla/Preferences.h"
 #include "nsContentPermissionHelper.h"
 #include "nsCSSPseudoElements.h"  // for PseudoStyleType
@@ -1321,20 +1322,6 @@ nsDOMWindowUtils::GetParsedStyleSheets(uint32_t* aSheets) {
   }
 
   *aSheets = doc->CSSLoader()->ParsedSheetCount();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::ClearNativeTouchSequence(nsIObserver* aObserver) {
-  nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (!widget) {
-    return NS_ERROR_FAILURE;
-  }
-
-  NS_DispatchToMainThread(
-      NativeInputRunnable::Create(NewRunnableMethod<nsIObserver*>(
-          "nsIWidget::ClearNativeTouchSequence", widget,
-          &nsIWidget::ClearNativeTouchSequence, aObserver)));
   return NS_OK;
 }
 
@@ -3107,7 +3094,7 @@ static nsTArray<ScrollContainerFrame*> CollectScrollableAncestors(
   nsTArray<ScrollContainerFrame*> result;
   nsIFrame* frame = aStart;
   while (frame) {
-    frame = nsLayoutUtils::GetCrossDocParentFrame(frame);
+    frame = DisplayPortUtils::OneStepInAsyncScrollableAncestorChain(frame);
     if (!frame) {
       break;
     }
@@ -4985,4 +4972,20 @@ nsDOMWindowUtils::SendMozMouseHitTestEvent(float aX, float aY,
       0 /* aInputSourceArg */, DEFAULT_MOUSE_POINTER_ID /* aIdentifier */,
       false /* aToWindow */, nullptr /* aPreventDefault */,
       true /* aIsDOMEventSynthesized */, true /* aIsWidgetEventSynthesized */);
+}
+
+NS_IMETHODIMP
+nsDOMWindowUtils::GetMicroTaskLevel(uint32_t* aLevel) {
+  CycleCollectedJSContext* ccjs = CycleCollectedJSContext::Get();
+  NS_ENSURE_STATE(ccjs);
+  *aLevel = ccjs->MicroTaskLevel();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMWindowUtils::SetMicroTaskLevel(uint32_t aLevel) {
+  CycleCollectedJSContext* ccjs = CycleCollectedJSContext::Get();
+  NS_ENSURE_STATE(ccjs);
+  ccjs->SetMicroTaskLevel(aLevel);
+  return NS_OK;
 }

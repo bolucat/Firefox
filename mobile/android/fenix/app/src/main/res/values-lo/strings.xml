@@ -62,8 +62,7 @@
     Explanation for private browsing displayed to users on home view when they first enable private mode.
     %1$s is the name of the app (for example "Firefox").
   -->
-  <string name="private_browsing_placeholder_description_2">
-        %1$s ຈະລຶບລ້າງປະຫວັດການຊອກຫາ ແລະການຊອກຫາຂອງທ່ານອອກຈາກແຖບສ່ວນຕົວ ເມື່ອທ່ານປິດພວກມັນ ຫຼືອອກຈາກແອັບ. ໃນຂະນະທີ່ນີ້ບໍ່ໄດ້ເຮັດໃຫ້ທ່ານບໍ່ເປີດເຜີຍຊື່ກັບເວັບໄຊທ໌ ຫຼືຜູ້ໃຫ້ບໍລິການອິນເຕີເນັດຂອງທ່ານ, ມັນເຮັດໃຫ້ມັນງ່າຍຂຶ້ນທີ່ຈະຮັກສາສິ່ງທີ່ທ່ານເຮັດອອນໄລນ໌ເປັນສ່ວນຕົວຈາກຜູ້ອື່ນທີ່ໃຊ້ອຸປະກອນນີ້.</string>
+  <string name="private_browsing_placeholder_description_2">%1$s ຈະລຶບລ້າງປະຫວັດການຊອກຫາ ແລະການຊອກຫາຂອງທ່ານອອກຈາກແຖບສ່ວນຕົວ ເມື່ອທ່ານປິດພວກມັນ ຫຼືອອກຈາກແອັບ. ໃນຂະນະທີ່ນີ້ບໍ່ໄດ້ເຮັດໃຫ້ທ່ານບໍ່ເປີດເຜີຍຊື່ກັບເວັບໄຊທ໌ ຫຼືຜູ້ໃຫ້ບໍລິການອິນເຕີເນັດຂອງທ່ານ, ມັນເຮັດໃຫ້ມັນງ່າຍຂຶ້ນທີ່ຈະຮັກສາສິ່ງທີ່ທ່ານເຮັດອອນໄລນ໌ເປັນສ່ວນຕົວຈາກຜູ້ອື່ນທີ່ໃຊ້ອຸປະກອນນີ້.</string>
   <string name="private_browsing_common_myths">ຄວາມເຂົ້າໃຈຜິດທີ່ມັກພົບຕະລອດກ່ຽວກັບການທ່ອງເວັບແບບສ່ວນຕົວ</string>
   <!--
     True Private Browsing Mode
@@ -576,41 +575,41 @@
     Onboarding header for the add-ons card used by Nimbus experiments. Nimbus experiments do not support string placeholders.
     Note: The word "Firefox" should NOT be translated
   -->
-  <string name="onboarding_add_on_header" tools:ignore="BrandUsage,UnusedResources">ປັບແຕ່ງ Firefox ຂອງທ່ານດ້ວຍສ່ວນຂະຫຍາຍ</string>
+  <string name="onboarding_add_on_header" moz:removedIn="140" tools:ignore="BrandUsage,UnusedResources">ປັບແຕ່ງ Firefox ຂອງທ່ານດ້ວຍສ່ວນຂະຫຍາຍ</string>
   <!-- Onboarding sub header for the add-ons card, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_sub_header" tools:ignore="UnusedResources">ເພີ່ມສ່ວນຂະຫຍາຍຂອງພາກສ່ວນທີສາມເພື່ອເພີ່ມຄວາມປອດໄພ, ການຜະລິດ, ແລະ ອື່ນໆອີກ.</string>
+  <string name="onboarding_add_on_sub_header" moz:removedIn="140" tools:ignore="UnusedResources">ເພີ່ມສ່ວນຂະຫຍາຍຂອງພາກສ່ວນທີສາມເພື່ອເພີ່ມຄວາມປອດໄພ, ການຜະລິດ, ແລະ ອື່ນໆອີກ.</string>
   <!-- Onboarding add-ons card, for checking more add-ons on, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_explore_more_extensions_2">ສຳຫຼວດສ່ວນຂະຫຍາຍເພີ່ມເຕີມ.</string>
+  <string name="onboarding_add_on_explore_more_extensions_2" moz:removedIn="140" tools:ignore="UnusedResources">ສຳຫຼວດສ່ວນຂະຫຍາຍເພີ່ມເຕີມ.</string>
   <!-- Onboarding add-ons card, button for start browsing, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_start_browsing_button_2">ເລີ່ມການທ່ອງເວັບ</string>
+  <string name="onboarding_add_on_start_browsing_button_2" moz:removedIn="140" tools:ignore="UnusedResources">ເລີ່ມການທ່ອງເວັບ</string>
   <!-- Ublock name for the onboarding add-ons card, used by Nimbus experiments. Note: The word "Ublock Origin" is a brand name should NOT be translated -->
-  <string name="onboarding_add_on_ublock_name" tools:ignore="UnusedResources">uBlock Origin</string>
+  <string name="onboarding_add_on_ublock_name" moz:removedIn="140" tools:ignore="UnusedResources">uBlock Origin</string>
   <!-- Ublock description for the onboarding add-ons card, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_ublock_description" tools:ignore="UnusedResources">ຂັດຂວາງການໂຄສະນາຢ່າງມີປະສິດທິພາບ ແລະ ໄດ້ຜົນ.</string>
+  <string name="onboarding_add_on_ublock_description" moz:removedIn="140" tools:ignore="UnusedResources">ຂັດຂວາງການໂຄສະນາຢ່າງມີປະສິດທິພາບ ແລະ ໄດ້ຜົນ.</string>
   <!-- Privacy Badger name for the onboarding add-ons card, used by Nimbus experiments. Note: The word "Privacy Badger" is a brand name should NOT be translated -->
-  <string name="onboarding_add_on_privacy_badger_name" tools:ignore="UnusedResources">ຄວາມເປັນສ່ວນຕົວ Badger</string>
+  <string name="onboarding_add_on_privacy_badger_name" moz:removedIn="140" tools:ignore="UnusedResources">ຄວາມເປັນສ່ວນຕົວ Badger</string>
   <!-- Privacy Badger description for the onboarding add-ons card, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_privacy_badger_description" tools:ignore="UnusedResources">gem ຕ້ານການຕິດຕາມ. ຢຸດເຊົາການຕິດຕາມທີ່ເບິ່ງບໍ່ເຫັນ ແລະ ການໂຄສະນາ spying.</string>
+  <string name="onboarding_add_on_privacy_badger_description" moz:removedIn="140" tools:ignore="UnusedResources">gem ຕ້ານການຕິດຕາມ. ຢຸດເຊົາການຕິດຕາມທີ່ເບິ່ງບໍ່ເຫັນ ແລະ ການໂຄສະນາ spying.</string>
   <!-- Search by Image name for the onboarding add-ons card, used by Nimbus experiments. Note: The word "Search by Image" is a brand name should NOT be translated -->
-  <string name="onboarding_add_on_search_by_image_name" tools:ignore="UnusedResources">ຄົ້ນຫາໂດຍຮູບພາບ</string>
+  <string name="onboarding_add_on_search_by_image_name" moz:removedIn="140" tools:ignore="UnusedResources">ຄົ້ນຫາໂດຍຮູບພາບ</string>
   <!-- Search by Image description for the onboarding add-ons card, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_search_by_image_description" tools:ignore="UnusedResources">ເບິ່ງຮູບທີ່ຫນ້າສົນໃຈ ແລະ ຮຽນຮູ້ເພີ່ມເຕີມກ່ຽວກັບມັນ.</string>
+  <string name="onboarding_add_on_search_by_image_description" moz:removedIn="140" tools:ignore="UnusedResources">ເບິ່ງຮູບທີ່ຫນ້າສົນໃຈ ແລະ ຮຽນຮູ້ເພີ່ມເຕີມກ່ຽວກັບມັນ.</string>
   <!-- Dark Reader name for the onboarding add-ons card, used by Nimbus experiments. Note: The word "Dark Reader" is a brand name should NOT be translated -->
-  <string name="onboarding_add_on_dark_reader_name" tools:ignore="UnusedResources">Dark Reader</string>
+  <string name="onboarding_add_on_dark_reader_name" moz:removedIn="140" tools:ignore="UnusedResources">Dark Reader</string>
   <!-- Privacy Badger description for the onboarding add-ons card, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_dark_reader_description" tools:ignore="UnusedResources">ໂໝດມືດແບບກຳນົດເອງສຳລັບເວັບມືຖື.</string>
+  <string name="onboarding_add_on_dark_reader_description" moz:removedIn="140" tools:ignore="UnusedResources">ໂໝດມືດແບບກຳນົດເອງສຳລັບເວັບມືຖື.</string>
   <!-- Label for the number of reviews for an add-on. %1$s is the formatted number of reviews e.g. "1,234", "12,345", "123,456". -->
-  <string name="onboarding_add_on_reviews_label">ກວດຄືນ: %1$s</string>
+  <string name="onboarding_add_on_reviews_label" moz:removedIn="140" tools:ignore="UnusedResources">ກວດຄືນ: %1$s</string>
   <!-- Content description for the add-on icon. -->
-  <string name="onboarding_add_on_icon_content_description">ໄອຄອນສ່ວນເສີມ</string>
+  <string name="onboarding_add_on_icon_content_description" moz:removedIn="140" tools:ignore="UnusedResources">ໄອຄອນສ່ວນເສີມ</string>
   <!-- Content description for the an installed add-on icon. -->
-  <string name="onboarding_installed_add_on_icon_content_description">ໄອຄອນແອດອອນທີ່ຕິດຕັ້ງແລ້ວ</string>
+  <string name="onboarding_installed_add_on_icon_content_description" moz:removedIn="140" tools:ignore="UnusedResources">ໄອຄອນແອດອອນທີ່ຕິດຕັ້ງແລ້ວ</string>
   <!-- Content description for the an installing add-on icon. -->
-  <string name="onboarding_installing_add_on_icon_content_description">ກຳລັງຕິດຕັ້ງໄອຄອນ add-on</string>
+  <string name="onboarding_installing_add_on_icon_content_description" moz:removedIn="140" tools:ignore="UnusedResources">ກຳລັງຕິດຕັ້ງໄອຄອນ add-on</string>
   <!-- Content description for the add add-on button. -->
-  <string name="onboarding_add_on_add_button_content_description">ເພີ່ມປຸ່ມ Add-on</string>
+  <string name="onboarding_add_on_add_button_content_description" moz:removedIn="140" tools:ignore="UnusedResources">ເພີ່ມປຸ່ມ Add-on</string>
   <!-- Content description for the star rating group. %1$s is the rating. -->
-  <string name="onboarding_add_on_star_rating_content_description">ໃຫ້ຄະແນນ %1$s ຈາກທັງໝົດ 5</string>
+  <string name="onboarding_add_on_star_rating_content_description" moz:removedIn="140" tools:ignore="UnusedResources">ໃຫ້ຄະແນນ %1$s ຈາກທັງໝົດ 5</string>
   <!-- Title for the privacy preferences dialog shown during onboarding. Note: The word "Firefox" should NOT be translated. -->
   <string name="onboarding_preferences_dialog_title" tools:ignore="BrandUsage">ຊ່ວຍພວກເຮົາເຮັດໃຫ້ Firefox ດີຂຶ້ນ</string>
   <!-- Title for the crash reporting option in the privacy preferences dialog shown during onboarding. -->
@@ -776,7 +775,7 @@
   <!-- Preference title for using the screen lock to hide tabs in private browsing -->
   <string name="preferences_pbm_lock_screen_title">ໃຊ້ການລັອກໜ້າຈໍເພື່ອເຊື່ອງແຖບໃນຜົນການຄົ້ນຫາສ່ວນຕົວ</string>
   <!-- Informs the user how to access the tabs when "Use screen lock to hide tabs in private browsing" is enabled -->
-  <string name="preferences_pbm_lock_screen_summary">ເບິ່ງແຖບທີ່ມີລາຍນິ້ວມື, ການປົດລັອກດ້ວຍໜ້າ ຫຼື PIN.</string>
+  <string name="preferences_pbm_lock_screen_summary" moz:removedIn="140" tools:ignore="UnusedResources">ເບິ່ງແຖບທີ່ມີລາຍນິ້ວມື, ການປົດລັອກດ້ວຍໜ້າ ຫຼື PIN.</string>
   <!-- Label for cookie banner section in quick settings panel. -->
   <string name="cookie_banner_blocker">ໂຕປິດກັ້ນ Cookie banner</string>
   <!-- Preference for removing cookie/consent banners from sites automatically in private mode. See reduce_cookie_banner_summary for additional context. -->
@@ -930,7 +929,7 @@
   <!-- Preference for extensions -->
   <string name="preferences_extensions">ສ່ວນຂະຫຍາຍ</string>
   <!-- Preference for installing a local extension -->
-  <string name="preferences_install_local_extension">ຕິດຕັ້ງສ່ວນຂະຫຍາຍຈາກໄຟລ໌       </string>
+  <string name="preferences_install_local_extension">ຕິດຕັ້ງສ່ວນຂະຫຍາຍຈາກໄຟລ໌</string>
   <!-- Preference for notifications -->
   <string name="preferences_notifications">ການແຈ້ງເຕືອນ</string>
   <!-- Summary for notification preference indicating notifications are allowed -->
@@ -981,9 +980,9 @@
   -->
   <string name="customize_toggle_recently_visited">ຫາກໍ່ເຂົ້າໄປເບິງມື້ກີ້ນີ້</string>
   <!-- Title for the customize home screen section with Pocket. -->
-  <string name="customize_toggle_pocket_2">ເລື່ອງທີ່ກະຕຸ້ນຄວາມຄິດ</string>
+  <string name="customize_toggle_pocket_2" tools:ignore="UnusedResources" moz:removedIn="140">ເລື່ອງທີ່ກະຕຸ້ນຄວາມຄິດ</string>
   <!-- Summary for the customize home screen section with Pocket. %s is "Pocket". -->
-  <string name="customize_toggle_pocket_summary">ບົດຄວາມທີ່ຂັບເຄື່ອນໂດຍ %s</string>
+  <string name="customize_toggle_pocket_summary" tools:ignore="UnusedResources" moz:removedIn="140">ບົດຄວາມທີ່ຂັບເຄື່ອນໂດຍ %s</string>
   <!-- Title for the customize home screen section with sponsored Pocket stories. -->
   <string name="customize_toggle_pocket_sponsored">ເລື່ອງລາວທີ່ໄດ້ຮັບການສະຫນັບສະຫນູນ</string>
   <!-- Title for the opening wallpaper settings screen -->
@@ -1011,7 +1010,7 @@
   <!-- Text for classic wallpapers title. %s is the name of the app (for example "Firefox"). -->
   <string name="wallpaper_classic_title">ຄລາດສິກ %s</string>
   <!-- Text for artist series wallpapers title. "Artist series" represents a collection of artist collaborated wallpapers. -->
-  <string name="wallpaper_artist_series_title">ຊຸດສິນລະປິນ       </string>
+  <string name="wallpaper_artist_series_title">ຊຸດສິນລະປິນ</string>
   <!-- Description text for the artist series wallpapers with learn more link. %s is a learn more link using wallpaper_learn_more as text. "Independent voices" is the name of the wallpaper collection -->
   <string name="wallpaper_artist_series_description_with_learn_more">ການເກັບກໍາສຽງເອກະລາດ. %s</string>
   <!-- Description text for the artist series wallpapers. "Independent voices" is the name of the wallpaper collection -->
@@ -1174,7 +1173,7 @@
 
     Instructions on how to access pairing
   -->
-  <string name="pair_instructions_2">ສະແກນລະຫັດ QR ທີ່ສະແດງຢູ່ໃນ &lt;b&gt;firefox.com/pair&lt;/b&gt;</string>
+  <string name="pair_instructions_2"><![CDATA[ສະແກນລະຫັດ QR ທີ່ສະແດງຢູ່ໃນ <b>firefox.com/pair</b>]]></string>
   <!--
     Toolbar Preferences
 
@@ -1488,7 +1487,7 @@
     Message for the dialog that is shown when there is not enough storage space to download a file.
     %s is the name of the file to download.
   -->
-  <string name="download_file_has_not_enough_storage_dialog_message">ອຸປະກອນນີ້ບໍ່ມີພື້ນທີ່ພຽງພໍເພື່ອດາວໂຫຼດ &lt;b&gt;%s&lt;/b&gt;.</string>
+  <string name="download_file_has_not_enough_storage_dialog_message"><![CDATA[ອຸປະກອນນີ້ບໍ່ມີພື້ນທີ່ພຽງພໍເພື່ອດາວໂຫຼດ <b>%s</b>.]]></string>
   <!--
     Text for the confirm button in the dialog that is shown when there is not enough storage space to download a file.
     This button will navigate the user to the device's storage management settings.
@@ -1551,8 +1550,7 @@
   <!-- Placeholder text to indicate that users can use the search bar to search for a download. -->
   <string name="download_search_placeholder">ຄົ້ນຫາການດາວໂຫຼດ</string>
   <!-- Text to indicate that no downloads match the search query. -->
-  <string name="download_search_no_results_found">ບໍ່ພົບຜົນການຄົ້ນຫາ
-</string>
+  <string name="download_search_no_results_found">ບໍ່ພົບຜົນການຄົ້ນຫາ</string>
   <!-- Text for the "Select all" button, which selects all downloaded items in the downloads list. -->
   <string name="download_select_all_items">ເລືອກ​ທັງ​ຫມົດ</string>
   <!--
@@ -1612,15 +1610,15 @@
 
     Broken site reason text for site slow or not working
   -->
-  <string name="webcompat_reporter_reason_slow">ເວັບໄຊທ໌ຊ້າ ຫຼື ບໍ່ເຮັດວຽກ</string>
+  <string name="webcompat_reporter_reason_slow" moz:removedIn="140" tools:ignore="UnusedResources">ເວັບໄຊທ໌ຊ້າ ຫຼື ບໍ່ເຮັດວຽກ</string>
   <!-- Broken site reason text for images or videos -->
-  <string name="webcompat_reporter_reason_media">ຮູບພາບ ຫຼື ວິດີໂອ</string>
+  <string name="webcompat_reporter_reason_media" moz:removedIn="140" tools:ignore="UnusedResources">ຮູບພາບ ຫຼື ວິດີໂອ</string>
   <!-- Broken site reason text for buttons, links, and other content -->
-  <string name="webcompat_reporter_reason_content">ປຸ່ມ, ການເຊື່ອມຕໍ່, ແລະ ເນື້ອຫາອື່ນໆ</string>
+  <string name="webcompat_reporter_reason_content" moz:removedIn="140" tools:ignore="UnusedResources">ປຸ່ມ, ການເຊື່ອມຕໍ່, ແລະ ເນື້ອຫາອື່ນໆ</string>
   <!-- Broken site reason text for sign in or sign out -->
-  <string name="webcompat_reporter_reason_account">ເຂົ້າສູ່ລະບົບ ຫຼື ອອກຈາກລະບົບ</string>
+  <string name="webcompat_reporter_reason_account" moz:removedIn="140" tools:ignore="UnusedResources">ເຂົ້າສູ່ລະບົບ ຫຼື ອອກຈາກລະບົບ</string>
   <!-- Broken site reason text for ad blocker -->
-  <string name="webcompat_reporter_reason_ad_blocker">ຕົວບລັອກໂຄສະນາ</string>
+  <string name="webcompat_reporter_reason_ad_blocker" moz:removedIn="140" tools:ignore="UnusedResources">ຕົວບລັອກໂຄສະນາ</string>
   <!-- Broken site reason text for something else -->
   <string name="webcompat_reporter_reason_other">ບາງສິ່ງບາງຢ່າງອື່ນ</string>
   <!--
@@ -2159,7 +2157,7 @@
   <!-- Title of QR Pairing Fragment -->
   <string name="sync_scan_code">ສະແກນລະຫັດ</string>
   <!-- Instructions on how to access pairing -->
-  <string name="sign_in_instructions" tools:ignore="BrandUsage">ໃນຄອມພິວເຕີຂອງທ່ານເປີດ Firefox ແລະ ເຂົ້າໄປທີ່ &lt;b&gt;https://firefox.com/pair&lt;/b&gt;</string>
+  <string name="sign_in_instructions" tools:ignore="BrandUsage"><![CDATA[ໃນຄອມພິວເຕີຂອງທ່ານເປີດ Firefox ແລະ ເຂົ້າໄປທີ່ <b>https://firefox.com/pair</b>]]></string>
   <!-- Text shown for sign in pairing when ready -->
   <string name="sign_in_ready_for_scan">ກຽມພ້ອມທີ່ຈະສະແກນ</string>
   <!-- Text shown for settings option for sign with pairing -->
@@ -2167,7 +2165,7 @@
   <!-- Text shown for settings option for sign with email -->
   <string name="sign_in_with_email">ໃຊ້ອີເມວແທນ</string>
   <!-- Text shown for settings option for create new account text.'Firefox' intentionally hardcoded here. -->
-  <string name="sign_in_create_account_text" tools:ignore="BrandUsage">ບໍ່ມີບັນຊີ? &lt;u&gt;ສ້າງອັນໜຶ່ງ&lt;/u&gt; ເພື່ອຊິງຄ໌ Firefox ລະຫວ່າງອຸປະກອນ.</string>
+  <string name="sign_in_create_account_text" tools:ignore="BrandUsage"><![CDATA[ບໍ່ມີບັນຊີ? <u>ສ້າງອັນໜຶ່ງ</u> ເພື່ອຊິງຄ໌ Firefox ລະຫວ່າງອຸປະກອນ.]]></string>
   <!-- Text shown in confirmation dialog to sign out of account. %s is the name of the app (for example "Firefox"). -->
   <string name="sign_out_confirmation_message_2">%s ຈະຢຸດການ Sync ກັບບັນຊີຂອງທ່ານ ແຕວ່າຈະບໍ່ລຶບຂໍ້ມູນປະຫວັດການຄົ້ນຫາຂອງທ່ານໃນອຸປະກອນນີ້.</string>
   <!-- Option to continue signing out of account shown in confirmation dialog to sign out of account -->
@@ -2310,8 +2308,6 @@
   <string name="preference_doh_summary">ລະບົບ Domain Name (DNS) ຜ່ານ HTTPS ສົ່ງຄໍາຮ້ອງຂໍຂອງທ່ານສໍາລັບຊື່ໂດເມນໂດຍຜ່ານການເຊື່ອມຕໍ່ທີ່ຖືກເຂົ້າລະຫັດ, ສະຫນອງ DNS ທີ່ປອດໄພແລະເຮັດໃຫ້ມັນຍາກສໍາລັບຜູ້ອື່ນທີ່ຈະເບິ່ງວ່າເວັບໄຊທ໌ໃດທີ່ທ່ານກໍາລັງຈະເຂົ້າຫາ. %1$s</string>
   <!-- Used as text for the link in `preference_doh_title`, points to documentation about "DNS over HTTPS" -->
   <string name="preference_doh_learn_more">ຮຽນຮູ້ເພີ່ມເຕີມ</string>
-  <!-- Content description for the toolbar "Navigate up" button -->
-  <string name="preference_doh_up_description">ນຳທາງຂຶ້ນໄປທາງເທິງ</string>
   <!-- Content description for the "Exceptions" button -->
   <string name="preference_doh_exceptions_description">ຂໍ້ຍົກເວັ້ນ</string>
   <!-- Content description for the "Info" button -->
@@ -2599,7 +2595,7 @@
   <!-- Text shown when a user leaves out the required template string -->
   <string name="search_add_custom_engine_error_missing_template">ກວດເບິງວ່າຂໍ້ຄວາມການຄົ້ນຫາກົງກັບຮູບແບບຕົວຢ່າງ</string>
   <!-- Text shown when we aren't able to validate the custom search query. %s is the url of the custom search engine. -->
-  <string name="search_add_custom_engine_error_cannot_reach">ມີຂໍ້ຜິດພາດໃນການເຊື່ອມຕໍ່ໄປຫາ “%s”</string>
+  <string name="search_add_custom_engine_error_cannot_reach" moz:removedIn="140" tools:ignore="UnusedResources">ມີຂໍ້ຜິດພາດໃນການເຊື່ອມຕໍ່ໄປຫາ “%s”</string>
   <!-- Text shown when a user creates a new search engine. %s is the url of the custom search engine. -->
   <string name="search_add_custom_engine_success_message">%s ສ້າງແລ້ວ</string>
   <!-- Text shown when a user successfully edits a custom search engine. %s is the url of the custom search engine. -->
@@ -2611,9 +2607,9 @@
   <!-- First step for the allowing a permission -->
   <string name="phone_feature_blocked_step_settings">1. ໄປທີ່ການຕັ້ງຄ່າ Android</string>
   <!-- Second step for the allowing a permission -->
-  <string name="phone_feature_blocked_step_permissions">2. ແຕະທີ່ &lt;b&gt;ສິດ&lt;/b&gt;</string>
+  <string name="phone_feature_blocked_step_permissions"><![CDATA[2. ແຕະທີ່ <b>ສິດ</b>]]></string>
   <!-- Third step for the allowing a permission (%1$s is the permission name, for example "Camera"). -->
-  <string name="phone_feature_blocked_step_feature">3. ສະລັບ &lt;b&gt;%1$s&lt;/b&gt; ເປັນເປີດ</string>
+  <string name="phone_feature_blocked_step_feature"><![CDATA[3. ສະລັບ <b>%1$s</b> ເປັນເປີດ]]></string>
   <!-- Label that indicates a site is using a secure connection -->
   <string name="quick_settings_sheet_secure_connection_2">ການເຊື່ອມຕໍ່ແມ່ນປອດໄພ</string>
   <!-- Label that indicates a site is using a insecure connection -->
@@ -2621,7 +2617,7 @@
   <!-- Label to clear site data -->
   <string name="clear_site_data">ລຶບລ້າງຄຸກກີ້ ແລະຂໍ້ມູນເວັບໄຊ</string>
   <!-- Confirmation message for a dialog confirming if the user wants to delete all data for current site. %s is the domain of the site. -->
-  <string name="confirm_clear_site_data">ທ່ານແນ່ໃຈບໍ່ວ່າຕ້ອງການລຶບລ້າງຄຸກກີ້ ແລະຂໍ້ມູນທັງໝົດຂອງເວັບໄຊ &lt;b&gt;%s&lt;/b&gt;?</string>
+  <string name="confirm_clear_site_data"><![CDATA[ທ່ານແນ່ໃຈບໍ່ວ່າຕ້ອງການລຶບລ້າງຄຸກກີ້ ແລະຂໍ້ມູນທັງໝົດຂອງເວັບໄຊ <b>%s</b>?]]></string>
   <!-- Confirmation message for a dialog confirming if the user wants to delete all the permissions for all sites -->
   <string name="confirm_clear_permissions_on_all_sites">ທ່ານແນ່ໃຈບໍ່ວ່າຕ້ອງການລຶບລ້າງການອະນຸຍາດທັງໝົດຢູ່ໃນທຸກເວັບໄຊ?</string>
   <!-- Confirmation message for a dialog confirming if the user wants to delete all the permissions for a site -->
@@ -2660,7 +2656,7 @@
   <!-- This is the hint text that is shown inline on the hostname field of the create new login page. 'https://www.example.com' intentionally hardcoded here -->
   <string name="add_login_hostname_hint_text">https://www.example.com</string>
   <!-- This is an error message shown below the hostname field of the add login page when a hostname does not contain http or https. -->
-  <string name="add_login_hostname_invalid_text_3">ທີ່ຢູ່ເວັບຈະຕ້ອງປະກອບມີ "https://" ຫລື "http://"</string>
+  <string name="add_login_hostname_invalid_text_3">ທີ່ຢູ່ເວັບຈະຕ້ອງປະກອບມີ \"https://\" ຫລື \"http://\"</string>
   <!-- This is an error message shown below the hostname field of the add login page when a hostname is invalid. -->
   <string name="add_login_hostname_invalid_text_2">ຕ້ອງການຊື່ໂຮສທທີ່ຖືກຕ້ອງ</string>
   <!--
@@ -2750,7 +2746,7 @@
   -->
   <string name="firefox_suggest_header" tools:ignore="BrandUsage">Firefox ແນະນໍາ</string>
   <!-- Title for search suggestions when Google is the default search suggestion engine. -->
-  <string name="google_search_engine_suggestion_header">ຄົ້ນ​ຫາ Google </string>
+  <string name="google_search_engine_suggestion_header">ຄົ້ນ​ຫາ Google</string>
   <!-- Title for search suggestions when the default search suggestion engine is anything other than Google. %s is default search engine name. -->
   <string name="other_default_search_engine_suggestion_header">%s ຄົ້ນຫາ</string>
   <!-- Default browser card text -->
@@ -2768,17 +2764,17 @@
 
     Header text for a section on the home screen.
   -->
-  <string name="pocket_stories_header_1">ເລື່ອງທີ່ກະຕຸ້ນຄວາມຄິດ</string>
+  <string name="pocket_stories_header_1" tools:ignore="UnusedResources" moz:removedIn="140">ເລື່ອງທີ່ກະຕຸ້ນຄວາມຄິດ</string>
   <!-- Header text for a section on the home screen. -->
   <string name="pocket_stories_categories_header">ເລື່ອງຕາມຫົວຂໍ້</string>
   <!-- Text of a button allowing users to access an external url for more Pocket recommendations. -->
   <string name="pocket_stories_placeholder_text">ຄົ້ນຫາເພີ່ມເຕີມ</string>
   <!-- Title of an app feature. Smaller than a heading. %s is "Pocket". -->
-  <string name="pocket_stories_feature_title_2">ຂັບເຄື່ອນໂດຍ %s.</string>
+  <string name="pocket_stories_feature_title_2" moz:removedIn="140" tools:ignore="UnusedResources">ຂັບເຄື່ອນໂດຍ %s.</string>
   <!-- Caption for describing a certain feature. %s is a link using pocket_stories_feature_learn_more as text, which will load an url in a new tab when clicked. -->
-  <string name="pocket_stories_feature_caption" tools:ignore="BrandUsage">ສ່ວນຫນຶ່ງຂອງຄອບຄົວ Firefox. %s</string>
+  <string name="pocket_stories_feature_caption" moz:removedIn="140" tools:ignore="BrandUsage,UnusedResources">ສ່ວນຫນຶ່ງຂອງຄອບຄົວ Firefox. %s</string>
   <!-- Clickable text for opening an external link for more information about Pocket. -->
-  <string name="pocket_stories_feature_learn_more">ຮຽນຮູ້ເພີ່ມເຕີມ</string>
+  <string name="pocket_stories_feature_learn_more" moz:removedIn="140" tools:ignore="UnusedResources">ຮຽນຮູ້ເພີ່ມເຕີມ</string>
   <!-- Text indicating that the Pocket story that also displays this text is a sponsored story by other 3rd party entity. -->
   <string name="pocket_stories_sponsor_indication">ໄດ້ຮັບການສະຫນັບສະຫນູນ</string>
   <!-- Snackbar message for enrolling in a Nimbus experiment from the secret settings when Studies preference is Off. -->
@@ -2798,7 +2794,7 @@
   <!-- Action label for links that point to an article. Talkback will append this to say "Double tap to read the article". -->
   <string name="a11y_action_label_read_article">ອ່ານບົດຄວາມ</string>
   <!-- Action label for links to the Firefox Pocket website. Talkback will append this to say "Double tap to open link to learn more". -->
-  <string name="a11y_action_label_pocket_learn_more">ເປີດລິ້ງເພື່ອສຶກສາເພີ່ມເຕີມ</string>
+  <string name="a11y_action_label_pocket_learn_more" moz:removedIn="140" tools:ignore="UnusedResources">ເປີດລິ້ງເພື່ອສຶກສາເພີ່ມເຕີມ</string>
   <!-- Translations feature -->
 
   <!-- Text that links to additional information about the Firefox translations feature. -->

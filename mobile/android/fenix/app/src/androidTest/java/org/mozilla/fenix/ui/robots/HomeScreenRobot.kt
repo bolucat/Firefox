@@ -459,9 +459,9 @@ class HomeScreenRobot {
 
     fun verifyThoughtProvokingStories(enabled: Boolean) {
         if (enabled) {
-            assertUIObjectExists(itemContainingText(getStringResource(R.string.pocket_stories_header_1)))
+            assertUIObjectExists(itemContainingText(getStringResource(R.string.pocket_stories_header_2)))
         } else {
-            assertUIObjectExists(itemContainingText(getStringResource(R.string.pocket_stories_header_1)), exists = false)
+            assertUIObjectExists(itemContainingText(getStringResource(R.string.pocket_stories_header_2)), exists = false)
         }
     }
 
@@ -474,9 +474,9 @@ class HomeScreenRobot {
     }
 
     fun verifyPocketRecommendedStoriesItems(composeTestRule: ComposeTestRule) {
-        Log.i(TAG, "verifyPocketRecommendedStoriesItems: Trying to scroll into view the \"Thought-provoking stories\" pocket section")
+        Log.i(TAG, "verifyPocketRecommendedStoriesItems: Trying to scroll into view the \"Stories\" pocket section")
         composeTestRule.onNodeWithTag("homepage.view").performScrollToNode(hasTestTag("pocket.stories"))
-        Log.i(TAG, "verifyPocketRecommendedStoriesItems: Scrolled into view the \"Thought-provoking stories\" pocket section")
+        Log.i(TAG, "verifyPocketRecommendedStoriesItems: Scrolled into view the \"Stories\" pocket section")
         for (position in 0..8) {
             Log.i(TAG, "verifyPocketRecommendedStoriesItems: Trying to scroll into view the featured pocket story from position: $position")
             pocketStoriesList().scrollIntoView(UiSelector().index(position))
@@ -501,9 +501,9 @@ class HomeScreenRobot {
 //    }
 
     fun verifyDiscoverMoreStoriesButton(composeTestRule: ComposeTestRule) {
-        Log.i(TAG, "verifyDiscoverMoreStoriesButton: Trying to scroll into view the \"Thought-provoking stories\" pocket section")
+        Log.i(TAG, "verifyDiscoverMoreStoriesButton: Trying to scroll into view the \"Stories\" pocket section")
         composeTestRule.onNodeWithTag("homepage.view").performScrollToNode(hasTestTag("pocket.stories"))
-        Log.i(TAG, "verifyDiscoverMoreStoriesButton: Scrolled into view the \"Thought-provoking stories\" pocket section")
+        Log.i(TAG, "verifyDiscoverMoreStoriesButton: Scrolled into view the \"Stories\" pocket section")
         Log.i(TAG, "verifyDiscoverMoreStoriesButton: Trying to scroll into view the Pocket \"Discover more\" button")
         composeTestRule.onNodeWithTag("pocket.stories").performScrollToNode(hasText("Discover more"))
         Log.i(TAG, "verifyDiscoverMoreStoriesButton: Scrolled into view the Pocket \"Discover more\" button")
@@ -529,9 +529,9 @@ class HomeScreenRobot {
     }
 
     fun verifyStoriesByTopicItemState(composeTestRule: ComposeTestRule, isSelected: Boolean, position: Int) {
-        Log.i(TAG, "verifyStoriesByTopicItemState: Trying to scroll into view \"Powered By Pocket\" home screen section")
+        Log.i(TAG, "verifyStoriesByTopicItemState: Trying to scroll into view \"Stories by topic\" home screen section")
         homeScreenList().scrollIntoView(mDevice.findObject(UiSelector().resourceId("pocket.header")))
-        Log.i(TAG, "verifyStoriesByTopicItemState: Scrolled into view \"Powered By Pocket\" home screen section")
+        Log.i(TAG, "verifyStoriesByTopicItemState: Scrolled into view \"Stories by topic\" home screen section")
 
         if (isSelected) {
             Log.i(TAG, "verifyStoriesByTopicItemState: Trying verify that the stories by topic home screen section is displayed")
@@ -554,13 +554,6 @@ class HomeScreenRobot {
         Log.i(TAG, "clickStoriesByTopicItem: Trying to click stories by topic item from position: $position")
         storyByTopicItem(composeTestRule, position).performClick()
         Log.i(TAG, "clickStoriesByTopicItem: Clicked stories by topic item from position: $position")
-    }
-
-    fun verifyPoweredByPocket() {
-        Log.i(TAG, "verifyPoweredByPocket: Trying to scroll into view \"Powered By Pocket\" home screen section")
-        homeScreenList().scrollIntoView(mDevice.findObject(UiSelector().resourceId("pocket.header")))
-        Log.i(TAG, "verifyPoweredByPocket: Scrolled into view \"Powered By Pocket\" home screen section")
-        assertUIObjectExists(itemWithResId("pocket.header.title"))
     }
 
     fun verifyCustomizeHomepageButton(composeTestRule: ComposeTestRule, enabled: Boolean) {
@@ -1017,15 +1010,6 @@ class HomeScreenRobot {
             Log.i(TAG, "clickPocketDiscoverMoreButton: Trying to click the \"Discover more\" button")
             composeTestRule.onNodeWithTag("pocket.discover.more.story").performClick()
             Log.i(TAG, "clickPocketDiscoverMoreButton: Clicked the \"Discover more\" button")
-
-            BrowserRobot().interact()
-            return BrowserRobot.Transition()
-        }
-
-        fun clickPocketLearnMoreLink(composeTestRule: ComposeTestRule, interact: BrowserRobot.() -> Unit): BrowserRobot.Transition {
-            Log.i(TAG, "clickPocketLearnMoreLink: Trying to click pocket \"Learn more\" link")
-            composeTestRule.onNodeWithTag("pocket.header.subtitle", true).performClick()
-            Log.i(TAG, "clickPocketLearnMoreLink: Clicked pocket \"Learn more\" link")
 
             BrowserRobot().interact()
             return BrowserRobot.Transition()

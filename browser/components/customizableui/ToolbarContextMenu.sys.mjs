@@ -27,14 +27,12 @@ XPCOMUtils.defineLazyPreferenceGetter(
 );
 
 // Whether the Extensions button can be hidden via UI. The button can be hidden
-// even with this pref set to false. The purpose of the pref is to allow the
-// feature to be developed incrementally.
-// Disabled by default until dependencies of bug 1964857 are resolved.
+// even with this pref set to false. TODO bug 1967773: Remove this pref.
 XPCOMUtils.defineLazyPreferenceGetter(
   lazy,
   "gEnableCustomizableExtensionsButton",
   "extensions.unifiedExtensions.button.customizable",
-  false
+  true
 );
 
 /**
@@ -139,6 +137,7 @@ export var ToolbarContextMenu = {
    * @param {DOMNode} aInsertPoint
    *   The point within the menupopup to insert the controls for each toolbar.
    */
+  // eslint-disable-next-line complexity
   onViewToolbarsPopupShowing(aEvent, aInsertPoint) {
     var popup = aEvent.target;
     let window = popup.ownerGlobal;
@@ -422,12 +421,47 @@ export var ToolbarContextMenu = {
    */
   updateExtensionsButtonContextMenu(popup) {
     const isExtsButton = popup.triggerNode?.id === "unified-extensions-button";
+    const isCustomizingExtsButton =
+      popup.triggerNode?.id === "wrapper-unified-extensions-button";
+    const { gUnifiedExtensions } = popup.ownerGlobal;
+
+    const checkbox = popup.querySelector(
+      "#toolbar-context-always-show-extensions-button"
+    );
+    if (isCustomizingExtsButton && lazy.gEnableCustomizableExtensionsButton) {
+      checkbox.hidden = false;
+      if (gUnifiedExtensions.buttonAlwaysVisible) {
+        checkbox.setAttribute("checked", "true");
+      } else {
+        checkbox.removeAttribute("checked");
+      }
+    } else if (
+      isExtsButton &&
+      !gUnifiedExtensions.buttonAlwaysVisible &&
+      lazy.gEnableCustomizableExtensionsButton
+    ) {
+      // The button may be visible despite the user's preference, which could
+      // remind the user of the button's existence. Offer an option to unhide
+      // the button, in case the user is looking for a way to do so.
+      checkbox.hidden = false;
+      checkbox.removeAttribute("checked");
+    } else {
+      checkbox.hidden = true;
+    }
+
     // removeFromToolbar is shown but disabled by default, via an earlier call
-    // to ToolbarContextMenu.onViewToolbarsPopupShowing. Enable if needed.
+    // to ToolbarContextMenu.onViewToolbarsPopupShowing. Enable/hide if needed.
     if (isExtsButton && lazy.gEnableCustomizableExtensionsButton) {
-      popup
-        .querySelector(".customize-context-removeFromToolbar")
-        .removeAttribute("disabled");
+      const removeFromToolbar = popup.querySelector(
+        ".customize-context-removeFromToolbar"
+      );
+      if (gUnifiedExtensions.buttonAlwaysVisible) {
+        removeFromToolbar.removeAttribute("disabled");
+      } else {
+        // No need to show "Remove from Toolbar" even if disabled, because the
+        // "Always Show in Toolbar" checkbox is already shown above.
+        removeFromToolbar.hidden = true;
+      }
     }
   },
 

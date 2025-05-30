@@ -198,6 +198,10 @@ class BrowsingContextModule extends RootBiDiModule {
       "fragment-navigated",
       this.#onFragmentNavigated
     );
+    this.#navigationListener.on(
+      "navigation-committed",
+      this.#onNavigationCommitted
+    );
     this.#navigationListener.on("navigation-failed", this.#onNavigationFailed);
     this.#navigationListener.on(
       "navigation-started",
@@ -224,6 +228,10 @@ class BrowsingContextModule extends RootBiDiModule {
     this.#navigationListener.off(
       "fragment-navigated",
       this.#onFragmentNavigated
+    );
+    this.#navigationListener.off(
+      "navigation-committed",
+      this.#onNavigationCommitted
     );
     this.#navigationListener.off("navigation-failed", this.#onNavigationFailed);
     this.#navigationListener.off(
@@ -1112,6 +1120,7 @@ class BrowsingContextModule extends RootBiDiModule {
    *     Url for the navigation.
    * @param {WaitCondition=} options.wait
    *     Wait condition for the navigation, one of "none", "interactive", "complete".
+   *     Defaults to "none".
    *
    * @returns {BrowsingContextNavigateResult}
    *     Navigation result.
@@ -1350,6 +1359,7 @@ class BrowsingContextModule extends RootBiDiModule {
    *     If true ignore the browser cache. [Not yet supported]
    * @param {WaitCondition=} options.wait
    *     Wait condition for the navigation, one of "none", "interactive", "complete".
+   *     Defaults to "none".
    *
    * @returns {BrowsingContextNavigateResult}
    *     Navigation result.
@@ -1675,11 +1685,11 @@ class BrowsingContextModule extends RootBiDiModule {
     const context = webProgress.browsingContext;
     const browserId = context.browserId;
 
-    const resolveWhenStarted = wait === WaitCondition.None;
+    const resolveWhenCommitted = wait === WaitCondition.None;
     const listener = new lazy.ProgressListener(webProgress, {
       expectNavigation: true,
       navigationManager: this.messageHandler.navigationManager,
-      resolveWhenStarted,
+      resolveWhenCommitted,
       targetURI,
       // In case the webprogress is already navigating, always wait for an
       // explicit start flag.
@@ -2037,6 +2047,24 @@ class BrowsingContextModule extends RootBiDiModule {
     }
   };
 
+  #onNavigationCommitted = async (eventName, data) => {
+    const { navigableId, navigationId, url, contextId } = data;
+
+    if (this.#subscribedEvents.has("browsingContext.navigationCommitted")) {
+      const eventPayload = {
+        context: navigableId,
+        navigation: navigationId,
+        timestamp: Date.now(),
+        url,
+      };
+      this.#emitContextEventForBrowsingContext(
+        contextId,
+        "browsingContext.navigationCommitted",
+        eventPayload
+      );
+    }
+  };
+
   #onNavigationFailed = async (eventName, data) => {
     const { navigableId, navigationId, url, contextId } = data;
 
@@ -2129,6 +2157,7 @@ class BrowsingContextModule extends RootBiDiModule {
         break;
       }
       case "browsingContext.fragmentNavigated":
+      case "browsingContext.navigationCommitted":
       case "browsingContext.navigationFailed":
       case "browsingContext.navigationStarted": {
         this.#navigationListener.startListening();
@@ -2152,6 +2181,7 @@ class BrowsingContextModule extends RootBiDiModule {
         break;
       }
       case "browsingContext.fragmentNavigated":
+      case "browsingContext.navigationCommitted":
       case "browsingContext.navigationFailed":
       case "browsingContext.navigationStarted": {
         this.#stopListeningToNavigationEvent(event);
@@ -2280,6 +2310,7 @@ class BrowsingContextModule extends RootBiDiModule {
       "browsingContext.domContentLoaded",
       "browsingContext.fragmentNavigated",
       "browsingContext.load",
+      "browsingContext.navigationCommitted",
       "browsingContext.navigationFailed",
       "browsingContext.navigationStarted",
       "browsingContext.userPromptClosed",

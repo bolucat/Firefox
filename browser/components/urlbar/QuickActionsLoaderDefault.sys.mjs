@@ -10,6 +10,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
   BrowserWindowTracker: "resource:///modules/BrowserWindowTracker.sys.mjs",
   DevToolsShim: "chrome://devtools-startup/content/DevToolsShim.sys.mjs",
   ResetProfile: "resource://gre/modules/ResetProfile.sys.mjs",
+  ScreenshotsUtils: "resource:///modules/ScreenshotsUtils.sys.mjs",
   ActionsProviderQuickActions:
     "resource:///modules/ActionsProviderQuickActions.sys.mjs",
 });
@@ -24,12 +25,6 @@ if (AppConstants.MOZ_UPDATER) {
     "nsIApplicationUpdateService"
   );
 }
-XPCOMUtils.defineLazyPreferenceGetter(
-  lazy,
-  "SCREENSHOT_BROWSER_COMPONENT",
-  "screenshots.browser.component.enabled",
-  false
-);
 
 let openUrlFun = url => () => openUrl(url);
 let openUrl = url => {
@@ -213,22 +208,14 @@ const DEFAULT_ACTIONS = {
     label: "quickactions-screenshot3",
     icon: "chrome://browser/skin/screenshot.svg",
     isVisible: () => {
-      return !lazy.BrowserWindowTracker.getTopWindow().gScreenshots.shouldScreenshotsButtonBeDisabled();
+      return lazy.ScreenshotsUtils.screenshotsEnabled;
     },
     onPick: () => {
-      if (lazy.SCREENSHOT_BROWSER_COMPONENT) {
-        Services.obs.notifyObservers(
-          lazy.BrowserWindowTracker.getTopWindow(),
-          "menuitem-screenshot",
-          "QuickActions"
-        );
-      } else {
-        Services.obs.notifyObservers(
-          null,
-          "menuitem-screenshot-extension",
-          "quickaction"
-        );
-      }
+      Services.obs.notifyObservers(
+        lazy.BrowserWindowTracker.getTopWindow(),
+        "menuitem-screenshot",
+        "QuickActions"
+      );
       return { focusContent: true };
     },
   },

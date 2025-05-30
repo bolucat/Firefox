@@ -1639,6 +1639,12 @@ js::Nursery::CollectionResult js::Nursery::doCollection(AutoGCSession& session,
   AutoDisableProxyCheck disableStrictProxyChecking;
   mozilla::DebugOnly<AutoEnterOOMUnsafeRegion> oomUnsafeRegion;
 
+#ifdef JS_GC_ZEAL
+  if (gc->hasZealMode(ZealMode::CheckHeapBeforeMinorGC)) {
+    gc->checkHeapBeforeMinorGC(session);
+  }
+#endif
+
   // Swap nursery spaces.
   swapSpaces();
   MOZ_ASSERT(toSpace.isEmpty());
@@ -2452,9 +2458,10 @@ size_t js::Nursery::targetSize(JS::GCOptions options, JS::GCReason reason) {
   // Debug builds are so much slower and more unpredictable that doing this
   // would cause very different nursery behaviour to an equivalent release
   // build.
-  static const double MaxTimeGoalMs = 4.0;
-  if (!gc->isInPageLoad() && !js::SupportDifferentialTesting()) {
-    double timeGrowth = MaxTimeGoalMs / collectorTime.ToMilliseconds();
+  double maxTimeGoalMS = tunables().nurseryMaxTimeGoalMS().ToMilliseconds();
+  if (!gc->isInPageLoad() && maxTimeGoalMS != 0.0 &&
+      !js::SupportDifferentialTesting()) {
+    double timeGrowth = maxTimeGoalMS / collectorTime.ToMilliseconds();
     growthFactor = std::min(growthFactor, timeGrowth);
   }
 #endif

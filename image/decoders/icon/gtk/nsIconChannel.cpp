@@ -120,29 +120,16 @@ static GdkRGBA GetForegroundColor(nsIMozIconURI* aIconURI) {
     }
     return dark ? mozilla::ColorScheme::Dark : mozilla::ColorScheme::Light;
   }();
-  auto color = mozilla::LookAndFeel::Color(mozilla::LookAndFeel::ColorID::Windowtext, scheme, mozilla::LookAndFeel::UseStandins::No);
-  auto ToGdk = [](uint8_t aGecko) {
-    return aGecko / 255.0;
+  auto color = mozilla::LookAndFeel::Color(
+      mozilla::LookAndFeel::ColorID::Windowtext, scheme,
+      mozilla::LookAndFeel::UseStandins::No);
+  auto ToGdk = [](uint8_t aGecko) { return aGecko / 255.0; };
+  return GdkRGBA{
+      .red = ToGdk(NS_GET_R(color)),
+      .green = ToGdk(NS_GET_G(color)),
+      .blue = ToGdk(NS_GET_B(color)),
+      .alpha = ToGdk(NS_GET_A(color)),
   };
-  return GdkRGBA {
-    .red = ToGdk(NS_GET_R(color)),
-    .green = ToGdk(NS_GET_G(color)),
-    .blue = ToGdk(NS_GET_B(color)),
-    .alpha = ToGdk(NS_GET_A(color)),
-  };
-}
-
-static nsresult StreamToChannel(already_AddRefed<nsIInputStream> aStream,
-                                nsIURI* aURI, nsIChannel** aChannel) {
-  // nsIconProtocolHandler::NewChannel will provide the correct loadInfo for
-  // this iconChannel. Use the most restrictive security settings for the
-  // temporary loadInfo to make sure the channel can not be opened.
-  nsCOMPtr<nsIPrincipal> nullPrincipal =
-      mozilla::NullPrincipal::CreateWithoutOriginAttributes();
-  return NS_NewInputStreamChannel(
-      aChannel, aURI, std::move(aStream), nullPrincipal,
-      nsILoadInfo::SEC_REQUIRE_SAME_ORIGIN_DATA_IS_BLOCKED,
-      nsIContentPolicy::TYPE_INTERNAL_IMAGE, nsLiteralCString(IMAGE_ICON_MS));
 }
 
 /* static */
@@ -283,7 +270,7 @@ nsresult nsIconChannel::GetIcon(nsIURI* aURI, ByteBuf* aDataOut) {
   return MozGdkPixbufToByteBuf(pixbuf, scale, aDataOut);
 }
 
-nsresult nsIconChannel::Init(nsIURI* aURI) {
+nsresult nsIconChannel::Init(nsIURI* aURI, nsILoadInfo* aLoadInfo) {
   nsCOMPtr<nsIInputStream> stream;
 
   using ContentChild = mozilla::dom::ContentChild;
@@ -350,8 +337,9 @@ nsresult nsIconChannel::Init(nsIURI* aURI) {
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  return StreamToChannel(stream.forget(), aURI, getter_AddRefs(mRealChannel));
+  return NS_NewInputStreamChannelInternal(
+      getter_AddRefs(mRealChannel), aURI, stream.forget(),
+      nsLiteralCString(IMAGE_ICON_MS), /* aContentCharset */ ""_ns, aLoadInfo);
 }
 
-void nsIconChannel::Shutdown() {
-}
+void nsIconChannel::Shutdown() {}

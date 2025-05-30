@@ -590,10 +590,17 @@ JSExtensibleString& JSLinearString::makeExtensible(size_t capacity) {
   MOZ_ASSERT(!isAtom());
   MOZ_ASSERT(!isExternal());
   MOZ_ASSERT(capacity >= length());
-  js::RemoveCellMemory(this, allocSize(), js::MemoryUse::StringContents);
+  size_t oldSize = allocSize();
+  js::RemoveCellMemory(this, oldSize, js::MemoryUse::StringContents);
   setLengthAndFlags(length(), flags() | EXTENSIBLE_FLAGS);
   d.s.u3.capacity = capacity;
-  js::AddCellMemory(this, allocSize(), js::MemoryUse::StringContents);
+  size_t newSize = allocSize();
+  js::AddCellMemory(this, newSize, js::MemoryUse::StringContents);
+  MOZ_ASSERT(newSize >= oldSize);
+  if (!isTenured() && newSize > oldSize) {
+    auto& nursery = runtimeFromMainThread()->gc.nursery();
+    nursery.addMallocedBufferBytes(newSize - oldSize);
+  }
   return asExtensible();
 }
 
@@ -1369,6 +1376,14 @@ template JSString* js::ConcatStrings<NoGC>(JSContext* cx, JSString* const& left,
                                            JSString* const& right,
                                            gc::Heap heap);
 
+bool JSLinearString::hasCharsInCollectedNurseryRegion() const {
+  auto& nursery = runtimeFromAnyThread()->gc.nursery();
+  if (isInline()) {
+    return nursery.inCollectedRegion(this);
+  }
+  return nursery.inCollectedRegion(nonInlineCharsRaw());
+}
+
 #if defined(DEBUG) || defined(JS_JITSPEW) || defined(JS_CACHEIR_SPEW)
 void JSDependentString::dumpOwnRepresentationFields(
     js::JSONPrinter& json) const {
@@ -1659,7 +1674,7 @@ void AutoStableStringChars::holdStableChars(JSLinearString* s) {
 }
 
 bool AutoStableStringChars::init(JSContext* cx, JSString* s) {
-  Rooted<JSLinearString*> linearString(cx, s->ensureLinear(cx));
+  JSLinearString* linearString = s->ensureLinear(cx);
   if (!linearString) {
     return false;
   }
@@ -1691,7 +1706,7 @@ bool AutoStableStringChars::init(JSContext* cx, JSString* s) {
 }
 
 bool AutoStableStringChars::initTwoByte(JSContext* cx, JSString* s) {
-  Rooted<JSLinearString*> linearString(cx, s->ensureLinear(cx));
+  JSLinearString* linearString = s->ensureLinear(cx);
   if (!linearString) {
     return false;
   }
@@ -1742,7 +1757,7 @@ T* AutoStableStringChars::allocOwnChars(JSContext* cx, size_t count) {
 }
 
 bool AutoStableStringChars::copyAndInflateLatin1Chars(
-    JSContext* cx, Handle<JSLinearString*> linearString) {
+    JSContext* cx, JSLinearString* linearString) {
   MOZ_ASSERT(state_ == Uninitialized);
   MOZ_ASSERT(s_ == nullptr);
 
@@ -1763,8 +1778,8 @@ bool AutoStableStringChars::copyAndInflateLatin1Chars(
   return true;
 }
 
-bool AutoStableStringChars::copyLatin1Chars(
-    JSContext* cx, Handle<JSLinearString*> linearString) {
+bool AutoStableStringChars::copyLatin1Chars(JSContext* cx,
+                                            JSLinearString* linearString) {
   MOZ_ASSERT(state_ == Uninitialized);
   MOZ_ASSERT(s_ == nullptr);
 
@@ -1781,8 +1796,8 @@ bool AutoStableStringChars::copyLatin1Chars(
   return true;
 }
 
-bool AutoStableStringChars::copyTwoByteChars(
-    JSContext* cx, Handle<JSLinearString*> linearString) {
+bool AutoStableStringChars::copyTwoByteChars(JSContext* cx,
+                                             JSLinearString* linearString) {
   MOZ_ASSERT(state_ == Uninitialized);
   MOZ_ASSERT(s_ == nullptr);
 
@@ -2539,53 +2554,6 @@ JS_PUBLIC_API JSString* JS::NewStringFromKnownLiveUTF8Buffer(
     JSContext* cx, mozilla::StringBuffer* buffer, size_t length) {
   return ::NewStringFromUTF8Buffer(cx, buffer, length);
 }
-
-template <typename CharT>
-static bool PtrIsWithinRange(const CharT* ptr,
-                             const mozilla::Range<const CharT>& valid) {
-  return size_t(ptr - valid.begin().get()) <= valid.length();
-}
-
-/* static */
-template <typename CharT>
-size_t JSLinearString::maybeCloneCharsOnPromotionTyped(JSLinearString* str) {
-  MOZ_ASSERT(!InCollectedNurseryRegion(str), "str should have been promoted");
-  MOZ_ASSERT(str->isDependent());
-  JSLinearString* root = str->asDependent().rootBaseDuringMinorGC();
-  if (!root->isTenured()) {
-    // Can still fixup the original chars pointer.
-    return 0;
-  }
-
-  // If the base has not moved its chars, continue using them.
-  JS::AutoCheckCannotGC nogc;
-  const CharT* chars = str->chars<CharT>(nogc);
-  if (PtrIsWithinRange(chars, root->range<CharT>(nogc))) {
-    return 0;
-  }
-
-  // Clone the chars.
-  js::AutoEnterOOMUnsafeRegion oomUnsafe;
-  size_t len = str->length();
-  size_t nbytes = len * sizeof(CharT);
-  CharT* data =
-      str->zone()->pod_arena_malloc<CharT>(js::StringBufferArena, len);
-  if (!data) {
-    oomUnsafe.crash("cloning at-risk dependent string");
-  }
-  js_memcpy(data, chars, nbytes);
-
-  // Overwrite the dest string with a new linear string.
-  new (str) JSLinearString(data, len, false /* hasBuffer */);
-  str->zone()->addCellMemory(str, nbytes, js::MemoryUse::StringContents);
-
-  return nbytes;
-}
-
-template size_t JSLinearString::maybeCloneCharsOnPromotionTyped<JS::Latin1Char>(
-    JSLinearString* str);
-template size_t JSLinearString::maybeCloneCharsOnPromotionTyped<char16_t>(
-    JSLinearString* str);
 
 #if defined(DEBUG) || defined(JS_JITSPEW) || defined(JS_CACHEIR_SPEW)
 void JSExtensibleString::dumpOwnRepresentationFields(

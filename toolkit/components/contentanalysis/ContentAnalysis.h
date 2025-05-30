@@ -103,10 +103,13 @@ class ContentAnalysisRequest final : public nsIContentAnalysisRequest {
   static nsresult GetFileDigest(const nsAString& aFilePath,
                                 nsCString& aDigestString);
 
+  static RefPtr<ContentAnalysisRequest> Clone(
+      nsIContentAnalysisRequest* aRequest);
+
  private:
   virtual ~ContentAnalysisRequest();
+  ContentAnalysisRequest() = default;
 
-  // Remove unneeded copy constructor/assignment
   ContentAnalysisRequest(const ContentAnalysisRequest&) = delete;
   ContentAnalysisRequest& operator=(ContentAnalysisRequest&) = delete;
 
@@ -179,6 +182,8 @@ class ContentAnalysisRequest final : public nsIContentAnalysisRequest {
   bool mTestOnlyAlwaysSubmitToAgent = false;
 
   friend class ::ContentAnalysisTest;
+  template <typename T, typename... Args>
+  friend RefPtr<T> mozilla::MakeRefPtr(Args&&...);
 };
 
 #define CONTENTANALYSIS_IID \
@@ -254,7 +259,8 @@ class ContentAnalysis final : public nsIContentAnalysis,
   // Note that aURI is only necessary to pass in in gtests; otherwise we'll
   // get the URI from aWindow.
   static RefPtr<FilesAllowedPromise> CheckFilesInBatchMode(
-      nsCOMArray<nsIFile>&& aFiles, mozilla::dom::WindowGlobalParent* aWindow,
+      nsCOMArray<nsIFile>&& aFiles, bool aAutoAcknowledge,
+      mozilla::dom::WindowGlobalParent* aWindow,
       nsIContentAnalysisRequest::Reason aReason, nsIURI* aURI = nullptr);
 
   static RefPtr<ContentAnalysis> GetContentAnalysisFromService();

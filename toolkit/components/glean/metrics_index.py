@@ -117,6 +117,7 @@ firefox_desktop_metrics = [
     "browser/components/attribution/metrics.yaml",
     "browser/components/backup/metrics.yaml",
     "browser/components/downloads/metrics.yaml",
+    "browser/components/extensions/metrics.yaml",
     "browser/components/firefoxview/metrics.yaml",
     "browser/components/genai/metrics.yaml",
     "browser/components/metrics.yaml",
@@ -132,7 +133,6 @@ firefox_desktop_metrics = [
     "browser/components/screenshots/metrics.yaml",
     "browser/components/search/metrics.yaml",
     "browser/components/sessionstore/metrics.yaml",
-    "browser/components/shopping/metrics.yaml",
     "browser/components/sidebar/metrics.yaml",
     "browser/components/tabbrowser/metrics.yaml",
     "browser/components/textrecognition/metrics.yaml",
@@ -149,7 +149,6 @@ firefox_desktop_metrics = [
     "toolkit/components/reportbrokensite/metrics.yaml",
     "toolkit/components/satchel/megalist/metrics.yaml",
     "toolkit/components/search/metrics.yaml",
-    "toolkit/components/shopping/metrics.yaml",
     "toolkit/components/telemetry/metrics.yaml",
     "toolkit/modules/metrics.yaml",
     "toolkit/mozapps/update/shared_metrics.yaml",
@@ -221,6 +220,7 @@ firefox_desktop_pings = [
     "toolkit/components/reportbrokensite/pings.yaml",
     "toolkit/components/telemetry/pings.yaml",
     "toolkit/modules/pings.yaml",
+    "toolkit/mozapps/update/shared_pings.yaml",
 ]
 
 # Pings that are sent by the Firefox Desktop Background Update Task
@@ -228,6 +228,7 @@ firefox_desktop_pings = [
 background_update_pings = [
     "toolkit/components/crashes/pings.yaml",
     "toolkit/mozapps/update/pings.yaml",
+    "toolkit/mozapps/update/shared_pings.yaml",
 ]
 
 # Pings that are sent by the Firefox Desktop Background Tasks

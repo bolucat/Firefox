@@ -417,7 +417,21 @@ MOZ_ALWAYS_INLINE JSLinearString* JSDependentString::newImpl_(
   MOZ_ASSERT_IF(!base->hasTwoByteChars(),
                 !JSInlineString::lengthFits<JS::Latin1Char>(length));
 
+  // Invariant: if a tenured dependent string points to chars in the nursery,
+  // then the string must be in the store buffer.
+  //
+  // Refuse to create a chain tenured -> tenured -> nursery (with nursery
+  // chars). The same holds for anything else that might create length > 1
+  // chains of dependent strings.
+  bool mustContract;
   if constexpr (contract == JS::ContractBaseChain::Contract) {
+    mustContract = true;
+  } else {
+    auto& nursery = cx->runtime()->gc.nursery();
+    mustContract = nursery.isInside(base->nonInlineCharsRaw());
+  }
+
+  if (mustContract) {
     // Try to avoid long chains of dependent strings. We can't avoid these
     // entirely, however, due to how ropes are flattened.
     if (base->isDependent()) {
@@ -506,31 +520,6 @@ inline JSLinearString::JSLinearString(
 void JSLinearString::disownCharsBecauseError() {
   setLengthAndFlags(0, INIT_LINEAR_FLAGS | LATIN1_CHARS_BIT);
   d.s.u2.nonInlineCharsLatin1 = nullptr;
-}
-
-inline JSLinearString* JSDependentString::rootBaseDuringMinorGC() {
-  JSLinearString* root = this;
-  while (MaybeForwarded(root)->hasBase()) {
-    if (root->isForwarded()) {
-      root = js::gc::StringRelocationOverlay::fromCell(root)
-                 ->savedNurseryBaseOrRelocOverlay();
-    } else {
-      // Possibly nursery or tenured string (not an overlay).
-      root = root->nurseryBaseOrRelocOverlay();
-    }
-  }
-  return root;
-}
-
-/* static */
-js::gc::StringRelocationOverlay*
-js::gc::StringRelocationOverlay::forwardDependentString(JSString* src,
-                                                        Cell* dst) {
-  MOZ_ASSERT(src->isDependent());
-  MOZ_ASSERT(!src->isForwarded());
-  MOZ_ASSERT(!dst->isForwarded());
-  JSLinearString* origBase = src->asDependent().rootBaseDuringMinorGC();
-  return new (src) StringRelocationOverlay(dst, origBase);
 }
 
 template <js::AllowGC allowGC, typename CharT>

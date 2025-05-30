@@ -19,11 +19,17 @@ JAR_MANIFESTS += ["jar.mn"]
 
 SPHINX_TREES["/browser/places"] = "docs"
 
-EXTRA_JS_MODULES += [
+MOZ_SRC_FILES += [
     "Interactions.sys.mjs",
     "InteractionsBlocklist.sys.mjs",
+    "PlacesBrowserStartup.sys.mjs",
     "PlacesUIUtils.sys.mjs",
 ]
+
+EXTRA_COMPONENTS += [
+    "PlacesComponents.manifest",
+]
+
 
 FINAL_TARGET_FILES.actors += [
     "InteractionsChild.sys.mjs",

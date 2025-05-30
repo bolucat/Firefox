@@ -170,6 +170,10 @@ for (const type of [
   "HIDE_PERSONALIZE",
   "HIDE_PRIVACY_INFO",
   "HIDE_TOAST_MESSAGE",
+  "INFERRED_PERSONALIZATION_MODEL_UPDATE",
+  "INFERRED_PERSONALIZATION_REFRESH",
+  "INFERRED_PERSONALIZATION_RESET",
+  "INFERRED_PERSONALIZATION_UPDATE",
   "INIT",
   "INLINE_SELECTION_CLICK",
   "INLINE_SELECTION_IMPRESSION",
@@ -619,7 +623,7 @@ class SimpleHashRouter extends (external_React_default()).PureComponent {
   }
 }
 ;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamAdmin/DiscoveryStreamAdmin.jsx
-function _extends() { _extends = Object.assign ? Object.assign.bind() : function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return _extends.apply(this, arguments); }
+function _extends() { return _extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, _extends.apply(null, arguments); }
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -732,6 +736,7 @@ class DiscoveryStreamAdminUI extends (external_React_default()).PureComponent {
     this.handleWeatherSubmit = this.handleWeatherSubmit.bind(this);
     this.handleWeatherUpdate = this.handleWeatherUpdate.bind(this);
     this.resetBlocks = this.resetBlocks.bind(this);
+    this.refreshInferredPersonalization = this.refreshInferredPersonalization.bind(this);
     this.refreshTopicSelectionCache = this.refreshTopicSelectionCache.bind(this);
     this.toggleTBRFeed = this.toggleTBRFeed.bind(this);
     this.handleSectionsToggle = this.handleSectionsToggle.bind(this);
@@ -762,6 +767,11 @@ class DiscoveryStreamAdminUI extends (external_React_default()).PureComponent {
     this.props.dispatch(actionCreators.OnlyToMain({
       type: actionTypes.DISCOVERY_STREAM_CONFIG_CHANGE,
       data: config
+    }));
+  }
+  refreshInferredPersonalization() {
+    this.props.dispatch(actionCreators.OnlyToMain({
+      type: actionTypes.INFERRED_PERSONALIZATION_REFRESH
     }));
   }
   refreshTopicSelectionCache() {
@@ -923,6 +933,14 @@ class DiscoveryStreamAdminUI extends (external_React_default()).PureComponent {
     }
     return weatherTable;
   }
+  renderPersonalizationData() {
+    const {
+      inferredInterests,
+      coarseInferredInterests,
+      coarsePrivateInferredInterests
+    } = this.props.state.InferredPersonalization;
+    return /*#__PURE__*/external_React_default().createElement("div", null, " ", "Inferred Intrests:", /*#__PURE__*/external_React_default().createElement("pre", null, JSON.stringify(inferredInterests, null, 2)), " Coarse Inferred Interests:", /*#__PURE__*/external_React_default().createElement("pre", null, JSON.stringify(coarseInferredInterests, null, 2)), " Coarse Inferred Interests With Differential Privacy:", /*#__PURE__*/external_React_default().createElement("pre", null, JSON.stringify(coarsePrivateInferredInterests, null, 2)));
+  }
   renderFeedData(url) {
     const {
       feeds
@@ -1056,6 +1074,9 @@ class DiscoveryStreamAdminUI extends (external_React_default()).PureComponent {
       onClick: this.idleDaily
     }, "Trigger Idle Daily"), /*#__PURE__*/external_React_default().createElement("br", null), /*#__PURE__*/external_React_default().createElement("button", {
       className: "button",
+      onClick: this.refreshInferredPersonalization
+    }, "Refresh Inferred Personalization"), /*#__PURE__*/external_React_default().createElement("br", null), /*#__PURE__*/external_React_default().createElement("button", {
+      className: "button",
       onClick: this.syncRemoteSettings
     }, "Sync Remote Settings"), " ", /*#__PURE__*/external_React_default().createElement("button", {
       className: "button",
@@ -1123,7 +1144,7 @@ class DiscoveryStreamAdminUI extends (external_React_default()).PureComponent {
       className: "large-data-container"
     }, this.renderImpressionsData()), /*#__PURE__*/external_React_default().createElement("h3", null, "Blocked Data"), /*#__PURE__*/external_React_default().createElement("div", {
       className: "large-data-container"
-    }, this.renderBlocksData()), /*#__PURE__*/external_React_default().createElement("h3", null, "Weather Data"), this.renderWeatherData());
+    }, this.renderBlocksData()), /*#__PURE__*/external_React_default().createElement("h3", null, "Weather Data"), this.renderWeatherData(), /*#__PURE__*/external_React_default().createElement("h3", null, "Personalization Data"), this.renderPersonalizationData());
   }
 }
 class DiscoveryStreamAdminInner extends (external_React_default()).PureComponent {
@@ -1147,7 +1168,8 @@ class DiscoveryStreamAdminInner extends (external_React_default()).PureComponent
       state: {
         DiscoveryStream: this.props.DiscoveryStream,
         Personalization: this.props.Personalization,
-        Weather: this.props.Weather
+        Weather: this.props.Weather,
+        InferredPersonalization: this.props.InferredPersonalization
       },
       otherPrefs: this.props.Prefs.values,
       dispatch: this.props.dispatch
@@ -1217,6 +1239,7 @@ const DiscoveryStreamAdmin = (0,external_ReactRedux_namespaceObject.connect)(sta
   Sections: state.Sections,
   DiscoveryStream: state.DiscoveryStream,
   Personalization: state.Personalization,
+  InferredPersonalization: state.InferredPersonalization,
   Prefs: state.Prefs,
   Weather: state.Weather
 }))(_DiscoveryStreamAdmin);
@@ -2854,6 +2877,7 @@ class ImpressionStats_ImpressionStats extends (external_React_default()).PureCom
             recommended_at: link.recommended_at,
             received_rank: link.received_rank,
             topic: link.topic,
+            features: link.features,
             is_list_card: link.is_list_card,
             ...(link.format ? {
               format: link.format
@@ -3529,7 +3553,8 @@ const DefaultMeta = ({
   topic,
   isSectionsCard,
   showTopics,
-  icon_src
+  icon_src,
+  refinedCardsLayout
 }) => {
   const shouldHaveThumbs = !isListCard && format !== "rectangle" && mayHaveSectionsCards && mayHaveThumbsUpDown;
   const shouldHaveFooterSection = isSectionsCard && (shouldHaveThumbs || showTopics);
@@ -3537,7 +3562,7 @@ const DefaultMeta = ({
     className: "meta"
   }, /*#__PURE__*/external_React_default().createElement("div", {
     className: "info-wrap"
-  }, ctaButtonVariant !== "variant-b" && format !== "rectangle" && /*#__PURE__*/external_React_default().createElement(DSSource, {
+  }, ctaButtonVariant !== "variant-b" && format !== "rectangle" && !refinedCardsLayout && /*#__PURE__*/external_React_default().createElement(DSSource, {
     source: source,
     timeToRead: timeToRead,
     newSponsoredLabel: newSponsoredLabel,
@@ -3545,23 +3570,29 @@ const DefaultMeta = ({
     sponsor: sponsor,
     sponsored_by_override: sponsored_by_override,
     icon_src: icon_src
-  }), format !== "rectangle" && /*#__PURE__*/external_React_default().createElement((external_React_default()).Fragment, null, /*#__PURE__*/external_React_default().createElement("h3", {
+  }), /*#__PURE__*/external_React_default().createElement("h3", {
     className: "title clamp"
-  }, title), excerpt && /*#__PURE__*/external_React_default().createElement("p", {
+  }, format === "rectangle" ? "Sponsored" : title), format === "rectangle" ? /*#__PURE__*/external_React_default().createElement("p", {
     className: "excerpt clamp"
-  }, excerpt)), format === "rectangle" && /*#__PURE__*/external_React_default().createElement((external_React_default()).Fragment, null, /*#__PURE__*/external_React_default().createElement("h3", {
-    className: "title clamp"
-  }, "Sponsored"), /*#__PURE__*/external_React_default().createElement("p", {
+  }, "Sponsored content supports our mission to build a better web.") : excerpt && /*#__PURE__*/external_React_default().createElement("p", {
     className: "excerpt clamp"
-  }, "Sponsored content supports our mission to build a better web."))), !isListCard && format !== "rectangle" && !mayHaveSectionsCards && mayHaveThumbsUpDown && /*#__PURE__*/external_React_default().createElement(DSThumbsUpDownButtons, {
+  }, excerpt)), !isListCard && format !== "rectangle" && !mayHaveSectionsCards && mayHaveThumbsUpDown && !refinedCardsLayout && /*#__PURE__*/external_React_default().createElement(DSThumbsUpDownButtons, {
     onThumbsDownClick: onThumbsDownClick,
     onThumbsUpClick: onThumbsUpClick,
     sponsor: sponsor,
     isThumbsDownActive: state.isThumbsDownActive,
     isThumbsUpActive: state.isThumbsUpActive
-  }), shouldHaveFooterSection && /*#__PURE__*/external_React_default().createElement("div", {
+  }), (shouldHaveFooterSection || refinedCardsLayout) && /*#__PURE__*/external_React_default().createElement("div", {
     className: "sections-card-footer"
-  }, shouldHaveThumbs && /*#__PURE__*/external_React_default().createElement(DSThumbsUpDownButtons, {
+  }, refinedCardsLayout && format !== "rectangle" && format !== "spoc" && /*#__PURE__*/external_React_default().createElement(DSSource, {
+    source: source,
+    timeToRead: timeToRead,
+    newSponsoredLabel: newSponsoredLabel,
+    context: context,
+    sponsor: sponsor,
+    sponsored_by_override: sponsored_by_override,
+    icon_src: icon_src
+  }), (shouldHaveThumbs || refinedCardsLayout) && /*#__PURE__*/external_React_default().createElement(DSThumbsUpDownButtons, {
     onThumbsDownClick: onThumbsDownClick,
     onThumbsUpClick: onThumbsUpClick,
     sponsor: sponsor,
@@ -3595,6 +3626,7 @@ class _DSCard extends (external_React_default()).PureComponent {
     this.onMenuShow = this.onMenuShow.bind(this);
     this.onThumbsUpClick = this.onThumbsUpClick.bind(this);
     this.onThumbsDownClick = this.onThumbsDownClick.bind(this);
+    const refinedCardsLayout = this.props.Prefs.values["discoverystream.refinedCardsLayout.enabled"];
     this.setContextMenuButtonHostRef = element => {
       this.contextMenuButtonHostElement = element;
     };
@@ -3655,7 +3687,7 @@ class _DSCard extends (external_React_default()).PureComponent {
       },
       medium: {
         width: 300,
-        height: 150
+        height: refinedCardsLayout ? 172 : 150
       },
       large: {
         width: 265,
@@ -3723,6 +3755,7 @@ class _DSCard extends (external_React_default()).PureComponent {
             recommended_at: this.props.recommended_at,
             received_rank: this.props.received_rank,
             topic: this.props.topic,
+            features: this.props.features,
             matches_selected_topic: matchesSelectedTopic,
             selected_topics: this.props.selectedTopics,
             is_list_card: this.props.isListCard,
@@ -3967,13 +4000,12 @@ class _DSCard extends (external_React_default()).PureComponent {
       format,
       alt_text
     } = this.props;
+    const refinedCardsLayout = Prefs.values["discoverystream.refinedCardsLayout.enabled"];
+    const refinedCardsClassName = refinedCardsLayout ? `refined-cards` : ``;
     if (this.props.placeholder || !this.state.isSeen) {
       // placeholder-seen is used to ensure the loading animation is only used if the card is visible.
       const placeholderClassName = this.state.isSeen ? `placeholder-seen` : ``;
-      return /*#__PURE__*/external_React_default().createElement("div", {
-        className: `ds-card placeholder ${placeholderClassName} ${isListCard ? "list-card-placeholder" : ""}`,
-        ref: this.setPlaceholderRef
-      }, /*#__PURE__*/external_React_default().createElement("div", {
+      let placeholderElements = /*#__PURE__*/external_React_default().createElement((external_React_default()).Fragment, null, /*#__PURE__*/external_React_default().createElement("div", {
         className: "placeholder-image placeholder-fill"
       }), /*#__PURE__*/external_React_default().createElement("div", {
         className: "placeholder-label placeholder-fill"
@@ -3982,6 +4014,19 @@ class _DSCard extends (external_React_default()).PureComponent {
       }), /*#__PURE__*/external_React_default().createElement("div", {
         className: "placeholder-description placeholder-fill"
       }));
+      if (refinedCardsLayout) {
+        placeholderElements = /*#__PURE__*/external_React_default().createElement((external_React_default()).Fragment, null, /*#__PURE__*/external_React_default().createElement("div", {
+          className: "placeholder-image placeholder-fill"
+        }), /*#__PURE__*/external_React_default().createElement("div", {
+          className: "placeholder-description placeholder-fill"
+        }), /*#__PURE__*/external_React_default().createElement("div", {
+          className: "placeholder-header placeholder-fill"
+        }));
+      }
+      return /*#__PURE__*/external_React_default().createElement("div", {
+        className: `ds-card placeholder ${placeholderClassName} ${isListCard ? "list-card-placeholder" : ""} ${refinedCardsClassName}`,
+        ref: this.setPlaceholderRef
+      }, placeholderElements);
     }
     let source = this.props.source || this.props.publisher;
     if (!source) {
@@ -4040,7 +4085,7 @@ class _DSCard extends (external_React_default()).PureComponent {
       }
     }
     return /*#__PURE__*/external_React_default().createElement("article", {
-      className: `ds-card ${listCardClassName} ${fakespotClassName} ${sectionsCardsClassName} ${compactImagesClassName} ${imageGradientClassName} ${titleLinesName} ${descLinesClassName} ${spocFormatClassName} ${ctaButtonClassName} ${ctaButtonVariantClassName}`,
+      className: `ds-card ${listCardClassName} ${fakespotClassName} ${sectionsCardsClassName} ${compactImagesClassName} ${imageGradientClassName} ${titleLinesName} ${descLinesClassName} ${spocFormatClassName} ${ctaButtonClassName} ${ctaButtonVariantClassName} ${refinedCardsClassName}`,
       ref: this.setContextMenuButtonHostRef,
       "data-position-one": this.props["data-position-one"],
       "data-position-two": this.props["data-position-one"],
@@ -4052,7 +4097,7 @@ class _DSCard extends (external_React_default()).PureComponent {
       onLinkClick: !this.props.placeholder ? this.onLinkClick : undefined,
       url: this.props.url,
       title: this.props.title
-    }, this.props.showTopics && !this.props.mayHaveSectionsCards && this.props.topic && !isListCard && /*#__PURE__*/external_React_default().createElement("span", {
+    }, this.props.showTopics && !this.props.mayHaveSectionsCards && this.props.topic && !isListCard && !refinedCardsLayout && /*#__PURE__*/external_React_default().createElement("span", {
       className: "ds-card-topic",
       "data-l10n-id": `newtab-topic-label-${this.props.topic}`
     }), /*#__PURE__*/external_React_default().createElement("div", {
@@ -4082,6 +4127,7 @@ class _DSCard extends (external_React_default()).PureComponent {
         recommended_at: this.props.recommended_at,
         received_rank: this.props.received_rank,
         topic: this.props.topic,
+        features: this.props.features,
         is_list_card: isListCard,
         ...(format ? {
           format
@@ -4131,11 +4177,12 @@ class _DSCard extends (external_React_default()).PureComponent {
       onThumbsDownClick: this.onThumbsDownClick,
       state: this.state,
       isListCard: isListCard,
-      showTopics: this.props.showTopics,
+      showTopics: !refinedCardsLayout && this.props.showTopics,
       isSectionsCard: this.props.mayHaveSectionsCards && this.props.topic && !isListCard,
       format: format,
       topic: this.props.topic,
-      icon_src: faviconEnabled && this.props.icon_src
+      icon_src: faviconEnabled && this.props.icon_src,
+      refinedCardsLayout: refinedCardsLayout
     })), /*#__PURE__*/external_React_default().createElement("div", {
       className: "card-stp-button-hover-background"
     }, /*#__PURE__*/external_React_default().createElement("div", {
@@ -4844,7 +4891,7 @@ const AdBanner = ({
     className: "ad-banner-sponsored"
   }, /*#__PURE__*/external_React_default().createElement("span", {
     className: "ad-banner-sponsored-label",
-    "data-l10n-id": "newtab-topsite-sponsored"
+    "data-l10n-id": "newtab-label-sponsored-fixed"
   }))));
 };
 ;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/CardGrid/CardGrid.jsx
@@ -5094,7 +5141,7 @@ function RecentSavesContainer({
   for (let index = 0; index < items; index++) {
     const recentSave = recentSavesData[index];
     if (!recentSave) {
-      recentSavesCards.push( /*#__PURE__*/external_React_default().createElement(PlaceholderDSCard, {
+      recentSavesCards.push(/*#__PURE__*/external_React_default().createElement(PlaceholderDSCard, {
         key: `dscard-${index}`
       }));
     } else {
@@ -5160,6 +5207,7 @@ class _CardGrid extends (external_React_default()).PureComponent {
     const listFeedSelectedFeed = prefs[PREF_LIST_FEED_SELECTED_FEED];
     const billboardEnabled = prefs[PREF_BILLBOARD_ENABLED];
     const leaderboardEnabled = prefs[PREF_LEADERBOARD_ENABLED];
+
     // filter out recs that should be in ListFeed
     const recs = this.props.data.recommendations.filter(item => !item.feedName).slice(0, items);
     const cards = [];
@@ -5167,7 +5215,7 @@ class _CardGrid extends (external_React_default()).PureComponent {
     let editorsPicksCards = [];
     for (let index = 0; index < items; index++) {
       const rec = recs[index];
-      cards.push(topicsLoading || !rec || rec.placeholder || rec.flight_id && !spocsStartupCacheEnabled && this.props.App.isForStartupCache.App ? /*#__PURE__*/external_React_default().createElement(PlaceholderDSCard, {
+      cards.push(topicsLoading || !rec || rec.placeholder || rec.flight_id && !spocsStartupCacheEnabled && this.props.App.isForStartupCache.DiscoveryStream ? /*#__PURE__*/external_React_default().createElement(PlaceholderDSCard, {
         key: `dscard-${index}`
       }) : /*#__PURE__*/external_React_default().createElement(DSCard, {
         key: `dscard-${rec.id}`,
@@ -5180,10 +5228,11 @@ class _CardGrid extends (external_React_default()).PureComponent {
         time_to_read: rec.time_to_read,
         title: rec.title,
         topic: rec.topic,
+        features: rec.features,
         showTopics: showTopics,
         selectedTopics: selectedTopics,
-        availableTopics: availableTopics,
         excerpt: rec.excerpt,
+        availableTopics: availableTopics,
         url: rec.url,
         id: rec.id,
         shim: rec.shim,
@@ -5361,7 +5410,6 @@ class _CardGrid extends (external_React_default()).PureComponent {
     return listFeed;
   }
   renderGridClassName() {
-    const prefs = this.props.Prefs.values;
     const {
       hybridLayout,
       hideCardBackground,
@@ -5369,20 +5417,12 @@ class _CardGrid extends (external_React_default()).PureComponent {
       compactGrid,
       hideDescriptions
     } = this.props;
-    const adSizingVariantAEnabled = prefs["newtabAdSize.variant-a"];
-    const adSizingVariantBEnabled = prefs["newtabAdSize.variant-b"];
-    const adSizingVariantEnabled = adSizingVariantAEnabled || adSizingVariantBEnabled;
-    let adSizingVariantClassName = "";
-    if (adSizingVariantEnabled) {
-      // Ad sizing experiment variant, we want to ensure only 1 of these is ever enabled.
-      adSizingVariantClassName = adSizingVariantAEnabled ? `ad-sizing-variant-a` : `ad-sizing-variant-b`;
-    }
     const hideCardBackgroundClass = hideCardBackground ? `ds-card-grid-hide-background` : ``;
     const fourCardLayoutClass = fourCardLayout ? `ds-card-grid-four-card-variant` : ``;
     const hideDescriptionsClassName = !hideDescriptions ? `ds-card-grid-include-descriptions` : ``;
     const compactGridClassName = compactGrid ? `ds-card-grid-compact` : ``;
     const hybridLayoutClassName = hybridLayout ? `ds-card-grid-hybrid-layout` : ``;
-    const gridClassName = `ds-card-grid ${hybridLayoutClassName} ${hideCardBackgroundClass} ${fourCardLayoutClass} ${hideDescriptionsClassName} ${compactGridClassName} ${adSizingVariantClassName}`;
+    const gridClassName = `ds-card-grid ${hybridLayoutClassName} ${hideCardBackgroundClass} ${fourCardLayoutClass} ${hideDescriptionsClassName} ${compactGridClassName}`;
     return gridClassName;
   }
   render() {
@@ -5562,7 +5602,7 @@ class CollectionCardGrid extends (external_React_default()).PureComponent {
   }
 }
 ;// CONCATENATED MODULE: ./content-src/components/A11yLinkButton/A11yLinkButton.jsx
-function A11yLinkButton_extends() { A11yLinkButton_extends = Object.assign ? Object.assign.bind() : function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return A11yLinkButton_extends.apply(this, arguments); }
+function A11yLinkButton_extends() { return A11yLinkButton_extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, A11yLinkButton_extends.apply(null, arguments); }
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -7354,6 +7394,9 @@ const INITIAL_STATE = {
     locale: "",
     isForStartupCache: {
       App: false,
+      TopSites: false,
+      DiscoveryStream: false,
+      Weather: false,
       Wallpaper: false,
     },
     customizeMenuVisible: false,
@@ -7465,6 +7508,13 @@ const INITIAL_STATE = {
     lastUpdated: null,
     initialized: false,
   },
+  InferredPersonalization: {
+    initialized: false,
+    lastUpdated: null,
+    inferredIntrests: {},
+    coarseInferredInterests: {},
+    coarsePrivateInferredInterests: {},
+  },
   Search: {
     // When search hand-off is enabled, we render a big button that is styled to
     // look like a search textbox. If the button is clicked, we style
@@ -7504,18 +7554,28 @@ function App(prevState = INITIAL_STATE.App, action) {
         initialized: true,
       });
     case actionTypes.TOP_SITES_UPDATED:
-      // Toggle `isForStartupCache` when receiving the `TOP_SITES_UPDATE` action
+      // Toggle `isForStartupCache.TopSites` when receiving the `TOP_SITES_UPDATE` action
       // so that sponsored tiles can be rendered as usual. See Bug 1826360.
       return {
         ...prevState,
-        isForStartupCache: { ...prevState.isForStartupCache, App: false },
+        isForStartupCache: { ...prevState.isForStartupCache, TopSites: false },
       };
     case actionTypes.DISCOVERY_STREAM_SPOCS_UPDATE:
-      // Toggle `isForStartupCache` when receiving the `DISCOVERY_STREAM_SPOCS_UPDATE_STARTUPCACHE` action
+      // Toggle `isForStartupCache.DiscoveryStream` when receiving the `DISCOVERY_STREAM_SPOCS_UPDATE` action
       // so that spoc cards can be rendered as usual.
       return {
         ...prevState,
-        isForStartupCache: { ...prevState.isForStartupCache, App: false },
+        isForStartupCache: {
+          ...prevState.isForStartupCache,
+          DiscoveryStream: false,
+        },
+      };
+    case actionTypes.WEATHER_UPDATE:
+      // Toggle `isForStartupCache.Weather` when receiving the `WEATHER_UPDATE` action
+      // so that weather can be rendered as usual.
+      return {
+        ...prevState,
+        isForStartupCache: { ...prevState.isForStartupCache, Weather: false },
       };
     case actionTypes.WALLPAPERS_CUSTOM_SET:
       // Toggle `isForStartupCache.Wallpaper` when receiving the `WALLPAPERS_CUSTOM_SET` action
@@ -7946,6 +8006,28 @@ function Reducers_sys_Personalization(prevState = INITIAL_STATE.Personalization,
       };
     case actionTypes.DISCOVERY_STREAM_PERSONALIZATION_RESET:
       return { ...INITIAL_STATE.Personalization };
+    default:
+      return prevState;
+  }
+}
+
+function InferredPersonalization(
+  prevState = INITIAL_STATE.InferredPersonalization,
+  action
+) {
+  switch (action.type) {
+    case actionTypes.INFERRED_PERSONALIZATION_UPDATE:
+      return {
+        ...prevState,
+        initialized: true,
+        inferredInterests: action.data.inferredInterests,
+        coarseInferredInterests: action.data.coarseInferredInterests,
+        coarsePrivateInferredInterests:
+          action.data.coarsePrivateInferredInterests,
+        lastUpdated: action.data.lastUpdated,
+      };
+    case actionTypes.INFERRED_PERSONALIZATION_RESET:
+      return { ...INITIAL_STATE.InferredPersonalization };
     default:
       return prevState;
   }
@@ -8404,6 +8486,7 @@ const reducers = {
   Notifications,
   Pocket,
   Personalization: Reducers_sys_Personalization,
+  InferredPersonalization,
   DiscoveryStream,
   Search,
   Wallpapers,
@@ -8632,7 +8715,7 @@ TopSiteImpressionWrapper.defaultProps = {
   tile: null
 };
 ;// CONCATENATED MODULE: ./content-src/components/TopSites/TopSite.jsx
-function TopSite_extends() { TopSite_extends = Object.assign ? Object.assign.bind() : function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return TopSite_extends.apply(this, arguments); }
+function TopSite_extends() { return TopSite_extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, TopSite_extends.apply(null, arguments); }
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -9457,7 +9540,7 @@ class _TopSiteList extends (external_React_default()).PureComponent {
       let topSiteLink;
       // Use a placeholder if the link is empty or it's rendering a sponsored
       // tile for the about:home startup cache.
-      if (!link || props.App.isForStartupCache.App && isSponsored(link) || topSites[i]?.isAddButton) {
+      if (!link || props.App.isForStartupCache.TopSites && isSponsored(link) || topSites[i]?.isAddButton) {
         if (link) {
           topSiteLink = /*#__PURE__*/external_React_default().createElement(TopSitePlaceholder, TopSite_extends({}, slotProps, commonProps, {
             isAddButton: topSites[i] && topSites[i].isAddButton,
@@ -9772,7 +9855,7 @@ TopSiteForm.defaultProps = {
   index: -1
 };
 ;// CONCATENATED MODULE: ./content-src/components/TopSites/TopSites.jsx
-function TopSites_extends() { TopSites_extends = Object.assign ? Object.assign.bind() : function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return TopSites_extends.apply(this, arguments); }
+function TopSites_extends() { return TopSites_extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, TopSites_extends.apply(null, arguments); }
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -9953,7 +10036,7 @@ const TopSites_TopSites = (0,external_ReactRedux_namespaceObject.connect)(state 
   TopSitesRows: state.Prefs.values.topSitesRows
 }))(_TopSites);
 ;// CONCATENATED MODULE: ./content-src/components/Sections/Sections.jsx
-function Sections_extends() { Sections_extends = Object.assign ? Object.assign.bind() : function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return Sections_extends.apply(this, arguments); }
+function Sections_extends() { return Sections_extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, Sections_extends.apply(null, arguments); }
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -10233,11 +10316,11 @@ class _Sections extends (external_React_default()).PureComponent {
         isLast: sections.length === expectedCount - 1
       };
       if (sectionId === "topsites" && showTopSites) {
-        sections.push( /*#__PURE__*/external_React_default().createElement(TopSites_TopSites, commonProps));
+        sections.push(/*#__PURE__*/external_React_default().createElement(TopSites_TopSites, commonProps));
       } else {
         const section = enabledSections.find(s => s.id === sectionId);
         if (section) {
-          sections.push( /*#__PURE__*/external_React_default().createElement(SectionIntl, Sections_extends({}, section, commonProps)));
+          sections.push(/*#__PURE__*/external_React_default().createElement(SectionIntl, Sections_extends({}, section, commonProps)));
         }
       }
     }
@@ -10254,7 +10337,7 @@ const Sections_Sections = (0,external_ReactRedux_namespaceObject.connect)(state 
   Prefs: state.Prefs
 }))(_Sections);
 ;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/Highlights/Highlights.jsx
-function Highlights_extends() { Highlights_extends = Object.assign ? Object.assign.bind() : function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return Highlights_extends.apply(this, arguments); }
+function Highlights_extends() { return Highlights_extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, Highlights_extends.apply(null, arguments); }
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -11180,12 +11263,12 @@ const CardSections_PREF_TOPICS_AVAILABLE = "discoverystream.topicSelection.topic
 const CardSections_PREF_THUMBS_UP_DOWN_ENABLED = "discoverystream.thumbsUpDown.enabled";
 const PREF_INTEREST_PICKER_ENABLED = "discoverystream.sections.interestPicker.enabled";
 const CardSections_PREF_VISIBLE_SECTIONS = "discoverystream.sections.interestPicker.visibleSections";
-const PREF_MEDIUM_RECTANGLE_ENABLED = "newtabAdSize.mediumRectangle";
 const CardSections_PREF_BILLBOARD_ENABLED = "newtabAdSize.billboard";
 const CardSections_PREF_LEADERBOARD_ENABLED = "newtabAdSize.leaderboard";
 const CardSections_PREF_LEADERBOARD_POSITION = "newtabAdSize.leaderboard.position";
 const CardSections_PREF_BILLBOARD_POSITION = "newtabAdSize.billboard.position";
-function getLayoutData(responsiveLayouts, index) {
+const PREF_REFINED_CARDS_ENABLED = "discoverystream.refinedCardsLayout.enabled";
+function getLayoutData(responsiveLayouts, index, refinedCardsLayout) {
   let layoutData = {
     classNames: [],
     imageSizes: {}
@@ -11200,7 +11283,11 @@ function getLayoutData(responsiveLayouts, index) {
         // The API tells us whether the tile should show the excerpt or not.
         // Apply extra styles accordingly.
         if (tile.hasExcerpt) {
-          layoutData.classNames.push(`col-${layout.columnCount}-show-excerpt`);
+          if (tile.size === "medium" && refinedCardsLayout) {
+            layoutData.classNames.push(`col-${layout.columnCount}-hide-excerpt`);
+          } else {
+            layoutData.classNames.push(`col-${layout.columnCount}-show-excerpt`);
+          }
         } else {
           layoutData.classNames.push(`col-${layout.columnCount}-hide-excerpt`);
         }
@@ -11255,6 +11342,7 @@ function CardSection({
   const mayHaveThumbsUpDown = prefs[CardSections_PREF_THUMBS_UP_DOWN_ENABLED];
   const selectedTopics = prefs[CardSections_PREF_TOPICS_SELECTED];
   const availableTopics = prefs[CardSections_PREF_TOPICS_AVAILABLE];
+  const refinedCardsLayout = prefs[PREF_REFINED_CARDS_ENABLED];
   const {
     saveToPocketCard
   } = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.DiscoveryStream);
@@ -11364,13 +11452,6 @@ function CardSection({
     type: type,
     sectionPosition: sectionPosition
   }));
-
-  // Determine to display first medium-sized in MREC IAB format
-  const mediumRectangleEnabled = prefs[PREF_MEDIUM_RECTANGLE_ENABLED];
-  let adSizingVariantClassName = "";
-  if (mediumRectangleEnabled) {
-    adSizingVariantClassName = "ad-sizing-variant-a";
-  }
   return /*#__PURE__*/external_React_default().createElement("section", {
     className: "ds-section",
     ref: el => {
@@ -11385,12 +11466,12 @@ function CardSection({
   }, title), subtitle && /*#__PURE__*/external_React_default().createElement("p", {
     className: "section-subtitle"
   }, subtitle)), mayHaveSectionsPersonalization ? sectionContextWrapper : null), /*#__PURE__*/external_React_default().createElement("div", {
-    className: `ds-section-grid ds-card-grid ${adSizingVariantClassName}`
+    className: `ds-section-grid ds-card-grid`
   }, section.data.slice(0, maxTile).map((rec, index) => {
     const {
       classNames,
       imageSizes
-    } = getLayoutData(responsiveLayouts, index);
+    } = getLayoutData(responsiveLayouts, index, refinedCardsLayout);
     if (!rec || rec.placeholder) {
       return /*#__PURE__*/external_React_default().createElement(PlaceholderDSCard, {
         key: `dscard-${index}`
@@ -11407,6 +11488,7 @@ function CardSection({
       time_to_read: rec.time_to_read,
       title: rec.title,
       topic: rec.topic,
+      features: rec.features,
       excerpt: rec.excerpt,
       url: rec.url,
       id: rec.id,
@@ -12165,8 +12247,8 @@ function SectionsMgmtPanel({
   }))));
 }
 
-;// CONCATENATED MODULE: ./content-src/components/WallpapersSection/WallpaperCategories.jsx
-function WallpaperCategories_extends() { WallpaperCategories_extends = Object.assign ? Object.assign.bind() : function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return WallpaperCategories_extends.apply(this, arguments); }
+;// CONCATENATED MODULE: ./content-src/components/WallpaperCategories/WallpaperCategories.jsx
+function WallpaperCategories_extends() { return WallpaperCategories_extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, WallpaperCategories_extends.apply(null, arguments); }
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -13210,7 +13292,7 @@ class _Search extends (external_React_default()).PureComponent {
     return /*#__PURE__*/external_React_default().createElement("div", {
       className: wrapperClassName
     }, this.props.showLogo && /*#__PURE__*/external_React_default().createElement(Logo, null), !this.props.handoffEnabled && /*#__PURE__*/external_React_default().createElement("div", {
-      className: "search-inner-wrapper"
+      className: "search-inner-wrapper no-handoff"
     }, /*#__PURE__*/external_React_default().createElement("input", {
       id: "newtab-search-text",
       "data-l10n-id": "newtab-search-box-input",
@@ -13540,7 +13622,7 @@ class _Weather extends (external_React_default()).PureComponent {
     if (!isWeatherEnabled) {
       return false;
     }
-    if (!this.props.Weather.initialized) {
+    if (this.props.App.isForStartupCache.Weather || !this.props.Weather.initialized) {
       return /*#__PURE__*/external_React_default().createElement(WeatherPlaceholder, null);
     }
     const {
@@ -13637,6 +13719,7 @@ class _Weather extends (external_React_default()).PureComponent {
   }
 }
 const Weather_Weather = (0,external_ReactRedux_namespaceObject.connect)(state => ({
+  App: state.App,
   Weather: state.Weather,
   Prefs: state.Prefs,
   IntersectionObserver: globalThis.IntersectionObserver,
@@ -14188,7 +14271,7 @@ function WallpaperFeatureHighlight({
   }));
 }
 ;// CONCATENATED MODULE: ./content-src/components/Base/Base.jsx
-function Base_extends() { Base_extends = Object.assign ? Object.assign.bind() : function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return Base_extends.apply(this, arguments); }
+function Base_extends() { return Base_extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, Base_extends.apply(null, arguments); }
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -14754,6 +14837,7 @@ class BaseContent extends (external_React_default()).PureComponent {
     const topicLabelsEnabled = prefs["discoverystream.topicLabels.enabled"];
     const sectionsCustomizeMenuPanelEnabled = prefs["discoverystream.sections.customizeMenuPanel.enabled"];
     const sectionsPersonalizationEnabled = prefs["discoverystream.sections.personalization.enabled"];
+
     // Logic to show follow/block topic mgmt panel in Customize panel
     const mayHavePersonalizedTopicSections = sectionsPersonalizationEnabled && topicLabelsEnabled && sectionsEnabled && sectionsCustomizeMenuPanelEnabled && DiscoveryStream.feeds.loaded;
     const featureClassName = [mobileDownloadPromoEnabled && mobileDownloadPromoVariantABorC && "has-mobile-download-promo",
@@ -15149,11 +15233,14 @@ function renderWithoutState() {
       type: actionTypes.NEW_TAB_STATE_REQUEST_WITHOUT_STARTUPCACHE
     }));
   });
-  external_ReactDOM_default().hydrate( /*#__PURE__*/external_React_default().createElement(NewTab, {
+  external_ReactDOM_default().hydrate(/*#__PURE__*/external_React_default().createElement(NewTab, {
     store: store
   }), document.getElementById("root"));
 }
 function renderCache(initialState) {
+  if (initialState) {
+    initialState.App.isForStartupCache.App = false;
+  }
   const store = initStore(reducers, initialState);
   new DetectUserSessionStart(store).sendEventOrAddListener();
   doRequestWhenReady().then(() => {
@@ -15164,7 +15251,7 @@ function renderCache(initialState) {
       type: actionTypes.NEW_TAB_STATE_REQUEST_STARTUPCACHE
     }));
   });
-  external_ReactDOM_default().hydrate( /*#__PURE__*/external_React_default().createElement(NewTab, {
+  external_ReactDOM_default().hydrate(/*#__PURE__*/external_React_default().createElement(NewTab, {
     store: store
   }), document.getElementById("root"));
 }

@@ -2441,6 +2441,22 @@ static bool PrepareAndExecuteRegExp(MacroAssembler& masm, Register regexp,
   return true;
 }
 
+// Shift a bit within a 32-bit word from one bit position to another.
+// Both FromBitMask and ToBitMask must have a single bit set.
+template <uint32_t FromBitMask, uint32_t ToBitMask>
+static void ShiftFlag32(MacroAssembler& masm, Register reg) {
+  static_assert(mozilla::IsPowerOfTwo(FromBitMask));
+  static_assert(mozilla::IsPowerOfTwo(ToBitMask));
+  static_assert(FromBitMask != ToBitMask);
+  constexpr uint32_t fromShift = __builtin_ctz(FromBitMask);
+  constexpr uint32_t toShift = __builtin_ctz(ToBitMask);
+  if (fromShift < toShift) {
+    masm.lshift32(Imm32(toShift - fromShift), reg);
+  } else {
+    masm.rshift32(Imm32(fromShift - toShift), reg);
+  }
+}
+
 static void EmitInitDependentStringBase(MacroAssembler& masm,
                                         Register dependent, Register base,
                                         Register temp1, Register temp2,
@@ -2460,11 +2476,19 @@ static void EmitInitDependentStringBase(MacroAssembler& masm,
   masm.bind(&notDependent);
   {
     // The base is not a dependent string. Set the DEPENDED_ON_BIT if it's not
-    // an atom.
+    // an atom (ATOM_BIT is not set). Roughly:
+    //
+    //   flags |= ((~flags) & ATOM_BIT) << (DEPENDED_ON_BIT - ATOM_BIT))
+    //
+    // but further modified to combine the initial move with an OR:
+    //
+    //   flags |= ~(flags & ~ATOM_BIT) << (DEPENDED_ON_BIT - ATOM_BIT)
+    //
+    masm.or32(Imm32(~JSString::ATOM_BIT), temp1, temp2);
+    masm.not32(temp2);
+    ShiftFlag32<JSString::ATOM_BIT, JSString::DEPENDED_ON_BIT>(masm, temp2);
+    masm.or32(temp2, temp1);
     masm.movePtr(base, temp2);
-    masm.branchTest32(Assembler::NonZero, temp1, Imm32(JSString::ATOM_BIT),
-                      &markedDependedOn);
-    masm.or32(Imm32(JSString::DEPENDED_ON_BIT), temp1);
     masm.store32(temp1, Address(temp2, JSString::offsetOfFlags()));
   }
   masm.bind(&markedDependedOn);
@@ -4873,21 +4897,38 @@ void CodeGenerator::visitSmallObjectVariableKeyHasProp(
   masm.bind(&done);
 }
 
+void CodeGenerator::visitGuardToArrayBuffer(LGuardToArrayBuffer* guard) {
+  Register obj = ToRegister(guard->object());
+  Register temp = ToRegister(guard->temp0());
+
+  // branchIfIsNotArrayBuffer may zero the object register on speculative paths
+  // (we should have a defineReuseInput allocation in this case).
+
+  Label bail;
+  masm.branchIfIsNotArrayBuffer(obj, temp, &bail);
+  bailoutFrom(&bail, guard->snapshot());
+}
+
+void CodeGenerator::visitGuardToSharedArrayBuffer(
+    LGuardToSharedArrayBuffer* guard) {
+  Register obj = ToRegister(guard->object());
+  Register temp = ToRegister(guard->temp0());
+
+  // branchIfIsNotSharedArrayBuffer may zero the object register on speculative
+  // paths (we should have a defineReuseInput allocation in this case).
+
+  Label bail;
+  masm.branchIfIsNotSharedArrayBuffer(obj, temp, &bail);
+  bailoutFrom(&bail, guard->snapshot());
+}
+
 void CodeGenerator::visitGuardIsNotArrayBufferMaybeShared(
     LGuardIsNotArrayBufferMaybeShared* guard) {
   Register obj = ToRegister(guard->object());
   Register temp = ToRegister(guard->temp0());
 
   Label bail;
-  masm.loadObjClassUnsafe(obj, temp);
-  masm.branchPtr(Assembler::Equal, temp,
-                 ImmPtr(&FixedLengthArrayBufferObject::class_), &bail);
-  masm.branchPtr(Assembler::Equal, temp,
-                 ImmPtr(&FixedLengthSharedArrayBufferObject::class_), &bail);
-  masm.branchPtr(Assembler::Equal, temp,
-                 ImmPtr(&ResizableArrayBufferObject::class_), &bail);
-  masm.branchPtr(Assembler::Equal, temp,
-                 ImmPtr(&GrowableSharedArrayBufferObject::class_), &bail);
+  masm.branchIfIsArrayBufferMaybeShared(obj, temp, &bail);
   bailoutFrom(&bail, guard->snapshot());
 }
 
@@ -4901,14 +4942,14 @@ void CodeGenerator::visitGuardIsTypedArray(LGuardIsTypedArray* guard) {
   bailoutFrom(&bail, guard->snapshot());
 }
 
-void CodeGenerator::visitGuardIsFixedLengthTypedArray(
-    LGuardIsFixedLengthTypedArray* guard) {
+void CodeGenerator::visitGuardIsNonResizableTypedArray(
+    LGuardIsNonResizableTypedArray* guard) {
   Register obj = ToRegister(guard->object());
   Register temp = ToRegister(guard->temp0());
 
   Label bail;
   masm.loadObjClassUnsafe(obj, temp);
-  masm.branchIfClassIsNotFixedLengthTypedArray(temp, &bail);
+  masm.branchIfClassIsNotNonResizableTypedArray(temp, &bail);
   bailoutFrom(&bail, guard->snapshot());
 }
 
@@ -5241,8 +5282,6 @@ void CodeGenerator::emitCallMegamorphicGetter(
   masm.loadPtr(Address(calleeScratch, GetterSetter::offsetOfGetter()),
                calleeScratch);
   masm.branchTestPtr(Assembler::Zero, calleeScratch, calleeScratch, nullGetter);
-  masm.loadPtr(Address(calleeScratch, JSFunction::offsetOfJitInfoOrScript()),
-               argcScratch);
 
   if (JitStackValueAlignment > 1) {
     masm.reserveStack(sizeof(Value) * (JitStackValueAlignment - 1));
@@ -9657,6 +9696,44 @@ void CodeGenerator::visitWasmRegisterResult(LWasmRegisterResult* lir) {
 #endif
 }
 
+void CodeGenerator::visitWasmBuiltinFloatRegisterResult(
+    LWasmBuiltinFloatRegisterResult* lir) {
+  MOZ_ASSERT(lir->mir()->type() == MIRType::Float32 ||
+             lir->mir()->type() == MIRType::Double);
+  MOZ_ASSERT_IF(lir->mir()->type() == MIRType::Float32,
+                ToFloatRegister(lir->output()) == ReturnFloat32Reg);
+  MOZ_ASSERT_IF(lir->mir()->type() == MIRType::Double,
+                ToFloatRegister(lir->output()) == ReturnDoubleReg);
+
+#ifdef JS_CODEGEN_ARM
+  MWasmBuiltinFloatRegisterResult* mir = lir->mir();
+  if (!mir->hardFP()) {
+    if (mir->type() == MIRType::Float32) {
+      // Move float32 from r0 to ReturnFloatReg.
+      masm.ma_vxfer(r0, ReturnFloat32Reg);
+    } else if (mir->type() == MIRType::Double) {
+      // Move double from r0/r1 to ReturnDoubleReg.
+      masm.ma_vxfer(r0, r1, ReturnDoubleReg);
+    } else {
+      MOZ_CRASH("SIMD type not supported");
+    }
+  }
+#elif JS_CODEGEN_X86
+  MWasmBuiltinFloatRegisterResult* mir = lir->mir();
+  if (mir->type() == MIRType::Double) {
+    masm.reserveStack(sizeof(double));
+    masm.fstp(Operand(esp, 0));
+    masm.loadDouble(Operand(esp, 0), ReturnDoubleReg);
+    masm.freeStack(sizeof(double));
+  } else if (mir->type() == MIRType::Float32) {
+    masm.reserveStack(sizeof(float));
+    masm.fstp32(Operand(esp, 0));
+    masm.loadFloat32(Operand(esp, 0), ReturnFloat32Reg);
+    masm.freeStack(sizeof(float));
+  }
+#endif
+}
+
 void CodeGenerator::visitWasmCall(LWasmCall* lir) {
   const MWasmCallBase* callBase = lir->callBase();
   bool isReturnCall = lir->isReturnCall();
@@ -9688,7 +9765,8 @@ void CodeGenerator::visitWasmCall(LWasmCall* lir) {
   // LWasmCallBase::isCallPreserved() assumes that all MWasmCalls preserve the
   // instance and pinned regs. The only case where where we don't have to
   // reload the instance and pinned regs is when the callee preserves them.
-  bool reloadRegs = true;
+  bool reloadInstance = true;
+  bool reloadPinnedRegs = true;
   bool switchRealm = true;
 
   const wasm::CallSiteDesc& desc = callBase->desc();
@@ -9706,7 +9784,8 @@ void CodeGenerator::visitWasmCall(LWasmCall* lir) {
       }
       MOZ_ASSERT(!isReturnCall);
       retOffset = masm.call(desc, callee.funcIndex());
-      reloadRegs = false;
+      reloadInstance = false;
+      reloadPinnedRegs = false;
       switchRealm = false;
       break;
     case wasm::CalleeDesc::Import:
@@ -9769,19 +9848,30 @@ void CodeGenerator::visitWasmCall(LWasmCall* lir) {
       // Register reloading and realm switching are handled dynamically inside
       // wasmCallIndirect.  There are two return offsets, one for each call
       // instruction (fast path and slow path).
-      reloadRegs = false;
+      reloadInstance = false;
+      reloadPinnedRegs = false;
       switchRealm = false;
       break;
     }
     case wasm::CalleeDesc::Builtin:
       retOffset = masm.call(desc, callee.builtin());
-      reloadRegs = false;
+      // The builtin ABI preserves the instance and pinned registers. However,
+      // builtins may grow the memory which requires us to reload the pinned
+      // registers.
+      reloadInstance = false;
+      reloadPinnedRegs = true;
       switchRealm = false;
       break;
     case wasm::CalleeDesc::BuiltinInstanceMethod:
       retOffset = masm.wasmCallBuiltinInstanceMethod(
           desc, callBase->instanceArg(), callee.builtin(),
-          callBase->builtinMethodFailureMode());
+          callBase->builtinMethodFailureMode(),
+          callBase->builtinMethodFailureTrap());
+      // The builtin ABI preserves the instance and pinned registers. However,
+      // builtins may grow the memory which requires us to reload the pinned
+      // registers.
+      reloadInstance = false;
+      reloadPinnedRegs = true;
       switchRealm = false;
       break;
     case wasm::CalleeDesc::FuncRef:
@@ -9797,7 +9887,8 @@ void CodeGenerator::visitWasmCall(LWasmCall* lir) {
       // wasmCallRef.  There are two return offsets, one for each call
       // instruction (fast path and slow path).
       masm.wasmCallRef(desc, callee, &retOffset, &secondRetOffset);
-      reloadRegs = false;
+      reloadInstance = false;
+      reloadPinnedRegs = false;
       switchRealm = false;
       break;
   }
@@ -9823,16 +9914,18 @@ void CodeGenerator::visitWasmCall(LWasmCall* lir) {
                                                  framePushedAtStackMapBase);
   }
 
-  if (reloadRegs) {
+  if (reloadInstance) {
     masm.loadPtr(
         Address(masm.getStackPointer(), WasmCallerInstanceOffsetBeforeCall),
         InstanceReg);
-    masm.loadWasmPinnedRegsFromInstance(mozilla::Nothing());
     if (switchRealm) {
       masm.switchToWasmInstanceRealm(ABINonArgReturnReg0, ABINonArgReturnReg1);
     }
   } else {
     MOZ_ASSERT(!switchRealm);
+  }
+  if (reloadPinnedRegs) {
+    masm.loadWasmPinnedRegsFromInstance(mozilla::Nothing());
   }
 
   switch (callee.which()) {
@@ -9900,7 +9993,7 @@ void CodeGenerator::prepareWasmStackSwitchTrampolineCall(Register suspender,
   // Reserve stack space for the wasm call.
   unsigned argDecrement;
   {
-    WasmABIArgGenerator abi;
+    ABIArgGenerator abi(ABIKind::Wasm);
     ABIArg arg;
     arg = abi.next(MIRType::Pointer);
     arg = abi.next(MIRType::Pointer);
@@ -9910,7 +10003,7 @@ void CodeGenerator::prepareWasmStackSwitchTrampolineCall(Register suspender,
   masm.reserveStack(argDecrement);
 
   // Pass the suspender and data params through the wasm function ABI registers.
-  WasmABIArgGenerator abi;
+  ABIArgGenerator abi(ABIKind::Wasm);
   ABIArg arg;
   arg = abi.next(MIRType::Pointer);
   if (arg.kind() == ABIArg::GPR) {
@@ -10359,7 +10452,7 @@ void CodeGenerator::visitWasmStackContinueOnSuspendable(
   masm.setFramePushed(0);
 
   // Restore shadow stack area and instance slots.
-  WasmABIArgGenerator abi;
+  ABIArgGenerator abi(ABIKind::Wasm);
   unsigned reserveBeforeCall = abi.stackBytesConsumedSoFar();
   MOZ_ASSERT(masm.framePushed() == 0);
   unsigned argDecrement =
@@ -16313,7 +16406,8 @@ bool CodeGenerator::generateWasm(wasm::CallIndirectId callIndirectId,
 
   JitSpew(JitSpew_Codegen, "# Emitting wasm code");
 
-  size_t nInboundStackArgBytes = StackArgAreaSizeUnaligned(argTypes);
+  size_t nInboundStackArgBytes =
+      StackArgAreaSizeUnaligned(argTypes, ABIKind::Wasm);
   inboundStackArgBytes_ = nInboundStackArgBytes;
 
   perfSpewer_.markStartOffset(masm.currentOffset());
@@ -19615,24 +19709,6 @@ void CodeGenerator::visitGuardToClass(LGuardToClass* ins) {
   bailoutFrom(&notEqual, ins->snapshot());
 }
 
-void CodeGenerator::visitGuardToEitherClass(LGuardToEitherClass* ins) {
-  Register lhs = ToRegister(ins->lhs());
-  Register temp = ToRegister(ins->temp0());
-
-  // branchTestObjClass may zero the object register on speculative paths
-  // (we should have a defineReuseInput allocation in this case).
-  Register spectreRegToZero = lhs;
-
-  Label notEqual;
-
-  masm.branchTestObjClass(Assembler::NotEqual, lhs,
-                          {ins->mir()->getClass1(), ins->mir()->getClass2()},
-                          temp, spectreRegToZero, &notEqual);
-
-  // Can't return null-return here, so bail.
-  bailoutFrom(&notEqual, ins->snapshot());
-}
-
 void CodeGenerator::visitGuardToFunction(LGuardToFunction* ins) {
   Register lhs = ToRegister(ins->lhs());
   Register temp = ToRegister(ins->temp0());
@@ -20121,7 +20197,7 @@ void CodeGenerator::callWasmStructAllocFun(
 #endif
 
   masm.wasmTrapOnFailedInstanceCall(output, wasm::FailureMode::FailOnNullPtr,
-                                    trapSiteDesc);
+                                    wasm::Trap::ThrowReported, trapSiteDesc);
 }
 
 void CodeGenerator::visitWasmNewStructObject(LWasmNewStructObject* lir) {
@@ -20205,7 +20281,7 @@ void CodeGenerator::callWasmArrayAllocFun(
 #endif
 
   masm.wasmTrapOnFailedInstanceCall(output, wasm::FailureMode::FailOnNullPtr,
-                                    trapSiteDesc);
+                                    wasm::Trap::ThrowReported, trapSiteDesc);
 }
 
 void CodeGenerator::visitWasmNewArrayObject(LWasmNewArrayObject* lir) {
@@ -21603,7 +21679,7 @@ void CodeGenerator::emitIonToWasmCallBase(LIonToWasmCallBase<NumDefs>* lir) {
   const wasm::FuncType& sig =
       mir->instance()->code().codeMeta().getFuncType(funcExport.funcIndex());
 
-  WasmABIArgGenerator abi;
+  ABIArgGenerator abi(ABIKind::Wasm);
   for (size_t i = 0; i < lir->numOperands(); i++) {
     MIRType argMir;
     switch (sig.args()[i].kind()) {

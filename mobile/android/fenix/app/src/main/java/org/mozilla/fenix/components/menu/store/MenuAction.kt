@@ -316,21 +316,20 @@ sealed class MenuAction : Action {
         data object ExtensionsLearnMore : Navigate()
 
         /**
-         * [Navigate] action dispatched when navigating to the new tab.
-         */
-        data object NewTab : Navigate()
-
-        /**
-         * [Navigate] action dispatched when navigating to the new private tab.
-         */
-        data object NewPrivateTab : Navigate()
-
-        /**
          * [Navigate] action dispatched when navigating to the given [addon] details.
          *
          * @property addon The [Addon] details to display.
          */
         data class AddonDetails(
+            val addon: Addon,
+        ) : Navigate()
+
+        /**
+         * [Navigate] action dispatched when navigating to the given installed [addon] details.
+         *
+         * @property addon The [Addon] details to display.
+         */
+        data class InstalledAddonDetails(
             val addon: Addon,
         ) : Navigate()
 

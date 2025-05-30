@@ -15,6 +15,7 @@
 #include "mozilla/UniquePtr.h"
 #include "mozilla/WeakPtr.h"
 #include "mozilla/dom/BrowsingContext.h"
+#include "mozilla/dom/NavigationBinding.h"
 #include "mozilla/dom/WindowProxyHolder.h"
 #include "nsCOMPtr.h"
 #include "nsCharsetSource.h"
@@ -624,7 +625,8 @@ class nsDocShell final : public nsDocLoader,
       nsIURI* aURI, nsIURI* aOriginalURI, nsIReferrerInfo* aReferrerInfo,
       nsIPrincipal* aTriggeringPrincipal, nsIContentSecurityPolicy* aCsp,
       const nsAString& aTitle, bool aScrollRestorationIsManual,
-      nsIStructuredCloneContainer* aData, bool aURIWasModified);
+      nsIStructuredCloneContainer* aData, bool aURIWasModified,
+      nsIPrincipal* aPartitionedPrincipal);
 
   nsresult AddChildSHEntry(nsISHEntry* aCloneRef, nsISHEntry* aNewEntry,
                            int32_t aChildOffset, uint32_t aLoadType,
@@ -1085,8 +1087,10 @@ class nsDocShell final : public nsDocLoader,
   // aCacheKey is the channel's cache key.
   // aPreviousURI should be the URI that was previously loaded into the
   // nsDocshell
+  // aPartitionedPrincipal is the partitioned principal of the current document.
   void MoveLoadingToActiveEntry(bool aPersist, bool aExpired,
-                                uint32_t aCacheKey, nsIURI* aPreviousURI);
+                                uint32_t aCacheKey, nsIURI* aPreviousURI,
+                                nsIPrincipal* aPartitionedPrincipal);
 
   void ActivenessMaybeChanged();
 
@@ -1146,6 +1150,8 @@ class nsDocShell final : public nsDocLoader,
   void InformNavigationAPIAboutAbortingNavigation(JSContext* aCx);
 
   void SetCurrentURIInternal(nsIURI* aURI);
+
+  already_AddRefed<nsIWebProgressListener> BCWebProgressListener();
 
   // data members
   nsString mTitle;

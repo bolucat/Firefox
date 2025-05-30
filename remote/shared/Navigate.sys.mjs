@@ -134,6 +134,7 @@ export async function waitForInitialNavigationCompleted(
  */
 export class ProgressListener {
   #expectNavigation;
+  #resolveWhenCommitted;
   #resolveWhenStarted;
   #unloadTimeout;
   #waitForExplicitStart;
@@ -161,10 +162,16 @@ export class ProgressListener {
    * @param {NavigationManager=} options.navigationManager
    *     The NavigationManager where navigations for the current session are
    *     monitored.
+   * @param {boolean=} options.resolveWhenCommitted
+   *     Flag to indicate that the Promise has to be resolved when the
+   *     navigation-committed event is received. Defaults to `false`.
+   *     Cannot be used together with resolveWhenStarted. Requires to provide
+   *     options.navigationManager.
    * @param {boolean=} options.resolveWhenStarted
    *     Flag to indicate that the Promise has to be resolved when the
-   *     page load has been started. Otherwise wait until the page has
-   *     finished loading. Defaults to `false`.
+   *     page load has been started. Otherwise wait until the navigation was
+   *     committed or the page has finished loading. Defaults to `false`.
+   *     Cannot be used together with resolveWhenCommitted.
    * @param {string=} options.targetURI
    *     The target URI for the navigation.
    * @param {number=} options.unloadTimeout
@@ -182,6 +189,7 @@ export class ProgressListener {
     const {
       expectNavigation = false,
       navigationManager = null,
+      resolveWhenCommitted = false,
       resolveWhenStarted = false,
       targetURI,
       unloadTimeout = DEFAULT_UNLOAD_TIMEOUT,
@@ -189,6 +197,7 @@ export class ProgressListener {
     } = options;
 
     this.#expectNavigation = expectNavigation;
+    this.#resolveWhenCommitted = resolveWhenCommitted;
     this.#resolveWhenStarted = resolveWhenStarted;
     this.#unloadTimeout = unloadTimeout * lazy.UNLOAD_TIMEOUT_MULTIPLIER;
     this.#waitForExplicitStart = waitForExplicitStart;
@@ -200,8 +209,25 @@ export class ProgressListener {
     this.#targetURI = targetURI;
     this.#unloadTimerId = null;
 
+    if (resolveWhenCommitted) {
+      if (resolveWhenStarted) {
+        throw new Error(
+          "Cannot use both resolveWhenStarted and resolveWhenCommitted"
+        );
+      }
+      if (!navigationManager) {
+        throw new Error(
+          "Cannot use resolveWhenCommitted without a navigationManager"
+        );
+      }
+    }
+
     if (navigationManager !== null) {
       this.#navigationListener = new lazy.NavigationListener(navigationManager);
+      this.#navigationListener.on(
+        "navigation-committed",
+        this.#onNavigationCommitted
+      );
       this.#navigationListener.on(
         "navigation-failed",
         this.#onNavigationFailed
@@ -213,6 +239,10 @@ export class ProgressListener {
   destroy() {
     if (this.#navigationListener) {
       this.#navigationListener.stopListening();
+      this.#navigationListener.off(
+        "navigation-committed",
+        this.#onNavigationCommitted
+      );
       this.#navigationListener.off(
         "navigation-failed",
         this.#onNavigationFailed
@@ -264,71 +294,79 @@ export class ProgressListener {
     this.#trace(
       `Loading state: isStart=${isStart} isStop=${isStop} status=0x${status.toString(
         16
-      )}, loadType=0x${this.loadType.toString(16)}`
+      )}, loadType=0x${this.loadType.toString(16)}, seenStartFlag=${this.#seenStartFlag}`
     );
-    if (isStart && !this.#seenStartFlag) {
-      this.#seenStartFlag = true;
+    if (isStart) {
+      if (this.#seenStartFlag) {
+        this.#trace("Skip start state because seenStartFlag is already set");
+      } else {
+        this.#seenStartFlag = true;
 
-      this.#targetURI = this.#getTargetURI(request);
+        this.#targetURI = this.#getTargetURI(request);
 
-      this.#trace(lazy.truncate`Started loading ${this.targetURI?.spec}`);
+        this.#trace(lazy.truncate`Started loading ${this.targetURI?.spec}`);
 
-      if (this.#unloadTimerId !== null) {
-        lazy.clearTimeout(this.#unloadTimerId);
-        this.#trace("Cleared the unload timer");
-        this.#unloadTimerId = null;
-      }
+        if (this.#unloadTimerId !== null) {
+          lazy.clearTimeout(this.#unloadTimerId);
+          this.#trace("Cleared the unload timer");
+          this.#unloadTimerId = null;
+        }
 
-      if (this.#resolveWhenStarted) {
-        this.#trace("Request to stop listening when navigation started");
-        this.stop();
-        return;
+        if (this.#resolveWhenStarted) {
+          this.#trace("Request to stop listening when navigation started");
+          this.stop();
+          return;
+        }
       }
     }
 
-    if (isStop && this.#seenStartFlag) {
-      // Treat NS_ERROR_PARSED_DATA_CACHED as a success code
-      // since navigation happened and content has been loaded.
-      if (
-        !Components.isSuccessCode(status) &&
-        status != Cr.NS_ERROR_PARSED_DATA_CACHED
-      ) {
-        const errorName = ChromeUtils.getXPCOMErrorName(status);
+    if (isStop) {
+      if (!this.#seenStartFlag) {
+        this.#trace("Skip stop state because seenStartFlag is not set");
+      } else {
+        // Treat NS_ERROR_PARSED_DATA_CACHED as a success code
+        // since navigation happened and content has been loaded.
+        if (
+          !Components.isSuccessCode(status) &&
+          status != Cr.NS_ERROR_PARSED_DATA_CACHED
+        ) {
+          const errorName = ChromeUtils.getXPCOMErrorName(status);
 
-        if (this.loadType & LOAD_FLAG_ERROR_PAGE) {
-          // Wait for the next location change notification to ensure that the
-          // real error page was loaded.
-          this.#trace(`Error=${errorName}, wait for redirect to error page`);
-          this.#errorName = errorName;
+          if (this.loadType & LOAD_FLAG_ERROR_PAGE) {
+            // Wait for the next location change notification to ensure that the
+            // real error page was loaded.
+            this.#trace(`Error=${errorName}, wait for redirect to error page`);
+            this.#errorName = errorName;
+            return;
+          }
+
+          // Handle an aborted navigation. While for an initial document another
+          // navigation to the real document will happen it's not the case for
+          // normal documents. Here we need to stop the listener immediately.
+          if (status == Cr.NS_BINDING_ABORTED && this.isInitialDocument) {
+            this.#trace(
+              "Ignore aborted navigation error to the initial document."
+            );
+            return;
+          }
+
+          this.stop({ error: new Error(errorName) });
           return;
         }
 
-        // Handle an aborted navigation. While for an initial document another
-        // navigation to the real document will happen it's not the case for
-        // normal documents. Here we need to stop the listener immediately.
-        if (status == Cr.NS_BINDING_ABORTED && this.isInitialDocument) {
-          this.#trace(
-            "Ignore aborted navigation error to the initial document."
-          );
+        // If a non initial page finished loading the navigation is done.
+        if (!this.isInitialDocument) {
+          this.stop();
           return;
         }
 
-        this.stop({ error: new Error(errorName) });
-        return;
+        // Otherwise wait for a potential additional page load.
+        this.#trace(
+          "Initial document loaded. Wait for a potential further navigation."
+        );
+        this.#seenStartFlag = false;
+        this.#setUnloadTimer();
       }
-
-      // If a non initial page finished loading the navigation is done.
-      if (!this.isInitialDocument) {
-        this.stop();
-        return;
-      }
-
-      // Otherwise wait for a potential additional page load.
-      this.#trace(
-        "Initial document loaded. Wait for a potential further navigation."
-      );
-      this.#seenStartFlag = false;
-      this.#setUnloadTimer();
     }
   }
 
@@ -351,6 +389,17 @@ export class ProgressListener {
 
     return null;
   }
+
+  #onNavigationCommitted = (eventName, data) => {
+    const { navigationId } = data;
+
+    if (this.#resolveWhenCommitted && this.#navigationId === navigationId) {
+      this.#trace(
+        `Received "navigation-committed" event. Stopping the navigation.`
+      );
+      this.stop();
+    }
+  };
 
   #onNavigationFailed = (eventName, data) => {
     const { errorName, navigationId } = data;
@@ -456,11 +505,11 @@ export class ProgressListener {
 
     this.#deferredNavigation = new lazy.Deferred();
 
-    // Enable all location change and state notifications to get informed about an upcoming load
-    // as early as possible.
+    // Enable all location change and network state notifications to get
+    // informed about an upcoming load as early as possible.
     this.#webProgress.addProgressListener(
       this,
-      Ci.nsIWebProgress.NOTIFY_LOCATION | Ci.nsIWebProgress.NOTIFY_STATE_ALL
+      Ci.nsIWebProgress.NOTIFY_LOCATION | Ci.nsIWebProgress.NOTIFY_STATE_NETWORK
     );
 
     webProgressListeners.add(this);
@@ -499,10 +548,7 @@ export class ProgressListener {
     lazy.clearTimeout(this.#unloadTimerId);
     this.#unloadTimerId = null;
 
-    this.#webProgress.removeProgressListener(
-      this,
-      Ci.nsIWebProgress.NOTIFY_LOCATION | Ci.nsIWebProgress.NOTIFY_STATE_ALL
-    );
+    this.#webProgress.removeProgressListener(this);
     webProgressListeners.delete(this);
 
     if (!this.#targetURI) {

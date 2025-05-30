@@ -28,7 +28,6 @@ enum class CSDStyle {
 };
 
 static bool gHeaderBarShouldDrawContainer = false;
-static bool gMaximizedHeaderBarShouldDrawContainer = false;
 static CSDStyle gCSDStyle = CSDStyle::Unknown;
 static GtkWidget* sWidgetStorage[MOZ_GTK_WIDGET_NODE_COUNT];
 static GtkStyleContext* sStyleStorage[MOZ_GTK_WIDGET_NODE_COUNT];
@@ -81,12 +80,6 @@ static GtkWidget* CreateTooltipWidget() {
   GtkWidget* widget = CreateWindowWidget();
   GtkStyleContext* style = gtk_widget_get_style_context(widget);
   gtk_style_context_add_class(style, GTK_STYLE_CLASS_TOOLTIP);
-  return widget;
-}
-
-static GtkWidget* CreateExpanderWidget() {
-  GtkWidget* widget = gtk_expander_new("M");
-  AddToWindowContainer(widget);
   return widget;
 }
 
@@ -150,12 +143,6 @@ static GtkWidget* CreateTreeHeaderCellWidget() {
   return gtk_tree_view_column_get_button(middleTreeViewColumn);
 }
 
-static GtkWidget* CreateNotebookWidget() {
-  GtkWidget* widget = gtk_notebook_new();
-  AddToWindowContainer(widget);
-  return widget;
-}
-
 static bool HasBackground(GtkStyleContext* aStyle) {
   GdkRGBA gdkColor;
   gtk_style_context_get_background_color(aStyle, GTK_STATE_FLAG_NORMAL,
@@ -202,38 +189,21 @@ static void CreateHeaderBarWidget(WidgetNodeType aAppearance) {
   gtk_style_context_add_class(headerBarStyle, "default-decoration");
 
   sWidgetStorage[aAppearance] = headerBar;
-  if (aAppearance == MOZ_GTK_HEADER_BAR_MAXIMIZED) {
-    MOZ_ASSERT(!sWidgetStorage[MOZ_GTK_HEADERBAR_WINDOW_MAXIMIZED],
-               "Window widget is already created!");
-    MOZ_ASSERT(!sWidgetStorage[MOZ_GTK_HEADERBAR_FIXED_MAXIMIZED],
-               "Fixed widget is already created!");
-
-    gtk_style_context_add_class(windowStyle, "maximized");
-
-    sWidgetStorage[MOZ_GTK_HEADERBAR_WINDOW_MAXIMIZED] = window;
-    sWidgetStorage[MOZ_GTK_HEADERBAR_FIXED_MAXIMIZED] = fixed;
-  } else {
-    MOZ_ASSERT(!sWidgetStorage[MOZ_GTK_HEADERBAR_WINDOW],
-               "Window widget is already created!");
-    MOZ_ASSERT(!sWidgetStorage[MOZ_GTK_HEADERBAR_FIXED],
-               "Fixed widget is already created!");
-    sWidgetStorage[MOZ_GTK_HEADERBAR_WINDOW] = window;
-    sWidgetStorage[MOZ_GTK_HEADERBAR_FIXED] = fixed;
-  }
+  MOZ_ASSERT(!sWidgetStorage[MOZ_GTK_HEADERBAR_WINDOW],
+             "Window widget is already created!");
+  MOZ_ASSERT(!sWidgetStorage[MOZ_GTK_HEADERBAR_FIXED],
+             "Fixed widget is already created!");
+  sWidgetStorage[MOZ_GTK_HEADERBAR_WINDOW] = window;
+  sWidgetStorage[MOZ_GTK_HEADERBAR_FIXED] = fixed;
 
   gtk_container_add(GTK_CONTAINER(window), fixed);
   gtk_container_add(GTK_CONTAINER(fixed), headerBar);
 
-  gtk_style_context_invalidate(headerBarStyle);
-  gtk_style_context_invalidate(fixedStyle);
   gtk_widget_show_all(headerBar);
 
   // Some themes like Elementary's style the container of the headerbar rather
   // than the header bar itself.
-  bool& shouldDrawContainer = aAppearance == MOZ_GTK_HEADER_BAR
-                                  ? gHeaderBarShouldDrawContainer
-                                  : gMaximizedHeaderBarShouldDrawContainer;
-  shouldDrawContainer = [&] {
+  gHeaderBarShouldDrawContainer = [&] {
     const bool headerBarHasBackground = HasBackground(headerBarStyle);
     if (headerBarHasBackground && GetBorderRadius(headerBarStyle)) {
       return false;
@@ -244,131 +214,6 @@ static void CreateHeaderBarWidget(WidgetNodeType aAppearance) {
     }
     return false;
   }();
-}
-
-#define ICON_SCALE_VARIANTS 2
-
-static void LoadWidgetIconPixbuf(GtkWidget* aWidgetIcon) {
-  GtkStyleContext* style = gtk_widget_get_style_context(aWidgetIcon);
-
-  const gchar* iconName;
-  GtkIconSize gtkIconSize;
-  gtk_image_get_icon_name(GTK_IMAGE(aWidgetIcon), &iconName, &gtkIconSize);
-
-  gint iconWidth, iconHeight;
-  gtk_icon_size_lookup(gtkIconSize, &iconWidth, &iconHeight);
-
-  /* Those are available since Gtk+ 3.10 as well as GtkHeaderBar */
-  for (int scale = 1; scale < ICON_SCALE_VARIANTS + 1; scale++) {
-    GtkIconInfo* gtkIconInfo = gtk_icon_theme_lookup_icon_for_scale(
-        gtk_icon_theme_get_default(), iconName, iconWidth, scale,
-        (GtkIconLookupFlags)0);
-
-    if (!gtkIconInfo) {
-      // We miss the icon, nothing to do here.
-      return;
-    }
-
-    gboolean unused;
-    GdkPixbuf* iconPixbuf = gtk_icon_info_load_symbolic_for_context(
-        gtkIconInfo, style, &unused, nullptr);
-    g_object_unref(G_OBJECT(gtkIconInfo));
-
-    cairo_surface_t* iconSurface =
-        gdk_cairo_surface_create_from_pixbuf(iconPixbuf, scale, nullptr);
-    g_object_unref(iconPixbuf);
-
-    nsPrintfCString surfaceName("MozillaIconSurface%d", scale);
-    g_object_set_data_full(G_OBJECT(aWidgetIcon), surfaceName.get(),
-                           iconSurface, (GDestroyNotify)cairo_surface_destroy);
-  }
-}
-
-cairo_surface_t* GetWidgetIconSurface(GtkWidget* aWidgetIcon, int aScale) {
-  if (aScale > ICON_SCALE_VARIANTS) {
-    aScale = ICON_SCALE_VARIANTS;
-  }
-
-  nsPrintfCString surfaceName("MozillaIconSurface%d", aScale);
-  return (cairo_surface_t*)g_object_get_data(G_OBJECT(aWidgetIcon),
-                                             surfaceName.get());
-}
-
-static void CreateHeaderBarButton(GtkWidget* aParentWidget,
-                                  WidgetNodeType aAppearance) {
-  GtkWidget* widget = gtk_button_new();
-
-  // We have to add button to widget hierarchy now to pick
-  // right icon style at LoadWidgetIconPixbuf().
-  if (GTK_IS_BOX(aParentWidget)) {
-    gtk_box_pack_start(GTK_BOX(aParentWidget), widget, FALSE, FALSE, 0);
-  } else {
-    gtk_container_add(GTK_CONTAINER(aParentWidget), widget);
-  }
-
-  // We bypass GetWidget() here because we create all titlebar
-  // buttons at once when a first one is requested.
-  NS_ASSERTION(!sWidgetStorage[aAppearance],
-               "Titlebar button is already created!");
-  sWidgetStorage[aAppearance] = widget;
-
-  // We need to show the button widget now as GtkBox does not
-  // place invisible widgets and we'll miss first-child/last-child
-  // css selectors at the buttons otherwise.
-  gtk_widget_show(widget);
-
-  GtkStyleContext* style = gtk_widget_get_style_context(widget);
-  gtk_style_context_add_class(style, "titlebutton");
-
-  GtkWidget* image = nullptr;
-  switch (aAppearance) {
-    case MOZ_GTK_HEADER_BAR_BUTTON_CLOSE:
-      gtk_style_context_add_class(style, "close");
-      image = gtk_image_new_from_icon_name("window-close-symbolic",
-                                           GTK_ICON_SIZE_MENU);
-      break;
-    case MOZ_GTK_HEADER_BAR_BUTTON_MINIMIZE:
-      gtk_style_context_add_class(style, "minimize");
-      image = gtk_image_new_from_icon_name("window-minimize-symbolic",
-                                           GTK_ICON_SIZE_MENU);
-      break;
-
-    case MOZ_GTK_HEADER_BAR_BUTTON_MAXIMIZE:
-      gtk_style_context_add_class(style, "maximize");
-      image = gtk_image_new_from_icon_name("window-maximize-symbolic",
-                                           GTK_ICON_SIZE_MENU);
-      break;
-
-    case MOZ_GTK_HEADER_BAR_BUTTON_MAXIMIZE_RESTORE:
-      gtk_style_context_add_class(style, "maximize");
-      image = gtk_image_new_from_icon_name("window-restore-symbolic",
-                                           GTK_ICON_SIZE_MENU);
-      break;
-    default:
-      break;
-  }
-
-  gtk_widget_set_valign(widget, GTK_ALIGN_CENTER);
-  g_object_set(image, "use-fallback", TRUE, NULL);
-  gtk_container_add(GTK_CONTAINER(widget), image);
-
-  // We bypass GetWidget() here by explicit sWidgetStorage[] update so
-  // invalidate the style as well as GetWidget() does.
-  style = gtk_widget_get_style_context(image);
-  gtk_style_context_invalidate(style);
-
-  LoadWidgetIconPixbuf(image);
-}
-
-static bool IsToolbarButtonEnabled(ButtonLayout* aButtonLayout,
-                                   size_t aButtonNums,
-                                   WidgetNodeType aAppearance) {
-  for (size_t i = 0; i < aButtonNums; i++) {
-    if (aButtonLayout[i].mType == aAppearance) {
-      return true;
-    }
-  }
-  return false;
 }
 
 bool IsSolidCSDStyleUsed() {
@@ -387,44 +232,7 @@ bool IsSolidCSDStyleUsed() {
   return gCSDStyle == CSDStyle::Solid;
 }
 
-static void CreateHeaderBarButtons() {
-  GtkWidget* headerBar = sWidgetStorage[MOZ_GTK_HEADER_BAR];
-  MOZ_ASSERT(headerBar, "We're missing header bar widget!");
-
-  GtkWidget* buttonBox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
-  gtk_container_add(GTK_CONTAINER(headerBar), buttonBox);
-  // We support only LTR headerbar layout for now.
-  gtk_style_context_add_class(gtk_widget_get_style_context(buttonBox),
-                              GTK_STYLE_CLASS_LEFT);
-
-  ButtonLayout buttonLayout[TOOLBAR_BUTTONS];
-
-  size_t activeButtons =
-      GetGtkHeaderBarButtonLayout(mozilla::Span(buttonLayout), nullptr);
-
-  if (IsToolbarButtonEnabled(buttonLayout, activeButtons,
-                             MOZ_GTK_HEADER_BAR_BUTTON_MINIMIZE)) {
-    CreateHeaderBarButton(buttonBox, MOZ_GTK_HEADER_BAR_BUTTON_MINIMIZE);
-  }
-  if (IsToolbarButtonEnabled(buttonLayout, activeButtons,
-                             MOZ_GTK_HEADER_BAR_BUTTON_MAXIMIZE)) {
-    CreateHeaderBarButton(buttonBox, MOZ_GTK_HEADER_BAR_BUTTON_MAXIMIZE);
-    // We don't pack "restore" headerbar button to box as it's an icon
-    // placeholder. Pack it only to header bar to get correct style.
-    CreateHeaderBarButton(GetWidget(MOZ_GTK_HEADER_BAR_MAXIMIZED),
-                          MOZ_GTK_HEADER_BAR_BUTTON_MAXIMIZE_RESTORE);
-  }
-  if (IsToolbarButtonEnabled(buttonLayout, activeButtons,
-                             MOZ_GTK_HEADER_BAR_BUTTON_CLOSE)) {
-    CreateHeaderBarButton(buttonBox, MOZ_GTK_HEADER_BAR_BUTTON_CLOSE);
-  }
-}
-
-static void CreateHeaderBar() {
-  CreateHeaderBarWidget(MOZ_GTK_HEADER_BAR);
-  CreateHeaderBarWidget(MOZ_GTK_HEADER_BAR_MAXIMIZED);
-  CreateHeaderBarButtons();
-}
+static void CreateHeaderBar() { CreateHeaderBarWidget(MOZ_GTK_HEADER_BAR); }
 
 static GtkWidget* CreateWidget(WidgetNodeType aAppearance) {
   switch (aAppearance) {
@@ -438,8 +246,6 @@ static GtkWidget* CreateWidget(WidgetNodeType aAppearance) {
       return CreateMenuPopupWidget();
     case MOZ_GTK_MENUBAR:
       return CreateMenuBarWidget();
-    case MOZ_GTK_EXPANDER:
-      return CreateExpanderWidget();
     case MOZ_GTK_FRAME:
       return CreateFrameWidget();
     case MOZ_GTK_BUTTON:
@@ -450,18 +256,9 @@ static GtkWidget* CreateWidget(WidgetNodeType aAppearance) {
       return CreateTreeViewWidget();
     case MOZ_GTK_TREE_HEADER_CELL:
       return CreateTreeHeaderCellWidget();
-    case MOZ_GTK_NOTEBOOK:
-      return CreateNotebookWidget();
     case MOZ_GTK_HEADERBAR_WINDOW:
-    case MOZ_GTK_HEADERBAR_WINDOW_MAXIMIZED:
     case MOZ_GTK_HEADERBAR_FIXED:
-    case MOZ_GTK_HEADERBAR_FIXED_MAXIMIZED:
     case MOZ_GTK_HEADER_BAR:
-    case MOZ_GTK_HEADER_BAR_MAXIMIZED:
-    case MOZ_GTK_HEADER_BAR_BUTTON_CLOSE:
-    case MOZ_GTK_HEADER_BAR_BUTTON_MINIMIZE:
-    case MOZ_GTK_HEADER_BAR_BUTTON_MAXIMIZE:
-    case MOZ_GTK_HEADER_BAR_BUTTON_MAXIMIZE_RESTORE:
       /* Create header bar widgets once and fill with child elements as we need
          the header bar fully configured to get a correct style */
       CreateHeaderBar();
@@ -481,20 +278,6 @@ GtkWidget* GetWidget(WidgetNodeType aAppearance) {
     if (!widget) {
       return nullptr;
     }
-    // In GTK versions prior to 3.18, automatic invalidation of style contexts
-    // for widgets was delayed until the next resize event.  Gecko however,
-    // typically uses the style context before the resize event runs and so an
-    // explicit invalidation may be required.  This is necessary if a style
-    // property was retrieved before all changes were made to the style
-    // context.  One such situation is where gtk_button_construct_child()
-    // retrieves the style property "image-spacing" during construction of the
-    // GtkButton, before its parent is set to provide inheritance of ancestor
-    // properties.  More recent GTK versions do not need this, but do not
-    // re-resolve until required and so invalidation does not trigger
-    // unnecessary resolution in general.
-    GtkStyleContext* style = gtk_widget_get_style_context(widget);
-    gtk_style_context_invalidate(style);
-
     sWidgetStorage[aAppearance] = widget;
   }
   return widget;
@@ -585,21 +368,6 @@ GtkStyleContext* CreateCSSNode(const char* aName, GtkStyleContext* aParentStyle,
   gtk_style_context_set_path(context, path);
   gtk_style_context_set_parent(context, aParentStyle);
   gtk_widget_path_unref(path);
-
-  // In GTK 3.4, gtk_render_* functions use |theming_engine| on the style
-  // context without ensuring any style resolution sets it appropriately
-  // in style_data_lookup(). e.g.
-  // https://git.gnome.org/browse/gtk+/tree/gtk/gtkstylecontext.c?h=3.4.4#n3847
-  //
-  // That can result in incorrect drawing on first draw.  To work around this,
-  // force a style look-up to set |theming_engine|.  It is sufficient to do
-  // this only on context creation, instead of after every modification to the
-  // context, because themes typically (Ambiance and oxygen-gtk, at least) set
-  // the "engine" property with the '*' selector.
-  if (GTK_MAJOR_VERSION == 3 && gtk_get_minor_version() < 6) {
-    GdkRGBA unused;
-    gtk_style_context_get_color(context, GTK_STATE_FLAG_NORMAL, &unused);
-  }
 
   return context;
 }
@@ -739,61 +507,21 @@ static GtkStyleContext* GetCssNodeStyleInternal(WidgetNodeType aNodeType) {
       style = CreateChildCSSNode("selection", MOZ_GTK_TEXT_VIEW_TEXT);
       break;
     case MOZ_GTK_TEXT_VIEW_TEXT:
-    case MOZ_GTK_RESIZER:
       style = CreateChildCSSNode("text", MOZ_GTK_TEXT_VIEW);
-      if (aNodeType == MOZ_GTK_RESIZER) {
-        // The "grip" class provides the correct builtin icon from
-        // gtk_render_handle().  The icon is drawn with shaded variants of
-        // the background color, and so a transparent background would lead to
-        // a transparent resizer.  gtk_render_handle() also uses the
-        // background color to draw a background, and so this style otherwise
-        // matches what is used in GtkTextView to match the background with
-        // textarea elements.
-        GdkRGBA color;
-        gtk_style_context_get_background_color(style, GTK_STATE_FLAG_NORMAL,
-                                               &color);
-        if (color.alpha == 0.0) {
-          g_object_unref(style);
-          style = CreateStyleForWidget(gtk_text_view_new(),
-                                       MOZ_GTK_SCROLLED_WINDOW);
-        }
-        gtk_style_context_add_class(style, GTK_STYLE_CLASS_GRIP);
-      }
       break;
     case MOZ_GTK_FRAME_BORDER:
       style = CreateChildCSSNode("border", MOZ_GTK_FRAME);
       break;
-    case MOZ_GTK_TAB_TOP: {
-      // TODO - create from CSS node
-      style = CreateSubStyleWithClass(MOZ_GTK_NOTEBOOK, GTK_STYLE_CLASS_TOP);
-      gtk_style_context_add_region(style, GTK_STYLE_REGION_TAB,
-                                   static_cast<GtkRegionFlags>(0));
-      break;
-    }
-    case MOZ_GTK_TAB_BOTTOM: {
-      // TODO - create from CSS node
-      style = CreateSubStyleWithClass(MOZ_GTK_NOTEBOOK, GTK_STYLE_CLASS_BOTTOM);
-      gtk_style_context_add_region(style, GTK_STYLE_REGION_TAB,
-                                   static_cast<GtkRegionFlags>(0));
-      break;
-    }
-    case MOZ_GTK_NOTEBOOK:
-    case MOZ_GTK_NOTEBOOK_HEADER:
-    case MOZ_GTK_TABPANELS: {
-      // TODO - create from CSS node
-      GtkWidget* widget = GetWidget(MOZ_GTK_NOTEBOOK);
-      return gtk_widget_get_style_context(widget);
-    }
     case MOZ_GTK_WINDOW_DECORATION: {
       GtkStyleContext* parentStyle =
-          CreateSubStyleWithClass(MOZ_GTK_WINDOW, "csd");
+          CreateSubStyleWithClass(MOZ_GTK_HEADERBAR_WINDOW, "csd");
       style = CreateCSSNode("decoration", parentStyle);
       g_object_unref(parentStyle);
       break;
     }
     case MOZ_GTK_WINDOW_DECORATION_SOLID: {
       GtkStyleContext* parentStyle =
-          CreateSubStyleWithClass(MOZ_GTK_WINDOW, "solid-csd");
+          CreateSubStyleWithClass(MOZ_GTK_HEADERBAR_WINDOW, "solid-csd");
       style = CreateCSSNode("decoration", parentStyle);
       g_object_unref(parentStyle);
       break;
@@ -826,40 +554,12 @@ static GtkStyleContext* GetWidgetStyleInternal(WidgetNodeType aNodeType) {
                                       GTK_STYLE_CLASS_FRAME);
       break;
     case MOZ_GTK_TEXT_VIEW_TEXT:
-    case MOZ_GTK_RESIZER:
       // GTK versions prior to 3.20 do not have the view class on the root
       // node, but add this to determine the background for the text window.
       style = CreateSubStyleWithClass(MOZ_GTK_TEXT_VIEW, GTK_STYLE_CLASS_VIEW);
-      if (aNodeType == MOZ_GTK_RESIZER) {
-        // The "grip" class provides the correct builtin icon from
-        // gtk_render_handle().  The icon is drawn with shaded variants of
-        // the background color, and so a transparent background would lead to
-        // a transparent resizer.  gtk_render_handle() also uses the
-        // background color to draw a background, and so this style otherwise
-        // matches MOZ_GTK_TEXT_VIEW_TEXT to match the background with
-        // textarea elements.  GtkTextView creates a separate text window and
-        // so the background should not be transparent.
-        gtk_style_context_add_class(style, GTK_STYLE_CLASS_GRIP);
-      }
       break;
     case MOZ_GTK_FRAME_BORDER:
       return GetWidgetRootStyle(MOZ_GTK_FRAME);
-    case MOZ_GTK_TAB_TOP:
-      style = CreateSubStyleWithClass(MOZ_GTK_NOTEBOOK, GTK_STYLE_CLASS_TOP);
-      gtk_style_context_add_region(style, GTK_STYLE_REGION_TAB,
-                                   static_cast<GtkRegionFlags>(0));
-      break;
-    case MOZ_GTK_TAB_BOTTOM:
-      style = CreateSubStyleWithClass(MOZ_GTK_NOTEBOOK, GTK_STYLE_CLASS_BOTTOM);
-      gtk_style_context_add_region(style, GTK_STYLE_REGION_TAB,
-                                   static_cast<GtkRegionFlags>(0));
-      break;
-    case MOZ_GTK_NOTEBOOK:
-    case MOZ_GTK_NOTEBOOK_HEADER:
-    case MOZ_GTK_TABPANELS: {
-      GtkWidget* widget = GetWidget(MOZ_GTK_NOTEBOOK);
-      return gtk_widget_get_style_context(widget);
-    }
     default:
       return GetWidgetRootStyle(aNodeType);
   }
@@ -884,101 +584,12 @@ void ResetWidgetCache() {
   if (sWidgetStorage[MOZ_GTK_HEADERBAR_WINDOW]) {
     gtk_widget_destroy(sWidgetStorage[MOZ_GTK_HEADERBAR_WINDOW]);
   }
-  if (sWidgetStorage[MOZ_GTK_HEADERBAR_WINDOW_MAXIMIZED]) {
-    gtk_widget_destroy(sWidgetStorage[MOZ_GTK_HEADERBAR_WINDOW_MAXIMIZED]);
-  }
 
   /* Clear already freed arrays */
   mozilla::PodArrayZero(sWidgetStorage);
 }
 
-GtkStyleContext* GetStyleContext(WidgetNodeType aNodeType, int aScale,
-                                 GtkTextDirection aDirection,
-                                 GtkStateFlags aStateFlags) {
-  GtkStyleContext* style;
-  if (gtk_check_version(3, 20, 0) != nullptr) {
-    style = GetWidgetStyleInternal(aNodeType);
-  } else {
-    style = GetCssNodeStyleInternal(aNodeType);
-    StyleContextSetScale(style, aScale);
-  }
-  bool stateChanged = false;
-  bool stateHasDirection = gtk_get_minor_version() >= 8;
-  GtkStateFlags oldState = gtk_style_context_get_state(style);
-  MOZ_ASSERT(!(aStateFlags & (STATE_FLAG_DIR_LTR | STATE_FLAG_DIR_RTL)));
-  unsigned newState = aStateFlags;
-  if (stateHasDirection) {
-    switch (aDirection) {
-      case GTK_TEXT_DIR_LTR:
-        newState |= STATE_FLAG_DIR_LTR;
-        break;
-      case GTK_TEXT_DIR_RTL:
-        newState |= STATE_FLAG_DIR_RTL;
-        break;
-      default:
-        MOZ_FALLTHROUGH_ASSERT("Bad GtkTextDirection");
-      case GTK_TEXT_DIR_NONE:
-        // GtkWidget uses a default direction if neither is explicitly
-        // specified, but here DIR_NONE is interpreted as meaning the
-        // direction is not important, so don't change the direction
-        // unnecessarily.
-        newState |= oldState & (STATE_FLAG_DIR_LTR | STATE_FLAG_DIR_RTL);
-    }
-  } else if (aDirection != GTK_TEXT_DIR_NONE) {
-    GtkTextDirection oldDirection = gtk_style_context_get_direction(style);
-    if (aDirection != oldDirection) {
-      gtk_style_context_set_direction(style, aDirection);
-      stateChanged = true;
-    }
-  }
-  if (oldState != newState) {
-    gtk_style_context_set_state(style, static_cast<GtkStateFlags>(newState));
-    stateChanged = true;
-  }
-  // This invalidate is necessary for unsaved style contexts from GtkWidgets
-  // in pre-3.18 GTK, because automatic invalidation of such contexts
-  // was delayed until a resize event runs.
-  //
-  // https://bugzilla.mozilla.org/show_bug.cgi?id=1272194#c7
-  //
-  // Avoid calling invalidate on contexts that are not owned and constructed
-  // by widgets to avoid performing build_properties() (in 3.16 stylecontext.c)
-  // unnecessarily early.
-  if (stateChanged && sWidgetStorage[aNodeType]) {
-    gtk_style_context_invalidate(style);
-  }
-  return style;
-}
-
-GtkStyleContext* CreateStyleContextWithStates(WidgetNodeType aNodeType,
-                                              int aScale,
-                                              GtkTextDirection aDirection,
-                                              GtkStateFlags aStateFlags) {
-  GtkStyleContext* style =
-      GetStyleContext(aNodeType, aScale, aDirection, aStateFlags);
-  GtkWidgetPath* path = gtk_widget_path_copy(gtk_style_context_get_path(style));
-
-  static auto sGtkWidgetPathIterGetState =
-      (GtkStateFlags(*)(const GtkWidgetPath*, gint))dlsym(
-          RTLD_DEFAULT, "gtk_widget_path_iter_get_state");
-  static auto sGtkWidgetPathIterSetState =
-      (void (*)(GtkWidgetPath*, gint, GtkStateFlags))dlsym(
-          RTLD_DEFAULT, "gtk_widget_path_iter_set_state");
-
-  int pathLength = gtk_widget_path_length(path);
-  for (int i = 0; i < pathLength; i++) {
-    unsigned state = aStateFlags | sGtkWidgetPathIterGetState(path, i);
-    sGtkWidgetPathIterSetState(path, i, GtkStateFlags(state));
-  }
-
-  style = gtk_style_context_new();
-  gtk_style_context_set_path(style, path);
-  gtk_widget_path_unref(path);
-
-  return style;
-}
-
-void StyleContextSetScale(GtkStyleContext* style, gint aScaleFactor) {
+static void StyleContextSetScale(GtkStyleContext* style, gint aScaleFactor) {
   // Support HiDPI styles on Gtk 3.20+
   static auto sGtkStyleContextSetScalePtr =
       (void (*)(GtkStyleContext*, gint))dlsym(RTLD_DEFAULT,
@@ -988,13 +599,24 @@ void StyleContextSetScale(GtkStyleContext* style, gint aScaleFactor) {
   }
 }
 
-bool HeaderBarShouldDrawContainer(WidgetNodeType aNodeType) {
-  MOZ_ASSERT(aNodeType == MOZ_GTK_HEADER_BAR ||
-             aNodeType == MOZ_GTK_HEADER_BAR_MAXIMIZED);
-  mozilla::Unused << GetWidget(aNodeType);
-  return aNodeType == MOZ_GTK_HEADER_BAR
-             ? gHeaderBarShouldDrawContainer
-             : gMaximizedHeaderBarShouldDrawContainer;
+GtkStyleContext* GetStyleContext(WidgetNodeType aNodeType, int aScale,
+                                 GtkStateFlags aState) {
+  GtkStyleContext* style;
+  if (gtk_check_version(3, 20, 0) != nullptr) {
+    style = GetWidgetStyleInternal(aNodeType);
+  } else {
+    style = GetCssNodeStyleInternal(aNodeType);
+    StyleContextSetScale(style, aScale);
+  }
+  if (gtk_style_context_get_state(style) != aState) {
+    gtk_style_context_set_state(style, aState);
+  }
+  return style;
+}
+
+bool HeaderBarShouldDrawContainer() {
+  mozilla::Unused << GetWidget(MOZ_GTK_HEADER_BAR);
+  return gHeaderBarShouldDrawContainer;
 }
 
 gint GetBorderRadius(GtkStyleContext* aStyle) {

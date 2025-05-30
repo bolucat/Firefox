@@ -138,18 +138,18 @@ no-fission:
             extra-options:
                 - "--disable-fission"
 
-geckoview-no-fission-ship:
+geckoview-no-fission-no-ship:
     description: "{description} with fission disabled and ship enabled"
     component: "GeckoView::General"
     expiration: "2025-09-01"
-    suffix: "nofis-ship"
+    suffix: "nofis-noship"
     when:
         <<: *gv_e10s_filter
     merge:
         mozharness:
             extra-options:
                 - "--disable-fission"
-                - "--setpref=fission.disableSessionHistoryInParent=false"
+                - "--setpref=fission.disableSessionHistoryInParent=true"
 
 xorigin:
     description: "{description} with cross-origin"
@@ -199,21 +199,6 @@ conditioned_profile:
                 - "--conditioned-profile"
     replace:
         chunks: 8
-
-cm5:
-    description: "{description} with codemirror 5 enabled"
-    component: "DevTools::Framework"
-    expiration: "2025-06-01"
-    suffix: "cm5"
-    mozinfo: "cm5"
-    replace:
-        tier: 3
-    when:
-        $eval: '"mochitest-devtools-chrome" == task["try-name"]'
-    merge:
-        mozharness:
-            extra-options:
-                - "--setpref=devtools.debugger.features.codemirror-next=false"
 
 socketprocess:
     description: "{description} with socket process enabled"

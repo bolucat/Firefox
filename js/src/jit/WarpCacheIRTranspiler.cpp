@@ -410,35 +410,18 @@ bool WarpCacheIRTranspiler::emitGuardClass(ObjOperandId objId,
   return true;
 }
 
-bool WarpCacheIRTranspiler::emitGuardEitherClass(ObjOperandId objId,
-                                                 GuardClassKind kind1,
-                                                 GuardClassKind kind2) {
-  MDefinition* def = getOperand(objId);
-
-  // We don't yet need this case, so it's unsupported for now.
-  MOZ_ASSERT(kind1 != GuardClassKind::JSFunction &&
-             kind2 != GuardClassKind::JSFunction);
-
-  const JSClass* classp1 = classForGuardClassKind(kind1);
-  const JSClass* classp2 = classForGuardClassKind(kind2);
-  auto* ins = MGuardToEitherClass::New(alloc(), def, classp1, classp2);
-
-  add(ins);
-
-  setOperand(objId, ins);
-  return true;
-}
-
 const JSClass* WarpCacheIRTranspiler::classForGuardClassKind(
     GuardClassKind kind) {
   switch (kind) {
     case GuardClassKind::Array:
     case GuardClassKind::PlainObject:
     case GuardClassKind::FixedLengthArrayBuffer:
+    case GuardClassKind::ImmutableArrayBuffer:
     case GuardClassKind::ResizableArrayBuffer:
     case GuardClassKind::FixedLengthSharedArrayBuffer:
     case GuardClassKind::GrowableSharedArrayBuffer:
     case GuardClassKind::FixedLengthDataView:
+    case GuardClassKind::ImmutableDataView:
     case GuardClassKind::ResizableDataView:
     case GuardClassKind::MappedArguments:
     case GuardClassKind::UnmappedArguments:
@@ -913,6 +896,26 @@ bool WarpCacheIRTranspiler::emitValueToIteratorResult(ValOperandId valId) {
   return resumeAfter(ins);
 }
 
+bool WarpCacheIRTranspiler::emitGuardToArrayBuffer(ObjOperandId objId) {
+  MDefinition* obj = getOperand(objId);
+
+  auto* ins = MGuardToArrayBuffer::New(alloc(), obj);
+  add(ins);
+
+  setOperand(objId, ins);
+  return true;
+}
+
+bool WarpCacheIRTranspiler::emitGuardToSharedArrayBuffer(ObjOperandId objId) {
+  MDefinition* obj = getOperand(objId);
+
+  auto* ins = MGuardToSharedArrayBuffer::New(alloc(), obj);
+  add(ins);
+
+  setOperand(objId, ins);
+  return true;
+}
+
 bool WarpCacheIRTranspiler::emitGuardIsNotArrayBufferMaybeShared(
     ObjOperandId objId) {
   MDefinition* obj = getOperand(objId);
@@ -934,11 +937,11 @@ bool WarpCacheIRTranspiler::emitGuardIsTypedArray(ObjOperandId objId) {
   return true;
 }
 
-bool WarpCacheIRTranspiler::emitGuardIsFixedLengthTypedArray(
+bool WarpCacheIRTranspiler::emitGuardIsNonResizableTypedArray(
     ObjOperandId objId) {
   MDefinition* obj = getOperand(objId);
 
-  auto* ins = MGuardIsFixedLengthTypedArray::New(alloc(), obj);
+  auto* ins = MGuardIsNonResizableTypedArray::New(alloc(), obj);
   add(ins);
 
   setOperand(objId, ins);
@@ -2305,7 +2308,8 @@ bool WarpCacheIRTranspiler::emitCallObjectHasSparseElementResult(
 
 MInstruction* WarpCacheIRTranspiler::emitTypedArrayLength(
     ArrayBufferViewKind viewKind, MDefinition* obj) {
-  if (viewKind == ArrayBufferViewKind::FixedLength) {
+  if (viewKind == ArrayBufferViewKind::FixedLength ||
+      viewKind == ArrayBufferViewKind::Immutable) {
     auto* length = MArrayBufferViewLength::New(alloc(), obj);
     add(length);
 
@@ -3008,7 +3012,8 @@ bool WarpCacheIRTranspiler::emitStoreTypedArrayElement(
 
 MInstruction* WarpCacheIRTranspiler::emitDataViewLength(
     ArrayBufferViewKind viewKind, MDefinition* obj) {
-  if (viewKind == ArrayBufferViewKind::FixedLength) {
+  if (viewKind == ArrayBufferViewKind::FixedLength ||
+      viewKind == ArrayBufferViewKind::Immutable) {
     auto* length = MArrayBufferViewLength::New(alloc(), obj);
     add(length);
 

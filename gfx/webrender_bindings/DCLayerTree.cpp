@@ -23,6 +23,7 @@
 #include "mozilla/gfx/gfxVars.h"
 #include "mozilla/gfx/GPUParent.h"
 #include "mozilla/gfx/Matrix.h"
+#include "mozilla/gfx/StackArray.h"
 #include "mozilla/layers/CompositeProcessD3D11FencesHolderMap.h"
 #include "mozilla/StaticPrefs_gfx.h"
 #include "mozilla/StaticPtr.h"
@@ -532,8 +533,8 @@ void DCLayerTree::WaitForCommitCompletion() {
   for (auto it = mDCSurfaces.begin(); it != mDCSurfaces.end(); it++) {
     auto* surface = it->second->AsDCSwapChain();
     if (surface) {
-      surface->Present();
-      surface->Present();
+      surface->Present(nullptr, 0);
+      surface->Present(nullptr, 0);
     }
   }
 
@@ -555,7 +556,6 @@ bool DCLayerTree::UseLayerCompositor() const {
 }
 
 void DCLayerTree::DisableNativeCompositor() {
-  MOZ_ASSERT(!UseLayerCompositor());
   MOZ_ASSERT(mCurrentSurface.isNothing());
   MOZ_ASSERT(mCurrentLayers.empty());
 
@@ -706,14 +706,18 @@ void DCLayerTree::CompositorEndFrame() {
   }
 }
 
-void DCLayerTree::BindSwapChain(wr::NativeSurfaceId aId) {
+void DCLayerTree::BindSwapChain(wr::NativeSurfaceId aId,
+                                const wr::DeviceIntRect* aDirtyRects,
+                                size_t aNumDirtyRects) {
   auto surface = GetSurface(aId);
-  surface->AsDCLayerSurface()->Bind();
+  surface->AsDCLayerSurface()->Bind(aDirtyRects, aNumDirtyRects);
 }
 
-void DCLayerTree::PresentSwapChain(wr::NativeSurfaceId aId) {
+void DCLayerTree::PresentSwapChain(wr::NativeSurfaceId aId,
+                                   const wr::DeviceIntRect* aDirtyRects,
+                                   size_t aNumDirtyRects) {
   auto surface = GetSurface(aId);
-  surface->AsDCLayerSurface()->Present();
+  surface->AsDCLayerSurface()->Present(aDirtyRects, aNumDirtyRects);
 }
 
 void DCLayerTree::Bind(wr::NativeTileId aId, wr::DeviceIntPoint* aOffset,
@@ -813,6 +817,7 @@ void DCLayerTree::CreateSwapChainSurface(wr::NativeSurfaceId aId,
     if (!surface->Initialize()) {
       gfxCriticalNote << "Failed to initialize DCLayerSurface: "
                       << wr::AsUint64(aId);
+      RenderThread::Get()->HandleWebRenderError(WebRenderError::NEW_SURFACE);
       return;
     }
   } else {
@@ -820,6 +825,7 @@ void DCLayerTree::CreateSwapChainSurface(wr::NativeSurfaceId aId,
     if (!surface->Initialize()) {
       gfxCriticalNote << "Failed to initialize DCSwapChain: "
                       << wr::AsUint64(aId);
+      RenderThread::Get()->HandleWebRenderError(WebRenderError::NEW_SURFACE);
       return;
     }
   }
@@ -1501,34 +1507,51 @@ bool DCSwapChain::Initialize() {
 
   hr = dxgiFactory->CreateSwapChainForComposition(device, &desc, nullptr,
                                                   getter_AddRefs(mSwapChain));
-  MOZ_RELEASE_ASSERT(SUCCEEDED(hr));
+  if (FAILED(hr)) {
+    gfxCriticalNote << "CreateSwapChainForComposition() failed: "
+                    << gfx::hexa(hr) << " Size : "
+                    << LayoutDeviceIntSize(mSize.width, mSize.height);
+    return false;
+  }
   mContentVisual->SetContent(mSwapChain);
 
-  ID3D11Texture2D* backBuffer;
-  hr = mSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&backBuffer);
-  MOZ_RELEASE_ASSERT(SUCCEEDED(hr));
+  RefPtr<ID3D11Texture2D> backBuffer;
+  hr = mSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D),
+                             (void**)getter_AddRefs(backBuffer));
+  if (hr == DXGI_ERROR_INVALID_CALL) {
+    // This happens on some GPUs/drivers when there's a TDR.
+    if (device->GetDeviceRemovedReason() != S_OK) {
+      gfxCriticalNote << "GetBuffer returned invalid call: " << gfx::hexa(hr)
+                      << " Size : "
+                      << LayoutDeviceIntSize(mSize.width, mSize.height);
+      return false;
+    }
+  }
 
   const EGLint pbuffer_attribs[]{LOCAL_EGL_WIDTH, mSize.width, LOCAL_EGL_HEIGHT,
                                  mSize.height, LOCAL_EGL_NONE};
-  const auto buffer = reinterpret_cast<EGLClientBuffer>(backBuffer);
+  const auto buffer = reinterpret_cast<EGLClientBuffer>(backBuffer.get());
   EGLConfig eglConfig = mDCLayerTree->GetEGLConfig();
 
   mEGLSurface = egl->fCreatePbufferFromClientBuffer(
       LOCAL_EGL_D3D_TEXTURE_ANGLE, buffer, eglConfig, pbuffer_attribs);
-  MOZ_RELEASE_ASSERT(mEGLSurface);
-  backBuffer->Release();
+  if (!mEGLSurface) {
+    EGLint err = egl->mLib->fGetError();
+    gfxCriticalNote << "Failed to create Pbuffer error: " << gfx::hexa(err)
+                    << " Size : "
+                    << LayoutDeviceIntSize(mSize.width, mSize.height);
+    return false;
+  }
 
   return true;
 }
 
-void DCSwapChain::Bind() {
+void DCSwapChain::Bind(const wr::DeviceIntRect* aDirtyRects,
+                       size_t aNumDirtyRects) {
   const auto gl = mDCLayerTree->GetGLContext();
   const auto& gle = gl::GLContextEGL::Cast(gl);
 
   gle->SetEGLSurfaceOverride(mEGLSurface);
-  bool ok = gl->MakeCurrent();
-
-  MOZ_RELEASE_ASSERT(ok);
 }
 
 bool DCSwapChain::Resize(wr::DeviceIntSize aSize) {
@@ -1542,38 +1565,94 @@ bool DCSwapChain::Resize(wr::DeviceIntSize aSize) {
     mEGLSurface = EGL_NO_SURFACE;
   }
 
-  ID3D11Texture2D* backBuffer;
   DXGI_SWAP_CHAIN_DESC desc;
   HRESULT hr;
 
-  hr = mSwapChain->GetDesc(&desc);
-  MOZ_RELEASE_ASSERT(SUCCEEDED(hr));
+  mSwapChain->GetDesc(&desc);
 
   hr = mSwapChain->ResizeBuffers(desc.BufferCount, aSize.width, aSize.height,
                                  DXGI_FORMAT_B8G8R8A8_UNORM, 0);
-  MOZ_RELEASE_ASSERT(SUCCEEDED(hr));
+  if (FAILED(hr)) {
+    gfxCriticalNote << "Failed to resize swap chain buffers: " << gfx::hexa(hr)
+                    << " Size : "
+                    << LayoutDeviceIntSize(aSize.width, aSize.height);
+    return false;
+  }
 
-  hr = mSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&backBuffer);
-  MOZ_RELEASE_ASSERT(SUCCEEDED(hr));
+  RefPtr<ID3D11Texture2D> backBuffer;
+  hr = mSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D),
+                             (void**)getter_AddRefs(backBuffer));
+  if (hr == DXGI_ERROR_INVALID_CALL) {
+    auto device = mDCLayerTree->GetDevice();
+    // This happens on some GPUs/drivers when there's a TDR.
+    if (device->GetDeviceRemovedReason() != S_OK) {
+      gfxCriticalNote << "GetBuffer returned invalid call: " << gfx::hexa(hr)
+                      << " Size : "
+                      << LayoutDeviceIntSize(aSize.width, aSize.height);
+      return false;
+    }
+  }
 
   const EGLint pbuffer_attribs[]{LOCAL_EGL_WIDTH, aSize.width, LOCAL_EGL_HEIGHT,
                                  aSize.height, LOCAL_EGL_NONE};
-  const auto buffer = reinterpret_cast<EGLClientBuffer>(backBuffer);
+  const auto buffer = reinterpret_cast<EGLClientBuffer>(backBuffer.get());
   EGLConfig eglConfig = mDCLayerTree->GetEGLConfig();
 
   mEGLSurface = egl->fCreatePbufferFromClientBuffer(
       LOCAL_EGL_D3D_TEXTURE_ANGLE, buffer, eglConfig, pbuffer_attribs);
-  MOZ_RELEASE_ASSERT(mEGLSurface);
-
-  backBuffer->Release();
+  if (!mEGLSurface) {
+    EGLint err = egl->mLib->fGetError();
+    gfxCriticalNote << "Failed to create Pbuffer error: " << gfx::hexa(err)
+                    << " Size : "
+                    << LayoutDeviceIntSize(aSize.width, aSize.height);
+    return false;
+  }
 
   mSize = aSize;
   return true;
 }
 
-void DCSwapChain::Present() {
-  HRESULT hr = mSwapChain->Present(0, 0);
-  MOZ_RELEASE_ASSERT(SUCCEEDED(hr));
+void DCSwapChain::Present(const wr::DeviceIntRect* aDirtyRects,
+                          size_t aNumDirtyRects) {
+  MOZ_ASSERT_IF(aNumDirtyRects > 0, !mFirstPresent);
+
+  HRESULT hr = S_OK;
+  int rectsCount = 0;
+  StackArray<RECT, 1> rects(aNumDirtyRects);
+
+  if (aNumDirtyRects > 0) {
+    for (size_t i = 0; i < aNumDirtyRects; ++i) {
+      const auto& rect = aDirtyRects[i];
+      // Clip rect to bufferSize
+      int left = std::clamp((int)rect.min.x, 0, mSize.width);
+      int top = std::clamp((int)rect.min.y, 0, mSize.height);
+      int right = std::clamp((int)rect.max.x, 0, mSize.width);
+      int bottom = std::clamp((int)rect.max.y, 0, mSize.height);
+
+      // When rect is not empty, the rect could be passed to Present1().
+      if (left < right && top < bottom) {
+        rects[rectsCount].left = left;
+        rects[rectsCount].top = top;
+        rects[rectsCount].right = right;
+        rects[rectsCount].bottom = bottom;
+        rectsCount++;
+      }
+    }
+
+    if (rectsCount > 0) {
+      DXGI_PRESENT_PARAMETERS params;
+      PodZero(&params);
+      params.DirtyRectsCount = rectsCount;
+      params.pDirtyRects = rects.data();
+
+      hr = mSwapChain->Present1(0, 0, &params);
+      if (FAILED(hr) && hr != DXGI_STATUS_OCCLUDED) {
+        gfxCriticalNote << "Present1 failed: " << gfx::hexa(hr);
+      }
+    }
+  } else {
+    mSwapChain->Present(0, 0);
+  }
 
   if (mFirstPresent) {
     mFirstPresent = false;
@@ -1623,7 +1702,8 @@ bool DCLayerCompositionSurface::Initialize() {
   return true;
 }
 
-void DCLayerCompositionSurface::Bind() {
+void DCLayerCompositionSurface::Bind(const wr::DeviceIntRect* aDirtyRects,
+                                     size_t aNumDirtyRects) {
   MOZ_ASSERT(mCompositionSurface);
 
   if (!mCompositionSurface) {
@@ -1634,7 +1714,30 @@ void DCLayerCompositionSurface::Bind() {
   POINT offset;
   HRESULT hr;
 
-  hr = mCompositionSurface->BeginDraw(NULL, __uuidof(ID3D11Texture2D),
+  RECT updateRect;
+  gfx::IntPoint updatePos;
+  if (aNumDirtyRects > 0) {
+    MOZ_ASSERT(!mFirstDraw);
+    MOZ_ASSERT(aNumDirtyRects == 1);
+
+    updateRect.left = std::clamp(aDirtyRects[0].min.x, 0, mSize.width);
+    updateRect.top = std::clamp(aDirtyRects[0].min.y, 0, mSize.height);
+    updateRect.right = std::clamp(aDirtyRects[0].max.x, 0, mSize.width);
+    updateRect.bottom = std::clamp(aDirtyRects[0].max.y, 0, mSize.height);
+
+    updatePos = {updateRect.left, updateRect.top};
+  } else {
+    updateRect.left = 0;
+    updateRect.top = 0;
+    updateRect.right = mSize.width;
+    updateRect.bottom = mSize.height;
+
+    updatePos = {0, 0};
+  }
+
+  mFirstDraw = false;
+
+  hr = mCompositionSurface->BeginDraw(&updateRect, __uuidof(ID3D11Texture2D),
                                       (void**)getter_AddRefs(backBuffer),
                                       &offset);
 
@@ -1643,33 +1746,35 @@ void DCLayerCompositionSurface::Bind() {
     return;
   }
 
-  D3D11_TEXTURE2D_DESC desc;
-  backBuffer->GetDesc(&desc);
-
   const auto gl = mDCLayerTree->GetGLContext();
   const auto& gle = gl::GLContextEGL::Cast(gl);
   const auto& egl = gle->mEgl;
 
+  gfx::IntPoint originOffset = {(int)offset.x - updatePos.x,
+                                (int)offset.y - updatePos.y};
   const EGLint pbuffer_attribs[]{LOCAL_EGL_WIDTH,
                                  mSize.width,
                                  LOCAL_EGL_HEIGHT,
                                  mSize.height,
                                  LOCAL_EGL_TEXTURE_OFFSET_X_ANGLE,
-                                 offset.x,
+                                 originOffset.x,
                                  LOCAL_EGL_TEXTURE_OFFSET_Y_ANGLE,
-                                 offset.y,
+                                 originOffset.y,
                                  LOCAL_EGL_NONE};
   const auto buffer = reinterpret_cast<EGLClientBuffer>(backBuffer.get());
   EGLConfig eglConfig = mDCLayerTree->GetEGLConfig();
 
   mEGLSurface = egl->fCreatePbufferFromClientBuffer(
       LOCAL_EGL_D3D_TEXTURE_ANGLE, buffer, eglConfig, pbuffer_attribs);
-  MOZ_RELEASE_ASSERT(mEGLSurface);
+  if (!mEGLSurface) {
+    EGLint err = egl->mLib->fGetError();
+    gfxCriticalNote << "Failed to create Pbuffer error: " << gfx::hexa(err)
+                    << " Size : "
+                    << LayoutDeviceIntSize(mSize.width, mSize.height);
+    return;
+  }
 
   gle->SetEGLSurfaceOverride(mEGLSurface);
-  bool ok = gl->MakeCurrent();
-
-  MOZ_RELEASE_ASSERT(ok);
 }
 
 bool DCLayerCompositionSurface::Resize(wr::DeviceIntSize aSize) {
@@ -1703,10 +1808,12 @@ bool DCLayerCompositionSurface::Resize(wr::DeviceIntSize aSize) {
 
   mCompositionSurface = surface;
   mSize = aSize;
+  mFirstDraw = true;
   return true;
 }
 
-void DCLayerCompositionSurface::Present() {
+void DCLayerCompositionSurface::Present(const wr::DeviceIntRect* aDirtyRects,
+                                        size_t aNumDirtyRects) {
   MOZ_ASSERT(mEGLSurface);
   MOZ_ASSERT(mCompositionSurface);
 
@@ -1719,6 +1826,8 @@ void DCLayerCompositionSurface::Present() {
   const auto gl = mDCLayerTree->GetGLContext();
   const auto& gle = gl::GLContextEGL::Cast(gl);
   const auto& egl = gle->mEgl;
+
+  gle->SetEGLSurfaceOverride(EGL_NO_SURFACE);
 
   egl->fDestroySurface(mEGLSurface);
   mEGLSurface = EGL_NO_SURFACE;

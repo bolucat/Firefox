@@ -16,8 +16,12 @@ ChromeUtils.defineESModuleGetters(lazy, {
   JsonSchema: "resource://gre/modules/JsonSchema.sys.mjs",
   NetUtil: "resource://gre/modules/NetUtil.sys.mjs",
   ExperimentManager: "resource://nimbus/lib/ExperimentManager.sys.mjs",
-  _RemoteSettingsExperimentLoader:
+  ObjectUtils: "resource://gre/modules/ObjectUtils.sys.mjs",
+  ProfilesDatastoreService:
+    "moz-src:///toolkit/profile/ProfilesDatastoreService.sys.mjs",
+  RemoteSettingsExperimentLoader:
     "resource://nimbus/lib/RemoteSettingsExperimentLoader.sys.mjs",
+  TestUtils: "resource://testing-common/TestUtils.sys.mjs",
   sinon: "resource://testing-common/Sinon.sys.mjs",
 });
 
@@ -131,7 +135,7 @@ export const NimbusTestUtils = {
      * @param {object} store
      *        The `ExperimentStore`.
      */
-    storeIsEmpty(store) {
+    async storeIsEmpty(store) {
       NimbusTestUtils.Assert.deepEqual(
         store
           .getAll()
@@ -156,6 +160,8 @@ export const NimbusTestUtils = {
       );
 
       NimbusTestUtils.cleanupStorePrefCache();
+
+      await NimbusTestUtils.cleanupEnrollmentDatabase();
     },
   },
 
@@ -188,6 +194,7 @@ export const NimbusTestUtils = {
               value: { testInt: 123, enabled: true },
             },
           ],
+          firefoxLabsTitle: null,
         },
         source: "NimbusTestUtils",
         isEnrollmentPaused: true,
@@ -198,6 +205,14 @@ export const NimbusTestUtils = {
         featureIds: props?.branch?.features?.map(f => f.featureId) ?? [
           "testFeature",
         ],
+        isRollout: false,
+        isFirefoxLabsOptIn: false,
+        firefoxLabsTitle: null,
+        firefoxLabsDescription: null,
+        firefoxLabsDescriptionLinks: null,
+        firefoxLabsGroup: null,
+        requiresRestart: false,
+        localizations: null,
         ...props,
       };
     },
@@ -253,6 +268,13 @@ export const NimbusTestUtils = {
         ],
         targeting: "true",
         isRollout: false,
+        isFirefoxLabsOptIn: false,
+        firefoxLabsTitle: null,
+        firefoxLabsDescription: null,
+        firefoxLabsDescriptionLinks: null,
+        firefoxLabsGroup: null,
+        requiresRestart: false,
+        localizations: null,
         ...props,
       };
     },
@@ -282,7 +304,7 @@ export const NimbusTestUtils = {
     },
 
     rsLoader(manager) {
-      const loader = new lazy._RemoteSettingsExperimentLoader(
+      const loader = new lazy.RemoteSettingsExperimentLoader(
         manager ?? NimbusTestUtils.stubs.manager()
       );
 
@@ -370,15 +392,69 @@ export const NimbusTestUtils = {
    * @params {object?} options.manager
    *         The ExperimentManager to clean up. Defaults to the global
    *         ExperimentManager.
+   *
+   * @returns {Promise<void>}
+   *          A promise that resolves when all experiments have been unenrolled
+   *          and the store is empty.
    */
-  cleanupManager(slugs, { manager } = {}) {
+  async cleanupManager(slugs, { manager } = {}) {
     const experimentManager = manager ?? ExperimentAPI.manager;
 
     for (const slug of slugs) {
-      experimentManager.unenroll(slug);
+      await experimentManager.unenroll(slug);
     }
 
-    NimbusTestUtils.assert.storeIsEmpty(experimentManager.store);
+    await NimbusTestUtils.assert.storeIsEmpty(experimentManager.store);
+  },
+
+  async cleanupEnrollmentDatabase() {
+    if (
+      !Services.prefs.getBoolPref(
+        "nimbus.profilesdatastoreservice.enabled",
+        false
+      )
+    ) {
+      // We are in an xpcshell test that has not initialized the
+      // ProfilesDatastoreService.
+      //
+      // TODO(bug 1967779): require the ProfilesDatastoreService to be initialized
+      // and remove this check.
+      return;
+    }
+
+    const profileId = ExperimentAPI.profileId;
+
+    const conn = await lazy.ProfilesDatastoreService.getConnection();
+
+    const activeSlugs = await conn
+      .execute(
+        `
+        SELECT
+          slug
+        FROM NimbusEnrollments
+        WHERE
+          profileId = :profileId AND
+          active = true;
+      `,
+        { profileId }
+      )
+      .then(rows => rows.map(row => row.getResultByName("slug")));
+
+    NimbusTestUtils.Assert.deepEqual(
+      activeSlugs,
+      [],
+      `No active slugs in NimbusEnrollments for ${profileId}`
+    );
+
+    await conn.execute(
+      `
+        DELETE FROM NimbusEnrollments
+        WHERE
+          profileId = :profileId AND
+          active = false;
+      `,
+      { profileId }
+    );
   },
 
   /**
@@ -410,7 +486,7 @@ export const NimbusTestUtils = {
    * @param {string?} options.source
    *        The source to attribute to the enrollment.
    *
-   * @returns {Promise<function(): void>}
+   * @returns {Promise<function(): Promise<void>>}
    *          A cleanup function that will unenroll from the enrolled recipe and
    *          remove it from the store.
    *
@@ -442,8 +518,8 @@ export const NimbusTestUtils = {
 
     experimentManager.store._syncToChildren({ flush: true });
 
-    return function doEnrollmentCleanup() {
-      experimentManager.unenroll(enrollment.slug);
+    return async function doEnrollmentCleanup() {
+      await experimentManager.unenroll(enrollment.slug);
       experimentManager.store._deleteForTests(enrollment.slug);
     };
   },
@@ -479,7 +555,7 @@ export const NimbusTestUtils = {
    * @param {boolean?} options.isRollout
    *        If true, the enrolled recipe will be a rollout.
    *
-   * @returns {Promise<function(): void>}
+   * @returns {Promise<function(): Promise<void>>}
    *          A cleanup function that will unenroll from the enrolled recipe and
    *          remove it from the store.
    *
@@ -527,7 +603,7 @@ export const NimbusTestUtils = {
    *         The store to delete.
    */
   async removeStore(store) {
-    NimbusTestUtils.assert.storeIsEmpty(store);
+    await NimbusTestUtils.assert.storeIsEmpty(store);
 
     // Prevent the next save from happening.
     store._store._saver.disarm();
@@ -573,7 +649,7 @@ export const NimbusTestUtils = {
    * @property {object} sandbox
    *           A sinon sandbox.
    *
-   * @property {_RemoteSettingsExperimentLoader} loader
+   * @property {RemoteSettingsExperimentLoader} loader
    *           A RemoteSettingsExperimentLoader instance that has stubbed
    *           RemoteSettings clients.
    *
@@ -584,7 +660,7 @@ export const NimbusTestUtils = {
    * @property {(function(): void)?} initExperimentAPI
    *           A function that will complete ExperimentAPI initialization.
    *
-   * @property {function(): void} cleanup
+   * @property {function(): Promise<void>} cleanup
    *           A cleanup function that should be called at the end of the test.
    */
 
@@ -646,8 +722,9 @@ export const NimbusTestUtils = {
       sandbox,
       loader,
       manager,
-      cleanup() {
-        NimbusTestUtils.assert.storeIsEmpty(manager.store);
+      async cleanup() {
+        await NimbusTestUtils.assert.storeIsEmpty(manager.store);
+
         ExperimentAPI._resetForTests();
         sandbox.restore();
 
@@ -659,6 +736,9 @@ export const NimbusTestUtils = {
           Services.fog.testResetFOG();
           Services.telemetry.clearEvents();
         }
+
+        // Remove all migration state.
+        Services.prefs.deleteBranch("nimbus.migrations.");
       },
     };
 
@@ -728,6 +808,80 @@ export const NimbusTestUtils = {
       experiment,
       `Experiment ${experiment.slug} not valid`
     );
+  },
+
+  /**
+   * Wait for the given slugs to be the only active enrollments in the
+   * NimbusEnrollments table.
+   *
+   * @param {string[]} expectedSlugs The slugs of the only active enrollmetns we
+   * expect.
+   */
+  async waitForActiveEnrollments(expectedSlugs) {
+    const profileId = ExperimentAPI.profileId;
+
+    await lazy.TestUtils.waitForCondition(async () => {
+      const conn = await lazy.ProfilesDatastoreService.getConnection();
+      const slugs = await conn
+        .execute(
+          `
+            SELECT
+              slug
+            FROM NimbusEnrollments
+            WHERE
+              active = true AND
+              profileId = :profileId;
+          `,
+          { profileId }
+        )
+        .then(rows => rows.map(row => row.getResultByName("slug")));
+
+      return lazy.ObjectUtils.deepEqual(slugs.sort(), expectedSlugs.sort());
+    }, `Waiting for enrollments of ${expectedSlugs} to sync to database`);
+  },
+
+  async waitForInactiveEnrollment(slug) {
+    const profileId = ExperimentAPI.profileId;
+
+    await lazy.TestUtils.waitForCondition(async () => {
+      const conn = await lazy.ProfilesDatastoreService.getConnection();
+      const result = await conn.execute(
+        `
+            SELECT
+              active
+            FROM NimbusEnrollments
+            WHERE
+              slug = :slug AND
+              profileId = :profileId;
+          `,
+        { profileId, slug }
+      );
+
+      return result.length === 1 && !result[0].getResultByName("active");
+    }, `Waiting for ${slug} enrollment to exist and be inactive`);
+  },
+
+  async waitForAllUnenrollments() {
+    const profileId = ExperimentAPI.profileId;
+
+    await lazy.TestUtils.waitForCondition(async () => {
+      const conn = await lazy.ProfilesDatastoreService.getConnection();
+      const slugs = await conn
+        .execute(
+          `
+            SELECT
+              slug
+            FROM NimbusEnrollments
+            WHERE
+              active = true AND
+              profileId = :profileId;
+          `,
+          { profileId }
+        )
+        .then(rows => rows.map(row => row.getResultByName("slug")));
+
+      return slugs.length === 0;
+    }, "Waiting for unenrollments to sync to database");
   },
 };
 
@@ -812,6 +966,7 @@ Object.defineProperties(NimbusTestUtils.factories.recipe, {
               value: { testInt: 123, enabled: true },
             },
           ],
+          firefoxLabsTitle: null,
         },
         {
           slug: "treatment",
@@ -822,6 +977,7 @@ Object.defineProperties(NimbusTestUtils.factories.recipe, {
               value: { testInt: 123, enabled: true },
             },
           ],
+          firefoxLabsTitle: null,
         },
       ];
     },
@@ -848,6 +1004,7 @@ Object.defineProperties(NimbusTestUtils.factories.recipe, {
                 value,
               },
             ],
+            firefoxLabsTitle: null,
           },
         ],
         ...props,

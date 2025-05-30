@@ -227,21 +227,6 @@
       }
     ]
   },
-  "1577267": {
-    "label": "metfone.com.kh",
-    "bugs": {
-      "1577267": {
-        "issue": "desktop-layout-not-mobile",
-        "matches": ["*://*.metfone.com.kh/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["android"],
-        "ua_string": ["Chrome"]
-      }
-    ]
-  },
   "1577519": {
     "label": "directv.com",
     "bugs": {
@@ -631,7 +616,7 @@
     ]
   },
   "1769762": {
-    "label": "tiktok.com",
+    "label": "tiktok.com (broken comments)",
     "bugs": {
       "1769762": {
         "issue": "broken-comments",
@@ -1553,6 +1538,23 @@
         "platforms": ["all"],
         "content_scripts": {
           "css": ["bug1848849-theaa.com-printing-mode-fix.css"]
+        }
+      }
+    ]
+  },
+  "1850998": {
+    "label": "chaturbate.com",
+    "bugs": {
+      "1850998": {
+        "issue": "user-interface-frustration",
+        "matches": ["*://*.chaturbate.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "content_scripts": {
+          "js": ["bug1850998-chaturbate.com.js"]
         }
       }
     ]
@@ -2677,21 +2679,6 @@
       }
     ]
   },
-  "1919698": {
-    "label": "anecdotes.ai",
-    "bugs": {
-      "1919698": {
-        "issue": "firefox-blocked-completely",
-        "matches": ["*://*.anecdotes.ai/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["desktop"],
-        "ua_string": ["Chrome", "add_Firefox_as_Gecko"]
-      }
-    ]
-  },
   "1921410": {
     "label": "maps.apple.com",
     "bugs": {
@@ -2723,7 +2710,7 @@
     ]
   },
   "1924500": {
-    "label": "www.tiktok.com",
+    "label": "tiktok.com (broken captcha slider)",
     "bugs": {
       "1924500": {
         "issue": "broken-captcha",
@@ -2750,6 +2737,7 @@
     "interventions": [
       {
         "platforms": ["android"],
+        "pref_check": { "layout.css.prefixes.transforms": true },
         "content_scripts": {
           "css": ["bug1925508-developer-apple.com-transform-scale.css"]
         }
@@ -3128,12 +3116,23 @@
       "1944518": {
         "issue": "broken-scrolling",
         "matches": ["*://app.powerbi.com/view*"]
+      },
+      "1919263": {
+        "issue": "broken-zooming",
+        "matches": ["*://app.powerbi.com/view*"]
       }
     },
     "interventions": [
       {
         "platforms": ["mac"],
         "ua_string": ["add_Chrome"]
+      },
+      {
+        "platforms": ["desktop"],
+        "content_scripts": {
+          "all_frames": true,
+          "js": ["bug1911423-app.powerbi.com-emulate-mousewheel-events.js"]
+        }
       }
     ]
   },
@@ -3169,6 +3168,23 @@
           "js": [
             "bug1945019-order.mealkeyway.com-prevent-unsupported-message.js"
           ]
+        }
+      }
+    ]
+  },
+  "1945438": {
+    "label": "tiktok.com (extra scrollbars)",
+    "bugs": {
+      "1945438": {
+        "issue": "extra-scrollbars",
+        "matches": ["*://www.tiktok.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
+        "content_scripts": {
+          "css": ["bug1945438-www.tiktok.com-hide-extra-scrollbars.css"]
         }
       }
     ]
@@ -3322,23 +3338,6 @@
         "platforms": ["linux"],
         "content_scripts": {
           "js": ["bug1950282-formula1.com-platform-linux-fix.js"]
-        }
-      }
-    ]
-  },
-  "1950301": {
-    "label": "shamir.com",
-    "bugs": {
-      "1950301": {
-        "issue": "broken-layout",
-        "matches": ["*://shamir.com/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "content_scripts": {
-          "js": ["bug1950301-shamir.com-ua-overrides.js"]
         }
       }
     ]
@@ -3633,29 +3632,61 @@
       }
     ]
   },
-  "1963302": {
-    "label": "lefties.com",
-    "bugs": {
-      "1963302": {
-        "issue": "broken-scrolling",
-        "matches": ["*://www.lefties.com/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "content_scripts": {
-          "css": ["bug1963302-lefties.com-fix-jittery-scrolling.css"]
-        }
-      }
-    ]
-  },
   "1964015": {
     "label": "kickasstorrents.cr",
     "bugs": {
       "1964015": {
         "issue": "firefox-blocked-completely",
         "matches": ["*://kickasstorrents.cr/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "ua_string": ["Chrome", "add_Firefox_as_Gecko"]
+      }
+    ]
+  },
+  "1966585": {
+    "label": "hiskin.care",
+    "bugs": {
+      "1966585": {
+        "issue": "broken-interactive-elements",
+        "matches": ["*://hiskin.care/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "content_scripts": {
+          "css": ["bug1966585-hiskin.care-reveal-missing-content.css"]
+        }
+      }
+    ]
+  },
+  "1966673": {
+    "label": "culturepsg.com",
+    "bugs": {
+      "1966673": {
+        "issue": "broken-interactive-elements",
+        "matches": ["*://www.culturepsg.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "content_scripts": {
+          "js": ["bug1966673-culturepsg.com-niceScroll-cantouch-fix.js"]
+        }
+      }
+    ]
+  },
+  "1967694": {
+    "label": "onlyfaucet.com",
+    "bugs": {
+      "1967694": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://*.onlyfaucet.com/*"]
       }
     },
     "interventions": [

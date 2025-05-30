@@ -93,11 +93,11 @@ export class EditProfileCard extends MozLitElement {
   clearSavedMessageTimer = null;
 
   get avatars() {
-    return this.avatarsPicker.radioButtons;
+    return this.avatarsPicker.childElements;
   }
 
   get themeCards() {
-    return this.themesPicker.radioButtons;
+    return this.themesPicker.childElements;
   }
 
   constructor() {
@@ -355,6 +355,7 @@ export class EditProfileCard extends MozLitElement {
             value=${t.id}
           >
             <profiles-theme-card
+              aria-hidden="true"
               .theme=${t}
               value=${t.id}
             ></profiles-theme-card>

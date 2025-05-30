@@ -1,13 +1,11 @@
 [versions]
 # AGP
-android-gradle-plugin = "8.10.0" # Keep lint version in sync
-lint = "31.10.0"
+android-gradle-plugin = "8.10.1" # Keep lint version in sync
+lint = "31.10.1"
 
 python-envs-plugin = "0.0.31"
 maven-ant-tasks = "2.1.3"
 androidsvg = "1.4"
-detekt = "1.23.8"
-ktlint = "1.5.0"
 zxing = "3.5.3"
 disklrucache = "2.0.2"
 leakcanary = "2.14"
@@ -30,9 +28,9 @@ constraintlayout-compose = "1.1.1"
 coordinatorlayout = "1.3.0"
 core = "1.16.0"
 core-splashscreen = "1.0.1"
-datastore = "1.1.6"
+datastore = "1.1.7"
 drawerlayout = "1.2.0"
-fragment = "1.8.6"
+fragment = "1.8.7"
 lifecycle = "2.9.0"
 localbroadcastmanager = "1.0.0"
 media = "1.7.0"
@@ -63,7 +61,7 @@ play-services-fido = "21.2.0"
 protobuf = "4.30.2" # Keep Protobuf in sync with the version used by AppServices.
 
 # JNA
-jna = "5.17.0"
+jna = "5.14.0" # Don't update until Android 5/6 support is dropped
 
 # Gradle plugins
 jacoco = "0.8.13"
@@ -78,9 +76,14 @@ kotlin = "2.1.21" # remember to change ksp-plugin
 ksp-plugin = "2.1.21-2.0.1"
 serialization = "1.8.1"
 
+# Linter versions
+detekt = "1.23.8"
+ktlint = "1.6.0"
+spotless = "7.0.2"
+
 # Mozilla versions
 apilint = "0.5.4"
-mozilla-glean = "64.2.0"
+mozilla-glean = "64.3.1"
 
 # Testing versions
 androidx-test = "1.6.1"
@@ -99,10 +102,9 @@ robolectric = "4.14.1"
 adjust = "5.4.0"
 okhttp = "4.12.0"
 okio = "3.11.0"
-sentry = "8.9.0"
+sentry = "8.13.1"
 
 commons-exec = "1.3"
-spotless = "7.0.2"
 tomlj = "1.1.0"
 
 [libraries]

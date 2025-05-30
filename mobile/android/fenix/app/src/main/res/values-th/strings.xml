@@ -475,7 +475,7 @@
     Content description (not visible, for screen readers etc.): Search engine icon.
     %s is the search engine name (for example: DuckDuckGo).
   -->
-  <string name="search_engine_icon_content_description_1">เครื่องมือค้นหา:  %s</string>
+  <string name="search_engine_icon_content_description_1">เครื่องมือค้นหา: %s</string>
   <!--
     Content description (not visible, for screen readers etc.) of the search engine selector from the search toolbar.
     %s is the search engine name (for example: DuckDuckGo).
@@ -575,41 +575,41 @@
     Onboarding header for the add-ons card used by Nimbus experiments. Nimbus experiments do not support string placeholders.
     Note: The word "Firefox" should NOT be translated
   -->
-  <string name="onboarding_add_on_header" tools:ignore="BrandUsage,UnusedResources">ปรับแต่ง Firefox ของคุณด้วยส่วนขยาย</string>
+  <string name="onboarding_add_on_header" moz:removedIn="140" tools:ignore="BrandUsage,UnusedResources">ปรับแต่ง Firefox ของคุณด้วยส่วนขยาย</string>
   <!-- Onboarding sub header for the add-ons card, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_sub_header" tools:ignore="UnusedResources">เพิ่มส่วนขยายของบุคคลที่สามเพื่อเพิ่มความปลอดภัย ประสิทธิภาพการทำงาน และอื่นๆ ของคุณ</string>
+  <string name="onboarding_add_on_sub_header" moz:removedIn="140" tools:ignore="UnusedResources">เพิ่มส่วนขยายของบุคคลที่สามเพื่อเพิ่มความปลอดภัย ประสิทธิภาพการทำงาน และอื่นๆ ของคุณ</string>
   <!-- Onboarding add-ons card, for checking more add-ons on, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_explore_more_extensions_2">สำรวจส่วนขยายอื่น ๆ</string>
+  <string name="onboarding_add_on_explore_more_extensions_2" moz:removedIn="140" tools:ignore="UnusedResources">สำรวจส่วนขยายอื่น ๆ</string>
   <!-- Onboarding add-ons card, button for start browsing, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_start_browsing_button_2">เริ่มการเรียกดู</string>
+  <string name="onboarding_add_on_start_browsing_button_2" moz:removedIn="140" tools:ignore="UnusedResources">เริ่มการเรียกดู</string>
   <!-- Ublock name for the onboarding add-ons card, used by Nimbus experiments. Note: The word "Ublock Origin" is a brand name should NOT be translated -->
-  <string name="onboarding_add_on_ublock_name" tools:ignore="UnusedResources">uBlock Origin</string>
+  <string name="onboarding_add_on_ublock_name" moz:removedIn="140" tools:ignore="UnusedResources">uBlock Origin</string>
   <!-- Ublock description for the onboarding add-ons card, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_ublock_description" tools:ignore="UnusedResources">บล็อคโฆษณาอย่างมีประสิทธิภาพและได้ผล</string>
+  <string name="onboarding_add_on_ublock_description" moz:removedIn="140" tools:ignore="UnusedResources">บล็อคโฆษณาอย่างมีประสิทธิภาพและได้ผล</string>
   <!-- Privacy Badger name for the onboarding add-ons card, used by Nimbus experiments. Note: The word "Privacy Badger" is a brand name should NOT be translated -->
-  <string name="onboarding_add_on_privacy_badger_name" tools:ignore="UnusedResources">Privacy Badger</string>
+  <string name="onboarding_add_on_privacy_badger_name" moz:removedIn="140" tools:ignore="UnusedResources">Privacy Badger</string>
   <!-- Privacy Badger description for the onboarding add-ons card, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_privacy_badger_description" tools:ignore="UnusedResources">หยุดตัวติดตามที่คุณมองไม่เห็นและโฆษณาที่สอดส่องคุณด้วยสุดยอดเครื่องมือป้องกันการติดตาม</string>
+  <string name="onboarding_add_on_privacy_badger_description" moz:removedIn="140" tools:ignore="UnusedResources">หยุดตัวติดตามที่คุณมองไม่เห็นและโฆษณาที่สอดส่องคุณด้วยสุดยอดเครื่องมือป้องกันการติดตาม</string>
   <!-- Search by Image name for the onboarding add-ons card, used by Nimbus experiments. Note: The word "Search by Image" is a brand name should NOT be translated -->
-  <string name="onboarding_add_on_search_by_image_name" tools:ignore="UnusedResources">ค้นหาด้วยภาพ</string>
+  <string name="onboarding_add_on_search_by_image_name" moz:removedIn="140" tools:ignore="UnusedResources">ค้นหาด้วยภาพ</string>
   <!-- Search by Image description for the onboarding add-ons card, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_search_by_image_description" tools:ignore="UnusedResources">ชมภาพที่น่าสนใจและศึกษาข้อมูลเพิ่มเติมเกี่ยวกับภาพนั้น</string>
+  <string name="onboarding_add_on_search_by_image_description" moz:removedIn="140" tools:ignore="UnusedResources">ชมภาพที่น่าสนใจและศึกษาข้อมูลเพิ่มเติมเกี่ยวกับภาพนั้น</string>
   <!-- Dark Reader name for the onboarding add-ons card, used by Nimbus experiments. Note: The word "Dark Reader" is a brand name should NOT be translated -->
-  <string name="onboarding_add_on_dark_reader_name" tools:ignore="UnusedResources">Dark Reader</string>
+  <string name="onboarding_add_on_dark_reader_name" moz:removedIn="140" tools:ignore="UnusedResources">Dark Reader</string>
   <!-- Privacy Badger description for the onboarding add-ons card, used by Nimbus experiments. -->
-  <string name="onboarding_add_on_dark_reader_description" tools:ignore="UnusedResources">โหมดมืดแบบกำหนดเองสำหรับเว็บมือถือ</string>
+  <string name="onboarding_add_on_dark_reader_description" moz:removedIn="140" tools:ignore="UnusedResources">โหมดมืดแบบกำหนดเองสำหรับเว็บมือถือ</string>
   <!-- Label for the number of reviews for an add-on. %1$s is the formatted number of reviews e.g. "1,234", "12,345", "123,456". -->
-  <string name="onboarding_add_on_reviews_label">บทวิจารณ์: %1$s</string>
+  <string name="onboarding_add_on_reviews_label" moz:removedIn="140" tools:ignore="UnusedResources">บทวิจารณ์: %1$s</string>
   <!-- Content description for the add-on icon. -->
-  <string name="onboarding_add_on_icon_content_description">ไอคอนส่วนเสริม</string>
+  <string name="onboarding_add_on_icon_content_description" moz:removedIn="140" tools:ignore="UnusedResources">ไอคอนส่วนเสริม</string>
   <!-- Content description for the an installed add-on icon. -->
-  <string name="onboarding_installed_add_on_icon_content_description">ไอคอนส่วนเสริมที่ติดตั้งแล้ว</string>
+  <string name="onboarding_installed_add_on_icon_content_description" moz:removedIn="140" tools:ignore="UnusedResources">ไอคอนส่วนเสริมที่ติดตั้งแล้ว</string>
   <!-- Content description for the an installing add-on icon. -->
-  <string name="onboarding_installing_add_on_icon_content_description">กำลังติดตั้งไอคอนส่วนเสริม</string>
+  <string name="onboarding_installing_add_on_icon_content_description" moz:removedIn="140" tools:ignore="UnusedResources">กำลังติดตั้งไอคอนส่วนเสริม</string>
   <!-- Content description for the add add-on button. -->
-  <string name="onboarding_add_on_add_button_content_description">เพิ่มปุ่มส่วนเสริม</string>
+  <string name="onboarding_add_on_add_button_content_description" moz:removedIn="140" tools:ignore="UnusedResources">เพิ่มปุ่มส่วนเสริม</string>
   <!-- Content description for the star rating group. %1$s is the rating. -->
-  <string name="onboarding_add_on_star_rating_content_description">ได้รับคะแนน %1$s จาก 5</string>
+  <string name="onboarding_add_on_star_rating_content_description" moz:removedIn="140" tools:ignore="UnusedResources">ได้รับคะแนน %1$s จาก 5</string>
   <!-- Title for the privacy preferences dialog shown during onboarding. Note: The word "Firefox" should NOT be translated. -->
   <string name="onboarding_preferences_dialog_title" tools:ignore="BrandUsage">ช่วยเราทำให้ Firefox ดีขึ้น</string>
   <!-- Title for the crash reporting option in the privacy preferences dialog shown during onboarding. -->
@@ -630,6 +630,8 @@
   <string name="onboarding_terms_of_service_sub_header_2">เรียกดูเว็บได้อย่างรวดเร็วและปลอดภัย</string>
   <!-- Terms of service onboarding page continue button label. -->
   <string name="onboarding_term_of_service_agree_and_continue_button_label" moz:removedIn="140" tools:ignore="UnusedResources">ยินยอมและดำเนินต่อ</string>
+  <!-- Terms of service onboarding page continue button label. -->
+  <string name="onboarding_term_of_service_agree_and_continue_button_label_2">ดำเนินการต่อ</string>
   <!-- Line one of the terms of service onboarding page. %1$s is replaced by an active link, using onboarding_term_of_service_line_one_link_text_2 as text (“Firefox Terms of Use”). -->
   <string name="onboarding_term_of_service_line_one_2">เมื่อดำเนินการต่อ แสดงว่าคุณยอมรับ%1$s</string>
   <!-- Used as text for the link in onboarding_term_of_service_line_one_2. -->
@@ -770,6 +772,12 @@
   <string name="preferences_add_private_browsing_shortcut">เพิ่มทางลัดการเรียกดูแบบส่วนตัว</string>
   <!-- Preference for enabling "HTTPS-Only" mode -->
   <string name="preferences_https_only_title">โหมด HTTPS-Only</string>
+  <!-- Preference title for using the screen lock to hide tabs in private browsing -->
+  <string name="preferences_pbm_lock_screen_title">ใช้การล็อกหน้าจอเพื่อซ่อนแท็บในการเรียกดูแบบส่วนตัว</string>
+  <!-- Informs the user how to access the tabs when "Use screen lock to hide tabs in private browsing" is enabled -->
+  <string name="preferences_pbm_lock_screen_summary" moz:removedIn="140" tools:ignore="UnusedResources">ดูแท็บต่างๆ ด้วยลายนิ้วมือ การปลดล็อกด้วยใบหน้า หรือ PIN</string>
+  <!-- Informs the user how to access the tabs when "Use screen lock to hide tabs in private browsing" is enabled -->
+  <string name="preferences_pbm_lock_screen_summary_2">ดูแท็บต่างๆ ด้วยลายนิ้วมือ PIN หรือการปลดล็อกด้วยใบหน้า</string>
   <!-- Label for cookie banner section in quick settings panel. -->
   <string name="cookie_banner_blocker">ตัวปิดกั้นแบนเนอร์คุกกี้</string>
   <!-- Preference for removing cookie/consent banners from sites automatically in private mode. See reduce_cookie_banner_summary for additional context. -->
@@ -974,9 +982,9 @@
   -->
   <string name="customize_toggle_recently_visited">เยี่ยมชมล่าสุด</string>
   <!-- Title for the customize home screen section with Pocket. -->
-  <string name="customize_toggle_pocket_2">เรื่องราวที่จุดประกายความคิด</string>
+  <string name="customize_toggle_pocket_2" tools:ignore="UnusedResources" moz:removedIn="140">เรื่องราวที่จุดประกายความคิด</string>
   <!-- Summary for the customize home screen section with Pocket. %s is "Pocket". -->
-  <string name="customize_toggle_pocket_summary">บทความขับเคลื่อนโดย %s</string>
+  <string name="customize_toggle_pocket_summary" tools:ignore="UnusedResources" moz:removedIn="140">บทความขับเคลื่อนโดย %s</string>
   <!-- Title for the customize home screen section with sponsored Pocket stories. -->
   <string name="customize_toggle_pocket_sponsored">เรื่องราวที่ได้รับการสนับสนุน</string>
   <!-- Title for the opening wallpaper settings screen -->
@@ -1167,7 +1175,7 @@
 
     Instructions on how to access pairing
   -->
-  <string name="pair_instructions_2">สแกนรหัส QR ที่แสดงใน &lt;b&gt;firefox.com/pair&lt;/b&gt;</string>
+  <string name="pair_instructions_2"><![CDATA[สแกนรหัส QR ที่แสดงใน <b>firefox.com/pair</b>]]></string>
   <!--
     Toolbar Preferences
 
@@ -1443,6 +1451,11 @@
     Text for the snackbar to confirm that multiple downloads items have been removed
   -->
   <string name="download_delete_multiple_items_snackbar_1" moz:removedIn="138" tools:ignore="UnusedResources">การดาวน์โหลดถูกลบ</string>
+  <!--
+    Text for the snackbar to confirm that a multiple download items have been removed. %1$s is the number of removed download items.
+    %1$d is the number of items deleted.
+  -->
+  <string name="download_delete_multiple_items_snackbar_2">จำนวนรายการที่ลบ: %1$d</string>
   <!-- Text for the snackbar to confirm that a single download item has been removed. %1$s is the name of the download item. -->
   <string name="download_delete_single_item_snackbar" moz:removedIn="138" tools:ignore="UnusedResources">เอา %1$s ออกแล้ว</string>
   <!-- Text for the snackbar to confirm that a single download item has been removed. %1$s is the name of the download item. -->
@@ -1470,12 +1483,33 @@
   <string name="download_multi_select_title">เลือกอยู่ %1$d</string>
   <!-- Text for the button to remove a single download item -->
   <string name="download_delete_item_1" moz:removedIn="138" tools:ignore="UnusedResources">เอาออก</string>
+  <!-- Title for the dialog that is shown when there is not enough storage space to download a file. -->
+  <string name="download_file_has_not_enough_storage_dialog_title">มีเนื้อที่ไม่พอ</string>
+  <!--
+    Message for the dialog that is shown when there is not enough storage space to download a file.
+    %s is the name of the file to download.
+  -->
+  <string name="download_file_has_not_enough_storage_dialog_message"><![CDATA[อุปกรณ์นี้ไม่มีเนื้อที่พอให้ดาวน์โหลด <b>%s</b>]]></string>
+  <!--
+    Text for the confirm button in the dialog that is shown when there is not enough storage space to download a file.
+    This button will navigate the user to the device's storage management settings.
+  -->
+  <string name="download_file_has_not_enough_storage_dialog_confirm_button_text">จัดการไฟล์</string>
+  <!--
+    Text for the cancel button in the dialog that is shown when there is not enough storage space to download a file.
+    This button will dismiss the dialog.
+  -->
+  <string name="download_file_has_not_enough_storage_dialog_cancel_button_text">ยกเลิก</string>
   <!-- Text for the button to delete a single downloaded file item -->
   <string name="download_delete_item">ลบ</string>
   <!-- Content description for the toolbar "Navigate back" button -->
   <string name="download_navigate_back_description">นำทางย้อนกลับ</string>
   <!-- Content description for the toolbar "Navigate up" button -->
   <string name="download_navigate_up_description" moz:removedIn="139" tools:ignore="UnusedResources">นำทางขึ้นไปด้านบน</string>
+  <!-- Content description for the toolbar back button while searching the downloads -->
+  <string name="download_close_search_description">ย้อนกลับและปิดการค้นหา</string>
+  <!-- Content description for the search bar clear text button on the downloads screen -->
+  <string name="download_clear_search_description">ล้าง</string>
   <!-- Text for the button to share the download URL -->
   <string name="download_share_url">แบ่งปัน URL</string>
   <!-- Text for the button to share the download file -->
@@ -1502,6 +1536,13 @@
   <string name="download_time_period_last_30_days">30 วันที่ผ่านมา</string>
   <!-- Text for the header that groups the downloads older than other groups -->
   <string name="download_time_period_older">เก่ากว่า</string>
+  <!--
+    Description of an in progress download item, displayed in the downloads list.
+    %1$s is the current file size that has been downloaded.
+    %2$s is the total size of the downloaded file.
+    %3$s is the amount of time remaining to complete the download.
+  -->
+  <string name="download_item_in_progress_description" tools:ignore="UnusedResources">%1$s / %2$s • เหลือ %3$s</string>
   <!-- Text to indicate that an in progress download is paused. -->
   <string name="download_item_status_paused" tools:ignore="UnusedResources">ถูกหยุดชั่วคราว</string>
   <!-- Text to indicate that the download speed of an in progress download is being calculated. -->
@@ -1571,15 +1612,15 @@
 
     Broken site reason text for site slow or not working
   -->
-  <string name="webcompat_reporter_reason_slow">ไซต์ช้าหรือไม่ทำงาน</string>
+  <string name="webcompat_reporter_reason_slow" moz:removedIn="140" tools:ignore="UnusedResources">ไซต์ช้าหรือไม่ทำงาน</string>
   <!-- Broken site reason text for images or videos -->
-  <string name="webcompat_reporter_reason_media">รูปภาพหรือวิดีโอ</string>
+  <string name="webcompat_reporter_reason_media" moz:removedIn="140" tools:ignore="UnusedResources">รูปภาพหรือวิดีโอ</string>
   <!-- Broken site reason text for buttons, links, and other content -->
-  <string name="webcompat_reporter_reason_content">ปุ่ม ลิงก์ และเนื้อหาอื่นๆ</string>
+  <string name="webcompat_reporter_reason_content" moz:removedIn="140" tools:ignore="UnusedResources">ปุ่ม ลิงก์ และเนื้อหาอื่นๆ</string>
   <!-- Broken site reason text for sign in or sign out -->
-  <string name="webcompat_reporter_reason_account">ลงชื่อเข้าใช้หรือออกจากระบบ</string>
+  <string name="webcompat_reporter_reason_account" moz:removedIn="140" tools:ignore="UnusedResources">ลงชื่อเข้าใช้หรือออกจากระบบ</string>
   <!-- Broken site reason text for ad blocker -->
-  <string name="webcompat_reporter_reason_ad_blocker">ตัวปิดกั้นโฆษณา</string>
+  <string name="webcompat_reporter_reason_ad_blocker" moz:removedIn="140" tools:ignore="UnusedResources">ตัวปิดกั้นโฆษณา</string>
   <!-- Broken site reason text for something else -->
   <string name="webcompat_reporter_reason_other">อื่น ๆ</string>
   <!--
@@ -1628,6 +1669,8 @@
   <string name="bookmark_menu_copy_button">คัดลอก</string>
   <!-- Bookmark overflow menu share button -->
   <string name="bookmark_menu_share_button">แบ่งปัน</string>
+  <!-- Bookmark overflow menu select all bookmarks -->
+  <string name="bookmark_menu_select_all_bookmarks">เลือกทั้งหมด</string>
   <!-- Bookmark overflow menu open in new tab button -->
   <string name="bookmark_menu_open_in_new_tab_button">เปิดในแท็บใหม่</string>
   <!-- Bookmark overflow menu open in private tab button -->
@@ -1640,6 +1683,8 @@
   <string name="bookmark_menu_delete_button">ลบ</string>
   <!-- Bookmark overflow menu save button -->
   <string name="bookmark_menu_save_button">บันทึก</string>
+  <!-- Label for button to sort bookmarks by user-defined sort order in the bookmark sorting overflow menu. -->
+  <string name="bookmark_sort_menu_custom">เรียงลำดับแบบกำหนดเอง</string>
   <!-- Label for button to sort bookmarks by newest in the bookmark sorting overflow menu. -->
   <string name="bookmark_sort_menu_newest">เรียงตามใหม่ล่าสุด</string>
   <!-- Label for button to sort bookmarks by oldest in the bookmark sorting overflow menu. -->
@@ -2118,7 +2163,7 @@
   <!-- Title of QR Pairing Fragment -->
   <string name="sync_scan_code">สแกนรหัส</string>
   <!-- Instructions on how to access pairing -->
-  <string name="sign_in_instructions" tools:ignore="BrandUsage">บนคอมพิวเตอร์ของคุณ ให้เปิด Firefox แล้วไปที่ &lt;b&gt;https://firefox.com/pair&lt;/b&gt;</string>
+  <string name="sign_in_instructions" tools:ignore="BrandUsage"><![CDATA[บนคอมพิวเตอร์ของคุณ ให้เปิด Firefox แล้วไปที่ <b>https://firefox.com/pair</b>]]></string>
   <!-- Text shown for sign in pairing when ready -->
   <string name="sign_in_ready_for_scan">พร้อมที่จะสแกน</string>
   <!-- Text shown for settings option for sign with pairing -->
@@ -2126,7 +2171,7 @@
   <!-- Text shown for settings option for sign with email -->
   <string name="sign_in_with_email">ใช้อีเมลแทน</string>
   <!-- Text shown for settings option for create new account text.'Firefox' intentionally hardcoded here. -->
-  <string name="sign_in_create_account_text" tools:ignore="BrandUsage">ไม่มีบัญชีใช่หรือไม่? &lt;u&gt;สร้างบัญชี&lt;/u&gt;เพื่อซิงค์ Firefox ระหว่างอุปกรณ์</string>
+  <string name="sign_in_create_account_text" tools:ignore="BrandUsage"><![CDATA[ไม่มีบัญชีใช่หรือไม่? <u>สร้างบัญชี</u>เพื่อซิงค์ Firefox ระหว่างอุปกรณ์]]></string>
   <!-- Text shown in confirmation dialog to sign out of account. %s is the name of the app (for example "Firefox"). -->
   <string name="sign_out_confirmation_message_2">%s จะหยุดซิงค์กับบัญชีของคุณ แต่จะไม่ลบข้อมูลการท่องเว็บใด ๆ ของคุณบนอุปกรณ์นี้</string>
   <!-- Option to continue signing out of account shown in confirmation dialog to sign out of account -->
@@ -2273,8 +2318,6 @@
   <string name="preference_doh_summary">Domain Name System (DNS) over HTTPS จะส่งคำขอชื่อโดเมนของคุณผ่านการเชื่อมต่อที่มีการเข้ารหัส เพื่อเสริมความปลอดภัยให้กับ DNS และทำให้ผู้อื่นดูว่าคุณกำลังจะเข้าถึงเว็บไซต์ใดได้ยากขึ้น %1$s</string>
   <!-- Used as text for the link in `preference_doh_title`, points to documentation about "DNS over HTTPS" -->
   <string name="preference_doh_learn_more">เรียนรู้เพิ่มเติม</string>
-  <!-- Content description for the toolbar "Navigate up" button -->
-  <string name="preference_doh_up_description">นำทางขึ้นไปด้านบน</string>
   <!-- Content description for the "Exceptions" button -->
   <string name="preference_doh_exceptions_description">ข้อยกเว้น</string>
   <!-- Content description for the "Info" button -->
@@ -2636,7 +2679,7 @@
   <!-- Text shown when a user leaves out the required template string -->
   <string name="search_add_custom_engine_error_missing_template">ตรวจสอบว่าสตริงการค้นหาตรงกับรูปแบบตัวอย่าง</string>
   <!-- Text shown when we aren't able to validate the custom search query. %s is the url of the custom search engine. -->
-  <string name="search_add_custom_engine_error_cannot_reach">เกิดข้อผิดพลาดในการเชื่อมต่อไปยัง “%s”</string>
+  <string name="search_add_custom_engine_error_cannot_reach" moz:removedIn="140" tools:ignore="UnusedResources">เกิดข้อผิดพลาดในการเชื่อมต่อไปยัง “%s”</string>
   <!-- Text shown when a user creates a new search engine. %s is the url of the custom search engine. -->
   <string name="search_add_custom_engine_success_message">สร้าง %s แล้ว</string>
   <!-- Text shown when a user successfully edits a custom search engine. %s is the url of the custom search engine. -->
@@ -2648,9 +2691,9 @@
   <!-- First step for the allowing a permission -->
   <string name="phone_feature_blocked_step_settings">1. ไปที่การตั้งค่า Android</string>
   <!-- Second step for the allowing a permission -->
-  <string name="phone_feature_blocked_step_permissions">2. แตะ &lt;b&gt;สิทธิอนุญาต&lt;/b&gt;</string>
+  <string name="phone_feature_blocked_step_permissions"><![CDATA[2. แตะ <b>สิทธิอนุญาต</b>]]></string>
   <!-- Third step for the allowing a permission (%1$s is the permission name, for example "Camera"). -->
-  <string name="phone_feature_blocked_step_feature">3. สลับ &lt;b&gt;%1$s&lt;/b&gt; เป็นเปิด</string>
+  <string name="phone_feature_blocked_step_feature"><![CDATA[3. สลับ <b>%1$s</b> เป็นเปิด]]></string>
   <!-- Label that indicates a site is using a secure connection -->
   <string name="quick_settings_sheet_secure_connection_2">การเชื่อมต่อปลอดภัย</string>
   <!-- Label that indicates a site is using a insecure connection -->
@@ -2660,7 +2703,7 @@
   <!-- Label to clear site data -->
   <string name="clear_site_data">ล้างคุกกี้และข้อมูลไซต์</string>
   <!-- Confirmation message for a dialog confirming if the user wants to delete all data for current site. %s is the domain of the site. -->
-  <string name="confirm_clear_site_data">คุณแน่ใจหรือไม่ว่าต้องการล้างคุกกี้และข้อมูลทั้งหมดสำหรับไซต์นี้ &lt;b&gt;%s&lt;/b&gt;?</string>
+  <string name="confirm_clear_site_data"><![CDATA[คุณแน่ใจหรือไม่ว่าต้องการล้างคุกกี้และข้อมูลทั้งหมดสำหรับไซต์นี้ <b>%s</b>?]]></string>
   <!-- Confirmation message for a dialog confirming if the user wants to delete all the permissions for all sites -->
   <string name="confirm_clear_permissions_on_all_sites">คุณแน่ใจหรือไม่ว่าต้องการล้างสิทธิอนุญาตทั้งหมดบนไซต์ทั้งหมด?</string>
   <!-- Confirmation message for a dialog confirming if the user wants to delete all the permissions for a site -->
@@ -2721,7 +2764,7 @@
   <!-- This is the hint text that is shown inline on the hostname field of the create new login page. 'https://www.example.com' intentionally hardcoded here -->
   <string name="add_login_hostname_hint_text">https://www.example.com</string>
   <!-- This is an error message shown below the hostname field of the add login page when a hostname does not contain http or https. -->
-  <string name="add_login_hostname_invalid_text_3">ที่อยู่เว็บต้องมี "https://" หรือ "http://"</string>
+  <string name="add_login_hostname_invalid_text_3">ที่อยู่เว็บต้องมี \"https://\" หรือ \"http://\"</string>
   <!-- This is an error message shown below the hostname field of the add login page when a hostname is invalid. -->
   <string name="add_login_hostname_invalid_text_2">ต้องการชื่อโฮสต์ที่ถูกต้อง</string>
   <!--
@@ -2844,17 +2887,17 @@
 
     Header text for a section on the home screen.
   -->
-  <string name="pocket_stories_header_1">เรื่องราวที่จุดประกายความคิด</string>
+  <string name="pocket_stories_header_1" tools:ignore="UnusedResources" moz:removedIn="140">เรื่องราวที่จุดประกายความคิด</string>
   <!-- Header text for a section on the home screen. -->
   <string name="pocket_stories_categories_header">เรื่องตามหัวข้อ</string>
   <!-- Text of a button allowing users to access an external url for more Pocket recommendations. -->
   <string name="pocket_stories_placeholder_text">ค้นพบสิ่งอื่น</string>
   <!-- Title of an app feature. Smaller than a heading. %s is "Pocket". -->
-  <string name="pocket_stories_feature_title_2">ขับเคลื่อนโดย %s</string>
+  <string name="pocket_stories_feature_title_2" moz:removedIn="140" tools:ignore="UnusedResources">ขับเคลื่อนโดย %s</string>
   <!-- Caption for describing a certain feature. %s is a link using pocket_stories_feature_learn_more as text, which will load an url in a new tab when clicked. -->
-  <string name="pocket_stories_feature_caption" tools:ignore="BrandUsage">ส่วนหนึ่งของตระกูล Firefox %s</string>
+  <string name="pocket_stories_feature_caption" moz:removedIn="140" tools:ignore="BrandUsage,UnusedResources">ส่วนหนึ่งของตระกูล Firefox %s</string>
   <!-- Clickable text for opening an external link for more information about Pocket. -->
-  <string name="pocket_stories_feature_learn_more">เรียนรู้เพิ่มเติม</string>
+  <string name="pocket_stories_feature_learn_more" moz:removedIn="140" tools:ignore="UnusedResources">เรียนรู้เพิ่มเติม</string>
   <!-- Text indicating that the Pocket story that also displays this text is a sponsored story by other 3rd party entity. -->
   <string name="pocket_stories_sponsor_indication">ได้รับการสนับสนุน</string>
   <!-- Snackbar message for enrolling in a Nimbus experiment from the secret settings when Studies preference is Off. -->
@@ -2866,11 +2909,11 @@
 
     Paragraph explaining the grading system we use to classify the reliability of a product's reviews.
   -->
-  <string name="review_quality_check_info_review_grade_header" moz:removedIn="136" tools:ignore="UnusedResources">เรากำหนด&lt;b&gt;เกรดที่เป็นตัวอักษร&lt;/b&gt;ให้กับบทวิจารณ์ของผลิตภัณฑ์แต่ละรายการตั้งแต่ A ถึง F</string>
+  <string name="review_quality_check_info_review_grade_header" moz:removedIn="136" tools:ignore="UnusedResources"><![CDATA[เรากำหนด<b>เกรดที่เป็นตัวอักษร</b>ให้กับบทวิจารณ์ของผลิตภัณฑ์แต่ละรายการตั้งแต่ A ถึง F]]></string>
   <!-- Paragraph explaining how a product's adjusted grading is calculated. -->
-  <string name="review_quality_check_explanation_body_adjusted_grading" moz:removedIn="136" tools:ignore="UnusedResources">&lt;b&gt;คะแนนที่ปรับปรุงแล้ว&lt;/b&gt;จะขึ้นอยู่กับบทวิจารณ์ที่เราเชื่อว่าน่าเชื่อถือเท่านั้น</string>
+  <string name="review_quality_check_explanation_body_adjusted_grading" moz:removedIn="136" tools:ignore="UnusedResources"><![CDATA[<b>คะแนนที่ปรับปรุงแล้ว</b>จะขึ้นอยู่กับบทวิจารณ์ที่เราเชื่อว่าน่าเชื่อถือเท่านั้น]]></string>
   <!-- Paragraph explaining product review highlights. %s is the name of the retailer (e.g. Amazon). -->
-  <string name="review_quality_check_explanation_body_highlights" moz:removedIn="136" tools:ignore="UnusedResources">&lt;b&gt;ไฮไลต์&lt;/b&gt;มาจาก %s บทวิจารณ์ภายใน 80 วันที่ผ่านมา ซึ่งเราเชื่อว่าน่าเชื่อถือ</string>
+  <string name="review_quality_check_explanation_body_highlights" moz:removedIn="136" tools:ignore="UnusedResources"><![CDATA[<b>ไฮไลต์</b>มาจาก %s บทวิจารณ์ภายใน 80 วันที่ผ่านมา ซึ่งเราเชื่อว่าน่าเชื่อถือ]]></string>
   <!--
     Accessibility services actions labels. These will be appended to accessibility actions like "Double tap to.." but not by or applications but by services like Talkback.
 
@@ -2888,7 +2931,7 @@
   <!-- Action label for links that point to an article. Talkback will append this to say "Double tap to read the article". -->
   <string name="a11y_action_label_read_article">อ่านบทความ</string>
   <!-- Action label for links to the Firefox Pocket website. Talkback will append this to say "Double tap to open link to learn more". -->
-  <string name="a11y_action_label_pocket_learn_more">เปิดลิงก์เพื่อเรียนรู้เพิ่มเติม</string>
+  <string name="a11y_action_label_pocket_learn_more" moz:removedIn="140" tools:ignore="UnusedResources">เปิดลิงก์เพื่อเรียนรู้เพิ่มเติม</string>
   <!-- Content description for headings announced by accessibility service. %s is the text of the heading. Talkback will announce the text and then speak the word "Heading" indicating to the user that this text is a heading for a section. -->
   <string name="a11y_heading">%s หัวเรื่อง</string>
   <!-- Title for dialog displayed when trying to access links present in a text. -->
@@ -3092,12 +3135,12 @@
     The title of the warning card informs the user that an error has occurred at downloading a language.
     %1$s is the language name, for example, "Spanish".
   -->
-  <string name="download_languages_error_warning_text">ไม่สามารถดาวน์โหลดภาษา &lt;b&gt;%1$s&lt;/b&gt; ได้ โปรดลองอีกครั้ง</string>
+  <string name="download_languages_error_warning_text"><![CDATA[ไม่สามารถดาวน์โหลดภาษา <b>%1$s</b> ได้ โปรดลองอีกครั้ง]]></string>
   <!--
     The title of the warning card informs the user that an error has occurred at deleting a language.
     %1$s is the language name, for example, "Spanish".
   -->
-  <string name="download_languages_delete_error_warning_text">ไม่สามารถลบภาษา &lt;b&gt;%1$s&lt;/b&gt; ได้ โปรดลองอีกครั้ง</string>
+  <string name="download_languages_delete_error_warning_text"><![CDATA[ไม่สามารถลบภาษา <b>%1$s</b> ได้ โปรดลองอีกครั้ง]]></string>
   <!--
     Title for the dialog used by the translations feature to confirm deleting a language.
     The dialog will be presented when the user requests deletion of a language.
@@ -3176,6 +3219,8 @@
   <string name="protection_panel_no_trackers_blocked">ไม่พบตัวติดตาม</string>
   <!-- Link text to navigate to privacy and security settings from the protection panel. -->
   <string name="protection_panel_privacy_and_security_settings">การตั้งค่าความเป็นส่วนตัวและความปลอดภัย</string>
+  <!-- Title text for the protection panel permissions section. -->
+  <string name="protection_panel_permissions_title">การกำหนดสิทธิ์</string>
   <!--
     Text for displaying the total number of trackers blocked in the trackers blocked panel.
     %d is a placeholder for the number of trackers blocked.
@@ -3191,7 +3236,7 @@
     Description text for a dialog confirming whether the user wants to delete all data for current site.
     %s is a placeholder for the base domain of website.
   -->
-  <string name="clear_site_data_dialog_description">การเอาคุกกี้และข้อมูลไซต์สำหรับ &lt;b&gt;%s&lt;/b&gt; ออกอาจทำให้คุณออกจากระบบเว็บไซต์และล้างตะกร้าสินค้า</string>
+  <string name="clear_site_data_dialog_description"><![CDATA[การเอาคุกกี้และข้อมูลไซต์สำหรับ <b>%s</b> ออกอาจทำให้คุณออกจากระบบเว็บไซต์และล้างตะกร้าสินค้า]]></string>
   <!-- Button text on the clear site data dialog to allow users to confirm they wish to clear the site data. -->
   <string name="clear_site_data_dialog_positive_button_text">ล้าง</string>
   <!-- Button text on the clear site data dialog to allow users to cancel the action and not clear the site data. -->
@@ -3362,6 +3407,28 @@
   -->
   <string name="glean_debug_tools_title">เครื่องมือดีบั๊ก Glean</string>
   <!--
+    Debug drawer region tools
+
+    Title of the Region tools in the Debug Drawer.
+    This tool allows temporarily overriding the home region (user's default locale)
+    and the current region (device's detected location) for testing purposes.
+  -->
+  <string name="debug_drawer_region_tools_title">เครื่องมือภูมิภาค</string>
+  <!-- The description of the Region tools in the Debug Drawer -->
+  <string name="debug_drawer_regin_tools_description">เขียนทับค่าภูมิภาคบ้านและภูมิภาคปัจจุบันชั่วคราวเพื่อการทดสอบ</string>
+  <!-- The text label for displaying home region. -->
+  <string name="debug_drawer_home_region_label">ภูมิภาคบ้าน</string>
+  <!-- The text label for displaying current region. -->
+  <string name="debug_drawer_current_region_label">ภูมิภาคปัจจุบัน</string>
+  <!-- The text field label for overriding home region. -->
+  <string name="debug_drawer_override_home_region_label">เขียนทับภูมิภาคบ้าน</string>
+  <!-- The text field label for overriding current region. -->
+  <string name="debug_drawer_override_current_region_label">เขียนทับภูมิภาคปัจจุบัน</string>
+  <!-- The title of the button for overriding home and current region. -->
+  <string name="debug_drawer_override_region">เขียนทับภูมิภาคบ้านและปัจจุบัน</string>
+  <!-- The title of the button for overriding home region permanently. -->
+  <string name="debug_drawer_override_home_region_permanently">เขียนทับภูมิภาคบ้านถาวร</string>
+  <!--
     Messages explaining how to exit fullscreen mode
 
     Message shown to explain how to exit fullscreen mode when gesture navigation is enabled.
@@ -3439,10 +3506,46 @@
     Subtitle for a setup checklist with 3 steps initial step. %1$s is the name of the app (for example "Firefox").
   -->
   <string name="setup_checklist_subtitle_3_steps_initial_state">ทำตาม 3 ขั้นตอนเหล่านี้เพื่อตั้งค่า %1$s ให้ได้รับประสบการณ์การท่องเว็บที่ดีที่สุด</string>
+  <!-- Subtitle for a setup checklist with 3 steps when the first task is completed. -->
+  <string name="setup_checklist_subtitle_3_steps_first_step">เริ่มต้นได้ดี! คุณทำสำเร็จแล้ว 1 ขั้นตอนจากทั้งหมด 3 ขั้นตอน</string>
   <!-- Subtitle for a setup checklist with 3 steps when two of the tasks are completed. -->
   <string name="setup_checklist_subtitle_3_steps_second_step">ใกล้เสร็จแล้ว! เสร็จไปแล้ว 2 ขั้นตอน เหลืออีกแค่ 1 ขั้นตอน</string>
   <!-- Subtitle for a setup checklist with 3 steps completed state. %1$s is the name of the app (for example "Firefox"). -->
   <string name="setup_checklist_subtitle_3_steps_completed_state">คุณได้ทำทั้ง 3 ขั้นตอนแล้ว เพลิดเพลินไปกับความเร็ว ความเป็นส่วนตัว และความปลอดภัยของ %1$s</string>
+  <!--
+    ===== Setup checklist feature: Subtitles for 6 steps =====
+
+    Subtitle for a setup checklist with 6 steps initial state. %1$s is the name of the app (for example "Firefox").
+  -->
+  <string name="setup_checklist_subtitle_6_steps_initial_state">ทำตาม 6 ขั้นตอนเหล่านี้เพื่อตั้งค่า %1$s ให้ได้รับประสบการณ์การท่องเว็บที่ดีที่สุด</string>
+  <!-- Subtitle for a setup checklist with 6 steps when the first task is completed. -->
+  <string name="setup_checklist_subtitle_6_steps_first_step">เริ่มต้นได้ดี! คุณทำสำเร็จแล้ว 1 ขั้นตอนจากทั้งหมด 6 ขั้นตอน</string>
+  <!-- Subtitle for the setup checklist when the second task is completed. -->
+  <string name="setup_checklist_subtitle_6_steps_second_step">คุณทำสำเร็จแล้ว 2 ขั้นตอนจากทั้งหมด 6 ขั้นตอน คืบหน้าไปมากเลย!</string>
+  <!-- Subtitle for a setup checklist with 6 steps when three of the tasks are completed. -->
+  <string name="setup_checklist_subtitle_6_steps_third_step">คุณไปได้ครึ่งทางแล้ว! ตอนนี้เสร็จไป 3 ขั้นตอนแล้ว และเหลืออีก 3 ขั้นตอน</string>
+  <!-- Subtitle for a setup checklist with 6 steps when the fourth task is completed. -->
+  <string name="setup_checklist_subtitle_6_steps_fourth_step">คุณทำเสร็จไปแล้ว 4 ขั้นตอน เหลืออีกแค่ 2 ขั้นตอนเท่านั้น!</string>
+  <!-- Subtitle for a setup checklist with 6 steps when the fifth task is completed. -->
+  <string name="setup_checklist_subtitle_6_steps_fifth_step">ใกล้ถึงขั้นสุดท้ายแล้ว! คุณเหลือแค่ขั้นตอนเดียวเท่านั้น</string>
+  <!-- Subtitle for a setup checklist with 6 steps completed state. %1$s is the name of the app (for example "Firefox"). -->
+  <string name="setup_checklist_subtitle_6_steps_completed_state">คุณได้ทำสำเร็จทั้ง 6 ขั้นตอนแล้ว เพลิดเพลินไปกับความเร็ว ความเป็นส่วนตัว และความปลอดภัยของ %1$s</string>
+  <!--
+    ===== Setup checklist feature: Subtitles for 5 steps (Large screen devices don't support toolbar placement) =====
+
+    Subtitle for a setup checklist with 5 steps initial state. %1$s is the name of the app (for example "Firefox").
+  -->
+  <string name="setup_checklist_subtitle_5_steps_initial_state">ทำตาม 5 ขั้นตอนเหล่านี้เพื่อตั้งค่า %1$s ให้ได้รับประสบการณ์การท่องเว็บที่ดีที่สุด</string>
+  <!-- Subtitle for a setup checklist with 5 steps when the first task is completed. -->
+  <string name="setup_checklist_subtitle_5_steps_first_step">เริ่มต้นได้ดี! คุณทำสำเร็จแล้ว 1 ขั้นตอนจากทั้งหมด 5 ขั้นตอน</string>
+  <!-- Subtitle for the setup checklist when the second task is completed. -->
+  <string name="setup_checklist_subtitle_5_steps_second_step">คุณทำสำเร็จแล้ว 2 ขั้นตอนจากทั้งหมด 5 ขั้นตอน คืบหน้าไปมากเลย!</string>
+  <!-- Subtitle for a setup checklist with 5 steps when three of the tasks are completed. -->
+  <string name="setup_checklist_subtitle_5_steps_third_step">คุณไปได้ครึ่งทางแล้ว! ตอนนี้เสร็จไป 3 ขั้นตอนแล้ว และเหลืออีก 2 ขั้นตอน</string>
+  <!-- Subtitle for a setup checklist with 5 steps when the fifth task is completed. -->
+  <string name="setup_checklist_subtitle_5_steps_fourth_step">ใกล้ถึงขั้นสุดท้ายแล้ว! คุณเหลือแค่ขั้นตอนเดียวเท่านั้น</string>
+  <!-- Subtitle for a setup checklist with 5 steps completed state. %1$s is the name of the app (for example "Firefox"). -->
+  <string name="setup_checklist_subtitle_5_steps_completed_state">คุณได้ทำสำเร็จทั้ง 5 ขั้นตอนแล้ว เพลิดเพลินไปกับความเร็ว ความเป็นส่วนตัว และความปลอดภัยของ %1$s</string>
   <!--
     ===== Setup checklist feature: Task titles =====
 
@@ -3453,8 +3556,18 @@
   <string name="setup_checklist_task_account_sync">ลงชื่อเข้าบัญชีของคุณ</string>
   <!-- The title of the theme selection task for the setup checklist -->
   <string name="setup_checklist_task_theme_selection">เลือกชุดตกแต่ง</string>
+  <!-- The title of the toolbar selection task for the setup checklist -->
+  <string name="setup_checklist_task_toolbar_selection">เลือกการวางแถบเครื่องมือ</string>
   <!-- The title of the explore extensions task for the setup checklist -->
   <string name="setup_checklist_task_explore_extensions">สำรวจส่วนขยาย</string>
+  <!-- The title of the search widget task for the setup checklist -->
+  <string name="setup_checklist_task_search_widget">ติดตั้งวิดเจ็ตค้นหา</string>
+  <!--
+    ===== Setup checklist feature: Group titles =====
+
+    The title of the 'essentials' group in the setup checklist. %1$s is the name of the app (for example "Firefox").
+  -->
+  <string name="setup_checklist_group_essentials">สิ่งสำคัญใน %1$s</string>
   <!-- The title of the 'customize' group in the setup checklist. %1$s is the name of the app (for example "Firefox"). -->
   <string name="setup_checklist_group_customize">ปรับแต่ง %1$s ของคุณ</string>
   <!-- The title of the 'helpful tools' group in the setup checklist -->
@@ -3483,4 +3596,16 @@
   <string name="pbm_authentication_unlock">ปลดล็อก</string>
   <!-- Title text instructing the user to unlock private tabs -->
   <string name="pbm_authentication_unlock_private_tabs">ปลดล็อคแท็บส่วนตัว</string>
+  <!-- Authentication prompt title to enable the private tabs mode -->
+  <string name="pbm_authentication_enable_lock">เปิดใช้งานการล็อกหน้าจอสำหรับแท็บส่วนตัว</string>
+  <!-- Authentication prompt title to disable the private tabs mode -->
+  <string name="pbm_authentication_disable_lock">ปิดใช้งานการล็อกหน้าจอสำหรับแท็บส่วนตัว</string>
+  <!-- Label for a preference shown when the device supports screen lock (e.g., PIN, pattern, or password) but the user has not set one up. -->
+  <string name="pbm_authentication_lock_device_feature_disabled">ตั้งค่าการล็อกหน้าจอเพื่อซ่อนแท็บ</string>
+  <!-- Title text for the contextual feature recommendation (CFR) suggesting the user enable a screen lock to protect private tabs -->
+  <string name="private_tab_cfr_title">ใช้การล็อกหน้าจอเพื่อซ่อนแท็บส่วนตัวหรือไม่?</string>
+  <!-- Negative button text for the contextual feature recommendation (CFR) dismissing the screen lock suggestion -->
+  <string name="private_tab_cfr_negative">ไม่เป็นไร ขอบคุณ</string>
+  <!-- Positive button text for the contextual feature recommendation (CFR) enabling screen lock for private tabs -->
+  <string name="private_tab_cfr_positive">ล็อกแท็บ</string>
 </resources>

@@ -233,64 +233,6 @@ nsISecureBrowserUI* CanonicalBrowsingContext::GetSecureBrowserUI() {
   return mSecureBrowserUI;
 }
 
-namespace {
-// The DocShellProgressBridge is attached to a root content docshell loaded in
-// the parent process. Notifications are paired up with the docshell which they
-// came from, so that they can be fired to the correct
-// BrowsingContextWebProgress and bubble through this tree separately.
-//
-// Notifications are filtered by a nsBrowserStatusFilter before being received
-// by the DocShellProgressBridge.
-class DocShellProgressBridge : public nsIWebProgressListener {
- public:
-  NS_DECL_ISUPPORTS
-  // NOTE: This relies in the expansion of `NS_FORWARD_SAFE` and all listener
-  // methods accepting an `aWebProgress` argument. If this changes in the
-  // future, this may need to be written manually.
-  NS_FORWARD_SAFE_NSIWEBPROGRESSLISTENER(GetTargetContext(aWebProgress))
-
-  explicit DocShellProgressBridge(uint64_t aTopContextId)
-      : mTopContextId(aTopContextId) {}
-
- private:
-  virtual ~DocShellProgressBridge() = default;
-
-  nsIWebProgressListener* GetTargetContext(nsIWebProgress* aWebProgress) {
-    RefPtr<CanonicalBrowsingContext> context;
-    if (nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(aWebProgress)) {
-      context = docShell->GetBrowsingContext()->Canonical();
-    } else {
-      context = CanonicalBrowsingContext::Get(mTopContextId);
-    }
-    return context && !context->IsDiscarded() ? context->GetWebProgress()
-                                              : nullptr;
-  }
-
-  uint64_t mTopContextId = 0;
-};
-
-NS_IMPL_ISUPPORTS(DocShellProgressBridge, nsIWebProgressListener)
-}  // namespace
-
-void CanonicalBrowsingContext::MaybeAddAsProgressListener(
-    nsIWebProgress* aWebProgress) {
-  // Only add as a listener if the created docshell is a toplevel content
-  // docshell. We'll get notifications for all of our subframes through a single
-  // listener.
-  if (!IsTopContent()) {
-    return;
-  }
-
-  if (!mDocShellProgressBridge) {
-    mDocShellProgressBridge = new DocShellProgressBridge(Id());
-    mStatusFilter = new nsBrowserStatusFilter();
-    mStatusFilter->AddProgressListener(mDocShellProgressBridge,
-                                       nsIWebProgress::NOTIFY_ALL);
-  }
-
-  aWebProgress->AddProgressListener(mStatusFilter, nsIWebProgress::NOTIFY_ALL);
-}
-
 void CanonicalBrowsingContext::ReplacedBy(
     CanonicalBrowsingContext* aNewContext,
     const NavigationIsolationOptions& aRemotenessOptions) {
@@ -324,6 +266,7 @@ void CanonicalBrowsingContext::ReplacedBy(
   txn.SetShouldDelayMediaFromStart(GetShouldDelayMediaFromStart());
   txn.SetForceOffline(GetForceOffline());
   txn.SetTopInnerSizeForRFP(GetTopInnerSizeForRFP());
+  txn.SetIPAddressSpace(GetIPAddressSpace());
 
   // Propagate some settings on BrowsingContext replacement so they're not lost
   // on bfcached navigations. These are important for GeckoView (see bug
@@ -1013,7 +956,8 @@ void CanonicalBrowsingContext::CallOnTopDescendants(
 
 void CanonicalBrowsingContext::SessionHistoryCommit(
     uint64_t aLoadId, const nsID& aChangeID, uint32_t aLoadType, bool aPersist,
-    bool aCloneEntryChildren, bool aChannelExpired, uint32_t aCacheKey) {
+    bool aCloneEntryChildren, bool aChannelExpired, uint32_t aCacheKey,
+    nsIPrincipal* aPartitionedPrincipal) {
   MOZ_LOG(gSHLog, LogLevel::Verbose,
           ("CanonicalBrowsingContext::SessionHistoryCommit %p %" PRIu64, this,
            aLoadId));
@@ -1037,6 +981,7 @@ void CanonicalBrowsingContext::SessionHistoryCommit(
         newActiveEntry->SharedInfo()->mExpired = true;
       }
 
+      newActiveEntry->SetPartitionedPrincipalToInherit(aPartitionedPrincipal);
       bool loadFromSessionHistory = !newActiveEntry->ForInitialLoad();
       newActiveEntry->SetForInitialLoad(false);
       SessionHistoryEntry::RemoveLoadId(aLoadId);

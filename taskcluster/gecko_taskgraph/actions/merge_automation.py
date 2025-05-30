@@ -30,11 +30,24 @@ def is_release_promotion_available(parameters):
                 "description": "Override other options and do not push changes",
                 "default": True,
             },
+            "push": {
+                "type": "boolean",
+                "description": "Push changes using to_repo and to_branch",
+                "default": False,
+            },
             "behavior": {
                 "type": "string",
                 "description": "The type of release promotion to perform.",
                 "enum": sorted(graph_config["merge-automation"]["behaviors"].keys()),
                 "default": "REPLACE ME",
+            },
+            "from-repo": {
+                "type": "string",
+                "description": "The URI of the source repository",
+            },
+            "to-repo": {
+                "type": "string",
+                "description": "The push URI of the target repository",
             },
             "from-branch": {
                 "type": "string",
@@ -63,8 +76,11 @@ def merge_automation_action(parameters, graph_config, input, task_group_id, task
     }
 
     for field in [
+        "from-repo",
         "from-branch",
+        "to-repo",
         "to-branch",
+        "push",
         "fetch-version-from",
     ]:
         if input.get(field):

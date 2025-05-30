@@ -171,10 +171,7 @@ export const storybookTables = {
     {
       value: {
         default: "transparent",
-        brand: {
-          prefersContrast: "var(--button-background-color)",
-          forcedColors: "var(--button-background-color)",
-        },
+        brand: { forcedColors: "var(--button-background-color)" },
       },
       name: "--button-background-color-ghost",
     },
@@ -215,7 +212,20 @@ export const storybookTables = {
     },
   ],
   "border-color": [
-    { value: { prefersContrast: "var(--text-color)" }, name: "--border-color" },
+    {
+      value: {
+        comment: "TODO Bug 1821203 - Gray tones need to be consolidated",
+        light: "#CFCFD8",
+        dark: "#3A3944",
+        prefersContrast: "CanvasText",
+        default: "light-dark(#CFCFD8, #3A3944)",
+      },
+      name: "--border-color",
+    },
+    {
+      value: { default: "transparent", prefersContrast: "CanvasText" },
+      name: "--border-color-transparent",
+    },
     {
       value: {
         default: "color-mix(in srgb, currentColor 10%, transparent)",
@@ -375,6 +385,7 @@ export const storybookTables = {
     { value: "9999px", name: "--border-radius-circle" },
     { value: "4px", name: "--border-radius-small" },
     { value: "8px", name: "--border-radius-medium" },
+    { value: "12px", name: "--border-radius-large" },
     { value: "var(--border-radius-small)", name: "--button-border-radius" },
   ],
   "border-width": [{ value: "1px", name: "--border-width" }],
@@ -1014,7 +1025,17 @@ export const variableLookupTable = {
     prefersContrast: "var(--background-color-canvas)",
     default: "light-dark(var(--color-yellow-0), var(--color-yellow-90))",
   },
-  "border-color": { prefersContrast: "var(--text-color)" },
+  "border-color": {
+    comment: "TODO Bug 1821203 - Gray tones need to be consolidated",
+    light: "#CFCFD8",
+    dark: "#3A3944",
+    prefersContrast: "CanvasText",
+    default: "light-dark(#CFCFD8, #3A3944)",
+  },
+  "border-color-transparent": {
+    default: "transparent",
+    prefersContrast: "CanvasText",
+  },
   "border-color-card": {
     default: "color-mix(in srgb, currentColor 10%, transparent)",
     prefersContrast: "color-mix(in srgb, currentColor 41%, transparent)",
@@ -1057,6 +1078,7 @@ export const variableLookupTable = {
   "border-radius-circle": "9999px",
   "border-radius-small": "4px",
   "border-radius-medium": "8px",
+  "border-radius-large": "12px",
   "border-width": "1px",
   "button-background-color": {
     forcedColors: "ButtonFace",
@@ -1109,10 +1131,7 @@ export const variableLookupTable = {
   },
   "button-background-color-ghost": {
     default: "transparent",
-    brand: {
-      prefersContrast: "var(--button-background-color)",
-      forcedColors: "var(--button-background-color)",
-    },
+    brand: { forcedColors: "var(--button-background-color)" },
   },
   "button-background-color-ghost-active":
     "var(--button-background-color-active)",

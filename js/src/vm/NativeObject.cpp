@@ -1182,6 +1182,10 @@ static MOZ_ALWAYS_INLINE bool CallAddPropertyHook(JSContext* cx,
       return false;
     }
   }
+  if (MOZ_UNLIKELY(obj->hasUnpreservedWrapper())) {
+    MaybePreserveDOMWrapper(cx, obj);
+    return JSObject::setFlag(cx, obj, ObjectFlag::HasPreservedWrapper);
+  }
   return true;
 }
 
@@ -1205,6 +1209,11 @@ static MOZ_ALWAYS_INLINE bool CallAddPropertyHookDense(
       obj->setDenseElementHole(index);
       return false;
     }
+  }
+
+  if (MOZ_UNLIKELY(obj->hasUnpreservedWrapper())) {
+    MaybePreserveDOMWrapper(cx, obj);
+    return JSObject::setFlag(cx, obj, ObjectFlag::HasPreservedWrapper);
   }
   return true;
 }
@@ -1422,17 +1431,23 @@ static MOZ_ALWAYS_INLINE bool AddDataProperty(JSContext* cx,
 
 bool js::AddSlotAndCallAddPropHook(JSContext* cx, Handle<NativeObject*> obj,
                                    HandleValue v, Handle<Shape*> newShape) {
-  MOZ_ASSERT(obj->getClass()->getAddProperty());
   MOZ_ASSERT(newShape->asShared().lastProperty().isDataProperty());
 
   RootedId id(cx, newShape->asShared().lastProperty().key());
   MOZ_ASSERT(!id.isInt());
+
+  bool hasUnpreservedWrapper = obj->hasUnpreservedWrapper();
 
   uint32_t slot = newShape->asShared().lastProperty().slot();
   if (!obj->setShapeAndAddNewSlot(cx, &newShape->asShared(), slot)) {
     return false;
   }
   obj->initSlot(slot, v);
+
+  if (MOZ_UNLIKELY(hasUnpreservedWrapper)) {
+    MaybePreserveDOMWrapper(cx, obj);
+    MOZ_ASSERT(!obj->hasUnpreservedWrapper());
+  }
 
   return CallAddPropertyHook(cx, obj, id, v);
 }
@@ -2514,12 +2529,18 @@ static bool SetNonexistentProperty(JSContext* cx, Handle<NativeObject*> obj,
       MOZ_ASSERT(pobj == obj || !obj->is<TypedArrayObject>(),
                  "prototype chain not traversed for typed array indices");
 
-      // 10.4.5.5, step 1.b.i.
+      auto tobj = HandleObject(pobj).as<TypedArrayObject>();
+
+      // Additional step from Immutable ArrayBuffer proposal.
+      if (tobj->is<ImmutableTypedArrayObject>()) {
+        return result.fail(JSMSG_ARRAYBUFFER_IMMUTABLE);
+      }
+
+      // 10.4.5.6 [[Set]], step 1.b.i.
       if (receiver.isObject() && pobj == &receiver.toObject()) {
         mozilla::Maybe<uint64_t> index = ToTypedArrayIndex(id);
         MOZ_ASSERT(index, "typed array out-of-range reported by non-index?");
 
-        auto tobj = HandleObject(pobj).as<TypedArrayObject>();
         return SetTypedArrayElement(cx, tobj, *index, v, result);
       }
 
@@ -2588,8 +2609,8 @@ static bool SetExistingProperty(JSContext* cx, HandleId id, HandleValue v,
                                 ObjectOpResult& result) {
   // Step 1. (Performed in caller)
 
-  // Step 2 for dense and typed array elements.
-  if (prop.isDenseElement() || prop.isTypedArrayElement()) {
+  // Step 2 for dense elements.
+  if (prop.isDenseElement()) {
     // Step 2.a.
     if (pobj->denseElementsAreFrozen()) {
       return result.fail(JSMSG_READ_ONLY);
@@ -2597,16 +2618,39 @@ static bool SetExistingProperty(JSContext* cx, HandleId id, HandleValue v,
 
     // Pure optimization for the common case:
     if (receiver.isObject() && pobj == &receiver.toObject()) {
-      if (prop.isTypedArrayElement()) {
-        Rooted<TypedArrayObject*> tobj(cx, &pobj->as<TypedArrayObject>());
-        size_t idx = prop.typedArrayElementIndex();
-        return SetTypedArrayElement(cx, tobj, idx, v, result);
-      }
-
       return SetDenseElement(cx, pobj, prop.denseElementIndex(), v, result);
     }
 
     // Steps 2.b-e.
+    return SetPropertyByDefining(cx, id, v, receiver, result);
+  }
+
+  // 10.4.5.6 [[Set]], step 1.b and 10.1.9.2, step 2 for typed array elements.
+  if (prop.isTypedArrayElement()) {
+    auto tobj = HandleObject(pobj).as<TypedArrayObject>();
+
+    // Step 2.a.
+    //
+    // Typed arrays don't have dense elements.
+    MOZ_ASSERT(!tobj->denseElementsAreFrozen());
+
+    // Additional step from Immutable ArrayBuffer proposal.
+    if (tobj->is<ImmutableTypedArrayObject>()) {
+      return result.fail(JSMSG_ARRAYBUFFER_IMMUTABLE);
+    }
+
+    // 10.4.5.6 [[Set]], step 1.b.i.
+    if (receiver.isObject() && pobj == &receiver.toObject()) {
+      size_t idx = prop.typedArrayElementIndex();
+      return SetTypedArrayElement(cx, tobj, idx, v, result);
+    }
+
+    // 10.4.5.6 [[Set]], step 1.b.ii.
+    //
+    // Implemented in SetNonexistentProperty.
+
+    // 10.4.5.6 [[Set]], step 2.
+    // 10.1.9.2, steps 2.b-e.
     return SetPropertyByDefining(cx, id, v, receiver, result);
   }
 
