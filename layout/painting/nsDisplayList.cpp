@@ -441,7 +441,10 @@ void nsDisplayListBuilder::AutoCurrentActiveScrolledRootSetter::
   // finiteBoundsASR is the leafmost ASR that all items created during
   // object's lifetime have finite bounds with respect to.
   const ActiveScrolledRoot* finiteBoundsASR =
-      ActiveScrolledRoot::PickDescendant(mContentClipASR, aActiveScrolledRoot);
+      mBuilder->IsInViewTransitionCapture()
+          ? aActiveScrolledRoot
+          : ActiveScrolledRoot::PickDescendant(mContentClipASR,
+                                               aActiveScrolledRoot);
 
   // mCurrentContainerASR is adjusted so that it's still an ancestor of
   // finiteBoundsASR.
@@ -1361,8 +1364,8 @@ void nsDisplayListBuilder::MarkFramesForDisplayList(
     const ActiveScrolledRoot* asr = mCurrentActiveScrolledRoot;
 
     OutOfFlowDisplayData* data = new OutOfFlowDisplayData(
-        clipChain, combinedClipChain, asr, this->mCurrentScrollParentId,
-        visibleRect, dirtyRect);
+        clipChain, combinedClipChain, asr, mCurrentScrollParentId, visibleRect,
+        dirtyRect, mInViewTransitionCapture);
     aDirtyFrame->SetProperty(
         nsDisplayListBuilder::OutOfFlowDisplayDataProperty(), data);
     mFramesWithOOFData.AppendElement(aDirtyFrame);
@@ -1384,8 +1387,8 @@ void nsDisplayListBuilder::MarkFramesForDisplayList(
         mClipState.GetCurrentCombinedClipChain(this);
     const ActiveScrolledRoot* asr = mCurrentActiveScrolledRoot;
     CurrentPresShellState()->mFixedBackgroundDisplayData.emplace(
-        clipChain, combinedClipChain, asr, this->mCurrentScrollParentId,
-        GetVisibleRect(), GetDirtyRect());
+        clipChain, combinedClipChain, asr, mCurrentScrollParentId,
+        GetVisibleRect(), GetDirtyRect(), mInViewTransitionCapture);
   }
 }
 
@@ -2642,9 +2645,10 @@ Maybe<nsRect> nsDisplayItem::GetClipWithRespectToASR(
           DisplayItemClipChain::ClipForASR(GetClipChain(), aASR)) {
     return Some(clip->GetClipRect());
   }
-#ifdef DEBUG
-  NS_ASSERTION(false, "item should have finite clip with respect to aASR");
-#endif
+  // View transitions don't get clipped and thus might hit this assertion if its
+  // container passes a non-null aASR.
+  NS_ASSERTION(GetType() == DisplayItemType::TYPE_VT_CAPTURE,
+               "item should have finite clip with respect to aASR");
   return Nothing();
 }
 

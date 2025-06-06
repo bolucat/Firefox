@@ -105,6 +105,7 @@ const AVAILABLE_SHIMS = [
     ],
   },
   {
+    hiddenInAboutCompat: true,
     id: "EmbedTestShim",
     platform: "desktop",
     name: "Test shim for smartblock embed unblocking",
@@ -842,26 +843,6 @@ const AVAILABLE_SHIMS = [
       "*://s.webtrends.com/js/webtrends.min.js",
     ],
     onlyIfBlockedByETP: true,
-  },
-  {
-    id: "Blogger",
-    platform: "all",
-    name: "Blogger",
-    bug: "1776869",
-    contentScripts: [
-      {
-        js: "blogger.js",
-        matches: ["*://www.blogger.com/comment/frame/*"],
-        runAt: "document_start",
-        allFrames: true,
-      },
-      {
-        js: "bloggerAccount.js",
-        matches: ["*://www.blogger.com/blog/*"],
-        runAt: "document_end",
-      },
-    ],
-    onlyIfDFPIActive: true,
   },
   {
     // keep this below any other shims checking adsafeprotected URLs

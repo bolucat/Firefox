@@ -198,6 +198,7 @@ class BrowsingContextModule extends RootBiDiModule {
       "fragment-navigated",
       this.#onFragmentNavigated
     );
+    this.#navigationListener.on("history-updated", this.#onHistoryUpdated);
     this.#navigationListener.on(
       "navigation-committed",
       this.#onNavigationCommitted
@@ -229,6 +230,7 @@ class BrowsingContextModule extends RootBiDiModule {
       "fragment-navigated",
       this.#onFragmentNavigated
     );
+    this.#navigationListener.off("history-updated", this.#onHistoryUpdated);
     this.#navigationListener.off(
       "navigation-committed",
       this.#onNavigationCommitted
@@ -1987,6 +1989,24 @@ class BrowsingContextModule extends RootBiDiModule {
     }
   };
 
+  #onHistoryUpdated = async (eventName, data) => {
+    const { navigableId, url } = data;
+    const context = this.#getBrowsingContext(navigableId);
+
+    if (this.#subscribedEvents.has("browsingContext.historyUpdated")) {
+      const browsingContextInfo = {
+        context: navigableId,
+        timestamp: Date.now(),
+        url,
+      };
+      this.#emitContextEventForBrowsingContext(
+        context.id,
+        "browsingContext.historyUpdated",
+        browsingContextInfo
+      );
+    }
+  };
+
   #onPromptClosed = async (eventName, data) => {
     if (this.#subscribedEvents.has("browsingContext.userPromptClosed")) {
       const { contentBrowser, detail } = data;
@@ -2128,6 +2148,7 @@ class BrowsingContextModule extends RootBiDiModule {
 
     const hasNavigationEvent =
       this.#subscribedEvents.has("browsingContext.fragmentNavigated") ||
+      this.#subscribedEvents.has("browsingContext.historyUpdated") ||
       this.#subscribedEvents.has("browsingContext.navigationFailed") ||
       this.#subscribedEvents.has("browsingContext.navigationStarted");
 
@@ -2157,6 +2178,7 @@ class BrowsingContextModule extends RootBiDiModule {
         break;
       }
       case "browsingContext.fragmentNavigated":
+      case "browsingContext.historyUpdated":
       case "browsingContext.navigationCommitted":
       case "browsingContext.navigationFailed":
       case "browsingContext.navigationStarted": {
@@ -2181,6 +2203,7 @@ class BrowsingContextModule extends RootBiDiModule {
         break;
       }
       case "browsingContext.fragmentNavigated":
+      case "browsingContext.historyUpdated":
       case "browsingContext.navigationCommitted":
       case "browsingContext.navigationFailed":
       case "browsingContext.navigationStarted": {
@@ -2309,6 +2332,7 @@ class BrowsingContextModule extends RootBiDiModule {
       "browsingContext.contextDestroyed",
       "browsingContext.domContentLoaded",
       "browsingContext.fragmentNavigated",
+      "browsingContext.historyUpdated",
       "browsingContext.load",
       "browsingContext.navigationCommitted",
       "browsingContext.navigationFailed",

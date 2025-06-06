@@ -104,10 +104,6 @@ internal fun normalModeAdapterItems(
         shouldShowCustomizeHome = true
 
         items.add(AdapterItem.PocketStoriesItem)
-
-        if (!settings.showContentRecommendations) {
-            items.add(AdapterItem.PocketCategoriesItem)
-        }
     }
 
     if (shouldShowCustomizeHome) {
@@ -199,8 +195,8 @@ class SessionControlView(
                         fragmentManager.fragments.find { it is SearchDialogFragment } as SearchDialogFragment?
 
                     with(settings()) {
-                        if (!featureRecommended && !showHomeOnboardingDialog) {
-                            if (!showHomeOnboardingDialog && searchDialogFragment == null && showSyncCFR) {
+                        if (!featureRecommended) {
+                            if (searchDialogFragment == null && showSyncCFR) {
                                 featureRecommended =
                                     HomeCFRPresenter(context = context, recyclerView = view).show()
                             }

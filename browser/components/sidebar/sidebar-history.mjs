@@ -9,6 +9,7 @@ import {
   html,
   ifDefined,
   when,
+  nothing,
 } from "chrome://global/content/vendor/lit.all.mjs";
 import { navigateToLink } from "chrome://browser/content/firefoxview/helpers.mjs";
 
@@ -28,7 +29,7 @@ export class SidebarHistory extends SidebarPage {
     emptyState: "fxview-empty-state",
     lists: { all: "sidebar-tab-list" },
     menuButton: ".menu-button",
-    searchTextbox: "fxview-search-textbox",
+    searchTextbox: "moz-input-search",
   };
 
   constructor() {
@@ -366,6 +367,8 @@ export class SidebarHistory extends SidebarPage {
       heading=${domain}
       @keydown=${this.handleCardKeydown}
       tabindex=${ifDefined(tabIndex)}
+      data-l10n-id=${domain ? nothing : "sidebar-history-site-localhost"}
+      data-l10n-attrs=${domain ? nothing : "heading"}
     >
       ${this.#tabListTemplate(this.getTabItems(items))}
     </moz-card>`;
@@ -505,12 +508,11 @@ export class SidebarHistory extends SidebarPage {
         >
         </sidebar-panel-header>
         <div class="options-container">
-          <fxview-search-textbox
+          <moz-input-search
             data-l10n-id="firefoxview-search-text-box-history"
             data-l10n-attrs="placeholder"
-            @fxview-search-textbox-query=${this.onSearchQuery}
-            .size=${15}
-          ></fxview-search-textbox>
+            @MozInputSearch:search=${this.onSearchQuery}
+          ></moz-input-search>
           <moz-button
             class="menu-button"
             @click=${this.openMenu}

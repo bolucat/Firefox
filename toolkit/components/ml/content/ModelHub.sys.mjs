@@ -169,8 +169,6 @@ class ModelOwner {
         "chrome://global/content/ml/mozilla-logo.webp",
       ];
     }
-
-    lazy.console.debug("Fetching icon", filePath, possibleUrls);
     const opfsFile = new lazy.OPFS.File({
       urls: possibleUrls,
       localPath: filePath,
@@ -1153,6 +1151,14 @@ class IndexedDBCache {
       ...this.#getFileQuery({ taskName, model, revision }),
     });
 
+    if (!tasks.length) {
+      lazy.console.debug("No models to delete found in task store", {
+        taskName,
+        model,
+        revision,
+      });
+    }
+
     let deletePromises = [];
     const filesToMaybeDelete = new Set();
     for (const task of tasks) {
@@ -1170,6 +1176,7 @@ class IndexedDBCache {
       filesToMaybeDelete.add(
         JSON.stringify([task.model, task.revision, task.file])
       );
+
       deletePromises.push(
         this.#deleteData(this.taskStoreName, [
           task.taskName,
@@ -1206,8 +1213,12 @@ class IndexedDBCache {
         })
       );
     }
-
     await Promise.all(deletePromises);
+    if (deletePromises.length) {
+      lazy.console.debug(
+        `Deleted model ${model} (${deletePromises.length} files.)`
+      );
+    }
   }
 
   /**
@@ -1334,6 +1345,13 @@ export const TestIndexedDBCache = IndexedDBCache;
 
 export class ModelHub {
   /**
+   * Tracks whether the last download of a session was successful.
+   *
+   * @type {Map<string, boolean>}
+   */
+  #lastDownloadOk = new Map();
+
+  /**
    * Create an instance of ModelHub.
    *
    * @param {object} config
@@ -1402,7 +1420,7 @@ export class ModelHub {
    *
    * @param {string} url - The full URL to the model, including protocol and domain - or the relative path.
    * @returns {object} An object containing the parsed components of the URL. The
-   *                   object has properties `model`, and `file`,
+   *                   object has properties `model`, `modelWithHostname` and `file`,
    *                   and optionally `revision` if the URL includes a version.
    * @throws {Error} Throws an error if the URL does not start with `this.rootUrl` or
    *                 if the URL format does not match the expected structure.
@@ -1410,29 +1428,32 @@ export class ModelHub {
    * @example
    * // For a URL
    * parseModelUrl("https://example.com/org1/model1/v1/file/path");
-   * // returns { model: "org1/model1", revision: "v1", file: "file/path" }
+   * // returns { model: "org1/model1", modelWithHostname: "example.com/org1/model1", revision: "v1", file: "file/path" }
    *
    * @example
    * // For a relative URL
    * parseModelUrl("/org1/model1/revision/file/path");
-   * // returns { model: "org1/model1", revision: "v1", file: "file/path" }
+   * // returns { model: "org1/model1", modelWithHostname: "example.com/org1/model1", revision: "v1", file: "file/path" }
    */
   parseUrl(url, options = {}) {
     let parts;
     const rootUrl = options.rootUrl || this.rootUrl;
     const urlTemplate =
       options.urlTemplate || this.urlTemplate || lazy.DEFAULT_URL_TEMPLATE;
+    let hostname;
 
     // Check if the URL is relative or absolute
     if (url.startsWith("/")) {
       // relative URL
       parts = url.slice(1); // Remove leading slash
+      hostname = new URL(rootUrl).hostname;
     } else {
       // absolute URL
       if (!url.startsWith(rootUrl)) {
         throw new Error(`Invalid domain for model URL: ${url}`);
       }
       const urlObject = new URL(url);
+      hostname = urlObject.hostname;
       const rootUrlObject = new URL(rootUrl);
 
       // Remove the root URL's pathname from the full URL's pathname
@@ -1462,10 +1483,12 @@ export class ModelHub {
       throw new Error(`Invalid model URL: ${url}`);
     }
 
+    const modelWithHostname = `${hostname}/${model}`;
     return {
       model,
       revision,
       file,
+      modelWithHostname,
     };
   }
 
@@ -1544,15 +1567,21 @@ export class ModelHub {
    *
    * @param {object} config - Configuration object.
    * @param {string} config.taskName - The name of the inference task.
-   * @param {string} config.model - The model name (organization/name).
+   * @param {string} config.modelWithHostname - The model name (hostname/organization/name).
    * @param {string} config.targetRevision - The revision to keep.
    *
    * @returns {Promise<void>}
    */
-  async deleteNonMatchingModelRevisions({ taskName, model, targetRevision }) {
+  async deleteNonMatchingModelRevisions({
+    taskName,
+    modelWithHostname,
+    targetRevision,
+  }) {
     // Ensure all required parameters are provided
-    if (!taskName || !model || !targetRevision) {
-      throw new Error("taskName, model, and targetRevision are required.");
+    if (!taskName || !modelWithHostname || !targetRevision) {
+      throw new Error(
+        "taskName, modelWithHostname, and targetRevision are required."
+      );
     }
 
     await this.#initCache();
@@ -1560,7 +1589,7 @@ export class ModelHub {
     // Delete models with revisions that do not match the targetRevision
     return this.cache.deleteModels({
       taskName,
-      model,
+      model: modelWithHostname,
       filterFn: record => record.revision !== targetRevision,
     });
   }
@@ -1726,6 +1755,46 @@ export class ModelHub {
   }
 
   /**
+   * Notify that a model download is complete.
+   *
+   * @param {object} config
+   * @param {string} config.engineId - The engine id.
+   * @param {string} config.model - The model name (organization/name).
+   * @param {string} config.revision - The model revision.
+   * @param {string} config.featureId - The engine id.
+   * @param {string} config.sessionId - Shared across the same model download session.
+   * @returns {Promise<[string, object]>} The file local path and headers
+   */
+  async notifyModelDownloadComplete({
+    engineId,
+    model,
+    revision,
+    featureId,
+    sessionId,
+  }) {
+    // Allows multiple calls to notifyModelDownloadComplete to work as expected
+    // Also, we don't want to signal model download end if there was no start
+    if (!this.#lastDownloadOk.has(sessionId)) {
+      return;
+    }
+    const isSuccess = this.#lastDownloadOk.get(sessionId);
+    const step = isSuccess ? "end_download_success" : "end_download_failed";
+    this.#lastDownloadOk.delete(sessionId);
+    Glean.firefoxAiRuntime.modelDownload.record({
+      modelDownloadId: sessionId,
+      featureId,
+      engineId,
+      modelId: model,
+      step,
+      duration: 0,
+      modelRevision: revision,
+      error: isSuccess
+        ? ""
+        : "Unable to retrieve all files needed for the model to work",
+    });
+  }
+
+  /**
    * Given an organization, model, and version, fetch a model file in the hub
    * while supporting status callback.
    *
@@ -1739,9 +1808,8 @@ export class ModelHub {
    * @param {string} config.modelHubUrlTemplate - url template of the model hub
    * @param {?function(ProgressAndStatusCallbackParams):void} config.progressCallback A function to call to indicate progress status.
    * @param {string} config.featureId - feature id for the model
-   * @param {string} config.modelId - model id str
-   * @param {string} config.modelRevision - revision for the model
    * @param {string} config.sessionId - shared across the same session
+   * @param {object} config.telemetryData - Additional telemetry data.
    * @returns {Promise<[string, headers]>} The local path to the file content and headers.
    */
   async getModelDataAsFile({
@@ -1754,9 +1822,8 @@ export class ModelHub {
     modelHubUrlTemplate,
     progressCallback,
     featureId,
-    modelId,
-    modelRevision,
     sessionId,
+    telemetryData = {},
   }) {
     // Make sure inputs are clean. We don't sanitize them but throw an exception
     let checkError = this.#checkInput(model, revision, file);
@@ -1887,16 +1954,32 @@ export class ModelHub {
       })
     );
 
+    if (!this.#lastDownloadOk.has(sessionId)) {
+      Glean.firefoxAiRuntime.modelDownload.record({
+        modelDownloadId: sessionId,
+        featureId,
+        engineId,
+        modelId: model,
+        step: "start_download",
+        duration: 0,
+        modelRevision: revision,
+        error: "",
+        ...telemetryData,
+      });
+    }
+    this.#lastDownloadOk.set(sessionId, false);
+
     const start = Date.now();
     Glean.firefoxAiRuntime.modelDownload.record({
       modelDownloadId: sessionId,
       featureId,
       engineId,
-      modelId,
-      step: "start",
+      modelId: model,
+      step: "start_file_download",
       duration: 0,
-      modelRevision,
+      modelRevision: revision,
       error: "",
+      ...telemetryData,
     });
 
     lazy.console.debug(`Fetching ${url}`);
@@ -1934,17 +2017,19 @@ export class ModelHub {
         }
       );
 
+      this.#lastDownloadOk.set(sessionId, true);
       const end = Date.now();
       const duration = Math.floor(end - start);
       Glean.firefoxAiRuntime.modelDownload.record({
         modelDownloadId: sessionId,
         featureId,
         engineId,
-        modelId,
-        step: "complete",
+        modelId: model,
+        step: "end_file_download_success",
         duration,
-        modelRevision,
+        modelRevision: revision,
         error: "",
+        ...telemetryData,
       });
 
       const headers = this.extractHeaders(response);
@@ -1978,11 +2063,12 @@ export class ModelHub {
         modelDownloadId: sessionId,
         featureId,
         engineId,
-        modelId,
-        step: "error",
+        modelId: model,
+        step: "end_file_download_failed",
         duration,
-        modelRevision,
+        modelRevision: revision,
         error: error.constructor.name,
+        ...telemetryData,
       });
 
       lazy.console.error(`Failed to fetch ${url}:`, error);

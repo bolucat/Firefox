@@ -10,6 +10,7 @@
 
 #include <algorithm>
 
+#include "AnchorPositioningUtils.h"
 #include "AutoProfilerStyleMarker.h"
 #include "ChildIterator.h"
 #include "gfxContext.h"
@@ -7001,6 +7002,59 @@ void PresShell::RecordPointerLocation(WidgetGUIEvent* aEvent) {
     return;
   }
 
+  const auto StoreMouseLocation = [&](const WidgetMouseEvent& aMouseEvent) {
+    if (aMouseEvent.mMessage == eMouseMove && aMouseEvent.IsSynthesized()) {
+      return false;
+    }
+    mMouseLocation = GetEventLocation(aMouseEvent);
+    mMouseEventTargetGuid = InputAPZContext::GetTargetLayerGuid();
+    // FIXME: Don't trust the synthesized for tests flag of drag events.
+    if (aEvent->mClass != eDragEventClass) {
+      mMouseLocationInputSource = aMouseEvent.mInputSource;
+      mMouseLocationPointerId = aMouseEvent.pointerId;
+      mMouseLocationWasSetBySynthesizedMouseEventForTests =
+          aMouseEvent.mFlags.mIsSynthesizedForTests;
+    }
+#ifdef DEBUG
+    if (MOZ_LOG_TEST(gLogMouseLocation, LogLevel::Info)) {
+      static uint32_t sFrequentMessageCount = 0;
+      const bool isFrequestMessage =
+          aEvent->mMessage == eMouseMove || aEvent->mMessage == eDragOver;
+      if (!isFrequestMessage ||
+          MOZ_LOG_TEST(gLogMouseLocation, LogLevel::Verbose) ||
+          !(sFrequentMessageCount % 50)) {
+        MOZ_LOG(gLogMouseLocation,
+                isFrequestMessage ? LogLevel::Debug : LogLevel::Info,
+                ("[ps=%p]got %s for %p at {%d, %d}\n", this,
+                 ToChar(aEvent->mMessage), aEvent->mWidget.get(),
+                 mMouseLocation.x, mMouseLocation.y));
+      }
+      if (isFrequestMessage) {
+        sFrequentMessageCount++;
+      } else {
+        // Let's log the next eMouseMove or eDragOver after the other
+        // messages.
+        sFrequentMessageCount = 0;
+      }
+    }
+#endif
+    return true;
+  };
+
+  const auto ClearMouseLocation = [&]() {
+    mMouseLocation = nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
+    mMouseEventTargetGuid = InputAPZContext::GetTargetLayerGuid();
+    mMouseLocationInputSource = MouseEvent_Binding::MOZ_SOURCE_UNKNOWN;
+    mMouseLocationPointerId = 0;
+    mMouseLocationWasSetBySynthesizedMouseEventForTests =
+        aEvent->mFlags.mIsSynthesizedForTests;
+#ifdef DEBUG
+    MOZ_LOG(gLogMouseLocation, LogLevel::Info,
+            ("[ps=%p]got %s for %p, mouse location is cleared\n", this,
+             ToChar(aEvent->mMessage), aEvent->mWidget.get()));
+#endif
+  };
+
   switch (aEvent->mMessage) {
     case eMouseMove:
     case eMouseEnterIntoWidget:
@@ -7010,44 +7064,9 @@ void PresShell::RecordPointerLocation(WidgetGUIEvent* aEvent) {
     case eDragStart:
     case eDragOver:
     case eDrop: {
-      WidgetMouseEvent* const mouseEvent = aEvent->AsMouseEvent();
-      if (mouseEvent->mMessage == eMouseMove && mouseEvent->IsSynthesized()) {
-        break;
-      }
-      mMouseLocation = GetEventLocation(*mouseEvent);
-      mMouseEventTargetGuid = InputAPZContext::GetTargetLayerGuid();
-      // FIXME: Don't trust the synthesized for tests flag of drag events.
-      if (aEvent->mClass != eDragEventClass) {
-        mMouseLocationInputSource = mouseEvent->mInputSource;
-        mMouseLocationPointerId = mouseEvent->pointerId;
-        mMouseLocationWasSetBySynthesizedMouseEventForTests =
-            mouseEvent->mFlags.mIsSynthesizedForTests;
-      }
-#ifdef DEBUG
-      if (MOZ_LOG_TEST(gLogMouseLocation, LogLevel::Info)) {
-        static uint32_t sFrequentMessageCount = 0;
-        const bool isFrequestMessage =
-            aEvent->mMessage == eMouseMove || aEvent->mMessage == eDragOver;
-        if (!isFrequestMessage ||
-            MOZ_LOG_TEST(gLogMouseLocation, LogLevel::Verbose) ||
-            !(sFrequentMessageCount % 50)) {
-          MOZ_LOG(gLogMouseLocation,
-                  isFrequestMessage ? LogLevel::Debug : LogLevel::Info,
-                  ("[ps=%p]got %s for %p at {%d, %d}\n", this,
-                   ToChar(aEvent->mMessage), aEvent->mWidget.get(),
-                   mMouseLocation.x, mMouseLocation.y));
-        }
-        if (isFrequestMessage) {
-          sFrequentMessageCount++;
-        } else {
-          // Let's log the next eMouseMove or eDragOver after the other
-          // messages.
-          sFrequentMessageCount = 0;
-        }
-      }
-#endif
-      if (aEvent->mMessage == eMouseEnterIntoWidget ||
-          aEvent->mClass == eDragEventClass) {
+      if (StoreMouseLocation(*aEvent->AsMouseEvent()) &&
+          (aEvent->mMessage == eMouseEnterIntoWidget ||
+           aEvent->mClass == eDragEventClass)) {
         SynthesizeMouseMove(false);
       }
       break;
@@ -7057,7 +7076,8 @@ void PresShell::RecordPointerLocation(WidgetGUIEvent* aEvent) {
         // not exit from the widget
         break;
       }
-      [[fallthrough]];
+      ClearMouseLocation();
+      break;
     case eMouseExitFromWidget: {
       // Although we only care about the mouse moving into an area for which
       // this pres shell doesn't receive mouse move events, we don't check which
@@ -7065,17 +7085,7 @@ void PresShell::RecordPointerLocation(WidgetGUIEvent* aEvent) {
       // Hopefully this won't matter at all since we'll get the mouse move or
       // enter after the mouse exit when the mouse moves from one of our widgets
       // into another.
-      mMouseLocation = nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
-      mMouseEventTargetGuid = InputAPZContext::GetTargetLayerGuid();
-      mMouseLocationInputSource = MouseEvent_Binding::MOZ_SOURCE_UNKNOWN;
-      mMouseLocationPointerId = 0;
-      mMouseLocationWasSetBySynthesizedMouseEventForTests =
-          aEvent->mFlags.mIsSynthesizedForTests;
-#ifdef DEBUG
-      MOZ_LOG(gLogMouseLocation, LogLevel::Info,
-              ("[ps=%p]got %s for %p, mouse location is cleared\n", this,
-               ToChar(aEvent->mMessage), aEvent->mWidget.get()));
-#endif
+      ClearMouseLocation();
       break;
     }
     case ePointerMove:
@@ -7091,6 +7101,31 @@ void PresShell::RecordPointerLocation(WidgetGUIEvent* aEvent) {
       // `mLastOverWindowPointerLocation` in a struct.
       mLastOverWindowPointerLocation =
           GetEventLocation(*aEvent->AsMouseEvent());
+      // If the event is ePointerUp for a touch, we need to forget
+      // mMouseLocation if it was set by a touch because the touch is being
+      // removed from the active pointers.
+      if (aEvent->mMessage != ePointerUp) {
+        break;
+      }
+      [[fallthrough]];
+    }
+    case ePointerCancel: {
+      // If a touch is canceled, it means that the touch input is tracked by a
+      // gesture like swipe to scroll, pinch to zoom or DnD.  So, it means that
+      // a normal touch sequence finished.  Then, we shouldn't give `:hover`
+      // state to the element underneath the last touch point anymore.  For
+      // example, it's odd that new element which comes underneath the first
+      // touch position gets `:hover` style even though the scroll is caused
+      // by swipe (i.e., has moved the touch position).
+      if (mMouseLocation ==
+              nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE) ||
+          mMouseLocationInputSource != MouseEvent_Binding::MOZ_SOURCE_TOUCH) {
+        break;
+      }
+      WidgetPointerEvent* const pointerEvent = aEvent->AsPointerEvent();
+      if (pointerEvent->mInputSource == MouseEvent_Binding::MOZ_SOURCE_TOUCH) {
+        ClearMouseLocation();
+      }
       break;
     }
     default:
@@ -8263,6 +8298,8 @@ void PresShell::EventHandler::MaybeSynthesizeCompatMouseEventsForTouchEnd(
       break;
     }
     WidgetMouseEvent event(true, message, widget, WidgetMouseEvent::eReal);
+    event.mFlags.mIsSynthesizedForTests =
+        aTouchEndEvent->mFlags.mIsSynthesizedForTests;
     event.mRefPoint = aTouchEndEvent->mTouches[0]->mRefPoint;
     event.mButton = MouseButton::ePrimary;
     event.mButtons = message == eMouseDown ? MouseButtonsFlag::ePrimaryFlag
@@ -8270,6 +8307,7 @@ void PresShell::EventHandler::MaybeSynthesizeCompatMouseEventsForTouchEnd(
     event.mInputSource = MouseEvent_Binding::MOZ_SOURCE_TOUCH;
     event.mClickCount = message == eMouseMove ? 0 : 1;
     event.mModifiers = aTouchEndEvent->mModifiers;
+    event.pointerId = aTouchEndEvent->mTouches[0]->mIdentifier;
     event.convertToPointer = false;
     if (TouchManager::IsPrecedingTouchPointerDownConsumedByContent()) {
       event.PreventDefault(false);
@@ -11751,10 +11789,12 @@ nsIFrame* PresShell::GetAbsoluteContainingBlock(nsIFrame* aFrame) {
       aFrame, nsCSSFrameConstructor::ABS_POS);
 }
 
-nsIFrame* PresShell::GetAnchorPosAnchor(const nsAtom* aName) const {
+nsIFrame* PresShell::GetAnchorPosAnchor(
+    const nsAtom* aName, const nsIFrame* aPositionedFrame) const {
   MOZ_ASSERT(aName);
   if (const auto& entry = mAnchorPosAnchors.Lookup(aName)) {
-    return entry->SafeLastElement(nullptr);
+    return AnchorPositioningUtils::FindFirstAcceptableAnchor(aPositionedFrame,
+                                                             entry.Data());
   }
 
   return nullptr;
@@ -12960,7 +13000,7 @@ PresShell::ProximityToViewportResult PresShell::DetermineProximityToViewport() {
   auto rootMargin = StyleRect<LengthPercentage>::WithAllSides(margin);
 
   auto input = DOMIntersectionObserver::ComputeInput(
-      *mDocument, /* aRoot = */ nullptr, &rootMargin);
+      *mDocument, /* aRoot = */ nullptr, &rootMargin, nullptr);
 
   for (nsIFrame* frame : mContentVisibilityAutoFrames) {
     auto* element = frame->GetContent()->AsElement();

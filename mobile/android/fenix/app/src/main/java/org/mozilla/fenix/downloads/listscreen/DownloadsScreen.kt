@@ -59,7 +59,6 @@ import org.mozilla.fenix.compose.snackbar.AcornSnackbarHostState
 import org.mozilla.fenix.compose.snackbar.SnackbarHost
 import org.mozilla.fenix.compose.snackbar.SnackbarState
 import org.mozilla.fenix.downloads.listscreen.middleware.UndoDelayProvider
-import org.mozilla.fenix.downloads.listscreen.store.CreatedTime
 import org.mozilla.fenix.downloads.listscreen.store.DownloadListItem
 import org.mozilla.fenix.downloads.listscreen.store.DownloadUIAction
 import org.mozilla.fenix.downloads.listscreen.store.DownloadUIState
@@ -67,6 +66,7 @@ import org.mozilla.fenix.downloads.listscreen.store.DownloadUIState.Mode
 import org.mozilla.fenix.downloads.listscreen.store.DownloadUIStore
 import org.mozilla.fenix.downloads.listscreen.store.FileItem
 import org.mozilla.fenix.downloads.listscreen.store.HeaderItem
+import org.mozilla.fenix.downloads.listscreen.store.TimeCategory
 import org.mozilla.fenix.downloads.listscreen.ui.DownloadSearchField
 import org.mozilla.fenix.downloads.listscreen.ui.FileListItem
 import org.mozilla.fenix.downloads.listscreen.ui.Filters
@@ -121,7 +121,7 @@ fun DownloadsScreen(
                     context = context,
                     undoAction = {
                         downloadsStore.dispatch(
-                            DownloadUIAction.UndoPendingDeletionSet(it),
+                            DownloadUIAction.UndoPendingDeletion,
                         )
                     },
                 )
@@ -393,7 +393,7 @@ private fun DownloadsContent(
             contentType = { _, item -> item::class },
             key = { _, item ->
                 when (item) {
-                    is HeaderItem -> item.createdTime
+                    is HeaderItem -> item.timeCategory
                     is FileItem -> item.id
                 }
             },
@@ -456,7 +456,7 @@ private fun HeaderListItem(
 ) {
     Box(modifier = modifier) {
         ExpandableListHeader(
-            headerText = stringResource(id = headerItem.createdTime.stringRes),
+            headerText = stringResource(id = headerItem.timeCategory.stringRes),
         )
     }
 }
@@ -526,7 +526,7 @@ private fun showDeleteSnackbar(
     coroutineScope: CoroutineScope,
     snackbarHostState: AcornSnackbarHostState,
     context: Context,
-    undoAction: (Set<String>) -> Unit,
+    undoAction: () -> Unit,
 ) {
     coroutineScope.launch {
         snackbarHostState.showSnackbar(
@@ -535,10 +535,7 @@ private fun showDeleteSnackbar(
                 duration = SnackbarState.Duration.Custom(undoDelayProvider.undoDelay.toInt()),
                 action = Action(
                     label = context.getString(R.string.download_undo_delete_snackbar_action),
-                    onClick = {
-                        val itemIds = selectedItems.mapTo(mutableSetOf()) { it.id }
-                        undoAction.invoke(itemIds)
-                    },
+                    onClick = { undoAction.invoke() },
                 ),
             ),
         )
@@ -567,34 +564,34 @@ private class DownloadsScreenPreviewModelParameterProvider :
                         id = "1",
                         fileName = "File 1",
                         url = "https://example.com/file1",
-                        formattedSize = "1.2 MB",
+                        description = "1.2 MB • example.com",
                         displayedShortUrl = "example.com",
                         contentType = "application/pdf",
                         status = DownloadState.Status.COMPLETED,
                         filePath = "/path/to/file1",
-                        createdTime = CreatedTime.TODAY,
+                        timeCategory = TimeCategory.TODAY,
                     ),
                     FileItem(
                         id = "2",
                         fileName = "File 2",
                         url = "https://example.com/file2",
-                        formattedSize = "2.3 MB",
+                        description = "2.3 MB • example.com",
                         displayedShortUrl = "example.com",
                         contentType = "image/png",
                         status = DownloadState.Status.COMPLETED,
                         filePath = "/path/to/file1",
-                        createdTime = CreatedTime.TODAY,
+                        timeCategory = TimeCategory.TODAY,
                     ),
                     FileItem(
                         id = "3",
                         fileName = "File 3",
                         url = "https://example.com/file3",
-                        formattedSize = "3.4 MB",
+                        description = "3.4 MB • example.com",
                         displayedShortUrl = "example.com",
                         contentType = "application/zip",
                         status = DownloadState.Status.COMPLETED,
                         filePath = "/path/to/file1",
-                        createdTime = CreatedTime.OLDER,
+                        timeCategory = TimeCategory.OLDER,
                     ),
                 ),
                 mode = Mode.Normal,
@@ -607,12 +604,12 @@ private class DownloadsScreenPreviewModelParameterProvider :
                         id = "$index",
                         fileName = "File $index",
                         url = "https://example.com/file$index",
-                        formattedSize = "1.2 MB",
+                        description = "1.2 MB • example.com",
                         displayedShortUrl = "example.com",
                         contentType = "application/zip",
                         status = DownloadState.Status.COMPLETED,
                         filePath = "/path/to/file1",
-                        createdTime = CreatedTime.TODAY,
+                        timeCategory = TimeCategory.TODAY,
                     )
                 },
                 mode = Mode.Normal,

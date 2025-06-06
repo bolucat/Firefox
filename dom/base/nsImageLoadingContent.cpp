@@ -54,6 +54,7 @@
 #include "mozilla/dom/ImageTracker.h"
 #include "mozilla/dom/PageLoadEventUtils.h"
 #include "mozilla/dom/ReferrerInfo.h"
+#include "mozilla/dom/ResponsiveImageSelector.h"
 #include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/intl/LocaleService.h"
 #include "mozilla/intl/Locale.h"
@@ -91,6 +92,45 @@ static void PrintReqURL(imgIRequest* req) {
 }
 #endif /* DEBUG_chb */
 
+class ImageLoadTask : public MicroTaskRunnable {
+ public:
+  ImageLoadTask(nsImageLoadingContent* aElement, bool aAlwaysLoad,
+                bool aUseUrgentStartForChannel)
+      : mElement(aElement),
+        mDocument(aElement->AsContent()->OwnerDoc()),
+        mAlwaysLoad(aAlwaysLoad),
+        mUseUrgentStartForChannel(aUseUrgentStartForChannel) {
+    mDocument->BlockOnload();
+  }
+
+  void Run(AutoSlowOperation& aAso) override {
+    if (mElement->mPendingImageLoadTask == this) {
+      JSCallingLocation::AutoFallback fallback(&mCallingLocation);
+      mElement->mUseUrgentStartForChannel = mUseUrgentStartForChannel;
+      mElement->ClearImageLoadTask();
+      mElement->LoadSelectedImage(mAlwaysLoad, /* aStopLazyLoading = */ false);
+    }
+    mDocument->UnblockOnload(false);
+  }
+
+  bool Suppressed() override {
+    nsIGlobalObject* global = mElement->AsContent()->GetOwnerGlobal();
+    return global && global->IsInSyncOperation();
+  }
+
+  bool AlwaysLoad() const { return mAlwaysLoad; }
+
+ private:
+  ~ImageLoadTask() = default;
+  const RefPtr<nsImageLoadingContent> mElement;
+  const RefPtr<dom::Document> mDocument;
+  const JSCallingLocation mCallingLocation{JSCallingLocation::Get()};
+  const bool mAlwaysLoad;
+  // True if we want to set nsIClassOfService::UrgentStart to the channel to get
+  // the response ASAP for better user responsiveness.
+  const bool mUseUrgentStartForChannel;
+};
+
 nsImageLoadingContent::nsImageLoadingContent()
     : mObserverList(nullptr),
       mOutstandingDecodePromises(0),
@@ -98,7 +138,6 @@ nsImageLoadingContent::nsImageLoadingContent()
       mLoadingEnabled(true),
       mUseUrgentStartForChannel(false),
       mLazyLoading(false),
-      mHasPendingLoadTask(false),
       mSyncDecodingHint(false),
       mInDocResponsiveContent(false),
       mCurrentRequestRegistered(false),
@@ -127,6 +166,80 @@ nsImageLoadingContent::~nsImageLoadingContent() {
   MOZ_ASSERT(mOutstandingDecodePromises == 0,
              "Decode promises still unfulfilled?");
   MOZ_ASSERT(mDecodePromises.IsEmpty(), "Decode promises still unfulfilled?");
+}
+
+void nsImageLoadingContent::QueueImageTask(
+    nsIURI* aSrcURI, nsIPrincipal* aSrcTriggeringPrincipal, bool aForceAsync,
+    bool aAlwaysLoad, bool aNotify) {
+  // If loading is temporarily disabled, we don't want to queue tasks that may
+  // then run when loading is re-enabled.
+  // Roughly step 1 and 2.
+  // FIXME(emilio): Would be great to do this more per-spec. We don't cancel
+  // existing loads etc.
+  if (!LoadingEnabled() || !GetOurOwnerDoc()->ShouldLoadImages()) {
+    return;
+  }
+
+  // Ensure that we don't overwrite a previous load request that requires
+  // a complete load to occur.
+  const bool alwaysLoad = aAlwaysLoad || (mPendingImageLoadTask &&
+                                          mPendingImageLoadTask->AlwaysLoad());
+
+  // Steps 5 and 7 (sync cache check for src).
+  const bool shouldLoadSync = [&] {
+    if (aForceAsync) {
+      return false;
+    }
+    if (!aSrcURI) {
+      // NOTE(emilio): we need to also do a sync check for empty / invalid src,
+      // see https://github.com/whatwg/html/issues/2429
+      // But do it sync only when there's a current request.
+      return !!mCurrentRequest;
+    }
+    return nsContentUtils::IsImageAvailable(
+        AsContent(), aSrcURI, aSrcTriggeringPrincipal, GetCORSMode());
+  }();
+
+  if (shouldLoadSync) {
+    if (!nsContentUtils::IsSafeToRunScript()) {
+      // If not safe to run script, we should do the sync load task as soon as
+      // possible instead. This prevents unsound state changes from frame
+      // construction and such.
+      void (nsImageLoadingContent::*fp)(nsIURI*, nsIPrincipal*, bool, bool,
+                                        bool) =
+          &nsImageLoadingContent::QueueImageTask;
+      nsContentUtils::AddScriptRunner(
+          NewRunnableMethod<nsIURI*, nsIPrincipal*, bool, bool, bool>(
+              "nsImageLoadingContent::QueueImageTask", this, fp, aSrcURI,
+              aSrcTriggeringPrincipal, aForceAsync, aAlwaysLoad,
+              /* aNotify = */ true));
+      return;
+    }
+
+    ClearImageLoadTask();
+    LoadSelectedImage(alwaysLoad, mLazyLoading && aSrcURI);
+    return;
+  }
+
+  if (mLazyLoading) {
+    // This check is not in the spec, but it is just a performance optimization.
+    // The reasoning for why it is sound is that we early-return from the image
+    // task when lazy loading, and that StopLazyLoading makes us queue a new
+    // task (which will implicitly cancel all the pre-existing tasks).
+    return;
+  }
+
+  RefPtr task = new ImageLoadTask(this, alwaysLoad, mUseUrgentStartForChannel);
+  mPendingImageLoadTask = task;
+  // We might have just become non-broken.
+  UpdateImageState(aNotify);
+  // The task checks this to determine if it was the last queued event, and so
+  // earlier tasks are implicitly canceled.
+  CycleCollectedJSContext::Get()->DispatchToMicroTask(task.forget());
+}
+
+void nsImageLoadingContent::ClearImageLoadTask() {
+  mPendingImageLoadTask = nullptr;
 }
 
 /*
@@ -1275,18 +1388,100 @@ already_AddRefed<Promise> nsImageLoadingContent::RecognizeCurrentImageText(
   return domPromise.forget();
 }
 
+CSSIntSize nsImageLoadingContent::NaturalSize(
+    DoDensityCorrection aDensityCorrection) {
+  if (!mCurrentRequest) {
+    return {};
+  }
+
+  nsCOMPtr<imgIContainer> image;
+  mCurrentRequest->GetImage(getter_AddRefs(image));
+  if (!image) {
+    return {};
+  }
+
+  mozilla::image::ImageIntrinsicSize intrinsicSize;
+  nsresult rv = image->GetIntrinsicSize(&intrinsicSize);
+  if (NS_FAILED(rv)) {
+    return {};
+  }
+
+  CSSIntSize size;  // defaults to 0,0
+  if (!StaticPrefs::image_natural_size_fallback_enabled()) {
+    size.width = intrinsicSize.mWidth.valueOr(0);
+    size.height = intrinsicSize.mHeight.valueOr(0);
+  } else {
+    // Fallback case, for web-compatibility!
+    // See https://github.com/whatwg/html/issues/11287 and bug 1935269.
+    // If we lack an intrinsic size in either axis, then use the fallback size,
+    // unless we can transfer the size through the aspect ratio.
+    // (And if we *only* have an intrinsic aspect ratio, use the fallback width
+    // and transfer that through the aspect ratio to produce a height.)
+    size.width = intrinsicSize.mWidth.valueOr(kFallbackIntrinsicWidthInPixels);
+    size.height =
+        intrinsicSize.mHeight.valueOr(kFallbackIntrinsicHeightInPixels);
+    AspectRatio ratio = image->GetIntrinsicRatio();
+    if (ratio) {
+      if (!intrinsicSize.mHeight) {
+        // Compute the height from the width & ratio.  (Note that the width we
+        // use here might be kFallbackIntrinsicWidthInPixels, and that's fine.)
+        size.height = ratio.Inverted().ApplyTo(size.width);
+      } else if (!intrinsicSize.mWidth) {
+        // Compute the width from the height & ratio.
+        size.width = ratio.ApplyTo(size.height);
+      }
+    }
+  }
+
+  ImageResolution resolution = image->GetResolution();
+  if (aDensityCorrection == DoDensityCorrection::Yes) {
+    // NOTE(emilio): What we implement here matches the image-set() spec, but
+    // it's unclear whether this is the right thing to do, see
+    // https://github.com/whatwg/html/pull/5574#issuecomment-826335244.
+    if (auto* image = HTMLImageElement::FromNode(AsContent())) {
+      if (auto* sel = image->GetResponsiveImageSelector()) {
+        float density = sel->GetSelectedImageDensity();
+        MOZ_ASSERT(density >= 0.0);
+        resolution.ScaleBy(density);
+      }
+    }
+  }
+
+  resolution.ApplyTo(size.width, size.height);
+  return size;
+}
+
 CSSIntSize nsImageLoadingContent::GetWidthHeightForImage() {
   Element* element = AsContent()->AsElement();
   if (nsIFrame* frame = element->GetPrimaryFrame(FlushType::Layout)) {
     return CSSIntSize::FromAppUnitsRounded(frame->GetContentRect().Size());
   }
-  const nsAttrValue* value;
+
+  CSSIntSize size;
   nsCOMPtr<imgIContainer> image;
-  if (mCurrentRequest) {
+  if (StaticPrefs::image_natural_size_fallback_enabled()) {
+    // Our image is not rendered (we don't have any frame); so we should should
+    // return the natural size, per:
+    // https://html.spec.whatwg.org/multipage/embedded-content.html#dom-img-width
+    //
+    // Note that the spec says to use the "density-corrected natural width and
+    // height of the image", but we don't do that -- we specifically request
+    // the NaturalSize *without* density-correction here.  This handles a case
+    // where browsers deviate from the spec in an interoperable way, which
+    // hopefully we'll address in the spec soon. See case (2) in this comment
+    // for more:
+    // https://github.com/whatwg/html/issues/11287#issuecomment-2923467541
+    size = NaturalSize(DoDensityCorrection::No);
+  } else if (mCurrentRequest) {
     mCurrentRequest->GetImage(getter_AddRefs(image));
   }
 
-  CSSIntSize size;
+  // If we have width or height attrs, we'll let those stomp on whatever
+  // NaturalSize we may have gotten above. This handles a case where browsers
+  // deviate from the spec in an interoperable way, which hopefully we'll
+  // address in the spec soon. See case (1) in this comment for more:
+  // https://github.com/whatwg/html/issues/11287#issuecomment-2923467541
+  const nsAttrValue* value;
   if ((value = element->GetParsedAttr(nsGkAtoms::width)) &&
       value->Type() == nsAttrValue::eInteger) {
     size.width = value->GetIntegerValue();
@@ -1309,7 +1504,7 @@ CSSIntSize nsImageLoadingContent::GetWidthHeightForImage() {
 void nsImageLoadingContent::UpdateImageState(bool aNotify) {
   Element* thisElement = AsContent()->AsElement();
   const bool isBroken = [&] {
-    if (mLazyLoading || mHasPendingLoadTask) {
+    if (mLazyLoading || mPendingImageLoadTask) {
       return false;
     }
     if (!mCurrentRequest) {

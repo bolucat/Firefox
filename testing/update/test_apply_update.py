@@ -1,3 +1,6 @@
+import xml.etree.ElementTree as ET
+
+import requests
 from marionette_driver import expected
 from marionette_driver.by import By
 from marionette_driver.wait import Wait
@@ -15,7 +18,31 @@ class TestApplyUpdate(MarionetteTestCase):
         self.marionette.set_pref("app.update.log", True)
         self.marionette.set_pref("remote.log.level", "Trace")
         self.marionette.navigate(self.about_fx_url)
+
+        self.marionette.set_context(self.marionette.CONTEXT_CHROME)
+        update_url = self.marionette.execute_async_script(
+            """
+            (async function() {
+                let { UpdateUtils } = ChromeUtils.importESModule(
+                    "resource://gre/modules/UpdateUtils.sys.mjs"
+                );
+                let url = await UpdateUtils.formatUpdateURL(Services.appinfo.updateURL);
+                return url;
+            })().then(arguments[0]);
+            """
+        )
+
+        response = requests.get(update_url)
+        if response.status_code != 200:
+            raise Exception(
+                f"Tried to fetch update.xml but got response code {response.status_code}"
+            )
+
+        # Get the target version
+        root = ET.fromstring(response.text)
+        target_ver = root[0].get("appVersion")
         self.marionette.set_context(self.marionette.CONTEXT_CONTENT)
+        initial_ver = self.marionette.find_element(By.ID, "version").text
 
         Wait(self.marionette, timeout=10).until(
             expected.element_displayed(By.ID, "downloadAndInstallButton")
@@ -37,6 +64,19 @@ class TestApplyUpdate(MarionetteTestCase):
         self.marionette.navigate(self.about_fx_url)
         Wait(self.marionette, timeout=200).until(
             expected.element_displayed(By.ID, "noUpdatesFound")
+        )
+
+        # Mini smoke test
+        print(f"Updated from {initial_ver} to {target_ver}")
+        assert target_ver in self.marionette.find_element(By.ID, "version").text
+        assert len(self.marionette.window_handles) == 1
+        self.marionette.open("tab")
+        Wait(self.marionette, timeout=20).until(
+            lambda _: len(self.marionette.window_handles) == 2
+        )
+        self.marionette.close()
+        Wait(self.marionette, timeout=20).until(
+            lambda _: len(self.marionette.window_handles) == 1
         )
 
     def tearDown(self):

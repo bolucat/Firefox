@@ -312,30 +312,34 @@ export class FfiConverterString extends FfiConverter {
         return 4 + lazy.encoder.encode(value).length
     }
 }
-// Export the FFIConverter object to make external types work.
 export class FfiConverterTypeJsonValue extends FfiConverter {
-    static lift(buf) {
-        return FfiConverterString.lift(buf);    
+    static lift(value) {
+        return FfiConverterString.lift(value);
     }
-    
-    static lower(buf) {
-        return FfiConverterString.lower(buf);
+
+    static lower(value) {
+        return FfiConverterString.lower(value);
     }
-    
+
     static write(dataStream, value) {
         FfiConverterString.write(dataStream, value);
-    } 
-    
-    static read(buf) {
-        return FfiConverterString.read(buf);
     }
-    
+
+    static read(dataStream) {
+        const builtinVal = FfiConverterString.read(dataStream);
+        return builtinVal;
+    }
+
     static computeSize(value) {
         return FfiConverterString.computeSize(value);
     }
-}
 
-// TODO: We should also allow JS to customize the type eventually.
+    static checkType(value) {
+        if (value === null || value === undefined) {
+            throw new TypeError("value is null or undefined");
+        }
+    }
+}
 // Export the FFIConverter object to make external types work.
 export class FfiConverterOptionalTypeJsonValue extends FfiConverterArrayBuffer {
     static checkType(value) {
@@ -870,30 +874,34 @@ export class FfiConverterTypeWebExtStorageApiError extends FfiConverterArrayBuff
 
     static errorClass = WebExtStorageApiError;
 }
-// Export the FFIConverter object to make external types work.
 export class FfiConverterTypeGuid extends FfiConverter {
-    static lift(buf) {
-        return FfiConverterString.lift(buf);    
+    static lift(value) {
+        return FfiConverterString.lift(value);
     }
-    
-    static lower(buf) {
-        return FfiConverterString.lower(buf);
+
+    static lower(value) {
+        return FfiConverterString.lower(value);
     }
-    
+
     static write(dataStream, value) {
         FfiConverterString.write(dataStream, value);
-    } 
-    
-    static read(buf) {
-        return FfiConverterString.read(buf);
     }
-    
+
+    static read(dataStream) {
+        const builtinVal = FfiConverterString.read(dataStream);
+        return builtinVal;
+    }
+
     static computeSize(value) {
         return FfiConverterString.computeSize(value);
     }
-}
 
-// TODO: We should also allow JS to customize the type eventually.
+    static checkType(value) {
+        if (value === null || value === undefined) {
+            throw new TypeError("value is null or undefined");
+        }
+    }
+}
 // Export the FFIConverter object to make external types work.
 export class FfiConverterSequenceString extends FfiConverterArrayBuffer {
     static read(dataStream) {
@@ -1059,12 +1067,13 @@ export class WebExtStorageBridgedEngine {
 
     /**
      * apply
+     * @returns {Promise<Array.<string>>}}
      */
     async apply() {
        
         const result = await UniFFIScaffolding.callAsyncWrapper(
             89, // uniffi_webext_storage_fn_method_webextstoragebridgedengine_apply
-            FfiConverterTypeWebExtStorageBridgedEngine.lower(this),
+            FfiConverterTypeWebExtStorageBridgedEngine.lowerReceiver(this),
         )
         return handleRustResult(
             result,
@@ -1075,6 +1084,8 @@ export class WebExtStorageBridgedEngine {
 
     /**
      * ensureCurrentSyncId
+     * @param {string} newSyncId
+     * @returns {Promise<string>}}
      */
     async ensureCurrentSyncId(
         newSyncId) {
@@ -1082,7 +1093,7 @@ export class WebExtStorageBridgedEngine {
         FfiConverterString.checkType(newSyncId);
         const result = await UniFFIScaffolding.callAsyncWrapper(
             90, // uniffi_webext_storage_fn_method_webextstoragebridgedengine_ensure_current_sync_id
-            FfiConverterTypeWebExtStorageBridgedEngine.lower(this),
+            FfiConverterTypeWebExtStorageBridgedEngine.lowerReceiver(this),
             FfiConverterString.lower(newSyncId),
         )
         return handleRustResult(
@@ -1094,12 +1105,13 @@ export class WebExtStorageBridgedEngine {
 
     /**
      * lastSync
+     * @returns {Promise<number>}}
      */
     async lastSync() {
        
         const result = await UniFFIScaffolding.callAsyncWrapper(
             91, // uniffi_webext_storage_fn_method_webextstoragebridgedengine_last_sync
-            FfiConverterTypeWebExtStorageBridgedEngine.lower(this),
+            FfiConverterTypeWebExtStorageBridgedEngine.lowerReceiver(this),
         )
         return handleRustResult(
             result,
@@ -1110,6 +1122,7 @@ export class WebExtStorageBridgedEngine {
 
     /**
      * prepareForSync
+     * @param {string} clientData
      */
     async prepareForSync(
         clientData) {
@@ -1117,7 +1130,7 @@ export class WebExtStorageBridgedEngine {
         FfiConverterString.checkType(clientData);
         const result = await UniFFIScaffolding.callAsyncWrapper(
             92, // uniffi_webext_storage_fn_method_webextstoragebridgedengine_prepare_for_sync
-            FfiConverterTypeWebExtStorageBridgedEngine.lower(this),
+            FfiConverterTypeWebExtStorageBridgedEngine.lowerReceiver(this),
             FfiConverterString.lower(clientData),
         )
         return handleRustResult(
@@ -1134,7 +1147,7 @@ export class WebExtStorageBridgedEngine {
        
         const result = await UniFFIScaffolding.callAsyncWrapper(
             93, // uniffi_webext_storage_fn_method_webextstoragebridgedengine_reset
-            FfiConverterTypeWebExtStorageBridgedEngine.lower(this),
+            FfiConverterTypeWebExtStorageBridgedEngine.lowerReceiver(this),
         )
         return handleRustResult(
             result,
@@ -1145,12 +1158,13 @@ export class WebExtStorageBridgedEngine {
 
     /**
      * resetSyncId
+     * @returns {Promise<string>}}
      */
     async resetSyncId() {
        
         const result = await UniFFIScaffolding.callAsyncWrapper(
             94, // uniffi_webext_storage_fn_method_webextstoragebridgedengine_reset_sync_id
-            FfiConverterTypeWebExtStorageBridgedEngine.lower(this),
+            FfiConverterTypeWebExtStorageBridgedEngine.lowerReceiver(this),
         )
         return handleRustResult(
             result,
@@ -1161,6 +1175,7 @@ export class WebExtStorageBridgedEngine {
 
     /**
      * setLastSync
+     * @param {number} lastSync
      */
     async setLastSync(
         lastSync) {
@@ -1168,7 +1183,7 @@ export class WebExtStorageBridgedEngine {
         FfiConverterInt64.checkType(lastSync);
         const result = await UniFFIScaffolding.callAsyncWrapper(
             95, // uniffi_webext_storage_fn_method_webextstoragebridgedengine_set_last_sync
-            FfiConverterTypeWebExtStorageBridgedEngine.lower(this),
+            FfiConverterTypeWebExtStorageBridgedEngine.lowerReceiver(this),
             FfiConverterInt64.lower(lastSync),
         )
         return handleRustResult(
@@ -1180,6 +1195,8 @@ export class WebExtStorageBridgedEngine {
 
     /**
      * setUploaded
+     * @param {number} serverModifiedMillis
+     * @param {Array.<Guid>} guids
      */
     async setUploaded(
         serverModifiedMillis, 
@@ -1189,7 +1206,7 @@ export class WebExtStorageBridgedEngine {
         FfiConverterSequenceTypeGuid.checkType(guids);
         const result = await UniFFIScaffolding.callAsyncWrapper(
             96, // uniffi_webext_storage_fn_method_webextstoragebridgedengine_set_uploaded
-            FfiConverterTypeWebExtStorageBridgedEngine.lower(this),
+            FfiConverterTypeWebExtStorageBridgedEngine.lowerReceiver(this),
             FfiConverterInt64.lower(serverModifiedMillis),
             FfiConverterSequenceTypeGuid.lower(guids),
         )
@@ -1202,6 +1219,7 @@ export class WebExtStorageBridgedEngine {
 
     /**
      * storeIncoming
+     * @param {Array.<string>} incoming
      */
     async storeIncoming(
         incoming) {
@@ -1209,7 +1227,7 @@ export class WebExtStorageBridgedEngine {
         FfiConverterSequenceString.checkType(incoming);
         const result = await UniFFIScaffolding.callAsyncWrapper(
             97, // uniffi_webext_storage_fn_method_webextstoragebridgedengine_store_incoming
-            FfiConverterTypeWebExtStorageBridgedEngine.lower(this),
+            FfiConverterTypeWebExtStorageBridgedEngine.lowerReceiver(this),
             FfiConverterSequenceString.lower(incoming),
         )
         return handleRustResult(
@@ -1226,7 +1244,7 @@ export class WebExtStorageBridgedEngine {
        
         const result = await UniFFIScaffolding.callAsyncWrapper(
             98, // uniffi_webext_storage_fn_method_webextstoragebridgedengine_sync_finished
-            FfiConverterTypeWebExtStorageBridgedEngine.lower(this),
+            FfiConverterTypeWebExtStorageBridgedEngine.lowerReceiver(this),
         )
         return handleRustResult(
             result,
@@ -1237,12 +1255,13 @@ export class WebExtStorageBridgedEngine {
 
     /**
      * syncId
+     * @returns {Promise<?string>}}
      */
     async syncId() {
        
         const result = await UniFFIScaffolding.callAsyncWrapper(
             99, // uniffi_webext_storage_fn_method_webextstoragebridgedengine_sync_id
-            FfiConverterTypeWebExtStorageBridgedEngine.lower(this),
+            FfiConverterTypeWebExtStorageBridgedEngine.lowerReceiver(this),
         )
         return handleRustResult(
             result,
@@ -1258,7 +1277,7 @@ export class WebExtStorageBridgedEngine {
        
         const result = await UniFFIScaffolding.callAsyncWrapper(
             100, // uniffi_webext_storage_fn_method_webextstoragebridgedengine_sync_started
-            FfiConverterTypeWebExtStorageBridgedEngine.lower(this),
+            FfiConverterTypeWebExtStorageBridgedEngine.lowerReceiver(this),
         )
         return handleRustResult(
             result,
@@ -1274,7 +1293,7 @@ export class WebExtStorageBridgedEngine {
        
         const result = await UniFFIScaffolding.callAsyncWrapper(
             101, // uniffi_webext_storage_fn_method_webextstoragebridgedengine_wipe
-            FfiConverterTypeWebExtStorageBridgedEngine.lower(this),
+            FfiConverterTypeWebExtStorageBridgedEngine.lowerReceiver(this),
         )
         return handleRustResult(
             result,
@@ -1301,6 +1320,11 @@ export class FfiConverterTypeWebExtStorageBridgedEngine extends FfiConverter {
         return ptr;
     }
 
+    static lowerReceiver(value) {
+        // This works exactly the same as lower for non-trait interfaces
+        return this.lower(value);
+    }
+
     static read(dataStream) {
         return this.lift(dataStream.readPointer(12));
     }
@@ -1313,6 +1337,7 @@ export class FfiConverterTypeWebExtStorageBridgedEngine extends FfiConverter {
         return 8;
     }
 }
+
 // Export the FFIConverter object to make external types work.
 export class FfiConverterUInt64 extends FfiConverter {
     static checkType(value) {
@@ -1399,7 +1424,11 @@ export class WebExtStorageStore {
         }
         this[uniffiObjectPtr] = opts[constructUniffiObject];
     }
-    
+    /**
+     * init
+     * @param {string} path
+     * @returns {Promise<WebExtStorageStore>}}
+     */
     static async init(
         path) {
        
@@ -1417,12 +1446,13 @@ export class WebExtStorageStore {
 
     /**
      * bridgedEngine
+     * @returns {Promise<WebExtStorageBridgedEngine>}}
      */
     async bridgedEngine() {
        
         const result = await UniFFIScaffolding.callAsyncWrapper(
             103, // uniffi_webext_storage_fn_method_webextstoragestore_bridged_engine
-            FfiConverterTypeWebExtStorageStore.lower(this),
+            FfiConverterTypeWebExtStorageStore.lowerReceiver(this),
         )
         return handleRustResult(
             result,
@@ -1433,6 +1463,8 @@ export class WebExtStorageStore {
 
     /**
      * clear
+     * @param {string} extId
+     * @returns {Promise<StorageChanges>}}
      */
     async clear(
         extId) {
@@ -1440,7 +1472,7 @@ export class WebExtStorageStore {
         FfiConverterString.checkType(extId);
         const result = await UniFFIScaffolding.callAsyncWrapper(
             104, // uniffi_webext_storage_fn_method_webextstoragestore_clear
-            FfiConverterTypeWebExtStorageStore.lower(this),
+            FfiConverterTypeWebExtStorageStore.lowerReceiver(this),
             FfiConverterString.lower(extId),
         )
         return handleRustResult(
@@ -1457,7 +1489,7 @@ export class WebExtStorageStore {
        
         const result = await UniFFIScaffolding.callAsyncWrapper(
             105, // uniffi_webext_storage_fn_method_webextstoragestore_close
-            FfiConverterTypeWebExtStorageStore.lower(this),
+            FfiConverterTypeWebExtStorageStore.lowerReceiver(this),
         )
         return handleRustResult(
             result,
@@ -1468,6 +1500,9 @@ export class WebExtStorageStore {
 
     /**
      * get
+     * @param {string} extId
+     * @param {JsonValue} keys
+     * @returns {Promise<JsonValue>}}
      */
     async get(
         extId, 
@@ -1477,7 +1512,7 @@ export class WebExtStorageStore {
         FfiConverterTypeJsonValue.checkType(keys);
         const result = await UniFFIScaffolding.callAsyncWrapper(
             106, // uniffi_webext_storage_fn_method_webextstoragestore_get
-            FfiConverterTypeWebExtStorageStore.lower(this),
+            FfiConverterTypeWebExtStorageStore.lowerReceiver(this),
             FfiConverterString.lower(extId),
             FfiConverterTypeJsonValue.lower(keys),
         )
@@ -1490,6 +1525,9 @@ export class WebExtStorageStore {
 
     /**
      * getBytesInUse
+     * @param {string} extId
+     * @param {JsonValue} keys
+     * @returns {Promise<number>}}
      */
     async getBytesInUse(
         extId, 
@@ -1499,7 +1537,7 @@ export class WebExtStorageStore {
         FfiConverterTypeJsonValue.checkType(keys);
         const result = await UniFFIScaffolding.callAsyncWrapper(
             107, // uniffi_webext_storage_fn_method_webextstoragestore_get_bytes_in_use
-            FfiConverterTypeWebExtStorageStore.lower(this),
+            FfiConverterTypeWebExtStorageStore.lowerReceiver(this),
             FfiConverterString.lower(extId),
             FfiConverterTypeJsonValue.lower(keys),
         )
@@ -1512,12 +1550,13 @@ export class WebExtStorageStore {
 
     /**
      * getSyncedChanges
+     * @returns {Promise<Array.<SyncedExtensionChange>>}}
      */
     async getSyncedChanges() {
        
         const result = await UniFFIScaffolding.callAsyncWrapper(
             108, // uniffi_webext_storage_fn_method_webextstoragestore_get_synced_changes
-            FfiConverterTypeWebExtStorageStore.lower(this),
+            FfiConverterTypeWebExtStorageStore.lowerReceiver(this),
         )
         return handleRustResult(
             result,
@@ -1528,6 +1567,9 @@ export class WebExtStorageStore {
 
     /**
      * remove
+     * @param {string} extId
+     * @param {JsonValue} keys
+     * @returns {Promise<StorageChanges>}}
      */
     async remove(
         extId, 
@@ -1537,7 +1579,7 @@ export class WebExtStorageStore {
         FfiConverterTypeJsonValue.checkType(keys);
         const result = await UniFFIScaffolding.callAsyncWrapper(
             109, // uniffi_webext_storage_fn_method_webextstoragestore_remove
-            FfiConverterTypeWebExtStorageStore.lower(this),
+            FfiConverterTypeWebExtStorageStore.lowerReceiver(this),
             FfiConverterString.lower(extId),
             FfiConverterTypeJsonValue.lower(keys),
         )
@@ -1550,6 +1592,9 @@ export class WebExtStorageStore {
 
     /**
      * set
+     * @param {string} extId
+     * @param {JsonValue} val
+     * @returns {Promise<StorageChanges>}}
      */
     async set(
         extId, 
@@ -1559,7 +1604,7 @@ export class WebExtStorageStore {
         FfiConverterTypeJsonValue.checkType(val);
         const result = await UniFFIScaffolding.callAsyncWrapper(
             110, // uniffi_webext_storage_fn_method_webextstoragestore_set
-            FfiConverterTypeWebExtStorageStore.lower(this),
+            FfiConverterTypeWebExtStorageStore.lowerReceiver(this),
             FfiConverterString.lower(extId),
             FfiConverterTypeJsonValue.lower(val),
         )
@@ -1588,6 +1633,11 @@ export class FfiConverterTypeWebExtStorageStore extends FfiConverter {
         return ptr;
     }
 
+    static lowerReceiver(value) {
+        // This works exactly the same as lower for non-trait interfaces
+        return this.lower(value);
+    }
+
     static read(dataStream) {
         return this.lift(dataStream.readPointer(13));
     }
@@ -1600,6 +1650,7 @@ export class FfiConverterTypeWebExtStorageStore extends FfiConverter {
         return 8;
     }
 }
+
 // Export the FFIConverter object to make external types work.
 export class FfiConverterUInt8 extends FfiConverter {
     static checkType(value) {

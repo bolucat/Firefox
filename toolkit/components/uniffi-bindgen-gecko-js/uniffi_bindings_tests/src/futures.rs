@@ -8,6 +8,8 @@
 //! The purpose of these is to test the lift/lower implementations in the async code.
 
 use std::{collections::HashMap, sync::Arc};
+use crate::callback_interfaces::CallbackInterfaceNumbers;
+use crate::errors::TestError;
 
 #[uniffi::export]
 async fn async_roundtrip_u8(v: u8) -> u8 {
@@ -74,6 +76,11 @@ async fn async_roundtrip_map(v: HashMap<String, String>) -> HashMap<String, Stri
     v
 }
 
+#[uniffi::export]
+async fn async_throw_error() -> Result<(), TestError> {
+    Err(TestError::Failure1)
+}
+
 #[derive(uniffi::Object)]
 struct AsyncInterface {
     name: String,
@@ -94,4 +101,40 @@ impl AsyncInterface {
 #[uniffi::export]
 async fn async_roundtrip_obj(v: Arc<AsyncInterface>) -> Arc<AsyncInterface> {
     v
+}
+
+/// Async version of `TestCallbackInterface`
+#[uniffi::export(callback_interface)]
+#[async_trait::async_trait]
+pub trait TestAsyncCallbackInterface: Send + Sync {
+    async fn noop(&self);
+    async fn get_value(&self) -> u32;
+    async fn set_value(&self, value: u32);
+    async fn throw_if_equal(
+        &self,
+        numbers: CallbackInterfaceNumbers,
+    ) -> Result<CallbackInterfaceNumbers, TestError>;
+}
+
+#[uniffi::export]
+async fn invoke_test_async_callback_interface_noop(cbi: Box<dyn TestAsyncCallbackInterface>) {
+    cbi.noop().await
+}
+
+#[uniffi::export]
+async fn invoke_test_async_callback_interface_get_value(cbi: Box<dyn TestAsyncCallbackInterface>) -> u32 {
+    cbi.get_value().await
+}
+
+#[uniffi::export]
+async fn invoke_test_async_callback_interface_set_value(cbi: Box<dyn TestAsyncCallbackInterface>, value: u32) {
+    cbi.set_value(value).await
+}
+
+#[uniffi::export]
+async fn invoke_test_async_callback_interface_throw_if_equal(
+    cbi: Box<dyn TestAsyncCallbackInterface>,
+    numbers: CallbackInterfaceNumbers,
+) -> Result<CallbackInterfaceNumbers, TestError> {
+    cbi.throw_if_equal(numbers).await
 }

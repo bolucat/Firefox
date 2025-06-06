@@ -1593,6 +1593,22 @@
   value: false
   mirror: always
 
+# See bug 1790641
+- name: browser.download.enableDeletePrivate
+  type: bool
+  value: false
+  mirror: always
+
+- name: browser.download.deletePrivate
+  type: bool
+  value: false
+  mirror: always
+
+- name: browser.download.deletePrivateChosen
+  type: bool
+  value: false
+  mirror: always
+
 # See bug 1731668
 - name: browser.download.enable_spam_prevention
   type: bool
@@ -3042,6 +3058,13 @@
   value: false
   mirror: always
 
+# This pref controls whether <input type=search> clears its value on Esc
+# keydown.
+- name: dom.forms.search.esc
+  type: bool
+  value: true
+  mirror: always
+
 # The interval in milliseconds between two Escape key events where the second
 # key event will exit fullscreen, even if it is consumed.
 - name: dom.fullscreen.force_exit_on_multiple_escape_interval
@@ -3247,6 +3270,11 @@
   value: true
   mirror: always
 
+- name: dom.intersection_observer.scroll_margin.enabled
+  type: bool
+  value: true
+  mirror: always
+
 # How often to check for CPOW timeouts (ms). CPOWs are only timed
 # out by the hang monitor.
 - name: dom.ipc.cpow.timeout
@@ -3260,7 +3288,7 @@
 #if defined(MOZ_CODE_COVERAGE) || defined(MOZ_ASAN) || defined(MOZ_TSAN) || defined(MOZ_MSAN) || defined(MOZ_UBSAN)
   value: false
 #else
-  value: @IS_NIGHTLY_BUILD@
+  value: true
 #endif
   mirror: once
 #endif
@@ -8155,7 +8183,7 @@
 # a natural width and/or height.
 - name: image.natural-size-fallback.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Whether we record SVG images as blobs or not.
@@ -10428,12 +10456,11 @@
   value: true
   mirror: always
 
-# On Android, don't synth mouse move events after scrolling, as they cause
-# unexpected user-visible behaviour. Can remove this after bug 1633450 is
-# satisfactorily resolved.
+# Whether synthesize eMouseMove for dispatching mouse boundary events after
+# a layout change or a scroll.
 - name: layout.reflow.synthMouseMove
   type: bool
-  value: @IS_NOT_MOBILE@
+  value: true
   mirror: always
 
 # This pref determines which side vertical scrollbars should be on.
@@ -10835,14 +10862,6 @@
 - name: logging.config.clear_on_startup
   type: bool
   value: true
-  mirror: never
-
-# Allow setting log modules at runtimes easily with a MOZ_LOG string.
-# This preference is empty by default but defined, this makes it easy to use
-# especially on mobile by searching for it in about:config.
-- name: logging.config.modules
-  type: String
-  value: ""
   mirror: never
 
 #---------------------------------------------------------------------------
@@ -12215,7 +12234,7 @@
 # Enable tab sharing
 - name: media.getusermedia.browser.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # The getDisplayMedia method is always SecureContext regardless of the above two
@@ -14039,7 +14058,7 @@
 
 # When resolving a native HTTPS query with native APIs
 # the MacOS implementation has a max timeout
-- name: network.dns.native_https_timeout_mac
+- name: network.dns.native_https_timeout_mac_msec
   type: RelaxedAtomicInt32
   value: 5000
   mirror: always
@@ -16268,12 +16287,12 @@
 # Whether only bounces that access storage should be considered trackers.
 - name: privacy.bounceTrackingProtection.requireStatefulBounces
   type: bool
-  value: true
+  value: @IS_NOT_NIGHTLY_BUILD@
   mirror: always
 
 # To be used in automated test environments to enable observer messages.
 - name: privacy.bounceTrackingProtection.enableTestMode
-  type: bool
+  type: RelaxedAtomicBool
   value: false
   mirror: always
 
@@ -16282,6 +16301,12 @@
 - name: privacy.bounceTrackingProtection.hasMigratedUserActivationData
   type: bool
   value: false
+  mirror: always
+
+# Maximum number of pending storage updates before flushing to disk.
+- name: privacy.bounceTrackingProtection.storage.maxPendingUpdates
+  type: uint32_t
+  value: 25
   mirror: always
 
 #---------------------------------------------------------------------------

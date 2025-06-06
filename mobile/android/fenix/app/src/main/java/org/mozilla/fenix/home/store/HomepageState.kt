@@ -185,7 +185,7 @@ internal sealed class HomepageState {
                             browserState = components.core.store.state,
                             browsingModeManager = browsingModeManager,
                         ),
-                        pocketState = PocketState.build(appState, settings),
+                        pocketState = PocketState.build(appState),
                         showTopSites = settings.showTopSitesFeature && topSites.isNotEmpty(),
                         showRecentTabs = shouldShowRecentTabs(settings),
                         showBookmarks = settings.showBookmarksHomeFeature && bookmarks.isNotEmpty(),
@@ -219,7 +219,7 @@ private val showSyncedTab: Boolean
 private fun WallpaperState.customizeHomeButtonBackgroundColor(): Color {
     var buttonColor: Color = FirefoxTheme.colors.actionTertiary
 
-    composeRunIfWallpaperCardColorsAreAvailable { cardColorLight, cardColorDark ->
+    ComposeRunIfWallpaperCardColorsAreAvailable { cardColorLight, cardColorDark ->
         buttonColor = if (isSystemInDarkTheme()) {
             cardColorDark
         } else {

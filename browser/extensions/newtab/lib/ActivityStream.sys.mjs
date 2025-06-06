@@ -40,6 +40,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
   TelemetryFeed: "resource://newtab/lib/TelemetryFeed.sys.mjs",
   TopSitesFeed: "resource://newtab/lib/TopSitesFeed.sys.mjs",
   TopStoriesFeed: "resource://newtab/lib/TopStoriesFeed.sys.mjs",
+  TrendingSearchFeed: "resource://newtab/lib/TrendingSearchFeed.sys.mjs",
   WallpaperFeed: "resource://newtab/lib/WallpaperFeed.sys.mjs",
   WeatherFeed: "resource://newtab/lib/WeatherFeed.sys.mjs",
 });
@@ -293,22 +294,6 @@ export const PREFS_CONFIG = new Map([
     },
   ],
   [
-    "unifiedAds.adsFeed.tiles.enabled",
-    {
-      title:
-        "Use AdsFeed.sys.mjs to fetch/cache/serve sponsored top sites tiles",
-      value: false,
-    },
-  ],
-  [
-    "unifiedAds.adsFeed.spocs.enabled",
-    {
-      title:
-        "Use AdsFeed.sys.mjs to fetch/cache/serve sponsored content in recommended stories",
-      value: false,
-    },
-  ],
-  [
     "unifiedAds.tiles.enabled",
     {
       title:
@@ -481,14 +466,6 @@ export const PREFS_CONFIG = new Map([
     {
       title:
         "Boolean flag that decides whether or not to show bookmarks in highlights.",
-      value: true,
-    },
-  ],
-  [
-    "section.highlights.includePocket",
-    {
-      title:
-        "Boolean flag that decides whether or not to show saved Pocket stories in highlights.",
       value: true,
     },
   ],
@@ -829,6 +806,20 @@ export const PREFS_CONFIG = new Map([
     "newtabWallpapers.wallpaper",
     {
       title: "Currently set wallpaper",
+      value: "",
+    },
+  ],
+  [
+    "trendingSearch.enabled",
+    {
+      title: "Enables the trending search widget",
+      value: false,
+    },
+  ],
+  [
+    "trendingSearch.variant",
+    {
+      title: "Determines the layout variant for the trending search widget",
       value: "",
     },
   ],
@@ -1194,6 +1185,23 @@ export const PREFS_CONFIG = new Map([
       },
     },
   ],
+  // Sponsored checkboxes placement experiment
+  [
+    "system.showSponsoredCheckboxes",
+    {
+      title:
+        "Switches on grouping of sponsored checkboxes on 'about:settings#home' page",
+      value: false,
+    },
+  ],
+  [
+    "showSponsoredCheckboxes",
+    {
+      title:
+        "'Support Firefox' pref on 'about:settings#home' page. Toggles all sponsored results on and off at the same time",
+      value: true,
+    },
+  ],
 ]);
 
 // Array of each feed's FEEDS_CONFIG factory and values to add to PREFS_CONFIG
@@ -1360,6 +1368,12 @@ const FEEDS_DATA = [
     name: "newtabmessaging",
     factory: () => new lazy.NewTabMessaging(),
     title: "Handles fetching and triggering ASRouter messages in newtab",
+    value: true,
+  },
+  {
+    name: "trendingseachfeed",
+    factory: () => new lazy.TrendingSearchFeed(),
+    title: "Handles fetching the google trending search API",
     value: true,
   },
 ];

@@ -129,11 +129,12 @@ export class MLEngineParent extends JSProcessActorParent {
    * - 5 => Transformers >= 3.5.1
    *
    * wllama:
-   * - 3 => wllama 2.x
+   * - 3 => wllama 2.2.x
+   * - 4 => wllama 2.3.x
    */
   static WASM_MAJOR_VERSION = {
     onnx: 5,
-    wllama: 3,
+    wllama: 4,
   };
 
   /**
@@ -305,6 +306,12 @@ export class MLEngineParent extends JSProcessActorParent {
       case "MLEngine:GetModelFile":
         return this.getModelFile(message.data);
 
+      case "MLEngine:NotifyModelDownloadComplete":
+        return this.notifyModelDownloadComplete(message.data);
+
+      case "MLEngine:GetWorkerConfig":
+        return MLEngineParent.getWorkerConfig();
+
       case "MLEngine:DestroyEngineProcess":
         if (this.processKeepAlive) {
           ChromeUtils.addProfilerMarker(
@@ -346,31 +353,18 @@ export class MLEngineParent extends JSProcessActorParent {
       lazy.console.debug(
         "Ignored attempt to delete previous models when the engine is not fully initialized."
       );
+      return;
     }
-
-    const deletePromises = [];
-
-    for (const [
-      key,
-      { taskName, model, revision },
-    ] of this.#modelFilesInUse.entries()) {
-      lazy.console.debug("Deleting previous version for ", {
-        taskName,
-        model,
-        revision,
-      });
-      deletePromises.push(
-        this.modelHub
-          .deleteNonMatchingModelRevisions({
-            taskName,
-            model,
-            targetRevision: revision,
-          })
-          .then(() => this.#modelFilesInUse.delete(key))
-      );
-    }
-
-    await Promise.all(deletePromises);
+    await Promise.all(
+      [...this.#modelFilesInUse].map(async ([key, entry]) => {
+        await this.modelHub.deleteNonMatchingModelRevisions({
+          modelWithHostname: entry.modelWithHostname,
+          taskName: entry.taskName,
+          targetRevision: entry.revision,
+        });
+        this.#modelFilesInUse.delete(key);
+      })
+    );
   }
 
   /**
@@ -389,8 +383,6 @@ export class MLEngineParent extends JSProcessActorParent {
    * @param {string} config.urlTemplate - The URL of the model file to fetch. Can be a path relative to
    * the model hub root or an absolute URL.
    * @param {string} config.featureId - The engine id.
-   * @param {string} config.modelRevision - The model revision.
-   * @param {string} config.modelId - The model id
    * @param {string} config.sessionId - Shared across the same model download session.
    * @returns {Promise<[string, object]>} The file local path and headers
    */
@@ -401,8 +393,6 @@ export class MLEngineParent extends JSProcessActorParent {
     rootUrl,
     urlTemplate,
     featureId,
-    modelRevision,
-    modelId,
     sessionId,
   }) {
     // Create the model hub instance if needed
@@ -430,13 +420,13 @@ export class MLEngineParent extends JSProcessActorParent {
     const [data, headers] = await this.modelHub.getModelDataAsFile({
       engineId,
       taskName,
-      ...parsedUrl,
+      model: parsedUrl.model,
+      revision: parsedUrl.revision,
+      file: parsedUrl.file,
       modelHubRootUrl: rootUrl,
       modelHubUrlTemplate: urlTemplate,
       progressCallback: this.notificationsCallback?.bind(this),
       featureId,
-      modelRevision,
-      modelId,
       sessionId,
     });
 
@@ -453,6 +443,33 @@ export class MLEngineParent extends JSProcessActorParent {
     );
 
     return [data, headers];
+  }
+
+  /**
+   * Notify that a model download is complete.
+   *
+   * @param {object} config
+   * @param {string} config.engineId - The engine id.
+   * @param {string} config.model - The model name (organization/name).
+   * @param {string} config.revision - The model revision.
+   * @param {string} config.featureId - The engine id.
+   * @param {string} config.sessionId - Shared across the same model download session.
+   * @returns {Promise<[string, object]>} The file local path and headers
+   */
+  async notifyModelDownloadComplete({
+    engineId,
+    model,
+    revision,
+    featureId,
+    sessionId,
+  }) {
+    return this.modelHub.notifyModelDownloadComplete({
+      engineId,
+      sessionId,
+      featureId,
+      model,
+      revision,
+    });
   }
 
   /** Gets the wasm file from remote settings.
@@ -497,6 +514,18 @@ export class MLEngineParent extends JSProcessActorParent {
       record
     );
     return record;
+  }
+
+  /**
+   * Gets the configuration of the worker
+   *
+   * @returns {Promise<object>}
+   */
+  static getWorkerConfig() {
+    return {
+      url: "chrome://global/content/ml/MLEngine.worker.mjs",
+      options: { type: "module" },
+    };
   }
 
   /**
@@ -781,10 +810,10 @@ class ResponseOrChunkResolvers {
  * the engine.
  *
  * @typedef {object} Request
- * @property {?string} id - The identifier for tracking this request. If not provided, an id will be auto-generated. Each inference callback will reference this id.
+ * @property {?string} [id] - The identifier for tracking this request. If not provided, an id will be auto-generated. Each inference callback will reference this id.
  * @property {any[]} args - The arguments to pass to the pipeline. The required arguments depend on your model. See [Hugging Face Transformers documentation](https://huggingface.co/docs/transformers.js/en/api/models) for more details.
  * @property {?object} options - The generation options to pass to the model. Refer to the [GenerationConfigType documentation](https://huggingface.co/docs/transformers.js/en/api/utils/generation#module_utils/generation..GenerationConfigType) for available options.
- * @property {?Uint8Array} data - For the imagetoText model, this is the array containing the image data.
+ * @property {?Uint8Array} [data] - For the imagetoText model, this is the array containing the image data.
  *
  * @template Response
  */
@@ -1119,8 +1148,8 @@ class MLEngine {
   /**
    * Terminates the engine.
    *
-   * @param {boolean} shutdown - Flag indicating whether to shutdown the engine.
-   * @param {boolean} replacement - Flag indicating whether the engine is being replaced.
+   * @param {boolean} [shutdown] - Flag indicating whether to shutdown the engine.
+   * @param {boolean} [replacement] - Flag indicating whether the engine is being replaced.
    * @returns {Promise<void>} A promise that resolves once the engine is terminated.
    */
   async terminate(shutdown, replacement) {

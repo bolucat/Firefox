@@ -101,10 +101,6 @@ internal object FakeHomepagePreview {
                 storyPosition: Triple<Int, Int, Int>,
             ) { /* no op */ }
 
-            override fun onLearnMoreClicked(link: String) { /* no op */ }
-
-            override fun onDiscoverMoreClicked(link: String) { /* no op */ }
-
             override fun onMenuItemTapped(item: SearchSelectorMenu.Item) { /* no op */ }
 
             override fun showWallpapersOnboardingDialog(state: WallpaperState): Boolean {
@@ -243,7 +239,6 @@ internal object FakeHomepagePreview {
         pinnedCount: Int = 2,
         providedCount: Int = 2,
         defaultCount: Int = 2,
-        showPocketTopArticles: Boolean = true,
     ) = mutableListOf<TopSite>().apply {
         repeat(pinnedCount) {
             add(
@@ -277,17 +272,6 @@ internal object FakeHomepagePreview {
                     title = "Mozilla",
                     url = URL,
                     createdAt = randomLong(),
-                ),
-            )
-        }
-
-        if (showPocketTopArticles) {
-            add(
-                TopSite.Default(
-                    id = null,
-                    title = "Top Articles",
-                    url = "https://getpocket.com/fenixtoparticles",
-                    createdAt = 0L,
                 ),
             )
         }
@@ -403,7 +387,6 @@ internal object FakeHomepagePreview {
             .split(" ")
             .map { PocketRecommendedStoriesCategory(it) },
         categoriesSelections = emptyList(),
-        showContentRecommendations = false,
         categoryColors = SelectableChipColors.buildColors(),
         textColor = FirefoxTheme.colors.textPrimary,
         linkTextColor = FirefoxTheme.colors.textAccent,

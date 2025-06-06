@@ -418,7 +418,8 @@ class HTMLMediaElement::MediaControlKeyListener final
 
     MOZ_ASSERT(mControlAgent);
     auto* owner = Owner();
-    PositionState state(owner->Duration(), owner->PlaybackRate(),
+    PositionState state(owner->Duration(),
+                        owner->Paused() ? 0.0 : owner->PlaybackRate(),
                         owner->CurrentTime(), TimeStamp::Now());
     MEDIACONTROL_LOG(
         "Notify media position state (duration=%f, playbackRate=%f, "
@@ -595,7 +596,8 @@ class HTMLMediaElement::MediaControlKeyListener final
     mState = aState;
     mControlAgent->NotifyMediaPlaybackChanged(mOwnerBrowsingContextId, mState);
 
-    if (aState == MediaPlaybackState::ePlayed) {
+    if (aState == MediaPlaybackState::ePlayed ||
+        aState == MediaPlaybackState::ePaused) {
       NotifyMediaPositionState();
     }
   }
@@ -2422,6 +2424,7 @@ void HTMLMediaElement::ShutdownDecoder() {
 
 void HTMLMediaElement::AbortExistingLoads() {
   MOZ_ASSERT(NS_IsMainThread());
+  LOG(LogLevel::Debug, ("%p Abort existing loads", this));
   // Abort any already-running instance of the resource selection algorithm.
   mLoadWaitStatus = NOT_WAITING;
 
@@ -2766,8 +2769,9 @@ void HTMLMediaElement::SelectResource() {
       LOG(LogLevel::Debug, ("%p Trying load from src=%s", this,
                             NS_ConvertUTF16toUTF8(src).get()));
       if (profiler_is_collecting_markers()) {
-        profiler_add_marker("loadresource", geckoprofiler::category::MEDIA_PLAYBACK,
-                            {}, LoadSourceMarker{}, nsString{src}, nsString{},
+        profiler_add_marker("loadresource",
+                            geckoprofiler::category::MEDIA_PLAYBACK, {},
+                            LoadSourceMarker{}, nsString{src}, nsString{},
                             nsString{}, Flow::FromPointer(this));
       }
 
@@ -2826,9 +2830,8 @@ void HTMLMediaElement::NotifyLoadError(const nsACString& aErrorDetails) {
     NS_WARNING("Should know the source we were loading from!");
   }
   if (profiler_is_collecting_markers()) {
-    profiler_add_marker("loaderror",
-                        geckoprofiler::category::MEDIA_PLAYBACK, {},
-                        LoadErrorMarker{}, aErrorDetails,
+    profiler_add_marker("loaderror", geckoprofiler::category::MEDIA_PLAYBACK,
+                        {}, LoadErrorMarker{}, aErrorDetails,
                         Flow::FromPointer(this));
   }
 }
@@ -3048,8 +3051,9 @@ void HTMLMediaElement::LoadFromSourceChildren() {
          NS_ConvertUTF16toUTF8(media).get()));
 
     if (profiler_is_collecting_markers()) {
-      profiler_add_marker("loadresource", geckoprofiler::category::MEDIA_PLAYBACK,
-                          {}, LoadSourceMarker{}, nsString{src}, nsString{type},
+      profiler_add_marker("loadresource",
+                          geckoprofiler::category::MEDIA_PLAYBACK, {},
+                          LoadSourceMarker{}, nsString{src}, nsString{type},
                           nsString{media}, Flow::FromPointer(this));
     }
 
@@ -3183,10 +3187,14 @@ void HTMLMediaElement::UpdatePreloadAction() {
   }
 
   if (nextAction == HTMLMediaElement::PRELOAD_NONE && mIsDoingExplicitLoad) {
+    LOG(LogLevel::Debug, ("%p Force to preload metadata when explicit loading "
+                          "a preload none element",
+                          this));
     nextAction = HTMLMediaElement::PRELOAD_METADATA;
   }
 
   mPreloadAction = nextAction;
+  LOG(LogLevel::Debug, ("%p Preload action=%d", this, nextAction));
 
   if (nextAction == HTMLMediaElement::PRELOAD_ENOUGH) {
     if (mSuspendedForPreloadNone) {
@@ -3201,8 +3209,18 @@ void HTMLMediaElement::UpdatePreloadAction() {
     }
 
   } else if (nextAction == HTMLMediaElement::PRELOAD_METADATA) {
-    // Ensure that the video can be suspended after first frame.
-    mAllowSuspendAfterFirstFrame = true;
+    // If no preload attribute is present but Load() has been explicitly called,
+    // assume more data may be needed and avoid suspending the decoder. This is
+    // done because some sites may rely on the `canplaythrough` event after
+    // calling load(), even though it’s not guaranteed to fire.
+    //
+    // This behavior can be reconsidered once bug 1969224 is resolved.
+    if (!HasAttr(nsGkAtoms::preload) && mIsDoingExplicitLoad) {
+      mAllowSuspendAfterFirstFrame = false;
+    } else {
+      // Ensure that the video can be suspended after first frame.
+      mAllowSuspendAfterFirstFrame = true;
+    }
     if (mSuspendedForPreloadNone) {
       // Our load was previouly suspended due to the media having preload
       // value "none". The preload value has changed to preload:metadata, so
@@ -4491,8 +4509,8 @@ HTMLMediaElement::~HTMLMediaElement() {
       !mHasSelfReference,
       "How can we be destroyed if we're still holding a self reference?");
 
-  PROFILER_MARKER("~HTMLMediaElement", MEDIA_PLAYBACK, {}, TerminatingFlowMarker,
-                  Flow::FromPointer(this));
+  PROFILER_MARKER("~HTMLMediaElement", MEDIA_PLAYBACK, {},
+                  TerminatingFlowMarker, Flow::FromPointer(this));
 
   mWatchManager.Shutdown();
 
@@ -5699,12 +5717,31 @@ void HTMLMediaElement::FirstFrameLoaded() {
 
   ChangeDelayLoadStatus(false);
 
-  if (mDecoder && mAllowSuspendAfterFirstFrame && mPaused &&
-      !HasAttr(nsGkAtoms::autoplay) &&
-      mPreloadAction == HTMLMediaElement::PRELOAD_METADATA) {
+  if (ShouldSuspendDownloadAfterFirstFrameLoaded()) {
+    LOG(LogLevel::Debug, ("%p Suspend decoder after first frame loaded", this));
     mSuspendedAfterFirstFrame = true;
     mDecoder->Suspend();
   }
+}
+
+bool HTMLMediaElement::ShouldSuspendDownloadAfterFirstFrameLoaded() const {
+  if (!mDecoder) {
+    return false;
+  }
+
+  // If the media is set to autoplay, avoid suspending, to preload as much as
+  // possible.
+  if (HasAttr(nsGkAtoms::autoplay)) {
+    return false;
+  }
+
+  // If the media is currently playing, do not suspend downloading.
+  if (!mPaused) {
+    return false;
+  }
+
+  return mPreloadAction == HTMLMediaElement::PRELOAD_METADATA &&
+         mAllowSuspendAfterFirstFrame;
 }
 
 void HTMLMediaElement::NetworkError(const MediaResult& aError) {
@@ -7218,7 +7255,8 @@ void HTMLMediaElement::MakeAssociationWithCDMResolved() {
                           mMediaKeys->GetMediaKeySystemConfigurationString(),
                           Flow::FromPointer(this));
     } else {
-      PROFILER_MARKER("removemediakey", MEDIA_PLAYBACK, {}, FlowMarker, Flow::FromPointer(this));
+      PROFILER_MARKER("removemediakey", MEDIA_PLAYBACK, {}, FlowMarker,
+                      Flow::FromPointer(this));
     }
   }
 }

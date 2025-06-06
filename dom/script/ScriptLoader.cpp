@@ -332,10 +332,7 @@ nsIPrincipal* ScriptLoader::LoaderPrincipal() const {
 }
 
 nsIPrincipal* ScriptLoader::PartitionedPrincipal() const {
-  if (mDocument && StaticPrefs::privacy_partition_network_state()) {
-    return mDocument->PartitionedPrincipal();
-  }
-  return LoaderPrincipal();
+  return mDocument->PartitionedPrincipal();
 }
 
 bool ScriptLoader::ShouldBypassCache() const {
@@ -2640,6 +2637,12 @@ void ScriptLoader::CalculateBytecodeCacheFlag(ScriptLoadRequest* aRequest) {
 
   if (aRequest->IsStencil()) {
     aRequest->MarkPassedConditionForBytecodeEncoding();
+    return;
+  }
+
+  if (aRequest->IsModuleRequest() &&
+      aRequest->AsModuleRequest()->mModuleType != JS::ModuleType::JavaScript) {
+    aRequest->MarkSkippedBytecodeEncoding();
     return;
   }
 

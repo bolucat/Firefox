@@ -162,6 +162,13 @@ module.exports = function (config) {
               functions: 0,
               branches: 0,
             },
+            "content-src/components/DiscoveryStreamComponents/TrendingSearches/TrendingSearchesVarA.jsx":
+              {
+                statements: 0,
+                lines: 0,
+                functions: 0,
+                branches: 0,
+              },
             "content-src/components/DiscoveryStreamComponents/PersonalizedCard/PersonalizedCard.jsx":
               {
                 statements: 0,
@@ -252,6 +259,19 @@ module.exports = function (config) {
                 statements: 86,
                 lines: 86,
                 functions: 83,
+              },
+            "content-src/components/DiscoveryStreamComponents/DSThumbsUpDownButtons/DSThumbsUpDownButtons.jsx":
+              {
+                statements: 75,
+                lines: 75,
+                branches: 50,
+              },
+            "content-src/components/DiscoveryStreamComponents/TrendingSearches/TrendingSearches.jsx":
+              {
+                statements: 0,
+                lines: 0,
+                functions: 0,
+                branches: 0,
               },
             "content-src/components/DiscoveryStreamComponents/**/*.jsx": {
               statements: 90.48,

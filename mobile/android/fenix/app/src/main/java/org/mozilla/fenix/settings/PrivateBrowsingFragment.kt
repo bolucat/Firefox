@@ -11,6 +11,7 @@ import android.view.WindowManager
 import androidx.activity.result.ActivityResultLauncher
 import androidx.biometric.BiometricManager
 import androidx.preference.Preference
+import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.SwitchPreference
 import org.mozilla.fenix.GleanMetrics.PrivateBrowsingLocked
@@ -82,9 +83,15 @@ class PrivateBrowsingFragment : PreferenceFragmentCompat() {
         val deviceCapable = biometricManager.isHardwareAvailable()
         val userHasEnabledCapability = biometricManager.isAuthenticatorAvailable()
 
+        // Show divider only if user does not have a device lock set
+        requirePreference<PreferenceCategory>(R.string.pref_key_pbm_lock_category_divider).apply {
+            isVisible =
+                deviceCapable && !userHasEnabledCapability && FxNimbus.features.privateBrowsingLock.value().enabled
+        }
+
         requirePreference<SwitchPreference>(R.string.pref_key_private_browsing_locked_enabled).apply {
             isChecked = context.settings().privateBrowsingLockedEnabled &&
-                biometricManager.isAuthenticatorAvailable()
+                    biometricManager.isAuthenticatorAvailable()
             isVisible = deviceCapable && FxNimbus.features.privateBrowsingLock.value().enabled
             isEnabled = userHasEnabledCapability
 

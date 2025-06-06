@@ -52,8 +52,6 @@ static constexpr gfx::sRGBColor sColorGrey10Alpha50(
     gfx::sRGBColor::UnusualFromARGB(0x7fe9e9ed));
 static constexpr gfx::sRGBColor sColorGrey20(
     gfx::sRGBColor::UnusualFromARGB(0xffd0d0d7));
-static constexpr gfx::sRGBColor sColorGrey30(
-    gfx::sRGBColor::UnusualFromARGB(0xffb1b1b9));
 static constexpr gfx::sRGBColor sColorGrey40(
     gfx::sRGBColor::UnusualFromARGB(0xff8f8f9d));
 static constexpr gfx::sRGBColor sColorGrey40Alpha50(
@@ -265,16 +263,10 @@ sRGBColor Theme::ComputeBorderColor(const ElementState& aState,
   bool isActive =
       aState.HasAllStates(ElementState::HOVER | ElementState::ACTIVE);
   bool isHovered = aState.HasState(ElementState::HOVER);
-  if (aColors.HighContrast()) {
-    return aColors.System(isDisabled ? StyleSystemColor::Graytext
-                          : (isHovered && !isActive)
-                              ? StyleSystemColor::Selecteditem
-                              : StyleSystemColor::Buttontext);
+  if (isDisabled) {
+    return aColors.System(StyleSystemColor::MozButtondisabledborder);
   }
   bool isFocused = aState.HasState(ElementState::FOCUSRING);
-  if (isDisabled) {
-    return sColorGrey40Alpha50;
-  }
   if (isFocused && aOutlineCoversBorder == OutlineCoversBorder::Yes) {
     // If we draw the outline over the border, prevent issues where the border
     // shows underneath if it snaps in the wrong direction by using a
@@ -284,14 +276,13 @@ sRGBColor Theme::ComputeBorderColor(const ElementState& aState,
     // But this looks harder to mess up.
     return sTransparent;
   }
-  bool dark = aColors.IsDark();
   if (isActive) {
-    return dark ? sColorGrey20 : sColorGrey60;
+    return aColors.System(StyleSystemColor::MozButtonactiveborder);
   }
   if (isHovered) {
-    return dark ? sColorGrey30 : sColorGrey50;
+    return aColors.System(StyleSystemColor::MozButtonhoverborder);
   }
-  return sColorGrey40;
+  return aColors.System(StyleSystemColor::Buttonborder);
 }
 
 std::pair<sRGBColor, sRGBColor> Theme::ComputeButtonColors(
@@ -316,8 +307,6 @@ std::pair<sRGBColor, sRGBColor> Theme::ComputeButtonColors(
     }
     return aColors.SystemNs(StyleSystemColor::Buttonface);
   }();
-
-  // TODO(emilio): This should probably use Buttonborder or something?
   const sRGBColor borderColor =
       ComputeBorderColor(aState, aColors, OutlineCoversBorder::Yes);
   return std::make_pair(sRGBColor::FromABGR(backgroundColor), borderColor);
@@ -1030,7 +1019,7 @@ void Theme::PaintButton(PaintBackendData& aPaintData,
   if (aAppearance == StyleAppearance::Toolbarbutton &&
       (!aState.HasState(ElementState::HOVER) ||
        aState.HasState(ElementState::DISABLED))) {
-    borderColor = sTransparent;
+    backgroundColor = borderColor = sTransparent;
   }
 
   ThemeDrawing::PaintRoundedRectWithRadius(aPaintData, aRect, backgroundColor,

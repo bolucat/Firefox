@@ -740,7 +740,6 @@ static bool IsPenEvent(GdkEvent* aEvent, bool* isEraser) {
     *isEraser = true;
     return true;
   } else {
-
 #ifdef MOZ_X11
     // Workaround : When using Xwayland, pens are reported as
     // GDK_SOURCE_TOUCHSCREEN If eSource is GDK_SOURCE_TOUCHSCREEN and the
@@ -899,7 +898,7 @@ bool nsWindow::ToplevelUsesCSD() const {
 #ifdef MOZ_WAYLAND
   if (GdkIsWaylandDisplay()) {
     static auto sGdkWaylandDisplayPrefersSsd =
-        (gboolean (*)(const GdkWaylandDisplay*))dlsym(
+        (gboolean(*)(const GdkWaylandDisplay*))dlsym(
             RTLD_DEFAULT, "gdk_wayland_display_prefers_ssd");
     // NOTE(emilio): Not using GDK_WAYLAND_DISPLAY to avoid bug 1946088.
     return !sGdkWaylandDisplayPrefersSsd ||
@@ -3244,7 +3243,7 @@ void nsWindow::RecomputeBounds(MayChangeCsdMargin aMayChangeCsdMargin) {
     gdk_window_get_frame_extents(aWin, &b);
 #ifdef MOZ_X11
     const bool isX11 = GdkIsX11Display();
-    if (isX11 && !gtk_check_version(3, 24, 35) &&
+    if (isX11 && gtk_check_version(3, 24, 35) &&
         gdk_window_get_window_type(aWin) == GDK_WINDOW_TEMP) {
       // Workaround for https://gitlab.gnome.org/GNOME/gtk/-/merge_requests/4820
       // Bug 1775017 Gtk < 3.24.35 returns scaled values for
@@ -3254,7 +3253,7 @@ void nsWindow::RecomputeBounds(MayChangeCsdMargin aMayChangeCsdMargin) {
 #endif
     auto result = GdkRectToDevicePixels(b);
 #ifdef MOZ_X11
-    if (isX11 && !gtk_check_version(3, 24, 50)) {
+    if (isX11 && gtk_check_version(3, 24, 50)) {
       if (auto border = GetXWindowBorder(aWin)) {
         // Workaround for
         // https://gitlab.gnome.org/GNOME/gtk/-/merge_requests/8423
@@ -5082,7 +5081,7 @@ void nsWindow::OnScrollEvent(GdkEventScroll* aEvent) {
         if (StaticPrefs::apz_gtk_pangesture_enabled() &&
             gtk_check_version(3, 20, 0) == nullptr) {
           static auto sGdkEventIsScrollStopEvent =
-              (gboolean (*)(const GdkEvent*))dlsym(
+              (gboolean(*)(const GdkEvent*))dlsym(
                   RTLD_DEFAULT, "gdk_event_is_scroll_stop_event");
 
           LOG("[%d] pan smooth event dx=%f dy=%f inprogress=%d\n", aEvent->time,
@@ -5147,11 +5146,11 @@ void nsWindow::OnScrollEvent(GdkEventScroll* aEvent) {
 
           DispatchPanGesture(panEvent);
 
-          if (mCurrentSynthesizedTouchpadPan.mSavedObserver != 0) {
-            mozilla::widget::AutoObserverNotifier::NotifySavedObserver(
-                mCurrentSynthesizedTouchpadPan.mSavedObserver,
-                "touchpadpanevent");
-            mCurrentSynthesizedTouchpadPan.mSavedObserver = 0;
+          if (mCurrentSynthesizedTouchpadPan.mSavedCallbackId.isSome()) {
+            mozilla::widget::AutoSynthesizedEventCallbackNotifier::
+                NotifySavedCallback(
+                    mCurrentSynthesizedTouchpadPan.mSavedCallbackId.ref());
+            mCurrentSynthesizedTouchpadPan.mSavedCallbackId.reset();
           }
 
           return;
@@ -7414,11 +7413,16 @@ MOZ_CAN_RUN_SCRIPT static void WaylandDragWorkaround(nsWindow* aWindow,
 
   buttonPressCountWithDrag++;
   if (buttonPressCountWithDrag > 1) {
+    LOGDRAG(
+        "WaylandDragWorkaround applied [buttonPressCountWithDrag %d], quit D&D "
+        "session",
+        buttonPressCountWithDrag);
+
     NS_WARNING(
         "Quit unfinished Wayland Drag and Drop operation. Buggy Wayland "
         "compositor?");
     buttonPressCountWithDrag = 0;
-    currentDragSession->EndDragSession(false, 0);
+    currentDragSession->EndDragSession(true, 0);
   }
 }
 
@@ -8989,11 +8993,11 @@ LayoutDeviceIntRect nsWindow::GdkRectToDevicePixels(const GdkRectangle& aRect) {
 nsresult nsWindow::SynthesizeNativeMouseEvent(
     LayoutDeviceIntPoint aPoint, NativeMouseMessage aNativeMessage,
     MouseButton aButton, nsIWidget::Modifiers aModifierFlags,
-    nsIObserver* aObserver) {
+    nsISynthesizedEventCallback* aCallback) {
   LOG("SynthesizeNativeMouseEvent(%d, %d, %d, %d, %d)", aPoint.x.value,
       aPoint.y.value, int(aNativeMessage), int(aButton), int(aModifierFlags));
 
-  AutoObserverNotifier notifier(aObserver, "mouseevent");
+  AutoSynthesizedEventCallbackNotifier notifier(aCallback);
 
   if (!mGdkWindow) {
     return NS_OK;
@@ -9098,8 +9102,8 @@ void nsWindow::CreateAndPutGdkScrollEvent(mozilla::LayoutDeviceIntPoint aPoint,
 nsresult nsWindow::SynthesizeNativeMouseScrollEvent(
     mozilla::LayoutDeviceIntPoint aPoint, uint32_t aNativeMessage,
     double aDeltaX, double aDeltaY, double aDeltaZ, uint32_t aModifierFlags,
-    uint32_t aAdditionalFlags, nsIObserver* aObserver) {
-  AutoObserverNotifier notifier(aObserver, "mousescrollevent");
+    uint32_t aAdditionalFlags, nsISynthesizedEventCallback* aCallback) {
+  AutoSynthesizedEventCallbackNotifier notifier(aCallback);
 
   if (!mGdkWindow) {
     return NS_OK;
@@ -9110,13 +9114,11 @@ nsresult nsWindow::SynthesizeNativeMouseScrollEvent(
   return NS_OK;
 }
 
-nsresult nsWindow::SynthesizeNativeTouchPoint(uint32_t aPointerId,
-                                              TouchPointerState aPointerState,
-                                              LayoutDeviceIntPoint aPoint,
-                                              double aPointerPressure,
-                                              uint32_t aPointerOrientation,
-                                              nsIObserver* aObserver) {
-  AutoObserverNotifier notifier(aObserver, "touchpoint");
+nsresult nsWindow::SynthesizeNativeTouchPoint(
+    uint32_t aPointerId, TouchPointerState aPointerState,
+    LayoutDeviceIntPoint aPoint, double aPointerPressure,
+    uint32_t aPointerOrientation, nsISynthesizedEventCallback* aCallback) {
+  AutoSynthesizedEventCallbackNotifier notifier(aCallback);
 
   if (!mGdkWindow) {
     return NS_OK;
@@ -9259,12 +9261,11 @@ nsresult nsWindow::SynthesizeNativeTouchPadPinch(
   return NS_OK;
 }
 
-nsresult nsWindow::SynthesizeNativeTouchpadPan(TouchpadGesturePhase aEventPhase,
-                                               LayoutDeviceIntPoint aPoint,
-                                               double aDeltaX, double aDeltaY,
-                                               int32_t aModifierFlags,
-                                               nsIObserver* aObserver) {
-  AutoObserverNotifier notifier(aObserver, "touchpadpanevent");
+nsresult nsWindow::SynthesizeNativeTouchpadPan(
+    TouchpadGesturePhase aEventPhase, LayoutDeviceIntPoint aPoint,
+    double aDeltaX, double aDeltaY, int32_t aModifierFlags,
+    nsISynthesizedEventCallback* aCallback) {
+  AutoSynthesizedEventCallbackNotifier notifier(aCallback);
 
   if (!mGdkWindow) {
     return NS_OK;
@@ -9277,9 +9278,8 @@ nsresult nsWindow::SynthesizeNativeTouchpadPan(TouchpadGesturePhase aEventPhase,
   // to nav, then maybe we should test those too.
 
   mCurrentSynthesizedTouchpadPan.mTouchpadGesturePhase = Some(aEventPhase);
-  MOZ_ASSERT(mCurrentSynthesizedTouchpadPan.mSavedObserver == 0);
-  mCurrentSynthesizedTouchpadPan.mSavedObserver = notifier.SaveObserver();
-
+  MOZ_ASSERT(mCurrentSynthesizedTouchpadPan.mSavedCallbackId.isNothing());
+  mCurrentSynthesizedTouchpadPan.mSavedCallbackId = notifier.SaveCallback();
   // Note that CreateAndPutGdkScrollEvent sets the device source for the created
   // event as the "client pointer" (a kind of default device) which will
   // probably be of type mouse. We would ideally want to set the device of the

@@ -1433,30 +1433,34 @@ export class FfiConverterOptionalTypeAttachment extends FfiConverterArrayBuffer 
         return 1 + FfiConverterTypeAttachment.computeSize(value)
     }
 }
-// Export the FFIConverter object to make external types work.
 export class FfiConverterTypeRsJsonObject extends FfiConverter {
-    static lift(buf) {
-        return FfiConverterString.lift(buf);    
+    static lift(value) {
+        return FfiConverterString.lift(value);
     }
-    
-    static lower(buf) {
-        return FfiConverterString.lower(buf);
+
+    static lower(value) {
+        return FfiConverterString.lower(value);
     }
-    
+
     static write(dataStream, value) {
         FfiConverterString.write(dataStream, value);
-    } 
-    
-    static read(buf) {
-        return FfiConverterString.read(buf);
     }
-    
+
+    static read(dataStream) {
+        const builtinVal = FfiConverterString.read(dataStream);
+        return builtinVal;
+    }
+
     static computeSize(value) {
         return FfiConverterString.computeSize(value);
     }
-}
 
-// TODO: We should also allow JS to customize the type eventually.
+    static checkType(value) {
+        if (value === null || value === undefined) {
+            throw new TypeError("value is null or undefined");
+        }
+    }
+}
 /**
  * A parsed Remote Settings record. Records can contain arbitrary fields, so clients
  * are required to further extract expected values from the [fields] member.
@@ -1895,7 +1899,11 @@ export class RemoteSettings {
         }
         this[uniffiObjectPtr] = opts[constructUniffiObject];
     }
-    
+    /**
+     * Construct a new Remote Settings client with the given configuration.
+     * @param {RemoteSettingsConfig} remoteSettingsConfig
+     * @returns {RemoteSettings}
+     */
     static init(
         remoteSettingsConfig) {
        
@@ -1913,6 +1921,8 @@ export class RemoteSettings {
 
     /**
      * Download an attachment with the provided id to the provided path.
+     * @param {string} attachmentId
+     * @param {string} path
      */
     async downloadAttachmentToPath(
         attachmentId, 
@@ -1922,7 +1932,7 @@ export class RemoteSettings {
         FfiConverterString.checkType(path);
         const result = await UniFFIScaffolding.callAsyncWrapper(
             19, // uniffi_remote_settings_fn_method_remotesettings_download_attachment_to_path
-            FfiConverterTypeRemoteSettings.lower(this),
+            FfiConverterTypeRemoteSettings.lowerReceiver(this),
             FfiConverterString.lower(attachmentId),
             FfiConverterString.lower(path),
         )
@@ -1935,12 +1945,13 @@ export class RemoteSettings {
 
     /**
      * Fetch all records for the configuration this client was initialized with.
+     * @returns {Promise<RemoteSettingsResponse>}}
      */
     async getRecords() {
        
         const result = await UniFFIScaffolding.callAsyncWrapper(
             20, // uniffi_remote_settings_fn_method_remotesettings_get_records
-            FfiConverterTypeRemoteSettings.lower(this),
+            FfiConverterTypeRemoteSettings.lowerReceiver(this),
         )
         return handleRustResult(
             result,
@@ -1952,6 +1963,8 @@ export class RemoteSettings {
     /**
      * Fetch all records added to the server since the provided timestamp,
      * using the configuration this client was initialized with.
+     * @param {number} timestamp
+     * @returns {Promise<RemoteSettingsResponse>}}
      */
     async getRecordsSince(
         timestamp) {
@@ -1959,7 +1972,7 @@ export class RemoteSettings {
         FfiConverterUInt64.checkType(timestamp);
         const result = await UniFFIScaffolding.callAsyncWrapper(
             21, // uniffi_remote_settings_fn_method_remotesettings_get_records_since
-            FfiConverterTypeRemoteSettings.lower(this),
+            FfiConverterTypeRemoteSettings.lowerReceiver(this),
             FfiConverterUInt64.lower(timestamp),
         )
         return handleRustResult(
@@ -1987,6 +2000,11 @@ export class FfiConverterTypeRemoteSettings extends FfiConverter {
         return ptr;
     }
 
+    static lowerReceiver(value) {
+        // This works exactly the same as lower for non-trait interfaces
+        return this.lower(value);
+    }
+
     static read(dataStream) {
         return this.lift(dataStream.readPointer(3));
     }
@@ -1999,6 +2017,7 @@ export class FfiConverterTypeRemoteSettings extends FfiConverter {
         return 8;
     }
 }
+
 // Export the FFIConverter object to make external types work.
 export class FfiConverterBytes extends FfiConverterArrayBuffer {
     static read(dataStream) {
@@ -2167,12 +2186,13 @@ export class RemoteSettingsClient {
 
     /**
      * Collection this client is for
+     * @returns {Promise<string>}}
      */
     async collectionName() {
        
         const result = await UniFFIScaffolding.callAsyncWrapper(
             22, // uniffi_remote_settings_fn_method_remotesettingsclient_collection_name
-            FfiConverterTypeRemoteSettingsClient.lower(this),
+            FfiConverterTypeRemoteSettingsClient.lowerReceiver(this),
         )
         return handleRustResult(
             result,
@@ -2191,6 +2211,8 @@ export class RemoteSettingsClient {
      * - This method will make network requests if the attachment is not cached
      * - This method will throw if there is a network or other error when fetching the
      * attachment data.
+     * @param {RemoteSettingsRecord} record
+     * @returns {Promise<string>}}
      */
     async getAttachment(
         record) {
@@ -2198,7 +2220,7 @@ export class RemoteSettingsClient {
         FfiConverterTypeRemoteSettingsRecord.checkType(record);
         const result = await UniFFIScaffolding.callAsyncWrapper(
             23, // uniffi_remote_settings_fn_method_remotesettingsclient_get_attachment
-            FfiConverterTypeRemoteSettingsClient.lower(this),
+            FfiConverterTypeRemoteSettingsClient.lowerReceiver(this),
             FfiConverterTypeRemoteSettingsRecord.lower(record),
         )
         return handleRustResult(
@@ -2225,6 +2247,8 @@ export class RemoteSettingsClient {
      * Application-services schedules regular dumps of the server data for specific collections.
      * For these collections, `get_records` will never return None.  If you would like to add your
      * collection to this list, please reach out to the DISCO team.
+     * @param {boolean} syncIfEmpty
+     * @returns {Promise<?Array.<RemoteSettingsRecord>>}}
      */
     async getRecords(
         syncIfEmpty = false) {
@@ -2232,7 +2256,7 @@ export class RemoteSettingsClient {
         FfiConverterBoolean.checkType(syncIfEmpty);
         const result = await UniFFIScaffolding.callAsyncWrapper(
             24, // uniffi_remote_settings_fn_method_remotesettingsclient_get_records
-            FfiConverterTypeRemoteSettingsClient.lower(this),
+            FfiConverterTypeRemoteSettingsClient.lowerReceiver(this),
             FfiConverterBoolean.lower(syncIfEmpty),
         )
         return handleRustResult(
@@ -2247,6 +2271,8 @@ export class RemoteSettingsClient {
      * 
      * See [Self::get_records] for an explanation of when this makes network requests, error
      * handling, and how the `sync_if_empty` param works.
+     * @param {boolean} syncIfEmpty
+     * @returns {Promise<?object>}}
      */
     async getRecordsMap(
         syncIfEmpty = false) {
@@ -2254,7 +2280,7 @@ export class RemoteSettingsClient {
         FfiConverterBoolean.checkType(syncIfEmpty);
         const result = await UniFFIScaffolding.callAsyncWrapper(
             25, // uniffi_remote_settings_fn_method_remotesettingsclient_get_records_map
-            FfiConverterTypeRemoteSettingsClient.lower(this),
+            FfiConverterTypeRemoteSettingsClient.lowerReceiver(this),
             FfiConverterBoolean.lower(syncIfEmpty),
         )
         return handleRustResult(
@@ -2271,7 +2297,7 @@ export class RemoteSettingsClient {
        
         const result = await UniFFIScaffolding.callAsyncWrapper(
             26, // uniffi_remote_settings_fn_method_remotesettingsclient_shutdown
-            FfiConverterTypeRemoteSettingsClient.lower(this),
+            FfiConverterTypeRemoteSettingsClient.lowerReceiver(this),
         )
         return handleRustResult(
             result,
@@ -2287,7 +2313,7 @@ export class RemoteSettingsClient {
        
         const result = await UniFFIScaffolding.callAsyncWrapper(
             27, // uniffi_remote_settings_fn_method_remotesettingsclient_sync
-            FfiConverterTypeRemoteSettingsClient.lower(this),
+            FfiConverterTypeRemoteSettingsClient.lowerReceiver(this),
         )
         return handleRustResult(
             result,
@@ -2314,6 +2340,11 @@ export class FfiConverterTypeRemoteSettingsClient extends FfiConverter {
         return ptr;
     }
 
+    static lowerReceiver(value) {
+        // This works exactly the same as lower for non-trait interfaces
+        return this.lower(value);
+    }
+
     static read(dataStream) {
         return this.lift(dataStream.readPointer(4));
     }
@@ -2326,6 +2357,7 @@ export class FfiConverterTypeRemoteSettingsClient extends FfiConverter {
         return 8;
     }
 }
+
 // Export the FFIConverter object to make external types work.
 export class FfiConverterSequenceString extends FfiConverterArrayBuffer {
     static read(dataStream) {
@@ -2388,7 +2420,21 @@ export class RemoteSettingsService {
         }
         this[uniffiObjectPtr] = opts[constructUniffiObject];
     }
-    
+    /**
+     * Construct a [RemoteSettingsService]
+     * 
+     * This is typically done early in the application-startup process.
+     * 
+     * This method performs no IO or network requests and is safe to run in a main thread that
+     * can't be blocked.
+     * 
+     * `storage_dir` is a directory to store SQLite files in -- one per collection. If the
+     * directory does not exist, it will be created when the storage is first used. Only the
+     * directory and the SQLite files will be created, any parent directories must already exist.
+     * @param {string} storageDir
+     * @param {RemoteSettingsConfig2} config
+     * @returns {RemoteSettingsService}
+     */
     static init(
         storageDir, 
         config) {
@@ -2411,6 +2457,8 @@ export class RemoteSettingsService {
      * Create a new Remote Settings client
      * 
      * This method performs no IO or network requests and is safe to run in a main thread that can't be blocked.
+     * @param {string} collectionName
+     * @returns {Promise<RemoteSettingsClient>}}
      */
     async makeClient(
         collectionName) {
@@ -2418,7 +2466,7 @@ export class RemoteSettingsService {
         FfiConverterString.checkType(collectionName);
         const result = await UniFFIScaffolding.callAsyncWrapper(
             29, // uniffi_remote_settings_fn_method_remotesettingsservice_make_client
-            FfiConverterTypeRemoteSettingsService.lower(this),
+            FfiConverterTypeRemoteSettingsService.lowerReceiver(this),
             FfiConverterString.lower(collectionName),
         )
         return handleRustResult(
@@ -2430,12 +2478,13 @@ export class RemoteSettingsService {
 
     /**
      * Sync collections for all active clients
+     * @returns {Promise<Array.<string>>}}
      */
     async sync() {
        
         const result = await UniFFIScaffolding.callAsyncWrapper(
             30, // uniffi_remote_settings_fn_method_remotesettingsservice_sync
-            FfiConverterTypeRemoteSettingsService.lower(this),
+            FfiConverterTypeRemoteSettingsService.lowerReceiver(this),
         )
         return handleRustResult(
             result,
@@ -2452,14 +2501,15 @@ export class RemoteSettingsService {
      * 
      * Only intended for QA/debugging.  Swapping the remote settings server in the middle of
      * execution can cause weird effects.
+     * @param {RemoteSettingsConfig2} config
      */
-    async updateConfig(
+    updateConfig(
         config) {
        
         FfiConverterTypeRemoteSettingsConfig2.checkType(config);
-        const result = await UniFFIScaffolding.callAsyncWrapper(
+        const result = UniFFIScaffolding.callSync(
             31, // uniffi_remote_settings_fn_method_remotesettingsservice_update_config
-            FfiConverterTypeRemoteSettingsService.lower(this),
+            FfiConverterTypeRemoteSettingsService.lowerReceiver(this),
             FfiConverterTypeRemoteSettingsConfig2.lower(config),
         )
         return handleRustResult(
@@ -2487,6 +2537,11 @@ export class FfiConverterTypeRemoteSettingsService extends FfiConverter {
         return ptr;
     }
 
+    static lowerReceiver(value) {
+        // This works exactly the same as lower for non-trait interfaces
+        return this.lower(value);
+    }
+
     static read(dataStream) {
         return this.lift(dataStream.readPointer(5));
     }
@@ -2499,6 +2554,7 @@ export class FfiConverterTypeRemoteSettingsService extends FfiConverter {
         return 8;
     }
 }
+
 // Export the FFIConverter object to make external types work.
 export class FfiConverterUInt8 extends FfiConverter {
     static checkType(value) {

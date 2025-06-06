@@ -369,7 +369,6 @@ PeerConnectionImpl::PeerConnectionImpl(const GlobalObject* aGlobal)
       mUuidGen(MakeUnique<PCUuidGenerator>()),
       mIceRestartCount(0),
       mIceRollbackCount(0),
-      mHaveConfiguredCodecs(false),
       mTrickle(true)  // TODO(ekr@rtfm.com): Use pref
       ,
       mPrivateWindow(false),
@@ -441,6 +440,14 @@ PeerConnectionImpl::~PeerConnectionImpl() {
   CSFLogInfo(LOGTAG, "%s: PeerConnectionImpl destructor invoked for %s",
              __FUNCTION__, mHandle.c_str());
 }
+
+struct CompareCodecPriority {
+  bool operator()(const UniquePtr<JsepCodecDescription>& lhs,
+                  const UniquePtr<JsepCodecDescription>& rhs) const {
+    // If only the left side is strongly preferred, prefer it
+    return lhs->mStronglyPreferred && !rhs->mStronglyPreferred;
+  }
+};
 
 nsresult PeerConnectionImpl::Initialize(PeerConnectionObserver& aObserver,
                                         nsGlobalWindowInner* aWindow) {
@@ -520,6 +527,11 @@ nsresult PeerConnectionImpl::Initialize(PeerConnectionObserver& aObserver,
   std::vector<UniquePtr<JsepCodecDescription>> preferredCodecs;
   SetupPreferredCodecs(preferredCodecs);
   mJsepSession->SetDefaultCodecs(preferredCodecs);
+
+  // We use this to sort the list of codecs once everything is configured
+  CompareCodecPriority comparator;
+  // Sort by priority
+  mJsepSession->SortCodecs(comparator);
 
   std::vector<RtpExtensionHeader> preferredHeaders;
   SetupPreferredRtpExtensions(preferredHeaders);
@@ -605,34 +617,6 @@ RefPtr<DtlsIdentity> PeerConnectionImpl::Identity() const {
   return mCertificate->CreateDtlsIdentity();
 }
 
-class CompareCodecPriority {
- public:
-  void SetPreferredCodec(const nsCString& preferredCodec) {
-    mPreferredCodec = preferredCodec;
-  }
-
-  bool operator()(const UniquePtr<JsepCodecDescription>& lhs,
-                  const UniquePtr<JsepCodecDescription>& rhs) const {
-    // Do we have a preferred codec?
-    if (!mPreferredCodec.IsEmpty()) {
-      const bool lhsMatches = mPreferredCodec.EqualsIgnoreCase(lhs->mName) ||
-                              mPreferredCodec.EqualsIgnoreCase(lhs->mDefaultPt);
-      const bool rhsMatches = mPreferredCodec.EqualsIgnoreCase(rhs->mName) ||
-                              mPreferredCodec.EqualsIgnoreCase(rhs->mDefaultPt);
-      // If the only the left side matches, prefer it
-      if (lhsMatches && !rhsMatches) {
-        return true;
-      }
-    }
-    // If only the left side is strongly preferred, prefer it
-    return (lhs->mStronglyPreferred && !rhs->mStronglyPreferred);
-  }
-
- private:
-  // The preferred codec name or PT number
-  nsCString mPreferredCodec;
-};
-
 void RecordCodecTelemetry() {
   const auto prefs = PeerConnectionImpl::GetDefaultCodecPreferences();
   if (WebrtcVideoConduit::HasH264Hardware()) {
@@ -653,35 +637,6 @@ void RecordCodecTelemetry() {
       .EnumGet(
           static_cast<glean::webrtc::H264EnabledLabel>(prefs.H264Enabled()))
       .Add();
-}
-
-nsresult PeerConnectionImpl::ConfigureJsepSessionCodecs() {
-  nsresult res;
-  nsCOMPtr<nsIPrefService> prefs =
-      do_GetService("@mozilla.org/preferences-service;1", &res);
-
-  if (NS_FAILED(res)) {
-    CSFLogError(LOGTAG, "%s: Couldn't get prefs service, res=%u", __FUNCTION__,
-                static_cast<unsigned>(res));
-    return res;
-  }
-
-  nsCOMPtr<nsIPrefBranch> branch = do_QueryInterface(prefs);
-  if (!branch) {
-    CSFLogError(LOGTAG, "%s: Couldn't get prefs branch", __FUNCTION__);
-    return NS_ERROR_FAILURE;
-  }
-
-  RecordCodecTelemetry();
-
-  // We use this to sort the list of codecs once everything is configured
-  CompareCodecPriority comparator;
-  if (StaticPrefs::media_webrtc_codec_video_av1_experimental_preferred()) {
-    comparator.SetPreferredCodec(nsCString("av1"));
-  }
-  // Sort by priority
-  mJsepSession->SortCodecs(comparator);
-  return NS_OK;
 }
 
 // Data channels won't work without a window, so in order for the C++ unit
@@ -792,12 +747,6 @@ nsresult PeerConnectionImpl::GetDatachannelParameters(
 
 nsresult PeerConnectionImpl::AddRtpTransceiverToJsepSession(
     JsepTransceiver& transceiver) {
-  nsresult res = ConfigureJsepSessionCodecs();
-  if (NS_FAILED(res)) {
-    CSFLogError(LOGTAG, "Failed to configure codecs");
-    return res;
-  }
-
   mJsepSession->AddTransceiver(transceiver);
   return NS_OK;
 }
@@ -1438,13 +1387,6 @@ PeerConnectionImpl::CreateOffer(const JsepOfferOptions& aOptions) {
   }
 
   CSFLogDebug(LOGTAG, "CreateOffer()");
-
-  nsresult nrv = ConfigureJsepSessionCodecs();
-  if (NS_FAILED(nrv)) {
-    CSFLogError(LOGTAG, "Failed to configure codecs");
-    return nrv;
-  }
-
   STAMP_TIMECARD(mTimeCard, "Create Offer");
 
   GetMainThreadSerialEventTarget()->Dispatch(NS_NewRunnableFunction(
@@ -1649,12 +1591,6 @@ PeerConnectionImpl::SetRemoteDescription(int32_t action, const char* aSDP) {
           DeferredSetRemote, mHandle, action, std::string(aSDP)));
       STAMP_TIMECARD(mTimeCard, "Deferring SetRemote (not ready)");
       return NS_OK;
-    }
-
-    nsresult nrv = ConfigureJsepSessionCodecs();
-    if (NS_FAILED(nrv)) {
-      CSFLogError(LOGTAG, "Failed to configure codecs");
-      return nrv;
     }
   }
 
@@ -2058,23 +1994,12 @@ void PeerConnectionImpl::GetDefaultVideoCodecs(
       JsepVideoCodecDescription::CreateDefaultH264_1(prefs));
   aSupportedCodecs.emplace_back(
       JsepVideoCodecDescription::CreateDefaultH264_0(prefs));
-
-  const bool disableBaseline = Preferences::GetBool(
-      "media.navigator.video.disable_h264_baseline", false);
-
-  // Only add Baseline if it hasn't been disabled.
-  if (!disableBaseline) {
-    aSupportedCodecs.emplace_back(
-        JsepVideoCodecDescription::CreateDefaultH264Baseline_1(prefs));
-    aSupportedCodecs.emplace_back(
-        JsepVideoCodecDescription::CreateDefaultH264Baseline_0(prefs));
-  }
-
-  if (WebrtcVideoConduit::HasAv1() &&
-      StaticPrefs::media_webrtc_codec_video_av1_enabled()) {
-    aSupportedCodecs.emplace_back(
-        JsepVideoCodecDescription::CreateDefaultAV1(prefs));
-  }
+  aSupportedCodecs.emplace_back(
+      JsepVideoCodecDescription::CreateDefaultH264Baseline_1(prefs));
+  aSupportedCodecs.emplace_back(
+      JsepVideoCodecDescription::CreateDefaultH264Baseline_0(prefs));
+  aSupportedCodecs.emplace_back(
+      JsepVideoCodecDescription::CreateDefaultAV1(prefs));
 
   aSupportedCodecs.emplace_back(
       JsepVideoCodecDescription::CreateDefaultUlpFec(prefs));
@@ -2084,9 +2009,6 @@ void PeerConnectionImpl::GetDefaultVideoCodecs(
       JsepVideoCodecDescription::CreateDefaultRed(prefs));
 
   CompareCodecPriority comparator;
-  if (StaticPrefs::media_webrtc_codec_video_av1_experimental_preferred()) {
-    comparator.SetPreferredCodec(nsCString("av1"));
-  }
   std::stable_sort(aSupportedCodecs.begin(), aSupportedCodecs.end(),
                    comparator);
 }
@@ -2164,18 +2086,16 @@ void PeerConnectionImpl::GetCapabilities(
 
   GetDefaultRtpExtensions(headers);
 
-  const bool redUlpfecEnabled =
-      Preferences::GetBool("media.navigator.video.red_ulpfec_enabled", false);
   bool haveAddedRtx = false;
 
   // Use the codecs for kind to fill out the RTCRtpCodec
   for (const auto& codec : codecs) {
-    // To avoid misleading information on codec capabilities skip those
-    // not signaled for audio/video (webrtc-datachannel)
-    // and any disabled by pref (ulpfec and red).
-    if (codec->mName == "webrtc-datachannel" ||
-        (codec->mName == "ulpfec" && !redUlpfecEnabled) ||
-        (codec->mName == "red" && !redUlpfecEnabled)) {
+    // To avoid misleading information on codec capabilities skip:
+    // - Any disabled by pref
+    // - Recvonly codecs for send capabilities -- we have no sendonly codecs
+    // - Those not signaled for audio/video (webrtc-datachannel)
+    if (!codec->mEnabled || !codec->DirectionSupported(aDirection) ||
+        codec->mName == "webrtc-datachannel") {
       continue;
     }
 

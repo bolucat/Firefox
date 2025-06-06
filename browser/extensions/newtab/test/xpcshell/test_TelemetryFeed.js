@@ -9,6 +9,7 @@ const { updateAppInfo } = ChromeUtils.importESModule(
 
 ChromeUtils.defineESModuleGetters(this, {
   AboutNewTab: "resource:///modules/AboutNewTab.sys.mjs",
+  ContextId: "moz-src:///browser/modules/ContextId.sys.mjs",
   actionCreators: "resource://newtab/common/Actions.mjs",
   actionTypes: "resource://newtab/common/Actions.mjs",
   ExtensionSettingsStore:
@@ -96,10 +97,12 @@ add_setup(async function setup() {
     platformVersion: "122",
   });
 
-  Services.prefs.setCharPref(
-    "browser.contextual-services.contextId",
-    FAKE_UUID
-  );
+  let sandbox = sinon.createSandbox();
+  sandbox.stub(ContextId, "requestSynchronously").returns(FAKE_UUID);
+
+  registerCleanupFunction(() => {
+    sandbox.restore();
+  });
 });
 
 add_task(async function test_construction() {
@@ -199,11 +202,17 @@ add_task(async function test_deletionRequest_scalars() {
     "deletion.request.impression_id",
     instance._impressionId
   );
-  TelemetryTestUtils.assertScalar(
-    snapshot,
-    "deletion.request.context_id",
-    FAKE_UUID
-  );
+
+  // We'll only set the context_id in the deletion request if rotation is
+  // disabled.
+  if (!ContextId.rotationEnabled) {
+    TelemetryTestUtils.assertScalar(
+      snapshot,
+      "deletion.request.context_id",
+      FAKE_UUID
+    );
+  }
+
   instance.uninit();
 });
 
@@ -2236,11 +2245,11 @@ add_task(
 
     const SESSION_ID = "decafc0ffee";
     sandbox.stub(instance.sessions, "get").returns({ session_id: SESSION_ID });
+    sandbox.spy(instance.newtabContentPing, "recordEvent");
 
     instance.handleDiscoveryStreamUserEvent(action);
 
     let clicks = Glean.pocket.click.testGetValue();
-    let privateClicks = Glean.newtabContent.click.testGetValue();
 
     Assert.equal(clicks.length, 1, "Recorded 1 content click");
     Assert.equal(clicks.length, 1, "Recorded 1 private click");
@@ -2253,12 +2262,20 @@ add_task(
       tile_id: 314623757745896,
     });
 
-    Assert.deepEqual(privateClicks[0].extra, {
-      is_sponsored: String(false),
-      corpus_item_id: "decaf-beef",
-      scheduled_corpus_item_id: "dead-beef",
-      position: String(ACTION_POSITION),
-    });
+    Assert.ok(
+      instance.newtabContentPing.recordEvent.calledWith(
+        "click",
+        sinon.match({
+          newtab_visit_id: SESSION_ID,
+          is_sponsored: false,
+          position: ACTION_POSITION,
+          tile_id: 314623757745896,
+          corpus_item_id: "decaf-beef",
+          scheduled_corpus_item_id: "dead-beef",
+        })
+      ),
+      "NewTabContentPing passed the expected arguments."
+    );
 
     Assert.ok(
       !Glean.pocket.shim.testGetValue(),
@@ -2298,11 +2315,11 @@ add_task(
 
     const SESSION_ID = "decafc0ffee";
     sandbox.stub(instance.sessions, "get").returns({ session_id: SESSION_ID });
+    sandbox.spy(instance.newtabContentPing, "recordEvent");
 
     instance.handleDiscoveryStreamUserEvent(action);
 
     let clicks = Glean.pocket.click.testGetValue();
-    let privateClicks = Glean.newtabContent.click.testGetValue();
 
     Assert.equal(clicks.length, 1, "Recorded 1 content click");
     Assert.equal(clicks.length, 1, "Recorded 1 private click");
@@ -2312,12 +2329,17 @@ add_task(
       position: String(ACTION_POSITION),
     });
 
-    Assert.deepEqual(privateClicks[0].extra, {
-      is_sponsored: String(false),
-      corpus_item_id: "decaf-beef",
-      scheduled_corpus_item_id: "dead-beef",
-      position: String(ACTION_POSITION),
-    });
+    Assert.ok(
+      instance.newtabContentPing.recordEvent.calledWith(
+        "click",
+        sinon.match({
+          newtab_visit_id: SESSION_ID,
+          is_sponsored: false,
+          position: ACTION_POSITION,
+        })
+      ),
+      "NewTabContentPing passed the expected arguments."
+    );
 
     Assert.ok(
       !Glean.pocket.shim.testGetValue(),

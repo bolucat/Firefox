@@ -202,9 +202,6 @@ MACH_COMMANDS = {
         "browser/components/storybook/mach_commands.py", ["run"]
     ),
     "talos-test": MachCommandReference("testing/talos/mach_commands.py"),
-    "taskcluster-build-image": MachCommandReference("taskcluster/mach_commands.py"),
-    "taskcluster-image-digest": MachCommandReference("taskcluster/mach_commands.py"),
-    "taskcluster-load-image": MachCommandReference("taskcluster/mach_commands.py"),
     "taskgraph": MachCommandReference("taskcluster/mach_commands.py"),
     "telemetry-tests-client": MachCommandReference(
         "toolkit/components/telemetry/tests/marionette/mach_commands.py"
@@ -325,7 +322,7 @@ class DecoratorVisitor(ast.NodeVisitor):
 
 
 def command_virtualenv_info_for_module(module_path):
-    with module_path.open("r") as file:
+    with module_path.open("r", encoding="utf-8") as file:
         content = file.read()
 
     tree = ast.parse(content)

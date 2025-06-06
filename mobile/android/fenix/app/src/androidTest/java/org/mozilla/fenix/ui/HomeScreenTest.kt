@@ -5,6 +5,7 @@
 package org.mozilla.fenix.ui
 
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
+import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.mozilla.fenix.customannotations.SmokeTest
@@ -48,13 +49,11 @@ class HomeScreenTest : TestSetup() {
             verifyHomeWordmark()
             verifyHomePrivateBrowsingButton()
             verifyExistingTopSitesTabs(activityTestRule, "Wikipedia")
-            verifyExistingTopSitesTabs(activityTestRule, "Top Articles")
             verifyExistingTopSitesTabs(activityTestRule, "Google")
             verifyCollectionsHeader(activityTestRule)
             verifyNoCollectionsText(activityTestRule)
             scrollToPocketProvokingStories()
             verifyThoughtProvokingStories(true)
-            verifyStoriesByTopicItems()
             verifyCustomizeHomepageButton(activityTestRule, true)
             verifyNavigationToolbar()
             verifyHomeMenuButton()
@@ -77,6 +76,7 @@ class HomeScreenTest : TestSetup() {
 
     // TestRail link: https://mozilla.testrail.io/index.php?/cases/view/1364362
     @SmokeTest
+    @Ignore("Temporarily disabled: https://bugzilla.mozilla.org/show_bug.cgi?id=1969339")
     @Test
     fun verifyJumpBackInSectionTest() {
         activityTestRule.activityRule.applySettingsExceptions {

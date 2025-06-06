@@ -202,16 +202,17 @@ class Core(
         if (FxNimbus.features.fingerprintingProtection.value().enabled) {
             defaultSettings.fingerprintingProtectionOverrides =
                 FxNimbus.features.fingerprintingProtection.value().overrides
-        }
-
-        if (FxNimbus.features.fingerprintingProtection.value().enabled) {
             defaultSettings.fingerprintingProtection =
                 FxNimbus.features.fingerprintingProtection.value().enabledNormal
-        }
-
-        if (FxNimbus.features.fingerprintingProtection.value().enabled) {
             defaultSettings.fingerprintingProtectionPrivateBrowsing =
                 FxNimbus.features.fingerprintingProtection.value().enabledPrivate
+        }
+
+        if (FxNimbus.features.baselineFpp.value().featEnabled) {
+            defaultSettings.baselineFingerprintingProtection =
+                FxNimbus.features.baselineFpp.value().enabled
+            defaultSettings.baselineFingerprintingProtectionOverrides =
+                FxNimbus.features.baselineFpp.value().overrides
         }
 
         // Apply third-party cookie blocking settings if the Nimbus feature is
@@ -617,15 +618,6 @@ class Core(
                         SupportUtils.GOOGLE_URL,
                     ),
                 )
-
-                if (LocaleManager.getSelectedLocale(context).language == "en") {
-                    defaultTopSites.add(
-                        Pair(
-                            context.getString(R.string.pocket_pinned_top_articles),
-                            SupportUtils.POCKET_TRENDING_URL,
-                        ),
-                    )
-                }
 
                 defaultTopSites.add(
                     Pair(

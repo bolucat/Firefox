@@ -90,7 +90,6 @@ class PrivateBrowsingLockFeature(
     private val storage: PrivateBrowsingLockStorage,
 ) : DefaultLifecycleObserver {
     private var browserStoreScope: CoroutineScope? = null
-    private var appStoreScope: CoroutineScope? = null
     private var isFeatureEnabled = false
 
     init {
@@ -152,10 +151,7 @@ class PrivateBrowsingLockFeature(
 
     private fun stop() {
         browserStoreScope?.cancel()
-        appStoreScope?.cancel()
-
         browserStoreScope = null
-        appStoreScope = null
 
         appStore.dispatch(
             PrivateBrowsingLockAction.UpdatePrivateBrowsingLock(
@@ -181,14 +177,14 @@ class PrivateBrowsingLockFeature(
         }
     }
 
-    override fun onStop(owner: LifecycleOwner) {
-        super.onStop(owner)
+    override fun onPause(owner: LifecycleOwner) {
+        super.onPause(owner)
 
         if (!isFeatureEnabled) return
 
         // lock when activity hits onStop and it isn’t a config-change restart
         if (owner is Activity && !owner.isChangingConfigurations) {
-            maybeLockPrivateModeOnStop()
+            maybeLockPrivateModeOnPause()
         }
     }
 
@@ -197,7 +193,7 @@ class PrivateBrowsingLockFeature(
         storage.startObservingSharedPrefs()
     }
 
-    private fun maybeLockPrivateModeOnStop() {
+    private fun maybeLockPrivateModeOnPause() {
         // When the app gets inactive with opened tabs, we lock the private mode.
         if (browserStore.state.privateTabs.isNotEmpty()) {
             appStore.dispatch(

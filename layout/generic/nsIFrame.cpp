@@ -2773,11 +2773,11 @@ Maybe<nsRect> nsIFrame::GetClipPropClipRect(const nsStyleDisplay* aDisp,
 // style check.
 bool nsIFrame::ForcesStackingContextForViewTransition() const {
   auto* style = Style();
-  return (style->StyleUIReset()->HasViewTransitionName() ||
+  return !style->IsRootElementStyle() &&
+         (style->StyleUIReset()->HasViewTransitionName() ||
           HasAnyStateBits(NS_FRAME_CAPTURED_IN_VIEW_TRANSITION) ||
           style->StyleDisplay()->mWillChange.bits &
-              mozilla::StyleWillChangeBits::VIEW_TRANSITION_NAME) &&
-         !style->IsRootElementStyle();
+              mozilla::StyleWillChangeBits::VIEW_TRANSITION_NAME);
 }
 
 /**
@@ -3359,12 +3359,19 @@ void nsIFrame::BuildDisplayListForStackingContext(
     }
   }
 
-  bool usingFilter = effects->HasFilters() && !style.IsRootElementStyle();
-  SVGUtils::MaskUsage maskUsage = SVGUtils::DetermineMaskUsage(this, false);
-  bool usingMask = maskUsage.UsingMaskOrClipPath();
-  bool usingSVGEffects = usingFilter || usingMask;
+  // Root gets handled in
+  // ScrollContainerFrame::MaybeCreateTopLayerAndWrapRootItems.
+  const bool capturedByViewTransition =
+      HasAnyStateBits(NS_FRAME_CAPTURED_IN_VIEW_TRANSITION) &&
+      !style.IsRootElementStyle();
 
-  nsRect visibleRectOutsideSVGEffects = visibleRect;
+  const bool usingFilter = effects->HasFilters() && !style.IsRootElementStyle();
+  const SVGUtils::MaskUsage maskUsage =
+      SVGUtils::DetermineMaskUsage(this, false);
+  const bool usingMask = maskUsage.UsingMaskOrClipPath();
+  const bool usingSVGEffects = usingFilter || usingMask;
+
+  const nsRect visibleRectOutsideSVGEffects = visibleRect;
   nsDisplayList hoistedScrollInfoItemsStorage(aBuilder);
   if (usingSVGEffects) {
     dirtyRect =
@@ -3374,19 +3381,14 @@ void nsIFrame::BuildDisplayListForStackingContext(
     aBuilder->EnterSVGEffectsContents(this, &hoistedScrollInfoItemsStorage);
   }
 
-  bool useStickyPosition = disp->mPosition == StylePositionProperty::Sticky;
+  const bool useStickyPosition =
+      disp->mPosition == StylePositionProperty::Sticky;
 
-  bool useFixedPosition =
+  const bool useFixedPosition =
       disp->mPosition == StylePositionProperty::Fixed &&
       aBuilder->IsPaintingToWindow() && !IsMenuPopupFrame() &&
       (DisplayPortUtils::IsFixedPosFrameInDisplayPort(this) ||
        BuilderHasScrolledClip(aBuilder));
-
-  // Root gets handled in
-  // ScrollContainerFrame::MaybeCreateTopLayerAndWrapRootItems.
-  const bool capturedByViewTransition =
-      HasAnyStateBits(NS_FRAME_CAPTURED_IN_VIEW_TRANSITION) &&
-      !style.IsRootElementStyle();
 
   nsDisplayListBuilder::AutoBuildingDisplayList buildingDisplayList(
       aBuilder, this, visibleRect, dirtyRect, isTransformed);
@@ -3404,9 +3406,20 @@ void nsIFrame::BuildDisplayListForStackingContext(
     Perspective,
     Transform,
     Filter,
+    ViewTransitionCapture,
   };
 
+  // NOTE(emilio): The order of these RAII objects is quite subtle.
+  nsDisplayListBuilder::AutoEnterViewTransitionCapture
+      inViewTransitionCaptureSetter(aBuilder, capturedByViewTransition);
   nsDisplayListBuilder::AutoContainerASRTracker contASRTracker(aBuilder);
+  nsDisplayListBuilder::AutoCurrentActiveScrolledRootSetter asrSetter(aBuilder);
+  if (aBuilder->IsInViewTransitionCapture()) {
+    // View transition contents shouldn't scroll along our ASR. They get
+    // "pulled out" of the rendering (or when they don't, you can't scroll
+    // anyways).
+    asrSetter.SetCurrentActiveScrolledRoot(nullptr);
+  }
 
   auto cssClip = GetClipPropClipRect(disp, effects, GetSize());
   auto ApplyClipProp = [&](DisplayListClipState::AutoSaveRestore& aClipState) {
@@ -3436,7 +3449,9 @@ void nsIFrame::BuildDisplayListForStackingContext(
   // one of those container items, the clip will be captured on the outermost
   // one and the inner container items will be unclipped.
   ContainerItemType clipCapturedBy = ContainerItemType::None;
-  if (useFixedPosition) {
+  if (capturedByViewTransition) {
+    clipCapturedBy = ContainerItemType::ViewTransitionCapture;
+  } else if (useFixedPosition) {
     clipCapturedBy = ContainerItemType::FixedPosition;
   } else if (isTransformed) {
     const DisplayItemClipChain* currentClip =
@@ -3490,8 +3505,6 @@ void nsIFrame::BuildDisplayListForStackingContext(
                                                           usingFilter);
     nsDisplayListBuilder::AutoInEventsOnly inEventsSetter(
         aBuilder, opacityItemForEventsOnly);
-    nsDisplayListBuilder::AutoEnterViewTransitionCapture
-        inViewTransitionCaptureSetter(aBuilder, capturedByViewTransition);
 
     // If we have a mask, compute a clip to bound the masked content.
     // This is necessary in case the content moves with an ancestor
@@ -3671,13 +3684,6 @@ void nsIFrame::BuildDisplayListForStackingContext(
     createdContainer = true;
   }
 
-  // FIXME: Ensure this is the right place to do this.
-  if (capturedByViewTransition) {
-    resultList.AppendNewToTop<nsDisplayViewTransitionCapture>(
-        aBuilder, this, &resultList, containerItemASR, /* aIsRoot = */ false);
-    createdContainer = true;
-  }
-
   // If we're going to apply a transformation and don't have preserve-3d set,
   // wrap everything in an nsDisplayTransform. If there's nothing in the list,
   // don't add anything.
@@ -3689,46 +3695,49 @@ void nsIFrame::BuildDisplayListForStackingContext(
   //
   // We also traverse into sublists created by nsDisplayWrapList, so that we
   // find all the correct children.
-  if (isTransformed && extend3DContext) {
-    // Install dummy nsDisplayTransform as a leaf containing
-    // descendants not participating this 3D rendering context.
-    nsDisplayList nonparticipants(aBuilder);
-    nsDisplayList participants(aBuilder);
-    int index = 1;
+  //
+  // We don't bother creating nsDisplayTransform and co for
+  // view-transition-captured elements.
+  if (isTransformed && !capturedByViewTransition) {
+    if (extend3DContext) {
+      // Install dummy nsDisplayTransform as a leaf containing
+      // descendants not participating this 3D rendering context.
+      nsDisplayList nonparticipants(aBuilder);
+      nsDisplayList participants(aBuilder);
+      int index = 1;
 
-    nsDisplayItem* separator = nullptr;
+      nsDisplayItem* separator = nullptr;
 
-    // TODO: This can be simplified: |participants| is just |resultList|.
-    for (nsDisplayItem* item : resultList.TakeItems()) {
-      if (ItemParticipatesIn3DContext(this, item) &&
-          !item->GetClip().HasClip()) {
-        // The frame of this item participates the same 3D context.
-        WrapSeparatorTransform(aBuilder, this, &nonparticipants, &participants,
-                               index++, &separator);
+      // TODO: This can be simplified: |participants| is just |resultList|.
+      for (nsDisplayItem* item : resultList.TakeItems()) {
+        if (ItemParticipatesIn3DContext(this, item) &&
+            !item->GetClip().HasClip()) {
+          // The frame of this item participates the same 3D context.
+          WrapSeparatorTransform(aBuilder, this, &nonparticipants,
+                                 &participants, index++, &separator);
 
-        participants.AppendToTop(item);
-      } else {
-        // The frame of the item doesn't participate the current
-        // context, or has no transform.
-        //
-        // For items participating but not transformed, they are add
-        // to nonparticipants to get a separator layer for handling
-        // clips, if there is, on an intermediate surface.
-        // \see ContainerLayer::DefaultComputeEffectiveTransforms().
-        nonparticipants.AppendToTop(item);
+          participants.AppendToTop(item);
+        } else {
+          // The frame of the item doesn't participate the current
+          // context, or has no transform.
+          //
+          // For items participating but not transformed, they are add
+          // to nonparticipants to get a separator layer for handling
+          // clips, if there is, on an intermediate surface.
+          // \see ContainerLayer::DefaultComputeEffectiveTransforms().
+          nonparticipants.AppendToTop(item);
+        }
       }
+      WrapSeparatorTransform(aBuilder, this, &nonparticipants, &participants,
+                             index++, &separator);
+
+      if (separator) {
+        createdContainer = true;
+      }
+
+      resultList.AppendToTop(&participants);
     }
-    WrapSeparatorTransform(aBuilder, this, &nonparticipants, &participants,
-                           index++, &separator);
 
-    if (separator) {
-      createdContainer = true;
-    }
-
-    resultList.AppendToTop(&participants);
-  }
-
-  if (isTransformed) {
     transformedCssClip.Restore();
     if (clipCapturedBy == ContainerItemType::Transform) {
       // Restore clip state now so nsDisplayTransform is clipped properly.
@@ -3790,22 +3799,21 @@ void nsIFrame::BuildDisplayListForStackingContext(
         createdContainer = true;
       }
     }
-  }
-
-  if (clipCapturedBy ==
-      ContainerItemType::OwnLayerForTransformWithRoundedClip) {
-    clipState.Restore();
-    resultList.AppendNewToTopWithIndex<nsDisplayOwnLayer>(
-        aBuilder, this,
-        /* aIndex = */ nsDisplayOwnLayer::OwnLayerForTransformWithRoundedClip,
-        &resultList, aBuilder->CurrentActiveScrolledRoot(),
-        nsDisplayOwnLayerFlags::None, ScrollbarData{},
-        /* aForceActive = */ false, false);
-    createdContainer = true;
+    if (clipCapturedBy ==
+        ContainerItemType::OwnLayerForTransformWithRoundedClip) {
+      clipState.Restore();
+      resultList.AppendNewToTopWithIndex<nsDisplayOwnLayer>(
+          aBuilder, this,
+          /* aIndex = */ nsDisplayOwnLayer::OwnLayerForTransformWithRoundedClip,
+          &resultList, aBuilder->CurrentActiveScrolledRoot(),
+          nsDisplayOwnLayerFlags::None, ScrollbarData{},
+          /* aForceActive = */ false, false);
+      createdContainer = true;
+    }
   }
 
   // If we have sticky positioning, wrap it in a sticky position item.
-  if (useFixedPosition) {
+  if (useFixedPosition && !capturedByViewTransition) {
     if (clipCapturedBy == ContainerItemType::FixedPosition) {
       clipState.Restore();
     }
@@ -3822,7 +3830,7 @@ void nsIFrame::BuildDisplayListForStackingContext(
     resultList.AppendNewToTop<nsDisplayFixedPosition>(
         aBuilder, this, &resultList, fixedASR, containerItemASR);
     createdContainer = true;
-  } else if (useStickyPosition) {
+  } else if (useStickyPosition && !capturedByViewTransition) {
     // For position:sticky, the clip needs to be applied both to the sticky
     // container item and to the contents. The container item needs the clip
     // because a scrolled clip needs to move independently from the sticky
@@ -3876,6 +3884,17 @@ void nsIFrame::BuildDisplayListForStackingContext(
                                                   effects->mMixBlendMode,
                                                   containerItemASR, false);
     createdContainer = true;
+  }
+
+  if (capturedByViewTransition) {
+    resultList.AppendNewToTop<nsDisplayViewTransitionCapture>(
+        aBuilder, this, &resultList, nullptr, /* aIsRoot = */ false);
+    createdContainer = true;
+    // We don't want the capture to be clipped, so we do this _after_ building
+    // the wrapping item.
+    if (clipCapturedBy == ContainerItemType::ViewTransitionCapture) {
+      clipState.Restore();
+    }
   }
 
   if (aBuilder->IsReusingStackingContextItems()) {
@@ -4306,11 +4325,21 @@ void nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder* aBuilder,
   if (savedOutOfFlowData) {
     aBuilder->SetBuildingInvisibleItems(false);
 
-    clipState.SetClipChainForContainingBlockDescendants(
-        savedOutOfFlowData->mContainingBlockClipChain);
-    asrSetter.SetCurrentActiveScrolledRoot(
-        savedOutOfFlowData->mContainingBlockActiveScrolledRoot);
-    asrSetter.SetCurrentScrollParentId(savedOutOfFlowData->mScrollParentId);
+    if (aBuilder->IsInViewTransitionCapture()) {
+      if (!savedOutOfFlowData->mContainingBlockInViewTransitionCapture) {
+        clipState.Clear();
+      } else {
+        clipState.SetClipChainForContainingBlockDescendants(
+            savedOutOfFlowData->mContainingBlockClipChain);
+      }
+      asrSetter.SetCurrentActiveScrolledRoot(nullptr);
+    } else {
+      clipState.SetClipChainForContainingBlockDescendants(
+          savedOutOfFlowData->mContainingBlockClipChain);
+      asrSetter.SetCurrentActiveScrolledRoot(
+          savedOutOfFlowData->mContainingBlockActiveScrolledRoot);
+      asrSetter.SetCurrentScrollParentId(savedOutOfFlowData->mScrollParentId);
+    }
     MOZ_ASSERT(awayFromCommonPath,
                "It is impossible when savedOutOfFlowData is true");
   } else if (HasAnyStateBits(NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO) &&
@@ -5508,7 +5537,7 @@ struct MOZ_STACK_CLASS FrameContentRange {
 };
 
 static bool IsRelevantBlockFrame(const nsIFrame* aFrame) {
-  if (!aFrame->IsBlockOutside()) {
+  if (!aFrame->IsBlockOutside() && !aFrame->IsTableCaption()) {
     return false;
   }
   if (aFrame->GetContent() &&
@@ -8689,7 +8718,8 @@ nsIFrame* nsIFrame::FindAnchorPosAnchor(const nsAtom* aAnchorSpec) const {
   if (!StyleDisplay()->IsAbsolutelyPositionedStyle()) {
     return nullptr;
   }
-  return PresShell()->GetAnchorPosAnchor(aAnchorSpec);
+
+  return PresShell()->GetAnchorPosAnchor(aAnchorSpec, this);
 }
 
 #ifdef DEBUG_FRAME_DUMP

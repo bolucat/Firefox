@@ -828,6 +828,10 @@
           ],
           ["moz-box-item", "chrome://global/content/elements/moz-box-item.mjs"],
           ["moz-box-link", "chrome://global/content/elements/moz-box-link.mjs"],
+          [
+            "moz-breadcrumb-group",
+            "chrome://global/content/elements/moz-breadcrumb-group.mjs",
+          ],
           ["moz-button", "chrome://global/content/elements/moz-button.mjs"],
           [
             "moz-button-group",
@@ -839,6 +843,10 @@
           [
             "moz-five-star",
             "chrome://global/content/elements/moz-five-star.mjs",
+          ],
+          [
+            "moz-input-color",
+            "chrome://global/content/elements/moz-input-color.mjs",
           ],
           [
             "moz-input-folder",

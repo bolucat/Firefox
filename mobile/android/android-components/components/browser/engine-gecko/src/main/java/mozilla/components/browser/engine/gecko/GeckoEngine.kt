@@ -19,6 +19,10 @@ import mozilla.components.browser.engine.gecko.ext.getStrictSocialTrackingProtec
 import mozilla.components.browser.engine.gecko.integration.LocaleSettingUpdater
 import mozilla.components.browser.engine.gecko.mediaquery.from
 import mozilla.components.browser.engine.gecko.mediaquery.toGeckoValue
+import mozilla.components.browser.engine.gecko.preferences.DefaultGeckoPreferenceAccessor
+import mozilla.components.browser.engine.gecko.preferences.GeckoPreferenceAccessor
+import mozilla.components.browser.engine.gecko.preferences.GeckoPreferencesUtils.intoBrowserPreference
+import mozilla.components.browser.engine.gecko.preferences.GeckoPreferencesUtils.intoGeckoBranch
 import mozilla.components.browser.engine.gecko.profiler.Profiler
 import mozilla.components.browser.engine.gecko.serviceworker.GeckoServiceWorkerDelegate
 import mozilla.components.browser.engine.gecko.translate.GeckoTranslationUtils.intoTranslationError
@@ -45,6 +49,9 @@ import mozilla.components.concept.engine.content.blocking.TrackingProtectionExce
 import mozilla.components.concept.engine.fission.WebContentIsolationStrategy
 import mozilla.components.concept.engine.history.HistoryTrackingDelegate
 import mozilla.components.concept.engine.mediaquery.PreferredColorScheme
+import mozilla.components.concept.engine.preferences.Branch
+import mozilla.components.concept.engine.preferences.BrowserPreference
+import mozilla.components.concept.engine.preferences.BrowserPreferencesRuntime
 import mozilla.components.concept.engine.serviceworker.ServiceWorkerDelegate
 import mozilla.components.concept.engine.translate.Language
 import mozilla.components.concept.engine.translate.LanguageModel
@@ -97,7 +104,8 @@ class GeckoEngine(
     executorProvider: () -> GeckoWebExecutor = { GeckoWebExecutor(runtime) },
     override val trackingProtectionExceptionStore: TrackingProtectionExceptionStorage =
         GeckoTrackingProtectionExceptionStorage(runtime),
-) : Engine, WebExtensionRuntime, TranslationsRuntime {
+    private val geckoPreferenceAccessor: GeckoPreferenceAccessor = DefaultGeckoPreferenceAccessor(),
+) : Engine, WebExtensionRuntime, TranslationsRuntime, BrowserPreferencesRuntime {
     private val executor by lazy { executorProvider.invoke() }
     private val localeUpdater = LocaleSettingUpdater(context, runtime)
 
@@ -1081,6 +1089,118 @@ class GeckoEngine(
     }
 
     /**
+     * See [Engine.getBrowserPref].
+     */
+    override fun getBrowserPref(
+        pref: String,
+        onSuccess: (BrowserPreference<*>) -> Unit,
+        onError: (Throwable) -> Unit,
+    ) {
+        geckoPreferenceAccessor.getGeckoPref(pref).then(
+            { geckoPrefResult ->
+                if (geckoPrefResult != null) {
+                    onSuccess(
+                        geckoPrefResult.intoBrowserPreference(),
+                    )
+                } else {
+                    onError(Throwable("Browser preference was unexpectedly null!"))
+                }
+                GeckoResult<Void>()
+            },
+            { throwable ->
+                onError(throwable)
+                GeckoResult<Void>()
+            },
+        )
+    }
+
+    /**
+     * See [Engine.setBrowserPref].
+     */
+    override fun setBrowserPref(
+        pref: String,
+        value: String,
+        branch: Branch,
+        onSuccess: () -> Unit,
+        onError: (Throwable) -> Unit,
+    ) {
+        geckoPreferenceAccessor.setGeckoPref(pref, value, branch.intoGeckoBranch()).then(
+            {
+                onSuccess()
+                GeckoResult<Void>()
+            },
+            { throwable ->
+                onError(throwable)
+                GeckoResult<Void>()
+            },
+        )
+    }
+
+    /**
+     * See [Engine.setBrowserPref].
+     */
+    override fun setBrowserPref(
+        pref: String,
+        value: Int,
+        branch: Branch,
+        onSuccess: () -> Unit,
+        onError: (Throwable) -> Unit,
+    ) {
+        geckoPreferenceAccessor.setGeckoPref(pref, value, branch.intoGeckoBranch()).then(
+            {
+                onSuccess()
+                GeckoResult<Void>()
+            },
+            { throwable ->
+                onError(throwable)
+                GeckoResult<Void>()
+            },
+        )
+    }
+
+    /**
+     * See [Engine.setBrowserPref].
+     */
+    override fun setBrowserPref(
+        pref: String,
+        value: Boolean,
+        branch: Branch,
+        onSuccess: () -> Unit,
+        onError: (Throwable) -> Unit,
+    ) {
+        geckoPreferenceAccessor.setGeckoPref(pref, value, branch.intoGeckoBranch()).then(
+            {
+                onSuccess()
+                GeckoResult<Void>()
+            },
+            { throwable ->
+                onError(throwable)
+                GeckoResult<Void>()
+            },
+        )
+    }
+
+    /**
+     * See [Engine.clearBrowserUserPref].
+     */
+    override fun clearBrowserUserPref(
+        pref: String,
+        onSuccess: () -> Unit,
+        onError: (Throwable) -> Unit,
+    ) {
+        geckoPreferenceAccessor.clearGeckoUserPref(pref).then(
+            {
+                onSuccess()
+                GeckoResult<Void>()
+            },
+            { throwable ->
+                onError(throwable)
+                   GeckoResult<Void>()
+            },
+        )
+    }
+
+    /**
      * See [Engine.profiler].
      */
     override val profiler: Profiler = Profiler()
@@ -1456,6 +1576,18 @@ class GeckoEngine(
             get() = runtime.settings.userCharacteristicPingCurrentVersion
             set(value) { runtime.settings.setUserCharacteristicPingCurrentVersion(value) }
 
+        override var baselineFingerprintingProtection: Boolean?
+            get() = runtime.settings.baselineFingerprintingProtection
+            set(value) {
+                value?.let { runtime.settings.setBaselineFingerprintingProtection(it) }
+            }
+
+        override var baselineFingerprintingProtectionOverrides: String?
+            get() = runtime.settings.baselineFingerprintingProtectionOverrides
+            set(value) {
+                value?.let { runtime.settings.setBaselineFingerprintingProtectionOverrides(it) }
+            }
+
         override var webContentIsolationStrategy: WebContentIsolationStrategy?
             get() = runtime.settings.webContentIsolationStrategy?.intoWebContentIsolationStrategy()
             set(value) {
@@ -1528,6 +1660,8 @@ class GeckoEngine(
             this.fdlibmMathEnabled = it.fdlibmMathEnabled
             this.emailTrackerBlockingPrivateBrowsing = it.emailTrackerBlockingPrivateBrowsing
             this.userCharacteristicPingCurrentVersion = it.userCharacteristicPingCurrentVersion
+            this.baselineFingerprintingProtection = it.baselineFingerprintingProtection
+            this.baselineFingerprintingProtectionOverrides = it.baselineFingerprintingProtectionOverrides
             this.webContentIsolationStrategy = it.webContentIsolationStrategy
             this.fetchPriorityEnabled = it.fetchPriorityEnabled
             this.parallelMarkingEnabled = it.parallelMarkingEnabled

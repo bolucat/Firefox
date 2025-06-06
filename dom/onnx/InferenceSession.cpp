@@ -21,7 +21,6 @@
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/ScriptSettings.h"
 #include "nsString.h"
-#include "onnxruntime_c_api.h"
 #include "mozilla/dom/Tensor.h"
 #include "mozilla/Attributes.h"
 mozilla::LazyLogModule gONNXLog("ONNXNative");
@@ -257,8 +256,7 @@ OrtCustomThreadHandle WrapProfilerRegister(void* options, void (*func)(void*),
   // We don't use options for now
   MOZ_ASSERT(!options);
   auto wrapperFunc = [func](void* param) {
-    char stacktop;
-    profiler_register_thread("onnx_worker", &stacktop);
+    PROFILER_REGISTER_THREAD("onnx_worker");
     LOGD("Starting thread");
     (static_cast<OrtThreadWorkerFn>(func))(param);
   };

@@ -7,12 +7,14 @@ edition = "2021"
 crate-type = ["lib", "staticlib"]
 
 [dependencies]
+async-trait = "0.1"
 thiserror = "1"
 uniffi = { workspace = true, features = ["ffi-trace"] }
+url = "2.5"
 
 [features]
 default = ["simple_fns", "primitive_types", "complex_fns", "compound_types", "records", "enums",
-    "interfaces", "custom_types", "errors", "callback_interfaces", "futures"]
+    "interfaces", "custom_types", "errors", "callback_interfaces", "trait_interfaces", "futures"]
 simple_fns = []
 primitive_types = []
 complex_fns = []
@@ -23,4 +25,5 @@ interfaces = []
 custom_types = []
 errors = []
 callback_interfaces = []
+trait_interfaces = []
 futures = []

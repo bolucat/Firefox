@@ -1379,7 +1379,13 @@ newtabPrivatePing:
         pref: browser.newtabpage.activity-stream.telemetry.privatePing.inferred.enabled
       description: >-
         Includes a differentially private intrest vector of general topical interests based on New Tab clicks. Only sent when user has enabled personalization.
-
+    maxSubmissionDelayMs:
+      type: int
+      setPref:
+        branch: user
+        pref: browser.newtabpage.activity-stream.telemetry.privatePing.maxSubmissionDelayMs
+      description: >-
+        The maximum range for the random delay from scheduling the newtab-content ping to actually sending it. The minimum is 1000 by default. This is in milliseconds.
 
 newtabTrainhop:
   description: Experiment feature for the train-hopping newtab extension.
@@ -1432,6 +1438,24 @@ newtabRefinedCardsLayout:
         pref: browser.newtabpage.activity-stream.discoverystream.refinedCardsLayout.enabled
       description: Enables the refined cards layout for newtab
 
+newtabTrendingSearchWidget:
+  description: >-
+      Adds trending search results widget to new tab
+  owner: nbarrett@mozilla.com
+  hasExposure: false
+  variables:
+    enabled:
+      type: boolean
+      setPref:
+        branch: user
+        pref: browser.newtabpage.activity-stream.trendingSearch.enabled
+      description: Enables the refined cards layout for newtab
+    variant:
+      type: string
+      setPref:
+        branch: user
+        pref: browser.newtabpage.activity-stream.trendingSearch.variant
+      description: Determines the layout variant for the trending search widget
 
 pocketNewtab:
   description: The Pocket section in newtab
@@ -1796,7 +1820,7 @@ pocketNewtab:
       type: boolean
       setPref:
         branch: user
-        pref: browser.newtabpage.activity-stream.sponsoredCheckboxes.group
+        pref: browser.newtabpage.activity-stream.system.sponsoredCheckboxes
       description: >-
         When true, checkboxes for sponsored results in top sites and recommended stories are grouped separately
         on about:preferences#home
@@ -2209,7 +2233,7 @@ fxms-message-11:
   variables: {}
 
 fxms-message-12:
-  description: "Firefox Messaging System message 12"
+  description: "Firefox Messaging System message 12 - ONLY for Fx140+ targeting"
   owner: omc@mozilla.com
   hasExposure: true
   exposureDescription: >-
@@ -2220,7 +2244,7 @@ fxms-message-12:
   variables: {}
 
 fxms-message-13:
-  description: "Firefox Messaging System message 13"
+  description: "Firefox Messaging System message 13 - ONLY for Fx140+ targeting"
   owner: omc@mozilla.com
   hasExposure: true
   exposureDescription: >-
@@ -2231,7 +2255,7 @@ fxms-message-13:
   variables: {}
 
 fxms-message-14:
-  description: "Firefox Messaging System message 14"
+  description: "Firefox Messaging System message 14 - ONLY for Fx140+ targeting"
   owner: omc@mozilla.com
   hasExposure: true
   exposureDescription: >-
@@ -2242,7 +2266,7 @@ fxms-message-14:
   variables: {}
 
 fxms-message-15:
-  description: "Firefox Messaging System message 15"
+  description: "Firefox Messaging System message 15 - ONLY for Fx140+ targeting"
   owner: omc@mozilla.com
   hasExposure: true
   exposureDescription: >-
@@ -4856,3 +4880,15 @@ contextID:
       description: >-
         Enables the Rust component backend for ContextId.sys.mjs, which is
         a prerequisite for doing rotations.
+
+deletePrivate:
+  description: Enable or disable the option for users to delete files at the end of a private browsing session
+  owner: rking@mozilla.com
+  hasExposure: false
+  variables:
+    enabled:
+      type: boolean
+      setPref:
+        branch: default
+        pref: browser.download.enableDeletePrivate
+      description: Whether the setting for deleting files downloaded in private browsing is available to the user

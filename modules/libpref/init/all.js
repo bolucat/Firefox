@@ -1214,11 +1214,7 @@ pref("network.http.network-changed.timeout", 5);
 
 // The maximum number of current global half open sockets allowable
 // when starting a new speculative connection.
-#ifdef ANDROID
-  pref("network.http.speculative-parallel-limit", 6);
-#else
-  pref("network.http.speculative-parallel-limit", 20);
-#endif
+pref("network.http.speculative-parallel-limit", 20);
 
 // Whether or not to block requests for non head js/css items (e.g. media)
 // while those elements load.
@@ -1790,6 +1786,10 @@ pref("extensions.install_origins.enabled", false);
 // TODO: bug 1830712: remove prefs related to browser_style deprecation.
 pref("extensions.browser_style_mv3.supported", false);
 pref("extensions.browser_style_mv3.same_as_mv2", false);
+
+// If set to true, browser.cookies.set() will throw exceptions if the cookie is
+// invalid. Otherwise, a warning message will be shown in the console.
+pref("extensions.cookie.rejectWhenInvalid", false);
 
 // Experimental Inference API
 pref("extensions.ml.enabled", true);
@@ -4001,8 +4001,8 @@ pref("extensions.formautofill.addresses.capture.enabled", true);
 #endif
 pref("extensions.formautofill.addresses.ignoreAutocompleteOff", true);
 // Supported countries need to follow ISO 3166-1 to align with "browser.search.region"
-pref("extensions.formautofill.addresses.supportedCountries", "US,CA,FR,DE");
-pref("extensions.formautofill.creditCards.supported", "detect");
+pref("extensions.formautofill.addresses.supportedCountries", "US,CA,GB,FR,DE");
+pref("extensions.formautofill.creditCards.supported", "on");
 pref("extensions.formautofill.creditCards.enabled", true);
 pref("extensions.formautofill.creditCards.ignoreAutocompleteOff", true);
 

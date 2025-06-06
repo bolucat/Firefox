@@ -12,11 +12,11 @@
 
   // helper classes
   &.icon-spacer {
-    margin-inline-end: 8px;
+    margin-inline-end: var(--space-small);
   }
 
   &.icon-small-spacer {
-    margin-inline-end: 6px;
+    margin-inline-end: var(--space-xsmall);
   }
 
   &.icon-button-style {
@@ -249,5 +249,9 @@
 
   &.icon-device-phone {
     background-image: url('chrome://browser/skin/device-phone.svg');
+  }
+
+  &.icon-arrow-trending {
+    background-image: url('chrome://global/skin/icons/trending.svg');
   }
 }

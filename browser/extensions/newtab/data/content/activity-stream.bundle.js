@@ -104,7 +104,9 @@ for (const type of [
   "ADDONS_INFO_RESPONSE",
   "ADS_FEED_UPDATE",
   "ADS_INIT",
-  "ADS_UPDATE_DATA",
+  "ADS_RESET",
+  "ADS_UPDATE_SPOCS",
+  "ADS_UPDATE_TILES",
   "ARCHIVE_FROM_POCKET",
   "BLOCK_SECTION",
   "BLOCK_URL",
@@ -271,6 +273,8 @@ for (const type of [
   "TOP_SITES_UPDATED",
   "TOTAL_BOOKMARKS_REQUEST",
   "TOTAL_BOOKMARKS_RESPONSE",
+  "TRENDING_SEARCH_TOGGLE_COLLAPSE",
+  "TRENDING_SEARCH_UPDATE",
   "UNBLOCK_SECTION",
   "UNFOLLOW_SECTION",
   "UNINIT",
@@ -986,12 +990,18 @@ class DiscoveryStreamAdminUI extends (external_React_default()).PureComponent {
       spocs
     } = this.props.state.DiscoveryStream;
     const unifiedAdsSpocsEnabled = this.props.otherPrefs["unifiedAds.spocs.enabled"];
+
+    // Determine which mechanism is querying the UAPI ads server
+    const PREF_UNIFIED_ADS_ADSFEED_ENABLED = "unifiedAds.adsFeed.enabled";
+    const adsFeedEnabled = this.props.otherPrefs[PREF_UNIFIED_ADS_ADSFEED_ENABLED];
     const unifiedAdsEndpoint = this.props.otherPrefs["unifiedAds.endpoint"];
     let spocsData = [];
     if (spocs.data && spocs.data.newtab_spocs && spocs.data.newtab_spocs.items) {
       spocsData = spocs.data.newtab_spocs.items || [];
     }
     return /*#__PURE__*/external_React_default().createElement((external_React_default()).Fragment, null, /*#__PURE__*/external_React_default().createElement("table", null, /*#__PURE__*/external_React_default().createElement("tbody", null, /*#__PURE__*/external_React_default().createElement(Row, null, /*#__PURE__*/external_React_default().createElement("td", {
+      className: "min"
+    }, "adsfeed enabled"), /*#__PURE__*/external_React_default().createElement("td", null, adsFeedEnabled ? "true" : "false")), /*#__PURE__*/external_React_default().createElement(Row, null, /*#__PURE__*/external_React_default().createElement("td", {
       className: "min"
     }, "spocs_endpoint"), /*#__PURE__*/external_React_default().createElement("td", null, unifiedAdsSpocsEnabled ? unifiedAdsEndpoint : spocs.spocs_endpoint)), /*#__PURE__*/external_React_default().createElement(Row, null, /*#__PURE__*/external_React_default().createElement("td", {
       className: "min"
@@ -3433,13 +3443,10 @@ function DSThumbsUpDownButtons({
   onThumbsUpClick,
   onThumbsDownClick,
   isThumbsUpActive,
-  isThumbsDownActive
+  isThumbsDownActive,
+  refinedCardsLayout
 }) {
-  return /*#__PURE__*/external_React_default().createElement("div", {
-    className: "card-stp-thumbs-buttons-wrapper"
-  }, !sponsor && /*#__PURE__*/external_React_default().createElement("div", {
-    className: "card-stp-thumbs-buttons"
-  }, /*#__PURE__*/external_React_default().createElement("button", {
+  let thumbsButtons = /*#__PURE__*/external_React_default().createElement((external_React_default()).Fragment, null, /*#__PURE__*/external_React_default().createElement("button", {
     onClick: onThumbsUpClick,
     className: `card-stp-thumbs-button icon icon-thumbs-up ${isThumbsUpActive ? "is-active" : null}`,
     "data-l10n-id": "newtab-pocket-thumbs-up-tooltip"
@@ -3447,7 +3454,27 @@ function DSThumbsUpDownButtons({
     onClick: onThumbsDownClick,
     className: `card-stp-thumbs-button icon icon-thumbs-down ${isThumbsDownActive ? "is-active" : null}`,
     "data-l10n-id": "newtab-pocket-thumbs-down-tooltip"
-  })));
+  }));
+  if (refinedCardsLayout) {
+    thumbsButtons = /*#__PURE__*/external_React_default().createElement((external_React_default()).Fragment, null, /*#__PURE__*/external_React_default().createElement("moz-button", {
+      iconsrc: "chrome://global/skin/icons/thumbs-up-20.svg",
+      onClick: onThumbsUpClick,
+      className: `card-stp-thumbs-button icon icon-thumbs-up refined-layout ${isThumbsUpActive ? "is-active" : null}`,
+      "data-l10n-id": "newtab-pocket-thumbs-up-tooltip",
+      type: "icon ghost"
+    }), /*#__PURE__*/external_React_default().createElement("moz-button", {
+      iconsrc: "chrome://global/skin/icons/thumbs-down-20.svg",
+      onClick: onThumbsDownClick,
+      className: `card-stp-thumbs-button icon icon-thumbs-down ${isThumbsDownActive ? "is-active" : null}`,
+      "data-l10n-id": "newtab-pocket-thumbs-down-tooltip",
+      type: "icon ghost"
+    }));
+  }
+  return /*#__PURE__*/external_React_default().createElement("div", {
+    className: "card-stp-thumbs-buttons-wrapper"
+  }, !sponsor && /*#__PURE__*/external_React_default().createElement("div", {
+    className: "card-stp-thumbs-buttons"
+  }, thumbsButtons));
 }
 
 ;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/DSCard/DSCard.jsx
@@ -3487,8 +3514,12 @@ const DSSource = ({
   context,
   sponsor,
   sponsored_by_override,
-  icon_src
+  icon_src,
+  refinedCardsLayout
 }) => {
+  // refinedCard styles will have a larger favicon size
+  const faviconSize = refinedCardsLayout ? 20 : 16;
+
   // First try to display sponsored label or time to read here.
   if (newSponsoredLabel) {
     // If we can display something for spocs, do so.
@@ -3522,8 +3553,8 @@ const DSSource = ({
     className: "source-wrapper"
   }, icon_src && /*#__PURE__*/external_React_default().createElement("img", {
     src: icon_src,
-    height: "16",
-    width: "16",
+    height: faviconSize,
+    width: faviconSize,
     alt: ""
   }), /*#__PURE__*/external_React_default().createElement("p", {
     className: "source clamp"
@@ -3591,13 +3622,15 @@ const DefaultMeta = ({
     context: context,
     sponsor: sponsor,
     sponsored_by_override: sponsored_by_override,
-    icon_src: icon_src
+    icon_src: icon_src,
+    refinedCardsLayout: refinedCardsLayout
   }), (shouldHaveThumbs || refinedCardsLayout) && /*#__PURE__*/external_React_default().createElement(DSThumbsUpDownButtons, {
     onThumbsDownClick: onThumbsDownClick,
     onThumbsUpClick: onThumbsUpClick,
     sponsor: sponsor,
     isThumbsDownActive: state.isThumbsDownActive,
-    isThumbsUpActive: state.isThumbsUpActive
+    isThumbsUpActive: state.isThumbsUpActive,
+    refinedCardsLayout: refinedCardsLayout
   }), showTopics && /*#__PURE__*/external_React_default().createElement("span", {
     className: "ds-card-topic",
     "data-l10n-id": `newtab-topic-label-${topic}`
@@ -4894,10 +4927,87 @@ const AdBanner = ({
     "data-l10n-id": "newtab-label-sponsored-fixed"
   }))));
 };
+;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/TrendingSearches/TrendingSearches.jsx
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+
+
+
+const PREF_TRENDING_VARIANT = "trendingSearch.variant";
+function TrendingSearches() {
+  const dispatch = (0,external_ReactRedux_namespaceObject.useDispatch)();
+  const {
+    TrendingSearch,
+    Prefs
+  } = (0,external_ReactRedux_namespaceObject.useSelector)(state => state);
+  const {
+    values: prefs
+  } = Prefs;
+  const {
+    suggestions,
+    collapsed
+  } = TrendingSearch;
+  const variant = prefs[PREF_TRENDING_VARIANT];
+  function onArrowClick() {
+    dispatch(actionCreators.AlsoToMain({
+      type: actionTypes.TRENDING_SEARCH_TOGGLE_COLLAPSE
+    }));
+  }
+  if (variant === "a") {
+    return /*#__PURE__*/external_React_default().createElement("section", {
+      className: "trending-searches-pill-wrapper"
+    }, /*#__PURE__*/external_React_default().createElement("div", {
+      className: "trending-searches-title-wrapper"
+    }, /*#__PURE__*/external_React_default().createElement("span", {
+      className: "trending-searches-icon icon icon-arrow-trending"
+    }), /*#__PURE__*/external_React_default().createElement("h2", {
+      className: "trending-searches-title",
+      "data-l10n-id": "newtab-trending-searches-trending-on-google"
+    }), /*#__PURE__*/external_React_default().createElement("div", {
+      className: "close-open-trending-searches"
+    }, /*#__PURE__*/external_React_default().createElement("moz-button", {
+      iconsrc: `chrome://global/skin/icons/arrow-${!collapsed ? "up" : "down"}.svg`,
+      onClick: onArrowClick,
+      className: `icon icon-arrowhead-up`,
+      "data-l10n-id": `newtab-trending-searches-${collapsed ? "hide" : "show"}-trending`,
+      type: "icon ghost"
+    }))), !collapsed && /*#__PURE__*/external_React_default().createElement("ul", {
+      className: "trending-searches-list"
+    }, suggestions.map((result, index) => {
+      return /*#__PURE__*/external_React_default().createElement("li", {
+        key: index,
+        className: "trending-search-item"
+      }, /*#__PURE__*/external_React_default().createElement(SafeAnchor, {
+        url: ""
+      }, result.lowerCaseSuggestion));
+    })));
+  } else if (variant === "b") {
+    return /*#__PURE__*/external_React_default().createElement("div", {
+      className: "trending-searches-list-view"
+    }, /*#__PURE__*/external_React_default().createElement("h3", {
+      "data-l10n-id": "newtab-trending-searches-trending-on-google"
+    }), /*#__PURE__*/external_React_default().createElement("ul", {
+      className: "trending-searches-list-items"
+    }, suggestions.slice(0, 6).map(result => /*#__PURE__*/external_React_default().createElement("li", {
+      key: result.suggestion,
+      className: "trending-searches-list-item"
+    }, /*#__PURE__*/external_React_default().createElement(SafeAnchor, {
+      url: "",
+      title: result.suggestion
+    }, /*#__PURE__*/external_React_default().createElement("span", {
+      className: "trending-searches-icon icon icon-arrow-trending"
+    }), result.lowerCaseSuggestion)))));
+  }
+}
+
 ;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/CardGrid/CardGrid.jsx
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 
 
 
@@ -4924,6 +5034,8 @@ const PREF_BILLBOARD_ENABLED = "newtabAdSize.billboard";
 const PREF_LEADERBOARD_ENABLED = "newtabAdSize.leaderboard";
 const PREF_LEADERBOARD_POSITION = "newtabAdSize.leaderboard.position";
 const PREF_BILLBOARD_POSITION = "newtabAdSize.billboard.position";
+const PREF_TRENDING_SEARCH = "trendingSearch.enabled";
+const PREF_TRENDING_SEARCH_VARIANT = "trendingSearch.variant";
 const CardGrid_INTERSECTION_RATIO = 0.5;
 const CardGrid_VISIBLE = "visible";
 const CardGrid_VISIBILITY_CHANGE_EVENT = "visibilitychange";
@@ -5207,6 +5319,8 @@ class _CardGrid extends (external_React_default()).PureComponent {
     const listFeedSelectedFeed = prefs[PREF_LIST_FEED_SELECTED_FEED];
     const billboardEnabled = prefs[PREF_BILLBOARD_ENABLED];
     const leaderboardEnabled = prefs[PREF_LEADERBOARD_ENABLED];
+    const trendingEnabled = prefs[PREF_TRENDING_SEARCH];
+    const trendingVariant = prefs[PREF_TRENDING_SEARCH_VARIANT];
 
     // filter out recs that should be in ListFeed
     const recs = this.props.data.recommendations.filter(item => !item.feedName).slice(0, items);
@@ -5301,6 +5415,9 @@ class _CardGrid extends (external_React_default()).PureComponent {
         // Place the list feed as the 3rd element in the card grid
         cards.splice(2, 1, this.renderListFeed(this.props.data.recommendations, listFeedSelectedFeed));
       }
+    }
+    if (trendingEnabled && trendingVariant === "b") {
+      cards.splice(1, 1, /*#__PURE__*/external_React_default().createElement(TrendingSearches, null));
     }
 
     // if a banner ad is enabled and we have any available, place them in the grid
@@ -7404,7 +7521,9 @@ const INITIAL_STATE = {
   Ads: {
     initialized: false,
     lastUpdated: null,
-    topsites: {},
+    tiles: {},
+    spocs: {},
+    spocPlacements: {},
   },
   TopSites: {
     // Have we received real data from history yet?
@@ -7544,6 +7663,10 @@ const INITIAL_STATE = {
     searchActive: false,
     locationSearchString: "",
     suggestedLocations: [],
+  },
+  TrendingSearch: {
+    suggestions: [],
+    collapsed: false,
   },
 };
 
@@ -8465,11 +8588,30 @@ function Ads(prevState = INITIAL_STATE.Ads, action) {
         ...prevState,
         initialized: true,
       };
-    case actionTypes.ADS_UPDATE_DATA:
+    case actionTypes.ADS_UPDATE_TILES:
       return {
         ...prevState,
-        topsites: action.data,
+        tiles: action.data.tiles,
       };
+    case actionTypes.ADS_UPDATE_SPOCS:
+      return {
+        ...prevState,
+        spocs: action.data.spocs,
+        spocPlacements: action.data.spocPlacements,
+      };
+    case actionTypes.ADS_RESET:
+      return { ...INITIAL_STATE.Ads };
+    default:
+      return prevState;
+  }
+}
+
+function TrendingSearch(prevState = INITIAL_STATE.TrendingSearch, action) {
+  switch (action.type) {
+    case actionTypes.TRENDING_SEARCH_UPDATE:
+      return { ...prevState, suggestions: action.data };
+    case actionTypes.TRENDING_SERACH_TOGGLE_COLLAPSE:
+      return { ...prevState, collapsed: !prevState.collapsed };
     default:
       return prevState;
   }
@@ -8489,6 +8631,7 @@ const reducers = {
   InferredPersonalization,
   DiscoveryStream,
   Search,
+  TrendingSearch,
   Wallpapers,
   Weather,
 };
@@ -11133,6 +11276,11 @@ const PersonalizedCard = ({
 
 
 
+
+// Note: MessageWrapper emits events via submitGleanPingForPing() in the OMC messaging-system.
+// If a feature is triggered outside of this flow (e.g., the Mobile Download QR Promo),
+// it should emit New Tab-specific Glean events independently.
+
 function MessageWrapper({
   children,
   dispatch,
@@ -13155,12 +13303,55 @@ function Logo() {
   })));
 }
 
+;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/TrendingSearches/TrendingSearchesVarA.jsx
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+
+
+function TrendingSearchesVarA() {
+  const [showTrends, setShowTrends] = (0,external_React_namespaceObject.useState)(true);
+  const onArrowClick = () => {
+    setShowTrends(!showTrends);
+  };
+  const resultsObject = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.TrendingSearch);
+  const searchResults = resultsObject.suggestions;
+  return /*#__PURE__*/React.createElement("section", {
+    className: "trending-searches-pill-wrapper"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "trending-searches-title-wrapper"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "trending-searches-icon icon icon-arrow-trending"
+  }), /*#__PURE__*/React.createElement("h2", {
+    className: "trending-searches-title"
+  }, "Trending on Google"), /*#__PURE__*/React.createElement("div", {
+    className: "close-open-trending-searches"
+  }, /*#__PURE__*/React.createElement("moz-button", {
+    iconsrc: `chrome://global/skin/icons/arrow-${showTrends ? "up" : "down"}.svg`,
+    onClick: onArrowClick,
+    className: `icon icon-arrowhead-up`,
+    type: "icon ghost"
+  }))), showTrends && /*#__PURE__*/React.createElement("ul", {
+    className: "trending-searches-list"
+  }, searchResults.map((result, index) => {
+    return /*#__PURE__*/React.createElement("li", {
+      key: index,
+      className: "trending-search-item"
+    }, /*#__PURE__*/React.createElement(SafeAnchor, {
+      url: ""
+    }, result.lowerCaseSuggestion));
+  })));
+}
+
 ;// CONCATENATED MODULE: ./content-src/components/Search/Search.jsx
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* globals ContentSearchUIController, ContentSearchHandoffUIController */
+
 
 
 
@@ -13177,6 +13368,8 @@ class _Search extends (external_React_default()).PureComponent {
     this.onInputMount = this.onInputMount.bind(this);
     this.onInputMountHandoff = this.onInputMountHandoff.bind(this);
     this.onSearchHandoffButtonMount = this.onSearchHandoffButtonMount.bind(this);
+    this.trendingSearchEnabled = this.props.Prefs.values["trendingSearch.enabled"];
+    this.trendingSearchVariant = this.props.Prefs.values["trendingSearch.variant"];
   }
   handleEvent(event) {
     // Also track search events with our own telemetry
@@ -13289,7 +13482,7 @@ class _Search extends (external_React_default()).PureComponent {
    */
   render() {
     const wrapperClassName = ["search-wrapper", this.props.disable && "search-disabled", this.props.fakeFocus && "fake-focus"].filter(v => v).join(" ");
-    return /*#__PURE__*/external_React_default().createElement("div", {
+    return /*#__PURE__*/external_React_default().createElement((external_React_default()).Fragment, null, /*#__PURE__*/external_React_default().createElement("div", {
       className: wrapperClassName
     }, this.props.showLogo && /*#__PURE__*/external_React_default().createElement(Logo, null), !this.props.handoffEnabled && /*#__PURE__*/external_React_default().createElement("div", {
       className: "search-inner-wrapper no-handoff"
@@ -13304,7 +13497,7 @@ class _Search extends (external_React_default()).PureComponent {
       className: "search-button",
       "data-l10n-id": "newtab-search-box-search-button",
       onClick: this.onSearchClick
-    })), this.props.handoffEnabled && /*#__PURE__*/external_React_default().createElement("div", {
+    }), this.trendingSearchEnabled && this.trendingSearchVariant === "a" && /*#__PURE__*/external_React_default().createElement(TrendingSearchesVarA, null)), this.props.handoffEnabled && /*#__PURE__*/external_React_default().createElement("div", {
       className: "search-inner-wrapper"
     }, /*#__PURE__*/external_React_default().createElement("button", {
       className: "search-handoff-button",
@@ -13326,7 +13519,7 @@ class _Search extends (external_React_default()).PureComponent {
       ref: el => {
         this.fakeCaret = el;
       }
-    }))));
+    })), this.trendingSearchEnabled && this.trendingSearchVariant === "a" && /*#__PURE__*/external_React_default().createElement(TrendingSearchesVarA, null))));
   }
 }
 const Search_Search = (0,external_ReactRedux_namespaceObject.connect)(state => ({
@@ -14123,19 +14316,40 @@ function TopicSelection({
 
 
 
+
 const PREF_MOBILE_DOWNLOAD_HIGHLIGHT_VARIANT_A = "mobileDownloadModal.variant-a";
 const PREF_MOBILE_DOWNLOAD_HIGHLIGHT_VARIANT_B = "mobileDownloadModal.variant-b";
 const PREF_MOBILE_DOWNLOAD_HIGHLIGHT_VARIANT_C = "mobileDownloadModal.variant-c";
+const FEATURE_ID = "FEATURE_DOWNLOAD_MOBILE_PROMO";
 function DownloadMobilePromoHighlight({
   position,
   dispatch,
   handleDismiss,
-  handleBlock
+  handleBlock,
+  isIntersecting
 }) {
   const onDismiss = (0,external_React_namespaceObject.useCallback)(() => {
+    // This event is emitted manually because the feature may be triggered outside the OMC flow,
+    // and may not be captured by the messaging-system’s automatic reporting.
+    dispatch(actionCreators.DiscoveryStreamUserEvent({
+      event: "FEATURE_HIGHLIGHT_DISMISS",
+      source: "FEATURE_HIGHLIGHT",
+      value: FEATURE_ID
+    }));
     handleDismiss();
     handleBlock();
-  }, [handleDismiss, handleBlock]);
+  }, [dispatch, handleDismiss, handleBlock]);
+  (0,external_React_namespaceObject.useEffect)(() => {
+    if (isIntersecting) {
+      // This event is emitted manually because the feature may be triggered outside the OMC flow,
+      // and may not be captured by the messaging-system’s automatic reporting.
+      dispatch(actionCreators.DiscoveryStreamUserEvent({
+        event: "FEATURE_HIGHLIGHT_IMPRESSION",
+        source: "FEATURE_HIGHLIGHT",
+        value: FEATURE_ID
+      }));
+    }
+  }, [dispatch, isIntersecting]);
   const prefs = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Prefs.values);
   const mobileDownloadPromoVarA = prefs[PREF_MOBILE_DOWNLOAD_HIGHLIGHT_VARIANT_A];
   const mobileDownloadPromoVarB = prefs[PREF_MOBILE_DOWNLOAD_HIGHLIGHT_VARIANT_B];
@@ -14182,7 +14396,7 @@ function DownloadMobilePromoHighlight({
     className: "download-firefox-feature-highlight"
   }, /*#__PURE__*/external_React_default().createElement(FeatureHighlight, {
     position: position,
-    feature: "FEATURE_DOWNLOAD_MOBILE_PROMO",
+    feature: FEATURE_ID,
     dispatch: dispatch,
     message: /*#__PURE__*/external_React_default().createElement("div", {
       className: "download-firefox-feature-highlight-content"
@@ -14727,7 +14941,16 @@ class BaseContent extends (external_React_default()).PureComponent {
   toggleDownloadHighlight() {
     this.setState(prevState => ({
       showDownloadHighlight: !prevState.showDownloadHighlight
-    }));
+    }), () => {
+      if (this.state.showDownloadHighlight) {
+        // Emit an open event manually, as the QR modal is toggled outside the OMC-managed flow.
+        this.props.dispatch(actionCreators.DiscoveryStreamUserEvent({
+          event: "FEATURE_HIGHLIGHT_OPEN",
+          source: "FEATURE_HIGHLIGHT",
+          value: "FEATURE_DOWNLOAD_MOBILE_PROMO"
+        }));
+      }
+    });
   }
   handleDismissDownloadHighlight() {
     this.setState({

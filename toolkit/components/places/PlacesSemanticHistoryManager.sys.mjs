@@ -39,8 +39,10 @@ const DEFERRED_TASK_MAX_IDLE_WAIT_MS = 2 * 60000;
 // Number of entries to update at once.
 const DEFAULT_CHUNK_SIZE = 50;
 const ONE_MiB = 1024 * 1024;
+// minimum title length threshold; Usage len(title || description) > MIN_TITLE_LENGTH
+const MIN_TITLE_LENGTH = 4;
 
-export class PlacesSemanticHistoryManager {
+class PlacesSemanticHistoryManager {
   #promiseConn;
   #engine = undefined;
   #embeddingSize;
@@ -59,6 +61,7 @@ export class PlacesSemanticHistoryManager {
   qualifiedForSemanticSearch = false;
   #promiseRemoved = null;
   enoughEntries = false;
+  #shutdownProgress = { state: "Not started" };
 
   /**
    * Constructor for PlacesSemanticHistoryManager.
@@ -104,7 +107,8 @@ export class PlacesSemanticHistoryManager {
 
     lazy.AsyncShutdown.appShutdownConfirmed.addBlocker(
       "SemanticManager: shutdown",
-      () => this.shutdown()
+      () => this.shutdown(),
+      { fetchState: () => this.#shutdownProgress }
     );
 
     // Add the observer for pages-rank-changed and history-cleared topics
@@ -212,7 +216,7 @@ export class PlacesSemanticHistoryManager {
           SELECT url_hash
             FROM places.moz_places
           WHERE title NOTNULL
-            AND length(title) > 2
+            AND length(title || ifnull(description,'')) > :min_title_length
             AND last_visit_date NOTNULL
           ORDER BY :samplingAttrib DESC
           LIMIT  :rowLimit
@@ -222,7 +226,11 @@ export class PlacesSemanticHistoryManager {
           (SELECT COUNT(*) FROM top_places tp
             JOIN vec_history_mapping map ON tp.url_hash = map.url_hash) AS completed
         `,
-      { samplingAttrib: this.#samplingAttrib, rowLimit: this.#rowLimit }
+      {
+        samplingAttrib: this.#samplingAttrib,
+        rowLimit: this.#rowLimit,
+        min_title_length: MIN_TITLE_LENGTH,
+      }
     );
 
     const total = row.getResultByName("total");
@@ -445,7 +453,7 @@ export class PlacesSemanticHistoryManager {
         SELECT url_hash, title, description
         FROM places.moz_places
         WHERE title NOTNULL
-          AND length(title) > 2
+          AND length(title || ifnull(description,'')) > :min_title_length
           AND last_visit_date NOTNULL
         ORDER BY :samplingAttrib DESC
         LIMIT :rowLimit
@@ -454,7 +462,11 @@ export class PlacesSemanticHistoryManager {
       ON top_places.url_hash = vec_map.url_hash
       WHERE vec_map.url_hash IS NULL
     `,
-      { samplingAttrib: this.#samplingAttrib, rowLimit: this.#rowLimit }
+      {
+        samplingAttrib: this.#samplingAttrib,
+        rowLimit: this.#rowLimit,
+        min_title_length: MIN_TITLE_LENGTH,
+      }
     );
     lazy.logger.info(`findAdds: Found ${addedRows.length} rows to add.`);
     return addedRows;
@@ -470,13 +482,17 @@ export class PlacesSemanticHistoryManager {
           SELECT url_hash
           FROM places.moz_places
           WHERE title NOTNULL
-            AND length(title) > 2
+            AND length(title || ifnull(description,'')) > :min_title_length
             AND last_visit_date NOTNULL
           ORDER BY :samplingAttrib DESC
           LIMIT :rowLimit
         )
     `,
-      { samplingAttrib: this.#samplingAttrib, rowLimit: this.#rowLimit }
+      {
+        samplingAttrib: this.#samplingAttrib,
+        rowLimit: this.#rowLimit,
+        min_title_length: MIN_TITLE_LENGTH,
+      }
     );
     lazy.logger.info(
       `findDeletes: Found ${deletedRows.length} rows to delete.`
@@ -572,14 +588,18 @@ export class PlacesSemanticHistoryManager {
    * Shuts down the manager, ensuring cleanup of tasks and connections.
    */
   async shutdown() {
-    await this.#updateTask?.finalize();
+    this.#shutdownProgress.state = "In progress";
+    await this.#finalize();
+    this.#shutdownProgress.state = "Task finalized";
     await this.semanticDB.closeConnection();
+    this.#shutdownProgress.state = "Connection closed";
 
     lazy.PlacesUtils.observers.removeListener(
       ["pages-rank-changed", "history-cleared"],
       this.handlePlacesEvents
     );
 
+    this.#shutdownProgress.state = "Complete";
     lazy.logger.info("PlacesSemanticHistoryManager shut down.");
   }
 
@@ -643,7 +663,9 @@ export class PlacesSemanticHistoryManager {
         SELECT p.id,
                p.title,
                p.url,
-               vec_res.cosine_distance as distance
+               vec_res.cosine_distance as distance,
+               p.frecency,
+               p.last_visit_date
         FROM (
           SELECT url_hash, cosine_distance
           FROM (
@@ -674,6 +696,8 @@ export class PlacesSemanticHistoryManager {
         title: row.getResultByName("title"),
         url: row.getResultByName("url"),
         distance: row.getResultByName("distance"),
+        frecency: row.getResultByName("frecency"),
+        lastVisit: row.getResultByName("last_visit_date"),
       });
     }
 
@@ -756,4 +780,29 @@ export class PlacesSemanticHistoryManager {
   stopProcess() {
     this.#finalize();
   }
+}
+
+// internal holder for the singleton
+let gSingleton = null;
+
+/**
+ * Get the one shared semantic‐history manager.
+ * @param {Object} [options] invokes PlacesSemanticHistoryManager constructor on first call or if recreate==true
+ * @param {boolean} recreate set could true only for testing purposes and should not be true in production
+ */
+export function getPlacesSemanticHistoryManager(
+  options = {
+    embeddingSize: 384,
+    rowLimit: 600,
+    samplingAttrib: "frecency",
+    changeThresholdCount: 3,
+    distanceThreshold: 0.75,
+    testFlag: false,
+  },
+  recreate = false
+) {
+  if (!gSingleton || recreate) {
+    gSingleton = new PlacesSemanticHistoryManager(options);
+  }
+  return gSingleton;
 }

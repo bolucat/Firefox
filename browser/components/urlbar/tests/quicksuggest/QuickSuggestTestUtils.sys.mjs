@@ -14,6 +14,8 @@ ChromeUtils.defineESModuleGetters(lazy, {
   RemoteSettingsServer:
     "resource://testing-common/RemoteSettingsServer.sys.mjs",
   SearchUtils: "moz-src:///toolkit/components/search/SearchUtils.sys.mjs",
+  SharedRemoteSettingsService:
+    "resource://gre/modules/RustSharedRemoteSettingsService.sys.mjs",
   Suggestion:
     "moz-src:///toolkit/components/uniffi-bindgen-gecko-js/components/generated/RustSuggest.sys.mjs",
   TestUtils: "resource://testing-common/TestUtils.sys.mjs",
@@ -243,10 +245,13 @@ class _QuickSuggestTestUtils {
     }
 
     // Tell the Rust backend to use the local remote setting server.
-    await lazy.QuickSuggest.rustBackend._test_setRemoteSettingsConfig({
+    lazy.SharedRemoteSettingsService.updateServer({
+      url: this.#remoteSettingsServer.url.toString(),
       bucketName: "main",
-      serverUrl: this.#remoteSettingsServer.url.toString(),
     });
+    await lazy.QuickSuggest.rustBackend._test_setRemoteSettingsService(
+      lazy.SharedRemoteSettingsService.rustService()
+    );
 
     // Wait for the Rust backend to finish syncing.
     await this.forceSync();
@@ -296,7 +301,7 @@ class _QuickSuggestTestUtils {
       lazy.UrlbarPrefs.clear("quicksuggest.dataCollection.enabled");
     }
 
-    await lazy.QuickSuggest.rustBackend._test_setRemoteSettingsConfig(null);
+    await lazy.QuickSuggest.rustBackend._test_setRemoteSettingsService(null);
 
     this.#log("#uninitQuickSuggest", "Done");
   }
@@ -679,109 +684,112 @@ class _QuickSuggestTestUtils {
     let geonames = [
       // Waterloo, AL
       {
-        id: 1,
+        id: 4096497,
         name: "Waterloo",
-        latitude: "34.91814",
-        longitude: "-88.0642",
         feature_class: "P",
         feature_code: "PPL",
         country: "US",
         admin1: "AL",
+        admin2: "077",
         population: 200,
+        latitude: "34.91814",
+        longitude: "-88.0642",
       },
       // AL
       {
-        id: 2,
+        id: 4829764,
         name: "Alabama",
-        latitude: "32.75041",
-        longitude: "-86.75026",
         feature_class: "A",
         feature_code: "ADM1",
         country: "US",
         admin1: "AL",
         population: 4530315,
+        latitude: "32.75041",
+        longitude: "-86.75026",
       },
       // Waterloo, IA
       {
-        id: 3,
+        id: 4880889,
         name: "Waterloo",
-        latitude: "42.49276",
-        longitude: "-92.34296",
         feature_class: "P",
         feature_code: "PPLA2",
         country: "US",
         admin1: "IA",
+        admin2: "013",
+        admin3: "94597",
         population: 68460,
+        latitude: "42.49276",
+        longitude: "-92.34296",
       },
       // IA
       {
-        id: 4,
+        id: 4862182,
         name: "Iowa",
-        latitude: "42.00027",
-        longitude: "-93.50049",
         feature_class: "A",
         feature_code: "ADM1",
         country: "US",
         admin1: "IA",
         population: 2955010,
+        latitude: "42.00027",
+        longitude: "-93.50049",
       },
       // Made-up cities with the same name in the US and CA. The CA city has a
       // larger population.
       {
         id: 100,
         name: "US CA City",
-        latitude: "38.06084",
-        longitude: "-97.92977",
         feature_class: "P",
         feature_code: "PPL",
         country: "US",
         admin1: "IA",
         population: 1,
+        latitude: "38.06084",
+        longitude: "-97.92977",
       },
       {
         id: 101,
         name: "US CA City",
-        latitude: "45.50884",
-        longitude: "-73.58781",
         feature_class: "P",
         feature_code: "PPL",
         country: "CA",
         admin1: "08",
         population: 2,
+        latitude: "45.50884",
+        longitude: "-73.58781",
       },
       // Made-up cities that are only ~1.5 km apart.
       {
         id: 102,
         name: "Twin City A",
-        latitude: "33.748889",
-        longitude: "-84.39",
         feature_class: "P",
         feature_code: "PPL",
         country: "US",
         admin1: "GA",
         population: 1,
+        latitude: "33.748889",
+        longitude: "-84.39",
       },
       {
         id: 103,
         name: "Twin City B",
-        latitude: "33.76",
-        longitude: "-84.4",
         feature_class: "P",
         feature_code: "PPL",
         country: "US",
         admin1: "GA",
         population: 2,
+        latitude: "33.76",
+        longitude: "-84.4",
       },
       {
         id: 1850147,
         name: "Tokyo",
-        latitude: "35.6895",
-        longitude: "139.69171",
         feature_class: "P",
         feature_code: "PPLC",
         country: "JP",
         admin1: "Tokyo-to",
-        population: 8336599,
+        population: 9733276,
+        latitude: "35.6895",
+        longitude: "139.69171",
       },
     ];
 
@@ -808,8 +816,8 @@ class _QuickSuggestTestUtils {
           {
             language: "abbr",
             alternates_by_geoname_id: [
-              [2, ["AL"]],
-              [4, ["IA"]],
+              [4829764, ["AL"]],
+              [4862182, ["IA"]],
             ],
           },
         ],
@@ -935,7 +943,6 @@ class _QuickSuggestTestUtils {
    */
   yelpResult({
     url,
-    //TODO: Change the test so the title is never undefined
     title = undefined,
     titleL10n = undefined,
     source = "rust",
@@ -986,10 +993,13 @@ class _QuickSuggestTestUtils {
     if (source == "rust") {
       result.payload.suggestionObject = new lazy.Suggestion.Yelp({
         url: originalUrl,
-        //TODO: Remove this quick fix. Based on the Rust component, titles can never be undefined.
-        // Since introducing named parameters for enums (https://bugzilla.mozilla.org/show_bug.cgi?id=1954360)
-        // this tests fails if its undefined.
-        title: title ?? "",
+        // `title` will be undefined if the caller passed in `titleL10n`
+        // instead, but the Rust suggestion must be created with a string title.
+        // The Rust suggestion title doesn't actually matter since no test
+        // relies on it directly or indirectly. Pick an arbitrary string, and
+        // make it distinctive so it's easier to track down bugs in case it does
+        // start to matter at some point.
+        title: title ?? "<QuickSuggestTestUtils Yelp suggestion>",
         icon: null,
         iconMimeType: null,
         score: 0.2,
@@ -1031,7 +1041,7 @@ class _QuickSuggestTestUtils {
       payload: {
         url: lazy.MerinoTestUtils.WEATHER_SUGGESTION.url,
         titleL10n: {
-          id: "firefox-suggest-weather-title-simplest",
+          id: "urlbar-result-weather-title",
           args: {
             temperature:
               lazy.MerinoTestUtils.WEATHER_SUGGESTION.current_conditions
@@ -1046,7 +1056,7 @@ class _QuickSuggestTestUtils {
           excludeArgsFromCacheKey: true,
         },
         bottomTextL10n: {
-          id: "firefox-suggest-weather-sponsored",
+          id: "urlbar-result-weather-provider-sponsored",
           args: { provider: "AccuWeather®" },
           cacheable: true,
         },
@@ -1402,7 +1412,7 @@ class _QuickSuggestTestUtils {
 
     let originalHome = lazy.Region.home;
     if (homeRegion) {
-      lazy.Region._setHomeRegion(homeRegion, false);
+      lazy.Region._setHomeRegion(homeRegion, true);
     }
 
     let available = Services.locale.availableLocales;
@@ -1423,7 +1433,7 @@ class _QuickSuggestTestUtils {
     await callback();
 
     if (homeRegion) {
-      lazy.Region._setHomeRegion(originalHome, false);
+      lazy.Region._setHomeRegion(originalHome, true);
     }
 
     promise = promiseChanges(requested);

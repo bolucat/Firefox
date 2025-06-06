@@ -14,16 +14,14 @@ ChromeUtils.defineESModuleGetters(lazy, {
 const { UrlbarProviderSemanticHistorySearch } = ChromeUtils.importESModule(
   "resource:///modules/UrlbarProviderSemanticHistorySearch.sys.mjs"
 );
-const { PlacesSemanticHistoryManager } = ChromeUtils.importESModule(
+const { getPlacesSemanticHistoryManager } = ChromeUtils.importESModule(
   "resource://gre/modules/PlacesSemanticHistoryManager.sys.mjs"
 );
 
+let semanticManager = getPlacesSemanticHistoryManager();
 let hasSufficientEntriesStub = sinon
-  .stub(
-    PlacesSemanticHistoryManager.prototype,
-    "hasSufficientEntriesForSearching"
-  )
-  .returns(true);
+  .stub(semanticManager, "hasSufficientEntriesForSearching")
+  .resolves(true);
 
 add_task(async function setup() {
   registerCleanupFunction(() => {
@@ -58,8 +56,6 @@ add_task(async function test_startQuery_adds_results() {
   // Trigger isActive() to initialize the semantic manager
   Assert.ok(await provider.isActive(queryContext), "Provider should be active");
 
-  const semanticManager = provider.ensureSemanticManagerInitialized();
-
   // Stub and simulate inference
   sinon.stub(semanticManager.embedder, "ensureEngine").callsFake(() => {});
   let url = "https://example.com";
@@ -69,6 +65,7 @@ add_task(async function test_startQuery_adds_results() {
         id: 1,
         title: "Test Page",
         url,
+        frecency: 100,
       },
     ],
   });
@@ -87,6 +84,7 @@ add_task(async function test_startQuery_adds_results() {
     "Correct icon should be used"
   );
   Assert.ok(added[0].payload.isBlockable, "Result should be blockable");
+  Assert.equal(added[0].payload.frecency, 100, "Frecency is returned");
 
   let controller = UrlbarTestUtils.newMockController();
   let stub = sinon.stub(controller, "removeResult");
@@ -103,7 +101,6 @@ add_task(async function test_startQuery_adds_results() {
 
 add_task(async function test_isActive_conditions() {
   const provider = UrlbarProviderSemanticHistorySearch;
-  const semanticManager = provider.ensureSemanticManagerInitialized();
 
   // Stub canUseSemanticSearch to control the return value
   const canUseStub = sinon.stub(semanticManager, "canUseSemanticSearch");

@@ -55,8 +55,10 @@ class UniFFICallbackHandler {
         if (!this.#allowNewCallbacks) {
             throw new UniFFIError(`No new callbacks allowed for ${this.#name}`);
         }
-        const handle = this.#handleCounter;
+        // Increment first.  This way handles start at `1` and we can use `0` to represent a NULL
+        // handle.
         this.#handleCounter += 1;
+        const handle = this.#handleCounter;
         this.#handleMap.set(handle, new UniFFICallbackHandleMapEntry(callbackObj, Components.stack.caller.formattedStack.trim()));
         return handle;
     }
@@ -68,7 +70,25 @@ class UniFFICallbackHandler {
      * @returns {obj} - Callback object
      */
     getCallbackObj(handle) {
-        return this.#handleMap.get(handle).callbackObj;
+        const callbackObj = this.#handleMap.get(handle).callbackObj;
+        if (callbackObj === undefined) {
+            throw new UniFFIError(`${this.#name}: invalid callback handle id: ${handle}`);
+        }
+        return callbackObj;
+    }
+
+    /**
+     * Get a UniFFICallbackMethodHandler
+     *
+     * @param {int} methodId - index of the method
+     * @returns {UniFFICallbackMethodHandler}
+     */
+    getMethodHandler(methodId) {
+        const methodHandler = this.#methodHandlers[methodId];
+        if (methodHandler === undefined) {
+            throw new UniFFIError(`${this.#name}: invalid method id: ${methodId}`)
+        }
+        return methodHandler;
     }
 
     /**
@@ -81,6 +101,14 @@ class UniFFICallbackHandler {
         this.#allowNewCallbacks = allow
     }
 
+    /**
+     * Check if there are any registered callbacks in the handle map
+     *
+     * This is used in the unit tests
+     */
+    hasRegisteredCallbacks() {
+        return this.#handleMap.size > 0;
+    }
     /**
      * Check that no callbacks are currently registered
      *
@@ -103,9 +131,28 @@ class UniFFICallbackHandler {
      */
     call(handle, methodId, ...args) {
         try {
-            this.#invokeCallbackInner(handle, methodId, args);
+            const callbackObj = this.getCallbackObj(handle);
+            const methodHandler = this.getMethodHandler(methodId);
+            methodHandler.call(callbackObj, args);
         } catch (e) {
             console.error(`internal error invoking callback: ${e}`)
+        }
+    }
+
+    /**
+     * Invoke a method on a stored callback object
+     * @param {int} handle - Object handle
+     * @param {int} methodId - Method index (0-based)
+     * @param {UniFFIScaffoldingValue[]} args - Arguments to pass to the method
+     */
+    async callAsync(handle, methodId, ...args) {
+        const callbackObj = this.getCallbackObj(handle);
+        const methodHandler = this.getMethodHandler(methodId);
+        try {
+            const returnValue = await methodHandler.call(callbackObj, args);
+            return methodHandler.lowerReturn(returnValue);
+        } catch(e) {
+            return methodHandler.lowerError(e)
         }
     }
 
@@ -115,21 +162,6 @@ class UniFFICallbackHandler {
      */
     destroy(handle) {
         this.#handleMap.delete(handle);
-    }
-
-    #invokeCallbackInner(handle, methodId, args) {
-        const callbackObj = this.getCallbackObj(handle);
-        if (callbackObj === undefined) {
-            throw new UniFFIError(`${this.#name}: invalid callback handle id: ${handle}`);
-        }
-
-        // Get the method data, converting from 1-based indexing
-        const methodHandler = this.#methodHandlers[methodId];
-        if (methodHandler === undefined) {
-            throw new UniFFIError(`${this.#name}: invalid method id: ${methodId}`)
-        }
-
-        methodHandler.call(callbackObj, args);
     }
 
     /**
@@ -161,6 +193,8 @@ class UniFFICallbackHandler {
 class UniFFICallbackMethodHandler {
     #name;
     #argsConverters;
+    #returnConverter;
+    #errorConverter;
 
     /**
      * Create a UniFFICallbackMethodHandler
@@ -168,20 +202,34 @@ class UniFFICallbackMethodHandler {
      * @param {string} name -- Name of the method to call on the callback object
      * @param {FfiConverter[]} argsConverters - FfiConverter for each argument type
      */
-    constructor(name, argsConverters) {
+    constructor(name, argsConverters, returnConverter, errorConverter) {
         this.#name = name;
         this.#argsConverters = argsConverters;
+        this.#returnConverter = returnConverter;
+        this.#errorConverter = errorConverter;
     }
 
-    /**
-     * Invoke the method
-     *
-     * @param {obj} callbackObj -- Object implementing the callback interface for this method
-     * @param {ArrayBuffer} argsArrayBuffer -- Arguments for the method, packed in an ArrayBuffer
-     */
      call(callbackObj, args) {
         const convertedArgs = this.#argsConverters.map((converter, i) => converter.lift(args[i]));
         return callbackObj[this.#name](...convertedArgs);
+    }
+
+    lowerReturn(returnValue) {
+        return {
+            code: "success",
+            data: this.#returnConverter(returnValue),
+        };
+    }
+
+    lowerError(error) {
+        return {
+            code: "error",
+            data: this.#errorConverter(error),
+        };
+    }
+
+    toString() {
+      return `CallbackMethodHandler(${this.#name})`
     }
 }
 
@@ -605,7 +653,16 @@ export class ContextIdComponent {
         }
         this[uniffiObjectPtr] = opts[constructUniffiObject];
     }
-    
+    /**
+     * Construct a new [ContextIDComponent].
+     * 
+     * If no creation timestamp is provided, the current time will be used.
+     * @param {string} initContextId
+     * @param {number} creationTimestampS
+     * @param {boolean} runningInTestAutomation
+     * @param {ContextIdCallback} callback
+     * @returns {ContextIdComponent}
+     */
     static init(
         initContextId, 
         creationTimestampS, 
@@ -637,7 +694,7 @@ export class ContextIdComponent {
        
         const result = await UniFFIScaffolding.callAsyncWrapper(
             2, // uniffi_context_id_fn_method_contextidcomponent_force_rotation
-            FfiConverterTypeContextIDComponent.lower(this),
+            FfiConverterTypeContextIDComponent.lowerReceiver(this),
         )
         return handleRustResult(
             result,
@@ -648,6 +705,8 @@ export class ContextIdComponent {
 
     /**
      * Return the current context ID string.
+     * @param {number} rotationDaysInS
+     * @returns {Promise<string>}}
      */
     async request(
         rotationDaysInS) {
@@ -655,7 +714,7 @@ export class ContextIdComponent {
         FfiConverterUInt8.checkType(rotationDaysInS);
         const result = await UniFFIScaffolding.callAsyncWrapper(
             3, // uniffi_context_id_fn_method_contextidcomponent_request
-            FfiConverterTypeContextIDComponent.lower(this),
+            FfiConverterTypeContextIDComponent.lowerReceiver(this),
             FfiConverterUInt8.lower(rotationDaysInS),
         )
         return handleRustResult(
@@ -673,7 +732,7 @@ export class ContextIdComponent {
        
         const result = await UniFFIScaffolding.callAsyncWrapper(
             4, // uniffi_context_id_fn_method_contextidcomponent_unset_callback
-            FfiConverterTypeContextIDComponent.lower(this),
+            FfiConverterTypeContextIDComponent.lowerReceiver(this),
         )
         return handleRustResult(
             result,
@@ -700,6 +759,11 @@ export class FfiConverterTypeContextIDComponent extends FfiConverter {
         return ptr;
     }
 
+    static lowerReceiver(value) {
+        // This works exactly the same as lower for non-trait interfaces
+        return this.lower(value);
+    }
+
     static read(dataStream) {
         return this.lift(dataStream.readPointer(1));
     }
@@ -712,6 +776,7 @@ export class FfiConverterTypeContextIDComponent extends FfiConverter {
         return 8;
     }
 }
+
 // Export the FFIConverter object to make external types work.
 export class FfiConverterInt64 extends FfiConverter {
     static checkType(value) {
@@ -757,9 +822,7 @@ export class FfiConverterTypeContextIdCallback extends FfiConverter {
     static computeSize(callbackObj) {
         return 8;
     }
-}
-
-const uniffiCallbackHandlerContextIdCallback = new UniFFICallbackHandler(
+}const uniffiCallbackHandlerContextIdCallback = new UniFFICallbackHandler(
     "ContextIdCallback",
     1,
     [
@@ -769,12 +832,20 @@ const uniffiCallbackHandlerContextIdCallback = new UniFFICallbackHandler(
                 FfiConverterString,
                 FfiConverterInt64,
             ],
+            (result) => undefined,
+            (e) => {
+              throw e;
+            }
         ),
         new UniFFICallbackMethodHandler(
             "rotated",
             [
                 FfiConverterString,
             ],
+            (result) => undefined,
+            (e) => {
+              throw e;
+            }
         ),
     ]
 );

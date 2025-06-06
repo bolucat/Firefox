@@ -2597,7 +2597,10 @@ export class SearchEngineSelector {
         }
         this[uniffiObjectPtr] = opts[constructUniffiObject];
     }
-    
+    /**
+     * init
+     * @returns {SearchEngineSelector}
+     */
     static init() {
        
         const result = UniFFIScaffolding.callSync(
@@ -2619,7 +2622,7 @@ export class SearchEngineSelector {
        
         const result = UniFFIScaffolding.callSync(
             33, // uniffi_search_fn_method_searchengineselector_clear_search_config
-            FfiConverterTypeSearchEngineSelector.lower(this),
+            FfiConverterTypeSearchEngineSelector.lowerReceiver(this),
         )
         return handleRustResult(
             result,
@@ -2632,6 +2635,8 @@ export class SearchEngineSelector {
      * Filters the search configuration with the user's given environment,
      * and returns the set of engines and parameters that should be presented
      * to the user.
+     * @param {SearchUserEnvironment} userEnvironment
+     * @returns {RefinedSearchConfig}
      */
     filterEngineConfiguration(
         userEnvironment) {
@@ -2639,7 +2644,7 @@ export class SearchEngineSelector {
         FfiConverterTypeSearchUserEnvironment.checkType(userEnvironment);
         const result = UniFFIScaffolding.callSync(
             34, // uniffi_search_fn_method_searchengineselector_filter_engine_configuration
-            FfiConverterTypeSearchEngineSelector.lower(this),
+            FfiConverterTypeSearchEngineSelector.lowerReceiver(this),
             FfiConverterTypeSearchUserEnvironment.lower(userEnvironment),
         )
         return handleRustResult(
@@ -2651,6 +2656,7 @@ export class SearchEngineSelector {
 
     /**
      * setConfigOverrides
+     * @param {string} overrides
      */
     setConfigOverrides(
         overrides) {
@@ -2658,7 +2664,7 @@ export class SearchEngineSelector {
         FfiConverterString.checkType(overrides);
         const result = UniFFIScaffolding.callSync(
             35, // uniffi_search_fn_method_searchengineselector_set_config_overrides
-            FfiConverterTypeSearchEngineSelector.lower(this),
+            FfiConverterTypeSearchEngineSelector.lowerReceiver(this),
             FfiConverterString.lower(overrides),
         )
         return handleRustResult(
@@ -2674,6 +2680,7 @@ export class SearchEngineSelector {
      * reused to avoid unnecessary reprocessing. This helps optimize performance,
      * particularly during test runs where the same configuration may be used
      * repeatedly.
+     * @param {string} configuration
      */
     setSearchConfig(
         configuration) {
@@ -2681,7 +2688,7 @@ export class SearchEngineSelector {
         FfiConverterString.checkType(configuration);
         const result = UniFFIScaffolding.callSync(
             36, // uniffi_search_fn_method_searchengineselector_set_search_config
-            FfiConverterTypeSearchEngineSelector.lower(this),
+            FfiConverterTypeSearchEngineSelector.lowerReceiver(this),
             FfiConverterString.lower(configuration),
         )
         return handleRustResult(
@@ -2702,6 +2709,8 @@ export class SearchEngineSelector {
      * `search-config-v2-overrides` to the selected
      * engines. Should be false unless the application
      * supports the click URL feature.
+     * @param {RemoteSettingsService} service
+     * @param {boolean} applyEngineOverrides
      */
     async useRemoteSettingsServer(
         service, 
@@ -2711,7 +2720,7 @@ export class SearchEngineSelector {
         FfiConverterBoolean.checkType(applyEngineOverrides);
         const result = await UniFFIScaffolding.callAsyncWrapper(
             37, // uniffi_search_fn_method_searchengineselector_use_remote_settings_server
-            FfiConverterTypeSearchEngineSelector.lower(this),
+            FfiConverterTypeSearchEngineSelector.lowerReceiver(this),
             FfiConverterTypeRemoteSettingsService.lower(service),
             FfiConverterBoolean.lower(applyEngineOverrides),
         )
@@ -2740,6 +2749,11 @@ export class FfiConverterTypeSearchEngineSelector extends FfiConverter {
         return ptr;
     }
 
+    static lowerReceiver(value) {
+        // This works exactly the same as lower for non-trait interfaces
+        return this.lower(value);
+    }
+
     static read(dataStream) {
         return this.lift(dataStream.readPointer(6));
     }
@@ -2752,6 +2766,7 @@ export class FfiConverterTypeSearchEngineSelector extends FfiConverter {
         return 8;
     }
 }
+
 // Export the FFIConverter object to make external types work.
 export class FfiConverterUInt64 extends FfiConverter {
     static checkType(value) {

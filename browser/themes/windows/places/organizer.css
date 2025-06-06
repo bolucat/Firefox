@@ -21,11 +21,6 @@
   --organizer-separator-color: ThreeDDarkShadow;
   --organizer-border-color: ThreeDShadow;
 
-  --organizer-toolbar-field-background: Field;
-  --organizer-toolbar-field-background-focused: Field;
-  --organizer-toolbar-field-border-color: ThreeDShadow;
-  --organizer-toolbar-field-focus-border-color: var(--organizer-outline-color);
-  --organizer-toolbar-field-focus-box-shadow: unset;
   --organizer-pane-field-border-color: ThreeDShadow;
 
   --input-border-color: var(--organizer-pane-field-border-color);
@@ -53,11 +48,6 @@
     --organizer-separator-color: var(--organizer-pane-field-border-color);
     --organizer-border-color: ThreeDLightShadow;
 
-    --organizer-toolbar-field-background: rgb(240, 240, 244);
-    --organizer-toolbar-field-background-focused: Field;
-    --organizer-toolbar-field-border-color: transparent;
-    --organizer-toolbar-field-focus-border-color: color-mix(in srgb, var(--organizer-outline-color) 50%, transparent);
-    --organizer-toolbar-field-focus-box-shadow: 0 1px 3px rgba(0, 0, 0, 0.23);
     --organizer-pane-field-border-color: color-mix(in srgb, currentColor 41%, transparent);
   }
 
@@ -76,8 +66,6 @@
       --organizer-focus-selected-color: rgb(43, 42, 51);
       --organizer-outline-color: rgb(0, 221, 255);
 
-      --organizer-toolbar-field-background: rgb(28, 27, 34);
-      --organizer-toolbar-field-background-focused: rgb(66, 65, 77);
       scrollbar-color: rgba(249, 249, 250, 0.4) rgba(20, 20, 25, 0.3);
     }
   }
@@ -112,13 +100,6 @@
   }
 }
 
-#placesToolbar > toolbarbutton > .toolbarbutton-icon,
-#placesMenu > menu > image,
-#placesMenu > menu > .menubar-text {
-  -moz-context-properties: fill;
-  fill: currentColor;
-}
-
 #placesMenu {
   margin-inline-start: 6px;
 
@@ -129,6 +110,7 @@
     padding-block: 5px;
     padding-inline-start: 5px;
     margin-inline-end: 2px;
+    min-height: var(--button-min-height);
 
     &:hover {
       background-color: var(--organizer-hover-background);
@@ -140,68 +122,6 @@
       background-color: var(--organizer-selected-background);
       color: var(--organizer-selected-color);
     }
-
-    &::after {
-      display: flex;
-      width: 12px;
-      height: 12px;
-      margin-inline-start: 2px;
-      content: url("chrome://global/skin/icons/arrow-down-12.svg");
-      -moz-context-properties: fill;
-      fill: currentColor;
-    }
-
-    > .menu-icon {
-      display: flex;
-    }
-  }
-}
-
-/* Toolbar icons */
-
-#back-button {
-  list-style-image: url("chrome://browser/skin/back.svg");
-}
-
-#forward-button {
-  list-style-image: url("chrome://browser/skin/forward.svg");
-}
-
-#back-button:-moz-locale-dir(rtl) > .toolbarbutton-icon,
-#forward-button:-moz-locale-dir(rtl) > .toolbarbutton-icon {
-  transform: scaleX(-1);
-}
-
-#organizeButton {
-  list-style-image: url("chrome://global/skin/icons/settings.svg");
-}
-
-#viewMenu {
-  list-style-image: url("chrome://browser/skin/sort.svg");
-}
-
-#maintenanceButton {
-  list-style-image: url("chrome://global/skin/icons/arrows-updown.svg");
-}
-
-/* Search bar */
-
-#searchFilter {
-  appearance: none;
-  background-color: var(--organizer-toolbar-field-background);
-  color: var(--organizer-color);
-  border: 1px solid var(--organizer-toolbar-field-border-color);
-  border-radius: 4px;
-  margin: 0;
-  padding-block: 2px;
-  min-height: 24px;
-
-  &[focused] {
-    box-shadow: var(--organizer-toolbar-field-focus-box-shadow);
-    background-color: var(--organizer-toolbar-field-background-focused);
-    border-color: transparent;
-    outline: 2px solid var(--organizer-toolbar-field-focus-border-color);
-    outline-offset: -2px;
   }
 }
 

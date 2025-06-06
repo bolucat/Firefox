@@ -1672,15 +1672,6 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     )
 
     /**
-     * Indicates if home onboarding dialog should be shown.
-     */
-    var showHomeOnboardingDialog by lazyFeatureFlagPreference(
-        appContext.getPreferenceKey(R.string.pref_key_should_show_home_onboarding_dialog),
-        featureFlag = true,
-        default = { mr2022Sections[Mr2022Section.HOME_ONBOARDING_DIALOG_EXISTING_USERS] == true },
-    )
-
-    /**
      * Indicates if the recent tabs functionality should be visible.
      */
     var showRecentTabsFeature by lazyFeatureFlagPreference(
@@ -1726,11 +1717,11 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     )
 
     /**
-     * Indicates if the Pocket recommended stories homescreen section should be shown.
+     * Indicates if the stories homescreen section should be shown.
      */
     var showPocketRecommendationsFeature by lazyFeatureFlagPreference(
         appContext.getPreferenceKey(R.string.pref_key_pocket_homescreen_recommendations),
-        featureFlag = ContentRecommendationsFeatureHelper.isPocketRecommendationsFeatureEnabled(appContext),
+        featureFlag = ContentRecommendationsFeatureHelper.isContentRecommendationsFeatureEnabled(appContext),
         default = { homescreenSections[HomeScreenSection.POCKET] == true },
     )
 
@@ -1759,15 +1750,6 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     var hasPocketSponsoredStoriesProfileMigrated by booleanPreference(
         appContext.getPreferenceKey(R.string.pref_key_pocket_sponsored_stories_profile_migrated),
         default = false,
-    )
-
-    /**
-     * Indicates if Merino content recommendations should be shown.
-     */
-    var showContentRecommendations by lazyFeatureFlagPreference(
-        key = appContext.getPreferenceKey(R.string.pref_key_pocket_content_recommendations),
-        default = { FxNimbus.features.merinoRecommendations.value().enabled },
-        featureFlag = ContentRecommendationsFeatureHelper.isContentRecommendationsFeatureEnabled(appContext),
     )
 
     /**

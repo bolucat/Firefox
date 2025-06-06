@@ -3,7 +3,7 @@
 .outer-wrapper {
   .ds-top-sites {
     .collapsible-section {
-      margin-bottom: var(--space-large);
+      margin-block-end: var(--space-large);
     }
 
     .top-sites {
@@ -18,7 +18,7 @@
       }
 
       .top-sites-list {
-        margin: 0 -12px;
+        margin: 0 calc(var(--space-medium) * -1);
 
         .layout-variant-a &,
         .layout-variant-b & {
@@ -37,11 +37,11 @@
 .ds-column-8 {
   .ds-top-sites {
     .top-site-outer {
-      padding: 0 10px;
+      padding: 0 var(--space-small);
     }
 
     .top-sites-list {
-      margin: 0 -10px;
+      margin: 0 calc(var(--space-small) * -1);
     }
 
     .top-site-inner {
@@ -66,11 +66,11 @@
 .ds-column-4 {
   .ds-top-sites {
     .top-site-outer {
-      padding: 0 8px;
+      padding: 0 var(--space-small);
     }
 
     .top-sites-list {
-      margin: 0 -8px;
+      margin: 0 calc(var(--space-small) * -1);
     }
 
     .top-site-inner {

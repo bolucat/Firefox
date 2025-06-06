@@ -140,6 +140,15 @@ void NativeLayerRootWayland::Init() {
         }
       });
 
+  mSurface->SetFrameCallbackStateHandlerLocked(
+      lock, [this, self = RefPtr{this}](bool aState) -> void {
+        LOGVERBOSE("FrameCallbackStateHandlerLocked");
+        MutexAutoLock lock(mMutex);
+        for (RefPtr<NativeLayerWayland>& layer : mSublayers) {
+          layer->SetFrameCallbackState(aState);
+        }
+      });
+
   // Get the best DMABuf format for root wl_surface. We use the same
   // for child surfaces as we expect them to share the same window/monitor.
   //
@@ -652,6 +661,20 @@ Maybe<IntRect> NativeLayerWayland::ClipRect() {
   return mClipRect;
 }
 
+void NativeLayerWayland::SetRoundedClipRect(
+    const Maybe<gfx::RoundedRect>& aClip) {
+  MutexAutoLock lock(mMutex);
+  if (aClip != mRoundedClipRect) {
+    // TODO(gw): Support rounded clips on wayland
+    mRoundedClipRect = aClip;
+  }
+}
+
+Maybe<gfx::RoundedRect> NativeLayerWayland::RoundedClipRect() {
+  MutexAutoLock lock(mMutex);
+  return mRoundedClipRect;
+}
+
 IntRect NativeLayerWayland::CurrentSurfaceDisplayRect() {
   MutexAutoLock lock(mMutex);
   return mDisplayRect;
@@ -755,7 +778,7 @@ bool NativeLayerWayland::Map(WaylandSurfaceLock* aParentWaylandSurfaceLock) {
   //
   // aTime param is used to identify duplicate events.
   //
-  mSurface->AddPersistentFrameCallbackLocked(
+  mSurface->SetFrameCallbackLocked(
       surfaceLock,
       [this, self = RefPtr{this}](wl_callback* aCallback,
                                   uint32_t aTime) -> void {
@@ -770,6 +793,12 @@ bool NativeLayerWayland::Map(WaylandSurfaceLock* aParentWaylandSurfaceLock) {
 
   mNeedsMainThreadUpdate = MainThreadUpdate::Map;
   return true;
+}
+
+void NativeLayerWayland::SetFrameCallbackState(bool aState) {
+  MutexAutoLock lock(mMutex);
+  LOGVERBOSE("NativeLayerWayland::SetFrameCallbackState() %d", aState);
+  mSurface->SetFrameCallbackState(aState);
 }
 
 void NativeLayerWayland::MainThreadMap() {
@@ -978,6 +1007,10 @@ void NativeLayerWaylandRender::CommitSurfaceToScreenLocked(
   mSurface->InvalidateRegionLocked(aSurfaceLock, mDirtyRegion);
   mDirtyRegion.SetEmpty();
 
+  auto* buffer = mFrontBuffer->AsWaylandBufferDMABUF();
+  if (buffer) {
+    buffer->GetSurface()->FenceWait();
+  }
   mSurface->AttachLocked(aSurfaceLock, mFrontBuffer);
 }
 
@@ -988,6 +1021,10 @@ void NativeLayerWaylandRender::NotifySurfaceReady() {
   MOZ_DIAGNOSTIC_ASSERT(mInProgressBuffer);
   mFrontBuffer = std::move(mInProgressBuffer);
   if (mSurfacePoolHandle->gl()) {
+    auto* buffer = mFrontBuffer->AsWaylandBufferDMABUF();
+    if (buffer) {
+      buffer->GetSurface()->FenceSet();
+    }
     mSurfacePoolHandle->gl()->FlushIfHeavyGLCallsSinceLastFlush();
   }
 }

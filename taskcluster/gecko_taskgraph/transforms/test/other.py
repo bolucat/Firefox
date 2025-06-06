@@ -4,11 +4,11 @@
 
 import copy
 import hashlib
-import json
 import re
 
 from mozbuild.schedules import INCLUSIVE_COMPONENTS
 from taskgraph.transforms.base import TransformSequence
+from taskgraph.util import json
 from taskgraph.util.attributes import keymatch
 from taskgraph.util.keyed_by import evaluate_keyed_by
 from taskgraph.util.readonlydict import ReadOnlyDict
@@ -1124,8 +1124,6 @@ def set_profile(config, tasks):
 def set_tag(config, tasks):
     """Set test for a specific tag."""
     tag = None
-    if config.params["try_mode"] == "try_option_syntax":
-        tag = config.params["try_options"]["tag"]
     for task in tasks:
         if tag:
             task["mozharness"]["extra-options"].extend(["--tag", tag])

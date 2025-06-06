@@ -10,6 +10,7 @@
 #include "mozilla/StaticPtr.h"
 #include "mozilla/UniquePtr.h"
 #include "mozilla/dom/Promise.h"
+#include "mozilla/dom/PromiseNativeHandler.h"
 #include "mozilla/dom/UniFFIScaffolding.h"
 #include "mozilla/uniffi/Call.h"
 #include "mozilla/uniffi/Callbacks.h"
@@ -25,14 +26,17 @@ using dom::GlobalObject;
 using dom::RootedDictionary;
 using dom::NullableRootedUnion;
 using dom::Promise;
+using dom::PromiseNativeHandler;
 using dom::Sequence;
 using dom::UniFFICallbackHandler;
 using dom::UniFFIPointer;
+using dom::UniFFIScaffoldingCallCode;
 using dom::UniFFIScaffoldingCallResult;
 
 
 {% include "cpp/FfiDefinitions.cpp" %}
 {% include "cpp/PointerTypes.cpp" %}
+{% include "cpp/CallbackInterfaceFfiValueTypes.cpp" %}
 {% include "cpp/ScaffoldingCalls.cpp" %}
 {% include "cpp/CallbackInterfaces.cpp" %}
 
