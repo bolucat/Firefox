@@ -426,14 +426,6 @@ ipc::IPCResult WebGPUParent::RecvInstanceRequestAdapter(
   resolver(std::move(infoByteBuf));
   ForwardError(0, error);
 
-  // free the unused IDs
-  ipc::ByteBuf dropByteBuf;
-  if (!success) {
-    wgpu_server_adapter_free(aAdapterId, ToFFI(&dropByteBuf));
-  }
-  if (dropByteBuf.mData && !SendDropAction(std::move(dropByteBuf))) {
-    NS_ERROR("Unable to free free unused adapter IDs");
-  }
   return IPC_OK();
 }
 
@@ -1635,13 +1627,6 @@ ipc::IPCResult WebGPUParent::RecvSwapChainDrop(
 
   mPresentationDataMap.erase(lookup);
 
-  ipc::ByteBuf dropByteBuf;
-  for (const auto bid : data->mUnassignedBufferIds) {
-    wgpu_server_buffer_free(bid, ToFFI(&dropByteBuf));
-  }
-  if (dropByteBuf.mData && !SendDropAction(std::move(dropByteBuf))) {
-    NS_WARNING("Unable to free an ID for non-assigned buffer");
-  }
   for (const auto bid : data->mAvailableBufferIds) {
     ffi::wgpu_server_buffer_drop(mContext.get(), bid);
   }
@@ -1719,23 +1704,6 @@ ipc::IPCResult WebGPUParent::RecvComputePass(RawId aEncoderId, RawId aDeviceId,
   return IPC_OK();
 }
 
-ipc::IPCResult WebGPUParent::RecvBumpImplicitBindGroupLayout(RawId aPipelineId,
-                                                             bool aIsCompute,
-                                                             uint32_t aIndex,
-                                                             RawId aAssignId) {
-  ErrorBuffer error;
-  if (aIsCompute) {
-    ffi::wgpu_server_compute_pipeline_get_bind_group_layout(
-        mContext.get(), aPipelineId, aIndex, aAssignId, error.ToFFI());
-  } else {
-    ffi::wgpu_server_render_pipeline_get_bind_group_layout(
-        mContext.get(), aPipelineId, aIndex, aAssignId, error.ToFFI());
-  }
-
-  ForwardError(0, error);
-  return IPC_OK();
-}
-
 ipc::IPCResult WebGPUParent::RecvDevicePushErrorScope(
     RawId aDeviceId, const dom::GPUErrorFilter aFilter) {
   const auto& itr = mErrorScopeStackByDevice.find(aDeviceId);
@@ -1799,13 +1767,6 @@ ipc::IPCResult WebGPUParent::RecvDevicePopErrorScope(
     return ret;
   }();
   aResolver(popResult);
-  return IPC_OK();
-}
-
-ipc::IPCResult WebGPUParent::RecvGenerateError(const Maybe<RawId> aDeviceId,
-                                               const dom::GPUErrorFilter aType,
-                                               const nsCString& aMessage) {
-  ReportError(aDeviceId, aType, aMessage);
   return IPC_OK();
 }
 
